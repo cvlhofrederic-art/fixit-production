@@ -17,15 +17,20 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { EXTRANET_MESSAGES } from './i18n/ModExtranet.messages'
 
 /** Extranet Condóminos — port byte-exact du ModExtranet du bundle V5.7 (stateful : Modal + copy URL). */
 
 type ExtForm = { nome: string; email: string; telefone: string; fracao: string; edificio: string; notas: string }
 type Cond = ExtForm & { id: number; acessoAtivo: boolean; saldo: number }
 
-const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
+const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
 
 export default function ModExtranet() {
+  const t = useMessages(EXTRANET_MESSAGES)
+  const locale = useV54Locale()
+  const f = t.formulaire
   const blank: ExtForm = { nome: '', email: '', telefone: '', fracao: '', edificio: '', notas: '' }
   const [items, setItems] = useState<Cond[]>([])
   const [pedidos] = useState<{ id: number }[]>([])
@@ -46,8 +51,8 @@ export default function ModExtranet() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Partial<Record<keyof ExtForm, string>> = {}
-    if (!form.nome.trim()) errs.nome = 'O nome é obrigatório.'
-    if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) errs.email = 'Email inválido.'
+    if (!form.nome.trim()) errs.nome = t.erreurs.nom
+    if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) errs.email = t.erreurs.email
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       // Écriture réelle : POST /api/syndic/coproprios (mapping vérifié sur le contrat), puis refresh.
@@ -59,14 +64,14 @@ export default function ModExtranet() {
         body: JSON.stringify({ coproprio: { nomProprietaire: form.nome, emailProprietaire: form.email, telephoneProprietaire: form.telefone, numeroPorte: form.fracao, immeuble: form.edificio, notes: form.notas, accesPortail: true } }),
       })
         .then((res) => { if (!res.ok) throw new Error('POST failed') })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Condómino adicionado', desc: form.nome }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.ajoute, desc: form.nome }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurAjout, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setItems(prev => [...prev, { ...form, id: Date.now(), acessoAtivo: true, saldo: 0 }])
     setOpen(false)
-    push({ kind: 'success', title: 'Condómino adicionado', desc: form.nome })
+    push({ kind: 'success', title: t.toasts.ajoute, desc: form.nome })
   }
 
   const acessosAtivos = displayItems.filter(i => i.acessoAtivo).length
@@ -74,85 +79,85 @@ export default function ModExtranet() {
   const emAtraso = displayItems.filter(i => (i.saldo || 0) < 0).length
   const copyPortalUrl = () => {
     if (navigator.clipboard) navigator.clipboard.writeText('https://vitfix.io/copropriétaire/portail')
-    push({ kind: 'info', title: 'Link copiado', desc: 'URL do portal copiado para o clipboard' })
+    push({ kind: 'info', title: t.toasts.lienCopie, desc: t.toasts.urlCopiee })
   }
 
   return (
     <>
-      <PageHead title="Extranet Condóminos" lede="Registo · Acesso ao portal · Pedidos de intervenção"
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />+ Condómino</Button>} />
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.ajouter}</Button>} />
       <Tabs defaultActive="cd" tabs={[
-        { id: 'cd', icon: 'users', label: `Condóminos (${displayItems.length})` },
-        { id: 'pi', icon: 'bell', label: `Pedidos de intervenção (${pedidos.length})` },
+        { id: 'cd', icon: 'users', label: t.onglets.coproprietaires(displayItems.length) },
+        { id: 'pi', icon: 'bell', label: t.onglets.demandes(pedidos.length) },
       ]} />
       <KPIGrid items={[
-        { icon: 'users', num: displayItems.length, lbl: 'Condóminos', accent: displayItems.length ? 'sage' : undefined },
-        { icon: 'check', num: acessosAtivos, lbl: 'Acessos ativos', accent: acessosAtivos ? 'sage' : undefined },
-        { icon: 'coin', num: fmtEUR(saldoGlobal), lbl: 'Saldo global' },
-        { icon: 'alert', num: emAtraso, lbl: 'Em atraso', accent: emAtraso ? 'rust' : undefined },
+        { icon: 'users', num: displayItems.length, lbl: t.kpi.coproprietaires, accent: displayItems.length ? 'sage' : undefined },
+        { icon: 'check', num: acessosAtivos, lbl: t.kpi.acces, accent: acessosAtivos ? 'sage' : undefined },
+        { icon: 'coin', num: fmtEUR(saldoGlobal, locale), lbl: t.kpi.solde },
+        { icon: 'alert', num: emAtraso, lbl: t.kpi.retard, accent: emAtraso ? 'rust' : undefined },
       ]} />
       <Panel>
         {displayItems.length === 0 ? (
-          <Empty icon="users" title="Registo vazio" desc="Adicione os seus condóminos para lhes dar acesso ao portal"
-            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />+ Primeiro condómino</Button>} />
+          <Empty icon="users" title={t.vide.titre} desc={t.vide.desc}
+            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />{t.vide.action}</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Nome</th><th>Email</th><th>Telefone</th><th>Fração</th><th>Saldo</th><th>Acesso</th></tr></thead>
+              <thead><tr><th>{t.colonnes.nom}</th><th>{t.colonnes.email}</th><th>{t.colonnes.telephone}</th><th>{t.colonnes.lot}</th><th>{t.colonnes.solde}</th><th>{t.colonnes.acces}</th></tr></thead>
               <tbody>{displayItems.map(it => (
                 <tr key={it.id}>
                   <td>{it.nome}</td>
                   <td>{it.email || '—'}</td>
                   <td>{it.telefone || '—'}</td>
                   <td>{it.fracao || '—'}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.saldo || 0)}</td>
-                  <td><Pill kind={it.acessoAtivo ? 'sage' : 'rust'}>{it.acessoAtivo ? 'Ativo' : 'Inativo'}</Pill></td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.saldo || 0, locale)}</td>
+                  <td><Pill kind={it.acessoAtivo ? 'sage' : 'rust'}>{it.acessoAtivo ? t.actif : t.inactif}</Pill></td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
         )}
       </Panel>
-      <Panel title="Portal Condóminos" icon="map">
+      <Panel title={t.portail.titre} icon="map">
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <p style={{ flex: 1, fontSize: 13, color: 'var(--v54-navy-500)', margin: 0 }}>Cada condómino pode aceder à sua área pessoal para consultar as suas quotas, atas de AG e documentos.</p>
+          <p style={{ flex: 1, fontSize: 13, color: 'var(--v54-navy-500)', margin: 0 }}>{t.portail.texte}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input type="text" readOnly aria-label="URL do portal" value="https://vitfix.io/coproprietaire/portail" style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, background: '#fff', fontFamily: 'ui-monospace,monospace', fontSize: 12 }} />
-          <Button onClick={copyPortalUrl}><Icon name="doc" />Copiar</Button>
+          <input type="text" readOnly aria-label={t.portail.urlAria} value="https://vitfix.io/coproprietaire/portail" style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, background: '#fff', fontFamily: 'ui-monospace,monospace', fontSize: 12 }} />
+          <Button onClick={copyPortalUrl}><Icon name="doc" />{t.portail.copier}</Button>
         </div>
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="ex-modal-title" size="md">
-        <ModalHead icon="users" id="ex-modal-title" title="Adicionar condómino" onClose={() => setOpen(false)} />
+        <ModalHead icon="users" id="ex-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Nome" required full name="ex-nome" error={errors.nome}>
-              <input type="text" placeholder="Nome completo" value={form.nome} onChange={e => upd('nome', e.target.value)} />
+            <Field label={f.nom} required full name="ex-nome" error={errors.nome}>
+              <input type="text" placeholder={f.nomPlaceholder} value={form.nome} onChange={e => upd('nome', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Email" name="ex-mail" error={errors.email}>
-                <input type="email" placeholder="condomino@exemplo.pt" value={form.email} onChange={e => upd('email', e.target.value)} />
+              <Field label={f.email} name="ex-mail" error={errors.email}>
+                <input type="email" placeholder={f.emailPlaceholder} value={form.email} onChange={e => upd('email', e.target.value)} />
               </Field>
-              <Field label="Telefone" name="ex-tel">
-                <input type="tel" placeholder="+351 …" value={form.telefone} onChange={e => upd('telefone', e.target.value)} />
+              <Field label={f.telephone} name="ex-tel">
+                <input type="tel" placeholder={f.telephonePlaceholder} value={form.telefone} onChange={e => upd('telefone', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Fração" name="ex-frac">
-                <input type="text" placeholder="Apt 12" value={form.fracao} onChange={e => upd('fracao', e.target.value)} />
+              <Field label={f.lot} name="ex-frac">
+                <input type="text" placeholder={f.lotPlaceholder} value={form.fracao} onChange={e => upd('fracao', e.target.value)} />
               </Field>
-              <Field label="Edifício" name="ex-edif">
-                <input type="text" placeholder="Residência…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+              <Field label={f.immeuble} name="ex-edif">
+                <input type="text" placeholder={f.immeublePlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Notas" full name="ex-notas">
+            <Field label={f.notes} full name="ex-notas">
               <textarea rows={3} value={form.notas} onChange={e => upd('notas', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.ajouter}</button>
           </ModalFoot>
         </form>
       </Modal>

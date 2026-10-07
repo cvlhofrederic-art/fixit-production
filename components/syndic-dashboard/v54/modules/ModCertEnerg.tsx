@@ -18,6 +18,8 @@ import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { CERT_ENERG_MESSAGES } from './i18n/ModCertEnerg.messages'
 
 /** Certificação Energética — port byte-exact V5.7 + Phase 3 : certificats SCE réels.
  * Syndic connecté → vrais certificats du cabinet (data.certificados) + création POST ;
@@ -26,9 +28,11 @@ import { useSyndicData } from '@/lib/syndic/v54/data-context'
 type CertForm = { numero: string; edificio: string; perito: string; classe: string; dataEmissao: string; dataValidade: string; notas: string }
 
 const validityIso = (d: string) => { const dt = new Date(d); dt.setFullYear(dt.getFullYear() + 10); return dt.toISOString().slice(0, 10) }
-const classePill = (c: string): PillKind => (['A+', 'A', 'B', 'B-'].includes(c) ? 'sage' : ['E', 'F'].includes(c) ? 'rust' : 'amber')
+const classePill = (c: string, performantes: string[], energivores: string[]): PillKind => (performantes.includes(c) ? 'sage' : energivores.includes(c) ? 'rust' : 'amber')
 
 export default function ModCertEnerg() {
+  const t = useMessages(CERT_ENERG_MESSAGES)
+  const f = t.formulaire
   // Phase 3 : vrais certificats SCE du cabinet si syndic connecté, sinon preview vide.
   const data = useSyndicData()
   const real = data.authenticated
@@ -53,9 +57,9 @@ export default function ModCertEnerg() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Partial<Record<keyof CertForm, string>> = {}
-    if (!form.numero.trim()) errs.numero = 'Indique o nº do certificado.'
-    if (!form.edificio.trim()) errs.edificio = 'O edifício é obrigatório.'
-    if (!form.dataEmissao) errs.dataEmissao = 'A data de emissão é obrigatória.'
+    if (!form.numero.trim()) errs.numero = t.erreurs.numero
+    if (!form.edificio.trim()) errs.edificio = t.erreurs.immeuble
+    if (!form.dataEmissao) errs.dataEmissao = t.erreurs.emission
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       setBusy(true)
@@ -65,47 +69,47 @@ export default function ModCertEnerg() {
         body: JSON.stringify({ numero: form.numero, edificio: form.edificio, perito: form.perito, classe: form.classe, dataEmissao: form.dataEmissao, dataValidade: form.dataValidade, notas: form.notas }),
       })
         .then(r => { if (!r.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Certificado registado', desc: `${form.numero} · classe ${form.classe}` }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.enregistre, desc: t.toasts.detail(form.numero, form.classe) }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreur, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Certificado registado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.enregistreDemo, desc: t.toasts.connexionRequise })
   }
 
-  const efficient = all.filter(i => ['A+', 'A', 'B', 'B-'].includes(i.classe)).length
-  const inefficient = all.filter(i => ['E', 'F'].includes(i.classe)).length
+  const efficient = all.filter(i => t.classesPerformantes.includes(i.classe)).length
+  const inefficient = all.filter(i => t.classesEnergivores.includes(i.classe)).length
   const expired = all.filter(i => new Date(i.dataValidade) < new Date()).length
   const renovate = all.filter(i => { const v = new Date(i.dataValidade).getTime(); const diff = (v - Date.now()) / 86400000; return diff > 0 && diff < 365 }).length
 
   return (
     <>
-      <PageHead title="Certificação Energética" lede="SCE — DL 101-D/2020 · EPBD 2024 · Classes A+ a F"
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />+ Adicionar certificado</Button>} />
-      <Alert kind="sage" icon="check" title="Sistema de Certificação Energética (SCE) — DL 101-D/2020">
-        O certificado energético é obrigatório para todos os edifícios. Validade de 10 anos. Diretiva EPBD 2024: todos os edifícios devem atingir classe E até 2030 e classe D até 2033. Frações classe F ficam impedidas de arrendamento (MEPS).
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.ajouter}</Button>} />
+      <Alert kind="sage" icon="check" title={t.alerte.titre}>
+        {t.alerte.texte}
       </Alert>
       <div className={kpiCss.kpiGrid} style={{ gridTemplateColumns: 'repeat(5,1fr)' }}>
-        <KPI num={all.length} lbl="Certificados" />
-        <KPI num={efficient} lbl="Eficientes (A+ a B-)" accent={efficient ? 'sage' : undefined} />
-        <KPI num={inefficient} lbl="Ineficientes (E & F)" accent={inefficient ? 'rust' : undefined} />
-        <KPI num={expired} lbl="Expirados" accent={expired ? 'amber' : undefined} />
-        <KPI num={renovate} lbl="A renovar <1 ano" accent={renovate ? 'gold' : undefined} />
+        <KPI num={all.length} lbl={t.kpi.certificats} />
+        <KPI num={efficient} lbl={t.kpi.efficaces} accent={efficient ? 'sage' : undefined} />
+        <KPI num={inefficient} lbl={t.kpi.inefficaces} accent={inefficient ? 'rust' : undefined} />
+        <KPI num={expired} lbl={t.kpi.expires} accent={expired ? 'amber' : undefined} />
+        <KPI num={renovate} lbl={t.kpi.aRenouveler} accent={renovate ? 'gold' : undefined} />
       </div>
       <Panel>
         {all.length === 0 ? (
-          <Empty kind="gold" illustration="documentos" title="Nenhum certificado registado" desc="Comece por registar o certificado energético dos seus edifícios."
-            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />+ Adicionar certificado</Button>} />
+          <Empty kind="gold" illustration="documentos" title={t.vide.titre} desc={t.vide.desc}
+            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />{t.ajouter}</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Nº</th><th>Edifício</th><th>Classe</th><th>Emissão</th><th>Validade</th><th>Perito</th></tr></thead>
+              <thead><tr><th>{t.colonnes.numero}</th><th>{t.colonnes.immeuble}</th><th>{t.colonnes.classe}</th><th>{t.colonnes.emission}</th><th>{t.colonnes.validite}</th><th>{t.colonnes.expert}</th></tr></thead>
               <tbody>{all.map(it => (
                 <tr key={it.id}>
                   <td>{it.numero}</td>
                   <td>{it.edificio}</td>
-                  <td><Pill kind={classePill(it.classe)}>{it.classe}</Pill></td>
+                  <td><Pill kind={classePill(it.classe, t.classesPerformantes, t.classesEnergivores)}>{it.classe}</Pill></td>
                   <td>{it.dataEmissao}</td>
                   <td>{it.dataValidade}</td>
                   <td>{it.perito || '—'}</td>
@@ -117,40 +121,40 @@ export default function ModCertEnerg() {
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="ce-modal-title" size="md">
-        <ModalHead icon="bolt" id="ce-modal-title" title="Adicionar certificado energético" onClose={() => setOpen(false)} />
+        <ModalHead icon="bolt" id="ce-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
             <FormRow>
-              <Field label="Nº certificado" required name="ce-num" error={errors.numero}>
-                <input type="text" placeholder="SCE-2026-…" value={form.numero} onChange={e => upd('numero', e.target.value)} />
+              <Field label={f.numero} required name="ce-num" error={errors.numero}>
+                <input type="text" placeholder={f.numeroPlaceholder} value={form.numero} onChange={e => upd('numero', e.target.value)} />
               </Field>
-              <Field label="Classe" name="ce-classe">
+              <Field label={f.classe} name="ce-classe">
                 <select value={form.classe} onChange={e => upd('classe', e.target.value)}>
-                  {['A+', 'A', 'B', 'B-', 'C', 'D', 'E', 'F'].map(c => <option key={c} value={c}>{c}</option>)}
+                  {t.classes.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </Field>
             </FormRow>
-            <Field label="Edifício" required full name="ce-edif" error={errors.edificio}>
-              <input type="text" placeholder="Residência Os Pinheiros, 12 rua…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+            <Field label={f.immeuble} required full name="ce-edif" error={errors.edificio}>
+              <input type="text" placeholder={f.immeublePlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Data de emissão" required name="ce-emit" error={errors.dataEmissao}>
+              <Field label={f.emission} required name="ce-emit" error={errors.dataEmissao}>
                 <input type="date" value={form.dataEmissao} onChange={e => upd('dataEmissao', e.target.value)} />
               </Field>
-              <Field label="Data de validade" hint="Calculada automaticamente (+10 anos)" name="ce-valid">
+              <Field label={f.validite} hint={f.validiteAide} name="ce-valid">
                 <input type="date" value={form.dataValidade} onChange={e => upd('dataValidade', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Perito qualificado" full name="ce-perito">
-              <input type="text" placeholder="Nome do perito SCE" value={form.perito} onChange={e => upd('perito', e.target.value)} />
+            <Field label={f.expert} full name="ce-perito">
+              <input type="text" placeholder={f.expertPlaceholder} value={form.perito} onChange={e => upd('perito', e.target.value)} />
             </Field>
-            <Field label="Notas" full name="ce-notas">
+            <Field label={f.notes} full name="ce-notas">
               <textarea rows={3} value={form.notas} onChange={e => upd('notas', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.enregistrer}</button>
           </ModalFoot>
         </form>
       </Modal>
