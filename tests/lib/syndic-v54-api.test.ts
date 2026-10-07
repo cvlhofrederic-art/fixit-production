@@ -51,3 +51,47 @@ describe('syndic v54 — api fetchers (Phase 2)', () => {
     expect(await askAgent('alfredo', 'oi', 'tok')).toBe('Email tratado')
   })
 })
+
+/**
+ * Langue transmise aux agents : les routes prennent le français quand `locale`
+ * manque, donc la version PT doit envoyer 'pt' (avant correctif : corps sans
+ * langue → réponses en français sur /pt/syndic/v54).
+ */
+describe('syndic v54 — askAgent transmet la langue du dashboard', () => {
+  const AGENTS = [
+    ['fixy', '/api/syndic/fixy-syndic'],
+    ['max', '/api/syndic/max-ai'],
+    ['lea', '/api/syndic/lea-comptable'],
+    ['alfredo', '/api/syndic/alfredo-chat'],
+    ['tempo', '/api/syndic/tempo-ai'],
+  ] as const
+
+  const corpsEnvoye = (spy: { mock: { calls: unknown[][] } }) =>
+    JSON.parse(String((spy.mock.calls[0][1] as RequestInit).body)) as Record<string, unknown>
+
+  it.each(AGENTS)('%s : version PT (pt-PT) → locale « pt »', async (route, endpoint) => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ response: 'ok', content: 'ok' }), { status: 200 }))
+    await askAgent(route, 'Olá', 'tok', 'pt-PT')
+    expect(spy.mock.calls[0][0]).toBe(endpoint)
+    expect(corpsEnvoye(spy)).toEqual({ message: 'Olá', locale: 'pt' })
+  })
+
+  it.each(AGENTS)('%s : version FR (fr-FR) → locale « fr »', async (route, endpoint) => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ response: 'ok', content: 'ok' }), { status: 200 }))
+    await askAgent(route, 'Bonjour', 'tok', 'fr-FR')
+    expect(spy.mock.calls[0][0]).toBe(endpoint)
+    expect(corpsEnvoye(spy)).toEqual({ message: 'Bonjour', locale: 'fr' })
+  })
+
+  it('sans langue fournie → portugais, langue par défaut du dashboard', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ response: 'ok' }), { status: 200 }))
+    await askAgent('fixy', 'oi', 'tok')
+    expect(corpsEnvoye(spy)).toEqual({ message: 'oi', locale: 'pt' })
+  })
+
+  it('réponse vide → message de repli dans la langue du dashboard', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({}), { status: 200 }))
+    expect(await askAgent('max', 'oi', 'tok', 'pt-PT')).toBe('Sem resposta.')
+    expect(await askAgent('max', 'salut', 'tok', 'fr-FR')).toBe('Pas de réponse.')
+  })
+})

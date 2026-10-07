@@ -45,11 +45,14 @@ async function execTempoTool(
   args: Record<string, any>,
   userId: string,
   cabinetId: string,
+  routeLocale: 'fr' | 'pt' = 'fr',
 ): Promise<unknown> {
+  // Défauts quand le LLM ne les fournit pas : fuseau et langue du marché de la conversation.
+  const fuseauParDefaut = routeLocale === 'pt' ? 'Europe/Lisbon' : 'Europe/Paris'
   switch (name) {
     case 'create_automation': {
       const cronEval = evaluateCron(args.cron_expr as string, {
-        timezone: (args.timezone as string) ?? 'Europe/Paris',
+        timezone: (args.timezone as string) ?? fuseauParDefaut,
       })
       if (!cronEval.valid) return { error: 'invalid_cron', detail: cronEval.error }
       const { data, error } = await supabaseAdmin
@@ -57,13 +60,13 @@ async function execTempoTool(
         .insert({
           cabinet_id: cabinetId,
           created_by: userId,
-          name: (args.name as string) ?? 'Automatisation sans nom',
+          name: (args.name as string) ?? (routeLocale === 'pt' ? 'Automação sem nome' : 'Automatisation sans nom'),
           description: (args.description as string) ?? null,
           task_type: args.task_type,
           cron_expr: args.cron_expr,
-          timezone: (args.timezone as string) ?? 'Europe/Paris',
+          timezone: (args.timezone as string) ?? fuseauParDefaut,
           params: (args.params as object) ?? {},
-          locale: (args.locale as string) ?? 'fr',
+          locale: (args.locale as string) ?? routeLocale,
           next_run_at: cronEval.next.toISOString(),
         })
         .select()
@@ -230,7 +233,7 @@ export async function POST(req: NextRequest) {
 
     const toolCall = extractToolCall(rawResponse)
     if (toolCall) {
-      const toolResult = await execTempoTool(toolCall.name, toolCall.args, user.id, cabinetId)
+      const toolResult = await execTempoTool(toolCall.name, toolCall.args, user.id, cabinetId, locale)
       const followUpMessages = [
         ...messages,
         { role: 'assistant' as const, content: rawResponse },
