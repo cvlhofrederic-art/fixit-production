@@ -32,7 +32,7 @@ Structure obligatoire (markdown, sections numérotées) :
 5. Consignes et plans à afficher dans les halls d'entrée, près des escaliers et des ascenseurs (article 100 de l'arrêté)
 6. Équipements de sécurité des parties communes et leur entretien (désenfumage, colonnes sèches, éclairage de sécurité, portes coupe-feu, extincteurs le cas échéant)
 7. Détecteurs de fumée dans chaque logement (loi n° 2010-238 du 9 mars 2010) et information des occupants
-8. Suivi des vérifications et des contrats d'entretien à conserver
+8. Vérifications au moins annuelles (détection, désenfumage, ventilation, colonnes sèches, portes coupe-feu), contrats d'entretien et registre de sécurité (article 101 de l'arrêté)
 Rédige en français, sur un ton professionnel, en vouvoyant le lecteur. Concis mais complet. Ne cite aucun numéro d'article dont tu n'es pas certain.`
 
 export async function POST(req: NextRequest) {
