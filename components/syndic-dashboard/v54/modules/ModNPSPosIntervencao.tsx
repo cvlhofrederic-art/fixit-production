@@ -18,7 +18,9 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Nps } from '@/lib/syndic/v54/api'
+import { useMessages } from '@/lib/syndic/v54/i18n'
 import { useSyndicCreate } from './use-syndic-create'
+import { NPS_MESSAGES } from './i18n/ModNPSPosIntervencao.messages'
 
 /** NPS Pós-Intervenção — port V5.7 + lot 7 fonctionnel.
  * Syndic connecté → réponses NPS réelles (data.nps) + saisie POST ; anonyme → Empty byte-exact.
@@ -47,6 +49,7 @@ function aggregateNps(rows: Nps[], key: (n: Nps) => string): AggRow[] {
 }
 
 export default function ModNPSPosIntervencao() {
+  const t = useMessages(NPS_MESSAGES)
   const data = useSyndicData()
   const real = data.authenticated
   const all: Nps[] = real ? (data.nps ?? []) : []
@@ -63,10 +66,10 @@ export default function ModNPSPosIntervencao() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const nota = Number(form.nota)
-    if (form.nota === '' || Number.isNaN(nota) || nota < 0 || nota > 10) { setErrors({ nota: 'Nota entre 0 e 10.' }); return }
+    if (form.nota === '' || Number.isNaN(nota) || nota < 0 || nota > 10) { setErrors({ nota: t.erreurNote }); return }
     create(
       { prestador: form.prestador, condomino: form.condomino, intervencao: form.intervencao, tipo: form.tipo, nota, comentario: form.comentario },
-      { okTitle: 'Resposta NPS registada', desc: `Nota ${nota}/10`, onDone: () => setOpen(false) },
+      { okTitle: t.toastEnregistree, desc: t.toastNote(nota), onDone: () => setOpen(false) },
     )
   }
 
@@ -76,38 +79,40 @@ export default function ModNPSPosIntervencao() {
   const npsMedio = all.length ? Math.round(((promotores - detratores) / all.length) * 100) : 0
   const prestadores = new Set(all.map(n => n.prestador).filter(Boolean)).size
   const agg = tab === 'prest' ? aggregateNps(all, n => n.prestador) : aggregateNps(all, n => n.tipo || n.intervencao)
-  const aggLabel = tab === 'prest' ? 'Prestador' : 'Tipo de intervenção'
+  const c = t.colonnes
+  const f = t.formulaire
+  const aggLabel = tab === 'prest' ? c.prestataire : c.typeIntervention
 
   return (
     <>
-      <PageHead eyebrow="OPERACIONAL · NPS PÓS-INTERVENÇÃO" title="NPS Pós-Intervenção"
-        lede="Auto-envio 48h após fecho ordem serviço · NPS + comentário · Rating Marketplace · Alfredo agrega insights"
-        actions={<><Button onClick={openNew}><Icon name="plus" />Registar resposta</Button><Button variant="gold" onClick={() => setTab('prest')}><Icon name="chart" />Ver dashboard prestadores</Button></>} />
-      <Alert kind="sage" icon="check" title="Loop fechado qualidade prestadores">
-        Cada intervenção fechada dispara um inquérito 48h depois. As respostas alimentam o rating no Marketplace e o Alfredo deteta prestadores em descida de satisfação antes que escalone.
+      <PageHead eyebrow={t.surtitre} title={t.titre}
+        lede={t.chapeau}
+        actions={<><Button onClick={openNew}><Icon name="plus" />{t.enregistrerReponse}</Button><Button variant="gold" onClick={() => setTab('prest')}><Icon name="chart" />{t.voirTableauPrestataires}</Button></>} />
+      <Alert kind="sage" icon="check" title={t.alerte.titre}>
+        {t.alerte.texte}
       </Alert>
       <KPIGrid items={[
-        { icon: 'poll', num: all.length, lbl: 'Respostas recebidas' },
-        { icon: 'sparkle', num: npsMedio, lbl: 'NPS médio', accent: npsMedio >= 0 ? 'sage' : 'rust' },
-        { icon: 'check', num: promotores, lbl: 'Promotores (9-10)', accent: promotores ? 'sage' : undefined },
-        { icon: 'ban', num: detratores, lbl: 'Detratores (0-6)', accent: detratores ? 'rust' : undefined },
-        { icon: 'mail', num: passivos, lbl: 'Passivos (7-8)', accent: 'gold' },
-        { icon: 'wrench', num: prestadores, lbl: 'Prestadores avaliados' },
+        { icon: 'poll', num: all.length, lbl: t.kpi.reponses },
+        { icon: 'sparkle', num: npsMedio, lbl: t.kpi.npsMoyen, accent: npsMedio >= 0 ? 'sage' : 'rust' },
+        { icon: 'check', num: promotores, lbl: t.kpi.promoteurs, accent: promotores ? 'sage' : undefined },
+        { icon: 'ban', num: detratores, lbl: t.kpi.detracteurs, accent: detratores ? 'rust' : undefined },
+        { icon: 'mail', num: passivos, lbl: t.kpi.passifs, accent: 'gold' },
+        { icon: 'wrench', num: prestadores, lbl: t.kpi.prestataires },
       ]} />
       <Tabs active={tab} onChange={setTab} tabs={[
-        { id: 'resp', icon: 'poll', label: 'Respostas recentes' },
-        { id: 'prest', icon: 'wrench', label: 'Por prestador' },
-        { id: 'tipo', icon: 'tag', label: 'Por tipo intervenção' },
+        { id: 'resp', icon: 'poll', label: t.onglets.resp },
+        { id: 'prest', icon: 'wrench', label: t.onglets.prest },
+        { id: 'tipo', icon: 'tag', label: t.onglets.tipo },
       ]} />
       <Panel>
         {all.length === 0 ? (
-          <Empty illustration="mensagens" title="Nenhum inquérito enviado ainda"
-            desc="Quando uma ordem de serviço for marcada como Concluída, um inquérito (1 pergunta NPS + 1 comentário) é enviado automaticamente 48 horas depois ao condómino que abriu."
-            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />Registar primeira resposta</Button>} />
+          <Empty illustration="mensagens" title={t.vide.titre}
+            desc={t.vide.texte}
+            action={<Button variant="primary" onClick={openNew}><Icon name="plus" />{t.vide.action}</Button>} />
         ) : tab === 'resp' ? (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Prestador</th><th>Condómino</th><th>Intervenção</th><th>Nota</th><th>Comentário</th></tr></thead>
+              <thead><tr><th>{c.prestataire}</th><th>{c.coproprietaire}</th><th>{c.intervention}</th><th>{c.note}</th><th>{c.commentaire}</th></tr></thead>
               <tbody>{all.map(n => (
                 <tr key={n.id}><td><b>{n.prestador || '—'}</b></td><td>{n.condomino || '—'}</td><td>{n.intervencao || n.tipo || '—'}</td><td><Pill kind={notaKind(n.nota)} noDot>{n.nota}/10</Pill></td><td>{n.comentario || '—'}</td></tr>
               ))}</tbody>
@@ -116,9 +121,9 @@ export default function ModNPSPosIntervencao() {
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>{aggLabel}</th><th>Respostas</th><th>Nota média</th><th>NPS</th></tr></thead>
+              <thead><tr><th>{aggLabel}</th><th>{c.reponses}</th><th>{c.noteMoyenne}</th><th>NPS</th></tr></thead>
               <tbody>{agg.map(r => (
-                <tr key={r.label}><td><b>{r.label}</b></td><td className={m.numCell}>{r.n}</td><td className={m.numCell}>{r.media.toFixed(1)}</td><td><Pill kind={r.nps >= 0 ? 'sage' : 'rust'} noDot>{r.nps}</Pill></td></tr>
+                <tr key={r.label}><td><b>{r.label}</b></td><td className={m.numCell}>{r.n}</td><td className={m.numCell}>{t.moyenne(r.media)}</td><td><Pill kind={r.nps >= 0 ? 'sage' : 'rust'} noDot>{r.nps}</Pill></td></tr>
               ))}</tbody>
             </table>
           </div>
@@ -126,35 +131,35 @@ export default function ModNPSPosIntervencao() {
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="nps-modal-title" size="md">
-        <ModalHead icon="poll" id="nps-modal-title" title="Registar resposta NPS" onClose={() => setOpen(false)} />
+        <ModalHead icon="poll" id="nps-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
             <FormRow>
-              <Field label="Nota (0-10)" required name="nps-nota" error={errors.nota}>
-                <input type="number" min="0" max="10" inputMode="numeric" placeholder="0-10" value={form.nota} onChange={e => upd('nota', e.target.value)} />
+              <Field label={f.note} required name="nps-nota" error={errors.nota}>
+                <input type="number" min="0" max="10" inputMode="numeric" placeholder={f.notePlaceholder} value={form.nota} onChange={e => upd('nota', e.target.value)} />
               </Field>
-              <Field label="Prestador" name="nps-prest">
-                <input type="text" placeholder="Empresa / técnico" value={form.prestador} onChange={e => upd('prestador', e.target.value)} />
+              <Field label={f.prestataire} name="nps-prest">
+                <input type="text" placeholder={f.prestatairePlaceholder} value={form.prestador} onChange={e => upd('prestador', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Condómino" name="nps-cond">
-                <input type="text" placeholder="Nome · Fração" value={form.condomino} onChange={e => upd('condomino', e.target.value)} />
+              <Field label={f.coproprietaire} name="nps-cond">
+                <input type="text" placeholder={f.coproprietairePlaceholder} value={form.condomino} onChange={e => upd('condomino', e.target.value)} />
               </Field>
-              <Field label="Tipo de intervenção" name="nps-tipo">
-                <input type="text" placeholder="Canalização, elétrica…" value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
+              <Field label={f.typeIntervention} name="nps-tipo">
+                <input type="text" placeholder={f.typeInterventionPlaceholder} value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Intervenção" full name="nps-interv">
-              <input type="text" placeholder="Descrição da ordem de serviço" value={form.intervencao} onChange={e => upd('intervencao', e.target.value)} />
+            <Field label={f.intervention} full name="nps-interv">
+              <input type="text" placeholder={f.interventionPlaceholder} value={form.intervencao} onChange={e => upd('intervencao', e.target.value)} />
             </Field>
-            <Field label="Comentário" full name="nps-com">
+            <Field label={f.commentaire} full name="nps-com">
               <textarea rows={3} value={form.comentario} onChange={e => upd('comentario', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.enregistrer}</button>
           </ModalFoot>
         </form>
       </Modal>

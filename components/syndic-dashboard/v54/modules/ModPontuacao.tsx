@@ -14,6 +14,8 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
 import { healthScore, scoreGrade, gradeColor, scoreProgressKind } from '@/lib/syndic/v54/building-score'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PONTUACAO_MESSAGES } from './i18n/ModPontuacao.messages'
 
 /** Pontuação de Saúde dos Edifícios — port V5.7 + lot 6 fonctionnel.
  * Syndic connecté → score de saúde dérivé des édifices réels (data.immeubles, aucune
@@ -23,6 +25,7 @@ const numStyle = { fontFamily: 'var(--v54-font-serif)', fontSize: 24, color: 'va
 const CIRC = 213.6
 
 export default function ModPontuacao() {
+  const t = useMessages(PONTUACAO_MESSAGES)
   const data = useSyndicData()
   const real = data.authenticated
   const all: Immeuble[] = real ? (data.immeubles ?? []) : []
@@ -38,8 +41,8 @@ export default function ModPontuacao() {
 
   return (
     <>
-      <PageHead title="Pontuação de Saúde dos Edifícios" lede="Avaliação IA baseada em estado técnico, finanças, conformidade, satisfação e energia"
-        actions={<><Button variant="primary" onClick={() => push({ kind: 'info', title: 'Detalhes', desc: `${scored.length} edifício(s) avaliados` })}><Icon name="chart" />Detalhes</Button><Button onClick={() => push({ kind: 'info', title: 'Ranking', desc: scored.length ? `Melhor: ${melhor}` : 'Sem edifícios' })}><Icon name="grad" />Ranking</Button><Button variant="gold" onClick={() => push({ kind: 'success', title: 'Pontuações atualizadas', desc: `Média ${avg}/100` })}><Icon name="sparkle" />Atualizar</Button></>} />
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<><Button variant="primary" onClick={() => push({ kind: 'info', title: t.details, desc: t.toasts.details(scored.length) })}><Icon name="chart" />{t.details}</Button><Button onClick={() => push({ kind: 'info', title: t.classement, desc: scored.length ? t.toasts.meilleur(melhor) : t.toasts.aucunImmeuble })}><Icon name="grad" />{t.classement}</Button><Button variant="gold" onClick={() => push({ kind: 'success', title: t.toasts.misAJour, desc: t.toasts.moyenne(avg) })}><Icon name="sparkle" />{t.actualiser}</Button></>} />
       <div className={kpiCss.kpiGrid}>
         <div className={kpiCss.kpi} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ position: 'relative', width: 80, height: 80, flexShrink: 0 }}>
@@ -49,22 +52,22 @@ export default function ModPontuacao() {
             </svg>
             <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', fontFamily: 'var(--v54-font-serif)', fontSize: 30, color: `var(--v54-${gColor}-700)`, fontWeight: 600 }}>{grade}</div>
           </div>
-          <div><div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 28 }}>{avg}/100</div><div className={kpiCss.lbl}>Pontuação Média</div><div className={kpiCss.sub}>{all.length} edifício(s)</div></div>
+          <div><div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 28 }}>{avg}/100</div><div className={kpiCss.lbl}>{t.kpi.scoreMoyen}</div><div className={kpiCss.sub}>{all.length}{t.kpi.suffixeImmeubles}</div></div>
         </div>
-        <KPI icon="doc" num={melhor} numStyle={numStyle} lbl="Melhor Edifício" />
-        <KPI icon="alert" num={pior} numStyle={numStyle} lbl="Pior Edifício" />
-        <KPI icon="bell" num={alertas} lbl="Alertas Ativos" accent={alertas ? 'rust' : 'sage'} sub={alertas ? `${alertas} edifício(s) a rever` : 'Tudo em ordem!'} />
+        <KPI icon="doc" num={melhor} numStyle={numStyle} lbl={t.kpi.meilleur} />
+        <KPI icon="alert" num={pior} numStyle={numStyle} lbl={t.kpi.pire} />
+        <KPI icon="bell" num={alertas} lbl={t.kpi.alertes} accent={alertas ? 'rust' : 'sage'} sub={alertas ? t.kpi.aRevoir(alertas) : t.kpi.toutEnOrdre} />
       </div>
-      <Panel title="EDIFÍCIOS">
+      <Panel title={t.panneau}>
         {all.length === 0 ? (
           <div className={m.cardGrid}>
-            <Empty illustration="condominos" title="Nenhum edifício" />
-            <Empty illustration="dados" desc="Selecione um edifício para ver a análise completa" />
+            <Empty illustration="condominos" title={t.vide.titre} />
+            <Empty illustration="dados" desc={t.vide.texte} />
           </div>
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Edifício</th><th>Cidade</th><th>Frações</th><th>Pontuação</th><th>Nota</th></tr></thead>
+              <thead><tr><th>{t.colonnes.immeuble}</th><th>{t.colonnes.ville}</th><th>{t.colonnes.lots}</th><th>{t.colonnes.score}</th><th>{t.colonnes.note}</th></tr></thead>
               <tbody>{scored.map(({ im, score }) => (
                 <tr key={im.id}>
                   <td><b>{im.nom}</b></td>
