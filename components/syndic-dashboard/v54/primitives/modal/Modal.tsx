@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PRIMITIVES_MESSAGES } from '../primitives.messages'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import Icon from '../icon/Icon'
@@ -163,14 +165,15 @@ export interface ModalHeadProps {
   closeLabel?: string
 }
 
-export function ModalHead({ icon, title, id, onClose, closeLabel = 'Fechar' }: ModalHeadProps) {
+export function ModalHead({ icon, title, id, onClose, closeLabel }: ModalHeadProps) {
+  const t = useMessages(PRIMITIVES_MESSAGES)
   return (
     <header className={styles.head}>
       <h2 id={id} className={styles.title}>
         {icon && <Icon name={icon} className={styles.titleIco} />}
         <span>{title}</span>
       </h2>
-      <button type="button" className={styles.close} onClick={onClose} aria-label={closeLabel}>
+      <button type="button" className={styles.close} onClick={onClose} aria-label={closeLabel ?? t.fermer}>
         <svg
           viewBox="0 0 24 24"
           fill="none"

@@ -27,3 +27,16 @@ export const SYNDIC_V54_LIVE = true
  * Indépendant du flag PT : chaque marché se déploie / rollback séparément.
  */
 export const SYNDIC_V54_FR_LIVE = true
+
+/**
+ * Bascule de la version française du dashboard syndic classique (/fr/syndic/v54).
+ *
+ * Même route que le PT (app/syndic/v54) : la langue suit le préfixe d'URL relayé
+ * par le middleware (en-tête x-locale).
+ *   true  → /fr/syndic/v54 s'affiche en français (contenu adapté au droit français),
+ *           et /syndic/dashboard renvoie les syndics francophones vers /fr/syndic/v54.
+ *   false → /fr/syndic/v54 sert le dashboard portugais, comme avant la déclinaison
+ *           (rollback sans suppression de code).
+ * Sans effet sur /pt/syndic/v54, ni sur le syndic judiciaire (/syndic/v54-fr).
+ */
+export const SYNDIC_V54_CLASSIQUE_FR_LIVE = true

@@ -1,4 +1,5 @@
 import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
+import type { V54Locale } from '@/lib/syndic/v54/i18n/locale'
 
 /**
  * Fetchers typés du dashboard syndic v54 (Phase 2) — réutilisent les routes
@@ -461,19 +462,22 @@ const AGENT_ENDPOINTS: Record<string, string> = {
  * Envoie un message à un agent IA syndic et retourne sa réponse texte.
  * Réponse : clé `response` (fixy/max/lea/tempo) ou `content` (alfredo).
  * Ne modifie aucun prompt (conforme ai-agents.md) — pur câblage UI → endpoint.
+ * `locale` : en français, la langue est transmise à l'agent (prompt FR) ; sans
+ * elle, le corps de la requête reste celui d'origine (version PT inchangée).
  */
-export async function askAgent(route: string, message: string, token: string): Promise<string> {
+export async function askAgent(route: string, message: string, token: string, locale?: V54Locale): Promise<string> {
+  const francais = locale === 'fr-FR'
   const endpoint = AGENT_ENDPOINTS[route]
   if (!endpoint) throw new Error(`Agent inconnu: ${route}`)
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(francais ? { message, locale: 'fr' } : { message }),
   })
   if (!res.ok) throw new Error(`${endpoint} → HTTP ${res.status}`)
   const j = (await res.json()) as Record<string, unknown>
   const text = typeof j.response === 'string' ? j.response : typeof j.content === 'string' ? j.content : ''
-  return text || 'Sem resposta.'
+  return text || (francais ? 'Pas de réponse.' : 'Sem resposta.')
 }
 
 // ── Lot features net-new : Reservas, Infrações, Enquetes, Checklists ──
