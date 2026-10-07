@@ -16,52 +16,25 @@ import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Evento } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PLANEAMENTO_MESSAGES, type EvenementPlanning } from './i18n/ModPlaneamento.messages'
 
 /** Planeamento — port byte-exact du ModPlaneamento du bundle V5.7 (agenda semaine, stateful).
  * CSS bespoke dans ./planeamento.css (scopé #syndic-dashboard-v54), importé dans le layout dev.
  * Icônes chevron-up/down absentes du bundle (fallback doc) → on utilise chevronDown (affordance correcte). */
 
-type Member = { id: string; name: string; role: string; accent: string }
-type Day = { key: string; short: string; long: string; date: string }
-type WeekEvent = { id: string | number; day: string; start: string; end: string; label: string; kind: string; owner: string }
+type WeekEvent = EvenementPlanning
 type Settings = { workingDays: string[]; startHour: number; endHour: number; slotMinutes: number }
 
-const TEAM: Member[] = [
-  { id: 'HC', name: 'Helena Carvalho', role: 'Administrador', accent: 'gold' },
-  { id: 'BT', name: 'Bruno Tavares', role: 'Gestor Técnico', accent: 'sage' },
-  { id: 'DP', name: 'Diogo Pereira', role: 'Técnico', accent: 'sage' },
-  { id: 'TM', name: 'Tiago Mendes', role: 'Técnico', accent: 'sage' },
-  { id: 'MS', name: 'Margarida Sousa', role: 'Secretária', accent: 'sage' },
-  { id: 'RA', name: 'Ricardo Almeida', role: 'Contabilista', accent: 'sage' },
-  { id: 'IM', name: 'Inês Monteiro', role: 'Jurista', accent: 'amber' },
-]
-const ALL_DAYS: Day[] = [
-  { key: 'mon', short: 'Seg', long: 'Segunda', date: '19' },
-  { key: 'tue', short: 'Ter', long: 'Terça', date: '20' },
-  { key: 'wed', short: 'Qua', long: 'Quarta', date: '21' },
-  { key: 'thu', short: 'Qui', long: 'Quinta', date: '22' },
-  { key: 'fri', short: 'Sex', long: 'Sexta', date: '23' },
-  { key: 'sat', short: 'Sáb', long: 'Sábado', date: '24' },
-  { key: 'sun', short: 'Dom', long: 'Domingo', date: '25' },
-]
-const WEEK_EVENTS: WeekEvent[] = [
-  { id: 1, day: 'mon', start: '09:00', end: '10:00', label: 'Reunião AG Atlântico', kind: 'gold', owner: 'HC' },
-  { id: 2, day: 'mon', start: '14:00', end: '16:00', label: 'Visita Edifício Atlântico', kind: 'sage', owner: 'BT' },
-  { id: 3, day: 'tue', start: '10:00', end: '11:00', label: 'Piscina', kind: 'green', owner: 'MS' },
-  { id: 4, day: 'tue', start: '15:00', end: '16:00', label: 'Salão', kind: 'gold', owner: 'MS' },
-  { id: 5, day: 'wed', start: '09:00', end: '11:00', label: 'Inspeção elevador', kind: 'amber', owner: 'DP' },
-  { id: 6, day: 'wed', start: '15:00', end: '16:00', label: 'Reunião condóminos', kind: 'gold', owner: 'IM' },
-  { id: 7, day: 'thu', start: '08:00', end: '09:00', label: 'Visita Foz Douro', kind: 'sage', owner: 'TM' },
-  { id: 8, day: 'thu', start: '11:00', end: '12:00', label: 'Fatura Q1', kind: 'amber', owner: 'RA' },
-  { id: 9, day: 'fri', start: '10:00', end: '11:00', label: 'Ginásio', kind: 'green', owner: 'MS' },
-  { id: 10, day: 'fri', start: '16:00', end: '18:00', label: 'Reunião AG Boavista', kind: 'gold', owner: 'HC' },
-  { id: 11, day: 'sat', start: '10:00', end: '12:00', label: 'Evento condóminos', kind: 'rust', owner: 'MS' },
-]
 const DEFAULTS: Settings = { workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'], startHour: 8, endHour: 19, slotMinutes: 60 }
 const eventPill = (k: string): PillKind => (k === 'green' ? 'sage' : k === 'gold' ? 'gold' : k === 'amber' ? 'amber' : k === 'rust' ? 'rust' : 'sage')
 const parseMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
 export default function ModPlaneamento() {
+  const t = useMessages(PLANEAMENTO_MESSAGES)
+  const TEAM = t.team
+  const ALL_DAYS = t.jours
+  const WEEK_EVENTS = t.demo
   const [settings, setSettings] = useState<Settings>(DEFAULTS)
   const [draft, setDraft] = useState<Settings>(DEFAULTS)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -84,7 +57,7 @@ export default function ModPlaneamento() {
   const submitEvt = (e: FormEvent) => {
     e.preventDefault()
     if (!evtForm.titulo.trim()) return
-    createEvt({ ...evtForm }, { okTitle: 'Evento adicionado', desc: evtForm.titulo, onDone: () => setEvtOpen(false) })
+    createEvt({ ...evtForm }, { okTitle: t.toasts.evenementAjoute, desc: evtForm.titulo, onDone: () => setEvtOpen(false) })
   }
 
   const selectedMember = selectedMemberId ? TEAM.find(m => m.id === selectedMemberId) || null : null
@@ -103,16 +76,16 @@ export default function ModPlaneamento() {
     setDropdownOpen(false)
     dropdownBtnRef.current?.focus()
     const m = memberId ? TEAM.find(x => x.id === memberId) : null
-    push({ kind: 'info', title: m ? `Agenda de ${m.name}` : 'Toda a equipa', desc: m ? `A mostrar apenas eventos de ${m.role}` : 'A mostrar todos os eventos da equipa' })
+    push({ kind: 'info', title: m ? t.agendaDe(m.name) : t.toasts.toutEquipe, desc: m ? t.toasts.membreDesc(m.role) : t.toasts.toutEquipeDesc })
   }
   const openSettings = () => { setDraft(settings); setSettingsOpen(true) }
   const applySettings = (e: FormEvent) => {
     e.preventDefault()
-    if (draft.endHour <= draft.startHour) { push({ kind: 'warning', title: 'Horário inválido', desc: 'A hora de fim deve ser posterior à hora de início.' }); return }
-    if (draft.workingDays.length === 0) { push({ kind: 'warning', title: 'Sem dias úteis', desc: 'Selecione pelo menos um dia da semana.' }); return }
+    if (draft.endHour <= draft.startHour) { push({ kind: 'warning', title: t.toasts.horaireInvalide, desc: t.toasts.horaireInvalideDesc }); return }
+    if (draft.workingDays.length === 0) { push({ kind: 'warning', title: t.toasts.aucunJour, desc: t.toasts.aucunJourDesc }); return }
     setSettings(draft)
     setSettingsOpen(false)
-    push({ kind: 'success', title: 'Visualização atualizada', desc: `${draft.workingDays.length} dias · ${draft.startHour}h-${draft.endHour}h · slots de ${draft.slotMinutes >= 60 ? (draft.slotMinutes / 60) + 'h' : draft.slotMinutes + 'min'}` })
+    push({ kind: 'success', title: t.toasts.affichageMisAJour, desc: t.toasts.affichageMisAJourDesc(draft.workingDays.length, draft.startHour, draft.endHour, t.creneau(draft.slotMinutes)) })
   }
   const resetDefaults = () => { setDraft(DEFAULTS) }
   const toggleDay = (dayKey: string) => {
@@ -142,13 +115,15 @@ export default function ModPlaneamento() {
     return { gridColumn: colIdx + 2, gridRow: `${Math.floor(startSlot) + 2} / ${Math.ceil(endSlot) + 2}` } as const
   }
 
+  const fe = t.evenement
+  const r = t.reglages
   return (
     <>
       <PageHead
-        title={selectedMember ? `Agenda de ${selectedMember.name}` : 'Planeamento'}
+        title={selectedMember ? t.agendaDe(selectedMember.name) : t.titre}
         lede={selectedMember
-          ? `${selectedMember.role} · ${visibleDays.length} dias visíveis · ${slots.length} créneaux`
-          : `Vista semanal · ${visibleDays.length} dias visíveis · slots de ${settings.slotMinutes >= 60 ? (settings.slotMinutes / 60) + 'h' : settings.slotMinutes + 'min'}`}
+          ? t.chapeauMembre(selectedMember.role, visibleDays.length, slots.length)
+          : t.chapeau(visibleDays.length, t.creneau(settings.slotMinutes))}
         actions={
           <>
             <div className="team-dd-wrap" ref={dropdownRef}>
@@ -161,18 +136,18 @@ export default function ModPlaneamento() {
                 ) : (
                   <>
                     <Icon name="team" />
-                    <span className="team-dd-label">Toda a equipa</span>
+                    <span className="team-dd-label">{t.equipe.toute}</span>
                   </>
                 )}
                 <Icon name="chevronDown" />
               </button>
               {dropdownOpen && (
-                <div className="team-dd-menu" role="menu" aria-label="Selecionar membro da equipa">
+                <div className="team-dd-menu" role="menu" aria-label={t.equipe.menuAria}>
                   <button type="button" role="menuitem" className={clsx('team-dd-item', !selectedMemberId && 'active')} onClick={() => selectMember(null)}>
                     <span className="team-dd-item-icon"><Icon name="team" /></span>
                     <span className="team-dd-item-info">
-                      <span className="team-dd-item-name">Toda a equipa</span>
-                      <span className="team-dd-item-role">{TEAM.length} membros · vista global</span>
+                      <span className="team-dd-item-name">{t.equipe.toute}</span>
+                      <span className="team-dd-item-role">{TEAM.length}{t.equipe.resume(TEAM.length)}</span>
                     </span>
                     {!selectedMemberId && <Icon name="check" />}
                   </button>
@@ -190,26 +165,26 @@ export default function ModPlaneamento() {
                 </div>
               )}
             </div>
-            <Button onClick={openSettings}><Icon name="cog" />Visualização</Button>
-            <Button variant="ghost" onClick={() => push({ kind: 'info', title: 'Semana anterior' })}>←</Button>
-            <Button variant="ghost" onClick={() => push({ kind: 'info', title: 'Esta semana' })}>Hoje</Button>
-            <Button variant="ghost" onClick={() => push({ kind: 'info', title: 'Próxima semana' })}>→</Button>
-            <Button variant="gold" onClick={openEvt}><Icon name="plus" />Adicionar</Button>
+            <Button onClick={openSettings}><Icon name="cog" />{t.boutons.affichage}</Button>
+            <Button variant="ghost" onClick={() => push({ kind: 'info', title: t.toasts.semainePrecedente })}>←</Button>
+            <Button variant="ghost" onClick={() => push({ kind: 'info', title: t.toasts.cetteSemaine })}>{t.boutons.aujourdhui}</Button>
+            <Button variant="ghost" onClick={() => push({ kind: 'info', title: t.toasts.semaineSuivante })}>→</Button>
+            <Button variant="gold" onClick={openEvt}><Icon name="plus" />{t.boutons.ajouter}</Button>
           </>
         }
       />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-        <button type="button" className="chip" style={{ background: 'var(--v54-navy-900)', color: '#fff', borderColor: 'var(--v54-navy-900)' }}>Reunião</button>
-        <button type="button" className="chip" style={{ background: 'var(--v54-sage-50)', color: 'var(--v54-sage-700)', borderColor: 'transparent' }}>Visita</button>
-        <button type="button" className="chip" style={{ background: 'var(--v54-amber-100)', color: 'var(--v54-amber-700)', borderColor: 'transparent' }}>Tarefa</button>
-        <button type="button" className="chip" style={{ background: 'var(--v54-gold-50)', color: 'var(--v54-gold-700)', borderColor: 'transparent' }}>Missão Prestador</button>
-        <button type="button" className="chip">Outro</button>
+        <button type="button" className="chip" style={{ background: 'var(--v54-navy-900)', color: '#fff', borderColor: 'var(--v54-navy-900)' }}>{t.types.reunion}</button>
+        <button type="button" className="chip" style={{ background: 'var(--v54-sage-50)', color: 'var(--v54-sage-700)', borderColor: 'transparent' }}>{t.types.visite}</button>
+        <button type="button" className="chip" style={{ background: 'var(--v54-amber-100)', color: 'var(--v54-amber-700)', borderColor: 'transparent' }}>{t.types.tache}</button>
+        <button type="button" className="chip" style={{ background: 'var(--v54-gold-50)', color: 'var(--v54-gold-700)', borderColor: 'transparent' }}>{t.types.mission}</button>
+        <button type="button" className="chip">{t.types.autre}</button>
       </div>
 
       {visibleEvents.length === 0 && selectedMember && (
-        <Alert icon="info" title={`Sem eventos planeados para ${selectedMember.name} esta semana`}>
-          A agenda está vazia. Adicione um evento ou volte à vista global da equipa.
+        <Alert icon="info" title={t.alerteVide.titre(selectedMember.name)}>
+          {t.alerteVide.texte}
         </Alert>
       )}
 
@@ -226,14 +201,14 @@ export default function ModPlaneamento() {
             <Fragment key={`row-${slot.idx}`}>
               <div className="week-hour">{slot.label}</div>
               {visibleDays.map(d => (
-                <div key={`c-${d.key}-${slot.idx}`} className="week-cell" onClick={() => push({ kind: 'info', title: 'Novo evento', desc: `${d.long} às ${slot.label}` })} role="button" tabIndex={-1} />
+                <div key={`c-${d.key}-${slot.idx}`} className="week-cell" onClick={() => push({ kind: 'info', title: t.toasts.nouvelEvenement, desc: t.toasts.jourA(d.long, slot.label) })} role="button" tabIndex={-1} />
               ))}
             </Fragment>
           ))}
           {visibleEvents.map(ev => {
             const pos = placeEvent(ev)
             if (!pos) return null
-            const owner = TEAM.find(t => t.id === ev.owner)
+            const owner = TEAM.find(mb => mb.id === ev.owner)
             return (
               <button key={`ev-${ev.id}`} type="button" className={`week-event kind-${ev.kind}`} style={pos} onClick={() => push({ kind: 'info', title: ev.label, desc: `${ev.start}-${ev.end} · ${owner?.name || ''}` })} title={`${ev.start}-${ev.end} · ${owner?.name || ''}`}>
                 <span className="week-event-time">{ev.start}</span>
@@ -247,15 +222,15 @@ export default function ModPlaneamento() {
 
       <div style={{ marginTop: 16 }}>
         <div className="section-eyebrow">
-          <span>{selectedMember ? `Eventos de ${selectedMember.name} esta semana` : 'Eventos da semana'} ({visibleEvents.length})</span>
+          <span>{selectedMember ? t.liste.titreMembre(selectedMember.name) : t.liste.titre} ({visibleEvents.length})</span>
           <div className="line"></div>
         </div>
       </div>
       <Panel flush>
         {visibleEvents.length === 0 ? (
-          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>Sem eventos esta semana com os filtros atuais.</div>
+          <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>{t.liste.vide}</div>
         ) : visibleEvents.map(ev => {
-          const owner = TEAM.find(t => t.id === ev.owner)
+          const owner = TEAM.find(mb => mb.id === ev.owner)
           const dayLabel = ALL_DAYS.find(d => d.key === ev.day)?.long || ev.day
           return (
             <div key={ev.id} className="list-row">
@@ -272,67 +247,67 @@ export default function ModPlaneamento() {
                 </div>
               </div>
               <div style={{ color: 'var(--v54-navy-500)', fontSize: 12 }}>{ev.start}-{ev.end}</div>
-              <button type="button" className={clsx(btnCss.btn, btnCss.sm, btnCss.ghost)} aria-label="Fechar marcação" title="Fechar">×</button>
+              <button type="button" className={clsx(btnCss.btn, btnCss.sm, btnCss.ghost)} aria-label={t.liste.fermerAria} title={t.liste.fermerTitre}>×</button>
             </div>
           )
         })}
       </Panel>
 
       <Modal open={evtOpen} onClose={() => setEvtOpen(false)} labelledBy="evt-modal-title" size="md">
-        <ModalHead icon="calendar" id="evt-modal-title" title="Adicionar evento" onClose={() => setEvtOpen(false)} />
+        <ModalHead icon="calendar" id="evt-modal-title" title={fe.titre} onClose={() => setEvtOpen(false)} />
         <form onSubmit={submitEvt} noValidate>
           <ModalBody>
-            <Field label="Título" required full name="evt-titulo">
-              <input type="text" placeholder="Ex.: Reunião AG Atlântico" value={evtForm.titulo} onChange={e => updEvt('titulo', e.target.value)} />
+            <Field label={fe.champTitre} required full name="evt-titulo">
+              <input type="text" placeholder={fe.titrePlaceholder} value={evtForm.titulo} onChange={e => updEvt('titulo', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Dia" name="evt-dia">
+              <Field label={fe.jour} name="evt-dia">
                 <select value={evtForm.dia} onChange={e => updEvt('dia', e.target.value)}>
                   {ALL_DAYS.map(d => <option key={d.key} value={d.key}>{d.long}</option>)}
                 </select>
               </Field>
-              <Field label="Tipo" name="evt-tipo">
+              <Field label={fe.type} name="evt-tipo">
                 <select value={evtForm.tipo} onChange={e => updEvt('tipo', e.target.value)}>
-                  <option value="gold">Reunião</option>
-                  <option value="sage">Visita</option>
-                  <option value="amber">Tarefa</option>
-                  <option value="green">Espaço comum</option>
-                  <option value="rust">Evento</option>
+                  <option value="gold">{fe.types.gold}</option>
+                  <option value="sage">{fe.types.sage}</option>
+                  <option value="amber">{fe.types.amber}</option>
+                  <option value="green">{fe.types.green}</option>
+                  <option value="rust">{fe.types.rust}</option>
                 </select>
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Hora início" name="evt-hi">
+              <Field label={fe.heureDebut} name="evt-hi">
                 <input type="time" value={evtForm.horaInicio} onChange={e => updEvt('horaInicio', e.target.value)} />
               </Field>
-              <Field label="Hora fim" name="evt-hf">
+              <Field label={fe.heureFin} name="evt-hf">
                 <input type="time" value={evtForm.horaFim} onChange={e => updEvt('horaFim', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Responsável" name="evt-resp">
-                <input type="text" placeholder="Nome" value={evtForm.responsavel} onChange={e => updEvt('responsavel', e.target.value)} />
+              <Field label={fe.responsable} name="evt-resp">
+                <input type="text" placeholder={fe.responsablePlaceholder} value={evtForm.responsavel} onChange={e => updEvt('responsavel', e.target.value)} />
               </Field>
-              <Field label="Edifício" name="evt-edif">
-                <input type="text" placeholder="Edifício…" value={evtForm.edificio} onChange={e => updEvt('edificio', e.target.value)} />
+              <Field label={fe.immeuble} name="evt-edif">
+                <input type="text" placeholder={fe.immeublePlaceholder} value={evtForm.edificio} onChange={e => updEvt('edificio', e.target.value)} />
               </Field>
             </FormRow>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setEvtOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={evtBusy}>Adicionar</button>
+            <Button variant="ghost" onClick={() => setEvtOpen(false)}>{fe.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={evtBusy}>{fe.ajouter}</button>
           </ModalFoot>
         </form>
       </Modal>
 
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} labelledBy="plan-settings-title" size="md">
-        <ModalHead icon="cog" id="plan-settings-title" title="Parâmetros de visualização" onClose={() => setSettingsOpen(false)} />
+        <ModalHead icon="cog" id="plan-settings-title" title={r.titre} onClose={() => setSettingsOpen(false)} />
         <form onSubmit={applySettings} noValidate>
           <ModalBody>
             <section className="plan-settings-section">
-              <h4 className="plan-settings-label">Dias úteis</h4>
-              <p className="plan-settings-hint">Selecione os dias da semana visíveis na agenda.</p>
-              <div className="plan-day-toggles" role="group" aria-label="Dias úteis">
+              <h4 className="plan-settings-label">{r.jours}</h4>
+              <p className="plan-settings-hint">{r.joursAide}</p>
+              <div className="plan-day-toggles" role="group" aria-label={r.jours}>
                 {ALL_DAYS.map(d => {
                   const active = draft.workingDays.includes(d.key)
                   return (
@@ -342,15 +317,15 @@ export default function ModPlaneamento() {
               </div>
             </section>
             <section className="plan-settings-section">
-              <h4 className="plan-settings-label">Horário de trabalho</h4>
-              <p className="plan-settings-hint">Intervalo horário visível na grelha semanal.</p>
+              <h4 className="plan-settings-label">{r.horaires}</h4>
+              <p className="plan-settings-hint">{r.horairesAide}</p>
               <FormRow>
-                <Field label="Hora de início" name="plan-start">
+                <Field label={r.heureDebut} name="plan-start">
                   <select value={draft.startHour} onChange={e => setDraft(d => ({ ...d, startHour: Number(e.target.value) }))}>
                     {Array.from({ length: 24 }, (_, i) => i).map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
                   </select>
                 </Field>
-                <Field label="Hora de fim" name="plan-end">
+                <Field label={r.heureFin} name="plan-end">
                   <select value={draft.endHour} onChange={e => setDraft(d => ({ ...d, endHour: Number(e.target.value) }))}>
                     {Array.from({ length: 24 }, (_, i) => i + 1).map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
                   </select>
@@ -358,25 +333,25 @@ export default function ModPlaneamento() {
               </FormRow>
             </section>
             <section className="plan-settings-section">
-              <h4 className="plan-settings-label">Duração dos créneaux</h4>
-              <p className="plan-settings-hint">Granularidade vertical da grelha.</p>
-              <div className="plan-slot-radios" role="radiogroup" aria-label="Duração dos créneaux">
-                {([[30, '30 min'], [60, '1 hora'], [120, '2 horas']] as const).map(([min, lbl]) => (
+              <h4 className="plan-settings-label">{r.duree}</h4>
+              <p className="plan-settings-hint">{r.dureeAide}</p>
+              <div className="plan-slot-radios" role="radiogroup" aria-label={r.duree}>
+                {([30, 60, 120] as const).map((min) => (
                   <label key={min} className={clsx('plan-slot-radio', draft.slotMinutes === min && 'active')}>
                     <input type="radio" name="slot-minutes" value={min} checked={draft.slotMinutes === min} onChange={() => setDraft(d => ({ ...d, slotMinutes: min }))} />
-                    <span>{lbl}</span>
+                    <span>{r.durees[min]}</span>
                   </label>
                 ))}
               </div>
             </section>
-            <Alert kind="gold" icon="info" title="Pré-visualização">
-              {draft.workingDays.length} dias visíveis · {draft.startHour}h–{draft.endHour}h · slots de {draft.slotMinutes >= 60 ? (draft.slotMinutes / 60) + 'h' : draft.slotMinutes + 'min'}
+            <Alert kind="gold" icon="info" title={r.apercu}>
+              {draft.workingDays.length}{r.apercuJours(draft.workingDays.length)}{draft.startHour}{r.apercuHeureDebut}{draft.endHour}{r.apercuHeureFin}{t.creneau(draft.slotMinutes)}
             </Alert>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={resetDefaults}>Restaurar predefinições</Button>
-            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>Aplicar</button>
+            <Button variant="ghost" onClick={resetDefaults}>{r.restaurer}</Button>
+            <Button variant="ghost" onClick={() => setSettingsOpen(false)}>{r.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)}>{r.appliquer}</button>
           </ModalFoot>
         </form>
       </Modal>
