@@ -107,11 +107,11 @@ export const COBR_JUD_MESSAGES = defineMessages<CobrJudTextes>({
   },
   'fr-FR': {
     titre: 'Recouvrement judiciaire',
-    chapeau: 'Recouvrement contentieux des charges impayées dues au syndicat des copropriétaires (droit français)',
+    chapeau: 'Recouvrement contentieux des charges impayées dues au syndicat des copropriétaires',
     nouveau: '+ Nouveau dossier',
     cadre: {
       titre: 'Cadre légal — loi du 10 juillet 1965',
-      texte: "Le syndic agit en recouvrement des charges sans autorisation de l'AG, sauf pour la saisie en vue de la vente d'un lot (art. 55 du décret du 17 mars 1967). Après une mise en demeure restée sans effet pendant 30 jours, les provisions non encore échues deviennent exigibles et sont réclamées selon la procédure accélérée au fond devant le président du tribunal judiciaire (art. 19-2) ou par injonction de payer ; la créance du syndicat est garantie par l'hypothèque légale sur le lot (art. 19 et 19-1). Faites avancer chaque dossier étape par étape (relance amiable → mise en demeure → commissaire de justice → tribunal → saisie).",
+      texte: "Le syndic agit en recouvrement des charges sans autorisation de l'AG, sauf pour la saisie en vue de la vente d'un lot (art. 55 du décret du 17 mars 1967). Les charges impayées peuvent être réclamées par injonction de payer ; après une mise en demeure restée sans effet pendant 30 jours, les provisions non encore échues deviennent exigibles et le président du tribunal judiciaire, statuant selon la procédure accélérée au fond, condamne le copropriétaire défaillant à les payer (art. 19-2 de la loi). La créance du syndicat est garantie par une hypothèque légale sur le lot (art. 19 et 19-1). Faites avancer chaque dossier étape par étape (relance amiable → mise en demeure → commissaire de justice → tribunal → saisie).",
     },
     onglets: { pipe: 'Suivi des étapes', proc: 'Dossiers', mod: 'Modèles', leg: 'Réglementation' },
     kpi: { impayes: 'Total des impayés', actifs: 'Dossiers actifs', tribunal: 'Au tribunal / en saisie', recouvre: 'Recouvré' },
@@ -128,7 +128,7 @@ export const COBR_JUD_MESSAGES = defineMessages<CobrJudTextes>({
     aucun: 'Aucun dossier',
     coproprietaire: 'Copropriétaire',
     echeance: 'Échéance : ',
-    avancer: 'Avancer',
+    avancer: 'Étape suivante',
     formulaire: {
       titre: 'Nouveau dossier de recouvrement judiciaire',
       immeuble: 'Immeuble',
@@ -150,7 +150,7 @@ export const COBR_JUD_MESSAGES = defineMessages<CobrJudTextes>({
       reessayerPlusTard: 'Veuillez réessayer plus tard',
       ouvertDemo: 'Dossier ouvert (démonstration)',
       connexionRequise: 'Connectez-vous en tant que syndic pour enregistrer réellement',
-      avancerDemo: 'Avancer (démonstration)',
+      avancerDemo: 'Étape suivante (démonstration)',
       connexionSyndic: 'Connectez-vous en tant que syndic',
       avance: "Dossier passé à l'étape suivante",
       erreur: 'Erreur',

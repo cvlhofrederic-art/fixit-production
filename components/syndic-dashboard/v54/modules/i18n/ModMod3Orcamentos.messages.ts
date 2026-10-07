@@ -124,7 +124,7 @@ export const MOD3_ORCAMENTOS_MESSAGES = defineMessages<Mod3OrcamentosTextes>({
     nouveau: '+ Nouveau chantier',
     colonnes: { orcamentacao: 'Consultation (devis)', aprovacao_ag: 'À voter en AG', execucao: 'En cours de réalisation', concluida: 'Terminé' },
     aucun: 'Aucun chantier',
-    carte: { echeance: 'Échéance : ', montant: 'Montant retenu : ', nbDevis: ' devis reçus', comparer: 'Comparer', etapeAria: 'Étape du chantier' },
+    carte: { echeance: 'Échéance : ', montant: 'Montant retenu : ', nbDevis: ' devis', comparer: 'Comparer', etapeAria: 'Étape du chantier' },
     comparaison: {
       titre: 'Comparer les devis',
       rappel: "Au-delà du seuil voté par l'AG (art. 21 de la loi du 10 juillet 1965), plusieurs entreprises sont mises en concurrence avant le vote en AG (art. 19-2 du décret du 17 mars 1967).",
@@ -156,7 +156,7 @@ export const MOD3_ORCAMENTOS_MESSAGES = defineMessages<Mod3OrcamentosTextes>({
       montant: 'Montant',
       montantAide: 'Montant du devis retenu (€)',
       nbDevis: 'Nombre de devis',
-      nbDevisAide: "Mise en concurrence au-delà du seuil voté en AG (art. 21)",
+      nbDevisAide: "Plusieurs devis au-delà du seuil voté en AG (art. 21 de la loi de 1965)",
       entreprise: 'Entreprise retenue',
       entreprisePlaceholder: "Nom de l'entreprise (si déjà choisie)",
       annuler: 'Annuler',
@@ -165,8 +165,8 @@ export const MOD3_ORCAMENTOS_MESSAGES = defineMessages<Mod3OrcamentosTextes>({
     erreurIntitule: "Indiquez l'intitulé du chantier.",
     cree: 'Chantier créé',
     demo: [
-      { id: 'p1', titulo: 'Étanchéité de la toiture-terrasse', tipo: 'Réparation', descricao: "Réparation et réfection complète de l'étanchéité de la toiture-terrasse du bâtiment principal, y compr…", local: "Immeuble 42, avenue de l'Opéra", prazo: '2026-06-30', estado: 'orcamentacao', orcamento: 0, empresa: '', numOrcamentos: 3 },
-      { id: 'p2', titulo: 'Ravalement de la façade', tipo: 'Rénovation', descricao: 'Peinture et restauration de la façade avec traitement anti-humidité et nettoyage de la pierre de taille…', local: 'Immeuble 105, rue de Rivoli', prazo: '2026-09-15', estado: 'aprovacao_ag', orcamento: 29800, empresa: 'ConstruRhône SAS', numOrcamentos: 3 },
+      { id: 'p1', titulo: 'Étanchéité de la toiture-terrasse', tipo: 'Réparation', descricao: "Réparation et réfection complète de l'étanchéité de la toiture-terrasse du bâtiment principal, y compr…", local: "Immeuble du 42, avenue de l'Opéra", prazo: '2026-06-30', estado: 'orcamentacao', orcamento: 0, empresa: '', numOrcamentos: 3 },
+      { id: 'p2', titulo: 'Ravalement de la façade', tipo: 'Rénovation', descricao: 'Peinture et restauration de la façade avec traitement anti-humidité et nettoyage de la pierre de taille…', local: 'Immeuble du 105, rue de Rivoli', prazo: '2026-09-15', estado: 'aprovacao_ag', orcamento: 29800, empresa: 'ConstruRhône SAS', numOrcamentos: 3 },
     ],
   },
 })

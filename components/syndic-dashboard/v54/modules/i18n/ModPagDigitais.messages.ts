@@ -35,7 +35,7 @@ export const PAG_DIGITAIS_MESSAGES = defineMessages<PagDigitaisTextes>({
     titre: 'Paiements en ligne',
     chapeau: 'Encaissement des appels de fonds, mandats de prélèvement SEPA et rapprochement bancaire',
     onglets: { dash: 'Tableau de bord', mb: 'Mandats SEPA', rec: 'Rapprochement bancaire', cfg: 'Configuration' },
-    kpi: { encaisse: 'Total encaissé ce mois-ci', enAttente: 'Paiements en attente', taux: 'Taux de recouvrement', tauxValeur: '0,0 %', retard: 'Retard moyen (jours)' },
+    kpi: { encaisse: 'Total encaissé ce mois-ci', enAttente: 'Paiements en attente', taux: "Taux d'encaissement", tauxValeur: '0,0 %', retard: 'Retard moyen (jours)' },
     repartition: { titre: 'Encaissé / en attente', encaisse: 'Encaissé', enAttente: 'En attente' },
     derniers: '10 derniers paiements reçus',
     colonnes: { coproprietaire: 'Copropriétaire', lot: 'Lot', montant: 'Montant', mode: 'Mode de paiement', date: 'Date' },

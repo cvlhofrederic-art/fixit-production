@@ -71,7 +71,7 @@ export const EFATURA_MESSAGES = defineMessages<EFaturaTextes>({
       typeFacture: 'Facture',
     },
     lignes: 'Lignes du document',
-    colonnes: { description: 'Description *', quantite: 'QTÉ', prixUnitaire: 'Prix unit. (EUR)', taux: 'Taux de TVA', sousTotal: 'Sous-total' },
+    colonnes: { description: 'Description *', quantite: 'Qté', prixUnitaire: 'Prix unit. (EUR)', taux: 'Taux de TVA', sousTotal: 'Sous-total' },
     aria: { description: 'Description', quantite: 'Quantité', prixUnitaire: 'Prix unitaire', taux: 'Taux de TVA' },
     descriptionPlaceholder: 'Description du service ou du produit',
     tauxNormal: '23 % (taux normal)',

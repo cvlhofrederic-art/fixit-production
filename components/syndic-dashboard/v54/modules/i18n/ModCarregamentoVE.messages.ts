@@ -19,7 +19,7 @@ export interface DemandeVE {
 
 /**
  * Textes de l'écran « Carregamento de Veículos Elétricos » (DL 101-D/2020) /
- * « Bornes de recharge » (droit à la prise ; art. 24-5 de la loi du 10 juillet 1965).
+ * « Bornes de recharge » (droit à la prise : art. L113-16 du CCH ; art. 24-5 de la loi du 10 juillet 1965).
  */
 interface CarregamentoVETextes {
   titre: string
@@ -57,7 +57,7 @@ export const CARREGAMENTO_VE_MESSAGES = defineMessages<CarregamentoVETextes>({
   },
   'fr-FR': {
     titre: 'Bornes de recharge des véhicules électriques',
-    chapeau: 'Infrastructures de recharge (IRVE) en copropriété · Droit à la prise · Art. 24-5 de la loi du 10 juillet 1965',
+    chapeau: 'Infrastructures de recharge (IRVE) en copropriété · Droit à la prise (art. L113-16 du CCH) · Art. 24-5 de la loi du 10 juillet 1965',
     kpi: { actives: 'Demandes actives', approuvees: 'Acceptées', bornes: 'Bornes actives', puissance: 'Puissance totale', consommation: 'Consommation totale', consommationValeur: '2 315 kWh', cout: 'Coût total' },
     onglets: { ped: 'Demandes', inst: 'Bornes installées', leg: 'Réglementation', inc: 'Aides' },
     enregistrer: '+ Enregistrer une nouvelle demande',
