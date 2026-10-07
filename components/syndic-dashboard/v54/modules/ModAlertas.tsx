@@ -7,6 +7,8 @@ import { Pill, type PillKind } from '../primitives/pill'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { ALERTAS_MESSAGES } from './i18n/ModAlertas.messages'
 
 /**
  * Alertas — Phase 2 : alertes dérivées des vraies données du cabinet quand un
@@ -17,6 +19,7 @@ import { useSyndicData } from '@/lib/syndic/v54/data-context'
 type AlertItem = { kind: PillKind; tag: string; title: string; desc: string; icon: IconName }
 
 export default function ModAlertas() {
+  const t = useMessages(ALERTAS_MESSAGES)
   const data = useSyndicData()
   const real = data.authenticated
 
@@ -26,19 +29,19 @@ export default function ModAlertas() {
     ? [
         ...data.artisans
           .filter((a) => !a.rcProValide)
-          .map((a): AlertItem => ({ kind: 'rust', tag: 'Seguro', title: 'Seguro RC Pro inválido ou em falta', desc: artisanName(a.prenom, a.nom), icon: 'shield' })),
+          .map((a): AlertItem => ({ kind: 'rust', tag: t.rcPro.etiquette, title: t.rcPro.titre, desc: artisanName(a.prenom, a.nom), icon: 'shield' })),
         ...data.artisans
           .filter((a) => !a.decennaleValide)
-          .map((a): AlertItem => ({ kind: 'amber', tag: 'Garantia', title: 'Garantia decenal em falta', desc: artisanName(a.prenom, a.nom), icon: 'shield' })),
+          .map((a): AlertItem => ({ kind: 'amber', tag: t.decennale.etiquette, title: t.decennale.titre, desc: artisanName(a.prenom, a.nom), icon: 'shield' })),
         ...data.immeubles
           .filter((i) => !i.reglementTexte)
-          .map((i): AlertItem => ({ kind: 'gold', tag: 'Documento', title: 'Regulamento de condomínio em falta', desc: i.nom, icon: 'doc' })),
+          .map((i): AlertItem => ({ kind: 'gold', tag: t.reglement.etiquette, title: t.reglement.titre, desc: i.nom, icon: 'doc' })),
       ]
     : []
 
   return (
     <>
-      <PageHead title="Alertas" lede="Alertas urgentes do sistema, prazos legais e operacionais" />
+      <PageHead title={t.titre} lede={t.chapeau} />
       <Panel flush={alerts.length > 0}>
         {alerts.length > 0 ? (
           alerts.map((al, i) => (
@@ -49,7 +52,7 @@ export default function ModAlertas() {
             </div>
           ))
         ) : (
-          <Empty kind="sage" illustration="ocorrencias" title="Todos os alertas foram tratados!" desc="Operação nominal" />
+          <Empty kind="sage" illustration="ocorrencias" title={t.vide.titre} desc={t.vide.description} />
         )}
       </Panel>
     </>

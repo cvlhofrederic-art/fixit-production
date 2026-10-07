@@ -14,6 +14,8 @@ import { useComingSoon } from './use-coming-soon'
 import { useDocumentUpload } from './use-document-upload'
 import { useLeaDocuments, docTypeLabel, docTypeKind, docTypeIcon, docDateShort, type LeaDocMeta } from './use-lea-documents'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { DOCS_INTERV_MESSAGES } from './i18n/ModDocsInterv.messages'
 
 /**
  * Documentos de Intervenções — port byte-exact V5.7 (Empty = preview anonyme).
@@ -29,6 +31,8 @@ const searchIcon = { position: 'absolute', left: 12, top: 11, width: 14, height:
 const INTERV_TYPES = ['facture_artisan', 'devis', 'autre']
 
 export default function ModDocsInterv() {
+  const t = useMessages(DOCS_INTERV_MESSAGES)
+  const locale = useV54Locale()
   const soon = useComingSoon()
   const data = useSyndicData()
   const authed = data.authenticated
@@ -45,46 +49,46 @@ export default function ModDocsInterv() {
   return (
     <>
       <PageHead
-        title="Documentos de Intervenções"
-        lede="Faturas · Orçamentos · Relatórios · Fotos — Transmissão à contabilidade"
-        actions={<Button variant="gold" onClick={upload('autre')}><Icon name="plus" />Adicionar documento</Button>}
+        title={t.titre}
+        lede={t.chapeau}
+        actions={<Button variant="gold" onClick={upload('autre')}><Icon name="plus" />{t.ajouterDocument}</Button>}
       />
       <KPIGrid items={[
-        { icon: 'file', num: interv.length, lbl: 'Total documentos', sub: 'Todas as categorias' },
-        { icon: 'mail', num: naoTransmitidas, lbl: 'Não transmitidas à contabilidade', sub: 'A tratar', accent: 'rust' },
-        { icon: 'check', num: transmitidas, lbl: 'Transmitidas à contabilidade', sub: 'Classificados', accent: 'sage' },
-        { icon: 'file', num: nFaturas, lbl: 'Faturas', sub: 'Este mês', accent: 'gold' },
+        { icon: 'file', num: interv.length, lbl: t.kpi.total, sub: t.kpi.totalSous },
+        { icon: 'mail', num: naoTransmitidas, lbl: t.kpi.nonTransmis, sub: t.kpi.nonTransmisSous, accent: 'rust' },
+        { icon: 'check', num: transmitidas, lbl: t.kpi.transmis, sub: t.kpi.transmisSous, accent: 'sage' },
+        { icon: 'file', num: nFaturas, lbl: t.kpi.factures, sub: t.kpi.facturesSous, accent: 'gold' },
       ]} />
       <Tabs active={tab} onChange={setTab} tabs={[
-        { id: 'all', icon: 'clipboard', label: 'Todos', badge: interv.length },
-        { id: 'env', label: '● A enviar', badge: naoTransmitidas },
-        { id: 'sent', label: '● Enviados & classificados', badge: transmitidas },
+        { id: 'all', icon: 'clipboard', label: t.onglets.tous, badge: interv.length },
+        { id: 'env', label: t.onglets.aEnvoyer, badge: naoTransmitidas },
+        { id: 'sent', label: t.onglets.envoyes, badge: transmitidas },
       ]} />
       <div style={{ display: 'flex', gap: 12, marginBottom: 18 }}>
         <div style={{ flex: 1, position: 'relative' }}>
           <Icon name="search" style={searchIcon} />
-          <input aria-label="Pesquisar documento" style={inputStyle} placeholder="Pesquisar por profissional, edifício, ficheiro, notas…" />
+          <input aria-label={t.rechercheAria} style={inputStyle} placeholder={t.recherchePlaceholder} />
         </div>
-        <Button onClick={soon('Filtrar por tipo')}><Icon name="doc" />Todos os tipos</Button>
-        <Button onClick={soon('Filtrar por profissional')}><Icon name="wrench" />Todos os profissionais</Button>
+        <Button onClick={soon(t.filtrerType)}><Icon name="doc" />{t.tousTypes}</Button>
+        <Button onClick={soon(t.filtrerPrestataire)}><Icon name="wrench" />{t.tousPrestataires}</Button>
       </div>
       {!authed || interv.length === 0 ? (
         <Panel>
           <Empty
             illustration="documentos"
-            title="Nenhum documento"
-            desc="Adicione faturas, orçamentos e relatórios de intervenção"
-            action={<Button variant="gold" onClick={upload('autre')}><Icon name="plus" />Adicionar documento</Button>}
+            title={t.vide.titre}
+            desc={t.vide.description}
+            action={<Button variant="gold" onClick={upload('autre')}><Icon name="plus" />{t.ajouterDocument}</Button>}
           />
         </Panel>
       ) : (
         <Panel flush>
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Documento</th><th>Tipo</th><th>Contabilidade</th><th>Data</th></tr></thead>
+              <thead><tr><th>{t.colonnes.document}</th><th>{t.colonnes.type}</th><th>{t.colonnes.comptabilite}</th><th>{t.colonnes.date}</th></tr></thead>
               <tbody>
                 {shown.length === 0 ? (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>Nenhum documento nesta categoria.</td></tr>
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>{t.aucunDansCategorie}</td></tr>
                 ) : shown.map((d) => {
                   const meta = (d.extracted_metadata ?? {}) as LeaDocMeta
                   return (
@@ -95,8 +99,8 @@ export default function ModDocsInterv() {
                           <div><b>{d.filename}</b><div style={{ fontSize: 11, color: 'var(--v54-navy-300)', marginTop: 2 }}>{meta.fournisseur || meta.summary_short || '—'}</div></div>
                         </div>
                       </td>
-                      <td><Pill kind={docTypeKind(d.type)} noDot>{docTypeLabel(d.type)}</Pill></td>
-                      <td><Pill kind={d.status === 'processed' ? 'sage' : 'amber'} noDot>{d.status === 'processed' ? 'Transmitida' : 'A enviar'}</Pill></td>
+                      <td><Pill kind={docTypeKind(d.type)} noDot>{docTypeLabel(d.type, locale)}</Pill></td>
+                      <td><Pill kind={d.status === 'processed' ? 'sage' : 'amber'} noDot>{d.status === 'processed' ? t.transmis : t.aEnvoyer}</Pill></td>
                       <td className={m.numCell}>{docDateShort(d.uploaded_at)}</td>
                     </tr>
                   )
