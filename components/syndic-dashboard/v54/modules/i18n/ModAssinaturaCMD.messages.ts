@@ -43,7 +43,7 @@ export const ASSINATURA_CMD_MESSAGES = defineMessages<AssinaturaCMDTextes>({
     kpi: { total: 'Documents signés (total)', enAttente: 'En attente', ceMois: 'Ce mois-ci', dernier: 'Dernier document', dernierValeur: '22 mai 2026' },
     onglets: { ass: 'Signer un document', docs: 'Documents signés', val: 'Vérification', cfg: 'Configuration' },
     panneau: 'Signer un nouveau document',
-    consigne: 'Déposez le document à signer avec une signature électronique qualifiée.',
+    consigne: 'Déposez le document à signer par signature électronique qualifiée.',
     nomDocument: 'Nom du document',
     nomPlaceholder: "Ex. : PV de l'AG ordinaire - mars 2026",
     typeDocument: 'Type de document',

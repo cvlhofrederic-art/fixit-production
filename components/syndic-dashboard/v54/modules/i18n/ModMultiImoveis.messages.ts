@@ -32,7 +32,7 @@ export const MULTI_IMOVEIS_MESSAGES = defineMessages<MultiImoveisTextes>({
     erreur: { titre: 'Erreur de chargement des copropriétés', desc: 'Vérifiez votre connexion et réessayez.' },
     kpi: { immeubles: 'Copropriétés', lots: 'Lots (total)', budget: 'Budget prévisionnel total', depensesBudget: 'Dépenses / budget' },
     portefeuille: 'Portefeuille de copropriétés',
-    vide: { titre: 'Aucune copropriété', desc: 'Ajoutez vos copropriétés dans « Immeubles » pour les consolider ici.' },
+    vide: { titre: 'Aucune copropriété', desc: 'Ajoutez des immeubles dans « Immeubles » pour les consolider ici.' },
     colonnes: { immeuble: 'Copropriété', ville: 'Ville', lots: 'Lots', budget: 'Budget', depenses: 'Dépenses', utilisation: 'Utilisation' },
     pct: (n) => `${n}\u00a0%`,
     pourcent: '\u00a0%',

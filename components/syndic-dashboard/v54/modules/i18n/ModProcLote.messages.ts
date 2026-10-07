@@ -40,9 +40,9 @@ export const PROC_LOTE_MESSAGES = defineMessages<ProcLoteTextes>({
     tousLesImmeubles: 'Tous les immeubles',
     actions: [
       ['coin', 'Appels de fonds', 'Émettre les appels de provisions sur charges pour tous les copropriétaires (art. 14-1 de la loi du 10 juillet 1965)'],
-      ['alert', 'Relance des impayés', 'Envoyer des relances automatiques pour les charges impayées (30, 60, 90 jours), puis la mise en demeure'],
-      ['chart', "Clôture de l'exercice", "Clôturer l'exercice comptable : comptes et annexes (décret n° 2005-240), préparation de l'exercice suivant"],
-      ['coin', 'Cotisation au fonds de travaux', 'Calculer et appeler la cotisation annuelle au fonds de travaux (au moins 5 % du budget prévisionnel et 2,5 % des travaux du PPT adopté — art. 14-2-1 de la loi du 10 juillet 1965)'],
+      ['alert', 'Relance des impayés', 'Envoyer automatiquement les relances des charges impayées (à 30, 60 et 90 jours), puis la mise en demeure'],
+      ['chart', "Clôture de l'exercice", "Clôturer l'exercice comptable : établissement des comptes et de leurs annexes (décret n° 2005-240 du 14 mars 2005), préparation de l'exercice suivant"],
+      ['coin', 'Cotisation au fonds de travaux', 'Calculer et appeler la cotisation annuelle au fonds de travaux (au moins 5 % du budget prévisionnel et au moins 2,5 % du montant des travaux du PPT adopté — art. 14-2-1 de la loi du 10 juillet 1965)'],
       ['doc', 'Édition des reçus', 'Éditer en lot les reçus des paiements encaissés sur la période'],
       ['bank', "Convocations d'AG en lot", "Envoyer la convocation à l'assemblée générale à tous les copropriétaires (au moins 21 jours avant — art. 9 du décret du 17 mars 1967)"],
     ],

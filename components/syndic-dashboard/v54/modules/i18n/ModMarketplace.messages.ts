@@ -82,8 +82,8 @@ export const MARKETPLACE_MESSAGES = defineMessages<MarketplaceTextes>({
     pros: [
       { nome: 'Marie Sanchez', empresa: 'ÉlectroMarie SARL', espec: 'Électricité', distrito: 'Rhône (69)', rating: 4.9, avaliacoes: 89, preco: '40 €/h', resposta: '< 4 h', anos: '12 ans', trabalhos: '198 interventions', cert: 'Qualifelec · Garantie décennale', destaque: true },
       { nome: 'Antoine Sylvestre', empresa: 'CanalFix SARL', espec: 'Plomberie', distrito: 'Paris (75)', rating: 4.8, avaliacoes: 127, preco: '35 €/h', resposta: '< 2 h', anos: '15 ans', trabalhos: '342 interventions', cert: 'Qualibat · Garantie décennale', destaque: true },
-      { nome: 'Pierre Ménard', empresa: 'ElevaRhône SAS', espec: 'Ascenseurs', distrito: 'Paris (75)', rating: 4.7, avaliacoes: 45, preco: 'Contrat annuel', resposta: '< 1 h', anos: '20 ans', trabalhos: '89 interventions', cert: 'RC professionnelle · ISO 9001', destaque: true },
-      { nome: 'Jean Costes', empresa: 'PeintCertaine SARL', espec: 'Peinture', distrito: 'Yvelines (78)', rating: 4.5, avaliacoes: 63, preco: '28 €/h', resposta: '24 h', anos: '8 ans', trabalhos: '156 interventions', cert: 'Qualibat RGE · RC professionnelle', destaque: false },
+      { nome: 'Pierre Ménard', empresa: 'ElevaSeine SAS', espec: 'Ascenseurs', distrito: 'Paris (75)', rating: 4.7, avaliacoes: 45, preco: 'Contrat annuel', resposta: '< 1 h', anos: '20 ans', trabalhos: '89 interventions', cert: 'RC professionnelle · ISO 9001', destaque: true },
+      { nome: 'Jean Costes', empresa: 'Pinceau Juste SARL', espec: 'Peinture', distrito: 'Yvelines (78)', rating: 4.5, avaliacoes: 63, preco: '28 €/h', resposta: '24 h', anos: '8 ans', trabalhos: '156 interventions', cert: 'Qualibat · RC professionnelle', destaque: false },
     ],
     enAvant: 'À LA UNE',
     note: (n) => String(n).replace('.', ','),
