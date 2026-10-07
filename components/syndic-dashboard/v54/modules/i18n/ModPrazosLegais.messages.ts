@@ -125,7 +125,7 @@ export const PRAZOS_LEGAIS_MESSAGES = defineMessages<PrazosLegaisTextes>({
   'fr-FR': {
     titre: 'Délais légaux',
     chapeau: 'Suivi des obligations réglementaires de toutes vos copropriétés',
-    autoDemarrage: 'Démarrage auto',
+    autoDemarrage: 'Génération automatique',
     ajouter: '+ Ajouter',
     kpi: { total: 'Total', enRetard: 'En retard', urgent: 'Urgentes < 30 j', realises: 'Réalisées' },
     filtreImmeubleAria: 'Filtrer par immeuble',

@@ -125,7 +125,7 @@ export const ARQUIVO_DIGITAL_MESSAGES = defineMessages<ArquivoDigitalTextes>({
       deposerCertifie: 'Déposer un document certifié',
       bientotDeposerCertifie: { titre: 'Déposer un document certifié', desc: 'Le dépôt de documents est en cours de développement' },
       alerteTitre: 'Décret du 17 mars 1967, art. 33 — Archives du syndicat',
-      alerteTexte: "Le syndic détient les archives du syndicat : règlement de copropriété et état descriptif de division, conventions, correspondances, plans, registres des procès-verbaux d'assemblée générale et pièces annexes, documents comptables, carnet d'entretien et, le cas échéant, diagnostics techniques. En cas de changement de syndic, il les remet à son successeur (loi du 10 juillet 1965, art. 18-2).",
+      alerteTexte: "Le syndic détient les archives du syndicat : règlement de copropriété et état descriptif de division, conventions, correspondances, plans, registres des procès-verbaux d'assemblée générale et pièces annexes, documents comptables, carnet d'entretien et, le cas échéant, diagnostics techniques. En cas de changement de syndic, l'ancien syndic les remet au nouveau (loi du 10 juillet 1965, art. 18-2).",
       kpi: { certifies: 'Documents certifiés', couverts: 'Immeubles couverts', audit: "Journal d'audit vérifié", sansDoc: 'Immeubles sans documentation' },
       onglets: { todos: 'Tous', proj: 'Plans', alv: 'Permis de construire', lic: 'Conformité des travaux', imi: 'Diagnostics techniques', audit: "Journal d'audit" },
       videTitre: 'Archives vides',

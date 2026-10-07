@@ -86,7 +86,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
     chapeau: "Obligation légale — décret n° 67-223 du 17 mars 1967, art. 5 · Pré-état daté (CCH, art. L721-2) · Vente d'un lot",
     nouvelle: '+ Nouvel état daté',
     alerteTitre: 'Obligation légale — art. 5 du décret du 17 mars 1967 et art. L721-2 du CCH',
-    alerteTexte: "Avant la vente d'un lot, le syndic adresse au notaire un état daté en trois parties : sommes dues par le vendeur au syndicat, sommes dues au vendeur, sommes à la charge de l'acquéreur. Dès la promesse de vente, l'acquéreur reçoit les informations financières du pré-état daté (CCH, art. L721-2). Les honoraires d'état daté, plafonnés par décret, sont à la charge du seul vendeur (loi du 10 juillet 1965, art. 10-1) ; après la vente, le notaire en avise le syndic dans les 15 jours (art. 20).",
+    alerteTexte: "Avant la vente d'un lot, le syndic adresse au notaire, à sa demande ou à celle du copropriétaire vendeur, un état daté en trois parties : sommes dues par le vendeur au syndicat, sommes dues par le syndicat au vendeur, sommes à la charge de l'acquéreur. Dès la promesse de vente, l'acquéreur reçoit les informations financières prévues par l'article L721-2 du CCH (dites « pré-état daté »). Les honoraires d'état daté, plafonnés par décret, sont à la charge du seul vendeur (loi du 10 juillet 1965, art. 10-1). Après la vente, le transfert de propriété est notifié sans délai au syndic (décret de 1967, art. 6) ; sauf certificat attestant que le vendeur est libre de toute obligation, le notaire lui donne aussi avis de la mutation dans les 15 jours (loi de 1965, art. 20).",
     kpi: { total: 'Total des états datés', pendentes: 'À établir', horsDelai: 'Hors délai', concluidas: 'Clôturés' },
     onglets: {
       todas: (n) => `Tous (${n})`,
@@ -95,7 +95,7 @@ export const DECL_ENCARGOS_MESSAGES = defineMessages<DeclEncargosTextes>({
       conc: (n) => `Clôturés (${n})`,
     },
     videTitre: 'Aucun état daté enregistré',
-    videDesc: "Créez un état daté lorsque le notaire vous le demande pour la vente d'un lot.",
+    videDesc: "Créez un état daté lorsque le notaire ou le copropriétaire vendeur vous le demande pour la vente d'un lot.",
     colonnes: { lot: 'Lot', coproprietaire: 'Copropriétaire vendeur', immeuble: 'Immeuble', demande: 'Demande', dateLimite: 'Date limite', charges: 'Charges courantes', statut: 'Statut' },
     pillPendente: 'À établir',
     formulaire: {

@@ -63,7 +63,7 @@ export const MONITORIZACAO_MESSAGES = defineMessages<MonitorizacaoTextes>({
     alertesActives: 'Alertes actives (2)',
     nbActives: '2 actives',
     alerteEau: "● Consommation d'eau supérieure de 28 % à la moyenne des 3 derniers mois",
-    alerteElectricite: "● Le coût mensuel de l'électricité atteint 85 % de l'enveloppe du budget prévisionnel",
+    alerteElectricite: "● Le coût mensuel de l'électricité a atteint 85 % de l'enveloppe prévue au budget prévisionnel",
     avertissement: 'Avertissement',
     info: 'Info',
   },
