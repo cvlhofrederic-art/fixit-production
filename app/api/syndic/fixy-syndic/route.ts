@@ -203,6 +203,17 @@ function generateFallback(message: string, ctx: Record<string, any>, userRole: s
 
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
+  // Corps lu avant toute autre étape : la langue de la requête doit être connue
+  // avant le secret, la limite de débit et l'authentification, qui peuvent
+  // lever, pour que les erreurs 400 et 500 soient dans cette langue. La lecture
+  // n'a pas d'effet de bord : ces contrôles gardent leur ordre et leurs réponses
+  // (429, 401). Un corps illisible garde le défaut de la route ('fr') ; son
+  // erreur est relevée plus bas, à la place de l'ancienne lecture.
+  const lecture = await request.json().then(
+    (corps) => ({ ok: true as const, corps }),
+    (erreur: unknown) => ({ ok: false as const, erreur }),
+  )
+  const resolvedLocale: 'fr' | 'pt' = lecture.ok && lecture.corps?.locale === 'pt' ? 'pt' : 'fr'
   try {
     const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
 
@@ -218,11 +229,15 @@ export async function POST(request: NextRequest) {
 
     const userRole = getUserRole(user) || 'syndic'
 
-    const body = await request.json()
-    const { message, syndic_context: clientContext = {}, conversation_history = [], locale } = body
+    if (!lecture.ok) throw lecture.erreur
+    const body = lecture.corps
+    const { message, syndic_context: clientContext = {}, conversation_history = [] } = body
 
     if (!message?.trim()) {
-      return NextResponse.json({ error: 'message requis' }, { status: 400 })
+      return NextResponse.json(
+        { error: resolvedLocale === 'pt' ? 'mensagem obrigatória' : 'message requis' },
+        { status: 400 },
+      )
     }
 
     // Hydrater le contexte depuis la DB (le client envoie souvent un objet vide ou partiel)
@@ -246,13 +261,10 @@ export async function POST(request: NextRequest) {
 
     if (!GROQ_API_KEY) {
       return NextResponse.json({
-        response: generateFallback(message, syndic_context, userRole, locale),
+        response: generateFallback(message, syndic_context, userRole, resolvedLocale),
         fallback: true,
       })
     }
-
-    // Résoudre la locale (défaut: 'fr')
-    const resolvedLocale: 'fr' | 'pt' = locale === 'pt' ? 'pt' : 'fr'
 
     // Pré-calculer les données de date (partagées entre FR et PT)
     const now = new Date()
@@ -351,7 +363,7 @@ export async function POST(request: NextRequest) {
       logger.error('Groq Fixy error:', { error: errMsg })
       // Différencier "clé manquante" (déjà géré ligne 247) du vrai échec LLM :
       // ici la clé est présente mais l'appel a échoué (429, timeout, etc.).
-      const errorMessage = locale === 'pt'
+      const errorMessage = resolvedLocale === 'pt'
         ? `⚠️ O serviço IA está temporariamente sobrecarregado. Tente novamente dentro de alguns segundos.\n\n_Detalhe técnico: ${errMsg.slice(0, 120)}_`
         : `⚠️ Le service IA est temporairement surchargé. Réessayez dans quelques secondes.\n\n_Détail technique : ${errMsg.slice(0, 120)}_`
       return NextResponse.json({
@@ -360,7 +372,7 @@ export async function POST(request: NextRequest) {
         error: 'llm_unreachable',
       })
     }
-    let response: string = groqData.choices?.[0]?.message?.content || (locale === 'pt' ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
+    let response: string = groqData.choices?.[0]?.message?.content || (resolvedLocale === 'pt' ? 'Não consegui gerar uma resposta. Tente novamente.' : 'Je n\'ai pas pu générer une réponse. Réessayez.')
 
     // ── Tool-calling loop — search_dossier + find_email_thread ───────────────
     // Si le LLM émet un ##TOOL##...## dans sa réponse, exécuter la query DB
@@ -434,7 +446,7 @@ export async function POST(request: NextRequest) {
         response = response.replace(/##ACTION##[\s\S]*?##/g, '').trim()
         // Si le LLM n'a renvoyé que l'action sans texte, fournir un message par défaut
         if (!response && action) {
-          const actionLabels: Record<string, string> = locale === 'pt' ? {
+          const actionLabels: Record<string, string> = resolvedLocale === 'pt' ? {
             create_mission: '📋 Missão preparada. Verifique os detalhes abaixo.',
             assign_mission: '📋 Missão atribuída preparada. Verifique os detalhes abaixo.',
             navigate: '🧭 A navegar...',
@@ -453,7 +465,7 @@ export async function POST(request: NextRequest) {
             create_document: '📄 Document préparé.',
             create_event: '📆 Rendez-vous préparé. Vérifiez les détails ci-dessous.',
           }
-          response = actionLabels[action.type as string] || (locale === 'pt' ? '✅ Ação preparada. Verifique os detalhes abaixo.' : '✅ Action préparée. Vérifiez les détails ci-dessous.')
+          response = actionLabels[action.type as string] || (resolvedLocale === 'pt' ? '✅ Ação preparada. Verifique os detalhes abaixo.' : '✅ Action préparée. Vérifiez les détails ci-dessous.')
         }
       } catch {
         // Ignore les actions malformées
@@ -467,6 +479,9 @@ export async function POST(request: NextRequest) {
 
   } catch (err: unknown) {
     logger.error('[fixy-syndic] Error:', err)
-    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    return NextResponse.json(
+      { error: resolvedLocale === 'pt' ? 'Ocorreu um erro interno' : 'Une erreur interne est survenue' },
+      { status: 500 },
+    )
   }
 }

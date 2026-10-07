@@ -47,9 +47,9 @@ function generateFallback(message: string, ctx: LeaContext, isPt = false): strin
   if (msg.includes('impayé') || msg.includes('relance') || msg.includes('recouvrement') ||
       msg.includes('dívida') || msg.includes('cobrança') || msg.includes('notificação')) {
     if (isPt) {
-      return `📋 **Procedimento dívidas de condóminos**\n\n1. **Notificação amigável** — Carta simples recordando o saldo em dívida\n2. **Carta registada com AR** — Interpelação com detalhe dos montantes\n3. **Acordo de pagamento** — Proposta de plano de pagamento\n4. **Procedimento judicial** — Injunção / ação executiva (Art.º 1424.º Código Civil)\n\n⚠️ Configure a chave GROQ_API_KEY para respostas personalizadas com os seus dados reais.`
+      return `📋 **Procedimento dívidas de condóminos**\n\n1. **Notificação amigável** — Carta simples recordando o saldo em dívida\n2. **Carta registada com AR** — Interpelação com detalhe dos montantes\n3. **Acordo de pagamento** — Proposta de plano de pagamento\n4. **Procedimento judicial** — Ação executiva com base na ata da assembleia (art. 6.º do DL 268/94) ou, na falta de ata exequível, injunção (DL 269/98)\n\n⚠️ Configure a chave GROQ_API_KEY para respostas personalizadas com os seus dados reais.`
     }
-    return `📋 **Procédure impayés copropriétaires**\n\n1. **Relance amiable** — Courrier simple rappelant le solde dû\n2. **LRAR** — Mise en demeure avec détail des sommes\n3. **Échéancier** — Proposition de plan d'apurement\n4. **Procédure judiciaire** — Référé-provision (art. 19 loi 10/07/1965)\n\n⚠️ Configurez la clé GROQ_API_KEY pour des réponses personnalisées avec vos données réelles.`
+    return `📋 **Procédure impayés copropriétaires**\n\n1. **Relance amiable** — Courrier simple rappelant le solde dû\n2. **LRAR** — Mise en demeure avec détail des sommes\n3. **Échéancier** — Proposition de plan d'apurement\n4. **Procédure judiciaire** — Injonction de payer ou, après mise en demeure restée sans effet 30 jours, procédure accélérée au fond (art. 19-2 loi 10/07/1965)\n\n⚠️ Configurez la clé GROQ_API_KEY pour des réponses personnalisées avec vos données réelles.`
   }
 
   if (msg.includes('budget') || msg.includes('charge') || msg.includes('appel') ||
@@ -77,6 +77,17 @@ function generateFallback(message: string, ctx: LeaContext, isPt = false): strin
 
 // ── Route principale ──────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
+  // Corps lu avant toute autre étape : la langue de la requête doit être connue
+  // avant le secret, la limite de débit et l'authentification, qui peuvent
+  // lever, pour que l'erreur 500 du catch final soit dans cette langue. La
+  // lecture n'a pas d'effet de bord : ces contrôles gardent leur ordre et leurs
+  // réponses (429, 401, 403). Un corps illisible garde le défaut de la route
+  // (français) ; son erreur est relevée plus bas, à la place de l'ancienne lecture.
+  const lecture = await request.json().then(
+    (corps) => ({ ok: true as const, corps }),
+    (erreur: unknown) => ({ ok: false as const, erreur }),
+  )
+  const isPt = lecture.ok && lecture.corps?.locale === 'pt'
   try {
     const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
 
@@ -97,10 +108,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cabinet non résolu' }, { status: 403 })
     }
 
-    const body = await request.json()
-    const { message, syndic_context: clientContext = {}, conversation_history = [], locale, stream } = body
-
-    const isPt = locale === 'pt'
+    if (!lecture.ok) throw lecture.erreur
+    const body = lecture.corps
+    const { message, syndic_context: clientContext = {}, conversation_history = [], stream } = body
 
     // Hydrater le contexte depuis la DB (supabaseAdmin bypass RLS, cohérent avec fixy-syndic)
     let syndic_context: Record<string, unknown> = clientContext
@@ -254,6 +264,9 @@ export async function POST(request: NextRequest) {
 
   } catch (err: unknown) {
     logger.error('Léa Comptable error:', err)
-    return NextResponse.json({ error: 'Uma erro interno ocorreu / Une erreur interne est survenue' }, { status: 500 })
+    return NextResponse.json(
+      { error: isPt ? 'Ocorreu um erro interno' : 'Une erreur interne est survenue' },
+      { status: 500 },
+    )
   }
 }
