@@ -1,0 +1,15 @@
+/*
+ * Police de repli d'Outfit, recopiée de next/font/google : Arial recalée sur les métriques
+ * capsize d'Outfit (node_modules/next/dist/server/capsize-font-metrics.json), affichée tant
+ * qu'Outfit n'est pas chargée (display: swap). next/font/local la calculerait autrement, à
+ * partir de l'instance par défaut du fichier variable (Thin) : la mise en page avant chargement
+ * changerait.
+ */
+@font-face {
+  font-family: 'Outfit Fallback';
+  src: local("Arial");
+  ascent-override: 100.18%;
+  descent-override: 26.05%;
+  line-gap-override: 0.00%;
+  size-adjust: 99.82%;
+}

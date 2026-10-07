@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Syne } from "next/font/google";
 import { Montserrat } from "next/font/google";
-import { Outfit } from "next/font/google";
 import { cookies, headers } from "next/headers";
+import { outfit } from "@/lib/fonts/outfit";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
@@ -42,15 +42,8 @@ const montserrat = Montserrat({
 
 // Outfit utilisé sur les dashboards syndic + copro. Conservé global car
 // référencé dans app/globals.css via plusieurs sélecteurs scopés #syndic-dashboard
-// + #copro-dashboard. Les dashboards layouts (app/syndic/dashboard/layout.tsx,
-// app/coproprietaire/dashboard/layout.tsx) le redéfinissent aussi en local
-// pour cohérence d'arborescence.
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  display: "swap",
-});
+// + #copro-dashboard. Auto-hébergé (lib/fonts/outfit) et partagé avec les layouts
+// des dashboards via lib/fonts/dashboard-fonts.ts.
 
 // Playfair_Display + IBM_Plex_Sans/Mono déplacés hors du layout global :
 // - Playfair Display → app/syndic/dashboard/layout.tsx + app/coproprietaire/dashboard/layout.tsx

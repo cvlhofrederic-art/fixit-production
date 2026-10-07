@@ -1,4 +1,5 @@
-import { Outfit, Montserrat, Playfair_Display } from 'next/font/google'
+import { Montserrat, Playfair_Display } from 'next/font/google'
+import { outfit } from './outfit'
 
 // Fonts partagées par les dashboards privés (syndic + coproprietaire).
 // Chargées uniquement sur ces routes — pas dans app/layout.tsx global —
@@ -6,12 +7,7 @@ import { Outfit, Montserrat, Playfair_Display } from 'next/font/google'
 //
 // Playfair Display utilisé pour KPI numbers, modal titles, doc empty states
 // dans #syndic-dashboard et inline dans #copro-dashboard (page.tsx).
-
-export const outfit = Outfit({
-  variable: '--font-outfit',
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-})
+// Outfit vient de lib/fonts/outfit (auto-hébergée, partagée avec app/layout.tsx).
 
 export const montserrat = Montserrat({
   variable: '--font-montserrat',
