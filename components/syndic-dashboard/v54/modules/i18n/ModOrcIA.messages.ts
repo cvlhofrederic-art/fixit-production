@@ -64,10 +64,10 @@ export const ORC_IA_MESSAGES = defineMessages<OrcIATextes>({
     tousImmeubles: 'Tous les immeubles',
     aucunImmeuble: 'Aucun immeuble',
     inflation: "Taux d'inflation prévu (%)",
-    generation: 'Génération…',
+    generation: 'Génération en cours…',
     generer: 'Générer le budget 2027',
-    aide: "L'algorithme analyse les 3 derniers exercices comptables, applique des moyennes pondérées, détecte les tendances à la hausse ou à la baisse par poste de charges et ajuste selon l'inflation prévue. La cotisation annuelle au fonds de travaux est calculée automatiquement au minimum légal : 5 % du budget prévisionnel et, si un plan pluriannuel de travaux est adopté, 2,5 % du montant des travaux qu'il prévoit (art. 14-2-1 de la loi n° 65-557).",
-    chargement: { titre: "Génération par l'IA…", texte: "Léa analyse les exercices précédents et applique l'inflation prévue." },
+    aide: "L'algorithme analyse les 3 derniers exercices comptables, applique des moyennes pondérées, détecte les tendances à la hausse ou à la baisse par poste de charges et ajuste selon l'inflation prévue. La cotisation annuelle au fonds de travaux est calculée automatiquement au minimum légal : au moins 5 % du budget prévisionnel et, si un plan pluriannuel de travaux a été adopté, au moins 2,5 % du montant des travaux qu'il prévoit (art. 14-2-1 de la loi n° 65-557 du 10 juillet 1965).",
+    chargement: { titre: "Génération par l'IA en cours…", texte: "Léa analyse les exercices précédents et applique l'inflation prévue." },
     vide: { titre: "Générez votre premier budget prévisionnel avec l'IA", texte: "Sélectionnez un immeuble, indiquez l'inflation prévue et cliquez sur « Générer »" },
     toasts: {
       genere: 'Budget prévisionnel généré',
@@ -77,6 +77,6 @@ export const ORC_IA_MESSAGES = defineMessages<OrcIATextes>({
       demo: 'Générateur IA (démonstration)',
       connexionRequise: 'Connectez-vous en tant que syndic pour générer le budget avec Léa',
     },
-    prompt: (edificio, inflacao) => `Établis une proposition de budget prévisionnel annuel de copropriété${edificio ? ` pour l'immeuble « ${edificio} »` : ''}, avec un taux d'inflation prévu de ${inflacao} %. Le budget prévisionnel couvre les dépenses courantes de maintenance, de fonctionnement et d'administration des parties communes et équipements communs (art. 14-1 de la loi n° 65-557 du 10 juillet 1965) ; les dépenses pour travaux non comprises dans le budget prévisionnel en sont exclues. Appuie-toi sur les moyennes pondérées des 3 derniers exercices, détecte les tendances par poste de charges, calcule la cotisation annuelle au fonds de travaux (art. 14-2-1 : au moins 5 % du budget prévisionnel et au moins 2,5 % du montant des travaux prévus par le plan pluriannuel de travaux adopté), puis présente les principaux postes et le total prévu. Rappelle que le budget est voté chaque année par l'assemblée générale. Réponds en français.`,
+    prompt: (edificio, inflacao) => `Établis une proposition de budget prévisionnel annuel de copropriété${edificio ? ` pour l'immeuble « ${edificio} »` : ''}, avec un taux d'inflation prévu de ${inflacao} %. Le budget prévisionnel couvre les dépenses courantes de maintenance, de fonctionnement et d'administration des parties communes et équipements communs (art. 14-1 de la loi n° 65-557 du 10 juillet 1965). Les travaux autres que la maintenance (travaux de conservation ou d'amélioration, études techniques, diagnostics) n'en font pas partie : ils sont votés et appelés séparément. Appuie-toi sur les moyennes pondérées des 3 derniers exercices, détecte les tendances par poste de charges, calcule la cotisation annuelle au fonds de travaux (art. 14-2-1 : au moins 5 % du budget prévisionnel et au moins 2,5 % du montant des travaux prévus par le plan pluriannuel de travaux adopté), puis présente les principaux postes et le total prévu. Rappelle que le budget est voté chaque année par l'assemblée générale. Réponds en français.`,
   },
 })

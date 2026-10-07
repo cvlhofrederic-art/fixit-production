@@ -42,7 +42,7 @@ export default function ModRelGestao() {
   const montantObras = missions.reduce((s, mi) => s + valOf(mi), 0)
   const orcAnual = immeubles.reduce((s, im) => s + (im.budgetAnnuel || 0), 0)
   const despAno = immeubles.reduce((s, im) => s + (im.depensesAnnee || 0), 0)
-  const consumido = orcAnual > 0 ? `${Math.round((despAno / orcAnual) * 100)}%` : '—'
+  const consumido = orcAnual > 0 ? t.pourcentage(Math.round((despAno / orcAnual) * 100)) : '—'
 
   const ch = t.champs
   const fields: readonly Field[] = real

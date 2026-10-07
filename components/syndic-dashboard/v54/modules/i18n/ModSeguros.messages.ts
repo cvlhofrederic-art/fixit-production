@@ -83,7 +83,7 @@ export const SEGUROS_MESSAGES = defineMessages<SegurosTextes>({
     titre: 'Gestion des assurances',
     chapeau: 'Polices, garanties, sinistres et alertes par immeuble',
     nouvellePolice: '+ Nouvelle police',
-    kpi: { actives: 'Polices actives', expirees: 'Expirées', aEcheance: 'À échéance (60 j)', primes: 'Total des primes/an', capital: 'Capital total' },
+    kpi: { actives: 'Polices actives', expirees: 'Expirées', aEcheance: 'Échéance sous 60 jours', primes: 'Total des primes annuelles', capital: 'Capital total' },
     onglets: { vg: "Vue d'ensemble", ap: 'Polices', sn: 'Sinistres', al: 'Alertes' },
     filtreAria: 'Filtrer par immeuble',
     tousImmeubles: 'Tous les immeubles',

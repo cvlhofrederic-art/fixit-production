@@ -110,12 +110,12 @@ export const NPS_MESSAGES = defineMessages<NpsTextes>({
   'fr-FR': {
     surtitre: 'OPÉRATIONNEL · SATISFACTION POST-INTERVENTION',
     titre: 'Satisfaction post-intervention (NPS)',
-    chapeau: "Envoi automatique 48 h après la clôture de l'ordre de service · NPS + commentaire · Note sur la Marketplace · Alfredo synthétise les retours",
+    chapeau: "Envoi automatique 48 h après la clôture de l'ordre de service · NPS + commentaire · Note dans l'annuaire des prestataires · Alfredo synthétise les retours",
     enregistrerReponse: 'Enregistrer une réponse',
     voirTableauPrestataires: 'Voir le tableau de bord des prestataires',
     alerte: {
-      titre: 'Boucle qualité des prestataires',
-      texte: "Chaque intervention clôturée déclenche une enquête 48 h plus tard. Les réponses alimentent la note des prestataires sur la Marketplace, et Alfredo repère ceux dont la satisfaction baisse avant que la situation ne s'aggrave.",
+      titre: 'Contrôle qualité des prestataires en boucle fermée',
+      texte: "Chaque intervention clôturée déclenche une enquête 48 h plus tard. Les réponses alimentent les notes de l'annuaire des prestataires, et Alfredo repère les prestataires dont la note de satisfaction baisse avant que la situation ne s'aggrave.",
     },
     kpi: {
       reponses: 'Réponses reçues',
