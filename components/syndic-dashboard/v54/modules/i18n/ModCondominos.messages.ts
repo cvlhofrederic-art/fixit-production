@@ -130,7 +130,7 @@ export const CONDOMINOS_MESSAGES = defineMessages<CondominosTextes>({
       lots: 'Total des lots',
       lotsSous: 'Dans le portefeuille',
       occupes: 'Occupés',
-      occupesSous: 'Par les copropriétaires',
+      occupesSous: 'Propriétaire ou locataire',
       vacants: 'Vacants',
       vacantsSous: 'Sans occupant',
     },
@@ -142,7 +142,7 @@ export const CONDOMINOS_MESSAGES = defineMessages<CondominosTextes>({
     vide: {
       titre: 'Aucun copropriétaire trouvé',
       desc: 'Ajoutez des copropriétaires manuellement ou importez-les depuis un fichier CSV.',
-      action: 'Ajouter un premier copropriétaire',
+      action: 'Ajouter votre premier copropriétaire',
     },
     csv: {
       fichier: 'coproprietaires.csv',
