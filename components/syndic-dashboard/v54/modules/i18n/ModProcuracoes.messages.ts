@@ -139,7 +139,7 @@ export const PROCURACOES_MESSAGES = defineMessages<ProcuracoesTextes>({
     genererFeuille: 'Générer la feuille de présence',
     cadre: {
       titre: 'Cadre légal',
-      texte: "Tout copropriétaire peut déléguer son droit de vote à un mandataire de son choix, copropriétaire ou non (art. 22 de la loi du 10 juillet 1965). Un mandataire ne peut recevoir plus de trois délégations de vote, sauf si le total de ses voix et de celles de ses mandants n'excède pas 10 % des voix du syndicat ; le syndic, son conjoint ou partenaire et ses préposés ne peuvent recevoir aucun mandat. La feuille de présence, émargée par chaque copropriétaire présent ou son mandataire et certifiée exacte par le président de séance, est obligatoire (art. 14 du décret du 17 mars 1967) ; elle est annexée au procès-verbal.",
+      texte: "Tout copropriétaire peut déléguer son droit de vote à un mandataire de son choix, copropriétaire ou non (art. 22 de la loi du 10 juillet 1965). Un mandataire ne peut recevoir plus de trois délégations de vote, sauf si le total de ses voix et de celles de ses mandants n'excède pas 10 % des voix du syndicat ; le syndic, ses préposés et leurs proches (conjoint, partenaire de PACS, concubin, ascendants et descendants) ne peuvent recevoir aucun mandat. La feuille de présence, émargée par chaque copropriétaire présent ou son mandataire et certifiée exacte par le président de séance, est obligatoire (art. 14 du décret du 17 mars 1967) ; elle est annexée au procès-verbal.",
     },
     kpi: {
       archives: 'Pouvoirs archivés',
@@ -153,7 +153,7 @@ export const PROCURACOES_MESSAGES = defineMessages<ProcuracoesTextes>({
     onglets: { pouvoirs: (n) => `Pouvoirs (${n})`, feuilles: 'Feuilles de présence (0)' },
     vide: {
       titre: 'Aucun pouvoir archivé',
-      desc: "Déposez les pouvoirs au format PDF. Léa en extrait automatiquement le copropriétaire mandant, le mandataire et l'AG concernée, et signale tout mandataire qui dépasse trois délégations de vote (art. 22).",
+      desc: "Déposez les pouvoirs au format PDF. Léa en extrait automatiquement le copropriétaire mandant, le mandataire et l'AG concernée, et signale tout mandataire qui dépasse la limite de délégations de vote (art. 22).",
       action: '+ Enregistrer un premier pouvoir',
     },
     representePar: 'Représenté par ',
@@ -165,7 +165,7 @@ export const PROCURACOES_MESSAGES = defineMessages<ProcuracoesTextes>({
       etapes: [
         ['1', 'Dépôt du pouvoir en PDF', 'Léa extrait le texte par OCR · indice de confiance'],
         ['2', 'Identification des parties', 'Mandant (copropriétaire) · mandataire · lot'],
-        ['3', 'Contrôle des délégations', 'Trois pouvoirs au plus par mandataire, sauf total ≤ 10 % des voix · syndic et préposés exclus (art. 22)'],
+        ['3', 'Contrôle des délégations', 'Trois délégations au plus par mandataire, sauf total ≤ 10 % des voix · syndic, préposés et proches exclus (art. 22)'],
         ['4', 'Extraction des dates', 'AG concernée · date du pouvoir'],
         ['5', 'Archivage + signalement', 'Disponible dans « AG en direct » · préremplissage de la feuille de présence'],
       ],

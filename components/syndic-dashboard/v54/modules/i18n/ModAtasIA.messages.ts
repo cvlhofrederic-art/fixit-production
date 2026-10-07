@@ -55,7 +55,7 @@ export const ATAS_IA_MESSAGES = defineMessages<AtasIaTextes>({
     consigne: (notes) => `Gera uma ata de assembleia de condóminos em português de Portugal, bem estruturada (cabeçalho com data e local, presenças e quórum, ordem de trabalhos, deliberações e votações por ponto, encerramento), a partir destes pontos/notas:\n\n${notes}`,
   },
   'fr-FR': {
-    titre: "Procès-verbaux IA — Procès-verbaux d'assemblée générale",
+    titre: "Procès-verbaux IA — PV d'assemblée générale",
     nouveau: '+ Nouveau PV',
     sousTitre: "Rédaction assistée des procès-verbaux d'assemblée générale des copropriétaires (art. 17 du décret du 17 mars 1967)",
     onglets: { ger: 'Rédiger un PV', atas: 'PV générés', mod: 'Modèles' },
@@ -69,7 +69,7 @@ export const ATAS_IA_MESSAGES = defineMessages<AtasIaTextes>({
     notesLabel: 'Ordre du jour / notes de séance',
     notesPlaceholder: 'Ex. :\n1. Approbation des comptes 2025 (art. 24)\n2. Budget prévisionnel 2026 (adopté, 720/1000 tantièmes pour)\n3. Travaux de ravalement de la façade\n4. Questions diverses',
     generer: "Générer le PV avec l'IA",
-    generation: 'Génération…',
+    generation: 'Génération en cours…',
     annuler: 'Annuler',
     redaction: 'Alfredo rédige le procès-verbal…',
     toasts: {
