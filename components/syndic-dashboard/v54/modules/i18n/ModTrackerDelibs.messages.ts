@@ -137,7 +137,7 @@ export const TRACKER_DELIBS_MESSAGES = defineMessages<TrackerDelibsTextes>({
       sousTitre: 'Traitement IA après le procès-verbal · Cas particuliers inclus',
       etapes: [
         { titre: 'Analyse sémantique', desc: "Repère le verbe d'action, l'objet et le responsable, implicite ou explicite" },
-        { titre: "Calcul de l'échéance", desc: "Date de l'AG + notification du PV dans le mois + délai de recours de deux mois (art. 42), jours fériés français inclus" },
+        { titre: "Calcul de l'échéance", desc: "Date de l'AG + notification du PV dans le mois + délai de recours de deux mois (art. 42), en tenant compte des jours fériés" },
         { titre: 'Alertes graduées', desc: 'J-3 / J-1 / J0 / J+1 — e-mails + notifications push + canal de communication' },
       ],
     },

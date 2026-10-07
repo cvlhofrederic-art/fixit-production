@@ -76,19 +76,19 @@ export const PLANO_MAN_MESSAGES = defineMessages<PlanoManTextes>({
   },
   'fr-FR': {
     titre: 'Plan pluriannuel de travaux',
-    chapeau: "Projet établi sur la base d'un diagnostic de l'immeuble, adopté en AG — art. 14-2 de la loi du 10 juillet 1965",
+    chapeau: "Travaux à prévoir sur dix ans, établis après analyse de l'immeuble et soumis à l'AG — art. 14-2 de la loi du 10 juillet 1965",
     nouveauPlan: '+ Nouveau plan',
     cadre: {
       titre: 'Obligation légale — art. 14-2 de la loi du 10 juillet 1965',
-      texte: "Dans les immeubles à destination totale ou partielle d'habitation, à l'expiration d'un délai de 15 ans après la réception des travaux de construction, un projet de plan pluriannuel de travaux est élaboré par un professionnel qualifié, à partir d'une analyse du bâti et des équipements, du diagnostic de performance énergétique et, le cas échéant, du diagnostic technique global. Il liste et chiffre les travaux à prévoir sur dix ans, les hiérarchise et propose un échéancier ; il est actualisé tous les dix ans, puis soumis à l'adoption de l'assemblée générale. Le fonds de travaux est alors alimenté d'au moins 2,5 % du montant des travaux du plan adopté (art. 14-2-1).",
+      texte: "Dans les immeubles à destination totale ou partielle d'habitation, à l'expiration d'un délai de 15 ans après la réception des travaux de construction, un projet de plan pluriannuel de travaux est établi par un professionnel qualifié à partir d'une analyse du bâti et des équipements et du diagnostic de performance énergétique, puis actualisé tous les dix ans. Il liste, chiffre et hiérarchise les travaux à prévoir sur dix ans ; son adoption est soumise à l'AG, à la majorité des voix de tous les copropriétaires. Une fois le plan adopté, la cotisation annuelle au fonds de travaux ne peut être inférieure à 2,5 % du montant des travaux prévus (art. 14-2-1).",
     },
-    kpi: { crees: 'Plans créés', adoptes: 'Adoptés en AG', enPreparation: 'En préparation', budgetTotal: 'Budget total estimé' },
+    kpi: { crees: 'Plans créés', adoptes: 'Adoptés en AG', enPreparation: 'En préparation', budgetTotal: 'Coût total estimé' },
     vide: {
       titre: 'Aucun plan pluriannuel de travaux',
       desc: 'Commencez par créer le projet de plan pluriannuel de travaux de vos immeubles.',
       action: '+ Créer un plan',
     },
-    colonnes: { titre: 'Titre', immeuble: 'Immeuble', debut: 'Début', periodicite: 'Périodicité', budget: 'Budget estimé', statut: 'Statut' },
+    colonnes: { titre: 'Titre', immeuble: 'Immeuble', debut: 'Début', periodicite: 'Périodicité', budget: 'Coût estimé', statut: 'Statut' },
     etats: { preparacao: 'En préparation', aprovado: 'Adopté', concluido: 'Réalisé' },
     modal: {
       titre: 'Nouveau plan pluriannuel de travaux',
@@ -101,7 +101,7 @@ export const PLANO_MAN_MESSAGES = defineMessages<PlanoManTextes>({
       anneeDebut: 'Année de début',
       periodicite: 'Périodicité',
       periodiciteDefaut: '10 ans',
-      budget: 'Budget estimé',
+      budget: 'Coût estimé',
       budgetAide: 'Montant en euros',
       description: 'Description',
       descriptionPlaceholder: 'Travaux de conservation, de sécurité et de performance énergétique prévus…',

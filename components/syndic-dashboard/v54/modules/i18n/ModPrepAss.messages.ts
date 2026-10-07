@@ -33,7 +33,7 @@ export const PREP_ASS_MESSAGES = defineMessages<PrepAssTextes>({
     enDeveloppement: 'Préparation des assemblées en cours de développement',
     cadre: {
       titre: 'Cadre légal — loi du 10 juillet 1965 et décret du 17 mars 1967',
-      texte: 'Convocation notifiée au moins 21 jours avant la réunion, sauf urgence (art. 9 du décret) · Documents à joindre à la convocation (art. 11 du décret) · Pas de quorum : décisions aux majorités des art. 24, 25 et 26 de la loi · Pouvoirs limités à trois délégations par mandataire, sauf total ≤ 10 % des voix (art. 22 de la loi) · Procès-verbal obligatoire (art. 17 du décret), notifié aux opposants et défaillants dans le mois (art. 42 de la loi)',
+      texte: "Convocation notifiée au moins 21 jours avant la réunion, sauf urgence (art. 9 du décret) · Documents à joindre à la convocation (art. 11 du décret) · Aucun quorum requis : décisions aux majorités des art. 24, 25 et 26 de la loi · Trois délégations de vote au plus par mandataire, sauf si ses voix et celles de ses mandants n'excèdent pas 10 % des voix du syndicat (art. 22 de la loi) · Procès-verbal obligatoire (art. 17 du décret), notifié aux opposants et défaillants dans le mois (art. 42 de la loi)",
     },
     vide: {
       titre: 'Aucune assemblée préparée',

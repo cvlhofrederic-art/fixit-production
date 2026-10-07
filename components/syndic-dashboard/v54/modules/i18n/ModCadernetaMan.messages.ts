@@ -45,6 +45,8 @@ interface CadernetaTextes {
   erreurs: { date: string; nature: string }
   toasts: {
     enregistree: string
+    /** Détail du toast de succès : le PT affiche le code brut de la nature (comportement d'origine), le FR son libellé. */
+    detailEnregistree: (libelle: string, code: string) => string
     erreur: string
     reessayerPlusTard: string
     enregistreeDemo: string
@@ -109,6 +111,7 @@ export const CADERNETA_MESSAGES = defineMessages<CadernetaTextes>({
     erreurs: { date: 'A data é obrigatória.', nature: 'Indique a natureza das obras.' },
     toasts: {
       enregistree: 'Intervenção registada',
+      detailEnregistree: (_libelle, code) => code,
       erreur: 'Erro ao registar',
       reessayerPlusTard: 'Tente novamente mais tarde',
       enregistreeDemo: 'Intervenção registada (demo)',
@@ -171,6 +174,7 @@ export const CADERNETA_MESSAGES = defineMessages<CadernetaTextes>({
     erreurs: { date: 'La date est obligatoire.', nature: 'Indiquez la nature des travaux.' },
     toasts: {
       enregistree: 'Intervention enregistrée',
+      detailEnregistree: (libelle) => libelle,
       erreur: "Erreur lors de l'enregistrement",
       reessayerPlusTard: 'Veuillez réessayer plus tard',
       enregistreeDemo: 'Intervention enregistrée (démonstration)',

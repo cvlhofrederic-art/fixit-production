@@ -63,7 +63,7 @@ export default function ModCadernetaMan() {
         body: JSON.stringify({ data: form.data, estado: form.estado, natureza: form.natureza, edificio: form.edificio, localizacao: form.localizacao, prestador: form.prestador, custo: Number(form.custo) || 0, garantia: form.garantia, cee: form.cee, notas: form.notas }),
       })
         .then(r => { if (!r.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.enregistree, desc: form.natureza }) })
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.enregistree, desc: t.toasts.detailEnregistree(naturezaLabel(form.natureza), form.natureza) }) })
         .catch(() => push({ kind: 'error', title: t.toasts.erreur, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
