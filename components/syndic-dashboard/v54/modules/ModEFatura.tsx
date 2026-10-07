@@ -8,6 +8,8 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { EFATURA_MESSAGES } from './i18n/ModEFatura.messages'
 
 /** Integração e-Fatura AT — port byte-exact du ModEFatura du bundle V5.7. */
 
@@ -18,51 +20,53 @@ const sumLbl = { fontSize: 11, color: 'var(--v54-navy-300)' } as const
 const sumVal = { fontFamily: 'var(--v54-font-serif)', fontSize: 22 } as const
 
 export default function ModEFatura() {
+  const t = useMessages(EFATURA_MESSAGES)
   const soon = useComingSoon()
+  const ch = t.champs
   return (
     <>
-      <PageHead title="Integração e-Fatura AT" lede="Submissão de faturas e documentos à Autoridade Tributária e Aduaneira" />
+      <PageHead title={t.titre} lede={t.chapeau} />
       <KPIGrid items={[
-        { icon: 'doc', num: 0, lbl: 'Total faturas submetidas' },
-        { icon: 'coin', num: '0,00 €', lbl: 'Valor total', accent: 'gold' },
-        { icon: 'check', num: 0, lbl: 'Aceites AT', accent: 'sage' },
-        { icon: 'ban', num: 0, lbl: 'Rejeitadas', accent: 'rust' },
+        { icon: 'doc', num: 0, lbl: t.kpi.soumises },
+        { icon: 'coin', num: '0,00 €', lbl: t.kpi.montant, accent: 'gold' },
+        { icon: 'check', num: 0, lbl: t.kpi.acceptees, accent: 'sage' },
+        { icon: 'ban', num: 0, lbl: t.kpi.rejetees, accent: 'rust' },
       ]} />
       <Tabs defaultActive="sub" tabs={[
-        { id: 'sub', icon: 'upload', label: 'Submissão' },
-        { id: 'hist', icon: 'stamp', label: 'Histórico' },
-        { id: 'saft', icon: 'archive', label: 'SAF-T PT' },
-        { id: 'cfg', icon: 'cog', label: 'Configuração' },
+        { id: 'sub', icon: 'upload', label: t.onglets.sub },
+        { id: 'hist', icon: 'stamp', label: t.onglets.hist },
+        { id: 'saft', icon: 'archive', label: t.onglets.saft },
+        { id: 'cfg', icon: 'cog', label: t.onglets.cfg },
       ]} />
-      <Panel title="Nova Submissão e-Fatura">
+      <Panel title={t.panneau}>
         <div className={m.cardGrid3}>
-          <div><label htmlFor="ef-nif-e" style={fieldLabel}>NIF Emitente *</label><input id="ef-nif-e" placeholder="999999999" style={fieldCtrl} /></div>
-          <div><label htmlFor="ef-nif-d" style={fieldLabel}>NIF Destinatário *</label><input id="ef-nif-d" placeholder="999999999" style={fieldCtrl} /></div>
-          <div><label htmlFor="ef-data" style={fieldLabel}>Data do Documento *</label><input id="ef-data" type="date" defaultValue="2026-05-24" aria-label="Data" autoComplete="bday" style={fieldCtrl} /></div>
+          <div><label htmlFor="ef-nif-e" style={fieldLabel}>{ch.nifEmetteur}</label><input id="ef-nif-e" placeholder="999999999" style={fieldCtrl} /></div>
+          <div><label htmlFor="ef-nif-d" style={fieldLabel}>{ch.nifDestinataire}</label><input id="ef-nif-d" placeholder="999999999" style={fieldCtrl} /></div>
+          <div><label htmlFor="ef-data" style={fieldLabel}>{ch.dateDocument}</label><input id="ef-data" type="date" defaultValue="2026-05-24" aria-label={ch.dateAria} autoComplete="bday" style={fieldCtrl} /></div>
         </div>
-        <div style={{ marginTop: 14 }}><label htmlFor="ef-tipo" style={fieldLabel}>Tipo de Documento *</label><select id="ef-tipo" style={fieldCtrl}><option>Fatura</option></select></div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--v54-navy-500)', marginBottom: 8, marginTop: 10 }}>Itens do Documento</div>
+        <div style={{ marginTop: 14 }}><label htmlFor="ef-tipo" style={fieldLabel}>{ch.typeDocument}</label><select id="ef-tipo" style={fieldCtrl}><option>{ch.typeFacture}</option></select></div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--v54-navy-500)', marginBottom: 8, marginTop: 10 }}>{t.lignes}</div>
         <div className={m.tblWrap}>
           <table className={m.tbl} style={{ border: '1px solid var(--v54-line)', borderRadius: 8 }}>
-            <thead><tr><th>Descrição *</th><th>QTD</th><th>Preço unit. (EUR)</th><th>Taxa IVA</th><th>Subtotal</th></tr></thead>
+            <thead><tr><th>{t.colonnes.description}</th><th>{t.colonnes.quantite}</th><th>{t.colonnes.prixUnitaire}</th><th>{t.colonnes.taux}</th><th>{t.colonnes.sousTotal}</th></tr></thead>
             <tbody>
               <tr>
-                <td><input aria-label="Descrição" style={{ ...cellInput, width: '100%' }} placeholder="Descrição do serviço ou produto" /></td>
-                <td><input aria-label="Quantidade" defaultValue="1" style={{ ...cellInput, width: 60 }} /></td>
-                <td><input aria-label="Preço unitário" defaultValue="0.00" style={{ ...cellInput, width: 90 }} /></td>
-                <td><select aria-label="Taxa IVA" style={cellInput}><option>23% (Normal)</option></select></td>
+                <td><input aria-label={t.aria.description} style={{ ...cellInput, width: '100%' }} placeholder={t.descriptionPlaceholder} /></td>
+                <td><input aria-label={t.aria.quantite} defaultValue="1" style={{ ...cellInput, width: 60 }} /></td>
+                <td><input aria-label={t.aria.prixUnitaire} defaultValue="0.00" style={{ ...cellInput, width: 90 }} /></td>
+                <td><select aria-label={t.aria.taux} style={cellInput}><option>{t.tauxNormal}</option></select></td>
                 <td className={m.numCell}>0,00 €</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <Button style={{ marginTop: 10 }} onClick={soon('Adicionar linha')}><Icon name="plus" />+ Adicionar linha</Button>
+        <Button style={{ marginTop: 10 }} onClick={soon(t.ajouterLigneToast)}><Icon name="plus" />{t.ajouterLigne}</Button>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginTop: 18, padding: 14, background: 'var(--v54-paper)', borderRadius: 10 }}>
-          <div><div style={sumLbl}>Total s/ IVA (HT)</div><div style={sumVal}>0,00 €</div></div>
-          <div><div style={sumLbl}>IVA</div><div style={sumVal}>0,00 €</div></div>
-          <div><div style={sumLbl}>Total c/ IVA (TTC)</div><div style={{ ...sumVal, color: 'var(--v54-gold-700)' }}>0,00 €</div></div>
+          <div><div style={sumLbl}>{t.totaux.ht}</div><div style={sumVal}>0,00 €</div></div>
+          <div><div style={sumLbl}>{t.totaux.tva}</div><div style={sumVal}>0,00 €</div></div>
+          <div><div style={sumLbl}>{t.totaux.ttc}</div><div style={{ ...sumVal, color: 'var(--v54-gold-700)' }}>0,00 €</div></div>
         </div>
-        <Button variant="gold" style={{ width: '100%', marginTop: 18, padding: 14, justifyContent: 'center' }} onClick={soon('Submeter ao e-Fatura', 'Integração e-Fatura (AT) em desenvolvimento')}><Icon name="upload" />Submeter ao e-Fatura</Button>
+        <Button variant="gold" style={{ width: '100%', marginTop: 18, padding: 14, justifyContent: 'center' }} onClick={soon(t.soumettre, t.enDeveloppement)}><Icon name="upload" />{t.soumettre}</Button>
       </Panel>
     </>
   )

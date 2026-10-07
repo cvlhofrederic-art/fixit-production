@@ -7,44 +7,41 @@ import { Panel } from '../primitives/panel'
 import { Pill } from '../primitives/pill'
 import { Progress } from '../primitives/progress'
 import m from './modules.module.css'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PAG_DIGITAIS_MESSAGES } from './i18n/ModPagDigitais.messages'
 
 /** Pagamentos Digitais — port byte-exact du ModPagDigitais du bundle V5.7. */
 
-const PAYMENTS = [
-  ['Ana Silva', 'A-1.°Esq', '185,00 €', 'Multibanco', '10/03/2026'],
-  ['Carlos Mendes', 'B-2.°Dto', '210,50 €', 'MB Way', '09/03/2026'],
-  ['Beatriz Costa', 'A-R/C', '150,00 €', 'Transferência', '08/03/2026'],
-  ['Diogo Ferreira', 'C-3.°Esq', '195,75 €', 'Débito Direto', '07/03/2026'],
-] as const
-
 export default function ModPagDigitais() {
+  const t = useMessages(PAG_DIGITAIS_MESSAGES)
+  const c = t.colonnes
   return (
     <>
-      <PageHead title="Pagamentos Digitais" lede="Gestão de cobranças, referências Multibanco e reconciliação bancária" />
+      <PageHead title={t.titre} lede={t.chapeau} />
       <Tabs defaultActive="dash" tabs={[
-        { id: 'dash', icon: 'chart', label: 'Dashboard' },
-        { id: 'mb', icon: 'coin', label: 'Referências MB' },
-        { id: 'rec', icon: 'refresh', label: 'Reconciliação' },
-        { id: 'cfg', icon: 'cog', label: 'Configuração' },
+        { id: 'dash', icon: 'chart', label: t.onglets.dash },
+        { id: 'mb', icon: 'coin', label: t.onglets.mb },
+        { id: 'rec', icon: 'refresh', label: t.onglets.rec },
+        { id: 'cfg', icon: 'cog', label: t.onglets.cfg },
       ]} />
       <KPIGrid items={[
-        { icon: 'coin', num: '0,00 €', lbl: 'Total cobrado este mês', accent: 'gold' },
-        { icon: 'clock', num: '4', lbl: 'Pagamentos pendentes', sub: '765,75 €', accent: 'amber' },
-        { icon: 'chart', num: '0.0%', lbl: 'Taxa de cobrança', accent: 'sage' },
-        { icon: 'calendar', num: '98', lbl: 'Atraso médio (dias)' },
+        { icon: 'coin', num: '0,00 €', lbl: t.kpi.encaisse, accent: 'gold' },
+        { icon: 'clock', num: '4', lbl: t.kpi.enAttente, sub: '765,75 €', accent: 'amber' },
+        { icon: 'chart', num: t.kpi.tauxValeur, lbl: t.kpi.taux, accent: 'sage' },
+        { icon: 'calendar', num: '98', lbl: t.kpi.retard },
       ]} />
-      <Panel title="Cobrado vs Pendente">
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}><span>Cobrado</span><b>0,00 €</b></div>
+      <Panel title={t.repartition.titre}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}><span>{t.repartition.encaisse}</span><b>0,00 €</b></div>
         <Progress pct={0} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, marginTop: 14 }}><span>Pendente</span><b>765,75 €</b></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4, marginTop: 14 }}><span>{t.repartition.enAttente}</span><b>765,75 €</b></div>
         <Progress pct={100} kind="amber" />
       </Panel>
-      <Panel title="Últimos 10 pagamentos recebidos" flush>
+      <Panel title={t.derniers} flush>
         <div className={m.tblWrap}>
           <table className={m.tbl}>
-            <thead><tr><th>Condómino</th><th>Fração</th><th>Valor</th><th>Método</th><th>Data</th></tr></thead>
+            <thead><tr><th>{c.coproprietaire}</th><th>{c.lot}</th><th>{c.montant}</th><th>{c.mode}</th><th>{c.date}</th></tr></thead>
             <tbody>
-              {PAYMENTS.map((r) => (
+              {t.demo.map((r) => (
                 <tr key={r[0]}>
                   <td><b>{r[0]}</b></td>
                   <td>{r[1]}</td>

@@ -17,32 +17,33 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Obra, Orcamento } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { MOD3_ORCAMENTOS_MESSAGES } from './i18n/ModMod3Orcamentos.messages'
 
 /** Orçamentos & Obras (3 orçamentos) — port V5.7 + lot 7 fonctionnel.
  * Syndic connecté → vraies obras du cabinet (data.obras) groupées par estado en kanban +
- * création POST ; anonyme → preview byte-exact. Lei 8/2022 — 3 devis obligatoires. */
+ * création POST ; anonyme → preview byte-exact. Lei 8/2022 — 3 devis obligatoires.
+ * FR : mise en concurrence au-delà du seuil voté en AG (art. 21 loi 1965, art. 19-2 décret 1967). */
 
 type ObraForm = { titulo: string; tipo: string; descricao: string; local: string; prazo: string; estado: Obra['estado']; orcamento: string; empresa: string; numOrcamentos: string }
 type ColCor = 'amber' | 'gold' | 'sage'
 
-const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
-const COLDEFS: Array<[string, Obra['estado'], ColCor]> = [
-  ['Orçamentação', 'orcamentacao', 'amber'],
-  ['Aprovação AG', 'aprovacao_ag', 'gold'],
-  ['Em Execução', 'execucao', 'sage'],
-  ['Concluída', 'concluida', 'sage'],
+const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
+/** Colonnes du kanban : étape (code de l'API) et couleur ; le titre vient du dictionnaire. */
+const COLDEFS: Array<[Obra['estado'], ColCor]> = [
+  ['orcamentacao', 'amber'],
+  ['aprovacao_ag', 'gold'],
+  ['execucao', 'sage'],
+  ['concluida', 'sage'],
 ]
 const dotClass = (cor: ColCor) => clsx(m.dotStatus, cor === 'amber' && m.dotStatusAmber, cor === 'gold' && m.dotStatusGold)
 
-const PREVIEW: Obra[] = [
-  { id: 'p1', titulo: 'Impermeabilização da cobertura', tipo: 'Reparação', descricao: 'Reparação e impermeabilização completa da cobertura do edifício principal, inclu…', local: 'Edifício Av. da Liberdade, 42', prazo: '2026-06-30', estado: 'orcamentacao', orcamento: 0, empresa: '', numOrcamentos: 3 },
-  { id: 'p2', titulo: 'Renovação da fachada exterior', tipo: 'Renovação', descricao: 'Pintura e restauro da fachada com tratamento anti-humidade e limpeza de cantaria…', local: 'Edifício Rua Augusta, 105', prazo: '2026-09-15', estado: 'aprovacao_ag', orcamento: 29800, empresa: 'ConstruPT Lda.', numOrcamentos: 3 },
-]
-
 export default function ModMod3Orcamentos() {
+  const t = useMessages(MOD3_ORCAMENTOS_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
-  const all: Obra[] = real ? (data.obras ?? []) : PREVIEW
+  const all: Obra[] = real ? (data.obras ?? []) : t.demo
   const { busy, create } = useSyndicCreate('/api/syndic/obras')
 
   // Phase A : comparaison « 3 orçamentos » par obra → POST /api/syndic/orcamentos.
@@ -59,7 +60,7 @@ export default function ModMod3Orcamentos() {
     if (!compareObra || !orcForm.empresa.trim()) return
     orc.create(
       { obraId: compareObra.id, empresa: orcForm.empresa, valor: Number(orcForm.valor) || 0, prazoDias: Number(orcForm.prazoDias) || undefined },
-      { okTitle: 'Orçamento adicionado', desc: orcForm.empresa, onDone: () => setOrcForm(orcBlank) },
+      { okTitle: t.comparaison.ajoute, desc: orcForm.empresa, onDone: () => setOrcForm(orcBlank) },
     )
   }
 
@@ -72,10 +73,10 @@ export default function ModMod3Orcamentos() {
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.titulo.trim()) { setErrors({ titulo: 'Indique o título da obra.' }); return }
+    if (!form.titulo.trim()) { setErrors({ titulo: t.erreurIntitule }); return }
     create(
       { titulo: form.titulo, tipo: form.tipo, descricao: form.descricao, local: form.local, prazo: form.prazo || null, estado: form.estado, orcamento: Number(form.orcamento) || 0, empresa: form.empresa, numOrcamentos: Number(form.numOrcamentos) || 0 },
-      { okTitle: 'Obra criada', desc: form.titulo, onDone: () => setOpen(false) },
+      { okTitle: t.cree, desc: form.titulo, onDone: () => setOpen(false) },
     )
   }
 
@@ -83,26 +84,30 @@ export default function ModMod3Orcamentos() {
   const cnt = (e: Obra['estado']) => all.filter(o => o.estado === e).length
   const totalOrc = all.reduce((s, o) => s + (Number(o.numOrcamentos) || 0), 0)
 
+  const ca = t.carte
+  const cp = t.comparaison
+  const f = t.formulaire
   return (
     <>
-      <PageHead title="Orçamentos & Obras" lede="Comparação obrigatória de 3 orçamentos · Lei 8/2022 Art. 1436.° CC" />
+      <PageHead title={t.titre} lede={t.chapeau} />
       <KPIGrid items={[
-        { icon: 'construction', num: ativas, lbl: 'Obras Ativas', accent: 'gold' },
-        { icon: 'pencil', num: cnt('orcamentacao'), lbl: 'Em Orçamentação', accent: 'amber' },
-        { icon: 'check', num: cnt('aprovacao_ag'), lbl: 'Aprovação AG', accent: 'sage' },
-        { icon: 'wrench', num: cnt('execucao'), lbl: 'Em Execução' },
-        { icon: 'check', num: cnt('concluida'), lbl: 'Concluídas', accent: 'sage' },
-        { icon: 'chart', num: totalOrc, lbl: 'Total Orçamentos' },
+        { icon: 'construction', num: ativas, lbl: t.kpi.actifs, accent: 'gold' },
+        { icon: 'pencil', num: cnt('orcamentacao'), lbl: t.kpi.consultation, accent: 'amber' },
+        { icon: 'check', num: cnt('aprovacao_ag'), lbl: t.kpi.vote, accent: 'sage' },
+        { icon: 'wrench', num: cnt('execucao'), lbl: t.kpi.execution },
+        { icon: 'check', num: cnt('concluida'), lbl: t.kpi.termines, accent: 'sage' },
+        { icon: 'chart', num: totalOrc, lbl: t.kpi.totalDevis },
       ]} />
       <Tabs defaultActive="cur" tabs={[
-        { id: 'cur', icon: 'construction', label: 'Obras em Curso', badge: ativas },
-        { id: 'cmp', icon: 'chart', label: 'Comparação Orçamentos', badge: cnt('orcamentacao') },
-        { id: 'arq', icon: 'folder', label: 'Arquivo', badge: cnt('concluida') },
-        { id: 'reg', icon: 'clipboard', label: 'Regras' },
+        { id: 'cur', icon: 'construction', label: t.onglets.cur, badge: ativas },
+        { id: 'cmp', icon: 'chart', label: t.onglets.cmp, badge: cnt('orcamentacao') },
+        { id: 'arq', icon: 'folder', label: t.onglets.arq, badge: cnt('concluida') },
+        { id: 'reg', icon: 'clipboard', label: t.onglets.reg },
       ]} />
-      <Button variant="gold" style={{ marginBottom: 14 }} onClick={openNew}><Icon name="plus" />+ Nova Obra</Button>
+      <Button variant="gold" style={{ marginBottom: 14 }} onClick={openNew}><Icon name="plus" />{t.nouveau}</Button>
       <div className={m.cardGrid4}>
-        {COLDEFS.map(([titulo, estado, cor], i) => {
+        {COLDEFS.map(([estado, cor], i) => {
+          const titulo = t.colonnes[estado]
           const obras = all.filter(o => o.estado === estado)
           return (
             <div key={estado}>
@@ -111,21 +116,21 @@ export default function ModMod3Orcamentos() {
                 <span style={{ fontWeight: 700, color: 'var(--v54-navy-300)' }}>{obras.length}</span>
               </div>
               {obras.length === 0 ? (
-                <div style={{ padding: 36, textAlign: 'center', color: 'var(--v54-navy-300)', background: 'var(--v54-paper)', borderRadius: 12, fontSize: 12.5 }}>Nenhuma obra</div>
+                <div style={{ padding: 36, textAlign: 'center', color: 'var(--v54-navy-300)', background: 'var(--v54-paper)', borderRadius: 12, fontSize: 12.5 }}>{t.aucun}</div>
               ) : (
                 obras.map(o => (
                   <Panel key={o.id}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, gap: 6 }}><div style={{ fontWeight: 600, fontSize: 13.5 }}>{o.titulo}</div><Pill kind={cor as PillKind} noDot>{o.tipo || '—'}</Pill></div>
                     <div style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', marginBottom: 8 }}>{o.descricao}</div>
                     <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginBottom: 4 }}>{o.local || '—'}</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginBottom: 4 }}>Prazo: {o.prazo || '—'}</div>
-                    {o.orcamento > 0 && <div style={{ fontSize: 12, color: 'var(--v54-gold-700)', fontWeight: 600, marginBottom: 4 }}>Orçamento: {fmtEUR(o.orcamento)}</div>}
+                    <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginBottom: 4 }}>{ca.echeance}{o.prazo || '—'}</div>
+                    {o.orcamento > 0 && <div style={{ fontSize: 12, color: 'var(--v54-gold-700)', fontWeight: 600, marginBottom: 4 }}>{ca.montant}{fmtEUR(o.orcamento, locale)}</div>}
                     {o.empresa && <div style={{ fontSize: 11.5, marginBottom: 4 }}>{o.empresa}</div>}
-                    <Pill kind="sage" noDot>{o.numOrcamentos}/3 orçamentos</Pill>
+                    <Pill kind="sage" noDot>{o.numOrcamentos}{ca.nbDevis}</Pill>
                     <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
                       {i === 0
-                        ? <Button size="sm" onClick={() => setCompareObra(o)}><Icon name="chart" />Comparar</Button>
-                        : <select className={clsx(btnCss.btn, btnCss.sm)} style={{ flex: 1 }} aria-label="Estado da obra"><option>{titulo}</option></select>}
+                        ? <Button size="sm" onClick={() => setCompareObra(o)}><Icon name="chart" />{ca.comparer}</Button>
+                        : <select className={clsx(btnCss.btn, btnCss.sm)} style={{ flex: 1 }} aria-label={ca.etapeAria}><option>{titulo}</option></select>}
                     </div>
                   </Panel>
                 ))
@@ -136,21 +141,21 @@ export default function ModMod3Orcamentos() {
       </div>
 
       <Modal open={compareObra != null} onClose={() => setCompareObra(null)} labelledBy="cmp-title" size="md">
-        <ModalHead icon="chart" id="cmp-title" title="Comparar orçamentos" onClose={() => setCompareObra(null)} />
+        <ModalHead icon="chart" id="cmp-title" title={cp.titre} onClose={() => setCompareObra(null)} />
         <ModalBody>
           <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, marginBottom: 4 }}>{compareObra?.titulo}</div>
-          <div style={{ fontSize: 12, color: 'var(--v54-navy-300)', marginBottom: 14 }}>Lei 8/2022 — mínimo 3 orçamentos antes da aprovação em AG.</div>
+          <div style={{ fontSize: 12, color: 'var(--v54-navy-300)', marginBottom: 14 }}>{cp.rappel}</div>
           {orcamentosObra.length === 0 ? (
-            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>Nenhum orçamento registado. Adicione abaixo.</div>
+            <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>{cp.aucunDevis}</div>
           ) : (
             <div className={m.tblWrap}>
               <table className={m.tbl}>
-                <thead><tr><th>Empresa</th><th>Valor</th><th>Prazo</th></tr></thead>
+                <thead><tr><th>{cp.entreprise}</th><th>{cp.montant}</th><th>{cp.delai}</th></tr></thead>
                 <tbody>{orcamentosObra.map((x, idx) => (
                   <tr key={x.id}>
-                    <td><b>{x.empresa || '—'}</b> {x.recomendado && <Pill kind="gold" noDot>Recomendado</Pill>}</td>
-                    <td className={m.numCell}>{fmtEUR(x.valor)} {idx === 0 && orcamentosObra.length > 1 && <Pill kind="sage" noDot>Mais baixo</Pill>}</td>
-                    <td className={m.numCell}>{x.prazoDias != null ? `${x.prazoDias} dias` : '—'}</td>
+                    <td><b>{x.empresa || '—'}</b> {x.recomendado && <Pill kind="gold" noDot>{cp.recommande}</Pill>}</td>
+                    <td className={m.numCell}>{fmtEUR(x.valor, locale)} {idx === 0 && orcamentosObra.length > 1 && <Pill kind="sage" noDot>{cp.moinsDisant}</Pill>}</td>
+                    <td className={m.numCell}>{x.prazoDias != null ? cp.jours(x.prazoDias) : '—'}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -158,70 +163,70 @@ export default function ModMod3Orcamentos() {
           )}
           <form onSubmit={addOrcamento} style={{ marginTop: 16 }} noValidate>
             <FormRow>
-              <Field label="Empresa" name="orc-emp">
-                <input type="text" placeholder="Nome da empresa" value={orcForm.empresa} onChange={e => orcUpd('empresa', e.target.value)} />
+              <Field label={cp.entreprise} name="orc-emp">
+                <input type="text" placeholder={cp.nomEntreprise} value={orcForm.empresa} onChange={e => orcUpd('empresa', e.target.value)} />
               </Field>
-              <Field label="Valor (€)" name="orc-val">
+              <Field label={cp.montantEuros} name="orc-val">
                 <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={orcForm.valor} onChange={e => orcUpd('valor', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Prazo (dias)" name="orc-prz">
+            <Field label={cp.delaiJours} name="orc-prz">
               <input type="number" min="0" inputMode="numeric" placeholder="—" value={orcForm.prazoDias} onChange={e => orcUpd('prazoDias', e.target.value)} />
             </Field>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={orc.busy} style={{ marginTop: 10 }}><Icon name="plus" />Adicionar orçamento</button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={orc.busy} style={{ marginTop: 10 }}><Icon name="plus" />{cp.ajouter}</button>
           </form>
         </ModalBody>
         <ModalFoot>
-          <Button variant="ghost" onClick={() => setCompareObra(null)}>Fechar</Button>
+          <Button variant="ghost" onClick={() => setCompareObra(null)}>{cp.fermer}</Button>
         </ModalFoot>
       </Modal>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="obra-modal-title" size="md">
-        <ModalHead icon="construction" id="obra-modal-title" title="Nova obra" onClose={() => setOpen(false)} />
+        <ModalHead icon="construction" id="obra-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Título" required full name="obra-titulo" error={errors.titulo}>
-              <input type="text" placeholder="Ex.: Impermeabilização da cobertura" value={form.titulo} onChange={e => upd('titulo', e.target.value)} />
+            <Field label={f.intitule} required full name="obra-titulo" error={errors.titulo}>
+              <input type="text" placeholder={f.intitulePlaceholder} value={form.titulo} onChange={e => upd('titulo', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Tipo" name="obra-tipo">
-                <input type="text" placeholder="Reparação, Renovação…" value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
+              <Field label={f.type} name="obra-tipo">
+                <input type="text" placeholder={f.typePlaceholder} value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
               </Field>
-              <Field label="Estado" name="obra-estado">
+              <Field label={f.etape} name="obra-estado">
                 <select value={form.estado} onChange={e => upd('estado', e.target.value)}>
-                  <option value="orcamentacao">Orçamentação</option>
-                  <option value="aprovacao_ag">Aprovação AG</option>
-                  <option value="execucao">Em Execução</option>
-                  <option value="concluida">Concluída</option>
+                  <option value="orcamentacao">{t.colonnes.orcamentacao}</option>
+                  <option value="aprovacao_ag">{t.colonnes.aprovacao_ag}</option>
+                  <option value="execucao">{t.colonnes.execucao}</option>
+                  <option value="concluida">{t.colonnes.concluida}</option>
                 </select>
               </Field>
             </FormRow>
-            <Field label="Descrição" full name="obra-desc">
+            <Field label={f.description} full name="obra-desc">
               <textarea rows={2} value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Local" name="obra-local">
-                <input type="text" placeholder="Edifício / morada" value={form.local} onChange={e => upd('local', e.target.value)} />
+              <Field label={f.lieu} name="obra-local">
+                <input type="text" placeholder={f.lieuPlaceholder} value={form.local} onChange={e => upd('local', e.target.value)} />
               </Field>
-              <Field label="Prazo" name="obra-prazo">
+              <Field label={f.echeance} name="obra-prazo">
                 <input type="date" value={form.prazo} onChange={e => upd('prazo', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Orçamento" hint="Valor retido (€)" name="obra-orc" suffix="€">
+              <Field label={f.montant} hint={f.montantAide} name="obra-orc" suffix="€">
                 <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="0" value={form.orcamento} onChange={e => upd('orcamento', e.target.value)} />
               </Field>
-              <Field label="N.º de orçamentos" hint="Mín. 3 (Lei 8/2022)" name="obra-norc">
+              <Field label={f.nbDevis} hint={f.nbDevisAide} name="obra-norc">
                 <input type="number" min="0" max="9" inputMode="numeric" placeholder="3" value={form.numOrcamentos} onChange={e => upd('numOrcamentos', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Empresa adjudicada" full name="obra-empresa">
-              <input type="text" placeholder="Nome da empresa (se já escolhida)" value={form.empresa} onChange={e => upd('empresa', e.target.value)} />
+            <Field label={f.entreprise} full name="obra-empresa">
+              <input type="text" placeholder={f.entreprisePlaceholder} value={form.empresa} onChange={e => upd('empresa', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar obra</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.creer}</button>
           </ModalFoot>
         </form>
       </Modal>
