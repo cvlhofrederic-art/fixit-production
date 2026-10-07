@@ -16,7 +16,9 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages } from '@/lib/syndic/v54/i18n'
 import type { Checklist } from '@/lib/syndic/v54/api'
+import { CHECKLISTS_MESSAGES } from './i18n/ModChecklists.messages'
 
 /** Checklists Inteligentes — port V5.7 + lot fonctionnel.
  * Syndic connecté → vraies checklists du cabinet (data.checklists) + création POST ;
@@ -24,11 +26,11 @@ import type { Checklist } from '@/lib/syndic/v54/api'
 
 type ChkForm = { titulo: string; tipo: string; edificio: string; estado: Checklist['estado']; items: string }
 
-const MODELOS = ['Inspeção periódica do edifício', 'Preparação de Assembleia Geral', 'Entrada / saída de fração', 'Acompanhamento de obras']
 const doneCount = (c: Checklist) => c.items.filter(i => i.done).length
 const pctDone = (c: Checklist) => (c.items.length ? Math.round((doneCount(c) / c.items.length) * 100) : 0)
 
 export default function ModChecklists() {
+  const t = useMessages(CHECKLISTS_MESSAGES)
   const data = useSyndicData()
   const real = data.authenticated
   const all: Checklist[] = real ? (data.checklists ?? []) : []
@@ -46,7 +48,7 @@ export default function ModChecklists() {
   const openNew = (modelo?: string) => { setForm({ ...blank, titulo: modelo || '' }); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.titulo.trim()) { setErrors({ titulo: 'Indique o título da checklist.' }); return }
+    if (!form.titulo.trim()) { setErrors({ titulo: t.erreurs.titre }); return }
     const items = form.items.split('\n').map(l => l.trim()).filter(Boolean).map(label => ({ label, done: false }))
     if (real && data.token) {
       setBusy(true)
@@ -56,13 +58,13 @@ export default function ModChecklists() {
         body: JSON.stringify({ titulo: form.titulo, tipo: form.tipo, edificio: form.edificio, estado: form.estado, items }),
       })
         .then(r => { if (!r.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Checklist criada', desc: form.titulo }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao criar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.creee, desc: form.titulo }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurCreation, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Checklist criada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.creeeDemo, desc: t.toasts.connexionRequise })
   }
 
   const card = (c: Checklist) => (
@@ -76,64 +78,65 @@ export default function ModChecklists() {
     </div>
   )
 
+  const f = t.modale
   return (
     <>
       <PageHead
-        title="Checklists Inteligentes com IA"
-        lede="Processos padronizados — inspeções, AG, entradas/saídas, obras"
-        actions={<Button variant="gold" onClick={() => openNew()}><Icon name="plus" />+ Nova Checklist</Button>}
+        title={t.titre}
+        lede={t.chapeau}
+        actions={<Button variant="gold" onClick={() => openNew()}><Icon name="plus" />{t.nouvelleChecklist}</Button>}
       />
       <KPIGrid items={[
-        { accent: 'amber', lblFirst: true, num: emCurso.length, lbl: 'Em Curso' },
-        { accent: 'sage', lblFirst: true, num: concluidas.length, lbl: 'Concluídas' },
-        { accent: 'gold', lblFirst: true, num: all.length, lbl: 'Total' },
+        { accent: 'amber', lblFirst: true, num: emCurso.length, lbl: t.kpi.enCours },
+        { accent: 'sage', lblFirst: true, num: concluidas.length, lbl: t.kpi.terminees },
+        { accent: 'gold', lblFirst: true, num: all.length, lbl: t.kpi.total },
       ]} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-        <Panel title="Em Curso">
+        <Panel title={t.panneaux.enCours}>
           {emCurso.length === 0
-            ? <Empty illustration="documentos" title="Nenhuma checklist em curso" action={<Button variant="gold" onClick={() => openNew()}><Icon name="plus" />Nova</Button>} />
+            ? <Empty illustration="documentos" title={t.vides.enCours} action={<Button variant="gold" onClick={() => openNew()}><Icon name="plus" />{t.vides.nouvelle}</Button>} />
             : emCurso.map(card)}
         </Panel>
-        <Panel title="Modelos">
-          {MODELOS.map((t, i) => (
-            <button key={i} type="button" onClick={() => openNew(t)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', width: '100%', background: 'none', border: 'none', borderBottom: i < MODELOS.length - 1 ? '1px solid var(--v54-line)' : 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
-              <Icon name="clipboard" /><span>{t}</span>
+        <Panel title={t.panneaux.modeles}>
+          {t.modeles.map((modele, i) => (
+            <button key={i} type="button" onClick={() => openNew(modele)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', width: '100%', background: 'none', border: 'none', borderBottom: i < t.modeles.length - 1 ? '1px solid var(--v54-line)' : 'none', cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}>
+              <Icon name="clipboard" /><span>{modele}</span>
             </button>
           ))}
         </Panel>
-        <Panel title="Concluídas">
-          {concluidas.length === 0 ? <Empty illustration="documentos" desc="Nenhuma checklist concluída" /> : concluidas.map(card)}
+        <Panel title={t.panneaux.terminees}>
+          {concluidas.length === 0 ? <Empty illustration="documentos" desc={t.vides.terminees} /> : concluidas.map(card)}
         </Panel>
       </div>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="chk-modal-title" size="md">
-        <ModalHead icon="clipboard" id="chk-modal-title" title="Nova checklist" onClose={() => setOpen(false)} />
+        <ModalHead icon="clipboard" id="chk-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Título" required full name="chk-titulo" error={errors.titulo}>
-              <input type="text" placeholder="Ex.: Inspeção periódica do edifício" value={form.titulo} onChange={e => upd('titulo', e.target.value)} />
+            <Field label={f.intitule} required full name="chk-titulo" error={errors.titulo}>
+              <input type="text" placeholder={f.intitulePlaceholder} value={form.titulo} onChange={e => upd('titulo', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Tipo" name="chk-tipo">
-                <input type="text" placeholder="Inspeção, AG, obra…" value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
+              <Field label={f.type} name="chk-tipo">
+                <input type="text" placeholder={f.typePlaceholder} value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
               </Field>
-              <Field label="Edifício" name="chk-edif">
-                <input type="text" placeholder="Edifício…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+              <Field label={f.immeuble} name="chk-edif">
+                <input type="text" placeholder={f.immeublePlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Estado" name="chk-estado">
+            <Field label={f.etat} name="chk-estado">
               <select value={form.estado} onChange={e => upd('estado', e.target.value)}>
-                <option value="em_curso">Em curso</option>
-                <option value="concluida">Concluída</option>
+                <option value="em_curso">{f.etats.em_curso}</option>
+                <option value="concluida">{f.etats.concluida}</option>
               </select>
             </Field>
-            <Field label="Itens" hint="Um item por linha" full name="chk-items">
-              <textarea rows={5} placeholder={'Verificar extintores\nTestar iluminação de emergência\nInspecionar telhado'} value={form.items} onChange={e => upd('items', e.target.value)} />
+            <Field label={f.items} hint={f.itemsAide} full name="chk-items">
+              <textarea rows={5} placeholder={f.itemsPlaceholder} value={form.items} onChange={e => upd('items', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar checklist</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.creer}</button>
           </ModalFoot>
         </form>
       </Modal>
