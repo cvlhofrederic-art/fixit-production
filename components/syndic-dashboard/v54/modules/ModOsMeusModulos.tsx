@@ -10,134 +10,67 @@ import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import {
+  OS_MEUS_MODULOS_MESSAGES,
+  type IdCarte,
+  type IdLigne,
+  type SectionCatalogue,
+  type SectionMenu,
+} from './i18n/ModOsMeusModulos.messages'
 
-/** Os Meus Módulos — port byte-exact du ModOsMeusModulos du bundle V5.7 (catalogue 90 módulos + ordem menu). */
+/** Os Meus Módulos — port byte-exact du ModOsMeusModulos du bundle V5.7 (catalogue de módulos + ordem menu ; compteurs calculés sur les cartes affichées). */
 
-const cardSections: [string, [string, string, string][]][] = [
-  ['GESTÃO CORRENTE', [
-    ['Ordens de serviço', 'clipboard', 'Criar e acompanhar intervenções'],
-    ['Canal de Comunicações', 'chat', 'Mensagens internas e com profissionais'],
-    ['Planeamento', 'calendar', 'Vista de calendário das intervenções'],
-    ['Faturação', 'doc', 'Gestão de faturas'],
-    ['Histórico Edifício', 'bank', 'Vista consolidada por edifício — intervenções, equipamentos, contratos'],
-    ['Urgências Técnicas', 'siren', 'Despacho imediato para o profissional VITFIX disponível'],
-    ['Emails Fixy', 'mail', 'Gestão de emails com IA'],
-    ['Max Expert', 'grad', 'Consultor especialista IA em condomínios'],
+/**
+ * Structure commune aux deux langues : sections, modules (ids de la sidebar) et icônes.
+ * Les noms, descriptions et titres viennent du dictionnaire ; en français, ce sont les
+ * libellés de la sidebar FR, et les modules masqués en France sont retirés.
+ */
+const cardSections: [SectionCatalogue, [IdCarte, IconName | ''][]][] = [
+  ['gestaoCorrente', [['ordens', 'clipboard'], ['canal', 'chat'], ['planeamento', 'calendar'], ['faturacao', 'doc'], ['histEdificio', 'bank'], ['urgencias', 'siren'], ['emailsFixy', 'mail'], ['max', 'grad']]],
+  ['terreno', [['docsInterv', 'folder'], ['contabTec', 'chart'], ['analiseOrc', 'search'], ['caderneta', 'book'], ['sinistros', 'shield']]],
+  ['condominioAG', [['contabCond', 'book'], ['agDigit', 'bank'], ['valoresDiv', 'alert'], ['extranet', 'users'], ['cobrAuto', 'refresh']]],
+  ['obrigacoes', [['declEncargos', 'stamp'], ['seguroObr', 'shield'], ['fcr', 'bank'], ['obrigPrazos', 'scale'], ['certEnerg', 'lightning']]],
+  ['compliance', [['trackerDelibs', 'bot'], ['procuracoes', 'doc'], ['notificJud', 'scale'], ['acessibilidade', 'target'], ['segEdificio', 'shield'], ['rgpdCenter', 'archive']]],
+  ['patrimonio', [['elevadores', 'monitor'], ['contratos', 'handshake'], ['cctv', 'monitor']]],
+  ['fiscal', [['mapaFiscal', 'fact'], ['openBanking', 'bank'], ['reembolsos', 'refresh'], ['npsPosIntervencao', 'poll']]],
+  ['gestaoCondominos', [['portal', 'home'], ['reserva', 'calendar'], ['ocorrencias', 'wrench'], ['enquetes', 'chart'], ['avisos', 'pin'], ['whatsapp', 'chat'], ['qrcode', 'qr'], ['dashCond', 'users'], ['chatbot', 'bot']]],
+  ['ferramentas', [
+    ['votacaoOnline', 'archive'], ['pagDigitais', 'coin'], ['carregamentoVE', 'lightning'], ['atasIA', 'pencil'], ['mapaQuotas', 'coin'],
+    ['orc3', 'clipboard'], ['cobrJud', 'scale'], ['monitorizacao', 'chart'], ['arquivoDig', 'archive'], ['relGestao', 'doc'],
+    ['prepAss', 'pencil'], ['planoMan', 'construction'], ['vistoria', 'clipboard'], ['pontuacao', 'shield'], ['seguros', 'shield'],
+    ['marketplace', 'tools'], ['compEnergia', 'lightning'], ['assinaturaCMD', 'pencil'], ['multiImoveis', 'building'], ['efatura', 'flag'],
+    ['infracoes', 'alert'], ['benchmarking', 'chart'],
   ]],
-  ['TERRENO & INTERVENÇÕES', [
-    ['Documentos de Intervenções', 'folder', 'Relatórios e comprovativos de intervenção'],
-    ['Contabilidade Técnica', 'chart', 'Acompanhamento financeiro das intervenções'],
-    ['Análise Orçamentos/Faturas', 'search', 'Comparação e validação de orçamentos'],
-    ['Caderneta de Manutenção', 'book', 'Histórico de manutenção dos edifícios'],
-    ['Sinistros', 'shield', 'Pipeline de gestão de sinistros'],
-  ]],
-  ['CONDOMÍNIO & AG', [
-    ['Contabilidade Condomínio', 'book', 'Contabilidade do condomínio'],
-    ['AG Digitais', 'bank', 'Assembleias gerais online'],
-    ['Valores em dívida', 'alert', 'Acompanhamento e cobrança de dívidas'],
-    ['Extranet Condóminos', 'users', 'Portal de condóminos'],
-    ['Cobrança automática', 'refresh', 'Procedimento automatizado de cobrança'],
-  ]],
-  ['OBRIGAÇÕES LEGAIS PT', [
-    ['Declaração de Encargos', 'stamp', 'Obrigação legal desde 2022 · Declaração para venda de fração'],
-    ['Seguro Obrigatório', 'shield', 'Seguro contra incêndio obrigatório · Art.° 1429.° CC'],
-    ['Fundo Comum de Reserva', 'bank', 'Mínimo legal 10% · DL 268/94 · Gestão do fundo de reserva'],
-    ['Obrigações Legais', 'scale', 'Calendário obrigações · Prazos legais · DL 555/99 · DL 97/2017 · DL 320/2002'],
-    ['Certificação Energética', 'lightning', 'SCE · Classes A+ a F · DL 101-D/2020 · EPBD 2024 · MEPS'],
-  ]],
-  ['COMPLIANCE LEGAL V5 — NOVO', [
-    ['Tracker Deliberações', 'bot', 'CC art. 1436.°-i · 15 dias úteis · Fixy extrai · Calendário PT'],
-    ['Procurações & Presenças', 'doc', 'CC art. 1433.°-3 · Léa OCR · Validação NIF AT'],
-    ['Notificações Judiciais', 'scale', 'CC 1436.°-o + p · Léa OCR · Update semestral auto'],
-    ['Acessibilidade DL 163', 'target', '23 critérios · Alfredo Vision · Atestação PDF'],
-    ['Segurança Edifício RSCIE', 'shield', 'DL 220/2008 · Categorização auto · Alfredo gera plano emergência'],
-    ['RGPD Compliance Center', 'archive', 'Tratamentos · Direitos titulares · 30 dias · Fixy classifica'],
-  ]],
-  ['PATRIMÓNIO V5 — NOVO', [
-    ['Gestão Elevadores', 'monitor', 'DL 320/2002 · Periodicidade auto 2/4/6 anos · Workflow 48h Câmara'],
-    ['Contratos com Prestadores', 'handshake', 'Léa OCR · Tempo alertas J-90/60/30 · Auto 3 Orçamentos'],
-    ['Câmaras Vigilância', 'monitor', 'RGPD · Autorização CNPD · Sinalização auto · Retenção máx 30d'],
-  ]],
-  ['FISCAL & TESOURARIA V5 — NOVO', [
-    ['Mapa Fiscal Anual', 'fact', 'Max Expert categoriza · Export Primavera/PHC/Sage/SAF-T'],
-    ['Open Banking PSD2', 'bank', 'Conexão direta bancos PT · Max Expert auto-match 90%+'],
-    ['Reembolsos Automáticos', 'refresh', 'Pro-rata temporis · Lei 8/2022 · Max calcula · OB executa'],
-    ['NPS Pós-Intervenção', 'poll', 'Auto-envio 48h · Rating Marketplace · Alfredo agrega insights'],
-  ]],
-  ['GESTÃO CONDÓMINOS', [
-    ['Portal do Condómino', 'home', 'Extrato · Recibos · Documentos · Comunicações · Pedidos'],
-    ['Reserva Espaços', 'calendar', 'Reserva de espaços comuns · Calendário · Regras configuráveis'],
-    ['Ocorrências', 'wrench', 'Gestão de avarias · QR Codes · SLA · Tracking completo'],
-    ['Enquetes', 'chart', 'Sondagens e inquéritos · Votação informal · Participação'],
-    ['Quadro de Avisos', 'pin', 'Avisos digitais · Comunicados · Notificações condóminos'],
-    ['WhatsApp/SMS', 'chat', 'Comunicação WhatsApp · SMS · Modelos · Envio em massa'],
-    ['QR Code Fração', 'qr', 'QR Codes por zona · Sinalizações via scan · Estatísticas · Geração em lote · Condómino reporter'],
-    ['Dashboard Condómino RT', 'users', 'Estado tempo real · Barra progresso intervenções · Financeiro · Comunicação · Atividade'],
-    ['Chatbot WhatsApp 24/7', 'bot', 'Chatbot IA autónomo · Resposta automática · Classificação pedidos · Criação ocorrências'],
-  ]],
-  ['FERRAMENTAS PT', [
-    ['Votação Online', 'archive', 'Votação à distância · Lei 8/2022 · Procurações automáticas'],
-    ['Pagamentos Digitais', 'coin', 'Multibanco · MB Way · SEPA · Reconciliação automática'],
-    ['Carregamento VE', 'lightning', 'Postos carregamento elétrico · DL 101-D/2020 · Fundo Ambiental'],
-    ['Atas com IA', 'pencil', 'Geração automática de atas · Cálculo maiorias · Assinatura eletrónica'],
-    ['Mapa de Quotas', 'coin', 'Cálculo quotas · Permilagem · Simulador · Cobranças trimestrais'],
-    ['3 Orçamentos Obras', 'clipboard', 'Comparação obrigatória 3 orçamentos · Lei 8/2022 · Scoring IA'],
-    ['Cobrança Judicial', 'scale', 'Pipeline de recuperação · Prazo 90 dias · Injunção · Art.° 310.° CC'],
-    ['Monitorização Consumos', 'chart', 'Água · Eletricidade · Gás · Alertas consumo anormal'],
-    ['Arquivo Digital', 'archive', 'Arquivo certificado · SHA-256 · Pesquisa · Retenção legal'],
-    ['Relatório de Gestão', 'doc', 'Relatório anual · Prestação de contas · Art.° 1436.° CC · Lei 8/2022'],
-    ['Preparador Assembleia', 'pencil', 'Convocatória · Ordem de trabalhos · Quóruns · Procurações · Lei 8/2022'],
-    ['Plano de Manutenção', 'construction', 'Conservação obrigatória 8 anos · DL 555/99 art. 89.° · Planificação obras'],
-    ['Vistoria Técnica', 'clipboard', 'Inspeção gás 5 anos · Elevadores 2-6 anos · Checklist · Relatório PDF'],
-    ['Pontuação de Saúde', 'shield', 'Score IA 0-100 por edifício · Estado técnico · Finanças · Conformidade · Energia'],
-    ['Gestão de Seguros', 'shield', 'Apólices por edifício · Coberturas · Alertas expiração · Sinistros · Art.° 1429.° CC'],
-    ['Marketplace Profissionais', 'tools', 'Pesquisa profissionais certificados · Pedidos orçamento · Avaliações · Comparação · Favoritos'],
-    ['Comparador Energia', 'lightning', 'Comparar tarifas EDP/Galp/Endesa · Simulação poupança · Histórico consumos · Classe energética'],
-    ['Assinatura Digital CMD', 'pencil', 'Chave Móvel Digital · Assinar atas/contratos · Validação · DL 12/2021 · eIDAS'],
-    ['Dashboard Multi-Imóveis', 'building', 'Visão global · Comparação edifícios · Ranking · KPIs agregados · Score saúde'],
-    ['e-Fatura AT', 'flag', 'Submissão faturas AT · ATCUD · SAF-T PT · Portaria 302/2016 · DL 28/2019'],
-    ['Acompanhamento de Infrações', 'alert', 'Infrações ao regulamento · Pipeline sinalização → multa · Provas · Histórico · Modelos de carta'],
-    ['Benchmarking Imóveis', 'chart', 'Comparação KPIs entre edifícios · Rankings · Percentis · Alertas outliers · Exportação'],
-  ]],
-  ['AGENTES IA', [
-    ['Orçamento Anual IA', 'bot', 'Geração automática baseada em 3 exercícios · Tendências · Inflação · DL 268/94'],
-    ['Contacto Proativo IA', 'sat', 'Comunicação automática condóminos · Cobranças · Avisos · Relatórios · Multi-canal'],
-    ['Ocorrências com IA', 'bot', 'Criação automática a partir de texto/foto · Classificação · Priorização · Localização'],
-    ['Checklists IA', 'clipboard', 'Listas inteligentes · Inspeção mensal · Preparação AG · Entrada/saída · Segurança incêndio'],
-    ['Processamentos em Lote', 'cog', 'Emissão quotas · Relances automáticos · Encerramento exercício · Recibos · Agendamentos'],
-    ['AG Live Digital', 'bank', 'Sessão AG em tempo real · Votação instantânea · Controlo presenças · Quórum · Ata automática'],
-    ['Predição Manutenção', 'bot', 'ML preditivo · Score risco equipamentos · Timeline intervenções · Alertas · Fatores de risco'],
-    ['Fixy', '', 'Assistente de ação — secretária IA'],
-    ['Léa', 'chart', 'Contabilidade de condomínio'],
-    ['Alfredo', 'mail', 'Gestor de emails IA'],
-  ]],
+  ['agentes', [['orcIA', 'bot'], ['contacto', 'sat'], ['ocClassif', 'bot'], ['checklists', 'clipboard'], ['procLote', 'cog'], ['agLive', 'bank'], ['predicao', 'bot'], ['fixy', ''], ['lea', 'chart'], ['alfredo', 'mail']]],
 ]
 
-const orderSections: [string, (string | number)[][]][] = [
-  ['AGENTES IA', [['Fixy', '', 1], ['Max Expert', 'grad', 2], ['Léa', 'chart', 3], ['Alfredo', 'mail', 4], ['Tempo', 'clock', 5]]],
-  ['GESTÃO', [['Painel de controlo', 'chart', 1, 'fixo'], ['Ordens de serviço', 'clipboard', 2], ['Canal de Comunicações', 'chat', 3], ['Planeamento', 'calendar', 4], ['A Minha Equipa', 'users', 5, 'fixo']]],
-  ['PATRIMÓNIO', [['Edifícios', 'bank', 1, 'fixo'], ['Profissionais', 'wrench', 2, 'fixo'], ['Condóminos & Inquilinos', 'users', 3, 'fixo'], ['Gestão Elevadores', 'monitor', 4], ['Contratos', 'handshake', 5], ['Câmaras Vigilância', 'monitor', 6]]],
-  ['TÉCNICO', [['Documentos de Intervenções', 'folder', 1], ['Contabilidade Técnica', 'chart', 2], ['Análise Orçamentos/Faturas', 'search', 3], ['Faturação', 'doc', 4]]],
-  ['ACOMPANHAMENTO', [['Alertas', 'bell', 1, 'fixo'], ['Relatório mensal', 'doc', 2], ['Calendário regulamentar', 'calendar', 3], ['Documentos (GED)', 'folder', 4, 'fixo']]],
-  ['CONDOMÍNIO', [['Contabilidade Condomínio', 'book', 1], ['AG Digitais', 'bank', 2], ['Valores em dívida', 'alert', 3], ['Caderneta de Manutenção', 'book', 4], ['Mapa Fiscal Anual', 'fact', 5], ['Open Banking', 'bank', 6]]],
-  ['OBRIGAÇÕES LEGAIS', [
-    ['Declaração de Encargos', 'stamp', 1], ['Obrigações e Prazos', 'scale', 2], ['Prazos legais', 'calendar', 3], ['Acessibilidade DL 163', 'target', 4],
-    ['Preparador AG', 'pencil', 5], ['Tracker Deliberações', 'bot', 6], ['Procurações & Presenças', 'doc', 7],
-    ['Seguro Obrigatório', 'shield', 8], ['Fundo Comum de Reserva', 'bank', 9], ['Sinistros', 'shield', 10], ['Segurança Edifício', 'shield', 11],
-    ['Notificações Judiciais', 'scale', 12], ['Cobrança automática · Juros & Sanções', 'coin', 13], ['RGPD Center', 'archive', 14],
-    ['Certificação Energética', 'lightning', 15], ['Extranet Condóminos', 'team', 16],
+/** Ordre du menu : section de sidebar, puis [module, icône, fixe]. Le rang affiché est la position dans la section. */
+const orderSections: [SectionMenu, [IdLigne, IconName | '', boolean?][]][] = [
+  ['Agentes IA', [['fixy', ''], ['max', 'grad'], ['lea', 'chart'], ['alfredo', 'mail'], ['tempo', 'clock']]],
+  ['Gestão', [['dashboard', 'chart', true], ['ordens', 'clipboard'], ['canal', 'chat'], ['planeamento', 'calendar'], ['equipa', 'users', true]]],
+  ['Património', [['edificios', 'bank', true], ['profissionais', 'wrench', true], ['condominos', 'users', true], ['elevadores', 'monitor'], ['contratos', 'handshake'], ['cctv', 'monitor']]],
+  ['Técnico', [['docsInterv', 'folder'], ['contabTec', 'chart'], ['analiseOrc', 'search'], ['faturacao', 'doc']]],
+  ['Acompanhamento', [['alertas', 'bell', true], ['relMensal', 'doc'], ['calReg', 'calendar'], ['docsGED', 'folder', true]]],
+  ['Condomínio', [['contabCond', 'book'], ['agDigit', 'bank'], ['valoresDiv', 'alert'], ['caderneta', 'book'], ['mapaFiscal', 'fact'], ['openBanking', 'bank']]],
+  ['Obrigações Legais', [
+    ['declEncargos', 'stamp'], ['obrigPrazos', 'scale'], ['prazosLegais', 'calendar'], ['acessibilidade', 'target'],
+    ['preparadorAG', 'pencil'], ['trackerDelibs', 'bot'], ['procuracoes', 'doc'],
+    ['seguroObr', 'shield'], ['fcr', 'bank'], ['sinistros', 'shield'], ['segEdificio', 'shield'],
+    ['notificJud', 'scale'], ['cobrAuto', 'coin'], ['rgpdCenter', 'archive'],
+    ['certEnerg', 'lightning'], ['extranet', 'team'],
   ]],
-  ['GESTÃO CONDÓMINOS', [['Portal do Condómino', 'home', 1], ['Quadro de Avisos', 'pin', 2], ['Enquetes', 'chart', 3], ['Reserva Espaços', 'calendar', 4], ['Ocorrências', 'wrench', 5], ['WhatsApp/SMS', 'chat', 6], ['Reembolsos', 'refresh', 7], ['NPS Pós-Intervenção', 'poll', 8]]],
-  ['FERRAMENTAS AVANÇADAS', [
-    ['Relatório de Gestão', 'doc', 1], ['Preparador Assembleia', 'pencil', 2], ['Plano Manutenção', 'construction', 3], ['Vistoria Técnica', 'clipboard', 4], ['Pontuação Saúde', 'shield', 5],
-    ['Orçamento IA', 'bot', 6], ['Contacto Proativo', 'sat', 7], ['Ocorrências (Classificador)', 'bot', 8], ['Gestão Seguros', 'shield', 9], ['Checklists IA', 'clipboard', 10],
-    ['Processamentos Lote', 'cog', 11], ['AG Live Digital', 'bank', 12], ['Marketplace Profissionais', 'tools', 13], ['Predição Manutenção', 'bot', 14], ['QR Code Fração', 'qr', 15],
-    ['Dashboard Condómino', 'users', 16], ['Comparador Energia', 'lightning', 17], ['Assinatura CMD', 'pencil', 18], ['Multi-Imóveis', 'building', 19], ['e-Fatura AT', 'flag', 20],
-    ['Votação Online', 'archive', 21], ['Atas com IA', 'pencil', 22], ['Pagamentos Digitais', 'coin', 23], ['Mapa de Quotas', 'coin', 24], ['3 Orçamentos', 'clipboard', 25],
-    ['Cobrança Judicial', 'scale', 26], ['Carregamento VE', 'lightning', 27], ['Monitorização Consumos', 'chart', 28], ['Arquivo Digital', 'archive', 29],
+  ['Gestão Condóminos', [['portal', 'home'], ['avisos', 'pin'], ['enquetes', 'chart'], ['reserva', 'calendar'], ['ocorrencias', 'wrench'], ['whatsapp', 'chat'], ['reembolsos', 'refresh'], ['npsPosIntervencao', 'poll']]],
+  ['Ferramentas Avançadas', [
+    ['relGestao', 'doc'], ['prepAss', 'pencil'], ['planoMan', 'construction'], ['vistoria', 'clipboard'], ['pontuacao', 'shield'],
+    ['orcIA', 'bot'], ['contacto', 'sat'], ['ocClassif', 'bot'], ['seguros', 'shield'], ['checklists', 'clipboard'],
+    ['procLote', 'cog'], ['agLive', 'bank'], ['marketplace', 'tools'], ['predicao', 'bot'], ['qrcode', 'qr'],
+    ['dashCond', 'users'], ['compEnergia', 'lightning'], ['assinaturaCMD', 'pencil'], ['multiImoveis', 'building'], ['efatura', 'flag'],
+    ['votacaoOnline', 'archive'], ['atasIA', 'pencil'], ['pagDigitais', 'coin'], ['mapaQuotas', 'coin'], ['orc3', 'clipboard'],
+    ['cobrJud', 'scale'], ['carregamentoVE', 'lightning'], ['monitorizacao', 'chart'], ['arquivoDig', 'archive'],
   ]],
-  ['FERRAMENTAS IA', [['Lançamento IA Faturas', 'bot', 1], ['Comunicação digital', 'chat', 2], ['Emails Fixy', 'mail', 3]]],
-  ['CONTA', [['Definições', 'cog', 1, 'fixo']]],
+  ['Ferramentas IA', [['lancFat', 'bot'], ['comunicDig', 'chat'], ['emailsFixy', 'mail']]],
+  ['Conta', [['definicoes', 'cog', true]]],
 ]
 
 const modCard = { background: '#fff', border: '1px solid var(--v54-line)', borderRadius: 14, boxShadow: 'var(--v54-shadow-card)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 } as const
@@ -147,47 +80,53 @@ const arrowBtn = { padding: '2px 8px', minHeight: 'auto', lineHeight: 1 } as con
 
 export default function ModOsMeusModulos() {
   const soon = useComingSoon()
+  const t = useMessages(OS_MEUS_MODULOS_MESSAGES)
+  const o = t.ordre
+  const visible = (id: string) => !t.masques.has(id)
+  const catalogue = cardSections.map(([s, mods]) => [s, mods.filter(([id]) => visible(id))] as const)
+  const menu = orderSections.map(([s, items]) => [s, items.filter(([id]) => visible(id))] as const)
+  const total = catalogue.reduce((n, [, mods]) => n + mods.length, 0)
   return (
     <>
-      <PageHead title="Os meus módulos" lede="90 módulos profissionais · Ative só o que precisa · Os desativados deixam de aparecer no menu lateral · 4 módulos V5 fusionados como secções nos módulos parentes"
-        actions={<Pill kind="gold" noDot>90/90 ativos</Pill>} />
+      <PageHead title={t.titre} lede={t.chapeau(total)}
+        actions={<Pill kind="gold" noDot>{t.actifs(total)}</Pill>} />
 
-      {cardSections.map((s, si) => (
+      {catalogue.map((s, si) => (
         <div key={si} style={{ marginBottom: 22 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 20, fontWeight: 600 }}>{s[0]}</div>
+            <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 20, fontWeight: 600 }}>{t.sectionsCatalogue[s[0]]}</div>
             <div style={{ flex: 1, height: 1, background: 'var(--v54-line)' }}></div>
           </div>
           <div className={m.cardGrid}>
-            {s[1].map((mod, i) => (
+            {s[1].map(([id, ico], i) => (
               <div key={i} style={modCard}>
-                <div style={cardIco}>{mod[1] ? <Icon name={mod[1] as IconName} style={{ width: 22, height: 22 }} /> : null}</div>
+                <div style={cardIco}>{ico ? <Icon name={ico} style={{ width: 22, height: 22 }} /> : null}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ fontSize: 13.5, display: 'block', marginBottom: 2 }}>{mod[0]}</b>
-                  <div style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', lineHeight: 1.4 }}>{mod[2]}</div>
+                  <b style={{ fontSize: 13.5, display: 'block', marginBottom: 2 }}>{t.nomCarte(id)}</b>
+                  <div style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', lineHeight: 1.4 }}>{t.descriptions[id]}</div>
                 </div>
-                <Toggle on onToggle={() => {}} aria-label={mod[0]} />
+                <Toggle on onToggle={() => {}} aria-label={t.nomCarte(id)} />
               </div>
             ))}
           </div>
         </div>
       ))}
 
-      <Panel title="Ordem do menu" sub="Arraste ou utilize ▲▼ — a barra lateral atualiza-se em tempo real"
-        right={<Button onClick={soon('Redefinir ordem')}>↻ Redefinir</Button>}>
-        {orderSections.map((sec, si) => (
+      <Panel title={o.titre} sub={o.sousTitre}
+        right={<Button onClick={soon(o.reinitialiserToast)}>{o.reinitialiser}</Button>}>
+        {menu.map((sec, si) => (
           <div key={si} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-gold-700)', margin: '14px 0 8px' }}>{sec[0]}</div>
-            {sec[1].map((it, i) => (
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-gold-700)', margin: '14px 0 8px' }}>{o.section(sec[0])}</div>
+            {sec[1].map(([id, ico, fixe], i) => (
               <div key={i} style={orderRow}>
                 <div style={{ color: 'var(--v54-navy-200)', cursor: 'grab', fontSize: 18, lineHeight: 1 }}>⋮⋮</div>
-                <div style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}>{it[1] ? <Icon name={it[1] as IconName} style={{ width: 18, height: 18 }} /> : null}</div>
-                <div style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{it[0]}</div>
-                {it[3] && <Pill kind="gold" noDot>{it[3]}</Pill>}
-                <div style={{ fontFamily: 'var(--v54-font-mono)', fontSize: 13, color: 'var(--v54-navy-300)', fontWeight: 600, minWidth: 24, textAlign: 'right' }}>{it[2]}</div>
+                <div style={{ width: 32, height: 32, display: 'grid', placeItems: 'center', color: 'var(--v54-navy-700)' }}>{ico ? <Icon name={ico} style={{ width: 18, height: 18 }} /> : null}</div>
+                <div style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{o.nomLigne(id)}</div>
+                {fixe && <Pill kind="gold" noDot>{o.fixe}</Pill>}
+                <div style={{ fontFamily: 'var(--v54-font-mono)', fontSize: 13, color: 'var(--v54-navy-300)', fontWeight: 600, minWidth: 24, textAlign: 'right' }}>{i + 1}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label="Subir na ordem" title="Subir" onClick={soon('Reordenar módulos')}>▲</Button>
-                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label="Descer na ordem" title="Descer" onClick={soon('Reordenar módulos')}>▼</Button>
+                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label={o.monterAria} title={o.monter} onClick={soon(o.reordonnerToast)}>▲</Button>
+                  <Button size="sm" variant="ghost" style={arrowBtn} aria-label={o.descendreAria} title={o.descendre} onClick={soon(o.reordonnerToast)}>▼</Button>
                 </div>
               </div>
             ))}
@@ -195,8 +134,8 @@ export default function ModOsMeusModulos() {
         ))}
       </Panel>
 
-      <Alert kind="gold" icon="sparkle" title="Dica">
-        Os módulos desativados desaparecem da barra lateral mas permanecem acessíveis a qualquer momento. Os seus dados nunca são eliminados.
+      <Alert kind="gold" icon="sparkle" title={t.astuce.titre}>
+        {t.astuce.texte}
       </Alert>
     </>
   )

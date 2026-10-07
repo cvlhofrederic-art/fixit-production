@@ -9,43 +9,45 @@ import { Alert } from '../primitives/alert'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import { useComingSoon } from './use-coming-soon'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { OPEN_BANKING_MESSAGES } from './i18n/ModOpenBanking.messages'
 
 /** Open Banking — Reconciliação Automática — port byte-exact du ModOpenBanking du bundle V5.7. */
 
-const BANCOS = ['Caixa Geral', 'BCP Millennium', 'Santander', 'Novobanco', 'BPI', 'Crédito Agrícola', 'Revolut Business', 'Wise Business', 'Activo Bank', 'Banco CTT']
-
 export default function ModOpenBanking() {
+  const t = useMessages(OPEN_BANKING_MESSAGES)
   const soon = useComingSoon()
+  const b = t.bientot
   return (
     <>
-      <PageHead eyebrow="TESOURARIA · PSD2 AISP" title="Open Banking — Reconciliação Automática"
-        lede="Conexão direta bancos PT · Sync diário · Max Expert auto-match transações · Confidence score"
-        actions={<><Button onClick={soon('Conectar conta bancária', 'Integração Open Banking em desenvolvimento')}><Icon name="plus" />+ Conectar conta bancária</Button><Button variant="gold" onClick={soon('Sincronização', 'Sync bancária em desenvolvimento')}><Icon name="refresh" />Sync agora</Button></>} />
-      <Alert kind="sage" icon="check" title="PSD2 Open Banking — autorização Banco Portugal">
-        Conexões via providers licenciados AISP (Tink · GoCardless). Suporta Caixa, BCP, Santander, Novobanco, Millennium, BPI, Crédito Agrícola, Revolut Business. Max Expert auto-match 90%+ das transações com confidence score; restantes 10% revisão manual em 1 clique.
+      <PageHead eyebrow={t.surtitre} title={t.titre}
+        lede={t.chapeau}
+        actions={<><Button onClick={soon(b.connecterCompteBancaire.titre, b.connecterCompteBancaire.desc)}><Icon name="plus" />{t.connecterCompteBancaire}</Button><Button variant="gold" onClick={soon(b.synchronisation.titre, b.synchronisation.desc)}><Icon name="refresh" />{t.synchroniserMaintenant}</Button></>} />
+      <Alert kind="sage" icon="check" title={t.alerte.titre}>
+        {t.alerte.texte}
       </Alert>
       <KPIGrid items={[
-        { icon: 'bank', num: 0, lbl: 'Contas conectadas' },
-        { icon: 'refresh', num: 0, lbl: 'Transações sync (mês)', accent: 'gold' },
-        { icon: 'check', num: '0%', lbl: 'Auto-match Max Expert', accent: 'sage' },
-        { icon: 'alert', num: 0, lbl: 'Em revisão manual', accent: 'amber' },
-        { icon: 'ban', num: 0, lbl: 'Não conciliadas', accent: 'rust' },
-        { icon: 'clock', num: '—', lbl: 'Última sync' },
+        { icon: 'bank', num: 0, lbl: t.kpi.comptes },
+        { icon: 'refresh', num: 0, lbl: t.kpi.transactions, accent: 'gold' },
+        { icon: 'check', num: t.zeroPourcent, lbl: t.kpi.rapprochement, accent: 'sage' },
+        { icon: 'alert', num: 0, lbl: t.kpi.revue, accent: 'amber' },
+        { icon: 'ban', num: 0, lbl: t.kpi.nonRapprochees, accent: 'rust' },
+        { icon: 'clock', num: '—', lbl: t.kpi.derniereSynchro },
       ]} />
       <Tabs defaultActive="contas" tabs={[
-        { id: 'contas', icon: 'bank', label: 'Contas (0)' },
-        { id: 'sync', icon: 'refresh', label: 'Sync recente' },
-        { id: 'rev', icon: 'alert', label: 'A rever (0)' },
+        { id: 'contas', icon: 'bank', label: t.onglets.comptes },
+        { id: 'sync', icon: 'refresh', label: t.onglets.synchro },
+        { id: 'rev', icon: 'alert', label: t.onglets.aRevoir },
       ]} />
       <Panel>
-        <Empty illustration="pagamentos" title="Nenhuma conta conectada"
-          desc="Conecte a conta bancária do condomínio via Open Banking PSD2. Sync automático diário, reconciliação 90%+ por Max Expert."
-          action={<Button variant="primary" onClick={soon('Conectar conta', 'Integração Open Banking em desenvolvimento')}><Icon name="bank" />Conectar primeira conta</Button>} />
+        <Empty illustration="pagamentos" title={t.vide.titre}
+          desc={t.vide.desc}
+          action={<Button variant="primary" onClick={soon(b.connecterCompte.titre, b.connecterCompte.desc)}><Icon name="bank" />{t.vide.action}</Button>} />
       </Panel>
-      <Panel title="Bancos suportados">
+      <Panel title={t.banquesTitre}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8 }}>
-          {BANCOS.map((b, i) => (
-            <div key={i} style={{ padding: '10px 14px', border: '1px solid var(--v54-line)', borderRadius: 8, textAlign: 'center', background: 'var(--v54-cream)', fontSize: 12, fontWeight: 600, color: 'var(--v54-navy-900)' }}>{b}</div>
+          {t.banques.map((bq, i) => (
+            <div key={i} style={{ padding: '10px 14px', border: '1px solid var(--v54-line)', borderRadius: 8, textAlign: 'center', background: 'var(--v54-cream)', fontSize: 12, fontWeight: 600, color: 'var(--v54-navy-900)' }}>{bq}</div>
           ))}
         </div>
       </Panel>

@@ -17,6 +17,9 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Obrigacao } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { CAL_REG_MESSAGES } from './i18n/ModCalReg.messages'
 
 /** Calendário Regulamentar — port V5.7 + lot 3 fonctionnel.
  * Syndic connecté → vraies obrigações du cabinet (data.obrigacoes) + création POST ;
@@ -35,30 +38,23 @@ const bucketOf = (o: Obrigacao): Bucket => {
   if (d < 90) return 'proximo'
   return 'emdia'
 }
-const relLabel = (o: Obrigacao): string => {
-  if (o.concluido) return 'Concluído'
+/** Libellés relatifs d'échéance, selon la langue. */
+type TextesRelatifs = { realisee: string; ilYa: (jours: number) => string; dans: (jours: number) => string }
+const relLabel = (o: Obrigacao, r: TextesRelatifs): string => {
+  if (o.concluido) return r.realisee
   const d = o.prazo ? daysTo(o.prazo) : null
   if (d === null) return '—'
-  return d < 0 ? `Há ${-d}d` : `Dentro de ${d}d`
+  return d < 0 ? r.ilYa(-d) : r.dans(d)
 }
-
-const PREVIEW: Obrigacao[] = [
-  { id: 'c1', edificio: 'Edifício Foz Douro', tipo: 'Assembleia Geral', descricao: 'AG Anual', prazo: '2026-04-15', concluido: false },
-  { id: 'c2', edificio: 'Edifício Foz Douro', tipo: 'Inspeção elevador', descricao: 'Inspeção 2 anos elevador', prazo: '2026-04-30', concluido: false },
-  { id: 'c3', edificio: 'Residencial Cedofeita', tipo: 'Renovação seguro', descricao: 'Renovação seguro condomínio', prazo: '2026-06-30', concluido: false },
-  { id: 'c4', edificio: 'Condomínio Boavista Center', tipo: 'Inspeção gás', descricao: 'Inspeção 5 anos gás', prazo: '2026-07-20', concluido: false },
-  { id: 'c5', edificio: 'Residencial Cedofeita', tipo: 'Verificação elétrica', descricao: 'Verificação instalação elétrica', prazo: '2026-08-10', concluido: false },
-  { id: 'c6', edificio: 'Edifício Atlântico', tipo: 'Inspeção elevador', descricao: 'Inspeção 6 anos elevador', prazo: '2026-09-15', concluido: false },
-  { id: 'c7', edificio: 'Edifício Atlântico', tipo: 'Assembleia Geral', descricao: 'AG Anual obrigatória', prazo: '2027-03-31', concluido: false },
-  { id: 'c8', edificio: 'Condomínio Boavista Center', tipo: 'Manutenção fachada', descricao: 'Manutenção fachada (8 anos)', prazo: '2027-05-30', concluido: false },
-]
 
 const selectStyle = { padding: '10px 12px', borderRadius: 8, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' } as const
 
 export default function ModCalReg() {
+  const t = useMessages(CAL_REG_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
-  const all: Obrigacao[] = real ? (data.obrigacoes ?? []) : PREVIEW
+  const all: Obrigacao[] = real ? (data.obrigacoes ?? []) : t.demo
   const { busy, create } = useSyndicCreate('/api/syndic/obrigacoes')
 
   const blank: ObrForm = { edificio: '', tipo: '', descricao: '', prazo: '', concluido: 'nao' }
@@ -70,10 +66,10 @@ export default function ModCalReg() {
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.tipo.trim()) { setErrors({ tipo: 'Indique o tipo de obrigação.' }); return }
+    if (!form.tipo.trim()) { setErrors({ tipo: t.erreurs.type }); return }
     create(
       { edificio: form.edificio, tipo: form.tipo, descricao: form.descricao, prazo: form.prazo || null, concluido: form.concluido === 'sim' },
-      { okTitle: 'Obrigação adicionada', desc: form.tipo, onDone: () => setOpen(false) },
+      { okTitle: t.obligationAjoutee, desc: form.tipo, onDone: () => setOpen(false) },
     )
   }
 
@@ -82,34 +78,35 @@ export default function ModCalReg() {
   const proximos = all.filter(o => bucketOf(o) === 'proximo').length
   const emdia = all.filter(o => bucketOf(o) === 'emdia').length
 
+  const fo = t.formulaire
   return (
     <>
       <PageHead
-        title="Calendário Regulamentar"
-        lede="Acompanhamento das obrigações legais e regulamentares"
+        title={t.titre}
+        lede={t.chapeau}
         actions={<>
-          <select aria-label="Filtrar por edifício" style={selectStyle}><option>Todos os edifícios</option></select>
-          <select aria-label="Filtrar por estado" style={selectStyle}><option>Todos os estados</option></select>
-          <Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar</Button>
+          <select aria-label={t.filtres.immeubleAria} style={selectStyle}><option>{t.filtres.immeubleTous}</option></select>
+          <select aria-label={t.filtres.statutAria} style={selectStyle}><option>{t.filtres.statutTous}</option></select>
+          <Button variant="gold" onClick={openNew}><Icon name="plus" />{t.ajouter}</Button>
         </>}
       />
       <KPIGrid items={[
-        { dot: 'rust', accent: 'rust', num: expirados, lbl: 'Expirados' },
-        { dot: 'amber', accent: 'amber', num: urgentes, lbl: 'Urgentes (< 30d)' },
-        { dot: 'gold', accent: 'amber', num: proximos, lbl: 'Próximos (< 90d)' },
-        { dot: 'sage', accent: 'sage', num: emdia, lbl: 'Em dia' },
+        { dot: 'rust', accent: 'rust', num: expirados, lbl: t.kpi.expirees },
+        { dot: 'amber', accent: 'amber', num: urgentes, lbl: t.kpi.urgentes },
+        { dot: 'gold', accent: 'amber', num: proximos, lbl: t.kpi.proches },
+        { dot: 'sage', accent: 'sage', num: emdia, lbl: t.kpi.aJour },
       ]} />
       {real && all.length === 0 ? (
         <Panel>
-          <Empty illustration="eventos" title="Sem obrigações registadas"
-            desc="Adicione as obrigações legais e regulamentares dos seus edifícios para as acompanhar."
-            action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar obrigação</Button>} />
+          <Empty illustration="eventos" title={t.vide.titre}
+            desc={t.vide.description}
+            action={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.vide.bouton}</Button>} />
         </Panel>
       ) : (
         <Panel flush>
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Edifício</th><th>Tipo</th><th>Descrição</th><th>Prazo</th><th>Estado</th></tr></thead>
+              <thead><tr><th>{t.colonnes.immeuble}</th><th>{t.colonnes.type}</th><th>{t.colonnes.description}</th><th>{t.colonnes.echeance}</th><th>{t.colonnes.statut}</th></tr></thead>
               <tbody>
                 {all.map((o) => {
                   const b = bucketOf(o)
@@ -119,8 +116,8 @@ export default function ModCalReg() {
                       <td><Pill kind="gold" noDot>{o.tipo}</Pill></td>
                       <td>{o.descricao || '—'}</td>
                       <td>
-                        <div className={m.numCell}>{o.prazo || '—'}</div>
-                        <div style={{ fontSize: 11, color: b === 'expirado' ? 'var(--v54-rust-700)' : 'var(--v54-navy-300)' }}>{relLabel(o)}</div>
+                        <div className={m.numCell}>{dateApi(o.prazo, locale) || '—'}</div>
+                        <div style={{ fontSize: 11, color: b === 'expirado' ? 'var(--v54-rust-700)' : 'var(--v54-navy-300)' }}>{relLabel(o, t.relatif)}</div>
                       </td>
                       <td><span className={clsx(m.dotStatus, b === 'expirado' && m.dotStatusRust, (b === 'urgente' || b === 'proximo') && m.dotStatusAmber)} /></td>
                     </tr>
@@ -133,35 +130,35 @@ export default function ModCalReg() {
       )}
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="obr-modal-title" size="md">
-        <ModalHead icon="calendar" id="obr-modal-title" title="Nova obrigação regulamentar" onClose={() => setOpen(false)} />
+        <ModalHead icon="calendar" id="obr-modal-title" title={fo.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
             <FormRow>
-              <Field label="Tipo" required name="obr-tipo" error={errors.tipo}>
-                <input type="text" placeholder="Inspeção elevador, AG…" value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
+              <Field label={fo.type} required name="obr-tipo" error={errors.tipo}>
+                <input type="text" placeholder={fo.typePlaceholder} value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
               </Field>
-              <Field label="Edifício" name="obr-edif">
-                <input type="text" placeholder="Edifício…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+              <Field label={fo.immeuble} name="obr-edif">
+                <input type="text" placeholder={fo.immeublePlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Descrição" full name="obr-desc">
-              <input type="text" placeholder="Ex.: Inspeção 6 anos elevador" value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
+            <Field label={fo.description} full name="obr-desc">
+              <input type="text" placeholder={fo.descriptionPlaceholder} value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Prazo" name="obr-prazo">
+              <Field label={fo.echeance} name="obr-prazo">
                 <input type="date" value={form.prazo} onChange={e => upd('prazo', e.target.value)} />
               </Field>
-              <Field label="Concluído" name="obr-concl">
+              <Field label={fo.realisee} name="obr-concl">
                 <select value={form.concluido} onChange={e => upd('concluido', e.target.value)}>
-                  <option value="nao">Não</option>
-                  <option value="sim">Sim</option>
+                  <option value="nao">{fo.non}</option>
+                  <option value="sim">{fo.oui}</option>
                 </select>
               </Field>
             </FormRow>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{fo.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{fo.ajouter}</button>
           </ModalFoot>
         </form>
       </Modal>

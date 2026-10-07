@@ -6,6 +6,9 @@ import { SyndicDataProvider, useSyndicData } from '@/lib/syndic/v54/data-context
 import { askAgent } from '@/lib/syndic/v54/api'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
 import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
+import { SIDE_TITLES_FR } from '@/components/syndic-dashboard/v54/shell/sidebar-config.fr'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { RACINE_MESSAGES } from '@/components/syndic-dashboard/v54/root.messages'
 import ModDashboard from '@/components/syndic-dashboard/v54/modules/ModDashboard'
 import ModOrdens from '@/components/syndic-dashboard/v54/modules/ModOrdens'
 import ModProfissionais from '@/components/syndic-dashboard/v54/modules/ModProfissionais'
@@ -100,22 +103,25 @@ const MASCOT =
 
 // avatar : vrais avatars des agents (public/*-avatar.png) au lieu du mascot
 // générique du bundle. AgentChatPage rend <img src={mascot}>.
-const AGENTS: Record<string, { name: string; title: string; intro: string; avatar: string }> = {
-  fixy: { name: 'Fixy', title: 'Assistente IA de manutenção', intro: 'Olá! Em que posso ajudar na manutenção hoje?', avatar: '/fixy-avatar.png' },
-  max: { name: 'Max Expert', title: 'Especialista técnico IA', intro: 'Pergunte-me sobre normas, técnica e diagnósticos.', avatar: '/max-avatar.png' },
-  lea: { name: 'Léa', title: 'Assistente contabilística IA', intro: 'Vamos tratar das contas do condomínio?', avatar: '/lea-avatar.png' },
-  alfredo: { name: 'Alfredo', title: 'Agente de e-mails IA', intro: 'Eu trato da sua correspondência com os condóminos.', avatar: '/alfredo-avatar.png' },
-  tempo: { name: 'Tempo', title: 'Planeamento IA', intro: 'Organizo a sua agenda, prazos e calendário.', avatar: '/tempo-avatar.png' },
+type AgentId = 'fixy' | 'max' | 'lea' | 'alfredo' | 'tempo'
+const AVATARS: Record<AgentId, string> = {
+  fixy: '/fixy-avatar.png',
+  max: '/max-avatar.png',
+  lea: '/lea-avatar.png',
+  alfredo: '/alfredo-avatar.png',
+  tempo: '/tempo-avatar.png',
 }
 
 function Placeholder({ route }: Readonly<{ route: string }>) {
+  const t = useMessages(RACINE_MESSAGES)
+  const titles = useV54Locale() === 'fr-FR' ? SIDE_TITLES_FR : SIDE_TITLES
   return (
     <div>
-      <p style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-gold-700)', fontWeight: 600 }}>Módulo</p>
-      <h1 style={{ fontFamily: 'var(--v54-font-serif)', fontWeight: 500, fontSize: 30, margin: '4px 0 0' }}>{SIDE_TITLES[route] ?? route}</h1>
+      <p style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--v54-gold-700)', fontWeight: 600 }}>{t.module}</p>
+      <h1 style={{ fontFamily: 'var(--v54-font-serif)', fontWeight: 500, fontSize: 30, margin: '4px 0 0' }}>{titles[route] ?? route}</h1>
       <div style={{ marginTop: 40, padding: '60px 24px', textAlign: 'center', border: '1px dashed var(--v54-line-strong)', borderRadius: 'var(--v54-r-lg)', background: '#fff' }}>
-        <p style={{ margin: 0, fontSize: 14, color: 'var(--v54-navy-500)' }}>Conteúdo deste módulo em desenvolvimento (Phase 2).</p>
-        <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--v54-navy-300)' }}>A coquilha (shell) e a navegação estão funcionais.</p>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--v54-navy-500)' }}>{t.moduleEnCours}</p>
+        <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--v54-navy-300)' }}>{t.shellFonctionnel}</p>
       </div>
     </div>
   )
@@ -220,7 +226,9 @@ function renderModule(route: string, navigate: (id: string) => void): ReactNode 
  * Ne touche aucun prompt (conforme ai-agents.md) : pur câblage UI → endpoint.
  */
 function AgentRoute({ route }: Readonly<{ route: string }>) {
-  const a = AGENTS[route]
+  const t = useMessages(RACINE_MESSAGES)
+  const locale = useV54Locale()
+  const a = { ...t.agents[route as AgentId], avatar: AVATARS[route as AgentId] }
   const { token } = useSyndicData()
   return (
     <AgentChatPage
@@ -228,13 +236,10 @@ function AgentRoute({ route }: Readonly<{ route: string }>) {
       name={a.name}
       title={a.title}
       intro={a.intro}
-      introDetail={token ? undefined : 'Demo do design system v54 — as respostas IA serão ligadas na Phase 2.'}
-      suggestions={['Resumir a última ata', 'Quotas em atraso este mês', 'Estado das obras em curso']}
-      conversations={[
-        { id: '1', title: 'Orçamento elevador', bucket: 'ontem' },
-        { id: '2', title: 'Infiltração garagem -2', bucket: 'esta-semana' },
-      ]}
-      onAsk={token ? (msg) => askAgent(route, msg, token) : undefined}
+      introDetail={token ? undefined : t.introDemo}
+      suggestions={t.suggestions}
+      conversations={t.conversations}
+      onAsk={token ? (msg) => askAgent(route, msg, token, locale) : undefined}
     />
   )
 }

@@ -17,20 +17,16 @@ import m from './modules.module.css'
 import { NovaMissaoModal } from './NovaMissaoModal'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { EDIFICIOS_MESSAGES, type ImmeubleDemo } from './i18n/ModEdificios.messages'
 
 /** Edifícios — port byte-exact du ModEdificios du bundle V5.7 (utilise Progress). */
 
-const BUILDINGS = [
-  ['Edifício Atlântico', 'Avenida da Boavista, 1247, 4100-130 Porto', 12, 2008, '15/09', '8', 28450, 48000, 'Regulamento em falta'],
-  ['Condomínio Boavista Center', 'Avenida da Boavista, 3265, 4100-138 Porto', 8, 2015, '30/06', '4', 18700, 36000, 'Regulamento em falta'],
-  ['Residencial Cedofeita', 'Rua de Cedofeita, 421, 4050-180 Porto', 10, 1998, '22/04', '11', 33820, 42000, 'Regulamento em falta'],
-  ['Edifício Foz Douro', 'Rua do Passeio Alegre, 78, 4150-573 Porto', 10, 2020, '10/01', '2', 21500, 62000, 'Regulamento em falta'],
-] as const
-
 const pct = (a: number, b: number) => (b > 0 ? Math.min(100, Math.max(0, (a / b) * 100)) : 0)
-const eur = (n: number) => n.toLocaleString('pt-PT')
+const eur = (n: number, locale: V54Locale) => n.toLocaleString(locale)
 
-type Row = readonly [string, string, number, number, string, string, number, number, string]
+/** Dernier élément : règlement de copropriété présent. */
+type Row = ImmeubleDemo
 
 /** Mappe un immeuble réel vers la tuple de rendu d'une carte (Phase 2). */
 function immToRow(i: Immeuble): Row {
@@ -43,17 +39,19 @@ function immToRow(i: Immeuble): Row {
     String(i.nbInterventions ?? 0),
     i.depensesAnnee ?? 0,
     i.budgetAnnuel ?? 0,
-    i.reglementTexte ? 'Regulamento OK' : 'Regulamento em falta',
+    Boolean(i.reglementTexte),
   ]
 }
 
 export default function ModEdificios() {
+  const t = useMessages(EDIFICIOS_MESSAGES)
+  const locale = useV54Locale()
   // Phase 2 : vraies données du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
   const items: ReadonlyArray<{ row: Row; im: Immeuble | null }> = real
     ? data.immeubles.map((i) => ({ row: immToRow(i), im: i }))
-    : BUILDINGS.map((r) => ({ row: r, im: null }))
+    : t.demo.map((r) => ({ row: r, im: null }))
   const buildings = items.map((it) => it.row)
   const totalFracoes = buildings.reduce((acc, b) => acc + b[2], 0)
 
@@ -77,7 +75,7 @@ export default function ModEdificios() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!form.nom.trim()) errs.nom = 'O nome é obrigatório.'
+    if (!form.nom.trim()) errs.nom = t.erreurNom
     if (Object.keys(errs).length) { setErrors(errs); return }
     const fields = { nom: form.nom, adresse: form.adresse, ville: form.ville, codePostal: form.codePostal, nbLots: Number(form.nbLots) || 1, budgetAnnuel: Number(form.budgetAnnuel) || 0 }
     if (real && data.token) {
@@ -88,13 +86,13 @@ export default function ModEdificios() {
         body: JSON.stringify(editId ? { id: editId, ...fields } : fields),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: editId ? 'Edifício atualizado' : 'Edifício adicionado', desc: form.nom }) })
-        .catch(() => push({ kind: 'error', title: editId ? 'Erro ao atualizar' : 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: editId ? t.toasts.misAJour : t.toasts.ajoute, desc: form.nom }) })
+        .catch(() => push({ kind: 'error', title: editId ? t.toasts.erreurMiseAJour : t.toasts.erreurAjout, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: editId ? 'Edifício atualizado (demo)' : 'Edifício adicionado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: editId ? t.toasts.misAJourDemo : t.toasts.ajouteDemo, desc: t.toasts.connexionRequise })
   }
 
   // Phase 2 raccourci : « Nova missão » sur une carte → Nova missão pré-remplie pour cet edifício.
@@ -114,26 +112,29 @@ export default function ModEdificios() {
         body: JSON.stringify({ id: im.id, statut: novo }),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setSuspendTarget(null); push({ kind: 'success', title: novo === 'suspenso' ? 'Edifício suspenso' : 'Edifício reativado', desc: im.nom }) })
-        .catch(() => push({ kind: 'error', title: 'Erro', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setSuspendTarget(null); push({ kind: 'success', title: novo === 'suspenso' ? t.toasts.suspendu : t.toasts.reactive, desc: im.nom }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreur, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setSuspendBusy(false))
       return
     }
     setSuspendTarget(null)
-    push({ kind: 'info', title: 'Ação (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.actionDemo, desc: t.toasts.connexionRequise })
   }
+  const c = t.carte
+  const f = t.formulaire
+  const sp = t.suspension
   return (
     <>
       <PageHead
-        title="Edifícios"
-        lede={`${buildings.length} edifícios na sua carteira · ${real ? totalFracoes : 40} frações totais`}
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />Adicionar um edifício</Button>}
+        title={t.titre}
+        lede={t.chapeau(buildings.length, real ? totalFracoes : 40)}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.ajouterImmeuble}</Button>}
       />
       <KPIGrid items={[
-        { icon: 'building', num: real ? data.immeubles.length : 4, lbl: 'Edifícios geridos', sub: 'Carteira ativa' },
-        { icon: 'grid', num: real ? totalFracoes : 40, lbl: 'Frações totais', sub: 'Total de frações', accent: 'gold' },
-        { icon: 'clipboard', num: real ? data.missions.filter((mi) => mi.statut === 'en_cours' || mi.statut === 'acceptee').length : 25, lbl: 'Intervenções ativas', sub: 'Em curso', accent: 'sage' },
-        { icon: 'alert', num: real ? data.immeubles.filter((i) => !i.reglementTexte).length : 4, lbl: 'Documentos em falta', sub: 'Regulamentos a adicionar', accent: 'amber' },
+        { icon: 'building', num: real ? data.immeubles.length : 4, lbl: t.kpi.geres, sub: t.kpi.portefeuille },
+        { icon: 'grid', num: real ? totalFracoes : 40, lbl: t.kpi.lots, sub: t.kpi.totalLots, accent: 'gold' },
+        { icon: 'clipboard', num: real ? data.missions.filter((mi) => mi.statut === 'en_cours' || mi.statut === 'acceptee').length : 25, lbl: t.kpi.interventions, sub: t.kpi.enCours, accent: 'sage' },
+        { icon: 'alert', num: real ? data.immeubles.filter((i) => !i.reglementTexte).length : 4, lbl: t.kpi.documents, sub: t.kpi.reglementsAAjouter, accent: 'amber' },
       ]} />
       {items.map(({ row: b, im }) => (
         <div key={b[0]} className={m.card} style={{ marginBottom: 16, padding: 22 }}>
@@ -143,82 +144,82 @@ export default function ModEdificios() {
               <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 24, fontWeight: 500, letterSpacing: '-0.01em' }}>{b[0]}</div>
               <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{b[1]}</div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                <Pill noDot>{b[2]} frações</Pill>
-                <Pill noDot>Construído em {b[3]}</Pill>
-                <Pill kind={b[8] === 'Regulamento OK' ? 'sage' : 'amber'} noDot>{b[8]}</Pill>
-                {im?.statut === 'suspenso' && <Pill kind="rust" noDot>Suspenso</Pill>}
+                <Pill noDot>{b[2]}{c.nbLots(b[2])}</Pill>
+                <Pill noDot>{c.construitEn}{b[3]}</Pill>
+                <Pill kind={b[8] ? 'sage' : 'amber'} noDot>{b[8] ? c.reglementOk : c.reglementManquant}</Pill>
+                {im?.statut === 'suspenso' && <Pill kind="rust" noDot>{c.suspendu}</Pill>}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button onClick={() => openEdit(im)}><Icon name="pencil" />Editar</Button>
-              <Button aria-label={im?.statut === 'suspenso' ? 'Reativar edifício' : 'Suspender edifício'} title={im?.statut === 'suspenso' ? 'Reativar' : 'Suspender'} onClick={() => im ? setSuspendTarget(im) : push({ kind: 'info', title: 'Suspender edifício', desc: 'Disponível com sessão de síndico.' })}><Icon name={im?.statut === 'suspenso' ? 'check' : 'ban'} /></Button>
-              <Button variant="gold" onClick={() => setMissaoImovel(b[0])}><Icon name="plus" />Nova missão</Button>
+              <Button onClick={() => openEdit(im)}><Icon name="pencil" />{c.modifier}</Button>
+              <Button aria-label={im?.statut === 'suspenso' ? c.reactiverAria : c.suspendreAria} title={im?.statut === 'suspenso' ? c.reactiver : c.suspendre} onClick={() => im ? setSuspendTarget(im) : push({ kind: 'info', title: c.suspendreAnonyme, desc: c.disponibleConnecte })}><Icon name={im?.statut === 'suspenso' ? 'check' : 'ban'} /></Button>
+              <Button variant="gold" onClick={() => setMissaoImovel(b[0])}><Icon name="plus" />{c.nouvelleMission}</Button>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18, marginBottom: 18 }}>
-            <div><div className={m.statKey}>Frações</div><div className={m.statBig}>{b[2]}</div><div style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>Total de frações</div></div>
-            <div><div className={m.statKey}>Construído em</div><div className={m.statBig}>{b[3]}</div></div>
-            <div><div className={m.statKey}>Intervenções</div><div className={m.statBig}>{b[5]}</div><div style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>Em curso</div></div>
-            <div><div className={m.statKey}>Próxima inspeção</div><div className={m.statBig}>{b[4]}</div></div>
+            <div><div className={m.statKey}>{c.lots}</div><div className={m.statBig}>{b[2]}</div><div style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{c.totalLots}</div></div>
+            <div><div className={m.statKey}>{c.construitEnStat}</div><div className={m.statBig}>{b[3]}</div></div>
+            <div><div className={m.statKey}>{c.interventions}</div><div className={m.statBig}>{b[5]}</div><div style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{c.enCours}</div></div>
+            <div><div className={m.statKey}>{c.prochaineInspection}</div><div className={m.statBig}>{b[4]}</div></div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}><span style={{ color: 'var(--v54-gold-700)', fontWeight: 600 }}>Orçamento 2026</span><span className={m.mono} style={{ color: 'var(--v54-navy-500)' }}>{eur(b[6])} € / {eur(b[7])} €</span></div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}><span style={{ color: 'var(--v54-gold-700)', fontWeight: 600 }}>{c.budget}</span><span className={m.mono} style={{ color: 'var(--v54-navy-500)' }}>{eur(b[6], locale)} € / {eur(b[7], locale)} €</span></div>
           <Progress pct={pct(b[6], b[7])} />
           <div style={{ marginTop: 14, display: 'flex', gap: 14, fontSize: 12, color: 'var(--v54-navy-300)' }}>
-            <span style={{ color: 'var(--v54-gold-700)', fontWeight: 600, cursor: 'pointer' }}>Adicionar o regulamento de condomínio</span>
+            <span style={{ color: 'var(--v54-gold-700)', fontWeight: 600, cursor: 'pointer' }}>{c.ajouterReglement}</span>
             <div style={{ flex: 1 }} />
-            <span style={{ cursor: 'pointer' }}>Condóminos</span>
-            <span style={{ cursor: 'pointer' }}>Documentos (GED)</span>
-            <span style={{ cursor: 'pointer' }}>Histórico</span>
+            <span style={{ cursor: 'pointer' }}>{c.coproprietaires}</span>
+            <span style={{ cursor: 'pointer' }}>{c.documents}</span>
+            <span style={{ cursor: 'pointer' }}>{c.historique}</span>
           </div>
         </div>
       ))}
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="ne-title" size="md">
-        <ModalHead icon="building" id="ne-title" title={editId ? 'Editar edifício' : 'Adicionar edifício'} onClose={() => setOpen(false)} />
+        <ModalHead icon="building" id="ne-title" title={editId ? f.titreModifier : f.titreAjouter} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Nome do edifício" required full name="ne-nom" error={errors.nom}>
-              <input type="text" placeholder="Ex.: Edifício Aurora" value={form.nom} onChange={(e) => upd('nom', e.target.value)} />
+            <Field label={f.nom} required full name="ne-nom" error={errors.nom}>
+              <input type="text" placeholder={f.nomPlaceholder} value={form.nom} onChange={(e) => upd('nom', e.target.value)} />
             </Field>
-            <Field label="Morada" full name="ne-adr">
-              <input type="text" placeholder="Rua, número" value={form.adresse} onChange={(e) => upd('adresse', e.target.value)} />
+            <Field label={f.adresse} full name="ne-adr">
+              <input type="text" placeholder={f.adressePlaceholder} value={form.adresse} onChange={(e) => upd('adresse', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Cidade" name="ne-ville">
-                <input type="text" placeholder="Porto" value={form.ville} onChange={(e) => upd('ville', e.target.value)} />
+              <Field label={f.ville} name="ne-ville">
+                <input type="text" placeholder={f.villePlaceholder} value={form.ville} onChange={(e) => upd('ville', e.target.value)} />
               </Field>
-              <Field label="Código postal" name="ne-cp">
-                <input type="text" placeholder="4000-000" value={form.codePostal} onChange={(e) => upd('codePostal', e.target.value)} />
+              <Field label={f.codePostal} name="ne-cp">
+                <input type="text" placeholder={f.codePostalPlaceholder} value={form.codePostal} onChange={(e) => upd('codePostal', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="N.º de frações" name="ne-lots">
+              <Field label={f.nbLots} name="ne-lots">
                 <input type="number" min="1" inputMode="numeric" placeholder="1" value={form.nbLots} onChange={(e) => upd('nbLots', e.target.value)} />
               </Field>
-              <Field label="Orçamento anual (€)" name="ne-budget">
+              <Field label={f.budgetAnnuel} name="ne-budget">
                 <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={form.budgetAnnuel} onChange={(e) => upd('budgetAnnuel', e.target.value)} />
               </Field>
             </FormRow>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{editId ? 'Guardar' : 'Adicionar'}</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{editId ? f.enregistrer : f.ajouter}</button>
           </ModalFoot>
         </form>
       </Modal>
 
       <Modal open={suspendTarget != null} onClose={() => setSuspendTarget(null)} labelledBy="susp-title" size="sm">
-        <ModalHead icon="ban" id="susp-title" title={suspendTarget?.statut === 'suspenso' ? 'Reativar edifício' : 'Suspender edifício'} onClose={() => setSuspendTarget(null)} />
+        <ModalHead icon="ban" id="susp-title" title={suspendTarget?.statut === 'suspenso' ? sp.titreReactiver : sp.titreSuspendre} onClose={() => setSuspendTarget(null)} />
         <ModalBody>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
             {suspendTarget?.statut === 'suspenso'
-              ? <>Reativar <b>{suspendTarget?.nom}</b> na gestão ativa?</>
-              : <>Suspender <b>{suspendTarget?.nom}</b> da gestão ativa? O edifício e o seu histórico são conservados — pode reativá-lo a qualquer momento.</>}
+              ? <>{sp.reactiverAvant}<b>{suspendTarget?.nom}</b>{sp.reactiverApres}</>
+              : <>{sp.suspendreAvant}<b>{suspendTarget?.nom}</b>{sp.suspendreApres}</>}
           </p>
         </ModalBody>
         <ModalFoot>
-          <Button variant="ghost" onClick={() => setSuspendTarget(null)}>Cancelar</Button>
-          <Button variant={suspendTarget?.statut === 'suspenso' ? 'gold' : 'danger'} onClick={confirmSuspend} disabled={suspendBusy}>{suspendTarget?.statut === 'suspenso' ? 'Reativar' : 'Suspender'}</Button>
+          <Button variant="ghost" onClick={() => setSuspendTarget(null)}>{sp.annuler}</Button>
+          <Button variant={suspendTarget?.statut === 'suspenso' ? 'gold' : 'danger'} onClick={confirmSuspend} disabled={suspendBusy}>{suspendTarget?.statut === 'suspenso' ? c.reactiver : c.suspendre}</Button>
         </ModalFoot>
       </Modal>
 

@@ -4,6 +4,8 @@ import {
   createContext, useCallback, useContext, useMemo, useRef, useState,
   type ReactNode,
 } from 'react'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PRIMITIVES_MESSAGES } from '../primitives.messages'
 import clsx from 'clsx'
 import Icon from '../icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
@@ -68,7 +70,10 @@ export interface ToastProviderProps {
   regionLabel?: string
 }
 
-export function ToastProvider({ children, closeLabel = 'Fechar notificação', regionLabel = 'Notificações' }: ToastProviderProps) {
+export function ToastProvider({ children, closeLabel: closeLabelProp, regionLabel: regionLabelProp }: ToastProviderProps) {
+  const t = useMessages(PRIMITIVES_MESSAGES)
+  const closeLabel = closeLabelProp ?? t.fermerNotification
+  const regionLabel = regionLabelProp ?? t.notifications
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const idRef = useRef(0)
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map())

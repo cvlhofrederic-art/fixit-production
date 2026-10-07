@@ -20,28 +20,24 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { ProcessoJud } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { NOTIFIC_JUD_MESSAGES } from './i18n/ModNotificJud.messages'
 
 /** Centro de Notificações Judiciais — port V5.7 + lot 2 fonctionnel.
  * Syndic connecté → vrais processus du cabinet (data.processosJud) + création POST ;
  * anonyme → état vide byte-exact. Léa OCR / relatório semestral = contenu éducatif. */
 
-type Cor = 'sage' | 'gold' | 'amber' | 'rust'
 type ProcForm = { tipo: string; contraparte: string; processo: string; data: string; prazo: string; estado: ProcessoJud['estado']; valor: string; descricao: string }
 
-const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
-const estadoLabel = (v: string) => (({ ativo: 'Ativo', arquivado: 'Arquivado' } as Record<string, string>)[v] || v)
+const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
+const estadoLabel = (v: string, labels: Record<string, string>) => labels[v] || v
 const estadoKind = (v: string): PillKind => (v === 'arquivado' ? 'sage' : 'amber')
 
-const TIPOS: [string, string, Cor][] = [
-  ['Citação tribunal', 'Email a todos os condóminos · cópia notificação · prazo defesa', 'rust'],
-  ['Notificação injunção', 'Email + carta registada · explicação simples · próximos passos', 'amber'],
-  ['Sentença favorável', 'Email all · resumo + acta arquivo', 'sage'],
-  ['Sentença contrária', 'Email all · análise impactos + plano resposta', 'rust'],
-  ['Procedimento contraord.', 'Email all · descrição + defesa em curso', 'amber'],
-  ['Update semestral', 'Auto-gerado · sumário evolução todos processos', 'gold'],
-]
-
 export default function ModNotificJud() {
+  const t = useMessages(NOTIFIC_JUD_MESSAGES)
+  const locale = useV54Locale()
+  const f = t.formulaire
   const data = useSyndicData()
   const real = data.authenticated
   const all: ProcessoJud[] = real ? (data.processosJud ?? []) : []
@@ -57,10 +53,10 @@ export default function ModNotificJud() {
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.tipo.trim()) { setErrors({ tipo: 'Indique o tipo de processo.' }); return }
+    if (!form.tipo.trim()) { setErrors({ tipo: t.erreurType }); return }
     create(
       { tipo: form.tipo, contraparte: form.contraparte, processo: form.processo, data: form.data || null, prazo: form.prazo || null, estado: form.estado, valor: Number(form.valor) || 0, descricao: form.descricao },
-      { okTitle: 'Processo registado', desc: form.tipo, onDone: () => setOpen(false) },
+      { okTitle: t.okTitre, desc: form.tipo, onDone: () => setOpen(false) },
     )
   }
 
@@ -70,48 +66,48 @@ export default function ModNotificJud() {
 
   return (
     <>
-      <PageHead eyebrow="OBRIGAÇÃO LEGAL · CC ART. 1436.° o) e p)" title="Centro de Notificações Judiciais"
-        lede="Citações · Notificações · Sentenças · Relatório semestral automático · Léa OCR + Fixy redação"
-        actions={<><Button onClick={openNew}><Icon name="upload" />Upload notificação</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: 'Relatório semestral', desc: ativos ? `${ativos} processos ativos a incluir` : 'Registe o primeiro processo para gerar o relatório' })}><Icon name="doc" />Gerar relatório semestral</Button></>} />
-      <Alert kind="gold" icon="scale" title="Obrigação dupla — Lei 8/2022">
-        <strong>Alínea o)</strong> — Informar condóminos sempre que o condomínio é citado/notificado (processo judicial, arbitral, injunção, contraordenacional ou administrativo).<br />
-        <strong>Alínea p)</strong> — Informar <strong>pelo menos semestralmente</strong> sobre o desenvolvimento dos processos em curso.
+      <PageHead eyebrow={t.surtitre} title={t.titre}
+        lede={t.chapeau}
+        actions={<><Button onClick={openNew}><Icon name="upload" />{t.enregistrerActe}</Button><Button variant="gold" onClick={() => push({ kind: 'info', title: t.rapport.titre, desc: ativos ? t.rapport.actifs(ativos) : t.rapport.aucun })}><Icon name="doc" />{t.genererRapport}</Button></>} />
+      <Alert kind="gold" icon="scale" title={t.alerte.titre}>
+        <strong>{t.alerte.l1Fort}</strong>{t.alerte.l1Texte}<br />
+        <strong>{t.alerte.l2Fort}</strong>{t.alerte.l2Avant}<strong>{t.alerte.l2Fort2}</strong>{t.alerte.l2Apres}
       </Alert>
       <KPIGrid items={[
-        { icon: 'scale', num: ativos, lbl: 'Processos ativos', accent: ativos ? 'rust' : undefined },
-        { icon: 'folder', num: all.length, lbl: 'Total processos' },
-        { icon: 'coin', num: valorTotal ? fmtEUR(valorTotal).replace('€', '').trim() : '—', cur: valorTotal ? '€' : undefined, lbl: 'Valor em causa' },
-        { icon: 'check', num: arquivados, lbl: 'Arquivados', accent: arquivados ? 'sage' : undefined },
-        { icon: 'clock', num: 'semestral', lbl: 'Próximo relatório', accent: 'gold' },
-        { icon: 'bot', num: 'Léa', lbl: 'OCR + classificação' },
+        { icon: 'scale', num: ativos, lbl: t.kpi.actifs, accent: ativos ? 'rust' : undefined },
+        { icon: 'folder', num: all.length, lbl: t.kpi.total },
+        { icon: 'coin', num: valorTotal ? fmtEUR(valorTotal, locale).replace('€', '').trim() : '—', cur: valorTotal ? '€' : undefined, lbl: t.kpi.valeur },
+        { icon: 'check', num: arquivados, lbl: t.kpi.archives, accent: arquivados ? 'sage' : undefined },
+        { icon: 'clock', num: t.kpi.prochainNum, lbl: t.kpi.prochain, accent: 'gold' },
+        { icon: 'bot', num: t.kpi.leaNum, lbl: t.kpi.ocr },
       ]} />
       <Tabs defaultActive="proc" tabs={[
-        { id: 'proc', icon: 'scale', label: `Processos (${all.length})` },
-        { id: 'in', icon: 'upload', label: 'Inbox notificações' },
-        { id: 'com', icon: 'mail', label: 'Comunicações enviadas' },
-        { id: 'rel', icon: 'doc', label: 'Relatórios semestrais' },
+        { id: 'proc', icon: 'scale', label: t.onglets.proc(all.length) },
+        { id: 'in', icon: 'upload', label: t.onglets.inbox },
+        { id: 'com', icon: 'mail', label: t.onglets.com },
+        { id: 'rel', icon: 'doc', label: t.onglets.rel },
       ]} />
       <Panel>
         {all.length === 0 ? (
-          <Empty illustration="documentos" title="Nenhum processo judicial em curso"
-            desc="Quando uma notificação chegar, faça upload. Léa classifica (citação · notificação · sentença), extrai partes + prazos, Fixy redige a comunicação aos condóminos afetados."
-            action={<Button variant="primary" onClick={openNew}><Icon name="upload" />+ Primeira notificação</Button>} />
+          <Empty illustration="documentos" title={t.vide.titre}
+            desc={t.vide.desc}
+            action={<Button variant="primary" onClick={openNew}><Icon name="upload" />{t.vide.action}</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Tipo</th><th>Contraparte</th><th>Processo n.º</th><th>Data</th><th>Valor</th><th>Estado</th></tr></thead>
+              <thead><tr><th>{t.colonnes.type}</th><th>{t.colonnes.contrepartie}</th><th>{t.colonnes.numero}</th><th>{t.colonnes.date}</th><th>{t.colonnes.valeur}</th><th>{t.colonnes.statut}</th></tr></thead>
               <tbody>{all.map(p => (
-                <tr key={p.id}><td><b>{p.tipo}</b></td><td>{p.contraparte || '—'}</td><td>{p.processo || '—'}</td><td>{p.data || '—'}</td><td className={m.numCell}>{p.valor ? fmtEUR(Number(p.valor)) : '—'}</td><td><Pill kind={estadoKind(p.estado)} noDot>{estadoLabel(p.estado)}</Pill></td></tr>
+                <tr key={p.id}><td><b>{p.tipo}</b></td><td>{p.contraparte || '—'}</td><td>{p.processo || '—'}</td><td>{dateApi(p.data, locale) || '—'}</td><td className={m.numCell}>{p.valor ? fmtEUR(Number(p.valor), locale) : '—'}</td><td><Pill kind={estadoKind(p.estado)} noDot>{estadoLabel(p.estado, t.statuts)}</Pill></td></tr>
               ))}</tbody>
             </table>
           </div>
         )}
       </Panel>
-      <Panel title="Tipos de comunicação automática">
+      <Panel title={t.typesTitre}>
         <div className={m.cardGrid}>
-          {TIPOS.map(([t, s, c], i) => (
+          {t.types.map(([titre, s, c], i) => (
             <div key={i} style={{ padding: 14, border: '1px solid var(--v54-line)', borderRadius: 10, background: `var(--v54-${c}-50)`, borderLeft: `3px solid var(--v54-${c}-500)` }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{t}</div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{titre}</div>
               <div style={{ fontSize: 11.5, color: 'var(--v54-navy-400)' }}>{s}</div>
             </div>
           ))}
@@ -119,46 +115,46 @@ export default function ModNotificJud() {
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="proc-modal-title" size="md">
-        <ModalHead icon="scale" id="proc-modal-title" title="Novo processo / notificação" onClose={() => setOpen(false)} />
+        <ModalHead icon="scale" id="proc-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
             <FormRow>
-              <Field label="Tipo" required name="proc-tipo" error={errors.tipo}>
-                <input type="text" placeholder="Citação, injunção, sentença…" value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
+              <Field label={f.type} required name="proc-tipo" error={errors.tipo}>
+                <input type="text" placeholder={f.typePlaceholder} value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
               </Field>
-              <Field label="Contraparte" name="proc-contra">
-                <input type="text" placeholder="Nome / entidade" value={form.contraparte} onChange={e => upd('contraparte', e.target.value)} />
+              <Field label={f.contrepartie} name="proc-contra">
+                <input type="text" placeholder={f.contrepartiePlaceholder} value={form.contraparte} onChange={e => upd('contraparte', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="N.º de processo" full name="proc-num">
-              <input type="text" placeholder="Ex.: 1234/26.0T8PRT" value={form.processo} onChange={e => upd('processo', e.target.value)} />
+            <Field label={f.numero} full name="proc-num">
+              <input type="text" placeholder={f.numeroPlaceholder} value={form.processo} onChange={e => upd('processo', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Data" name="proc-data">
+              <Field label={f.date} name="proc-data">
                 <input type="date" value={form.data} onChange={e => upd('data', e.target.value)} />
               </Field>
-              <Field label="Prazo" hint="Defesa / resposta" name="proc-prazo">
+              <Field label={f.delai} hint={f.delaiAide} name="proc-prazo">
                 <input type="date" value={form.prazo} onChange={e => upd('prazo', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Estado" name="proc-estado">
+              <Field label={f.statut} name="proc-estado">
                 <select value={form.estado} onChange={e => upd('estado', e.target.value)}>
-                  <option value="ativo">Ativo</option>
-                  <option value="arquivado">Arquivado</option>
+                  <option value="ativo">{t.statuts.ativo}</option>
+                  <option value="arquivado">{t.statuts.arquivado}</option>
                 </select>
               </Field>
-              <Field label="Valor em causa" hint="Euros" name="proc-valor" suffix="€">
+              <Field label={f.valeur} hint={f.valeurAide} name="proc-valor" suffix="€">
                 <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="0" value={form.valor} onChange={e => upd('valor', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Descrição" full name="proc-desc">
-              <textarea rows={3} placeholder="Objeto do processo, partes, estado…" value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
+            <Field label={f.description} full name="proc-desc">
+              <textarea rows={3} placeholder={f.descriptionPlaceholder} value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.enregistrer}</button>
           </ModalFoot>
         </form>
       </Modal>

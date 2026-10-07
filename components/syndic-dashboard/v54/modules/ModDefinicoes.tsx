@@ -10,6 +10,8 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { DEFINICOES_MESSAGES } from './i18n/ModDefinicoes.messages'
 
 /** Definições — port byte-exact du ModDefinicoes du bundle V5.7. */
 
@@ -19,54 +21,48 @@ const noop = () => { /* no-op */ }
 const fieldLabel = { fontSize: 11, fontWeight: 600, color: 'var(--v54-navy-500)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: 6 } as const
 const fieldCtrl = { width: '100%', padding: '10px 12px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, background: '#fff', fontSize: 13, color: 'var(--v54-ink)', fontFamily: 'inherit' } as const
 
-const NOTIFS = [
-  ['Alertas Seguro RC expirado', true],
-  ['Controlos regulamentares iminentes', true],
-  ['Novas missões criadas', true],
-  ['Sinalizações de condóminos', false],
-  ['Resumo semanal', true],
-] as const
-
 export default function ModDefinicoes() {
   const soon = useComingSoon()
+  const t = useMessages(DEFINICOES_MESSAGES)
+  const { abonnement: ab, agentEmail: ae, profil: pr, cabinet: cab } = t
   return (
     <>
-      <PageHead title="Definições" lede="Conta, perfil, gabinete e notificações" />
-      <Panel title="Subscrição">
+      <PageHead title={t.titre} lede={t.chapeau} />
+      <Panel title={ab.titre}>
         <div style={{ padding: 18, background: 'var(--v54-cream)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 18, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}><b style={{ fontSize: 15 }}>Teste gratuito</b><div style={{ fontSize: 12, color: 'var(--v54-gold-700)', marginTop: 2, fontWeight: 600 }}>30 dias restantes · Acesso completo</div></div>
-          <Pill kind="dark" noDot>TRIAL</Pill>
+          <div style={{ flex: 1 }}><b style={{ fontSize: 15 }}>{ab.essai}</b><div style={{ fontSize: 12, color: 'var(--v54-gold-700)', marginTop: 2, fontWeight: 600 }}>{ab.restant}</div></div>
+          <Pill kind="dark" noDot>{ab.pastille}</Pill>
         </div>
-        <Button variant="gold" style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon('Subscrição', 'Planos a partir de 49 €/mês — em breve')}>Escolher uma subscrição → a partir de 49 €/mês</Button>
+        <Button variant="gold" style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon(ab.titre, ab.formules)}>{ab.choisir}</Button>
       </Panel>
-      <Panel title="Agente Email Fixy" sub="Conecte a sua caixa Gmail para que o Fixy analise automaticamente os seus emails: urgências, tipos de pedidos, sugestões de ações.">
-        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon('Ligar Gmail', 'Integração Gmail em desenvolvimento')}>Ligar a sua caixa Gmail</Button>
+      <Panel title={ae.titre} sub={ae.sousTitre}>
+        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon(ae.connecterToast, ae.integrationEnCours)}>{ae.connecter}</Button>
       </Panel>
-      <Panel title="O Meu Perfil">
+      <Panel title={pr.titre}>
         <div style={{ padding: 14, background: 'var(--v54-cream)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>
           <div className={clsx(m.av, m.avLg, m.avGold)}>SA</div>
-          <div><b>Super Admin VitFix</b><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>Administrador</div></div>
+          <div><b>{pr.nom}</b><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{pr.role}</div></div>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <span style={fieldLabel}>A minha assinatura digital</span>
-          <Button style={{ padding: '18px', border: '2px dashed var(--v54-line-strong)', background: 'var(--v54-paper)' }} onClick={soon('Desenhar assinatura')}>Desenhar a minha assinatura</Button>
+          <span style={fieldLabel}>{pr.signature}</span>
+          <Button style={{ padding: '18px', border: '2px dashed var(--v54-line-strong)', background: 'var(--v54-paper)' }} onClick={soon(pr.dessinerToast)}>{pr.dessiner}</Button>
         </div>
-        <Alert icon="alert" title="Nenhuma assinatura configurada">Os PDFs gerados não terão assinatura.</Alert>
-        <Button variant="primary" onClick={soon('Guardar assinatura')}>Guardar assinatura</Button>
+        <Alert icon="alert" title={pr.aucuneTitre}>{pr.aucuneTexte}</Alert>
+        <Button variant="primary" onClick={soon(pr.enregistrer)}>{pr.enregistrer}</Button>
       </Panel>
-      <Panel title="O Meu Gabinete">
+      <Panel title={cab.titre}>
         <div className={m.cardGrid}>
-          <div><label htmlFor="def-nome" style={fieldLabel}>Nome do gabinete</label><input id="def-nome" defaultValue="VitFix Admin" autoComplete="name" style={fieldCtrl} /></div>
-          <div><label htmlFor="def-email" style={fieldLabel}>Email</label><input id="def-email" defaultValue="admincvlho@gmail.com" autoComplete="email" style={fieldCtrl} /></div>
+          <div><label htmlFor="def-nome" style={fieldLabel}>{cab.nom}</label><input id="def-nome" defaultValue={cab.nomValeur} autoComplete="name" style={fieldCtrl} /></div>
+          <div><label htmlFor="def-email" style={fieldLabel}>{cab.email}</label><input id="def-email" defaultValue={cab.emailValeur} autoComplete="email" style={fieldCtrl} /></div>
         </div>
-        <div style={{ marginTop: 14 }}><label htmlFor="def-morada" style={fieldLabel}>Morada do gabinete</label><textarea id="def-morada" rows={2} placeholder="Ex: Rua das Flores 123, 1000-001 Lisboa" style={fieldCtrl} /></div>
+        <div style={{ marginTop: 14 }}><label htmlFor="def-morada" style={fieldLabel}>{cab.adresse}</label><textarea id="def-morada" rows={2} placeholder={cab.adressePlaceholder} style={fieldCtrl} /></div>
         <div style={{ marginTop: 14 }}>
-          <span style={fieldLabel}>Logo do gabinete</span>
-          <Button onClick={soon('Carregar logo')}><Icon name="image" />Carregar logo (PNG/JPG/WebP, max 2 MB)</Button>
+          <span style={fieldLabel}>{cab.logo}</span>
+          <Button onClick={soon(cab.importerLogoToast)}><Icon name="image" />{cab.importerLogo}</Button>
         </div>
       </Panel>
-      <Panel title="Notificações">
-        {NOTIFS.map((n, i) => (
+      <Panel title={t.notifications.titre}>
+        {t.notifications.liste.map((n, i) => (
           <div key={n[0]} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < 4 ? '1px solid var(--v54-line)' : 'none' }}>
             <span>{n[0]}</span><Toggle on={n[1]} onToggle={noop} aria-label={n[0]} />
           </div>

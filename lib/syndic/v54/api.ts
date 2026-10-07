@@ -1,4 +1,6 @@
 import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
+import { V54_LOCALE_PAR_DEFAUT, type V54Locale } from '@/lib/syndic/v54/i18n/locale'
+import type { Locale as AgentLocale } from '@/lib/syndic/agent-types'
 
 /**
  * Fetchers typés du dashboard syndic v54 (Phase 2) — réutilisent les routes
@@ -21,8 +23,25 @@ export const fetchMissions = (token: string): Promise<Mission[]> =>
 export const fetchImmeubles = (token: string): Promise<Immeuble[]> =>
   getList<Immeuble>('/api/syndic/immeubles', token, 'immeubles')
 
-export const fetchArtisans = (token: string): Promise<Artisan[]> =>
-  getList<Artisan>('/api/syndic/artisans', token, 'artisans')
+/**
+ * Artisan v54 (camelCase). GET /api/syndic/artisans renvoie les colonnes Supabase brutes
+ * (vitfix_certifie, rc_pro_valide, nb_interventions…) : sans conversion, les modules qui lisent
+ * rcProValide / vitfixCertifie voyaient tous les prestataires sans RC valide et non certifiés.
+ */
+export function normaliserArtisan(a: Artisan): Artisan {
+  return {
+    ...a,
+    rcProValide: a.rcProValide ?? a.rc_pro_valide ?? false,
+    rcProExpiration: a.rcProExpiration ?? a.rc_pro_expiration ?? '',
+    decennaleValide: a.decennaleValide ?? a.assurance_decennale_valide ?? false,
+    decennaleExpiration: a.decennaleExpiration ?? a.assurance_decennale_expiration ?? '',
+    nbInterventions: a.nbInterventions ?? a.nb_interventions ?? 0,
+    vitfixCertifie: a.vitfixCertifie ?? a.vitfix_certifie ?? false,
+  }
+}
+
+export const fetchArtisans = async (token: string): Promise<Artisan[]> =>
+  (await getList<Artisan>('/api/syndic/artisans', token, 'artisans')).map(normaliserArtisan)
 
 /**
  * Copropriétaire/lot — forme v54 (camelCase). La route /api/syndic/coproprios
@@ -461,19 +480,30 @@ const AGENT_ENDPOINTS: Record<string, string> = {
  * Envoie un message à un agent IA syndic et retourne sa réponse texte.
  * Réponse : clé `response` (fixy/max/lea/tempo) ou `content` (alfredo).
  * Ne modifie aucun prompt (conforme ai-agents.md) — pur câblage UI → endpoint.
+ * `locale` : langue du dashboard, toujours transmise à l'agent ('fr' ou 'pt').
+ * Les 5 routes prennent le français quand la langue manque : sans 'pt', la
+ * version portugaise recevait des réponses en français (prompt, corpus juridique
+ * de Max et documents de Léa français). Défaut : portugais, langue du dashboard.
  */
-export async function askAgent(route: string, message: string, token: string): Promise<string> {
+export async function askAgent(
+  route: string,
+  message: string,
+  token: string,
+  locale: V54Locale = V54_LOCALE_PAR_DEFAUT,
+): Promise<string> {
+  const francais = locale === 'fr-FR'
+  const langueAgent: AgentLocale = francais ? 'fr' : 'pt'
   const endpoint = AGENT_ENDPOINTS[route]
   if (!endpoint) throw new Error(`Agent inconnu: ${route}`)
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, locale: langueAgent }),
   })
   if (!res.ok) throw new Error(`${endpoint} → HTTP ${res.status}`)
   const j = (await res.json()) as Record<string, unknown>
   const text = typeof j.response === 'string' ? j.response : typeof j.content === 'string' ? j.content : ''
-  return text || 'Sem resposta.'
+  return text || (francais ? 'Pas de réponse.' : 'Sem resposta.')
 }
 
 // ── Lot features net-new : Reservas, Infrações, Enquetes, Checklists ──

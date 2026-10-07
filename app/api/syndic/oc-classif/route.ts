@@ -23,7 +23,7 @@ Devolve APENAS um objeto JSON válido (sem markdown, sem texto antes ou depois) 
 }
 Prioridade "urgente" = risco imediato de segurança, água ou eletricidade. Responde em português europeu.`
 
-const PROMPT_FR = `Tu es Alfredo, assistant de gestion de copropriété. Tu classes une occurrence signalée (texte libre).
+const PROMPT_FR = `Tu es Alfredo, assistant de gestion de copropriété en France. Tu classes un incident signalé par un copropriétaire (texte libre).
 Réponds UNIQUEMENT par un objet JSON valide (sans markdown) avec exactement ces clés:
 {
   "categoria": "une de: Canalização, Eletricidade, Elevador, Telhado/Cobertura, Fachada, Áreas comuns, Segurança, Limpeza, Jardim, Outro",
@@ -32,7 +32,8 @@ Réponds UNIQUEMENT par un objet JSON valide (sans markdown) avec exactement ces
   "resumo": "résumé objectif (1 phrase)",
   "sugestao": "action recommandée au syndic (1 phrase)"
 }
-Priorité "urgente" = risque immédiat sécurité/eau/électricité.`
+Priorité "urgente" = risque immédiat sécurité/eau/électricité.
+Les valeurs de "categoria" et "prioridade" sont des codes techniques : recopie-les exactement tels qu'écrits ci-dessus. Rédige "localizacao", "resumo" et "sugestao" en français, en vouvoyant le syndic.`
 
 export async function POST(req: NextRequest) {
   const ip = getClientIP(req)
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
       () => callGroqWithRetry({
         messages: [
           { role: 'system', content: locale === 'fr' ? PROMPT_FR : PROMPT_PT },
-          { role: 'user', content: `Edifício: ${edificio || '—'}\nOcorrência: ${descricao}` },
+          { role: 'user', content: locale === 'fr' ? `Immeuble : ${edificio || '—'}\nIncident signalé : ${descricao}` : `Edifício: ${edificio || '—'}\nOcorrência: ${descricao}` },
         ],
         temperature: 0.1,
         max_tokens: 500,
@@ -76,6 +77,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ classificacao })
   } catch (err) {
     logger.error('[syndic/oc-classif] error:', err)
-    return NextResponse.json({ error: 'Erro ao classificar a ocorrência' }, { status: 500 })
+    return NextResponse.json({ error: locale === 'fr' ? "Erreur lors de la classification de l'incident" : 'Erro ao classificar a ocorrência' }, { status: 500 })
   }
 }

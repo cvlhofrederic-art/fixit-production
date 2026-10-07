@@ -17,22 +17,19 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { REEMBOLSOS_MESSAGES, type StatutReembolso } from './i18n/ModReembolsos.messages'
 
 /** Reembolsos Automáticos — port byte-exact V5.7 + Phase 3 : reembolsos réels. */
 
-const STEPS: [string, string, string][] = [
-  ['1', 'Declaração venda fração', 'Por antigo proprietário · email/portal · prazo legal 15 dias'],
-  ['2', 'Max Expert calcula reembolso', 'Pro-rata sobre quotas + FCR já pagos · prazo < 1h'],
-  ['3', 'Validação administrador', '1-clique aprovação ou ajuste manual'],
-  ['4', 'Execução Open Banking', 'Ordem virement automática via API AISP'],
-  ['5', 'Confirmação + arquivo', 'Email antigo proprietário · arquivo contabilístico'],
-]
 const codeStyle = { fontFamily: 'var(--v54-font-mono)', background: 'var(--v54-cream)', padding: '2px 6px', borderRadius: 3 } as const
-const eur = (n: number) => `${(n || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-const STATUT_LABEL: Record<string, string> = { pendente: 'Pendente', liquidado: 'Liquidado', bloqueado: 'Bloqueado' }
+const eur = (n: number, locale: V54Locale) => `${(n || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
 const statutKind = (s: string): PillKind => (s === 'liquidado' ? 'sage' : s === 'bloqueado' ? 'rust' : 'amber')
 
 export default function ModReembolsos() {
+  const t = useMessages(REEMBOLSOS_MESSAGES)
+  const locale = useV54Locale()
   // Phase 3 : vrais reembolsos du cabinet si syndic connecté, sinon mock/empty (preview).
   const data = useSyndicData()
   const real = data.authenticated
@@ -57,7 +54,7 @@ export default function ModReembolsos() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!form.antigoProprietario.trim()) errs.antigoProprietario = 'O antigo proprietário é obrigatório.'
+    if (!form.antigoProprietario.trim()) errs.antigoProprietario = t.erreurs.ancienProprietaire
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       setBusy(true)
@@ -67,109 +64,112 @@ export default function ModReembolsos() {
         body: JSON.stringify({ antigoProprietario: form.antigoProprietario, immeuble: form.immeuble, fracao: form.fracao, dataVenda: form.dataVenda, quotasPagas: Number(form.quotasPagas) || 0, montanteReembolso: Number(form.montanteReembolso) || 0, statut: form.statut }),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Reembolso registado', desc: form.antigoProprietario }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.enregistre, desc: form.antigoProprietario }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurEnregistrement, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Reembolso registado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.enregistreDemo, desc: t.toasts.connexionRequise })
   }
 
+  const a = t.alerte
+  const c = t.colonnes
+  const f = t.formulaire
   return (
     <>
-      <PageHead eyebrow="OPERACIONAL · MUDANÇA DE PROPRIEDADE" title="Reembolsos Automáticos"
-        lede="Pro-rata temporis na venda de fração · Max Expert calcula · Open Banking executa · Lei 8/2022 prazos"
-        actions={<><Button onClick={openNew}><Icon name="users" />Registar mudança proprietário</Button><Button variant="gold" onClick={() => setTab('pend')}><Icon name="refresh" />Ver reembolsos pendentes</Button></>} />
-      <Alert kind="gold" icon="scale" title="Direito a reembolso pro-rata na venda">
-        Quando um condómino vende mid-year, as quotas pré-pagas devem ser reembolsadas proporcionalmente. <strong>Fórmula</strong>: <code style={codeStyle}>quotas_pagas × (dias_restantes / dias_periodo)</code>. Lei 8/2022 fixa prazo notificação venda em 15 dias.
+      <PageHead eyebrow={t.surtitre} title={t.titre}
+        lede={t.chapeau}
+        actions={<><Button onClick={openNew}><Icon name="users" />{t.enregistrerMutation}</Button><Button variant="gold" onClick={() => setTab('pend')}><Icon name="refresh" />{t.voirEnAttente}</Button></>} />
+      <Alert kind="gold" icon="scale" title={a.titre}>
+        {a.debut}<strong>{a.libelleCalcul}</strong>{a.separateur}<code style={codeStyle}>{a.formule}</code>{a.fin}
       </Alert>
       <KPIGrid items={[
-        { icon: 'refresh', num: real ? liquidadosN : 0, lbl: 'Reembolsos processados (ano)' },
-        { icon: 'coin', num: real ? eur(totalLiquidado) : '0,00 €', lbl: 'Total reembolsado (ano)', accent: 'gold' },
-        { icon: 'clock', num: real ? aProcessar : 0, lbl: 'A processar', accent: 'amber' },
-        { icon: 'check', num: real ? eur(totalLiquidado) : '0,00 €', lbl: 'Liquidado via Open Banking', accent: 'sage' },
-        { icon: 'alert', num: real ? bloqueados : 0, lbl: 'Bloqueados (rever)', accent: 'rust' },
-        { icon: 'bot', num: 'Max Expert', lbl: 'Motor cálculo' },
+        { icon: 'refresh', num: real ? liquidadosN : 0, lbl: t.kpi.traites },
+        { icon: 'coin', num: real ? eur(totalLiquidado, locale) : '0,00 €', lbl: t.kpi.totalRembourse, accent: 'gold' },
+        { icon: 'clock', num: real ? aProcessar : 0, lbl: t.kpi.aTraiter, accent: 'amber' },
+        { icon: 'check', num: real ? eur(totalLiquidado, locale) : '0,00 €', lbl: t.kpi.regleOpenBanking, accent: 'sage' },
+        { icon: 'alert', num: real ? bloqueados : 0, lbl: t.kpi.bloques, accent: 'rust' },
+        { icon: 'bot', num: 'Max Expert', lbl: t.kpi.moteur },
       ]} />
       <Tabs active={tab} onChange={setTab} tabs={[
-        { id: 'pend', icon: 'clock', label: `Pendentes (${real ? aProcessar : 0})` },
-        { id: 'liq', icon: 'check', label: 'Liquidados' },
-        { id: 'todos', label: 'Todos (12m)' },
+        { id: 'pend', icon: 'clock', label: t.onglets.pendentes(real ? aProcessar : 0) },
+        { id: 'liq', icon: 'check', label: t.onglets.liquidados },
+        { id: 'todos', label: t.onglets.todos },
       ]} />
       <Panel flush>
         <div className={m.tblWrap}>
           <table className={m.tbl}>
-            <thead><tr><th>Antigo proprietário</th><th>Fração</th><th>Data venda</th><th>Quotas pagas</th><th>Dias restantes</th><th>Reembolso</th><th>Método</th><th>Estado</th></tr></thead>
+            <thead><tr><th>{c.ancienProprietaire}</th><th>{c.lot}</th><th>{c.dateVente}</th><th>{c.provisionsVersees}</th><th>{c.joursRestants}</th><th>{c.remboursement}</th><th>{c.methode}</th><th>{c.statut}</th></tr></thead>
             <tbody>
               {shown.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--v54-navy-400)' }}>Nenhum reembolso em curso.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--v54-navy-400)' }}>{t.aucun}</td></tr>
               ) : shown.map((r) => (
                 <tr key={r.id}>
                   <td>{r.antigoProprietario || '—'}</td>
                   <td>{r.fracao || '—'}</td>
-                  <td>{r.dataVenda || '—'}</td>
-                  <td className={m.mono}>{eur(r.quotasPagas)}</td>
+                  <td>{dateApi(r.dataVenda, locale) || '—'}</td>
+                  <td className={m.mono}>{eur(r.quotasPagas, locale)}</td>
                   <td>—</td>
-                  <td className={m.mono}>{eur(r.montanteReembolso)}</td>
+                  <td className={m.mono}>{eur(r.montanteReembolso, locale)}</td>
                   <td>{r.metodo || '—'}</td>
-                  <td><Pill kind={statutKind(r.statut)} noDot>{STATUT_LABEL[r.statut] ?? r.statut}</Pill></td>
+                  <td><Pill kind={statutKind(r.statut)} noDot>{t.statuts[r.statut as StatutReembolso] ?? r.statut}</Pill></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </Panel>
-      <Panel title="Pipeline automático" sub="Lei 8/2022 — 15 dias">
+      <Panel title={t.pipeline} sub={t.pipelineSous}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {STEPS.map(([n, t, s], i) => (
+          {t.etapes.map(([n, titre, s], i) => (
             <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '10px 14px', background: 'var(--v54-cream)', borderRadius: 8 }}>
               <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--v54-gold-500)', color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 13 }}>{n}</div>
-              <div><div style={{ fontWeight: 600, fontSize: 13 }}>{t}</div><div style={{ fontSize: 12, color: 'var(--v54-navy-400)' }}>{s}</div></div>
+              <div><div style={{ fontWeight: 600, fontSize: 13 }}>{titre}</div><div style={{ fontSize: 12, color: 'var(--v54-navy-400)' }}>{s}</div></div>
             </div>
           ))}
         </div>
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="nr-title" size="md">
-        <ModalHead icon="users" id="nr-title" title="Registar reembolso" onClose={() => setOpen(false)} />
+        <ModalHead icon="users" id="nr-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
             <FormRow>
-              <Field label="Antigo proprietário" required name="nr-prop" error={errors.antigoProprietario}>
-                <input type="text" placeholder="Nome do vendedor" value={form.antigoProprietario} onChange={(e) => upd('antigoProprietario', e.target.value)} />
+              <Field label={f.ancienProprietaire} required name="nr-prop" error={errors.antigoProprietario}>
+                <input type="text" placeholder={f.nomVendeur} value={form.antigoProprietario} onChange={(e) => upd('antigoProprietario', e.target.value)} />
               </Field>
-              <Field label="Fração" name="nr-frac">
-                <input type="text" placeholder="Ex.: 4B" value={form.fracao} onChange={(e) => upd('fracao', e.target.value)} />
-              </Field>
-            </FormRow>
-            <FormRow>
-              <Field label="Edifício" name="nr-imovel">
-                <input type="text" placeholder="Opcional" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
-              </Field>
-              <Field label="Data da venda" name="nr-data">
-                <input type="text" placeholder="AAAA-MM-DD" value={form.dataVenda} onChange={(e) => upd('dataVenda', e.target.value)} />
+              <Field label={f.lot} name="nr-frac">
+                <input type="text" placeholder={f.lotExemple} value={form.fracao} onChange={(e) => upd('fracao', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Quotas pagas (€)" name="nr-quotas">
+              <Field label={f.immeuble} name="nr-imovel">
+                <input type="text" placeholder={f.facultatif} value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+              </Field>
+              <Field label={f.dateVente} name="nr-data">
+                <input type="text" placeholder={f.formatDate} value={form.dataVenda} onChange={(e) => upd('dataVenda', e.target.value)} />
+              </Field>
+            </FormRow>
+            <FormRow>
+              <Field label={f.provisionsVersees} name="nr-quotas">
                 <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={form.quotasPagas} onChange={(e) => upd('quotasPagas', e.target.value)} />
               </Field>
-              <Field label="Reembolso (€)" name="nr-mont">
+              <Field label={f.remboursement} name="nr-mont">
                 <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={form.montanteReembolso} onChange={(e) => upd('montanteReembolso', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Estado" full name="nr-statut">
+            <Field label={f.statut} full name="nr-statut">
               <select value={form.statut} onChange={(e) => upd('statut', e.target.value)}>
-                <option value="pendente">Pendente</option>
-                <option value="liquidado">Liquidado</option>
-                <option value="bloqueado">Bloqueado</option>
+                <option value="pendente">{t.statuts.pendente}</option>
+                <option value="liquidado">{t.statuts.liquidado}</option>
+                <option value="bloqueado">{t.statuts.bloqueado}</option>
               </select>
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.enregistrer}</button>
           </ModalFoot>
         </form>
       </Modal>

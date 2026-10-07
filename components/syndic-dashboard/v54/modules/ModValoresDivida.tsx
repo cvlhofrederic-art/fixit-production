@@ -18,15 +18,20 @@ import btnCss from '../primitives/button/Button.module.css'
 import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { VALORES_DIVIDA_MESSAGES } from './i18n/ModValoresDivida.messages'
 
 /** Valores em dívida — port byte-exact du ModValoresDivida du bundle V5.7 (stateful : Modal + Toast). */
 
 type DivForm = { condomino: string; fracao: string; montante: string; edificio: string; vencimento: string; notas: string }
 type Div = { id: number; condomino: string; fracao: string; montante: number; edificio: string; vencimento: string; notas: string; estado: string }
 
-const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
+const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
 
 export default function ModValoresDivida() {
+  const t = useMessages(VALORES_DIVIDA_MESSAGES)
+  const locale = useV54Locale()
   const blank: DivForm = { condomino: '', fracao: '', montante: '', edificio: '', vencimento: '', notas: '' }
   const [items, setItems] = useState<Div[]>([])
   const [open, setOpen] = useState(false)
@@ -46,55 +51,57 @@ export default function ModValoresDivida() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Partial<Record<keyof DivForm, string>> = {}
-    if (!form.condomino.trim()) errs.condomino = 'O condómino é obrigatório.'
-    if (!form.montante || Number(form.montante) <= 0) errs.montante = 'Indique um montante superior a 0 €.'
+    if (!form.condomino.trim()) errs.condomino = t.erreurs.condomino
+    if (!form.montante || Number(form.montante) <= 0) errs.montante = t.erreurs.montante
     if (Object.keys(errs).length) { setErrors(errs); return }
     setItems(prev => [...prev, { id: Date.now(), condomino: form.condomino, fracao: form.fracao, montante: Number(form.montante), edificio: form.edificio, vencimento: form.vencimento, notas: form.notas, estado: 'inc' }])
     setOpen(false)
-    push({ kind: 'warning', title: 'Incumprimento registado', desc: `${form.condomino} · ${fmtEUR(Number(form.montante))}` })
+    push({ kind: 'warning', title: t.toastEnregistre, desc: `${form.condomino} · ${fmtEUR(Number(form.montante), locale)}` })
   }
 
   const total = displayItems.reduce((s, i) => s + (Number(i.montante) || 0), 0)
   const counts = { inc: displayItems.filter(i => i.estado === 'inc').length, n1: displayItems.filter(i => i.estado === 'n1').length, n2: displayItems.filter(i => i.estado === 'n2').length, ct: displayItems.filter(i => i.estado === 'ct').length, liq: displayItems.filter(i => i.estado === 'liq').length }
 
+  const c = t.colonnes
+  const f = t.formulaire
   return (
     <>
-      <PageHead title="Valores em dívida" lede="Acompanhamento de incumprimentos e chamadas de fundos — Notificações graduais, cartas de interpelação, contencioso"
-        actions={<Button variant="danger" onClick={openNew}><Icon name="alert" />+ Incumprimento</Button>} />
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<Button variant="danger" onClick={openNew}><Icon name="alert" />{t.nouvelImpaye}</Button>} />
       <Tabs defaultActive="ac" tabs={[
-        { id: 'ac', icon: 'alert', label: 'Acompanhamento de Incumprimentos' },
-        { id: 'cf', icon: 'clipboard', label: 'Chamadas de Fundos' },
+        { id: 'ac', icon: 'alert', label: t.onglets.ac },
+        { id: 'cf', icon: 'clipboard', label: t.onglets.cf },
       ]} />
       <div className={kpiCss.kpiGrid}>
-        <KPI icon="alert" accent={total > 0 ? 'rust' : undefined} num={fmtEUR(total).replace('€', '').trim()} numChildren={<span style={{ fontSize: 22, fontStyle: 'italic', marginLeft: 4 }}>€</span>} lbl="Total de incumprimentos em curso" />
-        <KPI icon="alert" num={counts.inc} lbl="Em incumprimento" accent={counts.inc ? 'amber' : undefined} />
-        <KPI icon="mail" num={counts.n1} lbl="Notificação 1" accent={counts.n1 ? 'gold' : undefined} />
-        <KPI icon="mail" num={counts.n2} lbl="Notificação 2" />
-        <KPI icon="scale" num={counts.ct} lbl="Contencioso" />
+        <KPI icon="alert" accent={total > 0 ? 'rust' : undefined} num={fmtEUR(total, locale).replace('€', '').trim()} numChildren={<span style={{ fontSize: 22, fontStyle: 'italic', marginLeft: 4 }}>€</span>} lbl={t.kpi.total} />
+        <KPI icon="alert" num={counts.inc} lbl={t.kpi.inc} accent={counts.inc ? 'amber' : undefined} />
+        <KPI icon="mail" num={counts.n1} lbl={t.kpi.n1} accent={counts.n1 ? 'gold' : undefined} />
+        <KPI icon="mail" num={counts.n2} lbl={t.kpi.n2} />
+        <KPI icon="scale" num={counts.ct} lbl={t.kpi.ct} />
       </div>
       <Tabs defaultActive="all" tabs={[
-        { id: 'all', label: 'Todos', badge: displayItems.length },
-        { id: 'inc', label: `● Em incumprimento (${counts.inc})` },
-        { id: 'n1', label: `● Notificação 1 (${counts.n1})` },
-        { id: 'n2', label: `● Notificação 2 (${counts.n2})` },
-        { id: 'ct', label: `● Contencioso (${counts.ct})` },
-        { id: 'liq', icon: 'check', label: `Liquidado (${counts.liq})` },
+        { id: 'all', label: t.filtres.tous, badge: displayItems.length },
+        { id: 'inc', label: t.filtres.inc(counts.inc) },
+        { id: 'n1', label: t.filtres.n1(counts.n1) },
+        { id: 'n2', label: t.filtres.n2(counts.n2) },
+        { id: 'ct', label: t.filtres.ct(counts.ct) },
+        { id: 'liq', icon: 'check', label: t.filtres.liq(counts.liq) },
       ]} />
       <Panel>
         {displayItems.length === 0 ? (
-          <Empty kind="sage" illustration="ocorrencias" title="Nenhum incumprimento" desc="Operação nominal" />
+          <Empty kind="sage" illustration="ocorrencias" title={t.videTitre} desc={t.videDesc} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Condómino</th><th>Fração</th><th>Edifício</th><th>Vencimento</th><th>Montante</th><th>Estado</th></tr></thead>
+              <thead><tr><th>{c.condomino}</th><th>{c.fracao}</th><th>{c.edificio}</th><th>{c.vencimento}</th><th>{c.montante}</th><th>{c.estado}</th></tr></thead>
               <tbody>{displayItems.map(it => (
                 <tr key={it.id}>
                   <td>{it.condomino}</td>
                   <td>{it.fracao || '—'}</td>
                   <td>{it.edificio || '—'}</td>
-                  <td>{it.vencimento || '—'}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.montante)}</td>
-                  <td><Pill kind="rust">Em incumprimento</Pill></td>
+                  <td>{dateApi(it.vencimento, locale) || '—'}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.montante, locale)}</td>
+                  <td><Pill kind="rust">{t.pastilleImpaye}</Pill></td>
                 </tr>
               ))}</tbody>
             </table>
@@ -103,33 +110,33 @@ export default function ModValoresDivida() {
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="div-modal-title" size="md">
-        <ModalHead icon="alert" id="div-modal-title" title="Registar um incumprimento" onClose={() => setOpen(false)} />
+        <ModalHead icon="alert" id="div-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Condómino" required full name="div-cond" error={errors.condomino}>
-              <input type="text" placeholder="Nome do condómino" value={form.condomino} onChange={e => upd('condomino', e.target.value)} />
+            <Field label={f.condomino} required full name="div-cond" error={errors.condomino}>
+              <input type="text" placeholder={f.condominoPlaceholder} value={form.condomino} onChange={e => upd('condomino', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Fração" name="div-frac">
-                <input type="text" placeholder="Apt 12" value={form.fracao} onChange={e => upd('fracao', e.target.value)} />
+              <Field label={f.fracao} name="div-frac">
+                <input type="text" placeholder={f.fracaoPlaceholder} value={form.fracao} onChange={e => upd('fracao', e.target.value)} />
               </Field>
-              <Field label="Montante" required name="div-mont" suffix="€" error={errors.montante}>
+              <Field label={f.montante} required name="div-mont" suffix="€" error={errors.montante}>
                 <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="0" value={form.montante} onChange={e => upd('montante', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Edifício" full name="div-edif">
-              <input type="text" placeholder="Residência…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+            <Field label={f.edificio} full name="div-edif">
+              <input type="text" placeholder={f.edificioPlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
             </Field>
-            <Field label="Data de vencimento" full name="div-venc">
+            <Field label={f.vencimento} full name="div-venc">
               <input type="date" value={form.vencimento} onChange={e => upd('vencimento', e.target.value)} />
             </Field>
-            <Field label="Notas" hint="Informações complementares" full name="div-notas">
+            <Field label={f.notas} hint={f.notasAide} full name="div-notas">
               <textarea rows={3} value={form.notas} onChange={e => upd('notas', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.danger)}>Registar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.danger)}>{f.enregistrer}</button>
           </ModalFoot>
         </form>
       </Modal>

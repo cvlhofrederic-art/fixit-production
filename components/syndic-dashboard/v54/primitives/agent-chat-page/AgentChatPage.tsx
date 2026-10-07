@@ -5,6 +5,8 @@ import clsx from 'clsx'
 import Icon from '../icon/Icon'
 import { Alert, type AlertProps } from '../alert'
 import { useToast } from '../toast'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { AGENT_CHAT_PAGE_MESSAGES } from './agent-chat-page.messages'
 import styles from './AgentChatPage.module.css'
 
 export interface AgentConversation {
@@ -58,22 +60,6 @@ export interface AgentChatPageProps {
 
 const BUCKETS = ['ontem', 'esta-semana', 'mais-antigas'] as const
 
-const DEFAULT_LABELS: AgentChatPageLabels = {
-  asideAria: 'Histórico de conversas',
-  heading: 'CONVERSAS',
-  hidePanel: 'Esconder painel',
-  newConversation: '+ Nova conversa',
-  searchPlaceholder: 'Procurar conversas…',
-  searchAria: 'Procurar conversas',
-  empty: 'Nenhuma conversa ainda. Inicie a primeira para começar.',
-  bucketLabels: { ontem: 'ONTEM', 'esta-semana': 'ESTA SEMANA', 'mais-antigas': 'MAIS ANTIGAS' },
-  docsButton: 'Documentos',
-  send: 'Enviar',
-  typing: 'A escrever…',
-  inputAria: (name) => `Pergunta a ${name}`,
-  errorReply: 'Desculpe, ocorreu um erro ao contactar o assistente. Tente novamente.',
-}
-
 /**
  * AgentChatPage v54 — page composite agent IA (port byte-exact du bundle V5.7).
  * Sidebar « Conversas » (recherche + buckets temporels) + zone chat principale
@@ -90,11 +76,13 @@ const DEFAULT_LABELS: AgentChatPageLabels = {
 export default function AgentChatPage({
   mascot, name, title, intro, introDetail,
   suggestions = [], conversations = [], alert, contextSelector, showDocsBtn,
-  inputPlaceholder = 'Faça uma pergunta…',
+  inputPlaceholder,
   labels,
   onSend, onAsk, onNewConversation, onOpenDocs, onSelectConversation,
 }: AgentChatPageProps) {
-  const L: AgentChatPageLabels = { ...DEFAULT_LABELS, ...labels, bucketLabels: { ...DEFAULT_LABELS.bucketLabels, ...labels?.bucketLabels } }
+  const D = useMessages(AGENT_CHAT_PAGE_MESSAGES)
+  const L: AgentChatPageLabels = { ...D.labels, ...labels, bucketLabels: { ...D.labels.bucketLabels, ...labels?.bucketLabels } }
+  const placeholder = inputPlaceholder ?? D.placeholder
   const [inputVal, setInputVal] = useState('')
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
   const [busy, setBusy] = useState(false)
@@ -122,20 +110,20 @@ export default function AgentChatPage({
       return
     }
     if (onSend) onSend(v)
-    else push({ kind: 'info', title: `Pergunta enviada a ${shortName}`, desc: 'Em breve a resposta IA (em desenvolvimento)' })
+    else push({ kind: 'info', title: D.envoyee(shortName ?? name), desc: D.envoyeeDetail })
     setInputVal('')
   }
   const newConv = () => {
     if (onNewConversation) onNewConversation()
-    else push({ kind: 'success', title: 'Nova conversa', desc: `Conversa iniciada com ${shortName}` })
+    else push({ kind: 'success', title: D.nouvelleConversation, desc: D.conversationDemarree(shortName ?? name) })
   }
   const openDocs = () => {
     if (onOpenDocs) onOpenDocs()
-    else push({ kind: 'info', title: 'Documentos do condomínio', desc: 'Painel de documentos em preparação' })
+    else push({ kind: 'info', title: D.documents, desc: D.documentsDetail })
   }
   const selectConv = (c: AgentConversation) => {
     if (onSelectConversation) onSelectConversation(c)
-    else push({ kind: 'info', title: 'Conversa carregada', desc: c.title })
+    else push({ kind: 'info', title: D.conversationChargee, desc: c.title })
   }
 
   const buckets: Record<string, AgentConversation[]> = { ontem: [], 'esta-semana': [], 'mais-antigas': [] }
@@ -261,7 +249,7 @@ export default function AgentChatPage({
             ref={inputRef}
             type="text"
             className={styles.input}
-            placeholder={inputPlaceholder}
+            placeholder={placeholder}
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             aria-label={L.inputAria(name)}

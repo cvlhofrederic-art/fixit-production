@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PRIMITIVES_MESSAGES } from '../primitives.messages'
 import { Empty } from '../empty'
 import { Button } from '../button'
 import Icon from '../icon/Icon'
@@ -21,13 +23,14 @@ export interface ErrorStateProps {
  * en variante `rust` : badge rust + titre rust + bouton « Tentar novamente ».
  */
 export default function ErrorState({ icon = 'alert', title, desc, action, onRetry }: Readonly<ErrorStateProps>) {
+  const t = useMessages(PRIMITIVES_MESSAGES)
   return (
     <Empty
       kind="rust"
       icon={icon}
       title={<span style={{ color: 'var(--v54-rust-700)' }}>{title}</span>}
       desc={desc}
-      action={action ?? (onRetry ? <Button onClick={onRetry}><Icon name="refresh" />Tentar novamente</Button> : undefined)}
+      action={action ?? (onRetry ? <Button onClick={onRetry}><Icon name="refresh" />{t.reessayer}</Button> : undefined)}
     />
   )
 }

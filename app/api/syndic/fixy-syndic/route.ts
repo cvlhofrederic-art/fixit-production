@@ -398,7 +398,9 @@ export async function POST(request: NextRequest) {
           { role: 'assistant' as const, content: response },
           {
             role: 'user' as const,
-            content: `Résultats du tool ${toolCall.name} :\n\`\`\`json\n${toolResult}\n\`\`\`\n\nUtilise ces données pour répondre à la question initiale.`,
+            content: resolvedLocale === 'pt'
+              ? `Resultados da ferramenta ${toolCall.name} :\n\`\`\`json\n${toolResult}\n\`\`\`\n\nUsa estes dados para responder à pergunta inicial, em português europeu.`
+              : `Résultats du tool ${toolCall.name} :\n\`\`\`json\n${toolResult}\n\`\`\`\n\nUtilise ces données pour répondre à la question initiale.`,
           },
         ]
         try {

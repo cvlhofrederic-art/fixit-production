@@ -7,32 +7,35 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import { useComingSoon } from './use-coming-soon'
 import m from './modules.module.css'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { LANCAMENTO_FAT_MESSAGES } from './i18n/ModLancamentoFat.messages'
 
 /** Lançamento IA de Faturas — port byte-exact du ModLancamentoFat du bundle V5.7. */
 
 export default function ModLancamentoFat() {
   const soon = useComingSoon()
+  const t = useMessages(LANCAMENTO_FAT_MESSAGES)
   return (
     <>
-      <PageHead title="Lançamento IA de Faturas" lede="Importação, extração automática e validação das faturas de fornecedores" />
+      <PageHead title={t.titre} lede={t.chapeau} />
       <KPIGrid items={[
-        { icon: 'doc', num: 8, lbl: 'Total faturas' },
-        { icon: 'clock', num: 4, lbl: 'Em espera', accent: 'amber' },
-        { icon: 'check', num: 4, lbl: 'Validadas', accent: 'sage' },
-        { icon: 'alert', num: 3, lbl: 'Anomalias', accent: 'rust' },
+        { icon: 'doc', num: 8, lbl: t.kpi.total },
+        { icon: 'clock', num: 4, lbl: t.kpi.attente, accent: 'amber' },
+        { icon: 'check', num: 4, lbl: t.kpi.validees, accent: 'sage' },
+        { icon: 'alert', num: 3, lbl: t.kpi.anomalies, accent: 'rust' },
       ]} />
       <Tabs defaultActive="imp" tabs={[
-        { id: 'imp', icon: 'upload', label: 'Importar faturas' },
-        { id: 'esp', icon: 'clock', label: 'Em espera', badge: 4 },
-        { id: 'trat', icon: 'check', label: 'Tratadas' },
-        { id: 'an', icon: 'alert', label: 'Anomalias', badge: 3 },
-        { id: 'cfg', icon: 'cog', label: 'Configuração' },
+        { id: 'imp', icon: 'upload', label: t.onglets.imp },
+        { id: 'esp', icon: 'clock', label: t.onglets.esp, badge: 4 },
+        { id: 'trat', icon: 'check', label: t.onglets.trat },
+        { id: 'an', icon: 'alert', label: t.onglets.an, badge: 3 },
+        { id: 'cfg', icon: 'cog', label: t.onglets.cfg },
       ]} />
       <div className={m.dropZone}>
         <div className={m.icoLg}><Icon name="folder" /></div>
-        <h4>Arraste e largue as suas faturas aqui</h4>
-        <p>Formatos aceites: PDF, JPG, PNG — Importação em lote suportada</p>
-        <Button variant="gold" onClick={soon('Procurar ficheiros', 'Pesquisa de ficheiros em desenvolvimento')}><Icon name="search" />Procurar ficheiros</Button>
+        <h4>{t.depot.titre}</h4>
+        <p>{t.depot.formats}</p>
+        <Button variant="gold" onClick={soon(t.parcourir, t.parcourirEnCours)}><Icon name="search" />{t.parcourir}</Button>
       </div>
     </>
   )

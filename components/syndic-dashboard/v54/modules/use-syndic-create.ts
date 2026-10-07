@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useToast } from '../primitives/toast'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { HOOKS_MESSAGES } from './i18n/hooks.messages'
 
 /**
  * Hook de création POST partagé par les modules syndic v54 (Reservas, Infrações,
@@ -12,6 +14,7 @@ import { useToast } from '../primitives/toast'
 export function useSyndicCreate(endpoint: string) {
   const data = useSyndicData()
   const { push } = useToast()
+  const t = useMessages(HOOKS_MESSAGES)
   const [busy, setBusy] = useState(false)
 
   const create = (payload: Record<string, unknown>, opts: { okTitle: string; desc?: string; onDone: () => void }) => {
@@ -24,12 +27,12 @@ export function useSyndicCreate(endpoint: string) {
       })
         .then(r => { if (!r.ok) throw new Error() })
         .then(() => { data.refresh?.(); opts.onDone(); push({ kind: 'success', title: opts.okTitle, desc: opts.desc }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao gravar', desc: 'Tente novamente mais tarde' }))
+        .catch(() => push({ kind: 'error', title: t.erreurEnregistrement, desc: t.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     opts.onDone()
-    push({ kind: 'info', title: `${opts.okTitle} (demo)`, desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.demo(opts.okTitle), desc: t.connexionRequise })
   }
 
   return { busy, create }

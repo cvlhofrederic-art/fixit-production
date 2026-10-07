@@ -1,6 +1,8 @@
 'use client'
 
 import { useToast } from '../primitives/toast'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { HOOKS_MESSAGES } from './i18n/hooks.messages'
 
 /**
  * Handler partagé « anti-clic-mort » pour les boutons des modules vitrine pas encore
@@ -9,6 +11,7 @@ import { useToast } from '../primitives/toast'
  */
 export function useComingSoon() {
   const { push } = useToast()
-  return (title: string, desc = 'Funcionalidade em desenvolvimento') => () =>
+  const t = useMessages(HOOKS_MESSAGES)
+  return (title: string, desc = t.enDeveloppement) => () =>
     push({ kind: 'info', title, desc })
 }

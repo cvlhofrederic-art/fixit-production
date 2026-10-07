@@ -17,17 +17,22 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { SEGUROS_MESSAGES } from './i18n/ModSeguros.messages'
 
 /** Gestão de Seguros — port byte-exact V5.7 + Phase 3 : apólices réelles. */
 
 const selectStyle = { padding: '10px 12px', borderRadius: 8, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', marginBottom: 14 } as const
 
-const eur = (n: number) => `${(n || 0).toLocaleString('pt-PT')} €`
-const TIPO_LABELS: Record<string, string> = { multirriscos: 'Multirriscos', responsabilidade_civil: 'Responsabilidade Civil', incendio: 'Incêndio', outros: 'Outros' }
+const eur = (n: number, locale: V54Locale) => `${(n || 0).toLocaleString(locale)} €`
 const statusKind = (s: string): 'sage' | 'amber' | 'rust' => (s === 'expirada' ? 'rust' : s === 'renovacao' ? 'amber' : 'sage')
-const statusLabel = (s: string): string => (s === 'expirada' ? 'Expirada' : s === 'renovacao' ? 'Renovação' : 'Ativa')
+const statusLabel = (s: string, l: { expirada: string; renovacao: string; ativa: string }): string => (s === 'expirada' ? l.expirada : s === 'renovacao' ? l.renovacao : l.ativa)
 
 export default function ModSeguros() {
+  const t = useMessages(SEGUROS_MESSAGES)
+  const locale = useV54Locale()
+  const tipoLabels: Record<string, string> = t.types
   // Phase 3 : vraies apólices du cabinet si syndic connecté, sinon mock/empty (preview).
   const data = useSyndicData()
   const real = data.authenticated
@@ -51,7 +56,7 @@ export default function ModSeguros() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!form.seguradora.trim()) errs.seguradora = 'A seguradora é obrigatória.'
+    if (!form.seguradora.trim()) errs.seguradora = t.erreurAssureur
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       setBusy(true)
@@ -61,52 +66,53 @@ export default function ModSeguros() {
         body: JSON.stringify({ seguradora: form.seguradora, tipo: form.tipo, apolice: form.apolice, premioAnual: Number(form.premioAnual) || 0, capital: Number(form.capital) || 0, immeuble: form.immeuble, dataFim: form.dataFim }),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Apólice adicionada', desc: form.seguradora }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao adicionar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.ajoutee, desc: form.seguradora }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurAjout, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Apólice adicionada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.ajouteeDemo, desc: t.toasts.connexionRequise })
   }
 
+  const f = t.formulaire
   return (
     <>
       <PageHead
-        title="Gestão de Seguros"
-        lede="Apólices, coberturas, sinistros e alertas por edifício"
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />+ Nova Apólice</Button>}
+        title={t.titre}
+        lede={t.chapeau}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.nouvellePolice}</Button>}
       />
       <KPIGrid items={[
-        { icon: 'shield', num: real ? ativas : 0, lbl: 'Apólices Ativas', accent: 'gold' },
-        { icon: 'check', num: real ? expiradas : 0, lbl: 'Expiradas', accent: 'sage' },
-        { icon: 'clock', num: real ? aExpirar : 0, lbl: 'A Expirar (60d)', accent: 'amber' },
-        { icon: 'coin', num: real ? eur(premios) : '0 €', lbl: 'Total Prémios/Ano' },
-        { icon: 'bank', num: real ? eur(capital) : '0 €', lbl: 'Capital Total' },
+        { icon: 'shield', num: real ? ativas : 0, lbl: t.kpi.actives, accent: 'gold' },
+        { icon: 'check', num: real ? expiradas : 0, lbl: t.kpi.expirees, accent: 'sage' },
+        { icon: 'clock', num: real ? aExpirar : 0, lbl: t.kpi.aEcheance, accent: 'amber' },
+        { icon: 'coin', num: real ? eur(premios, locale) : '0 €', lbl: t.kpi.primes },
+        { icon: 'bank', num: real ? eur(capital, locale) : '0 €', lbl: t.kpi.capital },
       ]} />
       <Tabs defaultActive="vg" tabs={[
-        { id: 'vg', icon: 'chart', label: 'Visão Geral' },
-        { id: 'ap', icon: 'shield', label: 'Apólices' },
-        { id: 'sn', icon: 'alert', label: 'Sinistros' },
-        { id: 'al', icon: 'bell', label: 'Alertas' },
+        { id: 'vg', icon: 'chart', label: t.onglets.vg },
+        { id: 'ap', icon: 'shield', label: t.onglets.ap },
+        { id: 'sn', icon: 'alert', label: t.onglets.sn },
+        { id: 'al', icon: 'bell', label: t.onglets.al },
       ]} />
-      <select aria-label="Filtrar por edifício" style={selectStyle}><option>Todos os edifícios</option></select>
+      <select aria-label={t.filtreAria} style={selectStyle}><option>{t.tousImmeubles}</option></select>
       <Panel>
         {all.length === 0 ? (
-          <Empty illustration="condominos" title="Nenhum edifício registado" />
+          <Empty illustration="condominos" title={t.vide} />
         ) : (
           <div>
             {all.map((s) => (
               <div key={s.id} style={{ padding: '16px 0', borderBottom: '1px solid var(--v54-line)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, fontWeight: 500 }}>{s.seguradora}</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{TIPO_LABELS[s.tipo] ?? s.tipo}{s.apolice ? ` · ${s.apolice}` : ''}{s.immeuble ? ` · ${s.immeuble}` : ''}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{tipoLabels[s.tipo] ?? s.tipo}{s.apolice ? ` · ${s.apolice}` : ''}{s.immeuble ? ` · ${s.immeuble}` : ''}</div>
                 </div>
-                <Pill kind={statusKind(s.statut)} noDot>{statusLabel(s.statut)}</Pill>
+                <Pill kind={statusKind(s.statut)} noDot>{statusLabel(s.statut, t.statuts)}</Pill>
                 <div style={{ textAlign: 'right', minWidth: 130 }}>
-                  <div className={m.mono} style={{ fontWeight: 600 }}>{eur(s.premioAnual)}/ano</div>
-                  {s.capital > 0 && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>Capital: {eur(s.capital)}</div>}
-                  {s.dataFim && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>Fim: {s.dataFim}</div>}
+                  <div className={m.mono} style={{ fontWeight: 600 }}>{eur(s.premioAnual, locale)}{t.liste.parAn}</div>
+                  {s.capital > 0 && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.liste.capital}{eur(s.capital, locale)}</div>}
+                  {s.dataFim && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{t.liste.fin}{dateApi(s.dataFim, locale)}</div>}
                 </div>
               </div>
             ))}
@@ -115,45 +121,45 @@ export default function ModSeguros() {
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="ns-title" size="md">
-        <ModalHead icon="shield" id="ns-title" title="Nova apólice" onClose={() => setOpen(false)} />
+        <ModalHead icon="shield" id="ns-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Seguradora" required full name="ns-seg" error={errors.seguradora}>
-              <input type="text" placeholder="Ex.: Fidelidade, Tranquilidade…" value={form.seguradora} onChange={(e) => upd('seguradora', e.target.value)} />
+            <Field label={f.assureur} required full name="ns-seg" error={errors.seguradora}>
+              <input type="text" placeholder={f.assureurPlaceholder} value={form.seguradora} onChange={(e) => upd('seguradora', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Tipo" name="ns-tipo">
+              <Field label={f.type} name="ns-tipo">
                 <select value={form.tipo} onChange={(e) => upd('tipo', e.target.value)}>
-                  <option value="multirriscos">Multirriscos</option>
-                  <option value="responsabilidade_civil">Responsabilidade Civil</option>
-                  <option value="incendio">Incêndio</option>
-                  <option value="outros">Outros</option>
+                  <option value="multirriscos">{t.types.multirriscos}</option>
+                  <option value="responsabilidade_civil">{t.types.responsabilidade_civil}</option>
+                  <option value="incendio">{t.types.incendio}</option>
+                  <option value="outros">{t.types.outros}</option>
                 </select>
               </Field>
-              <Field label="N.º apólice" name="ns-apol">
-                <input type="text" placeholder="Opcional" value={form.apolice} onChange={(e) => upd('apolice', e.target.value)} />
+              <Field label={f.numero} name="ns-apol">
+                <input type="text" placeholder={f.facultatif} value={form.apolice} onChange={(e) => upd('apolice', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Prémio anual (€)" name="ns-premio">
+              <Field label={f.prime} name="ns-premio">
                 <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={form.premioAnual} onChange={(e) => upd('premioAnual', e.target.value)} />
               </Field>
-              <Field label="Capital seguro (€)" name="ns-cap">
+              <Field label={f.capital} name="ns-cap">
                 <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" value={form.capital} onChange={(e) => upd('capital', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Edifício" name="ns-imovel">
-                <input type="text" placeholder="Opcional" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+              <Field label={f.immeuble} name="ns-imovel">
+                <input type="text" placeholder={f.facultatif} value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
               </Field>
-              <Field label="Data de fim" name="ns-fim">
-                <input type="text" placeholder="AAAA-MM-DD" value={form.dataFim} onChange={(e) => upd('dataFim', e.target.value)} />
+              <Field label={f.dateFin} name="ns-fim">
+                <input type="text" placeholder={f.dateFinPlaceholder} value={form.dataFim} onChange={(e) => upd('dataFim', e.target.value)} />
               </Field>
             </FormRow>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Adicionar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.ajouter}</button>
           </ModalFoot>
         </form>
       </Modal>

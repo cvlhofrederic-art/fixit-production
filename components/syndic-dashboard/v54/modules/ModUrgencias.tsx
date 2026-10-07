@@ -11,6 +11,8 @@ import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { URGENCIAS_MESSAGES, type EtatUrgence, type PrioriteUrgence } from './i18n/ModUrgencias.messages'
 
 /** Urgências Técnicas — page net-new (module catalogue-only en V5.7, aucune source byte-exact).
  * Phase 3 : urgences actives calculées (lecture seule) depuis data.missions (priorite urgente,
@@ -18,24 +20,29 @@ import { useSyndicData } from '@/lib/syndic/v54/data-context'
 
 type Urgencia = { tipo: string; edificio: string; prioridade: string; kind: PillKind; profissional: string; estado: string; estadoKind: PillKind; tempo: string }
 
-const URGENCIAS: Urgencia[] = [
-  { tipo: 'Fuga de água na garagem B2', edificio: 'Edifício Aurora', prioridade: 'Crítica', kind: 'rust', profissional: 'HidroPro Lda', estado: 'Despachada', estadoKind: 'sage', tempo: '6 min' },
-  { tipo: 'Elevador bloqueado no 4.º', edificio: 'Edifício Bela Vista', prioridade: 'Alta', kind: 'amber', profissional: 'ElevaTech', estado: 'Em despacho', estadoKind: 'amber', tempo: '11 min' },
-  { tipo: 'Curto-circuito no hall', edificio: 'Residencial Cedofeita', prioridade: 'Alta', kind: 'amber', profissional: '—', estado: 'À procura', estadoKind: 'rust', tempo: '2 min' },
-  { tipo: 'Infiltração no teto do R/C', edificio: 'Condomínio Boavista Center', prioridade: 'Média', kind: 'gold', profissional: 'ConstruFix', estado: 'Despachada', estadoKind: 'sage', tempo: '18 min' },
-]
+const PRIO_KIND: Record<PrioriteUrgence, PillKind> = { critica: 'rust', alta: 'amber', media: 'gold' }
 
-// statut mission → [libellé estado PT, pill kind]
-const ESTADO: Record<string, [string, PillKind]> = {
-  en_attente: ['À procura', 'rust'],
-  acceptee: ['Em despacho', 'amber'],
-  en_cours: ['Em curso', 'amber'],
-  terminee: ['Concluída', 'sage'],
-  annulee: ['Anulada', 'rust'],
+const ETAT_KIND: Record<EtatUrgence, PillKind> = {
+  procura: 'rust',
+  despacho: 'amber',
+  despachada: 'sage',
+  curso: 'amber',
+  concluida: 'sage',
+  anulada: 'rust',
+}
+
+// statut mission → état affiché (libellé selon la langue, pill kind)
+const ESTADO: Record<string, EtatUrgence> = {
+  en_attente: 'procura',
+  acceptee: 'despacho',
+  en_cours: 'curso',
+  terminee: 'concluida',
+  annulee: 'anulada',
 }
 
 export default function ModUrgencias() {
   const soon = useComingSoon()
+  const t = useMessages(URGENCIAS_MESSAGES)
   const data = useSyndicData()
   const real = data.authenticated
   // Urgences actives = missions prioritaires non clôturées.
@@ -45,37 +52,40 @@ export default function ModUrgencias() {
   const emDespacho = urgentes.filter((mi) => mi.statut !== 'en_cours').length
   const rows: Urgencia[] = real
     ? urgentes.map((mi) => {
-        const [estado, estadoKind] = ESTADO[mi.statut] ?? [mi.statut, 'amber']
-        return { tipo: mi.type || mi.description || 'Intervenção', edificio: mi.immeuble || '—', prioridade: 'Urgente', kind: 'rust', profissional: mi.artisan || '—', estado, estadoKind, tempo: '—' }
+        const code = ESTADO[mi.statut]
+        const estado = code ? t.etats[code] : mi.statut
+        const estadoKind: PillKind = code ? ETAT_KIND[code] : 'amber'
+        return { tipo: mi.type || mi.description || t.interventionParDefaut, edificio: mi.immeuble || '—', prioridade: t.prioriteUrgente, kind: 'rust', profissional: mi.artisan || '—', estado, estadoKind, tempo: '—' }
       })
-    : URGENCIAS
+    : t.demo.map((d) => ({ tipo: d.tipo, edificio: d.edificio, prioridade: t.priorites[d.prioridade], kind: PRIO_KIND[d.prioridade], profissional: d.profissional, estado: t.etats[d.estado], estadoKind: ETAT_KIND[d.estado], tempo: d.tempo }))
 
+  const c = t.colonnes
   return (
     <>
-      <PageHead title="Urgências Técnicas" lede="Despacho imediato para o profissional VITFIX disponível"
-        actions={<Button variant="gold" onClick={soon('Nova urgência', 'Despacho de urgências em desenvolvimento')}><Icon name="plus" />Nova urgência</Button>} />
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<Button variant="gold" onClick={soon(t.nouvelleUrgence, t.nouvelleUrgenceDesc)}><Icon name="plus" />{t.nouvelleUrgence}</Button>} />
       <Tabs defaultActive="ativas" tabs={[
-        { id: 'ativas', icon: 'siren', label: 'Ativas' },
-        { id: 'despacho', icon: 'sat', label: 'Despacho' },
-        { id: 'profissionais', icon: 'wrench', label: 'Profissionais' },
-        { id: 'hist', icon: 'clock', label: 'Histórico' },
+        { id: 'ativas', icon: 'siren', label: t.onglets.ativas },
+        { id: 'despacho', icon: 'sat', label: t.onglets.despacho },
+        { id: 'profissionais', icon: 'wrench', label: t.onglets.profissionais },
+        { id: 'hist', icon: 'clock', label: t.onglets.hist },
       ]} />
-      <Alert kind="rust" icon="siren" title="Despacho automático ativo">
-        As urgências críticas são despachadas automaticamente para o profissional VITFIX disponível mais próximo, com confirmação em tempo real.
+      <Alert kind="rust" icon="siren" title={t.alerte.titre}>
+        {t.alerte.texte}
       </Alert>
       <KPIGrid items={[
-        { icon: 'siren', num: real ? urgentes.length : 4, lbl: 'Urgências ativas', accent: 'rust' },
-        { icon: 'sat', num: real ? emDespacho : 2, lbl: 'Em despacho', accent: 'amber' },
-        { icon: 'wrench', num: real ? (data.artisans ?? []).length : 9, lbl: 'Profissionais disponíveis', accent: 'sage' },
-        { icon: 'clock', num: real ? '—' : '9 min', lbl: 'Tempo médio de resposta' },
+        { icon: 'siren', num: real ? urgentes.length : 4, lbl: t.kpi.actives, accent: 'rust' },
+        { icon: 'sat', num: real ? emDespacho : 2, lbl: t.kpi.enDispatch, accent: 'amber' },
+        { icon: 'wrench', num: real ? (data.artisans ?? []).length : 9, lbl: t.kpi.disponibles, accent: 'sage' },
+        { icon: 'clock', num: real ? '—' : t.kpi.delaiMoyenDemo, lbl: t.kpi.delaiMoyen },
       ]} />
-      <Panel title="Urgências ativas" flush>
+      <Panel title={t.panneau} flush>
         <div className={m.tblWrap}>
           <table className={m.tbl}>
-            <thead><tr><th>Tipo</th><th>Edifício</th><th>Prioridade</th><th>Profissional</th><th>Estado</th><th>Tempo</th></tr></thead>
+            <thead><tr><th>{c.type}</th><th>{c.immeuble}</th><th>{c.priorite}</th><th>{c.prestataire}</th><th>{c.etat}</th><th>{c.delai}</th></tr></thead>
             <tbody>
               {real && rows.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>Nenhuma urgência ativa.</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>{t.aucuneUrgence}</td></tr>
               ) : rows.map((u, i) => (
                 <tr key={i}>
                   <td><b>{u.tipo}</b></td>

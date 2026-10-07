@@ -18,19 +18,17 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { SEG_EDIFICIO_MESSAGES } from './i18n/ModSegEdificio.messages'
 
 /** Segurança Contra Incêndio — port byte-exact V5.7 + Phase 3 : classifications réelles. */
 
-type Cor = 'sage' | 'gold' | 'amber' | 'rust'
-const CATEGORIAS: [string, string, Cor][] = [
-  ['Categoria 1 — Reduzido', 'Altura ≤ 9m · até 100 ocupantes', 'sage'],
-  ['Categoria 2 — Moderado', 'Altura ≤ 28m · até 500 ocupantes', 'sage'],
-  ['Categoria 3 — Elevado', 'Altura ≤ 50m · até 1500 ocupantes', 'amber'],
-  ['Categoria 4 — Muito Elevado', 'Altura > 50m · > 1500 ocupantes', 'rust'],
-]
 const catKind = (c: string): PillKind => (c === '4' ? 'rust' : c === '3' ? 'amber' : 'sage')
 
 export default function ModSegEdificio() {
+  const t = useMessages(SEG_EDIFICIO_MESSAGES)
+  const locale = useV54Locale()
   // Phase 3 : vraies classifications SCIE du cabinet si syndic connecté, sinon mock/empty.
   const data = useSyndicData()
   const real = data.authenticated
@@ -54,7 +52,7 @@ export default function ModSegEdificio() {
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!form.immeuble.trim()) errs.immeuble = 'O edifício é obrigatório.'
+    if (!form.immeuble.trim()) errs.immeuble = t.erreurImmeuble
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       setBusy(true)
@@ -64,13 +62,13 @@ export default function ModSegEdificio() {
         body: JSON.stringify({ immeuble: form.immeuble, categoria: form.categoria, encarregado: form.encarregado, planoEmergencia: form.planoEmergencia === 'sim', ultimoExercicio: form.ultimoExercicio }),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Edifício classificado', desc: form.immeuble }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao classificar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.classe, desc: form.immeuble }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurClassement, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Edifício classificado (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.classeDemo, desc: t.toasts.connexionRequise })
   }
 
   // Phase C : « Gerar plano emergência (Alfredo) » → /api/syndic/seg-edificio-plano.
@@ -81,47 +79,51 @@ export default function ModSegEdificio() {
   const pUpd = (k: keyof typeof planoForm, v: string) => setPlanoForm((s) => ({ ...s, [k]: v }))
   const openPlano = () => { setPlanoForm({ edificio: '', categoria: '1', encarregado: '' }); setPlanoText(''); setPlanoOpen(true) }
   const gerarPlano = () => {
-    if (!planoForm.edificio.trim()) { push({ kind: 'info', title: 'Edifício', desc: 'Indique o edifício.' }); return }
-    if (!real || !data.token) { push({ kind: 'info', title: 'Plano de emergência', desc: 'Conecte-se como síndico para usar o Alfredo.' }); return }
+    if (!planoForm.edificio.trim()) { push({ kind: 'info', title: t.toasts.immeuble, desc: t.toasts.indiquerImmeuble }); return }
+    if (!real || !data.token) { push({ kind: 'info', title: t.toasts.plan, desc: t.toasts.connexionAlfredo }); return }
     setPlanoBusy(true)
+    const corps = { edificio: planoForm.edificio, categoria: planoForm.categoria, encarregado: planoForm.encarregado }
     fetch('/api/syndic/seg-edificio-plano', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
-      body: JSON.stringify({ edificio: planoForm.edificio, categoria: planoForm.categoria, encarregado: planoForm.encarregado }),
+      // FR : l'agent rédige selon le droit français (locale 'fr') ; corps PT inchangé.
+      body: JSON.stringify(locale === 'fr-FR' ? { ...corps, locale: 'fr' } : corps),
     })
       .then((r) => { if (!r.ok) throw new Error(); return r.json() })
       .then((d) => setPlanoText(typeof d.plano === 'string' ? d.plano : ''))
-      .catch(() => push({ kind: 'error', title: 'Erro', desc: 'Não foi possível gerar o plano.' }))
+      .catch(() => push({ kind: 'error', title: t.toasts.erreur, desc: t.toasts.erreurPlan }))
       .finally(() => setPlanoBusy(false))
   }
 
+  const fc = t.classement
+  const p = t.plan
   return (
     <>
-      <PageHead eyebrow="OBRIGAÇÃO LEGAL · DL 220/2008 (RSCIE) + PORTARIA 1532/2008" title="Segurança Contra Incêndio"
-        lede="Classificação UT 1-12 · Categoria risco 1/2/3/4 · Encarregado de Segurança · Plano emergência · Exercícios"
-        actions={<><Button onClick={openNew}><Icon name="building" />Classificar edifício</Button><Button variant="gold" onClick={openPlano}><Icon name="bot" />Gerar plano emergência (Alfredo)</Button></>} />
-      <Alert kind="gold" icon="scale" title="Regime Jurídico de Segurança Contra Incêndio">
-        Todos os edifícios habitacionais (UT I) com altura &gt; 9m ou &gt; 9 pisos = <strong>categoria risco 3 ou 4</strong>. Obrigam <strong>Encarregado de Segurança</strong> designado + plano emergência + exercícios de evacuação anuais.
+      <PageHead eyebrow={t.surtitre} title={t.titre}
+        lede={t.chapeau}
+        actions={<><Button onClick={openNew}><Icon name="building" />{t.classer}</Button><Button variant="gold" onClick={openPlano}><Icon name="bot" />{t.genererPlan}</Button></>} />
+      <Alert kind="gold" icon="scale" title={t.alerte.titre}>
+        {t.alerte.avant}<strong>{t.alerte.fort1}</strong>{t.alerte.milieu}<strong>{t.alerte.fort2}</strong>{t.alerte.apres}
       </Alert>
       <KPIGrid items={[
-        { icon: 'building', num: real ? classificados : 0, lbl: 'Edifícios classificados' },
-        { icon: 'shield', num: real ? encarregados : 0, lbl: 'Encarregados designados', accent: 'sage' },
-        { icon: 'doc', num: real ? planos : 0, lbl: 'Planos emergência gerados IA', accent: 'gold' },
-        { icon: 'check', num: real ? exercicios : 0, lbl: 'Exercícios realizados (12m)', accent: 'sage' },
-        { icon: 'alert', num: real ? cat4 : 0, lbl: 'Categoria 4 (risco elevado)', accent: 'rust' },
-        { icon: 'clock', num: 0, lbl: 'Exercícios em atraso', accent: 'amber' },
+        { icon: 'building', num: real ? classificados : 0, lbl: t.kpi.classes },
+        { icon: 'shield', num: real ? encarregados : 0, lbl: t.kpi.referents, accent: 'sage' },
+        { icon: 'doc', num: real ? planos : 0, lbl: t.kpi.plans, accent: 'gold' },
+        { icon: 'check', num: real ? exercicios : 0, lbl: t.kpi.exercices, accent: 'sage' },
+        { icon: 'alert', num: real ? cat4 : 0, lbl: t.kpi.cat4, accent: 'rust' },
+        { icon: 'clock', num: 0, lbl: t.kpi.enRetard, accent: 'amber' },
       ]} />
       <Tabs defaultActive="ed" tabs={[
-        { id: 'ed', icon: 'building', label: `Edifícios (${real ? classificados : 0})` },
-        { id: 'enc', icon: 'team', label: `Encarregados (${real ? encarregados : 0})` },
-        { id: 'plano', icon: 'doc', label: `Planos emergência (${real ? planos : 0})` },
-        { id: 'ex', icon: 'check', label: 'Exercícios' },
+        { id: 'ed', icon: 'building', label: t.onglets.ed(real ? classificados : 0) },
+        { id: 'enc', icon: 'team', label: t.onglets.enc(real ? encarregados : 0) },
+        { id: 'plano', icon: 'doc', label: t.onglets.plano(real ? planos : 0) },
+        { id: 'ex', icon: 'check', label: t.onglets.ex },
       ]} />
       {all.length === 0 ? (
         <Panel>
-          <Empty illustration="seguros" title="Nenhum edifício classificado"
-            desc="Alfredo classifica automaticamente segundo RT-SCIE (utilização-tipo + altura + densidade) e gera plano de emergência 70%-pronto à medida."
-            action={<Button variant="primary" onClick={openNew}><Icon name="building" />Classificar primeiro edifício</Button>} />
+          <Empty illustration="seguros" title={t.vide.titre}
+            desc={t.vide.desc}
+            action={<Button variant="primary" onClick={openNew}><Icon name="building" />{t.vide.action}</Button>} />
         </Panel>
       ) : (
         <Panel flush>
@@ -129,88 +131,88 @@ export default function ModSegEdificio() {
             <div key={s.id} style={{ padding: '16px 22px', borderBottom: '1px solid var(--v54-line)', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 17, fontWeight: 500 }}>{s.immeuble}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{s.encarregado ? `Encarregado: ${s.encarregado}` : 'Sem encarregado'}{s.ultimoExercicio ? ` · Último exercício: ${s.ultimoExercicio}` : ''}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--v54-navy-300)', marginTop: 2 }}>{s.encarregado ? t.ligne.referent(s.encarregado) : t.ligne.sansReferent}{s.ultimoExercicio ? t.ligne.dernierExercice(dateApi(s.ultimoExercicio, locale)) : ''}</div>
               </div>
-              {s.planoEmergencia && <Pill kind="sage" noDot>Plano OK</Pill>}
-              <Pill kind={catKind(s.categoria)} noDot>Categoria {s.categoria}</Pill>
+              {s.planoEmergencia && <Pill kind="sage" noDot>{t.ligne.planOk}</Pill>}
+              <Pill kind={catKind(s.categoria)} noDot>{t.ligne.categorie(s.categoria)}</Pill>
             </div>
           ))}
         </Panel>
       )}
-      <Panel title="Categorias de Risco RT-SCIE">
+      <Panel title={t.panneauCategories}>
         <div className={m.cardGrid}>
-          {CATEGORIAS.map(([t, s, c], i) => (
+          {t.categories.map(([titre, desc, c], i) => (
             <div key={i} style={{ padding: 14, border: '1px solid var(--v54-line)', borderRadius: 10, background: `var(--v54-${c}-50)`, borderLeft: `3px solid var(--v54-${c}-500)` }}>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{t}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--v54-navy-400)' }}>{s}</div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{titre}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--v54-navy-400)' }}>{desc}</div>
             </div>
           ))}
         </div>
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="nsc-title" size="md">
-        <ModalHead icon="building" id="nsc-title" title="Classificar edifício (SCIE)" onClose={() => setOpen(false)} />
+        <ModalHead icon="building" id="nsc-title" title={fc.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Edifício" required full name="nsc-imovel" error={errors.immeuble}>
-              <input type="text" placeholder="Nome do edifício" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+            <Field label={fc.immeuble} required full name="nsc-imovel" error={errors.immeuble}>
+              <input type="text" placeholder={fc.nomImmeuble} value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Categoria de risco" name="nsc-cat">
+              <Field label={fc.categorie} name="nsc-cat">
                 <select value={form.categoria} onChange={(e) => upd('categoria', e.target.value)}>
-                  <option value="1">Categoria 1 — Reduzido</option>
-                  <option value="2">Categoria 2 — Moderado</option>
-                  <option value="3">Categoria 3 — Elevado</option>
-                  <option value="4">Categoria 4 — Muito Elevado</option>
+                  <option value="1">{fc.options[1]}</option>
+                  <option value="2">{fc.options[2]}</option>
+                  <option value="3">{fc.options[3]}</option>
+                  <option value="4">{fc.options[4]}</option>
                 </select>
               </Field>
-              <Field label="Plano de emergência" name="nsc-plano">
+              <Field label={fc.plan} name="nsc-plano">
                 <select value={form.planoEmergencia} onChange={(e) => upd('planoEmergencia', e.target.value)}>
-                  <option value="nao">Não</option>
-                  <option value="sim">Sim</option>
+                  <option value="nao">{fc.non}</option>
+                  <option value="sim">{fc.oui}</option>
                 </select>
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Encarregado de Segurança" name="nsc-enc">
-                <input type="text" placeholder="Nome do encarregado" value={form.encarregado} onChange={(e) => upd('encarregado', e.target.value)} />
+              <Field label={fc.referent} name="nsc-enc">
+                <input type="text" placeholder={fc.nomReferent} value={form.encarregado} onChange={(e) => upd('encarregado', e.target.value)} />
               </Field>
-              <Field label="Último exercício" name="nsc-ex">
-                <input type="text" placeholder="AAAA-MM-DD" value={form.ultimoExercicio} onChange={(e) => upd('ultimoExercicio', e.target.value)} />
+              <Field label={fc.dernierExercice} name="nsc-ex">
+                <input type="text" placeholder={fc.formatDate} value={form.ultimoExercicio} onChange={(e) => upd('ultimoExercicio', e.target.value)} />
               </Field>
             </FormRow>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Classificar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{fc.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{fc.classer}</button>
           </ModalFoot>
         </form>
       </Modal>
 
       <Modal open={planoOpen} onClose={() => setPlanoOpen(false)} labelledBy="plano-title" size="md">
-        <ModalHead icon="bot" id="plano-title" title="Gerar plano de emergência (Alfredo)" onClose={() => setPlanoOpen(false)} />
+        <ModalHead icon="bot" id="plano-title" title={p.titre} onClose={() => setPlanoOpen(false)} />
         <ModalBody>
           <FormRow>
-            <Field label="Edifício" name="plano-ed">
-              <input type="text" placeholder="Nome do edifício" value={planoForm.edificio} onChange={(e) => pUpd('edificio', e.target.value)} />
+            <Field label={p.immeuble} name="plano-ed">
+              <input type="text" placeholder={p.nomImmeuble} value={planoForm.edificio} onChange={(e) => pUpd('edificio', e.target.value)} />
             </Field>
-            <Field label="Categoria de risco" name="plano-cat">
+            <Field label={p.categorie} name="plano-cat">
               <select value={planoForm.categoria} onChange={(e) => pUpd('categoria', e.target.value)}>
-                <option value="1">Categoria 1</option>
-                <option value="2">Categoria 2</option>
-                <option value="3">Categoria 3</option>
-                <option value="4">Categoria 4</option>
+                <option value="1">{p.options[1]}</option>
+                <option value="2">{p.options[2]}</option>
+                <option value="3">{p.options[3]}</option>
+                <option value="4">{p.options[4]}</option>
               </select>
             </Field>
           </FormRow>
-          <Field label="Encarregado de Segurança" full name="plano-enc">
-            <input type="text" placeholder="Nome (opcional)" value={planoForm.encarregado} onChange={(e) => pUpd('encarregado', e.target.value)} />
+          <Field label={p.referent} full name="plano-enc">
+            <input type="text" placeholder={p.nomFacultatif} value={planoForm.encarregado} onChange={(e) => pUpd('encarregado', e.target.value)} />
           </Field>
           {planoText && <div style={{ marginTop: 14, maxHeight: 320, overflow: 'auto', background: 'var(--v54-paper)', border: '1px solid var(--v54-line)', borderRadius: 8, padding: 14, fontSize: 12.5, whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{planoText}</div>}
         </ModalBody>
         <ModalFoot>
-          <Button variant="ghost" onClick={() => setPlanoOpen(false)}>Fechar</Button>
-          <button type="button" className={clsx(btnCss.btn, btnCss.gold)} disabled={planoBusy} onClick={gerarPlano}>{planoBusy ? 'A gerar…' : (planoText ? 'Regenerar' : 'Gerar plano')}</button>
+          <Button variant="ghost" onClick={() => setPlanoOpen(false)}>{p.fermer}</Button>
+          <button type="button" className={clsx(btnCss.btn, btnCss.gold)} disabled={planoBusy} onClick={gerarPlano}>{planoBusy ? p.enCours : (planoText ? p.regenerer : p.generer)}</button>
         </ModalFoot>
       </Modal>
     </>

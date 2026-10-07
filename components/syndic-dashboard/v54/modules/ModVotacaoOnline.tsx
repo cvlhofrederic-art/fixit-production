@@ -18,6 +18,9 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Votacao } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { VOTACAO_ONLINE_MESSAGES } from './i18n/ModVotacaoOnline.messages'
 
 /** Votação Online AG — port V5.7 + lot 4 fonctionnel.
  * Syndic connecté → vraies votações du cabinet (data.votacoes) + création POST ;
@@ -25,25 +28,22 @@ import { useSyndicCreate } from './use-syndic-create'
 
 type VotForm = { titulo: string; descricao: string; edificio: string; estado: Votacao['estado']; maioria: Votacao['maioria']; artigo: string; prazo: string; permTotal: string; options: string }
 
-const estadoLabel = (v: string) => (({ aberta: 'Aberta', aprovada: 'Aprovada', rejeitada: 'Rejeitada', encerrada: 'Encerrada' } as Record<string, string>)[v] || v)
+/** Libellé d'un code (statut, majorité) dans la langue courante ; repli sur la valeur brute si le code est inconnu. */
+const libelle = (v: string, libelles: Record<string, string>) => libelles[v] || v
 const estadoKind = (v: string): PillKind => (({ aberta: 'sage', aprovada: 'sage', rejeitada: 'rust', encerrada: 'amber' } as Record<string, PillKind>)[v] || 'sage')
-const maioriaLabel = (v: string) => (({ simples: 'Maioria Simples', qualificada: 'Maioria Qualificada', unanimidade: 'Unanimidade' } as Record<string, string>)[v] || v)
 const somaPerm = (v: Votacao) => v.options.reduce((s, o) => s + (Number(o.perm) || 0), 0)
 const pctOf = (v: Votacao) => (v.permTotal > 0 ? Math.min(100, Math.round((somaPerm(v) / v.permTotal) * 100)) : 0)
 
-const PREVIEW: Votacao[] = [
-  { id: 'v1', titulo: 'Aprovação do orçamento anual 2026', descricao: 'Deliberação sobre o orçamento previsto para o exercício de 2026, incluindo quotas ordinárias e fundo de reserva. Valor total proposto: 45.600 EUR', edificio: 'Edifício Sol Nascente', estado: 'aberta', maioria: 'simples', artigo: 'Art.° 1432.° CC', prazo: '2026-05-23', permTotal: 1000, options: [{ label: 'A favor', perm: 360 }, { label: 'Contra', perm: 140 }, { label: 'Abstenção', perm: 0 }] },
-  { id: 'v2', titulo: 'Obras de reparação do telhado', descricao: 'Votação para aprovação das obras de reparação urgente do telhado do bloco B. Três orçamentos obtidos. Valor médio: 18.200 EUR. Necessária maioria qualificada.', edificio: 'Edifício Sol Nascente', estado: 'aberta', maioria: 'qualificada', artigo: 'Art.° 1433.° CC', prazo: '2026-05-19', permTotal: 1000, options: [{ label: 'A favor', perm: 250 }, { label: 'Contra', perm: 0 }, { label: 'Abstenção', perm: 0 }] },
-]
-
 export default function ModVotacaoOnline() {
+  const t = useMessages(VOTACAO_ONLINE_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
-  const all: Votacao[] = real ? (data.votacoes ?? []) : PREVIEW
+  const all: Votacao[] = real ? (data.votacoes ?? []) : t.demo
   const { busy, create } = useSyndicCreate('/api/syndic/votacoes')
   const [tab, setTab] = useState('ativ')
 
-  const blank: VotForm = { titulo: '', descricao: '', edificio: '', estado: 'aberta', maioria: 'simples', artigo: '', prazo: '', permTotal: '1000', options: 'A favor\nContra\nAbstenção' }
+  const blank: VotForm = { titulo: '', descricao: '', edificio: '', estado: 'aberta', maioria: 'simples', artigo: '', prazo: '', permTotal: '1000', options: t.optionsParDefaut }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<VotForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof VotForm, string>>>({})
@@ -52,11 +52,11 @@ export default function ModVotacaoOnline() {
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.titulo.trim()) { setErrors({ titulo: 'Indique o título da deliberação.' }); return }
+    if (!form.titulo.trim()) { setErrors({ titulo: t.erreurTitre }); return }
     const options = form.options.split('\n').map(l => l.trim()).filter(Boolean).map(label => ({ label, perm: 0 }))
     create(
       { titulo: form.titulo, descricao: form.descricao, edificio: form.edificio, estado: form.estado, maioria: form.maioria, artigo: form.artigo, prazo: form.prazo || null, permTotal: Number(form.permTotal) || 1000, options },
-      { okTitle: 'Deliberação criada', desc: form.titulo, onDone: () => setOpen(false) },
+      { okTitle: t.creee, desc: form.titulo, onDone: () => setOpen(false) },
     )
   }
 
@@ -64,45 +64,46 @@ export default function ModVotacaoOnline() {
   const aprovadas = all.filter(v => v.estado === 'aprovada').length
   const rejeitadas = all.filter(v => v.estado === 'rejeitada').length
   const partMedia = all.length ? Math.round(all.reduce((s, v) => s + pctOf(v), 0) / all.length) : 0
+  const md = t.modal
 
   return (
     <>
-      <PageHead title="Votação Online AG" lede="Gestão de deliberações e votações eletrónicas para assembleias de condóminos"
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />Nova deliberação</Button>} />
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.nouvelle}</Button>} />
       <KPIGrid items={[
-        { icon: 'poll', num: ativas, lbl: 'Ativas', accent: ativas ? 'gold' : undefined },
-        { icon: 'check', num: aprovadas, lbl: 'Aprovadas', accent: aprovadas ? 'sage' : undefined },
-        { icon: 'ban', num: rejeitadas, lbl: 'Rejeitadas', accent: rejeitadas ? 'rust' : undefined },
-        { icon: 'chart', num: `${partMedia}%`, lbl: 'Participação média' },
+        { icon: 'poll', num: ativas, lbl: t.kpi.ouvertes, accent: ativas ? 'gold' : undefined },
+        { icon: 'check', num: aprovadas, lbl: t.kpi.adoptees, accent: aprovadas ? 'sage' : undefined },
+        { icon: 'ban', num: rejeitadas, lbl: t.kpi.rejetees, accent: rejeitadas ? 'rust' : undefined },
+        { icon: 'chart', num: t.pourcentKpi(partMedia), lbl: t.kpi.participation },
       ]} />
       <Tabs active={tab} onChange={setTab} tabs={[
-        { id: 'ativ', icon: 'chart', label: 'Votações Ativas', badge: ativas },
-        { id: 'hist', icon: 'folder', label: 'Histórico', badge: aprovadas + rejeitadas },
-        { id: 'cfg', icon: 'cog', label: 'Configuração' },
+        { id: 'ativ', icon: 'chart', label: t.onglets.ativ, badge: ativas },
+        { id: 'hist', icon: 'folder', label: t.onglets.hist, badge: aprovadas + rejeitadas },
+        { id: 'cfg', icon: 'cog', label: t.onglets.cfg },
       ]} />
-      <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 22, marginBottom: 14 }}>Deliberações em curso</div>
+      <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 22, marginBottom: 14 }}>{t.enCours}</div>
       {real && all.length === 0 ? (
-        <Empty illustration="ag" title="Sem deliberações" desc="Crie a primeira deliberação para votação eletrónica em AG"
-          action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Nova deliberação</Button>} />
+        <Empty illustration="ag" title={t.vide.titre} desc={t.vide.desc}
+          action={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.nouvelle}</Button>} />
       ) : all.filter(v => tab === 'hist' ? v.estado !== 'aberta' : tab === 'ativ' ? v.estado === 'aberta' : true).map((v) => (
         <div key={v.id} className={m.card} style={{ padding: 22, marginBottom: 14, position: 'relative' }}>
           {v.prazo && (
-            <div style={{ position: 'absolute', top: 18, right: 22, fontSize: 11, color: 'var(--v54-navy-300)' }}>Prazo: {v.prazo}</div>
+            <div style={{ position: 'absolute', top: 18, right: 22, fontSize: 11, color: 'var(--v54-navy-300)' }}>{t.echeance}{dateApi(v.prazo, locale)}</div>
           )}
           <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-            <Pill kind={estadoKind(v.estado)} noDot>● {estadoLabel(v.estado)}</Pill>
-            <Pill kind="amber" noDot>{maioriaLabel(v.maioria)}</Pill>
+            <Pill kind={estadoKind(v.estado)} noDot>● {libelle(v.estado, t.etats)}</Pill>
+            <Pill kind="amber" noDot>{libelle(v.maioria, t.majorites)}</Pill>
             {v.artigo && <span style={{ fontSize: 11, color: 'var(--v54-navy-300)', alignSelf: 'center' }}>{v.artigo}</span>}
           </div>
           <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 22, fontWeight: 500, marginBottom: 6 }}>{v.titulo}</div>
           <div style={{ fontSize: 13, color: 'var(--v54-navy-500)', marginBottom: 12 }}>{v.descricao}</div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, marginBottom: 6 }}>
-            <span>Progresso: {pctOf(v)}%</span><span>{somaPerm(v)} / {v.permTotal} permilagem</span>
+            <span>{t.progression}{pctOf(v)}{t.pourcent}</span><span>{somaPerm(v)} / {v.permTotal}{t.totalVoix}</span>
           </div>
           <Progress pct={pctOf(v)} kind={v.estado === 'rejeitada' ? 'rust' : undefined} />
           <div style={{ marginTop: 12, display: 'flex', gap: 18, fontSize: 12.5, flexWrap: 'wrap' }}>
             {v.options.map((opt, j) => (
-              <div key={j}><b>{opt.label}</b> <span style={{ color: 'var(--v54-navy-300)' }}>({opt.perm}‰)</span></div>
+              <div key={j}><b>{opt.label}</b> <span style={{ color: 'var(--v54-navy-300)' }}>({opt.perm}{t.voixOption}</span></div>
             ))}
           </div>
           {v.edificio && <div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 10 }}>{v.edificio}</div>}
@@ -110,55 +111,55 @@ export default function ModVotacaoOnline() {
       ))}
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="vot-modal-title" size="md">
-        <ModalHead icon="poll" id="vot-modal-title" title="Nova deliberação" onClose={() => setOpen(false)} />
+        <ModalHead icon="poll" id="vot-modal-title" title={t.nouvelle} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Título da deliberação" required full name="vot-titulo" error={errors.titulo}>
-              <input type="text" placeholder="Ex.: Aprovação do orçamento anual 2026" value={form.titulo} onChange={e => upd('titulo', e.target.value)} />
+            <Field label={md.champTitre} required full name="vot-titulo" error={errors.titulo}>
+              <input type="text" placeholder={md.titrePlaceholder} value={form.titulo} onChange={e => upd('titulo', e.target.value)} />
             </Field>
-            <Field label="Descrição" full name="vot-desc">
+            <Field label={md.description} full name="vot-desc">
               <textarea rows={2} value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Edifício" name="vot-edif">
-                <input type="text" placeholder="Edifício…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+              <Field label={md.immeuble} name="vot-edif">
+                <input type="text" placeholder={md.immeublePlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
               </Field>
-              <Field label="Artigo (CC)" name="vot-artigo">
-                <input type="text" placeholder="Art.° 1432.° CC" value={form.artigo} onChange={e => upd('artigo', e.target.value)} />
+              <Field label={md.article} name="vot-artigo">
+                <input type="text" placeholder={md.articlePlaceholder} value={form.artigo} onChange={e => upd('artigo', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Maioria exigida" name="vot-maioria">
+              <Field label={md.majorite} name="vot-maioria">
                 <select value={form.maioria} onChange={e => upd('maioria', e.target.value)}>
-                  <option value="simples">Maioria Simples</option>
-                  <option value="qualificada">Maioria Qualificada</option>
-                  <option value="unanimidade">Unanimidade</option>
+                  <option value="simples">{t.majorites.simples}</option>
+                  <option value="qualificada">{t.majorites.qualificada}</option>
+                  <option value="unanimidade">{t.majorites.unanimidade}</option>
                 </select>
               </Field>
-              <Field label="Estado" name="vot-estado">
+              <Field label={md.statut} name="vot-estado">
                 <select value={form.estado} onChange={e => upd('estado', e.target.value)}>
-                  <option value="aberta">Aberta</option>
-                  <option value="aprovada">Aprovada</option>
-                  <option value="rejeitada">Rejeitada</option>
-                  <option value="encerrada">Encerrada</option>
+                  <option value="aberta">{t.etats.aberta}</option>
+                  <option value="aprovada">{t.etats.aprovada}</option>
+                  <option value="rejeitada">{t.etats.rejeitada}</option>
+                  <option value="encerrada">{t.etats.encerrada}</option>
                 </select>
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Prazo" name="vot-prazo">
+              <Field label={md.echeance} name="vot-prazo">
                 <input type="date" value={form.prazo} onChange={e => upd('prazo', e.target.value)} />
               </Field>
-              <Field label="Permilagem total" hint="Ex.: 1000" name="vot-perm">
+              <Field label={md.totalVoix} hint={md.totalVoixAide} name="vot-perm">
                 <input type="number" min="0" inputMode="numeric" placeholder="1000" value={form.permTotal} onChange={e => upd('permTotal', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Opções de voto" hint="Uma por linha" full name="vot-options">
+            <Field label={md.options} hint={md.optionsAide} full name="vot-options">
               <textarea rows={3} value={form.options} onChange={e => upd('options', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar deliberação</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{md.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{md.creer}</button>
           </ModalFoot>
         </form>
       </Modal>

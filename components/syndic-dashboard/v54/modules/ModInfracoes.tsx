@@ -19,6 +19,8 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Infracao } from '@/lib/syndic/v54/api'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { INFRACOES_MESSAGES } from './i18n/ModInfracoes.messages'
 
 /** Acompanhamento de Infrações — page net-new + lot fonctionnel.
  * Syndic connecté → vraies infractions du cabinet (data.infracoes) + création POST ;
@@ -27,30 +29,26 @@ import type { Infracao } from '@/lib/syndic/v54/api'
 type Etapa = Infracao['etapa']
 type InfForm = { tipo: string; condomino: string; edificio: string; etapa: Etapa; multa: string; descricao: string }
 
-const fmtMulta = (n: number) => (n > 0 ? `€ ${new Intl.NumberFormat('pt-PT').format(n)}` : '—')
-const etapaLabel = (v: string) => (({ sinalizada: 'Sinalizada', analise: 'Em análise', notificacao: 'Notificação enviada', multa: 'Multa aplicada', resolvida: 'Resolvida' } as Record<string, string>)[v] || v)
+const fmtMulta = (n: number, locale: V54Locale, montant: (n: string) => string) => (n > 0 ? montant(new Intl.NumberFormat(locale).format(n)) : '—')
+const etapaLabel = (v: string, labels: Record<string, string>) => labels[v] || v
 const etapaKind = (v: string): PillKind => (({ sinalizada: 'gold', analise: 'amber', notificacao: 'amber', multa: 'rust', resolvida: 'sage' } as Record<string, PillKind>)[v] || 'gold')
 
-const PREVIEW: Infracao[] = [
-  { id: 'p1', tipo: 'Ruído fora de horas', condomino: 'Carlos Mendes — Fração 4B', edificio: 'Edifício Aurora', etapa: 'notificacao', multa: 75, descricao: '' },
-  { id: 'p2', tipo: 'Estacionamento indevido', condomino: 'Ana Silva — Fração 2A', edificio: 'Edifício Bela Vista', etapa: 'sinalizada', multa: 0, descricao: '' },
-  { id: 'p3', tipo: 'Lixo fora do contentor', condomino: 'Pedro Costa — Fração 1C', edificio: 'Residencial Cedofeita', etapa: 'multa', multa: 50, descricao: '' },
-  { id: 'p4', tipo: 'Obras sem autorização', condomino: 'Rita Oliveira — Fração 5A', edificio: 'Condomínio Boavista Center', etapa: 'resolvida', multa: 150, descricao: '' },
+/** Étapes du panneau (code de l'API, couleur) ; le libellé vient du dictionnaire. */
+const PIPELINE_DEF: Array<[Etapa, PillKind]> = [
+  ['sinalizada', 'gold'],
+  ['analise', 'amber'],
+  ['notificacao', 'amber'],
+  ['multa', 'rust'],
+  ['resolvida', 'sage'],
 ]
-
-const PIPELINE_DEF: Array<[string, Etapa, PillKind]> = [
-  ['Sinalização', 'sinalizada', 'gold'],
-  ['Análise & provas', 'analise', 'amber'],
-  ['Notificação', 'notificacao', 'amber'],
-  ['Multa aplicada', 'multa', 'rust'],
-  ['Resolvida', 'resolvida', 'sage'],
-]
-const MODELOS = ['Notificação de infração', 'Advertência formal', 'Aplicação de multa', 'Resolução amigável']
 
 export default function ModInfracoes() {
+  const t = useMessages(INFRACOES_MESSAGES)
+  const locale = useV54Locale()
+  const f = t.formulaire
   const data = useSyndicData()
   const real = data.authenticated
-  const all: Infracao[] = real ? (data.infracoes ?? []) : PREVIEW
+  const all: Infracao[] = real ? (data.infracoes ?? []) : t.demo
 
   const blank: InfForm = { tipo: '', condomino: '', edificio: '', etapa: 'sinalizada', multa: '', descricao: '' }
   const [open, setOpen] = useState(false)
@@ -63,7 +61,7 @@ export default function ModInfracoes() {
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!form.tipo.trim()) { setErrors({ tipo: 'Indique o tipo de infração.' }); return }
+    if (!form.tipo.trim()) { setErrors({ tipo: t.erreurType }); return }
     if (real && data.token) {
       setBusy(true)
       fetch('/api/syndic/infracoes', {
@@ -72,13 +70,13 @@ export default function ModInfracoes() {
         body: JSON.stringify({ tipo: form.tipo, condomino: form.condomino, edificio: form.edificio, etapa: form.etapa, multa: Number(form.multa) || 0, descricao: form.descricao }),
       })
         .then(r => { if (!r.ok) throw new Error() })
-        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: 'Infração registada', desc: form.tipo }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao registar', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); setOpen(false); push({ kind: 'success', title: t.toasts.enregistree, desc: form.tipo }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreur, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     setOpen(false)
-    push({ kind: 'info', title: 'Infração registada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.enregistreeDemo, desc: t.toasts.connexionRequise })
   }
 
   const abertas = all.filter(i => i.etapa !== 'resolvida').length
@@ -88,49 +86,49 @@ export default function ModInfracoes() {
 
   return (
     <>
-      <PageHead title="Acompanhamento de Infrações" lede="Infrações ao regulamento · Pipeline sinalização → multa · Provas · Histórico · Modelos de carta"
-        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />Nova infração</Button>} />
+      <PageHead title={t.titre} lede={t.chapeau}
+        actions={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.nouvelle}</Button>} />
       <Tabs defaultActive="pipeline" tabs={[
-        { id: 'pipeline', icon: 'chart', label: 'Pipeline' },
-        { id: 'infracoes', icon: 'alert', label: 'Infrações' },
-        { id: 'modelos', icon: 'doc', label: 'Modelos de carta' },
-        { id: 'hist', icon: 'clock', label: 'Histórico' },
+        { id: 'pipeline', icon: 'chart', label: t.onglets.pipeline },
+        { id: 'infracoes', icon: 'alert', label: t.onglets.infracoes },
+        { id: 'modelos', icon: 'doc', label: t.onglets.modelos },
+        { id: 'hist', icon: 'clock', label: t.onglets.hist },
       ]} />
-      <Alert kind="gold" icon="scale" title="Procedimento conforme o regulamento do condomínio">
-        Cada infração segue o pipeline sinalização → análise → notificação → multa, com registo de provas e modelos de carta gerados automaticamente.
+      <Alert kind="gold" icon="scale" title={t.alerte.titre}>
+        {t.alerte.texte}
       </Alert>
       <KPIGrid items={[
-        { icon: 'alert', num: abertas, lbl: 'Infrações abertas', accent: abertas ? 'rust' : undefined },
-        { icon: 'clock', num: emProcesso, lbl: 'Em processo', accent: emProcesso ? 'amber' : undefined },
-        { icon: 'coin', num: fmtMulta(multasTotal).replace('€', '').trim() || '0', cur: '€', lbl: 'Multas aplicadas' },
-        { icon: 'check', num: resolvidas, lbl: 'Resolvidas', accent: resolvidas ? 'sage' : undefined },
+        { icon: 'alert', num: abertas, lbl: t.kpi.ouvertes, accent: abertas ? 'rust' : undefined },
+        { icon: 'clock', num: emProcesso, lbl: t.kpi.enCours, accent: emProcesso ? 'amber' : undefined },
+        { icon: 'coin', num: fmtMulta(multasTotal, locale, t.montant).replace('€', '').trim() || '0', cur: '€', lbl: t.kpi.montants },
+        { icon: 'check', num: resolvidas, lbl: t.kpi.resolues, accent: resolvidas ? 'sage' : undefined },
       ]} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, marginBottom: 16 }}>
-        <Panel title="Pipeline por etapa">
+        <Panel title={t.panneauEtapes}>
           {PIPELINE_DEF.map((p, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: i < PIPELINE_DEF.length - 1 ? '1px solid var(--v54-line)' : 'none' }}>
-              <span>{p[0]}</span><Pill kind={p[2]} noDot>{all.filter(x => x.etapa === p[1]).length}</Pill>
+              <span>{t.etapesPipeline[p[0]]}</span><Pill kind={p[1]} noDot>{all.filter(x => x.etapa === p[0]).length}</Pill>
             </div>
           ))}
         </Panel>
-        <Panel title="Modelos de carta">
-          {MODELOS.map((t, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < MODELOS.length - 1 ? '1px solid var(--v54-line)' : 'none' }}>
-              <Icon name="doc" /><span>{t}</span>
+        <Panel title={t.panneauModeles}>
+          {t.modeles.map((modele, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: i < t.modeles.length - 1 ? '1px solid var(--v54-line)' : 'none' }}>
+              <Icon name="doc" /><span>{modele}</span>
             </div>
           ))}
         </Panel>
       </div>
-      <Panel title="Infrações em curso" flush>
+      <Panel title={t.panneauListe} flush>
         {real && all.length === 0 ? (
-          <Empty illustration="documentos" title="Sem infrações registadas" desc="Sinalize a primeira infração ao regulamento do condomínio"
-            action={<Button variant="gold" onClick={openNew}><Icon name="plus" />Nova infração</Button>} />
+          <Empty illustration="documentos" title={t.vide.titre} desc={t.vide.desc}
+            action={<Button variant="gold" onClick={openNew}><Icon name="plus" />{t.nouvelle}</Button>} />
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>Tipo</th><th>Condómino</th><th>Edifício</th><th>Etapa</th><th>Multa</th></tr></thead>
-              <tbody>{all.map(f => (
-                <tr key={f.id}><td><b>{f.tipo}</b></td><td>{f.condomino || '—'}</td><td>{f.edificio || '—'}</td><td><Pill kind={etapaKind(f.etapa)} noDot>{etapaLabel(f.etapa)}</Pill></td><td className={m.numCell}>{fmtMulta(Number(f.multa) || 0)}</td></tr>
+              <thead><tr><th>{t.colonnes.type}</th><th>{t.colonnes.coproprietaire}</th><th>{t.colonnes.immeuble}</th><th>{t.colonnes.etape}</th><th>{t.colonnes.montant}</th></tr></thead>
+              <tbody>{all.map(inf => (
+                <tr key={inf.id}><td><b>{inf.tipo}</b></td><td>{inf.condomino || '—'}</td><td>{inf.edificio || '—'}</td><td><Pill kind={etapaKind(inf.etapa)} noDot>{etapaLabel(inf.etapa, t.etapes)}</Pill></td><td className={m.numCell}>{fmtMulta(Number(inf.multa) || 0, locale, t.montant)}</td></tr>
               ))}</tbody>
             </table>
           </div>
@@ -138,41 +136,41 @@ export default function ModInfracoes() {
       </Panel>
 
       <Modal open={open} onClose={() => setOpen(false)} labelledBy="inf-modal-title" size="md">
-        <ModalHead icon="alert" id="inf-modal-title" title="Nova infração" onClose={() => setOpen(false)} />
+        <ModalHead icon="alert" id="inf-modal-title" title={f.titre} onClose={() => setOpen(false)} />
         <form onSubmit={submit} noValidate>
           <ModalBody>
-            <Field label="Tipo de infração" required full name="inf-tipo" error={errors.tipo}>
-              <input type="text" placeholder="Ex.: Ruído fora de horas" value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
+            <Field label={f.type} required full name="inf-tipo" error={errors.tipo}>
+              <input type="text" placeholder={f.typePlaceholder} value={form.tipo} onChange={e => upd('tipo', e.target.value)} />
             </Field>
             <FormRow>
-              <Field label="Condómino" name="inf-cond">
-                <input type="text" placeholder="Nome — Fração" value={form.condomino} onChange={e => upd('condomino', e.target.value)} />
+              <Field label={f.coproprietaire} name="inf-cond">
+                <input type="text" placeholder={f.coproprietairePlaceholder} value={form.condomino} onChange={e => upd('condomino', e.target.value)} />
               </Field>
-              <Field label="Edifício" name="inf-edif">
-                <input type="text" placeholder="Edifício…" value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
+              <Field label={f.immeuble} name="inf-edif">
+                <input type="text" placeholder={f.immeublePlaceholder} value={form.edificio} onChange={e => upd('edificio', e.target.value)} />
               </Field>
             </FormRow>
             <FormRow>
-              <Field label="Etapa" name="inf-etapa">
+              <Field label={f.etape} name="inf-etapa">
                 <select value={form.etapa} onChange={e => upd('etapa', e.target.value)}>
-                  <option value="sinalizada">Sinalizada</option>
-                  <option value="analise">Em análise</option>
-                  <option value="notificacao">Notificação enviada</option>
-                  <option value="multa">Multa aplicada</option>
-                  <option value="resolvida">Resolvida</option>
+                  <option value="sinalizada">{t.etapes.sinalizada}</option>
+                  <option value="analise">{t.etapes.analise}</option>
+                  <option value="notificacao">{t.etapes.notificacao}</option>
+                  <option value="multa">{t.etapes.multa}</option>
+                  <option value="resolvida">{t.etapes.resolvida}</option>
                 </select>
               </Field>
-              <Field label="Multa" hint="Valor em euros" name="inf-multa" suffix="€">
+              <Field label={f.montant} hint={f.montantAide} name="inf-multa" suffix="€">
                 <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="0" value={form.multa} onChange={e => upd('multa', e.target.value)} />
               </Field>
             </FormRow>
-            <Field label="Descrição / provas" full name="inf-desc">
-              <textarea rows={3} placeholder="Contexto, provas, testemunhos…" value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
+            <Field label={f.description} full name="inf-desc">
+              <textarea rows={3} placeholder={f.descriptionPlaceholder} value={form.descricao} onChange={e => upd('descricao', e.target.value)} />
             </Field>
           </ModalBody>
           <ModalFoot>
-            <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Registar</button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{f.annuler}</Button>
+            <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.enregistrer}</button>
           </ModalFoot>
         </form>
       </Modal>

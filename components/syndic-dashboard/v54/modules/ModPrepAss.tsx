@@ -7,27 +7,30 @@ import { Empty } from '../primitives/empty'
 import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import { useComingSoon } from './use-coming-soon'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { PREP_ASS_MESSAGES } from './i18n/ModPrepAss.messages'
 
 /** Preparador de Assembleia — port byte-exact du ModPrepAss du bundle V5.7. */
 
 export default function ModPrepAss() {
   const soon = useComingSoon()
+  const t = useMessages(PREP_ASS_MESSAGES)
   return (
     <>
       <PageHead
-        title="Preparador de Assembleia"
-        lede="Convocatória · Ordem de trabalhos · Quóruns · Lei 8/2022"
-        actions={<Button variant="gold" onClick={soon('Nova Assembleia', 'Preparação de assembleias em desenvolvimento')}><Icon name="plus" />Nova Assembleia</Button>}
+        title={t.titre}
+        lede={t.chapeau}
+        actions={<Button variant="gold" onClick={soon(t.nouvelleAssemblee, t.enDeveloppement)}><Icon name="plus" />{t.nouvelleAssemblee}</Button>}
       />
-      <Alert kind="gold" icon="scale" title="Enquadramento Legal — Lei 8/2022">
-        Convocatória com antecedência mínima de 10 dias (CC art. 1432.°) · 2.ª convocação 30 min depois · Procuração com poderes especiais · Atas obrigatórias
+      <Alert kind="gold" icon="scale" title={t.cadre.titre}>
+        {t.cadre.texte}
       </Alert>
       <Panel>
         <Empty
           illustration="ag"
-          title="Nenhuma assembleia preparada"
-          desc="Crie a sua primeira assembleia de condóminos"
-          action={<Button variant="primary" onClick={soon('Iniciar preparação', 'Preparação de assembleias em desenvolvimento')}>Iniciar preparação</Button>}
+          title={t.vide.titre}
+          desc={t.vide.desc}
+          action={<Button variant="primary" onClick={soon(t.vide.action, t.enDeveloppement)}>{t.vide.action}</Button>}
         />
       </Panel>
     </>

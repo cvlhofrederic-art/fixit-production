@@ -2,6 +2,8 @@
 
 import { useCallback, useRef } from 'react'
 import { useToast } from '../primitives/toast'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { HOOKS_MESSAGES } from './i18n/hooks.messages'
 
 /** Types de documents acceptés par l'endpoint Léa `/api/syndic/lea-documents/upload`. */
 export type SyndicDocType =
@@ -14,17 +16,6 @@ export type SyndicDocType =
   | 'releve_bancaire'
   | 'pv_assemblee'
   | 'autre'
-
-/** Messages d'erreur PT mappés sur les codes renvoyés par l'endpoint upload. */
-const ERR_PT: Record<string, string> = {
-  file_too_large: 'Ficheiro demasiado grande (máximo 25 MB).',
-  unsupported_mime_type: 'Formato não suportado. Use PDF, PNG, JPG ou WEBP.',
-  quota_exceeded: 'Limite de armazenamento do gabinete atingido.',
-  missing_file: 'Nenhum ficheiro selecionado.',
-  unauthorized: 'Sessão expirada. Inicie sessão novamente.',
-  forbidden: 'Sem permissões para carregar documentos.',
-  invalid_metadata: 'Dados do documento inválidos.',
-}
 
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp'
 
@@ -41,6 +32,9 @@ const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,
  */
 export function useDocumentUpload(onUploaded?: () => void) {
   const { push } = useToast()
+  const t = useMessages(HOOKS_MESSAGES).upload
+  // Messages d'erreur mappés sur les codes renvoyés par l'endpoint upload.
+  const erreurs: Record<string, string> = t.erreurs
   const busyRef = useRef(false)
 
   return useCallback(
@@ -54,7 +48,7 @@ export function useDocumentUpload(onUploaded?: () => void) {
           const file = input.files?.[0]
           if (!file) return
           busyRef.current = true
-          push({ kind: 'info', title: 'A carregar documento…', desc: file.name })
+          push({ kind: 'info', title: t.enCours, desc: file.name })
           try {
             const fd = new FormData()
             fd.append('file', file)
@@ -67,23 +61,23 @@ export function useDocumentUpload(onUploaded?: () => void) {
             }
             if (!res.ok) {
               const code = typeof data.error === 'string' ? data.error : ''
-              push({ kind: 'error', title: 'Falha no carregamento', desc: ERR_PT[code] ?? 'Não foi possível carregar. Tente novamente.' })
+              push({ kind: 'error', title: t.echec, desc: erreurs[code] ?? t.echecGenerique })
               return
             }
             const fname = data.document?.filename ?? file.name
-            push({ kind: 'success', title: 'Documento carregado', desc: `${fname} — em processamento pela Léa.` })
+            push({ kind: 'success', title: t.charge, desc: t.traitementLea(fname) })
             if (data.quota?.warning) {
-              push({ kind: 'warning', title: 'Armazenamento quase cheio', desc: 'Mais de 80% do limite do gabinete utilizado.' })
+              push({ kind: 'warning', title: t.quotaTitre, desc: t.quotaDetail })
             }
             onUploaded?.()
           } catch {
-            push({ kind: 'error', title: 'Erro de rede', desc: 'Não foi possível contactar o servidor.' })
+            push({ kind: 'error', title: t.erreurReseau, desc: t.serveurInjoignable })
           } finally {
             busyRef.current = false
           }
         }
         input.click()
       },
-    [push, onUploaded],
+    [push, onUploaded, t, erreurs],
   )
 }

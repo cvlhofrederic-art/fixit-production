@@ -11,32 +11,19 @@ import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { downloadCsv } from '@/lib/syndic/v54/export-csv'
+import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { MAPA_FISCAL_MESSAGES, type CategorieContrat } from './i18n/ModMapaFiscal.messages'
 
 /** Mapa Fiscal Anual — port byte-exact V5.7 + Phase 3 : rapport calculé (lecture seule) depuis
  * data.contratos (dépenses par catégorie) + data.faturas (recettes). Aucune nouvelle table/route. */
 
-const fmtEUR = (n: number) => new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(n)
-// Preview byte-exact (anonyme) : catégories standard à 0.
-const ROWS: (string | number)[][] = [
-  ['Limpezas', '81210', 0, '0,00 €', '—', 'Sim'],
-  ['Manutenção elevadores', '43222', 0, '0,00 €', '—', 'Sim'],
-  ['Jardinagem', '81300', 0, '0,00 €', '—', 'Sim'],
-  ['Segurança', '80100', 0, '0,00 €', '—', 'Sim'],
-  ['Eletricidade comum', '35140', 0, '0,00 €', '—', 'Sim'],
-  ['Água comum', '36000', 0, '0,00 €', '—', 'Sim'],
-  ['Seguros', '65120', 0, '0,00 €', '—', 'Sim'],
-  ['Outras despesas', '—', 0, '0,00 €', '—', 'Variável'],
-]
-// Catégorie contrat → [libellé fiscal, CAE typique]
-const CAT_META: Record<string, [string, string]> = {
-  limpezas: ['Limpezas', '81210'],
-  elevadores: ['Manutenção elevadores', '43222'],
-  jardinagem: ['Jardinagem', '81300'],
-  seguranca: ['Segurança', '80100'],
-  outros: ['Outras despesas', '—'],
-}
+const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
+/** Catégories de contrat, dans l'ordre d'affichage (libellé et code de référence : dictionnaire). */
+const CATEGORIES: CategorieContrat[] = ['limpezas', 'elevadores', 'jardinagem', 'seguranca', 'outros']
 
 export default function ModMapaFiscal() {
+  const t = useMessages(MAPA_FISCAL_MESSAGES)
+  const locale = useV54Locale()
   const data = useSyndicData()
   const real = data.authenticated
   const contratos = real ? (data.contratos ?? []) : []
@@ -44,55 +31,58 @@ export default function ModMapaFiscal() {
 
   const totalDespesas = contratos.reduce((s, c) => s + (c.custoAnual || 0), 0)
   const totalReceitas = faturas.reduce((s, f) => s + (f.montantTtc || 0), 0)
+  // Preview byte-exact (anonyme) : catégories standard à 0.
+  const ROWS: (string | number)[][] = t.apercu.map((c) => [c.libelle, c.code, 0, '0,00 €', '—', c.derniere])
   // Lignes calculées : groupées par catégorie de contrat (≥ 1 contrat).
-  const computedRows: (string | number)[][] = Object.entries(CAT_META).map(([key, [label, cae]]) => {
+  const computedRows: (string | number)[][] = CATEGORIES.map((key) => {
+    const { libelle, code, derniere } = t.categories[key]
     const list = contratos.filter((c) => c.categoria === key)
     const total = list.reduce((s, c) => s + (c.custoAnual || 0), 0)
-    const pct = totalDespesas > 0 ? `${Math.round((total / totalDespesas) * 100)}%` : '—'
-    return [label, cae, list.length, fmtEUR(total), pct, 'Sim'] as (string | number)[]
+    const pct = totalDespesas > 0 ? t.pct(Math.round((total / totalDespesas) * 100)) : '—'
+    return [libelle, code, list.length, fmtEUR(total, locale), pct, derniere] as (string | number)[]
   }).filter((r) => (r[2] as number) > 0)
 
   const rows = real ? computedRows : ROWS
   const { push } = useToast()
   const exportar = () => {
-    if (!real) { push({ kind: 'info', title: 'Exportação', desc: 'Conecte-se como síndico para exportar' }); return }
+    if (!real) { push({ kind: 'info', title: t.toasts.exportTitre, desc: t.toasts.connexionExport }); return }
     try {
-      downloadCsv('mapa-fiscal.csv', ['Categoria', 'CAE típico', 'Lançamentos', 'Total ano', '% Total', 'Dedutível IRC'], rows)
-      push({ kind: 'success', title: 'Exportação concluída', desc: `${contratos.length} contratos · ${fmtEUR(totalDespesas)} despesas` })
+      downloadCsv(t.csvFichier, t.colonnes, rows)
+      push({ kind: 'success', title: t.toasts.exportReussi, desc: t.toasts.resumeExport(contratos.length, fmtEUR(totalDespesas, locale)) })
     } catch (err) {
       console.error('[ModMapaFiscal] export CSV falhou', err)
-      push({ kind: 'error', title: 'Erro', desc: 'Não foi possível exportar.' })
+      push({ kind: 'error', title: t.toasts.erreur, desc: t.toasts.exportImpossible })
     }
   }
 
   return (
     <>
-      <PageHead eyebrow="FISCAL · DECLARATIVO ANUAL" title="Mapa Fiscal Anual"
-        lede="Categorização Max Expert · Export Primavera/PHC/Sage · Reconciliação 100% com contabilidade"
-        actions={<><Button onClick={() => push({ kind: 'info', title: 'Max Expert', desc: 'Recategorização IA — em breve' })}><Icon name="bot" />Recategorizar com Max</Button><Button variant="gold" onClick={exportar}><Icon name="download" />Exportar (Excel · PDF · IES)</Button></>} />
-      <Alert kind="sage" icon="check" title="Max Expert categoriza 100% das linhas">
-        Cada fatura é classificada por <strong>CAE prestador + natureza despesa</strong>. O mapa exporta-se em 3 formatos compatíveis com os principais programas de contabilidade portugueses (Primavera, PHC, Sage) + formato AT (SAF-T).
+      <PageHead eyebrow={t.surtitre} title={t.titre}
+        lede={t.chapeau}
+        actions={<><Button onClick={() => push({ kind: 'info', title: 'Max Expert', desc: t.toasts.reclassementBientot })}><Icon name="bot" />{t.reclasser}</Button><Button variant="gold" onClick={exportar}><Icon name="download" />{t.exporter}</Button></>} />
+      <Alert kind="sage" icon="check" title={t.alerte.titre}>
+        {t.alerte.avant}<strong>{t.alerte.gras}</strong>{t.alerte.apres}
       </Alert>
       <KPIGrid items={[
-        { icon: 'fact', num: real ? contratos.length + faturas.length : 0, lbl: 'Lançamentos ano corrente' },
-        { icon: 'bot', num: real && contratos.length ? '100%' : '0%', lbl: 'Categorização IA', accent: 'sage' },
-        { icon: 'coin', num: real ? fmtEUR(totalDespesas) : '0,00 €', lbl: 'Total despesas' },
-        { icon: 'coin', num: real ? fmtEUR(totalReceitas) : '0,00 €', lbl: 'Total receitas' },
-        { icon: 'check', num: 'OK', lbl: 'Reconciliação', accent: 'sage' },
-        { icon: 'download', num: 0, lbl: 'Exportações geradas' },
+        { icon: 'fact', num: real ? contratos.length + faturas.length : 0, lbl: t.kpi.ecritures },
+        { icon: 'bot', num: t.pct(real && contratos.length ? 100 : 0), lbl: t.kpi.classementIA, accent: 'sage' },
+        { icon: 'coin', num: real ? fmtEUR(totalDespesas, locale) : '0,00 €', lbl: t.kpi.totalDepenses },
+        { icon: 'coin', num: real ? fmtEUR(totalReceitas, locale) : '0,00 €', lbl: t.kpi.totalRecettes },
+        { icon: 'check', num: 'OK', lbl: t.kpi.rapprochement, accent: 'sage' },
+        { icon: 'download', num: 0, lbl: t.kpi.exports },
       ]} />
       <Tabs defaultActive="2026" tabs={[
-        { id: '2026', label: '2026 (em curso)' },
+        { id: '2026', label: t.ongletEnCours },
         { id: '2025', label: '2025' },
         { id: '2024', label: '2024' },
       ]} />
-      <Panel title="Categorias fiscais — auto Max Expert" flush>
+      <Panel title={t.panneau} flush>
         <div className={m.tblWrap}>
           <table className={m.tbl}>
-            <thead><tr><th>Categoria</th><th>CAE típico</th><th>Lançamentos</th><th>Total ano</th><th>% Total</th><th>Dedutível IRC</th></tr></thead>
+            <thead><tr>{t.colonnes.map((c) => <th key={c}>{c}</th>)}</tr></thead>
             <tbody>
               {rows.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>Nenhum contrato categorizado — adicione contratos para alimentar o mapa fiscal.</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 20px', color: 'var(--v54-navy-300)' }}>{t.vide}</td></tr>
               ) : rows.map((r, i) => (
                 <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>
               ))}
