@@ -84,7 +84,7 @@ export const FATURACAO_MESSAGES = defineMessages<FaturacaoTextes>({
     kpi: { totalFacture: 'Total facturé', nbFactures: (n) => `${n} ${n > 1 ? 'factures' : 'facture'}`, emises: 'Factures émises', aRegler: 'À régler', reglees: 'Réglées' },
     onglets: { factures: 'Factures & devis', transferts: 'Dossiers transférés', specifique: 'Honoraires du syndic' },
     panneau: 'Factures aux copropriétaires',
-    vide: { titre: 'Aucune facture émise', description: 'Émettez la première facture (prestation particulière, frais imputables) — le montant TTC est calculé automatiquement' },
+    vide: { titre: 'Aucune facture émise', description: 'Émettez la première facture à un copropriétaire (frais imputables, état daté…) — le montant TTC est calculé automatiquement' },
     colonnes: { numero: 'N°', coproprietaire: 'Copropriétaire', emise: 'Émise le', echeance: 'Échéance', montantTtc: 'Montant TTC', statut: 'Statut' },
     statuts: { a_regler: 'À régler', partiellement_regle: 'Partiellement réglée', reglee: 'Réglée', contestee: 'Contestée', annulee: 'Annulée' },
     // Taux normal de TVA en France : 20 % (CGI, art. 278).

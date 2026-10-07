@@ -78,7 +78,7 @@ export const CAL_REG_MESSAGES = defineMessages<CalRegTextes>({
     chapeau: 'Suivi des obligations légales et réglementaires',
     filtres: { immeubleAria: 'Filtrer par immeuble', immeubleTous: 'Tous les immeubles', statutAria: 'Filtrer par statut', statutTous: 'Tous les statuts' },
     ajouter: 'Ajouter',
-    kpi: { expirees: 'Expirées', urgentes: 'Urgentes (< 30 j)', proches: 'À venir (< 90 j)', aJour: 'À jour' },
+    kpi: { expirees: 'En retard', urgentes: 'Urgentes (< 30 j)', proches: 'À venir (< 90 j)', aJour: 'À jour' },
     vide: {
       titre: 'Aucune obligation enregistrée',
       description: 'Ajoutez les obligations légales et réglementaires de vos immeubles pour en assurer le suivi.',
