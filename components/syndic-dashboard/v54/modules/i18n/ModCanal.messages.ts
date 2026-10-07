@@ -204,7 +204,7 @@ export const CANAL_MESSAGES = defineMessages<CanalTextes>({
   },
   'fr-FR': {
     titre: 'Canal de communication',
-    chapeau: "Messages avec les prestataires externes, l'équipe interne et les demandes des copropriétaires",
+    chapeau: "Échanges avec les prestataires externes et l'équipe interne, suivi des demandes des copropriétaires",
     onglets: { pro: 'Professionnels', int: 'Interne', ped: 'Demandes' },
     listeAria: 'Liste des missions',
     missionsLabel: 'MISSIONS',
@@ -248,7 +248,7 @@ export const CANAL_MESSAGES = defineMessages<CanalTextes>({
       attenteValidation: 'En attente de validation',
       informations: 'INFORMATIONS',
       immeuble: 'Immeuble',
-      metier: 'Corps de métier',
+      metier: "Domaine d'intervention",
       dateIntervention: "Date d'intervention",
       dureeEstimee: 'Durée estimée',
       montantHT: 'Montant HT',
@@ -265,12 +265,12 @@ export const CANAL_MESSAGES = defineMessages<CanalTextes>({
     etapes: {
       creee: 'Mission créée',
       attribue: 'Prestataire désigné',
-      demarree: 'Intervention commencée',
+      demarree: 'Intervention démarrée',
       attente: 'En attente de validation',
       cloturee: 'Mission clôturée',
     },
     dateCreation: '15 mai 2026',
-    roles: { gestionnaireNom: 'Gestionnaire', gestionnaire: 'Gestionnaire technique', prestataire: 'Prestataire certifié VitFix', demandeur: 'Demandeur' },
+    roles: { gestionnaireNom: 'Gestionnaire', gestionnaire: 'Gestionnaire technique', prestataire: 'Prestataire certifié Vitfix', demandeur: 'Demandeur' },
     toasts: {
       messageEnvoye: 'Message envoyé',
       destinataire: (nom) => `À ${nom}`,

@@ -270,7 +270,7 @@ export const PLANEAMENTO_MESSAGES = defineMessages<PlaneamentoTextes>({
       heureDebut: 'Heure de début',
       heureFin: 'Heure de fin',
       duree: 'Durée des créneaux',
-      dureeAide: 'Précision verticale de la grille.',
+      dureeAide: 'Découpage vertical de la grille.',
       durees: { 30: '30 minutes', 60: '1 heure', 120: '2 heures' },
       apercu: 'Aperçu',
       apercuJours: (n) => ` jour${n > 1 ? 's' : ''} affiché${n > 1 ? 's' : ''} · `,

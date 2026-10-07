@@ -150,9 +150,9 @@ export const CONTRATOS_MESSAGES = defineMessages<ContratosTextes>({
       etapes: [
         ['Import du PDF', 'OCR Léa · 30 secondes · fiche remplie à 90 %', 'sage'],
         ['Suivi en continu', 'Coût mensuel · indexation · prochaine révision du prix', 'gold'],
-        ['Alerte J-90', 'Tempo notifie · bilan de satisfaction · préavis de non-reconduction', 'amber'],
-        ['Mise en concurrence J-60', "Demande automatique de 3 devis · seuil voté en AG (art. 21)", 'gold'],
-        ['Décision J-30', 'Renouveler · changer · renégocier · avis du conseil syndical', 'amber'],
+        ['Alerte J-90', 'Notification Tempo · bilan de satisfaction · préavis de non-reconduction', 'amber'],
+        ['Mise en concurrence J-60', 'Demande automatique de 3 devis · seuil voté en AG (art. 21 de la loi de 1965)', 'gold'],
+        ['Décision J-30', 'Renouveler · changer de prestataire · renégocier · avis du conseil syndical', 'amber'],
         ['Renouvellement / remplacement', 'Mise à jour automatique · historique conservé', 'sage'],
       ],
     },
@@ -170,7 +170,7 @@ export const CONTRATOS_MESSAGES = defineMessages<ContratosTextes>({
       annuler: 'Annuler',
       ajouter: 'Ajouter',
     },
-    erreurs: { prestataire: 'Le prestataire est obligatoire.' },
+    erreurs: { prestataire: 'Le nom du prestataire est obligatoire.' },
     toasts: {
       ajoute: 'Contrat ajouté',
       erreurAjout: "Erreur lors de l'ajout",
