@@ -48,7 +48,7 @@ export const MONITORIZACAO_MESSAGES = defineMessages<MonitorizacaoTextes>({
   'fr-FR': {
     titre: 'Suivi des consommations',
     chapeau: 'Électricité, eau et gaz des parties communes — relevés, coûts et alertes',
-    onglets: { dash: 'Tableau de bord', cons: 'Consommations', al: 'Alertes', cfg: 'Paramètres' },
+    onglets: { dash: 'Tableau de bord', cons: 'Consommations', al: 'Alertes', cfg: 'Configuration' },
     kpi: {
       electricite: { num: '1 252 kWh', lbl: 'Électricité', tendance: '-3,1 %' },
       eau: { num: '33 m³', lbl: 'Eau', tendance: '-31,3 %' },

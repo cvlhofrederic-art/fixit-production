@@ -62,7 +62,7 @@ export const COMPARADOR_ENERGIA_MESSAGES = defineMessages<ComparadorEnergiaTexte
       ['Résidence Part-Dieu', 'D', 'DPE D', 'Base', 1738, 295.7, 'Watt Commun', '12 kVA', 197.36],
       ['Résidence Saône', 'B', 'DPE B', 'Heures creuses week-end', 1857, 313.55, 'Rhodanie Énergie', '6 kVA', 225.91],
     ],
-    nombre: (n) => String(n).replace('.', ','),
+    nombre: (n) => n.toLocaleString('fr-FR'),
     consommation: 'Consommation mensuelle',
     kwh: 'kWh',
     coutMoyen: 'Coût moyen',

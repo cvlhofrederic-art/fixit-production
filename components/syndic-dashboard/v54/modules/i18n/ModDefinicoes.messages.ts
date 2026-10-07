@@ -130,13 +130,13 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
       adresse: 'Adresse du cabinet',
       adressePlaceholder: 'Ex. : 12 rue de la République, 69002 Lyon',
       logo: 'Logo du cabinet',
-      importerLogo: 'Importer le logo (PNG/JPG/WebP, 2 Mo max)',
+      importerLogo: 'Importer le logo (PNG/JPG/WebP, 2 Mo max.)',
       importerLogoToast: 'Importer le logo',
     },
     notifications: {
       titre: 'Notifications',
       liste: [
-        ["Alertes d'expiration de l'assurance RC", true],
+        ["Alertes d'expiration de l'assurance RC Pro", true],
         ['Contrôles réglementaires imminents', true],
         ['Nouvelles missions créées', true],
         ['Signalements des copropriétaires', false],

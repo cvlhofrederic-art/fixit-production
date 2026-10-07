@@ -151,8 +151,8 @@ export const PROFISSIONAIS_MESSAGES = defineMessages<ProfissionaisTextes>({
   },
   'fr-FR': {
     titre: 'Prestataires',
-    chapeau: (c) => `${c.total} prestataires référencés · ${c.certifies} certifiés Vitfix · ${c.rcValide} avec RC Pro valide · ${c.decennale} avec garantie décennale`,
-    chapeauDemo: '9 prestataires référencés · 7 certifiés Vitfix · 9 avec RC Pro valide · 8 avec garantie décennale',
+    chapeau: (c) => `${c.total} prestataire${c.total > 1 ? 's' : ''} référencé${c.total > 1 ? 's' : ''} · ${c.certifies} certifié${c.certifies > 1 ? 's' : ''} VitFix · ${c.rcValide} avec RC Pro valide · ${c.decennale} avec garantie décennale`,
+    chapeauDemo: '9 prestataires référencés · 7 certifiés VitFix · 9 avec RC Pro valide · 8 avec garantie décennale',
     synchroniser: 'Synchroniser la conformité',
     ajouter: 'Ajouter un prestataire',
     toasts: {
@@ -214,9 +214,9 @@ export const PROFISSIONAIS_MESSAGES = defineMessages<ProfissionaisTextes>({
       ['Perrin', 'Peintre', 'check', '4,8', 9, '07 17 65 43 21', 'anne.perrin@exemple.fr', '28/02/2027', '30/09/2027'],
       ['Costes', 'Jardinier', '', '4,2', 6, '06 61 23 45 67', 'remi.costes@exemple.fr', '31/07/2026', null],
       ['Martin', 'Serrurier-métallier', 'check', '4,6', 8, '07 42 87 65 43', 'pierre.martin@exemple.fr', '30/11/2026', '22/04/2027'],
-      ['Bruno Tessier', 'Technicien interne', 'check', '5', 0, '06 35 10 00 02', 'bruno.tessier@exemple.fr', null, null, true],
-      ['Damien Perrin', 'Technicien interne', 'check', '5', 0, '06 35 10 00 06', 'damien.perrin@exemple.fr', null, null, true],
-      ['Thomas Ménard', 'Technicien interne', 'check', '5', 0, '06 35 10 00 07', 'thomas.menard@exemple.fr', null, null, true],
+      ['Bruno Tessier', 'Technicien interne', 'check', '5', 0, '06 35 10 00 02', 'bruno.tessier@cabinet-vitfix.fr', null, null, true],
+      ['Damien Perrin', 'Technicien interne', 'check', '5', 0, '06 35 10 00 06', 'damien.perrin@cabinet-vitfix.fr', null, null, true],
+      ['Thomas Ménard', 'Technicien interne', 'check', '5', 0, '06 35 10 00 07', 'thomas.menard@cabinet-vitfix.fr', null, null, true],
     ],
   },
 })

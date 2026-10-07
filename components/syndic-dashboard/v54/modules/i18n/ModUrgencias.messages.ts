@@ -72,13 +72,13 @@ export const URGENCIAS_MESSAGES = defineMessages<UrgenciasTextes>({
   },
   'fr-FR': {
     titre: 'Urgences techniques',
-    chapeau: 'Affectation immédiate au prestataire VITFIX disponible',
+    chapeau: 'Affectation immédiate au prestataire VitFix disponible',
     nouvelleUrgence: 'Nouvelle urgence',
     nouvelleUrgenceDesc: 'Affectation des urgences en cours de développement',
     onglets: { ativas: 'Actives', despacho: 'Affectation', profissionais: 'Prestataires', hist: 'Historique' },
     alerte: {
       titre: 'Affectation automatique activée',
-      texte: 'Les urgences critiques sont confiées automatiquement au prestataire VITFIX disponible le plus proche, avec confirmation en temps réel.',
+      texte: 'Les urgences critiques sont confiées automatiquement au prestataire VitFix disponible le plus proche, avec confirmation en temps réel.',
     },
     kpi: {
       actives: 'Urgences actives',

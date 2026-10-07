@@ -458,7 +458,7 @@ export const CONTAB_COND_MESSAGES = defineMessages<ContabCondTextes>({
         ['clipboard', 'Annexe 3 — Gestion courante et budget prévisionnel', "Opérations courantes de l'exercice clos et budget prévisionnel N+1"],
         ['mail', 'Annexe 4 — Travaux et opérations exceptionnelles', 'Compte de gestion des travaux et opérations exceptionnelles hors budget prévisionnel'],
         ['construction', 'Annexe 5 — Travaux votés non clôturés', "Travaux et opérations exceptionnelles votés et non encore clôturés à la fin de l'exercice"],
-        ['doc', 'Fonds de travaux (art. 14-2-1)', 'Situation du fonds de travaux obligatoire (cotisation annuelle ≥ 5 % du budget prévisionnel)'],
+        ['doc', 'Fonds de travaux (art. 14-2-1)', 'Situation du fonds de travaux obligatoire (cotisation annuelle ≥ 5 % du budget prévisionnel et, si un PPT est adopté, ≥ 2,5 % du montant de ses travaux)'],
       ],
       apercu: 'Aperçu',
       pdf: 'PDF',

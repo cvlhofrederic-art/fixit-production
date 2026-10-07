@@ -77,7 +77,7 @@ export const VISTORIA_MESSAGES = defineMessages<VistoriaTextes>({
   },
   'fr-FR': {
     titre: 'Visites techniques',
-    chapeau: "Check-list de visite → rapport PDF · Carnet d'entretien (art. 18 de la loi du 10 juillet 1965) · Ascenseurs (CCH, art. R134-1 et s.) · Sécurité incendie (arrêté du 31 janvier 1986)",
+    chapeau: "Checklist de visite → rapport PDF · Carnet d'entretien (art. 18 de la loi du 10 juillet 1965) · Ascenseurs (CCH, art. R134-1 et s.) · Sécurité incendie (arrêté du 31 janvier 1986)",
     nouvelleVisite: '+ Nouvelle visite',
     kpi: { realisees: 'Visites réalisées', aSurveiller: 'Points à surveiller', defaillants: 'Points défaillants' },
     onglets: { todas: 'Toutes', conc: 'Terminées', curso: 'En cours', env: 'Envoyées' },

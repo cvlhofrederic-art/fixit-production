@@ -144,7 +144,7 @@ export const EQUIPA_MESSAGES = defineMessages<EquipaTextes>({
       admin: 'Administrateur',
       gestorTecnico: 'Gestionnaire technique',
       tecnico: 'Technicien',
-      secretaria: 'Assistante',
+      secretaria: 'Secrétaire',
       gestorCondominio: 'Gestionnaire de copropriété',
       contabilista: 'Comptable',
       jurista: 'Juriste',

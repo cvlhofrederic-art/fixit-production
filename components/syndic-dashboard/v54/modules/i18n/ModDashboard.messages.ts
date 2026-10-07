@@ -151,7 +151,7 @@ export const DASHBOARD_MESSAGES = defineMessages<DashboardTextes>({
       missions: 'Missions actives',
       missionsSous: '6 en attente',
       budget: 'Budget 2026',
-      milliersEuros: 'k €',
+      milliersEuros: 'k€',
       budgetSous: '55 % consommé',
     },
     actionsRapides: 'Actions rapides',

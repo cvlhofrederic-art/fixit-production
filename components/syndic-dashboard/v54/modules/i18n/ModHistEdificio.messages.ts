@@ -120,7 +120,7 @@ export const HIST_EDIFICIO_MESSAGES = defineMessages<HistEdificioTextes>({
     kpi: {
       interventions: 'Interventions au total',
       equipements: 'Équipements',
-      contratsActifs: 'Contrats actifs',
+      contratsActifs: 'Contrats en vigueur',
       coutCumule: 'Coût cumulé 2026',
       coutCumuleDemo: '18 240 €',
     },
@@ -146,10 +146,10 @@ export const HIST_EDIFICIO_MESSAGES = defineMessages<HistEdificioTextes>({
       parAn: (montant) => `${montant} / an`,
       parMois: (montant) => `${montant} / mois`,
       jusquau: (date) => `Jusqu'au ${date}`,
-      statut: (code) => ({ ativo: 'Actif', renovacao: 'À renouveler', expirado: 'Expiré' } as Record<string, string>)[code] ?? code,
+      statut: (code) => ({ ativo: 'En vigueur', renovacao: 'À renouveler', expirado: 'Expiré' } as Record<string, string>)[code] ?? code,
     },
     statutsMission: { en_attente: 'En attente', acceptee: 'Acceptée', en_cours: 'En cours', terminee: 'Terminée', annulee: 'Annulée' },
-    conformiteEquipement: { conforme: 'Conforme', prazo: 'À régulariser', atraso: 'Non conforme' },
+    conformiteEquipement: { conforme: 'Conforme', prazo: 'Échéance proche', atraso: 'En retard' },
     categoriesContrat: { limpezas: 'Nettoyage des parties communes', elevadores: 'Entretien des ascenseurs', seguranca: 'Sécurité', jardinagem: 'Espaces verts', outros: 'Autres prestations' },
     demo: {
       interventions: [

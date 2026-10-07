@@ -130,7 +130,7 @@ export const CADERNETA_MESSAGES = defineMessages<CadernetaTextes>({
   },
   'fr-FR': {
     titre: "Carnet d'entretien & suivi technique",
-    chapeau: "Travaux · Équipements · Contrats d'entretien · État daté · DPE collectif — art. 18 de la loi du 10 juillet 1965, décret n° 2001-477",
+    chapeau: "Travaux · Équipements · Contrats d'entretien · État daté · DPE collectif — carnet d'entretien : art. 18 de la loi du 10 juillet 1965 et décret n° 2001-477",
     exporterPdf: 'Exporter en PDF',
     nouvelleIntervention: '+ Intervention',
     onglets: { cad: "Carnet d'entretien", eq: 'Équipements', ct: 'Contrats', est: 'État daté', cee: 'DPE collectif' },
@@ -167,7 +167,7 @@ export const CADERNETA_MESSAGES = defineMessages<CadernetaTextes>({
       classeAide: 'En cas de diagnostic de performance énergétique',
       sansObjet: 'Sans objet',
       classes: ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
-      notes: 'Remarques',
+      notes: 'Notes',
       annuler: 'Annuler',
       enregistrer: 'Enregistrer',
     },

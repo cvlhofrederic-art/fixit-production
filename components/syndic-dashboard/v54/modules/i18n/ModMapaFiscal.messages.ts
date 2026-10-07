@@ -111,7 +111,7 @@ export const MAPA_FISCAL_MESSAGES = defineMessages<MapaFiscalTextes>({
       exportTitre: 'Export',
       connexionExport: 'Connectez-vous en tant que syndic pour exporter',
       exportReussi: 'Export terminé',
-      resumeExport: (contrats, total) => `${contrats} contrats · ${total} de charges`,
+      resumeExport: (contrats, total) => `${contrats} contrat${contrats > 1 ? 's' : ''} · ${total} de charges`,
       erreur: 'Erreur',
       exportImpossible: "L'export n'a pas pu être réalisé.",
     },

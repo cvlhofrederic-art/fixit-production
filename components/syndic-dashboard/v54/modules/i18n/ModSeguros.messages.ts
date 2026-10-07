@@ -89,7 +89,7 @@ export const SEGUROS_MESSAGES = defineMessages<SegurosTextes>({
     tousImmeubles: 'Tous les immeubles',
     vide: "Aucune police d'assurance enregistrée",
     types: { multirriscos: 'Multirisque immeuble', responsabilidade_civil: 'Responsabilité civile', incendio: 'Incendie', outros: 'Autres' },
-    statuts: { expirada: 'Expirée', renovacao: 'En renouvellement', ativa: 'Active' },
+    statuts: { expirada: 'Expirée', renovacao: 'À renouveler', ativa: 'Active' },
     liste: { parAn: '/an', capital: 'Capital : ', fin: 'Échéance : ' },
     formulaire: {
       titre: 'Nouvelle police',

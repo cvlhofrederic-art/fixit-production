@@ -131,7 +131,7 @@ export const OBRIG_PRAZOS_MESSAGES = defineMessages<ObrigPrazosTextes>({
     referencesTitre: 'Références légales françaises',
     references: [
       ['Plan pluriannuel de travaux', 'Loi de 1965, art. 14-2 — actualisé tous les 10 ans'],
-      ['Chaudière et ramonage', "Code de l'environnement, art. R224-41-4 et s. · règlement sanitaire départemental — annuel"],
+      ['Chaudière et ramonage', "Code de l'environnement : entretien annuel des chaudières de 4 à 400 kW (art. R224-41-4 et s.), contrôle périodique au-delà de 400 kW (art. R224-20 et s.) · ramonage : règlement sanitaire départemental"],
       ["Contrôle technique de l'ascenseur", 'CCH, art. R134-1 et s. — tous les 5 ans'],
       ['Installations électriques', 'Pas de contrôle périodique général imposé — vérification conseillée'],
       ['Assurance RC du syndicat', 'Loi de 1965, art. 9-1 — échéance annuelle du contrat'],

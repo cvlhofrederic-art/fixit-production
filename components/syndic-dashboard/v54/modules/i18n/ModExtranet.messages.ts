@@ -102,7 +102,7 @@ export const EXTRANET_MESSAGES = defineMessages<ExtranetTextes>({
     actif: 'Actif',
     inactif: 'Inactif',
     portail: {
-      titre: 'Espace copropriétaires',
+      titre: 'Espace copropriétaire',
       texte: "Chaque copropriétaire accède à son espace personnel pour consulter ses appels de fonds, les PV d'AG et les documents de la copropriété (accès en ligne sécurisé que le syndic professionnel doit proposer, sauf décision contraire de l'AG : art. 18 de la loi du 10 juillet 1965 et décret n° 2019-502 du 23 mai 2019).",
       urlAria: "URL de l'extranet",
       copier: 'Copier',

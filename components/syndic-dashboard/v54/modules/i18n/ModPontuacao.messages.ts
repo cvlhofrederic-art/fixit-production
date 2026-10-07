@@ -63,7 +63,7 @@ export const PONTUACAO_MESSAGES = defineMessages<PontuacaoTextes>({
     classement: 'Classement',
     actualiser: 'Mettre à jour',
     toasts: {
-      details: (n) => `${n} immeuble(s) évalué(s)`,
+      details: (n) => `${n} immeuble${n > 1 ? 's' : ''} évalué${n > 1 ? 's' : ''}`,
       meilleur: (nom) => `Meilleur : ${nom}`,
       aucunImmeuble: 'Aucun immeuble',
       misAJour: 'Scores mis à jour',
@@ -75,7 +75,7 @@ export const PONTUACAO_MESSAGES = defineMessages<PontuacaoTextes>({
       meilleur: 'Meilleur immeuble',
       pire: 'Immeuble le moins bien noté',
       alertes: 'Alertes actives',
-      aRevoir: (n) => `${n} immeuble(s) à revoir`,
+      aRevoir: (n) => `${n} immeuble${n > 1 ? 's' : ''} à revoir`,
       toutEnOrdre: 'Tout est en ordre !',
     },
     panneau: 'IMMEUBLES',

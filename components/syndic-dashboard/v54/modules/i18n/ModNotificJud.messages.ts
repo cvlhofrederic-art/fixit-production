@@ -151,7 +151,7 @@ export const NOTIFIC_JUD_MESSAGES = defineMessages<NotificJudTextes>({
       l2Fort: 'Art. 55',
       l2Avant: ' — Rendre compte ',
       l2Fort2: 'à la prochaine assemblée générale',
-      l2Apres: " des actions introduites. Sauf exceptions (recouvrement de créances, mesures conservatoires, référé, défense du syndicat), le syndic ne peut agir en justice qu'avec l'autorisation préalable de l'AG.",
+      l2Apres: " des actions introduites. Sauf exceptions (notamment recouvrement de créances, voies d'exécution forcée autres que la saisie en vue de la vente d'un lot, mesures conservatoires, référé, défense du syndicat), le syndic ne peut agir en justice qu'avec l'autorisation préalable de l'AG.",
     },
     kpi: {
       actifs: 'Procédures en cours',

@@ -122,7 +122,7 @@ export const VOTACAO_ONLINE_MESSAGES = defineMessages<VotacaoTextes>({
       statut: 'Statut',
       echeance: 'Date limite de vote',
       totalVoix: 'Total des tantièmes',
-      totalVoixAide: 'Ex. : 1000 ou 10000',
+      totalVoixAide: 'Ex. : 1 000 ou 10 000',
       options: 'Options de vote',
       optionsAide: 'Une par ligne',
       annuler: 'Annuler',

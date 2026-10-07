@@ -77,8 +77,8 @@ export const COMUNIC_DIGITAL_MESSAGES = defineMessages<ComunicDigitalTextes>({
       { nom: 'Julien Perrin', lot: 'B-205', type: 'relance', objet: 'Rappel de charges impayées — 950 €', canal: 'E-mail', date: '15 mai 2026', statut: 'Distribué', teinte: 'amber' },
       { nom: 'Michel Costes', lot: 'B-102', type: 'relance', objet: 'Rappel de charges impayées — 1 280 €', canal: 'Courrier', date: '14 mai 2026', statut: 'Envoyé', teinte: 'navy' },
       // Convocation d'AG notifiée par lettre recommandée électronique (art. 64 et s. du décret de 1967).
-      { nom: 'Charles Rodier', lot: 'A-101', type: 'convocation', objet: "Convocation à l'AG ordinaire — 15 mars 2026", canal: 'LRE', date: '11 mai 2026', statut: 'Lu', teinte: 'sage' },
-      { nom: 'Sophie Marquet', lot: 'A-203', type: 'convocation', objet: "Convocation à l'AG ordinaire — 15 mars 2026", canal: 'LRE', date: '11 mai 2026', statut: 'Distribué', teinte: 'amber' },
+      { nom: 'Charles Rodier', lot: 'A-101', type: 'convocation', objet: "Convocation à l'AG ordinaire — 15 juin 2026", canal: 'LRE', date: '11 mai 2026', statut: 'Lu', teinte: 'sage' },
+      { nom: 'Sophie Marquet', lot: 'A-203', type: 'convocation', objet: "Convocation à l'AG ordinaire — 15 juin 2026", canal: 'LRE', date: '11 mai 2026', statut: 'Distribué', teinte: 'amber' },
       { nom: 'Béatrice Olivier', lot: 'A-301', type: 'information', objet: 'Travaux de ravalement de la façade', canal: 'E-mail', date: '6 mai 2026', statut: 'Lu', teinte: 'sage' },
     ],
   },

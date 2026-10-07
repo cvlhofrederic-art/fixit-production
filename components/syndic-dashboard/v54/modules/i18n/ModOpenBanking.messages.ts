@@ -68,7 +68,7 @@ export const OPEN_BANKING_MESSAGES = defineMessages<OpenBankingTextes>({
     },
     alerte: {
       titre: 'DSP2 Open Banking — prestataires AISP habilités',
-      texte: "Le syndic ouvre au nom du syndicat un compte bancaire séparé, sur lequel sont versées toutes les sommes reçues au nom ou pour le compte du syndicat (art. 18 de la loi du 10 juillet 1965). La connexion passe par des prestataires de services d'information sur les comptes (AISP) habilités au titre de la directive DSP2 (Tink · GoCardless). Banques prises en charge : Banque des Deux Rives, Banque Fourvière, Crédit Saint-Jean, Néobanque Confluence, Banque de la Part-Dieu, Caisse des Monts d'Or, Rivage Pro. Max Expert rapproche automatiquement plus de 90 % des opérations avec un indice de confiance ; les 10 % restants se valident à la main en un clic.",
+      texte: "Le syndic ouvre au nom du syndicat un compte bancaire séparé, sur lequel sont versées toutes les sommes reçues au nom ou pour le compte du syndicat (art. 18 de la loi du 10 juillet 1965). La connexion passe par des prestataires de services d'information sur les comptes (AISP) habilités au titre de la directive DSP2. Banques prises en charge : Banque des Deux Rives, Banque Fourvière, Crédit Saint-Jean, Néobanque Confluence, Banque de la Part-Dieu, Caisse des Monts d'Or, Rivage Pro. Max Expert rapproche automatiquement plus de 90 % des opérations avec un indice de confiance ; les 10 % restants se valident à la main en un clic.",
     },
     kpi: {
       comptes: 'Comptes connectés',

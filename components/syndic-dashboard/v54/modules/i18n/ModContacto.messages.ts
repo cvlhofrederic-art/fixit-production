@@ -79,7 +79,7 @@ export const CONTACTO_MESSAGES = defineMessages<ContactoTextes>({
     chapeau: "Communication automatique et personnalisée avec les copropriétaires — relances d'impayés, avis, comptes rendus",
     nouvelleCampagne: '+ Nouvelle campagne',
     kpi: { creees: 'Campagnes créées', envoyees: 'Envoyées', destinataires: 'Total des destinataires', messages: 'Messages envoyés' },
-    onglets: { camp: 'Campagnes', mod: 'Modèles IA', hist: 'Historique', cfg: 'Paramétrage' },
+    onglets: { camp: 'Campagnes', mod: 'Modèles IA', hist: 'Historique', cfg: 'Configuration' },
     vide: { titre: 'Aucune campagne', texte: 'Créez votre première campagne proactive pour contacter automatiquement les copropriétaires' },
     colonnes: { campagne: 'Campagne', type: 'Type', immeuble: 'Immeuble', destinataires: 'Destinataires', statut: 'Statut' },
     typeTableau: (code) => (Object.prototype.hasOwnProperty.call(TYPES_FR, code) ? TYPES_FR[code as TypeCampagne] : code),

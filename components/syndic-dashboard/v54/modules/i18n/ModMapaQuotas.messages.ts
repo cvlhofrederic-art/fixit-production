@@ -112,9 +112,9 @@ export const MAPA_QUOTAS_MESSAGES = defineMessages<MapaQuotasTextes>({
       tauxSous: (aJour, irreguliers) => `${aJour} à jour / ${irreguliers} en retard`,
     },
     champs: {
-      budget: 'Budget annuel (EUR)',
+      budget: 'Budget prévisionnel annuel (€)',
       fcr: 'Fonds de travaux (5 %)',
-      valeurAria: 'Valeur',
+      valeurAria: 'Fonds de travaux (%)',
       mode: 'Mode de calcul',
       fixa: 'Forfait',
       area: 'Par surface (m²)',

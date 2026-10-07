@@ -242,7 +242,7 @@ export const PLANEAMENTO_MESSAGES = defineMessages<PlaneamentoTextes>({
       titreMembre: (nom) => `Événements ${deFr(nom)} cette semaine`,
       titre: 'Événements de la semaine',
       vide: 'Aucun événement cette semaine avec les filtres actuels.',
-      fermerAria: 'Fermer le rendez-vous',
+      fermerAria: "Fermer l'événement",
       fermerTitre: 'Fermer',
     },
     evenement: {
@@ -302,7 +302,7 @@ export const PLANEAMENTO_MESSAGES = defineMessages<PlaneamentoTextes>({
       { id: 'BT', name: 'Bruno Tessier', role: 'Gestionnaire technique', accent: 'sage' },
       { id: 'DP', name: 'Damien Perrin', role: 'Technicien', accent: 'sage' },
       { id: 'TM', name: 'Thomas Ménard', role: 'Technicien', accent: 'sage' },
-      { id: 'MS', name: 'Marguerite Soulier', role: 'Assistante', accent: 'sage' },
+      { id: 'MS', name: 'Marguerite Soulier', role: 'Secrétaire', accent: 'sage' },
       { id: 'RA', name: 'Richard Aubry', role: 'Comptable', accent: 'sage' },
       { id: 'IM', name: 'Inès Monnier', role: 'Juriste', accent: 'amber' },
     ],

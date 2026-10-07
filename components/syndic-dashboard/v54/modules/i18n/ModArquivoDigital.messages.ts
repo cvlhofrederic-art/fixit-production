@@ -91,7 +91,7 @@ export const ARQUIVO_DIGITAL_MESSAGES = defineMessages<ArquivoDigitalTextes>({
   'fr-FR': {
     titre: 'Archives numériques du syndicat',
     chapeau: "Archives dématérialisées à intégrité garantie par empreinte SHA-256 · Recherche avancée · Durées de conservation · Mise à disposition sur l'extranet · Plans, permis & diagnostics",
-    onglets: { arq: 'Archives', pesq: 'Recherche', cert: 'Certification', proj: 'Plans, permis & diagnostics', cfg: 'Paramètres' },
+    onglets: { arq: 'Archives', pesq: 'Recherche', cert: 'Certification', proj: 'Plans, permis & diagnostics', cfg: 'Configuration' },
     kpi: { total: 'Total des documents', categories: 'Catégories', stockage: 'Stockage', stockageNum: '2,5 Mo', dernierDepot: 'Dernier dépôt', dernierDepotNum: '10/02/2025' },
     arborescence: 'Arborescence des documents',
     ajouterDocument: '+ Ajouter un document',
@@ -111,7 +111,7 @@ export const ARQUIVO_DIGITAL_MESSAGES = defineMessages<ArquivoDigitalTextes>({
     voirAria: 'Voir le document',
     voirTitre: 'Voir',
     bientotVoir: { titre: 'Voir le document', desc: 'La consultation des documents est en cours de développement' },
-    telechargerAria: 'Télécharger',
+    telechargerAria: 'Télécharger le document',
     bientotTelecharger: { titre: 'Télécharger le document', desc: 'Le téléchargement est en cours de développement' },
     separateur: {
       surtitre: 'OBLIGATION LÉGALE · DÉCRET DU 17 MARS 1967, ART. 33',

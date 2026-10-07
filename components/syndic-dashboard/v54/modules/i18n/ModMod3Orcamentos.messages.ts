@@ -134,7 +134,7 @@ export const MOD3_ORCAMENTOS_MESSAGES = defineMessages<Mod3OrcamentosTextes>({
       delai: 'Délai',
       recommande: 'Recommandé',
       moinsDisant: 'Moins-disant',
-      jours: (n) => `${n} jours`,
+      jours: (n) => `${n} jour${n > 1 ? 's' : ''}`,
       nomEntreprise: "Nom de l'entreprise",
       montantEuros: 'Montant (€)',
       delaiJours: 'Délai (jours)',

@@ -270,7 +270,7 @@ export const CANAL_MESSAGES = defineMessages<CanalTextes>({
       cloturee: 'Mission clôturée',
     },
     dateCreation: '15 mai 2026',
-    roles: { gestionnaireNom: 'Gestionnaire', gestionnaire: 'Gestionnaire technique', prestataire: 'Prestataire certifié Vitfix', demandeur: 'Demandeur' },
+    roles: { gestionnaireNom: 'Gestionnaire', gestionnaire: 'Gestionnaire technique', prestataire: 'Prestataire certifié VitFix', demandeur: 'Demandeur' },
     toasts: {
       messageEnvoye: 'Message envoyé',
       destinataire: (nom) => `À ${nom}`,
