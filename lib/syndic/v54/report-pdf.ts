@@ -6,6 +6,7 @@
 
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import type { V54Locale } from '@/lib/syndic/v54/i18n/locale'
 
 export interface PdfKpi { label: string; value: string }
 export interface PdfTable { caption?: string; headers: string[]; rows: (string | number)[][] }
@@ -26,6 +27,19 @@ const MUTED: [number, number, number] = [107, 114, 128]
 
 type DocWithTable = jsPDF & { lastAutoTable?: { finalY: number } }
 
+/** Mentions fixes du rapport, selon la langue. */
+const MENTIONS: Record<V54Locale, { genere: (date: string) => string; observations: string; pied: string }> = {
+  'pt-PT': { genere: (date) => `Gerado a ${date}`, observations: 'Observações', pied: 'Gerado por Vitfix · vitfix.io' },
+  'fr-FR': { genere: (date) => `Généré le ${date}`, observations: 'Observations', pied: 'Généré par Vitfix · vitfix.io' },
+}
+
+/**
+ * Helvetica (encodage WinAnsi) n'a pas l'espace fine insécable U+202F que produit
+ * Intl en fr-FR (séparateur de milliers, « 12 345 € ») : jsPDF rendrait la chaîne
+ * illisible. On la remplace par l'espace insécable U+00A0, présente en WinAnsi.
+ */
+const texte = (s: string): string => s.replace(/\u202F/g, '\u00A0')
+
 const today = (): string => {
   const d = new Date()
   const p = (n: number) => String(n).padStart(2, '0')
@@ -38,9 +52,23 @@ const today = (): string => {
  * Lève côté serveur (à appeler depuis un handler client). Calque l'esprit de
  * lib/rapport-pdf.ts (jsPDF, Helvetica, palette navy/gold).
  */
-export function downloadReportPdf(filename: string, spec: ReportSpec): void {
+export function downloadReportPdf(filename: string, specBrute: ReportSpec, locale: V54Locale = 'pt-PT'): void {
   if (typeof document === 'undefined') throw new Error('Geração de PDF indisponível no servidor')
 
+  const mentions = MENTIONS[locale]
+  const spec: ReportSpec = {
+    ...specBrute,
+    title: texte(specBrute.title),
+    subtitle: specBrute.subtitle && texte(specBrute.subtitle),
+    periodLabel: specBrute.periodLabel && texte(specBrute.periodLabel),
+    kpis: specBrute.kpis?.map((k) => ({ label: texte(k.label), value: texte(String(k.value)) })),
+    tables: specBrute.tables?.map((t) => ({
+      caption: t.caption && texte(t.caption),
+      headers: t.headers.map(texte),
+      rows: t.rows.map((r) => r.map((c) => (typeof c === 'string' ? texte(c) : c))),
+    })),
+    notes: specBrute.notes && texte(specBrute.notes),
+  }
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const W = doc.internal.pageSize.getWidth()
   const M = 14
@@ -61,10 +89,10 @@ export function downloadReportPdf(filename: string, spec: ReportSpec): void {
   }
   doc.setFontSize(9)
   doc.setTextColor(252, 211, 77)
-  doc.text(spec.periodLabel ? `${spec.periodLabel}` : `Gerado a ${today()}`, W - M, 13, { align: 'right' })
+  doc.text(spec.periodLabel ? `${spec.periodLabel}` : mentions.genere(today()), W - M, 13, { align: 'right' })
   if (spec.periodLabel) {
     doc.setTextColor(203, 213, 225)
-    doc.text(`Gerado a ${today()}`, W - M, 19.5, { align: 'right' })
+    doc.text(mentions.genere(today()), W - M, 19.5, { align: 'right' })
   }
 
   // ── KPIs (grille de cartes) ──
@@ -119,7 +147,7 @@ export function downloadReportPdf(filename: string, spec: ReportSpec): void {
     doc.setTextColor(...NAVY)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.text('Observações', M, y)
+    doc.text(mentions.observations, M, y)
     y += 6
     doc.setTextColor(...INK)
     doc.setFont('helvetica', 'normal')
@@ -135,7 +163,7 @@ export function downloadReportPdf(filename: string, spec: ReportSpec): void {
     doc.setTextColor(...MUTED)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8)
-    doc.text('Gerado por Vitfix · vitfix.io', M, H - 8)
+    doc.text(mentions.pied, M, H - 8)
     doc.text(`${p}/${pages}`, W - M, H - 8, { align: 'right' })
   }
 

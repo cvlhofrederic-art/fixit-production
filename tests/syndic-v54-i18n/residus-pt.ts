@@ -8,6 +8,8 @@
  * agents, nombres) passent ; une exception explicite se déclare dans IDENTIQUES_AUTORISES.
  */
 
+import { AUTORISES_PAR_LOT } from './autorises'
+
 const ORTHOGRAPHE_PT = /[íóúãõÍÓÚÃÕ]/
 
 const MOTS_PT = [
@@ -40,6 +42,10 @@ export const IDENTIQUES_AUTORISES: ReadonlySet<string> = new Set<string>([
   'Total', 'Normal', 'Info', 'Email', 'E-mail', 'Gmail', 'Dashboard', 'Benchmarking', 'Checklists IA', 'Marketplace',
   // Libellés de la sidebar FR identiques au PT, corrects en français.
   'Chatbot WhatsApp 24/7',
+  // Mots identiques et corrects en français.
+  'Urgente', 'Urgent', 'Type', 'Description', 'Code', 'Date', 'Note', 'Message', 'Messages', 'Document', 'Documents',
+  // Exceptions déclarées par les lots de modules (tests/syndic-v54-i18n/autorises/lot-NN.ts).
+  ...AUTORISES_PAR_LOT,
 ])
 
 /** Texte relevé par le parcours (« @attribut=valeur » pour les attributs). */

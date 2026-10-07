@@ -9,6 +9,8 @@ import { Button } from '../primitives/button'
 import { useToast } from '../primitives/toast'
 import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import { ORDENS_MESSAGES } from './i18n/ModOrdens.messages'
 
 /**
  * Modal partagé « Nova missão » → POST /api/syndic/missions, pré-remplissable.
@@ -33,6 +35,8 @@ export function NovaMissaoModal({
   const data = useSyndicData()
   const real = data.authenticated
   const { push } = useToast()
+  const t = useMessages(ORDENS_MESSAGES)
+  const f = t.formulaire
   const [form, setForm] = useState({ immeuble: prefillImmeuble, type: '', description: '', priorite: 'normale', artisan: prefillArtisan })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
@@ -44,9 +48,9 @@ export function NovaMissaoModal({
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const errs: Record<string, string> = {}
-    if (!form.immeuble.trim()) errs.immeuble = 'O edifício é obrigatório.'
-    if (!form.type.trim()) errs.type = 'O tipo é obrigatório.'
-    if (!form.description.trim()) errs.description = 'A descrição é obrigatória.'
+    if (!form.immeuble.trim()) errs.immeuble = t.erreurs.immeuble
+    if (!form.type.trim()) errs.type = t.erreurs.type
+    if (!form.description.trim()) errs.description = t.erreurs.description
     if (Object.keys(errs).length) { setErrors(errs); return }
     if (real && data.token) {
       setBusy(true)
@@ -56,54 +60,54 @@ export function NovaMissaoModal({
         body: JSON.stringify({ immeuble: form.immeuble, type: form.type, description: form.description, priorite: form.priorite, artisan: form.artisan }),
       })
         .then((res) => { if (!res.ok) throw new Error() })
-        .then(() => { data.refresh?.(); onClose(); push({ kind: 'success', title: 'Missão criada', desc: form.type }) })
-        .catch(() => push({ kind: 'error', title: 'Erro ao criar a missão', desc: 'Tente novamente mais tarde' }))
+        .then(() => { data.refresh?.(); onClose(); push({ kind: 'success', title: t.toasts.creee, desc: form.type }) })
+        .catch(() => push({ kind: 'error', title: t.toasts.erreurCreation, desc: t.toasts.reessayerPlusTard }))
         .finally(() => setBusy(false))
       return
     }
     onClose()
-    push({ kind: 'info', title: 'Missão criada (demo)', desc: 'Conecte-se como síndico para gravar a sério' })
+    push({ kind: 'info', title: t.toasts.creeeDemo, desc: t.toasts.connexionRequise })
   }
   return (
     <Modal open={open} onClose={onClose} labelledBy="nms-title" size="md">
-      <ModalHead icon="plus" id="nms-title" title="Nova missão" onClose={onClose} />
+      <ModalHead icon="plus" id="nms-title" title={t.nouvelleMission} onClose={onClose} />
       <form onSubmit={submit} noValidate>
         <ModalBody>
-          <Field label="Edifício" required full name="nms-imovel" error={errors.immeuble}>
+          <Field label={f.immeuble} required full name="nms-imovel" error={errors.immeuble}>
             {lockImmeuble ? (
               <input type="text" value={form.immeuble} readOnly />
             ) : real && data.immeubles.length > 0 ? (
               <select value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)}>
-                <option value="">Selecione…</option>
+                <option value="">{f.selectionner}</option>
                 {data.immeubles.map((im) => <option key={im.id} value={im.nom}>{im.nom}</option>)}
               </select>
             ) : (
-              <input type="text" placeholder="Nome do edifício" value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
+              <input type="text" placeholder={f.nomImmeuble} value={form.immeuble} onChange={(e) => upd('immeuble', e.target.value)} />
             )}
           </Field>
           <FormRow>
-            <Field label="Tipo" required name="nms-tipo" error={errors.type}>
-              <input type="text" placeholder="Ex.: Canalização" value={form.type} onChange={(e) => upd('type', e.target.value)} />
+            <Field label={f.type} required name="nms-tipo" error={errors.type}>
+              <input type="text" placeholder={f.typeExemple} value={form.type} onChange={(e) => upd('type', e.target.value)} />
             </Field>
-            <Field label="Prioridade" name="nms-prio">
+            <Field label={f.priorite} name="nms-prio">
               <select value={form.priorite} onChange={(e) => upd('priorite', e.target.value)}>
-                <option value="basse">Baixa</option>
-                <option value="normale">Normal</option>
-                <option value="haute">Alta</option>
-                <option value="urgente">Urgente</option>
+                <option value="basse">{f.priorites.basse}</option>
+                <option value="normale">{f.priorites.normale}</option>
+                <option value="haute">{f.priorites.haute}</option>
+                <option value="urgente">{f.priorites.urgente}</option>
               </select>
             </Field>
           </FormRow>
-          <Field label="Descrição" required full name="nms-desc" error={errors.description}>
-            <textarea rows={3} placeholder="Descreva a intervenção…" value={form.description} onChange={(e) => upd('description', e.target.value)} />
+          <Field label={f.description} required full name="nms-desc" error={errors.description}>
+            <textarea rows={3} placeholder={f.descriptionPlaceholder} value={form.description} onChange={(e) => upd('description', e.target.value)} />
           </Field>
-          <Field label="Profissional (opcional)" full name="nms-art">
-            <input type="text" placeholder="Nome do profissional" value={form.artisan} onChange={(e) => upd('artisan', e.target.value)} readOnly={lockArtisan} />
+          <Field label={f.prestataireOptionnel} full name="nms-art">
+            <input type="text" placeholder={f.nomPrestataire} value={form.artisan} onChange={(e) => upd('artisan', e.target.value)} readOnly={lockArtisan} />
           </Field>
         </ModalBody>
         <ModalFoot>
-          <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>Criar missão</button>
+          <Button variant="ghost" onClick={onClose}>{f.annuler}</Button>
+          <button type="submit" className={clsx(btnCss.btn, btnCss.gold)} disabled={busy}>{f.creer}</button>
         </ModalFoot>
       </form>
     </Modal>

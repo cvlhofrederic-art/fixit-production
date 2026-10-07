@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useToast } from '../primitives/toast'
 import type { PillKind } from '../primitives/pill'
 import type { IconName } from '@/lib/syndic/icon-names'
+import { useMessages } from '@/lib/syndic/v54/i18n'
+import type { V54Locale } from '@/lib/syndic/v54/i18n/locale'
+import { HOOKS_MESSAGES, STATUTS_DOCUMENT, TYPES_DOCUMENT } from './i18n/hooks.messages'
 
 /** Document Léa tel que renvoyé par GET /api/syndic/lea-documents. */
 export interface LeaDocument {
@@ -30,24 +33,15 @@ export interface LeaDocMeta {
   date_doc?: string
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  facture_artisan: 'Fatura',
-  facture_syndic: 'Fatura',
-  devis: 'Orçamento',
-  contrat: 'Contrato',
-  rib: 'RIB',
-  ata_ag: 'Ata Assembleia',
-  releve_bancaire: 'Extrato bancário',
-  pv_assemblee: 'Ata Assembleia',
-  autre: 'Documento',
-}
-export const docTypeLabel = (t: string): string => TYPE_LABEL[t] ?? 'Documento'
+/** Libellé du type de document (PT par défaut). */
+export const docTypeLabel = (t: string, locale: V54Locale = 'pt-PT'): string =>
+  TYPES_DOCUMENT[locale][t] ?? TYPES_DOCUMENT[locale].autre
 
+/** Couleur du type de document, d'après le code (factures, procès-verbaux, devis, autres). */
 export const docTypeKind = (t: string): PillKind => {
-  const l = docTypeLabel(t)
-  if (l === 'Fatura') return 'sage'
-  if (l.includes('Ata')) return 'gold'
-  if (l === 'Orçamento') return 'amber'
+  if (t === 'facture_artisan' || t === 'facture_syndic') return 'sage'
+  if (t === 'ata_ag' || t === 'pv_assemblee') return 'gold'
+  if (t === 'devis') return 'amber'
   return 'rust'
 }
 
@@ -66,13 +60,8 @@ export const docTypeIcon = (t: string): IconName => {
   return ICONS[t] ?? 'doc'
 }
 
-const STATUS_LABEL: Record<LeaDocument['status'], string> = {
-  pending: 'Em fila',
-  processing: 'A processar',
-  processed: 'Processado',
-  error: 'Erro',
-}
-export const docStatusLabel = (s: LeaDocument['status']): string => STATUS_LABEL[s] ?? s
+/** Libellé du statut de traitement Léa (PT par défaut). */
+export const docStatusLabel = (s: LeaDocument['status'], locale: V54Locale = 'pt-PT'): string => STATUTS_DOCUMENT[locale][s] ?? s
 export const docStatusKind = (s: LeaDocument['status']): PillKind =>
   s === 'processed' ? 'sage' : s === 'error' ? 'rust' : s === 'processing' ? 'amber' : 'gold'
 
@@ -152,6 +141,7 @@ interface UseLeaDocActionsResult {
  */
 export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult {
   const { push } = useToast()
+  const t = useMessages(HOOKS_MESSAGES).documents
   const [pending, setPending] = useState<LeaDocRef | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -159,15 +149,15 @@ export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult
     try {
       const res = await fetch(`/api/syndic/lea-documents/${id}`)
       if (!res.ok) {
-        push({ kind: 'error', title: 'Não foi possível abrir', desc: 'Documento indisponível ou sessão expirada.' })
+        push({ kind: 'error', title: t.ouvertureImpossible, desc: t.indisponible })
         return
       }
       const data = (await res.json()) as { signed_url?: string }
       if (data.signed_url) window.open(data.signed_url, '_blank', 'noopener,noreferrer')
     } catch {
-      push({ kind: 'error', title: 'Erro de rede', desc: 'Não foi possível abrir o documento.' })
+      push({ kind: 'error', title: t.erreurReseau, desc: t.ouvertureReseau })
     }
-  }, [push])
+  }, [push, t])
 
   const confirmDelete = useCallback(async () => {
     if (!pending) return
@@ -175,18 +165,18 @@ export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult
     try {
       const res = await fetch(`/api/syndic/lea-documents/${pending.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        push({ kind: 'error', title: 'Erro ao eliminar', desc: 'Tente novamente mais tarde.' })
+        push({ kind: 'error', title: t.erreurSuppression, desc: t.reessayerPlusTardPoint })
         return
       }
-      push({ kind: 'success', title: 'Documento eliminado', desc: pending.filename })
+      push({ kind: 'success', title: t.supprime, desc: pending.filename })
       setPending(null)
       onChanged?.()
     } catch {
-      push({ kind: 'error', title: 'Erro de rede', desc: 'Não foi possível eliminar o documento.' })
+      push({ kind: 'error', title: t.erreurReseau, desc: t.suppressionReseau })
     } finally {
       setBusy(false)
     }
-  }, [pending, push, onChanged])
+  }, [pending, push, onChanged, t])
 
   return {
     open,
