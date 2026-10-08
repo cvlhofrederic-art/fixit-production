@@ -27,7 +27,8 @@ import { calculerVeilleFixy, type RappelVeille } from '@/lib/administrateur-judi
 import type { EntreeIndexRecherche } from '@/lib/administrateur-judiciaire/domain/recherche'
 import { PIECES_REPRISE, piecesRepriseRecues } from '@/lib/administrateur-judiciaire/domain/reprise'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
-import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
+import { selonMode } from '@/lib/administrateur-judiciaire/donnees-selon-mode'
+import { AUJOURDHUI_ISO, MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Action que Fixy sait exécuter : une action proposée (veille, demande, courriel) ou une simple navigation
@@ -114,7 +115,8 @@ export function useFixy(): Fixy {
       code: copro.code,
       nom: copro.nom,
     })),
-    ordresDeService: DEMO_ORDRES_DE_SERVICE,
+    // Mode réel : aucun ordre de service de démonstration (la base n'en porte pas encore).
+    ordresDeService: selonMode(MODE_ACTIF, DEMO_ORDRES_DE_SERVICE, []),
     impayes,
   }
 

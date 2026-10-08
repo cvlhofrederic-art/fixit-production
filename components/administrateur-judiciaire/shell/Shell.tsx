@@ -1,9 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
-import { DEMO_NOTIFICATIONS } from '@/components/administrateur-judiciaire/data/notifications'
-import { DEMO_PRESTATAIRES } from '@/components/administrateur-judiciaire/data/prestataires'
 import { useFixy } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useFixy'
 import { TableauDeBordModule } from '@/components/administrateur-judiciaire/modules/mandat/TableauDeBordModule'
 import { REGISTRE_ECRANS, statutEcran } from '@/components/administrateur-judiciaire/modules/registry'
@@ -23,7 +20,13 @@ import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import {
+  useDonneesCadre,
+  useNomsCoproprietesSelonMode,
+  useNomsPrestatairesSelonMode,
+} from '@/lib/administrateur-judiciaire/db/hooks'
 import { useIndexRecherche } from '@/lib/administrateur-judiciaire/db/use-index-recherche'
+import { NOTIFICATIONS_LUES_INITIALES_DEMO } from '@/lib/administrateur-judiciaire/donnees-selon-mode'
 import {
   rechercherDansIndex,
   type EntreeIndexRecherche,
@@ -51,8 +54,6 @@ const NB_FAVORIS_MAX = 8
 /** Nombre de routes récentes conservées (« logout » exclu). */
 const NB_RECENTS_MAX = 5
 
-/** Notifications de démonstration déjà lues à l'ouverture (état en mémoire uniquement). */
-const NOTIFICATIONS_LUES_INITIALES = ['n06', 'n07', 'n08', 'n09', 'n10', 'n11', 'n12']
 
 /** Rôle conservé, sans contrôle de la valeur (comme la maquette) ; « Direction » par défaut. */
 function lireRoleStocke(): RoleCabinet {
@@ -416,11 +417,12 @@ function PaletteCommandes({
 
 // ── Nouvelle intervention ─────────────────────────────────────────────────────────────────────────────────────────
 
-const CHAMPS_NOUVEL_ORDRE_DE_SERVICE: ChampFormModal[] = [
+/** Champs du formulaire ; copropriétés et prestataires : démonstration en démo, base en mode réel. */
+const champsNouvelOrdreDeService = (nomsCoproprietes: string[], nomsPrestataires: string[]): ChampFormModal[] => [
   {
     label: 'Copropriété',
     type: 'select',
-    options: DEMO_NOMS_COPROPRIETES,
+    options: nomsCoproprietes,
     full: true,
   },
   {
@@ -431,7 +433,7 @@ const CHAMPS_NOUVEL_ORDRE_DE_SERVICE: ChampFormModal[] = [
   {
     label: 'Prestataire',
     type: 'select',
-    options: DEMO_PRESTATAIRES.map((prestataire) => prestataire.nom),
+    options: nomsPrestataires,
   },
   {
     label: 'Urgence',
@@ -458,7 +460,14 @@ export function Shell() {
   const [requete, setRequete] = useState('')
   const [indexFocalise, setIndexFocalise] = useState(0)
   const [notificationsOuvertes, setNotificationsOuvertes] = useState(false)
-  const [notificationsLues, setNotificationsLues] = useState<Set<string>>(() => new Set(NOTIFICATIONS_LUES_INITIALES))
+  const [notificationsLues, setNotificationsLues] = useState<Set<string>>(
+    () => new Set(MODE_ACTIF === 'demo' ? NOTIFICATIONS_LUES_INITIALES_DEMO : []),
+  )
+  const { notifications: notificationsCentre, idsLusBase, alerteLecture } = useDonneesCadre()
+  const nomsCoproprietes = useNomsCoproprietesSelonMode()
+  const nomsPrestataires = useNomsPrestatairesSelonMode()
+  /** Lue dans cette session, ou (mode réel) marquée lue dans la base. */
+  const estLue = (id: string) => notificationsLues.has(id) || idsLusBase.includes(id)
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false)
   const [interventionOuverte, setInterventionOuverte] = useState(false)
   const [favoris, setFavoris] = useState<string[]>(() => lireJsonStocke<string[]>(CLE_FAVORIS, '[]', []))
@@ -467,7 +476,7 @@ export function Shell() {
   const boutonNotificationsRef = useRef<HTMLButtonElement>(null)
   /** Ouverture de la palette, lue par l'écouteur clavier global (installé une seule fois). */
   const paletteOuverteRef = useRef(false)
-  const nbNonLues = DEMO_NOTIFICATIONS.filter((notification) => !notificationsLues.has(notification.id)).length
+  const nbNonLues = notificationsCentre.filter((notification) => !estLue(notification.id)).length
   // Une route absente du registre retombe sur le tableau de bord.
   const Ecran = ECRANS_PAR_ANCRE[route] || TableauDeBordModule
 
@@ -589,7 +598,7 @@ export function Shell() {
       return suivantes
     })
 
-  const toutMarquerLu = () => setNotificationsLues(new Set(DEMO_NOTIFICATIONS.map((notification) => notification.id)))
+  const toutMarquerLu = () => setNotificationsLues(new Set(notificationsCentre.map((notification) => notification.id)))
 
   const basculerSection = (titre: string) =>
     setSectionsRepliees((repliees) => ({
@@ -896,8 +905,8 @@ export function Shell() {
                     )}
                   </header>
                   <ul className="notifs-list" role="list">
-                    {DEMO_NOTIFICATIONS.map((notification) => {
-                      const nonLue = !notificationsLues.has(notification.id)
+                    {notificationsCentre.map((notification) => {
+                      const nonLue = !estLue(notification.id)
                       return (
                         <li className={`notifs-item ${nonLue ? 'unread' : ''}`} key={notification.id}>
                           <button
@@ -945,6 +954,15 @@ export function Shell() {
           </div>
           <div className="content" role="region" aria-label="Page">
             <RoleCabinetContext.Provider value={role}>
+              {alerteLecture && (
+                <div className="alert rust" role="alert">
+                  <Icon name="alert" />
+                  <div>
+                    <b>{alerteLecture.titre}</b>
+                    <p>{alerteLecture.message}</p>
+                  </div>
+                </div>
+              )}
               {MODE_ACTIF === 'reel' && statut !== 'reel' && (
                 <div className="alert warn" role="alert">
                   <Icon name="alert" />
@@ -967,7 +985,7 @@ export function Shell() {
           onClose={() => setInterventionOuverte(false)}
           title="Nouvel ordre de service"
           icon="clipboard"
-          fields={CHAMPS_NOUVEL_ORDRE_DE_SERVICE}
+          fields={champsNouvelOrdreDeService(nomsCoproprietes, nomsPrestataires)}
           submitLabel="Créer"
           onDone={() =>
             push({
