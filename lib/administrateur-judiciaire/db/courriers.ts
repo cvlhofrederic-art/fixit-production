@@ -4,6 +4,7 @@ import type { Courrier } from '@/lib/administrateur-judiciaire/db/schema'
 import {
   controlerAccuseReception,
   controlerDepot,
+  controlerPremierePresentation,
   preparerCourrier,
 } from '@/lib/administrateur-judiciaire/domain/courriers'
 
@@ -37,7 +38,20 @@ export async function enregistrerDepot(
   return repoCourriers.update(id, { dateDepot, referenceDiffusion, statut: 'A Suivre' }, options)
 }
 
-/** Enregistre l'accusé de réception d'un courrier AR déposé (date AAAA-MM-JJ, non antérieure au dépôt). */
+/**
+ * Enregistre la date de PREMIÈRE présentation du pli par La Poste (J1) : elle fait courir le délai de l'art. 42,
+ * que le pli soit retiré ou non. Une présentation postérieure à celle déjà saisie est refusée.
+ */
+export async function enregistrerPremierePresentation(
+  id: string,
+  datePremierePresentation: string,
+  options?: OptionsEcriture,
+): Promise<Courrier> {
+  controlerPremierePresentation(await lireCourrier(id), datePremierePresentation)
+  return repoCourriers.update(id, { datePremierePresentation }, options)
+}
+
+/** Enregistre l'accusé de réception (retrait du pli) d'un AR présenté (date AAAA-MM-JJ, non antérieure). */
 export async function enregistrerAccuseReception(
   id: string,
   dateAccuseReception: string,

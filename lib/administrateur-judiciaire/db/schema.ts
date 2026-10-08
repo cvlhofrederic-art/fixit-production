@@ -307,6 +307,12 @@ export interface Courrier extends EntiteEnregistree {
   personneId: string | null
   entrepriseId: string | null
   dateDepot: string | null
+  /**
+   * Date de la PREMIÈRE présentation du pli par La Poste (décision J1 du 08/10/2026) : c'est elle qui fait courir le
+   * délai de l'art. 42 al. 2, que le pli ait été retiré ou non. Ni la date de dépôt, ni celle du retrait.
+   */
+  datePremierePresentation: string | null
+  /** Date de signature de l'avis de réception (retrait du pli) : information de suivi, sans effet sur les délais. */
   dateAccuseReception: string | null
   referenceDiffusion: string | null
 }
@@ -327,6 +333,12 @@ export interface ChangementStatut extends EntiteEnregistree {
   statutNouveau: string
   dateEffet: string
   courrierId: string | null
+  /**
+   * Saut d'étape en avant (décision J2 du 08/10/2026) : permis, mais marqué hors séquence avec un motif obligatoire.
+   * Absent sur les lignes écrites avant J2 : lu comme `false` / `null`.
+   */
+  horsSequence?: boolean
+  motif?: string | null
 }
 
 export interface Resolution extends EntiteEnregistree {

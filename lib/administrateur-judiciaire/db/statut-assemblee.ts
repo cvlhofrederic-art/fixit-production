@@ -13,22 +13,24 @@ import { historiqueTrie, preparerChangementStatutAg } from '@/lib/administrateur
 export interface OptionsChangementStatut {
   /** Date de l'acte (AAAA-MM-JJ) : convocation envoyée, PV signé, notification présentée. Pas la date de saisie. */
   dateEffet: string
-  /** Courrier AR qui prouve l'acte (T30) ; null tant que l'entité Courrier n'existe pas. */
+  /** Courrier AR qui prouve l'acte (T30). */
   courrierId?: string | null
+  /** Motif obligatoire d'un saut d'étape (J2) ; ignoré pour un passage à l'étape suivante. */
+  motif?: string | null
   actor?: string | null
 }
 
 export function changerStatutAg(
   agId: string,
   nouveau: StatutAssemblee,
-  { dateEffet, courrierId = null, actor = null }: OptionsChangementStatut,
+  { dateEffet, courrierId = null, motif = null, actor = null }: OptionsChangementStatut,
 ): Promise<Ag> {
   return ajDb.transaction('rw', ajDb.ags, ajDb.changementsStatut, ajDb.courriers, ajDb.activityLog, async () => {
     const avant = await ajDb.ags.get(agId)
     if (!avant) throw new Error(`ags introuvable (id=${agId})`)
     if (courrierId && !(await ajDb.courriers.get(courrierId)))
       throw new Error(`Courrier introuvable (id=${courrierId}) : impossible de le rattacher au changement de statut.`)
-    const { statut, changement } = preparerChangementStatutAg(avant, nouveau, dateEffet, courrierId)
+    const { statut, changement } = preparerChangementStatutAg(avant, nouveau, dateEffet, courrierId, motif)
     const maintenant = new Date().toISOString()
     const apres: Ag = { ...avant, statut, updatedAt: maintenant, updatedBy: actor }
     const ligne: ChangementStatut = {
