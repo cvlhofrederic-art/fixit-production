@@ -36,8 +36,15 @@ export const dateLocaleIso = (d: Date): string =>
 
 export const MODE_ACTIF: Mode = lireModeStocke()
 
+/**
+ * Jour courant (AAAA-MM-JJ) pour un mode donné : date figée en démonstration, jour local de `maintenant` sinon.
+ * Fonction pure : la date système est injectée, jamais lue ici.
+ */
+export const calculerDateDuJourIso = (mode: Mode, maintenant: Date): string =>
+  mode === 'demo' ? DATE_DEMO_ISO : dateLocaleIso(maintenant)
+
 /** Jour courant de l'application (AAAA-MM-JJ) : date figée en démonstration, date réelle sinon. */
-export const DATE_DU_JOUR_ISO: string = MODE_ACTIF === 'demo' ? DATE_DEMO_ISO : dateLocaleIso(new Date())
+export const DATE_DU_JOUR_ISO: string = calculerDateDuJourIso(MODE_ACTIF, new Date())
 
 /** Jour courant à minuit UTC (une chaîne AAAA-MM-JJ est interprétée en UTC). */
 export const AUJOURDHUI: Date = new Date(DATE_DU_JOUR_ISO)

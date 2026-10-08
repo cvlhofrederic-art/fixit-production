@@ -19,8 +19,7 @@ import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { formatDureeHms, formatDureeMinutes } from '@/lib/administrateur-judiciaire/domain/format'
 import {
   calculerStatutSuiviDossier,
-  DATE_REFERENCE_SUIVI_DOSSIERS,
-  parserDateEcheanceSuivi,
+  joursAvantEcheanceSuivi,
 } from '@/lib/administrateur-judiciaire/domain/suivi-dossiers'
 
 /** Clé localStorage du seuil d'alerte de retard de traitement (jours). */
@@ -43,8 +42,7 @@ const lireSeuilStocke = (): number => {
  * Texte de l'alerte d'un dossier non « à jour ». « 1 jours » (pluriel invariable) est conservé tel quel.
  */
 export const texteAlerteSuiviDossier = (dossier: DossierSuiviAvecStatut): string => {
-  const echeance = parserDateEcheanceSuivi(dossier.echeance),
-    jours = echeance ? Math.round((echeance.getTime() - DATE_REFERENCE_SUIVI_DOSSIERS.getTime()) / 864e5) : null
+  const jours = joursAvantEcheanceSuivi(dossier.echeance)
   return dossier.stat.k === 'retard'
     ? jours != null && jours < 0
       ? 'Échéance dépassée de ' + -jours + ' jours'

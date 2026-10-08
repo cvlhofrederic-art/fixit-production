@@ -24,12 +24,17 @@ export const dateFrVersDate = (valeur: string | null | undefined): Date | null =
 }
 
 /**
- * Nombre de jours entre le jour courant de l'application et une date « JJ/MM/AAAA ».
- * Même calcul que la maquette : minuit UTC du jour courant contre minuit local de la cible, arrondi supérieur.
+ * Nombre de jours entre une date de référence (AAAA-MM-JJ) et une date « JJ/MM/AAAA ».
+ * La référence est explicite ; par défaut, le jour courant du mode actif (date figée en démonstration, date
+ * système en mode réel). Même calcul que la maquette : minuit UTC de la référence contre minuit local de la
+ * cible, arrondi supérieur.
  */
-export const joursAvantDateFr = (valeur: string | null | undefined): number | null => {
+export const joursAvantDateFr = (
+  valeur: string | null | undefined,
+  dateReferenceIso: string = DATE_DU_JOUR_ISO,
+): number | null => {
   const cible = dateFrVersDate(valeur)
-  return cible ? Math.ceil((cible.getTime() - new Date(DATE_DU_JOUR_ISO).getTime()) / 864e5) : null
+  return cible ? Math.ceil((cible.getTime() - new Date(dateReferenceIso).getTime()) / 864e5) : null
 }
 
 export const REGEX_DATE_ISO = /^(\d{4})-(\d{2})-(\d{2})$/
