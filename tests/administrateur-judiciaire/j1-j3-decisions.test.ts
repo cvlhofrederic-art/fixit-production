@@ -98,35 +98,53 @@ describe('J1 — point de départ : la première présentation du pli', () => {
     for (const autre of [courrier({ dateDepot: '2026-02-20' }), courrier({ dateAccuseReception: '2026-03-16' })])
       expect(finDelaiContestationAg(chaineComplete(), [autre], 'ag-1')).toEqual(base)
     expect(finDelaiContestationAg(chaineComplete(), [courrier({ datePremierePresentation: '2026-03-04' })], 'ag-1')).toMatchObject({
-      echeanceRetenue: '2026-05-04',
+      echeanceRetenue: '2026-05-05',
     })
   })
 
-  it('échéance au même quantième deux mois plus tard, sans report par défaut ; les deux dates si elles divergent', () => {
-    // Présentation le lundi 02/03/2026 → 02/05/2026, un samedi ; avec report : lundi 04/05 (1er mai férié, 3 dimanche).
+  it('exemple de référence : présentée le 4, le délai part le 5 et expire le 5, deux mois plus tard', () => {
+    // 07_DECISIONS_JURIDIQUES (J1) et Simonnet : présentation le 4 février → départ le 5 → échéance le 5 avril à minuit.
+    // Même calcul sur un mois sans férié : présentation le samedi 04/04/2026 → départ le 05/04 → vendredi 05/06/2026.
+    const resultat = finDelaiContestationAg(
+      chaineComplete({ dateEffet: '2026-04-04' }),
+      [courrier({ dateDepot: '2026-04-02', datePremierePresentation: '2026-04-04' })],
+      'ag-1',
+    )
+    expect(resultat).toMatchObject({ pointDeDepart: '2026-04-05', echeanceSansReport: '2026-06-05', divergence: false })
+    expect(resultat.etat === 'calcule' && resultat.justification).toBe(
+      'Deux mois à compter du lendemain de la première présentation du 04/04/2026 (départ le 05/04/2026) : échéance le 05/06/2026 à minuit — L. 1965 art. 42, al. 2.',
+    )
+  })
+
+  it('échéance au même quantième que le lendemain, deux mois plus tard, sans report par défaut ; les deux dates si elles divergent', () => {
+    // Présentation le lundi 02/03/2026 → départ le 03/03 → dimanche 03/05/2026 ; avec report : lundi 04/05.
     expect(finDelaiContestationAg(chaineComplete(), [courrier({})], 'ag-1')).toEqual({
       etat: 'calcule',
       datePremierePresentation: '2026-03-02',
-      echeanceSansReport: '2026-05-02',
+      pointDeDepart: '2026-03-03',
+      echeanceSansReport: '2026-05-03',
       echeanceAvecReport: '2026-05-04',
-      echeanceRetenue: '2026-05-02',
+      echeanceRetenue: '2026-05-03',
       reportApplique: false,
       divergence: true,
+      justification:
+        'Deux mois à compter du lendemain de la première présentation du 02/03/2026 (départ le 03/03/2026) : échéance le 03/05/2026 à minuit — L. 1965 art. 42, al. 2. Report au jour ouvrable débattu : le 04/05/2026 si on l’applique.',
       avertissements: [],
     })
     expect(
       finDelaiContestationAg(chaineComplete(), [courrier({})], 'ag-1', { reporterAuJourOuvrable: true }),
     ).toMatchObject({ echeanceRetenue: '2026-05-04', reportApplique: true, divergence: true })
-    // Présentation le jeudi 05/03/2026 → mardi 05/05/2026 : un seul calcul, pas de divergence.
+    // Présentation le jeudi 05/03/2026 → départ le 06/03 → mercredi 06/05/2026 : un seul calcul, pas de divergence.
     expect(
       finDelaiContestationAg(chaineComplete({ dateEffet: '2026-03-05' }), [courrier({ datePremierePresentation: '2026-03-05' })], 'ag-1'),
-    ).toMatchObject({ echeanceSansReport: '2026-05-05', echeanceAvecReport: '2026-05-05', divergence: false })
+    ).toMatchObject({ echeanceSansReport: '2026-05-06', echeanceAvecReport: '2026-05-06', divergence: false })
   })
 
   it('fin de mois : le quantième absent se ramène au dernier jour du mois', () => {
+    // Présentation le 30/12/2026 → départ le 31/12 → pas de 31 février : 28/02/2027.
     const resultat = finDelaiContestationAg(
-      chaineComplete({ dateEffet: '2026-12-31' }),
-      [courrier({ dateDepot: '2026-12-29', datePremierePresentation: '2026-12-31' })],
+      chaineComplete({ dateEffet: '2026-12-30' }),
+      [courrier({ dateDepot: '2026-12-29', datePremierePresentation: '2026-12-30' })],
       'ag-1',
     )
     expect(resultat).toMatchObject({ echeanceSansReport: '2027-02-28' })
@@ -134,14 +152,18 @@ describe('J1 — point de départ : la première présentation du pli', () => {
 
   it('date d’effet de la notification différente de la présentation : le délai suit la présentation, avec un avertissement', () => {
     const resultat = finDelaiContestationAg(chaineComplete({ dateEffet: '2026-02-27' }), [courrier({})], 'ag-1')
-    expect(resultat).toMatchObject({ etat: 'calcule', echeanceSansReport: '2026-05-02' })
+    expect(resultat).toMatchObject({ etat: 'calcule', echeanceSansReport: '2026-05-03' })
     expect(resultat.etat === 'calcule' && resultat.avertissements[0]).toMatch(/première présentation/)
   })
 
-  it('la règle porte son fondement, sa certitude, et la jurisprudence citée reste « à confirmer »', () => {
+  it('la règle porte son fondement, sa certitude, et la jurisprudence citée, dont la divergence sur le report', () => {
     expect(DELAI_CONTESTATION_AG_ART42.certitude).toBe('A_CONFIRMER')
     expect(DELAI_CONTESTATION_AG_ART42.reportAuJourOuvrableParDefaut).toBe(false)
-    expect(DELAI_CONTESTATION_AG_ART42.jurisprudence.map((j) => j.verification)).toEqual(['A_CONFIRMER'])
+    expect(DELAI_CONTESTATION_AG_ART42.jurisprudence.map((j) => [j.citation.match(/n° [\d.-]+\d/)?.[0], j.verification])).toEqual([
+      ['n° 24-18.842', 'SOURCE_SECONDAIRE'],
+      ['n° 94-21.498', 'SOURCE_SECONDAIRE'],
+      ['n° 02-11.134', 'SOURCE_SECONDAIRE'],
+    ])
     expect(DELAI_CONTESTATION_AG_ART42.note).toMatch(/première présentation/)
   })
 

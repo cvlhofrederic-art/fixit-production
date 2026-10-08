@@ -121,7 +121,7 @@ describe('T31 — délai accroché à la notification (R9)', () => {
       ligne({ id: 'c3', courrierId: 'k1', dateEffet: '2026-03-03', ...notification }),
     ]
     const base = finDelaiContestationAg(chaine({}), [courrier({})], 'ag-1')
-    expect(base).toMatchObject({ etat: 'calcule', echeanceRetenue: '2026-05-03' })
+    expect(base).toMatchObject({ etat: 'calcule', echeanceRetenue: '2026-05-04' })
     expect(finDelaiContestationAg(chaine({ createdAt: '2026-06-30T10:00:00.000Z' }), [courrier({})], 'ag-1')).toEqual(base)
     expect(finDelaiContestationAg(chaine({}), [courrier({ datePremierePresentation: '2026-03-16' })], 'ag-1')).not.toEqual(base)
   })

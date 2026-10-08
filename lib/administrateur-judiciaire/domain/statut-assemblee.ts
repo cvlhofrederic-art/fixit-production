@@ -5,7 +5,12 @@ import {
   type CertitudeRegle,
   type Delai,
 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
-import { estDateIsoValide, reporterAuJourOuvrable as reporterJourOuvrable } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterJours,
+  dateIsoVersFr,
+  estDateIsoValide,
+  reporterAuJourOuvrable as reporterJourOuvrable,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import type { ReferenceJurisprudence, ReferenceTexte } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { STATUT_ASSEMBLEE, type StatutAssemblee } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -148,15 +153,26 @@ export const DELAI_CONTESTATION_AG_ART42: RegleDelaiStatut = {
   jurisprudence: [
     {
       citation: 'Cass. 3e civ., 16 avr. 2026, n° 24-18.842, FS-B',
-      portee: 'Le délai court à compter du lendemain de la première présentation de la lettre recommandée.',
-      verification: 'A_CONFIRMER',
+      portee:
+        'Le délai court, dans tous les cas, à compter du lendemain de la première présentation de la lettre recommandée, que le pli soit retiré ou non.',
+      verification: 'SOURCE_SECONDAIRE',
+    },
+    {
+      citation: 'Cass. 3e civ., 26 mars 1997, n° 94-21.498',
+      portee: 'Report au premier jour ouvrable (CPC art. 642) appliqué au délai de l’art. 42 al. 2.',
+      verification: 'SOURCE_SECONDAIRE',
+    },
+    {
+      citation: 'Cass. 3e civ., 4 juin 2003, n° 02-11.134',
+      portee: 'Délai préfix, ni suspendu ni interrompu : pas de report au premier jour ouvrable.',
+      verification: 'SOURCE_SECONDAIRE',
     },
   ],
   delai: delaiMois(2),
   reportAuJourOuvrableParDefaut: false,
   certitude: 'A_CONFIRMER',
   note:
-    "Deux mois à compter de la notification du procès-verbal (L. 1965 art. 42 al. 2). Point de départ : lendemain de la première présentation de la lettre recommandée, que le pli ait été retiré ou non — ni la date d'envoi, ni la date de retrait (décision métier du 08/10/2026). Échéance au même quantième deux mois plus tard, à minuit (CPC art. 641). Le report au premier jour ouvrable (CPC art. 642) est un paramètre désactivé par défaut : date la plus courte ; si les deux calculs divergent, les deux dates sont affichées. Arrêt cité non retrouvé à ce jour : référence à confirmer.",
+    "Deux mois à compter de la notification du procès-verbal (L. 1965 art. 42 al. 2). Point de départ : lendemain de la première présentation de la lettre recommandée, que le pli ait été retiré ou non — ni la date d'envoi, ni la date de retrait (décision métier J1 du 08/10/2026 ; Cass. 3e civ., 16 avr. 2026). Échéance au même quantième que ce lendemain, deux mois plus tard, à minuit (CPC art. 641) : présentée le 4 février, échéance le 5 avril. Le report au premier jour ouvrable (CPC art. 642) est débattu (arrêts de 1997 et de 2003) : paramètre désactivé par défaut, date la plus courte ; si les deux calculs divergent, les deux dates sont affichées. Arrêts connus par des commentaires publiés, texte intégral non relu.",
 }
 
 /** Courrier tel que le lit le moteur de délais (sous-ensemble de Courrier). */
@@ -174,6 +190,8 @@ export type ResultatDelaiContestation =
   | {
       etat: 'calcule'
       datePremierePresentation: string
+      /** Lendemain de la première présentation : jour à partir duquel le délai court. */
+      pointDeDepart: string
       /** Même quantième deux mois plus tard, sans report. */
       echeanceSansReport: string
       /** Même échéance reportée au premier jour ouvrable. */
@@ -183,6 +201,8 @@ export type ResultatDelaiContestation =
       reportApplique: boolean
       /** Les deux calculs divergent : l'écran doit afficher les deux dates. */
       divergence: boolean
+      /** Le calcul en toutes lettres, vérifiable par le gestionnaire. */
+      justification: string
       avertissements: string[]
     }
 
@@ -219,7 +239,8 @@ export function finDelaiContestationAg(
   const preuve = courrierPreuve(notification.courrierId, courriers)
   if ('motif' in preuve) return { etat: 'refuse', motif: `Délai non calculé. ${preuve.motif}` }
   const { presentation } = preuve
-  const echeanceSansReport = appliquerDelai(presentation, DELAI_CONTESTATION_AG_ART42.delai)
+  const pointDeDepart = ajouterJours(presentation, 1)
+  const echeanceSansReport = appliquerDelai(pointDeDepart, DELAI_CONTESTATION_AG_ART42.delai)
   const echeanceAvecReport = reporterJourOuvrable(echeanceSansReport)
   const avertissements =
     notification.dateEffet === presentation
@@ -227,14 +248,25 @@ export function finDelaiContestationAg(
       : [
           `La date d'effet saisie pour la notification (${notification.dateEffet}) diffère de la première présentation du pli (${presentation}) : le délai suit la première présentation.`,
         ]
+  const divergence = echeanceSansReport !== echeanceAvecReport
+  const fr = dateIsoVersFr
+  const depart = `Deux mois à compter du lendemain de la première présentation du ${fr(presentation)} (départ le ${fr(pointDeDepart)})`
+  const fondement = 'L. 1965 art. 42, al. 2.'
+  let justification = `${depart} : échéance le ${fr(echeanceSansReport)} à minuit — ${fondement}`
+  if (divergence)
+    justification = reporterAuJourOuvrable
+      ? `${depart} : échéance reportée au premier jour ouvrable, le ${fr(echeanceAvecReport)} à minuit — ${fondement} Report débattu : le ${fr(echeanceSansReport)} sans report.`
+      : `${justification} Report au jour ouvrable débattu : le ${fr(echeanceAvecReport)} si on l’applique.`
   return {
     etat: 'calcule',
     datePremierePresentation: presentation,
+    pointDeDepart,
     echeanceSansReport,
     echeanceAvecReport,
     echeanceRetenue: reporterAuJourOuvrable ? echeanceAvecReport : echeanceSansReport,
     reportApplique: reporterAuJourOuvrable,
-    divergence: echeanceSansReport !== echeanceAvecReport,
+    divergence,
+    justification,
     avertissements,
   }
 }
