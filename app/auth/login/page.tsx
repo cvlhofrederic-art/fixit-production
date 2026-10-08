@@ -5,8 +5,21 @@ import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
+import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
+import { avecDelai, DELAI_REPONSE_AUTH_MS, verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 
 type Espace = 'particulier' | 'artisan' | 'syndic'
+
+// Ferme uniquement la session Supabase de ce navigateur (cookies sb-*). Ne lève jamais : le formulaire reste affiché.
+// Bornée par le délai d'auth : une connexion lancée entre-temps l'attend, elle ne doit pas rester bloquée.
+async function fermerSessionLocale() {
+  try {
+    const { error } = await avecDelai(supabase.auth.signOut({ scope: 'local' }), DELAI_REPONSE_AUTH_MS)
+    if (error) console.error('[auth/login] Fermeture de la session locale en échec :', error)
+  } catch (e) {
+    console.error('[auth/login] Fermeture de la session locale interrompue :', e)
+  }
+}
 
 const SPACES = [
   { id: 'particulier' as Espace, emoji: '🏠', labelKey: 'auth.espaceParticulier', descKey: 'auth.espaceParticulierDesc', registerHref: '/auth/register' },
@@ -26,19 +39,51 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const emailRef = useRef<HTMLInputElement>(null)
+  // Levé dès que l'utilisateur lance une connexion (formulaire ou Google), et jamais rabaissé : la vérification
+  // automatique encore en cours ne doit plus ni rediriger (elle écraserait la redirection d'après connexion) ni
+  // fermer la session (son signOut révoquerait la NOUVELLE session, ou effacerait le code-verifier PKCE de Google).
+  const connexionEnCours = useRef(false)
+  // Fermeture de la session refusée déjà lancée par la vérification : une connexion attend sa fin, car auth-js retire
+  // la session stockée APRÈS l'appel réseau de signOut (signInWithPassword ne prend pas son verrou), ce qui effacerait
+  // la nouvelle session ou le code-verifier PKCE de Google.
+  const fermetureEnCours = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
+    // Seul un utilisateur validé par Supabase (getUser) est redirigé vers son espace. La réponse est classée par le
+    // même classificateur que le tableau de bord client (lib/auth/session-navigateur.ts) : une session refusée
+    // explicitement est fermée et le formulaire reste affiché ; une indisponibilité (réseau, 5xx, autre 4xx, délai,
+    // verrou) laisse le formulaire sans rien fermer. La page de connexion reste ainsi toujours la porte pour changer
+    // de compte. ?session=echec, posé par le tableau de bord client quand sa vérification de session échoue (session
+    // refusée ou indisponible), désactive la redirection automatique, pour ne pas y renvoyer en boucle.
+    let actif = true
+    const echecSignale = new URLSearchParams(window.location.search).get('session') === 'echec'
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        const role = session.user.app_metadata?.role
-        if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
-        else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
-        else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
-        else window.location.href = `/${locale}/client/dashboard`
+      try {
+        const { data: { session }, error: erreurSession } = await supabase.auth.getSession()
+        if (!session) {
+          if (erreurSession) console.error('[auth/login] Lecture de la session locale en échec, formulaire affiché :', erreurSession)
+          return
+        }
+        const verification = await verifierSessionNavigateur(supabase.auth)
+        if (!actif || connexionEnCours.current) return
+        if (verification.statut === 'valide') {
+          // Rôle lu uniquement dans app_metadata (posé côté serveur), comme avant.
+          if (!echecSignale) window.location.href = destinationApresConnexion(verification.user.app_metadata?.role, locale)
+          return
+        }
+        if (verification.statut === 'refusee') {
+          const fermeture = fermerSessionLocale()
+          fermetureEnCours.current = fermeture
+          await fermeture
+          return
+        }
+        console.error('[auth/login] Vérification de la session impossible, formulaire affiché :', verification.erreur)
+      } catch (e) {
+        console.error('[auth/login] Vérification de la session interrompue, formulaire affiché :', e)
       }
     }
     checkAuth()
+    return () => { actif = false }
   }, [locale])
 
   const selectSpace = (space: Espace) => {
@@ -57,16 +102,14 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    connexionEnCours.current = true
     setError('')
     setLoading(true)
     try {
+      await fermetureEnCours.current // ne lève jamais (fermerSessionLocale)
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); return }
-      const role = data.user?.app_metadata?.role
-      if (role === 'artisan') window.location.href = `/${locale}/artisan/dashboard`
-      else if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)) window.location.href = `/${locale}/pro/dashboard`
-      else if (role === 'syndic' || role?.startsWith('syndic')) window.location.href = `/${locale}/syndic/dashboard`
-      else window.location.href = `/${locale}/client/dashboard`
+      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale)
     } catch {
       // Anti-phishing : toute erreur de login affiche le même message
       // (évite de divulguer si l'email existe ou si c'est une erreur réseau).
@@ -76,7 +119,9 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = async () => {
+    connexionEnCours.current = true
     try {
+      await fermetureEnCours.current // ne lève jamais (fermerSessionLocale)
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
