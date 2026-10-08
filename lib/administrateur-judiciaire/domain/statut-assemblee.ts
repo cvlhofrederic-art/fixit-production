@@ -99,9 +99,7 @@ export function historiqueTrie<T extends LigneHistoriqueStatut>(historique: T[],
 }
 
 const derniereNotification = <T extends LigneHistoriqueStatut>(historique: T[], agId: string): T | undefined =>
-  historiqueTrie(historique, agId)
-    .filter((ligne) => ligne.statutNouveau === 'Notifiée')
-    .at(-1)
+  historiqueTrie(historique, agId).findLast((ligne) => ligne.statutNouveau === 'Notifiée')
 
 /** Date d'effet (AAAA-MM-JJ) de la dernière notification du PV de l'AG, ou null si elle n'a jamais été notifiée. */
 export function dateNotificationAg(historique: LigneHistoriqueStatut[], agId: string): string | null {
