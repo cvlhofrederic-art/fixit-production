@@ -1,5 +1,16 @@
 import Dexie, { type Table } from 'dexie'
 import type { Tantiemes } from '@/lib/administrateur-judiciaire/domain/format'
+import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
+import type {
+  FamilleModeleCourrier,
+  FormeEnvoiCourrier,
+  NatureAssemblee,
+  StatutAssemblee,
+  StatutContrat,
+  StatutCourrier,
+  TypeContrat,
+  TypeLot,
+} from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
 
 /**
  * Base locale IndexedDB de la succursale (Dexie) : schéma, types des entités et instance unique.
@@ -55,6 +66,13 @@ export interface Lot extends EntiteEnregistree {
   coproprieteId: string
   numero: string
   tantiemes: Tantiemes
+  /**
+   * Type de lot (TYPE_LOT, Gestéam 5.4.22 — un seul référentiel pour lots privatifs, locaux communs et droits de
+   * jouissance exclusive). Optionnel : les lots créés avant l'intégration n'en ont pas.
+   * Non observés comme champs dans Gestéam (critères de recherche seulement) : étage, bâtiment, escalier, rattachement
+   * cave / parking — non modélisés.
+   */
+  type?: TypeLot
 }
 
 /** Copropriétaire (solde négatif = dette). */
@@ -77,12 +95,34 @@ export interface Prestataire extends EntiteEnregistree {
   interventions: number
   statut: string
   pill: string
+  /**
+   * Assurances de l'entreprise suivies par Gestéam (T15) : pour chacune, « nécessaire » et date d'échéance de
+   * l'attestation (AAAA-MM-JJ). Optionnels : absents des prestataires créés avant l'intégration.
+   * Distincts de `decennale` (indicateur d'affichage hérité de la maquette, sans échéance).
+   */
+  rcDecennaleNecessaire?: boolean
+  rcDecennaleEcheance?: string | null
+  rcpNecessaire?: boolean
+  rcpEcheance?: string | null
 }
 
 /** Contrat (jamais écrit par l'application : lu pour la fiche 360). */
 export interface Contrat extends EntiteEnregistree {
   prestataireId: string
   coproprieteId: string
+  /** TYPE_CONTRAT (10 valeurs, Gestéam 5.4.22). */
+  type?: TypeContrat
+  /** STATUT_CONTRAT : En cours · Résilié · Plus géré. */
+  statut?: StatutContrat
+  /** Fenêtre de TACITE RECONDUCTION (AAAA-MM-JJ). Ne pas confondre avec la fenêtre de mise en concurrence. */
+  reconductionDu?: string | null
+  reconductionAu?: string | null
+  /** Fenêtre pendant laquelle le contrat peut être REMIS EN CONCURRENCE (AAAA-MM-JJ). */
+  concurrenceDu?: string | null
+  concurrenceAu?: string | null
+  /** Contrôle Gestéam « facture en retard de N jours ». */
+  retardFactureJours?: number | null
+  // Non observés dans Gestéam sans ouvrir une fiche réelle : objet, montant — non modélisés.
 }
 
 /** Sinistre (jamais écrit par l'application : lu pour la fiche 360). */
@@ -226,9 +266,67 @@ export interface Rapprochement extends EntiteEnregistree {
   bancaireId: string
 }
 
+/**
+ * Assemblée générale. Deux axes distincts (Règle 5, ne pas fusionner) relevés dans Gestéam 5.4.22 :
+ * - `nature` : Annuelle · Spéciale · Judiciaire (NATURE_ASSEMBLEE) ;
+ * - `statut` : Projet → Convoquée → PV signé → Notifiée (STATUT_ASSEMBLEE), cycle légal.
+ * Le statut ne se modifie QUE par changerStatutAg (db/statut-assemblee.ts), qui l'historise dans
+ * `changementsStatut` avec sa date d'effet ; le repository refuse toute autre écriture du statut.
+ */
 export interface Ag extends EntiteEnregistree {
   coproprieteId: string
   date: Date
+  nature: NatureAssemblee
+  statut: StatutAssemblee
+}
+
+/**
+ * Modèle de courrier (T30) : porte la famille et la FORME D'ENVOI (dont « AR »). Libellés relevés dans Gestéam
+ * (tranche 22) ; aucun modèle n'est amorcé en base.
+ */
+export interface ModeleCourrier extends EntiteEnregistree {
+  famille: FamilleModeleCourrier
+  libelle: string
+  contexte: string | null
+  formeEnvoi: FormeEnvoiCourrier
+}
+
+/**
+ * Courrier (T30) : l'envoi comme objet suivi, support de la PREUVE de notification. Entité autonome — Courrier ≠
+ * Document (Règle 5) : un document peut avoir un courrier d'origine et un courrier de suite, sans fusion.
+ * `formeEnvoi` est FIGÉE à la création (copie de celle du modèle) : modifier le modèle ne réécrit pas l'histoire.
+ * Dates AAAA-MM-JJ. Rattachements facultatifs (identifiants libres, en attendant D1 / D2).
+ */
+export interface Courrier extends EntiteEnregistree {
+  modeleId: string
+  formeEnvoi: FormeEnvoiCourrier
+  statut: StatutCourrier
+  objet: string
+  coproprieteId: string | null
+  mandatId: string | null
+  personneId: string | null
+  entrepriseId: string | null
+  dateDepot: string | null
+  dateAccuseReception: string | null
+  referenceDiffusion: string | null
+}
+
+/** Entités dont le statut est historisé (seule l'AG à ce stade). */
+export type EntiteAStatutHistorise = 'ag'
+
+/**
+ * Changement de statut historisé (décision du 08/10/2026 : historiser, pas seulement stocker le statut courant).
+ * `dateEffet` (AAAA-MM-JJ) est la date de l'ACTE ; `createdAt` celle de la SAISIE : elles diffèrent en pratique, et
+ * le moteur de délais lit `dateEffet`. `courrierId` reliera le changement au courrier AR qui le prouve (T30) : null
+ * tant que l'entité Courrier n'existe pas.
+ */
+export interface ChangementStatut extends EntiteEnregistree {
+  entiteType: EntiteAStatutHistorise
+  entiteId: string
+  statutAncien: string | null
+  statutNouveau: string
+  dateEffet: string
+  courrierId: string | null
 }
 
 export interface Resolution extends EntiteEnregistree {
@@ -319,6 +417,10 @@ export class AdministrateurJudiciaireDb extends Dexie {
   declare echeances: Table<EcheanceSuivi, string>
   declare notifications: Table<NotificationLocale, string>
   declare activityLog: Table<EntreeJournalActivite, string>
+  declare changementsStatut: Table<ChangementStatut, string>
+  declare planComptable: Table<PlanComptable, string>
+  declare modelesCourrier: Table<ModeleCourrier, string>
+  declare courriers: Table<Courrier, string>
 
   constructor() {
     super(NOM_BASE_LOCALE)
@@ -363,6 +465,18 @@ export class AdministrateurJudiciaireDb extends Dexie {
       echeances: 'id, coproprieteId, date',
       notifications: 'id, coproprieteId, date',
       activityLog: 'id, entite, entiteId, quand',
+    })
+    // Version 2 (intégration Gestéam, T12) : AJOUTE la table d'historique des statuts. Le bloc version(1) ci-dessus
+    // n'est jamais modifié ; Dexie conserve les tables et les données existantes lors de la montée de version.
+    // T20 : plan comptable (nomenclature qui génère les comptes ; ≠ `comptes`, les instances). Sans clé étrangère vers
+    // la copropriété : praticable avant la décision D1.
+    this.version(2).stores({
+      changementsStatut: 'id, entiteType, entiteId, statutNouveau, dateEffet, courrierId, [entiteType+entiteId]',
+      planComptable: 'id, code, source, nature, typeSru, horsService, [source+code]',
+      // T30 : courrier, support de la preuve de notification, et son modèle (≠ documents).
+      modelesCourrier: 'id, famille, libelle, contexte, formeEnvoi',
+      courriers:
+        'id, coproprieteId, mandatId, personneId, entrepriseId, modeleId, statut, formeEnvoi, dateDepot, dateAccuseReception, referenceDiffusion',
     })
   }
 }

@@ -1,5 +1,5 @@
-import { creerRepository } from '@/lib/administrateur-judiciaire/db/repository'
-import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
+import { creerRepository, type Repository } from '@/lib/administrateur-judiciaire/db/repository'
+import { ajDb, type Ag, type Courrier } from '@/lib/administrateur-judiciaire/db/schema'
 
 /**
  * Un repository par table, créé une seule fois au chargement du module (même ordre que la maquette).
@@ -60,8 +60,28 @@ export const repoFondsTravaux = creerRepository(ajDb.fondsTravaux, 'fondsTravaux
 export const repoBanques = creerRepository(ajDb.banques, 'banques')
 /** Sans usage dans la maquette. */
 export const repoRapprochements = creerRepository(ajDb.rapprochements, 'rapprochements')
-/** Sans usage dans la maquette. */
-export const repoAgs = creerRepository(ajDb.ags, 'ags')
+const repoAgsSansGarde = creerRepository(ajDb.ags, 'ags')
+
+/**
+ * Assemblées générales. Le statut est verrouillé (T12) : une AG se crée au statut « Projet », et son statut ne change
+ * ensuite QUE par changerStatutAg (db/statut-assemblee.ts), qui l'historise avec sa date d'effet. Les autres champs
+ * se modifient normalement.
+ */
+export const repoAgs: Repository<Ag> = {
+  ...repoAgsSansGarde,
+  async create(donnees, options) {
+    if (donnees.statut !== 'Projet')
+      throw new Error(
+        `Une assemblée se crée au statut « Projet » (reçu : « ${donnees.statut} ») ; son statut change ensuite par changerStatutAg.`,
+      )
+    return repoAgsSansGarde.create(donnees, options)
+  },
+  async update(id, patch, options) {
+    if ('statut' in patch)
+      throw new Error("Le statut d'une assemblée ne se modifie que par changerStatutAg (historisation obligatoire).")
+    return repoAgsSansGarde.update(id, patch, options)
+  },
+}
 /** Sans usage dans la maquette. */
 export const repoResolutions = creerRepository(ajDb.resolutions, 'resolutions')
 /** Sans usage dans la maquette. */
@@ -87,3 +107,20 @@ export const repoTaches = creerRepository(ajDb.taches, 'taches')
 export const repoEcheances = creerRepository(ajDb.echeances, 'echeances')
 /** Écrit par creerNote (kind « note ») et par le seed. */
 export const repoNotifications = creerRepository(ajDb.notifications, 'notifications')
+
+/** Modèles de courrier (T30). Aucun modèle n'est amorcé en base. */
+export const repoModelesCourrier = creerRepository(ajDb.modelesCourrier, 'modelesCourrier')
+
+const repoCourriersSansGarde = creerRepository(ajDb.courriers, 'courriers')
+
+/**
+ * Courriers (T30). La forme d'envoi est figée à la création (copie de celle du modèle, voir db/courriers.ts) : toute
+ * modification ultérieure de `formeEnvoi` est refusée, sinon un envoi pourrait cesser — ou devenir — un AR après coup.
+ */
+export const repoCourriers: Repository<Courrier> = {
+  ...repoCourriersSansGarde,
+  async update(id, patch, options) {
+    if ('formeEnvoi' in patch) throw new Error("La forme d'envoi d'un courrier est figée à sa création.")
+    return repoCourriersSansGarde.update(id, patch, options)
+  },
+}
