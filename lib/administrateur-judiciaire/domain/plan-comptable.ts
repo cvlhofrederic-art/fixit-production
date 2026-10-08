@@ -1,4 +1,5 @@
 import type {
+  NaturePlanComptable,
   RegleNumeroCompte,
   SourceComptable,
   TypeSru,
@@ -22,8 +23,8 @@ export interface PlanComptable {
   horsService: boolean
   /** @aconfirmer référentiel « Type de plan » non déroulé */
   type?: string
-  /** @observe référentiel relevé en tranche 12 (non repris en constante) */
-  nature: string
+  /** @observe NATURE_PLAN_COMPTABLE, 69 valeurs (tranche 24) ; distincte de `type` (Règle 5) */
+  nature: NaturePlanComptable
   /** @observe objet métier rattaché */
   lien?: string
   /** @aconfirmer libellés observés (CATEGORIE_PLAN_COMPTABLE) mais rattachement par entrée non vérifié */

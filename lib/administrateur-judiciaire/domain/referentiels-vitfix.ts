@@ -98,20 +98,58 @@ export type Dossier = (typeof DOSSIER)[number];
  * Type d'un journal comptable. Un journal de type Banque porte le compte de contrepartie
  * et la date limite de saisie : c'est là qu'est le verrouillage de période.
  * @portee copropriete
- * @statut OBSERVE — énumération fermée mais OPTIONNELLE : 46 journaux sur 107 n'ont pas de type
+ * @statut OBSERVE — libellés exacts relus sur fiche (tranche 24) ; énumération fermée mais OPTIONNELLE : 46 journaux sur 107 n'ont pas de type
  *   (dont tous les journaux d'appel de fonds travaux 40-60) → `Journal.type?: TypeJournal`.
  *   Le code journal n'est PAS une clé : `CB` apparaît 7 fois, distingué par le sous-compte de
  *   sa contrepartie (tranche 21 §8).
  * @source Gestéam 5.4.22 — onglet Syndic > Réglages > 2-Journaux
  */
 export const TYPE_JOURNAL = [
-  "Quittancement",
-  "Opérations",
+  "Quittancement, appel de fonds",
+  "Opérations diverses",
   "Achats",
   "Banque",
   "Clôture",
 ] as const;
 export type TypeJournal = (typeof TYPE_JOURNAL)[number];
+
+/**
+ * Nature d’entrée de plan comptable (critère « Nature » de l’écran Plan comptable), 69 valeurs en 5 blocs.
+ * Distincte du « Type » de l’entrée (ex. 10240 : Type = Fonds permanents, Nature = Fonds de réserve) — Règle 5.
+ * Orthographe corrigée par rapport à l’écran (« Fonds de réseve », « Hororaires »).
+ * @portee copropriete + gerance (blocs Mandant et Gérance : gérance locative)
+ * @statut OBSERVE — liste complète
+ * @source Gestéam 5.4.22 — Syndic > Réglages > 1-Plan comptable, critère Nature (tranche 24)
+ */
+export const NATURE_PLAN_COMPTABLE = {
+  "Général": [
+    "Cabinet - frais divers", "Fournisseur", "Facture non parvenue", "Personnel", "Organismes sociaux", "Etat",
+    "Autres tiers", "Compte d'attente", "Compte de régularisation", "Charges constatées d'avance",
+    "Liaison gérance/copropriété", "Règlements non affectés", "Banque", "Comptes bloqués", "Caisse",
+  ],
+  "Copropriété": [
+    "Syndicat des copropriétaires", "Copropriétaire", "Facture non parvenue", "Facture à établir",
+    "Charges constatées d'avance", "Produits constatés d'avance", "Provisions sur budget",
+    "Fonds, avance de trésorerie", "Fonds de prévoyance", "Fonds de réserve", "Fonds de solidarité", "Fonds travaux",
+    "Travaux urgents - Provisions", "Travaux urgents - Dépenses", "Travaux urgents - Solde en attente",
+    "Travaux - Solde en attente", "Travaux - Appels", "Travaux - Provisions", "Travaux - Dépenses",
+    "Travaux - Honoraires", "Travaux - Subventions", "Travaux - Emprunts", "Travaux - Fonds travaux appelés",
+    "Emprunts", "Reliquat de répartition", "Cabinet - Honoraires de gestion", "Cabinet - Honoraires de prestations",
+    "Cabinet - Frais de mutation", "Cabinet - Frais de relance", "Cabinet - Frais administratifs",
+    "Charges - Honoraires de gestion",
+  ],
+  "Mandant": ["Mandant", "Mandant indivisaire", "Provisions"],
+  "Gérance": [
+    "Mandat de gérance", "Locataire", "Règlements non affectés", "Quittance à recouvrer", "Dépôt de garantie",
+    "Cabinet gérance - Honoraires de gestion", "Cabinet gérance - Honoraires prestations",
+    "Cabinet gérance - Frais décl. revenus", "Cabinet gérance - Frais de relance",
+    "Cabinet gérance - Prestation contractuelle", "Cabinet gérance - Honoraires de location",
+    "Prestataire - Contractant direct",
+  ],
+  "Classes": ["Classe 0", "Classe 1", "Classe 2", "Classe 3", "Classe 4", "Trésorerie", "Charges", "Produits"],
+} as const satisfies Record<string, readonly string[]>;
+export type BlocNaturePlanComptable = keyof typeof NATURE_PLAN_COMPTABLE;
+export type NaturePlanComptable = (typeof NATURE_PLAN_COMPTABLE)[BlocNaturePlanComptable][number];
 
 /**
  * Source d'un paramétrage comptable (plan, journaux, analytiques, modèles d'écritures).
@@ -1221,6 +1259,13 @@ export const REFERENTIELS_TRACABILITE = [
     dateReleve: "2026-10-07",
     statut: "OBSERVE",
     nbValeurs: 5,
+  },
+  {
+    nom: "NATURE_PLAN_COMPTABLE",
+    source: "Gestéam 5.4.22 — Syndic > Réglages > 1-Plan comptable, critère Nature (tranche 24)",
+    dateReleve: "2026-10-08",
+    statut: "OBSERVE — liste complète",
+    nbValeurs: 69,
   },
   {
     nom: "SOURCE_COMPTABLE",
