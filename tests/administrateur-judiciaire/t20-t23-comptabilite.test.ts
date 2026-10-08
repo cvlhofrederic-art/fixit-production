@@ -1,6 +1,6 @@
 import './fuseau-paris'
 import 'fake-indexeddb/auto'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb } from '@/lib/administrateur-judiciaire/db/schema'
 import {
@@ -8,7 +8,7 @@ import {
   genererSegmentAuxiliaire,
   type PlanComptable,
 } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
-import type { TypeSru } from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import type { TypeSru } from '@/lib/data/referentiels-gesteam-judiciaire'
 import {
   annulerTraitement,
   creerTraitement,
@@ -43,9 +43,9 @@ describe('T20 — PlanComptable', () => {
     const banque = entreePlan({ code: '512CB', libelle: 'CDC banque CB' })
     expect(banque.code).toBe('512CB')
     expect(['51210', '5120D', '51209'].sort()).toEqual(['51209', '5120D', '51210'])
-    // @ts-expect-error — un code numérique ne compile pas
-    const numerique: PlanComptable['code'] = 45000
-    expect(numerique).toBe(45000)
+    // Le code est une chaîne, jamais un entier : un nombre n'est pas assignable au type du code.
+    expectTypeOf<PlanComptable['code']>().toEqualTypeOf<string>()
+    expectTypeOf<number>().not.toMatchTypeOf<PlanComptable['code']>()
   })
 
   it('typeSru est typé par le référentiel', () => {

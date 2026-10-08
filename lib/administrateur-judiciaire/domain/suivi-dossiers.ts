@@ -15,7 +15,7 @@ export const DATE_REFERENCE_SUIVI_DOSSIERS = new Date(2026, 5, 19)
  */
 export const calculerDateReferenceSuiviDossiers = (mode: Mode, maintenant: Date): Date =>
   mode === 'demo'
-    ? new Date(DATE_REFERENCE_SUIVI_DOSSIERS.getTime())
+    ? new Date(DATE_REFERENCE_SUIVI_DOSSIERS)
     : new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate())
 
 /** Date de référence de la session (le changement de mode recharge la page, comme pour DATE_DU_JOUR_ISO). */

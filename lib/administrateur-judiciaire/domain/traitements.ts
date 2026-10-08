@@ -3,7 +3,7 @@ import {
   FAMILLE_TRAITEMENT,
   TYPE_APPEL_LIE_AU_MOUVEMENT,
   type TypeAppelLieAuMouvement,
-} from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+} from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Traitements et mouvements en partie double (intégration Gestéam, T23 — règles pures, sans table : les clés
@@ -18,7 +18,7 @@ import {
 /** Famille de traitement : une valeur de FAMILLE_TRAITEMENT (tous blocs confondus). */
 export type FamilleTraitement = (typeof FAMILLE_TRAITEMENT)[keyof typeof FAMILLE_TRAITEMENT][number]
 
-const FAMILLES: readonly string[] = Object.values(FAMILLE_TRAITEMENT).flat()
+const FAMILLES: ReadonlySet<string> = new Set(Object.values(FAMILLE_TRAITEMENT).flat())
 
 /**
  * Annulations observées dans le référentiel (paires présentes dans FAMILLE_TRAITEMENT). Une famille absente de cette
@@ -78,7 +78,7 @@ const total = (lignes: LigneMouvement[], sens: SensMouvement) =>
  * (R8) et l'équilibre débit = crédit, puis rattache chaque mouvement au traitement (R6).
  */
 export function creerTraitement(saisie: SaisieTraitement): Traitement {
-  if (!FAMILLES.includes(saisie.famille)) throw new Error(`Famille de traitement inconnue : « ${saisie.famille} ».`)
+  if (!FAMILLES.has(saisie.famille)) throw new Error(`Famille de traitement inconnue : « ${saisie.famille} ».`)
   if (!estDateIsoValide(saisie.date)) throw new Error(`Date comptable invalide : « ${saisie.date} » (AAAA-MM-JJ).`)
   if (saisie.mouvements.length < 2) throw new Error('Un traitement comporte au moins un débit et un crédit.')
   for (const ligne of saisie.mouvements) {

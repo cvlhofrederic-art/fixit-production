@@ -12,7 +12,7 @@ import {
   finDelaiContestationAg,
   preparerChangementStatutAg,
 } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
-import type { NatureAssemblee, StatutAssemblee } from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import type { NatureAssemblee, StatutAssemblee } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * T12 (intégration Gestéam, lot 1) : l'AG porte deux axes distincts (nature, statut) ; tout changement de statut est

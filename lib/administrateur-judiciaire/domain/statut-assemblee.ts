@@ -7,7 +7,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { estDateIsoValide, reporterAuJourOuvrable } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { ReferenceTexte } from '@/lib/administrateur-judiciaire/domain/fondements'
-import type { StatutAssemblee } from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import type { StatutAssemblee } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Statut de l'assemblée générale et historique de ses changements (intégration Gestéam, T12). Fonctions pures.
@@ -70,14 +70,14 @@ export function historiqueTrie<T extends LigneHistoriqueStatut>(historique: T[],
   return historique
     .filter((ligne) => ligne.entiteType === 'ag' && ligne.entiteId === agId)
     .map((ligne, rang) => ({ ligne, rang }))
-    .sort((a, b) => (a.ligne.dateEffet < b.ligne.dateEffet ? -1 : a.ligne.dateEffet > b.ligne.dateEffet ? 1 : a.rang - b.rang))
+    .sort((a, b) => a.ligne.dateEffet.localeCompare(b.ligne.dateEffet) || a.rang - b.rang)
     .map(({ ligne }) => ligne)
 }
 
 /** Date d'effet (AAAA-MM-JJ) de la dernière notification du PV de l'AG, ou null si elle n'a jamais été notifiée. */
 export function dateNotificationAg(historique: LigneHistoriqueStatut[], agId: string): string | null {
   const notifications = historiqueTrie(historique, agId).filter((ligne) => ligne.statutNouveau === 'Notifiée')
-  return notifications.length ? notifications[notifications.length - 1].dateEffet : null
+  return notifications.at(-1)?.dateEffet ?? null
 }
 
 export interface RegleDelaiStatut {
@@ -119,7 +119,7 @@ export function detecterStatutsAgNonHistorises(
   return ags
     .filter((ag) => {
       const lignes = historiqueTrie(historique, ag.id)
-      const attendu = lignes.length ? lignes[lignes.length - 1].statutNouveau : 'Projet'
+      const attendu = lignes.at(-1)?.statutNouveau ?? 'Projet'
       return ag.statut !== attendu
     })
     .map((ag) => ag.id)
@@ -144,8 +144,9 @@ export function controlerPreuveNotificationAg(
   agId: string,
 ): AlertePreuveNotification | null {
   const notifications = historiqueTrie(historique, agId).filter((ligne) => ligne.statutNouveau === 'Notifiée')
-  if (!notifications.length) return null
-  const { courrierId } = notifications[notifications.length - 1]
+  const derniere = notifications.at(-1)
+  if (!derniere) return null
+  const { courrierId } = derniere
   const alerte = (motif: string): AlertePreuveNotification => ({ code: 'notification_non_prouvee', motif })
   if (!courrierId) return alerte('Aucun courrier rattaché à la notification.')
   const courrier = courriers.find((candidat) => candidat.id === courrierId)

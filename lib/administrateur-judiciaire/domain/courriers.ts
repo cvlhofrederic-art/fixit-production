@@ -2,7 +2,7 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type {
   FormeEnvoiCourrier,
   StatutCourrier,
-} from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+} from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Courrier, support de la preuve de notification (intégration Gestéam, T30). Fonctions pures.

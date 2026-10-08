@@ -10,7 +10,7 @@ import type {
   StatutCourrier,
   TypeContrat,
   TypeLot,
-} from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+} from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Base locale IndexedDB de la succursale (Dexie) : schéma, types des entités et instance unique.

@@ -1,7 +1,7 @@
 import { genererId } from '@/lib/administrateur-judiciaire/db/ids'
 import { journaliserActivite } from '@/lib/administrateur-judiciaire/db/repository'
 import { ajDb, type Ag, type ChangementStatut } from '@/lib/administrateur-judiciaire/db/schema'
-import type { StatutAssemblee } from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import type { StatutAssemblee } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { historiqueTrie, preparerChangementStatutAg } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 
 /**
@@ -18,7 +18,7 @@ export interface OptionsChangementStatut {
   actor?: string | null
 }
 
-export async function changerStatutAg(
+export function changerStatutAg(
   agId: string,
   nouveau: StatutAssemblee,
   { dateEffet, courrierId = null, actor = null }: OptionsChangementStatut,
@@ -64,7 +64,7 @@ export async function historiqueStatutAg(agId: string): Promise<ChangementStatut
  * Relie après coup un changement de statut au courrier qui le prouve (T31) : l'accusé de réception revient souvent
  * après la saisie du changement. Seul `courrierId` est complété ; la date d'effet et les statuts restent inchangés.
  */
-export async function rattacherPreuveNotification(
+export function rattacherPreuveNotification(
   changementId: string,
   courrierId: string,
   { actor = null }: { actor?: string | null } = {},

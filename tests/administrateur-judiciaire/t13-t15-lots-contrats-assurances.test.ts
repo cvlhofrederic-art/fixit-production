@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Contrat, Lot, Prestataire } from '@/lib/administrateur-judiciaire/db/schema'
 import { attestationsEntreprisesAControler } from '@/lib/administrateur-judiciaire/domain/assurances-entreprises'
 import { contratsARemettreEnConcurrence } from '@/lib/administrateur-judiciaire/domain/contrats'
-import type { StatutContrat, TypeContrat, TypeLot } from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import type { StatutContrat, TypeContrat, TypeLot } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * T13 à T15 (intégration Gestéam, lot 1) : type de lot, contrat (type, statut, deux fenêtres de dates distinctes,

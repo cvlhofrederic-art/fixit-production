@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
-import * as referentiels from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import * as referentiels from '@/lib/data/referentiels-gesteam-judiciaire'
 import {
   NATURE_ASSEMBLEE,
   REFERENTIELS_MANQUANTS,
@@ -8,7 +8,7 @@ import {
   TYPE_SRU,
   type NatureAssemblee,
   type TypeSru,
-} from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+} from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * T10 (intégration Gestéam, lot 1) : le fichier de référentiels issus de la cartographie Gestéam 5.4.22 est intégré

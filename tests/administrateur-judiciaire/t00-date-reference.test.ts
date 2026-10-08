@@ -78,7 +78,7 @@ describe('T00 — aucune date littérale ailleurs que dans les constantes de dé
     'lib/administrateur-judiciaire/mode.ts': /export const DATE_DEMO_ISO = '2026-06-04'/,
     'lib/administrateur-judiciaire/domain/suivi-dossiers.ts': /export const DATE_REFERENCE_SUIVI_DOSSIERS = new Date\(2026, 5, 19\)/,
     // Métadonnées de traçabilité (date du relevé dans Gestéam) : pas une date de calcul.
-    'lib/administrateur-judiciaire/domain/referentiels-vitfix.ts': /^\s*dateReleve: "20\d{2}-\d{2}-\d{2}",$/,
+    'lib/data/referentiels-gesteam-judiciaire.ts': /^\s*dateReleve: "20\d{2}-\d{2}-\d{2}",$/,
   }
   /** Date ISO littérale ou `new Date(AAAA, …)` en dur. */
   const DATE_LITTERALE = /['"`]20\d{2}-\d{2}-\d{2}|new Date\(\s*20\d{2}\s*,/

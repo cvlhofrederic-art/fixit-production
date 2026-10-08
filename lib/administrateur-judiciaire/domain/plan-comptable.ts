@@ -3,7 +3,7 @@ import type {
   RegleNumeroCompte,
   SourceComptable,
   TypeSru,
-} from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+} from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Plan comptable (intégration Gestéam, T20) : la NOMENCLATURE qui génère les comptes — 710 entrées chez Gestéam.

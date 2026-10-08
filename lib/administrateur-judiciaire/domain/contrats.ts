@@ -1,5 +1,5 @@
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import type { StatutContrat } from '@/lib/administrateur-judiciaire/domain/referentiels-vitfix'
+import type { StatutContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Contrats de la copropriété (intégration Gestéam, T14). Gestéam porte deux fenêtres de dates distinctes, qui ne
