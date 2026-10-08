@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { AgentChatPage } from '@/components/administrateur-judiciaire/modules/agents-ia/AgentChatPage'
 import { FixyCourriel } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyCourriel'
 import { FixyDemande } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyDemande'
@@ -13,6 +12,7 @@ import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
+import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
 import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
 import type { ActionFixy } from '@/lib/administrateur-judiciaire/domain/fixy/agents'
 
@@ -23,6 +23,7 @@ import type { ActionFixy } from '@/lib/administrateur-judiciaire/domain/fixy/age
  */
 export function FixyModule() {
   const [onglet, setOnglet] = useState<OngletAgent>('assistant')
+  const nomsCoproprietes = useNomsCoproprietesSelonMode()
   // Une fois ouvert, le Tableau reste monté (masqué sous l'onglet Assistant) : comme celui de Tempo, il garde son
   // état, et une demande, un courriel ou une ordonnance en cours survivent au changement d'onglet.
   const [tableauOuvert, setTableauOuvert] = useState(false)
@@ -62,7 +63,7 @@ export function FixyModule() {
           introDetail="Je vous aide à piloter les interventions, les prestataires et le suivi opérationnel de vos copropriétés sous mandat."
           contextSelector={{
             label: 'Copropriété',
-            options: DEMO_NOMS_COPROPRIETES,
+            options: nomsCoproprietes,
           }}
           showDocsBtn
           suggestions={[

@@ -5,7 +5,7 @@
    "id": "schema",
    "code": "\n    return {\n      verno: X.db.verno,\n      tables: X.db.tables.map((t) => [t.name, [t.schema.primKey.src, ...t.schema.indexes.map((i) => i.src)].join(', ')]),\n    }",
    "attendu": {
-    "verno": 1,
+    "verno": 2,
     "tables": [
      [
       "cabinets",
@@ -166,6 +166,22 @@
      [
       "activityLog",
       "id, entite, entiteId, quand"
+     ],
+     [
+      "changementsStatut",
+      "id, entiteType, entiteId, statutNouveau, dateEffet, courrierId, [entiteType+entiteId]"
+     ],
+     [
+      "planComptable",
+      "id, code, source, nature, typeSru, horsService, [source+code]"
+     ],
+     [
+      "modelesCourrier",
+      "id, famille, libelle, contexte, formeEnvoi"
+     ],
+     [
+      "courriers",
+      "id, coproprieteId, mandatId, personneId, entrepriseId, modeleId, statut, formeEnvoi, dateDepot, dateAccuseReception, referenceDiffusion"
      ]
     ]
    }
@@ -2736,7 +2752,11 @@
        "updatedBy": null
       }
      }
-    ]
+    ],
+    "changementsStatut": [],
+    "planComptable": [],
+    "modelesCourrier": [],
+    "courriers": []
    }
   },
   {
@@ -2783,7 +2803,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 71
+     "activityLog": 71,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "apres": {
      "cabinets": 0,
@@ -2825,7 +2849,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 71
+     "activityLog": 71,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     }
    }
   },
@@ -2873,7 +2901,11 @@
      "taches": 0,
      "echeances": 0,
      "notifications": 0,
-     "activityLog": 0
+     "activityLog": 0,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "majuscules": {
      "cabinets": 0,
@@ -2915,7 +2947,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 71
+     "activityLog": 71,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     }
    }
   },
@@ -2963,7 +2999,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 71
+     "activityLog": 71,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "lots": [
      {
@@ -3117,7 +3157,11 @@
      "taches": 0,
      "echeances": 0,
      "notifications": 0,
-     "activityLog": 1
+     "activityLog": 1,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "mandatSansCopro": {
      "cabinets": 0,
@@ -3159,7 +3203,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 72
+     "activityLog": 72,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     }
    }
   },
@@ -3723,7 +3771,7 @@
   },
   {
    "id": "repository-toutes-les-tables",
-   "code": "\n    await reinitialiser(8)\n    await X.vider()\n    const noms = X.db.tables.map((t) => t.name).filter((n) => n !== 'activityLog')\n    for (const n of noms) await X.repo(n).create({ essai: n }, { id: n + '-1', actor: 'test' })\n    const journal = await X.db.table('activityLog').toArray()\n    return {\n      comptes: await compter(),\n      entites: journal.map((l) => [l.entite, l.entiteId, l.action, l.qui]).sort((x, y) => (x[1] < y[1] ? -1 : 1)),\n    }",
+   "code": "\n    await reinitialiser(8)\n    await X.vider()\n    // Portage (intégration Gestéam, T12) : changementsStatut ne s'écrit que par changerStatutAg, tables ajoutées par l'intégration (planComptable, modelesCourrier, courriers) hors du périmètre de la maquette, et une AG se crée au statut « Projet ».\n    const noms = X.db.tables.map((t) => t.name).filter((n) => !['activityLog', 'changementsStatut', 'planComptable', 'modelesCourrier', 'courriers'].includes(n))\n    for (const n of noms) await X.repo(n).create(n === 'ags' ? { essai: n, statut: 'Projet' } : { essai: n }, { id: n + '-1', actor: 'test' })\n    const journal = await X.db.table('activityLog').toArray()\n    return {\n      comptes: await compter(),\n      entites: journal.map((l) => [l.entite, l.entiteId, l.action, l.qui]).sort((x, y) => (x[1] < y[1] ? -1 : 1)),\n    }",
    "attendu": {
     "comptes": {
      "cabinets": 1,
@@ -3765,7 +3813,11 @@
      "taches": 1,
      "echeances": 1,
      "notifications": 1,
-     "activityLog": 39
+     "activityLog": 39,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "entites": [
      [
@@ -5434,7 +5486,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 72
+     "activityLog": 72,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "nbCoprosStore": 4
    }
@@ -7430,7 +7486,11 @@
      "taches": 16,
      "echeances": 10,
      "notifications": 12,
-     "activityLog": 84
+     "activityLog": 84,
+     "changementsStatut": 0,
+     "planComptable": 0,
+     "modelesCourrier": 0,
+     "courriers": 0
     },
     "base": {
      "lots": [

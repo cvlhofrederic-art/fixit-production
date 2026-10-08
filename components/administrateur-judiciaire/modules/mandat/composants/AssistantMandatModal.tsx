@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { Field } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
+import { saisieAssistantMandatParDefaut } from '@/lib/administrateur-judiciaire/donnees-selon-mode'
 import type { CertitudeRegle } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { BADGES_CERTITUDE_ECHEANCE } from '@/lib/administrateur-judiciaire/domain/echeances-affichage'
 import { FONDEMENTS_ASSISTANT_MANDAT } from '@/lib/administrateur-judiciaire/domain/fondements'
@@ -15,6 +16,7 @@ import {
   type PlanMandat,
   type SaisieAssistantMandat,
 } from '@/lib/administrateur-judiciaire/domain/planification-mandat'
+import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Pastille de certitude d'une règle (« À confirmer », « Source secondaire ») ; les autres certitudes n'en ont pas.
@@ -153,15 +155,12 @@ export function PillCertitude({ certitude }: { certitude: CertitudeRegle }) {
   ) : null
 }
 
-/** Valeurs initiales du formulaire (réappliquées à chaque ouverture). */
-const saisieParDefaut = (): SaisieAssistantMandat => ({
-  copro: DEMO_NOMS_COPROPRIETES[1] || DEMO_NOMS_COPROPRIETES[0] || '',
-  tribunal: 'Tribunal judiciaire de Nanterre',
-  rg: 'RG 26/0',
-  ordonnance: '04/06/2026',
-  duree: '12',
-  fondement: FONDEMENTS_ASSISTANT_MANDAT[0],
-})
+/**
+ * Valeurs initiales du formulaire (réappliquées à chaque ouverture) : dossier fictif en démonstration, rien
+ * d'inventé en mode réel (voir saisieAssistantMandatParDefaut).
+ */
+const saisieParDefaut = (nomsCoproprietes: string[]): SaisieAssistantMandat =>
+  saisieAssistantMandatParDefaut(MODE_ACTIF, nomsCoproprietes, FONDEMENTS_ASSISTANT_MANDAT[0])
 
 type ChampSaisieAssistant = keyof SaisieAssistantMandat
 
@@ -200,16 +199,18 @@ export interface AssistantMandatModalProps {
  */
 export function AssistantMandatModal({ open, onClose }: AssistantMandatModalProps) {
   const { push } = useToast(),
-    [saisie, setSaisie] = useState<SaisieAssistantMandat>(saisieParDefaut),
+    nomsCoproprietes = useNomsCoproprietesSelonMode(),
+    [saisie, setSaisie] = useState<SaisieAssistantMandat>(() => saisieParDefaut(nomsCoproprietes)),
     [plan, setPlan] = useState<PlanMandat | null>(null)
 
   useEffect(() => {
     // Réinitialisation à chaque ouverture (effet de la maquette, conservé tel quel).
     if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSaisie(saisieParDefaut())
+      setSaisie(saisieParDefaut(nomsCoproprietes))
       setPlan(null)
     }
+    // Volontairement limité à l'ouverture : un rechargement de la liste ne doit pas effacer une saisie en cours.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   if (!open) return null
@@ -251,7 +252,8 @@ export function AssistantMandatModal({ open, onClose }: AssistantMandatModalProp
         <div className="field-row">
           <Field label="Copropriété" name="mw-copro" full>
             <select value={saisie.copro} onChange={(evenement) => modifier('copro', evenement.target.value)}>
-              {[...DEMO_NOMS_COPROPRIETES, '+ Nouvelle copropriété'].map((nom) => (
+              {saisie.copro === '' && <option value="">—</option>}
+              {[...nomsCoproprietes, '+ Nouvelle copropriété'].map((nom) => (
                 <option key={nom}>{nom}</option>
               ))}
             </select>

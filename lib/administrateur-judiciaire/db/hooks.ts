@@ -3,10 +3,21 @@
 import { useEffect, useMemo } from 'react'
 import {
   DEMO_COPROPRIETES,
+  DEMO_NOMS_COPROPRIETES,
   trouverCoproDemo,
   type CoproprieteDemo,
 } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { DEMO_NOTIFICATIONS } from '@/components/administrateur-judiciaire/data/notifications'
+import { DEMO_PRESTATAIRES } from '@/components/administrateur-judiciaire/data/prestataires'
 import { useDonneesStore, type EtatDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
+import {
+  alerteLectureBase,
+  idsNotificationsLuesInitiales,
+  notificationsDuCentre,
+  optionsSelonMode,
+  type AlerteLectureBase,
+  type NotificationCentre,
+} from '@/lib/administrateur-judiciaire/donnees-selon-mode'
 import type { Copropriete, Mandat } from '@/lib/administrateur-judiciaire/db/schema'
 import {
   COPRO_VIDE,
@@ -107,6 +118,66 @@ export function useTrouverCopro(): (code: string | null | undefined) => Copropri
   const affichees = useCoproprietesAffichees()
   return (code) =>
     affichees.find((copro) => copro.code === code) || (MODE_ACTIF === 'reel' ? COPRO_VIDE : trouverCoproDemo(code))
+}
+
+// ── Données du cadre commun et des listes de choix, selon le mode (T01 / T02) ───────────────────────────────────
+
+/**
+ * Lecture du store pour les éléments sans bandeau « démonstration ». Le chargement de la base n'est déclenché qu'en
+ * mode réel : en démonstration, ces éléments affichent le jeu de démonstration, exactement comme avant.
+ */
+function useStoreEnModeReel(): EtatDonneesStore {
+  const etat = useDonneesStore()
+  const { loaded, loadAll } = etat
+  useEffect(() => {
+    if (MODE_ACTIF === 'reel' && !loaded) void loadAll()
+  }, [loaded, loadAll])
+  return etat
+}
+
+/** Noms des copropriétés proposés dans les listes de choix : démonstration en démo, base en mode réel. */
+export function useNomsCoproprietesSelonMode(): string[] {
+  const { coproprietes } = useStoreEnModeReel()
+  return useMemo(
+    () => optionsSelonMode(MODE_ACTIF, DEMO_NOMS_COPROPRIETES, coproprietes.map((copro) => copro.nom)),
+    [coproprietes],
+  )
+}
+
+/** Noms des prestataires proposés dans les listes de choix : démonstration en démo, base en mode réel. */
+export function useNomsPrestatairesSelonMode(): string[] {
+  const { prestataires } = useStoreEnModeReel()
+  return useMemo(
+    () =>
+      optionsSelonMode(
+        MODE_ACTIF,
+        DEMO_PRESTATAIRES.map((prestataire) => prestataire.nom),
+        prestataires.map((prestataire) => prestataire.nom),
+      ),
+    [prestataires],
+  )
+}
+
+export interface DonneesCadre {
+  /** Notifications du centre (cloche). */
+  notifications: NotificationCentre[]
+  /** Identifiants lus d'après la base (mode réel) ; vide en démonstration (l'état initial y est local). */
+  idsLusBase: string[]
+  /** Alerte d'échec de lecture de la base (mode réel uniquement). */
+  alerteLecture: AlerteLectureBase | null
+}
+
+/** Données du cadre commun (cloche, alerte de lecture) selon le mode. */
+export function useDonneesCadre(): DonneesCadre {
+  const { notifications, erreur } = useStoreEnModeReel()
+  return useMemo(
+    () => ({
+      notifications: notificationsDuCentre(MODE_ACTIF, DEMO_NOTIFICATIONS, notifications),
+      idsLusBase: MODE_ACTIF === 'reel' ? idsNotificationsLuesInitiales('reel', notifications) : [],
+      alerteLecture: alerteLectureBase(MODE_ACTIF, erreur),
+    }),
+    [notifications, erreur],
+  )
 }
 
 /** Copropriété d'un code (voir useTrouverCopro). */
