@@ -192,8 +192,11 @@ export async function middleware(request: NextRequest) {
   // Tableau de bord artisan : segment exact, pas un préfixe de chaîne — /{locale}/artisan/<slug> est la fiche SEO
   // publique, et un slug tiré du nom de l'entreprise peut commencer par « dashboard » (ex. dashboard-plomberie).
   const estDashboardArtisan = strippedPathname === '/artisan/dashboard' || strippedPathname.startsWith('/artisan/dashboard/')
+  // /auth/login/ n'est jamais redirigée côté serveur : c'est la seule porte pour changer de compte ; la page décide
+  // d'après getUser. (La comparaison exacte à '/auth/login' qui figurait ici ne correspondait jamais en production :
+  // trailingSlash: true, Next répond 308 vers /{locale}/auth/login/ avant le middleware.)
   const needsAuth = (!isInternalRoute || pathname.startsWith('/admin/')) && (
-    strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login' ||
+    strippedPathname === '' || strippedPathname === '/' ||
     strippedPathname.startsWith('/client/dashboard') ||
     strippedPathname.startsWith('/pro/dashboard') ||
     estDashboardArtisan ||
@@ -282,9 +285,12 @@ export async function middleware(request: NextRequest) {
     if (!isInternalRoute) {
       resp.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
     }
-    // Propager les cookies Supabase rafraîchis vers le browser
-    supabaseResponse.cookies.getAll().forEach(cookie => {
-      resp.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    // Propager les cookies Supabase rafraîchis vers le navigateur AVEC leurs options (maxAge, expires, httpOnly…), comme
+    // la réponse sans redirection : sinon le jeton rafraîchi devient un cookie de session, et une suppression (valeur
+    // vide, Max-Age=0) un cookie vide qui survit. À ce stade, supabaseResponse ne porte que les cookies posés par setAll
+    // (le cookie de langue n'y est écrit qu'après les redirections). Secure reste imposé en production, comme avant.
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      resp.cookies.set({ ...cookie, secure: cookie.secure || process.env.NODE_ENV === 'production' })
     })
     resp.headers.set('Content-Security-Policy', cspHeader)
     return resp
@@ -301,9 +307,11 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Authenticated user on landing/login pages → redirect to their dashboard
-  const isLandingOrLogin = strippedPathname === '' || strippedPathname === '/' || strippedPathname === '/auth/login'
-  if (user && isLandingOrLogin) {
+  // Authenticated user on the landing page → redirect to their dashboard.
+  // /auth/login/ n'est jamais redirigée côté serveur : c'est la seule porte pour changer de compte ; la page décide
+  // d'après getUser (elle n'entre d'ailleurs pas dans needsAuth).
+  const isLanding = strippedPathname === '' || strippedPathname === '/'
+  if (user && isLanding) {
     if (role === 'artisan') return localeRedirect('/artisan/dashboard')
     if (['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role || '')) return localeRedirect('/pro/dashboard')
     if (isSyndicRole(role)) return localeRedirect('/syndic/dashboard')
