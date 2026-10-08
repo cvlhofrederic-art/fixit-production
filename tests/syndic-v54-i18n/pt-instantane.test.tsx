@@ -6,11 +6,16 @@
  *   SYNDIC_I18N_INSTANTANE=ecrire  SYNDIC_I18N_DIR=<dossier>  → écrit un fichier JSON par route
  *   SYNDIC_I18N_INSTANTANE=comparer SYNDIC_I18N_DIR=<dossier> → compare à ces fichiers
  * Options : SYNDIC_I18N_ROUTES=dashboard,ordens (sous-ensemble), SYNDIC_I18N_SHARD=1/4.
+ *
+ * Chaque relevé garde l'ordre du document et les doublons, l'état des contrôles et ce
+ * qui disparaît après un clic (voir crawl.tsx) : un libellé qui se multiplie, se
+ * déplace ou disparaît est une différence. Un relevé d'un format antérieur
+ * (FORMAT_RELEVE) n'est pas comparable : le reprendre avec `ecrire` sur la référence.
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installCrawlEnvironment } from './crawl'
+import { FORMAT_RELEVE, installCrawlEnvironment } from './crawl'
 import { AGENT_ROUTES, capturerEcran, capturerShell, navIds, routesACapturer } from './ecrans'
 import { MODULE_ENTRIES } from './modules'
 
@@ -49,15 +54,16 @@ describe.skipIf(!MODE)('Instantané des textes PT — syndic v54', () => {
 
   for (const route of selectedRoutes()) {
     it(route, async () => {
-      const result = route === '__shell__' ? { route, shell: await capturerShell('pt-PT') } : await capturerEcran(route, 'pt-PT')
-      const json = JSON.stringify(result, null, 1)
+      const capture = route === '__shell__' ? { route, shell: await capturerShell('pt-PT') } : await capturerEcran(route, 'pt-PT')
+      const json = JSON.stringify({ format: FORMAT_RELEVE, ...capture }, null, 1)
       if (MODE === 'ecrire') {
         fs.mkdirSync(DIR, { recursive: true })
         fs.writeFileSync(fileFor(route), json)
         return
       }
-      const expected = fs.readFileSync(fileFor(route), 'utf8')
-      expect(JSON.parse(json)).toEqual(JSON.parse(expected))
+      const expected = JSON.parse(fs.readFileSync(fileFor(route), 'utf8'))
+      expect(expected.format ?? 1, `relevé de référence au format ${expected.format ?? 1} : le reprendre avec SYNDIC_I18N_INSTANTANE=ecrire`).toBe(FORMAT_RELEVE)
+      expect(JSON.parse(json)).toEqual(expected)
     }, 600_000)
   }
 

@@ -18,7 +18,7 @@ import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { OBRIG_PRAZOS_MESSAGES, type BucketPrazo } from './i18n/ModObrigPrazos.messages'
 
 /** Obrigações Legais — port byte-exact V5.7 + Phase 3 : réutilise la table syndic_prazos.
@@ -60,7 +60,7 @@ export default function ModObrigPrazos() {
     id: p.id, edificio: p.immeuble, tipo: p.tipo, descricao: p.titulo, prazo: p.dataLimite, notas: p.notes,
   }))
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blank: OPForm = { edificio: '', tipo: 'conservacao', descricao: '', prazo: today, notas: '' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<OPForm>(blank)

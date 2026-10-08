@@ -10,6 +10,7 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { RELATORIO_MENSAL_MESSAGES, type InterventionRapport, type StatRapport } from './i18n/ModRelatorioMensal.messages'
 
 /** Relatório Mensal — port byte-exact du ModRelatorioMensal du bundle V5.7 (aperçu PDF) + Phase 3 :
@@ -38,7 +39,7 @@ export default function ModRelatorioMensal() {
 
   // Périodes disponibles (YYYY-MM) triées récentes d'abord ; défaut = la plus récente sinon mois courant.
   const periods = [...new Set(missions.map(keyOf).filter(Boolean))].sort().reverse()
-  const fallback = new Date().toISOString().slice(0, 7)
+  const fallback = jourCivilLocal().slice(0, 7)
   const [sel, setSel] = useState<string>('')
   const period = sel || periods[0] || fallback
   const selYear = period.slice(0, 4)

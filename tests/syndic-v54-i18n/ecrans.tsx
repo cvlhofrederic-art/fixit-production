@@ -16,7 +16,7 @@ import { SIDEBAR_FR } from '@/components/syndic-dashboard/v54/shell/sidebar-conf
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import { V54LocaleProvider } from '@/lib/syndic/v54/i18n/context'
 import type { V54Locale } from '@/lib/syndic/v54/i18n/locale'
-import { crawl, unionScope, type CrawlResult } from './crawl'
+import { crawl, textesDistincts, unionScope, type CrawlResult } from './crawl'
 import { MODULE_ENTRIES } from './modules'
 
 export const AGENT_ROUTES = ['fixy', 'max', 'lea', 'alfredo', 'tempo']
@@ -111,8 +111,7 @@ export function capturerShell(locale: V54Locale): Promise<CrawlResult> {
   })
 }
 
-/** Tous les textes d'un relevé (état initial + ce qui apparaît à chaque clic). */
+/** Tous les textes distincts d'un relevé (état initial + ce qui apparaît à chaque clic). */
 export function tousLesTextes(r: Instantane | { route: string; shell: CrawlResult }): string[] {
-  const parties: CrawlResult[] = 'shell' in r ? [r.shell] : [r.demo, ...(r.auth ? [r.auth] : [])]
-  return [...new Set(parties.flatMap((p) => [...p.initial, ...p.clicks.flatMap((c) => c.added)]))]
+  return textesDistincts('shell' in r ? [r.shell] : [r.demo, ...(r.auth ? [r.auth] : [])])
 }

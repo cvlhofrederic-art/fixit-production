@@ -17,7 +17,7 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, echeanceDepassee } from '@/lib/syndic/v54/i18n/dates'
 import type { Enquete } from '@/lib/syndic/v54/api'
 import { ENQUETES_MESSAGES } from './i18n/ModEnquetes.messages'
 
@@ -37,8 +37,9 @@ const estadoKind = (v: string): PillKind => (({ ativa: 'sage', a_decorrer: 'ambe
 const respondido = (e: Enquete) => e.options.reduce((s, o) => s + (Number(o.votes) || 0), 0)
 const partPct = (e: Enquete) => (e.total > 0 ? Math.min(100, Math.round((respondido(e) / e.total) * 100)) : 0)
 const optPct = (e: Enquete, votes: number) => { const r = respondido(e); return r > 0 ? Math.round((votes / r) * 100) : 0 }
-/** Délai dépassé : drapeau de la démonstration ; données réelles : valeur brute 'Prazo expirado' (comportement d'origine). */
-const prazoExpire = (s: EnqueteAffichee) => s.prazoExpire ?? s.prazo === 'Prazo expirado'
+/** Délai dépassé : drapeau de la démonstration ; données réelles : date limite (colonne DATE)
+ * antérieure au jour civil local, quel que soit le statut (historique compris). */
+const prazoExpire = (s: EnqueteAffichee) => s.prazoExpire ?? echeanceDepassee(s.prazo)
 
 const surveyCard = { background: '#fff', border: '1px solid var(--v54-line)', borderRadius: 14, boxShadow: 'var(--v54-shadow-card)', padding: 22, marginBottom: 16 } as const
 

@@ -36,8 +36,11 @@ export interface Immeuble {
 
 export interface Artisan {
   id: string
+  /** Nom affiché complet « Prénom Nom » (syndic_artisans.nom, écrit par POST /api/syndic/artisans). */
   nom: string
+  /** Composante prénom de `nom` : ne pas la rajouter devant `nom` à l'affichage. */
   prenom?: string
+  /** Composante nom de famille / raison sociale de `nom`. */
   nom_famille?: string
   metier: string
   telephone: string

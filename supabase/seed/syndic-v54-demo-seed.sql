@@ -2,7 +2,8 @@
 -- Seed démo Syndic v54 — peuple le cabinet d'un compte pour une démo « vivante ».
 --
 -- À LANCER dans le SQL Editor Supabase (écriture DB → action manuelle assumée).
--- Le cabinet_id est résolu par EMAIL ci-dessous : ajuste-le si besoin.
+-- Avant de lancer : remplacer <EMAIL_COMPTE_DEMO> (section 1) par l'e-mail du compte de démo
+-- à peupler. Sans remplacement, le script s'arrête (« Compte introuvable ») avant toute insertion.
 --
 -- Couvre les modules câblés : Edifícios, Condóminos, Ordens, Contratos, Elevadores,
 -- Seguros, Faturação, Impayés/Cobrança + tous les rapports calculés (ContabTec,
@@ -19,9 +20,9 @@ DECLARE
   v_c1   uuid;  v_c2   uuid;  v_c3   uuid;
 BEGIN
   -- ── 1. Résoudre le cabinet (compte de connexion) ──────────────────────────
-  SELECT id INTO v_cab FROM auth.users WHERE email = 'admincvlho@gmail.com' LIMIT 1;
+  SELECT id INTO v_cab FROM auth.users WHERE email = '<EMAIL_COMPTE_DEMO>' LIMIT 1;
   IF v_cab IS NULL THEN
-    RAISE EXCEPTION 'Compte introuvable — ajuste l''email dans le seed.';
+    RAISE EXCEPTION 'Compte introuvable — remplace <EMAIL_COMPTE_DEMO> par l''e-mail du compte de démo.';
   END IF;
 
   -- ── RESET optionnel (décommenter pour repartir propre) ────────────────────
@@ -36,13 +37,13 @@ BEGIN
 
   -- ── 2. Édifices ───────────────────────────────────────────────────────────
   INSERT INTO syndic_immeubles (cabinet_id, nom, adresse, ville, code_postal, nb_lots, annee_construction, type_immeuble, gestionnaire, nb_interventions, budget_annuel, depenses_annee)
-  VALUES (v_cab, 'Edifício Aurora', 'Rua de Santa Catarina 120', 'Porto', '4000-447', 24, 2008, 'Copropriété', 'Frédéric C.', 28, 96000, 52800)
+  VALUES (v_cab, 'Edifício Aurora', 'Rua de Santa Catarina 120', 'Porto', '4000-447', 24, 2008, 'Copropriété', 'Gabinete Vitfix Portugal', 28, 96000, 52800)
   RETURNING id INTO v_i1;
   INSERT INTO syndic_immeubles (cabinet_id, nom, adresse, ville, code_postal, nb_lots, annee_construction, type_immeuble, gestionnaire, nb_interventions, budget_annuel, depenses_annee)
-  VALUES (v_cab, 'Condomínio Boavista Center', 'Av. da Boavista 1203', 'Porto', '4100-130', 40, 2015, 'Copropriété', 'Frédéric C.', 41, 158000, 88600)
+  VALUES (v_cab, 'Condomínio Boavista Center', 'Av. da Boavista 1203', 'Porto', '4100-130', 40, 2015, 'Copropriété', 'Gabinete Vitfix Portugal', 41, 158000, 88600)
   RETURNING id INTO v_i2;
   INSERT INTO syndic_immeubles (cabinet_id, nom, adresse, ville, code_postal, nb_lots, annee_construction, type_immeuble, gestionnaire, nb_interventions, budget_annuel, depenses_annee)
-  VALUES (v_cab, 'Residencial Cedofeita', 'Rua de Cedofeita 305', 'Porto', '4050-179', 16, 1998, 'Copropriété', 'Frédéric C.', 19, 61000, 33200)
+  VALUES (v_cab, 'Residencial Cedofeita', 'Rua de Cedofeita 305', 'Porto', '4050-179', 16, 1998, 'Copropriété', 'Gabinete Vitfix Portugal', 19, 61000, 33200)
   RETURNING id INTO v_i3;
 
   -- ── 3. Copropriétaires ────────────────────────────────────────────────────

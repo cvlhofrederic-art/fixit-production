@@ -16,7 +16,7 @@ import m from './modules.module.css'
 import { NovaMissaoModal } from './NovaMissaoModal'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import type { Artisan } from '@/components/syndic-dashboard/types'
 import { PROFISSIONAIS_MESSAGES, type ProDemo } from './i18n/ModProfissionais.messages'
 
@@ -25,13 +25,6 @@ import { PROFISSIONAIS_MESSAGES, type ProDemo } from './i18n/ModProfissionais.me
 type Pro = ProDemo
 
 const badge = (bg: string, color: string): React.CSSProperties => ({ padding: '8px 12px', background: bg, borderRadius: 8, fontSize: 12, color, marginBottom: 6 })
-
-/** Date du jour (locale) au format AAAA-MM-JJ, comparable aux dates de fin ISO. */
-const aujourdhuiIso = (): string => {
-  const d = new Date()
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
 
 /** Attestation réellement valide : déposée et, si sa date de fin est connue (ISO), non échue. */
 const attestationValide = (deposee: boolean | undefined, fin: string | null | undefined, aujourdhui: string): boolean => {
@@ -52,12 +45,14 @@ function lireArtisan(a: Artisan, aujourdhui: string) {
   }
 }
 
-/** Mappe un artisan réel vers la tuple de rendu d'une carte (Phase 2). */
+/**
+ * Mappe un artisan réel vers la tuple de rendu d'une carte (Phase 2). `a.nom` est déjà le nom
+ * affiché complet « Prénom Nom » (cf. normaliserArtisan) : ne pas lui rajouter `a.prenom`.
+ */
 function artisanToPro(a: Artisan, aujourdhui: string): Pro {
-  const name = [a.prenom, a.nom].filter(Boolean).join(' ').trim() || a.nom
   const l = lireArtisan(a, aujourdhui)
   return [
-    name,
+    a.nom,
     a.metier,
     l.certifie ? 'check' : '',
     String(a.note ?? ''),
@@ -75,7 +70,8 @@ export default function ModProfissionais() {
   // Phase 2 : vrais artisans du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
   const real = data.authenticated
-  const aujourdhui = aujourdhuiIso()
+  // Jour civil du navigateur (et non le jour UTC), comparable aux dates de fin ISO.
+  const aujourdhui = jourCivilLocal()
   const conformite = real ? data.artisans.map((a) => lireArtisan(a, aujourdhui)) : []
   // Démo : les 9 exemples ont une RC Pro valide (« 9 com Seguro RC válido » / « 9 avec RC Pro valide »).
   const items: ReadonlyArray<{ pro: Pro; id: string | null; rcValide: boolean }> = real

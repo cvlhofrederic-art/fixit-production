@@ -18,7 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { SEGURO_OBR_MESSAGES } from './i18n/ModSeguroObr.messages'
 
 /** Seguro Obrigatório de Condomínio — port byte-exact V5.7 + Phase 3 : réutilise syndic_seguros + syndic_sinistros.
@@ -49,7 +49,7 @@ export default function ModSeguroObr() {
     estado: s.statut === 'encerrado' || s.statut === 'indemnizado' ? 'fechado' : 'aberto',
   }))
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blankA: ApForm = { seguradora: '', numero: '', edificio: '', dataInicio: today, dataFim: yearLater(today), premio: '', cobertura: '', notas: '' }
   const blankS: SinForm = { apolice: '', dataSinistro: today, tipo: 'agua', montante: '', descricao: '' }
   const [busy, setBusy] = useState(false)

@@ -2,6 +2,12 @@ import { defineMessages } from '@/lib/syndic/v54/i18n'
 
 /**
  * Textes de l'écran « Certificação Energética » (SCE, DL 101-D/2020) / « DPE collectif ».
+ * Droit portugais : certificat SCE exigé à la construction, en grande rénovation, à la vente
+ * et à la location (pas pour « tous les édifices ») ; validité de 10 ans (8 ans pour les grands
+ * édifices de commerce et services) ; classes A+ à F. La directive (UE) 2024/1275 ne fixe
+ * aucune classe minimale aux bâtiments résidentiels et n'interdit pas de louer ; transposition
+ * au plus tard le 29 mai 2026 (art. 35), en partie faite par le DL 11/2025. Une transposition
+ * complète (échelle A à G, art. 19) changerait les classes : la vérifier au DRE.
  * Droit français : DPE collectif des immeubles d'habitation collective dont le permis de
  * construire a été déposé avant le 1er janvier 2013 (CCH art. L126-31, loi n° 2021-1104
  * Climat et résilience) ; échéances selon le nombre de lots ; renouvellement tous les 10 ans
@@ -57,7 +63,7 @@ export const CERT_ENERG_MESSAGES = defineMessages<CertEnergTextes>({
     ajouter: '+ Adicionar certificado',
     alerte: {
       titre: 'Sistema de Certificação Energética (SCE) — DL 101-D/2020',
-      texte: 'O certificado energético é obrigatório para todos os edifícios. Validade de 10 anos. Diretiva EPBD 2024: todos os edifícios devem atingir classe E até 2030 e classe D até 2033. Frações classe F ficam impedidas de arrendamento (MEPS).',
+      texte: 'O certificado energético é obrigatório na construção, na venda e no arrendamento de edifícios ou frações, bem como nas grandes renovações. Validade de 10 anos para os edifícios de habitação. A Diretiva (UE) 2024/1275 (EPBD 2024), relativa ao desempenho energético dos edifícios, fixou o prazo de transposição pelos Estados-Membros em 29 de maio de 2026.',
     },
     kpi: {
       certificats: 'Certificados',

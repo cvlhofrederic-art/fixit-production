@@ -18,7 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { COBR_AUTO_MESSAGES, type NatureImpaye } from './i18n/ModCobrAuto.messages'
 
 /** Cobrança Automática · Juros & Sanções — port byte-exact V5.7 + Phase 3.
@@ -49,7 +49,7 @@ export default function ModCobrAuto() {
   const recuperados = all.filter((i) => i.statut === 'solde').reduce((s, i) => s + i.montant, 0)
 
   const { push } = useToast()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blank = { immeubleId: '', coproprioId: '', montant: '', nature: 'charges_courantes', depuis: today, notas: '' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(blank)

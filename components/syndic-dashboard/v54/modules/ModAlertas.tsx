@@ -23,16 +23,15 @@ export default function ModAlertas() {
   const data = useSyndicData()
   const real = data.authenticated
 
-  const artisanName = (prenom: string | undefined, nom: string) => `${prenom ?? ''} ${nom}`.trim() || nom
-
+  // `a.nom` est déjà le nom affiché complet « Prénom Nom » (cf. normaliserArtisan).
   const alerts: AlertItem[] = real
     ? [
         ...data.artisans
           .filter((a) => !a.rcProValide)
-          .map((a): AlertItem => ({ kind: 'rust', tag: t.rcPro.etiquette, title: t.rcPro.titre, desc: artisanName(a.prenom, a.nom), icon: 'shield' })),
+          .map((a): AlertItem => ({ kind: 'rust', tag: t.rcPro.etiquette, title: t.rcPro.titre, desc: a.nom, icon: 'shield' })),
         ...data.artisans
           .filter((a) => !a.decennaleValide)
-          .map((a): AlertItem => ({ kind: 'amber', tag: t.decennale.etiquette, title: t.decennale.titre, desc: artisanName(a.prenom, a.nom), icon: 'shield' })),
+          .map((a): AlertItem => ({ kind: 'amber', tag: t.decennale.etiquette, title: t.decennale.titre, desc: a.nom, icon: 'shield' })),
         ...data.immeubles
           .filter((i) => !i.reglementTexte)
           .map((i): AlertItem => ({ kind: 'gold', tag: t.reglement.etiquette, title: t.reglement.titre, desc: i.nom, icon: 'doc' })),

@@ -10,6 +10,7 @@ import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { downloadReportPdf } from '@/lib/syndic/v54/report-pdf'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { REL_GESTAO_MESSAGES } from './i18n/ModRelGestao.messages'
 
 /** Relatório de Gestão — port byte-exact du ModRelGestao du bundle V5.7 + Phase 3 :
@@ -35,7 +36,7 @@ export default function ModRelGestao() {
   const missions = real ? (data.missions ?? []) : []
   const valOf = (mi: { montantFacture?: number; montantDevis?: number }) => mi.montantFacture ?? mi.montantDevis ?? 0
 
-  const curMonth = new Date().toISOString().slice(0, 7) // intervenções « do mês » = mois courant
+  const curMonth = jourCivilLocal().slice(0, 7) // intervenções « do mês » = mois courant
   const nEdif = immeubles.length
   const nInterv = missions.length
   const intervMes = missions.filter((mi) => (mi.dateIntervention || mi.dateCreation || '').slice(0, 7) === curMonth).length

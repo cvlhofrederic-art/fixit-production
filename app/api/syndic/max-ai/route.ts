@@ -61,6 +61,17 @@ async function loadTocPt(): Promise<string | null> {
 // Route principale
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
+  // Corps lu avant toute autre étape : la langue de la requête doit être connue
+  // avant le secret, la limite de débit et l'authentification, qui peuvent
+  // lever, pour que le refus du catch final soit dans cette langue. La lecture
+  // n'a pas d'effet de bord : ces contrôles gardent leur ordre et leurs réponses
+  // (429, 401). Un corps illisible garde le défaut de la route ('fr') ; son
+  // erreur est relevée plus bas, à la place de l'ancienne lecture.
+  const lecture = await request.json().then(
+    (corps) => ({ ok: true as const, corps }),
+    (erreur: unknown) => ({ ok: false as const, erreur }),
+  )
+  const ragLanguage: 'fr' | 'pt' = lecture.ok && lecture.corps?.locale === 'pt' ? 'pt' : 'fr'
   try {
     const GROQ_API_KEY = await getSecret('GROQ_API_KEY')
 
@@ -82,11 +93,11 @@ export async function POST(request: NextRequest) {
     // absent → tag null, traces dans le flux habituel.
     const evalRunId = request.headers.get('x-eval-run-id') || null
 
-    const rawBody = await request.json()
+    if (!lecture.ok) throw lecture.erreur
+    const rawBody = lecture.corps
     const v = validateBody(syndicMaxAiSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
-    const { message, conversation_history = [], locale } = v.data
-    const ragLanguage: 'fr' | 'pt' = locale === 'pt' ? 'pt' : 'fr'
+    const { message, conversation_history = [] } = v.data
     const isPt = ragLanguage === 'pt'
 
     // Le contexte syndic est utilisé uniquement pour la sanitization PII.
@@ -290,9 +301,10 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     logger.error('[max-ai] unexpected error', {
       error: err instanceof Error ? err.message : String(err),
+      locale: ragLanguage,
     })
     return NextResponse.json({
-      response: getRefusalMessage('pt'),
+      response: getRefusalMessage(ragLanguage),
       citations: [],
       confidence: 0,
       refusal: true,

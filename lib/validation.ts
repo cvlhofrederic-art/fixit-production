@@ -572,12 +572,17 @@ export const syndicCertEnergSchema = z.object({
 })
 
 // ── Syndic Declaração de Encargos schema (Phase 3 — ModDeclEncargos) ──────
+// La date limite n'est plus reçue du client : la route la calcule depuis dataPedido
+// selon la règle du pays (lib/syndic/v54/decl-encargos.ts). Une clé prazoLimite
+// envoyée quand même est retirée par z.object.
 export const syndicDeclEncargosSchema = z.object({
   fracao: z.string().min(1, 'Fração requise').max(100),
   condomino: z.string().min(1, 'Condómino requis').max(200),
   edificio: z.string().max(200).optional(),
-  dataPedido: z.string().max(20).optional(),
-  prazoLimite: z.string().max(20).optional(),
+  // Date de la demande facultative ('' ou null = non renseignée) ; jour civil réel AAAA-MM-JJ.
+  dataPedido: z.preprocess(v => (v === '' || v === null ? undefined : v), z.iso.date().optional()),
+  // Pays de la règle de délai : 'pt' (/pt/syndic/v54, défaut) ou 'fr' (/fr/syndic/v54).
+  locale: z.enum(['pt', 'fr']).optional().default('pt'),
   encargosCorrentes: z.coerce.number().min(0).max(100_000_000).optional().default(0),
   divida: z.coerce.number().min(0).max(100_000_000).optional().default(0),
   notas: z.string().max(5000).optional(),

@@ -18,6 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { FCR_MESSAGES } from './i18n/ModFCR.messages'
 
 /** Fundo Comum de Reserva — port byte-exact V5.7 + Phase 3 : édifices & mouvements réels.
@@ -40,7 +41,7 @@ export default function ModFCR() {
   const edificios = real ? (data.fcrEdificios ?? []) : []
   const movimentos = real ? (data.fcrMovimentos ?? []) : []
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blankE: EdifForm = { nome: '', endereco: '', orcamentoAnual: '', percentagemFCR: seuil, saldoInicial: '' }
   const blankM: MovForm = { edificio: '', tipo: 'entrada', data: today, montante: '', descricao: '' }
   const [openMod, setOpenMod] = useState<'edificio' | 'movimento' | null>(null)

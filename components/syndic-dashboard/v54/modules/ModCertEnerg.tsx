@@ -19,7 +19,7 @@ import kpiCss from '../primitives/kpi/KPI.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { CERT_ENERG_MESSAGES } from './i18n/ModCertEnerg.messages'
 
 /** Certificação Energética — port byte-exact V5.7 + Phase 3 : certificats SCE réels.
@@ -40,7 +40,7 @@ export default function ModCertEnerg() {
   const real = data.authenticated
   const all = real ? (data.certificados ?? []) : []
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blank: CertForm = { numero: '', edificio: '', perito: '', classe: 'C', dataEmissao: today, dataValidade: validityIso(today), notas: '' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState<CertForm>(blank)

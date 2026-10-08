@@ -4,6 +4,7 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { syndicDeclEncargosSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { prazoLimiteDeclaracao } from '@/lib/syndic/v54/decl-encargos'
 
 // GET /api/syndic/decl-encargos — déclarations d'encargos du cabinet (Lei 8/2022)
 export async function GET(request: NextRequest) {
@@ -69,8 +70,9 @@ export async function POST(request: NextRequest) {
         fracao: v.fracao,
         condomino: v.condomino,
         edificio: v.edificio || '',
-        data_pedido: v.dataPedido || null,
-        prazo_limite: v.prazoLimite || null,
+        data_pedido: v.dataPedido ?? null,
+        // Le serveur fait foi : date limite calculée selon la règle du pays, jamais reçue du client.
+        prazo_limite: prazoLimiteDeclaracao(v.dataPedido, v.locale),
         encargos_correntes: v.encargosCorrentes ?? 0,
         divida: v.divida ?? 0,
         estado: 'pendente',

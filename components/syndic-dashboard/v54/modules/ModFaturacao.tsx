@@ -18,7 +18,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
-import { dateApi } from '@/lib/syndic/v54/i18n/dates'
+import { dateApi, jourCivilLocal } from '@/lib/syndic/v54/i18n/dates'
 import { FATURACAO_MESSAGES } from './i18n/ModFaturacao.messages'
 
 /**
@@ -44,7 +44,7 @@ export default function ModFaturacao() {
   const liquidadas = all.filter((f) => f.statut === 'reglee').length
 
   const { push } = useToast()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = jourCivilLocal()
   const blank = { numeroFatura: '', coproprioId: '', immeubleId: '', emiseLe: today, echeance: '', montantHt: '', tvaTaux: t.tauxTvaParDefaut, description: '', statut: 'a_regler' }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(blank)

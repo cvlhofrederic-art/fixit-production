@@ -1,6 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup, within } from '@testing-library/react'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, within, fireEvent, waitFor } from '@testing-library/react'
 import ModProfissionais from '@/components/syndic-dashboard/v54/modules/ModProfissionais'
+import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
 import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 import { V54LocaleProvider, type V54Locale } from '@/lib/syndic/v54/i18n'
 import type { Artisan } from '@/components/syndic-dashboard/types'
@@ -13,10 +14,18 @@ import { normaliserArtisan } from '@/lib/syndic/v54/api'
  * - la certification VitFix n'est plus inversée : « Certificado » / « Certifié » sur les
  *   prestataires certifiés, en démo comme avec les vraies données ;
  * - les vraies données passent, comme en production, par fetchArtisans, qui normalise les
- *   colonnes Supabase en snake_case renvoyées par GET /api/syndic/artisans.
+ *   colonnes Supabase en snake_case renvoyées par GET /api/syndic/artisans ;
+ * - le nom affiché est la colonne `nom`, déjà « Prénom Nom » : le prénom n'est plus rajouté
+ *   devant (« João João Silva » / « Jean Jean Dupont »).
  */
 
-afterEach(cleanup)
+const TZ_INITIAL = process.env.TZ
+afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  if (TZ_INITIAL === undefined) delete process.env.TZ
+  else process.env.TZ = TZ_INITIAL
+})
 
 /** Ligne renvoyée par GET /api/syndic/artisans (colonnes Supabase brutes), normalisée comme dans fetchArtisans. */
 const ligneApi = (over: Record<string, unknown>): Artisan => normaliserArtisan({
@@ -72,6 +81,19 @@ describe('ModProfissionais — pastille RC Pro', () => {
     expect(within(carte('RC Future')).getByText(/RC Pro valide jusqu'au/)).toBeInTheDocument()
   })
 
+  it('RC qui expire aujourd’hui (jour civil local, pas le jour UTC) : encore valide ; échue la veille', () => {
+    process.env.TZ = 'Europe/Lisbon'
+    vi.useFakeTimers({ toFake: ['Date'] })
+    // 23 h 30 UTC le 10/05 = 0 h 30 le 11/05 à Lisbonne (heure d'été).
+    vi.setSystemTime(new Date('2026-05-10T23:30:00Z'))
+    rendre('pt-PT', donnees([
+      ligneApi({ id: 'jour', email: 'jour@teste.pt', nom: 'RC Hoje', rc_pro_valide: true, rc_pro_expiration: '2026-05-11' }),
+      ligneApi({ id: 'veille', email: 'veille@teste.pt', nom: 'RC Ontem', rc_pro_valide: true, rc_pro_expiration: '2026-05-10' }),
+    ]))
+    expect(within(carte('RC Hoje')).getByText('Seguro RC válido')).toBeInTheDocument()
+    expect(within(carte('RC Ontem')).queryByText('Seguro RC válido')).toBeNull()
+  })
+
   it('chapeau : compteurs calculés depuis les colonnes renvoyées par l’API', () => {
     rendre('pt-PT', donnees([
       ligneApi({ id: '1', email: '1@teste.pt', nom: 'Um', vitfix_certifie: true, rc_pro_valide: true, assurance_decennale_valide: true }),
@@ -115,5 +137,100 @@ describe('ModProfissionais — certification VitFix', () => {
     expect(within(carte('Sylvain')).getByText('Certifié')).toBeInTheDocument()
     expect(within(carte('Sanchez')).queryByText('Certifié')).toBeNull()
     expect(within(carte('Costes')).queryByText('Certifié')).toBeNull()
+  })
+})
+
+describe('ModProfissionais — nom affiché (colonne nom = « Prénom Nom »)', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  /** Ligne telle que l'écrit POST /api/syndic/artisans : nom complet + ses composantes. */
+  const joao = () => ligneApi({ id: 'js', email: 'joao@teste.pt', nom: 'João Silva', prenom: 'João', nom_famille: 'Silva' })
+  const jean = () => ligneApi({
+    id: 'jd', email: 'jean@exemple.fr', telephone: '0600000001', metier: 'Plombier',
+    nom: 'Jean Dupont', prenom: 'Jean', nom_famille: 'Dupont',
+  })
+
+  function rendreConnecte(locale: V54Locale, artisans: Artisan[]) {
+    return render(
+      <V54LocaleProvider locale={locale}>
+        <SyndicDataContext.Provider value={{ ...donnees(artisans), token: 'jeton', refresh: vi.fn() }}>
+          <ToastProvider><ModProfissionais /></ToastProvider>
+        </SyndicDataContext.Provider>
+      </V54LocaleProvider>,
+    )
+  }
+
+  /** Corps JSON du premier appel fetch vers `url`. */
+  const corpsEnvoye = (spy: { mock: { calls: unknown[][] } }, url: string): Record<string, unknown> => {
+    const appel = spy.mock.calls.find((c) => c[0] === url)
+    return JSON.parse((appel![1] as RequestInit).body as string) as Record<string, unknown>
+  }
+
+  it('PT : carte, confirmation et toast de suppression affichent « João Silva » sans prénom doublé', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    rendreConnecte('pt-PT', [joao()])
+    expect(screen.getByText('João Silva', { selector: 'div' })).toBeInTheDocument()
+    expect(screen.queryByText(/João João/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar profissional' }))
+    const dialogue = screen.getByRole('dialog')
+    expect(within(dialogue).getByText('Tem a certeza que pretende eliminar', { exact: false }).textContent)
+      .toBe('Tem a certeza que pretende eliminar João Silva da sua lista de profissionais? Esta ação é irreversível.')
+
+    fireEvent.click(within(dialogue).getByRole('button', { name: 'Eliminar' }))
+    const toast = (await screen.findByText('Profissional eliminado')).closest('[role="status"]') as HTMLElement
+    expect(within(toast).getByText('João Silva')).toBeInTheDocument()
+    expect(screen.queryByText(/João João/)).toBeNull()
+  })
+
+  it('PT : « Criar missão » pré-remplit et envoie « João Silva »', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ mission: {} }), { status: 200 }))
+    rendreConnecte('pt-PT', [joao()])
+    fireEvent.click(screen.getByRole('button', { name: 'Criar missão' }))
+    expect(screen.getByDisplayValue('João Silva')).toHaveAttribute('readonly')
+
+    fireEvent.change(screen.getByPlaceholderText('Nome do edifício'), { target: { value: 'Edifício K' } })
+    fireEvent.change(screen.getByPlaceholderText('Ex.: Canalização'), { target: { value: 'Canalização' } })
+    fireEvent.change(screen.getByPlaceholderText('Descreva a intervenção…'), { target: { value: 'Fuga na coluna' } })
+    const boutons = screen.getAllByRole('button', { name: 'Criar missão' })
+    fireEvent.click(boutons[boutons.length - 1])
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
+    expect(corpsEnvoye(spy, '/api/syndic/missions').artisan).toBe('João Silva')
+  })
+
+  it('FR : carte, confirmation et toast de suppression affichent « Jean Dupont » sans prénom doublé', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+    rendreConnecte('fr-FR', [jean()])
+    expect(screen.getByText('Jean Dupont', { selector: 'div' })).toBeInTheDocument()
+    expect(screen.queryByText(/Jean Jean/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Supprimer le prestataire' }))
+    const dialogue = screen.getByRole('dialog')
+    expect(within(dialogue).getByText('Voulez-vous vraiment retirer', { exact: false }).textContent)
+      .toBe('Voulez-vous vraiment retirer Jean Dupont de votre liste de prestataires ? Cette action est irréversible.')
+
+    fireEvent.click(within(dialogue).getByRole('button', { name: 'Supprimer' }))
+    const toast = (await screen.findByText('Prestataire supprimé')).closest('[role="status"]') as HTMLElement
+    expect(within(toast).getByText('Jean Dupont')).toBeInTheDocument()
+    expect(screen.queryByText(/Jean Jean/)).toBeNull()
+  })
+
+  it('FR : « Créer une mission » pré-remplit et envoie « Jean Dupont »', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ mission: {} }), { status: 200 }))
+    rendreConnecte('fr-FR', [jean()])
+    fireEvent.click(screen.getByRole('button', { name: 'Créer une mission' }))
+    expect(screen.getByDisplayValue('Jean Dupont')).toHaveAttribute('readonly')
+
+    fireEvent.change(screen.getByPlaceholderText("Nom de l'immeuble"), { target: { value: 'Résidence Les Tilleuls' } })
+    fireEvent.change(screen.getByPlaceholderText('Ex. : Plomberie'), { target: { value: 'Plomberie' } })
+    fireEvent.change(screen.getByPlaceholderText("Décrivez l'intervention…"), { target: { value: 'Fuite sur la colonne' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Créer la mission' }))
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('/api/syndic/missions', expect.objectContaining({ method: 'POST' })))
+    expect(corpsEnvoye(spy, '/api/syndic/missions').artisan).toBe('Jean Dupont')
+  })
+
+  it('sans prénom (raison sociale) : le nom reste inchangé', () => {
+    rendreConnecte('pt-PT', [ligneApi({ id: 'lda', email: 'lda@teste.pt', nom: 'Canalizações Lda', prenom: '', nom_famille: 'Canalizações Lda' })])
+    expect(screen.getByText('Canalizações Lda', { selector: 'div' })).toBeInTheDocument()
   })
 })
