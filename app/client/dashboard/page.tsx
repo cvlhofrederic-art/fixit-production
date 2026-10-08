@@ -14,6 +14,7 @@ import type { ChatMessage as SharedChatMessage } from '@/lib/types'
 import { type CILEntry, generateCILEntries, getCILHealthScore, getCategoryInfo as getCategoryInfoBase, getPonctualiteScore as getPonctualiteScoreBase } from '@/lib/cil-utils'
 import { useSignatureCanvas } from '@/hooks/useSignatureCanvas'
 import type { User as SupabaseAuthUser } from '@supabase/supabase-js'
+import { avecDelai, deconnecterSessionServeur, DELAI_REPONSE_AUTH_MS, verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 
 // Dynamic imports for extracted page sections.
 // Each section is wrapped in SectionErrorBoundary via lib/dashboard-section-loader
@@ -125,17 +126,38 @@ export default function ClientDashboardPage() {
 
   useEffect(() => {
     let didLoad = false
+    // Locale et barre finale : sans elles, '/auth/login' passait par une 308 puis une 302.
+    const pageConnexion = `/${locale}/auth/login/`
+    // Après un échec de vérification : ?session=echec empêche la page de connexion de renvoyer ici d'office (sinon
+    // va-et-vient tant que les vérifications alternent entre succès et échec) ; le formulaire reste affiché.
+    const pageConnexionApresEchec = `${pageConnexion}?session=echec`
 
     const initAuth = async () => {
-      // Always use getUser() — validates JWT with Supabase server (non-forgeable)
-      // getSession() reads from localStorage which can be tampered with
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (currentUser) {
-        didLoad = true
-        setUser(currentUser)
-        await fetchBookings(currentUser.id)
-      } else {
-        window.location.href = '/auth/login'
+      try {
+        // getUser() valide le JWT auprès de Supabase (non falsifiable), avec un délai maximal :
+        // sans réponse ni exception gérée, le squelette restait affiché indéfiniment.
+        const verification = await verifierSessionNavigateur(supabase.auth)
+        if (verification.statut === 'valide') {
+          didLoad = true
+          setUser(verification.user)
+          await fetchBookings(verification.user.id)
+          return
+        }
+        if (verification.statut === 'refusee') {
+          // Refus explicite de Supabase : on supprime les cookies sb-* côté serveur, sinon la page de connexion
+          // retrouverait cette session. Le stockage local (devis, factures) n'est pas touché.
+          console.warn('[client/dashboard] session refusée, déconnexion côté serveur :', verification.motif, verification.erreur)
+          await deconnecterSessionServeur(locale)
+        } else {
+          // Indisponible (réseau, 5xx, autre 4xx, délai, verrou) : la session reste intacte, aucune déconnexion.
+          console.warn('[client/dashboard] vérification de session indisponible :', verification.erreur)
+          // Tableau de bord déjà affiché par INITIAL_SESSION : une vérification qui n'aboutit pas ne doit pas
+          // en faire sortir l'utilisateur ; ses requêtes restent protégées par le jeton (RLS).
+          if (didLoad) return
+        }
+        window.location.href = pageConnexionApresEchec
+      } catch (e) {
+        console.error('[client/dashboard] initAuth a échoué :', e)
       }
     }
 
@@ -143,7 +165,7 @@ export default function ClientDashboardPage() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
-        window.location.href = '/auth/login'
+        window.location.href = pageConnexion
       }
       if (!didLoad && event === 'INITIAL_SESSION' && session?.user) {
         didLoad = true
@@ -164,20 +186,32 @@ export default function ClientDashboardPage() {
   }, [activeTab, bookings])
 
   const fetchBookings = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*, services(name), profiles_artisan:artisan_id(company_name, rating_avg, rating_count)')
-      .eq('client_id', userId)
-      .order('booking_date', { ascending: false })
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*, services(name), profiles_artisan:artisan_id(company_name, rating_avg, rating_count)')
+        .eq('client_id', userId)
+        .order('booking_date', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching bookings:', error)
+      if (error) {
+        console.error('Error fetching bookings:', error)
+        toast.error('Erreur de chargement des réservations')
+      }
+      setBookings((data as Booking[]) || [])
+      // Generate Carnet de Santé entries
+      try {
+        generateCIL((data as Booking[]) || [])
+      } catch (e) {
+        console.error('[client/dashboard] génération du carnet de santé impossible :', e)
+      }
+    } catch (e) {
+      // Même signal que pour une réponse { error } : sans lui, une liste vide ferait croire à l'absence de réservation.
+      console.error('[client/dashboard] chargement des réservations impossible :', e)
       toast.error('Erreur de chargement des réservations')
+    } finally {
+      // Toujours quitter le squelette, même si la requête lève.
+      setLoading(false)
     }
-    setBookings((data as Booking[]) || [])
-    // Generate Carnet de Santé entries
-    generateCIL((data as Booking[]) || [])
-    setLoading(false)
     // Charger les notes depuis localStorage
     try {
       const saved = localStorage.getItem(`fixit_client_ratings_${userId}`)
@@ -191,8 +225,19 @@ export default function ClientDashboardPage() {
 
   const handleLogout = async () => {
     setLogoutLoading(true)
-    await supabase.auth.signOut()
-    window.location.href = `/${locale}/`
+    try {
+      const { error } = await avecDelai(supabase.auth.signOut(), DELAI_REPONSE_AUTH_MS)
+      if (error) {
+        // signOut renvoie une erreur sans supprimer la session locale : repli côté serveur (cookies sb-*).
+        console.error('[client/dashboard] signOut a échoué, repli sur la déconnexion serveur :', error)
+        await deconnecterSessionServeur(locale)
+      }
+    } catch (e) {
+      console.error('[client/dashboard] signOut a levé, repli sur la déconnexion serveur :', e)
+      await deconnecterSessionServeur(locale)
+    } finally {
+      window.location.href = `/${locale}/`
+    }
   }
 
   // ── Annuler un RDV ──
