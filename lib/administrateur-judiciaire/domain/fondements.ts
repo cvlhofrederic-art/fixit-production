@@ -114,6 +114,17 @@ export interface ReferenceTexte {
   article: string
 }
 
+/**
+ * Décision de justice citée à l'appui d'une règle. `verification` dit d'où vient la certitude :
+ * `SOURCE_SECONDAIRE` = retrouvée dans des commentaires publiés (texte intégral non relu) ; `A_CONFIRMER` = citée,
+ * mais introuvable à ce jour : la règle repose sur la décision métier, pas sur l'arrêt.
+ */
+export interface ReferenceJurisprudence {
+  citation: string
+  portee: string
+  verification: 'SOURCE_SECONDAIRE' | 'A_CONFIRMER'
+}
+
 /** « L. 1965 art. 18-2 », « D. 1967 art. 59, dernier al. »… */
 export function citerFondement(reference: ReferenceTexte): string {
   return `${TEXTES_REFERENCE[reference.texte].court} art. ${reference.article}`

@@ -7,6 +7,7 @@ import {
   creerCourrierDepuisModele,
   enregistrerAccuseReception,
   enregistrerDepot,
+  enregistrerPremierePresentation,
 } from '@/lib/administrateur-judiciaire/db/courriers'
 import { repoAgs, repoModelesCourrier } from '@/lib/administrateur-judiciaire/db/repositories'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
@@ -44,12 +45,14 @@ describe('T30 — Courrier et ModeleCourrier', () => {
     expect((await ajDb.courriers.get(courrier.id))?.formeEnvoi).toBe('AR')
   })
 
-  it('un courrier AR déposé sans accusé de réception est « envoyé, non notifié » ; avec l’accusé, « notifié »', async () => {
+  it('un courrier AR déposé non présenté est « envoyé, non notifié » ; présenté, « notifié » (J1)', async () => {
     const modele = await modeleNotificationPv()
     const courrier = await creerCourrierDepuisModele(modele.id, { objet: 'Notification du PV' })
     expect(etatNotificationCourrier(courrier)).toBe('non_envoye')
     const depose = await enregistrerDepot(courrier.id, { dateDepot: '2026-03-02', referenceDiffusion: 'REF-123' })
     expect(etatNotificationCourrier(depose)).toBe('envoye_non_notifie')
+    const presente = await enregistrerPremierePresentation(courrier.id, '2026-03-03')
+    expect(etatNotificationCourrier(presente)).toBe('notifie')
     const recu = await enregistrerAccuseReception(courrier.id, '2026-03-04')
     expect(etatNotificationCourrier(recu)).toBe('notifie')
   })
@@ -67,7 +70,9 @@ describe('T30 — Courrier et ModeleCourrier', () => {
     const courrier = await creerCourrierDepuisModele(modele.id, { objet: 'Notification du PV' })
     await expect(enregistrerAccuseReception(courrier.id, '2026-03-04')).rejects.toThrow(/dépôt/)
     await enregistrerDepot(courrier.id, { dateDepot: '2026-03-02' })
-    await expect(enregistrerAccuseReception(courrier.id, '2026-03-01')).rejects.toThrow(/précéder/)
+    await expect(enregistrerPremierePresentation(courrier.id, '2026-03-01')).rejects.toThrow(/précéder/)
+    await enregistrerPremierePresentation(courrier.id, '2026-03-03')
+    await expect(enregistrerAccuseReception(courrier.id, '2026-03-02')).rejects.toThrow(/précéder/)
     await expect(enregistrerDepot(courrier.id, { dateDepot: '02/03/2026' })).rejects.toThrow(/AAAA-MM-JJ/)
   })
 })
@@ -98,6 +103,7 @@ const courrier = (surcharge: Partial<Courrier>): Courrier => ({
   personneId: null,
   entrepriseId: null,
   dateDepot: '2026-03-02',
+  datePremierePresentation: '2026-03-03',
   dateAccuseReception: '2026-03-04',
   referenceDiffusion: null,
   createdAt: '2026-03-02T09:00:00.000Z',
@@ -108,10 +114,16 @@ const courrier = (surcharge: Partial<Courrier>): Courrier => ({
 })
 
 describe('T31 — délai accroché à la notification (R9)', () => {
-  it('le délai change si dateEffet change, et ne change pas si createdAt change', () => {
-    const base = finDelaiContestationAg([ligne({})], 'ag-1')
-    expect(finDelaiContestationAg([ligne({ createdAt: '2026-06-30T10:00:00.000Z' })], 'ag-1')).toBe(base)
-    expect(finDelaiContestationAg([ligne({ dateEffet: '2026-03-16' })], 'ag-1')).not.toBe(base)
+  it('le délai suit la première présentation du courrier, et ne change pas si createdAt change (J1)', () => {
+    const chaine = (notification: Partial<ChangementStatut>) => [
+      ligne({ id: 'c1', statutAncien: 'Projet', statutNouveau: 'Convoquée', dateEffet: '2026-01-20' }),
+      ligne({ id: 'c2', statutAncien: 'Convoquée', statutNouveau: 'PV signé', dateEffet: '2026-02-20' }),
+      ligne({ id: 'c3', courrierId: 'k1', dateEffet: '2026-03-03', ...notification }),
+    ]
+    const base = finDelaiContestationAg(chaine({}), [courrier({})], 'ag-1')
+    expect(base).toMatchObject({ etat: 'calcule', echeanceRetenue: '2026-05-04' })
+    expect(finDelaiContestationAg(chaine({ createdAt: '2026-06-30T10:00:00.000Z' }), [courrier({})], 'ag-1')).toEqual(base)
+    expect(finDelaiContestationAg(chaine({}), [courrier({ datePremierePresentation: '2026-03-16' })], 'ag-1')).not.toEqual(base)
   })
 
   it('AG notifiée sans courrier AR → alerte métier « notification non prouvée »', () => {
@@ -124,8 +136,10 @@ describe('T31 — délai accroché à la notification (R9)', () => {
       motif: "Le courrier rattaché n'est pas un envoi en AR.",
     })
     expect(
-      controlerPreuveNotificationAg([ligne({ courrierId: 'k1' })], [courrier({ dateAccuseReception: null })], 'ag-1'),
-    ).toEqual({ code: 'notification_non_prouvee', motif: "L'accusé de réception n'est pas encore revenu." })
+      controlerPreuveNotificationAg([ligne({ courrierId: 'k1' })], [courrier({ datePremierePresentation: null })], 'ag-1'),
+    ).toEqual({ code: 'notification_non_prouvee', motif: "La date de première présentation du pli n'est pas saisie." })
+    // J1 : présenté mais non retiré, le pli vaut notification.
+    expect(controlerPreuveNotificationAg([ligne({ courrierId: 'k1' })], [courrier({ dateAccuseReception: null })], 'ag-1')).toBeNull()
     expect(controlerPreuveNotificationAg([ligne({ courrierId: 'absent' })], [courrier({})], 'ag-1')?.motif).toMatch(
       /introuvable/,
     )
@@ -141,15 +155,16 @@ describe('T31 — délai accroché à la notification (R9)', () => {
     const ar = await creerCourrierDepuisModele(modele.id, { objet: 'Notification du PV' })
     await enregistrerDepot(ar.id, { dateDepot: '2026-03-02' })
     const ag = await repoAgs.create({ coproprieteId: 'C1', date: new Date(2026, 1, 10), nature: 'Judiciaire', statut: 'Projet' })
+    await changerStatutAg(ag.id, 'Convoquée', { dateEffet: '2026-02-10' })
     await changerStatutAg(ag.id, 'PV signé', { dateEffet: '2026-02-28' })
-    await changerStatutAg(ag.id, 'Notifiée', { dateEffet: '2026-03-02' })
+    await changerStatutAg(ag.id, 'Notifiée', { dateEffet: '2026-03-03' })
     let historique = await historiqueStatutAg(ag.id)
     let courriers = await ajDb.courriers.toArray()
     expect(controlerPreuveNotificationAg(historique, courriers, ag.id)?.code).toBe('notification_non_prouvee')
 
     const notification = historique[historique.length - 1]
     await rattacherPreuveNotification(notification.id, ar.id)
-    await enregistrerAccuseReception(ar.id, '2026-03-04')
+    await enregistrerPremierePresentation(ar.id, '2026-03-03')
     historique = await historiqueStatutAg(ag.id)
     courriers = await ajDb.courriers.toArray()
     expect(historique[historique.length - 1].courrierId).toBe(ar.id)

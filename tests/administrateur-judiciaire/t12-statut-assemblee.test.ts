@@ -55,6 +55,8 @@ describe('T12 — domaine (pur)', () => {
         statutNouveau: 'Notifiée',
         dateEffet: '2026-03-02',
         courrierId: null,
+        horsSequence: false,
+        motif: null,
       },
     })
   })
@@ -68,19 +70,17 @@ describe('T12 — domaine (pur)', () => {
     )
   })
 
-  it('le délai de l’art. 42 part de la date d’effet, jamais de la date de saisie', () => {
+  it('la date de notification est la date d’effet, jamais la date de saisie (calcul du délai : voir J1)', () => {
     // Notification le lundi 02/03/2026, saisie le jeudi 05/03/2026.
     const historique = [changement({ dateEffet: '2026-03-02', createdAt: '2026-03-05T10:00:00.000Z' })]
     expect(dateNotificationAg(historique, 'ag-1')).toBe('2026-03-02')
-    // 02/03 + 2 mois = samedi 02/05/2026 → reporté au lundi 04/05 (le 1er mai est férié, le 03 un dimanche).
-    expect(finDelaiContestationAg(historique, 'ag-1')).toBe('2026-05-04')
     const memeActeSaisiAutrement = [changement({ dateEffet: '2026-03-02', createdAt: '2026-04-20T10:00:00.000Z' })]
-    expect(finDelaiContestationAg(memeActeSaisiAutrement, 'ag-1')).toBe('2026-05-04')
+    expect(dateNotificationAg(memeActeSaisiAutrement, 'ag-1')).toBe('2026-03-02')
     expect(DELAI_CONTESTATION_AG_ART42.delai).toEqual({ valeur: 2, unite: 'mois', sens: 'apres' })
   })
 
   it('sans notification, pas de délai ; la dernière notification (par date d’effet) l’emporte', () => {
-    expect(finDelaiContestationAg([changement({ statutNouveau: 'PV signé' })], 'ag-1')).toBeNull()
+    expect(finDelaiContestationAg([changement({ statutNouveau: 'PV signé' })], [], 'ag-1')).toEqual({ etat: 'non_notifiee' })
     const deux = [
       changement({ id: 'a', dateEffet: '2026-03-02' }),
       changement({ id: 'b', dateEffet: '2026-03-16', createdAt: '2026-03-03T09:00:00.000Z' }),
@@ -121,7 +121,8 @@ describe('T12 — base locale', () => {
     const derniere = historique[2]
     expect(derniere.courrierId).toBeNull()
     expect(derniere.createdAt.slice(0, 10)).not.toBe(derniere.dateEffet)
-    expect(finDelaiContestationAg(historique, ag.id)).toBe('2026-05-04')
+    // Sans courrier AR présenté, le moteur refuse de calculer (J2).
+    expect(finDelaiContestationAg(historique, [], ag.id)).toMatchObject({ etat: 'refuse', motif: expect.stringMatching(/courrier/i) })
   })
 
   it('un changement de statut hors de la fonction de domaine est refusé par le repository', async () => {
