@@ -28,6 +28,10 @@ import { SEGURO_OBR_MESSAGES } from './i18n/ModSeguroObr.messages'
 type ApForm = { seguradora: string; numero: string; edificio: string; dataInicio: string; dataFim: string; premio: string; cobertura: string; notas: string }
 type SinForm = { apolice: string; dataSinistro: string; tipo: string; montante: string; descricao: string }
 
+/** Types de police (syndic_seguros.tipo) qui couvrent l'assurance obligatoire, par langue du dashboard. */
+const TIPOS_OBRIGATORIOS_PT: ReadonlySet<string> = new Set(['incendio'])
+const TIPOS_OBRIGATORIOS_FR: ReadonlySet<string> = new Set(['incendio', 'multirriscos'])
+
 const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
 const yearLater = (d: string) => { const dt = new Date(d); dt.setFullYear(dt.getFullYear() + 1); return dt.toISOString().slice(0, 10) }
 
@@ -38,7 +42,10 @@ export default function ModSeguroObr() {
   // sinistros = syndic_sinistros. Les autres polices restent dans ModSeguros.
   const data = useSyndicData()
   const real = data.authenticated
-  const apolices = (real ? (data.seguros ?? []) : []).filter((s) => s.tipo === 'incendio').map((s) => ({
+  // En France, l'assurance obligatoire de l'immeuble est la multirisque immeuble (incendie compris) :
+  // les polices « multirriscos » y comptent aussi. Le portugais garde le seul seguro de incêndio.
+  const tiposObrigatorios = locale === 'fr-FR' ? TIPOS_OBRIGATORIOS_FR : TIPOS_OBRIGATORIOS_PT
+  const apolices = (real ? (data.seguros ?? []) : []).filter((s) => tiposObrigatorios.has(s.tipo)).map((s) => ({
     id: s.id, seguradora: s.seguradora, numero: s.apolice, edificio: s.immeuble,
     dataInicio: s.dataInicio, dataFim: s.dataFim, premio: s.premioAnual, cobertura: s.capital,
     notas: s.notes, estado: s.statut,

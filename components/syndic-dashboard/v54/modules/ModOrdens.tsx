@@ -24,18 +24,25 @@ import { ORDENS_MESSAGES, type OrdreDemo, type StatutOrdre } from './i18n/ModOrd
 /** Compteurs des onglets de la démonstration (bundle). */
 const DEMO_COMPTEURS = { todas: 9, urg: 1, curso: 4 } as const
 
-const statusKind = (s: StatutOrdre): PillKind => (s === 'pendente' ? 'amber' : 'sage')
+const statusKind = (s: StatutOrdre): PillKind => (s === 'pendente' ? 'amber' : s === 'annulee' ? 'rust' : 'sage')
 
 type OrderItem = { row: OrdreDemo; id?: string; statut?: string; artisan?: string; priorite?: string }
 
-/** Statut mission Supabase → statut affiché (Phase 2). */
+/** Statut mission Supabase → statut affiché (Phase 2). Annulée / refusée : jamais « en attente ». */
 function missionStatut(statut: string): StatutOrdre {
   switch (statut) {
     case 'en_cours': case 'acceptee': return 'curso'
     case 'terminee': return 'concluida'
+    case 'annulee': case 'refusee': return 'annulee'
     default: return 'pendente'
   }
 }
+
+/** Statuts que la fenêtre « Gérer la mission » conserve tels quels (CHECK de syndic_missions.statut). */
+const STATUTS_MISSION = ['en_attente', 'acceptee', 'en_cours', 'terminee', 'annulee'] as const
+
+/** Statut courant d'une mission pour la fenêtre de gestion : repli « en attente » seulement s'il est inconnu. */
+const statutEdition = (s?: string): string => (STATUTS_MISSION.some((v) => v === s) ? (s as string) : 'en_attente')
 
 function missionToRow(mi: Mission, lot: (numero: string) => string, locale: V54Locale): OrdreDemo {
   return {
@@ -117,17 +124,27 @@ export default function ModOrdens() {
   }
 
   // Phase 2 écritures : « Abrir » / « Validar » → édition du statut + profissional via PATCH.
-  const STATUT_OPTS = [
+  // Tous les statuts de la base sont proposés : enregistrer sans toucher au statut le conserve
+  // (une mission acceptée n'est plus réécrite en « en cours », une annulée en « en attente »).
+  const STATUT_OPTS: ReadonlyArray<{ v: (typeof STATUTS_MISSION)[number]; l: string }> = [
     { v: 'en_attente', l: t.statuts.pendente },
+    { v: 'acceptee', l: t.statutAcceptee },
     { v: 'en_cours', l: t.statuts.curso },
     { v: 'terminee', l: t.statuts.concluida },
-  ] as const
-  const normStatut = (s?: string) => (s === 'acceptee' ? 'en_cours' : s === 'terminee' || s === 'en_cours' ? s : 'en_attente')
+    { v: 'annulee', l: t.statuts.annulee },
+  ]
   const [editing, setEditing] = useState<OrderItem | null>(null)
   const [estado, setEstado] = useState('en_attente')
   const [artisanEdit, setArtisanEdit] = useState('')
   const [busyEdit, setBusyEdit] = useState(false)
-  const openEdit = (it: OrderItem) => { setEditing(it); setEstado(normStatut(it.statut)); setArtisanEdit(it.artisan && it.artisan !== '—' ? it.artisan : '') }
+  const openEdit = (it: OrderItem) => { setEditing(it); setEstado(statutEdition(it.statut)); setArtisanEdit(it.artisan && it.artisan !== '—' ? it.artisan : '') }
+
+  /** Priorité réelle de la mission (la maquette n'en a pas : « Normale »). */
+  const priorite = (p?: string): { label: string; kind?: PillKind } => {
+    if (p === 'urgente') return { label: t.prioriteUrgente, kind: 'rust' }
+    if (p === 'planifiee') return { label: t.prioritePlanifiee }
+    return { label: t.prioriteNormale }
+  }
   const saveEdit = (e: FormEvent) => {
     e.preventDefault()
     if (real && data.token && editing?.id) {
@@ -174,15 +191,15 @@ export default function ModOrdens() {
       <Panel flush>
         {shown.length === 0 ? (
           <div style={{ padding: '36px 22px', textAlign: 'center', color: 'var(--v54-navy-300)', fontSize: 13 }}>{t.aucunResultat}</div>
-        ) : shown.map((it) => { const o = it.row; return (
+        ) : shown.map((it) => { const o = it.row; const prio = priorite(it.priorite); return (
           <div key={o.ref} style={{ padding: '18px 22px', borderBottom: '1px solid var(--v54-line)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-              <Pill noDot>{t.prioriteNormale}</Pill>
+              <Pill kind={prio.kind} noDot>{prio.label}</Pill>
               <Pill kind={statusKind(o.statut)} noDot>{t.statuts[o.statut]}</Pill>
               <span className={m.mono} style={{ fontSize: 11, color: 'var(--v54-navy-300)' }}>{o.ref}</span>
               {o.lieu && <span style={{ fontSize: 11.5, color: 'var(--v54-navy-500)', marginLeft: 4 }}>{o.lieu}</span>}
               <div style={{ flex: 1 }} />
-              {o.statut !== 'concluida' && o.prestataire === '—' && <Button size="sm" onClick={() => openEdit(it)} style={{ background: 'var(--v54-sage-500)', color: '#fff', border: 'none' }}>{t.valider}</Button>}
+              {o.statut !== 'concluida' && o.statut !== 'annulee' && o.prestataire === '—' && <Button size="sm" onClick={() => openEdit(it)} style={{ background: 'var(--v54-sage-500)', color: '#fff', border: 'none' }}>{t.valider}</Button>}
               <Button variant="ghost" size="sm" onClick={() => openEdit(it)}>{t.ouvrir}</Button>
             </div>
             <div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 18, fontWeight: 500, marginBottom: 4 }}>{o.immeuble}</div>

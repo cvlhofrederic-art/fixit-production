@@ -16,7 +16,7 @@ import btnCss from '../primitives/button/Button.module.css'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Evento } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
-import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
 import { PLANEAMENTO_MESSAGES, type EvenementPlanning } from './i18n/ModPlaneamento.messages'
 
 /** Planeamento — port byte-exact du ModPlaneamento du bundle V5.7 (agenda semaine, stateful).
@@ -30,8 +30,28 @@ const DEFAULTS: Settings = { workingDays: ['mon', 'tue', 'wed', 'thu', 'fri'], s
 const eventPill = (k: string): PillKind => (k === 'green' ? 'sage' : k === 'gold' ? 'gold' : k === 'amber' ? 'amber' : k === 'rust' ? 'rust' : 'sage')
 const parseMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
 
+/** Rang du jour dans la semaine (lundi = 0), clés de syndic_eventos.dia. */
+const RANG_JOUR: Readonly<Record<string, number>> = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 }
+
+/**
+ * Dates « JJ/MM » de la semaine EN COURS (lundi → dimanche, heure locale du navigateur), par clé de jour.
+ * Les événements n'ont qu'un jour de semaine (pas de date) : l'agenda montre la semaine courante.
+ */
+export function datesSemaineCourante(aujourdhui: Date, locale: string): Record<string, string> {
+  const lundi = new Date(aujourdhui.getFullYear(), aujourdhui.getMonth(), aujourdhui.getDate())
+  lundi.setDate(lundi.getDate() - ((lundi.getDay() + 6) % 7))
+  const format = new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit' })
+  return Object.fromEntries(Object.entries(RANG_JOUR).map(([cle, rang]) => {
+    const jour = new Date(lundi.getFullYear(), lundi.getMonth(), lundi.getDate() + rang)
+    return [cle, format.format(jour)]
+  }))
+}
+
 export default function ModPlaneamento() {
   const t = useMessages(PLANEAMENTO_MESSAGES)
+  const locale = useV54Locale()
+  // Module rendu seulement côté navigateur (navigation interne du dashboard) : pas de décalage d'hydratation.
+  const datesSemaine = datesSemaineCourante(new Date(), locale)
   const TEAM = t.team
   const ALL_DAYS = t.jours
   const WEEK_EVENTS = t.demo
@@ -194,7 +214,7 @@ export default function ModPlaneamento() {
           {visibleDays.map(d => (
             <div key={`h-${d.key}`} className="week-day-head">
               <span className="week-day-short">{d.short}</span>
-              <span className="week-day-date">{d.date}/05</span>
+              <span className="week-day-date">{datesSemaine[d.key]}</span>
             </div>
           ))}
           {slots.map(slot => (
