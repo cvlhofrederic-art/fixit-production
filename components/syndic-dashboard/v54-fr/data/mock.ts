@@ -128,7 +128,7 @@ export const OBLIGATIONS: Obligation[] = [
   { id: 'O7', objet: 'Compte bancaire séparé — vérification', copro: 'Résidence Le Méridien', base: 'art. 18 L.1965', date: '15/06/2026', statut: 'Conforme', pill: 'sage', note: 'Compte séparé ouvert au nom du syndicat' },
   { id: 'O8', objet: 'DPE collectif', copro: 'Copropriété Les Tilleuls', base: 'loi Climat 2021', date: '31/12/2026', statut: 'Planifié', pill: 'sage', note: 'Obligation échelonnée selon nombre de lots' },
   { id: 'O9', objet: 'Plan pluriannuel de travaux (PPT)', copro: 'Le Clos des Vignes', base: 'loi Climat — art. 14-2 L.1965', date: '01/01/2027', statut: 'À engager', pill: 'amber', note: "Projet à soumettre au vote de l'AG" },
-  { id: 'O10', objet: 'Alimentation fonds de travaux', copro: 'Copropriété Les Tilleuls', base: 'loi ALUR — art. 14-2 L.1965', date: 'En continu', statut: 'Sous-doté', pill: 'rust', note: 'Cotisation min. 5 % du budget prévisionnel' },
+  { id: 'O10', objet: 'Alimentation fonds de travaux', copro: 'Copropriété Les Tilleuls', base: 'loi ALUR — art. 14-2-1 L.1965', date: 'En continu', statut: 'Sous-doté', pill: 'rust', note: 'Cotisation min. 5 % du budget prévisionnel' },
 ]
 
 export interface Honoraire {

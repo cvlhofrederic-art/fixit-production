@@ -93,11 +93,10 @@ export const useToast = (): ToastApi =>
   }
 
 /**
- * Libellé du bouton de fermeture d'un toast. La maquette échappait deux fois le caractère « × » : au lieu du
- * signe, le bouton affiche littéralement sa séquence d'échappement (barre oblique inverse suivie de « u00d7 »,
- * six caractères). Conservé tel quel (fidélité du rendu).
+ * Libellé du bouton de fermeture d'un toast. La maquette échappait deux fois le caractère « × » (le bouton
+ * affichait sa séquence d'échappement) ; corrigé à la demande de Frédéric : le signe « × » s'affiche.
  */
-const LIBELLE_FERMETURE_TOAST = '\\u00d7'
+const LIBELLE_FERMETURE_TOAST = '×'
 
 /**
  * Fournisseur des notifications, monté à la racine : pile de toasts, visualiseur de documents générés

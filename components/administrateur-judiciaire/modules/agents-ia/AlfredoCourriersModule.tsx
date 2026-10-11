@@ -12,16 +12,44 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useAgentIA } from '@/components/administrateur-judiciaire/modules/agents-ia/useAgentIA'
 
 /**
  * Alfredo — Courriers (démo) : boîte e-mail connectée du cabinet, messages reçus (sélectionner un message le marque
- * lu), fil de l'échange et brouillon de réponse proposé. Envoi, modification et régénération sont simulés.
+ * lu), fil de l'échange et brouillon de réponse proposé. « Régénérer » demande un nouveau brouillon à l'agent IA
+ * (Claude) ; envoi et modification restent simulés.
  */
 export function AlfredoCourriersModule() {
   const { push } = useToast()
   const [courriels, setCourriels] = useState<CourrielAlfredo[]>(DEMO_COURRIELS_ALFREDO)
   const [idSelectionne, setIdSelectionne] = useState('e1')
   const courriel = courriels.find((candidat) => candidat.id === idSelectionne) || courriels[0]
+  const appelerAgent = useAgentIA()
+  const [regeneration, setRegeneration] = useState(false)
+
+  /** Nouveau brouillon rédigé par l'agent IA à partir du fil ; en cas d'échec, le brouillon actuel est conservé. */
+  const regenerer = async () => {
+    if (regeneration) return
+    const cible = courriel
+    setRegeneration(true)
+    push({ kind: 'info', title: 'Nouveau brouillon', desc: 'Alfredo rédige une nouvelle proposition…' })
+    const fil = cible.thread
+      .map((message) => `${message.who === 'me' ? 'Cabinet' : cible.from} (${message.when}) : ${message.text}`)
+      .join('\n')
+    try {
+      const brouillon = await appelerAgent(
+        'alfredo',
+        `Rédige un nouveau brouillon de réponse au courriel de ${cible.from} (copropriété : ${cible.copro}), objet « ${cible.subject} ».\n\nFil de l'échange :\n${fil}`.slice(0, 4000),
+        { copropriete: cible.copro },
+      )
+      setCourriels((liste) => liste.map((element) => (element.id === cible.id ? { ...element, draft: brouillon } : element)))
+      push({ kind: 'success', title: 'Brouillon régénéré', desc: 'Proposition d’Alfredo à relire avant envoi' })
+    } catch {
+      push({ kind: 'info', title: 'Brouillon inchangé', desc: 'Alfredo (IA) est momentanément indisponible.' })
+    } finally {
+      setRegeneration(false)
+    }
+  }
 
   const selectionner = (id: string) => {
     setIdSelectionne(id)
@@ -368,16 +396,7 @@ export function AlfredoCourriersModule() {
               <Icon name="pencil" />
               Modifier
             </button>
-            <button
-              className="btn ghost"
-              onClick={() =>
-                push({
-                  kind: 'info',
-                  title: 'Nouveau brouillon',
-                  desc: 'Alfredo régénère une proposition',
-                })
-              }
-            >
+            <button className="btn ghost" disabled={regeneration} onClick={() => void regenerer()}>
               <Icon name="refresh" />
               Régénérer
             </button>

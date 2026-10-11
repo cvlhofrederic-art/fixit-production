@@ -1,9 +1,9 @@
 // Helpers partagés des routes IA Alfredo (syndic v54) : auth+rate-limit communs
-// et appel Groq tracé Langfuse. Évite la duplication entre les routes Alfredo.
+// et appel LLM (Claude Sonnet 5.5, secours Groq) tracé Langfuse. Évite la duplication entre les routes Alfredo.
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { traceAgent } from '@/lib/langfuse'
 import { getSecret } from '@/lib/env'
 
@@ -20,13 +20,13 @@ export async function gateSyndic(req: NextRequest, rateKey: string, limit = 15):
   return { ok: true, user }
 }
 
-/** Appel Alfredo (Groq) tracé Langfuse. Retourne le contenu texte (ou JSON brut). */
+/** Appel Alfredo (Claude, secours Groq) tracé Langfuse. Retourne le contenu texte (ou JSON brut). */
 export async function callAlfredo(userId: string, opts: { system: string; user: string; prompt: string; json?: boolean; maxTokens?: number }): Promise<string> {
   const apiKey = await getSecret('GROQ_API_KEY')
-  if (!apiKey) throw new Error('GROQ_API_KEY indisponível')
+  if (!apiKey && !(await hasAnthropicKey())) throw new Error('Chave IA indisponível')
   const res = await traceAgent(
     { agent_id: 'alfredo', user_id: userId, prompt: opts.prompt },
-    () => callGroqWithRetry({
+    () => callClaudeWithRetry({
       messages: [
         { role: 'system', content: opts.system },
         { role: 'user', content: opts.user },

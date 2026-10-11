@@ -16,6 +16,7 @@ import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
 import { ACESSIBILIDADE_MESSAGES } from './i18n/ModAcessibilidade.messages'
@@ -103,7 +104,7 @@ export default function ModAcessibilidade() {
           <Field label={md.observations} full name="acess-not">
             <textarea rows={2} placeholder={md.observationsPlaceholder} value={notas} onChange={(e) => setNotas(e.target.value)} />
           </Field>
-          {analise && <div style={{ marginTop: 14, maxHeight: 320, overflow: 'auto', background: 'var(--v54-paper)', border: '1px solid var(--v54-line)', borderRadius: 8, padding: 14, fontSize: 12.5, whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{analise}</div>}
+          {analise && <div style={{ marginTop: 14, maxHeight: 320, overflow: 'auto', background: 'var(--v54-paper)', border: '1px solid var(--v54-line)', borderRadius: 8, padding: 14, fontSize: 12.5, lineHeight: 1.55 }}><MarkdownIA texte={analise} /></div>}
         </ModalBody>
         <ModalFoot>
           <Button variant="ghost" onClick={() => setOpen(false)}>{md.fermer}</Button>

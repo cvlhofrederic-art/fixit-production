@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
+import type { GroqResponse } from '@/lib/groq'
+import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 import { getSecret } from '@/lib/env'
@@ -647,9 +648,9 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  if (!GROQ_API_KEY) {
+  if (!GROQ_API_KEY && !(await hasAnthropicKey())) {
     return NextResponse.json(
-      { error: isPt ? 'Chave API Groq não configurada' : 'Clé API Groq non configurée' },
+      { error: isPt ? 'Chave API IA não configurada' : 'Clé API IA non configurée' },
       { status: 500 },
     )
   }
@@ -668,8 +669,18 @@ export async function POST(req: NextRequest) {
     : (isPt ? SYSTEM_PROMPT_PT : SYSTEM_PROMPT_FR)
   const extractPrompt = isPt ? EXTRACT_PROMPT_PT : EXTRACT_PROMPT_FR
 
-  async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number }): Promise<GroqResponse> {
-    // 1) Groq 70b — primary
+  // response_format ne sert qu’à Claude (consigne JSON + nettoyage) : les appels
+  // de secours Groq / Cerebras ci-dessous ne l’envoient pas.
+  async function callLLM(opts: { messages: { role: string; content: string }[]; temperature: number; max_tokens: number; response_format?: { type: string } }): Promise<GroqResponse> {
+    // 0) Claude Sonnet 5.5 — principal (lib/claude.ts). Long rapport non streamé :
+    //    délai porté à 2 min. En cas d’échec, chaîne historique Groq → Cerebras.
+    if (await hasAnthropicKey()) {
+      try {
+        return await callClaudeWithRetry(opts, { disableGroqFallback: true, timeoutMs: 120_000 })
+      } catch (e) { logger.warn('[analyse-devis] Claude failed, fallback Groq:', e) }
+    }
+
+    // 1) Groq 70b — secours
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
@@ -743,6 +754,7 @@ export async function POST(req: NextRequest) {
         ],
         temperature: 0,
         max_tokens: 1200,
+        response_format: { type: 'json_object' },
       }).catch(err => { logger.error('[syndic/analyse-devis] Extraction failed:', err); return null }),
     ])
 

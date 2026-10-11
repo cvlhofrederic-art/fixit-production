@@ -7,6 +7,7 @@ import { Panel } from '../primitives/panel'
 import { Button } from '../primitives/button'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { askAgent } from '@/lib/syndic/v54/api'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
@@ -80,7 +81,7 @@ export default function ModAtasIA() {
                 {busy ? (
                   <div style={{ fontSize: 13, color: 'var(--v54-navy-300)' }}>{t.redaction}</div>
                 ) : (
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.65, color: 'var(--v54-ink)' }}>{result}</div>
+                  <div style={{ fontSize: 13, lineHeight: 1.65, color: 'var(--v54-ink)' }}><MarkdownIA texte={result} /></div>
                 )}
               </div>
             )}

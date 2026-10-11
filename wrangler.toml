@@ -117,6 +117,7 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   SUPABASE_SERVICE_ROLE_KEY
 #   NEXT_PUBLIC_APP_URL
 #   GROQ_API_KEY
+#   ANTHROPIC_API_KEY             (Claude Sonnet 5.5 — agents Syndic, Administrateur judiciaire, Copropriétaire ; lib/claude.ts)
 #   STRIPE_SECRET_KEY
 #   STRIPE_WEBHOOK_SECRET
 #   STRIPE_PRICE_ARTISAN_PRO

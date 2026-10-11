@@ -25,14 +25,17 @@ export interface SyndicSession {
 
 /**
  * Rôle déclenchant l'affichage des VRAIES données (cabinet du syndic).
- * Uniquement les vrais rôles syndic (qui ont un cabinet + des données).
- * super_admin / admin n'ont pas de cabinet propre → ils restent sur les
- * données mock (preview/démo peuplée) plutôt que des KPIs vides.
+ * Mêmes rôles que isSyndicRole côté serveur (lib/auth-helpers) : syndic,
+ * syndic_* et super_admin. Le super_admin a pour cabinet son propre id
+ * (resolveCabinetId) et le seed de démo FR est lancé sur son compte : il voit
+ * donc les données de ce cabinet et les agents IA branchés, comme un syndic.
+ * `admin` reste anonyme (données mock) : isSyndicRole le refuse, les routes
+ * /api/syndic/* lui répondraient 401.
  */
 function isSyndicRoleValue(role: unknown): role is string {
   return (
     typeof role === 'string' &&
-    (role === 'syndic' || role.startsWith('syndic_'))
+    (role === 'syndic' || role.startsWith('syndic_') || role === 'super_admin')
   )
 }
 

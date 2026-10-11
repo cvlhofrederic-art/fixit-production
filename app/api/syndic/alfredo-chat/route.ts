@@ -6,7 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry } from '@/lib/claude'
 import { traceAgent } from '@/lib/langfuse'
 import { buildAlfredoSystemPromptFR } from '@/lib/syndic/prompts/alfredo/system-prompt-fr'
 import { buildAlfredoSystemPromptPT } from '@/lib/syndic/prompts/alfredo/system-prompt-pt'
@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
         prompt: parsed.data.message,
       },
       () =>
-        callGroqWithRetry({
+        callClaudeWithRetry({
           model: 'llama-3.3-70b-versatile',
           messages,
           temperature: 0.4,
@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
         },
       ]
 
-      const followUpResponse = await callGroqWithRetry({
+      const followUpResponse = await callClaudeWithRetry({
         model: 'llama-3.3-70b-versatile',
         messages: followUpMessages,
         temperature: 0.4,
@@ -220,12 +220,12 @@ export async function POST(req: NextRequest) {
 
       const followUpContent = followUpResponse.choices?.[0]?.message?.content ?? rawContent
       const resolvedFinal = resolveSanitizedToken(followUpContent, tokenMap) ?? followUpContent
-      return NextResponse.json({ content: resolvedFinal, tool_used: toolCall.name })
+      return NextResponse.json({ content: resolvedFinal, tool_used: toolCall.name, modele: followUpResponse.model ?? null })
     }
 
     // No tool — return direct response
     const resolvedContent = resolveSanitizedToken(rawContent, tokenMap) ?? rawContent
-    return NextResponse.json({ content: resolvedContent })
+    return NextResponse.json({ content: resolvedContent, modele: groqResponse.model ?? null })
   } catch (err) {
     logger.error('alfredo-chat groq error', {
       error: err instanceof Error ? err.message : String(err),

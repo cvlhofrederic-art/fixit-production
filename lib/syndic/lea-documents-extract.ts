@@ -2,7 +2,7 @@
 // PDFs : unpdf (déjà utilisé pour extract-pdf, Cloudflare Workers compat).
 // Images : OCR différé en P2.1 (Tesseract trop lourd pour Workers, Workers AI vision = follow-up).
 // Métadonnées : Groq llama-3.3-70b-versatile avec JSON mode strict.
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry } from '@/lib/claude'
 import { logger } from '@/lib/logger'
 
 const MAX_TEXT_FOR_LLM = 8000
@@ -99,7 +99,7 @@ export async function extractMetadataFromText(
   const system = locale === 'pt' ? PROMPT_PT : PROMPT_FR
 
   try {
-    const completion = await callGroqWithRetry({
+    const completion = await callClaudeWithRetry({
       model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: system },
@@ -112,7 +112,7 @@ export async function extractMetadataFromText(
     const raw = completion?.choices?.[0]?.message?.content ?? ''
     return parseLLMOutput(raw)
   } catch (err) {
-    logger.error('[lea-documents/extract] Groq call failed:', err)
+    logger.error('[lea-documents/extract] LLM call failed:', err)
     return {}
   }
 }

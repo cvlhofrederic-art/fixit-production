@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
 import { SyndicDataProvider, useSyndicData } from '@/lib/syndic/v54/data-context'
-import { askAgent } from '@/lib/syndic/v54/api'
+import { askAgentDetaille, decrireActionFixy, executerActionFixy } from '@/lib/syndic/v54/api'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
 import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
 import { SIDE_TITLES_FR } from '@/components/syndic-dashboard/v54/shell/sidebar-config.fr'
@@ -221,8 +221,10 @@ function renderModule(route: string, navigate: (id: string) => void): ReactNode 
 }
 
 /**
- * Page agent IA — branche onAsk au vrai endpoint Groq quand le cabinet est
- * authentifié (token présent) ; sinon onAsk absent → fallback démo (toast).
+ * Page agent IA — branche onAsk au vrai endpoint de l'agent (Claude Sonnet,
+ * secours Groq) quand le cabinet est authentifié (token présent) ; sinon onAsk
+ * absent → fallback démo (toast). L'historique affiché est transmis à chaque
+ * question (mémoire de conversation).
  * Ne touche aucun prompt (conforme ai-agents.md) : pur câblage UI → endpoint.
  */
 function AgentRoute({ route }: Readonly<{ route: string }>) {
@@ -231,7 +233,9 @@ function AgentRoute({ route }: Readonly<{ route: string }>) {
   const a = { ...t.agents[route as AgentId], avatar: AVATARS[route as AgentId] }
   const { token } = useSyndicData()
   return (
+    // key : un fil par agent (passer de Fixy à Max ne transmet pas la conversation de Fixy à Max).
     <AgentChatPage
+      key={route}
       mascot={a.avatar || MASCOT}
       name={a.name}
       title={a.title}
@@ -239,7 +243,14 @@ function AgentRoute({ route }: Readonly<{ route: string }>) {
       introDetail={token ? undefined : t.introDemo}
       suggestions={t.suggestions}
       conversations={t.conversations}
-      onAsk={token ? (msg) => askAgent(route, msg, token, locale) : undefined}
+      onAsk={token ? async (msg, historique) => {
+        const { texte, action } = await askAgentDetaille(route, msg, token, locale, historique)
+        // Action proposée par Fixy (mission, alerte, RDV, e-mail…) : exécutée seulement après « Confirmer ».
+        const description = action ? decrireActionFixy(action, locale) : null
+        return description && action
+          ? { texte, action: { ...description, executer: () => executerActionFixy(action, token, locale) } }
+          : texte
+      } : undefined}
     />
   )
 }

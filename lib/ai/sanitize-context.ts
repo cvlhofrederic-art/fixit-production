@@ -11,14 +11,25 @@
 const EMAIL_RE = /([a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9-]{1,63}(?:\.[a-zA-Z0-9-]{1,63}){0,8}\.[a-zA-Z]{2,24})/g
 const IBAN_RE =
   /\b([A-Z]{2}[0-9]{2}(?:(?:\s[A-Z0-9]{4}){2,7}(?:\s[A-Z0-9]{1,3})?|[A-Z0-9]{11,30}))\b/g
-const PHONE_FR_RE = /(?:\+33|0033|0)[\s.-]?[1-9](?:[\s.-]?\d{2}){4}/g
-const PHONE_PT_RE = /\+351[\s.-]?\d{3}[\s.-]?\d{3}[\s.-]?\d{3}/g
+// Bornés (pas de chiffre avant ni après) : un SIRET de 14 chiffres n'est pas un numéro de téléphone.
+const PHONE_FR_RE = /(?<!\d)(?:\+33|0033|0)[\s.-]?[1-9](?:[\s.-]?\d{2}){4}(?!\d)/g
+const PHONE_PT_RE = /(?<!\d)\+351[\s.-]?\d{3}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)/g
 const ADDRESS_HINT_RE =
   /\b\d+\s+(?:rue|avenue|boulevard|impasse|allée|chemin|place|quai|rua|avenida|travessa|largo)\b[^,\n]{0,80}/gi
 
+/** Types de données masquées. */
+export type TypePII = 'iban' | 'email' | 'phone' | 'address'
+
 interface SanitizeOptions {
   keepFirstName?: boolean
+  /**
+   * Types à masquer (défaut : tous). Ex. analyse d'un devis : les coordonnées de l'entreprise et les lignes
+   * « 25 chemin de câble… » ne sont pas des données personnelles, l'indice d'adresse les rendrait illisibles.
+   */
+  types?: readonly TypePII[]
 }
+
+const TOUS_LES_TYPES: ReadonlySet<TypePII> = new Set<TypePII>(['iban', 'email', 'phone', 'address'])
 
 interface SanitizeResult<T> {
   sanitized: T
@@ -40,9 +51,11 @@ function sanitizeString(
   tokenMap: Map<string, string>,
   valueToToken: Map<string, string>,
   salt: string,
+  types: ReadonlySet<TypePII> = TOUS_LES_TYPES,
 ): string {
   let out = value
-  const replace = (re: RegExp, type: string) => {
+  const replace = (re: RegExp, type: TypePII) => {
+    if (!types.has(type)) return
     out = out.replace(re, (match) => {
       const existing = valueToToken.get(match)
       if (existing) return existing
@@ -71,11 +84,12 @@ function deepSanitize<T>(
   salt: string,
   visited: WeakSet<object>,
   depth: number,
+  types: ReadonlySet<TypePII> = TOUS_LES_TYPES,
 ): T {
   if (depth > 50) return value
   if (value === null || value === undefined) return value
   if (typeof value === 'string') {
-    return sanitizeString(value, tokenMap, valueToToken, salt) as unknown as T
+    return sanitizeString(value, tokenMap, valueToToken, salt, types) as unknown as T
   }
   if (typeof value !== 'object') return value
   if (value instanceof Date) return value
@@ -83,7 +97,7 @@ function deepSanitize<T>(
     if (visited.has(value)) return value
     visited.add(value)
     return value.map((item) =>
-      deepSanitize(item, tokenMap, valueToToken, salt, visited, depth + 1),
+      deepSanitize(item, tokenMap, valueToToken, salt, visited, depth + 1, types),
     ) as unknown as T
   }
   if (visited.has(value as object)) return value
@@ -96,7 +110,7 @@ function deepSanitize<T>(
     // Object.defineProperty : pattern reconnu par CodeQL comme write sécurisé
     // (vs `out[k] = ...` qui déclenche un faux positif "remote property injection").
     Object.defineProperty(out, k, {
-      value: deepSanitize(v, tokenMap, valueToToken, salt, visited, depth + 1),
+      value: deepSanitize(v, tokenMap, valueToToken, salt, visited, depth + 1, types),
       enumerable: true,
       writable: true,
       configurable: true,
@@ -109,7 +123,7 @@ export function sanitizeContextForLLM<T>(
   data: T,
   options?: SanitizeOptions,
 ): SanitizeResult<T> {
-  void options // placeholder pour évolution future (keepFirstName)
+  const types: ReadonlySet<TypePII> = options?.types ? new Set(options.types) : TOUS_LES_TYPES
   const tokenMap = new Map<string, string>()
   const valueToToken = new Map<string, string>()
   // Salt cryptographique via Web Crypto (cross-runtime : Node / Workers / browser).
@@ -118,7 +132,7 @@ export function sanitizeContextForLLM<T>(
   const saltBytes = new Uint8Array(12)
   crypto.getRandomValues(saltBytes)
   const salt = `${Date.now()}-${Array.from(saltBytes, (b) => b.toString(16).padStart(2, '0')).join('')}`
-  const sanitized = deepSanitize(data, tokenMap, valueToToken, salt, new WeakSet(), 0)
+  const sanitized = deepSanitize(data, tokenMap, valueToToken, salt, new WeakSet(), 0, types)
   return { sanitized, tokenMap }
 }
 

@@ -6,8 +6,29 @@ import Icon from '../icon/Icon'
 import { Alert, type AlertProps } from '../alert'
 import { useToast } from '../toast'
 import { useMessages } from '@/lib/syndic/v54/i18n'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { AGENT_CHAT_PAGE_MESSAGES } from './agent-chat-page.messages'
 import styles from './AgentChatPage.module.css'
+
+/** Message du fil de conversation, tel que transmis à l'agent comme historique. */
+export interface AgentChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** Action proposée par l'agent (ex. Fixy : créer une mission), exécutée seulement après confirmation. */
+export interface AgentActionProposee {
+  libelle: string
+  details: string[]
+  /** Exécute l'action ; renvoie le message de confirmation à afficher. */
+  executer: () => Promise<string>
+}
+
+/** Réponse riche d'un agent : texte et, éventuellement, action à faire confirmer. */
+export interface AgentReponse {
+  texte: string
+  action?: AgentActionProposee
+}
 
 export interface AgentConversation {
   id: string
@@ -31,6 +52,9 @@ export interface AgentChatPageLabels {
   typing: string
   inputAria: (name: string) => string
   errorReply: string
+  actionConfirm: string
+  actionIgnore: string
+  actionFailed: string
 }
 
 export interface AgentChatPageProps {
@@ -51,8 +75,10 @@ export interface AgentChatPageProps {
   labels?: Partial<AgentChatPageLabels>
   /** Overrides optionnels ; par défaut → toast (comportement byte-exact bundle). */
   onSend?: (value: string) => void
-  /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2). */
-  onAsk?: (message: string) => Promise<string>
+  /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2).
+   *  `historique` : messages déjà affichés avant `message` (mémoire de conversation),
+   *  sans les réponses d'erreur locales (`errorReply`), qui ne viennent pas de l'agent. */
+  onAsk?: (message: string, historique: AgentChatMessage[]) => Promise<string | AgentReponse>
   onNewConversation?: () => void
   onOpenDocs?: () => void
   onSelectConversation?: (conv: AgentConversation) => void
@@ -84,7 +110,12 @@ export default function AgentChatPage({
   const L: AgentChatPageLabels = { ...D.labels, ...labels, bucketLabels: { ...D.labels.bucketLabels, ...labels?.bucketLabels } }
   const placeholder = inputPlaceholder ?? D.placeholder
   const [inputVal, setInputVal] = useState('')
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  // `erreur` marque la réponse de repli affichée quand l'agent échoue (exclue de l'historique).
+  // `action` : action proposée par l'agent sous sa réponse (carte Confirmer / Ignorer tant qu'elle est en attente).
+  const [messages, setMessages] = useState<(AgentChatMessage & {
+    erreur?: boolean
+    action?: AgentActionProposee & { etat: 'proposee' | 'en_cours' | 'terminee' }
+  })[]>([])
   const [busy, setBusy] = useState(false)
   const [ctxVal, setCtxVal] = useState(contextSelector?.options?.[0] ?? '')
   const { push } = useToast()
@@ -100,12 +131,19 @@ export default function AgentChatPage({
     const v = inputVal.trim()
     if (!v || busy) return
     if (onAsk) {
+      // Historique = fil affiché avant cette question (pas d'envoi concurrent : `busy`).
+      const historique = messages.filter((m) => !m.erreur).map(({ role, content }) => ({ role, content }))
       setMessages((prev) => [...prev, { role: 'user', content: v }])
       setInputVal('')
       setBusy(true)
-      onAsk(v)
-        .then((resp) => setMessages((prev) => [...prev, { role: 'assistant', content: resp }]))
-        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: L.errorReply }]))
+      onAsk(v, historique)
+        .then((resp) => setMessages((prev) => [
+          ...prev,
+          typeof resp === 'string'
+            ? { role: 'assistant', content: resp }
+            : { role: 'assistant', content: resp.texte, action: resp.action && { ...resp.action, etat: 'proposee' } },
+        ]))
+        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: L.errorReply, erreur: true }]))
         .finally(() => setBusy(false))
       return
     }
@@ -113,6 +151,28 @@ export default function AgentChatPage({
     else push({ kind: 'info', title: D.envoyee(shortName ?? name), desc: D.envoyeeDetail })
     setInputVal('')
   }
+  /** Confirme (exécute) ou ignore l'action proposée sous le message `index`. */
+  const traiterAction = (index: number, confirmer: boolean) => {
+    const cible = messages[index]?.action
+    if (!cible || cible.etat !== 'proposee') return
+    const majEtat = (etat: 'proposee' | 'en_cours' | 'terminee') =>
+      setMessages((prev) => prev.map((m, i) => (i === index && m.action ? { ...m, action: { ...m.action, etat } } : m)))
+    if (!confirmer) {
+      majEtat('terminee')
+      return
+    }
+    majEtat('en_cours')
+    cible.executer()
+      .then((confirmation) => {
+        majEtat('terminee')
+        setMessages((prev) => [...prev, { role: 'assistant', content: confirmation }])
+      })
+      .catch(() => {
+        majEtat('proposee')
+        push({ kind: 'error', title: L.actionFailed })
+      })
+  }
+
   const newConv = () => {
     if (onNewConversation) onNewConversation()
     else push({ kind: 'success', title: D.nouvelleConversation, desc: D.conversationDemarree(shortName ?? name) })
@@ -232,12 +292,45 @@ export default function AgentChatPage({
                   borderRadius: 12,
                   fontSize: 13.5,
                   lineHeight: 1.55,
-                  whiteSpace: 'pre-wrap',
+                  // Réponses de l'agent en Markdown (MarkdownIA gère les retours à la ligne).
+                  whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
                   background: msg.role === 'user' ? 'var(--v54-gold-500)' : 'var(--v54-cream)',
                   color: msg.role === 'user' ? '#fff' : 'var(--v54-ink)',
                 }}
               >
-                {msg.content}
+                {msg.role === 'assistant' ? <MarkdownIA texte={msg.content} /> : msg.content}
+                {msg.action && msg.action.etat !== 'terminee' && (
+                  <div
+                    role="group"
+                    aria-label={msg.action.libelle}
+                    style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--v54-line, rgba(0,0,0,.1))' }}
+                  >
+                    <strong>{msg.action.libelle}</strong>
+                    {msg.action.details.length > 0 && (
+                      <ul style={{ margin: '6px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 12.5 }}>
+                        {msg.action.details.map((d, j) => <li key={j}>{d}</li>)}
+                      </ul>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className={clsx(styles.btn, styles.gold)}
+                        disabled={msg.action.etat === 'en_cours'}
+                        onClick={() => traiterAction(i, true)}
+                      >
+                        {L.actionConfirm}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        disabled={msg.action.etat === 'en_cours'}
+                        onClick={() => traiterAction(i, false)}
+                      >
+                        {L.actionIgnore}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {busy && <div style={{ alignSelf: 'flex-start', padding: '10px 14px', color: 'var(--v54-navy-300)', fontSize: 13 }}>{L.typing}</div>}

@@ -19,14 +19,17 @@ export async function GET(request: NextRequest) {
   // cabinet_id = soit le user lui-même (admin), soit son cabinet_id (employé)
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
-  // Super admin sans cabinet_id → voir TOUS les artisans de tous les cabinets
+  // Liste du cabinet pour tout le monde, super admin compris : le tableau de bord v54 traite le super admin
+  // comme un syndic (son id = son cabinet) et ne doit pas afficher les prestataires des autres cabinets.
+  // Vue tous cabinets : super admin seulement, sur demande explicite (?tous=1).
   let query = supabaseAdmin
     .from('syndic_artisans')
     .select('id, cabinet_id, artisan_user_id, email, nom, prenom, nom_famille, telephone, metier, siret, statut, vitfix_certifie, note, nb_interventions, rc_pro_valide, rc_pro_expiration, assurance_decennale_valide, assurance_decennale_expiration, compte_existant, created_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(100)
 
-  if (!isSuperAdmin(user)) {
+  const tousLesCabinets = isSuperAdmin(user) && request.nextUrl.searchParams.get('tous') === '1'
+  if (!tousLesCabinets) {
     query = query.eq('cabinet_id', cabinetId)
   }
 

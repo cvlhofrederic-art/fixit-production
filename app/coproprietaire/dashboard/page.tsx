@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
+import { oublierDonneesDemoPerimees } from '@/lib/copro-stockage-local'
 import {
   PROFILE_DEMO, CHARGES_DEMO, PAIEMENTS_DEMO, DOCUMENTS_DEMO, ANNONCES_DEMO,
   AG_DEMO, ECHEANCES_DEMO, NOTIFICATIONS_DEMO, HISTORIQUE_DEMO, PARAMS_DEMO,
@@ -929,6 +930,7 @@ export default function CoproprietaireDashboard() {
         // Load localStorage data
         const uid = u.id
         try {
+          oublierDonneesDemoPerimees(uid)
           const k = (key: string) => localStorage.getItem(`fixit_copro_${key}_${uid}`)
           const p = (key: string, fallback: any) => {
             const raw = k(key)

@@ -6,6 +6,13 @@ vi.mock('@/lib/groq', () => ({
   callGroqWithRetry: groqMock,
 }))
 
+// Pas de clé Anthropic : lib/claude.ts passe par le Groq simulé, même si ANTHROPIC_API_KEY est
+// exportée dans le terminal du développeur (aucun appel réel à l'API).
+vi.mock('@/lib/env', () => ({
+  getSecret: vi.fn(async () => ''),
+  getCfEnv: vi.fn(async () => ({})),
+}))
+
 describe('lib/syndic/lea-documents-extract', () => {
   beforeEach(() => {
     groqMock.mockReset()

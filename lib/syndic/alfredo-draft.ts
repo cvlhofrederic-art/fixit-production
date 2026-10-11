@@ -1,7 +1,7 @@
 // lib/syndic/alfredo-draft.ts
 import { buildAlfredoDraftPromptFR } from './prompts/alfredo/draft-reply-prompt-fr'
 import { buildAlfredoDraftPromptPT } from './prompts/alfredo/draft-reply-prompt-pt'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry } from '@/lib/claude'
 import type { Locale } from './agent-types'
 import type { DraftPromptInput } from './prompts/alfredo/draft-reply-prompt-fr'
 
@@ -25,7 +25,7 @@ export async function generateDraftReply(
       ? buildAlfredoDraftPromptPT(input)
       : buildAlfredoDraftPromptFR(input)
 
-  const response = await callGroqWithRetry({
+  const response = await callClaudeWithRetry({
     model: 'llama-3.3-70b-versatile',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.3,

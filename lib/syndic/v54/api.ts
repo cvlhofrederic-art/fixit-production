@@ -482,6 +482,23 @@ const AGENT_ENDPOINTS: Record<string, string> = {
   tempo: '/api/syndic/tempo-ai',
 }
 
+/** Message de l'historique de conversation transmis à un agent. */
+export interface MessageHistorique {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** Historique envoyé : 20 derniers messages, 3000 caractères chacun au plus. */
+const HISTORIQUE_MAX_MESSAGES = 20
+const HISTORIQUE_MAX_CARACTERES = 3000
+
+/** Tronque sans couper une paire de substitution UTF-16 (emoji) en deux. */
+function tronquer(texte: string, max: number): string {
+  if (texte.length <= max) return texte
+  const coupe = texte.slice(0, max)
+  return /[\uD800-\uDBFF]$/.test(coupe) ? coupe.slice(0, -1) : coupe
+}
+
 /**
  * Envoie un message à un agent IA syndic et retourne sa réponse texte.
  * Réponse : clé `response` (fixy/max/lea/tempo) ou `content` (alfredo).
@@ -490,26 +507,137 @@ const AGENT_ENDPOINTS: Record<string, string> = {
  * Les 5 routes prennent le français quand la langue manque : sans 'pt', la
  * version portugaise recevait des réponses en français (prompt, corpus juridique
  * de Max et documents de Léa français). Défaut : portugais, langue du dashboard.
+ * `historique` : messages précédents de la conversation, envoyés sous
+ * `conversation_history` (nom lu par les 5 routes). Rôles user/assistant
+ * uniquement (Max refuse tout autre rôle), contenus non vides, bornés pour
+ * rester sous les limites des schémas (Max : 50 messages de 10 000 caractères,
+ * Alfredo : 60 messages). Omis quand il est vide : corps inchangé.
  */
 export async function askAgent(
   route: string,
   message: string,
   token: string,
   locale: V54Locale = V54_LOCALE_PAR_DEFAUT,
+  historique: readonly MessageHistorique[] = [],
 ): Promise<string> {
+  return (await askAgentDetaille(route, message, token, locale, historique)).texte
+}
+
+/** Réponse complète d'un agent : texte et, pour Fixy, action proposée (balise ##ACTION## extraite par la route). */
+export interface ReponseAgentDetaillee {
+  texte: string
+  action: Record<string, unknown> | null
+}
+
+/** Comme askAgent, avec l'action proposée par l'agent (Fixy) à faire confirmer par l'utilisateur. */
+export async function askAgentDetaille(
+  route: string,
+  message: string,
+  token: string,
+  locale: V54Locale = V54_LOCALE_PAR_DEFAUT,
+  historique: readonly MessageHistorique[] = [],
+): Promise<ReponseAgentDetaillee> {
   const francais = locale === 'fr-FR'
   const langueAgent: AgentLocale = francais ? 'fr' : 'pt'
   const endpoint = AGENT_ENDPOINTS[route]
   if (!endpoint) throw new Error(`Agent inconnu: ${route}`)
+  const conversationHistory = historique
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content.trim())
+    .slice(-HISTORIQUE_MAX_MESSAGES)
+    .map((m) => ({ role: m.role, content: tronquer(m.content, HISTORIQUE_MAX_CARACTERES) }))
+  const corps = conversationHistory.length
+    ? { message, locale: langueAgent, conversation_history: conversationHistory }
+    : { message, locale: langueAgent }
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, locale: langueAgent }),
+    body: JSON.stringify(corps),
   })
   if (!res.ok) throw new Error(`${endpoint} → HTTP ${res.status}`)
   const j = (await res.json()) as Record<string, unknown>
+  // Texte de secours d'une IA injoignable (HTTP 200, ex. Fixy « service surchargé ») : traité comme une erreur,
+  // pour que l'écran affiche son message d'erreur et qu'il ne reparte pas dans l'historique comme une réponse.
+  if (j.fallback === true && typeof j.error === 'string') throw new Error(`${endpoint} → ${j.error}`)
   const text = typeof j.response === 'string' ? j.response : typeof j.content === 'string' ? j.content : ''
-  return text || (francais ? 'Pas de réponse.' : 'Sem resposta.')
+  const action = j.action && typeof j.action === 'object' && typeof (j.action as Record<string, unknown>).type === 'string'
+    ? (j.action as Record<string, unknown>)
+    : null
+  return { texte: text || (francais ? 'Pas de réponse.' : 'Sem resposta.'), action }
+}
+
+/** Actions de Fixy exécutables par POST /api/syndic/fixy-syndic/execute-action (après confirmation). */
+const ACTIONS_FIXY_EXECUTABLES = new Set([
+  'create_mission', 'assign_mission', 'update_mission', 'create_alert', 'send_message', 'create_document', 'create_event',
+])
+
+const LIBELLES_ACTIONS: Record<'fr' | 'pt', Record<string, string>> = {
+  fr: {
+    create_mission: 'Créer une mission',
+    assign_mission: 'Assigner une mission à un prestataire',
+    update_mission: 'Mettre à jour une mission',
+    create_alert: 'Créer une alerte',
+    send_message: 'Envoyer un e-mail',
+    create_document: 'Créer un document',
+    create_event: 'Ajouter un rendez-vous au planning',
+  },
+  pt: {
+    create_mission: 'Criar uma ordem de serviço',
+    assign_mission: 'Atribuir uma ordem a um profissional',
+    update_mission: 'Atualizar uma ordem de serviço',
+    create_alert: 'Criar um alerta',
+    send_message: 'Enviar um e-mail',
+    create_document: 'Criar um documento',
+    create_event: 'Adicionar uma marcação ao planeamento',
+  },
+}
+
+const LIBELLES_CHAMPS: Record<'fr' | 'pt', Record<string, string>> = {
+  fr: {
+    immeuble: 'Immeuble', description: 'Description', priorite: 'Priorité', type_travaux: 'Type de travaux',
+    artisan: 'Prestataire', date_intervention: "Date d'intervention", statut: 'Statut', message: 'Message',
+    urgence: 'Urgence', to: 'Destinataire', subject: 'Objet', titre: 'Titre', date: 'Date', heure: 'Heure',
+    type_doc: 'Type de document', destinataire: 'Destinataire',
+  },
+  pt: {
+    immeuble: 'Edifício', description: 'Descrição', priorite: 'Prioridade', type_travaux: 'Tipo de trabalho',
+    artisan: 'Profissional', date_intervention: 'Data de intervenção', statut: 'Estado', message: 'Mensagem',
+    urgence: 'Urgência', to: 'Destinatário', subject: 'Assunto', titre: 'Título', date: 'Data', heure: 'Hora',
+    type_doc: 'Tipo de documento', destinataire: 'Destinatário',
+  },
+}
+
+/**
+ * Description d'une action proposée par Fixy, pour la carte de confirmation. null si l'action n'est pas
+ * exécutable côté serveur (ex. « navigate »).
+ */
+export function decrireActionFixy(
+  action: Record<string, unknown>,
+  locale: V54Locale = V54_LOCALE_PAR_DEFAUT,
+): { libelle: string; details: string[] } | null {
+  const type = String(action.type)
+  if (!ACTIONS_FIXY_EXECUTABLES.has(type)) return null
+  const langue = locale === 'fr-FR' ? 'fr' : 'pt'
+  const details = Object.entries(LIBELLES_CHAMPS[langue])
+    .filter(([cle]) => typeof action[cle] === 'string' || typeof action[cle] === 'number')
+    .map(([cle, libelle]) => `${libelle} : ${String(action[cle]).slice(0, 200)}`)
+  return { libelle: LIBELLES_ACTIONS[langue][type], details }
+}
+
+/** Exécute une action de Fixy confirmée par l'utilisateur ; renvoie le message de confirmation à afficher. */
+export async function executerActionFixy(
+  action: Record<string, unknown>,
+  token: string,
+  locale: V54Locale = V54_LOCALE_PAR_DEFAUT,
+): Promise<string> {
+  const { type, ...args } = action
+  const res = await fetch('/api/syndic/fixy-syndic/execute-action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action: { type, args } }),
+  })
+  const j = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok || j.ok !== true) throw new Error(typeof j.error === 'string' ? j.error : `HTTP ${res.status}`)
+  return locale === 'fr-FR' ? '✅ Action exécutée.' : '✅ Ação executada.'
 }
 
 // ── Lot features net-new : Reservas, Infrações, Enquetes, Checklists ──

@@ -1,21 +1,64 @@
 'use client'
 
 import { useState } from 'react'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { DEMO_ANALYSES_DEVIS_FACTURES } from '@/components/administrateur-judiciaire/data/analyses-devis-factures'
+import {
+  STYLE_BOUTON_ATTENTE,
+  demanderTexteOutilIA,
+  messageErreurOutilIA,
+} from '@/components/administrateur-judiciaire/modules/outils-ia/appelOutilIA'
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { TAILLE_MAX_TEXTE_DEVIS } from '@/lib/administrateur-judiciaire/ia/outils'
+import { dateLocaleIso } from '@/lib/administrateur-judiciaire/mode'
 
 /**
- * Analyse de devis & factures (Technique & travaux, surtitre « Assistant · IA »).
- * Le texte collé est conservé dans l'état mais jamais lu : « Analyser » affiche seulement un toast de simulation.
+ * Analyse de devis & factures (Technique & travaux, surtitre « Assistant · IA »). « Analyser » envoie le texte collé
+ * à l'assistant IA (Claude, via /api/administrateur-judiciaire/outils) : cohérence des prix, TVA, mentions légales,
+ * points à négocier et verdict, affichés sous le formulaire. Champ vide : toast d'invite ; échec : toast, aucun
+ * résultat fictif. « Analyses récentes » reste la liste de démonstration de la maquette.
  */
 export function AnalyseDevisFacturesModule() {
   const { push } = useToast()
   const [contenu, setContenu] = useState('')
+  const [analyse, setAnalyse] = useState<string | null>(null)
+  const [enCours, setEnCours] = useState(false)
+
+  const analyser = async () => {
+    if (enCours) return
+    const texte = contenu.trim()
+    if (!texte) {
+      push({
+        kind: 'info',
+        title: 'Aucun document à analyser',
+        desc: 'Collez le texte du devis ou de la facture, puis cliquez sur « Analyser ».',
+      })
+      return
+    }
+    if (texte.length > TAILLE_MAX_TEXTE_DEVIS) {
+      push({
+        kind: 'warning',
+        title: 'Document trop long',
+        desc: `Collez au plus ${TAILLE_MAX_TEXTE_DEVIS.toLocaleString('fr-FR')} caractères (le détail des postes et les totaux suffisent).`,
+      })
+      return
+    }
+    setEnCours(true)
+    setAnalyse(null)
+    try {
+      // Date réelle (pas la date figée de la démonstration) : un devis collé est daté d'aujourd'hui.
+      setAnalyse(await demanderTexteOutilIA({ tache: 'analyse-devis', texte, dateDuJour: dateLocaleIso(new Date()) }))
+    } catch (erreur) {
+      push({ kind: 'error', title: 'Analyse impossible', desc: messageErreurOutilIA(erreur) })
+    } finally {
+      setEnCours(false)
+    }
+  }
 
   return (
     <>
@@ -48,18 +91,43 @@ export function AnalyseDevisFacturesModule() {
         >
           <button
             className="btn gold"
-            onClick={() =>
-              push({
-                kind: 'success',
-                title: 'Simulation',
-                desc: "Aucune analyse n'a été effectuée.",
-              })
-            }
+            onClick={() => void analyser()}
+            disabled={enCours}
+            aria-busy={enCours || undefined}
+            style={enCours ? STYLE_BOUTON_ATTENTE : undefined}
           >
             <Icon name="sparkle" />
             Analyser
           </button>
         </div>
+        {enCours && (
+          <div
+            role="status"
+            style={{
+              marginTop: 12,
+              fontSize: 13,
+              color: 'var(--navy-500)',
+            }}
+          >
+            Analyse du document en cours…
+          </div>
+        )}
+        {analyse && (
+          <section
+            aria-label="Résultat de l'analyse"
+            style={{
+              marginTop: 14,
+              padding: 16,
+              border: '1px solid var(--line)',
+              borderRadius: 10,
+              fontSize: 13.5,
+              lineHeight: 1.6,
+              color: 'var(--navy-700)',
+            }}
+          >
+            <MarkdownIA texte={analyse} />
+          </section>
+        )}
       </Panel>
       <div
         style={{

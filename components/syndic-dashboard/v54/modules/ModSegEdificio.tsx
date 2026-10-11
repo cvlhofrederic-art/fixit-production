@@ -17,6 +17,7 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import m from './modules.module.css'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
 import { dateApi } from '@/lib/syndic/v54/i18n/dates'
@@ -208,7 +209,7 @@ export default function ModSegEdificio() {
           <Field label={p.referent} full name="plano-enc">
             <input type="text" placeholder={p.nomFacultatif} value={planoForm.encarregado} onChange={(e) => pUpd('encarregado', e.target.value)} />
           </Field>
-          {planoText && <div style={{ marginTop: 14, maxHeight: 320, overflow: 'auto', background: 'var(--v54-paper)', border: '1px solid var(--v54-line)', borderRadius: 8, padding: 14, fontSize: 12.5, whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{planoText}</div>}
+          {planoText && <div style={{ marginTop: 14, maxHeight: 320, overflow: 'auto', background: 'var(--v54-paper)', border: '1px solid var(--v54-line)', borderRadius: 8, padding: 14, fontSize: 12.5, lineHeight: 1.55 }}><MarkdownIA texte={planoText} /></div>}
         </ModalBody>
         <ModalFoot>
           <Button variant="ghost" onClick={() => setPlanoOpen(false)}>{p.fermer}</Button>

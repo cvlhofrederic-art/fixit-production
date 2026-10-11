@@ -43,7 +43,12 @@ const h = vi.hoisted(() => {
   }
 })
 
-vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn() }))
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+  addBreadcrumb: vi.fn(),
+  withScope: vi.fn((cb: (s: unknown) => void) => cb({ setUser: vi.fn(), setTag: vi.fn(), setExtras: vi.fn(), setLevel: vi.fn() })),
+}))
 vi.mock('@/lib/env', () => ({
   getSecret: vi.fn(async (cle: string) => (cle === 'GROQ_API_KEY' ? 'valeur-factice-test' : '')),
   getCfEnv: vi.fn(async () => ({})),

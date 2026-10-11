@@ -1,28 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { RESOLUTIONS_PROJET_PV } from '@/components/administrateur-judiciaire/data/redaction-pv'
 import { ChampCoproprieteDemo } from '@/components/administrateur-judiciaire/modules/ChampCoproprieteDemo'
+import {
+  STYLE_BOUTON_ATTENTE,
+  demanderTexteOutilIA,
+  messageErreurOutilIA,
+} from '@/components/administrateur-judiciaire/modules/outils-ia/appelOutilIA'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useDonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
+import { construireContextePv, markdownVersTexteBrut } from '@/lib/administrateur-judiciaire/ia/outils'
+import { AUJOURDHUI_ISO, MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /**
- * Texte du projet de PV. Les résolutions sont numérotées dans l'ordre de sélection (et non dans l'ordre de la
- * liste) ; toutes sont déclarées « adoptée à la majorité (art. 24) ».
+ * Trame du projet de PV, affichée avant la rédaction par l'IA. Les résolutions sont numérotées dans l'ordre de
+ * sélection (et non dans l'ordre de la liste) ; le résultat des votes reste à compléter (la maquette les déclarait
+ * toutes « adoptée à la majorité (art. 24) »).
  */
 function texteProjetPv(copropriete: string, resolutionsSelectionnees: readonly number[]): string {
   const lignesResolutions = resolutionsSelectionnees
-    .map((indexResolution, rang) => `${rang + 1}. ${RESOLUTIONS_PROJET_PV[indexResolution]} — adoptée à la majorité (art. 24).`)
+    .map((indexResolution, rang) => `${rang + 1}. ${RESOLUTIONS_PROJET_PV[indexResolution]} — vote : [À COMPLÉTER].`)
     .join('\n')
   return (
     "PROCÈS-VERBAL D'ASSEMBLÉE GÉNÉRALE\n" +
     `${copropriete}\n` +
     '\n' +
-    "L'an 2026, les copropriétaires se sont réunis en assemblée générale.\n" +
+    `L'an ${AUJOURDHUI_ISO.slice(0, 4)}, les copropriétaires se sont réunis en assemblée générale.\n` +
     '\n' +
     'RÉSOLUTIONS SOUMISES AU VOTE :\n' +
     `${lignesResolutions}\n` +
@@ -34,21 +44,87 @@ function texteProjetPv(copropriete: string, resolutionsSelectionnees: readonly n
 /**
  * Rédaction de procès-verbaux (barre latérale : section Outils IA ; surtitre « Assistant · IA ») : choix de la
  * copropriété et des résolutions (cases cochables, sélection initiale : 1re et 3e), aperçu du projet de PV.
- * « Copier » est simulé (rien n'est copié) ; « Générer le PV » ouvre un document fixe (Résidence Le Méridien,
- * séance du 8 juillet 2026) sans rapport avec la copropriété ni les résolutions choisies.
+ * « Générer le PV » demande à l'assistant IA (Claude, via /api/administrateur-judiciaire/outils) un projet de PV pour
+ * la copropriété et les résolutions choisies, avec le mandat enregistré dans la base ; le projet (Markdown, mentions
+ * [À COMPLÉTER]) remplace l'aperçu tant que la sélection ne change pas. « Copier » copie le texte affiché.
  */
 export function RedactionPvModule() {
   const { push } = useToast()
+  const { copros } = useDonneesLocales()
   const [copropriete, setCopropriete] = useState<string>(DEMO_NOMS_COPROPRIETES[0])
   const [resolutionsSelectionnees, setResolutionsSelectionnees] = useState<number[]>([0, 2])
+  /** Projet rédigé par l'IA, rattaché à la sélection qui l'a produit (copropriété et résolutions). */
+  const [pvGenere, setPvGenere] = useState<{ selection: string; texte: string } | null>(null)
+  const [enCours, setEnCours] = useState(false)
   // Cocher ajoute l'index EN FIN de sélection : la numérotation du PV suit l'ordre des clics (maquette).
   const basculerResolution = (indexResolution: number) =>
+    // Pendant la rédaction, la sélection est figée (le projet attendu la concerne).
+    !enCours &&
     setResolutionsSelectionnees((selection) =>
       selection.includes(indexResolution)
         ? selection.filter((index) => index !== indexResolution)
         : [...selection, indexResolution],
     )
   const projetPv = texteProjetPv(copropriete, resolutionsSelectionnees)
+  const selection = JSON.stringify([copropriete, resolutionsSelectionnees])
+  const pvAffiche = pvGenere?.selection === selection ? pvGenere.texte : null
+  /** Sélection à l'écran au moment où la réponse arrive (la copropriété peut changer pendant l'attente). */
+  const selectionCourante = useRef(selection)
+  selectionCourante.current = selection
+
+  const genererPv = async () => {
+    if (enCours) return
+    const resolutions = resolutionsSelectionnees.map((indexResolution) => RESOLUTIONS_PROJET_PV[indexResolution])
+    if (!resolutions.length) {
+      push({ kind: 'info', title: 'Aucune résolution', desc: 'Cochez au moins une résolution à porter au procès-verbal.' })
+      return
+    }
+    const selectionDemandee = selection
+    setEnCours(true)
+    try {
+      const texte = await demanderTexteOutilIA({
+        tache: 'redaction-pv',
+        copropriete,
+        resolutions,
+        dateDuJour: AUJOURDHUI_ISO,
+        contexte: construireContextePv({ aujourdhui: AUJOURDHUI_ISO, mode: MODE_ACTIF, copropriete, copros }),
+      })
+      setPvGenere({ selection: selectionDemandee, texte })
+      if (selectionCourante.current !== selectionDemandee) {
+        push({ kind: 'info', title: 'Sélection modifiée', desc: 'Relancez « Générer le PV » pour la nouvelle sélection.' })
+      } else {
+        push({
+          kind: 'success',
+          title: 'Projet de PV rédigé',
+          desc: 'À relire et à compléter (mentions [À COMPLÉTER]) avant signature.',
+        })
+      }
+    } catch (erreur) {
+      push({ kind: 'error', title: 'Rédaction impossible', desc: messageErreurOutilIA(erreur) })
+    } finally {
+      setEnCours(false)
+    }
+  }
+
+  /** Copie le texte affiché : projet rédigé par l'IA (en texte brut, sans marques Markdown) ou, à défaut, la trame. */
+  const copier = async () => {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) throw new Error('Presse-papiers indisponible')
+      await navigator.clipboard.writeText(pvAffiche ? markdownVersTexteBrut(pvAffiche) : projetPv)
+      push({
+        kind: 'success',
+        title: 'Copié',
+        desc: pvAffiche ? 'Projet de PV copié dans le presse-papiers.' : 'Trame du PV copiée dans le presse-papiers.',
+      })
+    } catch {
+      // Presse-papiers absent (contexte non sécurisé) ou refusé par le navigateur.
+      push({
+        kind: 'error',
+        title: 'Copie impossible',
+        desc: "Le presse-papiers n'est pas accessible : sélectionnez le texte et copiez-le.",
+      })
+    }
+  }
 
   return (
     <>
@@ -119,81 +195,64 @@ export function RedactionPvModule() {
           title="Projet de PV"
           icon="doc"
           right={
-            <button
-              className="btn ghost sm"
-              onClick={() =>
-                push({
-                  kind: 'success',
-                  title: 'Simulation',
-                  desc: "Rien n'a été copié dans le presse-papiers.",
-                })
-              }
-            >
+            <button className="btn ghost sm" onClick={() => void copier()}>
               <Icon name="download" />
               Copier
             </button>
           }
         >
-          <pre
-            style={{
-              whiteSpace: 'pre-wrap',
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: 12,
-              lineHeight: 1.6,
-              color: 'var(--navy-700)',
-              background: 'var(--cream)',
-              padding: 16,
-              borderRadius: 10,
-              margin: 0,
-            }}
-          >
-            {projetPv}
-          </pre>
+          {pvAffiche ? (
+            <section
+              aria-label="Projet de PV rédigé par l'IA"
+              style={{
+                fontSize: 13,
+                lineHeight: 1.6,
+                color: 'var(--navy-700)',
+                background: 'var(--cream)',
+                padding: 16,
+                borderRadius: 10,
+                margin: 0,
+              }}
+            >
+              <MarkdownIA texte={pvAffiche} />
+            </section>
+          ) : (
+            <pre
+              style={{
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 12,
+                lineHeight: 1.6,
+                color: 'var(--navy-700)',
+                background: 'var(--cream)',
+                padding: 16,
+                borderRadius: 10,
+                margin: 0,
+              }}
+            >
+              {projetPv}
+            </pre>
+          )}
           <div
             style={{
               display: 'flex',
               justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: 12,
               marginTop: 12,
             }}
           >
+            {enCours && (
+              <span role="status" style={{ fontSize: 13, color: 'var(--navy-500)' }}>
+                Rédaction du projet de PV en cours…
+              </span>
+            )}
             <button
               className="btn gold"
-              onClick={() =>
-                push({
-                  kind: 'doc',
-                  icon: 'fact',
-                  title: "Procès-verbal d'assemblée générale",
-                  eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
-                  docTitle: "Procès-verbal de l'assemblée générale ordinaire",
-                  meta: 'Résidence Le Méridien · séance du 8 juillet 2026',
-                  lines: [
-                    "L'assemblée s'est tenue sous la présidence du syndic judiciaire. 28 copropriétaires présents ou représentés sur 36, soit 712/1000 tantièmes.",
-                    {
-                      h: 'Décisions',
-                    },
-                    {
-                      k: 'Résolution 1 — Comptes 2025',
-                      v: 'Approuvée (art. 24)',
-                    },
-                    {
-                      k: 'Résolution 2 — Budget 2026',
-                      v: 'Approuvée (art. 24)',
-                    },
-                    {
-                      k: 'Résolution 3 — Ravalement',
-                      v: 'Approuvée (art. 25)',
-                    },
-                    {
-                      k: 'Résolution 4 — Honoraires',
-                      v: 'Reportée',
-                    },
-                    {
-                      h: 'Voies de recours',
-                    },
-                    'Tout copropriétaire opposant ou défaillant dispose de deux mois à compter de la notification pour contester les décisions (art. 42 al. 2 de la loi du 10 juillet 1965).',
-                  ],
-                })
-              }
+              onClick={() => void genererPv()}
+              disabled={enCours}
+              aria-busy={enCours || undefined}
+              style={enCours ? STYLE_BOUTON_ATTENTE : undefined}
             >
               <Icon name="sparkle" />
               Générer le PV

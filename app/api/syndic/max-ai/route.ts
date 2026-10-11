@@ -3,6 +3,7 @@ import { getAuthUser, getUserRole, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { callCerebrasWithRetry } from '@/lib/cerebras'
+import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { logger } from '@/lib/logger'
 import { traceAgent } from '@/lib/langfuse'
 import { validateBody, syndicMaxAiSchema } from '@/lib/validation'
@@ -10,6 +11,7 @@ import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-
 import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { retrieveLegalChunks } from '@/lib/syndic/max-legal-rag'
+import { reponseGeneraleMax } from '@/lib/syndic/max-reponse-generale'
 import {
   buildMaxStrictSystemPrompt,
   getRefusalMessage,
@@ -109,7 +111,8 @@ export async function POST(request: NextRequest) {
     const { tokenMap } = sanitizeContextForLLM(syndic_context as MaxPromptContext)
 
     const hasCerebras = !!(await getSecret('CEREBRAS_API_KEY'))
-    if (!GROQ_API_KEY && !hasCerebras) {
+    const hasClaude = await hasAnthropicKey()
+    if (!GROQ_API_KEY && !hasCerebras && !hasClaude) {
       return NextResponse.json({
         response: getRefusalMessage(ragLanguage),
         citations: [],
@@ -127,6 +130,7 @@ export async function POST(request: NextRequest) {
       language: ragLanguage,
       corpus_size: corpusSize ?? 0,
       groq_key_present: !!GROQ_API_KEY,
+      claude_key_present: hasClaude,
     })
 
     // ── 1. Retrieval : Hybrid search (vector + BM25 + ILIKE fallback) ──
@@ -140,8 +144,29 @@ export async function POST(request: NextRequest) {
       aiBinding: aiBinding ?? undefined,
     })
 
-    // ── 2. Aucun chunk pertinent → refus formaté (corpus gap) ──
+    // ── 2. Aucun chunk pertinent (corpus gap) → réponse générale de Claude, présentée comme telle
+    // (bandeau « à vérifier », aucune citation) ; sans Claude : refus formaté.
     if (chunks.length === 0) {
+      const historiqueGeneral = (Array.isArray(conversation_history) ? conversation_history.slice(-12) : [])
+        .filter((m: { role?: string; content?: string }) => m.role && m.content)
+        .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 2000) }))
+      const generale = await traceAgent(
+        { agent_id: 'max', user_id: user.id, conversation_id: rawBody.conversation_id, prompt: message, metadata: { locale: ragLanguage, chunks_found: 0, mode: 'general' } },
+        () => reponseGeneraleMax(message, historiqueGeneral, ragLanguage),
+      )
+      if (generale) {
+        return NextResponse.json({
+          response: generale.texte,
+          citations: [],
+          confidence: 0,
+          refusal: false,
+          role: userRole,
+          provider: 'claude',
+          mode: 'general',
+          modele: generale.modele,
+          retrieval: { chunks_found: 0, corpus_size: corpusSize ?? 0 },
+        })
+      }
       logger.info('[max-ai] corpus gap — returning refusal', {
         query: message.slice(0, 80),
         language: ragLanguage,
@@ -173,7 +198,11 @@ export async function POST(request: NextRequest) {
       .filter((m: { role?: string; content?: string }) => m.role && m.content)
       .map((m: { role: string; content: string }) => ({
         role: m.role,
-        content: String(m.content).substring(0, 2000),
+        // Les réponses précédentes de Max sont affichées en prose : on les remet au format JSON exigé
+        // ({answer, citations, refusal}) pour que le modèle ne réponde pas en prose au tour suivant.
+        content: m.role === 'assistant'
+          ? JSON.stringify({ answer: String(m.content).substring(0, 2000), citations: [], refusal: false })
+          : String(m.content).substring(0, 2000),
       }))
 
     const messages = [
@@ -182,16 +211,16 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ]
 
-    // ── 4. Appel LLM — Cerebras primary (60K TPM), Groq fallback (6K TPM) ──
+    // ── 4. Appel LLM — Claude Sonnet 5.5 en premier (lib/claude.ts), puis la
+    // chaîne historique Cerebras primary (60K TPM), Groq fallback (6K TPM) ──
     // Groq free tier llama-3.3-70b = 6K TPM : le prompt strict de Max (~8K tokens
     // prompt+completion) dépasse systématiquement cette limite → 429 sur chaque
     // requête. Cerebras Inference a le même modèle avec 60K TPM, largement suffisant.
     const CEREBRAS_API_KEY = await getSecret('CEREBRAS_API_KEY')
-    let llmData: GroqResponse
-    let providerUsed: 'cerebras' | 'groq' = 'cerebras'
-    try {
+    let llmData: GroqResponse | null = null
+    let providerUsed: 'claude' | 'cerebras' | 'groq' = 'claude'
+    if (hasClaude) {
       try {
-        if (!CEREBRAS_API_KEY) throw new Error('CEREBRAS_API_KEY not configured — skip to Groq')
         llmData = await traceAgent(
           {
             agent_id: 'max',
@@ -201,58 +230,90 @@ export async function POST(request: NextRequest) {
             metadata: {
               locale: ragLanguage,
               chunks_found: chunks.length,
-              provider: 'cerebras',
+              provider: 'claude',
               ...(evalRunId ? { eval_run_id: evalRunId } : {}),
             },
           },
-          () => callCerebrasWithRetry({
-            messages,
-            temperature: 0.1,
-            max_tokens: 3500,
-          }, { apiKey: CEREBRAS_API_KEY, maxRetries: 1 }),
-        )
-        providerUsed = 'cerebras'
-      } catch (cerebrasErr) {
-        logger.warn('[max-ai] Cerebras failed, fallback to Groq', {
-          error: cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr),
-        })
-        llmData = await traceAgent(
-          {
-            agent_id: 'max',
-            user_id: user.id,
-            conversation_id: rawBody.conversation_id,
-            prompt: message,
-            metadata: {
-              locale: ragLanguage,
-              chunks_found: chunks.length,
-              provider: 'groq',
-              cerebras_error: (cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr)).slice(0, 200),
-              ...(evalRunId ? { eval_run_id: evalRunId } : {}),
-            },
-          },
-          () => callGroqWithRetry({
+          () => callClaudeWithRetry({
             messages,
             temperature: 0.1,
             max_tokens: 3500,
             response_format: { type: 'json_object' },
-          }, { apiKey: GROQ_API_KEY, maxRetries: 0 }),
+          }, { disableGroqFallback: true }),
         )
-        providerUsed = 'groq'
+      } catch (claudeErr) {
+        logger.warn('[max-ai] Claude failed, fallback to Cerebras/Groq', {
+          error: claudeErr instanceof Error ? claudeErr.message : String(claudeErr),
+        })
       }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      logger.error('[max-ai] LLM call failed (Cerebras + Groq)', { error: errMsg })
-      return NextResponse.json({
-        response: getRefusalMessage(ragLanguage),
-        citations: [],
-        confidence: 0,
-        refusal: true,
-        error: 'llm_unreachable',
-        debug_error: errMsg.slice(0, 200),
-      })
+    }
+    if (!llmData) {
+      try {
+        providerUsed = 'cerebras'
+        try {
+          if (!CEREBRAS_API_KEY) throw new Error('CEREBRAS_API_KEY not configured — skip to Groq')
+          llmData = await traceAgent(
+            {
+              agent_id: 'max',
+              user_id: user.id,
+              conversation_id: rawBody.conversation_id,
+              prompt: message,
+              metadata: {
+                locale: ragLanguage,
+                chunks_found: chunks.length,
+                provider: 'cerebras',
+                ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+              },
+            },
+            () => callCerebrasWithRetry({
+              messages,
+              temperature: 0.1,
+              max_tokens: 3500,
+            }, { apiKey: CEREBRAS_API_KEY, maxRetries: 1 }),
+          )
+          providerUsed = 'cerebras'
+        } catch (cerebrasErr) {
+          logger.warn('[max-ai] Cerebras failed, fallback to Groq', {
+            error: cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr),
+          })
+          llmData = await traceAgent(
+            {
+              agent_id: 'max',
+              user_id: user.id,
+              conversation_id: rawBody.conversation_id,
+              prompt: message,
+              metadata: {
+                locale: ragLanguage,
+                chunks_found: chunks.length,
+                provider: 'groq',
+                cerebras_error: (cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr)).slice(0, 200),
+                ...(evalRunId ? { eval_run_id: evalRunId } : {}),
+              },
+            },
+            () => callGroqWithRetry({
+              messages,
+              temperature: 0.1,
+              max_tokens: 3500,
+              response_format: { type: 'json_object' },
+            }, { apiKey: GROQ_API_KEY, maxRetries: 0 }),
+          )
+          providerUsed = 'groq'
+        }
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err)
+        logger.error('[max-ai] LLM call failed (Cerebras + Groq)', { error: errMsg })
+        return NextResponse.json({
+          response: getRefusalMessage(ragLanguage),
+          citations: [],
+          confidence: 0,
+          refusal: true,
+          error: 'llm_unreachable',
+          debug_error: errMsg.slice(0, 200),
+        })
+      }
     }
 
-    const rawJson = llmData.choices?.[0]?.message?.content ?? ''
+    const rawJson = llmData?.choices?.[0]?.message?.content ?? ''
     const validated = validateMaxResponse(rawJson, chunks, ragLanguage)
 
     if (!validated.ok) {

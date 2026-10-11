@@ -140,3 +140,19 @@ describe('resolveSanitizedToken', () => {
     expect(out).toBe('A real@x.fr B <email:bbbbbbbb> C')
   })
 })
+
+describe('sanitizeContextForLLM — bornes et types masqués', () => {
+  it('un SIRET de 14 chiffres n’est pas pris pour un numéro de téléphone', () => {
+    const { sanitized } = sanitizeContextForLLM({ t: 'SIRET 41203456789012 — tél. 06 12 34 56 78' })
+    expect(sanitized.t).toMatch(/^SIRET 41203456789012 — tél\. <phone:[a-f0-9]{8}>$/)
+  })
+
+  it('option types : seuls les types demandés sont masqués (analyse de devis)', () => {
+    const texte = 'Fourniture et pose 25 chemin de câble : 25 ml x 18,00 € HT — contact@exemple.fr'
+    const { sanitized } = sanitizeContextForLLM({ texte }, { types: ['email', 'phone', 'iban'] })
+    expect(sanitized.texte).toContain('25 chemin de câble : 25 ml x 18,00 € HT')
+    expect(sanitized.texte).not.toContain('contact@exemple.fr')
+    // Sans option : l’indice d’adresse reste actif (comportement par défaut inchangé).
+    expect(sanitizeContextForLLM({ texte }).sanitized.texte).toMatch(/<address:/)
+  })
+})

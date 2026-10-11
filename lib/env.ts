@@ -39,6 +39,7 @@ const requiredServerVars = [
 // GOOGLE_CLIENT_ID/SECRET ne sont nécessaires que si OAuth Google est activé.
 const optionalServerVars = [
   'GROQ_API_KEY',
+  'ANTHROPIC_API_KEY',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
