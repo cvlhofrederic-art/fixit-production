@@ -3,7 +3,8 @@ import { Fragment, type CSSProperties, type ReactNode } from 'react'
 // Rendu des réponses des agents IA (Claude écrit en Markdown).
 //
 // Sous-ensemble volontairement réduit : titres, gras, italique, code en ligne,
-// listes à puces ou numérotées, tableaux simples, séparateurs, liens http(s).
+// listes à puces ou numérotées, tableaux simples, séparateurs ; les liens sont
+// affichés en texte (libellé et adresse), jamais en lien cliquable.
 // Tout est rendu en éléments React : aucun HTML venant du modèle n'est injecté
 // (pas de dangerouslySetInnerHTML). Les styles sont minimaux et héritent de la
 // couleur et de la police de la bulle, pour s'intégrer dans le Syndic v54,
@@ -109,10 +110,10 @@ export function enLigne(texte: string): ReactNode[] {
     else if (m[2]) sortie.push(<strong key={n++}>{enLigne(brut.slice(2, -2))}</strong>)
     else if (m[3]) sortie.push(<em key={n++}>{enLigne(brut.slice(1, -1))}</em>)
     else {
+      // Lien Markdown : affiché en texte « libellé (adresse) », jamais en lien cliquable — aucune adresse venant
+      // du modèle n'est injectée dans un attribut href (alerte CodeQL « DOM text reinterpreted as HTML »).
       const lien = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(brut)
-      sortie.push(lien
-        ? <a key={n++} href={lien[2]} target="_blank" rel="noopener noreferrer">{lien[1]}</a>
-        : brut)
+      sortie.push(lien ? `${lien[1]} (${lien[2]})` : brut)
     }
     dernier = debut + brut.length
   }
