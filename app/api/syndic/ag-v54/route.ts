@@ -14,6 +14,14 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 const typeToPt = (t: string): string =>
   (({ ordinaire: 'ordinaria', extraordinaire: 'extraordinaria', urgent: 'urgente' } as Record<string, string>)[t] || t || 'ordinaria')
 
+/**
+ * Type v54 (PT) → colonne `type_ag`, dont le CHECK (migration 005) n'accepte que 'ordinaire' et
+ * 'extraordinaire' : écrire la valeur PT brute faisait échouer toute création d'AG (500).
+ * Une AG urgente est convoquée en séance extraordinaire.
+ */
+const typeAgDepuisPt = (tipo: string | undefined): 'ordinaire' | 'extraordinaire' =>
+  tipo === 'extraordinaria' || tipo === 'urgente' ? 'extraordinaire' : 'ordinaire'
+
 const statutToEstado = (s: string): string => (s === 'clôturée' || s === 'annulée' ? 'encerrada' : 'em-curso')
 
 const odjToText = (odj: unknown): string =>
@@ -96,7 +104,7 @@ export async function POST(request: NextRequest) {
         immeuble: v.edificio || '',
         date_ag: v.dataHora || new Date().toISOString(),
         lieu: v.local || '',
-        type_ag: v.tipo || 'ordinaria',
+        type_ag: typeAgDepuisPt(v.tipo),
         statut: 'en_cours',
         ordre_du_jour: ordreDuJour,
         quorum: v.quorum ?? 50,
