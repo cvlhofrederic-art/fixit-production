@@ -1,6 +1,6 @@
 // ══════════════════════════════════════════════════════════════════════════════
 // lib/rapport-ia.ts — Génération IA du texte de rapport d'intervention
-// Utilise Groq API (Llama 3.3 70B) via lib/groq.ts existant
+// Utilise Groq API (gpt-oss-120b) via lib/groq.ts existant
 // Fallback structurel intégré — ne plante jamais
 // ══════════════════════════════════════════════════════════════════════════════
 

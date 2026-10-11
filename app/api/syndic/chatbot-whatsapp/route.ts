@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { getSecret } from '@/lib/env'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
+import { parametresRaisonnementGroq } from '@/lib/groq'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
@@ -68,11 +70,12 @@ Respond in JSON format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL_PRIMARY,
         messages,
         temperature: 0.3,
         max_tokens: 500,
         response_format: { type: 'json_object' },
+        ...parametresRaisonnementGroq(GROQ_MODEL_PRIMARY),
       }),
     })
 

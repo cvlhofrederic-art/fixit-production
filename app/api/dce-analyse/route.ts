@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry } from '@/lib/groq'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 30
@@ -319,7 +320,7 @@ ${data.companyData?.raisonSociale ? `Entreprise candidate : ${data.companyData.r
         projectType: data.projectType,
         budget: data.budget,
         lotsCount: data.lots.length,
-        model: groqData.model || 'llama-3.3-70b-versatile',
+        model: groqData.model || GROQ_MODEL_PRIMARY,
         tokens: groqData.usage?.total_tokens || 0,
         missingSections: missingSections.length > 0 ? missingSections : undefined,
       },

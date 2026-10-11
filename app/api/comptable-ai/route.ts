@@ -8,7 +8,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 
 export const maxDuration = 30
 
-// Agent Comptable Léa — Powered by Groq (Llama 3.3-70B)
+// Agent Comptable Léa — Powered by Groq (gpt-oss-120b)
 // Expert-comptable senior BTP & artisanat — tous statuts juridiques — législation française 2026
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
 
@@ -519,7 +520,7 @@ export async function POST(req: NextRequest) {
             artisanSiret: extracted.artisan_siret as string,
             siretVerified: siretResult.verified,
             scores, extracted, analysisText: '[streamed]',
-            model: 'llama-3.3-70b-versatile',
+            model: GROQ_MODEL_PRIMARY,
           }).catch((err) => { logger.warn('saveAnalysis (client stream) failed silently:', err) })
         },
       })

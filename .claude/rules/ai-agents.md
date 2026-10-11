@@ -5,8 +5,11 @@
   `CLAUDE_MODEL_AGENTS`) via `lib/claude.ts` — API REST Anthropic en fetch direct, mêmes formes d'entrée
   et de sortie que `lib/groq.ts` (`callClaudeWithRetry`, `callClaudeStreaming`). Secret `ANTHROPIC_API_KEY`
   (`wrangler secret put`). Sans clé, ou si Claude échoue avant la première réponse : bascule sur Groq.
-- **Artisan / BTP** : Groq (Llama 3.3 70B) via API REST directe (`lib/groq.ts`).
-- Fallback Groq : Llama 3.1 8B (auto) + Cerebras + OpenRouter (matériaux)
+- **Artisan / BTP** : Groq (`openai/gpt-oss-120b`, `GROQ_MODEL_PRIMARY`) via API REST directe (`lib/groq.ts`).
+  Llama 3.3 70B / 3.1 8B arrêtés par Groq le 16/08/2026 (404). gpt-oss raisonne : la réflexion compte
+  dans `max_tokens` ; `parametresRaisonnementGroq` (lib/groq.ts) envoie `reasoning_effort: 'low'` et
+  `include_reasoning: false` — à reprendre dans tout appel Groq en fetch direct.
+- Fallback Groq : `openai/gpt-oss-20b` (`GROQ_MODEL_FALLBACK`, auto) + Cerebras + OpenRouter (matériaux)
 - Pas de SDK tiers — tout via fetch + circuit breaker (lib/circuit-breaker.ts). Le Worker Cloudflare est
   proche de sa taille maximale : ne pas ajouter `@anthropic-ai/sdk`.
 - Recherche web : Tavily API (matériaux AI)

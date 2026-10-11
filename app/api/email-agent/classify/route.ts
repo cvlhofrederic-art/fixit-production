@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { callGroqWithRetry } from '@/lib/groq'
+import { GROQ_MODEL_FALLBACK } from '@/lib/constants'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -89,7 +90,7 @@ ${(emailBody || '').substring(0, 800)}`
     let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
     try {
       groqData = await callGroqWithRetry({
-        model: 'llama-3.1-8b-instant',
+        model: GROQ_MODEL_FALLBACK,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: `Analyse cet email et retourne uniquement le JSON :\n\n${emailContent}` },
@@ -97,7 +98,7 @@ ${(emailBody || '').substring(0, 800)}`
         temperature: 0.1,
         max_tokens: 500,
         response_format: { type: 'json_object' },
-      }, { fallbackModel: 'llama-3.1-8b-instant' })
+      }, { fallbackModel: GROQ_MODEL_FALLBACK })
     } catch {
       return NextResponse.json({ classification: getFallbackClassification(subject || '', emailBody || '') })
     }

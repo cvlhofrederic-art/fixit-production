@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { GROQ_MODEL_PRIMARY, GROQ_MODEL_FALLBACK } from '@/lib/constants'
+import { parametresRaisonnementGroq } from '@/lib/groq'
 
 // Vercel serverless timeout (2 Tavily + 1 Groq = peut dépasser 10s)
 export const maxDuration = 30
 
-// Agent Matériaux — Powered by Groq (Llama 3.3-70B) + Tavily AI Search
+// Agent Matériaux — Powered by Groq (gpt-oss-120b) + Tavily AI Search
 // Expert BTP : normes DTU/NF/RE2020, prix magasin réels, conformité réglementaire
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
@@ -208,9 +210,9 @@ function getProviders(preferredModel: string): LLMProvider[] {
       name: 'Groq',
       url: 'https://api.groq.com/openai/v1/chat/completions',
       apiKey: GROQ_API_KEY,
-      models: preferredModel === 'llama-3.1-8b-instant'
-        ? ['llama-3.1-8b-instant']
-        : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+      models: preferredModel === GROQ_MODEL_FALLBACK
+        ? [GROQ_MODEL_FALLBACK]
+        : [GROQ_MODEL_PRIMARY, GROQ_MODEL_FALLBACK],
     })
   }
   if (OPENROUTER_API_KEY) {
@@ -224,7 +226,7 @@ function getProviders(preferredModel: string): LLMProvider[] {
   return providers
 }
 
-async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 1200, preferredModel = 'llama-3.3-70b-versatile') {
+async function callGroq(messages: Array<{ role: string; content: string }>, maxTokens = 1200, preferredModel = GROQ_MODEL_PRIMARY) {
   const providers = getProviders(preferredModel)
   if (!providers.length) throw new Error('No LLM provider configured')
 
@@ -251,9 +253,12 @@ async function callGroq(messages: Array<{ role: string; content: string }>, maxT
               messages,
               temperature: 0.15,
               max_tokens: maxTokens,
+              // gpt-oss (Groq) : réflexion limitée et absente de la réponse.
+              // OpenRouter : corps inchangé.
+              ...(provider.name === 'Groq' ? parametresRaisonnementGroq(model) : {}),
             }),
             // Wall-time illimité sur Cloudflare Workers tant que le client tient.
-            // 20s = budget raisonnable pour Llama 70B / OpenRouter fallback.
+            // 20s = budget raisonnable pour gpt-oss-120b / OpenRouter fallback.
             signal: AbortSignal.timeout(20000),
           })
 
@@ -535,7 +540,7 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown :
           const fallbackText = await callGroq([
             { role: 'system', content: fallbackPrompt },
             { role: 'user', content: `Recherche produit : "${query.trim()}"` },
-          ], 2000, 'llama-3.1-8b-instant')
+          ], 2000, GROQ_MODEL_FALLBACK)
 
           const fallbackParsed = parseJsonFromText<any>(fallbackText, null)
           if (fallbackParsed?.products?.length) {
@@ -818,7 +823,7 @@ Chaque matériau DOIT avoir au moins 1 norme et des normDetails précis sur les 
     const stage1Text = await callGroq([
       { role: 'system', content: stage1System },
       { role: 'user', content: locale === 'pt' ? `Obra: ${query.trim()}${cityContext}` : `Chantier : ${query.trim()}${cityContext}` },
-    ], 1000, 'llama-3.1-8b-instant')
+    ], 1000, GROQ_MODEL_FALLBACK)
 
     const rawMaterials: Array<{ name: string; qty: number; unit: string; category: string; norms: string[]; normDetails: string }> =
       parseJsonFromText(stage1Text, [])

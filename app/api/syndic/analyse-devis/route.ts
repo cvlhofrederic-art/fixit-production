@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import type { GroqResponse } from '@/lib/groq'
+import { parametresRaisonnementGroq, type GroqResponse } from '@/lib/groq'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { calculateScores, type AnalyseScores } from '@/lib/analyse-devis-scoring'
 import { logger } from '@/lib/logger'
@@ -680,12 +681,19 @@ export async function POST(req: NextRequest) {
       } catch (e) { logger.warn('[analyse-devis] Claude failed, fallback Groq:', e) }
     }
 
-    // 1) Groq 70b — secours
+    // 1) Groq gpt-oss-120b — secours
+    const corpsGroq = JSON.stringify({
+      model: GROQ_MODEL_PRIMARY,
+      messages: opts.messages,
+      temperature: opts.temperature,
+      max_tokens: opts.max_tokens,
+      ...parametresRaisonnementGroq(GROQ_MODEL_PRIMARY),
+    })
     try {
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+        body: corpsGroq,
         signal: AbortSignal.timeout(30000),
       })
       if (res.ok) return res.json()
@@ -694,7 +702,7 @@ export async function POST(req: NextRequest) {
         const retry = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'llama-3.3-70b-versatile', messages: opts.messages, temperature: opts.temperature, max_tokens: opts.max_tokens }),
+          body: corpsGroq,
           signal: AbortSignal.timeout(30000),
         })
         if (retry.ok) return retry.json()

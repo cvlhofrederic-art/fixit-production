@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -226,7 +227,7 @@ export async function POST(request: NextRequest) {
     if (stream) {
       try {
         const sseStream = await callGroqStreaming({
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_MODEL_PRIMARY,
           messages,
           temperature: 0.7,
           max_tokens: 1500,
@@ -249,7 +250,7 @@ export async function POST(request: NextRequest) {
 
     // ── Mode classique (rétrocompatibilité) ──
     const result = await callGroqWithRetry({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL_PRIMARY,
       messages,
       temperature: 0.7,
       max_tokens: 1500,

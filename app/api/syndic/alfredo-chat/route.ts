@@ -7,6 +7,7 @@ import { isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { callClaudeWithRetry } from '@/lib/claude'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { traceAgent } from '@/lib/langfuse'
 import { buildAlfredoSystemPromptFR } from '@/lib/syndic/prompts/alfredo/system-prompt-fr'
 import { buildAlfredoSystemPromptPT } from '@/lib/syndic/prompts/alfredo/system-prompt-pt'
@@ -169,7 +170,7 @@ export async function POST(req: NextRequest) {
       },
       () =>
         callClaudeWithRetry({
-          model: 'llama-3.3-70b-versatile',
+          model: GROQ_MODEL_PRIMARY,
           messages,
           temperature: 0.4,
           max_tokens: 1500,
@@ -212,7 +213,7 @@ export async function POST(req: NextRequest) {
       ]
 
       const followUpResponse = await callClaudeWithRetry({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL_PRIMARY,
         messages: followUpMessages,
         temperature: 0.4,
         max_tokens: 1500,

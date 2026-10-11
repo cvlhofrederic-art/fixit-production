@@ -48,10 +48,16 @@ export const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 
 // ── AI Models ────────────────────────────────────────────────────────────────
 
-/** Modèle Groq principal (rapide, performant) */
-export const GROQ_MODEL_PRIMARY = 'llama-3.3-70b-versatile'
-/** Modèle Groq fallback (plus rapide, moins précis) */
-export const GROQ_MODEL_FALLBACK = 'llama-3.1-8b-instant'
+// Groq a arrêté llama-3.3-70b-versatile et llama-3.1-8b-instant le 16/08/2026
+// (offres gratuite et développeur : 404 « model does not exist »). Remplaçants
+// recommandés par Groq : gpt-oss-120b et gpt-oss-20b (contexte 131 072, sortie
+// 65 536, mode JSON, outils, streaming). Modèles à raisonnement : réglages dans
+// `parametresRaisonnementGroq` (lib/groq.ts).
+
+/** Modèle Groq principal (remplace llama-3.3-70b-versatile) */
+export const GROQ_MODEL_PRIMARY = 'openai/gpt-oss-120b'
+/** Modèle Groq de secours, plus rapide (remplace llama-3.1-8b-instant) */
+export const GROQ_MODEL_FALLBACK = 'openai/gpt-oss-20b'
 
 /** Modèle Cerebras équivalent au primary Groq (fallback inter-provider sur rate-limit) */
 export const CEREBRAS_MODEL_PRIMARY = 'llama-3.3-70b'

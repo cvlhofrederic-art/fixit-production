@@ -1,11 +1,12 @@
 import { z } from 'zod'
 import { callGroqWithRetry } from '@/lib/groq'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { allRecipes } from '../recipes'
 import type { EstimationInput, ChantierProfile, Recipe } from '../types'
 import { EstimationInputSchema } from '../types'
 
 /**
- * Extracteur IA (Groq / Llama 3.3 70B) pour le module Estimation matériaux.
+ * Extracteur IA (Groq / gpt-oss-120b) pour le module Estimation matériaux.
  * Interprète une description en langage naturel et produit un EstimationInput
  * structuré, validé par Zod, prêt à être passé à estimateProject().
  */
@@ -642,10 +643,11 @@ export async function extractEstimationWithGroq(
     },
     {
       apiKey,
-      // Désactive le fallback Llama 3.1 8B : son context effective (~7k) ne
-      // suffit pas pour le catalogue 162 recettes + règles calibrées (→ 413).
-      // On garde le 70B uniquement, avec retries sur 429.
-      fallbackModel: 'llama-3.3-70b-versatile',
+      // Pas de bascule sur le petit modèle de secours (fallback = modèle
+      // principal). Choix fait du temps de Llama 3.1 8B, dont le contexte
+      // effectif (~7k) ne suffisait pas pour le catalogue 162 recettes + règles
+      // calibrées (→ 413). On garde le modèle principal seul, avec retries sur 429.
+      fallbackModel: GROQ_MODEL_PRIMARY,
       maxRetries: 3,
     }
   )
@@ -659,7 +661,7 @@ export async function extractEstimationWithGroq(
   const wasTruncated = finishReason === 'length'
 
   const raw = typeof content === 'string' ? content : String(content)
-  // Nettoie d'éventuels blocs markdown que Llama pourrait retourner malgré json mode
+  // Nettoie d'éventuels blocs markdown que le modèle pourrait retourner malgré json mode
   const clean = raw.replace(/```json|```/g, '').trim()
 
   let parsed: unknown
@@ -672,7 +674,7 @@ export async function extractEstimationWithGroq(
   // ════════════════════════════════════════════════════════════
   //  NORMALISATION PRÉ-ZOD — tolérance aux sorties LLM imparfaites
   // ════════════════════════════════════════════════════════════
-  // Llama 3.3 peut retourner : champs numériques à 0 au lieu d'omettre, strings
+  // Le LLM peut retourner : champs numériques à 0 au lieu d'omettre, strings
   // au lieu de numbers ("50"), geometry null, items absents, etc.
   // On normalise AVANT la validation stricte Zod pour que l'UX marche à 100 %.
   const NUMERIC_GEO_KEYS = [

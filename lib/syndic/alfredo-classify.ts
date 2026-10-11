@@ -1,5 +1,6 @@
 // lib/syndic/alfredo-classify.ts
 import { callClaudeWithRetry } from '@/lib/claude'
+import { GROQ_MODEL_FALLBACK } from '@/lib/constants'
 import type { Locale } from './agent-types'
 
 interface IncomingEmail {
@@ -37,7 +38,7 @@ Contenu : ${email.body_text.slice(0, 1500)}`
 
   // Nom historique conservé (appelants) : l’appel passe par Claude, secours Groq.
   const response = await callClaudeWithRetry({
-    model: 'llama-3.1-8b-instant',
+    model: GROQ_MODEL_FALLBACK,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
     response_format: { type: 'json_object' },

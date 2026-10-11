@@ -13,6 +13,31 @@ import { callCerebrasWithRetry, callCerebrasWithTools, hasCerebrasKey } from '@/
 
 const GROQ_URL = GROQ_API_URL
 
+/** Champs de raisonnement ajoutés au corps de la requête Groq (modèles gpt-oss seulement). */
+export interface ParametresRaisonnementGroq {
+  reasoning_effort?: 'low'
+  include_reasoning?: false
+}
+
+/**
+ * Réglages de raisonnement pour les modèles `openai/gpt-oss-*` de Groq.
+ *
+ * Ce sont des modèles à raisonnement : les jetons de réflexion sont décomptés
+ * de `max_tokens`. Un budget calibré pour Llama (sans réflexion) peut donc
+ * s'épuiser avant la réponse et laisser `content` vide : `reasoning_effort:
+ * 'low'` limite la réflexion. `include_reasoning: false` retire la réflexion de
+ * la réponse (`message.reasoning` en appel simple, `delta.reasoning` en flux) :
+ * seul le texte de la réponse circule. `reasoning_format` n'est pas accepté par
+ * gpt-oss (doc Groq « Reasoning »).
+ *
+ * Tout autre modèle (vision Llama 4, etc.) : aucun champ, corps inchangé.
+ */
+export function parametresRaisonnementGroq(model: string): ParametresRaisonnementGroq {
+  return model.startsWith('openai/gpt-oss')
+    ? { reasoning_effort: 'low', include_reasoning: false }
+    : {}
+}
+
 export interface GroqMessage {
   role: string
   content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> | null
@@ -40,7 +65,7 @@ export interface GroqResponse {
  * Call Groq API with automatic retry on 429 (rate limit) and model fallback.
  *
  * - Retries up to `maxRetries` times per model on 429 with exponential backoff
- * - Falls back to `fallbackModel` (8B) if the primary model fails
+ * - Falls back to `fallbackModel` (GROQ_MODEL_FALLBACK, gpt-oss-20b) if the primary model fails
  * - Throws on all other errors after exhausting attempts
  */
 export async function callGroqWithRetry(
@@ -83,6 +108,7 @@ export async function callGroqWithRetry(
             temperature: opts.temperature ?? 0.2,
             max_tokens: opts.max_tokens ?? 3000,
             ...(opts.response_format ? { response_format: opts.response_format } : {}),
+            ...parametresRaisonnementGroq(currentModel),
           }),
           signal: AbortSignal.timeout(25000), // 25s timeout
         })
@@ -163,6 +189,7 @@ export async function callGroqStreaming(
             temperature: opts.temperature ?? 0.2,
             max_tokens: opts.max_tokens ?? 3000,
             stream: true,
+            ...parametresRaisonnementGroq(currentModel),
           }),
           signal: AbortSignal.timeout(30000),
         })
@@ -199,6 +226,8 @@ export async function callGroqStreaming(
                   }
                   try {
                     const json = JSON.parse(payload)
+                    // Seul `delta.content` est relayé : un `delta.reasoning`
+                    // (réflexion gpt-oss) n'est jamais transmis au client.
                     const delta = json.choices?.[0]?.delta?.content
                     if (delta) {
                       controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: delta })}\n\n`))
@@ -316,6 +345,7 @@ export async function callGroqWithTools(
             tool_choice: opts.tool_choice ?? 'auto',
             temperature: opts.temperature ?? 0.2,
             max_tokens: opts.max_tokens ?? 1500,
+            ...parametresRaisonnementGroq(currentModel),
           }),
           signal: AbortSignal.timeout(25000),
         })

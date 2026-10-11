@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 import { callClaudeStreaming, callClaudeWithRetry, nettoyerJson, versMessagesClaude } from '@/lib/claude'
-import { CLAUDE_MODEL_AGENTS, GROQ_API_URL } from '@/lib/constants'
+import { CLAUDE_MODEL_AGENTS, GROQ_API_URL, GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { logger } from '@/lib/logger'
 
 const URL_ANTHROPIC = 'https://api.anthropic.com/v1/messages'
@@ -69,7 +69,7 @@ function installerFetch(reponse: (url: string, init?: RequestInit) => Response) 
 
 const corps = (appel: Appel): Record<string, unknown> => JSON.parse(String(appel.init?.body))
 const entete = (appel: Appel, nom: string): string | null => new Headers(appel.init?.headers).get(nom)
-const groqJson = (content: string) => Response.json({ choices: [{ message: { content } }], model: 'llama-3.3-70b-versatile' })
+const groqJson = (content: string) => Response.json({ choices: [{ message: { content } }], model: GROQ_MODEL_PRIMARY })
 const groqSse = (text: string) => new Response(
   `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}}}]}\n\ndata: [DONE]\n\n`,
   { headers: { 'content-type': 'text/event-stream' } },
@@ -234,9 +234,11 @@ describe('lib/claude — callClaudeWithRetry', () => {
     const appels = installerFetch(url => (url === URL_ANTHROPIC ? erreurHttp(401, 'authentication_error') : groqJson('groq secours')))
     const r = await callClaudeWithRetry({ messages: [{ role: 'user', content: 'q' }], temperature: 0.2 })
     expect(r.choices[0].message.content).toBe('groq secours')
-    expect(r.model).toBe('llama-3.3-70b-versatile')
+    expect(r.model).toBe(GROQ_MODEL_PRIMARY)
     const groq = appels.find(a => a.url === GROQ_API_URL)
     expect(groq && corps(groq).temperature).toBe(0.2)
+    expect(groq && corps(groq).model).toBe('openai/gpt-oss-120b')
+    expect(groq && corps(groq).reasoning_effort).toBe('low')
     expect(erreur).toHaveBeenCalledTimes(1)
   })
 
