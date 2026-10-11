@@ -131,7 +131,7 @@ describe('POST /api/syndic/demandes/valider — mission confiée', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ mission_id: 'syndic_missions-nouveau', conversation_id: 'conv-1', notification: true })
 
-    // (a) mission : priorité du CHECK (planifiee conservée), statut en cours, liée au signalement.
+    // (a) mission : priorité du CHECK (planifiee conservée), statut en attente du prestataire, liée au signalement.
     const [mission] = appelsDe(h.base, 'syndic_missions', 'insert')
     expect(mission.donnees).toMatchObject({
       cabinet_id: CAB,
@@ -141,7 +141,7 @@ describe('POST /api/syndic/demandes/valider — mission confiée', () => {
       type: 'Plomberie',
       description: "Fuite d'eau sous l'évier",
       priorite: 'planifiee',
-      statut: 'en_cours',
+      statut: 'en_attente',
       date_intervention: '2026-10-13',
     })
 

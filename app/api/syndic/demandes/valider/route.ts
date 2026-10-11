@@ -9,7 +9,7 @@ import { livrerMission, localisationSignalement, prioriteMissionSyndic } from '@
 // ── POST /api/syndic/demandes/valider ────────────────────────────────────────
 // « Valider la mission » depuis le Canal de communication v54 (onglet Demandes) : le syndic confie le
 // signalement d'un copropriétaire à un prestataire de SON cabinet.
-//   1. mission syndic_missions (statut 'en_cours', liée au signalement) ;
+//   1. mission syndic_missions (statut 'en_attente' jusqu'à l'acceptation du prestataire, liée au signalement) ;
 //   2. livraison au compte Vitfix du prestataire (booking si fiche artisan, ordre de mission dans
 //      Messagerie > Pro, notification in-app, canal legacy) — lib/syndic/livraison-mission.ts ;
 //   3. signalement passé en 'acceptee' + message « Mission confiée à … » dans le fil du copropriétaire.
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
         type: titre,
         description: descriptionSignalement,
         priorite,
-        statut: 'en_cours',
+        statut: 'en_attente', // suivi ensuite par PATCH /api/pro/messagerie (acceptee → en_cours → terminee)
         date_intervention: dateIntervention,
         batiment: signalement.batiment,
         etage: signalement.etage,

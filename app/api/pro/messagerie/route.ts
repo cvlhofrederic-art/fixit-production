@@ -17,11 +17,31 @@ const TRANSITIONS_ORDRE: Record<string, string[]> = {
 }
 
 // Statut de la mission syndic (syndic_missions, CHECK en_attente | acceptee | en_cours |
-// terminee | annulee) suivi par l'ordre de mission du prestataire
+// terminee | annulee) suivi par l'ordre de mission du prestataire. Un refus annule la
+// mission : le syndic en confie une nouvelle à un autre prestataire.
 const STATUT_MISSION_SYNDIC: Record<string, string> = {
   accepte: 'acceptee',
   en_cours: 'en_cours',
   termine: 'terminee',
+  refuse: 'annulee',
+}
+
+// Statut du signalement copropriétaire (syndic_signalements, même CHECK) — lu par l'onglet
+// Demandes du Canal v54 et par « Mes signalements » côté copropriétaire. Un refus remet la
+// demande « en attente » (sans prestataire) pour que le syndic puisse la confier à nouveau.
+const STATUT_SIGNALEMENT: Record<string, string> = {
+  accepte: 'acceptee',
+  en_cours: 'en_cours',
+  termine: 'terminee',
+  refuse: 'en_attente',
+}
+
+// Ligne ajoutée au fil de la demande (syndic_signalement_messages, role 'system') ; pour
+// une acceptation, le texte du message système de la conversation est repris.
+const SUIVI_SIGNALEMENT: Record<string, (nom: string) => string> = {
+  en_cours: nom => `${nom} a démarré l'intervention.`,
+  termine: nom => `${nom} a terminé l'intervention.`,
+  refuse: nom => `${nom} a décliné la mission — demande à confier à un autre prestataire.`,
 }
 
 // ═══ GET — Liste des conversations ou messages d'une conversation ═══
@@ -384,9 +404,8 @@ export async function PATCH(req: NextRequest) {
       })
     if (systemErr) logger.error('[messagerie] insert system message error:', systemErr)
 
-    // ── Mission syndic liée (ordre validé depuis le Syndic v54) : suivre le statut ──
-    // Mise à jour bornée au cabinet du donneur d'ordre de CETTE conversation. Un refus ne
-    // change rien : la mission reste « en attente », le syndic choisit un autre prestataire.
+    // ── Mission syndic et demande du copropriétaire liées (ordre validé depuis le Syndic v54) ──
+    // Mises à jour bornées au cabinet du donneur d'ordre de CETTE conversation (contact_id).
     const statutMissionSyndic = STATUT_MISSION_SYNDIC[action]
     const syndicMissionId = typeof updatedOrdre.syndic_mission_id === 'string' ? updatedOrdre.syndic_mission_id : null
     if (statutMissionSyndic && syndicMissionId && conversation.contact_id) {
@@ -396,6 +415,36 @@ export async function PATCH(req: NextRequest) {
         .eq('id', syndicMissionId)
         .eq('cabinet_id', conversation.contact_id)
       if (missionErr) logger.error('[messagerie] update syndic_missions statut error:', missionErr)
+    }
+
+    const statutSignalement = STATUT_SIGNALEMENT[action]
+    const signalementId = typeof updatedOrdre.signalement_id === 'string' ? updatedOrdre.signalement_id : null
+    if (statutSignalement && signalementId && conversation.contact_id) {
+      const { data: sigMaj, error: sigErr } = await supabaseAdmin
+        .from('syndic_signalements')
+        .update({
+          statut: statutSignalement,
+          ...(action === 'refuse' ? { artisan_assigne: null } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', signalementId)
+        .eq('cabinet_id', conversation.contact_id)
+        .select('id')
+        .maybeSingle()
+      if (sigErr) {
+        logger.error('[messagerie] update syndic_signalements statut error:', sigErr)
+      } else if (sigMaj) {
+        const { error: suiviErr } = await supabaseAdmin
+          .from('syndic_signalement_messages')
+          .insert({
+            signalement_id: signalementId,
+            auteur: displayName,
+            role: 'system',
+            // Acceptation : même texte que dans la conversation (heure d'arrivée, durée)
+            texte: action === 'accepte' ? systemContent : SUIVI_SIGNALEMENT[action](displayName),
+          })
+        if (suiviErr) logger.error('[messagerie] insert syndic_signalement_messages error:', suiviErr)
+      }
     }
 
     // ── Si accepté : bloquer la date sur l'agenda de l'artisan (mettre à jour le booking existant) ──
