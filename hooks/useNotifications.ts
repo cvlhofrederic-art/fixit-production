@@ -96,11 +96,15 @@ export function useNotifications(
         fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=particulier`, { headers }),
         fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=pro`, { headers }),
       ])
+      // Réponse en erreur (429, 500…) : le compteur affiché est conservé (avant : remis à 0, clignotement).
+      if (!clientsRes.ok || !proRes.ok) return
       const [cd, pd] = await Promise.all([clientsRes.json(), proRes.json()])
       const total = (cd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0) +
                     (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
       setUnreadMsgCount(total)
-    } catch {}
+    } catch (e) {
+      console.warn('[notifications] compteur de messages non lus non rechargé', e)
+    }
   }, [userId, getAuthToken])
 
   useEffect(() => {
