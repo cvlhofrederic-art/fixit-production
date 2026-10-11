@@ -3,7 +3,9 @@
 import { useCallback, useRef } from 'react'
 import { useToast } from '../primitives/toast'
 import { useMessages } from '@/lib/syndic/v54/i18n'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { HOOKS_MESSAGES } from './i18n/hooks.messages'
+import { enTetesLea } from './use-lea-documents'
 
 /** Types de documents acceptés par l'endpoint Léa `/api/syndic/lea-documents/upload`. */
 export type SyndicDocType =
@@ -35,6 +37,7 @@ export function useDocumentUpload(onUploaded?: () => void) {
   const t = useMessages(HOOKS_MESSAGES).upload
   // Messages d'erreur mappés sur les codes renvoyés par l'endpoint upload.
   const erreurs: Record<string, string> = t.erreurs
+  const { token } = useSyndicData()
   const busyRef = useRef(false)
 
   return useCallback(
@@ -53,7 +56,8 @@ export function useDocumentUpload(onUploaded?: () => void) {
             const fd = new FormData()
             fd.append('file', file)
             fd.append('type', type)
-            const res = await fetch('/api/syndic/lea-documents/upload', { method: 'POST', body: fd })
+            // Pas de Content-Type : le navigateur pose la frontière multipart du FormData.
+            const res = await fetch('/api/syndic/lea-documents/upload', { method: 'POST', body: fd, headers: enTetesLea(token) })
             const data = (await res.json().catch(() => ({}))) as {
               error?: string
               document?: { filename?: string }
@@ -78,6 +82,6 @@ export function useDocumentUpload(onUploaded?: () => void) {
         }
         input.click()
       },
-    [push, onUploaded, t, erreurs],
+    [push, onUploaded, t, erreurs, token],
   )
 }

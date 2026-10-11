@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
 import { useDocumentUpload } from '@/components/syndic-dashboard/v54/modules/use-document-upload'
+import { SyndicDataContext, type SyndicData } from '@/lib/syndic/v54/data-context'
 
 /**
  * Vérifie le hook d'upload Léa : il POST le fichier choisi en multipart
@@ -61,6 +62,23 @@ describe('useDocumentUpload', () => {
     expect((init.body as FormData).get('file')).toBeInstanceOf(File)
 
     expect(await screen.findByText('Documento carregado')).toBeInTheDocument()
+  })
+
+  it('syndic connecté : envoie le jeton du cabinet en Authorization Bearer (seule auth lue par la route)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ document: { filename: 'pv.pdf' }, quota: { warning: false } }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const connecte: SyndicData = { authenticated: true, loading: false, missions: [], immeubles: [], artisans: [], token: 'jeton-cabinet' }
+
+    render(<ToastProvider><SyndicDataContext.Provider value={connecte}><Harness type="autre" /></SyndicDataContext.Provider></ToastProvider>)
+    await pickFile(new File(['%PDF-1.4'], 'pv.pdf', { type: 'application/pdf' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.headers).toEqual({ Authorization: 'Bearer jeton-cabinet' })
+    expect(init.body).toBeInstanceOf(FormData) // pas de Content-Type forcé : frontière multipart du navigateur
   })
 
   it('toast une erreur lisible quand l’endpoint refuse (413 quota)', async () => {
