@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
     access_token: 'jeton-super-admin',
     user: { id: 'id-super-admin', app_metadata: { role: 'super_admin' }, user_metadata: { full_name: 'Frédéric Carvalho' } },
   },
-  signOut: vi.fn(async () => ({ error: null as unknown })),
+  signOut: vi.fn(async (_options?: { scope?: string }) => ({ error: null as unknown })),
 }))
 
 vi.mock('@/lib/supabase', () => ({
@@ -204,6 +204,8 @@ describe('SyndicDashboardV54 — session super_admin', () => {
       expect((await screen.findByRole('link', { name: 'Panneau admin' }, { timeout: 10_000 })).getAttribute('href')).toBe('/admin/dashboard')
       fireEvent.click(screen.getByRole('button', { name: /Se déconnecter/ }))
       await waitFor(() => expect(h.signOut).toHaveBeenCalledTimes(1), { timeout: 10_000 })
+      // Session de cet appareil seulement (les autres sessions du compte restent ouvertes).
+      expect(h.signOut).toHaveBeenCalledWith({ scope: 'local' })
       await waitFor(() => expect(window.location.href).toBe('/fr/syndic/login'), { timeout: 10_000 })
     } finally {
       if (origine) Object.defineProperty(window, 'location', origine)

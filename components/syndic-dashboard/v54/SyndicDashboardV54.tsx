@@ -279,7 +279,8 @@ export function ShellSyndicV54({ routeDepart }: Readonly<{ routeDepart: string }
     const fr = locale === 'fr-FR'
     const echec = () => push({ kind: 'error', title: fr ? 'Déconnexion impossible' : 'Não foi possível terminar a sessão', desc: fr ? 'Vérifiez la connexion et réessayez.' : 'Verifique a ligação e tente novamente.' })
     try {
-      const { error } = await supabase.auth.signOut()
+      // scope 'local' : seule cette session est fermée (pas celles du compte sur les autres appareils).
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
       if (error) { echec(); return }
       window.location.href = fr ? '/fr/syndic/login' : '/pt/syndic/login'
     } catch (erreur: unknown) {
