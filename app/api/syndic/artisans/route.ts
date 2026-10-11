@@ -6,6 +6,18 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { syndicArtisanSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 
+/**
+ * Mise à jour d'une fiche prestataire, attendue : un constructeur PostgREST est paresseux — sans
+ * await (l'ancien `void supabaseAdmin…update()`), la requête n'était jamais envoyée.
+ */
+async function majFicheArtisan(id: string, champs: Record<string, unknown>, contexte: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('syndic_artisans')
+    .update({ ...champs, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) logger.error(`[ARTISANS GET] mise à jour fiche (${contexte})`, { message: error.message })
+}
+
 // ── GET /api/syndic/artisans — Lister les artisans liés au cabinet ────────────
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
@@ -50,29 +62,31 @@ export async function GET(request: NextRequest) {
 
   if (missingUserIdEmails.length > 0) {
     try {
-      const { data: profiles } = await supabaseAdmin
+      const { data: profiles, error: profilesErr } = await supabaseAdmin
         .from('profiles_artisan')
         .select('id, user_id, email')
         .in('email', missingUserIdEmails)
+      if (profilesErr) logger.warn('[ARTISANS GET] profiles_artisan par e-mail', { message: profilesErr.message })
 
       if (profiles && profiles.length > 0) {
         const profileByEmail = new Map(profiles.map(p => [p.email?.toLowerCase(), p]))
+        const liaisons: Promise<void>[] = []
 
         for (const artisan of artisans) {
           if (!artisan.artisan_user_id && artisan.email) {
             const profile = profileByEmail.get(artisan.email.toLowerCase())
             if (profile?.user_id) {
               artisan.artisan_user_id = profile.user_id
-              // Fire-and-forget: link for future calls
-              void supabaseAdmin
-                .from('syndic_artisans')
-                .update({ artisan_user_id: profile.user_id, updated_at: new Date().toISOString() })
-                .eq('id', artisan.id)
+              // Liaison enregistrée pour les appels suivants (validation de mission, canal Pro…).
+              liaisons.push(majFicheArtisan(artisan.id, { artisan_user_id: profile.user_id }, 'liaison compte prestataire'))
             }
           }
         }
+        await Promise.all(liaisons)
       }
-    } catch { /* storage check failed, non-blocking */ }
+    } catch (e) {
+      logger.warn('[ARTISANS GET] liaison des comptes prestataires', { message: e instanceof Error ? e.message : String(e) })
+    }
   }
 
   // ── Batch: resolve profileIds for artisans with user_id ─────────────────
@@ -119,10 +133,7 @@ export async function GET(request: NextRequest) {
             const realFiles = (files || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
             if (realFiles.length > 0) {
               artisan.rc_pro_valide = true
-              void supabaseAdmin
-                .from('syndic_artisans')
-                .update({ rc_pro_valide: true, updated_at: new Date().toISOString() })
-                .eq('id', artisan.id)
+              await majFicheArtisan(artisan.id, { rc_pro_valide: true }, 'RC Pro')
               return
             }
           } catch { /* storage check failed, non-blocking */ }
@@ -141,10 +152,7 @@ export async function GET(request: NextRequest) {
               const realFiles = (files || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
               if (realFiles.length > 0) {
                 artisan.assurance_decennale_valide = true
-                void supabaseAdmin
-                  .from('syndic_artisans')
-                  .update({ assurance_decennale_valide: true, updated_at: new Date().toISOString() })
-                  .eq('id', artisan.id)
+                await majFicheArtisan(artisan.id, { assurance_decennale_valide: true }, 'décennale')
                 return
               }
             } catch { /* storage check failed, non-blocking */ }
