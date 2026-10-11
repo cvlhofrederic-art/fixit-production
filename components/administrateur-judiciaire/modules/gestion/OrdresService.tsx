@@ -288,7 +288,7 @@ export function OrdresServiceModule() {
                 )}
                 <span style={{ fontSize: 11.5, color: 'var(--navy-500)', marginLeft: 4 }}>{ordre.localisation}</span>
                 <div style={{ flex: 1 }} />
-                {ordre.statut === 'refuse' && boutonEnvoi(sourceDepuisOrdreVitfix(ordre), true)}
+                {(ordre.statut === 'refuse' || ordre.statut === 'termine') && boutonEnvoi(sourceDepuisOrdreVitfix(ordre), true)}
                 {boutonSuivi(ordre.missionId)}
               </div>
               <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, fontWeight: 500, marginBottom: 4 }}>
@@ -370,7 +370,8 @@ export function OrdresServiceModule() {
                     Valider
                   </button>
                 )}
-                {(!ordreVitfix || ordreVitfix.statut === 'refuse') && boutonEnvoi(sourceDepuisOrdreDemo(ordre), !!ordreVitfix)}
+                {/* Renvoi possible après un refus ou une intervention terminée (une répétition ne bloque pas la carte). */}
+                {(!ordreVitfix || ordreVitfix.statut === 'refuse' || ordreVitfix.statut === 'termine') && boutonEnvoi(sourceDepuisOrdreDemo(ordre), !!ordreVitfix)}
                 {ordreVitfix && boutonSuivi(ordre.id)}
                 <button
                   className="btn sm ghost"

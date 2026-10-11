@@ -200,4 +200,27 @@ describe('Ordres de service — envoi au prestataire Vitfix et suivi', () => {
     const suivi = screen.getByRole('region', { name: /Suivi prestataire/ })
     expect(within(suivi).getByText('Refusé par le prestataire')).toBeTruthy()
   })
+
+  it('plusieurs prestataires avec compte Vitfix : aucune présélection (pas d’envoi à un tiers en un clic)', async () => {
+    const ART2 = 'bbbbbbbb-cccc-4ddd-8eee-111111111111'
+    simulerRoute(() => ({
+      prestataires: [
+        { id: ART2, nom: 'Atlantic Plomberie', metier: 'Plombier', compte: true },
+        ...PRESTATAIRES,
+      ],
+      ordres: [],
+    }))
+    await monter()
+    fireEvent.click(within(carte('OS-2026-051')).getByRole('button', { name: /Envoyer au prestataire/ }))
+    const dialogue = await screen.findByRole('dialog', { name: /Envoyer au prestataire Vitfix/ })
+    const choix = within(dialogue).getByLabelText(/Prestataire Vitfix/) as HTMLSelectElement
+    await waitFor(() => expect(within(choix).getAllByRole('option').length).toBeGreaterThan(2))
+    expect(choix.value).toBe('')
+  })
+
+  it('ordre terminé : la carte propose de renvoyer au prestataire (une répétition ne bloque pas la démo)', async () => {
+    simulerRoute(() => ({ prestataires: PRESTATAIRES, ordres: [{ ...ORDRE_SUIVI, statut: 'termine' }] }))
+    await monter()
+    await waitFor(() => expect(within(carte('OS-2026-051')).getByRole('button', { name: /Renvoyer au prestataire/ })).toBeTruthy())
+  })
 })

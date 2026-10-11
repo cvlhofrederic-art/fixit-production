@@ -39,8 +39,14 @@ export interface EnvoiPrestataireModalProps {
 
 const URGENCES = ['Normale', 'Prioritaire', 'Urgence']
 
-/** Premier prestataire pouvant recevoir l'ordre (compte Vitfix), ou chaîne vide. */
-const premierAvecCompte = (prestataires: PrestataireVitfix[]) => prestataires.find((p) => p.compte)?.id ?? ''
+/**
+ * Présélection seulement s'il n'y a qu'UN prestataire avec compte Vitfix : avec plusieurs comptes liés, un seul
+ * clic sur « Envoyer l'ordre » ne doit pas partir chez le premier par ordre alphabétique (un vrai tiers).
+ */
+const premierAvecCompte = (prestataires: PrestataireVitfix[]) => {
+  const avecCompte = prestataires.filter((p) => p.compte)
+  return avecCompte.length === 1 ? avecCompte[0].id : ''
+}
 
 /**
  * « Envoyer au prestataire Vitfix » : choix d'un prestataire du cabinet (ceux sans compte Vitfix sont grisés),
