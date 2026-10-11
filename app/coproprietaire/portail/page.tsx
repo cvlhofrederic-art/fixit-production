@@ -162,7 +162,7 @@ export default function PortailCopropriétaire() {
         nom: 'Xavier',
         prenom: 'Géraldine',
         role: 'coproprio',
-        immeuble: 'Résidence Les Acacias',
+        immeuble: 'Résidence Le Prado',
         batiment: 'D',
         etage: '4',
         numLot: '12',

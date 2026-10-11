@@ -195,7 +195,7 @@ export const PROFILE_DEMO: CoproProfile = {
   prenom: 'Géraldine',
   email: 'geraldine.xavier@email.com',
   telephone: '06 12 34 56 78',
-  immeuble: 'Résidence Les Acacias',
+  immeuble: 'Résidence Le Prado',
   batiment: 'D',
   etage: '4',
   numLot: '12',
@@ -257,7 +257,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
     id: '1',
     titre: 'AG Extraordinaire — Chaudière collective',
     date: '2026-11-19T18:00:00',
-    lieu: 'Salle polyvalente, 12 rue des Acacias, Marseille 8e',
+    lieu: 'Salle polyvalente, 182 avenue du Prado, 13008 Marseille',
     type: 'extraordinaire',
     statut: 'convoquee',
     ordreDuJour: [
@@ -277,7 +277,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
     id: '3',
     titre: 'AG Ordinaire 2026',
     date: '2026-06-11T18:00:00',
-    lieu: 'Salle polyvalente, 12 rue des Acacias, Marseille 8e',
+    lieu: 'Salle polyvalente, 182 avenue du Prado, 13008 Marseille',
     type: 'ordinaire',
     statut: 'cloturee',
     ordreDuJour: [
@@ -298,7 +298,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
     id: '2',
     titre: 'AG Extraordinaire — Toiture',
     date: '2025-09-20T18:00:00',
-    lieu: 'Salle polyvalente, 12 rue des Acacias, Marseille 8e',
+    lieu: 'Salle polyvalente, 182 avenue du Prado, 13008 Marseille',
     type: 'extraordinaire',
     statut: 'cloturee',
     ordreDuJour: [
@@ -365,8 +365,8 @@ export const INTERVENTIONS_DEMO: SuiviIntervention[] = [
     dateRdv: '2026-10-12',
     heureRdv: '14:00',
     progression: 35,
-    gpsLat: 48.8566,
-    gpsLng: 2.3522,
+    gpsLat: 43.2781,
+    gpsLng: 5.3902,
     gpsEta: 12,
   },
   {

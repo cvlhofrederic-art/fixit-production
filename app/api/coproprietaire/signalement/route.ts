@@ -1,11 +1,51 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { coproSignalementSchema, validateBody } from '@/lib/validation'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 
+/** Échappe les jokers de LIKE (% _ \) : la recherche ilike reste une égalité insensible à la casse. */
+function echapperMotifLike(valeur: string): string {
+  return valeur.replace(/[\\%_]/g, c => `\\${c}`)
+}
+
+/**
+ * Cabinet d'un utilisateur connecté (jeton Bearer) :
+ * - syndic, employé de cabinet ou super admin → son cabinet (resolveCabinetId) ;
+ * - super admin qui consulte un autre tableau de bord (rôle d'emprunt, _original_role) → son propre id,
+ *   qui est aussi son cabinet de syndic ;
+ * - copropriétaire ou locataire → cabinet de sa fiche syndic_coproprios (même e-mail, casse ignorée).
+ * null quand rien ne permet de le déterminer : la route retombe alors sur le comportement public.
+ */
+async function cabinetDeLUtilisateur(user: User, immeuble: string): Promise<string | null> {
+  if (isSyndicRole(user)) return resolveCabinetId(user, supabaseAdmin)
+  if (user.app_metadata?._original_role === 'super_admin') return user.id
+
+  const role = getUserRole(user)
+  const email = (user.email || '').trim().toLowerCase()
+  if ((role !== 'coproprio' && role !== 'locataire') || !email) return null
+
+  const { data, error } = await supabaseAdmin
+    .from('syndic_coproprios')
+    .select('cabinet_id, email_proprietaire, immeuble')
+    .ilike('email_proprietaire', echapperMotifLike(email))
+    .limit(10)
+  if (error) {
+    logger.error('[COPRO SIGNALEMENT] recherche du cabinet du copropriétaire', { code: error.code, message: error.message })
+    return null
+  }
+  // Égalité stricte vérifiée ici : PostgREST traite aussi « * » comme un joker dans un motif ilike.
+  const fiches = (data || []).filter(f => f.cabinet_id && (f.email_proprietaire || '').trim().toLowerCase() === email)
+  const immeubleCherche = immeuble.toLowerCase()
+  const memeImmeuble = immeubleCherche ? fiches.find(f => (f.immeuble || '').trim().toLowerCase() === immeubleCherche) : undefined
+  return (memeImmeuble ?? fiches[0])?.cabinet_id ?? null
+}
+
 // POST /api/coproprietaire/signalement — créer un signalement
-// Rate-limité pour éviter le spam (pas d'auth car copropriétaires non-inscrits)
+// Rate-limité pour éviter le spam. Sans jeton : appel public (copropriétaires non inscrits, QR code) ;
+// avec un jeton Bearer valide, le cabinet est déduit du compte connecté (voir cabinetDeLUtilisateur).
 export async function POST(request: NextRequest) {
   try {
     // Rate limiting strict
@@ -35,8 +75,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Description trop longue (max 5000 caract\u00e8res)' }, { status: 400 })
     }
 
-    // Résoudre le cabinet_id depuis le nom de l'immeuble si possible
-    let cabinetId = body.cabinetId || null
+    // 1. Compte connecté : cabinet déduit du jeton. 2. Sinon : cabinetId transmis, puis nom de l'immeuble.
+    const user = await getAuthUser(request)
+    let cabinetId: string | null = user ? await cabinetDeLUtilisateur(user, immeuble) : null
+
+    if (!cabinetId) cabinetId = body.cabinetId || null
 
     if (!cabinetId && immeuble) {
       const { data: immeubles } = await supabaseAdmin
@@ -61,7 +104,8 @@ export async function POST(request: NextRequest) {
         immeuble_nom: immeuble,
         demandeur_nom: demandeurNom.substring(0, 200),
         demandeur_role: demandeurRole,
-        demandeur_email: (body.demandeurEmail || body.email || '').substring(0, 200) || null,
+        // En minuscules : le suivi (GET ?email=) cherche l'e-mail exact, mis en minuscules.
+        demandeur_email: (body.demandeurEmail || body.email || '').trim().toLowerCase().substring(0, 200) || null,
         demandeur_telephone: (body.demandeurTelephone || body.telephone || '').substring(0, 20) || null,
         type_intervention: (body.typeIntervention || body.type || 'Autre').substring(0, 100),
         description: description.substring(0, 5000),
@@ -76,7 +120,12 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    if (error) {
+      logger.error('[COPRO SIGNALEMENT] insertion refusée', {
+        code: error.code, message: error.message, details: error.details, cabinetId, authentifie: Boolean(user),
+      })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     return NextResponse.json({ signalement: data })
   } catch (e: unknown) {
     logger.error('[COPRO SIGNALEMENT]', e)
@@ -87,7 +136,7 @@ export async function POST(request: NextRequest) {
 // GET /api/coproprietaire/signalement — récupérer ses signalements
 // Requiert email exact (pas de wildcard) + rate limiting
 export async function GET(request: NextRequest) {
-  const ip = getClientIP(request as any)
+  const ip = getClientIP(request)
   if (!(await checkRateLimit(`copro_signalement_get_${ip}`, 15, 60_000))) return rateLimitResponse()
 
   const url = new URL(request.url)
@@ -121,7 +170,10 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query
 
-  if (error) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  if (error) {
+    logger.error('[COPRO SIGNALEMENT] lecture du suivi', { code: error.code, message: error.message })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  }
 
   const signalements = (data || []).map(s => ({
     id: s.id,

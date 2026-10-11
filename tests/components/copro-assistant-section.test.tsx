@@ -46,7 +46,7 @@ const t: Record<string, string> = {
 
 const profile = {
   id: 'copro-demo-1', nom: 'Xavier', prenom: 'Géraldine', email: 'geraldine.xavier@email.com',
-  telephone: '06 12 34 56 78', immeuble: 'Résidence Les Acacias', batiment: 'D', etage: '4',
+  telephone: '06 12 34 56 78', immeuble: 'Résidence Le Prado', batiment: 'D', etage: '4',
   numLot: '12', tantiemes: 450, quotePart: 4.5,
 }
 
