@@ -838,10 +838,13 @@ export const fetchOrcamentos = (token: string): Promise<Orcamento[]> =>
   getList<Orcamento>('/api/syndic/orcamentos', token, 'orcamentos')
 
 // ── Boîte e-mail du cabinet (écran « E-mails Fixy », agent Alfredo) ────────────
-// Gmail / Google Workspace ou Outlook / Microsoft 365 (une boîte par cabinet).
+// Gmail / Google Workspace, Outlook / Microsoft 365 ou autre messagerie en IMAP (une boîte
+// par cabinet).
 
+/** Fournisseurs connectés par OAuth (redirection vers Google ou Microsoft). */
+export type FournisseurOAuthBoite = 'gmail' | 'microsoft'
 /** Fournisseur de la boîte (colonne syndic_oauth_tokens.provider). */
-export type FournisseurBoiteEmail = 'gmail' | 'microsoft'
+export type FournisseurBoiteEmail = FournisseurOAuthBoite | 'imap'
 
 /** E-mail relevé et analysé par Alfredo (sans le corps complet). */
 export interface EmailAnalyse {
@@ -880,11 +883,39 @@ export async function fetchEtatBoite(token: string): Promise<EtatBoiteEmail> {
  * Adresse de connexion de la boîte chez le fournisseur choisi (Google ou Microsoft) :
  * le jeton de session reste dans l'en-tête, jamais dans l'URL.
  */
-export async function urlConnexionBoite(token: string, provider: FournisseurBoiteEmail): Promise<string> {
+export async function urlConnexionBoite(token: string, provider: FournisseurOAuthBoite): Promise<string> {
   const res = await fetch(`/api/email-agent/connect?format=json&provider=${provider}`, { headers: { Authorization: `Bearer ${token}` } })
   const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
   if (!res.ok || !j.url) throw new Error(j.error || `/api/email-agent/connect → HTTP ${res.status}`)
   return j.url
+}
+
+/** Échec de connexion IMAP, avec le code renvoyé par la route (identifiants_refuses…). */
+export class ErreurConnexionImap extends Error {
+  readonly code: string | null
+  constructor(message: string, code: string | null) {
+    super(message)
+    this.name = 'ErreurConnexionImap'
+    this.code = code
+  }
+}
+
+/**
+ * Connecte la boîte du cabinet par IMAP (port 993) : le serveur teste la connexion puis
+ * range les identifiants chiffrés. Le mot de passe n'est jamais renvoyé.
+ */
+export async function connecterBoiteImap(
+  token: string,
+  p: { email: string; motDePasse: string; hote: string; utilisateur?: string },
+): Promise<{ email: string }> {
+  const res = await fetch('/api/email-agent/connect-imap', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ ...p, port: 993 }),
+  })
+  const j = (await res.json().catch(() => ({}))) as { email?: string; error?: string; code?: string }
+  if (!res.ok) throw new ErreurConnexionImap(j.error || `/api/email-agent/connect-imap → HTTP ${res.status}`, j.code ?? null)
+  return { email: j.email ?? p.email }
 }
 
 /** Déconnecte la boîte du cabinet ; purger : efface aussi les e-mails analysés (hors démonstration). */

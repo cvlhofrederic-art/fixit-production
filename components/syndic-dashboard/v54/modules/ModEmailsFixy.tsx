@@ -19,13 +19,15 @@ import {
   releverBoite,
   urlConnexionBoite,
   type EtatBoiteEmail,
-  type FournisseurBoiteEmail,
+  type FournisseurOAuthBoite,
 } from '@/lib/syndic/v54/api'
 import { EMAILS_FIXY_MESSAGES } from './i18n/ModEmailsFixy.messages'
+import { BoutonBoiteImap } from './ModaleBoiteImap'
+import { MODALE_BOITE_IMAP_MESSAGES } from './i18n/ModaleBoiteImap.messages'
 
 /**
  * Emails Fixy — port du ModEmailsFixy du bundle V5.7, branché sur la boîte e-mail du
- * cabinet (Outlook / Microsoft 365 ou Gmail / Google Workspace) quand le syndic est
+ * cabinet (Outlook / Microsoft 365, Gmail / Google Workspace ou autre messagerie en IMAP) quand le syndic est
  * connecté : connexion chez le fournisseur (jeton dans l'en-tête, pas dans l'URL), relève
  * immédiate (Alfredo classe et prépare des brouillons — rien n'est envoyé), liste des
  * derniers e-mails analysés et déconnexion. Hors connexion : écran d'origine.
@@ -35,7 +37,7 @@ type Textes = (typeof EMAILS_FIXY_MESSAGES)['fr-FR']
 
 /** Boutons de connexion, dans l'ordre d'affichage (un par fournisseur pris en charge). */
 const BOUTONS_FOURNISSEURS: ReadonlyArray<{
-  id: FournisseurBoiteEmail
+  id: FournisseurOAuthBoite
   libelle: 'connecterMicrosoft' | 'connecterGmail'
   enCours: 'connexionEnCoursMicrosoft' | 'connexionEnCoursGmail'
 }> = [
@@ -53,15 +55,29 @@ function dateCourte(iso: string, locale: string): string {
   return d.toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-/** Nom affiché du fournisseur de la boîte connectée. */
-function nomFournisseur(provider: string | null | undefined, t: Textes): string {
+/** Nom affiché du fournisseur de la boîte connectée (IMAP : nom court). */
+function nomFournisseur(provider: string | null | undefined, t: Textes, nomImap: string): string {
+  if (provider === 'imap') return nomImap
   const bouton = BOUTONS_FOURNISSEURS.find(b => b.id === provider)
   return bouton ? t[bouton.libelle] : ''
 }
 
+/**
+ * Codes de relève qui demandent de reconnecter la boîte : jeton OAuth expiré, ou
+ * identifiants IMAP refusés (mot de passe changé, clé de chiffrement changée).
+ */
+const CODES_RECONNEXION = new Set([
+  'refresh_failed',
+  'identifiants_refuses',
+  'mot_de_passe_application',
+  'microsoft_oauth',
+  'authentification_non_prise_en_charge',
+  'identifiants_illisibles',
+])
+
 /** Message d'échec de relève : reconnexion demandée si le jeton a expiré. */
 function descriptionEchecReleve(e: unknown, t: Textes): string | undefined {
-  if (e instanceof ErreurReleveBoite && e.code === 'refresh_failed') return t.releveReconnecter
+  if (e instanceof ErreurReleveBoite && e.code && CODES_RECONNEXION.has(e.code)) return t.releveReconnecter
   if (e instanceof ErreurReleveBoite && e.code) return t.releveLectureImpossible
   return e instanceof Error ? e.message : undefined
 }
@@ -70,10 +86,11 @@ export default function ModEmailsFixy() {
   const soon = useComingSoon()
   const { push } = useToast()
   const t = useMessages(EMAILS_FIXY_MESSAGES)
+  const tImap = useMessages(MODALE_BOITE_IMAP_MESSAGES)
   const { token, authenticated } = useSyndicData()
   const [etat, setEtat] = useState<EtatBoiteEmail | null>(null)
   // Fournisseur en cours de connexion, relève ou déconnexion en cours.
-  const [occupe, setOccupe] = useState<FournisseurBoiteEmail | 'releve' | 'deconnexion' | null>(null)
+  const [occupe, setOccupe] = useState<FournisseurOAuthBoite | 'releve' | 'deconnexion' | null>(null)
   const [confirmation, setConfirmation] = useState(false)
   const [purger, setPurger] = useState(false)
 
@@ -88,7 +105,7 @@ export default function ModEmailsFixy() {
 
   useEffect(() => { void charger() }, [charger])
 
-  const connecter = async (provider: FournisseurBoiteEmail) => {
+  const connecter = async (provider: FournisseurOAuthBoite) => {
     if (!token) return
     setOccupe(provider)
     try {
@@ -139,7 +156,7 @@ export default function ModEmailsFixy() {
 
   const connecte = authenticated && !!etat?.connecte
   const emails = etat?.emails ?? []
-  const fournisseur = nomFournisseur(etat?.provider, t)
+  const fournisseur = nomFournisseur(etat?.provider, t, tImap.nomFournisseur)
   const boite = fournisseur ? `${etat?.email ?? ''} (${fournisseur})` : etat?.email ?? ''
   const lede = connecte
     ? `${t.boiteConnectee} ${boite} · ${emails.length} ${t.emailsAnalyses} · ${etat?.brouillonsEnAttente ?? 0} ${t.brouillonsAValider}`
@@ -204,6 +221,7 @@ export default function ModEmailsFixy() {
                   {occupe === b.id ? t[b.enCours] : t[b.libelle]}
                 </Button>
               ))}
+              <BoutonBoiteImap variant="primary" disabled={occupe !== null} onConnectee={() => { void charger() }} />
             </div>
           </div>
         </Panel>

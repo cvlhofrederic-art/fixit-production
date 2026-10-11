@@ -12,7 +12,8 @@ import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
 import { useToast } from '../primitives/toast'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { urlConnexionBoite, type FournisseurBoiteEmail } from '@/lib/syndic/v54/api'
+import { urlConnexionBoite, type FournisseurOAuthBoite } from '@/lib/syndic/v54/api'
+import { BoutonBoiteImap } from './ModaleBoiteImap'
 import { useMessages } from '@/lib/syndic/v54/i18n'
 import { DEFINICOES_MESSAGES } from './i18n/ModDefinicoes.messages'
 
@@ -32,7 +33,7 @@ export default function ModDefinicoes() {
   // Connexion de la boîte e-mail du cabinet (agent e-mails Alfredo), chez Microsoft ou
   // Google : le jeton de session part dans l'en-tête, la route renvoie l'adresse du
   // fournisseur vers laquelle on redirige.
-  const connecterBoite = async (provider: FournisseurBoiteEmail) => {
+  const connecterBoite = async (provider: FournisseurOAuthBoite) => {
     if (!token) return
     try {
       window.location.assign(await urlConnexionBoite(token, provider))
@@ -41,7 +42,7 @@ export default function ModDefinicoes() {
     }
   }
   const { abonnement: ab, agentEmail: ae, profil: pr, cabinet: cab } = t
-  const boutonsBoite: ReadonlyArray<[FournisseurBoiteEmail, string]> = [['microsoft', ae.connecterMicrosoft], ['gmail', ae.connecterGmail]]
+  const boutonsBoite: ReadonlyArray<[FournisseurOAuthBoite, string]> = [['microsoft', ae.connecterMicrosoft], ['gmail', ae.connecterGmail]]
   return (
     <>
       <PageHead title={t.titre} lede={t.chapeau} />
@@ -63,6 +64,7 @@ export default function ModDefinicoes() {
               {libelle}
             </Button>
           ))}
+          <BoutonBoiteImap style={{ flex: '1 1 220px', padding: 14, justifyContent: 'center' }} />
         </div>
       </Panel>
       <Panel title={pr.titre}>
