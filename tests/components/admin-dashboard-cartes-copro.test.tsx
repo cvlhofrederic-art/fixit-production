@@ -3,6 +3,8 @@
 // Panneau admin, onglet « Dashboards » : les cartes Copropriétaire ouvrent le dashboard copro SANS
 // « vue en tant que » (rôle rendu : super_admin, comme la carte Administrateur judiciaire). Avant,
 // elles basculaient le compte en 'coproprio' et le Syndic v54 retombait ensuite en maquette anonyme.
+// Idem pour le sous-rôle Locataire et l'accès complet de la carte « Syndic / Cabinet », qui ouvre le
+// Syndic v54 français (/fr/syndic/v54 ; /syndic/dashboard redirigeait vers la version PT).
 // Les cartes Artisan / BTP gardent la « vue en tant que » (ces dashboards ont besoin du rôle).
 
 import React from 'react'
@@ -63,6 +65,30 @@ describe('Panneau admin — cartes Copropriétaire sans « vue en tant que »', 
     fireEvent.click(screen.getByRole('button', { name: /^🏘️\s*Copropriétaire/ }))
     await waitFor(() => expect(emplacement.href).toBe('/coproprietaire/dashboard'), { timeout: 5000 })
     expect(roleDemande(fetchSpy)).toBe('super_admin')
+  })
+
+  it('sous-rôle « Locataire » de la carte Syndic : sans « vue en tant que », dashboard copro', async () => {
+    const { fetchSpy, emplacement } = await ouvrirSelecteur()
+    fireEvent.click(screen.getByRole('button', { name: /Syndic \/ Cabinet/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^🔑\s*Locataire/ }))
+    await waitFor(() => expect(emplacement.href).toBe('/coproprietaire/dashboard'), { timeout: 5000 })
+    expect(roleDemande(fetchSpy)).toBe('super_admin')
+  })
+
+  it('carte « Syndic / Cabinet », accès complet : sans « vue en tant que », Syndic v54 en français', async () => {
+    const { fetchSpy, emplacement } = await ouvrirSelecteur()
+    fireEvent.click(screen.getByRole('button', { name: /Syndic \/ Cabinet/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Syndic \(accès complet\)/ }))
+    await waitFor(() => expect(emplacement.href).toBe('/fr/syndic/v54'), { timeout: 5000 })
+    expect(roleDemande(fetchSpy)).toBe('super_admin')
+  })
+
+  it('sous-rôle d’équipe (Gestionnaire) : vue en tant que conservée, ouvert sur /fr/syndic/v54 (plus /syndic/dashboard → PT)', async () => {
+    const { fetchSpy, emplacement } = await ouvrirSelecteur()
+    fireEvent.click(screen.getByRole('button', { name: /Syndic \/ Cabinet/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^📋\s*Gestionnaire Gestion/ }))
+    await waitFor(() => expect(emplacement.href).toBe('/fr/syndic/v54'), { timeout: 5000 })
+    expect(roleDemande(fetchSpy)).toBe('syndic_gestionnaire')
   })
 
   it('carte Artisan : la « vue en tant que » artisan est conservée', async () => {
