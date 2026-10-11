@@ -116,7 +116,9 @@ export const DELAI_REFRESH_FOCUS_MS = 400
 
 export function SyndicDataProvider({ children }: { children: ReactNode }) {
   const session = useSyndicSession()
-  const [data, setData] = useState<SyndicData>(EMPTY)
+  // La session commence toujours « en cours de lecture » : chargement dès le premier rendu, pour que
+  // les modules n'affichent pas un instant les chiffres de la maquette avant les vraies données.
+  const [data, setData] = useState<SyndicData>(() => ({ ...EMPTY, loading: true }))
   // Numéro du dernier chargement lancé : une réponse plus ancienne n'écrase jamais une plus récente.
   const chargement = useRef(0)
 

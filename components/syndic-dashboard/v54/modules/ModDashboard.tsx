@@ -110,7 +110,12 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
   const { push } = useToast()
   // Phase 2 : données réelles du cabinet si syndic connecté, sinon mock (preview).
   const data = useSyndicData()
-  const real = data.authenticated
+  // Chargement initial (session en cours de lecture, ou premières données du cabinet attendues) :
+  // « — » partout, jamais les chiffres de la maquette (40 lots, 188 k€, « Super Admin »…). Un
+  // rafraîchissement (retour sur l'onglet) garde les chiffres déjà affichés.
+  const chargement = data.loading && (!data.authenticated || (data.immeubles.length === 0 && data.missions.length === 0))
+  // Mise en page « données réelles » : connecté, ou en attente de savoir si on l'est.
+  const real = data.authenticated || chargement
   const [dateStr, setDateStr] = useState('')
   useEffect(() => {
     setDateStr(new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()))
@@ -127,9 +132,12 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
   const { nom } = useIdentiteSyndic()
   // Connecté : chiffres calculés depuis les immeubles et missions du cabinet (jamais ceux de la maquette).
   const s = syntheseCabinet(data.immeubles, data.missions)
-  const entier = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n)
-  const milliers = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: Math.abs(n) < 10_000 ? 1 : 0 }).format(n / 1000)
-  const consomme = s.pctConsomme == null ? r.budgetNonRenseigne : r.budgetConsomme(s.pctConsomme)
+  const TIRET = '—'
+  const entier = (n: number) => (chargement ? TIRET : new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n))
+  const milliers = (n: number) => (chargement ? TIRET : new Intl.NumberFormat(locale, { maximumFractionDigits: Math.abs(n) < 10_000 ? 1 : 0 }).format(n / 1000))
+  const consomme = chargement ? TIRET : s.pctConsomme == null ? r.budgetNonRenseigne : r.budgetConsomme(s.pctConsomme)
+  /** Sous-texte d'un chiffre réel : rien pendant le chargement. */
+  const sousTexte = (texte: string) => (chargement ? '' : texte)
 
   return (
     <>
@@ -142,7 +150,7 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
               : <h1 className={styles.heroTitle}>{t.bienvenue}<i>{t.superAdmin}</i></h1>}
             <div className={styles.lede}>{t.chapeau}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              {real ? (
+              {chargement ? null : real ? (
                 s.missionsEnAttente > 0
                   ? <Pill kind="amber">{r.ordresEnAttente(s.missionsEnAttente)}</Pill>
                   : <Pill kind="sage">{r.aucunOrdreEnAttente}</Pill>
@@ -156,9 +164,9 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
             </div>
           </div>
           <div className={styles.heroDivider} />
-          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.lots}</div><div className={styles.statVal}>{real ? entier(s.nbLots) : 40}</div><div className={styles.statSub}>{real ? r.lotsDans(s.nbImmeubles) : t.bandeau.lotsSous}</div></div>
+          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.lots}</div><div className={styles.statVal}>{real ? entier(s.nbLots) : 40}</div><div className={styles.statSub}>{real ? sousTexte(r.lotsDans(s.nbImmeubles)) : t.bandeau.lotsSous}</div></div>
           <div className={styles.heroDivider} />
-          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.missions}</div><div className={styles.statVal}>{real ? s.missionsActives : 4}</div><div className={styles.statSub}>{real ? t.kpi.enAttente(s.missionsEnAttente) : t.bandeau.missionsSous}</div></div>
+          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.missions}</div><div className={styles.statVal}>{real ? entier(s.missionsActives) : 4}</div><div className={styles.statSub}>{real ? sousTexte(t.kpi.enAttente(s.missionsEnAttente)) : t.bandeau.missionsSous}</div></div>
           <div className={styles.heroDivider} />
           <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.budget}</div><div className={styles.statVal}>{real ? milliers(s.budgetTotal) : 188}<span className={styles.statCur}>{t.bandeau.milliersEuros}</span></div><div className={styles.statSub}>{real ? consomme : t.bandeau.budgetSous}</div></div>
         </div>
@@ -186,10 +194,10 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
       </div>
 
       <KPIGrid items={[
-        { icon: 'building', num: real ? s.nbImmeubles : 4, lbl: t.kpi.immeubles, sub: t.kpi.lotsAuTotal(real ? s.nbLots : 40), trend: real ? undefined : { kind: 'flat', label: t.kpi.tendanceImmeubles } },
-        { icon: 'wrench', num: real ? data.artisans.filter((a) => a.statut === 'actif').length : 9, lbl: t.kpi.prestataires, sub: t.kpi.certifies(real ? data.artisans.filter((a) => a.vitfixCertifie).length : 7), accent: 'sage', trend: real ? undefined : { kind: 'ok', label: t.kpi.tendancePrestataires } },
-        { icon: 'clipboard', num: real ? s.missionsActives : 4, lbl: t.kpi.missions, sub: real ? t.kpi.enAttente(s.missionsEnAttente) : t.kpi.delaiMoyen, accent: 'amber', trend: real ? undefined : { kind: 'warn', label: t.kpi.enAttente(6) } },
-        { icon: 'check', num: 0, lbl: t.kpi.alertes, sub: real ? t.kpi.toutSousControle : t.kpi.alertesDemo, accent: 'sage', trend: real ? undefined : { kind: 'ok', label: t.kpi.toutVaBien } },
+        { icon: 'building', num: real ? entier(s.nbImmeubles) : 4, lbl: t.kpi.immeubles, sub: real ? sousTexte(t.kpi.lotsAuTotal(s.nbLots)) : t.kpi.lotsAuTotal(40), trend: real ? undefined : { kind: 'flat', label: t.kpi.tendanceImmeubles } },
+        { icon: 'wrench', num: real ? entier(data.artisans.filter((a) => a.statut === 'actif').length) : 9, lbl: t.kpi.prestataires, sub: real ? sousTexte(t.kpi.certifies(data.artisans.filter((a) => a.vitfixCertifie).length)) : t.kpi.certifies(7), accent: 'sage', trend: real ? undefined : { kind: 'ok', label: t.kpi.tendancePrestataires } },
+        { icon: 'clipboard', num: real ? entier(s.missionsActives) : 4, lbl: t.kpi.missions, sub: real ? sousTexte(t.kpi.enAttente(s.missionsEnAttente)) : t.kpi.delaiMoyen, accent: 'amber', trend: real ? undefined : { kind: 'warn', label: t.kpi.enAttente(6) } },
+        { icon: 'check', num: chargement ? TIRET : 0, lbl: t.kpi.alertes, sub: real ? sousTexte(t.kpi.toutSousControle) : t.kpi.alertesDemo, accent: 'sage', trend: real ? undefined : { kind: 'ok', label: t.kpi.toutVaBien } },
       ]} />
 
       <Panel
@@ -202,7 +210,7 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
             <div className={styles.budgetFigures}>
               <div><div style={eyebrowStyle}>{b.total}</div><div style={figVal}>{entier(s.budgetTotal)}<span style={{ color: 'var(--v54-gold-700)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.exercice}</div></div>
               <div><div style={eyebrowStyle}>{b.depense}</div><div style={{ ...figVal, color: 'var(--v54-rust-700)' }}>{entier(s.depense)}<span style={{ color: 'var(--v54-rust-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{consomme}</div></div>
-              <div><div style={eyebrowStyle}>{b.restant}</div><div style={{ ...figVal, color: 'var(--v54-sage-700)' }}>{entier(s.restant)}<span style={{ color: 'var(--v54-sage-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{s.pctConsomme == null ? r.budgetNonRenseigne : r.disponiblePct(Math.max(0, 100 - s.pctConsomme))}</div></div>
+              <div><div style={eyebrowStyle}>{b.restant}</div><div style={{ ...figVal, color: 'var(--v54-sage-700)' }}>{entier(s.restant)}<span style={{ color: 'var(--v54-sage-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{sousTexte(s.pctConsomme == null ? r.budgetNonRenseigne : r.disponiblePct(Math.max(0, 100 - s.pctConsomme)))}</div></div>
             </div>
             <div style={{ display: 'flex', gap: 18, fontSize: 11.5, marginBottom: 10, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />{r.legendeDepense(entier(s.depense))}</span>

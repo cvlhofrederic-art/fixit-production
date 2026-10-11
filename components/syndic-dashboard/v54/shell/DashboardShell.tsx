@@ -11,6 +11,8 @@ import { SIDEBAR_FR, SIDE_TITLES_FR } from './sidebar-config.fr'
 import { SHELL_MESSAGES } from './shell.messages'
 import styles from './Shell.module.css'
 
+const AUCUN_COMPTEUR: Readonly<Record<string, number>> = {}
+
 export interface DashboardShellProps {
   /** Route active initiale (id de module). */
   defaultRoute?: string
@@ -66,8 +68,9 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
 
   // Compteurs réels : ceux fournis par le parent, sinon (syndic connecté) calculés depuis les données
   // du cabinet — le Canal de communication compte les demandes de copropriétaires en attente.
+  // Pendant le chargement initial : aucune pastille (jamais les 4 / 1 / 4 / 9 de la maquette).
   const data = useSyndicData()
-  const reels = compteurs ?? (data.authenticated ? compteursReels(data) : undefined)
+  const reels = compteurs ?? (data.authenticated ? compteursReels(data) : data.loading ? AUCUN_COMPTEUR : undefined)
 
   return (
     <div className={styles.app}>

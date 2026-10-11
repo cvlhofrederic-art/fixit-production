@@ -76,3 +76,24 @@ describe('SyndicDataProvider — rechargement au retour sur la page', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('SyndicDataProvider — état initial', () => {
+  function SondeChargement() {
+    const d = useSyndicData()
+    return <span data-testid="chargement">{d.loading ? 'oui' : 'non'}</span>
+  }
+
+  it('premier rendu « en chargement » (jamais un instant la maquette), anonyme ensuite', async () => {
+    h.session = null
+    const premiers: string[] = []
+    function Journal() {
+      const d = useSyndicData()
+      premiers.push(d.loading ? 'chargement' : d.authenticated ? 'reel' : 'maquette')
+      return null
+    }
+    const { getByTestId } = render(<SyndicDataProvider><Journal /><SondeChargement /></SyndicDataProvider>)
+    expect(premiers[0]).toBe('chargement')
+    await waitFor(() => expect(getByTestId('chargement').textContent).toBe('non'))
+    expect(premiers.at(-1)).toBe('maquette')
+  })
+})

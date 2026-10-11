@@ -128,6 +128,31 @@ describe('ModDashboard connecté — chiffres calculés', () => {
     expect(screen.getAllByText('Budget non renseigné').length).toBeGreaterThan(0)
   })
 
+  it('chargement initial (session en cours de lecture) : « — », aucun chiffre ni nom de la maquette', () => {
+    rendreTableau({ authenticated: false, loading: true, missions: [], immeubles: [], artisans: [] })
+    expect(screen.getByRole('heading', { level: 1, name: 'Bienvenue' })).toBeInTheDocument()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(3)
+    for (const maquette of ['40', '188', '188 000', 'Super Admin', 'Synchronisé il y a 2 min', 'Fonctionnement stable', 'dans 4 immeubles']) {
+      expect(screen.queryByText(maquette)).toBeNull()
+    }
+    // Ni pastille « aucun ordre » ni « budget non renseigné » avant les données.
+    expect(screen.queryByText('Aucun ordre de service en attente')).toBeNull()
+    expect(screen.queryByText('Budget non renseigné')).toBeNull()
+  })
+
+  it('premières données du cabinet attendues (connecté) : « — » plutôt que des zéros', () => {
+    rendreTableau({ authenticated: true, loading: true, missions: [], immeubles: [], artisans: [] })
+    expect(screen.getAllByText('—').length).toBeGreaterThan(3)
+    expect(screen.queryByText('Aucun ordre de service en attente')).toBeNull()
+    expect(screen.queryByText('dans 0 immeubles')).toBeNull()
+  })
+
+  it('rafraîchissement (données déjà là) : les chiffres restent affichés', () => {
+    rendreTableau(donnees({ loading: true }))
+    expect(screen.getByText('20')).toBeInTheDocument()
+    expect(screen.getByText('2 ordres de service en attente')).toBeInTheDocument()
+  })
+
   it('preview anonyme inchangée (maquette)', () => {
     render(<V54LocaleProvider locale="fr-FR"><ToastProvider><ModDashboard /></ToastProvider></V54LocaleProvider>)
     expect(screen.getByRole('heading', { level: 1, name: 'Bienvenue, Super Admin' })).toBeInTheDocument()
@@ -160,6 +185,17 @@ describe('Sidebar v54 — compteurs', () => {
     expect(screen.getByRole('button', { name: /Canal de Comunicações/ }).textContent).toBe('Canal de Comunicações')
     expect(screen.getByRole('button', { name: /Edifícios/ }).textContent).toBe('Edifícios2')
     expect(screen.getByRole('button', { name: /^Profissionais/ }).textContent).toBe('Profissionais5')
+  })
+
+  it('chargement initial : aucune pastille (ni réelle, ni de la maquette)', () => {
+    render(
+      <SyndicDataContext.Provider value={{ authenticated: false, loading: true, missions: [], immeubles: [], artisans: [] }}>
+        <DashboardShell renderModule={renderModule} />
+      </SyndicDataContext.Provider>,
+    )
+    expect(screen.getByRole('button', { name: /Ordens de serviço/ }).textContent).toBe('Ordens de serviço')
+    expect(screen.getByRole('button', { name: /Canal de Comunicações/ }).textContent).toBe('Canal de Comunicações')
+    expect(screen.getByRole('button', { name: /^Profissionais/ }).textContent).toBe('Profissionais')
   })
 
   it('anonyme : compteurs de la maquette conservés', () => {
