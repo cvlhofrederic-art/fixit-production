@@ -1,8 +1,8 @@
 // Copies locales (localStorage) des données de démo de l'espace copropriétaire.
 import { PROFILE_DEMO } from '@/lib/copro-demo-data'
 
-/** Version des données de démo (lib/copro-demo-data.ts), redatées autour d'octobre 2026. */
-export const VERSION_DONNEES_COPRO = '2026-10'
+/** Version des données de démo (lib/copro-demo-data.ts), redatées autour d'octobre 2026 ; « -b » : fonds de travaux art. 14-2-1, immeuble à Marseille. */
+export const VERSION_DONNEES_COPRO = '2026-10-b'
 
 const CLES_DATEES = ['charges', 'paiements', 'documents', 'annonces', 'ags', 'echeances', 'notifications', 'historique']
 

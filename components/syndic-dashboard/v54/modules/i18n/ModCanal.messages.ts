@@ -290,11 +290,11 @@ export const CANAL_MESSAGES = defineMessages<CanalTextes>({
       missionAnnulee: 'Mission annulée',
     },
     missions: [
-      { id: 'OS-2026-1314', building: 'Copropriété Bellecour Center', area: 'Petits travaux', professional: 'Damien Perrin', status: 'em-espera', priority: 'normal', date: '18 mai 2026', amount: null, duration: null, requester: 'Jeanne Rivière', tags: ['em-espera'], unread: 0 },
-      { id: 'OS-2026-1308', building: 'Résidence Atlantique — Bâtiment A', area: 'Nettoyage des parties communes', professional: 'Damien Perrin', status: 'concluida', priority: 'normal', date: '12 mai 2026', amount: 480, duration: '2 h', requester: 'Jeanne Rivière', tags: ['concluida'], unread: 0 },
-      { id: 'OS-2026-1311', building: 'Résidence Atlantique — Bâtiment A', area: "Fuite d'eau — Apt 3B", professional: 'Damien Perrin', status: 'em-curso', priority: 'urgente', date: '21 mai 2026', amount: 1200, duration: '4 h', requester: 'Marie Coste', tags: ['urgente', 'em-curso'], unread: 2 },
-      { id: 'OS-2026-1305', building: 'Résidence Les Berges du Rhône', area: "Entretien annuel de l'ascenseur", professional: 'Thomas Ménard', status: 'em-curso', priority: 'normal', date: '22 mai 2026', amount: 340, duration: '1 h 30', requester: 'Jeanne Rivière', tags: ['em-curso'], unread: 0 },
-      { id: 'OS-2026-1299', building: 'Résidence Croix-Rousse — Bâtiment A', area: 'Peinture du couloir', professional: 'Thomas Ménard', status: 'em-espera', priority: 'normal', date: '25 mai 2026', amount: 2800, duration: '2 jours', requester: 'Jeanne Rivière', tags: ['em-espera'], unread: 0 },
+      { id: 'OS-2026-1314', building: 'Copropriété Les Terrasses du Vieux-Port', area: 'Petits travaux', professional: 'Damien Perrin', status: 'em-espera', priority: 'normal', date: '18 mai 2026', amount: null, duration: null, requester: 'Jeanne Rivière', tags: ['em-espera'], unread: 0 },
+      { id: 'OS-2026-1308', building: 'Résidence Le Prado — Bâtiment A', area: 'Nettoyage des parties communes', professional: 'Damien Perrin', status: 'concluida', priority: 'normal', date: '12 mai 2026', amount: 480, duration: '2 h', requester: 'Jeanne Rivière', tags: ['concluida'], unread: 0 },
+      { id: 'OS-2026-1311', building: 'Résidence Le Prado — Bâtiment A', area: "Fuite d'eau — Apt 3B", professional: 'Damien Perrin', status: 'em-curso', priority: 'urgente', date: '21 mai 2026', amount: 1200, duration: '4 h', requester: 'Marie Coste', tags: ['urgente', 'em-curso'], unread: 2 },
+      { id: 'OS-2026-1305', building: 'Résidence Euroméditerranée', area: "Entretien annuel de l'ascenseur", professional: 'Thomas Ménard', status: 'em-curso', priority: 'normal', date: '22 mai 2026', amount: 340, duration: '1 h 30', requester: 'Jeanne Rivière', tags: ['em-curso'], unread: 0 },
+      { id: 'OS-2026-1299', building: 'Résidence Castellane — Bâtiment A', area: 'Peinture du couloir', professional: 'Thomas Ménard', status: 'em-espera', priority: 'normal', date: '25 mai 2026', amount: 2800, duration: '2 jours', requester: 'Jeanne Rivière', tags: ['em-espera'], unread: 0 },
     ],
   },
 })

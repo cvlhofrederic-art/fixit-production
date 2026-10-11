@@ -155,8 +155,8 @@ export const INFRACOES_MESSAGES = defineMessages<InfracoesTextes>({
     demo: [
       { id: 'p1', tipo: 'Nuisances sonores nocturnes', condomino: 'Claude Mercier — Lot 4B', edificio: 'Résidence Aurore', etapa: 'notificacao', multa: 75, descricao: '' },
       { id: 'p2', tipo: 'Stationnement sur les parties communes', condomino: 'Anne Simon — Lot 2A', edificio: 'Résidence Belle Vue', etapa: 'sinalizada', multa: 0, descricao: '' },
-      { id: 'p3', tipo: 'Encombrants déposés dans les parties communes', condomino: 'Pierre Coste — Lot 1C', edificio: 'Résidence Croix-Rousse', etapa: 'multa', multa: 50, descricao: '' },
-      { id: 'p4', tipo: "Travaux sans autorisation de l'AG", condomino: 'Rose Olivier — Lot 5A', edificio: 'Copropriété Bellecour Center', etapa: 'resolvida', multa: 150, descricao: '' },
+      { id: 'p3', tipo: 'Encombrants déposés dans les parties communes', condomino: 'Pierre Coste — Lot 1C', edificio: 'Résidence Castellane', etapa: 'multa', multa: 50, descricao: '' },
+      { id: 'p4', tipo: "Travaux sans autorisation de l'AG", condomino: 'Rose Olivier — Lot 5A', edificio: 'Copropriété Les Terrasses du Vieux-Port', etapa: 'resolvida', multa: 150, descricao: '' },
     ],
     formulaire: {
       titre: 'Nouvelle infraction',

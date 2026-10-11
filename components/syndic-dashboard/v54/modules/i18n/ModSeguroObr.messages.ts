@@ -156,7 +156,7 @@ export const SEGURO_OBR_MESSAGES = defineMessages<SeguroObrTextes>({
     police: {
       titre: "Nouvelle police d'assurance",
       assureur: 'Assureur',
-      assureurPlaceholder: 'Mutuelle Rhodanienne, Assurances du Lyonnais…',
+      assureurPlaceholder: 'Mutuelle Provence Habitat, Assurances de la Joliette…',
       numero: 'N° de police',
       numeroPlaceholder: 'MRI-2026-…',
       immeuble: 'Immeuble',

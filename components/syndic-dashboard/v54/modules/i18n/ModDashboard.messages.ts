@@ -203,10 +203,10 @@ export const DASHBOARD_MESSAGES = defineMessages<DashboardTextes>({
     missionsRecentes: 'Missions récentes',
     statuts: { en_cours: 'En cours', acceptee: 'Acceptée', terminee: 'Terminée', en_attente: 'En attente', annulee: 'Annulée' },
     recentes: [
-      { initiales: 'BR', immeuble: 'Résidence Les Berges du Rhône', type: 'Plomberie', prestataire: 'Bruno Tessier', quand: 'il y a 2 h', statut: 'en_attente' },
-      { initiales: 'BC', immeuble: 'Copropriété Bellecour Center', type: 'Suivi de chantier', prestataire: 'Bruno Tessier', quand: 'il y a 5 h', statut: 'en_cours' },
-      { initiales: 'CR', immeuble: 'Résidence Croix-Rousse', type: 'Contrôle technique', prestataire: 'Bruno Tessier', quand: 'hier', statut: 'en_attente' },
-      { initiales: 'BC', immeuble: 'Copropriété Bellecour Center', type: 'Vérification de la façade', prestataire: 'Annie Rivière', quand: 'hier', statut: 'terminee' },
+      { initiales: 'BR', immeuble: 'Résidence Euroméditerranée', type: 'Plomberie', prestataire: 'Bruno Tessier', quand: 'il y a 2 h', statut: 'en_attente' },
+      { initiales: 'BC', immeuble: 'Copropriété Les Terrasses du Vieux-Port', type: 'Suivi de chantier', prestataire: 'Bruno Tessier', quand: 'il y a 5 h', statut: 'en_cours' },
+      { initiales: 'CR', immeuble: 'Résidence Castellane', type: 'Contrôle technique', prestataire: 'Bruno Tessier', quand: 'hier', statut: 'en_attente' },
+      { initiales: 'BC', immeuble: 'Copropriété Les Terrasses du Vieux-Port', type: 'Vérification de la façade', prestataire: 'Annie Rivière', quand: 'hier', statut: 'terminee' },
     ],
   },
 })

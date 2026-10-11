@@ -97,8 +97,8 @@ export const URGENCIAS_MESSAGES = defineMessages<UrgenciasTextes>({
     demo: [
       { tipo: "Fuite d'eau au parking, niveau -2", edificio: 'Résidence Aurore', prioridade: 'critica', profissional: 'HydroPro SARL', estado: 'despachada', tempo: '6 min' },
       { tipo: 'Ascenseur bloqué au 4e étage', edificio: 'Résidence Belle Vue', prioridade: 'alta', profissional: 'ElevaTech', estado: 'despacho', tempo: '11 min' },
-      { tipo: 'Court-circuit dans le hall', edificio: 'Résidence Croix-Rousse', prioridade: 'alta', profissional: '—', estado: 'procura', tempo: '2 min' },
-      { tipo: 'Infiltration au plafond du RDC', edificio: 'Copropriété Bellecour Center', prioridade: 'media', profissional: 'ConstruFix SARL', estado: 'despachada', tempo: '18 min' },
+      { tipo: 'Court-circuit dans le hall', edificio: 'Résidence Castellane', prioridade: 'alta', profissional: '—', estado: 'procura', tempo: '2 min' },
+      { tipo: 'Infiltration au plafond du RDC', edificio: 'Copropriété Les Terrasses du Vieux-Port', prioridade: 'media', profissional: 'ConstruFix SARL', estado: 'despachada', tempo: '18 min' },
     ],
   },
 })

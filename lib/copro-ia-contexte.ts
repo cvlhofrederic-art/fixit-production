@@ -37,7 +37,7 @@ export function langueCopro(locale: string | null | undefined): LangueCopro {
   return locale?.toLowerCase().startsWith('pt') ? 'pt' : 'fr'
 }
 
-// L'immeuble de démonstration est à Paris : le « jour » est celui de Paris.
+// L'immeuble de démonstration est à Marseille (fuseau Europe/Paris) : le « jour » est celui de Paris.
 const FUSEAU = 'Europe/Paris'
 
 /** Date du jour à Paris, au format AAAA-MM-JJ. */

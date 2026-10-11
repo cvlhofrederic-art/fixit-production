@@ -129,7 +129,7 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
       // Adresse fictive de démonstration : aucune adresse réelle n'est montrée aux visiteurs.
       emailValeur: 'contact@exemple.fr',
       adresse: 'Adresse du cabinet',
-      adressePlaceholder: 'Ex. : 12 rue de la République, 69002 Lyon',
+      adressePlaceholder: 'Ex. : 42 rue de la République, 13002 Marseille',
       logo: 'Logo du cabinet',
       importerLogo: 'Importer le logo (PNG/JPG/WebP, 2 Mo max.)',
       importerLogoToast: 'Importer le logo',

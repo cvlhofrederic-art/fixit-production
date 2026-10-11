@@ -166,7 +166,7 @@ export const MOD3_ORCAMENTOS_MESSAGES = defineMessages<Mod3OrcamentosTextes>({
     cree: 'Chantier créé',
     demo: [
       { id: 'p1', titulo: 'Étanchéité de la toiture-terrasse', tipo: 'Réparation', descricao: "Réparation et réfection complète de l'étanchéité de la toiture-terrasse du bâtiment principal, y compr…", local: "Immeuble du 42, avenue de l'Opéra", prazo: '2026-06-30', estado: 'orcamentacao', orcamento: 0, empresa: '', numOrcamentos: 3 },
-      { id: 'p2', titulo: 'Ravalement de la façade', tipo: 'Rénovation', descricao: 'Peinture et restauration de la façade avec traitement anti-humidité et nettoyage de la pierre de taille…', local: 'Immeuble du 105, rue de Rivoli', prazo: '2026-09-15', estado: 'aprovacao_ag', orcamento: 29800, empresa: 'ConstruRhône SAS', numOrcamentos: 3 },
+      { id: 'p2', titulo: 'Ravalement de la façade', tipo: 'Rénovation', descricao: 'Peinture et restauration de la façade avec traitement anti-humidité et nettoyage de la pierre de taille…', local: 'Immeuble du 105, rue de Rivoli', prazo: '2026-09-15', estado: 'aprovacao_ag', orcamento: 29800, empresa: 'ConstruProvence SAS', numOrcamentos: 3 },
     ],
   },
 })

@@ -242,7 +242,7 @@ export const ELEVADORES_MESSAGES = defineMessages<ElevadoresTextes>({
       etat: 'État',
       optionsEtat: { conforme: 'Conforme', prazo: 'Échéance proche', atraso: 'En retard' },
       entretien: "Ascensoriste (contrat d'entretien)",
-      entretienExemple: 'Ex. : Ascenseurs Lyonnais',
+      entretienExemple: 'Ex. : Ascenseurs Phocéens',
       dernier: 'Dernier contrôle technique',
       prochain: 'Prochain contrôle technique',
       formatDate: 'AAAA-MM-JJ',

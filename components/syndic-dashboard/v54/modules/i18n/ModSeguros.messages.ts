@@ -94,7 +94,7 @@ export const SEGUROS_MESSAGES = defineMessages<SegurosTextes>({
     formulaire: {
       titre: 'Nouvelle police',
       assureur: 'Assureur',
-      assureurPlaceholder: 'Ex. : Mutuelle Rhodanienne, Assurances du Lyonnais…',
+      assureurPlaceholder: 'Ex. : Mutuelle Provence Habitat, Assurances de la Joliette…',
       type: 'Type',
       numero: 'N° de police',
       facultatif: 'Facultatif',

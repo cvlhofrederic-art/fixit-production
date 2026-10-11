@@ -58,7 +58,7 @@ describe('construirePromptCopro — français', () => {
   it('situation financière : solde, paiements à régler et mois en cours', () => {
     expect(prompt).toContain('Solde à régler : 2 537,50 € (3 paiement(s) en attente)')
     expect(prompt).toContain('- Charges T4 2026 : 855,00 € — à régler, échéance le 15/10/2026 (réf. PAY-2026-004)')
-    expect(prompt).toContain('- Fonds de travaux art. 14-2 : 220,00 € — à régler, échéance le 05/11/2026 (réf. FDT-2026-001)')
+    expect(prompt).toContain('- Fonds de travaux art. 14-2-1 : 220,00 € — à régler, échéance le 05/11/2026 (réf. FDT-2026-001)')
     expect(prompt).toContain('- Ravalement façade — 1er appel de fonds (quote-part) : 1 462,50 € — à régler, échéance le 01/12/2026')
     expect(prompt).toContain('- Charges T3 2026 : 855,00 € — réglé le 10/07/2026 (réf. PAY-2026-003)')
     expect(prompt).toContain('-125,00 € (remboursement en votre faveur)')
