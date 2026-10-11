@@ -157,21 +157,22 @@ export const SIDE_TITLES: Record<string, string> = Object.fromEntries(
 export interface DonneesCompteurs {
   missions: ReadonlyArray<{ statut: string }>
   immeubles: ReadonlyArray<unknown>
-  artisans: ReadonlyArray<unknown>
+  artisans: ReadonlyArray<{ statut?: string }>
   signalements?: ReadonlyArray<{ statut: string }>
 }
 
 /**
  * Compteurs réels de la sidebar pour un syndic connecté. Les `count` de SIDEBAR (4, 1, 4, 9) sont
  * ceux de la maquette : ils ne valent que pour la preview anonyme, jamais à côté de vraies données.
- * ordens = ordres de service en attente ; canal = signalements en attente ; edificios / profissionais = effectifs.
+ * ordens = ordres de service en attente ; canal = signalements en attente ; edificios = effectif ;
+ * profissionais = prestataires au statut 'actif' (même règle que la carte du tableau de bord).
  */
 export function compteursReels(d: DonneesCompteurs): Record<string, number> {
   return {
     ordens: d.missions.filter((m) => m.statut === 'en_attente').length,
     canal: (d.signalements ?? []).filter((s) => s.statut === 'en_attente').length,
     edificios: d.immeubles.length,
-    profissionais: d.artisans.length,
+    profissionais: d.artisans.filter((a) => a.statut === 'actif').length,
   }
 }
 

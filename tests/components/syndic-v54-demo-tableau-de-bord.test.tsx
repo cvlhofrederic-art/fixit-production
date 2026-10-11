@@ -173,10 +173,12 @@ describe('nomAffiche', () => {
 const renderModule = (route: string) => <div data-testid="active">{route}</div>
 
 describe('Sidebar v54 — compteurs', () => {
-  it('compteursReels : ordres en attente, signalements en attente, immeubles, prestataires', () => {
+  it('compteursReels : ordres en attente, signalements en attente, immeubles, prestataires actifs', () => {
     const signalements = [{ statut: 'en_attente' }, { statut: 'en_cours' }] as Signalement[]
-    expect(compteursReels({ ...donnees(), artisans: [{}, {}, {}] as SyndicData['artisans'], signalements }))
-      .toEqual({ ordens: 2, canal: 1, edificios: 2, profissionais: 3 })
+    const artisans = [{ statut: 'actif' }, { statut: 'actif' }, { statut: 'suspendu' }, {}] as SyndicData['artisans']
+    // Prestataires : seulement les actifs, comme la carte « Prestataires » du tableau de bord.
+    expect(compteursReels({ ...donnees(), artisans, signalements }))
+      .toEqual({ ordens: 2, canal: 1, edificios: 2, profissionais: 2 })
   })
 
   it('connecté : compteurs réels à la place de ceux de la maquette (4, 1, 4, 9) ; zéro masqué', () => {
