@@ -986,6 +986,9 @@ export const coproAiSchema = z.object({
     content: z.string().max(10000),
   })).min(1).max(30),
   stream: z.boolean().optional(),
+  // Langue de l'espace (fr, pt…) : choisit seulement la langue du prompt
+  // serveur, jamais son contenu.
+  locale: z.string().max(5).optional(),
 })
 
 // ── Fixy Chat schema ───────────────────────────────────────────────────────
