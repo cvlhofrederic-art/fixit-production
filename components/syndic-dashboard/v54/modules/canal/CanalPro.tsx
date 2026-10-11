@@ -62,7 +62,20 @@ export function CanalPro({
     correspond(c, filtre)
     && (!q || [c.prestataire.nom, c.ordre?.titre, c.ordre?.adresse].some((v) => (v || '').toLowerCase().includes(q))))
   const selected = liste.find((c) => c.id === selectedId) ?? visibles[0] ?? null
+  const idSelection = selected?.id ?? null
   const nbMessages = selected?.messages.length ?? 0
+
+  // Conversation affichée retenue comme sélection : un rafraîchissement (polling 15 s) où une autre
+  // conversation devient la plus récente ne fait plus changer la conversation ouverte. Sans sélection
+  // (ou conversation disparue), la plus récente est retenue.
+  useEffect(() => {
+    if (idSelection && idSelection !== selectedId) onSelect(idSelection)
+  }, [idSelection, selectedId, onSelect])
+
+  // Brouillon de réponse propre à la conversation ouverte : effacé quand on en change.
+  useEffect(() => {
+    setBrouillon('')
+  }, [idSelection])
 
   // Fil positionné sur le dernier message (ouverture, nouveau message).
   useEffect(() => {

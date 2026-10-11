@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Pill } from '../../primitives/pill'
 import { Button } from '../../primitives/button'
@@ -59,6 +59,22 @@ export function CanalDemandes({
     correspond(s, filtre)
     && (!q || [s.immeuble, s.demandeurNom, s.typeIntervention, s.numLot].some((v) => (v || '').toLowerCase().includes(q))))
   const selected = triees.find((s) => s.id === selectedId) ?? visibles[0] ?? null
+  const idSelection = selected?.id ?? null
+
+  // Demande affichée retenue comme sélection : un rafraîchissement (polling 15 s) qui apporte une
+  // demande plus récente ne fait plus changer la demande ouverte. Sans sélection (ou demande
+  // disparue), la plus récente est retenue.
+  useEffect(() => {
+    if (idSelection && idSelection !== selectedId) onSelect(idSelection)
+  }, [idSelection, selectedId, onSelect])
+
+  // Brouillon de réponse propre à la demande ouverte : effacé quand on en change.
+  useEffect(() => {
+    setBrouillon('')
+  }, [idSelection])
+
+  // Fil d'échanges dans l'ordre chronologique.
+  const fil = [...(selected?.messages ?? [])].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
 
   const libellePriorite = (p: string) => (p === 'urgente' || p === 'planifiee' ? t.priorites[p] : t.priorites.normale)
   const localisation = (s: Signalement) => s.estPartieCommune
@@ -156,7 +172,7 @@ export function CanalDemandes({
                 <div className="canal-msg-meta">{selected.demandeurNom} · {horodatage(selected.createdAt, locale)}</div>
                 {selected.description}
               </div>
-              {(selected.messages ?? []).map((m) => m.role === 'system' ? (
+              {fil.map((m) => m.role === 'system' ? (
                 <div key={m.id} className="canal-msg-system">{m.texte}</div>
               ) : (
                 <div key={m.id} className={clsx('canal-msg', ROLES_CABINET.has(m.role) && 'out')}>
