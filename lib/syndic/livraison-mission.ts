@@ -61,6 +61,17 @@ export interface ResultatLivraison {
   notificationEnvoyee: boolean
 }
 
+/** Début des notes d'un booking créé pour une mission syndic (agenda du prestataire). */
+export const PREFIXE_NOTES_MISSION_SYNDIC = '[Mission Syndic]'
+
+/**
+ * Booking créé par livrerMission pour une mission syndic : son « client » est le donneur d'ordre (le
+ * compte du syndic), pas un particulier — aucun e-mail client (rappel J-1…) ne doit en partir.
+ */
+export function estBookingMissionSyndic(notes: unknown): boolean {
+  return typeof notes === 'string' && notes.trimStart().startsWith(PREFIXE_NOTES_MISSION_SYNDIC)
+}
+
 /** Priorité syndic_missions (CHECK urgente | normale | planifiee) : jamais 'haute' ni 'basse'. */
 export function prioriteMissionSyndic(p: string | null | undefined): 'urgente' | 'normale' | 'planifiee' {
   return p === 'urgente' || p === 'planifiee' ? p : 'normale'
@@ -142,7 +153,7 @@ export async function livrerMission(sb: SupabaseClient, m: LivraisonMission): Pr
     const profileId = (profile as { id?: string } | null)?.id ?? null
     if (profileId) {
       const missionNotes = [
-        `[Mission Syndic] ${m.titre}`,
+        `${PREFIXE_NOTES_MISSION_SYNDIC} ${m.titre}`,
         m.description,
         m.adresse ? `Immeuble : ${m.adresse}` : '',
         `Priorité : ${m.priorite}`,

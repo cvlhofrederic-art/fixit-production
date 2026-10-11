@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { sendEmail, templateBookingReminder } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { estBookingMissionSyndic } from '@/lib/syndic/livraison-mission'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Fetch tous les bookings confirmés pour demain
     const { data: bookings, error } = await supabaseAdmin
       .from('bookings')
-      .select('id, client_id, artisan_id, booking_date, booking_time, address, service_id, services(name), profiles_artisan:artisan_id(company_name, user_id)')
+      .select('id, client_id, artisan_id, booking_date, booking_time, address, notes, service_id, services(name), profiles_artisan:artisan_id(company_name, user_id)')
       .eq('booking_date', tomorrowStr)
       .eq('status', 'confirmed')
 
@@ -47,6 +48,12 @@ export async function GET(request: NextRequest) {
     }
 
     for (const booking of bookings) {
+      // Mission syndic (lib/syndic/livraison-mission.ts) : le « client » du booking est le donneur
+      // d'ordre, pas un particulier — aucun rappel e-mail (démo comprise).
+      if (estBookingMissionSyndic(booking.notes)) {
+        results.skipped++
+        continue
+      }
       try {
         // Fetch client email
         const { data: clientAuth } = await supabaseAdmin.auth.admin.getUserById(booking.client_id)

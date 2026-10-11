@@ -11,7 +11,7 @@ import { appelsDe, clientMemoire, nouvelleBase, type BaseMemoire } from '../api/
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
 
-const { livrerMission, localisationSignalement, prioriteMissionSyndic } = await import('@/lib/syndic/livraison-mission')
+const { livrerMission, localisationSignalement, prioriteMissionSyndic, estBookingMissionSyndic } = await import('@/lib/syndic/livraison-mission')
 
 const ARTISAN = 'artisan-user'
 const CABINET = 'cabinet-user'
@@ -79,6 +79,17 @@ describe('livrerMission', () => {
     expect(r.conversationId).toBe('conv-existante')
     const ordre = appelsDe(base, 'conversation_messages', 'insert')[0].donnees as { ordre_mission: Record<string, unknown> }
     expect(ordre.ordre_mission.mission_id).toBe('booking-1')
+    // Notes reconnues comme mission syndic (pas de rappel e-mail J-1 au « client » = donneur d'ordre).
+    const { notes } = appelsDe(base, 'bookings', 'insert')[0].donnees as { notes: string }
+    expect(estBookingMissionSyndic(notes)).toBe(true)
+  })
+
+  it('estBookingMissionSyndic : notes « [Mission Syndic] … » seulement', () => {
+    expect(estBookingMissionSyndic('[Mission Syndic] Plomberie\nFuite')).toBe(true)
+    expect(estBookingMissionSyndic('  [Mission Syndic] Plomberie')).toBe(true)
+    expect(estBookingMissionSyndic('Client absent le matin')).toBe(false)
+    expect(estBookingMissionSyndic(null)).toBe(false)
+    expect(estBookingMissionSyndic(undefined)).toBe(false)
   })
 
   it('même compte des deux côtés : le message est compté non lu pour le prestataire', async () => {
