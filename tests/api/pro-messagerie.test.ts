@@ -20,6 +20,9 @@ type Appel = {
   colonnes?: string
   payload?: Record<string, unknown>
   filtres: Filtre[]
+  /** order(col, { ascending }) : [col, croissant] */
+  tri?: [string, boolean]
+  limite?: number
 }
 type Reponse = { data: unknown; error: unknown }
 
@@ -37,7 +40,8 @@ const h = vi.hoisted(() => {
     b.insert = (p: Record<string, unknown>) => { appel.op = 'insert'; appel.payload = p; return b }
     b.update = (p: Record<string, unknown>) => { appel.op = 'update'; appel.payload = p; return b }
     for (const m of ['eq', 'neq', 'in']) b[m] = (col: string, val: unknown) => { appel.filtres.push([m, col, val]); return b }
-    for (const m of ['order', 'limit']) b[m] = () => b
+    b.order = (col: string, opts?: { ascending?: boolean }) => { appel.tri = [col, opts?.ascending !== false]; return b }
+    b.limit = (n: number) => { appel.limite = n; return b }
     b.single = () => Promise.resolve(etat.repondre(appel))
     b.maybeSingle = () => Promise.resolve(etat.repondre(appel))
     b.then = (ok: (v: Reponse) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(etat.repondre(appel)).then(ok, ko)
@@ -451,6 +455,24 @@ describe('GET /api/pro/messagerie — messages d\'une conversation', () => {
     vi.mocked(checkRateLimit).mockClear()
     await GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${MOI}&contact_type=pro`))
     expect(checkRateLimit).toHaveBeenCalledWith(`pro_msg_${MOI}`, 240, 60_000)
+  })
+
+  it('les 200 messages les plus RÉCENTS, renvoyés dans l’ordre chronologique', async () => {
+    const m = (id: string, at: string) => ({ ...ordre('en_attente'), id, created_at: at })
+    h.etat.repondre = a => {
+      if (a.table === 'conversations' && a.op === 'select') return { data: { id: CONV }, error: null }
+      // La base répond dans l'ordre demandé (décroissant).
+      if (a.table === 'conversation_messages' && a.op === 'select') {
+        return { data: [m('m3', '2026-10-12T10:00:00Z'), m('m2', '2026-10-12T09:00:00Z'), m('m1', '2026-10-12T08:00:00Z')], error: null }
+      }
+      return { data: null, error: null }
+    }
+    const res = await GET(requete('GET', undefined, url))
+    expect(res.status).toBe(200)
+    expect((await res.json()).messages.map((x: { id: string }) => x.id)).toEqual(['m1', 'm2', 'm3'])
+    const lecture = appelsSur('conversation_messages', 'select')[0]
+    expect(lecture.tri).toEqual(['created_at', false])
+    expect(lecture.limite).toBe(200)
   })
 
   it('sa propre conversation → 200 avec les messages', async () => {

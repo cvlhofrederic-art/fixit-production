@@ -9,6 +9,9 @@ import { round2 } from '@/lib/money'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
+/** Messages renvoyés pour une conversation (les plus récents). */
+const MESSAGES_MAX = 200
+
 // Actions possibles selon le statut courant d'un ordre de mission
 const TRANSITIONS_ORDRE: Record<string, string[]> = {
   en_attente: ['accepte', 'refuse'],
@@ -197,12 +200,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Conversation introuvable' }, { status: 404 })
     }
 
-    const { data: messages, error } = await supabaseAdmin
+    // Les 200 messages les PLUS RÉCENTS (tri décroissant + limite), remis ensuite dans l'ordre
+    // chronologique : avec un tri croissant, une longue conversation n'affichait que ses 200 premiers.
+    const { data: recents, error } = await supabaseAdmin
       .from('conversation_messages')
       .select('id, conversation_id, sender_id, type, content, metadata, ordre_mission, read, created_at')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(200)
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_MAX)
 
     if (error) {
       logger.error('[messagerie] GET messages error:', error)
@@ -224,7 +229,8 @@ export async function GET(req: NextRequest) {
       .eq('id', conversationId)
       .eq('artisan_id', artisanUserId)
 
-    return NextResponse.json({ messages: messages || [] })
+    const messages = [...(recents || [])].reverse()
+    return NextResponse.json({ messages })
   } catch (err) {
     logger.error('[pro/messagerie/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
