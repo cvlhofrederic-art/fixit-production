@@ -44,6 +44,43 @@ const SUIVI_SIGNALEMENT: Record<string, (nom: string) => string> = {
   refuse: nom => `${nom} a décliné la mission — demande à confier à un autre prestataire.`,
 }
 
+/**
+ * Références syndic d'un ordre de mission, vérifiées en base : la mission (syndic_missions) doit
+ * appartenir au cabinet `cabinetId` (contact_id de la conversation) et porter le même signalement que
+ * le JSON de l'ordre. Sinon (mission absente, autre cabinet, autre signalement, lecture en erreur), les
+ * identifiants sont ignorés — un signalement n'est jamais suivi sans sa mission vérifiée.
+ */
+async function referencesVerifiees(
+  ordre: Record<string, unknown>,
+  cabinetId: string | undefined,
+): Promise<{ syndicMissionId: string | null; signalementId: string | null }> {
+  const aucune = { syndicMissionId: null, signalementId: null }
+  const missionId = typeof ordre.syndic_mission_id === 'string' && ordre.syndic_mission_id ? ordre.syndic_mission_id : null
+  const signalementJson = typeof ordre.signalement_id === 'string' && ordre.signalement_id ? ordre.signalement_id : null
+  if (!missionId || !cabinetId) return aucune
+
+  const { data, error } = await supabaseAdmin
+    .from('syndic_missions')
+    .select('id, signalement_id')
+    .eq('id', missionId)
+    .eq('cabinet_id', cabinetId)
+    .maybeSingle()
+  if (error) {
+    logger.error('[messagerie] lecture syndic_missions (ordre) error:', error)
+    return aucune
+  }
+  const mission = data as { id: string; signalement_id: string | null } | null
+  if (!mission) {
+    logger.warn('[messagerie] ordre de mission : mission absente du cabinet, références ignorées', { missionId })
+    return aucune
+  }
+  if ((mission.signalement_id ?? null) !== signalementJson) {
+    logger.warn('[messagerie] ordre de mission : signalement différent de la mission, références ignorées', { missionId })
+    return aucune
+  }
+  return { syndicMissionId: mission.id, signalementId: mission.signalement_id ?? null }
+}
+
 // ═══ GET — Liste des conversations ou messages d'une conversation ═══
 export async function GET(req: NextRequest) {
   try {
@@ -424,9 +461,11 @@ export async function PATCH(req: NextRequest) {
     if (systemErr) logger.error('[messagerie] insert system message error:', systemErr)
 
     // ── Mission syndic et demande du copropriétaire liées (ordre validé depuis le Syndic v54) ──
-    // Mises à jour bornées au cabinet du donneur d'ordre de CETTE conversation (contact_id).
+    // Les identifiants du JSON ordre_mission ne sont pas pris pour argent comptant : la mission doit
+    // appartenir au cabinet du donneur d'ordre de CETTE conversation (contact_id) et porter le même
+    // signalement ; sinon ils sont ignorés (ni mission, ni demande du copropriétaire touchées).
     const statutMissionSyndic = STATUT_MISSION_SYNDIC[action]
-    const syndicMissionId = typeof updatedOrdre.syndic_mission_id === 'string' ? updatedOrdre.syndic_mission_id : null
+    const { syndicMissionId, signalementId } = await referencesVerifiees(updatedOrdre, conversation.contact_id)
     if (statutMissionSyndic && syndicMissionId && conversation.contact_id) {
       const { error: missionErr } = await supabaseAdmin
         .from('syndic_missions')
@@ -437,7 +476,6 @@ export async function PATCH(req: NextRequest) {
     }
 
     const statutSignalement = STATUT_SIGNALEMENT[action]
-    const signalementId = typeof updatedOrdre.signalement_id === 'string' ? updatedOrdre.signalement_id : null
     if (statutSignalement && signalementId && conversation.contact_id) {
       const { data: sigMaj, error: sigErr } = await supabaseAdmin
         .from('syndic_signalements')
@@ -466,37 +504,38 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    // ── Si accepté : bloquer la date sur l'agenda de l'artisan (mettre à jour le booking existant) ──
-    if (action === 'accepte' && updatedOrdre.mission_id) {
-      const bookingUpdate: Record<string, string | number> = {
-        status: 'confirmed',
-        statut: 'confirme',
-      }
-      if (arrival_time) {
-        bookingUpdate.booking_time = arrival_time
-        bookingUpdate.intervention_time = arrival_time
-      }
-      if (durationMin) {
-        bookingUpdate.duration_minutes = durationMin
-      }
-      const { error: bookingErr } = await supabaseAdmin
-        .from('bookings')
-        .update(bookingUpdate)
-        .eq('id', updatedOrdre.mission_id)
-
-      if (bookingErr) {
-        logger.error('[messagerie] update booking time error:', bookingErr)
+    // ── Booking de l'agenda (ordre_mission.mission_id) : accepté → date bloquée ; refusé → annulé ──
+    // Seulement un booking DU prestataire connecté (bookings.artisan_id = sa fiche profiles_artisan).
+    const bookingId = typeof updatedOrdre.mission_id === 'string' && updatedOrdre.mission_id ? updatedOrdre.mission_id : null
+    if (bookingId && (action === 'accepte' || action === 'refuse')) {
+      const { data: profil, error: profilErr } = await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      const profilId = (profil as { id?: string } | null)?.id ?? null
+      if (profilErr) {
+        logger.error('[messagerie] lecture profiles_artisan (booking) error:', profilErr)
+      } else if (!profilId) {
+        logger.warn('[messagerie] booking ignoré : prestataire sans fiche profiles_artisan', { bookingId })
       } else {
-        console.info(`[messagerie] ✅ Booking ${updatedOrdre.mission_id} mis à jour : time=${arrival_time}, duration=${durationMin}min`)
+        const bookingUpdate: Record<string, string | number> = action === 'refuse'
+          ? { status: 'cancelled', statut: 'annule' }
+          : { status: 'confirmed', statut: 'confirme' }
+        if (action === 'accepte' && arrival_time) {
+          bookingUpdate.booking_time = arrival_time
+          bookingUpdate.intervention_time = arrival_time
+        }
+        if (action === 'accepte' && durationMin) {
+          bookingUpdate.duration_minutes = durationMin
+        }
+        const { error: bookingErr } = await supabaseAdmin
+          .from('bookings')
+          .update(bookingUpdate)
+          .eq('id', bookingId)
+          .eq('artisan_id', profilId)
+        if (bookingErr) logger.error('[messagerie] update booking error:', bookingErr)
       }
-    }
-
-    // ── Si refusé : annuler le booking ──
-    if (action === 'refuse' && updatedOrdre.mission_id) {
-      await supabaseAdmin
-        .from('bookings')
-        .update({ status: 'cancelled', statut: 'annule' })
-        .eq('id', updatedOrdre.mission_id)
     }
 
     return NextResponse.json({ success: true, ordre_mission: updatedOrdre })

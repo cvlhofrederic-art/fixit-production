@@ -98,6 +98,21 @@ const ordre = (statut: string, artisanConv = MOI) => ({
   conversations: { artisan_id: artisanConv, contact_id: MOI, contact_name: 'Cabinet Frédéric' },
 })
 
+// Mission syndic du cabinet telle qu'en base (vérifiée avant toute mise à jour par PATCH)
+const MISSION_EN_BASE = { id: MISSION_SYNDIC, signalement_id: SIGNALEMENT }
+const PROFIL_ARTISAN = 'profil-artisan-1'
+const BOOKING = '12121212-1212-4121-8121-121212121212'
+
+/** Base où l'ordre est lu, sa mission existe dans le cabinet et le prestataire a une fiche artisan. */
+const repondeur = (o: unknown, autres: (a: Appel) => Reponse | undefined = () => undefined) => (a: Appel): Reponse => {
+  const r = autres(a)
+  if (r) return r
+  if (a.table === 'conversation_messages' && a.op === 'select') return { data: o, error: null }
+  if (a.table === 'syndic_missions' && a.op === 'select') return { data: MISSION_EN_BASE, error: null }
+  if (a.table === 'profiles_artisan' && a.op === 'select') return { data: { id: PROFIL_ARTISAN }, error: null }
+  return { data: null, error: null }
+}
+
 beforeEach(() => {
   h.appels.length = 0
   h.etat.repondre = () => ({ data: null, error: null })
@@ -108,7 +123,7 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
   for (const role of ['artisan', 'pro_societe']) {
     it(`${role} (super admin impersonné, même compte que le syndic) : accepte → message système cote 'artisan' + mission syndic acceptée`, async () => {
       impersonne(role)
-      h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('en_attente'), error: null } : { data: null, error: null })
+      h.etat.repondre = repondeur(ordre('en_attente'))
 
       const res = await PATCH(requete('PATCH', {
         message_id: MSG, action: 'accepte', artisan_user_id: MOI, artisan_name: 'Plomberie Fred', arrival_time: '09:30', duration_hours: '2',
@@ -133,11 +148,8 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
   }
 
   // Réponse type d'une base où le signalement du cabinet existe
-  const avecSignalement = (statut: string) => (a: Appel): Reponse => {
-    if (a.table === 'conversation_messages' && a.op === 'select') return { data: ordre(statut), error: null }
-    if (a.table === 'syndic_signalements' && a.op === 'update') return { data: { id: SIGNALEMENT }, error: null }
-    return { data: null, error: null }
-  }
+  const avecSignalement = (statut: string) => repondeur(ordre(statut), a =>
+    a.table === 'syndic_signalements' && a.op === 'update' ? { data: { id: SIGNALEMENT }, error: null } : undefined)
 
   it('accepte : la demande du copropriétaire suit (acceptee) et le fil de la demande reprend le message d’acceptation', async () => {
     h.etat.repondre = avecSignalement('en_attente')
@@ -183,7 +195,7 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
   })
 
   it("signalement absent du cabinet de la conversation : aucune ligne ajoutée à son fil", async () => {
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('accepte'), error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(ordre('accepte'))
     expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'en_cours' }))).status).toBe(200)
     expect(appelsSur('syndic_signalements', 'update')).toHaveLength(1)
     expect(appelsSur('syndic_signalement_messages')).toHaveLength(0)
@@ -192,14 +204,79 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
   it('ordre sans références syndic (assign-mission historique) : ni mission ni demande touchées', async () => {
     const sansRefs = ordre('en_attente')
     sansRefs.ordre_mission = { ...sansRefs.ordre_mission, signalement_id: undefined as unknown as string, syndic_mission_id: undefined as unknown as string }
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: sansRefs, error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(sansRefs)
     expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'refuse' }))).status).toBe(200)
     expect(appelsSur('syndic_missions')).toHaveLength(0)
     expect(appelsSur('syndic_signalements')).toHaveLength(0)
   })
 
+  it('références vérifiées en base : mission lue dans le cabinet de la conversation', async () => {
+    h.etat.repondre = avecSignalement('en_attente')
+    await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', arrival_time: '09:30' }))
+    const lecture = appelsSur('syndic_missions', 'select')[0]
+    expect(filtre(lecture, 'id')).toBe(MISSION_SYNDIC)
+    expect(filtre(lecture, 'cabinet_id')).toBe(MOI)
+  })
+
+  it("mission absente du cabinet de la conversation : identifiants du JSON ignorés (ni mission, ni demande)", async () => {
+    h.etat.repondre = repondeur(ordre('en_attente'), a => (a.table === 'syndic_missions' && a.op === 'select' ? { data: null, error: null } : undefined))
+    const res = await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', arrival_time: '09:30' }))
+    expect(res.status).toBe(200)
+    expect(appelsSur('syndic_missions', 'update')).toHaveLength(0)
+    expect(appelsSur('syndic_signalements')).toHaveLength(0)
+    expect(appelsSur('syndic_signalement_messages')).toHaveLength(0)
+    // L'ordre lui-même avance quand même (message système écrit).
+    expect(appelsSur('conversation_messages', 'insert')).toHaveLength(1)
+  })
+
+  it('signalement du JSON différent de celui de la mission : identifiants ignorés', async () => {
+    h.etat.repondre = repondeur(ordre('en_attente'), a =>
+      a.table === 'syndic_missions' && a.op === 'select' ? { data: { id: MISSION_SYNDIC, signalement_id: '99999999-9999-4999-8999-999999999999' }, error: null } : undefined)
+    expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'refuse' }))).status).toBe(200)
+    expect(appelsSur('syndic_missions', 'update')).toHaveLength(0)
+    expect(appelsSur('syndic_signalements')).toHaveLength(0)
+  })
+
+  it('lecture de la mission en erreur : identifiants ignorés, ordre traité', async () => {
+    h.etat.repondre = repondeur(ordre('accepte'), a => (a.table === 'syndic_missions' && a.op === 'select' ? { data: null, error: { message: 'boom' } } : undefined))
+    expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'en_cours' }))).status).toBe(200)
+    expect(appelsSur('syndic_missions', 'update')).toHaveLength(0)
+    expect(appelsSur('syndic_signalements')).toHaveLength(0)
+  })
+
+  const avecBooking = (statut: string) => {
+    const o = ordre(statut)
+    o.ordre_mission = { ...o.ordre_mission, mission_id: BOOKING as unknown as null }
+    return o
+  }
+
+  it('accepte : booking de l’agenda mis à jour, filtré sur la fiche artisan du prestataire connecté', async () => {
+    h.etat.repondre = repondeur(avecBooking('en_attente'))
+    expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', arrival_time: '10:15', duration_hours: '1.5' }))).status).toBe(200)
+    const profil = appelsSur('profiles_artisan', 'select')[0]
+    expect(filtre(profil, 'user_id')).toBe(MOI)
+    const booking = appelsSur('bookings', 'update')[0]
+    expect(booking.payload).toMatchObject({ status: 'confirmed', statut: 'confirme', booking_time: '10:15', intervention_time: '10:15', duration_minutes: 90 })
+    expect(filtre(booking, 'id')).toBe(BOOKING)
+    expect(filtre(booking, 'artisan_id')).toBe(PROFIL_ARTISAN)
+  })
+
+  it('refus : booking annulé, filtré sur la fiche artisan', async () => {
+    h.etat.repondre = repondeur(avecBooking('en_attente'))
+    expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'refuse' }))).status).toBe(200)
+    const booking = appelsSur('bookings', 'update')[0]
+    expect(booking.payload).toEqual({ status: 'cancelled', statut: 'annule' })
+    expect(filtre(booking, 'artisan_id')).toBe(PROFIL_ARTISAN)
+  })
+
+  it('prestataire sans fiche artisan : booking jamais touché', async () => {
+    h.etat.repondre = repondeur(avecBooking('en_attente'), a => (a.table === 'profiles_artisan' ? { data: null, error: null } : undefined))
+    expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', arrival_time: '09:00' }))).status).toBe(200)
+    expect(appelsSur('bookings')).toHaveLength(0)
+  })
+
   it("IDOR : l'ordre d'un AUTRE prestataire → 404, rien n'est modifié", async () => {
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('en_attente', AUTRE_ARTISAN), error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(ordre('en_attente', AUTRE_ARTISAN))
     const res = await PATCH(requete('PATCH', { message_id: MSG, action: 'refuse' }))
     expect(res.status).toBe(404)
     expect(h.appels.filter(a => a.op !== 'select')).toHaveLength(0)
@@ -212,25 +289,25 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
   })
 
   it('enchaînement des statuts : un ordre déjà accepté ne se ré-accepte pas (409, pas de 2e message)', async () => {
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('accepte'), error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(ordre('accepte'))
     const res = await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', arrival_time: '09:00' }))
     expect(res.status).toBe(409)
     expect(h.appels.filter(a => a.op !== 'select')).toHaveLength(0)
   })
 
   it('démarrer puis terminer : statuts suivis sur la mission syndic ; refus → mission annulée', async () => {
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('accepte'), error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(ordre('accepte'))
     expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'en_cours' }))).status).toBe(200)
     expect(appelsSur('syndic_missions', 'update')[0].payload).toMatchObject({ statut: 'en_cours' })
     expect(appelsSur('conversation_messages', 'insert')[0].payload).toMatchObject({ sender_id: MOI, metadata: { cote: 'artisan' } })
 
     h.appels.length = 0
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('en_cours'), error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(ordre('en_cours'))
     expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'termine' }))).status).toBe(200)
     expect(appelsSur('syndic_missions', 'update')[0].payload).toMatchObject({ statut: 'terminee' })
 
     h.appels.length = 0
-    h.etat.repondre = a => (a.table === 'conversation_messages' && a.op === 'select' ? { data: ordre('en_attente'), error: null } : { data: null, error: null })
+    h.etat.repondre = repondeur(ordre('en_attente'))
     expect((await PATCH(requete('PATCH', { message_id: MSG, action: 'refuse' }))).status).toBe(200)
     expect(appelsSur('syndic_missions', 'update')[0].payload).toMatchObject({ statut: 'annulee' })
     expect(appelsSur('conversation_messages', 'insert')[0].payload).toMatchObject({ metadata: { cote: 'artisan', statut: 'refuse' } })
