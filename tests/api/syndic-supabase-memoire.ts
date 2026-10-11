@@ -8,7 +8,7 @@ import { vi } from 'vitest'
 
 export interface AppelSupabase {
   table: string
-  op: 'select' | 'insert' | 'update'
+  op: 'select' | 'insert' | 'update' | 'delete'
   donnees?: unknown
   eq: Array<[string, unknown]>
   in: Array<[string, unknown[]]>
@@ -47,7 +47,7 @@ export function clientMemoire(base: BaseMemoire) {
         const d = base.inserts[table] ?? { id: `${table}-nouveau` }
         return { data: unique ? d : [d], error: null }
       }
-      if (appel.op === 'update') return { data: null, error: null }
+      if (appel.op === 'update' || appel.op === 'delete') return { data: null, error: null }
       const l = lignesFiltrees()
       return { data: unique ? l[0] ?? null : l, error: null }
     }
@@ -59,6 +59,7 @@ export function clientMemoire(base: BaseMemoire) {
     q.in = vi.fn((c: string, vs: unknown[]) => { appel.in.push([c, vs]); return q })
     q.insert = vi.fn((d: unknown) => { appel.op = 'insert'; appel.donnees = d; return q })
     q.update = vi.fn((d: unknown) => { appel.op = 'update'; appel.donnees = d; return q })
+    q.delete = vi.fn(() => { appel.op = 'delete'; return q })
     q.maybeSingle = vi.fn(async () => resultat(true))
     q.single = vi.fn(async () => resultat(true))
     q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(resultat(false)).then(ok, ko)

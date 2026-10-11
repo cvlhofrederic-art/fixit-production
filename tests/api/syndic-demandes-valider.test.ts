@@ -180,6 +180,34 @@ describe('POST /api/syndic/demandes/valider — mission confiée', () => {
     expect(h.livrer.mock.calls[0][1]).toMatchObject({ urgence: 'urgente', priorite: 'urgente' })
   })
 
+  it("ordre de mission non livré : mission retirée, demande laissée en attente, erreur pour réessayer", async () => {
+    h.livrer.mockResolvedValue({ bookingId: 'booking-1', conversationId: null, messageId: null, ordreEnvoye: false, notificationEnvoyee: true })
+    const res = await appeler({ signalement_id: SIG, syndic_artisan_id: ART })
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'livraison_impossible' })
+    // Mission juste créée supprimée (bornée au cabinet) ; booking éventuel annulé.
+    const [suppression] = appelsDe(h.base, 'syndic_missions', 'delete')
+    expect(suppression.eq).toEqual(expect.arrayContaining([['id', 'syndic_missions-nouveau'], ['cabinet_id', CAB]]))
+    const [booking] = appelsDe(h.base, 'bookings', 'update')
+    expect(booking.donnees).toEqual({ status: 'cancelled', statut: 'annule' })
+    expect(booking.eq).toContainEqual(['id', 'booking-1'])
+    // Signalement intact, aucun message « Mission confiée » dans le fil du copropriétaire.
+    expect(appelsDe(h.base, 'syndic_signalements', 'update')).toHaveLength(0)
+    expect(appelsDe(h.base, 'syndic_signalement_messages')).toHaveLength(0)
+  })
+
+  it('suppression de la mission impossible : mission annulée à la place', async () => {
+    h.livrer.mockResolvedValue({ bookingId: null, conversationId: null, messageId: null, ordreEnvoye: false, notificationEnvoyee: false })
+    h.base.erreurs['syndic_missions.delete'] = { message: 'rls' }
+    const res = await appeler({ signalement_id: SIG, syndic_artisan_id: ART })
+    expect(res.status).toBe(500)
+    const [annulation] = appelsDe(h.base, 'syndic_missions', 'update')
+    expect(annulation.donnees).toMatchObject({ statut: 'annulee' })
+    expect(annulation.eq).toEqual(expect.arrayContaining([['id', 'syndic_missions-nouveau'], ['cabinet_id', CAB]]))
+    expect(appelsDe(h.base, 'bookings')).toHaveLength(0)
+    expect(appelsDe(h.base, 'syndic_signalements', 'update')).toHaveLength(0)
+  })
+
   it('notification: false quand la livraison est incomplète', async () => {
     h.livrer.mockResolvedValue({ bookingId: null, conversationId: 'conv-1', messageId: 'msg-1', ordreEnvoye: true, notificationEnvoyee: false })
     const res = await appeler({ signalement_id: SIG, syndic_artisan_id: ART })
