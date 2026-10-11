@@ -9,6 +9,7 @@
  */
 
 import type { ModCategory } from '@/hooks/useModuleCategories'
+import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
 
 // Category section header translations (dynamic path)
 const CAT_NAME_PT: Record<string, string> = {
@@ -289,6 +290,11 @@ export default function V5Sidebar({
             <V5SidebarItem icon="⚙️" label={isPt ? 'Meu perfil' : 'Mon profil'} active={activePage === 'settings'} onClick={() => navigateTo('settings')} page="settings" />
             <V5SidebarItem icon="🧩" label="Modules" active={activePage === 'modules'} onClick={() => navigateTo('modules')} />
             <V5SidebarItem icon="❓" label={isPt ? 'Ajuda' : 'Aide'} active={activePage === 'help'} onClick={() => navigateTo('help')} />
+            {/* Super_admin (ou « vue en tant que ») seulement — même lien côté artisan (V5SidebarArtisan), voulu pour la démo. */}
+            <LienPanneauAdmin className="v5-sb-i" style={{ textDecoration: 'none' }}>
+              <span className="v5-sb-icon">🛡️</span>
+              <span className="v5-sb-label">Panneau admin</span>
+            </LienPanneauAdmin>
             <div className="v5-sb-i logout" onClick={handleLogout}>
               <span className="v5-sb-icon">🚪</span>
               <span className="v5-sb-label">{isPt ? 'Sair' : 'Déconnexion'}</span>

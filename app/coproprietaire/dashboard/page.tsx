@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
@@ -1006,7 +1007,8 @@ export default function CoproprietaireDashboard() {
 
   const userName = `${profile.prenom} ${profile.nom}`
   const initials = `${profile.prenom[0]}${profile.nom[0]}`
-  const isAdminOverride = user?.app_metadata?.role === 'super_admin'
+  // Lien « Panneau admin » : super_admin ou « vue en tant que » d'un super_admin (app_metadata, non forgeable).
+  const lienAdmin = lienPanneauAdmin(user?.app_metadata)
 
   // ── Actions ──
   const handleLogout = async () => {
@@ -1374,6 +1376,16 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               </div>
             )}
           </div>
+          {lienAdmin && (
+            <a
+              href={lienAdmin}
+              title="Panneau admin"
+              style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 10px', borderRadius: 8, fontSize: 12, color: 'rgba(255,255,255,0.45)', textDecoration: 'none', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
+            >
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>🛡️</span>
+              {sidebarOpen && <span>Panneau admin</span>}
+            </a>
+          )}
         </div>
       </aside>
 
