@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ToastProvider, useToast } from '@/components/syndic-dashboard/v54/primitives/toast'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
+import { RetourConnexionBoite } from '@/components/syndic-dashboard/v54/RetourConnexionBoite'
 import { SyndicDataProvider, useSyndicData } from '@/lib/syndic/v54/data-context'
 import { askAgentDetaille, decrireActionFixy, executerActionFixy } from '@/lib/syndic/v54/api'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
@@ -255,43 +256,11 @@ function AgentRoute({ route }: Readonly<{ route: string }>) {
   )
 }
 
-/**
- * Retour de la connexion Google (app/api/email-agent/callback) : ?email_connected=true&email=…
- * ou ?email_error=… → message, puis nettoyage de l'URL. Exporté pour les tests.
- */
-export function RetourConnexionGmail() {
-  const { push } = useToast()
-  const locale = useV54Locale()
-  const traite = useRef(false)
-  useEffect(() => {
-    if (traite.current) return
-    traite.current = true
-    const p = new URLSearchParams(window.location.search)
-    const connecte = p.get('email_connected') === 'true'
-    const erreur = p.get('email_error')
-    if (!connecte && !erreur) return
-    const fr = locale === 'fr-FR'
-    if (connecte) {
-      push({ kind: 'success', title: fr ? 'Boîte Gmail connectée' : 'Caixa Gmail ligada', desc: (p.get('email') ?? '') + (fr ? ' — Alfredo relève les e-mails non lus.' : ' — o Alfredo analisa os emails não lidos.') })
-    } else {
-      push({ kind: 'error', title: fr ? 'Connexion Gmail impossible' : 'Ligação Gmail impossível', desc: erreur ?? undefined })
-    }
-    // Nettoyage différé : l'effet du parent (routeInitiale) lit encore ces paramètres
-    // après celui-ci (les effets des enfants passent avant ceux du parent).
-    p.delete('email_connected'); p.delete('email'); p.delete('email_error')
-    const reste = p.toString()
-    window.setTimeout(() => {
-      window.history.replaceState(null, '', window.location.pathname + (reste ? '?' + reste : '') + window.location.hash)
-    }, 0)
-  }, [push, locale])
-  return null
-}
-
-/** Écran d'ouverture : « E-mails Fixy » au retour de la connexion Google, sinon le tableau de bord. */
+/** Écran d'ouverture : « E-mails Fixy » au retour de la connexion de la boîte, sinon le tableau de bord. */
 function routeInitiale(): string {
   if (typeof window === 'undefined') return 'dashboard'
   const p = new URLSearchParams(window.location.search)
-  return p.has('email_connected') || p.has('email_error') ? 'emailsFixy' : 'dashboard'
+  return p.has('email_connected') || p.has('email_error') || p.has('email_admin_consent') ? 'emailsFixy' : 'dashboard'
 }
 
 export default function SyndicDashboardV54() {
@@ -307,7 +276,7 @@ export default function SyndicDashboardV54() {
     <div data-hydrated={hydrated ? 'true' : undefined} style={{ margin: -32 }}>
       <ToastProvider>
         <SyndicDataProvider>
-          <RetourConnexionGmail />
+          <RetourConnexionBoite />
           {/* key : l'écran d'ouverture n'est connu qu'au montage (paramètres de l'URL). */}
           <DashboardShell key={routeDepart} defaultRoute={routeDepart} renderModule={renderModule} />
         </SyndicDataProvider>
