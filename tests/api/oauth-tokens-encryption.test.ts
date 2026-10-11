@@ -6,8 +6,11 @@ import { join } from 'path'
 const ROOT = process.cwd()
 
 describe('OAuth tokens encryption integration (anti-régression)', () => {
-  it('callback route utilise setEncryptedToken', () => {
-    const src = readFileSync(join(ROOT, 'app/api/email-agent/callback/route.ts'), 'utf-8')
+  it('callback route utilise setEncryptedToken (retour OAuth commun Gmail / Microsoft)', () => {
+    // Depuis Outlook / Microsoft 365, les deux callbacks délèguent à traiterRetourOAuth.
+    const callback = readFileSync(join(ROOT, 'app/api/email-agent/callback/route.ts'), 'utf-8')
+    expect(callback).toMatch(/traiterRetourOAuth/)
+    const src = readFileSync(join(ROOT, 'lib/email-agent/retour-oauth.ts'), 'utf-8')
     expect(src).toMatch(/from\s+['"]@\/lib\/oauth\/tokens['"]/)
     expect(src).toMatch(/setEncryptedToken/)
   })
