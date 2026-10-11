@@ -5,9 +5,13 @@
  * Vérification CI : grep ":root" dans ce fichier doit retourner 0.
  *
  * Source : extraits du bundle V5.7 décodé (gzip+base64 → React+JSX).
+ *
+ * [data-v54-portal] : nœuds rendus en portal sous <body>, hors du wrapper (backdrop du Modal).
+ * Sans ce sélecteur, les vars n'y sont pas résolues et la fenêtre s'affiche sans fond.
  */
 
-#syndic-dashboard-v54 {
+#syndic-dashboard-v54,
+[data-v54-portal] {
   /* Navy — texte sidebar et corps */
   --v54-navy-900: #0B1828;
   --v54-navy-800: #0F1F32;

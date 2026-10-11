@@ -139,8 +139,10 @@ export default function Modal({ open, onClose, labelledBy, size = 'md', children
 
   if (!open || !mounted) return null
 
+  // data-v54-portal : le portal vit sous <body>, hors de #syndic-dashboard-v54 → tokens --v54-*
+  // déclarés aussi sur ce sélecteur (tokens.css, fonts.css), sinon fond et couleurs non résolus.
   return createPortal(
-    <div ref={backdropRef} className={styles.backdrop}>
+    <div ref={backdropRef} className={styles.backdrop} data-v54-portal="">
       <div
         ref={dialogRef}
         className={clsx(styles.modal, styles[size], className)}
