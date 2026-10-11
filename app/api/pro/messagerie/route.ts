@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
-import { proMessagerieSchema, validateBody } from '@/lib/validation'
+import { proMessagerieActionSchema, proMessagerieSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { resumeDocumentPro } from '@/lib/messagerie-pro'
+import { round2 } from '@/lib/money'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
+
+// Actions possibles selon le statut courant d'un ordre de mission
+const TRANSITIONS_ORDRE: Record<string, string[]> = {
+  en_attente: ['accepte', 'refuse'],
+  accepte: ['en_cours'],
+  en_cours: ['termine'],
+}
+
+// Statut de la mission syndic (syndic_missions, CHECK en_attente | acceptee | en_cours |
+// terminee | annulee) suivi par l'ordre de mission du prestataire
+const STATUT_MISSION_SYNDIC: Record<string, string> = {
+  accepte: 'acceptee',
+  en_cours: 'en_cours',
+  termine: 'terminee',
+}
 
 // ═══ GET — Liste des conversations ou messages d'une conversation ═══
 export async function GET(req: NextRequest) {
@@ -106,6 +123,22 @@ export async function GET(req: NextRequest) {
     }
 
     // Mode 2 : Messages d'une conversation + mark as read
+    // ── IDOR check : la conversation doit appartenir au prestataire connecté ──
+    const { data: convProprietaire, error: convOwnErr } = await supabaseAdmin
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('artisan_id', artisanUserId)
+      .maybeSingle()
+
+    if (convOwnErr) {
+      logger.error('[messagerie] GET conversation ownership error:', convOwnErr)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
+    if (!convProprietaire) {
+      return NextResponse.json({ error: 'Conversation introuvable' }, { status: 404 })
+    }
+
     const { data: messages, error } = await supabaseAdmin
       .from('conversation_messages')
       .select('id, conversation_id, sender_id, type, content, metadata, ordre_mission, read, created_at')
@@ -157,20 +190,34 @@ export async function POST(req: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: 'Donn\u00e9es invalides', details: validation.error }, { status: 400 })
     }
-    const { artisan_user_id, contact_id, contact_type, contact_name, content, type, ordre_mission, metadata } = body
+    const { artisan_user_id, contact_id, contact_type, contact_name, content, type, metadata } = validation.data
 
     // ── IDOR check : l'utilisateur ne peut envoyer que depuis son propre compte ──
     if (artisan_user_id !== user.id) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 
+    // Document (devis / rapport / facture) : uniquement dans une conversation Pro existante
+    const document = metadata?.document
+      ? {
+          ...metadata.document,
+          ...(metadata.document.montant_ttc !== undefined
+            ? { montant_ttc: round2(metadata.document.montant_ttc) }
+            : {}),
+        }
+      : undefined
+
     // 1. Trouver ou créer la conversation
     let { data: conv } = await supabaseAdmin
       .from('conversations')
-      .select('id')
+      .select('id, contact_type')
       .eq('artisan_id', artisan_user_id)
       .eq('contact_id', contact_id)
       .single()
+
+    if (document && conv?.contact_type !== 'pro') {
+      return NextResponse.json({ error: 'Conversation Pro introuvable' }, { status: 404 })
+    }
 
     if (!conv) {
       const { data: newConv, error: convErr } = await supabaseAdmin
@@ -181,7 +228,7 @@ export async function POST(req: NextRequest) {
           contact_type: contact_type || 'particulier',
           contact_name: contact_name || 'Contact',
         })
-        .select('id')
+        .select('id, contact_type')
         .single()
 
       if (convErr) {
@@ -191,20 +238,19 @@ export async function POST(req: NextRequest) {
       conv = newConv
     }
 
-    // 2. Insérer le message
+    // 2. Insérer le message — toujours au nom du prestataire connecté (sender_id du corps
+    //    ignoré : il permettait d'écrire au nom du contact). metadata.cote = 'artisan' :
+    //    le syndic et le prestataire peuvent partager le même compte (cf. lib/messagerie-pro.ts).
     const msgPayload: Record<string, unknown> = {
       conversation_id: conv.id,
-      sender_id: body.sender_id || contact_id,
+      sender_id: user.id,
       type: type || 'text',
-      content: content || '',
-      metadata: metadata || {},
-    }
-
-    if (type === 'ordre_mission' && ordre_mission) {
-      msgPayload.ordre_mission = {
-        ...ordre_mission,
-        statut: ordre_mission.statut || 'en_attente',
-      }
+      content: content?.trim() || (document ? resumeDocumentPro(document) : ''),
+      metadata: {
+        ...(metadata || {}),
+        ...(document ? { document } : {}),
+        cote: 'artisan',
+      },
     }
 
     const { data: msg, error: msgErr } = await supabaseAdmin
@@ -216,31 +262,6 @@ export async function POST(req: NextRequest) {
     if (msgErr) {
       logger.error('[messagerie] insert message error:', msgErr)
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
-    }
-
-    // 3. Créer une notification artisan si c'est un message entrant
-    if ((body.sender_id || contact_id) !== artisan_user_id) {
-      const notifTitle = type === 'ordre_mission'
-        ? `Nouvel ordre de mission`
-        : `Nouveau message de ${contact_name || 'un contact'}`
-      const notifBody = type === 'ordre_mission'
-        ? ordre_mission?.titre || 'Un donneur d\'ordres vous a assigné une mission'
-        : (content || '').substring(0, 100)
-
-      await supabaseAdmin
-        .from('artisan_notifications')
-        .insert({
-          artisan_id: artisan_user_id,
-          type: type === 'ordre_mission' ? 'new_mission' : 'message',
-          title: notifTitle,
-          body: notifBody,
-          data_json: {
-            conversation_id: conv.id,
-            contact_id,
-            contact_type: contact_type || 'particulier',
-            message_type: type,
-          },
-        })
     }
 
     return NextResponse.json({ message: msg, conversation_id: conv.id })
@@ -263,7 +284,11 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message_id, action, artisan_user_id, artisan_name: rawArtisanName, arrival_time: rawArrivalTime, duration_hours } = body
+    const validation = validateBody(proMessagerieActionSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
+    }
+    const { message_id, action, artisan_user_id, artisan_name: rawArtisanName, arrival_time: rawArrivalTime, duration_hours } = validation.data
 
     // Sanitise user-controlled strings to prevent log injection
     const artisan_name = typeof rawArtisanName === 'string'
@@ -273,18 +298,9 @@ export async function PATCH(req: NextRequest) {
       ? rawArrivalTime
       : undefined
 
-    if (!message_id || !action) {
-      return NextResponse.json({ error: 'message_id et action requis' }, { status: 400 })
-    }
-
     // ── IDOR check : l'utilisateur ne peut modifier que ses propres ordres ──
     if (artisan_user_id && artisan_user_id !== user.id) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
-    }
-
-    const validActions = ['accepte', 'refuse', 'en_cours', 'termine']
-    if (!validActions.includes(action)) {
-      return NextResponse.json({ error: `Action invalide. Valides: ${validActions.join(', ')}` }, { status: 400 })
     }
 
     // Récupérer le message
@@ -299,8 +315,24 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Message ordre de mission introuvable' }, { status: 404 })
     }
 
+    // ── IDOR check : l'ordre doit appartenir à une conversation DU prestataire connecté ──
+    // (sans ce contrôle, n'importe quel compte pro pouvait accepter / refuser l'ordre d'un
+    // autre artisan en connaissant l'id du message). Même réponse que « introuvable ».
+    const convRel = msg.conversations as { artisan_id?: string; contact_id?: string } | Array<{ artisan_id?: string; contact_id?: string }> | null
+    const conversation = Array.isArray(convRel) ? convRel[0] : convRel
+    if (!conversation || conversation.artisan_id !== user.id) {
+      return NextResponse.json({ error: 'Message ordre de mission introuvable' }, { status: 404 })
+    }
+
+    // ── Enchaînement des statuts : en_attente → accepte | refuse ; accepte → en_cours ; en_cours → termine ──
+    // (un double clic ne crée plus deux messages « a accepté »)
+    const statutActuel: string = msg.ordre_mission?.statut || 'en_attente'
+    if (!(TRANSITIONS_ORDRE[statutActuel] || []).includes(action)) {
+      return NextResponse.json({ error: "Action impossible dans l'état actuel de l'ordre de mission" }, { status: 409 })
+    }
+
     // Mettre à jour le statut (+ heure d'arrivée + durée si accepte)
-    const durationMin = duration_hours ? Math.round(parseFloat(duration_hours) * 60) : null
+    const durationMin = duration_hours ? Math.round(parseFloat(String(duration_hours)) * 60) : null
     const updatedOrdre = {
       ...msg.ordre_mission,
       statut: action,
@@ -340,14 +372,31 @@ export async function PATCH(req: NextRequest) {
       systemContent = `✅ Mission acceptée — ${displayName} sera sur place ${dateStr ? `le ${dateStr} ` : ''}à ${arrival_time}${durationLabel}`
     }
 
-    await supabaseAdmin
+    // Écrit côté prestataire : cote 'artisan' (le donneur d'ordre peut être le même compte)
+    const { error: systemErr } = await supabaseAdmin
       .from('conversation_messages')
       .insert({
         conversation_id: msg.conversation_id,
-        sender_id: artisan_user_id,
+        sender_id: user.id,
         type: 'system',
         content: systemContent,
+        metadata: { cote: 'artisan', ordre_message_id: message_id, statut: action },
       })
+    if (systemErr) logger.error('[messagerie] insert system message error:', systemErr)
+
+    // ── Mission syndic liée (ordre validé depuis le Syndic v54) : suivre le statut ──
+    // Mise à jour bornée au cabinet du donneur d'ordre de CETTE conversation. Un refus ne
+    // change rien : la mission reste « en attente », le syndic choisit un autre prestataire.
+    const statutMissionSyndic = STATUT_MISSION_SYNDIC[action]
+    const syndicMissionId = typeof updatedOrdre.syndic_mission_id === 'string' ? updatedOrdre.syndic_mission_id : null
+    if (statutMissionSyndic && syndicMissionId && conversation.contact_id) {
+      const { error: missionErr } = await supabaseAdmin
+        .from('syndic_missions')
+        .update({ statut: statutMissionSyndic, updated_at: new Date().toISOString() })
+        .eq('id', syndicMissionId)
+        .eq('cabinet_id', conversation.contact_id)
+      if (missionErr) logger.error('[messagerie] update syndic_missions statut error:', missionErr)
+    }
 
     // ── Si accepté : bloquer la date sur l'agenda de l'artisan (mettre à jour le booking existant) ──
     if (action === 'accepte' && updatedOrdre.mission_id) {
