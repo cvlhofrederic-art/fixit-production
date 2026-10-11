@@ -281,6 +281,27 @@ describe('POST /api/pro/messagerie — message du prestataire', () => {
     })
   })
 
+  it('conversation cherchée par type (une paire peut avoir une conversation particulier ET pro) : la plus ancienne du type demandé', async () => {
+    h.etat.repondre = convPro
+    await POST(requete('POST', { artisan_user_id: MOI, contact_id: MOI, contact_type: 'pro', content: 'Bien reçu' }))
+    const recherche = appelsSur('conversations', 'select')[0]
+    expect(filtre(recherche, 'artisan_id')).toBe(MOI)
+    expect(filtre(recherche, 'contact_id')).toBe(MOI)
+    expect(filtre(recherche, 'contact_type')).toBe('pro')
+    expect(appelsSur('conversations', 'insert')).toHaveLength(0)
+
+    h.appels.length = 0
+    await POST(requete('POST', { artisan_user_id: MOI, contact_id: AUTRE_ARTISAN, content: 'Bonjour' }))
+    expect(filtre(appelsSur('conversations', 'select')[0], 'contact_type')).toBe('particulier')
+  })
+
+  it('erreur de lecture de la conversation → 500 journalisé, aucune conversation créée', async () => {
+    h.etat.repondre = a => (a.table === 'conversations' && a.op === 'select' ? { data: null, error: { message: 'boom' } } : { data: null, error: null })
+    const res = await POST(requete('POST', { artisan_user_id: MOI, contact_id: MOI, contact_type: 'pro', content: 'x' }))
+    expect(res.status).toBe(500)
+    expect(h.appels.filter(a => a.op !== 'select')).toHaveLength(0)
+  })
+
   it('document sans texte : le résumé lisible est construit côté serveur', async () => {
     h.etat.repondre = convPro
     await POST(requete('POST', {

@@ -227,13 +227,24 @@ export async function POST(req: NextRequest) {
         }
       : undefined
 
-    // 1. Trouver ou créer la conversation
-    let { data: conv } = await supabaseAdmin
+    // 1. Trouver ou créer la conversation — du type demandé (la paire prestataire / contact
+    //    peut avoir une conversation « particulier » ET une « pro », notamment quand le syndic
+    //    et le prestataire sont le même compte) ; la plus ancienne, comme la livraison des
+    //    ordres de mission (lib/syndic/livraison-mission.ts).
+    const { data: convTrouvee, error: convFindErr } = await supabaseAdmin
       .from('conversations')
       .select('id, contact_type')
       .eq('artisan_id', artisan_user_id)
       .eq('contact_id', contact_id)
-      .single()
+      .eq('contact_type', contact_type || 'particulier')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (convFindErr) {
+      logger.error('[messagerie] find conversation error:', convFindErr)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
+    let conv = convTrouvee
 
     if (document && conv?.contact_type !== 'pro') {
       return NextResponse.json({ error: 'Conversation Pro introuvable' }, { status: 404 })
