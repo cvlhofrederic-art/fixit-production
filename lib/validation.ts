@@ -227,6 +227,23 @@ export const canalInterneSchema = z.object({
   sujet: z.string().max(200).optional(),
 })
 
+// ── Syndic — circuit demande copropriétaire → prestataire ────────────────────
+// POST /api/syndic/demandes/valider : confier un signalement à un prestataire du cabinet.
+// Identifiants en z.guid() (format 8-4-4-4-12 sans contrôle de version : ids de seed acceptés).
+const videVersIndefini = (v: unknown) => (v === '' || v === null ? undefined : v)
+export const syndicDemandeValiderSchema = z.object({
+  signalement_id: z.guid('signalement_id invalide'),
+  syndic_artisan_id: z.guid('syndic_artisan_id invalide'),
+  date_intervention: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional()),
+  note: z.preprocess(videVersIndefini, z.string().trim().max(2000).optional()),
+})
+
+// POST /api/syndic/canal-pro : réponse du syndic dans une conversation prestataire.
+export const syndicCanalProMessageSchema = z.object({
+  conversation_id: z.guid('conversation_id invalide'),
+  content: z.string().trim().min(1, 'Message requis').max(5000),
+})
+
 // ── Syndic Messages schema ───────────────────────────────────────────────────
 export const syndicMessageSchema = z.object({
   content: z.string().min(1, 'Message requis').max(5000),

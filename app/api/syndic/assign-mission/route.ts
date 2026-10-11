@@ -4,6 +4,7 @@ import { getAuthUser, isSyndicRole, isSuperAdmin, resolveCabinetId } from '@/lib
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { assignMissionSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { livrerMission } from '@/lib/syndic/livraison-mission'
 
 // ── POST /api/syndic/assign-mission ──────────────────────────────────────────
 // Assigner une mission à un artisan : crée booking sur son agenda + notification
@@ -225,185 +226,29 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // ── 2. Trouver le profil artisan (pour artisan_id dans bookings) ────────
-  let artisanProfileId: string | null = null
-  if (artisanUserId) {
-    const { data: profile } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('id')
-      .eq('user_id', artisanUserId)
-      .maybeSingle()
-    artisanProfileId = profile?.id || null
-  }
-
-  // ── 3. Créer le booking dans la table bookings (apparaît sur l'agenda artisan) ──
-  // N'utiliser QUE les colonnes existantes du schéma bookings :
-  // id, client_id, artisan_id, service_id, status, booking_date, booking_time,
-  // duration_minutes, address, notes, price_ht, price_ttc, commission_rate,
-  // payment_status, created_at, confirmed_at
+  // ── 2 à 6. Livraison (booking, conversation + ordre de mission, notification, canal legacy) ──
+  // Étapes partagées avec POST /api/syndic/demandes/valider : lib/syndic/livraison-mission.ts.
   let bookingId: string | null = null
-  if (artisanUserId) {
-    // Compiler les détails de la mission dans le champ notes
-    const missionNotes = [
-      `[Mission Syndic] ${type_travaux || 'Intervention'}`,
-      description,
-      immeuble ? `Immeuble : ${immeuble}` : '',
-      `Priorité : ${priorite}`,
-      notes ? `Notes : ${notes}` : '',
-      `Assignée par : ${user.user_metadata?.full_name || user.email || 'Syndic'}`,
-    ].filter(Boolean).join('\n')
-
-    const { data: booking, error: bookingError } = await supabaseAdmin
-      .from('bookings')
-      .insert({
-        artisan_id: artisanProfileId,
-        client_id: user.id, // le syndic est le "client" pour cette mission
-        booking_date: effectiveDate,
-        booking_time: '09:00',
-        status: 'confirmed',
-        confirmed_at: new Date().toISOString(),
-        address: immeuble || '',
-        notes: missionNotes,
-        duration_minutes: 60,
-        price_ht: 0,
-        price_ttc: 0,
-        commission_rate: 0,
-        payment_status: 'not_required',
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single()
-
-    if (!bookingError && booking) {
-      bookingId = booking.id
-    } else if (bookingError) {
-      logger.error('[assign-mission] Booking creation error:', bookingError.message)
-    }
-  }
-
-  // ── 4. Notification artisan ──────────────────
-  if (artisanUserId) {
-    const { error: notifErr } = await supabaseAdmin.from('artisan_notifications').insert({
-      artisan_id: artisanUserId,
-      type: 'new_mission',
-      title: `📅 Nouvelle mission — ${type_travaux || 'Intervention'}`,
-      body: `${immeuble ? immeuble + ' — ' : ''}${description} — Le ${new Date(effectiveDate + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`,
-      read: false,
-      data_json: { booking_id: bookingId, contact_type: 'pro', sender_id: user.id },
-      created_at: new Date().toISOString(),
-    })
-    if (notifErr) logger.error('[ASSIGN] ❌ Notification artisan échouée:', notifErr.message)
-  }
-
-  // ── 5. Message dans le canal legacy ──────
-  if (artisanUserId) {
-    const dateFormatted = new Date(effectiveDate + 'T12:00:00').toLocaleDateString('fr-FR', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    })
-    const { error: legacyErr } = await supabaseAdmin.from('syndic_messages').insert({
-      cabinet_id: cabinetId,
-      artisan_user_id: artisanUserId,
-      sender_id: user.id,
-      sender_role: 'syndic',
-      sender_name: user.user_metadata?.full_name || 'Syndic',
-      content: `📅 **Mission assignée** : ${description}${immeuble ? ` — ${immeuble}` : ''}\n🗓️ Date : ${dateFormatted}\n⚡ Priorité : ${priorite}${notes ? `\n📝 Notes : ${notes}` : ''}`,
-      message_type: 'text',
-      created_at: new Date().toISOString(),
-    })
-    if (legacyErr) logger.error('[ASSIGN] ❌ Legacy message échoué:', legacyErr.message)
-  }
-
-  // ── 6. Créer conversation + ordre de mission dans messagerie v2 ──────
   let convId: string | null = null
   if (artisanUserId) {
     const senderName = user.user_metadata?.full_name || user.email || 'Syndic'
-
-    // Trouver ou créer la conversation artisan ↔ syndic (upsert pour robustesse)
-    try {
-      // D'abord essayer de trouver une conversation existante
-      const { data: existingConv, error: findErr } = await supabaseAdmin
-        .from('conversations')
-        .select('id')
-        .eq('artisan_id', artisanUserId)
-        .eq('contact_id', user.id)
-        .maybeSingle()
-
-      if (findErr) {
-        logger.error('[ASSIGN] ❌ Erreur recherche conversation:', findErr.message)
-      }
-
-      if (existingConv) {
-        convId = existingConv.id
-        console.info(`[ASSIGN] Conversation existante trouvée : ${convId}`)
-      } else {
-        // INSERT minimal (seulement les colonnes de base pour éviter erreur de schema)
-        const { data: newConv, error: createErr } = await supabaseAdmin
-          .from('conversations')
-          .insert({
-            artisan_id: artisanUserId,
-            contact_id: user.id,
-            contact_type: 'pro',
-            contact_name: senderName,
-          })
-          .select('id')
-          .single()
-
-        if (createErr) {
-          logger.error('[ASSIGN] ❌ Erreur INSERT conversation:', { message: createErr.message, details: createErr.details, hint: createErr.hint })
-          // Race condition possible : re-chercher
-          const { data: retryConv } = await supabaseAdmin
-            .from('conversations')
-            .select('id')
-            .eq('artisan_id', artisanUserId)
-            .eq('contact_id', user.id)
-            .maybeSingle()
-          convId = retryConv?.id || null
-          if (convId) console.info(`[ASSIGN] Conversation retrouvée après retry : ${convId}`)
-          else logger.error(`[ASSIGN] ❌ Conversation introuvable même après retry`)
-        } else {
-          convId = newConv?.id || null
-          console.info(`[ASSIGN] Conversation créée : ${convId}`)
-        }
-      }
-    } catch (e) {
-      logger.error('[ASSIGN] ❌ Exception conversation v2:', e)
-    }
-
-    // Insérer le message ordre de mission
-    if (convId) {
-      try {
-        const { error: msgErr } = await supabaseAdmin.from('conversation_messages').insert({
-          conversation_id: convId,
-          sender_id: user.id,
-          type: 'ordre_mission',
-          content: description,
-          ordre_mission: {
-            titre: type_travaux || 'Intervention',
-            adresse: immeuble || '',
-            date_souhaitee: effectiveDate,
-            description,
-            urgence: priorite === 'urgente' ? 'urgente' : priorite === 'haute' ? 'haute' : 'normale',
-            statut: 'en_attente',
-            mission_id: bookingId,
-          },
-        })
-        if (msgErr) {
-          logger.error('[ASSIGN] ❌ Erreur insertion message v2:', { message: msgErr.message, details: msgErr.details, hint: msgErr.hint })
-        } else {
-          console.info(`[ASSIGN] ✅ Message ordre de mission inséré dans conversation ${convId}`)
-          // Mettre à jour last_message_at pour que la conversation remonte dans la liste
-          const { error: updErr } = await supabaseAdmin
-            .from('conversations')
-            .update({ last_message_at: new Date().toISOString() })
-            .eq('id', convId)
-          if (updErr) logger.warn('[ASSIGN] update last_message_at:', updErr.message)
-        }
-      } catch (e) {
-        logger.error('[ASSIGN] ❌ Exception insertion message v2:', e)
-      }
-    } else {
-      logger.error(`[ASSIGN] ❌ Pas de convId — message v2 NON créé (artisan=${artisanUserId}, contact=${user.id})`)
-    }
+    const livraison = await livrerMission(supabaseAdmin, {
+      artisanUserId,
+      cabinetId: cabinetId ?? user.id,
+      contactId: user.id,
+      contactName: senderName,
+      senderId: user.id,
+      senderName,
+      titre: type_travaux || 'Intervention',
+      description,
+      adresse: immeuble || '',
+      dateIntervention: effectiveDate,
+      priorite,
+      urgence: priorite === 'urgente' ? 'urgente' : priorite === 'haute' ? 'haute' : 'normale',
+      notes: notes || undefined,
+    })
+    bookingId = livraison.bookingId
+    convId = livraison.conversationId
   }
 
   console.info(`[ASSIGN] ── Fin : artisan_found=${!!artisanUserId} booking=${bookingId} conv=${convId} resolvedBy=${resolvedBy} ──`)

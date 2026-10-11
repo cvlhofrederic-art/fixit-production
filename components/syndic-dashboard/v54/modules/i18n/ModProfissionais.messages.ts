@@ -27,6 +27,8 @@ interface ProfissionaisTextes {
     synchroniseConnexion: string
     messages: string
     aucunCompteMessagerie: string
+    /** Prestataire avec compte Vitfix : où se trouvent les échanges. */
+    compteLieMessagerie: string
     supprime: string
     erreurSuppression: string
     reessayerPlusTard: string
@@ -48,6 +50,8 @@ interface ProfissionaisTextes {
     decennaleJusquau: string
     decennaleValide: string
     aucunCompte: string
+    /** Libellé du bouton quand la fiche est liée à un compte Vitfix (artisan_user_id). */
+    compteLie: string
     creerMission: string
     supprimerAria: string
     supprimerTitre: string
@@ -91,6 +95,7 @@ export const PROFISSIONAIS_MESSAGES = defineMessages<ProfissionaisTextes>({
       synchroniseConnexion: 'Conecte-se como síndico para sincronizar.',
       messages: 'Mensagens',
       aucunCompteMessagerie: 'Nenhuma conta de mensagens ligada',
+      compteLieMessagerie: 'As conversas com este profissional estão no Canal de Comunicações.',
       supprime: 'Profissional eliminado',
       erreurSuppression: 'Erro ao eliminar',
       reessayerPlusTard: 'Tente novamente mais tarde',
@@ -110,6 +115,7 @@ export const PROFISSIONAIS_MESSAGES = defineMessages<ProfissionaisTextes>({
       decennaleJusquau: 'Decenal válido até ',
       decennaleValide: 'Decenal válido',
       aucunCompte: 'Sem conta ligada',
+      compteLie: 'Conta Vitfix ligada',
       creerMission: 'Criar missão',
       supprimerAria: 'Eliminar profissional',
       supprimerTitre: 'Eliminar',
@@ -161,6 +167,7 @@ export const PROFISSIONAIS_MESSAGES = defineMessages<ProfissionaisTextes>({
       synchroniseConnexion: 'Connectez-vous en tant que syndic pour synchroniser.',
       messages: 'Messagerie',
       aucunCompteMessagerie: 'Aucun compte de messagerie lié',
+      compteLieMessagerie: 'Les échanges avec ce prestataire se font dans le Canal de communication.',
       supprime: 'Prestataire supprimé',
       erreurSuppression: 'Erreur lors de la suppression',
       reessayerPlusTard: 'Veuillez réessayer plus tard',
@@ -180,6 +187,7 @@ export const PROFISSIONAIS_MESSAGES = defineMessages<ProfissionaisTextes>({
       decennaleJusquau: "Décennale valide jusqu'au ",
       decennaleValide: 'Décennale valide',
       aucunCompte: 'Aucun compte lié',
+      compteLie: 'Compte Vitfix lié',
       creerMission: 'Créer une mission',
       supprimerAria: 'Supprimer le prestataire',
       supprimerTitre: 'Supprimer',

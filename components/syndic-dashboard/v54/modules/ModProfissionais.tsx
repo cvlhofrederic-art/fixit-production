@@ -74,9 +74,10 @@ export default function ModProfissionais() {
   const aujourdhui = jourCivilLocal()
   const conformite = real ? data.artisans.map((a) => lireArtisan(a, aujourdhui)) : []
   // Démo : les 9 exemples ont une RC Pro valide (« 9 com Seguro RC válido » / « 9 avec RC Pro valide »).
-  const items: ReadonlyArray<{ pro: Pro; id: string | null; rcValide: boolean }> = real
-    ? data.artisans.map((a, i) => ({ pro: artisanToPro(a, aujourdhui), id: a.id, rcValide: conformite[i].rcValide }))
-    : t.demo.map((p) => ({ pro: p, id: null, rcValide: true }))
+  // `lie` : fiche reliée à un compte Vitfix (artisan_user_id) → peut recevoir des ordres de mission.
+  const items: ReadonlyArray<{ pro: Pro; id: string | null; rcValide: boolean; lie: boolean }> = real
+    ? data.artisans.map((a, i) => ({ pro: artisanToPro(a, aujourdhui), id: a.id, rcValide: conformite[i].rcValide, lie: !!a.artisan_user_id }))
+    : t.demo.map((p) => ({ pro: p, id: null, rcValide: true, lie: false }))
   const lede = real
     ? t.chapeau({
         total: data.artisans.length,
@@ -153,7 +154,7 @@ export default function ModProfissionais() {
         </>}
       />
       <div className={m.cardGrid}>
-        {items.map(({ pro: p, id, rcValide }) => (
+        {items.map(({ pro: p, id, rcValide, lie }) => (
           <Panel key={p[6]}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
               <div>
@@ -178,7 +179,7 @@ export default function ModProfissionais() {
             {p[8] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.decennaleJusquau}{dateApi(p[8], locale)}</div>}
             {p[9] && <div style={badge('var(--v54-sage-50)', 'var(--v54-sage-700)')}>{c.decennaleValide}</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <Button style={{ flex: 1, justifyContent: 'center' }} onClick={() => push({ kind: 'info', title: t.toasts.messages, desc: t.toasts.aucunCompteMessagerie })}><Icon name="chat" />{c.aucunCompte}</Button>
+              <Button style={{ flex: 1, justifyContent: 'center' }} onClick={() => push({ kind: 'info', title: t.toasts.messages, desc: lie ? t.toasts.compteLieMessagerie : t.toasts.aucunCompteMessagerie })}><Icon name="chat" />{lie ? c.compteLie : c.aucunCompte}</Button>
               <Button variant="primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setMissaoArtisan(p[0])}>{c.creerMission}</Button>
               <Button variant="ghost" aria-label={c.supprimerAria} title={c.supprimerTitre} onClick={() => setDelTarget({ id, name: p[0] })}><Icon name="trash" /></Button>
             </div>
