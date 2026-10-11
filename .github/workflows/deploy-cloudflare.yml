@@ -50,7 +50,12 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-        run: npx @opennextjs/cloudflare build
+          # Polices Google (next/font) parfois injoignables depuis les runners : reprise ciblée
+          # sur cette seule erreur (scripts/ci-build-avec-reprise.sh), comme ci.yml et tests.yml.
+          COMMANDE_BUILD: npx @opennextjs/cloudflare build
+          TENTATIVES_BUILD: "4"
+          PAUSE_BUILD_SECONDES: "45"
+        run: bash scripts/ci-build-avec-reprise.sh
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
