@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { processIncomingEmail } from '@/lib/syndic/alfredo-pipeline'
+import { processIncomingEmail, separerExpediteur } from '@/lib/syndic/alfredo-pipeline'
 
 describe('processIncomingEmail', () => {
   it('orchestre classify → load_context → draft → insert', async () => {
@@ -43,7 +43,38 @@ describe('processIncomingEmail', () => {
     expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({
       draft_status: 'pending_review',
       draft_subject: 'Re: Fuite',
+      resume_ia: 'Fuite eau',
     }))
+    // La table n'a pas de colonne resume_court : l'insertion échouerait.
+    expect(insertMock.mock.calls[0][0]).not.toHaveProperty('resume_court')
+  })
+
+  it('sépare le nom et l’adresse de l’en-tête From de Gmail', async () => {
+    const insertMock = vi.fn().mockResolvedValue({ data: { id: 'e' }, error: null })
+    const loadContextMock = vi.fn().mockResolvedValue({
+      client_token: 'ct', copro_status: 'unknown',
+      history_summary: { total_emails: 0, last_topics: [], sentiment_drift: 'neutre', last_resolved_topics: [] },
+      recent_interactions: [],
+      open_items: { missions: [], devis_en_cours: [], sinistres: [], signalements: [] },
+      missing_info_hints: [], rbac_omitted_fields: [],
+    })
+    await processIncomingEmail({
+      syndicId: 's1',
+      syndicRole: 'syndic_admin',
+      locale: 'fr',
+      email: { from: 'Julien Rousseau <Julien.Rousseau@Example.fr>', subject: 'Fuite', body_text: 'fuite', gmail_message_id: 'gm', received_at: '2026-10-12T06:42:00Z' },
+      classifyFn: vi.fn().mockResolvedValue({ urgence: 'urgente', type_demande: 'sinistre', resume_court: 'Fuite' }),
+      loadContextFn: loadContextMock,
+      draftFn: vi.fn().mockResolvedValue({ subject_suggested: 'Re', body_text: 'x', body_html: '<p>x</p>', confidence: 0.9, missing_info: [], suggested_next_actions: [] }),
+      insertFn: insertMock,
+    })
+    expect(loadContextMock).toHaveBeenCalledWith(expect.objectContaining({ emailAddress: 'julien.rousseau@example.fr' }))
+    expect(insertMock).toHaveBeenCalledWith(expect.objectContaining({ from_email: 'julien.rousseau@example.fr' }))
+  })
+
+  it('separerExpediteur : adresse seule, guillemets', () => {
+    expect(separerExpediteur('a@b.fr')).toEqual({ email: 'a@b.fr', nom: '' })
+    expect(separerExpediteur('"Garcia, Hélène" <office@notaires.fr>')).toEqual({ email: 'office@notaires.fr', nom: 'Garcia, Hélène' })
   })
 
   it('skip draft si classifier retourne spam', async () => {

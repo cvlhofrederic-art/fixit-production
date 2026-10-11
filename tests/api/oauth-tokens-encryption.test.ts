@@ -6,10 +6,17 @@ import { join } from 'path'
 const ROOT = process.cwd()
 
 describe('OAuth tokens encryption integration (anti-régression)', () => {
-  it('callback route utilise setEncryptedToken', () => {
-    const src = readFileSync(join(ROOT, 'app/api/email-agent/callback/route.ts'), 'utf-8')
-    expect(src).toMatch(/from\s+['"]@\/lib\/oauth\/tokens['"]/)
-    expect(src).toMatch(/setEncryptedToken/)
+  it('callbacks Google et Microsoft : jetons rangés via setEncryptedToken (retour OAuth partagé)', () => {
+    // Depuis Outlook / Microsoft 365, l'échange du code et le rangement des jetons sont partagés par les
+    // deux callbacks dans lib/email-agent/retour-oauth.ts : c'est lui qui doit chiffrer.
+    for (const route of ['app/api/email-agent/callback/route.ts', 'app/api/email-agent/callback/microsoft/route.ts']) {
+      const src = readFileSync(join(ROOT, route), 'utf-8')
+      expect(src).toMatch(/from\s+['"]@\/lib\/email-agent\/retour-oauth['"]/)
+      expect(src).toMatch(/traiterRetourOAuth\(/)
+    }
+    const retour = readFileSync(join(ROOT, 'lib/email-agent/retour-oauth.ts'), 'utf-8')
+    expect(retour).toMatch(/from\s+['"]@\/lib\/oauth\/tokens['"]/)
+    expect(retour).toMatch(/setEncryptedToken\(/)
   })
 
   it('poll route utilise getDecryptedToken', () => {

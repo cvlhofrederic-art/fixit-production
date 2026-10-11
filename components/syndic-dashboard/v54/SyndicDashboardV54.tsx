@@ -1,11 +1,15 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
-import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { ToastProvider, useToast } from '@/components/syndic-dashboard/v54/primitives/toast'
+import { RetourConnexionBoite } from '@/components/syndic-dashboard/v54/RetourConnexionBoite'
 import { SyndicDataProvider, useSyndicData } from '@/lib/syndic/v54/data-context'
 import { askAgentDetaille, decrireActionFixy, executerActionFixy } from '@/lib/syndic/v54/api'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
-import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
+import { DashboardShell, AGENT_ROUTES, SIDE_TITLES, compteursReels } from '@/components/syndic-dashboard/v54/shell'
+import { supabase } from '@/lib/supabase'
+import { lienPanneauAdmin, useSessionNavigateur } from '@/lib/auth/panneau-admin'
+import { IdentiteSyndicContext, nomAffiche } from '@/lib/syndic/v54/identite'
 import { SIDE_TITLES_FR } from '@/components/syndic-dashboard/v54/shell/sidebar-config.fr'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
 import { RACINE_MESSAGES } from '@/components/syndic-dashboard/v54/root.messages'
@@ -255,9 +259,61 @@ function AgentRoute({ route }: Readonly<{ route: string }>) {
   )
 }
 
+/**
+ * Shell branché sur la session : compteurs réels de la sidebar (syndic connecté ; maquette sinon),
+ * lien « Panneau admin » (super_admin ou « vue en tant que »), vraie déconnexion, nom de l'accueil.
+ * Exporté pour les tests.
+ */
+export function ShellSyndicV54({ routeDepart }: Readonly<{ routeDepart: string }>) {
+  const data = useSyndicData()
+  const session = useSessionNavigateur()
+  const locale = useV54Locale()
+  const { push } = useToast()
+  const identite = useMemo(() => ({ nom: nomAffiche(session?.user?.user_metadata) }), [session])
+  const compteurs = useMemo(
+    () => (data.authenticated ? compteursReels(data) : undefined),
+    [data],
+  )
+
+  const deconnecter = useCallback(async () => {
+    const fr = locale === 'fr-FR'
+    const echec = () => push({ kind: 'error', title: fr ? 'Déconnexion impossible' : 'Não foi possível terminar a sessão', desc: fr ? 'Vérifiez la connexion et réessayez.' : 'Verifique a ligação e tente novamente.' })
+    try {
+      // scope 'local' : seule cette session est fermée (pas celles du compte sur les autres appareils).
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error) { echec(); return }
+      window.location.href = fr ? '/fr/syndic/login' : '/pt/syndic/login'
+    } catch (erreur: unknown) {
+      console.warn('[syndic v54] déconnexion', erreur)
+      echec()
+    }
+  }, [locale, push])
+
+  return (
+    <IdentiteSyndicContext.Provider value={identite}>
+      <DashboardShell
+        defaultRoute={routeDepart}
+        renderModule={renderModule}
+        onLogout={deconnecter}
+        compteurs={compteurs}
+        lienAdmin={lienPanneauAdmin(session?.user?.app_metadata)}
+      />
+    </IdentiteSyndicContext.Provider>
+  )
+}
+
+/** Écran d'ouverture : « E-mails Fixy » au retour de la connexion de la boîte, sinon le tableau de bord. */
+function routeInitiale(): string {
+  if (typeof window === 'undefined') return 'dashboard'
+  const p = new URLSearchParams(window.location.search)
+  return p.has('email_connected') || p.has('email_error') || p.has('email_admin_consent') ? 'emailsFixy' : 'dashboard'
+}
+
 export default function SyndicDashboardV54() {
   const [hydrated, setHydrated] = useState(false)
+  const [routeDepart, setRouteDepart] = useState('dashboard')
   useEffect(() => {
+    setRouteDepart(routeInitiale())
     setHydrated(true)
   }, [])
 
@@ -266,7 +322,9 @@ export default function SyndicDashboardV54() {
     <div data-hydrated={hydrated ? 'true' : undefined} style={{ margin: -32 }}>
       <ToastProvider>
         <SyndicDataProvider>
-          <DashboardShell defaultRoute="dashboard" renderModule={renderModule} />
+          <RetourConnexionBoite />
+          {/* key : l'écran d'ouverture n'est connu qu'au montage (paramètres de l'URL). */}
+          <ShellSyndicV54 key={routeDepart} routeDepart={routeDepart} />
         </SyndicDataProvider>
       </ToastProvider>
     </div>

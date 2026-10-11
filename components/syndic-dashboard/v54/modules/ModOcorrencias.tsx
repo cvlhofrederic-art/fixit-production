@@ -25,7 +25,8 @@ type Cor = 'rust' | 'amber' | 'sage' | ''
 const PRIOS: [PrioriteOcorrencia, number, Cor][] = [['urgente', 2, 'rust'], ['haute', 3, 'amber'], ['normale', 1, ''], ['basse', 1, 'sage']]
 const dotClass = (c: Cor) => clsx(m.dotStatus, c === 'amber' && m.dotStatusAmber, c === 'rust' && m.dotStatusRust)
 
-const RESOLU = ['resolu', 'resolvido', 'resolue', 'termine', 'ferme', 'clos', 'fechado']
+/** Statuts clos : résolu, terminé (« terminee », statut des signalements traités) ou annulé. */
+const RESOLU = ['resolu', 'resolvido', 'resolue', 'termine', 'terminee', 'annulee', 'ferme', 'clos', 'fechado']
 const isResolu = (s: string) => RESOLU.includes(s)
 const isAberto = (s: string) => s === 'en_attente' || s === 'aberto' || s === 'nouveau'
 const statutCode = (s: string): StatutOcorrencia => (isResolu(s) ? 'resolvido' : isAberto(s) ? 'aberto' : 'curso')
@@ -95,9 +96,10 @@ export default function ModOcorrencias() {
             <div style={{ position: 'relative', width: 140, height: 140, margin: '0 auto' }}>
               <svg viewBox="0 0 140 140" style={{ transform: 'rotate(-90deg)' }}>
                 <circle cx="70" cy="70" r="60" stroke="var(--v54-cream)" strokeWidth="14" fill="none" />
-                <circle cx="70" cy="70" r="60" stroke="var(--v54-gold-500)" strokeWidth="14" fill="none" strokeDasharray={`${0.67 * 377} 377`} />
+                {/* Connecté : les signalements n'ont pas de dates de résolution → taux non calculable, anneau vide et « — ». */}
+                <circle cx="70" cy="70" r="60" stroke="var(--v54-gold-500)" strokeWidth="14" fill="none" strokeDasharray={`${real ? 0 : 0.67 * 377} 377`} />
               </svg>
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', textAlign: 'center' }}><div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 32, color: 'var(--v54-gold-700)' }}>{t.slaPct}</div><div style={{ fontSize: 10, color: 'var(--v54-navy-300)' }}>{t.slaDansLesDelais}</div></div>
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', textAlign: 'center' }}><div style={{ fontFamily: 'var(--v54-font-serif)', fontSize: 32, color: 'var(--v54-gold-700)' }}>{real ? '—' : t.slaPct}</div><div style={{ fontSize: 10, color: 'var(--v54-navy-300)' }}>{t.slaDansLesDelais}</div></div>
             </div>
             <div style={{ fontSize: 11, color: 'var(--v54-navy-300)', marginTop: 10 }}>{t.slaObjectifs}</div>
           </div>

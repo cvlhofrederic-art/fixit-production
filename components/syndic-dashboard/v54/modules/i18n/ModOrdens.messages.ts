@@ -1,7 +1,7 @@
 import { defineMessages } from '@/lib/syndic/v54/i18n'
 
 /** Statut affiché d'un ordre de service (code interne ; le libellé dépend de la langue). */
-export type StatutOrdre = 'pendente' | 'curso' | 'concluida'
+export type StatutOrdre = 'pendente' | 'curso' | 'concluida' | 'annulee'
 
 /** Ligne de démonstration : statut, référence, immeuble, intervention, localisation, prestataire, date. */
 export interface OrdreDemo {
@@ -24,7 +24,12 @@ interface OrdensTextes {
   recherchePlaceholder: string
   aucunResultat: string
   prioriteNormale: string
+  /** Priorités réelles des missions (colonne priorite : urgente | normale | planifiee). */
+  prioriteUrgente: string
+  prioritePlanifiee: string
   statuts: Record<StatutOrdre, string>
+  /** Statut « acceptée » proposé dans la fenêtre de gestion (il n'est plus réécrit en « en cours »). */
+  statutAcceptee: string
   valider: string
   ouvrir: string
   lot: (numero: string) => string
@@ -72,7 +77,10 @@ export const ORDENS_MESSAGES = defineMessages<OrdensTextes>({
     recherchePlaceholder: 'Pesquisar por edifício, descrição, profissional…',
     aucunResultat: 'Nenhuma ordem corresponde aos filtros.',
     prioriteNormale: 'Normal',
-    statuts: { pendente: 'Pendente', curso: 'Em curso', concluida: 'Concluída' },
+    prioriteUrgente: 'Urgente',
+    prioritePlanifiee: 'Planeada',
+    statuts: { pendente: 'Pendente', curso: 'Em curso', concluida: 'Concluída', annulee: 'Anulada' },
+    statutAcceptee: 'Aceite',
     valider: 'Validar',
     ouvrir: 'Abrir',
     lot: (numero) => `Fração ${numero}`,
@@ -128,20 +136,23 @@ export const ORDENS_MESSAGES = defineMessages<OrdensTextes>({
     recherchePlaceholder: 'Rechercher par immeuble, description, prestataire…',
     aucunResultat: 'Aucun ordre de service ne correspond aux filtres.',
     prioriteNormale: 'Normale',
-    statuts: { pendente: 'En attente', curso: 'En cours', concluida: 'Terminé' },
+    prioriteUrgente: 'Urgente',
+    prioritePlanifiee: 'Planifiée',
+    statuts: { pendente: 'En attente', curso: 'En cours', concluida: 'Terminé', annulee: 'Annulé' },
+    statutAcceptee: 'Acceptée',
     valider: 'Valider',
     ouvrir: 'Ouvrir',
     lot: (numero) => `Lot ${numero}`,
     demo: [
-      { statut: 'pendente', ref: '#OS-2026-001', immeuble: 'Résidence Les Berges du Rhône', intervention: "Plomberie · Fuite d'eau dans un appartement", lieu: 'Lot 4B', prestataire: 'Bruno Tessier', date: '22/05/2026' },
-      { statut: 'curso', ref: '#OS-2026-002', immeuble: 'Copropriété Bellecour Center', intervention: 'Suivi de chantier · Étanchéité de la toiture-terrasse', lieu: '', prestataire: 'Bruno Tessier', date: '20/05/2026' },
-      { statut: 'concluida', ref: '#OS-2026-003', immeuble: 'Résidence Croix-Rousse', intervention: 'Contrôle technique · Vérification périodique des installations gaz des parties communes', lieu: '', prestataire: 'Bruno Tessier', date: '12/04/2026' },
-      { statut: 'pendente', ref: '#OS-2026-004', immeuble: 'Copropriété Bellecour Center', intervention: 'Petits travaux · Remplacement de 4 ampoules LED au parking', lieu: '', prestataire: 'Damien Perrin', date: '18/05/2026' },
-      { statut: 'curso', ref: '#OS-2026-005', immeuble: 'Résidence Les Berges du Rhône', intervention: "Petits travaux · Retouches de peinture dans le hall d'entrée", lieu: '2e étage', prestataire: 'Thomas Ménard', date: '16/05/2026' },
-      { statut: 'pendente', ref: '#OS-2026-006', immeuble: 'Résidence Les Berges du Rhône', intervention: 'Entretien courant · Portail automatique du parking trop lent à la fermeture', lieu: 'Niveau -1', prestataire: '—', date: '—' },
-      { statut: 'pendente', ref: '#OS-2026-007', immeuble: 'Résidence Les Berges du Rhône', intervention: 'Électricité · Éclairage du couloir du 2e étage qui clignote en permanence', lieu: '2e étage', prestataire: '—', date: '—' },
-      { statut: 'pendente', ref: '#OS-2026-008', immeuble: 'Résidence Croix-Rousse', intervention: "Gros œuvre · Nouvelle fissure sur le mur latéral de l'immeuble, côté nord", lieu: 'Extérieur', prestataire: '—', date: '—' },
-      { statut: 'pendente', ref: '#OS-2026-009', immeuble: 'Résidence Croix-Rousse', intervention: "Entretien courant · Réparation d'une sonnette défectueuse au rez-de-chaussée gauche", lieu: 'Bât. A · RDC', prestataire: 'Thomas Ménard', date: '21/05/2026' },
+      { statut: 'pendente', ref: '#OS-2026-001', immeuble: 'Résidence Euroméditerranée', intervention: "Plomberie · Fuite d'eau dans un appartement", lieu: 'Lot 4B', prestataire: 'Bruno Tessier', date: '22/05/2026' },
+      { statut: 'curso', ref: '#OS-2026-002', immeuble: 'Copropriété Les Terrasses du Vieux-Port', intervention: 'Suivi de chantier · Étanchéité de la toiture-terrasse', lieu: '', prestataire: 'Bruno Tessier', date: '20/05/2026' },
+      { statut: 'concluida', ref: '#OS-2026-003', immeuble: 'Résidence Castellane', intervention: 'Contrôle technique · Vérification périodique des installations gaz des parties communes', lieu: '', prestataire: 'Bruno Tessier', date: '12/04/2026' },
+      { statut: 'pendente', ref: '#OS-2026-004', immeuble: 'Copropriété Les Terrasses du Vieux-Port', intervention: 'Petits travaux · Remplacement de 4 ampoules LED au parking', lieu: '', prestataire: 'Damien Perrin', date: '18/05/2026' },
+      { statut: 'curso', ref: '#OS-2026-005', immeuble: 'Résidence Euroméditerranée', intervention: "Petits travaux · Retouches de peinture dans le hall d'entrée", lieu: '2e étage', prestataire: 'Thomas Ménard', date: '16/05/2026' },
+      { statut: 'pendente', ref: '#OS-2026-006', immeuble: 'Résidence Euroméditerranée', intervention: 'Entretien courant · Portail automatique du parking trop lent à la fermeture', lieu: 'Niveau -1', prestataire: '—', date: '—' },
+      { statut: 'pendente', ref: '#OS-2026-007', immeuble: 'Résidence Euroméditerranée', intervention: 'Électricité · Éclairage du couloir du 2e étage qui clignote en permanence', lieu: '2e étage', prestataire: '—', date: '—' },
+      { statut: 'pendente', ref: '#OS-2026-008', immeuble: 'Résidence Castellane', intervention: "Gros œuvre · Nouvelle fissure sur le mur latéral de l'immeuble, côté nord", lieu: 'Extérieur', prestataire: '—', date: '—' },
+      { statut: 'pendente', ref: '#OS-2026-009', immeuble: 'Résidence Castellane', intervention: "Entretien courant · Réparation d'une sonnette défectueuse au rez-de-chaussée gauche", lieu: 'Bât. A · RDC', prestataire: 'Thomas Ménard', date: '21/05/2026' },
     ],
     formulaire: {
       immeuble: 'Immeuble',

@@ -20,6 +20,7 @@ import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
 import {
   useDonneesCadre,
   useNomsCoproprietesSelonMode,
@@ -771,6 +772,11 @@ export function Shell() {
                 aria-hidden="true"
               />
             </button>
+            {/* Super_admin (ou « vue en tant que ») seulement : retour au sélecteur de tableaux de bord. */}
+            <LienPanneauAdmin className="nav-item" style={{ marginTop: 8, textDecoration: 'none' }}>
+              <Icon name="shield" aria-hidden="true" />
+              <span>Panneau admin</span>
+            </LienPanneauAdmin>
           </div>
         </aside>
         <div

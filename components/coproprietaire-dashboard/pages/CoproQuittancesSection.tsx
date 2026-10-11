@@ -65,7 +65,7 @@ Référence : ${q.reference}
 Cette quittance atteste que le loyer du mois de ${moisLabel(q.mois)}
 a bien été reçu.
 
-Fait à Paris, le ${new Date().toLocaleDateString(dateFmtLocale)}
+Fait à Marseille, le ${new Date().toLocaleDateString(dateFmtLocale)}
 Signature du bailleur : ${BAIL_DEMO.bailleur}`
 
     const blob = new Blob([texte], { type: 'text/plain;charset=utf-8' })

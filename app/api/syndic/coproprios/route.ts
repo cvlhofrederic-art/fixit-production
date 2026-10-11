@@ -6,6 +6,13 @@ import { logger, parsePagination } from '@/lib/logger'
 import { z } from 'zod'
 import { validateBody, syndicCoproprioPOSTSchema } from '@/lib/validation'
 
+/**
+ * Rôles autorisés à créer / supprimer des copropriétaires. super_admin : accepté comme par
+ * isSyndicRole, sur SON cabinet (resolveCabinetId → son id) — démo du tableau de bord v54.
+ */
+const ROLES_ECRITURE_COPROS: ReadonlySet<string> = new Set(['syndic', 'syndic_admin', 'syndic_gestionnaire', 'super_admin'])
+const ROLES_SUPPRESSION_COPROS: ReadonlySet<string> = new Set(['syndic', 'syndic_admin', 'super_admin'])
+
 const syndicCopropriosBatchSchema = z.object({
   coproprios: z.array(z.record(z.string(), z.unknown())).max(500).optional(),
   coproprio: z.record(z.string(), z.unknown()).optional(),
@@ -75,7 +82,7 @@ export async function POST(request: NextRequest) {
     // Double-check write permissions using server-side app_metadata (non-forgeable)
     const { getUserRole } = await import('@/lib/auth-helpers')
     const userRole = getUserRole(user)
-    if (userRole !== 'syndic' && userRole !== 'syndic_admin' && userRole !== 'syndic_gestionnaire') {
+    if (!ROLES_ECRITURE_COPROS.has(userRole)) {
       return NextResponse.json({ error: 'Droits insuffisants' }, { status: 403 })
     }
 
@@ -227,7 +234,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
     const userRole = getUserRole(user)
-    if (userRole !== 'syndic' && userRole !== 'syndic_admin') {
+    if (!ROLES_SUPPRESSION_COPROS.has(userRole)) {
       return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
     }
 

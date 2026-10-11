@@ -42,7 +42,9 @@ describe('construirePromptCopro — français', () => {
   it('présente Fixy, la copropriétaire, son lot et le jour', () => {
     expect(prompt).toContain('Tu es Fixy')
     expect(prompt).toContain('Géraldine Xavier')
-    expect(prompt).toContain('lot n°12 à la Résidence Les Acacias (bâtiment D, 4e étage)')
+    // Immeuble du cabinet de démo Syndic v54 (seed Marseille) : un signalement y arrive sans ambiguïté.
+    expect(prompt).toContain('lot n°12 à la Résidence Le Prado (bâtiment D, 4e étage), à Marseille.')
+    expect(prompt).not.toContain('Paris.')
     expect(prompt).toContain('Le syndic de l\'immeuble est le Cabinet Dupont')
     expect(prompt).toContain('Nous sommes le lundi 12 octobre 2026.')
     expect(prompt).toContain('Tantièmes : 450 / 10 000, soit une quote-part de 4,5 % des charges communes')
@@ -58,7 +60,7 @@ describe('construirePromptCopro — français', () => {
   it('situation financière : solde, paiements à régler et mois en cours', () => {
     expect(prompt).toContain('Solde à régler : 2 537,50 € (3 paiement(s) en attente)')
     expect(prompt).toContain('- Charges T4 2026 : 855,00 € — à régler, échéance le 15/10/2026 (réf. PAY-2026-004)')
-    expect(prompt).toContain('- Fonds de travaux art. 14-2 : 220,00 € — à régler, échéance le 05/11/2026 (réf. FDT-2026-001)')
+    expect(prompt).toContain('- Fonds de travaux art. 14-2-1 : 220,00 € — à régler, échéance le 05/11/2026 (réf. FDT-2026-001)')
     expect(prompt).toContain('- Ravalement façade — 1er appel de fonds (quote-part) : 1 462,50 € — à régler, échéance le 01/12/2026')
     expect(prompt).toContain('- Charges T3 2026 : 855,00 € — réglé le 10/07/2026 (réf. PAY-2026-003)')
     expect(prompt).toContain('-125,00 € (remboursement en votre faveur)')
@@ -134,6 +136,7 @@ describe('construirePromptCopro — portugais', () => {
     expect(prompt).toContain('Os dados abaixo estão em francês')
     expect(prompt).toContain('Hoje é segunda-feira, 12 de outubro de 2026.')
     expect(prompt).toContain('Géraldine Xavier, titular da fração n.º 12')
+    expect(prompt).toContain('do condomínio Résidence Le Prado (bloco D, 4.º piso), em Marselha.')
     expect(prompt).toContain('Saldo por pagar: ')
     expect(prompt).toContain('2537,50 €')
     expect(prompt).toContain('Próxima assembleia: AG Extraordinaire — Chaudière collective, quinta-feira, 19 de novembro de 2026 às 18h00.')

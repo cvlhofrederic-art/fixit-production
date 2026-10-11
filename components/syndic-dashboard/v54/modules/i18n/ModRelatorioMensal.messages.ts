@@ -118,8 +118,8 @@ export const RELATORIO_MENSAL_MESSAGES = defineMessages<RelatorioMensalTextes>({
         ['55 %', 'Budget consommé', 'sage'],
       ],
       interventions: [
-        ['Résidence Croix-Rousse — Contrôle technique', 'Bruno Tessier', '12/04/2026', '0 €'],
-        ['Résidence Atlantique — Entretien courant', 'Damien Perrin', '29/04/2026', '0 €'],
+        ['Résidence Castellane — Contrôle technique', 'Bruno Tessier', '12/04/2026', '0 €'],
+        ['Résidence Le Prado — Entretien courant', 'Damien Perrin', '29/04/2026', '0 €'],
       ],
       mois: ['Avril', 'Mai'],
       periode: 'Avril 2026',

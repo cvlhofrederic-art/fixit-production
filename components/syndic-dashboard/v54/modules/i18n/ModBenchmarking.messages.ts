@@ -49,10 +49,10 @@ export const BENCHMARKING_MESSAGES = defineMessages<BenchmarkingTextes>({
     toasts: { titre: 'Exporter le comparatif', ajouterImmeubles: 'Ajoutez des immeubles pour exporter.', connexionRequise: 'Connectez-vous en tant que syndic pour exporter.' },
     csv: { fichier: 'comparatif-immeubles.csv', entetes: ['Rang', 'Immeuble', 'Score de santé', 'Coût / lot (€)'] },
     demo: [
-      { id: 'b1', nom: 'Résidence Aurore', adresse: '', ville: 'Lyon', codePostal: '', nbLots: 20, anneeConstruction: 2015, typeImmeuble: '', gestionnaire: '', nbInterventions: 2, budgetAnnuel: 50000, depensesAnnee: 30000 },
-      { id: 'b2', nom: 'Résidence Croix-Rousse', adresse: '', ville: 'Lyon', codePostal: '', nbLots: 18, anneeConstruction: 2008, typeImmeuble: '', gestionnaire: '', nbInterventions: 3, budgetAnnuel: 45000, depensesAnnee: 31500 },
-      { id: 'b3', nom: 'Copropriété Bellecour Center', adresse: '', ville: 'Lyon', codePostal: '', nbLots: 16, anneeConstruction: 2000, typeImmeuble: '', gestionnaire: '', nbInterventions: 5, budgetAnnuel: 40000, depensesAnnee: 34000 },
-      { id: 'b4', nom: 'Résidence Belle Vue', adresse: '', ville: 'Lyon', codePostal: '', nbLots: 12, anneeConstruction: 1992, typeImmeuble: '', gestionnaire: '', nbInterventions: 8, budgetAnnuel: 30000, depensesAnnee: 28500 },
+      { id: 'b1', nom: 'Résidence Aurore', adresse: '', ville: 'Marseille', codePostal: '', nbLots: 20, anneeConstruction: 2015, typeImmeuble: '', gestionnaire: '', nbInterventions: 2, budgetAnnuel: 50000, depensesAnnee: 30000 },
+      { id: 'b2', nom: 'Résidence Castellane', adresse: '', ville: 'Marseille', codePostal: '', nbLots: 18, anneeConstruction: 2008, typeImmeuble: '', gestionnaire: '', nbInterventions: 3, budgetAnnuel: 45000, depensesAnnee: 31500 },
+      { id: 'b3', nom: 'Copropriété Les Terrasses du Vieux-Port', adresse: '', ville: 'Marseille', codePostal: '', nbLots: 16, anneeConstruction: 2000, typeImmeuble: '', gestionnaire: '', nbInterventions: 5, budgetAnnuel: 40000, depensesAnnee: 34000 },
+      { id: 'b4', nom: 'Résidence Belle Vue', adresse: '', ville: 'Marseille', codePostal: '', nbLots: 12, anneeConstruction: 1992, typeImmeuble: '', gestionnaire: '', nbInterventions: 8, budgetAnnuel: 30000, depensesAnnee: 28500 },
     ],
   },
 })

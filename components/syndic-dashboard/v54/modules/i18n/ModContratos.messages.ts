@@ -159,7 +159,7 @@ export const CONTRATOS_MESSAGES = defineMessages<ContratosTextes>({
     formulaire: {
       titre: 'Nouveau contrat',
       prestataire: 'Prestataire',
-      prestatairePlaceholder: 'Ex. : Nettoyage Rhône SARL',
+      prestatairePlaceholder: 'Ex. : Nettoyage Provence SARL',
       categorie: 'Catégorie',
       immeuble: 'Immeuble',
       facultatif: 'Facultatif',

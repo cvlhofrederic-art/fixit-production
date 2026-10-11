@@ -4,7 +4,16 @@ export interface AlfredoChatContext {
   role: SyndicRole
   inbox_pending_count: number
   inbox_total_count: number
+  /** Boîte e-mail du cabinet connectée (Gmail ou Outlook / Microsoft 365). */
   gmail_connected: boolean
+  /** Nom du fournisseur de la boîte connectée (« Outlook / Microsoft 365 », « Gmail / Google Workspace »). */
+  boite_fournisseur?: string | null
+}
+
+/** « oui (Outlook / Microsoft 365) » / « non » — ligne de contexte de la boîte e-mail. */
+export function etatBoite(ctx: AlfredoChatContext, oui: string, non: string): string {
+  if (!ctx.gmail_connected) return non
+  return ctx.boite_fournisseur ? `${oui} (${ctx.boite_fournisseur})` : oui
 }
 
 export function buildAlfredoSystemPromptFR(ctx: AlfredoChatContext): string {
@@ -16,7 +25,7 @@ CONTEXTE ACTUEL :
 - Rôle utilisateur : ${ctx.role}
 - Brouillons en attente : ${ctx.inbox_pending_count}
 - Emails analysés (total) : ${ctx.inbox_total_count}
-- Gmail connecté : ${ctx.gmail_connected ? 'oui' : 'non'}
+- Boîte e-mail connectée : ${etatBoite(ctx, 'oui', 'non')}
 
 TES CAPACITÉS (tools) :
 - search_emails(query, filters) — recherche full-text dans les emails analysés

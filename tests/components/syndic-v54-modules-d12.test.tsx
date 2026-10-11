@@ -41,10 +41,11 @@ describe('syndic v54 — ModLancamentoFat', () => {
 })
 
 describe('syndic v54 — ModEmailsFixy', () => {
-  it('rend titre, état initial et action Gmail', () => {
+  it('rend titre, état initial et actions de connexion (Outlook / Microsoft 365, Gmail)', () => {
     render(<ModEmailsFixy />)
     expect(screen.getByRole('heading', { name: 'Emails Fixy' })).toBeTruthy()
-    expect(screen.getByText('Ligue a sua caixa Gmail')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Ligar Gmail' })).toBeTruthy()
+    expect(screen.getByText('Ligue a sua caixa de email')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Outlook / Microsoft 365' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Gmail / Google Workspace' })).toBeTruthy()
   })
 })

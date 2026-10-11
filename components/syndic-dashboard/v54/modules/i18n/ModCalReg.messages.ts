@@ -108,14 +108,14 @@ export const CAL_REG_MESSAGES = defineMessages<CalRegTextes>({
     // loi n° 65-557), DPE collectif (loi Climat et résilience), mandat du syndic (3 ans au plus),
     // plan pluriannuel de travaux actualisé tous les 10 ans (art. 14-2). Mêmes dates qu'en PT.
     demo: [
-      { id: 'c1', edificio: 'Résidence Les Berges du Rhône', tipo: 'Assemblée générale', descricao: 'AG annuelle — approbation des comptes et vote du budget', prazo: '2026-04-15', concluido: false },
-      { id: 'c2', edificio: 'Résidence Les Berges du Rhône', tipo: 'Contrôle ascenseur', descricao: "Contrôle technique quinquennal de l'ascenseur", prazo: '2026-04-30', concluido: false },
-      { id: 'c3', edificio: 'Résidence Croix-Rousse', tipo: 'Renouvellement assurance', descricao: "Renouvellement de l'assurance RC du syndicat", prazo: '2026-06-30', concluido: false },
-      { id: 'c4', edificio: 'Copropriété Bellecour Center', tipo: 'Chaufferie collective', descricao: 'Entretien annuel de la chaudière collective', prazo: '2026-07-20', concluido: false },
-      { id: 'c5', edificio: 'Résidence Croix-Rousse', tipo: 'DPE collectif', descricao: 'Réalisation du DPE collectif', prazo: '2026-08-10', concluido: false },
-      { id: 'c6', edificio: 'Résidence Atlantique', tipo: 'Mandat du syndic', descricao: 'Fin du mandat du syndic — renouvellement à inscrire en AG', prazo: '2026-09-15', concluido: false },
-      { id: 'c7', edificio: 'Résidence Atlantique', tipo: 'Assemblée générale', descricao: 'AG annuelle obligatoire', prazo: '2027-03-31', concluido: false },
-      { id: 'c8', edificio: 'Copropriété Bellecour Center', tipo: 'Plan pluriannuel de travaux', descricao: 'Actualisation du plan pluriannuel de travaux (tous les 10 ans)', prazo: '2027-05-30', concluido: false },
+      { id: 'c1', edificio: 'Résidence Euroméditerranée', tipo: 'Assemblée générale', descricao: 'AG annuelle — approbation des comptes et vote du budget', prazo: '2026-04-15', concluido: false },
+      { id: 'c2', edificio: 'Résidence Euroméditerranée', tipo: 'Contrôle ascenseur', descricao: "Contrôle technique quinquennal de l'ascenseur", prazo: '2026-04-30', concluido: false },
+      { id: 'c3', edificio: 'Résidence Castellane', tipo: 'Renouvellement assurance', descricao: "Renouvellement de l'assurance RC du syndicat", prazo: '2026-06-30', concluido: false },
+      { id: 'c4', edificio: 'Copropriété Les Terrasses du Vieux-Port', tipo: 'Chaufferie collective', descricao: 'Entretien annuel de la chaudière collective', prazo: '2026-07-20', concluido: false },
+      { id: 'c5', edificio: 'Résidence Castellane', tipo: 'DPE collectif', descricao: 'Réalisation du DPE collectif', prazo: '2026-08-10', concluido: false },
+      { id: 'c6', edificio: 'Résidence Le Prado', tipo: 'Mandat du syndic', descricao: 'Fin du mandat du syndic — renouvellement à inscrire en AG', prazo: '2026-09-15', concluido: false },
+      { id: 'c7', edificio: 'Résidence Le Prado', tipo: 'Assemblée générale', descricao: 'AG annuelle obligatoire', prazo: '2027-03-31', concluido: false },
+      { id: 'c8', edificio: 'Copropriété Les Terrasses du Vieux-Port', tipo: 'Plan pluriannuel de travaux', descricao: 'Actualisation du plan pluriannuel de travaux (tous les 10 ans)', prazo: '2027-05-30', concluido: false },
     ],
   },
 })

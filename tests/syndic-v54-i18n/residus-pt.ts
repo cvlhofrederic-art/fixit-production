@@ -40,6 +40,8 @@ export const IDENTIQUES_AUTORISES: ReadonlySet<string> = new Set<string>([
   'Fixy', 'Max Expert', 'Léa', 'Alfredo', 'Tempo', 'VitFix', 'VitFix Pro', 'VITFIX', 'Super Admin',
   'Open Banking', 'WhatsApp', 'WhatsApp/SMS', 'SMS', 'NPS', 'SLA', 'RGPD', 'GED', 'PDF', 'CSV', 'IA', 'QR Code', 'IBAN',
   'Total', 'Normal', 'Info', 'Email', 'E-mail', 'Gmail', 'Dashboard', 'Benchmarking', 'Checklists IA', 'Marketplace',
+  // Fournisseurs de boîte e-mail (boutons de connexion d'Alfredo).
+  'Outlook / Microsoft 365', 'Gmail / Google Workspace',
   // Libellés de la sidebar FR identiques au PT, corrects en français.
   'Chatbot WhatsApp 24/7',
   // Mots identiques et corrects en français.

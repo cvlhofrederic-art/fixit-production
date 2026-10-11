@@ -1,4 +1,4 @@
-import type { AlfredoChatContext } from './system-prompt-fr'
+import { etatBoite, type AlfredoChatContext } from './system-prompt-fr'
 export type { AlfredoChatContext }
 
 export function buildAlfredoSystemPromptPT(ctx: AlfredoChatContext): string {
@@ -10,7 +10,7 @@ CONTEXTO :
 - Cargo utilizador : ${ctx.role}
 - Rascunhos pendentes : ${ctx.inbox_pending_count}
 - Emails analisados (total) : ${ctx.inbox_total_count}
-- Gmail conectado : ${ctx.gmail_connected ? 'sim' : 'não'}
+- Caixa de email ligada : ${etatBoite(ctx, 'sim', 'não')}
 
 CAPACIDADES : search_emails, bulk_action, summarize_inbox, regenerate_draft, send_response
 

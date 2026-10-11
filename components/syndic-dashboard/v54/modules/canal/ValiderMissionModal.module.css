@@ -1,0 +1,93 @@
+/* « Valider la mission » — liste de choix du prestataire.
+ * Le Modal v54 est rendu en portal sous <body>, hors de #syndic-dashboard-v54 : module CSS (pas
+ * canal.css, scopé sous l'id) et tokens --v54-* avec leur valeur en secours. */
+
+.intro {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--v54-navy-500, #2A4663);
+}
+
+.fieldset {
+  border: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  min-width: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--v54-navy-300, #5A6B7D);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--v54-line-strong, rgba(11, 24, 40, 0.14));
+  border-radius: var(--v54-r-md, 10px);
+  background: #fff;
+  cursor: pointer;
+}
+.option:hover { background: var(--v54-cream, #F4EFE4); }
+.option:focus-within { outline: 2px solid var(--v54-gold-500, #C9A574); outline-offset: 1px; }
+.selected {
+  border-color: var(--v54-gold-500, #C9A574);
+  background: var(--v54-gold-50, #F8F2E6);
+}
+.disabled {
+  cursor: not-allowed;
+  background: var(--v54-paper, #FBF8F1);
+}
+.disabled:hover { background: var(--v54-paper, #FBF8F1); }
+.disabled .nom { color: var(--v54-navy-300, #5A6B7D); }
+
+.option input { accent-color: var(--v54-gold-700, #846838); flex-shrink: 0; }
+
+.info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nom {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--v54-navy-900, #0B1828);
+}
+.metier {
+  font-size: 12px;
+  color: var(--v54-navy-500, #2A4663);
+}
+
+.vide {
+  margin: 0;
+  padding: 16px 0;
+  font-size: 12.5px;
+  color: var(--v54-navy-300, #5A6B7D);
+}
+
+.erreur {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: var(--v54-rust-700, #8E4327);
+}

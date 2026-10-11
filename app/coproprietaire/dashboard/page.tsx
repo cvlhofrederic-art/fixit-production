@@ -3,10 +3,15 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
 import { formatPrice, formatDate } from '@/lib/utils'
 import { useLocale } from '@/lib/i18n/context'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { oublierDonneesDemoPerimees } from '@/lib/copro-stockage-local'
+import {
+  DESCRIPTION_MIN_SIGNALEMENT, construireSignalement, envoyerSignalementCopro, typeSansPictogramme,
+  type CodeErreurSignalement,
+} from '@/lib/copro-signalement'
 import {
   PROFILE_DEMO, CHARGES_DEMO, PAIEMENTS_DEMO, DOCUMENTS_DEMO, ANNONCES_DEMO,
   AG_DEMO, ECHEANCES_DEMO, NOTIFICATIONS_DEMO, HISTORIQUE_DEMO, PARAMS_DEMO,
@@ -37,14 +42,6 @@ const CoproMonBailSection = d(() => import('@/components/coproprietaire-dashboar
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CoproPage = 'accueil' | 'documents' | 'paiements' | 'annonces' | 'signalement' | 'assemblees' | 'historique' | 'parametres' | 'assistant' | 'interventions_suivi' | 'mes_charges' | 'quittances' | 'mon_bail' | 'modules'
-
-interface CanalMessage {
-  auteur: string
-  role: string
-  texte: string
-  date: string
-  type?: string
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -230,7 +227,7 @@ const T = {
     nouveauSignalement: '🔔 Nouveau signalement',
     signalerProbleme: 'Signalez un problème à votre gestionnaire de copropriété',
     signalementEnvoye: 'Signalement envoyé !',
-    signalementConfirm: 'Votre gestionnaire a été notifié. Un suivi apparaîtra dans votre historique.',
+    signalementConfirm: 'Votre gestionnaire a été notifié. Suivez son traitement dans « Mes signalements », ci-dessous.',
     voirHistorique: 'Voir l\'historique →',
     localisationAuto: '📍 Votre localisation (auto-remplie)',
     partieCommune: 'Partie commune ?',
@@ -251,6 +248,23 @@ const T = {
     urgencePlanifieeDesc: 'À programmer',
     envoyerSignalement: '📤 Envoyer le signalement au syndic',
     signalementTransmis: 'Votre signalement sera transmis à votre gestionnaire de copropriété.',
+    descriptionMinimum: '10 caractères minimum, pour que le syndic comprenne le problème.',
+    descriptionEncore: 'Encore {n} caractère(s) : 10 caractères minimum pour que le syndic puisse traiter votre demande.',
+    signalementTypeRequis: 'Choisissez le type d\'intervention.',
+    signalementDescCourte: 'Décrivez le problème en 10 caractères au moins.',
+    signalementEnvoiEnCours: '⏳ Envoi en cours…',
+    signalementEchecInvalide: 'Le syndic n\'a pas pu enregistrer ce signalement : vérifiez la description et réessayez.',
+    signalementEchecTropDeDemandes: 'Trop d\'envois en peu de temps : réessayez dans une minute.',
+    signalementEchecServeur: 'Le signalement n\'a pas pu être envoyé. Réessayez dans un instant.',
+    signalementEchecReseau: 'Connexion impossible : vérifiez votre réseau puis réessayez.',
+    mesSignalements: '📋 Mes signalements',
+    mesSignalementsDesc: 'Suivi de vos demandes par le syndic',
+    actualiser: '↻ Actualiser',
+    suiviChargement: 'Chargement…',
+    aucunSignalement: 'Aucun signalement envoyé pour le moment.',
+    suiviIndisponible: 'Impossible de charger le suivi pour le moment.',
+    suiviTropDeDemandes: 'Trop de demandes : réessayez dans une minute.',
+    suiviSansEmail: 'Renseignez votre e-mail dans Paramètres pour suivre vos signalements.',
     // AG
     agOrdinaire: 'AG Ordinaire',
     agExtraordinaire: 'AG Extraordinaire',
@@ -511,7 +525,7 @@ const T = {
     nouveauSignalement: '🔔 Nova ocorrência',
     signalerProbleme: 'Reporte um problema ao administrador do condomínio',
     signalementEnvoye: 'Ocorrência enviada!',
-    signalementConfirm: 'O administrador foi notificado. O acompanhamento aparecerá no seu histórico.',
+    signalementConfirm: 'O administrador foi notificado. Acompanhe o tratamento em « As minhas ocorrências », abaixo.',
     voirHistorique: 'Ver histórico →',
     localisationAuto: '📍 A sua localização (preenchimento automático)',
     partieCommune: 'Parte comum?',
@@ -532,6 +546,23 @@ const T = {
     urgencePlanifieeDesc: 'A programar',
     envoyerSignalement: '📤 Enviar ocorrência ao administrador',
     signalementTransmis: 'A sua ocorrência será transmitida ao administrador do condomínio.',
+    descriptionMinimum: 'Mínimo de 10 caracteres, para que o administrador compreenda o problema.',
+    descriptionEncore: 'Faltam {n} caractere(s): mínimo de 10 caracteres para que o administrador possa tratar o pedido.',
+    signalementTypeRequis: 'Escolha o tipo de intervenção.',
+    signalementDescCourte: 'Descreva o problema com pelo menos 10 caracteres.',
+    signalementEnvoiEnCours: '⏳ A enviar…',
+    signalementEchecInvalide: 'O administrador não conseguiu registar esta ocorrência: verifique a descrição e tente novamente.',
+    signalementEchecTropDeDemandes: 'Demasiados envios em pouco tempo: tente novamente dentro de um minuto.',
+    signalementEchecServeur: 'Não foi possível enviar a ocorrência. Tente novamente dentro de instantes.',
+    signalementEchecReseau: 'Sem ligação: verifique a sua rede e tente novamente.',
+    mesSignalements: '📋 As minhas ocorrências',
+    mesSignalementsDesc: 'Acompanhamento dos seus pedidos pelo administrador',
+    actualiser: '↻ Atualizar',
+    suiviChargement: 'A carregar…',
+    aucunSignalement: 'Ainda não enviou nenhuma ocorrência.',
+    suiviIndisponible: 'Não foi possível carregar o acompanhamento de momento.',
+    suiviTropDeDemandes: 'Demasiados pedidos: tente novamente dentro de um minuto.',
+    suiviSansEmail: 'Indique o seu e-mail nas Definições para acompanhar as suas ocorrências.',
     // AG
     agOrdinaire: 'Assembleia Ordinária',
     agExtraordinaire: 'Assembleia Extraordinária',
@@ -908,6 +939,9 @@ export default function CoproprietaireDashboard() {
   const [signalemPartieCommune, setSignalemPartieCommune] = useState(false)
   const [signalemZone, setSignalemZone] = useState('')
   const [signalemEnvoye, setSignalemEnvoye] = useState(false)
+  const [signalemEnvoi, setSignalemEnvoi] = useState(false)
+  // Incrémenté après chaque envoi réussi : la liste « Mes signalements » se recharge.
+  const [versionMesSignalements, setVersionMesSignalements] = useState(0)
 
   // (docFilterType, docFilterAnnee, docSearch internalized in CoproDocumentsSection)
   // (paiementTab internalized in CoproPaiementsSection)
@@ -1006,7 +1040,8 @@ export default function CoproprietaireDashboard() {
 
   const userName = `${profile.prenom} ${profile.nom}`
   const initials = `${profile.prenom[0]}${profile.nom[0]}`
-  const isAdminOverride = user?.app_metadata?.role === 'super_admin'
+  // Lien « Panneau admin » : super_admin ou « vue en tant que » d'un super_admin (app_metadata, non forgeable).
+  const lienAdmin = lienPanneauAdmin(user?.app_metadata)
 
   // ── Actions ──
   const handleLogout = async () => {
@@ -1031,77 +1066,61 @@ export default function CoproprietaireDashboard() {
     setDocuments(prev => prev.map(d => d.id === id ? { ...d, consulte: true, dateConsultation: new Date().toISOString().slice(0, 10) } : d))
   }
 
-  const handleEnvoyerSignalement = () => {
-    if (!signalemType || !signalemDesc) return
-    const locationLabel = signalemPartieCommune
-      ? `Partie commune — ${signalemZone || 'Zone non précisée'}`
-      : `${profile.immeuble} · Bât. ${profile.batiment} · Ét. ${profile.etage} · Lot ${profile.numLot}`
-    const msgTexte = `📋 SIGNALEMENT — ${signalemType}\n\n👤 De : ${profile.prenom} ${profile.nom} (Copropriétaire)\n📍 Localisation : ${locationLabel}\n🔔 Urgence : ${signalemUrgence === 'urgente' ? '🔴 URGENT' : signalemUrgence === 'planifiee' ? '🟢 Planifiée' : '🟡 Normale'}\n\n📝 Description :\n${signalemDesc}`
-    const newMsg: CanalMessage = {
-      auteur: `${profile.prenom} ${profile.nom}`,
-      role: 'coproprio',
-      texte: msgTexte,
-      date: new Date().toISOString(),
-      type: 'signalement',
-    }
-    // Sauvegarder dans le canal partagé avec le portail
-    const canalKey = `canal_demandeur_${profile.prenom}_${profile.nom}`
+  // Message affiché quand le syndic n'a pas reçu le signalement (le formulaire reste rempli).
+  const messageEchecSignalement = (code: CodeErreurSignalement): string => ({
+    invalide: t.signalementEchecInvalide,
+    trop_de_demandes: t.signalementEchecTropDeDemandes,
+    serveur: t.signalementEchecServeur,
+    reseau: t.signalementEchecReseau,
+  })[code]
+
+  // Envoi au syndic (syndic_signalements) : avec le jeton de session, la route rattache le signalement
+  // au cabinet du compte connecté. Écran de confirmation et historique seulement si l'envoi a réussi.
+  const handleEnvoyerSignalement = async () => {
+    if (signalemEnvoi) return
+    const description = signalemDesc.trim()
+    if (!signalemType) { toast.error(t.signalementTypeRequis); return }
+    if (description.length < DESCRIPTION_MIN_SIGNALEMENT) { toast.error(t.signalementDescCourte); return }
+
+    setSignalemEnvoi(true)
     try {
-      const existing = JSON.parse(localStorage.getItem(canalKey) || '[]')
-      localStorage.setItem(canalKey, JSON.stringify([...existing, newMsg]))
-    } catch (e) {
-      console.warn('[dashboard] localStorage canal write failed (private browsing?)', e)
-    }
-    // Créer la mission dans les données syndic
-    const missionData = {
-      id: Date.now().toString(),
-      type: signalemType,
-      description: signalemDesc,
-      priorite: signalemUrgence,
-      statut: 'en_attente',
-      dateCreation: new Date().toISOString(),
-      immeuble: signalemPartieCommune ? signalemZone : profile.immeuble,
-      batiment: profile.batiment,
-      etage: profile.etage,
-      numLot: profile.numLot,
-      artisan: '',
-      locataire: `${profile.prenom} ${profile.nom}`,
-      telephoneLocataire: profile.telephone,
-      demandeurNom: `${profile.prenom} ${profile.nom}`,
-      demandeurRole: 'coproprio',
-      demandeurEmail: profile.email,
-      estPartieCommune: signalemPartieCommune,
-      zoneSignalee: signalemZone,
-      demandeurMessages: [newMsg],
-    }
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key?.startsWith('fixit_syndic_missions_')) continue
+      let jeton: string | null = null
       try {
-        const existing = JSON.parse(localStorage.getItem(key) || '[]')
-        existing.unshift(missionData)
-        localStorage.setItem(key, JSON.stringify(existing))
-        break
+        const { data } = await supabase.auth.getSession()
+        jeton = data.session?.access_token ?? null
       } catch (e) {
-        console.warn('[dashboard] localStorage syndic missions write failed (private browsing?)', e)
+        // Sans jeton, la route rattache le signalement par le nom de l'immeuble (appel public).
+        console.warn('[copro] session illisible, signalement envoyé sans jeton', e)
       }
+      const resultat = await envoyerSignalementCopro(construireSignalement({
+        profile, type: signalemType, description, priorite: signalemUrgence,
+        partieCommune: signalemPartieCommune, zone: signalemZone,
+      }), jeton)
+      if (!resultat.ok) {
+        toast.error(messageEchecSignalement(resultat.code))
+        return
+      }
+      // Les anciennes copies locales (canal_demandeur_*, fixit_syndic_missions_*) ne sont plus écrites :
+      // le signalement est en base, le syndic le lit depuis son tableau de bord.
+      const newEntry: HistoriqueEntry = {
+        id: resultat.id || Date.now().toString(),
+        type: 'signalement',
+        titre: `Signalement — ${typeSansPictogramme(signalemType)}`,
+        description: description.slice(0, 80) + (description.length > 80 ? '…' : ''),
+        date: new Date().toISOString().slice(0, 10),
+      }
+      setHistorique(prev => [newEntry, ...prev])
+      setSignalemEnvoye(true)
+      setSignalemType('')
+      setSignalemDesc('')
+      setSignalemUrgence('normale')
+      setSignalemPartieCommune(false)
+      setSignalemZone('')
+      setVersionMesSignalements(v => v + 1)
+      setTimeout(() => setSignalemEnvoye(false), 3000)
+    } finally {
+      setSignalemEnvoi(false)
     }
-    // Ajouter à l'historique
-    const newEntry: HistoriqueEntry = {
-      id: Date.now().toString(),
-      type: 'signalement',
-      titre: `Signalement — ${signalemType.split(' ').slice(1).join(' ')}`,
-      description: signalemDesc.slice(0, 80) + (signalemDesc.length > 80 ? '…' : ''),
-      date: new Date().toISOString().slice(0, 10),
-    }
-    setHistorique(prev => [newEntry, ...prev])
-    setSignalemEnvoye(true)
-    setSignalemType('')
-    setSignalemDesc('')
-    setSignalemUrgence('normale')
-    setSignalemPartieCommune(false)
-    setSignalemZone('')
-    setTimeout(() => setSignalemEnvoye(false), 3000)
   }
 
   const handleVote = (agId: string, resId: string, vote: 'pour' | 'contre' | 'abstention') => {
@@ -1374,6 +1393,16 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
               </div>
             )}
           </div>
+          {lienAdmin && (
+            <a
+              href={lienAdmin}
+              title="Panneau admin"
+              style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '8px 10px', borderRadius: 8, fontSize: 12, color: 'rgba(255,255,255,0.45)', textDecoration: 'none', fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
+            >
+              <span style={{ fontSize: 14, width: 18, textAlign: 'center', flexShrink: 0 }}>🛡️</span>
+              {sidebarOpen && <span>Panneau admin</span>}
+            </a>
+          )}
         </div>
       </aside>
 
@@ -1455,6 +1484,7 @@ ${historique.slice(0, 15).map(h => `- [${h.date}] ${h.titre}: ${h.description}${
             <CoproSignalementSection
               t={t} profile={profile} typesIntervention={typesIntervention} zonesCommunes={zonesCommunes}
               setPage={setPage} handleEnvoyerSignalement={handleEnvoyerSignalement}
+              signalemEnvoi={signalemEnvoi} versionMesSignalements={versionMesSignalements}
               signalemType={signalemType} setSignalemType={setSignalemType}
               signalemDesc={signalemDesc} setSignalemDesc={setSignalemDesc}
               signalemUrgence={signalemUrgence} setSignalemUrgence={setSignalemUrgence}

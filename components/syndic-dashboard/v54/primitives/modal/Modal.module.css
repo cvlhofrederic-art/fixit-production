@@ -1,8 +1,8 @@
 /* Modal v54 — port byte-exact du bloc « Modal + Form (V5.2) » du bundle V5.7.
  * Variables bundle → tokens --v54-* ; les rgba(11,24,40,…) du backdrop et des
  * ombres sont conservées telles quelles (le bundle les écrit en dur).
- * Le composant rend via createPortal vers <body> : les tokens sont définis sur
- * :root (tokens.css), donc résolvables hors du namespace #syndic-dashboard-v54. */
+ * Le composant rend via createPortal vers <body>, hors de #syndic-dashboard-v54 : le backdrop
+ * porte data-v54-portal, sélecteur sur lequel tokens.css et fonts.css déclarent aussi les tokens. */
 
 .backdrop {
   position: fixed;
@@ -15,6 +15,9 @@
   padding: 24px;
   z-index: 1000;
   animation: modal-fade 160ms ease-out;
+  /* Portal hors du wrapper : police et encre du dashboard (sinon celles de <body>). */
+  font-family: var(--v54-font-sans);
+  color: var(--v54-ink);
 }
 
 .modal {

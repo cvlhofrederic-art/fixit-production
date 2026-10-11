@@ -1,11 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
-import { proMessagerieSchema, validateBody } from '@/lib/validation'
+import { proMessagerieActionSchema, proMessagerieSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { resumeDocumentPro } from '@/lib/messagerie-pro'
+import { round2 } from '@/lib/money'
 
 const PRO_ROLES = ['artisan', 'pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
+
+/** Messages renvoyés pour une conversation (les plus récents). */
+const MESSAGES_MAX = 200
+
+// Actions possibles selon le statut courant d'un ordre de mission
+const TRANSITIONS_ORDRE: Record<string, string[]> = {
+  en_attente: ['accepte', 'refuse'],
+  accepte: ['en_cours'],
+  en_cours: ['termine'],
+}
+
+// Statut de la mission syndic (syndic_missions, CHECK en_attente | acceptee | en_cours |
+// terminee | annulee) suivi par l'ordre de mission du prestataire. Un refus annule la
+// mission : le syndic en confie une nouvelle à un autre prestataire.
+const STATUT_MISSION_SYNDIC: Record<string, string> = {
+  accepte: 'acceptee',
+  en_cours: 'en_cours',
+  termine: 'terminee',
+  refuse: 'annulee',
+}
+
+// Statut du signalement copropriétaire (syndic_signalements, même CHECK) — lu par l'onglet
+// Demandes du Canal v54 et par « Mes signalements » côté copropriétaire. Un refus remet la
+// demande « en attente » (sans prestataire) pour que le syndic puisse la confier à nouveau.
+const STATUT_SIGNALEMENT: Record<string, string> = {
+  accepte: 'acceptee',
+  en_cours: 'en_cours',
+  termine: 'terminee',
+  refuse: 'en_attente',
+}
+
+// Ligne ajoutée au fil de la demande (syndic_signalement_messages, role 'system') ; pour
+// une acceptation, le texte du message système de la conversation est repris.
+const SUIVI_SIGNALEMENT: Record<string, (nom: string) => string> = {
+  en_cours: nom => `${nom} a démarré l'intervention.`,
+  termine: nom => `${nom} a terminé l'intervention.`,
+  refuse: nom => `${nom} a décliné la mission — demande à confier à un autre prestataire.`,
+}
+
+/**
+ * Références syndic d'un ordre de mission, vérifiées en base : la mission (syndic_missions) doit
+ * appartenir au cabinet `cabinetId` (contact_id de la conversation) et porter le même signalement que
+ * le JSON de l'ordre. Sinon (mission absente, autre cabinet, autre signalement, lecture en erreur), les
+ * identifiants sont ignorés — un signalement n'est jamais suivi sans sa mission vérifiée.
+ */
+async function referencesVerifiees(
+  ordre: Record<string, unknown>,
+  cabinetId: string | undefined,
+): Promise<{ syndicMissionId: string | null; signalementId: string | null }> {
+  const aucune = { syndicMissionId: null, signalementId: null }
+  const missionId = typeof ordre.syndic_mission_id === 'string' && ordre.syndic_mission_id ? ordre.syndic_mission_id : null
+  const signalementJson = typeof ordre.signalement_id === 'string' && ordre.signalement_id ? ordre.signalement_id : null
+  if (!missionId || !cabinetId) return aucune
+
+  const { data, error } = await supabaseAdmin
+    .from('syndic_missions')
+    .select('id, signalement_id')
+    .eq('id', missionId)
+    .eq('cabinet_id', cabinetId)
+    .maybeSingle()
+  if (error) {
+    logger.error('[messagerie] lecture syndic_missions (ordre) error:', error)
+    return aucune
+  }
+  const mission = data as { id: string; signalement_id: string | null } | null
+  if (!mission) {
+    logger.warn('[messagerie] ordre de mission : mission absente du cabinet, références ignorées', { missionId })
+    return aucune
+  }
+  if ((mission.signalement_id ?? null) !== signalementJson) {
+    logger.warn('[messagerie] ordre de mission : signalement différent de la mission, références ignorées', { missionId })
+    return aucune
+  }
+  return { syndicMissionId: mission.id, signalementId: mission.signalement_id ?? null }
+}
 
 // ═══ GET — Liste des conversations ou messages d'une conversation ═══
 export async function GET(req: NextRequest) {
@@ -14,7 +91,8 @@ export async function GET(req: NextRequest) {
     const user = await getAuthUser(req)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    if (!(await checkRateLimit(`pro_msg_${user.id}`, 60, 60_000))) return rateLimitResponse()
+    // 240/min : la Messagerie (liste 8 s + fil 5 s) et la cloche du tableau de bord interrogent cette route ensemble.
+    if (!(await checkRateLimit(`pro_msg_${user.id}`, 240, 60_000))) return rateLimitResponse()
 
     const role = getUserRole(user)
     if (!PRO_ROLES.includes(role)) {
@@ -106,12 +184,30 @@ export async function GET(req: NextRequest) {
     }
 
     // Mode 2 : Messages d'une conversation + mark as read
-    const { data: messages, error } = await supabaseAdmin
+    // ── IDOR check : la conversation doit appartenir au prestataire connecté ──
+    const { data: convProprietaire, error: convOwnErr } = await supabaseAdmin
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('artisan_id', artisanUserId)
+      .maybeSingle()
+
+    if (convOwnErr) {
+      logger.error('[messagerie] GET conversation ownership error:', convOwnErr)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
+    if (!convProprietaire) {
+      return NextResponse.json({ error: 'Conversation introuvable' }, { status: 404 })
+    }
+
+    // Les 200 messages les PLUS RÉCENTS (tri décroissant + limite), remis ensuite dans l'ordre
+    // chronologique : avec un tri croissant, une longue conversation n'affichait que ses 200 premiers.
+    const { data: recents, error } = await supabaseAdmin
       .from('conversation_messages')
       .select('id, conversation_id, sender_id, type, content, metadata, ordre_mission, read, created_at')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(200)
+      .order('created_at', { ascending: false })
+      .limit(MESSAGES_MAX)
 
     if (error) {
       logger.error('[messagerie] GET messages error:', error)
@@ -133,7 +229,8 @@ export async function GET(req: NextRequest) {
       .eq('id', conversationId)
       .eq('artisan_id', artisanUserId)
 
-    return NextResponse.json({ messages: messages || [] })
+    const messages = [...(recents || [])].reverse()
+    return NextResponse.json({ messages })
   } catch (err) {
     logger.error('[pro/messagerie/GET] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -157,20 +254,52 @@ export async function POST(req: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: 'Donn\u00e9es invalides', details: validation.error }, { status: 400 })
     }
-    const { artisan_user_id, contact_id, contact_type, contact_name, content, type, ordre_mission, metadata } = body
+    const { artisan_user_id, contact_id, contact_type, contact_name, content, type, metadata } = validation.data
 
     // ── IDOR check : l'utilisateur ne peut envoyer que depuis son propre compte ──
     if (artisan_user_id !== user.id) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 
-    // 1. Trouver ou créer la conversation
-    let { data: conv } = await supabaseAdmin
+    // Document (devis / rapport / facture) : uniquement dans une conversation Pro existante
+    const document = metadata?.document
+      ? {
+          ...metadata.document,
+          ...(metadata.document.montant_ttc !== undefined
+            ? { montant_ttc: round2(metadata.document.montant_ttc) }
+            : {}),
+        }
+      : undefined
+
+    // 1. Trouver ou créer la conversation — du type demandé (la paire prestataire / contact
+    //    peut avoir une conversation « particulier » ET une « pro », notamment quand le syndic
+    //    et le prestataire sont le même compte) ; la plus ancienne, comme la livraison des
+    //    ordres de mission (lib/syndic/livraison-mission.ts).
+    const { data: convTrouvee, error: convFindErr } = await supabaseAdmin
       .from('conversations')
-      .select('id')
+      .select('id, contact_type')
       .eq('artisan_id', artisan_user_id)
       .eq('contact_id', contact_id)
-      .single()
+      .eq('contact_type', contact_type || 'particulier')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (convFindErr) {
+      logger.error('[messagerie] find conversation error:', convFindErr)
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
+    let conv = convTrouvee
+
+    if (document && conv?.contact_type !== 'pro') {
+      return NextResponse.json({ error: 'Conversation Pro introuvable' }, { status: 404 })
+    }
+
+    // Conversation « pro » (donneur d'ordre : syndic, gestionnaire…) : jamais créée par le prestataire
+    // vers un contact_id arbitraire — elle naît de l'ordre de mission (lib/syndic/livraison-mission.ts),
+    // le prestataire y répond seulement. Les conversations avec un particulier restent créées ici.
+    if (!conv && contact_type === 'pro') {
+      return NextResponse.json({ error: 'Conversation Pro introuvable' }, { status: 404 })
+    }
 
     if (!conv) {
       const { data: newConv, error: convErr } = await supabaseAdmin
@@ -181,7 +310,7 @@ export async function POST(req: NextRequest) {
           contact_type: contact_type || 'particulier',
           contact_name: contact_name || 'Contact',
         })
-        .select('id')
+        .select('id, contact_type')
         .single()
 
       if (convErr) {
@@ -191,20 +320,19 @@ export async function POST(req: NextRequest) {
       conv = newConv
     }
 
-    // 2. Insérer le message
+    // 2. Insérer le message — toujours au nom du prestataire connecté (sender_id du corps
+    //    ignoré : il permettait d'écrire au nom du contact). metadata.cote = 'artisan' :
+    //    le syndic et le prestataire peuvent partager le même compte (cf. lib/messagerie-pro.ts).
     const msgPayload: Record<string, unknown> = {
       conversation_id: conv.id,
-      sender_id: body.sender_id || contact_id,
+      sender_id: user.id,
       type: type || 'text',
-      content: content || '',
-      metadata: metadata || {},
-    }
-
-    if (type === 'ordre_mission' && ordre_mission) {
-      msgPayload.ordre_mission = {
-        ...ordre_mission,
-        statut: ordre_mission.statut || 'en_attente',
-      }
+      content: content?.trim() || (document ? resumeDocumentPro(document) : ''),
+      metadata: {
+        ...(metadata || {}),
+        ...(document ? { document } : {}),
+        cote: 'artisan',
+      },
     }
 
     const { data: msg, error: msgErr } = await supabaseAdmin
@@ -216,31 +344,6 @@ export async function POST(req: NextRequest) {
     if (msgErr) {
       logger.error('[messagerie] insert message error:', msgErr)
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
-    }
-
-    // 3. Créer une notification artisan si c'est un message entrant
-    if ((body.sender_id || contact_id) !== artisan_user_id) {
-      const notifTitle = type === 'ordre_mission'
-        ? `Nouvel ordre de mission`
-        : `Nouveau message de ${contact_name || 'un contact'}`
-      const notifBody = type === 'ordre_mission'
-        ? ordre_mission?.titre || 'Un donneur d\'ordres vous a assigné une mission'
-        : (content || '').substring(0, 100)
-
-      await supabaseAdmin
-        .from('artisan_notifications')
-        .insert({
-          artisan_id: artisan_user_id,
-          type: type === 'ordre_mission' ? 'new_mission' : 'message',
-          title: notifTitle,
-          body: notifBody,
-          data_json: {
-            conversation_id: conv.id,
-            contact_id,
-            contact_type: contact_type || 'particulier',
-            message_type: type,
-          },
-        })
     }
 
     return NextResponse.json({ message: msg, conversation_id: conv.id })
@@ -263,7 +366,11 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { message_id, action, artisan_user_id, artisan_name: rawArtisanName, arrival_time: rawArrivalTime, duration_hours } = body
+    const validation = validateBody(proMessagerieActionSchema, body)
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Données invalides', details: validation.error }, { status: 400 })
+    }
+    const { message_id, action, artisan_user_id, artisan_name: rawArtisanName, arrival_time: rawArrivalTime, duration_hours } = validation.data
 
     // Sanitise user-controlled strings to prevent log injection
     const artisan_name = typeof rawArtisanName === 'string'
@@ -273,18 +380,9 @@ export async function PATCH(req: NextRequest) {
       ? rawArrivalTime
       : undefined
 
-    if (!message_id || !action) {
-      return NextResponse.json({ error: 'message_id et action requis' }, { status: 400 })
-    }
-
     // ── IDOR check : l'utilisateur ne peut modifier que ses propres ordres ──
     if (artisan_user_id && artisan_user_id !== user.id) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
-    }
-
-    const validActions = ['accepte', 'refuse', 'en_cours', 'termine']
-    if (!validActions.includes(action)) {
-      return NextResponse.json({ error: `Action invalide. Valides: ${validActions.join(', ')}` }, { status: 400 })
     }
 
     // Récupérer le message
@@ -299,8 +397,24 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Message ordre de mission introuvable' }, { status: 404 })
     }
 
+    // ── IDOR check : l'ordre doit appartenir à une conversation DU prestataire connecté ──
+    // (sans ce contrôle, n'importe quel compte pro pouvait accepter / refuser l'ordre d'un
+    // autre artisan en connaissant l'id du message). Même réponse que « introuvable ».
+    const convRel = msg.conversations as { artisan_id?: string; contact_id?: string } | Array<{ artisan_id?: string; contact_id?: string }> | null
+    const conversation = Array.isArray(convRel) ? convRel[0] : convRel
+    if (!conversation || conversation.artisan_id !== user.id) {
+      return NextResponse.json({ error: 'Message ordre de mission introuvable' }, { status: 404 })
+    }
+
+    // ── Enchaînement des statuts : en_attente → accepte | refuse ; accepte → en_cours ; en_cours → termine ──
+    // (un double clic ne crée plus deux messages « a accepté »)
+    const statutActuel: string = msg.ordre_mission?.statut || 'en_attente'
+    if (!(TRANSITIONS_ORDRE[statutActuel] || []).includes(action)) {
+      return NextResponse.json({ error: "Action impossible dans l'état actuel de l'ordre de mission" }, { status: 409 })
+    }
+
     // Mettre à jour le statut (+ heure d'arrivée + durée si accepte)
-    const durationMin = duration_hours ? Math.round(parseFloat(duration_hours) * 60) : null
+    const durationMin = duration_hours ? Math.round(parseFloat(String(duration_hours)) * 60) : null
     const updatedOrdre = {
       ...msg.ordre_mission,
       statut: action,
@@ -340,46 +454,94 @@ export async function PATCH(req: NextRequest) {
       systemContent = `✅ Mission acceptée — ${displayName} sera sur place ${dateStr ? `le ${dateStr} ` : ''}à ${arrival_time}${durationLabel}`
     }
 
-    await supabaseAdmin
+    // Écrit côté prestataire : cote 'artisan' (le donneur d'ordre peut être le même compte)
+    const { error: systemErr } = await supabaseAdmin
       .from('conversation_messages')
       .insert({
         conversation_id: msg.conversation_id,
-        sender_id: artisan_user_id,
+        sender_id: user.id,
         type: 'system',
         content: systemContent,
+        metadata: { cote: 'artisan', ordre_message_id: message_id, statut: action },
       })
+    if (systemErr) logger.error('[messagerie] insert system message error:', systemErr)
 
-    // ── Si accepté : bloquer la date sur l'agenda de l'artisan (mettre à jour le booking existant) ──
-    if (action === 'accepte' && updatedOrdre.mission_id) {
-      const bookingUpdate: Record<string, string | number> = {
-        status: 'confirmed',
-        statut: 'confirme',
-      }
-      if (arrival_time) {
-        bookingUpdate.booking_time = arrival_time
-        bookingUpdate.intervention_time = arrival_time
-      }
-      if (durationMin) {
-        bookingUpdate.duration_minutes = durationMin
-      }
-      const { error: bookingErr } = await supabaseAdmin
-        .from('bookings')
-        .update(bookingUpdate)
-        .eq('id', updatedOrdre.mission_id)
+    // ── Mission syndic et demande du copropriétaire liées (ordre validé depuis le Syndic v54) ──
+    // Les identifiants du JSON ordre_mission ne sont pas pris pour argent comptant : la mission doit
+    // appartenir au cabinet du donneur d'ordre de CETTE conversation (contact_id) et porter le même
+    // signalement ; sinon ils sont ignorés (ni mission, ni demande du copropriétaire touchées).
+    const statutMissionSyndic = STATUT_MISSION_SYNDIC[action]
+    const { syndicMissionId, signalementId } = await referencesVerifiees(updatedOrdre, conversation.contact_id)
+    if (statutMissionSyndic && syndicMissionId && conversation.contact_id) {
+      const { error: missionErr } = await supabaseAdmin
+        .from('syndic_missions')
+        .update({ statut: statutMissionSyndic, updated_at: new Date().toISOString() })
+        .eq('id', syndicMissionId)
+        .eq('cabinet_id', conversation.contact_id)
+      if (missionErr) logger.error('[messagerie] update syndic_missions statut error:', missionErr)
+    }
 
-      if (bookingErr) {
-        logger.error('[messagerie] update booking time error:', bookingErr)
-      } else {
-        console.info(`[messagerie] ✅ Booking ${updatedOrdre.mission_id} mis à jour : time=${arrival_time}, duration=${durationMin}min`)
+    const statutSignalement = STATUT_SIGNALEMENT[action]
+    if (statutSignalement && signalementId && conversation.contact_id) {
+      const { data: sigMaj, error: sigErr } = await supabaseAdmin
+        .from('syndic_signalements')
+        .update({
+          statut: statutSignalement,
+          ...(action === 'refuse' ? { artisan_assigne: null } : {}),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', signalementId)
+        .eq('cabinet_id', conversation.contact_id)
+        .select('id')
+        .maybeSingle()
+      if (sigErr) {
+        logger.error('[messagerie] update syndic_signalements statut error:', sigErr)
+      } else if (sigMaj) {
+        const { error: suiviErr } = await supabaseAdmin
+          .from('syndic_signalement_messages')
+          .insert({
+            signalement_id: signalementId,
+            auteur: displayName,
+            role: 'system',
+            // Acceptation : même texte que dans la conversation (heure d'arrivée, durée)
+            texte: action === 'accepte' ? systemContent : SUIVI_SIGNALEMENT[action](displayName),
+          })
+        if (suiviErr) logger.error('[messagerie] insert syndic_signalement_messages error:', suiviErr)
       }
     }
 
-    // ── Si refusé : annuler le booking ──
-    if (action === 'refuse' && updatedOrdre.mission_id) {
-      await supabaseAdmin
-        .from('bookings')
-        .update({ status: 'cancelled', statut: 'annule' })
-        .eq('id', updatedOrdre.mission_id)
+    // ── Booking de l'agenda (ordre_mission.mission_id) : accepté → date bloquée ; refusé → annulé ──
+    // Seulement un booking DU prestataire connecté (bookings.artisan_id = sa fiche profiles_artisan).
+    const bookingId = typeof updatedOrdre.mission_id === 'string' && updatedOrdre.mission_id ? updatedOrdre.mission_id : null
+    if (bookingId && (action === 'accepte' || action === 'refuse')) {
+      const { data: profil, error: profilErr } = await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      const profilId = (profil as { id?: string } | null)?.id ?? null
+      if (profilErr) {
+        logger.error('[messagerie] lecture profiles_artisan (booking) error:', profilErr)
+      } else if (!profilId) {
+        logger.warn('[messagerie] booking ignoré : prestataire sans fiche profiles_artisan', { bookingId })
+      } else {
+        const bookingUpdate: Record<string, string | number> = action === 'refuse'
+          ? { status: 'cancelled', statut: 'annule' }
+          : { status: 'confirmed', statut: 'confirme' }
+        if (action === 'accepte' && arrival_time) {
+          bookingUpdate.booking_time = arrival_time
+          bookingUpdate.intervention_time = arrival_time
+        }
+        if (action === 'accepte' && durationMin) {
+          bookingUpdate.duration_minutes = durationMin
+        }
+        const { error: bookingErr } = await supabaseAdmin
+          .from('bookings')
+          .update(bookingUpdate)
+          .eq('id', bookingId)
+          .eq('artisan_id', profilId)
+        if (bookingErr) logger.error('[messagerie] update booking error:', bookingErr)
+      }
     }
 
     return NextResponse.json({ success: true, ordre_mission: updatedOrdre })

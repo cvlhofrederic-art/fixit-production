@@ -16,6 +16,7 @@ export const SHELL_MESSAGES = defineMessages({
     rechercher: 'Pesquisar',
     notifications: 'Notificações',
     nouvelleMission: 'Nova missão',
+    panneauAdmin: 'Painel admin',
     page: 'Página',
   },
   'fr-FR': {
@@ -32,6 +33,7 @@ export const SHELL_MESSAGES = defineMessages({
     rechercher: 'Rechercher',
     notifications: 'Notifications',
     nouvelleMission: 'Nouvelle mission',
+    panneauAdmin: 'Panneau admin',
     page: 'Page',
   },
 })

@@ -173,16 +173,66 @@ export const signalementSchema = z.object({
 })
 
 // ── Pro Messagerie schema ────────────────────────────────────────────────────
+// Date calendaire réelle au format AAAA-MM-JJ (refuse 2026-02-30).
+const estDateIsoValide = (v: string): boolean => {
+  const d = new Date(`${v}T12:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v
+}
+
+// Document envoyé par le prestataire au donneur d'ordre (metadata.document d'un message
+// 'text') — cf. lib/messagerie-pro.ts. Montant TTC obligatoire pour un devis ou une
+// facture, absent d'un rapport d'intervention.
+export const documentMessageProSchema = z.object({
+  type: z.enum(['devis', 'rapport', 'facture']),
+  reference: z.string().trim().min(1, 'Référence requise').max(60),
+  montant_ttc: z.number().min(0, 'Le montant TTC doit être positif ou nul').max(100_000_000).optional(),
+  description: z.string().trim().min(1, 'Description requise').max(4000),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').refine(estDateIsoValide, 'Date invalide'),
+}).strict().superRefine((doc, ctx) => {
+  if (doc.type !== 'rapport' && doc.montant_ttc === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['montant_ttc'], message: 'Montant TTC requis pour un devis ou une facture' })
+  }
+  if (doc.type === 'rapport' && doc.montant_ttc !== undefined) {
+    ctx.addIssue({ code: 'custom', path: ['montant_ttc'], message: "Pas de montant sur un rapport d'intervention" })
+  }
+})
+
+// POST /api/pro/messagerie — message écrit par le PRESTATAIRE. Les ordres de mission et
+// les messages système sont écrits côté serveur (assign-mission, PATCH), jamais par ce
+// POST ; metadata.cote est forcé à 'artisan' par la route.
 export const proMessagerieSchema = z.object({
   artisan_user_id: z.string().uuid('artisan_user_id doit \u00eatre un UUID valide'),
   contact_id: z.string().uuid('contact_id doit \u00eatre un UUID valide'),
   contact_type: z.enum(['particulier', 'pro']).optional().default('particulier'),
   contact_name: z.string().max(200).optional(),
   content: z.string().max(5000).optional(),
-  type: z.enum(['text', 'ordre_mission', 'system', 'photo', 'voice']).optional().default('text'),
+  type: z.enum(['text', 'photo', 'voice']).optional().default('text'),
   sender_id: z.string().uuid().optional(),
-  ordre_mission: z.record(z.string(), z.unknown()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.object({
+    cote: z.literal('artisan').optional(),
+    document: documentMessageProSchema.optional(),
+    url: z.string().url().max(2048).optional(),
+  }).strict().optional(),
+}).superRefine((body, ctx) => {
+  if (!body.metadata?.document) return
+  if (body.type !== 'text') {
+    ctx.addIssue({ code: 'custom', path: ['type'], message: 'Un document est un message de type text' })
+  }
+  if (body.contact_type !== 'pro') {
+    ctx.addIssue({ code: 'custom', path: ['contact_type'], message: 'Documents réservés aux conversations Pro' })
+  }
+})
+
+// PATCH /api/pro/messagerie — le prestataire fait avancer un ordre de mission.
+// artisan_name / arrival_time / duration_hours sont assainis par la route (valeur
+// inexploitable ignorée, comportement historique).
+export const proMessagerieActionSchema = z.object({
+  message_id: z.string().uuid('message_id doit être un UUID valide'),
+  action: z.enum(['accepte', 'refuse', 'en_cours', 'termine']),
+  artisan_user_id: z.string().uuid().optional(),
+  artisan_name: z.string().optional(),
+  arrival_time: z.string().optional(),
+  duration_hours: z.union([z.string(), z.number()]).optional(),
 })
 
 // ── Syndic Artisan creation schema ───────────────────────────────────────────
@@ -225,6 +275,23 @@ export const canalInterneSchema = z.object({
   auteur: z.string().max(200).optional(),
   auteurRole: z.string().max(100).optional(),
   sujet: z.string().max(200).optional(),
+})
+
+// ── Syndic — circuit demande copropriétaire → prestataire ────────────────────
+// POST /api/syndic/demandes/valider : confier un signalement à un prestataire du cabinet.
+// Identifiants en z.guid() (format 8-4-4-4-12 sans contrôle de version : ids de seed acceptés).
+const videVersIndefini = (v: unknown) => (v === '' || v === null ? undefined : v)
+export const syndicDemandeValiderSchema = z.object({
+  signalement_id: z.guid('signalement_id invalide'),
+  syndic_artisan_id: z.guid('syndic_artisan_id invalide'),
+  date_intervention: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional()),
+  note: z.preprocess(videVersIndefini, z.string().trim().max(2000).optional()),
+})
+
+// POST /api/syndic/canal-pro : réponse du syndic dans une conversation prestataire.
+export const syndicCanalProMessageSchema = z.object({
+  conversation_id: z.guid('conversation_id invalide'),
+  content: z.string().trim().min(1, 'Message requis').max(5000),
 })
 
 // ── Syndic Messages schema ───────────────────────────────────────────────────
@@ -356,7 +423,10 @@ export const syndicMissionSchema = z.object({
   artisan: z.string().max(200).optional().default(''),
   type: z.string().max(100).optional().default(''),
   description: z.string().max(5000).optional().default(''),
-  priorite: z.enum(['basse', 'normale', 'haute', 'urgente']).optional().default('normale'),
+  // CHECK syndic_missions.priorite : urgente | normale | planifiee. Les anciennes valeurs des
+  // formulaires (basse, haute) sont ramenées à « normale » au lieu d'un refus de la base (500).
+  priorite: z.enum(['urgente', 'normale', 'planifiee', 'basse', 'haute']).optional().default('normale')
+    .transform((p): 'urgente' | 'normale' | 'planifiee' => (p === 'urgente' || p === 'planifiee' ? p : 'normale')),
   statut: z.enum(['en_attente', 'en_cours', 'terminee', 'annulee']).optional().default('en_attente'),
   dateCreation: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dateIntervention: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
@@ -1379,9 +1449,27 @@ export const emailAgentCallbackSchema = z.object({
   error: z.string().max(200).optional(),
 })
 
+// Retour OAuth Microsoft : codes d'autorisation longs, description d'erreur AADSTS,
+// retour du consentement administrateur (admin_consent=True&tenant=…).
+export const emailAgentCallbackMicrosoftSchema = z.object({
+  code: z.string().max(8000).optional(),
+  state: z.string().max(500).optional(),
+  error: z.string().max(200).optional(),
+  error_description: z.string().max(4000).optional(),
+  admin_consent: z.string().max(10).optional(),
+  tenant: z.string().max(100).optional(),
+})
+
 // ── Email Agent Connect schema (GET query params) ────────────────────────────
+// provider : boîte à connecter (Gmail / Google Workspace par défaut, Outlook / Microsoft 365).
 export const emailAgentConnectSchema = z.object({
   token: z.string().max(5000).optional(),
+  provider: z.enum(['gmail', 'microsoft']).optional().default('gmail'),
+})
+
+// DELETE /api/email-agent/connect : purger=1 efface aussi les e-mails analysés (hors démo).
+export const emailAgentDisconnectSchema = z.object({
+  purger: z.enum(['0', '1', 'true', 'false']).optional(),
 })
 
 // ── Email Agent OCR schema ───────────────────────────────────────────────────

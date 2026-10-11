@@ -10,18 +10,27 @@ import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import btnCss from '../primitives/button/Button.module.css'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { CANAL_MESSAGES, type FiltreCanal, type TagCanal } from './i18n/ModCanal.messages'
+import { CanalReel } from './canal/CanalReel'
 
 /** Canal de Comunicações — port byte-exact du ModCanal du bundle V5.7.
  * CSS bespoke dans ./canal.css (scopé #syndic-dashboard-v54). Icônes paperclip/camera/info
- * absentes du jeu d'icônes du bundle → fallback `doc` (paths[name] || paths.doc), reproduit ici. */
+ * absentes du jeu d'icônes du bundle → fallback `doc` (paths[name] || paths.doc), reproduit ici.
+ *
+ * Syndic connecté : données réelles (./canal/CanalReel — demandes des copropriétaires, conversations
+ * avec les prestataires, canal interne). Hors connexion : la démonstration ci-dessous, inchangée. */
+export default function ModCanal() {
+  const { authenticated } = useSyndicData()
+  return authenticated ? <CanalReel /> : <CanalDemo />
+}
 
 const TAG_KIND: Record<TagCanal, PillKind> = { urgente: 'rust', 'em-curso': 'amber', 'em-espera': 'gold', concluida: 'sage' }
 const fmtEUR = (n: number, locale: V54Locale) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(n)
 /** Filtres de la liste : code et couleur de la pastille (le libellé vient du dictionnaire). */
 const FILTERS: [FiltreCanal, string | null][] = [['todas', null], ['urgente', 'rust'], ['em-curso', 'amber'], ['em-espera', 'gold']]
 
-export default function ModCanal() {
+function CanalDemo() {
   const t = useMessages(CANAL_MESSAGES)
   const locale = useV54Locale()
   const MISSIONS = t.missions

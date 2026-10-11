@@ -32,6 +32,6 @@ test.describe('Syndic v54 — modules d12', () => {
   test('Emails Fixy (titre + état initial)', async ({ page }) => {
     await page.getByRole('button', { name: 'Emails Fixy', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Emails Fixy', level: 1 })).toBeVisible()
-    await expect(page.getByText('Ligue a sua caixa Gmail')).toBeVisible()
+    await expect(page.getByText('Ligue a sua caixa de email')).toBeVisible()
   })
 })

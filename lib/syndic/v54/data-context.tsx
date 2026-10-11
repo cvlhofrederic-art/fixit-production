@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Mission, Immeuble, Artisan, TeamMember } from '@/components/syndic-dashboard/types'
 import { useSyndicSession } from './session'
 import { fetchMissions, fetchImmeubles, fetchArtisans, fetchCoproprios, fetchTeam, fetchContratos, fetchSeguros, fetchSignalements, fetchElevadores, fetchSinistros, fetchVistorias, fetchPrazos, fetchAvisos, fetchReembolsos, fetchProcuracoes, fetchSegEdificio, fetchCaderneta, fetchCertEnerg, fetchDeclEncargos, fetchFcrEdificios, fetchFcrMovimentos, fetchAgV54, fetchContab, fetchImpayes, fetchRecouvrement, fetchFaturas, fetchReservas, fetchInfracoes, fetchEnquetes, fetchChecklists, fetchPlanosMan, fetchDeliberacoes, fetchProcessosJud, fetchObrigacoes, fetchCampanhas, fetchVotacoes, fetchNps, fetchObras, fetchEventos, fetchOrcamentos, type Coprop, type Contrato, type Seguro, type Signalement, type Elevador, type Sinistro, type Vistoria, type PrazoLegal, type Aviso, type Reembolso, type Procuracao, type SegEdificio, type Caderneta, type CertEnergetico, type DeclEncargo, type FcrEdificio, type FcrMovimento, type AgV54, type ContabData, type Impaye, type Recouvrement, type FaturaCopro, type Reserva, type Infracao, type Enquete, type Checklist, type PlanoMan, type Deliberacao, type ProcessoJud, type Obrigacao, type Campanha, type Votacao, type Nps, type Obra, type Evento, type Orcamento } from './api'
@@ -111,16 +111,25 @@ export const SyndicDataContext = createContext<SyndicData>(EMPTY)
 /** Hook d'accès aux données syndic réelles (vide + authenticated:false hors auth). */
 export const useSyndicData = (): SyndicData => useContext(SyndicDataContext)
 
+/** Délai de regroupement des événements focus / visibilitychange (souvent émis ensemble). */
+export const DELAI_REFRESH_FOCUS_MS = 400
+
 export function SyndicDataProvider({ children }: { children: ReactNode }) {
   const session = useSyndicSession()
-  const [data, setData] = useState<SyndicData>(EMPTY)
+  // La session commence toujours « en cours de lecture » : chargement dès le premier rendu, pour que
+  // les modules n'affichent pas un instant les chiffres de la maquette avant les vraies données.
+  const [data, setData] = useState<SyndicData>(() => ({ ...EMPTY, loading: true }))
+  // Numéro du dernier chargement lancé : une réponse plus ancienne n'écrase jamais une plus récente.
+  const chargement = useRef(0)
 
   const load = useCallback(() => {
     const token = session.token
     if (session.status !== 'authed' || !token) return
+    const numero = ++chargement.current
     setData((d) => ({ ...d, authenticated: true, loading: true }))
     Promise.allSettled([fetchMissions(token), fetchImmeubles(token), fetchArtisans(token), fetchCoproprios(token), fetchTeam(token), fetchContratos(token), fetchSeguros(token), fetchSignalements(token), fetchElevadores(token), fetchSinistros(token), fetchVistorias(token), fetchPrazos(token), fetchAvisos(token), fetchReembolsos(token), fetchProcuracoes(token), fetchSegEdificio(token), fetchCaderneta(token), fetchCertEnerg(token), fetchDeclEncargos(token), fetchFcrEdificios(token), fetchFcrMovimentos(token), fetchAgV54(token), fetchContab(token), fetchImpayes(token), fetchRecouvrement(token), fetchFaturas(token), fetchReservas(token), fetchInfracoes(token), fetchEnquetes(token), fetchChecklists(token), fetchPlanosMan(token), fetchDeliberacoes(token), fetchProcessosJud(token), fetchObrigacoes(token), fetchCampanhas(token), fetchVotacoes(token), fetchNps(token), fetchObras(token), fetchEventos(token), fetchOrcamentos(token)]).then(
       ([m, i, a, c, t, k, g, sg, el, si, vi, pz, av, re, pr, se, cd, ce, de, fe, fm, ag, cc, ip, rc, ft, rs, inf, eq, ch, pm, dl, pj, ob, cp, vt, np, obr, ev, oc]) => {
+        if (numero !== chargement.current) return
         setData({
           authenticated: true,
           loading: false,
@@ -175,10 +184,31 @@ export function SyndicDataProvider({ children }: { children: ReactNode }) {
       return
     }
     if (session.status === 'anon' || !session.token) {
+      chargement.current++ // un chargement encore en vol ne doit pas réafficher les données après déconnexion
       setData(EMPTY)
       return
     }
     load()
+  }, [session.status, session.token, load])
+
+  // Retour sur l'onglet (focus / page redevenue visible) : recharge les données du cabinet, pour voir
+  // sans recharger la page ce qui a été fait ailleurs (ex. demande déposée depuis l'espace copropriétaire).
+  // Connecté seulement ; les deux événements arrivent souvent ensemble → un seul rechargement.
+  useEffect(() => {
+    if (session.status !== 'authed' || !session.token) return
+    let minuteur: ReturnType<typeof setTimeout> | undefined
+    const planifier = () => {
+      if (document.visibilityState === 'hidden') return
+      clearTimeout(minuteur)
+      minuteur = setTimeout(load, DELAI_REFRESH_FOCUS_MS)
+    }
+    window.addEventListener('focus', planifier)
+    document.addEventListener('visibilitychange', planifier)
+    return () => {
+      clearTimeout(minuteur)
+      window.removeEventListener('focus', planifier)
+      document.removeEventListener('visibilitychange', planifier)
+    }
   }, [session.status, session.token, load])
 
   // `token` + `refresh` exposés en plus des datasets pour les écritures Phase 2.

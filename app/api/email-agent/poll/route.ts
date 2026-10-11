@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { timingSafeEqual } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId, refreshGmailAccessToken } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentPollGetSchema } from '@/lib/validation'
 import { getDecryptedToken, setEncryptedToken } from '@/lib/oauth/tokens'
@@ -10,6 +10,13 @@ import { loadClientContext } from '@/lib/syndic/alfredo-load-client-context'
 import { classifyEmailWithGroq } from '@/lib/syndic/alfredo-classify'
 import { generateDraftReply } from '@/lib/syndic/alfredo-draft'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
+import {
+  ErreurFournisseur,
+  fournisseurDeLigne,
+  type FournisseurBoite,
+  type MessageNormalise,
+} from '@/lib/email-agent/fournisseurs'
+import { chargerSecretsBoites } from '@/lib/email-agent/secrets'
 
 export const maxDuration = 60
 
@@ -30,85 +37,157 @@ function isValidInternalTrigger(provided: string | null): boolean {
   return timingSafeEqual(providedBuf, expectedBuf)
 }
 
-// ── Lit les emails Gmail via l'API ────────────────────────────────────────────
-async function fetchGmailMessages(accessToken: string, maxResults = 20, firstRun = false) {
-  // On récupère les emails non lus des 7 derniers jours (ou 30 si premier run)
-  const daysBack = firstRun ? 30 : 7
-  const after = Math.floor((Date.now() - daysBack * 86400 * 1000) / 1000)
-  const query = `is:unread after:${after}`
+// ── Jetons OAuth du cabinet ──────────────────────────────────────────────────
 
-  const listRes = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}&q=${encodeURIComponent(query)}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  )
+interface JetonsCabinet {
+  provider: string | null
+  accessToken: string | null
+  refreshToken: string | null
+  expiresAt: string | null
+}
 
-  if (!listRes.ok) {
-    const err = await listRes.text()
-    logger.error('Gmail list error:', listRes.status, err)
-    return []
+/**
+ * Colonnes en clair = source de vérité (provider compris) : l'écriture chiffrée passe par
+ * un RPC qui échoue en production. Repli sur les colonnes chiffrées pour une ligne Gmail
+ * sans jetons en clair (lignes antérieures au double enregistrement).
+ */
+async function lireJetonsCabinet(sid: string): Promise<JetonsCabinet> {
+  const { data: ligne } = await supabaseAdmin
+    .from('syndic_oauth_tokens')
+    .select('provider, access_token, refresh_token, token_expiry')
+    .eq('syndic_id', sid)
+    .single()
+  const jetons: JetonsCabinet = {
+    provider: ligne?.provider || null,
+    accessToken: ligne?.access_token || null,
+    refreshToken: ligne?.refresh_token || null,
+    expiresAt: ligne?.token_expiry || null,
   }
-
-  const listData = await listRes.json()
-  const messages = listData.messages || []
-
-  // Récupérer le détail de chaque message (en parallèle, max 10 à la fois)
-  const details = await Promise.all(
-    messages.slice(0, 20).map(async (msg: { id: string; threadId: string }) => {
-      const msgRes = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-      if (!msgRes.ok) return null
-      return msgRes.json()
+  if ((!jetons.accessToken || !jetons.refreshToken) && (!jetons.provider || jetons.provider === 'gmail')) {
+    const chiffres = await getDecryptedToken(supabaseAdmin, sid).catch((err: unknown) => {
+      // Lecture chiffrée indisponible (RPC) : repli sur les colonnes en clair, journalisé.
+      logger.warn('[email-agent/poll] lecture chiffrée indisponible, colonnes en clair', { erreur: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) })
+      return null
     })
-  )
-
-  return details.filter(Boolean)
-}
-
-// ── Extrait les headers d'un message Gmail ────────────────────────────────────
-function extractHeaders(headers: { name: string; value: string }[]) {
-  const get = (name: string) => headers.find(h => h.name.toLowerCase() === name.toLowerCase())?.value || ''
-  return {
-    from: get('From'),
-    to: get('To'),
-    subject: get('Subject'),
-    date: get('Date'),
-  }
-}
-
-// ── Extrait le corps texte d'un message Gmail ─────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gmail API payload with deeply nested dynamic structure
-function extractBody(payload: Record<string, any>): string {
-  if (!payload) return ''
-
-  // Message simple
-  if (payload.body?.data) {
-    return Buffer.from(payload.body.data, 'base64url').toString('utf-8').substring(0, 1000)
-  }
-
-  // Message multipart — chercher text/plain en priorité
-  if (payload.parts) {
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body?.data) {
-        return Buffer.from(part.body.data, 'base64url').toString('utf-8').substring(0, 1000)
-      }
-    }
-    // Fallback sur text/html
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/html' && part.body?.data) {
-        const html = Buffer.from(part.body.data, 'base64url').toString('utf-8')
-        // Nettoyer le HTML basiquement
-        return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 1000)
-      }
+    if (chiffres) {
+      jetons.accessToken = chiffres.access_token
+      jetons.refreshToken = chiffres.refresh_token
+      jetons.expiresAt = chiffres.expires_at
     }
   }
-
-  return ''
+  return jetons
 }
 
-// ── Route principale : appelée par Vercel Cron ou manuellement ────────────────
+/**
+ * Jeton d'accès utilisable : rafraîchi par le fournisseur s'il expire dans moins de 5 min.
+ * Microsoft renvoie un nouveau refresh_token à chaque rafraîchissement : il est rangé.
+ * Lève ErreurFournisseur si le rafraîchissement est refusé.
+ */
+async function jetonAccesValide(
+  sid: string,
+  fournisseur: FournisseurBoite,
+  jetons: { accessToken: string; refreshToken: string; expiresAt: string | null },
+): Promise<string> {
+  const expire = jetons.expiresAt ? new Date(jetons.expiresAt) < new Date(Date.now() + 5 * 60 * 1000) : true
+  if (!expire) return jetons.accessToken
+
+  const nouveaux = await fournisseur.rafraichir(jetons.refreshToken)
+  // Double écriture : chiffrée (non bloquante) + colonnes en clair.
+  try {
+    await setEncryptedToken(supabaseAdmin, {
+      syndic_id: sid,
+      access_token: nouveaux.accessToken,
+      refresh_token: nouveaux.refreshToken || jetons.refreshToken,
+      expires_at: nouveaux.expiresAt,
+    })
+  } catch (encErr) {
+    logger.error(`[email-agent/poll] setEncryptedToken failed for ${sid}:`, encErr)
+  }
+  const maj: Record<string, unknown> = {
+    access_token: nouveaux.accessToken,
+    token_expiry: nouveaux.expiresAt,
+    updated_at: new Date().toISOString(),
+  }
+  if (nouveaux.refreshToken) maj.refresh_token = nouveaux.refreshToken
+  const { error: majErr } = await supabaseAdmin
+    .from('syndic_oauth_tokens')
+    .update(maj)
+    .eq('syndic_id', sid)
+  if (majErr) {
+    logger.error(`[email-agent/poll] enregistrement du jeton rafraîchi impossible pour ${sid}`, { erreur: majErr.message })
+  }
+  return nouveaux.accessToken
+}
+
+/** E-mails analysés en parallèle (2 appels IA chacun : classification + brouillon). */
+const PIPELINE_PARALLELE = 4
+/** Au-delà, les lots suivants attendent la relève suivante (réponse avant les 100 s de Cloudflare). */
+const BUDGET_PIPELINE_MS = 45_000
+
+/**
+ * Pipeline Alfredo pour un e-mail : classification, contexte client, brouillon (jamais
+ * envoyé) et enregistrement (upsert syndic_id + gmail_message_id). Vrai si l'e-mail est
+ * enregistré (brouillon préparé ou spam classé).
+ */
+async function analyserMessage(sid: string, msg: MessageNormalise): Promise<boolean> {
+  const pipelineResult = await processIncomingEmail({
+    syndicId: sid,
+    syndicRole: 'syndic',
+    locale: 'fr',
+    email: {
+      from: msg.from,
+      subject: msg.subject || '(sans objet)',
+      body_text: msg.bodyText,
+      gmail_message_id: msg.id,
+      received_at: msg.receivedAt,
+    },
+    classifyFn: classifyEmailWithGroq,
+    loadContextFn: (p) => loadClientContext(supabaseAdmin, p),
+    draftFn: async (input) => {
+      const { sanitized, tokenMap } = sanitizeContextForLLM(input.client_context)
+      const raw = await generateDraftReply(
+        { ...input, client_context: sanitized as typeof input.client_context },
+        input.locale,
+      )
+      return {
+        ...raw,
+        subject_suggested:
+          resolveSanitizedToken(raw.subject_suggested, tokenMap) ?? raw.subject_suggested,
+        body_text:
+          resolveSanitizedToken(raw.body_text, tokenMap) ?? raw.body_text,
+        body_html:
+          resolveSanitizedToken(raw.body_html, tokenMap) ?? raw.body_html,
+      }
+    },
+    insertFn: async (row) => {
+      const res = await supabaseAdmin
+        .from('syndic_emails_analysed')
+        .upsert(
+          { ...row, gmail_thread_id: msg.threadId },
+          { onConflict: 'syndic_id,gmail_message_id' },
+        )
+        .select('id')
+        .single()
+      return { data: res.data ? { id: res.data.id } : null, error: res.error }
+    },
+  })
+
+  if (pipelineResult.status === 'error') {
+    logger.error(`[email-agent/poll] Pipeline error for msg ${msg.id}:`, pipelineResult.error)
+    return false
+  }
+  return true
+}
+
+/** Détail journalisable d'une erreur de fournisseur (code + réponse, jamais de jeton). */
+function detailErreur(err: unknown): Record<string, unknown> {
+  if (err instanceof ErreurFournisseur) return { code: err.code, ...err.details }
+  return { erreur: err instanceof Error ? err.message : String(err) }
+}
+
+// ── Route principale : appelée par le cron, le webhook Gmail ou le tableau de bord ──
 export async function POST(request: NextRequest) {
+  await chargerSecretsBoites()
   try {
     const body = await request.json().catch(err => { logger.warn('[email-agent/poll] Failed to parse request body:', err); return {}; })
     const { syndic_id, first_run = false } = body
@@ -120,14 +199,14 @@ export async function POST(request: NextRequest) {
     if (syndic_id) {
       const internalTrigger = request.headers.get(INTERNAL_TRIGGER_HEADER)
       if (internalTrigger !== null) {
-        // Appel interne serveur-à-serveur (webhook Gmail) — pas de cookies.
+        // Appel interne serveur-à-serveur (webhook Gmail, retour OAuth) — pas de cookies.
         // Header présent mais invalide/vide → 401, on ne retombe JAMAIS sur
         // l'auth cookie (pas de fallback silencieux pour un appel machine).
         if (!isValidInternalTrigger(internalTrigger)) {
           logger.warn('[email-agent/poll] x-internal-trigger invalide ou INTERNAL_POLL_TOKEN non configuré')
           return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
         }
-        // Token valide → scopé au seul syndic_id transmis par le webhook
+        // Token valide → scopé au seul syndic_id transmis
         syndicIds = [syndic_id]
       } else {
         // Si syndic_id fourni → vérifier auth utilisateur (cookies)
@@ -163,85 +242,73 @@ export async function POST(request: NextRequest) {
 
     for (const sid of syndicIds) {
       try {
-        // 1. Récupérer les tokens OAuth du syndic (encrypted en priorité, fallback plain)
-        let accessToken: string | null = null
-        let refreshToken: string | null = null
-        let expiresAt: string | null = null
+        // 1. Jetons OAuth et fournisseur de la boîte du cabinet
+        const jetons = await lireJetonsCabinet(sid)
+        if (!jetons.accessToken || !jetons.refreshToken) continue
 
-        const encrypted = await getDecryptedToken(supabaseAdmin, sid).catch(() => null)
-        if (encrypted) {
-          accessToken = encrypted.access_token
-          refreshToken = encrypted.refresh_token
-          expiresAt = encrypted.expires_at
-        } else {
-          // Fallback à la version plain (rows pas encore backfillées)
-          const { data: plain } = await supabaseAdmin
-            .from('syndic_oauth_tokens')
-            .select('access_token, refresh_token, token_expiry')
-            .eq('syndic_id', sid)
-            .single()
-          if (plain) {
-            accessToken = plain.access_token
-            refreshToken = plain.refresh_token
-            expiresAt = plain.token_expiry
-          }
+        const fournisseur = fournisseurDeLigne(jetons.provider)
+        if (!fournisseur) {
+          logger.error(`[email-agent/poll] fournisseur de boîte inconnu pour ${sid}`, { provider: jetons.provider })
+          results.push({ syndic_id: sid, provider: jetons.provider, error: 'Fournisseur de boîte non pris en charge' })
+          continue
         }
 
-        if (!accessToken || !refreshToken) continue
-
-        // 2. Rafraîchir le token si expiré (avec 5min de marge)
-        const isExpired = expiresAt ? new Date(expiresAt) < new Date(Date.now() + 5 * 60 * 1000) : true
-        if (isExpired && refreshToken) {
-          const refreshed = await refreshGmailAccessToken(refreshToken)
-          if (refreshed) {
-            accessToken = refreshed.access_token
-            const newExpiry = new Date(Date.now() + refreshed.expires_in * 1000).toISOString()
-            // Dual-write : encrypted + plain
-            try {
-              await setEncryptedToken(supabaseAdmin, {
-                syndic_id: sid,
-                access_token: accessToken,
-                refresh_token: refreshToken,
-                expires_at: newExpiry,
-              })
-            } catch (encErr) {
-              logger.error(`[email-agent/poll] setEncryptedToken failed for ${sid}:`, encErr)
-            }
-            await supabaseAdmin
-              .from('syndic_oauth_tokens')
-              .update({ access_token: accessToken, token_expiry: newExpiry, updated_at: new Date().toISOString() })
-              .eq('syndic_id', sid)
-          } else {
-            // Refresh échoué → token révoqué, nettoyer
-            await supabaseAdmin.from('syndic_oauth_tokens').delete().eq('syndic_id', sid)
-            continue
-          }
+        // 2. Rafraîchir le jeton si expiré (5 min de marge). En cas d'échec, la ligne
+        // n'est PAS supprimée : une suppression déconnectait la boîte sans prévenir
+        // (en pleine démonstration) ; le cabinet reçoit une erreur et reconnecte.
+        let accessToken: string
+        try {
+          accessToken = await jetonAccesValide(sid, fournisseur, {
+            accessToken: jetons.accessToken,
+            refreshToken: jetons.refreshToken,
+            expiresAt: jetons.expiresAt,
+          })
+        } catch (refreshErr) {
+          logger.error(`[email-agent/poll] rafraîchissement du jeton ${fournisseur.id} refusé pour ${sid}`, detailErreur(refreshErr))
+          results.push({
+            syndic_id: sid,
+            provider: fournisseur.id,
+            code: 'refresh_failed',
+            error: 'Connexion à la boîte e-mail expirée : reconnectez la boîte',
+          })
+          continue
         }
 
-        // 3. Récupérer les emails Gmail
-        const messages = await fetchGmailMessages(accessToken, 20, first_run)
-        let newCount = 0
-        let skippedKnown = 0
+        // 3. Relève de la boîte de réception (lus ou non, 20 au plus)
+        let messages: MessageNormalise[]
+        try {
+          messages = await fournisseur.recupererMessages(accessToken, { premiereReleve: Boolean(first_run) })
+        } catch (lectureErr) {
+          logger.error(`[email-agent/poll] relève ${fournisseur.id} impossible pour ${sid}`, detailErreur(lectureErr))
+          results.push({
+            syndic_id: sid,
+            provider: fournisseur.id,
+            code: lectureErr instanceof ErreurFournisseur ? lectureErr.code : 'lecture_impossible',
+            error: 'Lecture de la boîte e-mail impossible',
+          })
+          continue
+        }
 
-        // ALF-2 — Idempotence : la requête Gmail (`is:unread`) ne retire jamais
-        // le label UNREAD (pas de scope gmail.modify garanti). Sans garde, chaque
-        // exécution (cron quotidien + push temps réel) relancerait classifyFn +
-        // draftFn (2 appels Groq) sur les MÊMES emails, et l'upsert
-        // (onConflict syndic_id,gmail_message_id) écraserait draft_status →
-        // 'pending_review', écrasant des brouillons déjà revus. On charge donc en
-        // UNE requête les gmail_message_id déjà présents en base pour ce syndic
-        // et on saute les messages connus, QUEL QUE SOIT leur statut.
+        // ALF-2 — Idempotence : la relève lit la boîte de réception, e-mails lus OU NON
+        // (un gestionnaire lit son courrier : « non lus » ne montrerait rien), et rien ne
+        // marque un e-mail comme traité chez le fournisseur (accès en lecture seule).
+        // Sans garde, chaque exécution (cron + push temps réel + « Analyser maintenant »)
+        // relancerait classifyFn + draftFn (2 appels IA) sur les MÊMES e-mails, et
+        // l'upsert (onConflict syndic_id,gmail_message_id) écraserait draft_status →
+        // 'pending_review', écrasant des brouillons déjà revus. On charge donc en UNE
+        // requête les identifiants déjà présents en base pour ce syndic (colonne
+        // gmail_message_id, quel que soit le fournisseur) et on saute les messages
+        // connus, QUEL QUE SOIT leur statut.
         let knownIds = new Set<string>()
         if (messages.length > 0) {
           const { data: knownRows, error: knownErr } = await supabaseAdmin
             .from('syndic_emails_analysed')
             .select('gmail_message_id')
             .eq('syndic_id', sid)
-            .in('gmail_message_id', messages.map((m: { id: string }) => m.id))
+            .in('gmail_message_id', messages.map(m => m.id))
           if (knownErr) {
             // Impossible de distinguer connu/nouveau → on ne traite RIEN :
-            // retraiter écraserait des brouillons revus. Les messages restent
-            // unread, le prochain poll les reprendra.
+            // retraiter écraserait des brouillons revus. Le prochain poll les reprendra.
             logger.error(`[email-agent/poll] Dedup query failed for ${sid}:`, knownErr)
             results.push({ syndic_id: sid, error: 'Erreur de déduplication' })
             continue
@@ -251,63 +318,25 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        for (const msg of messages) {
-          if (knownIds.has(msg.id)) {
-            skippedKnown++
-            continue
-          }
-          const headers = extractHeaders(msg.payload?.headers || [])
-          const bodyText = extractBody(msg.payload)
-          const receivedAt = new Date(parseInt(msg.internalDate)).toISOString()
+        const nouveaux = messages.filter(m => !knownIds.has(m.id))
+        const skippedKnown = messages.length - nouveaux.length
 
-          // 4. Pipeline Alfredo : classify + context + auto-draft + upsert
-          const pipelineResult = await processIncomingEmail({
-            syndicId: sid,
-            syndicRole: 'syndic',
-            locale: 'fr',
-            email: {
-              from: headers.from,
-              subject: headers.subject || '(sans objet)',
-              body_text: bodyText,
-              gmail_message_id: msg.id,
-              received_at: receivedAt,
-            },
-            classifyFn: classifyEmailWithGroq,
-            loadContextFn: (p) => loadClientContext(supabaseAdmin, p),
-            draftFn: async (input) => {
-              const { sanitized, tokenMap } = sanitizeContextForLLM(input.client_context)
-              const raw = await generateDraftReply(
-                { ...input, client_context: sanitized as typeof input.client_context },
-                input.locale,
-              )
-              return {
-                ...raw,
-                subject_suggested:
-                  resolveSanitizedToken(raw.subject_suggested, tokenMap) ?? raw.subject_suggested,
-                body_text:
-                  resolveSanitizedToken(raw.body_text, tokenMap) ?? raw.body_text,
-                body_html:
-                  resolveSanitizedToken(raw.body_html, tokenMap) ?? raw.body_html,
-              }
-            },
-            insertFn: async (row) => {
-              const res = await supabaseAdmin
-                .from('syndic_emails_analysed')
-                .upsert(
-                  { ...row, gmail_thread_id: msg.threadId },
-                  { onConflict: 'syndic_id,gmail_message_id' },
-                )
-                .select('id')
-                .single()
-              return { data: res.data ? { id: res.data.id } : null, error: res.error }
-            },
-          })
-
-          if (pipelineResult.status === 'error') {
-            logger.error(`[email-agent/poll] Pipeline error for msg ${msg.id}:`, pipelineResult.error)
-          } else {
-            newCount++
+        // 4. Pipeline Alfredo (classify + context + auto-draft + upsert), par lots
+        // parallèles et dans un budget de temps : une première relève (jusqu'à 20 e-mails,
+        // 2 appels IA chacun) répond avant le délai de la passerelle Cloudflare (100 s). Les
+        // e-mails non traités dans le budget le seront à la relève suivante (dédup).
+        const debutPipeline = Date.now()
+        let newCount = 0
+        let reportes = 0
+        for (let i = 0; i < nouveaux.length; i += PIPELINE_PARALLELE) {
+          if (Date.now() - debutPipeline > BUDGET_PIPELINE_MS) {
+            reportes = nouveaux.length - i
+            logger.warn(`[email-agent/poll] budget de temps atteint pour ${sid} : ${reportes} e-mail(s) reporté(s) à la relève suivante`)
+            break
           }
+          const lot = nouveaux.slice(i, i + PIPELINE_PARALLELE)
+          const reussites = await Promise.all(lot.map(msg => analyserMessage(sid, msg)))
+          newCount += reussites.filter(Boolean).length
         }
 
         if (skippedKnown > 0) {
@@ -316,9 +345,11 @@ export async function POST(request: NextRequest) {
 
         results.push({
           syndic_id: sid,
+          provider: fournisseur.id,
           emails_processed: messages.length,
           new_emails: newCount,
           skipped_known: skippedKnown,
+          deferred: reportes,
         })
 
       } catch (syndicErr: unknown) {
@@ -337,6 +368,7 @@ export async function POST(request: NextRequest) {
 
 // ── GET : récupérer les emails analysés d'un syndic (authentifié) ────────────
 export async function GET(request: NextRequest) {
+  await chargerSecretsBoites()
   // ── Auth obligatoire ──────────────────────────────────────────────────────
   const user = await getAuthUser(request)
   if (!user) {

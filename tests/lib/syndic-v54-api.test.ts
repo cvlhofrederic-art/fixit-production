@@ -13,7 +13,7 @@ describe('syndic v54 — api fetchers (Phase 2)', () => {
     )
     const res = await fetchMissions('tok123')
     expect(res).toHaveLength(2)
-    expect(spy).toHaveBeenCalledWith('/api/syndic/missions', { headers: { Authorization: 'Bearer tok123' } })
+    expect(spy).toHaveBeenCalledWith('/api/syndic/missions', { headers: { Authorization: 'Bearer tok123' }, cache: 'no-store' })
   })
 
   it('fetchImmeubles : retourne [] si la clé est absente', async () => {

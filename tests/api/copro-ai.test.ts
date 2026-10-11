@@ -98,7 +98,7 @@ describe('POST /api/copro-ai — contexte de Fixy construit côté serveur', () 
       'Tu es Fixy',
       'Nous sommes le lundi 12 octobre 2026.',
       'Géraldine Xavier',
-      'Résidence Les Acacias',
+      'Résidence Le Prado',
       'lot n°12',
       'Solde à régler : 2 537,50 €',
       'Charges T4 2026 : 855,00 €',

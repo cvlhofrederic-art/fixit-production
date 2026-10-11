@@ -10,7 +10,7 @@ import type { Locale as AgentLocale } from '@/lib/syndic/agent-types'
  */
 
 async function getList<T>(path: string, token: string, key: string): Promise<T[]> {
-  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(path, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
   if (!res.ok) throw new Error(`${path} → HTTP ${res.status}`)
   const json: unknown = await res.json()
   const list = (json as Record<string, unknown>)?.[key]
@@ -91,7 +91,7 @@ function rowToCoprop(r: Record<string, unknown>): Coprop {
 }
 
 export async function fetchCoproprios(token: string): Promise<Coprop[]> {
-  const res = await fetch('/api/syndic/coproprios', { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch('/api/syndic/coproprios', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
   if (!res.ok) throw new Error(`/api/syndic/coproprios → HTTP ${res.status}`)
   const json: unknown = await res.json()
   const list = (json as Record<string, unknown>)?.coproprios
@@ -152,14 +152,147 @@ export interface Signalement {
   demandeurNom: string
   typeIntervention: string
   description: string
-  /** basse | normale | haute | urgente */
+  /** Copropriétaire : urgente | normale | planifiee (anciennes lignes : basse | haute possibles). */
   priorite: string
-  /** en_attente | en_cours | en_reparation | resolu … */
+  /** en_attente | acceptee | en_cours | terminee | annulee */
   statut: string
+  /** Champs renvoyés par GET /api/syndic/signalements (optionnels : mocks et anciens consommateurs). */
+  demandeurRole?: string
+  demandeurEmail?: string
+  demandeurTelephone?: string
+  batiment?: string
+  etage?: string
+  numLot?: string
+  estPartieCommune?: boolean
+  zoneSignalee?: string
+  /** Nom du prestataire à qui la demande a été confiée. */
+  artisanAssigne?: string
+  createdAt?: string
+  updatedAt?: string
+  /** Fil d'échanges avec le copropriétaire (syndic_signalement_messages). */
+  messages?: SignalementMessage[]
+}
+
+export interface SignalementMessage {
+  id: string
+  auteur: string
+  role: string
+  texte: string
+  createdAt: string
 }
 
 export const fetchSignalements = (token: string): Promise<Signalement[]> =>
   getList<Signalement>('/api/syndic/signalements', token, 'signalements')
+
+// ── Canal de communication (ModCanal, données réelles) ────────────────────────
+
+/** Erreur d'une route syndic : `code` = champ `error` de la réponse (ex. 'prestataire_sans_compte'). */
+export class ErreurApiSyndic extends Error {
+  constructor(public readonly code: string, public readonly status: number) {
+    super(code)
+    this.name = 'ErreurApiSyndic'
+  }
+}
+
+async function envoyerJson<T>(path: string, token: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  if (!res.ok) throw new ErreurApiSyndic(typeof json.error === 'string' ? json.error : `HTTP ${res.status}`, res.status)
+  return json as T
+}
+
+/** Résultat de « Valider la mission » : notification = ordre de mission + notification in-app livrés. */
+export interface ResultatValidationDemande {
+  mission_id: string
+  conversation_id: string | null
+  notification: boolean
+}
+
+/** Confie un signalement à un prestataire du cabinet (ligne syndic_artisans avec compte Vitfix). */
+export const validerDemande = (
+  token: string,
+  body: { signalement_id: string; syndic_artisan_id: string; date_intervention?: string; note?: string },
+): Promise<ResultatValidationDemande> => envoyerJson('/api/syndic/demandes/valider', token, body)
+
+/** Réponse du syndic dans le fil d'un signalement (visible par le copropriétaire). */
+export const envoyerMessageSignalement = (token: string, signalementId: string, texte: string, auteur = 'Syndic'): Promise<{ message: unknown }> =>
+  envoyerJson('/api/syndic/signalements', token, { signalementId, texte, auteur, role: 'syndic' })
+
+export type CoteMessageCanal = 'donneur_ordre' | 'artisan'
+export type StatutOrdreCanal = 'en_attente' | 'accepte' | 'refuse' | 'en_cours' | 'termine'
+
+export interface OrdreMissionCanal {
+  titre: string
+  adresse: string
+  /** AAAA-MM-JJ */
+  dateSouhaitee: string
+  description: string
+  urgence: string
+  statut: StatutOrdreCanal
+  heureArrivee: string
+  signalementId: string
+  syndicMissionId: string
+}
+
+export interface DocumentCanal {
+  type: 'devis' | 'rapport' | 'facture'
+  reference: string
+  montant_ttc?: number
+  description: string
+  date: string
+}
+
+export interface MessageCanalPro {
+  id: string
+  /** text | ordre_mission | system | photo | voice */
+  type: string
+  contenu: string
+  creeLe: string
+  cote: CoteMessageCanal
+  ordreMission: OrdreMissionCanal | null
+  document: DocumentCanal | null
+}
+
+export interface ConversationCanalPro {
+  id: string
+  artisanUserId: string
+  prestataire: { nom: string; metier: string }
+  derniereActivite: string | null
+  apercu: string
+  /** Dernier ordre de mission de la conversation (statut courant). */
+  ordre: (OrdreMissionCanal & { messageId: string }) | null
+  messages: MessageCanalPro[]
+}
+
+/** Conversations prestataires du cabinet (GET /api/syndic/canal-pro), jamais servies du cache. */
+export const fetchCanalPro = (token: string): Promise<ConversationCanalPro[]> =>
+  getList<ConversationCanalPro>('/api/syndic/canal-pro', token, 'conversations')
+
+export const envoyerMessageCanalPro = async (token: string, conversationId: string, content: string): Promise<MessageCanalPro> =>
+  (await envoyerJson<{ message: MessageCanalPro }>('/api/syndic/canal-pro', token, { conversation_id: conversationId, content })).message
+
+/** Message du canal interne du cabinet (GET/POST /api/syndic/canal-interne). */
+export interface MessageInterne {
+  id: string
+  auteur: string
+  auteurRole: string
+  texte: string
+  heure: string
+  lu: boolean
+  sujet: string
+  createdAt: string
+}
+
+export const fetchCanalInterne = (token: string): Promise<MessageInterne[]> =>
+  getList<MessageInterne>('/api/syndic/canal-interne', token, 'messages')
+
+export const envoyerMessageInterne = async (token: string, texte: string, auteur?: string): Promise<MessageInterne> =>
+  (await envoyerJson<{ message: MessageInterne }>('/api/syndic/canal-interne', token, { texte, ...(auteur ? { auteur } : {}) })).message
 
 /** Ascenseur (Phase 3 — ModElevadores). camelCase renvoyé par l'API. */
 export interface Elevador {
@@ -406,7 +539,7 @@ export interface ContabOrcamento { id: string; ano: string; edificio: string; to
 export interface ContabData { fracoes: ContabFracao[]; chamadas: ContabChamada[]; diario: ContabDiario[]; orcamentos: ContabOrcamento[] }
 
 export async function fetchContab(token: string): Promise<ContabData> {
-  const res = await fetch('/api/syndic/contab', { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch('/api/syndic/contab', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' })
   if (!res.ok) throw new Error(`/api/syndic/contab → HTTP ${res.status}`)
   const j = (await res.json()) as Partial<ContabData>
   return { fracoes: j.fracoes ?? [], chamadas: j.chamadas ?? [], diario: j.diario ?? [], orcamentos: j.orcamentos ?? [] }
@@ -836,3 +969,99 @@ export interface Orcamento {
 }
 export const fetchOrcamentos = (token: string): Promise<Orcamento[]> =>
   getList<Orcamento>('/api/syndic/orcamentos', token, 'orcamentos')
+
+// ── Boîte e-mail du cabinet (écran « E-mails Fixy », agent Alfredo) ────────────
+// Gmail / Google Workspace ou Outlook / Microsoft 365 (une boîte par cabinet).
+
+/** Fournisseur de la boîte (colonne syndic_oauth_tokens.provider). */
+export type FournisseurBoiteEmail = 'gmail' | 'microsoft'
+
+/** E-mail relevé et analysé par Alfredo (sans le corps complet). */
+export interface EmailAnalyse {
+  id: string
+  from_email: string
+  subject: string | null
+  resume_ia: string | null
+  received_at: string
+  urgence: string | null
+  type_demande: string | null
+  draft_status: string | null
+  draft_subject: string | null
+}
+
+export interface EtatBoiteEmail {
+  cabinetId: string
+  connecte: boolean
+  /** Fournisseur de la boîte connectée (null hors connexion). */
+  provider: FournisseurBoiteEmail | null
+  email: string | null
+  misAJour: string | null
+  brouillonsEnAttente: number
+  emails: EmailAnalyse[]
+}
+/** @deprecated nom d'avant Outlook / Microsoft 365 — utiliser EtatBoiteEmail. */
+export type EtatBoiteGmail = EtatBoiteEmail
+
+/** État de la boîte du cabinet : connectée ou non, fournisseur, adresse, derniers e-mails analysés. */
+export async function fetchEtatBoite(token: string): Promise<EtatBoiteEmail> {
+  const res = await fetch('/api/email-agent/status', { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`/api/email-agent/status → HTTP ${res.status}`)
+  return (await res.json()) as EtatBoiteEmail
+}
+
+/**
+ * Adresse de connexion de la boîte chez le fournisseur choisi (Google ou Microsoft) :
+ * le jeton de session reste dans l'en-tête, jamais dans l'URL.
+ */
+export async function urlConnexionBoite(token: string, provider: FournisseurBoiteEmail): Promise<string> {
+  const res = await fetch(`/api/email-agent/connect?format=json&provider=${provider}`, { headers: { Authorization: `Bearer ${token}` } })
+  const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+  if (!res.ok || !j.url) throw new Error(j.error || `/api/email-agent/connect → HTTP ${res.status}`)
+  return j.url
+}
+
+/** Déconnecte la boîte du cabinet ; purger : efface aussi les e-mails analysés (hors démonstration). */
+export async function deconnecterBoite(token: string, purger: boolean): Promise<{ boitesSupprimees: number; emailsSupprimes: number }> {
+  const res = await fetch(`/api/email-agent/connect${purger ? '?purger=1' : ''}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const j = (await res.json().catch(() => ({}))) as { boitesSupprimees?: number; emailsSupprimes?: number; error?: string }
+  if (!res.ok) throw new Error(j.error || `/api/email-agent/connect → HTTP ${res.status}`)
+  return { boitesSupprimees: j.boitesSupprimees ?? 0, emailsSupprimes: j.emailsSupprimes ?? 0 }
+}
+
+/** Échec d'une relève, avec le code renvoyé par le poll (refresh_failed, lecture_impossible…). */
+export class ErreurReleveBoite extends Error {
+  readonly code: string | null
+  constructor(message: string, code: string | null) {
+    super(message)
+    this.name = 'ErreurReleveBoite'
+    this.code = code
+  }
+}
+
+/**
+ * Relève la boîte maintenant : Alfredo classe les derniers e-mails de la boîte de réception
+ * (lus ou non) et prépare les brouillons — rien n'est envoyé.
+ */
+export async function releverBoite(token: string, cabinetId: string): Promise<{ nouveaux: number; traites: number; reportes: number }> {
+  const res = await fetch('/api/email-agent/poll', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ syndic_id: cabinetId, first_run: true }),
+  })
+  if (!res.ok) throw new Error(`/api/email-agent/poll → HTTP ${res.status}`)
+  const j = (await res.json()) as { results?: Array<{ new_emails?: number; emails_processed?: number; deferred?: number; error?: string; code?: string }> }
+  const r = j.results?.[0]
+  if (r?.error) throw new ErreurReleveBoite(r.error, r.code ?? null)
+  // reportes : e-mails laissés à la relève suivante (budget de temps du serveur atteint).
+  return { nouveaux: r?.new_emails ?? 0, traites: r?.emails_processed ?? 0, reportes: r?.deferred ?? 0 }
+}
+
+/** @deprecated utiliser fetchEtatBoite. */
+export const fetchEtatBoiteGmail = fetchEtatBoite
+/** @deprecated utiliser urlConnexionBoite(token, 'gmail'). */
+export const urlConnexionGmail = (token: string): Promise<string> => urlConnexionBoite(token, 'gmail')
+/** @deprecated utiliser releverBoite. */
+export const releverBoiteGmail = releverBoite

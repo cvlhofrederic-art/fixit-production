@@ -8,7 +8,8 @@
  * un FOUT inacceptable avant que next/font soit câblé (étape a).
  */
 
-#syndic-dashboard-v54 {
+#syndic-dashboard-v54,
+[data-v54-portal] {
   --v54-font-sans:  var(--font-manrope, system-ui), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --v54-font-serif: var(--font-cormorant, 'Times New Roman'), 'Times New Roman', serif;
   --v54-font-mono:  var(--font-jetbrains-mono, 'Courier New'), 'Courier New', ui-monospace, monospace;

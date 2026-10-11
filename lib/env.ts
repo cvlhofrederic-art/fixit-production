@@ -28,6 +28,19 @@ export async function getSecret(key: string): Promise<string> {
   return process.env[key] || (await getCfEnv())[key] || ''
 }
 
+/**
+ * Recopie dans process.env les secrets du Worker que process.env n'expose pas, pour le
+ * code qui les lit ensuite de façon synchrone. Les valeurs déjà présentes sont gardées.
+ */
+export async function hydraterSecrets(cles: readonly string[]): Promise<void> {
+  const manquantes = cles.filter(k => !process.env[k])
+  if (manquantes.length === 0) return
+  const env = await getCfEnv()
+  for (const k of manquantes) {
+    if (env[k]) process.env[k] = env[k]
+  }
+}
+
 const requiredServerVars = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -37,6 +50,8 @@ const requiredServerVars = [
 // Variables optionnelles — absence = fonctionnalité désactivée, pas d'erreur.
 // SENTRY_AUTH_TOKEN est build-only (source maps upload), pas besoin au runtime.
 // GOOGLE_CLIENT_ID/SECRET ne sont nécessaires que si OAuth Google est activé.
+// MICROSOFT_CLIENT_ID/SECRET : boîte Outlook / Microsoft 365 de l'agent Alfredo
+// (lib/email-agent/fournisseurs/microsoft.ts) — sans eux, seul Gmail se connecte.
 const optionalServerVars = [
   'GROQ_API_KEY',
   'ANTHROPIC_API_KEY',
@@ -46,6 +61,8 @@ const optionalServerVars = [
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
   'NEXT_PUBLIC_APP_URL',
+  'MICROSOFT_CLIENT_ID',
+  'MICROSOFT_CLIENT_SECRET',
 ] as const
 
 // Variables intentionnellement absentes en prod (build-only ou non utilisées)

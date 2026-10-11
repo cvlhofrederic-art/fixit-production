@@ -8,12 +8,11 @@ export interface MembrePlanning {
   accent: string
 }
 
-/** Jour de la semaine : code interne, abréviation, nom complet, quantième affiché. */
+/** Jour de la semaine : code interne, abréviation, nom complet (la date affichée est celle de la semaine en cours). */
 export interface JourPlanning {
   key: string
   short: string
   long: string
-  date: string
 }
 
 /** Événement de la semaine (démonstration ou données réelles). */
@@ -199,13 +198,13 @@ export const PLANEAMENTO_MESSAGES = defineMessages<PlaneamentoTextes>({
       { id: 'IM', name: 'Inês Monteiro', role: 'Jurista', accent: 'amber' },
     ],
     jours: [
-      { key: 'mon', short: 'Seg', long: 'Segunda', date: '19' },
-      { key: 'tue', short: 'Ter', long: 'Terça', date: '20' },
-      { key: 'wed', short: 'Qua', long: 'Quarta', date: '21' },
-      { key: 'thu', short: 'Qui', long: 'Quinta', date: '22' },
-      { key: 'fri', short: 'Sex', long: 'Sexta', date: '23' },
-      { key: 'sat', short: 'Sáb', long: 'Sábado', date: '24' },
-      { key: 'sun', short: 'Dom', long: 'Domingo', date: '25' },
+      { key: 'mon', short: 'Seg', long: 'Segunda' },
+      { key: 'tue', short: 'Ter', long: 'Terça' },
+      { key: 'wed', short: 'Qua', long: 'Quarta' },
+      { key: 'thu', short: 'Qui', long: 'Quinta' },
+      { key: 'fri', short: 'Sex', long: 'Sexta' },
+      { key: 'sat', short: 'Sáb', long: 'Sábado' },
+      { key: 'sun', short: 'Dom', long: 'Domingo' },
     ],
     demo: [
       { id: 1, day: 'mon', start: '09:00', end: '10:00', label: 'Reunião AG Atlântico', kind: 'gold', owner: 'HC' },
@@ -248,7 +247,7 @@ export const PLANEAMENTO_MESSAGES = defineMessages<PlaneamentoTextes>({
     evenement: {
       titre: 'Ajouter un événement',
       champTitre: 'Titre',
-      titrePlaceholder: 'Ex. : AG Résidence Atlantique',
+      titrePlaceholder: 'Ex. : AG Résidence Le Prado',
       jour: 'Jour',
       type: 'Type',
       types: { gold: 'Réunion', sage: 'Visite', amber: 'Tâche', green: 'Espace commun', rust: 'Événement' },
@@ -307,25 +306,25 @@ export const PLANEAMENTO_MESSAGES = defineMessages<PlaneamentoTextes>({
       { id: 'IM', name: 'Inès Monnier', role: 'Juriste', accent: 'amber' },
     ],
     jours: [
-      { key: 'mon', short: 'Lun', long: 'Lundi', date: '19' },
-      { key: 'tue', short: 'Mar', long: 'Mardi', date: '20' },
-      { key: 'wed', short: 'Mer', long: 'Mercredi', date: '21' },
-      { key: 'thu', short: 'Jeu', long: 'Jeudi', date: '22' },
-      { key: 'fri', short: 'Ven', long: 'Vendredi', date: '23' },
-      { key: 'sat', short: 'Sam', long: 'Samedi', date: '24' },
-      { key: 'sun', short: 'Dim', long: 'Dimanche', date: '25' },
+      { key: 'mon', short: 'Lun', long: 'Lundi' },
+      { key: 'tue', short: 'Mar', long: 'Mardi' },
+      { key: 'wed', short: 'Mer', long: 'Mercredi' },
+      { key: 'thu', short: 'Jeu', long: 'Jeudi' },
+      { key: 'fri', short: 'Ven', long: 'Vendredi' },
+      { key: 'sat', short: 'Sam', long: 'Samedi' },
+      { key: 'sun', short: 'Dim', long: 'Dimanche' },
     ],
     demo: [
-      { id: 1, day: 'mon', start: '09:00', end: '10:00', label: 'AG Résidence Atlantique', kind: 'gold', owner: 'HC' },
-      { id: 2, day: 'mon', start: '14:00', end: '16:00', label: 'Visite Résidence Atlantique', kind: 'sage', owner: 'BT' },
+      { id: 1, day: 'mon', start: '09:00', end: '10:00', label: 'AG Résidence Le Prado', kind: 'gold', owner: 'HC' },
+      { id: 2, day: 'mon', start: '14:00', end: '16:00', label: 'Visite Résidence Le Prado', kind: 'sage', owner: 'BT' },
       { id: 3, day: 'tue', start: '10:00', end: '11:00', label: 'Piscine', kind: 'green', owner: 'MS' },
       { id: 4, day: 'tue', start: '15:00', end: '16:00', label: 'Salle commune', kind: 'gold', owner: 'MS' },
       { id: 5, day: 'wed', start: '09:00', end: '11:00', label: 'Contrôle ascenseur', kind: 'amber', owner: 'DP' },
       { id: 6, day: 'wed', start: '15:00', end: '16:00', label: 'Réunion copropriétaires', kind: 'gold', owner: 'IM' },
-      { id: 7, day: 'thu', start: '08:00', end: '09:00', label: 'Visite Berges du Rhône', kind: 'sage', owner: 'TM' },
+      { id: 7, day: 'thu', start: '08:00', end: '09:00', label: 'Visite Euroméditerranée', kind: 'sage', owner: 'TM' },
       { id: 8, day: 'thu', start: '11:00', end: '12:00', label: 'Facturation T1', kind: 'amber', owner: 'RA' },
       { id: 9, day: 'fri', start: '10:00', end: '11:00', label: 'Salle de sport', kind: 'green', owner: 'MS' },
-      { id: 10, day: 'fri', start: '16:00', end: '18:00', label: 'AG Bellecour Center', kind: 'gold', owner: 'HC' },
+      { id: 10, day: 'fri', start: '16:00', end: '18:00', label: 'AG Terrasses du Vieux-Port', kind: 'gold', owner: 'HC' },
       { id: 11, day: 'sat', start: '10:00', end: '12:00', label: 'Événement copropriétaires', kind: 'rust', owner: 'MS' },
     ],
   },

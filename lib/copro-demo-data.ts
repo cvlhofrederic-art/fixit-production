@@ -195,7 +195,7 @@ export const PROFILE_DEMO: CoproProfile = {
   prenom: 'Géraldine',
   email: 'geraldine.xavier@email.com',
   telephone: '06 12 34 56 78',
-  immeuble: 'Résidence Les Acacias',
+  immeuble: 'Résidence Le Prado',
   batiment: 'D',
   etage: '4',
   numLot: '12',
@@ -223,7 +223,7 @@ export const CHARGES_DEMO: ChargesMensuelles[] = [
 
 export const PAIEMENTS_DEMO: Paiement[] = [
   { id: '1', type: 'charges_trimestrielles', description: 'Charges T4 2026', montant: 855.00, dateEcheance: '2026-10-15', statut: 'en_attente', trimestre: 'T4 2026', reference: 'PAY-2026-004' },
-  { id: '2', type: 'appel_fonds', description: 'Fonds de travaux art. 14-2', montant: 220.00, dateEcheance: '2026-11-05', statut: 'en_attente', reference: 'FDT-2026-001' },
+  { id: '2', type: 'appel_fonds', description: 'Fonds de travaux art. 14-2-1', montant: 220.00, dateEcheance: '2026-11-05', statut: 'en_attente', reference: 'FDT-2026-001' },
   { id: '3', type: 'travaux', description: 'Ravalement façade — 1er appel de fonds (quote-part)', montant: 1462.50, dateEcheance: '2026-12-01', statut: 'en_attente', reference: 'TRX-2026-001' },
   { id: '4', type: 'charges_trimestrielles', description: 'Charges T3 2026', montant: 855.00, dateEcheance: '2026-07-15', datePaiement: '2026-07-10', statut: 'payee', trimestre: 'T3 2026', reference: 'PAY-2026-003' },
   { id: '5', type: 'regularisation', description: 'Régularisation charges 2025', montant: -125.00, dateEcheance: '2026-07-15', datePaiement: '2026-07-08', statut: 'payee', reference: 'REG-2025-001' },
@@ -257,7 +257,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
     id: '1',
     titre: 'AG Extraordinaire — Chaudière collective',
     date: '2026-11-19T18:00:00',
-    lieu: 'Salle polyvalente, 12 rue des Acacias, Paris 8e',
+    lieu: 'Salle polyvalente, 182 avenue du Prado, 13008 Marseille',
     type: 'extraordinaire',
     statut: 'convoquee',
     ordreDuJour: [
@@ -277,7 +277,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
     id: '3',
     titre: 'AG Ordinaire 2026',
     date: '2026-06-11T18:00:00',
-    lieu: 'Salle polyvalente, 12 rue des Acacias, Paris 8e',
+    lieu: 'Salle polyvalente, 182 avenue du Prado, 13008 Marseille',
     type: 'ordinaire',
     statut: 'cloturee',
     ordreDuJour: [
@@ -298,7 +298,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
     id: '2',
     titre: 'AG Extraordinaire — Toiture',
     date: '2025-09-20T18:00:00',
-    lieu: 'Salle polyvalente, 12 rue des Acacias, Paris 8e',
+    lieu: 'Salle polyvalente, 182 avenue du Prado, 13008 Marseille',
     type: 'extraordinaire',
     statut: 'cloturee',
     ordreDuJour: [
@@ -315,7 +315,7 @@ export const AG_DEMO: AssembleeGenerale[] = [
 export const ECHEANCES_DEMO: Echeance[] = [
   { id: '1', type: 'paiement', titre: 'Charges T4 2026', date: '2026-10-15', description: '855,00 € — Appel de charges trimestriel', urgent: true },
   { id: '2', type: 'maintenance', titre: 'Coupure eau froide', date: '2026-10-20', description: '9h-12h — Remplacement vanne local technique', urgent: true },
-  { id: '3', type: 'paiement', titre: 'Fonds de travaux art. 14-2', date: '2026-11-05', description: '220,00 € — Cotisation annuelle', urgent: false },
+  { id: '3', type: 'paiement', titre: 'Fonds de travaux art. 14-2-1', date: '2026-11-05', description: '220,00 € — Cotisation annuelle', urgent: false },
   { id: '4', type: 'assemblee', titre: 'Fin du vote par correspondance', date: '2026-11-15', description: 'AG du 19/11 — formulaire en ligne, onglet Assemblées & Votes', urgent: false },
   { id: '5', type: 'assemblee', titre: 'AG Extraordinaire — Chaudière', date: '2026-11-19', description: '18h00 — Salle polyvalente', urgent: false },
   { id: '6', type: 'paiement', titre: 'Ravalement façade — 1er appel de fonds', date: '2026-12-01', description: '1 462,50 € — Quote-part travaux', urgent: false },
@@ -365,8 +365,8 @@ export const INTERVENTIONS_DEMO: SuiviIntervention[] = [
     dateRdv: '2026-10-12',
     heureRdv: '14:00',
     progression: 35,
-    gpsLat: 48.8566,
-    gpsLng: 2.3522,
+    gpsLat: 43.2781,
+    gpsLng: 5.3902,
     gpsEta: 12,
   },
   {
@@ -416,7 +416,7 @@ export const POSTES_CHARGES: PosteCharge[] = [
   { label: 'Électricité communes', emoji: '⚡', montantAnnuel: 310, budget: 320, couleur: '#f59e0b' },
   { label: 'Ascenseur (maintenance)', emoji: '🏢', montantAnnuel: 540, budget: 600, couleur: '#8b5cf6' },
   { label: 'Nettoyage', emoji: '🧹', montantAnnuel: 260, budget: 280, couleur: '#ec4899' },
-  { label: 'Fonds travaux art.14-2', emoji: '🏗️', montantAnnuel: 880, budget: 880, couleur: '#ef4444' },
+  { label: 'Fonds travaux art. 14-2-1', emoji: '🏗️', montantAnnuel: 880, budget: 880, couleur: '#ef4444' },
 ]
 
 // Loyer révisé (IRL) le 1er mars 2026 : 1 210 € puis 1 250 € par mois, charges comprises.
@@ -449,7 +449,7 @@ export const BAIL_DEMO: Bail = {
   indiceRef: 136.27,
   indiceActuel: 140.38,
   bailleur: 'SCI Les Acacias',
-  bailleurAdresse: '45 avenue Victor Hugo, 75016 Paris',
+  bailleurAdresse: '45 avenue du Prado, 13008 Marseille',
   bailleurPhone: '01 45 67 89 00',
   agence: 'Cabinet Dupont Immobilier',
   logement: 'Appartement T3, 4ème étage, Bâtiment D',

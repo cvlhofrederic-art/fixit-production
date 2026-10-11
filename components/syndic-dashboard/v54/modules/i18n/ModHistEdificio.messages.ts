@@ -116,7 +116,7 @@ export const HIST_EDIFICIO_MESSAGES = defineMessages<HistEdificioTextes>({
     titre: "Historique de l'immeuble",
     chapeau: 'Vue consolidée par immeuble — interventions, équipements, contrats',
     aucunImmeuble: 'Aucun immeuble',
-    ongletsDemo: { aurora: 'Résidence Aurore', belavista: 'Résidence Belle Vue', cedofeita: 'Résidence Croix-Rousse' },
+    ongletsDemo: { aurora: 'Résidence Aurore', belavista: 'Résidence Belle Vue', cedofeita: 'Résidence Castellane' },
     kpi: {
       interventions: 'Interventions au total',
       equipements: 'Équipements',
@@ -166,8 +166,8 @@ export const HIST_EDIFICIO_MESSAGES = defineMessages<HistEdificioTextes>({
       ],
       contrats: [
         ['Entretien des ascenseurs', 'ElevaTech', '1 250 € / an', "En vigueur jusqu'en 12/2027", 'sage'],
-        ['Nettoyage des parties communes', 'Nettoyage Rhône SARL', '380 € / mois', 'Renouvellement 06/2026', 'amber'],
-        ['Assurance multirisque immeuble', 'Mutuelle Rhodanienne', '2 400 € / an', "En vigueur jusqu'en 03/2027", 'sage'],
+        ['Nettoyage des parties communes', 'Nettoyage Provence SARL', '380 € / mois', 'Renouvellement 06/2026', 'amber'],
+        ['Assurance multirisque immeuble', 'Mutuelle Provence Habitat', '2 400 € / an', "En vigueur jusqu'en 03/2027", 'sage'],
       ],
     },
   },

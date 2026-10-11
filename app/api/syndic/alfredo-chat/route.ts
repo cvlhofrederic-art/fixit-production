@@ -14,6 +14,7 @@ import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-
 import { searchEmails, regenerateDraft, bulkAction, summarizeInbox } from '@/lib/syndic/alfredo-chat-tools'
 import type { SyndicRole, Locale } from '@/lib/syndic/agent-types'
 import type { AlfredoChatContext } from '@/lib/syndic/prompts/alfredo/system-prompt-fr'
+import { fournisseurDeLigne } from '@/lib/email-agent/fournisseurs'
 
 const BodySchema = z.object({
   conversation_id: z.string().uuid().optional(),
@@ -134,7 +135,7 @@ export async function POST(req: NextRequest) {
 
   const { data: gmailToken } = await supabaseAdmin
     .from('syndic_oauth_tokens')
-    .select('syndic_id')
+    .select('syndic_id, provider, access_token')
     .eq('syndic_id', cabinetId)
     .maybeSingle()
 
@@ -144,7 +145,9 @@ export async function POST(req: NextRequest) {
     role: userRole,
     inbox_pending_count: pending,
     inbox_total_count: counts.length,
-    gmail_connected: !!gmailToken,
+    // Une ligne sans access_token = connexion commencée puis abandonnée (nonce seul).
+    gmail_connected: !!gmailToken?.access_token,
+    boite_fournisseur: gmailToken?.access_token ? fournisseurDeLigne(gmailToken.provider)?.nom ?? null : null,
   }
 
   const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(promptCtx)

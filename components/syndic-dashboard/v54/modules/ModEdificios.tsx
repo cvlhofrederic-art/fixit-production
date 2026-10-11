@@ -18,6 +18,7 @@ import { NovaMissaoModal } from './NovaMissaoModal'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
 import { useMessages, useV54Locale, type V54Locale } from '@/lib/syndic/v54/i18n'
+import { dateApi } from '@/lib/syndic/v54/i18n/dates'
 import { EDIFICIOS_MESSAGES, type ImmeubleDemo } from './i18n/ModEdificios.messages'
 
 /** Edifícios — port byte-exact du ModEdificios du bundle V5.7 (utilise Progress). */
@@ -28,14 +29,17 @@ const eur = (n: number, locale: V54Locale) => n.toLocaleString(locale)
 /** Dernier élément : règlement de copropriété présent. */
 type Row = ImmeubleDemo
 
-/** Mappe un immeuble réel vers la tuple de rendu d'une carte (Phase 2). */
-function immToRow(i: Immeuble): Row {
+/**
+ * Mappe un immeuble réel vers la tuple de rendu d'une carte (Phase 2).
+ * « Prochain contrôle » : l'API renvoie '' quand la date n'est pas saisie → « — » ; date ISO → JJ/MM/AAAA.
+ */
+function immToRow(i: Immeuble, locale: V54Locale): Row {
   return [
     i.nom,
     [i.adresse, i.codePostal, i.ville].filter(Boolean).join(', '),
     i.nbLots ?? 0,
     i.anneeConstruction ?? 0,
-    i.prochainControle ?? '—',
+    dateApi(i.prochainControle, locale) || '—',
     String(i.nbInterventions ?? 0),
     i.depensesAnnee ?? 0,
     i.budgetAnnuel ?? 0,
@@ -50,7 +54,7 @@ export default function ModEdificios() {
   const data = useSyndicData()
   const real = data.authenticated
   const items: ReadonlyArray<{ row: Row; im: Immeuble | null }> = real
-    ? data.immeubles.map((i) => ({ row: immToRow(i), im: i }))
+    ? data.immeubles.map((i) => ({ row: immToRow(i, locale), im: i }))
     : t.demo.map((r) => ({ row: r, im: null }))
   const buildings = items.map((it) => it.row)
   const totalFracoes = buildings.reduce((acc, b) => acc + b[2], 0)
