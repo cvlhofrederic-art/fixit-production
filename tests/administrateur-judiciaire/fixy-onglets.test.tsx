@@ -1,7 +1,7 @@
 import './fuseau-paris'
 import 'fake-indexeddb/auto'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { FixyModule } from '@/components/administrateur-judiciaire/modules/agents-ia/FixyModule'
 import { TempoEcheancesModule } from '@/components/administrateur-judiciaire/modules/agents-ia/TempoEcheancesModule'
@@ -93,7 +93,10 @@ describe('Fixy — onglet « Assistant » par défaut (page d\'accueil de la maq
     expect(screen.queryByText('Courriel reçu')).toBeNull()
   })
 
-  it('une suggestion remplit le champ ; l\'envoi affiche la réponse opérationnelle de Fixy', async () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('une suggestion remplit le champ ; sans IA joignable, l\'envoi affiche la réponse type de Fixy', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ error: 'ia_indisponible' }, { status: 503 })))
     await monter('fixy')
     const champ = screen.getByRole('textbox', { name: 'Question à Fixy — Assistant du mandat' }) as HTMLInputElement
     expect(screen.getByRole('button', { name: 'Envoyer' })).toBeDisabled()
@@ -102,12 +105,42 @@ describe('Fixy — onglet « Assistant » par défaut (page d\'accueil de la maq
     expect(champ.value).toBe('Quelles interventions sont en attente de validation ?')
     expect(document.activeElement).toBe(champ)
     fireEvent.click(screen.getByRole('button', { name: 'Envoyer' }))
-    expect(screen.getByText(/^3 interventions en attente de validation : étanchéité toiture des Tilleuls/)).toBeInTheDocument()
     expect(champ.value).toBe('')
+    expect(await screen.findByText(/^3 interventions en attente de validation : étanchéité toiture des Tilleuls/)).toBeInTheDocument()
+    expect(screen.getByText('Réponse de démonstration')).toBeInTheDocument()
 
     fireEvent.change(champ, { target: { value: 'Fais le point opérationnel du Clos des Vignes' } })
     fireEvent.submit(champ.closest('form') as HTMLFormElement)
-    expect(screen.getByText(/^Point opérationnel du Clos des Vignes : 48 lots/)).toBeInTheDocument()
+    expect(await screen.findByText(/^Point opérationnel du Clos des Vignes : 48 lots/)).toBeInTheDocument()
+  })
+
+  it('avec l\'IA : envoie la question, l\'historique et les données de la base, puis affiche la réponse mise en forme', async () => {
+    const appel = vi.fn(async (_url: string, _init?: RequestInit) =>
+      Response.json({ text: '**2 ordres de service** à valider au Clos des Vignes.\n- OS-2026-047', modele: 'claude-sonnet-5-5' }),
+    )
+    vi.stubGlobal('fetch', appel)
+    await monter('fixy')
+    const champ = screen.getByRole('textbox', { name: 'Question à Fixy — Assistant du mandat' }) as HTMLInputElement
+    fireEvent.change(champ, { target: { value: 'Quels ordres de service sont à valider ?' } })
+    fireEvent.submit(champ.closest('form') as HTMLFormElement)
+
+    expect(screen.getByText('Fixy rédige sa réponse…')).toBeInTheDocument()
+    expect(await screen.findByText('2 ordres de service')).toBeInTheDocument()
+    expect(screen.getByText('2 ordres de service').tagName).toBe('STRONG')
+    expect(screen.queryByText(/\*\*/)).toBeNull()
+
+    expect(appel).toHaveBeenCalledTimes(1)
+    const [url, init] = appel.mock.calls[0]
+    expect(url).toBe('/api/administrateur-judiciaire/agent')
+    const corps = JSON.parse(String(init?.body))
+    expect(corps.agent).toBe('fixy')
+    expect(corps.message).toBe('Quels ordres de service sont à valider ?')
+    expect(corps.historique).toEqual([])
+    expect(corps.contexte.coproprietes.map((c: { nom: string }) => c.nom)).toEqual(expect.arrayContaining(DEMO_NOMS_COPROPRIETES))
+    expect(corps.contexte.coproprietairesDebiteurs.length).toBeGreaterThan(0)
+    // Ni téléphone ni e-mail ne quittent le navigateur.
+    expect(JSON.stringify(corps.contexte)).not.toMatch(/@|\+33/)
+    expect(corps.contexte.ecransDemonstration.ordresDeService.length).toBeGreaterThan(0)
   })
 })
 

@@ -3,10 +3,14 @@
 /* eslint-disable @next/next/no-img-element -- fidélité DOM : mascottes en <img> simples, comme dans la maquette */
 
 import { useRef, useState, type FormEvent } from 'react'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { AVATARS_AGENTS, type IdAgentAvatar } from '@/components/administrateur-judiciaire/ui/avatars'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useAgentIA } from '@/components/administrateur-judiciaire/modules/agents-ia/useAgentIA'
+import { AGENT_PAR_DOMAINE } from '@/lib/administrateur-judiciaire/ia/contexte-agent'
+import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /** Domaine des réponses simulées (« ops » : onglet Assistant de Fixy, repris de la maquette 13_M1). */
 export type DomaineAgent = 'juridique' | 'compta' | 'ops' | 'echeances'
@@ -26,7 +30,7 @@ export interface AlerteAgent {
   title: string
 }
 
-/** Sélecteur de contexte (ex. copropriété) : sa valeur n'a aucun effet sur les réponses. */
+/** Sélecteur de contexte (ex. copropriété) : la valeur choisie est transmise à l'agent IA. */
 export interface SelecteurContexteAgent {
   label: string
   options: readonly string[]
@@ -35,6 +39,8 @@ export interface SelecteurContexteAgent {
 export interface MessageAgent {
   role: 'me' | 'bot'
   text: string
+  /** Réponse de l'agent en cours de rédaction. */
+  enAttente?: boolean
 }
 
 export interface AgentChatPageProps {
@@ -50,6 +56,8 @@ export interface AgentChatPageProps {
   showDocsBtn?: boolean
   inputPlaceholder?: string
   domain?: DomaineAgent
+  /** État d'écran de démonstration transmis à l'agent IA (ex. automatisations du Tableau de Tempo). */
+  donneesEcran?: Record<string, unknown>
 }
 
 const TRANCHES_CONVERSATIONS: TrancheConversation[] = ['hier', 'cette-semaine', 'plus-anciennes']
@@ -112,8 +120,9 @@ export function repondreAgentSimule(domaine: DomaineAgent, question: string, pre
 
 /**
  * Page de conversation d'un agent IA (Fixy, Max, Léa, Tempo) : historique par tranche (masquable), en-tête, sélecteur de
- * contexte, suggestions (remplissent le champ sans envoyer) et réponses simulées. La recherche de conversation
- * n'est pas branchée (champ non contrôlé).
+ * contexte, suggestions (remplissent le champ sans envoyer) et réponses de l'agent IA (Claude, via
+ * /api/administrateur-judiciaire/agent, avec les données de la base locale). Si l'IA ne répond pas, la réponse simulée
+ * de la maquette prend le relais. La recherche de conversation n'est pas branchée (champ non contrôlé).
  */
 export function AgentChatPage({
   mascot,
@@ -128,6 +137,7 @@ export function AgentChatPage({
   showDocsBtn,
   inputPlaceholder = 'Posez une question…',
   domain = 'juridique',
+  donneesEcran,
 }: AgentChatPageProps) {
   const [question, setQuestion] = useState('')
   const [contexte, setContexte] = useState(contextSelector?.options?.[0] || '')
@@ -136,23 +146,50 @@ export function AgentChatPage({
   const { push } = useToast()
   const champRef = useRef<HTMLInputElement>(null)
   const prenom = name.split('—')[0].trim().split(' ')[0]
+  const appelerAgent = useAgentIA()
+  const enAttente = messages.some((message) => message.enAttente)
+  /** Requête en cours : annulée par « Nouvelle conversation », pour qu'une réponse n'arrive pas dans la suivante. */
+  const requeteEnCours = useRef<AbortController | null>(null)
+
+  /**
+   * Question envoyée à l'agent IA. En cas d'échec : réponse simulée de la maquette en démonstration (toast
+   * d'information), simple message d'indisponibilité en mode réel (pas de chiffres fictifs). Annulation : null.
+   */
+  const demanderAgent = async (texte: string, historique: MessageAgent[], signal: AbortSignal): Promise<string | null> => {
+    try {
+      return await appelerAgent(AGENT_PAR_DOMAINE[domain], texte, {
+        historique: historique.map((message) => ({ role: message.role === 'me' ? 'user' : 'assistant', content: message.text })),
+        copropriete: contexte || contextSelector?.options?.[0] || '',
+        donneesEcran,
+        signal,
+      })
+    } catch {
+      if (signal.aborted) return null
+      if (MODE_ACTIF === 'reel') return `_${prenom} (IA) est momentanément indisponible. Réessayez dans un instant._`
+      push({
+        kind: 'info',
+        title: 'Réponse de démonstration',
+        desc: `${prenom} (IA) est momentanément indisponible : réponse type affichée.`,
+      })
+      return repondreAgentSimule(domain, texte, prenom)
+    }
+  }
 
   const envoyer = (evenement: FormEvent<HTMLFormElement>) => {
     evenement.preventDefault()
     const texte = question.trim()
-    if (!texte) return
-    setMessages((precedents) => [
-      ...precedents,
-      {
-        role: 'me',
-        text: texte,
-      },
-      {
-        role: 'bot',
-        text: repondreAgentSimule(domain, texte, prenom),
-      },
-    ])
+    if (!texte || enAttente) return
+    const historique = messages.filter((message) => !message.enAttente)
+    setMessages([...historique, { role: 'me', text: texte }, { role: 'bot', text: '', enAttente: true }])
     setQuestion('')
+    const controleur = new AbortController()
+    requeteEnCours.current = controleur
+    void demanderAgent(texte, historique, controleur.signal).then((reponse) => {
+      if (reponse === null || controleur.signal.aborted) return
+      setMessages((precedents) =>
+        precedents.map((message) => (message.enAttente ? { role: 'bot', text: reponse } : message)),
+      )
+    })
   }
 
   const choisirSuggestion = (suggestion: string) => {
@@ -168,6 +205,8 @@ export function AgentChatPage({
     })
 
   const nouvelleConversation = () => {
+    requeteEnCours.current?.abort()
+    requeteEnCours.current = null
     setMessages([])
     push({
       kind: 'success',
@@ -392,7 +431,13 @@ export function AgentChatPage({
                     lineHeight: 1.5,
                   }}
                 >
-                  {message.text}
+                  {message.enAttente ? (
+                    <span aria-live="polite">{prenom} rédige sa réponse…</span>
+                  ) : message.role === 'bot' ? (
+                    <MarkdownIA texte={message.text} />
+                  ) : (
+                    message.text
+                  )}
                 </div>
               </div>
             ))}
@@ -408,7 +453,7 @@ export function AgentChatPage({
             onChange={(evenement) => setQuestion(evenement.target.value)}
             aria-label={`Question à ${name}`}
           />
-          <button type="submit" className="btn gold agent-send" disabled={!question.trim()}>
+          <button type="submit" className="btn gold agent-send" disabled={!question.trim() || enAttente}>
             Envoyer
           </button>
         </form>

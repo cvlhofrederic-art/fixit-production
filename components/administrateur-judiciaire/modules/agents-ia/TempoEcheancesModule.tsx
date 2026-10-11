@@ -116,6 +116,7 @@ export function TempoEcheancesModule() {
         <AgentChatPage
           mascot="tempo"
           domain="echeances"
+          donneesEcran={{ automatisations }}
           conversations={[
             {
               id: 't1',
