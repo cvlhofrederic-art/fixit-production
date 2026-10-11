@@ -9,13 +9,16 @@
 # Solution d'attente : la correction de fond (polices auto-hébergées) est à valider avec Frédéric.
 set -uo pipefail
 
+# Commande de build : npm run build par défaut ; le déploiement passe « npx @opennextjs/cloudflare build »,
+# qui lance lui-même next build (mêmes erreurs de polices).
+COMMANDE="${COMMANDE_BUILD:-npm run build}"
 TENTATIVES="${TENTATIVES_BUILD:-3}"
 PAUSE_SECONDES="${PAUSE_BUILD_SECONDES:-30}"
 JOURNAL="$(mktemp)"
 trap 'rm -f "$JOURNAL"' EXIT
 
 for tentative in $(seq 1 "$TENTATIVES"); do
-  if npm run build 2>&1 | tee "$JOURNAL"; then
+  if bash -c "$COMMANDE" 2>&1 | tee "$JOURNAL"; then
     exit 0
   fi
   if ! grep -q "internal/font/google/font" "$JOURNAL"; then
