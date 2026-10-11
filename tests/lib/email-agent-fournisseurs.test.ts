@@ -55,9 +55,9 @@ describe('registre des fournisseurs', () => {
     expect(fournisseurDeLigne('')).toBe(fournisseurGmail)
     expect(fournisseurDeLigne('gmail')).toBe(fournisseurGmail)
     expect(fournisseurDeLigne('microsoft')).toBe(fournisseurMicrosoft)
-    expect(fournisseurDeLigne('imap')).toBeNull()
+    expect(fournisseurDeLigne('exchange-ews')).toBeNull()
     expect(fournisseurDeLigne('toString')).toBeNull()
-    expect(Object.keys(FOURNISSEURS)).toEqual(['gmail', 'microsoft'])
+    expect(Object.keys(FOURNISSEURS)).toEqual(['gmail', 'microsoft', 'imap'])
   })
 
   it('configuration manquante nommée par fournisseur', () => {

@@ -1,6 +1,7 @@
 // ── Zod validation schemas for API routes ────────────────────────────────────
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
+import { PORT_IMAPS, hoteImapValide } from '@/lib/email-agent/imap/hote'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -1706,4 +1707,16 @@ export const syndicEventoSchema = z.object({
   tipo: z.enum(['gold', 'sage', 'amber', 'rust', 'green']).optional(),
   responsavel: z.string().max(200).optional(),
   edificio: z.string().max(200).optional(),
+})
+
+// ── Email Agent — boîte « autre messagerie » (IMAP, POST /api/email-agent/connect-imap) ──
+// email : adresse affichée de la boîte ; utilisateur : identifiant IMAP s'il diffère de
+// l'adresse ; motDePasse : mot de passe (d'application), jamais renvoyé ni journalisé ;
+// hote : nom DNS complet (pas d'IP) ; port : 993 (TLS direct) seulement.
+export const emailAgentConnectImapSchema = z.object({
+  email: z.string().trim().max(254).pipe(strictEmail),
+  utilisateur: z.string().trim().max(254).optional(),
+  motDePasse: z.string().min(1, 'Mot de passe requis').max(512),
+  hote: z.string().trim().toLowerCase().max(253).refine(hoteImapValide, 'Serveur IMAP invalide (ex. ssl0.ovh.net)'),
+  port: z.literal(PORT_IMAPS).default(PORT_IMAPS),
 })

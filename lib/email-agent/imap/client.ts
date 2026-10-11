@@ -14,7 +14,8 @@ import type { Socket } from 'cloudflare:sockets'
 import { logger } from '@/lib/logger'
 import { analyserEntetes, decoderMotsEncodes, extraireCorpsTexte } from './mime'
 
-export const PORT_IMAPS = 993
+export { PORT_IMAPS, hoteImapValide } from './hote'
+
 /** Délai global d'une session (connexion comprise). */
 export const DELAI_SESSION_MS = 25_000
 /** Octets lus au plus du corps de chaque e-mail. */
@@ -72,8 +73,9 @@ async function chargerConnect(): Promise<Connect | null> {
     // Import dynamique dans un try, à garder tel quel : Turbopack le laisse natif
     // (commentaires d'exclusion), l'esbuild d'OpenNext tolère un import non résolu dans
     // un try et wrangler le reconnaît comme module intégré du Worker. Hors Worker (Node :
-    // next dev, Vitest), l'import échoue → null.
-    const mod = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ 'cloudflare:sockets')
+    // next dev, Vitest — @vite-ignore évite sa résolution à la transformation), l'import
+    // échoue → null.
+    const mod = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ /* @vite-ignore */ 'cloudflare:sockets')
     return typeof mod.connect === 'function' ? mod.connect : null
   } catch (err) {
     logger.warn('[email-agent/imap] sockets TCP indisponibles (exécution hors Worker)', {
@@ -90,13 +92,6 @@ export const ouvrirSocketTls: OuvrirTransport = async (hote, port) => {
     throw new ErreurImap('imap_indisponible', 'Connexion IMAP indisponible dans cet environnement')
   }
   return connect({ hostname: hote, port }, { secureTransport: 'on', allowHalfOpen: false })
-}
-
-// ── Validation ───────────────────────────────────────────────────────────────
-
-/** Nom d'hôte DNS complet (pas d'adresse IP, pas de nom court comme « localhost »). */
-export function hoteImapValide(hote: string): boolean {
-  return /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/i.test(hote)
 }
 
 const HOTES_MICROSOFT = /(^|\.)(office365\.com|outlook\.com|hotmail\.com|live\.com)$/i

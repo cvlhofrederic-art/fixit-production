@@ -6,8 +6,8 @@ import { logger } from '@/lib/logger'
 /**
  * GET /api/email-agent/status — état de la boîte e-mail du cabinet pour l'écran
  * « E-mails Fixy » du Syndic v54 : connectée ou non, fournisseur (provider : 'gmail' |
- * 'microsoft' | null), adresse reliée, derniers e-mails analysés par Alfredo (sans le
- * corps complet ni les tokens).
+ * 'microsoft' | 'imap' | null), adresse reliée, derniers e-mails analysés par Alfredo (sans
+ * le corps complet ni les tokens ou identifiants).
  * Auth : Bearer, rôles syndic (syndic, syndic_*, super_admin). Lecture via service_role,
  * filtrée sur le cabinet (les RLS de ces tables sont syndic_id = auth.uid()).
  */

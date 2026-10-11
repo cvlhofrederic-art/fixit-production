@@ -29,6 +29,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      // Module intégré du Worker (client IMAP d'Alfredo) : vide hors Worker.
+      'cloudflare:sockets': path.resolve(__dirname, 'tests/mocks/cloudflare-sockets.ts'),
     },
   },
 })

@@ -253,10 +253,10 @@ describe('POST /api/email-agent/poll — boîte Outlook / Microsoft 365', () => 
   })
 
   it('fournisseur inconnu : erreur pour ce cabinet, aucun appel réseau', async () => {
-    jetons.ligne = { provider: 'imap', access_token: 'x', refresh_token: 'y', token_expiry: PLUS_TARD }
+    jetons.ligne = { provider: 'exchange-ews', access_token: 'x', refresh_token: 'y', token_expiry: PLUS_TARD }
     const data = await expectJson(await callPollPOST(requetePoll({})), 200)
     expect(appels).toHaveLength(0)
-    expect(data.results[0]).toMatchObject({ provider: 'imap', error: 'Fournisseur de boîte non pris en charge' })
+    expect(data.results[0]).toMatchObject({ provider: 'exchange-ews', error: 'Fournisseur de boîte non pris en charge' })
   })
 })
 

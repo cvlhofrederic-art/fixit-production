@@ -129,7 +129,8 @@ export async function traiterRetourOAuth({ fournisseur, code, state, codeErreur,
   }
 }
 
-function declencherPremiereReleve(syndicId: string, prefixe: string): void {
+/** Première relève (30 jours) du cabinet après la réponse ; aussi utilisée par connect-imap. */
+export function declencherPremiereReleve(syndicId: string, prefixe: string): void {
   const appUrl = urlApplication()
   const internalToken = process.env.INTERNAL_POLL_TOKEN || ''
   if (!appUrl || !internalToken) {

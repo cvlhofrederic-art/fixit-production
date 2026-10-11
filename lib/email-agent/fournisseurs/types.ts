@@ -5,10 +5,11 @@
  * Chaque fournisseur sait : construire l'adresse d'autorisation OAuth, échanger le code,
  * rafraîchir le jeton et relever les derniers e-mails de la boîte de réception sous une
  * forme normalisée. Lecture seule : rien n'est jamais envoyé depuis la boîte.
- * Sans dépendance : fetch uniquement (le Worker Cloudflare est proche de sa taille maximale).
+ * Sans dépendance : fetch uniquement (le Worker Cloudflare est proche de sa taille maximale) ;
+ * la boîte IMAP (« autre messagerie », sans OAuth) passe par les sockets TCP du Worker.
  */
 
-export type IdFournisseur = 'gmail' | 'microsoft'
+export type IdFournisseur = 'gmail' | 'microsoft' | 'imap'
 
 /** Jetons renvoyés par un échange de code ou un rafraîchissement. */
 export interface JetonsFournisseur {
@@ -49,6 +50,11 @@ export interface FournisseurBoite {
   id: IdFournisseur
   /** Nom affiché (« Gmail / Google Workspace », « Outlook / Microsoft 365 »). */
   nom: string
+  /**
+   * Accès sans jeton OAuth à rafraîchir (IMAP : identifiants chiffrés dans access_token,
+   * refresh_token vide) : le poll ne rafraîchit pas et n'exige pas de refresh_token.
+   */
+  sansRafraichissement?: boolean
   /** Secrets ou variables absents côté serveur (vide = configuré). */
   configurationManquante(): string[]
   /** Adresse de la page de consentement du fournisseur (state = « <id utilisateur>:<nonce> »). */

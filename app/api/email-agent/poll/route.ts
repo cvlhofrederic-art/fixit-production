@@ -236,9 +236,9 @@ export async function POST(request: NextRequest) {
 
     for (const sid of syndicIds) {
       try {
-        // 1. Jetons OAuth et fournisseur de la boîte du cabinet
+        // 1. Jetons OAuth (ou identifiants IMAP chiffrés) et fournisseur de la boîte du cabinet
         const jetons = await lireJetonsCabinet(sid)
-        if (!jetons.accessToken || !jetons.refreshToken) continue
+        if (!jetons.accessToken) continue
 
         const fournisseur = fournisseurDeLigne(jetons.provider)
         if (!fournisseur) {
@@ -246,17 +246,22 @@ export async function POST(request: NextRequest) {
           results.push({ syndic_id: sid, provider: jetons.provider, error: 'Fournisseur de boîte non pris en charge' })
           continue
         }
+        // Boîte OAuth sans refresh_token : connexion commencée puis abandonnée. La boîte
+        // IMAP n'en a pas (refresh_token vide) : rien à rafraîchir.
+        if (!jetons.refreshToken && !fournisseur.sansRafraichissement) continue
 
         // 2. Rafraîchir le jeton si expiré (5 min de marge). En cas d'échec, la ligne
         // n'est PAS supprimée : une suppression déconnectait la boîte sans prévenir
         // (en pleine démonstration) ; le cabinet reçoit une erreur et reconnecte.
         let accessToken: string
         try {
-          accessToken = await jetonAccesValide(sid, fournisseur, {
-            accessToken: jetons.accessToken,
-            refreshToken: jetons.refreshToken,
-            expiresAt: jetons.expiresAt,
-          })
+          accessToken = fournisseur.sansRafraichissement
+            ? jetons.accessToken
+            : await jetonAccesValide(sid, fournisseur, {
+              accessToken: jetons.accessToken,
+              refreshToken: jetons.refreshToken ?? '',
+              expiresAt: jetons.expiresAt,
+            })
         } catch (refreshErr) {
           logger.error(`[email-agent/poll] rafraîchissement du jeton ${fournisseur.id} refusé pour ${sid}`, detailErreur(refreshErr))
           results.push({

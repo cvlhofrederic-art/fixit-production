@@ -1,15 +1,18 @@
 import { fournisseurGmail } from './gmail'
 import { fournisseurMicrosoft } from './microsoft'
+import { fournisseurImap } from './imap'
 import type { FournisseurBoite, IdFournisseur } from './types'
 
 export * from './types'
 export { fournisseurGmail } from './gmail'
 export { fournisseurMicrosoft, codeErreurMicrosoft } from './microsoft'
+export { fournisseurImap, EXPIRATION_IMAP } from './imap'
 
 /** Fournisseurs de boîte pris en charge, par valeur de syndic_oauth_tokens.provider. */
 export const FOURNISSEURS: Readonly<Record<IdFournisseur, FournisseurBoite>> = {
   gmail: fournisseurGmail,
   microsoft: fournisseurMicrosoft,
+  imap: fournisseurImap,
 }
 
 export function estIdFournisseur(valeur: unknown): valeur is IdFournisseur {

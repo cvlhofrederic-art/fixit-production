@@ -130,7 +130,7 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   RESEND_API_KEY
 #   RESEND_FROM_EMAIL
 #   CRON_SECRET
-#   OAUTH_TOKENS_ENCRYPTION_KEY   (>= 32 chars — lib/oauth/tokens.ts throw si absente)
+#   OAUTH_TOKENS_ENCRYPTION_KEY   (>= 32 chars — lib/oauth/tokens.ts throw si absente ; chiffre aussi les identifiants IMAP d'Alfredo)
 #   DOC_HASH_SECRET               (chaine d'integrite ISCA — lib/document-integrity.ts throw)
 #   INTERNAL_POLL_TOKEN           (webhook→poll email-agent — openssl rand -hex 32)
 #   GMAIL_WEBHOOK_SECRET
