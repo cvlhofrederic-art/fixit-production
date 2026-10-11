@@ -3,6 +3,7 @@
 import { toast } from 'sonner'
 import { useLocale } from '@/lib/i18n/context'
 import type { Notification, Booking } from '@/lib/types'
+import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
 
 interface V5HeaderProps {
   artisan: { user_id?: string; company_name?: string } | null
@@ -89,6 +90,8 @@ export default function V5Header({
       } else {
         navigateTo('calendar')
       }
+    } else if (notificationOuvreMessagerie(n)) {
+      navigateTo('messages') // ordre de mission : à accepter dans Messagerie > Pro
     } else if (n.type === 'new_mission' || n.type === 'planning_change') {
       navigateTo('calendar')
     } else if (n.type === 'devis_signed') {

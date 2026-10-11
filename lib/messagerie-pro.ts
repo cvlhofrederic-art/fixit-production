@@ -109,3 +109,30 @@ export function lireDocumentPro(metadata: unknown): DocumentPro | null {
     date: typeof d.date === 'string' ? d.date : '',
   }
 }
+
+// ── Notifications du prestataire ────────────────────────────────────────────────
+
+interface NotificationLue {
+  type?: string | null
+  data_json?: unknown
+}
+
+/**
+ * Une notification 'new_mission' qui accompagne un ordre de mission (validation dans le
+ * Syndic v54, assign-mission) ouvre la Messagerie, où l'ordre s'accepte ; les autres
+ * missions (planning) restent sur l'Agenda. data_json peut arriver en texte JSON.
+ */
+export function notificationOuvreMessagerie(n: NotificationLue): boolean {
+  if (n.type !== 'new_mission') return false
+  let data: unknown = n.data_json
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data)
+    } catch {
+      return false // data_json illisible : navigation historique (Agenda)
+    }
+  }
+  if (!data || typeof data !== 'object') return false
+  const d = data as Record<string, unknown>
+  return d.message_type === 'ordre_mission' && typeof d.conversation_id === 'string' && d.conversation_id.length > 0
+}

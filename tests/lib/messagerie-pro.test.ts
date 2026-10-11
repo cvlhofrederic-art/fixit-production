@@ -10,6 +10,7 @@ import {
   formaterMontantDocumentPro,
   libelleDocumentPro,
   lireDocumentPro,
+  notificationOuvreMessagerie,
   resumeDocumentPro,
 } from '@/lib/messagerie-pro'
 
@@ -65,5 +66,22 @@ describe('documents — lecture, libellés, résumé', () => {
     expect(lireDocumentPro({ document: { type: 'devis', reference: '  ' } })).toBeNull()
     // Montant illisible ignoré, la carte reste affichable
     expect(lireDocumentPro({ document: { ...DEVIS, montant_ttc: '640' } })).toEqual({ ...DEVIS, montant_ttc: undefined })
+  })
+})
+
+describe('notificationOuvreMessagerie — cloche du prestataire', () => {
+  const ordre = { conversation_id: 'conv-1', message_type: 'ordre_mission' }
+
+  it("new_mission accompagnée d'un ordre de mission → Messagerie (objet ou texte JSON)", () => {
+    expect(notificationOuvreMessagerie({ type: 'new_mission', data_json: ordre })).toBe(true)
+    expect(notificationOuvreMessagerie({ type: 'new_mission', data_json: JSON.stringify(ordre) })).toBe(true)
+  })
+
+  it('mission sans conversation, autre type ou data_json illisible → navigation historique', () => {
+    expect(notificationOuvreMessagerie({ type: 'new_mission', data_json: { booking_id: 'b-1' } })).toBe(false)
+    expect(notificationOuvreMessagerie({ type: 'new_mission', data_json: { ...ordre, conversation_id: null } })).toBe(false)
+    expect(notificationOuvreMessagerie({ type: 'planning_change', data_json: ordre })).toBe(false)
+    expect(notificationOuvreMessagerie({ type: 'new_mission', data_json: '{pas du json' })).toBe(false)
+    expect(notificationOuvreMessagerie({ type: 'new_mission', data_json: null })).toBe(false)
   })
 })

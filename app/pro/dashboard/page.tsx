@@ -25,6 +25,7 @@ import { getPriceRangeLabel, getPricingUnit, getCleanDescription } from '@/lib/s
 import type { Artisan, Service, Booking, Notification, ChatMessage } from '@/lib/types'
 import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
+import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
 
 // Section loading spinner — shown while JS chunks load
 const SectionLoader = () => (
@@ -762,6 +763,7 @@ function DashboardPage() {
                               navigateTo('calendar')
                             }
                           }
+                          else if (notificationOuvreMessagerie(n)) navigateTo('messages') // ordre de mission : à accepter dans Messagerie > Pro
                           else if (n.type === 'new_mission' || n.type === 'planning_change') navigateTo('calendar')
                           else if (n.type === 'devis_signed') navigateTo('devis')
                           else if (n.type === 'tva_threshold') navigateTo('comptabilite')
