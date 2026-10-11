@@ -16,6 +16,20 @@ export interface AgentChatMessage {
   content: string
 }
 
+/** Action proposée par l'agent (ex. Fixy : créer une mission), exécutée seulement après confirmation. */
+export interface AgentActionProposee {
+  libelle: string
+  details: string[]
+  /** Exécute l'action ; renvoie le message de confirmation à afficher. */
+  executer: () => Promise<string>
+}
+
+/** Réponse riche d'un agent : texte et, éventuellement, action à faire confirmer. */
+export interface AgentReponse {
+  texte: string
+  action?: AgentActionProposee
+}
+
 export interface AgentConversation {
   id: string
   title: string
@@ -38,6 +52,9 @@ export interface AgentChatPageLabels {
   typing: string
   inputAria: (name: string) => string
   errorReply: string
+  actionConfirm: string
+  actionIgnore: string
+  actionFailed: string
 }
 
 export interface AgentChatPageProps {
@@ -61,7 +78,7 @@ export interface AgentChatPageProps {
   /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2).
    *  `historique` : messages déjà affichés avant `message` (mémoire de conversation),
    *  sans les réponses d'erreur locales (`errorReply`), qui ne viennent pas de l'agent. */
-  onAsk?: (message: string, historique: AgentChatMessage[]) => Promise<string>
+  onAsk?: (message: string, historique: AgentChatMessage[]) => Promise<string | AgentReponse>
   onNewConversation?: () => void
   onOpenDocs?: () => void
   onSelectConversation?: (conv: AgentConversation) => void
@@ -94,7 +111,11 @@ export default function AgentChatPage({
   const placeholder = inputPlaceholder ?? D.placeholder
   const [inputVal, setInputVal] = useState('')
   // `erreur` marque la réponse de repli affichée quand l'agent échoue (exclue de l'historique).
-  const [messages, setMessages] = useState<(AgentChatMessage & { erreur?: boolean })[]>([])
+  // `action` : action proposée par l'agent sous sa réponse (carte Confirmer / Ignorer tant qu'elle est en attente).
+  const [messages, setMessages] = useState<(AgentChatMessage & {
+    erreur?: boolean
+    action?: AgentActionProposee & { etat: 'proposee' | 'en_cours' | 'terminee' }
+  })[]>([])
   const [busy, setBusy] = useState(false)
   const [ctxVal, setCtxVal] = useState(contextSelector?.options?.[0] ?? '')
   const { push } = useToast()
@@ -116,7 +137,12 @@ export default function AgentChatPage({
       setInputVal('')
       setBusy(true)
       onAsk(v, historique)
-        .then((resp) => setMessages((prev) => [...prev, { role: 'assistant', content: resp }]))
+        .then((resp) => setMessages((prev) => [
+          ...prev,
+          typeof resp === 'string'
+            ? { role: 'assistant', content: resp }
+            : { role: 'assistant', content: resp.texte, action: resp.action && { ...resp.action, etat: 'proposee' } },
+        ]))
         .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: L.errorReply, erreur: true }]))
         .finally(() => setBusy(false))
       return
@@ -125,6 +151,28 @@ export default function AgentChatPage({
     else push({ kind: 'info', title: D.envoyee(shortName ?? name), desc: D.envoyeeDetail })
     setInputVal('')
   }
+  /** Confirme (exécute) ou ignore l'action proposée sous le message `index`. */
+  const traiterAction = (index: number, confirmer: boolean) => {
+    const cible = messages[index]?.action
+    if (!cible || cible.etat !== 'proposee') return
+    const majEtat = (etat: 'proposee' | 'en_cours' | 'terminee') =>
+      setMessages((prev) => prev.map((m, i) => (i === index && m.action ? { ...m, action: { ...m.action, etat } } : m)))
+    if (!confirmer) {
+      majEtat('terminee')
+      return
+    }
+    majEtat('en_cours')
+    cible.executer()
+      .then((confirmation) => {
+        majEtat('terminee')
+        setMessages((prev) => [...prev, { role: 'assistant', content: confirmation }])
+      })
+      .catch(() => {
+        majEtat('proposee')
+        push({ kind: 'error', title: L.actionFailed })
+      })
+  }
+
   const newConv = () => {
     if (onNewConversation) onNewConversation()
     else push({ kind: 'success', title: D.nouvelleConversation, desc: D.conversationDemarree(shortName ?? name) })
@@ -251,6 +299,38 @@ export default function AgentChatPage({
                 }}
               >
                 {msg.role === 'assistant' ? <MarkdownIA texte={msg.content} /> : msg.content}
+                {msg.action && msg.action.etat !== 'terminee' && (
+                  <div
+                    role="group"
+                    aria-label={msg.action.libelle}
+                    style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--v54-line, rgba(0,0,0,.1))' }}
+                  >
+                    <strong>{msg.action.libelle}</strong>
+                    {msg.action.details.length > 0 && (
+                      <ul style={{ margin: '6px 0 0', paddingLeft: 18, listStyleType: 'disc', fontSize: 12.5 }}>
+                        {msg.action.details.map((d, j) => <li key={j}>{d}</li>)}
+                      </ul>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button
+                        type="button"
+                        className={clsx(styles.btn, styles.gold)}
+                        disabled={msg.action.etat === 'en_cours'}
+                        onClick={() => traiterAction(i, true)}
+                      >
+                        {L.actionConfirm}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.btn}
+                        disabled={msg.action.etat === 'en_cours'}
+                        onClick={() => traiterAction(i, false)}
+                      >
+                        {L.actionIgnore}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
             {busy && <div style={{ alignSelf: 'flex-start', padding: '10px 14px', color: 'var(--v54-navy-300)', fontSize: 13 }}>{L.typing}</div>}

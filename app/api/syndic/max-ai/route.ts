@@ -11,6 +11,7 @@ import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-
 import type { MaxPromptContext } from '@/lib/syndic/prompts/max/system-prompt-fr'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { retrieveLegalChunks } from '@/lib/syndic/max-legal-rag'
+import { reponseGeneraleMax } from '@/lib/syndic/max-reponse-generale'
 import {
   buildMaxStrictSystemPrompt,
   getRefusalMessage,
@@ -143,8 +144,29 @@ export async function POST(request: NextRequest) {
       aiBinding: aiBinding ?? undefined,
     })
 
-    // ── 2. Aucun chunk pertinent → refus formaté (corpus gap) ──
+    // ── 2. Aucun chunk pertinent (corpus gap) → réponse générale de Claude, présentée comme telle
+    // (bandeau « à vérifier », aucune citation) ; sans Claude : refus formaté.
     if (chunks.length === 0) {
+      const historiqueGeneral = (Array.isArray(conversation_history) ? conversation_history.slice(-12) : [])
+        .filter((m: { role?: string; content?: string }) => m.role && m.content)
+        .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 2000) }))
+      const generale = await traceAgent(
+        { agent_id: 'max', user_id: user.id, conversation_id: rawBody.conversation_id, prompt: message, metadata: { locale: ragLanguage, chunks_found: 0, mode: 'general' } },
+        () => reponseGeneraleMax(message, historiqueGeneral, ragLanguage),
+      )
+      if (generale) {
+        return NextResponse.json({
+          response: generale.texte,
+          citations: [],
+          confidence: 0,
+          refusal: false,
+          role: userRole,
+          provider: 'claude',
+          mode: 'general',
+          modele: generale.modele,
+          retrieval: { chunks_found: 0, corpus_size: corpusSize ?? 0 },
+        })
+      }
       logger.info('[max-ai] corpus gap — returning refusal', {
         query: message.slice(0, 80),
         language: ragLanguage,

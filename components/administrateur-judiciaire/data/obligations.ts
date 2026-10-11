@@ -105,7 +105,7 @@ export const DEMO_OBLIGATIONS: ObligationDemo[] = [
     id: 'O10',
     objet: 'Alimentation fonds de travaux',
     copro: 'Copropriété Les Tilleuls',
-    base: 'loi ALUR — art. 14-2 L.1965',
+    base: 'loi ALUR — art. 14-2-1 L.1965',
     date: 'En continu',
     statut: 'Sous-doté',
     pill: 'rust',

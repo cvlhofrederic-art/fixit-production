@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ToastProvider } from '@/components/syndic-dashboard/v54/primitives/toast'
 import { SyndicDataProvider, useSyndicData } from '@/lib/syndic/v54/data-context'
-import { askAgent } from '@/lib/syndic/v54/api'
+import { askAgentDetaille, decrireActionFixy, executerActionFixy } from '@/lib/syndic/v54/api'
 import { AgentChatPage } from '@/components/syndic-dashboard/v54/primitives/agent-chat-page'
 import { DashboardShell, AGENT_ROUTES, SIDE_TITLES } from '@/components/syndic-dashboard/v54/shell'
 import { SIDE_TITLES_FR } from '@/components/syndic-dashboard/v54/shell/sidebar-config.fr'
@@ -243,7 +243,14 @@ function AgentRoute({ route }: Readonly<{ route: string }>) {
       introDetail={token ? undefined : t.introDemo}
       suggestions={t.suggestions}
       conversations={t.conversations}
-      onAsk={token ? (msg, historique) => askAgent(route, msg, token, locale, historique) : undefined}
+      onAsk={token ? async (msg, historique) => {
+        const { texte, action } = await askAgentDetaille(route, msg, token, locale, historique)
+        // Action proposée par Fixy (mission, alerte, RDV, e-mail…) : exécutée seulement après « Confirmer ».
+        const description = action ? decrireActionFixy(action, locale) : null
+        return description && action
+          ? { texte, action: { ...description, executer: () => executerActionFixy(action, token, locale) } }
+          : texte
+      } : undefined}
     />
   )
 }

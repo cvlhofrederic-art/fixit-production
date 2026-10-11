@@ -130,6 +130,28 @@ describe('Max — Claude en premier', () => {
     expect(JSON.parse(messages[1].content)).toEqual({ answer: 'Les charges sont réparties selon les tantièmes.', citations: [], refusal: false })
   })
 
+  it('aucun texte dans la base juridique : réponse générale de Claude, présentée comme telle (pas de refus)', async () => {
+    h.retrieveLegalChunks.mockResolvedValueOnce([])
+    reponseAnthropic = () => fluxClaude('La majorité de l’article 25 s’applique en principe.')
+    const { json } = await appeler('/api/syndic/max-ai', max, { message: 'Quelle majorité pour désigner le syndic ?', locale: 'fr' })
+    expect(json.refusal).toBe(false)
+    expect(json.mode).toBe('general')
+    expect(json.provider).toBe('claude')
+    expect(String(json.response)).toMatch(/^ℹ️ \*Réponse générale de Max/)
+    expect(String(json.response)).toContain('article 25')
+    expect(json.citations).toEqual([])
+    expect(h.groq).not.toHaveBeenCalled()
+  })
+
+  it('aucun texte dans la base et Claude en échec : refus standard (pas de réponse juridique sans source par Llama)', async () => {
+    h.retrieveLegalChunks.mockResolvedValueOnce([])
+    reponseAnthropic = () => Response.json({ type: 'error', error: { type: 'api_error', message: 'boom' } }, { status: 500 })
+    const { json } = await appeler('/api/syndic/max-ai', max, { message: 'Quelle majorité ?', locale: 'fr' })
+    expect(json.refusal).toBe(true)
+    expect(h.groq).not.toHaveBeenCalled()
+    expect(h.cerebras).not.toHaveBeenCalled()
+  })
+
   it('Claude en échec : chaîne historique Cerebras', async () => {
     reponseAnthropic = () => Response.json({ type: 'error', error: { type: 'api_error', message: 'boom' } }, { status: 500 })
     const { json } = await appeler('/api/syndic/max-ai', max, { message: 'Qui paie le ravalement ?', locale: 'fr' })
