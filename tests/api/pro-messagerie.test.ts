@@ -214,6 +214,31 @@ describe('PATCH /api/pro/messagerie — ordre de mission', () => {
     expect(appelsSur('syndic_signalements')).toHaveLength(0)
   })
 
+  it("ordre de l'Administrateur judiciaire (mission sans signalement) : la mission suit chaque étape, aucune demande touchée", async () => {
+    // Ordre tel que livré depuis l'Administrateur judiciaire : ni signalement_id, origine et numéro d'ordre de service.
+    const ordreAJ = (statut: string) => {
+      const o = ordre(statut)
+      const { signalement_id: _sansSignalement, ...json } = o.ordre_mission
+      return { ...o, ordre_mission: { ...json, origine: 'administrateur_judiciaire', reference_aj: 'OS-2026-051' } }
+    }
+    const sansSignalement = (statut: string) =>
+      repondeur(ordreAJ(statut), a => (a.table === 'syndic_missions' && a.op === 'select' ? { data: { id: MISSION_SYNDIC, signalement_id: null }, error: null } : undefined))
+    for (const [statut, action, attendu] of [['en_attente', 'accepte', 'acceptee'], ['accepte', 'en_cours', 'en_cours'], ['en_cours', 'termine', 'terminee'], ['en_attente', 'refuse', 'annulee']]) {
+      h.appels.length = 0
+      h.etat.repondre = sansSignalement(statut)
+      const res = await PATCH(requete('PATCH', { message_id: MSG, action, artisan_name: 'Frédéric Multiservice', arrival_time: '09:30' }))
+      expect(res.status).toBe(200)
+      const mission = appelsSur('syndic_missions', 'update')[0]
+      expect(mission.payload).toMatchObject({ statut: attendu })
+      expect(filtre(mission, 'id')).toBe(MISSION_SYNDIC)
+      expect(filtre(mission, 'cabinet_id')).toBe(MOI)
+      expect(appelsSur('syndic_signalements')).toHaveLength(0)
+      expect(appelsSur('syndic_signalement_messages')).toHaveLength(0)
+      // Origine et numéro conservés sur l'ordre mis à jour.
+      expect(appelsSur('conversation_messages', 'update')[0].payload?.ordre_mission).toMatchObject({ statut: action, origine: 'administrateur_judiciaire', reference_aj: 'OS-2026-051' })
+    }
+  })
+
   it('références vérifiées en base : mission lue dans le cabinet de la conversation', async () => {
     h.etat.repondre = avecSignalement('en_attente')
     await PATCH(requete('PATCH', { message_id: MSG, action: 'accepte', arrival_time: '09:30' }))

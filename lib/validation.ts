@@ -294,6 +294,30 @@ export const syndicCanalProMessageSchema = z.object({
   content: z.string().trim().min(1, 'Message requis').max(5000),
 })
 
+// POST /api/administrateur-judiciaire/ordres-prestataire : ordre de service de l'Administrateur judiciaire
+// envoyé à un prestataire Vitfix du cabinet (« envoyer »), puis réponse dans le fil de cet ordre (« repondre »).
+const texteFacultatif = (max: number) => z.preprocess(videVersIndefini, z.string().trim().max(max).optional())
+export const ajOrdrePrestataireSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('envoyer'),
+    syndic_artisan_id: z.guid('syndic_artisan_id invalide'),
+    copropriete: z.string().trim().min(1, 'Copropriété requise').max(200),
+    adresse: texteFacultatif(300),
+    objet: z.string().trim().min(1, 'Objet requis').max(200),
+    description: texteFacultatif(2000),
+    localisation: texteFacultatif(200),
+    urgence: z.enum(['normale', 'prioritaire', 'urgence']),
+    date_intervention: z.preprocess(videVersIndefini, z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional()),
+    note: texteFacultatif(2000),
+    reference_aj: texteFacultatif(50),
+  }),
+  z.object({
+    action: z.literal('repondre'),
+    mission_id: z.guid('mission_id invalide'),
+    content: z.string().trim().min(1, 'Message requis').max(5000),
+  }),
+])
+
 // ── Syndic Messages schema ───────────────────────────────────────────────────
 export const syndicMessageSchema = z.object({
   content: z.string().min(1, 'Message requis').max(5000),

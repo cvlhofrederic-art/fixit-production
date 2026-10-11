@@ -15,7 +15,16 @@ Logiciel du syndic judiciaire / administrateur provisoire de copropriété (loi 
 - Jamais indexée (`robots` noindex + en-tête `X-Robots-Tag`).
 - Données : base locale du navigateur (IndexedDB via Dexie, base `vitfix-administrateur-judiciaire`), mode
   **démonstration** (date figée au 04/06/2026, jeu de données de démo) ou **données réelles** (date du jour, base vide).
-  Aucune donnée n'est envoyée au serveur à ce stade.
+  Aucune donnée n'est envoyée au serveur à ce stade, sauf la boucle prestataire ci-dessous.
+- Boucle prestataire (écran « Ordres de service ») : « Envoyer au prestataire » transmet une intervention à un
+  prestataire Vitfix du cabinet (fiche `syndic_artisans` avec compte), **réellement, même en mode démonstration** :
+  mission `syndic_missions` sans signalement (`demandeur_role = 'administrateur_judiciaire'`), ordre de mission dans
+  Messagerie > Pro du prestataire (`metadata.origine`, numéro `reference_aj`), comme une mission du Syndic v54. Le
+  statut, les échanges et les documents du prestataire reviennent dans « Suivi prestataire » (rafraîchi toutes les
+  15 s). Route `app/api/administrateur-judiciaire/ordres-prestataire` (cookie, rôle syndic ou super admin), règles
+  dans `lib/administrateur-judiciaire/ordres-prestataire.ts` ; côté client, seuls des types sont importés de
+  `lib/syndic/`. Tests : `tests/api/administrateur-judiciaire-ordres-prestataire.test.ts`,
+  `tests/administrateur-judiciaire/ordres-service-vitfix.test.tsx`.
 
 ## Isolement (« ne pas mélanger »)
 
@@ -133,6 +142,7 @@ focus de la maquette (`:focus-visible`) ; Entrée ou Espace a l'effet du clic. R
 
 | Écran | Changement | Référence |
 |---|---|---|
+| Ordres de service | « Envoyer au prestataire » (en-tête et chaque intervention), fenêtre d'envoi réel (prestataire Vitfix du cabinet, date du jour réel, note), pastille « Vitfix · statut » et « Suivi prestataire » sous la carte (statut, étapes, fil, documents devis / rapport / facture, réponse). Les autres actions de l'écran restent simulées ; statut de l'écran inchangé (démonstration). | Demande de Frédéric (« relie administrateur judiciaire à la boucle »), octobre 2026 ; `tests/administrateur-judiciaire/ordres-service-vitfix.test.tsx` |
 | Fixy | Deux onglets, comme Tempo : « Assistant » (ouvert par défaut) = page d'accueil de Fixy, agent secrétaire, reprise de la maquette `VitFix_Syndic_Judiciaire_13_M1` (conversation « Fixy — Assistant du mandat », réponses de démonstration comme Tempo, Max et Léa) ; « Tableau » = l'écran Fixy de la v0.13.1 (veille, demande, courriel, ordonnance, notes, données réelles), inchangé. Une fois ouvert, le Tableau reste monté (masqué sous l'onglet Assistant) : comme celui de Tempo, il garde son état d'un onglet à l'autre. Statut de l'écran inchangé : « Données réelles ». | Demande de Frédéric, octobre 2026 ; `tests/administrateur-judiciaire/fixy-onglets.test.tsx` |
 
 Effet sur la comparaison avec la maquette v0.13.1 : l'écran `fixy` diffère (puces, onglet Assistant ouvert par

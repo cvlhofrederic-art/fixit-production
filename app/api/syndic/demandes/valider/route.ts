@@ -4,7 +4,7 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { syndicDemandeValiderSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
-import { livrerMission, localisationSignalement, prioriteMissionSyndic } from '@/lib/syndic/livraison-mission'
+import { livrerMission, localisationSignalement, prioriteMissionSyndic, retirerMissionNonLivree } from '@/lib/syndic/livraison-mission'
 
 // ── POST /api/syndic/demandes/valider ────────────────────────────────────────
 // « Valider la mission » depuis le Canal de communication v54 (onglet Demandes) : le syndic confie le
@@ -45,34 +45,6 @@ interface PrestataireLigne {
 }
 
 const ERREUR_INTERNE = 'Une erreur interne est survenue'
-
-/**
- * Retire la mission créée pour un ordre qui n'a pas pu être livré : suppression (à défaut, mission
- * annulée) et booking éventuellement posé sur l'agenda du prestataire annulé.
- */
-async function retirerMission(missionId: string, cabinetId: string, bookingId: string | null): Promise<void> {
-  const { error: delErr } = await supabaseAdmin
-    .from('syndic_missions')
-    .delete()
-    .eq('id', missionId)
-    .eq('cabinet_id', cabinetId)
-  if (delErr) {
-    logger.error('[demandes/valider] suppression mission non livrée', { message: delErr.message })
-    const { error: annErr } = await supabaseAdmin
-      .from('syndic_missions')
-      .update({ statut: 'annulee', updated_at: new Date().toISOString() })
-      .eq('id', missionId)
-      .eq('cabinet_id', cabinetId)
-    if (annErr) logger.error('[demandes/valider] annulation mission non livrée', { message: annErr.message })
-  }
-  if (bookingId) {
-    const { error: bookErr } = await supabaseAdmin
-      .from('bookings')
-      .update({ status: 'cancelled', statut: 'annule' })
-      .eq('id', bookingId)
-    if (bookErr) logger.error('[demandes/valider] annulation booking non livré', { message: bookErr.message })
-  }
-}
 
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
@@ -192,7 +164,7 @@ export async function POST(request: NextRequest) {
     // Ordre de mission non livré (conversation ou message en échec) : la mission créée est retirée et la
     // demande reste « en attente », pour que le syndic puisse recommencer sans doublon.
     if (!livraison.ordreEnvoye) {
-      await retirerMission(missionId, cabinetId, livraison.bookingId)
+      await retirerMissionNonLivree(supabaseAdmin, missionId, cabinetId, livraison.bookingId, 'demandes/valider')
       return NextResponse.json({ error: 'livraison_impossible' }, { status: 500 })
     }
 

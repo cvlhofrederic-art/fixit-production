@@ -11,7 +11,7 @@ import { appelsDe, clientMemoire, nouvelleBase, type BaseMemoire } from '../api/
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
 
-const { livrerMission, localisationSignalement, prioriteMissionSyndic, estBookingMissionSyndic } = await import('@/lib/syndic/livraison-mission')
+const { livrerMission, localisationSignalement, prioriteMissionSyndic, estBookingMissionSyndic, retirerMissionNonLivree } = await import('@/lib/syndic/livraison-mission')
 
 const ARTISAN = 'artisan-user'
 const CABINET = 'cabinet-user'
@@ -111,6 +111,46 @@ describe('livrerMission', () => {
     const r = await livrerMission(sb(), mission())
     expect(r.ordreEnvoye).toBe(true)
     expect(r.notificationEnvoyee).toBe(false)
+  })
+
+  it('ordre de l’Administrateur judiciaire : origine et numéro sur l’ordre, ses métadonnées et la notification, sans signalement', async () => {
+    base.inserts.conversation_messages = { id: 'msg-ordre' }
+    const marque = { origine: 'administrateur_judiciaire' as const, reference_aj: 'OS-2026-051' }
+    await livrerMission(sb(), mission({ references: { syndic_mission_id: 'mis-aj' }, marque }))
+    const ordre = appelsDe(base, 'conversation_messages', 'insert')[0].donnees as Record<string, Record<string, unknown>>
+    expect(ordre.metadata).toEqual({ cote: 'donneur_ordre', syndic_mission_id: 'mis-aj', ...marque })
+    expect(ordre.ordre_mission).toMatchObject({ statut: 'en_attente', syndic_mission_id: 'mis-aj', ...marque })
+    expect(ordre.ordre_mission).not.toHaveProperty('signalement_id')
+    const notif = appelsDe(base, 'artisan_notifications', 'insert')[0].donnees as { data_json: Record<string, unknown> }
+    expect(notif.data_json).toMatchObject({ syndic_mission_id: 'mis-aj', ...marque })
+  })
+
+  it('ordre du Syndic v54 (sans marque) : aucune origine écrite', async () => {
+    await livrerMission(sb(), mission())
+    const ordre = appelsDe(base, 'conversation_messages', 'insert')[0].donnees as Record<string, Record<string, unknown>>
+    expect(ordre.metadata).not.toHaveProperty('origine')
+    expect(ordre.ordre_mission).not.toHaveProperty('origine')
+  })
+})
+
+describe('retirerMissionNonLivree', () => {
+  it('supprime la mission du cabinet et annule le booking posé', async () => {
+    await retirerMissionNonLivree(sb(), 'mis-1', CABINET, 'booking-1', 'test')
+    const [suppression] = appelsDe(base, 'syndic_missions', 'delete')
+    expect(suppression.eq).toEqual([['id', 'mis-1'], ['cabinet_id', CABINET]])
+    expect(appelsDe(base, 'syndic_missions', 'update')).toHaveLength(0)
+    const [booking] = appelsDe(base, 'bookings', 'update')
+    expect(booking.donnees).toEqual({ status: 'cancelled', statut: 'annule' })
+    expect(booking.eq).toEqual([['id', 'booking-1']])
+  })
+
+  it('suppression refusée : la mission est annulée (toujours dans le cabinet) ; sans booking, rien d’autre', async () => {
+    base.erreurs['syndic_missions.delete'] = { message: 'fk' }
+    await retirerMissionNonLivree(sb(), 'mis-1', CABINET, null, 'test')
+    const [annulation] = appelsDe(base, 'syndic_missions', 'update')
+    expect(annulation.donnees).toMatchObject({ statut: 'annulee' })
+    expect(annulation.eq).toEqual([['id', 'mis-1'], ['cabinet_id', CABINET]])
+    expect(appelsDe(base, 'bookings')).toHaveLength(0)
   })
 })
 

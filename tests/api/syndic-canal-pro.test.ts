@@ -134,6 +134,20 @@ describe('GET /api/syndic/canal-pro', () => {
     expect(conv.prestataire.nom).toBe('Damien Perrin')
     expect(conv.ordre).toBeNull()
   })
+
+  it("ordre de l'Administrateur judiciaire (sans signalement, urgence « haute ») : affiché comme dernier ordre", async () => {
+    h.base.lignes.conversation_messages.push({
+      id: 'm7', conversation_id: CONV_DEMO, sender_id: CAB, type: 'ordre_mission', content: 'Minuterie',
+      metadata: { cote: 'donneur_ordre', syndic_mission_id: 'mi-aj', origine: 'administrateur_judiciaire', reference_aj: 'OS-2026-050' },
+      ordre_mission: { titre: 'Remplacement de la minuterie du hall', adresse: 'Résidence Le Méridien — Parties communes', date_souhaitee: '2026-10-13', description: 'Minuterie', urgence: 'haute', statut: 'en_attente', mission_id: null, syndic_mission_id: 'mi-aj', origine: 'administrateur_judiciaire', reference_aj: 'OS-2026-050' },
+      created_at: '2026-10-12T08:10:00Z',
+    })
+    const res = await lire()
+    expect(res.status).toBe(200)
+    const demo = (await res.json()).conversations.find((c: { id: string }) => c.id === CONV_DEMO)
+    expect(demo.ordre).toMatchObject({ messageId: 'm7', titre: 'Remplacement de la minuterie du hall', statut: 'en_attente', urgence: 'haute', signalementId: '', syndicMissionId: 'mi-aj' })
+    expect(demo.messages.at(-1)).toMatchObject({ id: 'm7', cote: 'donneur_ordre' })
+  })
 })
 
 describe('POST /api/syndic/canal-pro', () => {
