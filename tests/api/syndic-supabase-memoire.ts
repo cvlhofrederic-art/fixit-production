@@ -1,8 +1,8 @@
 // tests/api/syndic-supabase-memoire.ts
 //
 // Faux client Supabase en mémoire pour les routes syndic : chaque appel `from(table)` est journalisé
-// (opération, données envoyées, filtres eq / in), les SELECT lisent des lignes posées par le test et
-// sont filtrés par les eq / in comme en base, les INSERT renvoient un id `<table>-nouveau`.
+// (opération, données envoyées, filtres eq / in / gte), les SELECT lisent des lignes posées par le test et
+// sont filtrés par les eq / in / gte comme en base, les INSERT renvoient un id `<table>-nouveau`.
 
 import { vi } from 'vitest'
 
@@ -12,6 +12,8 @@ export interface AppelSupabase {
   donnees?: unknown
   eq: Array<[string, unknown]>
   in: Array<[string, unknown[]]>
+  /** Filtres gte (comparaison de chaînes : dates ISO). */
+  gte: Array<[string, unknown]>
   colonnes?: string
 }
 
@@ -30,12 +32,13 @@ export function nouvelleBase(): BaseMemoire {
 
 export function clientMemoire(base: BaseMemoire) {
   const from = vi.fn((table: string) => {
-    const appel: AppelSupabase = { table, op: 'select', eq: [], in: [] }
+    const appel: AppelSupabase = { table, op: 'select', eq: [], in: [], gte: [] }
     base.appels.push(appel)
     let tri: { col: string; asc: boolean } | null = null
     const lignesFiltrees = () => {
       const l = (base.lignes[table] ?? []).filter((r) =>
-        appel.eq.every(([c, v]) => r[c] === v) && appel.in.every(([c, vs]) => vs.includes(r[c])))
+        appel.eq.every(([c, v]) => r[c] === v) && appel.in.every(([c, vs]) => vs.includes(r[c]))
+        && appel.gte.every(([c, v]) => String(r[c] ?? '') >= String(v)))
       if (!tri) return l
       const { col, asc } = tri
       return [...l].sort((a, b) => String(a[col] ?? '').localeCompare(String(b[col] ?? '')) * (asc ? 1 : -1))
@@ -57,6 +60,7 @@ export function clientMemoire(base: BaseMemoire) {
     q.order = vi.fn((col: string, opts?: { ascending?: boolean }) => { tri = { col, asc: opts?.ascending !== false }; return q })
     q.eq = vi.fn((c: string, v: unknown) => { appel.eq.push([c, v]); return q })
     q.in = vi.fn((c: string, vs: unknown[]) => { appel.in.push([c, vs]); return q })
+    q.gte = vi.fn((c: string, v: unknown) => { appel.gte.push([c, v]); return q })
     q.insert = vi.fn((d: unknown) => { appel.op = 'insert'; appel.donnees = d; return q })
     q.update = vi.fn((d: unknown) => { appel.op = 'update'; appel.donnees = d; return q })
     q.delete = vi.fn(() => { appel.op = 'delete'; return q })

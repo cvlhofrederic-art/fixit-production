@@ -8,7 +8,8 @@ import { logger } from '@/lib/logger'
  *   1. booking sur l'agenda du prestataire — seulement s'il a une fiche profiles_artisan
  *      (bookings.artisan_id = profiles_artisan.id), sinon étape ignorée ;
  *   2. conversation « pro » prestataire ↔ donneur d'ordre (trouvée ou créée) + message 'ordre_mission'
- *      (metadata.cote = 'donneur_ordre', références signalement / mission syndic) ;
+ *      (metadata.cote = 'donneur_ordre', références signalement / mission syndic, origine éventuelle —
+ *      ex. 'administrateur_judiciaire' et numéro de l'ordre de service) ;
  *   3. notification in-app artisan_notifications 'new_mission' (cloche, avec conversation_id) ;
  *   4. trace dans le canal legacy syndic_messages.
  *
@@ -23,6 +24,17 @@ export interface ReferencesMission {
   signalement_id?: string
   /** syndic_missions.id créé pour cette mission. */
   syndic_mission_id?: string
+}
+
+/**
+ * Origine d'un ordre qui ne vient pas du Syndic v54 : écrite dans metadata, ordre_mission et la notification,
+ * pour que le donneur d'ordre et le prestataire distinguent l'ordre (ex. ordre de service de l'Administrateur
+ * judiciaire, avec son numéro « OS-2026-051 »).
+ */
+export interface MarqueOrigine {
+  origine: 'administrateur_judiciaire'
+  /** Numéro de l'ordre de service côté Administrateur judiciaire. */
+  reference_aj?: string
 }
 
 export interface LivraisonMission {
@@ -49,6 +61,8 @@ export interface LivraisonMission {
   urgence: 'urgente' | 'haute' | 'normale'
   notes?: string
   references?: ReferencesMission
+  /** Origine de l'ordre (absente pour le Syndic v54). */
+  marque?: MarqueOrigine
 }
 
 export interface ResultatLivraison {
@@ -141,8 +155,43 @@ export async function compterNonLuMemeCompte(sb: SupabaseClient, conversationId:
   if (updErr) logger.warn('[livraison-mission] mise à jour unread_count', { message: updErr.message })
 }
 
+/**
+ * Retire la mission syndic créée pour un ordre qui n'a pas pu être livré : suppression (à défaut, mission
+ * annulée) et booking éventuellement posé sur l'agenda du prestataire annulé. Toujours filtré sur le cabinet.
+ */
+export async function retirerMissionNonLivree(
+  sb: SupabaseClient,
+  missionId: string,
+  cabinetId: string,
+  bookingId: string | null,
+  contexte: string,
+): Promise<void> {
+  const { error: delErr } = await sb
+    .from('syndic_missions')
+    .delete()
+    .eq('id', missionId)
+    .eq('cabinet_id', cabinetId)
+  if (delErr) {
+    logger.error(`[${contexte}] suppression mission non livrée`, { message: delErr.message })
+    const { error: annErr } = await sb
+      .from('syndic_missions')
+      .update({ statut: 'annulee', updated_at: new Date().toISOString() })
+      .eq('id', missionId)
+      .eq('cabinet_id', cabinetId)
+    if (annErr) logger.error(`[${contexte}] annulation mission non livrée`, { message: annErr.message })
+  }
+  if (bookingId) {
+    const { error: bookErr } = await sb
+      .from('bookings')
+      .update({ status: 'cancelled', statut: 'annule' })
+      .eq('id', bookingId)
+    if (bookErr) logger.error(`[${contexte}] annulation booking non livré`, { message: bookErr.message })
+  }
+}
+
 export async function livrerMission(sb: SupabaseClient, m: LivraisonMission): Promise<ResultatLivraison> {
   const refs = m.references ?? {}
+  const marque = m.marque ?? {}
   const now = () => new Date().toISOString()
   const res: ResultatLivraison = { bookingId: null, conversationId: null, messageId: null, ordreEnvoye: false, notificationEnvoyee: false }
 
@@ -198,7 +247,7 @@ export async function livrerMission(sb: SupabaseClient, m: LivraisonMission): Pr
           sender_id: m.senderId,
           type: 'ordre_mission',
           content: m.description,
-          metadata: { cote: 'donneur_ordre', ...refs },
+          metadata: { cote: 'donneur_ordre', ...refs, ...marque },
           ordre_mission: {
             titre: m.titre,
             adresse: m.adresse,
@@ -209,6 +258,7 @@ export async function livrerMission(sb: SupabaseClient, m: LivraisonMission): Pr
             mission_id: res.bookingId,
             ...(m.notes ? { notes: m.notes } : {}),
             ...refs,
+            ...marque,
           },
         })
         .select('id')
@@ -245,6 +295,7 @@ export async function livrerMission(sb: SupabaseClient, m: LivraisonMission): Pr
         message_type: 'ordre_mission',
         sender_id: m.senderId,
         ...refs,
+        ...marque,
       },
       created_at: now(),
     })
