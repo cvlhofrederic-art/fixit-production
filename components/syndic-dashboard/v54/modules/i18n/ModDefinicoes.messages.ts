@@ -11,7 +11,15 @@ interface DefinicoesTextes {
     choisir: string
     formules: string
   }
-  agentEmail: { titre: string; sousTitre: string; connecter: string; connecterToast: string; integrationEnCours: string }
+  agentEmail: {
+    titre: string
+    sousTitre: string
+    /** Boutons de connexion, un par fournisseur (noms de marque, identiques FR / PT). */
+    connecterMicrosoft: string
+    connecterGmail: string
+    connexionEchec: string
+    integrationEnCours: string
+  }
   profil: {
     titre: string
     nom: string
@@ -52,10 +60,11 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
     },
     agentEmail: {
       titre: 'Agente Email Fixy',
-      sousTitre: 'Conecte a sua caixa Gmail para que o Fixy analise automaticamente os seus emails: urgências, tipos de pedidos, sugestões de ações.',
-      connecter: 'Ligar a sua caixa Gmail',
-      connecterToast: 'Ligar Gmail',
-      integrationEnCours: 'Integração Gmail em desenvolvimento',
+      sousTitre: 'Ligue a sua caixa de email (Outlook / Microsoft 365 ou Gmail) para que o Fixy analise automaticamente os seus emails: urgências, tipos de pedidos, sugestões de ações.',
+      connecterMicrosoft: 'Outlook / Microsoft 365',
+      connecterGmail: 'Gmail / Google Workspace',
+      connexionEchec: 'Ligação da caixa de email impossível',
+      integrationEnCours: 'Integração da caixa de email em desenvolvimento',
     },
     profil: {
       titre: 'O Meu Perfil',
@@ -105,10 +114,11 @@ export const DEFINICOES_MESSAGES = defineMessages<DefinicoesTextes>({
     },
     agentEmail: {
       titre: 'Agent e-mail Fixy',
-      sousTitre: "Connectez votre boîte Gmail pour que Fixy analyse automatiquement vos e-mails : urgences, types de demandes, suggestions d'actions.",
-      connecter: 'Connecter votre boîte Gmail',
-      connecterToast: 'Connecter Gmail',
-      integrationEnCours: 'Intégration Gmail en cours de développement',
+      sousTitre: "Connectez votre boîte e-mail (Outlook / Microsoft 365 ou Gmail) pour que Fixy analyse automatiquement vos e-mails : urgences, types de demandes, suggestions d'actions.",
+      connecterMicrosoft: 'Outlook / Microsoft 365',
+      connecterGmail: 'Gmail / Google Workspace',
+      connexionEchec: 'Connexion de la boîte e-mail impossible',
+      integrationEnCours: 'Connexion de la boîte e-mail en cours de développement',
     },
     profil: {
       titre: 'Mon profil',

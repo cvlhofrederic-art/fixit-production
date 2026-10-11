@@ -12,9 +12,12 @@ interface EmailsFixyTextes {
   connecterDabord: string
   connecterTitre: string
   connecterTexte: string
-  connecter: string
+  /** Boutons de connexion, un par fournisseur (noms de marque, identiques FR / PT). */
+  connecterMicrosoft: string
+  connecterGmail: string
   integrationEnCours: string
-  connexionEnCours: string
+  connexionEnCoursMicrosoft: string
+  connexionEnCoursGmail: string
   connexionEchec: string
   boiteConnectee: string
   emailsAnalyses: string
@@ -27,7 +30,22 @@ interface EmailsFixyTextes {
   releveOk: string
   releveNouveaux: string
   releveLus: string
+  /** E-mails laissés à la relève suivante (budget de temps du serveur). */
+  releveReportes: string
   releveEchec: string
+  releveReconnecter: string
+  releveLectureImpossible: string
+  deconnecter: string
+  deconnexionTitre: string
+  deconnexionTexte: string
+  purgerEmails: string
+  purgerAide: string
+  annuler: string
+  confirmerDeconnexion: string
+  deconnexionEnCours: string
+  deconnexionOk: string
+  emailsEffaces: string
+  deconnexionEchec: string
   localeDate: string
 }
 
@@ -41,13 +59,15 @@ export const EMAILS_FIXY_MESSAGES = defineMessages<EmailsFixyTextes>({
     rapportToast: 'Relatório de emails',
     analyser: 'Analisar agora',
     analyseToast: 'Análise IA',
-    connecterDabord: 'Ligue a sua caixa Gmail primeiro',
-    connecterTitre: 'Ligue a sua caixa Gmail',
+    connecterDabord: 'Ligue primeiro a sua caixa de email',
+    connecterTitre: 'Ligue a sua caixa de email',
     connecterTexte: 'O Fixy irá analisar automaticamente todos os emails recebidos — urgências, tipos de pedido, sugestões de ações e rascunhos de resposta.',
-    connecter: 'Ligar Gmail',
-    integrationEnCours: 'Integração Gmail em desenvolvimento',
-    connexionEnCours: 'A abrir o Google…',
-    connexionEchec: 'Ligação Gmail impossível',
+    connecterMicrosoft: 'Outlook / Microsoft 365',
+    connecterGmail: 'Gmail / Google Workspace',
+    integrationEnCours: 'Integração da caixa de email em desenvolvimento',
+    connexionEnCoursMicrosoft: 'A abrir a Microsoft…',
+    connexionEnCoursGmail: 'A abrir o Google…',
+    connexionEchec: 'Ligação da caixa de email impossível',
     boiteConnectee: 'Caixa ligada:',
     emailsAnalyses: 'emails analisados',
     brouillonsAValider: 'rascunhos a validar',
@@ -59,7 +79,21 @@ export const EMAILS_FIXY_MESSAGES = defineMessages<EmailsFixyTextes>({
     releveOk: 'Caixa analisada',
     releveNouveaux: 'novos emails',
     releveLus: 'lidos',
+    releveReportes: 'por analisar — clique novamente',
     releveEchec: 'Análise impossível',
+    releveReconnecter: 'A ligação à caixa de email expirou: volte a ligá-la.',
+    releveLectureImpossible: 'Não foi possível ler a caixa de email.',
+    deconnecter: 'Desligar',
+    deconnexionTitre: 'Desligar a caixa de email?',
+    deconnexionTexte: 'O Alfredo deixa de analisar esta caixa. Pode voltar a ligá-la a qualquer momento.',
+    purgerEmails: 'Apagar também os emails analisados',
+    purgerAide: 'Os emails de demonstração são mantidos.',
+    annuler: 'Cancelar',
+    confirmerDeconnexion: 'Desligar',
+    deconnexionEnCours: 'A desligar…',
+    deconnexionOk: 'Caixa desligada',
+    emailsEffaces: 'emails apagados',
+    deconnexionEchec: 'Não foi possível desligar a caixa',
     localeDate: 'pt-PT',
   },
   'fr-FR': {
@@ -71,13 +105,15 @@ export const EMAILS_FIXY_MESSAGES = defineMessages<EmailsFixyTextes>({
     rapportToast: 'Rapport sur les e-mails',
     analyser: 'Analyser maintenant',
     analyseToast: 'Analyse IA',
-    connecterDabord: "Connectez d'abord votre boîte Gmail",
-    connecterTitre: 'Connectez votre boîte Gmail',
+    connecterDabord: "Connectez d'abord votre boîte e-mail",
+    connecterTitre: 'Connectez votre boîte e-mail',
     connecterTexte: "Fixy analysera automatiquement tous les e-mails reçus — urgences, types de demandes, suggestions d'actions et brouillons de réponse.",
-    connecter: 'Connecter Gmail',
-    integrationEnCours: 'Intégration Gmail en cours de développement',
-    connexionEnCours: 'Ouverture de Google…',
-    connexionEchec: 'Connexion Gmail impossible',
+    connecterMicrosoft: 'Outlook / Microsoft 365',
+    connecterGmail: 'Gmail / Google Workspace',
+    integrationEnCours: 'Connexion de la boîte e-mail en cours de développement',
+    connexionEnCoursMicrosoft: 'Ouverture de Microsoft…',
+    connexionEnCoursGmail: 'Ouverture de Google…',
+    connexionEchec: 'Connexion de la boîte e-mail impossible',
     boiteConnectee: 'Boîte connectée :',
     emailsAnalyses: 'e-mails analysés',
     brouillonsAValider: 'brouillons à valider',
@@ -89,7 +125,21 @@ export const EMAILS_FIXY_MESSAGES = defineMessages<EmailsFixyTextes>({
     releveOk: 'Boîte analysée',
     releveNouveaux: 'nouveaux e-mails',
     releveLus: 'lus',
+    releveReportes: 'restants — relancez l’analyse',
     releveEchec: 'Analyse impossible',
+    releveReconnecter: 'La connexion à la boîte e-mail a expiré : reconnectez-la.',
+    releveLectureImpossible: 'Lecture de la boîte e-mail impossible.',
+    deconnecter: 'Déconnecter',
+    deconnexionTitre: 'Déconnecter la boîte e-mail ?',
+    deconnexionTexte: 'Alfredo cesse d’analyser cette boîte. Vous pourrez la reconnecter à tout moment.',
+    purgerEmails: 'Effacer aussi les e-mails analysés',
+    purgerAide: 'Les e-mails de démonstration sont conservés.',
+    annuler: 'Annuler',
+    confirmerDeconnexion: 'Déconnecter',
+    deconnexionEnCours: 'Déconnexion…',
+    deconnexionOk: 'Boîte déconnectée',
+    emailsEffaces: 'e-mails effacés',
+    deconnexionEchec: 'Déconnexion de la boîte impossible',
     localeDate: 'fr-FR',
   },
 })

@@ -1446,9 +1446,27 @@ export const emailAgentCallbackSchema = z.object({
   error: z.string().max(200).optional(),
 })
 
+// Retour OAuth Microsoft : codes d'autorisation longs, description d'erreur AADSTS,
+// retour du consentement administrateur (admin_consent=True&tenant=…).
+export const emailAgentCallbackMicrosoftSchema = z.object({
+  code: z.string().max(8000).optional(),
+  state: z.string().max(500).optional(),
+  error: z.string().max(200).optional(),
+  error_description: z.string().max(4000).optional(),
+  admin_consent: z.string().max(10).optional(),
+  tenant: z.string().max(100).optional(),
+})
+
 // ── Email Agent Connect schema (GET query params) ────────────────────────────
+// provider : boîte à connecter (Gmail / Google Workspace par défaut, Outlook / Microsoft 365).
 export const emailAgentConnectSchema = z.object({
   token: z.string().max(5000).optional(),
+  provider: z.enum(['gmail', 'microsoft']).optional().default('gmail'),
+})
+
+// DELETE /api/email-agent/connect : purger=1 efface aussi les e-mails analysés (hors démo).
+export const emailAgentDisconnectSchema = z.object({
+  purger: z.enum(['0', '1', 'true', 'false']).optional(),
 })
 
 // ── Email Agent OCR schema ───────────────────────────────────────────────────

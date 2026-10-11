@@ -970,7 +970,11 @@ export interface Orcamento {
 export const fetchOrcamentos = (token: string): Promise<Orcamento[]> =>
   getList<Orcamento>('/api/syndic/orcamentos', token, 'orcamentos')
 
-// ── Boîte Gmail du cabinet (écran « E-mails Fixy », agent Alfredo) ─────────────
+// ── Boîte e-mail du cabinet (écran « E-mails Fixy », agent Alfredo) ────────────
+// Gmail / Google Workspace ou Outlook / Microsoft 365 (une boîte par cabinet).
+
+/** Fournisseur de la boîte (colonne syndic_oauth_tokens.provider). */
+export type FournisseurBoiteEmail = 'gmail' | 'microsoft'
 
 /** E-mail relevé et analysé par Alfredo (sans le corps complet). */
 export interface EmailAnalyse {
@@ -985,40 +989,79 @@ export interface EmailAnalyse {
   draft_subject: string | null
 }
 
-export interface EtatBoiteGmail {
+export interface EtatBoiteEmail {
   cabinetId: string
   connecte: boolean
+  /** Fournisseur de la boîte connectée (null hors connexion). */
+  provider: FournisseurBoiteEmail | null
   email: string | null
   misAJour: string | null
   brouillonsEnAttente: number
   emails: EmailAnalyse[]
 }
+/** @deprecated nom d'avant Outlook / Microsoft 365 — utiliser EtatBoiteEmail. */
+export type EtatBoiteGmail = EtatBoiteEmail
 
-/** État de la boîte Gmail du cabinet : connectée ou non, adresse, derniers e-mails analysés. */
-export async function fetchEtatBoiteGmail(token: string): Promise<EtatBoiteGmail> {
+/** État de la boîte du cabinet : connectée ou non, fournisseur, adresse, derniers e-mails analysés. */
+export async function fetchEtatBoite(token: string): Promise<EtatBoiteEmail> {
   const res = await fetch('/api/email-agent/status', { headers: { Authorization: `Bearer ${token}` } })
   if (!res.ok) throw new Error(`/api/email-agent/status → HTTP ${res.status}`)
-  return (await res.json()) as EtatBoiteGmail
+  return (await res.json()) as EtatBoiteEmail
 }
 
-/** Adresse Google de connexion de la boîte : le jeton de session reste dans l'en-tête, jamais dans l'URL. */
-export async function urlConnexionGmail(token: string): Promise<string> {
-  const res = await fetch('/api/email-agent/connect?format=json', { headers: { Authorization: `Bearer ${token}` } })
+/**
+ * Adresse de connexion de la boîte chez le fournisseur choisi (Google ou Microsoft) :
+ * le jeton de session reste dans l'en-tête, jamais dans l'URL.
+ */
+export async function urlConnexionBoite(token: string, provider: FournisseurBoiteEmail): Promise<string> {
+  const res = await fetch(`/api/email-agent/connect?format=json&provider=${provider}`, { headers: { Authorization: `Bearer ${token}` } })
   const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
   if (!res.ok || !j.url) throw new Error(j.error || `/api/email-agent/connect → HTTP ${res.status}`)
   return j.url
 }
 
-/** Relève la boîte maintenant : Alfredo classe les e-mails non lus et prépare les brouillons (rien n'est envoyé). */
-export async function releverBoiteGmail(token: string, cabinetId: string): Promise<{ nouveaux: number; traites: number }> {
+/** Déconnecte la boîte du cabinet ; purger : efface aussi les e-mails analysés (hors démonstration). */
+export async function deconnecterBoite(token: string, purger: boolean): Promise<{ boitesSupprimees: number; emailsSupprimes: number }> {
+  const res = await fetch(`/api/email-agent/connect${purger ? '?purger=1' : ''}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const j = (await res.json().catch(() => ({}))) as { boitesSupprimees?: number; emailsSupprimes?: number; error?: string }
+  if (!res.ok) throw new Error(j.error || `/api/email-agent/connect → HTTP ${res.status}`)
+  return { boitesSupprimees: j.boitesSupprimees ?? 0, emailsSupprimes: j.emailsSupprimes ?? 0 }
+}
+
+/** Échec d'une relève, avec le code renvoyé par le poll (refresh_failed, lecture_impossible…). */
+export class ErreurReleveBoite extends Error {
+  readonly code: string | null
+  constructor(message: string, code: string | null) {
+    super(message)
+    this.name = 'ErreurReleveBoite'
+    this.code = code
+  }
+}
+
+/**
+ * Relève la boîte maintenant : Alfredo classe les derniers e-mails de la boîte de réception
+ * (lus ou non) et prépare les brouillons — rien n'est envoyé.
+ */
+export async function releverBoite(token: string, cabinetId: string): Promise<{ nouveaux: number; traites: number; reportes: number }> {
   const res = await fetch('/api/email-agent/poll', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ syndic_id: cabinetId, first_run: true }),
   })
   if (!res.ok) throw new Error(`/api/email-agent/poll → HTTP ${res.status}`)
-  const j = (await res.json()) as { results?: Array<{ new_emails?: number; emails_processed?: number; error?: string }> }
+  const j = (await res.json()) as { results?: Array<{ new_emails?: number; emails_processed?: number; deferred?: number; error?: string; code?: string }> }
   const r = j.results?.[0]
-  if (r?.error) throw new Error(r.error)
-  return { nouveaux: r?.new_emails ?? 0, traites: r?.emails_processed ?? 0 }
+  if (r?.error) throw new ErreurReleveBoite(r.error, r.code ?? null)
+  // reportes : e-mails laissés à la relève suivante (budget de temps du serveur atteint).
+  return { nouveaux: r?.new_emails ?? 0, traites: r?.emails_processed ?? 0, reportes: r?.deferred ?? 0 }
 }
+
+/** @deprecated utiliser fetchEtatBoite. */
+export const fetchEtatBoiteGmail = fetchEtatBoite
+/** @deprecated utiliser urlConnexionBoite(token, 'gmail'). */
+export const urlConnexionGmail = (token: string): Promise<string> => urlConnexionBoite(token, 'gmail')
+/** @deprecated utiliser releverBoite. */
+export const releverBoiteGmail = releverBoite

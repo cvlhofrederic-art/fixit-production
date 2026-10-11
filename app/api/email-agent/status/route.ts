@@ -4,9 +4,10 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 
 /**
- * GET /api/email-agent/status — état de la boîte Gmail du cabinet pour l'écran
- * « E-mails Fixy » du Syndic v54 : connectée ou non, adresse reliée, derniers e-mails
- * analysés par Alfredo (sans le corps complet ni les tokens).
+ * GET /api/email-agent/status — état de la boîte e-mail du cabinet pour l'écran
+ * « E-mails Fixy » du Syndic v54 : connectée ou non, fournisseur (provider : 'gmail' |
+ * 'microsoft' | null), adresse reliée, derniers e-mails analysés par Alfredo (sans le
+ * corps complet ni les tokens).
  * Auth : Bearer, rôles syndic (syndic, syndic_*, super_admin). Lecture via service_role,
  * filtrée sur le cabinet (les RLS de ces tables sont syndic_id = auth.uid()).
  */
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
     const [jeton, emails] = await Promise.all([
       supabaseAdmin
         .from('syndic_oauth_tokens')
-        .select('email_compte, access_token, updated_at')
+        .select('provider, email_compte, access_token, updated_at')
         .eq('syndic_id', cabinetId)
         .maybeSingle(),
       supabaseAdmin
@@ -42,6 +43,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       cabinetId,
       connecte,
+      // Colonne provider vide = 'gmail' (valeur par défaut de la colonne).
+      provider: connecte ? jeton.data?.provider || 'gmail' : null,
       email: connecte ? jeton.data?.email_compte ?? null : null,
       misAJour: connecte ? jeton.data?.updated_at ?? null : null,
       brouillonsEnAttente: liste.filter(e => e.draft_status === 'pending_review').length,

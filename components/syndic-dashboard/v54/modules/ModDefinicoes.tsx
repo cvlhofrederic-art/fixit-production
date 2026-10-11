@@ -12,7 +12,7 @@ import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
 import { useToast } from '../primitives/toast'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { urlConnexionGmail } from '@/lib/syndic/v54/api'
+import { urlConnexionBoite, type FournisseurBoiteEmail } from '@/lib/syndic/v54/api'
 import { useMessages } from '@/lib/syndic/v54/i18n'
 import { DEFINICOES_MESSAGES } from './i18n/ModDefinicoes.messages'
 
@@ -29,17 +29,19 @@ export default function ModDefinicoes() {
   const t = useMessages(DEFINICOES_MESSAGES)
   const { push } = useToast()
   const { token, authenticated } = useSyndicData()
-  // Connexion de la boîte Gmail du cabinet (agent e-mails Alfredo) : le jeton de session
-  // part dans l'en-tête, la route renvoie l'adresse Google vers laquelle on redirige.
-  const connecterGmail = async () => {
+  // Connexion de la boîte e-mail du cabinet (agent e-mails Alfredo), chez Microsoft ou
+  // Google : le jeton de session part dans l'en-tête, la route renvoie l'adresse du
+  // fournisseur vers laquelle on redirige.
+  const connecterBoite = async (provider: FournisseurBoiteEmail) => {
     if (!token) return
     try {
-      window.location.assign(await urlConnexionGmail(token))
+      window.location.assign(await urlConnexionBoite(token, provider))
     } catch (e) {
-      push({ kind: 'error', title: t.agentEmail.connecterToast, desc: e instanceof Error ? e.message : undefined })
+      push({ kind: 'error', title: t.agentEmail.connexionEchec, desc: e instanceof Error ? e.message : undefined })
     }
   }
   const { abonnement: ab, agentEmail: ae, profil: pr, cabinet: cab } = t
+  const boutonsBoite: ReadonlyArray<[FournisseurBoiteEmail, string]> = [['microsoft', ae.connecterMicrosoft], ['gmail', ae.connecterGmail]]
   return (
     <>
       <PageHead title={t.titre} lede={t.chapeau} />
@@ -51,7 +53,17 @@ export default function ModDefinicoes() {
         <Button variant="gold" style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon(ab.titre, ab.formules)}>{ab.choisir}</Button>
       </Panel>
       <Panel title={ae.titre} sub={ae.sousTitre}>
-        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={authenticated && token ? () => { void connecterGmail() } : soon(ae.connecterToast, ae.integrationEnCours)}>{ae.connecter}</Button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {boutonsBoite.map(([provider, libelle]) => (
+            <Button
+              key={provider}
+              style={{ flex: '1 1 220px', padding: 14, justifyContent: 'center' }}
+              onClick={authenticated && token ? () => { void connecterBoite(provider) } : soon(libelle, ae.integrationEnCours)}
+            >
+              {libelle}
+            </Button>
+          ))}
+        </div>
       </Panel>
       <Panel title={pr.titre}>
         <div style={{ padding: 14, background: 'var(--v54-cream)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>

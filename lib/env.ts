@@ -37,6 +37,8 @@ const requiredServerVars = [
 // Variables optionnelles — absence = fonctionnalité désactivée, pas d'erreur.
 // SENTRY_AUTH_TOKEN est build-only (source maps upload), pas besoin au runtime.
 // GOOGLE_CLIENT_ID/SECRET ne sont nécessaires que si OAuth Google est activé.
+// MICROSOFT_CLIENT_ID/SECRET : boîte Outlook / Microsoft 365 de l'agent Alfredo
+// (lib/email-agent/fournisseurs/microsoft.ts) — sans eux, seul Gmail se connecte.
 const optionalServerVars = [
   'GROQ_API_KEY',
   'ANTHROPIC_API_KEY',
@@ -46,6 +48,8 @@ const optionalServerVars = [
   'UPSTASH_REDIS_REST_URL',
   'UPSTASH_REDIS_REST_TOKEN',
   'NEXT_PUBLIC_APP_URL',
+  'MICROSOFT_CLIENT_ID',
+  'MICROSOFT_CLIENT_SECRET',
 ] as const
 
 // Variables intentionnellement absentes en prod (build-only ou non utilisées)
