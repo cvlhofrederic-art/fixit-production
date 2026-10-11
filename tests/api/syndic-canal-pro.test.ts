@@ -14,6 +14,9 @@ const PRESTA = '22222222-3333-4444-8555-666666666666'
 const CONV = 'cccccccc-dddd-4eee-8fff-000000000001'
 const CONV_DEMO = 'cccccccc-dddd-4eee-8fff-000000000002'
 const CONV_AUTRE = 'cccccccc-dddd-4eee-8fff-000000000003'
+// Conversation « pro » vers le cabinet, mais avec un compte qui n'est PAS un prestataire du cabinet.
+const CONV_INCONNU = 'cccccccc-dddd-4eee-8fff-000000000004'
+const INCONNU = '99999999-3333-4444-8555-666666666666'
 
 const h = vi.hoisted(() => ({ base: null as unknown as BaseMemoire, syndic: true }))
 
@@ -47,10 +50,15 @@ beforeEach(() => {
     // Démo : le prestataire est le compte du syndic lui-même.
     { id: CONV_DEMO, artisan_id: CAB, contact_id: CAB, contact_type: 'pro', contact_name: 'Cabinet VitFix', last_message_at: '2026-10-12T10:00:00Z' },
     { id: CONV_AUTRE, artisan_id: PRESTA, contact_id: 'autre-cabinet', contact_type: 'pro' },
+    { id: CONV_INCONNU, artisan_id: INCONNU, contact_id: CAB, contact_type: 'pro', contact_name: 'Cabinet VitFix', last_message_at: '2026-10-12T11:00:00Z' },
   ]
   h.base.lignes.syndic_artisans = [
-    { cabinet_id: CAB, artisan_user_id: PRESTA, nom: 'Damien Perrin', metier: 'Plombier' },
-    { cabinet_id: CAB, artisan_user_id: CAB, nom: 'Frédéric Artisan', metier: 'Multiservice' },
+    { id: 'f1', cabinet_id: CAB, artisan_user_id: PRESTA, nom: 'Damien Perrin', metier: 'Plombier' },
+    { id: 'f2', cabinet_id: CAB, artisan_user_id: CAB, nom: 'Frédéric Artisan', metier: 'Multiservice' },
+    // Fiche sans compte Vitfix : aucune conversation possible.
+    { id: 'f3', cabinet_id: CAB, artisan_user_id: null, nom: 'Thomas Ménard', metier: 'Peintre' },
+    // L'inconnu est prestataire d'un AUTRE cabinet seulement.
+    { id: 'f4', cabinet_id: 'autre-cabinet', artisan_user_id: INCONNU, nom: 'Autre prestataire' },
   ]
   h.base.lignes.conversation_messages = [
     { id: 'm1', conversation_id: CONV_DEMO, sender_id: CAB, type: 'ordre_mission', content: 'Fuite', metadata: { cote: 'donneur_ordre', signalement_id: 's1', syndic_mission_id: 'mi1' }, ordre_mission: { titre: 'Plomberie', adresse: 'Le Prado', date_souhaitee: '2026-10-13', description: 'Fuite', urgence: 'urgente', statut: 'accepte', arrival_time: '09:30', signalement_id: 's1', syndic_mission_id: 'mi1' }, created_at: '2026-10-12T08:01:00Z' },
@@ -83,6 +91,31 @@ describe('GET /api/syndic/canal-pro', () => {
     expect(demo.prestataire).toEqual({ nom: 'Frédéric Artisan', metier: 'Multiservice' })
   })
 
+  it('seulement les conversations avec les prestataires DU cabinet (artisan_id ∈ fiches du cabinet)', async () => {
+    const res = await lire()
+    const { conversations } = await res.json()
+    expect(conversations.map((c: { id: string }) => c.id)).not.toContain(CONV_INCONNU)
+    const [fiches] = appelsDe(h.base, 'syndic_artisans', 'select')
+    expect(fiches.eq).toContainEqual(['cabinet_id', CAB])
+    const [convs] = appelsDe(h.base, 'conversations', 'select')
+    const filtre = convs.in.find(([c]) => c === 'artisan_id')
+    expect(filtre?.[1]).toEqual(expect.arrayContaining([PRESTA, CAB]))
+    expect(filtre?.[1]).toHaveLength(2)
+  })
+
+  it('aucun prestataire avec compte Vitfix : liste vide, aucune conversation lue', async () => {
+    h.base.lignes.syndic_artisans = [{ id: 'f3', cabinet_id: CAB, artisan_user_id: null, nom: 'Thomas Ménard' }]
+    const res = await lire()
+    expect(res.status).toBe(200)
+    expect((await res.json()).conversations).toEqual([])
+    expect(appelsDe(h.base, 'conversations')).toHaveLength(0)
+  })
+
+  it('lecture des fiches prestataires en erreur : 500', async () => {
+    h.base.erreurs['syndic_artisans.select'] = { message: 'boom' }
+    expect((await lire()).status).toBe(500)
+  })
+
   it('même compte des deux côtés : côté de chaque message, ordre et document lus', async () => {
     const { conversations } = await (await lire()).json()
     const demo = conversations.find((c: { id: string }) => c.id === CONV_DEMO)
@@ -113,6 +146,15 @@ describe('POST /api/syndic/canal-pro', () => {
     expect(res.status).toBe(404)
     expect(appelsDe(h.base, 'conversations', 'select')[0].eq).toEqual(expect.arrayContaining([['id', CONV_AUTRE], ['contact_id', CAB]]))
     expect(appelsDe(h.base, 'conversation_messages', 'insert')).toHaveLength(0)
+  })
+
+  it("404 pour une conversation du cabinet avec un compte qui n'est pas son prestataire, rien n'est écrit", async () => {
+    const res = await ecrire({ conversation_id: CONV_INCONNU, content: 'Bonjour' })
+    expect(res.status).toBe(404)
+    const controle = appelsDe(h.base, 'syndic_artisans', 'select')[0]
+    expect(controle.eq).toEqual(expect.arrayContaining([['cabinet_id', CAB], ['artisan_user_id', INCONNU]]))
+    expect(appelsDe(h.base, 'conversation_messages', 'insert')).toHaveLength(0)
+    expect(appelsDe(h.base, 'artisan_notifications')).toHaveLength(0)
   })
 
   it("réponse du syndic : message texte côté donneur d'ordre + notification in-app du prestataire", async () => {

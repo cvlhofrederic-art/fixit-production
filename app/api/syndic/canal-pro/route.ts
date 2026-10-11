@@ -9,8 +9,9 @@ import { coteDuMessage, documentDuMessage, statutOrdre } from '@/lib/syndic/mess
 
 // ── /api/syndic/canal-pro — Canal de communication v54, onglet « Professionnels » ──
 // Conversations « pro » (tables conversations / conversation_messages) dont le cabinet est le donneur
-// d'ordre (contact_id = cabinet), avec leurs messages : ordres de mission et leur statut, réponses et
-// documents du prestataire (devis, rapport, facture). POST : réponse du syndic dans une conversation.
+// d'ordre (contact_id = cabinet) avec l'un de SES prestataires (artisan_id = artisan_user_id d'une fiche
+// syndic_artisans du cabinet), avec leurs messages : ordres de mission et leur statut, réponses et
+// documents du prestataire (devis, rapport, facture). POST : réponse du syndic dans une telle conversation.
 // Accès service role → filtre cabinet explicite sur chaque requête.
 
 const MESSAGES_PAR_CONVERSATION = 80
@@ -35,6 +36,28 @@ interface MessageLigne {
   metadata: unknown
   ordre_mission: unknown
   created_at: string
+}
+
+interface FichePrestataire {
+  artisan_user_id: string
+  nom: string | null
+  prenom: string | null
+  nom_famille: string | null
+  metier: string | null
+}
+
+/** Fiches prestataires du cabinet ayant un compte Vitfix ; null si la lecture échoue. */
+async function fichesPrestataires(cabinetId: string): Promise<FichePrestataire[] | null> {
+  const { data, error } = await supabaseAdmin
+    .from('syndic_artisans')
+    .select('artisan_user_id, nom, prenom, nom_famille, metier')
+    .eq('cabinet_id', cabinetId)
+  if (error) {
+    logger.error('[canal-pro] syndic_artisans', { message: error.message })
+    return null
+  }
+  return ((data || []) as Array<Omit<FichePrestataire, 'artisan_user_id'> & { artisan_user_id: string | null }>)
+    .filter((a): a is FichePrestataire => typeof a.artisan_user_id === 'string' && a.artisan_user_id.length > 0)
 }
 
 const texte = (v: unknown): string => (typeof v === 'string' ? v : '')
@@ -78,11 +101,19 @@ export async function GET(request: NextRequest) {
   if (!cabinetId) return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
 
   try {
+    // Prestataires DU cabinet (fiches syndic_artisans avec un compte Vitfix) : seules leurs conversations
+    // sont listées. Une conversation « pro » d'un autre compte vers le cabinet n'en fait pas partie.
+    const fiches = await fichesPrestataires(cabinetId)
+    if (fiches === null) return NextResponse.json({ error: ERREUR_INTERNE }, { status: 500 })
+    const prestataireIds = [...new Set(fiches.map((a) => a.artisan_user_id))]
+    if (prestataireIds.length === 0) return noStore({ conversations: [] })
+
     const { data: convData, error: convErr } = await supabaseAdmin
       .from('conversations')
       .select('id, artisan_id, contact_id, contact_name, last_message_at, last_message_preview, created_at')
       .eq('contact_id', cabinetId)
       .eq('contact_type', 'pro')
+      .in('artisan_id', prestataireIds)
       .order('last_message_at', { ascending: false, nullsFirst: false })
       .limit(50)
     if (convErr) {
@@ -97,13 +128,7 @@ export async function GET(request: NextRequest) {
 
     // Noms des prestataires : fiche du cabinet d'abord, raison sociale du compte artisan à défaut.
     const noms = new Map<string, { nom: string; metier: string }>()
-    const { data: artData, error: artErr } = await supabaseAdmin
-      .from('syndic_artisans')
-      .select('artisan_user_id, nom, prenom, nom_famille, metier')
-      .eq('cabinet_id', cabinetId)
-      .in('artisan_user_id', artisanIds)
-    if (artErr) logger.warn('[canal-pro/GET] syndic_artisans', { message: artErr.message })
-    for (const a of (artData || []) as Array<{ artisan_user_id: string; nom: string | null; prenom: string | null; nom_famille: string | null; metier: string | null }>) {
+    for (const a of fiches) {
       const nom = a.nom?.trim() || [a.prenom, a.nom_famille].filter(Boolean).join(' ').trim()
       if (nom && !noms.has(a.artisan_user_id)) noms.set(a.artisan_user_id, { nom, metier: a.metier || '' })
     }
@@ -187,6 +212,20 @@ export async function POST(request: NextRequest) {
     }
     const conversation = conv as Pick<ConversationLigne, 'id' | 'artisan_id' | 'contact_id' | 'contact_name'> | null
     if (!conversation) return NextResponse.json({ error: 'conversation_introuvable' }, { status: 404 })
+
+    // Seulement avec un prestataire du cabinet (même périmètre que la liste GET).
+    const { data: fiche, error: ficheErr } = await supabaseAdmin
+      .from('syndic_artisans')
+      .select('id')
+      .eq('cabinet_id', cabinetId)
+      .eq('artisan_user_id', conversation.artisan_id)
+      .limit(1)
+      .maybeSingle()
+    if (ficheErr) {
+      logger.error('[canal-pro/POST] syndic_artisans', { message: ficheErr.message })
+      return NextResponse.json({ error: ERREUR_INTERNE }, { status: 500 })
+    }
+    if (!fiche) return NextResponse.json({ error: 'conversation_introuvable' }, { status: 404 })
 
     const { data: msg, error: msgErr } = await supabaseAdmin
       .from('conversation_messages')
