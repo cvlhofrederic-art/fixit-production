@@ -6,7 +6,7 @@ import Icon from '../primitives/icon/Icon'
 import { Button } from '../primitives/button'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { SIDEBAR, SIDE_TITLES, isItem, type SidebarItem } from './sidebar-config'
+import { SIDEBAR, SIDE_TITLES, compteursReels, isItem } from './sidebar-config'
 import { SIDEBAR_FR, SIDE_TITLES_FR } from './sidebar-config.fr'
 import { SHELL_MESSAGES } from './shell.messages'
 import styles from './Shell.module.css'
@@ -17,6 +17,14 @@ export interface DashboardShellProps {
   /** Rend le module actif. Si absent, un placeholder titre est affiché. */
   renderModule?: (route: string, navigate: (id: string) => void) => ReactNode
   onLogout?: () => void
+  /**
+   * Compteurs réels de la sidebar (syndic connecté, cf. compteursReels). Fournis, ils remplacent
+   * TOUS les compteurs de démonstration de la config (un compteur nul n'est pas affiché) ;
+   * absents (preview anonyme), la sidebar garde les compteurs de la maquette.
+   */
+  compteurs?: Readonly<Record<string, number>>
+  /** Lien « Panneau admin » (super_admin ou « vue en tant que ») ; absent/null : lien masqué. */
+  lienAdmin?: string | null
 }
 
 /**
@@ -31,7 +39,7 @@ export interface DashboardShellProps {
  * /récents persistés. Les en-têtes de section et le backdrop sont des <button>
  * (équivalence clavier — évite jsx-a11y S1082 du clic sur élément non-interactif).
  */
-export default function DashboardShell({ defaultRoute = 'dashboard', renderModule, onLogout }: Readonly<DashboardShellProps>) {
+export default function DashboardShell({ defaultRoute = 'dashboard', renderModule, onLogout, compteurs, lienAdmin }: Readonly<DashboardShellProps>) {
   const [route, setRoute] = useState(defaultRoute)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -56,11 +64,10 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
   }
   const toggleSection = (title: string) => setCollapsed((c) => ({ ...c, [title]: !c[title] }))
 
-  // Syndic connecté : le compteur du Canal de communication = demandes de copropriétaires en attente.
+  // Compteurs réels : ceux fournis par le parent, sinon (syndic connecté) calculés depuis les données
+  // du cabinet — le Canal de communication compte les demandes de copropriétaires en attente.
   const data = useSyndicData()
-  const demandesEnAttente = (data.signalements ?? []).filter((s) => s.statut === 'en_attente').length
-  const compteur = (e: SidebarItem): number | undefined =>
-    data.authenticated && e.id === 'canal' ? demandesEnAttente || undefined : e.count
+  const reels = compteurs ?? (data.authenticated ? compteursReels(data) : undefined)
 
   return (
     <div className={styles.app}>
@@ -96,7 +103,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
                   )
                 }
                 const active = route === e.id
-                const count = compteur(e)
+                const count = reels ? (reels[e.id] || undefined) : e.count
                 return (
                   <button
                     key={e.id}
@@ -125,6 +132,12 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
             </div>
             <Icon name="chevronDown" aria-hidden />
           </div>
+          {lienAdmin && (
+            <a className={styles.navItem} href={lienAdmin} style={{ marginTop: 8, textDecoration: 'none' }}>
+              <Icon name="shield" aria-hidden />
+              <span>{t.panneauAdmin}</span>
+            </a>
+          )}
         </div>
       </aside>
 
@@ -160,7 +173,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
             <Icon name="bell" aria-hidden />
             <span className={styles.pulse} aria-hidden />
           </button>
-          <Button variant="gold" className={styles.novaMissao}>
+          <Button variant="gold" className={styles.novaMissao} onClick={() => go('ordens')}>
             <Icon name="plus" aria-hidden />{t.nouvelleMission}
           </Button>
         </header>

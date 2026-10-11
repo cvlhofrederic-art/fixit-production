@@ -68,6 +68,20 @@ interface DashboardTextes {
   missionsRecentes: string
   statuts: Record<StatutMissionAffiche, string>
   recentes: MissionRecenteDemo[]
+  /** Données réelles du cabinet (syndic connecté) : textes calculés, à la place des chiffres de démonstration. */
+  reel: {
+    /** Accueil sans nom connu. */
+    bienvenue: string
+    lotsDans: (immeubles: number) => string
+    budgetConsomme: (pct: number) => string
+    budgetNonRenseigne: string
+    ordresEnAttente: (n: number) => string
+    aucunOrdreEnAttente: string
+    budgetSousTitre: string
+    disponiblePct: (pct: number) => string
+    legendeDepense: (montant: string) => string
+    legendeDisponible: (montant: string) => string
+  }
 }
 
 export const DASHBOARD_MESSAGES = defineMessages<DashboardTextes>({
@@ -139,6 +153,18 @@ export const DASHBOARD_MESSAGES = defineMessages<DashboardTextes>({
       { initiales: 'RC', immeuble: 'Residencial Cedofeita', type: 'Inspeção técnica', prestataire: 'Bruno Tavares', quand: 'ontem', statut: 'en_attente' },
       { initiales: 'BC', immeuble: 'Condomínio Boavista Center', type: 'Verificação fachada', prestataire: 'Ana Ribeiro', quand: 'ontem', statut: 'terminee' },
     ],
+    reel: {
+      bienvenue: 'Bem-vindo',
+      lotsDans: (n) => `em ${n} edifício${n === 1 ? '' : 's'}`,
+      budgetConsomme: (pct) => `${pct}% consumido`,
+      budgetNonRenseigne: 'Orçamento não definido',
+      ordresEnAttente: (n) => (n === 1 ? '1 ordem pendente' : `${n} ordens pendentes`),
+      aucunOrdreEnAttente: 'Nenhuma ordem pendente',
+      budgetSousTitre: 'Orçamentos anuais e despesas do exercício, todos os edifícios',
+      disponiblePct: (pct) => `Disponível · ${pct}%`,
+      legendeDepense: (montant) => `Gasto · ${montant} €`,
+      legendeDisponible: (montant) => `Disponível · ${montant} €`,
+    },
   },
   'fr-FR': {
     bienvenue: 'Bienvenue, ',
@@ -208,5 +234,17 @@ export const DASHBOARD_MESSAGES = defineMessages<DashboardTextes>({
       { initiales: 'CR', immeuble: 'Résidence Castellane', type: 'Contrôle technique', prestataire: 'Bruno Tessier', quand: 'hier', statut: 'en_attente' },
       { initiales: 'BC', immeuble: 'Copropriété Les Terrasses du Vieux-Port', type: 'Vérification de la façade', prestataire: 'Annie Rivière', quand: 'hier', statut: 'terminee' },
     ],
+    reel: {
+      bienvenue: 'Bienvenue',
+      lotsDans: (n) => `dans ${n} immeuble${n > 1 ? 's' : ''}`,
+      budgetConsomme: (pct) => `${pct} % consommé`,
+      budgetNonRenseigne: 'Budget non renseigné',
+      ordresEnAttente: (n) => `${n} ordre${n > 1 ? 's' : ''} de service en attente`,
+      aucunOrdreEnAttente: 'Aucun ordre de service en attente',
+      budgetSousTitre: "Budgets annuels et dépenses de l'exercice, tous immeubles confondus",
+      disponiblePct: (pct) => `Disponible · ${pct} %`,
+      legendeDepense: (montant) => `Dépensé · ${montant} €`,
+      legendeDisponible: (montant) => `Disponible · ${montant} €`,
+    },
   },
 })

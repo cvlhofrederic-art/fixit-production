@@ -96,7 +96,9 @@ const DASHBOARDS: Dashboard[] = [
       { id: 'syndic_comptable', label: 'Comptable', emoji: '💼', desc: 'Comptabilité copropriété, charges, budgets, appels de fonds', role: 'syndic_comptable', color: 'from-emerald-600 to-green-700', border: 'border-emerald-400', bg: 'bg-emerald-950/30' },
       { id: 'syndic_secretaire', label: 'Secrétaire', emoji: '📝', desc: 'Courrier, convocations AG, procès-verbaux, archivage', role: 'syndic_secretaire', color: 'from-pink-600 to-rose-700', border: 'border-pink-400', bg: 'bg-pink-950/30' },
       { id: 'syndic_base', label: 'Syndic (accès complet)', emoji: '🏢', desc: 'Rôle syndic principal — accès complet identique au gestionnaire principal', role: 'syndic', color: 'from-indigo-600 to-purple-700', border: 'border-indigo-400', bg: 'bg-indigo-950/30' },
-      { id: 'coproprio', label: 'Copropriétaire', emoji: '🏘️', desc: 'Dashboard copropriétaire — charges, documents, votes AG, communication syndic', role: 'coproprio', url: '/coproprietaire/dashboard', color: 'from-amber-600 to-orange-700', border: 'border-amber-400', bg: 'bg-amber-950/30' },
+      // Copropriétaire : ouvert SANS « vue en tant que » (role = retour au rôle réel, comme la carte AJ) — le
+      // dashboard copro et le middleware acceptent super_admin, et le Syndic v54 reste ainsi branché aux vraies données.
+      { id: 'coproprio', label: 'Copropriétaire', emoji: '🏘️', desc: 'Dashboard copropriétaire — charges, documents, votes AG, communication syndic', role: 'super_admin', url: '/coproprietaire/dashboard', color: 'from-amber-600 to-orange-700', border: 'border-amber-400', bg: 'bg-amber-950/30' },
       { id: 'locataire', label: 'Locataire', emoji: '🔑', desc: 'Dashboard locataire — charges, documents, signalements, communication syndic', role: 'locataire', url: '/coproprietaire/dashboard', color: 'from-cyan-600 to-sky-700', border: 'border-cyan-400', bg: 'bg-cyan-950/30' },
     ],
   },
@@ -107,7 +109,8 @@ const DASHBOARDS: Dashboard[] = [
   { id: 'pro_conciergerie', label: 'Conciergerie', emoji: '🏠', desc: 'Dashboard conciergerie — logements, channel manager, check-in/out, planning ménage, RevPAR', color: 'from-teal-600 to-cyan-700', border: 'border-teal-400', bg: 'bg-teal-950/20', url: '/pro/dashboard', role: 'pro_conciergerie', roles: ['pro_conciergerie'] },
   { id: 'pro_gestionnaire', label: 'Gestionnaire Locatif', emoji: '📋', desc: 'Dashboard gestionnaire locatif — immeubles, ordres de mission, contrats, locataires', color: 'from-green-600 to-emerald-700', border: 'border-green-400', bg: 'bg-green-950/20', url: '/pro/dashboard', role: 'pro_gestionnaire', roles: ['pro_gestionnaire'] },
   { id: 'client', label: 'Client / Particulier', emoji: '👤', desc: 'Dashboard client — réservations, historique interventions, devis reçus', color: 'from-slate-600 to-slate-700', border: 'border-slate-400', bg: 'bg-slate-950/20', url: '/client/dashboard', role: 'client', roles: ['client'] },
-  { id: 'coproprio', label: 'Dashboard Copropriétaire', emoji: '🏘️', desc: 'Dashboard copropriétaire — charges, documents, votes AG, communication syndic', color: 'from-indigo-600 to-indigo-800', border: 'border-indigo-400', bg: 'bg-indigo-950/20', url: '/coproprietaire/dashboard', role: 'coproprio', roles: ['coproprio'] },
+  // Copropriétaire : sans « vue en tant que » (cf. sous-rôle Copropriétaire de la carte Syndic).
+  { id: 'coproprio', label: 'Dashboard Copropriétaire', emoji: '🏘️', desc: 'Dashboard copropriétaire — charges, documents, votes AG, communication syndic', color: 'from-indigo-600 to-indigo-800', border: 'border-indigo-400', bg: 'bg-indigo-950/20', url: '/coproprietaire/dashboard', role: 'super_admin', roles: ['coproprio'] },
 ]
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

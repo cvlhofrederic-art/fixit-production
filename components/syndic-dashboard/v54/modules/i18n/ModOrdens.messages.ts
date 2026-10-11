@@ -1,7 +1,7 @@
 import { defineMessages } from '@/lib/syndic/v54/i18n'
 
 /** Statut affiché d'un ordre de service (code interne ; le libellé dépend de la langue). */
-export type StatutOrdre = 'pendente' | 'curso' | 'concluida'
+export type StatutOrdre = 'pendente' | 'curso' | 'concluida' | 'annulee'
 
 /** Ligne de démonstration : statut, référence, immeuble, intervention, localisation, prestataire, date. */
 export interface OrdreDemo {
@@ -24,7 +24,12 @@ interface OrdensTextes {
   recherchePlaceholder: string
   aucunResultat: string
   prioriteNormale: string
+  /** Priorités réelles des missions (colonne priorite : urgente | normale | planifiee). */
+  prioriteUrgente: string
+  prioritePlanifiee: string
   statuts: Record<StatutOrdre, string>
+  /** Statut « acceptée » proposé dans la fenêtre de gestion (il n'est plus réécrit en « en cours »). */
+  statutAcceptee: string
   valider: string
   ouvrir: string
   lot: (numero: string) => string
@@ -72,7 +77,10 @@ export const ORDENS_MESSAGES = defineMessages<OrdensTextes>({
     recherchePlaceholder: 'Pesquisar por edifício, descrição, profissional…',
     aucunResultat: 'Nenhuma ordem corresponde aos filtros.',
     prioriteNormale: 'Normal',
-    statuts: { pendente: 'Pendente', curso: 'Em curso', concluida: 'Concluída' },
+    prioriteUrgente: 'Urgente',
+    prioritePlanifiee: 'Planeada',
+    statuts: { pendente: 'Pendente', curso: 'Em curso', concluida: 'Concluída', annulee: 'Anulada' },
+    statutAcceptee: 'Aceite',
     valider: 'Validar',
     ouvrir: 'Abrir',
     lot: (numero) => `Fração ${numero}`,
@@ -128,7 +136,10 @@ export const ORDENS_MESSAGES = defineMessages<OrdensTextes>({
     recherchePlaceholder: 'Rechercher par immeuble, description, prestataire…',
     aucunResultat: 'Aucun ordre de service ne correspond aux filtres.',
     prioriteNormale: 'Normale',
-    statuts: { pendente: 'En attente', curso: 'En cours', concluida: 'Terminé' },
+    prioriteUrgente: 'Urgente',
+    prioritePlanifiee: 'Planifiée',
+    statuts: { pendente: 'En attente', curso: 'En cours', concluida: 'Terminé', annulee: 'Annulé' },
+    statutAcceptee: 'Acceptée',
     valider: 'Valider',
     ouvrir: 'Ouvrir',
     lot: (numero) => `Lot ${numero}`,

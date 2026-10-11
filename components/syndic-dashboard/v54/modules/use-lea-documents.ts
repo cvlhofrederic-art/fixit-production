@@ -6,7 +6,16 @@ import type { PillKind } from '../primitives/pill'
 import type { IconName } from '@/lib/syndic/icon-names'
 import { useMessages } from '@/lib/syndic/v54/i18n'
 import type { V54Locale } from '@/lib/syndic/v54/i18n/locale'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { HOOKS_MESSAGES, STATUTS_DOCUMENT, TYPES_DOCUMENT } from './i18n/hooks.messages'
+
+/**
+ * En-têtes des routes /api/syndic/lea-documents/* : elles n'authentifient que par
+ * `Authorization: Bearer` (getAuthUser), comme toutes les routes syndic du dashboard v54.
+ * Sans jeton (preview anonyme) : aucun en-tête, la route répond 401 et le module garde sa maquette.
+ */
+export const enTetesLea = (token?: string): Record<string, string> =>
+  token ? { Authorization: `Bearer ${token}` } : {}
 
 /** Document Léa tel que renvoyé par GET /api/syndic/lea-documents. */
 export interface LeaDocument {
@@ -86,6 +95,7 @@ interface UseLeaDocumentsResult {
  */
 export function useLeaDocuments(opts: { enabled: boolean }): UseLeaDocumentsResult {
   const { enabled } = opts
+  const { token } = useSyndicData()
   const [docs, setDocs] = useState<LeaDocument[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -96,19 +106,20 @@ export function useLeaDocuments(opts: { enabled: boolean }): UseLeaDocumentsResu
     }
     setLoading(true)
     try {
-      const res = await fetch('/api/syndic/lea-documents?limit=100')
+      const res = await fetch('/api/syndic/lea-documents?limit=100', { headers: enTetesLea(token) })
       if (!res.ok) {
         setDocs([])
         return
       }
       const data = (await res.json()) as { documents?: LeaDocument[] }
       setDocs(Array.isArray(data.documents) ? data.documents : [])
-    } catch {
+    } catch (erreur: unknown) {
       // réseau indisponible — garder l'état courant sans casser le rendu
+      console.warn('[syndic v54] liste des documents Léa indisponible', erreur)
     } finally {
       setLoading(false)
     }
-  }, [enabled])
+  }, [enabled, token])
 
   useEffect(() => {
     void refresh()
@@ -142,12 +153,13 @@ interface UseLeaDocActionsResult {
 export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult {
   const { push } = useToast()
   const t = useMessages(HOOKS_MESSAGES).documents
+  const { token } = useSyndicData()
   const [pending, setPending] = useState<LeaDocRef | null>(null)
   const [busy, setBusy] = useState(false)
 
   const open = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/syndic/lea-documents/${id}`)
+      const res = await fetch(`/api/syndic/lea-documents/${id}`, { headers: enTetesLea(token) })
       if (!res.ok) {
         push({ kind: 'error', title: t.ouvertureImpossible, desc: t.indisponible })
         return
@@ -157,13 +169,13 @@ export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult
     } catch {
       push({ kind: 'error', title: t.erreurReseau, desc: t.ouvertureReseau })
     }
-  }, [push, t])
+  }, [push, t, token])
 
   const confirmDelete = useCallback(async () => {
     if (!pending) return
     setBusy(true)
     try {
-      const res = await fetch(`/api/syndic/lea-documents/${pending.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/syndic/lea-documents/${pending.id}`, { method: 'DELETE', headers: enTetesLea(token) })
       if (!res.ok) {
         push({ kind: 'error', title: t.erreurSuppression, desc: t.reessayerPlusTardPoint })
         return
@@ -176,7 +188,7 @@ export function useLeaDocActions(onChanged?: () => void): UseLeaDocActionsResult
     } finally {
       setBusy(false)
     }
-  }, [pending, push, onChanged, t])
+  }, [pending, push, onChanged, t, token])
 
   return {
     open,

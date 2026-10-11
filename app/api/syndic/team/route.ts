@@ -7,6 +7,23 @@ import { sendEmail, templateTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicTeamInviteSchema } from '@/lib/validation'
 
+/**
+ * Rôles qui administrent l'équipe du cabinet (invitation, modification, suppression).
+ * super_admin : accepté comme par isSyndicRole, sur SON cabinet (resolveCabinetId → son id).
+ */
+const ROLES_ADMIN_EQUIPE: ReadonlySet<string> = new Set(['syndic', 'syndic_admin', 'super_admin'])
+
+const COLONNES_EQUIPE = 'id, email, full_name, role, invite_sent_at, accepted_at, is_active, created_at'
+
+/**
+ * Colonne inconnue de la base (Postgres 42703, ou cache de schéma PostgREST PGRST204) :
+ * `custom_modules` n'est créée par aucune migration du dépôt.
+ */
+function colonneAbsente(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === '42703' || error.code === 'PGRST204' || /column .* does not exist/i.test(error.message ?? '')
+}
+
 // ── GET /api/syndic/team ──────────────────────────────────────────────────────
 // Retourne tous les membres de l'équipe du cabinet connecté
 export async function GET(request: NextRequest) {
@@ -20,11 +37,18 @@ export async function GET(request: NextRequest) {
   // Trouver le cabinet_id : si admin → son propre id, si employé → son cabinet_id
   const cabinetId = await resolveCabinetId(user, supabaseAdmin)
 
-  const { data, error } = await supabaseAdmin
+  const lireEquipe = (colonnes: string) => supabaseAdmin
     .from('syndic_team_members')
-    .select('id, email, full_name, role, invite_sent_at, accepted_at, is_active, created_at, custom_modules')
+    .select(colonnes)
     .eq('cabinet_id', cabinetId)
     .order('created_at', { ascending: true })
+
+  let { data, error } = await lireEquipe(`${COLONNES_EQUIPE}, custom_modules`)
+  if (colonneAbsente(error)) {
+    // Base sans la colonne custom_modules : la liste des membres reste due (modules par défaut du rôle).
+    logger.warn('[TEAM] GET : colonne custom_modules absente, lecture sans les modules personnalisés')
+    ;({ data, error } = await lireEquipe(COLONNES_EQUIPE))
+  }
 
   if (error) {
     logger.error('[TEAM] GET error:', error)
@@ -47,7 +71,7 @@ export async function POST(request: NextRequest) {
   }
   // Seuls les admins peuvent inviter
   const role = getUserRole(user)
-  if (role !== 'syndic' && role !== 'syndic_admin') {
+  if (!ROLES_ADMIN_EQUIPE.has(role)) {
     return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
   }
 
@@ -171,7 +195,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
   const userRole = getUserRole(user)
-  if (userRole !== 'syndic' && userRole !== 'syndic_admin') {
+  if (!ROLES_ADMIN_EQUIPE.has(userRole)) {
     return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
   }
 
@@ -245,7 +269,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
   }
   const userRole = getUserRole(user)
-  if (userRole !== 'syndic' && userRole !== 'syndic_admin') {
+  if (!ROLES_ADMIN_EQUIPE.has(userRole)) {
     return NextResponse.json({ error: 'Droits insuffisants (admin requis)' }, { status: 403 })
   }
 
