@@ -1,9 +1,10 @@
 // Tests d'idempotence du POST /api/email-agent/poll (audit ALF-2).
 //
-// Le poll requête Gmail `is:unread` et rien ne retire jamais le label UNREAD
-// (pas de scope gmail.modify). Sans garde, chaque exécution (cron + push temps
-// réel) relancerait classify + draft (2 appels Groq) sur les MÊMES emails et
-// l'upsert écraserait draft_status → 'pending_review' (brouillons revus perdus).
+// Le poll relève la boîte de réception, e-mails lus OU non (Gmail `in:inbox`,
+// Microsoft Graph dossier Inbox), en lecture seule : rien ne marque un e-mail comme
+// traité chez le fournisseur. Sans garde, chaque exécution (cron + push temps réel
+// + « Analyser maintenant ») relancerait classify + draft (2 appels IA) sur les MÊMES
+// e-mails et l'upsert écraserait draft_status → 'pending_review' (brouillons revus perdus).
 // La route doit donc charger en UNE requête les gmail_message_id déjà en base
 // pour le syndic et SAUTER les messages connus, quel que soit leur statut.
 //

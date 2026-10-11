@@ -148,6 +148,8 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #   CEREBRAS_API_KEY              (fallback provider Groq)
 #   GOOGLE_CLIENT_ID
 #   GOOGLE_CLIENT_SECRET
+#   MICROSOFT_CLIENT_ID           (boîte Outlook / Microsoft 365 d'Alfredo — Entra ID, ID d'application)
+#   MICROSOFT_CLIENT_SECRET       (secret client Entra ID — valeur, pas l'ID du secret)
 #   NEXT_PUBLIC_SENTRY_DSN
 #   SENTRY_AUTH_TOKEN
 #   SENTRY_ORG
