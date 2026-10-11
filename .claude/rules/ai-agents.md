@@ -22,10 +22,12 @@
 ## Agents actifs
 - Artisan / BTP (Groq) : Fixy AI artisan, Fixy Chat, Simulateur travaux, Matériaux AI, Email Agent,
   Analyse Devis client, Comptable AI.
-- Syndic v54 (Claude) : Fixy Syndic, Max (juridique, RAG), Léa (comptable), Alfredo (e-mails), Tempo
-  (automatisations), Analyse devis syndic, classification d'incidents, accessibilité / sécurité incendie.
-- Administrateur judiciaire (Claude) : Fixy, Max, Léa, Tempo — `app/api/administrateur-judiciaire/agent`,
-  contexte construit côté navigateur depuis la base locale (`lib/administrateur-judiciaire/ia/`).
+- Syndic v54 (Claude) : Fixy Syndic (actions exécutées après confirmation), Max (juridique, RAG ; hors base :
+  réponse générale « à vérifier »), Léa (comptable), Alfredo (e-mails), Tempo (automatisations), Analyse devis
+  syndic, classification d'incidents, accessibilité / sécurité incendie.
+- Administrateur judiciaire (Claude) : Fixy, Max, Léa, Tempo, Alfredo — `app/api/administrateur-judiciaire/agent`,
+  contexte construit côté navigateur depuis la base locale (`lib/administrateur-judiciaire/ia/`) ; outils
+  analyse de devis / factures, rédaction de PV, saisie de factures (vision) — `app/api/administrateur-judiciaire/outils`.
 - Copropriétaire (Claude) : Fixy copro — `app/api/copro-ai`.
 Prompts dans `app/api/*/route.ts` ou `lib/**/prompts*`.
 
