@@ -229,10 +229,10 @@ export default function ModOrdens() {
               </Field>
               <Field label={f.priorite} name="nm-prio">
                 <select value={form.priorite} onChange={(e) => upd('priorite', e.target.value)}>
-                  <option value="basse">{f.priorites.basse}</option>
+                  {/* Valeurs du CHECK syndic_missions.priorite (urgente | normale | planifiee). */}
+                  <option value="urgente">{t.prioriteUrgente}</option>
                   <option value="normale">{f.priorites.normale}</option>
-                  <option value="haute">{f.priorites.haute}</option>
-                  <option value="urgente">{f.priorites.urgente}</option>
+                  <option value="planifiee">{t.prioritePlanifiee}</option>
                 </select>
               </Field>
             </FormRow>

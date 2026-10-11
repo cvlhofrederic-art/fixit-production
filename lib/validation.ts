@@ -423,7 +423,10 @@ export const syndicMissionSchema = z.object({
   artisan: z.string().max(200).optional().default(''),
   type: z.string().max(100).optional().default(''),
   description: z.string().max(5000).optional().default(''),
-  priorite: z.enum(['basse', 'normale', 'haute', 'urgente']).optional().default('normale'),
+  // CHECK syndic_missions.priorite : urgente | normale | planifiee. Les anciennes valeurs des
+  // formulaires (basse, haute) sont ramenées à « normale » au lieu d'un refus de la base (500).
+  priorite: z.enum(['urgente', 'normale', 'planifiee', 'basse', 'haute']).optional().default('normale')
+    .transform((p): 'urgente' | 'normale' | 'planifiee' => (p === 'urgente' || p === 'planifiee' ? p : 'normale')),
   statut: z.enum(['en_attente', 'en_cours', 'terminee', 'annulee']).optional().default('en_attente'),
   dateCreation: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   dateIntervention: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
