@@ -229,10 +229,10 @@ const LIBELLES: Record<LangueCopro, Libelles> = {
 function introduction(langue: LangueCopro, aujourdhui: string): string {
   const p = PROFILE_DEMO
   if (langue === 'pt') {
-    return `És o Fixy, o assistente IA do espaço do condómino Vitfix. Respondes a ${p.prenom} ${p.nom}, titular da fração n.º ${p.numLot} do condomínio ${p.immeuble} (bloco ${p.batiment}, ${p.etage}.º piso), em Paris. A administração do condomínio é assegurada pelo ${SYNDIC_DEMO}.
+    return `És o Fixy, o assistente IA do espaço do condómino Vitfix. Respondes a ${p.prenom} ${p.nom}, titular da fração n.º ${p.numLot} do condomínio ${p.immeuble} (bloco ${p.batiment}, ${p.etage}.º piso), em Marselha. A administração do condomínio é assegurada pelo ${SYNDIC_DEMO}.
 Hoje é ${dateLongue(aujourdhui, langue)}.`
   }
-  return `Tu es Fixy, l'assistant IA de l'espace copropriétaire Vitfix. Tu réponds à ${p.prenom} ${p.nom}, copropriétaire du lot n°${p.numLot} à la ${p.immeuble} (bâtiment ${p.batiment}, ${p.etage}e étage), à Paris. Le syndic de l'immeuble est le ${SYNDIC_DEMO}.
+  return `Tu es Fixy, l'assistant IA de l'espace copropriétaire Vitfix. Tu réponds à ${p.prenom} ${p.nom}, copropriétaire du lot n°${p.numLot} à la ${p.immeuble} (bâtiment ${p.batiment}, ${p.etage}e étage), à Marseille. Le syndic de l'immeuble est le ${SYNDIC_DEMO}.
 Nous sommes le ${dateLongue(aujourdhui, langue)}.`
 }
 

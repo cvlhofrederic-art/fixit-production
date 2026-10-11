@@ -83,3 +83,25 @@ describe('données de démo copropriétaire — dates autour du 12/10/2026', () 
     expect(ravalement?.montant).toBe((85_000 - 20_000) * (PROFILE_DEMO.tantiemes / 10_000) / 2)
   })
 })
+
+describe('données de démo copropriétaire — immeuble du cabinet de démo Syndic v54 (Marseille)', () => {
+  // supabase/seed/syndic-v54-demo-seed-marseille.sql : « Résidence Le Prado », 182 avenue du Prado, 13008.
+  it('le profil de démo habite la Résidence Le Prado', () => {
+    expect(PROFILE_DEMO.immeuble).toBe('Résidence Le Prado')
+  })
+
+  it('les AG se tiennent au 182 avenue du Prado ; plus aucune trace de l’ancienne adresse', () => {
+    for (const ag of AG_DEMO) expect(ag.lieu, ag.titre).toContain('182 avenue du Prado, 13008 Marseille')
+    const textes = JSON.stringify([AG_DEMO, ANNONCES_DEMO, DOCUMENTS_DEMO, ECHEANCES_DEMO, NOTIFICATIONS_DEMO, HISTORIQUE_DEMO, INTERVENTIONS_DEMO])
+    expect(textes).not.toContain('Acacias')
+  })
+
+  it('suivi GPS des interventions à Marseille, pas à Paris', () => {
+    for (const i of INTERVENTIONS_DEMO.filter(x => x.gpsLat !== undefined)) {
+      expect(i.gpsLat).toBeGreaterThan(43.2)
+      expect(i.gpsLat).toBeLessThan(43.4)
+      expect(i.gpsLng).toBeGreaterThan(5.3)
+      expect(i.gpsLng).toBeLessThan(5.5)
+    }
+  })
+})
