@@ -153,5 +153,27 @@ export const SIDE_TITLES: Record<string, string> = Object.fromEntries(
   SIDEBAR.flatMap((s) => s.entries.filter(isItem).map((i) => [i.id, i.label])),
 )
 
+/** Données du cabinet utiles aux compteurs de la sidebar (sous-ensemble de SyndicData). */
+export interface DonneesCompteurs {
+  missions: ReadonlyArray<{ statut: string }>
+  immeubles: ReadonlyArray<unknown>
+  artisans: ReadonlyArray<unknown>
+  signalements?: ReadonlyArray<{ statut: string }>
+}
+
+/**
+ * Compteurs réels de la sidebar pour un syndic connecté. Les `count` de SIDEBAR (4, 1, 4, 9) sont
+ * ceux de la maquette : ils ne valent que pour la preview anonyme, jamais à côté de vraies données.
+ * ordens = ordres de service en attente ; canal = signalements en attente ; edificios / profissionais = effectifs.
+ */
+export function compteursReels(d: DonneesCompteurs): Record<string, number> {
+  return {
+    ordens: d.missions.filter((m) => m.statut === 'en_attente').length,
+    canal: (d.signalements ?? []).filter((s) => s.statut === 'en_attente').length,
+    edificios: d.immeubles.length,
+    profissionais: d.artisans.length,
+  }
+}
+
 /** Routes « agent » qui rendent AgentChatPage plutôt qu'un placeholder. */
 export const AGENT_ROUTES = new Set(['fixy', 'max', 'lea', 'alfredo', 'tempo'])

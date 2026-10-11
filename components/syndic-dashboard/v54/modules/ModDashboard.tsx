@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useToast } from '../primitives/toast'
 import { Pill, type PillKind } from '../primitives/pill'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import type { Mission } from '@/components/syndic-dashboard/types'
+import type { Immeuble, Mission } from '@/components/syndic-dashboard/types'
+import { useIdentiteSyndic } from '@/lib/syndic/v54/identite'
 import { KPIGrid } from '../primitives/kpi'
 import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
@@ -72,6 +73,37 @@ function missionToRow(m: Mission, statuts: Statuts, locale: V54Locale): RecentRo
   return [initials(m.immeuble), m.immeuble, m.type, m.artisan || '—', dateApi(m.dateIntervention || m.dateCreation, locale), st.label, st.color]
 }
 
+/** Chiffres du cabinet connecté (bandeau + budget), calculés depuis ses immeubles et ses missions. */
+interface SyntheseCabinet {
+  nbImmeubles: number
+  nbLots: number
+  /** Même règle que la carte « Missions en cours » : en_cours + acceptee. */
+  missionsActives: number
+  missionsEnAttente: number
+  budgetTotal: number
+  depense: number
+  restant: number
+  /** Part consommée du budget (arrondie) ; null sans budget saisi. */
+  pctConsomme: number | null
+}
+
+const montant = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : Number(n) || 0)
+
+function syntheseCabinet(immeubles: ReadonlyArray<Immeuble>, missions: ReadonlyArray<Mission>): SyntheseCabinet {
+  const budgetTotal = immeubles.reduce((a, i) => a + montant(i.budgetAnnuel), 0)
+  const depense = immeubles.reduce((a, i) => a + montant(i.depensesAnnee), 0)
+  return {
+    nbImmeubles: immeubles.length,
+    nbLots: immeubles.reduce((a, i) => a + montant(i.nbLots), 0),
+    missionsActives: missions.filter((m) => m.statut === 'en_cours' || m.statut === 'acceptee').length,
+    missionsEnAttente: missions.filter((m) => m.statut === 'en_attente').length,
+    budgetTotal,
+    depense,
+    restant: budgetTotal - depense,
+    pctConsomme: budgetTotal > 0 ? Math.round((depense / budgetTotal) * 100) : null,
+  }
+}
+
 export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string) => void }) {
   const t = useMessages(DASHBOARD_MESSAGES)
   const locale = useV54Locale()
@@ -91,6 +123,13 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
       })
   const b = t.budget
   const lg = b.legende
+  const r = t.reel
+  const { nom } = useIdentiteSyndic()
+  // Connecté : chiffres calculés depuis les immeubles et missions du cabinet (jamais ceux de la maquette).
+  const s = syntheseCabinet(data.immeubles, data.missions)
+  const entier = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(n)
+  const milliers = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: Math.abs(n) < 10_000 ? 1 : 0 }).format(n / 1000)
+  const consomme = s.pctConsomme == null ? r.budgetNonRenseigne : r.budgetConsomme(s.pctConsomme)
 
   return (
     <>
@@ -98,20 +137,30 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
         <div className={styles.heroGrid}>
           <div>
             <div className={styles.dateLine}>{dateStr}</div>
-            <h1 className={styles.heroTitle}>{t.bienvenue}<i>{t.superAdmin}</i></h1>
+            {real
+              ? <h1 className={styles.heroTitle}>{nom ? <>{t.bienvenue}<i>{nom}</i></> : r.bienvenue}</h1>
+              : <h1 className={styles.heroTitle}>{t.bienvenue}<i>{t.superAdmin}</i></h1>}
             <div className={styles.lede}>{t.chapeau}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-              <Pill kind="sage">{t.pastilles.stable}</Pill>
-              <Pill kind="gold">{t.pastilles.synchro}</Pill>
-              <Pill kind="amber">{t.pastilles.ordres}</Pill>
+              {real ? (
+                s.missionsEnAttente > 0
+                  ? <Pill kind="amber">{r.ordresEnAttente(s.missionsEnAttente)}</Pill>
+                  : <Pill kind="sage">{r.aucunOrdreEnAttente}</Pill>
+              ) : (
+                <>
+                  <Pill kind="sage">{t.pastilles.stable}</Pill>
+                  <Pill kind="gold">{t.pastilles.synchro}</Pill>
+                  <Pill kind="amber">{t.pastilles.ordres}</Pill>
+                </>
+              )}
             </div>
           </div>
           <div className={styles.heroDivider} />
-          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.lots}</div><div className={styles.statVal}>40</div><div className={styles.statSub}>{t.bandeau.lotsSous}</div></div>
+          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.lots}</div><div className={styles.statVal}>{real ? entier(s.nbLots) : 40}</div><div className={styles.statSub}>{real ? r.lotsDans(s.nbImmeubles) : t.bandeau.lotsSous}</div></div>
           <div className={styles.heroDivider} />
-          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.missions}</div><div className={styles.statVal}>4</div><div className={styles.statSub}>{t.bandeau.missionsSous}</div></div>
+          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.missions}</div><div className={styles.statVal}>{real ? s.missionsActives : 4}</div><div className={styles.statSub}>{real ? t.kpi.enAttente(s.missionsEnAttente) : t.bandeau.missionsSous}</div></div>
           <div className={styles.heroDivider} />
-          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.budget}</div><div className={styles.statVal}>188<span className={styles.statCur}>{t.bandeau.milliersEuros}</span></div><div className={styles.statSub}>{t.bandeau.budgetSous}</div></div>
+          <div className={styles.heroStat}><div className={styles.statLabel}>{t.bandeau.budget}</div><div className={styles.statVal}>{real ? milliers(s.budgetTotal) : 188}<span className={styles.statCur}>{t.bandeau.milliersEuros}</span></div><div className={styles.statSub}>{real ? consomme : t.bandeau.budgetSous}</div></div>
         </div>
       </div>
 
@@ -137,37 +186,57 @@ export default function ModDashboard({ onNavigate }: { onNavigate?: (id: string)
       </div>
 
       <KPIGrid items={[
-        { icon: 'building', num: real ? data.immeubles.length : 4, lbl: t.kpi.immeubles, sub: t.kpi.lotsAuTotal(real ? data.immeubles.reduce((a, i) => a + (i.nbLots || 0), 0) : 40), trend: real ? undefined : { kind: 'flat', label: t.kpi.tendanceImmeubles } },
+        { icon: 'building', num: real ? s.nbImmeubles : 4, lbl: t.kpi.immeubles, sub: t.kpi.lotsAuTotal(real ? s.nbLots : 40), trend: real ? undefined : { kind: 'flat', label: t.kpi.tendanceImmeubles } },
         { icon: 'wrench', num: real ? data.artisans.filter((a) => a.statut === 'actif').length : 9, lbl: t.kpi.prestataires, sub: t.kpi.certifies(real ? data.artisans.filter((a) => a.vitfixCertifie).length : 7), accent: 'sage', trend: real ? undefined : { kind: 'ok', label: t.kpi.tendancePrestataires } },
-        { icon: 'clipboard', num: real ? data.missions.filter((m) => m.statut === 'en_cours' || m.statut === 'acceptee').length : 4, lbl: t.kpi.missions, sub: real ? t.kpi.enAttente(data.missions.filter((m) => m.statut === 'en_attente').length) : t.kpi.delaiMoyen, accent: 'amber', trend: real ? undefined : { kind: 'warn', label: t.kpi.enAttente(6) } },
+        { icon: 'clipboard', num: real ? s.missionsActives : 4, lbl: t.kpi.missions, sub: real ? t.kpi.enAttente(s.missionsEnAttente) : t.kpi.delaiMoyen, accent: 'amber', trend: real ? undefined : { kind: 'warn', label: t.kpi.enAttente(6) } },
         { icon: 'check', num: 0, lbl: t.kpi.alertes, sub: real ? t.kpi.toutSousControle : t.kpi.alertesDemo, accent: 'sage', trend: real ? undefined : { kind: 'ok', label: t.kpi.toutVaBien } },
       ]} />
 
       <Panel
         title={b.titre}
-        sub={b.sousTitre}
+        sub={real ? r.budgetSousTitre : b.sousTitre}
         right={<><Pill kind="sage">{b.enCours}</Pill><Button onClick={() => push({ kind: 'info', title: b.exporter, desc: b.enDeveloppement })}><Icon name="download" />{b.exporter}</Button></>}
       >
-        <div className={styles.budgetFigures}>
-          <div><div style={eyebrowStyle}>{b.total}</div><div style={figVal}>188 000<span style={{ color: 'var(--v54-gold-700)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.exercice}</div></div>
-          <div><div style={eyebrowStyle}>{b.depense}</div><div style={{ ...figVal, color: 'var(--v54-rust-700)' }}>102 470<span style={{ color: 'var(--v54-rust-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.consomme}</div></div>
-          <div><div style={eyebrowStyle}>{b.restant}</div><div style={{ ...figVal, color: 'var(--v54-sage-700)' }}>85 530<span style={{ color: 'var(--v54-sage-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.disponible}</div></div>
-          <div><div style={eyebrowStyle}>{b.finPrevue}</div><div style={{ ...figVal, fontSize: 22, color: 'var(--v54-navy-700)' }}>{b.finPrevueValeur}</div><div style={{ fontSize: 11.5, color: 'var(--v54-sage-700)', marginTop: 4 }}>{b.marge}</div></div>
-        </div>
-        <div style={{ display: 'flex', gap: 18, fontSize: 11.5, marginBottom: 10, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-sage-700), var(--v54-sage-500))' }} />{lg.entretien}</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-gold-600), var(--v54-gold-500))' }} />{lg.travaux}</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-amber-700), var(--v54-amber-500))' }} />{lg.services}</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />{lg.autres}</span>
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--v54-cream)', border: '1px solid var(--v54-line)' }} />{lg.disponible}</span>
-        </div>
-        <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: 'var(--v54-cream)', border: '1px solid var(--v54-line)' }}>
-          <div style={{ flex: 42000, background: 'linear-gradient(90deg, var(--v54-sage-700), var(--v54-sage-500))' }} />
-          <div style={{ flex: 38200, background: 'linear-gradient(90deg, var(--v54-gold-600), var(--v54-gold-500))' }} />
-          <div style={{ flex: 14870, background: 'linear-gradient(90deg, var(--v54-amber-700), var(--v54-amber-500))' }} />
-          <div style={{ flex: 7400, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />
-          <div style={{ flex: 85530 }} />
-        </div>
+        {real ? (
+          <>
+            <div className={styles.budgetFigures}>
+              <div><div style={eyebrowStyle}>{b.total}</div><div style={figVal}>{entier(s.budgetTotal)}<span style={{ color: 'var(--v54-gold-700)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.exercice}</div></div>
+              <div><div style={eyebrowStyle}>{b.depense}</div><div style={{ ...figVal, color: 'var(--v54-rust-700)' }}>{entier(s.depense)}<span style={{ color: 'var(--v54-rust-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{consomme}</div></div>
+              <div><div style={eyebrowStyle}>{b.restant}</div><div style={{ ...figVal, color: 'var(--v54-sage-700)' }}>{entier(s.restant)}<span style={{ color: 'var(--v54-sage-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{s.pctConsomme == null ? r.budgetNonRenseigne : r.disponiblePct(Math.max(0, 100 - s.pctConsomme))}</div></div>
+            </div>
+            <div style={{ display: 'flex', gap: 18, fontSize: 11.5, marginBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />{r.legendeDepense(entier(s.depense))}</span>
+              <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--v54-cream)', border: '1px solid var(--v54-line)' }} />{r.legendeDisponible(entier(Math.max(0, s.restant)))}</span>
+            </div>
+            <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: 'var(--v54-cream)', border: '1px solid var(--v54-line)' }}>
+              <div style={{ flex: s.depense, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />
+              <div style={{ flex: Math.max(0, s.restant) }} />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.budgetFigures}>
+              <div><div style={eyebrowStyle}>{b.total}</div><div style={figVal}>188 000<span style={{ color: 'var(--v54-gold-700)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.exercice}</div></div>
+              <div><div style={eyebrowStyle}>{b.depense}</div><div style={{ ...figVal, color: 'var(--v54-rust-700)' }}>102 470<span style={{ color: 'var(--v54-rust-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.consomme}</div></div>
+              <div><div style={eyebrowStyle}>{b.restant}</div><div style={{ ...figVal, color: 'var(--v54-sage-700)' }}>85 530<span style={{ color: 'var(--v54-sage-500)', fontStyle: 'italic', marginLeft: 3, fontSize: 22 }}>€</span></div><div style={{ fontSize: 11.5, color: 'var(--v54-navy-300)', marginTop: 4 }}>{b.disponible}</div></div>
+              <div><div style={eyebrowStyle}>{b.finPrevue}</div><div style={{ ...figVal, fontSize: 22, color: 'var(--v54-navy-700)' }}>{b.finPrevueValeur}</div><div style={{ fontSize: 11.5, color: 'var(--v54-sage-700)', marginTop: 4 }}>{b.marge}</div></div>
+            </div>
+            <div style={{ display: 'flex', gap: 18, fontSize: 11.5, marginBottom: 10, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-sage-700), var(--v54-sage-500))' }} />{lg.entretien}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-gold-600), var(--v54-gold-500))' }} />{lg.travaux}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-amber-700), var(--v54-amber-500))' }} />{lg.services}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />{lg.autres}</span>
+              <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--v54-cream)', border: '1px solid var(--v54-line)' }} />{lg.disponible}</span>
+            </div>
+            <div style={{ display: 'flex', height: 12, borderRadius: 6, overflow: 'hidden', background: 'var(--v54-cream)', border: '1px solid var(--v54-line)' }}>
+              <div style={{ flex: 42000, background: 'linear-gradient(90deg, var(--v54-sage-700), var(--v54-sage-500))' }} />
+              <div style={{ flex: 38200, background: 'linear-gradient(90deg, var(--v54-gold-600), var(--v54-gold-500))' }} />
+              <div style={{ flex: 14870, background: 'linear-gradient(90deg, var(--v54-amber-700), var(--v54-amber-500))' }} />
+              <div style={{ flex: 7400, background: 'linear-gradient(90deg, var(--v54-rust-700), var(--v54-rust-500))' }} />
+              <div style={{ flex: 85530 }} />
+            </div>
+          </>
+        )}
       </Panel>
 
       <div className={styles.twoCol}>

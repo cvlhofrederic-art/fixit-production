@@ -16,6 +16,14 @@ export interface DashboardShellProps {
   /** Rend le module actif. Si absent, un placeholder titre est affiché. */
   renderModule?: (route: string, navigate: (id: string) => void) => ReactNode
   onLogout?: () => void
+  /**
+   * Compteurs réels de la sidebar (syndic connecté, cf. compteursReels). Fournis, ils remplacent
+   * TOUS les compteurs de démonstration de la config (un compteur nul n'est pas affiché) ;
+   * absents (preview anonyme), la sidebar garde les compteurs de la maquette.
+   */
+  compteurs?: Readonly<Record<string, number>>
+  /** Lien « Panneau admin » (super_admin ou « vue en tant que ») ; absent/null : lien masqué. */
+  lienAdmin?: string | null
 }
 
 /**
@@ -30,7 +38,7 @@ export interface DashboardShellProps {
  * /récents persistés. Les en-têtes de section et le backdrop sont des <button>
  * (équivalence clavier — évite jsx-a11y S1082 du clic sur élément non-interactif).
  */
-export default function DashboardShell({ defaultRoute = 'dashboard', renderModule, onLogout }: Readonly<DashboardShellProps>) {
+export default function DashboardShell({ defaultRoute = 'dashboard', renderModule, onLogout, compteurs, lienAdmin }: Readonly<DashboardShellProps>) {
   const [route, setRoute] = useState(defaultRoute)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -89,6 +97,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
                   )
                 }
                 const active = route === e.id
+                const count = compteurs ? (compteurs[e.id] || undefined) : e.count
                 return (
                   <button
                     key={e.id}
@@ -99,7 +108,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
                   >
                     <Icon name={e.icon} aria-hidden />
                     <span>{e.label}</span>
-                    {e.count != null && <span className={styles.count}>{e.count}</span>}
+                    {count != null && <span className={styles.count}>{count}</span>}
                     {e.dot && <span className={styles.dotSt} aria-hidden />}
                   </button>
                 )
@@ -117,6 +126,12 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
             </div>
             <Icon name="chevronDown" aria-hidden />
           </div>
+          {lienAdmin && (
+            <a className={styles.navItem} href={lienAdmin} style={{ marginTop: 8, textDecoration: 'none' }}>
+              <Icon name="shield" aria-hidden />
+              <span>{t.panneauAdmin}</span>
+            </a>
+          )}
         </div>
       </aside>
 
@@ -152,7 +167,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
             <Icon name="bell" aria-hidden />
             <span className={styles.pulse} aria-hidden />
           </button>
-          <Button variant="gold" className={styles.novaMissao}>
+          <Button variant="gold" className={styles.novaMissao} onClick={() => go('ordens')}>
             <Icon name="plus" aria-hidden />{t.nouvelleMission}
           </Button>
         </header>

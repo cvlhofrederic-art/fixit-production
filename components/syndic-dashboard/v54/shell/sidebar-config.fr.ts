@@ -1,6 +1,7 @@
 // Sidebar française du dashboard syndic v54 : même structure que SIDEBAR
 // (sidebar-config.ts, inchangé pour le portugais), mêmes ids, icônes et
-// compteurs ; seuls les libellés changent, et les modules sans équivalent en
+// compteurs de maquette (preview anonyme seulement : connecté, DashboardShell
+// affiche compteursReels) ; seuls les libellés changent, et les modules sans équivalent en
 // droit français sont masqués. Ces libellés font foi pour tout l'écran FR
 // (titres de page, « Mes modules », fil d'Ariane).
 
