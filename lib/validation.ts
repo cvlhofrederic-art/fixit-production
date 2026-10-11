@@ -173,16 +173,66 @@ export const signalementSchema = z.object({
 })
 
 // ── Pro Messagerie schema ────────────────────────────────────────────────────
+// Date calendaire réelle au format AAAA-MM-JJ (refuse 2026-02-30).
+const estDateIsoValide = (v: string): boolean => {
+  const d = new Date(`${v}T12:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v
+}
+
+// Document envoyé par le prestataire au donneur d'ordre (metadata.document d'un message
+// 'text') — cf. lib/messagerie-pro.ts. Montant TTC obligatoire pour un devis ou une
+// facture, absent d'un rapport d'intervention.
+export const documentMessageProSchema = z.object({
+  type: z.enum(['devis', 'rapport', 'facture']),
+  reference: z.string().trim().min(1, 'Référence requise').max(60),
+  montant_ttc: z.number().min(0, 'Le montant TTC doit être positif ou nul').max(100_000_000).optional(),
+  description: z.string().trim().min(1, 'Description requise').max(4000),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').refine(estDateIsoValide, 'Date invalide'),
+}).strict().superRefine((doc, ctx) => {
+  if (doc.type !== 'rapport' && doc.montant_ttc === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['montant_ttc'], message: 'Montant TTC requis pour un devis ou une facture' })
+  }
+  if (doc.type === 'rapport' && doc.montant_ttc !== undefined) {
+    ctx.addIssue({ code: 'custom', path: ['montant_ttc'], message: "Pas de montant sur un rapport d'intervention" })
+  }
+})
+
+// POST /api/pro/messagerie — message écrit par le PRESTATAIRE. Les ordres de mission et
+// les messages système sont écrits côté serveur (assign-mission, PATCH), jamais par ce
+// POST ; metadata.cote est forcé à 'artisan' par la route.
 export const proMessagerieSchema = z.object({
   artisan_user_id: z.string().uuid('artisan_user_id doit \u00eatre un UUID valide'),
   contact_id: z.string().uuid('contact_id doit \u00eatre un UUID valide'),
   contact_type: z.enum(['particulier', 'pro']).optional().default('particulier'),
   contact_name: z.string().max(200).optional(),
   content: z.string().max(5000).optional(),
-  type: z.enum(['text', 'ordre_mission', 'system', 'photo', 'voice']).optional().default('text'),
+  type: z.enum(['text', 'photo', 'voice']).optional().default('text'),
   sender_id: z.string().uuid().optional(),
-  ordre_mission: z.record(z.string(), z.unknown()).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.object({
+    cote: z.literal('artisan').optional(),
+    document: documentMessageProSchema.optional(),
+    url: z.string().url().max(2048).optional(),
+  }).strict().optional(),
+}).superRefine((body, ctx) => {
+  if (!body.metadata?.document) return
+  if (body.type !== 'text') {
+    ctx.addIssue({ code: 'custom', path: ['type'], message: 'Un document est un message de type text' })
+  }
+  if (body.contact_type !== 'pro') {
+    ctx.addIssue({ code: 'custom', path: ['contact_type'], message: 'Documents réservés aux conversations Pro' })
+  }
+})
+
+// PATCH /api/pro/messagerie — le prestataire fait avancer un ordre de mission.
+// artisan_name / arrival_time / duration_hours sont assainis par la route (valeur
+// inexploitable ignorée, comportement historique).
+export const proMessagerieActionSchema = z.object({
+  message_id: z.string().uuid('message_id doit être un UUID valide'),
+  action: z.enum(['accepte', 'refuse', 'en_cours', 'termine']),
+  artisan_user_id: z.string().uuid().optional(),
+  artisan_name: z.string().optional(),
+  arrival_time: z.string().optional(),
+  duration_hours: z.union([z.string(), z.number()]).optional(),
 })
 
 // ── Syndic Artisan creation schema ───────────────────────────────────────────

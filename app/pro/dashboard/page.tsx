@@ -984,6 +984,7 @@ function DashboardPage() {
               orgRole={orgRole}
               navigateTo={navigateTo}
               onConversationRead={refreshUnreadMsgCount}
+              documentsEnregistres={savedDocuments}
               onProposerDevis={(missionData) => {
                 // ── Matching intelligent : motif mission → service catalogue (prix) ──
                 const motif = (missionData.description || missionData.titre || '').toLowerCase()

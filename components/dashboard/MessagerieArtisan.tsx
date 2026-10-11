@@ -2,10 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Image from 'next/image'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { coteDuMessage, lireDocumentPro, type DocumentPro } from '@/lib/messagerie-pro'
 import { useThemeVars } from './useThemeVars'
+import CarteDocumentPro from './messagerie/CarteDocumentPro'
+import EnvoiDocumentPro from './messagerie/EnvoiDocumentPro'
+import type { DocumentEnregistre } from './messagerie/documents-enregistres'
 
 const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 const authHeader = async (): Promise<Record<string, string>> => {
@@ -44,6 +49,7 @@ type Message = {
     mission_id?: string
     arrival_time?: string
   }
+  /** metadata.cote ('artisan' | 'donneur_ordre') et metadata.document : cf. lib/messagerie-pro.ts */
   metadata: Record<string, unknown>
   read: boolean
   created_at: string
@@ -55,6 +61,8 @@ type Props = {
   onConversationRead?: () => void
   onProposerDevis?: (missionData: { titre: string; description: string; adresse: string; date_souhaitee: string; contactName: string }) => void
   navigateTo?: (page: string) => void
+  /** Devis / factures enregistrés : pré-remplissage de « Envoyer un document » */
+  documentsEnregistres?: DocumentEnregistre[]
 }
 
 // ═══ CONFIG ═══
@@ -117,7 +125,7 @@ function getClientTypeBadge(contactType: string, t: (key: string) => string) {
 
 // ═══ COMPOSANT PRINCIPAL ═══
 
-export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis, navigateTo }: Props) {
+export default function MessagerieArtisan({ artisan, orgRole, onConversationRead, onProposerDevis, navigateTo, documentsEnregistres }: Props) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -227,7 +235,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
       sender_id: artisan.user_id,
       type: 'text',
       content,
-      metadata: {},
+      metadata: { cote: 'artisan' },
       read: true,
       created_at: new Date().toISOString(),
     }
@@ -235,7 +243,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
 
     try {
       const h = await authHeader()
-      await fetch('/api/pro/messagerie', {
+      const res = await fetch('/api/pro/messagerie', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...h },
         body: JSON.stringify({
@@ -246,13 +254,46 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
           contact_name: artisan.company_name || 'Artisan',
           content,
           type: 'text',
+          metadata: { cote: 'artisan' },
         }),
       })
+      if (!res.ok) toast.error(t('proDash.messagerie.erreurEnvoiMessage'))
       await loadMessages(activeConv.id)
     } catch (e) {
       console.error('[messagerie] send error:', e)
+      toast.error(t('proDash.messagerie.erreurEnvoiMessage'))
     } finally {
       setSending(false)
+    }
+  }
+
+  // ── Envoyer un document (devis / rapport / facture) au donneur d'ordre ──
+  // Message 'text' + metadata.document (contrat : lib/messagerie-pro.ts). false = échec,
+  // le formulaire reste ouvert et affiche l'erreur.
+  const envoyerDocument = async (piece: DocumentPro, contenu: string): Promise<boolean> => {
+    if (!activeConv || activeConv.contact_type !== 'pro') return false
+    try {
+      const h = await authHeader()
+      const res = await fetch('/api/pro/messagerie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...h },
+        body: JSON.stringify({
+          artisan_user_id: artisan.user_id,
+          contact_id: activeConv.contact_id,
+          sender_id: artisan.user_id,
+          contact_type: 'pro',
+          contact_name: artisan.company_name || 'Artisan',
+          content: contenu,
+          type: 'text',
+          metadata: { cote: 'artisan', document: piece },
+        }),
+      })
+      if (!res.ok) return false
+      await loadMessages(activeConv.id, true)
+      return true
+    } catch (e) {
+      console.error('[messagerie] send document error:', e)
+      return false
     }
   }
 
@@ -277,11 +318,13 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
           ...(extraData || {}),
         }),
       })
-      if (res.ok && activeConv) {
+      if (!res.ok) toast.error(t('proDash.messagerie.erreurActionOrdre'))
+      if (activeConv) {
         await loadMessages(activeConv.id)
       }
     } catch (e) {
       console.error('[messagerie] ordre action error:', e)
+      toast.error(t('proDash.messagerie.erreurActionOrdre'))
     }
   }
 
@@ -333,7 +376,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         table: 'conversation_messages',
       }, (payload) => {
         const newMsg = payload.new as Message
-        if (activeConv && newMsg.conversation_id === activeConv.id && newMsg.sender_id !== artisan.user_id) {
+        // Messages du donneur d'ordre seulement (les miens arrivent par loadMessages) — par
+        // côté et non par sender_id : en démo le syndic peut être le même compte.
+        if (activeConv && newMsg.conversation_id === activeConv.id && coteDuMessage(newMsg, activeConv.artisan_id || artisan.user_id) !== 'artisan') {
           setMessages(prev => {
             if (prev.some(m => m.id === newMsg.id)) return prev
             return [...prev, newMsg]
@@ -536,7 +581,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
                   <MessageBubble
                     key={msg.id}
                     msg={msg}
-                    isOwn={msg.sender_id === artisan.user_id}
+                    isOwn={coteDuMessage(msg, activeConv.artisan_id || artisan.user_id) === 'artisan'}
                     contactName={activeConv.contact_name || 'Contact'}
                     contactType={activeConv.contact_type}
                     artisanName={artisan.company_name || 'Moi'}
@@ -551,6 +596,15 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
 
             {/* ── Zone saisie ── */}
             <div>
+              {/* Envoyer un document (conversations Pro : donneur d'ordre) */}
+              {activeConv.contact_type === 'pro' && (
+                <EnvoiDocumentPro
+                  isV5={isV5}
+                  orgRole={orgRole}
+                  documentsEnregistres={documentsEnregistres}
+                  onEnvoyer={envoyerDocument}
+                />
+              )}
               {/* Quick templates */}
               <div style={{ display: 'flex', gap: 4, padding: '4px 12px', flexWrap: 'wrap' }}>
                 {quickTemplates.map(txt => (
@@ -731,6 +785,8 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
   // Message texte / photo / voice
   const senderLabel = isOwn ? artisanName : contactName
   const avatarLetter = senderLabel.charAt(0).toUpperCase()
+  // Document (devis / rapport / facture) : carte, sinon repli sur le texte du message
+  const piece = msg.type === 'text' ? lireDocumentPro(msg.metadata) : null
 
   if (isV5) {
     return (
@@ -742,12 +798,16 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
           <span className="v5-msg-snd">
             {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? `· ${t('proDash.messagerie.donneurOrdres')}` : `· ${t('proDash.messagerie.client')}`}
           </span>
-          <div className="v5-msg-tx">
-            {msg.type === 'photo' && msg.metadata?.url ? (
-              <Image src={String(msg.metadata.url)} alt="" width={400} height={300} style={{ borderRadius: 3, marginBottom: 6, maxWidth: '100%', height: 'auto' }} unoptimized />
-            ) : null}
-            {msg.content}
-          </div>
+          {piece ? (
+            <CarteDocumentPro document={piece} isV5 />
+          ) : (
+            <div className="v5-msg-tx">
+              {msg.type === 'photo' && msg.metadata?.url ? (
+                <Image src={String(msg.metadata.url)} alt="" width={400} height={300} style={{ borderRadius: 3, marginBottom: 6, maxWidth: '100%', height: 'auto' }} unoptimized />
+              ) : null}
+              {msg.content}
+            </div>
+          )}
           <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
             {time}
             {isOwn && msg.read && ' \u2713\u2713'}
@@ -767,10 +827,16 @@ function MessageBubble({ msg, isOwn, contactName, contactType, artisanName, onOr
           {senderLabel} {isOwn ? '· Artisan' : contactType === 'pro' ? `· ${t('proDash.messagerie.donneurOrdres')}` : `· ${t('proDash.messagerie.client')}`}
         </span>
         <div className={`v22-msg-bubble ${isOwn ? 'own' : ''}`}>
-          {msg.type === 'photo' && msg.metadata?.url ? (
-            <Image src={String(msg.metadata.url)} alt="" width={400} height={300} style={{ borderRadius: 3, marginBottom: 6, maxWidth: '100%', height: 'auto' }} unoptimized />
-          ) : null}
-          {msg.content}
+          {piece ? (
+            <CarteDocumentPro document={piece} />
+          ) : (
+            <>
+              {msg.type === 'photo' && msg.metadata?.url ? (
+                <Image src={String(msg.metadata.url)} alt="" width={400} height={300} style={{ borderRadius: 3, marginBottom: 6, maxWidth: '100%', height: 'auto' }} unoptimized />
+              ) : null}
+              {msg.content}
+            </>
+          )}
         </div>
         <span className="v22-msg-bubble-time">
           {time}
