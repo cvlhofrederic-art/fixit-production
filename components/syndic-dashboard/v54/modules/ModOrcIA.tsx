@@ -10,6 +10,7 @@ import { Button } from '../primitives/button'
 import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
 import { askAgent } from '@/lib/syndic/v54/api'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
@@ -78,7 +79,7 @@ export default function ModOrcIA() {
         {busy ? (
           <Empty illustration="faturas" title={t.chargement.titre} desc={t.chargement.texte} />
         ) : result ? (
-          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.65, color: 'var(--v54-ink)', padding: 4 }}>{result}</div>
+          <div style={{ fontSize: 13, lineHeight: 1.65, color: 'var(--v54-ink)', padding: 4 }}><MarkdownIA texte={result} /></div>
         ) : (
           <Empty illustration="faturas" title={t.vide.titre} desc={t.vide.texte} />
         )}

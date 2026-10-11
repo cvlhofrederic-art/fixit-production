@@ -6,8 +6,15 @@ import Icon from '../icon/Icon'
 import { Alert, type AlertProps } from '../alert'
 import { useToast } from '../toast'
 import { useMessages } from '@/lib/syndic/v54/i18n'
+import MarkdownIA from '@/components/common/MarkdownIA'
 import { AGENT_CHAT_PAGE_MESSAGES } from './agent-chat-page.messages'
 import styles from './AgentChatPage.module.css'
+
+/** Message du fil de conversation, tel que transmis à l'agent comme historique. */
+export interface AgentChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
 
 export interface AgentConversation {
   id: string
@@ -51,8 +58,10 @@ export interface AgentChatPageProps {
   labels?: Partial<AgentChatPageLabels>
   /** Overrides optionnels ; par défaut → toast (comportement byte-exact bundle). */
   onSend?: (value: string) => void
-  /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2). */
-  onAsk?: (message: string) => Promise<string>
+  /** Envoi async : retourne la réponse de l'agent. Prioritaire sur onSend (Phase 2).
+   *  `historique` : messages déjà affichés avant `message` (mémoire de conversation),
+   *  sans les réponses d'erreur locales (`errorReply`), qui ne viennent pas de l'agent. */
+  onAsk?: (message: string, historique: AgentChatMessage[]) => Promise<string>
   onNewConversation?: () => void
   onOpenDocs?: () => void
   onSelectConversation?: (conv: AgentConversation) => void
@@ -84,7 +93,8 @@ export default function AgentChatPage({
   const L: AgentChatPageLabels = { ...D.labels, ...labels, bucketLabels: { ...D.labels.bucketLabels, ...labels?.bucketLabels } }
   const placeholder = inputPlaceholder ?? D.placeholder
   const [inputVal, setInputVal] = useState('')
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([])
+  // `erreur` marque la réponse de repli affichée quand l'agent échoue (exclue de l'historique).
+  const [messages, setMessages] = useState<(AgentChatMessage & { erreur?: boolean })[]>([])
   const [busy, setBusy] = useState(false)
   const [ctxVal, setCtxVal] = useState(contextSelector?.options?.[0] ?? '')
   const { push } = useToast()
@@ -100,12 +110,14 @@ export default function AgentChatPage({
     const v = inputVal.trim()
     if (!v || busy) return
     if (onAsk) {
+      // Historique = fil affiché avant cette question (pas d'envoi concurrent : `busy`).
+      const historique = messages.filter((m) => !m.erreur).map(({ role, content }) => ({ role, content }))
       setMessages((prev) => [...prev, { role: 'user', content: v }])
       setInputVal('')
       setBusy(true)
-      onAsk(v)
+      onAsk(v, historique)
         .then((resp) => setMessages((prev) => [...prev, { role: 'assistant', content: resp }]))
-        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: L.errorReply }]))
+        .catch(() => setMessages((prev) => [...prev, { role: 'assistant', content: L.errorReply, erreur: true }]))
         .finally(() => setBusy(false))
       return
     }
@@ -232,12 +244,13 @@ export default function AgentChatPage({
                   borderRadius: 12,
                   fontSize: 13.5,
                   lineHeight: 1.55,
-                  whiteSpace: 'pre-wrap',
+                  // Réponses de l'agent en Markdown (MarkdownIA gère les retours à la ligne).
+                  whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
                   background: msg.role === 'user' ? 'var(--v54-gold-500)' : 'var(--v54-cream)',
                   color: msg.role === 'user' ? '#fff' : 'var(--v54-ink)',
                 }}
               >
-                {msg.content}
+                {msg.role === 'assistant' ? <MarkdownIA texte={msg.content} /> : msg.content}
               </div>
             ))}
             {busy && <div style={{ alignSelf: 'flex-start', padding: '10px 14px', color: 'var(--v54-navy-300)', fontSize: 13 }}>{L.typing}</div>}

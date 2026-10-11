@@ -482,6 +482,23 @@ const AGENT_ENDPOINTS: Record<string, string> = {
   tempo: '/api/syndic/tempo-ai',
 }
 
+/** Message de l'historique de conversation transmis à un agent. */
+export interface MessageHistorique {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** Historique envoyé : 20 derniers messages, 3000 caractères chacun au plus. */
+const HISTORIQUE_MAX_MESSAGES = 20
+const HISTORIQUE_MAX_CARACTERES = 3000
+
+/** Tronque sans couper une paire de substitution UTF-16 (emoji) en deux. */
+function tronquer(texte: string, max: number): string {
+  if (texte.length <= max) return texte
+  const coupe = texte.slice(0, max)
+  return /[\uD800-\uDBFF]$/.test(coupe) ? coupe.slice(0, -1) : coupe
+}
+
 /**
  * Envoie un message à un agent IA syndic et retourne sa réponse texte.
  * Réponse : clé `response` (fixy/max/lea/tempo) ou `content` (alfredo).
@@ -490,24 +507,40 @@ const AGENT_ENDPOINTS: Record<string, string> = {
  * Les 5 routes prennent le français quand la langue manque : sans 'pt', la
  * version portugaise recevait des réponses en français (prompt, corpus juridique
  * de Max et documents de Léa français). Défaut : portugais, langue du dashboard.
+ * `historique` : messages précédents de la conversation, envoyés sous
+ * `conversation_history` (nom lu par les 5 routes). Rôles user/assistant
+ * uniquement (Max refuse tout autre rôle), contenus non vides, bornés pour
+ * rester sous les limites des schémas (Max : 50 messages de 10 000 caractères,
+ * Alfredo : 60 messages). Omis quand il est vide : corps inchangé.
  */
 export async function askAgent(
   route: string,
   message: string,
   token: string,
   locale: V54Locale = V54_LOCALE_PAR_DEFAUT,
+  historique: readonly MessageHistorique[] = [],
 ): Promise<string> {
   const francais = locale === 'fr-FR'
   const langueAgent: AgentLocale = francais ? 'fr' : 'pt'
   const endpoint = AGENT_ENDPOINTS[route]
   if (!endpoint) throw new Error(`Agent inconnu: ${route}`)
+  const conversationHistory = historique
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.content.trim())
+    .slice(-HISTORIQUE_MAX_MESSAGES)
+    .map((m) => ({ role: m.role, content: tronquer(m.content, HISTORIQUE_MAX_CARACTERES) }))
+  const corps = conversationHistory.length
+    ? { message, locale: langueAgent, conversation_history: conversationHistory }
+    : { message, locale: langueAgent }
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, locale: langueAgent }),
+    body: JSON.stringify(corps),
   })
   if (!res.ok) throw new Error(`${endpoint} → HTTP ${res.status}`)
   const j = (await res.json()) as Record<string, unknown>
+  // Texte de secours d'une IA injoignable (HTTP 200, ex. Fixy « service surchargé ») : traité comme une erreur,
+  // pour que l'écran affiche son message d'erreur et qu'il ne reparte pas dans l'historique comme une réponse.
+  if (j.fallback === true && typeof j.error === 'string') throw new Error(`${endpoint} → ${j.error}`)
   const text = typeof j.response === 'string' ? j.response : typeof j.content === 'string' ? j.content : ''
   return text || (francais ? 'Pas de réponse.' : 'Sem resposta.')
 }
