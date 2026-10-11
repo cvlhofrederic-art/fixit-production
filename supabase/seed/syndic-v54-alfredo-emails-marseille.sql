@@ -13,7 +13,7 @@
 --     Alfredo répond à « résume ma boîte du jour » (période « today » = 24 dernières heures).
 --   - 7 brouillons de réponse « pending_review » (à valider : rien n'est envoyé), 1 publicité sans brouillon.
 --   - Identifiants gmail_message_id préfixés « demo-mrs- » ; adresses en @example.fr (fictives).
---   - Valeurs de urgence / type_demande / statut / draft_status conformes aux CHECK de la table.
+--   - urgence / type_demande : valeurs du classificateur d'Alfredo (lib/syndic/alfredo-classify.ts, FR).
 --   Relancer le script ne crée pas de doublon (garde sur le préfixe).
 -- ════════════════════════════════════════════════════════════════════════════
 
@@ -33,24 +33,23 @@ BEGIN
   END IF;
 
   INSERT INTO syndic_emails_analysed (
-    syndic_id, gmail_message_id, gmail_thread_id, from_email, from_name, to_email, subject, body_preview,
-    received_at, urgence, type_demande, resume_ia, immeuble_detecte, locataire_detecte, actions_suggerees,
-    statut, draft_subject, draft_body_text, draft_body_html, draft_status, draft_meta, draft_generated_at, analyse_at
+    syndic_id, gmail_message_id, gmail_thread_id, from_email, subject, body_preview,
+    received_at, urgence, type_demande, resume_ia, immeuble_detecte, locataire_detecte,
+    draft_subject, draft_body_text, draft_body_html, draft_status, draft_meta, draft_generated_at
   )
-  SELECT v_cab, e.id, e.id, e.de, e.nom, 'gestion@cabinet-vitfix.example.fr', e.objet, e.apercu,
-         e.recu, e.urgence, e.type_demande, e.resume, e.immeuble, e.locataire, e.actions::jsonb,
-         'nouveau', e.brouillon_objet, e.brouillon,
+  SELECT v_cab, e.id, e.id, e.de, e.objet, e.apercu,
+         e.recu, e.urgence, e.type_demande, e.resume, e.immeuble, e.locataire,
+         e.brouillon_objet, e.brouillon,
          CASE WHEN e.brouillon IS NULL THEN NULL
               ELSE '<p>' || replace(replace(e.brouillon, E'\n\n', '</p><p>'), E'\n', '<br>') || '</p>' END,
          CASE WHEN e.brouillon IS NULL THEN 'none' ELSE 'pending_review' END,
          CASE WHEN e.brouillon IS NULL THEN NULL ELSE '{"modele": "claude-sonnet-5-5", "demo": true}'::jsonb END,
-         CASE WHEN e.brouillon IS NULL THEN NULL ELSE e.recu + interval '2 minutes' END,
-         e.recu + interval '1 minute'
+         CASE WHEN e.brouillon IS NULL THEN NULL ELSE e.recu + interval '2 minutes' END
   FROM (VALUES
     ('demo-mrs-001', 'julien.rousseau@example.fr', 'Julien Rousseau',
      'Fuite colonne : l''eau coule toujours chez ma voisine du 3e',
      'Bonjour, malgré le passage du plombier samedi, l''eau continue de couler au plafond de l''appartement du 3e, sous mon lot 4B. Ma voisine a dû poser des bassines toute la nuit. Quand l''entreprise revient-elle ? Faut-il déclarer le sinistre à l''assurance ?',
-     timestamptz '2026-10-12 06:42:00+02', 'haute', 'signalement_panne',
+     timestamptz '2026-10-12 06:42:00+02', 'urgente', 'sinistre',
      'Fuite persistante sur la colonne d''eau froide commune au droit du lot 4B ; infiltration chez le voisin du 3e. Le copropriétaire demande la date de retour du plombier et la marche à suivre pour l''assurance.',
      'Résidence Euroméditerranée', 'Julien Rousseau (lot 4B)',
      '["Relancer Plomberie du Vieux-Port pour une intervention ce matin", "Déclarer le dégât des eaux à l''assureur de l''immeuble", "Envoyer un constat amiable dégât des eaux aux deux occupants"]',
@@ -69,7 +68,7 @@ Le service gestion — Cabinet VitFix'),
     ('demo-mrs-002', 'elodie.faure@example.fr', 'Élodie Faure',
      'Cage d''escalier du bâtiment B toujours dans le noir',
      'Bonjour, depuis vendredi soir il n''y a plus aucune lumière dans la cage d''escalier du bâtiment B. Hier soir une personne âgée a failli tomber. C''est dangereux, pouvez-vous faire intervenir quelqu''un en urgence ?',
-     timestamptz '2026-10-12 07:05:00+02', 'haute', 'signalement_panne',
+     timestamptz '2026-10-12 07:05:00+02', 'haute', 'sinistre',
      'Plus d''éclairage dans la cage d''escalier du bâtiment B depuis vendredi (disjonctions du tableau des services généraux) ; risque de chute signalé.',
      'Résidence Castellane', 'Élodie Faure (bât. B, lot 2D)',
      '["Confirmer l''intervention d''Élec Services Phocéens aujourd''hui", "Afficher une note d''information dans le hall du bâtiment B", "Prévoir un éclairage provisoire"]',
@@ -103,7 +102,7 @@ Le service gestion — Cabinet VitFix'),
     ('demo-mrs-004', 'thomas.lefevre@example.fr', 'Thomas Lefèvre',
      'Demande d''échéancier pour mes charges en retard',
      'Bonjour, j''ai bien reçu votre mise en demeure. Je traverse une période difficile et je ne peux pas régler la totalité d''un coup. Serait-il possible d''étaler le paiement de mes charges sur plusieurs mois ?',
-     timestamptz '2026-10-12 07:48:00+02', 'moyenne', 'facturation',
+     timestamptz '2026-10-12 07:48:00+02', 'normale', 'question_administrative',
      'Copropriétaire débiteur (lot 5A, solde de 1 739 €, mise en demeure envoyée) qui demande un échéancier de paiement.',
      'Copropriété Les Terrasses du Vieux-Port', 'Thomas Lefèvre (lot 5A)',
      '["Proposer un échéancier amiable sur 6 mois", "Suspendre la transmission au commissaire de justice si l''échéancier est signé", "Rappeler que les provisions courantes restent exigibles"]',
@@ -120,7 +119,7 @@ Le service gestion — Cabinet VitFix'),
     ('demo-mrs-005', 'marc.chevalier@example.fr', 'Marc Chevalier',
      'Installation d''une borne de recharge sur ma place de parking',
      'Bonjour, je viens d''acheter une voiture électrique et je souhaite installer une borne de recharge sur ma place au parking du niveau -1. Quelles sont les démarches ? Faut-il un vote de l''assemblée générale ?',
-     timestamptz '2026-10-12 08:02:00+02', 'moyenne', 'ag',
+     timestamptz '2026-10-12 08:02:00+02', 'normale', 'question_administrative',
      'Demande d''installation d''une borne de recharge individuelle sur une place de parking privative ; le copropriétaire demande la procédure et si un vote en AG est nécessaire.',
      'Résidence Euroméditerranée', 'Marc Chevalier (lot 6C)',
      '["Expliquer la procédure du droit à la prise", "Demander le descriptif des travaux et le devis de l''installateur", "Vérifier la puissance disponible au tableau du parking"]',
@@ -137,7 +136,7 @@ Le service gestion — Cabinet VitFix'),
     ('demo-mrs-006', 'office.garcia@example.fr', 'Maître Hélène Garcia, notaire',
      'Vente du lot 4A — Résidence Le Prado : demande d''état daté',
      'Maître, je suis chargée de la vente du lot 4A appartenant à M. Laurent Moreau, Résidence Le Prado, 182 avenue du Prado. Pouvez-vous m''adresser l''état daté ainsi que les trois derniers procès-verbaux d''assemblée générale ? La signature est prévue le 20 novembre.',
-     timestamptz '2026-10-12 08:15:00+02', 'moyenne', 'information',
+     timestamptz '2026-10-12 08:15:00+02', 'normale', 'question_administrative',
      'Demande d''état daté et des 3 derniers PV d''AG par l''office notarial pour la vente du lot 4A (signature le 20 novembre).',
      'Résidence Le Prado', 'Laurent Moreau (lot 4A, vendeur)',
      '["Établir l''état daté du lot 4A", "Joindre les procès-verbaux des 3 dernières AG", "Facturer l''état daté au vendeur (plafond réglementaire 380 € TTC)"]',
@@ -156,7 +155,7 @@ Le service gestion — Cabinet VitFix'),
     ('demo-mrs-007', 'sinistres@example.fr', 'Assurances de la Joliette — Service sinistres',
      'Sinistre dégât des eaux — Résidence Euroméditerranée : passage de l''expert',
      'Madame, Monsieur, suite à votre déclaration, notre expert se rendra à la Résidence Euroméditerranée, 78 boulevard de Dunkerque, le jeudi 15 octobre à 10 h. Merci de permettre l''accès aux appartements concernés (lots 4B et 3B) et aux gaines techniques.',
-     timestamptz '2026-10-12 08:31:00+02', 'moyenne', 'information',
+     timestamptz '2026-10-12 08:31:00+02', 'normale', 'sinistre',
      'L''assureur de l''immeuble annonce le passage de l''expert jeudi 15 octobre à 10 h pour le dégât des eaux (lots 4B et 3B) ; accès aux logements et aux gaines techniques à organiser.',
      'Résidence Euroméditerranée', NULL,
      '["Confirmer le rendez-vous à l''assureur", "Prévenir les occupants des lots 4B et 3B", "Ajouter le rendez-vous au planning"]',
@@ -171,7 +170,7 @@ Le service gestion — Cabinet VitFix'),
     ('demo-mrs-008', 'promo@example.fr', 'Sécuri-Pro Équipements',
      'Offre spéciale : -30 % sur les détecteurs de fumée connectés',
      'Profitez de notre offre exceptionnelle réservée aux syndics : -30 % sur toute la gamme de détecteurs connectés jusqu''au 31 octobre.',
-     timestamptz '2026-10-12 06:55:00+02', 'basse', 'autre',
+     timestamptz '2026-10-12 06:55:00+02', 'basse', 'spam',
      'E-mail publicitaire, aucune action nécessaire.',
      NULL, NULL, '[]', NULL, NULL)
   ) AS e(id, de, nom, objet, apercu, recu, urgence, type_demande, resume, immeuble, locataire, actions, brouillon_objet, brouillon);

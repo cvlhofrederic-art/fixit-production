@@ -10,6 +10,9 @@ import { Button } from '../primitives/button'
 import Icon from '../primitives/icon/Icon'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
+import { useToast } from '../primitives/toast'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { urlConnexionGmail } from '@/lib/syndic/v54/api'
 import { useMessages } from '@/lib/syndic/v54/i18n'
 import { DEFINICOES_MESSAGES } from './i18n/ModDefinicoes.messages'
 
@@ -24,6 +27,18 @@ const fieldCtrl = { width: '100%', padding: '10px 12px', border: '1px solid var(
 export default function ModDefinicoes() {
   const soon = useComingSoon()
   const t = useMessages(DEFINICOES_MESSAGES)
+  const { push } = useToast()
+  const { token, authenticated } = useSyndicData()
+  // Connexion de la boîte Gmail du cabinet (agent e-mails Alfredo) : le jeton de session
+  // part dans l'en-tête, la route renvoie l'adresse Google vers laquelle on redirige.
+  const connecterGmail = async () => {
+    if (!token) return
+    try {
+      window.location.assign(await urlConnexionGmail(token))
+    } catch (e) {
+      push({ kind: 'error', title: t.agentEmail.connecterToast, desc: e instanceof Error ? e.message : undefined })
+    }
+  }
   const { abonnement: ab, agentEmail: ae, profil: pr, cabinet: cab } = t
   return (
     <>
@@ -36,7 +51,7 @@ export default function ModDefinicoes() {
         <Button variant="gold" style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon(ab.titre, ab.formules)}>{ab.choisir}</Button>
       </Panel>
       <Panel title={ae.titre} sub={ae.sousTitre}>
-        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={soon(ae.connecterToast, ae.integrationEnCours)}>{ae.connecter}</Button>
+        <Button style={{ width: '100%', padding: 14, justifyContent: 'center' }} onClick={authenticated && token ? () => { void connecterGmail() } : soon(ae.connecterToast, ae.integrationEnCours)}>{ae.connecter}</Button>
       </Panel>
       <Panel title={pr.titre}>
         <div style={{ padding: 14, background: 'var(--v54-cream)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14 }}>

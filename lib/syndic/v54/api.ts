@@ -836,3 +836,56 @@ export interface Orcamento {
 }
 export const fetchOrcamentos = (token: string): Promise<Orcamento[]> =>
   getList<Orcamento>('/api/syndic/orcamentos', token, 'orcamentos')
+
+// ── Boîte Gmail du cabinet (écran « E-mails Fixy », agent Alfredo) ─────────────
+
+/** E-mail relevé et analysé par Alfredo (sans le corps complet). */
+export interface EmailAnalyse {
+  id: string
+  from_email: string
+  subject: string | null
+  resume_ia: string | null
+  received_at: string
+  urgence: string | null
+  type_demande: string | null
+  draft_status: string | null
+  draft_subject: string | null
+}
+
+export interface EtatBoiteGmail {
+  cabinetId: string
+  connecte: boolean
+  email: string | null
+  misAJour: string | null
+  brouillonsEnAttente: number
+  emails: EmailAnalyse[]
+}
+
+/** État de la boîte Gmail du cabinet : connectée ou non, adresse, derniers e-mails analysés. */
+export async function fetchEtatBoiteGmail(token: string): Promise<EtatBoiteGmail> {
+  const res = await fetch('/api/email-agent/status', { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error(`/api/email-agent/status → HTTP ${res.status}`)
+  return (await res.json()) as EtatBoiteGmail
+}
+
+/** Adresse Google de connexion de la boîte : le jeton de session reste dans l'en-tête, jamais dans l'URL. */
+export async function urlConnexionGmail(token: string): Promise<string> {
+  const res = await fetch('/api/email-agent/connect?format=json', { headers: { Authorization: `Bearer ${token}` } })
+  const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+  if (!res.ok || !j.url) throw new Error(j.error || `/api/email-agent/connect → HTTP ${res.status}`)
+  return j.url
+}
+
+/** Relève la boîte maintenant : Alfredo classe les e-mails non lus et prépare les brouillons (rien n'est envoyé). */
+export async function releverBoiteGmail(token: string, cabinetId: string): Promise<{ nouveaux: number; traites: number }> {
+  const res = await fetch('/api/email-agent/poll', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ syndic_id: cabinetId, first_run: true }),
+  })
+  if (!res.ok) throw new Error(`/api/email-agent/poll → HTTP ${res.status}`)
+  const j = (await res.json()) as { results?: Array<{ new_emails?: number; emails_processed?: number; error?: string }> }
+  const r = j.results?.[0]
+  if (r?.error) throw new Error(r.error)
+  return { nouveaux: r?.new_emails ?? 0, traites: r?.emails_processed ?? 0 }
+}

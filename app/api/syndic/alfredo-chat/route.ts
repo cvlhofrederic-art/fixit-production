@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
 
   const { data: gmailToken } = await supabaseAdmin
     .from('syndic_oauth_tokens')
-    .select('syndic_id')
+    .select('syndic_id, access_token')
     .eq('syndic_id', cabinetId)
     .maybeSingle()
 
@@ -144,7 +144,8 @@ export async function POST(req: NextRequest) {
     role: userRole,
     inbox_pending_count: pending,
     inbox_total_count: counts.length,
-    gmail_connected: !!gmailToken,
+    // Une ligne sans access_token = connexion commencée puis abandonnée (nonce seul).
+    gmail_connected: !!gmailToken?.access_token,
   }
 
   const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(promptCtx)

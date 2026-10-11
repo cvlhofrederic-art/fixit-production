@@ -45,23 +45,36 @@ export interface ProcessEmailResult {
   error?: string
 }
 
+/**
+ * Sépare l'en-tête From de Gmail (« Nom <adresse> » ou « adresse ») en adresse et nom.
+ * Exporté pour les tests.
+ */
+export function separerExpediteur(from: string): { email: string; nom: string } {
+  const m = /^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/.exec(from)
+  if (m) return { email: m[2].trim().toLowerCase(), nom: m[1].trim() }
+  return { email: from.trim().toLowerCase(), nom: '' }
+}
+
 export async function processIncomingEmail(params: ProcessEmailParams): Promise<ProcessEmailResult> {
   const { syndicId, syndicRole, locale, email } = params
+  const expediteur = separerExpediteur(email.from)
 
   try {
     const classify = await params.classifyFn(email, locale)
 
+    // Le résumé du classifieur va dans resume_ia : la table syndic_emails_analysed
+    // n'a pas de colonne resume_court (l'insertion échouait sur chaque e-mail relevé).
     if (classify.type_demande === 'spam') {
       const { data } = await params.insertFn({
         syndic_id: syndicId,
-        from_email: email.from,
+        from_email: expediteur.email,
         subject: email.subject,
         body_preview: email.body_text.slice(0, 1000),
         gmail_message_id: email.gmail_message_id,
         received_at: email.received_at,
         type_demande: 'spam',
         urgence: classify.urgence,
-        resume_court: classify.resume_court,
+        resume_ia: classify.resume_court,
         draft_status: 'none',
       })
       return { status: 'skipped_spam', email_id: data?.id }
@@ -70,7 +83,7 @@ export async function processIncomingEmail(params: ProcessEmailParams): Promise<
     const clientContext = await params.loadContextFn({
       syndicId,
       syndicRole,
-      emailAddress: email.from,
+      emailAddress: expediteur.email,
       locale,
     })
 
@@ -83,14 +96,14 @@ export async function processIncomingEmail(params: ProcessEmailParams): Promise<
 
     const { data, error } = await params.insertFn({
       syndic_id: syndicId,
-      from_email: email.from,
+      from_email: expediteur.email,
       subject: email.subject,
       body_preview: email.body_text.slice(0, 1000),
       gmail_message_id: email.gmail_message_id,
       received_at: email.received_at,
       type_demande: classify.type_demande,
       urgence: classify.urgence,
-      resume_court: classify.resume_court,
+      resume_ia: classify.resume_court,
       immeuble_detecte: classify.immeuble_detecte ?? null,
       locataire_detecte: classify.locataire_detecte ?? null,
       draft_subject: draft.subject_suggested,
