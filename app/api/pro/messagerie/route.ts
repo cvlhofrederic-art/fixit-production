@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
     const user = await getAuthUser(req)
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    if (!(await checkRateLimit(`pro_msg_${user.id}`, 60, 60_000))) return rateLimitResponse()
+    // 240/min : la Messagerie (liste 8 s + fil 5 s) et la cloche du tableau de bord interrogent cette route ensemble.
+    if (!(await checkRateLimit(`pro_msg_${user.id}`, 240, 60_000))) return rateLimitResponse()
 
     const role = getUserRole(user)
     if (!PRO_ROLES.includes(role)) {

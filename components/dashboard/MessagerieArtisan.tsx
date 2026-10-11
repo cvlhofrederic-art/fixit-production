@@ -117,6 +117,20 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[idx]
 }
 
+/** Même contenu (réponse du polling identique à l'affichage) : l'état garde sa référence. */
+function memeContenu(a: unknown[], b: unknown[]): boolean {
+  return a.length === b.length && JSON.stringify(a) === JSON.stringify(b)
+}
+
+/** Cache local de la messagerie (affichage immédiat au retour) ; quota plein ou stockage bloqué : ignoré. */
+function ecrireCache(cle: string, valeur: unknown) {
+  try {
+    localStorage.setItem(cle, JSON.stringify(valeur))
+  } catch (e) {
+    console.warn('[messagerie] cache local indisponible', e)
+  }
+}
+
 function getClientTypeBadge(contactType: string, t: (key: string) => string) {
   const TYPES_CLIENT = getTypesClient(t)
   const config = TYPES_CLIENT[contactType] || TYPES_CLIENT.particulier
@@ -154,13 +168,19 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
   const inputRef = useRef<HTMLInputElement>(null)
   const pollConvRef = useRef<NodeJS.Timeout | null>(null)
   const pollMsgRef = useRef<NodeJS.Timeout | null>(null)
+  // Rappel du parent (cloche) lu par référence : une nouvelle fonction à chaque rendu du parent ne
+  // doit pas relancer l'ouverture de la conversation (rechargement + spinner).
+  const onConversationReadRef = useRef(onConversationRead)
+  useEffect(() => { onConversationReadRef.current = onConversationRead })
 
   // ── Popup heure d'arrivée + durée ──
   const [showTimePickerForMsg, setShowTimePickerForMsg] = useState<string | null>(null)
   const [arrivalTime, setArrivalTime] = useState('09:00')
   const [durationHours, setDurationHours] = useState(2)
 
-  // ── Charger les conversations (toutes : particulier + pro) ──
+  // ── Charger les conversations (toutes : particulier + pro) et les compteurs non-lus ──
+  // Mêmes deux requêtes pour la liste et les compteurs. Une réponse en erreur (429, 500…) ne
+  // remplace jamais la liste affichée ni le cache : avant, `{ error }` vidait la liste (clignotement).
   const loadConversations = useCallback(async () => {
     try {
       const h = await authHeader()
@@ -168,11 +188,20 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=particulier`, { headers: h }),
         fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=pro`, { headers: h }),
       ])
+      if (!clientsRes.ok || !proRes.ok) {
+        console.warn('[messagerie] conversations non rechargées', clientsRes.status, proRes.status)
+        return
+      }
       const [clientsData, proData] = await Promise.all([clientsRes.json(), proRes.json()])
-      const allConvs = [...(clientsData.conversations || []), ...(proData.conversations || [])]
+      const clients: Conversation[] = Array.isArray(clientsData.conversations) ? clientsData.conversations : []
+      const pros: Conversation[] = Array.isArray(proData.conversations) ? proData.conversations : []
+      const allConvs = [...clients, ...pros]
         .sort((a: Conversation, b: Conversation) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime())
-      setConversations(allConvs)
-      try { localStorage.setItem(CONV_CACHE_KEY, JSON.stringify(allConvs)) } catch { /* quota */ }
+      // Liste inchangée : même référence, aucun nouveau rendu.
+      setConversations(prev => (memeContenu(prev, allConvs) ? prev : allConvs))
+      setUnreadClients(clients.reduce((sum: number, c: Conversation) => sum + (c.unread_count || 0), 0))
+      setUnreadPro(pros.reduce((sum: number, c: Conversation) => sum + (c.unread_count || 0), 0))
+      ecrireCache(CONV_CACHE_KEY, allConvs)
     } catch (e) {
       console.error('[messagerie] load conversations error:', e)
       try {
@@ -182,34 +211,29 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     }
   }, [artisan.user_id, CONV_CACHE_KEY])
 
-  // ── Charger les compteurs non-lus ──
-  const loadUnreadCounts = useCallback(async () => {
-    try {
-      const h = await authHeader()
-      const [clientsRes, proRes] = await Promise.all([
-        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=particulier`, { headers: h }),
-        fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&contact_type=pro`, { headers: h }),
-      ])
-      const [clientsData, proData] = await Promise.all([clientsRes.json(), proRes.json()])
-      setUnreadClients((clientsData.conversations || []).reduce((sum: number, c: Conversation) => sum + (c.unread_count || 0), 0))
-      setUnreadPro((proData.conversations || []).reduce((sum: number, c: Conversation) => sum + (c.unread_count || 0), 0))
-    } catch (e) {
-      console.error('[messagerie] unread counts error:', e)
-    }
-  }, [artisan.user_id])
-
   // ── Charger les messages d'une conversation ──
-  const loadMessages = useCallback(async (convId: string, silent = false) => {
-    if (!silent) setLoading(true)
+  // silent (polling 5 s, Realtime, après un envoi) : ni indicateur de chargement, ni rechargement de
+  // la liste des conversations ou de la cloche — elles ont leur propre polling (8 s). Avant, chaque
+  // tick relançait 4 requêtes de plus, atteignait la limite de débit et l'erreur vidait la liste.
+  // `indicateur` : afficher le spinner (ouverture d'une conversation sans messages en cache).
+  const loadMessages = useCallback(async (convId: string, silent = false, indicateur = !silent) => {
+    if (indicateur) setLoading(true)
     try {
       const res = await fetch(`/api/pro/messagerie?artisan_user_id=${artisan.user_id}&conversation_id=${convId}`, { headers: await authHeader() })
+      // Réponse en erreur : on garde les messages affichés et le cache.
+      if (!res.ok) {
+        console.warn('[messagerie] messages non rechargés', res.status)
+        return
+      }
       const data = await res.json()
-      if (data.messages) {
-        setMessages(data.messages)
-        try { localStorage.setItem(MSG_CACHE_KEY_PREFIX + convId, JSON.stringify(data.messages)) } catch { /* quota */ }
-        loadUnreadCounts()
-        loadConversations()
-        onConversationRead?.()
+      if (Array.isArray(data.messages)) {
+        const recus = data.messages as Message[]
+        setMessages(prev => (memeContenu(prev, recus) ? prev : recus))
+        ecrireCache(MSG_CACHE_KEY_PREFIX + convId, recus)
+        if (!silent) {
+          loadConversations()
+          onConversationReadRef.current?.()
+        }
       }
     } catch (e) {
       console.error('[messagerie] load messages error:', e)
@@ -218,9 +242,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         if (cached) setMessages(JSON.parse(cached))
       } catch { /* ignore */ }
     } finally {
-      if (!silent) setLoading(false)
+      if (indicateur) setLoading(false)
     }
-  }, [artisan.user_id, loadUnreadCounts, loadConversations, onConversationRead, MSG_CACHE_KEY_PREFIX])
+  }, [artisan.user_id, loadConversations, MSG_CACHE_KEY_PREFIX])
 
   // ── Envoyer un message texte ──
   const sendMessage = async () => {
@@ -258,7 +282,9 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
         }),
       })
       if (!res.ok) toast.error(t('proDash.messagerie.erreurEnvoiMessage'))
-      await loadMessages(activeConv.id)
+      // Sans spinner (le message temporaire reste affiché) ; la liste reprend l'aperçu du message.
+      await loadMessages(activeConv.id, true)
+      loadConversations()
     } catch (e) {
       console.error('[messagerie] send error:', e)
       toast.error(t('proDash.messagerie.erreurEnvoiMessage'))
@@ -290,6 +316,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
       })
       if (!res.ok) return false
       await loadMessages(activeConv.id, true)
+      loadConversations()
       return true
     } catch (e) {
       console.error('[messagerie] send document error:', e)
@@ -320,7 +347,8 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
       })
       if (!res.ok) toast.error(t('proDash.messagerie.erreurActionOrdre'))
       if (activeConv) {
-        await loadMessages(activeConv.id)
+        await loadMessages(activeConv.id, true)
+        loadConversations()
       }
     } catch (e) {
       console.error('[messagerie] ordre action error:', e)
@@ -341,25 +369,32 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
   // ── Effects ──
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // ── Polling conversations toutes les 8s ──
+  // ── Polling conversations (+ compteurs non-lus) toutes les 8s ──
   useEffect(() => {
     loadConversations()
-    loadUnreadCounts()
     pollConvRef.current = setInterval(() => {
       loadConversations()
-      loadUnreadCounts()
     }, 8000)
     return () => { if (pollConvRef.current) clearInterval(pollConvRef.current) }
-  }, [loadConversations, loadUnreadCounts])
+  }, [loadConversations])
 
   // ── Polling messages de la conversation active toutes les 5s ──
   useEffect(() => {
     if (!activeConv) return
+    let enCache = false
     try {
       const cached = localStorage.getItem(MSG_CACHE_KEY_PREFIX + activeConv.id)
-      if (cached) setMessages(JSON.parse(cached))
-    } catch { /* ignore */ }
-    loadMessages(activeConv.id)
+      if (cached) {
+        setMessages(JSON.parse(cached))
+        enCache = true
+      }
+    } catch (e) {
+      console.warn('[messagerie] cache local illisible', e)
+    }
+    // Pas de cache : jamais les messages de la conversation précédente sous ce contact.
+    if (!enCache) setMessages([])
+    // Ouverture : spinner seulement sans messages en cache (sinon le cache reste affiché).
+    loadMessages(activeConv.id, false, !enCache)
     pollMsgRef.current = setInterval(() => {
       loadMessages(activeConv.id, true)
     }, 5000)
@@ -384,7 +419,6 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
             return [...prev, newMsg]
           })
         }
-        loadUnreadCounts()
         loadConversations()
       })
       .on('postgres_changes', {
@@ -400,7 +434,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     })
 
     return () => { supabase.removeChannel(channel) }
-  }, [artisan.user_id, activeConv, loadUnreadCounts, loadConversations, loadMessages])
+  }, [artisan.user_id, activeConv, loadConversations, loadMessages])
 
   // ── Format helpers ──
   const formatDate = (iso: string) => {
@@ -506,7 +540,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               return (
                 <div
                   key={conv.id}
-                  onClick={() => { setActiveConv(conv); loadMessages(conv.id) }}
+                  onClick={() => setActiveConv(conv)}
                   className={`v7-msg-item ${isSelected ? 'active' : ''}`}
                 >
                   <div className="v7-msg-av" style={{ background: avatarCol.bg, color: avatarCol.color }}>

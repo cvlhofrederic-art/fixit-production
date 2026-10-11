@@ -349,6 +349,13 @@ describe('GET /api/pro/messagerie — messages d\'une conversation', () => {
     expect(filtre(controle, 'artisan_id')).toBe(MOI)
   })
 
+  it('limite de débit GET : 240 requêtes / minute par compte (liste 8 s + fil 5 s + cloche)', async () => {
+    const { checkRateLimit } = await import('@/lib/rate-limit')
+    vi.mocked(checkRateLimit).mockClear()
+    await GET(requete('GET', undefined, `https://vitfix.io/api/pro/messagerie?artisan_user_id=${MOI}&contact_type=pro`))
+    expect(checkRateLimit).toHaveBeenCalledWith(`pro_msg_${MOI}`, 240, 60_000)
+  })
+
   it('sa propre conversation → 200 avec les messages', async () => {
     h.etat.repondre = a => {
       if (a.table === 'conversations' && a.op === 'select') return { data: { id: CONV }, error: null }
