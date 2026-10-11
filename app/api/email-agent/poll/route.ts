@@ -16,6 +16,7 @@ import {
   type FournisseurBoite,
   type MessageNormalise,
 } from '@/lib/email-agent/fournisseurs'
+import { chargerSecretsBoites } from '@/lib/email-agent/secrets'
 
 export const maxDuration = 60
 
@@ -63,7 +64,11 @@ async function lireJetonsCabinet(sid: string): Promise<JetonsCabinet> {
     expiresAt: ligne?.token_expiry || null,
   }
   if ((!jetons.accessToken || !jetons.refreshToken) && (!jetons.provider || jetons.provider === 'gmail')) {
-    const chiffres = await getDecryptedToken(supabaseAdmin, sid).catch(() => null)
+    const chiffres = await getDecryptedToken(supabaseAdmin, sid).catch((err: unknown) => {
+      // Lecture chiffrée indisponible (RPC) : repli sur les colonnes en clair, journalisé.
+      logger.warn('[email-agent/poll] lecture chiffrée indisponible, colonnes en clair', { erreur: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200) })
+      return null
+    })
     if (chiffres) {
       jetons.accessToken = chiffres.access_token
       jetons.refreshToken = chiffres.refresh_token
@@ -182,6 +187,7 @@ function detailErreur(err: unknown): Record<string, unknown> {
 
 // ── Route principale : appelée par le cron, le webhook Gmail ou le tableau de bord ──
 export async function POST(request: NextRequest) {
+  await chargerSecretsBoites()
   try {
     const body = await request.json().catch(err => { logger.warn('[email-agent/poll] Failed to parse request body:', err); return {}; })
     const { syndic_id, first_run = false } = body
@@ -362,6 +368,7 @@ export async function POST(request: NextRequest) {
 
 // ── GET : récupérer les emails analysés d'un syndic (authentifié) ────────────
 export async function GET(request: NextRequest) {
+  await chargerSecretsBoites()
   // ── Auth obligatoire ──────────────────────────────────────────────────────
   const user = await getAuthUser(request)
   if (!user) {

@@ -2,10 +2,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { validateBody, emailAgentCallbackSchema } from '@/lib/validation'
 import { fournisseurGmail } from '@/lib/email-agent/fournisseurs'
 import { traiterRetourOAuth } from '@/lib/email-agent/retour-oauth'
+import { chargerSecretsBoites } from '@/lib/email-agent/secrets'
 
 // ── Retour OAuth Google : échange du code, jetons rangés (provider 'gmail') ──
 // Adresse inchangée (déclarée dans la console Google Cloud). Microsoft : ./microsoft.
 export async function GET(request: NextRequest) {
+  await chargerSecretsBoites()
   const params = Object.fromEntries(request.nextUrl.searchParams)
   const v = validateBody(emailAgentCallbackSchema, params)
   if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })

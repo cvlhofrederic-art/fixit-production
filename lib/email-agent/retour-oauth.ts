@@ -14,10 +14,13 @@ import { ErreurFournisseur, urlApplication, type FournisseurBoite, type JetonsFo
 
 const RE_UUID = /^[0-9a-f-]{36}$/i
 
-/** Redirection vers le tableau de bord Syndic v54 (écran « E-mails Fixy » au retour). */
+/**
+ * Redirection vers le tableau de bord Syndic v54 (écran « E-mails Fixy » au retour), en
+ * français explicite : sans préfixe, la langue suivrait le cookie (v54 portugais possible).
+ */
 export function redirectionTableauDeBord(origine: string, params: Record<string, string>): NextResponse {
   const base = urlApplication() || origine
-  return NextResponse.redirect(`${base}/syndic/v54?${new URLSearchParams(params).toString()}`)
+  return NextResponse.redirect(`${base}/fr/syndic/v54?${new URLSearchParams(params).toString()}`)
 }
 
 export interface RetourOAuth {

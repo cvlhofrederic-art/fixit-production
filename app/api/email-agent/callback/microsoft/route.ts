@@ -3,6 +3,7 @@ import { logger } from '@/lib/logger'
 import { validateBody, emailAgentCallbackMicrosoftSchema } from '@/lib/validation'
 import { codeErreurMicrosoft, fournisseurMicrosoft } from '@/lib/email-agent/fournisseurs'
 import { redirectionTableauDeBord, traiterRetourOAuth } from '@/lib/email-agent/retour-oauth'
+import { chargerSecretsBoites } from '@/lib/email-agent/secrets'
 
 /**
  * Retour OAuth Microsoft (Outlook / Microsoft 365, autorité « common ») : échange du
@@ -14,6 +15,7 @@ import { redirectionTableauDeBord, traiterRetourOAuth } from '@/lib/email-agent/
  * → ?email_admin_consent=true : la boîte se connecte ensuite normalement.
  */
 export async function GET(request: NextRequest) {
+  await chargerSecretsBoites()
   const origine = request.nextUrl.origin
   const params = Object.fromEntries(request.nextUrl.searchParams)
   const v = validateBody(emailAgentCallbackMicrosoftSchema, params)

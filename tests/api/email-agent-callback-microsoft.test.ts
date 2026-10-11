@@ -79,7 +79,7 @@ async function retourGoogle(query: string) {
 
 function parametresRedirection(res: Response): Record<string, string> {
   const location = new URL(res.headers.get('location') || '')
-  expect(`${location.origin}${location.pathname}`).toBe('https://vitfix.io/syndic/v54')
+  expect(`${location.origin}${location.pathname}`).toBe('https://vitfix.io/fr/syndic/v54')
   return Object.fromEntries(location.searchParams)
 }
 

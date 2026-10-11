@@ -28,6 +28,19 @@ export async function getSecret(key: string): Promise<string> {
   return process.env[key] || (await getCfEnv())[key] || ''
 }
 
+/**
+ * Recopie dans process.env les secrets du Worker que process.env n'expose pas, pour le
+ * code qui les lit ensuite de façon synchrone. Les valeurs déjà présentes sont gardées.
+ */
+export async function hydraterSecrets(cles: readonly string[]): Promise<void> {
+  const manquantes = cles.filter(k => !process.env[k])
+  if (manquantes.length === 0) return
+  const env = await getCfEnv()
+  for (const k of manquantes) {
+    if (env[k]) process.env[k] = env[k]
+  }
+}
+
 const requiredServerVars = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_ANON_KEY',

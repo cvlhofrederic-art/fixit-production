@@ -4,6 +4,7 @@ import { getAuthUser, getUserRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentConnectSchema, emailAgentDisconnectSchema } from '@/lib/validation'
 import { FOURNISSEURS } from '@/lib/email-agent/fournisseurs'
+import { chargerSecretsBoites } from '@/lib/email-agent/secrets'
 
 /**
  * Rôles autorisés à connecter (ou déconnecter) la boîte e-mail du cabinet : le syndic
@@ -21,6 +22,7 @@ const PREFIXE_EMAILS_DEMO = 'demo-'
 // bord appelle la route avec l'en-tête Authorization et redirige lui-même : le jeton de
 // session ne passe pas dans l'URL).
 export async function GET(request: NextRequest) {
+  await chargerSecretsBoites()
   try {
     const params = Object.fromEntries(request.nextUrl.searchParams)
     const v = validateBody(emailAgentConnectSchema, params)
@@ -104,6 +106,7 @@ export async function GET(request: NextRequest) {
 // ?purger=1 : efface aussi les e-mails analysés de ce cabinet, sauf ceux de démonstration
 // (gmail_message_id « demo-… »). Réponse : { boitesSupprimees, emailsSupprimes }.
 export async function DELETE(request: NextRequest) {
+  await chargerSecretsBoites()
   try {
     const params = Object.fromEntries(request.nextUrl.searchParams)
     const v = validateBody(emailAgentDisconnectSchema, params)
