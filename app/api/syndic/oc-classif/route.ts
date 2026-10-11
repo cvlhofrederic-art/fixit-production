@@ -5,7 +5,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { traceAgent } from '@/lib/langfuse'
 import { getSecret } from '@/lib/env'
 import { logger } from '@/lib/logger'
@@ -52,12 +52,12 @@ export async function POST(req: NextRequest) {
   }
 
   const apiKey = await getSecret('GROQ_API_KEY')
-  if (!apiKey) return NextResponse.json({ error: 'IA indisponível' }, { status: 503 })
+  if (!apiKey && !(await hasAnthropicKey())) return NextResponse.json({ error: 'IA indisponível' }, { status: 503 })
 
   try {
     const res = await traceAgent(
       { agent_id: 'alfredo', user_id: user.id, prompt: descricao },
-      () => callGroqWithRetry({
+      () => callClaudeWithRetry({
         messages: [
           { role: 'system', content: locale === 'fr' ? PROMPT_FR : PROMPT_PT },
           { role: 'user', content: locale === 'fr' ? `Immeuble : ${edificio || '—'}\nIncident signalé : ${descricao}` : `Edifício: ${edificio || '—'}\nOcorrência: ${descricao}` },

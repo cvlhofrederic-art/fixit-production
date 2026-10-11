@@ -161,6 +161,11 @@ jobs:
               - 'app/api/receipt-scan/**'
               - 'lib/groq.ts'
               - 'lib/rapport-ia.ts'
+              - 'lib/claude.ts'
+              - 'lib/copro-ia-contexte.ts'
+              - 'lib/copro-demo-data.ts'
+              - 'lib/administrateur-judiciaire/ia/**'
+              - 'app/api/administrateur-judiciaire/**'
 
       - name: Configurer Python
         if: steps.ai-changes.outputs.ai == 'true'

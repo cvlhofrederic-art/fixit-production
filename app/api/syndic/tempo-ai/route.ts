@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry } from '@/lib/claude'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { evaluateCron } from '@/lib/scheduler/cron-evaluator'
 import { traceAgent } from '@/lib/langfuse'
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
   try {
     const groqRes = await traceAgent(
       { agent_id: 'tempo', user_id: user.id, prompt: parsed.data.message },
-      () => callGroqWithRetry({ messages, temperature: 0.3, max_tokens: 1500 }),
+      () => callClaudeWithRetry({ messages, temperature: 0.3, max_tokens: 1500 }),
     )
     const rawResponse = groqRes.choices[0]?.message?.content ?? ''
 
@@ -242,18 +242,18 @@ export async function POST(req: NextRequest) {
           content: `Résultat tool ${toolCall.name} :\n${JSON.stringify(toolResult, null, 2)}\n\nReformule en ${locale === 'pt' ? 'português europeu' : 'français'} pour l'utilisateur de manière concise.`,
         },
       ]
-      const followUp = await callGroqWithRetry({
+      const followUp = await callClaudeWithRetry({
         messages: followUpMessages,
         temperature: 0.4,
         max_tokens: 1000,
       })
       const followUpContent = followUp.choices[0]?.message?.content ?? ''
       const resolved = resolveSanitizedToken(followUpContent, tokenMap) ?? followUpContent
-      return NextResponse.json({ response: resolved, tool_used: toolCall.name })
+      return NextResponse.json({ response: resolved, tool_used: toolCall.name, modele: followUp.model ?? null })
     }
 
     const resolved = resolveSanitizedToken(rawResponse, tokenMap) ?? rawResponse
-    return NextResponse.json({ response: resolved })
+    return NextResponse.json({ response: resolved, modele: groqRes.model ?? null })
   } catch (err) {
     logger.error('[tempo-ai] error', {
       error: err instanceof Error ? err.message : String(err),

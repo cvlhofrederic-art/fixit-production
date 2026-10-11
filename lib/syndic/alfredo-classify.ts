@@ -1,5 +1,5 @@
 // lib/syndic/alfredo-classify.ts
-import { callGroqWithRetry } from '@/lib/groq'
+import { callClaudeWithRetry } from '@/lib/claude'
 import type { Locale } from './agent-types'
 
 interface IncomingEmail {
@@ -35,7 +35,8 @@ De : ${email.from}
 Sujet : ${email.subject}
 Contenu : ${email.body_text.slice(0, 1500)}`
 
-  const response = await callGroqWithRetry({
+  // Nom historique conservé (appelants) : l’appel passe par Claude, secours Groq.
+  const response = await callClaudeWithRetry({
     model: 'llama-3.1-8b-instant',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,

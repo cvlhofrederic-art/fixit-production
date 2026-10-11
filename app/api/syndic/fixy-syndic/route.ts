@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
+import type { GroqResponse } from '@/lib/groq'
+import { callClaudeWithRetry, hasAnthropicKey } from '@/lib/claude'
 import { logger } from '@/lib/logger'
 import { traceAgent } from '@/lib/langfuse'
 import { buildFixySystemPromptFR, type FixyPromptContext } from '@/lib/syndic/prompts/fixy/system-prompt-fr'
@@ -14,7 +15,7 @@ import { getSecret } from '@/lib/env'
 export const maxDuration = 30
 
 // ── Fixy — Assistant Expert Syndic Vitfix Pro ────────────────────────────────
-// Modèle : llama-3.3-70b-versatile (Groq)
+// Modèle : Claude Sonnet 5.5 (lib/claude.ts), secours Groq
 // Capacités : contexte complet cabinet + actions directes + mémoire + multi-rôles
 
 // ── Résolution dynamique des pages accessibles par rôle + locale ────────────
@@ -259,7 +260,7 @@ export async function POST(request: NextRequest) {
     // Limiter l'historique (max 60 messages pour garder plus de contexte)
     const limitedHistory = Array.isArray(conversation_history) ? conversation_history.slice(-60) : []
 
-    if (!GROQ_API_KEY) {
+    if (!GROQ_API_KEY && !(await hasAnthropicKey())) {
       return NextResponse.json({
         response: generateFallback(message, syndic_context, userRole, resolvedLocale),
         fallback: true,
@@ -326,16 +327,19 @@ export async function POST(request: NextRequest) {
       roleConfig,
     }
 
-    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
-    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(promptCtx)
+    const historiqueBrut = limitedHistory
+      .filter((m: { role?: string; content?: string }) => m.role && m.content)
+      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+
+    // Masquer les PII avant envoi au LLM (emails, téléphones, IBAN, adresses) : contexte ET historique,
+    // avec la même table de jetons — la réponse précédente, démasquée pour l'utilisateur, revient dans l'historique.
+    const { sanitized, tokenMap } = sanitizeContextForLLM({ ctx: promptCtx, historique: historiqueBrut })
+    const sanitizedCtx = sanitized.ctx
+    const historyMessages = sanitized.historique
 
     const systemPrompt = resolvedLocale === 'pt'
       ? buildFixySystemPromptPT(sanitizedCtx)
       : buildFixySystemPromptFR(sanitizedCtx)
-
-    const historyMessages = limitedHistory
-      .filter((m: { role?: string; content?: string }) => m.role && m.content)
-      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -352,7 +356,7 @@ export async function POST(request: NextRequest) {
           conversation_id: body.conversation_id,
           prompt: message,
         },
-        () => callGroqWithRetry({
+        () => callClaudeWithRetry({
           messages,
           temperature: 0.25,
           max_tokens: 4000,
@@ -416,7 +420,7 @@ export async function POST(request: NextRequest) {
           },
         ]
         try {
-          const groqData2 = await callGroqWithRetry({
+          const groqData2 = await callClaudeWithRetry({
             messages: messagesWithToolResult,
             temperature: 0.25,
             max_tokens: 4000,
@@ -475,7 +479,8 @@ export async function POST(request: NextRequest) {
     // Résoudre les tokens PII dans la réponse finale (au cas où Groq les répercuterait)
     response = resolveSanitizedToken(response, tokenMap) ?? response
 
-    return NextResponse.json({ response, action, role: userRole })
+    // modele : modèle qui a réellement répondu (Claude, ou Llama en secours).
+    return NextResponse.json({ response, action, role: userRole, modele: groqData.model ?? null })
 
   } catch (err: unknown) {
     logger.error('[fixy-syndic] Error:', err)

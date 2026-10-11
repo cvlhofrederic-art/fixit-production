@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry, callGroqStreaming } from '@/lib/groq'
+import { callClaudeWithRetry, callClaudeStreaming, hasAnthropicKey } from '@/lib/claude'
 import { logger } from '@/lib/logger'
 import { traceAgent } from '@/lib/langfuse'
 import { buildLeaSystemPromptFR } from '@/lib/syndic/prompts/lea/system-prompt-fr'
@@ -17,7 +17,7 @@ import { getSecret } from '@/lib/env'
 export const maxDuration = 30
 
 // ── Léa — Assistante Comptable Professionnelle Syndic ────────────────────────
-// Modèle : llama-3.3-70b-versatile (Groq)
+// Modèle : Claude Sonnet 5.5 (lib/claude.ts), secours Groq
 // Périmètre strict : comptabilité syndic + copropriété (JAMAIS artisan)
 
 interface LeaContext {
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
     const limitedHistory = Array.isArray(conversation_history) ? conversation_history.slice(-30) : []
 
-    if (!GROQ_API_KEY) {
+    if (!GROQ_API_KEY && !(await hasAnthropicKey())) {
       return NextResponse.json({
         response: generateFallback(message, syndic_context, isPt),
         fallback: true,
@@ -175,8 +175,14 @@ export async function POST(request: NextRequest) {
       logger.warn('[lea-comptable] templates load failed (continuing):', err)
     }
 
-    // Masquer les PII avant envoi à Groq (emails, téléphones, IBAN, adresses)
-    const { sanitized: sanitizedCtx, tokenMap } = sanitizeContextForLLM(syndic_context as LeaPromptContext)
+    const historiqueBrut = limitedHistory
+      .filter((m: { role?: string; content?: string }) => m.role && m.content)
+      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+
+    // Masquer les PII avant envoi au LLM (emails, téléphones, IBAN, adresses) : contexte ET historique,
+    // avec la même table de jetons — la réponse précédente, démasquée pour l'utilisateur, revient dans l'historique.
+    const { sanitized, tokenMap } = sanitizeContextForLLM({ ctx: syndic_context as LeaPromptContext, historique: historiqueBrut })
+    const sanitizedCtx = sanitized.ctx
 
     const baseSystemPrompt = isPt
       ? buildLeaSystemPromptPT(sanitizedCtx)
@@ -187,9 +193,7 @@ export async function POST(request: NextRequest) {
       ? `${baseSystemPrompt}\n\n${extraBlocks}`
       : baseSystemPrompt
 
-    const historyMessages = limitedHistory
-      .filter((m: { role?: string; content?: string }) => m.role && m.content)
-      .map((m: { role: string; content: string }) => ({ role: m.role, content: String(m.content).substring(0, 3000) }))
+    const historyMessages = sanitized.historique
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -200,7 +204,7 @@ export async function POST(request: NextRequest) {
     // ── Mode streaming SSE ──
     if (stream) {
       try {
-        const rawStream = await callGroqStreaming({
+        const rawStream = await callClaudeStreaming({
           messages,
           temperature: 0.15,
           max_tokens: 4000,
@@ -220,7 +224,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Mode classique ──
-    let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
+    let groqData: Awaited<ReturnType<typeof callClaudeWithRetry>>
     try {
       groqData = await traceAgent(
         {
@@ -229,7 +233,7 @@ export async function POST(request: NextRequest) {
           conversation_id: body.conversation_id,
           prompt: message,
         },
-        () => callGroqWithRetry({
+        () => callClaudeWithRetry({
           messages,
           temperature: 0.15,
           max_tokens: 4000,
@@ -260,7 +264,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ response, action: comptaAction })
+    // modele : modèle qui a réellement répondu (Claude, ou Llama en secours).
+    return NextResponse.json({ response, action: comptaAction, modele: groqData.model ?? null })
 
   } catch (err: unknown) {
     logger.error('Léa Comptable error:', err)
