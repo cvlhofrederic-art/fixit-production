@@ -251,6 +251,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Conversation Pro introuvable' }, { status: 404 })
     }
 
+    // Conversation « pro » (donneur d'ordre : syndic, gestionnaire…) : jamais créée par le prestataire
+    // vers un contact_id arbitraire — elle naît de l'ordre de mission (lib/syndic/livraison-mission.ts),
+    // le prestataire y répond seulement. Les conversations avec un particulier restent créées ici.
+    if (!conv && contact_type === 'pro') {
+      return NextResponse.json({ error: 'Conversation Pro introuvable' }, { status: 404 })
+    }
+
     if (!conv) {
       const { data: newConv, error: convErr } = await supabaseAdmin
         .from('conversations')

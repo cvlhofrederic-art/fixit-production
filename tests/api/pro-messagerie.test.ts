@@ -295,6 +295,26 @@ describe('POST /api/pro/messagerie — message du prestataire', () => {
     expect(filtre(appelsSur('conversations', 'select')[0], 'contact_type')).toBe('particulier')
   })
 
+  it("pas de conversation Pro existante avec ce contact → 404 : le prestataire ne crée pas de conversation Pro", async () => {
+    h.etat.repondre = () => ({ data: null, error: null })
+    const res = await POST(requete('POST', { artisan_user_id: MOI, contact_id: AUTRE_ARTISAN, contact_type: 'pro', content: 'Bonjour' }))
+    expect(res.status).toBe(404)
+    expect(appelsSur('conversations', 'insert')).toHaveLength(0)
+    expect(appelsSur('conversation_messages', 'insert')).toHaveLength(0)
+  })
+
+  it('particulier sans conversation : elle est créée (flux inchangé)', async () => {
+    h.etat.repondre = a => {
+      if (a.table === 'conversations' && a.op === 'insert') return { data: { id: 'conv-part', contact_type: 'particulier' }, error: null }
+      if (a.table === 'conversation_messages' && a.op === 'insert') return { data: { id: 'nouveau' }, error: null }
+      return { data: null, error: null }
+    }
+    const res = await POST(requete('POST', { artisan_user_id: MOI, contact_id: AUTRE_ARTISAN, content: 'Bonjour' }))
+    expect(res.status).toBe(200)
+    expect(appelsSur('conversations', 'insert')[0].payload).toMatchObject({ artisan_id: MOI, contact_id: AUTRE_ARTISAN, contact_type: 'particulier' })
+    expect(appelsSur('conversation_messages', 'insert')[0].payload).toMatchObject({ conversation_id: 'conv-part', sender_id: MOI })
+  })
+
   it('erreur de lecture de la conversation → 500 journalisé, aucune conversation créée', async () => {
     h.etat.repondre = a => (a.table === 'conversations' && a.op === 'select' ? { data: null, error: { message: 'boom' } } : { data: null, error: null })
     const res = await POST(requete('POST', { artisan_user_id: MOI, contact_id: MOI, contact_type: 'pro', content: 'x' }))
