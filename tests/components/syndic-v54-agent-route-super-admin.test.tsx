@@ -60,7 +60,7 @@ describe('Dashboard v54 FR — super_admin : Fixy branché avec mémoire', () =>
     render(<V54LocaleProvider locale="fr-FR"><SyndicDashboardV54 /></V54LocaleProvider>)
     // Données réelles chargées avec le jeton du super_admin (plus de données fictives).
     await waitFor(() =>
-      expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', { headers: { Authorization: 'Bearer jeton-super-admin' } }),
+      expect(fetchSpy).toHaveBeenCalledWith('/api/syndic/missions', { headers: { Authorization: 'Bearer jeton-super-admin' }, cache: 'no-store' }),
     )
     ouvrirFixy()
     await screen.findByLabelText('Question pour Fixy')

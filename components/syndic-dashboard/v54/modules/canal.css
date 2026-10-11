@@ -594,3 +594,101 @@
   border-color: var(--v54-rust-100);
 }
 #syndic-dashboard-v54 .canal-action.rust:hover { background: var(--v54-rust-100); }
+
+/* ----- Données réelles (syndic connecté, ./canal/*) : fil de messages et cartes -----
+ * Ajout au port V5.7 : mêmes tokens, mêmes rayons et typographies que les colonnes ci-dessus. */
+#syndic-dashboard-v54 .canal-chat-body.canal-thread {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 20px 22px;
+  max-height: 560px;
+}
+#syndic-dashboard-v54 .canal-msg {
+  align-self: flex-start;
+  max-width: 78%;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--v54-line);
+  border-radius: var(--v54-r-lg) var(--v54-r-lg) var(--v54-r-lg) 4px;
+  box-shadow: var(--v54-shadow-card);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--v54-navy-900);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#syndic-dashboard-v54 .canal-msg.out {
+  align-self: flex-end;
+  background: var(--v54-navy-900);
+  border-color: var(--v54-navy-900);
+  color: var(--v54-paper);
+  border-radius: var(--v54-r-lg) var(--v54-r-lg) 4px var(--v54-r-lg);
+}
+#syndic-dashboard-v54 .canal-msg-meta {
+  margin-bottom: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--v54-navy-300);
+  white-space: normal;
+}
+#syndic-dashboard-v54 .canal-msg.out .canal-msg-meta { color: var(--v54-gold-400); }
+#syndic-dashboard-v54 .canal-msg-system {
+  align-self: center;
+  max-width: 90%;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--v54-cream);
+  font-size: 12px;
+  color: var(--v54-navy-500);
+  text-align: center;
+}
+#syndic-dashboard-v54 .canal-card {
+  align-self: flex-start;
+  width: min(78%, 440px);
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--v54-line-strong);
+  border-radius: var(--v54-r-lg);
+  box-shadow: var(--v54-shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#syndic-dashboard-v54 .canal-card.out {
+  align-self: flex-end;
+  border-color: var(--v54-gold-400);
+  background: var(--v54-gold-50);
+}
+#syndic-dashboard-v54 .canal-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--v54-navy-900);
+}
+#syndic-dashboard-v54 .canal-card-head svg { width: 16px; height: 16px; color: var(--v54-gold-700); flex-shrink: 0; }
+#syndic-dashboard-v54 .canal-card-pills { display: flex; gap: 5px; flex-wrap: wrap; }
+#syndic-dashboard-v54 .canal-card-ref {
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--v54-navy-500);
+}
+#syndic-dashboard-v54 .canal-card-row { font-size: 12.5px; color: var(--v54-navy-500); }
+#syndic-dashboard-v54 .canal-card-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--v54-navy-900);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#syndic-dashboard-v54 .canal-card-amount {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--v54-navy-900);
+}
+#syndic-dashboard-v54 .canal-equipe { padding: 14px 16px; }

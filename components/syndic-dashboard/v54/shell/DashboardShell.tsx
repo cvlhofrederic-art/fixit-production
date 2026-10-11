@@ -5,7 +5,8 @@ import clsx from 'clsx'
 import Icon from '../primitives/icon/Icon'
 import { Button } from '../primitives/button'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
-import { SIDEBAR, SIDE_TITLES, isItem } from './sidebar-config'
+import { useSyndicData } from '@/lib/syndic/v54/data-context'
+import { SIDEBAR, SIDE_TITLES, isItem, type SidebarItem } from './sidebar-config'
 import { SIDEBAR_FR, SIDE_TITLES_FR } from './sidebar-config.fr'
 import { SHELL_MESSAGES } from './shell.messages'
 import styles from './Shell.module.css'
@@ -55,6 +56,12 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
   }
   const toggleSection = (title: string) => setCollapsed((c) => ({ ...c, [title]: !c[title] }))
 
+  // Syndic connecté : le compteur du Canal de communication = demandes de copropriétaires en attente.
+  const data = useSyndicData()
+  const demandesEnAttente = (data.signalements ?? []).filter((s) => s.statut === 'en_attente').length
+  const compteur = (e: SidebarItem): number | undefined =>
+    data.authenticated && e.id === 'canal' ? demandesEnAttente || undefined : e.count
+
   return (
     <div className={styles.app}>
       <aside className={clsx(styles.sidebar, sidebarOpen && styles.isOpen)} aria-label={t.navigation}>
@@ -89,6 +96,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
                   )
                 }
                 const active = route === e.id
+                const count = compteur(e)
                 return (
                   <button
                     key={e.id}
@@ -99,7 +107,7 @@ export default function DashboardShell({ defaultRoute = 'dashboard', renderModul
                   >
                     <Icon name={e.icon} aria-hidden />
                     <span>{e.label}</span>
-                    {e.count != null && <span className={styles.count}>{e.count}</span>}
+                    {count != null && <span className={styles.count}>{count}</span>}
                     {e.dot && <span className={styles.dotSt} aria-hidden />}
                   </button>
                 )

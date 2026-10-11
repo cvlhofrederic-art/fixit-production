@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
     }))
 
     const response = NextResponse.json({ signalements })
-    response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=30, stale-while-revalidate=60')
+    // Jamais de cache : une demande déposée par un copropriétaire doit apparaître au syndic sans délai.
+    response.headers.set('Cache-Control', 'private, no-store')
     return response
   } catch (err) {
     console.error('[syndic/signalements/GET] Unexpected error:', err)
@@ -74,7 +75,7 @@ export async function PATCH(request: NextRequest) {
 
     if (!id) return NextResponse.json({ error: 'id requis' }, { status: 400 })
 
-    const dbUpdates: Record<string, any> = {
+    const dbUpdates: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     }
     if (updates.statut !== undefined) dbUpdates.statut = updates.statut
@@ -109,6 +110,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Donn\u00e9es invalides', details: validation.error }, { status: 400 })
     }
     const { signalementId, auteur, role, texte } = validation.data
+
+    // Le signalement doit appartenir au cabinet de l'utilisateur.
+    const cabinetId = await resolveCabinetId(user, supabaseAdmin)
+    const { data: sig, error: sigErr } = await supabaseAdmin
+      .from('syndic_signalements')
+      .select('id')
+      .eq('id', signalementId)
+      .eq('cabinet_id', cabinetId)
+      .maybeSingle()
+    if (sigErr) return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    if (!sig) return NextResponse.json({ error: 'Signalement introuvable' }, { status: 404 })
 
     const { data, error } = await supabaseAdmin
       .from('syndic_signalement_messages')
