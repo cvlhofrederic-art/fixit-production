@@ -20,7 +20,7 @@ describe('E-mails Fixy — boîte Gmail du cabinet', () => {
   it('non connectée : « Ligar Gmail » demande l’adresse Google avec le jeton en en-tête et y redirige', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (url === '/api/email-agent/status') return json({ cabinetId: 'cab', connecte: false, email: null, misAJour: null, brouillonsEnAttente: 0, emails: [] })
       if (url === '/api/email-agent/connect?format=json') return json({ url: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x' })
       return json({}, 404)
