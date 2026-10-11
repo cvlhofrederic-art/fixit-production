@@ -37,12 +37,13 @@ describe('MarkdownIA — rendu des réponses des agents', () => {
     expect(container.textContent).toContain('<img src=x')
   })
 
-  it('liens http(s) seulement, ouverts dans un nouvel onglet', () => {
+  it('liens affichés en texte (libellé et adresse), jamais en lien cliquable', () => {
     const { container } = render(<MarkdownIA texte={'[Légifrance](https://www.legifrance.gouv.fr) et [x](javascript:alert(1))'} />)
-    const liens = container.querySelectorAll('a')
-    expect(liens).toHaveLength(1)
-    expect(liens[0].getAttribute('href')).toBe('https://www.legifrance.gouv.fr')
-    expect(liens[0].getAttribute('rel')).toBe('noopener noreferrer')
+    // Aucune adresse venant du modèle dans un attribut href (alerte CodeQL « DOM text reinterpreted as HTML »).
+    expect(container.querySelectorAll('a')).toHaveLength(0)
+    expect(container.textContent).toContain('Légifrance (https://www.legifrance.gouv.fr)')
+    // Schéma autre que http(s) : laissé tel quel, en texte.
+    expect(container.textContent).toContain('[x](javascript:alert(1))')
   })
 
   it('texte sans Markdown : rendu à l’identique avec ses retours à la ligne', () => {
