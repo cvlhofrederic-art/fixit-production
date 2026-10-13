@@ -5,7 +5,8 @@ export const metadata = buildSitemapMetadata({
   locale: 'pt',
   url: 'https://vitfix.io/pt/mapa-do-site/',
   altUrl: 'https://vitfix.io/fr/plan-du-site/',
-  title: 'Mapa do site VITFIX : Todas as nossas páginas serviços e cidades',
+  // Phase 1 SEO PT : marque une fois (template du layout).
+  title: 'Mapa do site: serviços, cidades e artigos',
   description: 'Mapa do site completo VITFIX: serviços de profissionais, cidades cobertas em Portugal continental, artigos do blog. Navegação rápida para todas as páginas.',
   ogTitle: 'Mapa do site VITFIX',
   ogDescription: 'Todas as nossas páginas serviços e cidades em Portugal.',
@@ -45,6 +46,8 @@ export default function MapaDoSitePage() {
           { href: '/pt/servicos/', label: 'Todos os serviços' },
           { href: '/pt/urgencia/', label: 'Urgência 24/7' },
           { href: '/pt/perto-de-mim/', label: 'Perto de mim' },
+          { href: '/pt/cidade/', label: 'Cidades cobertas' },
+          { href: '/pt/contacto/', label: 'Contacto' },
           { href: '/pt/como-funciona/', label: 'Como funciona' },
           { href: '/pt/profissionais-verificados/', label: 'Profissionais verificados' },
           { href: '/pt/torne-se-parceiro/', label: 'Torne-se parceiro' },

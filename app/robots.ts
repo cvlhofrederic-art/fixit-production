@@ -36,34 +36,39 @@ export default function robots(): MetadataRoute.Robots {
     '/*?_branch_match_id=*',
   ]
 
+  // Phase 1 SEO PT (point 1.7) : l'image sociale (og:image, image du JSON-LD) est servie par
+  // /api/og/ ; sans cette règle, « Disallow: /api/ » la bloquait pour Googlebot. Règle plus
+  // longue que « /api/ », donc prioritaire (algorithme robots.txt de Google).
+  const publicAllow = ['/', '/api/og/']
+
   return {
     rules: [
       // Default - allow everything public
       {
         userAgent: '*',
-        allow: '/',
+        allow: publicAllow,
         disallow: privateDisallow,
       },
       // AI Crawlers - explicit allow for GEO (Generative Engine Optimization)
-      { userAgent: 'GPTBot', allow: '/', disallow: privateDisallow },
-      { userAgent: 'ChatGPT-User', allow: '/', disallow: privateDisallow },
-      { userAgent: 'OAI-SearchBot', allow: '/', disallow: privateDisallow },
-      { userAgent: 'ClaudeBot', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Claude-Web', allow: '/', disallow: privateDisallow },
-      { userAgent: 'anthropic-ai', allow: '/', disallow: privateDisallow },
-      { userAgent: 'PerplexityBot', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Perplexity-User', allow: '/', disallow: privateDisallow },
-      { userAgent: 'GoogleOther', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Google-Extended', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Applebot', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Applebot-Extended', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Bytespider', allow: '/', disallow: privateDisallow },
-      { userAgent: 'cohere-ai', allow: '/', disallow: privateDisallow },
-      { userAgent: 'cohere-training-data-crawler', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Meta-ExternalAgent', allow: '/', disallow: privateDisallow },
-      { userAgent: 'meta-externalagent', allow: '/', disallow: privateDisallow },
-      { userAgent: 'MistralAI-User', allow: '/', disallow: privateDisallow },
-      { userAgent: 'Diffbot', allow: '/', disallow: privateDisallow },
+      { userAgent: 'GPTBot', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'ChatGPT-User', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'OAI-SearchBot', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'ClaudeBot', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Claude-Web', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'anthropic-ai', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'PerplexityBot', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Perplexity-User', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'GoogleOther', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Google-Extended', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Applebot', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Applebot-Extended', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Bytespider', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'cohere-ai', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'cohere-training-data-crawler', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Meta-ExternalAgent', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'meta-externalagent', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'MistralAI-User', allow: publicAllow, disallow: privateDisallow },
+      { userAgent: 'Diffbot', allow: publicAllow, disallow: privateDisallow },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
   }

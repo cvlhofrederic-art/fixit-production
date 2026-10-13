@@ -4,6 +4,9 @@ import Link from 'next/link'
 import { SERVICES, CITIES, type ServiceData, type CityData } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
+import { ogImageMeta } from '@/lib/og'
+import { tituloPertoDeMim, descricaoPertoDeMim } from '@/lib/seo/pt-meta'
+import { grafo, noFilAriane, noServicoLocal, noServicoRegional } from '@/lib/seo/pt-schemas'
 
 // ─────────────────────────────────────────────────────────────
 // SLUG RESOLVER
@@ -88,12 +91,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const { service, city, isPicheleiro } = resolved
   const displayName = isPicheleiro ? 'Picheleiro' : service.name
-  const locationLabel = city ? ` em ${city.name}` : ''
 
-  const title = `${displayName} Perto de Mim${locationLabel}, Profissionais Verificados | VITFIX`
-  const description = city
-    ? `Procura um ${displayName.toLowerCase()} perto de si em ${city.name}? VITFIX cobre todas as ${city.freguesias.length} freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} hab.). Orçamento grátis, resposta rápida, 7/7.`
-    : `Procura um ${displayName.toLowerCase()} perto de si? A VITFIX liga-o a profissionais verificados no Tâmega e Sousa. Orçamento grátis, resposta rápida, 7 dias por semana.`
+  // Phase 1 SEO PT : marque une fois (template du layout), description propre à la page,
+  // pas d'alternate hreflang (aucune page FR équivalente).
+  const title = tituloPertoDeMim(displayName, city)
+  const description = descricaoPertoDeMim(displayName, city)
 
   return {
     title,
@@ -104,7 +106,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: [{ url: 'https://vitfix.io/api/og/?locale=pt', width: 1200, height: 630 }],
+      images: ogImageMeta({ title, locale: 'pt' }),
     },
     twitter: { card: 'summary_large_image', title, description },
     alternates: { canonical: `https://vitfix.io/pt/perto-de-mim/${slug}/` },
@@ -149,84 +151,36 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
     : `URGÊNCIA! Preciso de ${displayName.toLowerCase()} urgente perto de mim. Podem vir rapidamente?`
   const waUrgHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(waUrgText)}`
 
-  // Schema.org - LocalBusiness (with geo when city-specific) + Breadcrumb + FAQ
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      city
-        ? {
-            '@type': 'LocalBusiness',
-            name: `VITFIX : ${displayName} Perto de Mim em ${city.name}`,
-            description: `${displayName} verificado perto de si em ${city.name} e nas ${city.freguesias.length} freguesias do município.`,
-            url: `https://vitfix.io/pt/perto-de-mim/${slug}/`,
-            telephone: PHONE_PT,
-            areaServed: { '@type': 'City', name: city.name },
-            geo: { '@type': 'GeoCoordinates', latitude: city.lat, longitude: city.lng },
-            priceRange: '€€',
-            image: 'https://vitfix.io/logo.png',
-            openingHoursSpecification: {
-              '@type': 'OpeningHoursSpecification',
-              dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-              opens: '08:00',
-              closes: '20:00',
-            },
-          }
-        : {
-            '@type': 'Service',
-            name: `${displayName} Perto de Mim`,
-            description: `Encontre ${pluralizar(displayName)} verificados perto de si em Portugal continental.`,
-            provider: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },
-            areaServed: CITIES.map(c => ({ '@type': 'City', name: c.name })),
-            serviceType: displayName,
-          },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Perto de Mim', item: 'https://vitfix.io/pt/perto-de-mim/' },
-          ...(city
-            ? [
-                { '@type': 'ListItem', position: 3, name: displayName, item: `https://vitfix.io/pt/perto-de-mim/${service.slug}/` },
-                { '@type': 'ListItem', position: 4, name: city.name, item: `https://vitfix.io/pt/perto-de-mim/${slug}/` },
-              ]
-            : [{ '@type': 'ListItem', position: 3, name: `${displayName} Perto de Mim`, item: `https://vitfix.io/pt/perto-de-mim/${slug}/` }]),
-        ],
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: [
-          {
-            '@type': 'Question',
-            name: `Como encontrar um ${displayName.toLowerCase()} perto de mim${city ? ` em ${city.name}` : ''}?`,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: city
-                ? `Na VITFIX, temos ${pluralizar(displayName)} que cobrem todas as freguesias de ${city.name} (${city.population.toLocaleString('pt-PT')} habitantes). Contacte-nos via WhatsApp ou telefone para uma resposta imediata.`
-                : `Na VITFIX, basta selecionar o serviço de ${displayName.toLowerCase()} e indicar a sua localização. Apresentamos profissionais verificados disponíveis na sua zona, com orçamento grátis e sem compromisso.`,
-            },
-          },
-          {
-            '@type': 'Question',
-            name: `Qual o tempo de resposta de um ${displayName.toLowerCase()} perto de mim?`,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: `Os profissionais VITFIX respondem em ${service.urgency.avgResponseTime}. Para urgências, estamos disponíveis ${service.urgency.availableSchedule}.`,
-            },
-          },
-          {
-            '@type': 'Question',
-            name: isPicheleiro ? 'O que é um picheleiro? É diferente de um canalizador?' : `Quanto custa um ${displayName.toLowerCase()} perto de mim?`,
-            acceptedAnswer: {
-              '@type': 'Answer',
-              text: isPicheleiro
-                ? `"Picheleiro" é o nome regional no Norte de Portugal (especialmente no Tâmega e Sousa) para o que no resto do país se chama "canalizador". É o mesmo profissional, faz reparações de canalização, fugas de água, entupimentos e instalações. Na VITFIX, os nossos picheleiros/canalizadores cobrem ${CITIES.map(c => c.name).join(', ')}.`
-                : `O custo varia conforme o tipo de serviço. Na VITFIX, o orçamento é sempre gratuito e sem compromisso. Os nossos ${pluralizar(displayName)} apresentam preços transparentes antes de iniciar qualquer trabalho.`,
-            },
-          },
-        ],
-      },
-    ],
-  }
+  // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business), servi dans
+  // la ville (page métier x ville) ou dans les 22 concelhos (hub métier), plus le fil d'Ariane.
+  // Plus de LocalBusiness par ville ni de FAQPage (résultat enrichi retiré par Google).
+  const urlPagina = `https://vitfix.io/pt/perto-de-mim/${slug}/`
+  const jsonLd = grafo(
+    city
+      ? noServicoLocal({
+          url: urlPagina,
+          nome: `${displayName} perto de mim em ${city.name}`,
+          serviceType: displayName,
+          descricao: descricaoPertoDeMim(displayName, city),
+          city,
+        })
+      : noServicoRegional({
+          url: urlPagina,
+          nome: `${displayName} perto de mim`,
+          serviceType: displayName,
+          descricao: descricaoPertoDeMim(displayName, null),
+        }),
+    noFilAriane([
+      { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+      { name: 'Perto de Mim', url: 'https://vitfix.io/pt/perto-de-mim/' },
+      ...(city
+        ? [
+            { name: displayName, url: `https://vitfix.io/pt/perto-de-mim/${service.slug}/` },
+            { name: city.name, url: urlPagina },
+          ]
+        : [{ name: `${displayName} perto de mim`, url: urlPagina }]),
+    ]),
+  )
 
   return (
     <div className="min-h-screen bg-warm-gray">
@@ -242,7 +196,8 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
           <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
             <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
-            <span className="hover:text-yellow transition cursor-default">Perto de Mim</span>
+            {/* Lien vers le hub (phase 1 SEO PT, point 1.8) : le fil d'Ariane JSON-LD le déclare, il doit être visible. */}
+            <Link href="/pt/perto-de-mim/" className="hover:text-yellow transition">Perto de Mim</Link>
             <span className="mx-2">/</span>
             {city ? (
               <>
@@ -414,7 +369,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                   Precisa de {displayName.toLowerCase()} urgente{city ? ` em ${city.name}` : ''}?
                 </h3>
                 <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">
-                  {service.urgencyText}
+                  {city ? service.urgencyText.replace(/\{city\}/g, city.name) : service.urgencyText.replace(/\s*em \{city\}/g, '')}
                 </p>
                 <p className="text-white/40 text-xs mt-2">{service.urgency.availableSchedule} · Resposta em {service.urgency.avgResponseTime}</p>
               </div>
@@ -564,7 +519,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                  {service.faqs[0]?.answer || `O custo varia conforme o tipo de serviço e a complexidade do trabalho. Na VITFIX, o orçamento é sempre gratuito e sem compromisso.`}
+                  {(service.faqs[0]?.answer || `O custo varia conforme o tipo de serviço e a complexidade do trabalho. Na VITFIX, o orçamento é sempre gratuito e sem compromisso.`).replace(/\{city\}/g, city ? city.name : 'Portugal')}
                 </div>
               </details>
             )}

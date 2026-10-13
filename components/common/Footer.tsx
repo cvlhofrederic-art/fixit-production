@@ -13,6 +13,9 @@ const localePaths = {
   privacy:      { fr: '/confidentialite', pt: '/privacidade', en: '/privacy' },
   cookies:      { fr: '/cookies', pt: '/politica-cookies', en: '/cookie-policy' },
   sitemap:      { fr: '/plan-du-site', pt: '/mapa-do-site', en: '/sitemap' },
+  // Phase 1 SEO PT (point 1.8) : slug PT du contact et hub des villes.
+  contact:      { fr: '/contact', pt: '/contacto', en: '/contact' },
+  cities:       { fr: '/ville', pt: '/cidade', en: '/cities' },
 } as const
 
 export default function Footer() {
@@ -61,6 +64,13 @@ export default function Footer() {
                   {t('footer.reviews')}
                 </LocaleLink>
               </li>
+              {locale === 'pt' && (
+                <li>
+                  <LocaleLink href={lp('cities')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                    Cidades cobertas
+                  </LocaleLink>
+                </li>
+              )}
             </ul>
           </div>
 
@@ -120,7 +130,7 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/contact" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={lp('contact')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.contact')}
                 </LocaleLink>
               </li>

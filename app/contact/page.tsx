@@ -43,42 +43,20 @@ export default function ContactPage() {
   const contactJsonLd = isPt ? {
     '@context': 'https://schema.org',
     '@graph': [
+      // Phase 1 SEO PT (point 1.6) : l'entité est le nœud unique #business du layout racine
+      // (adresse réelle du siège, lib/seo/entite-pt.ts) ; plus d'horaires ni de villes inventés.
       {
         '@type': 'ContactPage',
         name: 'Contacto VITFIX',
         description: 'Contacte a equipa VITFIX para questões sobre serviços de profissionais.',
-        url: 'https://vitfix.io/pt/contact/',
-        mainEntity: {
-          '@type': 'HomeAndConstructionBusiness',
-          name: 'VITFIX',
-          url: 'https://vitfix.io/pt/',
-          telephone: PHONE_PT,
-          email: 'contact@vitfix.io',
-          taxID: 'PT276873297',
-          address: {
-            '@type': 'PostalAddress',
-            addressLocality: 'Marco de Canaveses',
-            addressRegion: 'Porto',
-            addressCountry: 'PT',
-          },
-          openingHoursSpecification: {
-            '@type': 'OpeningHoursSpecification',
-            dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-            opens: '08:00',
-            closes: '20:00',
-          },
-          areaServed: [
-            { '@type': 'City', name: 'Marco de Canaveses' },
-            { '@type': 'City', name: 'Porto' },
-            { '@type': 'City', name: 'Lisboa' },
-          ],
-        },
+        url: 'https://vitfix.io/pt/contacto/',
+        mainEntity: { '@id': 'https://vitfix.io/#business' },
       },
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Contacto', item: 'https://vitfix.io/pt/contact/' },
+          { '@type': 'ListItem', position: 2, name: 'Contacto', item: 'https://vitfix.io/pt/contacto/' },
         ],
       },
     ],

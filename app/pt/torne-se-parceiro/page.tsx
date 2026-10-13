@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères.
 export const metadata: Metadata = {
-  title: 'Torne-se Parceiro VITFIX : Profissional em Portugal | VITFIX',
-  description: 'Junte-se ao VITFIX e receba mais clientes em Marco de Canaveses e região. Plataforma gratuita para começar, sem comissões por reserva. Registe o seu perfil hoje.',
+  title: 'Torne-se parceiro: mais clientes para o seu negócio',
+  description: 'Registe o seu perfil na VITFIX e receba pedidos de clientes em 22 concelhos do Porto, Braga e Aveiro. Grátis para começar, sem comissões.',
   openGraph: {
     title: 'Torne-se Parceiro VITFIX : Mais clientes para o seu negócio',
     description: 'Registe o seu perfil de profissional no VITFIX e receba pedidos de clientes verificados na sua zona. Grátis para começar.',
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     languages: {
       'pt-PT': 'https://vitfix.io/pt/torne-se-parceiro/',
       'fr-FR': 'https://vitfix.io/fr/devenir-partenaire/',
-      'x-default': 'https://vitfix.io/pt/torne-se-parceiro/',
+      'x-default': 'https://vitfix.io/fr/devenir-partenaire/',
     },
   },
 }
@@ -74,7 +75,7 @@ const plans = [
       'Acesso à aplicação móvel',
     ],
     cta: 'Registar gratuitamente',
-    href: '/pro/register/',
+    href: '/pt/pro/register/',
     highlighted: false,
   },
   {
@@ -91,7 +92,7 @@ const plans = [
       'Suporte prioritário',
     ],
     cta: 'Começar período de teste',
-    href: '/pro/register/',
+    href: '/pt/pro/register/',
     highlighted: true,
   },
 ]
@@ -164,45 +165,8 @@ const jsonLd = {
         ],
       },
     },
-    {
-      '@type': 'FAQPage',
-      mainEntity: faqs.map(faq => ({
-        '@type': 'Question',
-        name: faq.question,
-        acceptedAnswer: { '@type': 'Answer', text: faq.answer },
-      })),
-    },
-    {
-      '@type': 'Service',
-      name: 'Plataforma VITFIX para Profissionais',
-      description: 'Plataforma digital que conecta profissionais verificados com clientes particulares em Portugal.',
-      provider: {
-        '@type': 'Organization',
-        name: 'VITFIX',
-        url: 'https://vitfix.io/pt/',
-      },
-      areaServed: {
-        '@type': 'State',
-        name: 'Entre Douro e Sousa, Portugal',
-      },
-      offers: [
-        {
-          '@type': 'Offer',
-          name: 'Plano Gratuito',
-          price: '0',
-          priceCurrency: 'EUR',
-          description: 'Perfil básico com até 5 pedidos por mês',
-        },
-        {
-          '@type': 'Offer',
-          name: 'Plano Pro',
-          price: '29',
-          priceCurrency: 'EUR',
-          billingIncrement: 'monthly',
-          description: 'Pedidos ilimitados, faturação, perfil destacado',
-        },
-      ],
-    },
+    // Phase 1 SEO PT : plus de FAQPage (résultat enrichi retiré) ni d'Offer à 29 € (l'accueil
+    // affiche 49 €/mês : prix non vérifié, à trancher par le propriétaire avant tout balisage).
   ],
 }
 
@@ -234,7 +198,7 @@ export default function TorneSeParceiroPage() {
 
           <div className="flex flex-wrap gap-3 mb-10">
             <Link
-              href="/pro/register/"
+              href="/pt/pro/register/"
               className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
               Registar o meu perfil, grátis
@@ -393,7 +357,7 @@ export default function TorneSeParceiroPage() {
             Crie o seu perfil em 5 minutos e comece a receber pedidos de clientes na sua zona.
           </p>
           <Link
-            href="/pro/register/"
+            href="/pt/pro/register/"
             className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
           >
             Criar o meu perfil gratuitamente

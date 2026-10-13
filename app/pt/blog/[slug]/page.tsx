@@ -2,24 +2,28 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { BLOG_ARTICLES, getBlogArticle, SERVICES, CITIES } from '@/lib/data/seo-pages-data'
-import { buildArticleSchema, buildBreadcrumbSchema, buildFaqSchema } from '@/lib/schemas'
+import { buildArticleSchema, buildBreadcrumbSchema } from '@/lib/schemas'
+import { ENTITE_PT } from '@/lib/seo/entite-pt'
+import { semMarca, tituloBlog } from '@/lib/seo/pt-meta'
 
 // ── Generate static pages for all blog articles ──
 export function generateStaticParams() {
   return BLOG_ARTICLES.map(a => ({ slug: a.slug }))
 }
 
-// ── Dynamic SEO metadata ──
+// ── Métadonnées (phase 1 SEO PT) : marque une fois (template du layout), pas d'alternate
+// hreflang : aucun article FR équivalent (l'index /fr/blog/ n'est pas une traduction).
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const article = getBlogArticle(slug)
   if (!article) return {}
 
+  const tituloSocial = semMarca(article.metaTitle)
   return {
-    title: article.metaTitle,
+    title: tituloBlog(article.metaTitle, article.title),
     description: article.metaDesc,
     openGraph: {
-      title: article.metaTitle,
+      title: tituloSocial,
       description: article.metaDesc,
       siteName: 'VITFIX',
       locale: 'pt_PT',
@@ -28,16 +32,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     twitter: {
       card: 'summary_large_image',
-      title: article.metaTitle,
+      title: tituloSocial,
       description: article.metaDesc,
     },
     alternates: {
       canonical: `https://vitfix.io/pt/blog/${slug}/`,
-      languages: {
-        'pt-PT': `https://vitfix.io/pt/blog/${slug}/`,
-        'fr-FR': 'https://vitfix.io/fr/blog/',
-        'x-default': 'https://vitfix.io/',
-      },
     },
   }
 }
@@ -83,36 +82,34 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   const sectionTexts = article.sections.map(s => `${s.heading}\n${s.content}`).join('\n\n')
   const articleBodyText = `${article.intro}\n\n${sectionTexts}`.slice(0, 5000)
 
-  // Schema.org Article (avec @id linking vers Organization globale)
+  // Schema.org Article (phase 1 SEO PT) : auteur = l'entité VITFIX (#business) tant qu'aucun
+  // auteur réel n'est renseigné (phase 3), plus de FAQPage fabriquée à partir des titres de section.
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      buildArticleSchema({
-        url: `https://vitfix.io/pt/blog/${slug}/`,
-        headline: article.title,
-        description: article.metaDesc,
-        image: 'https://vitfix.io/api/og/?locale=pt',
-        datePublished: article.datePublished,
-        dateModified: article.dateModified,
-        author: { name: 'Equipa editorial Vitfix', url: 'https://vitfix.io/pt/sobre/' },
-        inLanguage: 'pt-PT',
-        articleSection: categoryLabel(article.category),
-        keywords: article.relatedServices,
-        wordCount: totalWords,
-        articleBody: articleBodyText,
-        speakableSelectors: ['h1', 'h2', '.article-intro'],
-      }),
+      {
+        ...buildArticleSchema({
+          url: `https://vitfix.io/pt/blog/${slug}/`,
+          headline: article.title,
+          description: article.metaDesc,
+          image: 'https://vitfix.io/api/og/?locale=pt',
+          datePublished: article.datePublished,
+          dateModified: article.dateModified,
+          author: { name: ENTITE_PT.nome, url: 'https://vitfix.io/pt/sobre/' },
+          inLanguage: 'pt-PT',
+          articleSection: categoryLabel(article.category),
+          keywords: article.relatedServices,
+          wordCount: totalWords,
+          articleBody: articleBodyText,
+          speakableSelectors: ['h1', 'h2', '.article-intro'],
+        }),
+        author: { '@id': ENTITE_PT.id },
+      },
       buildBreadcrumbSchema([
         { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
         { name: 'Blog', url: 'https://vitfix.io/pt/blog/' },
         { name: article.title, url: `https://vitfix.io/pt/blog/${slug}/` },
       ]),
-      buildFaqSchema(
-        article.sections.slice(0, 5).map(s => ({
-          question: s.heading,
-          answer: `${s.content.slice(0, 300)}...`,
-        })),
-      ),
     ],
   }
 

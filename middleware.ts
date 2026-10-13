@@ -97,6 +97,18 @@ function detectPreferredLocale(request: NextRequest): string {
   return DEFAULT_LOCALE
 }
 
+// ── Pages supprimées sans équivalent (phase 1 SEO PT, point 1.2) ──
+// Anciens articles du blog PT : 410 Gone plutôt qu'une redirection vers l'index /pt/blog/ (soft 404
+// pour Google) ou un 404 (Google réessaie plus longtemps). Liste à ne jamais réduire sans décision.
+const CHEMINS_SUPPRIMES_PT = new Set([
+  '/pt/blog/poupar-agua-casa',
+  '/pt/blog/certificacao-eletrica',
+  '/pt/blog/seguranca-eletrica-casa',
+  '/pt/blog/paineis-solares-portugal',
+  '/pt/blog/como-escolher-tinta',
+  '/pt/blog/preparar-paredes-pintura',
+])
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
@@ -104,6 +116,13 @@ export async function middleware(request: NextRequest) {
   // Politique unique (lib/securite/csp.ts), posée ici sur toutes les réponses du middleware ; next.config.ts ne la
   // pose que sur les chemins exclus du matcher (jamais les deux : sur OpenNext elles s'additionneraient).
   const cspHeader = POLITIQUE_CSP
+
+  if (CHEMINS_SUPPRIMES_PT.has(pathname.replace(/\/$/, ''))) {
+    return new NextResponse('Esta página foi removida.', {
+      status: 410,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': cspHeader },
+    })
+  }
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
   const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')

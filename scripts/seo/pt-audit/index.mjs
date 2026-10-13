@@ -17,7 +17,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { requete, enParallele, urlInterne } from './lib/http.mjs'
-import { analyserHtml } from './lib/html.mjs'
+import { analyserHtml, ORIGINE_PUBLIQUE } from './lib/html.mjs'
 import { chargerSitemaps, urlsPt } from './lib/sitemaps.mjs'
 import { classer, modeleMesure, VILLES } from './lib/classer.mjs'
 import { mesurerGroupe, moyenne, pct, chevauchement } from './lib/mesures.mjs'
@@ -27,7 +27,7 @@ import { lireCsv, ecrireCsv } from './lib/csv.mjs'
 export const RACINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 
 export function lireArguments(argv) {
-  const o = { base: 'https://vitfix.io', out: 'reports/seo', concurrence: 8, source: 'live', csv: 'data/seo/pt_sitemap_statut_complet.csv', echantillon: 0, git: false, date: '', silencieux: false, extras: ['/pt/cidade/', '/pt/contact/'] }
+  const o = { base: 'https://vitfix.io', out: 'reports/seo', concurrence: 8, source: 'live', csv: 'data/seo/pt_sitemap_statut_complet.csv', echantillon: 0, git: false, date: '', silencieux: false, extras: ['/pt/cidade/', '/pt/contacto/'] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     const val = () => argv[++i]
@@ -137,7 +137,8 @@ export async function auditer(options, journal = () => {}) {
         title: a.title, title_len: a.title_len, title_marque_n: a.title_marque_n,
         meta_robots: a.meta_robots.join(' | '), noindex: a.noindex,
         description: a.description, description_len: a.description_len,
-        canonical: a.canonical, canonical_ok: a.canonical === base + chemin,
+        // La canonique porte l'origine publique, y compris sur un build local audité par --base.
+        canonical: a.canonical, canonical_ok: a.canonical === ORIGINE_PUBLIQUE + chemin || a.canonical === base + chemin,
         og_image: a.og_image,
         h1_n: a.h1_n, h1: a.h1, h2_n: a.h2_n, h2: a.h2,
         hreflang: a.hreflang,
@@ -239,7 +240,7 @@ export async function auditer(options, journal = () => {}) {
     if (m(a) && m(b)) chev[a + ' -> ' + b] = { a_dans_b: chevauchement(m(a), m(b)), b_dans_a: chevauchement(m(b), m(a)) }
   }
 
-  return { options: o, date: o.date, base, sitemaps: { index: sitemaps.index, indexStatus: sitemaps.indexStatus, fichiers: Object.fromEntries(Object.entries(sitemaps.fichiers).map(([u, f]) => [u.replace(base, ''), { status: f.status, contentType: f.contentType, xRobots: f.xRobots, n: f.urls.length, sha256: f.sha256, lastmod_n: f.urls.filter((x) => x.lastmod).length, changefreq_n: f.urls.filter((x) => x.changefreq).length, priority_n: f.urls.filter((x) => x.priority).length, urls: f.urls }])) }, pages, chevauchements: chev }
+  return { options: o, date: o.date, base, sitemaps: { index: sitemaps.index, indexStatus: sitemaps.indexStatus, fichiers: Object.fromEntries(Object.entries(sitemaps.fichiers).map(([u, f]) => [u.replace(base, ''), { status: f.status, contentType: f.contentType, xRobots: f.xRobots, n: f.urls.length, enfants: f.enfants || [], sha256: f.sha256, lastmod_n: f.urls.filter((x) => x.lastmod).length, changefreq_n: f.urls.filter((x) => x.changefreq).length, priority_n: f.urls.filter((x) => x.priority).length, urls: f.urls }])) }, pages, chevauchements: chev }
 }
 
 // ───────────────────────── Synthèse ─────────────────────────

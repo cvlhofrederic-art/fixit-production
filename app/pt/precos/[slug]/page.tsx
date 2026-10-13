@@ -210,8 +210,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const guide = PRICE_GUIDES[slug]
   if (!guide) return {}
 
-  const title = `Tabela de Preços ${guide.name} 2026, Região do Porto | VITFIX`
-  const description = `Consulte os preços de ${guide.name.toLowerCase()} em Marco de Canaveses, Penafiel e Amarante. Valores de referência atualizados para 2026.`
+  // Phase 1 SEO PT : marque une fois (template du layout).
+  const title = `Tabela de preços de ${guide.name.toLowerCase()} 2026 na região do Porto`
+  const description = `Consulte os preços de referência de ${guide.name.toLowerCase()} em 2026 na região do Porto e do Tâmega e Sousa: ${guide.prices.length} serviços com valores mínimos e máximos. Orçamento grátis.`
 
   return {
     title,
@@ -241,21 +242,10 @@ export default async function PrecosServicePage({ params }: { params: Promise<{ 
   const guide = PRICE_GUIDES[slug]
   if (!guide) notFound()
 
-  // Schema.org FAQPage + BreadcrumbList
+  // Schema.org BreadcrumbList (phase 1 SEO PT : plus de FAQPage, résultat enrichi retiré par Google)
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
-      {
-        '@type': 'FAQPage',
-        mainEntity: guide.faqs.map(faq => ({
-          '@type': 'Question',
-          name: faq.question,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: faq.answer,
-          },
-        })),
-      },
       {
         '@type': 'BreadcrumbList',
         itemListElement: [

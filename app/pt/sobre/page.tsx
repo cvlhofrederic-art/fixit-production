@@ -3,8 +3,9 @@ export { default } from '@/app/fr/a-propos/page'
 
 import type { Metadata } from 'next'
 
+// Phase 1 SEO PT : marque une fois (template du layout) ; pas d'`alternates` ici pour ne pas
+// écraser la paire hreflang déclarée par app/pt/sobre/layout.tsx (fusion clé par clé de Next).
 export const metadata: Metadata = {
-  title: 'Sobre a Vitfix | Profissionais de confiança',
-  description: 'Conheça a Vitfix, a plataforma que conecta particulares e profissionais de construção em Portugal.',
-  alternates: { canonical: 'https://vitfix.io/pt/sobre/' },
+  title: 'Sobre nós: profissionais de confiança em Portugal',
+  description: 'Conheça a VITFIX, a plataforma que liga particulares e profissionais de construção verificados em 22 concelhos dos distritos do Porto, Braga e Aveiro.',
 }

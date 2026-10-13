@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères.
 export const metadata: Metadata = {
-  title: 'Especialidades VITFIX Portugal : Impermeabilização, Capoto, Desentupimento Urgente',
-  description: 'Páginas especializadas para intervenções específicas em Portugal: impermeabilização, isolamento térmico ETICS, obras com alvará, reabilitação urbana, desentupimento urgente e manutenção Airbnb.',
+  title: 'Especialidades: impermeabilização, capoto e reabilitação',
+  description: 'Seis intervenções especializadas: impermeabilização, capoto ETICS, obras com alvará, reabilitação urbana, desentupimento urgente e alojamento local.',
   alternates: {
     canonical: 'https://vitfix.io/pt/especialidades/',
   },
@@ -64,16 +65,18 @@ const ESPECIALIDADES_PT = [
   },
 ]
 
+// Phase 1 SEO PT : WebPage + fil d'Ariane ; plus de LocalBusiness sans établissement réel.
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
     {
-      '@type': 'LocalBusiness',
-      name: 'VITFIX Portugal : Especialidades',
+      '@type': 'WebPage',
+      '@id': 'https://vitfix.io/pt/especialidades/#webpage',
+      name: 'Especialidades VITFIX Portugal',
       url: 'https://vitfix.io/pt/especialidades/',
-      telephone: PHONE_PT,
-      address: { '@type': 'PostalAddress', addressRegion: 'Porto', addressCountry: 'PT' },
-      areaServed: { '@type': 'State', name: 'Distrito do Porto' },
+      inLanguage: 'pt-PT',
+      isPartOf: { '@id': 'https://vitfix.io/#website' },
+      publisher: { '@id': 'https://vitfix.io/#business' },
     },
     {
       '@type': 'BreadcrumbList',
@@ -151,7 +154,7 @@ export default function EspecialidadesPage() {
               {ESPECIALIDADES_PT.map((spec) => (
                 <Link
                   key={spec.slug}
-                  href="/pt/pesquisar"
+                  href="/pt/pesquisar/"
                   className="group bg-white rounded-2xl border border-border/50 p-6 hover:border-yellow hover:shadow-md hover:-translate-y-0.5 transition-all"
                 >
                   <span className="text-4xl block mb-4 group-hover:scale-110 transition-transform inline-block">{spec.icon}</span>

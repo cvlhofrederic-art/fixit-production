@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères.
 export const metadata: Metadata = {
-  title: 'Serviços Condomínio Portugal : Limpeza, Canalização, Manutenção | VITFIX',
-  description: 'Serviços profissionais para condomínios em Portugal: limpeza de partes comuns, canalização, obras de manutenção. Faturação ao administrador, contratos anuais, relatórios de intervenção.',
+  title: 'Condomínios: limpeza, canalização e eletricidade',
+  description: 'Serviços para condomínios em Portugal: limpeza de partes comuns, canalização e eletricidade, com faturação ao administrador e relatório assinado.',
   alternates: { canonical: 'https://vitfix.io/pt/condominio/' },
   openGraph: {
     title: 'Serviços Condomínio Portugal : VITFIX',
@@ -50,17 +51,20 @@ const FAQ_CONDOMINIO = [
   },
 ]
 
+// Phase 1 SEO PT : WebPage + fil d'Ariane ; plus de LocalBusiness sans établissement ni de FAQPage
+// (résultat enrichi retiré par Google le 07/05/2026). La FAQ reste visible dans la page.
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
     {
-      '@type': 'LocalBusiness',
-      name: 'VITFIX : Serviços Condomínio Portugal',
-      description: 'Serviços profissionais para condomínios em Portugal: limpeza, canalização, eletricidade.',
+      '@type': 'WebPage',
+      '@id': 'https://vitfix.io/pt/condominio/#webpage',
+      name: 'Serviços para condomínios em Portugal',
+      description: 'Serviços para condomínios em Portugal: limpeza, canalização, eletricidade.',
       url: 'https://vitfix.io/pt/condominio/',
-      telephone: PHONE_PT,
-      areaServed: { '@type': 'AdministrativeArea', name: 'Norte de Portugal' },
-      serviceType: ['Limpeza condomínio', 'Canalização condomínio', 'Eletricidade condomínio'],
+      inLanguage: 'pt-PT',
+      isPartOf: { '@id': 'https://vitfix.io/#website' },
+      publisher: { '@id': 'https://vitfix.io/#business' },
     },
     {
       '@type': 'BreadcrumbList',
@@ -68,17 +72,6 @@ const jsonLd = {
         { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
         { '@type': 'ListItem', position: 2, name: 'Condomínio', item: 'https://vitfix.io/pt/condominio/' },
       ],
-    },
-    {
-      '@type': 'FAQPage',
-      mainEntity: FAQ_CONDOMINIO.map(faq => ({
-        '@type': 'Question',
-        name: faq.question,
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: faq.answer,
-        },
-      })),
     },
   ],
 }

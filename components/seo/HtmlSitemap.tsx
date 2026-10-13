@@ -23,17 +23,18 @@ interface SitemapMetadataOptions {
 
 export function buildSitemapMetadata(opts: SitemapMetadataOptions): Metadata {
   const ogLocale = opts.locale === 'pt' ? 'pt_PT' : 'fr_FR'
-  // Pro SEO 2026 : codes BCP 47 régionalisés + x-default toujours sur le
-  // root `/` (politique site-wide, cf. lib/seo/hreflang.ts).
+  // Codes BCP 47 régionalisés. x-default : la page FR (200) pour le plan PT (phase 1 SEO PT,
+  // point 1.5) ; le plan FR garde le root `/` (hors périmètre de la phase).
+  const frUrl = opts.locale === 'fr' ? opts.url : opts.altUrl
   return {
     title: opts.title,
     description: opts.description,
     alternates: {
       canonical: opts.url,
       languages: {
-        'fr-FR': opts.locale === 'fr' ? opts.url : opts.altUrl,
+        'fr-FR': frUrl,
         'pt-PT': opts.locale === 'pt' ? opts.url : opts.altUrl,
-        'x-default': 'https://vitfix.io/',
+        'x-default': opts.locale === 'pt' ? frUrl : 'https://vitfix.io/',
       },
     },
     openGraph: {
@@ -199,7 +200,8 @@ export default function HtmlSitemap(props: HtmlSitemapProps) {
         )}
 
         <p className="text-center text-xs text-text-muted mt-10">
-          {props.xmlSitemapNote} <a href="/sitemap.xml" className="hover:text-dark underline">/sitemap.xml</a>
+          {/* Index PT depuis la phase 1 SEO PT (point 1.1) ; lien avec préfixe de langue (test T3). */}
+          {props.xmlSitemapNote} <a href={props.locale === 'pt' ? '/pt/sitemap.xml' : '/sitemap.xml'} className="hover:text-dark underline">{props.locale === 'pt' ? '/pt/sitemap.xml' : '/sitemap.xml'}</a>
         </p>
       </div>
     </div>

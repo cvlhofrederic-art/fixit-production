@@ -20,7 +20,6 @@ const LANGUES_ACCUEILS = {
   en: 'https://vitfix.io/en/',
   nl: 'https://vitfix.io/nl/',
   es: 'https://vitfix.io/es/',
-  'x-default': 'https://vitfix.io/',
 }
 
 describe('hreflang', () => {
@@ -29,11 +28,13 @@ describe('hreflang', () => {
     expect(layout).not.toMatch(/<link\s+rel="alternate"\s+hrefLang/)
   })
 
+  // x-default : « / » pour l'accueil FR (hors périmètre de la phase 1 SEO PT) ; « /fr/ » (locale par défaut
+  // du middleware, répond 200) pour l'accueil PT, car « / » répond 302 (phase 1 SEO PT, point 1.5).
   it.each([
-    ['@/app/fr/page', 'https://vitfix.io/fr/'],
-    ['@/app/pt/page', 'https://vitfix.io/pt/'],
-  ])('%s déclare sa canonical et le jeu complet des accueils', async (module, canonical) => {
+    ['@/app/fr/page', 'https://vitfix.io/fr/', 'https://vitfix.io/'],
+    ['@/app/pt/page', 'https://vitfix.io/pt/', 'https://vitfix.io/fr/'],
+  ])('%s déclare sa canonical et le jeu complet des accueils', async (module, canonical, xDefault) => {
     const { metadata } = (await import(module)) as { metadata: Metadata }
-    expect(metadata.alternates).toEqual({ canonical, languages: LANGUES_ACCUEILS })
+    expect(metadata.alternates).toEqual({ canonical, languages: { ...LANGUES_ACCUEILS, 'x-default': xDefault } })
   })
 })

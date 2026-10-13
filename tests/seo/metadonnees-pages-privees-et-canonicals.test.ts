@@ -106,10 +106,10 @@ describe('sitemaps : aucune page privée soumise', () => {
     expect(urls).not.toContain('https://vitfix.io/pt/mercados/gerir/')
   })
 
-  it('le sous-sitemap 0 (pages statiques) ne liste pas /pt/mercados/gerir/', async () => {
-    const { GET } = await import('@/app/sitemap/[id]/route')
-    const reponse = await GET(new Request('https://vitfix.io/sitemap/0.xml'), { params: Promise.resolve({ id: '0' }) })
-    const xml = await reponse.text()
+  it('le sitemap PT des pages statiques liste /pt/mercados/publicar/ mais pas /pt/mercados/gerir/', async () => {
+    // Phase 1 SEO PT : les URL PT ne sont plus dans /sitemap/0.xml mais dans /pt/sitemap-paginas.xml.
+    const { GET } = await import('@/app/pt/sitemap-paginas.xml/route')
+    const xml = await (await GET()).text()
     expect(xml).toContain('/pt/mercados/publicar/</loc>')
     expect(xml).not.toContain('/pt/mercados/gerir/')
   })

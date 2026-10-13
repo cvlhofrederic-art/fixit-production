@@ -2,14 +2,16 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://vitfix.io'),
+  // Phase 1 SEO PT (point 1.4) : la marque une seule fois. Les pages fournissent un titre sans
+  // marque (lib/seo/pt-meta.ts) et ce template l'ajoute ; cible 35 à 65 caractères.
   title: {
-    default: 'VITFIX Portugal, Canalizador, Eletricista, Pintor | Orçamento grátis',
-    template: '%s | VITFIX Portugal',
+    default: 'Profissionais de construção verificados em Portugal',
+    template: '%s | VITFIX',
   },
-  description: 'Encontre um profissional verificado em Marco de Canaveses, Penafiel, Amarante e toda a região do Tâmega e Sousa. Canalizador, eletricista, pintor, faz-tudo. Orçamento grátis, 7 dias por semana.',
+  description: 'Profissionais verificados em 22 concelhos do Porto, Braga e Aveiro: canalizador, eletricista, pintor, faz-tudo. Orçamento grátis pelo site ou WhatsApp.',
   // hreflang BCP 47 — codes régionaux pour cibler explicitement Portugal
-  // (vs Brésil) et France (vs Canada). Cohérent avec les hreflang du root
-  // layout app/layout.tsx et avec la décision business "marchés stricts".
+  // (vs Brésil) et France (vs Canada). x-default sur /fr/ (locale par défaut du
+  // middleware, répond 200) et non sur /, qui redirige en 302 (phase 1 SEO PT, point 1.5).
   alternates: {
     languages: {
       'pt-PT': 'https://vitfix.io/pt/',
@@ -17,7 +19,7 @@ export const metadata: Metadata = {
       'en': 'https://vitfix.io/en/',
       'nl': 'https://vitfix.io/nl/',
       'es': 'https://vitfix.io/es/',
-      'x-default': 'https://vitfix.io/',
+      'x-default': 'https://vitfix.io/fr/',
     },
   },
   // Manifest PT dédié — name/description en portugais, scope: '/pt/',

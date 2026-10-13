@@ -1,17 +1,19 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { SERVICES, CITIES, getAllUrgencyCombos } from '@/lib/data/seo-pages-data'
+import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
 // ── Static SEO metadata ──
+// Phase 1 SEO PT : marque une fois (template du layout), pas d'alternate (/fr/urgence/ ne renvoie
+// pas vers cette page). Le contenu du hub est repris en phase 2 (page unique du service d'urgence).
 export const metadata: Metadata = {
-  title: 'Serviços de Urgência : Eletricista, Canalizador, Obras Urgentes | VITFIX',
+  title: `Serviços de urgência em ${CITIES.length} concelhos do Norte`,
   description:
-    'Serviços de urgência 24h: eletricista, canalizador, pintor, pladur e obras urgentes em Marco de Canaveses, Penafiel, Amarante e região. Intervenção rápida 7/7. Ligue agora!',
+    `Urgências de canalizador, eletricista, serralheiro e outros serviços em ${CITIES.length} concelhos do Porto, Braga e Aveiro. Telefone e WhatsApp +351 912 014 971.`,
   openGraph: {
-    title: 'Serviços de Urgência : Eletricista, Canalizador, Obras Urgentes | VITFIX',
+    title: 'Serviços de Urgência : VITFIX',
     description:
-      'Serviços de urgência 24h: eletricista, canalizador, pintor, pladur e obras urgentes em Marco de Canaveses, Penafiel, Amarante e região. Intervenção rápida 7/7.',
+      'Urgências de canalizador, eletricista, serralheiro e outros serviços em 22 concelhos do Norte de Portugal.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
@@ -21,16 +23,11 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Serviços de Urgência : VITFIX',
     description:
-      'Eletricista, canalizador, pintor, pladur e obras urgentes. Intervenção rápida 24h em Marco de Canaveses e região.',
+      'Urgências de canalizador, eletricista, serralheiro e outros serviços em 22 concelhos do Norte de Portugal.',
     images: ['https://vitfix.io/api/og/?locale=pt'],
   },
   alternates: {
     canonical: 'https://vitfix.io/pt/urgencia/',
-    languages: {
-      'pt-PT': 'https://vitfix.io/pt/urgencia/',
-      'fr-FR': 'https://vitfix.io/fr/urgence/',
-      'x-default': 'https://vitfix.io/pt/urgencia/',
-    },
   },
 }
 
@@ -58,8 +55,6 @@ const STEPS = [
 
 // ── Page Component ──
 export default function UrgenciaHubPage() {
-  const allCombos = getAllUrgencyCombos()
-
   // Schema.org - CollectionPage + BreadcrumbList
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -70,22 +65,9 @@ export default function UrgenciaHubPage() {
         description:
           'Todos os serviços de urgência VITFIX: eletricista, canalizador, pintor, pladur e obras urgentes disponíveis 24h em Marco de Canaveses, Penafiel, Amarante e região.',
         url: 'https://vitfix.io/pt/urgencia/',
-        mainEntity: {
-          '@type': 'ItemList',
-          numberOfItems: allCombos.length,
-          itemListElement: SERVICES.map((service, idx) => ({
-            '@type': 'ListItem',
-            position: idx + 1,
-            name: `${service.name} Urgente`,
-            url: `https://vitfix.io/pt/urgencia/${service.slug}-urgente-${CITIES[0].slug}/`,
-          })),
-        },
-        provider: {
-          '@type': 'Organization',
-          name: 'VITFIX',
-          url: 'https://vitfix.io',
-          logo: 'https://vitfix.io/logo.png',
-        },
+        // Phase 1 SEO PT : plus d'ItemList incohérent (462 annoncés, 21 listés vers une seule ville) ;
+        // le fournisseur est l'entité unique #business du layout racine.
+        provider: { '@id': 'https://vitfix.io/#business' },
       },
       {
         '@type': 'BreadcrumbList',

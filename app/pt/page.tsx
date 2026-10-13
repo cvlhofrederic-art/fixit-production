@@ -1,27 +1,23 @@
-// Home page Vitfix Portugal — server component qui injecte les schémas
-// JSON-LD spécifiques PT (HomeAndConstructionBusiness avec rating + adresse
-// Porto + opening hours + BreadcrumbList) puis rend le HomePage client.
+// Home page Vitfix Portugal — server component qui injecte le fil d'Ariane JSON-LD
+// et rend le HomePage client avec la liste des 22 villes couvertes.
 //
-// Les schémas globaux (WebSite + Organization) sont injectés par
-// app/layout.tsx, ceux-ci s'ajoutent pour rendre la home PT éligible aux
-// rich results "Local Business" sur Google (sinon GSC dit "Cette URL ne peut
-// pas être optimisée" — vérifié via URL Inspection le 9 mai 2026).
+// Phase 1 SEO PT (point 1.6) : plus de second HomeAndConstructionBusiness avec une
+// adresse fictive « Porto 4000-001 ». L'entité unique (#business, adresse réelle du
+// siège, 22 concelhos servis) est injectée par app/layout.tsx sur toutes les pages PT.
 
 import type { Metadata } from 'next'
 import HomePage from '../page'
-import {
-  buildBusinessSchema,
-  buildBreadcrumbSchema,
-  buildSchemaGraph,
-} from '@/lib/schemas'
+import { CITIES } from '@/lib/data/seo-pages-data'
+import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 
 export const metadata: Metadata = {
-  title: 'Profissionais de construção em Portugal | Vitfix',
+  // Titre sans marque : le template de app/pt/layout.tsx l'ajoute (« … | VITFIX »), phase 1 SEO PT, point 1.4.
+  title: 'Profissionais de construção verificados em Portugal',
   description:
-    'Encontre profissionais verificados em Marco de Canaveses, Penafiel, Amarante, Porto e região do Tâmega e Sousa. Canalizador, eletricista, pintor — orçamento grátis 24/7.',
+    'Profissionais verificados em 22 concelhos do Porto, Braga e Aveiro: canalizador, eletricista, pintor, faz-tudo. Orçamento grátis pelo site ou WhatsApp.',
   // L'objet alternates de la page remplace celui de app/pt/layout.tsx (Next ne fusionne pas ses clés) : la
-  // canonical seule effaçait les hreflang. Les doublons constatés autrefois venaient des balises écrites en dur
-  // dans app/layout.tsx, retirées.
+  // canonical seule effaçait les hreflang. x-default sur /fr/ (locale par défaut du middleware, 200) et non
+  // sur /, qui redirige en 302 (phase 1 SEO PT, point 1.5).
   alternates: {
     canonical: 'https://vitfix.io/pt/',
     languages: {
@@ -30,45 +26,21 @@ export const metadata: Metadata = {
       en: 'https://vitfix.io/en/',
       nl: 'https://vitfix.io/nl/',
       es: 'https://vitfix.io/es/',
-      'x-default': 'https://vitfix.io/',
+      'x-default': 'https://vitfix.io/fr/',
     },
   },
 }
 
 const HOME_URL = 'https://vitfix.io/pt/'
 
-// Coordonnées Porto (centre-ville). Source : seo-pages-data.ts CITIES[porto].
-const PORTO_LAT = 41.1579
-const PORTO_LNG = -8.6291
-
-const ptHomeSchema = buildSchemaGraph(
-  buildBusinessSchema({
-    locale: 'pt',
-    city: {
-      name: 'Porto',
-      postalCode: '4000-001',
-      lat: PORTO_LAT,
-      lng: PORTO_LNG,
-    },
-    description:
-      'Plataforma de profissionais verificados para obras e reparações em Porto e na região do Tâmega e Sousa. Canalizador, eletricista, pintor, faz-tudo. Orçamento grátis em 24h.',
-    serviceTypes: [
-      'Canalizador',
-      'Eletricista',
-      'Pintor',
-      'Pladur e Tetos Falsos',
-      'Obras e Remodelação',
-      'Faz Tudo',
-      'Serralheiro',
-      'Telhador',
-      'Vidraceiro',
-      'Impermeabilização',
-      'Isolamento Térmico',
-      'Desentupimento',
-    ],
-  }),
-  buildBreadcrumbSchema([{ name: 'Início', url: HOME_URL }]),
+const ptHomeSchema = grafo(
+  noWebPage({ url: HOME_URL, nome: 'Profissionais de construção em Portugal' }),
+  noFilAriane([{ name: 'Início', url: HOME_URL }]),
 )
+
+// Les 22 villes couvertes (source unique : lib/data/seo-pages-data.ts), passées au composant client
+// pour ne pas embarquer le fichier de données dans le bundle navigateur.
+const cidadesPt = CITIES.map(c => ({ name: c.name, slug: c.slug, population: c.population }))
 
 export default function PtHomePage() {
   return (
@@ -77,7 +49,7 @@ export default function PtHomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(ptHomeSchema) }}
       />
-      <HomePage />
+      <HomePage cidadesPt={cidadesPt} />
     </>
   )
 }

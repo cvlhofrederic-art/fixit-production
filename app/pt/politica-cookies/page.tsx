@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
 
 export const metadata: Metadata = {
-  title: 'Política de Cookies | Vitfix',
+  title: 'Política de cookies',
   robots: { index: false, follow: true },
   alternates: { canonical: 'https://vitfix.io/pt/politica-cookies/' },
 }

@@ -16,8 +16,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const isPt = locale === 'pt'
 
   return isPt ? {
-    title: 'Avaliações de clientes | Vitfix',
-    description: 'Reserve um profissional verificado VITFIX e seja convidado a partilhar a sua avaliação após a intervenção. Em breve, integração Trustpilot.',
+    // Phase 1 SEO PT : marque une fois (template du layout).
+    title: 'Avaliações de clientes após cada intervenção',
+    description: 'Reserve um profissional verificado VITFIX e partilhe a sua avaliação após a intervenção. Nenhum testemunho fictício, nenhuma nota inventada.',
     openGraph: {
       title: 'Avaliações de clientes | Vitfix',
       description: 'Reserve um profissional verificado e partilhe a sua experiência após a intervenção.',

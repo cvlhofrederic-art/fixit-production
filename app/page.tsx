@@ -15,7 +15,12 @@ import s from './landing-v2.module.css'
 const SERVICE_KEYS = FEATURED_CATEGORIES.map(c => ({ icon: c.icon, key: c.i18nKey, slug: c.slug }))
 const SERVICE_KEYS_EXTRA = EXTRA_CATEGORIES.map(c => ({ icon: c.icon, key: c.i18nKey, slug: c.slug }))
 
-export default function HomePage() {
+interface HomePageProps {
+  /** Villes PT couvertes (passées par app/pt/page.tsx depuis lib/data/seo-pages-data.ts). */
+  cidadesPt?: { name: string; slug: string; population: number }[]
+}
+
+export default function HomePage({ cidadesPt = [] }: HomePageProps) {
   const router = useRouter()
   const { t } = useTranslation()
   const locale = useLocale()
@@ -72,7 +77,7 @@ export default function HomePage() {
   const tariffsPath = `${localePrefix}/pro/tarifs/`
   const consumerPricingPath = `${localePrefix}/pro/tarifs/`
   const loginPath = `${localePrefix}/auth/login/`
-  const contactPath = `${localePrefix}/contact/`
+  const contactPath = locale === 'pt' ? '/pt/contacto/' : '/fr/contact/'
   const proFaqPath = `${localePrefix}/pro/faq/`
   const privacyPath = locale === 'pt' ? '/pt/privacidade/' : '/fr/confidentialite/'
 
@@ -212,7 +217,7 @@ export default function HomePage() {
       <header>
         <nav className={s.nav}>
           <div className={s.navInner}>
-            <Link href="/" className={s.navLogo}>
+            <Link href={`${localePrefix}/`} className={s.navLogo}>
               <span className={s.logoText}>
                 <span className={s.logoVit}>VIT</span><span className={s.logoFix}>FIX</span>
               </span>
@@ -701,23 +706,12 @@ export default function HomePage() {
               Disponível nestas cidades
             </h2>
             <p style={{ color: '#6b7280', textAlign: 'center', marginBottom: '2rem' }}>
-              Profissionais verificados em toda a região do Porto e Tâmega e Sousa
+              Profissionais verificados em {cidadesPt.length} concelhos dos distritos do Porto, Braga e Aveiro
             </p>
+            {/* Phase 1 SEO PT (point 1.8) : les 22 villes couvertes viennent de lib/data/seo-pages-data.ts
+                (plus 12 villes codées en dur) et l'accueil lie le hub /pt/cidade/. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>
-              {[
-                { name: 'Marco de Canaveses', slug: 'marco-de-canaveses', pop: '53450' },
-                { name: 'Penafiel', slug: 'penafiel', pop: '72265' },
-                { name: 'Amarante', slug: 'amarante', pop: '56264' },
-                { name: 'Baião', slug: 'baiao', pop: '20522' },
-                { name: 'Felgueiras', slug: 'felgueiras', pop: '58065' },
-                { name: 'Lousada', slug: 'lousada', pop: '47387' },
-                { name: 'Paços de Ferreira', slug: 'pacos-de-ferreira', pop: '56340' },
-                { name: 'Paredes', slug: 'paredes', pop: '86854' },
-                { name: 'Porto', slug: 'porto', pop: '231800' },
-                { name: 'Vila Nova de Gaia', slug: 'vila-nova-de-gaia', pop: '302296' },
-                { name: 'Braga', slug: 'braga', pop: '193324' },
-                { name: 'Maia', slug: 'maia', pop: '135306' },
-              ].map(city => (
+              {cidadesPt.map(city => (
                 <Link
                   key={city.slug}
                   href={`/pt/cidade/${city.slug}/`}
@@ -725,11 +719,16 @@ export default function HomePage() {
                 >
                   <span className="font-display" style={{ fontWeight: 700, color: '#1a1a1a', display: 'block' }}>{city.name}</span>
                   <span style={{ fontSize: '0.8rem', color: '#6b7280', display: 'block', marginTop: '0.25rem' }}>
-                    {parseInt(city.pop).toLocaleString('pt-PT')} hab.
+                    {city.population.toLocaleString('pt-PT')} hab.
                   </span>
                 </Link>
               ))}
             </div>
+            <p style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+              <Link href="/pt/cidade/" style={{ color: '#1a1a1a', fontWeight: 600 }}>
+                Ver todas as cidades e os serviços disponíveis →
+              </Link>
+            </p>
           </div>
         </section>
       )}

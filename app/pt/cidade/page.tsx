@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CITIES, SERVICES, type CityData } from '@/lib/data/seo-pages-data'
 
+// Phase 1 SEO PT : marque une fois (template du layout), faits réels (22 concelhos, 3 distritos).
 export const metadata: Metadata = {
-  title: 'Cidades VITFIX : Profissionais verificados em Portugal continental',
-  description: 'Encontre profissionais verificados na sua cidade. Eletricista, canalizador, pintor, pladur. Cobertura nos distritos do Porto, Braga e Aveiro. Orçamento grátis.',
+  title: `Cidades: ${CITIES.length} concelhos do Porto, Braga e Aveiro`,
+  description: `Escolha a sua cidade entre ${CITIES.length} concelhos do Porto, Braga e Aveiro e veja os ${SERVICES.length} serviços: eletricista, canalizador, pintor, pladur. Orçamento grátis.`,
   openGraph: {
     title: 'Cidades VITFIX : Profissionais na Sua Zona',
     description: 'Serviços para casa nos distritos do Porto, Braga e Aveiro.',
@@ -18,10 +19,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/pt/cidade/',
-    languages: {
-      'pt-PT': 'https://vitfix.io/pt/cidade/',
-      'x-default': 'https://vitfix.io/pt/cidade/',
-    },
   },
 }
 

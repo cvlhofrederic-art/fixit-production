@@ -4,25 +4,27 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
-import { buildBreadcrumbSchema } from '@/lib/schemas'
+import { tituloCidade, descricaoCidade } from '@/lib/seo/pt-meta'
+import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 import { CitySpecialtySection } from '@/components/seo/CitySpecialtySection'
 import { CityChallengesSection } from '@/components/seo/CityChallengesSection'
 import { CityLandmarksSection } from '@/components/seo/CityLandmarksSection'
 import { NotableFreguesiasSection } from '@/components/seo/NotableFreguesiasSection'
 
-// ── Generate 8 static city pages ──
+// ── Pages statiques : 22 villes (lib/data/seo-pages-data.ts) ──
 export function generateStaticParams() {
   return CITIES.map(c => ({ slug: c.slug }))
 }
 
-// ── Dynamic SEO metadata ──
+// ── Métadonnées (phase 1 SEO PT) : marque une fois, description propre à la ville, pas
+// d'alternate hreflang (aucune page FR équivalente).
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const city = CITIES.find(c => c.slug === slug)
   if (!city) return {}
 
-  const title = `Serviços para Casa em ${city.name}, Eletricista, Canalizador, Pintor | VITFIX`
-  const description = `Encontre profissionais verificados em ${city.name}: eletricista, canalizador, pintor e pladur. Orçamento grátis. Intervenção rápida em ${city.name} e freguesias.`
+  const title = tituloCidade(city)
+  const description = descricaoCidade(city, SERVICES.length)
 
   return {
     title,
@@ -33,7 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'pt' }),
+      images: ogImageMeta({ title, locale: 'pt' }),
     },
     twitter: {
       card: 'summary_large_image',
@@ -42,11 +44,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     alternates: {
       canonical: `https://vitfix.io/pt/cidade/${slug}/`,
-      languages: {
-        'pt-PT': `https://vitfix.io/pt/cidade/${slug}/`,
-        'fr-FR': 'https://vitfix.io/fr/',
-        'x-default': 'https://vitfix.io/',
-      },
     },
   }
 }
@@ -61,35 +58,17 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
     .map(ns => CITIES.find(c => c.slug === ns))
     .filter((c): c is typeof CITIES[number] => !!c)
 
-  // Schema.org
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'LocalBusiness',
-        name: `VITFIX : Serviços para Casa em ${city.name}`,
-        description: `Profissionais verificados para eletricidade, canalização, pintura e pladur em ${city.name}.`,
-        url: `https://vitfix.io/pt/cidade/${slug}/`,
-        areaServed: {
-          '@type': 'City',
-          name: city.name,
-          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
-        },
-        image: 'https://vitfix.io/logo.png',
-        telephone: PHONE_PT,
-        geo: {
-          '@type': 'GeoCoordinates',
-          latitude: city.lat,
-          longitude: city.lng,
-        },
-      },
-      buildBreadcrumbSchema([
-        { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
-        { name: 'Cidades', url: 'https://vitfix.io/pt/cidade/' },
-        { name: city.name, url: `https://vitfix.io/pt/cidade/${slug}/` },
-      ]),
-    ],
-  }
+  // JSON-LD (phase 1 SEO PT) : WebPage + fil d'Ariane. Plus de LocalBusiness par ville
+  // (aucun établissement dans la ville) : l'entité unique est le nœud #business du layout.
+  const urlPagina = `https://vitfix.io/pt/cidade/${slug}/`
+  const jsonLd = grafo(
+    noWebPage({ url: urlPagina, nome: `Serviços para casa em ${city.name}`, descricao: descricaoCidade(city, SERVICES.length) }),
+    noFilAriane([
+      { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+      { name: 'Cidades', url: 'https://vitfix.io/pt/cidade/' },
+      { name: city.name, url: urlPagina },
+    ]),
+  )
 
   return (
     <div className="min-h-screen bg-warm-gray">

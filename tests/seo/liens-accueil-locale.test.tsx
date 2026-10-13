@@ -7,7 +7,8 @@
 // qui coûtent un 308 permanent ou un 302 du middleware (locale prise dans le
 // cookie, puis le pays, puis Accept-Language) : un robot sans cookie qui
 // suivait « Contacto » ou « Privacidade » depuis /pt/ arrivait en FR.
-// Seul le logo garde href="/" (racine x-default).
+// Phase 1 SEO PT : le logo vise aussi l'accueil de la locale (/ répond 302) et le contact PT
+// est /pt/contacto/.
 
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -62,9 +63,9 @@ describe('accueil : liens internes vers les URL finales de la locale', () => {
     routeur.push.mockClear()
   })
 
-  it.each(['fr', 'pt'] as const)('accueil %s : aucun lien vers un ancien chemin racine (hors logo)', (locale) => {
+  it.each(['fr', 'pt'] as const)('accueil %s : aucun lien vers un ancien chemin racine, logo compris', (locale) => {
     const { container } = rendreAccueil(locale)
-    const horsLocale = liensInternes(container).filter((href) => href !== '/' && !href.startsWith(`/${locale}/`))
+    const horsLocale = liensInternes(container).filter((href) => !href.startsWith(`/${locale}/`))
     expect(horsLocale).toEqual([])
   })
 
@@ -90,9 +91,10 @@ describe('accueil : liens internes vers les URL finales de la locale', () => {
       '/pt/pro/register/',
       '/pt/pro/tarifs/',
       '/pt/auth/login/',
-      '/pt/contact/',
+      '/pt/contacto/',
       '/pt/pro/faq/',
       '/pt/privacidade/',
+      '/pt/cidade/',
     ]))
     // « Privacidade » ne passe plus par /confidentialite/ (3 sauts jusqu'à /pt/privacidade/)
     expect(hrefs.some((href) => href.includes('confidentialite'))).toBe(false)

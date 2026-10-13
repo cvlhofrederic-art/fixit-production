@@ -256,7 +256,25 @@ describe('aboutissement des redirections', () => {
     // « /mês/ » ne se déclenchait jamais : navigateurs et robots envoient /m%C3%AAs/, comparé tel quel à la regex.
     const nonAscii = (await redirections()).map(({ source }) => source).filter((source) => /[^\x20-\x7e]/.test(source))
     expect(nonAscii).toEqual([])
-    expect(resoudre(await redirections(), '/m%C3%AAs/')).toBe('/pt/')
+  })
+
+  it("/m%C3%AAs/ ne redirige plus vers /pt/ (phase 1 SEO PT : un chemin inconnu finit en 404, pas sur l'accueil)", async () => {
+    expect(resoudre(await redirections(), '/m%C3%AAs/')).toBeNull()
+  })
+
+  // Phase 1 SEO PT, points 1.2 et 1.8 : anciens slugs du blog vers l'article équivalent, ancien contact vers /pt/contacto/.
+  it.each([
+    ['/pt/blog/humidade-paredes-solucoes/', '/pt/blog/humidade-parede-causas-reparacao/'],
+    ['/pt/blog/como-desentupir-canos/', '/pt/blog/cano-entupido-como-resolver/'],
+    ['/pt/blog/sinais-fuga-agua/', '/pt/blog/fuga-agua-como-agir/'],
+    ['/pt/blog/iva-6-remodelacao-portugal/', '/pt/blog/iva-6-obras-remodelacao-portugal/'],
+    ['/pt/contact/', '/pt/contacto/'],
+  ])('%s redirige (308) vers %s', async (chemin, attendu) => {
+    expect(resoudre(await redirections(), chemin)).toBe(attendu)
+  })
+
+  it("aucune redirection ne vise plus l'index /pt/blog/ (soft 404) : les articles supprimés répondent 410", async () => {
+    expect((await redirections()).filter(({ destination }) => destination === '/pt/blog/')).toEqual([])
   })
 })
 

@@ -1,5 +1,7 @@
 # SEO Audit Phase 1 — Structure & URLs (Pages PT)
 
+> **Périmé (13/10/2026).** Ce document compte 24 services et 12 villes et conclut « contenu unique par service x ville : PASS » ; l'état réel (21 métiers x 22 villes, 910 URL « explorées, actuellement non indexées », 4 à 9 % de texte propre par page) est dans `docs/seo/pt-inventaire.md`, et les changements dans `docs/seo/journal-pt.md`. Conservé pour l'historique.
+
 **Date :** 06 avril 2026
 **Périmètre :** Pages en portugais (`/pt/`)
 **Total pages indexées :** 1 358

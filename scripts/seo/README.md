@@ -8,7 +8,7 @@ Livré en phase 0 du plan de réindexation des pages `/pt/` (instructions du 13/
 node scripts/seo/pt-audit/index.mjs --git
 ```
 
-Entrée : les sitemaps en ligne (`/sitemap.xml` et ses enfants, `/pt/sitemap.xml`), plus `/pt/cidade/` et `/pt/contact/` (indexables hors sitemap). `--source csv` prend à la place la liste de `data/seo/pt_sitemap_statut_complet.csv` (base du 13/10/2026).
+Entrée : les sitemaps en ligne (`/sitemap.xml` et ses enfants, dont les 6 fichiers `/pt/sitemap-*.xml` depuis la phase 1 ; `/pt/sitemap.xml` est l'index PT de ces mêmes fichiers et ne contient plus d'URL), plus `/pt/cidade/` et `/pt/contacto/` (`--extras`, sans effet depuis qu'elles sont dans le sitemap). `--source csv` prend à la place la liste de `data/seo/pt_sitemap_statut_complet.csv` (base du 13/10/2026, 1503 URL : depuis la phase 1 le sitemap en compte 1501, sans les 4 pages juridiques, avec `/pt/cidade/` et `/pt/contacto/`).
 
 Sortie dans `reports/seo/` :
 
@@ -33,6 +33,11 @@ node scripts/seo/pt-tests.mjs --mode controle
 
 # Réutiliser un audit déjà calculé, limiter aux tests voulus
 node scripts/seo/pt-tests.mjs --audit reports/seo/pt-audit-2026-10-13.json --tests T1,T2,T6
+
+# Contrôle avant fusion sur un build local (npm run build && npm run start) : les pages et les
+# sitemaps émettent des URL absolues https://vitfix.io, l'outillage ne garde que le chemin et
+# lit tout sur --base. Écrire le rapport ailleurs que dans reports/seo/ (rapports de production).
+node scripts/seo/pt-tests.mjs --mode controle --base http://localhost:3000 --tests T1,T2,T3,T4,T5,T6,T9,T11,T12 --out /tmp/seo
 ```
 
 | Test | Vérifie | Données |

@@ -45,10 +45,14 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 - Commits : préfixes `feat|fix|ai|voice|perf` + scope `(artisan|btp|shared)`. Release Please.
 
 ## SEO (règles techniques — FR et PT)
-- Schema : `HomeAndConstructionBusiness` + `AggregateRating` + `BreadcrumbList` + `FAQPage`.
-- Title 50-60 caractères · Description 150-160 · un seul H1 · canonical vers vitfix.io.
+- Schema FR : `HomeAndConstructionBusiness` + `AggregateRating` + `BreadcrumbList` + `FAQPage`.
+- Schema PT (phase 1 du plan SEO PT, 13/10/2026) : une seule entité `#business` (`app/layout.tsx`, adresse réelle dans `lib/seo/entite-pt.ts`) ; page métier x ville = `Service` (provider `#business`, `areaServed` = la ville) + `BreadcrumbList` (`lib/seo/pt-schemas.ts`). Jamais de `LocalBusiness` par ville, de `FAQPage`, de `HowTo`, d'avis auto-attribués ni d'`Offer` sans prix réel visible.
+- Title : la marque une seule fois. PT : titre de page sans marque, ajoutée par le template `%s | VITFIX` de `app/pt/layout.tsx`, 65 caractères max marque comprise (`lib/seo/pt-meta.ts`). FR : 50-60 caractères. Description 120-155 (PT) · 150-160 (FR) · un seul H1 · canonical vers vitfix.io.
+- hreflang PT : seulement vers une page FR réellement équivalente et réciproque ; `x-default` sur `/fr/…`, jamais sur `/` (302). Aucun hreflang sur la grille métier x ville.
+- Sitemaps PT : `/pt/sitemap-{servicos,urgencia,perto-de-mim,cidades,blog,paginas}.xml` (`lib/sitemap-pt-pages.ts`), index `/pt/sitemap.xml` ; une URL dans un seul fichier, `lastmod` réel (`lib/seo/pt-datas.ts`).
+- Plan de réindexation PT : `docs/seo/pt-inventaire.md`, journal `docs/seo/journal-pt.md`, tests `scripts/seo/pt-tests.mjs`. Gel A0 : aucune nouvelle page PT métier x ville avant la fin de la phase 3.
 - Vérifier l'existant avant de créer une page — jamais de duplicata.
-- Contexte marché PT (langue, villes, ton, schema `EmergencyService`) : `seo-portugal/CLAUDE.md`.
+- Contexte marché PT (langue, villes, ton) : `seo-portugal/CLAUDE.md`.
 
 ## Préférences, scope actif, bugs connus
 Non listés ici : portés par la mémoire persistante claude-mem (`MEMORY.md`, réinjectée au démarrage).

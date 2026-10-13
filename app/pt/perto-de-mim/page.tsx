@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout), faits réels (21 serviços, 22 concelhos).
 export const metadata: Metadata = {
-  title: 'Profissionais Perto de Mim : VITFIX | Tâmega e Sousa',
-  description: 'Encontre um eletricista, canalizador, pintor ou faz-tudo perto de si. Profissionais verificados em Marco de Canaveses, Penafiel, Amarante e toda a região.',
+  title: `Profissionais perto de mim: ${SERVICES.length} serviços em ${CITIES.length} concelhos`,
+  description: `Eletricista, canalizador, pintor ou faz-tudo perto de si: ${SERVICES.length} serviços em ${CITIES.length} concelhos do Porto, Braga e Aveiro. Orçamento grátis pelo site ou WhatsApp.`,
   openGraph: {
     title: 'Profissionais Perto de Mim : VITFIX',
     description: 'Encontre um profissional verificado perto de si na região do Tâmega e Sousa.',
