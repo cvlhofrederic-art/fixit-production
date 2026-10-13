@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { requete, suivre, enParallele } from './pt-audit/lib/http.mjs'
+import { requete, suivre, enParallele, urlInterne } from './pt-audit/lib/http.mjs'
 import { analyserHtml, normaliserLien } from './pt-audit/lib/html.mjs'
 import { lireUrlset } from './pt-audit/lib/sitemaps.mjs'
 import { classer, VILLES, METIERS_PERTO } from './pt-audit/lib/classer.mjs'
@@ -68,7 +68,7 @@ function fabriquerVerificateurCibles(base, concurrence) {
   return async (chemins) => {
     const aFaire = [...new Set(chemins)].filter((c) => !cache.has(c))
     await enParallele(aFaire.map((c) => async () => {
-      const r = await requete(base + c, { lireCorps: false })
+      const r = await requete(urlInterne(base, c), { lireCorps: false })
       cache.set(c, { status: r.status, location: r.location })
     }), concurrence)
     return cache
@@ -166,7 +166,10 @@ async function principal() {
     for (const p of pagesHtml) for (const h of p.hreflang || []) { const c = normaliserLien(h.href, base) || h.href; if (!cibles.has(c)) cibles.set(c, null) }
     journal('T4 : lecture de ' + cibles.size + ' cibles hreflang')
     await enParallele([...cibles.keys()].map((c) => async () => {
-      const r = await requete(c.startsWith('http') ? c : base + c)
+      // Une alternate vers un autre hôte n'est pas suivie : elle est comptée comme injoignable.
+      let url
+      try { url = urlInterne(base, c.startsWith('http') ? new URL(c).pathname : c) } catch { cibles.set(c, { status: 0, hreflang: [] }); return }
+      const r = await requete(url)
       cibles.set(c, { status: r.status, hreflang: r.status === 200 ? analyserHtml(r.body, { base }).hreflang.map((h) => normaliserLien(h.href, base) || h.href) : [] })
     }), o.concurrence)
     for (const p of pagesHtml) {
@@ -271,8 +274,8 @@ async function principal() {
       const sources = new Set(lignes.map((l) => l.source))
       const gscRef = existsSync(absolu('data/seo/pt_sitemap_statut_complet.csv')) ? new Map(lireCsv(readFileSync(absolu('data/seo/pt_sitemap_statut_complet.csv'), 'utf8')).map((l) => [l.chemin, l])) : new Map()
       const res = await enParallele(lignes.map((l) => async () => {
-        const r = await requete(base + l.source, { lireCorps: false })
-        const d = await suivre(base + l.destination)
+        const r = await requete(urlInterne(base, l.source), { lireCorps: false })
+        const d = await suivre(urlInterne(base, l.destination))
         const html = d.status === 200 ? analyserHtml(d.reponse.body, { base }) : null
         return { l, r, d, html }
       }), o.concurrence)
@@ -303,7 +306,7 @@ async function principal() {
       const choisies = locs.filter((_, i) => i % pas === 0).slice(0, 30)
       const mesures = {}
       await enParallele(choisies.map((c) => async () => {
-        const r = await requete(base + c)
+        const r = await requete(urlInterne(base, c))
         const a = r.status === 200 ? analyserHtml(r.body, { base }) : null
         mesures[c] = { status: r.status, canonical: a ? a.canonical : '', title: a ? a.title : '', hreflang: a ? a.hreflang.map((h) => h.lang + '=' + h.href).sort() : [] }
       }), o.concurrence)
@@ -334,7 +337,7 @@ async function principal() {
       const nomsVilles = VILLES.map((v) => v.replace(/-/g, ' '))
       await enParallele(cibles.map((p) => async () => {
         const regle = porte[p.groupe]
-        const r = await requete(base + p.chemin)
+        const r = await requete(urlInterne(base, p.chemin))
         const html = r.body || ''
         for (const s of regle.sections || []) if (!new RegExp('id\\s*=\\s*["\']' + s + '["\']').test(html)) details.push(p.chemin + ' : section #' + s + ' absente')
         const propre = p.groupe === 'cidade' ? p.propre_modele : p.propre_modele

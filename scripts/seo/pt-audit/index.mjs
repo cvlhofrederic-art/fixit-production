@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { requete, enParallele } from './lib/http.mjs'
+import { requete, enParallele, urlInterne } from './lib/http.mjs'
 import { analyserHtml } from './lib/html.mjs'
 import { chargerSitemaps, urlsPt } from './lib/sitemaps.mjs'
 import { classer, modeleMesure, VILLES } from './lib/classer.mjs'
@@ -117,10 +117,11 @@ export async function auditer(options, journal = () => {}) {
   journal('Téléchargement de ' + chemins.length + ' pages (concurrence ' + o.concurrence + ')')
   const pages = new Map()
   const taches = chemins.map((chemin) => async () => {
-    const r = await requete(base + chemin)
+    const url = urlInterne(base, chemin)
+    const r = await requete(url)
     const page = {
       chemin,
-      url: base + chemin,
+      url,
       statut_http: r.status,
       url_finale: r.status >= 300 && r.status < 400 ? r.location : (r.status ? base + chemin : ''),
       content_type: r.headers['content-type'] || '',

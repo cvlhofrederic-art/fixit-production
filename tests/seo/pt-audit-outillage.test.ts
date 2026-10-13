@@ -2,6 +2,7 @@
 // des URL, robots.txt et CSV. Aucun accès réseau.
 import { describe, it, expect } from 'vitest'
 import { analyserHtml, mots, normaliserLien } from '../../scripts/seo/pt-audit/lib/html.mjs'
+import { urlInterne } from '../../scripts/seo/pt-audit/lib/http.mjs'
 import { mesurerGroupe, chevauchement, sequences } from '../../scripts/seo/pt-audit/lib/mesures.mjs'
 import { classer, modeleMesure, VILLES, METIERS } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 import { lireRobots, autorise } from '../../scripts/seo/pt-audit/lib/robots.mjs'
@@ -81,6 +82,20 @@ describe('analyserHtml', () => {
   })
   it('mots : alphanumériques en minuscules, accents conservés', () => {
     expect(mots('Fuga de Água, 24h/7 — ÁGUA!')).toEqual(['fuga', 'de', 'água', '24h', '7', 'água'])
+  })
+  it('ignore les balises script fermées avec un espace et lit le JSON-LD quand même', () => {
+    const b = analyserHtml('<html><head><script type="application/ld+json">{"@type":"WebPage"}</script ></head><body><main><p>texte</p><script>var x = "pas du texte"</script ></main></body></html>')
+    expect(b.jsonld.types).toEqual(['WebPage'])
+    expect(b.texte_main).toBe('texte')
+  })
+})
+
+describe('urlInterne', () => {
+  it('accepte un chemin absolu du site et refuse tout autre hôte', () => {
+    expect(urlInterne('https://vitfix.io', '/pt/servicos/')).toBe('https://vitfix.io/pt/servicos/')
+    expect(() => urlInterne('https://vitfix.io', 'https://autre.site/pt/')).toThrow()
+    expect(() => urlInterne('https://vitfix.io', '//autre.site/pt/')).toThrow()
+    expect(() => urlInterne('https://vitfix.io', 'pt/servicos/')).toThrow()
   })
 })
 

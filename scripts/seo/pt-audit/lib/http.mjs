@@ -7,6 +7,21 @@ export const USER_AGENT = 'Mozilla/5.0 (compatible; vitfix-seo-audit/1.0; +https
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
+ * URL interne au site audité : `chemin` vient des sitemaps, du CSV ou de liens trouvés dans les pages,
+ * donc de données non maîtrisées. On n'accepte qu'un chemin absolu sur l'origine de `base`
+ * (jamais un autre hôte, un protocole ou un chemin `//hote`), sinon on lève une erreur.
+ */
+export function urlInterne(base, chemin) {
+  const origine = new URL(base).origin
+  if (typeof chemin !== 'string' || !chemin.startsWith('/') || chemin.startsWith('//')) {
+    throw new Error('chemin interne attendu (commençant par /) : ' + String(chemin))
+  }
+  const u = new URL(chemin, origine)
+  if (u.origin !== origine) throw new Error('URL hors du site audité : ' + chemin)
+  return u.toString()
+}
+
+/**
  * Requête sans suivre les redirections. Renvoie { status, headers, body, url, location }.
  * `body` n'est lu que si `lireCorps` est vrai (jamais pour HEAD).
  */
