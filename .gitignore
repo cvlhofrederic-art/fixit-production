@@ -71,3 +71,6 @@ scripts/gen-*.cjs
 *.bak
 * 2.*
 * 3.*
+
+# Audit SEO PT : le JSON complet est volumineux, seuls le CSV et le résumé sont versionnés
+reports/seo/*.json
