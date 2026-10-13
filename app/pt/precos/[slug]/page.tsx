@@ -55,7 +55,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Acessibilidade das canalizações (paredes, pavimentos)',
       'Deslocação do profissional até ao local',
     ],
-    regionContext: 'Na região do Tâmega e Sousa, os preços de canalização são geralmente 15-25% inferiores aos praticados no centro do Porto. Um desentupimento simples em Marco de Canaveses custa em média 60-120€, enquanto no Porto pode ultrapassar os 150€. A deslocação e diagnóstico mantém-se acessível entre 30 e 50€ na maioria dos casos.',
+    regionContext: 'Um desentupimento simples em Marco de Canaveses custa em média 60-120€, enquanto no Porto pode ultrapassar os 150€. A deslocação e diagnóstico mantém-se acessível entre 30 e 50€ na maioria dos casos.',
     faqs: [
       {
         question: 'Quanto custa chamar um canalizador para uma urgência?',
@@ -110,7 +110,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Conformidade com normas de segurança em vigor',
       'Acesso ao quadro elétrico e canalizações técnicas',
     ],
-    regionContext: 'Na região do Tâmega e Sousa, os preços de eletricidade são competitivos comparados com o Porto. A substituição de um quadro elétrico completo custa entre 300 e 600€, valor que pode ser 20-30% superior na zona metropolitana do Porto. A certificação elétrica, obrigatória para venda ou arrendamento de imóveis, situa-se entre 150 e 300€.',
+    regionContext: 'Na região do Tâmega e Sousa, os preços de eletricidade são competitivos comparados com o Porto. A certificação elétrica, obrigatória para venda ou arrendamento de imóveis, situa-se entre 150 e 300€.',
     faqs: [
       {
         question: 'Quanto custa trocar o quadro elétrico de uma casa?',
@@ -165,7 +165,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Trabalho em altura (andaimes para fachadas)',
       'Tratamentos adicionais (anti-humidade, impermeabilização)',
     ],
-    regionContext: 'Na região do Tâmega e Sousa, a pintura interior custa em média 5-10€/m\u00B2, valor cerca de 20% inferior ao praticado no Porto. A pintura completa de um apartamento T2 fica entre 800 e 1500€, incluindo preparação de superfícies e duas demãos de tinta. Para fachadas exteriores, o custo é superior (8-15€/m\u00B2) devido à necessidade de andaimes e tintas especiais.',
+    regionContext: 'A pintura completa de um apartamento T2 fica entre 800 e 1500€, incluindo preparação de superfícies e duas demãos de tinta. Para fachadas exteriores, o custo é superior (8-15€/m\u00B2) devido à necessidade de andaimes e tintas especiais.',
     faqs: [
       {
         question: 'Quanto custa pintar um apartamento T2?',

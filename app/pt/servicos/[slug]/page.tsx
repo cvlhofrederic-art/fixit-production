@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
+import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
+import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
 import { PHONE_PT } from '@/lib/constants'
 import { tituloServico, descricaoServico } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
@@ -65,7 +66,8 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const preco = precoPara(service.slug)
   const metodo = metodoPara(service.slug)
   const avis = avisPara(service.slug, city.slug)
-  const otherServices = SERVICES.filter(s => s.slug !== service.slug)
+  const ligados = METIERS_LIGADOS[service.slug] ?? []
+  const otherServices = ligados.map(slug => SERVICES.find(s => s.slug === slug)).filter((s): s is ServiceData => Boolean(s))
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
   // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business, app/layout.tsx)
@@ -268,6 +270,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                   Precisa de {service.name.toLowerCase()} urgente em {city.name}?
                 </h3>
                 <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">{replaceCity(service.urgencyText)}</p>
+                <p className="mt-2 text-[0.85rem]"><Link href="/pt/urgencia/" className="text-yellow hover:underline">Todos os serviços de urgência</Link></p>
                 {service.urgency.whenToCall.length > 0 && (
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg text-[0.9rem]">
                     <div>
@@ -320,13 +323,26 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
             Zona de atuação, {city.name}
           </h2>
+          {/* Phase 3 SEO PT : freguesias en prose (plus de liste en bloc, interdit 3.2 du plan) ; phase 4 : liens vers la page
+              ville et le hub métier (gabarit 3.2 « Liens »). */}
           <p className="text-text-muted mb-6">
-            Os nossos {pluralizar(service.name)} atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
+            Os nossos {pluralizar(service.name)} atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes), nas freguesias de {city.freguesias.slice(0, 5).join(', ')}{city.freguesias.length > 5 ? ', entre outras' : ''}.
           </p>
-          <div className="flex flex-wrap gap-2 mb-12">
-            {city.freguesias.map(f => (
-              <span key={f} className="px-3 py-1.5 bg-warm-gray rounded-full text-sm text-dark/70 border border-border/30">{f}</span>
-            ))}
+          <div className="flex flex-wrap gap-3 mb-12">
+            <Link
+              href={`/pt/cidade/${city.slug}/`}
+              className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
+            >
+              <span className="text-xl">📍</span>
+              <span className="font-semibold text-dark group-hover:text-yellow transition-colors">Todos os serviços em {city.name}</span>
+            </Link>
+            <Link
+              href={`/pt/perto-de-mim/${service.slug}/`}
+              className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
+            >
+              <span className="text-xl">{service.icon}</span>
+              <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{service.name} noutros concelhos</span>
+            </Link>
           </div>
 
           {/* Nearby cities (internal links - critical for SEO) */}
@@ -356,8 +372,9 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
       {/* ── OTHER SERVICES IN THIS CITY ── */}
       <section className="py-14 md:py-18">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Phase 4 SEO PT : 2 à 4 métiers réellement liés (lib/data/pt-metiers-ligados.ts), pas les 20 autres. */}
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6">
-            Outros serviços em {city.name}
+            Serviços relacionados em {city.name}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {otherServices.map(os => (

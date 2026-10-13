@@ -56,11 +56,13 @@ export default function MapaDoSitePage() {
           { href: '/pt/condominio/', label: 'Condomínios' },
           { href: '/pt/simulador-orcamento/', label: 'Simulador de orçamento' },
           { href: '/pt/precos/', label: 'Preços' },
+          { href: '/pt/precos/canalizador/', label: 'Preços de canalizador' },
+          { href: '/pt/precos/eletricista/', label: 'Preços de eletricista' },
+          { href: '/pt/precos/pintor/', label: 'Preços de pintor' },
+          { href: '/pt/mercados/publicar/', label: 'Publicar pedido de orçamento' },
           { href: '/pt/especialidades/', label: 'Especialidades' },
           { href: '/pt/avaliacoes/', label: 'Avaliações' },
-          { href: '/pt/avisos-legais/', label: 'Avisos legais' },
-          { href: '/pt/termos/', label: 'Termos e condições' },
-          { href: '/pt/privacidade/', label: 'Privacidade' },
+          // Pages juridiques (noindex) : liées depuis le pied de page, pas depuis le plan (phase 4 SEO PT).
         ]}
         servicesByCityTitle="Serviços por cidade em Portugal"
         servicesByCityCountSuffix=" cidades"

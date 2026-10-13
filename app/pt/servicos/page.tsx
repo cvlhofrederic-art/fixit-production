@@ -83,25 +83,16 @@ export default function ServicosHubPage() {
             </div>
             <p className="text-text-muted mb-8 max-w-2xl">{service.heroSubtitle.replace(/\{city\}/g, 'a sua zona')}</p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {CITIES.map(city => (
-                <Link
-                  key={city.slug}
-                  href={`/pt/servicos/${service.slug}-${city.slug}/`}
-                  className="flex items-center gap-3 p-4 bg-white rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
-                >
-                  <span className="text-lg">{service.icon}</span>
-                  <div>
-                    <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">
-                      {service.name} em {city.name}
-                    </span>
-                    <span className="block text-xs text-text-muted">
-                      {city.population.toLocaleString('pt-PT')} hab.
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            {/* Phase 4 SEO PT (plan 3.5) : le hub de section lie les 21 hubs métier, pas les 462 pages métier x ville. */}
+            <Link
+              href={`/pt/perto-de-mim/${service.slug}/`}
+              className="inline-flex items-center gap-3 p-4 bg-white rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
+            >
+              <span className="text-lg">{service.icon}</span>
+              <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">
+                {service.name}: escolher o concelho ({CITIES.length})
+              </span>
+            </Link>
           </div>
         </section>
       ))}

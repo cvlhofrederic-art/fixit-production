@@ -18,13 +18,21 @@ export const DATA_FASE_1 = '2026-10-13'
  */
 export const DATA_FASE_2 = '2026-10-13'
 
-// Pages statiques hors hubs de section et blog : inchangées depuis la phase 1. Les articles de blog
-// portent leur propre date (dateModified, sinon datePublished, lib/data/seo-pages-data.ts) ; `blog`
-// ne vaut que pour l'index /pt/blog/.
+/**
+ * Phase 3, lot 0, et phase 4 (maillage) : textes de méthode par métier sur les pages servicos et les
+ * hubs, liens de maillage (page ville, hub, métiers liés, villes voisines recalculées), freguesias
+ * en prose ; pages ville (liens voisins) ; pages statiques réécrites listées dans
+ * lib/sitemap-pt-pages.ts (PAGINAS_FASE_3). À aligner sur le jour de la mise en production.
+ */
+export const DATA_FASE_3 = '2026-10-14'
+
+// Les articles de blog portent leur propre date (dateModified, sinon datePublished,
+// lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date
+// par défaut des pages statiques, surchargée par page dans lib/sitemap-pt-pages.ts.
 export const DATAS_PT = {
-  servicos: DATA_FASE_2,
-  hubs: DATA_FASE_2,
-  cidades: DATA_FASE_2,
+  servicos: DATA_FASE_3,
+  hubs: DATA_FASE_3,
+  cidades: DATA_FASE_3,
   blog: DATA_FASE_1,
   paginas: DATA_FASE_1,
 } as const

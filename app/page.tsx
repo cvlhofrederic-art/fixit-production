@@ -15,6 +15,19 @@ import s from './landing-v2.module.css'
 const SERVICE_KEYS = FEATURED_CATEGORIES.map(c => ({ icon: c.icon, key: c.i18nKey, slug: c.slug }))
 const SERVICE_KEYS_EXTRA = EXTRA_CATEGORIES.map(c => ({ icon: c.icon, key: c.i18nKey, slug: c.slug }))
 
+// Phase 4 SEO PT : sur l'accueil PT, les cartes de services mènent aux hubs métier /pt/perto-de-mim/{metier}/
+// (pages indexables qui listent les 22 concelhos) au lieu de la recherche filtrée, interdite par robots.txt.
+// Catégorie sans métier PT équivalent : la recherche reste la cible. Rendu FR inchangé.
+const HUB_PT: Record<string, string> = {
+  plomberie: 'canalizador', electricite: 'eletricista', serrurerie: 'serralheiro', peinture: 'pintor',
+  maconnerie: 'pedreiro', menuiserie: 'carpinteiro', toiture: 'telhador', climatisation: 'ar-condicionado',
+  renovation: 'obras-remodelacao', vitrerie: 'vidraceiro', 'petits-travaux': 'faz-tudo', 'espaces-verts': 'jardineiro',
+  nettoyage: 'limpeza-espacos', carrelage: 'azulejador', 'nettoyage-copro': 'limpeza-condominio', plaquiste: 'pladur',
+  'store-banne': 'estores-portoes', debouchage: 'desentupimento', metallerie: 'serralheiro',
+}
+const hrefServicePt = (slug: string, searchPath: string, isPt: boolean) =>
+  isPt && HUB_PT[slug] ? `/pt/perto-de-mim/${HUB_PT[slug]}/` : `${searchPath}?category=${slug}`
+
 interface HomePageProps {
   /** Villes PT couvertes (passées par app/pt/page.tsx depuis lib/data/seo-pages-data.ts). */
   cidadesPt?: { name: string; slug: string; population: number }[]
@@ -437,7 +450,7 @@ export default function HomePage({ cidadesPt = [] }: HomePageProps) {
 
         <div className={`${s.servicesGrid} ${revealClass('services-grid')}`} data-reveal-id="services-grid">
           {SERVICE_KEYS.map(service => (
-            <Link key={service.slug} href={`${searchPath}?category=${service.slug}`} className={s.serviceCard}>
+            <Link key={service.slug} href={hrefServicePt(service.slug, searchPath, isPt)} className={s.serviceCard}>
               <span className={s.serviceIcon}>{service.icon}</span>
               <h4>{t(`services.${service.key}.title`)}</h4>
               <p>{t(`services.${service.key}.desc`)}</p>
@@ -449,7 +462,7 @@ export default function HomePage({ cidadesPt = [] }: HomePageProps) {
           <div className={s.extraServices}>
             <div className={s.servicesGrid}>
               {SERVICE_KEYS_EXTRA.map(service => (
-                <Link key={service.slug} href={`${searchPath}?category=${service.slug}`} className={s.serviceCard}>
+                <Link key={service.slug} href={hrefServicePt(service.slug, searchPath, isPt)} className={s.serviceCard}>
                   <span className={s.serviceIcon}>{service.icon}</span>
                   <h4>{t(`services.${service.key}.title`)}</h4>
                   <p>{t(`services.${service.key}.desc`)}</p>
@@ -773,6 +786,15 @@ export default function HomePage({ cidadesPt = [] }: HomePageProps) {
               <li><Link href={searchPath}>{isPt ? 'Encontrar um profissional' : 'Trouver un artisan'}</Link></li>
               <li><a href="#how">{isPt ? 'Como funciona' : 'Comment ça marche'}</a></li>
               <li><Link href={consumerPricingPath}>{isPt ? 'Preços' : 'Tarifs'}</Link></li>
+              {isPt && (
+                <>
+                  {/* Phase 4 SEO PT : hubs de section joignables depuis l'accueil (profondeur 1). */}
+                  <li><Link href="/pt/servicos/">Todos os serviços</Link></li>
+                  <li><Link href="/pt/urgencia/">Urgência</Link></li>
+                  <li><Link href="/pt/perto-de-mim/">Perto de mim</Link></li>
+                  <li><Link href="/pt/cidade/">Cidades cobertas</Link></li>
+                </>
+              )}
             </ul>
           </div>
           <div className={s.footerCol}>

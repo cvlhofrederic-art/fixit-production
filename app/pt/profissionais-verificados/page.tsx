@@ -52,59 +52,8 @@ const verificationSteps = [
   },
 ]
 
-const reviews = [
-  {
-    author: 'Maria João S.',
-    city: 'Marco de Canaveses',
-    service: 'Canalização',
-    rating: 5,
-    text: 'Profissional excelente! Chegou na hora combinada, explicou tudo claramente e resolveu o problema da canalização de forma impecável. Recomendo sem hesitar.',
-    date: 'Fevereiro 2026',
-  },
-  {
-    author: 'Paulo R.',
-    city: 'Penafiel',
-    service: 'Eletricidade',
-    rating: 5,
-    text: 'Muito satisfeito com o serviço. O eletricista veio verificar a instalação elétrica de casa nova, trabalho de qualidade e preço justo. O badge "verificado" dá mesmo confiança.',
-    date: 'Janeiro 2026',
-  },
-  {
-    author: 'Ana Luísa M.',
-    city: 'Amarante',
-    service: 'Pintura',
-    rating: 5,
-    text: 'Sala e cozinha pintadas em 2 dias. Acabamentos perfeitos, limpeza exemplar. Já recomendei o VITFIX a toda a família.',
-    date: 'Março 2026',
-  },
-  {
-    author: 'José A.',
-    city: 'Felgueiras',
-    service: 'Pladur',
-    rating: 4,
-    text: 'Bom trabalho no teto em pladur do escritório. Pequeno atraso no início mas o resultado final é muito bom. Profissional simpático e trabalhador.',
-    date: 'Janeiro 2026',
-  },
-  {
-    author: 'Sandra F.',
-    city: 'Lousada',
-    service: 'Canalização',
-    rating: 5,
-    text: 'Fuga de água urgente ao fim de semana, profissional disponível em 1 hora. Perfeito! Preço razoável e trabalho limpo. O VITFIX salvou-nos.',
-    date: 'Fevereiro 2026',
-  },
-  {
-    author: 'Rui C.',
-    city: 'Paços de Ferreira',
-    service: 'Eletricidade',
-    rating: 5,
-    text: 'Instalação de quadro elétrico novo. O eletricista explicou cada passo, certificado final emitido. Exatamente o que esperava de um profissional verificado.',
-    date: 'Dezembro 2025',
-  },
-]
-
-const totalReviews = reviews.length
-const avgRating = (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1)
+// Phase 3 SEO PT (lot 0) : les avis nominatifs fictifs, la note moyenne et le nombre d'avis ont été retirés
+// (règle 0.2) ; les avis réels viendront de booking_reviews avec autorisation écrite (data/seo/local-proof.json).
 
 const faqs = [
   {
@@ -121,7 +70,7 @@ const faqs = [
   },
   {
     question: 'O que acontece se não ficar satisfeito?',
-    answer: 'Contacte a nossa equipa nas 48h após a intervenção. Mediamos a situação com o profissional e garantimos uma solução: retrabalho gratuito ou reembolso total consoante o caso.',
+    answer: 'Contacte a nossa equipa nas 48h após a intervenção. Mediamos a situação com o profissional e mediamos a situação com o profissional.',
   },
   {
     question: 'Com que frequência verificam os seguros dos profissionais?',
@@ -177,22 +126,6 @@ export default function ProfissionaisVerificadosPage() {
             Cada profissional na plataforma é verificado manualmente: identidade, seguro RC Pro e qualificações. Trabalhe com total confiança.
           </p>
 
-          {/* Rating summary */}
-          <div className="inline-flex items-center gap-4 bg-white rounded-2xl px-6 py-4 border border-border/50 mb-8">
-            <div className="text-center">
-              <div className="font-display text-4xl font-extrabold text-yellow">{avgRating}</div>
-              <div className="flex gap-0.5 justify-center mt-1">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <span key={i} className="text-yellow">★</span>
-                ))}
-              </div>
-            </div>
-            <div className="border-l border-border/50 pl-4">
-              <div className="font-bold text-dark">{totalReviews} avaliações verificadas</div>
-              <div className="text-sm text-text-muted">Deixadas por clientes reais</div>
-            </div>
-          </div>
-
           <div className="flex flex-wrap gap-3">
             <Link
               href="/pt/pesquisar/"
@@ -233,35 +166,6 @@ export default function ProfissionaisVerificadosPage() {
         </div>
       </section>
 
-      {/* REVIEWS */}
-      <section className="py-16 md:py-20 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            O que dizem os clientes em Portugal
-          </h2>
-          <p className="text-text-muted mb-10">Avaliações reais de clientes em Marco de Canaveses e região.</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {reviews.map((r) => (
-              <div key={r.author} className="rounded-2xl border border-border/50 p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-bold text-dark text-sm">{r.author}</p>
-                    <p className="text-text-muted text-xs">{r.city}</p>
-                  </div>
-                  <span className="bg-yellow/10 text-dark text-xs font-semibold px-2 py-1 rounded-full">{r.service}</span>
-                </div>
-                <div className="flex gap-0.5 mb-3">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <span key={i} className={i <= r.rating ? 'text-yellow' : 'text-gray-300'}>★</span>
-                  ))}
-                </div>
-                <p className="text-[0.93rem] text-dark/80 leading-relaxed mb-3">&quot;{r.text}&quot;</p>
-                <p className="text-xs text-text-muted">{r.date}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* FAQ */}
       <section className="py-16 md:py-20">
@@ -292,7 +196,7 @@ export default function ProfissionaisVerificadosPage() {
               Pronto para confiar num profissional verificado?
             </h2>
             <p className="text-white/70 mb-8 max-w-md mx-auto">
-              Pesquise gratuitamente. Orçamento sem compromisso. Garantia de qualidade.
+              Pesquise gratuitamente. Orçamento sem compromisso.
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link

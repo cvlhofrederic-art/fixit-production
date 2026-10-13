@@ -85,7 +85,7 @@ const guarantees = [
   {
     icon: '🏠',
     title: 'Cobertura regional',
-    description: 'Atuamos em Marco de Canaveses, Penafiel, Amarante, Baião, Felgueiras, Lousada, Paços de Ferreira e Paredes.',
+    description: 'Atuamos em 22 concelhos dos distritos do Porto, Braga e Aveiro.',
   },
 ]
 
@@ -104,7 +104,7 @@ const faqs = [
   },
   {
     question: 'O que acontece se o trabalho não for satisfatório?',
-    answer: 'Todos os trabalhos estão cobertos pelo seguro RC Pro do profissional. Em caso de problema, a nossa equipa medeia a situação e garante uma solução, retrabalho gratuito ou reembolso.',
+    answer: 'Todos os trabalhos estão cobertos pelo seguro RC Pro do profissional. Em caso de problema, a nossa equipa medeia a situação com o profissional.',
   },
   {
     question: 'Qual é a zona de cobertura do VITFIX em Portugal?',

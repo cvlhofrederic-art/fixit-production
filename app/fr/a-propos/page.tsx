@@ -70,7 +70,8 @@ export default function AProposPage() {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats : chiffres non sourcés (500+, 10 000+, 4,8/5), masqués en PT (phase 3 SEO PT, règle 0.2) ; rendu FR inchangé. */}
+        {locale !== 'pt' && (
         <div className="bg-gradient-to-r from-yellow to-yellow-light rounded-2xl p-8 mb-8 fade-up">
           <h2 className="text-2xl font-display font-extrabold tracking-tight text-dark mb-6 text-center">{t('about.stats.title')}</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
@@ -92,6 +93,7 @@ export default function AProposPage() {
             </div>
           </div>
         </div>
+        )}
 
         {/* CTA */}
         <div className="text-center fade-up flex flex-wrap items-center justify-center gap-4">

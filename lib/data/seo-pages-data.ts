@@ -103,7 +103,7 @@ export const CITIES: CityData[] = [
     lat: 41.1842,
     lng: -8.1503,
     freguesias: ['Marco', 'Alpendorada', 'Várzea', 'Soalhães', 'Tabuado', 'Vila Boa do Bispo', 'Penha Longa', 'Constance', 'Fornos', 'Paredes de Viadores', 'Sande', 'Manhuncelos', 'Rio de Galinhas', 'Bem Viver', 'Avessadas', 'Banho e Carvalhosa', 'Freixo', 'Toutosa', 'Rosém'],
-    nearby: ['penafiel', 'amarante', 'baiao'],
+    nearby: ['baiao', 'amarante', 'penafiel'],
     specialty: 'Capital do concelho do Marco de Canaveses, integrado na sub-região do Tâmega e Sousa, com cerca de 53 mil habitantes. Conhecido pelos seus monumentos românicos da Rota do Românico (Igreja do Salvador de Tabuado, Igreja de Santa Maria de Sobretâmega) e pela Igreja paroquial de Santa Maria do Marco, projetada por Álvaro Siza Vieira (1990–1996) — um marco internacional da arquitetura sacra contemporânea. Atravessado pelo rio Tâmega e pelos vales encaixados que descem do Marão.',
     climateChallenges: [
       'Humidade dos vales do Tâmega que retém condensação em moradias antigas de granito, sobretudo orientadas a norte e nordeste',
@@ -149,7 +149,7 @@ export const CITIES: CityData[] = [
     lat: 41.2089,
     lng: -8.2847,
     freguesias: ['Penafiel', 'Paço de Sousa', 'Bustelo', 'Croca', 'Guilhufe', 'Luzim', 'Oldrões', 'Peroselo', 'Recezinhos', 'Rio de Moinhos', 'Sebolido', 'Valpedre', 'Fonte Arcada', 'Eja', 'Galegos', 'Lagares', 'Rans'],
-    nearby: ['marco-de-canaveses', 'paredes', 'lousada'],
+    nearby: ['paredes', 'lousada', 'marco-de-canaveses'],
     specialty: 'Cidade do distrito do Porto e sede do concelho com 72 mil habitantes, capital histórica da sub-região do Tâmega e Sousa. Reconhecida pelas Termas de São Vicente (águas minerais sulfúreas), pelo Mosteiro de Paço de Sousa (Panteão dos Sousões, Monumento Nacional) e por integrar a Rota do Românico. Sede da Quinta da Aveleda — referência do vinho verde DOC Sub-Região do Sousa.',
     climateChallenges: [
       'Humidade dos vales do rio Sousa que retém condensação nas paredes interiores de moradias mal ventiladas, sobretudo nas freguesias ribeirinhas (Paço de Sousa, Eja, Rio de Moinhos)',
@@ -194,7 +194,7 @@ export const CITIES: CityData[] = [
     lat: 41.2718,
     lng: -8.0831,
     freguesias: ['Amarante', 'Vila Meã', 'Fridão', 'Gatão', 'Gondar', 'Jazente', 'Lomba', 'Louredo', 'Mancelos', 'Padronelo', 'Real', 'Salvador do Monte', 'Travanca', 'Vila Chã do Marão', 'Olo', 'Telões', 'Candemil'],
-    nearby: ['marco-de-canaveses', 'felgueiras', 'baiao'],
+    nearby: ['marco-de-canaveses', 'baiao', 'felgueiras'],
     specialty: 'Cidade histórica do distrito do Porto na sub-região do Tâmega e Sousa, atravessada pelo rio Tâmega e marcada pela emblemática Ponte de São Gonçalo (séc. XVIII). Conhecida pelo Museu Amadeo de Souza-Cardoso (referência da arte moderna portuguesa), pelo doce conventual e pela Serra do Marão como pano de fundo. Reúne património românico, gastronomia tradicional e turismo de natureza no Parque Natural do Alvão (limítrofe).',
     climateChallenges: [
       'Clima continental temperado de transição com invernos frios (temperaturas médias 3–8 °C em janeiro) e episódios de neve nas zonas altas do Marão (Vila Chã do Marão), com risco de congelamento de tubagens exteriores',
@@ -240,7 +240,7 @@ export const CITIES: CityData[] = [
     lat: 41.1625,
     lng: -8.0350,
     freguesias: ['Baião', 'Ancede', 'Campelo', 'Frende', 'Gove', 'Loivos do Monte', 'Mesquinhata', 'Ovil', 'Ribadouro', 'Santa Cruz do Douro', 'Santa Marinha do Zêzere', 'Teixeira', 'Tresouras', 'Valadares', 'Viariz'],
-    nearby: ['marco-de-canaveses', 'amarante'],
+    nearby: ['marco-de-canaveses', 'amarante', 'penafiel'],
     specialty: 'Concelho rural do distrito do Porto na margem norte do Douro vinhateiro, com cerca de 20 mil habitantes. Reconhecido pelos seus monumentos românicos (Mosteiro de Ancede), pela produção de vinho verde DOC do Sub-Região do Sousa e por integrar o Alto Douro Vinhateiro (Património Mundial UNESCO em parte das freguesias ribeirinhas). Paisagem dominada por vinhedos em socalcos, montanhas do Marão a norte e vales encaixados.',
     climateChallenges: [
       'Microclima variável entre as zonas ribeirinhas do Douro (Mediterrânico, verão quente) e as freguesias altas do Marão (continental, inverno rigoroso) — soluções técnicas distintas por freguesia',
@@ -284,7 +284,7 @@ export const CITIES: CityData[] = [
     lat: 41.3659,
     lng: -8.1979,
     freguesias: ['Felgueiras', 'Margaride', 'Lixa', 'Barrosas', 'Borba de Godim', 'Idães', 'Jugueiros', 'Moure', 'Pinheiro', 'Regilde', 'Refontoura', 'Revinhade', 'Sendim', 'Torrados', 'Varziela', 'Vila Cova da Lixa', 'Vila Fria', 'Vila Verde'],
-    nearby: ['amarante', 'lousada', 'penafiel'],
+    nearby: ['lousada', 'amarante', 'pacos-de-ferreira'],
     specialty: 'Cidade do distrito do Porto na sub-região do Tâmega e Sousa, com cerca de 58 mil habitantes. Reconhecida internacionalmente como capital portuguesa do calçado de qualidade (mais de 250 fábricas concentradas no concelho) e pelo seu património românico (Mosteiro de Pombeiro, Igreja de Sousa). Atravessada pelo rio Sousa, com vinhas verdes DOC.',
     climateChallenges: [
       'Humidade dos vales do Sousa que provoca condensação em armazéns industriais e instalações fabris mal ventiladas — pintura industrial com tratamento anti-bolor essencial',
@@ -310,7 +310,7 @@ export const CITIES: CityData[] = [
     contentUpdatedAt: '2026-05-11',
     serviceCityOverrides: {
       'eletricista': {
-        intro: 'Eletricistas em Felgueiras com experiência reconhecida em instalações industriais de fábricas de calçado (Lixa, Vila Cova da Lixa, Borba de Godim) — quadros trifásicos, ventilação industrial, sistemas de extração de COV — e modernização de moradias residenciais. Certificação RECE e cumprimento das normas técnicas para ambientes industriais.',
+        intro: 'Eletricistas em Felgueiras para instalações industriais de fábricas de calçado (Lixa, Vila Cova da Lixa, Borba de Godim) — quadros trifásicos, ventilação industrial, sistemas de extração de COV — e modernização de moradias residenciais. Certificação RECE e cumprimento das normas técnicas para ambientes industriais.',
       },
       'canalizador': {
         intro: 'Canalizadores em Felgueiras com experiência em instalações industriais (fábricas de calçado, sistemas de tratamento de águas residuais) e em moradias residenciais com aquecimento central a gasóleo típico dos anos 1970–1990.',
@@ -328,7 +328,7 @@ export const CITIES: CityData[] = [
     lat: 41.2769,
     lng: -8.2838,
     freguesias: ['Lousada', 'Aveleda', 'Boim', 'Caíde de Rei', 'Cernadelo', 'Cristelos', 'Figueiras', 'Lodares', 'Lustosa', 'Macieira', 'Meinedo', 'Nespereira', 'Nogueira', 'Ordem', 'Pias', 'Silvares', 'Torno', 'Vilar do Torno'],
-    nearby: ['penafiel', 'felgueiras', 'pacos-de-ferreira'],
+    nearby: ['penafiel', 'pacos-de-ferreira', 'paredes'],
     specialty: 'Município rural-urbano do Tâmega e Sousa, com 47 mil habitantes, integrado na Região Norte de Portugal. Conhecido pela produção de vinho verde DOC Sub-Região do Sousa, pela indústria do mobiliário e calçado, e pelos seus monumentos românicos da Rota do Românico — destacando-se a Igreja de Cristelos, o Mosteiro de Pombeiro e o Solar dos Meneses em Aveleda.',
     climateChallenges: [
       'Clima continental temperado com invernos frios e húmidos (temperaturas médias 5–10 °C em janeiro) que causa condensação interior em paredes mal isoladas — sobretudo em moradias antigas de granito',
@@ -371,7 +371,7 @@ export const CITIES: CityData[] = [
     lat: 41.2780,
     lng: -8.3886,
     freguesias: ['Paços de Ferreira', 'Carvalhosa', 'Eiriz', 'Ferreira', 'Figueiró', 'Frazão', 'Lamoso', 'Meixomil', 'Modelos', 'Penamaior', 'Raimonda', 'Sanfins de Ferreira', 'Seroa'],
-    nearby: ['lousada', 'penafiel', 'paredes'],
+    nearby: ['lousada', 'paredes', 'santo-tirso'],
     specialty: 'Cidade do distrito do Porto, conhecida como capital do móvel (Capital do Móvel de Portugal). Concelho com forte presença de empresas de fabrico e exportação de mobiliário (mais de 400 unidades industriais), com showrooms internacionalmente reconhecidos. Sede do Citadel Sanfins (importante sítio arqueológico castreja do séc. II a.C., Monumento Nacional).',
     climateChallenges: [
       'Humidade dos vales que afeta armazéns industriais com risco de bolor em zonas de stock de madeira não tratada',
@@ -414,7 +414,7 @@ export const CITIES: CityData[] = [
     lat: 41.2052,
     lng: -8.3310,
     freguesias: ['Paredes', 'Baltar', 'Beire', 'Besteiros', 'Bitarães', 'Campo', 'Cete', 'Cristelo', 'Duas Igrejas', 'Gandra', 'Lordelo', 'Louredo', 'Mouriz', 'Parada de Todeia', 'Rebordosa', 'Recarei', 'Sobreira', 'Sobrosa', 'Vandoma', 'Vila Cova de Carros', 'Vilela'],
-    nearby: ['penafiel', 'pacos-de-ferreira', 'lousada'],
+    nearby: ['penafiel', 'lousada', 'pacos-de-ferreira'],
     specialty: 'Cidade do distrito do Porto integrada na sub-região do Tâmega e Sousa, com cerca de 87 mil habitantes. Junto com Paços de Ferreira e Lousada, forma o triângulo do mobiliário do norte de Portugal. Reconhecida pela Igreja Românica de Cete (Mosteiro de Salvador de Cete), pelo património industrial e por uma forte tradição de carpintaria e marcenaria.',
     climateChallenges: [
       'Humidade dos vales do Sousa que afeta armazéns industriais de madeira e mobiliário com risco de bolor em stock',
@@ -439,7 +439,7 @@ export const CITIES: CityData[] = [
     contentUpdatedAt: '2026-05-11',
     serviceCityOverrides: {
       'eletricista': {
-        intro: 'Eletricistas em Paredes com experiência reconhecida em instalações industriais de fábricas de mobiliário (Rebordosa, Gandra) — quadros trifásicos, sistemas de aspiração ATEX, iluminação técnica — e modernização de habitações residenciais (Lordelo, Vilela). Certificação RECE e cumprimento das normas para ambientes com poeiras inflamáveis.',
+        intro: 'Eletricistas em Paredes para instalações industriais de fábricas de mobiliário (Rebordosa, Gandra) — quadros trifásicos, sistemas de aspiração ATEX, iluminação técnica — e modernização de habitações residenciais (Lordelo, Vilela). Certificação RECE e cumprimento das normas para ambientes com poeiras inflamáveis.',
       },
       'canalizador': {
         intro: 'Canalizadores em Paredes disponíveis para instalações industriais (fábricas de mobiliário, sistemas de pintura), apartamentos urbanos do centro, moradias residenciais e adegas familiares nas zonas rurais.',
@@ -457,7 +457,7 @@ export const CITIES: CityData[] = [
     lat: 41.1579,
     lng: -8.6291,
     freguesias: ['Bonfim', 'Campanhã', 'Paranhos', 'Ramalde', 'Aldoar', 'Foz do Douro', 'Nevogilde', 'Massarelos', 'Cedofeita', 'Santo Ildefonso', 'Sé', 'Miragaia', 'São Nicolau', 'Vitória'],
-    nearby: ['vila-nova-de-gaia', 'maia', 'matosinhos'],
+    nearby: ['vila-nova-de-gaia', 'matosinhos', 'gondomar'],
     specialty: 'Segunda maior cidade de Portugal, capital da região Norte e centro de uma área metropolitana de cerca de 1,7 milhões de habitantes. Património Mundial UNESCO desde 1996 pelo seu centro histórico — Ribeira, Sé e Vitória — com edificado pombalino e arte nova exigente em obras de restauro. Cidade reconhecida internacionalmente pelo vinho do Porto, pelas suas pontes sobre o Douro e por uma topografia de encostas íngremes que condiciona acessos a obras.',
     climateChallenges: [
       'Humidade atlântica constante (média 75–85 %) que acelera o aparecimento de bolores em paredes interiores mal ventiladas, sobretudo em apartamentos pombalinos de Cedofeita, Vitória e Sé',
@@ -486,7 +486,7 @@ export const CITIES: CityData[] = [
     contentUpdatedAt: '2026-05-11',
     serviceCityOverrides: {
       'eletricista': {
-        intro: 'Eletricistas certificados no Porto, com experiência comprovada em quadros elétricos de edifícios pombalinos do centro histórico UNESCO, instalações em moradias da Foz expostas à maresia e ligações trifásicas em alojamentos locais. Cumprimento das exigências da DGEG para certificação RECE e da Câmara Municipal do Porto para obras em zona protegida.',
+        intro: 'Eletricistas no Porto para quadros elétricos de edifícios pombalinos do centro histórico UNESCO, instalações em moradias da Foz expostas à maresia e ligações trifásicas em alojamentos locais. Cumprimento das exigências da DGEG para certificação RECE e da Câmara Municipal do Porto para obras em zona protegida.',
       },
       'canalizador': {
         intro: 'Canalizadores no Porto disponíveis 7 dias por semana, com conhecimento detalhado das particularidades das canalizações em chumbo e ferro fundido de edifícios pombalinos, das pressões variáveis em zonas de encosta como Miragaia e Ribeira, e do saneamento antigo do centro histórico.',
@@ -504,7 +504,7 @@ export const CITIES: CityData[] = [
     lat: 41.1239,
     lng: -8.6118,
     freguesias: ['Arcozelo', 'Avintes', 'Canidelo', 'Crestuma', 'Lever', 'Madalena', 'Olival', 'Pedroso', 'Perozinho', 'Sandim', 'Santa Marinha', 'São Félix da Marinha', 'São Pedro da Afurada', 'Seixezelo', 'Sermonde', 'Serzedo', 'Tarouquela', 'Tijosa', 'Valadares', 'Vilar de Andorinho', 'Vilar do Paraíso'],
-    nearby: ['porto', 'espinho', 'gondomar'],
+    nearby: ['porto', 'gondomar', 'matosinhos'],
     specialty: 'Maior município do distrito do Porto em população (302 mil habitantes), separado do Porto pelo Douro e ligado por seis pontes. Reconhecido mundialmente pelas caves de vinho do Porto em Santa Marinha (Croft, Sandeman, Taylor, Graham\'s) que armazenam e envelhecem todo o vinho do Porto antes da exportação. Tem 17 km de costa atlântica com praias de Granja, Madalena, Miramar, Aguda, Valadares e Lavadores.',
     climateChallenges: [
       'Maresia salina intensa nas freguesias costeiras (Canidelo, Madalena, Valadares, São Félix da Marinha) que corrói portões, gradeamentos e equipamentos elétricos exteriores num raio de 1–2 km do litoral',
@@ -549,7 +549,7 @@ export const CITIES: CityData[] = [
     lat: 41.5503,
     lng: -8.4200,
     freguesias: ['Braga', 'Adaúfe', 'Aveleda', 'Cabreiros', 'Celeirós', 'Crespos', 'Dume', 'Escudeiros', 'Figueiredo', 'Fraião', 'Gualtar', 'Guimarães de S. Torcato', 'Lamas', 'Lomar', 'Long', 'Maximinos', 'Merelim (S. Paio)', 'Merelim (S. Pedro)', 'Mire de Tibães', 'Morreira', 'Nogueira', 'Nogueiró', 'Palmeira', 'Priscos', 'Real', 'Ruilhe', 'S. Lázaro', 'S. Vítor', 'Sequeira', 'Sobreposta', 'Tadim', 'Tebosa', 'This'],
-    nearby: ['guimaraes', 'barcelos', 'famalicao'],
+    nearby: ['santo-tirso', 'trofa', 'felgueiras'],
     specialty: 'Capital de distrito e arquidiocese, terceira maior cidade de Portugal continental com cerca de 193 mil habitantes. Cidade romana fundada em 16 a.C. (Bracara Augusta), reconhecida como capital religiosa do país (Sé de Braga é a mais antiga catedral em Portugal). Centro universitário (Universidade do Minho, 20 000 estudantes) que dinamiza fortemente o mercado de arrendamento. Sede de várias multinacionais tecnológicas (Bosch Car Multimedia, APTIV). Conhecida pelas suas festas de São João (junho) e pelas suas igrejas barrocas (Bom Jesus do Monte).',
     climateChallenges: [
       'Humidade do Vale do Cávado (média 80 % anual) que provoca condensação severa em apartamentos de habitação coletiva mal ventilados — sobretudo em São Vítor, São Lázaro e Maximinos',
@@ -595,7 +595,7 @@ export const CITIES: CityData[] = [
     lat: 41.2325,
     lng: -8.6205,
     freguesias: ['Águas Santas', 'Avioso (Santa Maria)', 'Avioso (S. Pedro)', 'Barca', 'Castêlo da Maia', 'Folgosa', 'Gueifães', 'Maia', 'Milheiroços', 'Moreira', 'Nogueira', 'Pedrouços', 'S. Pedro Fins', 'Silva Escura', 'Vermoim', 'Vila Nova da Telha'],
-    nearby: ['porto', 'matosinhos', 'valongo'],
+    nearby: ['porto', 'matosinhos', 'gondomar'],
     specialty: 'Cidade do Grande Porto com cerca de 135 mil habitantes, sede do principal Aeroporto Internacional do Norte de Portugal (Francisco Sá Carneiro, em Vila Nova da Telha/Moreira). Pólo industrial e logístico de referência (Maia BusinessPark, polo aeronáutico), com forte presença de multinacionais. Atravessada pela A3 Porto–Valença, A4 Porto–Vila Real e VRI/A41, sendo um nó rodoviário fundamental.',
     climateChallenges: [
       'Maresia atlântica indirecta (a 8 km do oceano) que ainda afeta portões metálicos e gradeamentos em moradias das freguesias oeste (Vermoim, Vila Nova da Telha)',
@@ -622,7 +622,7 @@ export const CITIES: CityData[] = [
     contentUpdatedAt: '2026-05-11',
     serviceCityOverrides: {
       'eletricista': {
-        intro: 'Eletricistas na Maia com experiência reconhecida em instalações industriais e logísticas (Maia BusinessPark, polo aeronáutico), modernização de apartamentos dos anos 1970–1990 (Águas Santas, Castêlo da Maia), e instalações em zonas aeroportuárias com normas técnicas específicas. Certificação RECE e cumprimento das normas para ambientes industriais e logísticos.',
+        intro: 'Eletricistas na Maia para instalações industriais e logísticas (Maia BusinessPark, polo aeronáutico), modernização de apartamentos dos anos 1970–1990 (Águas Santas, Castêlo da Maia), e instalações em zonas aeroportuárias com normas técnicas específicas. Certificação RECE e cumprimento das normas para ambientes industriais e logísticos.',
       },
       'canalizador': {
         intro: 'Canalizadores na Maia disponíveis para urgências em apartamentos densos do centro, instalações industriais do BusinessPark e moradias residenciais. Conhecimento das particularidades das redes de saneamento antigas do centro urbano.',
@@ -646,7 +646,7 @@ export const CITIES: CityData[] = [
     lat: 40.6443,
     lng: -8.6455,
     freguesias: ['Aradas', 'Cacia', 'Eixo e Eirol', 'Esgueira', 'Glória e Vera Cruz', 'Oliveirinha', 'Requeixo, Nossa Senhora de Fátima e Nariz', 'Santa Joana', 'São Bernardo', 'São Jacinto'],
-    nearby: ['agueda', 'ovar'],
+    nearby: ['agueda', 'ovar', 'vila-nova-de-gaia'],
     specialty: 'Capital do distrito e cidade lagunar única em Portugal, atravessada pelos canais da Ria de Aveiro onde ainda navegam os moliceiros tradicionais. Conhecida pelos ovos moles, pela produção artesanal de sal e por uma Universidade que dinamiza toda a cidade.',
     climateChallenges: [
       'Humidade elevada e constante junto aos canais da ria, que acelera o aparecimento de bolores e o desgaste de tintas interiores',
@@ -688,7 +688,7 @@ export const CITIES: CityData[] = [
     lat: 40.5747,
     lng: -8.4404,
     freguesias: ['Águeda e Borralha', 'Aguada de Cima', 'Belazaima do Chão, Castanheira do Vouga e Agadão', 'Fermentelos', 'Macinhata do Vouga', 'Préstimo e Macieira de Alcoba', 'Recardães e Espinhel', 'Trofa, Segadães e Lamas do Vouga', 'Travassô e Óis da Ribeira', 'Aguada de Baixo', 'Barrô', 'Valongo do Vouga'],
-    nearby: ['aveiro'],
+    nearby: ['aveiro', 'ovar', 'vila-nova-de-gaia'],
     specialty: 'Cidade industrial reconhecida como capital portuguesa das duas rodas, conhecida pelos festivais que enchem as ruas de cor (AgitÁgueda) e pelo icónico Umbrella Sky Project que cobre as ruas com guarda-chuvas em tons vivos. Localizada no Vale do Vouga.',
     climateChallenges: [
       'Humidade ribeirinha do Vouga e da Pateira de Fermentelos, que afeta caves e pisos térreos junto ao rio',
@@ -729,7 +729,7 @@ export const CITIES: CityData[] = [
     lat: 40.8593,
     lng: -8.6262,
     freguesias: ['Ovar, São João, Arada e São Vicente de Pereira Jusã', 'Esmoriz', 'Válega', 'Cortegaça', 'Maceda'],
-    nearby: ['aveiro'],
+    nearby: ['aveiro', 'vila-nova-de-gaia', 'porto'],
     specialty: 'Cidade-Museu do Azulejo, com fachadas revestidas a azulejaria do final do século XIX. Famosa pelo Carnaval anual desde 1952 e pelo pão de ló tradicional, com 15 km de costa atlântica entre Esmoriz e a Praia do Furadouro.',
     climateChallenges: [
       'Salinidade atlântica que corrói rapidamente metais, gradeamentos e tubagens exteriores ao longo dos 15 km de costa',
@@ -770,7 +770,7 @@ export const CITIES: CityData[] = [
     lat: 41.1833,
     lng: -8.7000,
     freguesias: ['Matosinhos e Leça da Palmeira', 'Custóias, Leça do Balio e Guifões', 'Perafita, Lavra e Santa Cruz do Bispo', 'São Mamede de Infesta e Senhora da Hora'],
-    nearby: ['porto', 'maia', 'vila-do-conde'],
+    nearby: ['porto', 'maia', 'vila-nova-de-gaia'],
     specialty: 'Concelho costeiro do norte da Área Metropolitana do Porto, lar do Porto de Leixões, segundo maior porto artificial do país. Reconhecido pela tradição piscatória, sardinhada à beira-mar e pela arquitetura moderna de Siza Vieira na Casa de Chá da Boa Nova.',
     climateChallenges: [
       'Salinidade atlântica intensa que ataca metais expostos, gradeamentos, portões e fixações em janelas',
@@ -812,7 +812,7 @@ export const CITIES: CityData[] = [
     lat: 41.1500,
     lng: -8.5333,
     freguesias: ['Gondomar (São Cosme), Valbom e Jovim', 'Rio Tinto', 'Fânzeres e São Pedro da Cova', 'Foz do Sousa e Covelo', 'Baguim do Monte', 'Lomba', 'Melres e Medas'],
-    nearby: ['porto', 'valongo', 'vila-nova-de-gaia'],
+    nearby: ['valongo', 'vila-nova-de-gaia', 'porto'],
     specialty: 'Capital portuguesa da ourivesaria e da filigrana tradicional, atravessada pelo rio Douro e por mais quatro afluentes (Tinto, Torto, Sousa, Ferreira). Concelho da grande área metropolitana do Porto com forte identidade artesanal.',
     climateChallenges: [
       'Margens fluviais que sobem em invernos chuvosos, exigindo impermeabilização cuidada de caves nas zonas ribeirinhas',
@@ -854,7 +854,7 @@ export const CITIES: CityData[] = [
     lat: 41.1875,
     lng: -8.4878,
     freguesias: ['Valongo', 'Ermesinde', 'Alfena', 'Campo', 'Sobrado'],
-    nearby: ['gondomar', 'paredes', 'maia'],
+    nearby: ['gondomar', 'maia', 'porto'],
     specialty: 'Concelho oriental da Área Metropolitana do Porto, conhecido pela extração tradicional de lousa (ardósia) e pela Serra de Santa Justa, parte do Geopark Porto reconhecido pelo European Green Leaf 2022. Famosa pela regueifa e pelos biscoitos de Valongo.',
     climateChallenges: [
       'Solos rochosos com lousa xistosa que dificultam a abertura de caboucos para obras novas',
@@ -896,7 +896,7 @@ export const CITIES: CityData[] = [
     lat: 41.3528,
     lng: -8.7444,
     freguesias: ['Vila do Conde', 'Árvore', 'Azurara', 'Bagunte, Ferreiró, Outeiro Maior e Parada', 'Canidelo', 'Fajozes', 'Fornelo e Vairão', 'Gião', 'Guilhabreu', 'Junqueira', 'Labruge', 'Macieira da Maia', 'Malta e Canidelo', 'Mindelo', 'Modivas', 'Mosteiró', 'Retorta e Tougues', 'Rio Mau e Arcos', 'Touguinha e Touguinhó', 'Vila Chã', 'Vilar e Mosteiró'],
-    nearby: ['povoa-de-varzim', 'matosinhos', 'maia'],
+    nearby: ['povoa-de-varzim', 'trofa', 'maia'],
     specialty: 'Cidade costeira histórica do norte do Porto, com porto pesqueiro ativo, foral concedido em 1516 por D. Manuel I. Reconhecida internacionalmente pela tradição da renda de bilros e pela festa de São João em junho.',
     climateChallenges: [
       'Salinidade atlântica que ataca portões metálicos, varandas e tubagens exteriores em zonas frente-mar',
@@ -938,7 +938,7 @@ export const CITIES: CityData[] = [
     lat: 41.3447,
     lng: -8.4742,
     freguesias: ['Santo Tirso, Couto (Santa Cristina e São Miguel) e Burgães', 'Vila das Aves', 'Roriz', 'Vila Nova do Campo', 'Negrelos (São Tomé e São Mamede)', 'Lama', 'Areias, Sequeirô, Lama e Palmeira', 'Carreira e Refojos de Riba de Ave', 'Rebordões', 'Vilarinho', 'Aves', 'Monte Córdova', 'Reguenga', 'São Salvador do Campo'],
-    nearby: ['trofa', 'maia', 'pacos-de-ferreira'],
+    nearby: ['trofa', 'pacos-de-ferreira', 'maia'],
     specialty: 'Berço da industrialização têxtil portuguesa com a primeira unidade do país (Fábrica de Rio Vizela, 1845). Concelho histórico com Mosteiro Beneditino do século X e Museu Internacional de Escultura Contemporânea desenhado por Siza Vieira e Souto de Moura.',
     climateChallenges: [
       'Pavilhões têxteis e calçado antigos que requerem instalações elétricas modernizadas e impermeabilização',
@@ -980,7 +980,7 @@ export const CITIES: CityData[] = [
     lat: 41.3800,
     lng: -8.7608,
     freguesias: ['Póvoa de Varzim, Beiriz e Argivai', 'Aguçadoura e Navais', 'Aver-o-Mar, Amorim e Terroso', 'Balazar', 'Estela', 'Laúndos', 'Rates'],
-    nearby: ['vila-do-conde', 'maia'],
+    nearby: ['vila-do-conde', 'trofa', 'maia'],
     specialty: 'Estância balnear do norte de Portugal há três séculos, com Casino histórico desde 1934 e o principal porto de pesca do norte do país no século XVII. Concelho costeiro com forte identidade piscatória e turística.',
     climateChallenges: [
       'Salinidade atlântica intensa em zonas frente-mar como Aver-o-Mar e Aguçadoura',
@@ -1022,7 +1022,7 @@ export const CITIES: CityData[] = [
     lat: 41.3500,
     lng: -8.5500,
     freguesias: ['Bougado (São Martinho e Santiago)', 'Coronado (São Romão e São Mamede)', 'Alvarelhos', 'Covelas', 'Guidões', 'Muro'],
-    nearby: ['santo-tirso', 'maia', 'vila-do-conde'],
+    nearby: ['santo-tirso', 'maia', 'pacos-de-ferreira'],
     specialty: 'Concelho jovem (criado em 1998) com posição estratégica entre Porto, Braga, Santo Tirso e Vila do Conde. Forte ligação ferroviária histórica e tradição industrial transformadora, com Castro de Alvarelhos como sítio arqueológico pré-romano de referência.',
     climateChallenges: [
       'Pavilhões industriais e logísticos em Coronado que requerem manutenção elétrica e impermeabilização regular',
@@ -1188,7 +1188,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: 'Pintor em {city} : Pintura Interior e Exterior | VITFIX',
     metaDesc: 'Pintor profissional em {city}. Pintura interior e exterior, remodelação, tratamento de humidade. Orçamento grátis e trabalho de qualidade.',
     heroTitle: 'Pintor em {city}',
-    heroSubtitle: 'Pintura profissional para renovar a sua casa ou escritório. Acabamento impecável garantido.',
+    heroSubtitle: 'Pintura profissional para renovar a sua casa ou escritório. Acabamento cuidado.',
     features: [
       'Pintura interior de paredes e tetos',
       'Pintura exterior de fachadas',
@@ -1362,7 +1362,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: 'Isolamento Térmico e Capoto em {city} : ETICS e Eficiência Energética | VITFIX',
     metaDesc: 'Isolamento térmico e capoto (ETICS) em {city}. Reduza a conta de energia, elimine pontes térmicas e melhore o conforto da sua casa. IVA 6%. Orçamento grátis.',
     heroTitle: 'Isolamento Térmico e Capoto em {city}',
-    heroSubtitle: 'Melhore a eficiência energética da sua casa com isolamento térmico pelo exterior (capoto/ETICS). Reduza até 40% na fatura de energia. Orçamento gratuito.',
+    heroSubtitle: 'Melhore a eficiência energética da sua casa com isolamento térmico pelo exterior (capoto/ETICS). Reduza a fatura de energia. Orçamento gratuito.',
     features: [
       'Aplicação de sistema ETICS (capoto) em fachadas',
       'Isolamento térmico pelo interior com pladur',
@@ -1768,7 +1768,7 @@ export const SERVICES: ServiceData[] = [
     metaTitle: 'Azulejador em {city} : Colocação de Azulejos e Ladrilhos | VITFIX',
     metaDesc: 'Azulejador profissional em {city}. Colocação de azulejos, ladrilhos, mosaicos para casas de banho, cozinhas e terraços. Orçamento grátis.',
     heroTitle: 'Azulejador em {city}',
-    heroSubtitle: 'Especialistas em colocação de azulejos e ladrilhos em {city}. Casas de banho, cozinhas, terraços e pavimentos, acabamento impecável garantido.',
+    heroSubtitle: 'Especialistas em colocação de azulejos e ladrilhos em {city}. Casas de banho, cozinhas, terraços e pavimentos, acabamento cuidado.',
     features: [
       'Colocação de azulejos para paredes de casa de banho',
       'Ladrilhamento de pavimentos interiores e exteriores',

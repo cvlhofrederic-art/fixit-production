@@ -16,7 +16,7 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_FASE_2 } from './seo/pt-datas'
+import { DATAS_PT, DATA_FASE_2, DATA_FASE_3 } from './seo/pt-datas'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
 
 export type GroupeSitemapPt = 'servicos' | 'hubs' | 'cidades' | 'blog' | 'paginas'
@@ -55,7 +55,14 @@ export const PAGINAS_ESTATICAS_PT = [
 ] as const
 
 /** Pages statiques dont le contenu a changé en phase 2 (hubs de section réécrits). */
-const PAGINAS_FASE_2 = new Set<string>(['/pt/servicos/', '/pt/urgencia/', '/pt/perto-de-mim/'])
+const PAGINAS_FASE_2 = new Set<string>(['/pt/urgencia/', '/pt/perto-de-mim/'])
+
+/** Pages statiques dont le contenu a changé en phase 3 (lot 0) ou 4 : avis fictifs retirés, liens, plan. */
+const PAGINAS_FASE_3 = new Set<string>([
+  '/pt/', '/pt/servicos/', '/pt/cidade/', '/pt/mapa-do-site/', '/pt/profissionais-verificados/',
+  '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/',
+  '/pt/precos/canalizador/', '/pt/precos/eletricista/', '/pt/precos/pintor/',
+])
 
 /** Sitemaps PT par groupe. */
 export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[]> {
@@ -71,7 +78,7 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
   // la date de la phase 1 (title et description changés). Jamais une date unique pour tout le blog.
   const blog = [url('/pt/blog/', DATAS_PT.blog), ...BLOG_ARTICLES.map(article => url(`/pt/blog/${article.slug}/`, article.dateModified ?? article.datePublished))]
 
-  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas))
+  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, PAGINAS_FASE_3.has(path) ? DATA_FASE_3 : PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas))
 
   return { servicos, hubs, cidades, blog, paginas }
 }

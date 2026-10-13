@@ -32,7 +32,7 @@ const ESPECIALIDADES_PT = [
     icon: '🧱',
     name: 'Capoto ETICS : IVA 6%',
     slug: 'capoto-etics-iva-6',
-    description: 'Isolamento térmico exterior pelo sistema ETICS (capoto). Benefício fiscal IVA reduzido a 6% para reabilitação. Poupança energética até 40%.',
+    description: 'Isolamento térmico exterior pelo sistema ETICS (capoto). Benefício fiscal IVA reduzido a 6% para reabilitação. Poupança energética.',
     keywords: ['capoto ETICS', 'isolamento térmico exterior', 'IVA 6% reabilitação'],
   },
   {

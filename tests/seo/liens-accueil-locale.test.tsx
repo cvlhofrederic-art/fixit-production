@@ -85,9 +85,15 @@ describe('accueil : liens internes vers les URL finales de la locale', () => {
 
   it('accueil pt : CTA, connexion et pied de page visent les pages PT finales', () => {
     const hrefs = liensInternes(rendreAccueil('pt').container)
+    // Phase 4 SEO PT : les cartes de services visent les hubs métier (pages indexables), plus la recherche
+    // filtrée (interdite par robots.txt) ; les hubs de section sont liés depuis le pied de page de l'accueil.
     expect(hrefs).toEqual(expect.arrayContaining([
       '/pt/pesquisar/',
-      '/pt/pesquisar/?category=plomberie',
+      '/pt/perto-de-mim/canalizador/',
+      '/pt/perto-de-mim/eletricista/',
+      '/pt/servicos/',
+      '/pt/urgencia/',
+      '/pt/perto-de-mim/',
       '/pt/pro/register/',
       '/pt/pro/tarifs/',
       '/pt/auth/login/',
@@ -96,6 +102,8 @@ describe('accueil : liens internes vers les URL finales de la locale', () => {
       '/pt/privacidade/',
       '/pt/cidade/',
     ]))
+    // Les catégories sans métier PT équivalent (chauffage, piscine, ramonage…) gardent la recherche filtrée.
+    expect(hrefs.some((href) => href.startsWith('/pt/pesquisar/?category=plomberie'))).toBe(false)
     // « Privacidade » ne passe plus par /confidentialite/ (3 sauts jusqu'à /pt/privacidade/)
     expect(hrefs.some((href) => href.includes('confidentialite'))).toBe(false)
   })

@@ -124,29 +124,8 @@ const faqs = [
   },
 ]
 
-const testimonials = [
-  {
-    name: 'António F.',
-    job: 'Canalizador',
-    city: 'Marco de Canaveses',
-    text: 'Desde que me juntei ao VITFIX recebi 3x mais pedidos do que antes. O sistema de avaliações ajuda muito a ganhar a confiança dos novos clientes.',
-    rating: 5,
-  },
-  {
-    name: 'Rui M.',
-    job: 'Eletricista',
-    city: 'Penafiel',
-    text: 'A faturação integrada poupou-me horas de trabalho administrativo por mês. Altamente recomendado para profissionais independentes.',
-    rating: 5,
-  },
-  {
-    name: 'Carlos S.',
-    job: 'Pintor',
-    city: 'Amarante',
-    text: 'Profissional há 15 anos, o VITFIX trouxe-me clientes novos que nunca teria encontrado de outra forma. Excelente plataforma.',
-    rating: 5,
-  },
-]
+// Phase 3 SEO PT (lot 0) : témoignages nominatifs fictifs retirés (règle 0.2) ; seuls des témoignages de
+// professionnels réels, avec accord écrit, pourront revenir.
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -251,31 +230,6 @@ export default function TorneSeParceiroPage() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section className="py-16 md:py-20 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            O que dizem os nossos parceiros
-          </h2>
-          <p className="text-text-muted mb-10">Profissionais reais que fazem crescer o negócio com o VITFIX.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <div key={t.name} className="rounded-2xl border border-border/50 p-6">
-                <div className="flex gap-0.5 mb-3">
-                  {[...Array(t.rating)].map((_, i) => (
-                    <span key={i} className="text-yellow">★</span>
-                  ))}
-                </div>
-                <p className="text-[0.93rem] text-dark/80 leading-relaxed mb-4">&quot;{t.text}&quot;</p>
-                <div>
-                  <p className="font-bold text-dark text-sm">{t.name}</p>
-                  <p className="text-text-muted text-xs">{t.job} · {t.city}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* PRICING */}
       <section className="py-16 md:py-20">
