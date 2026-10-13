@@ -7,6 +7,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
+import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
@@ -122,6 +123,16 @@ export async function middleware(request: NextRequest) {
       status: 410,
       headers: { 'Content-Type': 'text/plain; charset=utf-8', 'X-Robots-Tag': 'noindex', 'Content-Security-Policy': cspHeader },
     })
+  }
+
+  // ── Consolidation de la grille PT (phase 2 SEO PT) : 301 permanent, un seul saut, requête conservée ──
+  const consolidado = destinoConsolidado(pathname)
+  if (consolidado) {
+    // URL construite à la main : `nextUrl.clone()` reprend l'absence de barre finale de la requête,
+    // ce qui ajouterait un second saut (308 trailingSlash) sur la destination.
+    const response = NextResponse.redirect(new URL(consolidado + request.nextUrl.search, request.url), 301)
+    response.headers.set('Content-Security-Policy', cspHeader)
+    return response
   }
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──

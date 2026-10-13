@@ -2,10 +2,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 
 // ── Static SEO metadata ──
 // Phase 1 SEO PT : marque une fois (template du layout), pas d'alternate (/fr/urgence/ ne renvoie
-// pas vers cette page). Le contenu du hub est repris en phase 2 (page unique du service d'urgence).
+// pas vers cette page). Phase 2 (point 2.2) : page unique du service d'urgence ; les 462 pages
+// /pt/urgencia/{metier}-urgente-{ville}/ répondent 308 vers /pt/servicos/{metier}-{ville}/#urgencia.
+// Cette page lie les 21 hubs métier et les 22 pages ville, plus les 462 pages. Aucun délai ni
+// horaire annoncé tant que le propriétaire n'a pas fourni de données réelles (règle 0.2).
 export const metadata: Metadata = {
   title: `Urgências em ${CITIES.length} concelhos do Porto, Braga e Aveiro`,
   description:
@@ -56,28 +60,17 @@ const STEPS = [
 // ── Page Component ──
 export default function UrgenciaHubPage() {
   // Schema.org - CollectionPage + BreadcrumbList
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'CollectionPage',
-        name: 'Serviços de Urgência : VITFIX',
-        description:
-          'Todos os serviços de urgência VITFIX: eletricista, canalizador, pintor, pladur e obras urgentes disponíveis 24h em Marco de Canaveses, Penafiel, Amarante e região.',
-        url: 'https://vitfix.io/pt/urgencia/',
-        // Phase 1 SEO PT : plus d'ItemList incohérent (462 annoncés, 21 listés vers une seule ville) ;
-        // le fournisseur est l'entité unique #business du layout racine.
-        provider: { '@id': 'https://vitfix.io/#business' },
-      },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Urgência', item: 'https://vitfix.io/pt/urgencia/' },
-        ],
-      },
-    ],
-  }
+  const jsonLd = grafo(
+    noWebPage({
+      url: 'https://vitfix.io/pt/urgencia/',
+      nome: 'Serviços de urgência',
+      descricao: `Urgências de canalizador, eletricista, serralheiro e outros serviços em ${CITIES.length} concelhos do Porto, Braga e Aveiro.`,
+    }),
+    noFilAriane([
+      { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+      { name: 'Urgência', url: 'https://vitfix.io/pt/urgencia/' },
+    ]),
+  )
 
   return (
     <div className="min-h-screen bg-warm-gray">
@@ -105,14 +98,14 @@ export default function UrgenciaHubPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
-            <span className="text-red-700">URGÊNCIA, Disponível 24h, 7/7</span>
+            <span className="text-red-700">URGÊNCIA</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             Serviços de Urgência
           </h1>
           <p className="text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
-            Emergência em casa? Os nossos profissionais verificados intervêm rapidamente em Marco de Canaveses, Penafiel, Amarante e toda a região do Tâmega e Sousa, 24 horas por dia, 7 dias por semana.
+            Emergência em casa? Contacte-nos por WhatsApp ou telefone: profissionais verificados em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
 
           {/* CTAs */}
@@ -144,11 +137,7 @@ export default function UrgenciaHubPage() {
             </div>
             <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
               <span className="text-yellow font-bold">📍</span>
-              <span className="text-dark"><strong>{CITIES.length}</strong> cidades cobertas</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
-              <span className="text-yellow font-bold">🕐</span>
-              <span className="text-dark">Resposta em <strong>menos de 1 hora</strong></span>
+              <span className="text-dark"><strong>{CITIES.length}</strong> concelhos cobertos</span>
             </div>
           </div>
         </div>
@@ -161,49 +150,22 @@ export default function UrgenciaHubPage() {
             Todos os serviços de urgência
           </h2>
           <p className="text-text-muted mb-10 max-w-2xl">
-            Selecione o tipo de serviço e a sua cidade para encontrar um profissional disponível agora.
+            Selecione o tipo de serviço: cada página indica os {CITIES.length} concelhos cobertos e o que fazer enquanto espera.
           </p>
 
-          <div className="space-y-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {SERVICES.map(service => (
-              <div key={service.slug} className="bg-white rounded-2xl border border-border/50 overflow-hidden">
-                {/* Service header */}
-                <div className="flex items-center gap-4 px-6 py-5 border-b border-border/30">
-                  <span className="text-3xl">{service.icon}</span>
-                  <div className="flex-1">
-                    <h3 className="font-display text-xl font-bold text-dark">{service.name} Urgente</h3>
-                    <div className="flex items-center gap-3 mt-1 text-sm text-text-muted">
-                      <span className="flex items-center gap-1">
-                        <span className="text-yellow font-bold">⚡</span>
-                        {service.urgency.avgResponseTime}
-                      </span>
-                      <span className="w-1 h-1 rounded-full bg-text-muted/40" />
-                      <span>{service.urgency.availableSchedule}</span>
-                    </div>
-                  </div>
+              <Link
+                key={service.slug}
+                href={`/pt/perto-de-mim/${service.slug}/#urgencia`}
+                className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
+              >
+                <span className="text-3xl">{service.icon}</span>
+                <div>
+                  <span className="font-display font-bold text-dark text-lg group-hover:text-yellow transition-colors">{service.name} urgente</span>
+                  <span className="block text-sm text-text-muted">{CITIES.length} concelhos</span>
                 </div>
-
-                {/* Cities sub-grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 p-5">
-                  {CITIES.map(city => (
-                    <Link
-                      key={city.slug}
-                      href={`/pt/urgencia/${service.slug}-urgente-${city.slug}/`}
-                      className="flex items-center gap-2.5 p-3 rounded-xl border border-border/40 hover:border-yellow hover:bg-yellow/5 transition-all group"
-                    >
-                      <span className="text-sm">📍</span>
-                      <div>
-                        <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.9rem]">
-                          {city.name}
-                        </span>
-                        <span className="block text-xs text-text-muted">
-                          {city.population.toLocaleString('pt-PT')} hab.
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -241,7 +203,7 @@ export default function UrgenciaHubPage() {
             Zona de cobertura
           </h2>
           <p className="text-text-muted mb-8 max-w-2xl">
-            Atuamos em {CITIES.length} cidades do distrito do Porto e região do Tâmega e Sousa.
+            Atuamos em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -274,10 +236,10 @@ export default function UrgenciaHubPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <span className="text-4xl block mb-4">🚨</span>
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
-            Tem uma emergência? Estamos disponíveis agora!
+            Tem uma emergência? Contacte-nos.
           </h2>
           <p className="text-dark/70 mb-8 max-w-md mx-auto">
-            Profissionais verificados, intervenção rápida em toda a região do Tâmega e Sousa. 24h por dia, 7 dias por semana.
+            Profissionais verificados em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro. WhatsApp ou telefone.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <a

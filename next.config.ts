@@ -99,10 +99,14 @@ const nextConfig: NextConfig = {
       { source: '/pt/urgencia/electricista-urgente-:city/', destination: '/pt/urgencia/eletricista-urgente-:city/', permanent: true },
       { source: '/pt/perto-de-mim/electricista/', destination: '/pt/perto-de-mim/eletricista/', permanent: true },
       { source: '/pt/precos/electricista/', destination: '/pt/precos/eletricista/', permanent: true },
-      // Northern PT variant: picheleiro → canalizador
+      // Northern PT variant: picheleiro → canalizador (phase 2 SEO PT : directement vers servicos, un seul saut)
       { source: '/pt/servicos/picheleiro-:city/', destination: '/pt/servicos/canalizador-:city/', permanent: true },
-      { source: '/pt/urgencia/picheleiro-urgente-:city/', destination: '/pt/urgencia/canalizador-urgente-:city/', permanent: true },
+      { source: '/pt/urgencia/picheleiro-urgente-:city/', destination: '/pt/servicos/canalizador-:city/', permanent: true },
       { source: '/pt/precos/picheleiro/', destination: '/pt/precos/canalizador/', permanent: true },
+      // Phase 2 SEO PT (point 2.1, DECISION PROPRIETAIRE 1 option A) : les 946 pages urgencia et perto-de-mim
+      // métier x ville et le hub picheleiro répondent 301 vers servicos dans middleware.ts
+      // (lib/seo/pt-consolidacao.ts) : `:metier-:ville` n'est pas exprimable ici sans que path-to-regexp
+      // rejette les slugs à tirets. Table : data/seo/pt-redirects.csv (947 lignes, test T8).
       // Common misspelling: marido de aluguer → faz-tudo
       { source: '/pt/perto-de-mim/marido-de-aluguer/', destination: '/pt/perto-de-mim/faz-tudo/', permanent: true },
       // Legacy root PT paths → redirect to /pt/ prefix

@@ -51,22 +51,22 @@ const ROUTE_EQUIVALENTS: RouteEquivalent[] = [
   // Même service à Porto, langue différente. FR existe en route standalone.
   {
     fr: '/fr/plombier-porto',
-    pt: '/pt/perto-de-mim/canalizador-porto',
+    pt: '/pt/servicos/canalizador-porto',
     en: '/en/plumber-porto',
   },
   {
     fr: '/fr/electricien-porto',
-    pt: '/pt/perto-de-mim/eletricista-porto',
+    pt: '/pt/servicos/eletricista-porto',
     en: '/en/electrician-porto',
   },
   {
     fr: '/fr/entretien-appartement-porto',
-    pt: '/pt/perto-de-mim/faz-tudo-porto',
+    pt: '/pt/servicos/faz-tudo-porto',
     en: '/en/property-maintenance-porto',
   },
   {
     fr: '/fr/travaux-appartement-porto',
-    pt: '/pt/perto-de-mim/obras-remodelacao-porto',
+    pt: '/pt/servicos/obras-remodelacao-porto',
     en: '/en/apartment-renovation-porto',
   },
   // EN-only Porto pages : pas d'équivalent FR/PT existant côté routes.

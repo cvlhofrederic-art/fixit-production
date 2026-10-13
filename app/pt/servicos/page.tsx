@@ -122,7 +122,7 @@ export default function ServicosHubPage() {
             {SERVICES.map(service => (
               <Link
                 key={`urgencia-${service.slug}`}
-                href={`/pt/urgencia/${service.slug}-urgente-marco-de-canaveses/`}
+                href={`/pt/perto-de-mim/${service.slug}/#urgencia`}
                 className="p-4 bg-red-50 rounded-xl border border-red-200 hover:border-red-400 hover:shadow-md transition-all group text-center"
               >
                 <span className="text-2xl block mb-2">{service.icon}</span>

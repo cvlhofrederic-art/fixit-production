@@ -11,14 +11,20 @@
 /** Mise en production de la phase 1 : title, description, hreflang et JSON-LD de toutes les pages PT. */
 export const DATA_FASE_1 = '2026-10-13'
 
-// Grille, villes et pages statiques : toutes ont vu leur title, description, hreflang ou JSON-LD
-// changer le 13/10/2026. Les articles de blog portent leur propre date (dateModified, sinon
-// datePublished, lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/.
+/**
+ * Phase 2 (consolidation) : bloc « Urgência » et liens des pages servicos, hubs métier réécrits
+ * (22 pages ville liées), hubs de section /pt/servicos/, /pt/urgencia/ et /pt/perto-de-mim/,
+ * liens des pages ville. À aligner sur le jour de la mise en production (docs/seo/journal-pt.md).
+ */
+export const DATA_FASE_2 = '2026-10-13'
+
+// Pages statiques hors hubs de section et blog : inchangées depuis la phase 1. Les articles de blog
+// portent leur propre date (dateModified, sinon datePublished, lib/data/seo-pages-data.ts) ; `blog`
+// ne vaut que pour l'index /pt/blog/.
 export const DATAS_PT = {
-  servicos: DATA_FASE_1,
-  urgencia: DATA_FASE_1,
-  pertoDeMim: DATA_FASE_1,
-  cidades: DATA_FASE_1,
+  servicos: DATA_FASE_2,
+  hubs: DATA_FASE_2,
+  cidades: DATA_FASE_2,
   blog: DATA_FASE_1,
   paginas: DATA_FASE_1,
 } as const

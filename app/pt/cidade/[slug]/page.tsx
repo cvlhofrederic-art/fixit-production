@@ -185,7 +185,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
             {SERVICES.slice(0, 6).map(service => (
               <Link
                 key={service.slug}
-                href={`/pt/urgencia/${service.slug}-urgente-${city.slug}/`}
+                href={`/pt/servicos/${service.slug}-${city.slug}/#urgencia`}
                 className="p-4 rounded-xl border border-red-200 bg-red-50/50 hover:border-red-400 hover:shadow-sm transition-all group text-center"
               >
                 <span className="text-2xl block mb-2">{service.icon}</span>

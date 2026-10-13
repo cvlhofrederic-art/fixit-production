@@ -128,11 +128,6 @@ const CONTACTO = [
   'Orçamento grátis pelo site ou WhatsApp.',
   'Orçamento grátis.',
 ]
-const CONTACTO_URGENCIA = [
-  `Contacto por telefone ou WhatsApp ${TELEFONE_PT_TEXTE}, ou pedido pelo site.`,
-  'Contacto por WhatsApp ou pedido pelo site.',
-  'Contacto por WhatsApp.',
-]
 
 function freguesiasTexto(city: CityData): string {
   const lista = city.freguesias.slice(0, 3).join(', ')
@@ -155,37 +150,19 @@ export function descricaoServico(service: ServiceData, city: CityData): string {
   ])
 }
 
-export function tituloUrgencia(service: ServiceData, city: CityData): string {
-  // Qualificatif du métier quand il tient : « Pintor urgente em Maia » seul fait 31 caractères marque
-  // comprise, sous le plancher de 35 du test T6.
-  return tituloComCidade(service.name, 'urgente em', city.name, QUALIFICATIVO_SERVICO[service.slug])
-}
+// Phase 2 SEO PT : plus de pages urgencia ni perto-de-mim métier x ville (308 vers servicos) ; les
+// hubs métier /pt/perto-de-mim/{metier}/ sont les seules pages « perto de mim » restantes.
 
-export function descricaoUrgencia(service: ServiceData, city: CityData): string {
-  return descricao([
-    `${service.name} urgente em ${city.name}: ${numero(city.population)} habitantes (distrito ${nomeDistrito(city.distrito)}).`,
-    CONTACTO_URGENCIA,
-    freguesiasTexto(city),
-  ])
-}
-
-export function tituloPertoDeMim(nome: string, city: CityData | null): string {
+export function tituloPertoDeMim(nome: string): string {
   // Les 22 concelhos relèvent des distritos do Porto, de Braga et de Aveiro (Aveiro et Águeda sont dans
   // la Região Centro) : pas de « Norte ».
-  return city ? tituloComCidade(nome, 'perto de mim em', city.name) : titulo(`${nome} perto de mim`, 'Porto, Braga e Aveiro')
+  return titulo(`${nome} perto de mim`, 'Porto, Braga e Aveiro')
 }
 
-export function descricaoPertoDeMim(nome: string, city: CityData | null): string {
-  if (!city) {
-    return descricao([
-      `${nome} perto de si em 22 concelhos dos distritos do Porto, Braga e Aveiro.`,
-      CONTACTO,
-    ])
-  }
+export function descricaoPertoDeMim(nome: string): string {
   return descricao([
-    `${nome} perto de si em ${city.name}: ${numero(city.population)} habitantes (distrito ${nomeDistrito(city.distrito)}).`,
+    `${nome} perto de si em 22 concelhos dos distritos do Porto, Braga e Aveiro.`,
     CONTACTO,
-    freguesiasTexto(city),
   ])
 }
 
