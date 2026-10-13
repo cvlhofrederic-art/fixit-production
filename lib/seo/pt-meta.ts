@@ -74,6 +74,26 @@ export function descricao(partes: Array<string | string[]>, max = DESCRICAO_MAX)
 
 export const numero = (n: number) => n.toLocaleString('pt-PT')
 
+/** « do Porto » (toponyme avec article), « de Braga », « de Aveiro » : le nom officiel est « Distrito do Porto ». */
+export function nomeDistrito(distrito: string): string {
+  return distrito === 'Porto' ? 'do Porto' : `de ${distrito}`
+}
+
+/**
+ * Titre « <nome><complemento> <cidade> » (complemento : « em », « urgente em », « perto de mim em ») :
+ * le nom de la ville n'est jamais coupé. Si l'ensemble dépasse 65 caractères marque comprise, le
+ * qualificatif saute, puis le nom du métier perd ses derniers mots (« Estores e Portões Automáticos »
+ * → « Estores e Portões »). Sans cette règle, 32 titres finissaient en « em Marco de | VITFIX ».
+ */
+export function tituloComCidade(nome: string, complemento: string, cidade: string, qualificativo?: string): string {
+  const fim = ` ${complemento} ${cidade}`
+  const completo = titulo(`${nome}${fim}`, qualificativo)
+  if (completo.includes(fim)) return completo
+  const maxNome = TITULO_MAX - SUFIXO_MARCA.length - fim.length
+  const curto = cortar(nome, maxNome).replace(/\s+(e|de|do|da|dos|das)$/i, '')
+  return `${curto}${fim}`
+}
+
 /** Qualificatif court par métier, tiré des libellés existants (metaTitle / features). */
 export const QUALIFICATIVO_SERVICO: Record<string, string> = {
   eletricista: 'avarias, quadros e tomadas',
@@ -119,13 +139,17 @@ function freguesiasTexto(city: CityData): string {
   return lista ? `Freguesias: ${lista}.` : ''
 }
 
+// Faits réels des descriptions : population et distrito (lib/data/seo-pages-data.ts) et trois noms de
+// freguesias. Jamais « N freguesias » : `city.freguesias` est une liste de localités, pas le décompte
+// officiel des freguesias du concelho.
+
 export function tituloServico(service: ServiceData, city: CityData): string {
-  return titulo(`${service.name} em ${city.name}`, QUALIFICATIVO_SERVICO[service.slug])
+  return tituloComCidade(service.name, 'em', city.name, QUALIFICATIVO_SERVICO[service.slug])
 }
 
 export function descricaoServico(service: ServiceData, city: CityData): string {
   return descricao([
-    `${service.name} em ${city.name} (distrito de ${city.distrito}): ${city.freguesias.length} freguesias, ${numero(city.population)} habitantes.`,
+    `${service.name} em ${city.name} (distrito ${nomeDistrito(city.distrito)}): ${numero(city.population)} habitantes.`,
     CONTACTO,
     freguesiasTexto(city),
   ])
@@ -134,19 +158,21 @@ export function descricaoServico(service: ServiceData, city: CityData): string {
 export function tituloUrgencia(service: ServiceData, city: CityData): string {
   // Qualificatif du métier quand il tient : « Pintor urgente em Maia » seul fait 31 caractères marque
   // comprise, sous le plancher de 35 du test T6.
-  return titulo(`${service.name} urgente em ${city.name}`, QUALIFICATIVO_SERVICO[service.slug])
+  return tituloComCidade(service.name, 'urgente em', city.name, QUALIFICATIVO_SERVICO[service.slug])
 }
 
 export function descricaoUrgencia(service: ServiceData, city: CityData): string {
   return descricao([
-    `${service.name} urgente em ${city.name}: ${city.freguesias.length} freguesias, ${numero(city.population)} habitantes (distrito de ${city.distrito}).`,
+    `${service.name} urgente em ${city.name}: ${numero(city.population)} habitantes (distrito ${nomeDistrito(city.distrito)}).`,
     CONTACTO_URGENCIA,
     freguesiasTexto(city),
   ])
 }
 
 export function tituloPertoDeMim(nome: string, city: CityData | null): string {
-  return city ? titulo(`${nome} perto de mim em ${city.name}`) : titulo(`${nome} perto de mim`, '22 concelhos do Norte')
+  // Les 22 concelhos relèvent des distritos do Porto, de Braga et de Aveiro (Aveiro et Águeda sont dans
+  // la Região Centro) : pas de « Norte ».
+  return city ? tituloComCidade(nome, 'perto de mim em', city.name) : titulo(`${nome} perto de mim`, 'Porto, Braga e Aveiro')
 }
 
 export function descricaoPertoDeMim(nome: string, city: CityData | null): string {
@@ -157,7 +183,7 @@ export function descricaoPertoDeMim(nome: string, city: CityData | null): string
     ])
   }
   return descricao([
-    `${nome} perto de si em ${city.name}: ${city.freguesias.length} freguesias, ${numero(city.population)} habitantes (distrito de ${city.distrito}).`,
+    `${nome} perto de si em ${city.name}: ${numero(city.population)} habitantes (distrito ${nomeDistrito(city.distrito)}).`,
     CONTACTO,
     freguesiasTexto(city),
   ])
@@ -169,7 +195,7 @@ export function tituloCidade(city: CityData): string {
 
 export function descricaoCidade(city: CityData, numeroServicos: number): string {
   return descricao([
-    `Profissionais em ${city.name} (distrito de ${city.distrito}): ${city.freguesias.length} freguesias, ${numero(city.population)} habitantes.`,
+    `Profissionais em ${city.name} (distrito ${nomeDistrito(city.distrito)}): ${numero(city.population)} habitantes.`,
     `${numeroServicos} serviços, de eletricista a telhador, com orçamento grátis.`,
     freguesiasTexto(city),
   ])

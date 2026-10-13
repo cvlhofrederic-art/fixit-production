@@ -147,7 +147,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
             </div>
             <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
               <span className="text-yellow font-bold">📍</span>
-              <span className="text-dark">{city.name} e {city.freguesias.length} freguesias</span>
+              <span className="text-dark">{city.name} e todas as freguesias</span>
             </div>
           </div>
         </div>

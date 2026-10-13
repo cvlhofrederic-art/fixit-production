@@ -7,13 +7,13 @@ import { PHONE_PT } from '@/lib/constants'
 // Phase 1 SEO PT : marque une fois (template du layout), pas d'alternate (/fr/urgence/ ne renvoie
 // pas vers cette page). Le contenu du hub est repris en phase 2 (page unique du service d'urgence).
 export const metadata: Metadata = {
-  title: `Serviços de urgência em ${CITIES.length} concelhos do Norte`,
+  title: `Urgências em ${CITIES.length} concelhos do Porto, Braga e Aveiro`,
   description:
     `Urgências de canalizador, eletricista, serralheiro e outros serviços em ${CITIES.length} concelhos do Porto, Braga e Aveiro. Telefone e WhatsApp +351 912 014 971.`,
   openGraph: {
     title: 'Serviços de Urgência : VITFIX',
     description:
-      'Urgências de canalizador, eletricista, serralheiro e outros serviços em 22 concelhos do Norte de Portugal.',
+      'Urgências de canalizador, eletricista, serralheiro e outros serviços em 22 concelhos dos distritos do Porto, Braga e Aveiro.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Serviços de Urgência : VITFIX',
     description:
-      'Urgências de canalizador, eletricista, serralheiro e outros serviços em 22 concelhos do Norte de Portugal.',
+      'Urgências de canalizador, eletricista, serralheiro e outros serviços em 22 concelhos dos distritos do Porto, Braga e Aveiro.',
     images: ['https://vitfix.io/api/og/?locale=pt'],
   },
   alternates: {

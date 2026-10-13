@@ -2914,6 +2914,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: 'canalizacao',
     icon: '🚿',
     datePublished: '2025-12-20',
+    dateModified: '2026-10-13', // meta description raccourcie (phase 1 SEO PT)
     intro: 'Uma fuga de água pode causar danos significativos em poucas horas se não for tratada rapidamente. Saber como agir nos primeiros minutos pode poupar-lhe centenas ou milhares de euros em reparações. Este guia explica os passos imediatos, como identificar a origem, o que fazer com o seguro e como prevenir futuros problemas.',
     sections: [
       {

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CITIES, SERVICES, type CityData } from '@/lib/data/seo-pages-data'
+import { nomeDistrito } from '@/lib/seo/pt-meta'
 
 // Phase 1 SEO PT : marque une fois (template du layout), faits réels (22 concelhos, 3 distritos).
 export const metadata: Metadata = {
@@ -109,9 +110,9 @@ export default function CidadesHubPage() {
                   <span>{cities.length} cidades</span>
                 </span>
                 <h2 className="font-display text-[clamp(1.6rem,3vw,2.2rem)] font-bold tracking-tight text-dark">
-                  Distrito de {distrito}
+                  Distrito {nomeDistrito(distrito)}
                 </h2>
-                <p className="text-text-muted mt-1">{DISTRITO_DESCRIPTIONS[distrito] ?? `Cidades do distrito de ${distrito}.`}</p>
+                <p className="text-text-muted mt-1">{DISTRITO_DESCRIPTIONS[distrito] ?? `Cidades do distrito ${nomeDistrito(distrito)}.`}</p>
               </header>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">

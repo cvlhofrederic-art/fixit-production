@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
+import { nomeDistrito } from '@/lib/seo/pt-meta'
 
 // Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères avec des
 // faits réels (21 serviços, 22 concelhos), pas d'alternate (/fr/services/ ne renvoie pas vers cette page).
@@ -185,7 +186,7 @@ export default function ServicosHubPage() {
                 <span className="text-2xl block mb-2">📍</span>
                 <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{city.name}</span>
                 <span className="block text-xs text-text-muted mt-1">{city.population.toLocaleString('pt-PT')} habitantes</span>
-                <span className="block text-xs text-text-muted">Distrito de {city.distrito}</span>
+                <span className="block text-xs text-text-muted">Distrito {nomeDistrito(city.distrito)}</span>
               </Link>
             ))}
           </div>

@@ -976,6 +976,10 @@ function RechercheContent() {
   // Render
   // ------------------------------------------------------------------
 
+  // PT : un seul h1 (le sr-only ci-dessous), le titre des résultats est un h2 ; FR : h1 visible comme avant
+  // la phase 1 SEO PT (page FR hors périmètre, son double h1 est à traiter à part).
+  const TituloResultados = siteLocale === 'pt' ? 'h2' : 'h1'
+
   return (
     <div className="min-h-screen bg-warm-gray">
       <h1 className="sr-only">{tp('Rechercher un artisan près de chez vous', 'Pesquisar um profissional perto de si')}</h1>
@@ -1000,9 +1004,10 @@ function RechercheContent() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* ── Titre résultats ── */}
-        {/* h2 : le h1 de la page est celui, descriptif, en sr-only ci-dessus (un seul h1, test T6). Mêmes classes, aucun changement visuel. */}
+        {/* PT : h2, le h1 de /pt/pesquisar/ est celui, descriptif, en sr-only ci-dessus (un seul h1, test T6 de la
+            phase 1 SEO PT). FR : h1 comme avant la phase 1 (page FR hors périmètre, à traiter à part). Mêmes classes. */}
         <div className="mb-5">
-          <h2 className="font-display text-2xl sm:text-3xl font-black text-dark tracking-[-0.03em]">
+          <TituloResultados className="font-display text-2xl sm:text-3xl font-black text-dark tracking-[-0.03em]">
             {loading ? (
               tp('Recherche en cours...', 'A pesquisar...')
             ) : (
@@ -1010,7 +1015,7 @@ function RechercheContent() {
                 ? <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'profissionais disponíveis' : 'profissional disponível'}</>
                 : <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'artisans disponibles' : 'artisan disponible'}</>
             )}
-          </h2>
+          </TituloResultados>
           {!loading && (
             <p className="text-gray-500 mt-1 text-sm sm:text-base">{subtitleText}</p>
           )}

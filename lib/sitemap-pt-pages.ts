@@ -74,7 +74,9 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
 
   const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, DATAS_PT.cidades))]
 
-  const blog = [url('/pt/blog/', DATAS_PT.blog), ...BLOG_ARTICLES.map(article => url(`/pt/blog/${article.slug}/`, DATAS_PT.blog))]
+  // Articles : date propre à chaque article (dateModified, sinon datePublished) ; l'index /pt/blog/ porte
+  // la date de la phase 1 (title et description changés). Jamais une date unique pour tout le blog.
+  const blog = [url('/pt/blog/', DATAS_PT.blog), ...BLOG_ARTICLES.map(article => url(`/pt/blog/${article.slug}/`, article.dateModified ?? article.datePublished))]
 
   const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, DATAS_PT.paginas))
 

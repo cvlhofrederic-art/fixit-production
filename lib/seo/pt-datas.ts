@@ -11,6 +11,9 @@
 /** Mise en production de la phase 1 : title, description, hreflang et JSON-LD de toutes les pages PT. */
 export const DATA_FASE_1 = '2026-10-13'
 
+// Grille, villes et pages statiques : toutes ont vu leur title, description, hreflang ou JSON-LD
+// changer le 13/10/2026. Les articles de blog portent leur propre date (dateModified, sinon
+// datePublished, lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/.
 export const DATAS_PT = {
   servicos: DATA_FASE_1,
   urgencia: DATA_FASE_1,

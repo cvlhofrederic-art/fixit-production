@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloCidade, descricaoCidade } from '@/lib/seo/pt-meta'
+import { tituloCidade, descricaoCidade, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 import { CitySpecialtySection } from '@/components/seo/CitySpecialtySection'
 import { CityChallengesSection } from '@/components/seo/CityChallengesSection'
@@ -87,7 +87,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
 
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
             <span className="text-lg">📍</span>
-            <span className="text-dark">{city.name} · Distrito de {city.distrito}</span>
+            <span className="text-dark">{city.name} · Distrito {nomeDistrito(city.distrito)}</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
@@ -249,9 +249,9 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
             <div className="rounded-2xl p-6 md:p-8" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.06) 0%, rgba(255,214,0,0.12) 100%)' }}>
               <h3 className="font-display font-bold text-dark mb-2">Sobre {city.name}</h3>
               <p className="text-text-muted text-sm leading-relaxed">
-                {city.name} é um concelho do distrito de {city.distrito} com uma população de {city.population.toLocaleString('pt-PT')} habitantes.
+                {city.name} é um concelho do distrito {nomeDistrito(city.distrito)} com uma população de {city.population.toLocaleString('pt-PT')} habitantes.
                 A VITFIX oferece serviços de eletricidade, canalização, pintura e pladur em todo o concelho,
-                incluindo as {city.freguesias.length} freguesias. Todos os nossos profissionais são verificados e oferecem orçamento gratuito.
+                incluindo todas as freguesias. Todos os nossos profissionais são verificados e oferecem orçamento gratuito.
               </p>
             </div>
           </div>

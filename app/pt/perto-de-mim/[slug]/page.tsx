@@ -5,7 +5,7 @@ import { SERVICES, CITIES, type ServiceData, type CityData } from '@/lib/data/se
 import { PHONE_PT } from '@/lib/constants'
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import { ogImageMeta } from '@/lib/og'
-import { tituloPertoDeMim, descricaoPertoDeMim } from '@/lib/seo/pt-meta'
+import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional } from '@/lib/seo/pt-schemas'
 
 // ─────────────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
 
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             {city
-              ? `Encontre o seu ${displayName.toLowerCase()} de confiança perto de si em ${city.name} e em todas as suas ${city.freguesias.length} freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
+              ? `Encontre o seu ${displayName.toLowerCase()} de confiança perto de si em ${city.name} e em todas as suas freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
               : `Encontre ${pluralizar(displayName)} verificados perto de si no Tâmega e Sousa. Resposta rápida, orçamento grátis, serviço 7 dias por semana.${isPicheleiro ? ' (Picheleiro = canalizador no Norte de Portugal)' : ''}`
             }
           </p>
@@ -268,7 +268,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               {displayName} disponível em toda a {city.name}
             </h2>
             <p className="text-text-muted mb-6 max-w-2xl">
-              Os nossos profissionais cobrem os <strong>{city.population.toLocaleString('pt-PT')} habitantes</strong> de {city.name} e todas as suas {city.freguesias.length} freguesias:
+              Os nossos profissionais cobrem os <strong>{city.population.toLocaleString('pt-PT')} habitantes</strong> de {city.name} e todas as suas freguesias:
             </p>
             <div className="flex flex-wrap gap-2 mb-8">
               {city.freguesias.map(f => (
@@ -319,7 +319,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                   </div>
                   <div className="space-y-1 text-sm text-text-muted">
                     <p>{c.population.toLocaleString('pt-PT')} habitantes</p>
-                    <p>{c.freguesias.length} freguesias</p>
+                    <p>Distrito {nomeDistrito(c.distrito)}</p>
                   </div>
                   <span className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-yellow">
                     Perto de mim

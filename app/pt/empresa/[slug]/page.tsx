@@ -11,15 +11,10 @@ export async function generateMetadata(
   return {
     title: 'Empresa',
     robots: { index: true, follow: true },
-    // Pro SEO 2026 : canonical self-référent + hreflang cross-locale
-    // (la même empresa a une URL /fr/artisan/<slug>/ équivalente).
+    // Canonical self-référente, sans hreflang (phase 1 SEO PT, point 1.5) : /fr/artisan/<slug>/
+    // n'émet aucun alternate retour, la paire ne serait pas réciproque.
     alternates: {
       canonical: `https://vitfix.io/pt/empresa/${slug}/`,
-      languages: {
-        'pt-PT': `https://vitfix.io/pt/empresa/${slug}/`,
-        'fr-FR': `https://vitfix.io/fr/artisan/${slug}/`,
-        'x-default': `https://vitfix.io/fr/artisan/${slug}/`,
-      },
     },
   }
 }
