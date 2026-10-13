@@ -8,8 +8,8 @@
 // les référence directement (Google n'accepte pas un index dans un index).
 //
 // Phase 2 (consolidation, décision 1 option A) : une seule URL par couple métier x ville, le modèle
-// servicos. Les 946 pages urgencia et perto-de-mim métier x ville et le hub picheleiro répondent 308
-// (next.config.ts) et ne sont plus déclarées ; les 21 hubs métier ont leur propre fichier.
+// servicos. Les 946 pages urgencia et perto-de-mim métier x ville et le hub picheleiro répondent 301
+// (middleware.ts, lib/seo/pt-consolidacao.ts) et ne sont plus déclarées ; les 21 hubs métier ont leur propre fichier.
 //
 // Règles : jamais d'URL noindex (pages juridiques exclues), jamais d'URL redirigée, `lastmod`
 // = date réelle de dernière modification significative (lib/seo/pt-datas.ts), jamais la date

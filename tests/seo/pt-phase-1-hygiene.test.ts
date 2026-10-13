@@ -133,7 +133,7 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
 })
 
 // Phase 2 SEO PT : la grille indexable est 462 servicos + 21 hubs métier + 22 pages ville (505 pages) ;
-// urgencia et perto-de-mim métier x ville répondent 308 vers servicos (data/seo/pt-redirects.csv).
+// urgencia et perto-de-mim métier x ville répondent 301 vers servicos (data/seo/pt-redirects.csv).
 describe('1.4 titres et descriptions de la grille (505 pages)', () => {
   const titres: Array<[string, string]> = [
     ...getAllPageCombos().map((c): [string, string] => [`servicos/${c.slug}`, tituloServico(c.service, c.city)]),

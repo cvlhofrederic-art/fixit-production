@@ -224,7 +224,10 @@ describe('barre finale des redirections « /:path* »', () => {
 
   it.each([
     ['/servicos/canalizador-porto/', '/pt/servicos/canalizador-porto/'],
-    ['/urgencia/eletricista-urgente-porto/', '/pt/urgencia/eletricista-urgente-porto/'],
+    // Phase 2 SEO PT : /urgencia/… et /perto-de-mim/… sont traités par le middleware (un seul saut vers
+    // /pt/servicos/…, cf. tests/seo/pt-phase-2-consolidation.test.ts) ; ici la variante « electricista ».
+    ['/cidade/porto/', '/pt/cidade/porto/'],
+    ['/pt/urgencia/electricista-urgente-porto/', '/pt/servicos/eletricista-porto/'],
     ['/artisan/dashboard/', '/fr/artisan/dashboard/'],
     // Dernier segment en forme de fichier : la requête arrive sans barre finale, la règle doit encore s'appliquer.
     ['/profissional/joao.silva', '/pt/profissional/joao.silva/'],

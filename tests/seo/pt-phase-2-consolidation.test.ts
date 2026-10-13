@@ -43,6 +43,23 @@ describe('destinoConsolidado (lib/seo/pt-consolidacao.ts)', () => {
     expect(destinoConsolidado('/pt/perto-de-mim/picheleiro/')).toBe('/pt/perto-de-mim/canalizador/')
   })
 
+  it('anciennes formes sans préfixe de langue : un seul saut (grille vers servicos, hub vers /pt/, inconnu vers un 404 propre)', () => {
+    expect(destinoConsolidado('/urgencia/eletricista-urgente-porto/')).toBe('/pt/servicos/eletricista-porto/')
+    expect(destinoConsolidado('/perto-de-mim/canalizador-porto')).toBe('/pt/servicos/canalizador-porto/')
+    expect(destinoConsolidado('/perto-de-mim/picheleiro-ovar/')).toBe('/pt/servicos/canalizador-ovar/')
+    expect(destinoConsolidado('/perto-de-mim/pintor/')).toBe('/pt/perto-de-mim/pintor/')
+    expect(destinoConsolidado('/perto-de-mim/picheleiro/')).toBe('/pt/perto-de-mim/canalizador/')
+    expect(destinoConsolidado('/urgencia/sapateiro-urgente-porto/')).toBe('/pt/urgencia/sapateiro-urgente-porto/')
+    expect(destinoConsolidado('/urgencia/')).toBeNull()
+    expect(destinoConsolidado('/perto-de-mim/')).toBeNull()
+  })
+
+  it('aucun texte d’urgence rendu (#urgencia) n’annonce un délai ou une disponibilité non sourcés (règle 0.2)', () => {
+    const interdit = /24\s*h|24 horas|próprio dia|em \d+ (minutos|horas)|menos de \d+|7 dias|7\/7/i
+    const fautifs = SERVICES.flatMap((s) => [s.urgencyText, ...s.urgency.whenToCall, ...s.urgency.immediateSteps].filter((t) => interdit.test(t)).map((t) => `${s.slug} : « ${t} »`))
+    expect(fautifs).toEqual([])
+  })
+
   it('les 21 hubs métier, les hubs de section et les 554 URL du sitemap ne sont pas redirigés', () => {
     for (const s of SERVICES) expect(destinoConsolidado(`/pt/perto-de-mim/${s.slug}/`)).toBeNull()
     for (const chemin of ['/pt/perto-de-mim/', '/pt/urgencia/', '/pt/servicos/', '/pt/', '/fr/urgence/plombier-marseille/']) expect(destinoConsolidado(chemin)).toBeNull()
@@ -70,6 +87,9 @@ describe('middleware : 301 un saut, CSP posée, requête conservée', () => {
     ['/pt/perto-de-mim/pintor-vila-nova-de-gaia/', '/pt/servicos/pintor-vila-nova-de-gaia/'],
     ['/pt/perto-de-mim/picheleiro-porto', '/pt/servicos/canalizador-porto/'],
     ['/pt/perto-de-mim/picheleiro/', '/pt/perto-de-mim/canalizador/'],
+    ['/urgencia/canalizador-urgente-porto', '/pt/servicos/canalizador-porto/'],
+    ['/perto-de-mim/pintor-maia/', '/pt/servicos/pintor-maia/'],
+    ['/perto-de-mim/pintor', '/pt/perto-de-mim/pintor/'],
   ])('%s → 301 %s', async (source, destination) => {
     const { middleware } = await import('@/middleware')
     const reponse = await middleware(new NextRequest(`https://vitfix.io${source}?utm_source=teste`))

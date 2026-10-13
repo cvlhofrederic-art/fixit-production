@@ -247,7 +247,7 @@ Option B (garder les 3 modèles, `noindex,follow` hors sitemap pour les couples 
 
 Recommandation : garder `/pt/perto-de-mim/{metier}/` (2 hubs indexés : canalizador, estores-portoes ; 20 non indexés ; URL connues de Google ; déplacement vers `/pt/servicos/{metier}/` possible après récupération). Le hub `picheleiro` est redirigé vers `canalizador` dans tous les cas.
 
-**Tranchée le 13/10/2026 :** URL des 21 hubs conservées (même mandat que la décision 1) ; `/pt/perto-de-mim/picheleiro/` en 308 vers `/pt/perto-de-mim/canalizador/`.
+**Tranchée le 13/10/2026 :** URL des 21 hubs conservées (même mandat que la décision 1) ; `/pt/perto-de-mim/picheleiro/` en 301 (middleware) vers `/pt/perto-de-mim/canalizador/`.
 
 ### DECISION PROPRIETAIRE 3 : adresse réelle et établissements
 

@@ -1507,7 +1507,7 @@ export const SERVICES: ServiceData[] = [
       'Picheleiro disponível, serviços completos de canalização',
       'Urgências de canalização 24h',
     ],
-    urgencyText: 'Fuga de água? Feche a torneira de segurança e contacte-nos imediatamente para minimizar os danos. Canalizador (picheleiro) disponível 24h.',
+    urgencyText: 'Fuga de água? Feche a torneira de segurança e contacte-nos imediatamente para minimizar os danos.',
     problemsWeSolve: [
       'Fuga de água na parede ou no teto',
       'Canos entupidos ou obstruídos',
@@ -1534,7 +1534,7 @@ export const SERVICES: ServiceData[] = [
         'Coloque baldes e toalhas para conter a água',
         'Desligue a eletricidade se a água tocar em tomadas',
         'Não tente reparar sozinho, pode piorar a situação',
-        'Ligue para a VITFIX, estamos disponíveis 24h',
+        'Ligue para a VITFIX ou envie uma mensagem WhatsApp',
       ],
       whenToCall: [
         'Cano rebentado, água a jorrar',
@@ -1682,7 +1682,7 @@ export const SERVICES: ServiceData[] = [
       'Impermeabilização de terraços e varandas',
       'Gestão integral de obras, chave na mão',
     ],
-    urgencyText: 'Precisa de fazer obras rapidamente? Avaliamos o seu projeto e apresentamos orçamento em 24 horas.',
+    urgencyText: 'Precisa de fazer obras rapidamente? Avaliamos o seu projeto e apresentamos um orçamento.',
     problemsWeSolve: [
       'Casa antiga que precisa de renovação total',
       'Cozinha ou casa de banho desatualizada',
@@ -1914,7 +1914,7 @@ export const SERVICES: ServiceData[] = [
       'Vedação de juntas e silicones',
       'Manutenção geral da habitação',
     ],
-    urgencyText: 'Precisa de uma reparação rápida em casa? O nosso faz-tudo resolve pequenos problemas no próprio dia.',
+    urgencyText: 'Precisa de uma reparação rápida em casa? O nosso faz-tudo resolve pequenos problemas do dia a dia.',
     problemsWeSolve: [
       'Porta que não fecha ou range',
       'Estore partido ou encravado',
@@ -1972,7 +1972,7 @@ export const SERVICES: ServiceData[] = [
       'Duplicação de chaves',
       'Portões e automatismos',
     ],
-    urgencyText: 'Fechado fora de casa? Fechadura partida? Ligue agora, serralheiro disponível 24h em {city}.',
+    urgencyText: 'Fechado fora de casa? Fechadura partida? Contacte um serralheiro em {city}.',
     problemsWeSolve: [
       'Fechado fora de casa ou do carro',
       'Chave partida na fechadura',
@@ -1998,7 +1998,7 @@ export const SERVICES: ServiceData[] = [
         'Reúna o seu documento de identificação para mostrar ao serralheiro',
         'Avise um vizinho se necessário',
         'Não tente abrir a porta com objetos improvisados (pode danificar a fechadura)',
-        'Ligue para a VITFIX, serralheiro disponível 24h em {city}',
+        'Ligue para a VITFIX ou envie uma mensagem WhatsApp',
       ],
       whenToCall: [
         'Fechado fora de casa ou do escritório',

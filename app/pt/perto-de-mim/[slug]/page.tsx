@@ -12,7 +12,7 @@ import { grafo, noFilAriane, noServicoRegional } from '@/lib/seo/pt-schemas'
 // HUB MÉTIER : /pt/perto-de-mim/{metier}/ (21 pages)
 //
 // Phase 2 SEO PT (consolidation, décisions 1 et 2) : les 484 pages métier x ville de ce modèle
-// et le hub « picheleiro » répondent 308 vers /pt/servicos/ (next.config.ts). Ce hub lie les
+// et le hub « picheleiro » répondent 301 vers /pt/servicos/ (middleware.ts). Ce hub lie les
 // 22 pages ville du métier ; son contenu propre au métier est l'objet de la phase 3.
 // `dynamicParams = false` : tout autre slug finit en 404, jamais en 200 générique.
 // ─────────────────────────────────────────────────────────────

@@ -31,7 +31,7 @@ export default function ServicosHubPage() {
       {
         '@type': 'CollectionPage',
         name: 'Serviços VITFIX',
-        description: 'Todos os serviços disponíveis na região do Tâmega e Sousa.',
+        description: `Todos os serviços VITFIX em ${CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.`,
         url: 'https://vitfix.io/pt/servicos/',
       },
       {
@@ -66,7 +66,7 @@ export default function ServicosHubPage() {
             Todos os Serviços VITFIX
           </h1>
           <p className="text-lg text-text-muted max-w-2xl leading-relaxed">
-            Profissionais verificados para eletricidade, canalização, pintura, pladur e obras de remodelação em Marco de Canaveses e toda a região do Tâmega e Sousa.
+            Profissionais verificados para eletricidade, canalização, pintura, pladur e obras de remodelação em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
         </div>
       </section>
@@ -174,7 +174,7 @@ export default function ServicosHubPage() {
             Cidades onde atuamos
           </h2>
           <p className="text-text-muted mb-8">
-            A VITFIX cobre toda a região do Tâmega e Sousa, distrito do Porto.
+            A VITFIX cobre {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {CITIES.map(city => (

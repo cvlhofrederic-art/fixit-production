@@ -96,7 +96,8 @@ const nextConfig: NextConfig = {
     return [
       // Alternate spelling: electricista → eletricista (PT pages now under /pt/)
       { source: '/pt/servicos/electricista-:city/', destination: '/pt/servicos/eletricista-:city/', permanent: true },
-      { source: '/pt/urgencia/electricista-urgente-:city/', destination: '/pt/urgencia/eletricista-urgente-:city/', permanent: true },
+      // Phase 2 SEO PT : directement vers servicos (un seul saut, la destination urgencia étant elle-même redirigée).
+      { source: '/pt/urgencia/electricista-urgente-:city/', destination: '/pt/servicos/eletricista-:city/', permanent: true },
       { source: '/pt/perto-de-mim/electricista/', destination: '/pt/perto-de-mim/eletricista/', permanent: true },
       { source: '/pt/precos/electricista/', destination: '/pt/precos/eletricista/', permanent: true },
       // Northern PT variant: picheleiro → canalizador (phase 2 SEO PT : directement vers servicos, un seul saut)
@@ -115,12 +116,12 @@ const nextConfig: NextConfig = {
       // Destination `:path*/` avec barre finale (trailingSlash) : sinon chaque ancienne URL coûte un saut 308 de plus.
       { source: '/servicos/', destination: '/pt/servicos/', permanent: true },
       { source: '/servicos/:path*', destination: '/pt/servicos/:path*/', permanent: true },
+      // Phase 2 SEO PT : « /urgencia/:path* » et « /perto-de-mim/:path* » sont traités par le middleware (un seul saut
+      // vers /pt/servicos/ pour la grille, vers /pt/{modele}/… sinon) ; ici seules les racines exactes restent.
       { source: '/urgencia/', destination: '/pt/urgencia/', permanent: true },
-      { source: '/urgencia/:path*', destination: '/pt/urgencia/:path*/', permanent: true },
       { source: '/cidade/', destination: '/pt/cidade/', permanent: true },
       { source: '/cidade/:path*', destination: '/pt/cidade/:path*/', permanent: true },
       { source: '/perto-de-mim/', destination: '/pt/perto-de-mim/', permanent: true },
-      { source: '/perto-de-mim/:path*', destination: '/pt/perto-de-mim/:path*/', permanent: true },
       { source: '/precos/', destination: '/pt/precos/', permanent: true },
       { source: '/precos/:path*', destination: '/pt/precos/:path*/', permanent: true },
       { source: '/sobre/', destination: '/pt/sobre/', permanent: true },

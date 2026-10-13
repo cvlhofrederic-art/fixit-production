@@ -21,12 +21,21 @@ const CIDADES: readonly string[] = CIDADES_PT_SLUGS
  * - /pt/perto-de-mim/{metier}-{ville}/        -> /pt/servicos/{metier}-{ville}/
  * - /pt/perto-de-mim/picheleiro-{ville}/      -> /pt/servicos/canalizador-{ville}/
  * - /pt/perto-de-mim/picheleiro/              -> /pt/perto-de-mim/canalizador/
- * Un métier ou une ville inconnus ne sont pas redirigés (404 propre, jamais un 200 générique).
+ * Les anciennes formes sans préfixe de langue (/urgencia/…, /perto-de-mim/…, avant 2026) suivent les
+ * mêmes règles en un seul saut ; hors grille, elles reçoivent simplement le préfixe /pt/ (hub métier
+ * -> 200, slug inconnu -> 404 propre). Un métier ou une ville inconnus sous /pt/ ne sont pas
+ * redirigés (404 propre, jamais un 200 générique).
  */
 export function destinoConsolidado(pathname: string): string | null {
-  const m = pathname.match(/^\/pt\/(urgencia|perto-de-mim)\/([a-z0-9-]+)\/?$/)
+  const m = pathname.match(/^(\/pt)?\/(urgencia|perto-de-mim)\/([a-z0-9-]+)\/?$/)
   if (!m) return null
-  const [, modelo, slug] = m
+  const [, prefixo, modelo, slug] = m
+  const consolidado = destinoGrelha(modelo, slug)
+  if (consolidado) return consolidado
+  return prefixo ? null : `/pt/${modelo}/${slug}/`
+}
+
+function destinoGrelha(modelo: string, slug: string): string | null {
   if (modelo === 'perto-de-mim' && slug === 'picheleiro') return '/pt/perto-de-mim/canalizador/'
   for (const cidade of CIDADES) {
     const sufixo = `-${cidade}`

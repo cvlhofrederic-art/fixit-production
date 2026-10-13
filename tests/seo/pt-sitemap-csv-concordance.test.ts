@@ -4,7 +4,7 @@
 // Phase 1 SEO PT (point 1.1) : le sitemap PT perd les 4 pages juridiques (noindex) et gagne
 // /pt/cidade/ et /pt/contacto/ ; chaque URL est dans exactement un fichier /pt/sitemap-*.xml.
 // Phase 2 (point 2.2, décision 1 option A) : les 946 pages urgencia et perto-de-mim métier x ville
-// et le hub picheleiro sortent du sitemap (308 vers servicos, data/seo/pt-redirects.csv) ; les 21
+// et le hub picheleiro sortent du sitemap (301 vers servicos, data/seo/pt-redirects.csv) ; les 21
 // hubs métier ont leur fichier /pt/sitemap-hubs.xml. Ce test protège la base de calcul des phases
 // suivantes : si la grille change, le CSV doit être recalculé.
 import { readFileSync } from 'node:fs'

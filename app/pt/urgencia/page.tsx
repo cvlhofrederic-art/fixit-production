@@ -7,7 +7,7 @@ import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 // ── Static SEO metadata ──
 // Phase 1 SEO PT : marque une fois (template du layout), pas d'alternate (/fr/urgence/ ne renvoie
 // pas vers cette page). Phase 2 (point 2.2) : page unique du service d'urgence ; les 462 pages
-// /pt/urgencia/{metier}-urgente-{ville}/ répondent 308 vers /pt/servicos/{metier}-{ville}/#urgencia.
+// /pt/urgencia/{metier}-urgente-{ville}/ répondent 301 (middleware.ts) vers /pt/servicos/{metier}-{ville}/.
 // Cette page lie les 21 hubs métier et les 22 pages ville, plus les 462 pages. Aucun délai ni
 // horaire annoncé tant que le propriétaire n'a pas fourni de données réelles (règle 0.2).
 export const metadata: Metadata = {
