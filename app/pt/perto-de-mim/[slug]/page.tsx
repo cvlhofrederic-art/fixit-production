@@ -1,101 +1,36 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { SERVICES, CITIES, type ServiceData, type CityData } from '@/lib/data/seo-pages-data'
+import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import { ogImageMeta } from '@/lib/og'
-import { tituloPertoDeMim, descricaoPertoDeMim } from '@/lib/seo/pt-meta'
-import { grafo, noFilAriane, noServicoLocal, noServicoRegional } from '@/lib/seo/pt-schemas'
+import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito } from '@/lib/seo/pt-meta'
+import { grafo, noFilAriane, noServicoRegional } from '@/lib/seo/pt-schemas'
 
 // ─────────────────────────────────────────────────────────────
-// SLUG RESOLVER
-// Handles:
-//   eletricista                         → service only
-//   eletricista-marco-de-canaveses      → service + city
-//   picheleiro                          → canalizador (isPicheleiro=true)
-//   picheleiro-marco-de-canaveses       → canalizador + city (isPicheleiro=true)
+// HUB MÉTIER : /pt/perto-de-mim/{metier}/ (21 pages)
+//
+// Phase 2 SEO PT (consolidation, décisions 1 et 2) : les 484 pages métier x ville de ce modèle
+// et le hub « picheleiro » répondent 301 vers /pt/servicos/ (middleware.ts). Ce hub lie les
+// 22 pages ville du métier ; son contenu propre au métier est l'objet de la phase 3.
+// `dynamicParams = false` : tout autre slug finit en 404, jamais en 200 générique.
 // ─────────────────────────────────────────────────────────────
-interface Resolved {
-  service: ServiceData
-  city: CityData | null
-  isPicheleiro: boolean
-}
+export const dynamicParams = false
 
-function resolveSlug(slug: string): Resolved | null {
-  // 1. Direct service match
-  const directService = SERVICES.find(s => s.slug === slug)
-  if (directService) return { service: directService, city: null, isPicheleiro: false }
-
-  // 2. Picheleiro generic
-  if (slug === 'picheleiro') {
-    const canaliz = SERVICES.find(s => s.slug === 'canalizador')
-    if (canaliz) return { service: canaliz, city: null, isPicheleiro: true }
-  }
-
-  // 3. Picheleiro + city
-  if (slug.startsWith('picheleiro-')) {
-    const citySlug = slug.slice('picheleiro-'.length)
-    const city = CITIES.find(c => c.slug === citySlug)
-    const canaliz = SERVICES.find(s => s.slug === 'canalizador')
-    if (city && canaliz) return { service: canaliz, city, isPicheleiro: true }
-  }
-
-  // 4. Service + city (try every service prefix, longest first to avoid partial matches)
-  for (const service of SERVICES) {
-    const prefix = `${service.slug}-`
-    if (slug.startsWith(prefix)) {
-      const citySlug = slug.slice(prefix.length)
-      const city = CITIES.find(c => c.slug === citySlug)
-      if (city) return { service, city, isPicheleiro: false }
-    }
-  }
-
-  return null
-}
-
-// ─────────────────────────────────────────────────────────────
-// STATIC PARAMS - 45 pages
-//   4  generic service pages
-//  32  service × city pages
-//   1  picheleiro generic
-//   8  picheleiro × city
-// ─────────────────────────────────────────────────────────────
 export function generateStaticParams() {
-  const params: { slug: string }[] = []
-
-  // Generic service pages (4)
-  SERVICES.forEach(s => params.push({ slug: s.slug }))
-
-  // Service × city (4 × 8 = 32)
-  SERVICES.forEach(s =>
-    CITIES.forEach(c => params.push({ slug: `${s.slug}-${c.slug}` }))
-  )
-
-  // Picheleiro generic (1)
-  params.push({ slug: 'picheleiro' })
-
-  // Picheleiro × city (8)
-  CITIES.forEach(c => params.push({ slug: `picheleiro-${c.slug}` }))
-
-  return params // 45 total
+  return SERVICES.map(s => ({ slug: s.slug }))
 }
 
-// ─────────────────────────────────────────────────────────────
-// METADATA
-// ─────────────────────────────────────────────────────────────
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const resolved = resolveSlug(slug)
-  if (!resolved) return {}
+  const service = SERVICES.find(s => s.slug === slug)
+  if (!service) return {}
 
-  const { service, city, isPicheleiro } = resolved
-  const displayName = isPicheleiro ? 'Picheleiro' : service.name
-
-  // Phase 1 SEO PT : marque une fois (template du layout), description propre à la page,
-  // pas d'alternate hreflang (aucune page FR équivalente).
-  const title = tituloPertoDeMim(displayName, city)
-  const description = descricaoPertoDeMim(displayName, city)
+  // Phase 1 SEO PT : marque une fois (template du layout), description propre, pas d'alternate
+  // hreflang (aucune page FR équivalente).
+  const title = tituloPertoDeMim(service.name)
+  const description = descricaoPertoDeMim(service.name)
 
   return {
     title,
@@ -114,7 +49,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 
 // ─────────────────────────────────────────────────────────────
-// SHARED WHATSAPP ICON SVG
+// SHARED SVG
 // ─────────────────────────────────────────────────────────────
 const WaSvg = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -131,54 +66,34 @@ const PhoneSvg = () => (
 // ─────────────────────────────────────────────────────────────
 // PAGE COMPONENT
 // ─────────────────────────────────────────────────────────────
-export default async function PertoDeMinPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function HubMetierPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const resolved = resolveSlug(slug)
-  if (!resolved) notFound()
+  const service = SERVICES.find(s => s.slug === slug)
+  if (!service) notFound()
 
-  const { service, city, isPicheleiro } = resolved
-  const displayName = isPicheleiro ? 'Picheleiro' : service.name
-  const locationLabel = city ? ` em ${city.name}` : ''
+  const displayName = service.name
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
+  const urgencyTexto = service.urgencyText.replace(/\s*em \{city\}/g, '').replace(/\{city\}/g, 'Portugal')
 
-  // Contextual WhatsApp message
-  const waText = city
-    ? `Olá! Preciso de ${displayName.toLowerCase()} perto de mim em ${city.name}. Podem ajudar?`
-    : `Olá! Preciso de ${displayName.toLowerCase()} perto de mim. Podem ajudar?`
+  const waText = `Olá! Preciso de ${displayName.toLowerCase()} perto de mim. Podem ajudar?`
   const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(waText)}`
-  const waUrgText = city
-    ? `URGÊNCIA! Preciso de ${displayName.toLowerCase()} urgente perto de mim em ${city.name}. Podem vir rapidamente?`
-    : `URGÊNCIA! Preciso de ${displayName.toLowerCase()} urgente perto de mim. Podem vir rapidamente?`
+  const waUrgText = `URGÊNCIA! Preciso de ${displayName.toLowerCase()} urgente perto de mim. Podem vir rapidamente?`
   const waUrgHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(waUrgText)}`
 
-  // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business), servi dans
-  // la ville (page métier x ville) ou dans les 22 concelhos (hub métier), plus le fil d'Ariane.
-  // Plus de LocalBusiness par ville ni de FAQPage (résultat enrichi retiré par Google).
+  // JSON-LD : un `Service` fourni par l'entité unique (#business) dans les 22 concelhos, plus le fil
+  // d'Ariane. Aucun délai ni horaire : aucune donnée réelle disponible (règle 0.2 des instructions).
   const urlPagina = `https://vitfix.io/pt/perto-de-mim/${slug}/`
   const jsonLd = grafo(
-    city
-      ? noServicoLocal({
-          url: urlPagina,
-          nome: `${displayName} perto de mim em ${city.name}`,
-          serviceType: displayName,
-          descricao: descricaoPertoDeMim(displayName, city),
-          city,
-        })
-      : noServicoRegional({
-          url: urlPagina,
-          nome: `${displayName} perto de mim`,
-          serviceType: displayName,
-          descricao: descricaoPertoDeMim(displayName, null),
-        }),
+    noServicoRegional({
+      url: urlPagina,
+      nome: `${displayName} perto de mim`,
+      serviceType: displayName,
+      descricao: descricaoPertoDeMim(displayName),
+    }),
     noFilAriane([
       { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
       { name: 'Perto de Mim', url: 'https://vitfix.io/pt/perto-de-mim/' },
-      ...(city
-        ? [
-            { name: displayName, url: `https://vitfix.io/pt/perto-de-mim/${service.slug}/` },
-            { name: city.name, url: urlPagina },
-          ]
-        : [{ name: `${displayName} perto de mim`, url: urlPagina }]),
+      { name: `${displayName} perto de mim`, url: urlPagina },
     ]),
   )
 
@@ -192,44 +107,28 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.08) 0%, #fff 40%, #F5F3EF 100%)' }}
       >
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Breadcrumb */}
           <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
             <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
             <span className="mx-2">/</span>
-            {/* Lien vers le hub (phase 1 SEO PT, point 1.8) : le fil d'Ariane JSON-LD le déclare, il doit être visible. */}
             <Link href="/pt/perto-de-mim/" className="hover:text-yellow transition">Perto de Mim</Link>
             <span className="mx-2">/</span>
-            {city ? (
-              <>
-                <Link href={`/pt/perto-de-mim/${service.slug}/`} className="hover:text-yellow transition">{displayName}</Link>
-                <span className="mx-2">/</span>
-                <span className="text-dark font-medium">{city.name}</span>
-              </>
-            ) : (
-              <span className="text-dark font-medium">{displayName}</span>
-            )}
+            <span className="text-dark font-medium">{displayName}</span>
           </nav>
 
-          {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
             <span className="text-lg">{service.icon}</span>
-            <span className="text-dark">
-              {displayName}{city ? ` · ${city.name}` : ' · Tâmega e Sousa'}
-            </span>
+            <span className="text-dark">{displayName} · {CITIES.length} concelhos</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            {displayName} Perto de Mim{locationLabel}
+            {displayName} Perto de Mim
           </h1>
 
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
-            {city
-              ? `Encontre o seu ${displayName.toLowerCase()} de confiança perto de si em ${city.name} e em todas as suas ${city.freguesias.length} freguesias. Resposta rápida, orçamento gratuito, serviço 7 dias por semana.`
-              : `Encontre ${pluralizar(displayName)} verificados perto de si no Tâmega e Sousa. Resposta rápida, orçamento grátis, serviço 7 dias por semana.${isPicheleiro ? ' (Picheleiro = canalizador no Norte de Portugal)' : ''}`
-            }
+            Encontre {pluralizar(displayName)} verificados perto de si em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro. Orçamento grátis, sem compromisso.
+            {service.slug === 'canalizador' ? ' No Norte de Portugal, o canalizador é também chamado de picheleiro.' : ''}
           </p>
 
-          {/* CTAs hero */}
           <div className="flex flex-wrap gap-3 mb-10">
             <a
               href={waHref}
@@ -239,7 +138,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               style={{ background: '#25D366', boxShadow: '0 6px 20px rgba(37,211,102,0.35)' }}
             >
               <WaSvg />
-              WhatsApp, Resposta rápida
+              WhatsApp
             </a>
             <a
               href={`tel:${PHONE_PT}`}
@@ -250,97 +149,57 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
             </a>
           </div>
 
-          {/* Trust indicators */}
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-muted">
             <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Profissionais verificados</span>
             <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Orçamento grátis</span>
-            <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Serviço 7/7</span>
-            <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> {service.urgency.avgResponseTime}</span>
+            <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> {CITIES.length} concelhos cobertos</span>
           </div>
         </div>
       </section>
 
-      {/* ── CITY-SPECIFIC: info + freguesias ── */}
-      {city && (
-        <section className="py-14 md:py-18 bg-white">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-              {displayName} disponível em toda a {city.name}
-            </h2>
-            <p className="text-text-muted mb-6 max-w-2xl">
-              Os nossos profissionais cobrem os <strong>{city.population.toLocaleString('pt-PT')} habitantes</strong> de {city.name} e todas as suas {city.freguesias.length} freguesias:
-            </p>
-            <div className="flex flex-wrap gap-2 mb-8">
-              {city.freguesias.map(f => (
-                <span key={f} className="px-3 py-1.5 bg-warm-gray rounded-full text-sm text-dark/70 border border-border/30">{f}</span>
-              ))}
-            </div>
-
-            {/* Link to full service page */}
-            <div className="flex flex-wrap gap-3">
+      {/* ── CITIES GRID : les 22 pages métier x ville (modèle servicos) ── */}
+      <section className="py-14 md:py-18">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
+            {displayName} perto de si, escolha o seu concelho
+          </h2>
+          <p className="text-text-muted mb-8 max-w-2xl">
+            Selecione o seu concelho para ver a página de {displayName.toLowerCase()} na sua zona.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {CITIES.map(c => (
               <Link
-                href={`/pt/servicos/${service.slug}-${city.slug}/`}
-                className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-6 py-2.5 text-[0.9rem] hover:bg-yellow-light transition-all"
+                key={c.slug}
+                href={`/pt/servicos/${service.slug}-${c.slug}/`}
+                className="p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
               >
-                {service.icon} Ver todos os serviços de {displayName.toLowerCase()} em {city.name}
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-2xl">{service.icon}</span>
+                  <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{c.name}</span>
+                </div>
+                <div className="space-y-1 text-sm text-text-muted">
+                  <p>{c.population.toLocaleString('pt-PT')} habitantes</p>
+                  <p>Distrito {nomeDistrito(c.distrito)}</p>
+                </div>
+                <span className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-yellow">
+                  {displayName} em {c.name}
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </span>
               </Link>
-              <Link
-                href={`/pt/urgencia/${service.slug}-urgente-${city.slug}/`}
-                className="inline-flex items-center gap-2 border-[1.5px] border-dark text-dark rounded-full font-medium px-6 py-2.5 text-[0.9rem] hover:bg-dark hover:text-white transition-all"
-              >
-                ⚡ Urgência em {city.name}
-              </Link>
-            </div>
+            ))}
           </div>
-        </section>
-      )}
-
-      {/* ── GENERIC: cities grid ── */}
-      {!city && (
-        <section className="py-14 md:py-18">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-              {displayName} perto de si, Escolha a sua cidade
-            </h2>
-            <p className="text-text-muted mb-8 max-w-2xl">
-              Selecione a sua cidade para ver {pluralizar(displayName)} disponíveis perto de si. Cobrimos toda a região do Tâmega e Sousa.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {CITIES.map(c => (
-                <Link
-                  key={c.slug}
-                  href={`/pt/perto-de-mim/${isPicheleiro ? 'picheleiro' : service.slug}-${c.slug}/`}
-                  className="p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="text-2xl">{service.icon}</span>
-                    <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{c.name}</span>
-                  </div>
-                  <div className="space-y-1 text-sm text-text-muted">
-                    <p>{c.population.toLocaleString('pt-PT')} habitantes</p>
-                    <p>{c.freguesias.length} freguesias</p>
-                  </div>
-                  <span className="inline-flex items-center gap-1 mt-3 text-xs font-semibold text-yellow">
-                    Perto de mim
-                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       {/* ── FEATURES ── */}
-      <section className="py-14 md:py-18">
+      <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
             O que faz um {displayName.toLowerCase()} perto de si?
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {service.features.map((feature, i) => (
-              <div key={i} className="flex items-start gap-3 p-4 bg-white rounded-xl border border-border/50">
+              <div key={i} className="flex items-start gap-3 p-4 bg-warm-gray rounded-xl border border-border/50">
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold mt-0.5">✓</span>
                 <span className="text-[0.93rem] text-dark leading-relaxed">{feature}</span>
               </div>
@@ -349,8 +208,8 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
         </div>
       </section>
 
-      {/* ── URGENCY BLOCK - dark style ── */}
-      <section className="py-12 md:py-16">
+      {/* ── URGENCY BLOCK ── */}
+      <section id="urgencia" className="py-12 md:py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div
             className="relative overflow-hidden rounded-2xl p-8 md:p-12"
@@ -361,17 +220,19 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">⚠️</span>
-                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">
-                    Urgência 24h{city ? `, ${city.name}` : ''}
-                  </span>
+                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgência</span>
                 </div>
                 <h3 className="font-display text-xl md:text-2xl font-bold text-white mb-2">
-                  Precisa de {displayName.toLowerCase()} urgente{city ? ` em ${city.name}` : ''}?
+                  Precisa de {displayName.toLowerCase()} urgente?
                 </h3>
-                <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">
-                  {city ? service.urgencyText.replace(/\{city\}/g, city.name) : service.urgencyText.replace(/\s*em \{city\}/g, '')}
-                </p>
-                <p className="text-white/40 text-xs mt-2">{service.urgency.availableSchedule} · Resposta em {service.urgency.avgResponseTime}</p>
+                <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">{urgencyTexto}</p>
+                {service.urgency.whenToCall.length > 0 && (
+                  <ul className="mt-4 space-y-1 text-white/70 text-[0.9rem]">
+                    {service.urgency.whenToCall.slice(0, 4).map((item, i) => (
+                      <li key={i} className="flex items-start gap-2"><span className="text-yellow">•</span><span>{item.replace(/\{city\}/g, 'Portugal')}</span></li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="flex flex-col sm:flex-row md:flex-col gap-3 flex-shrink-0">
                 <a
@@ -393,123 +254,57 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                 </a>
               </div>
             </div>
-
-            {/* City links (only on generic pages) */}
-            {!city && (
-              <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {CITIES.map(c => (
-                  <Link
-                    key={c.slug}
-                    href={`/pt/urgencia/${service.slug}-urgente-${c.slug}/`}
-                    className="flex items-center gap-2 p-2.5 rounded-xl border border-white/10 hover:border-yellow/50 hover:bg-white/5 transition-all text-sm"
-                  >
-                    <span className="text-yellow text-xs">⚡</span>
-                    <span className="font-semibold text-white/70 hover:text-white transition-colors text-xs">{c.name}</span>
-                  </Link>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </section>
 
-      {/* ── NEARBY CITIES (city-specific pages only) ── */}
-      {city && city.nearby.length > 0 && (
-        <section className="py-14 md:py-18 bg-white">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6">
-              {displayName} perto de mim, cidades próximas
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {CITIES.filter(c => city.nearby.includes(c.slug)).map(nc => (
-                <Link
-                  key={nc.slug}
-                  href={`/pt/perto-de-mim/${isPicheleiro ? 'picheleiro' : service.slug}-${nc.slug}/`}
-                  className="flex items-center gap-3 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
-                >
-                  <span className="text-xl">{service.icon}</span>
-                  <div>
-                    <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{displayName} em {nc.name}</span>
-                    <span className="block text-xs text-text-muted">{nc.population.toLocaleString('pt-PT')} hab.</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── OTHER SERVICES ── */}
+      {/* ── OTHER SERVICES (hubs métier) ── */}
       <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6">
-            Outros serviços perto de mim{city ? ` em ${city.name}` : ''}
+            Outros serviços perto de mim
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {otherServices.map(os => (
               <Link
                 key={os.slug}
-                href={city ? `/pt/perto-de-mim/${os.slug}-${city.slug}/` : `/pt/perto-de-mim/${os.slug}/`}
+                href={`/pt/perto-de-mim/${os.slug}/`}
                 className="p-6 bg-warm-gray rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group text-center"
               >
                 <span className="text-3xl block mb-3">{os.icon}</span>
                 <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{os.name}</span>
-                <span className="block text-sm text-text-muted mt-1">Perto de mim{city ? ` em ${city.name}` : ''}</span>
+                <span className="block text-sm text-text-muted mt-1">Perto de mim</span>
               </Link>
             ))}
-            {/* Picheleiro card (alias canalizador) */}
-            {service.slug !== 'canalizador' && (
-              <Link
-                href={city ? `/pt/perto-de-mim/picheleiro-${city.slug}/` : `/pt/perto-de-mim/picheleiro/`}
-                className="p-6 bg-warm-gray rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group text-center"
-              >
-                <span className="text-3xl block mb-3">🔧</span>
-                <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">Picheleiro</span>
-                <span className="block text-sm text-text-muted mt-1">Perto de mim{city ? ` em ${city.name}` : ''}</span>
-              </Link>
-            )}
           </div>
         </div>
       </section>
 
-      {/* ── FAQ ── */}
+      {/* ── FAQ (visible, sans FAQPage : résultat enrichi retiré par Google) ── */}
       <section className="py-14 md:py-18">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
-            Perguntas frequentes, {displayName} perto de mim{locationLabel}
+            Perguntas frequentes, {displayName} perto de mim
           </h2>
           <div className="space-y-4">
             <details className="group rounded-2xl border border-border/50 bg-white overflow-hidden">
               <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer list-none font-display font-bold text-dark hover:text-yellow transition select-none">
-                <span className="text-[0.95rem]">Como encontrar um {displayName.toLowerCase()} perto de mim{locationLabel}?</span>
+                <span className="text-[0.95rem]">Como encontrar um {displayName.toLowerCase()} perto de mim?</span>
                 <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
               </summary>
               <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                {city
-                  ? `Na VITFIX, temos ${pluralizar(displayName)} que cobrem todas as freguesias de ${city.name}. O mais rápido é contactar-nos via WhatsApp, respondemos em ${service.urgency.avgResponseTime}.`
-                  : `Na VITFIX, basta indicar a sua localização. Apresentamos-lhe profissionais verificados disponíveis na sua zona. Pode também contactar-nos diretamente via WhatsApp ou telefone para uma resposta imediata.`
-                }
+                Escolha o seu concelho na lista acima, ou contacte-nos diretamente por WhatsApp ou telefone com a sua localização: indicamos-lhe os profissionais verificados disponíveis na sua zona.
               </div>
             </details>
 
-            <details className="group rounded-2xl border border-border/50 bg-white overflow-hidden">
-              <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer list-none font-display font-bold text-dark hover:text-yellow transition select-none">
-                <span className="text-[0.95rem]">Qual o tempo de resposta de um {displayName.toLowerCase()} perto de mim?</span>
-                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
-              </summary>
-              <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                Os profissionais VITFIX intervêm em <strong>{service.urgency.avgResponseTime}</strong>. Para urgências, estamos disponíveis <strong>{service.urgency.availableSchedule}</strong>. O melhor é enviar uma mensagem WhatsApp para obter uma resposta imediata.
-              </div>
-            </details>
-
-            {isPicheleiro ? (
+            {service.slug === 'canalizador' ? (
               <details className="group rounded-2xl border border-border/50 bg-white overflow-hidden">
                 <summary className="flex items-center justify-between gap-4 p-5 cursor-pointer list-none font-display font-bold text-dark hover:text-yellow transition select-none">
                   <span className="text-[0.95rem]">O que é um picheleiro? É diferente de um canalizador?</span>
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                  &ldquo;Picheleiro&rdquo; é o nome regional no Norte de Portugal (Tâmega e Sousa, Douro, Minho) para o que no resto do país se chama &ldquo;canalizador&rdquo;. É exatamente o mesmo profissional, faz fugas de água, desentupimentos, reparação de esquentadores e caldeiras, e instalações de canalização. Na VITFIX, os nossos picheleiros/canalizadores cobrem {CITIES.map(c => c.name).join(', ')}.
+                  &ldquo;Picheleiro&rdquo; é o nome regional no Norte de Portugal para o que no resto do país se chama &ldquo;canalizador&rdquo;. É exatamente o mesmo profissional: fugas de água, desentupimentos, reparação de esquentadores e caldeiras, instalações de canalização.
                 </div>
               </details>
             ) : (
@@ -519,7 +314,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                  {(service.faqs[0]?.answer || `O custo varia conforme o tipo de serviço e a complexidade do trabalho. Na VITFIX, o orçamento é sempre gratuito e sem compromisso.`).replace(/\{city\}/g, city ? city.name : 'Portugal')}
+                  {(service.faqs[0]?.answer || 'O custo varia conforme o tipo de serviço e a complexidade do trabalho. Na VITFIX, o orçamento é sempre gratuito e sem compromisso.').replace(/\{city\}/g, 'Portugal')}
                 </div>
               </details>
             )}
@@ -531,10 +326,10 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
       <section className="py-16 md:py-20 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
-            Precisa de um {displayName.toLowerCase()} perto de si{city ? ` em ${city.name}` : ''}?
+            Precisa de um {displayName.toLowerCase()} perto de si?
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">
-            Contacte-nos diretamente, resposta em {service.urgency.avgResponseTime}. Orçamento gratuito, sem compromisso.
+            Contacte-nos diretamente. Orçamento gratuito, sem compromisso.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <a
@@ -545,7 +340,7 @@ export default async function PertoDeMinPage({ params }: { params: Promise<{ slu
               style={{ background: '#25D366', boxShadow: '0 6px 24px rgba(37,211,102,0.4)' }}
             >
               <WaSvg />
-              WhatsApp, Resposta imediata
+              WhatsApp
             </a>
             <a
               href={`tel:${PHONE_PT}`}

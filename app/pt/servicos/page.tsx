@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
+import { nomeDistrito } from '@/lib/seo/pt-meta'
 
 // Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères avec des
 // faits réels (21 serviços, 22 concelhos), pas d'alternate (/fr/services/ ne renvoie pas vers cette page).
@@ -30,7 +31,7 @@ export default function ServicosHubPage() {
       {
         '@type': 'CollectionPage',
         name: 'Serviços VITFIX',
-        description: 'Todos os serviços disponíveis na região do Tâmega e Sousa.',
+        description: `Todos os serviços VITFIX em ${CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.`,
         url: 'https://vitfix.io/pt/servicos/',
       },
       {
@@ -65,7 +66,7 @@ export default function ServicosHubPage() {
             Todos os Serviços VITFIX
           </h1>
           <p className="text-lg text-text-muted max-w-2xl leading-relaxed">
-            Profissionais verificados para eletricidade, canalização, pintura, pladur e obras de remodelação em Marco de Canaveses e toda a região do Tâmega e Sousa.
+            Profissionais verificados para eletricidade, canalização, pintura, pladur e obras de remodelação em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
         </div>
       </section>
@@ -121,7 +122,7 @@ export default function ServicosHubPage() {
             {SERVICES.map(service => (
               <Link
                 key={`urgencia-${service.slug}`}
-                href={`/pt/urgencia/${service.slug}-urgente-marco-de-canaveses/`}
+                href={`/pt/perto-de-mim/${service.slug}/#urgencia`}
                 className="p-4 bg-red-50 rounded-xl border border-red-200 hover:border-red-400 hover:shadow-md transition-all group text-center"
               >
                 <span className="text-2xl block mb-2">{service.icon}</span>
@@ -173,7 +174,7 @@ export default function ServicosHubPage() {
             Cidades onde atuamos
           </h2>
           <p className="text-text-muted mb-8">
-            A VITFIX cobre toda a região do Tâmega e Sousa, distrito do Porto.
+            A VITFIX cobre {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {CITIES.map(city => (
@@ -185,7 +186,7 @@ export default function ServicosHubPage() {
                 <span className="text-2xl block mb-2">📍</span>
                 <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{city.name}</span>
                 <span className="block text-xs text-text-muted mt-1">{city.population.toLocaleString('pt-PT')} habitantes</span>
-                <span className="block text-xs text-text-muted">Distrito de {city.distrito}</span>
+                <span className="block text-xs text-text-muted">Distrito {nomeDistrito(city.distrito)}</span>
               </Link>
             ))}
           </div>

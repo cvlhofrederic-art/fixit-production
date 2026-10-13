@@ -190,8 +190,10 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
         </section>
       ) : null}
 
-      {/* ── URGENCY CTA ── */}
-      <section className="py-12 md:py-16">
+      {/* ── URGÊNCIA EM {VILLE} (phase 2 SEO PT, point 2.2) : bloc ancré #urgencia qui reprend ce qui était propre
+          au modèle urgencia (quand appeler, premiers gestes) ; les anciennes pages /pt/urgencia/ y redirigent.
+          Aucun délai ni horaire affiché tant que le propriétaire n'a pas fourni de données réelles. ── */}
+      <section id="urgencia" className="py-12 md:py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-2xl p-8 md:p-12" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' }}>
             {/* Decorative circles */}
@@ -201,12 +203,34 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">⚠️</span>
-                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgência 24h, {city.name}</span>
+                  <span className="text-yellow font-bold text-sm uppercase tracking-wider">Urgência em {city.name}</span>
                 </div>
                 <h3 className="font-display text-xl md:text-2xl font-bold text-white mb-2">
-                  Precisa de {service.name.toLowerCase()} agora?
+                  Precisa de {service.name.toLowerCase()} urgente em {city.name}?
                 </h3>
                 <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">{replaceCity(service.urgencyText)}</p>
+                {service.urgency.whenToCall.length > 0 && (
+                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg text-[0.9rem]">
+                    <div>
+                      <p className="text-yellow font-semibold mb-1">Quando chamar</p>
+                      <ul className="space-y-1 text-white/70">
+                        {service.urgency.whenToCall.slice(0, 4).map((item, i) => (
+                          <li key={i} className="flex items-start gap-2"><span className="text-yellow">•</span><span>{replaceCity(item)}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+                    {service.urgency.immediateSteps.length > 0 && (
+                      <div>
+                        <p className="text-yellow font-semibold mb-1">Enquanto espera</p>
+                        <ul className="space-y-1 text-white/70">
+                          {service.urgency.immediateSteps.slice(0, 4).map((item, i) => (
+                            <li key={i} className="flex items-start gap-2"><span className="text-yellow">•</span><span>{replaceCity(item)}</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex flex-col sm:flex-row md:flex-col gap-3 flex-shrink-0">
                 <a

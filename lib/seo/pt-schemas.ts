@@ -8,6 +8,7 @@
 
 import { CITIES, type CityData } from '@/lib/data/seo-pages-data'
 import { ENTITE_PT } from './entite-pt'
+import { nomeDistrito } from './pt-meta'
 
 export const ID_WEBSITE = 'https://vitfix.io/#website'
 
@@ -15,7 +16,7 @@ export function noCidade(city: Pick<CityData, 'name' | 'distrito'>) {
   return {
     '@type': 'City',
     name: city.name,
-    containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
+    containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito ${nomeDistrito(city.distrito)}` },
   }
 }
 

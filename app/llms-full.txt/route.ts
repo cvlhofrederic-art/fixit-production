@@ -54,7 +54,7 @@ function buildContent(): string {
     lines.push(`- URL : ${BASE}/pt/cidade/${city.slug}/`)
     lines.push(`- Population : ${city.population.toLocaleString('pt-PT')} habitants`)
     lines.push(`- Coordenadas : ${city.lat}, ${city.lng}`)
-    lines.push(`- Freguesias : ${city.freguesias.length}`)
+    lines.push(`- Freguesias (exemplos) : ${city.freguesias.slice(0, 5).join(', ')}`)
     lines.push(`- Lastmod : ${lastmod}`)
     if (city.specialty) lines.push(`- Especialidade : ${city.specialty}`)
     if (city.localEconomy) lines.push(`- Economia local : ${city.localEconomy}`)

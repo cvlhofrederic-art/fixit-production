@@ -44,7 +44,7 @@ export default function MapaDoSitePage() {
           { href: '/pt/', label: 'Início' },
           { href: '/pt/pesquisar/', label: 'Pesquisar profissionais' },
           { href: '/pt/servicos/', label: 'Todos os serviços' },
-          { href: '/pt/urgencia/', label: 'Urgência 24/7' },
+          { href: '/pt/urgencia/', label: 'Urgência' },
           { href: '/pt/perto-de-mim/', label: 'Perto de mim' },
           { href: '/pt/cidade/', label: 'Cidades cobertas' },
           { href: '/pt/contacto/', label: 'Contacto' },

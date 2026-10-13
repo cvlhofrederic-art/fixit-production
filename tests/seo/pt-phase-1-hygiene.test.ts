@@ -15,10 +15,11 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { Metadata } from 'next'
 import { NextRequest } from 'next/server'
-import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos, getAllUrgencyCombos } from '@/lib/data/seo-pages-data'
+import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/seo-pages-data'
+import { tituloComCidade } from '@/lib/seo/pt-meta'
 import {
-  SUFIXO_MARCA, TITULO_MAX, DESCRICAO_MAX, tituloBlog,
-  tituloServico, descricaoServico, tituloUrgencia, descricaoUrgencia,
+  SUFIXO_MARCA, TITULO_MAX, DESCRICAO_MAX, tituloBlog, nomeDistrito,
+  tituloServico, descricaoServico,
   tituloPertoDeMim, descricaoPertoDeMim, tituloCidade, descricaoCidade,
 } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
@@ -36,9 +37,9 @@ const TITULO_MIN = 35 // Plancher du test T6 (scripts/seo/pt-tests.mjs), marque 
 const DESCRICAO_MIN = 120
 
 // Imports statiques (vite n'accepte pas un chemin de module entièrement dynamique).
+// Phase 2 SEO PT : plus de route urgencia/[slug] ; perto-de-mim/[slug] ne sert que les 21 hubs métier.
 const ROUTES_GRILLE = {
   servicos: () => import('@/app/pt/servicos/[slug]/page'),
-  urgencia: () => import('@/app/pt/urgencia/[slug]/page'),
   'perto-de-mim': () => import('@/app/pt/perto-de-mim/[slug]/page'),
   cidade: () => import('@/app/pt/cidade/[slug]/page'),
 }
@@ -50,8 +51,7 @@ const HUBS = {
 }
 const ROUTES_SITEMAP: Record<GroupeSitemapPt, () => Promise<{ GET: () => Response | Promise<Response> }>> = {
   servicos: () => import('@/app/pt/sitemap-servicos.xml/route'),
-  urgencia: () => import('@/app/pt/sitemap-urgencia.xml/route'),
-  'perto-de-mim': () => import('@/app/pt/sitemap-perto-de-mim.xml/route'),
+  hubs: () => import('@/app/pt/sitemap-hubs.xml/route'),
   cidades: () => import('@/app/pt/sitemap-cidades.xml/route'),
   blog: () => import('@/app/pt/sitemap-blog.xml/route'),
   paginas: () => import('@/app/pt/sitemap-paginas.xml/route'),
@@ -118,8 +118,12 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
     expect(areaServidaPt()[0]).toEqual({
       '@type': 'City',
       name: CITIES[0].name,
-      containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${CITIES[0].distrito}` },
+      containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito ${nomeDistrito(CITIES[0].distrito)}` },
     })
+    // Nom officiel : « Distrito do Porto » (article), « Distrito de Braga », « Distrito de Aveiro ».
+    expect(nomeDistrito('Porto')).toBe('do Porto')
+    expect(nomeDistrito('Aveiro')).toBe('de Aveiro')
+    expect(areaServidaPt().map((c) => c.containedInPlace.name)).not.toContain('Distrito de Porto')
   })
 
   it('les avisos legais affichent le siège', () => {
@@ -128,30 +132,22 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
   })
 })
 
-describe('1.4 titres et descriptions de la grille (1 452 pages)', () => {
+// Phase 2 SEO PT : la grille indexable est 462 servicos + 21 hubs métier + 22 pages ville (505 pages) ;
+// urgencia et perto-de-mim métier x ville répondent 301 vers servicos (data/seo/pt-redirects.csv).
+describe('1.4 titres et descriptions de la grille (505 pages)', () => {
   const titres: Array<[string, string]> = [
     ...getAllPageCombos().map((c): [string, string] => [`servicos/${c.slug}`, tituloServico(c.service, c.city)]),
-    ...getAllUrgencyCombos().map((c): [string, string] => [`urgencia/${c.slug}`, tituloUrgencia(c.service, c.city)]),
-    ...SERVICES.flatMap((s) => [
-      [`perto-de-mim/${s.slug}`, tituloPertoDeMim(s.name, null)] as [string, string],
-      ...CITIES.map((c): [string, string] => [`perto-de-mim/${s.slug}-${c.slug}`, tituloPertoDeMim(s.name, c)]),
-    ]),
-    ['perto-de-mim/picheleiro', tituloPertoDeMim('Picheleiro', null)],
-    ...CITIES.map((c): [string, string] => [`perto-de-mim/picheleiro-${c.slug}`, tituloPertoDeMim('Picheleiro', c)]),
+    ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, tituloPertoDeMim(s.name)]),
     ...CITIES.map((c): [string, string] => [`cidade/${c.slug}`, tituloCidade(c)]),
   ]
   const descriptions: Array<[string, string]> = [
     ...getAllPageCombos().map((c): [string, string] => [`servicos/${c.slug}`, descricaoServico(c.service, c.city)]),
-    ...getAllUrgencyCombos().map((c): [string, string] => [`urgencia/${c.slug}`, descricaoUrgencia(c.service, c.city)]),
-    ...SERVICES.flatMap((s) => [
-      [`perto-de-mim/${s.slug}`, descricaoPertoDeMim(s.name, null)] as [string, string],
-      ...CITIES.map((c): [string, string] => [`perto-de-mim/${s.slug}-${c.slug}`, descricaoPertoDeMim(s.name, c)]),
-    ]),
+    ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, descricaoPertoDeMim(s.name)]),
     ...CITIES.map((c): [string, string] => [`cidade/${c.slug}`, descricaoCidade(c, SERVICES.length)]),
   ]
 
-  it('couvre les 462 + 462 + 506 + 22 pages', () => {
-    expect(titres).toHaveLength(462 + 462 + 506 + 22)
+  it('couvre les 462 + 21 + 22 pages', () => {
+    expect(titres).toHaveLength(462 + 21 + 22)
     expect(new Set(titres.map(([chemin]) => chemin)).size).toBe(titres.length)
   })
 
@@ -160,6 +156,27 @@ describe('1.4 titres et descriptions de la grille (1 452 pages)', () => {
       .filter(([, t]) => /vitfix/i.test(t) || t.length + SUFIXO_MARCA.length > TITULO_MAX || t.length + SUFIXO_MARCA.length < TITULO_MIN || /[\s,;:·\-–]$/.test(t))
       .map(([chemin, t]) => `${chemin} : « ${t} » (${t.length + SUFIXO_MARCA.length})`)
     expect(fautifs).toEqual([])
+  })
+
+  it('le nom de la ville est toujours entier dans le titre (jamais « em Marco de | VITFIX »)', () => {
+    const avecCidade: Array<[string, string, string]> = [
+      ...getAllPageCombos().map((c): [string, string, string] => [`servicos/${c.slug}`, tituloServico(c.service, c.city), c.city.name]),
+      ...CITIES.map((c): [string, string, string] => [`cidade/${c.slug}`, tituloCidade(c), c.name]),
+    ]
+    expect(avecCidade).toHaveLength(462 + 22)
+    const fautifs = avecCidade.filter(([, t, cidade]) => !t.includes(` ${cidade}`) || /\b(e|de|do|da)\s+(em|urgente|perto)\b/.test(t)).map(([chemin, t]) => `${chemin} : « ${t} »`)
+    expect(fautifs).toEqual([])
+    // Cas limites : métier long x ville composée, le métier est raccourci, jamais la ville.
+    const estores = SERVICES.find((s) => s.slug === 'estores-portoes')!
+    const marco = CITIES.find((c) => c.slug === 'marco-de-canaveses')!
+    expect(tituloServico(estores, marco)).toContain(' em Marco de Canaveses')
+    expect(tituloComCidade('Estores e Portões Automáticos', 'urgente em', 'Marco de Canaveses')).toBe('Estores e Portões urgente em Marco de Canaveses')
+    expect(tituloComCidade('Estores e Portões Automáticos', 'perto de mim em', 'Vila Nova de Gaia')).toBe('Estores e Portões perto de mim em Vila Nova de Gaia')
+  })
+
+  it('aucune description ne compte les freguesias (la liste du dépôt n’est pas le décompte officiel) ni ne dit « distrito de Porto »', () => {
+    expect(descriptions.filter(([, d]) => /\d+ freguesias/.test(d) || /distrito de Porto/.test(d))).toEqual([])
+    expect(descriptions.filter(([, d]) => /distrito do Porto/.test(d)).length).toBeGreaterThan(300)
   })
 
   it('les titres sont uniques dans chaque modèle et entre modèles', () => {
@@ -209,8 +226,6 @@ describe('1.4 / 1.5 métadonnées exportées par les routes de la grille et les 
 
   it.each([
     ['servicos', 'canalizador-porto'],
-    ['urgencia', 'eletricista-urgente-porto'],
-    ['perto-de-mim', 'picheleiro-porto'],
     ['perto-de-mim', 'eletricista'],
     ['cidade', 'porto'],
   ] as Array<[keyof typeof ROUTES_GRILLE, string]>)('/pt/%s/%s/ : titre sans marque, canonical seule (aucun hreflang), Open Graph pt_PT', async (dossier, slug) => {
@@ -244,14 +259,19 @@ describe('1.4 / 1.5 métadonnées exportées par les routes de la grille et les 
   })
 
   it.each([
-    ['/pt/empresa/<slug>/', () => import('@/app/pt/empresa/[slug]/page'), { slug: 'exemplo' }],
-    ['/pt/profissional/<id>/', () => import('@/app/pt/profissional/[id]/page'), { id: 'exemplo' }],
-  ] as Array<[string, () => Promise<unknown>, Record<string, string>]>)('%s : titre sans marque, x-default jamais sur « / »', async (_page, charger, params) => {
+    ['/pt/empresa/<slug>/', () => import('@/app/pt/empresa/[slug]/page'), { slug: 'exemplo' }, 'https://vitfix.io/pt/empresa/exemplo/'],
+    ['/pt/profissional/<id>/', () => import('@/app/pt/profissional/[id]/page'), { id: 'exemplo' }, 'https://vitfix.io/pt/profissional/exemplo/'],
+  ] as Array<[string, () => Promise<unknown>, Record<string, string>, string]>)('%s : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async (_page, charger, params, canonical) => {
     const { generateMetadata } = (await charger()) as { generateMetadata: (a: { params: Promise<Record<string, string>> }) => Promise<Metadata> }
     const metadata = await generateMetadata({ params: Promise.resolve(params) })
     expect(metadata.title).not.toMatch(/vitfix/i)
-    const languages = (metadata.alternates?.languages ?? {}) as Record<string, string>
-    expect(languages['x-default']).not.toBe('https://vitfix.io/')
+    expect(metadata.alternates).toEqual({ canonical })
+  })
+
+  it('/pt/pesquisar/ (composant partagé avec /fr/recherche/) : un seul h1 en PT, FR inchangé (h1 visible comme avant la phase 1)', () => {
+    const src = readFileSync(join(process.cwd(), 'app', 'fr', 'recherche', 'page.tsx'), 'utf8')
+    expect(src).toMatch(/const TituloResultados = siteLocale === 'pt' \? 'h2' : 'h1'/)
+    expect((src.match(/<h1\b/g) ?? []).length).toBe(1)
   })
 
   it('app/pt/layout.tsx : template « %s | VITFIX », x-default sur /fr/ (répond 200, / répond 302)', async () => {
@@ -311,13 +331,13 @@ describe('1.6 JSON-LD', () => {
 describe('1.1 sitemaps PT', () => {
   const groupes = Object.keys(FICHIERS_SITEMAP_PT) as GroupeSitemapPt[]
 
-  it('/pt/sitemap.xml est un index des 6 fichiers par modèle', async () => {
+  it('/pt/sitemap.xml est un index des 5 fichiers par modèle (servicos, hubs, cidades, blog, paginas)', async () => {
     const { GET } = await import('@/app/pt/sitemap.xml/route')
     const xml = await (await GET()).text()
     expect(xml).toContain('<sitemapindex')
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
     expect(locs).toEqual(urlsFichiersSitemapPt(BASE))
-    expect(locs).toHaveLength(6)
+    expect(locs).toHaveLength(5)
     expect(locs.map((l) => l.replace(BASE, ''))).toEqual(groupes.map((g) => FICHIERS_SITEMAP_PT[g]))
   })
 
@@ -340,6 +360,17 @@ describe('1.1 sitemaps PT', () => {
     const xml = await (await GET()).text()
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].replace(BASE, ''))
     expect(locs).toEqual(['/sitemap/0.xml', '/sitemap/2.xml', '/sitemap/3.xml', ...groupes.map((g) => FICHIERS_SITEMAP_PT[g])])
+  })
+
+  it('lastmod : date propre à chaque article de blog (dateModified sinon datePublished), jamais une date unique sur tout le blog', () => {
+    const blog = sitemapsPt(BASE).blog
+    const dates = new Set(blog.map((u) => String(u.lastModified)))
+    expect(dates.size).toBeGreaterThan(5)
+    for (const article of BLOG_ARTICLES) {
+      const entree = blog.find((u) => u.url === `${BASE}/pt/blog/${article.slug}/`)
+      expect(entree?.lastModified).toBe(article.dateModified ?? article.datePublished)
+    }
+    expect(BLOG_ARTICLES.find((a) => a.slug === 'fuga-agua-como-agir')?.dateModified).toBe('2026-10-13')
   })
 
   it('/sitemap/1.xml répond 410 ; /sitemap/0.xml ne contient plus aucune URL /pt/', async () => {

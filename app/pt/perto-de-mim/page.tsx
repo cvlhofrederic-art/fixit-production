@@ -2,14 +2,17 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 
 // Phase 1 SEO PT : marque une fois (template du layout), faits réels (21 serviços, 22 concelhos).
+// Phase 2 (point 3.5) : hub des 21 hubs métier ; plus de liens vers les pages métier x ville du
+// modèle perto-de-mim (308 vers servicos) ni vers « picheleiro » (308 vers canalizador).
 export const metadata: Metadata = {
   title: `Profissionais perto de mim: ${SERVICES.length} serviços em ${CITIES.length} concelhos`,
   description: `Eletricista, canalizador, pintor ou faz-tudo perto de si: ${SERVICES.length} serviços em ${CITIES.length} concelhos do Porto, Braga e Aveiro. Orçamento grátis pelo site ou WhatsApp.`,
   openGraph: {
     title: 'Profissionais Perto de Mim : VITFIX',
-    description: 'Encontre um profissional verificado perto de si na região do Tâmega e Sousa.',
+    description: 'Encontre um profissional verificado perto de si em 22 concelhos do Porto, Braga e Aveiro.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
@@ -20,37 +23,15 @@ export const metadata: Metadata = {
   },
 }
 
-export default function PertoMimHubPage() {
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'CollectionPage',
-        name: 'Profissionais Perto de Mim : VITFIX',
-        description: 'Encontre profissionais verificados para serviços domésticos perto de si.',
-        url: 'https://vitfix.io/pt/perto-de-mim/',
-        publisher: { '@type': 'Organization', name: 'VITFIX', url: 'https://vitfix.io' },
-        mainEntity: {
-          '@type': 'ItemList',
-          numberOfItems: SERVICES.length,
-          itemListElement: SERVICES.map((s, i) => ({
-            '@type': 'ListItem',
-            position: i + 1,
-            url: `https://vitfix.io/pt/perto-de-mim/${s.slug}/`,
-            name: `${s.name} perto de mim`,
-          })),
-        },
-      },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Perto de mim', item: 'https://vitfix.io/pt/perto-de-mim/' },
-        ],
-      },
-    ],
-  }
+const jsonLd = grafo(
+  noWebPage({ url: 'https://vitfix.io/pt/perto-de-mim/', nome: 'Profissionais perto de mim', descricao: `${SERVICES.length} serviços em ${CITIES.length} concelhos do Porto, Braga e Aveiro.` }),
+  noFilAriane([
+    { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+    { name: 'Perto de mim', url: 'https://vitfix.io/pt/perto-de-mim/' },
+  ]),
+)
 
+export default function PertoMimHubPage() {
   return (
     <div className="min-h-screen bg-warm-gray">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
@@ -73,81 +54,29 @@ export default function PertoMimHubPage() {
             Encontre um profissional perto de si
           </h1>
           <p className="text-lg text-text-muted max-w-2xl leading-relaxed">
-            Escolha o serviço e a sua cidade para encontrar profissionais verificados na sua zona. Orçamento grátis, sem compromisso.
+            Escolha o serviço, depois o seu concelho, para encontrar profissionais verificados na sua zona: {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro. Orçamento grátis, sem compromisso.
           </p>
         </div>
       </section>
 
-      {/* ── SERVICES GRID ── */}
+      {/* ── SERVICES GRID : les 21 hubs métier ── */}
       <section className="py-14 md:py-18">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
             Que serviço procura?
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {SERVICES.map(service => (
-              <div key={service.slug} className="bg-white rounded-2xl border border-border/50 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">{service.icon}</span>
-                    <div>
-                      <h3 className="font-display font-bold text-dark text-lg">{service.name}</h3>
-                      <span className="text-sm text-text-muted">Tâmega e Sousa</span>
-                    </div>
-                  </div>
-
-                  <Link
-                    href={`/pt/perto-de-mim/${service.slug}/`}
-                    className="inline-flex items-center gap-2 text-yellow font-semibold text-sm mb-4 hover:underline"
-                  >
-                    Ver todas as cidades →
-                  </Link>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {CITIES.slice(0, 6).map(city => (
-                      <Link
-                        key={city.slug}
-                        href={`/pt/perto-de-mim/${service.slug}-${city.slug}/`}
-                        className="text-sm text-text-muted hover:text-yellow transition p-2 rounded-lg hover:bg-yellow/5"
-                      >
-                        📍 {city.name}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── PICHELEIRO SECTION ── */}
-      <section className="py-14 md:py-18 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            Procura um picheleiro?
-          </h2>
-          <p className="text-text-muted mb-6 max-w-2xl">
-            No Norte de Portugal, o canalizador é frequentemente chamado de picheleiro. Temos profissionais disponíveis na sua zona.
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Link
-              href="/pt/perto-de-mim/picheleiro/"
-              className="p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all text-center"
-            >
-              <span className="text-2xl block mb-1">🔧</span>
-              <span className="font-semibold text-dark text-sm">Picheleiro</span>
-              <span className="block text-xs text-text-muted">Todas as cidades</span>
-            </Link>
-            {CITIES.slice(0, 3).map(city => (
               <Link
-                key={city.slug}
-                href={`/pt/perto-de-mim/picheleiro-${city.slug}/`}
-                className="p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all text-center"
+                key={service.slug}
+                href={`/pt/perto-de-mim/${service.slug}/`}
+                className="flex items-center gap-4 p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
               >
-                <span className="text-2xl block mb-1">🔧</span>
-                <span className="font-semibold text-dark text-sm">Picheleiro</span>
-                <span className="block text-xs text-text-muted">{city.name}</span>
+                <span className="text-3xl">{service.icon}</span>
+                <div>
+                  <span className="font-display font-bold text-dark text-lg group-hover:text-yellow transition-colors">{service.name}</span>
+                  <span className="block text-sm text-text-muted">{service.slug === 'canalizador' ? 'Também chamado de picheleiro' : 'Perto de mim'}</span>
+                </div>
               </Link>
             ))}
           </div>
@@ -155,17 +84,17 @@ export default function PertoMimHubPage() {
       </section>
 
       {/* ── CITIES SECTION ── */}
-      <section className="py-14 md:py-18">
+      <section className="py-14 md:py-18 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6">
-            Cidades onde atuamos
+            Concelhos onde atuamos
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {CITIES.map(city => (
               <Link
                 key={city.slug}
                 href={`/pt/cidade/${city.slug}/`}
-                className="p-5 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-sm transition-all group text-center"
+                className="p-5 bg-warm-gray rounded-2xl border border-border/50 hover:border-yellow hover:shadow-sm transition-all group text-center"
               >
                 <span className="text-2xl block mb-2">📍</span>
                 <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{city.name}</span>
@@ -177,7 +106,7 @@ export default function PertoMimHubPage() {
       </section>
 
       {/* ── BOTTOM CTA ── */}
-      <section className="py-16 md:py-20 bg-white">
+      <section className="py-16 md:py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
             Precisa de ajuda agora?

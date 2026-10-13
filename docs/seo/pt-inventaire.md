@@ -241,9 +241,13 @@ Recommandation : option A, une seule URL par couple métier x ville, le modèle 
 
 Option B (garder les 3 modèles, `noindex,follow` hors sitemap pour les couples sans données locales) : garde 946 URL faibles en ligne et s'appuie sur `noindex`, que Google déconseille comme outil de gestion. À ne retenir que si une raison métier impose les 3 modèles.
 
+**Tranchée le 13/10/2026 :** option A, sur mandat du propriétaire (« fais au mieux, en suivant strictement les meilleures règles d'indexation Google ») ; la validation finale est la fusion de la PR de la phase 2. Table : `data/seo/pt-redirects.csv` ; sources PROTEGER et P1 suivies : `docs/seo/phase-2-sources-suivies.md`.
+
 ### DECISION PROPRIETAIRE 2 : URL des 22 hubs métier
 
 Recommandation : garder `/pt/perto-de-mim/{metier}/` (2 hubs indexés : canalizador, estores-portoes ; 20 non indexés ; URL connues de Google ; déplacement vers `/pt/servicos/{metier}/` possible après récupération). Le hub `picheleiro` est redirigé vers `canalizador` dans tous les cas.
+
+**Tranchée le 13/10/2026 :** URL des 21 hubs conservées (même mandat que la décision 1) ; `/pt/perto-de-mim/picheleiro/` en 301 (middleware) vers `/pt/perto-de-mim/canalizador/`.
 
 ### DECISION PROPRIETAIRE 3 : adresse réelle et établissements
 

@@ -45,7 +45,7 @@ describe('translateUrl', () => {
 
   describe('Porto multilingual SEO pages', () => {
     it('FR plombier-porto → PT canalizador-porto', () => {
-      expect(translateUrl('/fr/plombier-porto', 'pt')).toBe('/pt/perto-de-mim/canalizador-porto')
+      expect(translateUrl('/fr/plombier-porto', 'pt')).toBe('/pt/servicos/canalizador-porto')
     })
 
     it('FR plombier-porto → EN plumber-porto', () => {
@@ -57,11 +57,11 @@ describe('translateUrl', () => {
     })
 
     it('PT canalizador-porto → FR plombier-porto', () => {
-      expect(translateUrl('/pt/perto-de-mim/canalizador-porto', 'fr')).toBe('/fr/plombier-porto')
+      expect(translateUrl('/pt/servicos/canalizador-porto', 'fr')).toBe('/fr/plombier-porto')
     })
 
     it('FR electricien-porto → PT eletricista-porto', () => {
-      expect(translateUrl('/fr/electricien-porto', 'pt')).toBe('/pt/perto-de-mim/eletricista-porto')
+      expect(translateUrl('/fr/electricien-porto', 'pt')).toBe('/pt/servicos/eletricista-porto')
     })
 
     it('Porto page → NL (no equivalent) → null', () => {
@@ -87,11 +87,11 @@ describe('translateUrl', () => {
   describe('PT-only programmatic SEO pages (Tâmega e Sousa)', () => {
     it('canalizador-marco-de-canaveses → FR → null', () => {
       // Tâmega e Sousa = marché PT, pas d'équivalent FR. Drapeau caché.
-      expect(translateUrl('/pt/perto-de-mim/canalizador-marco-de-canaveses', 'fr')).toBeNull()
+      expect(translateUrl('/pt/servicos/canalizador-marco-de-canaveses', 'fr')).toBeNull()
     })
 
     it('eletricista-amarante → EN → null', () => {
-      expect(translateUrl('/pt/perto-de-mim/eletricista-amarante', 'en')).toBeNull()
+      expect(translateUrl('/pt/servicos/eletricista-amarante', 'en')).toBeNull()
     })
   })
 
@@ -121,7 +121,7 @@ describe('getAlternateUrls', () => {
     const alts = getAlternateUrls('/fr/plombier-porto')
     expect(alts).not.toBeNull()
     expect(alts?.fr).toBe('/fr/plombier-porto')
-    expect(alts?.pt).toBe('/pt/perto-de-mim/canalizador-porto')
+    expect(alts?.pt).toBe('/pt/servicos/canalizador-porto')
     expect(alts?.en).toBe('/en/plumber-porto')
   })
 
