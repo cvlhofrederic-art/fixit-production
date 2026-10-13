@@ -1,0 +1,307 @@
+{
+ "date": "2026-10-13",
+ "base": "https://vitfix.io",
+ "sha256_/sitemap/2.xml": "22561fbc5793def3d0e2a78655c6decad6ff3e7f27da567ad887691c177d2356",
+ "sha256_/sitemap/3.xml": "039854cb5c214f8d90f152b7754445b75473b0abe744d84d6ae8b6ffb38ff291",
+ "fr": {
+  "/fr/services/peintre-six-fours-les-plages/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/peintre-six-fours-les-plages/",
+   "title": "Peintre Six-Fours-les-Plages : Devis gratuit, artisan qualifié | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/peintre-six-fours-les-plages/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/couvreur-la-ciotat/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/couvreur-la-ciotat/",
+   "title": "Couvreur La Ciotat : Toiture, tuile canal, fuite urgence | VITFIX | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/couvreur-la-ciotat/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/store-banne-saint-cyr-sur-mer/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/store-banne-saint-cyr-sur-mer/",
+   "title": "Store banne Saint-Cyr-sur-Mer : Installation, motorisation, réparation | VITFIX | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/store-banne-saint-cyr-sur-mer/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/plombier-marseille/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/plombier-marseille/",
+   "title": "Plombier Marseille : Devis gratuit, intervention rapide 7j/7 | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/plombier-marseille/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/jardinier-gemenos/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/jardinier-gemenos/",
+   "title": "Jardinier Gémenos : Entretien Jardin, Taille Haie, Taille Olivier | Devis gratuit | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/jardinier-gemenos/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/carreleur-hyeres/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/carreleur-hyeres/",
+   "title": "Carreleur Hyères : Pose carrelage, faïence salle de bain | VITFIX | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/carreleur-hyeres/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/espaces-verts-martigues/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/espaces-verts-martigues/",
+   "title": "Jardinier Élagage Martigues : Espaces Verts Copropriété | Devis gratuit | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/espaces-verts-martigues/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/elagueur-plan-de-cuques/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/elagueur-plan-de-cuques/",
+   "title": "Élagueur Plan-de-Cuques : Élagage Abattage Arbres, Débroussaillage | Devis gratuit | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/elagueur-plan-de-cuques/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/plaquiste-urgence-gardanne/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/plaquiste-urgence-gardanne/",
+   "title": "Plaquiste Urgence Gardanne : Réfection plafond et cloisons | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/plaquiste-urgence-gardanne/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/electricien-urgence-allauch/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/electricien-urgence-allauch/",
+   "title": "Électricien Urgence Allauch : Dépannage 24h/7j | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/electricien-urgence-allauch/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/ramoneur-aix-en-provence/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/ramoneur-aix-en-provence/",
+   "title": "Ramoneur Aix-en-Provence : Ramonage Cheminée Certifié | VITFIX | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/ramoneur-aix-en-provence/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/services/renovation-ceyreste/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/services/renovation-ceyreste/",
+   "title": "Rénovation Ceyreste : Devis gratuit, artisans certifiés | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/services/renovation-ceyreste/",
+    "pt-PT=https://vitfix.io/pt/servicos/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/paysagiste-urgence-sanary-sur-mer/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/paysagiste-urgence-sanary-sur-mer/",
+   "title": "Paysagiste Urgence Sanary-sur-Mer : Aménagement rapide | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/paysagiste-urgence-sanary-sur-mer/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/vide-maison-urgence-la-valette-du-var/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/vide-maison-urgence-la-valette-du-var/",
+   "title": "Vide Maison Urgence La Valette-du-Var : Débarras succession 48h | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/vide-maison-urgence-la-valette-du-var/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/nettoyage-terrains-urgence-cassis/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/nettoyage-terrains-urgence-cassis/",
+   "title": "Nettoyage Terrain Urgence Cassis : Débroussaillage rapide | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/nettoyage-terrains-urgence-cassis/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/climatisation-urgence-bandol/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/climatisation-urgence-bandol/",
+   "title": "Dépannage Climatisation Bandol : Urgence chaleur été | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/climatisation-urgence-bandol/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/serrurier-urgence-aubagne/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/serrurier-urgence-aubagne/",
+   "title": "Serrurier Urgence Aubagne : Ouverture porte 24h/7j | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/serrurier-urgence-aubagne/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/urgence/pisciniste-urgence-salon-de-provence/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/pisciniste-urgence-salon-de-provence/",
+   "title": "Pisciniste urgence Salon-de-Provence : Fuite piscine, panne pompe | VITFIX | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/pisciniste-urgence-salon-de-provence/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/ville/marseille/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/ville/marseille/",
+   "title": "Artisans à Marseille, Plombier, Électricien, Peintre | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/urgence/vitrier-urgence-la-seyne-sur-mer/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/urgence/vitrier-urgence-la-seyne-sur-mer/",
+   "title": "Vitrier Urgence La Seyne-sur-Mer : Vitre cassée 24h/7j | VITFIX Marseille",
+   "hreflang": [
+    "en=https://vitfix.io/en/",
+    "fr-FR=https://vitfix.io/fr/urgence/vitrier-urgence-la-seyne-sur-mer/",
+    "pt-PT=https://vitfix.io/pt/urgencia/",
+    "x-default=https://vitfix.io/"
+   ]
+  },
+  "/fr/pres-de-chez-moi/plombier-allauch/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/plombier-allauch/",
+   "title": "Plombier à Allauch, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/peintre-gardanne/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/peintre-gardanne/",
+   "title": "Peintre à Gardanne, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/espaces-verts-sanary-sur-mer/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/espaces-verts-sanary-sur-mer/",
+   "title": "Espaces Verts & Élagage à Sanary-sur-Mer, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/store-banne-la-seyne-sur-mer/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/store-banne-la-seyne-sur-mer/",
+   "title": "Store Banne & Pergola à La Seyne-sur-Mer, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/jardinier-la-valette-du-var/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/jardinier-la-valette-du-var/",
+   "title": "Jardinier à La Valette-du-Var, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/macon-aubagne/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/macon-aubagne/",
+   "title": "Maçon / Ravalement à Aubagne, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/ramoneur-salon-de-provence/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/ramoneur-salon-de-provence/",
+   "title": "Ramoneur à Salon-de-Provence, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/nettoyage-copropriete-cassis/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/nettoyage-copropriete-cassis/",
+   "title": "Nettoyage Copropriété à Cassis, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/couvreur-bandol/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/couvreur-bandol/",
+   "title": "Couvreur / Toiture à Bandol, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  },
+  "/fr/pres-de-chez-moi/petits-travaux-marseille/": {
+   "status": 200,
+   "canonical": "https://vitfix.io/fr/pres-de-chez-moi/petits-travaux-marseille/",
+   "title": "Petits Travaux à Marseille, Artisan disponible rapidement | VITFIX | VITFIX Marseille",
+   "hreflang": []
+  }
+ },
+ "robots_hors_pt": [
+  "allow: /",
+  "disallow: /pro/",
+  "disallow: /syndic/",
+  "disallow: /client/",
+  "disallow: /admin/",
+  "disallow: /api/",
+  "disallow: /auth/",
+  "disallow: /coproprietaire/",
+  "disallow: /*/pro/",
+  "disallow: /*/syndic/",
+  "disallow: /*/client/",
+  "disallow: /*/admin/",
+  "disallow: /*/api/",
+  "disallow: /*/auth/",
+  "disallow: /*/coproprietaire/",
+  "disallow: /*/recherche/*?*",
+  "disallow: /recherche/*?*",
+  "disallow: /*?utm_*",
+  "disallow: /*?fbclid=*",
+  "disallow: /*?gclid=*",
+  "disallow: /*?ref=*",
+  "disallow: /*?_branch_match_id=*"
+ ]
+}
