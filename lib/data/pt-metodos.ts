@@ -1,6 +1,6 @@
 // Textes « Como a VITFIX trabalha : {métier} » (phase 3 du plan SEO PT, gabarit 3.2, bloc
 // « méthode »). Un texte par métier, identique dans les 22 villes (admis par le plan : c'est le
-// bloc métier, pas le bloc local). Rédigés le 14/10/2026 à la demande du propriétaire (mandat du
+// bloc métier, pas le bloc local). Rédigés le 13/10/2026 au soir à la demande du propriétaire (mandat du
 // 13/10 : « à toi de créer tout ça »), à relire par lui ; règle 0.2 : aucun chiffre, délai, prix,
 // nombre de professionnels ni promesse propre à VITFIX ; seulement la méthode de travail du métier
 // et des faits vérifiables (normes et obligations légales portugaises citées avec prudence).
@@ -124,9 +124,9 @@ A poda respeita a época adequada a cada espécie; cortes excessivos ou fora de 
 
   'limpeza-condominio': `A limpeza de condomínio é um serviço regular definido num plano: entradas, escadas, patamares, elevadores, garagens, zonas técnicas, com a frequência e as tarefas de cada passagem. O profissional visita o edifício para avaliar as superfícies, os acessos e as necessidades específicas (vidros, pavimentos encerados, zonas exteriores).
 
-O orçamento escrito indica o plano de limpeza, os produtos e o material utilizados, a frequência e o modo de comunicação com a administração para pedidos pontuais (após obras, mudanças, eventos). A faturação é feita em nome do condomínio, com o respetivo NIF, por intermédio do administrador, com o descritivo dos serviços.
+O orçamento escrito indica o plano de limpeza, os produtos e o material utilizados, a frequência e o modo de comunicação com a administração para pedidos pontuais (após obras, mudanças, eventos). A fatura pode ser emitida em nome do condomínio, com o respetivo NIF e o descritivo dos serviços.
 
-Um registo das passagens, consultável pelos condóminos, permite verificar que o plano é cumprido.`,
+É boa prática manter um registo das passagens, para que a administração possa verificar que o plano é cumprido.`,
 
   'estores-portoes': `Este serviço cobre estores (manuais e elétricos), persianas, portões de garagem e automatismos. Numa avaria, o profissional começa por identificar a causa: fita ou correia partida, mola, eixo, motor, automatismo ou fotocélulas. Trocar um motor quando o problema é mecânico é um erro comum que o diagnóstico evita.
 

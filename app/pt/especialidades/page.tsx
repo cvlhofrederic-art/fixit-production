@@ -46,7 +46,7 @@ const ESPECIALIDADES_PT = [
     icon: '🏠',
     name: 'Reabilitação Urbana Centro Histórico',
     slug: 'reabilitacao-urbana-centro-historico',
-    description: 'Obras de reabilitação em centros históricos de Porto, Braga e Guimarães. Benefícios fiscais (IVA 6%, isenção IMI). Respeito pelo património.',
+    description: 'Obras de reabilitação em centros históricos do Porto e de Braga. Benefícios fiscais (IVA 6%, isenção IMI). Respeito pelo património.',
     keywords: ['reabilitação urbana Porto', 'obras centro histórico', 'benefícios fiscais reabilitação'],
   },
   {
@@ -128,8 +128,8 @@ export default function EspecialidadesPage() {
               {[
                 { value: '6', label: 'Especialidades' },
                 { value: '24h', label: 'Intervenção' },
-                { value: '100%', label: 'Profissionais verificados' },
-                { value: 'Norte', label: 'Região' },
+                { value: '22', label: 'Concelhos' },
+                { value: '3', label: 'Distritos' },
               ].map(stat => (
                 <div key={stat.label}>
                   <span className="font-display text-2xl md:text-3xl font-extrabold text-yellow">{stat.value}</span>

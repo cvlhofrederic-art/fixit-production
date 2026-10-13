@@ -55,7 +55,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Acessibilidade das canalizações (paredes, pavimentos)',
       'Deslocação do profissional até ao local',
     ],
-    regionContext: 'Um desentupimento simples em Marco de Canaveses custa em média 60-120€, enquanto no Porto pode ultrapassar os 150€. A deslocação e diagnóstico mantém-se acessível entre 30 e 50€ na maioria dos casos.',
+    regionContext: 'Um desentupimento simples custa, em regra, entre 60 e 120€. A deslocação e o diagnóstico situam-se entre 30 e 50€ na maioria dos casos.',
     faqs: [
       {
         question: 'Quanto custa chamar um canalizador para uma urgência?',
@@ -110,7 +110,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Conformidade com normas de segurança em vigor',
       'Acesso ao quadro elétrico e canalizações técnicas',
     ],
-    regionContext: 'Na região do Tâmega e Sousa, os preços de eletricidade são competitivos comparados com o Porto. A certificação elétrica, obrigatória para venda ou arrendamento de imóveis, situa-se entre 150 e 300€.',
+    regionContext: 'A certificação elétrica, obrigatória para venda ou arrendamento de imóveis, situa-se entre 150 e 300€.',
     faqs: [
       {
         question: 'Quanto custa trocar o quadro elétrico de uma casa?',
@@ -126,7 +126,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       },
       {
         question: 'Vale a pena instalar painéis solares na região?',
-        answer: 'A instalação de painéis solares custa entre 500 e 1200€ (mão de obra). A região do Tâmega e Sousa tem boa exposição solar, com um retorno do investimento estimado em 5 a 8 anos. Os painéis solares podem reduzir a fatura elétrica em 50 a 70%.',
+        answer: 'A instalação de painéis solares custa entre 500 e 1200€ (mão de obra). A região do Tâmega e Sousa tem boa exposição solar; o retorno do investimento depende do consumo da casa e da potência instalada, e deve constar do orçamento.',
       },
     ],
     relatedCities: [

@@ -70,7 +70,7 @@ const faqs = [
   },
   {
     question: 'O que acontece se não ficar satisfeito?',
-    answer: 'Contacte a nossa equipa nas 48h após a intervenção. Mediamos a situação com o profissional e mediamos a situação com o profissional.',
+    answer: 'Contacte a nossa equipa nas 48h após a intervenção. Analisamos o caso consigo e mediamos a situação com o profissional até encontrar uma solução.',
   },
   {
     question: 'Com que frequência verificam os seguros dos profissionais?',

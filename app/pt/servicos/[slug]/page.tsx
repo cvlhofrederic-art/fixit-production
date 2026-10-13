@@ -195,10 +195,10 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
       )}
 
       {(prazo || preco) && (
-        <section id="prazos" className="py-12 md:py-16 bg-white">
+        <section className="py-12 md:py-16 bg-white">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
             {prazo && (
-              <div className="p-6 rounded-2xl bg-warm-gray border border-border/40">
+              <div id="prazos" className="p-6 rounded-2xl bg-warm-gray border border-border/40">
                 <h2 className="font-display text-lg font-bold text-dark mb-2">Prazos constatados em {city.name}</h2>
                 <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dias` : ''}.</p>
                 <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
@@ -348,7 +348,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
           {/* Nearby cities (internal links - critical for SEO) */}
           {nearbyCities.length > 0 && (
             <>
-              <h3 className="font-display text-xl font-bold mb-4">{service.name} noutras cidades próximas</h3>
+              <h3 className="font-display text-xl font-bold mb-4">{service.name} noutros concelhos da zona de atuação</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {nearbyCities.map(nc => (
                   <Link

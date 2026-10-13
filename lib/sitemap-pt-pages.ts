@@ -54,12 +54,15 @@ export const PAGINAS_ESTATICAS_PT = [
   '/pt/precos/pintor/',
 ] as const
 
-/** Pages statiques dont le contenu a changé en phase 2 (hubs de section réécrits). */
-const PAGINAS_FASE_2 = new Set<string>(['/pt/urgencia/', '/pt/perto-de-mim/'])
+/** Pages statiques dont le contenu a changé en phase 2 (hubs de section réécrits) et pas depuis. */
+const PAGINAS_FASE_2 = new Set<string>(['/pt/perto-de-mim/'])
 
-/** Pages statiques dont le contenu a changé en phase 3 (lot 0) ou 4 : avis fictifs retirés, liens, plan. */
+/**
+ * Pages statiques dont le contenu a changé en phase 3 (lot 0) ou 4 : avis fictifs retirés, liens, plan,
+ * disponibilités et temps de réponse rétablis sur /pt/urgencia/.
+ */
 const PAGINAS_FASE_3 = new Set<string>([
-  '/pt/', '/pt/servicos/', '/pt/cidade/', '/pt/mapa-do-site/', '/pt/profissionais-verificados/',
+  '/pt/', '/pt/servicos/', '/pt/cidade/', '/pt/urgencia/', '/pt/mapa-do-site/', '/pt/profissionais-verificados/',
   '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/',
   '/pt/precos/canalizador/', '/pt/precos/eletricista/', '/pt/precos/pintor/',
 ])

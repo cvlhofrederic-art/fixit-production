@@ -25,6 +25,7 @@ import {
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
+import { DATA_FASE_1, DATA_FASE_2, DATA_FASE_3 } from '@/lib/seo/pt-datas'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
 // Pages à generateMetadata par locale (cookie) : branche PT.
@@ -362,8 +363,11 @@ describe('1.1 sitemaps PT', () => {
     expect(locs).toEqual(['/sitemap/0.xml', '/sitemap/2.xml', '/sitemap/3.xml', ...groupes.map((g) => FICHIERS_SITEMAP_PT[g])])
   })
 
-  it('lastmod : date propre à chaque article de blog (dateModified sinon datePublished), jamais une date unique sur tout le blog', () => {
+  it('lastmod : date propre à chaque article de blog (dateModified sinon datePublished), jamais antidatée avant la création du dépôt', () => {
     const blog = sitemapsPt(BASE).blog
+    // Les articles non retouchés partagent leur date de création ; un article modifié porte sa propre date,
+    // donc le blog n'a jamais une date unique.
+    expect(new Set(blog.map((u) => String(u.lastModified))).size).toBeGreaterThanOrEqual(2)
     for (const article of BLOG_ARTICLES) {
       const entree = blog.find((u) => u.url === `${BASE}/pt/blog/${article.slug}/`)
       expect(entree?.lastModified).toBe(article.dateModified ?? article.datePublished)
@@ -373,6 +377,18 @@ describe('1.1 sitemaps PT', () => {
       if (article.dateModified) expect(article.dateModified >= article.datePublished).toBe(true)
     }
     expect(BLOG_ARTICLES.find((a) => a.slug === 'fuga-agua-como-agir')?.dateModified).toBe('2026-10-13')
+  })
+
+  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3, /pt/perto-de-mim/ en phase 2, les autres en phase 1', () => {
+    const paginas = sitemapsPt(BASE).paginas
+    const dateDe = (path: string) => paginas.find((u) => u.url === `${BASE}${path}`)?.lastModified
+    // Pages dont le contenu visible change dans le lot 0 ou la phase 4 (dont /pt/urgencia/ : délais rétablis).
+    for (const path of ['/pt/', '/pt/servicos/', '/pt/urgencia/', '/pt/mapa-do-site/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/pintor/']) {
+      expect(dateDe(path), path).toBe(DATA_FASE_3)
+    }
+    expect(dateDe('/pt/perto-de-mim/')).toBe(DATA_FASE_2)
+    for (const path of ['/pt/pesquisar/', '/pt/avaliacoes/', '/pt/contacto/', '/pt/precos/']) expect(dateDe(path), path).toBe(DATA_FASE_1)
+    expect(DATA_FASE_3 > DATA_FASE_2).toBe(true)
   })
 
   it('/sitemap/1.xml répond 410 ; /sitemap/0.xml ne contient plus aucune URL /pt/', async () => {
