@@ -138,37 +138,7 @@ export default function CidadesHubPage() {
                 ))}
               </div>
 
-              <details className="group rounded-xl border border-border/40 bg-white">
-                <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between hover:bg-warm-gray/30 transition-colors rounded-xl">
-                  <span className="font-display font-bold text-dark">
-                    Ver todos os serviços por cidade ({cities.length} × {SERVICES.length} = {cities.length * SERVICES.length} páginas)
-                  </span>
-                  <span className="text-yellow text-xl group-open:rotate-180 transition-transform">▾</span>
-                </summary>
-                <div className="px-5 pb-5 pt-2 space-y-6 border-t border-border/30">
-                  {cities.map(city => (
-                    <div key={city.slug}>
-                      <h3 className="font-display text-sm font-bold tracking-tight text-dark mb-3 uppercase">
-                        Serviços em {city.name}
-                      </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                        {SERVICES.map(service => (
-                          <Link
-                            key={`${city.slug}-${service.slug}`}
-                            href={`/pt/servicos/${service.slug}-${city.slug}/`}
-                            className="flex items-center gap-2 p-2.5 rounded-lg border border-border/40 hover:border-yellow hover:bg-yellow/5 transition-all group text-sm"
-                          >
-                            <span>{service.icon}</span>
-                            <span className="font-medium text-dark group-hover:text-yellow transition-colors truncate">
-                              {service.name}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </details>
+              {/* Phase 4 SEO PT (plan 3.5) : plus de bloc de 462 liens métier x ville ; les pages ville assurent la profondeur 2. */}
             </div>
           </section>
         )

@@ -13,9 +13,13 @@ const localePaths = {
   privacy:      { fr: '/confidentialite', pt: '/privacidade', en: '/privacy' },
   cookies:      { fr: '/cookies', pt: '/politica-cookies', en: '/cookie-policy' },
   sitemap:      { fr: '/plan-du-site', pt: '/mapa-do-site', en: '/sitemap' },
-  // Phase 1 SEO PT (point 1.8) : slug PT du contact et hub des villes.
+  // Phase 1 SEO PT (point 1.8) : slug PT du contact et hub des villes ; phase 4 : hubs de section
+  // (rendus pour PT seulement).
   contact:      { fr: '/contact', pt: '/contacto', en: '/contact' },
   cities:       { fr: '/ville', pt: '/cidade', en: '/cities' },
+  services:     { fr: '/services', pt: '/servicos', en: '/services' },
+  urgency:      { fr: '/urgence', pt: '/urgencia', en: '/emergency' },
+  nearMe:       { fr: '/pres-de-chez-moi', pt: '/perto-de-mim', en: '/near-me' },
 } as const
 
 export default function Footer() {
@@ -65,11 +69,28 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               {locale === 'pt' && (
-                <li>
-                  <LocaleLink href={lp('cities')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
-                    Cidades cobertas
-                  </LocaleLink>
-                </li>
+                <>
+                  <li>
+                    <LocaleLink href={lp('services')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                      Todos os serviços
+                    </LocaleLink>
+                  </li>
+                  <li>
+                    <LocaleLink href={lp('urgency')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                      Urgência
+                    </LocaleLink>
+                  </li>
+                  <li>
+                    <LocaleLink href={lp('nearMe')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                      Perto de mim
+                    </LocaleLink>
+                  </li>
+                  <li>
+                    <LocaleLink href={lp('cities')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                      Cidades cobertas
+                    </LocaleLink>
+                  </li>
+                </>
               )}
             </ul>
           </div>

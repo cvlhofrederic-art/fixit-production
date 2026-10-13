@@ -67,31 +67,26 @@ const plans = [
     name: 'Gratuito',
     price: '0€',
     period: '/mês',
-    description: 'Para começar a receber clientes sem risco.',
+    description: 'Para começar sem risco.',
     features: [
-      'Perfil básico na plataforma',
-      'Até 5 pedidos por mês',
-      'Avaliações de clientes',
-      'Acesso à aplicação móvel',
+      'Acesso ao módulo Orçamentos e Faturas',
+      'Sem compromisso',
     ],
-    cta: 'Registar gratuitamente',
+    cta: 'Começar gratuitamente',
     href: '/pt/pro/register/',
     highlighted: false,
   },
   {
     name: 'Pro',
-    price: '29€',
-    period: '/mês',
-    description: 'Para profissionais que querem crescer rapidamente.',
+    price: '49€',
+    period: '/mês s/ IVA',
+    description: 'Todos os módulos desbloqueados.',
     features: [
-      'Perfil destacado nos resultados',
-      'Pedidos ilimitados',
-      'Agenda digital avançada',
-      'Faturação e orçamentos PDF',
-      'Estatísticas de negócio',
-      'Suporte prioritário',
+      'Todos os módulos da plataforma',
+      'Orçamentos e faturas em PDF',
+      'Sem compromisso, cancele a qualquer momento',
     ],
-    cta: 'Começar período de teste',
+    cta: 'Escolher a oferta Pro',
     href: '/pt/pro/register/',
     highlighted: true,
   },
@@ -100,7 +95,7 @@ const plans = [
 const faqs = [
   {
     question: 'Quanto custa registar-me no VITFIX como profissional?',
-    answer: 'O registo básico é gratuito e permite-lhe receber até 5 pedidos por mês sem qualquer custo. O plano Pro custa 29€/mês e oferece pedidos ilimitados, faturação e perfil destacado.',
+    answer: 'O registo é gratuito e dá acesso ao módulo de orçamentos e faturas. O plano Pro custa 49€/mês sem IVA, sem compromisso, e desbloqueia todos os módulos.',
   },
   {
     question: 'O VITFIX cobra comissão sobre os trabalhos?',
@@ -116,7 +111,7 @@ const faqs = [
   },
   {
     question: 'Em quanto tempo começo a receber pedidos?',
-    answer: 'Após a aprovação do perfil (normalmente 24-48h), o seu perfil fica visível para os clientes. Os primeiros pedidos chegam habitualmente na primeira semana.',
+    answer: 'Após a aprovação do perfil (normalmente 24-48h), o seu perfil fica visível para os clientes.',
   },
   {
     question: 'Posso cancelar a subscrição quando quiser?',
@@ -124,29 +119,8 @@ const faqs = [
   },
 ]
 
-const testimonials = [
-  {
-    name: 'António F.',
-    job: 'Canalizador',
-    city: 'Marco de Canaveses',
-    text: 'Desde que me juntei ao VITFIX recebi 3x mais pedidos do que antes. O sistema de avaliações ajuda muito a ganhar a confiança dos novos clientes.',
-    rating: 5,
-  },
-  {
-    name: 'Rui M.',
-    job: 'Eletricista',
-    city: 'Penafiel',
-    text: 'A faturação integrada poupou-me horas de trabalho administrativo por mês. Altamente recomendado para profissionais independentes.',
-    rating: 5,
-  },
-  {
-    name: 'Carlos S.',
-    job: 'Pintor',
-    city: 'Amarante',
-    text: 'Profissional há 15 anos, o VITFIX trouxe-me clientes novos que nunca teria encontrado de outra forma. Excelente plataforma.',
-    rating: 5,
-  },
-]
+// Phase 3 SEO PT (lot 0) : témoignages nominatifs fictifs retirés (règle 0.2) ; seuls des témoignages de
+// professionnels réels, avec accord écrit, pourront revenir.
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -251,31 +225,6 @@ export default function TorneSeParceiroPage() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section className="py-16 md:py-20 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
-            O que dizem os nossos parceiros
-          </h2>
-          <p className="text-text-muted mb-10">Profissionais reais que fazem crescer o negócio com o VITFIX.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t) => (
-              <div key={t.name} className="rounded-2xl border border-border/50 p-6">
-                <div className="flex gap-0.5 mb-3">
-                  {[...Array(t.rating)].map((_, i) => (
-                    <span key={i} className="text-yellow">★</span>
-                  ))}
-                </div>
-                <p className="text-[0.93rem] text-dark/80 leading-relaxed mb-4">&quot;{t.text}&quot;</p>
-                <div>
-                  <p className="font-bold text-dark text-sm">{t.name}</p>
-                  <p className="text-text-muted text-xs">{t.job} · {t.city}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* PRICING */}
       <section className="py-16 md:py-20">

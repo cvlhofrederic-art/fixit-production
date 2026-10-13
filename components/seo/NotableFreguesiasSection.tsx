@@ -14,8 +14,10 @@ export function NotableFreguesiasSection({ city }: Props) {
         <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
           Freguesias de {city.name}
         </h2>
+        {/* Phase 3 SEO PT : plus de « todas as N freguesias » (couverture non vérifiée, décompte non officiel)
+            ni de liste en bloc (interdit 3.2 du plan) : quelques freguesias en prose. */}
         <p className="text-text-muted mb-6">
-          Os nossos profissionais atuam em todas as {allFreguesias.length} freguesias do concelho de {city.name}.
+          Freguesias do concelho de {city.name}: {allFreguesias.slice(0, 5).join(', ')}{allFreguesias.length > 5 ? ', entre outras.' : '.'}
         </p>
 
         {enriched.length > 0 ? (
@@ -31,14 +33,6 @@ export function NotableFreguesiasSection({ city }: Props) {
             ))}
           </div>
         ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          {allFreguesias.map(f => (
-            <span key={f} className="px-3 py-1.5 bg-warm-gray rounded-full text-sm text-dark/70 border border-border/30">
-              {f}
-            </span>
-          ))}
-        </div>
       </div>
     </section>
   )

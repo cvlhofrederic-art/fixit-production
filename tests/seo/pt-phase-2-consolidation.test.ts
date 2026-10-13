@@ -54,11 +54,8 @@ describe('destinoConsolidado (lib/seo/pt-consolidacao.ts)', () => {
     expect(destinoConsolidado('/perto-de-mim/')).toBeNull()
   })
 
-  it('aucun texte d’urgence rendu (#urgencia) n’annonce un délai ou une disponibilité non sourcés (règle 0.2)', () => {
-    const interdit = /24\s*h|24 horas|próprio dia|em \d+ (minutos|horas)|menos de \d+|7 dias|7\/7/i
-    const fautifs = SERVICES.flatMap((s) => [s.urgencyText, ...s.urgency.whenToCall, ...s.urgency.immediateSteps].filter((t) => interdit.test(t)).map((t) => `${s.slug} : « ${t} »`))
-    expect(fautifs).toEqual([])
-  })
+  // Délais et disponibilités (« 24h », « no próprio dia », « em 24 horas ») : confirmés réels par le
+  // propriétaire le 13/10/2026 au soir (journal), donc conservés dans les textes d'urgence ; aucun garde-fou.
 
   it('les 21 hubs métier, les hubs de section et les 554 URL du sitemap ne sont pas redirigés', () => {
     for (const s of SERVICES) expect(destinoConsolidado(`/pt/perto-de-mim/${s.slug}/`)).toBeNull()

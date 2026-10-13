@@ -226,49 +226,17 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
           <div className="mt-10 rounded-2xl p-8 md:p-10 text-center" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.08) 0%, rgba(255,214,0,0.18) 100%)' }}>
             <span className="text-4xl block mb-3">{article.icon}</span>
             <p className="font-display font-bold text-xl text-dark mb-2">{article.ctaText}</p>
-            <p className="text-sm text-text-muted mb-6">Profissionais verificados na região do Tâmega e Sousa</p>
+            <p className="text-sm text-text-muted mb-6">Profissionais verificados em {CITIES.length} concelhos do Porto, Braga e Aveiro</p>
+            {/* Phase 4 SEO PT : liens vers les hubs métier (qui listent les 22 concelhos), plus de ville figée. */}
             <div className="flex flex-wrap justify-center gap-3">
               {relatedServiceData.map(s => s && (
                 <Link
                   key={s.slug}
-                  href={`/pt/servicos/${s.slug}-marco-de-canaveses/`}
+                  href={`/pt/perto-de-mim/${s.slug}/`}
                   className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-6 py-3 text-[0.9rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
                 >
-                  {s.icon} {s.name} em Marco de Canaveses
+                  {s.icon} {s.name} perto de mim
                 </Link>
-              ))}
-            </div>
-            <p className="text-sm text-text-muted mt-5">
-              {'Também disponível em '}
-              {['Penafiel', 'Amarante', 'Baião', 'Felgueiras'].map((c, i) => (
-                <span key={c}>
-                  {i > 0 && ', '}
-                  <Link href={`/pt/servicos/${article.relatedServices[0]}-${c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ /g, '-')}/`} className="text-yellow hover:underline font-medium">
-                    {c}
-                  </Link>
-                </span>
-              ))}
-            </p>
-          </div>
-
-          {/* ── LOCAL SERVICE LINKS (SEO internal links) ── */}
-          <div className="mt-10 bg-white rounded-2xl border border-border/50 p-6 md:p-8">
-            <div className="flex items-center gap-2 mb-5">
-              <span className="text-xl">📍</span>
-              <h3 className="font-display font-bold text-dark">Precisa de um profissional na sua zona?</h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-              {CITIES.slice(0, 4).map(city => (
-                relatedServiceData.map(s => s && (
-                  <Link
-                    key={`${s.slug}-${city.slug}`}
-                    href={`/pt/servicos/${s.slug}-${city.slug}/`}
-                    className="flex items-center gap-2 text-sm text-text-muted hover:text-yellow transition p-3 rounded-xl hover:bg-yellow/5 border border-transparent hover:border-yellow/20"
-                  >
-                    <span>{s.icon}</span>
-                    <span>{s.name} {city.name}</span>
-                  </Link>
-                ))
               ))}
             </div>
           </div>

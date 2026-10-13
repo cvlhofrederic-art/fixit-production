@@ -192,9 +192,9 @@ export default function PtCondominioPage() {
               { icon: '📋', title: 'Faturação profissional', desc: 'Orçamentos e faturas em nome do condomínio ou administrador. IVA dedutível, relatórios de intervenção assinados.' },
               { icon: '📅', title: 'Contratos à medida', desc: 'Contratos mensais, trimestrais ou anuais para manutenção regular. Prioridade nas urgências e relatórios periódicos.' },
               { icon: '⚡', title: 'Resposta rápida', desc: 'Urgências tratadas em 24–48h. Um interlocutor único para todos os pedidos. Disponível 7 dias por semana.' },
-              { icon: '📍', title: 'Cobertura regional', desc: 'Porto, Tâmega e Sousa, Braga e arredores. Presença local com profissionais da região.' },
+              { icon: '📍', title: 'Cobertura regional', desc: '22 concelhos dos distritos do Porto, Braga e Aveiro, com profissionais da região.' },
               { icon: '🏗️', title: 'Multi-serviços', desc: 'Um só prestador para limpeza, canalização E eletricidade. Menos interlocutores, mais eficiência para o administrador.' },
-              { icon: '✅', title: 'Profissionais verificados', desc: 'Todos os profissionais são verificados e com seguro de responsabilidade civil. Certificados disponíveis a pedido.' },
+              { icon: '✅', title: 'Profissionais verificados', desc: 'Todos os profissionais são verificados e com seguro de responsabilidade civil.' },
             ].map(avantage => (
               <div key={avantage.title} className="p-5 rounded-2xl border border-border/50">
                 <span className="text-3xl block mb-3">{avantage.icon}</span>
@@ -210,7 +210,7 @@ export default function PtCondominioPage() {
       <section className="py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-6 text-center">
-            Condomínios servidos em Portugal
+            Concelhos cobertos
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {CITIES.map(city => (

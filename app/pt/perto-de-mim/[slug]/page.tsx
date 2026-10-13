@@ -7,6 +7,7 @@ import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import { ogImageMeta } from '@/lib/og'
 import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoRegional } from '@/lib/seo/pt-schemas'
+import { metodoPara } from '@/lib/seo/pt-provas-locais'
 
 // ─────────────────────────────────────────────────────────────
 // HUB MÉTIER : /pt/perto-de-mim/{metier}/ (21 pages)
@@ -73,6 +74,7 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
 
   const displayName = service.name
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
+  const metodo = metodoPara(service.slug)
   const urgencyTexto = service.urgencyText.replace(/\s*em \{city\}/g, '').replace(/\{city\}/g, 'Portugal')
 
   const waText = `Olá! Preciso de ${displayName.toLowerCase()} perto de mim. Podem ajudar?`
@@ -191,8 +193,20 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
         </div>
       </section>
 
+      {/* ── MÉTHODE DU MÉTIER (phase 3 SEO PT, bloc métier du gabarit 3.2) ── */}
+      {metodo && (
+        <section id="metodo" className="py-14 md:py-18 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-4">
+              Como a VITFIX trabalha: {displayName.toLowerCase()}
+            </h2>
+            <p className="text-dark/85 leading-relaxed max-w-3xl whitespace-pre-line">{metodo}</p>
+          </div>
+        </section>
+      )}
+
       {/* ── FEATURES ── */}
-      <section className="py-14 md:py-18 bg-white">
+      <section className="py-14 md:py-18">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-8">
             O que faz um {displayName.toLowerCase()} perto de si?
