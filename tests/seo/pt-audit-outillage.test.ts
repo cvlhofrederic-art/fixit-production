@@ -83,8 +83,8 @@ describe('analyserHtml', () => {
   it('mots : alphanumériques en minuscules, accents conservés', () => {
     expect(mots('Fuga de Água, 24h/7 — ÁGUA!')).toEqual(['fuga', 'de', 'água', '24h', '7', 'água'])
   })
-  it('ignore les balises script fermées avec un espace et lit le JSON-LD quand même', () => {
-    const b = analyserHtml('<html><head><script type="application/ld+json">{"@type":"WebPage"}</script ></head><body><main><p>texte</p><script>var x = "pas du texte"</script ></main></body></html>')
+  it('ignore les balises script fermées avec espace, tabulation ou attribut et lit le JSON-LD quand même', () => {
+    const b = analyserHtml('<html><head><script type="application/ld+json">{"@type":"WebPage"}</script ></head><body><main><p>texte</p><script>var x = "pas du texte"</script\t\n bar><style>.a{}</style ></main></body></html>')
     expect(b.jsonld.types).toEqual(['WebPage'])
     expect(b.texte_main).toBe('texte')
   })

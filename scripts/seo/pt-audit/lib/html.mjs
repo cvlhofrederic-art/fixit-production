@@ -21,14 +21,14 @@ function balises(html, nom) {
   return [...html.matchAll(new RegExp('<' + nom + '\\b[^>]*>', 'gi'))].map((m) => m[0])
 }
 
-// Balises fermantes tolérantes aux espaces (`</script >`) : l'analyseur sert à mesurer, pas à assainir,
-// mais la règle CodeQL js/bad-tag-filter exige cette forme.
+// Balises fermantes tolérantes aux espaces, tabulations et attributs (`</script >`, `</script\t\n bar>`) :
+// l'analyseur sert à mesurer, pas à assainir, mais la règle CodeQL js/bad-tag-filter exige cette forme.
 function texteSansBalises(fragment) {
   return decoderEntites(
     fragment
-      .replace(/<script\b[\s\S]*?<\/script\s*>/gi, ' ')
-      .replace(/<style\b[\s\S]*?<\/style\s*>/gi, ' ')
-      .replace(/<noscript\b[\s\S]*?<\/noscript\s*>/gi, ' ')
+      .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+      .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
+      .replace(/<noscript\b[\s\S]*?<\/noscript\b[^>]*>/gi, ' ')
       .replace(/<[^>]+>/g, ' '),
   ).replace(/\s+/g, ' ').trim()
 }
@@ -99,7 +99,7 @@ export function analyserHtml(html, { base = 'https://vitfix.io' } = {}) {
 
   // JSON-LD
   r.jsonld = { noeuds: [], erreurs: 0, types: [] }
-  for (const m of h.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\s*>/gi)) {
+  for (const m of h.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script\b[^>]*>/gi)) {
     try {
       const j = JSON.parse(m[1])
       const liste = Array.isArray(j) ? j : (j && j['@graph'] ? j['@graph'] : [j])
