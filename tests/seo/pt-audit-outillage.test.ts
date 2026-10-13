@@ -56,10 +56,12 @@ describe('analyserHtml', () => {
   it('extrait les nœuds JSON-LD avec address et geo', () => {
     expect(a.jsonld.erreurs).toBe(0)
     expect(a.jsonld.types).toEqual(['WebSite', 'Organization+HomeAndConstructionBusiness', 'LocalBusiness', 'BreadcrumbList', 'FAQPage'])
-    const lb = a.jsonld.noeuds.find((n) => n.type === 'LocalBusiness')
-    expect(lb && lb.address && lb.geo && lb.ohs).toBe(true)
+    // Le module est en JavaScript : le tableau vide initial est inféré `never[]` par TypeScript, d'où le typage explicite.
+    const noeuds = a.jsonld.noeuds as Array<Record<string, unknown>>
+    const lb = noeuds.find((n) => n.type === 'LocalBusiness')
+    expect(Boolean(lb && lb.address && lb.geo && lb.ohs)).toBe(true)
     expect(lb && lb.address_locality).toBe('Ovar')
-    const fil = a.jsonld.noeuds.find((n) => n.type === 'BreadcrumbList')
+    const fil = noeuds.find((n) => n.type === 'BreadcrumbList')
     expect(fil && fil.crumbs).toEqual(['https://vitfix.io/pt/', 'https://vitfix.io/pt/servicos/'])
   })
   it('classe les liens : internes, sans préfixe, sans barre finale, dans main', () => {

@@ -35,7 +35,7 @@ describe('sitemap PT : code et CSV de référence', () => {
   })
 
   it('la grille est 21 métiers x 22 villes (servicos, urgencia), 22 x 22 + 22 hubs (perto-de-mim)', () => {
-    const parGroupe = (g) => csv.filter((l) => l.groupe === g)
+    const parGroupe = (g: string) => csv.filter((l) => l.groupe === g)
     expect(parGroupe('servicos')).toHaveLength(21 * 22)
     expect(parGroupe('urgencia')).toHaveLength(21 * 22)
     expect(parGroupe('perto-de-mim')).toHaveLength(22 * 22)
@@ -53,7 +53,7 @@ describe('sitemap PT : code et CSV de référence', () => {
   })
 
   it('priorités du CSV : 93 P1, 242 P2, 574 P3, 204 PROTEGER', () => {
-    const n = (p) => csv.filter((l) => l.priorite === p).length
+    const n = (p: string) => csv.filter((l) => l.priorite === p).length
     expect([n('P1'), n('P2'), n('P3'), n('PROTEGER')]).toEqual([93, 242, 574, 204])
   })
 })
