@@ -364,11 +364,13 @@ describe('1.1 sitemaps PT', () => {
 
   it('lastmod : date propre à chaque article de blog (dateModified sinon datePublished), jamais une date unique sur tout le blog', () => {
     const blog = sitemapsPt(BASE).blog
-    const dates = new Set(blog.map((u) => String(u.lastModified)))
-    expect(dates.size).toBeGreaterThan(5)
     for (const article of BLOG_ARTICLES) {
       const entree = blog.find((u) => u.url === `${BASE}/pt/blog/${article.slug}/`)
       expect(entree?.lastModified).toBe(article.dateModified ?? article.datePublished)
+      // Phase 3 (lot 0) : aucun article n'est daté avant sa création dans le dépôt (18/03/2026, commit 3c3596aa) ;
+      // 24 dates antidatées (depuis le 15/11/2025) ont été ramenées à cette date réelle.
+      expect(article.datePublished >= '2026-03-18').toBe(true)
+      if (article.dateModified) expect(article.dateModified >= article.datePublished).toBe(true)
     }
     expect(BLOG_ARTICLES.find((a) => a.slug === 'fuga-agua-como-agir')?.dateModified).toBe('2026-10-13')
   })

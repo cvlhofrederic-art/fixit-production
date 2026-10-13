@@ -98,14 +98,14 @@ export default function UrgenciaHubPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
             </span>
-            <span className="text-red-700">URGÊNCIA</span>
+            <span className="text-red-700">URGÊNCIA, Disponível 24h, 7/7</span>
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
             Serviços de Urgência
           </h1>
           <p className="text-lg text-dark/70 max-w-2xl mb-8 leading-relaxed">
-            Emergência em casa? Contacte-nos por WhatsApp ou telefone: profissionais verificados em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
+            Emergência em casa? Contacte-nos por WhatsApp ou telefone, 24 horas por dia, 7 dias por semana: profissionais verificados em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro.
           </p>
 
           {/* CTAs */}
@@ -138,6 +138,11 @@ export default function UrgenciaHubPage() {
             <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
               <span className="text-yellow font-bold">📍</span>
               <span className="text-dark"><strong>{CITIES.length}</strong> concelhos cobertos</span>
+            </div>
+            {/* Délai confirmé par le propriétaire le 13/10/2026 (docs/seo/journal-pt.md) : donnée réelle, conservée. */}
+            <div className="flex items-center gap-2 bg-white/80 rounded-full px-4 py-2">
+              <span className="text-yellow font-bold">🕐</span>
+              <span className="text-dark">Resposta em <strong>menos de 1 hora</strong></span>
             </div>
           </div>
         </div>
@@ -239,7 +244,7 @@ export default function UrgenciaHubPage() {
             Tem uma emergência? Contacte-nos.
           </h2>
           <p className="text-dark/70 mb-8 max-w-md mx-auto">
-            Profissionais verificados em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro. WhatsApp ou telefone.
+            Profissionais verificados em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro. WhatsApp ou telefone, 24h por dia, 7 dias por semana.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <a

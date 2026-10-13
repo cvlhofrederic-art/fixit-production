@@ -6,6 +6,7 @@ import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES } from '@/lib/d
 import { PHONE_PT } from '@/lib/constants'
 import { tituloServico, descricaoServico } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
+import { avisPara, chantiersPara, mesPorExtenso, metodoPara, prazoPara, precoPara } from '@/lib/seo/pt-provas-locais'
 
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import ServiceFeaturesGrid from '@/components/seo/ServiceFeaturesGrid'
@@ -59,7 +60,11 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const heroTitle = replaceCity(service.heroTitle)
   const overrideIntro = city.serviceCityOverrides?.[service.slug]?.intro
   const heroSubtitle = overrideIntro ?? replaceCity(service.heroSubtitle)
-  const localCases = city.serviceCityOverrides?.[service.slug]?.localCases
+  const chantiers = chantiersPara(service.slug, city.slug)
+  const prazo = prazoPara(city.slug, service.slug)
+  const preco = precoPara(service.slug)
+  const metodo = metodoPara(service.slug)
+  const avis = avisPara(service.slug, city.slug)
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
@@ -163,32 +168,86 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
         serviceIcon={service.icon}
       />
 
-      {/* ── LOCAL CASES (anti-thin-content, conditional) ── */}
-      {localCases?.length ? (
-        <section className="py-12 md:py-16">
+      {/* ── DONNÉES RÉELLES (phase 3 SEO PT, gabarit 3.2) : chantiers, délais, prix, méthode, avis.
+          Rendus uniquement quand data/seo/local-proof.json contient la donnée (règle 0.2). Les 66 blocs
+          « Intervenções recentes » codés en dur ont été retirés : c'étaient des chaînes statiques. ── */}
+      {chantiers.length > 0 && (
+        <section id="chantiers" className="py-12 md:py-16">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <h2 className="font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark mb-2">
-              Intervenções recentes em {city.name}
+              Trabalhos de {service.name.toLowerCase()} realizados em {city.name}
             </h2>
-            <p className="text-text-muted text-sm mb-6 max-w-2xl">
-              Exemplos de trabalhos realizados pelos profissionais VITFIX no concelho.
-            </p>
+            <p className="text-text-muted text-sm mb-6 max-w-2xl">Intervenções reais dos últimos meses no concelho.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {localCases.map((c, i) => (
-                <article
-                  key={i}
-                  className="p-5 rounded-2xl bg-white border border-border/40 hover:border-yellow/40 transition-colors flex gap-4"
-                >
-                  <span className="shrink-0 w-9 h-9 rounded-lg bg-yellow/15 flex items-center justify-center text-base font-bold text-dark">
-                    {i + 1}
-                  </span>
-                  <p className="text-sm text-dark/85 leading-relaxed">{c}</p>
+              {chantiers.map((c, i) => (
+                <article key={i} className="p-5 rounded-2xl bg-white border border-border/40 flex gap-4">
+                  <span className="shrink-0 w-9 h-9 rounded-lg bg-yellow/15 flex items-center justify-center text-base font-bold text-dark">{i + 1}</span>
+                  <p className="text-sm text-dark/85 leading-relaxed">
+                    {c.tipo}{c.quantidade ? `, ${c.quantidade}` : ''}{c.freguesia ? `, ${c.freguesia}` : ''} · {mesPorExtenso(c.mes)}
+                  </p>
                 </article>
               ))}
             </div>
           </div>
         </section>
-      ) : null}
+      )}
+
+      {(prazo || preco) && (
+        <section id="prazos" className="py-12 md:py-16 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {prazo && (
+              <div className="p-6 rounded-2xl bg-warm-gray border border-border/40">
+                <h2 className="font-display text-lg font-bold text-dark mb-2">Prazos constatados em {city.name}</h2>
+                <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dias` : ''}.</p>
+                <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
+              </div>
+            )}
+            {preco && (
+              <div id="precos" className="p-6 rounded-2xl bg-warm-gray border border-border/40">
+                <h2 className="font-display text-lg font-bold text-dark mb-2">Preços praticados: {service.name.toLowerCase()}</h2>
+                <p className="text-sm text-dark/85">{preco.min} a {preco.max} € por {preco.unite}{preco.fonte ? ` (${preco.fonte})` : ''}.</p>
+                {preco.exemplos && preco.exemplos.length > 0 && (
+                  <ul className="mt-2 text-xs text-text-muted space-y-1">
+                    {preco.exemplos.slice(0, 3).map((e, i) => (
+                      <li key={i}>{e.quantidade ? `${e.quantidade}, ` : ''}{e.montante} €, {mesPorExtenso(e.mes)}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {metodo && (
+        <section id="metodo" className="py-12 md:py-16">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark mb-4">
+              Como a VITFIX trabalha: {service.name.toLowerCase()}
+            </h2>
+            <p className="text-dark/85 leading-relaxed max-w-3xl whitespace-pre-line">{metodo}</p>
+          </div>
+        </section>
+      )}
+
+      {avis.length > 0 && (
+        <section id="avaliacoes" className="py-12 md:py-16 bg-white">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark mb-6">
+              Avaliações de clientes em {city.name}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {avis.map((a, i) => (
+                <blockquote key={i} className="p-5 rounded-2xl bg-warm-gray border border-border/40 text-sm text-dark/85">
+                  <p className="mb-2">{'★'.repeat(a.nota)}</p>
+                  <p className="leading-relaxed">{a.texto}</p>
+                  <footer className="text-xs text-text-muted mt-3">{a.autor ? `${a.autor}, ` : ''}{mesPorExtenso(a.mes)}</footer>
+                </blockquote>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── URGÊNCIA EM {VILLE} (phase 2 SEO PT, point 2.2) : bloc ancré #urgencia qui reprend ce qui était propre
           au modèle urgencia (quand appeler, premiers gestes) ; les anciennes pages /pt/urgencia/ y redirigent.

@@ -80,7 +80,7 @@ const plans = [
   },
   {
     name: 'Pro',
-    price: '29€',
+    price: '49€',
     period: '/mês',
     description: 'Para profissionais que querem crescer rapidamente.',
     features: [
@@ -100,7 +100,7 @@ const plans = [
 const faqs = [
   {
     question: 'Quanto custa registar-me no VITFIX como profissional?',
-    answer: 'O registo básico é gratuito e permite-lhe receber até 5 pedidos por mês sem qualquer custo. O plano Pro custa 29€/mês e oferece pedidos ilimitados, faturação e perfil destacado.',
+    answer: 'O registo básico é gratuito e permite-lhe receber até 5 pedidos por mês sem qualquer custo. O plano Pro custa 49€/mês e oferece pedidos ilimitados, faturação e perfil destacado.',
   },
   {
     question: 'O VITFIX cobra comissão sobre os trabalhos?',

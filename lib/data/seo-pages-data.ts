@@ -10,7 +10,6 @@ export interface NotableFreguesia {
 
 export interface ServiceCityOverride {
   intro?: string
-  localCases?: string[]
 }
 
 export interface CityData {
@@ -133,30 +132,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas no Marco de Canaveses com conhecimento profundo das particularidades das instalações rurais (poços, anexos agrícolas, portões automatizados), modernização de instalações em moradias centenárias de granito e ligações industriais para fábricas de mobiliário da zona de Constance. Certificação RECE e cumprimento das exigências da DGEG e da Câmara Municipal para obras junto a património classificado.',
-        localCases: [
-          'Instalação de quadro trifásico numa pequena unidade de mobiliário em Constance, com proteção contra picos de tensão típicos da zona industrial.',
-          'Modernização da rede elétrica de uma moradia antiga em Soalhães, mantendo a estética compatível com a Rota do Românico.',
-          'Reparação de bomba submersa em furo artesiano numa propriedade agrícola em Penha Longa após avaria por corte de energia.',
-          'Substituição de quadro elétrico inundado por infiltração em cave de moradia em Tabuado, com instalação de diferencial reforçado.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores no Marco de Canaveses disponíveis 7 dias por semana, com experiência em sistemas de rega para quintas e adegas das freguesias ribeirinhas, canalizações antigas em chumbo de casas centenárias, e captações próprias (poços, furos) em freguesias rurais sem rede pública completa.',
-        localCases: [
-          'Reparação de fuga numa cave de moradia centenária em Marco com identificação por câmara endoscópica, evitando abertura de paredes em granito original.',
-          'Instalação de sistema de filtragem para água de poço numa moradia rural em Vila Boa do Bispo, com testes de qualidade bacteriológica.',
-          'Substituição de tubagem em chumbo por multicamada certificado numa casa antiga em Alpendorada, com licenças específicas para obra em zona histórica.',
-          'Desentupimento de fossa séptica numa quinta em Soalhães sem rede municipal de saneamento, com inspeção da fossa antes da limpeza.',
-        ],
       },
       'pintor': {
         intro: 'Pintores no Marco de Canaveses especializados em fachadas de moradias antigas em granito, restauro de pintura tradicional em zonas de património românico (Tabuado, Soalhães, Vila Boa do Bispo), e pintura interior anti-bolor em casas com humidade ascensional típica dos vales do Tâmega.',
-        localCases: [
-          'Pintura de fachada de moradia em Várzea com tratamento prévio do granito e tinta microporosa que respeita a respiração do material.',
-          'Restauro da pintura interior de uma casa antiga em Soalhães após infiltrações pela laje, com tratamento anti-fungos.',
-          'Pintura completa de apartamento no centro do Marco com cores neutras para fins de arrendamento estudantil/jovem ativo.',
-          'Pintura de portão de ferro forjado numa moradia em Tabuado após oxidação por humidade dos vales.',
-        ],
       },
     },
   },
@@ -196,30 +177,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Penafiel com experiência em instalações rurais (poços, quintas vinhateiras, adegas), modernização de moradias antigas em granito e instalações de hotéis/alojamentos das Termas de São Vicente. Cumprimento das exigências de instalações húmidas em ambiente termal.',
-        localCases: [
-          'Modernização do quadro elétrico de uma adega vinhateira em Bustelo com instalação trifásica para prensas e bombas.',
-          'Instalação de iluminação anti-corrosão em zonas termais de São Vicente com proteção contra vapores sulfúricos.',
-          'Reparação de quadro elétrico inundado por enxurrada num apartamento de Rio de Moinhos com instalação de diferencial reforçado.',
-          'Instalação de carregador de viatura elétrica numa moradia recente de Guilhufe com adaptação do quadro existente.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Penafiel disponíveis para urgências em moradias rurais (captação por furo + rede pública), apartamentos urbanos, adegas vinhateiras e instalações termais com águas sulfúreas que exigem tubagens resistentes a corrosão química.',
-        localCases: [
-          'Substituição de tubagem em chumbo numa casa antiga em Paço de Sousa por tubo multicamada certificado, com licenças para zona de Rota do Românico.',
-          'Instalação de filtro descalcificador numa moradia rural em Lagares contra calcário do furo artesiano.',
-          'Reparação de fuga em sistema termal numa unidade hoteleira de São Vicente com tubagens em PPR resistentes a águas sulfúreas.',
-          'Desentupimento de saneamento numa adega em Bustelo após acumulação de sedimentos pós-vindima.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Penafiel especializados em fachadas de moradias em granito (vales do Sousa), restauro de pintura tradicional em zonas de património românico (Paço de Sousa), e pintura interior anti-bolor em casas com humidade ascensional típica dos vales.',
-        localCases: [
-          'Pintura de fachada de moradia em Eja com tratamento prévio do granito e tinta microporosa.',
-          'Restauro de pintura interior de casa antiga em Paço de Sousa após infiltrações sazonais.',
-          'Pintura completa de unidade hoteleira em Termas de São Vicente com tintas resistentes à humidade termal.',
-          'Pintura de adega vinhateira em Croca com tratamento anti-fungos das paredes antes da temporada de vindima.',
-        ],
       },
     },
   },
@@ -260,30 +223,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Amarante com experiência em instalações de alojamentos locais turísticos do centro histórico, modernização de moradias antigas em granito (Mancelos, Padronelo), e instalações em zonas altas (Vila Chã do Marão) com proteção contra picos de tensão e geadas. Certificação RECE e cumprimento das exigências da Câmara para obras junto à Ponte de São Gonçalo.',
-        localCases: [
-          'Substituição de quadro elétrico num alojamento local do centro histórico após sobrecarga durante temporada turística.',
-          'Instalação de quadro estanque (IP65) numa moradia em Vila Chã do Marão com proteção contra geadas e descargas atmosféricas.',
-          'Modernização da rede elétrica de uma casa antiga em Mancelos com licenças para zona da Rota do Românico.',
-          'Reparação de portão automatizado numa quinta em Fridão após avaria por humidade prolongada.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Amarante disponíveis para urgências em moradias do centro histórico, quintas com captação própria (Fridão, Telões), alojamentos locais turísticos e instalações afetadas por geadas em zonas altas do Marão.',
-        localCases: [
-          'Reparação de tubagem rebentada por geada numa moradia em Vila Chã do Marão, com substituição por tubagem PEX isolada termicamente.',
-          'Instalação de termoacumulador num apartamento de Vila Meã com substituição da rede de água quente antiga.',
-          'Desentupimento de saneamento num restaurante do centro histórico após acumulação de gorduras, sem afetar o serviço diário.',
-          'Manutenção sazonal de sistema de rega numa quinta em Gondar antes da primavera.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Amarante especializados em fachadas em granito do centro histórico, restauro de pintura tradicional em zonas de património românico (Mancelos), e pintura interior anti-bolor em casas afetadas pela humidade dos vales do Tâmega.',
-        localCases: [
-          'Pintura de fachada de moradia em Gatão com tratamento prévio do granito e tinta microporosa.',
-          'Restauro da pintura de uma casa antiga em Mancelos com técnica tradicional autorizada pela Direção-Geral do Património Cultural.',
-          'Pintura interior de alojamento local no centro histórico com tintas anti-bolor após queixas de hóspedes sobre humidade.',
-          'Pintura de portão em ferro forjado numa moradia em Fridão após oxidação severa pela humidade ribeirinha.',
-        ],
       },
     },
   },
@@ -322,30 +267,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Baião com experiência em instalações rurais (adegas, vinhas com sistemas de rega), modernização de moradias em xisto e granito, e proteção contra picos de tensão em zonas altas (Teixeira, Mesquinhata) afastadas da rede principal.',
-        localCases: [
-          'Instalação trifásica para prensas de vinificação numa adega familiar em Santa Marinha do Zêzere.',
-          'Reparação de quadro elétrico inundado por nevoeiro denso numa moradia em Teixeira.',
-          'Modernização da rede elétrica de casa vinhateira em Ancede com licenças para zona da Rota do Românico.',
-          'Instalação de iluminação exterior em socalcos de vinha em Ribadouro com cabos enterrados protegidos.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Baião disponíveis para urgências em moradias rurais (captação por poço/furo), adegas vinhateiras com tubagens dedicadas à vinificação e sistemas de rega gravitacional em vinhas de socalcos.',
-        localCases: [
-          'Reparação de fuga em sistema de rega gravitacional numa vinha em Ribadouro antes da época de irrigação.',
-          'Substituição de tubagem em chumbo numa casa centenária em Ancede por multicamada certificado.',
-          'Instalação de bomba de pressão para abastecimento de adega em Santa Marinha do Zêzere com baixa pressão de rede.',
-          'Manutenção sazonal de tubagens de vinificação pré-vindima numa quinta em Frende.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Baião especializados em fachadas em xisto e granito de casas vinhateiras tradicionais, restauro de pintura em zonas de património românico (Ancede), e pintura interior anti-humidade em casas afetadas pelos nevoeiros dos vales.',
-        localCases: [
-          'Pintura de fachada de adega em Santa Marinha do Zêzere com tintas microporosas adequadas a paredes de xisto.',
-          'Restauro de pintura tradicional de casa antiga em Ancede compatível com a Rota do Românico.',
-          'Pintura interior de moradia em Teixeira após infiltrações pela laje, com tratamento anti-fungos.',
-          'Pintura de portão de ferro forjado numa quinta em Frende após oxidação prolongada.',
-        ],
       },
     },
   },
@@ -384,30 +311,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Felgueiras com experiência reconhecida em instalações industriais de fábricas de calçado (Lixa, Vila Cova da Lixa, Borba de Godim) — quadros trifásicos, ventilação industrial, sistemas de extração de COV — e modernização de moradias residenciais. Certificação RECE e cumprimento das normas técnicas para ambientes industriais.',
-        localCases: [
-          'Instalação trifásica completa numa unidade de calçado em Lixa com proteção contra arranque de motores.',
-          'Modernização de quadro elétrico de armazém industrial em Borba de Godim após inundação por chuvas intensas.',
-          'Reparação de sistema de exaustão de COV numa fábrica em Vila Cova da Lixa para cumprimento das normas de saúde ocupacional.',
-          'Instalação de iluminação LED em armazém industrial com redução do consumo energético de 40%.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Felgueiras com experiência em instalações industriais (fábricas de calçado, sistemas de tratamento de águas residuais) e em moradias residenciais com aquecimento central a gasóleo típico dos anos 1970–1990.',
-        localCases: [
-          'Manutenção de sistema de aquecimento central a gasóleo numa moradia em Margaride pré-inverno.',
-          'Reparação de canalização industrial de alta pressão numa fábrica de calçado em Lixa após avaria.',
-          'Instalação de termoacumulador num apartamento de Felgueiras centro com substituição da rede antiga.',
-          'Desentupimento de saneamento industrial num armazém em Vila Cova da Lixa.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Felgueiras especializados em pintura industrial para fábricas de calçado (tintas resistentes a COV, sinalização de segurança), fachadas residenciais e restauro de pintura tradicional em zonas de Rota do Românico (Pombeiro).',
-        localCases: [
-          'Pintura industrial de armazém em Lixa com tintas resistentes a vapores químicos do calçado.',
-          'Pintura de sinalização de segurança e zonas de circulação numa fábrica em Borba de Godim.',
-          'Restauro de pintura tradicional de casa antiga em Pombeiro compatível com a Rota do Românico.',
-          'Pintura completa de moradia em Margaride com tratamento anti-fungos das paredes orientadas a norte.',
-        ],
       },
     },
   },
@@ -445,30 +354,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Lousada com conhecimento das particularidades das instalações rurais (captações próprias, sistemas trifásicos para portões e bombas), restauro de instalações em moradias antigas de granito, e ligações industriais para fábricas de mobiliário das freguesias de Cristelos e Boim.',
-        localCases: [
-          'Instalação de quadro trifásico numa pequena fábrica de mobiliário em Cristelos com ligação à rede pública.',
-          'Modernização da instalação elétrica de uma moradia em Aveleda dos anos 1950, mantendo a estética compatível com o Solar dos Meneses (zona protegida).',
-          'Reparação de bomba de água submersa em furo artesiano de uma moradia rural em Lustosa após avaria por sobrecarga.',
-          'Instalação de iluminação pública sazonal em festas religiosas no centro de Lousada com adaptação à rede temporária.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Lousada disponíveis para urgências em moradias rurais (captação por furo + rede pública), apartamentos do centro urbano e adegas de vinho verde com sistemas de água específicos.',
-        localCases: [
-          'Substituição de tubagem em chumbo numa moradia centenária em Meinedo por tubo multicamada certificado.',
-          'Instalação de sistema de filtragem para água de furo artesiano numa moradia em Lustosa, com testes de qualidade.',
-          'Reparação de fuga em sistema de aquecimento central a gasóleo numa moradia em Boim antes do inverno.',
-          'Desentupimento de fossa séptica numa moradia rural em Aveleda sem rede de saneamento público.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Lousada com experiência em fachadas de moradias rurais em granito, restauro de pintura tradicional em zonas de património românico (Aveleda, Cristelos), e pintura interior anti-bolor em casas com humidade ascensional típica do clima continental húmido da região.',
-        localCases: [
-          'Pintura de fachada de moradia em Lodares com tratamento prévio da pedra granítica e tinta microporosa que respeita a respiração natural do material.',
-          'Restauro da pintura interior de uma casa antiga em Aveleda após infiltrações pela laje, incluindo tratamento anti-fungos.',
-          'Pintura completa de apartamento no centro de Lousada com cores neutras para fins de arrendamento.',
-          'Pintura de portão de ferro forjado numa moradia rural em Boim após oxidação por nevoeiros matinais do vale.',
-        ],
       },
     },
   },
@@ -506,30 +397,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Paços de Ferreira com experiência em instalações industriais de fábricas de mobiliário (Frazão, Modelos) — quadros trifásicos, sistemas de aspiração centralizada de pó, iluminação de showrooms — e modernização de habitações residenciais. Cumprimento das normas de segurança industrial para ambientes com poeiras inflamáveis (madeira).',
-        localCases: [
-          'Instalação trifásica completa numa unidade de carpintaria em Frazão com proteção contra arranque de motores.',
-          'Sistema de aspiração centralizada de pó numa fábrica de mobiliário em Modelos com classificação ATEX.',
-          'Iluminação técnica de showroom de mobiliário no centro de Paços com regulação de intensidade para diferentes ambientes de exposição.',
-          'Modernização de quadro elétrico de moradia antiga em Sanfins com licenças para zona arqueológica.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Paços de Ferreira disponíveis para instalações industriais (fábricas de mobiliário, sistemas de pintura industrial), apartamentos urbanos e moradias rurais com captações próprias.',
-        localCases: [
-          'Reparação de canalização de água industrial numa fábrica em Frazão após avaria em sistema de pintura.',
-          'Manutenção de sistema de tratamento de águas residuais numa unidade industrial em Modelos.',
-          'Instalação de termoacumulador num apartamento de Paços centro.',
-          'Desentupimento de saneamento numa moradia em Figueiró com inspeção por câmara.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Paços de Ferreira especializados em pintura industrial de fábricas e armazéns de mobiliário (tintas resistentes a desgaste, sinalização de segurança), restauro de fachadas em zonas históricas, e pintura de showrooms com acabamentos premium.',
-        localCases: [
-          'Pintura industrial completa de armazém de mobiliário em Frazão com tintas resistentes a impactos.',
-          'Pintura de showroom em Paços centro com técnicas de acabamento sem marcas para destacar mobiliário em exposição.',
-          'Restauro de pintura tradicional de casa antiga em Sanfins compatível com zona arqueológica.',
-          'Sinalização de segurança industrial numa fábrica em Modelos com tintas refletoras.',
-        ],
       },
     },
   },
@@ -567,30 +440,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Paredes com experiência reconhecida em instalações industriais de fábricas de mobiliário (Rebordosa, Gandra) — quadros trifásicos, sistemas de aspiração ATEX, iluminação técnica — e modernização de habitações residenciais (Lordelo, Vilela). Certificação RECE e cumprimento das normas para ambientes com poeiras inflamáveis.',
-        localCases: [
-          'Instalação trifásica numa fábrica de mobiliário em Rebordosa com sistema de aspiração centralizada ATEX.',
-          'Modernização do quadro elétrico de moradia em Vilela com instalação de carregador de viatura elétrica.',
-          'Reparação de iluminação de armazém em Gandra após sinistro com substituição de luminárias estanques.',
-          'Modernização da rede elétrica de casa antiga em Cete com licenças para zona da Rota do Românico.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Paredes disponíveis para instalações industriais (fábricas de mobiliário, sistemas de pintura), apartamentos urbanos do centro, moradias residenciais e adegas familiares nas zonas rurais.',
-        localCases: [
-          'Reparação de canalização industrial numa fábrica em Gandra após avaria em sistema de pintura.',
-          'Substituição de tubagem em chumbo numa casa antiga em Cete por multicamada certificado.',
-          'Instalação de termoacumulador num apartamento de Paredes centro.',
-          'Manutenção de sistema de aquecimento central a gasóleo numa moradia em Lordelo pré-inverno.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Paredes especializados em pintura industrial de fábricas e armazéns de mobiliário, fachadas residenciais e restauro de pintura tradicional em zonas de Rota do Românico (Cete, Vilela).',
-        localCases: [
-          'Pintura industrial de armazém de mobiliário em Rebordosa com tintas resistentes a impactos e desgaste.',
-          'Restauro de pintura tradicional de casa antiga em Cete compatível com a Rota do Românico.',
-          'Pintura completa de moradia em Lordelo com tratamento anti-fungos das paredes orientadas a norte.',
-          'Pintura de portão em ferro forjado numa casa antiga em Vilela após oxidação prolongada.',
-        ],
       },
     },
   },
@@ -632,30 +487,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas certificados no Porto, com experiência comprovada em quadros elétricos de edifícios pombalinos do centro histórico UNESCO, instalações em moradias da Foz expostas à maresia e ligações trifásicas em alojamentos locais. Cumprimento das exigências da DGEG para certificação RECE e da Câmara Municipal do Porto para obras em zona protegida.',
-        localCases: [
-          'Substituição de quadro elétrico antigo num apartamento na Rua das Flores (Vitória) com sinais de oxidação por humidade, mantendo a estética compatível com o regulamento UNESCO.',
-          'Instalação de iluminação LED exterior numa moradia em Foz do Douro com caixas IP65 e cabos com bainha resistente à maresia.',
-          'Revisão completa da rede elétrica de um alojamento local em Cedofeita após renovação do imóvel, com certificação RECE entregue ao proprietário.',
-          'Reparação de quadro elétrico inundado por infiltração de chuva num edifício de Bonfim e instalação de diferencial de proteção adicional.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores no Porto disponíveis 7 dias por semana, com conhecimento detalhado das particularidades das canalizações em chumbo e ferro fundido de edifícios pombalinos, das pressões variáveis em zonas de encosta como Miragaia e Ribeira, e do saneamento antigo do centro histórico.',
-        localCases: [
-          'Reparação de fuga de água numa cave da Rua de Cedofeita com identificação da origem por câmara endoscópica, evitando a abertura de paredes em prédio classificado.',
-          'Substituição de canalização em chumbo num edifício de Sé por tubo multicamada certificado, com licenças específicas para obra em zona UNESCO.',
-          'Desentupimento de saneamento numa moradia em Paranhos após acumulação de gorduras, com limpeza por hidrojato sem danos no caleirado original.',
-          'Instalação de bomba de pressão num 3.º andar de Bonfim para resolver baixa pressão de água quente em hora de pico.',
-        ],
       },
       'pintor': {
         intro: 'Pintores no Porto especializados em fachadas atlânticas com humidade salina (Foz, Nevogilde, Aldoar), restauro de fachadas pombalinas e Arte Nova em zona UNESCO, e pintura interior anti-bolor em apartamentos antigos do Bonfim e Cedofeita. Aplicação de tintas microporosas e técnicas de pintura tradicionais autorizadas pela Câmara Municipal.',
-        localCases: [
-          'Pintura completa de uma moradia em Aldoar, com tratamento prévio anti-fungos das paredes orientadas a oeste expostas ao vento atlântico.',
-          'Restauro da pintura exterior de um edifício Arte Nova na Rua de Cedofeita com tintas microporosas compatíveis com o regulamento UNESCO.',
-          'Pintura interior de um alojamento local em Vitória, incluindo isolamento acústico das paredes contíguas a estabelecimentos de restauração.',
-          'Pintura de fachada de prédio na Rua da Boavista com primário antimaresia, garantia de durabilidade alargada em zona costeira.',
-        ],
       },
     },
   },
@@ -695,30 +532,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Vila Nova de Gaia com experiência em instalações de moradias balneares (Canidelo, Madalena, Valadares), em edifícios históricos da Ribeira de Gaia e em alojamentos locais turísticos junto às caves. Certificação RECE e conhecimento das normas técnicas adequadas a ambientes salinos.',
-        localCases: [
-          'Instalação de quadro elétrico estanque (IP65) numa moradia em Madalena, a 200 m da praia, com proteção reforçada contra maresia.',
-          'Reparação de quadro de alojamento local em Santa Marinha após sobrecarga durante ocupação turística estival.',
-          'Instalação de carregador de viatura elétrica em residência de Oliveira do Douro com adaptação do quadro existente.',
-          'Substituição completa da rede elétrica num apartamento de Mafamude após sinistro de incêndio, com certificação RECE.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Vila Nova de Gaia disponíveis para urgências em moradias balneares (Valadares, Madalena, Aguda), apartamentos do centro de Mafamude e alojamentos locais da Ribeira. Experiência com canalizações de zonas turísticas com alta rotatividade de utilização.',
-        localCases: [
-          'Reparação de fuga de água com câmara endoscópica numa moradia em Canidelo, evitando demolição de azulejos antigos.',
-          'Substituição de termoacumulador num apartamento de Vilar do Paraíso com reposição imediata da água quente.',
-          'Desentupimento de saneamento numa cave em Santa Marinha junto às caves de vinho do Porto, com cuidado redobrado para não afetar adegas vizinhas.',
-          'Instalação de filtro descalcificador numa moradia em São Félix da Marinha contra calcário da rede pública.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Vila Nova de Gaia especializados em fachadas costeiras com proteção anti-maresia (Madalena, Valadares, Canidelo), restauro de fachadas históricas da Ribeira de Gaia em granito e tijoleira, e pintura interior anti-bolor em apartamentos da zona central. Tintas microporosas resistentes ao clima atlântico.',
-        localCases: [
-          'Pintura completa de fachada de moradia em Valadares com primário antimaresia e duas demãos de tinta acrílica reforçada.',
-          'Restauro da pintura de uma casa em Santa Marinha com técnica tradicional adaptada ao granito e aos azulejos exteriores.',
-          'Pintura interior de um apartamento de alojamento local em Mafamude com tintas anti-bolor após queixas de hóspedes sobre humidade.',
-          'Tratamento e pintura de varanda em Canidelo após oxidação severa do ferro pela exposição à brisa atlântica.',
-        ],
       },
     },
   },
@@ -759,30 +578,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Braga com experiência em instalações de alojamentos estudantis universitários (Gualtar, Real), modernização de quadros elétricos em edifícios barrocos do centro histórico UNESCO, e instalações tecnológicas (carregadores VE, domótica) em moradias modernas das freguesias residenciais. Cumprimento das normas para zonas históricas e certificação RECE da DGEG.',
-        localCases: [
-          'Substituição de quadro elétrico num alojamento estudantil em Gualtar após sobrecarga típica de início de ano letivo.',
-          'Modernização da rede elétrica de apartamento no centro histórico de Braga com licenças para zona UNESCO.',
-          'Instalação de carregador de viatura elétrica numa moradia em Real com adaptação trifásica.',
-          'Reparação de iluminação exterior numa rua histórica em São Vicente com luminárias compatíveis com regulamento UNESCO.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Braga disponíveis 7 dias por semana, com conhecimento das particularidades das canalizações em chumbo de edifícios históricos do centro, alta rotatividade de instalações em alojamento estudantil (Gualtar) e necessidades técnicas modernas em zonas residenciais novas.',
-        localCases: [
-          'Substituição completa de canalização em chumbo num apartamento histórico do centro de Braga por tubo multicamada certificado.',
-          'Manutenção urgente de canalizações de alojamento estudantil em Gualtar com problemas pós-arrendamento.',
-          'Reparação de fuga de água com câmara endoscópica numa moradia em Maximinos, evitando demolição de azulejos antigos.',
-          'Instalação de termoacumulador num apartamento de São Lázaro com substituição da rede de água quente.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Braga especializados em fachadas em granito do centro histórico UNESCO, restauro de pintura tradicional em edifícios barrocos (Sé, São Vicente), pintura de alojamento estudantil universitário (manutenção rápida entre arrendamentos) e pintura interior anti-humidade em apartamentos do Vale do Cávado.',
-        localCases: [
-          'Restauro de fachada barroca em São João do Souto com tintas microporosas autorizadas pela DGPC.',
-          'Pintura completa de apartamento estudantil em Gualtar entre arrendamentos com técnica de secagem rápida.',
-          'Pintura de moradia em Real com tratamento anti-fungos das paredes orientadas a norte.',
-          'Restauro de pintura interior de casa antiga em Maximinos após infiltrações da laje.',
-        ],
       },
     },
   },
@@ -822,30 +623,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas na Maia com experiência reconhecida em instalações industriais e logísticas (Maia BusinessPark, polo aeronáutico), modernização de apartamentos dos anos 1970–1990 (Águas Santas, Castêlo da Maia), e instalações em zonas aeroportuárias com normas técnicas específicas. Certificação RECE e cumprimento das normas para ambientes industriais e logísticos.',
-        localCases: [
-          'Instalação trifásica completa numa unidade logística no Maia BusinessPark com proteção contra arranque de motores de empilhadores.',
-          'Modernização do quadro elétrico de apartamento em Águas Santas com instalação de diferencial e proteções modernas.',
-          'Instalação de carregador de viatura elétrica numa moradia em Castêlo da Maia.',
-          'Reparação de iluminação de armazém em Vermoim após inundação por chuvas intensas.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores na Maia disponíveis para urgências em apartamentos densos do centro, instalações industriais do BusinessPark e moradias residenciais. Conhecimento das particularidades das redes de saneamento antigas do centro urbano.',
-        localCases: [
-          'Desentupimento de saneamento numa coluna de apartamentos em Águas Santas com inspeção por câmara.',
-          'Substituição de canalização industrial numa unidade logística em Vermoim após avaria.',
-          'Manutenção de sistema de aquecimento central a gasóleo numa moradia em Castêlo da Maia pré-inverno.',
-          'Reparação de fuga em sistema sanitário num hotel em Moreira (zona aeroportuária) sem interrupção do serviço aos hóspedes.',
-        ],
       },
       'pintor': {
         intro: 'Pintores na Maia especializados em pintura industrial de armazéns logísticos do BusinessPark, pintura anti-ruído em moradias da zona aeroportuária (Moreira, Vila Nova da Telha), e modernização de apartamentos residenciais do centro urbano.',
-        localCases: [
-          'Pintura industrial completa de armazém logístico em Vermoim com tintas resistentes a desgaste e sinalização de segurança.',
-          'Pintura anti-ruído de moradia em Moreira com isolamento acústico das paredes voltadas ao aeroporto.',
-          'Pintura completa de apartamento em Maia centro com cores neutras para fins de arrendamento.',
-          'Pintura de fachada de moradia em Castêlo da Maia com tratamento prévio de fungos e tinta microporosa.',
-        ],
       },
     },
   },
@@ -888,27 +671,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas certificados em Aveiro, com experiência em instalações de habitações junto aos canais e de edifícios históricos no centro. Diagnóstico e reparação de quadros elétricos com proteção reforçada contra humidade e maresia.',
-        localCases: [
-          'Substituição de quadro elétrico antigo num apartamento na zona da Beira-Mar com sinais de oxidação por humidade salina.',
-          'Instalação de iluminação LED exterior numa moradia em São Jacinto, com caixas IP65 adaptadas ao ambiente costeiro.',
-          'Revisão completa da rede elétrica de uma loja em Glória e Vera Cruz após infiltração de água da chuva no quadro técnico.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Aveiro disponíveis para urgências em casas particulares, alojamentos locais junto aos canais e estabelecimentos do centro histórico. Conhecimento das particularidades das tubagens em zonas com lençol freático elevado.',
-        localCases: [
-          'Reparação de fuga de água numa cave em Esgueira, com identificação da origem por câmara endoscópica.',
-          'Substituição de canalização em chumbo num edifício antigo na Praça do Peixe por tubo multicamada certificado.',
-          'Desentupimento de saneamento numa moradia em Cacia após acumulação de raízes nas tubagens exteriores.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Aveiro especializados em fachadas com humidade salina, restauro de azulejaria de revestimento e pintura interior anti-bolor. Aplicação de tintas técnicas adequadas ao clima costeiro.',
-        localCases: [
-          'Pintura completa de uma moradia em Aradas, com tratamento prévio anti-fungos das paredes do quarto orientado a norte.',
-          'Restauro da pintura exterior de um edifício Arte Nova na Avenida Lourenço Peixinho com tintas microporosas.',
-          'Pintura interior de um escritório em Glória e Vera Cruz, incluindo isolamento térmico e acústico das paredes contíguas a estabelecimentos.',
-        ],
       },
     },
   },
@@ -944,27 +712,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Águeda com experiência em instalações industriais, oficinas e habitação. Disponíveis para diagnóstico em pavilhões da zona industrial e modernização de quadros antigos no centro.',
-        localCases: [
-          'Modernização do quadro elétrico de uma oficina de bicicletas com cargas trifásicas elevadas no Parque do Casarão.',
-          'Instalação de iluminação LED técnica numa moradia em Recardães, com domótica básica integrada.',
-          'Reparação urgente de avaria geral numa unidade de produção de iluminação em Aguada de Cima após sobretensão.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Águeda disponíveis para residências, alojamentos rurais e estabelecimentos comerciais. Conhecimento das particularidades das ligações de saneamento em zonas afastadas da rede pública.',
-        localCases: [
-          'Substituição de fossa séptica por ligação à rede de saneamento numa moradia em Préstimo, com obras de escavação coordenadas.',
-          'Reparação de fuga numa cave em Borralha após inundação ribeirinha do inverno.',
-          'Instalação completa de canalização nova num apartamento renovado no centro de Águeda.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Águeda especializados em pintura interior anti-humidade, fachadas com tinta microporosa e restauro de edifícios do centro histórico. Tintas adequadas à variação climática do Vale do Vouga.',
-        localCases: [
-          'Pintura completa de um edifício comercial na rua Luís de Camões antes da edição anual do AgitÁgueda.',
-          'Restauro de fachada de um solar em Belazaima do Chão com tratamento anti-musgo.',
-          'Pintura interior de moradia em Fermentelos, incluindo isolamento contra humidade ascendente das paredes contíguas à pateira.',
-        ],
       },
     },
   },
@@ -1000,27 +753,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Ovar adaptados ao ambiente costeiro, com experiência em moradias de praia, alojamentos sazonais e edifícios históricos. Quadros e caixas com proteção reforçada contra a maresia.',
-        localCases: [
-          'Substituição de quadro elétrico oxidado numa moradia em Esmoriz exposta diretamente ao vento marítimo.',
-          'Revisão completa de instalação elétrica num alojamento de férias na Praia do Furadouro antes do verão.',
-          'Reparação de iluminação exterior de um edifício no centro histórico, com caixas estanques compatíveis com as fachadas em azulejo.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Ovar disponíveis para urgências em casas de praia, residências e estabelecimentos comerciais. Tubagens e materiais resistentes à corrosão salina prolongada.',
-        localCases: [
-          'Substituição de canalização exterior corroída numa moradia em Cortegaça, com tubo PEX em vez de cobre.',
-          'Reparação de fuga em chuveiro de alojamento sazonal em Esmoriz após o inverno.',
-          'Desentupimento e reparação de saneamento numa unidade de restauração na Praia do Furadouro durante a época alta.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Ovar com formação em restauro de azulejaria, aplicação de tintas anti-salinidade e pintura exterior de moradias costeiras. Trabalho compatível com a estética da Cidade-Museu do Azulejo.',
-        localCases: [
-          'Restauro pontual de painéis de azulejo numa fachada do centro histórico, com substituição de peças partidas e rejuntamento.',
-          'Pintura exterior de uma moradia em Maceda com tinta acrílica anti-salina e selante reforçado nas juntas.',
-          'Pintura interior completa de um apartamento na Praia do Furadouro, incluindo tratamento anti-bolor nas paredes orientadas a poente.',
-        ],
       },
     },
   },
@@ -1057,27 +795,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas certificados em Matosinhos com experiência em instalações expostas ao ambiente atlântico salino. Utilização de material com proteção IP65 ou superior em zonas costeiras como Leça da Palmeira e Perafita.',
-        localCases: [
-          'Substituição de quadro elétrico oxidado num apartamento à beira-mar em Leça da Palmeira após corrosão progressiva.',
-          'Instalação de iluminação LED exterior numa moradia em Lavra com caixas estanques resistentes à maresia.',
-          'Reparação urgente do circuito de força num restaurante na frente atlântica de Matosinhos depois de uma tempestade.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Matosinhos disponíveis para urgências em moradias costeiras, alojamentos turísticos e estabelecimentos da frente portuária. Conhecimento das particularidades das tubagens em zonas próximas do mar.',
-        localCases: [
-          'Reparação de fuga de água numa cave em Custóias com infiltração identificada por câmara endoscópica.',
-          'Substituição de canalização galvanizada num edifício antigo em Senhora da Hora por tubo multicamada.',
-          'Desentupimento de saneamento numa peixaria do mercado de Matosinhos com acumulação de gorduras.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Matosinhos especializados em fachadas expostas ao Atlântico, com aplicação de tintas anti-salinas e tratamentos anti-bolor para paredes orientadas a oeste.',
-        localCases: [
-          'Pintura completa da fachada de uma moradia em Leça da Palmeira com tinta acrílica reforçada anti-maresia.',
-          'Restauro do interior de um edifício do centro de Matosinhos com tratamento prévio anti-fungos nas paredes humedecidas.',
-          'Pintura exterior de um pavilhão industrial em Perafita com tinta epóxi resistente ao ar salino.',
-        ],
       },
     },
   },
@@ -1114,27 +837,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Gondomar com experiência em oficinas de ourivesaria, edifícios residenciais coletivos e moradias junto ao Douro. Diagnóstico técnico em instalações antigas frequentes em São Cosme e Valbom.',
-        localCases: [
-          'Modernização do quadro elétrico de uma oficina de ourives em Gondomar com proteção diferencial reforçada.',
-          'Instalação de iluminação técnica num atelier de filigrana em Valbom adaptada ao trabalho minucioso.',
-          'Substituição completa da rede elétrica de um edifício de habitação coletiva em Rio Tinto após sinais de sobrecarga.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Gondomar disponíveis para urgências em apartamentos urbanos de Rio Tinto, moradias junto ao Douro e oficinas de ourives. Atenção especial às tubagens em zonas com lençol freático elevado nas margens fluviais.',
-        localCases: [
-          'Reparação urgente de fuga de água numa cave em Foz do Sousa após cheias de inverno.',
-          'Substituição de tubagem em chumbo num edifício antigo de São Cosme por canalização certificada.',
-          'Desentupimento de coletor numa moradia em Lomba com acumulação de raízes vegetais.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Gondomar especializados em interiores residenciais densos, fachadas de edifícios coletivos e restauro pontual de oficinas tradicionais no centro histórico.',
-        localCases: [
-          'Pintura completa de um apartamento de três assoalhadas em Rio Tinto com primário anti-humidade.',
-          'Pintura exterior de uma moradia em Valbom com tinta acrílica adaptada ao clima atlântico interior.',
-          'Restauro pontual da pintura de uma oficina de ourivesaria em São Cosme respeitando a estética histórica.',
-        ],
       },
     },
   },
@@ -1171,27 +879,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Valongo com experiência em edifícios antigos com paredes em pedra, em pavilhões industriais de Alfena e em habitação coletiva densa em Ermesinde.',
-        localCases: [
-          'Modernização do quadro elétrico de um prédio de habitação coletiva em Ermesinde com 30 anos de instalação original.',
-          'Instalação de iluminação industrial num pavilhão em Alfena adaptada às atividades de transformação têxtil.',
-          'Substituição parcial de cablagem antiga numa moradia em pedra no centro de Valongo respeitando a estrutura.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Valongo disponíveis para urgências em apartamentos densos de Ermesinde, em moradias antigas em pedra do centro e em estabelecimentos comerciais. Conhecimento das particularidades das tubagens em zona com solos rochosos.',
-        localCases: [
-          'Reparação de fuga em coluna montante de um prédio em Ermesinde sem necessidade de cortar abastecimento aos vizinhos.',
-          'Substituição de canalização exterior numa moradia em Sobrado com escavação adaptada ao terreno xistoso.',
-          'Desentupimento de saneamento num estabelecimento comercial no centro de Valongo após acumulação de calcário.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Valongo especializados em interiores de edifícios em pedra, fachadas com humidade ascendente e pavilhões industriais. Tratamento anti-bolor adaptado ao clima da serra de Santa Justa.',
-        localCases: [
-          'Tratamento anti-humidade e pintura completa de uma moradia antiga em pedra no centro de Valongo.',
-          'Pintura interior de um apartamento em Ermesinde com aplicação prévia de primário fungicida.',
-          'Pintura exterior de um pavilhão industrial em Alfena com tinta de manutenção alta.',
-        ],
       },
     },
   },
@@ -1228,27 +921,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Vila do Conde com experiência em edifícios históricos do centro, moradias costeiras de Mindelo e Vila Chã, e instalações de unidades de turismo. Material com proteção IP65 obrigatória em zonas frente-mar.',
-        localCases: [
-          'Substituição de quadro elétrico num apartamento turístico em Mindelo com sinais de oxidação por humidade salina.',
-          'Instalação de iluminação exterior numa moradia em Vila Chã com caixas estanques resistentes à maresia.',
-          'Modernização da rede elétrica num edifício comercial do centro histórico respeitando a estética patrimonial.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Vila do Conde disponíveis para urgências em moradias costeiras, alojamentos turísticos e estabelecimentos de restauração junto ao porto pesqueiro. Conhecimento das tubagens em ambiente salino.',
-        localCases: [
-          'Reparação de fuga em canalização exterior corroída numa moradia em Mindelo após exposição prolongada à maresia.',
-          'Substituição de canalização em chumbo num edifício antigo do centro histórico por tubo multicamada certificado.',
-          'Desentupimento de coletor numa peixaria do mercado municipal com acumulação de gorduras de pescado.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Vila do Conde especializados em fachadas costeiras, restauro de edifícios manuelinos e pintura de moradias com exposição salina. Tintas anti-maresia e tratamento prévio das paredes orientadas a oeste.',
-        localCases: [
-          'Pintura completa da fachada de uma moradia em Mindelo com tinta acrílica reforçada contra a salinidade.',
-          'Restauro pontual da pintura interior de um edifício do centro histórico respeitando a paleta original.',
-          'Pintura exterior de um alojamento local em Vila Chã com selante reforçado nas juntas das janelas.',
-        ],
       },
     },
   },
@@ -1285,27 +963,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas em Santo Tirso especializados em instalações de pavilhões têxteis modernizados, fábricas em reconversão e edifícios habitacionais antigos. Diagnóstico técnico em instalações de elevada potência industrial.',
-        localCases: [
-          'Modernização da rede elétrica de um pavilhão têxtil em Vila das Aves reconvertido em habitação coletiva.',
-          'Instalação de quadro técnico industrial numa fábrica de plásticos em Areias adaptada à carga elevada.',
-          'Substituição de cablagem antiga num edifício de habitação no centro de Santo Tirso após sinais de sobrecarga.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores em Santo Tirso disponíveis para urgências em pavilhões industriais, habitação coletiva em reabilitação e moradias rurais nas freguesias periféricas.',
-        localCases: [
-          'Reparação de fuga em rede de incêndio de uma fábrica têxtil em Vila das Aves após inspeção anual.',
-          'Substituição de canalização antiga num edifício de habitação no centro reconvertido a partir de fábrica.',
-          'Desentupimento de coletor numa moradia em Monte Córdova com acumulação de raízes nas tubagens exteriores.',
-        ],
       },
       'pintor': {
         intro: 'Pintores em Santo Tirso especializados em pavilhões industriais, restauro de edifícios fabris reconvertidos e pintura de habitação coletiva. Aplicação de tintas técnicas de longa duração para ambiente industrial.',
-        localCases: [
-          'Pintura completa de um pavilhão têxtil em Vila das Aves com tinta epóxi resistente à atividade industrial.',
-          'Restauro da fachada de uma antiga fábrica reconvertida em habitação no centro de Santo Tirso.',
-          'Pintura interior de um apartamento em Areias com tratamento prévio anti-humidade no quarto orientado a norte.',
-        ],
       },
     },
   },
@@ -1342,27 +1005,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas na Póvoa de Varzim especializados em alojamentos locais, hotéis costeiros e moradias de segunda habitação. Material com proteção IP65 nas zonas frente-mar e diagnóstico de instalações sazonais.',
-        localCases: [
-          'Diagnóstico e modernização do quadro elétrico de um alojamento local em Aver-o-Mar antes da época alta.',
-          'Instalação de iluminação exterior numa moradia em Estela com caixas estanques anti-maresia.',
-          'Reparação urgente do circuito de força num restaurante na frente atlântica após uma tempestade.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores na Póvoa de Varzim disponíveis para urgências em alojamentos turísticos, hotéis e moradias costeiras. Conhecimento das tubagens em ambiente salino e gestão de fugas em propriedades sazonais.',
-        localCases: [
-          'Reparação urgente de fuga em alojamento local na Póvoa antes da chegada de hóspedes.',
-          'Substituição de canalização exterior numa moradia em Aguçadoura corroída pela maresia.',
-          'Desentupimento de saneamento num restaurante junto à Praia da Póvoa com acumulação de gorduras.',
-        ],
       },
       'pintor': {
         intro: 'Pintores na Póvoa de Varzim especializados em fachadas costeiras, restauro de edifícios históricos do centro e pintura de moradias sazonais. Aplicação de tintas anti-maresia adaptadas ao clima atlântico.',
-        localCases: [
-          'Pintura completa da fachada de um edifício comercial em Argivai com tinta resistente à salinidade.',
-          'Restauro pontual da pintura interior de uma moradia de segunda habitação em Estela após meses fechada.',
-          'Pintura exterior de um hotel boutique no centro com selante reforçado nas juntas das janelas.',
-        ],
       },
     },
   },
@@ -1399,27 +1047,12 @@ export const CITIES: CityData[] = [
     serviceCityOverrides: {
       'eletricista': {
         intro: 'Eletricistas na Trofa com experiência em pavilhões industriais e logísticos de Coronado, moradias rurais nas freguesias periféricas e edifícios de habitação no centro de Bougado.',
-        localCases: [
-          'Modernização do quadro técnico de um armazém logístico em Coronado adaptado à carga industrial.',
-          'Instalação de iluminação industrial num pavilhão de transformação em Muro com material certificado.',
-          'Substituição de cablagem antiga numa moradia rural em Alvarelhos respeitando a estrutura em pedra.',
-        ],
       },
       'canalizador': {
         intro: 'Canalizadores na Trofa disponíveis para urgências em pavilhões industriais, moradias rurais e habitação coletiva no centro. Conhecimento das particularidades das tubagens em solos argilosos das zonas baixas.',
-        localCases: [
-          'Reparação urgente de fuga numa moradia em Bougado com identificação por câmara endoscópica.',
-          'Substituição de canalização exterior numa quinta em Covelas com escavação adaptada ao solo argiloso.',
-          'Desentupimento de coletor industrial num pavilhão em Coronado após acumulação de resíduos transformadores.',
-        ],
       },
       'pintor': {
         intro: 'Pintores na Trofa especializados em pavilhões industriais, fachadas de habitação coletiva e restauro pontual de edifícios em pedra das freguesias rurais.',
-        localCases: [
-          'Pintura completa de um pavilhão industrial em Coronado com tinta epóxi resistente à atividade transformadora.',
-          'Pintura interior de um apartamento em Bougado com tratamento prévio anti-humidade.',
-          'Restauro pontual da pintura de uma moradia rural em pedra em Alvarelhos respeitando a paleta tradicional.',
-        ],
       },
     },
   },
@@ -1507,7 +1140,7 @@ export const SERVICES: ServiceData[] = [
       'Picheleiro disponível, serviços completos de canalização',
       'Urgências de canalização 24h',
     ],
-    urgencyText: 'Fuga de água? Feche a torneira de segurança e contacte-nos imediatamente para minimizar os danos.',
+    urgencyText: 'Fuga de água? Feche a torneira de segurança e contacte-nos imediatamente para minimizar os danos. Canalizador (picheleiro) disponível 24h.',
     problemsWeSolve: [
       'Fuga de água na parede ou no teto',
       'Canos entupidos ou obstruídos',
@@ -1534,7 +1167,7 @@ export const SERVICES: ServiceData[] = [
         'Coloque baldes e toalhas para conter a água',
         'Desligue a eletricidade se a água tocar em tomadas',
         'Não tente reparar sozinho, pode piorar a situação',
-        'Ligue para a VITFIX ou envie uma mensagem WhatsApp',
+        'Ligue para a VITFIX, estamos disponíveis 24h',
       ],
       whenToCall: [
         'Cano rebentado, água a jorrar',
@@ -1682,7 +1315,7 @@ export const SERVICES: ServiceData[] = [
       'Impermeabilização de terraços e varandas',
       'Gestão integral de obras, chave na mão',
     ],
-    urgencyText: 'Precisa de fazer obras rapidamente? Avaliamos o seu projeto e apresentamos um orçamento.',
+    urgencyText: 'Precisa de fazer obras rapidamente? Avaliamos o seu projeto e apresentamos orçamento em 24 horas.',
     problemsWeSolve: [
       'Casa antiga que precisa de renovação total',
       'Cozinha ou casa de banho desatualizada',
@@ -1914,7 +1547,7 @@ export const SERVICES: ServiceData[] = [
       'Vedação de juntas e silicones',
       'Manutenção geral da habitação',
     ],
-    urgencyText: 'Precisa de uma reparação rápida em casa? O nosso faz-tudo resolve pequenos problemas do dia a dia.',
+    urgencyText: 'Precisa de uma reparação rápida em casa? O nosso faz-tudo resolve pequenos problemas no próprio dia.',
     problemsWeSolve: [
       'Porta que não fecha ou range',
       'Estore partido ou encravado',
@@ -1972,7 +1605,7 @@ export const SERVICES: ServiceData[] = [
       'Duplicação de chaves',
       'Portões e automatismos',
     ],
-    urgencyText: 'Fechado fora de casa? Fechadura partida? Contacte um serralheiro em {city}.',
+    urgencyText: 'Fechado fora de casa? Fechadura partida? Ligue agora, serralheiro disponível 24h em {city}.',
     problemsWeSolve: [
       'Fechado fora de casa ou do carro',
       'Chave partida na fechadura',
@@ -1998,7 +1631,7 @@ export const SERVICES: ServiceData[] = [
         'Reúna o seu documento de identificação para mostrar ao serralheiro',
         'Avise um vizinho se necessário',
         'Não tente abrir a porta com objetos improvisados (pode danificar a fechadura)',
-        'Ligue para a VITFIX ou envie uma mensagem WhatsApp',
+        'Ligue para a VITFIX, estamos disponíveis 24h',
       ],
       whenToCall: [
         'Fechado fora de casa ou do escritório',
@@ -2725,7 +2358,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'O que fazer quando há um curto-circuito em casa? Saiba como agir em segurança, identificar a causa e quando chamar um eletricista profissional.',
     category: 'eletricidade',
     icon: '⚡',
-    datePublished: '2025-11-15',
+    datePublished: '2026-03-18',
     intro: 'Um curto-circuito é uma das avarias elétricas mais comuns e potencialmente perigosas em casa. Pode causar o disparo dos disjuntores, deixar divisões sem eletricidade, ou até provocar um incêndio. Saiba como reagir de forma segura, identificar as causas e prevenir futuros incidentes.',
     sections: [
       {
@@ -2772,7 +2405,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'O seu quadro elétrico tem problemas? Disjuntor que dispara, fusíveis queimados, quadro antigo? Saiba como identificar e resolver cada situação.',
     category: 'eletricidade',
     icon: '🔌',
-    datePublished: '2025-11-20',
+    datePublished: '2026-03-18',
     intro: 'O quadro elétrico é o coração da instalação elétrica da sua casa. Quando há um problema no quadro, toda a casa é afetada. Saiba identificar os sinais de alerta, entender cada componente e quando é necessário intervir para garantir a segurança da sua família.',
     sections: [
       {
@@ -2819,7 +2452,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Manchas de humidade nas paredes? Descubra as causas (infiltração, condensação, capilaridade) e como resolver definitivamente com profissionais.',
     category: 'canalizacao',
     icon: '💧',
-    datePublished: '2025-12-01',
+    datePublished: '2026-03-18',
     intro: 'A humidade nas paredes é um dos problemas mais comuns nas casas portuguesas, especialmente durante o outono e inverno no Norte do país. Além de ser antiestética, pode causar problemas sérios de saúde e danificar a estrutura do edifício. Saiba como identificar a causa, escolher a solução adequada e prevenir que o problema regresse.',
     sections: [
       {
@@ -2866,7 +2499,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'O seu esquentador não liga ou não aquece água? Saiba as causas mais comuns e quando chamar um técnico. Reparação rápida na zona de Marco de Canaveses.',
     category: 'canalizacao',
     icon: '🔥',
-    datePublished: '2025-12-10',
+    datePublished: '2026-03-18',
     intro: 'Ficar sem água quente é um dos problemas domésticos mais incómodos, especialmente durante os invernos frios do Norte de Portugal. Se o seu esquentador não liga, não aquece a água suficientemente, ou faz ruídos estranhos, este guia completo ajuda-o a identificar possíveis causas e a tomar a decisão certa entre reparar ou substituir.',
     sections: [
       {
@@ -2913,7 +2546,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Descobriu uma fuga de água? Saiba os passos imediatos para minimizar danos e quando chamar um canalizador de urgência. Atuamos em Marco de Canaveses.',
     category: 'canalizacao',
     icon: '🚿',
-    datePublished: '2025-12-20',
+    datePublished: '2026-03-18',
     dateModified: '2026-10-13', // meta description raccourcie (phase 1 SEO PT)
     intro: 'Uma fuga de água pode causar danos significativos em poucas horas se não for tratada rapidamente. Saber como agir nos primeiros minutos pode poupar-lhe centenas ou milhares de euros em reparações. Este guia explica os passos imediatos, como identificar a origem, o que fazer com o seguro e como prevenir futuros problemas.',
     sections: [
@@ -2957,7 +2590,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'O disjuntor da sua casa dispara frequentemente? Descubra as causas (sobrecarga, curto-circuito, defeito de isolamento) e como resolver o problema.',
     category: 'eletricidade',
     icon: '🔋',
-    datePublished: '2026-01-05',
+    datePublished: '2026-03-18',
     intro: 'Quando o disjuntor dispara, está a cumprir a sua função: proteger-nos de uma situação perigosa. Mas se dispara repetidamente, há um problema subjacente que precisa de ser resolvido. Este guia completo explica todas as causas possíveis, como diagnosticar o problema e quando precisa de um eletricista.',
     sections: [
       {
@@ -3004,7 +2637,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quando é que precisa realmente de um canalizador de urgência 24 horas? Saiba distinguir uma emergência de uma situação que pode esperar.',
     category: 'canalizacao',
     icon: '🆘',
-    datePublished: '2026-01-15',
+    datePublished: '2026-03-18',
     intro: 'Nem todos os problemas de canalização são urgências que justifiquem chamar um canalizador a meio da noite. Mas algumas situações exigem ação imediata para evitar danos graves e dispendiosos. Este guia completo ajuda-o a distinguir uma verdadeira urgência de uma situação que pode esperar, e explica como escolher o profissional certo.',
     sections: [
       {
@@ -3051,7 +2684,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Guia completo de preços de remodelação em Portugal em 2026. Cozinha, casa de banho, apartamento completo, todos os custos detalhados por m².',
     category: 'obras',
     icon: '💰',
-    datePublished: '2026-02-01',
+    datePublished: '2026-03-18',
     intro: 'Está a pensar remodelar a sua casa mas não sabe quanto vai custar? É a pergunta mais frequente que recebemos. Os custos de remodelação variam muito conforme o tipo de obra, a qualidade dos materiais e a região. Este guia completo apresenta os preços reais praticados em 2026, com foco na região do Porto e Tâmega e Sousa.',
     sections: [
       {
@@ -3098,7 +2731,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Que obras pode fazer sem licença da câmara em Portugal? Guia completo sobre obras isentas, comunicação prévia e licenciamento. Evite multas.',
     category: 'obras',
     icon: '📋',
-    datePublished: '2026-01-20',
+    datePublished: '2026-03-18',
     intro: 'Uma das dúvidas mais comuns de quem quer fazer obras em casa é saber se precisa de licença da câmara municipal. A legislação portuguesa distingue vários tipos de procedimentos conforme a natureza e dimensão da obra. Fazer obras sem a devida autorização pode resultar em multas pesadas e até na obrigação de demolir o que foi construído. Saiba exatamente o que pode e não pode fazer.',
     sections: [
       {
@@ -3141,7 +2774,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Saiba como beneficiar do IVA reduzido de 6% em obras de remodelação em Portugal. Condições, requisitos e quanto pode poupar. Guia atualizado 2026.',
     category: 'obras',
     icon: '🧾',
-    datePublished: '2026-01-10',
+    datePublished: '2026-03-18',
     intro: 'Em Portugal, as obras de remodelação e conservação em habitações podem beneficiar de uma taxa de IVA reduzida de 6%, em vez dos habituais 23%. Esta diferença pode representar milhares de euros de poupança. Mas nem todas as obras qualificam e há condições específicas a cumprir. Este guia explica tudo o que precisa de saber para beneficiar desta vantagem fiscal.',
     sections: [
       {
@@ -3180,7 +2813,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Preços reais de remodelação de cozinha em Portugal em 2026. Desde renovação simples a cozinha completa, todos os custos detalhados.',
     category: 'obras',
     icon: '🍳',
-    datePublished: '2026-02-10',
+    datePublished: '2026-03-18',
     intro: 'A cozinha é uma das divisões mais importantes da casa e também uma das mais caras de remodelar. Os custos variam enormemente conforme o que se pretende, desde uma simples renovação de portas e bancada até uma remodelação completa com alteração de layout. Este guia apresenta os preços reais praticados em 2026.',
     sections: [
       {
@@ -3215,7 +2848,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Preços reais de remodelação de casa de banho em Portugal 2026. Base de duche, banheira, revestimentos, custos detalhados por componente.',
     category: 'obras',
     icon: '🚿',
-    datePublished: '2026-02-15',
+    datePublished: '2026-03-18',
     intro: 'A casa de banho é, depois da cozinha, a divisão que mais se remodela em Portugal. As razões são várias: louças datadas, problemas de humidade, vontade de substituir a banheira por base de duche, ou simplesmente modernizar o espaço. Este guia apresenta os custos reais de remodelação em 2026.',
     sections: [
       {
@@ -3250,7 +2883,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quanto custa aplicar capoto (ETICS) em Portugal? Preços por m², poupança energética, materiais e tudo o que precisa saber. Guia completo 2026.',
     category: 'isolamento',
     icon: '🏠',
-    datePublished: '2026-02-20',
+    datePublished: '2026-03-18',
     intro: 'O capoto, tecnicamente conhecido como sistema ETICS (External Thermal Insulation Composite System), é uma das soluções mais eficazes para melhorar a eficiência energética de uma casa. Com os custos de energia em alta e incentivos fiscais disponíveis, o isolamento térmico pelo exterior tornou-se um dos investimentos mais inteligentes para proprietários em Portugal.',
     sections: [
       {
@@ -3289,7 +2922,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Como escolher um empreiteiro de confiança para obras em Portugal? Critérios, sinais de alerta, garantias e direitos do consumidor. Guia prático.',
     category: 'obras',
     icon: '🤝',
-    datePublished: '2026-03-01',
+    datePublished: '2026-03-18',
     intro: 'Escolher o empreiteiro certo é provavelmente a decisão mais importante de qualquer obra. Um bom empreiteiro transforma a experiência de remodelar numa operação tranquila. Um mau empreiteiro pode transformá-la num pesadelo de atrasos, custos adicionais e trabalho mal feito. Este guia ajuda-o a tomar a decisão certa.',
     sections: [
       {
@@ -3328,7 +2961,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quanto custa substituir a banheira por base de duche em Portugal? Preços por tipo, materiais, vantagens e processo completo. Guia atualizado 2026.',
     category: 'canalizacao',
     icon: '🛁',
-    datePublished: '2026-03-01',
+    datePublished: '2026-03-18',
     intro: 'A substituição da banheira por uma base de duche é a remodelação de casa de banho mais pedida em Portugal. As razões são claras: mais espaço, maior acessibilidade, menos consumo de água e um aspeto mais moderno. Mas quanto custa realmente? Este guia apresenta os preços detalhados para 2026.',
     sections: [
       {
@@ -3367,7 +3000,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quanto custa trocar a caixilharia em Portugal? Comparação PVC vs alumínio, preços por janela, poupança energética e quando vale a pena. Guia 2026.',
     category: 'obras',
     icon: '🪟',
-    datePublished: '2026-03-05',
+    datePublished: '2026-03-18',
     intro: 'As janelas são um dos pontos mais críticos para o conforto térmico e acústico de uma casa. Janelas antigas de vidro simples e caixilho de alumínio sem corte térmico podem ser responsáveis por até 30% das perdas de calor no inverno. Trocar a caixilharia é um investimento que se paga em conforto e poupança energética. Mas quanto custa e qual o material certo para si?',
     sections: [
       {
@@ -3406,7 +3039,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quanto custa desentupir canos em Portugal? Preços por tipo de entupimento, métodos profissionais vs. caseiros e quando chamar um canalizador.',
     category: 'canalizacao',
     icon: '🔧',
-    datePublished: '2026-03-08',
+    datePublished: '2026-03-18',
     intro: 'Os entupimentos são um dos problemas de canalização mais comuns e incómodos. Podem afetar lavatórios, sanitas, banheiras, ralos de chuveiro e até a canalização principal do edifício. Saber quando pode resolver sozinho e quando precisa de um profissional pode poupar-lhe tempo e dinheiro.',
     sections: [
       {
@@ -3441,7 +3074,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quanto custa reparar um telhado em Portugal em 2026? Preços por tipo de reparação, materiais e quando substituir. Guia completo com custos detalhados.',
     category: 'impermeabilizacao',
     icon: '🏠',
-    datePublished: '2026-03-10',
+    datePublished: '2026-03-18',
     intro: 'O telhado é a primeira linha de defesa da sua casa contra as intempéries. Quando começa a falhar, goteiras, telhas partidas, caleiras entupidas, os danos podem escalar rapidamente se não forem tratados a tempo. Mas quanto custa reparar um telhado em Portugal? Este guia apresenta os preços reais praticados em 2026.',
     sections: [
       {
@@ -3476,7 +3109,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Quanto custa aplicar microcimento na casa de banho? Preços por m², vantagens vs. azulejo, manutenção e processo de aplicação. Guia completo 2026.',
     category: 'obras',
     icon: '✨',
-    datePublished: '2026-03-12',
+    datePublished: '2026-03-18',
     intro: 'O microcimento tornou-se uma das tendências mais populares em remodelação de casas de banho em Portugal. Este revestimento contínuo, sem juntas, oferece um visual moderno e minimalista que transforma completamente o espaço. Mas será que é a escolha certa para a sua casa de banho? E quanto custa realmente?',
     sections: [
       {
@@ -3514,7 +3147,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'A sua torneira pinga constantemente? Descubra as causas mais comuns (vedante, cartucho, pressão) e quando chamar um canalizador. Guia prático.',
     category: 'canalizacao',
     icon: '💧',
-    datePublished: '2026-03-15',
+    datePublished: '2026-03-18',
     intro: 'Uma torneira a pingar é um dos problemas domésticos mais comuns, e mais ignorados. Para além do ruído irritante, uma torneira a pingar desperdiça em média 15 a 20 litros de água por dia, o que representa mais de 5 000 litros por ano e um acréscimo significativo na conta de água. Neste guia, explicamos as causas mais frequentes, como diagnosticar o problema e quando vale a pena reparar ou substituir.',
     sections: [
       {
@@ -3557,7 +3190,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'O autoclismo não enche ou enche muito devagar? Descubra as causas mais comuns (boia, válvula, pressão) e como resolver. Guia prático com preços.',
     category: 'canalizacao',
     icon: '🚽',
-    datePublished: '2026-03-15',
+    datePublished: '2026-03-18',
     intro: 'Um autoclismo que não enche é um problema frustrante que afeta o conforto diário de toda a família. Pode manifestar-se de várias formas: o autoclismo não enche de todo, enche muito devagar, ou enche mas perde água constantemente. Neste guia, explicamos as causas mais comuns, como diagnosticar o problema e quando vale a pena reparar ou substituir o mecanismo.',
     sections: [
       {
@@ -3600,7 +3233,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Tem o teto a pingar? Saiba o que fazer imediatamente, as causas possíveis (infiltração, fuga, condensação) e como resolver. Guia urgente.',
     category: 'canalizacao',
     icon: '🏠',
-    datePublished: '2026-03-15',
+    datePublished: '2026-03-18',
     intro: 'Um teto a pingar é uma situação urgente que exige ação imediata. Quanto mais tempo se espera, maiores são os danos, a água pode danificar a estrutura, mobiliário, equipamentos elétricos e favorecer o aparecimento de bolores prejudiciais à saúde. Neste guia urgente, explicamos o que fazer nos primeiros minutos, como identificar a causa e como resolver definitivamente o problema.',
     sections: [
       {
@@ -3643,7 +3276,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Cano entupido? Descubra métodos caseiros seguros, o que NÃO fazer, e quando chamar um profissional de desentupimento. Preços e dicas.',
     category: 'desentupimento',
     icon: '🔧',
-    datePublished: '2026-03-15',
+    datePublished: '2026-03-18',
     intro: 'Um cano entupido é um dos problemas domésticos mais frequentes e desagradáveis. Pode manifestar-se como água que escorre devagar, água estagnada no lavatório ou banheira, ou no pior dos casos, esgoto a transbordar. Neste guia, explicamos os métodos caseiros que realmente funcionam, os que deve evitar, e quando é necessário chamar um profissional de desentupimento.',
     sections: [
       {
@@ -3682,7 +3315,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     metaDesc: 'Cheiro a esgoto em casa? Descubra as 6 causas mais comuns (sifão seco, fuga, ventilação) e como eliminar o mau cheiro definitivamente.',
     category: 'desentupimento',
     icon: '🏠',
-    datePublished: '2026-03-15',
+    datePublished: '2026-03-18',
     intro: 'Um cheiro a esgoto em casa é mais do que desagradável, pode indicar um problema na canalização que afeta a saúde e o conforto da família. Os gases de esgoto contêm metano, sulfeto de hidrogénio e outros compostos que, em concentrações elevadas, podem causar dores de cabeça, náuseas e irritação das vias respiratórias. Neste guia, explicamos as causas mais comuns e como resolver cada uma.',
     sections: [
       {

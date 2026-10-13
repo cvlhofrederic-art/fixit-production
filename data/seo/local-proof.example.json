@@ -1,0 +1,19 @@
+{
+  "_": "Exemple de format (valeurs fictives, NE PAS copier en production). Un chantier sans `mes` ou sans `tipo` n'est pas utilisé.",
+  "chantiers": [
+    { "cidade": "ovar", "metier": "telhador", "tipo": "lavagem e impermeabilização de telhado", "quantidade": "150 m²", "mes": "2026-09", "freguesia": "Esmoriz", "foto": "", "consentimento_nome": false },
+    { "cidade": "penafiel", "metier": "canalizador", "tipo": "reparação de fuga sob lava-loiça", "quantidade": "", "mes": "2026-08", "freguesia": "", "foto": "", "consentimento_nome": false }
+  ],
+  "precos": [
+    { "metier": "pintor", "min": 8, "max": 14, "unite": "m²", "fonte": "devis emitidos 2026", "exemplos": [ { "mes": "2026-08", "quantidade": "90 m²", "montante": 1100 } ] }
+  ],
+  "prazos": [
+    { "cidade": "ovar", "visita_dias": 2, "intervencao_dias": 5, "fonte": "últimos 10 pedidos", "metiers": ["telhador", "canalizador"] }
+  ],
+  "avis": [
+    { "cidade": "ovar", "metier": "telhador", "nota": 5, "texto": "Telhado reparado em dois dias, sem surpresas.", "mes": "2026-09", "autor": "M. S.", "autorizacao": true }
+  ],
+  "metodos": {
+    "telhador": "Texte rédigé une fois par le propriétaire : méthode, matériaux, normes, garanties réellement appliquées pour ce métier (identique dans les 22 villes)."
+  }
+}
