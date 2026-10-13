@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { requete, suivre, enParallele, urlInterne } from './pt-audit/lib/http.mjs'
-import { analyserHtml, normaliserLien } from './pt-audit/lib/html.mjs'
+import { analyserHtml, normaliserLien, ORIGINE_PUBLIQUE } from './pt-audit/lib/html.mjs'
 import { lireUrlset } from './pt-audit/lib/sitemaps.mjs'
 import { classer, VILLES, METIERS_PERTO } from './pt-audit/lib/classer.mjs'
 import { lireCsv } from './pt-audit/lib/csv.mjs'
@@ -126,8 +126,22 @@ async function principal() {
       }
       if (p.changefreq || p.priority) details.push(p.chemin + ' : changefreq/priority présents')
     }
-    const fichiersPt = Object.keys(audit.sitemaps.fichiers).filter((u) => u.startsWith('/pt/sitemap'))
+    // Phase 1 : les URL PT sont dans /pt/sitemap-*.xml (un fichier par modèle), référencés par /sitemap.xml ;
+    // /pt/sitemap.xml est l'index de ces mêmes fichiers (propriété GSC /pt/) ; /sitemap/1.xml répond 410.
+    const fichiersPt = Object.keys(audit.sitemaps.fichiers).filter((u) => /^\/pt\/sitemap-[a-z-]+\.xml$/.test(u))
+    if (fichiersPt.length === 0) details.push('index : aucun fichier /pt/sitemap-*.xml chargé')
     for (const u of fichiersPt) if (!audit.sitemaps.index.includes(u)) details.push('index : enfant PT non référencé ' + u)
+    const indexPt = audit.sitemaps.fichiers['/pt/sitemap.xml']
+    if (!indexPt || indexPt.status !== 200) details.push('/pt/sitemap.xml : statut ' + (indexPt ? indexPt.status : 'absent'))
+    else {
+      const enfants = (indexPt.enfants || []).map((u) => u.replace(base, '')).sort()
+      const attendus = audit.sitemaps.index.filter((u) => u.startsWith('/pt/sitemap-')).sort()
+      if (JSON.stringify(enfants) !== JSON.stringify(attendus)) details.push('/pt/sitemap.xml : enfants ' + (enfants.join(', ') || 'aucun') + ' ≠ fichiers PT de /sitemap.xml ' + attendus.join(', '))
+      if (indexPt.n > 0) details.push('/pt/sitemap.xml : contient encore ' + indexPt.n + ' <url> (doit être un index)')
+    }
+    if (audit.sitemaps.index.includes('/sitemap/1.xml')) details.push('index : /sitemap/1.xml (ancien sous-sitemap PT) encore référencé')
+    const ancienPt = audit.sitemaps.fichiers['/sitemap/1.xml']
+    if (ancienPt && ancienPt.status !== 410) details.push('/sitemap/1.xml : statut ' + ancienPt.status + ' au lieu de 410')
     for (const u of ['/sitemap/2.xml', '/sitemap/3.xml']) {
       const f = audit.sitemaps.fichiers[u]
       if (!f || f.status !== 200) { details.push(u + ' : statut ' + (f ? f.status : 'absent')); continue }
@@ -161,7 +175,9 @@ async function principal() {
   // T4
   if (veut('T4')) {
     const details = []
-    const GENERIQUES = new Set(['/', '/fr/', '/en/', '/es/', '/nl/', '/pt/', '/fr/services/', '/fr/urgence/', '/fr/blog/', '/fr/contact/'])
+    // Une page précise (métier x ville, article) ne doit pas pointer vers un accueil ou un hub ; un hub ou une
+    // page statique peut pointer vers son équivalent FR (hub vers hub), d'où les hubs PT dans la liste.
+    const GENERIQUES = new Set(['/', '/fr/', '/en/', '/es/', '/nl/', '/pt/', '/fr/services/', '/fr/urgence/', '/fr/blog/', '/fr/contact/', '/pt/servicos/', '/pt/urgencia/', '/pt/blog/', '/pt/contacto/'])
     const cibles = new Map()
     for (const p of pagesHtml) for (const h of p.hreflang || []) { const c = normaliserLien(h.href, base) || h.href; if (!cibles.has(c)) cibles.set(c, null) }
     journal('T4 : lecture de ' + cibles.size + ' cibles hreflang')
@@ -197,13 +213,16 @@ async function principal() {
   if (veut('T5')) {
     const details = []
     const GRILLE = new Set(['servicos', 'urgencia', 'perto-de-mim', 'cidade', 'perto-de-mim-hub'])
+    const SEDE_LOCALIDADE = 'marco de canaveses' // addressLocality du siège (lib/seo/entite-pt.ts)
     for (const p of echantillon) {
       const noeuds = (p.jsonld && p.jsonld.noeuds) || []
       if (p.jsonld && p.jsonld.erreurs) details.push(p.chemin + ' : JSON-LD invalide (' + p.jsonld.erreurs + ')')
       if (noeuds.some((n) => /FAQPage/.test(n.type))) details.push(p.chemin + ' : FAQPage présent')
       if (noeuds.some((n) => /HowTo/.test(n.type))) details.push(p.chemin + ' : HowTo présent')
       const entreprises = noeuds.filter((n) => /HomeAndConstructionBusiness|LocalBusiness|EmergencyService|^Organization/.test(n.type))
-      const parVille = entreprises.filter((n) => !/HomeAndConstructionBusiness|^Organization/.test(n.type) || (n.address_locality && n.address_locality.toLowerCase() !== 'porto' && p.chemin !== '/pt/'))
+      // Le seul nœud entreprise admis est celui du siège (lib/seo/entite-pt.ts) : tout autre LocalBusiness,
+      // EmergencyService ou nœud adressé dans une autre ville est un « établissement » inventé.
+      const parVille = entreprises.filter((n) => !/HomeAndConstructionBusiness|^Organization/.test(n.type) || (n.address_locality && n.address_locality.toLowerCase() !== SEDE_LOCALIDADE))
       if (GRILLE.has(p.groupe) && parVille.length) details.push(p.chemin + ' : nœud entreprise par ville (' + parVille.map((n) => n.type).join(', ') + ')')
       const siege = entreprises.filter((n) => n.address)
       if (siege.length !== 1) details.push(p.chemin + ' : ' + siege.length + ' nœud(s) entreprise avec address (attendu 1)')
@@ -287,7 +306,7 @@ async function principal() {
         if (sources.has(l.destination)) details.push(l.source + ' : chaîne, la destination ' + l.destination + ' est aussi une source')
         if (l.destination === l.source) details.push(l.source + ' : boucle')
         if (d.status !== 200 || d.sauts.length > 1) details.push(l.destination + ' : destination ' + d.status + ' en ' + d.sauts.length + ' saut(s)')
-        else if (!html || html.noindex || html.canonical !== base + l.destination) details.push(l.destination + ' : destination non indexable ou canonique ' + (html ? html.canonical : '?'))
+        else if (!html || html.noindex || !(html.canonical === base + l.destination || html.canonical === ORIGINE_PUBLIQUE + l.destination)) details.push(l.destination + ' : destination non indexable ou canonique ' + (html ? html.canonical : '?'))
         const g = gscRef.get(l.source)
         if (g && g.priorite === 'PROTEGER' && !(l.decision || '').trim()) details.push(l.source + ' : URL PROTEGER sans décision écrite (colonne decision)')
       }
@@ -301,7 +320,8 @@ async function principal() {
     const f = audit.sitemaps.fichiers['/sitemap/2.xml']
     if (!f || f.status !== 200) R.ajouter('T9', 'Non-régression FR', 1, { details: ['/sitemap/2.xml injoignable'] })
     else {
-      const locs = (f.urls || lireUrlset(f.xml || '')).map((u) => u.loc.replace(base, ''))
+      // <loc> sur l'origine publique, même sur un build local : on ne garde que le chemin.
+      const locs = (f.urls || lireUrlset(f.xml || '')).map((u) => normaliserLien(u.loc, base) || u.loc)
       const pas = Math.max(1, Math.floor(locs.length / 30))
       const choisies = locs.filter((_, i) => i % pas === 0).slice(0, 30)
       const mesures = {}

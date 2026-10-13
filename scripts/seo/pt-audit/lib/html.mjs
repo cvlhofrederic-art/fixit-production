@@ -42,15 +42,25 @@ const PROTOCOLES_IGNORES = /^(mailto:|tel:|javascript:|sms:|whatsapp:|#)/i
 const PREFIXE_LANGUE = /^\/(pt|fr|en|es|nl)(\/|$)/
 const EXTENSION_FICHIER = /\.[a-z0-9]{2,5}$/i
 
+/**
+ * Origine publique du site : les pages et les sitemaps émettent des URL absolues sur cette origine
+ * (canonical, hreflang, <loc>) même quand on audite un build local (`--base http://localhost:3000`).
+ * Une URL est interne si son origine est celle de `base` ou l'origine publique.
+ */
+export const ORIGINE_PUBLIQUE = 'https://vitfix.io'
+
+export function estInterne(u, base = ORIGINE_PUBLIQUE) {
+  return u.origin === new URL(base).origin || u.origin === ORIGINE_PUBLIQUE
+}
+
 /** Normalise un href interne : chemin seul, barre finale, sans paramètres ni ancre. */
-export function normaliserLien(href, base = 'https://vitfix.io') {
+export function normaliserLien(href, base = ORIGINE_PUBLIQUE) {
   if (!href) return null
   const h = decoderEntites(href).trim()
   if (PROTOCOLES_IGNORES.test(h)) return null
   let u
   try { u = new URL(h, base) } catch { return null }
-  const origine = new URL(base).origin
-  if (u.origin !== origine) return null
+  if (!estInterne(u, base)) return null
   let chemin = u.pathname
   if (!chemin.endsWith('/') && !EXTENSION_FICHIER.test(chemin)) chemin += '/'
   return chemin
@@ -151,7 +161,6 @@ export function analyserHtml(html, { base = 'https://vitfix.io' } = {}) {
     const pos = m.index
     r.liens.push({ href, dans_main: idxMain >= 0 && pos >= idxMain && pos < finMain })
   }
-  const origine = new URL(base).origin
   const internes = []
   const sansPrefixe = []
   const sansSlash = []
@@ -160,7 +169,7 @@ export function analyserHtml(html, { base = 'https://vitfix.io' } = {}) {
     if (PROTOCOLES_IGNORES.test(brut)) continue
     let u
     try { u = new URL(brut, base) } catch { continue }
-    if (u.origin !== origine) continue
+    if (!estInterne(u, base)) continue
     const chemin = u.pathname
     if (!PREFIXE_LANGUE.test(chemin)) sansPrefixe.push(chemin + u.search)
     if (/^\/pt\/.*[^/]$/.test(chemin) && !EXTENSION_FICHIER.test(chemin)) sansSlash.push(chemin)

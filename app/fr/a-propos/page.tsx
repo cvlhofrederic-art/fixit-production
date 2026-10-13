@@ -12,7 +12,8 @@ export default function AProposPage() {
   // (alias dans app/pt/sobre/page.tsx). Les CTA doivent pointer vers les bonnes
   // routes selon la locale active.
   const searchHref = locale === 'pt' ? '/pt/pesquisar/' : '/fr/recherche'
-  const contactHref = locale === 'pt' ? '/pt/avisos-legais/' : '/contact'
+  // Phase 1 SEO PT : le bouton « contact » PT menait aux mentions légales (noindex).
+  const contactHref = locale === 'pt' ? '/pt/contacto/' : '/contact'
 
   return (
     <div className="min-h-screen bg-warm-gray py-12">

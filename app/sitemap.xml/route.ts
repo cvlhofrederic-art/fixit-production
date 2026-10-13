@@ -1,4 +1,5 @@
 import { formatSitemapIndexXml, SITEMAP_HEADERS } from '@/lib/sitemap-helpers'
+import { urlsFichiersSitemapPt } from '@/lib/sitemap-pt-pages'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 
 // runtime='nodejs' aligné avec le reste du codebase (toutes les routes API
@@ -8,11 +9,11 @@ import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 export const runtime = 'nodejs'
 
 // Sub-sitemaps fixes (toujours non vides) :
-// 0: hub statiques + landing pages
-// 1: routes programmatiques PT (cidade × services)
+// 0: racine + hubs FR (les URL PT sont dans /pt/sitemap-*.xml depuis la phase 1 SEO PT)
 // 2: routes programmatiques FR
 // 3: pages investisseurs + EN/NL/ES
-const STATIC_SUB_SITEMAP_IDS = [0, 1, 2, 3]
+// (1 : ancien sous-sitemap PT, retiré de l'index ; la route répond 410)
+const STATIC_SUB_SITEMAP_IDS = [0, 2, 3]
 
 // 4: profils artisans vérifiés depuis Supabase (peut être vide selon volume).
 // Inclus dynamiquement uniquement s'il y a au moins 1 artisan vérifié,
@@ -20,13 +21,9 @@ const STATIC_SUB_SITEMAP_IDS = [0, 1, 2, 3]
 // Spec : https://www.sitemaps.org/protocol.html (un sitemap doit contenir au moins 1 <url>)
 const DYNAMIC_ARTISAN_SITEMAP_ID = 4
 
-// Sitemaps additionnels par marché (URL prefix pattern) :
-// - /pt/sitemap.xml : sitemap PT-only soumis à la propriété GSC URL prefix
-//   `https://vitfix.io/pt/`. Référencé ici pour que la propriété racine puisse
-//   aussi suivre l'état PT et conserver un reporting granulaire en cas de
-//   problème transient sur les sub-sitemaps numériques.
-// - À ajouter quand on lancera FR/EN comme propriétés GSC séparées.
-const MARKET_SITEMAPS = ['/pt/sitemap.xml']
+// Sitemaps PT (phase 1 SEO PT, point 1.1) : un fichier par modèle (lib/sitemap-pt-pages.ts),
+// référencés ici directement. /pt/sitemap.xml est l'index de ces mêmes fichiers pour la
+// propriété GSC `https://vitfix.io/pt/` (Google n'accepte pas un index dans un index).
 
 async function hasVerifiedArtisans(): Promise<boolean> {
   try {
@@ -50,7 +47,7 @@ export async function GET() {
   }
   const sitemapUrls = [
     ...ids.map((id) => `${baseUrl}/sitemap/${id}.xml`),
-    ...MARKET_SITEMAPS.map((path) => `${baseUrl}${path}`),
+    ...urlsFichiersSitemapPt(baseUrl),
   ]
   const xml = formatSitemapIndexXml(sitemapUrls)
   return new Response(xml, { headers: SITEMAP_HEADERS })

@@ -13,6 +13,8 @@ import ConsentAnalytics from "@/components/common/ConsentAnalytics";
 import WebVitalsReporter from "@/components/common/WebVitalsReporter";
 import type { Locale } from "@/lib/i18n/config";
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from "@/lib/constants";
+import { ENTITE_PT } from "@/lib/seo/entite-pt";
+import { areaServidaPt } from "@/lib/seo/pt-schemas";
 
 // Pro SEO 2026 : `display: 'swap'` pour éviter le FOIT (Flash of Invisible
 // Text) et améliorer le LCP. Le navigateur affiche d'abord la fallback,
@@ -252,18 +254,22 @@ export default async function RootLayout({
                   // Sitelinks Searchbox : target DOIT être un EntryPoint object
                   // (pas une URL string nue) pour déclencher le rich result.
                   // Source : developers.google.com/search/docs/appearance/structured-data/sitelinks-searchbox
-                  potentialAction: {
-                    '@type': 'SearchAction',
-                    target: {
-                      '@type': 'EntryPoint',
-                      urlTemplate: locale === 'pt'
-                        ? 'https://vitfix.io/pt/pesquisar/?q={search_term_string}'
-                        : locale === 'en'
-                          ? 'https://vitfix.io/en/?q={search_term_string}'
-                          : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
-                    },
-                    'query-input': 'required name=search_term_string',
-                  },
+                  // PT (phase 1 SEO PT, point 1.6) : pas de SearchAction, /pt/pesquisar/?q= est interdit
+                  // par robots.txt et GSC comptait l'URL gabarit comme une page bloquée.
+                  ...(locale === 'pt'
+                    ? {}
+                    : {
+                        potentialAction: {
+                          '@type': 'SearchAction',
+                          target: {
+                            '@type': 'EntryPoint',
+                            urlTemplate: locale === 'en'
+                              ? 'https://vitfix.io/en/?q={search_term_string}'
+                              : 'https://vitfix.io/fr/recherche/?q={search_term_string}',
+                          },
+                          'query-input': 'required name=search_term_string',
+                        },
+                      }),
                 },
                 {
                   '@context': 'https://schema.org',
@@ -297,17 +303,27 @@ export default async function RootLayout({
                       availableLanguage: ['Portuguese', 'English'],
                     },
                   ],
-                  // areaServed : Country + AdministrativeArea seulement.
-                  // Les City individuelles sont portées par les service pages
-                  // (lib/schemas/index.ts buildBusinessSchema avec city local).
-                  // Évite 31 entrées × 80 chars sur CHAQUE page (review #140).
-                  areaServed: [
-                    { '@type': 'Country', name: 'France' },
-                    { '@type': 'Country', name: 'Portugal' },
-                    { '@type': 'AdministrativeArea', name: 'Provence-Alpes-Côte d\'Azur, France' },
-                    { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
-                  ],
-                  priceRange: '€€',
+                  // PT (phase 1 SEO PT, point 1.6) : un seul nœud entreprise pour tout le site, avec
+                  // l'adresse réelle du siège (lib/seo/entite-pt.ts) et les 22 concelhos servis ; pas
+                  // de priceRange (aucun prix réel affiché). FR : inchangé.
+                  ...(locale === 'pt'
+                    ? {
+                        address: ENTITE_PT.adresse,
+                        areaServed: areaServidaPt(),
+                      }
+                    : {
+                        // areaServed : Country + AdministrativeArea seulement.
+                        // Les City individuelles sont portées par les service pages
+                        // (lib/schemas/index.ts buildBusinessSchema avec city local).
+                        // Évite 31 entrées × 80 chars sur CHAQUE page (review #140).
+                        areaServed: [
+                          { '@type': 'Country', name: 'France' },
+                          { '@type': 'Country', name: 'Portugal' },
+                          { '@type': 'AdministrativeArea', name: 'Provence-Alpes-Côte d\'Azur, France' },
+                          { '@type': 'AdministrativeArea', name: 'Norte, Portugal' },
+                        ],
+                        priceRange: '€€',
+                      }),
                   // knowsAbout : signal E-E-A-T explicit listant les
                   // domaines d'expertise — Google et AI engines utilisent
                   // pour évaluer la pertinence de l'organisation sur des

@@ -2,14 +2,14 @@ import type { Metadata } from 'next'
 import { buildAboutPageSchema } from '@/lib/schemas'
 
 export const metadata: Metadata = {
-  title: 'Sobre a VITFIX | A nossa missão',
-  description: 'Conheça a VITFIX, a plataforma que liga particulares a profissionais verificados. A nossa missão: simplificar a reserva de serviços ao domicílio na região do Tâmega e Sousa.',
+  title: 'Sobre nós: profissionais de confiança em Portugal',
+  description: 'Conheça a VITFIX, a plataforma que liga particulares e profissionais de construção verificados em 22 concelhos dos distritos do Porto, Braga e Aveiro.',
   alternates: {
     canonical: 'https://vitfix.io/pt/sobre/',
     languages: {
       'pt-PT': 'https://vitfix.io/pt/sobre/',
       'fr-FR': 'https://vitfix.io/fr/a-propos/',
-      'x-default': 'https://vitfix.io/pt/sobre/',
+      'x-default': 'https://vitfix.io/fr/a-propos/',
     },
   },
   openGraph: {

@@ -1,15 +1,17 @@
-// Helper SEO PT — pages /pt/* à inclure dans le sitemap dédié PT.
-// Source de vérité unique pour le sitemap PT : utilisé à la fois par
-// `app/pt/sitemap.xml/route.ts` (sitemap dédié, soumis à la propriété GSC PT)
-// et par `app/sitemap/[id]/route.ts` case 1 (sub-sitemap PT du master index).
+// Sitemaps PT (phase 1 du plan SEO PT, point 1.1) : source unique des URL PT, découpée par
+// modèle pour suivre l'indexation dans Google Search Console sans le plafond de 1000 lignes.
 //
-// Pourquoi un sitemap dédié PT ?
-// - Lancement marché PT en premier → reporting GSC PT-only (queries, clicks
-//   au Portugal) sur la propriété URL prefix `https://vitfix.io/pt/`.
-// - Stats indexation PT séparées (combien de URLs PT indexées vs soumises).
-// - Crawl priority renforcé pour les URLs PT (Googlebot voit l'urgence).
+// Un seul sitemap par URL : les fichiers /pt/sitemap-*.xml sont les seuls à déclarer des URL
+// PT (plus de /sitemap/1.xml, plus de lignes PT dans /sitemap/0.xml). /pt/sitemap.xml est
+// l'index de ces fichiers, soumis à la propriété GSC `https://vitfix.io/pt/`, et /sitemap.xml
+// les référence directement (Google n'accepte pas un index dans un index).
+//
+// Règles : jamais d'URL noindex (pages juridiques exclues), jamais d'URL redirigée, `lastmod`
+// = date réelle de dernière modification significative (lib/seo/pt-datas.ts), jamais la date
+// de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
+import { DATAS_PT } from './seo/pt-datas'
 import {
   getAllPageCombos,
   getAllUrgencyCombos,
@@ -18,136 +20,74 @@ import {
   SERVICES,
 } from './data/seo-pages-data'
 
-/**
- * Pro SEO 2026 : lastmod uniquement quand on a une vraie date (cf. John
- * Mueller 2023). Si la donnée n'est pas datée à la source, on omet le tag
- * plutôt que d'envoyer un fallback factice à Google.
- */
-function resolveDateOrUndefined(input: string | undefined): Date | undefined {
-  if (!input) return undefined
-  const d = new Date(input)
-  return Number.isNaN(d.getTime()) ? undefined : d
+export type GroupeSitemapPt = 'servicos' | 'urgencia' | 'perto-de-mim' | 'cidades' | 'blog' | 'paginas'
+
+/** Fichiers PT, dans l'ordre de l'index. */
+export const FICHIERS_SITEMAP_PT: Record<GroupeSitemapPt, string> = {
+  servicos: '/pt/sitemap-servicos.xml',
+  urgencia: '/pt/sitemap-urgencia.xml',
+  'perto-de-mim': '/pt/sitemap-perto-de-mim.xml',
+  cidades: '/pt/sitemap-cidades.xml',
+  blog: '/pt/sitemap-blog.xml',
+  paginas: '/pt/sitemap-paginas.xml',
 }
 
-function articleLastMod(
-  article: { dateModified?: string; datePublished: string },
-): Date | undefined {
-  return resolveDateOrUndefined(article.dateModified ?? article.datePublished)
-}
+/** Pages statiques PT indexables (hors sitemap : les 4 pages juridiques en noindex, /pt/mercados/gerir/). */
+export const PAGINAS_ESTATICAS_PT = [
+  '/pt/',
+  '/pt/pesquisar/',
+  '/pt/avaliacoes/',
+  '/pt/servicos/',
+  '/pt/urgencia/',
+  '/pt/perto-de-mim/',
+  '/pt/como-funciona/',
+  '/pt/torne-se-parceiro/',
+  '/pt/profissionais-verificados/',
+  '/pt/especialidades/',
+  '/pt/condominio/',
+  '/pt/simulador-orcamento/',
+  '/pt/mercados/publicar/',
+  '/pt/mapa-do-site/',
+  '/pt/sobre/',
+  '/pt/contacto/',
+  '/pt/precos/',
+  '/pt/precos/canalizador/',
+  '/pt/precos/eletricista/',
+  '/pt/precos/pintor/',
+] as const
 
-/**
- * Pages statiques PT (hubs éditoriaux + pages légales + onboarding).
- * Toutes sous /pt/*. Pas de lastmod : le contenu de ces pages est
- * éditorial et ne suit pas une cadence prévisible — préférable d'omettre
- * le signal plutôt que d'envoyer une date factice.
- */
-export function ptStaticPages(baseUrl: string): SitemapUrl[] {
-  const url = (path: string): SitemapUrl => ({
-    url: `${baseUrl}${path}`,
-    // pas de lastModified — Google sera invité à crawler à sa cadence
-  })
-  return [
-    url('/pt/'),
-    url('/pt/pesquisar/'),
-    url('/pt/avaliacoes/'),
-    url('/pt/servicos/'),
-    url('/pt/blog/'),
-    url('/pt/urgencia/'),
-    url('/pt/perto-de-mim/'),
-    url('/pt/como-funciona/'),
-    url('/pt/torne-se-parceiro/'),
-    url('/pt/profissionais-verificados/'),
-    url('/pt/especialidades/'),
-    url('/pt/condominio/'),
-    url('/pt/simulador-orcamento/'),
-    url('/pt/mercados/publicar/'),
-    // Pas de /pt/mercados/gerir/ : page de gestion par jeton, en noindex.
-    url('/pt/mapa-do-site/'),
-    url('/pt/sobre/'),
-    url('/pt/termos/'),
-    url('/pt/avisos-legais/'),
-    url('/pt/privacidade/'),
-    url('/pt/politica-cookies/'),
-  ]
-}
+/** Sitemaps PT par groupe. */
+export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[]> {
+  const url = (path: string, lastModified: string): SitemapUrl => ({ url: `${baseUrl}${path}`, lastModified })
 
-/**
- * Pages programmatiques PT : cidade × service combos, urgência, hubs cidade,
- * "perto de mim" (générique + service × cidade), preços, blog. Picheleiro
- * (alias de canalizador) inclus pour capter les variantes lexicales du nord.
- */
-export function ptProgrammaticPages(baseUrl: string): SitemapUrl[] {
-  const result: SitemapUrl[] = []
+  const servicos = getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, DATAS_PT.servicos))
+  const urgencia = getAllUrgencyCombos().map(combo => url(`/pt/urgencia/${combo.slug}/`, DATAS_PT.urgencia))
 
-  // Services × cidade combos — lastmod uniquement quand city.contentUpdatedAt
-  for (const combo of getAllPageCombos()) {
-    result.push({
-      url: `${baseUrl}/pt/servicos/${combo.slug}/`,
-      lastModified: resolveDateOrUndefined(combo.city.contentUpdatedAt),
-    })
-  }
-
-  // Urgência combos
-  for (const combo of getAllUrgencyCombos()) {
-    result.push({
-      url: `${baseUrl}/pt/urgencia/${combo.slug}/`,
-      lastModified: resolveDateOrUndefined(combo.city.contentUpdatedAt),
-    })
-  }
-
-  // Cidade hubs
-  for (const city of CITIES) {
-    result.push({
-      url: `${baseUrl}/pt/cidade/${city.slug}/`,
-      lastModified: resolveDateOrUndefined(city.contentUpdatedAt),
-    })
-  }
-
-  // Perto de mim génériques (par service) — éditorial, pas de lastmod
+  const pertoDeMim: SitemapUrl[] = []
+  for (const service of SERVICES) pertoDeMim.push(url(`/pt/perto-de-mim/${service.slug}/`, DATAS_PT.pertoDeMim))
   for (const service of SERVICES) {
-    result.push({ url: `${baseUrl}/pt/perto-de-mim/${service.slug}/` })
+    for (const city of CITIES) pertoDeMim.push(url(`/pt/perto-de-mim/${service.slug}-${city.slug}/`, DATAS_PT.pertoDeMim))
   }
+  // Picheleiro : alias de canalizador (variante lexicale du Nord). Doublon à consolider en phase 2.
+  pertoDeMim.push(url('/pt/perto-de-mim/picheleiro/', DATAS_PT.pertoDeMim))
+  for (const city of CITIES) pertoDeMim.push(url(`/pt/perto-de-mim/picheleiro-${city.slug}/`, DATAS_PT.pertoDeMim))
 
-  // Perto de mim service × cidade
-  for (const service of SERVICES) {
-    for (const city of CITIES) {
-      result.push({
-        url: `${baseUrl}/pt/perto-de-mim/${service.slug}-${city.slug}/`,
-        lastModified: resolveDateOrUndefined(city.contentUpdatedAt),
-      })
-    }
-  }
+  const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, DATAS_PT.cidades))]
 
-  // Picheleiro alias (canalizador) — variante lexicale Norte
-  result.push({ url: `${baseUrl}/pt/perto-de-mim/picheleiro/` })
-  for (const city of CITIES) {
-    result.push({
-      url: `${baseUrl}/pt/perto-de-mim/picheleiro-${city.slug}/`,
-      lastModified: resolveDateOrUndefined(city.contentUpdatedAt),
-    })
-  }
+  const blog = [url('/pt/blog/', DATAS_PT.blog), ...BLOG_ARTICLES.map(article => url(`/pt/blog/${article.slug}/`, DATAS_PT.blog))]
 
-  // Preços hub + 3 services tarifés
-  result.push({ url: `${baseUrl}/pt/precos/` })
-  for (const slug of ['canalizador', 'eletricista', 'pintor']) {
-    result.push({ url: `${baseUrl}/pt/precos/${slug}/` })
-  }
+  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, DATAS_PT.paginas))
 
-  // Blog — lastmod uniquement si l'article a une vraie date
-  for (const article of BLOG_ARTICLES) {
-    result.push({
-      url: `${baseUrl}/pt/blog/${article.slug}/`,
-      lastModified: articleLastMod(article),
-    })
-  }
-
-  return result
+  return { servicos, urgencia, 'perto-de-mim': pertoDeMim, cidades, blog, paginas }
 }
 
-/** Sitemap PT complet (statiques + programmatiques). Soumis à la propriété GSC PT. */
+/** Toutes les URL PT indexables (union des fichiers). */
 export function getAllPtSitemapUrls(baseUrl: string): SitemapUrl[] {
-  return [
-    ...ptStaticPages(baseUrl),
-    ...ptProgrammaticPages(baseUrl),
-  ]
+  const groupes = sitemapsPt(baseUrl)
+  return (Object.keys(FICHIERS_SITEMAP_PT) as GroupeSitemapPt[]).flatMap(groupe => groupes[groupe])
+}
+
+/** URL absolues des fichiers PT, pour les index. */
+export function urlsFichiersSitemapPt(baseUrl: string): string[] {
+  return (Object.keys(FICHIERS_SITEMAP_PT) as GroupeSitemapPt[]).map(groupe => `${baseUrl}${FICHIERS_SITEMAP_PT[groupe]}`)
 }

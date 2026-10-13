@@ -2910,7 +2910,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: 'fuga-agua-como-agir',
     title: 'Fuga de Água: Como Agir Rapidamente',
     metaTitle: 'Fuga de Água em Casa: O Que Fazer de Imediato | VITFIX',
-    metaDesc: 'Descobriu uma fuga de água? Saiba os passos imediatos para minimizar danos e quando chamar um canalizador de urgência. Atuamos em Marco de Canaveses e arredores.',
+    metaDesc: 'Descobriu uma fuga de água? Saiba os passos imediatos para minimizar danos e quando chamar um canalizador de urgência. Atuamos em Marco de Canaveses.',
     category: 'canalizacao',
     icon: '🚿',
     datePublished: '2025-12-20',

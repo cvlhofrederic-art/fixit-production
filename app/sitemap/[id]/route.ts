@@ -2,7 +2,6 @@ import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { logger } from '@/lib/logger'
 import { getProfilePath } from '@/lib/utils'
 import { formatSitemapXml, parseSitemapId, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
-import { ptProgrammaticPages } from '@/lib/sitemap-pt-pages'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
 import { EN_SERVICE_PAGES } from '@/lib/data/en-services-data'
 import {
@@ -57,47 +56,31 @@ function articleLastMod(article: { dateModified?: string, datePublished: string 
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sub-sitemap 0 : pages statiques + hubs (pas de lastmod — éditorial)
+// Sub-sitemap 0 : racine + hubs FR (pas de lastmod — éditorial)
+// Phase 1 SEO PT (point 1.1) : les 16 pages PT qui figuraient ici sont dans
+// /pt/sitemap-paginas.xml, seule source des URL PT (une URL = un sitemap).
 // ────────────────────────────────────────────────────────────────────────────
 
 function staticAndHubPages(baseUrl: string): SitemapUrl[] {
   const url = (path: string): SitemapUrl => ({ url: `${baseUrl}${path}` })
   return [
     url('/'),
-    url('/pt/'),
     url('/fr/'),
     url('/fr/recherche/'),
-    url('/pt/pesquisar/'),
-    url('/pt/avaliacoes/'),
     url('/fr/comment-ca-marche/'),
     url('/fr/devenir-partenaire/'),
     url('/fr/artisans-verifies/'),
-    url('/pt/servicos/'),
-    url('/pt/blog/'),
-    url('/pt/urgencia/'),
-    url('/pt/perto-de-mim/'),
-    url('/pt/como-funciona/'),
-    url('/pt/torne-se-parceiro/'),
-    url('/pt/profissionais-verificados/'),
-    url('/pt/especialidades/'),
-    url('/pt/condominio/'),
-    url('/pt/simulador-orcamento/'),
-    url('/pt/mercados/publicar/'),
-    // Pas de /pt/mercados/gerir/ : page de gestion par jeton, en noindex.
     url('/fr/services/'),
     url('/fr/urgence/'),
     url('/fr/blog/'),
     url('/fr/plan-du-site/'),
-    url('/pt/mapa-do-site/'),
     url('/fr/a-propos/'),
-    url('/pt/sobre/'),
   ]
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sub-sitemap 1 : pages programmatiques PT
-// (fonction `ptProgrammaticPages` extraite vers `lib/sitemap-pt-pages.ts`
-// pour être partagée avec le sitemap PT dédié `app/pt/sitemap.xml/route.ts`)
+// Sub-sitemap 1 : ancien sous-sitemap PT, remplacé par /pt/sitemap-*.xml
+// (phase 1 SEO PT). La route répond 410 Gone pour que Google l'oublie.
 // ────────────────────────────────────────────────────────────────────────────
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -244,8 +227,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
       urls = staticAndHubPages(baseUrl)
       break
     case 1:
-      urls = ptProgrammaticPages(baseUrl)
-      break
+      return new Response('Gone', { status: 410, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
     case 2:
       urls = frProgrammaticPages(baseUrl)
       break

@@ -1,16 +1,16 @@
 import type { Metadata } from 'next'
 import SimuladorOrcamentoClient from './SimuladorOrcamentoClient'
 
+// Phase 1 SEO PT : marque une fois (template du layout), x-default sur la page FR (comme elle le déclare).
 export const metadata: Metadata = {
-  title: 'Simulador de Orçamento Grátis : Calcule o custo das suas obras | VITFIX',
+  title: 'Simulador de orçamento grátis para as suas obras',
   description: 'Simule o orçamento das suas obras em 2 minutos: canalização, eletricidade, pintura, serralharia, telhado, jardinagem e mais. Grátis e sem compromisso.',
-  keywords: ['simulador orçamento', 'orçamento grátis', 'quanto custa obras', 'preço profissional 2026'],
   alternates: {
     canonical: 'https://vitfix.io/pt/simulador-orcamento/',
     languages: {
       'pt-PT': 'https://vitfix.io/pt/simulador-orcamento/',
       'fr-FR': 'https://vitfix.io/fr/simulateur-devis/',
-      'x-default': 'https://vitfix.io/pt/simulador-orcamento/',
+      'x-default': 'https://vitfix.io/fr/simulateur-devis/',
     },
   },
   openGraph: {
@@ -65,17 +65,7 @@ export default function SimuladorOrcamentoPage() {
           { '@type': 'ListItem', position: 2, name: 'Simulador de Orçamento', item: 'https://vitfix.io/pt/simulador-orcamento/' },
         ],
       },
-      {
-        '@type': 'FAQPage',
-        mainEntity: FAQ_SIMULADOR.map(faq => ({
-          '@type': 'Question',
-          name: faq.question,
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: faq.answer,
-          },
-        })),
-      },
+      // Phase 1 SEO PT : plus de FAQPage (résultat enrichi retiré par Google) ; la FAQ reste visible.
     ],
   }
 

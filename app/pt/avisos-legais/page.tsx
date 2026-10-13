@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
+import { ADRESSE_PT_TEXTE } from '@/lib/seo/entite-pt'
 
 export const metadata: Metadata = {
-  title: 'Avisos Legais | Vitfix',
+  title: 'Avisos legais',
   robots: { index: false, follow: true },
   alternates: { canonical: 'https://vitfix.io/pt/avisos-legais/' },
 }
@@ -26,7 +27,7 @@ export default async function AvisosLegaisPage() {
               <li><strong>Denominação :</strong> VITFIX</li>
               <li><strong>Forma jurídica :</strong> Empresário em Nome Individual</li>
               <li><strong>NIF :</strong> 276 873 297</li>
-              <li><strong>Sede :</strong> Portugal</li>
+              <li><strong>Sede :</strong> {ADRESSE_PT_TEXTE}</li>
               <li><strong>Email :</strong> <a href="mailto:contact@vitfix.io" className="text-yellow hover:underline">contact@vitfix.io</a></li>
               <li><strong>Telefone :</strong> <a href="tel:+351912014971" className="text-yellow hover:underline">+351 912 014 971</a></li>
             </ul>

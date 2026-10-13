@@ -72,8 +72,9 @@ const nextConfig: NextConfig = {
         { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
-        { source: '/pt/contact', destination: '/contact' },
-        { source: '/pt/contact/', destination: '/contact/' },
+        // Slug PT du contact (phase 1 SEO PT, point 1.8) ; /pt/contact/ redirige vers /pt/contacto/.
+        { source: '/pt/contacto', destination: '/contact' },
+        { source: '/pt/contacto/', destination: '/contact/' },
         { source: '/pt/confirmation', destination: '/confirmation' },
         { source: '/pt/confirmation/', destination: '/confirmation/' },
         // PT legal pages now have dedicated routes: /pt/privacidade/, /pt/politica-cookies/
@@ -201,17 +202,19 @@ const nextConfig: NextConfig = {
       { source: '/en/search/', destination: '/en/', permanent: true },
       { source: '/en/contact/', destination: '/en/', permanent: true },
       { source: '/en/reviews/', destination: '/en/', permanent: true },
-      // PT blog: 1 article renamed, 5 removed → hub
+      // Blog PT (phase 1 SEO PT, point 1.2) : anciens slugs redirigés vers l'article réellement
+      // équivalent ; les 6 articles sans équivalent répondent 410 dans middleware.ts (plus de
+      // redirection vers l'index /pt/blog/, qui était un soft 404).
       { source: '/pt/blog/humidade-paredes-solucoes/', destination: '/pt/blog/humidade-parede-causas-reparacao/', permanent: true },
-      { source: '/pt/blog/certificacao-eletrica/', destination: '/pt/blog/', permanent: true },
-      { source: '/pt/blog/seguranca-eletrica-casa/', destination: '/pt/blog/', permanent: true },
-      { source: '/pt/blog/paineis-solares-portugal/', destination: '/pt/blog/', permanent: true },
-      { source: '/pt/blog/como-escolher-tinta/', destination: '/pt/blog/', permanent: true },
-      { source: '/pt/blog/preparar-paredes-pintura/', destination: '/pt/blog/', permanent: true },
+      { source: '/pt/blog/como-desentupir-canos/', destination: '/pt/blog/cano-entupido-como-resolver/', permanent: true },
+      { source: '/pt/blog/sinais-fuga-agua/', destination: '/pt/blog/fuga-agua-como-agir/', permanent: true },
+      { source: '/pt/blog/iva-6-remodelacao-portugal/', destination: '/pt/blog/iva-6-obras-remodelacao-portugal/', permanent: true },
+      // Ancien slug du contact PT (phase 1 SEO PT, point 1.8)
+      { source: '/pt/contact/', destination: '/pt/contacto/', permanent: true },
       // Orphan paths picked up by Google with no locale prefix
       { source: '/mois/', destination: '/fr/', permanent: true },
-      // Forme encodée : le chemin arrive encodé (/m%C3%AAs/) et la source est comparée telle quelle (« /mês/ » ne correspondait jamais).
-      { source: '/m%C3%AAs/', destination: '/pt/', permanent: true },
+      // « /m%C3%AAs/ » : plus de redirection vers /pt/ (phase 1 SEO PT, point 1.2). Le chemin inconnu
+      // suit le parcours normal du middleware (302 vers la locale) et finit en 404 noindex.
       // Simulateur devis: Toulon not in supported FR_CITIES → hub
       { source: '/fr/simulateur-devis/toulon/', destination: '/fr/simulateur-devis/', permanent: true },
     ]

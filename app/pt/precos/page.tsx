@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout).
 export const metadata: Metadata = {
-  title: 'Tabela de Preços : Serviços para a Sua Casa | VITFIX',
-  description: 'Consulte os preços de referência para canalização, eletricidade, pintura e outros serviços em Marco de Canaveses, Penafiel, Amarante e região do Tâmega e Sousa.',
+  title: 'Tabela de preços 2026: canalizador, eletricista e pintor',
+  description: 'Preços de referência 2026 para canalizador, eletricista e pintor no Porto e no Tâmega e Sousa: 3 guias com valores mínimos e máximos. Orçamento grátis.',
   openGraph: {
     title: 'Tabela de Preços : Serviços para a Sua Casa | VITFIX',
     description: 'Preços de referência para canalização, eletricidade, pintura e mais. Profissionais verificados na região do Tâmega e Sousa.',

@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères.
 export const metadata: Metadata = {
-  title: 'Como funciona o VITFIX? Encontre profissionais verificados em Portugal | VITFIX',
-  description: 'Descubra como o VITFIX funciona: pesquise profissionais verificados perto de si, compare orçamentos gratuitos e reserve online em segundos. Serviço disponível 7/7 em Marco de Canaveses e região.',
+  title: 'Como funciona: pesquisar, comparar e reservar',
+  description: 'Como funciona a VITFIX em 4 passos: pesquise um profissional verificado, compare orçamentos grátis, reserve online e avalie após a intervenção.',
   openGraph: {
     title: 'Como funciona o VITFIX? Encontre profissionais verificados em Portugal',
     description: 'Pesquise, compare e reserve profissionais verificados perto de si. Orçamento gratuito, sem compromisso.',
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     languages: {
       'pt-PT': 'https://vitfix.io/pt/como-funciona/',
       'fr-FR': 'https://vitfix.io/fr/comment-ca-marche/',
-      'x-default': 'https://vitfix.io/pt/como-funciona/',
+      'x-default': 'https://vitfix.io/fr/comment-ca-marche/',
     },
   },
 }
@@ -132,29 +133,8 @@ const jsonLd = {
         ],
       },
     },
-    {
-      '@type': 'FAQPage',
-      mainEntity: faqs.map(faq => ({
-        '@type': 'Question',
-        name: faq.question,
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: faq.answer,
-        },
-      })),
-    },
-    {
-      '@type': 'HowTo',
-      name: 'Como reservar um profissional no VITFIX',
-      description: 'Processo simples em 4 passos para encontrar e reservar um profissional verificado em Portugal.',
-      totalTime: 'PT5M',
-      step: steps.map((step, i) => ({
-        '@type': 'HowToStep',
-        position: i + 1,
-        name: step.title,
-        text: step.description,
-      })),
-    },
+    // Phase 1 SEO PT : plus de FAQPage (retiré par Google le 07/05/2026) ni de HowTo (retiré en 2023) ;
+    // la FAQ et les étapes restent visibles dans la page.
   ],
 }
 

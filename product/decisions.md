@@ -28,7 +28,7 @@
 **Decisão:** Sitemap com 380+ páginas geradas programaticamente (serviço × cidade)
 **Porquê:** Escalar para todas as cidades PT e FR sem criar cada página manualmente
 **Data:** 2026
-**NUNCA alterar a estrutura do sitemap** sem avaliar impacto SEO
+**NUNCA alterar a estrutura do sitemap** sem avaliar impacto SEO — avaliação de 13/10/2026 em `docs/seo/pt-inventaire.md`; na fase 1 (13/10/2026) o sitemap PT foi dividido por modelo (`/pt/sitemap-*.xml`, índice `/pt/sitemap.xml`), sem mudança de URL de página
 
 ---
 
@@ -41,9 +41,9 @@
 ---
 
 ### Schema markup
-**Decisão:** Implementar LocalBusiness + Service + FAQPage em páginas de serviço
-**Porquê:** Rich results no Google aumentam CTR
-**Data:** 2026
+**Decisão (atualizada na fase 1 do plano SEO PT):** Páginas PT serviço × cidade: `Service` (provider = entidade única `#business`, com morada real, `areaServed` = cidade) + `BreadcrumbList`. Sem `LocalBusiness` por cidade, sem `FAQPage`, sem `HowTo`, sem avaliações auto-atribuídas. Páginas FR: inalteradas (`HomeAndConstructionBusiness` + `FAQPage`).
+**Porquê:** Google 2026: `LocalBusiness` exige morada física real; os rich results FAQ (retirados em 07/05/2026) e HowTo (2023) já não existem; dados inventados são risco de política de spam. Ver `docs/seo/pt-inventaire.md`, secção 5.
+**Data:** 2026-10-13
 **Sempre verificar** com Google Rich Results Test após alterações
 
 ---

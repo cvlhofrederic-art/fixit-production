@@ -4,20 +4,24 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllUrgencyCombos, getUrgencyCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
+import { tituloUrgencia, descricaoUrgencia } from '@/lib/seo/pt-meta'
+import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 
-// ── Generate all 32 urgency pages (4 services × 8 cities) ──
+// ── Pages statiques : 21 métiers × 22 villes (lib/data/seo-pages-data.ts) ──
 export function generateStaticParams() {
   return getAllUrgencyCombos().map(p => ({ slug: p.slug }))
 }
 
-// ── Dynamic SEO metadata ──
+// ── Métadonnées (phase 1 SEO PT) : marque une fois, description propre à la page, pas
+// d'alternate hreflang (aucune page FR équivalente).
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const combo = getUrgencyCombo(slug)
   if (!combo) return {}
 
-  const title = combo.service.urgency.metaTitle.replace(/{city}/g, combo.city.name)
-  const description = combo.service.urgency.metaDesc.replace(/{city}/g, combo.city.name)
+  const title = tituloUrgencia(combo.service, combo.city)
+  const description = descricaoUrgencia(combo.service, combo.city)
 
   return {
     title,
@@ -28,7 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'pt' }),
+      images: ogImageMeta({ title, locale: 'pt' }),
     },
     twitter: {
       card: 'summary_large_image',
@@ -37,12 +41,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     alternates: {
       canonical: `https://vitfix.io/pt/urgencia/${slug}/`,
-      languages: {
-        'pt-PT': `https://vitfix.io/pt/urgencia/${slug}/`,
-        'fr-FR': 'https://vitfix.io/fr/urgence/',
-        'en': 'https://vitfix.io/en/',
-        'x-default': 'https://vitfix.io/',
-      },
     },
   }
 }
@@ -60,97 +58,24 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
   const heroSubtitle = replaceCity(urgency.heroSubtitle)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
-  // Schema.org - Emergency Service + FAQPage
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'EmergencyService',
-        name: `VITFIX - ${service.name} Urgente em ${city.name}`,
-        description: urgency.metaDesc.replace(/{city}/g, city.name),
-        url: `https://vitfix.io/pt/urgencia/${slug}/`,
-        areaServed: {
-          '@type': 'City',
-          name: city.name,
-          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
-        },
-        availableChannel: {
-          '@type': 'ServiceChannel',
-          serviceType: `${service.name} de urgência`,
-          availableLanguage: 'Português',
-        },
-        hoursAvailable: {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-          opens: '00:00',
-          closes: '23:59',
-        },
-        image: 'https://vitfix.io/logo.png',
-        telephone: PHONE_PT,
-        address: {
-          '@type': 'PostalAddress',
-          addressLocality: city.name,
-          addressRegion: city.distrito,
-          addressCountry: 'PT',
-        },
-        geo: {
-          '@type': 'GeoCoordinates',
-          latitude: city.lat,
-          longitude: city.lng,
-        },
-        // aggregateRating omis : pas de chiffres inventés. À réactiver avec
-        // données réelles (Trustpilot / reviews vérifiées on-page liées via
-        // Review schema individuel) — cf. lib/schemas/index.ts.
-      },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Urgência', item: 'https://vitfix.io/pt/urgencia/' },
-          { '@type': 'ListItem', position: 3, name: `${service.name} Urgente em ${city.name}`, item: `https://vitfix.io/pt/urgencia/${slug}/` },
-        ],
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: service.faqs.map(faq => ({
-          '@type': 'Question',
-          name: replaceCity(faq.question),
-          acceptedAnswer: { '@type': 'Answer', text: replaceCity(faq.answer) },
-        })),
-      },
-      // HowTo : exploite immediateSteps pour les Answer Engines
-      // (Perplexity, ChatGPT, Claude, AI Overviews) qui citent les
-      // contenus actionnables structurés. Google a déprécié le rich
-      // result HowTo dans la SERP classique, mais le schéma reste
-      // exploité par les moteurs IA en 2026.
-      {
-        '@type': 'HowTo',
-        name: `O que fazer em caso de ${service.name.toLowerCase()} de urgência em ${city.name}`,
-        description: `Passos imediatos a seguir enquanto espera pelo profissional VITFIX em ${city.name}.`,
-        totalTime: `PT${urgency.avgResponseTime.match(/\d+/)?.[0] || '30'}M`,
-        step: urgency.immediateSteps.map((stepText, i) => ({
-          '@type': 'HowToStep',
-          position: i + 1,
-          name: `Passo ${i + 1}`,
-          text: replaceCity(stepText),
-        })),
-      },
-      // Speakable : signale aux assistants vocaux et IA que
-      // certaines sections sont lisibles à voix haute.
-      // Référence : developers.google.com/search/docs/appearance/structured-data/speakable
-      {
-        '@type': 'WebPage',
-        '@id': `https://vitfix.io/pt/urgencia/${slug}/#webpage`,
-        url: `https://vitfix.io/pt/urgencia/${slug}/`,
-        name: heroTitle,
-        inLanguage: 'pt-PT',
-        speakable: {
-          '@type': 'SpeakableSpecification',
-          cssSelector: ['h1', 'h2', '.urgency-summary'],
-        },
-      },
-    ],
-  }
+  // JSON-LD (phase 1 SEO PT) : un `Service` d'urgence fourni par l'entité unique et servi
+  // dans la ville, plus le fil d'Ariane. Plus d'EmergencyService par ville (adresse fictive),
+  // ni de FAQPage ou de HowTo (résultats enrichis retirés par Google).
+  const urlPagina = `https://vitfix.io/pt/urgencia/${slug}/`
+  const jsonLd = grafo(
+    noServicoLocal({
+      url: urlPagina,
+      nome: `${service.name} urgente em ${city.name}`,
+      serviceType: `${service.name} de urgência`,
+      descricao: descricaoUrgencia(service, city),
+      city,
+    }),
+    noFilAriane([
+      { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+      { name: 'Urgência', url: 'https://vitfix.io/pt/urgencia/' },
+      { name: `${service.name} urgente em ${city.name}`, url: urlPagina },
+    ]),
+  )
 
   return (
     <div className="min-h-screen bg-warm-gray">
@@ -243,7 +168,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold mt-0.5">
                   {i + 1}
                 </span>
-                <span className="text-[0.93rem] text-dark leading-relaxed">{step}</span>
+                <span className="text-[0.93rem] text-dark leading-relaxed">{replaceCity(step)}</span>
               </div>
             ))}
           </div>
@@ -310,7 +235,7 @@ export default async function UrgencyPage({ params }: { params: Promise<{ slug: 
             Cobertura de urgência, {city.name}
           </h2>
           <p className="text-text-muted mb-6">
-            Os nossos {service.name.toLowerCase()}s de urgência atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
+            Os nossos {pluralizar(service.name)} de urgência atuam em {city.name} ({city.population.toLocaleString('pt-PT')} habitantes) e em todas as suas freguesias:
           </p>
           <div className="flex flex-wrap gap-2 mb-10">
             {city.freguesias.map(f => (

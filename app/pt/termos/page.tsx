@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { getServerTranslation } from '@/lib/i18n/server'
 
 export const metadata: Metadata = {
-  title: 'Termos e Condições | Vitfix',
+  title: 'Termos e condições',
   robots: { index: false, follow: true },
   alternates: { canonical: 'https://vitfix.io/pt/termos/' },
 }
@@ -159,7 +159,7 @@ export default async function TermosPage() {
             </p>
             <p className="mt-3">
               {t('cgu.art10.p5')}{' '}
-              <a href="/pt/privacidade" className="text-yellow hover:underline">{t('cgu.art10.privacyLink')}</a>.
+              <a href="/pt/privacidade/" className="text-yellow hover:underline">{t('cgu.art10.privacyLink')}</a>.
             </p>
           </section>
 

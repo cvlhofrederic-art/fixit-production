@@ -1000,8 +1000,9 @@ function RechercheContent() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         {/* ── Titre résultats ── */}
+        {/* h2 : le h1 de la page est celui, descriptif, en sr-only ci-dessus (un seul h1, test T6). Mêmes classes, aucun changement visuel. */}
         <div className="mb-5">
-          <h1 className="font-display text-2xl sm:text-3xl font-black text-dark tracking-[-0.03em]">
+          <h2 className="font-display text-2xl sm:text-3xl font-black text-dark tracking-[-0.03em]">
             {loading ? (
               tp('Recherche en cours...', 'A pesquisar...')
             ) : (
@@ -1009,7 +1010,7 @@ function RechercheContent() {
                 ? <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'profissionais disponíveis' : 'profissional disponível'}</>
                 : <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'artisans disponibles' : 'artisan disponible'}</>
             )}
-          </h1>
+          </h2>
           {!loading && (
             <p className="text-gray-500 mt-1 text-sm sm:text-base">{subtitleText}</p>
           )}

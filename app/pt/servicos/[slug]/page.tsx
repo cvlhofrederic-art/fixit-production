@@ -4,24 +4,27 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
+import { tituloServico, descricaoServico } from '@/lib/seo/pt-meta'
+import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import ServiceFeaturesGrid from '@/components/seo/ServiceFeaturesGrid'
 import ProblemsGrid from '@/components/seo/ProblemsGrid'
 
-// ── Generate all 32 static pages (4 services × 8 cities) ──
+// ── Pages statiques : 21 métiers × 22 villes (lib/data/seo-pages-data.ts) ──
 export function generateStaticParams() {
   return getAllPageCombos().map(p => ({ slug: p.slug }))
 }
 
-// ── Dynamic SEO metadata ──
+// ── Métadonnées (phase 1 SEO PT) : marque une fois (template du layout), description propre
+// à la page (freguesias, population), pas d'alternate hreflang : aucune page FR équivalente.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const combo = getPageCombo(slug)
   if (!combo) return {}
 
-  const title = combo.service.metaTitle.replace('{city}', combo.city.name)
-  const description = combo.service.metaDesc.replace('{city}', combo.city.name)
+  const title = tituloServico(combo.service, combo.city)
+  const description = descricaoServico(combo.service, combo.city)
 
   return {
     title,
@@ -32,7 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: ogImageMeta({ title: title.split('|')[0].trim(), locale: 'pt' }),
+      images: ogImageMeta({ title, locale: 'pt' }),
     },
     twitter: {
       card: 'summary_large_image',
@@ -41,12 +44,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     },
     alternates: {
       canonical: `https://vitfix.io/pt/servicos/${slug}/`,
-      languages: {
-        'pt-PT': `https://vitfix.io/pt/servicos/${slug}/`,
-        'fr-FR': 'https://vitfix.io/fr/services/',
-        'en': 'https://vitfix.io/en/',
-        'x-default': 'https://vitfix.io/',
-      },
     },
   }
 }
@@ -66,101 +63,24 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
-  // Schema.org LocalBusiness + Service + FAQPage
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'LocalBusiness',
-        name: `VITFIX - ${service.name} em ${city.name}`,
-        description: service.metaDesc.replace('{city}', city.name),
-        url: `https://vitfix.io/pt/servicos/${slug}/`,
-        areaServed: {
-          '@type': 'City',
-          name: city.name,
-          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
-        },
-        serviceType: service.name,
-        priceRange: '€€',
-        image: 'https://vitfix.io/logo.png',
-        telephone: PHONE_PT,
-        address: {
-          '@type': 'PostalAddress',
-          addressLocality: city.name,
-          addressRegion: city.distrito,
-          addressCountry: 'PT',
-        },
-        geo: {
-          '@type': 'GeoCoordinates',
-          latitude: city.lat,
-          longitude: city.lng,
-        },
-        openingHoursSpecification: {
-          '@type': 'OpeningHoursSpecification',
-          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-          opens: '08:00',
-          closes: '20:00',
-        },
-        // aggregateRating omis : pas de chiffres inventés. cf. lib/schemas/index.ts
-      },
-      {
-        '@type': 'Service',
-        '@id': `https://vitfix.io/pt/servicos/${slug}/#service`,
-        name: `${service.name} em ${city.name}`,
-        description: service.metaDesc.replace('{city}', city.name),
-        serviceType: service.name,
-        category: 'Home & Construction Services',
-        provider: { '@id': 'https://vitfix.io/#business' },
-        areaServed: {
-          '@type': 'City',
-          name: city.name,
-          containedInPlace: { '@type': 'AdministrativeArea', name: `Distrito de ${city.distrito}` },
-        },
-        hasOfferCatalog: {
-          '@type': 'OfferCatalog',
-          name: `Serviços de ${service.name.toLowerCase()} em ${city.name}`,
-          itemListElement: service.features.slice(0, 8).map((feature, idx) => ({
-            '@type': 'Offer',
-            position: idx + 1,
-            itemOffered: {
-              '@type': 'Service',
-              name: feature,
-            },
-            priceSpecification: {
-              '@type': 'PriceSpecification',
-              priceCurrency: 'EUR',
-              minPrice: '30',
-            },
-            availability: 'https://schema.org/InStock',
-          })),
-        },
-        audience: {
-          '@type': 'Audience',
-          audienceType: 'Particulares, condomínios e empresas em Portugal',
-        },
-        termsOfService: 'https://vitfix.io/pt/termos/',
-      },
-      {
-        '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'VITFIX', item: 'https://vitfix.io/pt/' },
-          { '@type': 'ListItem', position: 2, name: 'Serviços', item: 'https://vitfix.io/pt/servicos/' },
-          { '@type': 'ListItem', position: 3, name: `${service.name} em ${city.name}`, item: `https://vitfix.io/pt/servicos/${slug}/` },
-        ],
-      },
-      {
-        '@type': 'FAQPage',
-        mainEntity: service.faqs.map(faq => ({
-          '@type': 'Question',
-          name: replaceCity(faq.question),
-          acceptedAnswer: {
-            '@type': 'Answer',
-            text: replaceCity(faq.answer),
-          },
-        })),
-      },
-    ],
-  }
+  // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business, app/layout.tsx)
+  // et servi dans la ville, plus le fil d'Ariane. Plus de LocalBusiness par ville (adresse et
+  // horaires fictifs), ni d'OfferCatalog à prix fixe, ni de FAQPage (résultat enrichi retiré).
+  const urlPagina = `https://vitfix.io/pt/servicos/${slug}/`
+  const jsonLd = grafo(
+    noServicoLocal({
+      url: urlPagina,
+      nome: `${service.name} em ${city.name}`,
+      serviceType: service.name,
+      descricao: descricaoServico(service, city),
+      city,
+    }),
+    noFilAriane([
+      { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+      { name: 'Serviços', url: 'https://vitfix.io/pt/servicos/' },
+      { name: `${service.name} em ${city.name}`, url: urlPagina },
+    ]),
+  )
 
   return (
     <div className="min-h-screen bg-warm-gray">
@@ -286,7 +206,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                 <h3 className="font-display text-xl md:text-2xl font-bold text-white mb-2">
                   Precisa de {service.name.toLowerCase()} agora?
                 </h3>
-                <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">{service.urgencyText}</p>
+                <p className="text-white/70 max-w-lg leading-relaxed text-[0.93rem]">{replaceCity(service.urgencyText)}</p>
               </div>
               <div className="flex flex-col sm:flex-row md:flex-col gap-3 flex-shrink-0">
                 <a

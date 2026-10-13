@@ -3,8 +3,8 @@ import Link from 'next/link'
 import { BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Blog VITFIX : Dicas e Guias para a Sua Casa',
-  description: 'Artigos práticos sobre eletricidade, canalização, pintura e reparações domésticas. Dicas de profissionais para resolver os problemas mais comuns da sua casa.',
+  title: 'Blog: dicas e guias para a sua casa',
+  description: 'Artigos práticos sobre eletricidade, canalização, pintura e reparações domésticas. Dicas de profissionais para os problemas mais comuns da sua casa.',
   openGraph: {
     title: 'Blog VITFIX : Dicas e Guias',
     description: 'Artigos práticos sobre eletricidade, canalização, pintura e reparações domésticas.',

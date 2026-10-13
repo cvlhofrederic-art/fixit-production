@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { PHONE_PT } from '@/lib/constants'
 
+// Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères.
 export const metadata: Metadata = {
-  title: 'Profissionais Verificados em Portugal : Garantia VITFIX | VITFIX',
-  description: 'Todos os profissionais no VITFIX são verificados: seguro RC Pro, identidade e qualificações confirmadas. Trabalhos garantidos em Marco de Canaveses, Penafiel, Amarante e região.',
+  title: 'Como verificamos cada profissional: identidade e seguro',
+  description: 'Como a VITFIX verifica cada profissional: identidade, seguro de responsabilidade civil, qualificações e experiência, antes de publicar o perfil.',
   openGraph: {
     title: 'Profissionais Verificados em Portugal : Garantia VITFIX',
     description: 'Seguro RC Pro, identidade verificada, avaliações reais. Confie nos profissionais do VITFIX para os seus trabalhos em casa.',
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     languages: {
       'pt-PT': 'https://vitfix.io/pt/profissionais-verificados/',
       'fr-FR': 'https://vitfix.io/fr/artisans-verifies/',
-      'x-default': 'https://vitfix.io/pt/profissionais-verificados/',
+      'x-default': 'https://vitfix.io/fr/artisans-verifies/',
     },
   },
 }
@@ -145,43 +146,8 @@ const jsonLd = {
         ],
       },
     },
-    {
-      '@type': 'Organization',
-      name: 'VITFIX',
-      url: 'https://vitfix.io/pt/',
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: avgRating,
-        reviewCount: totalReviews,
-        bestRating: '5',
-        worstRating: '1',
-      },
-      review: reviews.map(r => ({
-        '@type': 'Review',
-        author: { '@type': 'Person', name: r.author },
-        reviewRating: {
-          '@type': 'Rating',
-          ratingValue: r.rating,
-          bestRating: '5',
-          worstRating: '1',
-        },
-        reviewBody: r.text,
-        datePublished: r.date,
-        itemReviewed: {
-          '@type': 'Service',
-          name: r.service,
-          areaServed: { '@type': 'City', name: r.city },
-        },
-      })),
-    },
-    {
-      '@type': 'FAQPage',
-      mainEntity: faqs.map(faq => ({
-        '@type': 'Question',
-        name: faq.question,
-        acceptedAnswer: { '@type': 'Answer', text: faq.answer },
-      })),
-    },
+    // Phase 1 SEO PT (point 1.6) : plus d'aggregateRating ni de Review auto-attribués (inéligibles
+    // et contraires à la politique de lib/schemas/index.ts), plus de FAQPage (résultat enrichi retiré).
   ],
 }
 

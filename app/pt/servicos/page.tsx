@@ -2,12 +2,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 
+// Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères avec des
+// faits réels (21 serviços, 22 concelhos), pas d'alternate (/fr/services/ ne renvoie pas vers cette page).
 export const metadata: Metadata = {
-  title: 'Serviços VITFIX : Eletricista, Canalizador, Desentupimento, Pintor, Faz Tudo | Portugal',
-  description: 'Encontre profissionais verificados para eletricidade, canalização, desentupimento, pintura, faz tudo, pladur, obras, isolamento térmico e impermeabilização em Marco de Canaveses, Penafiel, Amarante e região.',
+  title: `Serviços para casa: ${SERVICES.length} especialidades em ${CITIES.length} concelhos`,
+  description: `Todos os serviços VITFIX em Portugal: ${SERVICES.length} especialidades, de eletricista a telhador, em ${CITIES.length} concelhos do Porto, Braga e Aveiro. Orçamento grátis.`,
   openGraph: {
     title: 'Serviços VITFIX : Profissionais para a Sua Casa',
-    description: 'Eletricista, canalizador, pintor, pladur, obras, isolamento térmico e impermeabilização. Profissionais verificados na região do Tâmega e Sousa.',
+    description: 'Eletricista, canalizador, pintor, pladur, obras, isolamento térmico e impermeabilização. Profissionais verificados em 22 concelhos.',
     siteName: 'VITFIX',
     locale: 'pt_PT',
     type: 'website',
@@ -18,11 +20,6 @@ export const metadata: Metadata = {
   },
   alternates: {
     canonical: 'https://vitfix.io/pt/servicos/',
-    languages: {
-      'pt-PT': 'https://vitfix.io/pt/servicos/',
-      'fr-FR': 'https://vitfix.io/fr/services/',
-      'x-default': 'https://vitfix.io/pt/servicos/',
-    },
   },
 }
 
