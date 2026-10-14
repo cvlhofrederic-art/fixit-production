@@ -41,7 +41,7 @@ export interface Artisan {
   longitude?: number | null
   distance_km?: number | null
   org_role?: string | null
-  source?: 'registered' | 'catalogue'
+  source?: 'registered' | 'catalogue' | 'vitfix' // 'vitfix' : fiche VITFIX épinglée sur /pt/pesquisar/ (lib/recherche/vitfix-destaque.ts)
   telephone_pro?: string | null
   adresse?: string | null
   arrondissement?: string | null
@@ -140,13 +140,17 @@ export function ArtisanCard({
   locale,
 }: ArtisanCardProps) {
   // Normalise les noms ALL CAPS issus de SIRENE → "FREDERIC NEIVA CARVALHO" → "Frédéric Neiva Carvalho"
-  const displayName = titleCaseName(artisan.company_name || '') || artisan.company_name
+  // La fiche VITFIX garde la marque en capitales (titleCaseName la passerait en « Vitfix »).
+  const displayName = artisan.source === 'vitfix' ? artisan.company_name : (titleCaseName(artisan.company_name || '') || artisan.company_name)
   const initials = getInitials(displayName)
   const primaryCategory = artisan.categories?.[0]
   const hasGoogleReviews = (artisan.rating_count || 0) > 0
   const rating = artisan.rating_avg || 0
   const reviewCount = artisan.rating_count || 0
   const isCatalogue = artisan.source === 'catalogue'
+  // Fiche VITFIX épinglée (partie PT) : nom sans lien de profil, numéro à la place de « Agendar visita »,
+  // badge « Profissional certificado » (verified, hors catalogue).
+  const isVitfix = artisan.source === 'vitfix'
   const profileHref = getProfilePath(artisan, locale)
 
   // Badges
@@ -202,7 +206,7 @@ export function ArtisanCard({
           <div className="flex-1 min-w-0 mb-4 lg:mb-0">
             <div className="flex items-start justify-between gap-2">
               <div>
-                {isCatalogue ? (
+                {isCatalogue || isVitfix ? (
                   <span className="font-bold text-lg">{displayName || (locale === 'pt' ? 'Profissional' : 'Artisan')}</span>
                 ) : (
                   <Link href={profileHref} className="font-display font-bold text-lg text-dark hover:text-yellow transition">
@@ -276,7 +280,7 @@ export function ArtisanCard({
 
           {/* Colonne 3 : Calendrier (inscrit) ou Contact (catalogue) */}
           <div className="lg:w-64 xl:w-72 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-border pt-4 lg:pt-0 lg:pl-5">
-            {isCatalogue ? (
+            {isCatalogue || isVitfix ? (
               <div className="flex flex-col gap-3 h-full justify-center">
                 {/* Numéro de téléphone — cliquable */}
                 {artisan.telephone_pro ? (

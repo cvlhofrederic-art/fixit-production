@@ -30,6 +30,7 @@ import {
 } from '@/lib/search-categories'
 import { FilterModal, type FilterState } from '@/components/recherche/FilterModal'
 import { ArtisanCard, type Artisan, type Availability, type Booking, type Service } from '@/components/recherche/ArtisanCard'
+import { comVitfixPrimeiro } from '@/lib/recherche/vitfix-destaque'
 import { ALL_COMMUNES, FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 
@@ -946,6 +947,15 @@ function RechercheContent() {
     return [...sortedRegistered, ...sortedCatalogue]
   }, [artisans, filters, allAvailability, allBookings, userCoords, searchCoords])
 
+  // Partie PT seulement (demande du propriétaire, 14/10/2026) : la fiche VITFIX est toujours première,
+  // quel que soit le métier, la localité ou les filtres ; elle affiche le métier recherché quand il est
+  // reconnu. FR : liste inchangée.
+  const listaExibida = useMemo(() => {
+    if (siteLocale !== 'pt') return filteredArtisans
+    const categoria = activeCategory ? fuzzyMatchCategory(activeCategory) : null
+    return comVitfixPrimeiro(filteredArtisans, categoria)
+  }, [siteLocale, filteredArtisans, activeCategory])
+
   // ------------------------------------------------------------------
   // Subtitle text
   // ------------------------------------------------------------------
@@ -1012,8 +1022,8 @@ function RechercheContent() {
               tp('Recherche en cours...', 'A pesquisar...')
             ) : (
               siteLocale === 'pt'
-                ? <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'profissionais disponíveis' : 'profissional disponível'}</>
-                : <>{filteredArtisans.length} {filteredArtisans.length !== 1 ? 'artisans disponibles' : 'artisan disponible'}</>
+                ? <>{listaExibida.length} {listaExibida.length !== 1 ? 'profissionais disponíveis' : 'profissional disponível'}</>
+                : <>{listaExibida.length} {listaExibida.length !== 1 ? 'artisans disponibles' : 'artisan disponible'}</>
             )}
           </TituloResultados>
           {!loading && (
@@ -1177,7 +1187,7 @@ function RechercheContent() {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-yellow border-t-transparent"></div>
             <p className="mt-4 text-gray-500">{tp('Recherche en cours...', 'A pesquisar...')}</p>
           </div>
-        ) : filteredArtisans.length === 0 ? (
+        ) : listaExibida.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border-[1.5px] border-[#EFEFEF]">
             <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="font-display text-2xl font-black tracking-[-0.03em] mb-2 text-dark">
@@ -1207,7 +1217,7 @@ function RechercheContent() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredArtisans.map((artisan) => (
+            {listaExibida.map((artisan) => (
               <ArtisanCard
                 key={artisan.id}
                 artisan={artisan}
