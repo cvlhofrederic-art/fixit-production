@@ -2,7 +2,7 @@
 //
 // Règles : la marque apparaît une seule fois (ajoutée par le template `%s | VITFIX` de
 // app/pt/layout.tsx), le titre fait 35 à 65 caractères marque comprise, la description
-// 120 à 155 caractères avec un fait réel de la page (freguesias, population, distrito).
+// 120 à 155 caractères avec un fait réel de la page (population, distrito ; freguesias si la place reste).
 // Aucune donnée inventée : seules les données de lib/data/seo-pages-data.ts sont utilisées.
 
 import type { CityData, ServiceData } from '@/lib/data/seo-pages-data'
@@ -30,10 +30,12 @@ export function cortar(texto: string, max: number): string {
  * Titre sans marque (le template l'ajoute) : `base: qualificativo` si le tout tient en 65
  * caractères marque comprise, sinon `base` seul.
  */
-export function titulo(base: string, qualificativo?: string): string {
+export function titulo(base: string, qualificativo?: string | string[]): string {
   const limpo = semMarca(base)
-  if (qualificativo) {
-    const completo = `${limpo}: ${qualificativo}`
+  // Plusieurs qualificatifs : du plus complet au plus court, le premier qui tient est retenu.
+  const candidatos = (Array.isArray(qualificativo) ? qualificativo : [qualificativo]).filter((q): q is string => Boolean(q))
+  for (const q of candidatos) {
+    const completo = `${limpo}: ${q}`
     if (completo.length + SUFIXO_MARCA.length <= TITULO_MAX) return completo
   }
   return limpo.length + SUFIXO_MARCA.length <= TITULO_MAX ? limpo : cortar(limpo, TITULO_MAX - SUFIXO_MARCA.length)
@@ -85,7 +87,7 @@ export function nomeDistrito(distrito: string): string {
  * qualificatif saute, puis le nom du métier perd ses derniers mots (« Estores e Portões Automáticos »
  * → « Estores e Portões »). Sans cette règle, 32 titres finissaient en « em Marco de | VITFIX ».
  */
-export function tituloComCidade(nome: string, complemento: string, cidade: string, qualificativo?: string): string {
+export function tituloComCidade(nome: string, complemento: string, cidade: string, qualificativo?: string | string[]): string {
   const fim = ` ${complemento} ${cidade}`
   const completo = titulo(`${nome}${fim}`, qualificativo)
   if (completo.includes(fim)) return completo
@@ -119,33 +121,82 @@ export const QUALIFICATIVO_SERVICO: Record<string, string> = {
   'estores-portoes': 'estores e portões',
 }
 
-// Phrase de contact : complète (téléphone PT) si elle tient, sinon abrégée. Sans variante
-// courte, 52 descriptions perdaient tout appel à l'action et tombaient sous 90 caractères.
-// Troisième variante pour les métiers et villes aux noms longs (« Estores e Portões Automáticos
-// perto de si em Marco de Canaveses… » fait déjà 118 caractères).
+// Lot 1 SEO PT (14/10/2026) : urgências dans les balises des métiers où le service d'urgence existe.
+// Service SOS 24 h / 7 j confirmé par écrit par le propriétaire le 13/10/2026. Critère (vérifié par
+// tests/seo/pt-phase-1-hygiene.test.ts) : le texte d'urgence du dépôt (urgencyText,
+// lib/data/seo-pages-data.ts) annonce une intervention urgente, immédiate, 24h ou le jour même
+// (URGENCIA_NO_TEXTO) ; ar-condicionado s'y ajoute parce que son bloc « quando chamar » décrit des pannes
+// par calor extremo ou frio. Les sept autres (pintor, pladur, obras-remodelacao, isolamento-termico,
+// azulejador, limpeza-espacos, limpeza-condominio) décrivent un service planifié, sous contrat ou « rapide »
+// sans urgence : rien ne change pour eux, pour ne pas contredire leur propre bloc #urgencia. Liste proposée
+// au propriétaire ; un métier à ajouter ou à retirer : une ligne ici.
+export const URGENCIA_NO_TEXTO = /urg[êe]n|imediat|próprio dia|disponível 24 ?h/i
+
+export const METIERS_URGENCIA = new Set<string>([
+  'eletricista', 'canalizador', 'desentupimento', 'serralheiro', 'telhador', 'vidraceiro', 'impermeabilizacao',
+  'pedreiro', 'ar-condicionado', 'carpinteiro', 'faz-tudo', 'jardineiro', 'poda-arvores', 'estores-portoes',
+])
+
+/** Phrase courte des descriptions (« 24/7 » est la forme courante au Portugal ; « 24h/7 » ne l'est pas). */
+export const URGENCIAS_TEXTO = 'Urgências 24/7.'
+
+/** Phrase visible sous le titre (pages métier x ville) et dans l'intro des hubs : le même service, en toutes lettres. */
+export const URGENCIAS_FRASE = 'Urgências 24 horas por dia, 7 dias por semana.'
+
+/**
+ * Phrase à ajouter après l'intro visible d'un métier de METIERS_URGENCIA, pour que la page dise en clair ce que
+ * le titre (« 24h ») et la description (« Urgências 24/7 ») annoncent. Seulement « Disponíveis 7 dias por semana »
+ * si l'intro dit déjà « 24 horas » (rien si elle dit aussi « 7 dias ») ;
+ * sans « 7 dias por semana » si l'intro le dit déjà ; « Disponíveis » plutôt qu'« Urgências » si l'intro emploie
+ * déjà le mot. Au final, chaque page d'un métier d'urgence affiche « 24 horas » et « 7 dias » (test
+ * pt-phase-1-hygiene).
+ */
+export function fraseUrgenciasEncabecado(intro: string, metier: string): string {
+  if (!METIERS_URGENCIA.has(metier)) return ''
+  const semana = /7 dias|7\/7/i.test(intro)
+  if (/24 ?h|24 horas/i.test(intro)) return semana ? '' : ' Disponíveis 7 dias por semana.'
+  const sujeito = /urg[êe]nci/i.test(intro) ? 'Disponíveis' : 'Urgências'
+  return ` ${sujeito} 24 horas por dia${semana ? '' : ', 7 dias por semana'}.`
+}
+
+const urgencias = (metier: string) => (METIERS_URGENCIA.has(metier) ? URGENCIAS_TEXTO : '')
+
+// Phrase de contact, de la plus longue à la plus courte : la première qui tient est retenue. Sans variante
+// courte, 52 descriptions perdaient tout appel à l'action. Les métiers d'urgence ont une variante de plus,
+// à numéro seul, parce que « Urgências 24/7. » prend la place du site : le numéro reste dans 472
+// descriptions sur 505 (467 avant ; sans numéro : les 22 pages ville, qui n'en ont jamais eu, le hub estores-portoes
+// et, déjà sans numéro avant le lot, 5 hubs et 5 pages métier x ville de métiers hors urgence aux noms longs). Les autres métiers gardent exactement leurs variantes d'avant : leurs descriptions ne changent pas.
 const CONTACTO = [
   `Orçamento grátis pelo site, WhatsApp ou telefone ${TELEFONE_PT_TEXTE}.`,
   'Orçamento grátis pelo site ou WhatsApp.',
   'Orçamento grátis.',
 ]
+const CONTACTO_URGENCIA = [CONTACTO[0], `Orçamento grátis: WhatsApp ou ${TELEFONE_PT_TEXTE}.`, CONTACTO[1], CONTACTO[2]]
+const contacto = (metier: string) => (METIERS_URGENCIA.has(metier) ? CONTACTO_URGENCIA : CONTACTO)
 
 function freguesiasTexto(city: CityData): string {
   const lista = city.freguesias.slice(0, 3).join(', ')
   return lista ? `Freguesias: ${lista}.` : ''
 }
 
-// Faits réels des descriptions : population et distrito (lib/data/seo-pages-data.ts) et trois noms de
-// freguesias. Jamais « N freguesias » : `city.freguesias` est une liste de localités, pas le décompte
-// officiel des freguesias du concelho.
+// Faits réels des descriptions : population et distrito (lib/data/seo-pages-data.ts) ; trois noms de
+// freguesias seulement si la place reste après la phrase de contact (aujourd'hui jamais : la variante la
+// plus courte occupe le reste). Jamais « N freguesias » : `city.freguesias` est une liste de localités,
+// pas le décompte officiel des freguesias du concelho.
 
 export function tituloServico(service: ServiceData, city: CityData): string {
-  return tituloComCidade(service.name, 'em', city.name, QUALIFICATIVO_SERVICO[service.slug])
+  // Lot 1 : « Canalizador em Penafiel: fugas e entupimentos, 24h » pour les métiers d'urgence (requêtes
+  // « canalizador 24h », « urgente ») ; si la place manque, « urgências 24h » seul, puis le qualificatif seul.
+  const q = QUALIFICATIVO_SERVICO[service.slug]
+  const qualificativos = METIERS_URGENCIA.has(service.slug) ? [q ? `${q}, 24h` : 'urgências 24h', 'urgências 24h', q ?? ''] : q
+  return tituloComCidade(service.name, 'em', city.name, qualificativos)
 }
 
 export function descricaoServico(service: ServiceData, city: CityData): string {
   return descricao([
     `${service.name} em ${city.name} (distrito ${nomeDistrito(city.distrito)}): ${numero(city.population)} habitantes.`,
-    CONTACTO,
+    urgencias(service.slug),
+    contacto(service.slug),
     freguesiasTexto(city),
   ])
 }
@@ -153,16 +204,18 @@ export function descricaoServico(service: ServiceData, city: CityData): string {
 // Phase 2 SEO PT : plus de pages urgencia ni perto-de-mim métier x ville (308 vers servicos) ; les
 // hubs métier /pt/perto-de-mim/{metier}/ sont les seules pages « perto de mim » restantes.
 
-export function tituloPertoDeMim(nome: string): string {
+export function tituloPertoDeMim(nome: string, metier = ''): string {
   // Les 22 concelhos relèvent des distritos do Porto, de Braga et de Aveiro (Aveiro et Águeda sont dans
   // la Região Centro) : pas de « Norte ».
-  return titulo(`${nome} perto de mim`, 'Porto, Braga e Aveiro')
+  const zona = 'Porto, Braga e Aveiro'
+  return titulo(`${nome} perto de mim`, METIERS_URGENCIA.has(metier) ? [`${zona}, 24h`, 'urgências 24h', zona] : zona)
 }
 
-export function descricaoPertoDeMim(nome: string): string {
+export function descricaoPertoDeMim(nome: string, metier = ''): string {
   return descricao([
     `${nome} perto de si em 22 concelhos dos distritos do Porto, Braga e Aveiro.`,
-    CONTACTO,
+    urgencias(metier),
+    contacto(metier),
   ])
 }
 
