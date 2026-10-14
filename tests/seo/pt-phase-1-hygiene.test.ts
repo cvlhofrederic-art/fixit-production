@@ -202,11 +202,11 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
   // Lot 1 SEO PT : un chemin de la grille ou de hub relève-t-il d'un métier d'urgence ?
   const metierUrgencia = (chemin: string) => [...METIERS_URGENCIA].some((m) => chemin === `perto-de-mim/${m}` || chemin.startsWith(`servicos/${m}-`))
 
-  it('lot 1 : « Urgências 24/7. » dans la description des métiers d’urgence seulement (pages métier x ville et hubs), jamais sur les pages ville ; le numéro reste dans 472 descriptions sur 505', () => {
+  it('lot 1 : « Urgências 24/7. » dans la description des métiers d’urgence seulement (pages métier x ville et hubs), jamais sur les pages ville ; le numéro reste dans 479 descriptions sur 505', () => {
     expect(descriptions.filter(([chemin, d]) => metierUrgencia(chemin) !== d.includes(URGENCIAS_TEXTO))).toEqual([])
     expect(descriptions.filter(([chemin, d]) => chemin.startsWith('cidade/') && /urg/i.test(d))).toEqual([])
     // Compte exact (467 avant le lot 1) : à mettre à jour si la grille ou une phrase de contact change.
-    expect(descriptions.filter(([, d]) => d.includes('+351 912 014 971')).length).toBe(472)
+    expect(descriptions.filter(([, d]) => d.includes('+351 912 014 971')).length).toBe(479)
   })
 
   it('lot 1 : « 24h » en qualificatif de titre des métiers d’urgence (« Canalizador em Penafiel: fugas e entupimentos, 24h »), jamais dans les autres', () => {
@@ -216,32 +216,40 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
     ]
     expect(titulosGrelha.filter(([chemin, t]) => !metierUrgencia(chemin) && /24h|urgência/i.test(t))).toEqual([])
     const urgencia = titulosGrelha.filter(([chemin]) => metierUrgencia(chemin))
-    expect(urgencia.length).toBe(14 * 22 + 14)
-    // 304 des 322 titres portent « 24h » ; les 18 autres sont des noms de métier et de ville trop longs pour
+    expect(urgencia.length).toBe(21 * 22 + 21)
+    // 441 des 483 titres portent « 24h » ; les 42 autres sont des noms de métier et de ville trop longs pour
     // « , 24h » comme pour « urgências 24h » (compte exact, à mettre à jour si la grille ou un qualificatif change).
-    expect(urgencia.filter(([, t]) => t.includes('24h')).length).toBe(304)
+    expect(urgencia.filter(([, t]) => t.includes('24h')).length).toBe(441)
     expect(tituloServico(SERVICES.find((s) => s.slug === 'canalizador')!, CITIES.find((c) => c.slug === 'penafiel')!)).toBe('Canalizador em Penafiel: fugas e entupimentos, 24h')
     expect(tituloPertoDeMim('Canalizador', 'canalizador')).toBe('Canalizador perto de mim: Porto, Braga e Aveiro, 24h')
-    expect(tituloPertoDeMim('Pintor', 'pintor')).toBe('Pintor perto de mim: Porto, Braga e Aveiro')
+    expect(tituloPertoDeMim('Pintor', 'pintor')).toBe('Pintor perto de mim: Porto, Braga e Aveiro, 24h')
+    expect(tituloPertoDeMim('Pintor', 'metier-inexistente')).toBe('Pintor perto de mim: Porto, Braga e Aveiro')
+    // Branche hors liste (un métier retiré de METIERS_URGENCIA retrouverait son rendu d'avant) : ni 24h ni urgências.
+    const maia = CITIES.find((c) => c.slug === 'maia')!
+    const fora = { ...SERVICES.find((s) => s.slug === 'pintor')!, slug: 'metier-inexistente' }
+    expect(tituloServico(fora, maia)).toBe('Pintor em Maia')
+    expect(descricaoServico(fora, maia)).not.toContain('Urgências')
+    expect(descricaoServico(fora, maia)).toContain('Orçamento grátis pelo site, WhatsApp ou telefone')
   })
 
   it('lot 1 : phrase d’urgence sous le titre seulement pour un métier d’urgence et quand l’intro ne le dit pas déjà', () => {
     expect(fraseUrgenciasEncabecado('Canalizadores em Penafiel com experiência em moradias.', 'canalizador')).toBe(` ${URGENCIAS_FRASE}`)
-    expect(fraseUrgenciasEncabecado('Serralheiros em Braga, 24 horas por dia.', 'serralheiro')).toBe(' Disponíveis 7 dias por semana.')
+    expect(fraseUrgenciasEncabecado('Serralheiros em Braga, 24 horas por dia.', 'serralheiro')).toBe(' Atendimento 7 dias por semana.')
     expect(fraseUrgenciasEncabecado('Serralheiros em Braga, 24 horas por dia, 7 dias por semana.', 'serralheiro')).toBe('')
-    expect(fraseUrgenciasEncabecado('Canalizadores disponíveis para urgências em moradias.', 'canalizador')).toBe(' Disponíveis 24 horas por dia, 7 dias por semana.')
-    expect(fraseUrgenciasEncabecado('Jardineiros disponíveis 7 dias por semana.', 'jardineiro')).toBe(' Urgências 24 horas por dia.')
-    expect(fraseUrgenciasEncabecado('Para urgências, disponíveis 7 dias por semana.', 'jardineiro')).toBe(' Disponíveis 24 horas por dia.')
-    expect(fraseUrgenciasEncabecado('Pintores na Maia especializados em pintura.', 'pintor')).toBe('')
-    expect(fraseUrgenciasEncabecado('Limpeza de partes comuns.', 'limpeza-condominio')).toBe('')
+    expect(fraseUrgenciasEncabecado('Canalizadores disponíveis para urgências em moradias.', 'canalizador')).toBe(' Atendimento 24 horas por dia, 7 dias por semana.')
+    expect(fraseUrgenciasEncabecado('Jardineiros disponíveis 7 dias por semana.', 'jardineiro')).toBe(' Urgências: atendimento 24 horas por dia.')
+    expect(fraseUrgenciasEncabecado('Para urgências, disponíveis 7 dias por semana.', 'jardineiro')).toBe(' Atendimento 24 horas por dia.')
+    // Depuis la décision du 14/10, toutes les spécialités sont des métiers d'urgence ; un slug inconnu n'a rien.
+    expect(fraseUrgenciasEncabecado('Pintores na Maia especializados em pintura.', 'pintor')).toBe(` ${URGENCIAS_FRASE}`)
+    expect(fraseUrgenciasEncabecado('Limpeza de partes comuns.', 'limpeza-condominio')).toBe(` ${URGENCIAS_FRASE}`)
+    expect(fraseUrgenciasEncabecado('Texto qualquer.', 'metier-inexistente')).toBe('')
     for (const m of METIERS_URGENCIA) expect(SERVICES.some((s) => s.slug === m), m).toBe(true)
-    expect(METIERS_URGENCIA.size).toBe(14)
-    // Critère reproductible : le texte d'urgence annonce l'urgence (sauf ar-condicionado, justifié dans pt-meta.ts) ;
-    // aucun métier exclu ne l'annonce (obras-remodelacao parle d'un orçamento en 24 heures, pas d'une intervention).
+    expect(METIERS_URGENCIA.size).toBe(SERVICES.length)
+    // Garde-fou de cohérence : chaque métier listé a un texte d'urgence qui annonce l'urgence (sinon la page
+    // contredirait son titre « 24h » et sa description « Urgências 24/7 »).
     for (const s of SERVICES) {
-      const anuncia = URGENCIA_NO_TEXTO.test(s.urgencyText)
-      if (s.slug === 'ar-condicionado') expect(anuncia).toBe(false)
-      else expect(anuncia, `${s.slug} : « ${s.urgencyText} »`).toBe(METIERS_URGENCIA.has(s.slug))
+      expect(METIERS_URGENCIA.has(s.slug), s.slug).toBe(true)
+      expect(URGENCIA_NO_TEXTO.test(s.urgencyText), `${s.slug} : « ${s.urgencyText} »`).toBe(true)
     }
   })
 
@@ -271,7 +279,7 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
     expect(DATA_FASE_3_LOT_1 >= DATA_FASE_3).toBe(true)
     // Les deux constantes peuvent être égales (fusion le même jour) : la règle se vérifie à part.
     expect(dataLote1('canalizador', '2026-01-01')).toBe(DATA_FASE_3_LOT_1)
-    expect(dataLote1('pintor', '2026-01-01')).toBe('2026-01-01')
+    expect(dataLote1('metier-inexistente', '2026-01-01')).toBe('2026-01-01')
   })
 
   it('chaque description garde un appel à l’action (WhatsApp / orçamento) ; le téléphone, quand il tient, est le numéro portugais', () => {

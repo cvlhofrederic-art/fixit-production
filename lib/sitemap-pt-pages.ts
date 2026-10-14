@@ -77,8 +77,8 @@ export function dataLote1(metier: string, dataGrupo: string): string {
 export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[]> {
   const url = (path: string, lastModified: string): SitemapUrl => ({ url: `${baseUrl}${path}`, lastModified })
 
-  // Lot 1 (phase 3) : seules les pages des métiers d'urgence changent (titre, description, en-tête) et portent
-  // la date du lot 1 ; les autres n'ont pas changé d'un octet depuis le lot 0.
+  // Lot 1 (phase 3) : les pages des métiers d'urgence (toutes depuis la décision du 14/10) changent de titre,
+  // de description et d'en-tête et portent la date du lot 1 ; un métier retiré de la liste garderait la date du lot 0.
   const servicos = getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, dataLote1(combo.service.slug, DATAS_PT.servicos)))
 
   const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, dataLote1(service.slug, DATAS_PT.hubs)))

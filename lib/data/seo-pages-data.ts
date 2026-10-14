@@ -1199,7 +1199,7 @@ export const SERVICES: ServiceData[] = [
       'Impermeabilização de paredes',
       'Preparação e lixagem de superfícies',
     ],
-    urgencyText: 'Manchas de humidade? Trate o problema antes que piore. Fazemos diagnóstico e reparação completa.',
+    urgencyText: 'Pintura a descascar após uma fuga de água, bolor extenso ou fachada danificada? Pintor disponível para intervenções urgentes em {city}.',
     problemsWeSolve: [
       'Paredes com manchas de humidade',
       'Pintura descascada ou a estalar',
@@ -1257,7 +1257,7 @@ export const SERVICES: ServiceData[] = [
       'Instalação de sancas para iluminação',
       'Acabamento e pintura de pladur',
     ],
-    urgencyText: 'Precisa de criar divisões no seu espaço? O pladur é a solução mais rápida e económica.',
+    urgencyText: 'Teto falso a ceder, infiltração através do pladur ou placa partida? Reparação urgente em {city}.',
     problemsWeSolve: [
       'Necessidade de dividir um espaço grande',
       'Teto danificado ou com infiltrações',
@@ -1315,7 +1315,7 @@ export const SERVICES: ServiceData[] = [
       'Impermeabilização de terraços e varandas',
       'Gestão integral de obras, chave na mão',
     ],
-    urgencyText: 'Precisa de fazer obras rapidamente? Avaliamos o seu projeto e apresentamos orçamento em 24 horas.',
+    urgencyText: 'Danos de água extensos, fissuras ou obras de emergência após uma tempestade? Avaliação urgente em {city} e orçamento em 24 horas.',
     problemsWeSolve: [
       'Casa antiga que precisa de renovação total',
       'Cozinha ou casa de banho desatualizada',
@@ -1373,7 +1373,7 @@ export const SERVICES: ServiceData[] = [
       'Correção de pontes térmicas',
       'Certificação energética, melhoria de classe',
     ],
-    urgencyText: 'Casa fria no inverno e quente no verão? O isolamento térmico é a solução definitiva para conforto e poupança energética.',
+    urgencyText: 'Condensação com água a escorrer pelas paredes, bolor extenso ou capoto descolado após uma tempestade? Avaliação urgente em {city}.',
     problemsWeSolve: [
       'Casa muito fria no inverno apesar do aquecimento',
       'Fatura de energia excessivamente alta',
@@ -1779,7 +1779,7 @@ export const SERVICES: ServiceData[] = [
       'Rejuntamento e impermeabilização de juntas',
       'Remoção de revestimentos antigos',
     ],
-    urgencyText: 'Azulejos partidos ou descolados? Reparamos rapidamente para evitar infiltrações e danos maiores.',
+    urgencyText: 'Azulejos a cair, ladrilhos soltos ou base de duche com fuga? Reparação urgente em {city} para evitar infiltrações e quedas.',
     problemsWeSolve: [
       'Azulejos partidos ou fissurados',
       'Azulejos descolados (a cair)',
@@ -1895,7 +1895,7 @@ export const SERVICES: ServiceData[] = [
       'Instalação de climatização em escritórios',
       'Substituição de equipamentos antigos',
     ],
-    urgencyText: 'Ar condicionado avariado no verão? Aquecimento que não funciona no inverno? Técnico disponível rapidamente em {city}.',
+    urgencyText: 'Ar condicionado avariado em dia de calor extremo? Aquecimento parado no frio? Técnico disponível para urgências em {city}.',
     problemsWeSolve: [
       'Ar condicionado que não arrefece ou não aquece',
       'Unidade interior a verter água',
@@ -2072,7 +2072,7 @@ export const SERVICES: ServiceData[] = [
       'Limpeza de terrenos',
       'Despejo por herança ou mudança',
     ],
-    urgencyText: 'Limpeza e remoção disponível com resposta rápida',
+    urgencyText: 'Despejo urgente, entulho a bloquear a passagem ou lixo com risco sanitário? Intervenção urgente em {city} para limpeza e remoção.',
     problemsWeSolve: [
       'Casa cheia de objetos a despejar',
       'Entulho de obra a remover',
@@ -2192,7 +2192,7 @@ export const SERVICES: ServiceData[] = [
       'Limpeza de elevadores',
       'Contratos de manutenção mensal',
     ],
-    urgencyText: 'Limpeza de condomínio disponível com contrato mensal',
+    urgencyText: 'Inundação nas partes comuns, desinfeção urgente ou empresa que abandonou o contrato? Intervenção urgente em {city} e limpeza regular com contrato mensal.',
     problemsWeSolve: [
       'Escadas sujas ou mal mantidas',
       'Garagem com lixo acumulado',
