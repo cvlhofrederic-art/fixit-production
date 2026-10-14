@@ -16,7 +16,8 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_FASE_2, DATA_FASE_3 } from './seo/pt-datas'
+import { DATAS_PT, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1 } from './seo/pt-datas'
+import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
 
 export type GroupeSitemapPt = 'servicos' | 'hubs' | 'cidades' | 'blog' | 'paginas'
@@ -67,13 +68,20 @@ const PAGINAS_FASE_3 = new Set<string>([
   '/pt/precos/canalizador/', '/pt/precos/eletricista/', '/pt/precos/pintor/',
 ])
 
+/** Lot 1 (phase 3) : date du lot 1 pour une page d'un métier d'urgence, sinon la date du groupe. */
+export function dataLote1(metier: string, dataGrupo: string): string {
+  return METIERS_URGENCIA.has(metier) ? DATA_FASE_3_LOT_1 : dataGrupo
+}
+
 /** Sitemaps PT par groupe. */
 export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[]> {
   const url = (path: string, lastModified: string): SitemapUrl => ({ url: `${baseUrl}${path}`, lastModified })
 
-  const servicos = getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, DATAS_PT.servicos))
+  // Lot 1 (phase 3) : les pages des métiers d'urgence (toutes depuis la décision du 14/10) changent de titre,
+  // de description et d'en-tête et portent la date du lot 1 ; un métier retiré de la liste garderait la date du lot 0.
+  const servicos = getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, dataLote1(combo.service.slug, DATAS_PT.servicos)))
 
-  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, DATAS_PT.hubs))
+  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, dataLote1(service.slug, DATAS_PT.hubs)))
 
   const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, DATAS_PT.cidades))]
 

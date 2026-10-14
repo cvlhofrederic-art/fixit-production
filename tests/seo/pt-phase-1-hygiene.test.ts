@@ -16,7 +16,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Metadata } from 'next'
 import { NextRequest } from 'next/server'
 import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/seo-pages-data'
-import { tituloComCidade } from '@/lib/seo/pt-meta'
+import { tituloComCidade, METIERS_URGENCIA, URGENCIA_NO_TEXTO, fraseUrgenciasEncabecado, URGENCIAS_FRASE, URGENCIAS_TEXTO } from '@/lib/seo/pt-meta'
 import {
   SUFIXO_MARCA, TITULO_MAX, DESCRICAO_MAX, tituloBlog, nomeDistrito,
   tituloServico, descricaoServico,
@@ -24,8 +24,8 @@ import {
 } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
-import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
-import { DATA_FASE_1, DATA_FASE_2, DATA_FASE_3 } from '@/lib/seo/pt-datas'
+import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
+import { DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATAS_PT } from '@/lib/seo/pt-datas'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
 // Pages à generateMetadata par locale (cookie) : branche PT.
@@ -138,12 +138,12 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
 describe('1.4 titres et descriptions de la grille (505 pages)', () => {
   const titres: Array<[string, string]> = [
     ...getAllPageCombos().map((c): [string, string] => [`servicos/${c.slug}`, tituloServico(c.service, c.city)]),
-    ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, tituloPertoDeMim(s.name)]),
+    ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, tituloPertoDeMim(s.name, s.slug)]),
     ...CITIES.map((c): [string, string] => [`cidade/${c.slug}`, tituloCidade(c)]),
   ]
   const descriptions: Array<[string, string]> = [
     ...getAllPageCombos().map((c): [string, string] => [`servicos/${c.slug}`, descricaoServico(c.service, c.city)]),
-    ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, descricaoPertoDeMim(s.name)]),
+    ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, descricaoPertoDeMim(s.name, s.slug)]),
     ...CITIES.map((c): [string, string] => [`cidade/${c.slug}`, descricaoCidade(c, SERVICES.length)]),
   ]
 
@@ -197,6 +197,89 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
     const doublons = [...descriptions.reduce((m, [, d]) => m.set(d, (m.get(d) ?? 0) + 1), new Map<string, number>())]
       .filter(([, n]) => n > 1)
     expect(doublons).toEqual([])
+  })
+
+  // Lot 1 SEO PT : un chemin de la grille ou de hub relève-t-il d'un métier d'urgence ?
+  const metierUrgencia = (chemin: string) => [...METIERS_URGENCIA].some((m) => chemin === `perto-de-mim/${m}` || chemin.startsWith(`servicos/${m}-`))
+
+  it('lot 1 : « Urgências 24/7. » dans la description des métiers d’urgence seulement (pages métier x ville et hubs), jamais sur les pages ville ; le numéro reste dans 479 descriptions sur 505', () => {
+    expect(descriptions.filter(([chemin, d]) => metierUrgencia(chemin) !== d.includes(URGENCIAS_TEXTO))).toEqual([])
+    expect(descriptions.filter(([chemin, d]) => chemin.startsWith('cidade/') && /urg/i.test(d))).toEqual([])
+    // Compte exact (467 avant le lot 1) : à mettre à jour si la grille ou une phrase de contact change.
+    expect(descriptions.filter(([, d]) => d.includes('+351 912 014 971')).length).toBe(479)
+  })
+
+  it('lot 1 : « 24h » en qualificatif de titre des métiers d’urgence (« Canalizador em Penafiel: fugas e entupimentos, 24h »), jamais dans les autres', () => {
+    const titulosGrelha: Array<[string, string]> = [
+      ...getAllPageCombos().map((c): [string, string] => [`servicos/${c.slug}`, tituloServico(c.service, c.city)]),
+      ...SERVICES.map((s): [string, string] => [`perto-de-mim/${s.slug}`, tituloPertoDeMim(s.name, s.slug)]),
+    ]
+    expect(titulosGrelha.filter(([chemin, t]) => !metierUrgencia(chemin) && /24h|urgência/i.test(t))).toEqual([])
+    const urgencia = titulosGrelha.filter(([chemin]) => metierUrgencia(chemin))
+    expect(urgencia.length).toBe(21 * 22 + 21)
+    // 441 des 483 titres portent « 24h » ; les 42 autres sont des noms de métier et de ville trop longs pour
+    // « , 24h » comme pour « urgências 24h » (compte exact, à mettre à jour si la grille ou un qualificatif change).
+    expect(urgencia.filter(([, t]) => t.includes('24h')).length).toBe(441)
+    expect(tituloServico(SERVICES.find((s) => s.slug === 'canalizador')!, CITIES.find((c) => c.slug === 'penafiel')!)).toBe('Canalizador em Penafiel: fugas e entupimentos, 24h')
+    expect(tituloPertoDeMim('Canalizador', 'canalizador')).toBe('Canalizador perto de mim: Porto, Braga e Aveiro, 24h')
+    expect(tituloPertoDeMim('Pintor', 'pintor')).toBe('Pintor perto de mim: Porto, Braga e Aveiro, 24h')
+    expect(tituloPertoDeMim('Pintor', 'metier-inexistente')).toBe('Pintor perto de mim: Porto, Braga e Aveiro')
+    // Branche hors liste (un métier retiré de METIERS_URGENCIA retrouverait son rendu d'avant) : ni 24h ni urgências.
+    const maia = CITIES.find((c) => c.slug === 'maia')!
+    const fora = { ...SERVICES.find((s) => s.slug === 'pintor')!, slug: 'metier-inexistente' }
+    expect(tituloServico(fora, maia)).toBe('Pintor em Maia')
+    expect(descricaoServico(fora, maia)).not.toContain('Urgências')
+    expect(descricaoServico(fora, maia)).toContain('Orçamento grátis pelo site, WhatsApp ou telefone')
+  })
+
+  it('lot 1 : phrase d’urgence sous le titre seulement pour un métier d’urgence et quand l’intro ne le dit pas déjà', () => {
+    expect(fraseUrgenciasEncabecado('Canalizadores em Penafiel com experiência em moradias.', 'canalizador')).toBe(` ${URGENCIAS_FRASE}`)
+    expect(fraseUrgenciasEncabecado('Serralheiros em Braga, 24 horas por dia.', 'serralheiro')).toBe(' Atendimento 7 dias por semana.')
+    expect(fraseUrgenciasEncabecado('Serralheiros em Braga, 24 horas por dia, 7 dias por semana.', 'serralheiro')).toBe('')
+    expect(fraseUrgenciasEncabecado('Canalizadores disponíveis para urgências em moradias.', 'canalizador')).toBe(' Atendimento 24 horas por dia, 7 dias por semana.')
+    expect(fraseUrgenciasEncabecado('Jardineiros disponíveis 7 dias por semana.', 'jardineiro')).toBe(' Urgências: atendimento 24 horas por dia.')
+    expect(fraseUrgenciasEncabecado('Para urgências, disponíveis 7 dias por semana.', 'jardineiro')).toBe(' Atendimento 24 horas por dia.')
+    // Depuis la décision du 14/10, toutes les spécialités sont des métiers d'urgence ; un slug inconnu n'a rien.
+    expect(fraseUrgenciasEncabecado('Pintores na Maia especializados em pintura.', 'pintor')).toBe(` ${URGENCIAS_FRASE}`)
+    expect(fraseUrgenciasEncabecado('Limpeza de partes comuns.', 'limpeza-condominio')).toBe(` ${URGENCIAS_FRASE}`)
+    expect(fraseUrgenciasEncabecado('Texto qualquer.', 'metier-inexistente')).toBe('')
+    for (const m of METIERS_URGENCIA) expect(SERVICES.some((s) => s.slug === m), m).toBe(true)
+    expect(METIERS_URGENCIA.size).toBe(SERVICES.length)
+    // Garde-fou de cohérence : chaque métier listé a un texte d'urgence qui annonce l'urgence (sinon la page
+    // contredirait son titre « 24h » et sa description « Urgências 24/7 »).
+    for (const s of SERVICES) {
+      expect(METIERS_URGENCIA.has(s.slug), s.slug).toBe(true)
+      expect(URGENCIA_NO_TEXTO.test(s.urgencyText), `${s.slug} : « ${s.urgencyText} »`).toBe(true)
+    }
+  })
+
+  it('lot 1 : chaque page métier x ville d’un métier d’urgence affiche « 24 horas » et « 7 dias » sous le titre, comme le titre et la description (24/7) l’annoncent', () => {
+    const fautives: string[] = []
+    for (const c of getAllPageCombos()) {
+      if (!METIERS_URGENCIA.has(c.service.slug)) continue
+      const intro = c.city.serviceCityOverrides?.[c.service.slug]?.intro ?? c.service.heroSubtitle.replace(/\{city\}/g, c.city.name)
+      const visivel = intro + fraseUrgenciasEncabecado(intro, c.service.slug)
+      if (!/24 ?h|24 horas/i.test(visivel) || !/7 dias|7\/7/i.test(visivel)) fautives.push(c.slug)
+    }
+    expect(fautives).toEqual([])
+  })
+
+  it('lot 1 : lastmod du lot 1 sur les seules URL des métiers d’urgence (servicos et hubs), date du lot 0 ailleurs', () => {
+    const { servicos, hubs, cidades } = sitemapsPt(BASE)
+    for (const c of getAllPageCombos()) {
+      const entree = servicos.find((u) => u.url === `${BASE}/pt/servicos/${c.slug}/`)
+      expect(entree?.lastModified, c.slug).toBe(METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3)
+    }
+    for (const s of SERVICES) {
+      const entree = hubs.find((u) => u.url === `${BASE}/pt/perto-de-mim/${s.slug}/`)
+      expect(entree?.lastModified, s.slug).toBe(METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3)
+    }
+    expect(cidades.every((u) => u.lastModified === DATA_FASE_3)).toBe(true)
+    expect(DATAS_PT.servicos).toBe(DATA_FASE_3)
+    expect(DATA_FASE_3_LOT_1 >= DATA_FASE_3).toBe(true)
+    // Les deux constantes peuvent être égales (fusion le même jour) : la règle se vérifie à part.
+    expect(dataLote1('canalizador', '2026-01-01')).toBe(DATA_FASE_3_LOT_1)
+    expect(dataLote1('metier-inexistente', '2026-01-01')).toBe('2026-01-01')
   })
 
   it('chaque description garde un appel à l’action (WhatsApp / orçamento) ; le téléphone, quand il tient, est le numéro portugais', () => {

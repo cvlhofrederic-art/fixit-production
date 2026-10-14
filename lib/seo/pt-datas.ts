@@ -26,6 +26,14 @@ export const DATA_FASE_2 = '2026-10-13'
  */
 export const DATA_FASE_3 = '2026-10-14'
 
+/**
+ * Phase 3, lot 1 : « urgências » dans les titres, descriptions, JSON-LD et l'en-tête des pages métier x ville
+ * et des hubs des métiers de METIERS_URGENCIA (lib/seo/pt-meta.ts : les 21 depuis la décision du 14/10) ;
+ * appliquée URL par URL dans lib/sitemap-pt-pages.ts, une page d'un métier retiré de la liste gardant
+ * DATA_FASE_3. À aligner sur le jour de sa mise en production si elle diffère de celle du lot 0.
+ */
+export const DATA_FASE_3_LOT_1 = '2026-10-14'
+
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date
 // par défaut des pages statiques, surchargée par page dans lib/sitemap-pt-pages.ts.
