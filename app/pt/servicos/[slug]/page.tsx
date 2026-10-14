@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
 import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloServico, descricaoServico } from '@/lib/seo/pt-meta'
+import { tituloServico, descricaoServico, fraseUrgenciasEncabecado } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, chantiersPara, mesPorExtenso, metodoPara, prazoPara, precoPara } from '@/lib/seo/pt-provas-locais'
 
@@ -61,6 +61,9 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const heroTitle = replaceCity(service.heroTitle)
   const overrideIntro = city.serviceCityOverrides?.[service.slug]?.intro
   const heroSubtitle = overrideIntro ?? replaceCity(service.heroSubtitle)
+  // Lot 1 SEO PT (14/10/2026) : urgências sous le titre pour les métiers d'urgence (METIERS_URGENCIA), sauf si
+  // l'intro le dit déjà.
+  const fraseUrgencias = fraseUrgenciasEncabecado(heroSubtitle, service.slug)
   const chantiers = chantiersPara(service.slug, city.slug)
   const prazo = prazoPara(city.slug, service.slug)
   const preco = precoPara(service.slug)
@@ -116,7 +119,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
             {heroTitle}
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
-            {heroSubtitle}
+            {heroSubtitle}{fraseUrgencias}
           </p>
 
           {/* CTAs */}
@@ -253,7 +256,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
 
       {/* ── URGÊNCIA EM {VILLE} (phase 2 SEO PT, point 2.2) : bloc ancré #urgencia qui reprend ce qui était propre
           au modèle urgencia (quand appeler, premiers gestes) ; les anciennes pages /pt/urgencia/ y redirigent.
-          Aucun délai ni horaire affiché tant que le propriétaire n'a pas fourni de données réelles. ── */}
+          Disponibilités et temps de réponse affichés sur confirmation écrite du propriétaire (13/10/2026). ── */}
       <section id="urgencia" className="py-12 md:py-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="relative overflow-hidden rounded-2xl p-8 md:p-12" style={{ background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)' }}>

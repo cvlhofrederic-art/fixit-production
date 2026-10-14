@@ -5,7 +5,7 @@ import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import { ogImageMeta } from '@/lib/og'
-import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito } from '@/lib/seo/pt-meta'
+import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito, METIERS_URGENCIA, URGENCIAS_FRASE } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoRegional } from '@/lib/seo/pt-schemas'
 import { metodoPara } from '@/lib/seo/pt-provas-locais'
 
@@ -30,8 +30,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   // Phase 1 SEO PT : marque une fois (template du layout), description propre, pas d'alternate
   // hreflang (aucune page FR équivalente).
-  const title = tituloPertoDeMim(service.name)
-  const description = descricaoPertoDeMim(service.name)
+  const title = tituloPertoDeMim(service.name, service.slug)
+  const description = descricaoPertoDeMim(service.name, service.slug)
 
   return {
     title,
@@ -83,14 +83,14 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
   const waUrgHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(waUrgText)}`
 
   // JSON-LD : un `Service` fourni par l'entité unique (#business) dans les 22 concelhos, plus le fil
-  // d'Ariane. Aucun délai ni horaire : aucune donnée réelle disponible (règle 0.2 des instructions).
+  // d'Ariane. Lot 1 : « Urgências 24/7 » dans la description des métiers d'urgence (service confirmé le 13/10/2026).
   const urlPagina = `https://vitfix.io/pt/perto-de-mim/${slug}/`
   const jsonLd = grafo(
     noServicoRegional({
       url: urlPagina,
       nome: `${displayName} perto de mim`,
       serviceType: displayName,
-      descricao: descricaoPertoDeMim(displayName),
+      descricao: descricaoPertoDeMim(displayName, service.slug),
     }),
     noFilAriane([
       { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
@@ -129,6 +129,8 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">
             Encontre {pluralizar(displayName)} verificados perto de si em {CITIES.length} concelhos dos distritos do Porto, Braga e Aveiro. Orçamento grátis, sem compromisso.
             {service.slug === 'canalizador' ? ' No Norte de Portugal, o canalizador é também chamado de picheleiro.' : ''}
+            {/* Lot 1 SEO PT : même phrase que la description, visible (métiers d'urgence seulement). */}
+            {METIERS_URGENCIA.has(service.slug) ? ` ${URGENCIAS_FRASE}` : ''}
           </p>
 
           <div className="flex flex-wrap gap-3 mb-10">
