@@ -1012,6 +1012,13 @@ export const referralSignupSchema = z.object({
   user_id: z.string().uuid(),
 })
 
+// ── Inscription artisan sans session (app/api/pro/register/*-artisan) ──────
+// L'artisan filleul est retrouvé côté serveur à partir de user_id.
+export const parrainageArtisanSchema = referralSignupSchema.pick({ code: true, user_id: true })
+export const motifsArtisanSchema = z.object({
+  user_id: z.string().uuid(),
+})
+
 // ── Declaration Sociale schema ─────────────────────────────────────────────
 export const declarationSocialeSchema = z.object({
   action: z.enum(['configurer', 'marquer_declaree']),

@@ -404,28 +404,33 @@ function FormulaireArtisan() {
           }
 
           // ── Motifs par défaut : insérer selon le métier (silencieux, non-bloquant) ──
+          // Côté serveur, sans session : métiers lus dans le profil créé plus haut.
           try {
-            await fetch('/api/seed-motifs', {
+            await fetch('/api/pro/register/motifs-artisan', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ artisan_id: profileData.id, categories: selectedCategories }),
+              body: JSON.stringify({ user_id: authData.user.id }),
             })
-          } catch { /* non-bloquant */ }
+          } catch (e) {
+            console.warn('[register] motifs-artisan failed:', e)
+          }
 
           // ── Parrainage : lier le filleul au parrain (silencieux, non-bloquant) ──
+          // Côté serveur, sans session : le profil filleul est retrouvé à partir de user_id.
           if (referralCode && profileData?.id && authData.user?.id) {
             try {
-              const refRes = await fetch('/api/referral/signup', {
+              const refRes = await fetch('/api/pro/register/parrainage-artisan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: referralCode, artisan_id: profileData.id, user_id: authData.user.id }),
+                body: JSON.stringify({ code: referralCode, user_id: authData.user.id }),
               })
               const refData = await refRes.json()
               if (refData.referral && refData.parrain_name) {
                 setReferralParrainName(refData.parrain_name)
               }
-            } catch {
+            } catch (e) {
               // Erreur parrainage non-bloquante, l'inscription est déjà réussie
+              console.warn('[register] parrainage-artisan failed:', e)
             }
             // Supprimer le cookie vitfix_ref
             document.cookie = 'vitfix_ref=; max-age=0; path=/; SameSite=Lax; Secure'

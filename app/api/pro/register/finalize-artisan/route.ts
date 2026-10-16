@@ -1,6 +1,6 @@
 import { NextResponse, after, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getUserRole } from '@/lib/auth-helpers'
+import { lireProfilArtisan, verifierInscriptionArtisan } from '@/lib/inscription-artisan'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { runKycPipeline } from '@/lib/kyc-orchestrate'
 import { logger } from '@/lib/logger'
@@ -15,7 +15,8 @@ import { logger } from '@/lib/logger'
 // pas de session : /api/upload et /api/kyc-orchestrate, qui exigent un Bearer,
 // échouaient en silence (Kbis, pièce d'identité et assurance perdus, KYC
 // jamais lancé). Même garde que create-profile : compte créé il y a moins de
-// 10 minutes, plus le rôle artisan lu dans app_metadata (non forgeable).
+// 10 minutes, plus le rôle artisan lu dans app_metadata (non forgeable) ;
+// voir lib/inscription-artisan.ts.
 //
 // multipart/form-data : user_id, kbis? (File), identity? (File),
 // identity_verso? (File), insurance? (File)
@@ -25,7 +26,6 @@ import { logger } from '@/lib/logger'
 // est ignorée, sans dépôt orphelin ni effet sur les autres pièces.
 // ════════════════════════════════════════════════════════════════════════════
 
-const FENETRE_INSCRIPTION_MS = 10 * 60 * 1000
 const TAILLE_MAX = 10 * 1024 * 1024
 const BUCKET = 'artisan-documents'
 const DUREE_URL_SIGNEE_S = 60 * 60 * 24 * 7 // comme /api/upload pour les documents
@@ -70,16 +70,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { data: auth, error: authError } = await supabaseAdmin.auth.admin.getUserById(userId)
-    if (authError || !auth?.user) {
-      return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
-    }
-    if (Date.now() - new Date(auth.user.created_at).getTime() > FENETRE_INSCRIPTION_MS) {
-      return NextResponse.json({ error: "Délai d'inscription dépassé" }, { status: 403 })
-    }
-    if (getUserRole(auth.user) !== 'artisan') {
-      return NextResponse.json({ error: 'Réservé aux artisans' }, { status: 403 })
-    }
+    const inscription = await verifierInscriptionArtisan(userId)
+    if (!inscription.ok) return inscription.reponse
 
     // Pièces envoyées : contrôlées avant tout dépôt
     const fichiers: Array<Piece & { contenu: ArrayBuffer; type: TypeDocument }> = []
@@ -100,19 +92,9 @@ export async function POST(request: NextRequest) {
       fichiers.push({ ...piece, contenu, type })
     }
 
-    // '*' : renvoie les colonnes existantes, sans échouer sur une colonne absente
-    const { data: profil, error: profilError } = await supabaseAdmin
-      .from('profiles_artisan')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle()
-    if (profilError) {
-      logger.error('[artisan-register-finalize] profile fetch error:', profilError)
-      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
-    }
-    if (!profil) {
-      return NextResponse.json({ error: 'Profil introuvable' }, { status: 404 })
-    }
+    const lecture = await lireProfilArtisan(userId, 'artisan-register-finalize')
+    if (!lecture.ok) return lecture.reponse
+    const { profil } = lecture
 
     const documents = { kbis: false, identity: false, identity_verso: false, insurance: false }
     const urls: Partial<Record<Piece['colonne'], string>> = {}
