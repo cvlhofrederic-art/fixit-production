@@ -239,11 +239,15 @@ export async function runKycPipeline(
   const start = Date.now()
 
   // Fetch artisan profile
+  // '*' plutôt que la liste des colonnes lues (id, user_id, siret, first_name,
+  // last_name, company_name, kbis_url, id_document_url, country, kyc_market) :
+  // le schéma de prod ne suit pas toujours les migrations (pas de `country` au
+  // 16/10/2026), et une colonne absente dans la liste fait échouer la requête
+  // — le KYC répondait alors « Artisan not found » pour tout le monde.
+  // Une colonne absente vaut ici undefined, traité comme null.
   const { data: artisan, error: fetchError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select(
-      'id, user_id, siret, first_name, last_name, company_name, kbis_url, id_document_url, country, kyc_market',
-    )
+    .select('*')
     .eq('id', artisan_id)
     .single()
 

@@ -7,6 +7,7 @@ const USER_ID = '550e8400-e29b-41d4-a716-446655440000'
 
 const mocks = vi.hoisted(() => ({
   artisan: null as Record<string, unknown> | null,
+  colonnes: '' as string,
   update: vi.fn(),
   updateEq: vi.fn(),
 }))
@@ -16,13 +17,16 @@ vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: 
 vi.mock('@/lib/supabase-server', () => ({
   supabaseAdmin: {
     from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => (mocks.artisan
-            ? { data: mocks.artisan, error: null }
-            : { data: null, error: { message: 'not found' } }),
-        }),
-      }),
+      select: (colonnes: string) => {
+        mocks.colonnes = colonnes
+        return {
+          eq: () => ({
+            single: async () => (mocks.artisan
+              ? { data: mocks.artisan, error: null }
+              : { data: null, error: { message: 'not found' } }),
+          }),
+        }
+      },
       update: mocks.update,
     }),
   },
@@ -55,6 +59,23 @@ describe('runKycPipeline', () => {
     const { runKycPipeline } = await import('@/lib/kyc-orchestrate')
     expect(await runKycPipeline('profil-1', 'autre-utilisateur')).toEqual({ ok: false, status: 403 })
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('ne nomme aucune colonne : un profil sans `country` (prod au 16/10/2026) passe quand même', async () => {
+    // mocks.artisan n'a ni country, ni first_name, ni last_name
+    const { runKycPipeline } = await import('@/lib/kyc-orchestrate')
+    const issue = await runKycPipeline('profil-1', USER_ID)
+
+    expect(mocks.colonnes).toBe('*')
+    expect(issue.ok).toBe(true)
+  })
+
+  it('sans kyc_market ni country, retombe sur le marché fr_artisan', async () => {
+    mocks.artisan = { ...mocks.artisan, kyc_market: null }
+    const { runKycPipeline } = await import('@/lib/kyc-orchestrate')
+    const issue = await runKycPipeline('profil-1', USER_ID)
+
+    expect(issue.ok && issue.result.market).toBe('fr_artisan')
   })
 
   it('rejette un SIRET au mauvais format et écrit le résultat dans le profil', async () => {
