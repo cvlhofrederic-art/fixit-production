@@ -172,10 +172,14 @@ async function sendReferralEmails(
   parrain: { id: string; company_name: string; email: string; referral_flagged: boolean }
 ) {
   try {
-    // Charger le filleul
+    // Charger le filleul. '*' plutôt que 'email, company_name, first_name' :
+    // first_name n'existe dans aucune migration et le schéma de prod ne les
+    // suit pas toujours. Une colonne absente dans la liste fait échouer la
+    // requête (data null) et aucun e-mail ne partait. Absente, elle vaut ici
+    // undefined et le nom retombe sur company_name.
     const { data: filleul } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('email, company_name, first_name')
+      .select('*')
       .eq('id', filleulArtisanId)
       .single()
 

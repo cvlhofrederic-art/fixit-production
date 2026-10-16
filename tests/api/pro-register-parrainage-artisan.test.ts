@@ -150,6 +150,20 @@ describe('POST /api/pro/register/parrainage-artisan — parrainage sans session'
     expect(majProfil()[0].donnees).toEqual({ referral_parrain_id: PARRAIN_ID })
   })
 
+  it("e-mails envoyés même si profiles_artisan n'a pas de colonne first_name (absente des migrations)", async () => {
+    h.base.colonnesAbsentes = { profiles_artisan: ['first_name'] }
+
+    const res = await appeler({ user_id: USER_ID, code: 'PARRAIN1' })
+
+    expect(await res.json()).toEqual({ success: true, referral: true, parrain_name: 'Martin Électricité' })
+    expect(h.emailFilleul).toHaveBeenCalledWith({
+      filleulEmail: 'filleul@exemple.fr', filleulName: 'Durand Plomberie', parrainName: 'Martin Électricité',
+    })
+    expect(h.emailParrain).toHaveBeenCalledWith({
+      parrainEmail: 'parrain@exemple.fr', parrainName: 'Martin Électricité', filleulName: 'Durand Plomberie', referralCode: 'PARRAIN1',
+    })
+  })
+
   it('le filleul est toujours le profil du compte qui s\'inscrit : un artisan_id envoyé est ignoré', async () => {
     await appeler({ user_id: USER_ID, code: 'PARRAIN1', artisan_id: PARRAIN_ID })
 

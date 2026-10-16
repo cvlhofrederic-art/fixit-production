@@ -24,6 +24,8 @@ export interface BaseMemoire {
   erreurs: Record<string, { message: string }>
   /** Données renvoyées par un INSERT … select().single() (par défaut { id: '<table>-nouveau' }). */
   inserts: Record<string, Record<string, unknown>>
+  /** Colonnes absentes du schéma, par table : un SELECT qui en nomme une échoue comme PostgREST ('*' passe). */
+  colonnesAbsentes?: Record<string, string[]>
 }
 
 export function nouvelleBase(): BaseMemoire {
@@ -51,6 +53,9 @@ export function clientMemoire(base: BaseMemoire) {
         return { data: unique ? d : [d], error: null }
       }
       if (appel.op === 'update' || appel.op === 'delete') return { data: null, error: null }
+      const absente = (appel.colonnes ?? '').split(',').map((c) => c.trim())
+        .find((c) => base.colonnesAbsentes?.[table]?.includes(c))
+      if (absente) return { data: null, error: { message: `column ${table}.${absente} does not exist` } }
       const l = lignesFiltrees()
       return { data: unique ? l[0] ?? null : l, error: null }
     }
