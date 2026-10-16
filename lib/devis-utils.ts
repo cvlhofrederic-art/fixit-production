@@ -302,10 +302,20 @@ export function titleCaseAddress(addr: string): string {
   }).join('')
 }
 
-/** Map official legal form labels from API to internal codes */
+/**
+ * Forme juridique (abréviation, libellé INSEE ou Kbis en toutes lettres, choix
+ * du formulaire BTP) → code interne. SASU → 'sas' : il n'existe ni code ni
+ * libellé SASU. Forme sans code français (SA, SNC, SCI…) ou portugaise → 'ei'.
+ */
 export function mapLegalFormToCode(legalForm: string): string {
   if (!legalForm) return 'ei'
-  const lower = legalForm.toLowerCase()
+  // Sans accents, majuscules ni points : « Société à responsabilité limitée »,
+  // « SOCIETE A RESPONSABILITE LIMITEE » et « S.A.R.L. » se lisent pareil.
+  const lower = legalForm
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
   if (lower.includes('auto-entrepreneur') || lower.includes('micro-entrepreneur')) return 'ae'
   if (lower.includes('sarl') && !lower.includes('eurl')) return 'sarl'
   if (lower.includes('eurl')) return 'eurl'
@@ -315,6 +325,11 @@ export function mapLegalFormToCode(legalForm: string): string {
   if (lower.includes('personne physique')) return 'ei'
   if (lower.includes('sarl')) return 'sarl'
   if (lower.includes('sas')) return 'sas'
+  // Formes en toutes lettres. L'EIRL (« entrepreneur individuel à responsabilité
+  // limitée ») est déjà sortie en 'ei' ci-dessus.
+  if (lower.includes('entreprise unipersonnelle a responsabilite limitee')) return 'eurl'
+  if (/actions? simplifiee/.test(lower)) return 'sas'
+  if (lower.includes('responsabilite limitee')) return 'sarl'
   return 'ei'
 }
 

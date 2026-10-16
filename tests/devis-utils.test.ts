@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { titleCaseAddress, getDocSeq, stableDocId, isStableDocId, docIdentityKey, dedupeDocsByIdentity, compareDocsForList, getDocSeries } from '../lib/devis-utils'
+import { titleCaseAddress, getDocSeq, stableDocId, isStableDocId, docIdentityKey, dedupeDocsByIdentity, compareDocsForList, getDocSeries, mapLegalFormToCode } from '../lib/devis-utils'
 
 describe('stableDocId', () => {
   it('génère un UUID v4 valide', () => {
@@ -241,5 +241,86 @@ describe('compareDocsForList — tri liste Devis/Factures', () => {
     ]
     const sorted = [...docs].sort(compareDocsForList).map(d => d.savedAt)
     expect(sorted).toEqual(['2026-06-08T10:00:00.000Z', '2026-06-05T10:00:00.000Z'])
+  })
+})
+
+describe('mapLegalFormToCode — forme juridique → code interne', () => {
+  it.each([
+    ['SARL', 'sarl'],
+    ['EURL', 'eurl'],
+    ['SAS', 'sas'],
+    ['SASU', 'sas'],
+    ['SARL unipersonnelle', 'sarl'],
+    ['SAS, société par actions simplifiée', 'sas'],
+    ['Entrepreneur individuel', 'ei'],
+    ['Personne physique', 'ei'],
+    ['Auto-Entrepreneur', 'ae'],
+    ['micro-entrepreneur', 'ae'],
+    ['', 'ei'],
+  ])('abréviations et cas déjà reconnus, inchangés : %s → %s', (label, code) => {
+    expect(mapLegalFormToCode(label)).toBe(code)
+  })
+
+  it.each([
+    ['Entreprise Individuelle (EI)', 'ei'],
+    ['EURL', 'eurl'],
+    ['SARL', 'sarl'],
+    ['SAS', 'sas'],
+    ['SASU', 'sas'],
+    ['Auto-entrepreneur', 'ae'],
+  ])('choix du formulaire BTP : %s → %s', (label, code) => {
+    expect(mapLegalFormToCode(label)).toBe(code)
+  })
+
+  it.each([
+    ['Société à responsabilité limitée (sans autre indication)', 'sarl'],
+    ['Société à responsabilité limitée', 'sarl'],
+    ['Entreprise unipersonnelle à responsabilité limitée', 'eurl'],
+    ['Société par actions simplifiée', 'sas'],
+    ['Société par actions simplifiée à associé unique ou société par actions simplifiée unipersonnelle', 'sas'],
+    ['Société par actions simplifiée (Société à associé unique)', 'sas'],
+    ["Société d'exercice libéral à responsabilité limitée", 'sarl'],
+    ["Société d'exercice libéral par action simplifiée", 'sas'],
+  ])('formes en toutes lettres (libellés INSEE / Kbis) : %s → %s', (label, code) => {
+    expect(mapLegalFormToCode(label)).toBe(code)
+  })
+
+  it.each([
+    ['Entrepreneur individuel à responsabilité limitée', 'ei'],
+    ['Entreprise individuelle à responsabilité limitée', 'ei'],
+  ])('EIRL : reste une entreprise individuelle malgré « responsabilité limitée » : %s', (label, code) => {
+    expect(mapLegalFormToCode(label)).toBe(code)
+  })
+
+  it.each([
+    ['SOCIETE A RESPONSABILITE LIMITEE', 'sarl'],
+    ['société par actions simplifiée', 'sas'],
+    ['ENTREPRISE UNIPERSONNELLE A RESPONSABILITE LIMITEE', 'eurl'],
+    ['Société  à   responsabilité limitée', 'sarl'],
+    ['S.A.R.L.', 'sarl'],
+    ['S.A.S.', 'sas'],
+  ])('sans accents, majuscules ni points : %s → %s', (label, code) => {
+    expect(mapLegalFormToCode(label)).toBe(code)
+  })
+
+  it.each([
+    'SA',
+    'Société anonyme',
+    "SA à conseil d'administration (s.a.i.)",
+    'Société en nom collectif',
+    'Société civile immobilière',
+  ])('forme sans code français dédié : défaut EI, comme avant (%s)', (label) => {
+    expect(mapLegalFormToCode(label)).toBe('ei')
+  })
+
+  it.each([
+    'Unipessoal Lda.',
+    'Sociedade por Quotas',
+    'Sociedade Unipessoal por Quotas',
+    'Sociedade por quotas de responsabilidade limitada',
+    'Sociedade Anónima',
+    'Empresário em Nome Individual',
+  ])('forme portugaise : jamais prise pour une forme française, défaut EI comme avant (%s)', (label) => {
+    expect(mapLegalFormToCode(label)).toBe('ei')
   })
 })
