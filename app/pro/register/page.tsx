@@ -334,20 +334,24 @@ function FormulaireArtisan() {
       // Supabase returns a fake user with empty identities if email already exists (security feature)
       if (authData.user?.identities?.length === 0) { setError('Un compte existe déjà avec cet email. Connectez-vous ou utilisez un autre email.'); setLoading(false); return }
       if (authData.user) {
-        // Init app_metadata.role (server-only) via endpoint dédié
-        try {
-          const token = (await supabase.auth.getSession()).data.session?.access_token ?? ''
-          const roleRes = await fetch('/api/auth/init-role', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ role: 'artisan' }),
-          })
-          if (!roleRes.ok) throw new Error(`init-role HTTP ${roleRes.status}`)
-        } catch (e) {
-          // Non-bloquant pour l'inscription, mais un compte sans rôle ne peut pas
-          // accéder au dashboard : on prévient l'utilisateur et on trace.
-          console.warn('[register] init-role failed:', e)
-          toast.warning('Initialisation du compte incomplète — si le tableau de bord ne charge pas, déconnectez-vous puis reconnectez-vous.')
+        // Init app_metadata.role (server-only) via endpoint dédié, seulement avec une
+        // session. Sans session (confirmation d'e-mail active), init-role répondait
+        // 401 et l'avertissement s'affichait à tort : le rôle est alors posé côté
+        // base par le trigger trg_sync_user_role à la création du compte.
+        if (authData.session?.access_token) {
+          try {
+            const roleRes = await fetch('/api/auth/init-role', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+              body: JSON.stringify({ role: 'artisan' }),
+            })
+            if (!roleRes.ok) throw new Error(`init-role HTTP ${roleRes.status}`)
+          } catch (e) {
+            // Non-bloquant pour l'inscription, mais un compte sans rôle ne peut pas
+            // accéder au dashboard : on prévient l'utilisateur et on trace.
+            console.warn('[register] init-role failed:', e)
+            toast.warning('Initialisation du compte incomplète — si le tableau de bord ne charge pas, déconnectez-vous puis reconnectez-vous.')
+          }
         }
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
