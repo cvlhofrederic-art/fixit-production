@@ -305,7 +305,8 @@ export function titleCaseAddress(addr: string): string {
 /**
  * Forme juridique (abréviation, libellé INSEE ou Kbis en toutes lettres, choix
  * du formulaire BTP) → code interne. SASU → 'sas' : il n'existe ni code ni
- * libellé SASU. Forme sans code français (SA, SNC, SCI…) ou portugaise → 'ei'.
+ * libellé SASU. Société anonyme, française ou portugaise → 'sa'. Forme sans
+ * code (SNC, SCI…, Lda, ENI…) → 'ei'.
  */
 export function mapLegalFormToCode(legalForm: string): string {
   if (!legalForm) return 'ei'
@@ -330,6 +331,9 @@ export function mapLegalFormToCode(legalForm: string): string {
   if (lower.includes('entreprise unipersonnelle a responsabilite limitee')) return 'eurl'
   if (/actions? simplifiee/.test(lower)) return 'sas'
   if (lower.includes('responsabilite limitee')) return 'sarl'
+  // « SA » en mot entier (« SA à directoire », choix « SA » du formulaire BTP),
+  // « société anonyme », « à forme anonyme », « sociedade anónima ».
+  if (/\bsa\b/.test(lower) || /anonym|anonima/.test(lower)) return 'sa'
   return 'ei'
 }
 
@@ -369,13 +373,14 @@ export function getCompanyStatuses(locale: Locale): Array<{ value: string; label
     { value: 'eurl', label: 'EURL' },
     { value: 'sarl', label: 'SARL' },
     { value: 'sas', label: 'SAS' },
+    { value: 'sa', label: 'Société anonyme (SA)' },
   ]
 }
 
 /** Check if status is a société-type (needing capital, RCS etc.) */
 export function isSocieteStatus(status: string, locale: Locale): boolean {
   if (locale === 'pt') return ['lda', 'sa'].includes(status)
-  return ['sarl', 'eurl', 'sas'].includes(status)
+  return ['sarl', 'eurl', 'sas', 'sa'].includes(status)
 }
 
 /** Check if status is AE/EI equivalent (VAT exempt by default) */

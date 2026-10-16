@@ -4757,6 +4757,7 @@
       "eurlCapital": "Unipessoal Lda. com capital social de {capital} € — {rcs}",
       "sarlCapital": "Sociedade por Quotas (Lda.) com capital social de {capital} € — {rcs}",
       "sasCapital": "Sociedade Anónima (SA) com capital social de {capital} € — {rcs}",
+      "saCapital": "Sociedade Anónima (SA) com capital social de {capital} € — {rcs}",
       "rcsDefault": "Registo comercial não indicado",
       "capitalDefault": "—",
       "tvaExempt": "IVA não aplicável ao abrigo do artigo 53.º do CIVA (regime de isenção)",
