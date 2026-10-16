@@ -206,3 +206,37 @@ describe('POST /api/auth/create-profile — gérant de la société BTP', () => 
     expect(await res.json()).toEqual({ id: 'profil-nouveau' })
   })
 })
+
+describe('POST /api/auth/create-profile — inscription artisan sans session', () => {
+  it('enregistre le marché KYC et les spécialités, sans gérant', async () => {
+    mocks.authUser = { email: 'artisan@exemple.pt', app_metadata: { role: 'artisan' }, user_metadata: { role: 'artisan' } }
+    mocks.specialtiesIn.mockResolvedValue({ data: [{ id: 'spec-3', slug: 'electricite' }], error: null })
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    const res = await POST(requete({
+      user_id: USER_ID,
+      company_name: 'Eletricidade Silva',
+      siret: '501964843',
+      kyc_status: 'pending',
+      kyc_market: 'pt_artisan',
+      language: 'pt',
+      specialty_slugs: ['electricite', 'maconnerie'],
+    }) as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.profileInsert).toHaveBeenCalledWith({
+      user_id: USER_ID,
+      company_name: 'Eletricidade Silva',
+      siret: '501964843',
+      kyc_status: 'pending',
+      kyc_market: 'pt_artisan',
+      language: 'pt',
+    })
+    // Slug sans correspondance dans le catalogue (maconnerie) : simplement ignoré
+    expect(mocks.specialtiesIn).toHaveBeenCalledWith('slug', ['electricite', 'maconnerie'])
+    expect(mocks.specialtiesUpsert).toHaveBeenCalledWith(
+      [{ user_id: USER_ID, specialty_id: 'spec-3', verified_source: 'self_declared' }],
+      { onConflict: 'user_id,specialty_id', ignoreDuplicates: true },
+    )
+    expect(mocks.teamUpsert).not.toHaveBeenCalled()
+  })
+})

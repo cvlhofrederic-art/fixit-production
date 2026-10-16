@@ -300,18 +300,6 @@ function FormulaireArtisan() {
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
-  const uploadDocument = async (file: File, folder: string, artisanId?: string, field?: string): Promise<string> => {
-    try {
-      const fd = new FormData()
-      fd.append('file', file); fd.append('bucket', 'artisan-documents'); fd.append('folder', folder)
-      if (artisanId && field) { fd.append('artisan_id', artisanId); fd.append('field', field) }
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      return data.url
-    } catch (err: unknown) { setError(`${t('register.uploadError')} ${folder}: ${err instanceof Error ? err.message : String(err)}`); return '' }
-  }
-
   const validateStep1 = () => {
     setError('')
     if (!formData.prenom.trim()) { setError(t('register.firstNameRequired')); return false }
@@ -346,86 +334,107 @@ function FormulaireArtisan() {
       // Supabase returns a fake user with empty identities if email already exists (security feature)
       if (authData.user?.identities?.length === 0) { setError('Un compte existe déjà avec cet email. Connectez-vous ou utilisez un autre email.'); setLoading(false); return }
       if (authData.user) {
-        // Init app_metadata.role (server-only) via endpoint dédié
-        try {
-          const token = (await supabase.auth.getSession()).data.session?.access_token ?? ''
-          const roleRes = await fetch('/api/auth/init-role', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ role: 'artisan' }),
-          })
-          if (!roleRes.ok) throw new Error(`init-role HTTP ${roleRes.status}`)
-        } catch (e) {
-          // Non-bloquant pour l'inscription, mais un compte sans rôle ne peut pas
-          // accéder au dashboard : on prévient l'utilisateur et on trace.
-          console.warn('[register] init-role failed:', e)
-          toast.warning('Initialisation du compte incomplète — si le tableau de bord ne charge pas, déconnectez-vous puis reconnectez-vous.')
+        // Init app_metadata.role (server-only) via endpoint dédié, seulement avec une
+        // session. Sans session (confirmation d'e-mail active), init-role répondait
+        // 401 et l'avertissement s'affichait à tort : le rôle est alors posé côté
+        // base par le trigger trg_sync_user_role à la création du compte.
+        if (authData.session?.access_token) {
+          try {
+            const roleRes = await fetch('/api/auth/init-role', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+              body: JSON.stringify({ role: 'artisan' }),
+            })
+            if (!roleRes.ok) throw new Error(`init-role HTTP ${roleRes.status}`)
+          } catch (e) {
+            // Non-bloquant pour l'inscription, mais un compte sans rôle ne peut pas
+            // accéder au dashboard : on prévient l'utilisateur et on trace.
+            console.warn('[register] init-role failed:', e)
+            toast.warning('Initialisation du compte incomplète — si le tableau de bord ne charge pas, déconnectez-vous puis reconnectez-vous.')
+          }
         }
         // Détecter le pays via la locale (cookie ou navigator)
         const localeCookie = document.cookie.match(/(?:^|;\s*)locale=(\w+)/)?.[1]
         const artisanCountry = localeCookie === 'pt' ? 'PT' : 'FR'
         const artisanLanguage = artisanCountry === 'PT' ? 'pt' : 'fr'
-        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', phone: formData.telephone, email: formData.email, language: artisanLanguage }
+        // kyc_market : le KYC lit le NIF (PT) ou le SIRET (FR) selon ce marché ; sans
+        // lui, il retombe sur fr_artisan et refuse le NIF à 9 chiffres d'un artisan PT.
+        // specialty_slugs : spécialités écrites côté serveur, aussi sans session.
+        const profileInsert: Record<string, string | string[] | boolean | undefined> = { user_id: authData.user.id, company_name: formData.companyName, siret: formData.siret, bio: formData.bio, categories: selectedCategories, verified: false, kyc_status: 'pending', kyc_market: isPt ? 'pt_artisan' : 'fr_artisan', phone: formData.telephone, email: formData.email, language: artisanLanguage, specialty_slugs: selectedCategories }
         if (verifiedCompany) Object.assign(profileInsert, { legal_form: verifiedCompany.legalForm, siren: verifiedCompany.siren, naf_code: verifiedCompany.nafCode, naf_label: verifiedCompany.nafLabel, company_address: verifiedCompany.address, company_city: verifiedCompany.city, company_postal_code: verifiedCompany.postalCode })
         const profileRes = await fetch('/api/auth/create-profile', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileInsert) })
         const profileResult = await profileRes.json()
         if (!profileRes.ok) { setError(profileResult.error || 'Erreur création profil'); setLoading(false); return }
         const profileData = { id: profileResult.id }
         if (profileData?.id) {
-          await Promise.all([
-            kbisFile ? uploadDocument(kbisFile, 'kbis', profileData.id, 'kbis_url') : Promise.resolve(),
-            idFile ? uploadDocument(idFile, 'identity', profileData.id, 'id_document_url') : Promise.resolve(),
-            idFileVerso ? uploadDocument(idFileVerso, 'identity-verso', profileData.id, 'id_document_verso_url') : Promise.resolve(),
-            insuranceFile ? uploadDocument(insuranceFile, 'insurance', profileData.id, 'insurance_url') : Promise.resolve(),
-          ])
-
-          // ── KYC anti-fraude : déclencher en background (non-bloquant) ──
-          fetch('/api/kyc-orchestrate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}` },
-            body: JSON.stringify({ artisan_id: profileData.id }),
-          }).catch((e) => {
-            // KYC volontairement non-bloquant (tourne en arrière-plan), mais on
-            // trace l'échec — sinon un KYC jamais déclenché est invisible.
-            console.warn('[register] kyc-orchestrate failed:', e)
-          })
-
-          // ── Spécialités granulaires — lier le profil aux spécialités choisies ──────
+          // ── Kbis, pièce d'identité, assurance et KYC anti-fraude, côté serveur ──
+          // Sans session (confirmation d'e-mail active), /api/upload et
+          // /api/kyc-orchestrate refusaient la requête : cette route n'en dépend pas.
           try {
-            await fetch('/api/profile/specialties', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                user_id: authData.user.id,
-                slugs: selectedCategories,
-                verified_source: kbisFile ? 'kbis' : 'self_declared',
-              }),
-            })
-          } catch { /* non-bloquant */ }
+            const finalizeData = new FormData()
+            finalizeData.append('user_id', authData.user.id)
+            if (kbisFile) finalizeData.append('kbis', kbisFile)
+            if (idFile) finalizeData.append('identity', idFile)
+            if (idFileVerso) finalizeData.append('identity_verso', idFileVerso)
+            if (insuranceFile) finalizeData.append('insurance', insuranceFile)
+            const finalizeRes = await fetch('/api/pro/register/finalize-artisan', { method: 'POST', body: finalizeData })
+            if (!finalizeRes.ok) {
+              const finalizeResult = await finalizeRes.json().catch(() => ({}))
+              throw new Error(finalizeResult.error || t('register.uploadError'))
+            }
+          } catch (uploadErr: unknown) {
+            // Non bloquant : le compte est créé, seules les pièces ou le KYC manquent
+            console.warn('[register] finalize-artisan failed:', uploadErr)
+            setError(`${t('register.uploadError')} ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
+          }
+
+          // ── Spécialités granulaires ──────
+          // Déjà écrites en self_declared par /api/auth/create-profile. Ici, seulement
+          // pour passer la source à « kbis » quand le Kbis est déposé (route authentifiée).
+          if (kbisFile && selectedCategories.length > 0 && authData.session?.access_token) {
+            try {
+              await fetch('/api/profile/specialties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+                body: JSON.stringify({
+                  user_id: authData.user.id,
+                  slugs: selectedCategories,
+                  verified_source: 'kbis',
+                }),
+              })
+            } catch (e) {
+              console.warn('[register] specialties kbis failed:', e)
+            }
+          }
 
           // ── Motifs par défaut : insérer selon le métier (silencieux, non-bloquant) ──
+          // Côté serveur, sans session : métiers lus dans le profil créé plus haut.
           try {
-            await fetch('/api/seed-motifs', {
+            await fetch('/api/pro/register/motifs-artisan', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ artisan_id: profileData.id, categories: selectedCategories }),
+              body: JSON.stringify({ user_id: authData.user.id }),
             })
-          } catch { /* non-bloquant */ }
+          } catch (e) {
+            console.warn('[register] motifs-artisan failed:', e)
+          }
 
           // ── Parrainage : lier le filleul au parrain (silencieux, non-bloquant) ──
+          // Côté serveur, sans session : le profil filleul est retrouvé à partir de user_id.
           if (referralCode && profileData?.id && authData.user?.id) {
             try {
-              const refRes = await fetch('/api/referral/signup', {
+              const refRes = await fetch('/api/pro/register/parrainage-artisan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: referralCode, artisan_id: profileData.id, user_id: authData.user.id }),
+                body: JSON.stringify({ code: referralCode, user_id: authData.user.id }),
               })
               const refData = await refRes.json()
               if (refData.referral && refData.parrain_name) {
                 setReferralParrainName(refData.parrain_name)
               }
-            } catch {
+            } catch (e) {
               // Erreur parrainage non-bloquante, l'inscription est déjà réussie
+              console.warn('[register] parrainage-artisan failed:', e)
             }
             // Supprimer le cookie vitfix_ref
             document.cookie = 'vitfix_ref=; max-age=0; path=/; SameSite=Lax; Secure'
@@ -846,21 +855,6 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
-  const uploadDoc = async (file: File, folder: string, token: string): Promise<string> => {
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('bucket', 'artisan-documents')
-    fd.append('folder', folder)
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || t('register.uploadError'))
-    return data.url
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError(t('register.passwordMismatch')); return }
@@ -922,24 +916,6 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         }
       }
 
-      // Upload documents using the session token from signUp
-      if (authData.session?.access_token) {
-        try {
-          const [kbisUrl, idUrl] = await Promise.all([
-            kbisFile ? uploadDoc(kbisFile, 'kbis', authData.session.access_token) : Promise.resolve(''),
-            idFile ? uploadDoc(idFile, 'identity', authData.session.access_token) : Promise.resolve(''),
-          ])
-          if (kbisUrl || idUrl) {
-            await supabase.auth.updateUser({
-              data: { kbis_url: kbisUrl || undefined, id_document_url: idUrl || undefined },
-            })
-          }
-        } catch (uploadErr: unknown) {
-          // Non-blocking: account created, docs failed
-          setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
-        }
-      }
-
       // ── Créer profil artisan BTP pour le KYC ──
       if (authData.user) {
         try {
@@ -968,25 +944,27 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
 
           if (btpProfile?.id) {
-            // Mettre à jour les URLs de documents si uploadées
-            const updates: Record<string, string> = {}
-            const { data: { user: currentUser } } = await supabase.auth.getUser()
-            if (currentUser?.user_metadata?.kbis_url) updates.kbis_url = currentUser.user_metadata.kbis_url
-            if (currentUser?.user_metadata?.id_document_url) updates.id_document_url = currentUser.user_metadata.id_document_url
-            if (Object.keys(updates).length > 0) {
-              await supabase.from('profiles_artisan').update(updates).eq('id', btpProfile.id)
+            // ── Kbis, pièce d'identité et KYC anti-fraude, côté serveur ──
+            // Sans session (confirmation d'e-mail active), /api/upload et
+            // /api/kyc-orchestrate refusaient la requête : cette route n'en dépend pas.
+            try {
+              const finalizeData = new FormData()
+              finalizeData.append('user_id', authData.user.id)
+              if (kbisFile) finalizeData.append('kbis', kbisFile)
+              if (idFile) finalizeData.append('identity', idFile)
+              if (idFileVerso) finalizeData.append('identity_verso', idFileVerso)
+              const finalizeRes = await fetch('/api/pro/register/finalize', { method: 'POST', body: finalizeData })
+              if (!finalizeRes.ok) {
+                const finalizeResult = await finalizeRes.json().catch(() => ({}))
+                throw new Error(finalizeResult.error || t('register.uploadError'))
+              }
+            } catch (uploadErr: unknown) {
+              // Non bloquant : le compte est créé, seules les pièces ou le KYC manquent
+              console.warn('[register] finalize failed:', uploadErr)
+              if (kbisFile || idFile || idFileVerso) {
+                setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
+              }
             }
-
-            // ── KYC anti-fraude en background ──
-            fetch('/api/kyc-orchestrate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session?.access_token ?? ''}` },
-              body: JSON.stringify({ artisan_id: btpProfile.id }),
-            }).catch((e) => {
-            // KYC volontairement non-bloquant (tourne en arrière-plan), mais on
-            // trace l'échec — sinon un KYC jamais déclenché est invisible.
-            console.warn('[register] kyc-orchestrate failed:', e)
-          })
           }
         } catch { /* Création profil BTP non-bloquante */ }
       }
