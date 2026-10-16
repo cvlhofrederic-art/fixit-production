@@ -846,21 +846,6 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     } catch { setSiretStatus('error'); setSiretError(t('register.connectionError')) }
   }
 
-  const uploadDoc = async (file: File, folder: string, token: string): Promise<string> => {
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('bucket', 'artisan-documents')
-    fd.append('folder', folder)
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || t('register.uploadError'))
-    return data.url
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (form.password !== form.confirmPassword) { setError(t('register.passwordMismatch')); return }
@@ -922,24 +907,6 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
         }
       }
 
-      // Upload documents using the session token from signUp
-      if (authData.session?.access_token) {
-        try {
-          const [kbisUrl, idUrl] = await Promise.all([
-            kbisFile ? uploadDoc(kbisFile, 'kbis', authData.session.access_token) : Promise.resolve(''),
-            idFile ? uploadDoc(idFile, 'identity', authData.session.access_token) : Promise.resolve(''),
-          ])
-          if (kbisUrl || idUrl) {
-            await supabase.auth.updateUser({
-              data: { kbis_url: kbisUrl || undefined, id_document_url: idUrl || undefined },
-            })
-          }
-        } catch (uploadErr: unknown) {
-          // Non-blocking: account created, docs failed
-          setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
-        }
-      }
-
       // ── Créer profil artisan BTP pour le KYC ──
       if (authData.user) {
         try {
@@ -968,25 +935,26 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
 
           if (btpProfile?.id) {
-            // Mettre à jour les URLs de documents si uploadées
-            const updates: Record<string, string> = {}
-            const { data: { user: currentUser } } = await supabase.auth.getUser()
-            if (currentUser?.user_metadata?.kbis_url) updates.kbis_url = currentUser.user_metadata.kbis_url
-            if (currentUser?.user_metadata?.id_document_url) updates.id_document_url = currentUser.user_metadata.id_document_url
-            if (Object.keys(updates).length > 0) {
-              await supabase.from('profiles_artisan').update(updates).eq('id', btpProfile.id)
+            // ── Kbis, pièce d'identité et KYC anti-fraude, côté serveur ──
+            // Sans session (confirmation d'e-mail active), /api/upload et
+            // /api/kyc-orchestrate refusaient la requête : cette route n'en dépend pas.
+            try {
+              const finalizeData = new FormData()
+              finalizeData.append('user_id', authData.user.id)
+              if (kbisFile) finalizeData.append('kbis', kbisFile)
+              if (idFile) finalizeData.append('identity', idFile)
+              const finalizeRes = await fetch('/api/pro/register/finalize', { method: 'POST', body: finalizeData })
+              if (!finalizeRes.ok) {
+                const finalizeResult = await finalizeRes.json().catch(() => ({}))
+                throw new Error(finalizeResult.error || t('register.uploadError'))
+              }
+            } catch (uploadErr: unknown) {
+              // Non bloquant : le compte est créé, seules les pièces ou le KYC manquent
+              console.warn('[register] finalize failed:', uploadErr)
+              if (kbisFile || idFile) {
+                setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
+              }
             }
-
-            // ── KYC anti-fraude en background ──
-            fetch('/api/kyc-orchestrate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session?.access_token ?? ''}` },
-              body: JSON.stringify({ artisan_id: btpProfile.id }),
-            }).catch((e) => {
-            // KYC volontairement non-bloquant (tourne en arrière-plan), mais on
-            // trace l'échec — sinon un KYC jamais déclenché est invisible.
-            console.warn('[register] kyc-orchestrate failed:', e)
-          })
           }
         } catch { /* Création profil BTP non-bloquante */ }
       }
