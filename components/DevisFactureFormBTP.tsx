@@ -36,6 +36,7 @@ import { DecimalInput } from '@/components/common/DecimalInput'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
+import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
   mulMoney,
@@ -1932,6 +1933,8 @@ export default function DevisFactureFormBTP({
           rm: companyRCS || undefined,
           rc_pro: insuranceNumber || undefined,
         } : null,
+        // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+        modele: modeleDocumentSociete(artisan?.id),
         ptFiscalData: null,
         svgToImageDataUrl,
         fetchFreshLogo: async () => {

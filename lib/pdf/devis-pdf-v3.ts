@@ -13,6 +13,16 @@ import { getMentionLegale } from '@/lib/tva-calculator'
 import { computeFrTvaIntra } from '@/lib/tva-intra'
 import { computeAcomptesAmounts } from '@/lib/money'
 import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
+import {
+  type ModeleDocument,
+  COULEURS_PROVENCE_PRO,
+  dessinerEnTete as dessinerEnTetePP,
+  dessinerPrestations as dessinerPrestationsPP,
+  dessinerReserves as dessinerReservesPP,
+  extraireReserves as extraireReservesPP,
+  lignesReserves as lignesReservesPP,
+  identiteLegale as identiteLegalePP,
+} from '@/lib/pdf/modele-provence-pro'
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -209,6 +219,9 @@ export interface PdfV3Input {
 
   // Output mode: 'download' saves file, 'preview' opens in new tab
   action?: 'download' | 'preview'
+
+  /** Modèle propre à une société (lib/pdf/modele-provence-pro.ts). Absent : modèle BTP par défaut. */
+  modele?: ModeleDocument
 }
 
 // ─── Helpers ──────────────────────────────────────
@@ -429,12 +442,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const pageW = pdf.internal.pageSize.getWidth()   // 210mm
   const pageH = pdf.internal.pageSize.getHeight()   // 297mm
 
+  // ─── Modèle propre à Provence Pro (lib/pdf/modele-provence-pro.ts) ───
+  // Seule sa fiche reçoit `modele: 'provence-pro'` : pour toutes les autres
+  // sociétés, `pp` est faux et le rendu ci-dessous reste celui du modèle BTP.
+  const pp = input.modele === 'provence-pro'
+  // Devis Provence Pro : les lignes « Clé : valeur » des notes alimentent le
+  // tableau « Réserves et précisions » ; seul le reste s'affiche en notes.
+  const reservesPP = pp && docType === 'devis' ? extraireReservesPP(notes) : null
+  const notesDoc = reservesPP ? reservesPP.notesRestantes : notes
+
   // ─── Couleurs spec ───
-  const COLOR_TEXT = '#0D0D0D'
+  const COLOR_TEXT = pp ? COULEURS_PROVENCE_PRO.texte : '#0D0D0D'
   const COLOR_TEXT_LIGHT = '#888888'
-  const COLOR_BG_GRAY = '#F5F5F3'
-  const COLOR_BORDER = '#E0E0DC'
-  const COLOR_ACCENT = '#E8A020'
+  const COLOR_BG_GRAY = pp ? COULEURS_PROVENCE_PRO.fond : '#F5F5F3'
+  const COLOR_BORDER = pp ? COULEURS_PROVENCE_PRO.bordure : '#E0E0DC'
+  const COLOR_ACCENT = pp ? COULEURS_PROVENCE_PRO.accent : '#E8A020'
   const COLOR_WHITE = '#FFFFFF'
 
   // ─── Marges (mm) ───
@@ -471,107 +493,6 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     if (y + needed > pageH - 15) { pdf.addPage(); y = 18; return true }
     return false
   }
-
-  // ═══ 1. LOGO (coin haut-droit, bord droit aligné avec la fin de la ligne orange) ═══
-  // Validation URL logo : 3 sources autorisées :
-  //  1. Data URI image (data:image/png|jpeg|jpg|webp;base64,…) — embarqué dans
-  //     profiles_artisan.logo_url, sans risque SSRF/XSS car contenu local.
-  //     SVG REFUSÉ : peut contenir des scripts ou <foreignObject> malveillant.
-  //  2. Blob URL (blob:…) — File API local, sans risque externe.
-  //  3. HTTPS sur allowlist domaines (Supabase Storage, Vitfix CDN).
-  //
-  // Hotfix 04/05/2026 (post-audit) : ajout data: et blob: au check. Sans ça,
-  // les logos stockés en data URI base64 dans profiles_artisan.logo_url étaient
-  // rejetés silencieusement → logo disparu sur tous les PDF prod.
-  const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
-  const ALLOWED_LOGO_DOMAINS = isProd
-    ? ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt']
-    : ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
-  const isLogoUrlAllowed = (url: string): boolean => {
-    if (!url) return false
-    // Data URI image (PNG/JPEG/WEBP/GIF), pas SVG (XSS vector)
-    if (url.startsWith('data:image/')) {
-      return /^data:image\/(png|jpe?g|webp|gif);(?:[a-z0-9-]+;)*base64,/i.test(url)
-    }
-    // Blob URL local (File API uploads)
-    if (url.startsWith('blob:')) return true
-    // HTTPS / HTTP sur allowlist domaines
-    try {
-      const parsed = new URL(url)
-      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
-      return ALLOWED_LOGO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
-    } catch {
-      return false
-    }
-  }
-  let logoUrl = await fetchFreshLogo()
-  if (logoUrl && !isLogoUrlAllowed(logoUrl)) {
-    if (process.env.NODE_ENV !== 'production') console.warn('[PDF V3] Logo URL rejected (not in allowlist)')
-    logoUrl = null
-  }
-  if (logoUrl) {
-    try {
-      const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => resolve(img)
-        img.onerror = () => reject(new Error('Logo load failed'))
-        img.src = logoUrl!
-      })
-      const canvas = document.createElement('canvas')
-      const maxSize = 500
-      const ratio = logoImg.width / logoImg.height
-      canvas.width = Math.min(logoImg.width, maxSize)
-      canvas.height = Math.round(canvas.width / ratio)
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.drawImage(logoImg, 0, 0, canvas.width, canvas.height)
-        const logoData = canvas.toDataURL('image/png')
-        // 23mm max box (65pt / 2.835)
-        const logoMaxW = 23, logoMaxH = 23
-        let lw = logoMaxW, lh = logoMaxH
-        if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
-        // Aligné à droite : bord droit du logo = pageW - mR (même axe que la ligne orange et les blocs)
-        const logoX = pageW - mR - lw
-        const logoY = 2.8
-        pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh)
-      }
-    } catch {
-      // pas de logo = on saute
-    }
-  }
-
-  // ═══ 2. TITRE DOCUMENT (centré, contraint pour ne pas chevaucher le logo) ═══
-  y = 25  // ~71pt du haut
-  const displayDocNumber = ptFiscalData?.docNumber || docNumber
-  // Le logo occupe ~23mm à droite (logoMaxW), placé à pageW - mR - lw.
-  // Pour un titre centré sur pageW/2 sans chevauchement, on contraint la
-  // largeur max à 2 × (pageW/2 - logoLeft) où logoLeft = pageW - mR - 23.
-  // Soit titleMaxW = pageW - 2 × (mR + 23 + 5_buffer).
-  const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
-  const titleMaxW = pageW - 2 * (mR + logoZoneW)
-  pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const rawTitle = docTitle || (docType === 'devis'
-    ? (locale === 'pt' ? 'Orçamento' : 'Devis')
-    : (locale === 'pt' ? 'Fatura' : 'Facture'))
-  const safeTitle = sanitizeForHelvetica(rawTitle)
-  // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
-  // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
-  let titleSize = 16
-  let titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
-  while (titleLines.length > 1 && titleSize > 10) {
-    titleSize -= 1
-    pdf.setFontSize(titleSize)
-    titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
-  }
-  pdf.text(titleLines, pageW / 2, y, { align: 'center' })
-  // Hauteur ligne ~ size * 0.35mm + interligne
-  y += titleLines.length * (titleSize * 0.4) + 2
-
-  // Numéro document
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-  pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
-  y += 3
 
   // Label sous-type facture (méthode pro 2026) — mention légalement requise
   // pour acompte / situation / avoir :
@@ -610,37 +531,156 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
         : base
     }
   }
-  if (subTypeLabel) {
-    y += 2
-    pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-    pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
-    y += 3
-    // Pour les avoirs, on affiche aussi le motif d'annulation en petit gris
-    // sous le label (preuve fiscale Code commerce L123-22).
-    if (factureSubType === 'avoir' && avoirMotif) {
-      pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-      const motifLines = pdf.splitTextToSize(`Motif : ${avoirMotif}`, pageW * 0.7) as string[]
-      pdf.text(motifLines, pageW / 2, y, { align: 'center' })
-      y += motifLines.length * 2.6 + 1
+  if (pp) {
+    // ═══ EN-TÊTE PROVENCE PRO : logo et nom centrés, objet des travaux, numéro, filet orange ═══
+    const chantier = interventionAddress ? splitAddress(interventionAddress) : null
+    const mentionsEnTete: Array<{ texte: string; gras?: boolean }> = []
+    if (subTypeLabel) mentionsEnTete.push({ texte: subTypeLabel, gras: true })
+    if (factureSubType === 'avoir' && avoirMotif) mentionsEnTete.push({ texte: `Motif : ${avoirMotif}` })
+    if (docType === 'facture' && sourceDevisRef) mentionsEnTete.push({ texte: `Réf. devis : ${sourceDevisRef}` })
+    if (reservesPP?.references) mentionsEnTete.push({ texte: `Références : ${reservesPP.references}` })
+    y = dessinerEnTetePP(pdf, {
+      pageW, largeur: contentW, x: mL,
+      titre: sanitizeForHelvetica(docTitle || (docType === 'devis' ? 'Devis' : 'Facture')),
+      adresse: chantier ? (chantier.city ? `${chantier.street} · ${chantier.city}` : chantier.street) : '',
+      numero: docNumber,
+      mentions: mentionsEnTete,
+    })
+    y += ptToMm(14.2)
+  } else {
+    // ═══ 1. LOGO (coin haut-droit, bord droit aligné avec la fin de la ligne orange) ═══
+    // Validation URL logo : 3 sources autorisées :
+    //  1. Data URI image (data:image/png|jpeg|jpg|webp;base64,…) — embarqué dans
+    //     profiles_artisan.logo_url, sans risque SSRF/XSS car contenu local.
+    //     SVG REFUSÉ : peut contenir des scripts ou <foreignObject> malveillant.
+    //  2. Blob URL (blob:…) — File API local, sans risque externe.
+    //  3. HTTPS sur allowlist domaines (Supabase Storage, Vitfix CDN).
+    //
+    // Hotfix 04/05/2026 (post-audit) : ajout data: et blob: au check. Sans ça,
+    // les logos stockés en data URI base64 dans profiles_artisan.logo_url étaient
+    // rejetés silencieusement → logo disparu sur tous les PDF prod.
+    const isProd = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
+    const ALLOWED_LOGO_DOMAINS = isProd
+      ? ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt']
+      : ['supabase.co', 'supabase.io', 'vitfix.io', 'vitfix.pt', 'localhost', '127.0.0.1']
+    const isLogoUrlAllowed = (url: string): boolean => {
+      if (!url) return false
+      // Data URI image (PNG/JPEG/WEBP/GIF), pas SVG (XSS vector)
+      if (url.startsWith('data:image/')) {
+        return /^data:image\/(png|jpe?g|webp|gif);(?:[a-z0-9-]+;)*base64,/i.test(url)
+      }
+      // Blob URL local (File API uploads)
+      if (url.startsWith('blob:')) return true
+      // HTTPS / HTTP sur allowlist domaines
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false
+        return ALLOWED_LOGO_DOMAINS.some(d => parsed.hostname === d || parsed.hostname.endsWith('.' + d))
+      } catch {
+        return false
+      }
     }
-  }
+    let logoUrl = await fetchFreshLogo()
+    if (logoUrl && !isLogoUrlAllowed(logoUrl)) {
+      if (process.env.NODE_ENV !== 'production') console.warn('[PDF V3] Logo URL rejected (not in allowlist)')
+      logoUrl = null
+    }
+    if (logoUrl) {
+      try {
+        const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => resolve(img)
+          img.onerror = () => reject(new Error('Logo load failed'))
+          img.src = logoUrl!
+        })
+        const canvas = document.createElement('canvas')
+        const maxSize = 500
+        const ratio = logoImg.width / logoImg.height
+        canvas.width = Math.min(logoImg.width, maxSize)
+        canvas.height = Math.round(canvas.width / ratio)
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(logoImg, 0, 0, canvas.width, canvas.height)
+          const logoData = canvas.toDataURL('image/png')
+          // 23mm max box (65pt / 2.835)
+          const logoMaxW = 23, logoMaxH = 23
+          let lw = logoMaxW, lh = logoMaxH
+          if (ratio > 1) { lh = lw / ratio } else { lw = lh * ratio }
+          // Aligné à droite : bord droit du logo = pageW - mR (même axe que la ligne orange et les blocs)
+          const logoX = pageW - mR - lw
+          const logoY = 2.8
+          pdf.addImage(logoData, 'PNG', logoX, logoY, lw, lh)
+        }
+      } catch {
+        // pas de logo = on saute
+      }
+    }
 
-  // ── PT Fiscal: ATCUD + Hash ──
-  if (ptFiscalData) {
+    // ═══ 2. TITRE DOCUMENT (centré, contraint pour ne pas chevaucher le logo) ═══
+    y = 25  // ~71pt du haut
+    const displayDocNumber = ptFiscalData?.docNumber || docNumber
+    // Le logo occupe ~23mm à droite (logoMaxW), placé à pageW - mR - lw.
+    // Pour un titre centré sur pageW/2 sans chevauchement, on contraint la
+    // largeur max à 2 × (pageW/2 - logoLeft) où logoLeft = pageW - mR - 23.
+    // Soit titleMaxW = pageW - 2 × (mR + 23 + 5_buffer).
+    const logoZoneW = 23 + 5 // logoMaxW + buffer visuel
+    const titleMaxW = pageW - 2 * (mR + logoZoneW)
+    pdf.setFontSize(16); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+    const rawTitle = docTitle || (docType === 'devis'
+      ? (locale === 'pt' ? 'Orçamento' : 'Devis')
+      : (locale === 'pt' ? 'Fatura' : 'Facture'))
+    const safeTitle = sanitizeForHelvetica(rawTitle)
+    // Réduit progressivement la taille de police jusqu'à ce que le titre tienne
+    // sur 1 seule ligne dans la zone safe (sans chevaucher le logo).
+    let titleSize = 16
+    let titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
+    while (titleLines.length > 1 && titleSize > 10) {
+      titleSize -= 1
+      pdf.setFontSize(titleSize)
+      titleLines = pdf.splitTextToSize(safeTitle, titleMaxW) as string[]
+    }
+    pdf.text(titleLines, pageW / 2, y, { align: 'center' })
+    // Hauteur ligne ~ size * 0.35mm + interligne
+    y += titleLines.length * (titleSize * 0.4) + 2
+
+    // Numéro document
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+    pdf.text(displayDocNumber, pageW / 2, y, { align: 'center' })
+    y += 3
+
+    if (subTypeLabel) {
+      y += 2
+      pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      pdf.text(subTypeLabel, pageW / 2, y, { align: 'center' })
+      y += 3
+      // Pour les avoirs, on affiche aussi le motif d'annulation en petit gris
+      // sous le label (preuve fiscale Code commerce L123-22).
+      if (factureSubType === 'avoir' && avoirMotif) {
+        pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+        const motifLines = pdf.splitTextToSize(`Motif : ${avoirMotif}`, pageW * 0.7) as string[]
+        pdf.text(motifLines, pageW / 2, y, { align: 'center' })
+        y += motifLines.length * 2.6 + 1
+      }
+    }
+
+    // ── PT Fiscal: ATCUD + Hash ──
+    if (ptFiscalData) {
+      y += 1
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
+      pdf.text(ptFiscalData.atcudDisplay, pageW / 2, y, { align: 'center' })
+      y += 3
+      pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+      pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, pageW / 2, y, { align: 'center' })
+      y += 3
+    }
+
+    // ═══ 3. LIGNE D'ACCENT OR ═══
     y += 1
-    pdf.setFontSize(7); pdf.setFont('helvetica', 'bold'); pdf.setTextColor('#1D4ED8')
-    pdf.text(ptFiscalData.atcudDisplay, pageW / 2, y, { align: 'center' })
-    y += 3
-    pdf.setFontSize(6); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
-    pdf.text(`Hash: ${ptFiscalData.hashDisplay}`, pageW / 2, y, { align: 'center' })
-    y += 3
+    pdf.setFillColor(COLOR_ACCENT)
+    pdf.rect(mL, y, contentW, ptToMm(3), 'F')  // ~1.06mm de haut
+    y += ptToMm(3) + 5  // ~5mm gap
   }
-
-  // ═══ 3. LIGNE D'ACCENT OR ═══
-  y += 1
-  pdf.setFillColor(COLOR_ACCENT)
-  pdf.rect(mL, y, contentW, ptToMm(3), 'F')  // ~1.06mm de haut
-  y += ptToMm(3) + 5  // ~5mm gap
 
   // ═══ 4. BLOCS ÉMETTEUR & DESTINATAIRE ═══
   const gapBoxes = ptToMm(11)  // ~3.88mm gap
@@ -657,20 +697,23 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   const emTx = boxX_em + boxPadX
   const emMaxW = emBoxW - boxPadX * 2
 
+  // Provence Pro : l'encadré ne porte que le nom, l'identité complète est dans
+  // les mentions légales (modèle de la société).
+  const detailsEmetteur = !pp
   ey += ptToMm(18)  // label ÉMETTEUR
   ey += ptToMm(14) * 2 + 1.5  // nom entreprise (peut wraper) + espace après nom
-  if (companyAddress) {
+  if (detailsEmetteur && companyAddress) {
     const sp = splitAddress(companyAddress)
     ey += ptToMm(14)                 // Adresse
     if (sp.city) ey += ptToMm(14)    // Ville
   }
-  if (companyPhone) ey += ptToMm(14)
-  if (companyEmail) ey += ptToMm(14)
-  if (companySiret) ey += ptToMm(14)
-  if (companyRCS) ey += ptToMm(14)
-  if (tvaEnabled && tvaNumber) ey += ptToMm(14)
-  if (companyAPE) ey += ptToMm(14)
-  if (companyCapital) ey += ptToMm(14)
+  if (detailsEmetteur && companyPhone) ey += ptToMm(14)
+  if (detailsEmetteur && companyEmail) ey += ptToMm(14)
+  if (detailsEmetteur && companySiret) ey += ptToMm(14)
+  if (detailsEmetteur && companyRCS) ey += ptToMm(14)
+  if (detailsEmetteur && tvaEnabled && tvaNumber) ey += ptToMm(14)
+  if (detailsEmetteur && companyAPE) ey += ptToMm(14)
+  if (detailsEmetteur && companyCapital) ey += ptToMm(14)
 
   // ── Mesure hauteur destinataire ──
   let dy2 = boxStartY + boxPadTop
@@ -699,10 +742,17 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (clientSiret) dy2 += ptToMm(14)
 
   // Calculer la hauteur max et dessiner les encadrés
-  const boxH = Math.max(ey, dy2) - boxStartY + boxPadTop
+  const boxH = pp
+    ? Math.max(Math.max(ey, dy2) - boxStartY + boxPadTop, ptToMm(129))
+    : Math.max(ey, dy2) - boxStartY + boxPadTop
   pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-  pdf.rect(boxX_em, boxStartY, emBoxW, boxH, 'FD')
-  pdf.rect(boxX_dest, boxStartY, destBoxW, boxH, 'FD')
+  if (pp) {
+    pdf.roundedRect(boxX_em, boxStartY, emBoxW, boxH, ptToMm(4), ptToMm(4), 'FD')
+    pdf.roundedRect(boxX_dest, boxStartY, destBoxW, boxH, ptToMm(4), ptToMm(4), 'FD')
+  } else {
+    pdf.rect(boxX_em, boxStartY, emBoxW, boxH, 'FD')
+    pdf.rect(boxX_dest, boxStartY, destBoxW, boxH, 'FD')
+  }
 
   // Émetteur
   let ey2 = boxStartY + boxPadTop
@@ -710,13 +760,13 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(locale === 'pt' ? 'EMITENTE' : 'ÉMETTEUR', emTx, ey2)
   ey2 += ptToMm(18)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  const companyNameWithStatus = `${companyName} (${getStatusLabel(companyStatus, t)})`
+  const companyNameWithStatus = pp ? 'ProvencePro' : `${companyName} (${getStatusLabel(companyStatus, t)})`
   const nameLines = pdf.splitTextToSize(companyNameWithStatus, emMaxW)
   pdf.text(nameLines, emTx, ey2)
   ey2 += nameLines.length * ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
   // Ordre : Adresse → Ville → Tél → Email → SIRET → RCS → TVA → APE → Capital
-  if (companyAddress) {
+  if (detailsEmetteur && companyAddress) {
     const addrNorm = companyAddress !== companyAddress.toUpperCase() ? companyAddress : titleCaseAddress(companyAddress)
     const sp = splitAddress(addrNorm)
     const addrText = `${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`
@@ -741,10 +791,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.text(text, emTx, ey2); ey2 += ptToMm(14)
     pdf.setFontSize(10)
   }
-  if (companyPhone) { drawEmitterLine(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`) }
-  if (companyEmail) { drawEmitterLine(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${companyEmail}`) }
-  if (companySiret) { drawEmitterLine(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${companySiret}`) }
-  if (companyRCS) {
+  if (detailsEmetteur && companyPhone) { drawEmitterLine(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${companyPhone}`) }
+  if (detailsEmetteur && companyEmail) { drawEmitterLine(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${companyEmail}`) }
+  if (detailsEmetteur && companySiret) { drawEmitterLine(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${companySiret}`) }
+  if (detailsEmetteur && companyRCS) {
     // Auto-détection RCS vs RM (mutuellement exclusifs en droit français) :
     //   - RCS (Registre du Commerce et des Sociétés) → SAS, SARL, EURL, SASU,
     //     SCI, SCP, SA, SNC, EI commerciale
@@ -773,9 +823,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     )
     drawEmitterLine(rmDisplay)
   }
-  if (tvaEnabled && tvaNumber) { drawEmitterLine(`${locale === 'pt' ? 'NIF intracom.' : 'TVA Intra.'} : ${tvaNumber}`) }
-  if (companyAPE) { drawEmitterLine(`${locale === 'pt' ? 'CAE' : 'APE / NAF'} : ${companyAPE}`) }
-  if (companyCapital) { drawEmitterLine(`Capital : ${companyCapital} ${locale === 'pt' ? '€' : 'EUR'}`) }
+  if (detailsEmetteur && tvaEnabled && tvaNumber) { drawEmitterLine(`${locale === 'pt' ? 'NIF intracom.' : 'TVA Intra.'} : ${tvaNumber}`) }
+  if (detailsEmetteur && companyAPE) { drawEmitterLine(`${locale === 'pt' ? 'CAE' : 'APE / NAF'} : ${companyAPE}`) }
+  if (detailsEmetteur && companyCapital) { drawEmitterLine(`Capital : ${companyCapital} ${locale === 'pt' ? '€' : 'EUR'}`) }
 
   // Destinataire
   let dy3 = boxStartY + boxPadTop
@@ -1166,7 +1216,21 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  if (sections.length > 1) {
+  if (pp) {
+    // Provence Pro : un lot (A, B…) par section, avec bandeau et sous-total ;
+    // sans section, les lignes forment un lot sans bandeau.
+    y = dessinerPrestationsPP(pdf, {
+      x: mL, y, largeur: contentW, hautPage: 12, basPage: pageH - 16,
+      lots: sections.length > 0
+        ? sections.map(s => ({ nom: s.name, lignes: s.rows }))
+        : [{ nom: '', lignes: lines }],
+      afficherTva: showTvaColumn,
+      autoliquidation: effectiveRegime === 'autoliquidation_btp',
+      libellePrix: tvaEnabled ? 'HT' : 'TTC',
+      format: localeFormats.currencyFormat,
+      nettoyer: sanitizeForHelvetica,
+    })
+  } else if (sections.length > 1) {
     // Méthode pro : mesure RÉELLE de la 1re ligne via pdf.getTextDimensions
     // (au lieu d'estimer avec une formule chars/mm imprécise). Garantit que le
     // saut de page se déclenche au mm près — pas d'orphelin ET pas de gros vide.
@@ -1194,7 +1258,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     renderTable(built.rows, y, undefined, built.rowKinds)
   }
 
-  y = (pdf as any).lastAutoTable.finalY
+  if (!pp) y = (pdf as any).lastAutoTable.finalY
+  else y += ptToMm(10)  // espace avant les totaux (modèle Provence Pro)
 
   // ═══ 7. SOUS-TOTAL + TVA ═══
   // Pre-calcul du nombre de taux TVA distincts pour estimer la hauteur du bloc
@@ -1230,7 +1295,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.text(regimeLegalMention, mL + boxPadX, y + stH / 2 + 1)
   }
 
-  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+  pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(pp ? COLOR_TEXT_LIGHT : COLOR_TEXT)
   const stLabel = showTva ? (locale === 'pt' ? 'Subtotal s/IVA' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
   pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
@@ -1269,12 +1334,19 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     breakdown.forEach(({ rate, base, amount }) => {
       if (rate === 0) return
       pdf.setFillColor(COLOR_WHITE)
-      pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
+      if (pp) {
+        pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+        pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'FD')
+      } else {
+        pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
+      }
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
       const tvaPrefix = locale === 'pt' ? 'IVA' : 'TVA'
       const tvaSep = locale === 'pt' ? 's/' : 'sur'
-      pdf.text(`${tvaPrefix} ${rate}% ${tvaSep} ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
-      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+      const tauxAffiche = pp ? `${String(rate).replace('.', ',')} %` : `${rate}%`
+      pdf.text(`${tvaPrefix} ${tauxAffiche} ${tvaSep} ${localeFormats.currencyFormat(base)}`, xRight - 60, y + 4)
+      // Provence Pro : montant de TVA en gris, comme son libellé
+      if (!pp) { pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT) }
       pdf.text(localeFormats.currencyFormat(amount), xRight - boxPadX, y + 4, { align: 'right' })
       y += 6
     })
@@ -1289,7 +1361,12 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const parsed = parseFloat(String(discount).replace(',', '.').replace(/[^\d.-]/g, ''))
     if (Number.isFinite(parsed) && parsed > 0) discountAmount = parsed
     pdf.setFillColor(COLOR_WHITE)
-    pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
+    if (pp) {
+      pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+      pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'FD')
+    } else {
+      pdf.rect(mL + contentW / 2, y, contentW / 2, 6, 'F')
+    }
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     pdf.text(locale === 'pt' ? 'Desconto' : 'Remise', xRight - 60, y + 4)
     pdf.setFont('helvetica', 'bold')
@@ -1312,13 +1389,36 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // totH déjà déclaré plus haut (estimation totalsBlockH)
 
   pdf.setFillColor(COLOR_BG_GRAY)
-  pdf.rect(totBoxX, y, totBoxW, totH, 'F')
+  if (pp) {
+    pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
+    pdf.rect(totBoxX, y, totBoxW, totH, 'FD')
+  } else {
+    pdf.rect(totBoxX, y, totBoxW, totH, 'F')
+  }
   pdf.setFontSize(12); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
   const totalLabel = showTva ? (locale === 'pt' ? 'TOTAL c/IVA' : 'TOTAL TTC') : (locale === 'pt' ? 'TOTAL' : 'TOTAL NET')
   pdf.text(totalLabel, totBoxX + boxPadX, y + totH / 2 + 1.5)
+  if (pp) pdf.setTextColor(COLOR_ACCENT)  // montant total en orange (modèle Provence Pro)
   pdf.text(localeFormats.currencyFormat(totalVal), totBoxX + totBoxW - boxPadX, y + totH / 2 + 1.5, { align: 'right' })
 
   y += totH + 6
+
+  // ═══ 8 bis. RÉSERVES ET PRÉCISIONS (devis Provence Pro) ═══
+  if (reservesPP) {
+    const lignesRes = lignesReservesPP({
+      reserves: reservesPP.reserves,
+      executionDelay,
+      docDate,
+      regime: effectiveRegime,
+      taux: (sections.length > 0 ? sections.flatMap(s => s.rows) : lines)
+        .filter(l => l && typeof l.description === 'string' && l.description.trim())
+        .map(l => l.tvaRate),
+    })
+    if (lignesRes.length > 0) {
+      y = dessinerReservesPP(pdf, { x: mL, y: y - 6, largeur: contentW, hautPage: 12, basPage: pageH - 16, lignes: lignesRes })
+      y += ptToMm(18)
+    }
+  }
 
   // ═══ 9. CONDITIONS + BON POUR ACCORD + ACOMPTES (devis) ou RÈGLEMENT (facture) ═══
   // Pré-calcul de la hauteur réelle du bloc CONDITIONS+SIGNATURE pour éviter
@@ -1334,15 +1434,25 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
     const validityStr = docValidity ? `${docValidity} ${locale === 'pt' ? 'dias' : 'jours'}` : `30 ${locale === 'pt' ? 'dias' : 'jours'}`
-    const condTextLines = [
-      t('devis.pdf.validityCondition').replace('{validity}', validityStr),
-      ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
-      t('devis.pdf.amendmentClause'),
-      ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
-      ...(paymentCondition ? [paymentCondition] : []),
-      ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
-      ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
-    ]
+    const condTextLines = pp
+      ? [
+          t('devis.pdf.validityCondition').replace('{validity}', validityStr),
+          ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
+          t('devis.pdf.amendmentClause'),
+          ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
+          paymentCondition || 'Aucun escompte accordé pour paiement anticipé',
+          `Pénalités de retard : ${penaltyRate || "3 × taux d'intérêt légal en vigueur"}`,
+          `Indemnité forfaitaire de recouvrement : ${recoveryFee || '40 €'} (BtoB uniquement)`,
+        ]
+      : [
+          t('devis.pdf.validityCondition').replace('{validity}', validityStr),
+          ...(executionDelay ? [t('devis.pdf.executionDelayCondition').replace('{delay}', executionDelay)] : []),
+          t('devis.pdf.amendmentClause'),
+          ...(paymentMode ? [t('devis.pdf.paymentModeCondition').replace('{mode}', paymentMode)] : []),
+          ...(paymentCondition ? [paymentCondition] : []),
+          ...(penaltyRate ? [`Pénalités de retard : ${penaltyRate}`] : []),
+          ...(recoveryFee && clientType !== 'particulier' ? [`Indemnité forfaitaire de recouvrement : ${recoveryFee}`] : []),
+        ]
     // RIB rendu comme bloc distinct sous les notes (bug 04/05/2026 : avant
     // l'IBAN était une ligne au milieu des conditions, peu lisible et peu pro).
     // Aujourd'hui : label gras « RIB & coordonnées bancaires » + IBAN + BIC,
@@ -1358,8 +1468,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       const wrapped = pdf.splitTextToSize(line, condW - 4)
       leftColH += wrapped.length * ptToMm(13)
     })
-    if (notes) {
-      const noteWrappedMeasure = pdf.splitTextToSize(notes, condW - 4)
+    if (notesDoc) {
+      const noteWrappedMeasure = pdf.splitTextToSize(notesDoc, condW - 4)
       leftColH += 2 + noteWrappedMeasure.length * ptToMm(13)
     }
     if (ribLines.length > 0) {
@@ -1394,7 +1504,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ? acomptes.filter(ac => ac.pourcentage > 0)
       : []
     const acBlockH = validAcomptes.length > 0
-      ? 12 + validAcomptes.length * ptToMm(13) + 4
+      ? (pp ? ptToMm(7.1 + 13 + 6) + validAcomptes.length * ptToMm(16) + ptToMm(8) : 12 + validAcomptes.length * ptToMm(13) + 4)
       : 0
 
     // Hauteur totale = max des deux colonnes. Single page-break check pour
@@ -1415,10 +1525,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       pdf.text(wrapped, condX, cy)
       cy += wrapped.length * ptToMm(13)
     })
-    if (notes) {
+    if (notesDoc) {
       cy += 2
       pdf.setFont('helvetica', 'italic')
-      const noteWrapped = pdf.splitTextToSize(notes, condW - 4)
+      const noteWrapped = pdf.splitTextToSize(notesDoc, condW - 4)
       pdf.text(noteWrapped, condX, cy)
       cy += noteWrapped.length * ptToMm(13)
     }
@@ -1439,7 +1549,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
 
     // ── BON POUR ACCORD (côté droit, hauteur naturelle) ──
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-    pdf.rect(sigX, condStartY, sigW, sigBoxH, 'FD')
+    if (pp) pdf.roundedRect(sigX, condStartY, sigW, sigBoxH, ptToMm(4), ptToMm(4), 'FD')
+    else pdf.rect(sigX, condStartY, sigW, sigBoxH, 'FD')
 
     pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     pdf.text('BON POUR ACCORD', sigX + boxPadX, condStartY + 5)
@@ -1492,12 +1603,33 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       )
       const acY = condStartY + sigBoxH + 4
       pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-      pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
+      if (pp) pdf.roundedRect(sigX, acY, sigW, acBlockH, ptToMm(4), ptToMm(4), 'FD')
+      else pdf.rect(sigX, acY, sigW, acBlockH, 'FD')
       pdf.setFontSize(9); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
       pdf.text(locale === 'pt' ? 'PAGAMENTO FASEADO' : 'ÉCHÉANCIER DE PAIEMENT', sigX + boxPadX, acY + 5)
       let ay = acY + 12
       pdf.setFontSize(8); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-      validAcomptes.forEach((ac, idx) => {
+      if (pp) {
+        // « Acompte : 50 % » en gras, déclencheur en gris, filet entre les rangées
+        const rangH = ptToMm(16)
+        let ry = acY + ptToMm(7.1 + 13 + 6)  // marge, titre, espace avant le tableau
+        validAcomptes.forEach((ac, idx) => {
+          const label = ac.label || `Acompte ${ac.ordre}`
+          const debut = `${label} : ${String(ac.pourcentage).replace('.', ',')} %`
+          drawHLine(sigX + boxPadX, ry, sigX + sigW - boxPadX, COLOR_BORDER, 0.18)
+          const yTexte = ry + ptToMm(3.2) + ptToMm(7)
+          pdf.setFontSize(8); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
+          pdf.text(debut, sigX + boxPadX, yTexte)
+          const largeurDebut = pdf.getTextWidth(debut)
+          pdf.text(localeFormats.currencyFormat(acompteAmounts[idx] ?? 0), sigX + sigW - boxPadX, yTexte, { align: 'right' })
+          if (ac.declencheur) {
+            pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COULEURS_PROVENCE_PRO.echeancier)
+            pdf.text(` · ${ac.declencheur}`, sigX + boxPadX + largeurDebut, yTexte)
+          }
+          ry += rangH
+        })
+      }
+      if (!pp) validAcomptes.forEach((ac, idx) => {
         const montant = acompteAmounts[idx] ?? 0
         const label = ac.label || `${locale === 'pt' ? 'Adiantamento' : 'Acompte'} ${ac.ordre}`
         pdf.text(`${label} : ${ac.pourcentage}% ${ac.declencheur}`, sigX + boxPadX, ay)
@@ -1545,7 +1677,8 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     const condStartY = y
 
     pdf.setFillColor(COLOR_BG_GRAY); pdf.setDrawColor(COLOR_BORDER); pdf.setLineWidth(0.18)
-    pdf.rect(mL, condStartY, contentW, condH, 'FD')
+    if (pp) pdf.roundedRect(mL, condStartY, contentW, condH, ptToMm(4), ptToMm(4), 'FD')
+    else pdf.rect(mL, condStartY, contentW, condH, 'FD')
 
     pdf.setFontSize(9.5); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
     pdf.text(locale === 'pt' ? 'CONDIÇÕES DE PAGAMENTO' : 'CONDITIONS DE RÈGLEMENT', mL + boxPadX, condStartY + 5)
@@ -1610,21 +1743,28 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // ═══ 12. MENTIONS LÉGALES ═══
-  checkPageBreak(10)
-  drawHLine(mL, y, xRight, COLOR_BORDER, 0.18)
-  y += 3
+  // Provence Pro : filet et mentions à la suite du contenu (placés plus bas).
+  if (!pp) {
+    checkPageBreak(10)
+    drawHLine(mL, y, xRight, COLOR_BORDER, 0.18)
+    y += 3
+  }
 
-  pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT_LIGHT)
+  pdf.setFontSize(6.5); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(pp ? COLOR_TEXT : COLOR_TEXT_LIGHT)
 
   const isParticulier = clientType === 'particulier'
   const isPro = !isParticulier // professionnel, SCI, syndic
 
   // 1. Identification + statut juridique + forme juridique à côté du nom
   const statusLabel = getStatusLabel(companyStatus, t)
-  let legal1 = `${companyName} (${statusLabel}).`
-  if (companyStatus === 'ei' && locale !== 'pt') legal1 += ' Loi n° 2022-172 du 14 février 2022.'
-  if (companySiret) legal1 += ` SIRET : ${companySiret}.`
-  if (companyAPE) legal1 += ` APE : ${companyAPE}.`
+  // Provence Pro : « PROVENCE PRO · SAS (société par actions simplifiée) au
+  // capital de … €. Siège : … RCS … SIRET … APE … », comme dans son modèle.
+  let legal1 = pp
+    ? identiteLegalePP({ companyName, companyCapital, companyAddress, companyRCS, companySiret, companyAPE })
+    : `${companyName} (${statusLabel}).`
+  if (!pp && companyStatus === 'ei' && locale !== 'pt') legal1 += ' Loi n° 2022-172 du 14 février 2022.'
+  if (!pp && companySiret) legal1 += ` SIRET : ${companySiret}.`
+  if (!pp && companyAPE) legal1 += ` APE : ${companyAPE}.`
 
   // 2. Mention TVA / IVA — pilotée par le régime effectif et locale-aware
   // (source unique : lib/tva-calculator.ts/getMentionLegale). La mention est
@@ -1698,7 +1838,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   }
 
   // Capital social
-  if (companyCapital) legal1 += ` Capital social : ${companyCapital} EUR.`
+  if (!pp && companyCapital) legal1 += ` Capital social : ${companyCapital} EUR.`
 
   // 3. Assurance (art. L. 243-2 C. assurances)
   if (insuranceName) {
@@ -1706,7 +1846,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Decenal' : 'RC Pro + Decenal'
       legal1 += ` Seguro ${insLabel} ${insuranceName}, apólice n.º ${insuranceNumber || 'N/A'}, cobertura ${insuranceCoverage || 'Portugal continental'}.`
     } else {
-      const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : 'RC Pro + Décennale'
+      const insLabel = insuranceType === 'rc_pro' ? 'RC Pro' : insuranceType === 'decennale' ? 'Décennale' : (pp ? 'RC Pro et décennale' : 'RC Pro + Décennale')
       legal1 += ` Assurance ${insLabel} : ${insuranceName}, contrat n° ${insuranceNumber || 'N/A'}, couverture ${insuranceCoverage || 'France métropolitaine'} (art. L. 243-2 C. assurances).`
     }
   }
@@ -1825,7 +1965,10 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     ? `Documento gerado por Vitfix Pro em ${new Date().toLocaleDateString(dateLocaleStr)}.`
     : `Document généré par Vitfix Pro le ${new Date().toLocaleDateString(dateLocaleStr)}.`
 
-  const fullLegal = `${legal1} ${legal2} ${legal3} ${legal4}`
+  // Le modèle Provence Pro ne porte pas la mention « Document généré par Vitfix Pro ».
+  const fullLegal = pp
+    ? [legal1, legal2, legal3].map(p => p.trim()).filter(Boolean).join(' ')
+    : `${legal1} ${legal2} ${legal3} ${legal4}`
   const legalW = ptFiscalData ? contentW - 32 : contentW
   const legalWrapped = pdf.splitTextToSize(fullLegal, legalW)
   const legalHeight = legalWrapped.length * ptToMm(10)
@@ -1835,12 +1978,25 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   // légal sert de "fin de document" naturelle. Si pas la place sur la page
   // courante, on crée une page suivante et on positionne tout en bas dessus.
   const legalBottomMargin = 6 // 6mm = au-dessus du footer "Page X/Y" (3.2mm)
-  const legalTargetY = pageH - legalBottomMargin - legalHeight
-  if (y > legalTargetY - 2) {
-    pdf.addPage()
+  if (pp) {
+    // Modèle Provence Pro : filet puis mentions justifiées, à la suite du contenu
+    const interligne = ptToMm(7.47)
+    const hauteurPP = legalWrapped.length * interligne
+    let yFilet = y + ptToMm(10)
+    if (yFilet + ptToMm(10) + hauteurPP > pageH - 16) { pdf.addPage(); yFilet = 12 }
+    drawHLine(mL, yFilet, xRight, COLOR_BORDER, 0.18)
+    pdf.text(fullLegal, mL, yFilet + ptToMm(10) + ptToMm(5), {
+      maxWidth: legalW, align: 'justify', lineHeightFactor: 7.47 / 6.5,
+    })
+    y = yFilet + ptToMm(10) + hauteurPP
+  } else {
+    const legalTargetY = pageH - legalBottomMargin - legalHeight
+    if (y > legalTargetY - 2) {
+      pdf.addPage()
+    }
+    pdf.text(legalWrapped, mL, pageH - legalBottomMargin - legalHeight)
+    y = pageH - legalBottomMargin
   }
-  pdf.text(legalWrapped, mL, pageH - legalBottomMargin - legalHeight)
-  y = pageH - legalBottomMargin
 
   // ═══ PAGE — RÉTRACTATION PT (DL 24/2014) ═══
   if (docType === 'devis' && isHorsEtablissement && isParticulier && locale === 'pt') {
