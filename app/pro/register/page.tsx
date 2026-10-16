@@ -11,31 +11,12 @@ import { useSearchParams } from 'next/navigation'
 import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculator'
 import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 import { formatSiegeAddress } from '@/lib/sirene-address'
+import { SECTEURS_BTP_FR, SECTEURS_BTP_PT, secteursToSlugs } from '@/lib/btp-secteurs'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type OrgType = 'artisan' | 'societe_btp' | null
 type SiretStatus = 'idle' | 'checking' | 'verified' | 'error'
-
-// ─── Mapping secteur BTP label → specialty slug ───────────────────────────────
-const SECTEUR_TO_SLUG: Record<string, string> = {
-  'Gros œuvre / Maçonnerie':   'gros-oeuvre',
-  'Électricité / Plomberie':   'electricite',
-  'Peinture / Revêtements':    'peinture',
-  'Menuiserie / Charpente':    'menuiserie-bois',
-  'CVC / Climatisation':       'chauffage',
-  'Toiture / Étanchéité':      'couverture',
-  'Métallerie / Ferronnerie':  'ferronnerie',
-  'Entreprise générale':       'renovation-generale',
-  "Bureau d'études":           'renovation-generale',
-  'Autre BTP':                 'renovation-generale',
-}
-
-function secteursToSlugs(secteurs: string[]): string[] {
-  return secteurs
-    .map(s => SECTEUR_TO_SLUG[s] ?? s.toLowerCase().replace(/[\s/().'']/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''))
-    .filter(Boolean)
-}
 
 interface VerifiedCompany {
   name: string; siret: string; siren: string; nafCode: string; nafLabel: string
@@ -979,6 +960,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               kyc_status: 'pending',
               kyc_market: btpMarket,
               verified: false,
+              // Spécialités écrites côté serveur : fonctionne aussi sans session
+              specialty_slugs: orgType === 'societe_btp' ? secteursToSlugs(form.secteurs) : [],
             }),
           })
           const profileResult = await profileRes.json()
@@ -1009,18 +992,25 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       }
 
       // ── Spécialités granulaires BTP (non-bloquant, uniquement pour societe_btp) ──
+      // Déjà écrites en self_declared par /api/auth/create-profile. Ici, seulement
+      // pour passer la source à « kbis » quand le Kbis est déposé (route authentifiée).
       if (orgType === 'societe_btp') {
-        try {
-          await fetch('/api/profile/specialties', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: authData.user!.id,
-              slugs: secteursToSlugs(form.secteurs),
-              verified_source: kbisFile ? 'kbis' : 'self_declared',
-            }),
-          })
-        } catch { /* non-bloquant */ }
+        const specialtySlugs = secteursToSlugs(form.secteurs)
+        if (kbisFile && specialtySlugs.length > 0 && authData.session?.access_token) {
+          try {
+            await fetch('/api/profile/specialties', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authData.session.access_token}` },
+              body: JSON.stringify({
+                user_id: authData.user!.id,
+                slugs: specialtySlugs,
+                verified_source: 'kbis',
+              }),
+            })
+          } catch (e) {
+            console.warn('[register] specialties kbis failed:', e)
+          }
+        }
 
         // ── Auto-création du gérant comme membre de l'équipe (pro_team_members) ──
         // Le gérant qui crée le compte société doit être lui-même un membre actif
@@ -1065,70 +1055,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const accent = 'border-amber-400 bg-amber-50 text-amber-600'
   const btnClass = 'bg-yellow hover:bg-yellow-light text-dark hover:-translate-y-px'
 
-  const secteursData = isPt ? [
-    { label: 'Alvenaria', cae: 'Atividades de alvenaria e assentamento de tijolos (CAE 43910)' },
-    { label: 'Eletricidade', cae: 'Instalação elétrica (CAE 43210)' },
-    { label: 'Canalização', cae: 'Instalação de canalizações (CAE 43221)' },
-    { label: 'Pintura', cae: 'Pintura e colocação de vidros (CAE 43340)' },
-    { label: 'Revestimentos', cae: 'Revestimento de pavimentos e de paredes (CAE 43330)' },
-    { label: 'Carpintaria', cae: 'Montagem de trabalhos de carpintaria e de caixilharia (CAE 43320)' },
-    { label: 'Estruturas de madeira', cae: 'Fabricação de outros produtos de carpintaria para a construção (CAE 16230)' },
-    { label: 'Climatização / AVAC', cae: 'Instalação de climatização (CAE 43222)' },
-    { label: 'Telhados / Cobertura', cae: 'Atividades de colocação de telhados e coberturas (CAE 43410)' },
-    { label: 'Serralharia / Ferragem', cae: 'Fabricação de estruturas e partes de estruturas metálicas (CAE 25110)' },
-    { label: 'Impermeabilização', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
-    { label: 'Isolamento térmico', cae: 'Instalação de isolamento (CAE 43230)' },
-    { label: 'Pavimentos', cae: 'Revestimento de pavimentos e de paredes (CAE 43330)' },
-    { label: 'Caixilharia / Janelas', cae: 'Montagem de trabalhos de carpintaria e de caixilharia (CAE 43320)' },
-    { label: 'Portas / Portões', cae: 'Fabricação de portas e janelas metálicas (CAE 25120)' },
-    { label: 'Estores / Cortinas', cae: 'Comércio a retalho de carpetes, tapetes, cortinados (CAE 47530)' },
-    { label: 'Vidraceiro', cae: 'Pintura e colocação de vidros (CAE 43340)' },
-    { label: 'Canalizador de gás', cae: 'Instalação de canalizações (CAE 43221)' },
-    { label: 'Eletrodomésticos', cae: 'Reparação e manutenção de equipamento elétrico (CAE 33140)' },
-    { label: 'Limpeza', cae: 'Limpeza geral de edifícios (CAE 81210)' },
-    { label: 'Jardinagem', cae: 'Atividades dos serviços de plantação e manutenção de jardins (CAE 81300)' },
-    { label: 'Mudanças', cae: 'Serviços de mudanças (CAE 49420)' },
-    { label: 'Desentupimentos', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
-    { label: 'Fachadas', cae: 'Outras atividades de acabamento em edifícios (CAE 43350)' },
-    { label: 'Terraços / Varandas', cae: 'Construção de edifícios (CAE 41200)' },
-    { label: 'Piscinas', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
-    { label: 'Controlo de pragas', cae: 'Atividades de desinfeção, desratização e similares (CAE 81231)' },
-    { label: 'Bricolagem', cae: 'Outras atividades especializadas de construção diversas, n. e. (CAE 43992)' },
-    { label: 'Construção de edifícios', cae: 'Construção de edifícios residenciais e não residenciais (CAE 41200)' },
-    { label: 'Renovação geral', cae: 'Construção de edifícios (CAE 41200)' },
-    { label: 'Outro setor', cae: '' },
-  ] : [
-    { label: 'Maçonnerie', cae: 'Travaux de maçonnerie générale (NAF 43.99A)' },
-    { label: 'Électricité', cae: 'Travaux d\'installation électrique (NAF 43.21A)' },
-    { label: 'Plomberie', cae: 'Travaux de plomberie et installation de chauffage (NAF 43.22A)' },
-    { label: 'Peinture', cae: 'Travaux de peinture et vitrerie (NAF 43.34Z)' },
-    { label: 'Revêtements muraux', cae: 'Travaux de revêtement des sols et des murs (NAF 43.33Z)' },
-    { label: 'Menuiserie', cae: 'Travaux de menuiserie bois et PVC (NAF 43.32A)' },
-    { label: 'Charpente', cae: 'Travaux de charpente (NAF 43.91A)' },
-    { label: 'Climatisation / CVC', cae: 'Travaux d\'installation d\'équipements thermiques (NAF 43.22B)' },
-    { label: 'Toiture / Couverture', cae: 'Travaux de couverture par éléments (NAF 43.91B)' },
-    { label: 'Métallerie / Ferronnerie', cae: 'Fabrication de structures métalliques (NAF 25.11Z)' },
-    { label: 'Étanchéité', cae: 'Travaux d\'étanchéification (NAF 43.99B)' },
-    { label: 'Isolation thermique', cae: 'Travaux d\'isolation (NAF 43.29A)' },
-    { label: 'Revêtements de sols', cae: 'Travaux de revêtement des sols et des murs (NAF 43.33Z)' },
-    { label: 'Menuiseries / Fenêtres', cae: 'Travaux de menuiserie métallique et serrurerie (NAF 43.32B)' },
-    { label: 'Portes / Portails', cae: 'Fabrication de portes et fenêtres en métal (NAF 25.12Z)' },
-    { label: 'Stores / Rideaux', cae: 'Commerce de détail de tapis et revêtements (NAF 47.53Z)' },
-    { label: 'Vitrerie', cae: 'Travaux de peinture et vitrerie (NAF 43.34Z)' },
-    { label: 'Plombier gaz', cae: 'Travaux de plomberie (NAF 43.22A)' },
-    { label: 'Électroménager', cae: 'Réparation d\'équipements électriques (NAF 33.14Z)' },
-    { label: 'Nettoyage', cae: 'Nettoyage courant des bâtiments (NAF 81.21Z)' },
-    { label: 'Jardinage', cae: 'Services d\'aménagement paysager (NAF 81.30Z)' },
-    { label: 'Déménagement', cae: 'Services de déménagement (NAF 49.42Z)' },
-    { label: 'Débouchage', cae: 'Autres travaux spécialisés de construction (NAF 43.99C)' },
-    { label: 'Façades', cae: 'Autres travaux de finition (NAF 43.31Z)' },
-    { label: 'Terrasses / Balcons', cae: 'Construction de bâtiments résidentiels et non résidentiels (NAF 41.20B)' },
-    { label: 'Piscines', cae: 'Autres travaux spécialisés de construction (NAF 43.99D)' },
-    { label: 'Dératisation', cae: 'Désinfection, désinsectisation, dératisation (NAF 81.29A)' },
-    { label: 'Bricolage', cae: 'Autres travaux spécialisés de construction (NAF 43.99Z)' },
-    { label: 'Rénovation générale', cae: 'Construction de bâtiments résidentiels et non résidentiels (NAF 41.20A)' },
-    { label: 'Autre secteur', cae: '' },
-  ]
+  const secteursData = isPt ? SECTEURS_BTP_PT : SECTEURS_BTP_FR
   const secteurs = secteursData.map(s => s.label)
 
   return (
