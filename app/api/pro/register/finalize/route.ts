@@ -16,8 +16,11 @@ import { logger } from '@/lib/logger'
 // Même garde que create-profile : compte créé il y a moins de 10 minutes,
 // plus le rôle pro_societe lu dans app_metadata (non forgeable).
 //
-// multipart/form-data : user_id, kbis? (File), identity? (File)
+// multipart/form-data : user_id, kbis? (File), identity? (File), identity_verso? (File)
 // Une pièce déjà déposée n'est jamais remplacée. Le KYC tourne après la réponse.
+// Le schéma de prod ne suit pas toujours les migrations : une pièce dont la
+// colonne n'existe pas encore (id_document_verso_url, migration du 16/10/2026)
+// est ignorée, sans dépôt orphelin ni effet sur les autres pièces.
 // ════════════════════════════════════════════════════════════════════════════
 
 const FENETRE_INSCRIPTION_MS = 10 * 60 * 1000
@@ -28,6 +31,7 @@ const DUREE_URL_SIGNEE_S = 60 * 60 * 24 * 7 // comme /api/upload pour les docume
 const PIECES = [
   { champ: 'kbis', dossier: 'kbis', colonne: 'kbis_url' },
   { champ: 'identity', dossier: 'identity', colonne: 'id_document_url' },
+  { champ: 'identity_verso', dossier: 'identity-verso', colonne: 'id_document_verso_url' },
 ] as const
 
 type Piece = (typeof PIECES)[number]
@@ -93,9 +97,10 @@ export async function POST(request: NextRequest) {
       fichiers.push({ ...piece, contenu, type })
     }
 
+    // '*' : renvoie les colonnes existantes, sans échouer sur une colonne absente
     const { data: profil, error: profilError } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('id, kbis_url, id_document_url')
+      .select('*')
       .eq('user_id', userId)
       .maybeSingle()
     if (profilError) {
@@ -106,10 +111,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profil introuvable' }, { status: 404 })
     }
 
-    const documents = { kbis: false, identity: false }
+    const documents = { kbis: false, identity: false, identity_verso: false }
     const urls: Partial<Record<Piece['colonne'], string>> = {}
     let depotEchoue = false
     for (const f of fichiers) {
+      if (!(f.colonne in profil)) {
+        logger.warn('[btp-register-finalize] colonne absente, pièce ignorée', { colonne: f.colonne })
+        continue
+      }
       if (profil[f.colonne]) continue // pièce déjà déposée : jamais remplacée
       const chemin = `${f.dossier}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${f.type.ext}`
       const { data: depot, error: depotError } = await supabaseAdmin.storage
@@ -135,6 +144,7 @@ export async function POST(request: NextRequest) {
         depotEchoue = true
         documents.kbis = false
         documents.identity = false
+        documents.identity_verso = false
       }
     }
 

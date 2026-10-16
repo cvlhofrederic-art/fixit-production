@@ -943,6 +943,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               finalizeData.append('user_id', authData.user.id)
               if (kbisFile) finalizeData.append('kbis', kbisFile)
               if (idFile) finalizeData.append('identity', idFile)
+              if (idFileVerso) finalizeData.append('identity_verso', idFileVerso)
               const finalizeRes = await fetch('/api/pro/register/finalize', { method: 'POST', body: finalizeData })
               if (!finalizeRes.ok) {
                 const finalizeResult = await finalizeRes.json().catch(() => ({}))
@@ -951,7 +952,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             } catch (uploadErr: unknown) {
               // Non bloquant : le compte est créé, seules les pièces ou le KYC manquent
               console.warn('[register] finalize failed:', uploadErr)
-              if (kbisFile || idFile) {
+              if (kbisFile || idFile || idFileVerso) {
                 setError(`${t('register.accountErrorUpload')}: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}`)
               }
             }
