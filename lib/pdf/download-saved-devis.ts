@@ -19,6 +19,7 @@ import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
+import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
 
 interface SavedDevis {
   id?: string
@@ -504,6 +505,8 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
       rm: (artisan.rm as string | undefined) || doc.companyRCS || undefined,
       rc_pro: (artisan.rc_pro as string | undefined) || doc.insuranceNumber || undefined,
     } : null,
+    // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+    modele: modeleDocumentSociete(artisan?.id),
     ptFiscalData: null,
     svgToImageDataUrl,
     fetchFreshLogo: async () => {
