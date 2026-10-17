@@ -18,7 +18,10 @@ jobs:
   unit:
     name: "Tests unitaires (Vitest)"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # La suite passe deux fois (tests, puis couverture) : ~6 700 tests en oct. 2026.
+    # À 10 min, l'étape de couverture était coupée et le job finissait « annulé »
+    # (PR #519, #521, #522, #524) alors que les tests avaient réussi.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout du code
