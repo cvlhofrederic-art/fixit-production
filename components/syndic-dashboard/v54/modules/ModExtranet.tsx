@@ -23,7 +23,8 @@ import { EXTRANET_MESSAGES } from './i18n/ModExtranet.messages'
 /** Extranet Condóminos — port byte-exact du ModExtranet du bundle V5.7 (stateful : Modal + copy URL). */
 
 type ExtForm = { nome: string; email: string; telefone: string; fracao: string; edificio: string; notas: string }
-type Cond = ExtForm & { id: number; acessoAtivo: boolean; saldo: number }
+/** `coproId` : id Supabase de la fiche syndic_coproprios (null pour l'état local de la preview). */
+type Cond = ExtForm & { id: string; coproId: string | null; acessoAtivo: boolean; saldo: number }
 
 /** URL du portail : la même valeur est affichée dans le champ et copiée dans le presse-papiers (route réelle, sans accent). */
 const URL_PORTAIL = 'https://vitfix.io/coproprietaire/portail'
@@ -41,13 +42,42 @@ export default function ModExtranet() {
   const [form, setForm] = useState<ExtForm>(blank)
   const [errors, setErrors] = useState<Partial<Record<keyof ExtForm, string>>>({})
   const [busy, setBusy] = useState(false)
+  // Fiche dont l'activation de l'accès au portail est en cours (POST /api/syndic/coproprios/[id]/acces).
+  const [activation, setActivation] = useState<string | null>(null)
   const { push } = useToast()
   // Phase 2 : vrais condóminos du cabinet si syndic connecté, sinon état local (mock/preview).
   const data = useSyndicData()
   const real = data.authenticated
   const displayItems: Cond[] = real
-    ? (data.coproprios ?? []).map((c, i) => ({ id: i, nome: c.proprietario || '—', email: c.email, telefone: c.telefone, fracao: [c.batiment, c.numeroPorte].filter(Boolean).join(' '), edificio: c.immeuble, notas: '', acessoAtivo: c.acessoPortal ?? false, saldo: c.solde ?? 0 }))
+    ? (data.coproprios ?? []).map((c, i) => ({ id: c.id || String(i), coproId: c.id || null, nome: c.proprietario || '—', email: c.email, telefone: c.telefone, fracao: [c.batiment, c.numeroPorte].filter(Boolean).join(' '), edificio: c.immeuble, notas: '', acessoAtivo: c.acessoPortal ?? false, saldo: c.solde ?? 0 }))
     : items
+
+  /** Ouvre l'accès du propriétaire : compte créé par invitation ou rattaché, puis fiche mise à jour. */
+  const activerAcces = async (it: Cond) => {
+    if (!it.coproId || !data.token) return
+    setActivation(it.coproId)
+    try {
+      const res = await fetch(`/api/syndic/coproprios/${it.coproId}/acces`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ occupant: 'proprietaire' }),
+      })
+      const corps = (await res.json().catch(() => ({}))) as { error?: unknown; invite?: boolean; email?: string }
+      if (!res.ok) {
+        const erreurs: Partial<Record<string, string>> = t.acces.erreurs
+        push({ kind: 'error', title: t.acces.erreur, desc: (typeof corps.error === 'string' && erreurs[corps.error]) || t.toasts.reessayerPlusTard })
+        return
+      }
+      const email = corps.email || it.email
+      push({ kind: 'success', title: t.acces.active, desc: corps.invite ? t.acces.invitationEnvoyee(email) : t.acces.compteRattache(email) })
+      data.refresh?.()
+    } catch (erreur: unknown) {
+      console.warn('[syndic v54] activation de l’accès au portail impossible', erreur)
+      push({ kind: 'error', title: t.acces.erreur, desc: t.toasts.reessayerPlusTard })
+    } finally {
+      setActivation(null)
+    }
+  }
 
   const upd = (k: keyof ExtForm, v: string) => setForm(s => ({ ...s, [k]: v }))
   const openNew = () => { setForm(blank); setErrors({}); setOpen(true) }
@@ -72,7 +102,7 @@ export default function ModExtranet() {
         .finally(() => setBusy(false))
       return
     }
-    setItems(prev => [...prev, { ...form, id: Date.now(), acessoAtivo: true, saldo: 0 }])
+    setItems(prev => [...prev, { ...form, id: String(Date.now()), coproId: null, acessoAtivo: true, saldo: 0 }])
     setOpen(false)
     push({ kind: 'success', title: t.toasts.ajoute, desc: form.nome })
   }
@@ -124,7 +154,23 @@ export default function ModExtranet() {
                   <td>{it.telefone || '—'}</td>
                   <td>{it.fracao || '—'}</td>
                   <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtEUR(it.saldo || 0, locale)}</td>
-                  <td><Pill kind={it.acessoAtivo ? 'sage' : 'rust'}>{it.acessoAtivo ? t.actif : t.inactif}</Pill></td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                      <Pill kind={it.acessoAtivo ? 'sage' : 'rust'}>{it.acessoAtivo ? t.actif : t.inactif}</Pill>
+                      {real && it.coproId && (it.acessoAtivo
+                        ? <Button size="sm" disabled>{t.acces.deja}</Button>
+                        : (
+                          <Button
+                            size="sm"
+                            disabled={!it.email || activation === it.coproId}
+                            title={it.email ? undefined : t.acces.emailManquant}
+                            onClick={() => { void activerAcces(it) }}
+                          >
+                            {t.acces.activer}
+                          </Button>
+                        ))}
+                    </div>
+                  </td>
                 </tr>
               ))}</tbody>
             </table>

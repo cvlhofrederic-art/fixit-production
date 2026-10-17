@@ -12,6 +12,12 @@ const DOCUMENT_TYPES = [
   'rib', 'ata_ag', 'releve_bancaire', 'pv_assemblee', 'autre',
 ] as const
 
+const COLONNES_BASE = 'id, filename, mime_type, size_bytes, type, status, immeuble_id, tags, uploaded_at, processed_at, error_message, extracted_metadata'
+/** Colonnes de la migration 20261017 (portail copropriétaire). */
+const COLONNES_EXTRANET = 'publie_extranet, espace_extranet, coproprio_id, categorie_extranet'
+/** Valeurs renvoyées tant que la migration n'est pas appliquée : rien n'est publié. */
+const SANS_EXTRANET = { publie_extranet: false, espace_extranet: 'commun', coproprio_id: null, categorie_extranet: null } as const
+
 const QuerySchema = z.object({
   type: z.enum(DOCUMENT_TYPES).optional(),
   status: z.enum(['pending', 'processing', 'processed', 'error']).optional(),
@@ -43,27 +49,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'invalid_query', details: parsed.error.flatten() }, { status: 400 })
     }
 
-    let query = supabaseAdmin
-      .from('syndic_documents')
-      .select('id, filename, mime_type, size_bytes, type, status, immeuble_id, tags, uploaded_at, processed_at, error_message, extracted_metadata', { count: 'exact' })
-      .eq('cabinet_id', cabinetId)
-      .order('uploaded_at', { ascending: false })
-      .range(parsed.data.offset, parsed.data.offset + parsed.data.limit - 1)
+    const filtres = parsed.data
+    const construire = (colonnes: string) => {
+      let query = supabaseAdmin
+        .from('syndic_documents')
+        .select(colonnes, { count: 'exact' })
+        .eq('cabinet_id', cabinetId)
+        .order('uploaded_at', { ascending: false })
+        .range(filtres.offset, filtres.offset + filtres.limit - 1)
 
-    if (parsed.data.type) query = query.eq('type', parsed.data.type)
-    if (parsed.data.status) query = query.eq('status', parsed.data.status)
-    if (parsed.data.immeuble_id) query = query.eq('immeuble_id', parsed.data.immeuble_id)
-    if (parsed.data.date_from) query = query.gte('uploaded_at', parsed.data.date_from)
-    if (parsed.data.date_to) query = query.lte('uploaded_at', parsed.data.date_to)
+      if (filtres.type) query = query.eq('type', filtres.type)
+      if (filtres.status) query = query.eq('status', filtres.status)
+      if (filtres.immeuble_id) query = query.eq('immeuble_id', filtres.immeuble_id)
+      if (filtres.date_from) query = query.gte('uploaded_at', filtres.date_from)
+      if (filtres.date_to) query = query.lte('uploaded_at', filtres.date_to)
+      return query
+    }
 
-    const { data, error, count } = await query
+    let colonnesExtranet = true
+    let { data, error, count } = await construire(`${COLONNES_BASE}, ${COLONNES_EXTRANET}`)
+    if (error?.code === '42703') {
+      // Migration 20261017 (portail copropriétaire) pas encore appliquée en production :
+      // relecture sans ses colonnes, aucun document n'est alors publié.
+      logger.warn('[lea-documents/list] colonnes extranet absentes (migration 20261017 non appliquée) — relecture sans elles', { code: error.code, message: error.message })
+      colonnesExtranet = false
+      ;({ data, error, count } = await construire(COLONNES_BASE))
+    }
     if (error) {
       logger.error('[lea-documents/list] db query failed:', error)
       return NextResponse.json({ error: 'db_query_failed' }, { status: 500 })
     }
 
+    // Colonnes passées en chaîne dynamique : le client Supabase non typé ne sait pas en déduire les lignes.
+    const lignes = (data ?? []) as unknown as Record<string, unknown>[]
+    const documents = lignes.map((d) => (colonnesExtranet ? d : { ...d, ...SANS_EXTRANET }))
+
     return NextResponse.json({
-      documents: data ?? [],
+      documents,
       total: count ?? 0,
       limit: parsed.data.limit,
       offset: parsed.data.offset,

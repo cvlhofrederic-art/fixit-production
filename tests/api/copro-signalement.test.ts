@@ -34,7 +34,7 @@ const h = vi.hoisted(() => {
     etat.requetes.push(requete)
     let insertion: Record<string, unknown> | null = null
     const q: Record<string, unknown> = {}
-    for (const m of ['select', 'limit', 'order']) q[m] = () => q
+    for (const m of ['select', 'limit', 'order', 'is']) q[m] = () => q
     q.ilike = (col: string, val: unknown) => { requete.filtres.push(['ilike', col, val]); return q }
     q.eq = (col: string, val: unknown) => { requete.filtres.push(['eq', col, val]); return q }
     q.insert = (ligne: Record<string, unknown>) => { insertion = ligne; etat.insertions.push(ligne); return q }
@@ -226,13 +226,15 @@ describe('POST /api/coproprietaire/signalement — erreur d’écriture', () => 
 describe('GET /api/coproprietaire/signalement — suivi par e-mail', () => {
   const lire = (url: string) => GET(new NextRequest(url))
 
-  it('recherche exacte sur l’e-mail en minuscules, statut et prestataire renvoyés', async () => {
+  it('recherche exacte sur l’e-mail en minuscules, statut et dates seulement', async () => {
     h.etat.signalements = [{ id: 'sig-1', statut: 'acceptee', artisan_assigne: 'Plomberie du Vieux-Port', created_at: '2026-10-12T09:00:00Z' }]
     const res = await lire('https://vitfix.io/api/coproprietaire/signalement?email=Geraldine.Xavier%40Email.com')
     expect(res.status).toBe(200)
     expect(requetesSur('syndic_signalements')[0].filtres).toContainEqual(['eq', 'demandeur_email', 'geraldine.xavier@email.com'])
     const { signalements } = await res.json()
-    expect(signalements[0]).toMatchObject({ id: 'sig-1', statut: 'acceptee', artisanAssigne: 'Plomberie du Vieux-Port' })
+    expect(signalements[0]).toEqual({ id: 'sig-1', typeIntervention: '', statut: 'acceptee', createdAt: '2026-10-12T09:00:00Z', updatedAt: undefined })
+    // Suivi public réduit : ni prestataire, ni description, ni lot.
+    expect(signalements[0]).not.toHaveProperty('artisanAssigne')
   })
 
   it('lecture en erreur : 500 et erreur journalisée', async () => {

@@ -16,6 +16,18 @@ interface ExtranetTextes {
   colonnes: { nom: string; email: string; telephone: string; lot: string; solde: string; acces: string }
   actif: string
   inactif: string
+  /** Ouverture de l'accès au portail (syndic connecté) : compte créé par invitation ou rattaché. */
+  acces: {
+    activer: string
+    deja: string
+    emailManquant: string
+    active: string
+    invitationEnvoyee: (email: string) => string
+    compteRattache: (email: string) => string
+    erreur: string
+    /** Messages par code d'erreur de l'API (les autres codes tombent sur `toasts.reessayerPlusTard`). */
+    erreurs: Record<'email_manquant' | 'compte_autre_role' | 'migration_requise' | 'not_found' | 'unauthorized', string>
+  }
   portail: { titre: string; texte: string; urlAria: string; copier: string }
   formulaire: {
     titre: string
@@ -60,6 +72,22 @@ export const EXTRANET_MESSAGES = defineMessages<ExtranetTextes>({
     colonnes: { nom: 'Nome', email: 'Email', telephone: 'Telefone', lot: 'Fração', solde: 'Saldo', acces: 'Acesso' },
     actif: 'Ativo',
     inactif: 'Inativo',
+    acces: {
+      activer: 'Ativar acesso',
+      deja: 'Acesso ativado',
+      emailManquant: 'Indique primeiro o email do condómino',
+      active: 'Acesso ao portal ativado',
+      invitationEnvoyee: (email) => `Convite enviado para ${email}`,
+      compteRattache: (email) => `Conta existente associada: ${email}`,
+      erreur: 'Não foi possível ativar o acesso',
+      erreurs: {
+        email_manquant: 'Indique primeiro o email do condómino.',
+        compte_autre_role: 'Este email já tem uma conta Vitfix de outro tipo (síndico, profissional…).',
+        migration_requise: 'Portal ainda não ativado nesta base de dados.',
+        not_found: 'Condómino não encontrado.',
+        unauthorized: 'Sessão expirada. Inicie sessão novamente.',
+      },
+    },
     portail: {
       titre: 'Portal Condóminos',
       texte: 'Cada condómino pode aceder à sua área pessoal para consultar as suas quotas, atas de AG e documentos.',
@@ -106,6 +134,22 @@ export const EXTRANET_MESSAGES = defineMessages<ExtranetTextes>({
     colonnes: { nom: 'Nom', email: 'E-mail', telephone: 'Téléphone', lot: 'Lot', solde: 'Solde', acces: 'Accès' },
     actif: 'Actif',
     inactif: 'Inactif',
+    acces: {
+      activer: "Activer l'accès",
+      deja: 'Accès activé',
+      emailManquant: "Renseignez d'abord l'e-mail du copropriétaire",
+      active: 'Accès au portail activé',
+      invitationEnvoyee: (email) => `Invitation envoyée à ${email}`,
+      compteRattache: (email) => `Compte existant rattaché : ${email}`,
+      erreur: "Impossible d'activer l'accès",
+      erreurs: {
+        email_manquant: "Renseignez d'abord l'e-mail du copropriétaire.",
+        compte_autre_role: "Cet e-mail a déjà un compte Vitfix d'un autre type (syndic, prestataire…).",
+        migration_requise: 'Portail pas encore activé sur cette base de données.',
+        not_found: 'Copropriétaire introuvable.',
+        unauthorized: 'Session expirée. Veuillez vous reconnecter.',
+      },
+    },
     portail: {
       titre: 'Espace copropriétaire',
       texte: "Chaque copropriétaire accède à son espace personnel pour consulter ses appels de fonds, les PV d'AG et les documents de la copropriété (accès en ligne sécurisé que le syndic professionnel doit proposer, sauf décision contraire de l'AG : art. 18 de la loi du 10 juillet 1965 et décret n° 2019-502 du 23 mai 2019).",

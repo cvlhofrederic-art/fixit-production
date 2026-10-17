@@ -17,6 +17,15 @@ import { HOOKS_MESSAGES, STATUTS_DOCUMENT, TYPES_DOCUMENT } from './i18n/hooks.m
 export const enTetesLea = (token?: string): Record<string, string> =>
   token ? { Authorization: `Bearer ${token}` } : {}
 
+/** Rubriques de l'extranet (décret du 17 mars 1967, art. 33-1-1) — mêmes codes que la migration 20261017. */
+export const CATEGORIES_EXTRANET = [
+  'reglement', 'edd', 'fiche_synthetique', 'carnet_entretien', 'diagnostic', 'assurance',
+  'contrat_marche', 'contrat_entretien', 'pv_ag', 'devis_approuve', 'contrat_syndic',
+  'convocation', 'budget', 'compte_individuel', 'appel_fonds', 'autre',
+] as const
+export type CategorieExtranet = (typeof CATEGORIES_EXTRANET)[number]
+export type EspaceExtranet = 'commun' | 'personnel'
+
 /** Document Léa tel que renvoyé par GET /api/syndic/lea-documents. */
 export interface LeaDocument {
   id: string
@@ -31,6 +40,44 @@ export interface LeaDocument {
   processed_at: string | null
   error_message: string | null
   extracted_metadata: Record<string, unknown> | null
+  /** Publication sur le portail copropriétaire (migration 20261017) : absent ou false = non publié. */
+  publie_extranet?: boolean
+  espace_extranet?: EspaceExtranet
+  coproprio_id?: string | null
+  categorie_extranet?: CategorieExtranet | null
+}
+
+/** Corps de PATCH /api/syndic/lea-documents/[id] (publication sur le portail). */
+export interface LeaDocPublication {
+  publie_extranet?: boolean
+  espace_extranet?: EspaceExtranet
+  coproprio_id?: string | null
+  categorie_extranet?: CategorieExtranet | null
+}
+
+export type ResultatPublication = { ok: true; document: LeaDocument } | { ok: false; code: string }
+
+/**
+ * Publie, retire ou classe un document sur le portail copropriétaire. Ne lève jamais : le code
+ * d'échec est celui de l'API (`immeuble_requis`, `migration_requise`…), `http_<statut>` sans
+ * corps lisible, `reseau` si le serveur est injoignable.
+ */
+export async function publierLeaDocument(token: string | undefined, id: string, patch: LeaDocPublication): Promise<ResultatPublication> {
+  try {
+    const res = await fetch(`/api/syndic/lea-documents/${id}`, {
+      method: 'PATCH',
+      headers: { ...enTetesLea(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    const data = (await res.json().catch(() => ({}))) as { error?: unknown; document?: LeaDocument }
+    if (!res.ok || !data.document) {
+      return { ok: false, code: typeof data.error === 'string' ? data.error : `http_${res.status}` }
+    }
+    return { ok: true, document: data.document }
+  } catch (erreur: unknown) {
+    console.warn('[syndic v54] publication du document sur le portail impossible', erreur)
+    return { ok: false, code: 'reseau' }
+  }
 }
 
 /** Métadonnées OCR extraites par Léa (P2) — sous-ensemble utilisé à l'affichage. */
@@ -86,6 +133,8 @@ interface UseLeaDocumentsResult {
   docs: LeaDocument[]
   loading: boolean
   refresh: () => Promise<void>
+  /** Remplace un document de la liste par sa version renvoyée par l'API (sans relecture). */
+  remplacer: (doc: LeaDocument) => void
 }
 
 /**
@@ -125,7 +174,11 @@ export function useLeaDocuments(opts: { enabled: boolean }): UseLeaDocumentsResu
     void refresh()
   }, [refresh])
 
-  return { docs, loading, refresh }
+  const remplacer = useCallback((doc: LeaDocument) => {
+    setDocs((cur) => cur.map((d) => (d.id === doc.id ? { ...d, ...doc } : d)))
+  }, [])
+
+  return { docs, loading, refresh, remplacer }
 }
 
 /** Référence minimale d'un document pour les actions (ouvrir / supprimer). */

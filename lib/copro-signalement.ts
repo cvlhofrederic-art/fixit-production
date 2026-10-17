@@ -26,6 +26,8 @@ export interface SignalementAEnvoyer {
   etage?: string
   numLot?: string
   zoneSignalee?: string
+  /** Fiche syndic_coproprios affichée (compte rattaché à plusieurs lots) : la route s'y rattache. */
+  lot?: string
 }
 
 /** Signalement tel que renvoyé par le suivi (GET). */

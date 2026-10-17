@@ -45,6 +45,8 @@ interface CanalReelTextes {
     envoye: string
     envoyeDesc: string
     erreurEnvoi: string
+    /** Mention au-dessus du champ de réponse : le demandeur lit les réponses dans son espace. */
+    visibleDemandeur: string
     details: {
       aria: string
       demande: string
@@ -176,6 +178,7 @@ export const CANAL_REEL_MESSAGES = defineMessages<CanalReelTextes>({
       envoye: 'Resposta enviada',
       envoyeDesc: 'Visível pelo condómino no acompanhamento do pedido.',
       erreurEnvoi: 'Falha no envio',
+      visibleDemandeur: 'As suas respostas são visíveis pelo requerente na sua área.',
       details: {
         aria: 'Detalhes do pedido',
         demande: 'PEDIDO',
@@ -305,6 +308,7 @@ export const CANAL_REEL_MESSAGES = defineMessages<CanalReelTextes>({
       envoye: 'Réponse envoyée',
       envoyeDesc: 'Visible par le copropriétaire dans le suivi de sa demande.',
       erreurEnvoi: "Échec de l'envoi",
+      visibleDemandeur: 'Vos réponses sont visibles par le demandeur dans son espace',
       details: {
         aria: 'Détails de la demande',
         demande: 'DEMANDE',

@@ -1,26 +1,34 @@
 'use client'
 
+import { useState } from 'react'
 import { PageHead } from '../primitives/page-head'
 import { KPIGrid } from '../primitives/kpi'
 import { Panel } from '../primitives/panel'
 import { Empty } from '../primitives/empty'
 import { Pill, type PillKind } from '../primitives/pill'
 import { Button } from '../primitives/button'
+import { Toggle } from '../primitives/toggle'
 import { Modal, ModalHead, ModalBody, ModalFoot } from '../primitives/modal'
+import { useToast } from '../primitives/toast'
 import Icon from '../primitives/icon/Icon'
 import type { IconName } from '@/lib/syndic/icon-names'
+import type { Immeuble } from '@/components/syndic-dashboard/types'
 import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
 import { useDocumentUpload } from './use-document-upload'
 import {
   useLeaDocuments,
   useLeaDocActions,
+  publierLeaDocument,
   docTypeLabel,
   docTypeKind,
   docTypeIcon,
   docStatusLabel,
   docStatusKind,
   docDateShort,
+  CATEGORIES_EXTRANET,
+  type CategorieExtranet,
+  type LeaDocPublication,
   type LeaDocument,
   type LeaDocMeta,
 } from './use-lea-documents'
@@ -31,20 +39,29 @@ import { DOCS_GED_MESSAGES, type DocumentDemo } from './i18n/ModDocsGED.messages
 /**
  * Documentos (GED) — port byte-exact du ModDocsGED du bundle V5.7 (mock = preview anonyme).
  * Authentifié : liste réelle des documents Léa du cabinet (upload → OCR → indexação RAG),
- * avec indicateur de statut de traitement OCR. Anonyme : preview mock byte-exact inchangée.
+ * avec indicateur de statut de traitement OCR et, par document rattaché à un immeuble,
+ * l'interrupteur de publication sur le portail copropriétaire (colonne « Portail »).
+ * Anonyme : preview mock byte-exact inchangée.
  */
 
-type Row = { id: string; icon: IconName; nome: string; sub: string; tipo: string; tipoKind: PillKind; edificio: string; tecnico: string; data: string; status?: LeaDocument['status'] }
+type Row = {
+  id: string; icon: IconName; nome: string; sub: string; tipo: string; tipoKind: PillKind; edificio: string; tecnico: string; data: string; status?: LeaDocument['status']
+  /** Portail copropriétaire (documents réels seulement). */
+  immeubleId: string | null; publie: boolean; categorie: CategorieExtranet | null
+}
 
 const inputStyle = { width: '100%', padding: '10px 12px 10px 36px', border: '1px solid var(--v54-line-strong)', borderRadius: 8, fontSize: 13 } as const
 const searchIcon = { position: 'absolute', left: 12, top: 11, width: 14, height: 14, color: 'var(--v54-navy-300)' } as const
 const selectStyle = { padding: '10px 12px', borderRadius: 8, border: '1px solid var(--v54-line-strong)', background: '#fff', color: 'var(--v54-ink)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' } as const
+/** Sélecteur de rubrique du portail, version compacte de `selectStyle` pour tenir dans une ligne du tableau. */
+const rubriqueStyle = { ...selectStyle, padding: '5px 8px', fontSize: 11.5, maxWidth: 180 } as const
 
 /** Lignes de la preview anonyme (démonstration dans la langue courante ; couleur portée par la donnée). */
-const mockRows = (demo: readonly DocumentDemo[]): Row[] => demo.map((d) => ({ id: d.nome, icon: d.icon, nome: d.nome, sub: d.sub, tipo: d.tipo, tipoKind: d.tipoKind, edificio: d.edificio, tecnico: d.tecnico, data: d.data }))
+const mockRows = (demo: readonly DocumentDemo[]): Row[] => demo.map((d) => ({ id: d.nome, icon: d.icon, nome: d.nome, sub: d.sub, tipo: d.tipo, tipoKind: d.tipoKind, edificio: d.edificio, tecnico: d.tecnico, data: d.data, immeubleId: null, publie: false, categorie: null }))
 
-const realRows = (docs: LeaDocument[], locale: V54Locale): Row[] => docs.map((d) => {
+const realRows = (docs: LeaDocument[], immeubles: Immeuble[], locale: V54Locale): Row[] => docs.map((d) => {
   const meta = (d.extracted_metadata ?? {}) as LeaDocMeta
+  const immeuble = d.immeuble_id ? immeubles.find((i) => i.id === d.immeuble_id) : undefined
   return {
     id: d.id,
     icon: docTypeIcon(d.type),
@@ -52,10 +69,13 @@ const realRows = (docs: LeaDocument[], locale: V54Locale): Row[] => docs.map((d)
     sub: meta.summary_short || meta.fournisseur || docTypeLabel(d.type, locale),
     tipo: docTypeLabel(d.type, locale),
     tipoKind: docTypeKind(d.type),
-    edificio: '—',
+    edificio: immeuble?.nom || '—',
     tecnico: meta.fournisseur || '—',
     data: docDateShort(d.uploaded_at),
     status: d.status,
+    immeubleId: d.immeuble_id,
+    publie: d.publie_extranet === true,
+    categorie: d.categorie_extranet ?? null,
   }
 })
 
@@ -65,11 +85,31 @@ export default function ModDocsGED() {
   const soon = useComingSoon()
   const data = useSyndicData()
   const authed = data.authenticated
-  const { docs, refresh } = useLeaDocuments({ enabled: authed })
+  const { docs, refresh, remplacer } = useLeaDocuments({ enabled: authed })
   const upload = useDocumentUpload(refresh)
   const actions = useLeaDocActions(refresh)
+  const { push } = useToast()
+  // Document dont la publication sur le portail est en cours (un seul à la fois par ligne).
+  const [publicationEnCours, setPublicationEnCours] = useState<string | null>(null)
 
-  const rows: Row[] = authed ? realRows(docs, locale) : mockRows(t.demo)
+  /** PATCH de publication : la ligne est mise à jour avec la réponse, sans relire la liste. */
+  const publier = async (d: Row, patch: LeaDocPublication, titreSucces: string) => {
+    setPublicationEnCours(d.id)
+    try {
+      const resultat = await publierLeaDocument(data.token, d.id, patch)
+      if (resultat.ok) {
+        remplacer(resultat.document)
+        push({ kind: 'success', title: titreSucces, desc: d.nome })
+      } else {
+        const erreurs: Partial<Record<string, string>> = t.portail.erreurs
+        push({ kind: 'error', title: t.portail.erreur, desc: erreurs[resultat.code] ?? t.portail.reessayer })
+      }
+    } finally {
+      setPublicationEnCours(null)
+    }
+  }
+
+  const rows: Row[] = authed ? realRows(docs, data.immeubles, locale) : mockRows(t.demo)
   const nFat = authed ? docs.filter((d) => d.type.startsWith('facture')).length : 1
   const nOrc = authed ? docs.filter((d) => d.type === 'devis').length : 1
   const nRel = authed ? docs.filter((d) => d.type === 'autre').length : 1
@@ -113,7 +153,7 @@ export default function ModDocsGED() {
         ) : (
           <div className={m.tblWrap}>
             <table className={m.tbl}>
-              <thead><tr><th>{t.colonnes.document}</th><th>{t.colonnes.type}</th><th>{t.colonnes.immeuble}</th><th>{t.colonnes.prestataire}</th><th>{t.colonnes.date}</th><th aria-label={t.colonnes.actionsAria} /></tr></thead>
+              <thead><tr><th>{t.colonnes.document}</th><th>{t.colonnes.type}</th><th>{t.colonnes.immeuble}</th><th>{t.colonnes.prestataire}</th><th>{t.colonnes.date}</th>{authed && <th>{t.colonnes.portail}</th>}<th aria-label={t.colonnes.actionsAria} /></tr></thead>
               <tbody>
                 {rows.map((d) => (
                   <tr key={d.id}>
@@ -131,6 +171,33 @@ export default function ModDocsGED() {
                     <td>{d.edificio}</td>
                     <td>{d.tecnico}</td>
                     <td className={m.numCell}>{d.data}</td>
+                    {authed && (
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {/* Sans immeuble, le portail ne peut pas servir le document : interrupteur désactivé avec l'explication. */}
+                          <span title={d.immeubleId ? t.portail.visible : t.portail.rattacherImmeuble} style={{ display: 'inline-flex' }}>
+                            <Toggle
+                              on={d.publie}
+                              disabled={!d.immeubleId || publicationEnCours === d.id}
+                              aria-label={t.portail.visible}
+                              onToggle={(e) => { void publier(d, { publie_extranet: e.target.checked }, e.target.checked ? t.portail.publie : t.portail.retire) }}
+                            />
+                          </span>
+                          {d.publie && (
+                            <select
+                              aria-label={t.portail.rubriqueAria}
+                              style={rubriqueStyle}
+                              value={d.categorie ?? ''}
+                              disabled={publicationEnCours === d.id}
+                              onChange={(e) => { void publier(d, { categorie_extranet: (e.target.value || null) as CategorieExtranet | null }, t.portail.rubriqueEnregistree) }}
+                            >
+                              <option value="">{t.portail.rubriqueAucune}</option>
+                              {CATEGORIES_EXTRANET.map((c) => <option key={c} value={c}>{t.portail.rubriques[c]}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      </td>
+                    )}
                     <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                       {authed ? (
                         <>
