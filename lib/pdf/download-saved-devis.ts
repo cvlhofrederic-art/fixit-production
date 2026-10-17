@@ -20,6 +20,7 @@ import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
 
 interface SavedDevis {
   id?: string
@@ -350,10 +351,14 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
-  const delayStr = doc.executionDelay
-    || (doc.executionDelayDays && doc.executionDelayDays > 0
-      ? `${doc.executionDelayDays} ${doc.executionDelayType === 'calendaires' ? 'jours calendaires' : 'jours ouvrés'}`
-      : '')
+  // Délai, titre par défaut, type de client et rétractation : mêmes règles que
+  // le formulaire BTP (lib/devis-btp-libelles.ts)
+  const champs = champsDocumentBtp({
+    locale,
+    docType: doc.docType, docNumber: doc.docNumber, docTitle: doc.docTitle, factureSubType: doc.factureSubType,
+    executionDelay: doc.executionDelay, executionDelayDays: doc.executionDelayDays, executionDelayType: doc.executionDelayType,
+    clientType: doc.clientType, clientSiret: doc.clientSiret, isHorsEtablissement: doc.isHorsEtablissement,
+  })
 
   // Fallback IBAN/BIC pour les devis legacy enregistrés avant la persistance
   // (cf. DevisFactureFormBTP.buildPayload, fix 06/05/2026). Les devis créés
@@ -363,13 +368,18 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
   let resolvedBic = doc.bic || ''
   let artisanCategories: string[] | null = null
   let artisanTypeActivite: string | null = null
+  // Identité légale de la société (Mon profil) : reprise quand le document
+  // enregistré a le champ vide, comme le fait le formulaire BTP à l'ouverture.
+  let fiche: { siret?: string | null; company_address?: string | null; rcs_number?: string | null
+    share_capital?: string | null; tva_intra?: string | null; ape_code?: string | null } = {}
   if (artisan?.id) {
     try {
       const { data } = await supabase
         .from('profiles_artisan')
-        .select('paiement_modes, categories, type_activite')
+        .select('paiement_modes, categories, type_activite, siret, company_address, rcs_number, share_capital, tva_intra, ape_code')
         .eq('id', artisan.id)
         .single()
+      if (data) fiche = data as typeof fiche
       const modes = (data?.paiement_modes as Array<{ type?: string; iban?: string; bic?: string; actif?: boolean }>) || []
       const virement = modes.find(
         (m) => m.type === 'virement' && m.actif !== false && (m.iban || '').trim().length > 0,
@@ -395,7 +405,7 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     t,
     docType: doc.docType || 'devis',
     docNumber: doc.docNumber || '',
-    docTitle: doc.docTitle || `${doc.docType === 'facture' ? 'Facture' : 'Devis'} ${doc.docNumber || ''}`,
+    docTitle: champs.docTitle,
     // Antidatage interdit (art. 1737-II CGI, pénalité jusqu'à 50 %) : pour une
     // facture brouillon, la date d'émission au PDF est la date de génération
     // (today). Aligné art. 289 CGI + pratique Henrri/EBP/Pennylane/Sage.
@@ -425,18 +435,18 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     acomptePourcentage: doc.acomptePourcentage,
     parentInvoiceNumber: doc.parentInvoiceNumber,
     avoirMotif: doc.avoirMotif,
-    executionDelay: delayStr,
+    executionDelay: champs.executionDelay,
     companyStatus: statusCode,
     companyName: doc.companyName || artisan?.company_name || '',
-    companySiret: doc.companySiret || '',
-    companyAddress: doc.companyAddress || '',
-    companyRCS: doc.companyRCS || '',
-    companyCapital: doc.companyCapital || '',
+    companySiret: doc.companySiret || fiche.siret || '',
+    companyAddress: doc.companyAddress || fiche.company_address || '',
+    companyRCS: doc.companyRCS || fiche.rcs_number || '',
+    companyCapital: doc.companyCapital || fiche.share_capital || '',
     companyPhone: doc.companyPhone || '',
     companyEmail: doc.companyEmail || '',
     tvaEnabled,
-    tvaNumber: doc.tvaNumber || '',
-    companyAPE: doc.companyAPE || '',
+    tvaNumber: doc.tvaNumber || fiche.tva_intra || '',
+    companyAPE: doc.companyAPE || fiche.ape_code || '',
     insuranceName: doc.insuranceName || '',
     insuranceNumber: doc.insuranceNumber || '',
     insuranceCoverage: doc.insuranceCoverage || '',
@@ -444,13 +454,13 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     decennaleEligibility: getDecennaleEligibility(artisanCategories ?? artisanTypeActivite),
     mediatorName: doc.mediatorName || '',
     mediatorUrl: doc.mediatorUrl || '',
-    isHorsEtablissement: doc.isHorsEtablissement ?? (doc.clientType === 'particulier'),
+    isHorsEtablissement: champs.isHorsEtablissement,
     clientName: doc.clientName || '',
     clientEmail: doc.clientEmail || '',
     clientAddress: doc.clientAddress || '',
     clientPhone: doc.clientPhone || '',
     clientSiret: doc.clientSiret || '',
-    clientType: doc.clientType || 'particulier',
+    clientType: champs.clientType,
     interventionAddress: doc.interventionAddress || '',
     interventionBatiment: doc.interventionBatiment || '',
     interventionEtage: doc.interventionEtage || '',

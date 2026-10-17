@@ -691,31 +691,59 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   if (companyAPE) ey += ptToMm(14)
   if (companyCapital) ey += ptToMm(14)
 
-  // ── Mesure hauteur destinataire ──
+  // ── Lignes du destinataire ──
+  // La même liste sert à mesurer l'encadré et à le remplir. Avant, la mesure
+  // comptait une seule ligne par adresse et oubliait la TVA intra de
+  // l'autoliquidation (la fin du texte débordait sous l'encadré), et « Lieu : … »
+  // n'était imprimé qu'avec une adresse d'intervention (l'information disparaissait).
   let dy2 = boxStartY + boxPadTop
   const destTx = boxX_dest + boxPadX
   const destMaxW = destBoxW - boxPadX * 2
 
-  dy2 += ptToMm(18)  // label DESTINATAIRE
-  dy2 += ptToMm(14) + 1.5  // nom client + espace après nom
+  pdf.setFontSize(10); pdf.setFont('helvetica', 'bold')
+  const destNomLignes = pdf.splitTextToSize(clientName || '---', destMaxW) as string[]
+  pdf.setFont('helvetica', 'normal')
+  // Chaque ligne est coupée à la largeur de l'encadré (Lieu, e-mail… longs ne
+  // débordent plus à droite). `adresse` : dessinée en tableau de lignes comme avant.
+  const lignesDest: Array<{ lignes: string[]; adresse: boolean }> = []
+  const ajouterLigneDest = (texte: string, adresse = false) => {
+    lignesDest.push({ lignes: pdf.splitTextToSize(texte, destMaxW) as string[], adresse })
+  }
+  // Ordre : Adresse → Ville → Intervention → Bât/Étage → Lieu → Tél → Email → SIRET → TVA intra
   if (clientAddress) {
     const sp = splitAddress(clientAddress)
-    dy2 += ptToMm(14)                 // Adresse
-    if (sp.city) dy2 += ptToMm(14)    // Ville
+    ajouterLigneDest(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`, true)
+    if (sp.city) ajouterLigneDest(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`)
   }
-  if (interventionAddress || interventionBatiment || interventionEtage) {
-    dy2 += ptToMm(14)  // Intervention adresse
-    if (interventionAddress) {
-      const sp = splitAddress(interventionAddress)
-      if (sp.city) dy2 += ptToMm(14)  // Ville intervention
-    }
+  if (interventionAddress) {
+    const sp = splitAddress(interventionAddress)
+    ajouterLigneDest(`${locale === 'pt' ? 'Local' : 'Intervention'} : ${sp.street}`, true)
+    if (sp.city) ajouterLigneDest(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`)
   }
-  if (interventionBatiment || interventionEtage) dy2 += ptToMm(14)
-  if (interventionEspacesCommuns) dy2 += ptToMm(14)
-  if (interventionExterieur) dy2 += ptToMm(14)
-  if (clientPhone) dy2 += ptToMm(14)
-  if (clientEmail) dy2 += ptToMm(14)
-  if (clientSiret) dy2 += ptToMm(14)
+  const batEtParts: string[] = []
+  if (interventionBatiment) batEtParts.push(`${locale === 'pt' ? 'Edif.' : 'Bât.'} ${interventionBatiment}`)
+  if (interventionEtage) batEtParts.push(`${locale === 'pt' ? 'Andar' : 'Étage'} ${interventionEtage}`)
+  if (batEtParts.length > 0) ajouterLigneDest(batEtParts.join(' — '))
+  if (interventionEspacesCommuns) {
+    ajouterLigneDest(`${locale === 'pt' ? 'Local : Áreas comuns' : 'Lieu : Espaces communs'}, ${interventionEspacesCommuns}`)
+  }
+  if (interventionExterieur) {
+    ajouterLigneDest(`${locale === 'pt' ? 'Local : Exterior' : 'Lieu : Extérieur'}, ${interventionExterieur}`)
+  }
+  if (clientPhone) ajouterLigneDest(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`)
+  if (clientEmail) ajouterLigneDest(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${clientEmail}`)
+  if (clientSiret) ajouterLigneDest(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${clientSiret}`)
+  // Autoliquidation BTP : n° TVA intra du preneur OBLIGATOIRE sur la facture
+  // (art. 242 nonies A I-3° annexe II CGI). Champ saisi explicitement sinon
+  // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
+  if (effectiveRegime === 'autoliquidation_btp') {
+    const tvaIntraDest = tvaIntraPreneur || computeFrTvaIntra(clientSiret)
+    if (tvaIntraDest) ajouterLigneDest(`TVA Intra. : ${tvaIntraDest}`)
+  }
+
+  dy2 += ptToMm(18)  // label DESTINATAIRE
+  dy2 += destNomLignes.length * ptToMm(14) + 1.5  // nom client + espace après nom
+  for (const l of lignesDest) dy2 += l.lignes.length * ptToMm(14)
 
   // Calculer la hauteur max et dessiner les encadrés
   const boxH = Math.max(ey, dy2) - boxStartY + boxPadTop
@@ -802,54 +830,11 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
   pdf.text(locale === 'pt' ? 'DESTINATÁRIO' : 'DESTINATAIRE', destTx, dy3)
   dy3 += ptToMm(18)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  pdf.text(clientName || '---', destTx, dy3)
-  dy3 += ptToMm(14) + 1.5  // léger espace après le nom
+  pdf.text(destNomLignes.length === 1 ? destNomLignes[0] : destNomLignes, destTx, dy3)
+  dy3 += destNomLignes.length * ptToMm(14) + 1.5  // léger espace après le nom
   pdf.setFontSize(10); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
-  // Ordre : Adresse → Ville → Intervention → Bât/Étage → … → Tél → Email → SIRET
-  if (clientAddress) {
-    const sp = splitAddress(clientAddress)
-    const cAL = pdf.splitTextToSize(`${locale === 'pt' ? 'Morada' : 'Adresse'} : ${sp.street}`, destMaxW)
-    pdf.text(cAL, destTx, dy3); dy3 += cAL.length * ptToMm(14)
-    if (sp.city) {
-      pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
-    }
-  }
-  if (interventionAddress || interventionBatiment || interventionEtage) {
-    const interventionLabel = locale === 'pt' ? 'Local' : 'Intervention'
-    if (interventionAddress) {
-      const sp = splitAddress(interventionAddress)
-      const iAL = pdf.splitTextToSize(`${interventionLabel} : ${sp.street}`, destMaxW)
-      pdf.text(iAL, destTx, dy3); dy3 += iAL.length * ptToMm(14)
-      if (sp.city) {
-        pdf.text(`${locale === 'pt' ? 'Cidade' : 'Ville'} : ${sp.city}`, destTx, dy3); dy3 += ptToMm(14)
-      }
-    }
-    const batEtParts: string[] = []
-    if (interventionBatiment) batEtParts.push(`${locale === 'pt' ? 'Edif.' : 'Bât.'} ${interventionBatiment}`)
-    if (interventionEtage) batEtParts.push(`${locale === 'pt' ? 'Andar' : 'Étage'} ${interventionEtage}`)
-    if (batEtParts.length > 0) {
-      pdf.text(batEtParts.join(' — '), destTx, dy3); dy3 += ptToMm(14)
-    }
-    if (interventionEspacesCommuns) {
-      const prefix = locale === 'pt' ? 'Local : Áreas comuns' : 'Lieu : Espaces communs'
-      pdf.text(`${prefix}, ${interventionEspacesCommuns}`, destTx, dy3); dy3 += ptToMm(14)
-    }
-    if (interventionExterieur) {
-      const prefix = locale === 'pt' ? 'Local : Exterior' : 'Lieu : Extérieur'
-      pdf.text(`${prefix}, ${interventionExterieur}`, destTx, dy3); dy3 += ptToMm(14)
-    }
-  }
-  if (clientPhone) { pdf.text(`${locale === 'pt' ? 'Tel' : 'Tél'} : ${clientPhone}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientEmail) { pdf.text(`${locale === 'pt' ? 'Email' : 'E-mail'} : ${clientEmail}`, destTx, dy3); dy3 += ptToMm(14) }
-  if (clientSiret) { pdf.text(`${locale === 'pt' ? 'NIF' : 'SIRET'} : ${clientSiret}`, destTx, dy3); dy3 += ptToMm(14) }
-  // Autoliquidation BTP : n° TVA intra du preneur OBLIGATOIRE sur la facture
-  // (art. 242 nonies A I-3° annexe II CGI). Champ saisi explicitement sinon
-  // calcul auto depuis SIRET FR (algo officiel impots.gouv.fr).
-  if (effectiveRegime === 'autoliquidation_btp') {
-    const tvaIntraDest = tvaIntraPreneur || computeFrTvaIntra(clientSiret)
-    if (tvaIntraDest) {
-      pdf.text(`TVA Intra. : ${tvaIntraDest}`, destTx, dy3); dy3 += ptToMm(14)
-    }
+  for (const { lignes, adresse } of lignesDest) {
+    pdf.text(adresse || lignes.length > 1 ? lignes : lignes[0], destTx, dy3); dy3 += lignes.length * ptToMm(14)
   }
 
   y = boxStartY + boxH + 4
