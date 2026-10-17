@@ -1268,6 +1268,8 @@ export default function DevisFactureForm({
         mentions.push(t('devis.legal.sarlCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
       } else if (companyStatus === 'sas') {
         mentions.push(t('devis.legal.sasCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
+      } else if (companyStatus === 'sa') {
+        mentions.push(t('devis.legal.saCapital').replace('{capital}', companyCapital || capDefault).replace('{rcs}', companyRCS || rcsDefault))
       }
     }
 

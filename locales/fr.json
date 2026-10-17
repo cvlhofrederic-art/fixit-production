@@ -4754,6 +4754,7 @@
       "eurlCapital": "EURL au capital de {capital} €, {rcs}",
       "sarlCapital": "SARL au capital de {capital} €, {rcs}",
       "sasCapital": "SAS au capital de {capital} €, {rcs}",
+      "saCapital": "SA au capital de {capital} €, {rcs}",
       "rcsDefault": "RCS non renseigné",
       "capitalDefault": "non renseigné",
       "tvaExempt": "TVA non applicable, article 293 B du CGI (franchise en base de TVA)",
@@ -4789,7 +4790,7 @@
       "eni": "Empresário em Nome Individual (ENI)",
       "unipessoal": "Unipessoal Lda.",
       "lda": "Sociedade por Quotas (Lda.)",
-      "sa": "Sociedade Anónima (SA)"
+      "sa": "Société anonyme (SA)"
     },
     "reportStatus": {
       "termine": "Terminé",

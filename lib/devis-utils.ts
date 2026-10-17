@@ -302,10 +302,21 @@ export function titleCaseAddress(addr: string): string {
   }).join('')
 }
 
-/** Map official legal form labels from API to internal codes */
+/**
+ * Forme juridique (abréviation, libellé INSEE ou Kbis en toutes lettres, choix
+ * du formulaire BTP) → code interne. SASU → 'sas' : il n'existe ni code ni
+ * libellé SASU. Société anonyme, française ou portugaise → 'sa'. Forme sans
+ * code (SNC, SCI…, Lda, ENI…) → 'ei'.
+ */
 export function mapLegalFormToCode(legalForm: string): string {
   if (!legalForm) return 'ei'
-  const lower = legalForm.toLowerCase()
+  // Sans accents, majuscules ni points : « Société à responsabilité limitée »,
+  // « SOCIETE A RESPONSABILITE LIMITEE » et « S.A.R.L. » se lisent pareil.
+  const lower = legalForm
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
   if (lower.includes('auto-entrepreneur') || lower.includes('micro-entrepreneur')) return 'ae'
   if (lower.includes('sarl') && !lower.includes('eurl')) return 'sarl'
   if (lower.includes('eurl')) return 'eurl'
@@ -315,6 +326,14 @@ export function mapLegalFormToCode(legalForm: string): string {
   if (lower.includes('personne physique')) return 'ei'
   if (lower.includes('sarl')) return 'sarl'
   if (lower.includes('sas')) return 'sas'
+  // Formes en toutes lettres. L'EIRL (« entrepreneur individuel à responsabilité
+  // limitée ») est déjà sortie en 'ei' ci-dessus.
+  if (lower.includes('entreprise unipersonnelle a responsabilite limitee')) return 'eurl'
+  if (/actions? simplifiee/.test(lower)) return 'sas'
+  if (lower.includes('responsabilite limitee')) return 'sarl'
+  // « SA » en mot entier (« SA à directoire », choix « SA » du formulaire BTP),
+  // « société anonyme », « à forme anonyme », « sociedade anónima ».
+  if (/\bsa\b/.test(lower) || /anonym|anonima/.test(lower)) return 'sa'
   return 'ei'
 }
 
@@ -354,13 +373,14 @@ export function getCompanyStatuses(locale: Locale): Array<{ value: string; label
     { value: 'eurl', label: 'EURL' },
     { value: 'sarl', label: 'SARL' },
     { value: 'sas', label: 'SAS' },
+    { value: 'sa', label: 'Société anonyme (SA)' },
   ]
 }
 
 /** Check if status is a société-type (needing capital, RCS etc.) */
 export function isSocieteStatus(status: string, locale: Locale): boolean {
   if (locale === 'pt') return ['lda', 'sa'].includes(status)
-  return ['sarl', 'eurl', 'sas'].includes(status)
+  return ['sarl', 'eurl', 'sas', 'sa'].includes(status)
 }
 
 /** Check if status is AE/EI equivalent (VAT exempt by default) */
