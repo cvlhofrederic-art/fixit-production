@@ -47,7 +47,7 @@ import {
   computeAcomptesAmounts,
   assertInvoiceInvariant,
 } from '@/lib/money'
-import { isValidSiret } from '@/lib/validation'
+import { champsDocumentBtp, formatDelaiExecution } from '@/lib/devis-btp-libelles'
 import {
   computeTva,
   validateRegime,
@@ -1788,17 +1788,16 @@ export default function DevisFactureFormBTP({
   const generatePdf = async (action: 'preview' | 'download') => {
     setPdfLoading(true)
     try {
-      const delayTypeLabel = executionDelayType === 'ouvres' ? 'ouvrés' : executionDelayType
-      const delayStr = executionDelayDays > 0 ? `${executionDelayDays} jours ${delayTypeLabel}` : 'À convenir'
-      // Auto-détection clientType : SIRET 14 chiffres + checksum Luhn valide
-      // → client forcément pro. Avant hotfix audit 04/05/2026, on testait
-      // juste `length === 14` — un fake "12345678901234" forçait pro et
-      // désactivait la rétractation 14 jours (art. L.221-18 C. conso.) →
-      // régression légale pour le client final qui aurait pu invalider
-      // sa commande sur cette base.
-      // Maintenant : validation Luhn (cf. lib/validation.ts:isValidSiret).
-      const detectedClientType: 'particulier' | 'professionnel' =
-        isValidSiret(clientSiret || '') ? 'professionnel' : clientType
+      // Délai, titre par défaut, type de client et rétractation : mêmes règles que
+      // le téléchargement depuis la liste (lib/devis-btp-libelles.ts). Sans délai,
+      // executionDelay est vide et le PDF affiche lui-même « À convenir » / « A combinar ».
+      // Type de client : SIRET 14 chiffres + checksum Luhn valide → client
+      // forcément pro (hotfix audit 04/05/2026 : avant, un faux "12345678901234"
+      // forçait pro et supprimait la rétractation 14 jours, art. L.221-18 C. conso.).
+      const champs = champsDocumentBtp({
+        locale, docType, docNumber, docTitle, factureSubType,
+        executionDelayDays, executionDelayType, clientType, clientSiret,
+      })
       const validLabor = lines.filter(l => (l.description || '').trim())
       // Si la section Matériaux/Frais est désactivée par l'utilisateur (toggle),
       // ses lignes ne doivent PAS compter dans les totaux — sinon mismatch entre
@@ -1855,12 +1854,12 @@ export default function DevisFactureFormBTP({
         locale: locale as 'fr' | 'pt' | 'en',
         localeFormats: { currencyFormat, taxLabel: locale === 'pt' ? 'IVA' : 'TVA' },
         t,
-        docType, docNumber, docTitle: docTitle || `Devis ${docNumber}`, docDate, docValidity,
+        docType, docNumber, docTitle: champs.docTitle, docDate, docValidity,
         // Date de prestation : utilise la valeur saisie par l'utilisateur, ou
         // chaîne vide si non renseignée → le PDF affichera "À convenir" (cf.
         // logique dans devis-pdf-v3.ts ligne 577 et 581).
         prestationDate: prestationDate || '',
-        executionDelay: delayStr,
+        executionDelay: champs.executionDelay,
         // Sous-type facture (méthode pro 2026) — pilote label PDF
         factureSubType, situationNumber, situationAvancement,
         // Acompte fractionné + avoir (label PDF, mentions légales)
@@ -1875,8 +1874,8 @@ export default function DevisFactureFormBTP({
         decennaleEligibility: getDecennaleEligibility(
           ((artisan as { categories?: string[] })?.categories) ?? ((artisan as { type_activite?: string })?.type_activite) ?? null,
         ),
-        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: detectedClientType === 'particulier',
-        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType: detectedClientType,
+        mediatorName: mediatorName || '', mediatorUrl: mediatorUrl || '', isHorsEtablissement: champs.isHorsEtablissement,
+        clientName: clientName || '', clientEmail: clientEmail || '', clientAddress: clientAddress || '', clientPhone: clientPhone || '', clientSiret: clientSiret || '', clientType: champs.clientType,
         interventionAddress: interventionAddress || '', interventionBatiment: interventionBatiment || '', interventionEtage: interventionEtage || '',
         interventionEspacesCommuns: interventionEspacesCommuns || '', interventionExterieur: interventionExterieur || '',
         paymentMode: paymentMode || 'Virement bancaire',
@@ -2434,7 +2433,12 @@ export default function DevisFactureFormBTP({
                 <label>Type de client <span className="req">*</span></label>
                 <div style={{ display: 'flex', gap: 0, border: '1px solid #E0E0E0', borderRadius: 5, overflow: 'hidden', background: '#fff' }}>
                   {(['particulier', 'professionnel'] as const).map(t => (
-                    <button key={t} type="button" onClick={() => setClientType(t)} style={{
+                    <button key={t} type="button" onClick={() => {
+                      setClientType(t)
+                      // Le champ SIRET n'est visible qu'en professionnel : un SIRET resté
+                      // caché ferait traiter le particulier en pro (sans rétractation).
+                      if (t === 'particulier') setClientSiret('')
+                    }} style={{
                       flex: 1, padding: '6px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
                       border: 'none', fontFamily: 'inherit', letterSpacing: '.2px', transition: 'all .15s',
                       background: clientType === t ? '#1a1a1a' : 'transparent',
@@ -3637,7 +3641,7 @@ export default function DevisFactureFormBTP({
                       Orçamento gratuito, conforme o artigo 8.º da Lei n.º 24/96 (Defesa do Consumidor).<br />
                       Este orçamento é válido por {docValidity} dias a partir da data de emissão.<br />
                       {executionDelayDays > 0 && (
-                        <>Prazo de execução estimado : {executionDelayDays} dias {executionDelayType === 'ouvres' ? 'úteis' : executionDelayType === 'calendaires' ? 'corridos' : executionDelayType}.<br /></>
+                        <>Prazo de execução estimado : {formatDelaiExecution(executionDelayDays, executionDelayType, 'pt')}.<br /></>
                       )}
                       Orçamento recebido antes da execução dos trabalhos.<br /><br />
                     </>
@@ -3646,7 +3650,7 @@ export default function DevisFactureFormBTP({
                       Devis gratuit — Conformément à l&apos;article L. 111-1 du Code de la consommation.<br />
                       Ce devis est valable {docValidity} jours à compter de sa date d&apos;émission.<br />
                       {executionDelayDays > 0 && (
-                        <>Délai d&apos;exécution estimé : {executionDelayDays} jours {executionDelayType}.<br /></>
+                        <>Délai d&apos;exécution estimé : {formatDelaiExecution(executionDelayDays, executionDelayType, 'fr')}.<br /></>
                       )}
                       Devis reçu avant l&apos;exécution des travaux — Arrêté du 24 janvier 2017 relatif à la publicité des prix des prestations de dépannage, réparation et entretien.<br /><br />
                     </>
