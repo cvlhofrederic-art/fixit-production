@@ -183,6 +183,7 @@ export function CanalDemandes({
             </div>
 
             <footer className="canal-chat-footer">
+              <p style={{ margin: '0 0 8px', fontSize: 11.5, color: 'var(--v54-navy-300)' }}>{d.visibleDemandeur}</p>
               <form className="canal-chat-input-row" onSubmit={(e) => { e.preventDefault(); void repondre() }}>
                 <input type="text" className="canal-chat-input" placeholder={d.repondreA(selected.demandeurNom)} value={brouillon} onChange={(e) => setBrouillon(e.target.value)} aria-label={t.messageAria} />
                 <button type="submit" className={clsx('canal-chat-send', btnCss.btn, btnCss.primary)} disabled={!brouillon.trim() || envoi} aria-label={t.envoyerAria}><Icon name="arrow" /></button>

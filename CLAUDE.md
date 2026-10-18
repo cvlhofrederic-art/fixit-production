@@ -33,7 +33,11 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 - `app/pro/` → dashboard partagé artisan + pro_societe (BTP) — séparation par `orgRole`
 - `app/{fr,pt,en,es,nl}/` → locales SEO publiques
 - `app/{client,artisan}/` → landings pubs
-- `app/{coproprietaire,syndic}/` → DORMANTS — code conservé, ne pas y toucher
+- `app/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans
+  `components/coproprietaire-dashboard/ecrans/`, données réelles du syndic via `GET /api/coproprietaire/espace`
+  (`lib/coproprietaire/` : accès par fiche `syndic_coproprios`, filtrage de ce qu'un copropriétaire peut voir),
+  démonstration `lib/coproprietaire/demo.ts`. Spécification : `components/coproprietaire-dashboard/SPECIFICATION-ECRANS.md`.
+- `app/coproprietaire/portail` (portail léger sans compte) et `app/syndic/` (hors v54) → code conservé, ne pas y toucher
 - `components/dashboard/` → composants `*Section.tsx`
 - `lib/` → logger, validation, types, groq, circuit-breaker, rate-limit, pdf/
 - `supabase/` → migrations + RLS policies

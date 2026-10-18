@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { coproSignalementSchema, validateBody } from '@/lib/validation'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
+import { estSuperAdmin, resoudreCoproprietaire, type AccesCopro } from '@/lib/coproprietaire/acces'
 
 /** Échappe les jokers de LIKE (% _ \) : la recherche ilike reste une égalité insensible à la casse. */
 function echapperMotifLike(valeur: string): string {
@@ -79,13 +80,25 @@ export async function POST(request: NextRequest) {
     const user = await getAuthUser(request)
     let cabinetId: string | null = user ? await cabinetDeLUtilisateur(user, immeuble) : null
 
+    // Copropriétaire ou locataire rattaché à sa fiche (accès activé) : le signalement porte l'identité
+    // de la fiche (e-mail, nom, lot), pas celle du corps — un compte ne dépose rien au nom d'un autre lot.
+    const role = user ? getUserRole(user) : ''
+    let ficheConnectee: AccesCopro | null = null
+    if (user && !estSuperAdmin(user) && (role === 'coproprio' || role === 'locataire')) {
+      const acces = await resoudreCoproprietaire(user, supabaseAdmin, { coproprioId: typeof body.lot === 'string' ? body.lot : null })
+      if (acces.ok) {
+        ficheConnectee = acces.acces
+        cabinetId = acces.acces.cabinetId
+      }
+    }
+
     if (!cabinetId) cabinetId = body.cabinetId || null
 
     if (!cabinetId && immeuble) {
       const { data: immeubles } = await supabaseAdmin
         .from('syndic_immeubles')
         .select('cabinet_id')
-        .ilike('nom', immeuble)
+        .ilike('nom', echapperMotifLike(immeuble))
         .limit(1)
       if (immeubles && immeubles.length > 0) {
         cabinetId = immeubles[0].cabinet_id
@@ -97,28 +110,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Rôle demandeur invalide' }, { status: 400 })
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('syndic_signalements')
-      .insert({
+    const fiche = ficheConnectee?.fiche ?? null
+    const locataire = ficheConnectee?.role === 'locataire'
+    const nomFiche = fiche
+      ? `${(locataire ? fiche.prenom_locataire : fiche.prenom_proprietaire) || ''} ${(locataire ? fiche.nom_locataire : fiche.nom_proprietaire) || ''}`.trim()
+      : ''
+    const texteOuNull = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().substring(0, max) : null)
+
+    const ligneSignalement = {
         cabinet_id: cabinetId,
-        immeuble_nom: immeuble,
-        demandeur_nom: demandeurNom.substring(0, 200),
-        demandeur_role: demandeurRole,
-        // En minuscules : le suivi (GET ?email=) cherche l'e-mail exact, mis en minuscules.
-        demandeur_email: (body.demandeurEmail || body.email || '').trim().toLowerCase().substring(0, 200) || null,
-        demandeur_telephone: (body.demandeurTelephone || body.telephone || '').substring(0, 20) || null,
+        immeuble_nom: fiche ? (fiche.immeuble || '').trim() || immeuble : immeuble,
+        demandeur_nom: (nomFiche || demandeurNom).substring(0, 200),
+        demandeur_role: ficheConnectee ? (locataire ? 'locataire' : 'coproprio') : demandeurRole,
+        // En minuscules : le suivi (GET ?email= et espace) cherche l'e-mail exact, mis en minuscules.
+        demandeur_email: ficheConnectee
+          ? ficheConnectee.email
+          : (body.demandeurEmail || body.email || '').trim().toLowerCase().substring(0, 200) || null,
+        demandeur_telephone: fiche
+          ? texteOuNull(locataire ? fiche.tel_locataire : fiche.tel_proprietaire, 20)
+          : (body.demandeurTelephone || body.telephone || '').substring(0, 20) || null,
         type_intervention: (body.typeIntervention || body.type || 'Autre').substring(0, 100),
         description: description.substring(0, 5000),
         priorite: ['urgente', 'normale', 'planifiee'].includes(body.priorite) ? body.priorite : 'normale',
         statut: 'en_attente',
-        batiment: (body.batiment || '').substring(0, 100) || null,
-        etage: (body.etage || '').substring(0, 20) || null,
-        num_lot: (body.numLot || '').substring(0, 20) || null,
+        batiment: fiche ? texteOuNull(fiche.batiment, 100) : (body.batiment || '').substring(0, 100) || null,
+        etage: fiche ? texteOuNull(fiche.etage === null || fiche.etage === undefined ? '' : String(fiche.etage), 20) : (body.etage || '').substring(0, 20) || null,
+        num_lot: fiche ? texteOuNull(fiche.numero_porte, 20) : (body.numLot || '').substring(0, 20) || null,
         est_partie_commune: body.estPartieCommune || false,
         zone_signalee: (body.zoneSignalee || '').substring(0, 200) || null,
-      })
-      .select()
-      .single()
+    }
+    // Provenance (migration 20261017) : identité vérifiée par la fiche, ou dépôt public ; colonne retirée tant qu'elle manque (42703).
+    let { data, error } = await supabaseAdmin.from('syndic_signalements').insert({ ...ligneSignalement, origine: ficheConnectee ? 'portail' : 'public' }).select().single()
+    if (error?.code === '42703') ({ data, error } = await supabaseAdmin.from('syndic_signalements').insert(ligneSignalement).select().single())
 
     if (error) {
       logger.error('[COPRO SIGNALEMENT] insertion refusée', {
@@ -133,42 +156,39 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/coproprietaire/signalement — récupérer ses signalements
-// Requiert email exact (pas de wildcard) + rate limiting
+// GET /api/coproprietaire/signalement?email= — suivi public (sans compte) des demandes déposées avec
+// cet e-mail : statut, type et dates seulement (ni description, ni nom, ni lot, ni prestataire) ; suppressions exclues. Un e-mail connu d'un
+// tiers ne doit rien révéler de plus que l'avancement. Le suivi complet (fil, mission, compte rendu)
+// passe par GET /api/coproprietaire/espace, avec un compte. Plus de recherche par immeuble (elle
+// livrait à quiconque les demandes de tout l'immeuble). E-mail exact, en minuscules ; rate limité.
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`copro_signalement_get_${ip}`, 15, 60_000))) return rateLimitResponse()
 
   const url = new URL(request.url)
   const email = (url.searchParams.get('email') || '').trim().toLowerCase()
-  const immeuble = url.searchParams.get('immeuble')
 
-  if (!email && !immeuble) {
-    return NextResponse.json({ error: 'email ou immeuble requis' }, { status: 400 })
-  }
+  if (!email) return NextResponse.json({ error: 'email requis' }, { status: 400 })
 
   // Validation email basique pour éviter l'énumération
-  if (email && (!email.includes('@') || email.length < 5)) {
+  if (!email.includes('@') || email.length < 5) {
     return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
   }
 
   // Stricter per-email rate limit to prevent email enumeration attacks
   // Max 5 unique email lookups per IP per minute
-  if (email && !(await checkRateLimit(`copro_signalement_email_${ip}`, 5, 60_000))) {
+  if (!(await checkRateLimit(`copro_signalement_email_${ip}`, 5, 60_000))) {
     return rateLimitResponse()
   }
 
-  let query = supabaseAdmin
+  // Recherche exacte (pas de ilike) pour éviter l'énumération
+  const { data, error } = await supabaseAdmin
     .from('syndic_signalements')
-    .select('id, immeuble_nom, demandeur_nom, demandeur_role, type_intervention, description, priorite, statut, batiment, etage, num_lot, est_partie_commune, zone_signalee, artisan_assigne, created_at, updated_at')
+    .select('id, type_intervention, statut, created_at, updated_at')
+    .eq('demandeur_email', email)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(50)
-
-  // Recherche exacte (pas de ilike) pour éviter l'énumération
-  if (email) query = query.eq('demandeur_email', email)
-  if (immeuble) query = query.eq('immeuble_nom', immeuble)
-
-  const { data, error } = await query
 
   if (error) {
     logger.error('[COPRO SIGNALEMENT] lecture du suivi', { code: error.code, message: error.message })
@@ -177,22 +197,13 @@ export async function GET(request: NextRequest) {
 
   const signalements = (data || []).map(s => ({
     id: s.id,
-    immeuble: s.immeuble_nom || '',
-    demandeurNom: s.demandeur_nom || '',
-    demandeurRole: s.demandeur_role || '',
     typeIntervention: s.type_intervention || '',
-    description: s.description || '',
-    priorite: s.priorite || 'normale',
     statut: s.statut || 'en_attente',
-    batiment: s.batiment || '',
-    etage: s.etage || '',
-    numLot: s.num_lot || '',
-    estPartieCommune: s.est_partie_commune || false,
-    zoneSignalee: s.zone_signalee || '',
-    artisanAssigne: s.artisan_assigne || '',
     createdAt: s.created_at,
     updatedAt: s.updated_at,
   }))
 
-  return NextResponse.json({ signalements })
+  const reponse = NextResponse.json({ signalements })
+  reponse.headers.set('Cache-Control', 'private, no-store')
+  return reponse
 }

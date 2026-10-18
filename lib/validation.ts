@@ -92,6 +92,8 @@ export const fixyAiSchema = z.object({
     content: z.string(),
   })).max(20).optional(),
   locale: z.string().max(5).optional(),
+  // Fiche affichée (compte à plusieurs lots) : Fixy décrit ce lot, pas le premier.
+  lot: z.string().uuid().optional(),
 })
 
 // ── SIRET schema ─────────────────────────────────────────────────────────────
@@ -372,6 +374,8 @@ export const coproSignalementSchema = z.object({
   numLot: z.string().max(20).optional(),
   estPartieCommune: z.boolean().optional(),
   zoneSignalee: z.string().max(200).optional(),
+  // Fiche affichée d'un compte rattaché (plusieurs lots) ; ignoré sans jeton.
+  lot: z.string().uuid().optional(),
 })
 
 // ── Devis Sign schema ────────────────────────────────────────────────────────
@@ -838,6 +842,8 @@ export const comptableAiRequestSchema = z.object({
     content: z.string().max(10000),
   })).max(30).optional(),
   locale: z.string().max(5).optional(),
+  // Fiche affichée (compte à plusieurs lots) : Fixy décrit ce lot, pas le premier.
+  lot: z.string().uuid().optional(),
 })
 
 // ── Reset Password schema ──────────────────────────────────────────────────
@@ -1090,6 +1096,11 @@ export const coproAiSchema = z.object({
   // Langue de l'espace (fr, pt…) : choisit seulement la langue du prompt
   // serveur, jamais son contenu.
   locale: z.string().max(5).optional(),
+  // Fiche affichée (compte à plusieurs lots) : Fixy décrit ce lot, pas le premier.
+  lot: z.string().uuid().optional(),
+  // Super admin seulement : e-mail de la fiche de son cabinet dont Fixy décrit
+  // l'espace (démonstration). Ignoré pour tout autre compte.
+  email: strictEmail.optional(),
 })
 
 // ── Fixy Chat schema ───────────────────────────────────────────────────────
@@ -1103,6 +1114,8 @@ export const fixyChatSchema = z.object({
     content: z.string().max(10000),
   })).max(30).optional(),
   locale: z.string().max(5).optional(),
+  // Fiche affichée (compte à plusieurs lots) : Fixy décrit ce lot, pas le premier.
+  lot: z.string().uuid().optional(),
   stream: z.boolean().optional(),
 })
 
@@ -1139,6 +1152,8 @@ export const syndicSendEmailSchema = z.object({
   ]),
   params: z.record(z.string(), z.unknown()).optional(),
   locale: z.string().max(5).optional(),
+  // Fiche affichée (compte à plusieurs lots) : Fixy décrit ce lot, pas le premier.
+  lot: z.string().uuid().optional(),
 })
 
 // ── Syndic Notify Artisan schema ───────────────────────────────────────────
@@ -1188,6 +1203,8 @@ export const syndicMaxAiSchema = z.object({
   })).max(50).optional(),
   stream: z.boolean().optional(),
   locale: z.string().max(5).optional(),
+  // Fiche affichée (compte à plusieurs lots) : Fixy décrit ce lot, pas le premier.
+  lot: z.string().uuid().optional(),
 })
 
 // ── Syndic Mission Report schema ───────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { defineMessages } from '@/lib/syndic/v54/i18n'
 import type { IconName } from '@/lib/syndic/icon-names'
 import type { PillKind } from '../../primitives/pill'
+import type { CategorieExtranet } from '../use-lea-documents'
 
 /** Document de démonstration (preview anonyme) : icône, nom, résumé, type, couleur du type, immeuble, prestataire, date. */
 export interface DocumentDemo {
@@ -42,7 +43,22 @@ interface DocsGedTextes {
   }
   trouves: (n: number) => string
   vide: { titre: string; desc: string }
-  colonnes: { document: string; type: string; immeuble: string; prestataire: string; date: string; actionsAria: string }
+  colonnes: { document: string; type: string; immeuble: string; prestataire: string; date: string; actionsAria: string; portail: string }
+  /** Publication sur le portail copropriétaire (syndic connecté seulement) : interrupteur par document rattaché à un immeuble. */
+  portail: {
+    visible: string
+    rattacherImmeuble: string
+    rubriqueAria: string
+    rubriqueAucune: string
+    rubriques: Record<CategorieExtranet, string>
+    publie: string
+    retire: string
+    rubriqueEnregistree: string
+    erreur: string
+    reessayer: string
+    /** Messages par code d'erreur de l'API (les autres codes tombent sur `reessayer`). */
+    erreurs: Record<'immeuble_requis' | 'migration_requise' | 'not_found' | 'unauthorized' | 'reseau', string>
+  }
   ouvrirAria: string
   ouvrirTitre: string
   supprimerDocument: string
@@ -84,7 +100,43 @@ export const DOCS_GED_MESSAGES = defineMessages<DocsGedTextes>({
       titre: 'Nenhum documento',
       desc: 'Carregue o primeiro documento — a Léa extrai os dados (datas, valores, fornecedor) e indexa-o automaticamente para pesquisa.',
     },
-    colonnes: { document: 'Documento', type: 'Tipo', immeuble: 'Edifício', prestataire: 'Técnico', date: 'Data', actionsAria: 'Ações' },
+    colonnes: { document: 'Documento', type: 'Tipo', immeuble: 'Edifício', prestataire: 'Técnico', date: 'Data', actionsAria: 'Ações', portail: 'Portal' },
+    portail: {
+      visible: 'Visível pelos condóminos',
+      rattacherImmeuble: 'Associe primeiro o documento a um edifício',
+      rubriqueAria: 'Rubrica do portal',
+      rubriqueAucune: 'Rubrica…',
+      rubriques: {
+        reglement: 'Regulamento do condomínio',
+        edd: 'Título constitutivo',
+        fiche_synthetique: 'Ficha síntese',
+        carnet_entretien: 'Caderneta de manutenção',
+        diagnostic: 'Diagnóstico',
+        assurance: 'Seguro',
+        contrat_marche: 'Contrato ou adjudicação',
+        contrat_entretien: 'Contrato de manutenção',
+        pv_ag: 'Ata de assembleia',
+        devis_approuve: 'Orçamento aprovado',
+        contrat_syndic: 'Contrato de administração',
+        convocation: 'Convocatória',
+        budget: 'Orçamento anual',
+        compte_individuel: 'Conta individual',
+        appel_fonds: 'Chamada de capital',
+        autre: 'Outro',
+      },
+      publie: 'Documento visível pelos condóminos',
+      retire: 'Documento retirado do portal',
+      rubriqueEnregistree: 'Rubrica guardada',
+      erreur: 'Não foi possível atualizar o portal',
+      reessayer: 'Tente novamente mais tarde.',
+      erreurs: {
+        immeuble_requis: 'Associe primeiro o documento a um edifício.',
+        migration_requise: 'Portal ainda não ativado nesta base de dados.',
+        not_found: 'Documento não encontrado.',
+        unauthorized: 'Sessão expirada. Inicie sessão novamente.',
+        reseau: 'Não foi possível contactar o servidor.',
+      },
+    },
     ouvrirAria: 'Abrir documento',
     ouvrirTitre: 'Abrir',
     supprimerDocument: 'Eliminar documento',
@@ -140,7 +192,43 @@ export const DOCS_GED_MESSAGES = defineMessages<DocsGedTextes>({
       titre: 'Aucun document',
       desc: "Déposez votre premier document : Léa en extrait les données (dates, montants, fournisseur) et l'indexe automatiquement pour la recherche.",
     },
-    colonnes: { document: 'Document', type: 'Type', immeuble: 'Immeuble', prestataire: 'Prestataire', date: 'Date', actionsAria: 'Actions' },
+    colonnes: { document: 'Document', type: 'Type', immeuble: 'Immeuble', prestataire: 'Prestataire', date: 'Date', actionsAria: 'Actions', portail: 'Portail' },
+    portail: {
+      visible: 'Visible par les copropriétaires',
+      rattacherImmeuble: "Rattachez d'abord le document à un immeuble",
+      rubriqueAria: 'Rubrique du portail',
+      rubriqueAucune: 'Rubrique…',
+      rubriques: {
+        reglement: 'Règlement de copropriété',
+        edd: 'État descriptif de division',
+        fiche_synthetique: 'Fiche synthétique',
+        carnet_entretien: "Carnet d'entretien",
+        diagnostic: 'Diagnostic',
+        assurance: 'Assurance',
+        contrat_marche: 'Contrat ou marché',
+        contrat_entretien: "Contrat d'entretien",
+        pv_ag: "PV d'assemblée",
+        devis_approuve: 'Devis approuvé',
+        contrat_syndic: 'Contrat de syndic',
+        convocation: 'Convocation',
+        budget: 'Budget',
+        compte_individuel: 'Compte individuel',
+        appel_fonds: 'Appel de fonds',
+        autre: 'Autre',
+      },
+      publie: 'Document visible par les copropriétaires',
+      retire: 'Document retiré du portail',
+      rubriqueEnregistree: 'Rubrique enregistrée',
+      erreur: 'Impossible de mettre le portail à jour',
+      reessayer: 'Veuillez réessayer plus tard.',
+      erreurs: {
+        immeuble_requis: "Rattachez d'abord le document à un immeuble.",
+        migration_requise: 'Portail pas encore activé sur cette base de données.',
+        not_found: 'Document introuvable.',
+        unauthorized: 'Session expirée. Veuillez vous reconnecter.',
+        reseau: 'Impossible de contacter le serveur.',
+      },
+    },
     ouvrirAria: 'Ouvrir le document',
     ouvrirTitre: 'Ouvrir',
     supprimerDocument: 'Supprimer le document',
