@@ -169,6 +169,12 @@ export interface Signalement {
   artisanAssigne?: string
   createdAt?: string
   updatedAt?: string
+  /**
+   * Provenance de la demande (colonne `origine`, migration 20261017) : 'portail' = déposée par un compte
+   * rattaché à sa fiche (identité vérifiée) ; 'public' = formulaire sans compte / QR code (e-mail non
+   * vérifié) ; null ou absent = inconnue (colonne pas encore en base).
+   */
+  origine?: 'portail' | 'public' | null
   /** Fil d'échanges avec le copropriétaire (syndic_signalement_messages). */
   messages?: SignalementMessage[]
 }

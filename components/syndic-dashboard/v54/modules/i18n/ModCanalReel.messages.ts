@@ -47,6 +47,11 @@ interface CanalReelTextes {
     erreurEnvoi: string
     /** Mention au-dessus du champ de réponse : le demandeur lit les réponses dans son espace. */
     visibleDemandeur: string
+    /**
+     * Provenance de la demande, badge à côté du nom du demandeur : `portail` = compte rattaché à sa fiche
+     * (identité vérifiée), `public` = formulaire sans compte (e-mail non vérifié). `*Titre` = infobulle.
+     */
+    origine: { portail: string; public: string; portailTitre: string; publicTitre: string }
     details: {
       aria: string
       demande: string
@@ -179,6 +184,12 @@ export const CANAL_REEL_MESSAGES = defineMessages<CanalReelTextes>({
       envoyeDesc: 'Visível pelo condómino no acompanhamento do pedido.',
       erreurEnvoi: 'Falha no envio',
       visibleDemandeur: 'As suas respostas são visíveis pelo requerente na sua área.',
+      origine: {
+        portail: 'Portal',
+        public: 'Formulário público',
+        portailTitre: 'Pedido enviado a partir do portal do condómino — identidade verificada.',
+        publicTitre: 'Pedido enviado pelo formulário público, sem conta — e-mail não verificado.',
+      },
       details: {
         aria: 'Detalhes do pedido',
         demande: 'PEDIDO',
@@ -309,6 +320,12 @@ export const CANAL_REEL_MESSAGES = defineMessages<CanalReelTextes>({
       envoyeDesc: 'Visible par le copropriétaire dans le suivi de sa demande.',
       erreurEnvoi: "Échec de l'envoi",
       visibleDemandeur: 'Vos réponses sont visibles par le demandeur dans son espace',
+      origine: {
+        portail: 'Portail',
+        public: 'Formulaire public',
+        portailTitre: 'Demande déposée depuis le portail copropriétaire — identité vérifiée.',
+        publicTitre: 'Demande déposée via le formulaire public, sans compte — e-mail non vérifié.',
+      },
       details: {
         aria: 'Détails de la demande',
         demande: 'DEMANDE',
