@@ -77,6 +77,7 @@ export const TEXTES = {
     shell: {
       demoVisiteur: 'Vous consultez une démonstration : les montants, documents et travaux sont fictifs.',
       demoSuperAdmin: 'Démonstration — vous voyez l’espace de {nom}.',
+      vueSuperAdminReelle: 'Vue super admin — vous voyez l’espace réel de {nom} (fiche de votre cabinet).',
       seConnecter: 'Se connecter',
       erreurReseau: 'Impossible de charger vos informations pour le moment. Vérifiez votre connexion internet, puis réessayez.',
       sessionExpiree: 'Votre session a expiré.',
@@ -427,6 +428,7 @@ export const TEXTES = {
     shell: {
       demoVisiteur: 'Está a consultar uma demonstração: os valores, documentos e obras são fictícios.',
       demoSuperAdmin: 'Demonstração — está a ver o espaço de {nom}.',
+      vueSuperAdminReelle: 'Vista de super admin — está a ver o espaço real de {nom} (ficha do seu gabinete).',
       seConnecter: 'Iniciar sessão',
       erreurReseau: 'Não foi possível carregar as suas informações de momento. Verifique a sua ligação à internet e tente novamente.',
       sessionExpiree: 'A sua sessão expirou.',
