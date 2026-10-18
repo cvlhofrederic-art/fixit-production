@@ -22,6 +22,7 @@ import {
   dateLongue, euros, libelleNatureImpaye, libelleStatutAppel, libelleStatutFacture, pourcentage, remplir,
   type LangueCopro, type TextesCopro,
 } from '@/lib/coproprietaire/textes'
+import { sommeDueHorsAppels, type SommeDueHorsAppels } from '@/lib/coproprietaire/filtrage'
 import type {
   AppelDeCharges, EspaceCopro, FactureCopro, ImpayeCopro, StatutAppel, StatutFacture, StatutImpaye,
 } from '@/lib/coproprietaire/types'
@@ -182,24 +183,29 @@ function PhraseMontant({ modele, montant, valeurs }: { modele: string; montant: 
   )
 }
 
-function CarteCeQueVousDevez({ prochain, retards, t, langue, tl }: {
+function CarteCeQueVousDevez({ prochain, du, retards, t, langue, tl }: {
   prochain: ProchainAppel | null
+  /** Somme due hors appels (factures, retards, solde), consultée seulement sans appel à payer. */
+  du: SommeDueHorsAppels | null
   retards: readonly ImpayeCopro[]
   t: TextesCopro
   langue: LangueCopro
   tl: TextesLocaux
 }) {
   const titre = t.charges.ceQueVousDevez
-  if (!prochain) {
+  const resume = prochain
+    ? { montant: prochain.appel.resteAPayer, date: prochain.appel.echeance, enRetard: prochain.enRetard, solde: false }
+    : du ? { montant: du.montant, date: du.date, enRetard: du.enRetard, solde: du.source === 'solde' } : null
+  if (!resume) {
     return (
       <Carte id={ID_CARTE_CE_QUE_VOUS_DEVEZ} ton="vert" titre={titre}>
         <p className="text-xl font-bold text-[#1E6B3A]">{t.charges.aJour}</p>
       </Carte>
     )
   }
-  const { appel, enRetard } = prochain
-  const montant = euros(appel.resteAPayer, langue)
-  const date = dateLongue(appel.echeance, langue)
+  const { enRetard } = resume
+  const montant = euros(resume.montant, langue)
+  const date = dateLongue(resume.date, langue)
   if (enRetard) {
     const relance = derniereRelance(retards)
     return (
@@ -213,7 +219,7 @@ function CarteCeQueVousDevez({ prochain, retards, t, langue, tl }: {
   }
   return (
     <Carte id={ID_CARTE_CE_QUE_VOUS_DEVEZ} ton="or" titre={titre}>
-      <PhraseMontant modele={date ? t.charges.aReglerAvant : t.charges.aRegler} montant={montant} valeurs={{ date }} />
+      <PhraseMontant modele={resume.solde ? t.charges.soldeDu : date ? t.charges.aReglerAvant : t.charges.aRegler} montant={montant} valeurs={{ date }} />
     </Carte>
   )
 }
@@ -362,6 +368,10 @@ export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJo
   const { finances } = espace
   const appels = trierAppels(finances.appels.filter(a => a.statut !== 'annule'))
   const prochain = prochainAppelCharges(finances.appels, miseAJourLe)
+  // Sans appel à payer : factures à régler, retards ouverts ou solde débiteur (jamais « aucun appel » à qui doit).
+  const du = prochain ? null : sommeDueHorsAppels(finances, miseAJourLe)
+  // Moyens de paiement : ceux de l'appel à payer, sinon ceux du dernier appel qui en porte.
+  const appelPaiement = prochain?.appel ?? appels.find(a => a.iban !== '' || a.referencePaiement !== '') ?? null
   const phrases = phrasesComprendre(espace, t, langue)
 
   const ouvrirPdf = async (id: string) => {
@@ -390,7 +400,7 @@ export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJo
 
   return (
     <div className="space-y-6">
-      {appels.length === 0 ? (
+      {appels.length === 0 && !du ? (
         <EtatVide
           texte={t.charges.aucunAppel}
           icone="charges"
@@ -398,14 +408,22 @@ export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJo
         />
       ) : (
         <>
-          <CarteCeQueVousDevez prochain={prochain} retards={finances.impayes} t={t} langue={langue} tl={tl} />
-          {prochain && <CommentPayer appel={prochain.appel} t={t} />}
-          <section aria-labelledby={idAppels}>
-            <h2 id={idAppels} className="mb-3 text-lg font-bold text-[#0D1B2E]">{t.charges.vosAppels}</h2>
-            <div className="space-y-3">
-              {appels.map(a => <CarteAppel key={a.id} appel={a} t={t} langue={langue} tl={tl} />)}
-            </div>
-          </section>
+          <CarteCeQueVousDevez prochain={prochain} du={du} retards={finances.impayes} t={t} langue={langue} tl={tl} />
+          {(prochain || du) && (appelPaiement
+            ? <CommentPayer appel={appelPaiement} t={t} />
+            : (
+              <Carte titre={t.charges.commentPayer}>
+                <p className="text-base text-[#4A5E78]">{t.charges.ibanInconnu}</p>
+              </Carte>
+            ))}
+          {appels.length > 0 && (
+            <section aria-labelledby={idAppels}>
+              <h2 id={idAppels} className="mb-3 text-lg font-bold text-[#0D1B2E]">{t.charges.vosAppels}</h2>
+              <div className="space-y-3">
+                {appels.map(a => <CarteAppel key={a.id} appel={a} t={t} langue={langue} tl={tl} />)}
+              </div>
+            </section>
+          )}
         </>
       )}
 

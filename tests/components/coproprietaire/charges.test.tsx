@@ -136,9 +136,39 @@ describe('EcranCharges — rendu avec la démonstration', () => {
 })
 
 describe('EcranCharges — états', () => {
+  it('sans appel mais une facture échue : carte « Retard de paiement » et moyens de paiement à demander au syndic', () => {
+    const espace = espaceAvec({ solde: 0, appels: [], impayes: [], factures: [{ id: 'f1', numero: 'FC-2026-0001', emiseLe: '2026-06-16', echeance: '2026-07-01', montantHt: 690, tvaTaux: 0, montantTtc: 690, description: 'Appel de provisions T3 2026', statut: 'a_regler', pdfDisponible: false }] })
+    const { container } = render(<EcranCharges {...props(espace)} />)
+
+    expect(n(carteDue(container).textContent ?? '')).toContain(n(remplir(t.charges.retard, { montant: euros(690), date: '1er juillet 2026' })))
+    expect(screen.getByText(t.charges.commentPayer)).toBeInTheDocument()
+    expect(screen.getByText(t.charges.ibanInconnu)).toBeInTheDocument()
+    expect(screen.queryByText(t.charges.aucunAppel)).not.toBeInTheDocument()
+    expect(screen.queryByText(t.charges.vosAppels)).not.toBeInTheDocument()
+  })
+
+  it('sans appel ni facture, solde débiteur : carte « Solde de votre compte : 855 € (somme due) »', () => {
+    const { container } = render(<EcranCharges {...props(espaceAvec({ solde: -855, appels: [], factures: [], impayes: [] }))} />)
+    expect(n(carteDue(container).textContent ?? '')).toContain(n(remplir(t.charges.soldeDu, { montant: euros(855) })))
+    expect(screen.getByText(t.charges.ibanInconnu)).toBeInTheDocument()
+  })
+
+  it('appels tous payés mais une facture à régler : la carte annonce la facture, l’IBAN du dernier appel reste proposé', () => {
+    const espace = espaceAvec({
+      solde: 0, impayes: [], appels: [appel({ id: 'a-paye', statut: 'solde', montantPaye: 855, resteAPayer: 0 })],
+      factures: [{ id: 'f2', numero: 'FC-2026-0002', emiseLe: '2026-10-01', echeance: '2026-11-30', montantHt: 50, tvaTaux: 0, montantTtc: 50, description: 'Frais', statut: 'a_regler', pdfDisponible: false }],
+    })
+    const { container } = render(<EcranCharges {...props(espace)} />)
+
+    expect(n(carteDue(container).textContent ?? '')).toContain(n(remplir(t.charges.aReglerAvant, { montant: euros(50), date: '30 novembre 2026' })))
+    expect(screen.getByText(t.charges.commentPayer)).toBeInTheDocument()
+    expect(screen.getAllByText(IBAN_DEMO).length).toBeGreaterThan(0)
+    expect(screen.queryByText(t.charges.aJour)).not.toBeInTheDocument()
+  })
+
   it('sans appel : phrase dédiée et bouton vers « Poser une question », jamais « 0 € »', () => {
     const allerA = vi.fn()
-    const { container } = render(<EcranCharges {...props(espaceAvec({ appels: [], factures: [], impayes: [] }), { allerA })} />)
+    const { container } = render(<EcranCharges {...props(espaceAvec({ solde: 0, appels: [], factures: [], impayes: [] }), { allerA })} />)
 
     expect(screen.getByText(t.charges.aucunAppel)).toBeInTheDocument()
     expect(container.querySelector(`#${ID_CARTE_CE_QUE_VOUS_DEVEZ}`)).toBeNull()

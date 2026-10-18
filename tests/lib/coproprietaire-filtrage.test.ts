@@ -18,10 +18,11 @@ import {
   construireContrats, construireDemandes, construireDocuments, construireFactures, construireImmeuble,
   construireImpayes, construireProfil, construireSyndic, documentsParMission, filtrerInterventions,
   masquerCoordonnees, memeNom, missionPrivee, nombre, normaliserLot, pdfFactureDisponible,
-  restreindrePourLocataire, statutAssemblee,
+  restreindrePourLocataire, sommeDueHorsAppels, statutAssemblee,
   type LigneMission, type LigneMessagePro, type LigneSignalement,
 } from '@/lib/coproprietaire/filtrage'
 import type { FicheCoproprio } from '@/lib/coproprietaire/acces'
+import type { FactureCopro, ImpayeCopro, StatutFacture, StatutImpaye } from '@/lib/coproprietaire/types'
 import { espaceDemo } from '@/lib/coproprietaire/demo'
 
 const CTX = { email: 'geraldine.xavier@email.com', emailLocataire: 'paul@exemple.fr', immeuble: 'Résidence Le Prado', batiment: 'D', etage: '4', numLot: '12' }
@@ -303,6 +304,27 @@ describe('charges, factures, impayés', () => {
     ])
     expect(impayes.map(i => i.id)).toEqual(['i1'])
     expect(impayes[0]).toMatchObject({ montant: 690, nature: 'autre', nbRelances: 2, statut: 'ouvert' })
+  })
+  it('sommeDueHorsAppels : factures à régler (échéance la plus proche, retard si passée), sinon retards ouverts, sinon solde débiteur, sinon null', () => {
+    const base = { solde: 0, appels: [], factures: [], impayes: [] }
+    const facture = (id: string, statut: StatutFacture, echeance: string, montantTtc: number): FactureCopro =>
+      ({ id, numero: id, emiseLe: '2026-06-16', echeance, montantHt: montantTtc, tvaTaux: 0, montantTtc, description: '', statut, pdfDisponible: false })
+    const impaye = (id: string, statut: StatutImpaye, depuis: string, montant: number): ImpayeCopro =>
+      ({ id, montant, nature: 'charges_courantes', depuis, nbRelances: 1, derniereRelanceLe: '', statut })
+    const le10 = new Date('2026-10-10T12:00:00Z')
+    expect(sommeDueHorsAppels({ ...base, factures: [facture('f1', 'a_regler', '2026-07-01', 690), facture('f2', 'reglee', '2026-05-01', 100), facture('f3', 'partiellement_regle', '2026-11-30', 50)] }, le10))
+      .toEqual({ montant: 740, date: '2026-07-01', enRetard: true, source: 'factures' })
+    expect(sommeDueHorsAppels({ ...base, factures: [facture('f3', 'a_regler', '2026-11-30', 50)] }, le10))
+      .toEqual({ montant: 50, date: '2026-11-30', enRetard: false, source: 'factures' })
+    expect(sommeDueHorsAppels({ ...base, impayes: [impaye('i1', 'ouvert', '2026-07-01', 690), impaye('i2', 'solde', '2025-01-01', 40), impaye('i3', 'en_recouvrement', '2026-03-01', 200)] }, le10))
+      .toEqual({ montant: 890, date: '2026-03-01', enRetard: true, source: 'impayes' })
+    expect(sommeDueHorsAppels({ ...base, solde: -855 }, le10)).toEqual({ montant: 855, date: '', enRetard: false, source: 'solde' })
+    expect(sommeDueHorsAppels({ ...base, solde: 125 }, le10)).toBeNull()
+    // Des appels tous payés font foi : le solde débiteur de la fiche n'est pas repris.
+    const appelPaye = { id: 'a', exercice: '2026-T3', periodeDebut: '2026-07-01', periodeFin: '2026-09-30', montantTotal: 855, montantPaye: 855, resteAPayer: 0, statut: 'solde' as const, echeance: '2026-07-15', iban: '', referencePaiement: '' }
+    expect(sommeDueHorsAppels({ ...base, solde: -855, appels: [appelPaye] }, le10)).toBeNull()
+    expect(sommeDueHorsAppels({ ...base, solde: -855, appels: [{ ...appelPaye, statut: 'annule' as const }] }, le10)).toEqual({ montant: 855, date: '', enRetard: false, source: 'solde' })
+    expect(sommeDueHorsAppels(base, le10)).toBeNull()
   })
 })
 

@@ -64,7 +64,7 @@ la carte « ce que je dois » calculée sur `finances.appels` : prochain appel n
 a_payer / partiellement_paye / en_retard, non annulé) trié par échéance ; si son échéance est passée
 ou son statut en_retard → carte rouge `t.accueil.enRetard` ; sinon carte or `t.accueil.aRegler`
 (montant = `resteAPayer`, date = échéance) ; aucun reste à payer mais des appels → carte verte
-`t.accueil.aJour` ; aucun appel → carte grise `t.accueil.aucunAppel` (jamais « 0 € »). Bouton
+`t.accueil.aJour` ; sans appel à payer, factures à régler, retards ouverts ou (sans aucun appel) solde débiteur de la fiche via `sommeDueHorsAppels` (`t.accueil.enRetard` / `t.accueil.aRegler` / `t.charges.soldeDu`) ; rien de dû → carte grise `t.accueil.aucunAppel` (jamais « 0 € »). Bouton
 `t.accueil.voirCommentPayer` → `allerA('charges')`. Puis bouton plein navy
 `t.commun.signalerProbleme` → `allerA('demandes', 'nouvelle')`. Puis « Vos demandes en cours (n) » :
 les deux plus récentes non terminées/annulées (type, statut en mots via `libelleStatutDemande`), lien
@@ -154,7 +154,7 @@ partiellement_paye ambre, solde vert, en_retard rouge ; annule non affiché), `D
 (`finances.impayes`) si non vide : nature en mots, montant, « depuis le … », relances, statut ;
 jamais le mot « impayé ». Puis `Deplie` `t.charges.comprendre` : `tantiemesPhrase` (seulement si
 `quotePart > 0`), `budgetPhrase` (seulement si `immeuble.budgetAnnuel > 0`), `soldeDu` /
-`soldeCredit` si `finances.solde ≠ 0`. État vide (aucun appel) : `t.charges.aucunAppel`.
+`soldeCredit` si `finances.solde ≠ 0`. État vide (aucun appel ni somme due hors appels) : `t.charges.aucunAppel` ; sinon la carte reprend `sommeDueHorsAppels` et « Comment payer » propose l’IBAN du dernier appel qui en porte, sinon `t.charges.ibanInconnu`.
 Trop-perçu : montant positif libellé « remboursé », jamais « -125 € ».
 
 ## 4. Documents — `EcranDocuments`

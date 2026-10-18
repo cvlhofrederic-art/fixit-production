@@ -201,6 +201,25 @@ describe('EcranAccueil — états particuliers', () => {
     expect(screen.getByRole('button', { name: t.accueil.voirCommentPayer })).toBeInTheDocument()
   })
 
+  it('sans appel mais une facture échue : carte « En retard » au montant de la facture, avec « Voir comment payer »', () => {
+    const espace = espaceVide()
+    espace.finances.factures = [{ id: 'f1', numero: 'FC-2026-0001', emiseLe: '2026-06-16', echeance: '2026-07-01', montantHt: 690, tvaTaux: 0, montantTtc: 690, description: 'Appel de provisions T3 2026', statut: 'a_regler', pdfDisponible: false }]
+    render(<EcranAccueil {...propsPour(espace, new Date('2026-10-10T12:00:00'))} />)
+
+    expect(paragraphe('En retard : 690 € depuis le 1er juillet 2026')).toBeInTheDocument()
+    expect(screen.queryByText(t.accueil.aucunAppel)).toBeNull()
+    expect(screen.getByRole('button', { name: t.accueil.voirCommentPayer })).toBeInTheDocument()
+  })
+
+  it('sans appel ni facture, solde débiteur : « Solde de votre compte : 855 € (somme due) »', () => {
+    const espace = espaceVide()
+    espace.finances.solde = -855
+    render(<EcranAccueil {...propsPour(espace, new Date('2026-10-10T12:00:00'))} />)
+
+    expect(paragraphe('Solde de votre compte : 855 € (somme due)')).toBeInTheDocument()
+    expect(screen.queryByText(t.accueil.aucunAppel)).toBeNull()
+  })
+
   it('locataire : ni carte financière ni assemblée, mais le signalement et ses demandes', () => {
     const espace = espaceDemo()
     espace.profil = { ...espace.profil, role: 'locataire' }

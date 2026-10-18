@@ -17,6 +17,7 @@ import {
 import type {
   AnnonceCopro, AppelDeCharges, AssembleeCopro, DemandeCopro, InterventionVue, StatutIntervention,
 } from '@/lib/coproprietaire/types'
+import { sommeDueHorsAppels } from '@/lib/coproprietaire/filtrage'
 
 // ── Textes propres à cet écran (absents de textes.ts) ─────────────────────────
 
@@ -130,6 +131,8 @@ function CarteFinances({ espace, t, langue, aujourdhui, allerA }: Pick<PropsEcra
   const appels = espace.finances.appels
   const prochain = prochainAppel(appels, aujourdhui)
   const aDesAppels = appels.some(a => a.statut !== 'annule')
+  // Sans appel à payer : factures à régler, retards ouverts ou solde débiteur (jamais « aucun appel » à qui doit).
+  const du = prochain ? null : sommeDueHorsAppels(espace.finances, aujourdhui)
 
   let ton: TonCarte
   let icone: NomIcone
@@ -151,6 +154,24 @@ function CarteFinances({ espace, t, langue, aujourdhui, allerA }: Pick<PropsEcra
         ? <PhraseMontant modele={t.accueil.aRegler} montant={montant} valeurs={{ date }} />
         : <PhraseMontant modele={t.charges.aRegler} montant={montant} valeurs={{}} />
     }
+  } else if (du) {
+    const montant = euros(du.montant, langue)
+    const date = dateLongue(du.date, langue)
+    if (du.enRetard) {
+      ton = 'rouge'
+      icone = 'alerte'
+      contenu = date
+        ? <PhraseMontant modele={t.accueil.enRetard} montant={montant} valeurs={{ date }} />
+        : <PhraseMontant modele={TEXTES_LOCAUX[langue].enRetardSansDate} montant={montant} valeurs={{}} />
+    } else {
+      ton = 'or'
+      icone = 'euro'
+      contenu = du.source === 'solde'
+        ? <PhraseMontant modele={t.charges.soldeDu} montant={montant} valeurs={{}} />
+        : date
+          ? <PhraseMontant modele={t.accueil.aRegler} montant={montant} valeurs={{ date }} />
+          : <PhraseMontant modele={t.charges.aRegler} montant={montant} valeurs={{}} />
+    }
   } else if (aDesAppels) {
     ton = 'vert'
     icone = 'check'
@@ -167,7 +188,7 @@ function CarteFinances({ espace, t, langue, aujourdhui, allerA }: Pick<PropsEcra
         <Icone nom={icone} taille={26} className="mt-1 text-[#0D1B2E]" />
         <div className="min-w-0 flex-1">{contenu}</div>
       </div>
-      {aDesAppels && (
+      {(aDesAppels || du) && (
         <div className="mt-4">
           <Bouton variante="secondaire" icone="charges" onClick={() => allerA('charges')}>{t.accueil.voirCommentPayer}</Bouton>
         </div>
