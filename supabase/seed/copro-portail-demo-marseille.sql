@@ -44,8 +44,9 @@
 --   Migrations 001 (immeubles, signalements, messages, missions), 004 (coproprios),
 --   005 (assemblées, résolutions, votes), 20260516 (appels de charges, factures copro,
 --   impayés), 20260602 (avisos, seguros). La migration 20261017_portail_coproprietaire.sql
---   (acces_portail_locataire, source du vote) est facultative : le script n'écrit pas ces
---   colonnes, leurs valeurs par défaut conviennent (locataire sans accès, vote « papier »).
+--   (acces_portail_locataire, origine du signalement, source du vote) est facultative : le script
+--   n'écrit pas ces colonnes, sauf origine = 'portail' sur les deux demandes de Géraldine si la
+--   colonne existe (sinon le portail les présenterait comme déposées sans connexion).
 -- ════════════════════════════════════════════════════════════════════════════
 
 DO $$
@@ -335,6 +336,12 @@ L''ordre du jour étant épuisé, la séance est levée à 20 h 05.',
           'Programmer le contrôle des raccords des colonnes d''évacuation des bâtiments C et D (même génération) lors de la prochaine visite d''entretien.',
           CURRENT_DATE - 29, '2 h',
           now() - interval '30 days' + interval '4 hours', now() - interval '28 days');
+
+  -- Provenance (migration 20261017) : les deux demandes sont « déposées depuis le portail ». Colonne
+  -- absente → rien (SQL dynamique : une référence directe échouerait à la préparation du bloc).
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'syndic_signalements' AND column_name = 'origine') THEN
+    EXECUTE 'UPDATE syndic_signalements SET origine = ''portail'' WHERE id = ANY ($1)' USING ARRAY[v_sig1, v_sig2];
+  END IF;
 
   RAISE NOTICE 'Seed démo portail copropriétaire OK pour cabinet % — immeuble % (%), fiche Géraldine Xavier % ; % mission(s) du seed Marseille passée(s) en partie commune.', v_cab, v_immeuble, v_i1, v_ger, v_nb;
 END $$;
