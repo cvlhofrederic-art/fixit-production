@@ -291,12 +291,21 @@ export function normaliserLot(v: unknown): string {
 }
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi
-// Numéros français et internationaux : au moins 9 chiffres, séparés ou non par espaces, points, tirets.
-const TELEPHONE = /(?:\+|00)?\d(?:[\s.\-]?\d){8,13}/g
+// Suites de chiffres, séparés ou non par espaces, points ou tirets (expression linéaire, sans
+// quantificateur imbriqué). Un numéro de téléphone = 9 à 14 chiffres, précédés ou non de « + ».
+const SUITE_CHIFFRES = /\+?\d[\d\s.-]*\d/g
+const SEPARATEUR_DOUBLE = /(\D{2,})/
+const CHIFFRES_NUMERO_MIN = 9
+const CHIFFRES_NUMERO_MAX = 14
 
 /** Masque adresses e-mail et numéros de téléphone d'un texte libre (le syndic est l'intermédiaire). */
 export function masquerCoordonnees(v: string): string {
-  return v.replace(EMAIL, '[e-mail masqué]').replace(TELEPHONE, '[numéro masqué]')
+  return v.replace(EMAIL, '[e-mail masqué]').replace(SUITE_CHIFFRES, suite =>
+    // Deux séparateurs de suite coupent la suite : « 12 - 2026 » n'est pas un numéro, « 06 12 34 56 78  et 04 91… » en fait deux.
+    suite.split(SEPARATEUR_DOUBLE).map(partie => {
+      const chiffres = partie.replace(/\D/g, '').length
+      return chiffres >= CHIFFRES_NUMERO_MIN && chiffres <= CHIFFRES_NUMERO_MAX ? '[numéro masqué]' : partie
+    }).join(''))
 }
 
 const STATUTS_INTERVENTION: readonly StatutIntervention[] = ['en_attente', 'acceptee', 'en_cours', 'terminee', 'annulee']

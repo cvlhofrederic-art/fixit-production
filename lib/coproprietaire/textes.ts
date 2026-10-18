@@ -753,7 +753,7 @@ export function dateLongue(iso: string | null | undefined, langue: LangueCopro =
   const texte = new Intl.DateTimeFormat(LOCALE_INTL[langue], {
     ...(avecJour ? { weekday: 'long' } : {}), day: 'numeric', month: 'long', year: 'numeric',
   }).format(d)
-  return langue === 'fr' ? texte.replace(/(^|\s)1 /, '$11er ') : texte
+  return langue === 'fr' ? texte.replace(/(^|\s)1 /, (_, avant: string) => `${avant}1er `) : texte
 }
 
 /** Date et heure : « jeudi 19 novembre 2026 à 18 h 00 ». */

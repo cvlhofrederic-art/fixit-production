@@ -45,6 +45,15 @@ function changerLangue(langue: LangueCopro): void {
   window.location.assign(`/${langue}/coproprietaire/dashboard/${window.location.hash}`)
 }
 
+/** Retire la parenthèse finale « (…) » d'un libellé — sans expression régulière, donc sans retour arrière. */
+function sansParentheseFinale(libelle: string): string {
+  const propre = libelle.trimEnd()
+  if (!propre.endsWith(')')) return libelle
+  const debut = propre.lastIndexOf('(')
+  return debut < 0 ? libelle : propre.slice(0, debut).trimEnd()
+}
+
+
 export default function EcranInformations({ espace, t, langue, allerA }: PropsEcran) {
   const { profil, autresLots, immeuble, syndic } = espace
   const locataire = profil.role === 'locataire'
@@ -58,7 +67,7 @@ export default function EcranInformations({ espace, t, langue, allerA }: PropsEc
       return remplir(t.informations.tantiemes, { tantiemes: profil.tantiemes, pourcentage: pourcentage(profil.quotePart, langue) })
     }
     // Sans quote-part connue : le libellé sans sa parenthèse « (… des charges) ».
-    return remplir(t.informations.tantiemes.replace(/\s*\([^)]*\)\s*$/, ''), { tantiemes: profil.tantiemes })
+    return remplir(sansParentheseFinale(t.informations.tantiemes), { tantiemes: profil.tantiemes })
   })()
 
   const adresseImmeuble = adressePostale(immeuble)

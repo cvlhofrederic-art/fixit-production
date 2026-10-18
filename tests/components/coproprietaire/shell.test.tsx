@@ -113,6 +113,16 @@ describe('coquille du portail', () => {
     expect(h.seDeconnecter).toHaveBeenCalledTimes(1)
   })
 
+  it('une fenêtre se ferme au clic sur le fond, pas au clic dans la fenêtre', () => {
+    render(<Page />)
+    fireEvent.click(screen.getByRole('button', { name: 'Plus' }))
+    const dialogue = screen.getByRole('dialog')
+    fireEvent.mouseDown(within(dialogue).getByRole('button', { name: /Annonces/ }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('un écran peut demander le changement de lot via la cible « lot: »', () => {
     render(<Page />)
     fireEvent.click(screen.getByRole('button', { name: 'changer de lot' }))

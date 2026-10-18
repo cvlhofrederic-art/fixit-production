@@ -305,20 +305,25 @@ export function Modale({ titre, onFermer, children, labelFermer }: { titre: Reac
       if (e.shiftKey && document.activeElement === premier) { e.preventDefault(); dernier.focus() }
       else if (!e.shiftKey && document.activeElement === dernier) { e.preventDefault(); premier.focus() }
     }
+    // Clic sur le fond (en dehors de la fenêtre) : fermeture, sans gestionnaire sur un élément non interactif.
+    const clicDehors = (e: MouseEvent) => {
+      if (refDialogue.current && e.target instanceof Node && !refDialogue.current.contains(e.target)) onFermer()
+    }
     document.addEventListener('keydown', touche)
+    document.addEventListener('mousedown', clicDehors)
     return () => {
       document.removeEventListener('keydown', touche)
+      document.removeEventListener('mousedown', clicDehors)
       document.body.style.overflow = defilement
       origine?.focus()
     }
   }, [onFermer])
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" onClick={onFermer}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
       <div
         ref={refDialogue}
         role="dialog" aria-modal="true" aria-labelledby={idTitre}
         className="w-full max-w-lg rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6"
-        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
           <h2 id={idTitre} ref={refTitre} tabIndex={-1} className="text-xl font-bold text-[#0D1B2E] outline-none">{titre}</h2>

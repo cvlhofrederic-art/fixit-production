@@ -145,7 +145,7 @@ function majuscule(texte: string): string {
 
 /** Date de la dernière relance connue parmi les retards de paiement (vide si aucune). */
 function derniereRelance(retards: readonly ImpayeCopro[]): string {
-  const dates = retards.map(r => r.derniereRelanceLe).filter(d => d !== '').sort()
+  const dates = retards.map(r => r.derniereRelanceLe).filter(d => d !== '').sort((a, b) => a.localeCompare(b))
   return dates.length > 0 ? dates[dates.length - 1] : ''
 }
 

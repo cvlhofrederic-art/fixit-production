@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const valeurs: Record<string, unknown> = { vote, date_reception: aujourdhui, tantiemes, 'copropriétaire': nomVotant, coproprio_id: fiche.id }
     // Provenance et horodatage (migration 20261017) : retirés si les colonnes manquent encore (42703).
     const provenance = { source: 'portail', horodatage: enregistreLe }
-    const ecrire = async (v: Record<string, unknown>) => (idConserve
+    const ecrire = (v: Record<string, unknown>) => (idConserve
       ? supabaseAdmin.from('syndic_votes_correspondance').update(v).eq('id', idConserve).eq('cabinet_id', cabinetId)
       : supabaseAdmin.from('syndic_votes_correspondance').insert({ resolution_id: resolutionId, cabinet_id: cabinetId, ...v }))
     let { error: ecritureErr } = await ecrire({ ...valeurs, ...provenance })

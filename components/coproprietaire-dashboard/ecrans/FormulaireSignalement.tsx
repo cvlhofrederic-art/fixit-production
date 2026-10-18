@@ -18,6 +18,7 @@ import {
 import {
   DESCRIPTION_MIN_SIGNALEMENT, construireSignalement, envoyerSignalementCopro, type CodeErreurSignalement,
 } from '@/lib/copro-signalement'
+import { idLocal } from './DetailDemande'
 import {
   Bouton, Carte, Champ, ChoixCartes, CLASSES_SAISIE, Encadre, type OptionChoix,
 } from '@/components/coproprietaire-dashboard/ui'
@@ -72,13 +73,6 @@ export function lieuDuLogement(espace: EspaceCopro, langue: LangueCopro, t: Text
   if (profil.etage) parties.push(libelleEtage(profil.etage, langue, t))
   if (profil.numLot) parties.push(`${t.commun.lot} ${profil.numLot}`)
   return parties.length > 0 ? parties.join(', ') : profil.immeuble
-}
-
-function idLocal(prefixe: string): string {
-  const alea = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  return `${prefixe}-${alea}`
 }
 
 export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvoye, onVoirDemande, onAutre }: PropsFormulaireSignalement) {

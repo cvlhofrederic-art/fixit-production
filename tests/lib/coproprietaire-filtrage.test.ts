@@ -70,6 +70,10 @@ describe('outils', () => {
       .toBe('Appelez Marc au [numéro masqué] ou [e-mail masqué]')
     expect(masquerCoordonnees('+33 6 12 34 56 78 / 04.91.00.00.00')).toBe('[numéro masqué] / [numéro masqué]')
     expect(masquerCoordonnees('Remplacement de 6 blocs LED, devis 380 € le 15/10/2026')).toBe('Remplacement de 6 blocs LED, devis 380 € le 15/10/2026')
+    // Deux séparateurs de suite ne font pas un numéro ; deux numéros séparés par un double espace restent deux numéros.
+    expect(masquerCoordonnees('Lot 12 - 2026 - 10 - 17 : RAS')).toBe('Lot 12 - 2026 - 10 - 17 : RAS')
+    expect(masquerCoordonnees('06 12 34 56 78  et 04 91 00 00 00')).toBe('[numéro masqué]  et [numéro masqué]')
+    expect(masquerCoordonnees('SIRET 123 456 789 00012, 15 chiffres 123456789012345')).toBe('SIRET [numéro masqué], 15 chiffres 123456789012345')
   })
   it('statutAssemblee normalise les accents et écarte le brouillon', () => {
     expect(statutAssemblee('convoquée')).toBe('convoquee')

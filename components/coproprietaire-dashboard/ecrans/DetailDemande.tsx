@@ -67,12 +67,18 @@ export function coutCopropriete(i: InterventionVue, t: TextesCopro, langue: Lang
   return parties.join(' · ')
 }
 
-/** Identifiant local (démonstration, ou route sans identifiant). */
+let compteurLocal = 0
+
+/** Identifiant local (démonstration, ou route sans identifiant) : UUID du navigateur, sinon aléa cryptographique, sinon horodatage et compteur. */
 export function idLocal(prefixe: string): string {
-  const alea = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-  return `${prefixe}-${alea}`
+  const c = globalThis.crypto
+  if (c && typeof c.randomUUID === 'function') return `${prefixe}-${c.randomUUID()}`
+  if (c && typeof c.getRandomValues === 'function') {
+    const [a, b] = c.getRandomValues(new Uint32Array(2))
+    return `${prefixe}-${a.toString(36)}${b.toString(36)}`
+  }
+  compteurLocal += 1
+  return `${prefixe}-${Date.now().toString(36)}-${compteurLocal}`
 }
 
 /** Lignes du compte rendu (champs vides omis), à placer sous un titre fourni par l'appelant. */
