@@ -574,7 +574,7 @@ export function construireDemandes(
     if (!existante || (m.created_at || '').localeCompare(existante.created_at || '') > 0) missionParSignalement.set(m.signalement_id, m)
   }
   return signalements
-    .map(s => {
+    .map((s): DemandeCopro => {
       const mission = missionParSignalement.get(s.id)
       return {
         id: s.id,
