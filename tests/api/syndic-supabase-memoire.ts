@@ -55,7 +55,7 @@ export function clientMemoire(base: BaseMemoire) {
       if (appel.op === 'update' || appel.op === 'delete') return { data: null, error: null }
       const absente = (appel.colonnes ?? '').split(',').map((c) => c.trim())
         .find((c) => base.colonnesAbsentes?.[table]?.includes(c))
-      if (absente) return { data: null, error: { message: `column ${table}.${absente} does not exist` } }
+      if (absente) return { data: null, error: { code: '42703', message: `column ${table}.${absente} does not exist` } }
       const l = lignesFiltrees()
       return { data: unique ? l[0] ?? null : l, error: null }
     }

@@ -77,6 +77,17 @@ export function CanalDemandes({
   const fil = [...(selected?.messages ?? [])].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
 
   const libellePriorite = (p: string) => (p === 'urgente' || p === 'planifiee' ? t.priorites[p] : t.priorites.normale)
+
+  // Provenance à côté du nom du demandeur : « Portail » (compte rattaché à sa fiche, identité vérifiée) ou
+  // « Formulaire public » (dépôt sans compte, e-mail non vérifié) ; rien quand elle est inconnue.
+  const badgeOrigine = (origine: Signalement['origine']) => {
+    if (origine !== 'portail' && origine !== 'public') return null
+    return (
+      <span title={origine === 'portail' ? d.origine.portailTitre : d.origine.publicTitre}>
+        <Pill kind={origine === 'portail' ? 'sage' : undefined} noDot>{d.origine[origine]}</Pill>
+      </span>
+    )
+  }
   const localisation = (s: Signalement) => s.estPartieCommune
     ? [d.partiesCommunes, s.zoneSignalee].filter(Boolean).join(' — ')
     : [s.batiment && `${d.batiment} ${s.batiment}`, s.etage && `${d.etage} ${s.etage}`, s.numLot && `${d.lot} ${s.numLot}`].filter(Boolean).join(' · ')
@@ -133,7 +144,7 @@ export function CanalDemandes({
           ) : visibles.map((s) => (
             <button key={s.id} type="button" className={clsx('canal-mission-card', s.id === selected?.id && 'active')} onClick={() => onSelect(s.id)} aria-current={s.id === selected?.id ? 'true' : undefined}>
               <div className="canal-mission-title">{s.immeuble || s.typeIntervention}</div>
-              <div className="canal-mission-sub"><span className="canal-mission-dot" />{s.demandeurNom}{s.typeIntervention ? ` · ${s.typeIntervention}` : ''}</div>
+              <div className="canal-mission-sub"><span className="canal-mission-dot" />{s.demandeurNom}{badgeOrigine(s.origine)}{s.typeIntervention ? ` · ${s.typeIntervention}` : ''}</div>
               <div className="canal-mission-tags">
                 <Pill kind={PILL_STATUT_DEMANDE[s.statut]} noDot>{t.statutsDemande[s.statut as keyof typeof t.statutsDemande] ?? s.statut}</Pill>
                 {s.priorite === 'urgente' && <Pill kind="rust" noDot>{t.priorites.urgente}</Pill>}
@@ -152,7 +163,7 @@ export function CanalDemandes({
               <div className="canal-chat-head-info">
                 <h3 className="canal-chat-title">{selected.immeuble} <span className="canal-chat-title-sep">·</span> {selected.typeIntervention}</h3>
                 <p className="canal-chat-meta">
-                  <span className="canal-mission-dot" />{selected.demandeurNom}
+                  <span className="canal-mission-dot" />{selected.demandeurNom}{badgeOrigine(selected.origine)}
                   <span className="canal-chat-meta-sep">·</span>
                   {d.demande}<span className="canal-chat-meta-id">#{selected.id.slice(0, 8)}</span>
                   {selected.createdAt && <><span className="canal-chat-meta-sep">·</span>{d.recueLe}{dateApi(selected.createdAt, locale)}</>}
