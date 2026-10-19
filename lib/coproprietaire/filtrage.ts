@@ -30,6 +30,7 @@ import type {
   NatureImpaye, PrioriteAnnonce, PrioriteIntervention, ProfilCopro, ResolutionCopro, RoleOccupant,
   StatutAppel, StatutAssemblee, StatutFacture, StatutImpaye, StatutIntervention, SyndicCopro,
   TypeDocumentImmeuble,
+  FinancesCopro,
 } from '@/lib/coproprietaire/types'
 
 // ── Lignes lues (colonnes sélectionnées par la route) ─────────────────────────
@@ -613,6 +614,39 @@ export function construireDemandes(
 // ── Charges et factures ───────────────────────────────────────────────────────
 
 const STATUTS_APPEL: readonly StatutAppel[] = ['a_payer', 'partiellement_paye', 'solde', 'en_retard', 'annule']
+
+export interface SommeDueHorsAppels {
+  montant: number
+  /** Échéance la plus ancienne (factures) ou début du retard (impayés) ; vide pour un solde. */
+  date: string
+  enRetard: boolean
+  source: 'factures' | 'impayes' | 'solde'
+}
+
+/**
+ * Somme due en dehors des appels de charges, quand aucun appel n'est à payer : factures du syndic
+ * à régler (échéance la plus proche, en retard si elle est passée), sinon retards de paiement ouverts
+ * (depuis la date la plus ancienne), sinon solde débiteur de la fiche — celui-ci seulement quand le
+ * syndic n'a publié aucun appel (des appels tous payés font foi : le copropriétaire est à jour). Ainsi
+ * « ce que vous devez » ne dit jamais « aucun appel » à un copropriétaire qui doit de l'argent. null sinon.
+ */
+export function sommeDueHorsAppels(finances: FinancesCopro, aujourdhui: Date): SommeDueHorsAppels | null {
+  const jour = aujourdhui.toISOString().slice(0, 10)
+  const factures = finances.factures.filter(f => f.statut === 'a_regler' || f.statut === 'partiellement_regle')
+  if (factures.length > 0) {
+    const echeances = factures.map(f => f.echeance).filter(e => e !== '').sort((a, b) => a.localeCompare(b))
+    const date = echeances[0] ?? ''
+    return { montant: factures.reduce((s, f) => s + f.montantTtc, 0), date, enRetard: date !== '' && date.slice(0, 10) < jour, source: 'factures' }
+  }
+  const impayes = finances.impayes.filter(i => i.statut === 'ouvert' || i.statut === 'en_recouvrement')
+  if (impayes.length > 0) {
+    const debuts = impayes.map(i => i.depuis).filter(d => d !== '').sort((a, b) => a.localeCompare(b))
+    return { montant: impayes.reduce((s, i) => s + i.montant, 0), date: debuts[0] ?? '', enRetard: true, source: 'impayes' }
+  }
+  const sansAppel = finances.appels.every(a => a.statut === 'annule')
+  if (finances.solde < 0 && sansAppel) return { montant: -finances.solde, date: '', enRetard: false, source: 'solde' }
+  return null
+}
 const STATUTS_FACTURE: readonly StatutFacture[] = ['a_regler', 'partiellement_regle', 'reglee', 'contestee', 'annulee']
 const NATURES_IMPAYE: readonly NatureImpaye[] = ['charges_courantes', 'travaux', 'fonds_reserve', 'interets_retard', 'frais_relance', 'autre']
 /** Statuts d'impayé montrés au copropriétaire ; « passé en perte » reste une écriture interne. */

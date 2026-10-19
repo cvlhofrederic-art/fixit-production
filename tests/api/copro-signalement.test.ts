@@ -38,6 +38,7 @@ const h = vi.hoisted(() => {
     q.ilike = (col: string, val: unknown) => { requete.filtres.push(['ilike', col, val]); return q }
     q.eq = (col: string, val: unknown) => { requete.filtres.push(['eq', col, val]); return q }
     q.insert = (ligne: Record<string, unknown>) => { insertion = ligne; etat.insertions.push(ligne); return q }
+    q.maybeSingle = async () => ({ data: etat.coproprios[0] ?? null, error: null })
     q.single = async () => (etat.erreurInsertion
       ? { data: null, error: etat.erreurInsertion }
       : { data: { id: 'sig-1', ...insertion }, error: null })
@@ -101,6 +102,17 @@ describe('POST /api/coproprietaire/signalement — cabinet du compte connecté',
     expect(res.status).toBe(200)
     expect(insere().cabinet_id).toBe(ID_FREDERIC)
     expect(requetesSur('syndic_immeubles')).toHaveLength(0)
+  })
+
+  it('super admin sur une fiche de son cabinet (lot transmis, vue copropriétaire) : identité de la fiche, provenance « portail »', async () => {
+    const LOT = '077e370e-b5c1-4bce-9e8f-dc82040f6234'
+    h.etat.user = { id: ID_FREDERIC, email: 'frederic@exemple.fr', app_metadata: { role: 'coproprio', _original_role: 'super_admin', _admin_override: true } }
+    h.etat.coproprios = [{ id: LOT, cabinet_id: ID_FREDERIC, immeuble: 'Résidence Le Prado', batiment: 'D', etage: 4, numero_porte: '12', nom_proprietaire: 'Xavier', prenom_proprietaire: 'Géraldine', email_proprietaire: 'geraldine.xavier@email.com', tel_proprietaire: '+33 6 12 34 56 78', acces_portail: true }]
+    const res = await poster({ ...CORPS, lot: LOT, demandeurNom: 'Quelqu’un d’autre', demandeurEmail: 'autre@exemple.fr' })
+    expect(res.status).toBe(200)
+    expect(insere()).toMatchObject({ cabinet_id: ID_FREDERIC, demandeur_nom: 'Géraldine Xavier', demandeur_email: 'geraldine.xavier@email.com', demandeur_role: 'coproprio', batiment: 'D', etage: '4', num_lot: '12', origine: 'portail' })
+    expect(requetesSur('syndic_coproprios')[0].filtres).toContainEqual(['eq', 'id', LOT])
+    expect(requetesSur('syndic_coproprios')[0].filtres).toContainEqual(['eq', 'cabinet_id', ID_FREDERIC])
   })
 
   it('syndic : cabinet = son id (resolveCabinetId)', async () => {

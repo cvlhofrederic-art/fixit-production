@@ -142,6 +142,14 @@ describe('coquille du portail', () => {
     expect(screen.getAllByRole('link', { name: /Panneau admin/ })[0]).toHaveAttribute('href', '/admin/dashboard')
   })
 
+  it('super admin sur une fiche réelle de son cabinet : bandeau « vue super admin », pas « démonstration »', () => {
+    h.etat = pret({ ...espaceDemo(), source: 'reel', vueSuperAdmin: true }, 'jeton')
+    h.metadonnees = { role: 'super_admin' }
+    render(<Page />)
+    expect(screen.getByRole('status')).toHaveTextContent('Vue super admin — vous voyez l’espace réel de Géraldine Xavier')
+    expect(screen.queryByText(/Démonstration/)).toBeNull()
+  })
+
   it('vrai copropriétaire : aucun lien « Panneau admin », aucun bandeau de démonstration', () => {
     h.etat = pret({ ...espaceDemo(), source: 'reel' }, 'jeton')
     h.metadonnees = { role: 'coproprio' }

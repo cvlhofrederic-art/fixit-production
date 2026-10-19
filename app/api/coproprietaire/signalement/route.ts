@@ -82,10 +82,14 @@ export async function POST(request: NextRequest) {
 
     // Copropriétaire ou locataire rattaché à sa fiche (accès activé) : le signalement porte l'identité
     // de la fiche (e-mail, nom, lot), pas celle du corps — un compte ne dépose rien au nom d'un autre lot.
+    // Super admin : seulement sur une fiche de son cabinet désignée par `lot` (vue copropriétaire du
+    // portail) ; sans lot, il reste un dépôt public au nom du corps.
     const role = user ? getUserRole(user) : ''
+    const superAdmin = user ? estSuperAdmin(user) : false
+    const lot = typeof body.lot === 'string' ? body.lot : null
     let ficheConnectee: AccesCopro | null = null
-    if (user && !estSuperAdmin(user) && (role === 'coproprio' || role === 'locataire')) {
-      const acces = await resoudreCoproprietaire(user, supabaseAdmin, { coproprioId: typeof body.lot === 'string' ? body.lot : null })
+    if (user && ((!superAdmin && (role === 'coproprio' || role === 'locataire')) || (superAdmin && lot))) {
+      const acces = await resoudreCoproprietaire(user, supabaseAdmin, { coproprioId: lot })
       if (acces.ok) {
         ficheConnectee = acces.acces
         cabinetId = acces.acces.cabinetId

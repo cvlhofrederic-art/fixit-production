@@ -248,7 +248,7 @@ export default function CoproprietaireDashboard() {
 
   const bandeauDemo = espace.source === 'demo'
     ? (espace.vueSuperAdmin ? remplir(t.shell.demoSuperAdmin, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : t.shell.demoVisiteur)
-    : espace.vueSuperAdmin ? remplir(t.shell.demoSuperAdmin, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : null
+    : espace.vueSuperAdmin ? remplir(t.shell.vueSuperAdminReelle, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : null
 
   return (
     <div id="copro-dashboard" className="flex min-h-screen bg-[#F7F4EE]">
