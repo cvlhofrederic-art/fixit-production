@@ -7,6 +7,10 @@ export const METIERS = ['ar-condicionado', 'azulejador', 'canalizador', 'carpint
 
 export const METIERS_PERTO = [...METIERS, 'picheleiro']
 
+// Pages de service à l'échelle du district (lib/data/pt-servicos-distrito.ts, gel A0 levé le 20/10/2026) :
+// /pt/servicos/{slug}/ sans ville. Liste tenue égale aux données par tests/seo/pt-servicos-distrito.test.tsx.
+export const SERVICOS_DISTRITO_SLUGS = ['limpeza-de-telhados']
+
 const villesTriees = [...VILLES].sort((a, b) => b.length - a.length)
 
 function separerMetierVille(slug, suffixe = '') {
@@ -29,6 +33,7 @@ export function classer(chemin) {
   if (JURIDIQUES.has(c)) return { groupe: 'juridique', metier: '', ville: '' }
   let m
   if ((m = c.match(/^\/pt\/servicos\/([^/]+)\/$/))) {
+    if (SERVICOS_DISTRITO_SLUGS.includes(m[1])) return { groupe: 'servicos-distrito', metier: m[1], ville: '' }
     const s = separerMetierVille(m[1])
     return s ? { groupe: 'servicos', ...s } : { groupe: 'servicos-inconnu', metier: m[1], ville: '' }
   }
@@ -60,7 +65,7 @@ export function modeleMesure(groupe) {
   switch (groupe) {
     case 'servicos': case 'urgencia': case 'perto-de-mim': case 'perto-de-mim-hub': case 'cidade': case 'blog':
       return groupe
-    case 'hub-section': case 'hub-cidade': case 'blog-index': case 'precos': case 'page-statique': case 'mercados': case 'recherche': case 'juridique':
+    case 'servicos-distrito': case 'hub-section': case 'hub-cidade': case 'blog-index': case 'precos': case 'page-statique': case 'mercados': case 'recherche': case 'juridique':
       return 'hors-grille'
     default:
       return 'autre'

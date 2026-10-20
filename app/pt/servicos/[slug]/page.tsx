@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
 import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
+import { servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloServico, descricaoServico, fraseUrgenciasEncabecado } from '@/lib/seo/pt-meta'
+import { tituloServico, descricaoServico, fraseUrgenciasEncabecado, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, chantiersPara, mesPorExtenso, metodoPara, prazoPara, precoPara } from '@/lib/seo/pt-provas-locais'
 
@@ -71,6 +72,8 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const avis = avisPara(service.slug, city.slug)
   const ligados = METIERS_LIGADOS[service.slug] ?? []
   const otherServices = ligados.map(slug => SERVICES.find(s => s.slug === slug)).filter((s): s is ServiceData => Boolean(s))
+  // Pages de district du même distrito liées à ce métier (ex. telhador → limpeza de telhados, distrito do Porto).
+  const paginasDistrito = servicosDistritoLigados(service.slug, city.distrito)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
   // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business, app/layout.tsx)
@@ -203,14 +206,14 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
             {prazo && (
               <div id="prazos" className="p-6 rounded-2xl bg-warm-gray border border-border/40">
                 <h2 className="font-display text-lg font-bold text-dark mb-2">Prazos constatados em {city.name}</h2>
-                <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dias` : ''}.</p>
+                <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dia${prazo.intervencao_dias > 1 ? 's' : ''}` : ''}.</p>
                 <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
               </div>
             )}
             {preco && (
               <div id="precos" className="p-6 rounded-2xl bg-warm-gray border border-border/40">
                 <h2 className="font-display text-lg font-bold text-dark mb-2">Preços praticados: {service.name.toLowerCase()}</h2>
-                <p className="text-sm text-dark/85">{preco.min} a {preco.max} € por {preco.unite}{preco.fonte ? ` (${preco.fonte})` : ''}.</p>
+                <p className="text-sm text-dark/85">{preco.min.toLocaleString('pt-PT')} a {preco.max.toLocaleString('pt-PT')} € por {preco.unite}{preco.fonte ? ` (${preco.fonte})` : ''}.</p>
                 {preco.exemplos && preco.exemplos.length > 0 && (
                   <ul className="mt-2 text-xs text-text-muted space-y-1">
                     {preco.exemplos.slice(0, 3).map((e, i) => (
@@ -346,6 +349,16 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
               <span className="text-xl">{service.icon}</span>
               <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{service.name} noutros concelhos</span>
             </Link>
+            {paginasDistrito.map(pd => (
+              <Link
+                key={pd.slug}
+                href={`/pt/servicos/${pd.slug}/`}
+                className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
+              >
+                <span className="text-xl">{pd.icon}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{pd.nome} no distrito {nomeDistrito(pd.distrito)}</span>
+              </Link>
+            ))}
           </div>
 
           {/* Nearby cities (internal links - critical for SEO) */}

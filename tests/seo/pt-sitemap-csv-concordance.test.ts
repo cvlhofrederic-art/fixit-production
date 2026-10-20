@@ -7,10 +7,13 @@
 // et le hub picheleiro sortent du sitemap (301 vers servicos, data/seo/pt-redirects.csv) ; les 21
 // hubs métier ont leur fichier /pt/sitemap-hubs.xml. Ce test protège la base de calcul des phases
 // suivantes : si la grille change, le CSV doit être recalculé.
+// Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : hors grille et hors CSV, elles
+// s'ajoutent au fichier servicos.
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { getAllPtSitemapUrls, sitemapsPt, PAGINAS_ESTATICAS_PT, FICHIERS_SITEMAP_PT } from '@/lib/sitemap-pt-pages'
+import { SERVICOS_DISTRITO } from '@/lib/data/pt-servicos-distrito'
 import { lireCsv } from '../../scripts/seo/pt-audit/lib/csv.mjs'
 import { classer, VILLES, METIERS } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
@@ -19,6 +22,7 @@ const csv = lireCsv(readFileSync(path.join(__dirname, '..', '..', 'data', 'seo',
 const redirections = lireCsv(readFileSync(path.join(__dirname, '..', '..', 'data', 'seo', 'pt-redirects.csv'), 'utf8'))
 const JURIDIQUES = ['/pt/termos/', '/pt/avisos-legais/', '/pt/privacidade/', '/pt/politica-cookies/']
 const AJOUTEES_PHASE_1 = ['/pt/cidade/', '/pt/contacto/']
+const PAGES_DISTRITO = SERVICOS_DISTRITO.map((s) => `/pt/servicos/${s.slug}/`)
 const REDIRIGEES_PHASE_2 = new Set(redirections.map((l) => l.source))
 
 describe('sitemap PT : code et CSV de référence', () => {
@@ -26,14 +30,15 @@ describe('sitemap PT : code et CSV de référence', () => {
   const attendu = new Set([
     ...csv.map((l) => l.chemin).filter((c) => !JURIDIQUES.includes(c) && !REDIRIGEES_PHASE_2.has(c)),
     ...AJOUTEES_PHASE_1,
+    ...PAGES_DISTRITO,
   ])
 
-  it('le code génère les 1503 URL du CSV moins 4 juridiques moins 947 redirigées plus /pt/cidade/ et /pt/contacto/ : 554', () => {
+  it('le code génère les 1503 URL du CSV moins 4 juridiques moins 947 redirigées plus /pt/cidade/ et /pt/contacto/ (554), plus les pages de district', () => {
     expect(csv).toHaveLength(1503)
     expect(redirections).toHaveLength(947)
     expect(new Set(code).size).toBe(code.length)
     expect(new Set(code)).toEqual(attendu)
-    expect(code).toHaveLength(1503 - 4 - 947 + 2)
+    expect(code).toHaveLength(1503 - 4 - 947 + 2 + PAGES_DISTRITO.length)
   })
 
   it('chaque URL PT est dans exactement un fichier, et chaque fichier est non vide', () => {
@@ -47,9 +52,9 @@ describe('sitemap PT : code et CSV de référence', () => {
     expect(Object.keys(groupes).sort()).toEqual(Object.keys(FICHIERS_SITEMAP_PT).sort())
   })
 
-  it('composition par fichier : 462 servicos, 21 hubs, 23 cidades, 28 blog, 20 paginas', () => {
+  it('composition par fichier : 462 servicos et les pages de district, 21 hubs, 23 cidades, 28 blog, 20 paginas', () => {
     const groupes = sitemapsPt(BASE)
-    expect(groupes.servicos).toHaveLength(21 * 22)
+    expect(groupes.servicos).toHaveLength(21 * 22 + PAGES_DISTRITO.length)
     expect(groupes.hubs).toHaveLength(21)
     expect(groupes.cidades).toHaveLength(23)
     expect(groupes.blog).toHaveLength(28)

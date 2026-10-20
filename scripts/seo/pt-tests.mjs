@@ -212,7 +212,7 @@ async function principal() {
   // T5
   if (veut('T5')) {
     const details = []
-    const GRILLE = new Set(['servicos', 'urgencia', 'perto-de-mim', 'cidade', 'perto-de-mim-hub'])
+    const GRILLE = new Set(['servicos', 'servicos-distrito', 'urgencia', 'perto-de-mim', 'cidade', 'perto-de-mim-hub'])
     const SEDE_LOCALIDADE = 'marco de canaveses' // addressLocality du siège (lib/seo/entite-pt.ts)
     for (const p of echantillon) {
       const noeuds = (p.jsonld && p.jsonld.noeuds) || []
@@ -226,7 +226,7 @@ async function principal() {
       if (GRILLE.has(p.groupe) && parVille.length) details.push(p.chemin + ' : nœud entreprise par ville (' + parVille.map((n) => n.type).join(', ') + ')')
       const siege = entreprises.filter((n) => n.address)
       if (siege.length !== 1) details.push(p.chemin + ' : ' + siege.length + ' nœud(s) entreprise avec address (attendu 1)')
-      if (['servicos', 'urgencia', 'perto-de-mim'].includes(p.groupe)) {
+      if (['servicos', 'servicos-distrito', 'urgencia', 'perto-de-mim'].includes(p.groupe)) {
         const service = noeuds.find((n) => /^Service$/.test(n.type))
         if (!service) details.push(p.chemin + ' : nœud Service absent')
         else if (!service.provider || !service.areaServed) details.push(p.chemin + ' : Service sans provider ou areaServed')

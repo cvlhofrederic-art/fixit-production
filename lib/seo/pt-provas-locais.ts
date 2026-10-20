@@ -20,6 +20,8 @@ export interface Chantier {
 
 export interface PrecoMetier {
   metier: string
+  /** Prestation précisée, pour un métier à plusieurs lignes de prix (ex. « lavagem e hidrofugação »). */
+  servico?: string
   min: number
   max: number
   unite: string
@@ -66,16 +68,43 @@ export function chantiersPara(metier: string, cidade: string): Chantier[] {
     .slice(0, 5)
 }
 
+const precoValido = (p: PrecoMetier) => p.max > 0 && p.min >= 0 && Boolean(p.unite)
+
 /** Fourchette réelle d'un métier (celle de /pt/precos/ quand elle existe), sinon rien. */
 export function precoPara(metier: string): PrecoMetier | null {
   const p = (DADOS.precos ?? []).find((x) => x.metier === metier)
-  return p && p.max > 0 && p.min >= 0 && p.unite ? p : null
+  return p && precoValido(p) ? p : null
 }
+
+/** Toutes les fourchettes réelles d'un service (une par prestation), pour les pages de district. */
+export function precosPara(metier: string): PrecoMetier[] {
+  return (DADOS.precos ?? []).filter((x) => x.metier === metier && precoValido(x))
+}
+
+const prazoValido = (p: PrazoCidade) => p.visita_dias > 0 && Boolean(p.fonte)
 
 /** Délais constatés dans une ville (pour ce métier s'ils sont précisés). */
 export function prazoPara(cidade: string, metier: string): PrazoCidade | null {
   const p = (DADOS.prazos ?? []).find((x) => x.cidade === cidade && (!x.metiers || x.metiers.includes(metier)))
-  return p && p.visita_dias > 0 && p.fonte ? p : null
+  return p && prazoValido(p) ? p : null
+}
+
+/** Clé `cidade` des délais valables pour tout un distrito (pages de district) : « distrito-porto ». */
+export const chaveDistrito = (distrito: string) => `distrito-${distrito.toLowerCase()}`
+
+/** Délais constatés sur tout le distrito pour ce service (entrée `cidade: "distrito-porto"`, `metiers` obligatoire). */
+export function prazoDistritoPara(distrito: string, metier: string): PrazoCidade | null {
+  const p = (DADOS.prazos ?? []).find((x) => x.cidade === chaveDistrito(distrito) && x.metiers?.includes(metier))
+  return p && prazoValido(p) ? p : null
+}
+
+/** Chantiers réels d'un service dans une liste de villes (les concelhos du distrito), 6 au plus. */
+export function chantiersDistritoPara(metier: string, cidades: string[]): Chantier[] {
+  const noDistrito = new Set(cidades)
+  return (DADOS.chantiers ?? [])
+    .filter((c) => c.metier === metier && noDistrito.has(c.cidade) && chantierValido(c))
+    .sort((a, b) => b.mes.localeCompare(a.mes))
+    .slice(0, 6)
 }
 
 /** Avis réels, autorisés, d'un métier dans une ville (3 au plus). */

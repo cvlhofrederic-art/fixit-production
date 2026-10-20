@@ -16,9 +16,10 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1 } from './seo/pt-datas'
+import { DATAS_PT, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_DISTRITO } from './seo/pt-datas'
 import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
+import { SERVICOS_DISTRITO, servicosDistritoLigados } from './data/pt-servicos-distrito'
 
 export type GroupeSitemapPt = 'servicos' | 'hubs' | 'cidades' | 'blog' | 'paginas'
 
@@ -68,6 +69,9 @@ const PAGINAS_FASE_3 = new Set<string>([
   '/pt/precos/canalizador/', '/pt/precos/eletricista/', '/pt/precos/pintor/',
 ])
 
+/** Pages statiques qui lient les pages de district (section de /pt/servicos/, entrée du plan du site). */
+const PAGINAS_LIGACOES_DISTRITO = new Set<string>(['/pt/servicos/', '/pt/mapa-do-site/'])
+
 /** Lot 1 (phase 3) : date du lot 1 pour une page d'un métier d'urgence, sinon la date du groupe. */
 export function dataLote1(metier: string, dataGrupo: string): string {
   return METIERS_URGENCIA.has(metier) ? DATA_FASE_3_LOT_1 : dataGrupo
@@ -79,9 +83,14 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
 
   // Lot 1 (phase 3) : les pages des métiers d'urgence (toutes depuis la décision du 14/10) changent de titre,
   // de description et d'en-tête et portent la date du lot 1 ; un métier retiré de la liste garderait la date du lot 0.
-  const servicos = getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, dataLote1(combo.service.slug, DATAS_PT.servicos)))
+  // Pages de district (lib/data/pt-servicos-distrito.ts) : même fichier que la grille, date propre à chaque page.
+  const servicos = [
+    // Les pages métier x ville qui lient une page de district (même métier lié, même distrito) en prennent la date.
+    ...getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, servicosDistritoLigados(combo.service.slug, combo.city.distrito).length ? DATA_PAGINAS_DISTRITO : dataLote1(combo.service.slug, DATAS_PT.servicos))),
+    ...SERVICOS_DISTRITO.map(servico => url(`/pt/servicos/${servico.slug}/`, servico.dataModificacao)),
+  ]
 
-  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, dataLote1(service.slug, DATAS_PT.hubs)))
+  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, servicosDistritoLigados(service.slug).length ? DATA_PAGINAS_DISTRITO : dataLote1(service.slug, DATAS_PT.hubs)))
 
   const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, DATAS_PT.cidades))]
 
@@ -89,7 +98,7 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
   // la date de la phase 1 (title et description changés). Jamais une date unique pour tout le blog.
   const blog = [url('/pt/blog/', DATAS_PT.blog), ...BLOG_ARTICLES.map(article => url(`/pt/blog/${article.slug}/`, article.dateModified ?? article.datePublished))]
 
-  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, PAGINAS_FASE_3.has(path) ? DATA_FASE_3 : PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas))
+  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, PAGINAS_LIGACOES_DISTRITO.has(path) ? DATA_PAGINAS_DISTRITO : PAGINAS_FASE_3.has(path) ? DATA_FASE_3 : PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas))
 
   return { servicos, hubs, cidades, blog, paginas }
 }

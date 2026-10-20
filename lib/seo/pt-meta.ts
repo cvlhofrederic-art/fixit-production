@@ -205,6 +205,18 @@ export function descricaoServico(service: ServiceData, city: CityData): string {
   ])
 }
 
+// Pages de district (lib/data/pt-servicos-distrito.ts, gel A0 levé le 20/10/2026 pour trois services) : titre
+// rédigé, sans « 24h » (service planifié, pas d'urgence), description = résumé des prestations confirmées puis
+// la phrase de contact la plus longue qui tient.
+
+export function tituloServicoDistrito(servico: { titulo: string }): string {
+  return titulo(servico.titulo)
+}
+
+export function descricaoServicoDistrito(servico: { resumo: string }): string {
+  return descricao([servico.resumo, [`Orçamento grátis: ${TELEFONE_PT_TEXTE}.`, ...CONTACTO.slice(1)]])
+}
+
 // Phase 2 SEO PT : plus de pages urgencia ni perto-de-mim métier x ville (308 vers servicos) ; les
 // hubs métier /pt/perto-de-mim/{metier}/ sont les seules pages « perto de mim » restantes.
 

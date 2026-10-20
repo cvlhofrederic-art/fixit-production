@@ -8,6 +8,7 @@ import { ogImageMeta } from '@/lib/og'
 import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito, METIERS_URGENCIA, URGENCIAS_FRASE } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoRegional } from '@/lib/seo/pt-schemas'
 import { metodoPara } from '@/lib/seo/pt-provas-locais'
+import { servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 
 // ─────────────────────────────────────────────────────────────
 // HUB MÉTIER : /pt/perto-de-mim/{metier}/ (21 pages)
@@ -75,6 +76,7 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
   const displayName = service.name
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
   const metodo = metodoPara(service.slug)
+  const paginasDistrito = servicosDistritoLigados(service.slug)
   const urgencyTexto = service.urgencyText.replace(/\s*em \{city\}/g, '').replace(/\{city\}/g, 'Portugal')
 
   const waText = `Olá! Preciso de ${displayName.toLowerCase()} perto de mim. Podem ajudar?`
@@ -192,6 +194,23 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
               </Link>
             ))}
           </div>
+          {paginasDistrito.length > 0 && (
+            <div className="mt-10">
+              <p className="text-text-muted mb-4 max-w-2xl">Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:</p>
+              <div className="flex flex-wrap gap-3">
+                {paginasDistrito.map(pd => (
+                  <Link
+                    key={pd.slug}
+                    href={`/pt/servicos/${pd.slug}/`}
+                    className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 bg-white hover:border-yellow hover:bg-yellow/5 transition-all group"
+                  >
+                    <span className="text-xl">{pd.icon}</span>
+                    <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{pd.titulo}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

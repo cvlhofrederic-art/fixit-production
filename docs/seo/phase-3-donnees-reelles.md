@@ -90,6 +90,14 @@ order by r.created_at desc;
 3. Commencer par les concelhos où il y a eu de l'activité ces douze derniers mois, même deux ou trois : ce sont les pages du lot A.
 4. Pour les couples métier x ville sans aucune donnée après extraction : règle du plan (section 9), redirection vers la page ville ou le hub métier, pas de remplissage. Décision à prendre lot par lot (`DECISION PROPRIETAIRE`).
 
+## 3 bis. Pages de district (gel A0 levé le 20/10/2026)
+
+Les pages `/pt/servicos/{slug}/` de `lib/data/pt-servicos-distrito.ts` (aujourd'hui `limpeza-de-telhados`) lisent le même fichier, avec le slug de la page à la place du métier. Le propriétaire a confirmé le 20/10/2026 avoir des prix et des délais réels pour la limpeza de telhados ; tant qu'ils ne sont pas saisis, les blocs `#precos` et `#prazos` restent absents.
+
+- Prix : une ligne par prestation, `servico` facultatif mais conseillé. Exemple de forme (valeurs à remplacer par les vraies) : `{ "metier": "limpeza-de-telhados", "servico": "Lavagem e tratamento anti-musgo", "min": 0, "max": 0, "unite": "m2", "fonte": "orçamentos de 2026" }`. Une ligne à `max` nul est ignorée.
+- Délais : une ligne pour tout le distrito, clé `cidade` = `distrito-porto`, `metiers` obligatoire : `{ "cidade": "distrito-porto", "metiers": ["limpeza-de-telhados"], "visita_dias": 0, "intervencao_dias": 0, "fonte": "últimos 10 pedidos" }`.
+- Chantiers : `metier` = `limpeza-de-telhados`, `cidade` = slug d'un des 18 concelhos du distrito do Porto ; les six plus récents s'affichent avec le nom du concelho.
+
 ## 4. Porte de qualité (test T10)
 
 `data/seo/porte-qualite.example.json` donne la configuration prévue : sections obligatoires `#chantiers`, `#prazos`, `#metodo` sur les pages servicos, 30 % de séquences propres, moins de 8 villes citées dans le texte. Elle sera copiée en `data/seo/porte-qualite.json` au démarrage du lot A, avec la liste des URL du lot (`--lot`), pour que `scripts/seo/pt-tests.mjs` l'applique.

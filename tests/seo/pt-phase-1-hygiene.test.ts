@@ -25,7 +25,8 @@ import {
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
-import { DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATAS_PT } from '@/lib/seo/pt-datas'
+import { DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_DISTRITO, DATAS_PT } from '@/lib/seo/pt-datas'
+import { servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
 // Pages à generateMetadata par locale (cookie) : branche PT.
@@ -268,11 +269,14 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
     const { servicos, hubs, cidades } = sitemapsPt(BASE)
     for (const c of getAllPageCombos()) {
       const entree = servicos.find((u) => u.url === `${BASE}/pt/servicos/${c.slug}/`)
-      expect(entree?.lastModified, c.slug).toBe(METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3)
+      // Pages qui lient une page de district (20/10/2026) : date des pages de district.
+      const attendue = servicosDistritoLigados(c.service.slug, c.city.distrito).length ? DATA_PAGINAS_DISTRITO : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
+      expect(entree?.lastModified, c.slug).toBe(attendue)
     }
     for (const s of SERVICES) {
       const entree = hubs.find((u) => u.url === `${BASE}/pt/perto-de-mim/${s.slug}/`)
-      expect(entree?.lastModified, s.slug).toBe(METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3)
+      const attendue = servicosDistritoLigados(s.slug).length ? DATA_PAGINAS_DISTRITO : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
+      expect(entree?.lastModified, s.slug).toBe(attendue)
     }
     expect(cidades.every((u) => u.lastModified === DATA_FASE_3)).toBe(true)
     expect(DATAS_PT.servicos).toBe(DATA_FASE_3)
@@ -466,7 +470,9 @@ describe('1.1 sitemaps PT', () => {
     const paginas = sitemapsPt(BASE).paginas
     const dateDe = (path: string) => paginas.find((u) => u.url === `${BASE}${path}`)?.lastModified
     // Pages dont le contenu visible change dans le lot 0 ou la phase 4 (dont /pt/urgencia/ : délais rétablis).
-    for (const path of ['/pt/', '/pt/servicos/', '/pt/urgencia/', '/pt/mapa-do-site/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/pintor/']) {
+    // /pt/servicos/ et /pt/mapa-do-site/ lient les pages de district (20/10/2026) : date des pages de district.
+    for (const path of ['/pt/servicos/', '/pt/mapa-do-site/']) expect(dateDe(path), path).toBe(DATA_PAGINAS_DISTRITO)
+    for (const path of ['/pt/', '/pt/urgencia/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/pintor/']) {
       expect(dateDe(path), path).toBe(DATA_FASE_3)
     }
     expect(dateDe('/pt/perto-de-mim/')).toBe(DATA_FASE_2)
