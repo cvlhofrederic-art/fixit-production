@@ -278,7 +278,12 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
       const attendue = servicosDistritoLigados(s.slug).length ? DATA_PAGINAS_DISTRITO : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
       expect(entree?.lastModified, s.slug).toBe(attendue)
     }
-    expect(cidades.every((u) => u.lastModified === DATA_FASE_3)).toBe(true)
+    // Pages ville du distrito do Porto : elles lient la page de district (carte « Serviços disponíveis », 21/10/2026).
+    for (const city of CITIES) {
+      const entree = cidades.find((u) => u.url === `${BASE}/pt/cidade/${city.slug}/`)
+      expect(entree?.lastModified, city.slug).toBe(city.distrito === 'Porto' ? DATA_PAGINAS_DISTRITO : DATA_FASE_3)
+    }
+    expect(cidades.find((u) => u.url === `${BASE}/pt/cidade/`)?.lastModified).toBe(DATA_FASE_3)
     expect(DATAS_PT.servicos).toBe(DATA_FASE_3)
     expect(DATA_FASE_3_LOT_1 >= DATA_FASE_3).toBe(true)
     // Les deux constantes peuvent être égales (fusion le même jour) : la règle se vérifie à part.

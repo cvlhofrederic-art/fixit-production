@@ -15,7 +15,11 @@ export interface Chantier {
   mes: string
   freguesia?: string
   foto?: string
+  /** Texte alternatif de la photo (ce qu'elle montre), obligatoire avec `foto` sur les pages de district. */
+  foto_alt?: string
   consentimento_nome?: boolean
+  /** Jour d'ajout du chantier au fichier (AAAA-MM-JJ) : lastmod des pages de district qui l'affichent. */
+  publicado?: string
 }
 
 export interface PrecoMetier {
@@ -49,7 +53,15 @@ export interface Avis {
   autorizacao: boolean
 }
 
+/** Particularité locale vérifiée par le propriétaire, pour la page concelho d'un service de district. */
+export interface NotaConcelho {
+  metier: string
+  cidade: string
+  texto: string
+}
+
 interface ProvasLocais {
+  notas_concelho?: NotaConcelho[]
   chantiers?: Chantier[]
   precos?: PrecoMetier[]
   prazos?: PrazoCidade[]
@@ -62,12 +74,21 @@ const DADOS = provas as unknown as ProvasLocais
 /** Un chantier n'est utilisable qu'avec un type de travaux et un mois (règle 3.3 du plan). */
 const chantierValido = (c: Chantier) => Boolean(c.tipo && /^\d{4}-\d{2}$/.test(c.mes || ''))
 
-/** Chantiers réels d'un métier dans une ville, du plus récent au plus ancien, 5 au plus. */
-export function chantiersPara(metier: string, cidade: string): Chantier[] {
+/** Tous les chantiers réels d'un métier dans une ville, du plus récent au plus ancien. */
+export function todosChantiersPara(metier: string, cidade: string): Chantier[] {
   return (DADOS.chantiers ?? [])
     .filter((c) => c.metier === metier && c.cidade === cidade && chantierValido(c))
     .sort((a, b) => b.mes.localeCompare(a.mes))
-    .slice(0, 5)
+}
+
+/** Chantiers réels d'un métier dans une ville, du plus récent au plus ancien, 5 au plus. */
+export function chantiersPara(metier: string, cidade: string): Chantier[] {
+  return todosChantiersPara(metier, cidade).slice(0, 5)
+}
+
+/** Particularités locales écrites par le propriétaire pour un service dans un concelho. */
+export function notasConcelhoPara(metier: string, cidade: string): string[] {
+  return (DADOS.notas_concelho ?? []).filter((n) => n.metier === metier && n.cidade === cidade && n.texto?.trim().length > 20).map((n) => n.texto.trim())
 }
 
 const precoValido = (p: PrecoMetier) => p.max > 0 && p.min >= 0 && Boolean(p.unite)

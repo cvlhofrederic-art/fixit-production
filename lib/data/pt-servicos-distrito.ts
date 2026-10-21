@@ -14,6 +14,8 @@
 // qu'ils sont vides. Textes à relire par le propriétaire.
 
 import { DATA_PAGINAS_DISTRITO } from '@/lib/seo/pt-datas'
+import { CITIES, type CityData } from '@/lib/data/seo-pages-data'
+import { todosChantiersPara, type Chantier } from '@/lib/seo/pt-provas-locais'
 
 export interface PassoServico {
   titulo: string
@@ -23,6 +25,8 @@ export interface PassoServico {
 export interface PerguntaServico {
   pergunta: string
   resposta: string
+  /** Ajoute à la réponse la fourchette réelle de data/seo/local-proof.json (« exemplo » : avec le calcul pour 100 m²). */
+  preco?: 'simples' | 'exemplo'
 }
 
 export interface LigacaoServico {
@@ -48,7 +52,7 @@ export interface ServicoDistrito {
   resumo: string
   intro: string
   /** Titres de section propres au service (le composant est commun aux pages de district). */
-  titulos: { preco: string; metodo: string; sinais: string; ligacoes: string; ctaFinal: string }
+  titulos: { preco: string; metodo: string; sinais: string; ligacoes: string; ctaFinal: string; /** Titre des particularités locales des pages concelho, suivi du nom du concelho. */ local: string }
   /** Encadré d'appel à l'action du bloc prix, suivi du numéro affiché. */
   textoOrcamento: string
   prestacoes: PassoServico[]
@@ -84,6 +88,7 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     sinais: 'Quando limpar o telhado',
     ligacoes: 'Quando a limpeza não chega',
     ctaFinal: 'Peça o orçamento para o seu telhado',
+    local: 'Os telhados de',
   },
   textoOrcamento: 'O orçamento é grátis e sem compromisso. Envie-nos a área aproximada e algumas fotografias do telhado por WhatsApp, ou ligue para',
   prestacoes: [
@@ -152,11 +157,13 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   faqs: [
     {
       pergunta: 'Quanto custa limpar um telhado?',
+      preco: 'exemplo',
       resposta:
         'Depende da área, da inclinação e do acesso, do tipo e do estado das telhas, da quantidade de musgo e dos tratamentos escolhidos. Para lhe enviarmos um orçamento, precisamos da área aproximada e de ver o telhado, em fotografia ou no local. O orçamento é grátis e sem compromisso.',
     },
     {
       pergunta: 'Quanto custa lavar e impermeabilizar (hidrofugar) um telhado?',
+      preco: 'simples',
       resposta:
         'Custa mais do que a lavagem simples, porque a hidrofugação, a que muitos chamam impermeabilização do telhado, é um passo a mais, feito depois da lavagem e com o telhado seco. Diga-nos no pedido se quer a lavagem com hidrofugação, para o orçamento incluir as duas.',
     },
@@ -224,4 +231,66 @@ export const SERVICOS_DISTRITO: ServicoDistrito[] = [LIMPEZA_DE_TELHADOS]
 /** Pages de district à lier depuis les pages d'un métier de la grille (même distrito) et son hub. */
 export function servicosDistritoLigados(metier: string, distrito?: string): ServicoDistrito[] {
   return SERVICOS_DISTRITO.filter((s) => s.metiersLigados.includes(metier) && (!distrito || s.distrito === distrito))
+}
+
+// ── Pages concelho d'un service de district (/pt/servicos/{servico}-{concelho}/) ──
+// Guide Google du 19/10/2026 (section 4.4) : une page concelho n'existe que si elle apporte un contenu propre au lieu.
+// Elle s'ouvre toute seule quand data/seo/local-proof.json documente des chantiers réels de ce service dans ce concelho :
+// deux chantiers, ou un seul avec photo et texte alternatif. Chaque chantier porte sa date d'ajout (`publicado`), qui
+// donne le lastmod. Sans chantier, aucune page : les recherches « service + concelho » vont à la page de district et aux
+// pages de la grille qui la lient. Jamais de page par freguesia : les freguesias apparaissent dans les chantiers.
+
+const dataIso = (d?: string) => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+
+/** Chantiers d'un service de district dans un concelho qui comptent : valides et datés (`publicado`). */
+export function chantiersDocumentados(servico: ServicoDistrito, cidade: string): Chantier[] {
+  return todosChantiersPara(servico.slug, cidade).filter((c) => dataIso(c.publicado))
+}
+
+/** Seuil d'ouverture d'une page concelho : deux chantiers documentés, ou un seul avec photo décrite. */
+export function concelhoDocumentado(chantiers: Chantier[]): boolean {
+  return chantiers.length >= 2 || chantiers.some((c) => Boolean(c.foto && c.foto_alt))
+}
+
+export interface PaginaConcelhoDistrito {
+  slug: string
+  servico: ServicoDistrito
+  city: CityData
+  chantiers: Chantier[]
+  dataModificacao: string
+}
+
+const maisRecente = (datas: string[]) => [...datas].sort().at(-1) ?? ''
+
+/** Pages concelho ouvertes, pour toutes les pages de district. */
+export function paginasConcelhoDistrito(): PaginaConcelhoDistrito[] {
+  return SERVICOS_DISTRITO.flatMap((servico) =>
+    CITIES.filter((city) => city.distrito === servico.distrito).flatMap((city) => {
+      const chantiers = chantiersDocumentados(servico, city.slug)
+      if (!concelhoDocumentado(chantiers)) return []
+      return [{ slug: `${servico.slug}-${city.slug}`, servico, city, chantiers, dataModificacao: maisRecente(chantiers.map((c) => c.publicado ?? '')) }]
+    }),
+  )
+}
+
+export function paginaConcelhoDistrito(slug: string): PaginaConcelhoDistrito | undefined {
+  return paginasConcelhoDistrito().find((p) => p.slug === slug)
+}
+
+/** Lien vers le service pour un concelho : sa page concelho si elle est ouverte, sinon la page de district. */
+export function urlServicoDistrito(servico: ServicoDistrito, cidade?: string): string {
+  const pagina = cidade ? paginasConcelhoDistrito().find((p) => p.servico.slug === servico.slug && p.city.slug === cidade) : undefined
+  return pagina ? `/pt/servicos/${pagina.slug}/` : `/pt/servicos/${servico.slug}/`
+}
+
+/** Chantiers documentés d'un service dans tout son distrito, du plus récent au plus ancien. */
+export function chantiersDoDistrito(servico: ServicoDistrito): Chantier[] {
+  return CITIES.filter((city) => city.distrito === servico.distrito)
+    .flatMap((city) => chantiersDocumentados(servico, city.slug))
+    .sort((a, b) => b.mes.localeCompare(a.mes))
+}
+
+/** lastmod de la page de district : sa date, ou celle du dernier chantier ajouté s'il est plus récent. */
+export function dataModificacaoDistrito(servico: ServicoDistrito): string {
+  return maisRecente([servico.dataModificacao, ...chantiersDoDistrito(servico).map((c) => c.publicado ?? '')])
 }

@@ -165,6 +165,19 @@ describe('/pt/servicos/limpeza-de-telhados/ : rendu', () => {
     for (const { item } of fil.itemListElement.slice(0, -1)) expect(visibles.has(item.replace(BASE, ''))).toBe(true)
   })
 
+  it('FAQ « quanto custa » : fourchette réelle de local-proof.json et calcul pour 100 m² (aucun chiffre écrit dans les textes)', async () => {
+    const c = await htmlLimpeza()
+    const reponses = Array.from(c.querySelectorAll('#perguntas details')).map((d) => d.textContent ?? '')
+    const precos = precosPara(LIMPEZA_DE_TELHADOS.slug)
+    const m2 = precos.find((p) => /^m(2|²)$/.test(p.unite))
+    const custo = reponses.find((r) => r.startsWith('Quanto custa limpar um telhado?')) ?? ''
+    if (m2) {
+      const n = (v: number) => v.toLocaleString('pt-PT')
+      expect(custo).toContain(`de ${n(m2.min)} a ${n(m2.max)} € por ${m2.unite}`)
+      expect(custo).toContain(`Num telhado de 100 m², são ${n(m2.min * 100)} a ${n(m2.max * 100)} €`)
+    } else expect(custo).not.toMatch(/€/)
+  })
+
   it('FAQ visible (details), sans balisage FAQPage ; une question par entrée des données', async () => {
     const c = await htmlLimpeza()
     const questions = Array.from(c.querySelectorAll('#perguntas details summary')).map((q) => q.querySelector('span')?.textContent)

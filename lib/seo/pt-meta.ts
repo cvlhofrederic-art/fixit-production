@@ -217,6 +217,19 @@ export function descricaoServicoDistrito(servico: { resumo: string }): string {
   return descricao([servico.resumo, [`Orçamento grátis: ${TELEFONE_PT_TEXTE}.`, ...CONTACTO.slice(1)]])
 }
 
+/** Page concelho d'un service de district : le nom du concelho n'est jamais coupé, le fait réel est le nombre de chantiers. */
+export function tituloConcelhoDistrito(pagina: { servico: { nome: string }; city: { name: string } }): string {
+  return tituloComCidade(pagina.servico.nome, 'em', pagina.city.name, 'trabalhos realizados')
+}
+
+export function descricaoConcelhoDistrito(pagina: { servico: { nome: string }; city: { name: string }; chantiers: unknown[] }): string {
+  const n = pagina.chantiers.length
+  return descricao([
+    `${pagina.servico.nome} em ${pagina.city.name}: ${n} trabalho${n > 1 ? 's' : ''} documentado${n > 1 ? 's' : ''} da equipa VITFIX no concelho.`,
+    [`Orçamento grátis: ${TELEFONE_PT_TEXTE}.`, ...CONTACTO.slice(1)],
+  ])
+}
+
 // Phase 2 SEO PT : plus de pages urgencia ni perto-de-mim métier x ville (308 vers servicos) ; les
 // hubs métier /pt/perto-de-mim/{metier}/ sont les seules pages « perto de mim » restantes.
 

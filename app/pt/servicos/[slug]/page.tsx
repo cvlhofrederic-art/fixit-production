@@ -4,9 +4,10 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
 import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
-import { servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
+import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import PaginaConcelhoServicoDistrito from '@/components/seo/PaginaConcelhoServicoDistrito'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloServico, descricaoServico, fraseUrgenciasEncabecado, nomeDistrito } from '@/lib/seo/pt-meta'
+import { tituloServico, descricaoServico, fraseUrgenciasEncabecado, nomeDistrito, tituloConcelhoDistrito, descricaoConcelhoDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, chantiersPara, mesPorExtenso, metodoPara, prazoPara, precoPara } from '@/lib/seo/pt-provas-locais'
 
@@ -14,9 +15,10 @@ import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import ServiceFeaturesGrid from '@/components/seo/ServiceFeaturesGrid'
 import ProblemsGrid from '@/components/seo/ProblemsGrid'
 
-// ── Pages statiques : 21 métiers × 22 villes (lib/data/seo-pages-data.ts) ──
+// ── Pages statiques : 21 métiers × 22 villes (lib/data/seo-pages-data.ts), plus les pages concelho des services de
+// district ouvertes par des chantiers réels (lib/data/pt-servicos-distrito.ts, aucune tant qu'il n'y en a pas) ──
 export function generateStaticParams() {
-  return getAllPageCombos().map(p => ({ slug: p.slug }))
+  return [...getAllPageCombos().map(p => ({ slug: p.slug })), ...paginasConcelhoDistrito().map(p => ({ slug: p.slug }))]
 }
 
 // ── Métadonnées (phase 1 SEO PT) : marque une fois (template du layout), description propre
@@ -24,10 +26,11 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const combo = getPageCombo(slug)
-  if (!combo) return {}
+  const concelho = combo ? undefined : paginaConcelhoDistrito(slug)
+  if (!combo && !concelho) return {}
 
-  const title = tituloServico(combo.service, combo.city)
-  const description = descricaoServico(combo.service, combo.city)
+  const title = combo ? tituloServico(combo.service, combo.city) : tituloConcelhoDistrito(concelho!)
+  const description = combo ? descricaoServico(combo.service, combo.city) : descricaoConcelhoDistrito(concelho!)
 
   return {
     title,
@@ -55,7 +58,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ServiceCityPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const combo = getPageCombo(slug)
-  if (!combo) notFound()
+  if (!combo) {
+    const concelho = paginaConcelhoDistrito(slug)
+    if (!concelho) notFound()
+    return <PaginaConcelhoServicoDistrito pagina={concelho} />
+  }
 
   const { service, city, nearbyCities } = combo
   const replaceCity = (text: string) => text.replace(/\{city\}/g, city.name)
@@ -352,11 +359,11 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
             {paginasDistrito.map(pd => (
               <Link
                 key={pd.slug}
-                href={`/pt/servicos/${pd.slug}/`}
+                href={urlServicoDistrito(pd, city.slug)}
                 className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
               >
                 <span className="text-xl">{pd.icon}</span>
-                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{pd.nome} no distrito {nomeDistrito(pd.distrito)}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(pd.distrito)}` : `${pd.nome} em ${city.name}`}</span>
               </Link>
             ))}
           </div>
