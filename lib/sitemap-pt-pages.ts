@@ -87,7 +87,7 @@ export function dataLigacoesConcelho(cidade: string, servicos?: string[]): strin
   const aberturas = paginasConcelhoDistrito()
     .filter((p) => p.city.slug === cidade && (!servicos || servicos.includes(p.servico.slug)))
     .map((p) => p.dataAbertura)
-  return [DATA_LIGACOES_DISTRITO, ...aberturas].sort().at(-1) ?? DATA_LIGACOES_DISTRITO
+  return [DATA_LIGACOES_DISTRITO, ...aberturas].sort((a, b) => a.localeCompare(b)).at(-1) ?? DATA_LIGACOES_DISTRITO
 }
 
 /** Sitemaps PT par groupe. */

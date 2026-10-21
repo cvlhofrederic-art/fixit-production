@@ -6,7 +6,7 @@ import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { descricaoServicoDistrito, emConcelho, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoDistrito } from '@/lib/seo/pt-schemas'
 import { prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
-import { PhoneSvg, TITULO_SECCAO, WaSvg, complementoPreco, detalhesChantier, frasePrazo, frasePreco, fraseChantier } from './servico-distrito-partilhado'
+import { BotoesContacto, SelosConfianca, TITULO_SECCAO, complementoPreco, detalhesChantier, frasePrazo, frasePreco, fraseChantier } from './servico-distrito-partilhado'
 
 // Page de service à l'échelle du district (/pt/servicos/{slug}/, lib/data/pt-servicos-distrito.ts). Même
 // langage visuel que les pages métier x ville (app/pt/servicos/[slug]/page.tsx). Blocs de données réelles
@@ -15,7 +15,7 @@ import { PhoneSvg, TITULO_SECCAO, WaSvg, complementoPreco, detalhesChantier, fra
 
 const tituloSeccao = TITULO_SECCAO
 
-export default function PaginaServicoDistrito({ servico }: { servico: ServicoDistrito }) {
+export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: ServicoDistrito }>) {
   const urlPagina = `https://vitfix.io/pt/servicos/${servico.slug}/`
   const distritoTexto = `distrito ${nomeDistrito(servico.distrito)}`
   // Chantiers documentés de tout le distrito : les 6 plus récents, plus le plus récent de chaque concelho dont la page est
@@ -75,33 +75,9 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">{servico.intro}</p>
 
-          <div className="flex flex-wrap gap-3 mb-10">
-            <a
-              href={waHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(37,211,102,0.3)]"
-            >
-              <WaSvg />
-              Pedir orçamento por WhatsApp
-            </a>
-            <a
-              href={`tel:${PHONE_PT}`}
-              className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
-            >
-              <PhoneSvg />
-              {TELEFONE_PT_TEXTE}
-            </a>
-          </div>
+          <BotoesContacto waHref={waHref} variante="topo" />
 
-          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-muted">
-            <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Equipa VITFIX</span>
-            <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Orçamento grátis</span>
-            <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Atendimento telefónico 7 dias por semana</span>
-            {prazo?.visita_horas_max && (
-              <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Visita em {prazo.visita_horas_max} horas, no máximo</span>
-            )}
-          </div>
+          <SelosConfianca selos={['Equipa VITFIX', 'Orçamento grátis', 'Atendimento telefónico 7 dias por semana']} prazo={prazo} />
         </div>
       </section>
 
@@ -294,25 +270,7 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
             {servico.titulos.ctaFinal}
           </h2>
           <p className="text-text-muted mb-8 max-w-md mx-auto">Grátis e sem compromisso, em todo o {distritoTexto}.</p>
-          <div className="flex flex-wrap justify-center gap-3">
-            <a
-              href={waHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-white font-display font-bold rounded-full px-8 py-4 text-base hover:-translate-y-0.5 transition-all"
-              style={{ background: '#25D366', boxShadow: '0 6px 24px rgba(37,211,102,0.4)' }}
-            >
-              <WaSvg />
-              WhatsApp
-            </a>
-            <a
-              href={`tel:${PHONE_PT}`}
-              className="inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
-            >
-              <PhoneSvg />
-              {TELEFONE_PT_TEXTE}
-            </a>
-          </div>
+          <BotoesContacto waHref={waHref} variante="fim" />
         </div>
       </section>
     </div>

@@ -4,6 +4,8 @@
 import type { Chantier, PrazoCidade, PrecoMetier } from '@/lib/seo/pt-provas-locais'
 import type { PerguntaServico, ServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { mesPorExtenso } from '@/lib/seo/pt-provas-locais'
+import { PHONE_PT } from '@/lib/constants'
+import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 
 export const TITULO_SECCAO = 'font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark'
 
@@ -18,6 +20,48 @@ export const PhoneSvg = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 8V5z" />
   </svg>
 )
+
+/** Boutons WhatsApp et téléphone : « topo » sous le titre, « fim » dans l'appel à l'action final. */
+export function BotoesContacto({ waHref, variante }: Readonly<{ waHref: string; variante: 'topo' | 'fim' }>) {
+  const topo = variante === 'topo'
+  return (
+    <div className={topo ? 'flex flex-wrap gap-3 mb-10' : 'flex flex-wrap justify-center gap-3'}>
+      <a
+        href={waHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={topo
+          ? 'inline-flex items-center gap-2 bg-[#25D366] text-white font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-[#20ba59] hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(37,211,102,0.3)]'
+          : 'inline-flex items-center gap-2 text-white font-display font-bold rounded-full px-8 py-4 text-base hover:-translate-y-0.5 transition-all'}
+        style={topo ? undefined : { background: '#25D366', boxShadow: '0 6px 24px rgba(37,211,102,0.4)' }}
+      >
+        <WaSvg />
+        {topo ? 'Pedir orçamento por WhatsApp' : 'WhatsApp'}
+      </a>
+      <a
+        href={`tel:${PHONE_PT}`}
+        className={topo
+          ? 'inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-7 py-3 text-[0.95rem] hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]'
+          : 'inline-flex items-center gap-2 bg-yellow text-dark font-display font-bold rounded-full px-8 py-4 text-base hover:bg-yellow-light hover:-translate-y-0.5 transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]'}
+      >
+        <PhoneSvg />
+        {TELEFONE_PT_TEXTE}
+      </a>
+    </div>
+  )
+}
+
+/** Bandeau de confiance sous les boutons (le délai de visite réel s'ajoute s'il est fourni). */
+export function SelosConfianca({ selos, prazo }: Readonly<{ selos: string[]; prazo: PrazoCidade | null }>) {
+  const todos = prazo?.visita_horas_max ? [...selos, `Visita em ${prazo.visita_horas_max} horas, no máximo`] : selos
+  return (
+    <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-muted">
+      {todos.map((s) => (
+        <span key={s} className="flex items-center gap-1.5"><span className="text-yellow">✓</span> {s}</span>
+      ))}
+    </div>
+  )
+}
 
 export const num = (n: number) => n.toLocaleString('pt-PT')
 

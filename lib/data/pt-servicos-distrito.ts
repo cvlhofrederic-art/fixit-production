@@ -284,7 +284,7 @@ export interface PaginaConcelhoDistrito {
 }
 
 function maisRecente(datas: string[]): string {
-  return [...datas].filter(Boolean).sort().at(-1) ?? ''
+  return [...datas].filter(Boolean).sort((a, b) => a.localeCompare(b)).at(-1) ?? ''
 }
 
 /** Pages concelho ouvertes, pour toutes les pages de district. */
