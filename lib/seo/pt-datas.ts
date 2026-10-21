@@ -40,7 +40,7 @@ export const DATA_FASE_3_LOT_1 = '2026-10-14'
  * 18 concelhos du distrito do Porto, leurs deux hubs, /pt/servicos/ et /pt/mapa-do-site/). À aligner sur le jour
  * de la mise en production, consigné dans docs/seo/journal-pt.md.
  */
-export const DATA_PAGINAS_DISTRITO = '2026-10-20'
+export const DATA_PAGINAS_DISTRITO = '2026-10-21'
 
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date

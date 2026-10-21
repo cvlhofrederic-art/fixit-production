@@ -61,9 +61,10 @@ describe('données des pages de district', () => {
   })
 
   it('limpeza de telhados : les quatre prestations confirmées par le propriétaire le 20/10/2026, et elles seules', () => {
+    // « Impermeabilização das telhas » : nom du propriétaire pour la hidrofugação (21/10/2026).
     expect(LIMPEZA_DE_TELHADOS.prestacoes.map((p) => p.titulo)).toEqual([
       'Lavagem e tratamento antimusgo',
-      'Hidrofugação',
+      'Impermeabilização das telhas',
       'Pintura de telhas',
       'Caleiras e algerozes',
     ])

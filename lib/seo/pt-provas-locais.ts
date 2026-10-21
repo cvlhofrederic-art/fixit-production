@@ -32,6 +32,8 @@ export interface PrecoMetier {
 export interface PrazoCidade {
   cidade: string
   visita_dias: number
+  /** Délai de visite maximal en heures, quand le propriétaire l'exprime ainsi (« visita em 48 horas, no máximo »). */
+  visita_horas_max?: number
   intervencao_dias?: number
   fonte: string
   metiers?: string[]

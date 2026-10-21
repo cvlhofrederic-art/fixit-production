@@ -107,6 +107,9 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
             <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Equipa VITFIX</span>
             <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Orçamento grátis</span>
             <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Atendimento telefónico 7 dias por semana</span>
+            {prazo?.visita_horas_max && (
+              <span className="flex items-center gap-1.5"><span className="text-yellow">✓</span> Visita em {prazo.visita_horas_max} horas, no máximo</span>
+            )}
           </div>
         </div>
       </section>
@@ -173,8 +176,8 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
             )}
             {prazo && (
               <div id="prazos" className={`p-6 rounded-2xl ${cartao('preco')} border border-border/40`}>
-                <h3 className="font-display text-lg font-bold text-dark mb-2">Prazos constatados</h3>
-                <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dia${prazo.intervencao_dias > 1 ? 's' : ''}` : ''}.</p>
+                <h3 className="font-display text-lg font-bold text-dark mb-2">{prazo.visita_horas_max ? 'Prazo de visita' : 'Prazos constatados'}</h3>
+                <p className="text-sm text-dark/85">{prazo.visita_horas_max ? `Visitamos o telhado em ${prazo.visita_horas_max} horas, no máximo` : `Primeira visita em ${prazo.visita_dias} dia${prazo.visita_dias > 1 ? 's' : ''}`}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dia${prazo.intervencao_dias > 1 ? 's' : ''}` : ''}.</p>
                 <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
               </div>
             )}

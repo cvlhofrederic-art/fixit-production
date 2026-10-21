@@ -95,7 +95,8 @@ order by r.created_at desc;
 Les pages `/pt/servicos/{slug}/` de `lib/data/pt-servicos-distrito.ts` (aujourd'hui `limpeza-de-telhados`) lisent le même fichier, avec le slug de la page à la place du métier. Le propriétaire a confirmé le 20/10/2026 avoir des prix et des délais réels pour la limpeza de telhados ; tant qu'ils ne sont pas saisis, les blocs `#precos` et `#prazos` restent absents.
 
 - Prix : une ligne par prestation, `servico` facultatif mais conseillé. Exemple de forme (valeurs à remplacer par les vraies) : `{ "metier": "limpeza-de-telhados", "servico": "Lavagem e tratamento anti-musgo", "min": 0, "max": 0, "unite": "m2", "fonte": "orçamentos de 2026" }`. Une ligne à `max` nul est ignorée.
-- Délais : une ligne pour tout le distrito, clé `cidade` = `distrito-porto`, `metiers` obligatoire : `{ "cidade": "distrito-porto", "metiers": ["limpeza-de-telhados"], "visita_dias": 0, "intervencao_dias": 0, "fonte": "últimos 10 pedidos" }`.
+- Délais : une ligne pour tout le distrito, clé `cidade` = `distrito-porto`, `metiers` obligatoire : `{ "cidade": "distrito-porto", "metiers": ["limpeza-de-telhados"], "visita_dias": 0, "intervencao_dias": 0, "fonte": "últimos 10 pedidos" }`. `visita_horas_max` (facultatif) affiche « Visitamos o telhado em N horas, no máximo » et le reprend dans le bandeau sous le titre (`visita_dias` reste obligatoire pour la validité).
+- Saisi le 21/10/2026 sur indication du propriétaire : limpeza e impermeabilização do telhado 20 à 30 € par m² ; visite en 48 heures au plus.
 - Chantiers : `metier` = `limpeza-de-telhados`, `cidade` = slug d'un des 18 concelhos du distrito do Porto ; les six plus récents s'affichent avec le nom du concelho.
 
 ## 4. Porte de qualité (test T10)

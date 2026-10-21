@@ -7,7 +7,9 @@
 //
 // Règle 0.2 : aucun prix, délai, chantier ni avis dans ces textes. Les prestations citées sont celles que
 // le propriétaire a confirmées le 20/10/2026 (lavagem e tratamento antimusgo, hidrofugação, pintura de
-// telhas, caleiras e algerozes ; travaux faits par l'équipe VITFIX ; telhados de fibrocimento non traités).
+// telhas, caleiras e algerozes ; travaux faits par l'équipe VITFIX ; telhados de fibrocimento non traités), puis le
+// 21/10/2026 : accès par andaimes ou cordistes certifiés IRATA, lavage haute pression avec un produit pour tuiles avant
+// l'impermeabilização (hidrofugante).
 // Prix et délais réels : data/seo/local-proof.json (clé « limpeza-de-telhados »), blocs absents tant
 // qu'ils sont vides. Textes à relire par le propriétaire.
 
@@ -73,9 +75,9 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   distrito: 'Porto',
   titulo: 'Limpeza de telhados e caleiras no distrito do Porto',
   h1: 'Limpeza de telhados e caleiras no distrito do Porto',
-  resumo: 'Lavagem de telhados, tratamento antimusgo, hidrofugação, pintura de telhas e limpeza de caleiras no distrito do Porto.',
+  resumo: 'Lavagem e impermeabilização de telhados, tratamento antimusgo, pintura e limpeza de caleiras no distrito do Porto.',
   intro:
-    'A equipa VITFIX limpa telhados e caleiras em todo o distrito do Porto, a partir de Marco de Canaveses: lavagem do telhado com tratamento contra o musgo e os líquenes, hidrofugação, pintura de telhas e limpeza de caleiras e algerozes. Não limpamos telhados de fibrocimento (lusalite). O orçamento é grátis e sem compromisso.',
+    'A equipa VITFIX limpa telhados e caleiras em todo o distrito do Porto, a partir de Marco de Canaveses: lavagem do telhado com tratamento contra o musgo e os líquenes, impermeabilização das telhas (hidrofugação), pintura de telhas e limpeza de caleiras e algerozes. Não limpamos telhados de fibrocimento (lusalite). O orçamento é grátis e sem compromisso.',
   titulos: {
     preco: 'Quanto custa a limpeza de um telhado',
     metodo: 'Como fazemos a limpeza de um telhado',
@@ -90,8 +92,8 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
       texto: 'Retiramos o musgo, os líquenes e a sujidade acumulada nas telhas e aplicamos um tratamento que atrasa o regresso do musgo.',
     },
     {
-      titulo: 'Hidrofugação',
-      texto: 'Depois da lavagem, com o telhado seco, aplicamos um hidrofugante, o tratamento a que muitos chamam impermeabilização do telhado: as telhas absorvem menos água, secam mais depressa e o musgo demora mais a voltar.',
+      titulo: 'Impermeabilização das telhas',
+      texto: 'Depois da lavagem, com o telhado seco, aplicamos um hidrofugante que impermeabiliza as telhas: absorvem menos água, secam mais depressa e o musgo demora mais a voltar.',
     },
     {
       titulo: 'Pintura de telhas',
@@ -102,20 +104,24 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
       texto: 'Retiramos folhas, terra e lamas das caleiras e dos algerozes.',
     },
   ],
-  // Méthode limitée aux prestations confirmées le 20/10/2026 ; équipement, moyens d'accès, réglage du lavage et
-  // compte rendu au client sont à faire confirmer par le propriétaire avant d'être écrits ici.
+  // Méthode confirmée par le propriétaire (20 et 21/10/2026). Compte rendu au client et contrôle des tubos de queda :
+  // à faire confirmer avant d'être écrits ici.
   metodo: [
     {
       titulo: 'Avaliação do telhado',
       texto: 'Tipo e estado das telhas, inclinação, altura e acessos, quantidade de musgo e estado das caleiras: é o que define o trabalho e o preço.',
     },
     {
-      titulo: 'Lavagem',
-      texto: 'Retiramos o musgo, os líquenes e a sujidade e lavamos o telhado.',
+      titulo: 'Acesso e segurança',
+      texto: 'Conforme a altura e o acesso, trabalhamos a partir de andaimes ou com técnicos de acesso por corda certificados IRATA.',
     },
     {
-      titulo: 'Tratamento e hidrofugação',
-      texto: 'Com o telhado limpo e seco, aplicamos o tratamento antimusgo e, se o pedir, o hidrofugante.',
+      titulo: 'Lavagem',
+      texto: 'Lavamos o telhado com máquina de alta pressão e um produto de limpeza próprio para telhas, que retira o musgo, os líquenes e a sujidade.',
+    },
+    {
+      titulo: 'Tratamento e impermeabilização',
+      texto: 'Com o telhado limpo e seco, aplicamos o tratamento antimusgo e o hidrofugante que impermeabiliza as telhas.',
     },
     {
       titulo: 'Caleiras e algerozes',
@@ -132,10 +138,10 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     'Não há um intervalo fixo: depende da exposição do telhado, das árvores à volta e da humidade. Com os invernos chuvosos do distrito do Porto, vale a pena verificar o telhado e as caleiras todos os anos, de preferência antes das chuvas de outono.',
   fatoresPreco: [
     'A área do telhado.',
-    'A inclinação, a altura e o acesso ao telhado.',
+    'A inclinação, a altura e o acesso: andaime ou acesso por corda.',
     'O tipo e o estado das telhas.',
     'A quantidade de musgo e de sujidade.',
-    'Os tratamentos escolhidos: antimusgo, hidrofugação, pintura.',
+    'Os tratamentos escolhidos: antimusgo, impermeabilização, pintura.',
     'O comprimento e o estado das caleiras.',
   ],
   aviso: {
