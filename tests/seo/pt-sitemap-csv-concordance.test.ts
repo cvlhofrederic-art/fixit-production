@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { getAllPtSitemapUrls, sitemapsPt, PAGINAS_ESTATICAS_PT, FICHIERS_SITEMAP_PT } from '@/lib/sitemap-pt-pages'
-import { SERVICOS_DISTRITO } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { lireCsv } from '../../scripts/seo/pt-audit/lib/csv.mjs'
 import { classer, VILLES, METIERS } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
@@ -22,7 +22,8 @@ const csv = lireCsv(readFileSync(path.join(__dirname, '..', '..', 'data', 'seo',
 const redirections = lireCsv(readFileSync(path.join(__dirname, '..', '..', 'data', 'seo', 'pt-redirects.csv'), 'utf8'))
 const JURIDIQUES = ['/pt/termos/', '/pt/avisos-legais/', '/pt/privacidade/', '/pt/politica-cookies/']
 const AJOUTEES_PHASE_1 = ['/pt/cidade/', '/pt/contacto/']
-const PAGES_DISTRITO = SERVICOS_DISTRITO.map((s) => `/pt/servicos/${s.slug}/`)
+// Pages de district et pages concelho ouvertes par des chantiers réels (aucune tant que local-proof.json n'en documente pas).
+const PAGES_DISTRITO = [...SERVICOS_DISTRITO.map((s) => `/pt/servicos/${s.slug}/`), ...paginasConcelhoDistrito().map((p) => `/pt/servicos/${p.slug}/`)]
 const REDIRIGEES_PHASE_2 = new Set(redirections.map((l) => l.source))
 
 describe('sitemap PT : code et CSV de référence', () => {

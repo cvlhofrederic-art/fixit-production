@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { CITIES } from '@/lib/data/seo-pages-data'
-import { chantiersDoDistrito, paginasConcelhoDistrito, type ServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { chantiersExibidosDistrito, paginasConcelhoDistrito, type ServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
 import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
-import { descricaoServicoDistrito, nomeDistrito } from '@/lib/seo/pt-meta'
+import { descricaoServicoDistrito, emConcelho, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoDistrito } from '@/lib/seo/pt-schemas'
 import { prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
-import { PhoneSvg, TITULO_SECCAO, WaSvg, complementoPreco, frasePrazo, frasePreco, fraseChantier } from './servico-distrito-partilhado'
+import { PhoneSvg, TITULO_SECCAO, WaSvg, complementoPreco, detalhesChantier, frasePrazo, frasePreco, fraseChantier } from './servico-distrito-partilhado'
 
 // Page de service à l'échelle du district (/pt/servicos/{slug}/, lib/data/pt-servicos-distrito.ts). Même
 // langage visuel que les pages métier x ville (app/pt/servicos/[slug]/page.tsx). Blocs de données réelles
@@ -18,14 +18,15 @@ const tituloSeccao = TITULO_SECCAO
 export default function PaginaServicoDistrito({ servico }: { servico: ServicoDistrito }) {
   const urlPagina = `https://vitfix.io/pt/servicos/${servico.slug}/`
   const distritoTexto = `distrito ${nomeDistrito(servico.distrito)}`
-  // Chantiers documentés (avec date d'ajout) de tout le distrito, 6 au plus ; pages concelho déjà ouvertes.
-  const chantiers = chantiersDoDistrito(servico).slice(0, 6)
+  // Chantiers documentés de tout le distrito : les 6 plus récents, plus le plus récent de chaque concelho dont la page est
+  // ouverte ; chaque page concelho n'est liée que depuis une carte de chantier réel, jamais depuis une liste de villes.
+  const chantiers = chantiersExibidosDistrito(servico)
   const concelhosAbertos = paginasConcelhoDistrito().filter((p) => p.servico.slug === servico.slug)
   const paginaDoConcelho = (cidade: string) => concelhosAbertos.find((p) => p.city.slug === cidade)
   const precos = precosPara(servico.slug)
   const prazo = prazoDistritoPara(servico.distrito, servico.slug)
   const nomeCidade = (slug: string) => CITIES.find((c) => c.slug === slug)?.name ?? slug
-  const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(servico.mensagemWhatsapp)}`
+  const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`${servico.mensagemWhatsapp} ${servico.mensagemLocal} em `)}`
 
   // Fonds alternés calculés sur les sections réellement rendues (deux sont conditionnelles) : section blanche,
   // cartes grises, et inversement, comme sur app/pt/servicos/[slug]/page.tsx.
@@ -129,11 +130,14 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
               {chantiers.map((c, i) => (
                 <article key={i} className={`p-5 rounded-2xl ${cartao('chantiers')} border border-border/40 flex gap-4`}>
                   <span className="shrink-0 w-9 h-9 rounded-lg bg-yellow/15 flex items-center justify-center text-base font-bold text-dark">{i + 1}</span>
-                  <div className="text-sm text-dark/85 leading-relaxed">
-                    <p>{fraseChantier(c, nomeCidade(c.cidade))}</p>
+                  <div className="text-sm text-dark/85 leading-relaxed space-y-1">
+                    <p className="font-semibold text-dark">{fraseChantier(c, nomeCidade(c.cidade))}</p>
+                    {detalhesChantier(c).map((d) => (
+                      <p key={d.rotulo}><span className="font-semibold">{d.rotulo}:</span> {d.texto}</p>
+                    ))}
                     {paginaDoConcelho(c.cidade) && (
-                      <Link href={`/pt/servicos/${paginaDoConcelho(c.cidade)?.slug}/`} className="text-yellow font-semibold hover:underline">
-                        {servico.nome} em {nomeCidade(c.cidade)}
+                      <Link href={`/pt/servicos/${paginaDoConcelho(c.cidade)?.slug}/`} className="inline-block text-yellow font-semibold hover:underline">
+                        {servico.nome} {emConcelho(nomeCidade(c.cidade))}
                       </Link>
                     )}
                   </div>
@@ -236,18 +240,6 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
           <p className="text-text-muted max-w-3xl mb-6">
             A equipa parte de Marco de Canaveses e trabalha em todo o {distritoTexto}. Para confirmar a deslocação, diga-nos o concelho e a freguesia no pedido de orçamento.
           </p>
-          {concelhosAbertos.length > 0 && (
-            <p className="text-text-muted max-w-3xl mb-6">
-              Trabalhos documentados por concelho:{' '}
-              {concelhosAbertos.map((p, i) => (
-                <span key={p.slug}>
-                  {i > 0 ? ', ' : ''}
-                  <Link href={`/pt/servicos/${p.slug}/`} className="text-yellow font-semibold hover:underline">{p.city.name}</Link>
-                </span>
-              ))}
-              .
-            </p>
-          )}
           <Link
             href="/pt/cidade/"
             className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
@@ -288,7 +280,7 @@ export default function PaginaServicoDistrito({ servico }: { servico: ServicoDis
                   <span className="text-[0.95rem]">{faq.pergunta}</span>
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
                 </summary>
-                <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">{faq.resposta}{complementoPreco(faq, precos)}</div>
+                <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">{faq.resposta}{complementoPreco(faq, precos, servico)}</div>
               </details>
             ))}
           </div>

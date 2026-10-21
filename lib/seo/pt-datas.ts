@@ -35,12 +35,20 @@ export const DATA_FASE_3 = '2026-10-14'
 export const DATA_FASE_3_LOT_1 = '2026-10-14'
 
 /**
- * Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : date de la page
- * /pt/servicos/limpeza-de-telhados/ et des pages qui reçoivent son lien (pages telhador et impermeabilizacao des
- * 18 concelhos du distrito do Porto, leurs deux hubs, /pt/servicos/ et /pt/mapa-do-site/). À aligner sur le jour
- * de la mise en production, consigné dans docs/seo/journal-pt.md.
+ * Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : date du CONTENU de la page
+ * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai). À avancer au jour de la mise en
+ * production de toute modification de ce contenu (y compris un prix ou un délai de data/seo/local-proof.json), et à
+ * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date.
  */
 export const DATA_PAGINAS_DISTRITO = '2026-10-21'
+
+/**
+ * Date d'ajout des LIENS vers les pages de district : pages telhador et impermeabilizacao des 18 concelhos du distrito
+ * do Porto, leurs deux hubs, les 18 pages ville du distrito, /pt/servicos/ et /pt/mapa-do-site/. Une page qui lie une page
+ * concelho prend en plus la date d'ouverture de celle-ci (lib/sitemap-pt-pages.ts, dataLigacoesConcelho). À aligner sur
+ * le jour de la mise en production.
+ */
+export const DATA_LIGACOES_DISTRITO = '2026-10-21'
 
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date

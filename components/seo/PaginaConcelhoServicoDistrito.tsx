@@ -4,40 +4,48 @@ import { SERVICES } from '@/lib/data/seo-pages-data'
 import type { PaginaConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
 import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
-import { descricaoConcelhoDistrito, nomeDistrito } from '@/lib/seo/pt-meta'
+import { deConcelho, descricaoConcelhoDistrito, emConcelho, nomeDistrito } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
-import { mesPorExtenso, notasConcelhoPara, prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
-import { PhoneSvg, TITULO_SECCAO, WaSvg, fraseChantier, frasePrazo, frasePreco } from './servico-distrito-partilhado'
+import { avisPara, mesPorExtenso, notasConcelhoPara, prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
+import { PhoneSvg, TITULO_SECCAO, WaSvg, detalhesChantier, fraseChantier, frasePrazo, frasePreco } from './servico-distrito-partilhado'
 
 // Page concelho d'un service de district (/pt/servicos/{servico}-{concelho}/), ouverte seulement quand
-// data/seo/local-proof.json documente des chantiers réels de ce service dans ce concelho (lib/data/pt-servicos-distrito.ts,
-// concelhoDocumentado). Son contenu propre est fait de ces chantiers (photos, freguesias, mois) et des particularités
-// locales écrites par le propriétaire ; la méthode et la FAQ restent sur la page de district, liée ici, pour ne pas
-// répéter le même texte d'une page à l'autre (guide Google du 19/10/2026, section 2.4, test « Série »).
+// data/seo/local-proof.json documente ce service dans ce concelho (chantier complet, information propre au lieu,
+// relecture datée : lib/data/pt-servicos-distrito.ts, section 4.4 du guide Google du 19/10/2026). C'est une destination
+// complète : ce qui est fait et ce qui ne l'est pas, les chantiers du concelho (problème, solution, accès, photo), les
+// facteurs et la fourchette de prix, le délai, les avis autorisés et le contact. La méthode détaillée et la FAQ restent
+// sur la page de district, liée ici, pour ne pas répéter le même texte d'une page concelho à l'autre (test « Série »).
 
 export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: PaginaConcelhoDistrito }) {
   const { servico, city, chantiers } = pagina
   const urlPagina = `https://vitfix.io/pt/servicos/${pagina.slug}/`
   const urlDistrito = `/pt/servicos/${servico.slug}/`
+  const noConcelho = emConcelho(city.name)
   const precos = precosPara(servico.slug)
   const prazo = prazoDistritoPara(servico.distrito, servico.slug)
   const notas = notasConcelhoPara(servico.slug, city.slug)
-  const freguesias = [...new Set(chantiers.map((c) => c.freguesia?.trim()).filter((f): f is string => Boolean(f)))]
+  const avis = avisPara(servico.slug, city.slug)
+  const lugares = [...new Set(chantiers.map((c) => c.freguesia?.trim()).filter((f): f is string => Boolean(f)))]
+  const listaLugares = lugares.length > 1 ? `${lugares.slice(0, -1).join(', ')} e ${lugares.at(-1)}` : lugares[0]
+  const tipo = servico.tipoServico.charAt(0).toLowerCase() + servico.tipoServico.slice(1)
   const n = chantiers.length
-  const nomeMinusculo = servico.nome.charAt(0).toLowerCase() + servico.nome.slice(1)
-  const listaFreguesias = freguesias.length > 1 ? `${freguesias.slice(0, -1).join(', ')} e ${freguesias.at(-1)}` : freguesias[0]
-  const intro = `A equipa VITFIX já fez ${n} trabalho${n > 1 ? 's' : ''} de ${nomeMinusculo} em ${city.name}${listaFreguesias ? `, ${freguesias.length > 1 ? 'nas freguesias de' : 'na freguesia de'} ${listaFreguesias}` : ''}, o mais recente em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todo o distrito ${nomeDistrito(servico.distrito)}.`
-  const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`${servico.mensagemWhatsapp}${city.name}.`)}`
-  // Fonds alternés sur les sections réellement rendues (#local est conditionnelle), comme sur la page de district.
-  const seccoes = ['chantiers', ...(notas.length ? ['local'] : []), 'preco', 'relacionados', 'cta']
+  const ondeFoi = `${noConcelho}${listaLugares ? ` (${listaLugares})` : ''}`
+  const intro =
+    n > 1
+      ? `A equipa VITFIX já fez ${n} trabalhos de ${tipo} ${ondeFoi}, o mais recente em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todo o distrito ${nomeDistrito(servico.distrito)}.`
+      : `A equipa VITFIX fez um trabalho de ${tipo} ${ondeFoi}, em ${mesPorExtenso(chantiers[0].mes)}. Partimos de Marco de Canaveses e trabalhamos em todo o distrito ${nomeDistrito(servico.distrito)}.`
+  const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`${servico.mensagemWhatsapp} ${servico.mensagemLocal} ${noConcelho}.`)}`
+  const metiersDaCidade = servico.metiersLigados.map((m) => SERVICES.find((s) => s.slug === m)).filter((s): s is NonNullable<typeof s> => Boolean(s))
+
+  // Fonds alternés calculés sur les sections réellement rendues (#local et #avaliacoes sont conditionnelles).
+  const seccoes = ['servicos', 'chantiers', ...(notas.length ? ['local'] : []), 'preco', ...(avis.length ? ['avaliacoes'] : []), 'relacionados', 'cta']
   const fundo = (id: string) => (seccoes.indexOf(id) % 2 === 1 ? ' bg-white' : '')
   const cartao = (id: string) => (seccoes.indexOf(id) % 2 === 1 ? 'bg-warm-gray' : 'bg-white')
-  const metiersDaCidade = servico.metiersLigados.map((m) => SERVICES.find((s) => s.slug === m)).filter((s): s is NonNullable<typeof s> => Boolean(s))
 
   const jsonLd = grafo(
     noServicoLocal({
       url: urlPagina,
-      nome: `${servico.nome} em ${city.name}`,
+      nome: `${servico.nome} ${noConcelho}`,
       serviceType: servico.tipoServico,
       descricao: descricaoConcelhoDistrito(pagina),
       city,
@@ -73,7 +81,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
           </div>
 
           <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            {servico.nome} em {city.name}
+            {servico.nome} {noConcelho}
           </h1>
           <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">{intro}</p>
 
@@ -106,20 +114,45 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
         </div>
       </section>
 
+      {/* ── CE QUI EST FAIT, ET CE QUI NE L'EST PAS (bloc de décision) ── */}
+      <section id="servicos" className={`py-12 md:py-16${fundo('servicos')}`}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className={`${TITULO_SECCAO} mb-4`}>O que fazemos {noConcelho}</h2>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            {servico.prestacoes.map((p) => (
+              <li key={p.titulo} className={`flex items-start gap-3 p-4 ${cartao('servicos')} rounded-xl border border-border/50 text-[0.93rem] text-dark leading-relaxed`}>
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold mt-0.5">✓</span>
+                <span>{p.titulo}</span>
+              </li>
+            ))}
+          </ul>
+          {servico.aviso && (
+            <p className="text-dark/85 leading-relaxed max-w-3xl">
+              {servico.aviso.titulo}. <Link href={`${urlDistrito}#fibrocimento`} className="text-yellow font-semibold hover:underline">Porquê</Link>
+            </p>
+          )}
+        </div>
+      </section>
+
       {/* ── CHANTIERS RÉELS DU CONCELHO : le contenu propre de la page ── */}
       <section id="chantiers" className={`py-12 md:py-16${fundo('chantiers')}`}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className={`${TITULO_SECCAO} mb-2`}>Trabalhos realizados em {city.name}</h2>
+          <h2 className={`${TITULO_SECCAO} mb-2`}>Trabalhos realizados {noConcelho}</h2>
           <p className="text-text-muted text-sm mb-6 max-w-2xl">Intervenções reais da equipa VITFIX no concelho.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {chantiers.map((c, i) => (
               <article key={i} className={`rounded-2xl ${cartao('chantiers')} border border-border/40 overflow-hidden`}>
                 {c.foto && c.foto_alt && (
                   <div className="relative w-full aspect-[4/3] bg-warm-gray">
-                    <Image src={c.foto} alt={c.foto_alt} fill sizes="(min-width: 768px) 50vw, 100vw" className="object-cover" priority={i === 0} />
+                    <Image src={c.foto} alt={c.foto_alt} fill sizes="(min-width: 1024px) 472px, (min-width: 768px) 50vw, 100vw" className="object-cover" />
                   </div>
                 )}
-                <p className="p-5 text-sm text-dark/85 leading-relaxed">{fraseChantier(c)}</p>
+                <div className="p-5 text-sm text-dark/85 leading-relaxed space-y-1">
+                  <p className="font-semibold text-dark">{fraseChantier(c)}</p>
+                  {detalhesChantier(c).map((d) => (
+                    <p key={d.rotulo}><span className="font-semibold">{d.rotulo}:</span> {d.texto}</p>
+                  ))}
+                </div>
               </article>
             ))}
           </div>
@@ -130,7 +163,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
       {notas.length > 0 && (
         <section id="local" className={`py-12 md:py-16${fundo('local')}`}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className={`${TITULO_SECCAO} mb-4`}>{servico.titulos.local} {city.name}</h2>
+            <h2 className={`${TITULO_SECCAO} mb-4`}>{servico.titulos.local} {deConcelho(city.name)}</h2>
             <div className="space-y-3 max-w-3xl">
               {notas.map((t, i) => <p key={i} className="text-dark/85 leading-relaxed">{t}</p>)}
             </div>
@@ -142,9 +175,13 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
       <section id="preco" className={`py-12 md:py-16${fundo('preco')}`}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 className={`${TITULO_SECCAO} mb-4`}>{servico.titulos.preco} em {city.name}</h2>
-            <p className="text-dark/85 leading-relaxed mb-4">O orçamento é grátis e depende sobretudo dos fatores explicados na página do serviço.</p>
-            <Link href={`${urlDistrito}#preco`} className="text-yellow font-semibold hover:underline">O que faz variar o preço</Link>
+            <h2 className={`${TITULO_SECCAO} mb-4`}>{servico.titulos.preco} {noConcelho}</h2>
+            <p className="text-dark/85 leading-relaxed mb-4">O preço depende sobretudo destes fatores:</p>
+            <ul className="space-y-2 text-[0.93rem] text-dark/85">
+              {servico.fatoresPreco.map((f) => (
+                <li key={f} className="flex items-start gap-2"><span className="text-yellow font-bold">•</span><span>{f}</span></li>
+              ))}
+            </ul>
           </div>
           <div className="grid gap-4 content-start">
             {precos.length > 0 && (
@@ -162,9 +199,30 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
                 <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
               </div>
             )}
+            <div className="p-6 rounded-2xl bg-yellow/10 border border-yellow/25">
+              <p className="text-[0.93rem] text-dark/85 leading-relaxed">{servico.textoOrcamento} {TELEFONE_PT_TEXTE}.</p>
+            </div>
           </div>
         </div>
       </section>
+
+      {/* ── AVIS RÉELS AUTORISÉS (texte seulement : pas de balisage Review ni AggregateRating) ── */}
+      {avis.length > 0 && (
+        <section id="avaliacoes" className={`py-12 md:py-16${fundo('avaliacoes')}`}>
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className={`${TITULO_SECCAO} mb-6`}>Avaliações de clientes {noConcelho}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {avis.map((a, i) => (
+                <blockquote key={i} className={`p-5 rounded-2xl ${cartao('avaliacoes')} border border-border/40 text-sm text-dark/85`}>
+                  <p className="mb-2">{'★'.repeat(a.nota)}</p>
+                  <p className="leading-relaxed">{a.texto}</p>
+                  <footer className="text-xs text-text-muted mt-3">{a.autor ? `${a.autor}, ` : ''}{mesPorExtenso(a.mes)}</footer>
+                </blockquote>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── SERVICE COMPLET ET MÉTIERS VOISINS DANS LE CONCELHO ── */}
       <section id="relacionados" className={`py-12 md:py-16${fundo('relacionados')}`}>
@@ -176,7 +234,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
               className={`p-5 ${cartao('relacionados')} rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group`}
             >
               <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{servico.titulo}</span>
-              <span className="block text-sm text-text-muted mt-1">{servico.prestacoes.map((p) => p.titulo).join(', ')}: como trabalhamos e perguntas frequentes.</span>
+              <span className="block text-sm text-text-muted mt-1">Como trabalhamos, o que faz variar o preço e perguntas frequentes.</span>
             </Link>
             {metiersDaCidade.map((m) => (
               <Link
@@ -184,7 +242,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
                 href={`/pt/servicos/${m.slug}-${city.slug}/`}
                 className={`p-5 ${cartao('relacionados')} rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group`}
               >
-                <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{m.name} em {city.name}</span>
+                <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{m.name} {noConcelho}</span>
                 <span className="block text-sm text-text-muted mt-1">{m.heroSubtitle.replace(/\{city\}/g, city.name)}</span>
               </Link>
             ))}
@@ -196,9 +254,9 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: { pagina: Pagi
       <section className={`py-16 md:py-20${fundo('cta')}`}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
-            {servico.titulos.ctaFinal} em {city.name}
+            {servico.titulos.ctaFinal} {noConcelho}
           </h2>
-          <p className="text-text-muted mb-8 max-w-md mx-auto">{servico.textoOrcamento} {TELEFONE_PT_TEXTE}.</p>
+          <p className="text-text-muted mb-8 max-w-md mx-auto">Grátis e sem compromisso, {noConcelho} e em todo o distrito {nomeDistrito(servico.distrito)}.</p>
           <div className="flex flex-wrap justify-center gap-3">
             <a
               href={waHref}

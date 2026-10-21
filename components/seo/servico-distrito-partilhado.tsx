@@ -2,7 +2,7 @@
 // (PaginaConcelhoServicoDistrito) : icônes de contact, formats pt-PT des prix et délais réels.
 
 import type { Chantier, PrazoCidade, PrecoMetier } from '@/lib/seo/pt-provas-locais'
-import type { PerguntaServico } from '@/lib/data/pt-servicos-distrito'
+import type { PerguntaServico, ServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { mesPorExtenso } from '@/lib/seo/pt-provas-locais'
 
 export const TITULO_SECCAO = 'font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark'
@@ -26,35 +26,46 @@ export function frasePreco(p: PrecoMetier): string {
   return `${p.servico ? `${p.servico}: ` : ''}${num(p.min)} a ${num(p.max)} € por ${p.unite}${p.fonte ? ` (${p.fonte})` : ''}.`
 }
 
-/** Délai réel : en heures quand le propriétaire l'exprime ainsi, sinon en jours. */
+/** Délai réel, sans objet propre à un service : « Visita em 48 horas, no máximo. » ou « Primeira visita em 2 dias. » */
 export function frasePrazo(prazo: PrazoCidade): string {
   const visita = prazo.visita_horas_max
-    ? `Visitamos o telhado em ${prazo.visita_horas_max} horas, no máximo`
+    ? `Visita em ${prazo.visita_horas_max} horas, no máximo`
     : `Primeira visita em ${prazo.visita_dias} dia${prazo.visita_dias > 1 ? 's' : ''}`
-  const intervencao = prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dia${prazo.intervencao_dias > 1 ? 's' : ''}` : ''
+  const intervencao = prazo.intervencao_dias ? `; intervenção em ${prazo.intervencao_dias} dia${prazo.intervencao_dias > 1 ? 's' : ''}` : ''
   return `${visita}${intervencao}.`
 }
 
 const porM2 = (p: PrecoMetier) => /^m(2|²)$/i.test(p.unite.trim())
+const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1)
 
 /**
- * Complément de réponse de FAQ tiré des prix réels (aucun chiffre écrit en dur dans les textes, règle 0.2) :
- * la fourchette par prestation, et pour « exemplo » le calcul pour un telhado de 100 m² (multiplication simple
- * de la fourchette au m², pas un devis).
+ * Complément de réponse de FAQ tiré des prix réels (aucun chiffre écrit en dur dans les textes, règle 0.2), sur la seule
+ * question qui porte sur la prestation chiffrée : la fourchette nommée, et pour « exemplo » le calcul pour 100 m²
+ * (multiplication de la fourchette au m², pas un devis), avec la réserve propre au service.
  */
-export function complementoPreco(faq: PerguntaServico, precos: PrecoMetier[]): string {
+export function complementoPreco(faq: PerguntaServico, precos: PrecoMetier[], servico: Pick<ServicoDistrito, 'ressalvaPreco'>): string {
   if (!faq.preco || precos.length === 0) return ''
-  const linhas = precos.map((p) => `${p.servico ? `para ${p.servico.charAt(0).toLowerCase()}${p.servico.slice(1)}` : ''}: de ${num(p.min)} a ${num(p.max)} € por ${p.unite}`)
-  let texto = ` Preço praticado pela equipa VITFIX ${linhas.join('; ')}.`
+  const linhas = precos.map((p) => `${p.servico ? `${p.servico}: ` : ''}de ${num(p.min)} a ${num(p.max)} € por ${p.unite}`)
+  let texto = ` ${linhas.join('; ')} (${precos.length > 1 ? 'preços praticados' : 'preço praticado'} pela equipa VITFIX).`
   const m2 = precos.find(porM2)
   if (faq.preco === 'exemplo' && m2) {
-    texto += ` Num telhado de 100 m², são ${num(m2.min * 100)} a ${num(m2.max * 100)} €; o valor exato depende do acesso e do estado do telhado.`
+    texto += ` Exemplo para 100 m²${m2.servico ? ` (${minuscula(m2.servico)})` : ''}: ${num(m2.min * 100)} a ${num(m2.max * 100)} €, ${servico.ressalvaPreco}.`
   }
   return texto
 }
 
-/** « Lavagem e impermeabilização de telhado, 120 m², Vila das Aves · setembro de 2026 » */
+/** « Lavagem e impermeabilização de telhado, 120 m², Vila das Aves, Santo Tirso · setembro de 2026 » */
 export function fraseChantier(c: Chantier, nomeCidade?: string): string {
-  const lugar = [c.freguesia, nomeCidade].filter(Boolean).join(', ')
+  const lugar = [c.freguesia?.trim(), nomeCidade].filter(Boolean).join(', ')
   return `${c.tipo}${c.quantidade ? `, ${c.quantidade}` : ''}${lugar ? `, ${lugar}` : ''} · ${mesPorExtenso(c.mes)}`
+}
+
+/** Ce que l'équipe a trouvé, ce qu'elle a fait et comment elle a accédé au toit : la méthode racontée par le chantier. */
+export function detalhesChantier(c: Chantier): Array<{ rotulo: string; texto: string }> {
+  const acesso = c.acesso === 'andaime' ? 'andaime' : c.acesso === 'corda' ? 'técnicos de acesso por corda certificados IRATA' : ''
+  return [
+    { rotulo: 'O que encontrámos', texto: c.problema?.trim() ?? '' },
+    { rotulo: 'O que fizemos', texto: c.solucao?.trim() ?? '' },
+    { rotulo: 'Acesso', texto: acesso },
+  ].filter((d) => d.texto)
 }

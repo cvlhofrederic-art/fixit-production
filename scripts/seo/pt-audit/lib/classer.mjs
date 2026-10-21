@@ -34,6 +34,11 @@ export function classer(chemin) {
   let m
   if ((m = c.match(/^\/pt\/servicos\/([^/]+)\/$/))) {
     if (SERVICOS_DISTRITO_SLUGS.includes(m[1])) return { groupe: 'servicos-distrito', metier: m[1], ville: '' }
+    // Page concelho d'un service de district (ouverte par des chantiers réels) : groupe propre, mesurée à part de la grille.
+    for (const sd of SERVICOS_DISTRITO_SLUGS) {
+      const v = m[1].startsWith(sd + '-') ? m[1].slice(sd.length + 1) : ''
+      if (VILLES.includes(v)) return { groupe: 'servicos-distrito-concelho', metier: sd, ville: v }
+    }
     const s = separerMetierVille(m[1])
     return s ? { groupe: 'servicos', ...s } : { groupe: 'servicos-inconnu', metier: m[1], ville: '' }
   }
@@ -63,7 +68,7 @@ export function classer(chemin) {
 /** Modèle de mesure de contenu (regroupe les pages comparables entre elles). */
 export function modeleMesure(groupe) {
   switch (groupe) {
-    case 'servicos': case 'urgencia': case 'perto-de-mim': case 'perto-de-mim-hub': case 'cidade': case 'blog':
+    case 'servicos': case 'urgencia': case 'perto-de-mim': case 'perto-de-mim-hub': case 'cidade': case 'blog': case 'servicos-distrito-concelho':
       return groupe
     case 'servicos-distrito': case 'hub-section': case 'hub-cidade': case 'blog-index': case 'precos': case 'page-statique': case 'mercados': case 'recherche': case 'juridique':
       return 'hors-grille'

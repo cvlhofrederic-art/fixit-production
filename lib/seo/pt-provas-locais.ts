@@ -18,8 +18,16 @@ export interface Chantier {
   /** Texte alternatif de la photo (ce qu'elle montre), obligatoire avec `foto` sur les pages de district. */
   foto_alt?: string
   consentimento_nome?: boolean
-  /** Jour d'ajout du chantier au fichier (AAAA-MM-JJ) : lastmod des pages de district qui l'affichent. */
+  /** Ce que l'équipe a trouvé sur place (pages de district). */
+  problema?: string
+  /** Ce que l'équipe a fait (pages de district). */
+  solucao?: string
+  /** Moyen d'accès réellement utilisé. */
+  acesso?: 'andaime' | 'corda'
+  /** Jour de mise en production du chantier (AAAA-MM-JJ) : lastmod des pages qui l'affichent. */
   publicado?: string
+  /** Jour de mise en production d'une modification visible du chantier (photo, texte), AAAA-MM-JJ. */
+  atualizado?: string
 }
 
 export interface PrecoMetier {
@@ -58,10 +66,23 @@ export interface NotaConcelho {
   metier: string
   cidade: string
   texto: string
+  /** Jour de mise en production de la note (AAAA-MM-JJ). */
+  publicado?: string
+}
+
+/**
+ * Relecture d'une page concelho par une personne (les 7 tests de la section 2.4 du guide Google du 19/10/2026), à la
+ * main : sans elle, la page ne s'ouvre pas, même avec assez de chantiers. La date est celle de la mise en production.
+ */
+export interface RevisaoConcelho {
+  metier: string
+  cidade: string
+  revisto: string
 }
 
 interface ProvasLocais {
   notas_concelho?: NotaConcelho[]
+  revisoes_concelho?: RevisaoConcelho[]
   chantiers?: Chantier[]
   precos?: PrecoMetier[]
   prazos?: PrazoCidade[]
@@ -86,9 +107,26 @@ export function chantiersPara(metier: string, cidade: string): Chantier[] {
   return todosChantiersPara(metier, cidade).slice(0, 5)
 }
 
-/** Particularités locales écrites par le propriétaire pour un service dans un concelho. */
+/** Particularités locales écrites par le propriétaire pour un service dans un concelho (phrase de plus de 20 caractères). */
+export function notasConcelhoDetalhadas(metier: string, cidade: string): NotaConcelho[] {
+  return (DADOS.notas_concelho ?? []).filter((n) => n.metier === metier && n.cidade === cidade && (n.texto?.trim().length ?? 0) > 20)
+}
+
 export function notasConcelhoPara(metier: string, cidade: string): string[] {
-  return (DADOS.notas_concelho ?? []).filter((n) => n.metier === metier && n.cidade === cidade && n.texto?.trim().length > 20).map((n) => n.texto.trim())
+  return notasConcelhoDetalhadas(metier, cidade).map((n) => n.texto.trim())
+}
+
+/** Date de relecture d'une page concelho (AAAA-MM-JJ), ou null si elle n'a pas été relue. */
+export function revisaoConcelhoPara(metier: string, cidade: string): string | null {
+  const r = (DADOS.revisoes_concelho ?? []).find((x) => x.metier === metier && x.cidade === cidade)
+  return r && dataIsoValida(r.revisto) ? r.revisto : null
+}
+
+/** Date AAAA-MM-JJ qui existe au calendrier (le 30/02 est refusé). */
+export function dataIsoValida(d?: string): d is string {
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return false
+  const t = new Date(`${d}T00:00:00Z`)
+  return !Number.isNaN(t.getTime()) && t.toISOString().slice(0, 10) === d
 }
 
 const precoValido = (p: PrecoMetier) => p.max > 0 && p.min >= 0 && Boolean(p.unite)
@@ -119,15 +157,6 @@ export const chaveDistrito = (distrito: string) => `distrito-${distrito.toLowerC
 export function prazoDistritoPara(distrito: string, metier: string): PrazoCidade | null {
   const p = (DADOS.prazos ?? []).find((x) => x.cidade === chaveDistrito(distrito) && x.metiers?.includes(metier))
   return p && prazoValido(p) ? p : null
-}
-
-/** Chantiers réels d'un service dans une liste de villes (les concelhos du distrito), 6 au plus. */
-export function chantiersDistritoPara(metier: string, cidades: string[]): Chantier[] {
-  const noDistrito = new Set(cidades)
-  return (DADOS.chantiers ?? [])
-    .filter((c) => c.metier === metier && noDistrito.has(c.cidade) && chantierValido(c))
-    .sort((a, b) => b.mes.localeCompare(a.mes))
-    .slice(0, 6)
 }
 
 /** Avis réels, autorisés, d'un métier dans une ville (3 au plus). */

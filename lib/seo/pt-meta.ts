@@ -217,16 +217,39 @@ export function descricaoServicoDistrito(servico: { resumo: string }): string {
   return descricao([servico.resumo, [`Orçamento grátis: ${TELEFONE_PT_TEXTE}.`, ...CONTACTO.slice(1)]])
 }
 
+/**
+ * Concelhos du distrito do Porto qui prennent l'article en pt-PT (« no Porto », « na Maia », « na Trofa », « na Póvoa
+ * de Varzim »). Utilisé par les pages concelho des services de district ; la grille métier x ville écrit encore « em »
+ * partout (à trancher par le propriétaire avant d'y toucher : 462 titres).
+ */
+const ARTIGO_CONCELHO: Record<string, 'o' | 'a'> = { Porto: 'o', Maia: 'a', Trofa: 'a', 'Póvoa de Varzim': 'a' }
+
+/** « no » / « na » / « em » devant le nom d'un concelho. */
+export function preposicaoEm(nome: string): string {
+  const artigo = ARTIGO_CONCELHO[nome]
+  return artigo === 'o' ? 'no' : artigo === 'a' ? 'na' : 'em'
+}
+
+/** « no Porto », « na Maia », « em Baião ». */
+export const emConcelho = (nome: string) => `${preposicaoEm(nome)} ${nome}`
+
+/** « do Porto », « da Maia », « de Baião ». */
+export function deConcelho(nome: string): string {
+  const artigo = ARTIGO_CONCELHO[nome]
+  return `${artigo === 'o' ? 'do' : artigo === 'a' ? 'da' : 'de'} ${nome}`
+}
+
 /** Page concelho d'un service de district : le nom du concelho n'est jamais coupé, le fait réel est le nombre de chantiers. */
-export function tituloConcelhoDistrito(pagina: { servico: { nome: string }; city: { name: string } }): string {
-  return tituloComCidade(pagina.servico.nome, 'em', pagina.city.name, 'trabalhos realizados')
+export function tituloConcelhoDistrito(pagina: { servico: { nome: string }; city: { name: string }; chantiers: unknown[] }): string {
+  return tituloComCidade(pagina.servico.nome, preposicaoEm(pagina.city.name), pagina.city.name, pagina.chantiers.length > 1 ? 'trabalhos realizados' : undefined)
 }
 
 export function descricaoConcelhoDistrito(pagina: { servico: { nome: string }; city: { name: string }; chantiers: unknown[] }): string {
   const n = pagina.chantiers.length
+  const trabalhos = n > 1 ? `${n} trabalhos documentados` : 'um trabalho documentado'
   return descricao([
-    `${pagina.servico.nome} em ${pagina.city.name}: ${n} trabalho${n > 1 ? 's' : ''} documentado${n > 1 ? 's' : ''} da equipa VITFIX no concelho.`,
-    [`Orçamento grátis: ${TELEFONE_PT_TEXTE}.`, ...CONTACTO.slice(1)],
+    `${pagina.servico.nome} ${emConcelho(pagina.city.name)}: ${trabalhos} da equipa VITFIX no concelho.`,
+    [`Orçamento grátis por WhatsApp ou telefone: ${TELEFONE_PT_TEXTE}.`, `Orçamento grátis: ${TELEFONE_PT_TEXTE}.`, ...CONTACTO.slice(1)],
   ])
 }
 

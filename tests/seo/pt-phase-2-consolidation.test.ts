@@ -12,7 +12,7 @@ import { NextRequest } from 'next/server'
 import { CITIES, SERVICES } from '@/lib/data/seo-pages-data'
 import { METIERS_PT_SLUGS, CIDADES_PT_SLUGS } from '@/lib/seo/pt-grelha'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
-import { SERVICOS_DISTRITO } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
 import { lireCsv } from '../../scripts/seo/pt-audit/lib/csv.mjs'
 
@@ -62,7 +62,7 @@ describe('destinoConsolidado (lib/seo/pt-consolidacao.ts)', () => {
     for (const s of SERVICES) expect(destinoConsolidado(`/pt/perto-de-mim/${s.slug}/`)).toBeNull()
     for (const chemin of ['/pt/perto-de-mim/', '/pt/urgencia/', '/pt/servicos/', '/pt/', '/fr/urgence/plombier-marseille/']) expect(destinoConsolidado(chemin)).toBeNull()
     const sitemap = getAllPtSitemapUrls('').map((u) => u.url)
-    expect(sitemap).toHaveLength(554 + SERVICOS_DISTRITO.length)
+    expect(sitemap).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length)
     expect(sitemap.filter((u) => destinoConsolidado(u) !== null)).toEqual([])
   })
 

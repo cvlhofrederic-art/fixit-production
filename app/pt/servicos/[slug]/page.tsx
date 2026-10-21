@@ -7,7 +7,7 @@ import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
 import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import PaginaConcelhoServicoDistrito from '@/components/seo/PaginaConcelhoServicoDistrito'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloServico, descricaoServico, fraseUrgenciasEncabecado, nomeDistrito, tituloConcelhoDistrito, descricaoConcelhoDistrito } from '@/lib/seo/pt-meta'
+import { tituloServico, descricaoServico, fraseUrgenciasEncabecado, nomeDistrito, tituloConcelhoDistrito, descricaoConcelhoDistrito, emConcelho } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, chantiersPara, mesPorExtenso, metodoPara, prazoPara, precoPara } from '@/lib/seo/pt-provas-locais'
 
@@ -32,6 +32,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const title = combo ? tituloServico(combo.service, combo.city) : tituloConcelhoDistrito(concelho!)
   const description = combo ? descricaoServico(combo.service, combo.city) : descricaoConcelhoDistrito(concelho!)
 
+  // Page concelho avec une photo de chantier : c'est elle l'image de partage (pas l'image générique).
+  const foto = concelho?.chantiers.find((c) => c.foto && c.foto_alt)
+  const images = foto?.foto && foto.foto_alt
+    ? [{ url: foto.foto.startsWith('http') ? foto.foto : `https://vitfix.io${foto.foto}`, alt: foto.foto_alt }]
+    : ogImageMeta({ title, locale: 'pt' })
+
   return {
     title,
     description,
@@ -41,7 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: ogImageMeta({ title, locale: 'pt' }),
+      images,
     },
     twitter: {
       card: 'summary_large_image',
@@ -363,7 +369,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                 className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
               >
                 <span className="text-xl">{pd.icon}</span>
-                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(pd.distrito)}` : `${pd.nome} em ${city.name}`}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(pd.distrito)}` : `${pd.nome} ${emConcelho(city.name)}`}</span>
               </Link>
             ))}
           </div>

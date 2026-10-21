@@ -25,8 +25,11 @@ import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/se
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { sitemapsPt, getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { DATA_PAGINAS_DISTRITO } from '@/lib/seo/pt-datas'
-import { precosPara, prazoDistritoPara, chantiersDistritoPara } from '@/lib/seo/pt-provas-locais'
+import { DATA_LIGACOES_DISTRITO } from '@/lib/seo/pt-datas'
+import { precosPara, prazoDistritoPara, dataIsoValida } from '@/lib/seo/pt-provas-locais'
+import { chantiersExibidosDistrito, dataModificacaoDistrito, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { dataLigacoesConcelho } from '@/lib/sitemap-pt-pages'
+import provas from '@/data/seo/local-proof.json'
 import { classer, SERVICOS_DISTRITO_SLUGS } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
 const BASE = 'https://vitfix.io'
@@ -91,9 +94,42 @@ describe('données des pages de district', () => {
     for (const p of precosPara(LIMPEZA_DE_TELHADOS.slug)) expect(p.max > 0 && p.min >= 0 && Boolean(p.unite)).toBe(true)
     const prazo = prazoDistritoPara('Porto', LIMPEZA_DE_TELHADOS.slug)
     if (prazo) expect(prazo.visita_dias > 0 && Boolean(prazo.fonte)).toBe(true)
-    for (const c of chantiersDistritoPara(LIMPEZA_DE_TELHADOS.slug, CIDADES_PORTO)) {
+    for (const c of chantiersExibidosDistrito(LIMPEZA_DE_TELHADOS)) {
       expect(CIDADES_PORTO).toContain(c.cidade)
       expect(c.mes).toMatch(/^\d{4}-\d{2}$/)
+    }
+  })
+})
+
+describe('données saisies dans data/seo/local-proof.json', () => {
+  const dados = provas as unknown as {
+    chantiers?: Array<Record<string, string>>
+    notas_concelho?: Array<Record<string, string>>
+    revisoes_concelho?: Array<Record<string, string>>
+  }
+  const hoje = new Date().toISOString().slice(0, 10)
+  const datas = (r: Record<string, string>) => ['publicado', 'atualizado', 'revisto'].map((k) => r[k]).filter((d): d is string => d !== undefined)
+
+  it('dates réelles (AAAA-MM-JJ qui existe), jamais dans le futur ; mois du chantier au plus celui de sa publication', () => {
+    for (const r of [...(dados.chantiers ?? []), ...(dados.notas_concelho ?? []), ...(dados.revisoes_concelho ?? [])]) {
+      for (const d of datas(r)) {
+        expect(dataIsoValida(d), d).toBe(true)
+        expect(d <= hoje, d).toBe(true)
+      }
+      if (r.mes && r.publicado) expect(r.mes <= r.publicado.slice(0, 7), r.mes).toBe(true)
+    }
+  })
+
+  it('chantiers : ville connue, freguesia non vide si donnée, photo toujours décrite, photo locale existante ou URL Supabase', () => {
+    const villes = new Set(CITIES.map((c) => c.slug))
+    for (const c of dados.chantiers ?? []) {
+      expect(villes.has(c.cidade), c.cidade).toBe(true)
+      if (c.freguesia !== undefined) expect(c.freguesia.trim().length).toBeGreaterThan(0)
+      if (c.foto) {
+        expect(c.foto_alt?.trim().length ?? 0, c.foto).toBeGreaterThan(0)
+        const local = c.foto.startsWith('/') && existsSync(join(process.cwd(), 'public', c.foto))
+        expect(local || /^https:\/\/[a-z0-9-]+\.supabase\.co\//.test(c.foto), c.foto).toBe(true)
+      }
     }
   })
 })
@@ -134,7 +170,7 @@ describe('/pt/servicos/limpeza-de-telhados/ : rendu', () => {
       expect(c.textContent).not.toMatch(/€/)
     }
     expect(Boolean(c.querySelector('#prazos'))).toBe(Boolean(prazoDistritoPara('Porto', LIMPEZA_DE_TELHADOS.slug)))
-    expect(Boolean(c.querySelector('#chantiers'))).toBe(chantiersDistritoPara(LIMPEZA_DE_TELHADOS.slug, CIDADES_PORTO).length > 0)
+    expect(Boolean(c.querySelector('#chantiers'))).toBe(chantiersExibidosDistrito(LIMPEZA_DE_TELHADOS).length > 0)
   })
 
   it('l’exclusion confirmée (fibrocimento) est dite dès l’introduction', async () => {
@@ -170,11 +206,14 @@ describe('/pt/servicos/limpeza-de-telhados/ : rendu', () => {
     const reponses = Array.from(c.querySelectorAll('#perguntas details')).map((d) => d.textContent ?? '')
     const precos = precosPara(LIMPEZA_DE_TELHADOS.slug)
     const m2 = precos.find((p) => /^m(2|²)$/.test(p.unite))
-    const custo = reponses.find((r) => r.startsWith('Quanto custa limpar um telhado?')) ?? ''
+    // Le prix chiffré répond à la seule question qui porte sur la prestation chiffrée (limpeza com impermeabilização).
+    expect(reponses.find((r) => r.startsWith('Quanto custa limpar um telhado?')) ?? '').not.toMatch(/€/)
+    const custo = reponses.find((r) => r.startsWith('Quanto custa lavar e impermeabilizar')) ?? ''
     if (m2) {
       const n = (v: number) => v.toLocaleString('pt-PT')
       expect(custo).toContain(`de ${n(m2.min)} a ${n(m2.max)} € por ${m2.unite}`)
-      expect(custo).toContain(`Num telhado de 100 m², são ${n(m2.min * 100)} a ${n(m2.max * 100)} €`)
+      expect(custo).toContain(`Exemplo para 100 m²`)
+      expect(custo).toContain(`${n(m2.min * 100)} a ${n(m2.max * 100)} €, ${LIMPEZA_DE_TELHADOS.ressalvaPreco}`)
     } else expect(custo).not.toMatch(/€/)
   })
 
@@ -192,18 +231,20 @@ describe('sitemap et maillage', () => {
       const cible = `${BASE}${url(s)}`
       const presences = Object.entries(groupes).filter(([, urls]) => urls.some((u) => u.url === cible)).map(([g]) => g)
       expect(presences).toEqual(['servicos'])
-      expect(groupes.servicos.find((u) => u.url === cible)?.lastModified).toBe(s.dataModificacao)
+      expect(groupes.servicos.find((u) => u.url === cible)?.lastModified).toBe(dataModificacaoDistrito(s))
       expect(s.dataModificacao).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     }
     // Les pages qui reçoivent le lien portent la même date (Google : un changement de liens est significatif).
     const date = (chemin: string) => Object.values(groupes).flat().find((u) => u.url === `${BASE}${chemin}`)?.lastModified
-    for (const chemin of ['/pt/servicos/', '/pt/mapa-do-site/', '/pt/perto-de-mim/telhador/', '/pt/perto-de-mim/impermeabilizacao/', '/pt/servicos/telhador-porto/', '/pt/servicos/impermeabilizacao-baiao/']) {
-      expect(date(chemin), chemin).toBe(DATA_PAGINAS_DISTRITO)
+    for (const chemin of ['/pt/servicos/', '/pt/mapa-do-site/', '/pt/perto-de-mim/telhador/', '/pt/perto-de-mim/impermeabilizacao/']) {
+      expect(date(chemin), chemin).toBe(DATA_LIGACOES_DISTRITO)
     }
+    expect(date('/pt/servicos/telhador-porto/')).toBe(dataLigacoesConcelho('porto', ['limpeza-de-telhados']))
+    expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(dataLigacoesConcelho('baiao', ['limpeza-de-telhados']))
     for (const chemin of ['/pt/perto-de-mim/eletricista/', '/pt/servicos/telhador-braga/', '/pt/servicos/canalizador-porto/']) {
-      expect(date(chemin), chemin).not.toBe(DATA_PAGINAS_DISTRITO)
+      expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_DISTRITO)
     }
-    expect(getAllPtSitemapUrls(BASE)).toHaveLength(554 + SERVICOS_DISTRITO.length)
+    expect(getAllPtSitemapUrls(BASE)).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length)
   })
 
   it('liée depuis /pt/servicos/ et le plan du site (profondeur 2 depuis /pt/)', async () => {

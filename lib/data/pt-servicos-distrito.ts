@@ -15,7 +15,7 @@
 
 import { DATA_PAGINAS_DISTRITO } from '@/lib/seo/pt-datas'
 import { CITIES, type CityData } from '@/lib/data/seo-pages-data'
-import { todosChantiersPara, type Chantier } from '@/lib/seo/pt-provas-locais'
+import { dataIsoValida, notasConcelhoDetalhadas, revisaoConcelhoPara, todosChantiersPara, type Chantier } from '@/lib/seo/pt-provas-locais'
 
 export interface PassoServico {
   titulo: string
@@ -25,7 +25,8 @@ export interface PassoServico {
 export interface PerguntaServico {
   pergunta: string
   resposta: string
-  /** Ajoute à la réponse la fourchette réelle de data/seo/local-proof.json (« exemplo » : avec le calcul pour 100 m²). */
+  /** Ajoute à la réponse la fourchette réelle de data/seo/local-proof.json (« exemplo » : avec le calcul pour 100 m²), sur la
+   * seule question qui porte sur la prestation chiffrée. */
   preco?: 'simples' | 'exemplo'
 }
 
@@ -52,7 +53,11 @@ export interface ServicoDistrito {
   resumo: string
   intro: string
   /** Titres de section propres au service (le composant est commun aux pages de district). */
-  titulos: { preco: string; metodo: string; sinais: string; ligacoes: string; ctaFinal: string; /** Titre des particularités locales des pages concelho, suivi du nom du concelho. */ local: string }
+  titulos: { preco: string; metodo: string; sinais: string; ligacoes: string; ctaFinal: string; /** Titre des particularités locales des pages concelho, suivi de « de/do/da {concelho} ». */ local: string }
+  /** Réserve de l'exemple de prix pour 100 m² (« conforme o acesso e o estado do telhado »). */
+  ressalvaPreco: string
+  /** Phrase finale du message WhatsApp, suivie du lieu (« O telhado fica » + « no Porto. » ou « em … »). */
+  mensagemLocal: string
   /** Encadré d'appel à l'action du bloc prix, suivi du numéro affiché. */
   textoOrcamento: string
   prestacoes: PassoServico[]
@@ -65,7 +70,7 @@ export interface ServicoDistrito {
   ligacoes: LigacaoServico[]
   /** Métiers de la grille dont les pages du même distrito et le hub lient cette page. */
   metiersLigados: string[]
-  /** Texte prérempli du message WhatsApp. */
+  /** Début du message WhatsApp prérempli (le lieu suit, voir mensagemLocal). */
   mensagemWhatsapp: string
   /** Dernière modification significative (lastmod), jour de la mise en production. */
   dataModificacao: string
@@ -79,7 +84,7 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   distrito: 'Porto',
   titulo: 'Limpeza de telhados e caleiras no distrito do Porto',
   h1: 'Limpeza de telhados e caleiras no distrito do Porto',
-  resumo: 'Lavagem e impermeabilização de telhados, tratamento antimusgo, pintura e limpeza de caleiras no distrito do Porto.',
+  resumo: 'Lavagem, impermeabilização e pintura de telhados, tratamento antimusgo e limpeza de caleiras no distrito do Porto.',
   intro:
     'A equipa VITFIX limpa telhados e caleiras em todo o distrito do Porto, a partir de Marco de Canaveses: lavagem do telhado com tratamento contra o musgo e os líquenes, impermeabilização das telhas (hidrofugação), pintura de telhas e limpeza de caleiras e algerozes. Não limpamos telhados de fibrocimento (lusalite). O orçamento é grátis e sem compromisso.',
   titulos: {
@@ -88,8 +93,10 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     sinais: 'Quando limpar o telhado',
     ligacoes: 'Quando a limpeza não chega',
     ctaFinal: 'Peça o orçamento para o seu telhado',
-    local: 'Os telhados de',
+    local: 'Os telhados',
   },
+  ressalvaPreco: 'conforme o acesso e o estado do telhado',
+  mensagemLocal: 'O telhado fica',
   textoOrcamento: 'O orçamento é grátis e sem compromisso. Envie-nos a área aproximada e algumas fotografias do telhado por WhatsApp, ou ligue para',
   prestacoes: [
     {
@@ -126,7 +133,7 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     },
     {
       titulo: 'Tratamento e impermeabilização',
-      texto: 'Com o telhado limpo e seco, aplicamos o tratamento antimusgo e o hidrofugante que impermeabiliza as telhas.',
+      texto: 'Com o telhado limpo e seco, aplicamos o tratamento antimusgo e, se o pedir, o hidrofugante que impermeabiliza as telhas.',
     },
     {
       titulo: 'Caleiras e algerozes',
@@ -157,13 +164,12 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   faqs: [
     {
       pergunta: 'Quanto custa limpar um telhado?',
-      preco: 'exemplo',
       resposta:
         'Depende da área, da inclinação e do acesso, do tipo e do estado das telhas, da quantidade de musgo e dos tratamentos escolhidos. Para lhe enviarmos um orçamento, precisamos da área aproximada e de ver o telhado, em fotografia ou no local. O orçamento é grátis e sem compromisso.',
     },
     {
       pergunta: 'Quanto custa lavar e impermeabilizar (hidrofugar) um telhado?',
-      preco: 'simples',
+      preco: 'exemplo',
       resposta:
         'Custa mais do que a lavagem simples, porque a hidrofugação, a que muitos chamam impermeabilização do telhado, é um passo a mais, feito depois da lavagem e com o telhado seco. Diga-nos no pedido se quer a lavagem com hidrofugação, para o orçamento incluir as duas.',
     },
@@ -221,7 +227,7 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     },
   ],
   metiersLigados: ['telhador', 'impermeabilizacao'],
-  mensagemWhatsapp: 'Olá! Gostaria de um orçamento para a limpeza de um telhado. O telhado fica em ',
+  mensagemWhatsapp: 'Olá! Gostaria de um orçamento para a limpeza de um telhado.',
   dataModificacao: DATA_PAGINAS_DISTRITO,
 }
 
@@ -234,22 +240,36 @@ export function servicosDistritoLigados(metier: string, distrito?: string): Serv
 }
 
 // ── Pages concelho d'un service de district (/pt/servicos/{servico}-{concelho}/) ──
-// Guide Google du 19/10/2026 (section 4.4) : une page concelho n'existe que si elle apporte un contenu propre au lieu.
-// Elle s'ouvre toute seule quand data/seo/local-proof.json documente des chantiers réels de ce service dans ce concelho :
-// deux chantiers, ou un seul avec photo et texte alternatif. Chaque chantier porte sa date d'ajout (`publicado`), qui
-// donne le lastmod. Sans chantier, aucune page : les recherches « service + concelho » vont à la page de district et aux
-// pages de la grille qui la lient. Jamais de page par freguesia : les freguesias apparaissent dans les chantiers.
+// Guide Google du 19/10/2026, section 4.4 : une page concelho ne se crée que si TOUTES les conditions sont réunies.
+// Elle s'ouvre donc seulement quand data/seo/local-proof.json contient, pour ce service et ce concelho :
+//   1. au moins un chantier complet : photo décrite, freguesia, problème trouvé, solution, date de mise en production ;
+//   2. une information propre au lieu : une particularité locale du propriétaire (notas_concelho) ou un deuxième
+//      chantier détaillé (freguesia, problème, solution) ;
+//   3. une relecture humaine datée (revisoes_concelho : les 7 tests de la section 2.4), qui permet aussi d'ouvrir les
+//      pages par petits groupes (section 4.6).
+// Sans cela, aucune page : les recherches « service + concelho » vont à la page de district et aux pages de la grille qui
+// la lient. Jamais de page par freguesia : les freguesias n'apparaissent que dans les chantiers.
 
-const dataIso = (d?: string) => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+/** Date de mise en production la plus récente d'un chantier (ajout ou modification visible). */
+export const dataChantier = (c: Chantier) => maisRecente([c.publicado ?? '', c.atualizado ?? ''].filter(dataIsoValida))
+
+const preenchido = (t?: string) => Boolean(t && t.trim())
 
 /** Chantiers d'un service de district dans un concelho qui comptent : valides et datés (`publicado`). */
 export function chantiersDocumentados(servico: ServicoDistrito, cidade: string): Chantier[] {
-  return todosChantiersPara(servico.slug, cidade).filter((c) => dataIso(c.publicado))
+  return todosChantiersPara(servico.slug, cidade).filter((c) => dataIsoValida(c.publicado))
 }
 
-/** Seuil d'ouverture d'une page concelho : deux chantiers documentés, ou un seul avec photo décrite. */
-export function concelhoDocumentado(chantiers: Chantier[]): boolean {
-  return chantiers.length >= 2 || chantiers.some((c) => Boolean(c.foto && c.foto_alt))
+/** Chantier détaillé : freguesia, problème trouvé et solution. */
+export const chantierDetalhado = (c: Chantier) => preenchido(c.freguesia) && preenchido(c.problema) && preenchido(c.solucao)
+
+/** Chantier complet : détaillé, avec une photo décrite. */
+export const chantierCompleto = (c: Chantier) => chantierDetalhado(c) && preenchido(c.foto) && preenchido(c.foto_alt)
+
+/** Conditions 1 et 2 de la section 4.4 du guide (la relecture, condition 3, est vérifiée à part). */
+export function concelhoDocumentado(servico: ServicoDistrito, cidade: string, chantiers: Chantier[]): boolean {
+  const localPropria = notasConcelhoDetalhadas(servico.slug, cidade).length > 0 || chantiers.filter(chantierDetalhado).length >= 2
+  return chantiers.some(chantierCompleto) && localPropria
 }
 
 export interface PaginaConcelhoDistrito {
@@ -257,18 +277,32 @@ export interface PaginaConcelhoDistrito {
   servico: ServicoDistrito
   city: CityData
   chantiers: Chantier[]
+  /** Jour d'ouverture (date de relecture) : date des pages qui lient la page concelho. */
+  dataAbertura: string
+  /** lastmod de la page concelho : textes du service, relecture, chantiers et notes du concelho. */
   dataModificacao: string
 }
 
-const maisRecente = (datas: string[]) => [...datas].sort().at(-1) ?? ''
+function maisRecente(datas: string[]): string {
+  return [...datas].filter(Boolean).sort().at(-1) ?? ''
+}
 
 /** Pages concelho ouvertes, pour toutes les pages de district. */
 export function paginasConcelhoDistrito(): PaginaConcelhoDistrito[] {
   return SERVICOS_DISTRITO.flatMap((servico) =>
     CITIES.filter((city) => city.distrito === servico.distrito).flatMap((city) => {
+      const revisto = revisaoConcelhoPara(servico.slug, city.slug)
       const chantiers = chantiersDocumentados(servico, city.slug)
-      if (!concelhoDocumentado(chantiers)) return []
-      return [{ slug: `${servico.slug}-${city.slug}`, servico, city, chantiers, dataModificacao: maisRecente(chantiers.map((c) => c.publicado ?? '')) }]
+      if (!revisto || !concelhoDocumentado(servico, city.slug, chantiers)) return []
+      const notas = notasConcelhoDetalhadas(servico.slug, city.slug).map((n) => n.publicado ?? '').filter(dataIsoValida)
+      return [{
+        slug: `${servico.slug}-${city.slug}`,
+        servico,
+        city,
+        chantiers,
+        dataAbertura: revisto,
+        dataModificacao: maisRecente([servico.dataModificacao, revisto, ...chantiers.map(dataChantier), ...notas]),
+      }]
     }),
   )
 }
@@ -283,14 +317,24 @@ export function urlServicoDistrito(servico: ServicoDistrito, cidade?: string): s
   return pagina ? `/pt/servicos/${pagina.slug}/` : `/pt/servicos/${servico.slug}/`
 }
 
-/** Chantiers documentés d'un service dans tout son distrito, du plus récent au plus ancien. */
-export function chantiersDoDistrito(servico: ServicoDistrito): Chantier[] {
-  return CITIES.filter((city) => city.distrito === servico.distrito)
+/**
+ * Chantiers affichés sur la page de district : les 6 plus récents, plus le plus récent de chaque concelho dont la page
+ * est ouverte (pour que chaque page concelho soit liée depuis une carte de chantier réel, jamais depuis une liste de
+ * villes), du plus récent au plus ancien.
+ */
+export function chantiersExibidosDistrito(servico: ServicoDistrito): Chantier[] {
+  const todos = CITIES.filter((city) => city.distrito === servico.distrito)
     .flatMap((city) => chantiersDocumentados(servico, city.slug))
     .sort((a, b) => b.mes.localeCompare(a.mes))
+  const exibidos = todos.slice(0, 6)
+  for (const pagina of paginasConcelhoDistrito().filter((p) => p.servico.slug === servico.slug)) {
+    if (!exibidos.some((c) => c.cidade === pagina.city.slug)) exibidos.push(pagina.chantiers[0])
+  }
+  return exibidos.sort((a, b) => b.mes.localeCompare(a.mes))
 }
 
-/** lastmod de la page de district : sa date, ou celle du dernier chantier ajouté s'il est plus récent. */
+/** lastmod de la page de district : ses textes, ou le dernier chantier affiché, ou la dernière page concelho ouverte. */
 export function dataModificacaoDistrito(servico: ServicoDistrito): string {
-  return maisRecente([servico.dataModificacao, ...chantiersDoDistrito(servico).map((c) => c.publicado ?? '')])
+  const abertas = paginasConcelhoDistrito().filter((p) => p.servico.slug === servico.slug).map((p) => p.dataAbertura)
+  return maisRecente([servico.dataModificacao, ...chantiersExibidosDistrito(servico).map(dataChantier), ...abertas])
 }

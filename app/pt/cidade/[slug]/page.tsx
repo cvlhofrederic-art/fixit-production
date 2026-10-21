@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { SERVICOS_DISTRITO, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloCidade, descricaoCidade, nomeDistrito } from '@/lib/seo/pt-meta'
+import { tituloCidade, descricaoCidade, nomeDistrito, emConcelho } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 import { CitySpecialtySection } from '@/components/seo/CitySpecialtySection'
 import { CityChallengesSection } from '@/components/seo/CityChallengesSection'
@@ -154,10 +154,10 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-3xl">{sd.icon}</span>
                     <h3 className="font-display font-bold text-lg text-dark group-hover:text-yellow transition-colors">
-                      {href === `/pt/servicos/${sd.slug}/` ? `${sd.nome} no distrito ${nomeDistrito(sd.distrito)}` : `${sd.nome} em ${city.name}`}
+                      {href === `/pt/servicos/${sd.slug}/` ? `${sd.nome} no distrito ${nomeDistrito(sd.distrito)}` : `${sd.nome} ${emConcelho(city.name)}`}
                     </h3>
                   </div>
-                  <p className="text-text-muted text-sm leading-relaxed mb-4">{sd.intro}</p>
+                  <p className="text-text-muted text-sm leading-relaxed mb-4">{sd.resumo}</p>
                   <div className="flex flex-wrap gap-2">
                     {sd.prestacoes.slice(0, 3).map(p => (
                       <span key={p.titulo} className="text-xs px-2.5 py-1 rounded-full bg-yellow/10 border border-yellow/25 text-dark">
