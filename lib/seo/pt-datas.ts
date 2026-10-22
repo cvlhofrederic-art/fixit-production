@@ -40,7 +40,7 @@ export const DATA_FASE_3_LOT_1 = '2026-10-14'
  * production de toute modification de ce contenu (y compris un prix ou un délai de data/seo/local-proof.json), et à
  * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date.
  */
-export const DATA_PAGINAS_DISTRITO = '2026-10-21'
+export const DATA_PAGINAS_DISTRITO = '2026-10-22'
 
 /**
  * Date d'ajout des LIENS vers les pages de district : pages telhador et impermeabilizacao des 18 concelhos du distrito
@@ -48,7 +48,7 @@ export const DATA_PAGINAS_DISTRITO = '2026-10-21'
  * concelho prend en plus la date d'ouverture de celle-ci (lib/sitemap-pt-pages.ts, dataLigacoesConcelho). À aligner sur
  * le jour de la mise en production.
  */
-export const DATA_LIGACOES_DISTRITO = '2026-10-21'
+export const DATA_LIGACOES_DISTRITO = '2026-10-22'
 
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date

@@ -3,11 +3,10 @@ import Link from 'next/link'
 import { SERVICES } from '@/lib/data/seo-pages-data'
 import type { PaginaConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
-import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { deConcelho, descricaoConcelhoDistrito, emConcelho, nomeDistrito } from '@/lib/seo/pt-meta'
-import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
+import { noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, mesPorExtenso, notasConcelhoPara, prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
-import { BotoesContacto, SelosConfianca, TITULO_SECCAO, detalhesChantier, fraseChantier, frasePrazo, frasePreco } from './servico-distrito-partilhado'
+import { BotoesContacto, CabecalhoServico, SeccaoPreco, TITULO_SECCAO, detalhesChantier, fraseChantier, migalhasServicos } from './servico-distrito-partilhado'
 
 // Page concelho d'un service de district (/pt/servicos/{servico}-{concelho}/), ouverte seulement quand
 // data/seo/local-proof.json documente ce service dans ce concelho (chantier complet, information propre au lieu,
@@ -42,54 +41,26 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: Readonly<{ pag
   const fundo = (id: string) => (seccoes.indexOf(id) % 2 === 1 ? ' bg-white' : '')
   const cartao = (id: string) => (seccoes.indexOf(id) % 2 === 1 ? 'bg-warm-gray' : 'bg-white')
 
-  const jsonLd = grafo(
-    noServicoLocal({
-      url: urlPagina,
-      nome: `${servico.nome} ${noConcelho}`,
-      serviceType: servico.tipoServico,
-      descricao: descricaoConcelhoDistrito(pagina),
-      city,
-    }),
-    noFilAriane([
-      { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
-      { name: 'Serviços', url: 'https://vitfix.io/pt/servicos/' },
-      { name: servico.nome, url: `https://vitfix.io${urlDistrito}` },
-      { name: city.name, url: urlPagina },
-    ]),
-  )
-
   return (
     <div className="min-h-screen bg-warm-gray">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-
-      {/* ── HERO ── */}
-      <section className="relative overflow-hidden pt-16 pb-14 md:pt-20 md:pb-18" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.08) 0%, #fff 40%, #F5F3EF 100%)' }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
-            <Link href="/pt/" className="hover:text-yellow transition">VITFIX</Link>
-            <span className="mx-2">/</span>
-            <Link href="/pt/servicos/" className="hover:text-yellow transition">Serviços</Link>
-            <span className="mx-2">/</span>
-            <Link href={urlDistrito} className="hover:text-yellow transition">{servico.nome}</Link>
-            <span className="mx-2">/</span>
-            <span className="text-dark font-medium">{city.name}</span>
-          </nav>
-
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
-            <span className="text-lg">{servico.icon}</span>
-            <span className="text-dark">{servico.nome} · {city.name}</span>
-          </div>
-
-          <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
-            {servico.nome} {noConcelho}
-          </h1>
-          <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">{intro}</p>
-
-          <BotoesContacto waHref={waHref} variante="topo" />
-
-          <SelosConfianca selos={['Equipa VITFIX', 'Orçamento grátis']} prazo={prazo} />
-        </div>
-      </section>
+      {/* ── JSON-LD ET HERO ── */}
+      <CabecalhoServico
+        noServico={noServicoLocal({
+          url: urlPagina,
+          nome: `${servico.nome} ${noConcelho}`,
+          serviceType: servico.tipoServico,
+          descricao: descricaoConcelhoDistrito(pagina),
+          city,
+        })}
+        migalhas={migalhasServicos({ name: servico.nome, url: `https://vitfix.io${urlDistrito}` }, { name: city.name, url: urlPagina })}
+        icon={servico.icon}
+        selo={`${servico.nome} · ${city.name}`}
+        titulo={`${servico.nome} ${noConcelho}`}
+        intro={intro}
+        waHref={waHref}
+        selos={['Equipa VITFIX', 'Orçamento grátis']}
+        prazo={prazo}
+      />
 
       {/* ── CE QUI EST FAIT, ET CE QUI NE L'EST PAS (bloc de décision) ── */}
       <section id="servicos" className={`py-12 md:py-16${fundo('servicos')}`}>
@@ -149,39 +120,7 @@ export default function PaginaConcelhoServicoDistrito({ pagina }: Readonly<{ pag
       )}
 
       {/* ── PRIX ET DÉLAI RÉELS ── */}
-      <section id="preco" className={`py-12 md:py-16${fundo('preco')}`}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h2 className={`${TITULO_SECCAO} mb-4`}>{servico.titulos.preco} {noConcelho}</h2>
-            <p className="text-dark/85 leading-relaxed mb-4">O preço depende sobretudo destes fatores:</p>
-            <ul className="space-y-2 text-[0.93rem] text-dark/85">
-              {servico.fatoresPreco.map((f) => (
-                <li key={f} className="flex items-start gap-2"><span className="text-yellow font-bold">•</span><span>{f}</span></li>
-              ))}
-            </ul>
-          </div>
-          <div className="grid gap-4 content-start">
-            {precos.length > 0 && (
-              <div id="precos" className={`p-6 rounded-2xl ${cartao('preco')} border border-border/40`}>
-                <h3 className="font-display text-lg font-bold text-dark mb-3">Preços praticados</h3>
-                <ul className="space-y-2 text-sm text-dark/85">
-                  {precos.map((p, i) => <li key={i}>{frasePreco(p)}</li>)}
-                </ul>
-              </div>
-            )}
-            {prazo && (
-              <div id="prazos" className={`p-6 rounded-2xl ${cartao('preco')} border border-border/40`}>
-                <h3 className="font-display text-lg font-bold text-dark mb-2">{prazo.visita_horas_max ? 'Prazo de visita' : 'Prazos constatados'}</h3>
-                <p className="text-sm text-dark/85">{frasePrazo(prazo)}</p>
-                <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
-              </div>
-            )}
-            <div className="p-6 rounded-2xl bg-yellow/10 border border-yellow/25">
-              <p className="text-[0.93rem] text-dark/85 leading-relaxed">{servico.textoOrcamento} {TELEFONE_PT_TEXTE}.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SeccaoPreco titulo={`${servico.titulos.preco} ${noConcelho}`} servico={servico} precos={precos} prazo={prazo} fundo={fundo('preco')} cartao={cartao('preco')} />
 
       {/* ── AVIS RÉELS AUTORISÉS (texte seulement : pas de balisage Review ni AggregateRating) ── */}
       {avis.length > 0 && (

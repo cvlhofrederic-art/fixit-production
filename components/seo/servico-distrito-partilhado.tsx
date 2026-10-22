@@ -1,13 +1,122 @@
 // Éléments communs aux pages de district (PaginaServicoDistrito) et à leurs pages concelho
-// (PaginaConcelhoServicoDistrito) : icônes de contact, formats pt-PT des prix et délais réels.
+// (PaginaConcelhoServicoDistrito) : en-tête, section prix, icônes de contact, formats pt-PT des prix et délais réels.
 
+import { Fragment } from 'react'
+import Link from 'next/link'
 import type { Chantier, PrazoCidade, PrecoMetier } from '@/lib/seo/pt-provas-locais'
 import type { PerguntaServico, ServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { mesPorExtenso } from '@/lib/seo/pt-provas-locais'
+import { grafo, noFilAriane } from '@/lib/seo/pt-schemas'
 import { PHONE_PT } from '@/lib/constants'
 import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 
 export const TITULO_SECCAO = 'font-display text-[clamp(1.4rem,2.6vw,1.9rem)] font-bold tracking-tight text-dark'
+
+type Migalha = { name: string; url: string }
+
+/** Fil d'Ariane des pages de service : VITFIX › Serviços › …, en URL absolues ; la dernière est la page elle-même. */
+export const migalhasServicos = (...resto: Migalha[]): Migalha[] => [
+  { name: 'VITFIX', url: 'https://vitfix.io/pt/' },
+  { name: 'Serviços', url: 'https://vitfix.io/pt/servicos/' },
+  ...resto,
+]
+
+/**
+ * JSON-LD (Service + BreadcrumbList) et en-tête : fil d'Ariane visible tiré des mêmes étapes que le balisage, pastille,
+ * H1, accroche, boutons de contact et bandeau de confiance.
+ */
+export function CabecalhoServico({ noServico, migalhas, icon, selo, titulo, intro, waHref, selos, prazo }: Readonly<{
+  noServico: Record<string, unknown>
+  migalhas: Migalha[]
+  icon: string
+  selo: string
+  titulo: string
+  intro: string
+  waHref: string
+  selos: string[]
+  prazo: PrazoCidade | null
+}>) {
+  const jsonLd = grafo(noServico, noFilAriane(migalhas))
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      <section className="relative overflow-hidden pt-16 pb-14 md:pt-20 md:pb-18" style={{ background: 'linear-gradient(135deg, rgba(255,214,0,0.08) 0%, #fff 40%, #F5F3EF 100%)' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav aria-label="Breadcrumb" className="mb-6 text-sm text-text-muted">
+            {migalhas.slice(0, -1).map((m) => (
+              <Fragment key={m.url}>
+                <Link href={m.url.replace('https://vitfix.io', '')} className="hover:text-yellow transition">{m.name}</Link>
+                <span className="mx-2">/</span>
+              </Fragment>
+            ))}
+            <span className="text-dark font-medium">{migalhas.at(-1)?.name}</span>
+          </nav>
+
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-yellow/10 border border-yellow/25 text-sm font-semibold mb-5">
+            <span className="text-lg">{icon}</span>
+            <span className="text-dark">{selo}</span>
+          </div>
+
+          <h1 className="font-display text-[clamp(2rem,4.5vw,3.2rem)] font-extrabold tracking-tight leading-[1.1] text-dark mb-4">
+            {titulo}
+          </h1>
+          <p className="text-lg text-text-muted max-w-2xl mb-8 leading-relaxed">{intro}</p>
+
+          <BotoesContacto waHref={waHref} variante="topo" />
+
+          <SelosConfianca selos={selos} prazo={prazo} />
+        </div>
+      </section>
+    </>
+  )
+}
+
+/** Section prix : facteurs toujours visibles ; fourchettes et délai réels seulement s'ils sont fournis ; demande de devis. */
+export function SeccaoPreco({ titulo, servico, precos, prazo, fundo, cartao }: Readonly<{
+  titulo: string
+  servico: Pick<ServicoDistrito, 'fatoresPreco' | 'textoOrcamento'>
+  precos: PrecoMetier[]
+  prazo: PrazoCidade | null
+  fundo: string
+  cartao: string
+}>) {
+  return (
+    <section id="preco" className={`py-12 md:py-16${fundo}`}>
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 className={`${TITULO_SECCAO} mb-4`}>{titulo}</h2>
+          <p className="text-dark/85 leading-relaxed mb-4">O preço depende sobretudo destes fatores:</p>
+          <ul className="space-y-2 text-[0.93rem] text-dark/85">
+            {servico.fatoresPreco.map((f) => (
+              <li key={f} className="flex items-start gap-2"><span className="text-yellow font-bold">•</span><span>{f}</span></li>
+            ))}
+          </ul>
+        </div>
+        <div className="grid gap-4 content-start">
+          {precos.length > 0 && (
+            <div id="precos" className={`p-6 rounded-2xl ${cartao} border border-border/40`}>
+              <h3 className="font-display text-lg font-bold text-dark mb-3">Preços praticados</h3>
+              <ul className="space-y-2 text-sm text-dark/85">
+                {precos.map((p, i) => <li key={i}>{frasePreco(p)}</li>)}
+              </ul>
+            </div>
+          )}
+          {prazo && (
+            <div id="prazos" className={`p-6 rounded-2xl ${cartao} border border-border/40`}>
+              <h3 className="font-display text-lg font-bold text-dark mb-2">{prazo.visita_horas_max ? 'Prazo de visita' : 'Prazos constatados'}</h3>
+              <p className="text-sm text-dark/85">{frasePrazo(prazo)}</p>
+              <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
+            </div>
+          )}
+          <div className="p-6 rounded-2xl bg-yellow/10 border border-yellow/25">
+            <p className="text-[0.93rem] text-dark/85 leading-relaxed">{servico.textoOrcamento} {TELEFONE_PT_TEXTE}.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 export const WaSvg = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
