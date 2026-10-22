@@ -1,24 +1,11 @@
-import { DM_Sans, Montserrat } from "next/font/google";
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500"],
-});
-
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-});
-
+// DM Sans et Montserrat : polices auto-hébergées déclarées dans app/polices.css (layout racine).
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <div className={`${dmSans.variable} ${montserrat.variable}`}>
+    <div className="police-dm-sans police-montserrat">
       {children}
     </div>
   )
