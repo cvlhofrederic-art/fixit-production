@@ -4,8 +4,10 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
 import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
+import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import PaginaConcelhoServicoDistrito from '@/components/seo/PaginaConcelhoServicoDistrito'
 import { PHONE_PT } from '@/lib/constants'
-import { tituloServico, descricaoServico, fraseUrgenciasEncabecado } from '@/lib/seo/pt-meta'
+import { tituloServico, descricaoServico, fraseUrgenciasEncabecado, nomeDistrito, tituloConcelhoDistrito, descricaoConcelhoDistrito, emConcelho } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal } from '@/lib/seo/pt-schemas'
 import { avisPara, chantiersPara, mesPorExtenso, metodoPara, prazoPara, precoPara } from '@/lib/seo/pt-provas-locais'
 
@@ -13,9 +15,10 @@ import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import ServiceFeaturesGrid from '@/components/seo/ServiceFeaturesGrid'
 import ProblemsGrid from '@/components/seo/ProblemsGrid'
 
-// ── Pages statiques : 21 métiers × 22 villes (lib/data/seo-pages-data.ts) ──
+// ── Pages statiques : 21 métiers × 22 villes (lib/data/seo-pages-data.ts), plus les pages concelho des services de
+// district ouvertes par des chantiers réels (lib/data/pt-servicos-distrito.ts, aucune tant qu'il n'y en a pas) ──
 export function generateStaticParams() {
-  return getAllPageCombos().map(p => ({ slug: p.slug }))
+  return [...getAllPageCombos().map(p => ({ slug: p.slug })), ...paginasConcelhoDistrito().map(p => ({ slug: p.slug }))]
 }
 
 // ── Métadonnées (phase 1 SEO PT) : marque une fois (template du layout), description propre
@@ -23,10 +26,17 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const combo = getPageCombo(slug)
-  if (!combo) return {}
+  const concelho = combo ? undefined : paginaConcelhoDistrito(slug)
+  if (!combo && !concelho) return {}
 
-  const title = tituloServico(combo.service, combo.city)
-  const description = descricaoServico(combo.service, combo.city)
+  const title = combo ? tituloServico(combo.service, combo.city) : tituloConcelhoDistrito(concelho!)
+  const description = combo ? descricaoServico(combo.service, combo.city) : descricaoConcelhoDistrito(concelho!)
+
+  // Page concelho avec une photo de chantier : c'est elle l'image de partage (pas l'image générique).
+  const foto = concelho?.chantiers.find((c) => c.foto && c.foto_alt)
+  const images = foto?.foto && foto.foto_alt
+    ? [{ url: foto.foto.startsWith('http') ? foto.foto : `https://vitfix.io${foto.foto}`, alt: foto.foto_alt }]
+    : ogImageMeta({ title, locale: 'pt' })
 
   return {
     title,
@@ -37,7 +47,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: 'VITFIX',
       locale: 'pt_PT',
       type: 'website',
-      images: ogImageMeta({ title, locale: 'pt' }),
+      images,
     },
     twitter: {
       card: 'summary_large_image',
@@ -54,7 +64,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ServiceCityPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const combo = getPageCombo(slug)
-  if (!combo) notFound()
+  if (!combo) {
+    const concelho = paginaConcelhoDistrito(slug)
+    if (!concelho) notFound()
+    return <PaginaConcelhoServicoDistrito pagina={concelho} />
+  }
 
   const { service, city, nearbyCities } = combo
   const replaceCity = (text: string) => text.replace(/\{city\}/g, city.name)
@@ -71,6 +85,8 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const avis = avisPara(service.slug, city.slug)
   const ligados = METIERS_LIGADOS[service.slug] ?? []
   const otherServices = ligados.map(slug => SERVICES.find(s => s.slug === slug)).filter((s): s is ServiceData => Boolean(s))
+  // Pages de district du même distrito liées à ce métier (ex. telhador → limpeza de telhados, distrito do Porto).
+  const paginasDistrito = servicosDistritoLigados(service.slug, city.distrito)
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
   // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business, app/layout.tsx)
@@ -203,14 +219,14 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
             {prazo && (
               <div id="prazos" className="p-6 rounded-2xl bg-warm-gray border border-border/40">
                 <h2 className="font-display text-lg font-bold text-dark mb-2">Prazos constatados em {city.name}</h2>
-                <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dias` : ''}.</p>
+                <p className="text-sm text-dark/85">Primeira visita em {prazo.visita_dias} dia{prazo.visita_dias > 1 ? 's' : ''}{prazo.intervencao_dias ? `, intervenção em ${prazo.intervencao_dias} dia${prazo.intervencao_dias > 1 ? 's' : ''}` : ''}.</p>
                 <p className="text-xs text-text-muted mt-2">Fonte: {prazo.fonte}.</p>
               </div>
             )}
             {preco && (
               <div id="precos" className="p-6 rounded-2xl bg-warm-gray border border-border/40">
                 <h2 className="font-display text-lg font-bold text-dark mb-2">Preços praticados: {service.name.toLowerCase()}</h2>
-                <p className="text-sm text-dark/85">{preco.min} a {preco.max} € por {preco.unite}{preco.fonte ? ` (${preco.fonte})` : ''}.</p>
+                <p className="text-sm text-dark/85">{preco.min.toLocaleString('pt-PT')} a {preco.max.toLocaleString('pt-PT')} € por {preco.unite}{preco.fonte ? ` (${preco.fonte})` : ''}.</p>
                 {preco.exemplos && preco.exemplos.length > 0 && (
                   <ul className="mt-2 text-xs text-text-muted space-y-1">
                     {preco.exemplos.slice(0, 3).map((e, i) => (
@@ -346,6 +362,16 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
               <span className="text-xl">{service.icon}</span>
               <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{service.name} noutros concelhos</span>
             </Link>
+            {paginasDistrito.map(pd => (
+              <Link
+                key={pd.slug}
+                href={urlServicoDistrito(pd, city.slug)}
+                className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
+              >
+                <span className="text-xl">{pd.icon}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(pd.distrito)}` : `${pd.nome} ${emConcelho(city.name)}`}</span>
+              </Link>
+            ))}
           </div>
 
           {/* Nearby cities (internal links - critical for SEO) */}

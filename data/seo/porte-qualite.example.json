@@ -2,5 +2,6 @@
   "_": "Porte de qualité de la phase 3 (test T10, scripts/seo/pt-tests.mjs). Copier en data/seo/porte-qualite.json au démarrage du lot A, avec --lot <fichier des URL du lot>. Seuils = objectifs de travail du plan (section 3.4), pas des règles Google.",
   "servicos": { "sections": ["chantiers", "prazos", "metodo"], "propre_min": 0.3, "villes_max": 8 },
   "cidade": { "sections": [], "propre_min": 0.35, "villes_max": 8 },
-  "perto-de-mim-hub": { "sections": ["metodo"], "propre_min": 0.3, "villes_max": 23 }
+  "perto-de-mim-hub": { "sections": ["metodo"], "propre_min": 0.3, "villes_max": 23 },
+  "servicos-distrito-concelho": { "sections": ["servicos", "chantiers", "preco"], "propre_min": 0.3, "villes_max": 3 }
 }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { nomeDistrito } from '@/lib/seo/pt-meta'
+import { SERVICOS_DISTRITO } from '@/lib/data/pt-servicos-distrito'
 
 // Phase 1 SEO PT : marque une fois (template du layout), description à 155 caractères avec des
 // faits réels (21 serviços, 22 concelhos), pas d'alternate (/fr/services/ ne renvoie pas vers cette page).
@@ -71,31 +72,53 @@ export default function ServicosHubPage() {
         </div>
       </section>
 
-      {/* ── SERVICES GRID ── */}
-      {SERVICES.map(service => (
-        <section key={service.slug} className="py-12 md:py-16 even:bg-white">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3 mb-6">
-              <span className="text-3xl">{service.icon}</span>
-              <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark">
-                {service.name}
-              </h2>
-            </div>
-            <p className="text-text-muted mb-8 max-w-2xl">{service.heroSubtitle.replace(/\{city\}/g, 'a sua zona')}</p>
-
-            {/* Phase 4 SEO PT (plan 3.5) : le hub de section lie les 21 hubs métier, pas les 462 pages métier x ville. */}
-            <Link
-              href={`/pt/perto-de-mim/${service.slug}/`}
-              className="inline-flex items-center gap-3 p-4 bg-white rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
-            >
-              <span className="text-lg">{service.icon}</span>
-              <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">
-                {service.name}: escolher o concelho ({CITIES.length})
-              </span>
-            </Link>
+      {/* ── PAGES DE DISTRICT (gel A0 levé le 20/10/2026 pour trois services) ── */}
+      <section className="py-12 md:py-16 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark mb-3">Serviços da equipa VITFIX no distrito do Porto</h2>
+          <p className="text-text-muted mb-6 max-w-2xl">Trabalhos feitos pela própria equipa VITFIX, a partir de Marco de Canaveses.</p>
+          <div className="flex flex-wrap gap-3">
+            {SERVICOS_DISTRITO.map(s => (
+              <Link
+                key={s.slug}
+                href={`/pt/servicos/${s.slug}/`}
+                className="inline-flex items-center gap-3 p-4 bg-warm-gray rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
+              >
+                <span className="text-lg">{s.icon}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">{s.titulo}</span>
+              </Link>
+            ))}
           </div>
-        </section>
-      ))}
+        </div>
+      </section>
+
+      {/* ── SERVICES GRID ── (enveloppée : la section de district ne décale pas l'alternance even:) */}
+      <div>
+        {SERVICES.map(service => (
+          <section key={service.slug} className="py-12 md:py-16 even:bg-white">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="text-3xl">{service.icon}</span>
+                <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight text-dark">
+                  {service.name}
+                </h2>
+              </div>
+              <p className="text-text-muted mb-8 max-w-2xl">{service.heroSubtitle.replace(/\{city\}/g, 'a sua zona')}</p>
+
+              {/* Phase 4 SEO PT (plan 3.5) : le hub de section lie les 21 hubs métier, pas les 462 pages métier x ville. */}
+              <Link
+                href={`/pt/perto-de-mim/${service.slug}/`}
+                className="inline-flex items-center gap-3 p-4 bg-white rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
+              >
+                <span className="text-lg">{service.icon}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">
+                  {service.name}: escolher o concelho ({CITIES.length})
+                </span>
+              </Link>
+            </div>
+          </section>
+        ))}
+      </div>
 
       {/* ── URGENCY SECTION ── */}
       <section className="py-14 md:py-18 bg-white">

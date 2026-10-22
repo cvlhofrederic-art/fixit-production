@@ -12,6 +12,7 @@ import { NextRequest } from 'next/server'
 import { CITIES, SERVICES } from '@/lib/data/seo-pages-data'
 import { METIERS_PT_SLUGS, CIDADES_PT_SLUGS } from '@/lib/seo/pt-grelha'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
+import { SERVICOS_DISTRITO, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
 import { lireCsv } from '../../scripts/seo/pt-audit/lib/csv.mjs'
 
@@ -57,11 +58,11 @@ describe('destinoConsolidado (lib/seo/pt-consolidacao.ts)', () => {
   // Délais et disponibilités (« 24h », « no próprio dia », « em 24 horas ») : confirmés réels par le
   // propriétaire le 13/10/2026 au soir (journal), donc conservés dans les textes d'urgence ; aucun garde-fou.
 
-  it('les 21 hubs métier, les hubs de section et les 554 URL du sitemap ne sont pas redirigés', () => {
+  it('les 21 hubs métier, les hubs de section et les URL du sitemap (554 + pages de district) ne sont pas redirigés', () => {
     for (const s of SERVICES) expect(destinoConsolidado(`/pt/perto-de-mim/${s.slug}/`)).toBeNull()
     for (const chemin of ['/pt/perto-de-mim/', '/pt/urgencia/', '/pt/servicos/', '/pt/', '/fr/urgence/plombier-marseille/']) expect(destinoConsolidado(chemin)).toBeNull()
     const sitemap = getAllPtSitemapUrls('').map((u) => u.url)
-    expect(sitemap).toHaveLength(554)
+    expect(sitemap).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length)
     expect(sitemap.filter((u) => destinoConsolidado(u) !== null)).toEqual([])
   })
 
