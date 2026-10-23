@@ -3,8 +3,8 @@
 -- (migration 20261023_garde_profiles_artisan.sql) — à lancer dans Supabase > SQL Editor.
 --
 -- Partie 1 : lecture seule, AVANT la migration (état réel de la production).
--- Partie 2 : APRÈS la migration ; tout se passe dans une transaction annulée
---            (rollback), aucune ligne n'est modifiée.
+-- Partie 2 : APRÈS la migration ; un seul bloc qui finit par une erreur volontaire « BILAN »,
+--            donc entièrement annulé : aucune ligne n'est modifiée.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 
@@ -69,76 +69,76 @@ select json_build_object(
 ) as etat;
 
 
--- ── Partie 2 · test du garde (après la migration, transaction annulée) ───────
--- Simule une session artisan (rôle authenticated, sub = user_id d'une fiche active : la seule
--- policy SELECT de production ne montre que les fiches actives, et un UPDATE … WHERE doit
--- voir la ligne). Attendu dans « Messages » : cinq lignes « OK ». Toute autre issue lève une erreur.
+-- ── Partie 2 · test du garde (après la migration, rien n'est conservé) ────────
+-- Un seul bloc : il prend une fiche active dont le user_id n'a qu'une fiche (user_id n'est pas
+-- unique en production ; la seule policy SELECT ne montre que les fiches actives, et un
+-- UPDATE … WHERE doit voir la ligne), simule la session de cet artisan (rôle authenticated,
+-- request.jwt.claims), change réellement chaque valeur testée, puis se termine TOUJOURS par
+-- une erreur volontaire : Postgres annule alors tout le bloc, quoi qu'il arrive, et l'éditeur
+-- affiche le message à coup sûr (les RAISE NOTICE n'y sont pas toujours visibles).
+-- Attendu : « ERROR: P0001: BILAN (tout est annulé) : A ok … | B ok … | C ok … | D ok … | E ok … ».
+-- Un « ÉCHEC … » ou toute autre erreur signale un problème (rien n'est conservé non plus).
 
-begin;
-
-select set_config(
-  'request.jwt.claims',
-  json_build_object('sub', f.user_id, 'role', 'authenticated')::text,
-  true
-)
-from (select user_id from public.profiles_artisan where user_id is not null and active = true limit 1) as f;
-
-set local role authenticated;
-
+-- 2. Test
 do $$
 declare
+  cible uuid;
   lignes int;
+  bilan text[] := '{}';
 begin
+  select f.user_id into cible
+  from public.profiles_artisan f
+  where f.user_id is not null and f.active = true
+    and (select count(*) from public.profiles_artisan g where g.user_id = f.user_id) = 1
+  limit 1;
+  if cible is null then
+    raise exception 'ÉCHEC : aucune fiche active à user_id unique pour le test';
+  end if;
+
+  perform set_config('request.jwt.claims', json_build_object('sub', cible, 'role', 'authenticated')::text, true);
+  set local role authenticated;
+
   -- A. Colonne autorisée (écrite par le tableau de bord) : la mise à jour passe.
   update public.profiles_artisan set last_seen_at = now() where user_id = auth.uid();
   get diagnostics lignes = row_count;
   if lignes <> 1 then
     raise exception 'ÉCHEC A : % ligne(s) mise(s) à jour au lieu de 1', lignes;
   end if;
-  raise notice 'OK A : last_seen_at modifiable par l''artisan';
+  bilan := bilan || 'A ok : last_seen_at modifiable'::text;
 
   -- B. verified : refusé.
   begin
     update public.profiles_artisan set verified = not coalesce(verified, false) where user_id = auth.uid();
     raise exception 'ÉCHEC B : verified modifié par une session artisan';
   exception when insufficient_privilege then
-    raise notice 'OK B : %', sqlerrm;
+    bilan := bilan || ('B ok : ' || sqlerrm);
   end;
 
-  -- C. rating_avg : refusé.
+  -- C. rating_avg : refusé (la nouvelle valeur diffère toujours de l'ancienne).
   begin
-    update public.profiles_artisan set rating_avg = 5 where user_id = auth.uid() and rating_avg is distinct from 5;
-    get diagnostics lignes = row_count;
-    if lignes > 0 then
-      raise exception 'ÉCHEC C : rating_avg modifié par une session artisan';
-    end if;
-    raise notice 'OK C : rating_avg déjà à 5, rien à refuser (relancer avec une autre fiche)';
+    update public.profiles_artisan set rating_avg = case when rating_avg = 5 then 4 else 5 end where user_id = auth.uid();
+    raise exception 'ÉCHEC C : rating_avg modifié par une session artisan';
   exception when insufficient_privilege then
-    raise notice 'OK C : %', sqlerrm;
+    bilan := bilan || ('C ok : ' || sqlerrm);
   end;
 
-  -- D. subscription_tier (accès artisan_pro aux marchés) : refusé.
+  -- D. subscription_tier (free / pro en production) : refusé.
   begin
-    update public.profiles_artisan set subscription_tier = 'artisan_pro'
-    where user_id = auth.uid() and subscription_tier is distinct from 'artisan_pro';
-    get diagnostics lignes = row_count;
-    if lignes > 0 then
-      raise exception 'ÉCHEC D : subscription_tier modifié par une session artisan';
-    end if;
-    raise notice 'OK D : fiche déjà artisan_pro, rien à refuser (relancer avec une autre fiche)';
+    update public.profiles_artisan set subscription_tier = case when subscription_tier = 'pro' then 'free' else 'pro' end
+    where user_id = auth.uid();
+    raise exception 'ÉCHEC D : subscription_tier modifié par une session artisan';
   exception when insufficient_privilege then
-    raise notice 'OK D : %', sqlerrm;
+    bilan := bilan || ('D ok : ' || sqlerrm);
   end;
 
   -- E. Création directe d'une fiche : refusée.
   begin
-    insert into public.profiles_artisan (user_id, company_name, verified)
-    values (auth.uid(), 'Test garde', true);
+    insert into public.profiles_artisan (user_id, company_name, verified) values (auth.uid(), 'Test garde', true);
     raise exception 'ÉCHEC E : fiche créée par une session navigateur';
   exception when insufficient_privilege then
-    raise notice 'OK E : %', sqlerrm;
+    bilan := bilan || ('E ok : ' || sqlerrm);
   end;
+
+  raise exception 'BILAN (tout est annulé) : %', array_to_string(bilan, ' | ');
 end
 $$;
-
-rollback;
