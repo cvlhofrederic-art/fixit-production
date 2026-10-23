@@ -25,9 +25,10 @@ import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/se
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { sitemapsPt, getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { DATA_LIGACOES_DISTRITO } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA } from '@/lib/seo/pt-datas'
 import { precosPara, prazoDistritoPara, dataIsoValida } from '@/lib/seo/pt-provas-locais'
 import { chantiersExibidosDistrito, dataModificacaoDistrito, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 import { dataLigacoesConcelho } from '@/lib/sitemap-pt-pages'
 import provas from '@/data/seo/local-proof.json'
 import { classer, SERVICOS_DISTRITO_SLUGS } from '../../scripts/seo/pt-audit/lib/classer.mjs'
@@ -236,15 +237,19 @@ describe('sitemap et maillage', () => {
     }
     // Les pages qui reçoivent le lien portent la même date (Google : un changement de liens est significatif).
     const date = (chemin: string) => Object.values(groupes).flat().find((u) => u.url === `${BASE}${chemin}`)?.lastModified
-    for (const chemin of ['/pt/servicos/', '/pt/mapa-do-site/', '/pt/perto-de-mim/telhador/', '/pt/perto-de-mim/impermeabilizacao/']) {
+    for (const chemin of ['/pt/servicos/', '/pt/perto-de-mim/telhador/', '/pt/perto-de-mim/impermeabilizacao/']) {
       expect(date(chemin), chemin).toBe(DATA_LIGACOES_DISTRITO)
     }
+    // Le plan du site lie aussi les pages de service d'Águeda : la plus récente des deux dates, jamais une date antérieure.
+    expect(date('/pt/mapa-do-site/')! >= DATA_LIGACOES_DISTRITO).toBe(true)
+    expect(date('/pt/mapa-do-site/')! >= DATA_PAGINAS_AGUEDA).toBe(true)
     expect(date('/pt/servicos/telhador-porto/')).toBe(dataLigacoesConcelho('porto', ['limpeza-de-telhados']))
     expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(dataLigacoesConcelho('baiao', ['limpeza-de-telhados']))
     for (const chemin of ['/pt/perto-de-mim/eletricista/', '/pt/servicos/telhador-braga/', '/pt/servicos/canalizador-porto/']) {
       expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_DISTRITO)
     }
-    expect(getAllPtSitemapUrls(BASE)).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length)
+    // Plus les pages de service du concelho d'Águeda (lib/data/pt-servicos-concelho.ts), même fichier servicos.
+    expect(getAllPtSitemapUrls(BASE)).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length + SERVICOS_CONCELHO.length)
   })
 
   it('liée depuis /pt/servicos/ et le plan du site (profondeur 2 depuis /pt/)', async () => {

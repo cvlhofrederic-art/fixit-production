@@ -212,7 +212,7 @@ async function principal() {
   // T5
   if (veut('T5')) {
     const details = []
-    const GRILLE = new Set(['servicos', 'servicos-distrito', 'servicos-distrito-concelho', 'urgencia', 'perto-de-mim', 'cidade', 'perto-de-mim-hub'])
+    const GRILLE = new Set(['servicos', 'servicos-distrito', 'servicos-distrito-concelho', 'servicos-concelho', 'urgencia', 'perto-de-mim', 'cidade', 'perto-de-mim-hub'])
     const SEDE_LOCALIDADE = 'marco de canaveses' // addressLocality du siège (lib/seo/entite-pt.ts)
     for (const p of echantillon) {
       const noeuds = (p.jsonld && p.jsonld.noeuds) || []
@@ -226,7 +226,7 @@ async function principal() {
       if (GRILLE.has(p.groupe) && parVille.length) details.push(p.chemin + ' : nœud entreprise par ville (' + parVille.map((n) => n.type).join(', ') + ')')
       const siege = entreprises.filter((n) => n.address)
       if (siege.length !== 1) details.push(p.chemin + ' : ' + siege.length + ' nœud(s) entreprise avec address (attendu 1)')
-      if (['servicos', 'servicos-distrito', 'servicos-distrito-concelho', 'urgencia', 'perto-de-mim'].includes(p.groupe)) {
+      if (['servicos', 'servicos-distrito', 'servicos-distrito-concelho', 'servicos-concelho', 'urgencia', 'perto-de-mim'].includes(p.groupe)) {
         const service = noeuds.find((n) => /^Service$/.test(n.type))
         if (!service) details.push(p.chemin + ' : nœud Service absent')
         else if (!service.provider || !service.areaServed) details.push(p.chemin + ' : Service sans provider ou areaServed')
@@ -270,7 +270,7 @@ async function principal() {
     const chemins = new Set(pages.map((p) => p.chemin))
     for (const ville of pages.filter((p) => p.groupe === 'cidade' && p.statut_http === 200)) {
       const liens = new Set(ville.liens_internes_distincts || [])
-      const attendues = [...chemins].filter((c) => classer(c).groupe === 'servicos' && classer(c).ville === ville.ville)
+      const attendues = [...chemins].filter((c) => ['servicos', 'servicos-concelho'].includes(classer(c).groupe) && classer(c).ville === ville.ville)
       const manquantes = attendues.filter((c) => !liens.has(c))
       if (manquantes.length) details.push(ville.chemin + ' : ' + manquantes.length + '/' + attendues.length + ' pages métier de la ville non liées (ex. ' + manquantes.slice(0, 2).join(', ') + ')')
     }

@@ -10,6 +10,16 @@ export interface NotableFreguesia {
 
 export interface ServiceCityOverride {
   intro?: string
+  /** Sections propres au métier dans cette ville (faits locaux vérifiés, sources), rendues après « Problemas que resolvemos ». */
+  secoes?: { titulo: string; paragrafos: string[] }[]
+  /** Sources des sections locales, rendues sous elles. */
+  fontes?: { nome: string; url: string }[]
+  /** Réponses propres à cette ville, par question de la FAQ du métier (faits confirmés localement). */
+  respostas?: Record<string, string>
+  /** Travaux faits par l'équipe VITFIX elle-même : « Equipa VITFIX » et boutons WhatsApp / téléphone au lieu de « profissionais verificados » et de /pt/pesquisar/. */
+  equipaPropria?: boolean
+  /** Liste de prestations propre à cette ville (remplace `features` du métier) : seulement les prestations confirmées. */
+  features?: string[]
 }
 
 export interface CityData {
@@ -684,10 +694,12 @@ export const CITIES: CityData[] = [
     slug: 'agueda',
     name: 'Águeda',
     distrito: 'Aveiro',
-    population: 46131,
+    population: 46119,
     lat: 40.5747,
     lng: -8.4404,
-    freguesias: ['Águeda e Borralha', 'Aguada de Cima', 'Belazaima do Chão, Castanheira do Vouga e Agadão', 'Fermentelos', 'Macinhata do Vouga', 'Préstimo e Macieira de Alcoba', 'Recardães e Espinhel', 'Trofa, Segadães e Lamas do Vouga', 'Travassô e Óis da Ribeira', 'Aguada de Baixo', 'Barrô', 'Valongo do Vouga'],
+    // 15 freguesias depuis les autárquicas d'octobre 2025 (Lei n.º 25-A/2025 : Águeda e Borralha, Barrô e Aguada de Baixo
+    // et Belazaima do Chão, Castanheira do Vouga e Agadão séparées) ; liste de la Câmara (cm-agueda.pt, 14/10/2026).
+    freguesias: ['Águeda', 'Borralha', 'Aguada de Cima', 'Fermentelos', 'Macinhata do Vouga', 'Recardães e Espinhel', 'Valongo do Vouga', 'Trofa, Segadães e Lamas do Vouga', 'Travassô e Óis da Ribeira', 'Aguada de Baixo', 'Barrô', 'Belazaima do Chão', 'Castanheira do Vouga', 'Agadão', 'Préstimo e Macieira de Alcoba'],
     nearby: ['aveiro', 'ovar', 'vila-nova-de-gaia'],
     specialty: 'Cidade industrial reconhecida como capital portuguesa das duas rodas, conhecida pelos festivais que enchem as ruas de cor (AgitÁgueda) e pelo icónico Umbrella Sky Project que cobre as ruas com guarda-chuvas em tons vivos. Localizada no Vale do Vouga.',
     climateChallenges: [
@@ -697,7 +709,7 @@ export const CITIES: CityData[] = [
       'Festivais de verão com afluxo de público que aumentam a necessidade de obras de manutenção rápidas em estabelecimentos comerciais',
     ],
     notableFreguesias: [
-      { name: 'Águeda e Borralha', context: 'Sede do município com forte densidade urbana, restauro frequente em edifícios históricos do centro e iluminação pública especial.' },
+      { name: 'Águeda', context: 'Sede do município com forte densidade urbana, restauro frequente em edifícios históricos do centro e iluminação pública especial.' },
       { name: 'Fermentelos', context: 'Junto à maior lagoa natural da Península Ibérica, requer canalização adaptada à proximidade da água.' },
       { name: 'Recardães e Espinhel', context: 'Zona de habitação e indústria ligeira, procura de eletricistas para pequenas oficinas e moradias.' },
     ],
@@ -718,6 +730,73 @@ export const CITIES: CityData[] = [
       },
       'pintor': {
         intro: 'Pintores em Águeda especializados em pintura interior anti-humidade, fachadas com tinta microporosa e restauro de edifícios do centro histórico. Tintas adequadas à variação climática do Vale do Vouga.',
+      },
+      // Contenu local (21/10/2026) : faits confirmés par le propriétaire (équipe VITFIX, abattage par sections avec des
+      // cordistes IRATA sans grue, évacuation des résidus, giratória) ; règles avec leurs sources (fontes), relues par un
+      // agent indépendant le même jour. `respostas` remplace, pour Águeda seulement, deux réponses de la FAQ du métier
+      // (plateforme et fresadora non confirmées ici).
+      'poda-arvores': {
+        // Décision du propriétaire du 22/10/2026 (cette page seulement) : présentée comme le travail de son équipe, avec son numéro.
+        equipaPropria: true,
+        // Prestations confirmées (21-22/10/2026) ; « plataforma », « tratamento fitossanitário » et « relatório técnico para câmara »,
+        // non confirmés, ne sont pas repris ici (règle 0.2).
+        features: [
+          'Poda de formação e manutenção',
+          'Abate controlado de árvores',
+          'Abate por partes com acesso por corda (IRATA), sem grua',
+          'Desramação e desbaste para as faixas de gestão de combustível',
+          'Árvores caídas ou partidas depois de uma tempestade',
+          'Remoção de cepos e raízes com giratória',
+          'Retirada de ramos e troncos, sem queimas',
+        ],
+        intro: 'Poda e abate de árvores em todo o concelho de Águeda pela equipa VITFIX: eucaliptos e pinheiros junto às casas, árvores a desramar ou a desbastar para as faixas de gestão de combustível, árvores caídas ou partidas depois de uma tempestade. Ramos e troncos são retirados do terreno.',
+        secoes: [
+          {
+            titulo: 'Abate por partes, sem grua',
+            paragrafos: [
+              'Quando a árvore está junto a uma casa, a um muro, a um telhado ou a um caminho, e não há espaço para a deixar cair inteira, abatemo-la por partes: técnicos de acesso por corda certificados IRATA sobem à árvore, cortam a copa e o tronco em secções e descem cada peça presa por corda.',
+              'O método dispensa a grua, que muitas vezes não chega aos quintais murados e às encostas do concelho. Para as árvores com espaço livre à volta, o abate faz-se a partir do chão, com motosserra.',
+            ],
+          },
+          {
+            titulo: 'Faixas de gestão de combustível à volta da casa',
+            paragrafos: [
+              'À volta das casas em espaço rural, o regulamento do ICNF de 2026 (Despacho n.º 675/2026) exige que as copas das árvores fiquem a pelo menos 5 metros das paredes, sem se projetarem sobre o telhado, e que os troncos sejam desramados até metade da altura nas árvores até 8 metros e até pelo menos 4 metros do chão nas mais altas.',
+              'Com o eucalipto a dominar a floresta do concelho, cumprir esta faixa passa muitas vezes por abater, desbastar ou desramar eucaliptos e pinheiros junto à casa; o mato da mesma faixa limpa-se com trator ou roçadoras.',
+            ],
+          },
+          {
+            titulo: 'Antes de cortar: o que a lei pede',
+            paragrafos: [
+              'Sobreiros e azinheiras: cortar ou arrancar precisa de autorização do ICNF (Decreto-Lei n.º 169/2001).',
+              'Pinheiros e outras coníferas hospedeiras do nemátodo da madeira do pinheiro (abetos, cedros, larícios, píceas, pseudotsugas e tsugas): todo o continente é zona de restrição, por isso abatê-los, desramá-los ou transportá-los, verdes ou secos, exige antes o manifesto de abate (MADC) na plataforma do ICNF.',
+              'Eucaliptos: o corte não precisa de autorização do ICNF, mas a madeira para venda exige o manifesto de corte e, desde a Lei n.º 18/2026, autorização prévia do ICNF nas áreas classificadas, como as zonas da Rede Natura 2000 junto à Pateira de Fermentelos e ao rio Vouga, e nos perímetros florestais. Replantar eucalipto só é permitido onde já havia eucaliptal.',
+              'Árvores perto de linhas elétricas: a faixa por baixo das linhas cabe ao operador da rede (E-REDES; REN na muito alta tensão). Se uma árvore se aproxima de uma linha, comunique-o à E-REDES (Balcão Digital ou linha de avarias 800 506 506) antes de cortar; a E-REDES recomenda manter sempre uma distância de segurança superior a 5 metros das linhas.',
+              'Árvores do domínio municipal e espécies classificadas, protegidas ou de interesse municipal: em Águeda, intervir nelas exige autorização prévia da Câmara Municipal (Código Regulamentar, parte B2), e um pedido de abate nunca se considera aprovado por falta de resposta.',
+              'Construção: derrubar árvores de alto porte ou em maciço para construir, ou para dar ao terreno um uso que não seja só agrícola, pecuário, florestal ou mineiro, é um trabalho de remodelação de terrenos e precisa de licença da câmara, ou de comunicação prévia num loteamento ou plano de pormenor que já o preveja. Fora destes casos, numa árvore comum de um terreno privado não há autorização municipal a pedir.',
+            ],
+          },
+          {
+            titulo: 'Depois do abate',
+            paragrafos: [
+              'Ramos e troncos são carregados e levados do terreno, em camião ou no reboque do trator: não fazemos queimas. Quando o terreno vai ser limpo ou preparado para outra utilização, os cepos e as raízes podem ser arrancados com a giratória.',
+            ],
+          },
+        ],
+        fontes: [
+          { nome: 'Despacho n.º 675/2026 (regulamento do ICNF, critérios de gestão de combustível)', url: 'https://diariodarepublica.pt/dr/detalhe/despacho/675-2026-1016754080' },
+          { nome: 'ICNF: pedido de autorização para corte ou arranque de sobreiros e azinheiras', url: 'https://www.icnf.pt/api/file/doc/2cfec17106bb518c' },
+          { nome: 'ICNF: perguntas frequentes sobre o manifesto de abate de coníferas (Decreto-Lei n.º 123/2015)', url: 'https://fogos.icnf.pt/manifesto/docsreferencia/FAQs_Dec-LEI_123_2015_dez2024_.pdf' },
+          { nome: 'Lei n.º 18/2026 (autorização prévia de corte em áreas classificadas)', url: 'https://files.diariodarepublica.pt/1s/2026/05/08600/0000500012.pdf' },
+          { nome: 'E-REDES: prevenir riscos elétricos no corte de árvores', url: 'https://www.e-redes.pt/pt-pt/prevenir-riscos-eletricos-corte-de-arvores' },
+          { nome: 'Câmara Municipal de Águeda: Código Regulamentar (versão consolidada)', url: 'https://www.cm-agueda.pt/cmagueda/uploads/document/file/6576/codigo_regulamentar___versao_consolidada_12_a_alteracao.pdf' },
+          { nome: 'Regime Jurídico da Urbanização e Edificação (texto consolidado, PGDL)', url: 'https://www.pgdlisboa.pt/leis/lei_mostra_articulado.php?nid=625&tabela=leis' },
+        ],
+        respostas: {
+          'Preciso de autorização para cortar uma árvore?': 'Depende da espécie, do local e do que vai ser feito ao terreno: as regras que se aplicam em Águeda estão acima, em «Antes de cortar: o que a lei pede».',
+          'Fazem poda em altura?': 'Sim. Em altura e junto às casas, o trabalho é feito por técnicos de acesso por corda certificados IRATA, sem grua.',
+          'Removem o cepo da árvore?': 'Sim: os cepos e as raízes podem ser arrancados com a giratória, e o terreno fica pronto para outra utilização.',
+        },
       },
     },
   },
@@ -2144,7 +2223,9 @@ export const SERVICES: ServiceData[] = [
       'Limpeza florestal',
     ],
     faqs: [
-      { question: 'Preciso de autorização para cortar uma árvore?', answer: 'Sim, em Portugal o abate de árvores requer autorização da câmara municipal. Sobreiros e azinheiras têm proteção especial (ICNF). Os nossos profissionais tratam da burocracia.' },
+      // Corrigé le 21/10/2026 : il n'existe pas d'autorisation municipale générale pour abattre un arbre privé (DL 169/2001,
+      // DL 123/2015, Lei 53/2012, Lei 59/2021) ; « os nossos profissionais tratam da burocracia » n'était pas confirmé.
+      { question: 'Preciso de autorização para cortar uma árvore?', answer: 'Depende da árvore e do local. Sobreiros e azinheiras precisam de autorização do ICNF. Para abater, desramar ou transportar pinheiros e outras coníferas hospedeiras do nemátodo da madeira do pinheiro é obrigatório o manifesto de abate (MADC) na plataforma do ICNF. Árvores classificadas de interesse público, árvores do domínio municipal e espécies protegidas também precisam de autorização, e algumas câmaras têm regras próprias. Derrubar árvores de alto porte ou em maciço para construir, ou para dar ao terreno um uso que não seja só agrícola, pecuário, florestal ou mineiro, precisa de licença da câmara (ou de comunicação prévia num loteamento ou plano de pormenor que já o preveja). Fora destes casos, numa árvore comum de um terreno privado não há em regra autorização a pedir: na dúvida, confirme com a câmara do concelho.' },
       { question: 'Quanto custa podar uma árvore?', answer: 'A poda de uma árvore de porte médio custa entre 80€ e 300€. O abate completo com remoção de cepo varia entre 200€ e 1.500€ dependendo do tamanho e acessibilidade.' },
       { question: 'Fazem poda em altura?', answer: 'Sim, os nossos profissionais fazem poda em altura com equipamento adequado: plataforma elevatória, trepadeira e arnês de segurança.' },
       { question: 'Removem o cepo da árvore?', answer: 'Sim, fazemos remoção de cepos com fresadora de cepos ou escavação manual. O terreno fica pronto para nova plantação ou pavimentação.' },
