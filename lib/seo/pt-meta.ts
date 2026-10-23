@@ -253,6 +253,13 @@ export function descricaoConcelhoDistrito(pagina: { servico: { nome: string }; c
   ])
 }
 
+// Pages d'un service pour un concelho qui forme toute sa zone (lib/data/pt-servicos-concelho.ts, Águeda, demande du
+// propriétaire du 21/10/2026) : titre rédigé, sans « 24h » ni « preço » (service planifié, aucun prix publié),
+// description = résumé des prestations confirmées puis la phrase de contact la plus longue qui tient. Même règle que les
+// pages de district : des alias, pas une copie.
+export const tituloServicoConcelho = tituloServicoDistrito
+export const descricaoServicoConcelho = descricaoServicoDistrito
+
 // Phase 2 SEO PT : plus de pages urgencia ni perto-de-mim métier x ville (308 vers servicos) ; les
 // hubs métier /pt/perto-de-mim/{metier}/ sont les seules pages « perto de mim » restantes.
 

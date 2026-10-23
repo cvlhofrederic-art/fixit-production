@@ -31,7 +31,8 @@ export const AVEIRO_CITY_SOURCES: CitySource[] = [
     name: 'Águeda',
     wikipediaPt: 'https://pt.wikipedia.org/wiki/%C3%81gueda',
     fetchedAt: '2026-05-07',
-    censusPopulation2021: 46131,
+    // Valeur définitive de l'INE (indicateur 0011609, Censos 2021) ; Wikipedia affichait 46 131 le 07/05/2026.
+    censusPopulation2021: 46119,
     coordinates: { lat: 40.5747, lng: -8.4404 },
     freguesiasCount: 15,
   },

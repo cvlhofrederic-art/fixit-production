@@ -349,7 +349,8 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow/15 flex items-center justify-center text-yellow text-sm font-bold group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div className="px-5 pb-5 text-[0.93rem] text-dark/80 leading-relaxed">
-                  {(service.faqs[0]?.answer || 'O custo varia conforme o tipo de serviço e a complexidade do trabalho. Na VITFIX, o orçamento é sempre gratuito e sem compromisso.').replace(/\{city\}/g, 'Portugal')}
+                  {/* La question de prix du métier, pas sa première question (poda-arvores et faz-tudo n'ouvrent pas sur le prix). */}
+                  {(service.faqs.find(f => /quanto custa/i.test(f.question))?.answer || 'O custo varia conforme o tipo de serviço e a complexidade do trabalho. Na VITFIX, o orçamento é sempre gratuito e sem compromisso.').replace(/\{city\}/g, 'Portugal')}
                 </div>
               </details>
             )}

@@ -16,10 +16,11 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO } from './seo/pt-datas'
+import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA } from './seo/pt-datas'
 import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
 import { SERVICOS_DISTRITO, servicosDistritoLigados, paginasConcelhoDistrito, dataModificacaoDistrito } from './data/pt-servicos-distrito'
+import { SERVICOS_CONCELHO, dataModificacaoConcelho } from './data/pt-servicos-concelho'
 
 export type GroupeSitemapPt = 'servicos' | 'hubs' | 'cidades' | 'blog' | 'paginas'
 
@@ -72,6 +73,24 @@ const PAGINAS_FASE_3 = new Set<string>([
 /** Pages statiques qui lient les pages de district (section de /pt/servicos/, entrée du plan du site). */
 const PAGINAS_LIGACOES_DISTRITO = new Set<string>(['/pt/servicos/', '/pt/mapa-do-site/'])
 
+/** Concelhos qui ont des pages de service propres (Águeda) : leurs pages métier x ville et leur page ville ont changé avec elles. */
+const CIDADES_PAGINAS_CONCELHO = new Set(SERVICOS_CONCELHO.map(s => s.cidade))
+
+/** Date d'une page métier x ville hors Águeda et hors liens de district : FAQ poda-arvores corrigée, sinon lot 1 ou groupe. */
+function dataMetier(metier: string, dataGrupo: string): string {
+  return metier === 'poda-arvores' ? DATA_CORRECOES_FAQ : dataLote1(metier, dataGrupo)
+}
+
+/** Hubs dont la réponse « Quanto custa… » a changé (DATA_CORRECOES_FAQ). */
+const HUBS_FAQ_CORRIGIDA = new Set(['poda-arvores', 'faz-tudo'])
+
+/** Date d'un hub métier : liens vers une page de district, sinon FAQ corrigée, sinon lot 1 ou date du groupe. */
+function dataHub(metier: string): string {
+  if (servicosDistritoLigados(metier).length) return DATA_LIGACOES_DISTRITO
+  if (HUBS_FAQ_CORRIGIDA.has(metier)) return DATA_CORRECOES_FAQ
+  return dataLote1(metier, DATAS_PT.hubs)
+}
+
 /** Lot 1 (phase 3) : date du lot 1 pour une page d'un métier d'urgence, sinon la date du groupe. */
 export function dataLote1(metier: string, dataGrupo: string): string {
   return METIERS_URGENCIA.has(metier) ? DATA_FASE_3_LOT_1 : dataGrupo
@@ -90,6 +109,27 @@ export function dataLigacoesConcelho(cidade: string, servicos?: string[]): strin
   return [DATA_LIGACOES_DISTRITO, ...aberturas].sort((a, b) => a.localeCompare(b)).at(-1) ?? DATA_LIGACOES_DISTRITO
 }
 
+/**
+ * Date d'une page métier x ville : celle des pages de service du concelho quand la ville en a (Águeda) ; la date des liens
+ * quand la page lie une page de district (même métier lié, même distrito) ; sinon correction poda-arvores, lot 1 ou groupe.
+ */
+function dataPaginaServico(metier: string, cidade: string, distrito: string): string {
+  if (CIDADES_PAGINAS_CONCELHO.has(cidade)) return DATA_PAGINAS_AGUEDA
+  const ligados = servicosDistritoLigados(metier, distrito)
+  return ligados.length ? dataLigacoesConcelho(cidade, ligados.map((s) => s.slug)) : dataMetier(metier, DATAS_PT.servicos)
+}
+
+/**
+ * Date d'une page statique : /pt/mapa-do-site/ lie les pages de district et celles d'Águeda (la plus récente des deux
+ * dates), /pt/servicos/ les pages de district ; sinon la phase qui l'a réécrite.
+ */
+function dataPaginaEstatica(path: string): string {
+  if (path === '/pt/mapa-do-site/') return [DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1) ?? DATA_LIGACOES_DISTRITO
+  if (PAGINAS_LIGACOES_DISTRITO.has(path)) return DATA_LIGACOES_DISTRITO
+  if (PAGINAS_FASE_3.has(path)) return DATA_FASE_3
+  return PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas
+}
+
 /** Sitemaps PT par groupe. */
 export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[]> {
   const url = (path: string, lastModified: string): SitemapUrl => ({ url: `${baseUrl}${path}`, lastModified })
@@ -97,25 +137,33 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
 
   // Lot 1 (phase 3) : les pages des métiers d'urgence (toutes depuis la décision du 14/10) changent de titre,
   // de description et d'en-tête et portent la date du lot 1 ; un métier retiré de la liste garderait la date du lot 0.
-  // Pages de district (lib/data/pt-servicos-distrito.ts) : même fichier que la grille, date propre à chaque page.
+  // Pages de district (lib/data/pt-servicos-distrito.ts) et pages de service d'un concelho (lib/data/pt-servicos-concelho.ts,
+  // Águeda) : même fichier que la grille, date propre à chaque page.
   const servicos = [
-    // Les pages métier x ville qui lient une page de district (même métier lié, même distrito) en prennent la date.
-    ...getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, servicosDistritoLigados(combo.service.slug, combo.city.distrito).length ? dataLigacoesConcelho(combo.city.slug, servicosDistritoLigados(combo.service.slug, combo.city.distrito).map((s) => s.slug)) : dataLote1(combo.service.slug, DATAS_PT.servicos))),
+    ...getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, dataPaginaServico(combo.service.slug, combo.city.slug, combo.city.distrito))),
     // Page de district : sa date, ou celle du dernier chantier ajouté ; pages concelho ouvertes par des chantiers réels.
     ...SERVICOS_DISTRITO.map(servico => url(`/pt/servicos/${servico.slug}/`, dataModificacaoDistrito(servico))),
     ...paginasConcelhoDistrito().map(pagina => url(`/pt/servicos/${pagina.slug}/`, pagina.dataModificacao)),
+    // Page de service d'un concelho : sa date, ou celle du dernier chantier publié.
+    ...SERVICOS_CONCELHO.map(servico => url(`/pt/servicos/${servico.slug}/`, dataModificacaoConcelho(servico))),
   ]
 
-  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, servicosDistritoLigados(service.slug).length ? DATA_LIGACOES_DISTRITO : dataLote1(service.slug, DATAS_PT.hubs)))
+  // Hubs telhador et impermeabilizacao : liens vers les pages de district ; hubs poda-arvores et faz-tudo : FAQ corrigée.
+  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, dataHub(service.slug)))
 
-  // Les pages ville d'un distrito qui a des services de district les lient (carte « Serviços disponíveis ») : même date.
-  const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, ligaDistrito(city.distrito) ? dataLigacoesConcelho(city.slug) : DATAS_PT.cidades))]
+  // La page ville d'un concelho qui a des pages de service propres (freguesias corrigées, section qui les lie) en prend la
+  // date ; les pages ville d'un distrito qui a des services de district les lient (carte « Serviços disponíveis ») : date des liens.
+  const dataCidade = (city: { slug: string; distrito: string }): string => {
+    if (CIDADES_PAGINAS_CONCELHO.has(city.slug)) return DATA_PAGINAS_AGUEDA
+    return ligaDistrito(city.distrito) ? dataLigacoesConcelho(city.slug) : DATAS_PT.cidades
+  }
+  const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, dataCidade(city)))]
 
   // Articles : date propre à chaque article (dateModified, sinon datePublished) ; l'index /pt/blog/ porte
   // la date de la phase 1 (title et description changés). Jamais une date unique pour tout le blog.
   const blog = [url('/pt/blog/', DATAS_PT.blog), ...BLOG_ARTICLES.map(article => url(`/pt/blog/${article.slug}/`, article.dateModified ?? article.datePublished))]
 
-  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, PAGINAS_LIGACOES_DISTRITO.has(path) ? DATA_LIGACOES_DISTRITO : PAGINAS_FASE_3.has(path) ? DATA_FASE_3 : PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas))
+  const paginas = PAGINAS_ESTATICAS_PT.map(path => url(path, dataPaginaEstatica(path)))
 
   return { servicos, hubs, cidades, blog, paginas }
 }

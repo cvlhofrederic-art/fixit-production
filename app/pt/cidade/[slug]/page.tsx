@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { SERVICOS_DISTRITO, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 import { PHONE_PT } from '@/lib/constants'
 import { tituloCidade, descricaoCidade, nomeDistrito, emConcelho } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
@@ -58,6 +59,8 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
   const nearbyCities = city.nearby
     .map(ns => CITIES.find(c => c.slug === ns))
     .filter((c): c is typeof CITIES[number] => !!c)
+  // Pages de service propres à ce concelho (lib/data/pt-servicos-concelho.ts) : liées depuis la page ville.
+  const servicosConcelho = SERVICOS_CONCELHO.filter(s => s.cidade === city.slug)
 
   // JSON-LD (phase 1 SEO PT) : WebPage + fil d'Ariane. Plus de LocalBusiness par ville
   // (aucun établissement dans la ville) : l'entité unique est le nœud #business du layout.
@@ -199,6 +202,35 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           </div>
         </div>
       </section>
+
+      {/* ── SERVIÇOS PRÓPRIOS DESTE CONCELHO (lib/data/pt-servicos-concelho.ts) ── */}
+      {servicosConcelho.length > 0 && (
+        <section className="pb-14 md:pb-18">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-tight mb-3">
+              Limpeza e preparação de terrenos em {city.name}
+            </h2>
+            <p className="text-text-muted mb-8 max-w-2xl">
+              Trabalhos feitos pela equipa VITFIX em todo o concelho de {city.name}.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {servicosConcelho.map(s => (
+                <Link
+                  key={s.slug}
+                  href={`/pt/servicos/${s.slug}/`}
+                  className="p-6 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-3xl">{s.icon}</span>
+                    <h3 className="font-display font-bold text-lg text-dark group-hover:text-yellow transition-colors">{s.h1}</h3>
+                  </div>
+                  <p className="text-text-muted text-sm leading-relaxed">{s.resumo}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── URGENCY SERVICES ── */}
       <section className="py-14 md:py-18 bg-white">
