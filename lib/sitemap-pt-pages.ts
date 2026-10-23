@@ -72,9 +72,13 @@ const PAGINAS_FASE_3 = new Set<string>([
 
 /**
  * Pages statiques modifiées après leur phase, avec leur propre date (prioritaire sur les ensembles ci-dessus) :
- * /pt/precos/pintor/, prix de façade retirés (décision du propriétaire du 23/10/2026).
+ * /pt/precos/pintor/, prix de façade retirés (décision du propriétaire du 23/10/2026), et /pt/precos/, dont la carte
+ * pintor suit le nombre de lignes du guide (9 → 8 services).
  */
-const PAGINAS_DATA_PROPRIA: Readonly<Record<string, string>> = { '/pt/precos/pintor/': DATA_PRECOS_PINTOR }
+const PAGINAS_DATA_PROPRIA: Readonly<Record<string, string>> = {
+  '/pt/precos/pintor/': DATA_PRECOS_PINTOR,
+  '/pt/precos/': DATA_PRECOS_PINTOR,
+}
 
 /** Pages statiques qui lient les pages de district (section de /pt/servicos/, entrée du plan du site). */
 const PAGINAS_LIGACOES_DISTRITO = new Set<string>(['/pt/servicos/', '/pt/mapa-do-site/'])

@@ -485,7 +485,7 @@ describe('1.1 sitemaps PT', () => {
     expect(BLOG_ARTICLES.find((a) => a.slug === 'fuga-agua-como-agir')?.dateModified).toBe('2026-10-13')
   })
 
-  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3 (sauf /pt/precos/pintor/, date propre), /pt/perto-de-mim/ en phase 2, les autres en phase 1', () => {
+  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3 (sauf /pt/precos/pintor/, date propre), /pt/perto-de-mim/ en phase 2, /pt/precos/ à la date de /pt/precos/pintor/, les autres en phase 1', () => {
     const paginas = sitemapsPt(BASE).paginas
     const dateDe = (path: string) => paginas.find((u) => u.url === `${BASE}${path}`)?.lastModified
     // Pages dont le contenu visible change dans le lot 0 ou la phase 4 (dont /pt/urgencia/ : délais rétablis).
@@ -499,10 +499,12 @@ describe('1.1 sitemaps PT', () => {
       expect(dateDe(path), path).toBe(DATA_FASE_3)
     }
     // /pt/precos/pintor/ : prix de façade retirés (décision du propriétaire du 23/10/2026), date propre, postérieure à la phase 3.
+    // /pt/precos/ : carte pintor passée de 9 à 8 services par la même décision, même date.
     expect(dateDe('/pt/precos/pintor/')).toBe(DATA_PRECOS_PINTOR)
+    expect(dateDe('/pt/precos/')).toBe(DATA_PRECOS_PINTOR)
     expect(DATA_PRECOS_PINTOR > DATA_FASE_3).toBe(true)
     expect(dateDe('/pt/perto-de-mim/')).toBe(DATA_FASE_2)
-    for (const path of ['/pt/pesquisar/', '/pt/avaliacoes/', '/pt/contacto/', '/pt/precos/']) expect(dateDe(path), path).toBe(DATA_FASE_1)
+    for (const path of ['/pt/pesquisar/', '/pt/avaliacoes/', '/pt/contacto/']) expect(dateDe(path), path).toBe(DATA_FASE_1)
     expect(DATA_FASE_3 > DATA_FASE_2).toBe(true)
   })
 

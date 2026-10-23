@@ -87,8 +87,10 @@ export const DATA_CORRECOES_FAQ = '2026-10-23'
 /**
  * Page /pt/precos/pintor/ : ligne « Pintura exterior fachada » et fourchette de façade du contexte régional retirées
  * (décision du propriétaire du 23/10/2026 : « Pas de prix, devis » pour la peinture et la rénovation de façade), phrase
- * qui renvoie à la page renovação de fachadas. Date propre à cette page seulement (les guides canalizador et eletricista
- * gardent DATA_FASE_3). À aligner sur le jour de la mise en production, et à consigner dans docs/seo/journal-pt.md.
+ * qui renvoie à la page renovação de fachadas. Vaut aussi pour le hub /pt/precos/, dont la carte pintor passe de 9 à 8
+ * services (conséquence directe de la même décision). Date propre à ces deux pages seulement (les guides canalizador et
+ * eletricista gardent DATA_FASE_3). À aligner sur le jour de la mise en production, et à consigner dans
+ * docs/seo/journal-pt.md.
  */
 export const DATA_PRECOS_PINTOR = '2026-10-23'
 
