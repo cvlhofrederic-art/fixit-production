@@ -9,7 +9,7 @@ export const METIERS_PERTO = [...METIERS, 'picheleiro']
 
 // Pages de service à l'échelle du district (lib/data/pt-servicos-distrito.ts, gel A0 levé le 20/10/2026) :
 // /pt/servicos/{slug}/ sans ville. Liste tenue égale aux données par tests/seo/pt-servicos-distrito.test.tsx.
-export const SERVICOS_DISTRITO_SLUGS = ['limpeza-de-telhados']
+export const SERVICOS_DISTRITO_SLUGS = ['limpeza-de-telhados', 'renovacao-de-fachadas', 'trabalhos-verticais']
 
 // Pages de service d'un concelho (lib/data/pt-servicos-concelho.ts, Águeda, 21/10/2026) : /pt/servicos/{slug}/ hors
 // grille, slug -> concelho. Table tenue égale aux données par tests/seo/pt-servicos-concelho.test.tsx.

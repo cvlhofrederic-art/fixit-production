@@ -38,17 +38,37 @@ export const DATA_FASE_3_LOT_1 = '2026-10-14'
  * Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : date du CONTENU de la page
  * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai). À avancer au jour de la mise en
  * production de toute modification de ce contenu (y compris un prix ou un délai de data/seo/local-proof.json), et à
- * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date.
+ * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date, et les cartes de
+ * liens de la page de district aussi (champ `dataModificacaoLigacoes` du service) : le gabarit des pages concelho ne les
+ * affiche pas, leur ajout ne change donc que le lastmod de la page de district. Les deux cartes vers renovação de fachadas
+ * et trabalhos verticais (23/10/2026) portent DATA_LIGACOES_FACHADAS_TV.
  */
 export const DATA_PAGINAS_DISTRITO = '2026-10-22'
 
 /**
- * Date d'ajout des LIENS vers les pages de district : pages telhador et impermeabilizacao des 18 concelhos du distrito
- * do Porto, leurs deux hubs, les 18 pages ville du distrito, /pt/servicos/ et /pt/mapa-do-site/. Une page qui lie une page
- * concelho prend en plus la date d'ouverture de celle-ci (lib/sitemap-pt-pages.ts, dataLigacoesConcelho). À aligner sur
- * le jour de la mise en production.
+ * Date d'ajout des LIENS vers la page limpeza de telhados : pages telhador et impermeabilizacao des 18 concelhos du
+ * distrito do Porto, leurs deux hubs, les 18 pages ville du distrito, /pt/servicos/ et /pt/mapa-do-site/. Chaque page de
+ * district a sa propre date de liens (champ `dataLigacoes`) : une page qui en lie plusieurs prend la plus récente, et une
+ * page qui lie une page concelho prend en plus la date d'ouverture de celle-ci (lib/sitemap-pt-pages.ts,
+ * dataLigacoesConcelho). Mise en production le 22/10/2026 (PR #529).
  */
 export const DATA_LIGACOES_DISTRITO = '2026-10-22'
+
+/**
+ * Pages de district renovação de fachadas et trabalhos verticais (gel A0 levé le 20/10/2026, faits confirmés par le
+ * propriétaire du 20 au 23/10/2026) : date du CONTENU des deux pages. Mise en production prévue le 23/10/2026 : à reporter
+ * au jour réel de la fusion, et à avancer à chaque modification de leur contenu.
+ */
+export const DATA_PAGINAS_FACHADAS_TV = '2026-10-23'
+
+/**
+ * Date d'ajout des LIENS vers renovação de fachadas et trabalhos verticais : pages pintor, impermeabilizacao, pedreiro,
+ * isolamento-termico et limpeza-condominio des 18 concelhos du distrito do Porto et leurs cinq hubs, les 18 pages ville du
+ * distrito, /pt/servicos/, /pt/mapa-do-site/ et la page limpeza de telhados (ses deux cartes de liens, champ
+ * `dataModificacaoLigacoes` : lastmod de la page de district seulement, pas de ses pages concelho). À aligner sur le jour
+ * de la mise en production.
+ */
+export const DATA_LIGACOES_FACHADAS_TV = '2026-10-23'
 
 /**
  * Pages de service du concelho d'Águeda (lib/data/pt-servicos-concelho.ts, demande du propriétaire du 21/10/2026) :
