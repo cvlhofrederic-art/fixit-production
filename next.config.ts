@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+// Chemin dédié à la configuration : l'import depuis « @sentry/nextjs » est déprécié depuis Sentry 10.73 et disparaît en v11.
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
@@ -8,6 +9,9 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 
 const nextConfig: NextConfig = {
   trailingSlash: true,
+  // Pas d'en-tête « x-powered-by: Next.js » : il annonce le framework sans rien apporter au visiteur. OpenNext lit la
+  // même option pour son propre « x-opennext: 1 » (@opennextjs/aws core/routing/util.js, addOpenNextHeader).
+  poweredByHeader: false,
   experimental: {
     optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js', 'date-fns', 'lucide-react', 'pdf-lib', 'zod'],
   },
