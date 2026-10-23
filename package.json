@@ -42,7 +42,7 @@
     "@capacitor/local-notifications": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
-    "@sentry/nextjs": "^10.56.0",
+    "@sentry/nextjs": "^10.75.2",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.95.3",
     "@upstash/ratelimit": "^2.0.8",
@@ -51,13 +51,13 @@
     "cron-parser": "^5.5.0",
     "date-fns": "^4.1.0",
     "dexie": "^4.4.6",
-    "dompurify": "^3.3.1",
+    "dompurify": "^3.4.17",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "langfuse": "^3.38.20",
     "lucide-react": "^0.563.0",
-    "next": "^16.3.8",
+    "next": "^16.4.2",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "5.4.296",
     "qrcode": "^1.5.4",
@@ -73,7 +73,7 @@
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.2.3",
-    "@opennextjs/cloudflare": "^1.20.8",
+    "@opennextjs/cloudflare": "^1.20.12",
     "@opentelemetry/instrumentation-lru-memoizer": "^0.57.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
@@ -97,7 +97,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11",
-    "wrangler": "^4.147.0"
+    "wrangler": "^4.149.0"
   },
   "overrides": {
     "uuid": "^14.0.0"
