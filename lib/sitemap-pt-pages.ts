@@ -16,7 +16,7 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA } from './seo/pt-datas'
+import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA, DATA_PRECOS_PINTOR } from './seo/pt-datas'
 import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
 import { SERVICOS_DISTRITO, servicosDistritoLigados, paginasConcelhoDistrito, dataModificacaoDistrito, dataLigacoesServicos } from './data/pt-servicos-distrito'
@@ -69,6 +69,12 @@ const PAGINAS_FASE_3 = new Set<string>([
   '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/',
   '/pt/precos/canalizador/', '/pt/precos/eletricista/', '/pt/precos/pintor/',
 ])
+
+/**
+ * Pages statiques modifiées après leur phase, avec leur propre date (prioritaire sur les ensembles ci-dessus) :
+ * /pt/precos/pintor/, prix de façade retirés (décision du propriétaire du 23/10/2026).
+ */
+const PAGINAS_DATA_PROPRIA: Readonly<Record<string, string>> = { '/pt/precos/pintor/': DATA_PRECOS_PINTOR }
 
 /** Pages statiques qui lient les pages de district (section de /pt/servicos/, entrée du plan du site). */
 const PAGINAS_LIGACOES_DISTRITO = new Set<string>(['/pt/servicos/', '/pt/mapa-do-site/'])
@@ -127,9 +133,12 @@ function dataPaginaServico(metier: string, cidade: string, distrito: string): st
 
 /**
  * Date d'une page statique : /pt/mapa-do-site/ lie les pages de district et celles d'Águeda (la plus récente des dates),
- * /pt/servicos/ les pages de district (date des liens de la plus récente) ; sinon la phase qui l'a réécrite.
+ * /pt/servicos/ les pages de district (date des liens de la plus récente) ; une page de PAGINAS_DATA_PROPRIA, sa date ;
+ * sinon la phase qui l'a réécrite.
  */
 function dataPaginaEstatica(path: string): string {
+  const propria = PAGINAS_DATA_PROPRIA[path]
+  if (propria) return propria
   const ligacoes = dataLigacoesServicos(SERVICOS_DISTRITO)
   if (path === '/pt/mapa-do-site/') return [ligacoes, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1) ?? ligacoes
   if (PAGINAS_LIGACOES_DISTRITO.has(path)) return ligacoes

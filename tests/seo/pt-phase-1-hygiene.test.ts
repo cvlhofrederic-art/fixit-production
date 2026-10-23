@@ -25,7 +25,7 @@ import {
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, dataLigacoesConcelho, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
-import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATAS_PT } from '@/lib/seo/pt-datas'
+import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATA_PRECOS_PINTOR, DATAS_PT } from '@/lib/seo/pt-datas'
 import { SERVICOS_DISTRITO, dataLigacoesServicos, servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
@@ -485,7 +485,7 @@ describe('1.1 sitemaps PT', () => {
     expect(BLOG_ARTICLES.find((a) => a.slug === 'fuga-agua-como-agir')?.dateModified).toBe('2026-10-13')
   })
 
-  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3, /pt/perto-de-mim/ en phase 2, les autres en phase 1', () => {
+  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3 (sauf /pt/precos/pintor/, date propre), /pt/perto-de-mim/ en phase 2, les autres en phase 1', () => {
     const paginas = sitemapsPt(BASE).paginas
     const dateDe = (path: string) => paginas.find((u) => u.url === `${BASE}${path}`)?.lastModified
     // Pages dont le contenu visible change dans le lot 0 ou la phase 4 (dont /pt/urgencia/ : délais rétablis).
@@ -495,9 +495,12 @@ describe('1.1 sitemaps PT', () => {
     expect(dateDe('/pt/servicos/')).toBe(ligacoes)
     // /pt/mapa-do-site/ lie aussi les pages d'Águeda (21/10/2026) : la plus récente des dates.
     expect(dateDe('/pt/mapa-do-site/')).toBe([ligacoes, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1))
-    for (const path of ['/pt/', '/pt/urgencia/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/pintor/']) {
+    for (const path of ['/pt/', '/pt/urgencia/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/canalizador/', '/pt/precos/eletricista/']) {
       expect(dateDe(path), path).toBe(DATA_FASE_3)
     }
+    // /pt/precos/pintor/ : prix de façade retirés (décision du propriétaire du 23/10/2026), date propre, postérieure à la phase 3.
+    expect(dateDe('/pt/precos/pintor/')).toBe(DATA_PRECOS_PINTOR)
+    expect(DATA_PRECOS_PINTOR > DATA_FASE_3).toBe(true)
     expect(dateDe('/pt/perto-de-mim/')).toBe(DATA_FASE_2)
     for (const path of ['/pt/pesquisar/', '/pt/avaliacoes/', '/pt/contacto/', '/pt/precos/']) expect(dateDe(path), path).toBe(DATA_FASE_1)
     expect(DATA_FASE_3 > DATA_FASE_2).toBe(true)
