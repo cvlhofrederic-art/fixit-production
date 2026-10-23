@@ -155,17 +155,19 @@ export async function POST(request: NextRequest) {
     if (artisanId && field) {
       const allowedFields = ['insurance_url', 'kbis_url', 'id_document_url', 'profile_photo_url', 'portfolio_photo', 'logo_url']
       if (allowedFields.includes(field)) {
-        // Trouver l'artisan : d'abord par id, puis par user_id (fallback)
+        // Trouver l'artisan : d'abord par id, puis par user_id (fallback). Sans portfolio_photos :
+        // la colonne n'existe pas en production (relevé du 23/10/2026), la sélectionner faisait
+        // échouer la recherche et chaque mise à jour du profil répondait 404.
         let artisanRow = (await supabaseAdmin
           .from('profiles_artisan')
-          .select('id, user_id, portfolio_photos')
+          .select('id, user_id')
           .eq('id', artisanId)
           .single()).data
         if (!artisanRow) {
           // Fallback : artisanId pourrait être le user_id (admin override ou mismatch)
           artisanRow = (await supabaseAdmin
             .from('profiles_artisan')
-            .select('id, user_id, portfolio_photos')
+            .select('id, user_id')
             .eq('user_id', artisanId)
             .single()).data
         }
@@ -173,7 +175,7 @@ export async function POST(request: NextRequest) {
           // Dernier fallback : chercher par user_id de l'utilisateur connecté
           artisanRow = (await supabaseAdmin
             .from('profiles_artisan')
-            .select('id, user_id, portfolio_photos')
+            .select('id, user_id')
             .eq('user_id', user.id)
             .single()).data
         }
@@ -201,16 +203,26 @@ export async function POST(request: NextRequest) {
             uploadedAt: new Date().toISOString(),
             id: Date.now().toString(),
           }
-          const existing: Array<Record<string, unknown>> = artisanRow.portfolio_photos || []
-          const { error: updateError } = await supabaseAdmin
+          const { data: portfolio, error: portfolioError } = await supabaseAdmin
             .from('profiles_artisan')
-            .update({
-              portfolio_photos: [newEntry, ...existing],
-              updated_at: new Date().toISOString(),
-            })
+            .select('portfolio_photos')
             .eq('id', verifiedArtisanId)
-          if (updateError) {
-            logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
+            .single()
+          if (portfolioError) {
+            // Colonne absente en production : le fichier est envoyé, le portfolio n'est pas mis à jour.
+            logger.error('[UPLOAD] Lecture portfolio_photos:', portfolioError)
+          } else {
+            const existing: Array<Record<string, unknown>> = portfolio?.portfolio_photos || []
+            const { error: updateError } = await supabaseAdmin
+              .from('profiles_artisan')
+              .update({
+                portfolio_photos: [newEntry, ...existing],
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', verifiedArtisanId)
+            if (updateError) {
+              logger.error('[UPLOAD] Erreur portfolio_photos:', updateError)
+            }
           }
         } else {
           const { error: updateError } = await supabaseAdmin
