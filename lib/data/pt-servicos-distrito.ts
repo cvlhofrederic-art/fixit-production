@@ -23,8 +23,12 @@
 // vidros em altura, drone, graffitis, fachada ventilada, azulejos, estruturas metálicas, inspeção ou relatório, ANETVA, ISO,
 // assurances, garanties, marques, années ou taille de l'équipe. Règles légales citées, vérifiées le 23/10/2026 sur le texte
 // officiel : RJUE (DL 555/99 republié par le DL 108/2026, en vigueur le 01/10/2026) art. 2.º d) et f), 4.º n.º 2 d) et i),
-// 6.º n.º 1 a), 89.º n.º 1 et 2 ; Código Civil art. 1436.º n.º 2 (Lei 8/2022) ; DL 268/94 art. 4.º n.º 1 ; DL 50/2005
-// art. 36.º et 39.º. Méthodes et conseils pratiques à relire par le propriétaire (docs/seo/journal-pt.md, 23/10/2026).
+// 6.º n.º 1 a) et n.º 12, 80.º-A n.º 1, 3 et 5 (informer la câmara et afficher un aviso avant des travaux extérieurs, même
+// exemptés), 89.º n.º 1 et 2 ; Código Civil art. 1436.º n.º 2 (Lei 8/2022) ; DL 268/94 art. 4.º n.º 1 ; DL 50/2005
+// art. 36.º et 39.º. Relecture indépendante du 23/10/2026 : détails de méthode non confirmés retirés (traitement du ferro,
+// tinta compatível, pressão baixa et produit anti-algues, saison sèche, engenheiro, délimitation de la zone, mástique
+// elástico, préparation du condomínio, vent fort), à rétablir seulement après validation par le propriétaire
+// (docs/seo/journal-pt.md, 23/10/2026) ; l'ordre des étapes reste à lui faire relire.
 
 import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_DISTRITO, DATA_PAGINAS_FACHADAS_TV } from '@/lib/seo/pt-datas'
 import { CITIES, type CityData } from '@/lib/data/seo-pages-data'
@@ -87,8 +91,14 @@ export interface ServicoDistrito {
   chamadaHub: string
   /** Début du message WhatsApp prérempli (le lieu suit, voir mensagemLocal). */
   mensagemWhatsapp: string
-  /** Dernière modification significative (lastmod), jour de la mise en production. */
+  /** Dernière modification significative des textes repris sur les pages concelho (lastmod), jour de la mise en production. */
   dataModificacao: string
+  /**
+   * Dernière modification des cartes de liens (`ligacoes`) de la page de district, quand elle est postérieure à
+   * `dataModificacao`. Elle n'entre que dans le lastmod de la page de district (dataModificacaoDistrito) : le gabarit des
+   * pages concelho n'affiche pas ces cartes.
+   */
+  dataModificacaoLigacoes?: string
   /**
    * Jour où les liens vers cette page ont été ajoutés aux pages qui la lient (hubs et grille des metiersLigados, pages ville
    * du distrito, /pt/servicos/, plan du site) : leur lastmod, la plus récente si elles lient plusieurs pages de district.
@@ -260,6 +270,8 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   chamadaHub: 'Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:',
   mensagemWhatsapp: 'Olá! Gostaria de um orçamento para a limpeza de um telhado.',
   dataModificacao: DATA_PAGINAS_DISTRITO,
+  // Cartes vers renovação de fachadas et trabalhos verticais, ajoutées le jour des liens vers ces deux pages.
+  dataModificacaoLigacoes: DATA_LIGACOES_FACHADAS_TV,
   dataLigacoes: DATA_LIGACOES_DISTRITO,
 }
 
@@ -296,7 +308,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     },
     {
       titulo: 'Betão das varandas',
-      texto: 'Quando o betão estala e o ferro fica à vista, retiramos as partes soltas, tratamos o ferro e reconstituímos o betão das varandas.',
+      texto: 'Reparamos as varandas cujo betão estala, se desfaz ou já deixa o ferro à vista.',
     },
     {
       titulo: 'Infiltrações e impermeabilização',
@@ -308,27 +320,24 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     },
     {
       titulo: 'Capoto existente',
-      texto: 'Reparamos buracos, fissuras e zonas danificadas de um capoto que já existe, limpamos o verdete e pintamos com tinta compatível com o sistema.',
+      texto: 'Reparamos buracos, fissuras e zonas danificadas de um capoto que já existe, limpamos o verdete e voltamos a pintá-lo.',
     },
     {
       titulo: 'Pintura de fachadas',
       texto: 'Pintamos prédios e moradias por fora, depois das reparações, a partir de andaime ou por acesso por corda.',
     },
   ],
-  // Méthode rédigée le 23/10/2026 à partir des prestations confirmées (ordre usuel : lavagem, reparações, impermeabilização
-  // e pintura) : à faire relire par le propriétaire, comme celle de limpeza. Aucun compte rendu ni contrôle final promis.
+  // Méthode rédigée le 23/10/2026 avec les seules prestations confirmées, dans l'ordre usuel (lavagem, reparações,
+  // impermeabilização e pintura) : ordre à faire relire par le propriétaire. Choix de l'accès dans l'étape de visite (les
+  // critères sont dans la FAQ sur les alpinistas). Aucun produit, temps de séchage, compte rendu ni contrôle final promis.
   metodo: [
     {
-      titulo: 'Diagnóstico da fachada',
-      texto: 'Vemos as fissuras, o reboco solto ou oco, o betão das varandas, as manchas de humidade e o estado da tinta: é o que define os trabalhos e o orçamento.',
-    },
-    {
-      titulo: 'Andaime ou corda',
-      texto: 'Na visita, decidimos entre andaime e acesso por corda, conforme a altura do edifício, o tamanho da obra e o espaço livre à frente dele.',
+      titulo: 'Visita e diagnóstico',
+      texto: 'Vemos as fissuras, o reboco solto ou oco, o betão das varandas, as manchas de humidade e o estado da tinta, e escolhemos o acesso: andaime ou corda. É o que define os trabalhos e o orçamento.',
     },
     {
       titulo: 'Lavagem',
-      texto: 'Lavamos a fachada para retirar o verdete, a sujidade e a tinta que já se solta, e deixamos a parede secar.',
+      texto: 'Lavamos a fachada para retirar o verdete, a sujidade e a tinta que já se solta.',
     },
     {
       titulo: 'Reparações',
@@ -336,7 +345,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     },
     {
       titulo: 'Impermeabilização e pintura',
-      texto: 'Com a parede seca, aplicamos a impermeabilização e a pintura com produtos para exterior, adequados ao reboco ou ao capoto. No fim, retiramos o andaime ou as cordas e deixamos a zona limpa.',
+      texto: 'Impermeabilizamos e pintamos a fachada, seja de reboco ou de capoto. No fim, desmontamos o andaime ou retiramos as cordas.',
     },
   ],
   sinais: [
@@ -348,7 +357,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     'Tinta a descascar, ou que deixa pó branco nos dedos quando se lhe toca.',
   ],
   frequencia:
-    'Os sinais aparecem aos poucos e agravam-se de um inverno para o outro. As reparações, a impermeabilização e a pintura precisam de paredes secas, por isso fazem-se melhor entre a primavera e o início do outono. Num prédio, convém levar os orçamentos à assembleia de condóminos com tempo, para que a obra possa começar quando chegar o tempo seco.',
+    'Os sinais aparecem aos poucos e agravam-se de um inverno para o outro. Num prédio, convém levar os orçamentos à assembleia de condóminos com tempo, antes que os estragos aumentem.',
   fatoresPreco: [
     'A área da fachada e o número de pisos.',
     'Como se chega à parede: andaime ou técnicos de acesso por corda, e o espaço disponível no passeio.',
@@ -363,7 +372,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     {
       pergunta: 'Quanto custa renovar a fachada de um prédio?',
       resposta:
-        'Não publicamos preços: duas fachadas com a mesma área podem pedir trabalhos muito diferentes, de uma reparação localizada a uma reabilitação completa. O valor depende da área e do número de pisos, do acesso, do estado do reboco e do betão, das infiltrações a tratar e da tinta. Depois de vermos o edifício, enviamos o orçamento, sem custos para si.',
+        'Não há um preço fixo: duas fachadas com a mesma área podem pedir trabalhos muito diferentes, de uma reparação localizada a uma reabilitação completa. O valor depende da área e do número de pisos, do acesso, do estado do reboco e do betão, das infiltrações a tratar e da tinta. Depois de vermos o edifício, enviamos o orçamento, sem custos para si.',
     },
     {
       pergunta: 'Quanto custa rebocar uma fachada?',
@@ -371,9 +380,15 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
         'Depende sobretudo de ser preciso retirar o reboco antigo ou só reparar as zonas ocas, e também da área, da altura e do acesso. Uma reparação localizada e um reboco novo em toda a parede são trabalhos diferentes; por isso, o preço só se fixa depois de vermos o edifício.',
     },
     {
+      // Question « fachada degradada : reparar ou reabilitar » du plan (FACH-PILAR), avec les seules prestations confirmées.
+      pergunta: 'A fachada está degradada: reparar ou reabilitar?',
+      resposta:
+        'Depende da parte da fachada que está afetada. Se os estragos se limitam a alguns pontos, como uma fissura, uma zona de reboco oco ou uma varanda, basta repará-los. Se o reboco, a tinta e as infiltrações afetam a parede toda, reparar ponto a ponto não chega e faz sentido a recuperação da fachada inteira: lavagem, reparações, impermeabilização e pintura. Dizemos-lhe qual das duas se aplica depois de vermos a fachada de perto, na visita.',
+    },
+    {
       pergunta: 'Pintam fachadas de prédios sem andaime, por acesso por corda?',
       resposta:
-        'Sim. Os nossos técnicos de acesso por corda, a quem muitos chamam alpinistas, têm certificação IRATA e trabalham suspensos a partir do topo do edifício, sem andaime montado de cima a baixo. Na visita, comparamos as duas soluções para o seu caso: a altura, a duração da obra, o material necessário e o espaço disponível na rua contam para a escolha.',
+        'Sim. A pintura de fachadas em altura pode fazer-se sem andaime: os nossos técnicos de acesso por corda, a quem muitos chamam alpinistas, têm certificação IRATA e trabalham suspensos a partir do topo do edifício. Na visita, comparamos as duas soluções para o seu caso: a altura, a duração da obra, o material necessário e o espaço disponível na rua contam para a escolha.',
     },
     {
       pergunta: 'Num prédio, como se decide a obra na fachada?',
@@ -393,22 +408,22 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     {
       pergunta: 'As obras na fachada precisam de licença da câmara?',
       resposta:
-        'Reparar, limpar ou voltar a pintar a fachada como estava são obras de conservação, em regra isentas de licença e de comunicação prévia (regime jurídico da urbanização e edificação, artigo 6.º, n.º 1, alínea a)). Mudar a cor ou o material do revestimento exterior já é uma obra de alteração (artigo 2.º, alínea d)), que pode precisar de licença ou de comunicação prévia, e a remoção de azulejos de fachada está sujeita a licença (artigo 4.º, n.º 2, alínea i)). Em imóveis classificados, ou na zona de proteção de um imóvel classificado, as regras são mais exigentes (artigo 4.º, n.º 2, alínea d)). Antes de mudar a cor, informe-se na câmara municipal.',
+        'Reparar, limpar ou voltar a pintar a fachada como estava são obras de conservação (regime jurídico da urbanização e edificação, artigo 2.º, alínea f)), em regra isentas de licença e de comunicação prévia (artigo 6.º, n.º 1, alínea a)). Mesmo assim, por serem obras no exterior, o promotor da obra tem de informar a câmara municipal até cinco dias antes do início dos trabalhos, com a identificação de quem os executa, e o proprietário ou o diretor da obra tem de afixar no local, no mesmo prazo, um aviso visível da via pública (artigo 80.º-A, n.os 1, 3 e 5). Mudar a cor ou o material do revestimento exterior já é uma obra de alteração (artigo 2.º, alínea d)), que pode precisar de licença ou de comunicação prévia, e a remoção de azulejos de fachada está sujeita a licença (artigo 4.º, n.º 2, alínea i)). Em imóveis classificados, ou na zona de proteção de um imóvel classificado, as regras são mais exigentes (artigo 4.º, n.º 2, alínea d)). Antes de mudar a cor, informe-se na câmara municipal.',
     },
     {
       pergunta: 'O capoto pode ser pintado?',
       resposta:
-        'Pode, e é um dos trabalhos que fazemos em capoto já aplicado, a par da reparação e da limpeza. Antes de pintar, reparamos os buracos e as fissuras e lavamos o verdete; a tinta tem de ser compatível com o acabamento do capoto.',
+        'Pode, e é um dos trabalhos que fazemos em capoto já aplicado, a par da reparação e da limpeza. Antes de pintar, reparamos os buracos e as fissuras e lavamos o verdete.',
     },
     {
       pergunta: 'Como tirar o verdete das paredes exteriores?',
       resposta:
-        'O verdete é uma camada de algas que cresce onde a parede fica húmida e recebe pouco sol. Lava-se a parede e aplica-se um produto contra as algas; no capoto, a lavagem faz-se com pressão baixa, para não estragar o acabamento. Se o verdete volta depressa, a parede está a receber água a mais, por exemplo de uma caleira que transborda ou de uma infiltração: trate primeiro a origem da água.',
+        'O verdete é uma camada de algas que cresce onde a parede fica húmida e recebe pouco sol. Sai com a lavagem da fachada, que fazemos em paredes rebocadas e em capoto. Se o verdete volta depressa, a parede está a receber água a mais, por exemplo de uma caleira que transborda ou de uma infiltração: trate primeiro a origem da água.',
     },
     {
       pergunta: 'Basta pintar por cima das fissuras?',
       resposta:
-        'Não. Uma fissura só pintada volta a aparecer, e a água continua a entrar por ela. Primeiro repara-se a fissura e o reboco à volta, e só depois se pinta. Se a fissura é larga, continua a crescer ou também se vê no interior, pode ter origem na estrutura: nesse caso, é preciso a avaliação de um engenheiro antes de qualquer reparação.',
+        'Não. Uma fissura só pintada volta a aparecer, e a água continua a entrar por ela. Primeiro repara-se a fissura e o reboco à volta, e só depois se pinta.',
     },
     {
       pergunta: 'Caiu reboco ou betão da fachada: o que fazer?',
@@ -425,7 +440,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     {
       href: '/pt/servicos/trabalhos-verticais/',
       titulo: 'Trabalhos verticais',
-      texto: 'Reparações pontuais, juntas de dilatação e pintura em altura por acesso por corda, sem andaime.',
+      texto: 'Reparações pontuais, juntas de dilatação e pintura em altura, por corda ou andaime.',
     },
     {
       href: '/pt/servicos/limpeza-de-telhados/',
@@ -443,11 +458,20 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
       texto: 'Telhados, terraços, varandas e caves: quando a água não entra pelas paredes.',
     },
     {
-      href: '/pt/blog/humidade-parede-causas-reparacao/',
-      titulo: 'Humidade na parede: causas e reparação',
-      texto: 'Infiltração, condensação ou humidade que sobe do chão: como distinguir antes de tratar.',
+      href: '/pt/perto-de-mim/pintor/',
+      titulo: 'Pintura de interiores',
+      texto: 'Para pintar as paredes e os tetos dentro de casa ou do apartamento.',
+    },
+    {
+      href: '/pt/perto-de-mim/obras-remodelacao/',
+      titulo: 'Obras e remodelação de casas',
+      texto: 'Quando a obra é a casa inteira, por dentro e por fora, e não só a fachada.',
     },
   ],
+  // Liens du plan et du guide (§4.3, §4.5) : hub pintor (il garde « pintor » et la peinture intérieure, arbitrage 253) et
+  // OBRAS-HUB (réhabilitation d'une maison entière, arbitrage 257). Article BLOG-HUMIDADE retiré le 23/10/2026 : il publie
+  // des fourchettes de prix non sourcées pour les prestations de cette page (impermeabilização, reparação e pintura,
+  // capoto), comme l'article capoto déjà écarté.
   // Grille du même distrito et hubs qui lient cette page (prestations de lib/data/seo-pages-data.ts, arbitrages de la
   // section 4 du plan) : pintor (« Pintura exterior de fachadas »), impermeabilizacao (« Tratamento de fachadas contra
   // infiltrações »), pedreiro (« Reparação de fachadas exteriores »), isolamento-termico (entretien d'un capoto existant)
@@ -493,7 +517,7 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
     },
     {
       titulo: 'Selagem de juntas de dilatação',
-      texto: 'Retiramos o vedante gasto ou descolado das juntas, entre dois prédios ou a meio da fachada, e voltamos a selá-las com um mastique elástico.',
+      texto: 'Voltamos a selar as juntas de dilatação, entre dois prédios ou a meio da fachada, quando o vedante está gasto, gretado ou descolado.',
     },
     {
       titulo: 'Fissuras, reboco e betão das varandas',
@@ -507,25 +531,19 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
       titulo: 'Caleiras inacessíveis',
       texto: 'Limpamos e desentupimos caleiras e algerozes de prédios altos e de pontos a que não se chega do chão nem do telhado.',
     },
-    {
-      titulo: 'Lavagem e capoto',
-      texto: 'Lavamos fachadas e, no capoto já aplicado, reparamos as zonas danificadas e voltamos a pintá-lo, nos andares a que só se chega por corda ou andaime.',
-    },
   ],
-  // Accès par andaimes ou cordistes IRATA confirmé par le propriétaire ; délimitation de la zone, mastique elástico et
-  // préparation du condomínio à faire relire.
+  // Lavagem et capoto existant : page renovação de fachadas (arbitrages FACH-PILAR / TV-PILAR du plan), carte de lien
+  // ci-dessous. Accès par andaimes ou cordistes IRATA confirmé par le propriétaire ; choix de l'accès dans l'étape de visite
+  // (les critères sont dans la FAQ « Quando é melhor a corda do que o andaime? »). Délimitation de la zone, mástique
+  // elástico et préparation du condomínio retirés le 23/10/2026 tant que le propriétaire ne les a pas validés.
   metodo: [
     {
       titulo: 'Visita ao edifício',
-      texto: 'Vemos o que há a tratar, a altura, o que fica por baixo (passeio, pátio, saguão ou outro telhado) e onde se podem fixar as cordas ou assentar um andaime.',
+      texto: 'Vemos o que há a tratar, a altura e o que fica por baixo (passeio, pátio, saguão ou outro telhado). Daí sai a escolha entre corda e andaime e dos pontos onde se fixam as cordas.',
     },
     {
-      titulo: 'Escolha do acesso',
-      texto: 'Escolhemos entre corda e andaime conforme a altura, o trabalho a fazer e o espaço livre por baixo da fachada.',
-    },
-    {
-      titulo: 'Montagem e segurança',
-      texto: 'Montamos as fixações das cordas ou o andaime e delimitamos a zona por baixo enquanto se trabalha por cima.',
+      titulo: 'Montagem do acesso',
+      texto: 'Montamos o andaime ou fixamos as cordas nos pontos escolhidos.',
     },
     {
       titulo: 'Reparação e limpeza final',
@@ -545,9 +563,9 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
     'O tipo de trabalho: pintura, selagem de juntas, reparação de fissuras ou de betão, limpeza de caleiras.',
     'A área a pintar, os metros de junta ou o número de pontos a reparar.',
     'A altura do edifício e o meio de acesso escolhido.',
-    'Os pontos de fixação das cordas e o que há debaixo da zona de trabalho: rua, pátio, saguão ou telhado vizinho.',
+    'Os pontos de fixação das cordas e o que há debaixo da zona de trabalho.',
     'O estado do suporte: reboco solto, fissuras ou betão degradado a reparar antes.',
-    'Os materiais escolhidos: tinta, mastique, produto de impermeabilização.',
+    'Os materiais escolhidos: tinta, mástique, produto de impermeabilização.',
   ],
   faqs: [
     {
@@ -558,12 +576,12 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
     {
       pergunta: 'Quando é melhor a corda do que o andaime?',
       resposta:
-        'A corda compensa quando o trabalho é localizado ou está espalhado por pontos afastados: uma junta, umas fissuras num andar alto, uma caleira, uma empena para pintar. Evita montar andaime em toda a altura, não deixa uma estrutura presa à fachada durante a obra e chega a saguões e a paredes por cima do telhado de um vizinho, onde não há chão para apoiar um andaime. O andaime ganha quando há muito para reparar em toda a fachada, com várias camadas e tempos de secagem, ou quando o trabalho pede muito material junto à parede. Decidimos na visita, depois de ver o edifício.',
+        'A corda compensa quando o trabalho é localizado ou está espalhado por pontos afastados: uma junta, umas fissuras num andar alto, uma caleira, uma empena para pintar. Evita montar andaime em toda a altura, não deixa uma estrutura presa à fachada durante a obra e chega a saguões e a paredes por cima do telhado de um vizinho, onde não há chão para apoiar um andaime. O andaime ganha quando há muito para reparar em toda a fachada, com várias camadas e tempos de secagem, ou quando o trabalho pede muito material junto à parede.',
     },
     {
       pergunta: 'Trabalhar suspenso numa corda é seguro?',
       resposta:
-        'Em Portugal, o Decreto-Lei n.º 50/2005 (artigo 39.º) só admite o acesso por corda quando a avaliação de riscos indica que o trabalho pode ser feito com segurança e não se justifica um equipamento mais seguro. Em regra, há duas cordas com pontos de fixação independentes: a de trabalho, que sustenta o técnico, e a de segurança, ligada ao arnês por um dispositivo antiqueda; as ferramentas vão presas ao arnês. O mesmo decreto-lei (artigo 36.º) só permite trabalhos em altura quando o tempo não compromete a segurança: com vento forte, por exemplo, o trabalho fica para outro dia.',
+        'Em Portugal, o Decreto-Lei n.º 50/2005 (artigo 39.º) só admite o acesso por corda quando a avaliação de riscos indica que o trabalho pode ser feito com segurança e não se justifica um equipamento mais seguro. Em regra, há duas cordas com pontos de fixação independentes: a de trabalho, que sustenta o técnico, e a de segurança, ligada ao arnês por um dispositivo antiqueda; as ferramentas vão presas ao arnês. O mesmo decreto-lei (artigo 36.º) só permite trabalhos em altura quando o tempo não compromete a segurança.',
     },
     {
       pergunta: 'Quanto custa a pintura em altura?',
@@ -573,18 +591,15 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
     {
       pergunta: 'Como se sela uma junta de dilatação na fachada?',
       resposta:
-        'A junta separa duas partes do edifício que se mexem com o calor e o frio. Quando o vedante endurece, greta ou descola, a água entra e aparecem manchas de humidade nas casas junto à junta. Retiramos o vedante velho, limpamos a junta e voltamos a selar com um mastique elástico, que acompanha esses movimentos. Como a junta corre a fachada de cima a baixo, a corda permite tratá-la de uma ponta à outra sem andaime.',
+        'A junta separa duas partes do edifício que se mexem com o calor e o frio. Quando o vedante endurece, greta ou descola, a água entra e aparecem manchas de humidade nas casas junto à junta. Retiramos o vedante velho, limpamos a junta e voltamos a selá-la. Como a junta corre a fachada de cima a baixo, a corda permite tratá-la de uma ponta à outra sem andaime.',
     },
     {
       pergunta: 'Limpam caleiras inacessíveis?',
       resposta:
         'Sim: chegamos-lhes pela corda ou por andaime, mesmo por cima de um saguão ou de um telhado onde não é seguro pôr os pés. Não suba a uma escada encostada a uma caleira alta sem proteção contra quedas. Para a limpeza regular do telhado e das caleiras de uma casa, veja a página de limpeza de telhados.',
     },
-    {
-      pergunta: 'O que deve o condomínio preparar antes do trabalho?',
-      resposta:
-        'Para trabalhar na corda, precisamos de acesso à cobertura ou ao terraço, onde se fixam as cordas, e de uma pessoa de contacto, em regra a administração do condomínio. Convém avisar os moradores da prumada onde vamos trabalhar: janelas fechadas, roupa recolhida, vasos e objetos retirados dos parapeitos e das varandas e, se for o caso, carros fora da zona por baixo. Numa moradia, basta mostrar-nos por onde se chega ao telhado.',
-    },
+    // « O que deve o condomínio preparar antes do trabalho? » retirée le 23/10/2026 : préparation non confirmée par le
+    // propriétaire (accès à la cobertura, personne de contact, consignes aux moradores), à rétablir après sa validation.
     {
       pergunta: 'E se for preciso renovar a fachada inteira?',
       resposta:
@@ -595,7 +610,7 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
     {
       href: '/pt/servicos/renovacao-de-fachadas/',
       titulo: 'Renovação de fachadas',
-      texto: 'Quando a fachada toda precisa de obra: prédios em condomínio e moradias.',
+      texto: 'A fachada inteira, a lavagem e o capoto já aplicado: prédios em condomínio e moradias.',
     },
     {
       href: '/pt/servicos/limpeza-de-telhados/',
@@ -675,7 +690,10 @@ export interface PaginaConcelhoDistrito {
   chantiers: Chantier[]
   /** Jour d'ouverture (date de relecture) : date des pages qui lient la page concelho. */
   dataAbertura: string
-  /** lastmod de la page concelho : textes du service, relecture, chantiers et notes du concelho. */
+  /**
+   * lastmod de la page concelho : textes du service (sans `dataModificacaoLigacoes` : le gabarit concelho n'affiche pas les
+   * cartes de liens de la page de district), relecture, chantiers et notes du concelho.
+   */
   dataModificacao: string
 }
 
@@ -729,8 +747,11 @@ export function chantiersExibidosDistrito(servico: ServicoDistrito): Chantier[] 
   return exibidos.sort((a, b) => b.mes.localeCompare(a.mes))
 }
 
-/** lastmod de la page de district : ses textes, ou le dernier chantier affiché, ou la dernière page concelho ouverte. */
+/**
+ * lastmod de la page de district : ses textes, ses cartes de liens, le dernier chantier affiché ou la dernière page concelho
+ * ouverte, la plus récente de ces dates.
+ */
 export function dataModificacaoDistrito(servico: ServicoDistrito): string {
   const abertas = paginasConcelhoDistrito().filter((p) => p.servico.slug === servico.slug).map((p) => p.dataAbertura)
-  return maisRecente([servico.dataModificacao, ...chantiersExibidosDistrito(servico).map(dataChantier), ...abertas])
+  return maisRecente([servico.dataModificacao, servico.dataModificacaoLigacoes ?? '', ...chantiersExibidosDistrito(servico).map(dataChantier), ...abertas])
 }

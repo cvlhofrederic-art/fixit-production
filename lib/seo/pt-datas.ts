@@ -36,13 +36,14 @@ export const DATA_FASE_3_LOT_1 = '2026-10-14'
 
 /**
  * Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : date du CONTENU de la page
- * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai, liens). À avancer au jour de la mise en
+ * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai). À avancer au jour de la mise en
  * production de toute modification de ce contenu (y compris un prix ou un délai de data/seo/local-proof.json), et à
- * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date.
- * 23/10/2026 : deux cartes de liens vers renovação de fachadas et trabalhos verticais (mise en production le même jour que
- * ces pages : à reporter avec DATA_PAGINAS_FACHADAS_TV si la fusion a lieu un autre jour).
+ * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date, et les cartes de
+ * liens de la page de district aussi (champ `dataModificacaoLigacoes` du service) : le gabarit des pages concelho ne les
+ * affiche pas, leur ajout ne change donc que le lastmod de la page de district. Les deux cartes vers renovação de fachadas
+ * et trabalhos verticais (23/10/2026) portent DATA_LIGACOES_FACHADAS_TV.
  */
-export const DATA_PAGINAS_DISTRITO = '2026-10-23'
+export const DATA_PAGINAS_DISTRITO = '2026-10-22'
 
 /**
  * Date d'ajout des LIENS vers la page limpeza de telhados : pages telhador et impermeabilizacao des 18 concelhos du
@@ -63,7 +64,9 @@ export const DATA_PAGINAS_FACHADAS_TV = '2026-10-23'
 /**
  * Date d'ajout des LIENS vers renovação de fachadas et trabalhos verticais : pages pintor, impermeabilizacao, pedreiro,
  * isolamento-termico et limpeza-condominio des 18 concelhos du distrito do Porto et leurs cinq hubs, les 18 pages ville du
- * distrito, /pt/servicos/, /pt/mapa-do-site/ et la page limpeza de telhados. À aligner sur le jour de la mise en production.
+ * distrito, /pt/servicos/, /pt/mapa-do-site/ et la page limpeza de telhados (ses deux cartes de liens, champ
+ * `dataModificacaoLigacoes` : lastmod de la page de district seulement, pas de ses pages concelho). À aligner sur le jour
+ * de la mise en production.
  */
 export const DATA_LIGACOES_FACHADAS_TV = '2026-10-23'
 

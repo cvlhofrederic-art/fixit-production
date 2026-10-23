@@ -75,7 +75,7 @@ describe('données des pages de district', () => {
   })
 
   it('les textes ne contiennent ni prix, ni délai chiffré, ni pourcentage (règle 0.2) ; seules années citées : 2005 et 2007 (amianto)', () => {
-    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => k !== 'dataModificacao' && k !== 'dataLigacoes')))
+    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => !['dataModificacao', 'dataModificacaoLigacoes', 'dataLigacoes'].includes(k))))
     expect(textes).not.toMatch(/€|\beuros?\b|%/i)
     expect(textes).not.toMatch(/\b\d+\s*(h|horas?|dias?|semanas?|minutos?|anos?|m2|m²)\b/i)
     expect(textes.match(/\b(19|20)\d{2}\b/g)).toEqual(['2005', '2007'])

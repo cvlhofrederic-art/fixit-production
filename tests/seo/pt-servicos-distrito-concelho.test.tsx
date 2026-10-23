@@ -173,6 +173,20 @@ describe('liens et sitemap quand une page concelho est ouverte', () => {
     expect(dataModificacaoDistrito(LIMPEZA_DE_TELHADOS)).toBe('2026-10-26')
   })
 
+  it('les cartes de liens de la page de district (dataModificacaoLigacoes) ne changent que son lastmod, pas celui des pages concelho', () => {
+    const avant = paginasConcelhoDistrito().map((p) => [p.slug, p.dataModificacao])
+    const original = LIMPEZA_DE_TELHADOS.dataModificacaoLigacoes
+    try {
+      // Date postérieure à tous les éléments du jeu de test : seule la page de district la prend (le gabarit des pages
+      // concelho n'affiche pas les cartes de liens).
+      LIMPEZA_DE_TELHADOS.dataModificacaoLigacoes = '2026-10-27'
+      expect(dataModificacaoDistrito(LIMPEZA_DE_TELHADOS)).toBe('2026-10-27')
+      expect(paginasConcelhoDistrito().map((p) => [p.slug, p.dataModificacao])).toEqual(avant)
+    } finally {
+      LIMPEZA_DE_TELHADOS.dataModificacaoLigacoes = original
+    }
+  })
+
   it('pages telhador du concelho et pages ville : page concelho si ouverte, sinon page de district', async () => {
     expect(urlServicoDistrito(LIMPEZA_DE_TELHADOS, 'santo-tirso')).toBe('/pt/servicos/limpeza-de-telhados-santo-tirso/')
     expect(urlServicoDistrito(LIMPEZA_DE_TELHADOS, 'lousada')).toBe('/pt/servicos/limpeza-de-telhados/')
