@@ -863,7 +863,10 @@ export default function ArtisanProfilePage() {
                             <div
                               key={photo.id || idx}
                               className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
-                              onClick={() => window.open(photo.url, '_blank')}
+                              onClick={() => {
+                                // portfolio_photos est modifiable par l'artisan : jamais d'URL javascript:
+                                if (/^https:\/\//i.test(String(photo.url))) window.open(photo.url, '_blank', 'noopener,noreferrer')
+                              }}
                             >
                               <Image
                                 src={photo.url}

@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { resoudreCoproprietaire, statutHttpAcces } from '@/lib/coproprietaire/acces'
 import { pdfFactureDisponible } from '@/lib/coproprietaire/filtrage'
+import { cheminStockageSur } from '@/lib/storage/chemin-sur'
 
 // ── GET /api/coproprietaire/factures/[id]/pdf ────────────────────────────────
 // URL signée (10 minutes) du PDF d'une facture du copropriétaire connecté (syndic_factures_copro,
@@ -46,6 +47,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Chemin stocké avec ou sans le nom du bucket en tête.
     const chemin = (facture.pdf_url || '').trim().replace(/^\/+/, '').replace(new RegExp(`^${BUCKET}/`), '')
+    if (!cheminStockageSur(chemin)) {
+      logger.error('[COPRO FACTURE PDF] chemin de stockage refusé', { facture: facture.id })
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
     const { data: signee, error: signErr } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(chemin, DUREE_URL_SECONDES)
     if (signErr || !signee?.signedUrl) {
       logger.error('[COPRO FACTURE PDF] URL signée', { message: signErr?.message })

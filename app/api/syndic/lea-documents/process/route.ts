@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger'
 import { extractPdfText, extractMetadataFromText, type ExtractedMetadata } from '@/lib/syndic/lea-documents-extract'
 import { embedText } from '@/lib/syndic/embed'
 import { traceAgent } from '@/lib/langfuse'
+import { cheminStockageSur } from '@/lib/storage/chemin-sur'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 60
@@ -59,6 +60,7 @@ async function processOneInner(doc: PendingDoc): Promise<{ id: string; ok: boole
       .eq('id', doc.id)
 
     // 2. Download from Storage
+    if (!cheminStockageSur(doc.storage_path)) throw new Error('storage_path_invalid')
     const { data: fileBlob, error: dlErr } = await supabaseAdmin.storage
       .from('syndic-documents')
       .download(doc.storage_path)
