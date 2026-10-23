@@ -28,7 +28,8 @@
 // art. 36.º et 39.º. Relecture indépendante du 23/10/2026 : détails de méthode non confirmés retirés (traitement du ferro,
 // tinta compatível, pressão baixa et produit anti-algues, saison sèche, engenheiro, délimitation de la zone, mástique
 // elástico, préparation du condomínio, vent fort), à rétablir seulement après validation par le propriétaire
-// (docs/seo/journal-pt.md, 23/10/2026) ; l'ordre des étapes reste à lui faire relire.
+// (docs/seo/journal-pt.md, 23/10/2026). Ordre des étapes des deux méthodes et méthode des juntas validés par le
+// propriétaire le 23/10/2026 (« Oui, c'est ça »).
 
 import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_DISTRITO, DATA_PAGINAS_FACHADAS_TV } from '@/lib/seo/pt-datas'
 import { CITIES, type CityData } from '@/lib/data/seo-pages-data'
@@ -328,7 +329,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
     },
   ],
   // Méthode rédigée le 23/10/2026 avec les seules prestations confirmées, dans l'ordre usuel (lavagem, reparações,
-  // impermeabilização e pintura) : ordre à faire relire par le propriétaire. Choix de l'accès dans l'étape de visite (les
+  // impermeabilização e pintura) : ordre validé par le propriétaire le 23/10/2026. Choix de l'accès dans l'étape de visite (les
   // critères sont dans la FAQ sur les alpinistas). Aucun produit, temps de séchage, compte rendu ni contrôle final promis.
   metodo: [
     {
