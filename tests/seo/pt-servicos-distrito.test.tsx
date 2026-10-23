@@ -25,7 +25,7 @@ import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/se
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { sitemapsPt, getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_AGUEDA } from '@/lib/seo/pt-datas'
 import { precosPara, prazoDistritoPara, dataIsoValida } from '@/lib/seo/pt-provas-locais'
 import { chantiersExibidosDistrito, dataModificacaoDistrito, paginasConcelhoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
@@ -75,20 +75,30 @@ describe('données des pages de district', () => {
   })
 
   it('les textes ne contiennent ni prix, ni délai chiffré, ni pourcentage (règle 0.2) ; seules années citées : 2005 et 2007 (amianto)', () => {
-    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => k !== 'dataModificacao')))
+    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => k !== 'dataModificacao' && k !== 'dataLigacoes')))
     expect(textes).not.toMatch(/€|\beuros?\b|%/i)
     expect(textes).not.toMatch(/\b\d+\s*(h|horas?|dias?|semanas?|minutos?|anos?|m2|m²)\b/i)
     expect(textes.match(/\b(19|20)\d{2}\b/g)).toEqual(['2005', '2007'])
   })
 
-  it('chaque lien de la page vise une page publiée (hub métier ou article du registre)', () => {
-    for (const l of LIMPEZA_DE_TELHADOS.ligacoes) {
-      const hub = /^\/pt\/perto-de-mim\/([^/]+)\/$/.exec(l.href)
-      const artigo = /^\/pt\/blog\/([^/]+)\/$/.exec(l.href)
-      if (hub) expect(SERVICES.some((s) => s.slug === hub[1]), l.href).toBe(true)
-      else if (artigo) expect(BLOG_ARTICLES.some((a) => a.slug === artigo[1]), l.href).toBe(true)
-      else throw new Error(`lien inattendu : ${l.href}`)
+  it('chaque lien des pages de district vise une page publiée (hub métier, autre page de district ou article du registre)', () => {
+    for (const servico of SERVICOS_DISTRITO) {
+      for (const l of servico.ligacoes) {
+        const hub = /^\/pt\/perto-de-mim\/([^/]+)\/$/.exec(l.href)
+        const distrito = /^\/pt\/servicos\/([^/]+)\/$/.exec(l.href)
+        const artigo = /^\/pt\/blog\/([^/]+)\/$/.exec(l.href)
+        if (hub) expect(SERVICES.some((s) => s.slug === hub[1]), l.href).toBe(true)
+        else if (distrito) expect(SERVICOS_DISTRITO.some((s) => s.slug === distrito[1] && s.slug !== servico.slug), l.href).toBe(true)
+        else if (artigo) expect(BLOG_ARTICLES.some((a) => a.slug === artigo[1]), l.href).toBe(true)
+        else throw new Error(`lien inattendu : ${l.href}`)
+      }
     }
+  })
+
+  it('limpeza de telhados lie les deux autres pages de district (accès difficile, fachada mouillée par les caleiras)', () => {
+    const hrefs = LIMPEZA_DE_TELHADOS.ligacoes.map((l) => l.href)
+    expect(hrefs).toContain('/pt/servicos/renovacao-de-fachadas/')
+    expect(hrefs).toContain('/pt/servicos/trabalhos-verticais/')
   })
 
   it('prix, délais et chantiers fournis seulement s’ils sont valides (règle 0.2), quel que soit le contenu de local-proof.json', () => {
@@ -235,18 +245,23 @@ describe('sitemap et maillage', () => {
       expect(groupes.servicos.find((u) => u.url === cible)?.lastModified).toBe(dataModificacaoDistrito(s))
       expect(s.dataModificacao).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     }
-    // Les pages qui reçoivent le lien portent la même date (Google : un changement de liens est significatif).
+    // Les pages qui reçoivent un lien portent la date de ce lien (Google : un changement de liens est significatif) ; une
+    // page qui lie plusieurs pages de district prend la plus récente, une page qui ne lie que limpeza garde la sienne.
     const date = (chemin: string) => Object.values(groupes).flat().find((u) => u.url === `${BASE}${chemin}`)?.lastModified
-    for (const chemin of ['/pt/servicos/', '/pt/perto-de-mim/telhador/', '/pt/perto-de-mim/impermeabilizacao/']) {
-      expect(date(chemin), chemin).toBe(DATA_LIGACOES_DISTRITO)
+    expect(date('/pt/perto-de-mim/telhador/')).toBe(DATA_LIGACOES_DISTRITO)
+    for (const chemin of ['/pt/servicos/', '/pt/perto-de-mim/impermeabilizacao/', '/pt/perto-de-mim/pintor/']) {
+      expect(date(chemin), chemin).toBe(DATA_LIGACOES_FACHADAS_TV)
     }
-    // Le plan du site lie aussi les pages de service d'Águeda : la plus récente des deux dates, jamais une date antérieure.
-    expect(date('/pt/mapa-do-site/')! >= DATA_LIGACOES_DISTRITO).toBe(true)
+    // Le plan du site lie aussi les pages de service d'Águeda : la plus récente des dates, jamais une date antérieure.
+    expect(date('/pt/mapa-do-site/')! >= DATA_LIGACOES_FACHADAS_TV).toBe(true)
     expect(date('/pt/mapa-do-site/')! >= DATA_PAGINAS_AGUEDA).toBe(true)
     expect(date('/pt/servicos/telhador-porto/')).toBe(dataLigacoesConcelho('porto', ['limpeza-de-telhados']))
-    expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(dataLigacoesConcelho('baiao', ['limpeza-de-telhados']))
-    for (const chemin of ['/pt/perto-de-mim/eletricista/', '/pt/servicos/telhador-braga/', '/pt/servicos/canalizador-porto/']) {
+    expect(date('/pt/servicos/telhador-porto/')).toBe(DATA_LIGACOES_DISTRITO)
+    expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(dataLigacoesConcelho('baiao', ['limpeza-de-telhados', 'renovacao-de-fachadas', 'trabalhos-verticais']))
+    expect(date('/pt/servicos/impermeabilizacao-baiao/')).toBe(DATA_LIGACOES_FACHADAS_TV)
+    for (const chemin of ['/pt/perto-de-mim/eletricista/', '/pt/servicos/telhador-braga/', '/pt/servicos/canalizador-porto/', '/pt/servicos/pintor-braga/']) {
       expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_DISTRITO)
+      expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_FACHADAS_TV)
     }
     // Plus les pages de service du concelho d'Águeda (lib/data/pt-servicos-concelho.ts), même fichier servicos.
     expect(getAllPtSitemapUrls(BASE)).toHaveLength(554 + SERVICOS_DISTRITO.length + paginasConcelhoDistrito().length + SERVICOS_CONCELHO.length)

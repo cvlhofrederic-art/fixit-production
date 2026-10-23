@@ -59,9 +59,8 @@ vi.mock('@/data/seo/local-proof.json', () => ({
 import ServiceCityPage, { generateStaticParams, generateMetadata } from '@/app/pt/servicos/[slug]/page'
 import CidadePage from '@/app/pt/cidade/[slug]/page'
 import LimpezaDeTelhadosPage from '@/app/pt/servicos/limpeza-de-telhados/page'
-import { LIMPEZA_DE_TELHADOS, dataModificacaoDistrito, paginasConcelhoDistrito, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { LIMPEZA_DE_TELHADOS, SERVICOS_DISTRITO, dataLigacoesServicos, dataModificacaoDistrito, paginasConcelhoDistrito, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { sitemapsPt } from '@/lib/sitemap-pt-pages'
-import { DATA_LIGACOES_DISTRITO } from '@/lib/seo/pt-datas'
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX, descricaoConcelhoDistrito, tituloConcelhoDistrito } from '@/lib/seo/pt-meta'
 import { ENTITE_PT } from '@/lib/seo/entite-pt'
 import { CITIES } from '@/lib/data/seo-pages-data'
@@ -195,7 +194,8 @@ describe('liens et sitemap quand une page concelho est ouverte', () => {
     expect(date('/pt/servicos/limpeza-de-telhados/')).toBe('2026-10-26')
     expect(date('/pt/servicos/telhador-santo-tirso/')).toBe('2026-10-26')
     expect(date('/pt/cidade/santo-tirso/')).toBe('2026-10-26')
-    expect(date('/pt/cidade/lousada/')).toBe(DATA_LIGACOES_DISTRITO)
+    // Page ville sans page concelho ouverte : date des liens de la plus récente des pages de district qu'elle lie.
+    expect(date('/pt/cidade/lousada/')).toBe(dataLigacoesServicos(SERVICOS_DISTRITO))
     expect(date('/pt/servicos/canalizador-santo-tirso/')).not.toBe('2026-10-26')
     expect(date('/pt/servicos/limpeza-de-telhados-lousada/')).toBeUndefined()
     expect(g.servicos.filter((u) => /\/limpeza-de-telhados-[a-z-]+\/$/.test(u.url))).toHaveLength(2)
