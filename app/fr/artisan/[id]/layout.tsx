@@ -53,6 +53,13 @@ function getCanonicalPath(slug: string | null, id: string, isPT: boolean): strin
   return isPT ? `/pt/profissional/${identifier}` : `/fr/artisan/${identifier}`
 }
 
+// /api/save-logo enregistre la photo en data: URL base64 (plusieurs centaines de Ko). Recopiée dans og:image,
+// twitter:image et le JSON-LD, elle alourdissait le HTML au point que le flux se découpait au milieu de ces
+// balises et que la fiche ne s'hydratait plus. Une data: URL n'est de toute façon pas lisible par les robots.
+function photoPublique(url: string | null): string | null {
+  return url && /^https?:\/\//i.test(url) ? url : null
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
@@ -100,6 +107,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     : (artisan.bio?.substring(0, 160) || `${name}, artisan ${categories} à ${city}.${ratingText} Réservez en ligne sur Vitfix.`)
 
   const canonicalPath = getCanonicalPath(artisan.slug, id, isPT)
+  const photo = photoPublique(artisan.profile_photo_url)
 
   return {
     title,
@@ -110,7 +118,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       siteName,
       locale: ogLocale,
       type: 'profile',
-      ...(artisan.profile_photo_url ? { images: [{ url: artisan.profile_photo_url, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }] }),
+      ...(photo ? { images: [{ url: photo, width: 400, height: 400 }] } : { images: [{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }] }),
     },
     alternates: {
       canonical: `https://vitfix.io${canonicalPath}/`,
@@ -142,6 +150,7 @@ export default async function ArtisanLayout({
       const categories = artisan.categories || []
       const city = artisan.company_city || ''
       const canonicalPath = getCanonicalPath(artisan.slug, id, isPT)
+      const photo = photoPublique(artisan.profile_photo_url)
 
       const jsonLd = {
         '@context': 'https://schema.org',
@@ -154,7 +163,7 @@ export default async function ArtisanLayout({
               ? `${name}${categories.length ? ', ' + categories.join(', ') : ''} em ${city}. Profissional verificado na plataforma VITFIX.`
               : `${name}${categories.length ? ', ' + categories.join(', ') : ''} à ${city}. Artisan vérifié sur la plateforme Vitfix.`,
             url: `https://vitfix.io${canonicalPath}/`,
-            ...(artisan.profile_photo_url ? { image: artisan.profile_photo_url } : {}),
+            ...(photo ? { image: photo } : {}),
             ...(artisan.phone ? { telephone: artisan.phone } : {}),
             ...(city ? {
               address: {

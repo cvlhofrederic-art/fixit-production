@@ -198,6 +198,37 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     ])
   })
 
+  // /api/save-logo enregistre la photo en data: URL base64 (plusieurs centaines de Ko). Recopiée dans og:image,
+  // twitter:image et le JSON-LD, elle portait la fiche à ~3 Mo : le flux HTML se découpait au milieu de ces
+  // balises, le script d'amorçage RSC n'était plus exécuté et la page ne s'hydratait pas (React #412).
+  const PHOTO_BASE64 = `data:image/png;base64,${'A'.repeat(4096)}`
+
+  it('photo en data: URL : absente des métadonnées, image Open Graph par défaut', async () => {
+    const { generateMetadata } = await charger()
+    lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: PHOTO_BASE64 }] }
+    const metadata = await generateMetadata({ params: params('plomberie-durand') })
+    expect(JSON.stringify(metadata)).not.toContain('data:')
+    expect(metadata.openGraph?.images).toEqual([{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }])
+  })
+
+  it('photo en data: URL : absente du JSON-LD', async () => {
+    const { default: ArtisanLayout } = await charger()
+    lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: PHOTO_BASE64 }] }
+    const jsonLd = extraireJsonLd(await ArtisanLayout({ children: null, params: params('plomberie-durand') }))
+    expect(jsonLd).toHaveLength(1)
+    expect(JSON.stringify(jsonLd)).not.toContain('data:')
+  })
+
+  it('photo hébergée en https : reprise dans Open Graph et le JSON-LD', async () => {
+    const { default: ArtisanLayout, generateMetadata } = await charger()
+    const photo = 'https://exemple.supabase.co/storage/v1/object/public/photos/durand.jpg'
+    lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: photo }] }
+    const metadata = await generateMetadata({ params: params('plomberie-durand') })
+    expect(metadata.openGraph?.images).toEqual([{ url: photo, width: 400, height: 400 }])
+    const [jsonLd] = extraireJsonLd(await ArtisanLayout({ children: null, params: params('plomberie-durand') })) as { '@graph': { image?: string }[] }[]
+    expect(jsonLd['@graph'][0].image).toBe(photo)
+  })
+
   it('profil inexistant : pas de JSON-LD', async () => {
     const { default: ArtisanLayout } = await charger()
     lecture.reponse = { ok: true, lignes: [] }
