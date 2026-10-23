@@ -62,6 +62,21 @@ export function noServicoRegional(options: ServicoOptions) {
   }
 }
 
+/** Service d'une page de district : areaServed = le distrito (AdministrativeArea), comme `containedInPlace` des villes. */
+export function noServicoDistrito(options: ServicoOptions & { distrito: string }) {
+  return {
+    '@type': 'Service',
+    '@id': `${options.url}#service`,
+    name: options.nome,
+    serviceType: options.serviceType,
+    description: options.descricao,
+    url: options.url,
+    inLanguage: 'pt-PT',
+    provider: { '@id': ENTITE_PT.id },
+    areaServed: { '@type': 'AdministrativeArea', name: `Distrito ${nomeDistrito(options.distrito)}` },
+  }
+}
+
 export function noWebPage(options: { url: string; nome: string; descricao?: string }) {
   return {
     '@type': 'WebPage',

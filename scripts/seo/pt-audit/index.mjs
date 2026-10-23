@@ -66,6 +66,9 @@ export function fichiersSource(chemin, groupe) {
   const donnees = 'lib/data/seo-pages-data.ts'
   switch (groupe) {
     case 'servicos': return [donnees, 'app/pt/servicos/[slug]/page.tsx']
+    case 'servicos-distrito': return ['lib/data/pt-servicos-distrito.ts', 'components/seo/PaginaServicoDistrito.tsx', 'app' + chemin + 'page.tsx']
+    case 'servicos-distrito-concelho': return ['data/seo/local-proof.json', 'lib/data/pt-servicos-distrito.ts', 'components/seo/PaginaConcelhoServicoDistrito.tsx', 'app/pt/servicos/[slug]/page.tsx']
+    case 'servicos-concelho': return ['data/seo/local-proof.json', 'lib/data/pt-servicos-concelho.ts', 'components/seo/PaginaServicoConcelho.tsx', 'app' + chemin + 'page.tsx']
     case 'urgencia': return [donnees, 'app/pt/urgencia/[slug]/page.tsx']
     case 'perto-de-mim': case 'perto-de-mim-hub': return [donnees, 'app/pt/perto-de-mim/[slug]/page.tsx']
     case 'cidade': return [donnees, 'app/pt/cidade/[slug]/page.tsx']

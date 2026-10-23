@@ -34,6 +34,36 @@ export const DATA_FASE_3 = '2026-10-14'
  */
 export const DATA_FASE_3_LOT_1 = '2026-10-14'
 
+/**
+ * Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : date du CONTENU de la page
+ * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai). À avancer au jour de la mise en
+ * production de toute modification de ce contenu (y compris un prix ou un délai de data/seo/local-proof.json), et à
+ * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date.
+ */
+export const DATA_PAGINAS_DISTRITO = '2026-10-22'
+
+/**
+ * Date d'ajout des LIENS vers les pages de district : pages telhador et impermeabilizacao des 18 concelhos du distrito
+ * do Porto, leurs deux hubs, les 18 pages ville du distrito, /pt/servicos/ et /pt/mapa-do-site/. Une page qui lie une page
+ * concelho prend en plus la date d'ouverture de celle-ci (lib/sitemap-pt-pages.ts, dataLigacoesConcelho). À aligner sur
+ * le jour de la mise en production.
+ */
+export const DATA_LIGACOES_DISTRITO = '2026-10-22'
+
+/**
+ * Pages de service du concelho d'Águeda (lib/data/pt-servicos-concelho.ts, demande du propriétaire du 21/10/2026) :
+ * date des deux pages, de la page ville d'Águeda et des 21 pages métier x ville d'Águeda (freguesias et population
+ * corrigées, liens vers les nouvelles pages). Mise en production le 23/10/2026 (heure de Lisbonne) : à reporter si la fusion a lieu un autre jour.
+ */
+export const DATA_PAGINAS_AGUEDA = '2026-10-23'
+
+/**
+ * Corrections de FAQ : réponse « Preciso de autorização para cortar uma árvore? » du métier poda-arvores (pages métier x
+ * ville et hub) ; réponse « Quanto custa… » des hubs poda-arvores et faz-tudo, qui affichaient la première FAQ du métier
+ * au lieu de sa question de prix. Mise en production le 23/10/2026 : à reporter si la fusion a lieu un autre jour.
+ */
+export const DATA_CORRECOES_FAQ = '2026-10-23'
+
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date
 // par défaut des pages statiques, surchargée par page dans lib/sitemap-pt-pages.ts.

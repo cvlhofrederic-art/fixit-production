@@ -7,6 +7,14 @@ export const METIERS = ['ar-condicionado', 'azulejador', 'canalizador', 'carpint
 
 export const METIERS_PERTO = [...METIERS, 'picheleiro']
 
+// Pages de service à l'échelle du district (lib/data/pt-servicos-distrito.ts, gel A0 levé le 20/10/2026) :
+// /pt/servicos/{slug}/ sans ville. Liste tenue égale aux données par tests/seo/pt-servicos-distrito.test.tsx.
+export const SERVICOS_DISTRITO_SLUGS = ['limpeza-de-telhados']
+
+// Pages de service d'un concelho (lib/data/pt-servicos-concelho.ts, Águeda, 21/10/2026) : /pt/servicos/{slug}/ hors
+// grille, slug -> concelho. Table tenue égale aux données par tests/seo/pt-servicos-concelho.test.tsx.
+export const SERVICOS_CONCELHO_CIDADES = { 'limpeza-de-terrenos-agueda': 'agueda', 'terraplanagem-agueda': 'agueda' }
+
 const villesTriees = [...VILLES].sort((a, b) => b.length - a.length)
 
 function separerMetierVille(slug, suffixe = '') {
@@ -29,6 +37,13 @@ export function classer(chemin) {
   if (JURIDIQUES.has(c)) return { groupe: 'juridique', metier: '', ville: '' }
   let m
   if ((m = c.match(/^\/pt\/servicos\/([^/]+)\/$/))) {
+    if (SERVICOS_DISTRITO_SLUGS.includes(m[1])) return { groupe: 'servicos-distrito', metier: m[1], ville: '' }
+    // Page concelho d'un service de district (ouverte par des chantiers réels) : groupe propre, mesurée à part de la grille.
+    for (const sd of SERVICOS_DISTRITO_SLUGS) {
+      const v = m[1].startsWith(sd + '-') ? m[1].slice(sd.length + 1) : ''
+      if (VILLES.includes(v)) return { groupe: 'servicos-distrito-concelho', metier: sd, ville: v }
+    }
+    if (Object.hasOwn(SERVICOS_CONCELHO_CIDADES, m[1])) return { groupe: 'servicos-concelho', metier: m[1], ville: SERVICOS_CONCELHO_CIDADES[m[1]] }
     const s = separerMetierVille(m[1])
     return s ? { groupe: 'servicos', ...s } : { groupe: 'servicos-inconnu', metier: m[1], ville: '' }
   }
@@ -58,9 +73,9 @@ export function classer(chemin) {
 /** Modèle de mesure de contenu (regroupe les pages comparables entre elles). */
 export function modeleMesure(groupe) {
   switch (groupe) {
-    case 'servicos': case 'urgencia': case 'perto-de-mim': case 'perto-de-mim-hub': case 'cidade': case 'blog':
+    case 'servicos': case 'urgencia': case 'perto-de-mim': case 'perto-de-mim-hub': case 'cidade': case 'blog': case 'servicos-distrito-concelho':
       return groupe
-    case 'hub-section': case 'hub-cidade': case 'blog-index': case 'precos': case 'page-statique': case 'mercados': case 'recherche': case 'juridique':
+    case 'servicos-distrito': case 'servicos-concelho': case 'hub-section': case 'hub-cidade': case 'blog-index': case 'precos': case 'page-statique': case 'mercados': case 'recherche': case 'juridique':
       return 'hors-grille'
     default:
       return 'autre'

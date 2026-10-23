@@ -1,8 +1,12 @@
 {
-  "_": "Données réelles de la phase 3 du plan SEO PT (format : docs/seo/phase-3-donnees-reelles.md). Vide tant que le propriétaire n'a rien fourni : les blocs correspondants ne s'affichent pas. Jamais de donnée inventée (règle 0.2).",
+  "_": "Données réelles de la phase 3 du plan SEO PT (format : docs/seo/phase-3-donnees-reelles.md). Vide tant que le propriétaire n'a rien fourni : les blocs correspondants ne s'affichent pas. Jamais de donnée inventée (règle 0.2). Limpeza de telhados : prix et délai de visite donnés par le propriétaire le 21/10/2026.",
   "chantiers": [],
-  "precos": [],
-  "prazos": [],
+  "precos": [
+    { "metier": "limpeza-de-telhados", "servico": "Limpeza e impermeabilização do telhado", "min": 20, "max": 30, "unite": "m²", "fonte": "equipa VITFIX, outubro de 2026" }
+  ],
+  "prazos": [
+    { "cidade": "distrito-porto", "metiers": ["limpeza-de-telhados"], "visita_dias": 2, "visita_horas_max": 48, "fonte": "compromisso da equipa VITFIX" }
+  ],
   "avis": [],
   "metodos": {}
 }
