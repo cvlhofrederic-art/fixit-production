@@ -5,7 +5,7 @@
     { "metier": "limpeza-de-telhados", "servico": "Limpeza e impermeabilização do telhado", "min": 20, "max": 30, "unite": "m²", "fonte": "equipa VITFIX, outubro de 2026" }
   ],
   "prazos": [
-    { "cidade": "distrito-porto", "metiers": ["limpeza-de-telhados"], "visita_dias": 2, "visita_horas_max": 48, "fonte": "compromisso da equipa VITFIX" }
+    { "cidade": "distrito-porto", "metiers": ["limpeza-de-telhados", "renovacao-de-fachadas", "trabalhos-verticais"], "visita_dias": 2, "visita_horas_max": 48, "fonte": "compromisso da equipa VITFIX" }
   ],
   "avis": [],
   "metodos": {}

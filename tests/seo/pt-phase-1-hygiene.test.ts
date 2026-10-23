@@ -26,7 +26,7 @@ import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaS
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, dataLigacoesConcelho, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
 import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATAS_PT } from '@/lib/seo/pt-datas'
-import { servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, dataLigacoesServicos, servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
@@ -281,8 +281,10 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
     }
     for (const s of SERVICES) {
       const entree = hubs.find((u) => u.url === `${BASE}/pt/perto-de-mim/${s.slug}/`)
-      // Hubs liés à une page de district : date des liens ; hubs poda-arvores et faz-tudo : FAQ corrigée le 21/10/2026.
-      const attendue = servicosDistritoLigados(s.slug).length ? DATA_LIGACOES_DISTRITO
+      // Hubs liés à des pages de district : date des liens de la plus récente ; hubs poda-arvores et faz-tudo : FAQ corrigée
+      // le 21/10/2026.
+      const ligados = servicosDistritoLigados(s.slug)
+      const attendue = ligados.length ? dataLigacoesServicos(ligados)
         : ['poda-arvores', 'faz-tudo'].includes(s.slug) ? DATA_CORRECOES_FAQ
           : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
       expect(entree?.lastModified, s.slug).toBe(attendue)
@@ -487,10 +489,12 @@ describe('1.1 sitemaps PT', () => {
     const paginas = sitemapsPt(BASE).paginas
     const dateDe = (path: string) => paginas.find((u) => u.url === `${BASE}${path}`)?.lastModified
     // Pages dont le contenu visible change dans le lot 0 ou la phase 4 (dont /pt/urgencia/ : délais rétablis).
-    // /pt/servicos/ et /pt/mapa-do-site/ lient les pages de district (20/10/2026) : date des pages de district.
-    expect(dateDe('/pt/servicos/')).toBe(DATA_LIGACOES_DISTRITO)
-    // /pt/mapa-do-site/ lie aussi les pages d'Águeda (21/10/2026) : la plus récente des deux dates.
-    expect(dateDe('/pt/mapa-do-site/')).toBe([DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1))
+    // /pt/servicos/ et /pt/mapa-do-site/ lient les pages de district (20 et 23/10/2026) : date des liens de la plus récente.
+    const ligacoes = dataLigacoesServicos(SERVICOS_DISTRITO)
+    expect(ligacoes >= DATA_LIGACOES_DISTRITO).toBe(true)
+    expect(dateDe('/pt/servicos/')).toBe(ligacoes)
+    // /pt/mapa-do-site/ lie aussi les pages d'Águeda (21/10/2026) : la plus récente des dates.
+    expect(dateDe('/pt/mapa-do-site/')).toBe([ligacoes, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1))
     for (const path of ['/pt/', '/pt/urgencia/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/pintor/']) {
       expect(dateDe(path), path).toBe(DATA_FASE_3)
     }

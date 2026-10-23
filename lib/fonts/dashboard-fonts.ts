@@ -1,4 +1,4 @@
-import { Outfit, Montserrat, Playfair_Display } from 'next/font/google'
+import './polices-tableaux-de-bord.css'
 
 // Fonts partagées par les dashboards privés (syndic + coproprietaire).
 // Chargées uniquement sur ces routes — pas dans app/layout.tsx global —
@@ -6,24 +6,8 @@ import { Outfit, Montserrat, Playfair_Display } from 'next/font/google'
 //
 // Playfair Display utilisé pour KPI numbers, modal titles, doc empty states
 // dans #syndic-dashboard et inline dans #copro-dashboard (page.tsx).
+//
+// Polices auto-hébergées : Playfair Display dans polices-tableaux-de-bord.css, Outfit et
+// Montserrat dans app/polices.css (layout racine). Fichiers dans public/fonts/web.
 
-export const outfit = Outfit({
-  variable: '--font-outfit',
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
-})
-
-export const montserrat = Montserrat({
-  variable: '--font-montserrat',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800', '900'],
-})
-
-export const playfair = Playfair_Display({
-  variable: '--font-playfair',
-  subsets: ['latin'],
-  weight: ['400', '600'],
-  style: ['normal', 'italic'],
-})
-
-export const dashboardFontsClassName = `${outfit.variable} ${montserrat.variable} ${playfair.variable}`
+export const dashboardFontsClassName = 'police-outfit police-montserrat police-playfair'

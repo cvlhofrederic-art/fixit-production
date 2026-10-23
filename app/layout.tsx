@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 // Suspense removed from root layout to fix React hydration error #419
-import { DM_Sans } from "next/font/google";
-import { Syne } from "next/font/google";
-import { Montserrat } from "next/font/google";
-import { Outfit } from "next/font/google";
 import { cookies, headers } from "next/headers";
+import { preload } from "react-dom";
+import "./polices.css";
 import "./globals.css";
 import ConditionalLayout from "@/components/common/ConditionalLayout";
 import CookieConsent from "@/components/common/CookieConsent";
@@ -18,41 +16,22 @@ import { areaServidaPt } from "@/lib/seo/pt-schemas";
 
 // Pro SEO 2026 : `display: 'swap'` pour éviter le FOIT (Flash of Invisible
 // Text) et améliorer le LCP. Le navigateur affiche d'abord la fallback,
-// puis swap quand la font Google est chargée. Critique sur mobile 4G.
+// puis swap quand la font est chargée. Critique sur mobile 4G.
 // Source : web.dev/articles/font-display + Google Fonts Optimization 2026.
+//
+// Polices auto-hébergées (app/polices.css, fichiers dans public/fonts/web) : mêmes fichiers,
+// règles @font-face et polices de secours que next/font/google, sans téléchargement chez
+// Google au build. Classes police-* = variables --font-* (DM Sans, Syne, Montserrat, Outfit).
+// Outfit reste global : référencé dans app/globals.css par des sélecteurs scopés
+// #syndic-dashboard + #copro-dashboard.
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500"],
-  display: "swap",
-});
-
-const syne = Syne({
-  variable: "--font-syne",
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-  display: "swap",
-});
-
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  display: "swap",
-});
-
-// Outfit utilisé sur les dashboards syndic + copro. Conservé global car
-// référencé dans app/globals.css via plusieurs sélecteurs scopés #syndic-dashboard
-// + #copro-dashboard. Les dashboards layouts (app/syndic/dashboard/layout.tsx,
-// app/coproprietaire/dashboard/layout.tsx) le redéfinissent aussi en local
-// pour cohérence d'arborescence.
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  display: "swap",
-});
+/** Fichiers latins préchargés, comme le faisait next/font/google. */
+function prechargerPolices() {
+  preload("/fonts/web/5c285b27cdda1fe8-s.p.2_mbdogr7ni8i.woff2", { as: "font", type: "font/woff2", crossOrigin: "" });
+  preload("/fonts/web/0c795a286deabae8-s.p.3vm0tq4e-zz_5.woff2", { as: "font", type: "font/woff2", crossOrigin: "" });
+  preload("/fonts/web/e8f2fbee2754df70-s.p.1dqa_6e_ad4sj.woff2", { as: "font", type: "font/woff2", crossOrigin: "" });
+  preload("/fonts/web/1b99372b3eaef0c8-s.p.1gsd1jahc5dg_.woff2", { as: "font", type: "font/woff2", crossOrigin: "" });
+}
 
 // Playfair_Display + IBM_Plex_Sans/Mono déplacés hors du layout global :
 // - Playfair Display → app/syndic/dashboard/layout.tsx + app/coproprietaire/dashboard/layout.tsx
@@ -197,6 +176,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  prechargerPolices();
   // Read locale: x-locale header (set by middleware from URL path) takes priority
   // over cookie, which may be stale when middleware updates it in the response.
   // En mode MOBILE_BUILD (export Capacitor), cookies()/headers() ne sont pas
@@ -363,7 +343,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body suppressHydrationWarning className={`${dmSans.variable} ${syne.variable} ${montserrat.variable} ${outfit.variable} font-sans antialiased`}>
+      <body suppressHydrationWarning className="police-dm-sans police-syne police-montserrat police-outfit font-sans antialiased">
         <Providers locale={locale}>
           <a href="#main-content" className="skip-to-content">
             {locale === 'en' || locale === 'nl' ? 'Skip to main content' : locale === 'pt' ? 'Ir para o conte\u00fado principal' : locale === 'es' ? 'Ir al contenido principal' : 'Aller au contenu principal'}
