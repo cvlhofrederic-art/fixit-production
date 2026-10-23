@@ -5,6 +5,7 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { cheminStockageSur } from '@/lib/storage/chemin-sur'
 
 const IdSchema = z.string().uuid()
 
@@ -39,9 +40,10 @@ export async function DELETE(
     }
     if (!tpl) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-    const { error: storageErr } = await supabaseAdmin.storage
-      .from('syndic-pdf-templates')
-      .remove([tpl.storage_path])
+    // Chemin refusé : objet laissé, row supprimée (comme un échec de remove).
+    const { error: storageErr } = cheminStockageSur(tpl.storage_path)
+      ? await supabaseAdmin.storage.from('syndic-pdf-templates').remove([tpl.storage_path])
+      : { error: new Error('storage_path refusé') }
     if (storageErr) {
       logger.warn('[lea-pdf-templates/delete] storage remove failed (continuing):', storageErr)
     }

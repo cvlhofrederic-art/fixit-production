@@ -7,6 +7,7 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { cheminStockageSur } from '@/lib/storage/chemin-sur'
 
 const SIGNED_URL_TTL_SECONDS = 10 * 60
 
@@ -78,6 +79,10 @@ export async function GET(
       return NextResponse.json({ error: 'db_query_failed' }, { status: 500 })
     }
     if (!doc) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    if (!cheminStockageSur(doc.storage_path)) {
+      logger.error('[lea-documents/get] storage_path refusé:', { id: doc.id })
+      return NextResponse.json({ error: 'storage_signed_url_failed' }, { status: 500 })
+    }
 
     const { data: signed, error: signError } = await supabaseAdmin.storage
       .from('syndic-documents')
@@ -223,10 +228,10 @@ export async function DELETE(
     }
     if (!doc) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-    // Storage delete (best-effort — la row reste la source de vérité)
-    const { error: storageError } = await supabaseAdmin.storage
-      .from('syndic-documents')
-      .remove([doc.storage_path])
+    // Storage delete (best-effort — la row reste la source de vérité). Chemin refusé : objet laissé, row supprimée.
+    const { error: storageError } = cheminStockageSur(doc.storage_path)
+      ? await supabaseAdmin.storage.from('syndic-documents').remove([doc.storage_path])
+      : { error: new Error('storage_path refusé') }
     if (storageError) {
       logger.warn('[lea-documents/delete] storage remove failed (continuing with DB delete):', storageError)
     }
