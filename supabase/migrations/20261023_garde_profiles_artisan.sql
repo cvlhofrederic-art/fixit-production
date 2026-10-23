@@ -1,11 +1,13 @@
 -- ══════════════════════════════════════════════════════════════════════════════
 -- Garde des colonnes réservées au serveur sur profiles_artisan (23/10/2026)
 --
--- La policy profiles_artisan_owner_update (migration 041, USING user_id = auth.uid())
--- ne restreint aucune colonne : avec sa session, un artisan peut appeler l'API Supabase
--- directement et passer verified, rating_avg, subscription_*, kyc_*… à la valeur de son
--- choix. De même, profiles_artisan_owner_insert (WITH CHECK user_id = auth.uid()) laisse
--- tout compte connecté, client compris, créer une fiche artisan déjà « vérifiée ».
+-- En production (relevé du 23/10/2026), la policy « Users can update own artisan profile »
+-- (USING auth.uid() = user_id, migration 041 : profiles_artisan_owner_update) ne restreint
+-- aucune colonne : avec sa session, un artisan peut appeler l'API Supabase directement et
+-- passer verified, rating_avg, subscription_tier (accès artisan_pro aux marchés), kyc_*…
+-- à la valeur de son choix. De même, « Users can insert own artisan profile » (WITH CHECK
+-- auth.uid() = user_id) laisse tout compte connecté, client compris, créer une fiche
+-- artisan déjà « vérifiée ». Seul autre trigger : trg_profiles_artisan_updated_at.
 --
 -- Pour les rôles navigateur (anon, authenticated), le trigger refuse :
 --   - toute création de fiche : le code les crée par /api/auth/create-profile et
@@ -38,12 +40,16 @@ as $$
 declare
   colonnes_serveur constant text[] := array[
     'active', 'verified', 'rating_avg', 'rating_count',
-    'subscription_plan', 'subscription_status', 'stripe_customer_id',
+    'subscription_tier', 'subscription_plan', 'subscription_status', 'stripe_customer_id',
     'insurance_verified', 'insurance_scan_data',
     'kyc_status', 'kyc_market', 'kyc_score', 'kyc_checks', 'kyc_verified_at',
     'kyc_reviewed_at', 'kyc_reviewed_by', 'kyc_rejection_reason',
+    'kbis_extracted', 'certidao_extracted', 'kbis_extracted_encrypted',
+    'siret', 'siren', 'siret_encrypted', 'nif_encrypted', 'pii_encryption_version',
+    'kbis_url', 'insurance_url', 'id_document_verso_url',
     'rc_pro_valid', 'decennale_valid', 'rge_valid', 'qualibat_valid',
-    'credit_mois_gratuits', 'total_parrainages_reussis', 'referral_flagged', 'referral_code'
+    'credit_mois_gratuits', 'total_parrainages_reussis', 'referral_flagged', 'referral_code',
+    'referral_parrain_id'
   ];
   nouvelle jsonb;
   ancienne jsonb;
