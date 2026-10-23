@@ -196,7 +196,9 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
           </div>
           {paginasDistrito.length > 0 && (
             <div className="mt-10">
-              <p className="text-text-muted mb-4 max-w-2xl">Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:</p>
+              <p className="text-text-muted mb-4 max-w-2xl">
+                {paginasDistrito.length === 1 ? paginasDistrito[0].chamadaHub : `Trabalhos feitos pela equipa VITFIX no distrito ${nomeDistrito(paginasDistrito[0].distrito)}:`}
+              </p>
               <div className="flex flex-wrap gap-3">
                 {paginasDistrito.map(pd => (
                   <Link

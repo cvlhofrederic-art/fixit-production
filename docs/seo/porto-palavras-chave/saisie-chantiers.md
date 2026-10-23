@@ -64,6 +64,14 @@ Dans `data/seo/local-proof.json` (format complet : `docs/seo/phase-3-donnees-ree
 2. Quand les trois conditions sont réunies, la page du concelho s'ouvre. Elle est ajoutée au sitemap et liée depuis la page du district (carte du chantier), la page de la ville et les pages telhador et impermeabilização de ce concelho.
 3. Après la mise en ligne, je demande son indexation dans la Search Console.
 
+## Renovação de fachadas et trabalhos verticais (ajout du 23/10/2026)
+
+Les deux pages de district `/pt/servicos/renovacao-de-fachadas/` et `/pt/servicos/trabalhos-verticais/` n'ont encore aucune preuve d'expérience : ni chantier, ni photo, ni qualification vérifiable. Le guide (sections 2.3 et 5.2) en fait un critère de qualité. Ce qu'il faudrait m'envoyer, au même format que ci-dessus :
+
+1. **1 ou 2 chantiers réels** de façade (prédio ou moradia) ou faits sur corde : concelho, freguesia, mois, travaux, problème trouvé, ce qu'on a fait, accès (échafaudage ou cordes), une photo « après » et ce qu'elle montre. Je les saisis dans `data/seo/local-proof.json` avec `"metier": "renovacao-de-fachadas"` ou `"metier": "trabalhos-verticais"`. Ils s'affichent sur la page du district sans changement de code.
+2. **La certification IRATA, pour qu'elle soit vérifiable** : niveau (1, 2 ou 3) de chaque technicien, son nom ou son numéro de certificat, seulement avec son accord écrit. Sans cela, la page dit « certificação IRATA » sans pouvoir le prouver.
+3. **Les détails de méthode retirés à la relecture du 23/10/2026**, à valider ou à corriger avant que je les remette : traitement du ferro des varandas, tinta compatível avec le capoto, lavagem à basse pression et produit contre les algues, saison des travaux, avis d'un engenheiro pour une fissure large, délimitation de la zone sous les cordes, mástique elástico pour les juntas, ce que le condomínio doit préparer, arrêt par vent fort, et l'ordre des étapes des deux méthodes.
+
 ## Ordre conseillé pour te démarquer
 
 D'après le relevé du 19/10/2026 (`plano-paginas.md`) :
