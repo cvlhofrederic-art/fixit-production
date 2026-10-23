@@ -38,7 +38,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Bucket non autorisé' }, { status: 400 })
     }
     const bucket = bucketRaw
-    const folder = (formData.get('folder') as string) || 'misc'
+    // Dossier : racine connue + segments [A-Za-z0-9_-] uniquement. Sans ce contrôle, un « ../ »
+    // dans folder sortait du bucket autorisé (le client Storage normalise l'URL, upload en service role).
+    const DOSSIERS_RACINE = [
+      'misc', 'profiles', 'kbis', 'insurance', 'logos', 'messages', 'clients', 'portfolio',
+      'wallet', 'en-quotes', 'syndic-ged', 'syndic-interventions', 'syndic-logos',
+    ]
+    const segmentsDossier = ((formData.get('folder') as string) || 'misc').split('/')
+    if (
+      segmentsDossier.length > 4 ||
+      !segmentsDossier.every((s) => /^[A-Za-z0-9_-]{1,64}$/.test(s)) ||
+      !DOSSIERS_RACINE.includes(segmentsDossier[0])
+    ) {
+      return NextResponse.json({ error: 'Dossier non autorisé' }, { status: 400 })
+    }
+    const folder = segmentsDossier.join('/')
     const artisanId = formData.get('artisan_id') as string | null
     const field = formData.get('field') as string | null
 
@@ -176,7 +190,8 @@ export async function POST(request: NextRequest) {
           // Append to portfolio_photos JSONB array
           const photoMeta = formData.get('photo_meta') as string | null
           const photoUrl = formData.get('photo_url') as string | null
-          const targetUrl = photoUrl || publicUrl
+          // portfolio_photos est affiché sur la page publique : seule une URL https est gardée (pas de javascript:)
+          const targetUrl = photoUrl && /^https:\/\//i.test(photoUrl) ? photoUrl : publicUrl
           let meta: Record<string, unknown> = {}
           try { meta = photoMeta ? JSON.parse(photoMeta) : {} } catch { /* invalid JSON, use empty */ }
           const newEntry = {
