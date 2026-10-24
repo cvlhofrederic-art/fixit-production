@@ -31,6 +31,7 @@ import {
 import { FilterModal, type FilterState } from '@/components/recherche/FilterModal'
 import { ArtisanCard, type Artisan, type Availability, type Booking, type Service } from '@/components/recherche/ArtisanCard'
 import { comVitfixPrimeiro } from '@/lib/recherche/vitfix-destaque'
+import { chargerParLots, idsAvecAgenda, requeteDisponibilites, requeteReservations } from '@/lib/recherche/creneaux-par-lots'
 import { ALL_COMMUNES, FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
 
@@ -536,30 +537,23 @@ function RechercheContent() {
       setArtisans(deduped)
 
       // ── 4. Dispo & bookings pour les artisans inscrits uniquement ────
-      if (registeredList.length > 0) {
-        const ids = registeredList.map((a) => a.id)
+      // Seules les fiches liées à un compte ont un agenda ; identifiants envoyés par lots de 150
+      // (758 identifiants d'un coup faisaient une URL de 30 Ko refusée en 400 sur /pt/pesquisar/).
+      // Voir lib/recherche/creneaux-par-lots.ts.
+      const idsAgenda = idsAvecAgenda(registeredList)
+      if (idsAgenda.length > 0) {
+        const availData = await chargerParLots<Availability>('availability', idsAgenda, (lot) =>
+          requeteDisponibilites(supabase, lot),
+        )
 
-        // Recherche montre uniquement les créneaux RDV directs (pas les plages Visite & devis,
-        // qui supposent un échange préalable avec l'artisan).
-        const { data: availData } = await supabase
-          .from('availability')
-          .select('*')
-          .in('artisan_id', ids)
-          .eq('is_available', true)
-          .or('slot_type.eq.rdv,slot_type.is.null')
-          .order('day_of_week')
-
-        setAllAvailability(availData || [])
+        setAllAvailability(availData)
 
         const todayStr = format(new Date(), 'yyyy-MM-dd')
-        const { data: bookingsData } = await supabase
-          .from('bookings')
-          .select('*')
-          .in('artisan_id', ids)
-          .gte('booking_date', todayStr)
-          .in('status', ['confirmed', 'pending'])
+        const bookingsData = await chargerParLots<Booking>('bookings', idsAgenda, (lot) =>
+          requeteReservations(supabase, lot, todayStr),
+        )
 
-        setAllBookings(bookingsData || [])
+        setAllBookings(bookingsData)
       } else {
         setAllAvailability([])
         setAllBookings([])
