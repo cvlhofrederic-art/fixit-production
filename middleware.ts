@@ -110,6 +110,16 @@ const CHEMINS_SUPPRIMES_PT = new Set([
   '/pt/blog/preparar-paredes-pintura',
 ])
 
+// ── Succursale Administrateur Judiciaire : outil métier, jamais indexable ──
+// next.config.ts headers() pose X-Robots-Tag sur ses pages rendues, mais OpenNext renvoie les réponses 3xx du middleware
+// sans y ajouter les en-têtes de la config (@opennextjs/aws core/routingHandler.js). Les redirections qui partent de la
+// succursale le portent donc ici. Même critère que le contrôle d'accès plus bas (chemin sans préfixe de langue).
+const X_ROBOTS_SUCCURSALE_AJ = 'noindex, nofollow, noarchive'
+
+function viseSuccursaleAJ(cheminSansLangue: string): boolean {
+  return cheminSansLangue.startsWith('/administrateur-judiciaire')
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
@@ -194,6 +204,7 @@ export async function middleware(request: NextRequest) {
       response.headers.set('Vary', 'Accept-Language')
       response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
       response.headers.set('Content-Security-Policy', cspHeader)
+      if (viseSuccursaleAJ(pathname)) response.headers.set('X-Robots-Tag', X_ROBOTS_SUCCURSALE_AJ)
       return response
     }
 
@@ -317,6 +328,7 @@ export async function middleware(request: NextRequest) {
       resp.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
     })
     resp.headers.set('Content-Security-Policy', cspHeader)
+    if (viseSuccursaleAJ(strippedPathname)) resp.headers.set('X-Robots-Tag', X_ROBOTS_SUCCURSALE_AJ)
     return resp
   }
 

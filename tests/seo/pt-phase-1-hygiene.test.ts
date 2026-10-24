@@ -508,14 +508,16 @@ describe('1.1 sitemaps PT', () => {
     expect(DATA_FASE_3 > DATA_FASE_2).toBe(true)
   })
 
-  it('/sitemap/1.xml répond 410 ; /sitemap/0.xml ne contient plus aucune URL /pt/', async () => {
+  it('/sitemap/1.xml répond 410 ; /sitemap/0.xml ne contient plus aucune URL /pt/ ni la racine', async () => {
     const { GET } = await import('@/app/sitemap/[id]/route')
     const gone = await GET(new Request(`${BASE}/sitemap/1.xml`), { params: Promise.resolve({ id: '1' }) })
     expect(gone.status).toBe(410)
     const zero = await (await GET(new Request(`${BASE}/sitemap/0.xml`), { params: Promise.resolve({ id: '0' }) })).text()
     expect(zero).not.toContain('/pt/')
     expect(zero).toContain('<loc>' + BASE + '/fr/</loc>')
-    expect((zero.match(/<url>/g) ?? []).length).toBe(11)
+    // La racine répond 302 (redirection géolocalisée) : jamais dans un sitemap.
+    expect(zero).not.toContain('<loc>' + BASE + '/</loc>')
+    expect((zero.match(/<url>/g) ?? []).length).toBe(10)
   })
 })
 
