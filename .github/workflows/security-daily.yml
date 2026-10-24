@@ -51,7 +51,7 @@ jobs:
             echo "status=passed" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: trivy-results
           path: trivy-results.json
@@ -122,7 +122,7 @@ jobs:
             echo "### Nuclei: Clean" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: nuclei-results
@@ -170,7 +170,7 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: semgrep-results
           path: semgrep-results.json
