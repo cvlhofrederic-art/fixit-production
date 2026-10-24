@@ -13,7 +13,19 @@ test.describe.configure({ timeout: 120_000 })
 /** Orthographe impossible en français : í ó ú ã õ (repère de texte portugais oublié). */
 const ORTHOGRAPHE_PT = /[íóúãõ]/
 
+/**
+ * Choix cookies enregistré avant le chargement. Sans lui, le bandeau CookieConsent (fixe en bas, z-index 9999)
+ * s'affiche 1,5 s après le montage et recouvre le pied des modales (z-index 1000) : sous webkit en CI, l'attente
+ * de stabilité de la modale « Nouvelle mission » (animation d'ouverture) dépasse ces 1,5 s et le bandeau
+ * intercepte le clic sur « Créer la mission » jusqu'au timeout.
+ */
+async function enregistrerChoixCookies(page: Page) {
+  const choix = JSON.stringify({ performance: false, personalization: false, advertising: false, date: new Date().toISOString() })
+  await page.addInitScript((valeur) => localStorage.setItem('vitfix_cookie_consent', valeur), choix)
+}
+
 async function ouvrir(page: Page, chemin: string) {
+  await enregistrerChoixCookies(page)
   await page.goto(chemin, { waitUntil: 'domcontentloaded', timeout: 120_000 })
   await page.locator('#syndic-dashboard-v54').waitFor({ state: 'attached', timeout: 60_000 })
   await page.locator('[data-hydrated="true"]').waitFor({ state: 'attached', timeout: 30_000 })
