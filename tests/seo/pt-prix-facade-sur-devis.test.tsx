@@ -138,7 +138,7 @@ describe('décision du 23/10/2026 : façade sur devis', () => {
     expect(texte).toContain('Injeção contra capilaridade: entre 50€ e 100€ por metro linear.')
     // Capoto : prix réel de l'équipe VITFIX depuis le 27/10/2026 (tests/seo/pt-preco-capoto.test.tsx), plus de fourchette 40-80 €.
     expect(texte).not.toContain('entre 40€ e 80€')
-    expect(texte).toContain('Isolamento térmico pelo exterior (capoto): na VITFIX, 53 a 58 € por m², sem IVA, com material e mão de obra')
+    expect(texte).toContain('Isolamento térmico pelo exterior (capoto): no distrito do Porto e no concelho de Águeda, a equipa VITFIX aplica-o por 53 a 58 € por m², sem IVA, com material e mão de obra')
     expect(texte).toContain('Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela')
     expect(jsonLd).toContain('"dateModified":"2026-10-27"')
   })

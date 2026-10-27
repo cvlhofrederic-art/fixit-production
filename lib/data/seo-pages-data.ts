@@ -104,6 +104,14 @@ export interface BlogArticle {
 // CITIES - Marco de Canaveses + surrounding area (20km radius)
 // ============================================================
 
+/**
+ * Réponse « Quanto custa aplicar capoto por m²? » des pages isolamento-termico hors de la zone confirmée de l'équipe VITFIX
+ * (distrito do Porto et concelho d'Águeda) : Braga, Aveiro et Ovar. Le prix réel (53 à 58 €/m² sans IVA) est celui de
+ * l'équipe ; rien ne confirme qu'elle pose du capoto dans ces villes, ni le prix des profissionais vers lesquels ces pages
+ * renvoient (/pt/pesquisar/). Facteurs de prix et orçamento gratuito seulement (règle 0.2 ; relecture du 27/10/2026).
+ */
+const RESPOSTA_CAPOTO_FORA_DA_ZONA = 'O preço do capoto (sistema ETICS) depende da área e da espessura do isolamento, do estado e do acesso da fachada. O orçamento é gratuito.'
+
 export const CITIES: CityData[] = [
   {
     slug: 'marco-de-canaveses',
@@ -595,6 +603,10 @@ export const CITIES: CityData[] = [
       'pintor': {
         intro: 'Pintores em Braga especializados em fachadas em granito do centro histórico UNESCO, restauro de pintura tradicional em edifícios barrocos (Sé, São Vicente), pintura de alojamento estudantil universitário (manutenção rápida entre arrendamentos) e pintura interior anti-humidade em apartamentos do Vale do Cávado.',
       },
+      // Hors de la zone confirmée de l'équipe VITFIX : pas de prix du capoto (RESPOSTA_CAPOTO_FORA_DA_ZONA).
+      'isolamento-termico': {
+        respostas: { 'Quanto custa aplicar capoto por m²?': RESPOSTA_CAPOTO_FORA_DA_ZONA },
+      },
     },
   },
   {
@@ -687,6 +699,10 @@ export const CITIES: CityData[] = [
       },
       'pintor': {
         intro: 'Pintores em Aveiro especializados em fachadas com humidade salina, restauro de azulejaria de revestimento e pintura interior anti-bolor. Aplicação de tintas técnicas adequadas ao clima costeiro.',
+      },
+      // Hors de la zone confirmée de l'équipe VITFIX (concelho d'Aveiro) : pas de prix du capoto (RESPOSTA_CAPOTO_FORA_DA_ZONA).
+      'isolamento-termico': {
+        respostas: { 'Quanto custa aplicar capoto por m²?': RESPOSTA_CAPOTO_FORA_DA_ZONA },
       },
     },
   },
@@ -838,6 +854,10 @@ export const CITIES: CityData[] = [
       },
       'pintor': {
         intro: 'Pintores em Ovar com formação em restauro de azulejaria, aplicação de tintas anti-salinidade e pintura exterior de moradias costeiras. Trabalho compatível com a estética da Cidade-Museu do Azulejo.',
+      },
+      // Hors de la zone confirmée de l'équipe VITFIX (concelho d'Ovar) : pas de prix du capoto (RESPOSTA_CAPOTO_FORA_DA_ZONA).
+      'isolamento-termico': {
+        respostas: { 'Quanto custa aplicar capoto por m²?': RESPOSTA_CAPOTO_FORA_DA_ZONA },
       },
     },
   },
@@ -1465,9 +1485,14 @@ export const SERVICES: ServiceData[] = [
       // Prix réel donné par le propriétaire (octobre 2026) : pose complète de capoto neuf par l'équipe VITFIX, 53 à 58 €/m²,
       // matériel et main-d'œuvre compris, sans IVA. Affichage au consommateur : prix « incluindo taxas e impostos » (DL 138/90,
       // art. 1.º n.º 5 et 6.º n.º 1 ; DL 57/2008, art. 10.º c)) ; le taux d'IVA dépend de l'obra (CIVA art. 18.º, Lista I,
-      // verbas 2.23 et 2.27), d'où le prix avec IVA donné entre ses deux bornes (6 % et 23 %). Journal du 27/10/2026.
-      { question: 'Quanto custa aplicar capoto por m²?', answer: 'A equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra (preços de outubro de 2026). A este preço acresce o IVA à taxa que a lei aplica à obra: 23% (taxa normal) ou 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (obras de renovação, reparação ou conservação de imóveis afetos à habitação, com os materiais incorporados a 23% quando passam de 20% do valor global da obra) ou da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Com IVA, o preço fica entre 56,18 € e 71,34 € por m². Para 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.' },
-      { question: 'O isolamento térmico paga-se a si próprio?', answer: 'Sim, o isolamento térmico pode reduzir a fatura energética entre 25% e 40%. Com uma poupança média de 500€ a 1 000€ por ano em aquecimento e arrefecimento, o investimento recupera-se tipicamente em 6 a 10 anos. Além disso, valoriza o imóvel ao melhorar a sua classe energética, o que é cada vez mais importante na compra e venda de casas em Portugal.' },
+      // verbas 2.23 et 2.27), d'où le prix avec IVA donné entre ses deux bornes (6 % et 23 %), dès la première phrase. Zone
+      // confirmée de l'équipe (distrito do Porto, concelho d'Águeda) dite dans la réponse ; Braga, Aveiro et Ovar la remplacent
+      // par RESPOSTA_CAPOTO_FORA_DA_ZONA (serviceCityOverrides). Verba 2.27 citée d'après le texte de la Lista I (informação
+      // vinculativa AT 29260 du 29/01/2026). Journal du 27/10/2026.
+      { question: 'Quanto custa aplicar capoto por m²?', answer: 'No distrito do Porto e no concelho de Águeda, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.' },
+      // Délai de retour (« 6 a 10 anos », calculé sur l'ancienne fourchette 40-80 €/m²) retiré le 27/10/2026 : il contredisait le
+      // prix réel affiché juste au-dessus, comme la phrase équivalente retirée de l'article capoto.
+      { question: 'O isolamento térmico paga-se a si próprio?', answer: 'Sim, o isolamento térmico pode reduzir a fatura energética entre 25% e 40%. Além disso, valoriza o imóvel ao melhorar a sua classe energética, o que é cada vez mais importante na compra e venda de casas em Portugal.' },
       { question: 'Posso aplicar capoto sem licença da câmara?', answer: 'A aplicação de capoto altera o aspeto exterior do edifício, pelo que em muitos municípios é necessária uma comunicação prévia à Câmara Municipal. No entanto, o processo é geralmente simples e rápido. Em edifícios de apartamentos, é necessária a aprovação do condomínio. A VITFIX ajuda com todo o processo burocrático.' },
       { question: 'Qual a diferença entre EPS e lã mineral no capoto?', answer: 'O EPS (poliestireno expandido) é mais económico, leve e fácil de aplicar, é a escolha mais comum. A lã mineral oferece melhor isolamento acústico e é incombustível (classificação A1 ao fogo), sendo recomendada para edifícios altos ou zonas com requisitos especiais de proteção contra incêndio. Ambos oferecem excelente desempenho térmico.' },
     ],
@@ -2573,7 +2598,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Custos de tratamento da humidade',
-        content: 'Os custos variam conforme o tipo e a extensão do problema. Tratamento de condensação (ventilação, extratores): entre 200€ e 800€. Injeção contra capilaridade: entre 50€ e 100€ por metro linear. Isolamento térmico pelo exterior (capoto): na VITFIX, 53 a 58 € por m², sem IVA, com material e mão de obra, a que acresce o IVA à taxa aplicável à obra, 23% ou, em certas obras, 6% (com IVA, entre 56,18 € e 71,34 € por m²); o preço final depende da espessura do isolamento, do estado e do acesso da fachada. Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela: o valor depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações a tratar, e o orçamento é gratuito, feito depois de uma visita (página Renovação de fachadas da VITFIX, no distrito do Porto). Na VITFIX, fazemos diagnóstico gratuito e apresentamos orçamento detalhado com as diferentes opções de tratamento, para que possa tomar uma decisão informada.',
+        content: 'Os custos variam conforme o tipo e a extensão do problema. Tratamento de condensação (ventilação, extratores): entre 200€ e 800€. Injeção contra capilaridade: entre 50€ e 100€ por metro linear. Isolamento térmico pelo exterior (capoto): no distrito do Porto e no concelho de Águeda, a equipa VITFIX aplica-o por 53 a 58 € por m², sem IVA, com material e mão de obra, a que acresce o IVA aplicável à obra: 23%, 6% em certas obras, ou 6% sobre a mão de obra e 23% sobre os materiais (com IVA, entre 56,18 € e 71,34 € por m²); o preço final depende da espessura do isolamento, do estado e do acesso da fachada. Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela: o valor depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações a tratar, e o orçamento é gratuito, feito depois de uma visita (página Renovação de fachadas da VITFIX, no distrito do Porto). Na VITFIX, fazemos diagnóstico gratuito e apresentamos orçamento detalhado com as diferentes opções de tratamento, para que possa tomar uma decisão informada.',
       },
     ],
     ctaText: 'Problemas de humidade em casa? Os profissionais VITFIX fazem diagnóstico e reparação completa.',
@@ -2991,8 +3016,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     datePublished: '2026-03-18',
     // Prix réel de l'équipe VITFIX (53 à 58 €/m² sans IVA, matériel et main-d'œuvre, octobre 2026) à la place des fourchettes
     // de référence non sourcées (40-80 €/m² et totaux qui en découlaient, dont l'investissement de la section sur la poupança) ;
-    // phrase d'IVA des incentivos alignée sur la Lista I du CIVA. À aligner sur le jour de la mise en production
-    // (docs/seo/journal-pt.md).
+    // phrase d'IVA des incentivos alignée sur la Lista I du CIVA, taux du continent (art. 18.º n.º 1 et 3). Prix rattaché à la zone
+    // confirmée de l'équipe (distrito do Porto, concelho d'Águeda), avec IVA dès la première phrase. À aligner sur le jour de la
+    // mise en production (docs/seo/journal-pt.md).
     dateModified: '2026-10-27',
     intro: 'O capoto, tecnicamente conhecido como sistema ETICS (External Thermal Insulation Composite System), é uma das soluções mais eficazes para melhorar a eficiência energética de uma casa. Com os custos de energia em alta e incentivos fiscais disponíveis, o isolamento térmico pelo exterior tornou-se um dos investimentos mais inteligentes para proprietários em Portugal.',
     sections: [
@@ -3002,7 +3028,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Preços do capoto em 2026',
-        content: 'A equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra (preços de outubro de 2026). A este preço acresce o IVA à taxa que a lei aplica à obra: 23% (taxa normal) ou 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (obras de renovação, reparação ou conservação de imóveis afetos à habitação, com os materiais incorporados a 23% quando passam de 20% do valor global da obra) ou da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Com IVA, o preço fica entre 56,18 € e 71,34 € por m². Para uma moradia com 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.',
+        content: 'No distrito do Porto e no concelho de Águeda, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para uma moradia com 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.',
       },
       {
         heading: 'Poupança energética real',
@@ -3014,7 +3040,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Incentivos fiscais e apoios',
-        content: 'Existem vários incentivos que tornam o isolamento térmico mais acessível em Portugal. A taxa reduzida de IVA de 6% só se aplica a certas obras (Código do IVA, Lista I, por exemplo as verbas 2.23 e 2.27, nas condições indicadas na secção dos preços); nas restantes, a taxa é a normal, de 23%. O Fundo Ambiental disponibiliza periodicamente apoios para eficiência energética residencial, que podem cobrir até 70% do custo do isolamento (com limites máximos por habitação). O PRR (Plano de Recuperação e Resiliência) inclui programas de eficiência energética para edifícios. Alguns municípios oferecem isenções ou reduções de taxas para obras que melhorem a eficiência energética. Consulte a ADENE (Agência para a Energia) e a sua câmara municipal para informação atualizada sobre os apoios disponíveis.',
+        content: 'Existem vários incentivos que tornam o isolamento térmico mais acessível em Portugal. No continente, a taxa reduzida de IVA de 6% só se aplica a certas obras (Código do IVA, Lista I, por exemplo as verbas 2.23 e 2.27, nas condições indicadas na secção dos preços); nas restantes, a taxa é a normal, de 23%. Nos Açores e na Madeira, as Assembleias Legislativas regionais podem fixar taxas reduzidas próprias (Código do IVA, artigo 18.º, n.º 3). O Fundo Ambiental disponibiliza periodicamente apoios para eficiência energética residencial, que podem cobrir até 70% do custo do isolamento (com limites máximos por habitação). O PRR (Plano de Recuperação e Resiliência) inclui programas de eficiência energética para edifícios. Alguns municípios oferecem isenções ou reduções de taxas para obras que melhorem a eficiência energética. Consulte a ADENE (Agência para a Energia) e a sua câmara municipal para informação atualizada sobre os apoios disponíveis.',
       },
       {
         heading: 'O processo de aplicação',
