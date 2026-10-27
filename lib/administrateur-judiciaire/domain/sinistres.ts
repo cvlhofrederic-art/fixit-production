@@ -1,4 +1,13 @@
-import { ajouterJours, ajouterMois, estDateIsoValide, estJourOuvrable } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  ajouterJours,
+  ajouterMois,
+  estDateIsoValide,
+  estJourOuvrable,
+  messagePlausibilite,
+  plausibiliteDate,
+  verifierAujourdhui,
+  type PlausibiliteDate,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   PHASE_SINISTRE,
   TYPE_SINISTRE,
@@ -109,33 +118,66 @@ export function etapeSuiviSinistre(sinistre: FicheSinistre): EtapeSuiviSinistre 
 /** Statut Gestéam (STATUT_SINISTRE) : « Terminé » dès que la clôture est datée. */
 export const statutSinistre = (sinistre: FicheSinistre): StatutSinistre => (sinistre.dateCloture ? 'Terminé' : 'En cours')
 
+/** Dates du sinistre dans l'ordre de la fiche ; seul le rendez-vous d'expertise se fixe à l'avance. */
+const DATES_PLAUSIBILITE = [
+  { champ: 'dateSurvenance', datee: 'Survenance datée', futurAdmis: false },
+  { champ: 'dateConnaissance', datee: 'Connaissance datée', futurAdmis: false },
+  { champ: 'dateDeclaration', datee: 'Déclaration datée', futurAdmis: false },
+  { champ: 'dateExpertise', datee: 'Expertise datée', futurAdmis: true },
+  { champ: 'dateRapport', datee: 'Rapport daté', futurAdmis: false },
+  { champ: 'dateReglement', datee: 'Règlement daté', futurAdmis: false },
+  { champ: 'dateCloture', datee: 'Clôture datée', futurAdmis: false },
+] as const
+
+type ChampDateSinistre = (typeof DATES_PLAUSIBILITE)[number]['champ']
+
+/** Libellé accordé de chaque date, pour les messages (« Rapport daté », « Clôture datée »). */
+const DATEE = Object.fromEntries(DATES_PLAUSIBILITE.map((d) => [d.champ, d.datee])) as Record<ChampDateSinistre, string>
+
 export interface AnomalieChronologie {
-  champ: (typeof DATES_SUIVI)[number]
+  champ: Exclude<ChampDateSinistre, 'dateSurvenance'>
   message: string
 }
 
-const LIBELLES_DATES: Record<(typeof DATES_SUIVI)[number], string> = {
-  dateDeclaration: 'Déclaration',
-  dateExpertise: 'Expertise',
-  dateRapport: 'Rapport',
-  dateReglement: 'Règlement',
-  dateCloture: 'Clôture',
-}
-
-/** Chaque date de suivi doit suivre la survenance et les étapes qui la précèdent. */
+/** La connaissance suit la survenance ; chaque date de suivi suit la survenance, la connaissance et les étapes qui la précèdent. */
 export function controlerChronologieSinistre(sinistre: FicheSinistre): AnomalieChronologie[] {
-  const precedents: Record<(typeof DATES_SUIVI)[number], (string | null)[]> = {
-    dateDeclaration: [sinistre.dateSurvenance],
+  const precedents: Record<AnomalieChronologie['champ'], (string | null)[]> = {
+    dateConnaissance: [sinistre.dateSurvenance],
+    dateDeclaration: [sinistre.dateSurvenance, sinistre.dateConnaissance],
     dateExpertise: [sinistre.dateSurvenance, sinistre.dateDeclaration],
     dateRapport: [sinistre.dateSurvenance, sinistre.dateExpertise],
     dateReglement: [sinistre.dateSurvenance, sinistre.dateDeclaration],
     dateCloture: [sinistre.dateSurvenance, sinistre.dateDeclaration, sinistre.dateExpertise, sinistre.dateRapport, sinistre.dateReglement],
   }
   const anomalies: AnomalieChronologie[] = []
-  for (const champ of DATES_SUIVI) {
+  for (const champ of ['dateConnaissance', ...DATES_SUIVI] as const) {
     const date = sinistre[champ]
     if (date && precedents[champ].some((avant) => avant !== null && date < avant))
-      anomalies.push({ champ, message: `${LIBELLES_DATES[champ]} datée avant une étape qui doit la précéder.` })
+      anomalies.push({ champ, message: `${DATEE[champ]} avant une étape qui doit la précéder.` })
+  }
+  return anomalies
+}
+
+export interface AnomalieDateSinistre {
+  champ: ChampDateSinistre
+  nature: PlausibiliteDate
+  message: string
+}
+
+/**
+ * Plausibilité des dates par rapport à `aujourdhui` (tranche 42) : un fait accompli n'est jamais daté après aujourd'hui,
+ * une expertise pas au-delà de ANNEES_A_VENIR_MAX ans. Complète `controlerChronologieSinistre` (ordre). Signale, ne
+ * refuse pas.
+ */
+export function controlerPlausibiliteDatesSinistre(sinistre: FicheSinistre, aujourdhui: string): AnomalieDateSinistre[] {
+  verifierAujourdhui(aujourdhui)
+  const anomalies: AnomalieDateSinistre[] = []
+  for (const { champ, datee, futurAdmis } of DATES_PLAUSIBILITE) {
+    const date = sinistre[champ]
+    // Connaissance non saisie : creerSinistre la recopie depuis la survenance, déjà contrôlée.
+    if (champ === 'dateConnaissance' && date === sinistre.dateSurvenance) continue
+    const nature = date ? plausibiliteDate(date, aujourdhui, { futurAdmis }) : null
+    if (date && nature) anomalies.push({ champ, nature, message: messagePlausibilite(datee, date, nature) })
   }
   return anomalies
 }

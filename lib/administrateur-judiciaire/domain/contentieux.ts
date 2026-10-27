@@ -1,4 +1,10 @@
-import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  estDateIsoValide,
+  messagePlausibilite,
+  plausibiliteDate,
+  verifierAujourdhui,
+  type PlausibiliteDate,
+} from '@/lib/administrateur-judiciaire/domain/dates'
 import type { EtapeRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import {
   PARTICULARITE_CONTENTIEUX,
@@ -125,12 +131,79 @@ export function controlerChronologieContentieux(dossier: DossierContentieux): An
     const dAvant = dossier.jalons[avant]
     const dApres = dossier.jalons[apres]
     if (dAvant && dApres && dApres < dAvant && !anomalies.some((a) => a.jalon === apres))
-      anomalies.push({ jalon: apres, message: `${libelleJalon(apres)} datée avant : ${libelleJalon(avant).toLowerCase()}.` })
+      anomalies.push({ jalon: apres, message: `${DATEE[apres]} avant : ${libelleJalon(avant).toLowerCase()}.` })
   }
   for (const role of ['huissier', 'avocat', 'expert'] as const) {
     const transmis = dossier.intervenants[role].transmisLe
     if (transmis && transmis < dossier.dateOuverture)
       anomalies.push({ jalon: role, message: `Transmission (${role}) datée avant l'ouverture du dossier.` })
+  }
+  return anomalies
+}
+
+/**
+ * Jalons qui constatent un fait accompli : jamais datés après aujourd'hui. L'audience et le référé se fixent à l'avance
+ * (date d'audience) et peuvent être futurs.
+ */
+export const JALONS_ACCOMPLIS: readonly JalonProcedure[] = [
+  'miseEnDemeure',
+  'commandement',
+  'assignation',
+  'ordonnance',
+  'jugement',
+  'signification',
+]
+
+/** Libellé accordé de chaque date du dossier, pour les messages (« Jugement daté », « Audience datée »). */
+const DATEE: Record<JalonProcedure | RoleIntervenant | 'dateOuverture' | 'dateCloture', string> = {
+  dateOuverture: 'Ouverture datée',
+  dateCloture: 'Clôture datée',
+  miseEnDemeure: 'Mise en demeure datée',
+  commandement: 'Commandement daté',
+  refere: 'Référé daté',
+  assignation: 'Assignation datée',
+  audience: 'Audience datée',
+  ordonnance: 'Ordonnance datée',
+  jugement: 'Jugement daté',
+  signification: 'Signification datée',
+  huissier: "Transmission à l'huissier datée",
+  avocat: "Transmission à l'avocat datée",
+  expert: "Transmission à l'expert datée",
+}
+
+export interface AnomalieDateContentieux {
+  champ: keyof typeof DATEE
+  nature: PlausibiliteDate
+  message: string
+}
+
+/**
+ * Plausibilité des dates par rapport à `aujourdhui` (tranche 42 : Gestéam accepte un jugement en 2028, une mise en
+ * demeure en 2525). Complète `controlerChronologieContentieux`, qui ne contrôle que l'ordre. Signale, ne refuse pas.
+ */
+export function controlerPlausibiliteDatesContentieux(
+  dossier: DossierContentieux,
+  aujourdhui: string,
+): AnomalieDateContentieux[] {
+  const dates: [keyof typeof DATEE, string | null | undefined, boolean][] = [
+    ['dateOuverture', dossier.dateOuverture, false],
+    ['dateCloture', dossier.dateCloture, false],
+    ...JALONS_PROCEDURE.map((j): [JalonProcedure, string | undefined, boolean] => [
+      j.cle,
+      dossier.jalons[j.cle],
+      !JALONS_ACCOMPLIS.includes(j.cle),
+    ]),
+    ...(['huissier', 'avocat', 'expert'] as const).map((role): [RoleIntervenant, string | null, boolean] => [
+      role,
+      dossier.intervenants[role].transmisLe,
+      false,
+    ]),
+  ]
+  verifierAujourdhui(aujourdhui)
+  const anomalies: AnomalieDateContentieux[] = []
+  for (const [champ, date, futurAdmis] of dates) {
+    const nature = date ? plausibiliteDate(date, aujourdhui, { futurAdmis }) : null
+    if (date && nature) anomalies.push({ champ, nature, message: messagePlausibilite(DATEE[champ], date, nature) })
   }
   return anomalies
 }
