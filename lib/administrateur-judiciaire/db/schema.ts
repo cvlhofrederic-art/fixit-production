@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { Tantiemes } from '@/lib/administrateur-judiciaire/domain/format'
+import type { ModeTenueComptes, NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import type {
   FamilleModeleCourrier,
@@ -60,6 +61,8 @@ export interface Mandat extends EntiteEnregistree {
   statut: string
   pill: string
   notifOrdonnance: string
+  /** Mode de tenue des comptes propre au mandat (D-BANQUE) ; null ou absent = mode par défaut du cabinet. */
+  modeComptesBancaires?: ModeTenueComptes | null
 }
 
 export interface Lot extends EntiteEnregistree {
@@ -192,7 +195,10 @@ export interface Tache extends EntiteEnregistree {
 
 // ─── Tables déclarées mais jamais alimentées (seuls les champs indexés sont connus) ────────
 
-export type Cabinet = EntiteEnregistree
+export interface Cabinet extends EntiteEnregistree {
+  /** Mode de tenue des comptes bancaires par défaut des mandats (D-BANQUE) ; absent = compte séparé au nom du syndicat. */
+  modeComptesBancaires?: ModeTenueComptes
+}
 
 export interface Societe extends EntiteEnregistree {
   cabinetId: string
@@ -258,8 +264,16 @@ export interface FondsTravaux extends EntiteEnregistree {
   coproprieteId: string
 }
 
+/** Compte bancaire d'une copropriété : plusieurs par copropriété, chacun avec sa nature (D-BANQUE). Champs non indexés. */
 export interface Banque extends EntiteEnregistree {
   coproprieteId: string
+  nature?: NatureCompteBancaire
+  libelle?: string
+  iban?: string | null
+  bic?: string | null
+  etablissement?: string | null
+  /** Compte clôturé = false ; absent = actif. */
+  actif?: boolean
 }
 
 export interface Rapprochement extends EntiteEnregistree {
