@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CORRESPONDANCES_COMPTE_RUBRIQUE,
   codeFournisseur,
   controlerFacture,
   ecritureFacture,
@@ -140,5 +141,63 @@ describe('écriture au journal des achats', () => {
     expect(codeFournisseur('Plomberie Dupont SARL')).toBe('PLOMB')
     expect(codeFournisseur('Élec 2')).toBe('ELEC2')
     expect(codeFournisseur('AB')).toBe('AB000')
+  })
+})
+
+describe('rubrique analytique : correspondances compte ↔ rubrique observées dans Gestéam (tranche 27)', () => {
+  it('reprend les huit couples observés, sans doublon de compte', () => {
+    expect(CORRESPONDANCES_COMPTE_RUBRIQUE.map(({ comptePlan, rubrique }) => [comptePlan, rubrique])).toEqual([
+      ['60200', '230'],
+      ['61500', '460'],
+      ['61600', '490'],
+      ['62300', '620'],
+      ['62220', '660'],
+      ['71600', '889'],
+      ['62111', '901'],
+      ['62120', '951'],
+    ])
+    expect(new Set(CORRESPONDANCES_COMPTE_RUBRIQUE.map((c) => c.comptePlan)).size).toBe(8)
+  })
+
+  it.each([
+    ['Fourniture électricité parties communes EDF', '60200', '230'],
+    ['Réparation fuite colonne cage B', '61500', '460'],
+    ['Prime assurance multirisque immeuble', '61600', '490'],
+  ])('« %s » → compte %s, rubrique %s', (libelle, compte, rubrique) => {
+    expect(proposerImputation(lireFacture(`FOURNISSEUR\n${libelle}\nTotal TTC 100,00`), CLES)).toMatchObject({
+      comptePlan: compte,
+      rubriqueAnalytique: rubrique,
+    })
+  })
+
+  it('compte sans couple observé → rubrique à choisir, jamais devinée', () => {
+    expect(
+      proposerImputation(lireFacture('FOURNISSEUR\nContrat de maintenance annuel portes automatiques\nTotal TTC 100,00'), CLES),
+    ).toMatchObject({ comptePlan: '61400', rubriqueAnalytique: null })
+  })
+
+  it("honoraires d'avocat → 62300, rubrique 620, même si la facture parle d'assurance ou de travaux", () => {
+    const lue = lireFacture("CABINET MARTIN AVOCATS\nHonoraires d'avocat — recours contre l'assureur, désordres après ravalement\nTotal TTC 1 800,00")
+    expect(proposerImputation(lue, CLES)).toMatchObject({
+      comptePlan: '62300',
+      libelleCompte: "Honoraires d'avocat",
+      rubriqueAnalytique: '620',
+      decisionAgRequise: false,
+      certitude: 'mots_cles',
+    })
+  })
+
+  it('débours → 62120, rubrique 951', () => {
+    expect(proposerImputation(lireFacture('ETUDE X\nDébours : frais de recommandés\nTotal TTC 42,00'), CLES)).toMatchObject({
+      comptePlan: '62120',
+      rubriqueAnalytique: '951',
+    })
+  })
+
+  it('rien de reconnu → ni compte ni rubrique', () => {
+    expect(proposerImputation(lireFacture('SOCIETE Y\nPrestation diverse\nTotal TTC 50,00'), CLES)).toMatchObject({
+      comptePlan: null,
+      rubriqueAnalytique: null,
+    })
   })
 })
