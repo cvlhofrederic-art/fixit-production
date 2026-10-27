@@ -125,8 +125,13 @@ export interface Contrat extends EntiteEnregistree {
   // Non observés dans Gestéam sans ouvrir une fiche réelle : objet, montant — non modélisés.
 }
 
-/** Sinistre (jamais écrit par l'application : lu pour la fiche 360). */
-export interface Sinistre extends EntiteEnregistree {
+/**
+ * Sinistre (jamais écrit par l'application : lu pour la fiche 360). Champs de la fiche Gestéam (tranche 28) optionnels,
+ * non indexés : voir domain/sinistres.ts.
+ */
+export interface Sinistre
+  extends EntiteEnregistree,
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/sinistres').FicheSinistre, 'coproprieteId'>> {
   coproprieteId: string
 }
 
