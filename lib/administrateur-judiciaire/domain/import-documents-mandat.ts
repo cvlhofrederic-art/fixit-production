@@ -125,6 +125,7 @@ export interface BrouillonMandat {
   lots: LotLu[]
   parcelles: Parcelle[]
   commune: string | null
+  codeCommune: string | null
   dateReglement: string | null
   notaire: string | null
   sources: { fichier: string; type: TypeDocumentMandat }[]
@@ -163,6 +164,7 @@ export function fusionnerDocuments(documents: LectureDocument[]): BrouillonManda
     lots: reglement?.lots ?? [],
     parcelles: cadastre?.parcelles ?? [],
     commune: cadastre?.commune ?? null,
+    codeCommune: cadastre?.codeCommune ?? null,
     dateReglement: reglement?.dateReglement ?? null,
     notaire: reglement?.notaire ?? null,
     sources: documents.map((d) => ({ fichier: d.fichier, type: d.type })),
