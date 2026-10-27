@@ -244,7 +244,10 @@ export interface Compte extends EntiteEnregistree {
   numero: string
 }
 
-export interface Exercice extends EntiteEnregistree {
+/** Exercice du syndicat (D1) ; champs de la fiche Gestéam optionnels, non indexés : voir domain/exercices-budgets. */
+export interface Exercice
+  extends EntiteEnregistree,
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/exercices-budgets').Exercice, 'coproprieteId'>> {
   coproprieteId: string
   annee: number
 }
@@ -259,9 +262,11 @@ export interface Reglement extends EntiteEnregistree {
   appelDeFondsId: string
 }
 
+/** Budget d'un exercice du syndicat (D1) ; lignes (clé, compte, rubrique) → prévu, non indexées. */
 export interface Budget extends EntiteEnregistree {
   coproprieteId: string
   exerciceId: string
+  lignes?: import('@/lib/administrateur-judiciaire/domain/exercices-budgets').LigneBudget[]
 }
 
 export interface AppelDeFonds extends EntiteEnregistree {
