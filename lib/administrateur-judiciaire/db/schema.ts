@@ -65,6 +65,8 @@ export interface Mandat extends EntiteEnregistree {
   modeComptesBancaires?: ModeTenueComptes | null
   /** Volet « Administration judiciaire » de la fiche mandat Gestéam (D1 : côté mandat) ; voir domain/mandat-judiciaire. */
   voletJudiciaire?: import('@/lib/administrateur-judiciaire/domain/mandat-judiciaire').VoletJudiciaire
+  /** Responsable, comptable et assistant du mandat (Gestéam, tranche 38) : portefeuille du suivi « à faire ». */
+  roles?: import('@/lib/administrateur-judiciaire/domain/suivi-a-faire').RolesMandat
 }
 
 export interface Lot extends EntiteEnregistree {
@@ -215,6 +217,8 @@ export interface Societe extends EntiteEnregistree {
 export interface Utilisateur extends EntiteEnregistree {
   roleId: string
   email: string
+  /** Réglage de son suivi « à faire » (Gestéam, tranche 38) ; absent = réglage par défaut. */
+  reglageSuivi?: import('@/lib/administrateur-judiciaire/domain/suivi-a-faire').ReglageSuivi
 }
 
 export type Role = EntiteEnregistree
