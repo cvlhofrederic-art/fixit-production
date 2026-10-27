@@ -136,9 +136,11 @@ describe('décision du 23/10/2026 : façade sur devis', () => {
     }
     expect(texte).toContain('Tratamento de condensação (ventilação, extratores): entre 200€ e 800€.')
     expect(texte).toContain('Injeção contra capilaridade: entre 50€ e 100€ por metro linear.')
-    expect(texte).toContain('Isolamento térmico pelo exterior (capoto): entre 40€ e 80€ por m².')
+    // Capoto : prix réel de l'équipe VITFIX depuis le 27/10/2026 (tests/seo/pt-preco-capoto.test.tsx), plus de fourchette 40-80 €.
+    expect(texte).not.toContain('entre 40€ e 80€')
+    expect(texte).toContain('Isolamento térmico pelo exterior (capoto): na VITFIX, 53 a 58 € por m², sem IVA, com material e mão de obra')
     expect(texte).toContain('Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela')
-    expect(jsonLd).toContain('"dateModified":"2026-10-23"')
+    expect(jsonLd).toContain('"dateModified":"2026-10-27"')
   })
 
   it('article obras-sem-licenca-portugal : couleur de façade = obra de alteração, coimas du RJUE en vigueur', async () => {
@@ -166,9 +168,8 @@ describe('décision du 23/10/2026 : façade sur devis', () => {
     expect(jsonLd).toContain('"dateModified":"2026-10-23"')
   })
 
-  it('dateModified des deux articles modifiés : 23/10/2026', () => {
-    for (const slug of ['humidade-parede-causas-reparacao', 'obras-sem-licenca-portugal']) {
-      expect(BLOG_ARTICLES.find((a) => a.slug === slug)?.dateModified, slug).toBe('2026-10-23')
-    }
+  it('dateModified des deux articles modifiés : 23/10/2026 (humidade : 27/10/2026, prix réel du capoto)', () => {
+    expect(BLOG_ARTICLES.find((a) => a.slug === 'obras-sem-licenca-portugal')?.dateModified).toBe('2026-10-23')
+    expect(BLOG_ARTICLES.find((a) => a.slug === 'humidade-parede-causas-reparacao')?.dateModified).toBe('2026-10-27')
   })
 })

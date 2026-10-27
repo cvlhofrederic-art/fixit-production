@@ -1462,7 +1462,11 @@ export const SERVICES: ServiceData[] = [
       'Necessidade de melhorar a classe energética',
     ],
     faqs: [
-      { question: 'Quanto custa aplicar capoto por m²?', answer: 'O custo do sistema ETICS (capoto) varia entre 40€ e 80€ por m², dependendo da espessura do isolamento (geralmente 6 a 10 cm de EPS ou lã mineral), da complexidade da fachada e dos acabamentos. Para uma moradia média de 150m² de fachada, o investimento total situa-se entre 6 000€ e 12 000€. Este valor pode beneficiar de IVA reduzido a 6% em habitações com mais de 2 anos.' },
+      // Prix réel donné par le propriétaire (octobre 2026) : pose complète de capoto neuf par l'équipe VITFIX, 53 à 58 €/m²,
+      // matériel et main-d'œuvre compris, sans IVA. Affichage au consommateur : prix « incluindo taxas e impostos » (DL 138/90,
+      // art. 1.º n.º 5 et 6.º n.º 1 ; DL 57/2008, art. 10.º c)) ; le taux d'IVA dépend de l'obra (CIVA art. 18.º, Lista I,
+      // verbas 2.23 et 2.27), d'où le prix avec IVA donné entre ses deux bornes (6 % et 23 %). Journal du 27/10/2026.
+      { question: 'Quanto custa aplicar capoto por m²?', answer: 'A equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra (preços de outubro de 2026). A este preço acresce o IVA à taxa que a lei aplica à obra: 23% (taxa normal) ou 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (obras de renovação, reparação ou conservação de imóveis afetos à habitação, com os materiais incorporados a 23% quando passam de 20% do valor global da obra) ou da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Com IVA, o preço fica entre 56,18 € e 71,34 € por m². Para 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.' },
       { question: 'O isolamento térmico paga-se a si próprio?', answer: 'Sim, o isolamento térmico pode reduzir a fatura energética entre 25% e 40%. Com uma poupança média de 500€ a 1 000€ por ano em aquecimento e arrefecimento, o investimento recupera-se tipicamente em 6 a 10 anos. Além disso, valoriza o imóvel ao melhorar a sua classe energética, o que é cada vez mais importante na compra e venda de casas em Portugal.' },
       { question: 'Posso aplicar capoto sem licença da câmara?', answer: 'A aplicação de capoto altera o aspeto exterior do edifício, pelo que em muitos municípios é necessária uma comunicação prévia à Câmara Municipal. No entanto, o processo é geralmente simples e rápido. Em edifícios de apartamentos, é necessária a aprovação do condomínio. A VITFIX ajuda com todo o processo burocrático.' },
       { question: 'Qual a diferença entre EPS e lã mineral no capoto?', answer: 'O EPS (poliestireno expandido) é mais económico, leve e fácil de aplicar, é a escolha mais comum. A lã mineral oferece melhor isolamento acústico e é incombustível (classificação A1 ao fogo), sendo recomendada para edifícios altos ou zonas com requisitos especiais de proteção contra incêndio. Ambos oferecem excelente desempenho térmico.' },
@@ -2534,9 +2538,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: 'canalizacao',
     icon: '💧',
     datePublished: '2026-03-18',
-    // Prix de façade retirés (décision du propriétaire du 23/10/2026, « Pas de prix, devis ») : à aligner sur le jour de la
-    // mise en production (docs/seo/journal-pt.md).
-    dateModified: '2026-10-23',
+    // Prix de façade retirés (décision du propriétaire du 23/10/2026, « Pas de prix, devis ») ; prix réel du capoto à la place
+    // de la fourchette 40-80 € (27/10/2026) : à aligner sur le jour de la mise en production (docs/seo/journal-pt.md).
+    dateModified: '2026-10-27',
     intro: 'A humidade nas paredes é um dos problemas mais comuns nas casas portuguesas, especialmente durante o outono e inverno no Norte do país. Além de ser antiestética, pode causar problemas sérios de saúde e danificar a estrutura do edifício. Saiba como identificar a causa, escolher a solução adequada e prevenir que o problema regresse.',
     sections: [
       {
@@ -2569,7 +2573,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Custos de tratamento da humidade',
-        content: 'Os custos variam conforme o tipo e a extensão do problema. Tratamento de condensação (ventilação, extratores): entre 200€ e 800€. Injeção contra capilaridade: entre 50€ e 100€ por metro linear. Isolamento térmico pelo exterior (capoto): entre 40€ e 80€ por m². Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela: o valor depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações a tratar, e o orçamento é gratuito, feito depois de uma visita (página Renovação de fachadas da VITFIX, no distrito do Porto). Na VITFIX, fazemos diagnóstico gratuito e apresentamos orçamento detalhado com as diferentes opções de tratamento, para que possa tomar uma decisão informada.',
+        content: 'Os custos variam conforme o tipo e a extensão do problema. Tratamento de condensação (ventilação, extratores): entre 200€ e 800€. Injeção contra capilaridade: entre 50€ e 100€ por metro linear. Isolamento térmico pelo exterior (capoto): na VITFIX, 53 a 58 € por m², sem IVA, com material e mão de obra, a que acresce o IVA à taxa aplicável à obra, 23% ou, em certas obras, 6% (com IVA, entre 56,18 € e 71,34 € por m²); o preço final depende da espessura do isolamento, do estado e do acesso da fachada. Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela: o valor depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações a tratar, e o orçamento é gratuito, feito depois de uma visita (página Renovação de fachadas da VITFIX, no distrito do Porto). Na VITFIX, fazemos diagnóstico gratuito e apresentamos orçamento detalhado com as diferentes opções de tratamento, para que possa tomar uma decisão informada.',
       },
     ],
     ctaText: 'Problemas de humidade em casa? Os profissionais VITFIX fazem diagnóstico e reparação completa.',
@@ -2985,6 +2989,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     category: 'isolamento',
     icon: '🏠',
     datePublished: '2026-03-18',
+    // Prix réel de l'équipe VITFIX (53 à 58 €/m² sans IVA, matériel et main-d'œuvre, octobre 2026) à la place des fourchettes
+    // de référence non sourcées (40-80 €/m² et totaux qui en découlaient, dont l'investissement de la section sur la poupança) ;
+    // phrase d'IVA des incentivos alignée sur la Lista I du CIVA. À aligner sur le jour de la mise en production
+    // (docs/seo/journal-pt.md).
+    dateModified: '2026-10-27',
     intro: 'O capoto, tecnicamente conhecido como sistema ETICS (External Thermal Insulation Composite System), é uma das soluções mais eficazes para melhorar a eficiência energética de uma casa. Com os custos de energia em alta e incentivos fiscais disponíveis, o isolamento térmico pelo exterior tornou-se um dos investimentos mais inteligentes para proprietários em Portugal.',
     sections: [
       {
@@ -2993,11 +3002,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Preços do capoto em 2026',
-        content: 'O custo de aplicação de capoto em Portugal varia conforme vários fatores. O preço médio situa-se entre 40€ e 80€ por m², incluindo material e mão de obra. Para uma moradia com 150m² de fachada, o investimento total varia entre 6 000€ e 12 000€. Para um apartamento (fachada correspondente), entre 2 000€ e 5 000€. Os fatores que influenciam o preço são a espessura do isolamento (6cm, 8cm ou 10cm, mais espesso é mais caro mas mais eficaz), o tipo de isolante (EPS é mais económico, lã mineral é mais cara mas com melhor desempenho acústico e ao fogo), a complexidade da fachada (janelas, varandas, ornamentos encarecem a aplicação), a altura do edifício (andaimes para edifícios altos aumentam o custo), e o tipo de acabamento final.',
+        content: 'A equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra (preços de outubro de 2026). A este preço acresce o IVA à taxa que a lei aplica à obra: 23% (taxa normal) ou 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (obras de renovação, reparação ou conservação de imóveis afetos à habitação, com os materiais incorporados a 23% quando passam de 20% do valor global da obra) ou da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Com IVA, o preço fica entre 56,18 € e 71,34 € por m². Para uma moradia com 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.',
       },
       {
         heading: 'Poupança energética real',
-        content: 'A poupança energética com capoto é significativa e documentada. Em casas sem isolamento no Norte de Portugal (onde se incluem Marco de Canaveses, Penafiel e Amarante), o capoto pode reduzir os custos de aquecimento entre 25% e 40%. Para uma família que gasta 1 200€ por ano em aquecimento (gás, eletricidade, pellets), isto representa uma poupança de 300€ a 480€ anuais. Considerando também a poupança em arrefecimento no verão, a poupança total pode atingir 500€ a 800€ por ano. Com um investimento de 8 000€ a 10 000€, o retorno do investimento situa-se tipicamente entre 10 e 16 anos. Além da poupança direta, o isolamento valoriza o imóvel ao melhorar a classe energética, um fator cada vez mais importante na compra e venda de casas.',
+        content: 'A poupança energética com capoto é significativa e documentada. Em casas sem isolamento no Norte de Portugal (onde se incluem Marco de Canaveses, Penafiel e Amarante), o capoto pode reduzir os custos de aquecimento entre 25% e 40%. Para uma família que gasta 1 200€ por ano em aquecimento (gás, eletricidade, pellets), isto representa uma poupança de 300€ a 480€ anuais. Considerando também a poupança em arrefecimento no verão, a poupança total pode atingir 500€ a 800€ por ano. Além da poupança direta, o isolamento valoriza o imóvel ao melhorar a classe energética, um fator cada vez mais importante na compra e venda de casas.',
       },
       {
         heading: 'EPS vs. lã mineral: qual escolher',
@@ -3005,7 +3014,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Incentivos fiscais e apoios',
-        content: 'Existem vários incentivos que tornam o isolamento térmico mais acessível em Portugal. O IVA reduzido de 6% aplica-se a obras de isolamento em habitações com mais de 2 anos, representando uma poupança significativa face à taxa normal de 23%. O Fundo Ambiental disponibiliza periodicamente apoios para eficiência energética residencial, que podem cobrir até 70% do custo do isolamento (com limites máximos por habitação). O PRR (Plano de Recuperação e Resiliência) inclui programas de eficiência energética para edifícios. Alguns municípios oferecem isenções ou reduções de taxas para obras que melhorem a eficiência energética. Consulte a ADENE (Agência para a Energia) e a sua câmara municipal para informação atualizada sobre os apoios disponíveis.',
+        content: 'Existem vários incentivos que tornam o isolamento térmico mais acessível em Portugal. A taxa reduzida de IVA de 6% só se aplica a certas obras (Código do IVA, Lista I, por exemplo as verbas 2.23 e 2.27, nas condições indicadas na secção dos preços); nas restantes, a taxa é a normal, de 23%. O Fundo Ambiental disponibiliza periodicamente apoios para eficiência energética residencial, que podem cobrir até 70% do custo do isolamento (com limites máximos por habitação). O PRR (Plano de Recuperação e Resiliência) inclui programas de eficiência energética para edifícios. Alguns municípios oferecem isenções ou reduções de taxas para obras que melhorem a eficiência energética. Consulte a ADENE (Agência para a Energia) e a sua câmara municipal para informação atualizada sobre os apoios disponíveis.',
       },
       {
         heading: 'O processo de aplicação',

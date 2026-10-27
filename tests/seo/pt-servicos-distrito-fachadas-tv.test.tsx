@@ -30,7 +30,7 @@ import {
 import { CITIES } from '@/lib/data/seo-pages-data'
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
-import { getAllPtSitemapUrls, sitemapsPt } from '@/lib/sitemap-pt-pages'
+import { comPrecoCapoto, getAllPtSitemapUrls, sitemapsPt } from '@/lib/sitemap-pt-pages'
 import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_DISTRITO, DATA_PAGINAS_FACHADAS_TV } from '@/lib/seo/pt-datas'
 import { precosPara, prazoDistritoPara } from '@/lib/seo/pt-provas-locais'
 import { classer } from '../../scripts/seo/pt-audit/lib/classer.mjs'
@@ -258,7 +258,8 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
       const c = await hub(slug)
       expect(liens(c), slug).toContain('/pt/servicos/renovacao-de-fachadas/')
       expect(c.textContent, slug).not.toContain('Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:')
-      expect(date(`/pt/perto-de-mim/${slug}/`), slug).toBe(DATA_LIGACOES_FACHADAS_TV)
+      // Hub isolamento-termico : prix réel du capoto dans sa réponse « Quanto custa… », plus récent que les liens.
+      expect(date(`/pt/perto-de-mim/${slug}/`), slug).toBe(comPrecoCapoto(slug, DATA_LIGACOES_FACHADAS_TV))
     }
     expect(liens(await hub('pintor'))).toContain('/pt/servicos/trabalhos-verticais/')
     expect(liens(await hub('pedreiro'))).not.toContain('/pt/servicos/trabalhos-verticais/')
@@ -286,7 +287,7 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
     let liees = 0
     for (const city of PORTO) {
       for (const metier of ['pintor', 'impermeabilizacao', 'pedreiro', 'isolamento-termico', 'limpeza-condominio']) {
-        expect(date(`/pt/servicos/${metier}-${city.slug}/`), `${metier}-${city.slug}`).toBe(DATA_LIGACOES_FACHADAS_TV)
+        expect(date(`/pt/servicos/${metier}-${city.slug}/`), `${metier}-${city.slug}`).toBe(comPrecoCapoto(metier, DATA_LIGACOES_FACHADAS_TV))
         liees++
       }
       expect(date(`/pt/servicos/telhador-${city.slug}/`), `telhador-${city.slug}`).toBe(DATA_LIGACOES_DISTRITO)

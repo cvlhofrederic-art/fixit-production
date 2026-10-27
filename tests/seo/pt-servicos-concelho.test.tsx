@@ -30,7 +30,7 @@ import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/se
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { sitemapsPt } from '@/lib/sitemap-pt-pages'
-import { DATA_PAGINAS_AGUEDA } from '@/lib/seo/pt-datas'
+import { DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO } from '@/lib/seo/pt-datas'
 import { classer, SERVICOS_CONCELHO_CIDADES } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
 const BASE = 'https://vitfix.io'
@@ -182,8 +182,10 @@ describe('sitemap et liens entrants', () => {
       const entrees = Object.values(sitemapsPt(BASE)).flat().filter((u) => u.url === `${BASE}/pt/servicos/${s.slug}/`)
       expect(entrees).toHaveLength(1)
       expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/${s.slug}/`)?.lastModified).toBe(s.dataModificacao)
+      // Sauf isolamento-termico, dont la FAQ a reçu le prix réel du capoto après (DATA_PRECO_CAPOTO, 27/10/2026).
       for (const m of SERVICES) {
-        expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/${m.slug}-${s.cidade}/`)?.lastModified, m.slug).toBe(DATA_PAGINAS_AGUEDA)
+        const attendue = m.slug === 'isolamento-termico' ? DATA_PRECO_CAPOTO : DATA_PAGINAS_AGUEDA
+        expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/${m.slug}-${s.cidade}/`)?.lastModified, m.slug).toBe(attendue)
       }
       expect(cidades.find((u) => u.url === `${BASE}/pt/cidade/${s.cidade}/`)?.lastModified).toBe(DATA_PAGINAS_AGUEDA)
     }
