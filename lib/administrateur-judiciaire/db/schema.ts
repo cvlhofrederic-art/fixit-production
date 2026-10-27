@@ -284,7 +284,10 @@ export interface Banque extends EntiteEnregistree {
   actif?: boolean
 }
 
-export interface Rapprochement extends EntiteEnregistree {
+/** Arrêté de rapprochement d'un compte bancaire du syndicat ; champs non indexés : voir domain/rapprochement-bancaire. */
+export interface Rapprochement
+  extends EntiteEnregistree,
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/rapprochement-bancaire').ArreteRapprochement, 'id' | 'banqueId'>> {
   bancaireId: string
 }
 
