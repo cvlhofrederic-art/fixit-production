@@ -16,7 +16,7 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA, DATA_PRECOS_PINTOR } from './seo/pt-datas'
+import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR } from './seo/pt-datas'
 import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
 import { SERVICOS_DISTRITO, servicosDistritoLigados, paginasConcelhoDistrito, dataModificacaoDistrito, dataLigacoesServicos } from './data/pt-servicos-distrito'
@@ -105,6 +105,14 @@ function dataHub(metier: string): string {
   return dataLote1(metier, DATAS_PT.hubs)
 }
 
+/**
+ * Métier isolamento-termico : sa réponse « Quanto custa aplicar capoto por m²? » porte le prix réel du capoto
+ * (DATA_PRECO_CAPOTO), affichée sur ses pages métier x ville et sur son hub. La date la plus récente l'emporte.
+ */
+export function comPrecoCapoto(metier: string, data: string): string {
+  return metier === 'isolamento-termico' && DATA_PRECO_CAPOTO > data ? DATA_PRECO_CAPOTO : data
+}
+
 /** Lot 1 (phase 3) : date du lot 1 pour une page d'un métier d'urgence, sinon la date du groupe. */
 export function dataLote1(metier: string, dataGrupo: string): string {
   return METIERS_URGENCIA.has(metier) ? DATA_FASE_3_LOT_1 : dataGrupo
@@ -159,7 +167,7 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
   // Pages de district (lib/data/pt-servicos-distrito.ts) et pages de service d'un concelho (lib/data/pt-servicos-concelho.ts,
   // Águeda) : même fichier que la grille, date propre à chaque page.
   const servicos = [
-    ...getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, dataPaginaServico(combo.service.slug, combo.city.slug, combo.city.distrito))),
+    ...getAllPageCombos().map(combo => url(`/pt/servicos/${combo.slug}/`, comPrecoCapoto(combo.service.slug, dataPaginaServico(combo.service.slug, combo.city.slug, combo.city.distrito)))),
     // Page de district : sa date, ou celle du dernier chantier ajouté ; pages concelho ouvertes par des chantiers réels.
     ...SERVICOS_DISTRITO.map(servico => url(`/pt/servicos/${servico.slug}/`, dataModificacaoDistrito(servico))),
     ...paginasConcelhoDistrito().map(pagina => url(`/pt/servicos/${pagina.slug}/`, pagina.dataModificacao)),
@@ -167,8 +175,9 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
     ...SERVICOS_CONCELHO.map(servico => url(`/pt/servicos/${servico.slug}/`, dataModificacaoConcelho(servico))),
   ]
 
-  // Hubs des metiersLigados : liens vers les pages de district ; hubs poda-arvores et faz-tudo : FAQ corrigée.
-  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, dataHub(service.slug)))
+  // Hubs des metiersLigados : liens vers les pages de district ; hubs poda-arvores et faz-tudo : FAQ corrigée ; hub
+  // isolamento-termico : prix réel du capoto dans sa réponse « Quanto custa… ».
+  const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, comPrecoCapoto(service.slug, dataHub(service.slug))))
 
   // La page ville d'un concelho qui a des pages de service propres (freguesias corrigées, section qui les lie) en prend la
   // date ; les pages ville d'un distrito qui a des services de district les lient (carte « Serviços disponíveis ») : date des liens.

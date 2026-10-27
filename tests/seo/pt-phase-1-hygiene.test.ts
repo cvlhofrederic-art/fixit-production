@@ -25,7 +25,7 @@ import {
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, dataLigacoesConcelho, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
-import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATA_PRECOS_PINTOR, DATAS_PT } from '@/lib/seo/pt-datas'
+import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR, DATAS_PT } from '@/lib/seo/pt-datas'
 import { SERVICOS_DISTRITO, dataLigacoesServicos, servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
@@ -272,21 +272,24 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
       const entree = servicos.find((u) => u.url === `${BASE}/pt/servicos/${c.slug}/`)
       // Pages métier x ville d’un concelho qui a des pages de service propres (Águeda, 21/10/2026) : leur date ;
       // pages qui lient une page de district (20/10/2026) : date des liens de district ; poda-arvores : FAQ corrigée.
+      // Métier isolamento-termico : prix réel du capoto dans sa FAQ (27/10/2026), sur ses 22 pages, Águeda comprise.
       const ligados = servicosDistritoLigados(c.service.slug, c.city.distrito).map((s) => s.slug)
-      const attendue = SERVICOS_CONCELHO.some((s) => s.cidade === c.city.slug) ? DATA_PAGINAS_AGUEDA
-        : ligados.length ? dataLigacoesConcelho(c.city.slug, ligados)
-          : c.service.slug === 'poda-arvores' ? DATA_CORRECOES_FAQ
-            : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
+      const attendue = c.service.slug === 'isolamento-termico' ? DATA_PRECO_CAPOTO
+        : SERVICOS_CONCELHO.some((s) => s.cidade === c.city.slug) ? DATA_PAGINAS_AGUEDA
+          : ligados.length ? dataLigacoesConcelho(c.city.slug, ligados)
+            : c.service.slug === 'poda-arvores' ? DATA_CORRECOES_FAQ
+              : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
       expect(entree?.lastModified, c.slug).toBe(attendue)
     }
     for (const s of SERVICES) {
       const entree = hubs.find((u) => u.url === `${BASE}/pt/perto-de-mim/${s.slug}/`)
       // Hubs liés à des pages de district : date des liens de la plus récente ; hubs poda-arvores et faz-tudo : FAQ corrigée
-      // le 21/10/2026.
+      // le 21/10/2026 ; hub isolamento-termico : prix réel du capoto dans sa réponse « Quanto custa… » (27/10/2026).
       const ligados = servicosDistritoLigados(s.slug)
-      const attendue = ligados.length ? dataLigacoesServicos(ligados)
-        : ['poda-arvores', 'faz-tudo'].includes(s.slug) ? DATA_CORRECOES_FAQ
-          : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
+      const attendue = s.slug === 'isolamento-termico' ? DATA_PRECO_CAPOTO
+        : ligados.length ? dataLigacoesServicos(ligados)
+          : ['poda-arvores', 'faz-tudo'].includes(s.slug) ? DATA_CORRECOES_FAQ
+            : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
       expect(entree?.lastModified, s.slug).toBe(attendue)
     }
     // Page ville d’Águeda : date des pages de concelho ; pages ville du distrito do Porto : elles lient la page de district

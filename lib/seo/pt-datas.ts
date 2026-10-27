@@ -94,6 +94,18 @@ export const DATA_CORRECOES_FAQ = '2026-10-23'
  */
 export const DATA_PRECOS_PINTOR = '2026-10-23'
 
+/**
+ * Prix réel du capoto (équipe VITFIX, 53 à 58 €/m² sans IVA, matériel et main-d'œuvre compris, donné par le propriétaire en
+ * octobre 2026) à la place de la fourchette de référence 40-80 €/m² : réponse « Quanto custa aplicar capoto por m²? » du
+ * métier isolamento-termico, avec la zone de l'équipe (distrito do Porto, concelho d'Águeda), sur ses pages métier x ville de
+ * cette zone et sur son hub /pt/perto-de-mim/isolamento-termico/ (question « Quanto custa… » du hub) ; réponse sans prix à
+ * Braga, Aveiro et Ovar ; délai de retour retiré de sa réponse « O isolamento térmico paga-se a si próprio? ». Les 22 pages
+ * métier x ville changent donc toutes. Les deux articles touchés (capoto-isolamento-termico-quanto-custa,
+ * humidade-parede-causas-reparacao) portent la même date dans leur `dateModified`. À aligner sur le jour de la mise en
+ * production, et à consigner dans docs/seo/journal-pt.md.
+ */
+export const DATA_PRECO_CAPOTO = '2026-10-27'
+
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date
 // par défaut des pages statiques, surchargée par page dans lib/sitemap-pt-pages.ts.
