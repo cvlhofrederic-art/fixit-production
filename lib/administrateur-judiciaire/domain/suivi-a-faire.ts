@@ -383,7 +383,7 @@ export function depuisEtapes(items: { mandatId: string | null; etape: Etape }[],
       const dates = [etape.alerteSecurite, etape.limite].filter((d): d is string => d !== null)
       if (dates.length === 0) return []
       for (const d of dates) verifierDate(d, `Date de l'étape ${etape.id}`)
-      const date = dates.reduce((a, b) => (a < b ? a : b))
+      const date = dates.reduce((a, b) => (a < b ? a : b), dates[0])
       return [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })]
     }
     if (statut === 'a_valider' && etape.faitLe)
@@ -644,8 +644,46 @@ const cumuler = (cible: CompteurDossiers, source: CompteurDossiers): void => {
   source.tranches.forEach((n, i) => (cible.tranches[i] += n))
 }
 
-const nullEnDernier = (a: string | null, b: string | null): number =>
-  a === b ? 0 : a === null ? 1 : b === null ? -1 : a.localeCompare(b)
+/** Tri des lignes : les valeurs absentes (cabinet ou collaborateur non renseigné) en dernier. */
+const nullEnDernier = (a: string | null, b: string | null): number => {
+  if (a === b) return 0
+  if (a === null) return 1
+  if (b === null) return -1
+  return a.localeCompare(b)
+}
+
+/** Dates du dossier valides ; une clôture ne peut précéder l'ouverture. */
+function controlerDossier(dossier: DossierOuvert): void {
+  verifierDate(dossier.ouvertLe, `Date d'ouverture du dossier ${dossier.id}`)
+  if (dossier.closLe === null) return
+  verifierDate(dossier.closLe, `Date de clôture du dossier ${dossier.id}`)
+  if (dossier.closLe < dossier.ouvertLe)
+    throw new Error(`Dossier ${dossier.id} : clôture (${dossier.closLe}) antérieure à l'ouverture (${dossier.ouvertLe}).`)
+}
+
+/** Collaborateur auquel le dossier est rattaché : titulaire du rôle sur le mandat, ou responsable de la fiche. */
+const collaborateurRattache = (
+  dossier: DossierOuvert,
+  affectation: AffectationMandat | undefined,
+  rattachement: RattachementAnalyse,
+): string | null =>
+  rattachement === 'responsable_fiche' ? dossier.responsableFicheId : (affectation?.[CHAMP_ROLE[rattachement]] ?? null)
+
+/** Sous-totaux par cabinet (dans l'ordre des lignes) et total général. */
+function totaliser(lignes: LigneBalanceAgee[]): Pick<BalanceAgee, 'sousTotaux' | 'total'> {
+  const sousTotaux: BalanceAgee['sousTotaux'] = []
+  const total = compteurVide()
+  for (const ligne of lignes) {
+    let sousTotal = sousTotaux.find((s) => s.cabinetId === ligne.cabinetId)
+    if (!sousTotal) {
+      sousTotal = { cabinetId: ligne.cabinetId, ...compteurVide() }
+      sousTotaux.push(sousTotal)
+    }
+    cumuler(sousTotal, ligne)
+    cumuler(total, ligne)
+  }
+  return { sousTotaux, total }
+}
 
 /**
  * « Suivi des éléments en cours » : par cabinet et collaborateur, les dossiers ouverts à la date de référence, puis
@@ -665,41 +703,23 @@ export function balanceAgee(
   const parMandat = new Map(affectations.map((a) => [a.mandatId, a]))
   const lignes = new Map<string, LigneBalanceAgee>()
   for (const dossier of dossiers) {
-    verifierDate(dossier.ouvertLe, `Date d'ouverture du dossier ${dossier.id}`)
-    if (dossier.closLe !== null) {
-      verifierDate(dossier.closLe, `Date de clôture du dossier ${dossier.id}`)
-      if (dossier.closLe < dossier.ouvertLe)
-        throw new Error(`Dossier ${dossier.id} : clôture (${dossier.closLe}) antérieure à l'ouverture (${dossier.ouvertLe}).`)
-    }
+    controlerDossier(dossier)
     if (dossier.ouvertLe > dateReference) continue
     const affectation = dossier.mandatId === null ? undefined : parMandat.get(dossier.mandatId)
     const cabinetId = affectation?.cabinetId ?? null
     if (cabinets && !cabinets.includes(cabinetId)) continue
-    const collaborateurId =
-      rattachement === 'responsable_fiche' ? dossier.responsableFicheId : (affectation?.[CHAMP_ROLE[rattachement]] ?? null)
+    const collaborateurId = collaborateurRattache(dossier, affectation, rattachement)
     const cle = JSON.stringify([cabinetId, collaborateurId])
     const ligne = lignes.get(cle) ?? { cabinetId, collaborateurId, ...compteurVide() }
     lignes.set(cle, ligne)
     ligne.tous++
-    if (dossier.closLe === null || dossier.closLe > dateReference) {
-      ligne.enCours++
-      ligne.tranches[periodesEcoulees(dossier.ouvertLe, dateReference, periodicite)]++
-    }
+    if (dossier.closLe !== null && dossier.closLe <= dateReference) continue
+    ligne.enCours++
+    ligne.tranches[periodesEcoulees(dossier.ouvertLe, dateReference, periodicite)]++
   }
   const triees = [...lignes.values()].sort(
     (a, b) => nullEnDernier(a.cabinetId, b.cabinetId) || nullEnDernier(a.collaborateurId, b.collaborateurId),
   )
-  const sousTotaux: BalanceAgee['sousTotaux'] = []
-  const total = compteurVide()
-  for (const ligne of triees) {
-    let sousTotal = sousTotaux.find((s) => s.cabinetId === ligne.cabinetId)
-    if (!sousTotal) {
-      sousTotal = { cabinetId: ligne.cabinetId, ...compteurVide() }
-      sousTotaux.push(sousTotal)
-    }
-    cumuler(sousTotal, ligne)
-    cumuler(total, ligne)
-  }
   const [t1, t2, t3, t4] = LIBELLES_TRANCHES[periodicite]
-  return { libellesTranches: [t1, t2, t3, t4], lignes: triees, sousTotaux, total }
+  return { libellesTranches: [t1, t2, t3, t4], lignes: triees, ...totaliser(triees) }
 }
