@@ -63,6 +63,8 @@ export interface Mandat extends EntiteEnregistree {
   notifOrdonnance: string
   /** Mode de tenue des comptes propre au mandat (D-BANQUE) ; null ou absent = mode par défaut du cabinet. */
   modeComptesBancaires?: ModeTenueComptes | null
+  /** Volet « Administration judiciaire » de la fiche mandat Gestéam (D1 : côté mandat) ; voir domain/mandat-judiciaire. */
+  voletJudiciaire?: import('@/lib/administrateur-judiciaire/domain/mandat-judiciaire').VoletJudiciaire
 }
 
 export interface Lot extends EntiteEnregistree {
