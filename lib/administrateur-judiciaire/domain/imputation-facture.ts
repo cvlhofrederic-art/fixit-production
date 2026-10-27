@@ -150,8 +150,9 @@ export interface ImputationProposee {
   rubriqueAnalytique: string | null
   cleRepartition: string | null
   decisionAgRequise: boolean
-  /** `mots_cles` : proposée d'après le texte ; `a_completer` : aucun compte reconnu, à choisir par le gestionnaire. */
-  certitude: 'mots_cles' | 'a_completer'
+  /** `mots_cles` : proposée d'après le texte ; `contrat` : reprise de la codification du contrat (contrats-facturation) ;
+   *  `a_completer` : aucun compte reconnu, à choisir par le gestionnaire. */
+  certitude: 'mots_cles' | 'a_completer' | 'contrat'
 }
 
 export function proposerImputation(facture: FactureLue, clesDisponibles: string[]): ImputationProposee {

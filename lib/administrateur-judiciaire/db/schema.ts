@@ -127,7 +127,8 @@ export interface Contrat extends EntiteEnregistree {
   concurrenceAu?: string | null
   /** Contrôle Gestéam « facture en retard de N jours ». */
   retardFactureJours?: number | null
-  // Non observés dans Gestéam sans ouvrir une fiche réelle : objet, montant — non modélisés.
+  /** Reconduction, prix, indice, périodicité des factures et codification par défaut (tranche 33) ; voir domain/contrats-facturation. */
+  facturation?: import('@/lib/administrateur-judiciaire/domain/contrats-facturation').FacturationContrat
 }
 
 /**
