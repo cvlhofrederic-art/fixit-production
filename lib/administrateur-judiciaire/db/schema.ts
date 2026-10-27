@@ -211,8 +211,11 @@ export interface Utilisateur extends EntiteEnregistree {
 
 export type Role = EntiteEnregistree
 
+/** Immeuble ; volet juridique de la fiche Gestéam (tranche 28) en champs non indexés, optionnels. */
 export interface Immeuble extends EntiteEnregistree {
   coproprieteId: string
+  referencesJuridiques?: import('@/lib/administrateur-judiciaire/domain/immeuble-juridique').ReferencesJuridiques
+  diagnostics?: import('@/lib/administrateur-judiciaire/domain/immeuble-juridique').Diagnostic[]
 }
 
 export interface Batiment extends EntiteEnregistree {
