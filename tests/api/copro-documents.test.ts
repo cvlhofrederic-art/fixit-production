@@ -236,6 +236,18 @@ describe('GET /api/coproprietaire/documents/[id] — refus', () => {
     expect(h.loggerError).toHaveBeenCalledWith('[COPRO DOCUMENT] lecture', expect.objectContaining({ document: 'column "publie_extranet" does not exist' }))
   })
 
+  it.each([
+    ['remontant hors du bucket', `${CABINET}/../../profile-photos/x.jpg`],
+    ['absolu', `/${CABINET}/pv/pv-ag-2025.pdf`],
+    ['coupé par un « ? »', `${AUTRE_CABINET}/pv.pdf?x=${CABINET}`],
+  ])('storage_path %s → 404, aucune URL signée, erreur journalisée', async (_cas, chemin) => {
+    h.etat.tables.syndic_documents = [document({ storage_path: chemin })]
+    const res = await ouvrirDocument(DOC_ID)
+    expect(res.status).toBe(404)
+    expect(h.etat.urlsSignees).toHaveLength(0)
+    expect(h.loggerError).toHaveBeenCalledWith('[COPRO DOCUMENT] chemin de stockage refusé', { document: DOC_ID })
+  })
+
   it('URL signée en échec → 500 sans détail, erreur journalisée', async () => {
     h.etat.erreurSignature = { message: 'Object not found' }
     const res = await ouvrirDocument(DOC_ID)

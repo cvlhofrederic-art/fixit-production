@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { echapperMotifLike, resoudreCoproprietaire, statutHttpAcces } from '@/lib/coproprietaire/acces'
 import { documentVisible, memeNom } from '@/lib/coproprietaire/filtrage'
+import { cheminStockageSur } from '@/lib/storage/chemin-sur'
 
 // ── GET /api/coproprietaire/documents/[id] ───────────────────────────────────
 // URL signée (10 minutes) d'un document de l'immeuble du copropriétaire connecté, demandée au
@@ -60,6 +61,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const idsImmeuble = ((immeubles || []) as Array<{ id: string; nom: string | null }>).filter(i => memeNom(i.nom, nomImmeuble)).map(i => i.id)
     const ligne = doc as LigneDocumentStockage | null
     if (!ligne || !ligne.immeuble_id || !idsImmeuble.includes(ligne.immeuble_id) || !documentVisible(ligne, new Set(fiches.map(f => f.id)))) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+    if (!cheminStockageSur(ligne.storage_path)) {
+      logger.error('[COPRO DOCUMENT] chemin de stockage refusé', { document: ligne.id })
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
 

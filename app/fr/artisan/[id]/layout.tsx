@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { logger } from '@/lib/logger'
+import { serialiserJsonLd } from '@/lib/seo/json-ld'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -219,7 +220,7 @@ export default async function ArtisanLayout({
         ],
       }
 
-      jsonLdString = JSON.stringify(jsonLd)
+      jsonLdString = serialiserJsonLd(jsonLd)
     }
   } catch (error) {
     // Lecture impossible : la fiche est rendue sans JSON-LD.

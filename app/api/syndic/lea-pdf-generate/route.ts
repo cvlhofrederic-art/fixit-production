@@ -10,6 +10,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { generatePdfFromTemplate, type PdfFieldValue } from '@/lib/syndic/lea-pdf-generator'
 import { traceAgent } from '@/lib/langfuse'
+import { cheminStockageSur } from '@/lib/storage/chemin-sur'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 30
@@ -73,6 +74,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Télécharger le template depuis Storage
+    if (!cheminStockageSur(tpl.storage_path)) {
+      logger.error('[lea-pdf-generate] storage_path refusé:', { template: tpl.id })
+      return NextResponse.json({ error: 'template_download_failed' }, { status: 500 })
+    }
     const { data: tplBlob, error: dlErr } = await supabaseAdmin.storage
       .from('syndic-pdf-templates')
       .download(tpl.storage_path)
