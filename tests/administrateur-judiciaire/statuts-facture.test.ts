@@ -21,7 +21,7 @@ import {
 
 const facture = (id: string, surcharge: Partial<FactureAPayer> = {}): FactureAPayer => ({
   id,
-  fournisseurId: 'f-1',
+  prestataireId: 'f-1',
   mode: 'Virement',
   statutSaisie: 'Enregistrée',
   comptabilisee: true,
@@ -39,7 +39,7 @@ describe('statuts — référentiels Gestéam', () => {
   })
 
   it('ne connaît que les priorités observées : 5 à échéance avec contrôle de solde, 6 ne pas régler', () => {
-    expect(PRIORITES_REGLEMENT).toEqual({
+    expect(Object.fromEntries(PRIORITES_REGLEMENT)).toEqual({
       5: { libelle: 'À échéance AVEC contrôle de solde', aEcheance: true, controleSolde: true, nePasRegler: false },
       6: { libelle: 'Ne pas régler', aEcheance: false, controleSolde: false, nePasRegler: true },
     })
@@ -55,10 +55,19 @@ describe('statuts — lecture du code de la colonne Statut de Gestéam', () => {
     expect(lireCodeStatutGesteam('V/Réglée')).toEqual({ mode: 'Virement', statutSaisie: 'Réglée' })
   })
 
-  it('renvoie null pour une lettre ou un statut non observé, plutôt que de deviner', () => {
+  it('renvoie null pour une lettre ou une abréviation non confirmée, plutôt que de deviner', () => {
     expect(lireCodeStatutGesteam('P/Saisie')).toBeNull()
-    expect(lireCodeStatutGesteam('V/Règl.')).toBeNull()
+    expect(lireCodeStatutGesteam('V/Xyz')).toBeNull()
     expect(lireCodeStatutGesteam('Virement')).toBeNull()
+  })
+
+  it('lit null les abréviations relevées en passant mais non confirmées (V/Règl., V/Rég., C/Rég., V/Err.)', () => {
+    for (const code of ['V/Règl.', 'V/Rég.', 'C/Rég.', 'V/Err.']) expect(lireCodeStatutGesteam(code)).toBeNull()
+  })
+
+  it('ne lit jamais une clé héritée de JavaScript comme un code', () => {
+    for (const code of ['constructor/Saisie', 'toString/Enr.', 'V/constructor', 'V/__proto__'])
+      expect(lireCodeStatutGesteam(code)).toBeNull()
   })
 })
 
@@ -73,11 +82,19 @@ describe('statuts — statut de saisie après règlement', () => {
 })
 
 describe('statuts — transitions du statut de règlement', () => {
-  it('suit En attente → Bon à payer → En règlement → Réglée', () => {
+  it('suit En attente → Bon à payer → En règlement → Réglée (une fois l’ordre émis)', () => {
     const bap = changerStatutReglement(facture('a', { statutReglement: 'En attente' }), 'Bon à payer')
     expect(bap.statutReglement).toBe('Bon à payer')
     const enReglement = changerStatutReglement(bap, 'En règlement')
-    expect(changerStatutReglement(enReglement, 'Réglée').statutReglement).toBe('Réglée')
+    expect(changerStatutReglement(enReglement, 'Réglée', { ordre: 'Émis' }).statutReglement).toBe('Réglée')
+  })
+
+  it('lie la sortie d’un ordre et le paiement au statut de l’ordre (pas de double paiement)', () => {
+    const enReglement = facture('a', { statutReglement: 'En règlement' })
+    expect(() => changerStatutReglement(enReglement, 'Bon à payer')).toThrow(/ordre/i)
+    expect(() => changerStatutReglement(enReglement, 'Bon à payer', { ordre: 'Émis' })).toThrow(/déjà émis/i)
+    expect(() => changerStatutReglement(enReglement, 'Réglée', { ordre: 'Enregistré' })).toThrow(/pas émis/i)
+    expect(changerStatutReglement(enReglement, 'Bon à payer', { ordre: 'Enregistré' }).statutReglement).toBe('Bon à payer')
   })
 
   it('n’accorde le bon à payer qu’à une facture enregistrée et comptabilisée', () => {
@@ -94,16 +111,17 @@ describe('statuts — transitions du statut de règlement', () => {
     expect(() => changerStatutReglement(facture('a', { statutReglement: 'Réglée' }), 'Bon à payer')).toThrow(/transition/i)
   })
 
-  it('permet de retirer le bon à payer ou de sortir une facture d’un ordre non émis', () => {
+  it('permet de retirer le bon à payer', () => {
     expect(changerStatutReglement(facture('a'), 'En attente').statutReglement).toBe('En attente')
-    expect(changerStatutReglement(facture('a', { statutReglement: 'En règlement' }), 'Bon à payer').statutReglement).toBe(
-      'Bon à payer',
-    )
   })
 
-  it('passe par « Acompte à régler » pour un acompte, puis revient au bon à payer du solde', () => {
+  it('passe par « Acompte à régler » pour un acompte ; après paiement, revient en attente pour le solde', () => {
     const acompte = changerStatutReglement(facture('a', { statutReglement: 'En attente' }), 'Acompte à régler')
-    expect(changerStatutReglement(acompte, 'En règlement').statutReglement).toBe('En règlement')
+    const enReglement = changerStatutReglement(acompte, 'En règlement')
+    expect(changerStatutReglement(enReglement, 'En attente', { ordre: 'Émis' }).statutReglement).toBe('En attente')
+    expect(changerStatutReglement(enReglement, 'Acompte à régler', { ordre: 'Enregistré' }).statutReglement).toBe(
+      'Acompte à régler',
+    )
     expect(changerStatutReglement(acompte, 'Bon à payer').statutReglement).toBe('Bon à payer')
   })
 
@@ -160,7 +178,7 @@ describe('sélection des factures pour un ordre de virement', () => {
     expect(resultat.totalCentimes).toBe(4_000)
   })
 
-  it('arrête la sélection au solde disponible quand la priorité impose le contrôle de solde', () => {
+  it('arrête la sélection au solde disponible : aucune facture plus récente payée avant une plus ancienne', () => {
     const resultat = selectionnerFacturesAPayer(
       [
         facture('a', { echeance: '2026-10-01', resteDuCentimes: 6_000 }),
@@ -169,9 +187,38 @@ describe('sélection des factures pour un ordre de virement', () => {
       ],
       { date: '2026-10-28', soldeDisponibleCentimes: 10_000 },
     )
-    expect(resultat.retenues.map((f) => f.id)).toEqual(['a', 'c'])
-    expect(resultat.ecartees).toEqual([{ factureId: 'b', motif: 'solde_insuffisant' }])
-    expect(resultat.totalCentimes).toBe(9_000)
+    expect(resultat.retenues.map((f) => f.id)).toEqual(['a'])
+    expect(resultat.ecartees).toEqual([
+      { factureId: 'b', motif: 'solde_insuffisant' },
+      { factureId: 'c', motif: 'solde_insuffisant' },
+    ])
+    expect(resultat.totalCentimes).toBe(6_000)
+  })
+
+  it('sélectionne un acompte pour son montant (borné par le reste dû), et écarte un acompte sans montant', () => {
+    const resultat = selectionnerFacturesAPayer(
+      [
+        facture('ac', { statutReglement: 'Acompte à régler', acompteCentimes: 3_000 }),
+        facture('ac-trop', { statutReglement: 'Acompte à régler', acompteCentimes: 50_000, resteDuCentimes: 4_000 }),
+        facture('ac-vide', { statutReglement: 'Acompte à régler' }),
+      ],
+      { date: '2026-10-28', soldeDisponibleCentimes: 100_000 },
+    )
+    expect(resultat.montants).toEqual([
+      { factureId: 'ac', montantCentimes: 3_000 },
+      { factureId: 'ac-trop', montantCentimes: 4_000 },
+    ])
+    expect(resultat.totalCentimes).toBe(7_000)
+    expect(resultat.ecartees).toEqual([{ factureId: 'ac-vide', motif: 'acompte_sans_montant' }])
+  })
+
+  it('écarte une facture aux données invalides sans bloquer l’ordre', () => {
+    const resultat = selectionnerFacturesAPayer([facture('ok'), facture('brouillon', { echeance: '' })], {
+      date: '2026-10-28',
+      soldeDisponibleCentimes: 100_000,
+    })
+    expect(resultat.retenues.map((f) => f.id)).toEqual(['ok'])
+    expect(resultat.ecartees).toEqual([{ factureId: 'brouillon', motif: 'donnee_invalide' }])
   })
 
   it('refuse une date ou un solde invalides, et une facture en double', () => {
