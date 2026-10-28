@@ -126,6 +126,10 @@ export const DATA_PRECO_CAPOTO = '2026-10-28'
  * - /pt/precos/pintor/ (phrase qui situe la page renovação de fachadas) ;
  * - la réponse « Quanto custa aplicar capoto por m²? » (22 pages isolamento-termico et leur hub) et les deux articles qui
  *   disent la zone avec le prix (capoto-isolamento-termico-quanto-custa, humidade-parede-causas-reparacao : `dateModified`).
+ * Même lot, même jour (demande du propriétaire du 28/10/2026, page limpeza de telhados pour Águeda, Aveiro et le distrito de
+ * Aveiro sans liste de lieux) : H1 et description de limpeza de telhados avec « lavagem » et « impermeabilização », section
+ * « O que muda no telhado de uma zona para outra » (champ `condicoesLocais`) ; résumé repris par les 22 pages ville, déjà
+ * datées de ce jour. Les liens des trois pages d'Águeda vers limpeza de telhados portent DATA_LIGACOES_AGUEDA_TELHADOS.
  * À reporter seulement au jour réel de la fusion de ce lot, et à consigner dans docs/seo/journal-pt.md. Ensuite, ne plus
  * l'avancer : elle date 78 URL (test pt-zona-tres-distritos), dont la plupart ne changent pas quand le contenu d'une page
  * de district change. Pour toute modification ultérieure de ce contenu (texte, ou prix et délai d'une ligne `precos` ou
@@ -134,6 +138,17 @@ export const DATA_PRECO_CAPOTO = '2026-10-28'
  * nouvelle constante dans `dataLigacoes`.
  */
 export const DATA_ZONA_DISTRITOS = '2026-10-28'
+
+/**
+ * Liens vers /pt/servicos/limpeza-de-telhados/ ajoutés le 28/10/2026 sur les trois pages d'Águeda (demande du propriétaire :
+ * toucher Águeda et le distrito de Aveiro sans page satellite ni liste de lieux), dans leurs blocs de liens existants :
+ * /pt/servicos/limpeza-de-terrenos-agueda/ et /pt/servicos/terraplanagem-agueda/ (cartes `ligacoes`, champ `dataModificacao`
+ * de lib/data/pt-servicos-concelho.ts), /pt/servicos/poda-arvores-agueda/ (« Serviços relacionados », champs
+ * `servicosDistrito` et `dataServicosDistrito` de CityData.serviceCityOverrides). Date de ces trois pages seulement : la page
+ * ville d'Águeda et ses autres pages métier x ville ne changent pas. Même lot que DATA_ZONA_DISTRITOS : à reporter avec elle
+ * au jour réel de la fusion, et à consigner dans docs/seo/journal-pt.md ; ensuite, ne plus l'avancer.
+ */
+export const DATA_LIGACOES_AGUEDA_TELHADOS = '2026-10-28'
 
 // Les articles de blog portent leur propre date (dateModified, sinon datePublished,
 // lib/data/seo-pages-data.ts) ; `blog` ne vaut que pour l'index /pt/blog/. `paginas` est la date

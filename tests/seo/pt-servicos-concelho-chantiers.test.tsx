@@ -13,7 +13,7 @@ vi.mock('@/data/seo/local-proof.json', () => ({
     chantiers: [
       {
         cidade: 'agueda', metier: 'limpeza-de-terrenos-agueda', tipo: 'Limpeza de faixa de gestão de combustível', quantidade: '2 000 m²',
-        mes: '2026-11', freguesia: 'Macinhata do Vouga', publicado: '2026-10-24',
+        mes: '2026-11', freguesia: 'Macinhata do Vouga', publicado: '2026-11-30',
         problema: 'Mato e silvas encostados à casa', solucao: 'Trator com destroçador e roçadoras junto aos muros',
         foto: '/images/chantiers/teste-agueda.jpg', foto_alt: 'Terreno em Macinhata do Vouga depois da limpeza',
       },
@@ -49,10 +49,10 @@ describe('chantiers réels sur les pages de service d’Águeda (données fictiv
   })
 
   it('la date de la page suit la mise en production du chantier ; sans date, elle ne change pas', () => {
-    expect(dataModificacaoConcelho(LIMPEZA_DE_TERRENOS_AGUEDA)).toBe('2026-10-24')
+    expect(dataModificacaoConcelho(LIMPEZA_DE_TERRENOS_AGUEDA)).toBe('2026-11-30')
     expect(dataModificacaoConcelho(TERRAPLANAGEM_AGUEDA)).toBe(TERRAPLANAGEM_AGUEDA.dataModificacao)
     const { servicos } = sitemapsPt(BASE)
-    expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/limpeza-de-terrenos-agueda/`)?.lastModified).toBe('2026-10-24')
+    expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/limpeza-de-terrenos-agueda/`)?.lastModified).toBe('2026-11-30')
     expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/terraplanagem-agueda/`)?.lastModified).toBe(TERRAPLANAGEM_AGUEDA.dataModificacao)
   })
 

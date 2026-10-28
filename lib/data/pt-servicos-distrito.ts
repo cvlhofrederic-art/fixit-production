@@ -102,6 +102,12 @@ export interface ServicoDistrito {
   frequencia: string
   fatoresPreco: string[]
   aviso?: PassoServico
+  /**
+   * Ce qui change pour le travail d'un endroit à l'autre de la zone (climat, environnement), rendu dans la section « Onde
+   * trabalhamos » de la page de district (pas sur les pages concelho) : faits vérifiés sur une source publique citée dans
+   * le commentaire des données, concelhos nommés seulement là où le fait les concerne, jamais plus de deux d'affilée (test).
+   */
+  condicoesLocais?: { titulo: string; intro: string; zonas: PassoServico[] }
   faqs: PerguntaServico[]
   ligacoes: LigacaoServico[]
   /** Métiers de la grille dont les pages des `distritos` et le hub lient cette page. */
@@ -153,10 +159,14 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   tipoServico: 'Limpeza de telhados e caleiras',
   icon: '🏠',
   distritos: DISTRITOS_EQUIPA,
+  // Titre gardé (requêtes de l'autocomplétion Google du 28/10/2026 : « limpeza de telhados e caleiras porto », « limpeza de
+  // telhados braga », « limpeza de telhados aveiro ») ; H1 et résumé avec « lavagem » et « impermeabilização » (« lavagem de
+  // telhados aveiro », « lavagem de telhados braga », « lavagem de telhados preço m2 »), sans perdre « limpeza de telhados » ;
+  // description de 154 caractères avec le numéro (test).
   titulo: 'Limpeza de telhados e caleiras: Porto, Braga e Aveiro',
   tituloSemZona: 'Limpeza de telhados e caleiras',
-  h1: 'Limpeza de telhados e caleiras nos distritos do Porto, Braga e Aveiro',
-  resumo: 'Lavagem, impermeabilização e pintura de telhados e limpeza de caleiras nos distritos do Porto, Braga e Aveiro.',
+  h1: 'Limpeza de telhados e caleiras: lavagem e impermeabilização nos distritos do Porto, Braga e Aveiro',
+  resumo: 'Limpeza de telhados e caleiras: lavagem, impermeabilização e pintura de telhas nos distritos do Porto, Braga e Aveiro.',
   intro:
     'A equipa VITFIX limpa telhados e caleiras em todos os concelhos destes três distritos, a partir de Marco de Canaveses: lavagem do telhado com tratamento contra o musgo e os líquenes, impermeabilização das telhas (hidrofugação), pintura de telhas e limpeza de caleiras e algerozes. Não limpamos telhados de fibrocimento (lusalite). O orçamento é grátis e sem compromisso.',
   titulos: {
@@ -232,6 +242,51 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
     titulo: 'Telhados de fibrocimento (lusalite): não fazemos a limpeza',
     texto:
       'As placas de fibrocimento instaladas até 2005 podem conter amianto, e só uma análise em laboratório o confirma. Lavar, escovar ou raspar estas placas pode libertar fibras perigosas para a saúde; por isso, não limpamos telhados de fibrocimento. Em Portugal, a remoção de materiais com amianto está sujeita, em regra, a autorização prévia da ACT (Autoridade para as Condições do Trabalho), que aprova o plano de trabalhos, nos termos do Decreto-Lei n.º 266/2007. Se não sabe de que material é o seu telhado, envie-nos uma fotografia antes de marcar.',
+  },
+  // Demande du propriétaire du 28/10/2026 : toucher Águeda, Aveiro et tout le distrito de Aveiro sans liste de villes ni page
+  // satellite. Faits vérifiés le 28/10/2026, seuls écrits ici :
+  // - IPMA, normais climatológicas 1991-2020 (fiches de 2024, versão 1.0) : Aveiro / Universidade (estação 702, 3,6 m),
+  //   https://www.ipma.pt/bin/file.data/climate-normal/cn_91-20_AVEIRO.pdf : 975,5 mm, 97,2 dias com P >= 1 mm, 0,3 dias
+  //   com TN < 0 °C ; Porto / Pedras Rubras (545, 67,7 m),
+  //   https://www.ipma.pt/opencms/bin/file.data/climate-normal/cn_91-20_PORTO_PEDRAS_RUBRAS.pdf : 1146,9 mm, 105,4 dias,
+  //   1,4 dias ; Braga / Merelim (622, 68,4 m), https://www.ipma.pt/bin/file.data/climate-normal/cn_91-20_BRAGA_MERELIM.pdf :
+  //   1387,3 mm, 113,5 dias, 24,3 dias. « Dias de geada » = TN < 0 °C (légende des fiches).
+  // - APA, Plano Nacional da Água (2002), vol. 1, cap. II, 1.2.1.1 et 1.2.1.4,
+  //   https://apambiente.pt/sites/default/files/_SNIAMB_Agua/DRH/PlaneamentoOrdenamento/PNA/2002/Volume1_Capitulo2_T01.pdf :
+  //   précipitation moyenne annuelle « próximos de 4000 mm » en certains points de la serra do Gerês ; humidité relative la
+  //   plus élevée « junto ao litoral ».
+  // - ISO 9223:2012, tableau C.1 (exemples d'environnements), résumé par la Hot Dip Galvanizers Association Southern Africa,
+  //   https://www.hdgasa.org.za/wp-content/uploads/2015/12/HDGA-Info-Sheet-No8-Corrosion-of-Zinc-Corrosivity-of-Atmospheres.pdf :
+  //   C4 (corrosividade alta) en climat tempéré « < one kilometre of the ocean » ; chlorures apportés par les vents de mer.
+  // - Regulamento Delegado (UE) 2017/1475 da Comissão, de 26 de janeiro de 2017 (classes de résistance au gel des tuiles en
+  //   terre cuite de la EN 1304, essai EN 539-2), https://apcmc.pt/legislacao/telhas-ceramica-uso-exterior-resistencia-ao-gelo/
+  // - Águeda : forêt sur près des trois quarts du concelho, eucalyptus dominant (PMDFCI 2021-2030, caderno I, déjà cité par
+  //   lib/data/pt-servicos-concelho.ts).
+  // Non vérifié, donc non écrit : fréquence du brouillard (nevoeiro) sur la côte (aucune normale récente publiée par l'IPMA
+  // trouvée) ; pluie ou gel chiffrés dans les serras du distrito do Porto et de Aveiro ; durée de vie des caleiras. Fréquence
+  // conseillée : celle de la FAQ et de « Quando limpar » (vérifier tous les ans, avant les pluies d'automne), aucune promesse
+  // nouvelle de l'équipe.
+  condicoesLocais: {
+    titulo: 'O que muda no telhado de uma zona para outra',
+    intro:
+      'Os três distritos não têm o mesmo clima, e isso vê-se nas telhas e nas caleiras. Os valores de chuva e de geada são médias anuais das normais climatológicas 1991-2020 do IPMA; os dias de geada são os dias com temperatura mínima abaixo de 0 °C.',
+    zonas: [
+      {
+        titulo: 'Junto ao mar e à Ria de Aveiro',
+        texto:
+          'Perto da costa quase nunca gela: 0,3 dias de geada por ano na estação da Universidade de Aveiro, junto à ria, e 1,4 na de Pedras Rubras, no aeroporto do Porto. O que pesa é a humidade, mais alta junto ao litoral: as telhas secam devagar e o musgo e os líquenes voltam mais depressa, sobretudo nas águas viradas a norte. O vento do mar traz também sal, que ataca o metal: a norma internacional sobre a corrosividade da atmosfera (ISO 9223) dá como exemplo de corrosividade alta, em clima temperado, a faixa a menos de um quilómetro do oceano. Numa casa perto da praia, em Vila do Conde ou em Espinho, as caleiras, os rufos e os remates de chapa merecem atenção em cada limpeza: ferrugem, furos e uniões abertas.',
+      },
+      {
+        titulo: 'No interior: mais geada e mais chuva',
+        texto:
+          'Afastando-se da costa, a geada passa a contar: a estação do IPMA em Braga regista 24,3 dias de geada e 1387,3 mm de chuva por ano, contra 0,3 dias e 975,5 mm em Aveiro. Uma telha que passa o inverno encharcada sofre com o gelo e o degelo, e é por isso que as telhas cerâmicas têm uma classe europeia de resistência ao gelo (Regulamento Delegado (UE) 2017/1475). Antes do inverno, troque as telhas partidas ou fissuradas: a lavagem e o hidrofugante não as reparam.',
+      },
+      {
+        titulo: 'Na serra e entre árvores',
+        texto:
+          'Nas serras chove ainda mais: em alguns locais da serra do Gerês, o Plano Nacional da Água regista médias perto de 4000 mm por ano. Quando a casa está rodeada de árvores, as folhas, as agulhas dos pinheiros e a casca dos eucaliptos enchem as caleiras e os algerozes, e a sombra deixa as telhas húmidas mais tempo. Em Águeda, por exemplo, a floresta ocupa perto de três quartos do concelho e o eucalipto domina os povoamentos. Nestas casas, as caleiras entopem mais depressa, e a verificação de todos os anos, antes das chuvas de outono, conta ainda mais.',
+      },
+    ],
   },
   faqs: [
     {
@@ -311,7 +366,8 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   metiersLigados: ['telhador', 'impermeabilizacao'],
   chamadaHub: 'Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:',
   mensagemWhatsapp: 'Olá! Gostaria de um orçamento para a limpeza de um telhado.',
-  // Contenu : DATA_PAGINAS_DISTRITO (22/10/2026) jusqu'à l'extension de la zone aux distritos de Braga et de Aveiro.
+  // Contenu : DATA_PAGINAS_DISTRITO (22/10/2026) jusqu'à l'extension de la zone aux distritos de Braga et de Aveiro ; H1,
+  // résumé et `condicoesLocais` changés le même jour, dans le même lot (voir DATA_ZONA_DISTRITOS).
   dataModificacao: DATA_ZONA_DISTRITOS,
   // Cartes vers renovação de fachadas et trabalhos verticais, ajoutées le jour des liens vers ces deux pages.
   dataModificacaoLigacoes: DATA_LIGACOES_FACHADAS_TV,
@@ -698,6 +754,14 @@ export const cobreDistrito = (servico: ServicoDistrito, distrito: string) => ser
 /** Pages de district à lier depuis les pages d'un métier de la grille (distrito couvert par la page) et son hub. */
 export function servicosDistritoLigados(metier: string, distrito?: string): ServicoDistrito[] {
   return SERVICOS_DISTRITO.filter((s) => s.metiersLigados.includes(metier) && (!distrito || cobreDistrito(s, distrito)))
+}
+
+/**
+ * Pages de district qu'une page métier x ville lie en plus de celles de son métier (CityData.serviceCityOverrides[métier]
+ * .servicosDistrito, ex. poda-arvores-agueda → limpeza de telhados), dans un distrito qu'elles couvrent.
+ */
+export function servicosDistritoRelacionados(slugs: readonly string[] | undefined, distrito: string): ServicoDistrito[] {
+  return SERVICOS_DISTRITO.filter((s) => Boolean(slugs?.includes(s.slug)) && cobreDistrito(s, distrito))
 }
 
 /** Date des liens d'une page qui lie ces pages de district (hub, page ville, page statique) : la plus récente de leurs `dataLigacoes`. */

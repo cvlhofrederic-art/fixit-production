@@ -13,8 +13,12 @@
 // chantiers réels : data/seo/local-proof.json (clé = slug de la page), blocs absents tant qu'ils sont vides ; le
 // propriétaire a décidé le 22/10/2026 d'ouvrir ces pages sans chantier documenté, les chantiers s'ajouteront ensuite.
 // Textes à relire par le propriétaire.
+//
+// 28/10/2026 : carte vers la page de district /pt/servicos/limpeza-de-telhados/ dans les liens des deux pages (l'équipe
+// travaille dans tous les concelhos du distrito de Aveiro, confirmé le 28/10/2026 ; aucun chantier ni photo à Águeda à ce
+// jour : la carte ne parle que du service), date DATA_LIGACOES_AGUEDA_TELHADOS.
 
-import { DATA_PAGINAS_AGUEDA } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_AGUEDA_TELHADOS } from '@/lib/seo/pt-datas'
 import { chantiersPara } from '@/lib/seo/pt-provas-locais'
 import { dataChantier } from '@/lib/data/pt-servicos-distrito'
 
@@ -309,11 +313,17 @@ export const LIMPEZA_DE_TERRENOS_AGUEDA: ServicoConcelho = {
       titulo: 'Limpeza e remoção de entulho em Águeda',
       texto: 'Entulho, lixo e monos acumulados num terreno ou num anexo.',
     },
+    {
+      href: '/pt/servicos/limpeza-de-telhados/',
+      titulo: 'Lavagem e impermeabilização de telhados',
+      texto: 'Musgo nas telhas e caleiras cheias de folhas: a mesma equipa trata do telhado, em todo o concelho.',
+    },
   ],
   metiersLigados: ['jardineiro', 'poda-arvores', 'limpeza-espacos'],
   mensagemWhatsapp: 'Olá! Tenho um terreno para limpar no concelho de Águeda. Envio fotografias e a localização.',
   ctaFinal: 'Peça o orçamento para o seu terreno em Águeda',
-  dataModificacao: DATA_PAGINAS_AGUEDA,
+  // Page publiée le 23/10/2026 (DATA_PAGINAS_AGUEDA) ; carte vers limpeza de telhados ajoutée le 28/10/2026.
+  dataModificacao: DATA_LIGACOES_AGUEDA_TELHADOS,
 }
 
 export const TERRAPLANAGEM_AGUEDA: ServicoConcelho = {
@@ -489,11 +499,17 @@ export const TERRAPLANAGEM_AGUEDA: ServicoConcelho = {
       titulo: 'Obras e remodelação em Águeda',
       texto: 'A obra que se segue à preparação do terreno.',
     },
+    {
+      href: '/pt/servicos/limpeza-de-telhados/',
+      titulo: 'Lavagem e impermeabilização de telhados',
+      texto: 'Na casa já construída: lavagem das telhas, hidrofugante e limpeza das caleiras e dos algerozes.',
+    },
   ],
   metiersLigados: ['pedreiro', 'obras-remodelacao'],
   mensagemWhatsapp: 'Olá! Preciso de terraplanagem ou desaterro num terreno no concelho de Águeda. Envio fotografias e a localização.',
   ctaFinal: 'Peça o orçamento para o seu terreno em Águeda',
-  dataModificacao: DATA_PAGINAS_AGUEDA,
+  // Page publiée le 23/10/2026 (DATA_PAGINAS_AGUEDA) ; carte vers limpeza de telhados ajoutée le 28/10/2026.
+  dataModificacao: DATA_LIGACOES_AGUEDA_TELHADOS,
 }
 
 export const SERVICOS_CONCELHO: ServicoConcelho[] = [LIMPEZA_DE_TERRENOS_AGUEDA, TERRAPLANAGEM_AGUEDA]

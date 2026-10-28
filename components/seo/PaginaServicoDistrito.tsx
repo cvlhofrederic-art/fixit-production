@@ -159,6 +159,22 @@ export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: S
           <p className="text-text-muted max-w-3xl mb-6">
             A equipa parte de Marco de Canaveses e trabalha em todos os concelhos {dosDistritos(distritos)}{prazo?.visita_horas_max ? `, com visita em ${prazo.visita_horas_max} horas, no máximo, em qualquer um deles` : ''}. O preço não depende do concelho. No pedido de orçamento, diga-nos o concelho e a freguesia.
           </p>
+          {/* Ce qui change d'un endroit à l'autre de la zone (faits sourcés, lib/data/pt-servicos-distrito.ts) : intertitre et
+              cartes du même gabarit que « O que fazemos », sans liste de concelhos. */}
+          {servico.condicoesLocais && (
+            <div id="condicoes" className="mb-6">
+              <h3 className="font-display text-xl font-bold text-dark mb-2">{servico.condicoesLocais.titulo}</h3>
+              <p className="text-text-muted max-w-3xl mb-4">{servico.condicoesLocais.intro}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {servico.condicoesLocais.zonas.map((z) => (
+                  <article key={z.titulo} className={`p-6 rounded-2xl ${cartao('zona')} border border-border/40`}>
+                    <h4 className="font-display text-lg font-bold text-dark mb-2">{z.titulo}</h4>
+                    <p className="text-[0.93rem] text-dark/80 leading-relaxed">{z.texto}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
           <Link
             href="/pt/cidade/"
             className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"

@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
 import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
-import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, servicosDistritoRelacionados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import PaginaConcelhoServicoDistrito from '@/components/seo/PaginaConcelhoServicoDistrito'
 import { BotoesContacto } from '@/components/seo/servico-distrito-partilhado'
 import { servicosConcelhoLigados } from '@/lib/data/pt-servicos-concelho'
@@ -95,6 +95,9 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   // Sections locales vérifiées de ce métier dans cette ville (CityData.serviceCityOverrides), quand elles existent,
   // avec leurs sources et les réponses de FAQ propres à la ville.
   const localOverride = city.serviceCityOverrides?.[service.slug]
+  // Pages de district liées en plus par ce seul couple métier x ville (ex. poda-arvores-agueda → limpeza de telhados), dans
+  // « Serviços relacionados ».
+  const distritoRelacionados = servicosDistritoRelacionados(localOverride?.servicosDistrito, city.distrito)
   const secoesLocais = localOverride?.secoes ?? []
   const fontesLocais = localOverride?.fontes ?? []
   const respostaFaq = (question: string, answer: string) => localOverride?.respostas?.[question] ?? replaceCity(answer)
@@ -475,6 +478,21 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                 <span className="block text-sm text-text-muted mt-1">em {city.name}</span>
               </Link>
             ))}
+            {/* Page de district : même carte, lieu au nom du distrito (page concelho si des chantiers l'ont ouverte). */}
+            {distritoRelacionados.map(pd => {
+              const href = urlServicoDistrito(pd, city.slug)
+              return (
+                <Link
+                  key={pd.slug}
+                  href={href}
+                  className="p-6 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group text-center"
+                >
+                  <span className="text-3xl block mb-3">{pd.icon}</span>
+                  <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{pd.nome}</span>
+                  <span className="block text-sm text-text-muted mt-1">{href === `/pt/servicos/${pd.slug}/` ? `no distrito ${nomeDistrito(city.distrito)}` : emConcelho(city.name)}</span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </section>

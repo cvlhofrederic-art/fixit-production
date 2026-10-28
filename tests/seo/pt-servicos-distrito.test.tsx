@@ -77,7 +77,9 @@ describe('données des pages de district', () => {
   })
 
   it('les textes ne contiennent ni prix, ni délai chiffré, ni pourcentage (règle 0.2) ; seules années citées : 2005 et 2007 (amianto)', () => {
-    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => !['dataModificacao', 'dataModificacaoLigacoes', 'dataLigacoes', 'dataLigacoesGrelha'].includes(k))))
+    // `condicoesLocais` cite des normales climatiques (jours de gel, mm de pluie, période 1991-2020) et un règlement daté :
+    // chiffres sourcés, vérifiés à part (tests/seo/pt-telhados-condicoes-zona.test.tsx), ni prix ni délai de l'équipe.
+    const textes = JSON.stringify(Object.fromEntries(Object.entries(LIMPEZA_DE_TELHADOS).filter(([k]) => !['dataModificacao', 'dataModificacaoLigacoes', 'dataLigacoes', 'dataLigacoesGrelha', 'condicoesLocais'].includes(k))))
     expect(textes).not.toMatch(/€|\beuros?\b|%/i)
     expect(textes).not.toMatch(/\b\d+\s*(h|horas?|dias?|semanas?|minutos?|anos?|m2|m²)\b/i)
     expect(textes.match(/\b(19|20)\d{2}\b/g)).toEqual(['2005', '2007'])
@@ -192,9 +194,12 @@ describe('/pt/servicos/limpeza-de-telhados/ : rendu', () => {
     expect(intro).toMatch(/Não limpamos telhados de fibrocimento/)
   })
 
-  it('aucune liste de concelhos : hors chantiers réels, le siège et les trois distritos (« Porto, Braga e Aveiro », trois fois au plus)', async () => {
+  it('aucune liste de concelhos : hors chantiers réels et conditions par zone, le siège et les trois distritos (« Porto, Braga e Aveiro », trois fois au plus)', async () => {
     const c = (await htmlLimpeza()).cloneNode(true) as HTMLElement
     c.querySelector('#chantiers')?.remove()
+    // Conditions par zone (28/10/2026) : concelhos nommés en exemples là où le fait les concerne, vérifiés à part
+    // (tests/seo/pt-telhados-condicoes-zona.test.tsx).
+    c.querySelector('#condicoes')?.remove()
     c.querySelector('script')?.remove()
     const texte = c.textContent ?? ''
     // Porto, Braga et Aveiro sont aussi des concelhos de la grille : ils ne paraissent que dans la zone, dite d'un seul tenant.

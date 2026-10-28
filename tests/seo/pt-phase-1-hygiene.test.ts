@@ -26,7 +26,7 @@ import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaS
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, dataLigacoesConcelho, dataLigacoesGrelhaConcelho, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
 import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR, DATA_ZONA_DISTRITOS, DATAS_PT } from '@/lib/seo/pt-datas'
-import { SERVICOS_DISTRITO, cobreDistrito, dataLigacoesServicos, servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, cobreDistrito, dataLigacoesServicos, servicosDistritoLigados, servicosDistritoRelacionados } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
@@ -276,11 +276,14 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
       // Métier isolamento-termico : prix réel et zone du capoto dans sa FAQ (27 et 28/10/2026), sur ses 22 pages.
       const ligados = servicosDistritoLigados(c.service.slug, c.city.distrito).map((s) => s.slug)
       const ligacoes = ligados.length ? dataLigacoesGrelhaConcelho(c.city.slug, ligados) : ''
+      // Liens de district propres à la page (poda-arvores-agueda → limpeza de telhados, 28/10/2026) : jour de leur ajout.
+      const override = c.city.serviceCityOverrides?.[c.service.slug]
+      const proprias = servicosDistritoRelacionados(override?.servicosDistrito, c.city.distrito).length ? (override?.dataServicosDistrito ?? '') : ''
       const maxi = (...d: string[]) => d.filter(Boolean).sort((a, b) => a.localeCompare(b)).at(-1)
       const attendue = c.service.slug === 'isolamento-termico' ? maxi(DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS)
-        : SERVICOS_CONCELHO.some((s) => s.cidade === c.city.slug) ? maxi(DATA_PAGINAS_AGUEDA, ligacoes)
-          : ligacoes || (c.service.slug === 'poda-arvores' ? DATA_CORRECOES_FAQ
-            : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3)
+        : SERVICOS_CONCELHO.some((s) => s.cidade === c.city.slug) ? maxi(DATA_PAGINAS_AGUEDA, ligacoes, proprias)
+          : maxi(ligacoes || (c.service.slug === 'poda-arvores' ? DATA_CORRECOES_FAQ
+            : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3), proprias)
       expect(entree?.lastModified, c.slug).toBe(attendue)
       // Grille du distrito do Porto : lien et ancre inchangés par l’extension de la zone, date gardée.
       if (ligacoes && c.city.distrito === 'Porto') expect(ligacoes, c.slug).not.toBe(DATA_ZONA_DISTRITOS)

@@ -19,7 +19,7 @@ import { type SitemapUrl } from './sitemap-helpers'
 import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR, DATA_ZONA_DISTRITOS } from './seo/pt-datas'
 import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
-import { SERVICOS_DISTRITO, cobreDistrito, servicosDistritoLigados, paginasConcelhoDistrito, dataModificacaoDistrito, dataLigacoesGrelha, dataLigacoesServicos } from './data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, cobreDistrito, servicosDistritoLigados, servicosDistritoRelacionados, paginasConcelhoDistrito, dataModificacaoDistrito, dataLigacoesGrelha, dataLigacoesServicos } from './data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO, dataModificacaoConcelho } from './data/pt-servicos-concelho'
 
 export type GroupeSitemapPt = 'servicos' | 'hubs' | 'cidades' | 'blog' | 'paginas'
@@ -157,13 +157,26 @@ export function dataLigacoesGrelhaConcelho(cidade: string, servicos: string[]): 
 /**
  * Date d'une page métier x ville : la date des liens quand la page lie une page de district (métier lié, distrito couvert par
  * la page) ; à Águeda, la plus récente de cette date et de celle des pages de service du concelho ; sinon correction
- * poda-arvores, lot 1 ou groupe.
+ * poda-arvores, lot 1 ou groupe. Les liens de district propres à la page (poda-arvores-agueda, 28/10/2026) l'emportent
+ * s'ils sont plus récents.
  */
 function dataPaginaServico(metier: string, cidade: string, distrito: string): string {
   const ligados = servicosDistritoLigados(metier, distrito)
   const ligacoes = ligados.length ? dataLigacoesGrelhaConcelho(cidade, ligados.map((s) => s.slug)) : ''
-  if (CIDADES_PAGINAS_CONCELHO.has(cidade)) return maisRecente([DATA_PAGINAS_AGUEDA, ligacoes])
-  return ligacoes || dataMetier(metier, DATAS_PT.servicos)
+  const proprias = dataLigacoesDistritoProprias(metier, cidade, distrito)
+  if (CIDADES_PAGINAS_CONCELHO.has(cidade)) return maisRecente([DATA_PAGINAS_AGUEDA, ligacoes, proprias])
+  return maisRecente([ligacoes || dataMetier(metier, DATAS_PT.servicos), proprias])
+}
+
+/**
+ * Liens propres à un couple métier x ville vers des pages de district (CityData.serviceCityOverrides[métier].servicosDistrito,
+ * ex. poda-arvores-agueda → limpeza de telhados) : jour de leur ajout (`dataServicosDistrito`), ou date d'ouverture de la page
+ * concelho visée. Vide sans tels liens.
+ */
+function dataLigacoesDistritoProprias(metier: string, cidade: string, distrito: string): string {
+  const override = CITIES.find((c) => c.slug === cidade)?.serviceCityOverrides?.[metier]
+  const servicos = servicosDistritoRelacionados(override?.servicosDistrito, distrito).map((s) => s.slug)
+  return servicos.length ? maisRecente([override?.dataServicosDistrito ?? '', ...aberturasConcelho(cidade, servicos)]) : ''
 }
 
 /**

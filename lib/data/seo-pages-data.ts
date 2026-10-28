@@ -3,7 +3,7 @@
 // Cities × Services = Landing Pages
 // ============================================================
 
-import { DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_AGUEDA_TELHADOS, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
 
 export interface NotableFreguesia {
   name: string
@@ -22,6 +22,13 @@ export interface ServiceCityOverride {
   equipaPropria?: boolean
   /** Liste de prestations propre à cette ville (remplace `features` du métier) : seulement les prestations confirmées. */
   features?: string[]
+  /**
+   * Pages de district (slugs de lib/data/pt-servicos-distrito.ts) liées en plus dans « Serviços relacionados », par ce seul
+   * couple métier x ville, quand le métier n'est pas dans leurs `metiersLigados` (ex. poda-arvores-agueda → limpeza de telhados).
+   */
+  servicosDistrito?: string[]
+  /** Jour de l'ajout de ces liens (AAAA-MM-JJ, lib/seo/pt-datas.ts) : lastmod de la page s'il est plus récent. */
+  dataServicosDistrito?: string
 }
 
 export interface CityData {
@@ -740,6 +747,10 @@ export const CITIES: CityData[] = [
       'poda-arvores': {
         // Décision du propriétaire du 22/10/2026 (cette page seulement) : présentée comme le travail de son équipe, avec son numéro.
         equipaPropria: true,
+        // 28/10/2026 : lien vers la page de district limpeza de telhados (arbres près des maisons, feuilles dans les caleiras ;
+        // l'équipe travaille dans tout le distrito de Aveiro), dans « Serviços relacionados » de cette seule page.
+        servicosDistrito: ['limpeza-de-telhados'],
+        dataServicosDistrito: DATA_LIGACOES_AGUEDA_TELHADOS,
         // Prestations confirmées (21-22/10/2026) ; « plataforma », « tratamento fitossanitário » et « relatório técnico para câmara »,
         // non confirmés, ne sont pas repris ici (règle 0.2).
         features: [

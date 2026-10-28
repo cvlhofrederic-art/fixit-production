@@ -24,14 +24,14 @@ import ServicosHubPage from '@/app/pt/servicos/page'
 import MapaDoSitePage from '@/app/pt/mapa-do-site/page'
 import {
   DISTRITOS_EQUIPA, LIMPEZA_DE_TELHADOS, RENOVACAO_DE_FACHADAS, SERVICOS_DISTRITO, TRABALHOS_VERTICAIS, cobreDistrito, servicosDistritoLigados,
-  type ServicoDistrito,
+  servicosDistritoRelacionados, type ServicoDistrito,
 } from '@/lib/data/pt-servicos-distrito'
 import { BLOG_ARTICLES, CITIES, getAllPageCombos } from '@/lib/data/seo-pages-data'
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX, dosDistritos, enumerar, nosDistritos, zonaDistritos } from '@/lib/seo/pt-meta'
 import { TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { prazoDistritoPara, prazoPara } from '@/lib/seo/pt-provas-locais'
 import { getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_AGUEDA_TELHADOS, DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
 import provas from '@/data/seo/local-proof.json'
 
 const BASE = 'https://vitfix.io'
@@ -187,7 +187,9 @@ describe('liens depuis les villes des distritos de Braga et de Aveiro', () => {
   it.each(NOVAS)('grille de %s : chaque métier lié lie ses pages de district, les autres non', async (slug) => {
     const city = CITIES.find((c) => c.slug === slug)!
     for (const combo of getAllPageCombos().filter((x) => x.city.slug === slug)) {
-      const attendus = servicosDistritoLigados(combo.service.slug, city.distrito).map(caminho)
+      // Plus les liens propres à la page (poda-arvores-agueda → limpeza de telhados, 28/10/2026).
+      const proprios = servicosDistritoRelacionados(city.serviceCityOverrides?.[combo.service.slug]?.servicosDistrito, city.distrito)
+      const attendus = [...servicosDistritoLigados(combo.service.slug, city.distrito), ...proprios].map(caminho)
       const presents = liens(render(await ServiceCityPage(params(combo.slug))).container).filter((h) => SERVICOS_DISTRITO.some((s) => h === caminho(s)))
       expect([...new Set(presents)].sort(), combo.slug).toEqual([...attendus].sort())
     }
@@ -260,8 +262,11 @@ describe('dates : DATA_ZONA_DISTRITOS sur les seules pages dont le texte ou les 
       '/pt/blog/capoto-isolamento-termico-quanto-custa/', '/pt/blog/humidade-parede-causas-reparacao/',
     ].sort((a, b) => a.localeCompare(b))
     expect(attendues).toHaveLength(78)
+    // Même jour, même lot : les trois pages d'Águeda qui lient limpeza de telhados (DATA_LIGACOES_AGUEDA_TELHADOS).
+    const agueda = ['/pt/servicos/limpeza-de-terrenos-agueda/', '/pt/servicos/terraplanagem-agueda/', '/pt/servicos/poda-arvores-agueda/']
+    const memeJour = DATA_LIGACOES_AGUEDA_TELHADOS === DATA_ZONA_DISTRITOS ? agueda : []
     const datadas = urls.filter((u) => u.lastModified === DATA_ZONA_DISTRITOS).map((u) => u.url.replace(BASE, '')).sort((a, b) => a.localeCompare(b))
-    expect(datadas).toEqual(attendues)
+    expect(datadas).toEqual([...attendues, ...memeJour].sort((a, b) => a.localeCompare(b)))
     for (const slug of ['capoto-isolamento-termico-quanto-custa', 'humidade-parede-causas-reparacao']) {
       expect(BLOG_ARTICLES.find((a) => a.slug === slug)?.dateModified, slug).toBe(DATA_ZONA_DISTRITOS)
     }
