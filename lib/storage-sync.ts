@@ -1,3 +1,5 @@
+import { isStorageAvailable } from '@/lib/safe-storage'
+
 // Synchronisation localStorage <-> table Supabase user_storage.
 //
 // Strategie : monkey-patch ponctuel de localStorage pour capturer toute
@@ -136,7 +138,7 @@ function scheduleFlush() {
  * eviter que les ecritures hydrate ne soient re-mirroir vers le serveur.
  */
 export async function hydrateStorageFromServer(): Promise<{ count: number }> {
-  if (typeof window === 'undefined') return { count: 0 }
+  if (typeof window === 'undefined' || !isStorageAvailable('local')) return { count: 0 }
   const token = await getToken()
   if (!token) return { count: 0 }
 
@@ -178,35 +180,40 @@ export function installStorageSync(): void {
   installed = true
 
   // Stockage bloqué par le navigateur (réglage « bloquer les données des sites », iframe sandboxée, certaines
-  // webviews) : la simple lecture de window.localStorage lève une SecurityError. Appelé sur chaque page par
-  // Providers : sans ce garde, ces visiteurs tombaient sur une erreur. Pas de miroir possible, le site reste utilisable.
-  let stockage: Storage
-  try {
-    stockage = window.localStorage
-  } catch (error) {
-    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', error)
+  // webviews) : la simple lecture de window.localStorage lève une SecurityError, et un stockage plein ou en
+  // lecture seule refuse l'écriture. Appelé sur chaque page par Providers : sans ce garde, ces visiteurs tombaient
+  // sur une erreur (Sentry G, S). Pas de miroir possible, le site reste utilisable.
+  if (!isStorageAvailable('local')) {
+    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', 'stockage du site bloqué ou inscriptible')
     return
   }
 
-  const origSet = stockage.setItem.bind(stockage)
-  const origRemove = stockage.removeItem.bind(stockage)
+  try {
+    const stockage = window.localStorage
+    const origSet = stockage.setItem.bind(stockage)
+    const origRemove = stockage.removeItem.bind(stockage)
 
-  stockage.setItem = (key: string, value: string) => {
-    origSet(key, value)
-    if (shouldSync(key)) {
-      pendingWrites.set(key, value)
-      pendingDeletes.delete(key) // annule un eventuel delete en attente
-      scheduleFlush()
+    stockage.setItem = (key: string, value: string) => {
+      origSet(key, value)
+      if (shouldSync(key)) {
+        pendingWrites.set(key, value)
+        pendingDeletes.delete(key) // annule un eventuel delete en attente
+        scheduleFlush()
+      }
     }
-  }
 
-  stockage.removeItem = (key: string) => {
-    origRemove(key)
-    if (shouldSync(key)) {
-      pendingDeletes.add(key)
-      pendingWrites.delete(key)
-      scheduleFlush()
+    stockage.removeItem = (key: string) => {
+      origRemove(key)
+      if (shouldSync(key)) {
+        pendingDeletes.add(key)
+        pendingWrites.delete(key)
+        scheduleFlush()
+      }
     }
+  } catch (error) {
+    // Objet Storage non modifiable (navigateur exotique) : pas de miroir, mais aucune erreur pour le visiteur.
+    console.warn('[storage-sync] miroir non installé :', error)
+    return
   }
 
   // Flush a la fermeture de l'onglet pour ne pas perdre les pending writes.
@@ -233,7 +240,7 @@ export function installStorageSync(): void {
  * on remonte tout.
  */
 export async function pushAllLocalToServer(): Promise<{ count: number }> {
-  if (typeof window === 'undefined') return { count: 0 }
+  if (typeof window === 'undefined' || !isStorageAvailable('local')) return { count: 0 }
   const token = await getToken()
   if (!token) return { count: 0 }
 
