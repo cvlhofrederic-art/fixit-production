@@ -10,6 +10,8 @@ Google refuse les pages par ville où seul le nom change (« doorway abuse »). 
 2. **une information propre au lieu** : une particularité du concelho que tu as constatée, ou un deuxième chantier détaillé (lieu, problème, solution) ;
 3. **ma relecture** des 7 tests du guide (ville interchangeable, série, comparaison…), notée avec sa date. Je n'ouvre ainsi que quelques pages à la fois, comme le recommande le guide (section 4.6).
 
+Le guide pose une condition de plus, que le code ne vérifie pas : la fiche Google Business Profile déclare ce concelho dans sa zone (section 4.4, condition 1). Si le concelho n'est pas parmi les 20 zones de la fiche (`fiche-google-business-profile.md`, point 3 bis : par exemple Paços de Ferreira, Santo Tirso, Trofa, Póvoa de Varzim, Ovar ou Águeda), échange-le d'abord dans la fiche contre une des zones choisies pour leur population qui n'a pas de page concelho (règle d'échange au point 3 bis) ; je n'ouvre la page qu'une fois l'échange fait.
+
 Tant qu'un concelho n'a pas sa page, ses recherches arrivent sur la page du district (`/pt/servicos/limpeza-de-telhados/`) et sur les pages telhador et impermeabilização du concelho, qui la lient. Les 6 chantiers les plus récents apparaissent aussi sur la page du district, avec leur freguesia : c'est ainsi que les villages sont nommés, par de vrais travaux, sans liste de villes.
 
 ## Ce qu'il faut m'envoyer (un message par chantier)

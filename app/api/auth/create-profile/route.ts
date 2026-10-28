@@ -39,17 +39,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ id: existing.id })
     }
 
-    // Only allow fields that exist in profiles_artisan
+    // Only allow fields that exist in profiles_artisan. verified et kyc_status ne viennent jamais du
+    // corps : la route est appelée sans session, tout compte de moins de 10 minutes aurait pu créer
+    // une fiche déjà « vérifiée ». Le serveur les fixe, le KYC les fait évoluer ensuite.
     const ALLOWED_FIELDS = [
       'user_id', 'company_name', 'siret', 'siren', 'bio', 'categories',
-      'verified', 'kyc_status', 'kyc_market', 'phone', 'email', 'language',
+      'kyc_market', 'phone', 'email', 'language',
       'legal_form', 'naf_code', 'naf_label', 'company_address', 'company_city',
       'company_postal_code',
     ]
-    const sanitized: Record<string, unknown> = { user_id }
+    const MARCHES_KYC: readonly unknown[] = ['fr_artisan', 'fr_btp', 'pt_artisan']
+    const sanitized: Record<string, unknown> = { user_id, verified: false, kyc_status: 'pending' }
     for (const key of ALLOWED_FIELDS) {
       if (key in profileData) sanitized[key] = profileData[key]
     }
+    if ('kyc_market' in sanitized && !MARCHES_KYC.includes(sanitized.kyc_market)) delete sanitized.kyc_market
 
     const { data, error } = await supabaseAdmin
       .from('profiles_artisan')

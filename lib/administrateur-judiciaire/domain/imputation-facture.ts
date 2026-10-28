@@ -8,6 +8,8 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * Comptes de charge : plan comptable des copropriétés (classe 6), dont les codes 602 / 615 / 616 / 621 ont été vus
  * dans un plan Gestéam réel (tranche 25). Familles analytiques : plages relevées dans Gestéam (tranche 21).
  * La codification est une PROPOSITION, à valider par le gestionnaire : aucun compte n'est deviné hors des mots-clés.
+ * Rubrique analytique : seulement pour les comptes dont le couple compte ↔ rubrique a été observé (tranche 27) ;
+ * sinon null, à choisir par le gestionnaire.
  * Le syndicat n'étant pas assujetti à la TVA, la charge est comptabilisée TTC.
  */
 
@@ -100,8 +102,31 @@ interface RegleImputation {
   decisionAgRequise: boolean
 }
 
-/** Ordre significatif : la première règle reconnue l'emporte (travaux avant réparations, réparations avant eau…). */
+/**
+ * Couples compte de charge ↔ rubrique analytique observés dans le plan Gestéam (tranche 27, libellés génériques).
+ * 71600 est un compte de produit (intérêts sur répartition) : il figure ici pour la correspondance, jamais pour une facture.
+ */
+export const CORRESPONDANCES_COMPTE_RUBRIQUE = [
+  { comptePlan: '60200', rubrique: '230', libelleRubrique: 'Électricité' },
+  { comptePlan: '61500', rubrique: '460', libelleRubrique: 'Entretien, petites réparations' },
+  { comptePlan: '61600', rubrique: '490', libelleRubrique: 'Contrat assurance' },
+  { comptePlan: '62300', rubrique: '620', libelleRubrique: 'Honoraires avocat' },
+  { comptePlan: '62220', rubrique: '660', libelleRubrique: 'Prestations particulières' },
+  { comptePlan: '71600', rubrique: '889', libelleRubrique: 'Intérêts sur répartition' },
+  { comptePlan: '62111', rubrique: '901', libelleRubrique: 'Honoraires administrateur provisoire' },
+  { comptePlan: '62120', rubrique: '951', libelleRubrique: 'Débours' },
+] as const
+
+const rubriqueDuCompte = (comptePlan: string): string | null =>
+  CORRESPONDANCES_COMPTE_RUBRIQUE.find((c) => c.comptePlan === comptePlan)?.rubrique ?? null
+
+/**
+ * Ordre significatif : la première règle reconnue l'emporte (honoraires d'avocat avant tout le reste, car la facture
+ * cite souvent l'objet du litige ; travaux avant réparations, réparations avant eau…).
+ */
 const REGLES_IMPUTATION: RegleImputation[] = [
+  { motsCles: /\bavocats?\b/, comptePlan: '62300', libelleCompte: "Honoraires d'avocat", familleAnalytique: '610-641', decisionAgRequise: false },
+  { motsCles: /\bdebours\b/, comptePlan: '62120', libelleCompte: 'Débours', familleAnalytique: '901-999', decisionAgRequise: false },
   { motsCles: /ravalement|toiture|etancheite|refection|gros travaux/, comptePlan: '67100', libelleCompte: "Travaux décidés par l'assemblée générale", familleAnalytique: '510-563', decisionAgRequise: true },
   { motsCles: /assurance|multirisque|prime d.assurance/, comptePlan: '61600', libelleCompte: "Primes d'assurances", familleAnalytique: '490-499', decisionAgRequise: false },
   { motsCles: /electricite|\bedf\b|enedis/, comptePlan: '60200', libelleCompte: 'Électricité', familleAnalytique: '230-245', decisionAgRequise: false },
@@ -121,10 +146,13 @@ export interface ImputationProposee {
   comptePlan: string | null
   libelleCompte: string | null
   familleAnalytique: string | null
+  /** Rubrique du couple compte ↔ rubrique observé ; null si aucun couple connu pour ce compte. */
+  rubriqueAnalytique: string | null
   cleRepartition: string | null
   decisionAgRequise: boolean
-  /** `mots_cles` : proposée d'après le texte ; `a_completer` : aucun compte reconnu, à choisir par le gestionnaire. */
-  certitude: 'mots_cles' | 'a_completer'
+  /** `mots_cles` : proposée d'après le texte ; `contrat` : reprise de la codification du contrat (contrats-facturation) ;
+   *  `a_completer` : aucun compte reconnu, à choisir par le gestionnaire. */
+  certitude: 'mots_cles' | 'a_completer' | 'contrat'
 }
 
 export function proposerImputation(facture: FactureLue, clesDisponibles: string[]): ImputationProposee {
@@ -137,6 +165,7 @@ export function proposerImputation(facture: FactureLue, clesDisponibles: string[
     comptePlan: regle?.comptePlan ?? null,
     libelleCompte: regle?.libelleCompte ?? null,
     familleAnalytique: regle?.familleAnalytique ?? null,
+    rubriqueAnalytique: regle ? rubriqueDuCompte(regle.comptePlan) : null,
     cleRepartition: cleEquipement ?? cleGenerale,
     decisionAgRequise: regle?.decisionAgRequise ?? false,
     certitude: regle ? 'mots_cles' : 'a_completer',

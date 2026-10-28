@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { Tantiemes } from '@/lib/administrateur-judiciaire/domain/format'
+import type { ModeTenueComptes, NatureCompteBancaire } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import type { PlanComptable } from '@/lib/administrateur-judiciaire/domain/plan-comptable'
 import type {
   FamilleModeleCourrier,
@@ -60,6 +61,12 @@ export interface Mandat extends EntiteEnregistree {
   statut: string
   pill: string
   notifOrdonnance: string
+  /** Mode de tenue des comptes propre au mandat (D-BANQUE) ; null ou absent = mode par défaut du cabinet. */
+  modeComptesBancaires?: ModeTenueComptes | null
+  /** Volet « Administration judiciaire » de la fiche mandat Gestéam (D1 : côté mandat) ; voir domain/mandat-judiciaire. */
+  voletJudiciaire?: import('@/lib/administrateur-judiciaire/domain/mandat-judiciaire').VoletJudiciaire
+  /** Responsable, comptable et assistant du mandat (Gestéam, tranche 38) : portefeuille du suivi « à faire ». */
+  roles?: import('@/lib/administrateur-judiciaire/domain/suivi-a-faire').RolesMandat
 }
 
 export interface Lot extends EntiteEnregistree {
@@ -122,11 +129,17 @@ export interface Contrat extends EntiteEnregistree {
   concurrenceAu?: string | null
   /** Contrôle Gestéam « facture en retard de N jours ». */
   retardFactureJours?: number | null
-  // Non observés dans Gestéam sans ouvrir une fiche réelle : objet, montant — non modélisés.
+  /** Reconduction, prix, indice, périodicité des factures et codification par défaut (tranche 33) ; voir domain/contrats-facturation. */
+  facturation?: import('@/lib/administrateur-judiciaire/domain/contrats-facturation').FacturationContrat
 }
 
-/** Sinistre (jamais écrit par l'application : lu pour la fiche 360). */
-export interface Sinistre extends EntiteEnregistree {
+/**
+ * Sinistre (jamais écrit par l'application : lu pour la fiche 360). Champs de la fiche Gestéam (tranche 28) optionnels,
+ * non indexés : voir domain/sinistres.ts.
+ */
+export interface Sinistre
+  extends EntiteEnregistree,
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/sinistres').FicheSinistre, 'coproprieteId'>> {
   coproprieteId: string
 }
 
@@ -192,7 +205,10 @@ export interface Tache extends EntiteEnregistree {
 
 // ─── Tables déclarées mais jamais alimentées (seuls les champs indexés sont connus) ────────
 
-export type Cabinet = EntiteEnregistree
+export interface Cabinet extends EntiteEnregistree {
+  /** Mode de tenue des comptes bancaires par défaut des mandats (D-BANQUE) ; absent = compte séparé au nom du syndicat. */
+  modeComptesBancaires?: ModeTenueComptes
+}
 
 export interface Societe extends EntiteEnregistree {
   cabinetId: string
@@ -201,12 +217,17 @@ export interface Societe extends EntiteEnregistree {
 export interface Utilisateur extends EntiteEnregistree {
   roleId: string
   email: string
+  /** Réglage de son suivi « à faire » (Gestéam, tranche 38) ; absent = réglage par défaut. */
+  reglageSuivi?: import('@/lib/administrateur-judiciaire/domain/suivi-a-faire').ReglageSuivi
 }
 
 export type Role = EntiteEnregistree
 
+/** Immeuble ; volet juridique de la fiche Gestéam (tranche 28) en champs non indexés, optionnels. */
 export interface Immeuble extends EntiteEnregistree {
   coproprieteId: string
+  referencesJuridiques?: import('@/lib/administrateur-judiciaire/domain/immeuble-juridique').ReferencesJuridiques
+  diagnostics?: import('@/lib/administrateur-judiciaire/domain/immeuble-juridique').Diagnostic[]
 }
 
 export interface Batiment extends EntiteEnregistree {
@@ -230,7 +251,10 @@ export interface Compte extends EntiteEnregistree {
   numero: string
 }
 
-export interface Exercice extends EntiteEnregistree {
+/** Exercice du syndicat (D1) ; champs de la fiche Gestéam optionnels, non indexés : voir domain/exercices-budgets. */
+export interface Exercice
+  extends EntiteEnregistree,
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/exercices-budgets').Exercice, 'coproprieteId'>> {
   coproprieteId: string
   annee: number
 }
@@ -245,9 +269,11 @@ export interface Reglement extends EntiteEnregistree {
   appelDeFondsId: string
 }
 
+/** Budget d'un exercice du syndicat (D1) ; lignes (clé, compte, rubrique) → prévu, non indexées. */
 export interface Budget extends EntiteEnregistree {
   coproprieteId: string
   exerciceId: string
+  lignes?: import('@/lib/administrateur-judiciaire/domain/exercices-budgets').LigneBudget[]
 }
 
 export interface AppelDeFonds extends EntiteEnregistree {
@@ -258,11 +284,22 @@ export interface FondsTravaux extends EntiteEnregistree {
   coproprieteId: string
 }
 
+/** Compte bancaire d'une copropriété : plusieurs par copropriété, chacun avec sa nature (D-BANQUE). Champs non indexés. */
 export interface Banque extends EntiteEnregistree {
   coproprieteId: string
+  nature?: NatureCompteBancaire
+  libelle?: string
+  iban?: string | null
+  bic?: string | null
+  etablissement?: string | null
+  /** Compte clôturé = false ; absent = actif. */
+  actif?: boolean
 }
 
-export interface Rapprochement extends EntiteEnregistree {
+/** Arrêté de rapprochement d'un compte bancaire du syndicat ; champs non indexés : voir domain/rapprochement-bancaire. */
+export interface Rapprochement
+  extends EntiteEnregistree,
+    Partial<Omit<import('@/lib/administrateur-judiciaire/domain/rapprochement-bancaire').ArreteRapprochement, 'id' | 'banqueId'>> {
   bancaireId: string
 }
 
