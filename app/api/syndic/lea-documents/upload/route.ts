@@ -8,18 +8,20 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { StoragePathError, buildStoragePath } from '@/lib/security/storage-path'
 import { getCabinetStorageUsage, wouldExceedQuota } from '@/lib/syndic/lea-documents-quota'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 30
 
 const MAX_SIZE_BYTES = 25 * 1024 * 1024 // 25 MB
-const ALLOWED_MIME = new Set([
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/webp',
+// Types acceptés et extension de dépôt associée (liste blanche : jamais l'extension du nom client).
+const EXTENSION_PAR_MIME = new Map<string, string>([
+  ['application/pdf', 'pdf'],
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/jpg', 'jpg'],
+  ['image/webp', 'webp'],
 ])
 
 const DOCUMENT_TYPES = [
@@ -31,15 +33,6 @@ const FormSchema = z.object({
   type: z.enum(DOCUMENT_TYPES).default('autre'),
   immeuble_id: z.string().uuid().optional(),
 })
-
-function extensionFor(mime: string, filename: string): string {
-  if (mime === 'application/pdf') return 'pdf'
-  if (mime === 'image/png') return 'png'
-  if (mime === 'image/webp') return 'webp'
-  if (mime === 'image/jpeg' || mime === 'image/jpg') return 'jpg'
-  const fromName = filename.split('.').pop()?.toLowerCase()
-  return fromName && /^[a-z0-9]{1,5}$/.test(fromName) ? fromName : 'bin'
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,7 +58,8 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_SIZE_BYTES) {
       return NextResponse.json({ error: 'file_too_large', max_bytes: MAX_SIZE_BYTES }, { status: 413 })
     }
-    if (!ALLOWED_MIME.has(file.type)) {
+    const ext = EXTENSION_PAR_MIME.get(file.type)
+    if (!ext) {
       return NextResponse.json({ error: 'unsupported_mime_type', mime: file.type }, { status: 415 })
     }
 
@@ -88,10 +82,11 @@ export async function POST(request: NextRequest) {
     }
 
     const docId = crypto.randomUUID()
-    const ext = extensionFor(file.type, file.name)
     // Storage path scopé sur le cabinet (et non sur l'uploader) — un team_member
     // doit déposer dans le dossier du cabinet pour que toute l'équipe y accède.
-    const storagePath = `${cabinetId}/${docId}.${ext}`
+    // Nom généré côté serveur (le nom d'origine reste en base, colonne filename),
+    // segments vérifiés par buildStoragePath.
+    const storagePath = buildStoragePath(cabinetId, `${docId}.${ext}`)
 
     const { error: upErr } = await supabaseAdmin.storage
       .from('syndic-documents')
@@ -124,7 +119,8 @@ export async function POST(request: NextRequest) {
 
     if (insErr || !row) {
       // Rollback storage si l'insert DB échoue
-      await supabaseAdmin.storage.from('syndic-documents').remove([storagePath]).catch(() => {})
+      await supabaseAdmin.storage.from('syndic-documents').remove([storagePath])
+        .catch((e: unknown) => logger.warn('[lea-documents/upload] rollback storage failed:', e))
       logger.error('[lea-documents/upload] db insert failed:', insErr)
       Sentry.captureException(insErr, { tags: { agent_type: 'lea', surface: 'documents_upload' } })
       return NextResponse.json({ error: 'db_insert_failed' }, { status: 500 })
@@ -152,6 +148,10 @@ export async function POST(request: NextRequest) {
       },
     }, { status: 201 })
   } catch (err) {
+    if (err instanceof StoragePathError) {
+      logger.warn('[lea-documents/upload] chemin de stockage refusé')
+      return NextResponse.json({ error: 'invalid_storage_path' }, { status: 400 })
+    }
     logger.error('[lea-documents/upload] unexpected:', err)
     Sentry.captureException(err, { tags: { agent_type: 'lea', surface: 'documents_upload' } })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })

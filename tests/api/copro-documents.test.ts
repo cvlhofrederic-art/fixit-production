@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { viderCacheDossiersStorage } from '@/lib/syndic/dossiers-storage'
 
 type Ligne = Record<string, unknown>
 
@@ -160,12 +161,14 @@ beforeEach(() => {
     ],
     syndic_documents: [document()],
     syndic_factures_copro: [facture()],
+    syndic_team_members: [],
   }
   h.etat.erreurs = {}
   h.etat.requetes = []
   h.etat.urlsSignees = []
   h.etat.erreurSignature = null
   h.loggerError.mockClear()
+  viderCacheDossiersStorage()
 })
 
 describe('GET /api/coproprietaire/documents/[id] — refus', () => {
@@ -238,12 +241,41 @@ describe('GET /api/coproprietaire/documents/[id] — refus', () => {
 
   it.each([
     ['remontant hors du bucket', `${CABINET}/../../profile-photos/x.jpg`],
+    ['remontant encodé', `${CABINET}/%2e%2e/${AUTRE_CABINET}/pv.pdf`],
     ['absolu', `/${CABINET}/pv/pv-ag-2025.pdf`],
     ['coupé par un « ? »', `${AUTRE_CABINET}/pv.pdf?x=${CABINET}`],
-  ])('storage_path %s → 404, aucune URL signée, erreur journalisée', async (_cas, chemin) => {
+    ['hors du dossier du cabinet', `${AUTRE_CABINET}/pv/pv-ag-2025.pdf`],
+  ])('storage_path %s → 400 générique, aucune URL signée, erreur journalisée sans le chemin', async (_cas, chemin) => {
     h.etat.tables.syndic_documents = [document({ storage_path: chemin })]
     const res = await ouvrirDocument(DOC_ID)
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid_storage_path' })
+    expect(h.etat.urlsSignees).toHaveLength(0)
+    expect(h.loggerError).toHaveBeenCalledWith('[COPRO DOCUMENT] chemin de stockage refusé', { document: DOC_ID })
+  })
+
+  it('dépôt antérieur au 25/05/2026 (dossier de l’uploadeur, membre du cabinet) → 200, URL signée sur ce chemin', async () => {
+    const UPLOADEUR = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1'
+    h.etat.tables.syndic_team_members = [{ id: 'tm-1', cabinet_id: CABINET, user_id: UPLOADEUR, is_active: true }]
+    h.etat.tables.syndic_documents = [document({ storage_path: `${UPLOADEUR}/pv/pv-ag-2024.pdf`, uploaded_by: UPLOADEUR })]
+    const res = await ouvrirDocument(DOC_ID)
+    expect(res.status).toBe(200)
+    expect(h.etat.urlsSignees).toEqual([{ bucket: 'syndic-documents', chemin: `${UPLOADEUR}/pv/pv-ag-2024.pdf`, duree: 600 }])
+    // L'appartenance est lue dans syndic_team_members pour CE cabinet, jamais prise sur la ligne.
+    expect(filtres('syndic_team_members')).toContainEqual(['eq', 'cabinet_id', CABINET])
+    expect(filtres('syndic_team_members')).toContainEqual(['eq', 'user_id', UPLOADEUR])
+  })
+
+  it.each([
+    ['uploaded_by étranger au cabinet (ligne forgeable par le cabinet, policy cabinet_id = auth.uid())', AUTRE_CABINET, `${AUTRE_CABINET}/pv/pv-ag-2024.pdf`],
+    ['uploaded_by = cabinet mais chemin dans le dossier d’un membre', CABINET, `eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1/pv/pv-ag-2024.pdf`],
+    ['uploaded_by membre mais chemin dans le dossier d’un autre cabinet', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', `${AUTRE_CABINET}/pv/pv-ag-2024.pdf`],
+  ])('%s → 400 invalid_storage_path, aucune URL signée', async (_cas, uploadedBy, storagePath) => {
+    h.etat.tables.syndic_team_members = [{ id: 'tm-1', cabinet_id: CABINET, user_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1', is_active: true }]
+    h.etat.tables.syndic_documents = [document({ storage_path: storagePath, uploaded_by: uploadedBy })]
+    const res = await ouvrirDocument(DOC_ID)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid_storage_path' })
     expect(h.etat.urlsSignees).toHaveLength(0)
     expect(h.loggerError).toHaveBeenCalledWith('[COPRO DOCUMENT] chemin de stockage refusé', { document: DOC_ID })
   })
@@ -329,6 +361,15 @@ describe('GET /api/coproprietaire/factures/[id]/pdf', () => {
     h.etat.tables.syndic_coproprios = [fiche(), fiche({ id: ID_FICHE_2, batiment: 'A', numero_porte: '3' })]
     h.etat.tables.syndic_factures_copro = [facture({ coproprio_id: ID_FICHE_2 })]
     expect((await ouvrirFacture(FACTURE_ID)).status).toBe(200)
+  })
+
+  it('pdf_url remontant hors du bucket → 400 générique, aucune URL signée, erreur journalisée sans le chemin', async () => {
+    h.etat.tables.syndic_factures_copro = [facture({ pdf_url: `syndic-documents/../artisan-documents/kbis/${CABINET}.pdf` })]
+    const res = await ouvrirFacture(FACTURE_ID)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalid_storage_path' })
+    expect(h.etat.urlsSignees).toHaveLength(0)
+    expect(h.loggerError).toHaveBeenCalledWith('[COPRO FACTURE PDF] chemin de stockage refusé', { facture: FACTURE_ID })
   })
 
   it('chemin de stockage avec le préfixe du bucket → préfixe retiré, URL signée 10 minutes', async () => {

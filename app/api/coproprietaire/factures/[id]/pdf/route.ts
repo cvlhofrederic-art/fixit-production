@@ -5,7 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { resoudreCoproprietaire, statutHttpAcces } from '@/lib/coproprietaire/acces'
 import { pdfFactureDisponible } from '@/lib/coproprietaire/filtrage'
-import { cheminStockageSur } from '@/lib/storage/chemin-sur'
+import { StoragePathError, assertStoragePath } from '@/lib/security/storage-path'
 
 // ── GET /api/coproprietaire/factures/[id]/pdf ────────────────────────────────
 // URL signée (10 minutes) du PDF d'une facture du copropriétaire connecté (syndic_factures_copro,
@@ -47,9 +47,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Chemin stocké avec ou sans le nom du bucket en tête.
     const chemin = (facture.pdf_url || '').trim().replace(/^\/+/, '').replace(new RegExp(`^${BUCKET}/`), '')
-    if (!cheminStockageSur(chemin)) {
+    // Chemin relu en base, format non maîtrisé par le code (pdf_url est écrit hors de l'application) :
+    // traversée bloquée, aucun préfixe imposable ; refus → 400 générique, sans détail du chemin.
+    try {
+      assertStoragePath(chemin)
+    } catch (e) {
+      if (!(e instanceof StoragePathError)) throw e
       logger.error('[COPRO FACTURE PDF] chemin de stockage refusé', { facture: facture.id })
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+      return NextResponse.json({ error: 'invalid_storage_path' }, { status: 400 })
     }
     const { data: signee, error: signErr } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(chemin, DUREE_URL_SECONDES)
     if (signErr || !signee?.signedUrl) {
