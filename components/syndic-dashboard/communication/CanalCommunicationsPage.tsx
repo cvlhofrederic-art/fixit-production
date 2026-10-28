@@ -4,13 +4,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import type { Mission, Artisan, CanalInterneMsg, PlanningEvent } from '../types'
 import PedidosTab from './PedidosTab'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
-import { createClient } from '@supabase/supabase-js'
+// Client navigateur partagé : un second client supabase-js (localStorage) se disputait le même verrou d'auth
+// (avertissement « Multiple GoTrueClient instances »).
+import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 export default function CanalCommunicationsPage({
   missions,
