@@ -74,3 +74,7 @@ scripts/gen-*.cjs
 
 # Audit SEO PT : le JSON complet est volumineux, seuls le CSV et le résumé sont versionnés
 reports/seo/*.json
+
+# Sorties de build OpenNext / wrangler (lot 7 : entrée worker/index.ts, build local possible)
+.open-next/
+.wrangler/

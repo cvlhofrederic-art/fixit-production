@@ -8,6 +8,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
+import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
 
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
@@ -36,30 +37,10 @@ const FRANCOPHONE_COUNTRIES = [
 // Lusophone countries — auto-detect PT
 const LUSOPHONE_COUNTRIES = ['PT','BR','AO','MZ','CV','GW','TL','ST']
 
-// ── SEO public routes — caché côté CDN (1h + SWR 24h)
-// Ces préfixes correspondent au contenu programmatique SEO quasi-statique
-// (services, villes, blog, urgence, perto-de-mim) qui peut être servi
-// depuis le cache Cloudflare sans risque d'inconsistance.
-//
-// Sécurité (review #138) :
-// - Préfixes volontairement limités à des sous-routes publiques identifiables
-//   (pas de wildcard sur racine de locale entière).
-// - /fr/simulateur-devis/ EXCLU : peut contenir résultats personnalisés.
-// - /en/, /nl/, /es/ EXCLUS comme wildcards (trop large pour future-proof).
-//   Si on veut cacher des sous-routes EN, les lister explicitement.
-// - Couplé avec Vary: Cookie + skip si Set-Cookie sensible (ci-dessous).
-const SEO_PUBLIC_PREFIXES = [
-  '/pt/servicos/', '/pt/cidade/', '/pt/blog/', '/pt/urgencia/',
-  '/pt/perto-de-mim/', '/pt/precos/', '/pt/especialidades/',
-  '/pt/condominio/', '/pt/avaliacoes/',
-  '/fr/services/', '/fr/ville/', '/fr/blog/', '/fr/urgence/',
-  '/fr/pres-de-chez-moi/', '/fr/specialites/', '/fr/copropriete/',
-  '/en/services/', '/en/blog/', '/en/emergency-home-repair-porto/',
-] as const
-
-function isSeoPublicRoute(pathname: string): boolean {
-  return SEO_PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-}
+// ── SEO public routes — Cache-Control public (1h + SWR 24h) et cache HTML du Worker (worker/).
+// Ces préfixes correspondent au contenu programmatique SEO quasi-statique (services, villes, blog, urgence,
+// perto-de-mim). La liste est partagée avec le Worker Cloudflare : lib/seo/routes-publiques.ts.
+// Couplé avec Vary: Cookie + skip si Set-Cookie sensible (ci-dessous).
 
 // Cookies considérés comme contenant de la session sensible (Supabase auth).
 // Si un de ces cookies est posé en Set-Cookie sur la réponse, on REFUSE

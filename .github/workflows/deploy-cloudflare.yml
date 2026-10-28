@@ -62,7 +62,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
+          # VITFIX_BUILD_ID : clé du cache HTML des pages publiques (worker/cache-pages-publiques.ts) ;
+          # chaque déploiement repart d'un cache vide, l'ancien contenu n'est jamais resservi.
+          command: deploy --var VITFIX_BUILD_ID:${{ github.sha }}
           # Sans wranglerVersion, l'action installe SA version par défaut
           # (vieille) au lieu de celle du lockfile : les assets @vercel/og de
           # next 16.x cassent son module-collector. 4.149.0 = version du

@@ -21,7 +21,7 @@ jobs:
     name: "Smoke test production"
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Attendre la propagation Cloudflare
@@ -54,6 +54,22 @@ jobs:
             echo "::error::Homepage PT returned $HTTP_STATUS"
             exit 1
           fi
+
+      - name: Préchauffer le cache des pages publiques PT
+        if: success()
+        # Le Worker met en cache le HTML des pages publiques (worker/cache-pages-publiques.ts, clé par déploiement) :
+        # chaque URL des sitemaps PT est demandée une fois, en parallèle, pour que les premières visites réelles
+        # après déploiement partent déjà du cache (lot 7 Sentry du 28/10/2026). Best-effort, 4 minutes au plus.
+        continue-on-error: true
+        run: |
+          set -u
+          sous_sitemaps=$(curl -sL "$PROD_URL/pt/sitemap.xml" | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g')
+          urls=$( (echo "$PROD_URL/pt/"; echo "$PROD_URL/fr/"; for s in $sous_sitemaps; do curl -sL "$s" | grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g'; done) | sort -u)
+          echo "$(echo "$urls" | wc -l) URL à préchauffer"
+          echo "$urls" | timeout 240 xargs -r -P 8 -n 1 sh -c 'curl -sL -o /dev/null -w "%{http_code} %{time_starttransfer}s $0\n" "$0"' > /tmp/prechauffage.txt || true
+          echo "réponses : $(wc -l < /tmp/prechauffage.txt)"
+          awk '{print $1}' /tmp/prechauffage.txt | sort | uniq -c
+          echo "les 5 plus lentes :"; sort -k2 -r /tmp/prechauffage.txt | head -5
 
       - name: Ping IndexNow (Bing / Yandex / Naver / Seznam)
         if: success()
