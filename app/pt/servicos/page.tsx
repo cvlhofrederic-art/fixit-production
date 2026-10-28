@@ -85,7 +85,7 @@ export default function ServicosHubPage() {
                 className="inline-flex items-center gap-3 p-4 bg-warm-gray rounded-xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group"
               >
                 <span className="text-lg">{s.icon}</span>
-                <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">{s.titulo}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors text-[0.93rem]">{s.tituloSemZona}</span>
               </Link>
             ))}
           </div>

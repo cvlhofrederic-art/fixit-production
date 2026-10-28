@@ -275,7 +275,7 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
     expect(liens(await hub('pintor'))).toContain('/pt/servicos/trabalhos-verticais/')
     expect(liens(await hub('pedreiro'))).not.toContain('/pt/servicos/trabalhos-verticais/')
     expect((await hub('pedreiro')).textContent).toContain(RENOVACAO_DE_FACHADAS.chamadaHub)
-    expect((await hub('impermeabilizacao')).textContent).toContain('Trabalhos feitos pela equipa VITFIX nos distritos do Porto, Braga e Aveiro:')
+    expect((await hub('impermeabilizacao')).textContent).toContain('Serviços da própria equipa VITFIX nos distritos do Porto, Braga e Aveiro:')
     expect((await hub('impermeabilizacao')).textContent).not.toMatch(/distrito do Porto/)
     // Le hub telhador ne lie que limpeza de telhados : sa phrase propre, et le titre du lien changé avec la zone.
     const telhador = await hub('telhador')

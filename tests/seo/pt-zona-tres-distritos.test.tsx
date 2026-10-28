@@ -88,6 +88,9 @@ describe('modèle : trois distritos, une seule zone', () => {
   it('titre, H1 et résumé nomment la zone ; plus aucun « distrito do Porto » dans les textes des pages', () => {
     for (const s of SERVICOS_DISTRITO) {
       expect(s.titulo, s.slug).toMatch(/: Porto, Braga e Aveiro$/)
+      // Titre sans la zone : texte des liens sous un intertitre ou une phrase qui dit déjà la zone.
+      expect(s.titulo, s.slug).toBe(`${s.tituloSemZona}: ${enumerar(s.distritos)}`)
+      expect(s.tituloSemZona, s.slug).not.toMatch(/Porto|Braga|Aveiro|distrito/)
       expect(s.h1, s.slug).toContain(ZONA)
       expect(s.resumo, s.slug).toContain(`${ZONA}.`)
       expect(s.intro, s.slug).toContain('todos os concelhos destes três distritos')
@@ -199,16 +202,43 @@ describe('liens depuis les villes des distritos de Braga et de Aveiro', () => {
     expect(await texte('telhador-porto')).toContain('Limpeza de telhados no distrito do Porto')
   })
 
-  it('/pt/servicos/, plan du site et hubs : titres des pages, section et phrase au nom des trois distritos', async () => {
+  it('/pt/servicos/, plan du site et hubs : zone dite une seule fois par bloc de liens, ancres au nom du service', async () => {
+    // Relecture du 28/10/2026 (keyword stuffing ; guide § 4.5 et § 5.2, ancres sans répétition) : l'intertitre ou la phrase
+    // dit la zone, les liens ne répètent pas « Porto, Braga e Aveiro ».
+    const vers = (c: HTMLElement) => Array.from(c.querySelectorAll('a')).filter((a) => SERVICOS_DISTRITO.some((s) => a.getAttribute('href') === caminho(s)))
+    const ancres = (c: HTMLElement) => vers(c).map((a) => (a.textContent ?? '').replace(/\s+/g, ' ').trim())
+    /** Bloc des liens de district : les cartes et l'intertitre ou la phrase qui les précède. */
+    const bloco = (c: HTMLElement) => texteVisible(vers(c)[0].parentElement!.parentElement!)
+    const vezes = (texte: string) => texte.split('Porto, Braga e Aveiro').length - 1
+
     const index = render(ServicosHubPage()).container
-    expect(texteVisible(index)).toContain('Serviços da equipa VITFIX nos distritos do Porto, Braga e Aveiro')
     expect(texteVisible(index)).not.toMatch(/distrito do Porto/)
-    const plano = texteVisible(render(MapaDoSitePage()).container)
-    for (const s of SERVICOS_DISTRITO) expect(plano, s.slug).toContain(s.titulo)
-    expect(plano).not.toMatch(/no distrito do Porto/)
-    const hub = texteVisible(render(await HubMetierPage(params('pintor'))).container)
-    expect(hub).toContain('Trabalhos feitos pela equipa VITFIX nos distritos do Porto, Braga e Aveiro:')
-    for (const s of [RENOVACAO_DE_FACHADAS, TRABALHOS_VERTICAIS]) expect(hub, s.slug).toContain(s.titulo)
+    expect(bloco(index)).toContain('Serviços da equipa VITFIX nos distritos do Porto, Braga e Aveiro')
+    expect(vezes(bloco(index))).toBe(1)
+    expect(ancres(index)).toEqual(SERVICOS_DISTRITO.map((s) => `${s.icon}${s.tituloSemZona}`))
+
+    const plano = render(MapaDoSitePage()).container
+    expect(ancres(plano)).toEqual(SERVICOS_DISTRITO.map((s) => s.tituloSemZona))
+    expect(texteVisible(plano)).not.toMatch(/no distrito do Porto|Porto, Braga e Aveiro/)
+
+    const metiers = [...new Set(SERVICOS_DISTRITO.flatMap((s) => s.metiersLigados))]
+    for (const metier of metiers) {
+      const ligadas = servicosDistritoLigados(metier)
+      const hub = render(await HubMetierPage(params(metier))).container
+      expect(vezes(bloco(hub)), metier).toBe(1)
+      if (ligadas.length === 1) {
+        // Une seule page liée : phrase propre au service, lien au titre de la page (la zone n'y est dite qu'une fois).
+        expect(bloco(hub), metier).toContain(ligadas[0].chamadaHub)
+        expect(ancres(hub), metier).toEqual([`${ligadas[0].icon}${ligadas[0].titulo}`])
+      } else {
+        expect(bloco(hub), metier).toContain('Serviços da própria equipa VITFIX nos distritos do Porto, Braga e Aveiro:')
+        expect(ancres(hub), metier).toEqual(ligadas.map((s) => `${s.icon}${s.tituloSemZona}`))
+      }
+      // « Trabalhos feitos » pouvait se lire comme des chantiers déjà faits à Braga et à Aveiro (aucun n'est documenté).
+      expect(texteVisible(hub), metier).not.toContain('Trabalhos feitos pela equipa VITFIX')
+    }
+    // Hubs qui lient plusieurs pages de district : impermeabilizacao (3) et pintor (2).
+    expect(metiers.filter((m) => servicosDistritoLigados(m).length > 1).sort()).toEqual(['impermeabilizacao', 'pintor'])
   })
 })
 

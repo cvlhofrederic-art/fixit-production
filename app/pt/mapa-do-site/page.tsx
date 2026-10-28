@@ -46,7 +46,7 @@ export default function MapaDoSitePage() {
           { href: '/pt/', label: 'Início' },
           { href: '/pt/pesquisar/', label: 'Pesquisar profissionais' },
           { href: '/pt/servicos/', label: 'Todos os serviços' },
-          ...SERVICOS_DISTRITO.map(s => ({ href: `/pt/servicos/${s.slug}/`, label: s.titulo })),
+          ...SERVICOS_DISTRITO.map(s => ({ href: `/pt/servicos/${s.slug}/`, label: s.tituloSemZona })),
           ...SERVICOS_CONCELHO.map(s => ({ href: `/pt/servicos/${s.slug}/`, label: s.h1 })),
           { href: '/pt/urgencia/', label: 'Urgência' },
           { href: '/pt/perto-de-mim/', label: 'Perto de mim' },

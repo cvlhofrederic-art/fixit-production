@@ -35,14 +35,13 @@ export const DATA_FASE_3 = '2026-10-14'
 export const DATA_FASE_3_LOT_1 = '2026-10-14'
 
 /**
- * Pages de district (gel A0 levé le 20/10/2026, lib/data/pt-servicos-distrito.ts) : date du CONTENU de la page
- * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai). À avancer au jour de la mise en
- * production de toute modification de ce contenu (y compris un prix ou un délai de data/seo/local-proof.json), et à
- * consigner dans docs/seo/journal-pt.md. Les chantiers, notes et relectures portent leur propre date, et les cartes de
- * liens de la page de district aussi (champ `dataModificacaoLigacoes` du service) : le gabarit des pages concelho ne les
- * affiche pas, leur ajout ne change donc que le lastmod de la page de district. Les deux cartes vers renovação de fachadas
- * et trabalhos verticais (23/10/2026) portent DATA_LIGACOES_FACHADAS_TV. Historique : depuis l'extension de la zone, le
- * contenu porte DATA_ZONA_DISTRITOS (champ `dataModificacao`) ; cette date n'est plus lue par le code.
+ * HISTORIQUE, plus lue par le code depuis le 28/10/2026 : ne plus l'avancer. Date du CONTENU de la page
+ * /pt/servicos/limpeza-de-telhados/ et de ses pages concelho (textes, prix, délai) du 22/10/2026 (PR #529) jusqu'à
+ * l'extension de la zone ; ce contenu porte depuis DATA_ZONA_DISTRITOS (champ `dataModificacao` du service). Pour une
+ * modification ultérieure, voir la consigne sous DATA_ZONA_DISTRITOS. Les chantiers, notes et relectures portent leur
+ * propre date, et les cartes de liens de la page de district aussi (champ `dataModificacaoLigacoes` du service) : le
+ * gabarit des pages concelho ne les affiche pas, leur ajout ne change donc que le lastmod de la page de district. Les deux
+ * cartes vers renovação de fachadas et trabalhos verticais (23/10/2026) portent DATA_LIGACOES_FACHADAS_TV.
  */
 export const DATA_PAGINAS_DISTRITO = '2026-10-22'
 
@@ -58,10 +57,10 @@ export const DATA_PAGINAS_DISTRITO = '2026-10-22'
 export const DATA_LIGACOES_DISTRITO = '2026-10-22'
 
 /**
- * Pages de district renovação de fachadas et trabalhos verticais (gel A0 levé le 20/10/2026, faits confirmés par le
- * propriétaire du 20 au 23/10/2026) : date du CONTENU des deux pages. Mise en production prévue le 23/10/2026 : à reporter
- * au jour réel de la fusion, et à avancer à chaque modification de leur contenu. Historique : depuis l'extension de la zone,
- * le contenu porte DATA_ZONA_DISTRITOS ; cette date n'est plus lue par le code.
+ * HISTORIQUE, plus lue par le code depuis le 28/10/2026 : ne plus l'avancer. Date du CONTENU des pages de district
+ * renovação de fachadas et trabalhos verticais (gel A0 levé le 20/10/2026, faits confirmés par le propriétaire du 20 au
+ * 23/10/2026), mises en production le 23/10/2026 (PR #536), jusqu'à l'extension de la zone ; ce contenu porte depuis
+ * DATA_ZONA_DISTRITOS (champ `dataModificacao`). Pour une modification ultérieure, voir la consigne sous DATA_ZONA_DISTRITOS.
  */
 export const DATA_PAGINAS_FACHADAS_TV = '2026-10-23'
 
@@ -127,7 +126,12 @@ export const DATA_PRECO_CAPOTO = '2026-10-28'
  * - /pt/precos/pintor/ (phrase qui situe la page renovação de fachadas) ;
  * - la réponse « Quanto custa aplicar capoto por m²? » (22 pages isolamento-termico et leur hub) et les deux articles qui
  *   disent la zone avec le prix (capoto-isolamento-termico-quanto-custa, humidade-parede-causas-reparacao : `dateModified`).
- * À aligner sur le jour de la mise en production, et à consigner dans docs/seo/journal-pt.md.
+ * À reporter seulement au jour réel de la fusion de ce lot, et à consigner dans docs/seo/journal-pt.md. Ensuite, ne plus
+ * l'avancer : elle date 78 URL (test pt-zona-tres-distritos), dont la plupart ne changent pas quand le contenu d'une page
+ * de district change. Pour toute modification ultérieure de ce contenu (texte, ou prix et délai d'une ligne `precos` ou
+ * `prazos` de data/seo/local-proof.json), créer une nouvelle constante datée et la mettre dans `dataModificacao` des seuls
+ * services touchés (lib/data/pt-servicos-distrito.ts) ; une modification des liens ou de leur texte prend de même une
+ * nouvelle constante dans `dataLigacoes`.
  */
 export const DATA_ZONA_DISTRITOS = '2026-10-28'
 

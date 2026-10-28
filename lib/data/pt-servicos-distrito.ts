@@ -78,6 +78,12 @@ export interface ServicoDistrito {
   distritos: readonly string[]
   /** Titre sans marque (le template `%s | VITFIX` l'ajoute) et h1. */
   titulo: string
+  /**
+   * Titre sans la zone (`titulo` = « {tituloSemZona}: {distritos} », test) : texte des liens vers la page là où un
+   * intertitre ou une phrase dit déjà la zone (/pt/servicos/, hubs qui lient plusieurs pages de district, plan du site),
+   * pour ne pas répéter les noms des distritos dans chaque ancre (keyword stuffing).
+   */
+  tituloSemZona: string
   h1: string
   /** Première phrase de la description (la phrase de contact suit, voir descricaoServicoDistrito). */
   resumo: string
@@ -104,7 +110,12 @@ export interface ServicoDistrito {
   chamadaHub: string
   /** Début du message WhatsApp prérempli (le lieu suit, voir mensagemLocal). */
   mensagemWhatsapp: string
-  /** Dernière modification significative des textes repris sur les pages concelho (lastmod), jour de la mise en production. */
+  /**
+   * Dernière modification significative des textes repris sur les pages concelho (lastmod), jour de la mise en production,
+   * y compris un prix ou un délai de data/seo/local-proof.json (dataModificacaoDistrito ne lit aucune date dans `precos` ni
+   * `prazos`). Pour une nouvelle modification, une nouvelle constante de lib/seo/pt-datas.ts, mise ici pour les seuls
+   * services touchés : jamais DATA_ZONA_DISTRITOS avancée, qui date aussi les liens et d'autres pages.
+   */
   dataModificacao: string
   /**
    * Dernière modification des cartes de liens (`ligacoes`) de la page de district, quand elle est postérieure à
@@ -113,9 +124,9 @@ export interface ServicoDistrito {
    */
   dataModificacaoLigacoes?: string
   /**
-   * Dernière modification des liens vers cette page ou de leur texte (titre ou résumé de la page, phrase de zone) sur les
-   * pages qui les affichent : hubs des metiersLigados, pages ville des `distritos`, /pt/servicos/, plan du site. C'est leur
-   * lastmod, la plus récente si elles lient plusieurs pages de district.
+   * Dernière modification des liens vers cette page ou de leur texte (titre, titre sans la zone ou résumé de la page,
+   * phrase de zone) sur les pages qui les affichent : hubs des metiersLigados, pages ville des `distritos`, /pt/servicos/,
+   * plan du site. C'est leur lastmod, la plus récente si elles lient plusieurs pages de district.
    */
   dataLigacoes: string
   /**
@@ -143,6 +154,7 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   icon: '🏠',
   distritos: DISTRITOS_EQUIPA,
   titulo: 'Limpeza de telhados e caleiras: Porto, Braga e Aveiro',
+  tituloSemZona: 'Limpeza de telhados e caleiras',
   h1: 'Limpeza de telhados e caleiras nos distritos do Porto, Braga e Aveiro',
   resumo: 'Lavagem, impermeabilização e pintura de telhados e limpeza de caleiras nos distritos do Porto, Braga e Aveiro.',
   intro:
@@ -318,6 +330,7 @@ export const RENOVACAO_DE_FACHADAS: ServicoDistrito = {
   icon: '🏢',
   distritos: DISTRITOS_EQUIPA,
   titulo: 'Reparação e pintura de fachadas: Porto, Braga e Aveiro',
+  tituloSemZona: 'Reparação e pintura de fachadas',
   h1: 'Renovação de fachadas de prédios e moradias nos distritos do Porto, Braga e Aveiro',
   resumo: 'Reparação, impermeabilização e pintura de fachadas de prédios e moradias nos distritos do Porto, Braga e Aveiro.',
   intro:
@@ -529,8 +542,10 @@ export const TRABALHOS_VERTICAIS: ServicoDistrito = {
   icon: '🧗',
   distritos: DISTRITOS_EQUIPA,
   titulo: 'Trabalhos verticais e em altura: Porto, Braga e Aveiro',
+  tituloSemZona: 'Trabalhos verticais e em altura',
   h1: 'Trabalhos verticais e em altura nos distritos do Porto, Braga e Aveiro',
-  resumo: 'Acesso por corda (IRATA) ou andaime: pintura em altura, juntas e fissuras nos distritos do Porto, Braga e Aveiro.',
+  // « juntas de dilatação » (fait confirmé le 23/10/2026), pas « juntas » seul, plus large ; 151 caractères avec le numéro.
+  resumo: 'Corda (IRATA) ou andaime: pintura em altura, juntas de dilatação e fissuras nos distritos do Porto, Braga e Aveiro.',
   intro:
     'A equipa VITFIX faz trabalhos em altura em prédios e moradias: pintura em altura, selagem de juntas de dilatação, reparação de fissuras, reboco e betão de varandas, tratamento de infiltrações e limpeza de caleiras fora do alcance de uma escada. Saímos de Marco de Canaveses para todos os concelhos destes três distritos. Para chegar aos pontos altos, trabalhamos na corda, com técnicos certificados IRATA, ou montamos andaime, conforme o edifício e o que há a fazer.',
   titulos: {

@@ -77,6 +77,9 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
   const otherServices = SERVICES.filter(s => s.slug !== service.slug)
   const metodo = metodoPara(service.slug)
   const paginasDistrito = servicosDistritoLigados(service.slug)
+  // Une seule page de district : phrase propre au service, lien au titre de la page (la zone y est dite une fois).
+  // Plusieurs : la phrase commune dit la zone, chaque lien ne donne que le service (pas de distritos répétés dans les ancres).
+  const umaPaginaDistrito = paginasDistrito.length === 1
   const urgencyTexto = service.urgencyText.replace(/\s*em \{city\}/g, '').replace(/\{city\}/g, 'Portugal')
 
   const waText = `Olá! Preciso de ${displayName.toLowerCase()} perto de mim. Podem ajudar?`
@@ -197,7 +200,7 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
           {paginasDistrito.length > 0 && (
             <div className="mt-10">
               <p className="text-text-muted mb-4 max-w-2xl">
-                {paginasDistrito.length === 1 ? paginasDistrito[0].chamadaHub : `Trabalhos feitos pela equipa VITFIX ${nosDistritos(paginasDistrito[0].distritos)}:`}
+                {umaPaginaDistrito ? paginasDistrito[0].chamadaHub : `Serviços da própria equipa VITFIX ${nosDistritos(paginasDistrito[0].distritos)}:`}
               </p>
               <div className="flex flex-wrap gap-3">
                 {paginasDistrito.map(pd => (
@@ -207,7 +210,7 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
                     className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 bg-white hover:border-yellow hover:bg-yellow/5 transition-all group"
                   >
                     <span className="text-xl">{pd.icon}</span>
-                    <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{pd.titulo}</span>
+                    <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{umaPaginaDistrito ? pd.titulo : pd.tituloSemZona}</span>
                   </Link>
                 ))}
               </div>
