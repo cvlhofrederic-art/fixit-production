@@ -4,6 +4,11 @@
 #
 # Déclenche après le workflow "Deploy to Cloudflare Workers" sur la branche main.
 # Wait 30s pour propagation Cloudflare avant de fetch sitemap.
+#
+# Clé IndexNow (lot 1 Aikido, 28/10/2026) : secret GitHub INDEXNOW_KEY, jamais de valeur dans le
+# dépôt. Le même secret est posé côté Cloudflare (wrangler secret put INDEXNOW_KEY) et servi à
+# https://vitfix.io/indexnow-key.txt par app/indexnow-key.txt/route.ts (keyLocation) — voir
+# lib/seo/indexnow.ts. Secret absent : ::warning:: et sortie 0, aucun ping.
 
 name: "IndexNow - Post-Deploy Ping"
 
@@ -19,7 +24,6 @@ permissions:
   issues: write  # nécessaire pour gh issue create en cas de rate limit
 
 env:
-  INDEXNOW_KEY: f35626783ac34c45b8aed85303d1f5a8
   HOST: vitfix.io
   # Endpoint principal : forwarde aux moteurs partenaires (Yandex, Naver, Seznam).
   ENDPOINT: https://api.indexnow.org/indexnow
@@ -45,8 +49,16 @@ jobs:
           # en cas de rate limit IndexNow. Le token par défaut suffit grâce
           # à `permissions: issues: write` au niveau workflow.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Secret INDEXNOW_KEY exposé à cette seule étape (moindre exposition, comme dans
+          # post-deploy.yml), pas au niveau du workflow.
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
         run: |
           set -euo pipefail
+
+          if [ -z "${INDEXNOW_KEY:-}" ]; then
+            echo "::warning::Secret GitHub INDEXNOW_KEY absent — ping IndexNow ignoré"
+            exit 0
+          fi
 
           urls_file=$(mktemp)
           payload_file=$(mktemp)
@@ -115,7 +127,7 @@ jobs:
             jq -nc --rawfile urls_raw "$urls_file" \
               --arg host "$HOST" \
               --arg key "$INDEXNOW_KEY" \
-              --arg keyLoc "https://${HOST}/${INDEXNOW_KEY}.txt" \
+              --arg keyLoc "https://${HOST}/indexnow-key.txt" \
               --argjson startN "$start" \
               --argjson endN "$end" \
               '{

@@ -1,0 +1,60 @@
+# ── Gitleaks — garde-fou secrets ─────────────────────────────────────────────
+# Lot 1 Aikido (28/10/2026) : plus aucun secret ne doit entrer dans le dépôt.
+# Binaire officiel gitleaks, somme sha256 vérifiée — pas gitleaks/gitleaks-action
+# (licence exigée pour les organisations). Deux passes :
+#   - état actuel du dépôt (`gitleaks dir`) sur push main et sur chaque PR ;
+#   - commits de la PR (`gitleaks git`, base..head) : un secret ajouté puis retiré
+#     dans la même PR reste dans l'historique, donc il est détecté.
+# Config : security/.gitleaks.toml (allowlist). Sorties toujours avec --redact.
+# En local : .husky/pre-commit (si gitleaks est installé) et `npm run scan:secrets`.
+
+name: "Gitleaks — Secrets"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: "Gitleaks — Scan des secrets"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      # sha256 de gitleaks_8.30.1_linux_x64.tar.gz, relevée dans gitleaks_8.30.1_checksums.txt de la release.
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+
+    steps:
+      - name: Checkout du code (historique complet, sans jeton persistant)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Installer gitleaks (binaire officiel, somme sha256 vérifiée)
+        run: |
+          set -euo pipefail
+          dossier="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dossier"
+          curl -sSL --fail --retry 3 -o "$dossier/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dossier/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$dossier/gitleaks.tar.gz" -C "$dossier" gitleaks
+          rm -f "$dossier/gitleaks.tar.gz"
+          echo "$dossier" >> "$GITHUB_PATH"
+          "$dossier/gitleaks" version
+
+      - name: Scanner l'état actuel du dépôt
+        run: gitleaks dir . --redact --config security/.gitleaks.toml --exit-code 1 --no-banner
+
+      - name: Scanner les commits de la PR (base..head)
+        if: github.event_name == 'pull_request'
+        env:
+          # SHA passés par l'environnement, jamais interpolés dans run: (injection de commande).
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: gitleaks git . --redact --config security/.gitleaks.toml --exit-code 1 --no-banner --log-opts "$BASE..$HEAD"

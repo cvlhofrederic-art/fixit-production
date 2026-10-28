@@ -59,10 +59,20 @@ jobs:
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        env:
+          # Clé anon Supabase sortie de wrangler.toml (lot 1 Aikido, 28/10/2026) : aucune valeur dans
+          # le dépôt. Le même secret GitHub que l'étape de build est passé au Worker par l'action
+          # (entrée `vars` ci-dessous → `wrangler deploy --var NEXT_PUBLIC_SUPABASE_ANON_KEY:…`).
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+          # Variables d'environnement du Worker injectées au déploiement depuis `env:` ci-dessus
+          # (une par ligne) : la clé anon reste lisible au runtime (process.env dynamique dans
+          # lib/env.ts et app/api/health) sans figurer dans [vars] de wrangler.toml.
+          vars: |
+            NEXT_PUBLIC_SUPABASE_ANON_KEY
           # Sans wranglerVersion, l'action installe SA version par défaut
           # (vieille) au lieu de celle du lockfile : les assets @vercel/og de
           # next 16.x cassent son module-collector. 4.149.0 = version du
