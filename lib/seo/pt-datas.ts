@@ -97,12 +97,12 @@ export const DATA_PRECOS_PINTOR = '2026-10-23'
 /**
  * Prix réel du capoto (équipe VITFIX, 53 à 58 €/m² sans IVA, matériel et main-d'œuvre compris, donné par le propriétaire en
  * octobre 2026) à la place de la fourchette de référence 40-80 €/m² : réponse « Quanto custa aplicar capoto por m²? » du
- * métier isolamento-termico, avec la zone de l'équipe (distrito do Porto et concelhos de Braga, Aveiro, Ovar et Águeda), sur ses
- * 22 pages métier x ville et sur son hub /pt/perto-de-mim/isolamento-termico/ (question « Quanto custa… » du hub). Le 28/10/2026,
- * le propriétaire confirme les mêmes prix à Braga, Aveiro et Ovar : la réponse sans prix de ces trois villes est retirée et la
- * zone dite avec le prix s'élargit, donc la date avance pour toutes ces pages ; délai de retour retiré de sa réponse « O isolamento térmico paga-se a si próprio? ». Les 22 pages
- * métier x ville changent donc toutes. Les deux articles touchés (capoto-isolamento-termico-quanto-custa,
- * humidade-parede-causas-reparacao) portent la même date dans leur `dateModified`. À aligner sur le jour de la mise en
+ * métier isolamento-termico, sur ses 22 pages métier x ville et sur son hub /pt/perto-de-mim/isolamento-termico/ (question
+ * « Quanto custa… » du hub) ; délai de retour retiré de sa réponse « O isolamento térmico paga-se a si próprio? » (27/10/2026).
+ * Le 28/10/2026, le propriétaire confirme les mêmes prix à Braga, Aveiro et Ovar : leur réponse sans prix est retirée et la
+ * zone dite avec le prix devient « distrito do Porto e concelhos de Braga, Aveiro, Ovar e Águeda », donc la date avance sur
+ * les 22 pages, le hub et les deux articles touchés (capoto-isolamento-termico-quanto-custa, humidade-parede-causas-reparacao),
+ * qui portent la même date dans leur `dateModified`. À aligner sur le jour de la mise en
  * production, et à consigner dans docs/seo/journal-pt.md.
  */
 export const DATA_PRECO_CAPOTO = '2026-10-28'

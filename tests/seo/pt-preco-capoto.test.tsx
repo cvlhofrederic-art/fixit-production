@@ -62,7 +62,7 @@ const VERBA_2_27 = 'verba 2.27 (empreitadas de beneficiação, remodelação, re
 const EXEMPLO_150 = '7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA)'
 const RESERVA = 'preço final depende da espessura do isolamento, do estado e do acesso da fachada'
 /** Ancienne réponse sans prix de Braga, Aveiro et Ovar (27/10), retirée le 28/10/2026. */
-const RESPOSTA_FORA_DA_ZONA = 'O preço do capoto (sistema ETICS) depende da área e da espessura do isolamento, do estado e do acesso da fachada. O orçamento é gratuito.'
+const RESPOSTA_SEM_PRECO_RETIRADA = 'O preço do capoto (sistema ETICS) depende da área e da espessura do isolamento, do estado e do acesso da fachada. O orçamento é gratuito.'
 /** Fourchettes, totaux et délais de retour de référence retirés. */
 const ANTIGOS = ['40€ e 80€', '6 000€ e 12 000€', '2 000€ e 5 000€', '8 000€ a 10 000€', 'mais de 2 anos', 'geralmente 6 a 10 cm', '6 a 10 anos', 'recupera-se tipicamente']
 /** Un prix au m² (ou au mètre), sous ses formes courantes : « € por m² », « €/m² », « €/m2 », « € o m² », « euros por metro ». */
@@ -109,8 +109,8 @@ function textos(valor: unknown, origem: string): { origem: string; texto: string
   return []
 }
 
-/** Villes de la grille hors du distrito do Porto et d'Águeda : même prix depuis le 28/10/2026. */
-const FORA_DO_PORTO = CITIES.filter((c) => c.distrito !== 'Porto' && c.slug !== 'agueda').map((c) => c.slug)
+/** Braga, Aveiro et Ovar : réponse sans prix le 27/10, même prix que le reste de la grille depuis le 28/10/2026. */
+const BRAGA_AVEIRO_OVAR = CITIES.filter((c) => c.distrito !== 'Porto' && c.slug !== 'agueda').map((c) => c.slug)
 
 describe('prix réel du capoto (27/10/2026, mêmes prix à Braga, Aveiro et Ovar le 28/10/2026)', () => {
   it('les montants écrits sont la simple multiplication de la fourchette réelle', () => {
@@ -186,7 +186,7 @@ describe('prix réel du capoto (27/10/2026, mêmes prix à Braga, Aveiro et Ovar
       const { texte, jsonLd } = await renderPage(ServiceCityPage(params(c.slug)))
       expect(texte, c.slug).toContain(PRIMEIRA_FRASE)
       expect(texte, c.slug).toContain(EXEMPLO_150)
-      expect(texte, c.slug).not.toContain(RESPOSTA_FORA_DA_ZONA)
+      expect(texte, c.slug).not.toContain(RESPOSTA_SEM_PRECO_RETIRADA)
       for (const antigo of ANTIGOS) expect(texte, c.slug).not.toContain(antigo)
       // JSON-LD : Service + BreadcrumbList, sans prix ni Offer (règle du schéma PT : pas d'Offer sans prix réel visible).
       expect(jsonLd, c.slug).toContain('"@type":"Service"')
@@ -195,13 +195,13 @@ describe('prix réel du capoto (27/10/2026, mêmes prix à Braga, Aveiro et Ovar
   })
 
   it('Braga, Aveiro et Ovar : même prix depuis le 28/10/2026, plus aucune réponse sans prix', async () => {
-    expect([...FORA_DO_PORTO].sort((a, b) => a.localeCompare(b))).toEqual(['aveiro', 'braga', 'ovar'])
-    for (const slug of FORA_DO_PORTO) {
+    expect([...BRAGA_AVEIRO_OVAR].sort((a, b) => a.localeCompare(b))).toEqual(['aveiro', 'braga', 'ovar'])
+    for (const slug of BRAGA_AVEIRO_OVAR) {
       const city = CITIES.find((c) => c.slug === slug)
       expect(city?.serviceCityOverrides?.['isolamento-termico'], slug).toBeUndefined()
       const { texte } = await renderPage(ServiceCityPage(params(`isolamento-termico-${slug}`)))
       expect(texte, slug).toContain(PRIMEIRA_FRASE)
-      expect(texte, slug).not.toContain(RESPOSTA_FORA_DA_ZONA)
+      expect(texte, slug).not.toContain(RESPOSTA_SEM_PRECO_RETIRADA)
     }
   })
 

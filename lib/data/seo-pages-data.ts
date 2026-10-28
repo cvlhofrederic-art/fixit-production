@@ -1466,9 +1466,10 @@ export const SERVICES: ServiceData[] = [
       // matériel et main-d'œuvre compris, sans IVA. Affichage au consommateur : prix « incluindo taxas e impostos » (DL 138/90,
       // art. 1.º n.º 5 et 6.º n.º 1 ; DL 57/2008, art. 10.º c)) ; le taux d'IVA dépend de l'obra (CIVA art. 18.º, Lista I,
       // verbas 2.23 et 2.27), d'où le prix avec IVA donné entre ses deux bornes (6 % et 23 %), dès la première phrase. Zone
-      // de l'équipe dite dans la réponse : distrito do Porto et concelhos de Braga, Aveiro, Ovar et Águeda (mêmes prix à Braga,
-      // Aveiro et Ovar confirmés par le propriétaire le 28/10/2026 : plus de réponse sans prix dans ces trois villes). Verba 2.27 citée d'après le texte de la Lista I (informação
-      // vinculativa AT 29260 du 29/01/2026). Journal du 27/10/2026.
+      // de l'équipe dite dans la réponse : distrito do Porto et concelhos de Braga, Aveiro, Ovar et Águeda (mêmes prix à
+      // Braga, Aveiro et Ovar confirmés par le propriétaire le 28/10/2026 : plus de réponse sans prix dans ces trois villes).
+      // Verba 2.27 citée d'après le texte de la Lista I (informação vinculativa AT 29260 du 29/01/2026). Journal du 27/10/2026
+      // (prix) et du 28/10/2026 (zone).
       { question: 'Quanto custa aplicar capoto por m²?', answer: 'No distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.' },
       // Délai de retour (« 6 a 10 anos », calculé sur l'ancienne fourchette 40-80 €/m²) retiré le 27/10/2026 : il contredisait le
       // prix réel affiché juste au-dessus, comme la phrase équivalente retirée de l'article capoto.
@@ -2997,8 +2998,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     // Prix réel de l'équipe VITFIX (53 à 58 €/m² sans IVA, matériel et main-d'œuvre, octobre 2026) à la place des fourchettes
     // de référence non sourcées (40-80 €/m² et totaux qui en découlaient, dont l'investissement de la section sur la poupança) ;
     // phrase d'IVA des incentivos alignée sur la Lista I du CIVA, taux du continent (art. 18.º n.º 1 et 3). Prix rattaché à la zone
-    // confirmée de l'équipe (distrito do Porto, concelho d'Águeda), avec IVA dès la première phrase. À aligner sur le jour de la
-    // mise en production (docs/seo/journal-pt.md).
+    // de l'équipe (distrito do Porto et concelhos de Braga, Aveiro, Ovar et Águeda ; Braga, Aveiro et Ovar confirmés par le
+    // propriétaire le 28/10/2026), avec IVA dès la première phrase. À aligner sur le jour de la mise en production
+    // (docs/seo/journal-pt.md).
     dateModified: '2026-10-28',
     intro: 'O capoto, tecnicamente conhecido como sistema ETICS (External Thermal Insulation Composite System), é uma das soluções mais eficazes para melhorar a eficiência energética de uma casa. Com os custos de energia em alta e incentivos fiscais disponíveis, o isolamento térmico pelo exterior tornou-se um dos investimentos mais inteligentes para proprietários em Portugal.',
     sections: [
