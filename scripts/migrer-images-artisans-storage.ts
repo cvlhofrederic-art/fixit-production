@@ -42,9 +42,13 @@ interface OptionsLigneDeCommande {
 
 function lireArguments(args: string[]): OptionsLigneDeCommande | { erreur: string } {
   const options: OptionsLigneDeCommande = { appliquer: false, champs: CHAMPS_IMAGE_ARTISAN }
+  let simulationExplicite = false
   for (const arg of args) {
     if (arg === '--appliquer') {
       options.appliquer = true
+    } else if (arg === '--dry-run') {
+      // Simulation explicite (c'est déjà le mode par défaut) ; prime sur --appliquer si les deux sont donnés.
+      simulationExplicite = true
     } else if (arg.startsWith('--champ=')) {
       const champ = arg.slice('--champ='.length)
       if (!CHAMPS_IMAGE_ARTISAN.includes(champ as ChampImageArtisan)) {
@@ -57,9 +61,10 @@ function lireArguments(args: string[]): OptionsLigneDeCommande | { erreur: strin
       options.limite = limite
     } else {
       // Une faute de frappe ne doit jamais lancer autre chose que ce qui est demandé
-      return { erreur: `Argument inconnu : ${arg} (attendus : --appliquer, --champ=…, --limite=N)` }
+      return { erreur: `Argument inconnu : ${arg} (attendus : --dry-run, --appliquer, --champ=…, --limite=N)` }
     }
   }
+  if (simulationExplicite) options.appliquer = false
   return options
 }
 

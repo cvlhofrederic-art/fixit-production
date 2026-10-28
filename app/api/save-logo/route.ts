@@ -12,11 +12,11 @@ import { envoyerImageArtisan, lireImageDataUrl, supprimerImageArtisan } from '@/
  * dashboard (SettingsSection) en data: URL base64.
  *
  * L'image part dans Supabase Storage (bucket public profile-photos, comme /api/upload) et la colonne reçoit l'URL
- * https publique : une data: URL de plusieurs centaines de Ko alourdissait tout ce qui lit la fiche (page publique,
- * recherche, dashboard). Si l'envoi échoue (bucket absent ou privé, erreur réseau), la data: URL est enregistrée
- * comme avant : l'artisan garde son image, l'erreur est journalisée. Au-delà de 10 envois en 10 minutes, la route
- * répond 429 : chaque envoi crée un fichier dans le bucket, et un repli en base64 recréerait des fiches de
- * plusieurs Mo.
+ * https publique : une data: URL de plusieurs centaines de Ko alourdissait tout ce qui lit la fiche (page publique
+ * de 3 Mo, recherche, dashboard : Sentry V et W). Plus aucune data: URL n'est écrite en base (contrainte check de
+ * la migration 20261028) : si l'envoi échoue (bucket absent ou privé, erreur réseau), la route répond 502,
+ * l'artisan garde son image précédente et l'erreur est journalisée. Au-delà de 10 envois en 10 minutes, la route
+ * répond 429 : chaque envoi crée un fichier dans le bucket.
  *
  * La ligne modifiée est toujours celle de l'utilisateur connecté (recherche par user_id, service role).
  */
@@ -61,20 +61,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Storage d'abord ; la data: URL reste le repli si l'envoi échoue (comportement d'avant)
-    let valeur = base64
-    let cheminStockage: string | null = null
+    // Storage seul : plus aucune data: URL en base. Si l'envoi échoue, l'artisan garde son image précédente et
+    // reçoit une erreur explicite (le formulaire l'affiche).
     const envoi = await envoyerImageArtisan(supabaseAdmin, col, image)
-    if (envoi.ok) {
-      valeur = envoi.url
-      cheminStockage = envoi.chemin
-    } else {
+    if (!envoi.ok) {
       logger.error(
-        '[save-logo] Envoi dans Storage impossible, image gardée en base64',
+        '[save-logo] Envoi dans Storage impossible',
         { artisanId: artisan.id, champ: col, etape: envoi.etape },
         new Error(envoi.message),
       )
+      return NextResponse.json(
+        { error: 'Envoi de l’image impossible pour le moment. Réessayez dans quelques minutes.' },
+        { status: 502 },
+      )
     }
+    const valeur = envoi.url
+    const cheminStockage = envoi.chemin
 
     const { error } = await supabaseAdmin
       .from('profiles_artisan')
@@ -83,17 +85,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       logger.error('[save-logo] Mise à jour du profil impossible', { artisanId: artisan.id, champ: col }, new Error(error.message))
-      if (cheminStockage) {
-        // Le profil garde son ancienne image : le fichier envoyé ne sert à rien
-        const echecSuppression = await supprimerImageArtisan(supabaseAdmin, cheminStockage)
-        if (echecSuppression) {
-          logger.error('[save-logo] Fichier orphelin dans Storage', { chemin: cheminStockage }, new Error(echecSuppression))
-        }
+      // Le profil garde son ancienne image : le fichier envoyé ne sert à rien
+      const echecSuppression = await supprimerImageArtisan(supabaseAdmin, cheminStockage)
+      if (echecSuppression) {
+        logger.error('[save-logo] Fichier orphelin dans Storage', { chemin: cheminStockage }, new Error(echecSuppression))
       }
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    return NextResponse.json(cheminStockage ? { success: true, url: valeur } : { success: true })
+    return NextResponse.json({ success: true, url: valeur })
   } catch (e: unknown) {
     logger.error('[save-logo] Erreur inattendue', undefined, e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

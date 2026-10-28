@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import Image from 'next/image'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { redimensionnerImage } from '@/lib/images/redimensionner-image'
 import { SITE_URL } from '@/lib/constants'
 import type { Artisan } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
@@ -1035,14 +1036,11 @@ export default function SettingsSection({
                         <input type="file" accept="image/png,image/jpeg,image/webp" disabled={profilePhotoUploading} style={{ display: 'none' }} onChange={async (e) => {
                           const f = e.target.files?.[0]
                           if (!f) return
-                          if (f.size > 500 * 1024) { setUploadMsg({ text: 'Photo trop lourde (max 500 Ko)', type: 'error' }); return }
+                          if (f.size > 10 * 1024 * 1024) { setUploadMsg({ text: 'Photo trop lourde (max 10 Mo)', type: 'error' }); return }
                           setProfilePhotoUploading(true)
                           try {
-                            const base64 = await new Promise<string>((resolve) => {
-                              const reader = new FileReader()
-                              reader.onload = (ev) => resolve(ev.target?.result as string)
-                              reader.readAsDataURL(f)
-                            })
+                            // 512 px de côté au plus, WebP : quelques dizaines de Ko envoyés dans Storage (lib/images/redimensionner-image.ts).
+                            const { dataUrl: base64 } = await redimensionnerImage(f)
                             setProfilePhotoPreview(base64)
                             const token = (await supabase.auth.getSession()).data.session?.access_token
                             const res = await fetch('/api/save-logo', {
@@ -1082,14 +1080,11 @@ export default function SettingsSection({
                         <input type="file" accept="image/png,image/jpeg,image/webp" disabled={logoUploading} style={{ display: 'none' }} onChange={async (e) => {
                           const f = e.target.files?.[0]
                           if (!f) return
-                          if (f.size > 500 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 500 Ko)', type: 'error' }); return }
+                          if (f.size > 2 * 1024 * 1024) { setUploadMsg({ text: 'Logo trop lourd (max 2 Mo)', type: 'error' }); return }
                           setLogoUploading(true)
                           try {
-                            const base64 = await new Promise<string>((resolve) => {
-                              const reader = new FileReader()
-                              reader.onload = (ev) => resolve(ev.target?.result as string)
-                              reader.readAsDataURL(f)
-                            })
+                            // 512 px de côté au plus, WebP (transparence conservée) : logo léger pour les PDF et la fiche.
+                            const { dataUrl: base64 } = await redimensionnerImage(f)
                             setLogoPreview(base64)
                             const token = (await supabase.auth.getSession()).data.session?.access_token
                             const res = await fetch('/api/save-logo', {

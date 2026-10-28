@@ -2,8 +2,9 @@
 // POST /api/save-logo — photo de profil et logo de l'artisan connecté.
 //   - L'image part dans Supabase Storage (bucket public profile-photos, dossiers profiles/ et logos/ comme
 //     /api/upload) et la colonne reçoit l'URL https publique, vérifiée par une requête HEAD.
-//   - Si l'envoi échoue (bucket absent ou privé, erreur réseau), la data: URL est enregistrée comme avant, et l'erreur
-//     est journalisée : aucune régression pour l'artisan. Au-delà de 10 envois en 10 minutes : 429, rien n'est écrit.
+//   - Si l'envoi échoue (bucket absent ou privé, erreur réseau), la route répond 502 et n'écrit rien : plus aucune
+//     data: URL en base (lot 3 Sentry du 28/10/2026), l'artisan garde son image précédente, l'erreur est journalisée.
+//     Au-delà de 10 envois en 10 minutes : 429, rien n'est écrit.
 //   - Même validation (Zod : 700 000 caractères au plus, champ logo_url ou profile_photo_url) plus le contrôle du
 //     contenu (JPEG, PNG, WebP ou GIF réels) ; la ligne modifiée est toujours celle de l'utilisateur connecté.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -151,17 +152,16 @@ describe('POST /api/save-logo — envoi dans Storage', () => {
   })
 })
 
-describe('POST /api/save-logo — repli sur la data: URL', () => {
-  it('garde la data: URL et journalise l’erreur si le bucket est absent', async () => {
+describe('POST /api/save-logo — échec de l’envoi dans Storage : 502, plus jamais de data: URL en base', () => {
+  it('bucket absent : 502, rien n’est écrit, erreur journalisée', async () => {
     mocks.upload.mockResolvedValue({ data: null, error: { message: 'Bucket not found' } })
     const base64 = dataUrl('image/png', PNG)
 
     const res = await appeler({ base64, field: 'logo_url' })
 
-    expect(res.status).toBe(200)
-    expect(res.json).toEqual({ success: true })
-    expect(mocks.update.mock.calls[0][0]).toMatchObject({ logo_url: base64 })
-    expect(mocks.update.mock.calls[0][2]).toBe(ARTISAN_A)
+    expect(res.status).toBe(502)
+    expect(res.json.error).toContain('Réessayez')
+    expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.loggerError).toHaveBeenCalledTimes(1)
     const [message, contexte, erreur] = mocks.loggerError.mock.calls[0]
     expect(message).toContain('Storage')
@@ -169,40 +169,40 @@ describe('POST /api/save-logo — repli sur la data: URL', () => {
     expect((erreur as Error).message).toContain('Bucket not found')
   })
 
-  it('garde la data: URL si l’envoi lève une erreur réseau', async () => {
+  it('erreur réseau à l’envoi : 502, rien n’est écrit', async () => {
     mocks.upload.mockRejectedValue(new TypeError('fetch failed'))
     const base64 = dataUrl('image/jpeg', JPEG)
 
     const res = await appeler({ base64, field: 'profile_photo_url' })
 
-    expect(res.status).toBe(200)
-    expect(mocks.update.mock.calls[0][0]).toMatchObject({ profile_photo_url: base64 })
+    expect(res.status).toBe(502)
+    expect(mocks.update).not.toHaveBeenCalled()
     expect((mocks.loggerError.mock.calls[0][2] as Error).message).toContain('fetch failed')
   })
 
-  it('supprime le fichier et garde la data: URL si l’URL publique ne se lit pas (bucket privé)', async () => {
+  it('URL publique illisible (bucket privé) : fichier supprimé, 502, rien n’est écrit', async () => {
     mocks.fetch.mockResolvedValue(new Response(null, { status: 400 }))
     const base64 = dataUrl('image/png', PNG)
 
     const res = await appeler({ base64, field: 'logo_url' })
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(502)
     const chemin = mocks.upload.mock.calls[0][0] as string
     expect(mocks.remove).toHaveBeenCalledWith([chemin])
-    expect(mocks.update.mock.calls[0][0]).toMatchObject({ logo_url: base64 })
+    expect(mocks.update).not.toHaveBeenCalled()
     expect(mocks.loggerError.mock.calls[0][1]).toMatchObject({ etape: 'lecture' })
     expect((mocks.loggerError.mock.calls[0][2] as Error).message).toContain('HTTP 400')
   })
 
-  it('garde la data: URL si la vérification de l’URL publique échoue sur le réseau', async () => {
+  it('vérification de l’URL publique en échec réseau : fichier supprimé, 502, rien n’est écrit', async () => {
     mocks.fetch.mockRejectedValue(new Error('timeout'))
     const base64 = dataUrl('image/png', PNG)
 
     const res = await appeler({ base64, field: 'logo_url' })
 
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(502)
     expect(mocks.remove).toHaveBeenCalledTimes(1)
-    expect(mocks.update.mock.calls[0][0]).toMatchObject({ logo_url: base64 })
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('refuse au-delà de la limite d’envois (429), sans rien envoyer ni écrire de base64', async () => {

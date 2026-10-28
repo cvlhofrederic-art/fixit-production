@@ -81,6 +81,24 @@ export function lireImageDataUrl(valeur: string): ImageArtisan | null {
   return { octets, type, extension: EXTENSION_PAR_TYPE[type] }
 }
 
+/**
+ * URL d'image publiable : seulement une URL https absolue (Storage public). Une data: URL, un blob:, du http ou
+ * toute autre valeur donne null : og:image, twitter:image et le JSON-LD exigent une URL absolue, et une data: URL
+ * de plusieurs centaines de Ko y portait la fiche artisan à 3 Mo de HTML (Sentry V et W). L'appelant met alors
+ * l'image Open Graph par défaut du site.
+ */
+export function urlImagePublique(valeur: unknown): string | null {
+  if (typeof valeur !== 'string') return null
+  const texte = valeur.trim()
+  if (!/^https:\/\//i.test(texte)) return null
+  try {
+    const url = new URL(texte)
+    return url.protocol === 'https:' && url.hostname ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 export type ResultatEnvoiImage =
   | { ok: true; url: string; chemin: string }
   | { ok: false; etape: 'envoi' | 'lecture'; message: string }

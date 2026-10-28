@@ -229,6 +229,17 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     expect(jsonLd['@graph'][0].image).toBe(photo)
   })
 
+  it('photo en http (non sécurisé) ou en blob: : image Open Graph par défaut, absente du JSON-LD', async () => {
+    const { default: ArtisanLayout, generateMetadata } = await charger()
+    for (const photo of ['http://exemple.supabase.co/storage/v1/object/public/photos/durand.jpg', 'blob:https://vitfix.io/abc']) {
+      lecture.reponse = { ok: true, lignes: [{ ...ARTISAN, profile_photo_url: photo }] }
+      const metadata = await generateMetadata({ params: params('plomberie-durand') })
+      expect(metadata.openGraph?.images).toEqual([{ url: 'https://vitfix.io/api/og/?locale=fr', width: 1200, height: 630 }])
+      const [jsonLd] = extraireJsonLd(await ArtisanLayout({ children: null, params: params('plomberie-durand') })) as { '@graph': { image?: string }[] }[]
+      expect(jsonLd['@graph'][0].image).toBeUndefined()
+    }
+  })
+
   it('profil inexistant : pas de JSON-LD', async () => {
     const { default: ArtisanLayout } = await charger()
     lecture.reponse = { ok: true, lignes: [] }
