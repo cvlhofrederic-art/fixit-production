@@ -30,14 +30,29 @@ const FIXIT_PREFIX = 'fixit_'
 // afin de stocker l'URL au lieu du base64 ; en attendant, ce seuil
 // genereux garantit qu'aucune donnee n'est silencieusement perdue.
 const MAX_VALUE_BYTES = 5_000_000
-const DEBOUNCE_MS = 500
-// Batch de 10 pour rester sous la limite serveur (50 MB request max).
-const FLUSH_BATCH_SIZE = 10
+// Lot 8 Sentry du 28/10/2026 : avec 500 ms, le chargement du dashboard pro produisait 20 POST en 10 s. Les
+// écritures d'un même enchaînement partent maintenant ensemble, en un seul POST tant que la taille le permet.
+const DEBOUNCE_MS = 1500
+// Un POST regroupe jusqu'à FLUSH_BATCH_SIZE clés (= MAX_ENTRIES_PER_REQUEST de /api/user-storage) et
+// FLUSH_BATCH_BYTES de valeurs (une clé peut peser 5 Mo : logo, signature, justificatifs en base64).
+const FLUSH_BATCH_SIZE = 50
+const FLUSH_BATCH_BYTES = 4_000_000
 
 const pendingWrites = new Map<string, string>()
 const pendingDeletes = new Set<string>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 let installed = false
+
+// Dernière valeur envoyée au serveur (ou reçue de lui) par clé : une valeur identique n'est pas renvoyée.
+const derniereValeurSynchronisee = new Map<string, string>()
+// setItem d'origine, capturé à l'installation du miroir : l'hydratation écrit sans repasser par le miroir
+// (avant, chaque valeur reçue du serveur repartait en POST 500 ms plus tard).
+let ecrireSansMiroirRef: ((key: string, value: string) => void) | null = null
+
+function ecrireSansMiroir(key: string, value: string): void {
+  if (ecrireSansMiroirRef) ecrireSansMiroirRef(key, value)
+  else window.localStorage.setItem(key, value)
+}
 
 async function getToken(): Promise<string | null> {
   try {
@@ -69,7 +84,7 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
     const raw = pendingWrites.get(k)!
     let parsed: unknown
     try { parsed = JSON.parse(raw) } catch { parsed = raw }
-    return { key: k, value: parsed }
+    return { key: k, value: parsed, raw }
   }).filter(e => {
     try { return JSON.stringify(e.value).length <= MAX_VALUE_BYTES } catch { return false }
   })
@@ -77,16 +92,18 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   // ecriture survient pendant l'await (perte d'idempotence sinon).
   for (const k of writeKeys) pendingWrites.delete(k)
 
+  // Un seul POST avec toutes les clés modifiées, tant que le nombre et la taille le permettent.
+  const lots = grouperEnLots(writes)
+
   // keepalive: true survit au unload. Necessaire pour beforeunload + tablette
   // qui ferme la session avant la fin de la requete. Limite navigateur ~64 KB
   // par requete keepalive — au-dela on retire keepalive (le user verra ses
   // donnees au prochain login via hydrate).
-  for (let i = 0; i < writes.length; i += FLUSH_BATCH_SIZE) {
-    const slice = writes.slice(i, i + FLUSH_BATCH_SIZE)
-    const body = JSON.stringify({ entries: slice })
+  for (const slice of lots) {
+    const body = JSON.stringify({ entries: slice.map(e => ({ key: e.key, value: e.value })) })
     const useKeepalive = opts.keepalive && body.length < 60_000
     try {
-      await fetch('/api/user-storage', {
+      const res = await fetch('/api/user-storage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,13 +112,11 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
         body,
         keepalive: useKeepalive,
       })
+      if (res.ok) for (const e of slice) derniereValeurSynchronisee.set(e.key, e.raw)
     } catch {
       // erreur reseau : tolerance — le localStorage reste la source operationnelle.
       // On re-met les writes en pending pour retry au prochain flush.
-      for (const e of slice) {
-        const raw = typeof e.value === 'string' ? e.value : JSON.stringify(e.value)
-        pendingWrites.set(e.key, raw)
-      }
+      for (const e of slice) pendingWrites.set(e.key, e.raw)
     }
   }
 
@@ -131,6 +146,46 @@ function scheduleFlush() {
 }
 
 /**
+ * Cœur du miroir, appelé par le setItem intercepté. Une valeur identique à la dernière synchronisée n'est pas
+ * renvoyée (lot 8 Sentry : réécritures à l'identique au montage du dashboard). Exporté pour les tests : jsdom ne
+ * permet pas de remplacer localStorage.setItem (propriété nommée du Storage), les navigateurs le permettent.
+ */
+export function enregistrerEcritureMiroir(key: string, value: string): void {
+  if (!shouldSync(key) || derniereValeurSynchronisee.get(key) === value) return
+  pendingWrites.set(key, value)
+  pendingDeletes.delete(key) // annule un eventuel delete en attente
+  scheduleFlush()
+}
+
+/** Cœur du miroir pour removeItem : la clé sera renvoyée si elle est réécrite ensuite. */
+export function enregistrerSuppressionMiroir(key: string): void {
+  if (!shouldSync(key)) return
+  derniereValeurSynchronisee.delete(key)
+  pendingDeletes.add(key)
+  pendingWrites.delete(key)
+  scheduleFlush()
+}
+
+type EntreeAEnvoyer = { key: string; value: unknown; raw: string }
+
+/** Lots d'envoi : jusqu'à FLUSH_BATCH_SIZE clés et FLUSH_BATCH_BYTES de valeurs par POST (un seul lot en général). */
+function grouperEnLots(entries: EntreeAEnvoyer[]): EntreeAEnvoyer[][] {
+  const lots: EntreeAEnvoyer[][] = []
+  let tailleLot = 0
+  for (const e of entries) {
+    const dernier = lots[lots.length - 1]
+    if (dernier && dernier.length < FLUSH_BATCH_SIZE && tailleLot + e.raw.length <= FLUSH_BATCH_BYTES) {
+      dernier.push(e)
+      tailleLot += e.raw.length
+    } else {
+      lots.push([e])
+      tailleLot = e.raw.length
+    }
+  }
+  return lots
+}
+
+/**
  * Hydrate le localStorage depuis la DB pour l'utilisateur connecte.
  * A appeler au montage du dashboard, AVANT installStorageSync(), pour
  * eviter que les ecritures hydrate ne soient re-mirroir vers le serveur.
@@ -153,10 +208,10 @@ export async function hydrateStorageFromServer(): Promise<{ count: number }> {
         // On ecrit la valeur en string. Si c'est deja une primitive (string),
         // on la stocke telle quelle ; sinon JSON.stringify.
         const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
-        // On utilise le setItem original (au cas ou installStorageSync a deja
-        // ete appele). Pour eviter le risque, hydrate doit etre appele AVANT
-        // installStorageSync.
-        window.localStorage.setItem(key, stringValue)
+        // setItem d'origine : une valeur reçue du serveur ne doit jamais repartir en POST (lot 8 Sentry :
+        // Providers installe le miroir avant d'hydrater, chaque clé hydratée était renvoyée).
+        ecrireSansMiroir(key, stringValue)
+        derniereValeurSynchronisee.set(key, stringValue)
         count++
       } catch {
         // ignore
@@ -190,23 +245,16 @@ export function installStorageSync(): void {
 
   const origSet = stockage.setItem.bind(stockage)
   const origRemove = stockage.removeItem.bind(stockage)
+  ecrireSansMiroirRef = origSet
 
   stockage.setItem = (key: string, value: string) => {
     origSet(key, value)
-    if (shouldSync(key)) {
-      pendingWrites.set(key, value)
-      pendingDeletes.delete(key) // annule un eventuel delete en attente
-      scheduleFlush()
-    }
+    enregistrerEcritureMiroir(key, value)
   }
 
   stockage.removeItem = (key: string) => {
     origRemove(key)
-    if (shouldSync(key)) {
-      pendingDeletes.add(key)
-      pendingWrites.delete(key)
-      scheduleFlush()
-    }
+    enregistrerSuppressionMiroir(key)
   }
 
   // Flush a la fermeture de l'onglet pour ne pas perdre les pending writes.
@@ -244,18 +292,17 @@ export async function pushAllLocalToServer(): Promise<{ count: number }> {
   }
   if (keys.length === 0) return { count: 0 }
 
-  const entries = keys.map(k => {
+  const entries: EntreeAEnvoyer[] = keys.map(k => {
     const raw = window.localStorage.getItem(k) || ''
     let parsed: unknown
     try { parsed = JSON.parse(raw) } catch { parsed = raw }
-    return { key: k, value: parsed }
+    return { key: k, value: parsed, raw }
   }).filter(e => {
     try { return JSON.stringify(e.value).length <= MAX_VALUE_BYTES } catch { return false }
   })
 
   let count = 0
-  for (let i = 0; i < entries.length; i += FLUSH_BATCH_SIZE) {
-    const slice = entries.slice(i, i + FLUSH_BATCH_SIZE)
+  for (const slice of grouperEnLots(entries)) {
     try {
       const res = await fetch('/api/user-storage', {
         method: 'POST',
@@ -263,9 +310,12 @@ export async function pushAllLocalToServer(): Promise<{ count: number }> {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ entries: slice }),
+        body: JSON.stringify({ entries: slice.map(e => ({ key: e.key, value: e.value })) }),
       })
-      if (res.ok) count += slice.length
+      if (res.ok) {
+        count += slice.length
+        for (const e of slice) derniereValeurSynchronisee.set(e.key, e.raw)
+      }
     } catch { /* ignore */ }
   }
   return { count }

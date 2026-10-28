@@ -390,19 +390,38 @@ function mapFromSupabase(table: ShortName, item: any): any {
 const _dataCache: Record<string, { data: any[]; at: number }> = {}
 const DATA_CACHE_TTL = 300_000 // 5 min — BTP data rarely changes mid-session
 
+// ── Requêtes en vol partagées : le préchargement et les sections qui montent juste après demandaient les mêmes
+// tables en double (lot 8 Sentry du 28/10/2026 : chantiers, membres, situations deux fois au chargement).
+const _enVol: Record<string, Promise<any[] | null>> = {}
+
+/** Charge une table (une seule requête à la fois par clé), remplit le cache ; null si la réponse n'est pas ok. */
+function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null> {
+  const enCours = _enVol[cacheKey]
+  if (enCours) return enCours
+  const promesse = (async (): Promise<any[] | null> => {
+    try {
+      const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
+      if (!res.ok) return null
+      const json = await res.json()
+      const raw: any[] = json[table] || []
+      _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+      return raw
+    } finally {
+      delete _enVol[cacheKey]
+    }
+  })()
+  _enVol[cacheKey] = promesse
+  return promesse
+}
+
 // ── Prefetch multiple tables in parallel to fill cache before components mount ──
 export async function prefetchBTPTables(tables: ShortName[], userId: string) {
-  const headers = await authHeaders()
   await Promise.all(
     tables.map(async (table) => {
       const cacheKey = `${table}_${userId}`
       if (_dataCache[cacheKey] && Date.now() - _dataCache[cacheKey].at < DATA_CACHE_TTL) return
       try {
-        const res = await fetch(`/api/btp?table=${table}`, { headers })
-        if (!res.ok) return
-        const json = await res.json()
-        const raw = json[table] || []
-        _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+        await chargerTable(table, cacheKey)
       } catch (err) { console.warn(`[btp] prefetch ${table} failed:`, err) }
     })
   )
@@ -432,13 +451,10 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   // ── Fetch from Supabase ─────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
-      if (!res.ok) throw new Error('Fetch failed')
-      const json = await res.json()
-      const raw = json[table] || []
-      const mapped = raw.map((r: any) => mapFromSupabase(table, r))
-      setItems(mapped)
-      _dataCache[cacheKey] = { data: mapped, at: Date.now() }
+      // Requête partagée avec le préchargement et les autres sections (une seule par table en vol).
+      const raw = await chargerTable(table, cacheKey)
+      if (raw === null) throw new Error('Fetch failed')
+      setItems(_dataCache[cacheKey]?.data ?? raw.map((r: any) => mapFromSupabase(table, r)))
       setError(null)
       return raw
     } catch (err) {
