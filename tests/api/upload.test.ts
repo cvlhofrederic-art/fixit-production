@@ -167,6 +167,11 @@ describe('POST /api/upload — dossier', () => {
 })
 
 describe('POST /api/upload — photo de portfolio', () => {
+  // L'origine du stockage Supabase est lue dans NEXT_PUBLIC_SUPABASE_URL (lib/security/safe-url.ts).
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+  })
+
   const champsPortfolio = (photoUrl: string) => ({
     folder: `portfolio/${ARTISAN_ID}`,
     artisan_id: ARTISAN_ID,
@@ -181,11 +186,19 @@ describe('POST /api/upload — photo de portfolio', () => {
     expect(valeurs.portfolio_photos[0].url).toMatch(/^https:\/\/signe\/portfolio\//)
   })
 
-  it('garde une URL https fournie', async () => {
+  it('garde une URL https fournie si elle vient du stockage Supabase (la seule que la page publique ouvre)', async () => {
+    const fournie = 'https://projet-test.supabase.co/storage/v1/object/public/portfolio/photo.png'
+    const res = await appeler(champsPortfolio(fournie))
+    expect(res.status).toBe(200)
+    const valeurs = mocks.update.mock.calls[0][0] as { portfolio_photos: Array<{ url: string }> }
+    expect(valeurs.portfolio_photos[0].url).toBe(fournie)
+  })
+
+  it('remplace une URL https d’une autre origine par celle du fichier envoyé', async () => {
     const res = await appeler(champsPortfolio('https://stockage.vitfix.io/photo.png'))
     expect(res.status).toBe(200)
     const valeurs = mocks.update.mock.calls[0][0] as { portfolio_photos: Array<{ url: string }> }
-    expect(valeurs.portfolio_photos[0].url).toBe('https://stockage.vitfix.io/photo.png')
+    expect(valeurs.portfolio_photos[0].url).toMatch(/^https:\/\/signe\/portfolio\//)
   })
 
   it('colonne portfolio_photos absente : fichier envoyé, profil non modifié, erreur journalisée', async () => {

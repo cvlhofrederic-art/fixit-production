@@ -284,7 +284,7 @@ export default async function ConformitePage() {
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Documents légaux</h2>
           <ul className="space-y-2 text-sm">
             <li>
-              <Link href="/fr/attestation-editeur/" target="_blank" className="text-blue-600 hover:underline">
+              <Link href="/fr/attestation-editeur/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                 📜 Attestation éditeur conforme LF 2026
               </Link>
               <span className="text-gray-500 ml-2 text-xs">— à présenter en cas de contrôle DGFiP</span>

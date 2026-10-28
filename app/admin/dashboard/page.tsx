@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { originesSupabase, safeNavigate, toSafeUrl } from '@/lib/security/safe-url'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -148,6 +149,22 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
+
+/**
+ * Lien vers une pièce KYC (Kbis, pièce d'identité). Ces colonnes sont écrites par les routes
+ * d'inscription et d'upload (URL signées ou publiques du stockage Supabase), mais id_document_url
+ * reste modifiable par l'artisan lui-même : seule une URL https du stockage Supabase devient un
+ * lien, pour qu'un dossier ne puisse pas envoyer le super admin vers un site tiers.
+ */
+function LienDocumentKyc({ url, className, children }: { url: string | null; className: string; children: ReactNode }) {
+  const sure = toSafeUrl(url, { allowedOrigins: originesSupabase() })
+  if (!sure) return null
+  return (
+    <a href={sure.href} target="_blank" rel="noopener noreferrer" className={className}>
+      {children}
+    </a>
+  )
+}
 
 export default function AdminDashboardPage() {
   const [user, setUser] = useState<any>(null)
@@ -332,7 +349,8 @@ export default function AdminDashboardPage() {
       return
     }
     await supabase.auth.refreshSession()
-    window.location.href = url
+    // url vient de la table DASHBOARDS (chemins internes) : navigation interne seulement.
+    safeNavigate(url, { allowRelative: true })
   }
 
   const handleCardClick = (db: Dashboard) => {
@@ -820,18 +838,12 @@ export default function AdminDashboardPage() {
 
                 {/* Liens documents */}
                 <div className="flex flex-wrap gap-2">
-                  {row.kbis_url && (
-                    <a href={row.kbis_url} target="_blank" rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-300 rounded-lg text-xs transition-colors">
-                      📄 {row.kyc_market === 'pt_artisan' ? 'Certidão' : 'KBIS'}
-                    </a>
-                  )}
-                  {row.id_document_url && (
-                    <a href={row.id_document_url} target="_blank" rel="noopener noreferrer"
-                      className="px-3 py-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-300 rounded-lg text-xs transition-colors">
-                      🪪 {row.kyc_market === 'pt_artisan' ? 'Cartão de Cidadão' : 'CNI'}
-                    </a>
-                  )}
+                  <LienDocumentKyc url={row.kbis_url} className="px-3 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-300 rounded-lg text-xs transition-colors">
+                    📄 {row.kyc_market === 'pt_artisan' ? 'Certidão' : 'KBIS'}
+                  </LienDocumentKyc>
+                  <LienDocumentKyc url={row.id_document_url} className="px-3 py-1.5 bg-purple-900/60 hover:bg-purple-800 text-purple-300 rounded-lg text-xs transition-colors">
+                    🪪 {row.kyc_market === 'pt_artisan' ? 'Cartão de Cidadão' : 'CNI'}
+                  </LienDocumentKyc>
                 </div>
 
                 {/* Motif de rejet existant */}

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from './useThemeVars'
 import { getWalletDocuments, type WalletDocConfig, type WalletDocObtenir } from '@/lib/walletConformite'
@@ -101,7 +102,7 @@ function ObtainButton({ doc, legalForm, isPt }: { doc: WalletDocConfig; legalFor
     <a
       href={resolvedLink}
       target="_blank"
-      rel="noreferrer"
+      rel="noreferrer noopener"
       className="v22-btn v22-btn-sm"
       style={{ fontSize: 11, color: 'var(--v22-blue, #3B82F6)', border: '1px solid var(--v22-blue, #3B82F6)', background: 'transparent', textDecoration: 'none', whiteSpace: 'nowrap' }}
       title={o.note}
@@ -608,7 +609,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
                 <div className="v5-w-doc-acts">
                   {doc?.url && (
                     <>
-                      <button onClick={() => window.open(doc.url, '_blank')} className="v5-btn v5-btn-sm" title={isPt ? 'Ver' : 'Voir'}>👁️</button>
+                      <button onClick={() => safeOpen(doc.url, { allowedOrigins: originesSupabase() })} className="v5-btn v5-btn-sm" title={isPt ? 'Ver' : 'Voir'}>👁️</button>
                       <button onClick={() => removeDoc(docDef.id)} disabled={!!removing[docDef.id]} className="v5-btn v5-btn-sm" title={isPt ? 'Eliminar' : 'Supprimer'} style={{ opacity: removing[docDef.id] ? 0.5 : 1 }}>
                         {removing[docDef.id] ? '⏳' : '🗑️'}
                       </button>
@@ -800,7 +801,7 @@ export default function WalletConformiteSection({ artisan, orgRole = 'artisan' }
               onEditExpiry={() => setEditExpiry(docDef.id)}
               onSetExpiry={(date) => setExpiry(docDef.id, date)}
               onCancelExpiry={() => setEditExpiry(null)}
-              onView={() => window.open(docs[docDef.id]?.url, '_blank')}
+              onView={() => safeOpen(docs[docDef.id]?.url, { allowedOrigins: originesSupabase() })}
               onRemove={() => removeDoc(docDef.id)}
               fileInputRef={el => { fileInputRefs.current[docDef.id] = el }}
               onFileChange={(f) => handleUpload(docDef.id, f)}

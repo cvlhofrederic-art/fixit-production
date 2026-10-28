@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { MaxAvatar } from '@/components/common/RobotAvatars'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import type { Immeuble } from '@/components/syndic-dashboard/types'
 import type { Conversation } from '@/lib/syndic/agent-types'
 import ConversationSidebar from '../agents-ia/ConversationSidebar'
@@ -440,7 +441,7 @@ export default function MaxExpertSection({
                         Max <span></span> {locale === 'pt' ? 'Consultor Especialista IA' : 'Expert-Conseil IA'}
                       </div>
                       <div className="sd-mx-msg-bubble" suppressHydrationWarning>
-                        <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msgText) }} />
+                        <div suppressHydrationWarning dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(msgText)) }} />
                       </div>
                       {/* ── Citations validées (corpus officiel) ── */}
                       {Array.isArray(msg.citations) && msg.citations.length > 0 && (

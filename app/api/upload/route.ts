@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { estUrlStockageSupabase } from '@/lib/security/safe-url'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -226,8 +227,9 @@ export async function POST(request: NextRequest) {
           // Append to portfolio_photos JSONB array
           const photoMeta = formData.get('photo_meta') as string | null
           const photoUrl = formData.get('photo_url') as string | null
-          // portfolio_photos est affiché sur la page publique : seule une URL https est gardée (pas de javascript:)
-          const targetUrl = photoUrl && /^https:\/\//i.test(photoUrl) ? photoUrl : publicUrl
+          // portfolio_photos est affiché sur la page publique, qui n'ouvre que les photos du stockage Supabase
+          // (lib/security/safe-url.ts) : une URL d'une autre origine (ou javascript:) n'est pas gardée.
+          const targetUrl = photoUrl && estUrlStockageSupabase(photoUrl) ? photoUrl : publicUrl
           let meta: Record<string, unknown> = {}
           try { meta = photoMeta ? JSON.parse(photoMeta) : {} } catch { /* invalid JSON, use empty */ }
           const newEntry = {
