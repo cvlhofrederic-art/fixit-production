@@ -1948,6 +1948,8 @@ export default function DevisFactureFormBTP({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[DevisBTP] PDF failed', err)
+      // Lot 6 Sentry du 28/10/2026 : l'échec est remonté avec l'action et le type de document, et affiché.
+      Sentry.captureException(err, { tags: { pdf_action: action, doc_type: docType } })
       toast.error(`Erreur PDF : ${msg}`)
     } finally {
       setPdfLoading(false)
