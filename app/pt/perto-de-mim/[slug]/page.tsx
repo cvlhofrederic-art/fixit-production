@@ -5,7 +5,7 @@ import { SERVICES, CITIES } from '@/lib/data/seo-pages-data'
 import { PHONE_PT } from '@/lib/constants'
 import { pluralizarServico as pluralizar } from '@/lib/seo/pt-pluralize'
 import { ogImageMeta } from '@/lib/og'
-import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito, METIERS_URGENCIA, URGENCIAS_FRASE } from '@/lib/seo/pt-meta'
+import { tituloPertoDeMim, descricaoPertoDeMim, nomeDistrito, nosDistritos, METIERS_URGENCIA, URGENCIAS_FRASE } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoRegional } from '@/lib/seo/pt-schemas'
 import { metodoPara } from '@/lib/seo/pt-provas-locais'
 import { servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
@@ -197,7 +197,7 @@ export default async function HubMetierPage({ params }: { params: Promise<{ slug
           {paginasDistrito.length > 0 && (
             <div className="mt-10">
               <p className="text-text-muted mb-4 max-w-2xl">
-                {paginasDistrito.length === 1 ? paginasDistrito[0].chamadaHub : `Trabalhos feitos pela equipa VITFIX no distrito ${nomeDistrito(paginasDistrito[0].distrito)}:`}
+                {paginasDistrito.length === 1 ? paginasDistrito[0].chamadaHub : `Trabalhos feitos pela equipa VITFIX ${nosDistritos(paginasDistrito[0].distritos)}:`}
               </p>
               <div className="flex flex-wrap gap-3">
                 {paginasDistrito.map(pd => (

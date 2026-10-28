@@ -42,7 +42,13 @@ export interface PrecoMetier {
 }
 
 export interface PrazoCidade {
-  cidade: string
+  /** Slug de la ville (pages métier x ville) ; absent sur une entrée de zone (`distritos`). */
+  cidade?: string
+  /**
+   * Entrée de zone, pour les pages de district : distritos où le délai vaut (valeurs de `CityData.distrito`), avec `metiers`
+   * obligatoire. Une seule entrée pour toute la zone, jamais une copie par distrito.
+   */
+  distritos?: string[]
   visita_dias: number
   /** Délai de visite maximal en heures, quand le propriétaire l'exprime ainsi (« visita em 48 horas, no máximo »). */
   visita_horas_max?: number
@@ -150,12 +156,12 @@ export function prazoPara(cidade: string, metier: string): PrazoCidade | null {
   return p && prazoValido(p) ? p : null
 }
 
-/** Clé `cidade` des délais valables pour tout un distrito (pages de district) : « distrito-porto ». */
-export const chaveDistrito = (distrito: string) => `distrito-${distrito.toLowerCase()}`
-
-/** Délais constatés sur tout le distrito pour ce service (entrée `cidade: "distrito-porto"`, `metiers` obligatoire). */
-export function prazoDistritoPara(distrito: string, metier: string): PrazoCidade | null {
-  const p = (DADOS.prazos ?? []).find((x) => x.cidade === chaveDistrito(distrito) && x.metiers?.includes(metier))
+/**
+ * Délai d'une page de district pour ce service : entrée de zone (`distritos`, `metiers` obligatoire) qui couvre TOUS les
+ * distritos de la page, puisque la page l'affiche pour toute sa zone ; sinon rien.
+ */
+export function prazoDistritoPara(distritos: readonly string[], metier: string): PrazoCidade | null {
+  const p = (DADOS.prazos ?? []).find((x) => x.metiers?.includes(metier) && distritos.length > 0 && distritos.every((d) => x.distritos?.includes(d)))
   return p && prazoValido(p) ? p : null
 }
 

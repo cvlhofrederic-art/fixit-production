@@ -3,7 +3,7 @@ import { ogImageMeta } from '@/lib/og'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CITIES, SERVICES, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
-import { SERVICOS_DISTRITO, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, cobreDistrito, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 import { PHONE_PT } from '@/lib/constants'
 import { tituloCidade, descricaoCidade, nomeDistrito, emConcelho } from '@/lib/seo/pt-meta'
@@ -144,9 +144,10 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
             A VITFIX oferece profissionais qualificados em {city.name} para as seguintes especialidades:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Services de district (lib/data/pt-servicos-distrito.ts) : page concelho si des chantiers réels l'ont ouverte,
-                sinon la page du distrito, qui couvre ce concelho. */}
-            {SERVICOS_DISTRITO.filter(sd => sd.distrito === city.distrito).map(sd => {
+            {/* Services de district (lib/data/pt-servicos-distrito.ts), dans les villes de leurs distritos (Porto, Braga, Aveiro
+                depuis le 28/10/2026) : page concelho si des chantiers réels l'ont ouverte, sinon la page de district, qui couvre
+                ce concelho ; le titre de la carte nomme le distrito de la ville. */}
+            {SERVICOS_DISTRITO.filter(sd => cobreDistrito(sd, city.distrito)).map(sd => {
               const href = urlServicoDistrito(sd, city.slug)
               return (
                 <Link
@@ -157,7 +158,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-3xl">{sd.icon}</span>
                     <h3 className="font-display font-bold text-lg text-dark group-hover:text-yellow transition-colors">
-                      {href === `/pt/servicos/${sd.slug}/` ? `${sd.nome} no distrito ${nomeDistrito(sd.distrito)}` : `${sd.nome} ${emConcelho(city.name)}`}
+                      {href === `/pt/servicos/${sd.slug}/` ? `${sd.nome} no distrito ${nomeDistrito(city.distrito)}` : `${sd.nome} ${emConcelho(city.name)}`}
                     </h3>
                   </div>
                   <p className="text-text-muted text-sm leading-relaxed mb-4">{sd.resumo}</p>

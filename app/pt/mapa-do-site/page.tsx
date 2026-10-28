@@ -1,7 +1,6 @@
 import { SERVICES, CITIES, getAllPageCombos, BLOG_ARTICLES } from '@/lib/data/seo-pages-data'
 import { SERVICOS_DISTRITO } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
-import { nomeDistrito } from '@/lib/seo/pt-meta'
 import HtmlSitemap, { buildSitemapMetadata, buildSitemapBreadcrumbSchema } from '@/components/seo/HtmlSitemap'
 
 export const metadata = buildSitemapMetadata({
@@ -47,7 +46,7 @@ export default function MapaDoSitePage() {
           { href: '/pt/', label: 'Início' },
           { href: '/pt/pesquisar/', label: 'Pesquisar profissionais' },
           { href: '/pt/servicos/', label: 'Todos os serviços' },
-          ...SERVICOS_DISTRITO.map(s => ({ href: `/pt/servicos/${s.slug}/`, label: `${s.nome} no distrito ${nomeDistrito(s.distrito)}` })),
+          ...SERVICOS_DISTRITO.map(s => ({ href: `/pt/servicos/${s.slug}/`, label: s.titulo })),
           ...SERVICOS_CONCELHO.map(s => ({ href: `/pt/servicos/${s.slug}/`, label: s.h1 })),
           { href: '/pt/urgencia/', label: 'Urgência' },
           { href: '/pt/perto-de-mim/', label: 'Perto de mim' },

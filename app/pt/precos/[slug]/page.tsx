@@ -166,7 +166,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Trabalho em altura (andaimes para fachadas)',
       'Tratamentos adicionais (anti-humidade, impermeabilização)',
     ],
-    regionContext: 'A pintura completa de um apartamento T2 fica entre 800 e 1500€, incluindo preparação de superfícies e duas demãos de tinta. A pintura de fachadas exteriores não tem preço de tabela: depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações. A equipa VITFIX faz uma visita e envia um orçamento gratuito (página Renovação de fachadas, no distrito do Porto).',
+    regionContext: 'A pintura completa de um apartamento T2 fica entre 800 e 1500€, incluindo preparação de superfícies e duas demãos de tinta. A pintura de fachadas exteriores não tem preço de tabela: depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações. A equipa VITFIX faz uma visita e envia um orçamento gratuito (página Renovação de fachadas, nos distritos do Porto, Braga e Aveiro).',
     faqs: [
       {
         question: 'Quanto custa pintar um apartamento T2?',

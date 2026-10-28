@@ -101,7 +101,9 @@ describe('décision du 23/10/2026 : façade sur devis', () => {
       expect(texte).toContain(preco)
     }
     expect(texte).toContain('A pintura de fachadas exteriores não tem preço de tabela')
-    expect(texte).toContain('orçamento gratuito (página Renovação de fachadas, no distrito do Porto)')
+    // Zone de la page renovação de fachadas étendue aux trois distritos le 28/10/2026.
+    expect(texte).toContain('orçamento gratuito (página Renovação de fachadas, nos distritos do Porto, Braga e Aveiro)')
+    expect(texte).not.toMatch(/distrito do Porto/)
     const metadata = await metadataPrecos({ params: Promise.resolve({ slug: 'pintor' }) })
     expect(metadata.description).toContain('8 serviços')
   })
@@ -138,7 +140,8 @@ describe('décision du 23/10/2026 : façade sur devis', () => {
     expect(texte).toContain('Injeção contra capilaridade: entre 50€ e 100€ por metro linear.')
     // Capoto : prix réel de l'équipe VITFIX depuis le 27/10/2026 (tests/seo/pt-preco-capoto.test.tsx), plus de fourchette 40-80 €.
     expect(texte).not.toContain('entre 40€ e 80€')
-    expect(texte).toContain('Isolamento térmico pelo exterior (capoto): no distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica-o por 53 a 58 € por m², sem IVA, com material e mão de obra')
+    expect(texte).toContain('Isolamento térmico pelo exterior (capoto): nos distritos do Porto, Braga e Aveiro, a equipa VITFIX aplica-o por 53 a 58 € por m², sem IVA, com material e mão de obra')
+    expect(texte).toContain('(página Renovação de fachadas da VITFIX, nos distritos do Porto, Braga e Aveiro)')
     expect(texte).toContain('Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela')
     expect(jsonLd).toContain('"dateModified":"2026-10-28"')
   })
@@ -168,7 +171,7 @@ describe('décision du 23/10/2026 : façade sur devis', () => {
     expect(jsonLd).toContain('"dateModified":"2026-10-23"')
   })
 
-  it('dateModified des deux articles modifiés : 23/10/2026 (humidade : 28/10/2026, prix réel du capoto, zone élargie)', () => {
+  it('dateModified des deux articles modifiés : 23/10/2026 (humidade : 28/10/2026, prix réel du capoto et zone des trois distritos)', () => {
     expect(BLOG_ARTICLES.find((a) => a.slug === 'obras-sem-licenca-portugal')?.dateModified).toBe('2026-10-23')
     expect(BLOG_ARTICLES.find((a) => a.slug === 'humidade-parede-causas-reparacao')?.dateModified).toBe('2026-10-28')
   })

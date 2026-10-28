@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { CITIES } from '@/lib/data/seo-pages-data'
 import { chantiersExibidosDistrito, paginasConcelhoDistrito, type ServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import { PHONE_PT } from '@/lib/constants'
-import { descricaoServicoDistrito, emConcelho, nomeDistrito } from '@/lib/seo/pt-meta'
+import { descricaoServicoDistrito, dosDistritos, emConcelho, enumerar, nomeDistrito, nosDistritos } from '@/lib/seo/pt-meta'
 import { noServicoDistrito } from '@/lib/seo/pt-schemas'
 import { prazoDistritoPara, precosPara } from '@/lib/seo/pt-provas-locais'
 import { BotoesContacto, CabecalhoServico, SeccaoPreco, TITULO_SECCAO, complementoPreco, detalhesChantier, fraseChantier, migalhasServicos } from './servico-distrito-partilhado'
@@ -10,20 +10,23 @@ import { BotoesContacto, CabecalhoServico, SeccaoPreco, TITULO_SECCAO, complemen
 // Page de service à l'échelle du district (/pt/servicos/{slug}/, lib/data/pt-servicos-distrito.ts). Même
 // langage visuel que les pages métier x ville (app/pt/servicos/[slug]/page.tsx). Blocs de données réelles
 // (#chantiers, #prazos, #precos) rendus seulement quand data/seo/local-proof.json les contient (règle 0.2) ;
-// JSON-LD : Service fourni par #business sur le distrito, fil d'Ariane ; pas de FAQPage (FAQ visible seulement).
+// JSON-LD : Service fourni par #business sur les distritos de la page, fil d'Ariane ; pas de FAQPage (FAQ visible seulement).
+// La zone (distritos do Porto, Braga e Aveiro depuis le 28/10/2026) est dite en clair, jamais par une liste de concelhos.
 
 const tituloSeccao = TITULO_SECCAO
 
 export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: ServicoDistrito }>) {
   const urlPagina = `https://vitfix.io/pt/servicos/${servico.slug}/`
-  const distritoTexto = `distrito ${nomeDistrito(servico.distrito)}`
-  // Chantiers documentés de tout le distrito : les 6 plus récents, plus le plus récent de chaque concelho dont la page est
+  const { distritos } = servico
+  // Pastille du haut : « Porto, Braga e Aveiro » (le H1 dit « nos distritos do Porto, Braga e Aveiro »).
+  const rotuloZona = distritos.length > 1 ? enumerar(distritos) : `Distrito ${nomeDistrito(distritos[0])}`
+  // Chantiers documentés de toute la zone : les 6 plus récents, plus le plus récent de chaque concelho dont la page est
   // ouverte ; chaque page concelho n'est liée que depuis une carte de chantier réel, jamais depuis une liste de villes.
   const chantiers = chantiersExibidosDistrito(servico)
   const concelhosAbertos = paginasConcelhoDistrito().filter((p) => p.servico.slug === servico.slug)
   const paginaDoConcelho = (cidade: string) => concelhosAbertos.find((p) => p.city.slug === cidade)
   const precos = precosPara(servico.slug)
-  const prazo = prazoDistritoPara(servico.distrito, servico.slug)
+  const prazo = prazoDistritoPara(distritos, servico.slug)
   const nomeCidade = (slug: string) => CITIES.find((c) => c.slug === slug)?.name ?? slug
   const waHref = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`${servico.mensagemWhatsapp} ${servico.mensagemLocal} em `)}`
 
@@ -43,11 +46,11 @@ export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: S
           nome: servico.h1,
           serviceType: servico.tipoServico,
           descricao: descricaoServicoDistrito(servico),
-          distrito: servico.distrito,
+          distritos,
         })}
         migalhas={migalhasServicos({ name: servico.nome, url: urlPagina })}
         icon={servico.icon}
-        selo={`${servico.nome} · Distrito ${nomeDistrito(servico.distrito)}`}
+        selo={`${servico.nome} · ${rotuloZona}`}
         titulo={servico.h1}
         intro={servico.intro}
         waHref={waHref}
@@ -74,8 +77,8 @@ export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: S
       {chantiers.length > 0 && (
         <section id="chantiers" className={`py-12 md:py-16${fundo('chantiers')}`}>
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className={`${tituloSeccao} mb-2`}>Trabalhos realizados no {distritoTexto}</h2>
-            <p className="text-text-muted text-sm mb-6 max-w-2xl">Intervenções reais da equipa no distrito.</p>
+            <h2 className={`${tituloSeccao} mb-2`}>Trabalhos realizados {nosDistritos(distritos)}</h2>
+            <p className="text-text-muted text-sm mb-6 max-w-2xl">Intervenções reais da equipa na zona.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {chantiers.map((c, i) => (
                 <article key={i} className={`p-5 rounded-2xl ${cartao('chantiers')} border border-border/40 flex gap-4`}>
@@ -151,8 +154,10 @@ export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: S
       <section id="zona" className={`py-12 md:py-16${fundo('zona')}`}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className={`${tituloSeccao} mb-3`}>Onde trabalhamos</h2>
+          {/* Zone, délai et prix confirmés par le propriétaire le 28/10/2026 : tous les concelhos des distritos, visite dans
+              le délai de local-proof.json partout, mêmes prix partout. */}
           <p className="text-text-muted max-w-3xl mb-6">
-            A equipa parte de Marco de Canaveses e trabalha em todo o {distritoTexto}. Para confirmar a deslocação, diga-nos o concelho e a freguesia no pedido de orçamento.
+            A equipa parte de Marco de Canaveses e trabalha em todos os concelhos {dosDistritos(distritos)}{prazo?.visita_horas_max ? `, com visita em ${prazo.visita_horas_max} horas, no máximo, em qualquer um deles` : ''}. O preço não depende do concelho. No pedido de orçamento, diga-nos o concelho e a freguesia.
           </p>
           <Link
             href="/pt/cidade/"
@@ -207,7 +212,7 @@ export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: S
           <h2 className="font-display text-[clamp(1.5rem,3vw,2.2rem)] font-extrabold tracking-tight mb-4">
             {servico.titulos.ctaFinal}
           </h2>
-          <p className="text-text-muted mb-8 max-w-md mx-auto">Grátis e sem compromisso, em todo o {distritoTexto}.</p>
+          <p className="text-text-muted mb-8 max-w-md mx-auto">Grátis e sem compromisso, em qualquer concelho onde trabalhamos.</p>
           <BotoesContacto waHref={waHref} variante="fim" />
         </div>
       </section>

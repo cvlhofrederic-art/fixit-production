@@ -87,7 +87,8 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const avis = avisPara(service.slug, city.slug)
   const ligados = METIERS_LIGADOS[service.slug] ?? []
   const otherServices = ligados.map(slug => SERVICES.find(s => s.slug === slug)).filter((s): s is ServiceData => Boolean(s))
-  // Pages de district du même distrito liées à ce métier (ex. telhador → limpeza de telhados, distrito do Porto).
+  // Pages de district liées à ce métier qui couvrent le distrito de la ville (ex. telhador → limpeza de telhados ; distritos do
+  // Porto, Braga et Aveiro depuis le 28/10/2026).
   const paginasDistrito = servicosDistritoLigados(service.slug, city.distrito)
   // Pages de service propres à ce concelho et liées à ce métier (ex. jardineiro em Águeda → limpeza de terrenos em Águeda).
   const paginasConcelho = servicosConcelhoLigados(service.slug, city.slug)
@@ -415,7 +416,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                 className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
               >
                 <span className="text-xl">{pd.icon}</span>
-                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(pd.distrito)}` : `${pd.nome} ${emConcelho(city.name)}`}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(city.distrito)}` : `${pd.nome} ${emConcelho(city.name)}`}</span>
               </Link>
             ))}
           </div>
