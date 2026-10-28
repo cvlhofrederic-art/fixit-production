@@ -57,6 +57,7 @@ import {
 import * as Sentry from '@sentry/nextjs'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { SEED_PREST, SEED_MAT } from '@/components/dashboard/PrestationsBTPSection'
 import RentabiliteDevisModal from '@/components/dashboard/btp/RentabiliteDevisModal'
@@ -1205,13 +1206,18 @@ export default function DevisFactureFormBTP({
     setClientDbLoading(true)
     setClientDbSearch('')
     try {
-      const res = await fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-      const data = await res.json()
+      // Appel authentifié (Bearer) comme les autres routes du dashboard : un fetch nu recevait 401 (lot 4 Sentry
+      // du 28/10/2026). Un 403 (compte sans fiche artisan) n'a pas de clients enregistrés : clients manuels seuls.
+      const res = await fetchAuthentifie(`/api/artisan-clients?artisan_id=${artisan.id}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok && res.status !== 403) throw new Error(data.error || `HTTP ${res.status}`)
       const authClients = (data.clients || []).map((c: Record<string, unknown>) => ({ ...c }))
       const manualRaw = localStorage.getItem(`fixit_manual_clients_${artisan.id}`)
       const manualClients = manualRaw ? JSON.parse(manualRaw) : []
       setClientDb([...authClients, ...manualClients])
-    } catch {
+    } catch (e: unknown) {
+      console.warn('[DevisBTP] clients non chargés :', e instanceof Error ? e.message : e)
+      toast.error('Impossible de charger vos clients enregistrés')
       setClientDb([])
     }
     setClientDbLoading(false)
@@ -1757,7 +1763,8 @@ export default function DevisFactureFormBTP({
       } catch { /* ignore */ }
     } else {
       try {
-        const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
+        // Route authentifiée (401 sans Bearer) : appel authentifié.
+        const res = await fetchAuthentifie(`/api/service-etapes?service_id=${serviceId}`)
         const json = await res.json()
         if (json.etapes?.length) {
           copiedEtapes = json.etapes.map((et: { id: string; ordre: number; designation: string }, i: number) => ({
