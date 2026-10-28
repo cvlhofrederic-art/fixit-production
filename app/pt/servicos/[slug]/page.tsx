@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getAllPageCombos, getPageCombo, SERVICES, BLOG_ARTICLES, type ServiceData } from '@/lib/data/seo-pages-data'
 import { METIERS_LIGADOS } from '@/lib/data/pt-metiers-ligados'
-import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
+import { paginaConcelhoDistrito, paginasConcelhoDistrito, servicosDistritoLigados, servicosDistritoRelacionados, urlServicoDistrito } from '@/lib/data/pt-servicos-distrito'
 import PaginaConcelhoServicoDistrito from '@/components/seo/PaginaConcelhoServicoDistrito'
 import { BotoesContacto } from '@/components/seo/servico-distrito-partilhado'
 import { servicosConcelhoLigados } from '@/lib/data/pt-servicos-concelho'
@@ -87,13 +87,17 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const avis = avisPara(service.slug, city.slug)
   const ligados = METIERS_LIGADOS[service.slug] ?? []
   const otherServices = ligados.map(slug => SERVICES.find(s => s.slug === slug)).filter((s): s is ServiceData => Boolean(s))
-  // Pages de district du même distrito liées à ce métier (ex. telhador → limpeza de telhados, distrito do Porto).
+  // Pages de district liées à ce métier qui couvrent le distrito de la ville (ex. telhador → limpeza de telhados ; distritos do
+  // Porto, Braga et Aveiro depuis le 28/10/2026).
   const paginasDistrito = servicosDistritoLigados(service.slug, city.distrito)
   // Pages de service propres à ce concelho et liées à ce métier (ex. jardineiro em Águeda → limpeza de terrenos em Águeda).
   const paginasConcelho = servicosConcelhoLigados(service.slug, city.slug)
   // Sections locales vérifiées de ce métier dans cette ville (CityData.serviceCityOverrides), quand elles existent,
   // avec leurs sources et les réponses de FAQ propres à la ville.
   const localOverride = city.serviceCityOverrides?.[service.slug]
+  // Pages de district liées en plus par ce seul couple métier x ville (ex. poda-arvores-agueda → limpeza de telhados), dans
+  // « Serviços relacionados ».
+  const distritoRelacionados = servicosDistritoRelacionados(localOverride?.servicosDistrito, city.distrito)
   const secoesLocais = localOverride?.secoes ?? []
   const fontesLocais = localOverride?.fontes ?? []
   const respostaFaq = (question: string, answer: string) => localOverride?.respostas?.[question] ?? replaceCity(answer)
@@ -415,7 +419,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                 className="inline-flex items-center gap-2 p-4 rounded-xl border border-border/50 hover:border-yellow hover:bg-yellow/5 transition-all group"
               >
                 <span className="text-xl">{pd.icon}</span>
-                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(pd.distrito)}` : `${pd.nome} ${emConcelho(city.name)}`}</span>
+                <span className="font-semibold text-dark group-hover:text-yellow transition-colors">{urlServicoDistrito(pd, city.slug) === `/pt/servicos/${pd.slug}/` ? `${pd.nome} no distrito ${nomeDistrito(city.distrito)}` : `${pd.nome} ${emConcelho(city.name)}`}</span>
               </Link>
             ))}
           </div>
@@ -474,6 +478,21 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
                 <span className="block text-sm text-text-muted mt-1">em {city.name}</span>
               </Link>
             ))}
+            {/* Page de district : même carte, lieu au nom du distrito (page concelho si des chantiers l'ont ouverte). */}
+            {distritoRelacionados.map(pd => {
+              const href = urlServicoDistrito(pd, city.slug)
+              return (
+                <Link
+                  key={pd.slug}
+                  href={href}
+                  className="p-6 bg-white rounded-2xl border border-border/50 hover:border-yellow hover:shadow-md transition-all group text-center"
+                >
+                  <span className="text-3xl block mb-3">{pd.icon}</span>
+                  <span className="font-display font-bold text-dark group-hover:text-yellow transition-colors">{pd.nome}</span>
+                  <span className="block text-sm text-text-muted mt-1">{href === `/pt/servicos/${pd.slug}/` ? `no distrito ${nomeDistrito(city.distrito)}` : emConcelho(city.name)}</span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       </section>

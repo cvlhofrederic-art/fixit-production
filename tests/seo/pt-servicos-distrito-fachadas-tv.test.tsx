@@ -7,7 +7,8 @@
 // - aucun prix (devis gratuit, facteurs sans chiffre), délai de visite seulement depuis data/seo/local-proof.json ;
 // - titre et description dans les longueurs, un seul H1, JSON-LD Service + BreadcrumbList seulement ;
 // - liens croisés entre les trois pages de district, et depuis les hubs, la grille et les pages ville des metiersLigados ;
-// - lastmod propre : seules les pages qui gagnent un lien changent de date.
+// - lastmod propre : seules les pages qui gagnent un lien changent de date ;
+// - zone (28/10/2026) : distritos do Porto, Braga e Aveiro, dans le texte et dans areaServed, sans liste de concelhos.
 
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
@@ -31,7 +32,7 @@ import { CITIES } from '@/lib/data/seo-pages-data'
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { comPrecoCapoto, getAllPtSitemapUrls, sitemapsPt } from '@/lib/sitemap-pt-pages'
-import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_PAGINAS_DISTRITO, DATA_PAGINAS_FACHADAS_TV } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_DISTRITO, DATA_LIGACOES_FACHADAS_TV, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
 import { precosPara, prazoDistritoPara } from '@/lib/seo/pt-provas-locais'
 import { classer } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
@@ -44,7 +45,7 @@ const caminho = (s: { slug: string }) => `/pt/servicos/${s.slug}/`
 const liens = (c: HTMLElement) => Array.from(c.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '')
 const params = (slug: string) => ({ params: Promise.resolve({ slug }) })
 const textes = (s: ServicoDistrito) =>
-  JSON.stringify(Object.fromEntries(Object.entries(s).filter(([k]) => !['dataModificacao', 'dataLigacoes', 'metiersLigados', 'slug'].includes(k))))
+  JSON.stringify(Object.fromEntries(Object.entries(s).filter(([k]) => !['dataModificacao', 'dataLigacoes', 'dataLigacoesGrelha', 'metiersLigados', 'slug'].includes(k))))
 
 describe('données : faits confirmés seulement', () => {
   it('ordre des pages de district et slugs connus de l’audit', () => {
@@ -157,20 +158,20 @@ describe.each(PAGINAS)('$servico.slug : métadonnées et rendu', ({ servico, Pag
     expect(c.querySelector('#precos')).toBeNull()
     expect(c.querySelector('#chantiers')).toBeNull()
     expect(c.textContent).not.toMatch(/€/)
-    expect(prazoDistritoPara('Porto', servico.slug)?.visita_horas_max).toBe(48)
+    expect(prazoDistritoPara(servico.distritos, servico.slug)?.visita_horas_max).toBe(48)
     expect(c.querySelector('#prazos')?.textContent).toContain('Visita em 48 horas, no máximo.')
     expect(c.textContent).toContain(`Orçamento grátis`)
     expect(c.textContent).toContain(TELEFONE_PT_TEXTE)
   })
 
-  it('JSON-LD : Service fourni par #business sur le Distrito do Porto et fil d’Ariane, rien d’interdit', () => {
+  it('JSON-LD : Service fourni par #business sur les distritos do Porto, de Braga et de Aveiro et fil d’Ariane, rien d’interdit', () => {
     const c = render(Pagina()).container
     const scripts = c.querySelectorAll('script[type="application/ld+json"]')
     expect(scripts).toHaveLength(1)
     const graphe = JSON.parse(scripts[0].textContent ?? '{}')['@graph'] as Array<Record<string, unknown>>
     expect(graphe.map((n) => n['@type'])).toEqual(['Service', 'BreadcrumbList'])
     expect(graphe[0]).toMatchObject({ provider: { '@id': ENTITE_PT.id }, url: `${BASE}${caminho(servico)}`, name: servico.h1, serviceType: servico.tipoServico })
-    expect(graphe[0].areaServed).toEqual({ '@type': 'AdministrativeArea', name: 'Distrito do Porto' })
+    expect(graphe[0].areaServed).toEqual(['Distrito do Porto', 'Distrito de Braga', 'Distrito de Aveiro'].map((name) => ({ '@type': 'AdministrativeArea', name })))
     expect(JSON.stringify(graphe)).not.toMatch(/FAQPage|HowTo|LocalBusiness|EmergencyService|AggregateRating|"Review"|Offer|PriceSpecification/)
     const fil = graphe[1] as { itemListElement: Array<{ item: string }> }
     expect(fil.itemListElement.map((i) => i.item)).toEqual([`${BASE}/pt/`, `${BASE}/pt/servicos/`, `${BASE}${caminho(servico)}`])
@@ -181,8 +182,14 @@ describe.each(PAGINAS)('$servico.slug : métadonnées et rendu', ({ servico, Pag
     const questions = Array.from(c.querySelectorAll('#perguntas details summary span:first-child')).map((q) => q.textContent)
     expect(questions).toEqual(servico.faqs.map((f) => f.pergunta))
     expect(new Set(questions).size).toBe(questions.length)
-    const cites = CITIES.filter((city) => (c.textContent ?? '').includes(city.name)).map((city) => city.name)
-    expect(cites.sort()).toEqual(['Marco de Canaveses', 'Porto'])
+    // Hors JSON-LD : le siège, et Porto, Braga, Aveiro seulement dans la zone (« Porto, Braga e Aveiro », trois fois au plus).
+    c.querySelector('script')?.remove()
+    const texte = c.textContent ?? ''
+    expect(texte.split('Porto, Braga e Aveiro').length - 1).toBeGreaterThanOrEqual(1)
+    expect(texte.split('Porto, Braga e Aveiro').length - 1).toBeLessThanOrEqual(3)
+    const horsZona = texte.split('Porto, Braga e Aveiro').join(' ')
+    expect(CITIES.filter((city) => horsZona.includes(city.name)).map((city) => city.name)).toEqual(['Marco de Canaveses'])
+    expect(texte).not.toMatch(/distrito do Porto/)
   })
 
   it('liens croisés : les deux autres pages de district, et seulement des pages publiées', () => {
@@ -198,12 +205,12 @@ describe.each(PAGINAS)('$servico.slug : métadonnées et rendu', ({ servico, Pag
     for (const h of internes) expect(publiees.has(`${BASE}${h.split('#')[0]}`), h).toBe(true)
   })
 
-  it('sitemap : fichier servicos seulement, lastmod = date du contenu des deux pages', () => {
+  it('sitemap : fichier servicos seulement, lastmod = date du contenu des deux pages (zone étendue le 28/10/2026)', () => {
     const g = sitemapsPt(BASE)
     const cible = `${BASE}${caminho(servico)}`
     expect(Object.entries(g).filter(([, urls]) => urls.some((u) => u.url === cible)).map(([k]) => k)).toEqual(['servicos'])
-    expect(g.servicos.find((u) => u.url === cible)?.lastModified).toBe(DATA_PAGINAS_FACHADAS_TV)
-    expect(dataModificacaoDistrito(servico)).toBe(DATA_PAGINAS_FACHADAS_TV)
+    expect(g.servicos.find((u) => u.url === cible)?.lastModified).toBe(DATA_ZONA_DISTRITOS)
+    expect(dataModificacaoDistrito(servico)).toBe(DATA_ZONA_DISTRITOS)
   })
 })
 
@@ -211,13 +218,17 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
   const g = sitemapsPt(BASE)
   const date = (chemin: string) => Object.values(g).flat().find((u) => u.url === `${BASE}${chemin}`)?.lastModified
   const PORTO = CITIES.filter((c) => c.distrito === 'Porto')
+  // Villes de la grille des distritos de Braga et de Aveiro : Braga, Aveiro, Ovar, Águeda.
+  const BRAGA_AVEIRO = CITIES.filter((c) => c.distrito === 'Braga' || c.distrito === 'Aveiro')
 
   it('metiersLigados : fachadas sur pintor, impermeabilizacao, pedreiro, isolamento-termico, limpeza-condominio ; trabalhos verticais sur pintor et impermeabilizacao', () => {
     expect(RENOVACAO_DE_FACHADAS.metiersLigados).toEqual(['pintor', 'impermeabilizacao', 'pedreiro', 'isolamento-termico', 'limpeza-condominio'])
     expect(TRABALHOS_VERTICAIS.metiersLigados).toEqual(['pintor', 'impermeabilizacao'])
     expect(servicosDistritoLigados('telhador', 'Porto').map((s) => s.slug)).toEqual(['limpeza-de-telhados'])
     expect(servicosDistritoLigados('impermeabilizacao', 'Porto').map((s) => s.slug)).toEqual(['limpeza-de-telhados', 'renovacao-de-fachadas', 'trabalhos-verticais'])
-    expect(servicosDistritoLigados('pintor', 'Braga')).toEqual([])
+    expect(servicosDistritoLigados('pintor', 'Braga').map((s) => s.slug)).toEqual(['renovacao-de-fachadas', 'trabalhos-verticais'])
+    expect(servicosDistritoLigados('pedreiro', 'Aveiro').map((s) => s.slug)).toEqual(['renovacao-de-fachadas'])
+    expect(BRAGA_AVEIRO.map((c) => c.slug).sort((a, b) => a.localeCompare(b))).toEqual(['agueda', 'aveiro', 'braga', 'ovar'])
   })
 
   it('/pt/servicos/ et le plan du site lient les deux pages', () => {
@@ -229,13 +240,13 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
     }
   })
 
-  it('la page limpeza de telhados lie les deux pages ; son lastmod avance par la date de ses cartes de liens, pas celle de ses textes', () => {
+  it('la page limpeza de telhados lie les deux pages ; son lastmod = la plus récente de ses textes et de ses cartes de liens', () => {
     const l = liens(render(LimpezaDeTelhadosPage()).container)
     for (const { servico } of PAGINAS) expect(l).toContain(caminho(servico))
-    // Date des textes repris sur les pages concelho inchangée ; les cartes ont leur propre date (lastmod de la page de district).
-    expect(LIMPEZA_DE_TELHADOS.dataModificacao).toBe(DATA_PAGINAS_DISTRITO)
+    // Textes (repris sur les pages concelho) : zone du 28/10/2026 ; cartes de liens : leur propre date (page de district seule).
+    expect(LIMPEZA_DE_TELHADOS.dataModificacao).toBe(DATA_ZONA_DISTRITOS)
     expect(LIMPEZA_DE_TELHADOS.dataModificacaoLigacoes).toBe(DATA_LIGACOES_FACHADAS_TV)
-    expect(date('/pt/servicos/limpeza-de-telhados/')).toBe([DATA_PAGINAS_DISTRITO, DATA_LIGACOES_FACHADAS_TV].sort((a, b) => a.localeCompare(b)).at(-1))
+    expect(date('/pt/servicos/limpeza-de-telhados/')).toBe([DATA_ZONA_DISTRITOS, DATA_LIGACOES_FACHADAS_TV].sort((a, b) => a.localeCompare(b)).at(-1))
   })
 
   it('fachadas : liens du plan et du guide (pintor, obras), aucun article de blog (prix non sourcés), carte trabalhos verticais fidèle', () => {
@@ -258,23 +269,25 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
       const c = await hub(slug)
       expect(liens(c), slug).toContain('/pt/servicos/renovacao-de-fachadas/')
       expect(c.textContent, slug).not.toContain('Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:')
-      // Hub isolamento-termico : prix réel du capoto dans sa réponse « Quanto custa… », plus récent que les liens.
-      expect(date(`/pt/perto-de-mim/${slug}/`), slug).toBe(comPrecoCapoto(slug, DATA_LIGACOES_FACHADAS_TV))
+      // Titre des pages de district (texte des liens) changé avec la zone le 28/10/2026 ; hub isolamento-termico : prix du capoto.
+      expect(date(`/pt/perto-de-mim/${slug}/`), slug).toBe(comPrecoCapoto(slug, DATA_ZONA_DISTRITOS))
     }
     expect(liens(await hub('pintor'))).toContain('/pt/servicos/trabalhos-verticais/')
     expect(liens(await hub('pedreiro'))).not.toContain('/pt/servicos/trabalhos-verticais/')
     expect((await hub('pedreiro')).textContent).toContain(RENOVACAO_DE_FACHADAS.chamadaHub)
-    expect((await hub('impermeabilizacao')).textContent).toContain('Trabalhos feitos pela equipa VITFIX no distrito do Porto:')
-    // Le hub telhador ne lie que limpeza de telhados : texte et date inchangés.
+    expect((await hub('impermeabilizacao')).textContent).toContain('Serviços da própria equipa VITFIX nos distritos do Porto, Braga e Aveiro:')
+    expect((await hub('impermeabilizacao')).textContent).not.toMatch(/distrito do Porto/)
+    // Le hub telhador ne lie que limpeza de telhados : sa phrase propre, et le titre du lien changé avec la zone.
     const telhador = await hub('telhador')
     expect(telhador.textContent).toContain('Lavagem do telhado, tratamento antimusgo e limpeza de caleiras feitos pela equipa VITFIX:')
+    expect(telhador.textContent).toContain(LIMPEZA_DE_TELHADOS.titulo)
     expect(liens(telhador)).not.toContain('/pt/servicos/renovacao-de-fachadas/')
-    expect(date('/pt/perto-de-mim/telhador/')).toBe(DATA_LIGACOES_DISTRITO)
+    expect(date('/pt/perto-de-mim/telhador/')).toBe(DATA_ZONA_DISTRITOS)
     const eletricista = await hub('eletricista')
     expect(liens(eletricista).some((h) => SERVICOS_DISTRITO.some((s) => h === caminho(s)))).toBe(false)
   })
 
-  it('grille du distrito do Porto : pages des metiersLigados liées et datées du jour des liens ; autres pages et autres distritos inchangés', async () => {
+  it('grille : pages des metiersLigados des trois distritos liées, datées du jour des liens dans leur distrito ; autres pages inchangées', async () => {
     const lienVers = async (slug: string, cible: string) => liens(render(await ServiceCityPage(params(slug))).container).includes(cible)
     expect(await lienVers('pintor-penafiel', '/pt/servicos/renovacao-de-fachadas/')).toBe(true)
     expect(await lienVers('pintor-penafiel', '/pt/servicos/trabalhos-verticais/')).toBe(true)
@@ -282,8 +295,11 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
     expect(await lienVers('pedreiro-porto', '/pt/servicos/trabalhos-verticais/')).toBe(false)
     expect(await lienVers('limpeza-condominio-matosinhos', '/pt/servicos/renovacao-de-fachadas/')).toBe(true)
     expect(await lienVers('telhador-porto', '/pt/servicos/renovacao-de-fachadas/')).toBe(false)
-    expect(await lienVers('pintor-braga', '/pt/servicos/renovacao-de-fachadas/')).toBe(false)
-    expect(await lienVers('pintor-aveiro', '/pt/servicos/trabalhos-verticais/')).toBe(false)
+    expect(await lienVers('pintor-braga', '/pt/servicos/renovacao-de-fachadas/')).toBe(true)
+    expect(await lienVers('pintor-aveiro', '/pt/servicos/trabalhos-verticais/')).toBe(true)
+    expect(await lienVers('limpeza-condominio-ovar', '/pt/servicos/renovacao-de-fachadas/')).toBe(true)
+    expect(await lienVers('isolamento-termico-agueda', '/pt/servicos/renovacao-de-fachadas/')).toBe(true)
+    expect(await lienVers('pedreiro-braga', '/pt/servicos/trabalhos-verticais/')).toBe(false)
     let liees = 0
     for (const city of PORTO) {
       for (const metier of ['pintor', 'impermeabilizacao', 'pedreiro', 'isolamento-termico', 'limpeza-condominio']) {
@@ -293,18 +309,31 @@ describe('maillage et dates des pages qui lient les nouvelles pages', () => {
       expect(date(`/pt/servicos/telhador-${city.slug}/`), `telhador-${city.slug}`).toBe(DATA_LIGACOES_DISTRITO)
     }
     expect(liees).toBe(90)
-    // Métiers sans lien de district dans le distrito do Porto, et métiers liés hors du distrito : date inchangée.
-    for (const chemin of ['/pt/servicos/canalizador-porto/', '/pt/servicos/eletricista-penafiel/', '/pt/servicos/pintor-braga/', '/pt/servicos/pedreiro-aveiro/']) {
-      expect(date(chemin), chemin).not.toBe(DATA_LIGACOES_FACHADAS_TV)
+    // Distritos de Braga et de Aveiro : liens ajoutés le 28/10/2026 (Águeda : plus récent que ses pages de service).
+    for (const city of BRAGA_AVEIRO) {
+      for (const metier of ['telhador', 'pintor', 'impermeabilizacao', 'pedreiro', 'isolamento-termico', 'limpeza-condominio']) {
+        expect(date(`/pt/servicos/${metier}-${city.slug}/`), `${metier}-${city.slug}`).toBe(DATA_ZONA_DISTRITOS)
+        liees++
+      }
+    }
+    expect(liees).toBe(90 + 24)
+    // Métiers sans lien de district : date inchangée.
+    for (const chemin of ['/pt/servicos/canalizador-porto/', '/pt/servicos/eletricista-penafiel/', '/pt/servicos/canalizador-braga/', '/pt/servicos/eletricista-aveiro/']) {
+      for (const d of [DATA_LIGACOES_FACHADAS_TV, DATA_ZONA_DISTRITOS]) expect(date(chemin), chemin).not.toBe(d)
     }
   })
 
-  it('pages ville du distrito do Porto : les trois pages de district, date des nouveaux liens ; Braga sans lien', async () => {
-    const lousada = liens(render(await CidadePage(params('lousada'))).container)
-    for (const s of SERVICOS_DISTRITO) expect(lousada, s.slug).toContain(caminho(s))
-    const braga = liens(render(await CidadePage(params('braga'))).container)
-    expect(braga.some((h) => SERVICOS_DISTRITO.some((s) => h === caminho(s)))).toBe(false)
-    for (const city of PORTO) expect(date(`/pt/cidade/${city.slug}/`), city.slug).toBe(DATA_LIGACOES_FACHADAS_TV)
-    expect(date('/pt/cidade/braga/')).not.toBe(DATA_LIGACOES_FACHADAS_TV)
+  it('pages ville des trois distritos : les trois pages de district, carte au nom du distrito de la ville, date de la zone', async () => {
+    for (const [slug, distrito] of [['lousada', 'do Porto'], ['braga', 'de Braga'], ['aveiro', 'de Aveiro'], ['ovar', 'de Aveiro'], ['agueda', 'de Aveiro']]) {
+      const c = render(await CidadePage(params(slug))).container
+      for (const s of SERVICOS_DISTRITO) {
+        expect(liens(c), `${slug} ${s.slug}`).toContain(caminho(s))
+        expect(c.textContent, `${slug} ${s.slug}`).toContain(`${s.nome} no distrito ${distrito}`)
+        expect(c.textContent, `${slug} ${s.slug}`).toContain(s.resumo)
+      }
+    }
+    // Résumé des cartes changé partout (zone), cartes ajoutées à Braga, Aveiro, Ovar et Águeda : les 22 pages ville.
+    expect(CITIES).toHaveLength(22)
+    for (const city of CITIES) expect(date(`/pt/cidade/${city.slug}/`), city.slug).toBe(DATA_ZONA_DISTRITOS)
   })
 })

@@ -8,7 +8,9 @@
 //
 // Zone : le prix est dit avec la zone de l'équipe. Le 27/10, seuls le distrito do Porto et le concelho d'Águeda étaient
 // confirmés, et Braga, Aveiro et Ovar recevaient une réponse sans prix. Le 28/10/2026, le propriétaire confirme les mêmes
-// prix à Braga, Aveiro et Ovar : les 22 villes de la grille affichent le prix, avec la zone élargie.
+// prix à Braga, Aveiro et Ovar : les 22 villes de la grille affichent le prix, avec la zone élargie. Le même jour, il confirme
+// que l'équipe intervient dans tous les concelhos des distritos do Porto, de Braga et de Aveiro, aux mêmes prix : la zone dite
+// avec le prix devient « Nos distritos do Porto, Braga e Aveiro » (DATA_ZONA_DISTRITOS), sans liste de concelhos.
 //
 // Affichage au consommateur, vérifié le 27/10/2026 sur les textes en vigueur :
 // - DL 138/90 (redação do DL 162/99), art. 1.º n.º 5 : le prix inclut « todos os impostos, taxas e outros encargos » ;
@@ -42,7 +44,7 @@ import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 import { METODOS_METIER } from '@/lib/data/pt-metodos'
 import provas from '@/data/seo/local-proof.json'
 import { comPrecoCapoto, sitemapsPt } from '@/lib/sitemap-pt-pages'
-import { DATA_PRECO_CAPOTO } from '@/lib/seo/pt-datas'
+import { DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
 import { precoPara } from '@/lib/seo/pt-provas-locais'
 
 const BASE = 'https://vitfix.io'
@@ -53,7 +55,7 @@ const PRECO = '53 a 58 € por m², sem IVA, com material e mão de obra'
 /** Prix avec IVA entre ses deux bornes : taxa reduzida (6 %) sur le bas, taxa normal (23 %) sur le haut. */
 const COM_IVA = 'entre 56,18 € e 71,34 € por m²'
 /** Zone confirmée de l'équipe VITFIX, dite avec le prix. */
-const ZONA = 'No distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica capoto (sistema ETICS)'
+const ZONA = 'Nos distritos do Porto, Braga e Aveiro, a equipa VITFIX aplica capoto (sistema ETICS)'
 /** Première phrase de la réponse et de la section des prix : prix sans IVA, puis avec IVA, dans la même phrase. */
 const PRIMEIRA_FRASE = `${ZONA} por ${PRECO}, ou seja, ${COM_IVA} com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026).`
 /** Verba 2.27 d'après le texte de la Lista I (informação vinculativa AT 29260). */
@@ -140,7 +142,9 @@ describe('prix réel du capoto (27/10/2026, mêmes prix à Braga, Aveiro et Ovar
       `SERVICES[isolamento-termico].faqs[${PERGUNTA}].answer`,
     ])
     for (const { origem, texto } of precosCapoto) {
-      expect(texto, origem).toMatch(/no distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX/i)
+      expect(texto, origem).toMatch(/nos distritos do Porto, Braga e Aveiro, a equipa VITFIX/i)
+      // Plus de liste de concelhos avec le prix (zone du 28/10/2026 : les trois distritos entiers).
+      expect(texto, origem).not.toMatch(/Ovar e Águeda|distrito do Porto e nos concelhos/i)
       expect(texto, origem).toContain(PRECO)
       expect(texto, origem).toMatch(/com IVA/i)
       expect(texto, origem).toContain(COM_IVA)
@@ -238,33 +242,34 @@ describe('prix réel du capoto (27/10/2026, mêmes prix à Braga, Aveiro et Ovar
     // articleBody (5 000 premiers caractères) : la section des prix y tient, au même prix que la page.
     expect(jsonLd).toContain(PRECO)
     expect(jsonLd).toContain(COM_IVA)
-    expect(jsonLd).toContain('"dateModified":"2026-10-28"')
+    expect(jsonLd).toContain(`"dateModified":"${DATA_ZONA_DISTRITOS}"`)
   })
 
   it(`article ${ARTIGO_HUMIDADE} : capoto au prix réel avec la zone et les trois cas d’IVA, autres prix de la section inchangés`, async () => {
     const { texte, jsonLd } = await renderPage(BlogArticlePage(params(ARTIGO_HUMIDADE)))
-    expect(texte).toContain(`Isolamento térmico pelo exterior (capoto): no distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica-o por ${PRECO}`)
+    expect(texte).toContain(`Isolamento térmico pelo exterior (capoto): nos distritos do Porto, Braga e Aveiro, a equipa VITFIX aplica-o por ${PRECO}`)
     expect(texte).toContain(`a que acresce o IVA aplicável à obra: 23%, 6% em certas obras, ou 6% sobre a mão de obra e 23% sobre os materiais (com IVA, ${COM_IVA})`)
     expect(texte).not.toContain('40€ e 80€')
     expect(texte).toContain('Tratamento de condensação (ventilação, extratores): entre 200€ e 800€.')
     expect(texte).toContain('Injeção contra capilaridade: entre 50€ e 100€ por metro linear.')
-    expect(jsonLd).toContain('"dateModified":"2026-10-28"')
+    expect(jsonLd).toContain(`"dateModified":"${DATA_ZONA_DISTRITOS}"`)
   })
 
-  it('dates : DATA_PRECO_CAPOTO sur les 22 pages et le hub isolamento-termico, dateModified des deux articles, rien d’autre', () => {
+  it('dates : la plus récente du prix (DATA_PRECO_CAPOTO) et de la zone (DATA_ZONA_DISTRITOS) sur les 22 pages et le hub, dateModified des deux articles', () => {
+    // Prix mis en production le 28/10/2026 (PR #571) ; zone : date à aligner sur sa propre mise en production. Liste complète
+    // des URL datées du jour de la zone : tests/seo/pt-zona-tres-distritos.test.tsx.
     expect(DATA_PRECO_CAPOTO).toBe('2026-10-28')
-    for (const slug of [ARTIGO_CAPOTO, ARTIGO_HUMIDADE]) expect(BLOG_ARTICLES.find((a) => a.slug === slug)?.dateModified, slug).toBe(DATA_PRECO_CAPOTO)
+    const attendue = [DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS].sort((a, b) => a.localeCompare(b)).at(-1)
+    for (const slug of [ARTIGO_CAPOTO, ARTIGO_HUMIDADE]) expect(BLOG_ARTICLES.find((a) => a.slug === slug)?.dateModified, slug).toBe(DATA_ZONA_DISTRITOS)
     const urls = Object.values(sitemapsPt(BASE)).flat()
-    const datadas = urls.filter((u) => u.lastModified === DATA_PRECO_CAPOTO).map((u) => u.url.replace(BASE, '')).sort((a, b) => a.localeCompare(b))
-    const attendues = [
+    const date = (chemin: string) => urls.find((u) => u.url === `${BASE}${chemin}`)?.lastModified
+    for (const chemin of [
       ...getAllPageCombos().filter((c) => c.service.slug === 'isolamento-termico').map((c) => `/pt/servicos/${c.slug}/`),
       '/pt/perto-de-mim/isolamento-termico/',
-      `/pt/blog/${ARTIGO_CAPOTO}/`,
-      `/pt/blog/${ARTIGO_HUMIDADE}/`,
-    ].sort((a, b) => a.localeCompare(b))
-    expect(datadas).toEqual(attendues)
+    ]) expect(date(chemin), chemin).toBe(attendue)
+    for (const slug of [ARTIGO_CAPOTO, ARTIGO_HUMIDADE]) expect(date(`/pt/blog/${slug}/`), slug).toBe(DATA_ZONA_DISTRITOS)
     // La date la plus récente l'emporte, pour isolamento-termico seulement.
-    expect(comPrecoCapoto('isolamento-termico', '2026-10-14')).toBe(DATA_PRECO_CAPOTO)
+    expect(comPrecoCapoto('isolamento-termico', '2026-10-14')).toBe(attendue)
     expect(comPrecoCapoto('isolamento-termico', '2099-01-01')).toBe('2099-01-01')
     expect(comPrecoCapoto('pintor', '2026-10-14')).toBe('2026-10-14')
   })

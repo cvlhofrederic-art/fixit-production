@@ -16,10 +16,10 @@
 // de build ; pas de changefreq ni de priority (ignorés par Google).
 
 import { type SitemapUrl } from './sitemap-helpers'
-import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR } from './seo/pt-datas'
+import { DATAS_PT, DATA_CORRECOES_FAQ, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR, DATA_ZONA_DISTRITOS } from './seo/pt-datas'
 import { METIERS_URGENCIA } from './seo/pt-meta'
 import { getAllPageCombos, BLOG_ARTICLES, CITIES, SERVICES } from './data/seo-pages-data'
-import { SERVICOS_DISTRITO, servicosDistritoLigados, paginasConcelhoDistrito, dataModificacaoDistrito, dataLigacoesServicos } from './data/pt-servicos-distrito'
+import { SERVICOS_DISTRITO, cobreDistrito, servicosDistritoLigados, servicosDistritoRelacionados, paginasConcelhoDistrito, dataModificacaoDistrito, dataLigacoesGrelha, dataLigacoesServicos } from './data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO, dataModificacaoConcelho } from './data/pt-servicos-concelho'
 
 export type GroupeSitemapPt = 'servicos' | 'hubs' | 'cidades' | 'blog' | 'paginas'
@@ -72,11 +72,12 @@ const PAGINAS_FASE_3 = new Set<string>([
 
 /**
  * Pages statiques modifiées après leur phase, avec leur propre date (prioritaire sur les ensembles ci-dessus) :
- * /pt/precos/pintor/, prix de façade retirés (décision du propriétaire du 23/10/2026), et /pt/precos/, dont la carte
- * pintor suit le nombre de lignes du guide (9 → 8 services).
+ * /pt/precos/pintor/, prix de façade retirés (décision du propriétaire du 23/10/2026), puis phrase qui situe la page
+ * renovação de fachadas dans les trois distritos (DATA_ZONA_DISTRITOS) ; /pt/precos/, dont la carte pintor suit le nombre
+ * de lignes du guide (9 → 8 services), inchangée depuis.
  */
 const PAGINAS_DATA_PROPRIA: Readonly<Record<string, string>> = {
-  '/pt/precos/pintor/': DATA_PRECOS_PINTOR,
+  '/pt/precos/pintor/': DATA_ZONA_DISTRITOS,
   '/pt/precos/': DATA_PRECOS_PINTOR,
 }
 
@@ -85,6 +86,9 @@ const PAGINAS_LIGACOES_DISTRITO = new Set<string>(['/pt/servicos/', '/pt/mapa-do
 
 /** Concelhos qui ont des pages de service propres (Águeda) : leurs pages métier x ville et leur page ville ont changé avec elles. */
 const CIDADES_PAGINAS_CONCELHO = new Set(SERVICOS_CONCELHO.map(s => s.cidade))
+
+/** La plus récente de ces dates (AAAA-MM-JJ), les vides ignorées. */
+const maisRecente = (datas: string[]): string => [...datas].filter(Boolean).sort((a, b) => a.localeCompare(b)).at(-1) ?? ''
 
 /** Date d'une page métier x ville hors Águeda et hors liens de district : FAQ poda-arvores corrigée, sinon lot 1 ou groupe. */
 function dataMetier(metier: string, dataGrupo: string): string {
@@ -107,10 +111,11 @@ function dataHub(metier: string): string {
 
 /**
  * Métier isolamento-termico : sa réponse « Quanto custa aplicar capoto por m²? » porte le prix réel du capoto
- * (DATA_PRECO_CAPOTO), affichée sur ses pages métier x ville et sur son hub. La date la plus récente l'emporte.
+ * (DATA_PRECO_CAPOTO) et la zone de l'équipe (DATA_ZONA_DISTRITOS : « Nos distritos do Porto, Braga e Aveiro »), affichée sur
+ * ses pages métier x ville et sur son hub. La date la plus récente l'emporte.
  */
 export function comPrecoCapoto(metier: string, data: string): string {
-  return metier === 'isolamento-termico' && DATA_PRECO_CAPOTO > data ? DATA_PRECO_CAPOTO : data
+  return metier === 'isolamento-termico' ? maisRecente([data, DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS]) : data
 }
 
 /** Lot 1 (phase 3) : date du lot 1 pour une page d'un métier d'urgence, sinon la date du groupe. */
@@ -118,29 +123,60 @@ export function dataLote1(metier: string, dataGrupo: string): string {
   return METIERS_URGENCIA.has(metier) ? DATA_FASE_3_LOT_1 : dataGrupo
 }
 
-/**
- * Date d'une page qui lie des services de district dans un concelho (page métier x ville : ses services liés ; page ville :
- * tous les services du distrito, valeur par défaut) : la date d'ajout des liens vers le plus récent de ces services (chacun
- * a la sienne, `dataLigacoes`), ou la date d'OUVERTURE de la page concelho vers laquelle le lien pointe désormais. Une page
- * qui ne lie que limpeza de telhados garde ainsi sa date quand une autre page de district est publiée. Un chantier ajouté
- * plus tard à une page concelho ouverte ne change pas ces pages : leur lien et son ancre restent les mêmes.
- */
-export function dataLigacoesConcelho(cidade: string, servicos?: string[]): string {
-  const escolhidos = SERVICOS_DISTRITO.filter((s) => !servicos || servicos.includes(s.slug))
-  const aberturas = paginasConcelhoDistrito()
+/** Dates d'OUVERTURE des pages concelho de ces services dans ce concelho : les liens pointent alors vers elles. */
+function aberturasConcelho(cidade: string, servicos?: string[]): string[] {
+  return paginasConcelhoDistrito()
     .filter((p) => p.city.slug === cidade && (!servicos || servicos.includes(p.servico.slug)))
     .map((p) => p.dataAbertura)
-  return [dataLigacoesServicos(escolhidos), ...aberturas].sort((a, b) => a.localeCompare(b)).at(-1) ?? dataLigacoesServicos(escolhidos)
 }
 
 /**
- * Date d'une page métier x ville : celle des pages de service du concelho quand la ville en a (Águeda) ; la date des liens
- * quand la page lie une page de district (même métier lié, même distrito) ; sinon correction poda-arvores, lot 1 ou groupe.
+ * Date d'une page ville qui lie des services de district (tous par défaut ; en pratique ceux qui couvrent son distrito) :
+ * la dernière modification de ces liens ou de leur texte (titre et résumé des pages, champ `dataLigacoes`), ou la date
+ * d'OUVERTURE de la page concelho vers laquelle le lien pointe désormais. Un chantier ajouté plus tard à une page concelho
+ * ouverte ne change pas ces pages : leur lien et son ancre restent les mêmes.
+ */
+export function dataLigacoesConcelho(cidade: string, servicos?: string[]): string {
+  const escolhidos = SERVICOS_DISTRITO.filter((s) => !servicos || servicos.includes(s.slug))
+  return maisRecente([dataLigacoesServicos(escolhidos), ...aberturasConcelho(cidade, servicos)])
+}
+
+/**
+ * Date d'une page métier x ville qui lie ces services de district : le jour où ces liens sont apparus sur les pages de la
+ * grille du distrito de la ville (champ `dataLigacoesGrelha`, le plus récent des services liés), ou la date d'ouverture de la
+ * page concelho visée. L'ancre ne reprend que le nom du service et le distrito de la ville : un changement de titre ou de
+ * zone des pages de district ne change pas ces pages (celles du distrito do Porto gardent leur date le 28/10/2026). Une page
+ * qui ne lie que limpeza de telhados garde sa date quand une autre page de district est publiée.
+ */
+export function dataLigacoesGrelhaConcelho(cidade: string, servicos: string[]): string {
+  const distrito = CITIES.find((c) => c.slug === cidade)?.distrito ?? ''
+  const escolhidos = SERVICOS_DISTRITO.filter((s) => servicos.includes(s.slug))
+  return maisRecente([dataLigacoesGrelha(escolhidos, distrito), ...aberturasConcelho(cidade, servicos)])
+}
+
+/**
+ * Date d'une page métier x ville : la date des liens quand la page lie une page de district (métier lié, distrito couvert par
+ * la page) ; à Águeda, la plus récente de cette date et de celle des pages de service du concelho ; sinon correction
+ * poda-arvores, lot 1 ou groupe. Les liens de district propres à la page (poda-arvores-agueda, 28/10/2026) l'emportent
+ * s'ils sont plus récents.
  */
 function dataPaginaServico(metier: string, cidade: string, distrito: string): string {
-  if (CIDADES_PAGINAS_CONCELHO.has(cidade)) return DATA_PAGINAS_AGUEDA
   const ligados = servicosDistritoLigados(metier, distrito)
-  return ligados.length ? dataLigacoesConcelho(cidade, ligados.map((s) => s.slug)) : dataMetier(metier, DATAS_PT.servicos)
+  const ligacoes = ligados.length ? dataLigacoesGrelhaConcelho(cidade, ligados.map((s) => s.slug)) : ''
+  const proprias = dataLigacoesDistritoProprias(metier, cidade, distrito)
+  if (CIDADES_PAGINAS_CONCELHO.has(cidade)) return maisRecente([DATA_PAGINAS_AGUEDA, ligacoes, proprias])
+  return maisRecente([ligacoes || dataMetier(metier, DATAS_PT.servicos), proprias])
+}
+
+/**
+ * Liens propres à un couple métier x ville vers des pages de district (CityData.serviceCityOverrides[métier].servicosDistrito,
+ * ex. poda-arvores-agueda → limpeza de telhados) : jour de leur ajout (`dataServicosDistrito`), ou date d'ouverture de la page
+ * concelho visée. Vide sans tels liens.
+ */
+function dataLigacoesDistritoProprias(metier: string, cidade: string, distrito: string): string {
+  const override = CITIES.find((c) => c.slug === cidade)?.serviceCityOverrides?.[metier]
+  const servicos = servicosDistritoRelacionados(override?.servicosDistrito, distrito).map((s) => s.slug)
+  return servicos.length ? maisRecente([override?.dataServicosDistrito ?? '', ...aberturasConcelho(cidade, servicos)]) : ''
 }
 
 /**
@@ -152,7 +188,7 @@ function dataPaginaEstatica(path: string): string {
   const propria = PAGINAS_DATA_PROPRIA[path]
   if (propria) return propria
   const ligacoes = dataLigacoesServicos(SERVICOS_DISTRITO)
-  if (path === '/pt/mapa-do-site/') return [ligacoes, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1) ?? ligacoes
+  if (path === '/pt/mapa-do-site/') return maisRecente([ligacoes, DATA_PAGINAS_AGUEDA])
   if (PAGINAS_LIGACOES_DISTRITO.has(path)) return ligacoes
   if (PAGINAS_FASE_3.has(path)) return DATA_FASE_3
   return PAGINAS_FASE_2.has(path) ? DATA_FASE_2 : DATAS_PT.paginas
@@ -179,12 +215,14 @@ export function sitemapsPt(baseUrl: string): Record<GroupeSitemapPt, SitemapUrl[
   // isolamento-termico : prix réel du capoto dans sa réponse « Quanto custa… ».
   const hubs = SERVICES.map(service => url(`/pt/perto-de-mim/${service.slug}/`, comPrecoCapoto(service.slug, dataHub(service.slug))))
 
-  // La page ville d'un concelho qui a des pages de service propres (freguesias corrigées, section qui les lie) en prend la
-  // date ; les pages ville d'un distrito qui a des services de district les lient (carte « Serviços disponíveis ») : date des liens.
+  // Les pages ville d'un distrito couvert par des services de district les lient (carte « Serviços disponíveis ») : date des
+  // liens ; la page ville d'un concelho qui a des pages de service propres (Águeda : freguesias corrigées, section qui les
+  // lie) prend la plus récente de cette date et de celle de ses pages.
   const dataCidade = (city: { slug: string; distrito: string }): string => {
-    if (CIDADES_PAGINAS_CONCELHO.has(city.slug)) return DATA_PAGINAS_AGUEDA
-    const doDistrito = SERVICOS_DISTRITO.filter((s) => s.distrito === city.distrito).map((s) => s.slug)
-    return doDistrito.length ? dataLigacoesConcelho(city.slug, doDistrito) : DATAS_PT.cidades
+    const doDistrito = SERVICOS_DISTRITO.filter((s) => cobreDistrito(s, city.distrito)).map((s) => s.slug)
+    const ligacoes = doDistrito.length ? dataLigacoesConcelho(city.slug, doDistrito) : ''
+    if (CIDADES_PAGINAS_CONCELHO.has(city.slug)) return maisRecente([DATA_PAGINAS_AGUEDA, ligacoes])
+    return ligacoes || DATAS_PT.cidades
   }
   const cidades = [url('/pt/cidade/', DATAS_PT.cidades), ...CITIES.map(city => url(`/pt/cidade/${city.slug}/`, dataCidade(city)))]
 

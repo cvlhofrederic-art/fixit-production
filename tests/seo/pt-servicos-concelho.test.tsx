@@ -30,7 +30,8 @@ import { BLOG_ARTICLES, CITIES, SERVICES, getAllPageCombos } from '@/lib/data/se
 import { DESCRICAO_MAX, SUFIXO_MARCA, TITULO_MAX } from '@/lib/seo/pt-meta'
 import { ENTITE_PT, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
 import { sitemapsPt } from '@/lib/sitemap-pt-pages'
-import { DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO } from '@/lib/seo/pt-datas'
+import { DATA_LIGACOES_AGUEDA_TELHADOS, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
+import { SERVICOS_DISTRITO, servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
 import { classer, SERVICOS_CONCELHO_CIDADES } from '../../scripts/seo/pt-audit/lib/classer.mjs'
 
 const BASE = 'https://vitfix.io'
@@ -64,7 +65,9 @@ describe('données des pages de concelho', () => {
       expect(CITIES.some((c) => c.slug === s.cidade), s.cidade).toBe(true)
       expect(classer(`/pt/servicos/${s.slug}/`)).toEqual({ groupe: 'servicos-concelho', metier: s.slug, ville: s.cidade })
       for (const m of s.metiersLigados) expect(SERVICES.some((x) => x.slug === m), m).toBe(true)
-      expect(s.dataModificacao).toBe(DATA_PAGINAS_AGUEDA)
+      // Publiées le 23/10/2026 ; carte vers limpeza de telhados ajoutée le 28/10/2026.
+      expect(s.dataModificacao).toBe(DATA_LIGACOES_AGUEDA_TELHADOS)
+      expect(DATA_LIGACOES_AGUEDA_TELHADOS > DATA_PAGINAS_AGUEDA).toBe(true)
     }
   })
 
@@ -98,10 +101,11 @@ describe('données des pages de concelho', () => {
     for (const f of poda?.fontes ?? []) expect(f.url, f.nome).toMatch(officiel)
   })
 
-  it('chaque lien de la page vise une page publiée (grille, page de concelho, page ville ou article)', () => {
+  it('chaque lien de la page vise une page publiée (grille, page de concelho, page de district, page ville ou article)', () => {
     const publiees = new Set([
       ...getAllPageCombos().map((c) => `/pt/servicos/${c.slug}/`),
       ...SERVICOS_CONCELHO.map((s) => `/pt/servicos/${s.slug}/`),
+      ...SERVICOS_DISTRITO.map((s) => `/pt/servicos/${s.slug}/`),
       ...CITIES.map((c) => `/pt/cidade/${c.slug}/`),
       ...BLOG_ARTICLES.map((a) => `/pt/blog/${a.slug}/`),
     ])
@@ -176,18 +180,24 @@ describe.each(PAGINAS)('/pt/servicos/$servico.slug/', ({ servico, pagina, metada
 })
 
 describe('sitemap et liens entrants', () => {
-  it('chaque page de concelho est dans le fichier servicos avec sa date ; la page ville et les 21 pages métier du concelho en prennent la date', () => {
+  it('chaque page de concelho est dans le fichier servicos avec sa date ; la page ville et les 21 pages métier du concelho en prennent la date, ou une plus récente', () => {
     const { servicos, cidades } = sitemapsPt(BASE)
     for (const s of SERVICOS_CONCELHO) {
       const entrees = Object.values(sitemapsPt(BASE)).flat().filter((u) => u.url === `${BASE}/pt/servicos/${s.slug}/`)
       expect(entrees).toHaveLength(1)
       expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/${s.slug}/`)?.lastModified).toBe(s.dataModificacao)
-      // Sauf isolamento-termico, dont la FAQ a reçu le prix réel du capoto après (DATA_PRECO_CAPOTO, 27/10/2026).
+      // Sauf isolamento-termico, dont la FAQ a reçu le prix réel du capoto (27/10/2026) puis la zone des trois distritos, et les
+      // métiers liés à une page de district, qu'Águeda (distrito de Aveiro) lie depuis l'extension de la zone (28/10/2026), et
+      // poda-arvores, dont la page d'Águeda lie limpeza de telhados depuis le 28/10/2026 (DATA_LIGACOES_AGUEDA_TELHADOS).
+      const plusRecente = (...d: string[]) => d.sort((a, b) => a.localeCompare(b)).at(-1)
       for (const m of SERVICES) {
-        const attendue = m.slug === 'isolamento-termico' ? DATA_PRECO_CAPOTO : DATA_PAGINAS_AGUEDA
+        const attendue = m.slug === 'isolamento-termico' ? plusRecente(DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS)
+          : servicosDistritoLigados(m.slug, 'Aveiro').length ? plusRecente(DATA_PAGINAS_AGUEDA, DATA_ZONA_DISTRITOS)
+            : m.slug === 'poda-arvores' ? plusRecente(DATA_PAGINAS_AGUEDA, DATA_LIGACOES_AGUEDA_TELHADOS) : DATA_PAGINAS_AGUEDA
         expect(servicos.find((u) => u.url === `${BASE}/pt/servicos/${m.slug}-${s.cidade}/`)?.lastModified, m.slug).toBe(attendue)
       }
-      expect(cidades.find((u) => u.url === `${BASE}/pt/cidade/${s.cidade}/`)?.lastModified).toBe(DATA_PAGINAS_AGUEDA)
+      // La page ville lie aussi les trois pages de district depuis le 28/10/2026.
+      expect(cidades.find((u) => u.url === `${BASE}/pt/cidade/${s.cidade}/`)?.lastModified).toBe(plusRecente(DATA_PAGINAS_AGUEDA, DATA_ZONA_DISTRITOS))
     }
   })
 

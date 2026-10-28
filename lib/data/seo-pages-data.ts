@@ -3,6 +3,8 @@
 // Cities × Services = Landing Pages
 // ============================================================
 
+import { DATA_LIGACOES_AGUEDA_TELHADOS, DATA_ZONA_DISTRITOS } from '@/lib/seo/pt-datas'
+
 export interface NotableFreguesia {
   name: string
   context: string
@@ -20,6 +22,13 @@ export interface ServiceCityOverride {
   equipaPropria?: boolean
   /** Liste de prestations propre à cette ville (remplace `features` du métier) : seulement les prestations confirmées. */
   features?: string[]
+  /**
+   * Pages de district (slugs de lib/data/pt-servicos-distrito.ts) liées en plus dans « Serviços relacionados », par ce seul
+   * couple métier x ville, quand le métier n'est pas dans leurs `metiersLigados` (ex. poda-arvores-agueda → limpeza de telhados).
+   */
+  servicosDistrito?: string[]
+  /** Jour de l'ajout de ces liens (AAAA-MM-JJ, lib/seo/pt-datas.ts) : lastmod de la page s'il est plus récent. */
+  dataServicosDistrito?: string
 }
 
 export interface CityData {
@@ -738,6 +747,10 @@ export const CITIES: CityData[] = [
       'poda-arvores': {
         // Décision du propriétaire du 22/10/2026 (cette page seulement) : présentée comme le travail de son équipe, avec son numéro.
         equipaPropria: true,
+        // 28/10/2026 : lien vers la page de district limpeza de telhados (arbres près des maisons, feuilles dans les caleiras ;
+        // l'équipe travaille dans tout le distrito de Aveiro), dans « Serviços relacionados » de cette seule page.
+        servicosDistrito: ['limpeza-de-telhados'],
+        dataServicosDistrito: DATA_LIGACOES_AGUEDA_TELHADOS,
         // Prestations confirmées (21-22/10/2026) ; « plataforma », « tratamento fitossanitário » et « relatório técnico para câmara »,
         // non confirmés, ne sont pas repris ici (règle 0.2).
         features: [
@@ -1466,11 +1479,11 @@ export const SERVICES: ServiceData[] = [
       // matériel et main-d'œuvre compris, sans IVA. Affichage au consommateur : prix « incluindo taxas e impostos » (DL 138/90,
       // art. 1.º n.º 5 et 6.º n.º 1 ; DL 57/2008, art. 10.º c)) ; le taux d'IVA dépend de l'obra (CIVA art. 18.º, Lista I,
       // verbas 2.23 et 2.27), d'où le prix avec IVA donné entre ses deux bornes (6 % et 23 %), dès la première phrase. Zone
-      // de l'équipe dite dans la réponse : distrito do Porto et concelhos de Braga, Aveiro, Ovar et Águeda (mêmes prix à
-      // Braga, Aveiro et Ovar confirmés par le propriétaire le 28/10/2026 : plus de réponse sans prix dans ces trois villes).
+      // de l'équipe dite dans la réponse : distritos do Porto, Braga e Aveiro, tous leurs concelhos (zone et mêmes prix
+      // partout confirmés par le propriétaire le 28/10/2026 ; plus de réponse sans prix à Braga, Aveiro et Ovar).
       // Verba 2.27 citée d'après le texte de la Lista I (informação vinculativa AT 29260 du 29/01/2026). Journal du 27/10/2026
       // (prix) et du 28/10/2026 (zone).
-      { question: 'Quanto custa aplicar capoto por m²?', answer: 'No distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.' },
+      { question: 'Quanto custa aplicar capoto por m²?', answer: 'Nos distritos do Porto, Braga e Aveiro, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.' },
       // Délai de retour (« 6 a 10 anos », calculé sur l'ancienne fourchette 40-80 €/m²) retiré le 27/10/2026 : il contredisait le
       // prix réel affiché juste au-dessus, comme la phrase équivalente retirée de l'article capoto.
       { question: 'O isolamento térmico paga-se a si próprio?', answer: 'Sim, o isolamento térmico pode reduzir a fatura energética entre 25% e 40%. Além disso, valoriza o imóvel ao melhorar a sua classe energética, o que é cada vez mais importante na compra e venda de casas em Portugal.' },
@@ -2545,8 +2558,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     icon: '💧',
     datePublished: '2026-03-18',
     // Prix de façade retirés (décision du propriétaire du 23/10/2026, « Pas de prix, devis ») ; prix réel du capoto à la place
-    // de la fourchette 40-80 € (27/10/2026) : à aligner sur le jour de la mise en production (docs/seo/journal-pt.md).
-    dateModified: '2026-10-28',
+    // de la fourchette 40-80 € (27/10/2026) ; zone du capoto et de la page renovação de fachadas étendue aux distritos do Porto,
+    // Braga e Aveiro (DATA_ZONA_DISTRITOS, à aligner sur le jour de la mise en production, docs/seo/journal-pt.md).
+    dateModified: DATA_ZONA_DISTRITOS,
     intro: 'A humidade nas paredes é um dos problemas mais comuns nas casas portuguesas, especialmente durante o outono e inverno no Norte do país. Além de ser antiestética, pode causar problemas sérios de saúde e danificar a estrutura do edifício. Saiba como identificar a causa, escolher a solução adequada e prevenir que o problema regresse.',
     sections: [
       {
@@ -2579,7 +2593,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Custos de tratamento da humidade',
-        content: 'Os custos variam conforme o tipo e a extensão do problema. Tratamento de condensação (ventilação, extratores): entre 200€ e 800€. Injeção contra capilaridade: entre 50€ e 100€ por metro linear. Isolamento térmico pelo exterior (capoto): no distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica-o por 53 a 58 € por m², sem IVA, com material e mão de obra, a que acresce o IVA aplicável à obra: 23%, 6% em certas obras, ou 6% sobre a mão de obra e 23% sobre os materiais (com IVA, entre 56,18 € e 71,34 € por m²); o preço final depende da espessura do isolamento, do estado e do acesso da fachada. Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela: o valor depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações a tratar, e o orçamento é gratuito, feito depois de uma visita (página Renovação de fachadas da VITFIX, no distrito do Porto). Na VITFIX, fazemos diagnóstico gratuito e apresentamos orçamento detalhado com as diferentes opções de tratamento, para que possa tomar uma decisão informada.',
+        content: 'Os custos variam conforme o tipo e a extensão do problema. Tratamento de condensação (ventilação, extratores): entre 200€ e 800€. Injeção contra capilaridade: entre 50€ e 100€ por metro linear. Isolamento térmico pelo exterior (capoto): nos distritos do Porto, Braga e Aveiro, a equipa VITFIX aplica-o por 53 a 58 € por m², sem IVA, com material e mão de obra, a que acresce o IVA aplicável à obra: 23%, 6% em certas obras, ou 6% sobre a mão de obra e 23% sobre os materiais (com IVA, entre 56,18 € e 71,34 € por m²); o preço final depende da espessura do isolamento, do estado e do acesso da fachada. Na fachada, a reparação de fissuras e de infiltrações, a impermeabilização e a pintura não têm preço de tabela: o valor depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações a tratar, e o orçamento é gratuito, feito depois de uma visita (página Renovação de fachadas da VITFIX, nos distritos do Porto, Braga e Aveiro). Na VITFIX, fazemos diagnóstico gratuito e apresentamos orçamento detalhado com as diferentes opções de tratamento, para que possa tomar uma decisão informada.',
       },
     ],
     ctaText: 'Problemas de humidade em casa? Os profissionais VITFIX fazem diagnóstico e reparação completa.',
@@ -2998,10 +3012,9 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     // Prix réel de l'équipe VITFIX (53 à 58 €/m² sans IVA, matériel et main-d'œuvre, octobre 2026) à la place des fourchettes
     // de référence non sourcées (40-80 €/m² et totaux qui en découlaient, dont l'investissement de la section sur la poupança) ;
     // phrase d'IVA des incentivos alignée sur la Lista I du CIVA, taux du continent (art. 18.º n.º 1 et 3). Prix rattaché à la zone
-    // de l'équipe (distrito do Porto et concelhos de Braga, Aveiro, Ovar et Águeda ; Braga, Aveiro et Ovar confirmés par le
-    // propriétaire le 28/10/2026), avec IVA dès la première phrase. À aligner sur le jour de la mise en production
-    // (docs/seo/journal-pt.md).
-    dateModified: '2026-10-28',
+    // de l'équipe (distritos do Porto, Braga e Aveiro, tous leurs concelhos, confirmés par le propriétaire le 28/10/2026), avec
+    // IVA dès la première phrase. DATA_ZONA_DISTRITOS : à aligner sur le jour de la mise en production (docs/seo/journal-pt.md).
+    dateModified: DATA_ZONA_DISTRITOS,
     intro: 'O capoto, tecnicamente conhecido como sistema ETICS (External Thermal Insulation Composite System), é uma das soluções mais eficazes para melhorar a eficiência energética de uma casa. Com os custos de energia em alta e incentivos fiscais disponíveis, o isolamento térmico pelo exterior tornou-se um dos investimentos mais inteligentes para proprietários em Portugal.',
     sections: [
       {
@@ -3010,7 +3023,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: 'Preços do capoto em 2026',
-        content: 'No distrito do Porto e nos concelhos de Braga, Aveiro, Ovar e Águeda, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para uma moradia com 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.',
+        content: 'Nos distritos do Porto, Braga e Aveiro, a equipa VITFIX aplica capoto (sistema ETICS) por 53 a 58 € por m², sem IVA, com material e mão de obra, ou seja, entre 56,18 € e 71,34 € por m² com IVA, conforme a taxa aplicável à obra (preços de outubro de 2026). A taxa é de 23% (taxa normal) ou de 6% em certas obras da Lista I do Código do IVA, como as da verba 2.27 (empreitadas de beneficiação, remodelação, renovação, restauro, reparação ou conservação de imóveis ou partes autónomas destes afetos à habitação; os materiais incorporados pagam 23% quando excedem 20% do valor global da prestação de serviços) ou as da verba 2.23 (reabilitação de edifícios em área de reabilitação urbana). Para uma moradia com 150 m² de fachada, a simples multiplicação dá 7 950 a 8 700 €, sem IVA (8 427 a 10 701 € com IVA); é uma conta, não um orçamento. O preço final depende da espessura do isolamento, do estado e do acesso da fachada, e o orçamento é gratuito.',
       },
       {
         heading: 'Poupança energética real',
