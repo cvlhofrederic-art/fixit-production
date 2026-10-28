@@ -16,8 +16,9 @@ import { creerTraitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  * son payé ; la colonne « Ctx » marque une dette passée en contentieux).
  *
  * Règle d'imputation (C. civ. art. 1342-10) : le débiteur peut désigner la dette qu'il paie ; à défaut, d'abord les
- * dettes échues, la plus ancienne en premier, et proportionnellement entre dettes de même ancienneté. Le reliquat va,
- * au choix, sur les appels à venir ou reste « à imputer » au crédit du compte.
+ * dettes échues, la plus ancienne en premier, et proportionnellement entre dettes de même ancienneté. Une désignation
+ * qui ne solde pas les postes désignés exige l'accord du gestionnaire (art. 1342-4). Le reliquat reste « à imputer » ;
+ * sur option, il va aux appels à venir, jamais à un appel de fonds de travaux non échu (L. 1965 art. 14-2-1, III).
  * Montants en centimes entiers, dates ISO.
  */
 
@@ -88,13 +89,20 @@ describe('imputation — règle par défaut (C. civ. art. 1342-10)', () => {
     ])
   })
 
-  it('après les échues, impute sur les appels à venir, ou laisse un reste à imputer si on le demande', () => {
-    const tout = imputerEncaissement(encaissement(70_000), postes())
-    expect(tout.lignes.at(-1)).toEqual({ posteId: 't1-27', montantCentimes: 20_000 })
-    expect(tout.resteAImputerCentimes).toBe(8_000)
-    const sansAvance = imputerEncaissement(encaissement(70_000), postes(), { imputerSurAVenir: false })
-    expect(sansAvance.lignes.map((l) => l.posteId)).toEqual(['t3', 't3-ft', 't4', 't4-ft'])
-    expect(sansAvance.resteAImputerCentimes).toBe(28_000)
+  it('par défaut, laisse le reliquat à imputer ; sur option, l’impute sur les appels à venir', () => {
+    const parDefaut = imputerEncaissement(encaissement(70_000), postes())
+    expect(parDefaut.lignes.map((l) => l.posteId)).toEqual(['t3', 't3-ft', 't4', 't4-ft'])
+    expect(parDefaut.resteAImputerCentimes).toBe(28_000)
+    const surAVenir = imputerEncaissement(encaissement(70_000), postes(), { imputerSurAVenir: true })
+    expect(surAVenir.lignes.at(-1)).toEqual({ posteId: 't1-27', montantCentimes: 20_000 })
+    expect(surAVenir.resteAImputerCentimes).toBe(8_000)
+  })
+
+  it('ne sert jamais d’office un appel de fonds de travaux non échu, même sur option (L. 1965 art. 14-2-1, III)', () => {
+    const avecFtAVenir = [...postes(), poste('t1-27-ft', '2027-01-01', 1_000, { typeAppel: 'Fonds travaux' })]
+    const resultat = imputerEncaissement(encaissement(70_000), avecFtAVenir, { imputerSurAVenir: true })
+    expect(resultat.lignes.map((l) => l.posteId)).not.toContain('t1-27-ft')
+    expect(resultat.resteAImputerCentimes).toBe(8_000)
   })
 
   it('un appel exigible le jour même de l’encaissement est échu', () => {
@@ -119,6 +127,18 @@ describe('imputation — désignation par le débiteur', () => {
       { posteId: 't3', montantCentimes: 952 },
       { posteId: 't3-ft', montantCentimes: 48 },
     ])
+  })
+
+  it('n’applique une désignation qui ne solde pas les postes désignés que si le gestionnaire l’accepte (art. 1342-4)', () => {
+    const refusee = imputerEncaissement(encaissement(5_000, { postesDesignes: ['t4'] }), postes())
+    expect(refusee.designationPartielleRefusee).toBe(true)
+    expect(refusee.lignes).toEqual([
+      { posteId: 't3', montantCentimes: 4_762 },
+      { posteId: 't3-ft', montantCentimes: 238 },
+    ])
+    const acceptee = imputerEncaissement(encaissement(5_000, { postesDesignes: ['t4'], designationPartielleAcceptee: true }), postes())
+    expect(acceptee.designationPartielleRefusee).toBe(false)
+    expect(acceptee.lignes).toEqual([{ posteId: 't4', montantCentimes: 5_000 }])
   })
 
   it('refuse un poste désigné inconnu, d’un autre compte, déjà soldé, ou désigné deux fois', () => {
@@ -152,6 +172,19 @@ describe('imputation — contrôles', () => {
     ).toThrow(/type d'appel/i)
   })
 
+  it('départage les égalités de prorata par l’ordre reçu, en arithmétique entière', () => {
+    const ex = [poste('a', '2026-07-01', 600), poste('b', '2026-07-01', 100), poste('c', '2026-07-01', 300)]
+    expect(imputerEncaissement(encaissement(4), ex).lignes).toEqual([
+      { posteId: 'a', montantCentimes: 3 },
+      { posteId: 'c', montantCentimes: 1 },
+    ])
+  })
+
+  it('refuse un poste dont l’appel d’origine et le type d’appel ne vont pas ensemble', () => {
+    expect(() => imputerEncaissement(encaissement(100), [poste('a', '2026-07-01', 100, { typeAppel: null })])).toThrow(/appel/i)
+    expect(() => imputerEncaissement(encaissement(100), [poste('a', '2026-07-01', 100, { appelId: null })])).toThrow(/appel/i)
+  })
+
   it('ne modifie pas les postes reçus (fonction pure)', () => {
     const entree = postes()
     imputerEncaissement(encaissement(21_000), entree)
@@ -180,6 +213,42 @@ describe('imputation — plusieurs encaissements', () => {
   it('refuse un encaissement compté deux fois', () => {
     expect(() => imputerEncaissements([encaissement(100), encaissement(200)], postes())).toThrow(/deux fois/i)
   })
+
+  it('garde l’ordre reçu entre encaissements du même jour (ordre du relevé), sans trier les identifiants', () => {
+    const { resultats } = imputerEncaissements(
+      [encaissement(100, { id: 'e-2' }), encaissement(100, { id: 'e-10' })],
+      postes(),
+    )
+    expect(resultats.map((r) => r.encaissementId)).toEqual(['e-2', 'e-10'])
+  })
+
+  it('ignore, en lot, la désignation d’un poste soldé par un encaissement antérieur, et le signale', () => {
+    const { resultats } = imputerEncaissements(
+      [
+        encaissement(21_000, { id: 'e-1', date: '2026-08-05' }),
+        encaissement(5_000, { id: 'e-2', date: '2026-10-20', postesDesignes: ['t3'] }),
+      ],
+      postes(),
+    )
+    expect(resultats[1].designationsIgnorees).toEqual(['t3'])
+    expect(resultats[1].lignes.map((l) => l.posteId)).toEqual(['t4', 't4-ft'])
+  })
+
+  it('cumule le crédit laissé à imputer sur le lot', () => {
+    const lot = imputerEncaissements(
+      [encaissement(41_000, { id: 'e-1', date: '2026-08-05' }), encaissement(100, { id: 'e-2', date: '2026-10-20' })],
+      postes(),
+      { imputerSurAVenir: false },
+    )
+    expect(lot.creditAImputerCentimes).toBe(20_000)
+  })
+
+  it('renvoie une copie des postes même pour un lot vide', () => {
+    const entree = postes()
+    const lot = imputerEncaissements([], entree)
+    expect(lot.postes).not.toBe(entree)
+    expect(lot.postes).toEqual(entree)
+  })
 })
 
 describe('imputation — écriture et contentieux', () => {
@@ -189,7 +258,6 @@ describe('imputation — écriture et contentieux', () => {
     const lignes = mouvementsEncaissementImpute({
       encaissement: e,
       resultat,
-      postes: postes(),
       compteBanque: 'S1.51200.00000.0',
       compteCoproprietaire: 'S1.45000.00001.0',
     })
@@ -209,7 +277,6 @@ describe('imputation — écriture et contentieux', () => {
     const lignes = mouvementsEncaissementImpute({
       encaissement: e,
       resultat,
-      postes: postes(),
       compteBanque: 'S1.51200.00000.0',
       compteCoproprietaire: 'S1.45000.00001.0',
     })
@@ -220,9 +287,21 @@ describe('imputation — écriture et contentieux', () => {
     const avecCtx = postes().map((p) => (p.id === 't3' || p.id === 't3-ft' ? { ...p, contentieux: true } : p))
     const encaissements = [encaissement(15_000, { id: 'e-1', date: '2026-08-05' }), encaissement(20_000, { id: 'e-2', date: '2026-10-20' })]
     const { resultats } = imputerEncaissements(encaissements, avecCtx)
-    expect(reglementsSurContentieux(resultats, encaissements, avecCtx)).toEqual([
+    expect(reglementsSurContentieux(resultats, encaissements, avecCtx, 'c-1')).toEqual([
       { id: 'e-1', date: '2026-08-05', montantCentimes: 15_000 },
       { id: 'e-2', date: '2026-10-20', montantCentimes: 6_000 },
+    ])
+  })
+
+  it('ne retient que les règlements du compte demandé', () => {
+    const lot = [
+      poste('a', '2026-07-01', 1_000, { contentieux: true }),
+      poste('b', '2026-07-01', 2_000, { compteId: 'c-2', contentieux: true }),
+    ]
+    const encaissements = [encaissement(1_000, { id: 'e-1' }), encaissement(2_000, { id: 'e-2', compteId: 'c-2' })]
+    const { resultats } = imputerEncaissements(encaissements, lot)
+    expect(reglementsSurContentieux(resultats, encaissements, lot, 'c-1')).toEqual([
+      { id: 'e-1', date: '2026-10-26', montantCentimes: 1_000 },
     ])
   })
 })
