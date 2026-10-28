@@ -250,41 +250,49 @@ export const LIMPEZA_DE_TELHADOS: ServicoDistrito = {
   //   com TN < 0 °C ; Porto / Pedras Rubras (545, 67,7 m),
   //   https://www.ipma.pt/opencms/bin/file.data/climate-normal/cn_91-20_PORTO_PEDRAS_RUBRAS.pdf : 1146,9 mm, 105,4 dias,
   //   1,4 dias ; Braga / Merelim (622, 68,4 m), https://www.ipma.pt/bin/file.data/climate-normal/cn_91-20_BRAGA_MERELIM.pdf :
-  //   1387,3 mm, 113,5 dias, 24,3 dias. « Dias de geada » = TN < 0 °C (légende des fiches).
-  // - APA, Plano Nacional da Água (2002), vol. 1, cap. II, 1.2.1.1 et 1.2.1.4,
+  //   1387,3 mm, 113,5 dias, 24,3 dias. « Dias de geada » = TN < 0 °C (légende des fiches). Normales calculées sur des séries
+  //   hybrides (données observées complétées par le modèle WRF ; Braga / Merelim : données depuis 1999) : le texte dit « a
+  //   normal 1991-2020 do IPMA dá », jamais « a estação regista ».
+  // - APA, Plano Nacional da Água (2002), vol. 1, cap. II, 1.2.1.1,
   //   https://apambiente.pt/sites/default/files/_SNIAMB_Agua/DRH/PlaneamentoOrdenamento/PNA/2002/Volume1_Capitulo2_T01.pdf :
-  //   précipitation moyenne annuelle « próximos de 4000 mm » en certains points de la serra do Gerês ; humidité relative la
-  //   plus élevée « junto ao litoral ».
-  // - ISO 9223:2012, tableau C.1 (exemples d'environnements), résumé par la Hot Dip Galvanizers Association Southern Africa,
-  //   https://www.hdgasa.org.za/wp-content/uploads/2015/12/HDGA-Info-Sheet-No8-Corrosion-of-Zinc-Corrosivity-of-Atmospheres.pdf :
-  //   C4 (corrosividade alta) en climat tempéré « < one kilometre of the ocean » ; chlorures apportés par les vents de mer.
+  //   précipitation moyenne annuelle « próximos de 4000 mm » en certains points de la serra do Gerês. Source et période
+  //   différentes des normales IPMA : le texte nomme le Plano Nacional da Água, et l'introduction ne parle que des stations.
+  // - ISO 9223:2012, tableau C.1 (exemples d'environnements), C4 (corrosividade alta) en climat tempéré : « coastal areas
+  //   without spray of salt water », sans distance (reproductions du tableau lues par la relecture du 28/10/2026 ; texte de la
+  //   norme, payant, non lu). Le « < one kilometre of the ocean » de la fiche n° 8 de la Hot Dip Galvanizers Association
+  //   Southern Africa (https://www.hdgasa.org.za/wp-content/uploads/2015/12/HDGA-Info-Sheet-No8-Corrosion-of-Zinc-Corrosivity-of-Atmospheres.pdf)
+  //   est une adaptation du tableau, non reprise ; la même fiche dit les chlorures apportés par les vents de mer.
   // - Regulamento Delegado (UE) 2017/1475 da Comissão, de 26 de janeiro de 2017 (classes de résistance au gel des tuiles en
   //   terre cuite de la EN 1304, essai EN 539-2), https://apcmc.pt/legislacao/telhas-ceramica-uso-exterior-resistencia-ao-gelo/
   // - Águeda : forêt sur près des trois quarts du concelho, eucalyptus dominant (PMDFCI 2021-2030, caderno I, déjà cité par
   //   lib/data/pt-servicos-concelho.ts).
   // Non vérifié, donc non écrit : fréquence du brouillard (nevoeiro) sur la côte (aucune normale récente publiée par l'IPMA
-  // trouvée) ; pluie ou gel chiffrés dans les serras du distrito do Porto et de Aveiro ; durée de vie des caleiras. Fréquence
-  // conseillée : celle de la FAQ et de « Quando limpar » (vérifier tous les ans, avant les pluies d'automne), aucune promesse
-  // nouvelle de l'équipe.
+  // trouvée) ; humidité plus forte sur la côte, et donc mousse et lichens qui y repousseraient plus vite (PNA 2002, 1.2.1.4,
+  // normales 1951-1980 : « não apresenta tendências claras » ; humidité relative à 9 h des normales IPMA 1971-2000, fiches
+  // cn_71-00_ANADIA et cn_71-00_AVEIRO lues par la relecture du 28/10/2026 : 81 % à Anadia, dans l'intérieur, contre 80 % à
+  // Aveiro, sur la côte) ; pluie ou gel chiffrés dans les serras du distrito do Porto et de Aveiro ; durée de vie des
+  // caleiras. Côté propriétaire, un conseil (« vale a pena vigiar ») et non un contrôle de l'équipe : la méthode confirmée ne
+  // couvre que l'« estado das caleiras » à l'avaliação. Fréquence conseillée : celle de la FAQ et de « Quando limpar »
+  // (vérifier tous les ans, avant les pluies d'automne), aucune promesse nouvelle de l'équipe.
   condicoesLocais: {
     titulo: 'O que muda no telhado de uma zona para outra',
     intro:
-      'Os três distritos não têm o mesmo clima, e isso vê-se nas telhas e nas caleiras. Os valores de chuva e de geada são médias anuais das normais climatológicas 1991-2020 do IPMA; os dias de geada são os dias com temperatura mínima abaixo de 0 °C.',
+      'Os três distritos não têm o mesmo clima, e isso vê-se nas telhas e nas caleiras. Os valores das estações do IPMA são médias anuais das normais climatológicas 1991-2020; os dias de geada são os dias com temperatura mínima abaixo de 0 °C.',
     zonas: [
       {
         titulo: 'Junto ao mar e à Ria de Aveiro',
         texto:
-          'Perto da costa quase nunca gela: 0,3 dias de geada por ano na estação da Universidade de Aveiro, junto à ria, e 1,4 na de Pedras Rubras, no aeroporto do Porto. O que pesa é a humidade, mais alta junto ao litoral: as telhas secam devagar e o musgo e os líquenes voltam mais depressa, sobretudo nas águas viradas a norte. O vento do mar traz também sal, que ataca o metal: a norma internacional sobre a corrosividade da atmosfera (ISO 9223) dá como exemplo de corrosividade alta, em clima temperado, a faixa a menos de um quilómetro do oceano. Numa casa perto da praia, em Vila do Conde ou em Espinho, as caleiras, os rufos e os remates de chapa merecem atenção em cada limpeza: ferrugem, furos e uniões abertas.',
+          'Perto da costa quase nunca gela: 0,3 dias de geada por ano na estação da Universidade de Aveiro, junto à ria, e 1,4 na de Pedras Rubras, no aeroporto do Porto. Em contrapartida, o vento do mar traz sal, que ataca o metal: a norma internacional sobre a corrosividade da atmosfera (ISO 9223) dá as zonas costeiras sem salpicos de água do mar como exemplo de corrosividade alta para os metais, em clima temperado. Numa casa perto da praia, em Vila do Conde ou em Espinho, vale a pena vigiar as caleiras metálicas, os rufos e os remates de chapa: corrosão, furos e uniões abertas.',
       },
       {
         titulo: 'No interior: mais geada e mais chuva',
         texto:
-          'Afastando-se da costa, a geada passa a contar: a estação do IPMA em Braga regista 24,3 dias de geada e 1387,3 mm de chuva por ano, contra 0,3 dias e 975,5 mm em Aveiro. Uma telha que passa o inverno encharcada sofre com o gelo e o degelo, e é por isso que as telhas cerâmicas têm uma classe europeia de resistência ao gelo (Regulamento Delegado (UE) 2017/1475). Antes do inverno, troque as telhas partidas ou fissuradas: a lavagem e o hidrofugante não as reparam.',
+          'À medida que nos afastamos da costa, a geada passa a contar: a normal 1991-2020 do IPMA para Braga (Merelim) dá 24,3 dias de geada e 1387,3 mm de chuva por ano, contra 0,3 dias e 975,5 mm em Aveiro. Uma telha que passa o inverno encharcada sofre com o gelo e o degelo, e é por isso que as telhas cerâmicas têm uma classe europeia de resistência ao gelo (Regulamento Delegado (UE) 2017/1475). Antes do inverno, troque as telhas partidas ou fissuradas: a lavagem e o hidrofugante não as reparam.',
       },
       {
         titulo: 'Na serra e entre árvores',
         texto:
-          'Nas serras chove ainda mais: em alguns locais da serra do Gerês, o Plano Nacional da Água regista médias perto de 4000 mm por ano. Quando a casa está rodeada de árvores, as folhas, as agulhas dos pinheiros e a casca dos eucaliptos enchem as caleiras e os algerozes, e a sombra deixa as telhas húmidas mais tempo. Em Águeda, por exemplo, a floresta ocupa perto de três quartos do concelho e o eucalipto domina os povoamentos. Nestas casas, as caleiras entopem mais depressa, e a verificação de todos os anos, antes das chuvas de outono, conta ainda mais.',
+          'Nas serras chove ainda mais: em alguns locais da serra do Gerês, o Plano Nacional da Água indica médias perto de 4000 mm por ano. Quando a casa está rodeada de árvores, as folhas, as agulhas dos pinheiros e a casca dos eucaliptos enchem as caleiras e os algerozes, e a sombra deixa as telhas húmidas mais tempo. Em Águeda, por exemplo, a floresta ocupa perto de três quartos do concelho e o eucalipto domina os povoamentos. Nestas casas, as caleiras entopem mais depressa, e a verificação de todos os anos, antes das chuvas de outono, conta ainda mais.',
       },
     ],
   },

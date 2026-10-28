@@ -87,6 +87,14 @@ describe('limpeza de telhados : ce qui change d’une zone à l’autre', () => 
     expect(Array.from(bloco?.querySelectorAll('article h4') ?? []).map((h) => h.textContent)).toEqual(condicoes.zonas.map((z) => z.titulo))
     expect(condicoes.zonas.map((z) => z.titulo)).toEqual(['Junto ao mar e à Ria de Aveiro', 'No interior: mais geada e mais chuva', 'Na serra e entre árvores'])
     for (const z of condicoes.zonas) expect(espacos(bloco?.textContent)).toContain(z.texto)
+    // Gabarit existant : même grille et mêmes cartes que « O que fazemos » (aucune grille nouvelle).
+    const grelhaServicos = c.querySelector('#servicos article')?.parentElement
+    const grelhaCondicoes = bloco?.querySelector('article')?.parentElement
+    expect(grelhaCondicoes?.className).toBe(grelhaServicos?.className)
+    // Fond de carte mis à part : il alterne avec celui de la section (cartao() du gabarit).
+    const semFundo = (e: Element | null | undefined) => e?.className.replace(/\bbg-[\w-]+/, '')
+    expect(semFundo(bloco?.querySelector('article'))).toBe(semFundo(c.querySelector('#servicos article')))
+    expect(bloco?.querySelector('article h4')?.className).toBe(c.querySelector('#servicos article h3')?.className)
     // La zone de l'équipe reste dite d'abord, et le lien vers les pages ville reste en fin de section.
     const zona = espacos(c.querySelector('#zona')?.textContent)
     expect(zona.indexOf('A equipa parte de Marco de Canaveses')).toBeLessThan(zona.indexOf(condicoes.titulo))
@@ -103,8 +111,21 @@ describe('limpeza de telhados : ce qui change d’une zone à l’autre', () => 
     // Valeurs rattachées à leur station.
     expect(textoCondicoes).toContain('0,3 dias de geada por ano na estação da Universidade de Aveiro')
     expect(textoCondicoes).toContain('1,4 na de Pedras Rubras')
-    expect(textoCondicoes).toContain('a estação do IPMA em Braga regista 24,3 dias de geada e 1387,3 mm de chuva por ano, contra 0,3 dias e 975,5 mm em Aveiro')
-    expect(textoCondicoes).toContain('em alguns locais da serra do Gerês, o Plano Nacional da Água regista médias perto de 4000 mm por ano')
+    expect(textoCondicoes).toContain('a normal 1991-2020 do IPMA para Braga (Merelim) dá 24,3 dias de geada e 1387,3 mm de chuva por ano, contra 0,3 dias e 975,5 mm em Aveiro')
+    expect(textoCondicoes).toContain('em alguns locais da serra do Gerês, o Plano Nacional da Água indica médias perto de 4000 mm por ano')
+    // Normales calculées (séries hybrides) : jamais « regista » ; l'introduction ne date que les valeurs des stations de
+    // l'IPMA, la valeur du Gerês (Plano Nacional da Água, 2002) étant attribuée à part.
+    expect(textoCondicoes).not.toMatch(/regist/i)
+    expect(condicoes.intro).toContain('Os valores das estações do IPMA são médias anuais das normais climatológicas 1991-2020')
+    // ISO 9223 : l'exemple du tableau C.1 (« coastal areas without spray of salt water »), sans la distance de l'adaptation
+    // de la HDGASA.
+    expect(textoCondicoes).toContain('(ISO 9223) dá as zonas costeiras sem salpicos de água do mar como exemplo de corrosividade alta para os metais, em clima temperado')
+    expect(textoCondicoes).not.toMatch(/quil[óo]metro|\bkm\b|metros do/i)
+    // Humidité du littoral : aucune tendance claire (PNA 2002), donc ni comparaison ni conclusion sur le musgo près de la costa.
+    expect(textoCondicoes).not.toMatch(/humidade|secam devagar|voltam mais depressa/i)
+    // Conseil au propriétaire, pas un contrôle de l'équipe à chaque limpeza ; corrosion des seules caleiras metálicas.
+    expect(textoCondicoes).toContain('vale a pena vigiar as caleiras metálicas, os rufos e os remates de chapa: corrosão, furos e uniões abertas')
+    expect(textoCondicoes).not.toMatch(/em cada limpeza|ferrugem/i)
     // Ni prix, ni pourcentage, ni délai ou promesse de l'équipe ; brouillard non vérifié, donc absent.
     expect(textoCondicoes).not.toMatch(/€|\beuros?\b|%|\bhoras?\b|garant|promet|nevoeiro/i)
   })

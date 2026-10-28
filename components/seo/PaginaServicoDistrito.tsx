@@ -159,13 +159,14 @@ export default function PaginaServicoDistrito({ servico }: Readonly<{ servico: S
           <p className="text-text-muted max-w-3xl mb-6">
             A equipa parte de Marco de Canaveses e trabalha em todos os concelhos {dosDistritos(distritos)}{prazo?.visita_horas_max ? `, com visita em ${prazo.visita_horas_max} horas, no máximo, em qualquer um deles` : ''}. O preço não depende do concelho. No pedido de orçamento, diga-nos o concelho e a freguesia.
           </p>
-          {/* Ce qui change d'un endroit à l'autre de la zone (faits sourcés, lib/data/pt-servicos-distrito.ts) : intertitre et
-              cartes du même gabarit que « O que fazemos », sans liste de concelhos. */}
+          {/* Ce qui change d'un endroit à l'autre de la zone (faits sourcés, lib/data/pt-servicos-distrito.ts), sans liste de
+              concelhos. Grille et cartes reprises de « O que fazemos » (une colonne, deux dès md) ; ajouts : un intertitre h3
+              (la section a déjà son h2) et des titres de cartes en h4, au style des h3 de « O que fazemos ». */}
           {servico.condicoesLocais && (
             <div id="condicoes" className="mb-6">
               <h3 className="font-display text-xl font-bold text-dark mb-2">{servico.condicoesLocais.titulo}</h3>
               <p className="text-text-muted max-w-3xl mb-4">{servico.condicoesLocais.intro}</p>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {servico.condicoesLocais.zonas.map((z) => (
                   <article key={z.titulo} className={`p-6 rounded-2xl ${cartao('zona')} border border-border/40`}>
                     <h4 className="font-display text-lg font-bold text-dark mb-2">{z.titulo}</h4>
