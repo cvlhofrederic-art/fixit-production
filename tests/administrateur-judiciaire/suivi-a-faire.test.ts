@@ -83,7 +83,7 @@ describe('portefeuille et réglage du suivi', () => {
     expect(reglage.collaborateurId).toBe('u1')
     expect(Object.keys(reglage.familles).sort()).toEqual([...FAMILLES_SUIVI].sort())
     expect(reglage.familles.contrats).toEqual({ actif: true, perimetre: 'portefeuille', horizon: { unite: 'maintenant' }, natures: null })
-    expect(NATURES_SUIVI.contrats).toEqual(['limite_resiliation', 'mise_en_concurrence', 'facture_attendue'])
+    expect(NATURES_SUIVI.contrats).toEqual(['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'])
   })
 
   it('copier / coller : le réglage passe à un autre collaborateur sans partager ses objets', () => {

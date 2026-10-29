@@ -1,11 +1,12 @@
 import type { FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import { ajouterJours, ajouterMois, dateIsoVersFr, decomposerDateIso, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
-import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { contratMarqueAResilier, type ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import type { StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
- * Marque « À résilier » d'un contrat (point 34 du bilan 2). Fonctions pures, dates ISO, sans écran ni table ; ne modifie
- * pas suivi-a-faire.ts (seul son type d'élément est importé).
+ * Marque « À résilier » d'un contrat (point 34 du bilan 2). Fonctions pures, dates ISO, sans écran ni table. S'appuie
+ * sur suivi-a-faire.ts : nature « a_resilier », ContratSuivi.aResilier et contratMarqueAResilier, le prédicat partagé qui
+ * retire la limite générique d'un contrat marqué (un réglage qui suit la limite générique suit aussi « à résilier »).
  *
  * Gestéam — 🟢 tranche 33 : fiche contrat, Reconduction (Préavis, Limite, Tacite, Suivante), case « À résilier », bouton
  * Résilier + date (sens exact non observé : VitFix y lit la date d'envoi de la résiliation).
@@ -391,9 +392,6 @@ function alerteSansReconduction(base: Base, cal: Calendrier, aujourdhui: string,
   }
 }
 
-const contratRetenu = (c: ContratAResilier): boolean =>
-  Boolean(c.aResilier) && (c.statut ?? 'En cours') === 'En cours' && c.type !== 'Contrat de travail'
-
 function verifierDatesContrat(c: ContratAResilier): void {
   if (c.resiliationNotifieeLe) verifierDate(c.resiliationNotifieeLe, `Date de résiliation du contrat ${c.id}`)
   for (const d of c.informationsRecues ?? []) verifierDate(d, `Information du prestataire (contrat ${c.id})`)
@@ -433,18 +431,18 @@ export function alertesAResilier(
   { anticipationJours = 30 }: { anticipationJours?: number } = {},
 ): AlerteAResilier[] {
   verifierDate(aujourdhui, 'Date du jour')
-  return contrats.filter(contratRetenu).map((c) => {
+  return contrats.filter(contratMarqueAResilier).map((c) => {
     verifierDatesContrat(c)
     return alerteContrat(c, aujourdhui, anticipationJours)
   })
 }
 
-/** Éléments du suivi « à faire » (famille contrats, nature limite_resiliation), de même identifiant que la limite générique. */
+/** Éléments du suivi « à faire » : famille contrats, nature « à résilier » (réglable à part de la limite générique). */
 export const elementsSuiviAResilier = (alertes: AlerteAResilier[]): ElementAFaire[] =>
   alertes.map((a) => ({
-    id: `contrats:${a.contratId}:limite_resiliation`,
+    id: `contrats:${a.contratId}:a_resilier`,
     famille: 'contrats',
-    nature: 'limite_resiliation',
+    nature: 'a_resilier',
     libelle: `À résilier — ${a.libelle} : ${a.message}`,
     date: a.aAgirLe,
     mandatId: a.mandatId,
@@ -454,11 +452,11 @@ export const elementsSuiviAResilier = (alertes: AlerteAResilier[]): ElementAFair
   }))
 
 /**
- * Éléments de suivi des contrats marqués « à résilier », substitués à la limite générique de depuisContrats (même
- * identifiant), quel que soit l'horizon de chacun ; les autres éléments sont gardés tels quels.
+ * Éléments de suivi des contrats marqués « à résilier », substitués à la limite générique de depuisContrats, quel que
+ * soit l'horizon de chacun (utile quand les contrats passés à depuisContrats ne portent pas `aResilier`) ; les autres
+ * éléments sont gardés tels quels.
  */
 export function fusionnerSuiviAResilier(alertes: AlerteAResilier[], elements: ElementAFaire[]): ElementAFaire[] {
-  const aResilier = elementsSuiviAResilier(alertes)
-  const ids = new Set(aResilier.map((e) => e.id))
-  return [...aResilier, ...elements.filter((e) => !ids.has(e.id))]
+  const generiques = new Set(alertes.map((a) => `contrats:${a.contratId}:limite_resiliation`))
+  return [...elementsSuiviAResilier(alertes), ...elements.filter((e) => !generiques.has(e.id))]
 }
