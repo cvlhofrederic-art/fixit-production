@@ -3,9 +3,16 @@ import { z } from 'zod'
 import { logger } from '@/lib/logger'
 import { scanDepartment } from '@/lib/tenders/scanner'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { isKnownDepartment } from '@/lib/tenders/config'
 
 const scanBodySchema = z.object({
-  department: z.string().regex(/^\d{2,3}$/, 'Code département invalide').default('13'),
+  department: z
+    .string()
+    .regex(/^\d{2,3}$/, 'Code département invalide')
+    // Liste fermée des départements scannés (le code devient un nom de fichier) : un code inconnu
+    // répond 400 ici au lieu de partir au scanner et de finir en 500 (lot 7 du brief Aikido, issue 9)
+    .refine(isKnownDepartment, 'Département non pris en charge')
+    .default('13'),
 })
 
 export const maxDuration = 300 // 5 min for full scan
