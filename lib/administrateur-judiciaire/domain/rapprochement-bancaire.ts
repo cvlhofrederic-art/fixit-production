@@ -23,6 +23,10 @@ export interface ElementRapprochement {
   montantCentimes: number
   /** false = en suspens ; « auto » = rapproché par le moteur ; « manuel » = pointé par le gestionnaire. */
   rapproche: false | 'auto' | 'manuel'
+  /** Date d'opération (AAAA-MM-JJ) : date de la ligne du relevé ou de l'écriture. */
+  date?: string
+  /** Jour du rapprochement (AAAA-MM-JJ) ; exigé par suspensA pour un élément rapproché ; null tant qu'il est en suspens. */
+  rapprocheLe?: string | null
 }
 
 export interface ArreteRapprochement {
@@ -90,6 +94,43 @@ export function cloturerArrete(arrete: ArreteRapprochement): ArreteRapprochement
   const { equilibre, ecartCentimes } = etatArrete(arrete)
   if (!equilibre) throw new Error(`Clôture refusée : arrêté non équilibré (écart ${ecartCentimes} centimes).`)
   return { ...arrete, statut: 'Clôturé' }
+}
+
+export interface SuspensALaDate {
+  banque: ElementRapprochement[]
+  compta: ElementRapprochement[]
+  totalBanqueCentimes: number
+  totalComptaCentimes: number
+}
+
+/** Jour à partir duquel un élément n'est plus en suspens ; null s'il ne l'est jamais. */
+function finDuSuspens(e: ElementRapprochement & { date: string }): string | null {
+  if (e.rapproche === false) return null
+  if (e.rapprocheLe == null)
+    throw new Error(`Élément « ${e.id} » rapproché sans date de rapprochement (AAAA-MM-JJ attendu) : ses suspens passés ne peuvent pas être calculés.`)
+  if (!estDateIsoValide(e.rapprocheLe)) throw new Error(`Élément « ${e.id} » : date de rapprochement invalide (${e.rapprocheLe}), AAAA-MM-JJ attendu.`)
+  if (e.rapprocheLe < e.date) throw new Error(`Élément « ${e.id} » : rapproché le ${e.rapprocheLe}, antérieur à son opération (${e.date}).`)
+  return e.rapprocheLe
+}
+
+/**
+ * Mouvements bancaires en suspens à une date (point 40 du bilan 2 ; Gestéam, tranche 43 § 20, particularité des
+ * mouvements) : opérés au plus tard ce jour et pas encore rapprochés ce jour-là, côté banque et côté compta. 🔵 Le jour
+ * du rapprochement, l'élément n'est plus en suspens. Chaque élément doit porter sa date d'opération et, s'il est
+ * rapproché, sa date de rapprochement : sans elle, sa contrepartie a pu être enregistrée plus tard et le suspens serait
+ * perdu sans bruit.
+ */
+export function suspensA(elements: ElementRapprochement[], date: string): SuspensALaDate {
+  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  const enSuspens = elements.filter((e) => {
+    if (e.date === undefined || !estDateIsoValide(e.date))
+      throw new Error(`Élément « ${e.id} » sans date d'opération valide (AAAA-MM-JJ attendu).`)
+    const fin = finDuSuspens({ ...e, date: e.date })
+    return e.date <= date && (fin === null || date < fin)
+  })
+  const banque = enSuspens.filter((e) => e.cote === 'banque')
+  const compta = enSuspens.filter((e) => e.cote === 'compta')
+  return { banque, compta, totalBanqueCentimes: somme(banque), totalComptaCentimes: somme(compta) }
 }
 
 /** Déclôture le dernier arrêté clôturé d'un compte, à condition qu'aucun arrêté ne soit en cours sur ce compte. */
