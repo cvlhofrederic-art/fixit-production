@@ -33,7 +33,7 @@ import {
   etatPartFondsTravaux,
   type OperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
-import type { StatutAssemblee, StatutContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
+import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
  * Suivi « à faire » transversal (cartographie Gestéam, tranche 38 : Gestion → Suivi). Fonctions pures, dates AAAA-MM-JJ,
@@ -86,7 +86,7 @@ export const NATURES_SUIVI = {
   etapes: ['a_faire', 'a_valider'],
   taches: ['tache'],
   travaux: ['fonds_a_appeler'],
-  contrats: ['limite_resiliation', 'mise_en_concurrence', 'facture_attendue'],
+  contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
   sinistres: ['a_declarer', 'prescription', 'indemnite_differee'],
   equipements: ['a_reviser', 'a_remplacer', 'fin_garantie'],
@@ -120,6 +120,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   tache: 'Tâche',
   fonds_a_appeler: 'Fonds à appeler',
   limite_resiliation: 'Limite de résiliation',
+  a_resilier: 'À résilier',
   mise_en_concurrence: 'Mise en concurrence',
   facture_attendue: 'Facture attendue',
   reglement: 'Règlement',
@@ -272,6 +273,16 @@ const jourDeTraitement = (date: string): string => {
  * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
  * collaborateur et ce qui lui est désigné). Tri par date.
  */
+/**
+ * L'élément « à résilier » remplace la limite générique d'un contrat marqué : un réglage qui suit la « Limite de
+ * résiliation » le suit aussi, avec l'horizon de cette nature s'il n'en a pas un propre.
+ */
+const natureCochee = (natures: readonly NatureSuivi[], nature: NatureSuivi): boolean =>
+  natures.includes(nature) || (nature === 'a_resilier' && natures.includes('limite_resiliation'))
+
+const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi): Horizon =>
+  regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined) ?? regle.horizon
+
 export function selectionnerAFaire(
   elements: ElementAFaire[],
   reglage: ReglageSuivi,
@@ -285,8 +296,8 @@ export function selectionnerAFaire(
     verifierDate(element.date, `Date de l'élément ${element.id}`)
     const regle = reglage.familles[element.famille]
     if (!regle?.actif || retenus.has(element.id)) continue
-    if (regle.natures && !regle.natures.includes(element.nature)) continue
-    const limite = limiteHorizon(aujourdhui, regle.horizonsParNature?.[element.nature] ?? regle.horizon)
+    if (regle.natures && !natureCochee(regle.natures, element.nature)) continue
+    const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature))
     if (jourDeTraitement(element.date) > limite) continue
     const dansPerimetre =
       regle.perimetre === 'cabinet' ||
@@ -491,12 +502,22 @@ export interface ContratSuivi {
   concurrenceDu?: string | null
   concurrenceAu?: string | null
   facturation?: FacturationContrat
+  type?: TypeContrat
+  /** Case « À résilier » : la limite générique cède la place à l'élément « à résilier » (contrats-a-resilier.ts). */
+  aResilier?: boolean
 }
 
 /**
- * Contrat en cours : limite de résiliation s'il se reconduit tacitement (contrats-facturation) ; mise en concurrence à
- * l'ouverture de sa fenêtre, tant qu'elle n'est pas close ; facture attendue au premier jour de retard au-delà de la
- * tolérance du contrat.
+ * Contrat suivi par contrats-a-resilier.ts : marqué « à résilier », en cours, hors contrat de travail (un licenciement,
+ * pas une résiliation). Seul un tel contrat voit sa limite générique remplacée par l'élément « à résilier ».
+ */
+export const contratMarqueAResilier = (contrat: { statut?: StatutContrat; type?: TypeContrat; aResilier?: boolean }): boolean =>
+  Boolean(contrat.aResilier) && (contrat.statut ?? 'En cours') === 'En cours' && contrat.type !== 'Contrat de travail'
+
+/**
+ * Contrat en cours : limite de résiliation s'il se reconduit tacitement (contrats-facturation) et n'est pas marqué « à
+ * résilier » ; mise en concurrence à l'ouverture de sa fenêtre, tant qu'elle n'est pas close ; facture attendue au premier
+ * jour de retard au-delà de la tolérance du contrat.
  */
 export function depuisContrats(contrats: ContratSuivi[], aujourdhui: string): ElementAFaire[] {
   verifierDate(aujourdhui)
@@ -505,7 +526,7 @@ export function depuisContrats(contrats: ContratSuivi[], aujourdhui: string): El
     const champs = { libelle: contrat.libelle, mandatId: contrat.mandatId, objetId: contrat.id }
     const elements: ElementAFaire[] = []
     const { facturation } = contrat
-    if (facturation?.tacite)
+    if (facturation?.tacite && !contratMarqueAResilier(contrat))
       elements.push(
         elementSuivi('contrats', 'limite_resiliation', `${contrat.id}:limite_resiliation`, {
           ...champs,

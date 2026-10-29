@@ -6,7 +6,7 @@ import {
   type ContratAResilier,
 } from '@/lib/administrateur-judiciaire/domain/contrats-a-resilier'
 import type { FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
-import { depuisContrats, reglageParDefaut, selectionnerAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { depuisContrats, reglageParDefaut, selectionnerAFaire, type ReglageSuivi } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 
 /**
  * Marque « À résilier » d'un contrat (point 34 du bilan 2 ; Gestéam, tranche 33 : case « À résilier », Préavis, Limite,
@@ -239,33 +239,69 @@ describe('autres régimes', () => {
 describe('suivi « à faire »', () => {
   const affectations = [{ mandatId: 'm-1', cabinetId: null, responsableId: 'collab-1', comptableId: null, assistantId: null }]
   const reglage = reglageParDefaut('collab-1')
-  const id = 'contrats:ctr-1:limite_resiliation'
+  const generique = 'contrats:ctr-1:limite_resiliation'
+  const id = 'contrats:ctr-1:a_resilier'
+  // Le même contrat, tel qu'une source qui ignore la case « À résilier » le passerait à depuisContrats.
+  const sansMarque = (c: ContratAResilier) => ({ ...c, aResilier: undefined })
 
-  it('avant la limite : l’élément « à résilier » remplace la limite générique et remonte avant elle', () => {
+  it('nature « à résilier » propre ; un contrat marqué n’a plus de limite générique', () => {
     const contrats = [contrat()]
     const aujourdhui = '2026-09-05'
     const elements = elementsSuiviAResilier(alertesAResilier(contrats, aujourdhui))
-    expect(elements).toMatchObject([{ id, famille: 'contrats', nature: 'limite_resiliation', date: '2026-09-01', mandatId: 'm-1', objetId: 'ctr-1' }])
+    expect(elements).toMatchObject([{ id, famille: 'contrats', nature: 'a_resilier', date: '2026-09-01', mandatId: 'm-1', objetId: 'ctr-1' }])
     expect(elements[0].libelle).toBe('À résilier — Maintenance ascenseur : Dénoncer au plus tard le 01/10/2026 (préavis de 3 mois avant le terme du 01/01/2027).')
-    expect(selectionnerAFaire(depuisContrats(contrats, aujourdhui), reglage, affectations, aujourdhui)).toEqual([])
-    expect(selectionnerAFaire(fusionnerSuiviAResilier(alertesAResilier(contrats, aujourdhui), depuisContrats(contrats, aujourdhui)), reglage, affectations, aujourdhui)).toMatchObject([
-      { id, date: '2026-09-01' },
-    ])
+    expect(depuisContrats(contrats, aujourdhui).map((e) => e.id)).not.toContain(generique)
+    expect(depuisContrats(contrats.map(sansMarque), aujourdhui).map((e) => e.id)).toContain(generique)
+    expect(selectionnerAFaire([...elements, ...depuisContrats(contrats, aujourdhui)], reglage, affectations, aujourdhui)).toMatchObject([{ id, date: '2026-09-01' }])
   })
 
-  it('limite dépassée : la limite générique échue disparaît au profit de l’élément « à résilier », même hors horizon', () => {
+  it('la nature se règle à part : un collaborateur peut ne suivre que les contrats à résilier', () => {
+    const contrats = [contrat(), contrat({ id: 'ctr-2', aResilier: false, libelle: 'Nettoyage' })]
+    const aujourdhui = '2026-10-15'
+    const seulementAResilier: ReglageSuivi = {
+      ...reglage,
+      familles: { ...reglage.familles, contrats: { actif: true, perimetre: 'portefeuille', horizon: { unite: 'mois', nombre: 3 }, natures: ['a_resilier'] } },
+    }
+    const elements = [...elementsSuiviAResilier(alertesAResilier(contrats, aujourdhui)), ...depuisContrats(contrats, aujourdhui)]
+    expect(selectionnerAFaire(elements, seulementAResilier, affectations, aujourdhui).map((e) => e.id)).toEqual([id])
+  })
+
+  it('un réglage qui ne suit que la limite générique suit aussi les contrats à résilier, avec l’horizon de cette nature', () => {
+    const contrats = [contrat(), contrat({ id: 'ctr-2', aResilier: false, libelle: 'Nettoyage' })]
+    const aujourdhui = '2026-10-15'
+    const limiteSeule: ReglageSuivi = {
+      ...reglage,
+      familles: {
+        ...reglage.familles,
+        contrats: { actif: true, perimetre: 'portefeuille', horizon: { unite: 'maintenant' }, natures: ['limite_resiliation'], horizonsParNature: { limite_resiliation: { unite: 'mois', nombre: 3 } } },
+      },
+    }
+    const elements = [...elementsSuiviAResilier(alertesAResilier(contrats, aujourdhui)), ...depuisContrats(contrats, aujourdhui)]
+    // ctr-1 : « à résilier » le 2027-01-01, dans l'horizon de trois mois ; ctr-2 : limite générique le 2026-10-01, échue.
+    expect(selectionnerAFaire(elements, limiteSeule, affectations, aujourdhui).map((e) => e.id).sort()).toEqual([id, 'contrats:ctr-2:limite_resiliation'])
+  })
+
+  it('contrat de travail marqué : hors du module « à résilier », il garde sa limite générique', () => {
+    const travail = contrat({ type: 'Contrat de travail' })
+    expect(alertesAResilier([travail], '2026-09-05')).toEqual([])
+    expect(depuisContrats([travail], '2026-09-05').map((e) => e.id)).toContain(generique)
+  })
+
+  it('fusion : la limite générique d’un contrat passé sans la marque disparaît, même échue et hors horizon', () => {
     const contrats = [contrat()]
     const aujourdhui = '2026-10-15'
-    expect(selectionnerAFaire(depuisContrats(contrats, aujourdhui), reglage, affectations, aujourdhui)).toMatchObject([{ id, date: '2026-10-01' }])
-    const fusion = fusionnerSuiviAResilier(alertesAResilier(contrats, aujourdhui), depuisContrats(contrats, aujourdhui))
-    expect(fusion.filter((e) => e.id === id)).toHaveLength(1)
-    expect(fusion.find((e) => e.id === id)?.libelle).toMatch(/^À résilier — /)
+    const generiques = depuisContrats(contrats.map(sansMarque), aujourdhui)
+    expect(selectionnerAFaire(generiques, reglage, affectations, aujourdhui)).toMatchObject([{ id: generique, date: '2026-10-01' }])
+    const fusion = fusionnerSuiviAResilier(alertesAResilier(contrats, aujourdhui), generiques)
+    expect(fusion.map((e) => e.id)).toEqual([id])
+    expect(fusion[0].libelle).toMatch(/^À résilier — /)
     expect(selectionnerAFaire(fusion, reglage, affectations, aujourdhui)).toEqual([])
   })
 
-  it('résiliation envoyée à temps : l’élément occupe aussi la place de la limite générique', () => {
+  it('résiliation envoyée à temps : l’élément « à résilier » rappelle la mise à jour du statut au terme', () => {
     const contrats = [contrat({ resiliationNotifieeLe: '2026-09-20' })]
-    const fusion = fusionnerSuiviAResilier(alertesAResilier(contrats, '2026-09-25'), depuisContrats(contrats, '2026-09-25'))
-    expect(fusion.filter((e) => e.id === id)).toMatchObject([{ date: '2027-01-01' }])
+    const fusion = fusionnerSuiviAResilier(alertesAResilier(contrats, '2026-09-25'), depuisContrats(contrats.map(sansMarque), '2026-09-25'))
+    expect(fusion.filter((e) => e.objetId === 'ctr-1' && e.famille === 'contrats')).toMatchObject([{ id, date: '2027-01-01' }])
+    expect(fusion.find((e) => e.id === id)?.libelle).toContain('mettre son statut à jour')
   })
 })
