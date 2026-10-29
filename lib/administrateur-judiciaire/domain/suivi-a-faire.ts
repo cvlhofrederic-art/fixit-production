@@ -23,7 +23,11 @@ import {
   statutSinistre,
   type FicheSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
-import { echeancesTravaux, type OperationTravaux } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import {
+  echeancesTravaux,
+  etatPartFondsTravaux,
+  type OperationTravaux,
+} from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import type { StatutAssemblee, StatutContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -417,26 +421,42 @@ export function depuisTaches(taches: TacheSuivie[]): ElementAFaire[] {
 
 /**
  * Travaux votés : chaque appel de tranche pas encore lancé, à son exigibilité (travaux-operations) ; non votés : rien.
+ * Part du fonds de travaux pas encore autorisée (décision d'affectation ou ordonnance du juge attendue) : un seul
+ * élément, à la date du premier appel à lancer, qui dit ce qui bloque, sans interrompre la liste des autres opérations.
  * `appelees` : ids d'appel (« 00042-T1 ») déjà lancés. Le n° d'opération n'est unique qu'au sein du syndicat (D1) : la clé
  * et la fiche d'origine portent la copropriété.
  */
 export function depuisOperationsTravaux(
   items: { mandatId: string; operation: OperationTravaux; appelees: string[] }[],
 ): ElementAFaire[] {
-  return items.flatMap(({ mandatId, operation, appelees }) =>
-    !operation.decision
-      ? []
-      : echeancesTravaux(operation)
-          .filter((appel) => !appelees.includes(appel.id))
-          .map((appel) =>
-            elementSuivi('travaux', 'fonds_a_appeler', `${operation.coproprieteId}:${appel.id}`, {
-              libelle: appel.libelle,
-              date: appel.exigibilite,
+  return items.flatMap(({ mandatId, operation, appelees }) => {
+    if (!operation.decision) return []
+    const objetId = `${operation.coproprieteId}:${operation.numero}`
+    const etatFonds = etatPartFondsTravaux(operation)
+    if (etatFonds && !etatFonds.autorise) {
+      const premiere = operation.tranches.find((_, i) => !appelees.includes(`${operation.numero}-T${i + 1}`))
+      return premiere
+        ? [
+            elementSuivi('travaux', 'fonds_a_appeler', `${objetId}:affectation_fonds`, {
+              libelle: `${operation.libelle} — appels bloqués : ${etatFonds.motif}`,
+              date: premiere.date,
               mandatId,
-              objetId: `${operation.coproprieteId}:${operation.numero}`,
+              objetId,
             }),
-          ),
-  )
+          ]
+        : []
+    }
+    return echeancesTravaux(operation)
+      .filter((appel) => !appelees.includes(appel.id))
+      .map((appel) =>
+        elementSuivi('travaux', 'fonds_a_appeler', `${operation.coproprieteId}:${appel.id}`, {
+          libelle: appel.libelle,
+          date: appel.exigibilite,
+          mandatId,
+          objetId,
+        }),
+      )
+  })
 }
 
 export interface ContratSuivi {

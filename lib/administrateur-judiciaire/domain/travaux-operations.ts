@@ -1,4 +1,9 @@
-import { ajouterMois, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  controlerAffectationFondsTravaux,
+  type ObjetDecaissementFondsTravaux,
+  type ResultatAffectation,
+} from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import type { EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 
 /**
@@ -11,8 +16,11 @@ import type { EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repar
  *
  * Règles :
  * - pas d'appel de travaux sans décision d'assemblée (date et résolution) ;
- * - montant à appeler = budget TTC − part financée par le fonds de travaux (dont l'affectation est contrôlée par
- *   fonds-travaux.ts, J4) ; tranches en % de ce montant, au centime près ;
+ * - montant à appeler = budget TTC − part financée par le fonds de travaux ; tranches en % de ce montant, au centime
+ *   près ;
+ * - part du fonds de travaux (J4, fonds-travaux.ts) : son affectation est exigée dès qu'elle est positive ; un objet
+ *   exclu du fonds est refusé dès la création ; l'appel exige la décision d'assemblée qui affecte le fonds (ou, pour
+ *   l'usage judiciaire de l'art. 29-14, 2°, l'ordonnance du juge). Une opération pas encore votée peut prévoir le fonds ;
  * - retenue de garantie : 5 % au plus (loi n° 71-584 du 16 juillet 1971, art. 1er), libérée un an après la réception
  *   sauf opposition motivée. 🔴 Délai et conditions de libération à confirmer avant d'en faire une échéance.
  * 🔵 Compte de contrepartie des appels de travaux : 70200 par défaut (voir repartition-appels.ts).
@@ -32,11 +40,43 @@ export interface SaisieOperationTravaux {
   decision: { date: string; resolution: string } | null
   budgetTtcCentimes: number
   financementFondsTravauxCentimes: number
+  /**
+   * Affectation de la part du fonds de travaux (J4) ; exigée dès que cette part est positive. `decisionAg` : référence
+   * d'une décision d'affectation distincte ; à défaut, la résolution qui vote les travaux en tient lieu (🔵).
+   */
+  affectationFonds?: { objet: ObjetDecaissementFondsTravaux; decisionAg?: string | null; autorisationJuge?: string | null } | null
   tranches: TrancheAppel[]
 }
 
 export interface OperationTravaux extends SaisieOperationTravaux {
   montantAAppelerCentimes: number
+}
+
+const MOTIF_AFFECTATION_ABSENTE =
+  "préciser l'affectation de la part du fonds de travaux (art. 14-2-1, I, 1° à 4°, ou art. 29-14, 2°)."
+
+/** Contrôle d'affectation de la part (positive) du fonds ; null si l'affectation n'est pas précisée. */
+function controlerPartFonds(operation: SaisieOperationTravaux): ResultatAffectation | null {
+  const { affectationFonds, decision } = operation
+  if (!affectationFonds) return null
+  const decisionAffectation = affectationFonds.decisionAg?.trim()
+  return controlerAffectationFondsTravaux({
+    objet: affectationFonds.objet,
+    montantCentimes: operation.financementFondsTravauxCentimes,
+    decisionAg: decisionAffectation || (decision ? `${decision.resolution} (AG du ${dateIsoVersFr(decision.date)})` : null),
+    autorisationJuge: affectationFonds.autorisationJuge ?? null,
+  })
+}
+
+/**
+ * État de la part du fonds de travaux d'une opération, sans lever d'erreur : null sans part du fonds ; sinon, si les
+ * appels peuvent la prendre en compte, et pourquoi pas. Sert aux listes (suivi « à faire ») qu'une opération en attente
+ * d'une décision ou d'une ordonnance ne doit pas interrompre.
+ */
+export function etatPartFondsTravaux(operation: SaisieOperationTravaux): { autorise: boolean; motif: string } | null {
+  if (operation.financementFondsTravauxCentimes <= 0) return null
+  const controle = controlerPartFonds(operation)
+  return controle ? { autorise: controle.autorise, motif: controle.motif } : { autorise: false, motif: MOTIF_AFFECTATION_ABSENTE }
 }
 
 export function creerOperationTravaux(saisie: SaisieOperationTravaux): OperationTravaux {
@@ -49,6 +89,11 @@ export function creerOperationTravaux(saisie: SaisieOperationTravaux): Operation
     throw new Error('Part du fonds de travaux supérieure au budget de l’opération.')
   if (saisie.decision && (!estDateIsoValide(saisie.decision.date) || !saisie.decision.resolution.trim()))
     throw new Error('Décision d’assemblée incomplète : date (AAAA-MM-JJ) et résolution attendues.')
+  if (saisie.financementFondsTravauxCentimes > 0) {
+    const controle = controlerPartFonds(saisie)
+    if (!controle) throw new Error(`Opération ${saisie.numero} : ${MOTIF_AFFECTATION_ABSENTE}`)
+    if (controle.cause === 'exclu') throw new Error(`Opération ${saisie.numero} : ${controle.motif}`)
+  }
   for (const t of saisie.tranches) {
     if (!estDateIsoValide(t.date)) throw new Error(`Date de tranche invalide (${t.date}) : AAAA-MM-JJ attendu.`)
     if (!(t.tauxPct > 0)) throw new Error(`Taux de tranche invalide (${t.tauxPct}) : strictement positif attendu.`)
@@ -58,9 +103,14 @@ export function creerOperationTravaux(saisie: SaisieOperationTravaux): Operation
   return { ...saisie, montantAAppelerCentimes: saisie.budgetTtcCentimes - saisie.financementFondsTravauxCentimes }
 }
 
-/** Échéances « travaux » des tranches (entrée de repartition-appels.avisDAppel) ; exige la décision d'assemblée. */
+/**
+ * Échéances « travaux » des tranches (entrée de repartition-appels.avisDAppel) ; exige la décision d'assemblée et,
+ * quand le fonds de travaux finance une part, une affectation admise.
+ */
 export function echeancesTravaux(operation: OperationTravaux): EcheanceAppel[] {
   if (!operation.decision) throw new Error(`Opération ${operation.numero} : pas d'appel de travaux sans décision d'assemblée.`)
+  const etatFonds = etatPartFondsTravaux(operation)
+  if (etatFonds && !etatFonds.autorise) throw new Error(`Opération ${operation.numero} : ${etatFonds.motif}`)
   const montants = operation.tranches.map((t) => Math.round((operation.montantAAppelerCentimes * t.tauxPct) / 100))
   const total = operation.tranches.reduce((s, t) => s + t.tauxPct, 0)
   if (Math.abs(total - 100) < 1e-9 && montants.length > 0)

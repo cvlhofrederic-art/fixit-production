@@ -380,6 +380,21 @@ describe('sources — étapes, tâches, travaux', () => {
     }
     expect(ids(selectionnerAFaire(appels, reglage, affectations, AUJOURDHUI))).toEqual(['travaux:copro-1:00042-T1', 'travaux:copro-2:00042-T1'])
   })
+
+  it('travaux dont la part du fonds attend son ordonnance : un élément qui dit ce qui bloque, sans interrompre les autres', () => {
+    const enRegle = creerOperationTravaux(saisieTravaux())
+    const enAttente = creerOperationTravaux(
+      saisieTravaux({ numero: '00043', financementFondsTravauxCentimes: 200_000, affectationFonds: { objet: 'redressement_29_14' } }),
+    )
+    const elements = depuisOperationsTravaux([
+      { mandatId: 'M1', operation: enRegle, appelees: [] },
+      { mandatId: 'M2', operation: enAttente, appelees: ['00043-T1'] },
+    ])
+    expect(ids(elements)).toEqual(['travaux:copro-1:00042-T1', 'travaux:copro-1:00042-T2', 'travaux:copro-1:00043:affectation_fonds'])
+    expect(elements[2]).toMatchObject({ date: '2027-01-04', mandatId: 'M2', objetId: 'copro-1:00043' })
+    expect(elements[2].libelle).toMatch(/appels bloqués : .*ordonnance du juge/)
+    expect(depuisOperationsTravaux([{ mandatId: 'M2', operation: enAttente, appelees: ['00043-T1', '00043-T2'] }])).toEqual([])
+  })
 })
 
 const facturation = (surcharge: Partial<FacturationContrat> = {}): FacturationContrat => ({
