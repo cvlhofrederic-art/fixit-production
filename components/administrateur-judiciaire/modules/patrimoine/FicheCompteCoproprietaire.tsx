@@ -30,8 +30,8 @@ export interface FicheCompteCoproprietaireProps {
   onOuvrirLot?: (coproprietaire: CoproprietaireDemo, index: number) => void
 }
 
-/** Lien vers la fiche d'un lot, à l'allure d'un texte souligné. */
-export function LienLot({ libelle, onClick }: { libelle: string; onClick: () => void }) {
+/** Lien vers une fiche (lot, assemblée…), à l'allure d'un texte souligné. */
+export function LienFiche({ libelle, onClick }: { libelle: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -39,7 +39,7 @@ export function LienLot({ libelle, onClick }: { libelle: string; onClick: () => 
         evenement.stopPropagation()
         onClick()
       }}
-      title={`Ouvrir la fiche du ${libelle}`}
+      title={`Ouvrir la fiche : ${libelle}`}
       style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
     >
       {libelle}
@@ -121,7 +121,7 @@ export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier,
                   largeurs={[40, 26, 34]}
                   lignes={fiche.lots.map((lot, index) => [
                     onOuvrirLot ? (
-                      <LienLot key={lot.lot} libelle={lot.lot} onClick={() => onOuvrirLot(coproprietaire, index)} />
+                      <LienFiche key={lot.lot} libelle={lot.lot} onClick={() => onOuvrirLot(coproprietaire, index)} />
                     ) : (
                       lot.lot
                     ),

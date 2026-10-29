@@ -11,7 +11,7 @@ import { DEMO_NOMS_COPROPRIETES, DEMO_TOTAL_LOTS } from '@/components/administra
 import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import {
   FicheCompteCoproprietaire,
-  LienLot,
+  LienFiche,
 } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheCompteCoproprietaire'
 import { FicheLotDetail } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheLotDetail'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
@@ -212,7 +212,7 @@ export function LotsCoproprietairesModule() {
             {
               h: 'Lot',
               render: (coproprietaire) => (
-                <LienLot libelle={coproprietaire.lot} onClick={() => ouvrirLot(coproprietaire, 0)} />
+                <LienFiche libelle={coproprietaire.lot} onClick={() => ouvrirLot(coproprietaire, 0)} />
               ),
             },
             {

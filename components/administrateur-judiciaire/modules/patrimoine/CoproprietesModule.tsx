@@ -1,7 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { assembleesDeLaCopro } from '@/components/administrateur-judiciaire/data/assemblees'
 import { completerCoproAvecDemo } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { FicheAssembleeDetail } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheAssembleeDetail'
+import { FormModal, type ValeursFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
+import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { FicheAssemblee } from '@/lib/administrateur-judiciaire/domain/fiche-assemblee'
 import { completerAvecDemo } from '@/components/administrateur-judiciaire/data/prestataires'
 import {
   FicheCoproprieteDetail,
@@ -34,6 +39,35 @@ function entreprisesDeLImmeuble(copro: CoproprieteVue, prestataires: Prestataire
   })
 }
 
+/** Champs modifiables de la fiche d'une assemblée (tenue, convocation, procès-verbal, notes). */
+const CHAMPS_ASSEMBLEE = [
+  { name: 'lieu', label: 'Lieu', full: true },
+  { name: 'heureDebut', label: 'Début' },
+  { name: 'heureFin', label: 'Fin' },
+  { name: 'convocationEnvoyeeLe', label: 'Convocation envoyée le', type: 'date' },
+  { name: 'convocationPresenteeLe', label: 'Convocation présentée le', type: 'date' },
+  { name: 'pvSigneLe', label: 'PV signé le', type: 'date' },
+  { name: 'pvPresenteLe', label: 'Notification du PV présentée le', type: 'date' },
+  { name: 'notes', label: 'Notes', type: 'textarea', full: true },
+] as const
+
+/** Assemblée après saisie : une date vide ou mal formée devient null. */
+function modifierAssemblee(assemblee: FicheAssemblee, valeurs: ValeursFormModal): FicheAssemblee {
+  const lire = (cle: string) => (valeurs[cle] ?? '').trim()
+  const dateOuNull = (cle: string) => (/^\d{4}-\d{2}-\d{2}$/.test(lire(cle)) ? lire(cle) : null)
+  return {
+    ...assemblee,
+    lieu: lire('lieu'),
+    heureDebut: lire('heureDebut'),
+    heureFin: lire('heureFin'),
+    convocationEnvoyeeLe: dateOuNull('convocationEnvoyeeLe'),
+    convocationPresenteeLe: dateOuNull('convocationPresenteeLe'),
+    pvSigneLe: dateOuNull('pvSigneLe'),
+    pvPresenteLe: dateOuNull('pvPresenteLe'),
+    notes: lire('notes'),
+  }
+}
+
 /** Fiche détaillée après saisie : immatriculation, SIRET, ICS, alerte de trésorerie, notes et avertissement. */
 function ficheSaisie(base: FicheCopropriete, valeurs: ValeursFormulaireToast): FicheCopropriete {
   const lire = (cle: string) => (valeurs[cle] ?? '').trim()
@@ -61,10 +95,19 @@ export function CoproprietesModule() {
   const { prestataires, contrats } = useDonneesLocales()
   const { choisirCopro } = useSelectionDossier()
   const [ficheId, setFicheId] = useState<string | null>(null)
+  const [agOuverteId, setAgOuverteId] = useState<string | null>(null)
+  const [agEditeeId, setAgEditeeId] = useState<string | null>(null)
+  const [agModifiees, setAgModifiees] = useState<Record<string, FicheAssemblee>>({})
   const totalLots = copros.reduce((total, copro) => total + copro.lots, 0)
   const totalBudgets = copros.reduce((total, copro) => total + copro.budget, 0)
   const trouvee = copros.find((copro) => copro.id === ficheId)
   const coproFiche = trouvee ? completerCoproAvecDemo(trouvee) : null
+  const assembleesDe = (code: string) => assembleesDeLaCopro(code).map((assemblee) => agModifiees[assemblee.id] ?? assemblee)
+  const trouverAg = (id: string | null) =>
+    copros.flatMap((copro) => assembleesDe(copro.code)).find((assemblee) => assemblee.id === id) ?? null
+  const agOuverte = trouverAg(agOuverteId)
+  const agEditee = trouverAg(agEditeeId)
+  const coproDeLAg = (assemblee: FicheAssemblee | null) => copros.find((copro) => copro.code === assemblee?.coproCode)
 
   const ouvrirFormulaire = (copro: CoproprieteVue | null) => {
     const fiche = copro ? (completerCoproAvecDemo(copro).fiche ?? nouvelleFicheCopropriete()) : null
@@ -266,6 +309,44 @@ export function CoproprietesModule() {
           setFicheId(null)
           choisirCopro(copro.code)
           naviguerVers('fiche360')
+        }}
+        assemblees={coproFiche ? assembleesDe(coproFiche.code) : []}
+        onOuvrirAssemblee={(id) => {
+          setFicheId(null)
+          setAgOuverteId(id)
+        }}
+      />
+      <FicheAssembleeDetail
+        assemblee={agOuverte}
+        nomCopro={coproDeLAg(agOuverte)?.nom ?? ''}
+        onClose={() => setAgOuverteId(null)}
+        onFicheCopropriete={() => {
+          setFicheId(coproDeLAg(agOuverte)?.id ?? null)
+          setAgOuverteId(null)
+        }}
+        onModifier={(assemblee) => {
+          setAgOuverteId(null)
+          setAgEditeeId(assemblee.id)
+        }}
+      />
+      <FormModal
+        open={!!agEditee}
+        onClose={() => {
+          setAgOuverteId(agEditeeId)
+          setAgEditeeId(null)
+        }}
+        title={agEditee ? `Modifier la fiche — AG du ${dateIsoVersFr(agEditee.date)}` : undefined}
+        icon="pencil"
+        fields={agEditee ? CHAMPS_ASSEMBLEE.map((champ) => ({ ...champ, value: agEditee[champ.name] ?? '' })) : []}
+        submitLabel="Enregistrer"
+        onDone={(valeurs) => {
+          if (!agEditee) return
+          setAgModifiees((precedentes) => ({ ...precedentes, [agEditee.id]: modifierAssemblee(agEditee, valeurs) }))
+          push({
+            kind: 'success',
+            title: "Fiche de l'assemblée mise à jour",
+            desc: 'Démonstration : la modification disparaît au rechargement de la page.',
+          })
         }}
       />
     </>

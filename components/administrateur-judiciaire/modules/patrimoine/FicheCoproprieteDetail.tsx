@@ -1,5 +1,6 @@
 'use client'
 
+import { LienFiche } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheCompteCoproprietaire'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { Champ, Grille, GrilleFiche, Section, Tableau } from '@/components/administrateur-judiciaire/ui/FicheBlocs'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -7,6 +8,7 @@ import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/adminis
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { FicheAssemblee } from '@/lib/administrateur-judiciaire/domain/fiche-assemblee'
 import { finConseilSyndical, nouvelleFicheCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-copropriete'
 import { formatDateFr, formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
 
@@ -23,6 +25,9 @@ export interface FicheCoproprieteDetailProps {
   onClose: () => void
   onModifier: (copro: CoproprieteVue) => void
   onFiche360: (copro: CoproprieteVue) => void
+  /** Assemblées de la copropriété ; chacune ouvre sa fiche. */
+  assemblees?: FicheAssemblee[]
+  onOuvrirAssemblee?: (id: string) => void
 }
 
 const dateOuTiret = (date: string | null) => (date ? dateIsoVersFr(date) : '—')
@@ -30,10 +35,19 @@ const ouiNon = (valeur: boolean) => (valeur ? 'Oui' : 'Non')
 
 /**
  * Fiche d'une copropriété sur le modèle de la fiche Mandat de Gestéam : mandat et ordonnance, syndicat et
- * immatriculation, lots, équipe, entreprises de l'immeuble, clés, exercices, conseil syndical et assemblées, finances
- * et honoraires, notes et avertissement (affiché en tête). Sans fiche détaillée, les blocs propres à la fiche sont vides.
+ * immatriculation, lots, équipe, entreprises de l'immeuble, clés, exercices, conseil syndical et assemblées (chaque
+ * assemblée ouvre sa fiche), finances et honoraires, notes et avertissement (affiché en tête). Sans fiche détaillée, les
+ * blocs propres à la fiche sont vides.
  */
-export function FicheCoproprieteDetail({ copro, entreprises, onClose, onModifier, onFiche360 }: FicheCoproprieteDetailProps) {
+export function FicheCoproprieteDetail({
+  copro,
+  entreprises,
+  onClose,
+  onModifier,
+  onFiche360,
+  assemblees = [],
+  onOuvrirAssemblee,
+}: FicheCoproprieteDetailProps) {
   const fiche = copro?.fiche ?? nouvelleFicheCopropriete()
   const finCs = finConseilSyndical(fiche.conseilSyndical)
   return (
@@ -139,6 +153,27 @@ export function FicheCoproprieteDetail({ copro, entreprises, onClose, onModifier
                   <Champ k="AG en visioconférence" v={fiche.agVisio ? 'Acceptée' : 'Non'} />
                   <Champ k="Soumis à l'art. 22" v={ouiNon(fiche.soumisArt22)} />
                 </Grille>
+              </Section>
+              <Section titre="Assemblées" icone="team" large>
+                <Tableau
+                  entetes={['Date', 'Nature', 'N°', 'Statut']}
+                  largeurs={[26, 22, 28, 24]}
+                  lignes={assemblees.map((assemblee) => [
+                    onOuvrirAssemblee ? (
+                      <LienFiche
+                        key={assemblee.id}
+                        libelle={`AG du ${dateIsoVersFr(assemblee.date)}`}
+                        onClick={() => onOuvrirAssemblee(assemblee.id)}
+                      />
+                    ) : (
+                      dateIsoVersFr(assemblee.date)
+                    ),
+                    assemblee.nature,
+                    assemblee.numero,
+                    assemblee.statut,
+                  ])}
+                  vide="Aucune assemblée enregistrée."
+                />
               </Section>
               <Section titre="Finances et honoraires" icone="coin">
                 <Grille>
