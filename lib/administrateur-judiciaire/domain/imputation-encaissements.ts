@@ -1,6 +1,7 @@
 import { repartirAuxPlusFortsRestes } from '@/lib/administrateur-judiciaire/domain/arrondis'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { ReglementDebiteur } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
+import type { AvisAppels, CleRepartition, NatureEcheance } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import type { LigneMouvement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { TYPE_APPEL_LIE_AU_MOUVEMENT, type TypeAppelLieAuMouvement } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -39,6 +40,63 @@ export interface PosteDette {
   regleCentimes: number
   /** Dette passée en contentieux (colonne « Ctx » de Gestéam). */
   contentieux: boolean
+  /** Lot dont la quote-part fait le poste (postesDepuisAvis). */
+  lotId?: string | null
+  /** Code de la clé de répartition (postesDepuisAvis). */
+  cle?: string | null
+  /** Base : montant de l'échéance réparti (Gestéam « Base € »). */
+  baseCentimes?: number | null
+  /** Tantièmes du lot et total de la clé au moment de l'appel (Gestéam « Taux n / total »). */
+  tantiemes?: { lot: number; total: number } | null
+}
+
+/** Type d'appel Gestéam de chaque nature d'échéance (TYPE_APPEL_LIE_AU_MOUVEMENT). */
+const TYPE_APPEL_PAR_NATURE: Record<NatureEcheance, TypeAppelLieAuMouvement> = {
+  budget: 'Budget',
+  travaux: 'Travaux',
+  fonds_travaux: 'Fonds travaux',
+}
+
+/**
+ * Postes de terme tirés de l'avis d'appel (repartition-appels.avisDAppel ; Gestéam : l'avis se décompose en postes —
+ * clé, lot, base, taux, total, réglé, solde — tranches 30 et 43 § 8) : un poste par compte, échéance et lot, non réglé,
+ * hors contentieux. Comme traitementAppelDeFonds, refuse un avis qui porte des anomalies : un poste n'existe que pour un
+ * appel qui peut être écrit au compte 450. Une quote-part nulle ne fait pas de poste. Avec les clés du syndicat, le poste
+ * porte aussi les tantièmes du lot et le total de la clé. C'est l'entrée de imputerEncaissement(s).
+ */
+export function postesDepuisAvis(avis: AvisAppels, cles: CleRepartition[] = []): PosteDette[] {
+  if (avis.anomalies.length > 0) throw new Error(`Postes non créés : ${avis.anomalies.length} anomalie(s) de l'avis à lever d'abord.`)
+  const echeances = new Map<string, AvisAppels['echeances'][number]>()
+  for (const e of avis.echeances) {
+    if (echeances.has(e.id)) throw new Error(`Avis incohérent : échéance « ${e.id} » en double.`)
+    echeances.set(e.id, e)
+  }
+  return avis.parCompte.flatMap((compte) =>
+    compte.lignes.flatMap((ligne) => {
+      const echeance = echeances.get(ligne.echeanceId)
+      if (!echeance) throw new Error(`Avis incohérent : échéance « ${ligne.echeanceId} » absente de l'avis.`)
+      if (ligne.centimes === 0) return []
+      const cle = cles.find((c) => c.id === echeance.cleId)
+      const lot = cle?.lots.find((l) => l.lotId === ligne.lotId)
+      return [
+        {
+          id: `${echeance.id}:${ligne.lotId}`,
+          compteId: compte.compteId,
+          appelId: echeance.id,
+          typeAppel: TYPE_APPEL_PAR_NATURE[echeance.nature],
+          libelle: echeance.libelle,
+          exigibilite: echeance.exigibilite,
+          montantCentimes: ligne.centimes,
+          regleCentimes: 0,
+          contentieux: false,
+          lotId: ligne.lotId,
+          cle: ligne.cle,
+          baseCentimes: echeance.montantCentimes,
+          tantiemes: cle && lot ? { lot: lot.tantiemes, total: cle.totalTantiemes } : null,
+        },
+      ]
+    }),
+  )
 }
 
 export interface Encaissement {
