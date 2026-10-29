@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { useRouter } from 'next/navigation'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
@@ -28,17 +29,22 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-    }
-    getUser()
+    let actif = true
+    // Pas d'appel réseau au chargement des pages publiques : la session locale (cookies) suffit pour l'en-tête,
+    // et les événements d'auth tiennent l'état à jour (lot 1 Sentry du 28/10/2026 : /pt/pesquisar appelait
+    // /auth/v1/user à chaque chargement).
+    void lireSessionSure(supabase.auth).then(({ session }) => {
+      if (actif) setUser(session?.user ?? null)
+    })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      actif = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const handleLogout = async () => {

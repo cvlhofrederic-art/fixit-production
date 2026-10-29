@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { jetonAcces } from '@/lib/auth/jeton-acces'
+import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
@@ -15,28 +17,12 @@ function safeJsonParse(val: unknown, fallback: any = []) {
 // existantes au premier chargement.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Cache le token auth pour éviter un getSession() à chaque fetch
-let _cachedToken: string | null = null
-let _cachedAt = 0
-const TOKEN_TTL = 120_000 // 2 min cache
-
+// Jeton tenu à jour par les événements d'auth (lib/auth/jeton-acces.ts) : pas de getSession() à chaque fetch,
+// donc pas de prise du verrou d'auth partagé entre onglets (lot 1 Sentry du 28/10/2026).
 async function authHeaders(): Promise<Record<string, string>> {
-  const now = Date.now()
-  if (_cachedToken && now - _cachedAt < TOKEN_TTL) {
-    return { Authorization: `Bearer ${_cachedToken}` }
-  }
-  const { data } = await supabase.auth.getSession()
-  const token = data?.session?.access_token
-  if (token) {
-    _cachedToken = token
-    _cachedAt = now
-    return { Authorization: `Bearer ${token}` }
-  }
-  return {}
+  const token = await jetonAcces()
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
-
-// Invalider le cache quand la session change (login/logout)
-supabase.auth.onAuthStateChange(() => { _cachedToken = null; _cachedAt = 0 })
 
 type TableName = 'chantiers_btp' | 'membres_btp' | 'equipes_btp' | 'pointages_btp' | 'depenses_btp' | 'situations_btp' | 'retenues_btp' | 'dc4_btp' | 'dce_analyses_btp' | 'dpgf_btp' | 'charges_fixes' | 'rapports_btp'
 type ShortName = 'chantiers' | 'membres' | 'equipes' | 'pointages' | 'depenses' | 'situations' | 'retenues' | 'dc4' | 'dce_analyses' | 'dpgf' | 'charges_fixes' | 'rapports'
@@ -682,7 +668,9 @@ export function useBTPSettings() {
       } else {
         // No saved settings yet — try to initialize from user_metadata.legal_structure
         try {
-          const { data: { user } } = await supabase.auth.getUser()
+          // user_metadata est dans la session locale : pas d'aller-retour réseau ni de getUser() ici.
+          const { session } = await lireSessionSure(supabase.auth)
+          const user = session?.user
           const legalStructure = user?.user_metadata?.legal_structure
           const country = user?.user_metadata?.country === 'PT' ? 'PT' as const : 'FR' as const
           if (legalStructure) {

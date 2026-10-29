@@ -22,7 +22,9 @@ import { isStorageAvailable } from '@/lib/safe-storage'
 // n'est jamais présente — l'auth est en cookies), donc getToken() renverrait
 // toujours null et AUCUNE donnée ne serait sauvegardée dans le cloud.
 // Régression « base clients qui disparaît » (2026-06-01).
-import { supabase } from '@/lib/supabase'
+// Le jeton vient du cache tenu par les événements d'auth (lib/auth/jeton-acces.ts) : plus de getSession() à
+// chaque flush, donc plus de prise du verrou d'auth partagé entre onglets (lot 1 Sentry du 28/10/2026).
+import { jetonAcces } from '@/lib/auth/jeton-acces'
 
 const FIXIT_PREFIX = 'fixit_'
 // 5 MB max par cle pour absorber les cas legacy ou des fichiers sont
@@ -43,8 +45,7 @@ let installed = false
 
 async function getToken(): Promise<string | null> {
   try {
-    const { data } = await supabase.auth.getSession()
-    return data.session?.access_token || null
+    return await jetonAcces()
   } catch {
     return null
   }

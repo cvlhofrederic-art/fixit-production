@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import { hydrateStorageFromServer, installStorageSync, pushAllLocalToServer } from '@/lib/storage-sync'
 import { importLocalStorageDocsToSupabase } from '@/lib/document-sync'
 import { supabase } from '@/lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 
 interface ProvidersProps {
   children: ReactNode
@@ -35,12 +36,14 @@ function useStorageSync() {
     // sauvegarde cloud. On utilise désormais le client partagé (cookies SSR).
     installStorageSync()
 
-    async function bootstrap() {
-      if (cancelled) return
-      try {
-        const { data } = await supabase.auth.getSession()
-        if (cancelled || !data.session) return
+    // La session vient de l'événement d'auth : plus aucun getSession() ici (chaque getSession prend le verrou
+    // d'auth partagé entre onglets, lot 1 Sentry du 28/10/2026). Un seul bootstrap à la fois.
+    let bootstrapEnCours = false
 
+    async function bootstrap(session: Session | null) {
+      if (cancelled || !session || bootstrapEnCours) return
+      bootstrapEnCours = true
+      try {
         // 1. Hydrate le localStorage depuis la DB (avant d'installer le
         //    patch sinon cycle de re-mirroir des ecritures d'hydratation).
         const hydrated = await hydrateStorageFromServer()
@@ -67,7 +70,7 @@ function useStorageSync() {
         //    documents accumules en localStorage vers Supabase via le nouvel
         //    endpoint /api/devis/sync. Idempotent : flag par artisan_id.
         try {
-          const userId = data.session.user?.id
+          const userId = session.user?.id
           if (userId) {
             const flagKey = `fixit_devis_synced_v1_${userId}`
             if (!localStorage.getItem(flagKey)) {
@@ -83,18 +86,18 @@ function useStorageSync() {
           }
         } catch { /* tolerant : retry au prochain bootstrap */ }
       } catch { /* tolerant : le localStorage reste fonctionnel */ }
+      finally { bootstrapEnCours = false }
     }
 
-    // Bootstrap immediat (cas : deja connecte en arrivant sur la page).
-    bootstrap()
-
-    // Bootstrap sur INITIAL_SESSION / SIGNED_IN / TOKEN_REFRESHED. INITIAL_SESSION
-    // est crucial : avec @supabase/ssr la session est restaurée depuis les cookies
-    // et émise via cet event (getSession() peut renvoyer null au tout premier tick).
-    // SIGNED_IN couvre le passage par /auth/login (Providers ne se remount pas).
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+    // Bootstrap sur INITIAL_SESSION / SIGNED_IN / TOKEN_REFRESHED. INITIAL_SESSION est émis à chaque abonné
+    // après l'initialisation du client (session restaurée depuis les cookies) : il couvre aussi le cas « déjà
+    // connecté en arrivant sur la page », qui déclenchait auparavant un second bootstrap immédiat (GET
+    // /api/user-storage en double). SIGNED_IN couvre le passage par /auth/login (Providers ne se remount pas).
+    // Callback synchrone, travail différé : jamais d'appel Supabase attendu dans un callback onAuthStateChange
+    // (interblocage documenté par Supabase).
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        bootstrap()
+        setTimeout(() => { void bootstrap(session) }, 0)
       }
     })
 
