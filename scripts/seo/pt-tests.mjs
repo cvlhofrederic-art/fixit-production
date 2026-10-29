@@ -74,6 +74,17 @@ function fabriquerVerificateurCibles(base, concurrence) {
   }
 }
 
+/** Lit un JSON s'il existe ; un fichier absent vaut null. Pas de contrôle préalable (existsSync) : le même
+ *  chemin est réécrit en mode référence, et un contrôle-puis-usage est signalé par CodeQL (js/file-system-race). */
+function lireJsonOptionnel(chemin) {
+  try {
+    return JSON.parse(readFileSync(chemin, 'utf8'))
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return null
+    throw e
+  }
+}
+
 async function principal() {
   const o = lireArguments(process.argv.slice(2))
   const base = o.base
@@ -84,7 +95,7 @@ async function principal() {
   const veut = (id) => !o.tests.length || o.tests.includes(id)
   const R = new Resultats()
   const cheminReference = absolu(o.reference, '--reference')
-  const reference = existsSync(cheminReference) ? JSON.parse(readFileSync(cheminReference, 'utf8')) : null
+  const reference = lireJsonOptionnel(cheminReference) // sans existsSync : le fichier est réécrit plus bas (CodeQL js/file-system-race)
   const nouvelleReference = { date: o.date, base }
 
   // Données d'audit (téléchargement des pages PT) : réutilisées par T1, T2, T3, T4, T5, T6, T7, T10, T11
