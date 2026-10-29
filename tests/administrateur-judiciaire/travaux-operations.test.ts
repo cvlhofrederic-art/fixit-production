@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   creerOperationTravaux,
   echeancesTravaux,
+  etatPartFondsTravaux,
   retenueGarantie,
   type SaisieOperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
@@ -11,7 +12,9 @@ import {
  * financement par le fonds de travaux, retenue de garantie.
  * - Les appels de travaux exigent la décision d'assemblée (date et résolution).
  * - Tranches : pourcentages du montant à appeler (budget − part du fonds de travaux), au centime près.
- * - Part du fonds de travaux : contrôlée par fonds-travaux.ts (J4 : travaux votés, décision d'AG requise).
+ * - Part du fonds de travaux : son affectation (une des quatre dépenses de l'art. 14-2-1, I, ou l'autorisation du juge de
+ *   l'art. 29-14, 2°) est contrôlée par fonds-travaux.ts (J4) : objet exclu refusé dès la création ; décision
+ *   d'assemblée ou autorisation du juge exigée avant d'appeler.
  * - Retenue de garantie : 5 % au plus (loi n° 71-584, art. 1er), libérée un an après la réception sauf opposition.
  */
 
@@ -23,6 +26,7 @@ const saisie = (surcharge: Partial<SaisieOperationTravaux> = {}): SaisieOperatio
   decision: { date: '2026-03-12', resolution: 'Résolution 8' },
   budgetTtcCentimes: 12_000_000,
   financementFondsTravauxCentimes: 2_000_000,
+  affectationFonds: { objet: 'travaux_hors_ppt' },
   tranches: [
     { date: '2026-05-01', tauxPct: 30 },
     { date: '2026-08-01', tauxPct: 40 },
@@ -61,6 +65,58 @@ describe('appels de travaux en tranches', () => {
 
   it('refuse d’appeler sans décision d’assemblée', () => {
     expect(() => echeancesTravaux(creerOperationTravaux(saisie({ decision: null })))).toThrow(/assembl/i)
+  })
+})
+
+describe('part du fonds de travaux — affectation (J4, art. 14-2-1, I et art. 29-14, 2°)', () => {
+  it('une part du fonds exige de préciser son affectation ; sans part, rien n’est demandé', () => {
+    expect(() => creerOperationTravaux(saisie({ affectationFonds: null }))).toThrow(/affectation/i)
+    expect(() => creerOperationTravaux(saisie({ affectationFonds: undefined }))).toThrow(/affectation/i)
+    expect(creerOperationTravaux(saisie({ financementFondsTravauxCentimes: 0, affectationFonds: null })).montantAAppelerCentimes).toBe(12_000_000)
+  })
+
+  it('un objet exclu du fonds est refusé dès la création, même avec une décision d’assemblée', () => {
+    expect(() => creerOperationTravaux(saisie({ affectationFonds: { objet: 'travaux_amelioration' } }))).toThrow(/exclu/i)
+    expect(() => creerOperationTravaux(saisie({ affectationFonds: { objet: 'charges_courantes' } }))).toThrow(/charges courantes/i)
+  })
+
+  it('une opération pas encore votée peut prévoir le fonds ; l’appel exige la décision qui l’affecte', () => {
+    const nonVotee = creerOperationTravaux(saisie({ decision: null }))
+    expect(nonVotee.montantAAppelerCentimes).toBe(10_000_000)
+    expect(() => echeancesTravaux(nonVotee)).toThrow(/assembl/i)
+  })
+
+  it('usage judiciaire du fonds (art. 29-14, 2°) : l’appel exige l’autorisation du juge', () => {
+    const sansJuge = creerOperationTravaux(saisie({ affectationFonds: { objet: 'redressement_29_14' } }))
+    expect(() => echeancesTravaux(sansJuge)).toThrow(/juge/)
+    const avecJuge = creerOperationTravaux(
+      saisie({ affectationFonds: { objet: 'redressement_29_14', autorisationJuge: 'Ordonnance du 02/09/2026' } }),
+    )
+    expect(echeancesTravaux(avecJuge)).toHaveLength(3)
+  })
+
+  it('état de la part du fonds, sans erreur : sans part, autorisée, ou ce qui bloque', () => {
+    expect(etatPartFondsTravaux(creerOperationTravaux(saisie({ financementFondsTravauxCentimes: 0, affectationFonds: null })))).toBeNull()
+    expect(etatPartFondsTravaux(creerOperationTravaux(saisie()))).toEqual({ autorise: true, motif: expect.stringMatching(/affectation admise/) })
+    const sansJuge = creerOperationTravaux(saisie({ affectationFonds: { objet: 'redressement_29_14' } }))
+    expect(etatPartFondsTravaux(sansJuge)).toEqual({ autorise: false, motif: expect.stringMatching(/juge/) })
+    expect(etatPartFondsTravaux({ ...creerOperationTravaux(saisie()), affectationFonds: undefined })).toEqual({
+      autorise: false,
+      motif: expect.stringMatching(/préciser l'affectation/),
+    })
+  })
+
+  it('une décision d’affectation distincte peut être rattachée ; à défaut, la résolution des travaux en tient lieu', () => {
+    const distincte = creerOperationTravaux(
+      saisie({ affectationFonds: { objet: 'travaux_ppt', decisionAg: 'AG du 12/03/2026, résolution 9 (affectation du fonds)' } }),
+    )
+    expect(echeancesTravaux(distincte)).toHaveLength(3)
+    expect(etatPartFondsTravaux(creerOperationTravaux(saisie({ affectationFonds: { objet: 'travaux_ppt' } })))?.autorise).toBe(true)
+  })
+
+  it('un objet inconnu est refusé', () => {
+    // @ts-expect-error — objet hors AFFECTATION_FONDS_TRAVAUX
+    expect(() => creerOperationTravaux(saisie({ affectationFonds: { objet: 'travaux_votes_ag' } }))).toThrow(/objet/i)
   })
 })
 
