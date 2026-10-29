@@ -7,6 +7,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const lire = (chemin: string) => readFileSync(join(process.cwd(), chemin), 'utf8')
+// Échappement complet pour construire une expression régulière à partir d'un chemin (CodeQL js/incomplete-sanitization).
+const echapper = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
 
 describe('appels /api authentifiés par fetchAuthentifie', () => {
   it.each([
@@ -16,9 +18,10 @@ describe('appels /api authentifiés par fetchAuthentifie', () => {
     const source = lire(fichier)
     expect(source).toContain("import { fetchAuthentifie } from '@/lib/fetch-authentifie'")
     for (const route of routes) {
-      const fetchNu = new RegExp(`[^a-zA-Z]fetch\\((\`|')${route.replace(/\//g, '\\/')}`)
+      const fetchNu = new RegExp(`[^a-zA-Z]fetch\\((\`|')${echapper(route)}`)
       expect(source, `${fichier} : fetch nu vers ${route}`).not.toMatch(fetchNu)
-      expect(source).toContain(`fetchAuthentifie(\`${route}`.replace('`/api/fixy-ai', "'/api/fixy-ai").replace('`', route.includes('fixy') ? "'" : '`'))
+      const fetchAuthentifie = new RegExp(`fetchAuthentifie\\((\`|')${echapper(route)}`)
+      expect(source, `${fichier} : appel authentifié vers ${route}`).toMatch(fetchAuthentifie)
     }
   })
 })
