@@ -114,6 +114,8 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
       return json({}, 404)
     }))
     rendre(authed())
+    // Boîte chargée avant le clic : avant la réponse de /status, le bouton n'ouvre que le toast « bientôt » (faux rouge CI).
+    expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Analisar agora/ }))
     expect(await screen.findByText('12 novos emails · 20 lidos · 8 por analisar — clique novamente')).toBeInTheDocument()
   })
@@ -127,6 +129,8 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
       return json({}, 404)
     }))
     rendre(authed())
+    // Boîte chargée avant le clic : avant la réponse de /status, le bouton n'ouvre que le toast « bientôt » (faux rouge CI).
+    expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Analisar agora/ }))
     expect(await screen.findByText('Análise impossível')).toBeInTheDocument()
     expect(screen.getByText('A ligação à caixa de email expirou: volte a ligá-la.')).toBeInTheDocument()
