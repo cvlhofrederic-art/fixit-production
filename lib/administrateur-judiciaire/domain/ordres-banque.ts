@@ -5,8 +5,11 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
  * Ordres de banque d'un syndicat (cartographie Gestéam, tranche 29). Fonctions pures, montants en CENTIMES ENTIERS, sans
  * écran ni envoi : les fichiers sont produits, jamais transmis par VitFix.
  *
- * D1 — l'ordre porte sur un compte bancaire du SYNDICAT et reste rattaché au traitement qui l'a produit (encaissement
- * pour une remise, règlement de factures pour un virement).
+ * D1 — l'ordre porte sur un compte bancaire du SYNDICAT et porte l'identifiant (traitementId) du traitement auquel il
+ * se rattache : l'encaissement pour une remise ; pour un virement, le traitement « Règlement de factures » ou
+ * « Règlement de soldes de compte » sous lequel tous les règlements de l'ordre sont écrits ensemble, une fois l'ordre
+ * émis (reglements-fournisseurs.ts, traitementReglements). À la création d'un ordre de virement, ce traitement
+ * n'existe donc pas encore : traitementId en réserve l'identifiant.
  *
  * Gestéam — « Comptabilité Ordre de banques » : Date · Compte (512) · Type (Remise de chèques, Ordre de virement…) ·
  * Tiers · Libellé · No pièce · Or(dres) · Montant · Statut (Enregistré / Émis) ; fiche : Émis le, Nombre de pièces,
@@ -38,7 +41,7 @@ interface BaseOrdre {
   date: string
   coproprieteId: string
   banqueId: string
-  /** Traitement d'origine (encaissement ou règlement). */
+  /** Traitement de rattachement (voir D1 ci-dessus) : encaissement, ou règlement écrit après l'émission du virement. */
   traitementId: string
 }
 
@@ -82,9 +85,25 @@ export function creerRemiseCheques(saisie: BaseOrdre & { lignes: LigneCheque[] }
   return { ...saisie, type: 'Remise de chèques', ...totaux(saisie.lignes) }
 }
 
+/**
+ * Un identifiant de bout en bout (reglementId de la ligne, EndToEndId du fichier) par virement, jamais deux fois dans
+ * l'ordre : il sert de référence du paiement, comme le n° d'un chèque d'une remise. Contrôlé à la création de l'ordre et
+ * de nouveau sur un ordre relu (reglements-fournisseurs.ts), qui peut n'être pas passé par creerOrdreVirement.
+ */
+export function verifierIdentifiantsVirement(lignes: LigneVirement[]): void {
+  const identifiants = new Set<string>()
+  for (const l of lignes) {
+    if (identifiants.has(l.reglementId))
+      throw new Error(`Identifiant de bout en bout « ${l.reglementId} » en double dans l'ordre : chaque virement a sa propre référence de paiement.`)
+    identifiants.add(l.reglementId)
+  }
+}
+
+/** Ordre de virement : IBAN contrôlés, identifiants de bout en bout uniques (verifierIdentifiantsVirement). */
 export function creerOrdreVirement(saisie: BaseOrdre & { lignes: LigneVirement[] }): OrdreVirement {
   verifierBase(saisie, saisie.lignes)
   for (const l of saisie.lignes) if (!validerIban(l.iban)) throw new Error(`IBAN invalide pour ${l.beneficiaire}.`)
+  verifierIdentifiantsVirement(saisie.lignes)
   return { ...saisie, type: 'Ordre de virement', ...totaux(saisie.lignes) }
 }
 

@@ -16,6 +16,15 @@ import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 
 export type StatutArrete = 'En cours' | 'Clôturé'
 
+/** Nature d'une pièce soldée par un élément rapproché : règlement (sortie, point 38) ou encaissement (entrée, point 16). */
+export type TypePieceRapprochee = 'reglement' | 'encaissement'
+
+/** Pièce que l'élément solde ; lue par rapprochement-pieces.ts pour propager le statut « Rapproché ». */
+export interface PieceRapprochee {
+  type: TypePieceRapprochee
+  id: string
+}
+
 export interface ElementRapprochement {
   id: string
   /** Ligne du relevé (« banque ») ou écriture du compte 512 (« compta »). */
@@ -27,6 +36,11 @@ export interface ElementRapprochement {
   date?: string
   /** Jour du rapprochement (AAAA-MM-JJ) ; exigé par suspensA pour un élément rapproché ; null tant qu'il est en suspens. */
   rapprocheLe?: string | null
+  /**
+   * Pièces soldées par l'élément (ligne de virement groupé : tous ses règlements, voir LigneVirement.reglementIds) ;
+   * absent : aucune. Facultatif et sans effet sur l'état de l'arrêté.
+   */
+  pieces?: PieceRapprochee[]
 }
 
 export interface ArreteRapprochement {
@@ -103,8 +117,11 @@ export interface SuspensALaDate {
   totalComptaCentimes: number
 }
 
-/** Jour à partir duquel un élément n'est plus en suspens ; null s'il ne l'est jamais. */
-function finDuSuspens(e: ElementRapprochement & { date: string }): string | null {
+/**
+ * Jour à partir duquel un élément n'est plus en suspens ; null s'il ne l'est jamais. Exige la date de rapprochement d'un
+ * élément rapproché, postérieure ou égale à son opération (règle partagée par suspensA et rapprochement-pieces.ts).
+ */
+export function finDuSuspens(e: ElementRapprochement & { date: string }): string | null {
   if (e.rapproche === false) return null
   if (e.rapprocheLe == null)
     throw new Error(`Élément « ${e.id} » rapproché sans date de rapprochement (AAAA-MM-JJ attendu) : ses suspens passés ne peuvent pas être calculés.`)
