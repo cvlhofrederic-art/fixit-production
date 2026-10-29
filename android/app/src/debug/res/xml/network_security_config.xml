@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Build DEBUG uniquement (fusionnée à la place de src/main pour ce type de build) : même base
+  stricte que la release, plus le HTTP en clair limité aux adresses du live reload Capacitor
+  (capacitor.config.ts > server.url) : poste local et émulateur Android. Ajouter ici l'adresse
+  IP LAN du poste de développement si server.url pointe dessus. La release reste stricte.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

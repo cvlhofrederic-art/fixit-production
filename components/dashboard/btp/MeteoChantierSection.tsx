@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
 import { supabase } from '@/lib/supabase'
+import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
 
 interface ChantierItem {
   id: string; titre: string; adresse: string; ville: string; codePostal: string
@@ -303,9 +304,13 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
               // Persist coordinates via useBTPData (route /api/btp avec owner_id check)
               updateChantier(chantier.id, { latitude: lat, longitude: lng }).catch(err => console.warn('[MeteoChantier] Coord persist failed:', err))
             }
-            const res = await fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_speed_10m_max,weather_code&timezone=auto&forecast_days=7`
-            )
+            // Coordonnées converties, bornées et passées en paramètres d'URL (lib/btp/meteo-url.ts)
+            const urlMeteo = urlPrevisionsMeteo(lat, lng)
+            if (!urlMeteo) {
+              failedNames.push(`${chantier.titre} (coordonnées invalides)`)
+              return null
+            }
+            const res = await fetch(urlMeteo)
             if (!res.ok) {
               failedNames.push(`${chantier.titre} (API erreur ${res.status})`)
               return null

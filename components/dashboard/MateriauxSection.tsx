@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import { supabase } from '@/lib/supabase'
 import { useThemeVars } from './useThemeVars'
 
@@ -361,7 +362,7 @@ export default function MateriauxSection({ artisan, onExportDevis, orgRole }: { 
     onExportDevis(exportLines)
   }
 
-  const formatMsg = (text: string) => safeMarkdownToHTML(text)
+  const formatMsg = (text: string) => assainirHtml(safeMarkdownToHTML(text))
 
   // Totaux avec logique fiscale correcte
   const totalBestPrice = currentResults?.reduce((sum, m) => sum + (m.bestPrice?.price || m.avgPrice || 0), 0) || 0

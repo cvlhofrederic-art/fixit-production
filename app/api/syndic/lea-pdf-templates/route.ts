@@ -5,6 +5,7 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { StoragePathError, buildStoragePath } from '@/lib/security/storage-path'
 
 const MAX_TEMPLATE_BYTES = 10 * 1024 * 1024
 
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
 
     const tplId = crypto.randomUUID()
     // Storage path scopé cabinet (et non uploader) — toute l'équipe accède aux templates.
-    const storagePath = `${cabinetId}/${tplId}.pdf`
+    // Nom généré côté serveur, segments vérifiés par buildStoragePath.
+    const storagePath = buildStoragePath(cabinetId, `${tplId}.pdf`)
 
     const { error: upErr } = await supabaseAdmin.storage
       .from('syndic-pdf-templates')
@@ -120,13 +122,18 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (insErr || !row) {
-      await supabaseAdmin.storage.from('syndic-pdf-templates').remove([storagePath]).catch(() => {})
+      await supabaseAdmin.storage.from('syndic-pdf-templates').remove([storagePath])
+        .catch((e: unknown) => logger.warn('[lea-pdf-templates/create] rollback storage failed:', e))
       logger.error('[lea-pdf-templates/create] db insert failed:', insErr)
       return NextResponse.json({ error: 'db_insert_failed' }, { status: 500 })
     }
 
     return NextResponse.json({ template: row }, { status: 201 })
   } catch (err) {
+    if (err instanceof StoragePathError) {
+      logger.warn('[lea-pdf-templates/create] chemin de stockage refusé')
+      return NextResponse.json({ error: 'invalid_storage_path' }, { status: 400 })
+    }
     logger.error('[lea-pdf-templates/create] unexpected:', err)
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }

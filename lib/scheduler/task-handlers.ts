@@ -5,6 +5,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { StoragePathError, buildStoragePath } from '@/lib/security/storage-path'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = SupabaseClient<any, any, any>
@@ -436,9 +437,17 @@ async function backup_docs(ctx: HandlerCtx): Promise<HandlerResult> {
     },
   }
 
-  // 3. Upload dans Supabase Storage bucket "cabinet-backups"
+  // 3. Upload dans Supabase Storage bucket "cabinet-backups" — dossier = cabinet de l'automatisation
+  //    (relu en base), nom généré ; segments vérifiés par buildStoragePath, l'URL signée reprend ce chemin.
   const filename = `backup_${cabinetId.slice(0, 8)}_${new Date().toISOString().slice(0, 10)}.json`
-  const filepath = `${cabinetId}/${filename}`
+  let filepath: string
+  try {
+    filepath = buildStoragePath(cabinetId, filename)
+  } catch (err) {
+    if (!(err instanceof StoragePathError)) throw err
+    logger.warn('[backup] chemin de sauvegarde refusé', { cabinet: cabinetId.slice(0, 8) })
+    return { status: 'failed', emails_sent: 0, docs_generated: 0, error_message: 'invalid_storage_path' }
+  }
   const fileContent = JSON.stringify(backup, null, 2)
 
   const { error: uploadErr } = await (supabase as any)

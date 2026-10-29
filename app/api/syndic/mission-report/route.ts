@@ -5,9 +5,39 @@ import { validateBody, syndicMissionReportSchema } from '@/lib/validation'
 import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { sanitizeSvg } from '@/lib/sanitize'
+import { buildStoragePath } from '@/lib/security/storage-path'
 
 // ── Reçoit le rapport d'intervention artisan après ProofOfWork ───────────────
 // Stocke dans syndic_emails_analysed + syndic_notifications + Supabase Storage
+
+// Un artisan ne rapporte que sur SON booking (bookings.artisan_id = sa fiche, ou son compte) et pour un
+// cabinet qui l'a inscrit parmi ses prestataires (syndic_artisans, que seul le cabinet et son équipe
+// écrivent : policy syndic_artisans_cabinet). syndic_id, qui nomme le dossier Storage et le destinataire,
+// vient du corps et doit être confirmé par une donnée que l'artisan ne peut pas écrire lui-même :
+// bookings.syndic_id, metadata.syndic_id et client_id ne prouvent rien, la policy
+// bookings_participant_update (USING seul, aucune restriction de colonne) laisse l'artisan propriétaire
+// du booking les modifier avec son JWT.
+async function artisanLieAuSyndic(userId: string, bookingId: string | null, syndicId: string): Promise<boolean> {
+  if (!bookingId) return false
+  const [
+    { data: booking, error: bookingErr },
+    { data: fiche, error: ficheErr },
+    { data: prestataire, error: prestataireErr },
+  ] = await Promise.all([
+    supabaseAdmin.from('bookings').select('artisan_id').eq('id', bookingId).maybeSingle(),
+    supabaseAdmin.from('profiles_artisan').select('id').eq('user_id', userId).maybeSingle(),
+    supabaseAdmin.from('syndic_artisans').select('id').eq('cabinet_id', syndicId).eq('artisan_user_id', userId).limit(1).maybeSingle(),
+  ])
+  if (bookingErr || ficheErr || prestataireErr) {
+    logger.error('mission-report liaison artisan/syndic', {
+      booking: bookingErr?.message, fiche: ficheErr?.message, prestataire: prestataireErr?.message,
+    })
+    return false
+  }
+  if (!booking || !prestataire) return false
+  const identifiants = new Set<string>([userId, ...(fiche?.id ? [String(fiche.id)] : [])])
+  return identifiants.has(String(booking.artisan_id))
+}
 
 export async function POST(request: NextRequest) {
   // ── Auth : seuls les artisans assignés ou les membres du syndic ──
@@ -54,10 +84,16 @@ export async function POST(request: NextRequest) {
       if (cabinetId !== syndic_id) {
         return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
       }
+    } else if (!(await artisanLieAuSyndic(user.id, booking_id ?? null, syndic_id))) {
+      // Artisan : le dossier Storage (syndic_id) vient du corps, il doit être celui du booking de
+      // l'artisan connecté — sinon n'importe quel compte écrirait dans le dossier d'un autre cabinet.
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
     const now = new Date().toISOString()
-    const reportId = `rapport_${Date.now()}`
+    // Horodatage lisible dans les notifications + aléa : deux rapports du même cabinet dans la même
+    // milliseconde (deux instances Workers) ne partagent pas de dossier, et le nom n'est pas prévisible.
+    const reportId = `rapport_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`
     const photosCount = (photos_before?.length || 0) + (photos_after?.length || 0)
 
     // 1. Stocker les photos dans Supabase Storage (bucket mission-reports)
@@ -71,13 +107,15 @@ export async function POST(request: NextRequest) {
       try {
         const base64Data = photo.data.replace(/^data:image\/\w+;base64,/, '')
         const buffer = Buffer.from(base64Data, 'base64')
-        const fileName = `${syndic_id}/${reportId}/${photo.label}.jpg`
+        // Dossier = cabinet vérifié ci-dessus, sous-dossier et nom générés côté serveur ; segments
+        // vérifiés par buildStoragePath (l'URL signée reprend ce chemin).
+        const fileName = buildStoragePath(syndic_id, reportId, `${photo.label}.jpg`)
 
         const { data: uploadData } = await supabaseAdmin.storage
           .from('mission-reports')
           .upload(fileName, buffer, {
             contentType: 'image/jpeg',
-            upsert: true,
+            upsert: false, // dossier unique par rapport : jamais d'écrasement d'une photo existante
           })
 
         if (uploadData) {

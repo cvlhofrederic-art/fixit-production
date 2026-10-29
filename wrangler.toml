@@ -94,11 +94,29 @@ crons = []
 # and a queue consumer that processes it with up to 15 min execution time.
 
 # ── Public Environment Variables (safe to inline — exposed in client JS) ─────
-# These MUST be in [vars] so server components can access them at runtime.
-# NEXT_PUBLIC_* are already visible in every browser via the client bundle.
+# NEXT_PUBLIC_* sont inlinées au build par Next (valeurs figées dans le bundle, déjà visibles
+# dans chaque navigateur). [vars] les rend en plus lisibles au runtime par nom (process.env
+# dynamique : lib/env.ts validateEnv, app/api/health) ; seules l'URL Supabase et l'URL de
+# l'application restent ici.
+#
+# NEXT_PUBLIC_SUPABASE_ANON_KEY n'est volontairement PAS ici (lot 1 Aikido, 28/10/2026) :
+# clé publique par conception, mais plus aucune valeur de clé dans le dépôt. Elle est
+# injectée au build (secret GitHub NEXT_PUBLIC_SUPABASE_ANON_KEY) et transite au déploiement
+# par l'entrée `vars` de wrangler-action dans .github/workflows/deploy-cloudflare.yml
+# (`wrangler deploy --var`, même secret GitHub) pour les lectures dynamiques au runtime.
+#
+# Attention, un --var n'est pas persistant : `wrangler deploy` remplace TOUTES les variables
+# en clair du Worker par celles de ce fichier plus les --var de la commande. Un déploiement
+# manuel hors CI doit donc la repasser, sinon /api/health signale « environment » unhealthy et
+# lib/env.ts logge « Variables CRITIQUES manquantes » jusqu'au prochain déploiement CI :
+#   npx wrangler deploy --var NEXT_PUBLIC_SUPABASE_ANON_KEY:"$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+# (valeur lue depuis .dev.vars ou l'environnement, jamais tapée dans un fichier suivi par git).
+# Alternative persistante, à trancher par Frédéric : `wrangler secret put NEXT_PUBLIC_SUPABASE_ANON_KEY`
+# et retirer ALORS l'entrée `vars` de wrangler-action (un secret et une var de même nom se
+# heurtent au déploiement, cf. SIMULATEUR_V2_ROLLOUT ci-dessous). En local : .dev.vars
+# (modèle sans valeur : .dev.vars.example).
 [vars]
 NEXT_PUBLIC_SUPABASE_URL = "https://irluhepekbqgquveaett.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlybHVoZXBla2JxZ3F1dmVhZXR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzODY3MDIsImV4cCI6MjA4NTk2MjcwMn0.UU8I0YKpiGpXnV-e37zY50E7n6Kg4iABFPffEuYetIM"
 NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 
 # ── Simulateur V2 feature flag ──────────────────────────────────────────────
@@ -113,7 +131,7 @@ NEXT_PUBLIC_APP_URL = "https://vitfix.io"
 #
 # CRITICAL (required):
 #   NEXT_PUBLIC_SUPABASE_URL          (also in [vars] above)
-#   NEXT_PUBLIC_SUPABASE_ANON_KEY     (also in [vars] above)
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY     (jamais dans le dépôt : build + `vars` de wrangler-action, voir [vars] ci-dessus)
 #   SUPABASE_SERVICE_ROLE_KEY
 #   NEXT_PUBLIC_APP_URL
 #   GROQ_API_KEY

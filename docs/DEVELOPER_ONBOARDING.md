@@ -10,8 +10,8 @@ Installer ces outils avant de commencer :
 
 | Outil | Version minimum | Verification |
 |-------|-----------------|--------------|
-| Node.js | 20+ | `node -v` |
-| npm | 10+ (inclus avec Node 20) | `npm -v` |
+| Node.js | 22+ | `node -v` |
+| npm | 10+ (inclus avec Node 22) | `npm -v` |
 | Git | 2.x | `git --version` |
 | Supabase CLI | Derniere version | `supabase --version` |
 | Vercel CLI | Derniere version | `vercel --version` |

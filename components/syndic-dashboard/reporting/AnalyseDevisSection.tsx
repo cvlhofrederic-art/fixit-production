@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import type { Artisan, Mission, Page, DevisExtracted, InputMode } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import type { User } from '@supabase/supabase-js'
 
 interface DevisScores {
@@ -26,7 +27,7 @@ interface SiretResult {
 
 function formatAnalysis(text: string): string {
   if (!text) return ''
-  return safeMarkdownToHTML(text)
+  return assainirHtml(safeMarkdownToHTML(text))
 }
 
 export default function AnalyseDevisSection({ artisans, setPage, missions, setMissions, user }: { artisans: Artisan[]; setPage: (p: Page) => void; missions: Mission[]; setMissions: React.Dispatch<React.SetStateAction<Mission[]>>; user: User }) {
@@ -1183,7 +1184,7 @@ function SeguroView({ locale, isPt }: { locale: string; isPt: boolean }) {
           </button>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(seguroAnalysis) }} />
+          <div className="prose prose-sm max-w-none text-gray-800" dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(seguroAnalysis)) }} />
         </div>
         <div className="flex gap-3 flex-wrap">
           <button

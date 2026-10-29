@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import { FileSearch, Shield, CheckCircle, AlertTriangle, Copy, Check, X, Star, FileText, MessageSquare, ChevronRight } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 
@@ -458,7 +459,7 @@ export default function ClientAnalyseSection({ user, locale, t }: ClientAnalyseS
                       [&_ul]:list-disc [&_ul]:ml-4 [&_ul]:space-y-1
                       [&_ol]:list-decimal [&_ol]:ml-4 [&_ol]:space-y-1
                       [&_p]:mb-2 [&_p]:leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(analyseResult) }}
+                    dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(analyseResult)) }}
                   />
                 )}
               </div>

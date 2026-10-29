@@ -85,6 +85,22 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
     expect(screen.getByText(/MICROSOFT_CLIENT_ID manquant/)).toBeInTheDocument()
   })
 
+  it('adresse renvoyée hors Google/Microsoft : aucune redirection, même toast d’échec, bouton réutilisable', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/email-agent/status') return json(NON_CONNECTEE)
+      return json({ url: 'https://evil.example/oauth?client_id=m' })
+    }))
+    rendre(authed())
+    fireEvent.click(await screen.findByRole('button', { name: 'Outlook / Microsoft 365' }))
+    expect(await screen.findByText('Ligação da caixa de email impossível')).toBeInTheDocument()
+    expect(assign).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith('[safe-url] redirection refusée')
+    expect(screen.getByRole('button', { name: 'Outlook / Microsoft 365' })).toBeEnabled()
+  })
+
   it('connectée : fournisseur + adresse, e-mails analysés, brouillon à valider ; « Analisar agora » relève la boîte', async () => {
     let releves = 0
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {

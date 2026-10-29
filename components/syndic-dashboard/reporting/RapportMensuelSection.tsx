@@ -69,7 +69,8 @@ export default function RapportMensuelSection({ immeubles, missions, artisans, s
     if (selectedRecipients.length === 0) return
     const subject = encodeURIComponent(`Rapport mensuel de gestion — ${monthLabel}`)
     const body = encodeURIComponent(`Madame, Monsieur,\n\nVeuillez trouver ci-joint le rapport mensuel de gestion pour le mois de ${monthLabel}.\n\nCe rapport comprend :\n- Le bilan des interventions réalisées\n- L'état du budget\n- Les alertes réglementaires\n\nCordialement,\nVotre gestionnaire Vitfix Pro`)
-    const to = selectedRecipients.join(',')
+    // Chaque adresse est encodée : une adresse contenant « ?cc= » ou « &bcc= » n'ajoute pas de destinataire.
+    const to = selectedRecipients.map(email => encodeURIComponent(email)).join(',')
     window.open(`mailto:${to}?subject=${subject}&body=${body}`)
     setShowSendModal(false)
   }

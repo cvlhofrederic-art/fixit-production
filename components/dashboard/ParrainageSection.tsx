@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { safeOpen } from '@/lib/security/safe-url'
 import { useThemeVars } from './useThemeVars'
 import type { Artisan } from '@/lib/types'
 
@@ -104,7 +105,7 @@ export default function ParrainageSection({ artisan, orgRole }: ParrainageSectio
         ? `Bonjour,\nNous utilisons VITFIX Pro pour gérer nos chantiers, devis et factures.\nAvec ce lien, après le 1er mois payé, le 2ᵉ mois est offert :\n${stats.referral_link}\n(Nous recevons aussi 1 mois dès que vous vous abonnez 😊)`
         : `Salut ! J'utilise VITFIX pour mes devis, chantiers et factures.\nAvec ce lien, une fois ton 1er mois payé, ton 2ᵉ mois est offert :\n${stats.referral_link}\n(Je gagne aussi 1 mois si tu t'abonnes 😄)`
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+    safeOpen(`https://wa.me/?text=${encodeURIComponent(text)}`, { allowedOrigins: ['https://wa.me'] })
   }
 
   const shareSMS = () => {

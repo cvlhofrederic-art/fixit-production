@@ -1,6 +1,7 @@
 // ── Zod validation schemas for API routes ────────────────────────────────────
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
+import { TRACKING_TOKEN_PATTERN } from './security/tracking-token'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -1282,7 +1283,9 @@ export const proChannelPostSchema = z.object({
 
 // ── Tracking Update schema ─────────────────────────────────────────────────
 export const trackingUpdatePostSchema = z.object({
-  token: z.string().min(1).max(200),
+  // Jeton de suivi au format réellement émis (lib/security/tracking-token.ts) : il sert de nom
+  // d'objet Storage, tout autre texte est refusé avant toute construction de chemin.
+  token: z.string().regex(TRACKING_TOKEN_PATTERN, 'Token invalide'),
   lat: z.number().min(-90).max(90).optional().nullable(),
   lng: z.number().min(-180).max(180).optional().nullable(),
   status: z.string().max(50).optional(),

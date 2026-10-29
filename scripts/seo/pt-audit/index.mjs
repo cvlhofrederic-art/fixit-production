@@ -23,8 +23,9 @@ import { classer, modeleMesure, VILLES } from './lib/classer.mjs'
 import { mesurerGroupe, moyenne, pct, chevauchement } from './lib/mesures.mjs'
 import { construireGraphe, profondeurs } from './lib/graphe.mjs'
 import { lireCsv, ecrireCsv } from './lib/csv.mjs'
+import { RACINE, dossierSortie, ErreurChemin, fabriquerAbsolu } from './lib/chemins.mjs'
 
-export const RACINE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+export { RACINE, dossierSortie, ErreurChemin, fabriquerAbsolu }
 
 export function lireArguments(argv) {
   const o = { base: 'https://vitfix.io', out: 'reports/seo', concurrence: 8, source: 'live', csv: 'data/seo/pt_sitemap_statut_complet.csv', echantillon: 0, git: false, date: '', silencieux: false, extras: ['/pt/cidade/', '/pt/contacto/'] }
@@ -45,8 +46,6 @@ export function lireArguments(argv) {
   if (!o.date) o.date = new Date().toISOString().slice(0, 10)
   return o
 }
-
-const absolu = (p) => (path.isAbsolute(p) ? p : path.join(RACINE, p))
 
 /** Date du dernier commit touchant un fichier (AAAA-MM-JJ), ou '' si inconnue. */
 function dateDernierCommit(fichier, cache) {
@@ -84,13 +83,16 @@ export function fichiersSource(chemin, groupe) {
 export async function auditer(options, journal = () => {}) {
   const o = { ...lireArguments([]), ...options }
   const base = o.base
+  // CSV GSC (--csv) : seul fichier lu par l'audit, résolu avant tout accès réseau pour qu'un chemin refusé
+  // arrête le script immédiatement avec un message explicite (dépôt ou dossier --out seulement)
+  const cheminCsv = fabriquerAbsolu(o.out)(o.csv, '--csv')
 
   // 1. Inventaire des URL PT
   journal('Lecture des sitemaps ' + base + '/sitemap.xml')
   const sitemaps = await chargerSitemaps(base, { enfantsSupplementaires: ['/pt/sitemap.xml', '/sitemap/0.xml', '/sitemap/1.xml', '/sitemap/2.xml', '/sitemap/3.xml'] })
   let chemins
   if (o.source === 'csv') {
-    const lignes = lireCsv(readFileSync(absolu(o.csv), 'utf8'))
+    const lignes = lireCsv(readFileSync(cheminCsv, 'utf8'))
     chemins = lignes.map((l) => l.chemin)
   } else {
     chemins = urlsPt(sitemaps.parUrl).map((e) => e.chemin)
@@ -101,8 +103,8 @@ export async function auditer(options, journal = () => {}) {
 
   // Recoupement GSC (CSV du 13/10/2026 ou recalculé)
   const gsc = new Map()
-  if (existsSync(absolu(o.csv))) {
-    for (const l of lireCsv(readFileSync(absolu(o.csv), 'utf8'))) gsc.set(l.chemin, l)
+  if (existsSync(cheminCsv)) {
+    for (const l of lireCsv(readFileSync(cheminCsv, 'utf8'))) gsc.set(l.chemin, l)
   }
 
   if (o.echantillon > 0) {
@@ -351,7 +353,7 @@ async function principal() {
   const journal = o.silencieux ? () => {} : (m) => process.stderr.write(m + '\n')
   const debut = Date.now()
   const res = await auditer(o, journal)
-  const dossier = absolu(o.out)
+  const dossier = dossierSortie(o.out)
   mkdirSync(dossier, { recursive: true })
   const prefixe = path.join(dossier, 'pt-audit-' + o.date)
   writeFileSync(prefixe + '.csv', '﻿' + ecrireCsv(lignesCsv(res), [...COLONNES]), 'utf8')
@@ -362,5 +364,9 @@ async function principal() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  principal().catch((e) => { console.error(e); process.exit(1) })
+  principal().catch((e) => {
+    // Chemin refusé (ErreurChemin) : le message seul, la pile d'appels n'aiderait pas l'utilisateur du CLI
+    console.error(e instanceof ErreurChemin ? '[pt-audit] ' + e.message : e)
+    process.exit(1)
+  })
 }

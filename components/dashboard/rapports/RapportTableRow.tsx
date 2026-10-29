@@ -178,7 +178,7 @@ export default function RapportTableRow({
             <button onClick={() => {
               const subject = encodeURIComponent(`Rapport ${r.rapportNumber} \u2014 ${r.artisanName || 'Fixit'}`)
               const body = encodeURIComponent(`Bonjour ${r.clientName || ''},\n\nVeuillez trouver ci-joint le rapport d'intervention ${r.rapportNumber} du ${r.interventionDate ? new Date(r.interventionDate + 'T12:00:00').toLocaleDateString(dateFmtLocale) : ''}.\n\nCordialement,\n${r.artisanName || ''}${r.artisanPhone ? '\n' + r.artisanPhone : ''}`)
-              window.open(`mailto:${r.clientEmail}?subject=${subject}&body=${body}`)
+              window.open(`mailto:${encodeURIComponent(r.clientEmail)}?subject=${subject}&body=${body}`)
               onMarkSent(r.id)
             }}
               className="v22-btn v22-btn-sm">
