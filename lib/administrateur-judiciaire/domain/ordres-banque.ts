@@ -28,6 +28,8 @@ export interface LigneVirement {
   bic: string | null
   montantCentimes: number
   libelle: string
+  /** Règlements regroupés dans ce virement (« 1 virement par mandat », paiement-fournisseurs.ts) ; absent : reglementId seul. */
+  reglementIds?: string[]
 }
 
 interface BaseOrdre {
