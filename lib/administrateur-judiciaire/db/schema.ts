@@ -47,6 +47,11 @@ export interface Copropriete extends EntiteEnregistree {
   depense: number
   impayes: number
   fondsTravaux: number
+  /**
+   * Fiche détaillée sur le modèle de la fiche Mandat de Gestéam (voir domain/fiche-copropriete). Optionnelle et non
+   * indexée : aucun changement de version de la base.
+   */
+  fiche?: import('@/lib/administrateur-judiciaire/domain/fiche-copropriete').FicheCopropriete
 }
 
 export interface Mandat extends EntiteEnregistree {
