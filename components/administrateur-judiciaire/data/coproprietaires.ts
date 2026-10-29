@@ -1,3 +1,6 @@
+import { DEMO_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
+import { nouvelleFicheLot, type FicheLot, type TantiemesCleLot } from '@/lib/administrateur-judiciaire/domain/fiche-lot'
 import type { StatutPosition } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import type { QUALITE_IDENTITE, TYPE_LOT } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -21,6 +24,8 @@ export interface LotCompteDemo {
   lot: string
   occupation: 'Résident' | 'Loué' | 'Vacant'
   nature: (typeof TYPE_LOT)[number]
+  /** Fiche du lot modifiée pendant la session (prime sur la fiche de démonstration). */
+  detail?: Partial<FicheLot>
 }
 
 /** Tantièmes du compte dans une clé de répartition. */
@@ -429,3 +434,90 @@ export const DEMO_COPROPRIETAIRES: CoproprietaireDemo[] = [
     },
   },
 ]
+
+const d = composerDateIso
+
+/** Compléments de démonstration des fiches lot (données fictives), par libellé de lot. */
+const FICHES_LOTS_DEMO: Record<string, Partial<FicheLot>> = {
+  'Lot 12 — Apt B3': {
+    groupe: 'Bât. B',
+    batiment: 'B',
+    escalier: '2',
+    etage: '3e',
+    porte: 'Gauche',
+    interphone: 'B31',
+    boiteAuxLettres: 'Ligne 3, colonne 1',
+    acquisLe: d(2018, 9, 15),
+    ancienCoproprietaire: 'Indivision Roche',
+    occupeDepuis: d(2023, 9, 1),
+    surfaceM2: 68,
+    carrezM2: 66.4,
+    pieces: 3,
+    chambres: 2,
+    dpe: 'D',
+    dpeAnnee: 2024,
+    cotisationFondsTravauxEuros: 292,
+    fondsTravauxAttacheEuros: 1236,
+    echeancePno: d(2026, 12, 31),
+    equipements: [
+      { nom: 'Compteur eau froide', famille: 'Eau', emploi: 'Privatif' },
+      { nom: 'Radiateurs (6)', famille: 'Chauffage', emploi: 'Collectif' },
+      { nom: 'Interphone', famille: 'Accès', emploi: 'Collectif' },
+    ],
+    documents: [
+      { date: d(2018, 9, 15), emetteur: 'Étude notariale', titre: 'Avis de mutation' },
+      { date: d(2024, 2, 12), emetteur: 'Diagnostiqueur', titre: 'DPE' },
+    ],
+  },
+  'Lot 31 — Apt C2': { batiment: 'C', etage: '2e', surfaceM2: 61, pieces: 3, dpe: 'C', dpeAnnee: 2023, acquisLe: d(2015, 6, 2) },
+  'Lot 64 — Cave': { batiment: 'C', etage: 'Sous-sol', tantiemes: [{ cle: 'Charges communes générales', numerateur: 6, denominateur: 10000 }] },
+  'Lot 8 — Local': {
+    etage: 'Rez-de-chaussée',
+    surfaceM2: 140,
+    occupeDepuis: d(2021, 4, 1),
+    tantiemes: [{ cle: 'Charges communes générales', numerateur: 320, denominateur: 10000 }],
+  },
+  'Lot 9 — Local': {
+    etage: 'Rez-de-chaussée',
+    surfaceM2: 135,
+    principal: false,
+    occupeDepuis: d(2021, 4, 1),
+    tantiemes: [{ cle: 'Charges communes générales', numerateur: 320, denominateur: 10000 }],
+  },
+  'Lot 14 — Apt 3C': { etage: '3e', occupeDepuis: d(2024, 1, 15), echeancePno: d(2026, 3, 31) },
+}
+
+/** « 412/10000 » → numérateur et dénominateur ; null si illisible. */
+function lireFraction(cle: string, texte: string): TantiemesCleLot | null {
+  const [numerateur, denominateur] = texte.split('/').map(Number)
+  return Number.isFinite(numerateur) && Number.isFinite(denominateur) && denominateur > 0
+    ? { cle, numerateur, denominateur }
+    : null
+}
+
+/**
+ * Fiche du lot n° `index` du compte : valeurs déduites du compte (numéro et référence tirés du libellé ; tantièmes du
+ * compte pour le premier lot ; charges annuelles = budget × quote-part de la première clé), puis compléments de
+ * démonstration, puis modifications de la session.
+ */
+export function ficheLotDemo(coproprietaire: CoproprietaireDemo, index: number): FicheLot {
+  const lot = coproprietaire.fiche.lots[index]
+  const complement = FICHES_LOTS_DEMO[lot.lot] ?? {}
+  const tantiemesDuCompte =
+    index === 0
+      ? coproprietaire.fiche.cles.flatMap((cle) => lireFraction(cle.cle, cle.tantiemes) ?? [])
+      : []
+  const tantiemes = complement.tantiemes ?? tantiemesDuCompte
+  const budget = DEMO_COPROPRIETES.find((copro) => copro.nom === coproprietaire.copro)?.budget
+  const premiere = tantiemes[0]
+  const charges = budget && premiere ? Math.round((budget * premiere.numerateur) / premiere.denominateur) : null
+  return nouvelleFicheLot({
+    numero: /Lot (\d+)/.exec(lot.lot)?.[1] ?? '',
+    reference: lot.lot.split('— ')[1] ?? '',
+    principal: lot.nature !== 'Cave',
+    tantiemes,
+    chargesAnnuellesEuros: charges,
+    ...complement,
+    ...lot.detail,
+  })
+}

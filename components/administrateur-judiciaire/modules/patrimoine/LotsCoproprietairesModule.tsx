@@ -3,12 +3,17 @@
 import { useState } from 'react'
 import {
   DEMO_COPROPRIETAIRES,
+  ficheLotDemo,
   type CoproprietaireDemo,
   type LocataireDemo,
 } from '@/components/administrateur-judiciaire/data/coproprietaires'
 import { DEMO_NOMS_COPROPRIETES, DEMO_TOTAL_LOTS } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
-import { FicheCompteCoproprietaire } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheCompteCoproprietaire'
+import {
+  FicheCompteCoproprietaire,
+  LienLot,
+} from '@/components/administrateur-judiciaire/modules/patrimoine/FicheCompteCoproprietaire'
+import { FicheLotDetail } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheLotDetail'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { FormModal, type ChampFormModal, type ValeursFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -26,6 +31,43 @@ const CHAMPS_LOCATAIRE: (ChampFormModal & { cle: keyof LocataireDemo })[] = [
   { cle: 'tel', name: 'locTel', label: 'Téléphone du locataire', type: 'tel', placeholder: 'ex. 06 12 34 56 78' },
   { cle: 'mail', name: 'locMail', label: 'Courriel du locataire', type: 'email', placeholder: 'nom@email.fr' },
 ]
+
+/** Champs modifiables de la fiche lot (situation, caractéristiques, assurance PNO). */
+const CHAMPS_LOT = [
+  { name: 'batiment', label: 'Bâtiment' },
+  { name: 'escalier', label: 'Escalier' },
+  { name: 'etage', label: 'Étage' },
+  { name: 'porte', label: 'Porte' },
+  { name: 'interphone', label: 'Interphone' },
+  { name: 'boiteAuxLettres', label: 'Boîte aux lettres' },
+  { name: 'surfaceM2', label: 'Surface (m²)', type: 'number' },
+  { name: 'carrezM2', label: 'Loi Carrez (m²)', type: 'number' },
+  { name: 'dpe', label: 'DPE (classe)' },
+  { name: 'echeancePno', label: 'Échéance assurance PNO', type: 'date' },
+] as const
+
+/** Lot modifié (situation, caractéristiques, PNO) : la modification est rangée dans le détail du lot. */
+function appliquerModificationLot(coproprietaire: CoproprietaireDemo, index: number, valeurs: ValeursFormModal): CoproprietaireDemo {
+  const lire = (cle: string) => (valeurs[cle] ?? '').trim()
+  const surface = (cle: string) => {
+    const valeur = Number.parseFloat(lire(cle).replace(',', '.'))
+    return Number.isFinite(valeur) && valeur > 0 ? valeur : null
+  }
+  const detail = {
+    batiment: lire('batiment'),
+    escalier: lire('escalier'),
+    etage: lire('etage'),
+    porte: lire('porte'),
+    interphone: lire('interphone'),
+    boiteAuxLettres: lire('boiteAuxLettres'),
+    surfaceM2: surface('surfaceM2'),
+    carrezM2: surface('carrezM2'),
+    dpe: lire('dpe').toUpperCase(),
+    echeancePno: /^\d{4}-\d{2}-\d{2}$/.test(lire('echeancePno')) ? lire('echeancePno') : null,
+  }
+  const lots = coproprietaire.fiche.lots.map((lot, rang) => (rang === index ? { ...lot, detail: { ...lot.detail, ...detail } } : lot))
+  return { ...coproprietaire, fiche: { ...coproprietaire.fiche, lots } }
+}
 
 /** Fiche modifiée (téléphone, courriel, adresse, locataire, notes, avertissement) ; locataire null si tout est vide. */
 function appliquerModification(coproprietaire: CoproprietaireDemo, valeurs: ValeursFormModal): CoproprietaireDemo {
@@ -80,9 +122,18 @@ export function LotsCoproprietairesModule() {
   const [modifies, setModifies] = useState<Record<string, CoproprietaireDemo>>({})
   const [ficheId, setFicheId] = useState<string | null>(null)
   const [editionId, setEditionId] = useState<string | null>(null)
+  const [lotOuvert, setLotOuvert] = useState<{ id: string; index: number } | null>(null)
+  const [lotEdite, setLotEdite] = useState<{ id: string; index: number } | null>(null)
   const coproprietaires = DEMO_COPROPRIETAIRES.map((coproprietaire) => modifies[coproprietaire.id] ?? coproprietaire)
-  const fiche = coproprietaires.find((coproprietaire) => coproprietaire.id === ficheId) ?? null
-  const edition = coproprietaires.find((coproprietaire) => coproprietaire.id === editionId) ?? null
+  const trouver = (id: string | undefined) => coproprietaires.find((coproprietaire) => coproprietaire.id === id) ?? null
+  const fiche = trouver(ficheId ?? undefined)
+  const edition = trouver(editionId ?? undefined)
+  const compteDuLot = trouver(lotOuvert?.id)
+  const compteDuLotEdite = trouver(lotEdite?.id)
+  const ouvrirLot = (coproprietaire: CoproprietaireDemo, index: number) => {
+    setFicheId(null)
+    setLotOuvert({ id: coproprietaire.id, index })
+  }
 
   return (
     <>
@@ -160,7 +211,9 @@ export function LotsCoproprietairesModule() {
             },
             {
               h: 'Lot',
-              render: (coproprietaire) => coproprietaire.lot,
+              render: (coproprietaire) => (
+                <LienLot libelle={coproprietaire.lot} onClick={() => ouvrirLot(coproprietaire, 0)} />
+              ),
             },
             {
               h: 'Tantièmes',
@@ -255,6 +308,53 @@ export function LotsCoproprietairesModule() {
         onModifier={(coproprietaire) => {
           setFicheId(null)
           setEditionId(coproprietaire.id)
+        }}
+        onOuvrirLot={ouvrirLot}
+      />
+      <FicheLotDetail
+        lot={compteDuLot && lotOuvert ? { coproprietaire: compteDuLot, index: lotOuvert.index } : null}
+        onClose={() => setLotOuvert(null)}
+        onFicheCoproprietaire={(coproprietaire) => {
+          setLotOuvert(null)
+          setFicheId(coproprietaire.id)
+        }}
+        onModifier={(coproprietaire, index) => {
+          setLotOuvert(null)
+          setLotEdite({ id: coproprietaire.id, index })
+        }}
+      />
+      <FormModal
+        open={!!compteDuLotEdite && !!lotEdite}
+        onClose={() => {
+          setLotOuvert(lotEdite)
+          setLotEdite(null)
+        }}
+        title={
+          compteDuLotEdite && lotEdite
+            ? `Modifier la fiche — ${compteDuLotEdite.fiche.lots[lotEdite.index].lot}`
+            : undefined
+        }
+        icon="pencil"
+        fields={
+          compteDuLotEdite && lotEdite
+            ? CHAMPS_LOT.map((champ) => {
+                const valeur = ficheLotDemo(compteDuLotEdite, lotEdite.index)[champ.name]
+                return { ...champ, value: valeur === null ? '' : String(valeur) }
+              })
+            : []
+        }
+        submitLabel="Enregistrer"
+        onDone={(valeurs) => {
+          if (!compteDuLotEdite || !lotEdite) return
+          setModifies((precedents) => ({
+            ...precedents,
+            [compteDuLotEdite.id]: appliquerModificationLot(compteDuLotEdite, lotEdite.index, valeurs),
+          }))
+          push({
+            kind: 'success',
+            title: 'Fiche du lot mise à jour',
+            desc: 'Démonstration : la modification disparaît au rechargement de la page.',
+          })
         }}
       />
       <FormModal

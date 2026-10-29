@@ -26,14 +26,33 @@ export interface FicheCompteCoproprietaireProps {
   coproprietaire: CoproprietaireDemo | null
   onClose: () => void
   onModifier: (coproprietaire: CoproprietaireDemo) => void
+  /** Ouvre la fiche du lot de rang `index` ; absent : les lots ne sont pas cliquables. */
+  onOuvrirLot?: (coproprietaire: CoproprietaireDemo, index: number) => void
+}
+
+/** Lien vers la fiche d'un lot, à l'allure d'un texte souligné. */
+export function LienLot({ libelle, onClick }: { libelle: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(evenement) => {
+        evenement.stopPropagation()
+        onClick()
+      }}
+      title={`Ouvrir la fiche du ${libelle}`}
+      style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+    >
+      {libelle}
+    </button>
+  )
 }
 
 /**
  * Fiche du compte copropriétaire, sur le modèle de la fiche client de Gestéam : identité et adresse, personnes du
- * compte (relation et part), télécoms, rattachement, lots et tantièmes par clé, locataire du lot, voie de
- * notification, conseil syndical, extranet, notes et avertissement (affiché en tête s'il existe).
+ * compte (relation et part), télécoms, rattachement, lots et tantièmes par clé (chaque lot ouvre sa fiche), locataire
+ * du lot, voie de notification, conseil syndical, extranet, notes et avertissement (affiché en tête s'il existe).
  */
-export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier }: FicheCompteCoproprietaireProps) {
+export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier, onOuvrirLot }: FicheCompteCoproprietaireProps) {
   const fiche = coproprietaire?.fiche
   return (
     <Modal open={!!coproprietaire} onClose={onClose} size="lg" labelledBy="fc-t">
@@ -100,7 +119,15 @@ export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier 
                 <Tableau
                   entetes={['Lot', 'Occupation', 'Nature']}
                   largeurs={[40, 26, 34]}
-                  lignes={fiche.lots.map((lot) => [lot.lot, lot.occupation, lot.nature])}
+                  lignes={fiche.lots.map((lot, index) => [
+                    onOuvrirLot ? (
+                      <LienLot key={lot.lot} libelle={lot.lot} onClick={() => onOuvrirLot(coproprietaire, index)} />
+                    ) : (
+                      lot.lot
+                    ),
+                    lot.occupation,
+                    lot.nature,
+                  ])}
                 />
                 <div style={{ height: 8 }} />
                 <Tableau
