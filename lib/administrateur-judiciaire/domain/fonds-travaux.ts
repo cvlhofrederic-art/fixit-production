@@ -61,7 +61,8 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  * - régime antérieur : avant l'entrée en vigueur applicable, l'ancien art. 14-2 (fonds cinq ans après la réception,
  *   dispenses) n'est pas modélisé, la réponse est « à établir » ; sort des fonds constitués sous ce régime (immeubles de
  *   cinq à dix ans, petites copropriétés dispensées) ;
- * - affectation par clé : le contrôle des parties communes spéciales attend la part du fonds par lot (point 20 du bilan).
+ * - affectation par clé : la part du fonds par lot et le signalement d'un emploi qui dépasse les parts des lots de sa clé
+ *   sont dans fonds-travaux-lots.ts (point 20 du bilan) ; la méthode de déduction d'un emploi n'est fixée par aucun texte.
  *
  * Gestéam — appels de type « Fonds travaux non remb. », compte 10500, sur la clé des provisions (le plus souvent la clé
  * générale), observés à 5 % du budget en quatre trimestres arrondis chacun au centime (tranche 43 § 23) ; aucun contrôle
