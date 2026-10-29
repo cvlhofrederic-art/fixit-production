@@ -26,7 +26,9 @@ Méthode : chaque lot a été implémenté dans un worktree git isolé, relu par
 | 7 | 4c20cdfd | fix(security): lot 7 — lectures de fichiers confinées au dossier attendu |
 | 8 | 0e4f4021 | fix(security): lot 8 — Network Security Config Android, FileProvider restreint, taskAffinity, voile iOS en arrière-plan |
 | hors feed | 5327feeb | fix(security): scripts/add-columns.js — certificat TLS de la base vérifié (relevé semgrep, §11) |
-| rapport | (ce commit) | docs(security): rapport des correctifs Aikido du 28/10/2026 et actions à la main |
+| rapport | 3381f826 | docs(security): rapport des correctifs Aikido du 28/10/2026 et actions à la main |
+| suivi CI | 3381f826 | fix(security): lot 6 — CI de la PR : shellcheck, curl limité à HTTPS, pip en roues seulement, Playwright et npm sans scripts |
+| suivi CI | 4009ea46 | fix(security): lot 7 — référence SEO lue sans contrôle-puis-usage (CodeQL js/file-system-race) |
 
 ## 3. Tableau §2 du brief, ligne par ligne
 
@@ -82,6 +84,7 @@ Toutes exécutées sur l'arbre final de la branche (après le dernier commit de 
 | mobsfscan 1.1.0 `android/ ios/` | aucune règle ERROR nouvelle ; `android_task_hijacking1/2` = faux positif de l'outil (targetSdk supposé 26 sans `<uses-sdk>`, réel 36) ; nouvelle INFO `android_manifest_domain_config_cleartext` = variante debug seulement (clair vers localhost / 10.0.2.2 pour le live reload) |
 | semgrep 1.182.1, même jeu de règles sur la base 5b276c18 et sur l'arbre final | 72 → 61 résultats, aucun résultat nouveau ; disparus : `bypass-tls-verification` (add-columns.js), `detected-jwt-token` (wrangler.toml), 7 `github-actions-mutable-action-tag`, 2 `path-join-resolve-traversal` (lib/tenders) ; les 61 restants sont préexistants et hors feed (règles d'audit : `unsafe-formatstring` 30, `detect-non-literal-regexp` 15, `prototype-pollution-loop` 4, `playwright-goto-injection` 3 dans des scripts locaux, `react-dangerouslysetinnerhtml` 3 justifiés, `path-join-resolve-traversal` 2 dans `scripts/generate-api-docs.ts`, `incomplete-sanitization` 1 dans `lib/cache.ts`, `exported_activity` 1 = activité launcher obligatoire, `dependabot-missing-cooldown` 2) |
 | Build Android (`cap sync` + gradle) | non exécuté : pas de JDK sur ce poste (action Frédéric, section H) |
+| Première CI réelle de la PR #583 (run GitHub Actions sur 3381f826) | 20 checks verts sur 23 : Gitleaks, Vitest, E2E (3 navigateurs), build, ESLint/TypeScript, Semgrep, Trivy, TruffleHog, Lighthouse, Axe, i18n, migrations, Giskard, Sonar (analyse) verts ; 3 rouges corrigés par 3381f826 et 4009ea46 : check reviewdog « actionlint » (4 findings shellcheck), CodeQL (2 alertes nouvelles dont 1 high : contrôle-puis-usage dans pt-tests.mjs ; la medium js/http-to-file-access, données HTTP écrites dans le rapport d'audit, est inhérente à l'outil), SonarCloud (quality gate : note de sécurité C sur le nouveau code, 14 règles githubactions S6506 / S8541 / S6505 / S8543 ; 11 code smells Sonar laissés : complexité cognitive ×4, Object.hasOwn ×2, await dans une boucle ×2, props en lecture seule, clé d'index, chaîne optionnelle) |
 | Branche poussée, PR ouverte, ni merge ni déploiement | branche `security/aikido-2026-10-28` poussée et PR ouverte vers `main` juste après ce commit (lien sur GitHub et dans la conversation) ; ni merge ni déploiement |
 
 ## 5. Justifications détaillées
