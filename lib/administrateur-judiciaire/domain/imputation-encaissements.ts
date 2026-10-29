@@ -1,6 +1,14 @@
 import { repartirAuxPlusFortsRestes } from '@/lib/administrateur-judiciaire/domain/arrondis'
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { ReglementDebiteur } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
+import {
+  cleDeRapprochement,
+  payeurEstUnTiers,
+  type CleRapprochement,
+  type LigneReleve,
+  type PropositionImputation,
+} from '@/lib/administrateur-judiciaire/domain/import/releve-bancaire'
 import type { AvisAppels, CleRepartition, NatureEcheance } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import type { LigneMouvement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { TYPE_APPEL_LIE_AU_MOUVEMENT, type TypeAppelLieAuMouvement } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -109,6 +117,64 @@ export interface Encaissement {
   postesDesignes?: string[]
   /** Le gestionnaire accepte une désignation qui ne solde pas les postes désignés (C. civ. art. 1342-4, al. 1). */
   designationPartielleAcceptee?: boolean
+  /** Payeur lu sur la pièce (détenteur du compte émetteur) : il peut être un tiers qui paie pour le copropriétaire. */
+  payeur?: string | null
+  /** Clé de rapprochement retenue à l'import du relevé (compte, copropriété, mandat, règle, payeur). */
+  cleRapprochement?: CleRapprochement | null
+}
+
+/** Candidat d'une proposition de relevé : le compte copropriétaire qu'il désigne est obligatoire (clé de rapprochement). */
+type CandidatReleve = { nom: string; solde: number; compteId: string; coproprieteId?: string | null; mandatId?: string | null }
+
+/** Compte choisi par le gestionnaire à la place de la proposition (ou faute de proposition). */
+export interface CompteChoisi {
+  id: string
+  nom: string
+  coproprieteId?: string | null
+  mandatId?: string | null
+}
+
+function cleDuChoix(proposition: PropositionImputation<LigneReleve, CandidatReleve>, compte: CompteChoisi, payeur: string | null): CleRapprochement {
+  const { candidat } = proposition
+  return {
+    regle: candidat ? `Choix du gestionnaire (proposition écartée : ${candidat.compteId}).` : 'Choix du gestionnaire (aucune proposition).',
+    confiance: 'manuelle',
+    compteId: compte.id,
+    coproprieteId: compte.coproprieteId ?? null,
+    mandatId: compte.mandatId ?? null,
+    payeur,
+    payeurTiers: payeurEstUnTiers(payeur, compte.nom),
+  }
+}
+
+/**
+ * Encaissement créé depuis une ligne de relevé (point 40 du bilan 2 ; Gestéam, tranche 43 § 2) : le compte crédité est
+ * celui de la proposition retenue, ou celui que le gestionnaire choisit ; la clé de rapprochement et le payeur sont
+ * gardés sur l'encaissement. Montant de la ligne en euros, converti en centimes entiers.
+ */
+export function encaissementDepuisReleve({
+  id,
+  proposition,
+  payeur = null,
+  compteChoisi = null,
+}: {
+  id: string
+  proposition: PropositionImputation<LigneReleve, CandidatReleve>
+  payeur?: string | null
+  compteChoisi?: CompteChoisi | null
+}): Encaissement {
+  const { ligne } = proposition
+  if (!estDateIsoValide(ligne.date)) throw new Error(`Date de la ligne de relevé invalide (${ligne.date}) : AAAA-MM-JJ attendu.`)
+  if (!Number.isFinite(ligne.montant)) throw new Error(`Montant de la ligne de relevé invalide (${ligne.montant}).`)
+  const montantCentimes = Math.round(ligne.montant * 100)
+  if (montantCentimes <= 0)
+    throw new Error(`Ligne de relevé de ${formatEurosCentimes(ligne.montant)} : seul un crédit (montant positif) est un encaissement.`)
+  const payeurLu = payeur?.trim() || null
+  const propose = cleDeRapprochement(proposition, { payeur: payeurLu })
+  const choixManuel = compteChoisi !== null && compteChoisi.id !== propose?.compteId
+  const cle = choixManuel ? cleDuChoix(proposition, compteChoisi, payeurLu) : propose
+  if (!cle?.compteId) throw new Error('Aucun compte copropriétaire retenu pour cet encaissement : choisir le compte à créditer.')
+  return { id, compteId: cle.compteId, date: ligne.date, montantCentimes, payeur: payeurLu, cleRapprochement: cle }
 }
 
 export interface LigneImputation {

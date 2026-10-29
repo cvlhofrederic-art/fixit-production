@@ -291,9 +291,10 @@ export function payeurEstUnTiers(payeur: string | null, nomCredite: string): boo
  * TIERS » du rapprochement automatique d'un fichier de virements reçus).
  */
 export interface CleRapprochement {
-  /** Règle qui a retenu le candidat (motif de la proposition). */
+  /** Règle qui a retenu le candidat (motif de la proposition), ou choix du gestionnaire. */
   regle: string
-  confiance: ConfianceImputation
+  /** « manuelle » : compte choisi par le gestionnaire (encaissementDepuisReleve). */
+  confiance: ConfianceImputation | 'manuelle'
   compteId: string | null
   coproprieteId: string | null
   mandatId: string | null
