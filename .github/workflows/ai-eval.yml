@@ -54,7 +54,9 @@ jobs:
 
       - name: Installer DeepEval
         # Version épinglée (lot 6 Aikido) : celle que `pip install deepeval` résolvait au 28/10/2026.
-        run: pip install deepeval==4.3.2
+        # --only-binary :all: (SonarCloud S8541) : roues seulement, aucun setup.py exécuté ; résolution
+        # vérifiée le 29/10/2026 pour Python 3.11 / manylinux (66 paquets, tous disponibles en roue).
+        run: "pip install --only-binary :all: deepeval==4.3.2"
 
       - name: Vérifier la disponibilité de la clé API
         id: check-key
