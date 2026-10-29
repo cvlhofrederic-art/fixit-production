@@ -9,16 +9,20 @@ concurrency:
   group: security-daily
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  issues: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : chaque job
+# déclare le strict nécessaire (issues: write uniquement pour le job de rapport).
+permissions: {}
 
 jobs:
   trivy:
     name: Trivy — Dependency Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Run Trivy (filesystem)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -51,31 +55,59 @@ jobs:
             echo "status=passed" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: trivy-results
           path: trivy-results.json
           retention-days: 7
 
+  # ── Gitleaks — même méthode que gitleaks.yml (lot 6 Aikido, 28/10/2026) ──────
+  # Binaire officiel à somme sha256 vérifiée, pas gitleaks/gitleaks-action (licence
+  # exigée pour les organisations). Scan de TOUT l'historique git.
   gitleaks:
     name: Gitleaks — Secret Detection
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      # sha256 de gitleaks_8.30.1_linux_x64.tar.gz, relevée dans gitleaks_8.30.1_checksums.txt de la release.
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Checkout du code (historique complet, sans jeton persistant)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          persist-credentials: false
           fetch-depth: 0  # Full history for secret scanning
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
-        env:
-          GITLEAKS_CONFIG: security/.gitleaks.toml
-          GITLEAKS_ENABLE_COMMENTS: false
-        continue-on-error: true
+      - name: Installer gitleaks (binaire officiel, somme sha256 vérifiée)
+        run: |
+          set -euo pipefail
+          dossier="$RUNNER_TEMP/gitleaks"
+          mkdir -p "$dossier"
+          curl -sSL --fail --retry 3 -o "$dossier/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  $dossier/gitleaks.tar.gz" | sha256sum --check --strict
+          tar -xzf "$dossier/gitleaks.tar.gz" -C "$dossier" gitleaks
+          rm -f "$dossier/gitleaks.tar.gz"
+          echo "$dossier" >> "$GITHUB_PATH"
+          "$dossier/gitleaks" version
+
+      - name: Run Gitleaks (tout l'historique)
         id: gitleaks
+        # continue-on-error conservé : l'historique contient encore des secrets non
+        # tournés (commits af2983ea, d95a36ba, 2850d429, 92e744ad), signalés à dessein
+        # jusqu'à leur rotation par Frédéric ; le rapport quotidien les mentionne
+        # (statut failed) sans faire échouer le workflow.
+        continue-on-error: true
+        run: gitleaks git . --redact --config security/.gitleaks.toml --exit-code 1 --no-banner
 
       - name: Report
+        env:
+          # Résultat de l'étape passé par l'environnement, jamais interpolé dans run:.
+          GITLEAKS_OUTCOME: ${{ steps.gitleaks.outcome }}
         run: |
-          if [ "${{ steps.gitleaks.outcome }}" == "failure" ]; then
+          if [ "$GITLEAKS_OUTCOME" == "failure" ]; then
             echo "### Gitleaks: Secrets detected" >> "$GITHUB_STEP_SUMMARY"
             echo "status=failed" >> "$GITHUB_OUTPUT"
           else
@@ -86,8 +118,12 @@ jobs:
   nuclei:
     name: Nuclei — DAST Web Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Run Nuclei scan
         uses: projectdiscovery/nuclei-action@cc153d0541e1adf8a42bbe31c0a4fb2376147538 # v3.1.1
@@ -122,7 +158,7 @@ jobs:
             echo "### Nuclei: Clean" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: nuclei-results
@@ -132,10 +168,16 @@ jobs:
   semgrep-full:
     name: Semgrep — Full SAST Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     container:
-      image: semgrep/semgrep
+      # Image épinglée par digest (zizmor unpinned-images, lot 6 Aikido) : digest du
+      # manifeste multi-arch de semgrep/semgrep:latest = 1.181.1 au 28/10/2026.
+      image: semgrep/semgrep:1.181.1@sha256:3db5c7af55eb1f512eac0abf0ab69a97b52c74b5e9a27314c221aee1a78d7ab2
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Run Semgrep (custom + OWASP)
         run: |
@@ -170,7 +212,7 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: semgrep-results
           path: semgrep-results.json
@@ -181,23 +223,26 @@ jobs:
     needs: [trivy, gitleaks, nuclei, semgrep-full]
     runs-on: ubuntu-latest
     if: always()
+    # Pas de checkout : le rapport n'utilise rien du dépôt (artefacts du run seulement).
+    permissions:
+      issues: write
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: scan-results/
         continue-on-error: true
 
       - name: Generate report
         id: report
+        env:
+          # Résultats des jobs passés par l'environnement, jamais interpolés dans run:.
+          # GITHUB_RUN_ID, GITHUB_SERVER_URL et GITHUB_REPOSITORY sont fournis par le runner.
+          TRIVY_STATUS: ${{ needs.trivy.result }}
+          GITLEAKS_STATUS: ${{ needs.gitleaks.result }}
+          NUCLEI_STATUS: ${{ needs.nuclei.result }}
+          SEMGREP_STATUS: ${{ needs.semgrep-full.result }}
         run: |
-          TRIVY_STATUS="${{ needs.trivy.result }}"
-          GITLEAKS_STATUS="${{ needs.gitleaks.result }}"
-          NUCLEI_STATUS="${{ needs.nuclei.result }}"
-          SEMGREP_STATUS="${{ needs.semgrep-full.result }}"
-
           HAS_FAILURES="false"
           if [ "$TRIVY_STATUS" == "failure" ] || [ "$GITLEAKS_STATUS" == "failure" ]; then
             HAS_FAILURES="true"
@@ -219,13 +264,13 @@ jobs:
             echo "| Nuclei (DAST) | $( [ "$NUCLEI_STATUS" == "success" ] && echo "✅ Pass" || echo "⚠️ $NUCLEI_STATUS" ) | Web vulnerability scan |"
             echo "| Semgrep (SAST) | $( [ "$SEMGREP_STATUS" == "success" ] && echo "✅ Pass" || echo "❌ $SEMGREP_STATUS" ) | Static code analysis |"
             echo ""
-            echo "Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "Run: [${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
             echo "Date: $(date -u +'%Y-%m-%d %H:%M UTC')"
           } >> report.md
 
       - name: Create issue if failures
         if: steps.report.outputs.has_failures == 'true'
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');

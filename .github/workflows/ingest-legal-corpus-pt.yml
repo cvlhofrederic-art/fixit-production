@@ -14,6 +14,9 @@ name: Ingest Legal Corpus PT
 on:
   workflow_dispatch: {}
 
+# Aucune permission (lot 6 Aikido, 28/10/2026) : le job n'utilise pas le jeton GitHub.
+permissions: {}
+
 jobs:
   ingest:
     name: Ingest PT legal corpus via admin endpoint

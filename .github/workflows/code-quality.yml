@@ -12,9 +12,9 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: read
-  pull-requests: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : chaque job
+# déclare le strict nécessaire (checks: write pour le seul job qui publie un check).
+permissions: {}
 
 jobs:
   # ── ESLint & TypeScript — Linting et types ─────────────────────────────────
@@ -22,10 +22,14 @@ jobs:
     name: "ESLint & TypeScript"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Configurer Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -56,10 +60,18 @@ jobs:
     name: "actionlint — Workflows GitHub Actions"
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    permissions:
+      contents: read
+      # reviewdog, reporter github-pr-check : crée un check run (API Checks) et lit
+      # le diff de la PR (repli git si l'API refuse).
+      checks: write
+      pull-requests: read
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Auditer .github/workflows
         uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # v1.72.0
@@ -72,6 +84,8 @@ jobs:
     name: "SQL Migrations — Validation"
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
 
     services:
       postgres:
@@ -90,7 +104,9 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Activer les extensions Supabase courantes
         run: |
@@ -183,10 +199,14 @@ jobs:
     name: "Syndic v54 — Isolation namespace"
     runs-on: ubuntu-latest
     timeout-minutes: 2
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: G1 — Aucune :root variable dans v54/tokens/
         run: |
@@ -212,11 +232,16 @@ jobs:
     name: "SonarCloud — Analyse qualité"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read  # GITHUB_TOKEN : lecture des informations de la PR par le scanner
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          # Historique complet pour le blame SonarCloud ; aucun jeton persistant (rien ne pousse).
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Analyse SonarCloud
@@ -228,8 +253,12 @@ jobs:
         # Si l'on repasse en analyse CI, les -D écrasent sonar-project.properties
         # et leurs listes sonar.tests et sonar.exclusions sont plus courtes que
         # celles du fichier : les aligner avant.
+        # Action : SonarSource/sonarqube-scan-action, successeur officiel de
+        # sonarcloud-github-action (dépôt archivé, zizmor archived-uses, lot 6 Aikido) ;
+        # mêmes entrées (args) et mêmes variables (SONAR_TOKEN ; SONAR_HOST_URL inutile
+        # pour SonarQube Cloud).
         continue-on-error: true
-        uses: SonarSource/sonarcloud-github-action@ba3875ecf642b2129de2b589510c81a8b53dbf4e # master
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

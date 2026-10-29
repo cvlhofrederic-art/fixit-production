@@ -11,19 +11,24 @@ on:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : le job
+# déclare le strict nécessaire.
+permissions: {}
 
 jobs:
   eval:
     name: "Évaluation qualité traces IA"
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write  # issue d'alerte si la qualité est insuffisante
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Configurer Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -31,12 +36,18 @@ jobs:
           python-version: "3.11"
 
       - name: Installer les dépendances
-        run: pip install langfuse requests
+        # Versions épinglées (lot 6 Aikido) : celles que l'installation sans contrainte
+        # résolvait au 28/10/2026.
+        run: pip install langfuse==5.0.4 requests==2.34.2
 
       - name: Vérifier les clés Langfuse
         id: check-keys
+        env:
+          # Secrets lus depuis l'environnement, jamais interpolés dans run:.
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
         run: |
-          if [ -n "${{ secrets.LANGFUSE_PUBLIC_KEY }}" ] && [ -n "${{ secrets.LANGFUSE_SECRET_KEY }}" ]; then
+          if [ -n "$LANGFUSE_PUBLIC_KEY" ] && [ -n "$LANGFUSE_SECRET_KEY" ]; then
             echo "has_keys=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_keys=false" >> "$GITHUB_OUTPUT"

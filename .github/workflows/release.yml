@@ -8,19 +8,24 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026, issue 12) :
+# les droits d'écriture sont déclarés sur le seul job qui publie.
+permissions: {}
 
 jobs:
   release:
     name: "Release Please"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      # release-please crée les tags et les releases GitHub (contents) et ouvre /
+      # met à jour la PR de release (pull-requests) : sans pull-requests: write, il échoue.
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Créer ou mettre à jour la release
-        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
         with:
           release-type: node
           manifest-file: ".release-please-manifest.json"

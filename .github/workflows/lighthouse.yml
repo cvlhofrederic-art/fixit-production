@@ -8,19 +8,24 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-  pull-requests: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : le job
+# déclare le strict nécessaire.
+permissions: {}
 
 jobs:
   lighthouse:
     name: "Lighthouse CI — Audit sitemap"
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write  # rapport posté en commentaire de PR
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Configurer Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
@@ -72,7 +77,8 @@ jobs:
           kill $SERVER_PID 2>/dev/null || true
 
       - name: Installer Lighthouse CI
-        run: npm install -g @lhci/cli@0.14.x
+        # Version exacte (lot 6 Aikido, zizmor adhoc-packages) : 0.14.0 est la seule 0.14.x publiée.
+        run: npm install -g @lhci/cli@0.14.0
 
       - name: Exécuter Lighthouse CI
         run: lhci autorun

@@ -48,8 +48,9 @@ on:
           - devis-reminders
           - email-agent-poll
 
-permissions:
-  contents: read
+# Aucune permission (lot 6 Aikido, 28/10/2026) : aucun job n'utilise le jeton GitHub
+# (appels curl vers la production uniquement).
+permissions: {}
 
 jobs:
   health:
