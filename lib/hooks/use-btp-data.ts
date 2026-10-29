@@ -397,7 +397,7 @@ const _enVol: Record<string, Promise<any[] | null>> = {}
 /** Charge une table (une seule requête à la fois par clé), remplit le cache ; null si la réponse n'est pas ok. */
 function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null> {
   const enCours = _enVol[cacheKey]
-  if (enCours) return enCours
+  if (enCours !== undefined) return enCours
   const promesse = (async (): Promise<any[] | null> => {
     try {
       const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
