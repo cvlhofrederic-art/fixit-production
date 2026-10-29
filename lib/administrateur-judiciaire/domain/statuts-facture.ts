@@ -148,6 +148,12 @@ export type MotifEcart =
   | 'acompte_sans_montant'
   | 'non_echue'
   | 'solde_insuffisant'
+  /** Compte payeur de la facture différent du compte de l'ordre (paiement-fournisseurs.ts). */
+  | 'autre_compte_payeur'
+  /** Facture sans compte payeur (paiement-fournisseurs.ts). */
+  | 'compte_payeur_absent'
+  /** Bon à payer sans le nombre de validations requis pour le montant à régler (paiement-fournisseurs.ts). */
+  | 'bon_a_payer_incomplet'
 
 export interface SelectionOrdre<F extends FactureAPayer = FactureAPayer> {
   retenues: F[]
@@ -160,7 +166,7 @@ export interface SelectionOrdre<F extends FactureAPayer = FactureAPayer> {
 const STATUTS_REGLEMENT_SELECTIONNABLES: ReadonlySet<StatutReglementFacture> = new Set(['Bon à payer', 'Acompte à régler'])
 
 /** Montant à régler d'une facture sélectionnable : l'acompte (borné) pour un acompte, sinon le reste dû. */
-const montantARegler = (facture: FactureAPayer): number =>
+export const montantARegler = (facture: FactureAPayer): number =>
   facture.statutReglement === 'Acompte à régler'
     ? Math.min(facture.acompteCentimes ?? 0, facture.resteDuCentimes)
     : facture.resteDuCentimes
