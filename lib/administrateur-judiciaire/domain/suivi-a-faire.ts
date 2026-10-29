@@ -1,12 +1,15 @@
+import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import {
   ajouterJours,
   ajouterMois,
+  dateIsoVersFr,
   dateVersIso,
   ecartJours,
   estDateIsoValide,
   jourSemaine,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { estEcheanceAccomplieOuRevolue } from '@/lib/administrateur-judiciaire/domain/echeances-affichage'
 import {
@@ -15,7 +18,9 @@ import {
   type TypeEcheanceEquipement,
 } from '@/lib/administrateur-judiciaire/domain/equipements'
 import { etatEtape, type Etape } from '@/lib/administrateur-judiciaire/domain/etapes'
+import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { echeanceReglement } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
+import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { echeancesDiagnostics, type Diagnostic } from '@/lib/administrateur-judiciaire/domain/immeuble-juridique'
 import {
   etapeSuiviSinistre,
@@ -48,8 +53,14 @@ import type { StatutAssemblee, StatutContrat } from '@/lib/data/referentiels-ges
  * la dernière tranche ; unités d'horizon jours / semaines / mois (listes non ouvertes dans Gestéam).
  * 🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres (sinistres.ts) ; 21 jours francs de
  * convocation au décompte de votes-ag.ts ; échéances légales dont la certitude n'est pas TEXTE.
- * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, suites d'un contentieux, mémos, tickets
- * d'appel, agenda, bon à payer ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
+ * 🔵 Contentieux (réglage Gestéam : « Commandement depuis n », « Non réglés depuis n », « Soldés ») : les n jours sont des
+ * réglages de GESTION du cabinet (DELAIS_SUIVI_CONTENTIEUX, modifiables), jamais des délais légaux ; les délais des voies
+ * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
+ * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
+ * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
+ * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
+ * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
+ * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
  */
 
 export const FAMILLES_SUIVI = [
@@ -63,6 +74,8 @@ export const FAMILLES_SUIVI = [
   'sinistres',
   'equipements',
   'diagnostics',
+  'contentieux',
+  'exercices',
 ] as const
 export type FamilleSuivi = (typeof FAMILLES_SUIVI)[number]
 
@@ -75,9 +88,11 @@ export const NATURES_SUIVI = {
   travaux: ['fonds_a_appeler'],
   contrats: ['limite_resiliation', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
-  sinistres: ['a_declarer', 'prescription'],
+  sinistres: ['a_declarer', 'prescription', 'indemnite_differee'],
   equipements: ['a_reviser', 'a_remplacer', 'fin_garantie'],
   diagnostics: ['a_renouveler'],
+  contentieux: ['suite_commandement', 'echeancier_impaye', 'non_regle', 'a_clore'],
+  exercices: ['repartition_en_retard'],
 } as const satisfies Record<FamilleSuivi, readonly string[]>
 export type NatureSuivi = (typeof NATURES_SUIVI)[FamilleSuivi][number]
 
@@ -92,6 +107,8 @@ export const LIBELLES_FAMILLES_SUIVI: Record<FamilleSuivi, string> = {
   sinistres: 'Sinistres',
   equipements: 'Équipements',
   diagnostics: 'Diagnostics',
+  contentieux: 'Contentieux',
+  exercices: 'Exercices',
 }
 
 export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
@@ -108,6 +125,12 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   reglement: 'Règlement',
   a_declarer: 'À déclarer',
   prescription: 'Prescription',
+  indemnite_differee: 'Indemnité différée',
+  suite_commandement: 'Suite au commandement',
+  echeancier_impaye: 'Échéancier impayé',
+  non_regle: 'Non réglé',
+  a_clore: 'Soldé, à clore',
+  repartition_en_retard: 'Répartition en retard',
   a_reviser: 'À réviser',
   a_remplacer: 'À remplacer',
   fin_garantie: 'Fin de garantie',
@@ -531,8 +554,10 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
 }
 
 /**
- * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts). Les deux sont
- * des repères indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration.
+ * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts) — deux repères
+ * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Indemnité différée non réglée : à
+ * réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la déclaration, la survenance) ; c'est un
+ * suivi de gestion, pas un repère légal.
  */
 export function depuisSinistres(
   items: { id: string; mandatId: string; libelle: string; fiche: FicheSinistre; delaiContratJoursOuvres?: number }[],
@@ -545,7 +570,130 @@ export function depuisSinistres(
     if (etapeSuiviSinistre(fiche) === 'a_declarer')
       elements.push(elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, { ...champs, date: reperes.declarationAuPlusTard }))
     elements.push(elementSuivi('sinistres', 'prescription', `${id}:prescription`, { ...champs, date: reperes.prescription }))
+    if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)
+      elements.push(
+        elementSuivi('sinistres', 'indemnite_differee', `${id}:indemnite_differee`, {
+          libelle: `${libelle} — ${fiche.reparationsFaites ? 'indemnité différée à réclamer (réparations faites)' : 'indemnité différée en attente des réparations'}`,
+          date: fiche.dateReglement ?? fiche.dateRapport ?? fiche.dateDeclaration ?? fiche.dateSurvenance,
+          mandatId,
+          objetId: id,
+        }),
+      )
     return elements
+  })
+}
+
+/** Réglages de gestion du suivi des contentieux (Gestéam : « Commandement depuis n », « Non réglés depuis n »). */
+export interface DelaisSuiviContentieux {
+  joursApresCommandement: number
+  joursSansReglement: number
+}
+
+/** 🔵 Valeurs par défaut de GESTION, modifiables par le cabinet ; aucune n'est un délai légal. */
+export const DELAIS_SUIVI_CONTENTIEUX: DelaisSuiviContentieux = { joursApresCommandement: 30, joursSansReglement: 60 }
+
+export interface ContentieuxSuivi {
+  id: string
+  mandatId: string
+  libelle: string
+  dossier: DossierContentieux
+  /** Date du dernier règlement du débiteur ; absente : aucun règlement. Postérieure à aujourd'hui : ignorée. */
+  dernierReglementLe?: string | null
+  /**
+   * Solde dû par le débiteur (decompte-contentieux.calculerDecompte) ; négatif : excédent à imputer sur son compte.
+   * Absent : le montant demandé fait foi s'il est positif, sinon le solde est inconnu.
+   */
+  soldeDuCentimes?: number | null
+  /** Suivi de l'échéancier du débiteur (decompte-contentieux.suivreEcheancier), s'il y en a un. */
+  echeancier?: SuiviEcheancier | null
+}
+
+/**
+ * Contentieux ouvert : suite à donner n jours après le commandement, sauf dossier soldé. Dossier de recouvrement :
+ * échéancier du débiteur impayé, à la première échéance échue non soldée ; soldé (solde connu ≤ 0) mais non clos : à
+ * clore ; sinon relance n jours après le dernier règlement (ou l'ouverture), sauf échéancier en cours et respecté. Solde
+ * inconnu : ni relance ni clôture. Un dossier clos ne donne rien.
+ */
+export function depuisContentieux(
+  items: ContentieuxSuivi[],
+  aujourdhui: string,
+  delais: DelaisSuiviContentieux = DELAIS_SUIVI_CONTENTIEUX,
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  for (const jours of [delais.joursApresCommandement, delais.joursSansReglement])
+    if (!Number.isInteger(jours) || jours < 0) throw new Error(`Délai de suivi invalide (${jours}) : nombre entier de jours positif ou nul attendu.`)
+  return items.flatMap(({ id, mandatId, libelle, dossier, dernierReglementLe, soldeDuCentimes, echeancier }) => {
+    if (dernierReglementLe != null) verifierDate(dernierReglementLe, `Date du dernier règlement du contentieux ${id}`)
+    if (soldeDuCentimes != null && !Number.isInteger(soldeDuCentimes))
+      throw new Error(`Solde dû invalide pour le contentieux ${id} (${soldeDuCentimes}) : centimes entiers attendus.`)
+    if (dossier.dateCloture) return []
+    const champs = { mandatId, objetId: id }
+    const elements: ElementAFaire[] = []
+    const solde = soldeDuCentimes ?? (dossier.montantDemandeCentimes > 0 ? dossier.montantDemandeCentimes : null)
+    const solde0 = solde !== null && solde <= 0
+    const { commandement } = dossier.jalons
+    if (commandement && !solde0)
+      elements.push(
+        elementSuivi('contentieux', 'suite_commandement', `${id}:suite_commandement`, {
+          ...champs,
+          libelle: `${libelle} — suite au commandement du ${dateIsoVersFr(commandement)}`,
+          date: ajouterJours(commandement, delais.joursApresCommandement),
+        }),
+      )
+    if (etapeRecouvrementContentieux(dossier) === null) return elements
+    const impayee = echeancier?.respecte === false ? echeancier.echeances.find((e) => e.date < aujourdhui && e.payeCentimes < e.montantCentimes) : undefined
+    if (impayee)
+      elements.push(
+        elementSuivi('contentieux', 'echeancier_impaye', `${id}:echeancier_impaye`, {
+          ...champs,
+          libelle: `${libelle} — échéancier impayé depuis le ${dateIsoVersFr(impayee.date)}`,
+          date: impayee.date,
+        }),
+      )
+    if (solde === null) return elements
+    const depuis = dernierReglementLe && dernierReglementLe <= aujourdhui ? dernierReglementLe : dossier.dateOuverture
+    if (solde0)
+      elements.push(
+        elementSuivi('contentieux', 'a_clore', `${id}:a_clore`, {
+          ...champs,
+          libelle: `${libelle} — soldé${solde < 0 ? ` (excédent de ${formatEurosCentimes(-solde / 100)} à imputer sur le compte)` : ''}, à clore`,
+          date: depuis,
+        }),
+      )
+    else if (!(echeancier?.respecte === true && echeancier.prochaine !== null))
+      elements.push(
+        elementSuivi('contentieux', 'non_regle', `${id}:non_regle`, {
+          ...champs,
+          libelle: `${libelle} — aucun règlement depuis le ${dateIsoVersFr(depuis)}`,
+          date: ajouterJours(depuis, delais.joursSansReglement),
+        }),
+      )
+    return elements
+  })
+}
+
+const STATUTS_EXERCICE_TERMINES: readonly Exercice['statut'][] = ['Réparti', 'Non géré']
+
+/**
+ * Exercice clos (clôture passée) qui n'est pas « Réparti » (ni, 🔵, « Non géré ») : répartition en retard, dès le
+ * lendemain. `id` : identifiant de l'enregistrement, à défaut la clé « syndicat:nom » (le nom doit alors être renseigné).
+ */
+export function depuisExercices(items: { id?: string; mandatId: string; exercice: Exercice }[], aujourdhui: string): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  return items.flatMap(({ id, mandatId, exercice }) => {
+    verifierDate(exercice.cloture, `Clôture de l'exercice ${exercice.nom}`)
+    if (!id?.trim() && !exercice.nom.trim())
+      throw new Error(`Exercice clos le ${exercice.cloture} sans identifiant ni nom : impossible de le suivre sans doublon.`)
+    if (exercice.cloture >= aujourdhui || STATUTS_EXERCICE_TERMINES.includes(exercice.statut)) return []
+    const cle = id?.trim() || `${exercice.coproprieteId}:${exercice.nom}`
+    return [
+      elementSuivi('exercices', 'repartition_en_retard', `${cle}:repartition_en_retard`, {
+        libelle: `Exercice ${exercice.nom} clos le ${dateIsoVersFr(exercice.cloture)}, statut « ${exercice.statut} » : répartition en retard`,
+        date: ajouterJours(exercice.cloture, 1),
+        mandatId,
+        objetId: cle,
+      }),
+    ]
   })
 }
 
