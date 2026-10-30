@@ -21,7 +21,9 @@ export const POLITIQUE_CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
-  "connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com https://*.google-analytics.com https://www.googletagmanager.com https://*.analytics.google.com https://*.g.doubleclick.net",
+  // blob: dans connect-src : le lecteur PDF du navigateur ou une extension peut relire par fetch() l'URL blob d'un
+  // aperçu de devis (Sentry Y, 28/10/2026 : « Failed to fetch » sur blob:https://vitfix.io/…).
+  "connect-src 'self' blob: https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.groq.com https://recherche-entreprises.api.gouv.fr https://api-adresse.data.gouv.fr https://nominatim.openstreetmap.org https://geocoding-api.open-meteo.com https://api.open-meteo.com https://*.stripe.com https://*.sentry.io https://*.ingest.sentry.io https://cloudflareinsights.com https://*.google-analytics.com https://www.googletagmanager.com https://*.analytics.google.com https://*.g.doubleclick.net",
   "frame-src 'self' https://js.stripe.com https://*.stripe.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",

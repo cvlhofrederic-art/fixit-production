@@ -13,6 +13,7 @@ import { getMentionLegale } from '@/lib/tva-calculator'
 import { computeFrTvaIntra } from '@/lib/tva-intra'
 import { computeAcomptesAmounts } from '@/lib/money'
 import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
+import { DELAI_REVOCATION_TELECHARGEMENT_MS, ouvrirApercuOuTelecharger, telechargerParLien } from '@/lib/pdf/apercu-pdf'
 import {
   type ModeleDocument,
   COULEUR_ACCENT_PROVENCE_PRO,
@@ -2224,24 +2225,15 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
       ? new Blob([new Uint8Array(outputBytes)], { type: 'application/pdf' })
       : pdf.output('blob')
     const namedFile = new File([blob], filename, { type: 'application/pdf' })
-    const url = URL.createObjectURL(namedFile)
-    window.open(url, '_blank')
-    // Memory leak fix : révoquer l'URL après 60s — assez long pour que le
-    // navigateur ait chargé le PDF dans le nouvel onglet, suffisamment court
-    // pour ne pas saturer la heap sur des dizaines de previews successives.
-    // L'utilisateur peut toujours télécharger depuis l'onglet ouvert.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    // Aperçu dans un nouvel onglet ; fenêtre bloquée ou window.open remplacé par une extension qui lève ou rejette
+    // (Sentry Y, 28/10/2026) → téléchargement par lien. L'URL blob est révoquée après usage (60 s pour l'aperçu).
+    ouvrirApercuOuTelecharger(namedFile, filename)
   } else if (outputBytes) {
     // Téléchargement direct du PDF/A-3 Factur-X
     const blob = new Blob([new Uint8Array(outputBytes)], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    setTimeout(() => URL.revokeObjectURL(url), 5_000)
+    telechargerParLien(url, filename)
+    setTimeout(() => URL.revokeObjectURL(url), DELAI_REVOCATION_TELECHARGEMENT_MS)
   } else {
     pdf.save(filename)
   }
