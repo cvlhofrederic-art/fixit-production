@@ -56,15 +56,16 @@ function articleLastMod(article: { dateModified?: string, datePublished: string 
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sub-sitemap 0 : racine + hubs FR (pas de lastmod — éditorial)
+// Sub-sitemap 0 : hubs FR (pas de lastmod — éditorial)
 // Phase 1 SEO PT (point 1.1) : les 16 pages PT qui figuraient ici sont dans
 // /pt/sitemap-paginas.xml, seule source des URL PT (une URL = un sitemap).
+// Pas de racine « / » : elle répond 302 (redirection géolocalisée vers une
+// locale), et un sitemap ne liste que des URL finales en 200.
 // ────────────────────────────────────────────────────────────────────────────
 
 function staticAndHubPages(baseUrl: string): SitemapUrl[] {
   const url = (path: string): SitemapUrl => ({ url: `${baseUrl}${path}` })
   return [
-    url('/'),
     url('/fr/'),
     url('/fr/recherche/'),
     url('/fr/comment-ca-marche/'),
