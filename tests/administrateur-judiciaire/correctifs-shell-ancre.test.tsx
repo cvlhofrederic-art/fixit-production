@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto'
 import { Component, type ReactNode } from 'react'
 import { act, cleanup, render, type RenderResult } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LIBELLES_ROUTES } from '@/components/administrateur-judiciaire/shell/nav-config'
+import { LIBELLES_ROUTES, ROUTE_ACCUEIL } from '@/components/administrateur-judiciaire/shell/nav-config'
 import { Shell } from '@/components/administrateur-judiciaire/shell/Shell'
 import { ToastProvider } from '@/components/administrateur-judiciaire/ui/toast'
 
@@ -11,7 +11,8 @@ import { ToastProvider } from '@/components/administrateur-judiciaire/ui/toast'
  * Correctif du Shell (défaut hérité de la maquette) : l'ancre d'URL n'était validée que par REGISTRE_ECRANS[ancre],
  * un objet littéral qui hérite d'Object.prototype. #constructor, #valueOf, #__proto__… passaient donc la validation
  * et faisaient planter le rendu de l'écran (à chaque rechargement, puisque l'ancre est conservée).
- * Une clé héritée doit désormais être ignorée exactement comme une ancre inconnue.
+ * Une clé héritée doit désormais être ignorée exactement comme une ancre inconnue. Écran par défaut : la page
+ * d'accueil (ROUTE_ACCUEIL), le Tableau de bord depuis le 29/10/2026 (« Aujourd'hui », route « cockpit », avant).
  */
 
 // Écrans du registre remplacés par un écran factice : seul compte ici l'écran retenu par le Shell.
@@ -95,7 +96,7 @@ describe('Shell — ancre héritée d’Object.prototype (correctif)', () => {
 
   it.each(ANCRES_HERITEES)('#%s au chargement est ignorée comme une ancre inconnue (écran par défaut)', async (ancre) => {
     const rendu = await monterShell(ancre)
-    verifierEcranAffiche(rendu, 'cockpit')
+    verifierEcranAffiche(rendu, ROUTE_ACCUEIL)
   })
 
   it('une ancre héritée suivie par « hashchange » est ignorée : l’écran courant reste affiché', async () => {
@@ -119,8 +120,8 @@ describe('Shell — ancre héritée d’Object.prototype (correctif)', () => {
   it('comportement inchangé pour une route du registre et pour une ancre inconnue ordinaire', async () => {
     verifierEcranAffiche(await monterShell('copros'), 'copros')
     cleanup()
-    verifierEcranAffiche(await monterShell('inconnu'), 'cockpit')
+    verifierEcranAffiche(await monterShell('inconnu'), ROUTE_ACCUEIL)
     cleanup()
-    verifierEcranAffiche(await monterShell(''), 'cockpit')
+    verifierEcranAffiche(await monterShell(''), ROUTE_ACCUEIL)
   })
 })

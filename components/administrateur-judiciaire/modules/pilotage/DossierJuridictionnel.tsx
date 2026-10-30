@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
@@ -15,8 +14,9 @@ import { useEcheancesMandat } from '@/lib/administrateur-judiciaire/db/use-echea
 import { dateFrVersIso, dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
 import { MESSAGES_ETAT_ECHEANCES } from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
 import { ficheRegimeCopro, LIBELLES_REGIMES, type Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { codeLigneDemo } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
-import { codeCoproSelectionne } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Pièce versée au dossier juridictionnel. */
 export interface PieceDossierJuridictionnel {
@@ -38,6 +38,10 @@ export interface RequeteTribunal {
   ord: string
 }
 
+/** Procès-verbal de la dernière AG : versé dans le dossier de démonstration des Tilleuls, à verser ailleurs. */
+const pvDerniereAg = (dossierDemoTL: boolean): Omit<PieceDossierJuridictionnel, 'nom'> =>
+  dossierDemoTL ? { date: '18/05/2026', statut: 'Versé', pill: 'sage' } : { date: '—', statut: 'À verser', pill: 'gold' }
+
 /** Événement de la chronologie de la mission (date « JJ/MM/AAAA », texte, couleur de la pastille). */
 export interface EvenementChronologieMission {
   d: string
@@ -53,7 +57,8 @@ export interface EvenementChronologieMission {
  */
 export function DossierJuridictionnelModule() {
   const { push } = useToast()
-  const [code, setCode] = useState(() => codeCoproSelectionne('TL'))
+  const code = useCodeCoproCourant('TL')
+  const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
   const copro = useCoproParCode(code)
   const regime = ficheRegimeCopro(copro)
   const estAp291 = regime.code === 'ap291'
@@ -76,6 +81,11 @@ export function DossierJuridictionnelModule() {
       ordonnanceIso = dateFrVersIso(copro.ordonnance)
     return !dateIso || !ordonnanceIso || dateIso >= ordonnanceIso
   }
+  // Contenu de démonstration propre à une copropriété (jamais en mode réel, voir codeLigneDemo) : dossier des Tilleuls
+  // (prorogation, taxation, travaux urgents, PV de la dernière AG), notification en cours de Villa Montaigne. Une autre
+  // copropriété n'affiche donc pas la requête et le PV des Tilleuls.
+  const dossierDemoTL = codeLigneDemo('TL') === copro.code
+  const notificationEnCours = codeLigneDemo('VM') === copro.code
   const pieces: PieceDossierJuridictionnel[] = [
     {
       nom: 'Ordonnance de désignation',
@@ -86,11 +96,11 @@ export function DossierJuridictionnelModule() {
     {
       nom: `Notification aux copropriétaires (art. ${estAp291 ? '62-5' : '59'} décret)`,
       date:
-        copro.code === 'VM' && notification && notification.dateRetenue
+        notificationEnCours && notification && notification.dateRetenue
           ? `à notifier au plus tard le ${dateIsoVersFr(notification.dateRetenue)}`
           : '—',
-      statut: copro.code === 'VM' ? 'En cours' : 'Effectuée',
-      pill: copro.code === 'VM' ? 'amber' : 'sage',
+      statut: notificationEnCours ? 'En cours' : 'Effectuée',
+      pill: notificationEnCours ? 'amber' : 'sage',
     },
     ...(estAp291
       ? [
@@ -107,9 +117,7 @@ export function DossierJuridictionnelModule() {
       : []),
     {
       nom: 'Procès-verbal de la dernière AG',
-      date: '18/05/2026',
-      statut: 'Versé',
-      pill: 'sage',
+      ...pvDerniereAg(dossierDemoTL),
     },
     {
       nom: 'Rapport de fin de mission',
@@ -119,7 +127,7 @@ export function DossierJuridictionnelModule() {
     },
   ]
   const requetes: RequeteTribunal[] = [
-    ...(copro.code === 'TL'
+    ...(dossierDemoTL
       ? [
           {
             objet: 'Requête en prorogation de la mission',
@@ -128,20 +136,20 @@ export function DossierJuridictionnelModule() {
             pill: 'rust',
             ord: '—',
           },
+          {
+            objet: 'Requête en autorisation de travaux urgents',
+            date: '02/04/2026',
+            statut: 'Ordonnance rendue',
+            pill: 'sage',
+            ord: 'Ord. du 11/04/2026',
+          },
         ]
       : []),
     {
-      objet: 'Requête en autorisation de travaux urgents',
-      date: '02/04/2026',
-      statut: 'Ordonnance rendue',
-      pill: 'sage',
-      ord: 'Ord. du 11/04/2026',
-    },
-    {
       objet: 'Requête en taxation des honoraires',
-      date: copro.code === 'TL' ? '05/03/2026' : '—',
-      statut: copro.code === 'TL' ? 'En délibéré' : 'Non déposée',
-      pill: copro.code === 'TL' ? 'amber' : 'gold',
+      date: dossierDemoTL ? '05/03/2026' : '—',
+      statut: dossierDemoTL ? 'En délibéré' : 'Non déposée',
+      pill: dossierDemoTL ? 'amber' : 'gold',
       ord: '—',
     },
   ].filter((requete) => nonAnterieureAOrdonnance(requete.date))
@@ -181,7 +189,7 @@ export function DossierJuridictionnelModule() {
         lede="Tout le dialogue avec le tribunal pour ce mandat : pièces du dossier, requêtes et leur suivi (dépôt → délibéré → ordonnance), chronologie."
         actions={
           <>
-            <SelecteurCopropriete value={code} onChange={setCode} />
+            <SelecteurCopropriete value={code} onChange={choisirCopro} />
             <button
               className="btn gold"
               onClick={() =>

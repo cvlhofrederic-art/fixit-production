@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   DEMO_COPROPRIETES,
   DEMO_TOTAL_BUDGET,
@@ -9,7 +10,18 @@ import {
 } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DEMO_OBLIGATIONS } from '@/components/administrateur-judiciaire/data/obligations'
+import {
+  AlerteEcheancesDepassees,
+  PanneauActesExpress,
+  PanneauEcheancesLegales,
+  RadarMandats,
+  estEnRetard,
+  tachesDuRole,
+  type ActeExpressOuvert,
+} from '@/components/administrateur-judiciaire/modules/mandat/composants/EtatGeneralMandats'
+import { GenerationActeModal } from '@/components/administrateur-judiciaire/modules/mandat/composants/GenerationActeModal'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
+import { useRoleCabinet } from '@/components/administrateur-judiciaire/shell/RoleCabinetContext'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -106,12 +118,18 @@ const STYLE_SURTITRE_TOTAL = {
 } as const
 
 /**
- * Tableau de bord (démonstration, données statiques) : accueil du cabinet, actions rapides, indicateurs, suivi
- * budgétaire cumulé, échéances prioritaires et état des mandats. Sert aussi d'écran de repli du shell pour toute
+ * Tableau de bord, page d'accueil et vue de tous les mandats : accueil du cabinet ; en tête, l'état général repris de
+ * l'ancienne page « Aujourd'hui » (décision de Hugo du 29/10/2026) : alerte d'échéance dépassée, radar des mandats et
+ * échéances légales du portefeuille (moteur de délais légaux) ; puis actions rapides, génération express d'actes (cible
+ * des actes pré-rédigés de la palette, du bouton « Actes » de la fiche 360 et des actes ouverts par Fixy), indicateurs,
+ * suivi budgétaire cumulé, échéances prioritaires et état des mandats. Sert aussi d'écran de repli du shell pour toute
  * route inconnue. Plusieurs chiffres sont codés en dur (48 j, 65 k €, « 4 mandats actifs »…).
  */
 export function TableauDeBordModule() {
   const { push } = useToast()
+  const role = useRoleCabinet()
+  const [acteOuvert, setActeOuvert] = useState<ActeExpressOuvert | null>(null)
+  const nombreEnRetard = tachesDuRole(role).filter(estEnRetard).length
 
   return (
     <>
@@ -174,6 +192,9 @@ export function TableauDeBordModule() {
           </div>
         </div>
       </div>
+      <AlerteEcheancesDepassees nombre={nombreEnRetard} />
+      <RadarMandats />
+      <PanneauEcheancesLegales />
       <div className="section-eyebrow">
         <span>Actions rapides</span>
         <div className="line" />
@@ -202,6 +223,7 @@ export function TableauDeBordModule() {
           </button>
         ))}
       </div>
+      <PanneauActesExpress onChoisir={(tpl, code) => setActeOuvert({ tpl, code })} />
       <Kpis
         items={[
           {
@@ -550,6 +572,12 @@ export function TableauDeBordModule() {
           ))}
         </Panel>
       </div>
+      <GenerationActeModal
+        open={!!acteOuvert}
+        tplKey={acteOuvert?.tpl}
+        initialCode={acteOuvert?.code}
+        onClose={() => setActeOuvert(null)}
+      />
     </>
   )
 }

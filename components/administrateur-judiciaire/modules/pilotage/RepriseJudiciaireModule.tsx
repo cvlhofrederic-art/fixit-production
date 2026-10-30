@@ -33,7 +33,7 @@ import {
   type PieceReprise,
 } from '@/lib/administrateur-judiciaire/domain/reprise'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
-import { codeCoproSelectionne, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Liste de copropriétaires analysée : lecture du CSV et contrôles de cohérence (tantièmes, débiteurs, doublons). */
 export interface AnalyseListeCoproprietaires extends ResultatListeCoproprietaires {
@@ -60,12 +60,18 @@ const libelleDelaiPiece = (delai: string): string =>
  */
 export function RepriseJudiciaireModule() {
   const { push } = useToast()
-  const { code, choisirCopro } = useSelectionDossier()
-  const [codeLocal, setCodeLocal] = useState(() => codeCoproSelectionne('VM'))
-  const codeCopro = codeLocal || code
+  const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
+  const codeCopro = useCodeCoproCourant('VM')
   const donnees = useDonneesLocales()
   const [texteListe, setTexteListe] = useState('')
   const [analyse, setAnalyse] = useState<AnalyseListeCoproprietaires | null>(null)
+  // Changement de copropriété (sélecteur du haut ou select local) : l'analyse faite pour l'ancienne est abandonnée.
+  // Ajustement pendant le rendu, sans remontage : le verrou d'import et la file des bascules sont conservés.
+  const [codeAnalyse, setCodeAnalyse] = useState(codeCopro)
+  if (codeAnalyse !== codeCopro) {
+    setCodeAnalyse(codeCopro)
+    setAnalyse(null)
+  }
   // Correctifs de défauts hérités de la maquette (écritures concurrentes). Des références, et non des états : le rendu
   // ne change pas (bouton « Importer » toujours actif, sans attribut disabled, pièces toujours cliquables).
   // - Import en cours : un second clic sur « Importer N copropriétaires » pendant l'import est ignoré ; il relançait
@@ -168,15 +174,7 @@ export function RepriseJudiciaireModule() {
         title="Reprise judiciaire"
         lede="Importer la liste des copropriétaires de l'ancien logiciel, contrôler tantièmes et soldes, suivre les pièces à obtenir de l'ancien syndic avec les délais de l'art. 18-2."
         actions={
-          <SelecteurCopropriete
-            // Toujours une chaîne non vide : codeLocal part de codeCoproSelectionne('VM') et ne reçoit que des codes.
-            value={codeCopro as string}
-            onChange={(codeChoisi) => {
-              setCodeLocal(codeChoisi)
-              choisirCopro(codeChoisi)
-              setAnalyse(null)
-            }}
-          />
+          <SelecteurCopropriete value={codeCopro} onChange={choisirCopro} />
         }
       />
       {donnees.erreur && (

@@ -8,12 +8,30 @@ export interface FixyVeilleProps {
   faites: readonly string[]
   onAction: (action: ActionFixy) => void
   enCours: string | null
-  /** Nombre maximal de rappels affichés (lanceur du Shell) ; le reste est annoncé « sur la page Fixy ». */
+  /** Nombre maximal de rappels affichés (lanceur du Shell) ; le reste est annoncé (voir lieuDesAutres). */
   max?: number
+  /**
+   * Où voir les rappels au-delà de `max` : « sur la page Fixy » par défaut (même veille, celle de la copropriété
+   * choisie) ; « sur tout le portefeuille » pour le lanceur des vues générales, dont la veille est plus large.
+   */
+  lieuDesAutres?: string
+  /** Texte affiché sans rappel (veille d'une copropriété : « Aucun rappel pour … ») ; à défaut, « Rien à signaler… ». */
+  messageVide?: string
 }
 
+const RIEN_A_SIGNALER =
+  'Rien à signaler : aucun courrier en attente, aucune échéance échue, aucun débiteur sans dossier.'
+
 /** Rappels de la veille de Fixy : agent (étiquette de la couleur de gravité), texte et action proposée. */
-export function FixyVeille({ veille, faites, onAction, enCours, max }: FixyVeilleProps) {
+export function FixyVeille({
+  veille,
+  faites,
+  onAction,
+  enCours,
+  max,
+  messageVide = RIEN_A_SIGNALER,
+  lieuDesAutres = 'sur la page Fixy',
+}: FixyVeilleProps) {
   const affiches = max ? veille.slice(0, max) : veille
   return veille.length === 0 ? (
     <p
@@ -23,7 +41,7 @@ export function FixyVeille({ veille, faites, onAction, enCours, max }: FixyVeill
         margin: 0,
       }}
     >
-      Rien à signaler : aucun courrier en attente, aucune échéance échue, aucun débiteur sans dossier.
+      {messageVide}
     </p>
   ) : (
     <>
@@ -69,7 +87,7 @@ export function FixyVeille({ veille, faites, onAction, enCours, max }: FixyVeill
           {veille.length - max > 1 ? 's' : ''}
           {' rappel'}
           {veille.length - max > 1 ? 's' : ''}
-          {' sur la page Fixy.'}
+          {` ${lieuDesAutres}.`}
         </p>
       )}
     </>

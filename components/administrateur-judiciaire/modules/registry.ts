@@ -107,11 +107,16 @@ export const REGISTRE_ECRANS: Record<string, ComponentType> = {
   ),
 }
 
-/** Écrans branchés sur la base locale (reel) ou partiellement (partiel) ; tous les autres sont en démonstration. */
+/**
+ * Écrans branchés sur la base locale (reel) ou partiellement (partiel) ; tous les autres sont en démonstration. Le
+ * tableau de bord, page d'accueil, lit le moteur de délais légaux depuis qu'il reprend le contenu d'« Aujourd'hui »
+ * (cockpit, retiré du menu le 29/10/2026 : son ancre est redirigée vers le tableau de bord).
+ */
 export const STATUTS_ECRANS = {
   reel: ['copros', 'prestataires', 'tresorerie', 'reprise', 'fiche360', 'personne360', 'dossierJuge', 'fixy'],
   partiel: [
     'cockpit',
+    'dashboard',
     'dossierJud',
     'priseFonction',
     'notifJud',

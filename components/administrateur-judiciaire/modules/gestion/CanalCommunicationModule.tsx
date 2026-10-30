@@ -11,19 +11,24 @@ import {
   type MissionCanal,
 } from '@/components/administrateur-judiciaire/data/missions-canal'
 import { DEMO_PRESTATAIRES } from '@/components/administrateur-judiciaire/data/prestataires'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import {
   FilMissionFuiteColonne,
   type WorkflowMissionFuite,
 } from '@/components/administrateur-judiciaire/modules/gestion/canal/FilMissionFuiteColonne'
 import { VignettePhotoMission } from '@/components/administrateur-judiciaire/modules/gestion/canal/VignettePhotoMission'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
+import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { Toggle } from '@/components/administrateur-judiciaire/ui/Toggle'
-import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { etapesWorkflowMissionFuite } from '@/lib/administrateur-judiciaire/domain/ordre-mission'
+import { useToast, type ToastApi } from '@/components/administrateur-judiciaire/ui/toast'
+import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
+import { etapesWorkflowMissionFuite, type EtapeMission } from '@/lib/administrateur-judiciaire/domain/ordre-mission'
+import { filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Filtre de la liste des ordres de mission. */
 type FiltreMissions = 'all' | 'unread'
@@ -78,12 +83,609 @@ function tirerSuffixeMission(): number {
   return suffixe
 }
 
+/** « · 06 … » après le nom du gardien quand son téléphone est connu ; rien sinon (vide ou « — »). */
+const suffixeTelGardien = (telephone: string): string => (telephone && telephone !== '—' ? ` · ${telephone}` : '')
+
+/** Classe d'affichage de l'état d'une étape du workflow (« todo » pour tout autre état). */
+const CLASSES_ETAT_ETAPE: Readonly<Partial<Record<string, 'done' | 'now'>>> = { done: 'done', now: 'now' }
+
+/** État et actions du Canal lus par la grille (mêmes noms que dans CanalCommunicationModule). */
+interface GrilleCanalProps {
+  /** Mission ouverte (de la copropriété choisie). */
+  missionActive: MissionCanal
+  missionsCopro: MissionCanal[]
+  missionsAffichees: MissionCanal[]
+  idMissionActive: string
+  filtre: FiltreMissions
+  setFiltre: (filtre: FiltreMissions) => void
+  setMissionActiveId: (id: string) => void
+  messagesParMission: MessagesParMission
+  brouillon: string
+  setBrouillon: (brouillon: string) => void
+  envoyerMessage: () => void
+  workflows: WorkflowsMissions
+  setDispatchOuvert: (ouvert: boolean) => void
+  transmettreComptabilite: () => void
+  etapesAffichees: EtapeMission[]
+  push: ToastApi['push']
+}
+
+/**
+ * Grille du Canal (ordres de mission, échange, détails et workflow de la mission ouverte), affichée quand la
+ * copropriété choisie a au moins une mission ; sans mission, CanalCommunicationModule affiche un état vide.
+ */
+function GrilleCanal({
+  missionActive,
+  missionsCopro,
+  missionsAffichees,
+  idMissionActive,
+  filtre,
+  setFiltre,
+  setMissionActiveId,
+  messagesParMission,
+  brouillon,
+  setBrouillon,
+  envoyerMessage,
+  workflows,
+  setDispatchOuvert,
+  transmettreComptabilite,
+  etapesAffichees,
+  push,
+}: GrilleCanalProps) {
+  return (
+    <div className="canal-grid">
+      <div className="canal-missions-col">
+        <div className="canal-missions-head">
+          <span className="canal-missions-label">Ordres de mission</span>
+          <div className="canal-search">
+            <Icon name="search" />
+            <input aria-label="Rechercher un ordre" placeholder="Rechercher…" />
+          </div>
+        </div>
+        <div className="canal-missions-subtabs">
+          <button className={`canal-chip ${filtre === 'all' ? 'active' : ''}`} onClick={() => setFiltre('all')}>
+            {'Tous '}
+            <span className="canal-chip-count">{missionsCopro.length}</span>
+          </button>
+          <button className={`canal-chip ${filtre === 'unread' ? 'active' : ''}`} onClick={() => setFiltre('unread')}>
+            {'Non lus '}
+            <span className="canal-chip-count">{missionsCopro.filter((mission) => mission.unread).length}</span>
+          </button>
+        </div>
+        <div className="canal-missions-list">
+          {missionsAffichees.map((mission) => (
+            <button
+              type="button"
+              className={`canal-mission-card ${idMissionActive === mission.id ? 'active' : ''}`}
+              onClick={() => setMissionActiveId(mission.id)}
+              aria-current={idMissionActive === mission.id ? 'true' : undefined}
+              key={mission.id}
+            >
+              <div className="canal-mission-title">{mission.title}</div>
+              <div className="canal-mission-sub">
+                <span
+                  className="canal-mission-dot"
+                  style={{
+                    background: COULEUR_POINT_MISSION[mission.dot],
+                  }}
+                />
+                {mission.sub}
+              </div>
+              <div className="canal-mission-tags">
+                {mission.tags.map((tag, index) => (
+                  <Pill noDot key={index}>
+                    {tag}
+                  </Pill>
+                ))}
+              </div>
+              {mission.unread > 0 && <span className="canal-mission-unread">{mission.unread}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="canal-chat-col">
+        <div className="canal-chat-head">
+          <div className="canal-chat-head-info">
+            <div className="canal-chat-title">{missionActive.title}</div>
+            <div className="canal-chat-meta">
+              <span className="canal-chat-meta-id">{missionActive.pro}</span>
+              <span className="canal-chat-meta-sep">·</span>
+              <span>{missionActive.building}</span>
+            </div>
+          </div>
+          <div className="canal-chat-head-actions">
+            <button
+              className="btn ghost sm"
+              aria-label="Voir les participants"
+              onClick={() =>
+                push({
+                  kind: 'info',
+                  title: 'Participants',
+                  desc: missionActive.parts.length + ' membres',
+                })
+              }
+            >
+              <Icon name="users" />
+            </button>
+          </div>
+        </div>
+        <div
+          className="canal-chat-body"
+          style={{
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            justifyContent: 'flex-start',
+            gap: 0,
+          }}
+        >
+          {missionActive.id === 'mfuite' ? (
+            <FilMissionFuiteColonne
+              mission={missionActive}
+              wf={
+                workflows.mfuite || {
+                  state: 'signale',
+                }
+              }
+              onValidate={() => setDispatchOuvert(true)}
+              onCompta={transmettreComptabilite}
+              push={push}
+            />
+          ) : (
+            <div
+              style={{
+                alignSelf: 'center',
+                width: '100%',
+                maxWidth: 580,
+                background: 'var(--gold-50)',
+                border: '1px solid var(--gold-200)',
+                borderRadius: 14,
+                padding: '14px 16px',
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontWeight: 700,
+                  fontSize: 12.5,
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                  color: 'var(--gold-700)',
+                  marginBottom: 8,
+                }}
+              >
+                <Icon name="clipboard" />
+                Ordre de mission
+              </div>
+              <div
+                style={{
+                  fontFamily: 'Cormorant Garamond, serif',
+                  fontSize: 18,
+                  marginBottom: 10,
+                }}
+              >
+                {missionActive.desc}
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '5px 16px',
+                  fontSize: 12.5,
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Copropriété : '}
+                  </span>
+                  {missionActive.building}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Bâtiment : '}
+                  </span>
+                  {missionActive.batiment}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Localisation : '}
+                  </span>
+                  {missionActive.etage}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Métier : '}
+                  </span>
+                  {missionActive.area}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Gardien : '}
+                  </span>
+                  {missionActive.gardien}
+                  {suffixeTelGardien(missionActive.gardienTel)}
+                </div>
+                <div>
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {"Code d'accès : "}
+                  </span>
+                  {missionActive.code}
+                </div>
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Origine : '}
+                  </span>
+                  {missionActive.origine}
+                </div>
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: 'var(--navy-300)',
+                    }}
+                  >
+                    {'Intervention : '}
+                  </span>
+                  {missionActive.date}
+                  {' · '}
+                  {missionActive.duration}
+                </div>
+              </div>
+              {missionActive.photos && missionActive.photos.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    borderTop: '1px solid var(--gold-200)',
+                    paddingTop: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--navy-400)',
+                      marginBottom: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {"Photos transmises via l'app"}
+                  </div>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: 8,
+                    }}
+                  >
+                    {missionActive.photos.map((photo, index) => (
+                      <VignettePhotoMission label={photo} key={index} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: 'var(--navy-400)',
+                  marginTop: 10,
+                  borderTop: '1px solid var(--gold-200)',
+                  paddingTop: 8,
+                }}
+              >
+                {'Transmis à '}
+                {missionActive.pro}
+                {". Validation par l'artisan en fin de mission."}
+              </div>
+            </div>
+          )}
+          {(messagesParMission[idMissionActive] || []).map((message, index) => (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: message[3] === 'me' ? 'flex-end' : 'flex-start',
+                marginBottom: 14,
+              }}
+              key={index}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  color: 'var(--navy-300)',
+                  marginBottom: 3,
+                }}
+              >
+                {message[0]}
+                {' · '}
+                {message[1]}
+              </div>
+              <div
+                style={{
+                  maxWidth: '78%',
+                  padding: '10px 14px',
+                  borderRadius: 14,
+                  fontSize: 13,
+                  lineHeight: 1.45,
+                  background: message[3] === 'me' ? 'var(--navy-700)' : 'var(--cream)',
+                  color: message[3] === 'me' ? '#fff' : 'var(--ink)',
+                  border: message[3] === 'me' ? 'none' : '1px solid var(--line)',
+                }}
+              >
+                {message[2]}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="canal-chat-quickactions">
+          <button
+            className="canal-action gold"
+            onClick={() =>
+              push({
+                kind: 'info',
+                title: "Relancer l'artisan",
+                desc: missionActive.pro,
+              })
+            }
+          >
+            <Icon name="mail" />
+            Relancer
+          </button>
+          <button
+            className="canal-action sage"
+            onClick={() =>
+              push({
+                kind: 'form',
+                icon: 'doc',
+                title: 'Joindre une pièce',
+                fields: [
+                  {
+                    label: 'Type',
+                    type: 'select',
+                    options: ['Devis', 'Facture', 'Compte rendu', 'Photo'],
+                    full: true,
+                  },
+                  {
+                    label: 'Nom du fichier',
+                    placeholder: 'ex. facture.pdf',
+                    full: true,
+                  },
+                ],
+                submitLabel: 'Joindre',
+                toast: {
+                  title: 'Pièce jointe au dossier',
+                },
+              })
+            }
+          >
+            <Icon name="doc" />
+            Pièce
+          </button>
+          <button
+            className="canal-action rust"
+            onClick={() =>
+              push({
+                kind: 'success',
+                title: 'Simulation',
+                desc: "La mission n'a pas été validée dans le dossier (" + missionActive.title + ').',
+              })
+            }
+          >
+            <Icon name="check" />
+            Valider la mission
+          </button>
+        </div>
+        <div className="canal-chat-footer">
+          <div className="canal-chat-input-row">
+            <input
+              aria-label="Message"
+              className="canal-chat-input"
+              value={brouillon}
+              onChange={(evenement) => setBrouillon(evenement.target.value)}
+              onKeyDown={(evenement) => {
+                if (evenement.key === 'Enter') envoyerMessage()
+              }}
+              placeholder={`Répondre à ${missionActive.pro}…`}
+            />
+            <button aria-label="Envoyer le message" className="canal-chat-send btn primary" onClick={envoyerMessage}>
+              <Icon name="arrow" />
+            </button>
+          </div>
+          <div className="canal-chat-hint">Les échanges sont horodatés et versés au journal du mandat.</div>
+        </div>
+      </div>
+      <div className="canal-details-col">
+        <div className="canal-details-section">
+          <div className="canal-details-label">Ordre de mission</div>
+          <div className="canal-details-title">{missionActive.title}</div>
+          <div className="canal-details-pills">
+            {missionActive.tags.map((tag, index) => (
+              <Pill noDot key={index}>
+                {tag}
+              </Pill>
+            ))}
+          </div>
+        </div>
+        <div className="canal-details-section">
+          <div className="canal-details-label">Informations</div>
+          <ul className="canal-info-list">
+            <li>
+              <Icon name="building" />
+              <div>
+                <div className="canal-info-k">Copropriété</div>
+                <div className="canal-info-v">{missionActive.building}</div>
+              </div>
+            </li>
+            <li>
+              <Icon name="home" />
+              <div>
+                <div className="canal-info-k">Bâtiment</div>
+                <div className="canal-info-v">{missionActive.batiment}</div>
+              </div>
+            </li>
+            <li>
+              <Icon name="pin" />
+              <div>
+                <div className="canal-info-k">Localisation / étage</div>
+                <div className="canal-info-v">{missionActive.etage}</div>
+              </div>
+            </li>
+            <li>
+              <Icon name="wrench" />
+              <div>
+                <div className="canal-info-k">Métier</div>
+                <div className="canal-info-v">{missionActive.area}</div>
+              </div>
+            </li>
+            <li>
+              <Icon name="flag" />
+              <div>
+                <div className="canal-info-k">Origine de la demande</div>
+                <div className="canal-info-v">{missionActive.origine}</div>
+              </div>
+            </li>
+            <li>
+              <Icon name="users" />
+              <div>
+                <div className="canal-info-k">Gardien à contacter</div>
+                <div className="canal-info-v">
+                  {missionActive.gardien}
+                  {suffixeTelGardien(missionActive.gardienTel)}
+                </div>
+              </div>
+            </li>
+            <li>
+              <Icon name="lock" />
+              <div>
+                <div className="canal-info-k">{"Code d'accès"}</div>
+                <div className="canal-info-v">{missionActive.code}</div>
+              </div>
+            </li>
+            <li>
+              <Icon name="calendar" />
+              <div>
+                <div className="canal-info-k">Intervention</div>
+                <div className="canal-info-v">{missionActive.date}</div>
+              </div>
+            </li>
+          </ul>
+        </div>
+        {((missionActive.photos && missionActive.photos.length > 0) || missionActive.realPhoto) && (
+          <div className="canal-details-section">
+            <div className="canal-details-label">{missionActive.realPhoto ? 'Photo transmise' : 'Photos transmises'}</div>
+            {missionActive.realPhoto ? (
+              <img
+                src={missionActive.realPhoto}
+                alt="Photo du signalement"
+                style={{
+                  width: '100%',
+                  borderRadius: 8,
+                  border: '1px solid var(--line)',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: 8,
+                }}
+              >
+                {missionActive.photos.map((photo, index) => (
+                  <VignettePhotoMission label={photo} key={index} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <div className="canal-details-section">
+          <div className="canal-details-label">Participants</div>
+          <div className="canal-participants">
+            {missionActive.parts.map((participant, index) => (
+              <div className="canal-participant" key={index}>
+                <span className="canal-participant-avatar">
+                  {participant[0]}
+                  {participant[3] === 'on' && <span className="canal-participant-online" />}
+                </span>
+                <span className="canal-participant-info">
+                  <span className="canal-participant-name">{participant[1]}</span>
+                  <span className="canal-participant-role">{participant[2]}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="canal-details-section">
+          <div className="canal-details-label">Workflow de la mission</div>
+          <ol className="canal-progress">
+            {etapesAffichees.map((etape, index) => {
+              // L'état est le dernier élément de l'étape ; la date n'est affichée que si l'étape en compte plus de 2.
+              const statut = etape[etape.length - 1]
+              const classeEtat = CLASSES_ETAT_ETAPE[statut] ?? 'todo'
+              return (
+                <li className={`canal-progress-step state-${classeEtat}`} key={index}>
+                  <span className="canal-progress-marker" />
+                  <div className="canal-progress-content">
+                    <div className="canal-progress-step-name">{etape[0]}</div>
+                    <div className="canal-progress-step-date">{etape.length > 2 ? etape[1] : '—'}</div>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Canal de communication : ordres de mission, du signalement (gardien ou copropriétaire via l'app) au dispatch vers
  * l'artisan puis à la validation de la mission. Données de démonstration, actions simulées.
+ * Seules les missions de la copropriété choisie en haut de page sont listées (toutes sans choix) ; toutes restent en
+ * mémoire, et une nouvelle mission prend par défaut la copropriété choisie.
  */
 export function CanalCommunicationModule() {
   const { push } = useToast()
+  const { code, nom: nomCopro, codeDeNom } = useCoproChoisie()
+  const nomsCoproprietes = useNomsCoproprietesSelonMode()
   const [missions, setMissions] = useState<MissionCanal[]>(DEMO_MISSIONS_CANAL)
   const [missionActiveId, setMissionActiveId] = useState('mfuite')
   const [brouillon, setBrouillon] = useState('')
@@ -100,7 +702,7 @@ export function CanalCommunicationModule() {
   const saisieOrdreParDefaut: SaisieOrdreMission = {
     pro: DEMO_PRESTATAIRES[0].nom,
     area: DEMO_PRESTATAIRES[0].metier,
-    building: DEMO_NOMS_COPROPRIETES[0],
+    building: nomCopro || DEMO_NOMS_COPROPRIETES[0],
     batiment: '',
     etage: '',
     gardien: '',
@@ -157,15 +759,25 @@ export function CanalCommunicationModule() {
     })
   }
 
-  const missionActive = missions.find((mission) => mission.id === missionActiveId) || missions[0]
-  const missionsAffichees = filtre === 'unread' ? missions.filter((mission) => mission.unread > 0) : missions
+  const missionsCopro = filtrerParCopro(missions, code, (mission) => codeDeNom(mission.building))
+  // Mission ouverte : celle choisie si elle est de la copropriété, sinon la première de la copropriété (aucune si vide).
+  const missionActive: MissionCanal | undefined =
+    missionsCopro.find((mission) => mission.id === missionActiveId) || missionsCopro[0]
+  const idMissionActive = missionActive?.id ?? missionActiveId
+  const missionsAffichees = filtre === 'unread' ? missionsCopro.filter((mission) => mission.unread > 0) : missionsCopro
+
+  /** L'assistant propose la copropriété choisie en haut de page (le reste du brouillon est conservé). */
+  const ouvrirAssistant = () => {
+    if (nomCopro) setSaisieOrdre((precedente) => ({ ...precedente, building: nomCopro }))
+    setAssistantOuvert(true)
+  }
 
   const envoyerMessage = () => {
     const texte = brouillon.trim()
     if (texte) {
       setMessagesParMission((precedents) => ({
         ...precedents,
-        [missionActiveId]: [...(precedents[missionActiveId] || []), ['Vous', "À l'instant", texte, 'me']],
+        [idMissionActive]: [...(precedents[idMissionActive] || []), ['Vous', "À l'instant", texte, 'me']],
       }))
       setBrouillon('')
     }
@@ -255,9 +867,9 @@ export function CanalCommunicationModule() {
   }
 
   const etapesAffichees =
-    missionActive.id === 'mfuite'
+    missionActive?.id === 'mfuite'
       ? etapesWorkflowMissionFuite(workflows.mfuite && workflows.mfuite.state)
-      : missionActive.steps
+      : (missionActive?.steps ?? [])
 
   return (
     <>
@@ -266,552 +878,36 @@ export function CanalCommunicationModule() {
         title="Canal de communication"
         lede="Du signalement (gardien ou copropriétaire via l'app) au dispatch vers l'artisan, jusqu'à la validation de la mission."
         actions={
-          <button className="btn gold" onClick={() => setAssistantOuvert(true)}>
+          <button className="btn gold" onClick={ouvrirAssistant}>
             <Icon name="plus" />
             Nouvel ordre de mission
           </button>
         }
       />
-      <div className="canal-grid">
-        <div className="canal-missions-col">
-          <div className="canal-missions-head">
-            <span className="canal-missions-label">Ordres de mission</span>
-            <div className="canal-search">
-              <Icon name="search" />
-              <input aria-label="Rechercher un ordre" placeholder="Rechercher…" />
-            </div>
-          </div>
-          <div className="canal-missions-subtabs">
-            <button className={`canal-chip ${filtre === 'all' ? 'active' : ''}`} onClick={() => setFiltre('all')}>
-              {'Tous '}
-              <span className="canal-chip-count">{missions.length}</span>
-            </button>
-            <button className={`canal-chip ${filtre === 'unread' ? 'active' : ''}`} onClick={() => setFiltre('unread')}>
-              {'Non lus '}
-              <span className="canal-chip-count">{missions.filter((mission) => mission.unread).length}</span>
-            </button>
-          </div>
-          <div className="canal-missions-list">
-            {missionsAffichees.map((mission) => (
-              <button
-                type="button"
-                className={`canal-mission-card ${missionActiveId === mission.id ? 'active' : ''}`}
-                onClick={() => setMissionActiveId(mission.id)}
-                aria-current={missionActiveId === mission.id ? 'true' : undefined}
-                key={mission.id}
-              >
-                <div className="canal-mission-title">{mission.title}</div>
-                <div className="canal-mission-sub">
-                  <span
-                    className="canal-mission-dot"
-                    style={{
-                      background: COULEUR_POINT_MISSION[mission.dot],
-                    }}
-                  />
-                  {mission.sub}
-                </div>
-                <div className="canal-mission-tags">
-                  {mission.tags.map((tag, index) => (
-                    <Pill noDot key={index}>
-                      {tag}
-                    </Pill>
-                  ))}
-                </div>
-                {mission.unread > 0 && <span className="canal-mission-unread">{mission.unread}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="canal-chat-col">
-          <div className="canal-chat-head">
-            <div className="canal-chat-head-info">
-              <div className="canal-chat-title">{missionActive.title}</div>
-              <div className="canal-chat-meta">
-                <span className="canal-chat-meta-id">{missionActive.pro}</span>
-                <span className="canal-chat-meta-sep">·</span>
-                <span>{missionActive.building}</span>
-              </div>
-            </div>
-            <div className="canal-chat-head-actions">
-              <button
-                className="btn ghost sm"
-                aria-label="Voir les participants"
-                onClick={() =>
-                  push({
-                    kind: 'info',
-                    title: 'Participants',
-                    desc: missionActive.parts.length + ' membres',
-                  })
-                }
-              >
-                <Icon name="users" />
-              </button>
-            </div>
-          </div>
-          <div
-            className="canal-chat-body"
-            style={{
-              flexDirection: 'column',
-              alignItems: 'stretch',
-              justifyContent: 'flex-start',
-              gap: 0,
-            }}
-          >
-            {missionActive.id === 'mfuite' ? (
-              <FilMissionFuiteColonne
-                mission={missionActive}
-                wf={
-                  workflows.mfuite || {
-                    state: 'signale',
-                  }
-                }
-                onValidate={() => setDispatchOuvert(true)}
-                onCompta={transmettreComptabilite}
-                push={push}
-              />
-            ) : (
-              <div
-                style={{
-                  alignSelf: 'center',
-                  width: '100%',
-                  maxWidth: 580,
-                  background: 'var(--gold-50)',
-                  border: '1px solid var(--gold-200)',
-                  borderRadius: 14,
-                  padding: '14px 16px',
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    fontWeight: 700,
-                    fontSize: 12.5,
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    color: 'var(--gold-700)',
-                    marginBottom: 8,
-                  }}
-                >
-                  <Icon name="clipboard" />
-                  Ordre de mission
-                </div>
-                <div
-                  style={{
-                    fontFamily: 'Cormorant Garamond, serif',
-                    fontSize: 18,
-                    marginBottom: 10,
-                  }}
-                >
-                  {missionActive.desc}
-                </div>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '5px 16px',
-                    fontSize: 12.5,
-                  }}
-                >
-                  <div>
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Copropriété : '}
-                    </span>
-                    {missionActive.building}
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Bâtiment : '}
-                    </span>
-                    {missionActive.batiment}
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Localisation : '}
-                    </span>
-                    {missionActive.etage}
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Métier : '}
-                    </span>
-                    {missionActive.area}
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Gardien : '}
-                    </span>
-                    {missionActive.gardien}
-                    {missionActive.gardienTel && missionActive.gardienTel !== '—' ? ' · ' + missionActive.gardienTel : ''}
-                  </div>
-                  <div>
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {"Code d'accès : "}
-                    </span>
-                    {missionActive.code}
-                  </div>
-                  <div
-                    style={{
-                      gridColumn: '1 / -1',
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Origine : '}
-                    </span>
-                    {missionActive.origine}
-                  </div>
-                  <div
-                    style={{
-                      gridColumn: '1 / -1',
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: 'var(--navy-300)',
-                      }}
-                    >
-                      {'Intervention : '}
-                    </span>
-                    {missionActive.date}
-                    {' · '}
-                    {missionActive.duration}
-                  </div>
-                </div>
-                {missionActive.photos && missionActive.photos.length > 0 && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      borderTop: '1px solid var(--gold-200)',
-                      paddingTop: 10,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: 'var(--navy-400)',
-                        marginBottom: 6,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                    >
-                      {"Photos transmises via l'app"}
-                    </div>
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(3, 1fr)',
-                        gap: 8,
-                      }}
-                    >
-                      {missionActive.photos.map((photo, index) => (
-                        <VignettePhotoMission label={photo} key={index} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div
-                  style={{
-                    fontSize: 11.5,
-                    color: 'var(--navy-400)',
-                    marginTop: 10,
-                    borderTop: '1px solid var(--gold-200)',
-                    paddingTop: 8,
-                  }}
-                >
-                  {'Transmis à '}
-                  {missionActive.pro}
-                  {". Validation par l'artisan en fin de mission."}
-                </div>
-              </div>
-            )}
-            {(messagesParMission[missionActiveId] || []).map((message, index) => (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: message[3] === 'me' ? 'flex-end' : 'flex-start',
-                  marginBottom: 14,
-                }}
-                key={index}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: 'var(--navy-300)',
-                    marginBottom: 3,
-                  }}
-                >
-                  {message[0]}
-                  {' · '}
-                  {message[1]}
-                </div>
-                <div
-                  style={{
-                    maxWidth: '78%',
-                    padding: '10px 14px',
-                    borderRadius: 14,
-                    fontSize: 13,
-                    lineHeight: 1.45,
-                    background: message[3] === 'me' ? 'var(--navy-700)' : 'var(--cream)',
-                    color: message[3] === 'me' ? '#fff' : 'var(--ink)',
-                    border: message[3] === 'me' ? 'none' : '1px solid var(--line)',
-                  }}
-                >
-                  {message[2]}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="canal-chat-quickactions">
-            <button
-              className="canal-action gold"
-              onClick={() =>
-                push({
-                  kind: 'info',
-                  title: "Relancer l'artisan",
-                  desc: missionActive.pro,
-                })
-              }
-            >
-              <Icon name="mail" />
-              Relancer
-            </button>
-            <button
-              className="canal-action sage"
-              onClick={() =>
-                push({
-                  kind: 'form',
-                  icon: 'doc',
-                  title: 'Joindre une pièce',
-                  fields: [
-                    {
-                      label: 'Type',
-                      type: 'select',
-                      options: ['Devis', 'Facture', 'Compte rendu', 'Photo'],
-                      full: true,
-                    },
-                    {
-                      label: 'Nom du fichier',
-                      placeholder: 'ex. facture.pdf',
-                      full: true,
-                    },
-                  ],
-                  submitLabel: 'Joindre',
-                  toast: {
-                    title: 'Pièce jointe au dossier',
-                  },
-                })
-              }
-            >
-              <Icon name="doc" />
-              Pièce
-            </button>
-            <button
-              className="canal-action rust"
-              onClick={() =>
-                push({
-                  kind: 'success',
-                  title: 'Simulation',
-                  desc: "La mission n'a pas été validée dans le dossier (" + missionActive.title + ').',
-                })
-              }
-            >
-              <Icon name="check" />
-              Valider la mission
-            </button>
-          </div>
-          <div className="canal-chat-footer">
-            <div className="canal-chat-input-row">
-              <input
-                aria-label="Message"
-                className="canal-chat-input"
-                value={brouillon}
-                onChange={(evenement) => setBrouillon(evenement.target.value)}
-                onKeyDown={(evenement) => {
-                  if (evenement.key === 'Enter') envoyerMessage()
-                }}
-                placeholder={`Répondre à ${missionActive.pro}…`}
-              />
-              <button aria-label="Envoyer le message" className="canal-chat-send btn primary" onClick={envoyerMessage}>
-                <Icon name="arrow" />
-              </button>
-            </div>
-            <div className="canal-chat-hint">Les échanges sont horodatés et versés au journal du mandat.</div>
-          </div>
-        </div>
-        <div className="canal-details-col">
-          <div className="canal-details-section">
-            <div className="canal-details-label">Ordre de mission</div>
-            <div className="canal-details-title">{missionActive.title}</div>
-            <div className="canal-details-pills">
-              {missionActive.tags.map((tag, index) => (
-                <Pill noDot key={index}>
-                  {tag}
-                </Pill>
-              ))}
-            </div>
-          </div>
-          <div className="canal-details-section">
-            <div className="canal-details-label">Informations</div>
-            <ul className="canal-info-list">
-              <li>
-                <Icon name="building" />
-                <div>
-                  <div className="canal-info-k">Copropriété</div>
-                  <div className="canal-info-v">{missionActive.building}</div>
-                </div>
-              </li>
-              <li>
-                <Icon name="home" />
-                <div>
-                  <div className="canal-info-k">Bâtiment</div>
-                  <div className="canal-info-v">{missionActive.batiment}</div>
-                </div>
-              </li>
-              <li>
-                <Icon name="pin" />
-                <div>
-                  <div className="canal-info-k">Localisation / étage</div>
-                  <div className="canal-info-v">{missionActive.etage}</div>
-                </div>
-              </li>
-              <li>
-                <Icon name="wrench" />
-                <div>
-                  <div className="canal-info-k">Métier</div>
-                  <div className="canal-info-v">{missionActive.area}</div>
-                </div>
-              </li>
-              <li>
-                <Icon name="flag" />
-                <div>
-                  <div className="canal-info-k">Origine de la demande</div>
-                  <div className="canal-info-v">{missionActive.origine}</div>
-                </div>
-              </li>
-              <li>
-                <Icon name="users" />
-                <div>
-                  <div className="canal-info-k">Gardien à contacter</div>
-                  <div className="canal-info-v">
-                    {missionActive.gardien}
-                    {missionActive.gardienTel && missionActive.gardienTel !== '—' ? ' · ' + missionActive.gardienTel : ''}
-                  </div>
-                </div>
-              </li>
-              <li>
-                <Icon name="lock" />
-                <div>
-                  <div className="canal-info-k">{"Code d'accès"}</div>
-                  <div className="canal-info-v">{missionActive.code}</div>
-                </div>
-              </li>
-              <li>
-                <Icon name="calendar" />
-                <div>
-                  <div className="canal-info-k">Intervention</div>
-                  <div className="canal-info-v">{missionActive.date}</div>
-                </div>
-              </li>
-            </ul>
-          </div>
-          {((missionActive.photos && missionActive.photos.length > 0) || missionActive.realPhoto) && (
-            <div className="canal-details-section">
-              <div className="canal-details-label">{missionActive.realPhoto ? 'Photo transmise' : 'Photos transmises'}</div>
-              {missionActive.realPhoto ? (
-                <img
-                  src={missionActive.realPhoto}
-                  alt="Photo du signalement"
-                  style={{
-                    width: '100%',
-                    borderRadius: 8,
-                    border: '1px solid var(--line)',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: 8,
-                  }}
-                >
-                  {missionActive.photos.map((photo, index) => (
-                    <VignettePhotoMission label={photo} key={index} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="canal-details-section">
-            <div className="canal-details-label">Participants</div>
-            <div className="canal-participants">
-              {missionActive.parts.map((participant, index) => (
-                <div className="canal-participant" key={index}>
-                  <span className="canal-participant-avatar">
-                    {participant[0]}
-                    {participant[3] === 'on' && <span className="canal-participant-online" />}
-                  </span>
-                  <span className="canal-participant-info">
-                    <span className="canal-participant-name">{participant[1]}</span>
-                    <span className="canal-participant-role">{participant[2]}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="canal-details-section">
-            <div className="canal-details-label">Workflow de la mission</div>
-            <ol className="canal-progress">
-              {etapesAffichees.map((etape, index) => {
-                // L'état est le dernier élément de l'étape ; la date n'est affichée que si l'étape en compte plus de 2.
-                const statut = etape[etape.length - 1]
-                const classeEtat = statut === 'done' ? 'done' : statut === 'now' ? 'now' : 'todo'
-                return (
-                  <li className={`canal-progress-step state-${classeEtat}`} key={index}>
-                    <span className="canal-progress-marker" />
-                    <div className="canal-progress-content">
-                      <div className="canal-progress-step-name">{etape[0]}</div>
-                      <div className="canal-progress-step-date">{etape.length > 2 ? etape[1] : '—'}</div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
-          </div>
-        </div>
-      </div>
+      {missionActive ? (
+        <GrilleCanal
+          missionActive={missionActive}
+          missionsCopro={missionsCopro}
+          missionsAffichees={missionsAffichees}
+          idMissionActive={idMissionActive}
+          filtre={filtre}
+          setFiltre={setFiltre}
+          setMissionActiveId={setMissionActiveId}
+          messagesParMission={messagesParMission}
+          brouillon={brouillon}
+          setBrouillon={setBrouillon}
+          envoyerMessage={envoyerMessage}
+          workflows={workflows}
+          setDispatchOuvert={setDispatchOuvert}
+          transmettreComptabilite={transmettreComptabilite}
+          etapesAffichees={etapesAffichees}
+          push={push}
+        />
+      ) : (
+        <Panel>
+          <EmptyState icon="chat" title={titreListeVide('Aucun ordre de mission', nomCopro)} />
+        </Panel>
+      )}
       <Modal open={dispatchOuvert} onClose={() => setDispatchOuvert(false)} size="md" labelledBy="disp-t">
         <ModalHeader
           id="disp-t"
@@ -963,7 +1059,7 @@ export function CanalCommunicationModule() {
                   }))
                 }
               >
-                {DEMO_NOMS_COPROPRIETES.map((nom) => (
+                {nomsCoproprietes.map((nom) => (
                   <option key={nom}>{nom}</option>
                 ))}
               </select>
@@ -1126,3 +1222,4 @@ export function CanalCommunicationModule() {
     </>
   )
 }
+

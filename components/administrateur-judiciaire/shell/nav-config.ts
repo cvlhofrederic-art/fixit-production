@@ -22,14 +22,30 @@ export const LIBELLES_GROUPES_PALETTE: Record<string, string> = {
 }
 
 /**
- * Pastille par défaut de l'entrée « Aujourd'hui » : tâches de démonstration dont l'échéance tombe dans 3 jours ou
- * moins, retards compris. Constante de chargement ; en mode réel, les tâches de démonstration sont quand même comptées
- * par rapport à la date du jour (comportement de la maquette).
+ * Pastille par défaut de l'entrée « Tableau de bord », reprise de l'ancienne entrée « Aujourd'hui » : tâches de
+ * démonstration dont l'échéance tombe dans 3 jours ou moins, retards compris. Constante de chargement ; en mode réel,
+ * les tâches de démonstration sont quand même comptées par rapport à la date du jour (comportement de la maquette).
  */
 export const NB_TACHES_ECHEANCE_PROCHE: number = DEMO_TACHES.filter((tache) => {
   const jours = joursAvantDateFr(tache.due)
   return jours != null && jours <= 3
 }).length
+
+/**
+ * Page d'accueil, affichée sans ancre : le Tableau de bord depuis la décision de Hugo du 29/10/2026 (« enlève le
+ * Aujourd'hui, c'est le doublon de la page d'accueil ») ; il reprend le contenu de l'ancienne page « Aujourd'hui ».
+ */
+export const ROUTE_ACCUEIL = 'dashboard'
+
+/**
+ * Routes retirées du menu → route qui les remplace : un ancien lien (#cockpit) ou une action qui y mène encore
+ * (palette, Fixy, fiche 360) ouvre la nouvelle page au lieu d'un écran mort. Une Map et non un objet littéral : une clé
+ * héritée d'Object.prototype (#constructor…) n'y est pas une redirection.
+ */
+export const REDIRECTIONS_ROUTES: ReadonlyMap<string, string> = new Map([['cockpit', ROUTE_ACCUEIL]])
+
+/** Route à afficher pour `route` : sa remplaçante si elle a été retirée du menu, elle-même sinon. */
+export const routeRedirigee = (route: string): string => REDIRECTIONS_ROUTES.get(route) ?? route
 
 /** Pseudo-route des sous-titres de section (« Obligations », « Assurances & énergie »…). */
 export const ROUTE_SOUS_TITRE = '__H__'
@@ -60,8 +76,7 @@ export const SECTIONS_NAVIGATION: SectionNavigation[] = [
   {
     title: 'Mandat judiciaire',
     items: [
-      ['cockpit', "Aujourd'hui", 'lightning', NB_TACHES_ECHEANCE_PROCHE],
-      ['dashboard', 'Tableau de bord', 'grid'],
+      ['dashboard', 'Tableau de bord', 'grid', NB_TACHES_ECHEANCE_PROCHE],
       ['mandats', 'Ordonnances & missions', 'scale', 4],
       ['dossierJuge', 'Dossier du juge', 'doc'],
       ['agElective', 'AG élective', 'bank'],
@@ -191,7 +206,7 @@ export const SECTIONS_NAVIGATION: SectionNavigation[] = [
 ]
 
 /**
- * Route → libellé de navigation (fil d'Ariane), sous-titres exclus : 77 routes, « logout » compris.
+ * Route → libellé de navigation (fil d'Ariane), sous-titres exclus : 76 routes, « logout » compris.
  * En cas de doublon, la dernière occurrence l'emporterait (il n'y en a aucun).
  */
 export const LIBELLES_ROUTES: Record<string, string> = Object.fromEntries(

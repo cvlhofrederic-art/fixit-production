@@ -7,8 +7,10 @@ import {
   type DossierSuiviAvecStatut,
   type ResultatDossierSuivi,
 } from '@/components/administrateur-judiciaire/modules/cabinet/composants/DossierSuiviModal'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable, type ColonneTableau } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
@@ -17,6 +19,7 @@ import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { ProgressBar } from '@/components/administrateur-judiciaire/ui/ProgressBar'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { formatDureeHms, formatDureeMinutes } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeLigneDemo, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import {
   calculerStatutSuiviDossier,
   joursAvantEcheanceSuivi,
@@ -38,6 +41,10 @@ const lireSeuilStocke = (): number => {
   }
 }
 
+/** Temps moyen par dossier (minutes arrondies) ; 0 sans dossier affiché. */
+const tempsMoyen = (totalMinutes: number, nombreDossiers: number): number =>
+  nombreDossiers ? Math.round(totalMinutes / nombreDossiers) : 0
+
 /**
  * Texte de l'alerte d'un dossier non « à jour ». « 1 jours » (pluriel invariable) est conservé tel quel.
  */
@@ -53,9 +60,12 @@ export const texteAlerteSuiviDossier = (dossier: DossierSuiviAvecStatut): string
 /**
  * Suivi des dossiers : temps passé par dossier (chronomètre manuel, un seul dossier à la fois), alertes de retard
  * de traitement selon un seuil réglable, et ouverture du dossier (checklist, diligences, pièces). Démo, sans persistance.
+ * Dossier, alertes et indicateurs de la copropriété choisie en haut de page (tous sans choix) ; le temps chronométré
+ * des autres dossiers est conservé.
  */
 export function SuiviDossiersModule() {
   const { push } = useToast()
+  const { code, nom: nomCopro } = useCoproChoisie()
   const [seuil, setSeuil] = useState<number>(lireSeuilStocke)
   const [dossiers, setDossiers] = useState<DossierSuivi[]>(DEMO_DOSSIERS_SUIVI)
   const [codeOuvert, setCodeOuvert] = useState<string | null>(null)
@@ -120,13 +130,15 @@ export function SuiviDossiersModule() {
       // localStorage indisponible : le seuil reste valable pour la session en cours.
     }
   }
-  const lignes: DossierSuiviAvecStatut[] = dossiers.map((dossier) => ({
+  const dossiersAffiches = filtrerParCopro(dossiers, code, (dossier) => codeLigneDemo(dossier.code))
+  const lignes: DossierSuiviAvecStatut[] = dossiersAffiches.map((dossier) => ({
     ...dossier,
     stat: calculerStatutSuiviDossier(dossier, seuil),
   }))
   const alertes = lignes.filter((ligne) => ligne.stat.k !== 'ok')
+  const chronoAffiche = dossiersAffiches.some((dossier) => dossier.code === codeChrono)
   const totalMinutes =
-    dossiers.reduce((total, dossier) => total + dossier.mois, 0) + (codeChrono ? minutesEcoulees : 0)
+    dossiersAffiches.reduce((total, dossier) => total + dossier.mois, 0) + (chronoAffiche ? minutesEcoulees : 0)
   const enRetard = lignes.filter((ligne) => ligne.stat.k === 'retard').length
   const enregistrerDossier = (code: string, resultat: ResultatDossierSuivi) => {
     setDossiers((liste) =>
@@ -327,13 +339,13 @@ export function SuiviDossiersModule() {
           },
           {
             icon: 'chart',
-            num: formatDureeMinutes(Math.round(totalMinutes / dossiers.length)),
+            num: formatDureeMinutes(tempsMoyen(totalMinutes, dossiersAffiches.length)),
             lbl: 'Temps moyen / dossier',
             accent: 'gold',
           },
           {
             icon: 'users',
-            num: new Set(dossiers.map((dossier) => dossier.gest)).size,
+            num: new Set(dossiersAffiches.map((dossier) => dossier.gest)).size,
             lbl: 'Gestionnaires actifs',
           },
         ]}
@@ -380,7 +392,11 @@ export function SuiviDossiersModule() {
         icon="clock"
         flush
       >
-        <DataTable rowKey="code" columns={colonnes} rows={lignes} />
+        {code && lignes.length === 0 ? (
+          <EmptyState icon="folder" title={titreListeVide('Aucun dossier suivi', nomCopro)} />
+        ) : (
+          <DataTable rowKey="code" columns={colonnes} rows={lignes} />
+        )}
       </Panel>
       {codeOuvert && dossierOuvert && (
         <DossierSuiviModal

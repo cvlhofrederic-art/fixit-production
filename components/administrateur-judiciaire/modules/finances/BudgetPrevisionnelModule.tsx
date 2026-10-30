@@ -1,34 +1,45 @@
 'use client'
 
-import { useState } from 'react'
 import { REPARTITION_POSTES_BUDGET } from '@/components/administrateur-judiciaire/data/budget-previsionnel'
 import { DEMO_COPROPRIETES, DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DOCUMENT_EXPORT_DONNEES } from '@/components/administrateur-judiciaire/data/elements-communs'
+import { useCoproChoisie, useNomCoproSuivi } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useCoproprietesAffichees } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /** Ligne du tableau des postes : poste, voté, réalisé et reste (montants formatés en euros). */
 export type LignePosteBudget = [poste: string, vote: string, realise: string, reste: string]
 
 /**
- * Budget prévisionnel d'une copropriété de démonstration (sélecteur « Copropriété ») : voté et réalisé par poste,
- * selon la répartition fixe REPARTITION_POSTES_BUDGET. « Exporter » ouvre le document d'export générique (simulé).
+ * Budget prévisionnel de la copropriété choisie en haut de page : voté et réalisé par poste, selon la répartition
+ * fixe REPARTITION_POSTES_BUDGET. Le sélecteur « Copropriété » de l'écran suit ce choix et le modifie. Sans
+ * copropriété choisie (écran rendu seul), il reste local aux copropriétés de démonstration, comme avant.
+ * « Exporter » ouvre le document d'export générique (simulé).
  */
 export function BudgetPrevisionnelModule() {
   const { push } = useToast()
-  const [nomCopro, setNomCopro] = useState(DEMO_NOMS_COPROPRIETES[0])
-  const copro = DEMO_COPROPRIETES.find((candidate) => candidate.nom === nomCopro) || DEMO_COPROPRIETES[0]
+  const { code } = useCoproChoisie()
+  const coproChoisie = useCoproCourante()
+  const coprosAffichees = useCoproprietesAffichees()
+  const [nomCopro, changerCopro] = useNomCoproSuivi(DEMO_NOMS_COPROPRIETES[0])
+  const copro = code
+    ? coproChoisie
+    : DEMO_COPROPRIETES.find((candidate) => candidate.nom === nomCopro) || DEMO_COPROPRIETES[0]
+  const noms = code ? coprosAffichees.map((candidate) => candidate.nom) : DEMO_NOMS_COPROPRIETES
   const lignes: LignePosteBudget[] = REPARTITION_POSTES_BUDGET.map(([poste, part]) => {
     const vote = Math.round(copro.budget * part),
       realise = Math.round(copro.depense * part)
     return [poste, formatEuros(vote), formatEuros(realise), formatEuros(vote - realise)]
   })
-  const tauxRealisation = Math.round((copro.depense / copro.budget) * 100)
+  // Budget nul (copropriété de la base sans budget saisi) : pas de taux plutôt que « NaN % ».
+  const tauxRealisation = copro.budget > 0 ? Math.round((copro.depense / copro.budget) * 100) : null
 
   return (
     <>
@@ -41,10 +52,10 @@ export function BudgetPrevisionnelModule() {
             <select
               className="btn"
               aria-label="Copropriété"
-              value={nomCopro}
-              onChange={(evenement) => setNomCopro(evenement.target.value)}
+              value={copro.nom}
+              onChange={(evenement) => changerCopro(evenement.target.value)}
             >
-              {DEMO_NOMS_COPROPRIETES.map((nom) => (
+              {noms.map((nom) => (
                 <option key={nom}>{nom}</option>
               ))}
             </select>
@@ -70,9 +81,9 @@ export function BudgetPrevisionnelModule() {
           },
           {
             icon: 'check',
-            num: tauxRealisation + ' %',
+            num: tauxRealisation === null ? '—' : tauxRealisation + ' %',
             lbl: 'Taux de réalisation',
-            accent: tauxRealisation > 90 ? 'amber' : 'sage',
+            accent: tauxRealisation !== null && tauxRealisation > 90 ? 'amber' : 'sage',
           },
           {
             icon: 'chart',
@@ -82,7 +93,7 @@ export function BudgetPrevisionnelModule() {
           },
         ]}
       />
-      <Panel title={`Postes budgétaires — ${nomCopro}`} icon="chart" flush>
+      <Panel title={`Postes budgétaires — ${copro.nom}`} icon="chart" flush>
         <DataTable
           columns={[
             {
