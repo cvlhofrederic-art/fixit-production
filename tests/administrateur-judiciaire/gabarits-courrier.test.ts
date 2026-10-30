@@ -39,7 +39,22 @@ const socle = {
 describe('registre des gabarits', () => {
   it('tient ses invariants : familles, formes, champs requis du contexte, fondement ou pratique déclarée', () => {
     expect(verifierRegistreGabarits()).toEqual([])
-    expect(CLES_GABARITS_COURRIER).toHaveLength(12)
+    expect(CLES_GABARITS_COURRIER).toHaveLength(13)
+  })
+
+  it('avis d’appel de fonds (point 17) : forme libre, e-mail direct comme Gestéam, contexte « appel copropriétaire »', () => {
+    const g = gabaritCourrier('avis_appel_fonds')
+    expect(g).toMatchObject({ famille: 'Comptabilité syndic', libelleGesteam: 'appel provisions', contexte: 'appel_coproprietaire', formeLegale: 'libre', formeEnvoiParDefaut: 'Email direct', formeObservee: 'Email direct' })
+    expect(g.fondements).toEqual(expect.arrayContaining(['D. 1967 art. 10', 'D. 1967 art. 35-2', 'D. 1967 art. 64-2']))
+    expect(g.delai?.fondement).toBe('D. 1967 art. 35-2')
+    expect(g.champsPropres).toEqual(expect.arrayContaining(['compte.numero', 'appel.aReglerAvantLe', 'appel.totalAPayerCentimes', 'mention.voiePostale', 'mention.ordreDuJour']))
+  })
+
+  it('montant signé (solde antérieur, total à payer) : entier, négatif admis ; le montant simple reste positif', () => {
+    const signe = controlerContexteFusion('avis_appel_fonds', { 'appel.soldeAnterieurCentimes': -5_000, 'appel.totalAPayerCentimes': 1.5 })
+    expect(signe.invalides).toEqual([{ cle: 'appel.totalAPayerCentimes', motif: 'centimes entiers attendus' }])
+    const simple = controlerContexteFusion('avis_appel_fonds', { 'appel.totalAppeleCentimes': -1 })
+    expect(simple.invalides).toContainEqual({ cle: 'appel.totalAppeleCentimes', motif: 'centimes entiers positifs ou nuls attendus' })
   })
 
   it('les familles suivent Gestéam (mutation, contentieux, assemblée, sinistre)', () => {
