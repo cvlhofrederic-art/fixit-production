@@ -57,9 +57,13 @@ jobs:
 
       - name: Préchauffer le cache des pages publiques PT
         if: success()
-        # Le Worker met en cache le HTML des pages publiques (worker/cache-pages-publiques.ts, clé par déploiement) :
-        # chaque URL des sitemaps PT est demandée une fois, en parallèle, pour que les premières visites réelles
-        # après déploiement partent déjà du cache (lot 7 Sentry du 28/10/2026). Best-effort, 4 minutes au plus.
+        # Le Worker met en cache le HTML des pages publiques (worker/cache-pages-publiques.ts, clé par déploiement) ;
+        # chaque URL des sitemaps PT, plus /pt/ et /fr/, est demandée une fois, en parallèle (lot 7 Sentry du
+        # 28/10/2026). Le Cache API des Workers est propre à chaque centre de données Cloudflare : lancé depuis un
+        # runner GitHub (en général aux États-Unis), ce préchauffage ne remplit que le cache du ou des centres de
+        # données qui servent ce runner. Il ne profite qu'aux requêtes routées vers ces mêmes centres de données,
+        # comme une partie de l'exploration de Googlebot (surtout depuis les États-Unis), pas aux visiteurs du
+        # Portugal, dont le centre de données se remplit à leurs propres visites. Best-effort, 4 minutes au plus.
         continue-on-error: true
         run: |
           set -u

@@ -15,8 +15,15 @@
  *   `private, no-store` sur /pt/ pour un visiteur anonyme) ;
  * - `x-vitfix-cache` (HIT, STALE, MISS, BYPASS) et `Server-Timing` sur chaque réponse pour mesurer.
  *
- * Toute requête avec un cookie `sb-*` / `supabase-auth`, toute méthode autre que GET, tout autre chemin, et toute
- * réponse qui n'est pas un 200 HTML, passent au Worker OpenNext sans cache (BYPASS).
+ * Passent au Worker OpenNext sans que le cache soit lu ni écrit (BYPASS) :
+ * - toute méthode autre que GET, tout chemin hors liste, toute requête avec un cookie `sb-*` / `supabase-auth` ;
+ * - toute requête du routeur client Next (navigation douce, préchargement de lien) : en-têtes `RSC`,
+ *   `Next-Router-State-Tree`, `Next-Router-Prefetch`, `Next-Router-Segment-Prefetch`, `Next-HMR-Refresh`, ou
+ *   paramètre `_rsc`. La même URL rend alors un flux RSC (text/x-component) ; la copie HTML servie à sa place
+ *   forcerait une navigation complète et ferait télécharger tout le HTML à chaque préchargement ;
+ * - tout déploiement sans VITFIX_BUILD_ID (absent ou vide : `wrangler deploy` manuel, sans `--var`) : une clé de
+ *   repli serait commune à tous ces déploiements, et le HTML d'un ancien build (aux chunks disparus) resservi.
+ * Une réponse qui n'est pas un 200 HTML n'est jamais stockée.
  */
 import { politiqueCachePage, type PolitiqueCachePage } from '../lib/seo/routes-publiques'
 
@@ -27,21 +34,41 @@ export const EN_TETE_CACHE_CONTROL_ORIGINE = 'x-vitfix-cache-control-origine'
 const COOKIES_SESSION = /(^|;\s*)(sb-|supabase-auth)/i
 const EN_TETES_RAFRAICHISSEMENT = ['accept', 'accept-language', 'user-agent', 'cf-connecting-ip', 'cf-ipcountry', 'x-forwarded-proto'] as const
 
+/**
+ * Marques d'une requête du routeur client Next, qui attend un flux RSC et non le HTML de la page : `FLIGHT_HEADERS`
+ * et `NEXT_RSC_UNION_QUERY` de next/dist/client/components/app-router-headers.js (next 16.4.2). Le test du Worker
+ * compare cette liste à celle du next installé, montées de version comprises.
+ */
+export const EN_TETES_ROUTEUR_NEXT = ['rsc', 'next-router-state-tree', 'next-router-prefetch', 'next-hmr-refresh', 'next-router-segment-prefetch'] as const
+export const PARAMETRE_RSC = '_rsc'
+
 export type DecisionRequete =
   | { cacheable: true; politique: PolitiqueCachePage; cle: string; forcerRafraichissement: boolean }
-  | { cacheable: false; raison: 'methode' | 'chemin' | 'session' }
+  | { cacheable: false; raison: 'methode' | 'chemin' | 'rsc' | 'session' | 'deploiement' }
 
-/** Clé de cache : origine + chemin, sans chaîne de requête (les pages publiques ne la lisent pas), plus le déploiement. */
+/**
+ * Clé de cache : origine + chemin, sans chaîne de requête (les pages publiques ne la lisent pas, et les requêtes RSC,
+ * `_rsc` compris, sont écartées avant), plus le déploiement.
+ */
 export function cleCache(url: URL, buildId: string): string {
   return `${url.origin}${url.pathname}?__vitfix_build=${encodeURIComponent(buildId)}`
 }
 
-export function decisionRequete(request: Request, buildId: string): DecisionRequete {
+/** Requête du routeur client Next (navigation douce, préchargement) : un en-tête de la liste ou le paramètre `_rsc`. */
+function requeteRouteurNext(request: Request, url: URL): boolean {
+  return url.searchParams.has(PARAMETRE_RSC) || EN_TETES_ROUTEUR_NEXT.some((nom) => request.headers.has(nom))
+}
+
+/** `buildId` : identifiant du déploiement, ou null s'il manque (le cache n'est alors ni lu ni écrit). */
+export function decisionRequete(request: Request, buildId: string | null): DecisionRequete {
   if (request.method !== 'GET') return { cacheable: false, raison: 'methode' }
   const url = new URL(request.url)
   const politique = politiqueCachePage(url.pathname)
   if (!politique) return { cacheable: false, raison: 'chemin' }
+  // Flux RSC attendu : la copie HTML ne doit jamais le remplacer (navigation complète, HTML entier téléchargé).
+  if (requeteRouteurNext(request, url)) return { cacheable: false, raison: 'rsc' }
   if (COOKIES_SESSION.test(request.headers.get('cookie') ?? '')) return { cacheable: false, raison: 'session' }
+  if (!buildId) return { cacheable: false, raison: 'deploiement' }
   // Rechargement forcé par l'utilisateur (Ctrl+F5) : on rend la page et on remplace la copie en cache.
   const cacheControl = request.headers.get('cache-control') ?? ''
   const forcerRafraichissement = /no-cache|no-store/i.test(cacheControl) || request.headers.get('pragma') === 'no-cache'
@@ -132,6 +159,7 @@ export interface Gestionnaire<Env> {
 }
 
 export interface EnvCache {
+  /** Posé par `wrangler deploy --var VITFIX_BUILD_ID:<sha>` (deploy-cloudflare.yml) ; absent → cache contourné. */
   VITFIX_BUILD_ID?: unknown
 }
 
@@ -141,8 +169,15 @@ function avecEntetes(reponse: Response, entetes: Record<string, string>): Respon
   return copie
 }
 
-function identifiantDeploiement(env: EnvCache): string {
-  return typeof env.VITFIX_BUILD_ID === 'string' && env.VITFIX_BUILD_ID.length > 0 ? env.VITFIX_BUILD_ID : 'dev'
+/**
+ * Identifiant du déploiement (VITFIX_BUILD_ID non vide), sinon null. Jamais de valeur de repli : elle serait commune
+ * à tous les déploiements faits sans `--var`, et le HTML d'un ancien build serait resservi pendant sa conservation.
+ */
+function identifiantDeploiement(env: EnvCache): string | null {
+  const valeur = env.VITFIX_BUILD_ID
+  if (typeof valeur !== 'string') return null
+  const identifiant = valeur.trim()
+  return identifiant.length > 0 ? identifiant : null
 }
 
 /**

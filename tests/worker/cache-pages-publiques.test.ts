@@ -4,6 +4,7 @@
 // OpenNext et un Cache API simulés.
 
 import { describe, expect, it, vi } from 'vitest'
+import { FLIGHT_HEADERS, NEXT_RSC_UNION_QUERY } from 'next/dist/client/components/app-router-headers'
 import {
   CACHE_ACCUEILS,
   CACHE_FICHES_ARTISAN,
@@ -14,6 +15,8 @@ import {
   EN_TETE_CACHE,
   EN_TETE_CACHE_CONTROL_ORIGINE,
   EN_TETE_DATE_CACHE,
+  EN_TETES_ROUTEUR_NEXT,
+  PARAMETRE_RSC,
   cacheControlNavigateur,
   cleCache,
   copiePourCache,
@@ -23,6 +26,7 @@ import {
   reponseStockable,
   requeteDeRafraichissement,
   type CacheMinimal,
+  type EnvCache,
 } from '@/worker/cache-pages-publiques'
 
 const ORIGINE = 'https://vitfix.io'
@@ -63,6 +67,33 @@ describe('decisionRequete', () => {
   it('rechargement forcé (Cache-Control: no-cache) : la page est rendue et remplace la copie', () => {
     const decision = decisionRequete(requete('/pt/', { headers: { 'cache-control': 'no-cache' } }), 'b')
     expect(decision).toMatchObject({ cacheable: true, forcerRafraichissement: true })
+  })
+
+  it('requête du routeur client Next (en-têtes RSC et de préchargement, paramètre _rsc) : jamais de cache', () => {
+    const enTetes: Array<[string, string]> = [
+      ['RSC', '1'],
+      ['Next-Router-State-Tree', '%5B%22%22%2C%7B%7D%5D'],
+      ['Next-Router-Prefetch', '1'],
+      ['Next-Router-Segment-Prefetch', '/_tree'],
+      ['Next-HMR-Refresh', '1'],
+    ]
+    for (const [nom, valeur] of enTetes) {
+      expect(decisionRequete(requete('/pt/servicos/x/', { headers: { [nom]: valeur } }), 'b'), nom).toEqual({ cacheable: false, raison: 'rsc' })
+    }
+    for (const chemin of ['/pt/servicos/x/?_rsc=1a2b3', '/pt/servicos/x/?_rsc', '/pt/?utm_source=x&_rsc=abc']) {
+      expect(decisionRequete(requete(chemin), 'b'), chemin).toEqual({ cacheable: false, raison: 'rsc' })
+    }
+    expect(decisionRequete(requete('/pt/servicos/x/?rsc=1'), 'b')).toMatchObject({ cacheable: true })
+  })
+
+  it('en-têtes et paramètre du routeur identiques à ceux de next installé (revérifiés à chaque montée de version)', () => {
+    expect(new Set(EN_TETES_ROUTEUR_NEXT)).toEqual(new Set(FLIGHT_HEADERS))
+    expect(PARAMETRE_RSC).toBe(NEXT_RSC_UNION_QUERY)
+  })
+
+  it('sans identifiant de déploiement : jamais de cache', () => {
+    expect(decisionRequete(requete('/pt/servicos/x/'), null)).toEqual({ cacheable: false, raison: 'deploiement' })
+    expect(decisionRequete(requete('/pt/servicos/x/'), '')).toEqual({ cacheable: false, raison: 'deploiement' })
   })
 })
 
@@ -221,6 +252,45 @@ describe('creerGestionnaireAvecCache', () => {
     expect(rendu).toHaveBeenCalledTimes(3)
   })
 
+  it('routeur client Next (RSC: 1, ?_rsc=, Next-Router-Prefetch) sur une page en cache : BYPASS, réponse d’OpenNext telle quelle', async () => {
+    const fluxRsc = '0:{"b":"build-1","f":[]}\n'
+    const varyRsc = 'rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch'
+    const rendu = vi.fn(async (_requete: Request) => new Response(fluxRsc, { status: 200, headers: { 'content-type': 'text/x-component', vary: varyRsc } }))
+    rendu.mockImplementationOnce(async () => html('<html>servicos</html>'))
+    const cache = cacheFactice()
+    const gestionnaire = creerGestionnaireAvecCache({ fetch: rendu }, () => cache)
+    const c0 = contexteFactice()
+    await gestionnaire.fetch(requete('/pt/servicos/canalizador-porto/'), env, c0.ctx)
+    await c0.terminer()
+    expect(cache.entrees.size).toBe(1)
+
+    const requetesRouteur = [
+      requete('/pt/servicos/canalizador-porto/', { headers: { RSC: '1', 'Next-Router-State-Tree': '%5B%22%22%5D' } }),
+      requete('/pt/servicos/canalizador-porto/?_rsc=1a2b3'),
+      requete('/pt/servicos/canalizador-porto/', { headers: { 'Next-Router-Prefetch': '1' } }),
+    ]
+    for (const [i, requeteRouteur] of requetesRouteur.entries()) {
+      const c = contexteFactice()
+      const r = await gestionnaire.fetch(requeteRouteur, env, c.ctx)
+      await c.terminer()
+      expect(r.headers.get(EN_TETE_CACHE), requeteRouteur.url).toBe('BYPASS')
+      expect(r.headers.get('server-timing')).toMatch(/^cache;desc=BYPASS, worker;dur=\d+$/)
+      expect(r.status).toBe(200)
+      expect(r.headers.get('content-type')).toBe('text/x-component')
+      expect(r.headers.get('vary')).toBe(varyRsc)
+      await expect(r.text()).resolves.toBe(fluxRsc)
+      // OpenNext reçoit la requête d'origine, en-têtes et `_rsc` compris.
+      expect(rendu.mock.calls[i + 1][0]).toBe(requeteRouteur)
+    }
+    expect(rendu).toHaveBeenCalledTimes(1 + requetesRouteur.length)
+
+    // La copie HTML n'a été ni resservie ni remplacée : la visite HTML suivante reste un HIT.
+    expect(cache.entrees.size).toBe(1)
+    const suivante = await gestionnaire.fetch(requete('/pt/servicos/canalizador-porto/'), env, contexteFactice().ctx)
+    expect(suivante.headers.get(EN_TETE_CACHE)).toBe('HIT')
+    await expect(suivante.text()).resolves.toBe('<html>servicos</html>')
+  })
+
   it('un 404, une redirection ou un Set-Cookie de session ne sont jamais stockés', async () => {
     const reponses = [
       new Response('nope', { status: 404, headers: { 'content-type': 'text/html' } }),
@@ -236,15 +306,41 @@ describe('creerGestionnaireAvecCache', () => {
     expect(cache.entrees.size).toBe(0)
   })
 
-  it('cache indisponible ou identifiant de déploiement absent : la page est rendue comme avant', async () => {
+  it('cache indisponible : la page est rendue comme avant', async () => {
     const rendu = vi.fn(async () => html())
     const gestionnaire = creerGestionnaireAvecCache({ fetch: rendu }, () => { throw new Error('caches indisponible') })
     const avertissement = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const r = await gestionnaire.fetch(requete('/pt/servicos/x/'), {}, contexteFactice().ctx)
+    const r = await gestionnaire.fetch(requete('/pt/servicos/x/'), env, contexteFactice().ctx)
     expect(r.status).toBe(200)
     expect(r.headers.get(EN_TETE_CACHE)).toBe('MISS')
     expect(avertissement).toHaveBeenCalled()
     avertissement.mockRestore()
+  })
+
+  it('env sans VITFIX_BUILD_ID → BYPASS, cache jamais lu ni écrit', async () => {
+    // Deux déploiements faits sans `--var` (déploiement manuel) partagent le même Cache API : avec une clé de repli
+    // commune, le nouveau resservait le HTML de l'ancien, dont les chunks ont disparu.
+    const cache = cacheFactice()
+    const lecture = vi.spyOn(cache, 'match')
+    const ecriture = vi.spyOn(cache, 'put')
+    const ouvertureCache = vi.fn(() => cache)
+    const ancienBuild = creerGestionnaireAvecCache({ fetch: async () => html('<html>ancien build</html>') }, ouvertureCache)
+    const nouveauBuild = creerGestionnaireAvecCache({ fetch: async () => html('<html>nouveau build</html>') }, ouvertureCache)
+    const envsSansBuild: EnvCache[] = [{}, { VITFIX_BUILD_ID: '' }, { VITFIX_BUILD_ID: '   ' }, { VITFIX_BUILD_ID: 42 }]
+    for (const envSansBuild of envsSansBuild) {
+      for (const [gestionnaire, attendu] of [[ancienBuild, '<html>ancien build</html>'], [nouveauBuild, '<html>nouveau build</html>']] as const) {
+        const { ctx, terminer } = contexteFactice()
+        const r = await gestionnaire.fetch(requete('/pt/servicos/canalizador-porto/'), envSansBuild, ctx)
+        await terminer()
+        expect(r.headers.get(EN_TETE_CACHE), JSON.stringify(envSansBuild)).toBe('BYPASS')
+        expect(r.headers.get('server-timing')).toMatch(/^cache;desc=BYPASS, worker;dur=\d+$/)
+        await expect(r.text()).resolves.toBe(attendu)
+      }
+    }
+    expect(ouvertureCache).not.toHaveBeenCalled()
+    expect(lecture).not.toHaveBeenCalled()
+    expect(ecriture).not.toHaveBeenCalled()
+    expect(cache.entrees.size).toBe(0)
   })
 
   it('rechargement forcé : la copie est remplacée, puis resservie', async () => {
