@@ -264,6 +264,44 @@ describe('alerte', () => {
     expect(alerteMandataireAdHoc(e('2026-04-01'), DATE).saisineFaite).toBe(false)
     expect(alerteMandataireAdHoc(e(null), DATE).saisineFaite).toBe(false)
   })
+
+  describe('requête critère par critère : une requête ancienne ne couvre pas un déclenchement postérieur', () => {
+    const E2027 = exercice('2027')
+    /** Quatre provisions trimestrielles de 10 000 € en 2027, dont 20 000 € impayés (50 %). */
+    const provisions2027: SommeExigible[] = [
+      somme('2027-01-01', 1_000_000, 1_000_000),
+      somme('2027-04-01', 1_000_000, 1_000_000),
+      somme('2027-07-01', 1_000_000, 0),
+      somme('2027-10-01', 1_000_000, 0),
+    ]
+    const e = (saisineLe: string | null, votes: EntreeAlerteMandataireAdHoc['votes'] = [{ date: '2023-06-15', etat: 'adoptee' }]) =>
+      entree({ votes, exercices: [ex('ex-2027', E2027, provisions2027)], saisineLe })
+
+    it('requête faite pour les comptes en 2025, impayés à la clôture 2027 : ce déclenchement reste à traiter', () => {
+      const a = alerteMandataireAdHoc(e('2025-07-01'), '2028-02-15')
+      expect(a.comptes).toMatchObject({ etat: 'atteint', atteintLe: '2025-06-15', traite: true })
+      expect(a.impayes).toMatchObject({ etat: 'atteint', cloture: '2027-12-31', traite: false })
+      expect(a).toMatchObject({ declenchee: true, declencheeLe: '2025-06-15', saisineFaite: false, aTraiterLe: '2027-12-31' })
+    })
+
+    it('requête postérieure aux deux déclenchements : alerte traitée, rien à traiter', () => {
+      const a = alerteMandataireAdHoc(e('2028-01-10'), '2028-02-15')
+      expect([a.impayes.traite, a.comptes.traite]).toEqual([true, true])
+      expect(a).toMatchObject({ saisineFaite: true, aTraiterLe: null })
+    })
+
+    it('sans critère des comptes atteint, la même requête ne traite pas les impayés de la clôture suivante', () => {
+      const a = alerteMandataireAdHoc(e('2025-07-01', [{ date: '2027-06-15', etat: 'adoptee' }]), '2028-02-15')
+      expect(a.comptes).toMatchObject({ etat: 'non_atteint', traite: false })
+      expect(a).toMatchObject({ saisineFaite: false, aTraiterLe: '2027-12-31' })
+    })
+
+    it('sans requête : rien n’est traité, le plus tôt des critères atteints est à traiter', () => {
+      const a = alerteMandataireAdHoc(e(null), '2028-02-15')
+      expect([a.impayes.traite, a.comptes.traite]).toEqual([false, false])
+      expect(a).toMatchObject({ saisineFaite: false, aTraiterLe: '2025-06-15' })
+    })
+  })
 })
 
 describe('mandat de justice', () => {
@@ -341,6 +379,18 @@ describe('en-tête du module', () => {
     )
     expect(EN_TETE).toMatch(/D\. 1967 art\. 61-2/)
     expect(EN_TETE).toMatch(/🔴 Non établi.*administrateur provisoire de l'art\. 29-1/)
+  })
+
+  it('administrateur provisoire de l’art. 29-1 : tout ou partie des pouvoirs de l’assemblée selon l’ordonnance, pas tous (art. 29-1, I)', () => {
+    expect(EN_TETE).not.toMatch(/investi de tous les pouvoirs de l'assemblée/)
+    expect(EN_TETE).toMatch(/s'il a reçu de l'ordonnance le pouvoir d'approuver les comptes/)
+    expect(EN_TETE).toContain("« tout ou partie des pouvoirs de l'assemblée générale des copropriétaires »")
+    expect(EN_TETE).toMatch(/hors a et b de l'art\. 26/)
+  })
+
+  it('une requête ancienne ne couvre pas un déclenchement postérieur (critère par critère)', () => {
+    expect(EN_TETE).toMatch(/critère par critère/)
+    expect(EN_TETE).not.toMatch(/le jour du déclenchement ou après, et au plus tard à la date de référence, traite l'alerte/)
   })
 
   it('aucune date ISO écrite en dur', () => {

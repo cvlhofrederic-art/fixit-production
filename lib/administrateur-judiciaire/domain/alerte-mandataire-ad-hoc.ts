@@ -31,7 +31,8 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   comptable ; art. 61-5 : l'information du dernier alinéa se fait par l'envoi d'une copie de la requête ou de
  *   l'assignation ;
  * - L. 1965 art. 29-1, I, al. 2 : l'administrateur provisoire reçoit « tous les pouvoirs du syndic dont le mandat cesse de
- *   plein droit sans indemnité » ; II, al. 2 : le président du tribunal judiciaire peut imputer tout ou partie des frais
+ *   plein droit sans indemnité » et, selon l'ordonnance, tout ou partie de ceux de l'assemblée générale, hors ceux des a
+ *   et b de l'art. 26, et du conseil syndical ; II, al. 2 : le président du tribunal judiciaire peut imputer tout ou partie des frais
  *   de l'administration provisoire au syndic qui n'a pas saisi sur requête le juge d'une demande de désignation d'un
  *   mandataire ad hoc dans les conditions de l'art. 29-1 A, après audition du syndic et du conseil syndical, sur le
  *   rapport de l'administrateur provisoire ; art. 29-1 B : le mandataire ad hoc remet son rapport dans un délai de trois
@@ -58,8 +59,11 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  * - saisine par les personnes de l'al. 2 : au lendemain du mois laissé au syndic après la clôture pour les impayés ; dès
  *   les deux ans atteints pour les comptes ; sans syndic (administrateur provisoire d'un syndicat qui en est dépourvu, D.
  *   1967 art. 47, ou de l'art. 29-1, dont la désignation fait cesser le mandat du syndic), dès la clôture ;
- * - une requête au juge enregistrée le jour du déclenchement ou après, et au plus tard à la date de référence, traite
- *   l'alerte ;
+ * - une requête au juge se lit critère par critère : enregistrée au plus tard à la date de référence, elle traite les
+ *   impayés si elle date du jour de la clôture qui les constate ou d'après, les comptes si elle date du jour où les deux
+ *   ans sont atteints ou d'après ; une requête plus ancienne ne couvre pas un déclenchement postérieur (impayés d'une
+ *   clôture suivante, notamment) ; l'alerte n'est traitée que si chaque critère atteint l'est, et le suivi garde la date
+ *   du plus tôt des critères non traités ;
  * - syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) : il est le syndic, l'obligation lui
  *   incombe.
  *
@@ -72,9 +76,10 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   que la date de la dernière assemblée qui s'est prononcée n'est pas saisie ;
  * - administrateur provisoire de l'art. 29-1 : il a reçu tous les pouvoirs du syndic (art. 29-1, I, al. 2), mais aucun
  *   texte relu ne dit si l'obligation de l'art. 29-1 A lui incombe, alors que le juge est déjà saisi et que la procédure du
- *   mandataire ad hoc précède l'administration provisoire (art. 29-1 B ; art. 29-1, III) ; investi de tous les pouvoirs de
- *   l'assemblée, il approuve les comptes sans vote de celle-ci : le critère des deux ans joue-t-il encore ? VitFix établit
- *   le constat, utile aussi à l'imputation des frais au syndic défaillant (art. 29-1, II, al. 2), sans en tirer
+ *   mandataire ad hoc précède l'administration provisoire (art. 29-1 B ; art. 29-1, III) ; s'il a reçu de l'ordonnance le
+ *   pouvoir d'approuver les comptes (art. 29-1, I : « tout ou partie des pouvoirs de l'assemblée générale des
+ *   copropriétaires », hors a et b de l'art. 26), il les approuve sans vote de l'assemblée : le critère des deux ans
+ *   joue-t-il encore ? VitFix établit le constat, utile aussi à l'imputation des frais au syndic défaillant (art. 29-1, II, al. 2), sans en tirer
  *   d'obligation ;
  * - administrateur provisoire de l'art. 47 (syndicat dépourvu de syndic) : en l'absence de syndic, l'al. 2 ouvre la
  *   saisine aux personnes qu'il énumère ; aucun texte relu ne dit si l'obligation du syndic incombe à l'administrateur
@@ -165,6 +170,8 @@ export interface CritereImpayes291A {
   /** Part des impayés retenus qui vient d'exercices antérieurs (🔴 assiette à confirmer). */
   arrieresCentimes: number
   message: string
+  /** Atteint, et couvert par une requête au juge datée du jour de la clôture ou d'après, au plus tard à la date de référence. */
+  traite: boolean
 }
 
 export interface CritereComptes291A {
@@ -173,6 +180,8 @@ export interface CritereComptes291A {
   /** Date à laquelle le délai sans vote est atteint ; null : aucun vote connu. */
   atteintLe: string | null
   message: string
+  /** Atteint, et couvert par une requête au juge datée du jour où le délai est atteint ou d'après, au plus tard à la date de référence. */
+  traite: boolean
 }
 
 export interface AlerteMandataireAdHoc {
@@ -181,8 +190,10 @@ export interface AlerteMandataireAdHoc {
   declenchee: boolean
   /** Date du premier critère atteint ; null : aucun. */
   declencheeLe: string | null
-  /** Requête au juge enregistrée depuis le déclenchement. */
+  /** Requête au juge enregistrée depuis le déclenchement de chaque critère atteint (critère par critère). */
   saisineFaite: boolean
+  /** Date du plus tôt des critères atteints que la requête ne couvre pas ; null : aucun. */
+  aTraiterLe: string | null
   /** Date à partir de laquelle les personnes de l'al. 2 peuvent saisir le juge ; null : aucun critère atteint. */
   saisineParDautresLe: string | null
   impayes: CritereImpayes291A
@@ -296,7 +307,10 @@ function dernierExerciceClos(exercices: readonly ExerciceAlerte[], date: string)
   return clos.at(-1) ?? null
 }
 
-function critereImpayes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): CritereImpayes291A {
+/** Constat d'un critère avant la lecture de la requête au juge. */
+type Constat<C> = Omit<C, 'traite'>
+
+function critereImpayes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): Constat<CritereImpayes291A> {
   const seuilPourcent = seuilApplicable(entree.nombreLots, parametres)
   const clos = dernierExerciceClos(entree.exercices ?? [], date)
   const sansMontant = { seuilPourcent, exigiblesCentimes: 0, impayesCentimes: 0, ecartesCentimes: 0, arrieresCentimes: 0 }
@@ -349,7 +363,7 @@ function datesDeVote(entree: EntreeAlerteMandataireAdHoc, date: string): string[
   return [...votes, ...decisions].filter((d) => d <= date)
 }
 
-function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): CritereComptes291A {
+function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, parametres: ParametresAlerte291A): Constat<CritereComptes291A> {
   const dates = datesDeVote(entree, date)
   if (dates.length === 0)
     return {
@@ -437,12 +451,18 @@ function saisineParDautres(
   return plusTot(dates)
 }
 
+/** Critère atteint le jour `le`, couvert par une requête enregistrée ce jour-là ou après, au plus tard à la date de référence. */
+function couvertParRequete(etat: EtatCritere291A, le: string | null, saisineLe: string | null, date: string): boolean {
+  return etat === 'atteint' && le !== null && saisineLe !== null && le <= saisineLe && saisineLe <= date
+}
+
 /**
  * Alerte de l'art. 29-1 A à une date : impayés à la clôture du dernier exercice clos (seuil de 25 %, 15 % au-delà de deux
  * cents lots, sommes du dernier mois écartées) et absence de vote de l'assemblée sur l'approbation des comptes depuis au
- * moins deux ans (un rejet est un vote). Renvoie chaque critère, la date du déclenchement, la requête éventuelle, la date
- * d'ouverture de la saisine aux personnes de l'al. 2 et ce que prévoit le texte selon le régime. Lève une erreur sur une
- * saisie invalide ou des éléments d'un autre syndicat.
+ * moins deux ans (un rejet est un vote). Renvoie chaque critère et s'il est traité, la date du déclenchement, celle du
+ * plus tôt des critères non traités, la requête éventuelle (lue critère par critère), la date d'ouverture de la saisine
+ * aux personnes de l'al. 2 et ce que prévoit le texte selon le régime. Lève une erreur sur une saisie invalide ou des
+ * éléments d'un autre syndicat.
  */
 export function alerteMandataireAdHoc(
   entree: EntreeAlerteMandataireAdHoc,
@@ -452,22 +472,29 @@ export function alerteMandataireAdHoc(
   verifierDate(date, 'Date de référence')
   verifierParametres(parametres)
   verifierEntree(entree)
-  const impayes = critereImpayes(entree, date, parametres)
-  const comptes = critereComptes(entree, date, parametres)
-  const conduite = CONDUITES[entree.regime ?? 'syndic']
-  const atteints = [impayes, comptes].filter((c) => c.etat === 'atteint')
-  const declencheeLe = plusTot([impayes.etat === 'atteint' ? impayes.cloture : null, comptes.etat === 'atteint' ? comptes.atteintLe : null])
   const saisineLe = entree.saisineLe ?? null
+  const constatImpayes = critereImpayes(entree, date, parametres)
+  const constatComptes = critereComptes(entree, date, parametres)
+  const impayes: CritereImpayes291A = { ...constatImpayes, traite: couvertParRequete(constatImpayes.etat, constatImpayes.cloture, saisineLe, date) }
+  const comptes: CritereComptes291A = { ...constatComptes, traite: couvertParRequete(constatComptes.etat, constatComptes.atteintLe, saisineLe, date) }
+  const conduite = CONDUITES[entree.regime ?? 'syndic']
+  /** Critères atteints et jour de leur déclenchement : clôture pour les impayés, terme du délai sans vote pour les comptes. */
+  const atteints = [
+    { critere: impayes, le: impayes.cloture },
+    { critere: comptes, le: comptes.atteintLe },
+  ].filter(({ critere }) => critere.etat === 'atteint')
+  const declencheeLe = plusTot(atteints.map(({ le }) => le))
   return {
     coproprieteId: entree.coproprieteId,
     date,
     declenchee: declencheeLe !== null,
     declencheeLe,
-    saisineFaite: declencheeLe !== null && saisineLe !== null && declencheeLe <= saisineLe && saisineLe <= date,
+    saisineFaite: atteints.length > 0 && atteints.every(({ critere }) => critere.traite),
+    aTraiterLe: plusTot(atteints.filter(({ critere }) => !critere.traite).map(({ le }) => le)),
     saisineParDautresLe: saisineParDautres(impayes, comptes, conduite, parametres),
     impayes,
     comptes,
-    message: atteints.map((c) => c.message).join(' '),
+    message: atteints.map(({ critere }) => critere.message).join(' '),
     conduite: conduite.texte,
     fondement: conduite.fondement,
     aConfirmer: conduite.aConfirmer || impayes.arrieresCentimes > 0,

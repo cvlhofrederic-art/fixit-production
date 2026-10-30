@@ -22,6 +22,7 @@ import {
   type FamilleTraitement,
   type LigneMouvement,
   type LiensMouvement,
+  type Mouvement,
   type Traitement,
 } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -67,7 +68,7 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  * 🔵 Déduit :
  * - sens des statuts : « Demandé » = règlement préparé, hors de tout ordre ; « À régler » = dans un ordre de virement
  *   non émis ; « Enregistré » = ordre émis, ou chèque, prélèvement ou TIP constaté hors ordre ; « Rapproché » = pointé
- *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, hypothèse de travail, voir son 🔴) ;
+ *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, décision J8 de Hugo du 30/10/2026) ;
  *   « Annulé » = abandonné avant tout paiement, ou virement rejeté ou retourné après émission (rejet renseigné, J9
  *   ci-dessous) ;
  * - un virement ne se paie que par un ordre de virement (identifiant de bout en bout = n° de pièce, unique dans
@@ -96,10 +97,12 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   entière), jamais deux lignes à la fois ; ordre émis, rejet daté au plus tôt du jour de l'émission ;
  * - seulement après l'écriture de l'ordre (règlements imputés dans son traitement) : l'écriture contraire contre-passe
  *   une écriture passée ; avant, il n'y a rien à contre-passer, et l'ordre s'écrit d'abord en une fois ;
- * - écriture contraire : les paires débit / crédit des règlements du virement (mouvementsReglement), inversées par
- *   annulerTraitement (R6, traitements.ts) dans un traitement « Annulation de règlements » qui renvoie (annule) au
- *   traitement de l'ordre : contre-passation partielle de ce traitement quand l'ordre porte d'autres virements ; datée du
- *   jour du rejet, sous son propre identifiant ;
+ * - écriture contraire : les paires débit / crédit des règlements du virement (mouvementsReglement), prises dans
+ *   l'écriture de l'ordre, fournie (ce qui a été écrit, non une reconstruction), inversées par annulerTraitement (R6,
+ *   traitements.ts) dans un traitement « Annulation de règlements » qui renvoie (annule) au traitement de l'ordre :
+ *   contre-passation partielle de ce traitement quand l'ordre porte d'autres virements ; datée du jour du rejet, ou du
+ *   jour de l'écriture de l'ordre si le rejet le précède (l'écriture contraire annule une écriture passée, arrêté du
+ *   14 mars 2005, art. 5 : elle ne la précède pas), le rejet gardant sa date réelle ; sous son propre identifiant ;
  * - le règlement rejeté reste imputé et rattaché au traitement de l'ordre, garde son ordre, son n° de pièce et son
  *   pointage, et porte son rejet (date, motif, traitement d'annulation) ; « Annulé » est définitif : un double rejet est
  *   refusé, la facture se paie par un nouveau règlement ;
@@ -107,7 +110,7 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   après le pointage de la sortie). La sortie du relevé reste pointée : le virement est parti puis revenu ; le retour,
  *   ligne au crédit du relevé, se pointe avec l'écriture contraire, sans pièce (une pièce « règlement » est une sortie).
  *   rapprocherReglements lit un virement rejeté comme payé, pour ne pas signaler le pointage de sa sortie, puis lui rend
- *   « Annulé ».
+ *   « Annulé », sauf à une date (aLaDate) antérieure au rejet : il garde alors le statut propagé à cette date.
  * Décision J10 de Hugo du 30/10/2026 — bénéficiaire indivisaire : le règlement va au mandataire commun des indivisaires
  * (L. 1965 art. 23, al. 2) ; un règlement à un indivisaire n'est admis que s'il est le mandataire commun désigné ; sans
  * mandataire désigné, il est refusé (controlerBeneficiaireIndivisaire).
@@ -678,30 +681,62 @@ function verifierVirementEntier(reglements: ReglementFournisseur[], ordre: Ordre
   verifierLigne(ligne, reglements)
 }
 
+/** L'écriture fournie est celle du traitement de l'ordre. */
+function verifierEcritureOrdre(ecriture: Traitement, ordre: OrdreVirement): void {
+  if (ecriture.id !== ordre.traitementId)
+    throw new Error(`Rejet de virement : écriture ${ecriture.id} fournie, alors que l'ordre ${ordre.numero} est écrit dans le traitement ${ordre.traitementId}.`)
+}
+
+const memesLiens = (a: LiensMouvement = {}, b: LiensMouvement = {}): boolean =>
+  [...new Set([...Object.keys(a), ...Object.keys(b)] as (keyof LiensMouvement)[])].every((cle) => (a[cle] ?? null) === (b[cle] ?? null))
+
+const memeLigne = (m: Mouvement, attendu: LigneMouvement): boolean =>
+  m.compte === attendu.compte && m.sens === attendu.sens && m.montantCentimes === attendu.montantCentimes && memesLiens(m.liens, attendu.liens)
+
+/**
+ * Mouvements de l'écriture de l'ordre qui portent le virement : chaque ligne de mouvementsReglement y est cherchée
+ * (compte, sens, montant, liens) et prise une seule fois. L'écriture contraire inverse ce qui a été écrit, non une
+ * reconstruction.
+ */
+function mouvementsDuVirement(reglements: ReglementFournisseur[], ecriture: Traitement): Mouvement[] {
+  const restants = [...ecriture.mouvements]
+  return reglements.flatMap(mouvementsReglement).map((attendu) => {
+    const i = restants.findIndex((m) => memeLigne(m, attendu))
+    if (i < 0)
+      throw new Error(
+        `Écriture ${ecriture.id} de l'ordre : mouvement ${attendu.sens} ${attendu.compte} de ${attendu.montantCentimes} centimes introuvable ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
+      )
+    return restants.splice(i, 1)[0]
+  })
+}
+
 /**
  * J9 — virement rejeté ou retourné après émission : les règlements d'une ligne de l'ordre émis, déjà écrits dans le
- * traitement de l'ordre, reçoivent une écriture contraire, et passent « Annulé » avec leur rejet (date, motif, traitement
- * d'annulation). L'écriture contraire est la part de l'écriture de l'ordre qui porte ce virement (les paires de
- * mouvementsReglement, comme traitementReglements), contre-passée par annulerTraitement : un traitement « Annulation de
- * règlements » qui renvoie au traitement de l'ordre, daté du jour du rejet. Ils restent imputés et rattachés au
- * traitement de l'ordre, gardent ordre, n° de pièce et pointage. Refuse un ordre non émis, un rejet daté d'avant
- * l'émission, sans motif ou sous l'identifiant de l'ordre, un règlement hors de l'ordre, non payé, non encore écrit ou
- * déjà rejeté, une partie seulement d'un virement ou plusieurs virements. La facture se rétablit à part
+ * traitement de l'ordre, reçoivent une écriture contraire, et passent « Annulé » avec leur rejet (date réelle, motif,
+ * traitement d'annulation). L'écriture contraire est la part de l'écriture de l'ordre (`ecritureOrdre`, le traitement de
+ * l'ordre) qui porte ce virement, prise dans ses mouvements, contre-passée par annulerTraitement : un traitement
+ * « Annulation de règlements » qui renvoie au traitement de l'ordre, daté du jour du rejet, ou de celui de l'écriture de
+ * l'ordre si le rejet le précède. Ils restent imputés et rattachés au traitement de l'ordre, gardent ordre, n° de pièce
+ * et pointage. Refuse un ordre non émis, un rejet daté d'avant l'émission, sans motif ou sous l'identifiant de l'ordre,
+ * une écriture qui n'est pas celle de l'ordre ou ne porte pas le virement, un règlement hors de l'ordre, non payé, non
+ * encore écrit ou déjà rejeté, une partie seulement d'un virement ou plusieurs virements. La facture se rétablit à part
  * (statuts-facture.ts, retourFactureApresRejet).
  */
 export function rejeterVirement(
   reglements: ReglementFournisseur[],
   ordre: OrdreVirement,
   rejet: { id: string; date: string; motif: string },
+  ecritureOrdre: Traitement,
 ): { traitement: Traitement; reglements: ReglementFournisseur[] } {
   if (reglements.length === 0) throw new Error('Rejet de virement : aucun règlement.')
   verifierEnTeteRejet(ordre, rejet)
+  verifierEcritureOrdre(ecritureOrdre, ordre)
   indexer(reglements)
   reglements.forEach((r) => verifierARejeter(r, ordre))
   verifierVirementEntier(reglements, ordre)
   const { id, date } = rejet
-  const ecriture = creerTraitement({ id: ordre.traitementId, famille: familleDe(reglements[0]), date, mouvements: reglements.flatMap(mouvementsReglement) })
-  const traitement = annulerTraitement(ecriture, { id, date })
+  const partDuVirement: Traitement = { ...ecritureOrdre, mouvements: mouvementsDuVirement(reglements, ecritureOrdre) }
+  const traitement = annulerTraitement(partDuVirement, { id, date: date < ecritureOrdre.date ? ecritureOrdre.date : date })
   const trace: RejetReglement = { le: date, motif: rejet.motif.trim(), traitementId: id }
   return { traitement, reglements: reglements.map((r): ReglementFournisseur => ({ ...r, statut: 'Annulé', rejet: { ...trace } })) }
 }
@@ -833,6 +868,12 @@ export function controlerBeneficiaireIndivisaire(
 
 // ─── Rapprochement ──────────────────────────────────────────────────────────────────────────
 
+/** J9 — rejeté à la date de la vue : sans date, dès qu'il porte son rejet ; à une date, si le rejet date de ce jour ou d'avant. */
+function rejeteA(r: ReglementFournisseur, aLaDate: string | undefined): boolean {
+  if (!r.rejet) return false
+  return aLaDate === undefined || r.rejet.le <= aLaDate
+}
+
 /** J9 — un virement rejeté se lit comme payé : sa sortie a pu être pointée au relevé avant son retour. */
 function commePaye(r: ReglementFournisseur): ReglementFournisseur {
   if (!r.rejet) return r
@@ -843,8 +884,8 @@ function commePaye(r: ReglementFournisseur): ReglementFournisseur {
 /**
  * Statut « Rapproché » propagé depuis les arrêtés (rapprochement-pieces.ts, partagé avec les encaissements) : un
  * règlement « Enregistré » pointé passe « Rapproché », un règlement dépointé revient « Enregistré ». Un virement rejeté
- * (J9) prend ou perd le pointage de sa sortie sans anomalie et reste « Annulé ». Passer tous les règlements des comptes
- * concernés.
+ * (J9) prend ou perd le pointage de sa sortie sans anomalie et reste « Annulé » ; à une date (`aLaDate`) antérieure à son
+ * rejet, il garde le statut propagé à cette date. Passer tous les règlements des comptes concernés.
  */
 export function rapprocherReglements(
   reglements: ReglementFournisseur[],
@@ -857,5 +898,5 @@ export function rapprocherReglements(
     avant: 'Enregistré',
     aLaDate,
   })
-  return { reglements: pieces.map((r): ReglementFournisseur => (r.rejet ? { ...r, statut: 'Annulé' } : r)), anomalies }
+  return { reglements: pieces.map((r): ReglementFournisseur => (rejeteA(r, aLaDate) ? { ...r, statut: 'Annulé' } : r)), anomalies }
 }

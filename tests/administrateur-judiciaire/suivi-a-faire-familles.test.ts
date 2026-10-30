@@ -387,6 +387,18 @@ describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
     expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: alerte({ saisineLe: '2026-01-15' }) }])).toEqual([])
   })
 
+  it('requête faite pour les comptes avant la clôture : les impayés de cette clôture restent à suivre, seuls, à leur date', () => {
+    const a = alerte({ votes: [{ date: '2023-06-15', etat: 'adoptee' }], saisineLe: '2025-07-01' })
+    expect(a).toMatchObject({ declencheeLe: '2025-06-15', saisineFaite: false })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      expect.objectContaining({
+        id: 'exercices:copro-1:alerte_29_1_a',
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.impayes.message}`,
+        date: '2025-12-31',
+      }),
+    ])
+  })
+
   it('pas encore déclenchée : repère à la date où le délai sans vote sur l’approbation des comptes sera atteint', () => {
     const a = alerte({ exercices: [{ id: 'ex-2025', exercice: exercice2025, sommes: sommes(0) }] })
     expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([

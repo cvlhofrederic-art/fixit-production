@@ -723,24 +723,28 @@ export function depuisExercices(items: { id?: string; mandatId: string; exercice
 }
 
 /**
- * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.alerteMandataireAdHoc), une par syndicat : déclenchée sans requête au
- * juge enregistrée, à la date du déclenchement ; pas encore déclenchée, à la date où le délai sans vote de l'assemblée sur
- * l'approbation des comptes sera atteint (repère pour la faire voter à temps). Requête enregistrée, ou aucun vote connu
- * sans déclenchement : rien. `aConfirmer` reprend celui de l'alerte (🔴 sous mandat de justice, arriérés comptés).
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.alerteMandataireAdHoc), une par syndicat : déclenchée, avec un
+ * critère atteint que la requête au juge ne couvre pas (lecture critère par critère), à la date du plus tôt de ces
+ * critères et avec leurs seuls constats ; pas encore déclenchée, à la date où le délai sans vote de l'assemblée sur
+ * l'approbation des comptes sera atteint (repère pour la faire voter à temps). Chaque critère atteint couvert par la
+ * requête, ou aucun vote connu sans déclenchement : rien. `aConfirmer` reprend celui de l'alerte (🔴 sous mandat de
+ * justice, arriérés comptés).
  */
 export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
   return items.flatMap(({ mandatId, alerte }) => {
     if (alerte.saisineFaite) return []
     const cle = `${alerte.coproprieteId}:alerte_29_1_a`
     const champs = { mandatId, objetId: alerte.coproprieteId, aConfirmer: alerte.aConfirmer }
-    if (alerte.declencheeLe !== null)
+    if (alerte.aTraiterLe !== null) {
+      const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
       return [
         elementSuivi('exercices', 'alerte_29_1_a', cle, {
           ...champs,
-          libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${alerte.message}`,
-          date: alerte.declencheeLe,
+          libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${constats.join(' ')}`,
+          date: alerte.aTraiterLe,
         }),
       ]
+    }
     const { atteintLe, message } = alerte.comptes
     if (atteintLe === null) return []
     return [
