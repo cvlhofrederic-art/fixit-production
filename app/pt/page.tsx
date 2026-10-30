@@ -3,10 +3,10 @@
 //
 // Phase 1 SEO PT (point 1.6) : plus de second HomeAndConstructionBusiness avec une
 // adresse fictive « Porto 4000-001 ». L'entité unique (#business, adresse réelle du
-// siège, 22 concelhos servis) est injectée par app/layout.tsx sur toutes les pages PT.
+// siège, 22 concelhos servis) est injectée par la coquille racine (components/common/CoquilleRacine.tsx) sur toutes les pages PT.
 
 import type { Metadata } from 'next'
-import HomePage from '../page'
+import HomePage from '@/app/(commun)/page'
 import { CITIES } from '@/lib/data/seo-pages-data'
 import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 

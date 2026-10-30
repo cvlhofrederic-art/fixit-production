@@ -22,7 +22,7 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-import AdminDashboardPage from '@/app/admin/dashboard/page'
+import AdminDashboardPage from '@/app/(commun)/admin/dashboard/page'
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 

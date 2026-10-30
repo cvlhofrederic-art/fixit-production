@@ -12,7 +12,7 @@
  * Les gardes génériques ci-dessous vérifient aussi qu'une redirection aboutit sur une page, qu'elle ne masque
  * ni une réécriture ni une page publiée, et que chaque page racine de app/ est servie sous /fr/.
  */
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -106,32 +106,59 @@ async function toutesLesReglesRacine(): Promise<RegleRacine[]> {
   ]
 }
 
-function pageExiste(chemin: string): boolean {
-  return FICHIERS_PAGE.some((fichier) => existsSync(join(RACINE_DEPOT, 'app', chemin, fichier)))
+// Groupe de routes (« (commun) ») : absent de l'URL. Les pages communes sans locale y vivent, sous leur propre layout
+// racine ; les dossiers de langue (app/pt, app/fr, …) gardent le leur.
+const estGroupe = (nom: string) => nom.startsWith('(') && nom.endsWith(')')
+
+/** Dossiers de app/ atteints par les segments littéraux d'un chemin, groupes de routes traversés à toute profondeur. */
+function dossiersDuChemin(chemin: string): string[] {
+  const avecGroupes = (dossier: string): string[] => [
+    dossier,
+    ...readdirSync(dossier, { withFileTypes: true })
+      .filter((entree) => entree.isDirectory() && estGroupe(entree.name))
+      .flatMap((entree) => avecGroupes(join(dossier, entree.name))),
+  ]
+  let dossiers = avecGroupes(join(RACINE_DEPOT, 'app'))
+  for (const segment of chemin.split('/').filter(Boolean)) {
+    dossiers = dossiers
+      .map((dossier) => join(dossier, segment))
+      .filter((dossier) => existsSync(dossier) && statSync(dossier).isDirectory())
+      .flatMap(avecGroupes)
+  }
+  return dossiers
 }
 
-/** Une page de app/ sert-elle ce chemin, segments dynamiques [param] compris ? (pas de groupe ni de catch-all dans app/) */
+/** Une page sert-elle exactement ce chemin, sans segment dynamique ? (groupes de routes traversés) */
+function pageExiste(chemin: string): boolean {
+  return dossiersDuChemin(chemin).some((dossier) => FICHIERS_PAGE.some((fichier) => existsSync(join(dossier, fichier))))
+}
+
+/** Une page de app/ sert-elle ce chemin, segments dynamiques [param] compris ? (groupes de routes traversés) */
 function routeExiste(chemin: string): boolean {
   const parcourir = (dossier: string, segments: string[]): boolean => {
+    if (!existsSync(dossier)) return false
+    const groupes = readdirSync(dossier).filter(estGroupe)
+    if (groupes.some((nom) => parcourir(join(dossier, nom), segments))) return true
     if (!segments.length) return FICHIERS_PAGE.some((fichier) => existsSync(join(dossier, fichier)))
     const [tete, ...suite] = segments
     if (existsSync(join(dossier, tete)) && parcourir(join(dossier, tete), suite)) return true
-    const dynamiques = existsSync(dossier) ? readdirSync(dossier).filter((nom) => nom.startsWith('[')) : []
+    const dynamiques = readdirSync(dossier).filter((nom) => nom.startsWith('['))
     return dynamiques.some((nom) => parcourir(join(dossier, nom), suite))
   }
   return parcourir(join(RACINE_DEPOT, 'app'), chemin.split('/').filter(Boolean))
 }
 
+/** Le dossier de ce chemin a-t-il un segment dynamique [param] enfant ? (groupes de routes traversés) */
 function segmentDynamique(chemin: string): boolean {
-  const dossier = join(RACINE_DEPOT, 'app', chemin)
-  return existsSync(dossier) && readdirSync(dossier).some((nom) => nom.startsWith('['))
+  return dossiersDuChemin(chemin).some((dossier) => readdirSync(dossier).some((nom) => nom.startsWith('[')))
 }
 
-/** Routes de toutes les pages de app/, segments dynamiques conservés (« /rfq/repondre/[token] »). */
+/** Routes de toutes les pages de app/, segments dynamiques conservés (« /rfq/repondre/[token] »), groupes omis. */
 function routesDesPages(dossier = join(RACINE_DEPOT, 'app'), prefixe = ''): string[] {
   const routes = FICHIERS_PAGE.some((fichier) => existsSync(join(dossier, fichier))) ? [prefixe || '/'] : []
   for (const entree of readdirSync(dossier, { withFileTypes: true })) {
-    if (entree.isDirectory()) routes.push(...routesDesPages(join(dossier, entree.name), `${prefixe}/${entree.name}`))
+    if (!entree.isDirectory()) continue
+    routes.push(...routesDesPages(join(dossier, entree.name), estGroupe(entree.name) ? prefixe : `${prefixe}/${entree.name}`))
   }
   return routes
 }
@@ -166,7 +193,7 @@ describe('racine des règles « /:path* » sous OpenNext', () => {
   })
 
   it('aucune racine de réécriture ne tombe en littéral sur une route dynamique', async () => {
-    // /fr/tracking/ → « /tracking/:path* » était servi en 200 indexable par app/tracking/[token] (jeton « :path* »).
+    // /fr/tracking/ → « /tracking/:path* » était servi en 200 indexable par app/(commun)/tracking/[token] (jeton « :path* »).
     const fautives = (await toutesLesReglesRacine()).filter(
       ({ genre, racineDestination, resolue }) => genre === 'réécriture' && !!resolue?.includes(':') && segmentDynamique(racineDestination),
     )
@@ -359,7 +386,7 @@ describe('pages partagées servies sous /fr et /pt', () => {
   // Le middleware préfixe toute URL par la locale : une page placée à la racine de app/ n'est joignable que par
   // une réécriture /fr/… (et /pt/…). Sans elle, la page RGPD, le parrainage et la réponse fournisseur étaient en 404.
   const EXCEPTIONS: Record<string, string> = {
-    '/': "app/page.tsx sert de composant aux pages d'accueil de locale ; « / » est redirigé par le middleware",
+    '/': "app/(commun)/page.tsx sert de composant aux pages d'accueil de locale ; « / » est redirigé par le middleware",
     '/simulateur': 'remplacée par /fr/simulateur-devis/ ; ouverture ou suppression à décider',
   }
   const HORS_PERIMETRE = /^\/(fr|pt|en|es|nl|api|admin|coproprietaire|syndic)(\/|$)/ // locales, API, admin sans locale, zones dormantes

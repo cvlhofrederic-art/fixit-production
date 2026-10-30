@@ -3,11 +3,11 @@
 // Marseille + opening hours + BreadcrumbList) puis rend le HomePage client.
 //
 // Parité avec app/pt/page.tsx : les schémas globaux (WebSite + Organization)
-// viennent de app/layout.tsx, ceux-ci s'ajoutent pour rendre la home FR
+// viennent de la coquille racine (components/common/CoquilleRacine.tsx), ceux-ci s'ajoutent pour rendre la home FR
 // éligible aux rich results "Local Business" sur Google.
 
 import type { Metadata } from 'next'
-import HomePage from '../page'
+import HomePage from '@/app/(commun)/page'
 import {
   buildBusinessSchema,
   buildBreadcrumbSchema,

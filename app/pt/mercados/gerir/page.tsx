@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import GererMarcheClient from '@/app/fr/marches/gerer/GererMarcheClient'
 
+// Page qui lit les paramètres d'URL côté navigateur (useSearchParams) : en rendu statique, Next ne pré-rendrait que le
+// repli Suspense (sans h1, fil d'Ariane ni contenu pour les robots). Rendu à chaque requête, comme avant le passage
+// aux layouts statiques par langue (components/common/CoquilleRacine.tsx).
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Gerir o meu pedido de orçamento',
   description: 'Acompanhe o seu pedido de orçamento e consulte as candidaturas recebidas dos profissionais.',

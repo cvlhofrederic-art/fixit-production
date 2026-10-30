@@ -217,11 +217,15 @@ jobs:
 
       - name: G5 — Locale pt-PT uniquement (jamais pt-BR ni pt seul)
         run: |
-          if grep -RnE "'pt-BR'|\"pt-BR\"" components/syndic-dashboard/v54/ app/syndic/ 2>/dev/null; then
+          # Un dossier déplacé ou renommé doit faire échouer le contrôle, pas le rendre muet (grep sortirait en 2).
+          for d in components/syndic-dashboard/v54 "app/(commun)/syndic"; do
+            [ -d "$d" ] || { echo "::error::$d introuvable : chemin à mettre à jour dans ce contrôle."; exit 1; }
+          done
+          if grep -RnE "'pt-BR'|\"pt-BR\"" components/syndic-dashboard/v54/ "app/(commun)/syndic/" 2>/dev/null; then
             echo "::error::Locale 'pt-BR' détectée. V5.4 utilise exclusivement 'pt-PT'."
             exit 1
           fi
-          if grep -RnE "'pt'|\"pt\"" components/syndic-dashboard/v54/ app/syndic/ --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "// "; then
+          if grep -RnE "'pt'|\"pt\"" components/syndic-dashboard/v54/ "app/(commun)/syndic/" --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v "// "; then
             echo "::warning::Locale 'pt' seule détectée (sans -PT). Préciser 'pt-PT' explicitement."
           fi
 

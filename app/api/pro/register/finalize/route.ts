@@ -9,7 +9,7 @@ import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/sec
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/pro/register/finalize
 // Fin de l'inscription d'une société BTP, appelée par le formulaire société
-// (app/pro/register) juste après /api/auth/create-profile.
+// (app/(commun)/pro/register) juste après /api/auth/create-profile.
 //
 // Quand la confirmation d'e-mail est active, supabase.auth.signUp ne renvoie
 // pas de session : /api/upload et /api/kyc-orchestrate, qui exigent un Bearer,

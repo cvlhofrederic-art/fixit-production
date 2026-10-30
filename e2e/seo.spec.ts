@@ -60,7 +60,7 @@ test.describe('SEO', () => {
   test('homepage has essential meta tags', async ({ page }) => {
     await page.goto('/fr/', { waitUntil: 'networkidle' })
 
-    // <html lang="fr-FR"> (BCP 47 régional — cf. app/layout.tsx pour la politique)
+    // <html lang="fr-FR"> (BCP 47 régional — cf. components/common/CoquilleRacine.tsx pour la politique)
     const lang = await page.locator('html').getAttribute('lang')
     expect(lang).toBe('fr-FR')
 
@@ -132,6 +132,9 @@ test.describe('SEO', () => {
   test('SEO public routes return matching Cache-Control on GET and HEAD', async ({ request }) => {
     // Bots SEO (Googlebot, Bingbot, GPTBot) font parfois des HEAD pour vérifier
     // la fraîcheur. GET et HEAD doivent retourner le même Cache-Control public.
+    // Playwright vise next start, qui sert l'en-tête du middleware. Sur le Worker, la page vient du cache des pages
+    // pré-rendues (HIT, contrôlé par le smoke test du déploiement) et OpenNext recalcule l'en-tête : s-maxage décompté
+    // depuis le build, stale-while-revalidate=2592000 (open-next.config.ts).
     const url = '/pt/servicos/canalizador-porto/'
     const [getRes, headRes] = await Promise.all([
       request.get(url),
@@ -146,6 +149,57 @@ test.describe('SEO', () => {
     expect(getCache).toMatch(/public/)
     expect(getCache).toMatch(/s-maxage=3600/)
     expect(headCache).toBe(getCache)
+  })
+
+  test('accueils et pages hors préfixes SEO : Cache-Control private, no-store, comme avant le rendu statique', async ({ request }) => {
+    // Pages pré-rendues : sans l'en-tête du middleware (CACHE_CONTROL_PRIVE), Next leur enverrait s-maxage=31536000.
+    for (const chemin of ['/pt/', '/fr/', '/en/', '/nl/', '/es/', '/en/plumber-porto/', '/fr/simulateur-devis/marseille/']) {
+      const reponse = await request.get(chemin, { maxRedirects: 0 })
+      expect(reponse.status(), chemin).toBe(200)
+      const cacheControl = reponse.headers()['cache-control'] || ''
+      expect(cacheControl, chemin).toContain('private')
+      expect(cacheControl, chemin).toContain('no-store')
+    }
+  })
+
+  test('URL inconnue : 404 HTML complète, rendue côté serveur dans la langue de l’URL', async ({ request }) => {
+    // Plusieurs layouts racine (un par langue, plus app/(commun)) : les URL sans route passent par
+    // app/global-not-found.tsx. Une route fourre-tout qui lève notFound() ne rendrait côté serveur qu'une coquille
+    // <html id="__next_error__"> vide, que ce test lit sans JavaScript.
+    // La langue du texte et des métadonnées vient du cookie locale : le middleware le réécrit quand il diffère de la langue
+    // de l'URL, et Next expose ce cookie à cookies() dans la même requête (en-tête x-middleware-set-cookie).
+    const cas = [
+      ['/pt/vitfix-test-inexistant-404/', 'pt-PT', 'Página não encontrada'],
+      ['/fr/vitfix-test-inexistant-404/', 'fr-FR', 'Page non trouvée'],
+      ['/pt/perto-de-mim/vitfix-test-inexistant-404/', 'pt-PT', 'Página não encontrada'],
+    ] as const
+    for (const [chemin, lang, titre] of cas) {
+      const reponse = await request.get(chemin)
+      expect(reponse.status(), chemin).toBe(404)
+      const html = await reponse.text()
+      expect(html, chemin).not.toContain('id="__next_error__"')
+      expect(html, chemin).toContain(`<html lang="${lang}"`)
+      expect(html, chemin).toMatch(new RegExp(`<h1[^>]*>${titre}</h1>`))
+      // Balise des métadonnées de app/global-not-found.tsx (ROBOTS_404). Next ajoute en plus « noindex » seul à toute 404.
+      expect(html, chemin).toContain('<meta name="robots" content="noindex, nofollow"/>')
+    }
+  })
+
+  test('depuis la 404, « Voltar ao início » affiche l’accueil (rechargement complet entre layouts racine)', async ({ page }) => {
+    // La 404 (app/global-not-found.tsx) et /pt/ n'ont pas le même layout racine : Next recharge la page. Avec un layout
+    // racine commun, la 404 restait affichée sous la nouvelle URL (essai du 30/10/2026). Cookies refusés d'avance : le
+    // bandeau de consentement n'apparaît pas.
+    await page.addInitScript(() => {
+      const refus = { performance: false, personalization: false, advertising: false, date: new Date().toISOString() }
+      localStorage.setItem('vitfix_cookie_consent', JSON.stringify(refus))
+    })
+    await page.goto('/pt/vitfix-test-inexistant-404/')
+    const titre404 = page.getByRole('heading', { level: 1, name: 'Página não encontrada' })
+    await expect(titre404).toBeVisible()
+    await page.getByRole('link', { name: 'Voltar ao início' }).click()
+    await expect(page).toHaveURL(new RegExp('/pt/$'))
+    await expect(titre404).toHaveCount(0)
+    await expect(page.locator('html')).toHaveAttribute('lang', 'pt-PT')
   })
 
   test('homepage has canonical-friendly structure', async ({ page }) => {

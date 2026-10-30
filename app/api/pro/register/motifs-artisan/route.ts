@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/pro/register/motifs-artisan
 // Motifs par défaut d'un artisan qui s'inscrit, appelée par le formulaire
-// artisan (app/pro/register) après /api/auth/create-profile. Route sœur de
+// artisan (app/(commun)/pro/register) après /api/auth/create-profile. Route sœur de
 // /api/pro/register/finalize-artisan.
 //
 // Quand la confirmation d'e-mail est active, supabase.auth.signUp ne renvoie

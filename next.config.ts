@@ -10,6 +10,9 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   experimental: {
     optimizePackageImports: ['sonner', 'recharts', 'jspdf', '@supabase/supabase-js', 'date-fns', 'lucide-react', 'pdf-lib', 'zod'],
+    // 404 des URL sans route : app/global-not-found.tsx. Il n'y a plus de app/layout.tsx (un layout racine par langue,
+    // plus app/(commun)/layout.tsx) : sans ce drapeau, /_not-found n'aurait que le layout intégré de Next (ni langue ni site).
+    globalNotFound: true,
   },
   images: {
     remotePatterns: [

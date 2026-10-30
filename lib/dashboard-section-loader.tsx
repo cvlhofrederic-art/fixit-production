@@ -20,13 +20,13 @@ interface CreateDynamicSectionOptions {
 //   3. Wraps the section in SectionErrorBoundary so a single section crash
 //      (chunk loading failure on edge, runtime exception, ...) shows an
 //      in-place fallback with retry instead of destroying the dashboard
-//      shell via app/error.tsx
+//      shell via app/(commun)/error.tsx
 //
 // Boundary locale is read from useLocale() at render time so the fallback
 // strings stay aligned with the active language (fr/pt/en).
 //
-// Used by app/syndic/dashboard, app/client/dashboard, app/coproprietaire/dashboard.
-// The artisan/BTP dashboard at app/pro/dashboard uses inline <SectionErrorBoundary>
+// Used by app/(commun)/syndic/dashboard, app/(commun)/client/dashboard, app/(commun)/coproprietaire/dashboard.
+// The artisan/BTP dashboard at app/(commun)/pro/dashboard uses inline <SectionErrorBoundary>
 // wrappings at each render site (different pattern, not a helper).
 //
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

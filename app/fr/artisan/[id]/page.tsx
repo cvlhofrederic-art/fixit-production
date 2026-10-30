@@ -219,6 +219,16 @@ export default function ArtisanProfilePage() {
   const stepRef = useRef(step)
   useEffect(() => { stepRef.current = step }, [step])
 
+  // Après une réservation réussie, le bouton reste désactivé pendant le départ vers /confirmation/. Si le navigateur
+  // ramène ensuite cette fiche depuis son cache (retour arrière, bfcache), il redevient utilisable.
+  useEffect(() => {
+    const auRetour = (evenement: PageTransitionEvent) => {
+      if (evenement.persisted) setSubmitting(false)
+    }
+    window.addEventListener('pageshow', auRetour)
+    return () => window.removeEventListener('pageshow', auRetour)
+  }, [])
+
   // Check if artisan is favorited
   useEffect(() => {
     if (!artisan?.id) return
@@ -585,12 +595,14 @@ export default function ArtisanProfilePage() {
     const bookingJson = await bookingRes.json()
 
     if (!bookingJson.error && bookingJson.data) {
+      // Le bouton reste désactivé : /confirmation/ est servie par app/(commun), sous un autre layout racine que cette page,
+      // donc Next attend la réponse du serveur puis recharge la page. Le réactiver ici laissait un second clic créer une
+      // seconde réservation pendant ce temps.
       router.push(`/confirmation?id=${bookingJson.data.id}`)
-    } else {
-      const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
-      setBookingError(errMsg)
+      return
     }
-
+    const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
+    setBookingError(errMsg)
     setSubmitting(false)
   }
 

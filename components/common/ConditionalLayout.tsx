@@ -27,7 +27,7 @@ const DASHBOARD_PATH_PREFIXES = [
   '/syndic/register',
   /**
    * Sandbox de validation visuelle du redesign syndic v54 (Phase 1).
-   * Gated `notFound()` en production via app/syndic/dev/layout.tsx —
+   * Gated `notFound()` en production via app/(commun)/syndic/dev/layout.tsx —
    * inclus ici pour que le rendu dev affiche le namespace `#syndic-dashboard-v54`
    * isolé, sans pollution par la nav marketing publique.
    */

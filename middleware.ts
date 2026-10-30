@@ -74,6 +74,15 @@ function responseHasSensitiveCookie(response: NextResponse): boolean {
   })
 }
 
+// Pages qu'aucun cache partagé ne doit garder, comme quand tout le site était rendu à la demande :
+// - chemins needsAuth (accueils /{locale}/, connexion, tableaux de bord…) : la réponse dépend de la session
+//   (redirection d'un utilisateur connecté vers son espace, jeton rafraîchi) ;
+// - pages hors préfixes SEO (EN, NL, ES, simulateur FR, pages éditoriales…) : politique de la review #138 ci-dessus.
+// Pré-rendues depuis les layouts statiques par langue, ces pages recevraient de Next `s-maxage=31536000`. Le service
+// depuis le cache des pages pré-rendues (x-nextjs-cache: HIT) ne dépend pas de cet en-tête. Il prime sur celui de Next :
+// next start ne remplace pas un Cache-Control existant, et OpenNext donne la priorité aux en-têtes du middleware.
+const CACHE_CONTROL_PRIVE = 'private, no-cache, no-store, max-age=0, must-revalidate'
+
 function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
   const cookieLocale = request.cookies.get('locale')?.value
@@ -259,6 +268,9 @@ export async function middleware(request: NextRequest) {
     if ((request.method === 'GET' || request.method === 'HEAD') && isSeoPublicRoute(pathname) && !responseHasSensitiveCookie(supabaseResponse)) {
       supabaseResponse.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
       supabaseResponse.headers.set('Vary', 'Cookie, Accept-Language')
+    } else if (!isInternalRoute) {
+      // Autres pages : `private, no-store` (voir CACHE_CONTROL_PRIVE). Les routes internes (/api/, /_next/) gardent le leur.
+      supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     }
     return supabaseResponse
   }
@@ -328,6 +340,7 @@ export async function middleware(request: NextRequest) {
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     return supabaseResponse
   }
 
@@ -436,6 +449,7 @@ export async function middleware(request: NextRequest) {
 
   supabaseResponse.headers.set('X-API-Version', '1.0.0')
   supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+  supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
 
   return supabaseResponse
 }

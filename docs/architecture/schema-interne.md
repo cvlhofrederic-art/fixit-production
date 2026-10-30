@@ -526,7 +526,7 @@ SENTRY_AUTH_TOKEN=sntrys_...
 
 | Element | Convention | Exemple |
 |---------|-----------|---------|
-| Pages | kebab-case dossiers | `app/pro/dashboard/page.tsx` |
+| Pages | kebab-case dossiers | `app/(commun)/pro/dashboard/page.tsx` |
 | Composants | PascalCase | `ComptabiliteSection.tsx` |
 | Lib/utils | camelCase | `auth-helpers.ts`, `formatPrice()` |
 | Routes API | kebab-case | `/api/booking-messages/route.ts` |
@@ -535,7 +535,7 @@ SENTRY_AUTH_TOKEN=sntrys_...
 
 ### Architecture
 
-- **Dashboard artisan monolithique** : `app/pro/dashboard/page.tsx` (~3800 lignes) contient tous les sous-composants inline. Sections extraites progressivement dans `components/dashboard/`.
+- **Dashboard artisan monolithique** : `app/(commun)/pro/dashboard/page.tsx` (~3800 lignes) contient tous les sous-composants inline. Sections extraites progressivement dans `components/dashboard/`.
 - **1 route API = 1 fichier** : chaque `route.ts` exporte GET/POST/PATCH/DELETE.
 - **3 clients Supabase** :
   - `lib/supabase.ts` = browser (RLS)

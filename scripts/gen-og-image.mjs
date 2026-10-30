@@ -1,5 +1,5 @@
 // Générateur des images Open Graph VITFIX (1200×630) — aperçus WhatsApp / réseaux.
-// Reflète la VRAIE landing page (app/page.tsx + landing-v2.module.css) :
+// Reflète la VRAIE landing page (app/(commun)/page.tsx + app/landing-v2.module.css) :
 // fond blanc, titre noir + accent jaune, badge + chips de confiance, carte de
 // réservation. Wordmark « VIT » jaune + « FIX » noir (cf. components/common/Header.tsx).
 // Police Montserrat embarquée en base64 → rendu déterministe via sharp/librsvg.

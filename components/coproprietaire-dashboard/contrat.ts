@@ -1,7 +1,7 @@
 // ── Contrat des écrans du portail copropriétaire ──────────────────────────────
 //
 // Chaque écran (components/coproprietaire-dashboard/ecrans/*.tsx) reçoit ces props du shell
-// (app/coproprietaire/dashboard/page.tsx) et ne lit rien d'autre : ni Supabase, ni localStorage
+// (app/(commun)/coproprietaire/dashboard/page.tsx) et ne lit rien d'autre : ni Supabase, ni localStorage
 // pour des données (seulement des préférences d'affichage, via les clés ci-dessous).
 
 import type { EspaceCopro } from '@/lib/coproprietaire/types'
