@@ -137,10 +137,11 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * - conseil syndical élu ou renouvelé par une assemblée tenue hors du délai de six mois après la clôture, ou par une
  *   assemblée extraordinaire : la fenêtre de six mois avant le terme suffit-elle à reconnaître son renouvellement, ou
  *   faut-il le saisir expressément ? VitFix s'en tient à la fenêtre ;
- * - seuils de l'art. 21 : montant HT ou TTC, le texte ne le dit pas ;
  * - alerte de l'art. 29-1 A (pas de vote sur l'approbation des comptes depuis deux ans) : non modélisée, un vote de rejet
- *   comptant aussi ;
- * - décompte des 21 jours francs de la convocation (comme carence-assemblee.ts et suivi-a-faire.ts).
+ *   comptant aussi.
+ * Tranché par Hugo le 30/10/2026 : le décompte des 21 jours francs de la convocation (présentation au plus tard 22 jours
+ * avant la réunion) est confirmé (décision J5) ; les seuils de l'art. 21 (consultation du conseil syndical, mise en
+ * concurrence) s'entendent TTC, le texte ne le précisant pas (décision J6). L'alerte de l'art. 29-1 A est à modéliser.
  *
  * La « reddition » de ce module (« Rendu des comptes N » de l'exercice) n'est ni la reddition de comptes de fin de mission
  * (planification-mandat.ts), ni celle de l'ancien syndic (L. 1965 art. 18-2).

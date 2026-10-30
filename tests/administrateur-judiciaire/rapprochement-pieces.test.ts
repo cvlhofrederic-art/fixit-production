@@ -13,7 +13,7 @@ import {
  * Statut « Rapproché » propagé depuis l'arrêté de rapprochement (point 38 du bilan 2, réutilisé par le point 16 pour
  * les encaissements). Gestéam, tranche 36 § Règlements : le statut du règlement suit le rapprochement ; tranche 43 § 2 :
  * les encaissements d'un jour ouvré, non daté par rapport aux arrêtés, sont « Rapproché » ; tranche 29 : un arrêté environ
- * tous les dix jours. 🔴 Statut posé au pointage ou à la clôture : non établi ; le pointage est une hypothèse de travail.
+ * tous les dix jours. Statut posé au pointage, et non à la clôture : décision J8 de Hugo (30/10/2026).
  */
 
 type Statut = 'Demandé' | 'À régler' | 'Enregistré' | 'Rapproché' | 'Annulé'
@@ -73,7 +73,7 @@ describe('propagation du statut « Rapproché » depuis les arrêtés', () => {
     })
   })
 
-  it('🔴 hypothèse de travail : au pointage ; un arrêté en cours compte autant qu’un arrêté clôturé (pointage ou clôture : non établi)', () => {
+  it('décision J8 : au pointage ; un arrêté en cours compte autant qu’un arrêté clôturé', () => {
     const lignes = [element('rel-1', -50_000, pieces('r-1'))]
     for (const statut of ['En cours', 'Clôturé'] as const)
       expect(propagerStatutRapproche([reglement('r-1', 50_000)], [arrete(lignes, { statut })], REGLE).pieces[0].statut).toBe('Rapproché')
@@ -286,19 +286,20 @@ describe('propagation du statut « Rapproché » depuis les arrêtés', () => {
     expect(etatArrete(avec)).toEqual(etatArrete(sans))
   })
 
-  it('en-tête : sources citées telles quelles ; le choix « au pointage » reste une hypothèse de travail sous le 🔴', () => {
+  it('en-tête : sources citées telles quelles ; le choix « au pointage » est la décision J8 de Hugo', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'rapprochement-pieces.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('export interface'))
     expect(entete).not.toMatch(/récent|du jour/)
     expect(entete).toMatch(/tranche 29[^;]*dix jours/)
-    expect(entete.slice(entete.indexOf('🔵'), entete.indexOf('🔴'))).not.toMatch(/suit le pointage/i)
-    expect(entete.slice(entete.indexOf('🔴'))).toMatch(/hypothèse de travail/)
+    expect(entete.slice(entete.indexOf('🔵'), entete.indexOf('Tranché par Hugo'))).not.toMatch(/suit le pointage/i)
+    expect(entete).toMatch(/Tranché par Hugo le 30\/10\/2026 \(décision J8\) : statut « Rapproché » au POINTAGE/)
+    expect(entete).not.toMatch(/hypothèse de travail/)
   })
 
-  it('titres des tests : le choix « au pointage » n’est jamais présenté comme déduit, il reste une hypothèse de travail sous le 🔴', () => {
+  it('titres des tests : le choix « au pointage » n’est jamais présenté comme déduit, il est rattaché à la décision J8', () => {
     const titres = readFileSync(join(__dirname, 'rapprochement-pieces.test.ts'), 'utf8').match(/\bit\('[^']*'/g) ?? []
     const surLePointage = titres.filter((titre) => /pointage/.test(titre))
     expect(surLePointage.filter((titre) => titre.includes('🔵'))).toEqual([])
-    expect(surLePointage.filter((titre) => titre.includes('🔴 hypothèse de travail : au pointage'))).toHaveLength(1)
+    expect(surLePointage.filter((titre) => titre.includes('décision J8 : au pointage'))).toHaveLength(1)
   })
 })

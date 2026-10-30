@@ -21,7 +21,7 @@ import { depouiller, type Bulletin, type EtatPresence, type LignePresence } from
  * votes-ag (dépouillement après la réduction de l'art. 22, pouvoirs) ; l'échéance de contestation applique la règle de
  * finDelaiContestationAg (L. 1965 art. 42 al. 2, J1 : lendemain de la première présentation, même quantième deux mois
  * plus tard, sans report) ; la date limite de présentation de la convocation reprend JOURS_PRESENTATION_AVANT_REUNION
- * (D. 1967 art. 9, 🔴 décompte à confirmer, comme dans carence-assemblee).
+ * (D. 1967 art. 9, décompte confirmé par la décision J5, comme dans carence-assemblee).
  */
 
 export const NATURES_ASSEMBLEE = ['Annuelle', 'Spéciale', 'Judiciaire'] as const
@@ -132,7 +132,7 @@ export function comptagePresence(feuille: readonly LignePresence[]): ComptagePre
   return comptage
 }
 
-/** Dernier jour de première présentation de la convocation pour tenir le délai (D. 1967 art. 9 ; 🔴 décompte à confirmer). */
+/** Dernier jour de première présentation de la convocation pour tenir le délai (D. 1967 art. 9 ; décompte confirmé, décision J5). */
 export function limitePresentationConvocation(dateAssemblee: string): string {
   verifierDate(dateAssemblee)
   return ajouterJours(dateAssemblee, -JOURS_PRESENTATION_AVANT_REUNION)

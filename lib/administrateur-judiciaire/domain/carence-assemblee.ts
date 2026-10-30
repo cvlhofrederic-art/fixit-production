@@ -27,7 +27,7 @@ import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
  * n° 14-24.989) ; les fonctions cessent de plein droit à l'acceptation de son mandat par le syndic désigné.
  *
  * 🔵 Déduit : la présentation de la convocation au plus tard (délai + 1) jours avant la réunion (21 jours francs, décompte
- * de votes-ag.ts et suivi-a-faire.ts, 🔴 à confirmer) ; la réunion la plus proche possible se compte depuis le jour du
+ * de votes-ag.ts et suivi-a-faire.ts, confirmé par la décision J5 du 30/10/2026) ; la réunion la plus proche possible se compte depuis le jour du
  * contrôle ; une réunion tenue après la fin de la mission l'a été sans pouvoirs.
  * 🔴 Non établi : l'assemblée sans aucun participant, ou qui ne peut se tenir, n'est définie par aucun texte ; la
  * prorogation de la mission de l'administrateur de l'art. 47 par l'art. 29-1, I, al. 3 (« même si celui-ci n'a été
@@ -42,7 +42,7 @@ export type MotifCarence = (typeof MOTIFS_CARENCE)[number]
 /** D. 1967 art. 9 : convocation notifiée au moins 21 jours avant la réunion (sauf délai plus long du règlement). */
 export const DELAI_CONVOCATION_JOURS = 21
 
-/** Présentation de la convocation au plus tard 22 jours avant la réunion (21 jours francs, 🔴 décompte à confirmer). */
+/** Présentation de la convocation au plus tard 22 jours avant la réunion (21 jours francs, décompte confirmé : décision J5). */
 export const JOURS_PRESENTATION_AVANT_REUNION = DELAI_CONVOCATION_JOURS + 1
 
 export interface SaisieCarence {

@@ -51,8 +51,8 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * portefeuille ; un élément du week-end revient au vendredi qui précède (mieux vaut le traiter avant) ; les tranches des
  * périodicités autres que mensuelle (seule la mensuelle a été observée) ; un âge de trois périodes exactement tombe dans
  * la dernière tranche ; unités d'horizon jours / semaines / mois (listes non ouvertes dans Gestéam).
- * 🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres (sinistres.ts) ; 21 jours francs de
- * convocation au décompte de votes-ag.ts ; échéances légales dont la certitude n'est pas TEXTE.
+ * 🔴 Signalés `aConfirmer` : repères de déclaration et de prescription des sinistres (sinistres.ts) ; échéances légales
+ * dont la certitude n'est pas TEXTE. Les 21 jours francs de convocation (décompte de votes-ag.ts) sont confirmés (J5).
  * 🔵 Contentieux (réglage Gestéam : « Commandement depuis n », « Non réglés depuis n », « Soldés ») : les n jours sont des
  * réglages de GESTION du cabinet (DELAIS_SUIVI_CONTENTIEUX, modifiables), jamais des délais légaux ; les délais des voies
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
@@ -381,7 +381,7 @@ export function depuisEcheancesLegales(items: { mandatId: string; echeance: Eche
 
 /**
  * 21 jours francs entre la première présentation de la convocation et la réunion, au décompte de controlerConvocation
- * (votes-ag.ts) : présentation 22 jours avant la réunion au plus tard. 🔴 Décompte à confirmer.
+ * (votes-ag.ts) : présentation 22 jours avant la réunion au plus tard. Décompte confirmé par Hugo le 30/10/2026 (J5).
  */
 const JOURS_PRESENTATION_AVANT_AG = 22
 
@@ -403,7 +403,7 @@ export function depuisAssemblees(ags: AssembleeSuivie[]): ElementAFaire[] {
         elementSuivi('assemblees', 'convocation_a_presenter', `${ag.id}:convocation_a_presenter`, {
           ...champs,
           date: ajouterJours(ag.date, -JOURS_PRESENTATION_AVANT_AG),
-          aConfirmer: true,
+          aConfirmer: false,
         }),
       ]
     if (ag.statut === 'Convoquée') return [elementSuivi('assemblees', 'pv_a_signer', `${ag.id}:pv_a_signer`, { ...champs, date: ag.date })]

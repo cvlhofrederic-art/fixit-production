@@ -147,7 +147,7 @@ describe('contrôle des suites', () => {
     expect(controlerSuitesCarence(carence(null), { dateFinMission: null }, aujourdhui)).toEqual([])
   })
 
-  it('délai de présentation de la convocation : 22 jours avant la réunion (21 jours francs, décompte à confirmer)', () => {
+  it('délai de présentation de la convocation : 22 jours avant la réunion (21 jours francs, décision J5)', () => {
     expect(JOURS_PRESENTATION_AVANT_REUNION).toBe(22)
   })
 
