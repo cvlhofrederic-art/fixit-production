@@ -101,8 +101,12 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  * - rédactions de L. 721-2 antérieures au 29/08/2015 et de l'ancien art. 14-2 antérieures au 25/11/2018 non relues
  *   (promesse ou mutation antérieure : fondement « à établir ») ;
  * - date d'une décision d'AG saisie en texte libre et date d'une autorisation du juge : non contrôlées face à la date de
- *   l'emploi ; avisDAppel (positions semi-ouvertes) porte au compte de l'acquéreur un appel exigible le jour de la
- *   mutation, en tension avec l'art. 6-2, 1° : non traité ici, seuls les postes portés au compte vendeur sont lus.
+ *   l'emploi.
+ * Décision de Hugo Carvalho du 30/10/2026 (D. 1967 art. 6-2, relu sur Légifrance le 30/10/2026) : un appel exigible le
+ * jour de la mutation est dû par le vendeur ; avisDAppel le porte désormais au compte vendeur (règle, citations et 🔴
+ * restants : en-tête de repartition-appels.ts). Un appel du fonds émis après l'enregistrement de la mutation et exigible
+ * ce jour-là figure donc, ici, parmi les postes du vendeur échus au plus tard le jour de la mutation, et non parmi les
+ * postes à réattribuer.
  */
 
 /** Cotisation (appel du fonds de travaux pour un lot) que règle un versement. */
