@@ -1,0 +1,178 @@
+/**
+ * Tableau de bord client (/{locale}/client/dashboard/) : plus de boucle ni de squelette sans issue au chargement
+ * (lot 1 de l'analyse Sentry du 28/10/2026, issues C et X : AbortError du verrou d'auth, page qui repartait en
+ * boucle toutes les 23 s le 08/10).
+ *
+ * Contrat vérifié ici :
+ * - session validée par getUser() → réservations chargées, aucune navigation ;
+ * - session refusée (utilisateur nul sans erreur, AuthApiError 401) → UNE seule redirection vers
+ *   /{locale}/auth/login/, même si SIGNED_OUT arrive ensuite ;
+ * - AbortError du verrou d'auth (deux fois, second essai compris) → ni navigation ni rechargement, un toast ;
+ * - le callback onAuthStateChange est synchrone (jamais de promesse renvoyée) et le chargement des réservations
+ *   sur INITIAL_SESSION est différé ;
+ * - session indisponible au chargement (jeton expiré, rafraîchissement en échec réseau), INITIAL_SESSION nul, puis
+ *   TOKEN_REFRESHED ou SIGNED_IN avec une session → réservations chargées une seule fois, en différé.
+ */
+import React from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, waitFor } from '@testing-library/react'
+import { AuthApiError, AuthRetryableFetchError } from '@supabase/supabase-js'
+import { simulerLocation, type LocationSimulee } from '../helpers/simulations-dashboard'
+
+type Rappel = (event: string, session: unknown) => unknown
+
+const mocks = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  getSession: vi.fn(),
+  signOut: vi.fn(),
+  rappels: [] as Rappel[],
+  order: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+}))
+
+vi.mock('@/lib/supabase', async () => (await import('../helpers/simulations-dashboard')).moduleSupabaseSimule({
+  auth: { getUser: mocks.getUser, getSession: mocks.getSession, signOut: mocks.signOut },
+  rappels: mocks.rappels,
+  from: () => ({ select: () => ({ eq: () => ({ order: mocks.order }) }) }),
+}))
+
+vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: vi.fn(async () => 'jeton') }))
+vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }))
+vi.mock('next/navigation', async () => (await import('../helpers/simulations-dashboard')).moduleNavigationSimule('/fr/client/dashboard/'))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/simulations-dashboard')).moduleI18nSimule())
+// Les sections et l'assistant ne font pas partie du chargement de session : on les neutralise.
+vi.mock('@/lib/dashboard-section-loader', () => ({ createDynamicSection: () => () => null }))
+vi.mock('@/components/chat/FixyChatGeneric', () => ({ default: () => null }))
+vi.mock('@/components/common/LocaleLink', () => ({
+  default: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => (
+    <a href={href} className={className}>{children}</a>
+  ),
+}))
+
+import ClientDashboardPage from '@/app/client/dashboard/page'
+
+const UTILISATEUR = {
+  id: 'client-1',
+  email: 'client@example.com',
+  app_metadata: { role: 'client' },
+  user_metadata: { full_name: 'Camille Client' },
+  aud: 'authenticated',
+  created_at: '2026-01-01T00:00:00Z',
+}
+
+const abortError = () => new DOMException('signal is aborted without reason', 'AbortError')
+
+// window.location simulée : chaque navigation est enregistrée au lieu d’être exécutée.
+let lieu: LocationSimulee
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.rappels.length = 0
+  mocks.order.mockResolvedValue({ data: [], error: null })
+  mocks.getSession.mockResolvedValue({ data: { session: null }, error: null })
+  lieu = simulerLocation('/fr/client/dashboard/')
+})
+
+afterEach(() => {
+  lieu.restaurer()
+})
+
+const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+describe('tableau de bord client — initialisation de la session', () => {
+  it('session valide : réservations chargées, aucune navigation', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: UTILISATEUR }, error: null })
+    render(<ClientDashboardPage />)
+
+    await waitFor(() => expect(mocks.order).toHaveBeenCalledTimes(1))
+    expect(lieu.navigations).toEqual([])
+    expect(lieu.rechargements).toBe(0)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
+  it('session absente (utilisateur nul) : une seule redirection vers /fr/auth/login/, même après SIGNED_OUT', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
+    render(<ClientDashboardPage />)
+
+    await waitFor(() => expect(lieu.navigations).toEqual(['/fr/auth/login/']))
+    act(() => { mocks.rappels.forEach((r) => r('SIGNED_OUT', null)) })
+    expect(lieu.navigations).toEqual(['/fr/auth/login/'])
+    expect(mocks.order).not.toHaveBeenCalled()
+  })
+
+  it('session refusée par Supabase (401) : une seule redirection', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('invalid JWT', 401, 'bad_jwt') })
+    render(<ClientDashboardPage />)
+
+    await waitFor(() => expect(lieu.navigations).toEqual(['/fr/auth/login/']))
+  })
+
+  it('AbortError du verrou d’auth (deux fois) : ni navigation ni rechargement, un toast, second essai', async () => {
+    mocks.getUser.mockRejectedValue(abortError())
+    render(<ClientDashboardPage />)
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1), { timeout: 3000 })
+    expect(mocks.getUser).toHaveBeenCalledTimes(2)
+    expect(lieu.navigations).toEqual([])
+    expect(lieu.rechargements).toBe(0)
+  })
+
+  it('erreur 500 de Supabase : session inconnue, ni navigation ni rechargement', async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('boom', 500, 'unexpected_failure') })
+    render(<ClientDashboardPage />)
+
+    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+    expect(lieu.navigations).toEqual([])
+    expect(mocks.getUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('callback onAuthStateChange synchrone : INITIAL_SESSION charge les réservations en différé', async () => {
+    mocks.getUser.mockReturnValue(new Promise(() => {}))
+    render(<ClientDashboardPage />)
+
+    await waitFor(() => expect(mocks.rappels.length).toBeGreaterThan(0))
+    let retour: unknown = 'non appelé'
+    act(() => { retour = mocks.rappels[0]('INITIAL_SESSION', { user: UTILISATEUR, access_token: 'jeton' }) })
+    expect(retour).toBeUndefined()
+    expect(mocks.order).not.toHaveBeenCalled()
+    await act(async () => { await attendre(10) })
+    expect(mocks.order).toHaveBeenCalledTimes(1)
+    expect(lieu.navigations).toEqual([])
+  })
+
+  // Jeton expiré et rafraîchissement en échec réseau au chargement : getUser() rend « indisponible » et auth-js émet
+  // INITIAL_SESSION nul. Quand son tick d'auto-refresh réussit ensuite, il n'émet que TOKEN_REFRESHED (SIGNED_IN si
+  // la session arrive par un autre chemin) : sans reprise, la page restait sur son squelette jusqu'au rechargement.
+  it.each(['TOKEN_REFRESHED', 'SIGNED_IN'])(
+    'session indisponible au chargement, INITIAL_SESSION nul puis %s : réservations chargées une seule fois',
+    async (evenement) => {
+      mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) })
+      render(<ClientDashboardPage />)
+
+      await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+      act(() => { mocks.rappels[0]('INITIAL_SESSION', null) })
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).not.toHaveBeenCalled()
+
+      const session = { user: UTILISATEUR, access_token: 'jeton-rafraichi' }
+      let retour: unknown = 'non appelé'
+      act(() => { retour = mocks.rappels[0](evenement, session) })
+      expect(retour).toBeUndefined()
+      expect(mocks.order).not.toHaveBeenCalled()
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).toHaveBeenCalledTimes(1)
+
+      // Rafraîchissements suivants du jeton : rien n'est rechargé.
+      act(() => {
+        mocks.rappels[0]('TOKEN_REFRESHED', session)
+        mocks.rappels[0]('SIGNED_IN', session)
+      })
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).toHaveBeenCalledTimes(1)
+      expect(mocks.getUser).toHaveBeenCalledTimes(1)
+      expect(lieu.navigations).toEqual([])
+      expect(lieu.rechargements).toBe(0)
+    },
+  )
+})

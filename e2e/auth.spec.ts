@@ -85,3 +85,54 @@ test.describe('Auth flow', () => {
     expect(page.url()).toContain('/auth/login')
   })
 })
+
+// Lot 1 de l'analyse Sentry du 28/10/2026 : le tableau de bord client et la page de connexion ne doivent plus se
+// renvoyer l'un vers l'autre, et le tableau de bord ne doit jamais se recharger en boucle sur une erreur d'auth.
+test.describe('Tableau de bord client : pas de boucle de rechargement', () => {
+  test('sans session : une seule redirection vers la connexion, puis la page reste stable 12 s', async ({ page }) => {
+    const navigations: string[] = []
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url())
+    })
+
+    await page.goto('/fr/client/dashboard/', { waitUntil: 'networkidle' })
+    await page.waitForURL('**/auth/login**', { timeout: 15000 })
+    const apresArrivee = navigations.length
+
+    await page.waitForTimeout(12_000)
+
+    expect(navigations.length).toBe(apresArrivee)
+    expect(page.url()).toContain('/auth/login')
+  })
+
+  // Exige un compte client de test : E2E_CLIENT_EMAIL et E2E_CLIENT_PASSWORD (absents en CI aujourd'hui, le test
+  // est alors ignoré). En local : E2E_CLIENT_EMAIL=… E2E_CLIENT_PASSWORD=… npx playwright test e2e/auth.spec.ts
+  test('connecté : le tableau de bord reste chargé 60 s sans navigation ni AbortError', async ({ page }) => {
+    const email = process.env.E2E_CLIENT_EMAIL
+    const motDePasse = process.env.E2E_CLIENT_PASSWORD
+    test.skip(!email || !motDePasse, 'identifiants E2E_CLIENT_EMAIL / E2E_CLIENT_PASSWORD absents')
+
+    await page.goto('/fr/auth/login', { waitUntil: 'networkidle' })
+    await page.getByRole('button', { name: /Particulier/i }).click()
+    await page.locator('input[type="email"]').fill(email!)
+    await page.locator('input[type="password"]').fill(motDePasse!)
+    await page.getByRole('button', { name: /se connecter/i }).click()
+    await page.waitForURL('**/client/dashboard**', { timeout: 20000 })
+
+    const anomalies: string[] = []
+    page.on('console', (message) => {
+      if (/AbortError|Multiple GoTrueClient/.test(message.text())) anomalies.push(message.text())
+    })
+    page.on('pageerror', (erreur) => anomalies.push(String(erreur)))
+    const navigations: string[] = []
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) navigations.push(frame.url())
+    })
+
+    await page.waitForTimeout(60_000)
+
+    expect(navigations).toEqual([])
+    expect(anomalies).toEqual([])
+    expect(page.url()).toContain('/client/dashboard')
+  })
+})
