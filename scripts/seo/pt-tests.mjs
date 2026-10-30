@@ -23,6 +23,7 @@ import { lireCsv } from './pt-audit/lib/csv.mjs'
 import { lireRobots, autorise, reglesHorsPt } from './pt-audit/lib/robots.mjs'
 import { auditer } from './pt-audit/index.mjs'
 import { dossierSortie, fabriquerAbsolu, ErreurChemin } from './pt-audit/lib/chemins.mjs'
+import { referenceValide, problemeReference, ErreurReference } from './pt-audit/lib/reference.mjs'
 
 function lireArguments(argv) {
   const o = { base: 'https://vitfix.io', mode: 'controle', reference: 'data/seo/reference-seo-pt.json', tests: [], audit: '', out: 'reports/seo', redirections: 'data/seo/pt-redirects.csv', porte: 'data/seo/porte-qualite.json', lot: '', echantillon: 0, concurrence: 8, date: new Date().toISOString().slice(0, 10) }
@@ -435,8 +436,11 @@ async function principal() {
   writeFileSync(prefixe + '.md', L.join('\n'), 'utf8')
   writeFileSync(prefixe + '.json', JSON.stringify({ date: o.date, base, mode: o.mode, tests: R.tests }, null, 1), 'utf8')
   if (o.mode === 'reference') {
+    // Valeurs venues du site audité (réseau) : rien n'est écrit hors du format d'une référence (pt-audit/lib/reference.mjs)
+    const aEcrire = { ...(reference || {}), ...nouvelleReference }
+    if (!referenceValide(aEcrire)) throw new ErreurReference('référence non écrite dans ' + o.reference + ' : ' + problemeReference(aEcrire))
     mkdirSync(path.dirname(cheminReference), { recursive: true })
-    writeFileSync(cheminReference, JSON.stringify({ ...(reference || {}), ...nouvelleReference }, null, 1), 'utf8')
+    writeFileSync(cheminReference, JSON.stringify(aEcrire, null, 1), 'utf8')
     journal('Référence écrite : ' + o.reference)
   }
   for (const t of R.tests) journal(t.id + ' ' + t.resultat + ' (' + t.anomalies + ')')
@@ -446,8 +450,8 @@ async function principal() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   principal().catch((e) => {
-    // Chemin refusé (ErreurChemin) : le message seul, la pile d'appels n'aiderait pas l'utilisateur du CLI
-    console.error(e instanceof ErreurChemin ? '[pt-tests] ' + e.message : e)
+    // Chemin ou référence refusés (ErreurChemin, ErreurReference) : le message seul, la pile d'appels n'aiderait pas l'utilisateur du CLI
+    console.error(e instanceof ErreurChemin || e instanceof ErreurReference ? '[pt-tests] ' + e.message : e)
     process.exit(1)
   })
 }
