@@ -7,8 +7,18 @@
 // SIMULATION PAR DÉFAUT : lit les lignes et affiche ce qui serait migré, sans rien envoyer ni écrire.
 // Rien n'est modifié sans le drapeau --appliquer.
 //
-// À lancer APRÈS le déploiement de la nouvelle route /api/save-logo (sinon de nouvelles data: URL arrivent
-// pendant la migration).
+// Ordre exact (lot 3 de l'analyse Sentry du 28/10/2026) :
+//   1. déploiement de la PR : /api/save-logo n'écrit plus de data: URL (sinon il en arrive de nouvelles pendant
+//      la migration) ;
+//   2. ce script avec --appliquer, après une simulation ;
+//   3. contrôle en lecture seule, qui doit renvoyer 0 :
+//        select count(*) from public.profiles_artisan where logo_url like 'data:%' or profile_photo_url like 'data:%';
+//   4. supabase/migrations/20261028a_profiles_artisan_images_https_not_valid.sql (contraintes NOT VALID) ;
+//   5. supabase/migrations/20261028b_profiles_artisan_images_https_validate.sql (VALIDATE CONSTRAINT).
+// Jamais 20261028a avant ce script : une contrainte CHECK, même NOT VALID, est vérifiée sur toute ligne insérée ou
+// mise à jour, quelles que soient les colonnes touchées. Elle bloquerait les mises à jour des fiches encore en
+// data: URL et la migration d'une fiche dont les deux colonnes sont en data: URL (une colonne mise à jour à la
+// fois). 20261028a refuse d'ailleurs de s'appliquer tant qu'il reste une data: URL.
 //
 // Usage (PowerShell), clé service_role lue dans l'environnement :
 //   $env:NEXT_PUBLIC_SUPABASE_URL = "https://irluhepekbqgquveaett.supabase.co"

@@ -6,6 +6,12 @@
  * Lancée par scripts/migrer-images-artisans-storage.ts. Sans `appliquer`, c'est une simulation : lectures
  * seulement, aucun envoi ni aucune écriture.
  *
+ * Ordre exact (détaillé dans l'en-tête du script) : déploiement de la PR, script avec --appliquer, comptage de
+ * contrôle à 0, puis les migrations 20261028a (contraintes NOT VALID) et 20261028b (VALIDATE CONSTRAINT). Jamais
+ * les contraintes avant la migration des données : une contrainte CHECK, même NOT VALID, est vérifiée sur toute
+ * ligne mise à jour, quelles que soient les colonnes touchées, et chaque mise à jour faite ici ne touche qu'une
+ * colonne (une fiche dont les deux colonnes sont en data: URL ne pourrait plus être migrée).
+ *
  * Une valeur que l'artisan a changée pendant la migration n'est jamais écrasée : la mise à jour ne passe que si la
  * colonne contient encore la data: URL lue (début et fin comparés). Une valeur qui n'est pas une image reconnue
  * (type non pris en charge, base64 abîmé) reste telle quelle et figure dans le bilan.
