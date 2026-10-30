@@ -136,7 +136,11 @@ export const NATURES_SOMME_EXIGIBLE = ['provision_budget', 'travaux_hors_budget'
 export type NatureSommeExigible = (typeof NATURES_SOMME_EXIGIBLE)[number]
 
 /** Sommes exigibles « en vertu des articles 14-1 et 14-2-1 » : art. 14-1, I et II, et art. 14-2-1. */
-const NATURES_COMPTEES: readonly NatureSommeExigible[] = ['provision_budget', 'travaux_hors_budget', 'cotisation_fonds_travaux']
+const NATURES_COMPTEES: ReadonlySet<NatureSommeExigible> = new Set<NatureSommeExigible>([
+  'provision_budget',
+  'travaux_hors_budget',
+  'cotisation_fonds_travaux',
+])
 
 export interface SommeExigible {
   nature: NatureSommeExigible
@@ -249,12 +253,15 @@ function verifierDate(valeur: unknown, quoi: string): asserts valeur is string {
   if (!estDateIsoValide(valeur)) throw new Error(`${quoi} invalide (${String(valeur)}) : AAAA-MM-JJ attendu.`)
 }
 
-const POURCENTAGES: readonly (keyof ParametresAlerte291A)[] = ['seuilPourcent', 'seuilGrandeCoproprietePourcent']
+const POURCENTAGES: ReadonlySet<keyof ParametresAlerte291A> = new Set<keyof ParametresAlerte291A>([
+  'seuilPourcent',
+  'seuilGrandeCoproprietePourcent',
+])
 
 function verifierParametres(parametres: ParametresAlerte291A): void {
   for (const [nom, valeur] of Object.entries(parametres) as [keyof ParametresAlerte291A, number][]) {
-    const borneBasse = POURCENTAGES.includes(nom) ? 1 : 0
-    const borneHaute = POURCENTAGES.includes(nom) ? 100 : Number.MAX_SAFE_INTEGER
+    const borneBasse = POURCENTAGES.has(nom) ? 1 : 0
+    const borneHaute = POURCENTAGES.has(nom) ? 100 : Number.MAX_SAFE_INTEGER
     if (!Number.isInteger(valeur) || valeur < borneBasse || valeur > borneHaute)
       throw new Error(`Paramètre de l'alerte de l'art. 29-1 A invalide (${nom} = ${valeur}) : entier de ${borneBasse} à ${borneHaute} attendu.`)
   }
@@ -321,7 +328,7 @@ function assiette(sommes: readonly SommeExigible[], exercice: Exercice, parametr
   const debutDernierMois = ajouterMois(exercice.cloture, -parametres.moisNonImpayesAvantCloture)
   const total: Assiette = { exigibles: 0, impayes: 0, ecartes: 0, arrieres: 0 }
   for (const somme of sommes) {
-    if (!NATURES_COMPTEES.includes(somme.nature) || somme.exigibleLe > exercice.cloture) continue
+    if (!NATURES_COMPTEES.has(somme.nature) || somme.exigibleLe > exercice.cloture) continue
     const anterieure = somme.exigibleLe < exercice.ouverture
     if (!anterieure) total.exigibles += somme.montantCentimes
     if (somme.exigibleLe > debutDernierMois) total.ecartes += somme.impayeCentimes
@@ -396,11 +403,11 @@ function critereImpayes(entree: EntreeAlerteMandataireAdHoc, date: string, param
 
 // ─── Critère des comptes ────────────────────────────────────────────────────────────────────
 
-const ETATS_VOTE: readonly EtatResolution[] = ['adoptee', 'rejetee']
+const ETATS_VOTE: ReadonlySet<EtatResolution> = new Set<EtatResolution>(['adoptee', 'rejetee'])
 
 /** Dates des votes de l'assemblée sur l'approbation des comptes, au plus tard à la date de référence. */
 function datesDeVote(entree: EntreeAlerteMandataireAdHoc, date: string): string[] {
-  const votes = (entree.votes ?? []).filter((v) => ETATS_VOTE.includes(v.etat)).map((v) => v.date)
+  const votes = (entree.votes ?? []).filter((v) => ETATS_VOTE.has(v.etat)).map((v) => v.date)
   const decisions = (entree.decisions ?? [])
     .filter((d) => d.type === 'approbation_comptes' && d.source.origine === 'assemblee')
     .map((d) => d.date)
@@ -417,7 +424,7 @@ function critereComptes(entree: EntreeAlerteMandataireAdHoc, date: string, param
       message:
         "Aucun vote de l'assemblée sur l'approbation des comptes n'est connu : saisir la date de la dernière assemblée qui s'est prononcée (adoption ou rejet).",
     }
-  const dernier = dates.reduce((a, b) => (b > a ? b : a))
+  const dernier = dates.reduce((a, b) => (b > a ? b : a), dates[0])
   const atteintLe = ajouterMois(dernier, parametres.sansVoteMois)
   const duree = `${parametres.sansVoteMois} mois sans vote`
   if (date >= atteintLe)
