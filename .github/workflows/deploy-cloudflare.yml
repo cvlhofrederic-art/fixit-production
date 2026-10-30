@@ -80,15 +80,23 @@ jobs:
           # le dépôt. Le même secret GitHub que l'étape de build est passé au Worker par l'action
           # (entrée `vars` ci-dessous → `wrangler deploy --var NEXT_PUBLIC_SUPABASE_ANON_KEY:…`).
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Clé du cache HTML des pages publiques (worker/cache-pages-publiques.ts, lot 7 Sentry du 28/10/2026) :
+          # chaque déploiement repart d'un cache vide, l'ancien contenu n'est jamais resservi. Passée au Worker par
+          # l'entrée `vars` ci-dessous, comme la clé anon.
+          VITFIX_BUILD_ID: ${{ github.sha }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Jamais de --var dans `command` : wrangler-action 3.15.0 n'ajoute les variables de `vars` que si la
+          # commande n'en contient aucun (dist/index.mjs) ; la clé anon serait alors perdue au déploiement.
           command: deploy
           # Variables d'environnement du Worker injectées au déploiement depuis `env:` ci-dessus
           # (une par ligne) : la clé anon reste lisible au runtime (process.env dynamique dans
-          # lib/env.ts et app/api/health) sans figurer dans [vars] de wrangler.toml.
+          # lib/env.ts et app/api/health) sans figurer dans [vars] de wrangler.toml ; VITFIX_BUILD_ID
+          # est la clé du cache HTML des pages publiques (lot 7 Sentry).
           vars: |
             NEXT_PUBLIC_SUPABASE_ANON_KEY
+            VITFIX_BUILD_ID
           # Sans wranglerVersion, l'action installe SA version par défaut
           # (vieille) au lieu de celle du lockfile : les assets @vercel/og de
           # next 16.x cassent son module-collector. 4.149.0 = version du
@@ -168,6 +176,49 @@ jobs:
         run: |
           echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://vitfix.io immédiatement"
           echo "Rollback: wrangler rollback ou redéployer le commit précédent via le workflow 'Deploy to Cloudflare Workers'"
+
+  # ── Préchauffage du cache HTML des pages publiques (lot 7 Sentry du 28/10/2026, ex post-deploy.yml) ──
+  # Le Worker met en cache le HTML des pages publiques (worker/cache-pages-publiques.ts, clé par déploiement) ;
+  # chaque URL des sitemaps PT, plus /pt/ et /fr/, est demandée une fois, en parallèle. Le Cache API des Workers
+  # est propre à chaque centre de données Cloudflare : lancé depuis un runner GitHub (en général aux États-Unis),
+  # ce préchauffage ne remplit que le cache du ou des centres de données qui servent ce runner. Il ne profite
+  # qu'aux requêtes routées vers ces mêmes centres de données, comme une partie de l'exploration de Googlebot
+  # (surtout depuis les États-Unis), pas aux visiteurs du Portugal, dont le centre de données se remplit à leurs
+  # propres visites. Best-effort : n'altère jamais le statut du déploiement (continue-on-error), 4 minutes au plus.
+  # Pas de checkout : curl, grep, sed, sort et xargs seulement.
+  prechauffage-cache:
+    name: Préchauffer le cache des pages publiques
+    needs: [deploy, smoke-test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    # Aucun jeton nécessaire : requêtes HTTPS vers vitfix.io seulement (moindre privilège).
+    permissions: {}
+    env:
+      PROD_URL: https://vitfix.io
+
+    steps:
+      - name: Préchauffer le cache des pages publiques PT
+        run: |
+          set -u
+          # HTTPS imposé, redirections comprises (SonarCloud S6506) : jamais de passage en clair.
+          recuperer() { curl -sL --proto =https --proto-redir =https "$@"; }
+          extraire_loc() { grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g'; }
+          sous_sitemaps=$(recuperer "$PROD_URL/pt/sitemap.xml" | extraire_loc)
+          urls=$( {
+            echo "$PROD_URL/pt/"
+            echo "$PROD_URL/fr/"
+            echo "$sous_sitemaps" | while read -r sitemap; do
+              if [ -n "$sitemap" ]; then recuperer "$sitemap" | extraire_loc; fi
+            done
+          } | sort -u)
+          echo "$(echo "$urls" | wc -l) URL à préchauffer"
+          echo "$urls" | timeout 240 xargs -r -P 8 -I '{}' curl -sL --proto =https --proto-redir =https -o /dev/null -w '%{http_code} %{time_starttransfer}s {}\n' '{}' > /tmp/prechauffage.txt || true
+          echo "réponses : $(wc -l < /tmp/prechauffage.txt)"
+          awk '{print $1}' /tmp/prechauffage.txt | sort | uniq -c
+          echo "les 5 plus lentes :"
+          sort -k2 -r /tmp/prechauffage.txt | head -5
 
   # ── IndexNow (ex indexnow-post-deploy.yml, lot 6 Aikido 28/10/2026) ──────────
   # Notifie Bing/Yandex/Naver/Seznam des URL de tous les sitemaps après chaque
