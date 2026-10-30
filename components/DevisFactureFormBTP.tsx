@@ -1200,11 +1200,28 @@ export default function DevisFactureFormBTP({
 
   /* ──────── Import client ──────── */
 
+  // Clients saisis à la main (localStorage `fixit_manual_clients_<artisan.id>`), lus à part de l'appel réseau
+  // pour rester proposés quand /api/artisan-clients échoue. Ne lève jamais : localStorage inaccessible ou JSON
+  // illisible → aucun client manuel.
+  const lireClientsManuels = (artisanId: string): typeof clientDb => {
+    try {
+      const brut = localStorage.getItem(`fixit_manual_clients_${artisanId}`)
+      if (!brut) return []
+      const clients = JSON.parse(brut)
+      if (!Array.isArray(clients)) throw new Error('liste attendue')
+      return clients
+    } catch (e: unknown) {
+      console.warn('[DevisBTP] clients manuels illisibles :', e instanceof Error ? e.message : e)
+      return []
+    }
+  }
+
   const openClientPicker = async () => {
     if (!artisan?.id) return
     setShowClientPicker(true)
     setClientDbLoading(true)
     setClientDbSearch('')
+    const clientsManuels = lireClientsManuels(artisan.id)
     try {
       // Appel authentifié (Bearer) comme les autres routes du dashboard : un fetch nu recevait 401 (lot 4 Sentry
       // du 28/10/2026). Un 403 (compte sans fiche artisan) n'a pas de clients enregistrés : clients manuels seuls.
@@ -1212,13 +1229,12 @@ export default function DevisFactureFormBTP({
       const data = await res.json().catch(() => ({}))
       if (!res.ok && res.status !== 403) throw new Error(data.error || `HTTP ${res.status}`)
       const authClients = (data.clients || []).map((c: Record<string, unknown>) => ({ ...c }))
-      const manualRaw = localStorage.getItem(`fixit_manual_clients_${artisan.id}`)
-      const manualClients = manualRaw ? JSON.parse(manualRaw) : []
-      setClientDb([...authClients, ...manualClients])
+      setClientDb([...authClients, ...clientsManuels])
     } catch (e: unknown) {
       console.warn('[DevisBTP] clients non chargés :', e instanceof Error ? e.message : e)
       toast.error('Impossible de charger vos clients enregistrés')
-      setClientDb([])
+      // Appel en échec (500, 429, réseau) : les clients saisis à la main restent proposés.
+      setClientDb(clientsManuels)
     }
     setClientDbLoading(false)
   }
@@ -1763,8 +1779,7 @@ export default function DevisFactureFormBTP({
       } catch { /* ignore */ }
     } else {
       try {
-        // Route authentifiée (401 sans Bearer) : appel authentifié.
-        const res = await fetchAuthentifie(`/api/service-etapes?service_id=${serviceId}`)
+        const res = await fetch(`/api/service-etapes?service_id=${serviceId}`)
         const json = await res.json()
         if (json.etapes?.length) {
           copiedEtapes = json.etapes.map((et: { id: string; ordre: number; designation: string }, i: number) => ({
