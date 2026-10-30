@@ -73,6 +73,26 @@ jobs:
           PAUSE_BUILD_SECONDES: "45"
         run: bash scripts/ci-build-avec-reprise.sh
 
+      # Pages pré-rendues servies par le Worker (open-next.config.ts : cache incrémental en assets statiques, lecture
+      # seule). Même copie que `opennextjs-cloudflare populateCache` pour ce cache (populateStaticAssetsIncrementalCache) ;
+      # si wrangler délègue le déploiement à `opennextjs-cloudflare deploy` (projet OpenNext détecté), la copie est refaite
+      # à l'identique. Cette étape la garantit, après la garde du pré-rendu (même script que ci.yml : planchers par
+      # section, pages témoins, aucun revalidate). Les fichiers de cdn-cgi/ ne sont lisibles que par le Worker, jamais
+      # servis tels quels aux visiteurs.
+      - name: Pages pré-rendues dans les assets du Worker
+        run: |
+          set -euo pipefail
+          node scripts/seo/verifier-prerendu.mjs
+          test -d .open-next/cache || { echo "::error::.open-next/cache absent : le build OpenNext n'a rien pré-rendu."; exit 1; }
+          mkdir -p .open-next/assets/cdn-cgi/_next_cache
+          cp -R .open-next/cache/. .open-next/assets/cdn-cgi/_next_cache/
+          nombre=$(find .open-next/assets/cdn-cgi/_next_cache -name '*.cache' | wc -l)
+          echo "Pages pré-rendues copiées : $nombre"
+          if [ "$nombre" -eq 0 ]; then
+            echo "::error::Aucune page pré-rendue (.cache) copiée : le Worker rendrait chaque page à la demande."
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         env:
@@ -157,6 +177,16 @@ jobs:
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage PT returned $HTTP_STATUS"
             exit 1
+          fi
+
+      # Pages pré-rendues servies depuis les assets du Worker : si la copie de .open-next/cache manquait ou si OpenNext
+      # changeait de chemin, chaque page serait de nouveau rendue à la demande, avec une réponse 200 quand même.
+      - name: Vérifier que les pages SEO viennent du cache
+        run: |
+          ENTETE=$(curl -sS --proto '=https' --proto-redir '=https' -o /dev/null -D - "$PROD_URL/pt/servicos/canalizador-porto/" | tr -d '\r' | grep -i '^x-nextjs-cache:' || true)
+          echo "/pt/servicos/canalizador-porto/ : ${ENTETE:-x-nextjs-cache absent}"
+          if ! printf '%s' "$ENTETE" | grep -qi 'HIT'; then
+            echo "::warning::/pt/servicos/canalizador-porto/ n'est pas servie depuis le cache des pages pré-rendues (attendu x-nextjs-cache: HIT)."
           fi
 
       - name: Résumé

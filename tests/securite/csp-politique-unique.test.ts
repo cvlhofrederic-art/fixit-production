@@ -118,7 +118,7 @@ describe('Content-Security-Policy', () => {
     // mesures des visiteurs de l'UE vers region1.google-analytics.com.
     expect(directive(politique, 'script-src')).toContain('https://www.googletagmanager.com')
     expect(directive(politique, 'connect-src')).toContain('https://*.google-analytics.com')
-    // app/pro/register/page.tsx : repli navigateur quand /api/verify-siret répond api_error.
+    // app/(commun)/pro/register/page.tsx : repli navigateur quand /api/verify-siret répond api_error.
     expect(directive(politique, 'connect-src')).toContain('https://recherche-entreprises.api.gouv.fr')
     expect(directive(politique, 'frame-ancestors')).toEqual(["'none'"])
   })

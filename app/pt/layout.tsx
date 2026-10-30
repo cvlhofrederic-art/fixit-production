@@ -1,6 +1,15 @@
 import type { Metadata } from 'next'
+import CoquilleRacine from '@/components/common/CoquilleRacine'
+import { metadonneesRacine } from '@/lib/seo/metadonnees-racine'
 
+// Layout racine des pages /pt/ (il n'y a plus de app/layout.tsx) : <html lang="pt-PT">, <head> et entité unique
+// #business viennent de la coquille commune (components/common/CoquilleRacine.tsx), avec la locale fixée par le
+// dossier, sans cookies() ni headers() ; les pages SEO (servicos, precos, perto-de-mim, blog, cidade) sont donc
+// pré-rendues au build et servies telles quelles par le Worker (cache en assets statiques, open-next.config.ts).
+// Métadonnées : celles de l'ancien layout racine (robots, verification,
+// authors…) puis les clés ci-dessous, comme Next les fusionnait entre app/layout.tsx et ce fichier.
 export const metadata: Metadata = {
+  ...metadonneesRacine('pt'),
   metadataBase: new URL('https://vitfix.io'),
   // Phase 1 SEO PT (point 1.4) : la marque une seule fois. Les pages fournissent un titre sans
   // marque (lib/seo/pt-meta.ts) et ce template l'ajoute ; cible 35 à 65 caractères.
@@ -36,5 +45,5 @@ export const metadata: Metadata = {
 }
 
 export default function PtLayout({ children }: { children: React.ReactNode }) {
-  return children
+  return <CoquilleRacine locale="pt">{children}</CoquilleRacine>
 }

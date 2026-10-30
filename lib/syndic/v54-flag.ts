@@ -31,7 +31,7 @@ export const SYNDIC_V54_FR_LIVE = true
 /**
  * Bascule de la version française du dashboard syndic classique (/fr/syndic/v54).
  *
- * Même route que le PT (app/syndic/v54) : la langue suit le préfixe d'URL relayé
+ * Même route que le PT (app/(commun)/syndic/v54) : la langue suit le préfixe d'URL relayé
  * par le middleware (en-tête x-locale).
  *   true  → /fr/syndic/v54 s'affiche en français (contenu adapté au droit français),
  *           et /syndic/dashboard renvoie les syndics francophones vers /fr/syndic/v54.

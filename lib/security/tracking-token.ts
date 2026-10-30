@@ -1,6 +1,6 @@
 /**
  * Jeton de session de suivi GPS (bucket Storage « tracking », objet {token}.json, écrit et relu en
- * service role). Le seul générateur est l'application mobile (app/pro/mobile/page.tsx) :
+ * service role). Le seul générateur est l'application mobile (app/(commun)/pro/mobile/page.tsx) :
  *
  *   `TRK-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
  *

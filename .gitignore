@@ -18,6 +18,9 @@
 # next.js
 /.next/
 /out/
+# OpenNext et wrangler en local (build, copie des pages pré-rendues, wrangler dev : plus d'1 Go)
+/.open-next/
+/.wrangler/
 
 # production
 /build

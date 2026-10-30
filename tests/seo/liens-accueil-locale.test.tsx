@@ -1,6 +1,6 @@
 // tests/seo/liens-accueil-locale.test.tsx
 //
-// Accueil FR et PT (app/page.tsx, rendu uniquement par /fr/ et /pt/) :
+// Accueil FR et PT (app/(commun)/page.tsx, rendu uniquement par /fr/ et /pt/) :
 // chaque lien interne doit viser l'URL finale de la locale de la page.
 // Avant correctif, les CTA visaient d'anciens chemins racine (/recherche/,
 // /pesquisar/, /pro/register/, /auth/login/, /contact/, /confidentialite/…)
@@ -41,7 +41,7 @@ class IntersectionObserverFactice {
 }
 vi.stubGlobal('IntersectionObserver', IntersectionObserverFactice)
 
-import HomePage from '@/app/page'
+import HomePage from '@/app/(commun)/page'
 import { LanguageProvider } from '@/lib/i18n/context'
 
 function rendreAccueil(locale: 'fr' | 'pt') {

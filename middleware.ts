@@ -74,6 +74,14 @@ function responseHasSensitiveCookie(response: NextResponse): boolean {
   })
 }
 
+// Chemins needsAuth (accueils /{locale}/, connexion, tableaux de bord…) : la réponse dépend de la session (redirection
+// d'un utilisateur connecté vers son espace, jeton rafraîchi). Les accueils sont des pages statiques depuis les layouts
+// statiques par langue, et Next leur enverrait `s-maxage=31536000` : on garde `private, no-store` comme avant, pour
+// qu'aucun cache partagé ne les garde. Le service depuis le cache des pages pré-rendues (x-nextjs-cache: HIT) ne dépend
+// pas de cet en-tête. Il prime sur celui de Next : next start ne remplace pas un Cache-Control existant, et OpenNext
+// donne la priorité aux en-têtes du middleware.
+const CACHE_CONTROL_PRIVE = 'private, no-cache, no-store, max-age=0, must-revalidate'
+
 function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
   const cookieLocale = request.cookies.get('locale')?.value
@@ -328,6 +336,7 @@ export async function middleware(request: NextRequest) {
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     return supabaseResponse
   }
 
@@ -436,6 +445,7 @@ export async function middleware(request: NextRequest) {
 
   supabaseResponse.headers.set('X-API-Version', '1.0.0')
   supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+  supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
 
   return supabaseResponse
 }

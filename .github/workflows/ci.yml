@@ -43,3 +43,9 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+
+      # Pages SEO pré-rendues au build (layouts par langue sans cookies() ni headers()). Une API dynamique ajoutée dans un
+      # layout, une page ou un helper importé les ferait repasser en rendu à la demande sans faire échouer le build : la
+      # garde lit .next/prerender-manifest.json (planchers par section, pages témoins, aucun revalidate).
+      - name: Vérifier le pré-rendu des pages SEO
+        run: node scripts/seo/verifier-prerendu.mjs

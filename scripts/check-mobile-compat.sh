@@ -2,7 +2,7 @@
 # =============================================================================
 # check-mobile-compat.sh
 # =============================================================================
-# Scan `app/pro/mobile/` + composants `components/pro-mobile/` pour interdire
+# Scan `app/(commun)/pro/mobile/` + composants `components/pro-mobile/` pour interdire
 # les patterns SSR-only qui cassent silencieusement en build statique
 # (output: 'export' utilisé par build-mobile.sh pour packager Capacitor).
 #
@@ -22,9 +22,15 @@ set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGETS=(
-  "$PROJECT_ROOT/app/pro/mobile"
+  "$PROJECT_ROOT/app/(commun)/pro/mobile"
   "$PROJECT_ROOT/components/pro-mobile"
 )
+
+# app/(commun)/pro/mobile est obligatoire : s'il manque, il a été déplacé sans mettre à jour ce script.
+if [[ ! -d "$PROJECT_ROOT/app/(commun)/pro/mobile" ]]; then
+  echo "[check-mobile-compat] app/(commun)/pro/mobile introuvable : chemin à mettre à jour dans ce script." >&2
+  exit 1
+fi
 
 # Filtrer les cibles existantes (components/pro-mobile peut ne pas exister)
 EXISTING=()

@@ -10,7 +10,7 @@
 // (au-delà, `truncated: true` — à brancher sur une agrégation serveur le jour
 // où un compte dépasse 5000 réservations).
 //
-// Le dashboard client (app/client/dashboard) charge déjà tous ses bookings
+// Le dashboard client (app/(commun)/client/dashboard) charge déjà tous ses bookings
 // sans limite ; la RLS bookings_participant_read autorise l'artisan à lire
 // l'intégralité de ses propres bookings (migration 041).
 

@@ -32,7 +32,7 @@ Tout le code vit sous quatre racines et n'importe rien du logiciel Syndic :
 
 | Racine | Contenu |
 |---|---|
-| `app/administrateur-judiciaire/` | layout (garde, noindex, CSS) et page |
+| `app/(commun)/administrateur-judiciaire/` | layout (garde, noindex, CSS) et page |
 | `components/administrateur-judiciaire/` | application cliente : `shell/`, `ui/` (primitives), `modules/<section>/` (76 écrans), `data/` (démo), `styles/aj.css` |
 | `lib/administrateur-judiciaire/` | `mode.ts`, `store.ts`, `selection.ts`, `db/` (Dexie), `domain/` (délais légaux, fondements, actes, Fixy, imports…) |
 | `tests/administrateur-judiciaire/` | tests vitest (oracle, correctifs, base locale) |
