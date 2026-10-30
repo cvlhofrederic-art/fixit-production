@@ -531,6 +531,20 @@ describe('sources — sinistres, équipements, diagnostics', () => {
     expect(depuisSinistres([{ id: 'S3', mandatId: 'M1', libelle: 'x', fiche: clos }])).toEqual([])
   })
 
+  it('sinistre sans date de suivi en phase « Mission d’expertise » : élément « à déclarer » gardé, libellé « à vérifier »', () => {
+    const fiche = creerSinistre(saisieSinistre({ phase: "Mission d'expertise" }))
+    expect(depuisSinistres([{ id: 'S4', mandatId: 'M1', libelle: 'Dégât des eaux', fiche }]).find((e) => e.nature === 'a_declarer')).toMatchObject({
+      id: 'sinistres:S4:a_declarer',
+      libelle: "Dégât des eaux — déclaration non datée (phase « Mission d'expertise ») : à vérifier",
+      date: reperesDelaisSinistre(fiche).declarationAuPlusTard,
+      aConfirmer: true,
+    })
+    const generale = creerSinistre(saisieSinistre({ phase: 'Général' }))
+    expect(depuisSinistres([{ id: 'S5', mandatId: 'M1', libelle: 'Dégât des eaux', fiche: generale }]).find((e) => e.nature === 'a_declarer')?.libelle).toBe(
+      'Dégât des eaux',
+    )
+  })
+
   it('équipement : remplacement et révision, même dépassés ; fin de garantie seulement si elle est à venir', () => {
     expect(depuisEquipements([{ id: 'EQ1', mandatId: 'M1', libelle: 'Porte de garage', fiche: equipement() }], AUJOURDHUI)).toEqual([
       {

@@ -24,6 +24,7 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
 import { echeancesDiagnostics, type Diagnostic } from '@/lib/administrateur-judiciaire/domain/immeuble-juridique'
 import {
   etapeSuiviSinistre,
+  phaseApresDeclaration,
   reperesDelaisSinistre,
   statutSinistre,
   type FicheSinistre,
@@ -574,11 +575,18 @@ export function depuisFactures(factures: FactureSuivie[], aujourdhui: string): E
   })
 }
 
+/** Sans date de suivi, une phase saisie qui suit la déclaration (phaseApresDeclaration) : à vérifier, pas à déclarer. */
+const libelleADeclarer = (libelle: string, fiche: FicheSinistre): string => {
+  const phase = phaseApresDeclaration(fiche)
+  return phase === null ? libelle : `${libelle} — déclaration non datée (phase « ${phase} ») : à vérifier`
+}
+
 /**
  * Sinistre en cours : repère de déclaration tant qu'il n'est pas déclaré, et prescription (sinistres.ts) — deux repères
  * indicatifs, 🔴 à confirmer : le contrat peut allonger le délai de déclaration. Indemnité différée non réglée : à
  * réclamer depuis le règlement de l'indemnité immédiate (à défaut le rapport, la déclaration, la survenance) ; c'est un
- * suivi de gestion, pas un repère légal.
+ * suivi de gestion, pas un repère légal. Sans date de suivi, une phase saisie qui suit la déclaration garde l'élément
+ * « à déclarer » (même critère du réglage), libellé « déclaration non datée … : à vérifier » (declaration-sinistre.ts).
  */
 export function depuisSinistres(
   items: { id: string; mandatId: string; libelle: string; fiche: FicheSinistre; delaiContratJoursOuvres?: number }[],
@@ -589,7 +597,13 @@ export function depuisSinistres(
     const champs = { libelle, mandatId, objetId: id, aConfirmer: true }
     const elements: ElementAFaire[] = []
     if (etapeSuiviSinistre(fiche) === 'a_declarer')
-      elements.push(elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, { ...champs, date: reperes.declarationAuPlusTard }))
+      elements.push(
+        elementSuivi('sinistres', 'a_declarer', `${id}:a_declarer`, {
+          ...champs,
+          libelle: libelleADeclarer(libelle, fiche),
+          date: reperes.declarationAuPlusTard,
+        }),
+      )
     elements.push(elementSuivi('sinistres', 'prescription', `${id}:prescription`, { ...champs, date: reperes.prescription }))
     if (fiche.indemniteDiffereeCentimes > 0 && !fiche.indemniteDiffereeReglee)
       elements.push(
