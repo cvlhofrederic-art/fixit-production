@@ -1,25 +1,17 @@
 'use client'
 
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { LIENS_ENTETE_PIED } from '@/lib/i18n/liens-entete-pied'
 import LocaleLink from '@/components/common/LocaleLink'
 
-// Locale-aware paths for pages that have different slugs per locale
+// Liens rendus seulement en FR et PT : plan du site ; hub des villes (phase 1 SEO PT, point 1.8) et hubs de section
+// (phase 4), pour PT seulement. Liens rendus dans toutes les langues : lib/i18n/liens-entete-pied.ts.
 const localePaths = {
-  search:       { fr: '/recherche', pt: '/pesquisar', en: '/search' },
-  pricing:      { fr: '/tarifs', pt: '/precos', en: '/pricing' },
-  reviews:      { fr: '/avis', pt: '/avaliacoes', en: '/reviews' },
-  legalNotice:  { fr: '/mentions-legales', pt: '/avisos-legais', en: '/legal-notices' },
-  terms:        { fr: '/cgu', pt: '/termos', en: '/terms' },
-  privacy:      { fr: '/confidentialite', pt: '/privacidade', en: '/privacy' },
-  cookies:      { fr: '/cookies', pt: '/politica-cookies', en: '/cookie-policy' },
-  sitemap:      { fr: '/plan-du-site', pt: '/mapa-do-site', en: '/sitemap' },
-  // Phase 1 SEO PT (point 1.8) : slug PT du contact et hub des villes ; phase 4 : hubs de section
-  // (rendus pour PT seulement).
-  contact:      { fr: '/contact', pt: '/contacto', en: '/contact' },
-  cities:       { fr: '/ville', pt: '/cidade', en: '/cities' },
-  services:     { fr: '/services', pt: '/servicos', en: '/services' },
-  urgency:      { fr: '/urgence', pt: '/urgencia', en: '/emergency' },
-  nearMe:       { fr: '/pres-de-chez-moi', pt: '/perto-de-mim', en: '/near-me' },
+  sitemap:      { fr: '/plan-du-site', pt: '/mapa-do-site' },
+  cities:       { fr: '/ville', pt: '/cidade' },
+  services:     { fr: '/services', pt: '/servicos' },
+  urgency:      { fr: '/urgence', pt: '/urgencia' },
+  nearMe:       { fr: '/pres-de-chez-moi', pt: '/perto-de-mim' },
 } as const
 
 export default function Footer() {
@@ -49,7 +41,7 @@ export default function Footer() {
             </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href={lp('search')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.recherche[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.findArtisan')}
                 </LocaleLink>
               </li>
@@ -59,12 +51,12 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={lp('pricing')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.tarifs[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.pricing')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={lp('reviews')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.avis[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.reviews')}
                 </LocaleLink>
               </li>
@@ -102,22 +94,22 @@ export default function Footer() {
             </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href="/pro/register" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.devenirPartenaire[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.becomePartner')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/pro/tarifs" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.offresPro[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.offers')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/auth/login" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.connexion[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.login')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href="/pro/faq" className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.faqPro[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.faq')}
                 </LocaleLink>
               </li>
@@ -131,27 +123,27 @@ export default function Footer() {
             </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href={lp('legalNotice')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.mentionsLegales[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.legalNotice')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={lp('terms')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.cgu[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.terms')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={lp('privacy')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.confidentialite[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.privacy')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={lp('cookies')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.cookies[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.cookies')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={lp('contact')} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={LIENS_ENTETE_PIED.contact[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.contact')}
                 </LocaleLink>
               </li>
