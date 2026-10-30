@@ -73,15 +73,6 @@ export interface Availability {
   is_available: boolean
 }
 
-export interface Booking {
-  id: string
-  artisan_id: string
-  booking_date: string
-  booking_time: string
-  duration_minutes: number | null
-  status: string
-}
-
 // ------------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------------
@@ -129,14 +120,12 @@ function StarsRow({ rating, reviewCount, locale = 'fr' }: { rating: number; revi
 export interface ArtisanCardProps {
   artisan: Artisan
   availability: Availability[]
-  bookings: Booking[]
   locale: 'fr' | 'pt'
 }
 
 export function ArtisanCard({
   artisan,
   availability,
-  bookings,
   locale,
 }: ArtisanCardProps) {
   // Normalise les noms ALL CAPS issus de SIRENE → "FREDERIC NEIVA CARVALHO" → "Frédéric Neiva Carvalho"

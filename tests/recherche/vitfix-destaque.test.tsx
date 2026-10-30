@@ -72,7 +72,7 @@ describe('lib/recherche/vitfix-destaque', () => {
 describe('ArtisanCard : fiche VITFIX (PT)', () => {
   it('affiche le badge certifié et le numéro cliquable, sans « Agendar visita » ni lien de profil', () => {
     const { getByText, queryByText, container } = render(
-      <ArtisanCard artisan={cartaoVitfix('plomberie')} availability={[]} bookings={[]} locale="pt" />,
+      <ArtisanCard artisan={cartaoVitfix('plomberie')} availability={[]} locale="pt" />,
     )
     expect(getByText('VITFIX')).toBeTruthy()
     expect(getByText('Profissional certificado')).toBeTruthy()
@@ -88,7 +88,7 @@ describe('ArtisanCard : fiche VITFIX (PT)', () => {
 
   it('un inscrit ordinaire garde « Agendar visita » (rendu inchangé)', () => {
     const { getByText, container } = render(
-      <ArtisanCard artisan={artisan('a', 'Alpha')} availability={[]} bookings={[]} locale="pt" />,
+      <ArtisanCard artisan={artisan('a', 'Alpha')} availability={[]} locale="pt" />,
     )
     expect(getByText('Agendar visita')).toBeTruthy()
     expect(container.querySelector('a[href^="tel:"]')).toBeNull()
