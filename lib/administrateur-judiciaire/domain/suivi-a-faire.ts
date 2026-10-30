@@ -427,7 +427,7 @@ function dateEtapeAFaire(etape: Etape & { aFaireLe?: string | null }): string | 
   const dates = [etape.aFaireLe, etape.alerteSecurite, etape.limite].filter((d): d is string => typeof d === 'string')
   if (dates.length === 0) return null
   for (const d of dates) verifierDate(d, `Date de l'étape ${etape.id}`)
-  return dates.reduce((a, b) => (a < b ? a : b))
+  return dates.reduce((a, b) => (a < b ? a : b), dates[0])
 }
 
 /**

@@ -327,7 +327,11 @@ export interface ProgrammationEtape {
   accuseAuDemandeur?: boolean
 }
 
-const garder = <T>(saisi: T | undefined, actuel: T): T => (saisi === undefined ? actuel : saisi)
+/** Champ absent : valeur actuelle ; null est une valeur saisie (effacement), d'où pas de « ?? ». */
+function garder<T>(saisi: T | undefined, actuel: T): T {
+  if (saisi === undefined) return actuel
+  return saisi
+}
 
 export function programmerEtape(etape: EtapeDossier, programmation: ProgrammationEtape): EtapeDossier {
   verifierDateFacultative(programmation.aFaireLe, 'Date « à faire le »')
