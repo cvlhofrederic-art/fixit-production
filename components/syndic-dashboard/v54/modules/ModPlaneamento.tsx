@@ -18,6 +18,7 @@ import type { Evento } from '@/lib/syndic/v54/api'
 import { useSyndicCreate } from './use-syndic-create'
 import { useMessages, useV54Locale } from '@/lib/syndic/v54/i18n'
 import { PLANEAMENTO_MESSAGES, type EvenementPlanning } from './i18n/ModPlaneamento.messages'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 
 /** Planeamento — port byte-exact du ModPlaneamento du bundle V5.7 (agenda semaine, stateful).
  * CSS bespoke dans ./planeamento.css (scopé #syndic-dashboard-v54), importé dans le layout dev.
@@ -221,7 +222,7 @@ export default function ModPlaneamento() {
             <Fragment key={`row-${slot.idx}`}>
               <div className="week-hour">{slot.label}</div>
               {visibleDays.map(d => (
-                <div key={`c-${d.key}-${slot.idx}`} className="week-cell" onClick={() => push({ kind: 'info', title: t.toasts.nouvelEvenement, desc: t.toasts.jourA(d.long, slot.label) })} role="button" tabIndex={-1} />
+                <div key={`c-${d.key}-${slot.idx}`} className="week-cell" onClick={() => push({ kind: 'info', title: t.toasts.nouvelEvenement, desc: t.toasts.jourA(d.long, slot.label) })} onKeyDown={surActivationClavier(() => push({ kind: 'info', title: t.toasts.nouvelEvenement, desc: t.toasts.jourA(d.long, slot.label) }))} role="button" tabIndex={-1} />
               ))}
             </Fragment>
           ))}
