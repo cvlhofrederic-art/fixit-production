@@ -4,13 +4,20 @@ import { useState, type ReactNode } from 'react'
 import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { FormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
+import {
+  champCoproprieteChoisie,
+  titreListeVide,
+  useCoproChoisie,
+} from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Sinistre déclaré à l'assureur de la copropriété (démonstration). pill : couleur de l'étiquette de statut. */
 export interface SinistreDemo {
@@ -67,13 +74,18 @@ interface FicheSinistre {
 }
 
 /**
- * Sinistres (registre de démonstration). La déclaration passe par une FormModal sans validation, suivie d'un
- * toast « Simulation » ; l'indicateur « Assureurs » est en dur.
+ * Sinistres (registre de démonstration), affiché selon la copropriété choisie dans le sélecteur du haut de page :
+ * sinistres filtrés, indicateurs calculés sur eux (« Assureurs » : assureurs distincts, dans l'ordre d'apparition),
+ * déclaration préremplie avec la copropriété. La déclaration passe par une FormModal sans validation, suivie d'un
+ * toast « Simulation ».
  */
 export function SinistresModule() {
   const { push } = useToast()
   const [declarationOuverte, setDeclarationOuverte] = useState(false)
   const [fiche, setFiche] = useState<FicheSinistre | null>(null)
+  const { code, nom } = useCoproChoisie()
+  const sinistres = filtrerParCopro(DEMO_SINISTRES, code, (sinistre) => codeDeNomCopro(sinistre.copro))
+  const assureurs = [...new Set(sinistres.map((sinistre) => sinistre.assureur))]
 
   return (
     <>
@@ -92,108 +104,112 @@ export function SinistresModule() {
         items={[
           {
             icon: 'shield',
-            num: DEMO_SINISTRES.length,
+            num: sinistres.length,
             lbl: 'Sinistres suivis',
             sub: 'sur 12 mois',
           },
           {
             icon: 'clock',
-            num: DEMO_SINISTRES.filter((sinistre) => sinistre.pill === 'amber').length,
+            num: sinistres.filter((sinistre) => sinistre.pill === 'amber').length,
             lbl: 'En cours',
             sub: 'déclaré / expertise',
             accent: 'amber',
           },
           {
             icon: 'check',
-            num: DEMO_SINISTRES.filter((sinistre) => sinistre.pill === 'sage').length,
+            num: sinistres.filter((sinistre) => sinistre.pill === 'sage').length,
             lbl: 'Clôturés',
             sub: 'indemnisés',
             accent: 'sage',
           },
           {
             icon: 'doc',
-            num: 2,
+            num: assureurs.length,
             lbl: 'Assureurs',
-            sub: 'MMA · AXA',
+            sub: assureurs.join(' · '),
           },
         ]}
       />
       <Panel title="Suivi des sinistres" sub="Référence · objet · état" icon="shield" flush>
-        <DataTable
-          rowKey="id"
-          columns={[
-            {
-              h: 'Référence',
-              render: (sinistre) => (
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: 12,
-                  }}
-                >
-                  {sinistre.id}
-                </span>
-              ),
-            },
-            {
-              h: 'Objet',
-              render: (sinistre) => (
-                <b
-                  style={{
-                    fontWeight: 600,
-                  }}
-                >
-                  {sinistre.objet}
-                </b>
-              ),
-            },
-            {
-              h: 'Copropriété',
-              render: (sinistre) => sinistre.copro,
-            },
-            {
-              h: 'Date',
-              render: (sinistre) => sinistre.date,
-            },
-            {
-              h: 'Assureur',
-              render: (sinistre) => sinistre.assureur,
-            },
-            {
-              h: 'Statut',
-              render: (sinistre) => <Pill kind={sinistre.pill}>{sinistre.statut}</Pill>,
-            },
-          ]}
-          rows={DEMO_SINISTRES}
-          onRow={(sinistre) =>
-            setFiche({
-              title: `${sinistre.objet}`,
-              icon: 'shield',
-              fields: [
-                {
-                  k: 'Référence',
-                  v: sinistre.id,
-                },
-                {
-                  k: 'Copropriété',
-                  v: sinistre.copro,
-                },
-                {
-                  k: 'Date',
-                  v: sinistre.date,
-                },
-                {
-                  k: 'Assureur',
-                  v: sinistre.assureur,
-                },
-                {
-                  k: 'Statut',
-                  v: sinistre.statut,
-                },
-              ],
-            })
-          }
-        />
+        {sinistres.length === 0 ? (
+          <EmptyState icon="shield" title={titreListeVide('Aucun sinistre', nom)} />
+        ) : (
+          <DataTable
+            rowKey="id"
+            columns={[
+              {
+                h: 'Référence',
+                render: (sinistre) => (
+                  <span
+                    className="mono"
+                    style={{
+                      fontSize: 12,
+                    }}
+                  >
+                    {sinistre.id}
+                  </span>
+                ),
+              },
+              {
+                h: 'Objet',
+                render: (sinistre) => (
+                  <b
+                    style={{
+                      fontWeight: 600,
+                    }}
+                  >
+                    {sinistre.objet}
+                  </b>
+                ),
+              },
+              {
+                h: 'Copropriété',
+                render: (sinistre) => sinistre.copro,
+              },
+              {
+                h: 'Date',
+                render: (sinistre) => sinistre.date,
+              },
+              {
+                h: 'Assureur',
+                render: (sinistre) => sinistre.assureur,
+              },
+              {
+                h: 'Statut',
+                render: (sinistre) => <Pill kind={sinistre.pill}>{sinistre.statut}</Pill>,
+              },
+            ]}
+            rows={sinistres}
+            onRow={(sinistre) =>
+              setFiche({
+                title: `${sinistre.objet}`,
+                icon: 'shield',
+                fields: [
+                  {
+                    k: 'Référence',
+                    v: sinistre.id,
+                  },
+                  {
+                    k: 'Copropriété',
+                    v: sinistre.copro,
+                  },
+                  {
+                    k: 'Date',
+                    v: sinistre.date,
+                  },
+                  {
+                    k: 'Assureur',
+                    v: sinistre.assureur,
+                  },
+                  {
+                    k: 'Statut',
+                    v: sinistre.statut,
+                  },
+                ],
+              })
+            }
+          />
+        )}
       </Panel>
       <FormModal
         open={declarationOuverte}
@@ -206,11 +222,11 @@ export function SinistresModule() {
             required: true,
             full: true,
           },
-          {
+          champCoproprieteChoisie(nom, {
             label: 'Copropriété',
             type: 'select',
             options: DEMO_NOMS_COPROPRIETES,
-          },
+          }),
           {
             label: 'Date de survenance',
             type: 'date',

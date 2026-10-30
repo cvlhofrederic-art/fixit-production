@@ -1,28 +1,41 @@
 'use client'
 
 import { useState } from 'react'
-import { DEMO_COPROPRIETES, DEMO_TOTAL_BUDGET } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { DEMO_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import {
   DEMO_LIGNES_FONDS_TRAVAUX,
   type LigneFondsTravaux,
 } from '@/components/administrateur-judiciaire/data/fonds-travaux'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import type { CoproprieteAffichee } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
+
+/** Cotisation annuelle minimale au fonds travaux : 5 % du budget prévisionnel (loi ALUR, art. 14-2). */
+const cotisationMinimale = (budget: number): number => Math.round(budget * 0.05)
 
 /**
- * Fonds travaux obligatoire (loi ALUR, art. 14-2) par copropriété de démonstration. « Appel de cotisation » ouvre un
- * avis d'appel de fonds généré (simulé). Les sorties (12 100 €) sont saisies en dur.
+ * Fonds travaux obligatoire (loi ALUR, art. 14-2) de la copropriété choisie en haut de page (données de
+ * démonstration) ; sans copropriété choisie (écran rendu seul), toutes les copropriétés et leurs cumuls.
+ * « Appel de cotisation » ouvre un avis d'appel de fonds généré (simulé). Les sorties (12 100 €) sont un cumul saisi
+ * en dur, sans détail par copropriété : « — » quand une copropriété est choisie.
  */
 export function FondsTravauxModule() {
   const { push } = useToast()
   const [ligneOuverte, setLigneOuverte] = useState<LigneFondsTravaux | null>(null)
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const perimetre: readonly Pick<CoproprieteAffichee, 'budget' | 'fondsTravaux'>[] = code ? [copro] : DEMO_COPROPRIETES
+  const lignes = filtrerParCopro(DEMO_LIGNES_FONDS_TRAVAUX, code, (ligne) => codeDeNomCopro(ligne[0]))
 
   return (
     <>
@@ -40,7 +53,7 @@ export function FondsTravauxModule() {
                 title: "Avis d'appel de fonds",
                 eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
                 docTitle: "Avis d'appel de fonds — 2ᵉ trimestre 2026",
-                meta: 'Résidence Le Méridien · échéance 01/07/2026',
+                meta: `${code ? copro.nom : 'Résidence Le Méridien'} · échéance 01/07/2026`,
                 lines: [
                   'Conformément au budget prévisionnel voté, vous êtes appelé à régler votre quote-part de charges pour le 2ᵉ trimestre 2026.',
                   {
@@ -71,59 +84,63 @@ export function FondsTravauxModule() {
         items={[
           {
             icon: 'bank',
-            num: formatEuros(DEMO_COPROPRIETES.reduce((total, copro) => total + copro.fondsTravaux, 0)),
+            num: formatEuros(perimetre.reduce((total, candidate) => total + candidate.fondsTravaux, 0)),
             lbl: 'Solde total',
             accent: 'sage',
           },
           {
             icon: 'arrow',
-            num: formatEuros(Math.round(DEMO_TOTAL_BUDGET * 0.05)),
+            num: formatEuros(cotisationMinimale(perimetre.reduce((total, candidate) => total + candidate.budget, 0))),
             lbl: 'Cotisations annuelles',
           },
           {
             icon: 'wrench',
-            num: formatEuros(12100),
+            num: code ? '—' : formatEuros(12100),
             lbl: 'Sorties (travaux)',
           },
           {
             icon: 'alert',
-            num: DEMO_COPROPRIETES.filter((copro) => copro.fondsTravaux < Math.round(copro.budget * 0.05)).length,
+            num: perimetre.filter((candidate) => candidate.fondsTravaux < cotisationMinimale(candidate.budget)).length,
             lbl: 'Fonds insuffisant',
             accent: 'rust',
           },
         ]}
       />
       <Panel title="Fonds travaux par copropriété" icon="bank" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Copropriété',
-              render: (ligne) => <b>{ligne[0]}</b>,
-            },
-            {
-              h: 'Solde',
-              render: (ligne) => <span className="mono">{ligne[1]}</span>,
-            },
-            {
-              h: 'Cotisation annuelle',
-              render: (ligne) => <span className="mono">{ligne[2]}</span>,
-            },
-            {
-              h: 'Dernière contribution',
-              render: (ligne) => <span className="mono">{ligne[3]}</span>,
-            },
-            {
-              h: 'État',
-              render: (ligne) => (
-                <Pill kind={ligne[4] === 'suffisant' ? 'sage' : 'rust'} noDot>
-                  {ligne[4]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={DEMO_LIGNES_FONDS_TRAVAUX}
-          onRow={setLigneOuverte}
-        />
+        {lignes.length > 0 ? (
+          <DataTable
+            columns={[
+              {
+                h: 'Copropriété',
+                render: (ligne) => <b>{ligne[0]}</b>,
+              },
+              {
+                h: 'Solde',
+                render: (ligne) => <span className="mono">{ligne[1]}</span>,
+              },
+              {
+                h: 'Cotisation annuelle',
+                render: (ligne) => <span className="mono">{ligne[2]}</span>,
+              },
+              {
+                h: 'Dernière contribution',
+                render: (ligne) => <span className="mono">{ligne[3]}</span>,
+              },
+              {
+                h: 'État',
+                render: (ligne) => (
+                  <Pill kind={ligne[4] === 'suffisant' ? 'sage' : 'rust'} noDot>
+                    {ligne[4]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={lignes}
+            onRow={setLigneOuverte}
+          />
+        ) : (
+          <EmptyState icon="bank" title={`Aucun fonds travaux pour ${copro.nom}`} />
+        )}
       </Panel>
       <DetailModal
         open={!!ligneOuverte}

@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { FixyDemande } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyDemande'
 import { FixyVeille } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/FixyVeille'
 import { useFixy } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useFixy'
+import { useVeilleSelonCopro } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useVeilleSelonCopro'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import type { ActionFixy } from '@/lib/administrateur-judiciaire/domain/fixy/agents'
-import type { RappelVeille } from '@/lib/administrateur-judiciaire/domain/fixy/veille'
+import { porteeRoute } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Valeur renvoyée par useFixy (données, veille, exécution des actions, notifications). */
 type Fixy = ReturnType<typeof useFixy>
@@ -21,16 +22,18 @@ export interface FixyLauncherProps {
 
 /**
  * Bouton flottant « Fixy » (avec le nombre de rappels urgents) ouvrant une fenêtre : veille (3 rappels au plus,
- * exécutables) et zone de demande compacte. Absent de l'écran Fixy.
+ * exécutables) et zone de demande compacte. Absent de l'écran Fixy. La veille est celle de la copropriété choisie en
+ * haut de page, celle de tout le portefeuille sur les vues générales (« Aujourd'hui », « Tableau de bord », cabinet).
  */
 export function FixyLauncher({ route, fixy }: FixyLauncherProps) {
   const [ouvert, setOuvert] = useState(false)
   // Appel inconditionnel (règles des hooks), même quand le Shell fournit déjà son instance.
   const fixyInterne = useFixy()
   const fixyActif = fixy || fixyInterne
+  const generale = porteeRoute(route) === 'generale'
+  const { veille, nbUrgents: nbRappelsUrgents } = useVeilleSelonCopro(fixyActif, generale)
   const [faites, setFaites] = useState<string[]>([])
   const [enCours, setEnCours] = useState<string | null>(null)
-  const nbRappelsUrgents = fixyActif.veille.filter((rappel: RappelVeille) => rappel.gravite === 'rust').length
 
   if (route === 'fixy') return null
 
@@ -135,7 +138,7 @@ export function FixyLauncher({ route, fixy }: FixyLauncherProps) {
               <Icon name="ban" />
             </button>
           </div>
-          {fixyActif.veille.length > 0 && (
+          {veille.length > 0 && (
             <div
               style={{
                 marginBottom: 10,
@@ -153,10 +156,18 @@ export function FixyLauncher({ route, fixy }: FixyLauncherProps) {
               >
                 {'À signaler '}
                 <Pill kind={nbRappelsUrgents ? 'rust' : 'amber'} noDot>
-                  {fixyActif.veille.length}
+                  {veille.length}
                 </Pill>
               </div>
-              <FixyVeille veille={fixyActif.veille} faites={faites} onAction={executerAction} enCours={enCours} max={3} />
+              {/* Vue générale : la page Fixy, elle, ne montre que la veille de la copropriété choisie. */}
+              <FixyVeille
+                veille={veille}
+                faites={faites}
+                onAction={executerAction}
+                enCours={enCours}
+                max={3}
+                lieuDesAutres={generale ? 'sur tout le portefeuille' : undefined}
+              />
             </div>
           )}
           <FixyDemande fixy={fixyActif} compact />

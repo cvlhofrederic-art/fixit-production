@@ -7,7 +7,9 @@ import {
   MODELES_MESSAGES_COPROPRIETAIRES,
   type EnvoiMessageCoproprietaires,
 } from '@/components/administrateur-judiciaire/data/messages-coproprietaires'
+import { optionsAvecNom, titreListeVide, useCoproChoisie, useNomCoproSuivi } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Field, FieldRow } from '@/components/administrateur-judiciaire/ui/Field'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
@@ -15,6 +17,8 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
+import { filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Canal d'envoi des messages aux copropriétaires. */
 export type CanalMessageCoproprietaires = EnvoiMessageCoproprietaires[3]
@@ -26,13 +30,18 @@ const CANAUX_MESSAGE: readonly CanalMessageCoproprietaires[] = ['SMS', 'Email']
  * Messages aux copropriétaires (barre latérale : « WhatsApp / SMS » ; surtitre « Gestion courante »).
  * L'envoi est simulé : un message vide affiche « Message vide », sinon un toast « Simulation » précise
  * qu'aucun message n'a été envoyé. Onglets autonomes ; le tableau des derniers envois n'est pas cliquable.
+ * Le select « Copropriété » suit la copropriété choisie en haut de page (et la change) ; les derniers envois sont ceux
+ * de cette copropriété. Sans copropriété choisie, select local et tous les envois, comme avant.
  */
 export function MessagesCoproprietairesModule() {
   const { push } = useToast()
   const [canal, setCanal] = useState<CanalMessageCoproprietaires>('SMS')
   const [modele, setModele] = useState('')
   const [message, setMessage] = useState('')
-  const [copropriete, setCopropriete] = useState(DEMO_NOMS_COPROPRIETES[0])
+  const [copropriete, setCopropriete] = useNomCoproSuivi(DEMO_NOMS_COPROPRIETES[0])
+  const nomsCoproprietes = useNomsCoproprietesSelonMode()
+  const { code, nom: nomCopro, codeDeNom } = useCoproChoisie()
+  const envois = filtrerParCopro(DEMO_ENVOIS_MESSAGES_COPROPRIETAIRES, code, (envoi) => codeDeNom(envoi[1]))
 
   return (
     <>
@@ -98,7 +107,7 @@ export function MessagesCoproprietairesModule() {
                 value={copropriete}
                 onChange={(evenement) => setCopropriete(evenement.target.value)}
               >
-                {DEMO_NOMS_COPROPRIETES.map((nom) => (
+                {optionsAvecNom(nomsCoproprietes, copropriete).map((nom) => (
                   <option key={nom}>{nom}</option>
                 ))}
               </select>
@@ -197,35 +206,39 @@ export function MessagesCoproprietairesModule() {
         }}
       />
       <Panel title="Derniers envois" icon="mail" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Objet',
-              render: (envoi) => <b>{envoi[0]}</b>,
-            },
-            {
-              h: 'Copropriété',
-              render: (envoi) => envoi[1],
-            },
-            {
-              h: 'Destinataires',
-              render: (envoi) => envoi[2],
-            },
-            {
-              h: 'Canal',
-              render: (envoi) => <Pill noDot>{envoi[3]}</Pill>,
-            },
-            {
-              h: 'Statut',
-              render: (envoi) => (
-                <Pill kind={envoi[4] === 'lu' ? 'sage' : 'gold'} noDot>
-                  {envoi[4]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={DEMO_ENVOIS_MESSAGES_COPROPRIETAIRES}
-        />
+        {code && envois.length === 0 ? (
+          <EmptyState icon="mail" title={titreListeVide('Aucun envoi', nomCopro)} />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                h: 'Objet',
+                render: (envoi) => <b>{envoi[0]}</b>,
+              },
+              {
+                h: 'Copropriété',
+                render: (envoi) => envoi[1],
+              },
+              {
+                h: 'Destinataires',
+                render: (envoi) => envoi[2],
+              },
+              {
+                h: 'Canal',
+                render: (envoi) => <Pill noDot>{envoi[3]}</Pill>,
+              },
+              {
+                h: 'Statut',
+                render: (envoi) => (
+                  <Pill kind={envoi[4] === 'lu' ? 'sage' : 'gold'} noDot>
+                    {envoi[4]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={envois}
+          />
+        )}
       </Panel>
     </>
   )

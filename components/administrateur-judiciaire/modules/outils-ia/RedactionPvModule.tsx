@@ -5,6 +5,7 @@ import MarkdownIA from '@/components/common/MarkdownIA'
 import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { RESOLUTIONS_PROJET_PV } from '@/components/administrateur-judiciaire/data/redaction-pv'
 import { ChampCoproprieteDemo } from '@/components/administrateur-judiciaire/modules/ChampCoproprieteDemo'
+import { useNomCoproSuivi } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import {
   STYLE_BOUTON_ATTENTE,
   demanderTexteOutilIA,
@@ -47,11 +48,12 @@ function texteProjetPv(copropriete: string, resolutionsSelectionnees: readonly n
  * « Générer le PV » demande à l'assistant IA (Claude, via /api/administrateur-judiciaire/outils) un projet de PV pour
  * la copropriété et les résolutions choisies, avec le mandat enregistré dans la base ; le projet (Markdown, mentions
  * [À COMPLÉTER]) remplace l'aperçu tant que la sélection ne change pas. « Copier » copie le texte affiché.
+ * Le select « Copropriété » suit la copropriété choisie en haut de page et la change ; sans choix, il reste local.
  */
 export function RedactionPvModule() {
   const { push } = useToast()
   const { copros } = useDonneesLocales()
-  const [copropriete, setCopropriete] = useState<string>(DEMO_NOMS_COPROPRIETES[0])
+  const [copropriete, setCopropriete] = useNomCoproSuivi(DEMO_NOMS_COPROPRIETES[0])
   const [resolutionsSelectionnees, setResolutionsSelectionnees] = useState<number[]>([0, 2])
   /** Projet rédigé par l'IA, rattaché à la sélection qui l'a produit (copropriété et résolutions). */
   const [pvGenere, setPvGenere] = useState<{ selection: string; texte: string } | null>(null)

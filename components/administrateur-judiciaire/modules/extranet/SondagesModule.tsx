@@ -1,25 +1,41 @@
 'use client'
 
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DEMO_SONDAGES } from '@/components/administrateur-judiciaire/data/sondages'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { ProgressBar } from '@/components/administrateur-judiciaire/ui/ProgressBar'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
+import {
+  champCoproprieteChoisie,
+  titreListeVide,
+  useCoproChoisie,
+} from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { pourcentageArrondi } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /**
- * Sondages & consultations (écran de démonstration ; surtitre « Gestion courante »).
- * Indicateurs en dur (2, 1, « 79% », 87) ; onglets autonomes avec pastilles 2 et 1.
+ * Sondages & consultations (écran de démonstration ; surtitre « Gestion courante »), affiché selon la copropriété
+ * choisie dans le sélecteur du haut de page : sondages filtrés, nouveau sondage prérempli. Indicateurs et pastilles des
+ * onglets (autonomes) calculés sur les sondages affichés : actifs, clôturés, participation moyenne (moyenne arrondie
+ * des taux saisis, « — » sans sondage) et nombre de répondants.
  * Pour chaque sondage : pastilles, barre de participation (taux saisi en dur) puis, par option, le pourcentage
  * arrondi des voix sur le total des voix du sondage (la première barre en or). « Clôturer » n'apparaît que
  * pour un sondage « Active ».
  */
 export function SondagesModule() {
   const { push } = useToast()
+  const { code, nom } = useCoproChoisie()
+  const sondages = filtrerParCopro(DEMO_SONDAGES, code, (sondage) => codeDeNomCopro(sondage[3]))
+  const actifs = sondages.filter((sondage) => sondage[2] === 'Active').length
+  const clotures = sondages.length - actifs
+  const participationMoyenne = sondages.length
+    ? `${Math.round(sondages.reduce((somme, sondage) => somme + sondage[8], 0) / sondages.length)}%`
+    : '—'
+  const reponses = sondages.reduce((somme, sondage) => somme + sondage[6], 0)
 
   return (
     <>
@@ -36,7 +52,7 @@ export function SondagesModule() {
                 icon: 'poll',
                 title: 'Nouveau sondage',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(nom),
                   {
                     label: 'Question',
                     placeholder: "ex. Préférence pour la date d'AG",
@@ -65,24 +81,24 @@ export function SondagesModule() {
         items={[
           {
             icon: 'poll',
-            num: 2,
+            num: actifs,
             lbl: 'Sondages actifs',
             accent: 'gold',
           },
           {
             icon: 'folder',
-            num: 1,
+            num: clotures,
             lbl: 'Historique',
           },
           {
             icon: 'chart',
-            num: '79%',
+            num: participationMoyenne,
             lbl: 'Participation moyenne',
             accent: 'sage',
           },
           {
             icon: 'users',
-            num: 87,
+            num: reponses,
             lbl: 'Réponses totales',
             accent: 'sage',
           },
@@ -95,13 +111,13 @@ export function SondagesModule() {
             id: 'actifs',
             icon: 'chart',
             label: 'Sondages actifs',
-            badge: 2,
+            badge: actifs || undefined,
           },
           {
             id: 'hist',
             icon: 'folder',
             label: 'Historique',
-            badge: 1,
+            badge: clotures || undefined,
           },
           {
             id: 'creer',
@@ -110,7 +126,12 @@ export function SondagesModule() {
           },
         ]}
       />
-      {DEMO_SONDAGES.map((sondage, index) => (
+      {sondages.length === 0 && (
+        <div className="panel">
+          <EmptyState icon="poll" title={titreListeVide('Aucun sondage', nom)} />
+        </div>
+      )}
+      {sondages.map((sondage, index) => (
         <div
           className="panel"
           style={{

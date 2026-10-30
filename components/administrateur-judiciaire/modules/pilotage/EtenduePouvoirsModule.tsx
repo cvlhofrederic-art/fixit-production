@@ -9,7 +9,7 @@ import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { SelecteurCopropriete } from '@/components/administrateur-judiciaire/ui/SelecteurCopropriete'
 import { useCoproParCode } from '@/lib/administrateur-judiciaire/db/hooks'
 import { ficheRegimeCopro } from '@/lib/administrateur-judiciaire/domain/fondements'
-import { codeCoproSelectionne } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
  * Étendue des pouvoirs (statut partiel) : fiche du régime de la copropriété choisie (mission, pouvoirs conférés,
@@ -17,7 +17,8 @@ import { codeCoproSelectionne } from '@/lib/administrateur-judiciaire/selection'
  * Grille à deux colonnes fixes, sans adaptation mobile (comme la maquette).
  */
 export function EtenduePouvoirsModule() {
-  const [code, setCode] = useState(() => codeCoproSelectionne('TL'))
+  const code = useCodeCoproCourant('TL')
+  const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
   const [question, setQuestion] = useState(MATRICE_POUVOIRS[0].q)
   const copro = useCoproParCode(code)
   const regime = ficheRegimeCopro(copro)
@@ -28,7 +29,7 @@ export function EtenduePouvoirsModule() {
         eyebrow="Pilotage judiciaire"
         title="Étendue des pouvoirs"
         lede="L'administrateur n'exerce que les pouvoirs conférés par l'ordonnance. Ce garde-fou évite l'excès de pouvoir (ultra vires) et sécurise chaque décision."
-        actions={<SelecteurCopropriete value={code} onChange={setCode} />}
+        actions={<SelecteurCopropriete value={code} onChange={choisirCopro} />}
       />
       <div
         style={{

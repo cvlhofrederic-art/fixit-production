@@ -4,14 +4,16 @@ import { useState } from 'react'
 import { METIERS_PRESTATAIRE, completerAvecDemo } from '@/components/administrateur-judiciaire/data/prestataires'
 import { FichePrestataire, type ContratFiche } from '@/components/administrateur-judiciaire/modules/patrimoine/FichePrestataire'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { FormModal, type ChampFormModal, type ValeursFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useDonneesLocales, usePrestataires } from '@/lib/administrateur-judiciaire/db/hooks'
-import type { Prestataire } from '@/lib/administrateur-judiciaire/db/schema'
+import type { Contrat, Prestataire } from '@/lib/administrateur-judiciaire/db/schema'
 import {
   avecTelecomPrefere,
   nouvelleFicheEntreprise,
@@ -19,7 +21,9 @@ import {
   type FicheEntreprise,
   type ReglementEntreprise,
 } from '@/lib/administrateur-judiciaire/domain/fiche-entreprise'
+import { enPremierPourCopro, prestataireDeLaCopro } from '@/lib/administrateur-judiciaire/domain/patrimoine-copropriete'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
+import { useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 const MODES_REGLEMENT: ReglementEntreprise['mode'][] = ['Virement', 'Chèque', 'Prélèvement']
 
@@ -48,6 +52,13 @@ type EditionPrestataire = null | 'create' | Prestataire
 const libellePastille = (prestataire: Prestataire): string =>
   prestataire.statut === 'Devis en cours' ? 'Devis' : prestataire.statut === 'Sur appel' ? 'Sur appel' : 'Actif'
 
+/** Note moyenne des prestataires notés (« 4,6 ») ; « — » si aucun n'a de note. */
+function noteMoyenne(prestataires: readonly Prestataire[]): string {
+  const notes = prestataires.map((prestataire) => prestataire.note).filter((note) => note > 0)
+  if (notes.length === 0) return '—'
+  return (notes.reduce((total, note) => total + note, 0) / notes.length).toFixed(1).replace('.', ',')
+}
+
 /** Style des pictogrammes de la grille d'informations d'une carte. */
 const STYLE_PICTO_INFO = {
   width: 13,
@@ -56,20 +67,100 @@ const STYLE_PICTO_INFO = {
   marginRight: 4,
 }
 
+/** Prestataires affichés selon la copropriété choisie dans le sélecteur du haut de page. */
+interface PrestatairesSelonCopro {
+  /** Nom de la copropriété choisie ; null sans choix (écran rendu seul). */
+  nomCopro: string | null
+  /** Liste affichée : ceux de la copropriété d'abord (ou seulement eux), puis les autres ; tous sans choix. */
+  liste: Prestataire[]
+  /** Vrai pour un prestataire de la copropriété choisie (toujours faux sans choix). */
+  deLaCopro: (prestataire: Prestataire) => boolean
+  nbDeLaCopro: number
+  /** Sous-titre de l'indicateur « Prestataires référencés ». */
+  sousTitre: string
+  /** Vrai si la bascule ne laisse aucun prestataire à afficher. */
+  vide: boolean
+  seulementCopro: boolean
+  basculer: () => void
+}
+
+/** Rattachement des prestataires à la copropriété choisie (contrat ou fiche, voir prestataireDeLaCopro). */
+function usePrestatairesSelonCopro(tous: Prestataire[], contrats: Contrat[]): PrestatairesSelonCopro {
+  const [seulementCopro, setSeulementCopro] = useState(false)
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const copro = useCoproCourante()
+  const idsDeLaCopro = new Set(
+    code
+      ? tous
+          .filter((prestataire) => prestataireDeLaCopro(completerAvecDemo(prestataire), copro, contrats))
+          .map((prestataire) => prestataire.id)
+      : [],
+  )
+  const deLaCopro = (prestataire: Prestataire) => idsDeLaCopro.has(prestataire.id)
+  const liste = code ? enPremierPourCopro(tous, deLaCopro, seulementCopro) : tous
+  return {
+    nomCopro,
+    liste,
+    deLaCopro,
+    nbDeLaCopro: idsDeLaCopro.size,
+    sousTitre: nomCopro ? `${idsDeLaCopro.size} pour ${nomCopro}` : 'multi-métiers',
+    vide: !!code && liste.length === 0,
+    seulementCopro,
+    basculer: () => setSeulementCopro((valeur) => !valeur),
+  }
+}
+
+/** Bascule « Seulement cette copropriété » (avec le nombre de ses prestataires) ; rien sans copropriété choisie. */
+function BasculeSeulementCopro({ selon }: { selon: PrestatairesSelonCopro }) {
+  if (!selon.nomCopro) return null
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        marginBottom: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      <button
+        type="button"
+        className={`chip ${selon.seulementCopro ? 'active' : ''}`}
+        aria-pressed={selon.seulementCopro}
+        onClick={selon.basculer}
+      >
+        Seulement cette copropriété{' '}
+        <span
+          style={{
+            opacity: 0.6,
+          }}
+        >
+          {selon.nbDeLaCopro}
+        </span>
+      </button>
+    </div>
+  )
+}
+
 /**
- * Prestataires (données réelles : base locale). « Fiche » ouvre la fiche détaillée sur le modèle Gestéam
- * (FichePrestataire). Création et modification via une FormModal (valeurs pré-remplies en modification, fiche détaillée
- * comprise ; « Assurance décennale » Oui / N/A convertie en booléen). La création fixe ville « », note 0,
- * interventions 0, statut « Actif ». L'indicateur « Note moyenne » est figé à « 4,6 ». « Sync conformité » ne produit
- * qu'un toast de simulation ; « Nouvel OS » navigue vers l'écran des interventions.
+ * Prestataires (données réelles : base locale). Liste complète du cabinet : quand une copropriété est choisie dans le
+ * sélecteur du haut de page, ceux qui travaillent pour elle (contrat ou fiche, voir prestataireDeLaCopro) viennent en
+ * tête, marqués « Sur cette copropriété », et la bascule « Seulement cette copropriété » réduit la liste à eux ; les
+ * indicateurs portent sur la liste affichée. Sans copropriété choisie (écran rendu seul) : tous, ordre de la base.
+ * « Fiche » ouvre la fiche détaillée sur le modèle Gestéam (FichePrestataire). Création et modification via une
+ * FormModal (valeurs pré-remplies en modification, fiche détaillée comprise ; « Assurance décennale » Oui / N/A
+ * convertie en booléen). La création fixe ville « », note 0, interventions 0, statut « Actif ». La « Note moyenne »
+ * ignore les prestataires sans note (0). « Sync conformité » ne produit qu'un toast de simulation ; « Nouvel OS »
+ * navigue vers l'écran des interventions.
  */
 export function PrestatairesModule() {
   const { push } = useToast()
-  const { prestataires, loading, create, update } = usePrestataires()
+  const { prestataires: tous, loading, create, update } = usePrestataires()
   const { contrats, copros } = useDonneesLocales()
   const [ficheId, setFicheId] = useState<string | null>(null)
   const [edition, setEdition] = useState<EditionPrestataire>(null)
-  const trouve = prestataires.find((prestataire) => prestataire.id === ficheId)
+  const selonCopro = usePrestatairesSelonCopro(tous, contrats)
+  const prestataires = selonCopro.liste
+  const trouve = tous.find((prestataire) => prestataire.id === ficheId)
   const prestataireFiche = trouve ? completerAvecDemo(trouve) : null
   const contratsFiche: ContratFiche[] = contrats
     .filter((contrat) => contrat.prestataireId === ficheId)
@@ -218,7 +309,7 @@ export function PrestatairesModule() {
             icon: 'wrench',
             num: prestataires.length,
             lbl: 'Prestataires référencés',
-            sub: 'multi-métiers',
+            sub: selonCopro.sousTitre,
           },
           {
             icon: 'shield',
@@ -234,12 +325,14 @@ export function PrestatairesModule() {
           },
           {
             icon: 'check',
-            num: '4,6',
+            num: noteMoyenne(prestataires),
             lbl: 'Note moyenne',
             accent: 'sage',
           },
         ]}
       />
+      <BasculeSeulementCopro selon={selonCopro} />
+      {!loading && selonCopro.vide && <EmptyState icon="wrench" title={titreListeVide('Aucun prestataire', selonCopro.nomCopro)} />}
       {loading ? (
         <p className="muted">Chargement…</p>
       ) : (
@@ -286,6 +379,11 @@ export function PrestatairesModule() {
                     {prestataire.statut === 'Contrat cadre' && (
                       <Pill kind="gold" noDot>
                         Contrat cadre
+                      </Pill>
+                    )}
+                    {selonCopro.deLaCopro(prestataire) && (
+                      <Pill kind="navy" noDot>
+                        Sur cette copropriété
                       </Pill>
                     )}
                   </div>

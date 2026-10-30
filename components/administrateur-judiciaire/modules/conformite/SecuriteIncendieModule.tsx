@@ -5,6 +5,10 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
+
+/** Copropriété du registre de démonstration, sans copropriété choisie (écran rendu seul). */
+const COPRO_REGISTRE_DEMO = 'Résidence Le Méridien'
 
 /** Carte de sécurité incendie : [intitulé, précision, teinte de la carte]. */
 export type CarteSecuriteIncendie = readonly [intitule: string, precision: string, teinte: 'sage' | 'amber' | 'rust' | 'gold']
@@ -27,10 +31,15 @@ const EQUIPEMENTS_SECURITE: readonly CarteSecuriteIncendie[] = [
 
 /**
  * Sécurité incendie (arrêté du 31/01/1986), écran de démonstration sans indicateurs : familles d'habitation et
- * équipements à contrôler. « Registre sécurité » ouvre un registre de démonstration (document généré).
+ * équipements à contrôler. « Registre sécurité » ouvre un registre de démonstration (document généré) au nom de la
+ * copropriété choisie dans le sélecteur du haut de page (Résidence Le Méridien sans copropriété choisie) ; son
+ * contenu reste celui de la démonstration.
  */
 export function SecuriteIncendieModule() {
   const { push } = useToast()
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const nomCopro = code ? copro.nom : COPRO_REGISTRE_DEMO
 
   return (
     <>
@@ -48,7 +57,7 @@ export function SecuriteIncendieModule() {
                 title: 'Registre de sécurité incendie',
                 eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
                 docTitle: 'Registre de sécurité incendie',
-                meta: 'Résidence Le Méridien · mis à jour le 19/06/2026',
+                meta: `${nomCopro} · mis à jour le 19/06/2026`,
                 lines: [
                   {
                     h: 'Vérifications',

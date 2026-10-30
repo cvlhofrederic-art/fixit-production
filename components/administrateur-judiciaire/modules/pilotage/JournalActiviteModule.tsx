@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
@@ -8,7 +8,7 @@ import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { SelecteurCopropriete } from '@/components/administrateur-judiciaire/ui/SelecteurCopropriete'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useCoproParCode } from '@/lib/administrateur-judiciaire/db/hooks'
-import { codeCoproSelectionne } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Entrée du journal d'activité : horodatage « JJ/MM/AAAA HH:MM », auteur, acte. */
 export interface EntreeJournalActivite {
@@ -86,7 +86,8 @@ export const JOURNAL_ACTIVITE_DEMO: Record<string, EntreeJournalActivite[]> = {
  */
 export function JournalActiviteModule() {
   const { push } = useToast()
-  const [code, setCode] = useState(() => codeCoproSelectionne('LM'))
+  const code = useCodeCoproCourant('LM')
+  const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
   const entrees = JOURNAL_ACTIVITE_DEMO[code] || []
   const copro = useCoproParCode(code)
   return (
@@ -97,7 +98,7 @@ export function JournalActiviteModule() {
         lede="Auxiliaire de justice, l'administrateur doit pouvoir rendre compte de chaque acte. Journal horodaté et exportable : qui a fait quoi, et quand — pour la reddition et tout contentieux."
         actions={
           <>
-            <SelecteurCopropriete value={code} onChange={setCode} />
+            <SelecteurCopropriete value={code} onChange={choisirCopro} />
             <button
               className="btn gold"
               onClick={() =>
@@ -135,6 +136,7 @@ export function JournalActiviteModule() {
         }
       />
       <Panel title={`Journal — ${copro.nom}`} sub="Horodatage automatique · ordre antéchronologique" icon="clock" flush>
+        {entrees.length === 0 && <EmptyState icon="clock" title={`Aucun acte journalisé pour ${copro.nom}`} />}
         {entrees.map((entree, index) => (
           <div
             style={{
