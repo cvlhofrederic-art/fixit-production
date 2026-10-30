@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { useLocale } from '@/lib/i18n/context'
 import { titleCaseAddress } from '@/lib/devis-utils'
 import Link from 'next/link'
@@ -864,10 +865,13 @@ export default function ArtisanProfilePage() {
                             <div
                               key={photo.id || idx}
                               className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => {
                                 // portfolio_photos est modifiable par l'artisan : seules les photos du stockage Supabase s'ouvrent (jamais d'URL javascript: ni de site tiers)
                                 safeOpen(photo.url, { allowedOrigins: originesSupabase() })
                               }}
+                              onKeyDown={surActivationClavier(() => safeOpen(photo.url, { allowedOrigins: originesSupabase() }))}
                             >
                               <Image
                                 src={photo.url}
