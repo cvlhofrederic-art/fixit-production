@@ -1,11 +1,12 @@
 /**
- * Accueils et autres chemins needsAuth : jamais de cache partagé, comme avant le rendu statique.
+ * Accueils, autres chemins needsAuth et pages hors préfixes SEO : jamais de cache partagé, comme avant le rendu statique.
  *
  * Depuis les layouts statiques par langue (components/common/CoquilleRacine.tsx), les accueils /{locale}/ sont des pages
  * statiques : Next leur enverrait `s-maxage=31536000` au lieu de `private, no-store`. Or leur réponse dépend de la session
  * (un utilisateur connecté est redirigé vers son espace, le middleware peut poser des cookies Supabase rafraîchis ou
- * effacés). Le middleware garde donc `private, no-store` sur toutes les réponses de page des chemins needsAuth. Le
- * service depuis le cache des pages pré-rendues (x-nextjs-cache: HIT) ne dépend pas de cet en-tête. Client Supabase simulé.
+ * effacés). Le middleware garde donc `private, no-store` sur toutes les réponses de page des chemins needsAuth, et sur les
+ * pages hors préfixes SEO (politique de la review #138 : EN, NL, ES, simulateur FR…). Le service depuis le cache des pages
+ * pré-rendues (x-nextjs-cache: HIT) ne dépend pas de cet en-tête. Client Supabase simulé.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -75,6 +76,17 @@ describe('autres chemins', () => {
   it('tableau de bord servi à un artisan connecté (needsAuth) : private, no-store', async () => {
     etat.utilisateur = { app_metadata: { role: 'artisan' } }
     expect(await cacheControl('/fr/artisan/dashboard/', COOKIE_SESSION)).toEqual({ statut: 200, cacheControl: PRIVE })
+  })
+
+  it.each(['/en/plumber-porto/', '/nl/loodgieter-porto/', '/es/fontanero-oporto/', '/fr/simulateur-devis/marseille/', '/pt/sobre/'])(
+    '%s : page pré-rendue hors préfixes SEO, private, no-store comme avant (review #138)',
+    async (chemin) => {
+      expect(await cacheControl(chemin)).toEqual({ statut: 200, cacheControl: PRIVE })
+    },
+  )
+
+  it('route API : aucun Cache-Control posé par le middleware, la route garde le sien', async () => {
+    expect((await cacheControl('/api/health')).cacheControl).toBeNull()
   })
 
   it('page SEO (hors needsAuth) : Cache-Control public du middleware, inchangé, même avec un cookie de session reçu', async () => {

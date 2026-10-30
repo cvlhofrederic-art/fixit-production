@@ -585,12 +585,14 @@ export default function ArtisanProfilePage() {
     const bookingJson = await bookingRes.json()
 
     if (!bookingJson.error && bookingJson.data) {
+      // Le bouton reste désactivé : /confirmation/ est servie par app/(commun), sous un autre layout racine que cette page,
+      // donc Next attend la réponse du serveur puis recharge la page. Le réactiver ici laissait un second clic créer une
+      // seconde réservation pendant ce temps.
       router.push(`/confirmation?id=${bookingJson.data.id}`)
-    } else {
-      const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
-      setBookingError(errMsg)
+      return
     }
-
+    const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
+    setBookingError(errMsg)
     setSubmitting(false)
   }
 

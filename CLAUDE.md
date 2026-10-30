@@ -41,7 +41,8 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
   `/pt/contacto/` ou `/fr/…`) recharge la page. Ne pas ajouter de `app/layout.tsx`, même sans `<html>` : la 404 globale
   resterait affichée après un clic, et Providers serait remonté à chaque changement de section.
   Gardes : `tests/seo/layouts-racine-statiques.test.tsx`, et `scripts/seo/verifier-prerendu.mjs` après le build (CI et
-  déploiement : planchers de pages pré-rendues par section, pages témoins).
+  déploiement : chaque page de section au prerender-manifest, sauf la liste nommée `RENDUES_A_LA_DEMANDE` ; planchers par
+  section, pages témoins). `getServerTranslation()` lit `cookies()` : une page qui l'appelle est rendue à la demande.
 - `app/(commun)/` → pages communes à toutes les langues, servies par réécriture `/fr/…` et `/pt/…` (next.config.ts) sous un
   layout racine dynamique (locale par l'en-tête `x-locale` du middleware). `app/global-not-found.tsx`
   (`experimental.globalNotFound`) rend la 404 de toute URL sans route ; jamais de route fourre-tout (une page qui lève

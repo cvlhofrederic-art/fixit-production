@@ -151,6 +151,17 @@ test.describe('SEO', () => {
     expect(headCache).toBe(getCache)
   })
 
+  test('accueils et pages hors préfixes SEO : Cache-Control private, no-store, comme avant le rendu statique', async ({ request }) => {
+    // Pages pré-rendues : sans l'en-tête du middleware (CACHE_CONTROL_PRIVE), Next leur enverrait s-maxage=31536000.
+    for (const chemin of ['/pt/', '/fr/', '/en/', '/nl/', '/es/', '/en/plumber-porto/', '/fr/simulateur-devis/marseille/']) {
+      const reponse = await request.get(chemin, { maxRedirects: 0 })
+      expect(reponse.status(), chemin).toBe(200)
+      const cacheControl = reponse.headers()['cache-control'] || ''
+      expect(cacheControl, chemin).toContain('private')
+      expect(cacheControl, chemin).toContain('no-store')
+    }
+  })
+
   test('URL inconnue : 404 HTML complète, rendue côté serveur dans la langue de l’URL', async ({ request }) => {
     // Plusieurs layouts racine (un par langue, plus app/(commun)) : les URL sans route passent par
     // app/global-not-found.tsx. Une route fourre-tout qui lève notFound() ne rendrait côté serveur qu'une coquille

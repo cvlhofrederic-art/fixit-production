@@ -1,8 +1,9 @@
 import type { OpenNextConfig } from "@opennextjs/cloudflare";
 import staticAssetsIncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/static-assets-incremental-cache";
 
-// Pages pré-rendues au build (pages SEO par langue, accueils, pages légales…) servies depuis les assets du Worker, en
-// lecture seule : aucune ressource Cloudflare à créer, entrées rangées par buildId, copiées dans
+// Pages pré-rendues au build (pages SEO par langue, accueils, pages de contenu fixe ; les pages légales, qui passent par
+// getServerTranslation, restent rendues à la demande : scripts/seo/verifier-prerendu.mjs) servies depuis les assets du
+// Worker, en lecture seule : aucune ressource Cloudflare à créer, entrées rangées par buildId, copiées dans
 // .open-next/assets/cdn-cgi/_next_cache par .github/workflows/deploy-cloudflare.yml (cdn-cgi/ n'est lisible que par le
 // Worker). Avec l'ancien cache « dummy », chaque requête, préchargements RSC compris, refaisait un pré-rendu complet.
 // Lecture seule : pas d'ISR (pas de `revalidate` sur ces routes, une mise à jour = un déploiement).

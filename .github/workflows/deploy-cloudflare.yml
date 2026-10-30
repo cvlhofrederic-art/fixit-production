@@ -76,9 +76,9 @@ jobs:
       # Pages pré-rendues servies par le Worker (open-next.config.ts : cache incrémental en assets statiques, lecture
       # seule). Même copie que `opennextjs-cloudflare populateCache` pour ce cache (populateStaticAssetsIncrementalCache) ;
       # si wrangler délègue le déploiement à `opennextjs-cloudflare deploy` (projet OpenNext détecté), la copie est refaite
-      # à l'identique. Cette étape la garantit, après la garde du pré-rendu (même script que ci.yml : planchers par
-      # section, pages témoins, aucun revalidate). Les fichiers de cdn-cgi/ ne sont lisibles que par le Worker, jamais
-      # servis tels quels aux visiteurs.
+      # à l'identique. Cette étape la garantit, après la garde du pré-rendu (même script que ci.yml : chaque page de
+      # section pré-rendue sauf liste nommée, planchers, pages témoins, aucun revalidate). Les fichiers de cdn-cgi/ ne
+      # sont lisibles que par le Worker, jamais servis tels quels aux visiteurs.
       - name: Pages pré-rendues dans les assets du Worker
         run: |
           set -euo pipefail
@@ -188,6 +188,20 @@ jobs:
           if ! printf '%s' "$ENTETE" | grep -qi 'HIT'; then
             echo "::warning::/pt/servicos/canalizador-porto/ n'est pas servie depuis le cache des pages pré-rendues (attendu x-nextjs-cache: HIT)."
           fi
+
+      # Accueils : leur réponse dépend de la session (redirection, jeton rafraîchi), aucun cache partagé ne doit les
+      # garder. Pré-rendus, ils ne restent en private, no-store que par l'en-tête du middleware (middleware.ts,
+      # CACHE_CONTROL_PRIVE), qu'OpenNext fait passer avant celui de Next.
+      - name: Vérifier que les accueils restent privés
+        run: |
+          for chemin in /pt/ /fr/; do
+            ENTETE=$(curl -sS --proto '=https' --proto-redir '=https' -o /dev/null -D - "$PROD_URL$chemin" | tr -d '\r' | grep -i '^cache-control:' || true)
+            echo "$chemin : ${ENTETE:-cache-control absent}"
+            if ! printf '%s' "$ENTETE" | grep -qi 'private' || ! printf '%s' "$ENTETE" | grep -qi 'no-store'; then
+              echo "::error::$chemin n'est pas en Cache-Control private, no-store : un cache partagé pourrait garder un accueil qui dépend de la session."
+              exit 1
+            fi
+          done
 
       - name: Résumé
         if: success()

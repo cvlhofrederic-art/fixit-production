@@ -5,8 +5,9 @@
 // client, contact…) gardent un layout racine dynamique dans app/(commun). La coquille HTML est la même partout
 // (components/common/CoquilleRacine.tsx) : <html lang> BCP 47, JSON-LD WebSite + entité unique #business, lien
 // d'évitement, Providers. Les URL sans route sont rendues par app/global-not-found.tsx (experimental.globalNotFound).
-// Les routes SEO sont du SSG pur (cache OpenNext en lecture seule) ; les pages qui lisent l'URL ou la date au rendu restent
-// dynamiques. Après le build, scripts/seo/verifier-prerendu.mjs contrôle le prerender-manifest (CI et déploiement).
+// Les routes SEO sont du SSG pur (cache OpenNext en lecture seule) ; les pages qui lisent l'URL, la date ou les cookies au
+// rendu restent dynamiques. Après le build, scripts/seo/verifier-prerendu.mjs croise le prerender-manifest avec chaque
+// page des sections (CI et déploiement).
 import React from 'react'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -18,7 +19,7 @@ import type { Metadata } from 'next'
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from '@/lib/constants'
 import { ENTITE_PT } from '@/lib/seo/entite-pt'
 import { METADONNEES_PARTAGEES, metadonneesRacine } from '@/lib/seo/metadonnees-racine'
-import { PLANCHERS, TEMOINS, verifierPrerendu } from '../../scripts/seo/verifier-prerendu.mjs'
+import { PLANCHERS, RENDUES_A_LA_DEMANDE, TEMOINS, pagesDesSections, verifierPrerendu } from '../../scripts/seo/verifier-prerendu.mjs'
 
 // Coquille rendue côté serveur : composants client remplacés par des enveloppes vides, préchargement des polices neutralisé.
 vi.mock('react-dom', async (importOriginal) => ({ ...(await importOriginal<typeof import('react-dom')>()), preload: vi.fn() }))
@@ -57,7 +58,9 @@ function arborescence(dossier: string): string[] {
 }
 const ARBRE_APP = arborescence('app')
 
-// Segments dynamiques assumés des sections de langue : liste fermée, tenue à jour avec le code.
+// Fichiers que la lecture des sources autorise à forcer le rendu dynamique ou à lire les cookies et l'URL. Les pages
+// rendues à la demande par un helper (getServerTranslation lit cookies()) n'y figurent pas : la liste complète des pages
+// rendues à la demande est RENDUES_A_LA_DEMANDE, contrôlée après le build par scripts/seo/verifier-prerendu.mjs.
 const SEGMENTS_FORCE_DYNAMIC: Record<string, string> = {
   'app/pt/pesquisar/layout.tsx': 'recherche PT (useSearchParams)',
   'app/fr/recherche/layout.tsx': 'recherche FR (useSearchParams)',
@@ -145,10 +148,11 @@ describe('un layout racine par langue, sans API dynamique', () => {
   })
 })
 
-describe('pages et layouts des sections de langue : statiques, sauf segments listés', () => {
+describe('pages et layouts des sections de langue : aucune API dynamique directe hors fichiers listés', () => {
   // Next combine la configuration de tous les segments d'une route, layouts compris : un `revalidate` ou un
-  // `force-dynamic` posé dans un layout vaut pour toutes ses pages. Un helper importé qui lit headers() échappe à cette
-  // lecture des sources : scripts/seo/verifier-prerendu.mjs le voit dans le prerender-manifest, après le build.
+  // `force-dynamic` posé dans un layout vaut pour toutes ses pages. Cette lecture des sources ne voit que les appels
+  // directs ; un helper importé qui lit cookies() ou headers() (getServerTranslation) est vu après le build par
+  // scripts/seo/verifier-prerendu.mjs, qui exige au prerender-manifest chaque page hors RENDUES_A_LA_DEMANDE.
   const FICHIERS = ARBRE_APP.filter((f) => /^app\/(pt|fr|en|nl|es)\//.test(f) && /\/(page|layout|template|default)\.(tsx|ts|jsx|js|mdx)$/.test(f))
   const REGLES: Array<[string, RegExp, string[]]> = [
     ['ni revalidate ni fetchCache (cache en lecture seule, pas d’ISR)', /export const (revalidate|fetchCache)\b/, []],
@@ -177,15 +181,38 @@ describe('pages et layouts des sections de langue : statiques, sauf segments lis
   it.each(PAGES_URL)('%s est sous un layout force-dynamic de la liste', (fichier) => {
     expect(Object.keys(SEGMENTS_FORCE_DYNAMIC)).toContain(fichier.replace(/page\.tsx$/, 'layout.tsx'))
   })
+
+  it('les pages de ces listes figurent dans RENDUES_A_LA_DEMANDE (garde après le build)', () => {
+    const route = (fichier: string) => fichier.replace(/^app/, '').replace(/\/(page|layout)\.tsx$/, '')
+    const pages = [...Object.keys(SEGMENTS_FORCE_DYNAMIC), ...PAGES_COOKIES, ...PAGES_URL].map(route)
+    expect(pages.filter((page) => !Object.hasOwn(RENDUES_A_LA_DEMANDE, page))).toEqual([])
+  })
 })
 
 describe('métadonnées des layouts racine (fusion clé par clé de Next conservée)', () => {
+  it('valeurs partagées figées, identiques à l’ancien app/layout.tsx (vérification Google, robots, éditeur)', () => {
+    expect(METADONNEES_PARTAGEES.authors).toEqual([{ name: 'VITFIX' }])
+    expect(METADONNEES_PARTAGEES.creator).toBe('VITFIX')
+    expect(METADONNEES_PARTAGEES.publisher).toBe('VITFIX')
+    expect(METADONNEES_PARTAGEES.verification).toEqual({ google: 'L5Xcai6puTpFfvMAQ7zvOinxUsg6u5YGfqhRNdVp34Y' })
+    expect(METADONNEES_PARTAGEES.robots).toEqual({
+      index: true,
+      follow: true,
+      nocache: false,
+      'max-snippet': -1,
+      'max-image-preview': 'large',
+      'max-video-preview': -1,
+      googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large', 'max-video-preview': -1 },
+    })
+  })
+
   it.each(LOCALES)('app/%s/layout.tsx porte les clés partagées de l’ancien layout racine', async (locale) => {
     const { metadata } = (await LAYOUTS[locale]()) as { metadata: Metadata }
     expect(metadata.robots).toEqual(METADONNEES_PARTAGEES.robots)
     expect(metadata.verification).toEqual(METADONNEES_PARTAGEES.verification)
     expect(metadata.authors).toEqual([{ name: 'VITFIX' }])
     expect(metadata.creator).toBe('VITFIX')
+    expect(metadata.publisher).toBe('VITFIX')
     expect(metadata.openGraph?.locale).toBe({ pt: 'pt_PT', fr: 'fr_FR', en: 'en_GB', nl: 'nl_NL', es: 'es_ES' }[locale])
   })
 
@@ -332,6 +359,9 @@ describe('routes SEO : pré-rendues au build et servies telles quelles par le Wo
       delete(cle: string): Promise<void>
     }
     const { default: config } = await import('@/open-next.config')
+    // Priorité des en-têtes : celle du middleware (défaut d'OpenNext). Avec `headersAndCookiesPriority`, l'en-tête de Next
+    // (s-maxage=31536000 sur une page pré-rendue) l'emporterait sur le `private, no-store` des accueils.
+    expect((config as { dangerous?: { headersAndCookiesPriority?: unknown } }).dangerous?.headersAndCookiesPriority).toBeUndefined()
     const fabrique = config.default.override?.incrementalCache
     expect(typeof fabrique).toBe('function')
     const cache = await (fabrique as unknown as () => Promise<CacheIncremental>)()
@@ -374,51 +404,142 @@ describe('routes SEO : pré-rendues au build et servies telles quelles par le Wo
 })
 
 describe('scripts/seo/verifier-prerendu.mjs : garde du prerender-manifest après le build', () => {
-  // Manifeste conforme : pages témoins et autant de routes que le plancher de chaque section, sans revalidate.
-  function routesConformes(): Record<string, { initialRevalidateSeconds: number | false }> {
-    const routes: Record<string, { initialRevalidateSeconds: number | false }> = {}
-    for (const [prefixe, plancher] of Object.entries(PLANCHERS)) {
-      for (let i = 0; i < plancher; i++) routes[`${prefixe}page-${i}`] = { initialRevalidateSeconds: false }
+  type RoutePrerendue = { initialRevalidateSeconds: number | false; srcRoute: string }
+  type Manifeste = { routes: Record<string, RoutePrerendue>; dynamicRoutes: Record<string, object> }
+  // Pages d'exemple : une page statique et un gabarit par section, plus les pages listées comme rendues à la demande.
+  const PAGES = ['/pt', '/pt/servicos/[slug]', '/fr', '/fr/blog', '/fr/blog/[slug]', '/en', '/en/[slug]', ...Object.keys(RENDUES_A_LA_DEMANDE)].sort()
+  const MESSAGE_PAGE_A_LA_DEMANDE = (page: string) => expect.stringMatching(new RegExp('^page rendue à la demande : ' + page.replace(/[[\]]/g, '\\$&') + ' '))
+
+  // Manifeste conforme : chaque page non listée pré-rendue (une page par gabarit), pages témoins, et autant de routes que
+  // le plancher de chaque section.
+  function manifesteConforme(pages: string[] = PAGES): Manifeste {
+    const manifeste: Manifeste = { routes: {}, dynamicRoutes: {} }
+    const ajouter = (chemin: string, gabarit = chemin) => {
+      manifeste.routes[chemin] = { initialRevalidateSeconds: false, srcRoute: gabarit }
     }
-    for (const temoin of TEMOINS) routes[temoin] = { initialRevalidateSeconds: false }
-    return routes
+    for (const page of pages) {
+      if (Object.hasOwn(RENDUES_A_LA_DEMANDE, page)) continue
+      if (page.includes('[')) {
+        manifeste.dynamicRoutes[page] = {}
+        ajouter(page.replace(/\[[^\]]+\]/g, 'exemple'), page)
+      } else {
+        ajouter(page)
+      }
+    }
+    for (const temoin of TEMOINS) if (!(temoin in manifeste.routes)) ajouter(temoin)
+    for (const [prefixe, plancher] of Object.entries(PLANCHERS)) {
+      const presentes = Object.keys(manifeste.routes).filter((chemin) => chemin.startsWith(prefixe)).length
+      for (let i = 0; i < plancher - presentes; i++) ajouter(`${prefixe}page-${i}`)
+    }
+    return manifeste
   }
 
-  it('manifeste conforme : aucune erreur', () => {
-    expect(verifierPrerendu(routesConformes()).erreurs).toEqual([])
+  // Ramène une section à exactement `nombre` routes pré-rendues, par des routes de remplissage ajoutées ou retirées.
+  function avecRoutes(manifeste: Manifeste, prefixe: string, nombre: number): Manifeste {
+    const routes = { ...manifeste.routes }
+    const remplissage = Object.keys(routes).filter((chemin) => chemin.startsWith(`${prefixe}page-`))
+    let total = Object.keys(routes).filter((chemin) => chemin.startsWith(prefixe)).length
+    while (total > nombre && remplissage.length) {
+      delete routes[remplissage.pop()!]
+      total--
+    }
+    for (let i = 0; total < nombre; i++) {
+      if (`${prefixe}ajout-${i}` in routes) continue
+      routes[`${prefixe}ajout-${i}`] = { initialRevalidateSeconds: false, srcRoute: `${prefixe}ajout-${i}` }
+      total++
+    }
+    return { ...manifeste, routes }
+  }
+
+  it('planchers figés : /pt/ 540, /fr/ 1 500, /en/ 10', () => {
+    expect(PLANCHERS).toEqual({ '/pt/': 540, '/fr/': 1500, '/en/': 10 })
   })
 
-  it('section /pt/ redevenue dynamique : sous le plancher, témoins absents', () => {
-    const routes = Object.fromEntries(Object.entries(routesConformes()).filter(([chemin]) => !chemin.startsWith('/pt/')))
-    const { erreurs } = verifierPrerendu(routes)
-    expect(erreurs).toContain(`/pt/ : 0 routes pré-rendues, plancher ${PLANCHERS['/pt/']}`)
+  it('manifeste conforme : aucune erreur', () => {
+    expect(verifierPrerendu(manifesteConforme(), PAGES).erreurs).toEqual([])
+  })
+
+  it('plancher : 1 500 routes /fr/ passent, 1 499 échouent', () => {
+    expect(verifierPrerendu(avecRoutes(manifesteConforme(), '/fr/', 1500), PAGES).erreurs).toEqual([])
+    expect(verifierPrerendu(avecRoutes(manifesteConforme(), '/fr/', 1499), PAGES).erreurs).toEqual(['/fr/ : 1499 routes pré-rendues, plancher 1500'])
+  })
+
+  it('section /pt/ redevenue dynamique : plancher, témoins et gabarit en erreur', () => {
+    const manifeste = manifesteConforme()
+    const routes = Object.fromEntries(Object.entries(manifeste.routes).filter(([chemin]) => !chemin.startsWith('/pt/')))
+    const dynamicRoutes = Object.fromEntries(Object.entries(manifeste.dynamicRoutes).filter(([gabarit]) => !gabarit.startsWith('/pt/')))
+    const { erreurs } = verifierPrerendu({ routes, dynamicRoutes }, PAGES)
+    expect(erreurs).toContain('/pt/ : 0 routes pré-rendues, plancher 540')
     expect(erreurs).toContain('page témoin absente du pré-rendu : /pt/servicos/canalizador-porto')
+    expect(erreurs).toContainEqual(MESSAGE_PAGE_A_LA_DEMANDE('/pt/servicos/[slug]'))
+  })
+
+  it('gabarit devenu dynamique (helper qui lit cookies() dans une famille sans témoin) : erreur qui nomme la page', () => {
+    const manifeste = manifesteConforme()
+    delete manifeste.dynamicRoutes['/fr/blog/[slug]']
+    delete manifeste.routes['/fr/blog/exemple']
+    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog/[slug]')])
+  })
+
+  it('gabarit au manifeste mais sans aucune page pré-rendue : erreur', () => {
+    const manifeste = manifesteConforme()
+    delete manifeste.routes['/fr/blog/exemple']
+    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog/[slug]')])
+  })
+
+  it('page statique devenue dynamique : erreur', () => {
+    const manifeste = manifesteConforme()
+    delete manifeste.routes['/fr/blog']
+    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog')])
+  })
+
+  it('page listée dans RENDUES_A_LA_DEMANDE mais pré-rendue : erreur, la liste reste exacte', () => {
+    const manifeste = manifesteConforme()
+    manifeste.routes['/fr/cgu'] = { initialRevalidateSeconds: false, srcRoute: '/fr/cgu' }
+    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([
+      'page pré-rendue encore listée dans RENDUES_A_LA_DEMANDE : /fr/cgu (la retirer de la liste)',
+    ])
+  })
+
+  it('page listée qui n’existe plus : erreur', () => {
+    const pages = PAGES.filter((page) => page !== '/fr/cgu')
+    expect(verifierPrerendu(manifesteConforme(pages), pages).erreurs).toEqual(["RENDUES_A_LA_DEMANDE cite une page qui n'existe plus : /fr/cgu"])
   })
 
   it('page témoin absente : erreur', () => {
-    const routes = routesConformes()
-    delete routes['/fr/services/plombier-marseille']
-    expect(verifierPrerendu(routes).erreurs).toEqual(['page témoin absente du pré-rendu : /fr/services/plombier-marseille'])
+    const manifeste = manifesteConforme()
+    delete manifeste.routes['/fr/services/plombier-marseille']
+    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual(['page témoin absente du pré-rendu : /fr/services/plombier-marseille'])
   })
 
   it('route avec revalidate (ISR sur un cache en lecture seule) : erreur', () => {
-    const routes = routesConformes()
-    routes['/pt/blog/cano-entupido-como-resolver'] = { initialRevalidateSeconds: 86400 }
-    expect(verifierPrerendu(routes).erreurs).toEqual(['1 route(s) avec revalidate (cache en lecture seule) : /pt/blog/cano-entupido-como-resolver'])
+    const manifeste = manifesteConforme()
+    manifeste.routes['/pt/blog/cano-entupido-como-resolver'] = { initialRevalidateSeconds: 86400, srcRoute: '/pt/blog/[slug]' }
+    expect(verifierPrerendu(manifeste, PAGES).erreurs).toEqual(['1 route(s) avec revalidate (cache en lecture seule) : /pt/blog/cano-entupido-como-resolver'])
   })
 
-  it('en ligne de commande : code 0 sur un manifeste conforme, code 1 et annotations ::error:: sinon', () => {
+  it('pages réelles des sections : RENDUES_A_LA_DEMANDE ne cite que des pages qui existent', () => {
+    const pages = pagesDesSections(RACINE)
+    expect(pages.length).toBeGreaterThanOrEqual(90)
+    expect(pages).toContain('/pt')
+    expect(pages).toContain('/pt/servicos/[slug]')
+    expect(Object.keys(RENDUES_A_LA_DEMANDE).filter((page) => !pages.includes(page))).toEqual([])
+  })
+
+  it('en ligne de commande, sur les pages réelles : code 0 si conforme, code 1 et annotations ::error:: sinon', () => {
     const dossier = mkdtempSync(join(tmpdir(), 'verifier-prerendu-'))
-    const lancer = (routes: object) => {
+    const lancer = (manifeste: object) => {
       const fichier = join(dossier, 'prerender-manifest.json')
-      writeFileSync(fichier, JSON.stringify({ version: 4, routes }))
+      writeFileSync(fichier, JSON.stringify({ version: 4, ...manifeste }))
       return spawnSync(process.execPath, ['scripts/seo/verifier-prerendu.mjs', fichier], { cwd: RACINE, encoding: 'utf8' })
     }
     try {
-      expect(lancer(routesConformes()).status).toBe(0)
-      const echec = lancer({})
+      const conforme = lancer(manifesteConforme(pagesDesSections(RACINE)))
+      expect(conforme.status, conforme.stdout).toBe(0)
+      const echec = lancer({ routes: {}, dynamicRoutes: {} })
       expect(echec.status).toBe(1)
       expect(echec.stdout).toContain('::error::page témoin absente du pré-rendu : /pt/servicos/canalizador-porto')
+      expect(echec.stdout).toContain('::error::page rendue à la demande : /pt/servicos/[slug] ')
     } finally {
       rmSync(dossier, { recursive: true, force: true })
     }

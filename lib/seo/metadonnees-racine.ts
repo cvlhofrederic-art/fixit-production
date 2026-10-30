@@ -58,79 +58,54 @@ export const METADONNEES_PARTAGEES = {
   },
 }
 
-/** Métadonnées du layout racine pour une langue : les clés partagées, puis titre, description et Open Graph. */
-export function metadonneesRacine(locale: Locale): Metadata {
-  // NL and ES landing pages - fall back to EN metadata
-  if (locale === 'nl') {
-    return {
-      ...METADONNEES_PARTAGEES,
-      title: 'VITFIX - Vastgoeddiensten Porto voor Nederlandse Investeerders',
-      description: 'Renovatie, loodgieter, elektricien en onderhoud voor Nederlandse vastgoedeigenaren in Porto.',
-      openGraph: {
-        title: 'VITFIX - Vastgoeddiensten Porto',
-        description: 'Geverifieerde vakmensen voor renovatie en onderhoud in Porto.',
-        siteName: 'VITFIX',
-        locale: 'nl_NL',
-        type: 'website',
-      },
-    }
-  }
-
-  if (locale === 'es') {
-    return {
-      ...METADONNEES_PARTAGEES,
-      title: 'VITFIX - Servicios para Viviendas en Oporto para Inversores',
-      description: 'Reformas, fontaner\u00eda, electricista y mantenimiento para inversores espa\u00f1oles en Oporto.',
-      openGraph: {
-        title: 'VITFIX - Servicios Oporto',
-        description: 'Profesionales verificados para reformas y mantenimiento en Oporto.',
-        siteName: 'VITFIX',
-        locale: 'es_ES',
-        type: 'website',
-      },
-    }
-  }
-
-  if (locale === 'en') {
-    return {
-      ...METADONNEES_PARTAGEES,
-      title: 'VITFIX - Find Home Service Professionals in Porto',
-      description: 'Find and book verified, English-speaking home service professionals in Porto. Plumbing, electrical, handyman and more.',
-      openGraph: {
-        title: 'VITFIX - English Speaking Home Services in Porto',
-        description: 'Verified professionals for plumbing, electrical, handyman and property maintenance in Porto.',
-        siteName: 'VITFIX',
-        locale: 'en_GB',
-        type: 'website',
-      },
-    }
-  }
-
-  if (locale === 'pt') {
-    return {
-      ...METADONNEES_PARTAGEES,
-      title: 'VITFIX - Encontre o profissional perto de si, em 2 cliques',
-      description: 'Encontre e reserve um profissional verificado perto de si em poucos cliques. Canalização, eletricidade, jardinagem e mais.',
-      openGraph: {
-        title: 'VITFIX - Profissionais verificados perto de si',
-        description: 'Encontre e reserve um profissional certificado em poucos cliques. Canalização, eletricidade, serralharia e mais.',
-        siteName: 'VITFIX',
-        locale: 'pt_PT',
-        type: 'website',
-      },
-    }
-  }
-
-  return {
-    ...METADONNEES_PARTAGEES,
+// Titre, description et Open Graph de la racine, par langue (NL et ES : pages d'accueil des investisseurs).
+const RACINE_PAR_LANGUE: Record<Locale, { title: string; description: string; og: { title: string; description: string; locale: string } }> = {
+  nl: {
+    title: 'VITFIX - Vastgoeddiensten Porto voor Nederlandse Investeerders',
+    description: 'Renovatie, loodgieter, elektricien en onderhoud voor Nederlandse vastgoedeigenaren in Porto.',
+    og: { title: 'VITFIX - Vastgoeddiensten Porto', description: 'Geverifieerde vakmensen voor renovatie en onderhoud in Porto.', locale: 'nl_NL' },
+  },
+  es: {
+    title: 'VITFIX - Servicios para Viviendas en Oporto para Inversores',
+    description: 'Reformas, fontanería, electricista y mantenimiento para inversores españoles en Oporto.',
+    og: { title: 'VITFIX - Servicios Oporto', description: 'Profesionales verificados para reformas y mantenimiento en Oporto.', locale: 'es_ES' },
+  },
+  en: {
+    title: 'VITFIX - Find Home Service Professionals in Porto',
+    description: 'Find and book verified, English-speaking home service professionals in Porto. Plumbing, electrical, handyman and more.',
+    og: {
+      title: 'VITFIX - English Speaking Home Services in Porto',
+      description: 'Verified professionals for plumbing, electrical, handyman and property maintenance in Porto.',
+      locale: 'en_GB',
+    },
+  },
+  pt: {
+    title: 'VITFIX - Encontre o profissional perto de si, em 2 cliques',
+    description: 'Encontre e reserve um profissional verificado perto de si em poucos cliques. Canalização, eletricidade, jardinagem e mais.',
+    og: {
+      title: 'VITFIX - Profissionais verificados perto de si',
+      description: 'Encontre e reserve um profissional certificado em poucos cliques. Canalização, eletricidade, serralharia e mais.',
+      locale: 'pt_PT',
+    },
+  },
+  fr: {
     title: "VITFIX - Trouvez l'artisan près de chez vous, en 2 clics",
     description: 'Trouvez et réservez un artisan vérifié près de chez vous en quelques clics. Plomberie, électricité, jardinage et plus.',
-    openGraph: {
+    og: {
       title: 'VITFIX - Artisans vérifiés près de chez vous',
       description: 'Trouvez et réservez un artisan certifié en quelques clics. Plomberie, électricité, serrurerie et plus.',
-      siteName: 'VITFIX',
       locale: 'fr_FR',
-      type: 'website',
     },
+  },
+}
+
+/** Métadonnées du layout racine pour une langue : les clés partagées, puis titre, description et Open Graph (FR par défaut). */
+export function metadonneesRacine(locale: Locale): Metadata {
+  const racine = RACINE_PAR_LANGUE[locale] ?? RACINE_PAR_LANGUE.fr
+  return {
+    ...METADONNEES_PARTAGEES,
+    title: racine.title,
+    description: racine.description,
+    openGraph: { title: racine.og.title, description: racine.og.description, siteName: 'VITFIX', locale: racine.og.locale, type: 'website' },
   }
 }
