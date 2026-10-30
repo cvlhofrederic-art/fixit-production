@@ -369,10 +369,11 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
   // ── Effects ──
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  // ── Polling conversations (+ compteurs non-lus) toutes les 8s ──
+  // ── Polling conversations (+ compteurs non-lus) toutes les 8s, en pause quand l'onglet est caché (lot 8 Sentry) ──
   useEffect(() => {
     loadConversations()
     pollConvRef.current = setInterval(() => {
+      if (document.hidden) return
       loadConversations()
     }, 8000)
     return () => { if (pollConvRef.current) clearInterval(pollConvRef.current) }
@@ -396,6 +397,7 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
     // Ouverture : spinner seulement sans messages en cache (sinon le cache reste affiché).
     loadMessages(activeConv.id, false, !enCache)
     pollMsgRef.current = setInterval(() => {
+      if (document.hidden) return
       loadMessages(activeConv.id, true)
     }, 5000)
     return () => { if (pollMsgRef.current) clearInterval(pollMsgRef.current) }

@@ -390,19 +390,67 @@ function mapFromSupabase(table: ShortName, item: any): any {
 const _dataCache: Record<string, { data: any[]; at: number }> = {}
 const DATA_CACHE_TTL = 300_000 // 5 min — BTP data rarely changes mid-session
 
+// ── Requêtes en vol partagées : le préchargement et les sections qui montent juste après demandaient les mêmes
+// tables en double (lot 8 Sentry du 28/10/2026 : chantiers, membres, situations deux fois au chargement).
+const _enVol: Record<string, { generation: number; promesse: Promise<any[] | null> }> = {}
+
+// ── Génération par clé de table, incrémentée à chaque écriture confirmée (ajout, modification, suppression,
+// import) : un GET parti avant l'écriture peut renvoyer l'état d'avant (pointage supprimé encore affiché).
+const _generations: Record<string, number> = {}
+
+function generationActuelle(cacheKey: string): number {
+  return _generations[cacheKey] ?? 0
+}
+
+function marquerEcriture(cacheKey: string): void {
+  _generations[cacheKey] = generationActuelle(cacheKey) + 1
+}
+
+/** GET d'une table : lignes brutes, null si la réponse n'est pas ok. */
+async function lireTable(table: ShortName): Promise<unknown[] | null> {
+  const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
+  if (!res.ok) return null
+  const json = await res.json()
+  return json[table] || []
+}
+
+/**
+ * Charge une table, remplit le cache ; null si la réponse n'est pas ok. Les chargements d'une même génération
+ * partagent une seule requête. Une réponse arrivée après une écriture (génération dépassée) ne remplit ni le cache
+ * ni la liste : ses appelants reçoivent le chargement de la génération courante (requête en vol réutilisée, ou
+ * nouvelle si elle est déjà terminée).
+ */
+function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null> {
+  const generation = generationActuelle(cacheKey)
+  const enCours = _enVol[cacheKey]
+  if (enCours?.generation === generation) return enCours.promesse
+  const promesse = (async (): Promise<any[] | null> => {
+    let raw: any[] | null = null
+    try {
+      raw = await lireTable(table)
+    } catch (err) {
+      if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
+      throw err
+    } finally {
+      // Une requête d'une génération plus récente a pu prendre la place : elle reste partagée.
+      if (_enVol[cacheKey]?.generation === generation) delete _enVol[cacheKey]
+    }
+    if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
+    if (raw !== null) _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+    return raw
+  })()
+  _enVol[cacheKey] = { generation, promesse }
+  return promesse
+}
+
 // ── Prefetch multiple tables in parallel to fill cache before components mount ──
 export async function prefetchBTPTables(tables: ShortName[], userId: string) {
-  const headers = await authHeaders()
   await Promise.all(
     tables.map(async (table) => {
       const cacheKey = `${table}_${userId}`
       if (_dataCache[cacheKey] && Date.now() - _dataCache[cacheKey].at < DATA_CACHE_TTL) return
       try {
-        const res = await fetch(`/api/btp?table=${table}`, { headers })
-        if (!res.ok) return
-        const json = await res.json()
-        const raw = json[table] || []
-        _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+        await chargerTable(table, cacheKey)
       } catch (err) { console.warn(`[btp] prefetch ${table} failed:`, err) }
     })
   )
@@ -432,13 +480,11 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   // ── Fetch from Supabase ─────────────────────────────────────────────────
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
-      if (!res.ok) throw new Error('Fetch failed')
-      const json = await res.json()
-      const raw = json[table] || []
-      const mapped = raw.map((r: any) => mapFromSupabase(table, r))
-      setItems(mapped)
-      _dataCache[cacheKey] = { data: mapped, at: Date.now() }
+      // Requête partagée avec le préchargement et les autres sections (une seule par table en vol, sauf après une
+      // écriture : voir chargerTable).
+      const raw = await chargerTable(table, cacheKey)
+      if (raw === null) throw new Error('Fetch failed')
+      setItems(_dataCache[cacheKey]?.data ?? raw.map((r: any) => mapFromSupabase(table, r)))
       setError(null)
       return raw
     } catch (err) {
@@ -488,6 +534,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
               if (res.ok) {
                 // Mark as imported in localStorage
                 localStorage.setItem(`${lsKey}_migrated`, 'true')
+                marquerEcriture(cacheKey)
                 if (!cancelled) await refresh()
               }
             }
@@ -512,6 +559,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         body: JSON.stringify({ table: tableName, action: 'insert', data: mapped }),
       })
       if (!res.ok) throw new Error(`Insert ${tableName} failed: ${res.status}`)
+      // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
+      marquerEcriture(cacheKey)
       const json = await res.json()
       await refresh()
       return json.row ? mapFromSupabase(table, json.row) : null
@@ -520,7 +569,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError('Erreur lors de la création')
       return null
     }
-  }, [table, tableName, refresh])
+  }, [table, tableName, cacheKey, refresh])
 
   const update = useCallback(async (id: string, changes: Partial<T>): Promise<boolean> => {
     try {
@@ -531,6 +580,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })
       if (!res.ok) throw new Error(`Update ${tableName} failed: ${res.status}`)
+      marquerEcriture(cacheKey)
       await refresh()
       return true
     } catch (err) {
@@ -538,7 +588,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError('Erreur lors de la mise à jour')
       return false
     }
-  }, [table, tableName, refresh])
+  }, [table, tableName, cacheKey, refresh])
 
   const remove = useCallback(async (id: string): Promise<boolean> => {
     try {
@@ -548,6 +598,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         body: JSON.stringify({ table: tableName, action: 'delete', id }),
       })
       if (!res.ok) throw new Error(`Delete ${tableName} failed: ${res.status}`)
+      marquerEcriture(cacheKey)
       await refresh()
       return true
     } catch (err) {
@@ -555,7 +606,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       setError('Erreur lors de la suppression')
       return false
     }
-  }, [tableName, refresh])
+  }, [tableName, cacheKey, refresh])
 
   return { items, loading, error, refresh, add, update, remove }
 }
