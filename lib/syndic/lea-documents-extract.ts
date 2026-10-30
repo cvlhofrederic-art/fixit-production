@@ -31,7 +31,9 @@ export async function extractPdfText(buffer: ArrayBuffer): Promise<{ text: strin
   }
   const { extractText } = await import('unpdf')
   const res = await extractText(u8, { mergePages: true })
-  const text = Array.isArray(res.text) ? res.text.join('\n\n') : (res.text || '')
+  const merged = Array.isArray(res.text) ? res.text.join('\n\n') : (res.text || '')
+  // unpdf ≥ 1.7 conserve les sauts de ligne : on garde le format d'unpdf 1.4 (une seule ligne, blancs normalisés).
+  const text = merged.replace(/\s+/g, ' ')
   return { text, pages: res.totalPages || 0 }
 }
 

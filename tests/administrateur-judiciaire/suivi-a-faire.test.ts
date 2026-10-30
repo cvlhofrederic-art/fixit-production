@@ -83,7 +83,7 @@ describe('portefeuille et réglage du suivi', () => {
     expect(reglage.collaborateurId).toBe('u1')
     expect(Object.keys(reglage.familles).sort()).toEqual([...FAMILLES_SUIVI].sort())
     expect(reglage.familles.contrats).toEqual({ actif: true, perimetre: 'portefeuille', horizon: { unite: 'maintenant' }, natures: null })
-    expect(NATURES_SUIVI.contrats).toEqual(['limite_resiliation', 'mise_en_concurrence', 'facture_attendue'])
+    expect(NATURES_SUIVI.contrats).toEqual(['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'])
   })
 
   it('copier / coller : le réglage passe à un autre collaborateur sans partager ses objets', () => {
@@ -235,7 +235,7 @@ describe('sources — échéances du mandat et assemblées', () => {
     ])
   })
 
-  it('assemblée en projet : dernier jour pour présenter la convocation (21 jours francs, à confirmer) ; convoquée : PV à signer', () => {
+  it('assemblée en projet : dernier jour pour présenter la convocation (21 jours francs, décision J5) ; convoquée : PV à signer', () => {
     const elements = depuisAssemblees([
       { id: 'AG1', mandatId: 'M1', libelle: 'AG du 15/12/2026', date: '2026-12-15', statut: 'Projet' },
       { id: 'AG2', mandatId: 'M2', libelle: 'AG du 20/10/2026', date: '2026-10-20', statut: 'Convoquée' },
@@ -251,7 +251,7 @@ describe('sources — échéances du mandat et assemblées', () => {
         mandatId: 'M1',
         objetId: 'AG1',
         assigneId: null,
-        aConfirmer: true,
+        aConfirmer: false,
       },
       expect.objectContaining({ id: 'assemblees:AG2:pv_a_signer', nature: 'pv_a_signer', date: '2026-10-20', aConfirmer: false }),
     ])
@@ -379,6 +379,21 @@ describe('sources — étapes, tâches, travaux', () => {
       familles: { travaux: { actif: true, perimetre: 'portefeuille', horizon: { nombre: 1, unite: 'mois' }, natures: null } },
     }
     expect(ids(selectionnerAFaire(appels, reglage, affectations, AUJOURDHUI))).toEqual(['travaux:copro-1:00042-T1', 'travaux:copro-2:00042-T1'])
+  })
+
+  it('travaux dont la part du fonds attend son ordonnance : un élément qui dit ce qui bloque, sans interrompre les autres', () => {
+    const enRegle = creerOperationTravaux(saisieTravaux())
+    const enAttente = creerOperationTravaux(
+      saisieTravaux({ numero: '00043', financementFondsTravauxCentimes: 200_000, affectationFonds: { objet: 'redressement_29_14' } }),
+    )
+    const elements = depuisOperationsTravaux([
+      { mandatId: 'M1', operation: enRegle, appelees: [] },
+      { mandatId: 'M2', operation: enAttente, appelees: ['00043-T1'] },
+    ])
+    expect(ids(elements)).toEqual(['travaux:copro-1:00042-T1', 'travaux:copro-1:00042-T2', 'travaux:copro-1:00043:affectation_fonds'])
+    expect(elements[2]).toMatchObject({ date: '2027-01-04', mandatId: 'M2', objetId: 'copro-1:00043' })
+    expect(elements[2].libelle).toMatch(/appels bloqués : .*ordonnance du juge/)
+    expect(depuisOperationsTravaux([{ mandatId: 'M2', operation: enAttente, appelees: ['00043-T1', '00043-T2'] }])).toEqual([])
   })
 })
 

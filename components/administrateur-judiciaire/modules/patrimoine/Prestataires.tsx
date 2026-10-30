@@ -1,23 +1,44 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
-import { METIERS_PRESTATAIRE } from '@/components/administrateur-judiciaire/data/prestataires'
+import { useState } from 'react'
+import { METIERS_PRESTATAIRE, completerAvecDemo } from '@/components/administrateur-judiciaire/data/prestataires'
+import { FichePrestataire, type ContratFiche } from '@/components/administrateur-judiciaire/modules/patrimoine/FichePrestataire'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
-import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { FormModal, type ChampFormModal, type ValeursFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { usePrestataires } from '@/lib/administrateur-judiciaire/db/hooks'
+import { useDonneesLocales, usePrestataires } from '@/lib/administrateur-judiciaire/db/hooks'
 import type { Prestataire } from '@/lib/administrateur-judiciaire/db/schema'
+import {
+  avecTelecomPrefere,
+  nouvelleFicheEntreprise,
+  telecomPrefere,
+  type FicheEntreprise,
+  type ReglementEntreprise,
+} from '@/lib/administrateur-judiciaire/domain/fiche-entreprise'
+import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 
-/** Fiche ouverte par le bouton « Fiche » d'une carte. */
-interface FichePrestataire {
-  title: ReactNode
-  icon: string
-  fields: ChampDetail[]
+const MODES_REGLEMENT: ReglementEntreprise['mode'][] = ['Virement', 'Chèque', 'Prélèvement']
+
+/** Fiche détaillée après saisie : identité, adresse, courriel et téléphone préférés, règlement et notes. */
+function ficheSaisie(base: FicheEntreprise | undefined, valeurs: ValeursFormModal): FicheEntreprise {
+  const fiche = base ?? nouvelleFicheEntreprise()
+  const lire = (cle: string) => (valeurs[cle] ?? '').trim()
+  const mode = MODES_REGLEMENT.find((possible) => possible === lire('modeReglement')) ?? fiche.reglement.mode
+  const delai = Number.parseInt(lire('delaiJours'), 10)
+  return {
+    ...fiche,
+    formeJuridique: lire('formeJuridique'),
+    tvaIntracommunautaire: lire('tva'),
+    adresse: lire('adresse'),
+    codePostal: lire('codePostal'),
+    telecoms: avecTelecomPrefere(avecTelecomPrefere(fiche.telecoms, 'Courriel', lire('courriel')), 'Téléphone', lire('telephone')),
+    reglement: { ...fiche.reglement, mode, delaiJours: Number.isNaN(delai) || delai < 0 ? fiche.reglement.delaiJours : delai },
+    notes: lire('notes'),
+  }
 }
 
 /** Formulaire fermé (null), création (« create ») ou modification du prestataire sélectionné. */
@@ -36,16 +57,27 @@ const STYLE_PICTO_INFO = {
 }
 
 /**
- * Prestataires (données réelles : base locale). Création et modification via une FormModal (valeurs pré-remplies en
- * modification ; « Assurance décennale » Oui / N/A convertie en booléen). La création fixe ville « », note 0,
+ * Prestataires (données réelles : base locale). « Fiche » ouvre la fiche détaillée sur le modèle Gestéam
+ * (FichePrestataire). Création et modification via une FormModal (valeurs pré-remplies en modification, fiche détaillée
+ * comprise ; « Assurance décennale » Oui / N/A convertie en booléen). La création fixe ville « », note 0,
  * interventions 0, statut « Actif ». L'indicateur « Note moyenne » est figé à « 4,6 ». « Sync conformité » ne produit
  * qu'un toast de simulation ; « Nouvel OS » navigue vers l'écran des interventions.
  */
 export function PrestatairesModule() {
   const { push } = useToast()
   const { prestataires, loading, create, update } = usePrestataires()
-  const [fiche, setFiche] = useState<FichePrestataire | null>(null)
+  const { contrats, copros } = useDonneesLocales()
+  const [ficheId, setFicheId] = useState<string | null>(null)
   const [edition, setEdition] = useState<EditionPrestataire>(null)
+  const trouve = prestataires.find((prestataire) => prestataire.id === ficheId)
+  const prestataireFiche = trouve ? completerAvecDemo(trouve) : null
+  const contratsFiche: ContratFiche[] = contrats
+    .filter((contrat) => contrat.prestataireId === ficheId)
+    .map((contrat) => ({
+      date: contrat.reconductionDu ?? null,
+      copropriete: copros.find((copro) => copro.id === contrat.coproprieteId)?.nom ?? '—',
+      objet: `${contrat.type ?? 'Contrat'}, ${contrat.statut ?? 'En cours'}`,
+    }))
 
   /**
    * Enregistre la saisie (appelé par FormModal après la fermeture de la modale, sans attendre la promesse).
@@ -63,6 +95,8 @@ export function PrestatairesModule() {
           metier: valeurs.metier,
           siret: valeurs.siret,
           decennale,
+          ville: (valeurs.ville ?? '').trim(),
+          fiche: ficheSaisie(completerAvecDemo(edition).fiche, valeurs),
         })
         push({
           kind: 'success',
@@ -75,7 +109,8 @@ export function PrestatairesModule() {
           metier: valeurs.metier,
           siret: valeurs.siret,
           decennale,
-          ville: '',
+          ville: (valeurs.ville ?? '').trim(),
+          fiche: ficheSaisie(undefined, valeurs),
           note: 0,
           interventions: 0,
           statut: 'Actif',
@@ -97,7 +132,8 @@ export function PrestatairesModule() {
     }
   }
 
-  const prestataireEdite = edition && edition !== 'create' ? edition : null
+  const prestataireEdite = edition && edition !== 'create' ? completerAvecDemo(edition) : null
+  const ficheEditee = prestataireEdite?.fiche
   const champs: ChampFormModal[] = [
     {
       label: 'Raison sociale',
@@ -125,6 +161,27 @@ export function PrestatairesModule() {
       options: ['Oui', 'N/A'],
       value: prestataireEdite ? (prestataireEdite.decennale ? 'Oui' : 'N/A') : undefined,
     },
+    { label: 'Forme juridique', name: 'formeJuridique', value: ficheEditee?.formeJuridique },
+    { label: 'TVA intracommunautaire', name: 'tva', value: ficheEditee?.tvaIntracommunautaire },
+    { label: 'Adresse', name: 'adresse', full: true, value: ficheEditee?.adresse },
+    { label: 'Code postal', name: 'codePostal', value: ficheEditee?.codePostal },
+    { label: 'Ville', name: 'ville', value: prestataireEdite?.ville },
+    { label: 'Courriel', name: 'courriel', type: 'email', value: telecomPrefere(ficheEditee?.telecoms ?? [], 'Courriel') },
+    { label: 'Téléphone', name: 'telephone', type: 'tel', value: telecomPrefere(ficheEditee?.telecoms ?? [], 'Téléphone') },
+    {
+      label: 'Mode de règlement',
+      name: 'modeReglement',
+      type: 'select',
+      options: MODES_REGLEMENT,
+      value: ficheEditee?.reglement.mode,
+    },
+    {
+      label: 'Délai de paiement (jours)',
+      name: 'delaiJours',
+      type: 'number',
+      value: String(ficheEditee?.reglement.delaiJours ?? 30),
+    },
+    { label: 'Notes', name: 'notes', type: 'textarea', full: true, value: ficheEditee?.notes },
   ]
 
   return (
@@ -313,42 +370,7 @@ export function PrestatairesModule() {
               >
                 <button
                   className="btn ghost sm"
-                  onClick={() =>
-                    setFiche({
-                      title: prestataire.nom,
-                      icon: 'wrench',
-                      fields: [
-                        {
-                          k: 'Métier',
-                          v: prestataire.metier,
-                        },
-                        {
-                          k: 'Ville',
-                          v: prestataire.ville,
-                        },
-                        {
-                          k: 'SIRET',
-                          v: prestataire.siret,
-                        },
-                        {
-                          k: 'Assurance décennale',
-                          v: prestataire.decennale ? 'Oui' : 'N/A',
-                        },
-                        {
-                          k: 'Note',
-                          v: String(prestataire.note).replace('.', ','),
-                        },
-                        {
-                          k: 'Interventions',
-                          v: prestataire.interventions,
-                        },
-                        {
-                          k: 'Statut',
-                          v: prestataire.statut,
-                        },
-                      ],
-                    })
-                  }
+                  onClick={() => setFicheId(prestataire.id)}
                 >
                   Fiche
                 </button>
@@ -377,12 +399,19 @@ export function PrestatairesModule() {
         submitLabel={prestataireEdite ? 'Enregistrer' : 'Ajouter'}
         onDone={enregistrer}
       />
-      <DetailModal
-        open={!!fiche}
-        onClose={() => setFiche(null)}
-        title={fiche?.title}
-        icon={fiche?.icon}
-        fields={fiche?.fields || []}
+      <FichePrestataire
+        prestataire={prestataireFiche}
+        contrats={contratsFiche}
+        aujourdhui={AUJOURDHUI_ISO}
+        onClose={() => setFicheId(null)}
+        onModifier={(prestataire) => {
+          setFicheId(null)
+          setEdition(prestataire)
+        }}
+        onNouvelOs={() => {
+          setFicheId(null)
+          naviguerVers('interventions')
+        }}
       />
     </>
   )

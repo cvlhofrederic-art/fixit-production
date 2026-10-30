@@ -20,6 +20,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { spawn } from 'node:child_process'
+import { resolveInside } from './lib/safe-fs-path.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -47,10 +48,16 @@ const THRESHOLDS = {
   'total-byte-weight': { type: 'numericValue', max: 200_000 }, // < 200 KB pour les pages dev
 }
 
-const PAGES = pagesArg.split(',').map((p) => ({
-  name: p.trim(),
-  url: `${base}/syndic/dev/${p.trim()}/`,
-}))
+// Le nom de page entre dans le nom du fichier de rapport (outDir/{name}.json) : seuls a-z, 0-9 et « - »
+// sont acceptés, tout autre nom (ex. « ../x ») arrête le script (lot 7 du brief Aikido du 28/10/2026, issue 9).
+const NOM_PAGE = /^[a-z0-9-]+$/
+const PAGES = pagesArg.split(',').map((p) => p.trim()).filter(Boolean).map((name) => {
+  if (!NOM_PAGE.test(name)) {
+    console.error(`[lighthouse-v54] nom de page invalide « ${name} » : seuls a-z, 0-9 et - sont acceptés`)
+    process.exit(1)
+  }
+  return { name, url: `${base}/syndic/dev/${name}/` }
+})
 
 function runLighthouse(url, outJson) {
   return new Promise((resolve, reject) => {
@@ -74,7 +81,7 @@ function runLighthouse(url, outJson) {
 }
 
 async function auditPage(page) {
-  const outJson = join(outDir, `${page.name}.json`)
+  const outJson = resolveInside(outDir, `${page.name}.json`)
   console.error(`[lighthouse-v54] auditing ${page.url}`)
   try {
     await runLighthouse(page.url, outJson)

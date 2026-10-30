@@ -35,7 +35,12 @@ async function ouvrirSelecteur() {
       ? new Response(JSON.stringify({ success: true }), { status: 200 })
       : new Response(JSON.stringify({ error: 'indisponible' }), { status: 503 }),
   )
-  const emplacement = { href: '/admin/dashboard', pathname: '/admin/dashboard', search: '', hash: '' }
+  // safeNavigate (lib/security/safe-url) résout le chemin sur l'origine courante puis appelle location.assign :
+  // le double enregistre le chemin atteint dans href.
+  const emplacement = {
+    href: '/admin/dashboard', pathname: '/admin/dashboard', search: '', hash: '', origin: 'http://localhost:3000',
+    assign(url: string) { emplacement.href = new URL(url).pathname },
+  }
   Object.defineProperty(window, 'location', { configurable: true, value: emplacement })
   render(<AdminDashboardPage />)
   fireEvent.click(await screen.findByRole('button', { name: /Dashboards/ }, { timeout: 5000 }))

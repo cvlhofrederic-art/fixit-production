@@ -11,11 +11,10 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch: {}
 
-permissions:
-  actions: read
-  contents: read
-  security-events: write
-  pull-requests: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : chaque job
+# déclare le strict nécessaire (security-events: write pour les jobs qui envoient
+# un SARIF, pull-requests: write pour le seul job qui commente la PR).
+permissions: {}
 
 jobs:
   # ── CodeQL — Analyse statique ──────────────────────────────────────────────
@@ -23,6 +22,10 @@ jobs:
     name: "CodeQL — Analyse statique"
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix:
@@ -30,19 +33,21 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Initialiser CodeQL
-        uses: github/codeql-action/init@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
+        uses: github/codeql-action/init@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3.34.1
         with:
           languages: ${{ matrix.language }}
           queries: security-extended
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
+        uses: github/codeql-action/autobuild@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3.34.1
 
       - name: Exécuter l'analyse CodeQL
-        uses: github/codeql-action/analyze@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
+        uses: github/codeql-action/analyze@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3.34.1
         with:
           category: "/language:${{ matrix.language }}"
 
@@ -51,11 +56,14 @@ jobs:
     name: "TruffleHog — Scan de secrets"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Scanner les secrets (historique complet sur main)
@@ -77,12 +85,20 @@ jobs:
     name: "Semgrep — OWASP, Secrets & JWT"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     container:
-      image: semgrep/semgrep
+      # Image épinglée par digest (zizmor unpinned-images, lot 6 Aikido) : digest du
+      # manifeste multi-arch de semgrep/semgrep:latest = 1.181.1 au 28/10/2026.
+      image: semgrep/semgrep:1.181.1@sha256:3db5c7af55eb1f512eac0abf0ab69a97b52c74b5e9a27314c221aee1a78d7ab2
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Exécuter Semgrep
         run: >
@@ -93,7 +109,7 @@ jobs:
           --sarif --output semgrep-results.sarif .
 
       - name: Uploader les résultats dans GitHub Security
-        uses: github/codeql-action/upload-sarif@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3
+        uses: github/codeql-action/upload-sarif@ebcb5b36ded6beda4ceefea6a8bc4cc885255bb3 # v3.34.1
         if: always()
         with:
           sarif_file: semgrep-results.sarif
@@ -103,10 +119,14 @@ jobs:
     name: "Trivy — Dépendances"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Run Trivy (filesystem)
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
@@ -137,10 +157,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      # dorny/paths-filter lit les fichiers de la PR (lecture) et github-script
+      # commente la PR (écriture).
+      pull-requests: write
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Vérifier si des fichiers IA ont changé
         id: ai-changes
@@ -175,7 +202,9 @@ jobs:
 
       - name: Installer Giskard
         if: steps.ai-changes.outputs.ai == 'true'
-        run: pip install giskard
+        # Version épinglée (lot 6 Aikido) : 2.19.2 est la dernière compatible Python 3.11
+        # (giskard 3.x exige Python ≥ 3.12), c'est celle que `pip install giskard` résolvait.
+        run: pip install giskard==2.19.2
 
       - name: Scanner les prompts pour injections et fuites
         if: steps.ai-changes.outputs.ai == 'true'

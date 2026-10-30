@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import type { EmailAnalysed } from '../types'
 import { TYPE_EMAIL_CONFIG } from '../types'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { safeNavigate } from '@/lib/security/safe-url'
 
 // onNavigateParams kept for backward compatibility — the empty-state CTA now
 // triggers OAuth directly (cf. handleConnectGmail), but parent still passes the prop.
@@ -81,7 +82,7 @@ export default function EmailsSection({ syndicId, onNavigateParams: _onNavigateP
         setConnecting(false)
         return
       }
-      window.location.href = `/api/email-agent/connect?token=${encodeURIComponent(session.access_token)}`
+      safeNavigate(`/api/email-agent/connect?token=${encodeURIComponent(session.access_token)}`, { allowRelative: true })
     } catch {
       setConnectError(locale === 'pt' ? 'Erro ao iniciar a ligação' : 'Erreur au démarrage de la connexion')
       setConnecting(false)

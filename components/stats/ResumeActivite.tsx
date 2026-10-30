@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import type { PhrasesActivite } from '@/lib/stats-phrases'
 
 type Periode = 'mois_en_cours' | 'mois_precedent' | 'annee_en_cours'
@@ -139,7 +140,7 @@ function ResumeContent({ phrases }: { phrases: PhrasesActivite }) {
           lineHeight: '1.5',
         }}
         dangerouslySetInnerHTML={{
-          __html: safeMarkdownToHTML(phrases.phrase_principale),
+          __html: assainirHtml(safeMarkdownToHTML(phrases.phrase_principale)),
         }}
       />
 
@@ -156,7 +157,7 @@ function ResumeContent({ phrases }: { phrases: PhrasesActivite }) {
                 lineHeight: '1.5',
               }}
               dangerouslySetInnerHTML={{
-                __html: safeMarkdownToHTML(phrase),
+                __html: assainirHtml(safeMarkdownToHTML(phrase)),
               }}
             />
           ))}

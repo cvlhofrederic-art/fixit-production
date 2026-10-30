@@ -13,8 +13,8 @@ import type { VoteAssemblee } from '@/lib/administrateur-judiciaire/domain/major
  * - L. 1965 art. 22 al. 3 : un mandataire reçoit au plus trois délégations, sauf si ses voix et celles de ses mandants
  *   n'excèdent pas 10 % des voix du syndicat ;
  * - D. 1967 art. 9 : convocation notifiée au moins 21 jours avant la réunion, sauf urgence ; délai compté à partir du
- *   lendemain de la première présentation de la lettre recommandée (art. 64). 🔴 Décompte à confirmer (jour de la
- *   réunion exclu ici) avant d'en faire un blocage.
+ *   lendemain de la première présentation de la lettre recommandée (art. 64), jour de la réunion exclu : décompte
+ *   confirmé par Hugo le 30/10/2026 (décision J5 : présentation au plus tard 22 jours avant la réunion).
  * Le calcul de la majorité reste dans majorites-ag.ts : ce module en prépare les entrées.
  */
 

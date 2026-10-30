@@ -12,7 +12,8 @@ import m from './modules.module.css'
 import { useComingSoon } from './use-coming-soon'
 import { useToast } from '../primitives/toast'
 import { useSyndicData } from '@/lib/syndic/v54/data-context'
-import { urlConnexionBoite, type FournisseurBoiteEmail } from '@/lib/syndic/v54/api'
+import { ORIGINES_CONNEXION_BOITE, urlConnexionBoite, type FournisseurBoiteEmail } from '@/lib/syndic/v54/api'
+import { safeNavigate } from '@/lib/security/safe-url'
 import { useMessages } from '@/lib/syndic/v54/i18n'
 import { DEFINICOES_MESSAGES } from './i18n/ModDefinicoes.messages'
 
@@ -35,7 +36,12 @@ export default function ModDefinicoes() {
   const connecterBoite = async (provider: FournisseurBoiteEmail) => {
     if (!token) return
     try {
-      window.location.assign(await urlConnexionBoite(token, provider))
+      const adresse = await urlConnexionBoite(token, provider)
+      // L'adresse vient du serveur : seule une page d'autorisation Google ou Microsoft est acceptée ;
+      // sinon, même toast que pour un échec de la route (texte existant, bilingue).
+      if (!safeNavigate(adresse, { allowedOrigins: ORIGINES_CONNEXION_BOITE })) {
+        push({ kind: 'error', title: t.agentEmail.connexionEchec })
+      }
     } catch (e) {
       push({ kind: 'error', title: t.agentEmail.connexionEchec, desc: e instanceof Error ? e.message : undefined })
     }

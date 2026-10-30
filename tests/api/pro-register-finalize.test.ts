@@ -6,6 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const USER_ID = '550e8400-e29b-41d4-a716-446655440000'
 const PROFIL_ID = 'profil-btp-1'
 
+// Chemin d'une pièce déposée : {user}/{pièce}/{uuid}.{ext} — dossier = compte vérifié par la route,
+// nom généré côté serveur (lib/security/storage-path.ts), jamais le nom du fichier client.
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const cheminPiece = (dossier: string, ext: string) => new RegExp(`^${USER_ID}/${dossier}/${UUID}\\.${ext}$`)
+const urlSignee = (dossier: string) => new RegExp(`^https://signee/${USER_ID}/${dossier}/${UUID}\\.`)
+
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a])
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
 
@@ -121,9 +127,9 @@ describe('POST /api/pro/register/finalize — pièces sans session', () => {
     expect(mocks.upload).toHaveBeenCalledTimes(2)
     const [cheminKbis, , optionsKbis] = mocks.upload.mock.calls[0]
     const [cheminId, , optionsId] = mocks.upload.mock.calls[1]
-    expect(cheminKbis).toMatch(/^kbis\/\d+_[0-9a-f]{8}\.pdf$/)
+    expect(cheminKbis).toMatch(cheminPiece('kbis', 'pdf'))
     expect(optionsKbis).toEqual({ contentType: 'application/pdf', upsert: false })
-    expect(cheminId).toMatch(/^identity\/\d+_[0-9a-f]{8}\.png$/)
+    expect(cheminId).toMatch(cheminPiece('identity', 'png'))
     expect(optionsId).toEqual({ contentType: 'image/png', upsert: false })
 
     expect(mocks.update).toHaveBeenCalledWith({
@@ -157,8 +163,8 @@ describe('POST /api/pro/register/finalize — pièces sans session', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, documents: { kbis: false, identity: true, identity_verso: false } })
     expect(mocks.upload).toHaveBeenCalledTimes(1)
-    expect(mocks.upload.mock.calls[0][0]).toMatch(/^identity\//)
-    expect(mocks.update).toHaveBeenCalledWith({ id_document_url: expect.stringMatching(/^https:\/\/signee\/identity\//) })
+    expect(mocks.upload.mock.calls[0][0]).toMatch(cheminPiece('identity', 'png'))
+    expect(mocks.update).toHaveBeenCalledWith({ id_document_url: expect.stringMatching(urlSignee('identity')) })
   })
 
   it('enregistre aussi le verso de la pièce d\'identité', async () => {
@@ -168,10 +174,10 @@ describe('POST /api/pro/register/finalize — pièces sans session', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, documents: { kbis: false, identity: true, identity_verso: true } })
-    expect(mocks.upload.mock.calls[1][0]).toMatch(/^identity-verso\/\d+_[0-9a-f]{8}\.png$/)
+    expect(mocks.upload.mock.calls[1][0]).toMatch(cheminPiece('identity-verso', 'png'))
     expect(mocks.update).toHaveBeenCalledWith({
-      id_document_url: expect.stringMatching(/^https:\/\/signee\/identity\//),
-      id_document_verso_url: expect.stringMatching(/^https:\/\/signee\/identity-verso\//),
+      id_document_url: expect.stringMatching(urlSignee('identity')),
+      id_document_verso_url: expect.stringMatching(urlSignee('identity-verso')),
     })
   })
 
@@ -186,8 +192,8 @@ describe('POST /api/pro/register/finalize — pièces sans session', () => {
     expect(await res.json()).toEqual({ ok: true, documents: { kbis: true, identity: true, identity_verso: false } })
     expect(mocks.upload).toHaveBeenCalledTimes(2) // aucun dépôt orphelin pour le verso
     expect(mocks.update).toHaveBeenCalledWith({
-      kbis_url: expect.stringMatching(/^https:\/\/signee\/kbis\//),
-      id_document_url: expect.stringMatching(/^https:\/\/signee\/identity\//),
+      kbis_url: expect.stringMatching(urlSignee('kbis')),
+      id_document_url: expect.stringMatching(urlSignee('identity')),
     })
   })
 
@@ -200,7 +206,7 @@ describe('POST /api/pro/register/finalize — pièces sans session', () => {
 
     expect(res.status).toBe(500)
     expect(await res.json()).toEqual({ error: "Erreur lors de l'envoi des pièces", documents: { kbis: true, identity: false, identity_verso: false } })
-    expect(mocks.update).toHaveBeenCalledWith({ kbis_url: expect.stringMatching(/^https:\/\/signee\/kbis\//) })
+    expect(mocks.update).toHaveBeenCalledWith({ kbis_url: expect.stringMatching(urlSignee('kbis')) })
     await terminerAfter()
     expect(mocks.runKycPipeline).toHaveBeenCalledWith(PROFIL_ID, USER_ID)
   })

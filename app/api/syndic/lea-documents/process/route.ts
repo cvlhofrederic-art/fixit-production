@@ -11,7 +11,8 @@ import { logger } from '@/lib/logger'
 import { extractPdfText, extractMetadataFromText, type ExtractedMetadata } from '@/lib/syndic/lea-documents-extract'
 import { embedText } from '@/lib/syndic/embed'
 import { traceAgent } from '@/lib/langfuse'
-import { cheminStockageSur } from '@/lib/storage/chemin-sur'
+import { assertStoragePath } from '@/lib/security/storage-path'
+import { prefixesStorageCabinet } from '@/lib/syndic/dossiers-storage'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 60
@@ -24,6 +25,7 @@ interface PendingDoc {
   storage_path: string
   mime_type: string
   type: string
+  uploaded_by: string | null
 }
 
 async function authorize(request: NextRequest): Promise<{ ok: true; restrictToCabinetId?: string } | { ok: false; response: NextResponse }> {
@@ -59,11 +61,13 @@ async function processOneInner(doc: PendingDoc): Promise<{ id: string; ok: boole
       .update({ status: 'processing' })
       .eq('id', doc.id)
 
-    // 2. Download from Storage
-    if (!cheminStockageSur(doc.storage_path)) throw new Error('storage_path_invalid')
+    // 2. Download from Storage — chemin relu en base : traversée bloquée, dossier du cabinet (ou de
+    //    l'uploadeur s'il est membre du cabinet, format des dépôts antérieurs au 25/05/2026) imposé.
+    //    Une StoragePathError (message sans le chemin) met la ligne en erreur comme tout autre échec.
+    const chemin = assertStoragePath(doc.storage_path, await prefixesStorageCabinet(supabaseAdmin, doc.cabinet_id, doc.uploaded_by))
     const { data: fileBlob, error: dlErr } = await supabaseAdmin.storage
       .from('syndic-documents')
-      .download(doc.storage_path)
+      .download(chemin)
     if (dlErr || !fileBlob) {
       throw new Error(`storage_download_failed: ${dlErr?.message ?? 'no_data'}`)
     }
@@ -144,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('syndic_documents')
-      .select('id, cabinet_id, storage_path, mime_type, type')
+      .select('id, cabinet_id, storage_path, mime_type, type, uploaded_by')
       .eq('status', 'pending')
       .order('uploaded_at', { ascending: true })
       .limit(BATCH_LIMIT)

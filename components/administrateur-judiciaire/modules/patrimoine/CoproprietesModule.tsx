@@ -1,39 +1,116 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
+import { assembleesDeLaCopro } from '@/components/administrateur-judiciaire/data/assemblees'
+import { completerCoproAvecDemo } from '@/components/administrateur-judiciaire/data/coproprietes'
+import { FicheAssembleeDetail } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheAssembleeDetail'
+import { FormModal, type ValeursFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
+import { dateIsoVersFr } from '@/lib/administrateur-judiciaire/domain/dates'
+import type { FicheAssemblee } from '@/lib/administrateur-judiciaire/domain/fiche-assemblee'
+import { completerAvecDemo } from '@/components/administrateur-judiciaire/data/prestataires'
+import {
+  FicheCoproprieteDetail,
+  type EntrepriseImmeuble,
+} from '@/components/administrateur-judiciaire/modules/patrimoine/FicheCoproprieteDetail'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
-import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
-import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { useCoproprietes } from '@/lib/administrateur-judiciaire/db/hooks'
+import { useToast, type ValeursFormulaireToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useCoproprietes, useDonneesLocales } from '@/lib/administrateur-judiciaire/db/hooks'
+import type { Contrat, Prestataire } from '@/lib/administrateur-judiciaire/db/schema'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
+import { nouvelleFicheCopropriete, type FicheCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-copropriete'
 import { FONDEMENTS_FORMULAIRE_COPROPRIETE } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatDateFr, formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
-/** Fiche détail ouverte par le bouton « Détails » d'une carte. */
-interface FicheCopropriete {
-  title: string
-  icon: string
-  footnote?: ReactNode
-  fields: ChampDetail[]
+/**
+ * Entreprises de l'immeuble : prestataires sous contrat pour la copropriété, ou qui y interviennent selon leur fiche
+ * (démonstration comprise) ; le contrat affiche son statut, sinon « Contrat cadre » ou « Sur demande ».
+ */
+function entreprisesDeLImmeuble(copro: CoproprieteVue, prestataires: Prestataire[], contrats: Contrat[]): EntrepriseImmeuble[] {
+  return prestataires.map(completerAvecDemo).flatMap((prestataire) => {
+    const contrat = contrats.find((c) => c.prestataireId === prestataire.id && c.coproprieteId === copro.id)
+    if (!contrat && !prestataire.fiche?.intervientPour.includes(copro.nom)) return []
+    const sansContrat = prestataire.statut === 'Contrat cadre' ? 'Contrat cadre' : 'Sur demande'
+    return [{ nom: prestataire.nom, domaine: prestataire.metier, contrat: contrat?.statut ?? sansContrat }]
+  })
+}
+
+/** Champs modifiables de la fiche d'une assemblée (tenue, convocation, procès-verbal, notes). */
+const CHAMPS_ASSEMBLEE = [
+  { name: 'lieu', label: 'Lieu', full: true },
+  { name: 'heureDebut', label: 'Début' },
+  { name: 'heureFin', label: 'Fin' },
+  { name: 'convocationEnvoyeeLe', label: 'Convocation envoyée le', type: 'date' },
+  { name: 'convocationPresenteeLe', label: 'Convocation présentée le', type: 'date' },
+  { name: 'pvSigneLe', label: 'PV signé le', type: 'date' },
+  { name: 'pvPresenteLe', label: 'Notification du PV présentée le', type: 'date' },
+  { name: 'notes', label: 'Notes', type: 'textarea', full: true },
+] as const
+
+/** Assemblée après saisie : une date vide ou mal formée devient null. */
+function modifierAssemblee(assemblee: FicheAssemblee, valeurs: ValeursFormModal): FicheAssemblee {
+  const lire = (cle: string) => (valeurs[cle] ?? '').trim()
+  const dateOuNull = (cle: string) => (/^\d{4}-\d{2}-\d{2}$/.test(lire(cle)) ? lire(cle) : null)
+  return {
+    ...assemblee,
+    lieu: lire('lieu'),
+    heureDebut: lire('heureDebut'),
+    heureFin: lire('heureFin'),
+    convocationEnvoyeeLe: dateOuNull('convocationEnvoyeeLe'),
+    convocationPresenteeLe: dateOuNull('convocationPresenteeLe'),
+    pvSigneLe: dateOuNull('pvSigneLe'),
+    pvPresenteLe: dateOuNull('pvPresenteLe'),
+    notes: lire('notes'),
+  }
+}
+
+/** Fiche détaillée après saisie : immatriculation, SIRET, ICS, alerte de trésorerie, notes et avertissement. */
+function ficheSaisie(base: FicheCopropriete, valeurs: ValeursFormulaireToast): FicheCopropriete {
+  const lire = (cle: string) => (valeurs[cle] ?? '').trim()
+  const alerte = Number.parseInt(lire('alerteTresorerie'), 10)
+  return {
+    ...base,
+    immatriculation: lire('immatriculation'),
+    siret: lire('siret'),
+    ics: lire('ics'),
+    alerteTresorerieEuros: Number.isNaN(alerte) || alerte < 0 ? null : alerte,
+    notes: lire('notes'),
+    avertissement: lire('avertissement') || null,
+  }
 }
 
 /**
  * Copropriétés administrées (données réelles : base locale, copropriétés fusionnées avec leur mandat).
- * Création et modification passent par le formulaire rapide du ToastProvider (valeurs pré-remplies en modification) ;
- * « Lots & copropriétaires » navigue vers l'écran « lots ». L'indicateur « Assurance RC » (100 %) est en dur.
+ * « Détails » ouvre la fiche sur le modèle de la fiche Mandat de Gestéam (FicheCoproprieteDetail). Création et
+ * modification passent par le formulaire rapide du ToastProvider (valeurs pré-remplies en modification, fiche détaillée
+ * comprise) ; « Lots & copropriétaires » navigue vers l'écran « lots ». L'indicateur « Assurance RC » (100 %) est en dur.
  */
 export function CoproprietesModule() {
   const { push } = useToast()
   const { copros, loading, create, update } = useCoproprietes()
-  const [fiche, setFiche] = useState<FicheCopropriete | null>(null)
+  const { prestataires, contrats } = useDonneesLocales()
+  const { choisirCopro } = useSelectionDossier()
+  const [ficheId, setFicheId] = useState<string | null>(null)
+  const [agOuverteId, setAgOuverteId] = useState<string | null>(null)
+  const [agEditeeId, setAgEditeeId] = useState<string | null>(null)
+  const [agModifiees, setAgModifiees] = useState<Record<string, FicheAssemblee>>({})
   const totalLots = copros.reduce((total, copro) => total + copro.lots, 0)
   const totalBudgets = copros.reduce((total, copro) => total + copro.budget, 0)
+  const trouvee = copros.find((copro) => copro.id === ficheId)
+  const coproFiche = trouvee ? completerCoproAvecDemo(trouvee) : null
+  const assembleesDe = (code: string) => assembleesDeLaCopro(code).map((assemblee) => agModifiees[assemblee.id] ?? assemblee)
+  const trouverAg = (id: string | null) =>
+    copros.flatMap((copro) => assembleesDe(copro.code)).find((assemblee) => assemblee.id === id) ?? null
+  const agOuverte = trouverAg(agOuverteId)
+  const agEditee = trouverAg(agEditeeId)
+  const coproDeLAg = (assemblee: FicheAssemblee | null) => copros.find((copro) => copro.code === assemblee?.coproCode)
 
-  const ouvrirFormulaire = (copro: CoproprieteVue | null) =>
+  const ouvrirFormulaire = (copro: CoproprieteVue | null) => {
+    const fiche = copro ? (completerCoproAvecDemo(copro).fiche ?? nouvelleFicheCopropriete()) : null
     push({
       kind: 'form',
       icon: 'building',
@@ -75,6 +152,22 @@ export function CoproprietesModule() {
           full: true,
           value: copro?.fondement,
         },
+        ...(fiche
+          ? [
+              { label: "N° d'immatriculation", name: 'immatriculation', value: fiche.immatriculation, full: false },
+              { label: 'SIRET', name: 'siret', value: fiche.siret, full: false },
+              { label: 'ICS (prélèvements)', name: 'ics', value: fiche.ics, full: false },
+              {
+                label: 'Alerte trésorerie sous (€)',
+                name: 'alerteTresorerie',
+                type: 'number',
+                value: fiche.alerteTresorerieEuros === null ? '' : String(fiche.alerteTresorerieEuros),
+                full: false,
+              },
+              { label: 'Notes', name: 'notes', type: 'textarea', value: fiche.notes },
+              { label: 'Avertissement (affiché à l’ouverture)', name: 'avertissement', value: fiche.avertissement ?? '' },
+            ]
+          : []),
       ],
       submitLabel: 'Enregistrer',
       toast: {
@@ -88,9 +181,10 @@ export function CoproprietesModule() {
           rg: valeurs.rg,
           fondement: valeurs.fondement,
         }
-        return copro ? update(copro.id, saisie) : create(saisie)
+        return copro && fiche ? update(copro.id, { ...saisie, fiche: ficheSaisie(fiche, valeurs) }) : create(saisie)
       },
     })
+  }
 
   return (
     <>
@@ -183,53 +277,7 @@ export function CoproprietesModule() {
               <div className="entity-card__actions">
                 <button
                   className="btn ghost sm"
-                  onClick={() =>
-                    setFiche({
-                      title: copro.nom,
-                      icon: 'building',
-                      footnote: `Désignation : ${copro.tribunal || '—'} · RG ${copro.rg} · ordonnance du ${formatDateFr(copro.ordonnance)}.`,
-                      fields: [
-                        {
-                          k: 'Adresse',
-                          v: copro.adresse,
-                          full: true,
-                        },
-                        {
-                          k: 'Lots',
-                          v: copro.lots,
-                        },
-                        {
-                          k: 'Fondement',
-                          v: copro.fondement,
-                        },
-                        {
-                          k: 'Budget',
-                          v: formatEuros(copro.budget),
-                        },
-                        {
-                          k: 'Charges engagées',
-                          v: formatEuros(copro.depense),
-                        },
-                        {
-                          k: 'Impayés',
-                          v: formatEuros(copro.impayes),
-                        },
-                        {
-                          k: 'Fonds de travaux',
-                          v: formatEuros(copro.fondsTravaux),
-                        },
-                        {
-                          k: 'Notification ordonnance',
-                          v: copro.notifOrdonnance,
-                        },
-                        {
-                          k: 'Motif',
-                          v: copro.motif || '—',
-                          full: true,
-                        },
-                      ],
-                    })
-                  }
+                  onClick={() => setFicheId(copro.id)}
                 >
                   Détails
                 </button>
@@ -249,13 +297,57 @@ export function CoproprietesModule() {
           ))}
         </div>
       )}
-      <DetailModal
-        open={!!fiche}
-        onClose={() => setFiche(null)}
-        title={fiche?.title}
-        icon={fiche?.icon}
-        fields={fiche?.fields || []}
-        footnote={fiche?.footnote}
+      <FicheCoproprieteDetail
+        copro={coproFiche}
+        entreprises={coproFiche ? entreprisesDeLImmeuble(coproFiche, prestataires, contrats) : []}
+        onClose={() => setFicheId(null)}
+        onModifier={(copro) => {
+          setFicheId(null)
+          ouvrirFormulaire(copro)
+        }}
+        onFiche360={(copro) => {
+          setFicheId(null)
+          choisirCopro(copro.code)
+          naviguerVers('fiche360')
+        }}
+        assemblees={coproFiche ? assembleesDe(coproFiche.code) : []}
+        onOuvrirAssemblee={(id) => {
+          setFicheId(null)
+          setAgOuverteId(id)
+        }}
+      />
+      <FicheAssembleeDetail
+        assemblee={agOuverte}
+        nomCopro={coproDeLAg(agOuverte)?.nom ?? ''}
+        onClose={() => setAgOuverteId(null)}
+        onFicheCopropriete={() => {
+          setFicheId(coproDeLAg(agOuverte)?.id ?? null)
+          setAgOuverteId(null)
+        }}
+        onModifier={(assemblee) => {
+          setAgOuverteId(null)
+          setAgEditeeId(assemblee.id)
+        }}
+      />
+      <FormModal
+        open={!!agEditee}
+        onClose={() => {
+          setAgOuverteId(agEditeeId)
+          setAgEditeeId(null)
+        }}
+        title={agEditee ? `Modifier la fiche — AG du ${dateIsoVersFr(agEditee.date)}` : undefined}
+        icon="pencil"
+        fields={agEditee ? CHAMPS_ASSEMBLEE.map((champ) => ({ ...champ, value: agEditee[champ.name] ?? '' })) : []}
+        submitLabel="Enregistrer"
+        onDone={(valeurs) => {
+          if (!agEditee) return
+          setAgModifiees((precedentes) => ({ ...precedentes, [agEditee.id]: modifierAssemblee(agEditee, valeurs) }))
+          push({
+            kind: 'success',
+            title: "Fiche de l'assemblée mise à jour",
+            desc: 'Démonstration : la modification disparaît au rechargement de la page.',
+          })
+        }}
       />
     </>
   )
