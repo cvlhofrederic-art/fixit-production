@@ -8,6 +8,7 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LanguageProvider } from '@/lib/i18n/context'
+import en from '@/locales/en.json'
 import MesDonneesRgpd from '@/components/legal/MesDonneesRgpd'
 
 vi.mock('@/lib/supabase', () => ({
@@ -37,6 +38,19 @@ afterEach(() => {
 })
 
 describe('MesDonneesRgpd', () => {
+  it('locales/en.json : les huit clés rgpd.* ajoutées reprennent les textes que la page EN affichait', () => {
+    expect(en.rgpd).toMatchObject({
+      exportSuccess: 'Your data has been downloaded successfully.',
+      exportError: 'Error exporting your data.',
+      deleteError: 'Error deleting your account.',
+      storedData: 'Stored data',
+      accountType: 'Account type',
+      dataCategories: 'We also store: your bookings, messages, artisan profile (if applicable), and billing data. Use the export below to get everything.',
+      deleteConfirmPrompt: 'Type DELETE to confirm permanent deletion:',
+      contactDpo: 'For any questions about your data, contact our DPO:',
+    })
+  })
+
   it('variante EN : textes anglais (clés ajoutées à locales/en.json), rôle et mot de confirmation DELETE', async () => {
     render(
       <LanguageProvider initialLocale="en">

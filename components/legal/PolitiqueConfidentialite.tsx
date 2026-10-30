@@ -3,7 +3,7 @@
 // liste les sous-traitants d'IA (Groq, Tavily, OpenRouter).
 import { getServerTranslation } from '@/lib/i18n/server'
 
-export default async function PolitiqueConfidentialite({ avecSousTraitantsIa = false }: { avecSousTraitantsIa?: boolean }) {
+export default async function PolitiqueConfidentialite({ avecSousTraitantsIa = false }: Readonly<{ avecSousTraitantsIa?: boolean }>) {
   const { t } = await getServerTranslation()
 
   return (

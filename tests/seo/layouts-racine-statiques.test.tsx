@@ -488,7 +488,7 @@ describe('scripts/seo/verifier-prerendu.mjs : garde du prerender-manifest après
   // Un défaut introduit dans le manifeste conforme, /fr/ ramené à son plancher, et les erreurs attendues.
   const DEFAUTS: Array<[string, (manifeste: Manifeste) => void, unknown[]]> = [
     [
-      'gabarit devenu dynamique (helper qui lit cookies() dans une famille sans témoin) : erreur qui nomme la page',
+      'gabarit devenu dynamique (helper qui lit cookies() dans une famille sans témoin), page nommée dans le message',
       (manifeste) => {
         delete manifeste.dynamicRoutes['/fr/blog/[slug]']
         delete manifeste.routes['/fr/blog/exemple']

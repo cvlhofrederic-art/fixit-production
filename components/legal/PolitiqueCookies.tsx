@@ -32,8 +32,9 @@ export default async function PolitiqueCookies() {
                 <p className="text-gray-600 text-sm leading-relaxed">
                   {t('cookies.necessary.desc')}
                 </p>
+                {/* En-têtes de colonnes en <th> : text-left, font-semibold et leading-[1.6] gardent l'aspect des anciennes <td> (un <th> est centré et en gras 700 par défaut, et la règle p, li, span, td d'app/globals.css, qui fixe line-height: 1.6, ne le vise pas). */}
                 <table className="mt-3 text-xs text-gray-600 w-full">
-                  <thead><tr className="font-semibold text-gray-700"><td className="py-1">{t('cookies.table.name')}</td><td>{t('cookies.table.duration')}</td><td>{t('cookies.table.purpose')}</td></tr></thead>
+                  <thead><tr className="font-semibold text-gray-700"><th scope="col" className="py-1 text-left font-semibold leading-[1.6]">{t('cookies.table.name')}</th><th scope="col" className="text-left font-semibold leading-[1.6]">{t('cookies.table.duration')}</th><th scope="col" className="text-left font-semibold leading-[1.6]">{t('cookies.table.purpose')}</th></tr></thead>
                   <tbody>
                     <tr><td className="py-0.5 font-mono">sb-access-token</td><td>{t('cookies.table.session')}</td><td>{t('cookies.table.authSupabase')}</td></tr>
                     <tr><td className="py-0.5 font-mono">sb-refresh-token</td><td>{t('cookies.table.sevenDays')}</td><td>{t('cookies.table.keepSession')}</td></tr>

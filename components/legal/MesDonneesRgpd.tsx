@@ -47,7 +47,7 @@ type UserData = {
   full_name: string
 }
 
-export default function MesDonneesRgpd({ variante = 'fr' }: { variante?: VarianteMesDonnees }) {
+export default function MesDonneesRgpd({ variante = 'fr' }: Readonly<{ variante?: VarianteMesDonnees }>) {
   const { t } = useTranslation()
   const textes = TEXTES_CODE[variante]
   const locale = useLocale()
@@ -77,7 +77,7 @@ export default function MesDonneesRgpd({ variante = 'fr' }: { variante?: Variant
       })
       setLoading(false)
     }
-    loadUser()
+    void loadUser()
   }, [])
 
   const handleExport = async () => {

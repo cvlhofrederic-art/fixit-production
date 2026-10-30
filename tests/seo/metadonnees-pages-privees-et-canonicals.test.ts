@@ -73,7 +73,8 @@ describe('/pro/tarifs/ : canonical par locale', () => {
 })
 
 describe('pages privées : noindex, nofollow', () => {
-  // Pages 'use client' sans métadonnées : sans layout, elles héritent de robots index, follow du layout racine.
+  // Pages sans métadonnées propres (pages client, ou page qui rend seule un composant client) : sans layout, elles
+  // héritent de robots index, follow du layout racine.
   it.each([
     ['/pt/privacidade/meus-dados/ (espace RGPD du compte)', () => import('@/app/pt/privacidade/meus-dados/layout')],
     ['/en/privacy/my-data/ (espace RGPD du compte)', () => import('@/app/en/privacy/my-data/layout')],

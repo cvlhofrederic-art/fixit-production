@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 
 // Bandeau du rapport rédigé automatiquement pour une intervention (texte du rapport IA, modifiable avant envoi), affiché
 // par components/pro-mobile/pages/MobileDocumentsSection.tsx. La page de l'app mobile en gardait une copie inutilisée.
-export default function RapportIABandeau({ bookingId }: { bookingId: string }) {
+export default function RapportIABandeau({ bookingId }: Readonly<{ bookingId: string }>) {
   const [contenu, setContenu] = useState<{ introduction?: string; travaux_realises?: string; observations?: string; conclusion?: string; source?: string } | null>(null)
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState({ introduction: '', travaux_realises: '', observations: '', conclusion: '' })

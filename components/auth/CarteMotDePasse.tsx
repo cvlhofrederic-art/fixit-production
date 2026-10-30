@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import LocaleLink from '@/components/common/LocaleLink'
 
 // Coquille des pages de mot de passe (/auth/reset-password/ et /auth/update-password/) : logo, titre, sous-titre et carte.
-export function CarteMotDePasse({ titre, sousTitre, children }: { titre: string; sousTitre: string; children: ReactNode }) {
+export function CarteMotDePasse({ titre, sousTitre, children }: Readonly<{ titre: string; sousTitre: string; children: ReactNode }>) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
@@ -30,7 +30,7 @@ export function CarteMotDePasse({ titre, sousTitre, children }: { titre: string;
 }
 
 // Réussite : coche verte, titre, message et lien vers la connexion.
-export function SuccesMotDePasse({ titre, message, retourConnexion }: { titre: string; message: string; retourConnexion: string }) {
+export function SuccesMotDePasse({ titre, message, retourConnexion }: Readonly<{ titre: string; message: string; retourConnexion: string }>) {
   return (
     <div className="text-center">
       <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
