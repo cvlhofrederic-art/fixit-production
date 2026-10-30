@@ -22,6 +22,8 @@ import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciair
  * Arrondi : plus forts restes, la somme des quotes-parts égale exactement l'échéance (aucun centime perdu ni créé).
  * 🔵 Comptes de contrepartie par défaut : 70100 (provisions, budget), 70200 (travaux), 10500 (fonds de travaux, compte
  *    observé tranche 25) ; remplaçables par échéance.
+ * 🔵 Une échéance à 0 centime (tranche de travaux entièrement financée par le fonds de travaux) reste dans l'avis (l'avis
+ *    du n° 17 y rattache l'emploi du fonds) mais n'écrit aucune ligne : débits et crédits nuls sont omis de l'écriture.
  *
  * Mutation du lot le jour de l'exigibilité — décision de Hugo Carvalho du 30/10/2026 : l'appel est dû par le VENDEUR.
  * 🟢 Relu sur Légifrance le 30/10/2026 :
@@ -97,6 +99,10 @@ export function repartir(montantCentimes: number, cle: CleRepartition): { lotId:
 export type NatureEcheance = 'budget' | 'travaux' | 'fonds_travaux'
 
 const CONTREPARTIE_PAR_DEFAUT: Record<NatureEcheance, string> = { budget: '70100', travaux: '70200', fonds_travaux: '10500' }
+
+/** Code du plan crédité par l'appel de l'échéance : le sien, à défaut celui de sa nature. */
+export const codeContrepartie = (e: Pick<EcheanceAppel, 'nature' | 'compteContrepartie'>): string =>
+  e.compteContrepartie ?? CONTREPARTIE_PAR_DEFAUT[e.nature]
 
 export interface EcheanceAppel {
   id: string
@@ -201,7 +207,10 @@ export function avisDAppel({
   return { echeances, parCompte, anomalies }
 }
 
-/** Écriture de l'appel (famille « Appel de fonds ») : débit des comptes 450, crédit des comptes de contrepartie. */
+/**
+ * Écriture de l'appel (famille « Appel de fonds ») : débit des comptes 450, crédit des comptes de contrepartie ; une
+ * ligne nulle (échéance à 0 centime) n'est pas écrite.
+ */
 export function traitementAppelDeFonds(
   avis: AvisAppels,
   { id, date, segmentSyndicat, comptes }: { id: string; date: string; segmentSyndicat: string; comptes: CompteCoproprietaire[] },
@@ -214,7 +223,8 @@ export function traitementAppelDeFonds(
   })
   const credits = new Map<string, number>()
   for (const e of avis.echeances) {
-    const code = e.compteContrepartie ?? CONTREPARTIE_PAR_DEFAUT[e.nature]
+    if (e.montantCentimes === 0) continue
+    const code = codeContrepartie(e)
     credits.set(code, (credits.get(code) ?? 0) + e.montantCentimes)
   }
   return creerTraitement({
