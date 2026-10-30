@@ -17,6 +17,7 @@ import {
   mouvementsReglement,
   rapprocherReglements,
   reglementsDeLigne,
+  rejeterVirement,
   traitementReglements,
   type BeneficiaireReglement,
   type ContextePaiement,
@@ -108,6 +109,7 @@ describe('objet ReglementFournisseur', () => {
       statut: 'Demandé',
       impute: false,
       rapprochement: null,
+      rejet: null,
     })
   })
 
@@ -622,5 +624,136 @@ describe('statut « Rapproché » propagé depuis l’arrêté', () => {
       'Enregistré',
       'Enregistré',
     ])
+  })
+})
+
+describe('virement rejeté ou retourné après émission (décision J9 de Hugo du 30/10/2026)', () => {
+  const rA = creer()
+  const rB = creer({ id: 'r-2', factureId: 'f-2', montantCentimes: 30_000 })
+  /** Un virement par facture : deux lignes, deux virements. */
+  const ordre = ordreDe([rA, rB])
+  const emis = emettreOrdre(ordre, '2026-10-29')
+  const enregistres = enregistrerOrdreEmis(mettreDansOrdre([rA, rB], ordre), emis)
+  const ecrits = traitementReglements(enregistres, { id: 't-regl-1', ...AU_29, ordre: emis })
+  const [ecritA, ecritB] = ecrits.reglements
+  const REJET = { id: 't-annul-1', date: '2026-11-03', motif: 'AC04 — compte clos' }
+  const contraire = (sens: 'debit' | 'credit') => (sens === 'debit' ? 'credit' : 'debit')
+
+  const arrete = (rapproche: false | 'auto'): ArreteRapprochement => ({
+    id: 'a-1',
+    banqueId: 'b-courant',
+    dateArrete: '2026-11-10',
+    soldeBanqueCentimes: 0,
+    soldeComptaCentimes: 0,
+    statut: 'En cours',
+    elements: [
+      {
+        id: 'rel-1',
+        cote: 'banque',
+        montantCentimes: -rA.montantCentimes,
+        rapproche,
+        date: '2026-10-30',
+        rapprocheLe: rapproche ? '2026-11-02' : null,
+        pieces: [{ type: 'reglement', id: 'r-1' }],
+      },
+    ],
+  })
+
+  it('rejet après émission : écriture contraire « Annulation de règlements » du seul virement rejeté, sous renvoi au traitement de l’ordre', () => {
+    const { traitement } = rejeterVirement([ecritA], emis, REJET)
+    expect(traitement).toMatchObject({ id: 't-annul-1', famille: 'Annulation de règlements', date: '2026-11-03', annule: 't-regl-1' })
+    expect(traitement.mouvements).toEqual(mouvementsReglement(ecritA).map((m) => ({ ...m, sens: contraire(m.sens), traitementId: 't-annul-1' })))
+    const solde = (compte: string) =>
+      [...ecrits.traitement.mouvements, ...traitement.mouvements]
+        .filter((m) => m.compte === compte)
+        .reduce((s, m) => s + (m.sens === 'debit' ? m.montantCentimes : -m.montantCentimes), 0)
+    expect(solde(rA.contrepartie512)).toBe(-30_000)
+    expect(solde(mouvementsReglement(ecritA)[0].compte)).toBe(30_000)
+  })
+
+  it('le règlement rejeté passe « Annulé » avec la date et le motif du rejet ; il garde son écriture, son ordre et son n° de pièce', () => {
+    const { reglements } = rejeterVirement([ecritA], emis, { ...REJET, motif: '  AC04 — compte clos ' })
+    expect(reglements).toEqual([{ ...ecritA, statut: 'Annulé', rejet: { le: '2026-11-03', motif: 'AC04 — compte clos', traitementId: 't-annul-1' } }])
+    expect(reglements[0]).toMatchObject({ impute: true, traitementId: 't-regl-1', ordreId: 'o-1', numeroPiece: 'r-1' })
+    expect(ecritA.statut).toBe('Enregistré')
+  })
+
+  it('« Annulé » est définitif : ni réécriture, ni changement de statut ; la facture se paie par un nouveau règlement', () => {
+    const [rejete] = rejeterVirement([ecritA], emis, REJET).reglements
+    expect(() => traitementReglements([rejete], { id: 't-reprise', ...AU_29 })).toThrow(/payé/)
+    expect(() => changerStatutReglementFournisseur(rejete, 'Demandé')).toThrow(/Transition refusée/)
+  })
+
+  it('double rejet refusé : un rejet ne s’écrit qu’une fois', () => {
+    const { reglements } = rejeterVirement([ecritA], emis, REJET)
+    expect(() => rejeterVirement(reglements, emis, { ...REJET, id: 't-annul-2' })).toThrow(/r-1 déjà rejeté le 2026-11-03.*t-annul-1/)
+  })
+
+  it('ordre non émis : aucun virement n’est parti, le règlement sort de l’ordre (pas de rejet)', () => {
+    const [aRegler] = mettreDansOrdre([rA, rB], ordre)
+    expect(() => rejeterVirement([aRegler], ordre, REJET)).toThrow(/OV-1 pas émis/)
+  })
+
+  it('avant l’écriture de l’ordre : refusé, rien à contre-passer (l’ordre s’écrit d’abord, en une fois)', () => {
+    expect(() => rejeterVirement([enregistres[0]], emis, REJET)).toThrow(/écrire d'abord l'ordre OV-1/)
+  })
+
+  it('un rejet porte sur tout un virement : la ligne groupée entière, jamais deux virements à la fois', () => {
+    const groupe = ordreDe([rA, rB], 'mandat')
+    const groupeEmis = emettreOrdre(groupe, '2026-10-29')
+    const groupeEcrit = traitementReglements(enregistrerOrdreEmis(mettreDansOrdre([rA, rB], groupe), groupeEmis), {
+      id: 't-regl-1',
+      ...AU_29,
+      ordre: groupeEmis,
+    }).reglements
+    expect(() => rejeterVirement([groupeEcrit[0]], groupeEmis, REJET)).toThrow(/tout le virement.*r-2 non fourni/)
+    const { traitement, reglements } = rejeterVirement(groupeEcrit, groupeEmis, REJET)
+    expect(traitement.mouvements).toHaveLength(4)
+    expect(reglements.map((r) => [r.id, r.statut])).toEqual([
+      ['r-1', 'Annulé'],
+      ['r-2', 'Annulé'],
+    ])
+    expect(() => rejeterVirement([ecritA, ecritB], emis, REJET)).toThrow(/plusieurs virements/)
+  })
+
+  it('contrôles : au moins un règlement, motif, date AAAA-MM-JJ pas antérieure à l’émission, identifiant propre, virement de l’ordre', () => {
+    expect(() => rejeterVirement([], emis, REJET)).toThrow(/aucun règlement/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, motif: '  ' })).toThrow(/motif/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, date: '03/11/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, date: '2026-10-28' })).toThrow(/antérieur à l'émission/)
+    expect(() => rejeterVirement([ecritA], emis, { ...REJET, id: 't-regl-1' })).toThrow(/propre identifiant/)
+    expect(() => rejeterVirement([ecritA, ecritA], emis, REJET)).toThrow(/en double/)
+    const cheque = traitementReglements(
+      [changerStatutReglementFournisseur(creer({ id: 'c-1', factureId: 'f-9', mode: 'Chèque', iban: null }), 'Enregistré', { numeroPiece: '0001' })],
+      { id: 't-cheques', ...AU_29 },
+    ).reglements[0]
+    expect(() => rejeterVirement([cheque], emis, REJET)).toThrow(/c-1 hors de l'ordre OV-1/)
+  })
+
+  it('après rapprochement : traité — la sortie reste pointée, le règlement passe « Annulé » ; la propagation ne le signale pas et ne le rend jamais « Rapproché »', () => {
+    const pointes = rapprocherReglements([ecritA, ecritB], [arrete('auto')]).reglements
+    expect(pointes[0].statut).toBe('Rapproché')
+    const [rejete] = rejeterVirement([pointes[0]], emis, REJET).reglements
+    expect(rejete).toMatchObject({ statut: 'Annulé', rapprochement: { elementId: 'rel-1', rapprocheLe: '2026-11-02' } })
+    const repropage = rapprocherReglements([rejete, pointes[1]], [arrete('auto')])
+    expect(repropage.anomalies).toEqual([])
+    expect(repropage.reglements[0]).toEqual(rejete)
+    const depointe = rapprocherReglements([rejete, pointes[1]], [arrete(false)]).reglements[0]
+    expect(depointe).toEqual({ ...rejete, rapprochement: null })
+  })
+
+  it('rejet avant le relevé, sortie pointée ensuite (retour) : « Annulé », pointage gardé, sans anomalie', () => {
+    const [rejete] = rejeterVirement([ecritA], emis, REJET).reglements
+    const { reglements, anomalies } = rapprocherReglements([rejete, ecritB], [arrete('auto')])
+    expect(anomalies).toEqual([])
+    expect(reglements[0]).toMatchObject({ statut: 'Annulé', rapprochement: { elementId: 'rel-1' } })
+  })
+
+  it('en-tête : la décision J9 remplace le 🔴 de l’annulation après émission', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).toMatch(/Décision J9 de Hugo du 30\/10\/2026/)
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/annulation après émission \(virement rejeté ou retourné\) : refusée/)
   })
 })
