@@ -12,6 +12,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import dynamic from 'next/dynamic'
 import type { User } from '@supabase/supabase-js'
 import type { Artisan, Booking, Service, Availability, ChatMessage } from '@/lib/types'
+import { COMPLIANCE_TYPES, getComplianceStatus, type ComplianceType, type ComplianceDoc, type ProofPhoto, type InterventionProof } from '@/components/pro-mobile/conformite'
 
 // Dynamic imports for extracted page sections
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,71 +31,6 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Tab = 'home' | 'agenda' | 'interventions' | 'documents' | 'settings'
 type ProofStep = 'before' | 'during' | 'after' | 'signature'
-
-// ─── Compliance Wallet ───────────────────────────────────────────────────────
-const COMPLIANCE_TYPES = [
-  { key: 'decennale',      label: 'RC Décennale',         labelKey: 'proDash.wallet.assuranceDecennale', icon: '🛡️', renewYears: 1 },
-  { key: 'kbis',           label: 'Extrait KBIS',         labelKey: 'proDash.wallet.kbis',              icon: '📋', renewYears: 0 },
-  { key: 'urssaf',         label: 'Attestation URSSAF',   labelKey: 'proDash.wallet.urssaf',            icon: '🏛️', renewYears: 0 },
-  { key: 'rge',            label: 'Certificat RGE',       labelKey: 'proDash.wallet.rge',               icon: '♻️', renewYears: 4 },
-  { key: 'carte_pro',      label: 'Carte Pro BTP',        labelKey: 'proDash.wallet.carteProBtp',       icon: '🪪', renewYears: 5 },
-  { key: 'passeport_prev', label: 'Passeport Prévention', labelKey: 'proDash.wallet.passeportPrevention', icon: '🎓', renewYears: 0 },
-  { key: 'assurance_pro',  label: 'Assurance Pro (RC)',   labelKey: 'proDash.wallet.rcPro',             icon: '🔒', renewYears: 1 },
-  { key: 'autre',          label: 'Autre document',       labelKey: 'mob.compliance.other',             icon: '📄', renewYears: 0 },
-] as const
-type ComplianceType = typeof COMPLIANCE_TYPES[number]['key']
-
-interface ComplianceDoc {
-  id: string
-  type: ComplianceType
-  dateExpiration: string | null
-  notes: string
-  addedAt: string
-  // OCR fields
-  ocrData?: {
-    rawText?: string
-    assureur?: string
-    numPolice?: string
-    montantGarantie?: string
-    activiteCouverte?: string
-    detectedType?: ComplianceType
-    confidence?: number
-    scannedAt?: string
-  }
-  photoDataUrl?: string
-  verificationStatus?: 'pending' | 'verified' | 'rejected'
-  passeportPrevention?: string
-}
-
-function getComplianceStatus(doc: ComplianceDoc): 'valid' | 'expiring' | 'expired' | 'nodoc' {
-  if (!doc.dateExpiration) return 'nodoc'
-  const days = Math.ceil((new Date(doc.dateExpiration).getTime() - Date.now()) / 86400000)
-  if (days < 0)   return 'expired'
-  if (days <= 30) return 'expiring'
-  return 'valid'
-}
-
-interface ProofPhoto {
-  dataUrl: string
-  timestamp: string
-  lat?: number
-  lng?: number
-  label: string
-}
-
-interface InterventionProof {
-  bookingId: string
-  step: ProofStep
-  beforePhotos: ProofPhoto[]
-  duringPhotos: ProofPhoto[]
-  afterPhotos: ProofPhoto[]
-  description: string
-  signature?: string
-  startedAt?: string
-  completedAt?: string
-  gpsLat?: number
-  gpsLng?: number
-}
 
 interface OcrResult {
   scannedAt: string
@@ -861,92 +797,6 @@ function MobilePasswordChange() {
           <button onClick={handleChange} disabled={saving || !newPwd || !confirmPwd}
             className="w-full bg-[#FFC107] text-gray-900 py-3 rounded-xl font-bold text-sm disabled:opacity-50">
             {saving ? t('proDash.settings.pwdSaving') : t('proDash.settings.pwdUpdate')}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Rapport IA Bandeau ─────────────────────────────────────────────────────────
-function RapportIABandeau({ bookingId }: { bookingId: string }) {
-  const [contenu, setContenu] = useState<{ introduction?: string; travaux_realises?: string; observations?: string; conclusion?: string; source?: string } | null>(null)
-  const [editing, setEditing] = useState(false)
-  const [editData, setEditData] = useState({ introduction: '', travaux_realises: '', observations: '', conclusion: '' })
-  const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    if (!bookingId) return
-    supabase.from('bookings').select('rapport_ia_texte_brut, rapport_ia_source').eq('id', bookingId).maybeSingle()
-      .then(({ data }) => {
-        if (data?.rapport_ia_texte_brut) {
-          try {
-            const parsed = JSON.parse(data.rapport_ia_texte_brut)
-            setContenu(parsed)
-            setEditData({
-              introduction: parsed.introduction || '',
-              travaux_realises: parsed.travaux_realises || '',
-              observations: parsed.observations || '',
-              conclusion: parsed.conclusion || '',
-            })
-          } catch { /* invalid JSON */ }
-        }
-      })
-  }, [bookingId])
-
-  if (!contenu?.introduction) return null
-
-  const handleSave = async () => {
-    setSaving(true)
-    const updated = { ...contenu, ...editData }
-    await supabase.from('bookings').update({
-      rapport_ia_texte_brut: JSON.stringify(updated),
-      rapport_ia_source: 'manuel',
-    }).eq('id', bookingId)
-    setContenu(updated)
-    setEditing(false)
-    setSaving(false)
-  }
-
-  return (
-    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-bold text-emerald-700">
-          ✨ Texte rédigé automatiquement
-        </span>
-        <button
-          onClick={() => setEditing(!editing)}
-          className="text-xs font-semibold text-emerald-600 underline"
-        >
-          {editing ? 'Fermer' : 'Modifier'}
-        </button>
-      </div>
-      <p className="text-[11px] text-emerald-600 mb-1">
-        Généré depuis les données du chantier. Modifiable avant envoi.
-      </p>
-      {editing && (
-        <div className="space-y-2 mt-2">
-          {(['introduction', 'travaux_realises', 'observations', 'conclusion'] as const).map(field => (
-            <div key={field}>
-              <label className="text-[10px] font-bold text-gray-500 uppercase">{
-                field === 'travaux_realises' ? 'Travaux réalisés' :
-                field.charAt(0).toUpperCase() + field.slice(1)
-              }</label>
-              <textarea
-                value={editData[field]}
-                onChange={e => setEditData(prev => ({ ...prev, [field]: e.target.value }))}
-                rows={2}
-                className="w-full text-xs border border-gray-200 rounded-lg p-2 mt-0.5 resize-none focus:ring-1 focus:ring-emerald-300 focus:border-emerald-300"
-              />
-            </div>
-          ))}
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-emerald-600 text-white text-xs font-bold py-2 rounded-xl active:scale-95 transition"
-            style={{ opacity: saving ? 0.5 : 1 }}
-          >
-            {saving ? '⏳ Enregistrement...' : '💾 Sauvegarder les modifications'}
           </button>
         </div>
       )}

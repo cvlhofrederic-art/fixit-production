@@ -459,7 +459,15 @@
     "deleteButton": "Delete my account",
     "deleting": "Deleting...",
     "confirmDelete": "Type DELETE to confirm",
-    "confirmDeletePlaceholder": "Type DELETE"
+    "confirmDeletePlaceholder": "Type DELETE",
+    "exportSuccess": "Your data has been downloaded successfully.",
+    "exportError": "Error exporting your data.",
+    "deleteError": "Error deleting your account.",
+    "storedData": "Stored data",
+    "accountType": "Account type",
+    "dataCategories": "We also store: your bookings, messages, artisan profile (if applicable), and billing data. Use the export below to get everything.",
+    "deleteConfirmPrompt": "Type DELETE to confirm permanent deletion:",
+    "contactDpo": "For any questions about your data, contact our DPO:"
   },
   "cookie": {
     "title": "Cookie settings",

@@ -485,42 +485,39 @@ describe('scripts/seo/verifier-prerendu.mjs : garde du prerender-manifest après
     expect(erreurs).toContainEqual(MESSAGE_PAGE_A_LA_DEMANDE('/pt/servicos/[slug]'))
   })
 
-  it('gabarit devenu dynamique (helper qui lit cookies() dans une famille sans témoin) : erreur qui nomme la page', () => {
-    const manifeste = manifesteConforme()
-    delete manifeste.dynamicRoutes['/fr/blog/[slug]']
-    delete manifeste.routes['/fr/blog/exemple']
-    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog/[slug]')])
-  })
+  // Un défaut introduit dans le manifeste conforme, /fr/ ramené à son plancher, et les erreurs attendues.
+  const DEFAUTS: Array<[string, (manifeste: Manifeste) => void, unknown[]]> = [
+    [
+      'gabarit devenu dynamique (helper qui lit cookies() dans une famille sans témoin) : erreur qui nomme la page',
+      (manifeste) => {
+        delete manifeste.dynamicRoutes['/fr/blog/[slug]']
+        delete manifeste.routes['/fr/blog/exemple']
+      },
+      [MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog/[slug]')],
+    ],
+    ['gabarit au manifeste mais sans aucune page pré-rendue', (manifeste) => { delete manifeste.routes['/fr/blog/exemple'] }, [MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog/[slug]')]],
+    ['page statique devenue dynamique', (manifeste) => { delete manifeste.routes['/fr/blog'] }, [MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog')]],
+    [
+      'page listée dans RENDUES_A_LA_DEMANDE mais pré-rendue : la liste reste exacte',
+      (manifeste) => { manifeste.routes['/fr/cgu'] = { initialRevalidateSeconds: false, srcRoute: '/fr/cgu' } },
+      ['page pré-rendue encore listée dans RENDUES_A_LA_DEMANDE : /fr/cgu (la retirer de la liste)'],
+    ],
+    [
+      'page témoin absente',
+      (manifeste) => { delete manifeste.routes['/fr/services/plombier-marseille'] },
+      ['page témoin absente du pré-rendu : /fr/services/plombier-marseille'],
+    ],
+  ]
 
-  it('gabarit au manifeste mais sans aucune page pré-rendue : erreur', () => {
+  it.each(DEFAUTS)('%s : erreur', (_titre, introduire, attendues) => {
     const manifeste = manifesteConforme()
-    delete manifeste.routes['/fr/blog/exemple']
-    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog/[slug]')])
-  })
-
-  it('page statique devenue dynamique : erreur', () => {
-    const manifeste = manifesteConforme()
-    delete manifeste.routes['/fr/blog']
-    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([MESSAGE_PAGE_A_LA_DEMANDE('/fr/blog')])
-  })
-
-  it('page listée dans RENDUES_A_LA_DEMANDE mais pré-rendue : erreur, la liste reste exacte', () => {
-    const manifeste = manifesteConforme()
-    manifeste.routes['/fr/cgu'] = { initialRevalidateSeconds: false, srcRoute: '/fr/cgu' }
-    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual([
-      'page pré-rendue encore listée dans RENDUES_A_LA_DEMANDE : /fr/cgu (la retirer de la liste)',
-    ])
+    introduire(manifeste)
+    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual(attendues)
   })
 
   it('page listée qui n’existe plus : erreur', () => {
     const pages = PAGES.filter((page) => page !== '/fr/cgu')
     expect(verifierPrerendu(manifesteConforme(pages), pages).erreurs).toEqual(["RENDUES_A_LA_DEMANDE cite une page qui n'existe plus : /fr/cgu"])
-  })
-
-  it('page témoin absente : erreur', () => {
-    const manifeste = manifesteConforme()
-    delete manifeste.routes['/fr/services/plombier-marseille']
-    expect(verifierPrerendu(avecRoutes(manifeste, '/fr/', 1500), PAGES).erreurs).toEqual(['page témoin absente du pré-rendu : /fr/services/plombier-marseille'])
   })
 
   it('route avec revalidate (ISR sur un cache en lecture seule) : erreur', () => {
