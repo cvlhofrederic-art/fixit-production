@@ -652,7 +652,7 @@ function anomaliesIdentiteMandat(m: MandatPrelevement, dateEmission: string): An
 /** Dernière exigibilité des lignes que le mandat prélève (quote-part non nulle) ; null s'il n'en prélève aucune. */
 function derniereExigibiliteCouverte(lignes: LigneContenuAvis[], mandat: MandatPrelevement): string | null {
   const dates = lignes.filter((l) => l.quotePartCentimes > 0 && natureCouverte(mandat, l.nature)).map((l) => l.exigibilite)
-  return dates.sort((a, b) => a.localeCompare(b)).at(-1) ?? null
+  return dates.reduce<string | null>((plusTardive, d) => (plusTardive === null || d > plusTardive ? d : plusTardive), null)
 }
 
 /** État du mandat à la date : révoqué (C. monét. fin. art. L. 133-7) ou caduc (recueil EPC, § 4.2). */
