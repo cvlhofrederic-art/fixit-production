@@ -1,10 +1,11 @@
 // Synchronisation localStorage <-> table Supabase user_storage.
 //
 // Strategie : monkey-patch ponctuel de localStorage pour capturer toute
-// ecriture dont la cle commence par `fixit_`, puis batch debounce (500 ms)
+// ecriture dont la cle commence par `fixit_`, puis batch debounce (1,5 s)
 // vers /api/user-storage. A l'hydratation (login), on recupere toutes les
-// entrees du user et on les ecrit dans le localStorage AVANT d'installer
-// le patch (pour ne pas re-mirroir vers le serveur).
+// entrees du user et on les ecrit dans le localStorage sans repasser par le
+// patch ; les envois attendent la reponse et le serveur gagne sur les
+// ecritures en attente (voir hydrateStorageFromServer).
 //
 // Avantage : aucun refacto invasif des composants existants. Tout code
 // qui appelle deja `localStorage.setItem('fixit_xxx', ...)` est
@@ -48,6 +49,9 @@ const derniereValeurSynchronisee = new Map<string, string>()
 // setItem d'origine, capturé à l'installation du miroir : l'hydratation écrit sans repasser par le miroir
 // (avant, chaque valeur reçue du serveur repartait en POST 500 ms plus tard).
 let ecrireSansMiroirRef: ((key: string, value: string) => void) | null = null
+// Hydratations en cours : tant qu'il y en a une, flushNow n'envoie rien (voir flushNow). Un compteur plutôt qu'un
+// booléen : Providers peut lancer deux hydratations qui se chevauchent (bootstrap immédiat puis INITIAL_SESSION).
+let hydratationsEnCours = 0
 
 function ecrireSansMiroir(key: string, value: string): void {
   if (ecrireSansMiroirRef) ecrireSansMiroirRef(key, value)
@@ -75,9 +79,18 @@ function shouldSync(key: string): boolean {
 }
 
 async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
+  // Rien ne part pendant l'hydratation : une écriture faite au montage avant la réponse du serveur (jeu par défaut
+  // de la bibliothèque ou des prestations, données de démo) écraserait la vraie valeur, saisie sur un autre appareil.
+  // L'envoi keepalive de fermeture d'onglet est retenu lui aussi, par choix : si l'onglet se ferme avant la réponse,
+  // ces écritures restent dans le localStorage sans partir (une clé absente du serveur repartira à sa prochaine
+  // écriture) plutôt que de risquer d'écraser le serveur avec une valeur par défaut. Elles restent en attente et la
+  // fin de l'hydratation relance l'envoi.
+  if (hydratationsEnCours > 0) return
   if (pendingWrites.size === 0 && pendingDeletes.size === 0) return
   const token = await getToken()
   if (!token) return
+  // Une hydratation a pu commencer pendant la lecture du jeton.
+  if (hydratationsEnCours > 0) return
 
   const writeKeys = Array.from(pendingWrites.keys())
   const writes = writeKeys.map(k => {
@@ -187,11 +200,23 @@ function grouperEnLots(entries: EntreeAEnvoyer[]): EntreeAEnvoyer[][] {
 
 /**
  * Hydrate le localStorage depuis la DB pour l'utilisateur connecte.
- * A appeler au montage du dashboard, AVANT installStorageSync(), pour
- * eviter que les ecritures hydrate ne soient re-mirroir vers le serveur.
+ * Providers l'appelle après installStorageSync() : les valeurs reçues sont écrites sans repasser par le miroir et
+ * remplacent les écritures en attente des mêmes clés (le serveur gagne). Les envois sont retenus jusqu'à la fin
+ * (voir flushNow) ; ensuite, succès ou échec (réseau, 401), les écritures restées en attente repartent.
  */
 export async function hydrateStorageFromServer(): Promise<{ count: number }> {
   if (typeof window === 'undefined') return { count: 0 }
+  hydratationsEnCours++
+  try {
+    return await hydraterDepuisLeServeur()
+  } finally {
+    hydratationsEnCours--
+    // Clés absentes du serveur, écritures faites pendant une hydratation en échec : l'envoi retenu est relancé.
+    if (hydratationsEnCours === 0 && (pendingWrites.size > 0 || pendingDeletes.size > 0)) scheduleFlush()
+  }
+}
+
+async function hydraterDepuisLeServeur(): Promise<{ count: number }> {
   const token = await getToken()
   if (!token) return { count: 0 }
 
@@ -204,6 +229,11 @@ export async function hydrateStorageFromServer(): Promise<{ count: number }> {
     const entries = json.entries || {}
     let count = 0
     for (const [key, value] of Object.entries(entries)) {
+      // Le serveur gagne, comme avant le lot 8 où l'hydratation passait par le setItem intercepté et remplaçait la
+      // valeur en attente : une écriture faite au montage avant la réponse (jeu par défaut, données de démo) ne
+      // part pas écraser la vraie valeur. Retirée avant l'écriture locale, qui peut échouer (quota).
+      pendingWrites.delete(key)
+      pendingDeletes.delete(key)
       try {
         // On ecrit la valeur en string. Si c'est deja une primitive (string),
         // on la stocke telle quelle ; sinon JSON.stringify.
