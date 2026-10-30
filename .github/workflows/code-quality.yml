@@ -161,20 +161,20 @@ jobs:
         # sont créées à la fin).
         run: |
           BASELINE="supabase/migrations/052_baseline_missing_tables.sql"
-          echo "== Applying baseline: $(basename $BASELINE) =="
+          echo "== Applying baseline: $(basename "$BASELINE") =="
           psql postgresql://postgres:postgres@localhost:5432/fixit_test \
             -v ON_ERROR_STOP=1 -f "$BASELINE"
 
           FAIL_COUNT=0
           SUCCESS_COUNT=0
-          for file in $(ls supabase/migrations/*.sql | sort); do
+          for file in supabase/migrations/*.sql; do
             [ "$file" = "$BASELINE" ] && continue
-            echo "== Applying: $(basename $file) =="
+            echo "== Applying: $(basename "$file") =="
             if psql postgresql://postgres:postgres@localhost:5432/fixit_test \
                  -v ON_ERROR_STOP=1 -f "$file" 2>&1; then
               SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
             else
-              echo "::warning::Migration non applicable en CI : $(basename $file)"
+              echo "::warning::Migration non applicable en CI : $(basename "$file")"
               FAIL_COUNT=$((FAIL_COUNT + 1))
             fi
           done
