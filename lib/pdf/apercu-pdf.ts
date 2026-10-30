@@ -6,9 +6,10 @@
  * l'URL blob ; l'appel rejetait sans que rien ne l'attrape et l'utilisateur ne voyait rien. Un bloqueur de fenêtres
  * fait aussi rendre `null` à `window.open` sans erreur : l'aperçu n'apparaissait pas.
  *
- * Ici : `window.open` sous try/catch ; fenêtre absente, exception, ou valeur de retour qui rejette (window.open
- * remplacé par une fonction asynchrone) → téléchargement par un lien `<a download>` créé et cliqué par le code.
- * Dans tous les cas l'utilisateur obtient son document, et l'URL blob est révoquée après usage.
+ * Ici : `window.open` sous try/catch ; fenêtre absente, exception, ou valeur de retour asynchrone (window.open
+ * remplacé par une fonction asynchrone) qui rejette ou se résout sans fenêtre → téléchargement par un lien
+ * `<a download>` créé et cliqué par le code. Dans tous les cas l'utilisateur obtient son document, et l'URL blob est
+ * révoquée après usage.
  */
 
 /** Téléchargement par un lien `<a download>` cliqué par le code. */
@@ -34,6 +35,8 @@ function estThenable(valeur: unknown): valeur is PromiseLike<unknown> {
 /**
  * Ouvre `fichier` dans un nouvel onglet, ou le télécharge si l'aperçu est impossible. Ne lève jamais.
  * `revoquer` (par défaut `URL.revokeObjectURL`) est appelé après le délai adapté au mode utilisé.
+ * Le mode rendu est celui connu au moment du retour : quand `ouvrir` rend une promesse, c'est 'apercu', même si le
+ * téléchargement prend ensuite le relais (promesse rejetée, ou résolue sans fenêtre).
  */
 export function ouvrirApercuOuTelecharger(
   fichier: Blob,
@@ -64,9 +67,18 @@ export function ouvrirApercuOuTelecharger(
   if (!fenetre) return replierSurTelechargement('fenêtre bloquée (window.open a rendu null)')
 
   if (estThenable(fenetre)) {
-    // window.open remplacé par une fonction asynchrone (extension) : un rejet ne doit pas rester non géré.
+    // window.open remplacé par une fonction asynchrone (extension) : l'issue n'est connue qu'à la résolution. Un rejet
+    // ne doit pas rester non géré, et une promesse résolue sans fenêtre (null, undefined : fenêtre bloquée derrière le
+    // wrapper, activation utilisateur expirée avant le vrai window.open) vaut fenêtre bloquée, comme sur le chemin
+    // synchrone. Dans les deux cas, téléchargement par lien. La valeur de retour reste 'apercu' dans ce cas : la
+    // promesse n'est pas encore réglée au moment du retour, et on ne peut pas l'attendre sans rendre la fonction
+    // asynchrone.
     void Promise.resolve(fenetre).then(
-      () => undefined,
+      (valeur: unknown) => {
+        if (!valeur) {
+          replierSurTelechargement(`fenêtre bloquée (la promesse de window.open s'est résolue avec ${String(valeur)})`)
+        }
+      },
       (erreur: unknown) => { replierSurTelechargement(erreur) },
     )
   }
