@@ -20,6 +20,7 @@ import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
 import { AuthRetryableFetchError } from '@supabase/supabase-js'
+import { simulerLocation, type LocationSimulee } from '../helpers/simulations-dashboard'
 
 type Rappel = (event: string, session: unknown) => unknown
 
@@ -82,30 +83,8 @@ const UTILISATEUR = {
   created_at: '2026-01-01T00:00:00Z',
 }
 
-// window.location simulée : chaque navigation est enregistrée au lieu d'être exécutée.
-let navigations: string[] = []
-let rechargements = 0
-let descripteurLocation: PropertyDescriptor | undefined
-
-function installerLocation() {
-  navigations = []
-  rechargements = 0
-  descripteurLocation = Object.getOwnPropertyDescriptor(window, 'location')
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: {
-      origin: 'https://vitfix.io',
-      pathname: '/fr/pro/dashboard/',
-      search: '',
-      hash: '',
-      get href() { return 'https://vitfix.io/fr/pro/dashboard/' },
-      set href(valeur: string) { navigations.push(valeur) },
-      assign: (valeur: string) => { navigations.push(valeur) },
-      replace: (valeur: string) => { navigations.push(valeur) },
-      reload: () => { rechargements += 1 },
-    },
-  })
-}
+// window.location simulée : chaque navigation est enregistrée au lieu d’être exécutée.
+let lieu: LocationSimulee
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -115,12 +94,12 @@ beforeEach(() => {
   mocks.eq.mockReturnValue({ single: mocks.single })
   mocks.from.mockReturnValue({ select: () => ({ eq: mocks.eq }) })
   vi.spyOn(console, 'warn').mockImplementation(() => {})
-  installerLocation()
+  lieu = simulerLocation('/fr/pro/dashboard/')
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
-  if (descripteurLocation) Object.defineProperty(window, 'location', descripteurLocation)
+  lieu.restaurer()
 })
 
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -153,8 +132,8 @@ describe('tableau de bord pro — reprise d’une session indisponible au charge
     await act(async () => { await attendre(10) })
     expect(mocks.single).toHaveBeenCalledTimes(1)
     expect(mocks.getSession).toHaveBeenCalledTimes(1)
-    expect(navigations).toEqual([])
-    expect(rechargements).toBe(0)
+    expect(lieu.navigations).toEqual([])
+    expect(lieu.rechargements).toBe(0)
     expect(mocks.push).not.toHaveBeenCalled()
   })
 
@@ -170,7 +149,7 @@ describe('tableau de bord pro — reprise d’une session indisponible au charge
     })
     await act(async () => { await attendre(10) })
     expect(mocks.single).toHaveBeenCalledTimes(1)
-    expect(navigations).toEqual([])
+    expect(lieu.navigations).toEqual([])
     expect(mocks.push).not.toHaveBeenCalled()
   })
 
@@ -191,7 +170,7 @@ describe('tableau de bord pro — reprise d’une session indisponible au charge
       await attendre(10)
     })
     expect(mocks.single).toHaveBeenCalledTimes(1)
-    expect(navigations).toEqual([])
+    expect(lieu.navigations).toEqual([])
     expect(mocks.push).not.toHaveBeenCalled()
   })
 })

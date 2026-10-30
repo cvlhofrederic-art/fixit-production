@@ -40,3 +40,38 @@ export function moduleI18nSimule() {
     useLocale: () => 'fr',
   }
 }
+
+/** window.location simulée : navigations et rechargements enregistrés au lieu d'être exécutés. */
+export interface LocationSimulee {
+  navigations: string[]
+  rechargements: number
+  /** Remet la window.location d'origine (afterEach). */
+  restaurer: () => void
+}
+
+/** Remplace window.location par une version qui enregistre chaque navigation, page courante `chemin`. */
+export function simulerLocation(chemin: string): LocationSimulee {
+  const descripteur = Object.getOwnPropertyDescriptor(window, 'location')
+  const lieu: LocationSimulee = {
+    navigations: [],
+    rechargements: 0,
+    restaurer: () => {
+      if (descripteur) Object.defineProperty(window, 'location', descripteur)
+    },
+  }
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: {
+      origin: 'https://vitfix.io',
+      pathname: chemin,
+      search: '',
+      hash: '',
+      get href() { return `https://vitfix.io${chemin}` },
+      set href(valeur: string) { lieu.navigations.push(valeur) },
+      assign: (valeur: string) => { lieu.navigations.push(valeur) },
+      replace: (valeur: string) => { lieu.navigations.push(valeur) },
+      reload: () => { lieu.rechargements += 1 },
+    },
+  })
+  return lieu
+}
