@@ -79,7 +79,7 @@ describe('paramètres', () => {
       delaiSyndicMois: 1,
       moisNonImpayesAvantCloture: 1,
     })
-    expect(NATURES_SOMME_EXIGIBLE).toEqual(['provision_budget', 'cotisation_fonds_travaux', 'autre'])
+    expect(NATURES_SOMME_EXIGIBLE).toEqual(['provision_budget', 'travaux_hors_budget', 'cotisation_fonds_travaux', 'autre'])
   })
 
   it('un paramètre modifié change le calcul ; un paramètre invalide est refusé', () => {
@@ -134,18 +134,27 @@ describe('critère des impayés à la clôture (art. 29-1 A, al. 1 ; D. 1967 art
     expect(a.impayes.message).toMatch(/hors .* devenus exigibles dans le mois précédant la clôture/)
   })
 
-  it('sommes des art. 14-1 et 14-2-1 seulement ; une somme exigible après la clôture ne compte pas', () => {
+  it('sommes des art. 14-1 (I : provisions ; II : travaux hors budget) et 14-2-1 ; une autre somme, ou exigible après la clôture, ne compte pas', () => {
     const sommes = [
       ...provisions2025(900_000),
       somme('2025-10-01', 400_000, 100_000, 'cotisation_fonds_travaux'),
-      somme('2025-09-15', 5_000_000, 5_000_000, 'autre'),
+      somme('2025-09-15', 5_000_000, 5_000_000, 'travaux_hors_budget'),
+      somme('2025-06-01', 300_000, 300_000, 'autre'),
       somme('2026-01-01', 1_000_000, 1_000_000),
     ]
-    expect(alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, sommes)] }), DATE).impayes).toMatchObject({
-      exigiblesCentimes: 4_400_000,
-      impayesCentimes: 1_000_000,
-      etat: 'non_atteint',
-    })
+    const a = alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, sommes)] }), DATE)
+    expect(a.impayes).toMatchObject({ exigiblesCentimes: 9_400_000, impayesCentimes: 6_000_000, etat: 'atteint' })
+    expect(a.impayes.message).toMatch(/63 % \(seuil 25 %\)/)
+    expect(a.declenchee).toBe(true)
+  })
+
+  it('appels de travaux hors budget seuls (L. 1965 art. 14-1, II) : critère établi ; une autre somme seule : non établi', () => {
+    const travaux = [somme('2025-03-01', 5_000_000, 2_000_000, 'travaux_hors_budget')]
+    const a = alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, travaux)] }), DATE)
+    expect(a.impayes).toMatchObject({ etat: 'atteint', exigiblesCentimes: 5_000_000, impayesCentimes: 2_000_000 })
+    expect(a.impayes.message).toMatch(/40 % \(seuil 25 %\)/)
+    const autre = [somme('2025-03-01', 5_000_000, 2_000_000, 'autre')]
+    expect(alerteMandataireAdHoc(entree({ exercices: [ex('ex-2025', E2025, autre)] }), DATE).impayes.etat).toBe('non_etabli')
   })
 
   it('🔴 arriérés des exercices antérieurs : comptés dans les impayés, hors des sommes exigibles de l’exercice ; alerte à confirmer', () => {
@@ -231,7 +240,27 @@ describe('alerte', () => {
     })
     expect(a.message).toBe(a.impayes.message)
     expect(a.conduite).toMatch(/informer le conseil syndical.*état des impayés avant répartition.*mandataire ad hoc/)
-    expect(a.fondement).toMatch(/L\. 1965 art\. 29-1 A, al\. 1 ; D\. 1967 art\. 61-2 à 61-4/)
+    expect(a.fondement).toBe('L. 1965 art. 29-1 A, al. 1 et dernier alinéa ; D. 1967 art. 61-2 à 61-5')
+  })
+
+  it('conduite du syndic : copie de la requête au représentant de l’État, au maire et au président de l’EPCI (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)', () => {
+    for (const regime of [null, 'sj'] as const) {
+      const a = alerteMandataireAdHoc(entree({ regime, exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }), DATE)
+      expect(a.conduite).toContain(
+        "adresser une copie de la requête au représentant de l'État dans le département, au maire de la commune où est implanté l'immeuble et au président de l'EPCI compétent en matière d'habitat",
+      )
+      expect(a.fondement).toMatch(/L\. 1965 art\. 29-1 A, al\. 1 et dernier alinéa ; D\. 1967 art\. 61-2 à 61-5/)
+    }
+  })
+
+  it('déclenchée par les seuls comptes : l’état des impayés avant répartition accompagne aussi l’information du conseil syndical (D. 1967 art. 61-4)', () => {
+    const a = alerteMandataireAdHoc(entree({ votes: [{ date: '2023-06-10', etat: 'adoptee' }] }), DATE)
+    expect(a.declenchee).toBe(true)
+    expect(a.impayes.etat).toBe('non_atteint')
+    expect(a.conduite).toContain(
+      "informer le conseil syndical en adressant sans délai à chacun de ses membres l'état des impayés avant répartition à la date de la clôture de l'exercice comptable",
+    )
+    expect(a.conduite).not.toMatch(/pour les impayés/)
   })
 
   it('déclenchée par les comptes : saisine par d’autres dès les deux ans ; deux critères : le plus tôt', () => {
@@ -300,6 +329,54 @@ describe('alerte', () => {
       const a = alerteMandataireAdHoc(e(null), '2028-02-15')
       expect([a.impayes.traite, a.comptes.traite]).toEqual([false, false])
       expect(a).toMatchObject({ saisineFaite: false, aTraiterLe: '2025-06-15' })
+    })
+  })
+
+  describe('saisine par les personnes de l’al. 2', () => {
+    const e = (saisineLe: string | null, regime: EntreeAlerteMandataireAdHoc['regime'] = null) =>
+      entree({ saisineLe, regime, exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] })
+
+    it('au titre des impayés : fermée si le syndic a saisi le juge dans le mois de la clôture (« En l’absence d’action du syndic dans un délai d’un mois »)', () => {
+      for (const saisineLe of ['2025-12-31', '2026-01-20', '2026-01-31'])
+        expect(alerteMandataireAdHoc(e(saisineLe), DATE)).toMatchObject({ saisineFaite: true, saisineParDautresLe: null })
+      expect(alerteMandataireAdHoc(e('2026-01-20', 'sj'), DATE).saisineParDautresLe).toBeNull()
+    })
+
+    it('au titre des impayés : ouverte au lendemain du mois si le syndic n’a pas agi dans ce mois, ou si sa requête n’est pas connue à la date', () => {
+      expect(alerteMandataireAdHoc(e('2026-02-15'), DATE)).toMatchObject({ saisineFaite: true, saisineParDautresLe: '2026-02-01' })
+      expect(alerteMandataireAdHoc(e(null), DATE).saisineParDautresLe).toBe('2026-02-01')
+      expect(alerteMandataireAdHoc(e('2025-11-02'), DATE).saisineParDautresLe).toBe('2026-02-01')
+      expect(alerteMandataireAdHoc(e('2026-01-20'), '2026-01-10').saisineParDautresLe).toBe('2026-02-01')
+    })
+
+    it('au titre des comptes : ouverte dès les deux ans, même si le syndic a agi', () => {
+      const a = alerteMandataireAdHoc(
+        entree({ saisineLe: '2026-01-20', votes: [{ date: '2023-06-10', etat: 'adoptee' }], exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] }),
+        DATE,
+      )
+      expect(a).toMatchObject({ saisineFaite: true, saisineParDautresLe: '2025-06-10' })
+    })
+  })
+
+  describe('copie de la requête au représentant de l’État, au maire et au président de l’EPCI (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)', () => {
+    const e = (saisineLe: string | null, copieRequeteAdresseeLe: string | null = null) =>
+      entree({ saisineLe, copieRequeteAdresseeLe, exercices: [ex('ex-2025', E2025, provisions2025(1_000_000))] })
+
+    it('requête enregistrée, copie non adressée : l’alerte est traitée, la copie reste due dès la requête', () => {
+      expect(alerteMandataireAdHoc(e('2026-01-20'), DATE)).toMatchObject({ saisineFaite: true, copieRequeteDueLe: '2026-01-20' })
+    })
+
+    it('copie adressée au plus tard à la date de référence : plus rien de dû ; sans requête connue à la date : rien', () => {
+      expect(alerteMandataireAdHoc(e('2026-01-20', '2026-01-22'), DATE).copieRequeteDueLe).toBeNull()
+      expect(alerteMandataireAdHoc(e('2026-01-20', '2026-03-05'), DATE).copieRequeteDueLe).toBe('2026-01-20')
+      expect(alerteMandataireAdHoc(e(null), DATE).copieRequeteDueLe).toBeNull()
+      expect(alerteMandataireAdHoc(e('2026-04-01'), DATE).copieRequeteDueLe).toBeNull()
+    })
+
+    it('refuse une copie sans requête, antérieure à la requête, ou une date invalide', () => {
+      expect(() => alerteMandataireAdHoc(e(null, '2026-01-22'), DATE)).toThrow(/sans requête/)
+      expect(() => alerteMandataireAdHoc(e('2026-01-20', '2026-01-19'), DATE)).toThrow(/avant la requête/)
+      expect(() => alerteMandataireAdHoc(e('2026-01-20', '2026-01-32'), DATE)).toThrow(/AAAA-MM-JJ/)
     })
   })
 })
@@ -386,6 +463,18 @@ describe('en-tête du module', () => {
     expect(EN_TETE).toMatch(/s'il a reçu de l'ordonnance le pouvoir d'approuver les comptes/)
     expect(EN_TETE).toContain("« tout ou partie des pouvoirs de l'assemblée générale des copropriétaires »")
     expect(EN_TETE).toMatch(/hors a et b de l'art\. 26/)
+  })
+
+  it('travaux hors budget : art. 14-1, II, et non l’art. 14-2, devenu le plan pluriannuel de travaux', () => {
+    expect(EN_TETE).not.toMatch(/dépenses hors budget de l'art\. 14-2/)
+    expect(EN_TETE).toContain(
+      "« Ne sont pas comprises dans le budget prévisionnel les dépenses du syndicat pour travaux, dont la liste est fixée par décret en Conseil d'Etat. Les sommes afférentes à ces dépenses sont exigibles selon les modalités votées par l'assemblée générale. »",
+    )
+    expect(EN_TETE).toMatch(/travaux hors budget \(II\)/)
+  })
+
+  it('saisine par d’autres au titre des impayés : seulement sans action du syndic dans le mois', () => {
+    expect(EN_TETE).toMatch(/sauf si le syndic a saisi le juge dans ce mois/)
   })
 
   it('une requête ancienne ne couvre pas un déclenchement postérieur (critère par critère)', () => {

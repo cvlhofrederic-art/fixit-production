@@ -24,6 +24,13 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   maire (4°), le président de l'EPCI compétent en matière d'habitat (5°) ; dernier alinéa : dans les cas du premier
  *   alinéa et des 1° et 2°, le représentant de l'État, le maire et le président de l'EPCI sont informés de la saisine par
  *   le ou les demandeurs ;
+ * - L. 1965 art. 14-1 (en vigueur depuis le 01/01/2023, loi n° 2021-1104, art. 171), I : budget prévisionnel et
+ *   provisions, « La provision est exigible le premier jour de chaque trimestre ou le premier jour de la période fixée
+ *   par l'assemblée générale » ; II : « Ne sont pas comprises dans le budget prévisionnel les dépenses du syndicat pour
+ *   travaux, dont la liste est fixée par décret en Conseil d'Etat. Les sommes afférentes à ces dépenses sont exigibles
+ *   selon les modalités votées par l'assemblée générale. » ; art. 14-2 : plan pluriannuel de travaux (I : « A
+ *   l'expiration d'un délai de quinze ans à compter de la date de réception des travaux de construction de l'immeuble,
+ *   un projet de plan pluriannuel de travaux est élaboré […] ») ;
  * - D. 1967 art. 61-2 : ne sont pas impayées, pour le premier alinéa de l'art. 29-1 A, « les sommes devenues exigibles
  *   dans le mois précédant la date de clôture de l'exercice » ; art. 61-3 : la demande est portée devant le président du
  *   tribunal judiciaire du lieu de situation de l'immeuble ; art. 61-4 : pour l'information du conseil syndical, le syndic
@@ -46,9 +53,10 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   201 lots et au-delà ;
  * - la « clôture des comptes » est la clôture de l'exercice comptable (D. 1967 art. 61-2 et 61-4) ; à une date, le
  *   constat porte sur le dernier exercice clos avant elle : chaque clôture le renouvelle ;
- * - sommes exigibles en vertu de l'art. 14-1 : provisions du budget prévisionnel ; de l'art. 14-2-1 : cotisations au
- *   fonds de travaux ; les autres (dépenses hors budget de l'art. 14-2, notamment) ne comptent pas, pas plus qu'une somme
- *   exigible après la clôture ;
+ * - sommes exigibles en vertu de l'art. 14-1 : provisions du budget prévisionnel (I) et appels de travaux hors budget (II),
+ *   exigibles selon les modalités votées par l'assemblée ; de l'art. 14-2-1 : cotisations au fonds de travaux ; l'art.
+ *   14-2, devenu le plan pluriannuel de travaux, ne rend aucune somme exigible ; une autre somme ne compte pas, pas plus
+ *   qu'une somme exigible après la clôture ;
  * - « dans le mois précédant la date de clôture » : exigibles après le même quantième du mois précédent, jour de la
  *   clôture compris (clôture au 31 décembre : du 1er au 31 décembre) ; ces sommes restent dans les sommes exigibles, seul
  *   leur impayé est écarté (le décret ne vise que les sommes « impayées ») ;
@@ -56,14 +64,24 @@ import { ETATS_RESOLUTION, type EtatResolution } from '@/lib/administrateur-judi
  *   résolution à voter, en attente de second vote ou reportée n'est pas un vote ; la décision de l'administrateur
  *   provisoire n'est pas un vote de l'assemblée ; les deux ans sont atteints au même quantième deux ans après le dernier
  *   vote (borné en fin de mois : 29/02 → 28/02) ;
- * - saisine par les personnes de l'al. 2 : au lendemain du mois laissé au syndic après la clôture pour les impayés ; dès
- *   les deux ans atteints pour les comptes ; sans syndic (administrateur provisoire d'un syndicat qui en est dépourvu, D.
- *   1967 art. 47, ou de l'art. 29-1, dont la désignation fait cesser le mandat du syndic), dès la clôture ;
+ * - saisine par les personnes de l'al. 2 : pour les impayés, au lendemain du mois laissé au syndic après la clôture, sauf
+ *   si le syndic a saisi le juge dans ce mois (« En l'absence d'action du syndic dans un délai d'un mois ») — requête
+ *   datée du jour de la clôture au dernier jour de ce délai, enregistrée au plus tard à la date de référence ; pour les
+ *   comptes, dès les deux ans atteints, même si le syndic a agi (l'al. 2 ouvre aussi la saisine « en l'absence de
+ *   vote ») ; sans syndic (administrateur provisoire d'un syndicat qui en est dépourvu, D. 1967 art. 47, ou de l'art.
+ *   29-1, dont la désignation fait cesser le mandat du syndic), dès la clôture ;
  * - une requête au juge se lit critère par critère : enregistrée au plus tard à la date de référence, elle traite les
  *   impayés si elle date du jour de la clôture qui les constate ou d'après, les comptes si elle date du jour où les deux
  *   ans sont atteints ou d'après ; une requête plus ancienne ne couvre pas un déclenchement postérieur (impayés d'une
  *   clôture suivante, notamment) ; l'alerte n'est traitée que si chaque critère atteint l'est, et le suivi garde la date
  *   du plus tôt des critères non traités ;
+ * - information du conseil syndical : l'état des impayés avant répartition à la date de la clôture (D. 1967 art. 61-4)
+ *   l'accompagne quel que soit le critère atteint, le décret visant l'information « mentionnée au premier alinéa », qui
+ *   couvre les deux critères ;
+ * - copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ; D.
+ *   1967 art. 61-5) : due par le syndic qui saisit le juge, dès la requête (le texte ne fixe pas de délai) ; la requête
+ *   traite l'alerte, la copie reste due tant qu'elle n'est pas enregistrée comme adressée au plus tard à la date de
+ *   référence ;
  * - syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) : il est le syndic, l'obligation lui
  *   incombe.
  *
@@ -110,12 +128,15 @@ export const PARAMETRES_ALERTE_29_1_A: Readonly<ParametresAlerte291A> = {
   moisNonImpayesAvantCloture: 1,
 }
 
-/** Provision du budget (L. 1965 art. 14-1), cotisation au fonds de travaux (art. 14-2-1), autre somme (hors assiette). */
-export const NATURES_SOMME_EXIGIBLE = ['provision_budget', 'cotisation_fonds_travaux', 'autre'] as const
+/**
+ * Provision du budget prévisionnel (L. 1965 art. 14-1, I), appel de travaux hors budget (art. 14-1, II), cotisation au
+ * fonds de travaux (art. 14-2-1), autre somme (hors assiette).
+ */
+export const NATURES_SOMME_EXIGIBLE = ['provision_budget', 'travaux_hors_budget', 'cotisation_fonds_travaux', 'autre'] as const
 export type NatureSommeExigible = (typeof NATURES_SOMME_EXIGIBLE)[number]
 
-/** Sommes exigibles « en vertu des articles 14-1 et 14-2-1 ». */
-const NATURES_COMPTEES: readonly NatureSommeExigible[] = ['provision_budget', 'cotisation_fonds_travaux']
+/** Sommes exigibles « en vertu des articles 14-1 et 14-2-1 » : art. 14-1, I et II, et art. 14-2-1. */
+const NATURES_COMPTEES: readonly NatureSommeExigible[] = ['provision_budget', 'travaux_hors_budget', 'cotisation_fonds_travaux']
 
 export interface SommeExigible {
   nature: NatureSommeExigible
@@ -152,6 +173,11 @@ export interface EntreeAlerteMandataireAdHoc {
   regime?: Regime | null
   /** Requête au président du tribunal judiciaire pour la désignation d'un mandataire ad hoc ; absente ou null : aucune. */
   saisineLe?: string | null
+  /**
+   * Envoi de la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier
+   * alinéa ; D. 1967 art. 61-5) ; absent ou null : non adressée. Jamais avant la requête.
+   */
+  copieRequeteAdresseeLe?: string | null
 }
 
 export type EtatCritere291A = 'atteint' | 'non_atteint' | 'non_etabli'
@@ -194,8 +220,16 @@ export interface AlerteMandataireAdHoc {
   saisineFaite: boolean
   /** Date du plus tôt des critères atteints que la requête ne couvre pas ; null : aucun. */
   aTraiterLe: string | null
-  /** Date à partir de laquelle les personnes de l'al. 2 peuvent saisir le juge ; null : aucun critère atteint. */
+  /**
+   * Date à partir de laquelle les personnes de l'al. 2 peuvent saisir le juge ; null : aucun critère n'ouvre leur saisine
+   * (aucun atteint, ou seuls les impayés et le syndic a saisi le juge dans le mois de la clôture).
+   */
   saisineParDautresLe: string | null
+  /**
+   * Copie de la requête à adresser au représentant de l'État, au maire et au président de l'EPCI (D. 1967 art. 61-5), due
+   * depuis la requête ; null : aucune requête enregistrée à la date, ou copie adressée.
+   */
+  copieRequeteDueLe: string | null
   impayes: CritereImpayes291A
   comptes: CritereComptes291A
   /** Constats des critères atteints ; vide si l'alerte n'est pas déclenchée. */
@@ -257,7 +291,17 @@ function verifierEntree(entree: EntreeAlerteMandataireAdHoc): void {
   for (const vote of entree.votes ?? []) verifierVote(vote)
   for (const decision of entree.decisions ?? [])
     if (decision.coproprieteId !== entree.coproprieteId) throw new Error(`Décision ${decision.id} d'un autre syndicat que celui de l'alerte.`)
-  if (!estAbsent(entree.saisineLe)) verifierDate(entree.saisineLe, 'Date de la requête au juge')
+  verifierRequete(entree)
+}
+
+/** Requête au juge et copie de la requête (D. 1967 art. 61-5) : dates valides, copie jamais sans requête ni avant elle. */
+function verifierRequete({ saisineLe, copieRequeteAdresseeLe: copie }: EntreeAlerteMandataireAdHoc): void {
+  if (!estAbsent(saisineLe)) verifierDate(saisineLe, 'Date de la requête au juge')
+  if (estAbsent(copie)) return
+  verifierDate(copie, "Date d'envoi de la copie de la requête")
+  const requete = saisineLe ?? null
+  if (requete === null) throw new Error(`Copie de la requête adressée le ${fr(copie)} sans requête au juge enregistrée.`)
+  if (copie < requete) throw new Error(`Copie de la requête adressée le ${fr(copie)}, avant la requête du ${fr(requete)}.`)
 }
 
 const plusTot = (dates: readonly (string | null)[]): string | null =>
@@ -402,9 +446,9 @@ interface Conduite {
 }
 
 const OBLIGATION_DU_SYNDIC =
-  "informer le conseil syndical — pour les impayés, adresser sans délai à chacun de ses membres l'état des impayés avant répartition à la date de la clôture — et saisir sur requête le président du tribunal judiciaire du lieu de l'immeuble d'une demande de désignation d'un mandataire ad hoc"
+  "informer le conseil syndical en adressant sans délai à chacun de ses membres l'état des impayés avant répartition à la date de la clôture de l'exercice comptable, saisir sur requête le président du tribunal judiciaire du lieu de l'immeuble d'une demande de désignation d'un mandataire ad hoc et adresser une copie de la requête au représentant de l'État dans le département, au maire de la commune où est implanté l'immeuble et au président de l'EPCI compétent en matière d'habitat"
 
-const FONDEMENT_SYNDIC = 'L. 1965 art. 29-1 A, al. 1 ; D. 1967 art. 61-2 à 61-4'
+const FONDEMENT_SYNDIC = 'L. 1965 art. 29-1 A, al. 1 et dernier alinéa ; D. 1967 art. 61-2 à 61-5'
 
 const SAISINE_PAR_D_AUTRES =
   "le juge peut être saisi par des copropriétaires représentant ensemble au moins 15 % des voix ou le président du conseil syndical, un créancier sous les conditions du 2°, le représentant de l'État ou le procureur de la République, le maire, le président de l'EPCI compétent en matière d'habitat"
@@ -437,18 +481,27 @@ const CONDUITES: Record<Regime | 'syndic', Conduite> = {
   },
 }
 
-/** Saisine par les personnes de l'al. 2 : impayés, au lendemain du mois laissé au syndic (dès la clôture sans syndic) ; comptes, dès les deux ans. */
-function saisineParDautres(
+/**
+ * Saisine par les personnes de l'al. 2 au titre des impayés : dès la clôture sans syndic ; sinon au lendemain du mois
+ * laissé au syndic, sauf requête de sa part dans ce mois (« En l'absence d'action du syndic dans un délai d'un mois »).
+ */
+function saisineParDautresImpayes(
   impayes: CritereImpayes291A,
-  comptes: CritereComptes291A,
-  conduite: Conduite,
+  sansSyndic: boolean,
+  saisineLe: string | null,
   parametres: ParametresAlerte291A,
 ): string | null {
-  const dates: (string | null)[] = []
-  if (comptes.etat === 'atteint') dates.push(comptes.atteintLe)
-  if (impayes.etat === 'atteint' && impayes.cloture !== null)
-    dates.push(conduite.sansSyndic ? impayes.cloture : ajouterJours(ajouterMois(impayes.cloture, parametres.delaiSyndicMois), 1))
-  return plusTot(dates)
+  if (impayes.etat !== 'atteint' || impayes.cloture === null) return null
+  if (sansSyndic) return impayes.cloture
+  const finDuDelai = ajouterMois(impayes.cloture, parametres.delaiSyndicMois)
+  const actionDuSyndic = impayes.traite && saisineLe !== null && saisineLe <= finDuDelai
+  return actionDuSyndic ? null : ajouterJours(finDuDelai, 1)
+}
+
+/** Copie de la requête (D. 1967 art. 61-5) : due dès la requête enregistrée à la date, tant qu'elle n'est pas adressée à cette date. */
+function copieRequeteDue(saisineLe: string | null, adresseeLe: string | null, date: string): string | null {
+  if (saisineLe === null || saisineLe > date) return null
+  return adresseeLe !== null && adresseeLe <= date ? null : saisineLe
 }
 
 /** Critère atteint le jour `le`, couvert par une requête enregistrée ce jour-là ou après, au plus tard à la date de référence. */
@@ -461,8 +514,9 @@ function couvertParRequete(etat: EtatCritere291A, le: string | null, saisineLe: 
  * cents lots, sommes du dernier mois écartées) et absence de vote de l'assemblée sur l'approbation des comptes depuis au
  * moins deux ans (un rejet est un vote). Renvoie chaque critère et s'il est traité, la date du déclenchement, celle du
  * plus tôt des critères non traités, la requête éventuelle (lue critère par critère), la date d'ouverture de la saisine
- * aux personnes de l'al. 2 et ce que prévoit le texte selon le régime. Lève une erreur sur une saisie invalide ou des
- * éléments d'un autre syndicat.
+ * aux personnes de l'al. 2, la copie de la requête encore due au représentant de l'État, au maire et au président de
+ * l'EPCI, et ce que prévoit le texte selon le régime. Lève une erreur sur une saisie invalide ou des éléments d'un autre
+ * syndicat.
  */
 export function alerteMandataireAdHoc(
   entree: EntreeAlerteMandataireAdHoc,
@@ -491,7 +545,11 @@ export function alerteMandataireAdHoc(
     declencheeLe,
     saisineFaite: atteints.length > 0 && atteints.every(({ critere }) => critere.traite),
     aTraiterLe: plusTot(atteints.filter(({ critere }) => !critere.traite).map(({ le }) => le)),
-    saisineParDautresLe: saisineParDautres(impayes, comptes, conduite, parametres),
+    saisineParDautresLe: plusTot([
+      comptes.etat === 'atteint' ? comptes.atteintLe : null,
+      saisineParDautresImpayes(impayes, conduite.sansSyndic, saisineLe, parametres),
+    ]),
+    copieRequeteDueLe: copieRequeteDue(saisineLe, entree.copieRequeteAdresseeLe ?? null, date),
     impayes,
     comptes,
     message: atteints.map(({ critere }) => critere.message).join(' '),
