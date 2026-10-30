@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ecritureFactureVentilee } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
-import { numeroCompteCoproprietaire, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { creerCompteCoproprietaire, numeroCompteCoproprietaire, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { creerOrdreVirement, emettreOrdre, type LigneVirement, type OrdreVirement } from '@/lib/administrateur-judiciaire/domain/ordres-banque'
 import { regrouperVirements, type UnitePaiement } from '@/lib/administrateur-judiciaire/domain/paiement-fournisseurs'
 import type { ArreteRapprochement } from '@/lib/administrateur-judiciaire/domain/rapprochement-bancaire'
@@ -547,7 +547,7 @@ describe('paiement sur plusieurs mandats : seulement depuis le compte du cabinet
   })
 })
 
-describe('bénéficiaire indivisaire', () => {
+describe('bénéficiaire indivisaire : le mandataire commun (décision J10 de Hugo du 30/10/2026)', () => {
   const position = (surcharge: Partial<Position> = {}): Position => ({
     id: 'pos-1',
     identiteId: 'id-7',
@@ -560,20 +560,73 @@ describe('bénéficiaire indivisaire', () => {
     dateSortie: null,
     ...surcharge,
   })
+  const coIndivisaire = position({ id: 'pos-2', identiteId: 'id-8' })
+  const indivision = (mandataireCommunId?: string | null) =>
+    creerCompteCoproprietaire({
+      id: 'cpt-14',
+      coproprieteId: 'copro-tilleuls',
+      serie: '14',
+      libelle: 'Indivision Martin',
+      ...(mandataireCommunId === undefined ? {} : { mandataireCommunId }),
+    })
+  const DESIGNE = [indivision('id-7')]
   const r = creer({ beneficiaire: INDIVISAIRE, factureId: null })
+  const codes = (positions: Position[], comptes = DESIGNE) =>
+    controlerBeneficiaireIndivisaire(r, positions, '2026-10-29', comptes).map((a) => a.code)
 
-  it('admis si l’identité est indivisaire en place, à la date, sur le compte débité', () => {
-    expect(controlerBeneficiaireIndivisaire(r, [position()], '2026-10-29')).toEqual([])
+  it('le mandataire commun est une donnée facultative du compte copropriétaire, gardée à la création', () => {
+    expect(indivision('id-7').mandataireCommunId).toBe('id-7')
+    expect(indivision().mandataireCommunId).toBeUndefined()
+  })
+
+  it('admis si l’identité est indivisaire en place, à la date, sur le compte débité, et en est le mandataire commun désigné', () => {
+    expect(controlerBeneficiaireIndivisaire(r, [position(), coIndivisaire], '2026-10-29', DESIGNE)).toEqual([])
+    expect(codes([position()], [indivision(' id-7 ')])).toEqual([])
   })
 
   it('signalé si la position est sortie, sur un autre compte ou d’une autre qualité', () => {
     for (const surcharge of [{ dateSortie: '2026-06-30' }, { compteId: 'cpt-99' }, { qualite: 'Copropriétaire' as const }, { identiteId: 'id-8' }])
-      expect(controlerBeneficiaireIndivisaire(r, [position(surcharge)], '2026-10-29').map((a) => a.code)).toEqual(['indivisaire_sans_position'])
+      expect(codes([position(surcharge)])).toEqual(['indivisaire_sans_position'])
+  })
+
+  it('sans mandataire commun désigné sur le compte (absent, null ou vide) : refusé, avec un message qui dit quoi faire', () => {
+    for (const mandataire of [undefined, null, '  ']) {
+      const anomalies = controlerBeneficiaireIndivisaire(r, [position(), coIndivisaire], '2026-10-29', [indivision(mandataire)])
+      expect(anomalies).toEqual([expect.objectContaining({ code: 'indivisaire_sans_mandataire_commun', fondement: 'L. 1965 art. 23, al. 2' })])
+      expect(anomalies[0].message).toMatch(/refusé/)
+      expect(anomalies[0].message).toMatch(/aucun mandataire commun désigné/)
+      expect(anomalies[0].message).toMatch(/président du tribunal judiciaire/)
+    }
+  })
+
+  it('un indivisaire en place qui n’est pas le mandataire commun désigné : refusé, le mandataire est nommé', () => {
+    const anomalies = controlerBeneficiaireIndivisaire(r, [position(), coIndivisaire], '2026-10-29', [indivision('id-8')])
+    expect(anomalies).toEqual([expect.objectContaining({ code: 'indivisaire_non_mandataire_commun', fondement: 'L. 1965 art. 23, al. 2' })])
+    expect(anomalies[0].message).toMatch(/refusé/)
+    expect(anomalies[0].message).toMatch(/id-8/)
+  })
+
+  it('les défauts se cumulent : ni position en place, ni mandataire commun désigné', () => {
+    expect(codes([position({ dateSortie: '2026-06-30' })], [indivision(null)])).toEqual(['indivisaire_sans_position', 'indivisaire_sans_mandataire_commun'])
+  })
+
+  it('compte débité non fourni : erreur, c’est lui qui porte le mandataire commun', () => {
+    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '2026-10-29', [])).toThrow(/compte débité cpt-14 non fourni/)
+    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '2026-10-29', [{ ...indivision('id-7'), id: 'cpt-99' }])).toThrow(/non fourni/)
   })
 
   it('sans objet pour un autre bénéficiaire ; date contrôlée', () => {
-    expect(controlerBeneficiaireIndivisaire(creer(), [], '2026-10-29')).toEqual([])
-    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '29/10/2026')).toThrow(/AAAA-MM-JJ/)
+    expect(controlerBeneficiaireIndivisaire(creer(), [], '2026-10-29', [])).toEqual([])
+    expect(() => controlerBeneficiaireIndivisaire(r, [position()], '29/10/2026', DESIGNE)).toThrow(/AAAA-MM-JJ/)
+  })
+
+  it('en-tête : la décision J10 remplace le 🔴 du bénéficiaire indivisaire', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).toMatch(/Décision J10 de Hugo du 30\/10\/2026/)
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/bénéficiaire indivisaire : à qui payer/)
+    expect(source).not.toMatch(/🔴 Ne dit pas si l'indivisaire peut recevoir seul le paiement/)
   })
 })
 

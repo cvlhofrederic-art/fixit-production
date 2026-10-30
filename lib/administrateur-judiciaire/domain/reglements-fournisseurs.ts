@@ -2,7 +2,7 @@ import { MODES_TENUE_COMPTES, NATURES_COMPTE_BANCAIRE, validerIban, type ModeTen
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
-import { statutPositionA, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { statutPositionA, type CompteCoproprietaire, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
   verifierIdentifiantsVirement,
   type LigneVirement,
@@ -59,6 +59,10 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   fusion ni compensation ;
  * - C. civ. art. 1342-2 : « le paiement doit être fait au créancier ou à la personne désignée pour le recevoir » →
  *   bénéficiaire typé, pas un texte libre ;
+ * - L. 1965 art. 23, al. 2 (version en vigueur depuis le 01/06/2020, ord. n° 2019-1101 ; relu le 30/10/2026) : « En cas
+ *   d'indivision, les indivisaires sont représentés par un mandataire commun qui est, à défaut d'accord, désigné par le
+ *   président du tribunal judiciaire saisi par l'un d'entre eux ou par le syndic » ; al. 4 : la désignation judiciaire
+ *   est aux frais des indivisaires ;
  * - aucun des textes lus ne fixe de cycle de statuts pour un règlement : le cycle est une règle de GESTION (Gestéam).
  * 🔵 Déduit :
  * - sens des statuts : « Demandé » = règlement préparé, hors de tout ordre ; « À régler » = dans un ordre de virement
@@ -104,6 +108,16 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   ligne au crédit du relevé, se pointe avec l'écriture contraire, sans pièce (une pièce « règlement » est une sortie).
  *   rapprocherReglements lit un virement rejeté comme payé, pour ne pas signaler le pointage de sa sortie, puis lui rend
  *   « Annulé ».
+ * Décision J10 de Hugo du 30/10/2026 — bénéficiaire indivisaire : le règlement va au mandataire commun des indivisaires
+ * (L. 1965 art. 23, al. 2) ; un règlement à un indivisaire n'est admis que s'il est le mandataire commun désigné ; sans
+ * mandataire désigné, il est refusé (controlerBeneficiaireIndivisaire).
+ * 🔵 Déduit pour J10 :
+ * - l'art. 23, al. 2 fait représenter les indivisaires par le mandataire commun sans viser le paiement ; la décision en
+ *   fait la « personne désignée pour le recevoir » (C. civ. art. 1342-2) ;
+ * - le mandataire est porté par le compte copropriétaire débité (identites-positions.ts, mandataireCommunId : un compte,
+ *   une indivision, un mandataire), donnée facultative et non indexée ; le bénéficiaire doit à la fois tenir une
+ *   position « Indivisaire » en place sur ce compte (D2) et en être le mandataire ; les deux défauts se cumulent, chacun
+ *   bloquant.
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - paiement en espèces : refusé ici ; il sortirait du compte 53 « Caisse » et non d'un 512 (arrêté du 14 mars 2005,
  *   art. 3 et 7), compte que le domaine ne tient pas, avec le contrôle des espèces propre à l'administrateur judiciaire
@@ -121,8 +135,12 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   « Annulé », ou reste-t-il « Enregistré » imputé avec un renvoi vers l'annulation, et la facture qu'il réglait
  *   quitte-t-elle « Réglée » ?
  * - créances nées avant la désignation (L. 1965 art. 29-3, I et II : suspension de l'exigibilité) : aucun blocage ici ;
- * - bénéficiaire indivisaire : à qui payer (mandataire commun de L. 1965 art. 23, al. 2, indivisaire mandaté selon
- *   C. civ. art. 815-3, ou tous) ; seul est contrôlé que l'identité est indivisaire en place sur le compte débité ;
+ * - J10, mandataire commun qui n'est pas lui-même indivisaire (tiers désigné par le juge, par exemple) : aucun type de
+ *   bénéficiaire ne le porte, un règlement à l'indivision est alors impossible ici ;
+ * - J10, désignation non datée : le mandataire porté sur le compte vaut à la date du contrôle, sans historique des
+ *   mandataires successifs ;
+ * - bénéficiaire « copropriétaire » d'un compte détenu en indivision ou en démembrement (L. 1965 art. 23, al. 2, 3 et 5) :
+ *   non contrôlé, le règlement ne nomme personne ; J10 ne vise que le type « indivisaire » ;
  * - remboursement de solde (copropriétaire, indivisaire) dans ce même objet, ou dans un objet frère ;
  * - sens de « Tranche » (non observé) : donnée opaque, rattachée à des travaux ; à ne pas confondre avec les tranches
  *   d'appel « <n°>-T<n> » de travaux-operations.ts ;
@@ -219,6 +237,8 @@ export type CodeAnomalieReglement =
   | 'beneficiaires_differents'
   | 'modes_differents'
   | 'indivisaire_sans_position'
+  | 'indivisaire_sans_mandataire_commun'
+  | 'indivisaire_non_mandataire_commun'
 
 export interface AnomalieReglement {
   code: CodeAnomalieReglement
@@ -228,6 +248,7 @@ export interface AnomalieReglement {
 }
 
 const FONDEMENT_FONDS_TRAVAUX_SEPARE = citerFondement(refLoi1965('18, II, al. 4'))
+const FONDEMENT_MANDATAIRE_COMMUN = citerFondement(refLoi1965('23, al. 2'))
 const CODE_5 = /^[0-9A-Z]{5}$/
 const CONTREPARTIE_512 = /^([^.]{4})\.512[0-9A-Z]{2}\.[0-9A-Z]{5}\.[0-9A-Z]$/
 
@@ -748,14 +769,9 @@ export function controlerPaiementPlusieursMandats(reglements: ReglementFournisse
   return parts.size > 1 ? [...anomalies, ...anomaliesCompteCabinet(reglements, contexte)] : anomalies
 }
 
-/**
- * Bénéficiaire indivisaire : l'identité doit tenir une position « Indivisaire » en place à la date sur le compte débité
- * (D2). 🔴 Ne dit pas si l'indivisaire peut recevoir seul le paiement. Sans objet pour un autre bénéficiaire.
- */
-export function controlerBeneficiaireIndivisaire(r: ReglementFournisseur, positions: Position[], date: string): AnomalieReglement[] {
-  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
-  const b = r.beneficiaire
-  if (b.type !== 'indivisaire') return []
+type BeneficiaireIndivisaire = Extract<BeneficiaireReglement, { type: 'indivisaire' }>
+
+function anomaliePositionIndivisaire(r: ReglementFournisseur, b: BeneficiaireIndivisaire, positions: Position[], date: string): AnomalieReglement[] {
   const enPlace = positions.some(
     (p) => p.identiteId === b.identiteId && p.compteId === b.compteCoproprietaireId && p.qualite === 'Indivisaire' && statutPositionA(p, date) === 'En place',
   )
@@ -767,6 +783,52 @@ export function controlerBeneficiaireIndivisaire(r: ReglementFournisseur, positi
       fondement: null,
     },
   ]
+}
+
+/** J10 — le règlement va au mandataire commun désigné sur le compte débité, et à lui seul. */
+function anomalieMandataireCommun(
+  r: ReglementFournisseur,
+  b: BeneficiaireIndivisaire,
+  compte: Pick<CompteCoproprietaire, 'mandataireCommunId'>,
+): AnomalieReglement[] {
+  const mandataire = optionnel(compte.mandataireCommunId)
+  if (mandataire === null)
+    return [
+      {
+        code: 'indivisaire_sans_mandataire_commun',
+        message: `Règlement ${r.id} refusé : aucun mandataire commun désigné pour l'indivision du compte ${b.compteCoproprietaireId}. Le règlement va au seul mandataire commun des indivisaires ; le faire désigner (accord des indivisaires ou, à défaut, président du tribunal judiciaire saisi par l'un d'eux ou par le syndic) et le porter sur le compte.`,
+        fondement: FONDEMENT_MANDATAIRE_COMMUN,
+      },
+    ]
+  if (mandataire === b.identiteId.trim()) return []
+  return [
+    {
+      code: 'indivisaire_non_mandataire_commun',
+      message: `Règlement ${r.id} refusé : l'identité ${b.identiteId} n'est pas le mandataire commun de l'indivision du compte ${b.compteCoproprietaireId} (mandataire désigné : ${mandataire}) ; régler le mandataire commun.`,
+      fondement: FONDEMENT_MANDATAIRE_COMMUN,
+    },
+  ]
+}
+
+/**
+ * Bénéficiaire indivisaire (décision J10) : l'identité doit tenir une position « Indivisaire » en place à la date sur le
+ * compte débité (D2) et être le mandataire commun désigné sur ce compte (L. 1965 art. 23, al. 2). Sans mandataire
+ * désigné, ou réglé à un autre indivisaire : refusé. Anomalies bloquantes, cumulées. Le compte débité doit figurer parmi
+ * `comptes` (il porte le mandataire). Sans objet pour un autre bénéficiaire.
+ */
+export function controlerBeneficiaireIndivisaire(
+  r: ReglementFournisseur,
+  positions: Position[],
+  date: string,
+  comptes: Pick<CompteCoproprietaire, 'id' | 'mandataireCommunId'>[],
+): AnomalieReglement[] {
+  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  const b = r.beneficiaire
+  if (b.type !== 'indivisaire') return []
+  const compte = comptes.find((c) => c.id === b.compteCoproprietaireId)
+  if (!compte)
+    throw new Error(`Règlement ${r.id} : compte débité ${b.compteCoproprietaireId} non fourni ; il porte le mandataire commun des indivisaires (J10).`)
+  return [...anomaliePositionIndivisaire(r, b, positions, date), ...anomalieMandataireCommun(r, b, compte)]
 }
 
 // ─── Rapprochement ──────────────────────────────────────────────────────────────────────────
