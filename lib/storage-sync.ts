@@ -52,10 +52,35 @@ let ecrireSansMiroirRef: ((key: string, value: string) => void) | null = null
 // Hydratations en cours : tant qu'il y en a une, flushNow n'envoie rien (voir flushNow). Un compteur plutôt qu'un
 // booléen : Providers peut lancer deux hydratations qui se chevauchent (bootstrap immédiat puis INITIAL_SESSION).
 let hydratationsEnCours = 0
+// POST en vol par clé, avec leur nombre (deux flush peuvent se chevaucher pour une même clé) : renseigné au départ
+// du POST, vidé à sa réponse, succès ou échec. Voir enregistrerEcritureMiroir.
+const postsEnVol = new Map<string, number>()
+
+function marquerEnVol(keys: string[]): void {
+  for (const k of keys) postsEnVol.set(k, (postsEnVol.get(k) ?? 0) + 1)
+}
+
+function libererEnVol(keys: string[]): void {
+  for (const k of keys) {
+    const restants = (postsEnVol.get(k) ?? 0) - 1
+    if (restants > 0) postsEnVol.set(k, restants)
+    else postsEnVol.delete(k)
+  }
+}
 
 function ecrireSansMiroir(key: string, value: string): void {
   if (ecrireSansMiroirRef) ecrireSansMiroirRef(key, value)
   else window.localStorage.setItem(key, value)
+}
+
+/** Valeur actuelle de la clé dans le localStorage ; undefined s'il est illisible (stockage bloqué). */
+function valeurLocale(key: string): string | null | undefined {
+  try {
+    return window.localStorage.getItem(key)
+  } catch (error) {
+    console.warn('[storage-sync] localStorage illisible :', error)
+    return undefined
+  }
 }
 
 async function getToken(): Promise<string | null> {
@@ -115,6 +140,8 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   for (const slice of lots) {
     const body = JSON.stringify({ entries: slice.map(e => ({ key: e.key, value: e.value })) })
     const useKeepalive = opts.keepalive && body.length < 60_000
+    const cles = slice.map(e => e.key)
+    marquerEnVol(cles)
     try {
       const res = await fetch('/api/user-storage', {
         method: 'POST',
@@ -128,8 +155,14 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
       if (res.ok) for (const e of slice) derniereValeurSynchronisee.set(e.key, e.raw)
     } catch {
       // erreur reseau : tolerance — le localStorage reste la source operationnelle.
-      // On re-met les writes en pending pour retry au prochain flush.
-      for (const e of slice) pendingWrites.set(e.key, e.raw)
+      // On re-met les writes en pending pour retry au prochain flush, sauf si la clé a changé depuis (réécrite,
+      // supprimée, ou remplacée par l'hydratation) : la valeur plus récente a son propre envoi, l'ancienne
+      // l'écraserait (aller-retour A → B → A pendant un POST de B en échec).
+      for (const e of slice) {
+        if (valeurLocale(e.key) === e.raw) pendingWrites.set(e.key, e.raw)
+      }
+    } finally {
+      libererEnVol(cles)
     }
   }
 
@@ -160,11 +193,14 @@ function scheduleFlush() {
 
 /**
  * Cœur du miroir, appelé par le setItem intercepté. Une valeur identique à la dernière synchronisée n'est pas
- * renvoyée (lot 8 Sentry : réécritures à l'identique au montage du dashboard). Exporté pour les tests : jsdom ne
- * permet pas de remplacer localStorage.setItem (propriété nommée du Storage), les navigateurs le permettent.
+ * renvoyée (lot 8 Sentry : réécritures à l'identique au montage du dashboard), sauf si une autre valeur de la clé
+ * attend son envoi ou est en cours d'envoi : sinon l'aller-retour A → B → A (double-clic sur une bascule) enverrait
+ * B, ou laisserait B au serveur au retour de son POST. Exporté pour les tests : jsdom ne permet pas de remplacer
+ * localStorage.setItem (propriété nommée du Storage), les navigateurs le permettent.
  */
 export function enregistrerEcritureMiroir(key: string, value: string): void {
-  if (!shouldSync(key) || derniereValeurSynchronisee.get(key) === value) return
+  if (!shouldSync(key)) return
+  if (derniereValeurSynchronisee.get(key) === value && !pendingWrites.has(key) && !postsEnVol.has(key)) return
   pendingWrites.set(key, value)
   pendingDeletes.delete(key) // annule un eventuel delete en attente
   scheduleFlush()

@@ -5,6 +5,7 @@
 // Relecture de la PR #581 :
 //   - une écriture faite avant la réponse de l'hydratation ne part pas écraser la valeur du serveur ;
 //   - rien n'est posté pendant l'hydratation (flush, envoi keepalive), même quand elle échoue ou se chevauche ;
+//   - un aller-retour A → B → A n'envoie jamais B, y compris pendant le POST de B (réussi ou en échec).
 // jsdom ne permet pas de remplacer localStorage.setItem (propriété nommée du Storage) : le cœur du miroir
 // (enregistrerEcritureMiroir, appelé par le setItem intercepté dans les navigateurs) est appelé directement.
 
@@ -214,5 +215,81 @@ describe('storage-sync — envois retenus pendant l’hydratation', () => {
     expect((await hydratation).count).toBe(0)
     await ecoulerDebounce()
     expect(valeursPostees('fixit_nouvelle_cle')).toEqual(['locale'])
+  })
+})
+
+describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
+  beforeEach(() => {
+    minuteursSimules()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('après la synchronisation de A, un aller-retour B puis A avant le flush n’envoie jamais B', async () => {
+    const sync = await import('@/lib/storage-sync')
+    ecrire(sync, 'fixit_modules_x', 'A')
+    await ecoulerDebounce()
+    expect(valeursPostees('fixit_modules_x')).toEqual(['A'])
+
+    // Double-clic sur une bascule de module : B puis retour à A.
+    ecrire(sync, 'fixit_modules_x', 'B')
+    ecrire(sync, 'fixit_modules_x', 'A')
+    await ecoulerDebounce()
+    const envoyees = valeursPostees('fixit_modules_x')
+    expect(envoyees).not.toContain('B')
+    expect(envoyees[envoyees.length - 1]).toBe('A')
+  })
+
+  it('A réécrite pendant le POST de B : A finit par être envoyée', async () => {
+    const postB = differee<Response>()
+    let numeroPost = 0
+    mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
+      init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponse({ success: true })))
+    const sync = await import('@/lib/storage-sync')
+    ecrire(sync, 'fixit_dispo_x', 'A')
+    await ecoulerDebounce()
+    ecrire(sync, 'fixit_dispo_x', 'B')
+    await ecoulerDebounce() // POST de B parti, réponse pas encore arrivée
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B'])
+
+    ecrire(sync, 'fixit_dispo_x', 'A') // retour arrière (toggleDayService) pendant le POST de B
+    postB.resoudre(reponse({ success: true }))
+    await ecoulerDebounce()
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B', 'A'])
+  })
+
+  it('POST de B en échec (réseau) pendant le retour à A : A part, B n’est pas remise en attente', async () => {
+    const postB = differee<Response>()
+    let numeroPost = 0
+    mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
+      init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponse({ success: true })))
+    const sync = await import('@/lib/storage-sync')
+    ecrire(sync, 'fixit_dispo_x', 'A')
+    await ecoulerDebounce()
+    ecrire(sync, 'fixit_dispo_x', 'B')
+    await ecoulerDebounce()
+    ecrire(sync, 'fixit_dispo_x', 'A')
+    postB.rejeter(new TypeError('Failed to fetch'))
+    await ecoulerDebounce()
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B', 'A'])
+
+    // Le flush suivant ne renvoie pas B.
+    ecrire(sync, 'fixit_autre', '1')
+    await ecoulerDebounce()
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B', 'A'])
+    expect(valeursPostees('fixit_autre')).toEqual([1])
+  })
+
+  it('POST en échec sans réécriture : la valeur repart au flush suivant (comportement inchangé)', async () => {
+    let numeroPost = 0
+    mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
+      init?.method === 'POST' && ++numeroPost === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(reponse({ success: true })))
+    const sync = await import('@/lib/storage-sync')
+    ecrire(sync, 'fixit_dispo_x', 'B')
+    await ecoulerDebounce() // premier POST en échec : B remise en attente
+    ecrire(sync, 'fixit_autre', '1') // l'écriture suivante relance le flush
+    await ecoulerDebounce()
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['B', 'B'])
   })
 })
