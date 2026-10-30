@@ -5,10 +5,14 @@
 // et le mot de confirmation anglais de l'ancienne page EN, dont les huit clés rgpd.* ajoutées à locales/en.json ; la
 // variante FR garde les siens.
 import React from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LanguageProvider } from '@/lib/i18n/context'
 import en from '@/locales/en.json'
+import fr from '@/locales/fr.json'
+import pt from '@/locales/pt.json'
 import MesDonneesRgpd from '@/components/legal/MesDonneesRgpd'
 
 vi.mock('@/lib/supabase', () => ({
@@ -49,6 +53,17 @@ describe('MesDonneesRgpd', () => {
       deleteConfirmPrompt: 'Type DELETE to confirm permanent deletion:',
       contactDpo: 'For any questions about your data, contact our DPO:',
     })
+  })
+
+  it('chaque clé lue par MesDonneesRgpd existe dans fr.json, pt.json et en.json (sinon la page affiche le repli français)', () => {
+    const source = readFileSync(join(process.cwd(), 'components/legal/MesDonneesRgpd.tsx'), 'utf8')
+    const cles = [...new Set([...source.matchAll(/[^A-Za-z]t\('([A-Za-z0-9_.]+)'/g)].map((m) => m[1]))]
+    expect(cles.length).toBeGreaterThanOrEqual(20)
+    const lire = (langue: Record<string, unknown>, cle: string) =>
+      cle.split('.').reduce<unknown>((o, p) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[p] : undefined), langue)
+    for (const [nom, langue] of Object.entries({ fr, pt, en })) {
+      expect(cles.filter((cle) => typeof lire(langue, cle) !== 'string'), nom).toEqual([])
+    }
   })
 
   it('variante EN : textes anglais (clés ajoutées à locales/en.json), rôle et mot de confirmation DELETE', async () => {

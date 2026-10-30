@@ -1,8 +1,8 @@
 // tests/components/politiques-legales.test.tsx
 //
-// Politiques communes aux pages FR (app/(commun)) et PT : components/legal/PolitiqueConfidentialite.tsx (seule la page FR
-// liste les sous-traitants d'IA, et c'est elle qui passe avecSousTraitantsIa) et components/legal/PolitiqueCookies.tsx
-// (en-têtes de colonnes du tableau en <th>).
+// Politiques communes aux pages FR (app/(commun)) et PT : components/legal/PolitiqueConfidentialite.tsx (la page FR passe
+// avecSousTraitantsIa et liste Groq, Tavily et OpenRouter ; la page PT ne le fait pas encore, voir le test des pages) et
+// components/legal/PolitiqueCookies.tsx (en-têtes de colonnes du tableau en <th>).
 // getServerTranslation simulé : t() renvoie la clé.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -26,19 +26,20 @@ describe('PolitiqueConfidentialite', () => {
     for (const cle of SOUS_TRAITANTS_IA) expect(html.indexOf(`<li>${cle}</li>`), cle).toBeGreaterThan(docuseal)
   })
 
-  it('page PT (par défaut) : liste sans les sous-traitants d’IA', async () => {
+  it('sans avecSousTraitantsIa (valeur par défaut) : liste sans les sous-traitants d’IA', async () => {
     const html = renderToStaticMarkup(await PolitiqueConfidentialite({}))
     expect(html).toContain('privacy.protection.subProcessorDocuseal')
     for (const cle of SOUS_TRAITANTS_IA) expect(html, cle).not.toContain(cle)
   })
 
-  it('pages : /fr/confidentialite/ passe avecSousTraitantsIa, /pt/privacidade/ garde la valeur par défaut', () => {
+  it('pages : /fr/confidentialite/ passe avecSousTraitantsIa, /pt/privacidade/ rend la même politique', () => {
     const fr = ConfidentialitePage()
     const pt = PrivacidadePage()
     expect(fr.type).toBe(PolitiqueConfidentialite)
     expect(fr.props).toEqual({ avecSousTraitantsIa: true })
+    // /pt/privacidade/ ne passe pas le prop, comme sur main : les trois sous-traitants y manquent alors que leurs textes sont
+    // traduits dans locales/pt.json (probable oubli, à trancher par Frédéric). Ce test ne fige pas ce choix.
     expect(pt.type).toBe(PolitiqueConfidentialite)
-    expect(pt.props).toEqual({})
   })
 })
 
