@@ -30,32 +30,16 @@ const mocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getUser: mocks.getUser,
-      getSession: mocks.getSession,
-      signOut: mocks.signOut,
-      onAuthStateChange: (rappel: Rappel) => {
-        mocks.rappels.push(rappel)
-        return { data: { subscription: { unsubscribe: vi.fn() } } }
-      },
-    },
-    from: () => ({ select: () => ({ eq: () => ({ order: mocks.order }) }) }),
-  },
+vi.mock('@/lib/supabase', async () => (await import('../helpers/simulations-dashboard')).moduleSupabaseSimule({
+  auth: { getUser: mocks.getUser, getSession: mocks.getSession, signOut: mocks.signOut },
+  rappels: mocks.rappels,
+  from: () => ({ select: () => ({ eq: () => ({ order: mocks.order }) }) }),
 }))
 
 vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: vi.fn(async () => 'jeton') }))
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }))
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/fr/client/dashboard/',
-  useSearchParams: () => new URLSearchParams(),
-}))
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (cle: string) => cle, locale: 'fr', setLocale: () => {} }),
-  useLocale: () => 'fr',
-}))
+vi.mock('next/navigation', async () => (await import('../helpers/simulations-dashboard')).moduleNavigationSimule('/fr/client/dashboard/'))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/simulations-dashboard')).moduleI18nSimule())
 // Les sections et l'assistant ne font pas partie du chargement de session : on les neutralise.
 vi.mock('@/lib/dashboard-section-loader', () => ({ createDynamicSection: () => () => null }))
 vi.mock('@/components/chat/FixyChatGeneric', () => ({ default: () => null }))

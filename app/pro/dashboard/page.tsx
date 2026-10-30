@@ -278,7 +278,7 @@ function DashboardPage() {
       const { session, indisponible } = await lireSessionSure(supabase.auth)
       // Un seul chargement : SIGNED_IN ou TOKEN_REFRESHED a pu le lancer pendant cette lecture (jeton expiré
       // rafraîchi à l'initialisation du client, page déjà abonnée).
-      if (session?.user) { if (!didLoad) { didLoad = true; loadDashboardData(session.user) } }
+      if (session?.user) { if (!didLoad) { didLoad = true; void loadDashboardData(session.user) } }
       else if (indisponible) { console.warn('[pro/dashboard] session indisponible, attente de INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED') }
       // Si pas de session, on attend INITIAL_SESSION de onAuthStateChange
       // qui va soit fournir un user, soit on redirige après un timeout

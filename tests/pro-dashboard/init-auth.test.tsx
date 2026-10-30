@@ -33,30 +33,15 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: mocks.getSession,
-      signOut: mocks.signOut,
-      onAuthStateChange: (rappel: Rappel) => {
-        mocks.rappels.push(rappel)
-        return { data: { subscription: { unsubscribe: vi.fn() } } }
-      },
-    },
-    from: mocks.from,
-  },
+vi.mock('@/lib/supabase', async () => (await import('../helpers/simulations-dashboard')).moduleSupabaseSimule({
+  auth: { getSession: mocks.getSession, signOut: mocks.signOut },
+  rappels: mocks.rappels,
+  from: mocks.from,
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push, replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/fr/pro/dashboard/',
-  useSearchParams: () => new URLSearchParams(),
-}))
+vi.mock('next/navigation', async () => (await import('../helpers/simulations-dashboard')).moduleNavigationSimule('/fr/pro/dashboard/', mocks.push))
 vi.mock('next/dynamic', () => ({ default: () => () => null }))
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (cle: string) => cle, locale: 'fr', setLocale: () => {} }),
-  useLocale: () => 'fr',
-}))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/simulations-dashboard')).moduleI18nSimule())
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 // Hooks, sections et utilitaires du tableau de bord : hors du chargement de session, on les neutralise.
 vi.mock('@/hooks/dashboard', () => ({
