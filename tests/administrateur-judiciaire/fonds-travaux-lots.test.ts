@@ -754,7 +754,7 @@ describe('informations dues à l’acquéreur (CCH L. 721-2, II, 2°, d)', () =>
       montantCentimes: 8_000,
       posteIds: ['FT25-1:lot-1', 'FT25-2:lot-1', 'FT25-3:lot-1', 'FT25-4:lot-1'],
     })
-    expect(deuxLectures.mention).toMatch(/à trancher/)
+    expect(deuxLectures.mention).toMatch(/choisie par le notaire/)
     // Un appel de l'exercice non soldé n'entre pas dans la somme.
     expect(info(versements.filter((v) => v.id !== 'V25-2'), exercices).cotisationAnnuelleVendeur).toMatchObject({ montantCentimes: 6_000 })
     // Aucun exercice connu ne contient le dernier appel soldé : pas de cotisation annuelle.
@@ -862,8 +862,8 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(entete).not.toMatch(/n'insère que les 6° et 7°/)
   })
 
-  it('3 — « dernière cotisation versée » : 🔴 à trancher, deux lectures exposées, plus en 🔵', () => {
-    expect(nonEtabli).toMatch(/« dernière cotisation versée » \(L\. 721-2, II, 2°, d\) — à trancher par Frédéric ou Hugo/)
+  it('3 — « dernière cotisation versée » : 🔴 laissée ouverte (le notaire choisit), deux lectures exposées, plus en 🔵', () => {
+    expect(nonEtabli).toMatch(/« dernière cotisation versée » \(L\. 721-2, II, 2°, d\) — laissée ouverte \(Hugo, 30\/10\/2026 : le notaire choisit la/)
     expect(nonEtabli).toMatch(/cotisation ANNUELLE \(art\. 14-2-1, I, al\. 6\)/)
     expect(nonEtabli).toMatch(/\(1\) le dernier appel du fonds entièrement versé/)
     expect(nonEtabli).toMatch(/\(2\) la cotisation annuelle de l'exercice de cet appel/)

@@ -235,7 +235,7 @@ describe('sources — échéances du mandat et assemblées', () => {
     ])
   })
 
-  it('assemblée en projet : dernier jour pour présenter la convocation (21 jours francs, à confirmer) ; convoquée : PV à signer', () => {
+  it('assemblée en projet : dernier jour pour présenter la convocation (21 jours francs, décision J5) ; convoquée : PV à signer', () => {
     const elements = depuisAssemblees([
       { id: 'AG1', mandatId: 'M1', libelle: 'AG du 15/12/2026', date: '2026-12-15', statut: 'Projet' },
       { id: 'AG2', mandatId: 'M2', libelle: 'AG du 20/10/2026', date: '2026-10-20', statut: 'Convoquée' },
@@ -251,7 +251,7 @@ describe('sources — échéances du mandat et assemblées', () => {
         mandatId: 'M1',
         objetId: 'AG1',
         assigneId: null,
-        aConfirmer: true,
+        aConfirmer: false,
       },
       expect.objectContaining({ id: 'assemblees:AG2:pv_a_signer', nature: 'pv_a_signer', date: '2026-10-20', aConfirmer: false }),
     ])

@@ -87,13 +87,15 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  * - annulation d'un encaissement : on réimpute sans lui (imputerEncaissements), ce n'est pas le traitement symétrique
  *   de R6 (traitements.ts), qui ne refait pas les imputations suivantes.
  * 🔴 Non établi :
- * - « dernière cotisation versée » (L. 721-2, II, 2°, d) — à trancher par Frédéric ou Hugo : le texte ne connaît que la
+ * - « dernière cotisation versée » (L. 721-2, II, 2°, d) — laissée ouverte (Hugo, 30/10/2026 : le notaire choisit la
+ *   lecture) : le texte ne connaît que la
  *   cotisation ANNUELLE (art. 14-2-1, I, al. 6), alors que le fonds est appelé par échéances. Deux lectures, toutes deux
  *   rendues, aucune choisie : (1) le dernier appel du fonds entièrement versé (exigibilité la plus récente, puis poste),
  *   pour le montant appelé, daté du versement qui l'a soldé ; (2) la cotisation annuelle de l'exercice de cet appel,
  *   somme des appels de cet exercice entièrement versés (exercices fournis par l'appelant). Une reprise n'est jamais une
  *   cotisation ; dernière cotisation antérieure à la prise de fonction (connue du seul syndic précédent) : non reprise ;
- * - méthode de déduction d'un emploi (aucun texte : prorata des parts par défaut, tantièmes sur option) ; part d'un lot
+ * - méthode de déduction d'un emploi (aucun texte : prorata des parts par défaut, tantièmes sur option ; selon Hugo,
+ *   30/10/2026, elle dépend de l'origine de l'emploi — vente ou appel de fonds —, à éclaircir) ; part d'un lot
  *   annexe vendu seul (L. 721-2 ne vise que le lot principal) ; intérêts du compte séparé (acquis au syndicat, sans règle
  *   de répartition entre les lots) ; division ou réunion de lots ; part du fonds de Gestéam (net ou brut des emplois) ;
  * - rédactions de L. 721-2 antérieures au 29/08/2015 et de l'ancien art. 14-2 antérieures au 25/11/2018 non relues
@@ -304,7 +306,7 @@ export function emploiDepuisOperation(
 }
 
 /**
- * Dernière cotisation entièrement versée, lecture « dernier appel soldé » (🔴, à trancher) : l'appel du fonds du lot,
+ * Dernière cotisation entièrement versée, lecture « dernier appel soldé » (🔴, choix du notaire) : l'appel du fonds du lot,
  * pour son montant appelé.
  */
 export interface DerniereCotisation {
@@ -365,7 +367,7 @@ export interface ExerciceSyndicat {
   cloture: string
 }
 
-/** Cotisation annuelle versée, lecture « cotisation annuelle » (🔴, à trancher) : art. 14-2-1, I, al. 6. */
+/** Cotisation annuelle versée, lecture « cotisation annuelle » (🔴, choix du notaire) : art. 14-2-1, I, al. 6. */
 export interface CotisationAnnuelleVersee {
   /** Exercice qui contient l'exigibilité du dernier appel soldé. */
   ouverture: string
@@ -917,7 +919,7 @@ export interface InformationsFondsTravauxAcquereur {
 }
 
 const DERNIERE_COTISATION_A_TRANCHER =
-  "« Dernière cotisation versée » : dernier appel soldé ou cotisation annuelle de son exercice (art. 14-2-1, I, al. 6), lecture à trancher avant remise."
+  "« Dernière cotisation versée » : dernier appel soldé ou cotisation annuelle de son exercice (art. 14-2-1, I, al. 6), lecture choisie par le notaire."
 
 /**
  * Entrée en vigueur de la loi n° 2021-1104, art. 171, II, 4° (modification de CCH art. L. 721-2), selon le nombre de
