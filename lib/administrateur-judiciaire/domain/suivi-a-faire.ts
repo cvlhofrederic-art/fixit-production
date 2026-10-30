@@ -1,3 +1,4 @@
+import type { AlerteMandataireAdHoc } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import {
@@ -58,6 +59,8 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
  * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.ts) : famille Exercices, une par syndicat ; 🔴 sous mandat de justice,
+ * signalée `aConfirmer`.
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
@@ -92,7 +95,7 @@ export const NATURES_SUIVI = {
   equipements: ['a_reviser', 'a_remplacer', 'fin_garantie'],
   diagnostics: ['a_renouveler'],
   contentieux: ['suite_commandement', 'echeancier_impaye', 'non_regle', 'a_clore'],
-  exercices: ['repartition_en_retard'],
+  exercices: ['repartition_en_retard', 'alerte_29_1_a'],
 } as const satisfies Record<FamilleSuivi, readonly string[]>
 export type NatureSuivi = (typeof NATURES_SUIVI)[FamilleSuivi][number]
 
@@ -132,6 +135,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   non_regle: 'Non réglé',
   a_clore: 'Soldé, à clore',
   repartition_en_retard: 'Répartition en retard',
+  alerte_29_1_a: 'Alerte art. 29-1 A (mandataire ad hoc)',
   a_reviser: 'À réviser',
   a_remplacer: 'À remplacer',
   fin_garantie: 'Fin de garantie',
@@ -713,6 +717,37 @@ export function depuisExercices(items: { id?: string; mandatId: string; exercice
         date: ajouterJours(exercice.cloture, 1),
         mandatId,
         objetId: cle,
+      }),
+    ]
+  })
+}
+
+/**
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.alerteMandataireAdHoc), une par syndicat : déclenchée sans requête au
+ * juge enregistrée, à la date du déclenchement ; pas encore déclenchée, à la date où le délai sans vote de l'assemblée sur
+ * l'approbation des comptes sera atteint (repère pour la faire voter à temps). Requête enregistrée, ou aucun vote connu
+ * sans déclenchement : rien. `aConfirmer` reprend celui de l'alerte (🔴 sous mandat de justice, arriérés comptés).
+ */
+export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
+  return items.flatMap(({ mandatId, alerte }) => {
+    if (alerte.saisineFaite) return []
+    const cle = `${alerte.coproprieteId}:alerte_29_1_a`
+    const champs = { mandatId, objetId: alerte.coproprieteId, aConfirmer: alerte.aConfirmer }
+    if (alerte.declencheeLe !== null)
+      return [
+        elementSuivi('exercices', 'alerte_29_1_a', cle, {
+          ...champs,
+          libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${alerte.message}`,
+          date: alerte.declencheeLe,
+        }),
+      ]
+    const { atteintLe, message } = alerte.comptes
+    if (atteintLe === null) return []
+    return [
+      elementSuivi('exercices', 'alerte_29_1_a', cle, {
+        ...champs,
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) à venir : ${message}`,
+        date: atteintLe,
       }),
     ]
   })
