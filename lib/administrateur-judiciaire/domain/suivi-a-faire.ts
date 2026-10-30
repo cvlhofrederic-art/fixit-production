@@ -18,6 +18,12 @@ import {
   type TypeEcheanceEquipement,
 } from '@/lib/administrateur-judiciaire/domain/equipements'
 import { etatEtape, type Etape } from '@/lib/administrateur-judiciaire/domain/etapes'
+import {
+  JOURS_SUIVI_ETAPE_AUTOMATIQUE,
+  relanceEtapeAutomatique,
+  verifierJoursSuiviEtape,
+  type EtapeDossier,
+} from '@/lib/administrateur-judiciaire/domain/etapes-dossier'
 import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { echeanceReglement } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
@@ -58,6 +64,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
  * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
+ * 🔵 Étapes (point 48, etapes-dossier.ts) : « à faire le » compte parmi les dates d'une étape à faire ; une étape
+ * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
+ * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
+ * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude.
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
@@ -83,7 +93,7 @@ export type FamilleSuivi = (typeof FAMILLES_SUIVI)[number]
 export const NATURES_SUIVI = {
   mandat: ['echeance_legale'],
   assemblees: ['convocation_a_presenter', 'pv_a_signer'],
-  etapes: ['a_faire', 'a_valider'],
+  etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
   travaux: ['fonds_a_appeler'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
@@ -117,6 +127,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   pv_a_signer: 'PV à signer',
   a_faire: 'À faire',
   a_valider: 'À valider',
+  automatique_non_realisee: 'Étape automatique non réalisée',
   tache: 'Tâche',
   fonds_a_appeler: 'Fonds à appeler',
   limite_resiliation: 'Limite de résiliation',
@@ -411,22 +422,62 @@ export function depuisAssemblees(ags: AssembleeSuivie[]): ElementAFaire[] {
   })
 }
 
-/** Étape à faire : à la plus proche de son alerte et de sa limite, pour son réalisateur ; à valider : pour son validateur. */
-export function depuisEtapes(items: { mandatId: string | null; etape: Etape }[], aujourdhui: string): ElementAFaire[] {
+/** La plus proche de « à faire le » (étape d'un dossier, etapes-dossier.ts), de l'alerte et de la limite ; null sans aucune. */
+function dateEtapeAFaire(etape: Etape & { aFaireLe?: string | null }): string | null {
+  const dates = [etape.aFaireLe, etape.alerteSecurite, etape.limite].filter((d): d is string => typeof d === 'string')
+  if (dates.length === 0) return null
+  for (const d of dates) verifierDate(d, `Date de l'étape ${etape.id}`)
+  return dates.reduce((a, b) => (a < b ? a : b))
+}
+
+/**
+ * Étape à faire : à la plus proche de « à faire le », de son alerte et de sa limite, pour son réalisateur ; sans aucune
+ * de ces dates, elle ne remonte pas. À valider : pour son validateur.
+ */
+export function depuisEtapes(
+  items: { mandatId: string | null; etape: Etape & { aFaireLe?: string | null } }[],
+  aujourdhui: string,
+): ElementAFaire[] {
   verifierDate(aujourdhui)
   return items.flatMap(({ mandatId, etape }) => {
     const { statut } = etatEtape(etape, aujourdhui)
     const champs = { libelle: etape.titre, mandatId, objetId: etape.id }
     if (statut === 'a_faire') {
-      const dates = [etape.alerteSecurite, etape.limite].filter((d): d is string => d !== null)
-      if (dates.length === 0) return []
-      for (const d of dates) verifierDate(d, `Date de l'étape ${etape.id}`)
-      const date = dates.reduce((a, b) => (a < b ? a : b), dates[0])
-      return [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })]
+      const date = dateEtapeAFaire(etape)
+      return date ? [elementSuivi('etapes', 'a_faire', `${etape.id}:a_faire`, { ...champs, date, assigneId: etape.realisateurId })] : []
     }
     if (statut === 'a_valider' && etape.faitLe)
       return [elementSuivi('etapes', 'a_valider', `${etape.id}:a_valider`, { ...champs, date: etape.faitLe, assigneId: etape.validateurId })]
     return []
+  })
+}
+
+/**
+ * Étape automatique encore à faire : à relancer N jours après sa création (etapes-dossier.relanceEtapeAutomatique), pour
+ * son réalisateur, même sans limite ni alerte (tranche 43 § 1 : une telle étape est restée ouverte des années). Émise à
+ * sa date de relance, même future, comme « Non réglés depuis n » : selectionnerAFaire y applique l'horizon (de la famille
+ * ou de la nature) et la règle du week-end. N : réglage de GESTION du cabinet, jamais un délai légal (aConfirmer reste
+ * faux : ce n'est pas un repère juridique).
+ */
+export function depuisEtapesAutomatiques(
+  items: { mandatId: string | null; etape: EtapeDossier }[],
+  aujourdhui: string,
+  jours: number = JOURS_SUIVI_ETAPE_AUTOMATIQUE,
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  verifierJoursSuiviEtape(jours)
+  return items.flatMap(({ mandatId, etape }) => {
+    const relanceLe = relanceEtapeAutomatique(etape, aujourdhui, jours)
+    if (!relanceLe) return []
+    return [
+      elementSuivi('etapes', 'automatique_non_realisee', `${etape.id}:automatique_non_realisee`, {
+        libelle: `${etape.titre} — étape automatique ouverte depuis le ${dateIsoVersFr(etape.creeeLe)}`,
+        date: relanceLe,
+        mandatId,
+        objetId: etape.id,
+        assigneId: etape.realisateurId,
+      }),
+    ]
   })
 }
 
