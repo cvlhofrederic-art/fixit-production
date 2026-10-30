@@ -1,3 +1,4 @@
+import type { AlerteMandataireAdHoc } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import {
@@ -58,6 +59,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * d'exécution relèvent du moteur de délais. Relances « non réglé » et « soldé, à clore » et échéancier impayé : dossiers
  * de recouvrement seulement (contentieux.etapeRecouvrementContentieux). Exercices : en rouge dans Gestéam (tranche 43 § 9),
  * l'exercice passé qui n'est pas « Réparti » ; l'exclusion de « Non géré » (exercice hors mission) est 🔵 déduite.
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.ts) : famille Exercices ; par syndicat, un élément (critères à traiter,
+ * ou repère du délai sans vote qui court) et la copie de la requête à adresser (D. 1967 art. 61-5) ; 🔴 sous administrateur
+ * provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés des exercices antérieurs comptés : signalée `aConfirmer` ; le
+ * syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne l'est pas.
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
@@ -92,7 +97,7 @@ export const NATURES_SUIVI = {
   equipements: ['a_reviser', 'a_remplacer', 'fin_garantie'],
   diagnostics: ['a_renouveler'],
   contentieux: ['suite_commandement', 'echeancier_impaye', 'non_regle', 'a_clore'],
-  exercices: ['repartition_en_retard'],
+  exercices: ['repartition_en_retard', 'alerte_29_1_a'],
 } as const satisfies Record<FamilleSuivi, readonly string[]>
 export type NatureSuivi = (typeof NATURES_SUIVI)[FamilleSuivi][number]
 
@@ -132,6 +137,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   non_regle: 'Non réglé',
   a_clore: 'Soldé, à clore',
   repartition_en_retard: 'Répartition en retard',
+  alerte_29_1_a: 'Alerte art. 29-1 A (mandataire ad hoc)',
   a_reviser: 'À réviser',
   a_remplacer: 'À remplacer',
   fin_garantie: 'Fin de garantie',
@@ -715,6 +721,55 @@ export function depuisExercices(items: { id?: string; mandatId: string; exercice
         objetId: cle,
       }),
     ]
+  })
+}
+
+const TITRE_ALERTE_29_1_A = "Alerte de l'art. 29-1 A (mandataire ad hoc)"
+
+/**
+ * Critères atteints que la requête ne couvre pas, à la date du plus tôt et avec leurs seuls constats ; à défaut, repère
+ * du délai sans vote sur l'approbation des comptes qui court encore ; null : ni l'un ni l'autre.
+ */
+function etapeAlerte291A(alerte: AlerteMandataireAdHoc): { libelle: string; date: string } | null {
+  if (alerte.aTraiterLe !== null) {
+    const constats = [alerte.impayes, alerte.comptes].filter((c) => c.etat === 'atteint' && !c.traite).map((c) => c.message)
+    return { libelle: `${TITRE_ALERTE_29_1_A} : ${constats.join(' ')}`, date: alerte.aTraiterLe }
+  }
+  const { etat, atteintLe, message } = alerte.comptes
+  if (etat !== 'non_atteint' || atteintLe === null) return null
+  return { libelle: `${TITRE_ALERTE_29_1_A} à venir : ${message}`, date: atteintLe }
+}
+
+/**
+ * Alerte de l'art. 29-1 A (alerte-mandataire-ad-hoc.alerteMandataireAdHoc), par syndicat :
+ * - un élément : critères atteints que la requête au juge ne couvre pas (lecture critère par critère), à la date du plus
+ *   tôt et avec leurs seuls constats ; à défaut, tant que le délai sans vote de l'assemblée sur l'approbation des comptes
+ *   court encore, repère à la date où il sera atteint (pour la faire voter à temps), y compris après une requête qui
+ *   couvre les impayés ; chaque critère atteint couvert et aucun délai qui court (délai atteint et couvert, ou aucun vote
+ *   connu) : rien ;
+ * - la copie de la requête au représentant de l'État, au maire et au président de l'EPCI (art. 29-1 A, dernier alinéa ;
+ *   D. 1967 art. 61-5), à la date de la requête, tant qu'elle n'est pas adressée.
+ * `aConfirmer` reprend celui de l'alerte : 🔴 sous administrateur provisoire (art. 29-1 ou D. 1967 art. 47), ou arriérés
+ * des exercices antérieurs comptés ; le syndic désigné par le président du tribunal judiciaire (D. 1967 art. 46) ne
+ * l'est pas.
+ */
+export function depuisAlertesMandataireAdHoc(items: { mandatId: string; alerte: AlerteMandataireAdHoc }[]): ElementAFaire[] {
+  return items.flatMap(({ mandatId, alerte }) => {
+    const cle = `${alerte.coproprieteId}:alerte_29_1_a`
+    const champs = { mandatId, objetId: alerte.coproprieteId, aConfirmer: alerte.aConfirmer }
+    const elements: ElementAFaire[] = []
+    const etape = etapeAlerte291A(alerte)
+    if (etape !== null) elements.push(elementSuivi('exercices', 'alerte_29_1_a', cle, { ...champs, ...etape }))
+    const copieDueLe = alerte.copieRequeteDueLe
+    if (copieDueLe !== null)
+      elements.push(
+        elementSuivi('exercices', 'alerte_29_1_a', `${cle}:copie_requete`, {
+          ...champs,
+          libelle: `${TITRE_ALERTE_29_1_A} : requête au juge du ${dateIsoVersFr(copieDueLe)}, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)`,
+          date: copieDueLe,
+        }),
+      )
+    return elements
   })
 }
 

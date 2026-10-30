@@ -1,11 +1,18 @@
 import './fuseau-paris'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import {
+  alerteMandataireAdHoc,
+  type EntreeAlerteMandataireAdHoc,
+} from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
 import { creerDossierContentieux, type SaisieContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { calculerDecompte, genererEcheancier, suivreEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import { creerExercice, type SaisieExercice } from '@/lib/administrateur-judiciaire/domain/exercices-budgets'
 import { creerSinistre, type SaisieSinistre } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import {
   DELAIS_SUIVI_CONTENTIEUX,
+  depuisAlertesMandataireAdHoc,
   depuisContentieux,
   depuisExercices,
   depuisSinistres,
@@ -56,7 +63,7 @@ describe('familles et natures ajoutées', () => {
     expect(FAMILLES_SUIVI).toContain('exercices')
     expect(NATURES_SUIVI.contentieux).toEqual(['suite_commandement', 'echeancier_impaye', 'non_regle', 'a_clore'])
     expect(NATURES_SUIVI.sinistres).toEqual(['a_declarer', 'prescription', 'indemnite_differee'])
-    expect(NATURES_SUIVI.exercices).toEqual(['repartition_en_retard'])
+    expect(NATURES_SUIVI.exercices).toEqual(['repartition_en_retard', 'alerte_29_1_a'])
     expect(LIBELLES_FAMILLES_SUIVI.contentieux).toBe('Contentieux')
     expect(LIBELLES_FAMILLES_SUIVI.exercices).toBe('Exercices')
     for (const nature of [...NATURES_SUIVI.contentieux, ...NATURES_SUIVI.exercices, 'indemnite_differee'] as const)
@@ -332,6 +339,127 @@ describe('source — exercices', () => {
       'exercices:ex-25:repartition_en_retard',
     ])
     expect(() => depuisExercices([{ mandatId: 'M1', exercice: sansNom }], AUJOURDHUI)).toThrow(/identifiant ni nom/)
+  })
+})
+
+describe('source — alerte de l’art. 29-1 A (mandataire ad hoc)', () => {
+  const exercice2025 = creerExercice(saisieExercice())
+  /** Quatre provisions de 10 000 €, dont `impaye` impayé à la clôture du 31/12/2025. */
+  const sommes = (impaye: number) =>
+    ['2025-01-01', '2025-04-01', '2025-07-01', '2025-10-01'].map((exigibleLe, i) => ({
+      nature: 'provision_budget' as const,
+      exigibleLe,
+      montantCentimes: 1_000_000,
+      impayeCentimes: i === 0 ? impaye : 0,
+    }))
+  const alerte = (surcharge: Partial<EntreeAlerteMandataireAdHoc> = {}) =>
+    alerteMandataireAdHoc(
+      {
+        coproprieteId: 'copro-1',
+        nombreLots: 40,
+        exercices: [{ id: 'ex-2025', exercice: exercice2025, sommes: sommes(1_000_000) }],
+        votes: [{ date: '2025-06-12', etat: 'adoptee' }],
+        ...surcharge,
+      },
+      AUJOURDHUI,
+    )
+
+  it('déclenchée sans requête au juge : un élément « exercices », à la date du déclenchement, une clé par syndicat', () => {
+    const a = alerte()
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      {
+        id: 'exercices:copro-1:alerte_29_1_a',
+        famille: 'exercices',
+        nature: 'alerte_29_1_a',
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.message}`,
+        date: '2025-12-31',
+        mandatId: 'M1',
+        objetId: 'copro-1',
+        assigneId: null,
+        aConfirmer: false,
+      },
+    ])
+  })
+
+  it('🔴 sous administrateur provisoire de l’art. 29-1 : à confirmer', () => {
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: alerte({ regime: 'ap291' }) }])[0].aConfirmer).toBe(true)
+  })
+
+  it('syndic désigné par le président du tribunal judiciaire, sans arriérés : pas à confirmer', () => {
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: alerte({ regime: 'sj' }) }])[0].aConfirmer).toBe(false)
+  })
+
+  it('requête couvrant chaque critère atteint et copie adressée, délai sans vote échu et couvert : rien', () => {
+    const a = alerte({ votes: [{ date: '2023-06-15', etat: 'adoptee' }], saisineLe: '2026-01-15', copieRequeteAdresseeLe: '2026-01-15' })
+    expect(a).toMatchObject({ saisineFaite: true, comptes: expect.objectContaining({ etat: 'atteint', traite: true }) })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([])
+  })
+
+  it('requête couvrant les impayés et copie adressée : le repère du délai sans vote qui court encore reste suivi', () => {
+    const a = alerte({ saisineLe: '2026-01-15', copieRequeteAdresseeLe: '2026-01-16' })
+    expect(a).toMatchObject({ saisineFaite: true, comptes: expect.objectContaining({ etat: 'non_atteint', atteintLe: '2027-06-12' }) })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      expect.objectContaining({
+        id: 'exercices:copro-1:alerte_29_1_a',
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) à venir : ${a.comptes.message}`,
+        date: '2027-06-12',
+      }),
+    ])
+  })
+
+  it('requête enregistrée sans copie au représentant de l’État, au maire et au président de l’EPCI : copie à adresser dès la requête (D. 1967 art. 61-5)', () => {
+    const a = alerte({ votes: [{ date: '2023-06-15', etat: 'adoptee' }], saisineLe: '2026-01-15' })
+    expect(a.saisineFaite).toBe(true)
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      {
+        id: 'exercices:copro-1:alerte_29_1_a:copie_requete',
+        famille: 'exercices',
+        nature: 'alerte_29_1_a',
+        libelle:
+          "Alerte de l'art. 29-1 A (mandataire ad hoc) : requête au juge du 15/01/2026, copie à adresser au représentant de l'État dans le département, au maire de la commune de l'immeuble et au président de l'EPCI compétent en matière d'habitat (art. 29-1 A, dernier alinéa ; D. 1967 art. 61-5)",
+        date: '2026-01-15',
+        mandatId: 'M1',
+        objetId: 'copro-1',
+        assigneId: null,
+        aConfirmer: false,
+      },
+    ])
+  })
+
+  it('en-tête et documentation : 🔴 sous administrateur provisoire ou arriérés comptés, pas sous tout mandat de justice', () => {
+    const SOURCE = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'suivi-a-faire.ts'), 'utf8')
+    const texte = SOURCE.replaceAll(/\s*\n\s*\*\s*/g, ' ')
+    expect(texte).not.toMatch(/🔴 sous mandat de justice/)
+    expect(texte.match(/🔴 sous administrateur provisoire \(art\. 29-1 ou D\. 1967 art\. 47\), ou arriérés des exercices antérieurs comptés/g)).toHaveLength(2)
+  })
+
+  it('requête faite pour les comptes avant la clôture : les impayés de cette clôture restent à suivre, seuls, à leur date', () => {
+    const a = alerte({ votes: [{ date: '2023-06-15', etat: 'adoptee' }], saisineLe: '2025-07-01', copieRequeteAdresseeLe: '2025-07-02' })
+    expect(a).toMatchObject({ declencheeLe: '2025-06-15', saisineFaite: false })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      expect.objectContaining({
+        id: 'exercices:copro-1:alerte_29_1_a',
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) : ${a.impayes.message}`,
+        date: '2025-12-31',
+      }),
+    ])
+  })
+
+  it('pas encore déclenchée : repère à la date où le délai sans vote sur l’approbation des comptes sera atteint', () => {
+    const a = alerte({ exercices: [{ id: 'ex-2025', exercice: exercice2025, sommes: sommes(0) }] })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([
+      expect.objectContaining({
+        id: 'exercices:copro-1:alerte_29_1_a',
+        nature: 'alerte_29_1_a',
+        libelle: `Alerte de l'art. 29-1 A (mandataire ad hoc) à venir : ${a.comptes.message}`,
+        date: '2027-06-12',
+      }),
+    ])
+  })
+
+  it('pas encore déclenchée et aucun vote connu : rien', () => {
+    const a = alerte({ votes: [], exercices: [{ id: 'ex-2025', exercice: exercice2025, sommes: sommes(0) }] })
+    expect(depuisAlertesMandataireAdHoc([{ mandatId: 'M1', alerte: a }])).toEqual([])
   })
 })
 
