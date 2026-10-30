@@ -101,7 +101,8 @@ const RACINE_PAR_LANGUE: Record<Locale, { title: string; description: string; og
 
 /** Métadonnées du layout racine pour une langue : les clés partagées, puis titre, description et Open Graph (FR par défaut). */
 export function metadonneesRacine(locale: Locale): Metadata {
-  const racine = RACINE_PAR_LANGUE[locale] ?? RACINE_PAR_LANGUE.fr
+  // Clés propres seulement : la langue vient parfois du cookie brut, « constructor » ne doit pas lire Object.prototype.
+  const racine = Object.hasOwn(RACINE_PAR_LANGUE, locale) ? RACINE_PAR_LANGUE[locale] : RACINE_PAR_LANGUE.fr
   return {
     ...METADONNEES_PARTAGEES,
     title: racine.title,

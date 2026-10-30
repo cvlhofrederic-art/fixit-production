@@ -219,6 +219,16 @@ export default function ArtisanProfilePage() {
   const stepRef = useRef(step)
   useEffect(() => { stepRef.current = step }, [step])
 
+  // Après une réservation réussie, le bouton reste désactivé pendant le départ vers /confirmation/. Si le navigateur
+  // ramène ensuite cette fiche depuis son cache (retour arrière, bfcache), il redevient utilisable.
+  useEffect(() => {
+    const auRetour = (evenement: PageTransitionEvent) => {
+      if (evenement.persisted) setSubmitting(false)
+    }
+    window.addEventListener('pageshow', auRetour)
+    return () => window.removeEventListener('pageshow', auRetour)
+  }, [])
+
   // Check if artisan is favorited
   useEffect(() => {
     if (!artisan?.id) return

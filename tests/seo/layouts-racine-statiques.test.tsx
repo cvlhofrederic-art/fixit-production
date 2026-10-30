@@ -10,12 +10,13 @@
 // page des sections (CI et déploiement).
 import React from 'react'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { Metadata } from 'next'
+import type { Locale } from '@/lib/i18n/config'
 import { CONTACT_EMAIL, PHONE_FR, PHONE_PT } from '@/lib/constants'
 import { ENTITE_PT } from '@/lib/seo/entite-pt'
 import { METADONNEES_PARTAGEES, metadonneesRacine } from '@/lib/seo/metadonnees-racine'
@@ -68,7 +69,7 @@ const SEGMENTS_FORCE_DYNAMIC: Record<string, string> = {
   'app/pt/mercados/gerir/page.tsx': 'gestion du pedido par lien à jeton (useSearchParams)',
   'app/pt/mercados/publicar/page.tsx': 'date minimale du formulaire calculée au rendu',
 }
-// Pages qui lisent les cookies (session du marché FR) : dynamiques sans force-dynamic.
+// Pages qui lisent le cookie de langue (marchés FR) : dynamiques sans force-dynamic.
 const PAGES_COOKIES = ['app/fr/marches/gerer/page.tsx', 'app/fr/marches/publier/page.tsx']
 // Pages qui lisent l'URL, chacune sous un layout force-dynamic de la liste.
 const PAGES_URL = ['app/fr/recherche/page.tsx', 'app/fr/reserver/page.tsx']
@@ -230,6 +231,10 @@ describe('métadonnées des layouts racine (fusion clé par clé de Next conserv
     expect(metadonneesRacine('pt')).toMatchObject({ title: 'VITFIX - Encontre o profissional perto de si, em 2 cliques', openGraph: { locale: 'pt_PT' } })
     expect(metadonneesRacine('fr')).toMatchObject({ openGraph: { locale: 'fr_FR' } })
     expect(metadonneesRacine('nl')).toMatchObject({ openGraph: { locale: 'nl_NL' } })
+    // Langue lue dans le cookie brut : valeur inconnue ou clé d'Object.prototype, repli sur FR.
+    for (const valeur of ['de', '', 'constructor', '__proto__', 'toString']) {
+      expect(metadonneesRacine(valeur as Locale), valeur).toEqual(metadonneesRacine('fr'))
+    }
   })
 })
 
@@ -328,6 +333,12 @@ describe('404 des URL sans route (app/global-not-found.tsx) : comme l’ancien a
     expect(parDefaut).toContain('Page non trouvée')
     expect((await generateMetadata()).openGraph).toMatchObject({ locale: 'fr_FR' })
   })
+
+  it('cookie de langue invalide, même une clé d’Object.prototype : 404 en anglais, sans erreur', async () => {
+    const { default: PageIntrouvable } = await import('@/components/common/PageIntrouvable')
+    expect(renderToStaticMarkup(<PageIntrouvable locale="constructor" />)).toContain('Page not found')
+    expect(renderToStaticMarkup(<PageIntrouvable locale="de" />)).toContain('Page not found')
+  })
 })
 
 describe('routes SEO : pré-rendues au build et servies telles quelles par le Worker', () => {
@@ -408,7 +419,7 @@ describe('scripts/seo/verifier-prerendu.mjs : garde du prerender-manifest après
   type Manifeste = { routes: Record<string, RoutePrerendue>; dynamicRoutes: Record<string, object> }
   // Pages d'exemple : une page statique et un gabarit par section, plus les pages listées comme rendues à la demande.
   const PAGES = ['/pt', '/pt/servicos/[slug]', '/fr', '/fr/blog', '/fr/blog/[slug]', '/en', '/en/[slug]', ...Object.keys(RENDUES_A_LA_DEMANDE)].sort()
-  const MESSAGE_PAGE_A_LA_DEMANDE = (page: string) => expect.stringMatching(new RegExp('^page rendue à la demande : ' + page.replace(/[[\]]/g, '\\$&') + ' '))
+  const MESSAGE_PAGE_A_LA_DEMANDE = (page: string) => expect.stringContaining(`page rendue à la demande : ${page} (`)
 
   // Manifeste conforme : chaque page non listée pré-rendue (une page par gabarit), pages témoins, et autant de routes que
   // le plancher de chaque section.
@@ -520,10 +531,29 @@ describe('scripts/seo/verifier-prerendu.mjs : garde du prerender-manifest après
 
   it('pages réelles des sections : RENDUES_A_LA_DEMANDE ne cite que des pages qui existent', () => {
     const pages = pagesDesSections(RACINE)
-    expect(pages.length).toBeGreaterThanOrEqual(90)
+    // Décompte indépendant : un fichier page par route (aucun emplacement @x ni dossier privé dans les sections).
+    const fichiersPage = ARBRE_APP.filter((f) => /^app\/(pt|fr|en|nl|es)\//.test(f) && /\/page\.(tsx|ts|jsx|js)$/.test(f))
+    expect(fichiersPage.length).toBeGreaterThan(80)
+    expect(pages).toHaveLength(fichiersPage.length)
     expect(pages).toContain('/pt')
     expect(pages).toContain('/pt/servicos/[slug]')
     expect(Object.keys(RENDUES_A_LA_DEMANDE).filter((page) => !pages.includes(page))).toEqual([])
+  })
+
+  it('correspondance fichier → route comme Next : groupes et emplacements @x omis, dossiers _x et page.mdx ignorés', () => {
+    const racine = mkdtempSync(join(tmpdir(), 'pages-sections-'))
+    const creer = (chemin: string) => {
+      mkdirSync(join(racine, dirname(chemin)), { recursive: true })
+      writeFileSync(join(racine, chemin), '')
+    }
+    try {
+      for (const fichier of ['app/fr/page.tsx', 'app/fr/@bandeau/page.tsx', 'app/fr/(groupe)/a/page.tsx', 'app/fr/b/[slug]/page.ts', 'app/fr/_prive/page.tsx', 'app/fr/c/page.mdx', 'app/pt/page.jsx']) {
+        creer(fichier)
+      }
+      expect(pagesDesSections(racine)).toEqual(['/fr', '/fr/a', '/fr/b/[slug]', '/pt'])
+    } finally {
+      rmSync(racine, { recursive: true, force: true })
+    }
   })
 
   it('en ligne de commande, sur les pages réelles : code 0 si conforme, code 1 et annotations ::error:: sinon', () => {

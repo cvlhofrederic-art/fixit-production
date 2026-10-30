@@ -30,7 +30,8 @@ const TEXTES = {
 }
 
 export default function PageIntrouvable({ locale }: { locale: string }) {
-  const t = TEXTES[locale as keyof typeof TEXTES] || TEXTES.en
+  // Clés propres seulement : la langue vient du cookie brut, « constructor » ne doit pas lire Object.prototype.
+  const t = Object.hasOwn(TEXTES, locale) ? TEXTES[locale as keyof typeof TEXTES] : TEXTES.en
 
   return (
     <div className="min-h-screen bg-warm-gray flex items-center justify-center py-12 px-4">

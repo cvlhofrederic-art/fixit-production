@@ -2,16 +2,16 @@
 //
 // Les layouts par langue (app/{pt,fr,en,nl,es}/layout.tsx) ne lisent ni cookies() ni headers() : leurs pages sont
 // pré-rendues au build, puis servies telles quelles par le Worker (cache OpenNext en assets statiques, en lecture seule).
-// Une API dynamique ajoutée dans une page, un layout ou un helper qu'ils importent (getServerTranslation lit cookies()),
-// un `revalidate` ou un `force-dynamic` ne font échouer ni le build ni les tests : la page repasserait en rendu à la
-// demande sans bruit. Ce script croise .next/prerender-manifest.json avec les fichiers page de app/{pt,fr,en,nl,es} :
+// Une API dynamique ajoutée dans un helper que les pages importent (getServerTranslation lit cookies()) ne fait échouer
+// ni le build ni la lecture des sources par Vitest, qui ne voit que les appels directs : la page repasserait en rendu à
+// la demande sans bruit. Ce script croise .next/prerender-manifest.json avec les fichiers page de app/{pt,fr,en,nl,es} :
 // - chaque page est pré-rendue (route statique, ou gabarit dynamique dont au moins une page est pré-rendue), sauf celles
 //   de RENDUES_A_LA_DEMANDE, liste tenue exacte : une page listée qui devient pré-rendue est aussi une erreur ;
 // - planchers de routes pré-rendues par section et pages témoins (un gabarit qui perd ses pages) ;
 // - aucune route avec `revalidate` (le cache en lecture seule ne peut pas enregistrer une revalidation).
 //
 // Usage, depuis la racine du dépôt : node scripts/seo/verifier-prerendu.mjs [chemin/vers/prerender-manifest.json]
-import { readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -38,9 +38,9 @@ export const RENDUES_A_LA_DEMANDE = {
   '/fr/reserver': 'réservation, useSearchParams (layout force-dynamic)',
   '/pt/mercados/gerir': 'gestion du pedido par lien à jeton, useSearchParams (force-dynamic)',
   '/pt/mercados/publicar': 'date minimale du formulaire calculée au rendu (force-dynamic)',
-  // Lisent les cookies de session.
-  '/fr/marches/gerer': 'session du marché, cookies()',
-  '/fr/marches/publier': 'session du marché, cookies()',
+  // Lisent le cookie de langue (formulaire FR ou PT).
+  '/fr/marches/gerer': 'cookie locale, cookies()',
+  '/fr/marches/publier': 'cookie locale, cookies() ; date minimale du formulaire calculée au rendu, comme /pt/mercados/publicar',
   // getServerTranslation() lit cookies() (lib/i18n/server.ts), même avec une langue forcée.
   '/pt/avaliacoes': 'getServerTranslation()',
   '/fr/avis': 'réexport de /pt/avaliacoes, getServerTranslation()',
@@ -67,19 +67,22 @@ export const RENDUES_A_LA_DEMANDE = {
  * @returns {string[]}
  */
 export function pagesDesSections(racine = process.cwd()) {
-  /** @type {string[]} */
-  const pages = []
+  /** @type {Set<string>} */
+  const pages = new Set()
+  // Mêmes règles que Next : dossiers privés « _x » non routés, groupes « (x) » et emplacements « @x » absents de l'URL,
+  // extensions de page par défaut (next.config.ts ne fixe pas pageExtensions).
   /** @param {string[]} segments */
   const parcourir = (segments) => {
     for (const entree of readdirSync(path.join(racine, 'app', ...segments), { withFileTypes: true })) {
-      if (entree.isDirectory()) parcourir([...segments, entree.name])
-      else if (/^page\.(tsx|ts|jsx|js|mdx)$/.test(entree.name)) {
-        pages.push('/' + segments.filter((s) => !(s.startsWith('(') && s.endsWith(')'))).join('/'))
+      if (entree.isDirectory()) {
+        if (!entree.name.startsWith('_')) parcourir([...segments, entree.name])
+      } else if (/^page\.(tsx|ts|jsx|js)$/.test(entree.name)) {
+        pages.add('/' + segments.filter((s) => !(s.startsWith('(') && s.endsWith(')')) && !s.startsWith('@')).join('/'))
       }
     }
   }
-  for (const section of SECTIONS) parcourir([section])
-  return pages.sort()
+  for (const section of SECTIONS) if (existsSync(path.join(racine, 'app', section))) parcourir([section])
+  return [...pages].sort()
 }
 
 /**
