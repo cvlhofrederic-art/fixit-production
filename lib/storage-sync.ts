@@ -1,4 +1,4 @@
-import { isStorageAvailable } from '@/lib/safe-storage'
+import { isStorageReadable } from '@/lib/safe-storage'
 
 // Synchronisation localStorage <-> table Supabase user_storage.
 //
@@ -16,6 +16,11 @@ import { isStorageAvailable } from '@/lib/safe-storage'
 //  - cles ne commencant pas par `fixit_`
 //  - cles trop volumineuses (>200 KB) pour rester sous la limite serveur
 //  - flags one-shot type `fixit_clean_v6_*` (non sensibles, configurables)
+//
+// Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
+// SecurityError à la lecture de window.localStorage) coupe le miroir, l'hydratation et la migration. Un stockage
+// plein (QuotaExceededError à l'écriture) reste lisible et les garde actifs : suppressions et réécritures qui ne
+// l'agrandissent pas y réussissent encore et doivent atteindre le serveur.
 
 // Client applicatif partagé (cookies SSR). NE PAS recréer ici un client
 // @supabase/supabase-js : il lirait la session dans le localStorage (où elle
@@ -139,7 +144,12 @@ function scheduleFlush() {
  * eviter que les ecritures hydrate ne soient re-mirroir vers le serveur.
  */
 export async function hydrateStorageFromServer(): Promise<{ count: number }> {
-  if (typeof window === 'undefined' || !isStorageAvailable('local')) return { count: 0 }
+  // Lisible suffit : un stockage plein accepte encore toute valeur qui ne l'agrandit pas (entrées inchangées depuis la
+  // dernière synchronisation, valeurs raccourcies sur un autre appareil) ; une écriture refusée est ignorée plus bas.
+  // Exiger un stockage inscriptible renverrait 0 sans interroger le serveur : faute du drapeau de migration (qui ne
+  // s'écrit pas sur un stockage plein), Providers relancerait alors pushAllLocalToServer à chaque amorçage et
+  // écraserait sur le serveur les données enregistrées depuis les autres appareils.
+  if (typeof window === 'undefined' || !isStorageReadable('local')) return { count: 0 }
   const token = await getToken()
   if (!token) return { count: 0 }
 
@@ -181,11 +191,13 @@ export function installStorageSync(): void {
   installed = true
 
   // Stockage bloqué par le navigateur (réglage « bloquer les données des sites », iframe sandboxée, certaines
-  // webviews) : la simple lecture de window.localStorage lève une SecurityError, et un stockage plein ou en
-  // lecture seule refuse l'écriture. Appelé sur chaque page par Providers : sans ce garde, ces visiteurs tombaient
-  // sur une erreur (Sentry G, S). Pas de miroir possible, le site reste utilisable.
-  if (!isStorageAvailable('local')) {
-    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', 'stockage du site bloqué ou inscriptible')
+  // webviews) : la simple lecture de window.localStorage lève une SecurityError. Appelé sur chaque page par
+  // Providers : sans ce garde, ces visiteurs tombaient sur une erreur (Sentry G, S). Pas de miroir possible, le site
+  // reste utilisable. Un stockage plein ou en lecture seule reste lisible : le miroir est posé, car suppressions et
+  // réécritures plus courtes y réussissent et doivent être répliquées ; une écriture refusée lève comme sans miroir
+  // et n'est pas répliquée.
+  if (!isStorageReadable('local')) {
+    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', 'lecture du stockage impossible (bloqué par le navigateur ou absent)')
     return
   }
 
@@ -241,7 +253,8 @@ export function installStorageSync(): void {
  * on remonte tout.
  */
 export async function pushAllLocalToServer(): Promise<{ count: number }> {
-  if (typeof window === 'undefined' || !isStorageAvailable('local')) return { count: 0 }
+  // Lecture seule : un stockage plein (QuotaExceededError à l'écriture) se lit encore et doit pouvoir migrer.
+  if (typeof window === 'undefined' || !isStorageReadable('local')) return { count: 0 }
   const token = await getToken()
   if (!token) return { count: 0 }
 
