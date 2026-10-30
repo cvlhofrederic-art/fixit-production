@@ -558,9 +558,11 @@ const RANG_FACTURE: Readonly<Record<StatutFactureDemande, number>> = { 'À enreg
 export function codificationFacture(d: Demande, factures: readonly FactureDeDemande[]): CodificationFacture {
   if (d.factureIds.length === 0) return NON_FACTURE
   const statuts = new Map(factures.map((f) => [f.id, f.statut]))
-  return d.factureIds
-    .map((id): StatutFactureDemande => statuts.get(id) ?? 'À enregistrer')
-    .reduce((moinsAvance, statut) => (RANG_FACTURE[statut] < RANG_FACTURE[moinsAvance] ? statut : moinsAvance))
+  const parFacture = d.factureIds.map((id): StatutFactureDemande => statuts.get(id) ?? 'À enregistrer')
+  return parFacture.reduce(
+    (moinsAvance, statut) => (RANG_FACTURE[statut] < RANG_FACTURE[moinsAvance] ? statut : moinsAvance),
+    parFacture[0],
+  )
 }
 
 export type EtatEtape = 'done' | 'current' | 'pending' | 'refusee' | 'sans_objet'
