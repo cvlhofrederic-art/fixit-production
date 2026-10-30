@@ -9,12 +9,14 @@
  *   /{locale}/auth/login/, même si SIGNED_OUT arrive ensuite ;
  * - AbortError du verrou d'auth (deux fois, second essai compris) → ni navigation ni rechargement, un toast ;
  * - le callback onAuthStateChange est synchrone (jamais de promesse renvoyée) et le chargement des réservations
- *   sur INITIAL_SESSION est différé.
+ *   sur INITIAL_SESSION est différé ;
+ * - session indisponible au chargement (jeton expiré, rafraîchissement en échec réseau), INITIAL_SESSION nul, puis
+ *   TOKEN_REFRESHED ou SIGNED_IN avec une session → réservations chargées une seule fois, en différé.
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
-import { AuthApiError } from '@supabase/supabase-js'
+import { AuthApiError, AuthRetryableFetchError } from '@supabase/supabase-js'
 
 type Rappel = (event: string, session: unknown) => unknown
 
@@ -175,4 +177,39 @@ describe('tableau de bord client — initialisation de la session', () => {
     expect(mocks.order).toHaveBeenCalledTimes(1)
     expect(navigations).toEqual([])
   })
+
+  // Jeton expiré et rafraîchissement en échec réseau au chargement : getUser() rend « indisponible » et auth-js émet
+  // INITIAL_SESSION nul. Quand son tick d'auto-refresh réussit ensuite, il n'émet que TOKEN_REFRESHED (SIGNED_IN si
+  // la session arrive par un autre chemin) : sans reprise, la page restait sur son squelette jusqu'au rechargement.
+  it.each(['TOKEN_REFRESHED', 'SIGNED_IN'])(
+    'session indisponible au chargement, INITIAL_SESSION nul puis %s : réservations chargées une seule fois',
+    async (evenement) => {
+      mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) })
+      render(<ClientDashboardPage />)
+
+      await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+      act(() => { mocks.rappels[0]('INITIAL_SESSION', null) })
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).not.toHaveBeenCalled()
+
+      const session = { user: UTILISATEUR, access_token: 'jeton-rafraichi' }
+      let retour: unknown = 'non appelé'
+      act(() => { retour = mocks.rappels[0](evenement, session) })
+      expect(retour).toBeUndefined()
+      expect(mocks.order).not.toHaveBeenCalled()
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).toHaveBeenCalledTimes(1)
+
+      // Rafraîchissements suivants du jeton : rien n'est rechargé.
+      act(() => {
+        mocks.rappels[0]('TOKEN_REFRESHED', session)
+        mocks.rappels[0]('SIGNED_IN', session)
+      })
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).toHaveBeenCalledTimes(1)
+      expect(mocks.getUser).toHaveBeenCalledTimes(1)
+      expect(navigations).toEqual([])
+      expect(rechargements).toBe(0)
+    },
+  )
 })

@@ -148,7 +148,8 @@ export default function ClientDashboardPage() {
       } else if (verdict.statut === 'refusee') {
         versConnexion()
       } else {
-        // Session inconnue : on reste sur la page, sans rechargement (INITIAL_SESSION peut encore arriver).
+        // Session inconnue : on reste sur la page, sans rechargement (INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED
+        // peuvent encore apporter la session).
         console.warn('[client/dashboard] session indisponible :', verdict.erreur)
         if (!didLoad) {
           toast.error(locale === 'pt'
@@ -161,13 +162,15 @@ export default function ClientDashboardPage() {
     initAuth()
 
     // Callback synchrone : aucun appel Supabase attendu ici (interblocage documenté par Supabase) ; le
-    // chargement des réservations est différé.
+    // chargement des réservations est différé. SIGNED_IN et TOKEN_REFRESHED reprennent une session restée
+    // indisponible au chargement : jeton expiré et rafraîchissement en échec réseau → INITIAL_SESSION nul, puis le
+    // tick d'auto-refresh d'auth-js réussit et n'émet que TOKEN_REFRESHED.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         versConnexion()
         return
       }
-      if (!didLoad && event === 'INITIAL_SESSION' && session?.user) {
+      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         didLoad = true
         const utilisateur = session.user
         setUser(utilisateur)

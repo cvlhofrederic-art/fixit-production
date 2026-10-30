@@ -274,10 +274,12 @@ function DashboardPage() {
       // getSession suffit côté client — getUser (round-trip réseau) n'est nécessaire
       // que si la session locale est corrompue, ce qui est géré par onAuthStateChange.
       // Lecture protégée : un abandon du verrou d'auth, un délai ou une panne réseau ne redirige jamais
-      // (lot 1 Sentry du 28/10/2026) ; on attend alors INITIAL_SESSION.
+      // (lot 1 Sentry du 28/10/2026) ; on attend alors INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED.
       const { session, indisponible } = await lireSessionSure(supabase.auth)
-      if (session?.user) { didLoad = true; loadDashboardData(session.user) }
-      else if (indisponible) { console.warn('[pro/dashboard] session indisponible, attente de INITIAL_SESSION') }
+      // Un seul chargement : SIGNED_IN ou TOKEN_REFRESHED a pu le lancer pendant cette lecture (jeton expiré
+      // rafraîchi à l'initialisation du client, page déjà abonnée).
+      if (session?.user) { if (!didLoad) { didLoad = true; loadDashboardData(session.user) } }
+      else if (indisponible) { console.warn('[pro/dashboard] session indisponible, attente de INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED') }
       // Si pas de session, on attend INITIAL_SESSION de onAuthStateChange
       // qui va soit fournir un user, soit on redirige après un timeout
       else { setTimeout(() => { if (!didLoad) window.location.href = `/${locale}/auth/login` }, 3000) }
@@ -295,10 +297,12 @@ function DashboardPage() {
     initAuth()
 
     // Callback synchrone : aucun appel Supabase lancé dans un callback onAuthStateChange (interblocage documenté
-    // par Supabase) ; le chargement est différé.
+    // par Supabase) ; le chargement est différé. TOKEN_REFRESHED reprend une session restée indisponible au
+    // chargement : jeton expiré et rafraîchissement en échec réseau → INITIAL_SESSION nul, puis le tick
+    // d'auto-refresh d'auth-js réussit et n'émet que TOKEN_REFRESHED.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') { window.location.href = `/${locale}/auth/login`; return }
-      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
+      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         didLoad = true
         const utilisateur = session.user
         setTimeout(() => { void loadDashboardData(utilisateur) }, 0)
