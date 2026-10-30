@@ -1,4 +1,5 @@
 import { ajouterMois, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { FICHES_PORTEUSES, creerRattachement, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { creerTraitement, type Traitement } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciaire'
 
@@ -17,6 +18,11 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  * envers le cabinet (compte fournisseur 401 du cabinet).
  * 🔵 « Barème temps » = minutes × taux horaire / 60 : DÉDUIT du libellé, non observé en calcul.
  * 🔵 Compte de charge par défaut 62111 « honoraires administrateur provisoire » (plan observé, tranche 27).
+ * Point 66 — 🟢 tranche 42 (complément du 28/10/2026, 00:06) : le Dossier d'un élément est un type + la fiche précise
+ * (« Sinistre » + tel sinistre) ; d'où le champ facultatif `fiche`, rattachement { type, id } du point 47, dont le type
+ * est le dossier de l'élément. 🟢 Tranche 27 : la fiche élément a ses propres champs Entreprise et Personne ; une fiche
+ * porteuse (copropriété, identité, entreprise) n'est donc pas une fiche de dossier. Honoraires de sinistre :
+ * honoraires-sinistre.ts.
  */
 
 export const NATURES_ELEMENT = [
@@ -60,6 +66,8 @@ export interface SaisieElement {
   mandatId: string
   date: string
   dossier: Dossier
+  /** Fiche précise du dossier (point 66) : son type est `dossier`. Absente ou null : élément rattaché au seul dossier. */
+  fiche?: Rattachement | null
   nature: NatureElement
   /** Tarif du catalogue (« <Dossier> - <LIBELLÉ> »). */
   tarif: string
@@ -79,6 +87,16 @@ export interface ElementAFacturer extends SaisieElement {
 
 const contient = (liste: readonly string[], valeur: string) => liste.includes(valeur)
 
+/** Fiche visée, revalidée (type connu, identifiant non vide, nettoyé) ; son type doit être le dossier de l'élément. */
+function ficheDuDossier(dossier: Dossier, fiche: Rattachement): Rattachement {
+  const rattachement = creerRattachement(fiche.type, fiche.id)
+  if (contient(FICHES_PORTEUSES, rattachement.type))
+    throw new Error(`Fiche « ${rattachement.type} » : une fiche porteuse n'est pas une fiche de dossier (champs propres de l'élément).`)
+  if (rattachement.type !== dossier)
+    throw new Error(`Fiche « ${rattachement.type} » : son type doit être le dossier de l'élément (« ${dossier} »).`)
+  return rattachement
+}
+
 export function creerElement(saisie: SaisieElement): ElementAFacturer {
   if (!estDateIsoValide(saisie.date)) throw new Error(`Date invalide (${saisie.date}) : AAAA-MM-JJ attendu.`)
   if (!contient(DOSSIER, saisie.dossier)) throw new Error(`Dossier inconnu : « ${saisie.dossier} ».`)
@@ -87,6 +105,7 @@ export function creerElement(saisie: SaisieElement): ElementAFacturer {
   if (!(saisie.quantite > 0)) throw new Error(`Quantité invalide (${saisie.quantite}) : strictement positive attendue.`)
   if (!Number.isInteger(saisie.prixUnitaireHtDixMilliemes) || saisie.prixUnitaireHtDixMilliemes < 0)
     throw new Error(`Prix unitaire invalide (${saisie.prixUnitaireHtDixMilliemes}) : dix-millièmes d'euro entiers positifs attendus.`)
+  if (saisie.fiche) return { ...saisie, fiche: ficheDuDossier(saisie.dossier, saisie.fiche), statut: 'A facturer' }
   return { ...saisie, statut: 'A facturer' }
 }
 
