@@ -247,7 +247,9 @@ export default function ArtisanProfilePage() {
   }, [artisan?.id])
 
   const fetchArtisan = async () => {
-    const paramId = params.id as string
+    // Segment « id » pour /fr/artisan/[id] et /pt/profissional/[id], « slug » pour /fr/societe/[slug] et
+    // /pt/empresa/[slug] (lire seulement params.id y cherchait slug=eq.undefined : fiche toujours « non trouvée »).
+    const paramId = (params.id ?? params.slug) as string
 
     // Résolution par slug OU par UUID
     // UUID = format 8-4-4-4-12 hex, sinon c'est un slug
