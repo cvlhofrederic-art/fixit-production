@@ -7,6 +7,10 @@ import { logger } from '@/lib/logger'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
+// La page et ses métadonnées attendent cette lecture : une base lente ne doit pas bloquer la réponse. Au-delà, le fetch
+// est abandonné (TimeoutError) : ficheAbsente répond faux (fiche rendue), le layout de /fr/artisan/[id] se replie.
+const DELAI_LECTURE_MS = 3000
+
 // 'absent' : Supabase a répondu sans ligne (identifiant inconnu). 'indisponible' : configuration absente ou
 // réponse en erreur, on ne peut rien conclure sur l'existence du profil (pas de noindex sur une panne).
 export type LectureProfil<T> = { statut: 'trouve'; profil: T } | { statut: 'absent' } | { statut: 'indisponible' }
@@ -24,6 +28,7 @@ export async function fetchArtisanProfile<T>(id: string, fields: string, origine
       'Authorization': `Bearer ${SUPABASE_KEY}`,
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(DELAI_LECTURE_MS),
   })
 
   if (!res.ok) {

@@ -3,7 +3,7 @@
  * profiles_artisan répond par une vraie 404 (notFound de Next), et non plus par une fiche « Artisan non trouvé » servie
  * en 200 avec index, follow (soft 404 relevé en production le 30/10/2026 sur /fr/societe/exemplo/ et
  * /pt/empresa/exemplo/). Une fiche existante garde son rendu et ses métadonnées ; une panne de Supabase ne conclut rien
- * (pas de 404 ni de noindex sur une panne), et laisse une trace.
+ * (pas de 404 ni de noindex sur une panne), et laisse une trace ; une base muette est abandonnée au bout de 3 s.
  *
  * Supabase (REST) est simulé par un fetch factice, la page client partagée (/fr/artisan/[id]) par un composant témoin.
  */
@@ -17,13 +17,26 @@ const journal = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn()
 vi.mock('@/lib/logger', () => ({ logger: journal }))
 vi.mock('@/app/fr/artisan/[id]/page', () => ({ default: function FichePartagee() { return null } }))
 
-type Reponse = { ok: boolean; lignes: unknown[] } | 'erreur-reseau' | null
+type Reponse = { ok: boolean; lignes: unknown[] } | 'erreur-reseau' | 'sans-reponse' | null
 const supabase = vi.hoisted(() => ({ reponse: null as Reponse, urls: [] as string[] }))
 
 type Props = { params: Promise<{ slug: string }> }
 type ModuleFiche = { default: (props: Props) => Promise<unknown>; generateMetadata: (props: Props) => Promise<Metadata> }
 
 const props = (slug: string): Props => ({ params: Promise.resolve({ slug }) })
+
+// Échoue au lieu d'attendre indéfiniment : sans délai maximal, une base muette laisserait la promesse pendante.
+async function avantLimite<T>(promesse: Promise<T>, ms = 2000): Promise<T> {
+  let minuteur: ReturnType<typeof setTimeout> | undefined
+  const limite = new Promise<never>((_resoudre, rejeter) => {
+    minuteur = setTimeout(() => rejeter(new Error(`promesse encore pendante après ${ms} ms`)), ms)
+  })
+  try {
+    return await Promise.race([promesse, limite])
+  } finally {
+    clearTimeout(minuteur)
+  }
+}
 
 const ROUTES = [
   {
@@ -47,8 +60,14 @@ const ROUTES = [
 beforeAll(() => {
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://exemple.supabase.co')
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     supabase.urls.push(url)
+    if (supabase.reponse === 'sans-reponse') {
+      // Base qui ne répond jamais : seul l'abandon par le signal du fetch termine la lecture.
+      return new Promise<never>((_resoudre, rejeter) => {
+        init?.signal?.addEventListener('abort', () => rejeter(init.signal?.reason))
+      })
+    }
     if (supabase.reponse === 'erreur-reseau') throw new TypeError('fetch failed')
     if (!supabase.reponse) throw new Error('réponse Supabase non définie par le test')
     const { ok, lignes } = supabase.reponse
@@ -102,5 +121,24 @@ describe.each(ROUTES)('$route', ({ charger, origine, metadonnees }) => {
       expect.stringContaining(origine),
       expect.objectContaining({ id: 'plomberie-durand-sarl', error: expect.stringContaining('fetch failed') }),
     )
+  })
+
+  it('Supabase sans réponse : lecture abandonnée au bout de 3 s, fiche rendue au lieu d’une réponse bloquée', async () => {
+    const { default: Page, generateMetadata } = await charger()
+    // Délai de production vérifié (3 000 ms), puis ramené à 10 ms pour que le test reste rapide.
+    const delaiReel = AbortSignal.timeout.bind(AbortSignal)
+    const delai = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => delaiReel(10))
+    try {
+      supabase.reponse = 'sans-reponse'
+      expect(isValidElement(await avantLimite(Page(props('plomberie-durand-sarl'))))).toBe(true)
+      expect(await avantLimite(generateMetadata(props('plomberie-durand-sarl')))).toEqual(metadonnees('plomberie-durand-sarl'))
+      expect(delai).toHaveBeenCalledWith(3000)
+      expect(journal.warn).toHaveBeenCalledWith(
+        expect.stringContaining(origine),
+        expect.objectContaining({ id: 'plomberie-durand-sarl', error: expect.stringContaining('TimeoutError') }),
+      )
+    } finally {
+      delai.mockRestore()
+    }
   })
 })
