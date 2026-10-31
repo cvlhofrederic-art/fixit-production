@@ -2,8 +2,9 @@
  * Fiches de société /fr/societe/[slug] et /pt/empresa/[slug] (rendues à la demande, lues en base) : un slug inconnu de
  * profiles_artisan répond par une vraie 404 (notFound de Next), et non plus par une fiche « Artisan non trouvé » servie
  * en 200 avec index, follow (soft 404 relevé en production le 30/10/2026 sur /fr/societe/exemplo/ et
- * /pt/empresa/exemplo/). Une fiche existante garde son rendu et ses métadonnées ; une panne de Supabase ne conclut rien
- * (pas de 404 ni de noindex sur une panne), et laisse une trace ; une base muette est abandonnée au bout de 3 s.
+ * /pt/empresa/exemplo/). Une fiche existante garde son rendu et ses métadonnées (sous /fr/societe/, canonical vers
+ * /fr/artisan/, seule URL indexable d'une fiche FR) ; une panne de Supabase ne conclut rien (pas de 404 ni de noindex sur
+ * une panne), et laisse une trace ; une base muette est abandonnée au bout de 3 s.
  *
  * Supabase (REST) est simulé par un fetch factice, la page client partagée (/fr/artisan/[id]) par un composant témoin.
  */
@@ -43,7 +44,12 @@ const ROUTES = [
     route: '/fr/societe/[slug]',
     charger: () => import('@/app/fr/societe/[slug]/page') as Promise<ModuleFiche>,
     origine: '[fr/societe]',
-    metadonnees: (): Metadata => ({ title: 'Société | Vitfix', robots: { index: true, follow: true } }),
+    // Une seule URL indexable par fiche FR : canonical vers /fr/artisan/, la page reste en index, follow.
+    metadonnees: (slug: string): Metadata => ({
+      title: 'Société | Vitfix',
+      robots: { index: true, follow: true },
+      alternates: { canonical: `https://vitfix.io/fr/artisan/${slug}/` },
+    }),
   },
   {
     route: '/pt/empresa/[slug]',
@@ -140,5 +146,20 @@ describe.each(ROUTES)('$route', ({ charger, origine, metadonnees }) => {
     } finally {
       delai.mockRestore()
     }
+  })
+})
+
+describe('/fr/societe/[slug] : une seule URL indexable par fiche FR', () => {
+  // /fr/societe/ n'a ni titre ni description de fiche, ni JSON-LD : la fiche complète est sous /fr/artisan/, dont le
+  // layout se déclare canonique. La canonical reprend l'identifiant de la route, slug ou UUID.
+  it.each([
+    ['slug', 'plomberie-durand-sarl'],
+    ['UUID', '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b'],
+  ])('fiche existante (%s) : canonical vers /fr/artisan/<même identifiant>/, toujours en index, follow', async (_type, identifiant) => {
+    const { generateMetadata } = (await import('@/app/fr/societe/[slug]/page')) as ModuleFiche
+    supabase.reponse = { ok: true, lignes: [{ id: '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b' }] }
+    const metadata = await generateMetadata(props(identifiant))
+    expect(metadata.alternates).toEqual({ canonical: `https://vitfix.io/fr/artisan/${identifiant}/` })
+    expect(metadata.robots).toEqual({ index: true, follow: true })
   })
 })
