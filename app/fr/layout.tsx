@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   ...metadonneesRacine('fr'),
   metadataBase: new URL('https://vitfix.io'),
   // La marque une seule fois, comme en PT : les pages donnent un titre sans marque et ce template l'ajoute ; une page
-  // dont la phrase contient déjà la marque prend un titre absolu (garde : tests/seo/titres-marque-unique.test.ts).
+  // dont la phrase contient déjà la marque prend un titre absolu, titreAvecMarque (garde : tests/seo/titres-marque-unique.test.ts).
   title: {
     default: 'VITFIX Marseille, Plombier, Électricien, Peintre | Devis gratuit',
     template: '%s | VITFIX',

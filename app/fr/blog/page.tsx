@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
+import { titreAvecMarque } from '@/lib/seo/titre-avec-marque'
 
 export const metadata: Metadata = {
-  // Marque déjà dans la phrase : titre absolu, sinon le template « %s | VITFIX » de app/fr/layout.tsx la répéterait.
-  title: { absolute: 'Blog Vitfix : Conseils travaux et guides pratiques' },
+  title: titreAvecMarque('Blog Vitfix : Conseils travaux et guides pratiques'),
   description: 'Conseils, guides et actualités sur les travaux et la rénovation par Vitfix. Choisir un artisan, devis, normes, aides financières.',
   openGraph: {
     title: 'Blog Vitfix : Conseils travaux',

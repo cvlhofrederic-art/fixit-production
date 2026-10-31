@@ -162,7 +162,7 @@ describe('titres FR et EN : la marque une seule fois', () => {
 
   it('fiches artisan et société : profil FR ou PT, sans nom de société, absent ou Supabase en erreur', async () => {
     const fiches = (await titresDesPages((section) => section)).filter((t) => /^\/fr\/(artisan|societe)\//.test(t.chemin))
-    expect(fiches.length).toBe(2 * Object.keys(FICHES).length)
+    expect(fiches).toHaveLength(2 * Object.keys(FICHES).length)
     expect(fautifs(fiches)).toEqual([])
     expect(fiches.find((t) => t.chemin === '/fr/artisan/fiche-fr/')?.titre).toBe('Plomberie Durand - Plombier à Marseille | VITFIX')
     expect(fiches.find((t) => t.chemin === '/fr/artisan/fiche-fr-sans-nom/')?.titre).toBe('Artisan - Plombier à Marseille | VITFIX')

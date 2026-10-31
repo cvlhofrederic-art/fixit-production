@@ -15,7 +15,7 @@ interface SitemapMetadataOptions {
   locale: 'fr' | 'pt'
   url: string
   altUrl: string
-  // Titre absolu quand la phrase contient déjà la marque (le template du layout la répéterait).
+  // titreAvecMarque(…) quand la phrase contient déjà la marque (le template du layout la répéterait).
   title: string | { absolute: string }
   description: string
   ogTitle: string
