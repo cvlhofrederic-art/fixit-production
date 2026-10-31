@@ -10,7 +10,8 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { generatePdfFromTemplate, type PdfFieldValue } from '@/lib/syndic/lea-pdf-generator'
 import { traceAgent } from '@/lib/langfuse'
-import { cheminStockageSur } from '@/lib/storage/chemin-sur'
+import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
+import { prefixesStorageCabinet } from '@/lib/syndic/dossiers-storage'
 import * as Sentry from '@sentry/nextjs'
 
 export const maxDuration = 30
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     // 1. Charger le template (RLS-equivalent via cabinet_id check)
     const { data: tpl, error: tplErr } = await supabaseAdmin
       .from('syndic_pdf_templates')
-      .select('id, name, storage_path, placeholders, locale, type')
+      .select('id, name, storage_path, placeholders, locale, type, created_by')
       .eq('id', parsed.data.template_id)
       .eq('cabinet_id', cabinetId)
       .maybeSingle()
@@ -73,14 +74,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'missing_required_fields', fields: missing }, { status: 400 })
     }
 
-    // 3. Télécharger le template depuis Storage
-    if (!cheminStockageSur(tpl.storage_path)) {
+    // 3. Télécharger le template depuis Storage — chemin relu en base : traversée bloquée, dossier du
+    //    cabinet (ou du créateur s'il est membre du cabinet, format des dépôts antérieurs au 25/05/2026)
+    //    imposé ; refus → 400 générique.
+    let cheminTemplate: string
+    try {
+      cheminTemplate = assertStoragePath(tpl.storage_path, await prefixesStorageCabinet(supabaseAdmin, cabinetId, tpl.created_by))
+    } catch (e) {
+      if (!(e instanceof StoragePathError)) throw e
       logger.error('[lea-pdf-generate] storage_path refusé:', { template: tpl.id })
-      return NextResponse.json({ error: 'template_download_failed' }, { status: 500 })
+      return NextResponse.json({ error: 'invalid_storage_path' }, { status: 400 })
     }
     const { data: tplBlob, error: dlErr } = await supabaseAdmin.storage
       .from('syndic-pdf-templates')
-      .download(tpl.storage_path)
+      .download(cheminTemplate)
     if (dlErr || !tplBlob) {
       logger.error('[lea-pdf-generate] template download failed:', dlErr)
       return NextResponse.json({ error: 'template_download_failed' }, { status: 500 })
@@ -115,7 +122,8 @@ export async function POST(request: NextRequest) {
     const baseFilename = safeFilename(parsed.data.filename || `${tpl.name}_${new Date().toISOString().slice(0, 10)}`)
     const filename = baseFilename.endsWith('.pdf') ? baseFilename : `${baseFilename}.pdf`
     // Storage path scopé cabinet (et non uploader) — toute l'équipe accède aux PDFs générés.
-    const storagePath = `${cabinetId}/${docId}.pdf`
+    // Nom généré côté serveur, segments vérifiés par buildStoragePath ; l'URL signée reprend ce chemin.
+    const storagePath = buildStoragePath(cabinetId, `${docId}.pdf`)
 
     const { error: upErr } = await supabaseAdmin.storage
       .from('syndic-pdf-generated')
@@ -141,7 +149,8 @@ export async function POST(request: NextRequest) {
       .select('id, filename, generated_at')
       .single()
     if (insErr || !row) {
-      await supabaseAdmin.storage.from('syndic-pdf-generated').remove([storagePath]).catch(() => {})
+      await supabaseAdmin.storage.from('syndic-pdf-generated').remove([storagePath])
+        .catch((e: unknown) => logger.warn('[lea-pdf-generate] rollback storage failed:', e))
       logger.error('[lea-pdf-generate] db insert failed:', insErr)
       return NextResponse.json({ error: 'db_insert_failed' }, { status: 500 })
     }
@@ -158,6 +167,10 @@ export async function POST(request: NextRequest) {
       unfilled_fields: result.unfilled_fields,
     }, { status: 201 })
   } catch (err) {
+    if (err instanceof StoragePathError) {
+      logger.warn('[lea-pdf-generate] chemin de stockage refusé')
+      return NextResponse.json({ error: 'invalid_storage_path' }, { status: 400 })
+    }
     logger.error('[lea-pdf-generate] unexpected:', err)
     Sentry.captureException(err, { tags: { agent_type: 'lea', surface: 'pdf_generate' } })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })

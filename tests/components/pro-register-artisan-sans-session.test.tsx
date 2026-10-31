@@ -1,6 +1,6 @@
 // tests/components/pro-register-artisan-sans-session.test.tsx
 //
-// Inscription artisan (app/pro/register, FormulaireArtisan) quand la confirmation d'e-mail
+// Inscription artisan (app/(commun)/pro/register, FormulaireArtisan) quand la confirmation d'e-mail
 // est active : supabase.auth.signUp ne renvoie pas de session. Parcours complet rejoué dans
 // le formulaire, appels réseau simulés.
 // - Pas d'appel à /api/auth/init-role sans session (il répondait 401) et donc plus
@@ -37,7 +37,7 @@ vi.mock('@/lib/supabase', () => ({
 vi.mock('sonner', () => ({ toast: { warning: h.warning, error: vi.fn(), success: vi.fn() } }))
 vi.mock('@/lib/analytics', () => ({ trackEvent: vi.fn(), AnalyticsEventType: {} }))
 
-import ProRegisterPage from '@/app/pro/register/page'
+import ProRegisterPage from '@/app/(commun)/pro/register/page'
 
 type Appel = { url: string; init?: RequestInit }
 let appels: Appel[] = []

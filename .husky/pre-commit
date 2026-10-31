@@ -5,3 +5,15 @@ if git diff --cached --name-only | grep -q "components/syndic-dashboard/v54/prim
   node scripts/codegen-icon-names.mjs
   git add lib/syndic/icon-names.ts
 fi
+
+# Garde-fou secrets (lot 1 Aikido, 28/10/2026) : gitleaks sur les fichiers indexés, commit bloqué
+# en cas de fuite. Même config que la CI (.github/workflows/gitleaks.yml : security/.gitleaks.toml).
+# Sans binaire gitleaks en local : simple ligne d'information, le commit continue (la CI bloque).
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --pre-commit --staged --redact --config security/.gitleaks.toml --no-banner; then
+    echo "[husky] gitleaks : secret détecté dans les fichiers indexés — commit bloqué (valeur à sortir du code, voir security/.gitleaks.toml pour un faux positif)."
+    exit 1
+  fi
+else
+  echo "[husky] gitleaks absent : scan des secrets ignoré en local (installation : https://github.com/gitleaks/gitleaks#installing)."
+fi

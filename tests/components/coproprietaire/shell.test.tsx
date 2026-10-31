@@ -1,6 +1,6 @@
 // tests/components/coproprietaire/shell.test.tsx
 //
-// app/coproprietaire/dashboard/page.tsx — la coquille du portail : navigation (barre latérale,
+// app/(commun)/coproprietaire/dashboard/page.tsx — la coquille du portail : navigation (barre latérale,
 // barre du bas, menu « Plus », ancre de l'URL), bandeau de démonstration, écrans réservés au
 // propriétaire masqués pour un locataire, pages d'accès (session expirée, espace non activé, rôle
 // interdit, erreur), bouton « Signaler un problème » dans l'en-tête. Les écrans sont remplacés par
@@ -39,7 +39,7 @@ vi.mock('@/lib/dashboard-section-loader', () => ({
   },
 }))
 
-const { default: Page } = await import('@/app/coproprietaire/dashboard/page')
+const { default: Page } = await import('@/app/(commun)/coproprietaire/dashboard/page')
 
 function pret(espace = espaceDemo(), jeton: string | null = null): Extract<EtatEspace, { statut: 'pret' }> {
   return { statut: 'pret', espace, jeton, miseAJourLe: new Date('2026-10-17T14:05:00'), miseAJourImpossible: false }

@@ -113,8 +113,8 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
     expect(ADRESSE_PT_TEXTE).toBe('Av. Dr. Artur Melo e Castro 109, 4630-204 Marco de Canaveses')
   })
 
-  it('le nœud #business du layout racine utilise cette adresse et les 22 concelhos en areaServed', () => {
-    const layout = readFileSync(join(process.cwd(), 'app', 'layout.tsx'), 'utf8')
+  it('le nœud #business de la coquille racine (components/common/CoquilleRacine.tsx) utilise cette adresse et les 22 concelhos en areaServed', () => {
+    const layout = readFileSync(join(process.cwd(), 'components', 'common', 'CoquilleRacine.tsx'), 'utf8')
     expect(layout).toContain('ENTITE_PT.adresse')
     expect(layout).toContain('areaServidaPt()')
     expect(areaServidaPt()).toHaveLength(22)
