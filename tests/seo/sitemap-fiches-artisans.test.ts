@@ -4,8 +4,9 @@
  * - La lecture de profiles_artisan ne nomme que des colonnes présentes en production. Le faux client ci-dessous répond
  *   comme PostgREST (42703) à toute autre colonne, sélectionnée ou filtrée : en production, lire org_role, country ou
  *   is_verified faisait échouer la requête et le sitemap sortait vide.
- * - Préfixe de la fiche : forme juridique (legal_form) et langue (language) ; les fiches individuelles PT
- *   (/pt/profissional/, noindex) restent hors sitemap.
+ * - Une URL par fiche : /fr/artisan/<slug>/ pour toute fiche FR (sa canonique), /pt/empresa/<slug>/ pour une société PT
+ *   (legal_form) ; les fiches individuelles PT (/pt/profissional/, noindex) restent hors sitemap. Pas de lastmod :
+ *   updated_at bouge à chaque mise à jour de la ligne (trigger), ce n'est pas une date de contenu.
  * - Une panne Supabase donne un sitemap vide, jamais une erreur 500, mais elle reste visible dans les logs. Le client
  *   Supabase (postgrest-js) ne lève pas d'exception : il renvoie { data: null, error }, que le catch ne voit jamais.
  */
@@ -98,7 +99,7 @@ describe('sitemap des fiches artisans', () => {
     expect(requete.filtres).toEqual([['verified', true], ['active', true]])
   })
 
-  it('préfixe selon la forme juridique et la langue ; fiches individuelles PT (noindex), non vérifiées ou inactives exclues', async () => {
+  it('FR sous /fr/artisan/ quelle que soit la forme, société PT sous /pt/empresa/ ; individuelles PT (noindex), non vérifiées ou inactives exclues', async () => {
     supabase.etat.lignes = [
       fiche({ id: 'a-1', slug: 'durand-plomberie-marseille', legal_form: 'Entrepreneur individuel' }),
       fiche({ id: 'a-2', slug: 'batiment-sud-aix-en-provence', legal_form: 'SASU' }),
@@ -109,23 +110,21 @@ describe('sitemap des fiches artisans', () => {
       fiche({ id: 'a-7', slug: 'inactif', active: false }),
     ]
     const xml = await (await sitemap4()).text()
-    // Une seule URL par fiche : une société n'apparaît pas aussi sous /fr/artisan/.
+    // Une seule URL par fiche : la société FR sort sous sa canonique /fr/artisan/, jamais sous /fr/societe/.
     expect(locs(xml)).toEqual([
       '/fr/artisan/durand-plomberie-marseille/',
-      '/fr/societe/batiment-sud-aix-en-provence/',
+      '/fr/artisan/batiment-sud-aix-en-provence/',
       '/pt/empresa/construcoes-ribeiro-porto/',
       '/fr/artisan/a-5/',
     ])
   })
 
-  it('lastmod : updated_at quand il est renseigné, sinon pas de balise', async () => {
-    supabase.etat.lignes = [
-      fiche({ id: 'a-1', slug: 'avec-date', updated_at: '2026-10-30T08:15:00+00:00' }),
-      fiche({ id: 'a-2', slug: 'sans-date' }),
-    ]
+  it('aucun lastmod, même quand updated_at est renseigné : la colonne n’est pas lue', async () => {
+    supabase.etat.lignes = [fiche({ id: 'a-1', slug: 'durand-plomberie-marseille', updated_at: '2026-10-30T08:15:00+00:00' })]
     const xml = await (await sitemap4()).text()
-    expect(xml).toContain('<loc>https://vitfix.io/fr/artisan/avec-date/</loc>\n    <lastmod>2026-10-30T08:15:00.000Z</lastmod>')
-    expect(xml.match(/<lastmod>/g) ?? []).toHaveLength(1)
+    expect(locs(xml)).toEqual(['/fr/artisan/durand-plomberie-marseille/'])
+    expect(xml).not.toContain('<lastmod>')
+    expect(supabase.etat.requetes[0].colonnes).not.toContain('updated_at')
   })
 
   it('erreur Supabase : sitemap vide et avertissement journalisé', async () => {
@@ -177,8 +176,8 @@ describe('chemin public de la fiche (getProfilePath, estFormeSociete)', () => {
     '', null, undefined,
   ])('%s : artisan individuel', (forme) => expect(estFormeSociete(forme)).toBe(false))
 
-  it('société sous /fr/societe/ ou /pt/empresa/, individuel sous /fr/artisan/ ou /pt/profissional/, UUID sans slug', () => {
-    expect(getProfilePath({ id: 'a-1', slug: 'batiment-sud', legal_form: 'SAS' }, 'fr')).toBe('/fr/societe/batiment-sud')
+  it('FR toujours sous /fr/artisan/, PT société sous /pt/empresa/ ou individuel sous /pt/profissional/, UUID sans slug', () => {
+    expect(getProfilePath({ id: 'a-1', slug: 'batiment-sud', legal_form: 'SAS' }, 'fr')).toBe('/fr/artisan/batiment-sud')
     expect(getProfilePath({ id: 'a-1', slug: 'construcoes-ribeiro', legal_form: 'Lda' }, 'pt')).toBe('/pt/empresa/construcoes-ribeiro')
     expect(getProfilePath({ id: 'a-1', slug: 'durand', legal_form: 'EI' }, 'fr')).toBe('/fr/artisan/durand')
     expect(getProfilePath({ id: 'a-1', slug: 'silva', legal_form: null }, 'pt')).toBe('/pt/profissional/silva')

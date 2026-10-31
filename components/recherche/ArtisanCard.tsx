@@ -40,7 +40,7 @@ export interface Artisan {
   latitude?: number | null
   longitude?: number | null
   distance_km?: number | null
-  legal_form?: string | null // société (SARL, Lda…) → fiche /fr/societe/ ou /pt/empresa/ (getProfilePath)
+  legal_form?: string | null // société PT (Lda…) → fiche /pt/empresa/ (getProfilePath)
   source?: 'registered' | 'catalogue' | 'vitfix' // 'vitfix' : fiche VITFIX épinglée sur /pt/pesquisar/ (lib/recherche/vitfix-destaque.ts)
   telephone_pro?: string | null
   adresse?: string | null

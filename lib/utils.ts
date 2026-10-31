@@ -43,7 +43,8 @@ const FORMES_SOCIETE = ['societe', 'sociedade', 'limitada', 'anonym', 'anonima',
 const CATEGORIE_INSEE_SOCIETE = /^forme juridique [56]\d{3}$/
 
 /**
- * Société ou artisan individuel, d'après profiles_artisan.legal_form (rôle de la colonne, migration 059).
+ * Société ou artisan individuel, d'après profiles_artisan.legal_form (rôle de la colonne, migration 059). Choisit la
+ * fiche PT : /pt/empresa/ ou /pt/profissional/ (getProfilePath).
  * Société : SARL, SAS, SASU, EURL, SA, SNC, SCI, SCP, SEL… ; au Portugal Lda, Unipessoal Lda, SA (sociedade).
  * Artisan individuel : entrepreneur individuel, EI, EIRL, micro ou auto-entrepreneur, ENI (empresário em nome
  * individual), trabalhador independente, association, forme inconnue ou non renseignée.
@@ -63,17 +64,17 @@ export function estFormeSociete(legalForm: string | null | undefined): boolean {
 }
 
 /**
- * Chemin public de la fiche, selon la forme juridique (estFormeSociete) et la langue.
- * société    → /fr/societe/[slug] ou /pt/empresa/[slug]
- * individuel → /fr/artisan/[slug] ou /pt/profissional/[slug]
+ * Chemin public de la fiche, une seule adresse par fiche et par langue.
+ * FR : /fr/artisan/[slug], la canonique de la fiche (app/fr/artisan/[id]/layout.tsx), société comprise :
+ *      /fr/societe/[slug] n'a pas les métadonnées d'une fiche (titre, canonique, JSON-LD).
+ * PT : société (estFormeSociete) → /pt/empresa/[slug], sinon /pt/profissional/[slug].
  */
 export function getProfilePath(artisan: { slug?: string | null; id: string; legal_form?: string | null }, locale: string): string {
   const identifier = artisan.slug || artisan.id
-  const isCompany = estFormeSociete(artisan.legal_form)
   if (locale === 'pt') {
-    return isCompany ? `/pt/empresa/${identifier}` : `/pt/profissional/${identifier}`
+    return estFormeSociete(artisan.legal_form) ? `/pt/empresa/${identifier}` : `/pt/profissional/${identifier}`
   }
-  return isCompany ? `/fr/societe/${identifier}` : `/fr/artisan/${identifier}`
+  return `/fr/artisan/${identifier}`
 }
 
 /**
