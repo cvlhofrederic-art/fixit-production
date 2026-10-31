@@ -175,7 +175,7 @@ describe('destinations retenues', () => {
     ])
   })
 
-  it.each(['en', 'nl', 'es'] as const)('%s : accueil de la section, pages PT, pages légales EN', (locale) => {
+  it.each(['en', 'nl', 'es'] as const)('%s : accueil de la section ou page PT', (locale) => {
     expect(Object.fromEntries(Object.entries(LIENS_ENTETE_PIED).map(([cle, chemins]) => [cle, chemins[locale]]))).toEqual({
       // Où mènent déjà /en/search/, /en/reviews/ et /en/contact/ (redirections de next.config.ts).
       recherche: `/${locale}/`,
@@ -191,11 +191,12 @@ describe('destinations retenues', () => {
       espaceArtisan: '/pt/artisan/dashboard',
       espacePro: '/pt/pro/dashboard',
       espaceClient: '/pt/client/dashboard',
-      // Pages légales EN : préfixées par LocaleLink en EN (/en/legal-notices/), déjà préfixées en NL et ES.
-      mentionsLegales: locale === 'en' ? '/legal-notices' : '/en/legal-notices',
-      cgu: locale === 'en' ? '/terms' : '/en/terms',
-      confidentialite: locale === 'en' ? '/privacy' : '/en/privacy',
-      cookies: locale === 'en' ? '/cookie-policy' : '/en/cookie-policy',
+      // Pages légales : celles de la section EN (préfixées par LocaleLink), les pages PT en NL et ES (les pages légales
+      // EN affichent des clés brutes, absentes de locales/en.json).
+      mentionsLegales: locale === 'en' ? '/legal-notices' : '/pt/avisos-legais',
+      cgu: locale === 'en' ? '/terms' : '/pt/termos',
+      confidentialite: locale === 'en' ? '/privacy' : '/pt/privacidade',
+      cookies: locale === 'en' ? '/cookie-policy' : '/pt/politica-cookies',
     })
   })
 

@@ -11,16 +11,16 @@ import type { Locale } from './config'
 // (LocaleLink ne préfixe pas un chemin qui a déjà la sienne) :
 // - versAccueil : l'accueil de la section, où mènent déjà /en/search/, /en/reviews/ et /en/contact/ (redirections de
 //   next.config.ts) et le lien de recherche de la page 404 EN ;
-// - versPagePt : la page PT, ces sections visant Porto ;
-// - versPageEn : la page EN, préfixée pour NL et ES (leur interface est en anglais, voir getUiLocale).
+// - versPagePt : la page PT, ces sections visant Porto ; en EN, la page de la section quand elle existe (pages
+//   légales). Pas les pages légales EN pour NL et ES : leur texte s'affiche en clés brutes (cgu.art1…, absentes de
+//   locales/en.json), alors que les pages PT sont complètes.
 // Jamais de chemin sans langue : le middleware le préfixerait par la langue du cookie (/en/…), soit une 404.
 // Test : tests/seo/liens-entete-pied-langues.test.tsx.
 
 type CheminsParLangue = Record<Locale, string>
 
 const versAccueil = (fr: string, pt: string): CheminsParLangue => ({ fr, pt, en: '/en/', nl: '/nl/', es: '/es/' })
-const versPagePt = (fr: string, pt: string): CheminsParLangue => ({ fr, pt, en: `/pt${pt}`, nl: `/pt${pt}`, es: `/pt${pt}` })
-const versPageEn = (fr: string, pt: string, en: string): CheminsParLangue => ({ fr, pt, en, nl: `/en${en}`, es: `/en${en}` })
+const versPagePt = (fr: string, pt: string, en = `/pt${pt}`): CheminsParLangue => ({ fr, pt, en, nl: `/pt${pt}`, es: `/pt${pt}` })
 
 export const LIENS_ENTETE_PIED = {
   // Particuliers
@@ -37,10 +37,10 @@ export const LIENS_ENTETE_PIED = {
   espacePro: versPagePt('/pro/dashboard', '/pro/dashboard'),
   espaceClient: versPagePt('/client/dashboard', '/client/dashboard'),
   // Légal
-  mentionsLegales: versPageEn('/mentions-legales', '/avisos-legais', '/legal-notices'),
-  cgu: versPageEn('/cgu', '/termos', '/terms'),
-  confidentialite: versPageEn('/confidentialite', '/privacidade', '/privacy'),
-  cookies: versPageEn('/cookies', '/politica-cookies', '/cookie-policy'),
+  mentionsLegales: versPagePt('/mentions-legales', '/avisos-legais', '/legal-notices'),
+  cgu: versPagePt('/cgu', '/termos', '/terms'),
+  confidentialite: versPagePt('/confidentialite', '/privacidade', '/privacy'),
+  cookies: versPagePt('/cookies', '/politica-cookies', '/cookie-policy'),
   contact: versAccueil('/contact', '/contacto'),
 } satisfies Record<string, CheminsParLangue>
 
