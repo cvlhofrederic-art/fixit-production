@@ -1,6 +1,6 @@
 // ── Espace copropriétaire : vues servies au portail ───────────────────────────
 //
-// Une seule forme de données pour le portail (app/coproprietaire/dashboard), qu'elle
+// Une seule forme de données pour le portail (app/(commun)/coproprietaire/dashboard), qu'elle
 // vienne de la base du syndic (GET /api/coproprietaire/espace, lib/coproprietaire/filtrage.ts)
 // ou du jeu de démonstration (lib/coproprietaire/demo.ts). Les écrans ne connaissent
 // que ces types : aucune colonne Supabase, aucune donnée d'un autre copropriétaire.
