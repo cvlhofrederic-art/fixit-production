@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Artisans Vérifiés à Marseille : Garantie Vitfix | Vitfix',
+  // Marque déjà dans la phrase : titre absolu, sinon le template « %s | VITFIX » de app/fr/layout.tsx la répéterait.
+  title: { absolute: 'Artisans Vérifiés à Marseille : Garantie Vitfix' },
   description: 'Tous les artisans Vitfix sont vérifiés : SIRET, assurance RC Pro, qualifications. Travaux garantis à Marseille, Aix-en-Provence, Aubagne et en PACA. Avis clients authentiques.',
   openGraph: {
     title: 'Artisans Vérifiés à Marseille : Garantie Vitfix',

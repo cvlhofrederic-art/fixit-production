@@ -6,7 +6,8 @@ export const metadata = buildSitemapMetadata({
   locale: 'fr',
   url: 'https://vitfix.io/fr/plan-du-site/',
   altUrl: 'https://vitfix.io/pt/mapa-do-site/',
-  title: 'Plan du site VITFIX : Toutes nos pages services et villes',
+  // Marque déjà dans la phrase : titre absolu, sinon le template « %s | VITFIX » de app/fr/layout.tsx la répéterait.
+  title: { absolute: 'Plan du site VITFIX : Toutes nos pages services et villes' },
   description: 'Plan du site complet VITFIX : services artisans, villes desservies en PACA, articles de blog, ressources. Navigation rapide vers toutes nos pages.',
   ogTitle: 'Plan du site VITFIX',
   ogDescription: 'Toutes nos pages services et villes en PACA.',

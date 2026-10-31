@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { buildAboutPageSchema } from '@/lib/schemas'
 
 export const metadata: Metadata = {
-  title: 'À propos de VITFIX | Notre mission',
+  // Marque déjà dans la phrase : titre absolu, sinon le template « %s | VITFIX » de app/fr/layout.tsx la répéterait.
+  title: { absolute: 'À propos de VITFIX | Notre mission' },
   description: 'Découvrez VITFIX, la plateforme qui connecte particuliers et artisans vérifiés. Notre mission : simplifier la réservation de services à domicile.',
   alternates: {
     canonical: 'https://vitfix.io/fr/a-propos/',

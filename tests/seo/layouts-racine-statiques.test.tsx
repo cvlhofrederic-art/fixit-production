@@ -217,14 +217,16 @@ describe('métadonnées des layouts racine (fusion clé par clé de Next conserv
     expect(metadata.openGraph?.locale).toBe({ pt: 'pt_PT', fr: 'fr_FR', en: 'en_GB', nl: 'nl_NL', es: 'es_ES' }[locale])
   })
 
-  it('PT : template « %s | VITFIX », manifest PT, x-default sur /fr/ ; FR : template Marseille, x-default sur /', async () => {
+  it('PT, FR et EN : template « %s | VITFIX » (la marque une seule fois) ; manifest PT, x-default sur /fr/ (PT) et sur / (FR)', async () => {
     const pt = ((await LAYOUTS.pt()) as { metadata: Metadata }).metadata
     expect(pt.title).toEqual({ default: 'Profissionais de construção verificados em Portugal', template: '%s | VITFIX' })
     expect(pt.manifest).toBe('/pt/manifest.webmanifest')
     expect(pt.alternates?.languages).toMatchObject({ 'x-default': 'https://vitfix.io/fr/' })
     const fr = ((await LAYOUTS.fr()) as { metadata: Metadata }).metadata
-    expect(fr.title).toMatchObject({ template: '%s | VITFIX Marseille' })
+    expect(fr.title).toMatchObject({ template: '%s | VITFIX' })
     expect(fr.alternates?.languages).toMatchObject({ 'x-default': 'https://vitfix.io/' })
+    const en = ((await LAYOUTS.en()) as { metadata: Metadata }).metadata
+    expect(en.title).toMatchObject({ template: '%s | VITFIX' })
   })
 
   it('metadonneesRacine : titre et Open Graph par langue, FR par défaut', () => {

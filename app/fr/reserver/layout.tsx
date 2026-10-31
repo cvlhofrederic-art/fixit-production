@@ -6,10 +6,10 @@ import type { Metadata } from 'next'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Réserver un artisan | VITFIX',
+  title: 'Réserver un artisan',
   description: 'Réservez un artisan vérifié en quelques clics. Choisissez votre créneau, confirmez et recevez votre confirmation instantanément.',
   openGraph: {
-    title: 'Réserver un artisan | VITFIX',
+    title: 'Réserver un artisan',
     description: 'Réservez un artisan vérifié en quelques clics. Confirmation instantanée.',
     type: 'website',
   },

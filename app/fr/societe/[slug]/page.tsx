@@ -7,7 +7,7 @@ import type { Metadata } from 'next'
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: `Société | Vitfix`,
+    title: `Société`,
     robots: { index: true, follow: true },
   }
 }
