@@ -42,7 +42,7 @@ export default async function PolitiqueConfidentialite() {
               {t('privacy.protection.subProcessorsIntro')}
             </p>
             <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>{t('privacy.protection.subProcessorVercel')}</li>
+              <li>{t('privacy.protection.subProcessorCloudflare')}</li>
               <li>{t('privacy.protection.subProcessorSupabase')}</li>
               <li>{t('privacy.protection.subProcessorStripe')}</li>
               <li>{t('privacy.protection.subProcessorSentry')}</li>
