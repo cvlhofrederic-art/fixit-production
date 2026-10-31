@@ -72,7 +72,7 @@ vi.mock('@/lib/seed-demo-localStorage', () => ({ seedDemoLocalStorage: vi.fn() }
 vi.mock('@/lib/service-utils', () => ({ getPriceRangeLabel: vi.fn(), getPricingUnit: vi.fn(), getCleanDescription: vi.fn() }))
 vi.mock('@/lib/messagerie-pro', () => ({ notificationOuvreMessagerie: vi.fn() }))
 
-import DashboardPageWrapper from '@/app/pro/dashboard/page'
+import DashboardPageWrapper from '@/app/(commun)/pro/dashboard/page'
 
 const UTILISATEUR = {
   id: 'artisan-1',

@@ -50,7 +50,7 @@ vi.mock('@/components/common/LocaleLink', () => ({
   ),
 }))
 
-import ClientDashboardPage from '@/app/client/dashboard/page'
+import ClientDashboardPage from '@/app/(commun)/client/dashboard/page'
 
 const UTILISATEUR = {
   id: 'client-1',
