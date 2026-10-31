@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
+import { LIENS_ENTETE_PIED } from '@/lib/i18n/liens-entete-pied'
 import LocaleLink from '@/components/common/LocaleLink'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher'
 import type { User } from '@supabase/supabase-js'
@@ -12,11 +13,6 @@ const SIMULATEUR_LABEL: Record<string, string> = {
   fr: '🧮 Simulateur de devis',
   pt: '🧮 Simulador de orçamento',
   en: '🧮 Quote calculator',
-}
-const SIMULATEUR_HREF: Record<string, string> = {
-  fr: '/simulateur-devis',
-  pt: '/simulador-orcamento',
-  en: '/recherche',
 }
 
 export default function Header() {
@@ -51,11 +47,13 @@ export default function Header() {
   const userRole = user?.app_metadata?.role
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
   const userInitials = userName ? userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 2) : '?'
-  const dashboardUrl = userRole === 'artisan'
-    ? '/artisan/dashboard'
+  const espace = userRole === 'artisan'
+    ? 'espaceArtisan'
     : ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(userRole || '')
-      ? '/pro/dashboard'
-      : '/client/dashboard'
+      ? 'espacePro'
+      : 'espaceClient'
+  // Tableaux de bord réécrits sous /fr/ et /pt/ seulement : chemin /pt/ en EN, NL et ES (lib/i18n/liens-entete-pied.ts).
+  const dashboardUrl = LIENS_ENTETE_PIED[espace][locale]
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-[68px] flex items-center justify-between px-[clamp(1.5rem,5%,5rem)] bg-white/97 backdrop-blur-[16px] border-b border-[#EFEFEF]">
@@ -70,19 +68,19 @@ export default function Header() {
         {!user ? (
           <>
             <LocaleLink
-              href={SIMULATEUR_HREF[locale] || '/simulateur-devis'}
+              href={LIENS_ENTETE_PIED.simulateur[locale]}
               className="px-[18px] py-2 text-dark text-[0.88rem] font-medium no-underline hover:text-yellow transition-all"
             >
               {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.pt}
             </LocaleLink>
             <LocaleLink
-              href="/auth/login"
+              href={LIENS_ENTETE_PIED.connexion[locale]}
               className="px-[18px] py-2 border-[1.5px] border-dark rounded-full bg-transparent text-dark text-[0.88rem] font-medium no-underline hover:bg-dark hover:text-white transition-all"
             >
               {t('nav.login') || (locale === 'pt' ? 'Iniciar sessão' : 'Se connecter')}
             </LocaleLink>
             <LocaleLink
-              href={locale === 'pt' ? '/pesquisar' : '/recherche'}
+              href={LIENS_ENTETE_PIED.recherche[locale]}
               className="px-5 py-2.5 rounded-full bg-yellow text-dark text-[0.88rem] font-semibold no-underline hover:bg-yellow-light hover:-translate-y-px transition-all shadow-[0_6px_20px_rgba(255,214,0,0.3)]"
             >
               {t('nav.findArtisan') || (locale === 'pt' ? 'Encontrar um profissional' : 'Trouver un artisan')} →
@@ -168,13 +166,13 @@ export default function Header() {
           <div className="px-[5%] py-4 space-y-1">
             {!user ? (
               <>
-                <LocaleLink href="/auth/login" className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
+                <LocaleLink href={LIENS_ENTETE_PIED.connexion[locale]} className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
                   {t('nav.login') || (locale === 'pt' ? 'Iniciar sessão' : 'Se connecter')}
                 </LocaleLink>
-                <LocaleLink href={SIMULATEUR_HREF[locale] || '/simulateur-devis'} className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
+                <LocaleLink href={LIENS_ENTETE_PIED.simulateur[locale]} className="block text-center py-2.5 text-mid font-medium no-underline" onClick={() => setMenuOpen(false)}>
                   {SIMULATEUR_LABEL[locale] || SIMULATEUR_LABEL.pt}
                 </LocaleLink>
-                <LocaleLink href={locale === 'pt' ? '/pesquisar' : '/recherche'} className="block text-center bg-yellow text-dark rounded-full py-3 font-semibold no-underline mt-2" onClick={() => setMenuOpen(false)}>
+                <LocaleLink href={LIENS_ENTETE_PIED.recherche[locale]} className="block text-center bg-yellow text-dark rounded-full py-3 font-semibold no-underline mt-2" onClick={() => setMenuOpen(false)}>
                   {t('nav.findArtisan') || (locale === 'pt' ? 'Encontrar um profissional' : 'Trouver un artisan')} →
                 </LocaleLink>
               </>
