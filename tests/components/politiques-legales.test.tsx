@@ -1,8 +1,8 @@
 // tests/components/politiques-legales.test.tsx
 //
-// Politiques communes aux pages FR (app/(commun)) et PT : components/legal/PolitiqueConfidentialite.tsx (la page FR passe
-// avecSousTraitantsIa et liste Groq, Tavily et OpenRouter ; la page PT ne le fait pas encore, voir le test des pages) et
-// components/legal/PolitiqueCookies.tsx (en-têtes de colonnes du tableau en <th>).
+// Politiques communes aux pages FR (app/(commun)) et PT : components/legal/PolitiqueConfidentialite.tsx (les deux pages
+// listent les mêmes sous-traitants, dont Groq, Tavily et OpenRouter) et components/legal/PolitiqueCookies.tsx (en-têtes de
+// colonnes du tableau en <th>).
 // getServerTranslation simulé : t() renvoie la clé.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -19,27 +19,18 @@ import PrivacidadePage from '@/app/pt/privacidade/page'
 const SOUS_TRAITANTS_IA = ['privacy.protection.subProcessorGroq', 'privacy.protection.subProcessorTavily', 'privacy.protection.subProcessorOpenrouter']
 
 describe('PolitiqueConfidentialite', () => {
-  it('page FR (avecSousTraitantsIa) : Groq, Tavily et OpenRouter après Docuseal', async () => {
-    const html = renderToStaticMarkup(await PolitiqueConfidentialite({ avecSousTraitantsIa: true }))
-    const docuseal = html.indexOf('privacy.protection.subProcessorDocuseal')
+  it('sous-traitants d’IA : Groq, Tavily et OpenRouter listés après Docuseal', async () => {
+    const html = renderToStaticMarkup(await PolitiqueConfidentialite())
+    const docuseal = html.indexOf('<li>privacy.protection.subProcessorDocuseal</li>')
     expect(docuseal).toBeGreaterThan(-1)
     for (const cle of SOUS_TRAITANTS_IA) expect(html.indexOf(`<li>${cle}</li>`), cle).toBeGreaterThan(docuseal)
   })
 
-  it('sans avecSousTraitantsIa (valeur par défaut) : liste sans les sous-traitants d’IA', async () => {
-    const html = renderToStaticMarkup(await PolitiqueConfidentialite({}))
-    expect(html).toContain('privacy.protection.subProcessorDocuseal')
-    for (const cle of SOUS_TRAITANTS_IA) expect(html, cle).not.toContain(cle)
-  })
-
-  it('pages : /fr/confidentialite/ passe avecSousTraitantsIa, /pt/privacidade/ rend la même politique', () => {
-    const fr = ConfidentialitePage()
-    const pt = PrivacidadePage()
-    expect(fr.type).toBe(PolitiqueConfidentialite)
-    expect(fr.props).toEqual({ avecSousTraitantsIa: true })
-    // /pt/privacidade/ ne passe pas le prop, comme sur main : les trois sous-traitants y manquent alors que leurs textes sont
-    // traduits dans locales/pt.json (probable oubli, à trancher par Frédéric). Ce test ne fige pas ce choix.
-    expect(pt.type).toBe(PolitiqueConfidentialite)
+  it('pages : /fr/confidentialite/ et /pt/privacidade/ rendent la même politique, sans option', () => {
+    for (const page of [ConfidentialitePage(), PrivacidadePage()]) {
+      expect(page.type).toBe(PolitiqueConfidentialite)
+      expect(page.props).toEqual({})
+    }
   })
 })
 
