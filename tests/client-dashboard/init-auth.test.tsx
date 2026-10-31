@@ -9,12 +9,15 @@
  *   /{locale}/auth/login/, même si SIGNED_OUT arrive ensuite ;
  * - AbortError du verrou d'auth (deux fois, second essai compris) → ni navigation ni rechargement, un toast ;
  * - le callback onAuthStateChange est synchrone (jamais de promesse renvoyée) et le chargement des réservations
- *   sur INITIAL_SESSION est différé.
+ *   sur INITIAL_SESSION est différé ;
+ * - session indisponible au chargement (jeton expiré, rafraîchissement en échec réseau), INITIAL_SESSION nul, puis
+ *   TOKEN_REFRESHED ou SIGNED_IN avec une session → réservations chargées une seule fois, en différé.
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, waitFor } from '@testing-library/react'
-import { AuthApiError } from '@supabase/supabase-js'
+import { AuthApiError, AuthRetryableFetchError } from '@supabase/supabase-js'
+import { simulerLocation, type LocationSimulee } from '../helpers/simulations-dashboard'
 
 type Rappel = (event: string, session: unknown) => unknown
 
@@ -28,32 +31,16 @@ const mocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
 }))
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getUser: mocks.getUser,
-      getSession: mocks.getSession,
-      signOut: mocks.signOut,
-      onAuthStateChange: (rappel: Rappel) => {
-        mocks.rappels.push(rappel)
-        return { data: { subscription: { unsubscribe: vi.fn() } } }
-      },
-    },
-    from: () => ({ select: () => ({ eq: () => ({ order: mocks.order }) }) }),
-  },
+vi.mock('@/lib/supabase', async () => (await import('../helpers/simulations-dashboard')).moduleSupabaseSimule({
+  auth: { getUser: mocks.getUser, getSession: mocks.getSession, signOut: mocks.signOut },
+  rappels: mocks.rappels,
+  from: () => ({ select: () => ({ eq: () => ({ order: mocks.order }) }) }),
 }))
 
 vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: vi.fn(async () => 'jeton') }))
 vi.mock('sonner', () => ({ toast: { error: mocks.toastError, success: mocks.toastSuccess } }))
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => '/fr/client/dashboard/',
-  useSearchParams: () => new URLSearchParams(),
-}))
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (cle: string) => cle, locale: 'fr', setLocale: () => {} }),
-  useLocale: () => 'fr',
-}))
+vi.mock('next/navigation', async () => (await import('../helpers/simulations-dashboard')).moduleNavigationSimule('/fr/client/dashboard/'))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/simulations-dashboard')).moduleI18nSimule())
 // Les sections et l'assistant ne font pas partie du chargement de session : on les neutralise.
 vi.mock('@/lib/dashboard-section-loader', () => ({ createDynamicSection: () => () => null }))
 vi.mock('@/components/chat/FixyChatGeneric', () => ({ default: () => null }))
@@ -63,7 +50,7 @@ vi.mock('@/components/common/LocaleLink', () => ({
   ),
 }))
 
-import ClientDashboardPage from '@/app/client/dashboard/page'
+import ClientDashboardPage from '@/app/(commun)/client/dashboard/page'
 
 const UTILISATEUR = {
   id: 'client-1',
@@ -76,41 +63,19 @@ const UTILISATEUR = {
 
 const abortError = () => new DOMException('signal is aborted without reason', 'AbortError')
 
-// window.location simulée : chaque navigation est enregistrée au lieu d'être exécutée.
-let navigations: string[] = []
-let rechargements = 0
-let descripteurLocation: PropertyDescriptor | undefined
-
-function installerLocation() {
-  navigations = []
-  rechargements = 0
-  descripteurLocation = Object.getOwnPropertyDescriptor(window, 'location')
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: {
-      origin: 'https://vitfix.io',
-      pathname: '/fr/client/dashboard/',
-      search: '',
-      hash: '',
-      get href() { return 'https://vitfix.io/fr/client/dashboard/' },
-      set href(valeur: string) { navigations.push(valeur) },
-      assign: (valeur: string) => { navigations.push(valeur) },
-      replace: (valeur: string) => { navigations.push(valeur) },
-      reload: () => { rechargements += 1 },
-    },
-  })
-}
+// window.location simulée : chaque navigation est enregistrée au lieu d’être exécutée.
+let lieu: LocationSimulee
 
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.rappels.length = 0
   mocks.order.mockResolvedValue({ data: [], error: null })
   mocks.getSession.mockResolvedValue({ data: { session: null }, error: null })
-  installerLocation()
+  lieu = simulerLocation('/fr/client/dashboard/')
 })
 
 afterEach(() => {
-  if (descripteurLocation) Object.defineProperty(window, 'location', descripteurLocation)
+  lieu.restaurer()
 })
 
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
@@ -121,8 +86,8 @@ describe('tableau de bord client — initialisation de la session', () => {
     render(<ClientDashboardPage />)
 
     await waitFor(() => expect(mocks.order).toHaveBeenCalledTimes(1))
-    expect(navigations).toEqual([])
-    expect(rechargements).toBe(0)
+    expect(lieu.navigations).toEqual([])
+    expect(lieu.rechargements).toBe(0)
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
@@ -130,9 +95,9 @@ describe('tableau de bord client — initialisation de la session', () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
     render(<ClientDashboardPage />)
 
-    await waitFor(() => expect(navigations).toEqual(['/fr/auth/login/']))
+    await waitFor(() => expect(lieu.navigations).toEqual(['/fr/auth/login/']))
     act(() => { mocks.rappels.forEach((r) => r('SIGNED_OUT', null)) })
-    expect(navigations).toEqual(['/fr/auth/login/'])
+    expect(lieu.navigations).toEqual(['/fr/auth/login/'])
     expect(mocks.order).not.toHaveBeenCalled()
   })
 
@@ -140,7 +105,7 @@ describe('tableau de bord client — initialisation de la session', () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthApiError('invalid JWT', 401, 'bad_jwt') })
     render(<ClientDashboardPage />)
 
-    await waitFor(() => expect(navigations).toEqual(['/fr/auth/login/']))
+    await waitFor(() => expect(lieu.navigations).toEqual(['/fr/auth/login/']))
   })
 
   it('AbortError du verrou d’auth (deux fois) : ni navigation ni rechargement, un toast, second essai', async () => {
@@ -149,8 +114,8 @@ describe('tableau de bord client — initialisation de la session', () => {
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1), { timeout: 3000 })
     expect(mocks.getUser).toHaveBeenCalledTimes(2)
-    expect(navigations).toEqual([])
-    expect(rechargements).toBe(0)
+    expect(lieu.navigations).toEqual([])
+    expect(lieu.rechargements).toBe(0)
   })
 
   it('erreur 500 de Supabase : session inconnue, ni navigation ni rechargement', async () => {
@@ -158,7 +123,7 @@ describe('tableau de bord client — initialisation de la session', () => {
     render(<ClientDashboardPage />)
 
     await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
-    expect(navigations).toEqual([])
+    expect(lieu.navigations).toEqual([])
     expect(mocks.getUser).toHaveBeenCalledTimes(1)
   })
 
@@ -173,6 +138,41 @@ describe('tableau de bord client — initialisation de la session', () => {
     expect(mocks.order).not.toHaveBeenCalled()
     await act(async () => { await attendre(10) })
     expect(mocks.order).toHaveBeenCalledTimes(1)
-    expect(navigations).toEqual([])
+    expect(lieu.navigations).toEqual([])
   })
+
+  // Jeton expiré et rafraîchissement en échec réseau au chargement : getUser() rend « indisponible » et auth-js émet
+  // INITIAL_SESSION nul. Quand son tick d'auto-refresh réussit ensuite, il n'émet que TOKEN_REFRESHED (SIGNED_IN si
+  // la session arrive par un autre chemin) : sans reprise, la page restait sur son squelette jusqu'au rechargement.
+  it.each(['TOKEN_REFRESHED', 'SIGNED_IN'])(
+    'session indisponible au chargement, INITIAL_SESSION nul puis %s : réservations chargées une seule fois',
+    async (evenement) => {
+      mocks.getUser.mockResolvedValue({ data: { user: null }, error: new AuthRetryableFetchError('Failed to fetch', 0) })
+      render(<ClientDashboardPage />)
+
+      await waitFor(() => expect(mocks.toastError).toHaveBeenCalledTimes(1))
+      act(() => { mocks.rappels[0]('INITIAL_SESSION', null) })
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).not.toHaveBeenCalled()
+
+      const session = { user: UTILISATEUR, access_token: 'jeton-rafraichi' }
+      let retour: unknown = 'non appelé'
+      act(() => { retour = mocks.rappels[0](evenement, session) })
+      expect(retour).toBeUndefined()
+      expect(mocks.order).not.toHaveBeenCalled()
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).toHaveBeenCalledTimes(1)
+
+      // Rafraîchissements suivants du jeton : rien n'est rechargé.
+      act(() => {
+        mocks.rappels[0]('TOKEN_REFRESHED', session)
+        mocks.rappels[0]('SIGNED_IN', session)
+      })
+      await act(async () => { await attendre(10) })
+      expect(mocks.order).toHaveBeenCalledTimes(1)
+      expect(mocks.getUser).toHaveBeenCalledTimes(1)
+      expect(lieu.navigations).toEqual([])
+      expect(lieu.rechargements).toBe(0)
+    },
+  )
 })

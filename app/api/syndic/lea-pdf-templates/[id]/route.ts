@@ -5,7 +5,8 @@ import { getAuthUser, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
-import { cheminStockageSur } from '@/lib/storage/chemin-sur'
+import { StoragePathError, assertStoragePath } from '@/lib/security/storage-path'
+import { prefixesStorageCabinet } from '@/lib/syndic/dossiers-storage'
 
 const IdSchema = z.string().uuid()
 
@@ -30,7 +31,7 @@ export async function DELETE(
 
     const { data: tpl, error: q } = await supabaseAdmin
       .from('syndic_pdf_templates')
-      .select('id, storage_path')
+      .select('id, storage_path, created_by')
       .eq('id', parsed.data)
       .eq('cabinet_id', cabinetId)
       .maybeSingle()
@@ -40,10 +41,17 @@ export async function DELETE(
     }
     if (!tpl) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-    // Chemin refusé : objet laissé, row supprimée (comme un échec de remove).
-    const { error: storageErr } = cheminStockageSur(tpl.storage_path)
-      ? await supabaseAdmin.storage.from('syndic-pdf-templates').remove([tpl.storage_path])
-      : { error: new Error('storage_path refusé') }
+    // Chemin relu en base : traversée bloquée, dossier du cabinet (ou du créateur s'il est membre du cabinet,
+    // format des dépôts antérieurs au 25/05/2026) imposé. Chemin refusé : objet laissé, row supprimée
+    // (comme un échec de remove).
+    let storageErr: unknown = null
+    try {
+      const chemin = assertStoragePath(tpl.storage_path, await prefixesStorageCabinet(supabaseAdmin, cabinetId, tpl.created_by))
+      storageErr = (await supabaseAdmin.storage.from('syndic-pdf-templates').remove([chemin])).error
+    } catch (e) {
+      if (!(e instanceof StoragePathError)) throw e
+      storageErr = e
+    }
     if (storageErr) {
       logger.warn('[lea-pdf-templates/delete] storage remove failed (continuing):', storageErr)
     }

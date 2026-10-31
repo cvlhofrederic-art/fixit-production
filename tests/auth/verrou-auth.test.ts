@@ -5,7 +5,8 @@
 // « AbortError: signal is aborted without reason » levé par le minuteur de navigatorLock quand le verrou partagé
 // entre onglets n'est pas obtenu en 10 s ; un client dont l'initialisation échouait ainsi restait mort jusqu'au
 // rechargement. Ici, l'API navigator.locks est simulée : un verrou « tenu ailleurs » n'est jamais accordé et
-// l'abandon par le signal rejette avec l'AbortError natif, comme dans Chrome.
+// l'abandon par le signal rejette avec l'AbortError natif, comme dans Chrome ; demandé sans attente (ifAvailable,
+// délai nul du tick d'auto-refresh d'auth-js), il est refusé par un verrou nul.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import * as Sentry from '@sentry/nextjs'
@@ -150,5 +151,54 @@ describe('creerVerrouAuth', () => {
       tags: { feature: 'auth-verrou' },
       extra: { verrou: 'lock:x' },
     })
+  })
+
+  // Tick d'auto-refresh d'auth-js (GoTrueClient._autoRefreshTokenTick, toutes les 30 s) : _acquireLock(0, …). Avec un
+  // délai nul, navigatorLock demande le verrou sans attendre (ifAvailable) et lève son erreur de délai
+  // (isAcquireTimeout) quand un autre onglet le tient ; auth-js l'attend et saute le tick.
+  it('délai nul, verrou libre : l’opération s’exécute sous navigator.locks demandé sans attente', async () => {
+    const request = installerNavigatorLocks()
+    const signaler = vi.fn()
+    const fn = vi.fn(async () => 'tick')
+
+    await expect(creerVerrouAuth({ signaler })('lock:sb-test-auth-token', 0, fn)).resolves.toBe('tick')
+
+    expect(request.mock.calls[0][1]).toMatchObject({ ifAvailable: true })
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(signaler).not.toHaveBeenCalled()
+  })
+
+  it('délai nul, verrou tenu par un autre onglet : l’erreur de délai d’auth-js est propagée, ni repli ni signalement', async () => {
+    const request = installerNavigatorLocks({ tenuAilleurs: true })
+    const signaler = vi.fn()
+    const fn = vi.fn(async () => 'tick')
+
+    await expect(creerVerrouAuth({ signaler })('lock:sb-test-auth-token', 0, fn)).rejects.toMatchObject({ isAcquireTimeout: true })
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(fn).not.toHaveBeenCalled()
+    expect(signaler).not.toHaveBeenCalled()
+
+    // Signalement par défaut : ni avertissement du repli ni message Sentry, un tick sauté n'est pas un repli.
+    await expect(creerVerrouAuth()('lock:sb-test-auth-token', 0, fn)).rejects.toMatchObject({ isAcquireTimeout: true })
+    expect(fn).not.toHaveBeenCalled()
+    const avertissementsDuRepli = vi.mocked(console.warn).mock.calls.filter(([message]) => String(message).startsWith('[auth] verrou'))
+    expect(avertissementsDuRepli).toEqual([])
+    expect(Sentry.captureMessage).not.toHaveBeenCalled()
+  })
+
+  it('délai nul et navigator.locks.request refusé (SecurityError) : le repli reste actif et signalé', async () => {
+    installerNavigatorLocks({ refuse: true })
+    const signaler = vi.fn()
+    const fn = vi.fn(async () => 'tick')
+
+    await expect(creerVerrouAuth({ signaler })('lock:x', 0, fn)).resolves.toBe('tick')
+
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(signaler).toHaveBeenCalledTimes(1)
+    expect((signaler.mock.calls[0][1] as Error).name).toBe('SecurityError')
+    // processLock d'auth-js arme un minuteur de délai qu'il n'annule jamais (avertissement console après 0 ms) : on le
+    // laisse partir tant que console.warn est simulé.
+    await new Promise((resoudre) => setTimeout(resoudre, 0))
   })
 })

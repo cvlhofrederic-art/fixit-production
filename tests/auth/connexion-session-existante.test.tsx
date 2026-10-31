@@ -44,7 +44,7 @@ vi.mock('@/components/common/LocaleLink', () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }))
 
-import LoginPage from '@/app/auth/login/page'
+import LoginPage from '@/app/(commun)/auth/login/page'
 
 let navigations: string[] = []
 let descripteurLocation: PropertyDescriptor | undefined

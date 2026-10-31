@@ -3,7 +3,7 @@
 ## Architecture
 
 ```
-app/pro/mobile/page.tsx    ← Interface mobile artisan (Next.js)
+app/(commun)/pro/mobile/page.tsx    ← Interface mobile artisan (Next.js)
 capacitor.config.ts        ← Configuration Capacitor
 android/                   ← Projet Android natif (Android Studio)
 ios/                       ← Projet iOS natif (Xcode)

@@ -16,18 +16,28 @@
  *   erreur de délai d'auth-js) ou refusée (SecurityError), l'opération s'exécute quand même sous le verrou du seul
  *   onglet au lieu de laisser le client mort, et le repli est signalé (console + Sentry, une fois par page). Risque
  *   résiduel : deux onglets rafraîchissent le même jeton en même temps, ce que Supabase tolère (intervalle de
- *   réutilisation du refresh token). Une opération déjà démarrée sous le verrou n'est jamais relancée.
+ *   réutilisation du refresh token). Une opération déjà démarrée sous le verrou n'est jamais relancée ;
+ * - délai nul (acquireTimeout 0 : tick d'auto-refresh d'auth-js, `_acquireLock(0, …)` toutes les 30 s) → le verrou
+ *   est demandé sans attente ; s'il est tenu ailleurs, l'erreur de délai d'auth-js (`isAcquireTimeout`) est relancée
+ *   telle quelle, sans repli ni signalement : auth-js l'attend et saute ce tick. Un repli ferait tourner le tick en
+ *   parallèle de l'onglet qui tient le verrou (double rafraîchissement du jeton) et fausserait le signal Sentry.
+ *   Une SecurityError ou une AbortError (API refusée) garde le repli, délai nul compris.
  */
 import * as Sentry from '@sentry/nextjs'
 import { navigatorLock, processLock } from '@supabase/supabase-js'
 
 export type FonctionVerrou = <R>(name: string, acquireTimeout: number, fn: () => Promise<R>) => Promise<R>
 
+/** Erreur de délai d'auth-js (`isAcquireTimeout` : NavigatorLockAcquireTimeoutError, ProcessLockAcquireTimeoutError). */
+function estErreurDeDelai(erreur: unknown): boolean {
+  return typeof erreur === 'object' && erreur !== null && (erreur as { isAcquireTimeout?: unknown }).isAcquireTimeout === true
+}
+
 /** AbortError natif du navigateur, erreur de délai d'auth-js (`isAcquireTimeout`) ou SecurityError (API refusée). */
 export function estAbandonDeVerrou(erreur: unknown): boolean {
   if (typeof erreur !== 'object' || erreur === null) return false
-  const e = erreur as { name?: unknown; isAcquireTimeout?: unknown }
-  return e.isAcquireTimeout === true || e.name === 'AbortError' || e.name === 'SecurityError'
+  const e = erreur as { name?: unknown }
+  return estErreurDeDelai(erreur) || e.name === 'AbortError' || e.name === 'SecurityError'
 }
 
 function navigatorLocksDisponible(): boolean {
@@ -83,6 +93,8 @@ export function creerVerrouAuth(options: OptionsVerrouAuth = {}): FonctionVerrou
       return await navigatorLock(name, acquireTimeout, fnSuivie)
     } catch (erreur) {
       if (demarree || !estAbandonDeVerrou(erreur)) throw erreur
+      // Délai nul : verrou tenu ailleurs en ce moment, auth-js saute le tick. Ni repli ni signalement.
+      if (acquireTimeout === 0 && estErreurDeDelai(erreur)) throw erreur
       signaler(name, erreur)
       return processLock(name, acquireTimeout, fn)
     }

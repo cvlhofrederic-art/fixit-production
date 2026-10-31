@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import { useLocale } from '@/lib/i18n/context'
 import { titleCaseAddress } from '@/lib/devis-utils'
 import Link from 'next/link'
@@ -217,6 +218,16 @@ export default function ArtisanProfilePage() {
   // Track current step in a ref so popstate handler always reads latest
   const stepRef = useRef(step)
   useEffect(() => { stepRef.current = step }, [step])
+
+  // Après une réservation réussie, le bouton reste désactivé pendant le départ vers /confirmation/. Si le navigateur
+  // ramène ensuite cette fiche depuis son cache (retour arrière, bfcache), il redevient utilisable.
+  useEffect(() => {
+    const auRetour = (evenement: PageTransitionEvent) => {
+      if (evenement.persisted) setSubmitting(false)
+    }
+    window.addEventListener('pageshow', auRetour)
+    return () => window.removeEventListener('pageshow', auRetour)
+  }, [])
 
   // Check if artisan is favorited
   useEffect(() => {
@@ -584,12 +595,14 @@ export default function ArtisanProfilePage() {
     const bookingJson = await bookingRes.json()
 
     if (!bookingJson.error && bookingJson.data) {
+      // Le bouton reste désactivé : /confirmation/ est servie par app/(commun), sous un autre layout racine que cette page,
+      // donc Next attend la réponse du serveur puis recharge la page. Le réactiver ici laissait un second clic créer une
+      // seconde réservation pendant ce temps.
       router.push(`/confirmation?id=${bookingJson.data.id}`)
-    } else {
-      const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
-      setBookingError(errMsg)
+      return
     }
-
+    const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
+    setBookingError(errMsg)
     setSubmitting(false)
   }
 
@@ -864,8 +877,8 @@ export default function ArtisanProfilePage() {
                               key={photo.id || idx}
                               className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
                               onClick={() => {
-                                // portfolio_photos est modifiable par l'artisan : jamais d'URL javascript:
-                                if (/^https:\/\//i.test(String(photo.url))) window.open(photo.url, '_blank', 'noopener,noreferrer')
+                                // portfolio_photos est modifiable par l'artisan : seules les photos du stockage Supabase s'ouvrent (jamais d'URL javascript: ni de site tiers)
+                                safeOpen(photo.url, { allowedOrigins: originesSupabase() })
                               }}
                             >
                               <Image

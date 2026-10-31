@@ -1,6 +1,6 @@
 // Nœuds JSON-LD des pages PT (phase 1 du plan SEO PT, point 1.6).
 //
-// Un seul nœud entreprise pour tout le site (`#business`, app/layout.tsx) : les pages
+// Un seul nœud entreprise pour tout le site (`#business`, components/common/CoquilleRacine.tsx) : les pages
 // métier x ville décrivent un `Service` fourni par cette entité et servi dans une ville
 // (`areaServed`), jamais un `LocalBusiness` avec une adresse de ville. Pas de `FAQPage`
 // (résultat enrichi retiré par Google le 07/05/2026) ni de `HowTo` (retiré en 2023), pas

@@ -305,7 +305,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
         {/* Tip */}
         {photos.length > 0 && (
           <div className="v5-al info" style={{ marginTop: '1rem' }}>
-            💡 Ces r&eacute;f&eacute;rences sont visibles sur votre <a href={artisan ? getProfilePath({ slug: artisan.slug, id: artisan.id, org_role: orgRole }, locale) : '#'} target="_blank" rel="noreferrer" style={{ fontWeight: 600, textDecoration: 'underline', color: 'inherit' }}>profil entreprise</a> et valorisent vos candidatures aux appels d&apos;offres.
+            💡 Ces r&eacute;f&eacute;rences sont visibles sur votre <a href={artisan ? getProfilePath({ slug: artisan.slug, id: artisan.id, org_role: orgRole }, locale) : '#'} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600, textDecoration: 'underline', color: 'inherit' }}>profil entreprise</a> et valorisent vos candidatures aux appels d&apos;offres.
           </div>
         )}
       </div>
@@ -459,7 +459,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
       {photos.length > 0 && (
         <div className="v22-alert v22-alert-blue" style={{ marginTop: '1rem' }}>
           {'💡'}{' '}
-          {t('proDash.carnet.photosVisibles')}{' '}<a href={artisan ? getProfilePath({ slug: artisan.slug, id: artisan.id, org_role: orgRole }, locale) : '#'} target="_blank" rel="noreferrer" style={{ fontWeight: 600, textDecoration: 'underline', color: 'inherit' }}>{t('proDash.carnet.profilPublic')} →</a>
+          {t('proDash.carnet.photosVisibles')}{' '}<a href={artisan ? getProfilePath({ slug: artisan.slug, id: artisan.id, org_role: orgRole }, locale) : '#'} target="_blank" rel="noreferrer noopener" style={{ fontWeight: 600, textDecoration: 'underline', color: 'inherit' }}>{t('proDash.carnet.profilPublic')} →</a>
         </div>
       )}
     </div>
