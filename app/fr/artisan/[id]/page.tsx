@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import { useLocale } from '@/lib/i18n/context'
 import { titleCaseAddress } from '@/lib/devis-utils'
+import { estFormeSociete } from '@/lib/utils'
 import Link from 'next/link'
 import {
   Star,
@@ -269,15 +270,13 @@ export default function ArtisanProfilePage() {
     const artisanId = artisanData.id
 
     // Redirection vers l'URL canonique des sociétés : /{lang}/societe|empresa/<slug>.
-    // Les sociétés (SARL, SAS, SASU, EURL, SA) sont servies sous /societe/<slug>,
-    // les artisans individuels restent sous /artisan/<slug>. Cela ne s'applique
+    // Les sociétés (SARL, SAS, SASU, EURL, SA, SNC, SCI…, Lda) sont servies sous /societe/<slug>,
+    // les artisans individuels restent sous /artisan/<slug> (estFormeSociete, même critère
+    // que getProfilePath et le sitemap des fiches). Cela ne s'applique
     // qu'aux accès par UUID : si l'utilisateur est déjà sur un slug, pas de
     // redirection (évite les boucles entre /societe/<slug> et /artisan/<slug>).
     if (typeof window !== 'undefined' && isUuid && artisanData.slug) {
-      const legalFormNorm = String(artisanData.legal_form || '').replace(/[\s.]/g, '').toLowerCase()
-      const companyForms = ['sarl', 'sas', 'sasu', 'eurl', 'sa', 'lda', 'unipessoal']
-      const isCompany = companyForms.some((f) => legalFormNorm === f || legalFormNorm.startsWith(f))
-      if (isCompany) {
+      if (estFormeSociete(artisanData.legal_form)) {
         const targetBase = locale === 'pt' ? '/pt/empresa/' : '/fr/societe/'
         router.replace(targetBase + artisanData.slug)
         return

@@ -24,14 +24,40 @@ export function formatDate(date: string, locale: string = 'fr') {
   }).format(new Date(date))
 }
 
+// profiles_artisan.legal_form reçoit le libellé SIRENE (app/api/verify-siret, app/api/artisan-company : « SARL »,
+// « SASU », « SA à directoire », « SNC », « SCI », « SELARL », « Forme juridique 5202 »…) ou une saisie (« S.A.R.L. »,
+// « Unipessoal Lda », « ENI »). Lu sans accents, points ni majuscules. Les formes individuelles passent en premier :
+// l'EIRL en toutes lettres (« entrepreneur individuel à responsabilité limitée ») reste individuelle.
+const FORME_INDIVIDUELLE = /\b(ei|eirl|eni|ae)\b|entrepreneur individuel|entreprise individuelle|micro|auto-? ?entrepreneur|nome individual|trabalhador independente|personne physique/
+const FORME_SOCIETE = /\b(sarl|sas|sasu|eurl|sa|snc|sci|scp|scs|sca|scop|sel|selarl|selas|selafa|selca|selurl|lda|unipessoal)\b|societe|sociedade|limitada|anonym|anonima|responsabilite limitee|nom collectif/
+// Catégorie juridique INSEE sans libellé connu (app/api/artisan-company) : 5xxx sociétés commerciales, 6xxx sociétés civiles.
+const CATEGORIE_INSEE_SOCIETE = /^forme juridique [56]\d{3}$/
+
 /**
- * Returns the correct public profile path based on org_role and locale.
- * pro_societe → /fr/societe/[slug] or /pt/empresa/[slug]
- * artisan    → /fr/artisan/[slug] or /pt/profissional/[slug]
+ * Société ou artisan individuel, d'après profiles_artisan.legal_form (rôle de la colonne, migration 059).
+ * Société : SARL, SAS, SASU, EURL, SA, SNC, SCI, SCP, SEL… ; au Portugal Lda, Unipessoal Lda, SA (sociedade).
+ * Artisan individuel : entrepreneur individuel, EI, EIRL, micro ou auto-entrepreneur, ENI (empresário em nome
+ * individual), trabalhador independente, association, forme inconnue ou non renseignée.
  */
-export function getProfilePath(artisan: { slug?: string | null; id: string; org_role?: string | null }, locale: string): string {
+export function estFormeSociete(legalForm: string | null | undefined): boolean {
+  const forme = String(legalForm || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!forme || FORME_INDIVIDUELLE.test(forme)) return false
+  return FORME_SOCIETE.test(forme) || CATEGORIE_INSEE_SOCIETE.test(forme)
+}
+
+/**
+ * Chemin public de la fiche, selon la forme juridique (estFormeSociete) et la langue.
+ * société    → /fr/societe/[slug] ou /pt/empresa/[slug]
+ * individuel → /fr/artisan/[slug] ou /pt/profissional/[slug]
+ */
+export function getProfilePath(artisan: { slug?: string | null; id: string; legal_form?: string | null }, locale: string): string {
   const identifier = artisan.slug || artisan.id
-  const isCompany = artisan.org_role === 'pro_societe'
+  const isCompany = estFormeSociete(artisan.legal_form)
   if (locale === 'pt') {
     return isCompany ? `/pt/empresa/${identifier}` : `/pt/profissional/${identifier}`
   }
