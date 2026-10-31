@@ -30,8 +30,13 @@ export interface PolitiqueCachePage {
   conservationS: number
   /** Au-delà de cet âge, une réponse servie depuis le cache est rafraîchie en arrière-plan. */
   rafraichirApresS: number
-  /** Cache-Control public envoyé au navigateur quand le rendu Next l'a laissé en `private, no-store`. */
-  cacheControl: string
+  /**
+   * Cache-Control public envoyé au navigateur quand l'origine n'en donne pas de public ; null : l'en-tête d'origine est
+   * gardé tel quel. Les pages hors préfixes SEO restent en `private, no-store` (middleware, politique de la review #138
+   * reprise par le rendu statique #616) : un accueil redirige un utilisateur connecté vers son espace, aucun cache
+   * partagé ne doit le garder. Le cache du Worker, lui, ne sert que les requêtes sans cookie de session.
+   */
+  cacheControl: string | null
 }
 
 /** Pages SEO programmatiques (contenu dans des fichiers, aucune donnée de session). */
@@ -41,18 +46,18 @@ export const CACHE_PAGES_SEO: PolitiqueCachePage = {
   cacheControl: 'public, s-maxage=3600, stale-while-revalidate=86400',
 }
 
-/** Accueils par langue (rendu dynamique par le layout racine, contenu identique pour tout visiteur anonyme). */
+/** Accueils par langue (pré-rendus depuis #616, contenu identique pour tout visiteur anonyme ; navigateur : en-tête privé d’origine). */
 export const CACHE_ACCUEILS: PolitiqueCachePage = {
   conservationS: 3_600,
   rafraichirApresS: 600,
-  cacheControl: 'public, s-maxage=600, stale-while-revalidate=3600',
+  cacheControl: null,
 }
 
-/** Fiches artisan publiques : coquille HTML + métadonnées ; le contenu est relu côté client. */
+/** Fiches artisan publiques : coquille HTML + métadonnées, contenu relu côté client ; navigateur : en-tête privé d’origine. */
 export const CACHE_FICHES_ARTISAN: PolitiqueCachePage = {
   conservationS: 600,
   rafraichirApresS: 120,
-  cacheControl: 'public, s-maxage=120, stale-while-revalidate=600',
+  cacheControl: null,
 }
 
 const ACCUEILS = new Set(['/fr/', '/pt/', '/en/', '/nl/', '/es/'])

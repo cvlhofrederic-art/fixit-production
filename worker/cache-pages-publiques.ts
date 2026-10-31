@@ -11,8 +11,9 @@
  *   un déploiement repart de zéro, l'ancien contenu n'est jamais resservi ;
  * - requête suivante → réponse depuis le cache (HIT) ; au-delà de `rafraichirApresS`, elle est servie quand même
  *   (STALE) et rafraîchie en arrière-plan (ctx.waitUntil) ;
- * - `Cache-Control` du navigateur : celui d'origine s'il est public, sinon celui de la politique (plus de
- *   `private, no-store` sur /pt/ pour un visiteur anonyme) ;
+ * - `Cache-Control` du navigateur : pour les pages SEO, celui d'origine s'il est public, sinon celui de la politique ;
+ *   pour les accueils et les fiches artisan, celui d'origine tel quel (`private, no-store` posé par le middleware :
+ *   politique de la review #138, reprise par le rendu statique #616) ;
  * - `x-vitfix-cache` (HIT, STALE, MISS, BYPASS) et `Server-Timing` sur chaque réponse pour mesurer.
  *
  * Passent au Worker OpenNext sans que le cache soit lu ni écrit (BYPASS) :
@@ -104,8 +105,15 @@ export function copiePourCache(response: Response, politique: PolitiqueCachePage
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers: entetes })
 }
 
-/** Cache-Control envoyé au navigateur : l'en-tête d'origine s'il est public, sinon celui de la politique. */
+/** Repli si l’origine n’a pas posé d’en-tête alors que la politique demande de garder le sien. */
+export const CACHE_CONTROL_PRIVE = 'private, no-cache, no-store, max-age=0, must-revalidate'
+
+/**
+ * Cache-Control envoyé au navigateur. Politique sans en-tête propre (accueils, fiches artisan) : celui d'origine, tel
+ * quel. Sinon (pages SEO) : celui d'origine s'il est public, sinon celui de la politique.
+ */
 export function cacheControlNavigateur(origine: string | null, politique: PolitiqueCachePage): string {
+  if (politique.cacheControl === null) return origine || CACHE_CONTROL_PRIVE
   if (origine && /\bpublic\b/i.test(origine)) return origine
   return politique.cacheControl
 }

@@ -17,6 +17,7 @@ import {
   EN_TETE_DATE_CACHE,
   EN_TETES_ROUTEUR_NEXT,
   PARAMETRE_RSC,
+  CACHE_CONTROL_PRIVE,
   cacheControlNavigateur,
   cleCache,
   copiePourCache,
@@ -133,18 +134,21 @@ describe('reponseDepuisCache', () => {
     expect(servie.reponse.headers.get(EN_TETE_DATE_CACHE)).toBeNull()
   })
 
-  it('STALE au-delà du délai de rafraîchissement ; `private, no-store` d’origine remplacé par la politique', () => {
+  it('STALE au-delà du délai de rafraîchissement ; accueil : `private, no-store` d’origine gardé (politique de #616)', () => {
     const stockee = copiePourCache(html('<html>accueil</html>', { 'cache-control': 'private, no-cache, no-store, max-age=0, must-revalidate' }), CACHE_ACCUEILS, 0)
     const servie = reponseDepuisCache(stockee, CACHE_ACCUEILS, 601_000)
     expect(servie).toMatchObject({ ageS: 601, perimee: true })
     expect(servie.reponse.headers.get(EN_TETE_CACHE)).toBe('STALE')
-    expect(servie.reponse.headers.get('cache-control')).toBe(CACHE_ACCUEILS.cacheControl)
+    expect(servie.reponse.headers.get('cache-control')).toBe('private, no-cache, no-store, max-age=0, must-revalidate')
   })
 
-  it('cacheControlNavigateur garde un en-tête public et remplace tout le reste', () => {
+  it('cacheControlNavigateur : pages SEO publiques, accueils et fiches avec l’en-tête d’origine', () => {
     expect(cacheControlNavigateur('public, s-maxage=60', CACHE_PAGES_SEO)).toBe('public, s-maxage=60')
     expect(cacheControlNavigateur('private, no-store', CACHE_PAGES_SEO)).toBe(CACHE_PAGES_SEO.cacheControl)
-    expect(cacheControlNavigateur(null, CACHE_FICHES_ARTISAN)).toBe(CACHE_FICHES_ARTISAN.cacheControl)
+    expect(cacheControlNavigateur('private, no-store', CACHE_ACCUEILS)).toBe('private, no-store')
+    expect(cacheControlNavigateur('private, no-store', CACHE_FICHES_ARTISAN)).toBe('private, no-store')
+    expect(cacheControlNavigateur(null, CACHE_FICHES_ARTISAN)).toBe(CACHE_CONTROL_PRIVE)
+    expect(cacheControlNavigateur('', CACHE_ACCUEILS)).toBe(CACHE_CONTROL_PRIVE)
   })
 })
 
