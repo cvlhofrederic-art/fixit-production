@@ -26,10 +26,19 @@ export function formatDate(date: string, locale: string = 'fr') {
 
 // profiles_artisan.legal_form reçoit le libellé SIRENE (app/api/verify-siret, app/api/artisan-company : « SARL »,
 // « SASU », « SA à directoire », « SNC », « SCI », « SELARL », « Forme juridique 5202 »…) ou une saisie (« S.A.R.L. »,
-// « Unipessoal Lda », « ENI »). Lu sans accents, points ni majuscules. Les formes individuelles passent en premier :
-// l'EIRL en toutes lettres (« entrepreneur individuel à responsabilité limitée ») reste individuelle.
-const FORME_INDIVIDUELLE = /\b(ei|eirl|eni|ae)\b|entrepreneur individuel|entreprise individuelle|micro|auto-? ?entrepreneur|nome individual|trabalhador independente|personne physique/
-const FORME_SOCIETE = /\b(sarl|sas|sasu|eurl|sa|snc|sci|scp|scs|sca|scop|sel|selarl|selas|selafa|selca|selurl|lda|unipessoal)\b|societe|sociedade|limitada|anonym|anonima|responsabilite limitee|nom collectif/
+// « Unipessoal Lda », « ENI »). Lu sans accents, points ni majuscules : sigles comparés aux mots du libellé, formes en
+// toutes lettres cherchées dans le libellé. Les formes individuelles passent en premier : l'EIRL en toutes lettres
+// (« entrepreneur individuel à responsabilité limitée ») reste individuelle.
+const SIGLES_INDIVIDUELS = new Set(['ei', 'eirl', 'eni', 'ae'])
+const FORMES_INDIVIDUELLES = [
+  'entrepreneur individuel', 'entreprise individuelle', 'micro', 'auto-entrepreneur', 'auto entrepreneur', 'autoentrepreneur',
+  'nome individual', 'trabalhador independente', 'personne physique',
+]
+const SIGLES_SOCIETE = new Set([
+  'sarl', 'sas', 'sasu', 'eurl', 'sa', 'snc', 'sci', 'scp', 'scs', 'sca', 'scop',
+  'sel', 'selarl', 'selas', 'selafa', 'selca', 'selurl', 'lda', 'unipessoal',
+])
+const FORMES_SOCIETE = ['societe', 'sociedade', 'limitada', 'anonym', 'anonima', 'responsabilite limitee', 'nom collectif']
 // Catégorie juridique INSEE sans libellé connu (app/api/artisan-company) : 5xxx sociétés commerciales, 6xxx sociétés civiles.
 const CATEGORIE_INSEE_SOCIETE = /^forme juridique [56]\d{3}$/
 
@@ -46,8 +55,11 @@ export function estFormeSociete(legalForm: string | null | undefined): boolean {
     .replace(/\./g, '')
     .replace(/\s+/g, ' ')
     .trim()
-  if (!forme || FORME_INDIVIDUELLE.test(forme)) return false
-  return FORME_SOCIETE.test(forme) || CATEGORIE_INSEE_SOCIETE.test(forme)
+  if (!forme) return false
+  const mots = forme.split(/[^a-z0-9]+/)
+  if (mots.some((m) => SIGLES_INDIVIDUELS.has(m)) || FORMES_INDIVIDUELLES.some((f) => forme.includes(f))) return false
+  return mots.some((m) => SIGLES_SOCIETE.has(m)) || FORMES_SOCIETE.some((f) => forme.includes(f))
+    || CATEGORIE_INSEE_SOCIETE.test(forme)
 }
 
 /**

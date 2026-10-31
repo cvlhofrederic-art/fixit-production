@@ -125,7 +125,7 @@ describe('sitemap des fiches artisans', () => {
     ]
     const xml = await (await sitemap4()).text()
     expect(xml).toContain('<loc>https://vitfix.io/fr/artisan/avec-date/</loc>\n    <lastmod>2026-10-30T08:15:00.000Z</lastmod>')
-    expect((xml.match(/<lastmod>/g) ?? []).length).toBe(1)
+    expect(xml.match(/<lastmod>/g) ?? []).toHaveLength(1)
   })
 
   it('erreur Supabase : sitemap vide et avertissement journalisé', async () => {
