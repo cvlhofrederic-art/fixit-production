@@ -158,6 +158,15 @@ describe('en-tête et pied de page : chaque lien mène à une page, sans redirec
     expect(await defautDuLien('/en/search/')).toBe('redirigé (next.config.ts) vers /en/')
     expect(await defautDuLien('/auth/login/')).toMatch(/^sans langue/)
   })
+
+  it('langue hors liste (cookie « locale=de » hors middleware) : pas d’exception, liens de la table vers les pages FR', async () => {
+    // Sans repli, LIENS_ENTETE_PIED.x['de'] valait undefined et LocaleLink levait une TypeError : 404 globale en 500.
+    const hrefs = await liensRendus('de' as Locale)
+    expect(hrefs).toEqual(expect.arrayContaining(['/fr/auth/login/', '/fr/recherche/', '/fr/cgu/', '/fr/pro/register/']))
+    const defauts = (await Promise.all(hrefs.filter((href) => href.startsWith('/fr/')).map(async (href) => [href, await defautDuLien(href)] as const)))
+      .filter(([, defaut]) => defaut !== null)
+    expect(defauts).toEqual([])
+  })
 })
 
 describe('destinations retenues', () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslation, useLocale } from '@/lib/i18n/context'
-import { LIENS_ENTETE_PIED } from '@/lib/i18n/liens-entete-pied'
+import { cheminEntetePied } from '@/lib/i18n/liens-entete-pied'
 import LocaleLink from '@/components/common/LocaleLink'
 
 // Liens rendus seulement en FR et PT : plan du site ; hub des villes (phase 1 SEO PT, point 1.8) et hubs de section
@@ -41,7 +41,7 @@ export default function Footer() {
             </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.recherche[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('recherche', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.findArtisan')}
                 </LocaleLink>
               </li>
@@ -51,12 +51,12 @@ export default function Footer() {
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.tarifs[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('tarifs', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.pricing')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.avis[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('avis', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.reviews')}
                 </LocaleLink>
               </li>
@@ -94,22 +94,22 @@ export default function Footer() {
             </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.devenirPartenaire[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('devenirPartenaire', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.becomePartner')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.offresPro[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('offresPro', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.offers')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.connexion[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('connexion', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.login')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.faqPro[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('faqPro', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.faq')}
                 </LocaleLink>
               </li>
@@ -123,27 +123,27 @@ export default function Footer() {
             </h2>
             <ul className="list-none flex flex-col gap-2.5">
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.mentionsLegales[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('mentionsLegales', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.legalNotice')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.cgu[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('cgu', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.terms')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.confidentialite[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('confidentialite', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.privacy')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.cookies[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('cookies', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.cookies')}
                 </LocaleLink>
               </li>
               <li>
-                <LocaleLink href={LIENS_ENTETE_PIED.contact[locale]} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
+                <LocaleLink href={cheminEntetePied('contact', locale)} className="text-white/50 no-underline text-[0.88rem] hover:text-white transition-colors">
                   {t('footer.contact')}
                 </LocaleLink>
               </li>

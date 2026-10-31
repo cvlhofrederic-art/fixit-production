@@ -1,4 +1,4 @@
-import type { Locale } from './config'
+import { isValidLocale, type Locale } from './config'
 
 // ─── Liens de l'en-tête et du pied de page publics, langue par langue ───
 //
@@ -45,3 +45,13 @@ export const LIENS_ENTETE_PIED = {
 } satisfies Record<string, CheminsParLangue>
 
 export type LienEntetePied = keyof typeof LIENS_ENTETE_PIED
+
+/**
+ * Chemin d'un lien pour la langue de la page. Langue hors liste (cookie ou x-locale bruts ; ne devrait plus arriver,
+ * app/global-not-found.tsx et app/(commun)/layout.tsx la valident) : la page FR, préfixe compris, plutôt qu'une
+ * exception qui fait tomber la page en 500.
+ */
+export function cheminEntetePied(lien: LienEntetePied, locale: string): string {
+  const chemins: CheminsParLangue = LIENS_ENTETE_PIED[lien]
+  return isValidLocale(locale) ? chemins[locale] : `/fr${chemins.fr}`
+}

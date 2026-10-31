@@ -2,7 +2,7 @@
 
 import Link, { type LinkProps } from 'next/link'
 import { useLocale } from '@/lib/i18n/context'
-import type { Locale } from '@/lib/i18n/config'
+import { getLocaleFromPathname, type Locale } from '@/lib/i18n/config'
 import type { ReactNode, AnchorHTMLAttributes } from 'react'
 
 type LocaleLinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, keyof LinkProps> &
@@ -34,8 +34,14 @@ export default function LocaleLink({ href, locale: explicitLocale, children, ...
     }
   }
 
+  // Lien vers une autre langue que celle de la page : autre layout racine, donc rechargement complet au clic ; une
+  // charge préchargée serait jetée. Pas de préchargement (le middleware ne pose pas non plus le cookie de langue sur
+  // un préchargement : poserCookieLangue, middleware.ts).
+  const langueCible = getLocaleFromPathname(localizedHref)
+  const autreLangue = langueCible !== null && langueCible !== currentLocale
+
   return (
-    <Link href={localizedHref} {...props}>
+    <Link href={localizedHref} {...props} prefetch={autreLangue ? false : props.prefetch}>
       {children}
     </Link>
   )
