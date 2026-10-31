@@ -4,8 +4,8 @@
  * - La lecture de profiles_artisan ne nomme que des colonnes présentes en production. Le faux client ci-dessous répond
  *   comme PostgREST (42703) à toute autre colonne, sélectionnée ou filtrée : en production, lire org_role, country ou
  *   is_verified faisait échouer la requête et le sitemap sortait vide.
- * - Une URL par fiche : /fr/artisan/<slug>/ pour toute fiche FR (sa canonique), /pt/empresa/<slug>/ pour une société PT
- *   (legal_form) ; les fiches individuelles PT (/pt/profissional/, noindex) restent hors sitemap. Pas de lastmod :
+ * - Fiches FR seulement, une URL par fiche : /fr/artisan/<slug>/ (sa canonique), société comprise. Aucune fiche PT :
+ *   les URL PT ont leurs propres fichiers /pt/sitemap-*.xml (une URL dans un seul sitemap). Pas de lastmod :
  *   updated_at bouge à chaque mise à jour de la ligne (trigger), ce n'est pas une date de contenu.
  * - Une panne Supabase donne un sitemap vide, jamais une erreur 500, mais elle reste visible dans les logs. Le client
  *   Supabase (postgrest-js) ne lève pas d'exception : il renvoie { data: null, error }, que le catch ne voit jamais.
@@ -96,10 +96,11 @@ describe('sitemap des fiches artisans', () => {
     expect(avertir).not.toHaveBeenCalled()
     const [requete] = supabase.etat.requetes
     expect(requete.table).toBe('profiles_artisan')
+    expect(requete.colonnes).toEqual(['id', 'slug', 'language'])
     expect(requete.filtres).toEqual([['verified', true], ['active', true]])
   })
 
-  it('FR sous /fr/artisan/ quelle que soit la forme, société PT sous /pt/empresa/ ; individuelles PT (noindex), non vérifiées ou inactives exclues', async () => {
+  it('toute fiche FR sous /fr/artisan/, quelle que soit sa forme ; aucune fiche PT, société comprise ; non vérifiées ou inactives exclues', async () => {
     supabase.etat.lignes = [
       fiche({ id: 'a-1', slug: 'durand-plomberie-marseille', legal_form: 'Entrepreneur individuel' }),
       fiche({ id: 'a-2', slug: 'batiment-sud-aix-en-provence', legal_form: 'SASU' }),
@@ -110,13 +111,14 @@ describe('sitemap des fiches artisans', () => {
       fiche({ id: 'a-7', slug: 'inactif', active: false }),
     ]
     const xml = await (await sitemap4()).text()
-    // Une seule URL par fiche : la société FR sort sous sa canonique /fr/artisan/, jamais sous /fr/societe/.
+    // Une seule URL par fiche : la société FR sort sous sa canonique /fr/artisan/, jamais sous /fr/societe/ ; la société
+    // PT (/pt/empresa/) relève des sitemaps PT.
     expect(locs(xml)).toEqual([
       '/fr/artisan/durand-plomberie-marseille/',
       '/fr/artisan/batiment-sud-aix-en-provence/',
-      '/pt/empresa/construcoes-ribeiro-porto/',
       '/fr/artisan/a-5/',
     ])
+    expect(xml).not.toContain('/pt/')
   })
 
   it('aucun lastmod, même quand updated_at est renseigné : la colonne n’est pas lue', async () => {
@@ -151,8 +153,11 @@ describe('index /sitemap.xml et sous-sitemap 4', () => {
     expect(await declareSitemap4()).toBe(true)
   })
 
-  it('ne le déclare pas quand il serait vide (aucune fiche listable), ni quand la lecture échoue', async () => {
-    supabase.etat.lignes = [fiche({ id: 'a-4', slug: 'canalizacao-silva-porto', legal_form: 'ENI', language: 'pt' })]
+  it('ne le déclare pas quand il serait vide (fiches PT seulement), ni quand la lecture échoue', async () => {
+    supabase.etat.lignes = [
+      fiche({ id: 'a-3', slug: 'construcoes-ribeiro-porto', legal_form: 'Lda', language: 'pt' }),
+      fiche({ id: 'a-4', slug: 'canalizacao-silva-porto', legal_form: 'ENI', language: 'pt' }),
+    ]
     expect(await declareSitemap4()).toBe(false)
     supabase.etat.panne = { message: 'JWT expired', code: 'PGRST301' }
     expect(await declareSitemap4()).toBe(false)
@@ -172,7 +177,8 @@ describe('chemin public de la fiche (getProfilePath, estFormeSociete)', () => {
   it.each([
     'Entrepreneur individuel', 'Entreprise individuelle', 'EI', 'EIRL', 'Entrepreneur individuel à responsabilité limitée',
     'Auto-Entrepreneur', 'Micro-entrepreneur', 'Micro-entreprise', 'ENI', 'Empresário em Nome Individual (ENI)',
-    'Trabalhador independente', 'Association déclarée', 'Fondation', 'Forme juridique 1000', 'Forme juridique 9220',
+    'Estabelecimento Individual de Responsabilidade Limitada', 'Trabalhador independente', 'Association déclarée',
+    'Fondation', 'Forme juridique 1000', 'Forme juridique 9220',
     '', null, undefined,
   ])('%s : artisan individuel', (forme) => expect(estFormeSociete(forme)).toBe(false))
 

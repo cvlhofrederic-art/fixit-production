@@ -27,12 +27,13 @@ export function formatDate(date: string, locale: string = 'fr') {
 // profiles_artisan.legal_form reçoit le libellé SIRENE (app/api/verify-siret, app/api/artisan-company : « SARL »,
 // « SASU », « SA à directoire », « SNC », « SCI », « SELARL », « Forme juridique 5202 »…) ou une saisie (« S.A.R.L. »,
 // « Unipessoal Lda », « ENI »). Lu sans accents, points ni majuscules : sigles comparés aux mots du libellé, formes en
-// toutes lettres cherchées dans le libellé. Les formes individuelles passent en premier : l'EIRL en toutes lettres
-// (« entrepreneur individuel à responsabilité limitée ») reste individuelle.
+// toutes lettres cherchées dans le libellé. Les formes individuelles passent en premier : l'EIRL en toutes lettres,
+// française (« entrepreneur individuel à responsabilité limitée ») ou portugaise (« estabelecimento individual de
+// responsabilidade limitada »), reste individuelle.
 const SIGLES_INDIVIDUELS = new Set(['ei', 'eirl', 'eni', 'ae'])
 const FORMES_INDIVIDUELLES = [
   'entrepreneur individuel', 'entreprise individuelle', 'micro', 'auto-entrepreneur', 'auto entrepreneur', 'autoentrepreneur',
-  'nome individual', 'trabalhador independente', 'personne physique',
+  'nome individual', 'estabelecimento individual', 'trabalhador independente', 'personne physique',
 ]
 const SIGLES_SOCIETE = new Set([
   'sarl', 'sas', 'sasu', 'eurl', 'sa', 'snc', 'sci', 'scp', 'scs', 'sca', 'scop',
@@ -46,12 +47,12 @@ const CATEGORIE_INSEE_SOCIETE = /^forme juridique [56]\d{3}$/
  * Société ou artisan individuel, d'après profiles_artisan.legal_form (rôle de la colonne, migration 059). Choisit la
  * fiche PT : /pt/empresa/ ou /pt/profissional/ (getProfilePath).
  * Société : SARL, SAS, SASU, EURL, SA, SNC, SCI, SCP, SEL… ; au Portugal Lda, Unipessoal Lda, SA (sociedade).
- * Artisan individuel : entrepreneur individuel, EI, EIRL, micro ou auto-entrepreneur, ENI (empresário em nome
- * individual), trabalhador independente, association, forme inconnue ou non renseignée.
+ * Artisan individuel : entrepreneur individuel, EI, EIRL (française ou portugaise), micro ou auto-entrepreneur, ENI
+ * (empresário em nome individual), trabalhador independente, association, forme inconnue ou non renseignée.
  */
 export function estFormeSociete(legalForm: string | null | undefined): boolean {
   const forme = String(legalForm || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/\./g, '')
     .replace(/\s+/g, ' ')
