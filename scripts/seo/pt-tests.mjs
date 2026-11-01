@@ -21,9 +21,8 @@ import { lireUrlset } from './pt-audit/lib/sitemaps.mjs'
 import { classer, VILLES, METIERS_PERTO } from './pt-audit/lib/classer.mjs'
 import { lireCsv } from './pt-audit/lib/csv.mjs'
 import { lireRobots, autorise, reglesHorsPt } from './pt-audit/lib/robots.mjs'
-import { auditer, RACINE } from './pt-audit/index.mjs'
-
-const absolu = (p) => (path.isAbsolute(p) ? p : path.join(RACINE, p))
+import { auditer } from './pt-audit/index.mjs'
+import { dossierSortie, fabriquerAbsolu, ErreurChemin } from './pt-audit/lib/chemins.mjs'
 
 function lireArguments(argv) {
   const o = { base: 'https://vitfix.io', mode: 'controle', reference: 'data/seo/reference-seo-pt.json', tests: [], audit: '', out: 'reports/seo', redirections: 'data/seo/pt-redirects.csv', porte: 'data/seo/porte-qualite.json', lot: '', echantillon: 0, concurrence: 8, date: new Date().toISOString().slice(0, 10) }
@@ -78,17 +77,21 @@ function fabriquerVerificateurCibles(base, concurrence) {
 async function principal() {
   const o = lireArguments(process.argv.slice(2))
   const base = o.base
+  // Fichiers lus (--reference, --audit, --redirections, --porte, --lot) : dans le dépôt ou dans le dossier --out,
+  // erreur explicite sinon (lot 7 du brief Aikido du 28/10/2026, issue 9 ; voir fabriquerAbsolu)
+  const absolu = fabriquerAbsolu(o.out)
   const journal = (m) => process.stderr.write(m + '\n')
   const veut = (id) => !o.tests.length || o.tests.includes(id)
   const R = new Resultats()
-  const reference = existsSync(absolu(o.reference)) ? JSON.parse(readFileSync(absolu(o.reference), 'utf8')) : null
+  const cheminReference = absolu(o.reference, '--reference')
+  const reference = existsSync(cheminReference) ? JSON.parse(readFileSync(cheminReference, 'utf8')) : null
   const nouvelleReference = { date: o.date, base }
 
   // Données d'audit (téléchargement des pages PT) : réutilisées par T1, T2, T3, T4, T5, T6, T7, T10, T11
   let audit
-  if (o.audit && existsSync(absolu(o.audit))) {
+  if (o.audit && existsSync(absolu(o.audit, '--audit'))) {
     journal('Audit lu depuis ' + o.audit)
-    const j = JSON.parse(readFileSync(absolu(o.audit), 'utf8'))
+    const j = JSON.parse(readFileSync(absolu(o.audit, '--audit'), 'utf8'))
     audit = { ...j, pages: new Map(j.pages.map((p) => [p.chemin, p])) }
   } else {
     audit = await auditer({ base, echantillon: o.echantillon, concurrence: o.concurrence }, journal)
@@ -285,7 +288,7 @@ async function principal() {
 
   // T8
   if (veut('T8')) {
-    const fichier = absolu(o.redirections)
+    const fichier = absolu(o.redirections, '--redirections')
     if (!existsSync(fichier)) R.ajouter('T8', 'Table de redirection (phase 2)', 0, { nonApplicable: true, details: ['fichier absent : ' + o.redirections] })
     else {
       const details = []
@@ -347,12 +350,12 @@ async function principal() {
 
   // T10
   if (veut('T10')) {
-    const fichier = absolu(o.porte)
+    const fichier = absolu(o.porte, '--porte')
     if (!existsSync(fichier)) R.ajouter('T10', 'Porte de qualité (phase 3)', 0, { nonApplicable: true, details: ['configuration absente : ' + o.porte] })
     else {
       const details = []
       const porte = JSON.parse(readFileSync(fichier, 'utf8'))
-      const lot = o.lot && existsSync(absolu(o.lot)) ? new Set(readFileSync(absolu(o.lot), 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) : null
+      const lot = o.lot && existsSync(absolu(o.lot, '--lot')) ? new Set(readFileSync(absolu(o.lot, '--lot'), 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean)) : null
       const cibles = pagesHtml.filter((p) => porte[p.groupe] && (!lot || lot.has(p.chemin)))
       const nomsVilles = VILLES.map((v) => v.replace(/-/g, ' '))
       await enParallele(cibles.map((p) => async () => {
@@ -405,7 +408,7 @@ async function principal() {
   }
 
   // Sorties
-  const dossier = absolu(o.out)
+  const dossier = dossierSortie(o.out) // seulement écrit : peut être hors du dépôt (README : --out /tmp/seo)
   mkdirSync(dossier, { recursive: true })
   const L = ['# Tests SEO PT T1-T12 — ' + o.date + ' (' + base + ', mode ' + o.mode + ')', '', '| Test | Résultat | Anomalies | Libellé |', '|---|---|---|---|']
   for (const t of R.tests) L.push('| ' + t.id + ' | ' + t.resultat + ' | ' + t.anomalies + ' | ' + t.libelle + ' |')
@@ -421,8 +424,8 @@ async function principal() {
   writeFileSync(prefixe + '.md', L.join('\n'), 'utf8')
   writeFileSync(prefixe + '.json', JSON.stringify({ date: o.date, base, mode: o.mode, tests: R.tests }, null, 1), 'utf8')
   if (o.mode === 'reference') {
-    mkdirSync(path.dirname(absolu(o.reference)), { recursive: true })
-    writeFileSync(absolu(o.reference), JSON.stringify({ ...(reference || {}), ...nouvelleReference }, null, 1), 'utf8')
+    mkdirSync(path.dirname(cheminReference), { recursive: true })
+    writeFileSync(cheminReference, JSON.stringify({ ...(reference || {}), ...nouvelleReference }, null, 1), 'utf8')
     journal('Référence écrite : ' + o.reference)
   }
   for (const t of R.tests) journal(t.id + ' ' + t.resultat + ' (' + t.anomalies + ')')
@@ -431,5 +434,9 @@ async function principal() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  principal().catch((e) => { console.error(e); process.exit(1) })
+  principal().catch((e) => {
+    // Chemin refusé (ErreurChemin) : le message seul, la pile d'appels n'aiderait pas l'utilisateur du CLI
+    console.error(e instanceof ErreurChemin ? '[pt-tests] ' + e.message : e)
+    process.exit(1)
+  })
 }

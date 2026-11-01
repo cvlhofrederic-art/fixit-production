@@ -146,11 +146,12 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
     name: 'Pintor',
     icon: '\uD83C\uDFA8',
     intro: 'Os preços de pintura na região do Tâmega e Sousa variam consoante a área, o tipo de superfície e os acabamentos escolhidos. Apresentamos os valores de referência praticados por pintores profissionais verificados em Marco de Canaveses, Penafiel e Amarante.',
+    // Aucun prix de façade (décision du propriétaire du 23/10/2026, « Pas de prix, devis ») : la peinture de façade est
+    // chiffrée sur devis après visite, page /pt/servicos/renovacao-de-fachadas/ (voir regionContext).
     prices: [
       { service: 'Pintura interior por m\u00B2', price: '5 - 10€/m\u00B2' },
       { service: 'Pintura de divisão (12-15m\u00B2)', price: '150 - 300€' },
       { service: 'Pintura apartamento T2 completo', price: '800 - 1500€' },
-      { service: 'Pintura exterior fachada por m\u00B2', price: '8 - 15€/m\u00B2' },
       { service: 'Tratamento anti-humidade + pintura', price: '15 - 25€/m\u00B2' },
       { service: 'Lacagem de portas (unidade)', price: '40 - 80€' },
       { service: 'Aplicação de massa corrida', price: '5 - 8€/m\u00B2' },
@@ -165,7 +166,7 @@ const PRICE_GUIDES: Record<string, PriceGuideData> = {
       'Trabalho em altura (andaimes para fachadas)',
       'Tratamentos adicionais (anti-humidade, impermeabilização)',
     ],
-    regionContext: 'A pintura completa de um apartamento T2 fica entre 800 e 1500€, incluindo preparação de superfícies e duas demãos de tinta. Para fachadas exteriores, o custo é superior (8-15€/m\u00B2) devido à necessidade de andaimes e tintas especiais.',
+    regionContext: 'A pintura completa de um apartamento T2 fica entre 800 e 1500€, incluindo preparação de superfícies e duas demãos de tinta. A pintura de fachadas exteriores não tem preço de tabela: depende da área, do acesso (andaime ou acesso por corda), do estado do reboco e das infiltrações. A equipa VITFIX faz uma visita e envia um orçamento gratuito (página Renovação de fachadas, nos distritos do Porto, Braga e Aveiro).',
     faqs: [
       {
         question: 'Quanto custa pintar um apartamento T2?',
