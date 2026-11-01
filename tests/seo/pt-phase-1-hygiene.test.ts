@@ -30,9 +30,10 @@ import { SERVICOS_DISTRITO, cobreDistrito, dataLigacoesServicos, servicosDistrit
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
-// Pages à generateMetadata par locale (cookie) : branche PT.
+// Pages à generateMetadata par locale (cookie, sans x-locale) : branche PT.
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: (nom: string) => (nom === 'locale' ? { name: 'locale', value: 'pt' } : undefined) }),
+  headers: async () => new Headers(),
 }))
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
