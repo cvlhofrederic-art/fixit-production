@@ -1016,6 +1016,12 @@ export async function fetchEtatBoite(token: string): Promise<EtatBoiteEmail> {
 }
 
 /**
+ * Origines des pages d'autorisation renvoyées par /api/email-agent/connect (lib/email-agent/fournisseurs/
+ * gmail.ts et microsoft.ts) : la redirection du navigateur n'accepte rien d'autre (lib/security/safe-url.ts).
+ */
+export const ORIGINES_CONNEXION_BOITE: readonly string[] = ['https://accounts.google.com', 'https://login.microsoftonline.com']
+
+/**
  * Adresse de connexion de la boîte chez le fournisseur choisi (Google ou Microsoft) :
  * le jeton de session reste dans l'en-tête, jamais dans l'URL.
  */

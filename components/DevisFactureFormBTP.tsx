@@ -1081,8 +1081,10 @@ export default function DevisFactureFormBTP({
 
       if (file.type === 'application/pdf') {
         // Use pdfjs to render first page as image
+        // pdf.js 6 : build « legacy » (la build moderne appelle Math.sumPrecise / Uint8Array.toHex sans garde) ;
+        // public/pdf.worker.min.mjs est copié depuis legacy/build, à la version exacte de package.json.
         const arrayBuffer = await file.arrayBuffer()
-        const pdfjsLib = await import('pdfjs-dist')
+        const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
         pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
         const page = await pdf.getPage(1)

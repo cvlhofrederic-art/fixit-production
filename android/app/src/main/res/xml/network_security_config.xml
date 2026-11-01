@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration réseau de l'application (Aikido : Network Security Config absente).
+  Release : aucun trafic en clair, confiance limitée aux autorités système (pas de certificat
+  utilisateur). La variante de debug (src/debug/res/xml) ajoute le HTTP en clair pour le live
+  reload Capacitor seulement. Pas de certificate pinning (pas de plan de rotation des pins).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

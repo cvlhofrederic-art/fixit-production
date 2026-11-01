@@ -59,6 +59,7 @@ function reponseJson(corps: unknown, status = 200): Response {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
 
@@ -256,14 +257,16 @@ describe('EcranCharges — PDF d’une facture', () => {
   }
 
   it('avec jeton : demande l’URL signée en Bearer puis ouvre un nouvel onglet', async () => {
-    const fetchMock = vi.fn(async () => reponseJson({ url: 'https://exemple.test/facture-0042.pdf' }))
+    // L'URL signée vient du stockage Supabase : safeOpen n'ouvre que cette origine.
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+    const fetchMock = vi.fn(async () => reponseJson({ url: 'https://projet-test.supabase.co/storage/v1/object/sign/factures/facture-0042.pdf?token=jeton-factice' }))
     vi.stubGlobal('fetch', fetchMock)
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
 
     render(<EcranCharges {...props(factureAvecPdf(), { jeton: 'jeton-test' })} />)
     fireEvent.click(screen.getByRole('button', { name: t.charges.ouvrirPdf }))
 
-    await waitFor(() => expect(open).toHaveBeenCalledWith('https://exemple.test/facture-0042.pdf', '_blank', 'noopener'))
+    await waitFor(() => expect(open).toHaveBeenCalledWith('https://projet-test.supabase.co/storage/v1/object/sign/factures/facture-0042.pdf?token=jeton-factice', '_blank', 'noopener,noreferrer'))
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/coproprietaire/factures/demo-fact-1/pdf',
@@ -317,6 +320,21 @@ describe('EcranCharges — PDF d’une facture', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(t.documents.erreurOuverture)
     expect(open).not.toHaveBeenCalled()
+  })
+
+  it('URL hors du stockage Supabase : traitée comme une erreur, rien n’est ouvert', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+    vi.stubGlobal('fetch', vi.fn(async () => reponseJson({ url: 'https://evil.example/facture-0042.pdf' })))
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    render(<EcranCharges {...props(factureAvecPdf(), { jeton: 'jeton-test' })} />)
+    fireEvent.click(screen.getByRole('button', { name: t.charges.ouvrirPdf }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(t.documents.erreurOuverture)
+    expect(open).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith('[safe-url] URL refusée')
+    await waitFor(() => expect(screen.getByRole('button', { name: t.charges.ouvrirPdf })).toBeEnabled())
   })
 })
 

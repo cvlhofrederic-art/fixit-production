@@ -22,7 +22,7 @@ export const meta = {
   ],
 }
 
-const ACTIVE_SCOPE = `PÉRIMÈTRE — CODE ACTIF UNIQUEMENT. Audite : app/pro/, app/client/, app/api/ (routes actives), components/ (SAUF components/syndic-dashboard), lib/, middleware.ts, supabase/migrations, next.config.ts, open-next.config.ts, wrangler.toml. EXCLUS (dormant, NE PAS reporter) : app/syndic/, app/coproprietaire/, components/syndic-dashboard/, app/{en,es,nl}/, tables syndic_*/copro_*.`
+const ACTIVE_SCOPE = `PÉRIMÈTRE — CODE ACTIF UNIQUEMENT. Audite : app/(commun)/pro/, app/(commun)/client/, app/api/ (routes actives), components/ (SAUF components/syndic-dashboard), lib/, middleware.ts, supabase/migrations, next.config.ts, open-next.config.ts, wrangler.toml. EXCLUS (dormant, NE PAS reporter) : app/(commun)/syndic/, app/(commun)/coproprietaire/, components/syndic-dashboard/, app/{en,es,nl}/, tables syndic_*/copro_*.`
 
 const KNOWN_ACCEPTED = `DÉJÀ CONNUS / ACCEPTÉS — NE PAS reporter :
 - anon key + URL Supabase inline dans wrangler.toml [vars] (publics par design)

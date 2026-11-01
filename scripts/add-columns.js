@@ -10,6 +10,17 @@ const { Pool } = require('pg')
 require('dotenv').config({ path: '.env.local' })
 const PROJECT_REF = process.env.SUPABASE_PROJECT_REF || ''
 const DB_PASSWORD = process.env.SUPABASE_DB_PASSWORD || ''
+// Certificat TLS de la base vérifié (relevé semgrep bypass-tls-verification du 28/10/2026) :
+// avec rejectUnauthorized: false, un faux serveur pouvait recevoir le mot de passe de la base.
+// Supabase signe ses certificats avec sa propre autorité : si la connexion échoue sur le
+// certificat, télécharger le CA (Supabase > Project Settings > Database > SSL) et passer son
+// chemin dans SUPABASE_DB_CA_CERT. Jamais de rejectUnauthorized: false.
+const CA_CERT_PATH = process.env.SUPABASE_DB_CA_CERT || ''
+function optionsSsl() {
+  const ssl = { rejectUnauthorized: true }
+  if (CA_CERT_PATH) ssl.ca = require('fs').readFileSync(CA_CERT_PATH, 'utf8')
+  return ssl
+}
 
 // Try multiple connection strings
 const connectionStrings = [
@@ -38,7 +49,7 @@ const sql = `
 async function tryConnection(connStr, label) {
   const pool = new Pool({
     connectionString: connStr,
-    ssl: { rejectUnauthorized: false },
+    ssl: optionsSsl(),
     connectionTimeoutMillis: 10000,
   })
 
@@ -50,6 +61,7 @@ async function tryConnection(connStr, label) {
     return true
   } catch (e) {
     console.log(`❌ Failed: ${e.message.substring(0, 100)}`)
+    if (/certificate|self.signed|CERT_/i.test(e.message)) console.log('   → certificat non reconnu : renseigner SUPABASE_DB_CA_CERT (voir le commentaire en tête du script)')
     await pool.end().catch(() => {})
     return false
   }

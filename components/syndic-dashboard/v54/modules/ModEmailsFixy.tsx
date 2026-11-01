@@ -18,10 +18,12 @@ import {
   fetchEtatBoite,
   releverBoite,
   urlConnexionBoite,
+  ORIGINES_CONNEXION_BOITE,
   type EtatBoiteEmail,
   type FournisseurBoiteEmail,
 } from '@/lib/syndic/v54/api'
 import { EMAILS_FIXY_MESSAGES } from './i18n/ModEmailsFixy.messages'
+import { safeNavigate } from '@/lib/security/safe-url'
 
 /**
  * Emails Fixy — port du ModEmailsFixy du bundle V5.7, branché sur la boîte e-mail du
@@ -92,7 +94,13 @@ export default function ModEmailsFixy() {
     if (!token) return
     setOccupe(provider)
     try {
-      window.location.assign(await urlConnexionBoite(token, provider))
+      const adresse = await urlConnexionBoite(token, provider)
+      // L'adresse vient du serveur : seule une page d'autorisation Google ou Microsoft est acceptée ;
+      // sinon, même toast que pour un échec de la route (texte existant, bilingue).
+      if (!safeNavigate(adresse, { allowedOrigins: ORIGINES_CONNEXION_BOITE })) {
+        setOccupe(null)
+        push({ kind: 'error', title: t.connexionEchec })
+      }
     } catch (e) {
       setOccupe(null)
       push({ kind: 'error', title: t.connexionEchec, desc: e instanceof Error ? e.message : undefined })
