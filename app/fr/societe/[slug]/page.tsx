@@ -6,7 +6,7 @@ import { metadonneesFicheSociete, rendreFicheSociete, type ParamsFicheSociete } 
 
 export async function generateMetadata(props: ParamsFicheSociete): Promise<Metadata> {
   return metadonneesFicheSociete(props, 'fr/societe', (slug) => ({
-    title: `Société | Vitfix`,
+    title: `Société`,
     robots: { index: true, follow: true },
     // Repli quand la fiche n'a pas pu être lue : identifiant de la route. Fiche lue : metadonneesFicheSociete pointe la
     // canonical vers son adresse publique (getProfilePath), le slug de la fiche même pour un accès par UUID.

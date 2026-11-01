@@ -28,7 +28,7 @@ function getCanonicalPath(slug: string | null, id: string, isPT: boolean): strin
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
+  const fallback: Metadata = { title: 'Artisan', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
 
   let lecture: LectureProfil<ArtisanMeta>
 
@@ -45,7 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   if (lecture.statut !== 'trouve') {
     return {
-      title: 'Artisan non trouvé - Vitfix',
+      title: 'Artisan non trouvé',
       description: 'Cet artisan n\'existe pas ou a été supprimé.',
       // Profil inexistant : la page client répond 200 avec « Artisan non trouvé » (soft 404), jamais indexée.
       ...(lecture.statut === 'absent' ? { robots: { index: false, follow: false } } : {}),
@@ -65,9 +65,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? (rating ? ` - Nota: ${rating}/5 (${artisan.rating_count} avaliações)` : '')
     : (rating ? ` - Note : ${rating}/5 (${artisan.rating_count} avis)` : '')
 
+  // Le template du layout ajoute la marque : le nom de repli du titre ne la contient pas (« Artisan Vitfix » la répéterait).
+  const nomTitre = artisan.company_name || (isPT ? 'Profissional' : 'Artisan')
   const title = isPT
-    ? `${name} - ${categories || 'Profissional'} em ${city} | VITFIX`
-    : `${name} - ${categories || 'Artisan'} à ${city} | Vitfix`
+    ? `${nomTitre} - ${categories || 'Profissional'} em ${city}`
+    : `${nomTitre} - ${categories || 'Artisan'} à ${city}`
 
   const description = isPT
     ? (artisan.bio?.substring(0, 160) || `${name}, ${categories} em ${city}.${ratingText} Reserve online no VITFIX.`)
