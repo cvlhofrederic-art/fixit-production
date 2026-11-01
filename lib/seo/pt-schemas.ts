@@ -1,6 +1,6 @@
 // Nœuds JSON-LD des pages PT (phase 1 du plan SEO PT, point 1.6).
 //
-// Un seul nœud entreprise pour tout le site (`#business`, app/layout.tsx) : les pages
+// Un seul nœud entreprise pour tout le site (`#business`, components/common/CoquilleRacine.tsx) : les pages
 // métier x ville décrivent un `Service` fourni par cette entité et servi dans une ville
 // (`areaServed`), jamais un `LocalBusiness` avec une adresse de ville. Pas de `FAQPage`
 // (résultat enrichi retiré par Google le 07/05/2026) ni de `HowTo` (retiré en 2023), pas
@@ -62,8 +62,11 @@ export function noServicoRegional(options: ServicoOptions) {
   }
 }
 
-/** Service d'une page de district : areaServed = le distrito (AdministrativeArea), comme `containedInPlace` des villes. */
-export function noServicoDistrito(options: ServicoOptions & { distrito: string }) {
+/**
+ * Service d'une page de district : areaServed = ses distritos (une AdministrativeArea par distrito, nommée comme
+ * `containedInPlace` des villes : « Distrito do Porto », « Distrito de Braga », « Distrito de Aveiro »).
+ */
+export function noServicoDistrito(options: ServicoOptions & { distritos: readonly string[] }) {
   return {
     '@type': 'Service',
     '@id': `${options.url}#service`,
@@ -73,7 +76,7 @@ export function noServicoDistrito(options: ServicoOptions & { distrito: string }
     url: options.url,
     inLanguage: 'pt-PT',
     provider: { '@id': ENTITE_PT.id },
-    areaServed: { '@type': 'AdministrativeArea', name: `Distrito ${nomeDistrito(options.distrito)}` },
+    areaServed: options.distritos.map((d) => ({ '@type': 'AdministrativeArea', name: `Distrito ${nomeDistrito(d)}` })),
   }
 }
 

@@ -1,7 +1,7 @@
 /**
  * hreflang : une seule source, l'API metadata.
  *
- * app/layout.tsx écrivait en dur, dans le <head> de CHAQUE page, six <link rel="alternate" hrefLang> vers les
+ * app/layout.tsx (aujourd'hui la coquille commune components/common/CoquilleRacine.tsx) écrivait en dur, dans le <head> de CHAQUE page, six <link rel="alternate" hrefLang> vers les
  * pages d'accueil. Ils s'ajoutaient à ceux que les layouts et les pages déclarent (alternates.languages) : sur
  * /pt/pesquisar/ ou /fr/marches/publier/, deux fr-FR contradictoires (l'accueil et la page équivalente), et des
  * doublons partout ailleurs. Les accueils, dont la canonical remplace l'objet alternates du layout, déclarent
@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { Metadata } from 'next'
 
-vi.mock('@/app/page', () => ({ default: () => null }))
+vi.mock('@/app/(commun)/page', () => ({ default: () => null }))
 
 const LANGUES_ACCUEILS = {
   'fr-FR': 'https://vitfix.io/fr/',
@@ -23,8 +23,8 @@ const LANGUES_ACCUEILS = {
 }
 
 describe('hreflang', () => {
-  it("le layout racine n'écrit plus de balise hreflang en dur", () => {
-    const layout = readFileSync(join(process.cwd(), 'app', 'layout.tsx'), 'utf8')
+  it("la coquille racine n'écrit plus de balise hreflang en dur", () => {
+    const layout = readFileSync(join(process.cwd(), 'components', 'common', 'CoquilleRacine.tsx'), 'utf8')
     expect(layout).not.toMatch(/<link\s+rel="alternate"\s+hrefLang/)
   })
 

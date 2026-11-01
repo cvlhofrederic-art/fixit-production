@@ -46,7 +46,9 @@ export async function POST(req: NextRequest) {
     try {
       const uint8 = new Uint8Array(buffer)
       const result = await extractText(uint8, { mergePages: true })
-      text = result.text || ''
+      // unpdf ≥ 1.7 conserve les sauts de ligne : on garde le format d'unpdf 1.4 (une seule ligne, blancs
+      // normalisés), attendu par analyse-devis et le scoring (extractPrestationsFromRawTextPt).
+      text = (result.text || '').replace(/\s+/g, ' ')
       numPages = result.totalPages || 0
     } catch (parseErr: unknown) {
       const errMsg = (parseErr instanceof Error ? parseErr.message : '').toLowerCase()

@@ -24,15 +24,16 @@ import {
 } from '@/lib/seo/pt-meta'
 import { grafo, noFilAriane, noServicoLocal, noServicoRegional, noWebPage, areaServidaPt } from '@/lib/seo/pt-schemas'
 import { ENTITE_PT, ADRESSE_PT_TEXTE, TELEFONE_PT_TEXTE } from '@/lib/seo/entite-pt'
-import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, dataLigacoesConcelho, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
-import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATAS_PT } from '@/lib/seo/pt-datas'
-import { SERVICOS_DISTRITO, dataLigacoesServicos, servicosDistritoLigados } from '@/lib/data/pt-servicos-distrito'
+import { FICHIERS_SITEMAP_PT, sitemapsPt, urlsFichiersSitemapPt, dataLote1, dataLigacoesConcelho, dataLigacoesGrelhaConcelho, type GroupeSitemapPt } from '@/lib/sitemap-pt-pages'
+import { DATA_CORRECOES_FAQ, DATA_FASE_1, DATA_FASE_2, DATA_FASE_3, DATA_FASE_3_LOT_1, DATA_LIGACOES_DISTRITO, DATA_PAGINAS_AGUEDA, DATA_PRECO_CAPOTO, DATA_PRECOS_PINTOR, DATA_ZONA_DISTRITOS, DATAS_PT } from '@/lib/seo/pt-datas'
+import { SERVICOS_DISTRITO, cobreDistrito, dataLigacoesServicos, servicosDistritoLigados, servicosDistritoRelacionados } from '@/lib/data/pt-servicos-distrito'
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
-// Pages à generateMetadata par locale (cookie) : branche PT.
+// Pages à generateMetadata par locale (cookie, sans x-locale) : branche PT.
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: (nom: string) => (nom === 'locale' ? { name: 'locale', value: 'pt' } : undefined) }),
+  headers: async () => new Headers(),
 }))
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
@@ -113,8 +114,8 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
     expect(ADRESSE_PT_TEXTE).toBe('Av. Dr. Artur Melo e Castro 109, 4630-204 Marco de Canaveses')
   })
 
-  it('le nœud #business du layout racine utilise cette adresse et les 22 concelhos en areaServed', () => {
-    const layout = readFileSync(join(process.cwd(), 'app', 'layout.tsx'), 'utf8')
+  it('le nœud #business de la coquille racine (components/common/CoquilleRacine.tsx) utilise cette adresse et les 22 concelhos en areaServed', () => {
+    const layout = readFileSync(join(process.cwd(), 'components', 'common', 'CoquilleRacine.tsx'), 'utf8')
     expect(layout).toContain('ENTITE_PT.adresse')
     expect(layout).toContain('areaServidaPt()')
     expect(areaServidaPt()).toHaveLength(22)
@@ -270,31 +271,43 @@ describe('1.4 titres et descriptions de la grille (505 pages)', () => {
     const { servicos, hubs, cidades } = sitemapsPt(BASE)
     for (const c of getAllPageCombos()) {
       const entree = servicos.find((u) => u.url === `${BASE}/pt/servicos/${c.slug}/`)
-      // Pages métier x ville d’un concelho qui a des pages de service propres (Águeda, 21/10/2026) : leur date ;
-      // pages qui lient une page de district (20/10/2026) : date des liens de district ; poda-arvores : FAQ corrigée.
+      // Pages qui lient une page de district : date d'apparition des liens dans le distrito de la ville (Porto : 22 ou 23/10/2026 ;
+      // Braga et Aveiro : DATA_ZONA_DISTRITOS) ; pages métier x ville d’un concelho qui a des pages de service propres
+      // (Águeda, 21/10/2026) : leur date, ou celle des liens de district si elle est plus récente ; poda-arvores : FAQ corrigée.
+      // Métier isolamento-termico : prix réel et zone du capoto dans sa FAQ (27 et 28/10/2026), sur ses 22 pages.
       const ligados = servicosDistritoLigados(c.service.slug, c.city.distrito).map((s) => s.slug)
-      const attendue = SERVICOS_CONCELHO.some((s) => s.cidade === c.city.slug) ? DATA_PAGINAS_AGUEDA
-        : ligados.length ? dataLigacoesConcelho(c.city.slug, ligados)
-          : c.service.slug === 'poda-arvores' ? DATA_CORRECOES_FAQ
-            : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
+      const ligacoes = ligados.length ? dataLigacoesGrelhaConcelho(c.city.slug, ligados) : ''
+      // Liens de district propres à la page (poda-arvores-agueda → limpeza de telhados, 28/10/2026) : jour de leur ajout.
+      const override = c.city.serviceCityOverrides?.[c.service.slug]
+      const proprias = servicosDistritoRelacionados(override?.servicosDistrito, c.city.distrito).length ? (override?.dataServicosDistrito ?? '') : ''
+      const maxi = (...d: string[]) => d.filter(Boolean).sort((a, b) => a.localeCompare(b)).at(-1)
+      const attendue = c.service.slug === 'isolamento-termico' ? maxi(DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS)
+        : SERVICOS_CONCELHO.some((s) => s.cidade === c.city.slug) ? maxi(DATA_PAGINAS_AGUEDA, ligacoes, proprias)
+          : maxi(ligacoes || (c.service.slug === 'poda-arvores' ? DATA_CORRECOES_FAQ
+            : METIERS_URGENCIA.has(c.service.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3), proprias)
       expect(entree?.lastModified, c.slug).toBe(attendue)
+      // Grille du distrito do Porto : lien et ancre inchangés par l’extension de la zone, date gardée.
+      if (ligacoes && c.city.distrito === 'Porto') expect(ligacoes, c.slug).not.toBe(DATA_ZONA_DISTRITOS)
     }
     for (const s of SERVICES) {
       const entree = hubs.find((u) => u.url === `${BASE}/pt/perto-de-mim/${s.slug}/`)
-      // Hubs liés à des pages de district : date des liens de la plus récente ; hubs poda-arvores et faz-tudo : FAQ corrigée
-      // le 21/10/2026.
+      // Hubs liés à des pages de district : date des liens de la plus récente (titres changés avec la zone, 28/10/2026) ; hubs
+      // poda-arvores et faz-tudo : FAQ corrigée le 21/10/2026 ; hub isolamento-termico : prix réel et zone du capoto.
       const ligados = servicosDistritoLigados(s.slug)
-      const attendue = ligados.length ? dataLigacoesServicos(ligados)
-        : ['poda-arvores', 'faz-tudo'].includes(s.slug) ? DATA_CORRECOES_FAQ
-          : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
+      const attendue = s.slug === 'isolamento-termico' ? [DATA_PRECO_CAPOTO, DATA_ZONA_DISTRITOS].sort((a, b) => a.localeCompare(b)).at(-1)
+        : ligados.length ? dataLigacoesServicos(ligados)
+          : ['poda-arvores', 'faz-tudo'].includes(s.slug) ? DATA_CORRECOES_FAQ
+            : METIERS_URGENCIA.has(s.slug) ? DATA_FASE_3_LOT_1 : DATA_FASE_3
       expect(entree?.lastModified, s.slug).toBe(attendue)
     }
-    // Page ville d’Águeda : date des pages de concelho ; pages ville du distrito do Porto : elles lient la page de district
-    // (carte « Serviços disponíveis », 21/10/2026).
+    // Pages ville des distritos couverts par les pages de district (les 22 depuis le 28/10/2026) : elles les lient (carte
+    // « Serviços disponíveis ») ; Águeda : la plus récente de cette date et de celle de ses pages de concelho.
     const villesConcelho = new Set(SERVICOS_CONCELHO.map((s) => s.cidade))
     for (const city of CITIES) {
       const entree = cidades.find((u) => u.url === `${BASE}/pt/cidade/${city.slug}/`)
-      const attendue = villesConcelho.has(city.slug) ? DATA_PAGINAS_AGUEDA : city.distrito === 'Porto' ? dataLigacoesConcelho(city.slug) : DATA_FASE_3
+      const doDistrito = SERVICOS_DISTRITO.filter((s) => cobreDistrito(s, city.distrito)).map((s) => s.slug)
+      const ligacoes = doDistrito.length ? dataLigacoesConcelho(city.slug, doDistrito) : ''
+      const attendue = villesConcelho.has(city.slug) ? [DATA_PAGINAS_AGUEDA, ligacoes].sort((a, b) => a.localeCompare(b)).at(-1) : ligacoes || DATA_FASE_3
       expect(entree?.lastModified, city.slug).toBe(attendue)
     }
     expect(cidades.find((u) => u.url === `${BASE}/pt/cidade/`)?.lastModified).toBe(DATA_FASE_3)
@@ -365,14 +378,32 @@ describe('1.4 / 1.5 métadonnées exportées par les routes de la grille et les 
     if (metadata.description) expect(metadata.description.length).toBeLessThanOrEqual(DESCRICAO_MAX)
   })
 
-  it.each([
-    ['/pt/empresa/<slug>/', () => import('@/app/pt/empresa/[slug]/page'), { slug: 'exemplo' }, 'https://vitfix.io/pt/empresa/exemplo/'],
-    ['/pt/profissional/<id>/', () => import('@/app/pt/profissional/[id]/page'), { id: 'exemplo' }, 'https://vitfix.io/pt/profissional/exemplo/'],
-  ] as Array<[string, () => Promise<unknown>, Record<string, string>, string]>)('%s : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async (_page, charger, params, canonical) => {
-    const { generateMetadata } = (await charger()) as { generateMetadata: (a: { params: Promise<Record<string, string>> }) => Promise<Metadata> }
-    const metadata = await generateMetadata({ params: Promise.resolve(params) })
+  it('/pt/empresa/<slug>/ (fiche existante) : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
+    // La route lit la fiche en base (slug inconnu : 404 ; canonical vers son adresse publique) : Supabase simulé, société
+    // PT trouvée. Sans ce double, le cas ne passait que parce que le job Vitest n'a pas de variables Supabase (lecture
+    // « indisponible »).
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://exemple.supabase.co')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
+    const societePt = { id: '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b', slug: 'exemplo', language: 'pt', legal_form: 'Lda' }
+    const lecture = vi.fn(async () => ({ ok: true, status: 200, json: async () => [societePt] }))
+    vi.stubGlobal('fetch', lecture)
+    try {
+      const { generateMetadata } = await import('@/app/pt/empresa/[slug]/page')
+      const metadata = await generateMetadata({ params: Promise.resolve({ slug: 'exemplo' }) })
+      expect(lecture).toHaveBeenCalledOnce()
+      expect(metadata.title).not.toMatch(/vitfix/i)
+      expect(metadata.alternates).toEqual({ canonical: 'https://vitfix.io/pt/empresa/exemplo/' })
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('/pt/profissional/<id>/ : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
+    const { generateMetadata } = await import('@/app/pt/profissional/[id]/page')
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: 'exemplo' }) })
     expect(metadata.title).not.toMatch(/vitfix/i)
-    expect(metadata.alternates).toEqual({ canonical })
+    expect(metadata.alternates).toEqual({ canonical: 'https://vitfix.io/pt/profissional/exemplo/' })
   })
 
   it('/pt/pesquisar/ (composant partagé avec /fr/recherche/) : un seul h1 en PT, FR inchangé (h1 visible comme avant la phase 1)', () => {
@@ -485,7 +516,7 @@ describe('1.1 sitemaps PT', () => {
     expect(BLOG_ARTICLES.find((a) => a.slug === 'fuga-agua-como-agir')?.dateModified).toBe('2026-10-13')
   })
 
-  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3, /pt/perto-de-mim/ en phase 2, les autres en phase 1', () => {
+  it('lastmod des pages statiques : pages réécrites en phase 3 datées DATA_FASE_3 (sauf /pt/precos/pintor/, date propre), /pt/perto-de-mim/ en phase 2, /pt/precos/ à la date de la décision façade (DATA_PRECOS_PINTOR), les autres en phase 1', () => {
     const paginas = sitemapsPt(BASE).paginas
     const dateDe = (path: string) => paginas.find((u) => u.url === `${BASE}${path}`)?.lastModified
     // Pages dont le contenu visible change dans le lot 0 ou la phase 4 (dont /pt/urgencia/ : délais rétablis).
@@ -495,11 +526,17 @@ describe('1.1 sitemaps PT', () => {
     expect(dateDe('/pt/servicos/')).toBe(ligacoes)
     // /pt/mapa-do-site/ lie aussi les pages d'Águeda (21/10/2026) : la plus récente des dates.
     expect(dateDe('/pt/mapa-do-site/')).toBe([ligacoes, DATA_PAGINAS_AGUEDA].sort((a, b) => a.localeCompare(b)).at(-1))
-    for (const path of ['/pt/', '/pt/urgencia/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/pintor/']) {
+    for (const path of ['/pt/', '/pt/urgencia/', '/pt/profissionais-verificados/', '/pt/torne-se-parceiro/', '/pt/sobre/', '/pt/como-funciona/', '/pt/condominio/', '/pt/especialidades/', '/pt/precos/canalizador/', '/pt/precos/eletricista/']) {
       expect(dateDe(path), path).toBe(DATA_FASE_3)
     }
+    // /pt/precos/pintor/ : prix de façade retirés (décision du propriétaire du 23/10/2026), puis phrase qui situe la page
+    // renovação de fachadas dans les trois distritos (28/10/2026). /pt/precos/ : carte pintor passée de 9 à 8 services le
+    // 23/10/2026, inchangée depuis.
+    expect(dateDe('/pt/precos/pintor/')).toBe(DATA_ZONA_DISTRITOS)
+    expect(dateDe('/pt/precos/')).toBe(DATA_PRECOS_PINTOR)
+    expect(DATA_PRECOS_PINTOR > DATA_FASE_3).toBe(true)
     expect(dateDe('/pt/perto-de-mim/')).toBe(DATA_FASE_2)
-    for (const path of ['/pt/pesquisar/', '/pt/avaliacoes/', '/pt/contacto/', '/pt/precos/']) expect(dateDe(path), path).toBe(DATA_FASE_1)
+    for (const path of ['/pt/pesquisar/', '/pt/avaliacoes/', '/pt/contacto/']) expect(dateDe(path), path).toBe(DATA_FASE_1)
     expect(DATA_FASE_3 > DATA_FASE_2).toBe(true)
   })
 

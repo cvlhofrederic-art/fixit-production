@@ -70,8 +70,10 @@ export interface SaisieCopropriete {
   source?: { nom: string } | null
 }
 
-/** Champs modifiables d'une copropriété (copropriété et mandat). */
-export type SaisieModificationCopropriete = Pick<SaisieCopropriete, 'nom' | 'adresse' | 'nbLots' | 'rg' | 'fondement'>
+/** Champs modifiables d'une copropriété (copropriété et mandat) ; la fiche détaillée n'est écrite que si elle est fournie. */
+export type SaisieModificationCopropriete = Pick<SaisieCopropriete, 'nom' | 'adresse' | 'nbLots' | 'rg' | 'fondement'> & {
+  fiche?: Copropriete['fiche']
+}
 
 export interface ResultatImportCoproprietaires {
   crees: number
@@ -285,6 +287,7 @@ export const useDonneesStore = creerStore<EtatDonneesStore>()((set, get) => ({
         nom: saisie.nom,
         adresse: saisie.adresse,
         nbLots: saisie.nbLots,
+        ...(saisie.fiche ? { fiche: saisie.fiche } : {}),
       }),
       mandat = mandatExistant
         ? await repoMandats.update(mandatExistant.id, {

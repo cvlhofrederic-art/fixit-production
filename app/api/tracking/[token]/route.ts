@@ -1,25 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { buildStoragePath } from '@/lib/security/storage-path'
+import { TRACKING_TOKEN_PATTERN } from '@/lib/security/tracking-token'
+import { BUCKET_SUIVI, CHAMP_PROPRIETAIRE_SUIVI, proprietaireSessionSuivi } from '@/lib/tracking/session-suivi'
 
-// Token format validation — UUID v4 strict (pas de path traversal ni injection)
-const VALID_TOKEN_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i
+// Format du jeton : celui réellement généré par l'application mobile (lib/security/tracking-token.ts),
+// vérifié avant toute construction de chemin. L'ancien motif UUID v4 ne correspondait à aucun jeton
+// émis : toute lecture répondait 400. Le nom d'objet passe ensuite par buildStoragePath.
+//
+// Le GET est public (lien envoyé au client, sans compte) : il redevient fonctionnel avec le motif réel,
+// d'où la limitation par IP, le jeton n'ayant qu'une vingtaine de bits d'aléa une fois l'heure connue.
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = getClientIP(request)
+  if (!(await checkRateLimit(`tracking_get_${ip}`, 60, 60_000))) return rateLimitResponse()
+
   const { token } = await params
   if (!token) return NextResponse.json({ error: 'Token requis' }, { status: 400 })
 
-  // ── Validate token format to prevent path traversal / injection ──
-  if (!VALID_TOKEN_PATTERN.test(token)) {
+  // ── Jeton au format émis, sinon 400 : aucun chemin construit ──
+  if (!TRACKING_TOKEN_PATTERN.test(token)) {
     return NextResponse.json({ error: 'Token invalide' }, { status: 400 })
   }
 
   const { data, error } = await supabaseAdmin.storage
-    .from('tracking')
-    .download(`${token}.json`)
+    .from(BUCKET_SUIVI)
+    .download(buildStoragePath(`${token}.json`))
 
   if (error || !data) {
     return NextResponse.json({ error: 'Session introuvable' }, { status: 404 })
@@ -39,7 +50,10 @@ export async function GET(
     return NextResponse.json({ error: 'Session expirée' }, { status: 410 })
   }
 
-  return NextResponse.json(tracking)
+  // Le compte qui alimente la session reste côté serveur.
+  const publique = { ...tracking }
+  delete publique[CHAMP_PROPRIETAIRE_SUIVI]
+  return NextResponse.json(publique)
 }
 
 // Suppression propre en fin de session (appelé par l'artisan — auth requise)
@@ -53,11 +67,18 @@ export async function DELETE(
 
   const { token } = await params
 
-  // ── Validate token format ──
-  if (!VALID_TOKEN_PATTERN.test(token)) {
+  // ── Jeton au format émis, sinon 400 : aucun chemin construit ──
+  if (!TRACKING_TOKEN_PATTERN.test(token)) {
     return NextResponse.json({ error: 'Token invalide' }, { status: 400 })
   }
 
-  await supabaseAdmin.storage.from('tracking').remove([`${token}.json`])
+  // Seul le compte qui alimente la session la supprime (session sans propriétaire : écrite avant ce contrôle).
+  const chemin = buildStoragePath(`${token}.json`)
+  const proprietaire = await proprietaireSessionSuivi(chemin)
+  if (proprietaire && proprietaire !== user.id) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
+  }
+
+  await supabaseAdmin.storage.from(BUCKET_SUIVI).remove([chemin])
   return NextResponse.json({ success: true })
 }

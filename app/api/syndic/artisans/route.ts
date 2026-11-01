@@ -5,6 +5,7 @@ import { getAuthUser, isSyndicRole, isSuperAdmin, resolveCabinetId } from '@/lib
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { syndicArtisanSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { buildStoragePath } from '@/lib/security/storage-path'
 
 /**
  * Mise à jour d'une fiche prestataire, attendue : un constructeur PostgREST est paresseux — sans
@@ -107,11 +108,16 @@ export async function GET(request: NextRequest) {
           profileIdMap.set(p.user_id, p.id)
         }
       }
-    } catch { /* storage check failed, non-blocking */ }
+    } catch (e) {
+      // Non bloquant : sans fiche, seul le dossier du compte est consulté
+      logger.warn('[ARTISANS GET] lecture profiles_artisan', { message: e instanceof Error ? e.message : String(e) })
+    }
   }
 
   // ── Parallel: check RC Pro + Décennale in Storage ───────────────────────
   // Run all storage checks concurrently instead of sequential per-artisan
+  // Préfixes listés (wallet/{id}/{pièce}) : id = artisan_user_id de la fiche du cabinet ou id de
+  // profiles_artisan, jamais une valeur de la requête ; segments vérifiés par buildStoragePath.
   const artisansNeedingCheck = artisans.filter(
     a => (!a.rc_pro_valide || !a.assurance_decennale_valide) && a.artisan_user_id
   )
@@ -129,14 +135,17 @@ export async function GET(request: NextRequest) {
           try {
             const { data: files } = await supabaseAdmin.storage
               .from('artisan-documents')
-              .list(`wallet/${base}/rc_pro`, { limit: 5 })
+              .list(buildStoragePath('wallet', base, 'rc_pro'), { limit: 5 })
             const realFiles = (files || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
             if (realFiles.length > 0) {
               artisan.rc_pro_valide = true
               await majFicheArtisan(artisan.id, { rc_pro_valide: true }, 'RC Pro')
               return
             }
-          } catch { /* storage check failed, non-blocking */ }
+          } catch (e) {
+            // Contrôle Storage non bloquant
+            logger.warn('[ARTISANS GET] contrôle Storage RC Pro', { message: e instanceof Error ? e.message : String(e) })
+          }
         }
       })())
     }
@@ -148,14 +157,17 @@ export async function GET(request: NextRequest) {
             try {
               const { data: files } = await supabaseAdmin.storage
                 .from('artisan-documents')
-                .list(`wallet/${base}/${docKey}`, { limit: 5 })
+                .list(buildStoragePath('wallet', base, docKey), { limit: 5 })
               const realFiles = (files || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
               if (realFiles.length > 0) {
                 artisan.assurance_decennale_valide = true
                 await majFicheArtisan(artisan.id, { assurance_decennale_valide: true }, 'décennale')
                 return
               }
-            } catch { /* storage check failed, non-blocking */ }
+            } catch (e) {
+              // Contrôle Storage non bloquant
+              logger.warn('[ARTISANS GET] contrôle Storage décennale', { message: e instanceof Error ? e.message : String(e) })
+            }
           }
         }
       })())
@@ -201,7 +213,10 @@ export async function POST(request: NextRequest) {
     try {
       const { data: { user: foundUser } } = await supabaseAdmin.auth.admin.getUserById(existingProfile.user_id)
       if (foundUser) existingUser = foundUser
-    } catch { /* storage check failed, non-blocking */ }
+    } catch (e) {
+      // Non bloquant : le compte sera traité comme inconnu
+      logger.warn('[ARTISANS POST] lecture du compte par e-mail', { message: e instanceof Error ? e.message : String(e) })
+    }
   }
 
   // Fallback : listUsers paginé
@@ -285,6 +300,7 @@ export async function POST(request: NextRequest) {
 
   // 2. Vérifier si l'artisan a déjà une RC Pro + Décennale dans le storage
   //    Chemins possibles : wallet/${auth_user_id}/... OU wallet/${profile_id}/...
+  //    Identifiants lus dans auth / profiles_artisan (jamais dans le corps), segments vérifiés par buildStoragePath.
   let rcProValide = false
   const rcProExpiration: string | null = null
   let decennaleValide = false
@@ -302,7 +318,10 @@ export async function POST(request: NextRequest) {
       if (profile && profile.id !== artisanUserId) {
         basePaths.push(profile.id)
       }
-    } catch { /* storage check failed, non-blocking */ }
+    } catch (e) {
+      // Contrôle Storage non bloquant : sans fiche, seul le dossier du compte est consulté
+      logger.warn('[ARTISANS POST] lecture profiles_artisan', { message: e instanceof Error ? e.message : String(e) })
+    }
 
     // Vérifier RC Pro
     for (const base of basePaths) {
@@ -310,13 +329,16 @@ export async function POST(request: NextRequest) {
       try {
         const { data: rcFiles } = await supabaseAdmin.storage
           .from('artisan-documents')
-          .list(`wallet/${base}/rc_pro`, { limit: 5 })
+          .list(buildStoragePath('wallet', base, 'rc_pro'), { limit: 5 })
         const realFiles = (rcFiles || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
         if (realFiles.length > 0) {
           rcProValide = true
           // RC Pro document found
         }
-      } catch { /* storage check failed, non-blocking */ }
+      } catch (e) {
+        // Contrôle Storage non bloquant
+        logger.warn('[ARTISANS POST] contrôle Storage RC Pro', { message: e instanceof Error ? e.message : String(e) })
+      }
     }
 
     // Vérifier Décennale (clés : 'assurance_decennale' ou 'decennale')
@@ -327,13 +349,16 @@ export async function POST(request: NextRequest) {
         try {
           const { data: decFiles } = await supabaseAdmin.storage
             .from('artisan-documents')
-            .list(`wallet/${base}/${docKey}`, { limit: 5 })
+            .list(buildStoragePath('wallet', base, docKey), { limit: 5 })
           const realFiles = (decFiles || []).filter((f: { name: string; metadata?: { size?: number }; size?: number }) => f.name !== '.emptyFolderPlaceholder' && (f.metadata?.size || f.size || 1) > 0)
           if (realFiles.length > 0) {
             decennaleValide = true
             // Decennale document found
           }
-        } catch { /* storage check failed, non-blocking */ }
+        } catch (e) {
+          // Contrôle Storage non bloquant
+          logger.warn('[ARTISANS POST] contrôle Storage décennale', { message: e instanceof Error ? e.message : String(e) })
+        }
       }
     }
   }

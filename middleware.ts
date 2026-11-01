@@ -12,6 +12,9 @@ import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
 const DEFAULT_LOCALE = 'fr'
+// Langues sous lesquelles next.config.ts réécrit les pages communes de app/(commun)/ (connexion, tableaux de bord,
+// espaces syndic et copropriétaire). EN, NL et ES n'en ont pas : leurs redirections vers ces pages visent /pt/.
+const LANGUES_PAGES_COMMUNES = ['fr', 'pt']
 
 function getLocaleFromPath(pathname: string): string | null {
   for (const locale of SUPPORTED_LOCALES) {
@@ -74,6 +77,15 @@ function responseHasSensitiveCookie(response: NextResponse): boolean {
   })
 }
 
+// Pages qu'aucun cache partagé ne doit garder, comme quand tout le site était rendu à la demande :
+// - chemins needsAuth (accueils /{locale}/, connexion, tableaux de bord…) : la réponse dépend de la session
+//   (redirection d'un utilisateur connecté vers son espace, jeton rafraîchi) ;
+// - pages hors préfixes SEO (EN, NL, ES, simulateur FR, pages éditoriales…) : politique de la review #138 ci-dessus.
+// Pré-rendues depuis les layouts statiques par langue, ces pages recevraient de Next `s-maxage=31536000`. Le service
+// depuis le cache des pages pré-rendues (x-nextjs-cache: HIT) ne dépend pas de cet en-tête. Il prime sur celui de Next :
+// next start ne remplace pas un Cache-Control existant, et OpenNext donne la priorité aux en-têtes du middleware.
+const CACHE_CONTROL_PRIVE = 'private, no-cache, no-store, max-age=0, must-revalidate'
+
 function detectPreferredLocale(request: NextRequest): string {
   // 1. Cookie (user's explicit choice always wins)
   const cookieLocale = request.cookies.get('locale')?.value
@@ -96,6 +108,19 @@ function detectPreferredLocale(request: NextRequest): string {
   if (acceptLang.toLowerCase().includes('es')) return 'es'
   // 4. Default
   return DEFAULT_LOCALE
+}
+
+// Cookie de langue (1 an), posé sur une navigation de document seulement, jamais sur les fetch() du routeur Next, dont
+// le préchargement d'un <Link> entré à l'écran ou survolé : ce n'est pas une visite. Sinon un lien d'une autre langue
+// seulement vu à l'écran (liens /pt/ de l'en-tête et du pied des pages EN, NL et ES) changeait la langue retenue, donc
+// la redirection de « / » et l'ouverture de la PWA (start_url « / »).
+// Next retire ses propres en-têtes (RSC, Next-Router-Prefetch…) avant d'appeler le middleware (FLIGHT_HEADERS,
+// next/dist/server/web/adapter.js) : seul Sec-Fetch-Dest, posé par le navigateur, distingue un document (« document »)
+// d'un fetch (« empty »). Sans cet en-tête (robots, anciens navigateurs) : posé, comme avant.
+function poserCookieLangue(request: NextRequest, response: NextResponse, locale: string) {
+  const destination = request.headers.get('sec-fetch-dest')
+  if (destination !== null && destination !== 'document') return
+  response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
 }
 
 // ── Pages supprimées sans équivalent (phase 1 SEO PT, point 1.2) ──
@@ -202,7 +227,7 @@ export async function middleware(request: NextRequest) {
       url.pathname = `/${locale}${pathname}`
       const response = NextResponse.redirect(url, 302)
       response.headers.set('Vary', 'Accept-Language')
-      response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, response, locale)
       response.headers.set('Content-Security-Policy', cspHeader)
       if (viseSuccursaleAJ(pathname)) response.headers.set('X-Robots-Tag', X_ROBOTS_SUCCURSALE_AJ)
       return response
@@ -253,7 +278,7 @@ export async function middleware(request: NextRequest) {
       // et permet au CDN de cacher sans Vary obligatoire).
       const existingLocaleCookie = request.cookies.get('locale')?.value
       if (existingLocaleCookie !== locale) {
-        supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+        poserCookieLangue(request, supabaseResponse, locale)
       }
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
@@ -270,6 +295,9 @@ export async function middleware(request: NextRequest) {
     if ((request.method === 'GET' || request.method === 'HEAD') && isSeoPublicRoute(pathname) && !responseHasSensitiveCookie(supabaseResponse)) {
       supabaseResponse.headers.set('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=86400')
       supabaseResponse.headers.set('Vary', 'Cookie, Accept-Language')
+    } else if (!isInternalRoute) {
+      // Autres pages : `private, no-store` (voir CACHE_CONTROL_PRIVE). Les routes internes (/api/, /_next/) gardent le leur.
+      supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     }
     return supabaseResponse
   }
@@ -316,12 +344,15 @@ export async function middleware(request: NextRequest) {
   const role = user?.app_metadata?.role as string | undefined
 
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
+  // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
+  // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
   const localeRedirect = (path: string) => {
     const url = request.nextUrl.clone()
-    url.pathname = isInternalRoute ? path : `/${locale}${path}`
+    const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
+    url.pathname = isInternalRoute ? path : `/${langueCible}${path}`
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
-      resp.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, resp, locale)
     }
     // Propager les cookies Supabase rafraîchis vers le browser
     supabaseResponse.cookies.getAll().forEach(cookie => {
@@ -336,10 +367,11 @@ export async function middleware(request: NextRequest) {
   if (role === 'super_admin') {
     // Routes internes (/admin/) : pas de langue dans l'URL, on ne réécrit pas le cookie avec la langue par défaut.
     if (!isInternalRoute) {
-      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, supabaseResponse, locale)
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+    supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
     return supabaseResponse
   }
 
@@ -441,13 +473,14 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Set locale cookie on all responses
+  // Set locale cookie on all responses (navigations de document seulement, voir poserCookieLangue)
   if (!isInternalRoute) {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    poserCookieLangue(request, supabaseResponse, locale)
   }
 
   supabaseResponse.headers.set('X-API-Version', '1.0.0')
   supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
+  supabaseResponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
 
   return supabaseResponse
 }

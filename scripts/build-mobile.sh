@@ -26,11 +26,13 @@ const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
+  // 404 des URL sans route (app/global-not-found.tsx) : un layout racine par section, aucun pour /_not-found.
+  experimental: { globalNotFound: true },
 };
 export default nextConfig;
 EOF
 
-# MOBILE_BUILD=true : signale aux guards applicatifs (app/layout.tsx, etc.) de
+# MOBILE_BUILD=true : signale aux guards applicatifs (app/(commun)/layout.tsx, etc.) de
 # skipper les appels SSR-only (cookies(), headers()) qui crashent en export.
 # NEXT_PUBLIC_API_URL : embed dans le bundle JS pour absolutiser les fetch
 # vers l'API depuis l'app Capacitor (origine capacitor://localhost ne peut

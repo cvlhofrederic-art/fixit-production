@@ -15,6 +15,7 @@
 import { useId, useState } from 'react'
 import type { PropsEcran } from '@/components/coproprietaire-dashboard/contrat'
 import { avecContexte } from '@/lib/coproprietaire/api'
+import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import {
   Badge, Bouton, BoutonCopier, Carte, Deplie, Encadre, EtatVide, Ligne, Montant, type TonBadge,
 } from '@/components/coproprietaire-dashboard/ui'
@@ -386,8 +387,9 @@ export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJo
       })
       const corps: unknown = res.ok ? await res.json().catch(() => null) : null
       const url = corps !== null && typeof corps === 'object' ? (corps as { url?: unknown }).url : undefined
-      if (!res.ok || typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error(`réponse ${res.status}`)
-      window.open(url, '_blank', 'noopener')
+      if (!res.ok || typeof url !== 'string') throw new Error(`réponse ${res.status}`)
+      // Seule une URL signée du stockage Supabase s'ouvre ; un refus est une erreur affichée, pas un clic muet.
+      if (!safeOpen(url, { allowedOrigins: originesSupabase() })) throw new Error('URL refusée')
       setOuvertures(o => {
         const { [id]: _terminee, ...reste } = o
         return reste
