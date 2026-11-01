@@ -5,6 +5,7 @@ import { LeaAvatar } from '@/components/common/RobotAvatars'
 import { useThemeVars } from './useThemeVars'
 import { useLocale } from '@/lib/i18n/context'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import { supabase } from '@/lib/supabase'
 // DeclarationSocialeSection removed — IS estimation is now inline in Declaration tab
 import { getTvaStatus, type TvaCountry, type TvaStatusResult } from '@/lib/tva-thresholds'
@@ -174,7 +175,7 @@ function AgentComptable({ bookings, artisan, services, expenses, annualHT, annua
   // Expose sendMessage pour les questions fréquentes externes (FAQ Comptabilité)
   sendMessageRef.current = sendMessage
 
-  const formatMessage = (text: string) => safeMarkdownToHTML(text)
+  const formatMessage = (text: string) => assainirHtml(safeMarkdownToHTML(text))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

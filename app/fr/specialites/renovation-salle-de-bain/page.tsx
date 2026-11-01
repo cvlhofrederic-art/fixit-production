@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Rénovation Salle de Bain Marseille : Clé en main, devis gratuit | VITFIX',
+  title: 'Rénovation Salle de Bain Marseille : Clé en main, devis gratuit',
   description: 'Rénovation complète salle de bain à Marseille et PACA : plomberie, carrelage, douche à l\'italienne, PMR, meuble vasque. Artisans clé en main. TVA 10%, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/renovation-salle-de-bain/',

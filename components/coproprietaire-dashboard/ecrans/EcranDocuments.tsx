@@ -13,6 +13,7 @@ import { useState } from 'react'
 import type { PropsEcran } from '@/components/coproprietaire-dashboard/contrat'
 import { Badge, Bouton, Carte, Deplie, Encadre, EtatVide, Ligne, type TonBadge } from '@/components/coproprietaire-dashboard/ui'
 import { ouvrirDocument } from '@/lib/coproprietaire/api'
+import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import {
   dateLongue, euros, libelleCategorieContrat, libelleStatutContrat, libelleTypeAssurance, pourcentage,
   remplir, tailleLisible, type LangueCopro, type TextesCopro,
@@ -93,11 +94,11 @@ function LigneFichier({ fichier, jeton, demo, t, langue }: { fichier: DocumentIm
     }
     setEtat('ouverture')
     const resultat = await ouvrirDocument(jeton, fichier.id)
-    if (!resultat.ok) {
+    // Seule une URL signée du stockage Supabase s'ouvre ; un refus affiche la même erreur qu'un échec de la route.
+    if (!resultat.ok || !safeOpen(resultat.url, { allowedOrigins: originesSupabase() })) {
       setEtat('erreur')
       return
     }
-    window.open(resultat.url, '_blank', 'noopener')
     setEtat('repos')
   }
 

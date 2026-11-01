@@ -59,6 +59,11 @@ describe('ordre de virement', () => {
     expect(() => creerOrdreVirement({ ...base, lignes: [virement({ iban: 'FR76 3000 6000 0112 3456 7890 188' })] })).toThrow(/IBAN/)
   })
 
+  it('refuse deux virements de même identifiant de bout en bout : chacun a sa propre référence de paiement', () => {
+    const groupe = (reglementIds: string[]) => virement({ reglementId: 'X', reglementIds })
+    expect(() => creerOrdreVirement({ ...base, lignes: [groupe(['reg-1']), groupe(['reg-2'])] })).toThrow(/« X » en double/)
+  })
+
   it('émission unique', () => {
     const ordre = creerOrdreVirement({ ...base, lignes: [virement()] })
     const emis = emettreOrdre(ordre, '2026-10-28')

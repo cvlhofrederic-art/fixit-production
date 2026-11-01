@@ -52,7 +52,7 @@ export async function generateMetadata(
   if (!cityName) return {}
 
   return {
-    title: `Devis gratuit artisan à ${cityName} : Chiffrez vos travaux en 2 min | VITFIX`,
+    title: `Devis gratuit artisan à ${cityName} : Chiffrez vos travaux en 2 min`,
     description: `Estimez le coût de vos travaux à ${cityName} : plomberie, électricité, peinture, serrurerie, toiture... Tarifs PACA 2026 actualisés. Artisans certifiés disponibles, réservation directe.`,
     keywords: [
       `devis gratuit travaux ${cityName}`,

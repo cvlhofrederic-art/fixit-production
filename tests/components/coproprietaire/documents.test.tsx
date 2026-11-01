@@ -87,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
 
@@ -190,7 +191,9 @@ describe('EcranDocuments — rendu avec les données de démonstration', () => {
 
 describe('EcranDocuments — ouverture d’un fichier', () => {
   it('demande l’URL signée avec le jeton puis ouvre un nouvel onglet', async () => {
-    const fetchSimule = vi.fn(async () => json({ url: 'https://stockage.exemple/pv-11-juin-2026.pdf?signe=1' }))
+    // L'URL signée vient du stockage Supabase : safeOpen n'ouvre que cette origine.
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+    const fetchSimule = vi.fn(async () => json({ url: 'https://projet-test.supabase.co/storage/v1/object/sign/documents/pv-11-juin-2026.pdf?token=jeton-factice' }))
     vi.stubGlobal('fetch', fetchSimule)
     render(<EcranDocuments {...propsEcran({ jeton: 'jeton-test', espace: { ...espaceDemo(), source: 'reel' } })} />)
 
@@ -200,7 +203,7 @@ describe('EcranDocuments — ouverture d’un fichier', () => {
     expect(bouton).toHaveTextContent(t.documents.ouvertureEnCours)
     expect(bouton).toBeDisabled()
 
-    await waitFor(() => expect(openSimule).toHaveBeenCalledWith('https://stockage.exemple/pv-11-juin-2026.pdf?signe=1', '_blank', 'noopener'))
+    await waitFor(() => expect(openSimule).toHaveBeenCalledWith('https://projet-test.supabase.co/storage/v1/object/sign/documents/pv-11-juin-2026.pdf?token=jeton-factice', '_blank', 'noopener,noreferrer'))
 
     expect(fetchSimule).toHaveBeenCalledTimes(1)
     const [url, init] = fetchSimule.mock.calls[0] as unknown as [string, RequestInit]
@@ -242,6 +245,23 @@ describe('EcranDocuments — ouverture d’un fichier', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(t.documents.erreurOuverture)
     expect(openSimule).not.toHaveBeenCalled()
+  })
+
+  it('affiche la même erreur quand l’URL renvoyée n’est pas celle du stockage Supabase', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet-test.supabase.co')
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async () => json({ url: 'https://evil.example/pv-11-juin-2026.pdf' })))
+    render(<EcranDocuments {...propsEcran({ jeton: 'jeton-test', espace: { ...espaceDemo(), source: 'reel' } })} />)
+
+    const nom = 'PV AG ordinaire du 11 juin 2026.pdf'
+    fireEvent.click(boutonOuvrir(nom))
+
+    const alerte = await screen.findByRole('alert')
+    expect(alerte).toHaveTextContent(t.documents.erreurOuverture)
+    expect(screen.getByText(nom).closest('li')).toContainElement(alerte)
+    expect(openSimule).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith('[safe-url] URL refusée')
+    expect(boutonOuvrir(nom)).toBeEnabled()
   })
 
   it('en démonstration (sans jeton), n’appelle rien et explique que le document est fictif', () => {
