@@ -109,6 +109,42 @@ describe('/{locale}/artisan/dashboard', () => {
   })
 })
 
+// Pages communes (connexion, tableaux de bord) réécrites sous /fr/ et /pt/ seulement (next.config.ts) : depuis /en/,
+// /nl/ ou /es/, les redirections visaient /en/artisan/dashboard/… en 404 (logo, « Find a professional », avis et
+// contact des pages EN mènent à /en/, que le middleware renvoie vers l'espace d'un compte connecté).
+describe('redirections depuis EN, NL et ES : vers les pages PT', () => {
+  it.each([
+    ['/en/', 'artisan', '/pt/artisan/dashboard'],
+    ['/nl/', 'client', '/pt/client/dashboard'],
+    ['/es/', 'pro_societe', '/pt/pro/dashboard'],
+    ['/en/', 'syndic', '/pt/syndic/dashboard'],
+    ['/nl/', 'coproprio', '/pt/coproprietaire/dashboard'],
+    ['/en/auth/login', 'artisan', '/pt/artisan/dashboard'],
+  ])('compte connecté sur %s (%s) → %s', async (chemin, role, attendu) => {
+    connecte(role)
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: attendu })
+  })
+
+  it('espace d’un autre rôle : vers le sien, sous /pt/', async () => {
+    connecte('artisan')
+    expect(await visiter('/en/client/dashboard/')).toMatchObject({ statut: 307, vers: '/pt/artisan/dashboard' })
+  })
+
+  it.each([
+    ['/en/artisan/dashboard/', '/pt/auth/login'],
+    ['/nl/syndic/dashboard/', '/pt/syndic/login'],
+    ['/es/coproprietaire/dashboard/', '/pt/coproprietaire/portail'],
+  ])('sans session, %s → %s', async (chemin, attendu) => {
+    expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: attendu })
+  })
+
+  it('FR et PT gardent leur langue', async () => {
+    connecte('artisan')
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/artisan/dashboard' })
+    expect(await visiter('/pt/')).toMatchObject({ statut: 307, vers: '/pt/artisan/dashboard' })
+  })
+})
+
 describe('/pro/dashboard (inchangé)', () => {
   it('renvoie toujours un artisan vers /artisan/dashboard', async () => {
     connecte('artisan')
