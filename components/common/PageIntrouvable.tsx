@@ -1,7 +1,8 @@
 import Link from 'next/link'
 
 // Contenu de la page 404 : app/global-not-found.tsx (URL sans route, langue de la requête), app/(commun)/not-found.tsx
-// (notFound() d'une page commune, locale du cookie) et app/{pt,fr,en,nl,es}/not-found.tsx (locale du dossier).
+// (notFound() d'une page commune, langue du chemin puis du cookie) et app/{pt,fr,en,nl,es}/not-found.tsx (locale du
+// dossier).
 const TEXTES = {
   pt: {
     title: 'Página não encontrada',
