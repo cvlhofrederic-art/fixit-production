@@ -21,12 +21,14 @@ jobs:
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Configurer Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Installer les dépendances
@@ -41,3 +43,10 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+
+      # Pages SEO pré-rendues au build (layouts par langue sans cookies() ni headers()). Une API dynamique ajoutée dans un
+      # layout, une page ou un helper importé les ferait repasser en rendu à la demande sans faire échouer le build : la
+      # garde croise .next/prerender-manifest.json avec les pages de app/{pt,fr,en,nl,es} (chaque page pré-rendue sauf
+      # liste nommée, planchers par section, pages témoins, aucun revalidate).
+      - name: Vérifier le pré-rendu des pages SEO
+        run: node scripts/seo/verifier-prerendu.mjs

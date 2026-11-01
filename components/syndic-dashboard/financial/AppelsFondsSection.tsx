@@ -513,11 +513,14 @@ export default function AppelsFondsSection({ user, userRole }: { user: User; use
             onClick={() => {
               const enRetardOuImpaye = appelsForTrim.filter(a => a.etat !== 'paye')
               if (enRetardOuImpaye.length === 0) return
-              const emails = enRetardOuImpaye.map(a => {
+              // Chaque adresse est encodée : une adresse contenant « ?cc= » ou « &bcc= » n'ajoute pas de destinataire.
+              const emails = enRetardOuImpaye.flatMap(a => {
                 const c = copros.find(co => co.id === a.coproId)
-                return c?.email
-              }).filter(Boolean).join(',')
-              window.open(`mailto:${emails}?subject=Appel de fonds ${trimestre} ${CURRENT_YEAR}&body=Madame, Monsieur,%0A%0AVeuillez trouver ci-joint votre appel de fonds pour le ${trimestre} ${CURRENT_YEAR}.%0A%0AProvision exigible au ${TRIM_DATES[trimestre]}.%0A%0ACordialement,%0ALe Syndic`)
+                return c?.email ? [encodeURIComponent(c.email)] : []
+              }).join(',')
+              const subject = encodeURIComponent(`Appel de fonds ${trimestre} ${CURRENT_YEAR}`)
+              const body = encodeURIComponent(`Madame, Monsieur,\n\nVeuillez trouver ci-joint votre appel de fonds pour le ${trimestre} ${CURRENT_YEAR}.\n\nProvision exigible au ${TRIM_DATES[trimestre]}.\n\nCordialement,\nLe Syndic`)
+              window.open(`mailto:${emails}?subject=${subject}&body=${body}`)
             }}
             style={{ padding: '8px 16px', borderRadius: 8, background: 'var(--sd-gold, #C9A84C)', color: '#fff', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer' }}
           >

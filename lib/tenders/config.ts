@@ -14,6 +14,26 @@ export const DEPARTMENTS: Record<string, DepartmentConfig> = {
   // Add more departments here when scaling
 }
 
+/**
+ * Code de département connu du scanner : une clé propre de DEPARTMENTS (ni « constructor » ni un
+ * autre nom hérité du prototype). Seule une valeur de cette liste fermée peut entrer dans un
+ * chemin de fichier (data/tenders-{code}.json, data/communes-{code}.json) ou dans une URL.
+ */
+export function isKnownDepartment(code: string): boolean {
+  return Object.prototype.hasOwnProperty.call(DEPARTMENTS, code)
+}
+
+/**
+ * Refuse, par une erreur explicite, tout code hors de DEPARTMENTS avant qu'il ne serve à construire
+ * un chemin (lot 7 du brief Aikido du 28/10/2026, issue 9). Renvoie le code tel quel s'il est connu.
+ */
+export function assertKnownDepartment(code: string): string {
+  if (!isKnownDepartment(code)) {
+    throw new Error(`Unknown department: ${code}. Available: ${Object.keys(DEPARTMENTS).join(', ')}`)
+  }
+  return code
+}
+
 // ── BTP Trade classification ────────────────────────────────────────────────
 
 export interface TradeDefinition {

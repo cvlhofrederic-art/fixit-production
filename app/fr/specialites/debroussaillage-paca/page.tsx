@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Débroussaillage Obligation Légale PACA 2026 : Marseille, Var, BdR | VITFIX',
+  title: 'Débroussaillage Obligation Légale PACA 2026 : Marseille, Var, BdR',
   description: 'Obligation légale de débroussaillement (OLD) en PACA : avant le 15 juin, 50 m autour des habitations. Évitez l\'amende jusqu\'à 30 € par m². Entreprise agréée Marseille, Bouches-du-Rhône, Var.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/debroussaillage-paca/',

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Fuite d\'Eau Urgence Marseille : Détection, dégât des eaux 24h/7j | VITFIX',
+  title: 'Fuite d\'Eau Urgence Marseille : Détection, dégât des eaux 24h/7j',
   description: 'Fuite d\'eau urgente à Marseille et PACA : plafond qui fuit, fuite cachée sous carrelage, dégât des eaux, canalisation percée. Plombier urgence 24h/24, 7j/7. Devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/fuite-eau-urgence/',
