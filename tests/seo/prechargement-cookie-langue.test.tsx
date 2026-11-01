@@ -131,23 +131,30 @@ describe('middleware : navigation de document inchangée', () => {
 })
 
 function lienRendu(langue: Locale, href: string, props: Partial<React.ComponentProps<typeof LocaleLink>> = {}) {
-  const { container, unmount } = render(
-    <LanguageProvider initialLocale={langue}>
-      <LocaleLink href={href} {...props}>lien</LocaleLink>
-    </LanguageProvider>,
-  )
-  const a = container.querySelector('a')
-  // Clic sans navigation (jsdom ne navigue pas) : seul l'appel du gestionnaire transmis compte.
-  a?.addEventListener('click', (evenement) => evenement.preventDefault())
-  if (a) fireEvent.click(a)
-  const rendu = {
-    href: a?.getAttribute('href'),
-    nextLink: a?.hasAttribute('data-next-link') ?? false,
-    prefetch: a?.getAttribute('data-prefetch') ?? null,
-    classe: a?.getAttribute('class') ?? null,
+  // Une prop de next/link transmise au <a> (prefetch, replace, scroll…) déclenche un avertissement de React.
+  const erreursConsole = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  try {
+    const { container, unmount } = render(
+      <LanguageProvider initialLocale={langue}>
+        <LocaleLink href={href} {...props}>lien</LocaleLink>
+      </LanguageProvider>,
+    )
+    const a = container.querySelector('a')
+    // Clic sans navigation (jsdom ne navigue pas) : seul l'appel du gestionnaire transmis compte.
+    a?.addEventListener('click', (evenement) => evenement.preventDefault())
+    if (a) fireEvent.click(a)
+    const rendu = {
+      href: a?.getAttribute('href'),
+      nextLink: a?.hasAttribute('data-next-link') ?? false,
+      prefetch: a?.getAttribute('data-prefetch') ?? null,
+      classe: a?.getAttribute('class') ?? null,
+    }
+    unmount()
+    expect(erreursConsole.mock.calls.map((appel) => String(appel[0]))).toEqual([])
+    return rendu
+  } finally {
+    erreursConsole.mockRestore()
   }
-  unmount()
-  return rendu
 }
 
 describe('LocaleLink : simple <a> vers une autre langue', () => {
@@ -159,6 +166,8 @@ describe('LocaleLink : simple <a> vers une autre langue', () => {
     ['pt', '/fr/recherche', '/fr/recherche/'],
     ['nl', '/fr/recherche?cat=plombier#liste', '/fr/recherche/?cat=plombier#liste'],
     ['en', '/pt/#how', '/pt/#how'],
+    // Chemin de fichier : pas de barre finale, comme next/link.
+    ['en', '/pt/sitemap.xml', '/pt/sitemap.xml'],
   ] as const)('page %s, lien %s : <a href="%s">, sans next/link', (langue, href, attendu) => {
     expect(lienRendu(langue, href)).toEqual({ href: attendu, nextLink: false, prefetch: null, classe: null })
   })

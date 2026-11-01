@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 }
 
 export default function ConfidentialitePage() {
-  return <PolitiqueConfidentialite avecSousTraitantsIa />
+  return <PolitiqueConfidentialite />
 }

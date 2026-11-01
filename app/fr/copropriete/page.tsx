@@ -4,7 +4,7 @@ import { FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Services Copropriété Marseille : Nettoyage, Espaces Verts, Plomberie | VITFIX',
+  title: 'Services Copropriété Marseille : Nettoyage, Espaces Verts, Plomberie',
   description: 'Services pour copropriétés à Marseille : nettoyage parties communes, enlèvement encombrants, entretien espaces verts, plomberie immeuble. Devis gratuit, facturation syndic.',
   alternates: {
     canonical: 'https://vitfix.io/fr/copropriete/',

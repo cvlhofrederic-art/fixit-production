@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { FR_SERVICES, FR_CITIES } from '@/lib/data/fr-seo-pages-data'
 
 export const metadata: Metadata = {
-  title: 'Services artisans Marseille : Plombier, Électricien, Peintre | VITFIX',
+  title: 'Services artisans Marseille : Plombier, Électricien, Peintre',
   description: 'Tous les services d\'artisans à Marseille et dans les Bouches-du-Rhône : plombier, électricien, peintre, plaquiste. Professionnels vérifiés, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/services/',

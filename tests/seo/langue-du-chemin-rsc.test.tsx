@@ -27,11 +27,18 @@ vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({ auth: { getUser: async () => ({ data: { user: null } }) } }),
 }))
 
+// Gestion d'un appel d'offres : seule la langue choisie par la page compte ici.
+vi.mock('@/app/fr/marches/gerer/GererMarcheClient', () => ({
+  default: ({ isPt }: { isPt: boolean }) => <p data-is-pt={String(isPt)}>gestion</p>,
+}))
+
 import { middleware } from '@/middleware'
 import TermosPage from '@/app/pt/termos/page'
 import CGUPage from '@/app/fr/cgu/page'
 import ProTarifsPage from '@/app/(commun)/pro/tarifs/page'
 import ProFAQPage from '@/app/(commun)/pro/faq/page'
+import PageIntrouvableCommune from '@/app/(commun)/not-found'
+import GererMarchePage from '@/app/fr/marches/gerer/page'
 import { generateMetadata as metadonneesPublier } from '@/app/fr/marches/publier/page'
 
 /** fetch() RSC d'une navigation côté client, tel que le middleware le reçoit, avec le cookie de langue donné. */
@@ -86,8 +93,23 @@ describe('navigation côté client vers une page d’une autre langue que le coo
     etat.cookie = 'pt'
     etat.enTete = 'fr'
     const metadonnees = await metadonneesPublier()
-    expect(metadonnees.title).toBe('Publier un appel d\'offres | VITFIX')
+    // Sans la marque, que le gabarit « %s | VITFIX » ajoute (#630).
+    expect(metadonnees.title).toBe('Publier un appel d\'offres')
     expect(metadonnees.alternates?.canonical).toBe('https://vitfix.io/fr/marches/publier/')
+  })
+
+  it('404 d’une page commune sous /pt/ avec le cookie fr : texte portugais', async () => {
+    etat.cookie = 'fr'
+    etat.enTete = 'pt'
+    expect(await titre(PageIntrouvableCommune)).toBe('Página não encontrada')
+  })
+
+  it('/fr/marches/gerer/ avec le cookie pt : interface française', async () => {
+    etat.cookie = 'pt'
+    etat.enTete = 'fr'
+    const { container, unmount } = render(await GererMarchePage())
+    expect(container.querySelector('[data-is-pt]')?.getAttribute('data-is-pt')).toBe('false')
+    unmount()
   })
 })
 

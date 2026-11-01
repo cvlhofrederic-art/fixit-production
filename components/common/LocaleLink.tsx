@@ -60,9 +60,14 @@ export default function LocaleLink({ href, locale: explicitLocale, children, ...
   )
 }
 
-/** trailingSlash: true (next.config.ts) : barre finale avant ? et #, comme next/link (et lib/i18n/context.tsx). */
+/**
+ * trailingSlash: true (next.config.ts) : même normalisation que next/link (next/dist/client/normalize-trailing-slash) :
+ * barre finale avant ? et #, sauf sur un chemin de fichier (/pt/sitemap.xml), dont elle est retirée.
+ */
 function avecBarreFinale(href: string): string {
   const coupure = href.search(/[?#]/)
   const chemin = coupure === -1 ? href : href.slice(0, coupure)
-  return chemin.endsWith('/') ? href : `${chemin}/${href.slice(chemin.length)}`
+  const suite = href.slice(chemin.length)
+  if (/\.[^/]+\/?$/.test(chemin)) return `${chemin.replace(/\/$/, '') || '/'}${suite}`
+  return chemin.endsWith('/') ? href : `${chemin}/${suite}`
 }

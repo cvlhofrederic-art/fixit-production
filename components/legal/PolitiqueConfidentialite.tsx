@@ -1,9 +1,9 @@
 // Politique de confidentialité, commune à /fr/confidentialite/ (app/(commun)/confidentialite) et à /pt/privacidade/ :
-// textes de locales/*.json dans la langue de la requête (getServerTranslation lit le cookie locale). Seule la page FR
-// liste les sous-traitants d'IA (Groq, Tavily, OpenRouter).
+// textes de locales/*.json dans la langue de la requête (getServerTranslation lit le cookie locale). Les deux pages
+// listent les mêmes sous-traitants, dont ceux des agents d'IA (Groq, Tavily, OpenRouter).
 import { getServerTranslation } from '@/lib/i18n/server'
 
-export default async function PolitiqueConfidentialite({ avecSousTraitantsIa = false }: Readonly<{ avecSousTraitantsIa?: boolean }>) {
+export default async function PolitiqueConfidentialite() {
   const { t } = await getServerTranslation()
 
   return (
@@ -42,7 +42,7 @@ export default async function PolitiqueConfidentialite({ avecSousTraitantsIa = f
               {t('privacy.protection.subProcessorsIntro')}
             </p>
             <ul className="list-disc list-inside text-gray-600 space-y-1">
-              <li>{t('privacy.protection.subProcessorVercel')}</li>
+              <li>{t('privacy.protection.subProcessorCloudflare')}</li>
               <li>{t('privacy.protection.subProcessorSupabase')}</li>
               <li>{t('privacy.protection.subProcessorStripe')}</li>
               <li>{t('privacy.protection.subProcessorSentry')}</li>
@@ -50,13 +50,9 @@ export default async function PolitiqueConfidentialite({ avecSousTraitantsIa = f
               <li>{t('privacy.protection.subProcessorUpstash')}</li>
               <li>{t('privacy.protection.subProcessorLangfuse')}</li>
               <li>{t('privacy.protection.subProcessorDocuseal')}</li>
-              {avecSousTraitantsIa && (
-                <>
-                  <li>{t('privacy.protection.subProcessorGroq')}</li>
-                  <li>{t('privacy.protection.subProcessorTavily')}</li>
-                  <li>{t('privacy.protection.subProcessorOpenrouter')}</li>
-                </>
-              )}
+              <li>{t('privacy.protection.subProcessorGroq')}</li>
+              <li>{t('privacy.protection.subProcessorTavily')}</li>
+              <li>{t('privacy.protection.subProcessorOpenrouter')}</li>
             </ul>
           </section>
 
