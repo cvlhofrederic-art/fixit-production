@@ -28,7 +28,9 @@ function getCanonicalPath(slug: string | null, id: string, isPT: boolean): strin
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const fallback: Metadata = { title: 'Artisan', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
+  // `alternates: {}` : sans clé alternates, la page hériterait des hreflang du layout FR (accueils, x-default vers /).
+  // Pas de canonical bâtie sur l'identifiant de la route : seule une fiche lue en porte une.
+  const fallback: Metadata = { title: 'Artisan', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.', alternates: {} }
 
   let lecture: LectureProfil<ArtisanMeta>
 
@@ -49,6 +51,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       description: 'Cet artisan n\'existe pas ou a été supprimé.',
       // Profil inexistant : la page client répond 200 avec « Artisan non trouvé » (soft 404), jamais indexée.
       ...(lecture.statut === 'absent' ? { robots: { index: false, follow: false } } : {}),
+      // Ni hreflang hérité du layout FR, ni canonical bâtie sur l'identifiant (voir le repli ci-dessus).
+      alternates: {},
     }
   }
 

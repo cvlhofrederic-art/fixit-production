@@ -39,14 +39,22 @@ export async function fetchArtisanProfile<T>(id: string, fields: string, origine
   return rows[0] ? { statut: 'trouve', profil: rows[0] } : { statut: 'absent' }
 }
 
-// Vrai seulement si Supabase répond sans ligne pour ce slug ou cet UUID : la fiche n'existe pas. Une panne, une réponse
-// en erreur ou une configuration absente ne concluent rien (faux), la fiche est alors rendue comme avant. Une seule
-// lecture par requête (cache de React), partagée par generateMetadata et la page.
-export const ficheAbsente = cache(async (id: string, origine: string): Promise<boolean> => {
+// Ce qu'il faut pour situer une fiche : son adresse publique (getProfilePath : langue, slug ou id, forme juridique).
+export type FichePublique = { id: string; slug: string | null; language: string | null; legal_form: string | null }
+
+// Une seule lecture par requête (cache de React), partagée par generateMetadata et la page : existence de la fiche et
+// adresse publique. Une exception (réseau, délai dépassé) est journalisée et vaut une lecture « indisponible ».
+export const lireFichePublique = cache(async (id: string, origine: string): Promise<LectureProfil<FichePublique>> => {
   try {
-    return (await fetchArtisanProfile<{ id: string }>(id, 'id', origine)).statut === 'absent'
+    return await fetchArtisanProfile<FichePublique>(id, 'id,slug,language,legal_form', origine)
   } catch (error) {
     logger.warn(`[${origine}] existence de la fiche illisible`, { id, error: String(error) })
-    return false
+    return { statut: 'indisponible' }
   }
 })
+
+// Vrai seulement si Supabase répond sans ligne pour ce slug ou cet UUID : la fiche n'existe pas. Une panne, une réponse
+// en erreur ou une configuration absente ne concluent rien (faux), la fiche est alors rendue comme avant.
+export async function ficheAbsente(id: string, origine: string): Promise<boolean> {
+  return (await lireFichePublique(id, origine)).statut === 'absent'
+}

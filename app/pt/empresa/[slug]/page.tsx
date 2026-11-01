@@ -8,7 +8,9 @@ export async function generateMetadata(props: ParamsFicheSociete): Promise<Metad
     title: 'Empresa',
     robots: { index: true, follow: true },
     // Canonical self-référente, sans hreflang (phase 1 SEO PT, point 1.5) : /fr/artisan/<slug>/
-    // n'émet aucun alternate retour, la paire ne serait pas réciproque.
+    // n'émet aucun alternate retour, la paire ne serait pas réciproque. Repli quand la fiche n'a pas pu être lue ;
+    // fiche lue : metadonneesFicheSociete pointe la canonical vers son adresse publique (getProfilePath) et met en
+    // noindex une fiche qui n'est pas une société (/pt/profissional/).
     alternates: {
       canonical: `https://vitfix.io/pt/empresa/${slug}/`,
     },

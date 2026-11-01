@@ -379,11 +379,13 @@ describe('1.4 / 1.5 métadonnées exportées par les routes de la grille et les 
   })
 
   it('/pt/empresa/<slug>/ (fiche existante) : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
-    // La route lit l'existence de la fiche en base (slug inconnu : 404) : Supabase simulé, fiche trouvée. Sans ce double,
-    // le cas ne passait que parce que le job Vitest n'a pas de variables Supabase (lecture « indisponible »).
+    // La route lit la fiche en base (slug inconnu : 404 ; canonical vers son adresse publique) : Supabase simulé, société
+    // PT trouvée. Sans ce double, le cas ne passait que parce que le job Vitest n'a pas de variables Supabase (lecture
+    // « indisponible »).
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://exemple.supabase.co')
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
-    const lecture = vi.fn(async () => ({ ok: true, status: 200, json: async () => [{ id: '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b' }] }))
+    const societePt = { id: '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b', slug: 'exemplo', language: 'pt', legal_form: 'Lda' }
+    const lecture = vi.fn(async () => ({ ok: true, status: 200, json: async () => [societePt] }))
     vi.stubGlobal('fetch', lecture)
     try {
       const { generateMetadata } = await import('@/app/pt/empresa/[slug]/page')
