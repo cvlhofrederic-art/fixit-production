@@ -94,7 +94,7 @@ describe('POST /api/auth/create-profile — spécialités BTP', () => {
   it("n'envoie pas specialty_slugs dans la fiche profiles_artisan", async () => {
     const { POST } = await import('@/app/api/auth/create-profile/route')
     await POST(requete({ user_id: USER_ID, company_name: 'X', specialty_slugs: ['gros-oeuvre'] }) as never)
-    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X' })
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
 
   it('complète les spécialités même si la fiche existe déjà', async () => {
@@ -227,6 +227,7 @@ describe('POST /api/auth/create-profile — inscription artisan sans session', (
       user_id: USER_ID,
       company_name: 'Eletricidade Silva',
       siret: '501964843',
+      verified: false,
       kyc_status: 'pending',
       kyc_market: 'pt_artisan',
       language: 'pt',
@@ -238,5 +239,22 @@ describe('POST /api/auth/create-profile — inscription artisan sans session', (
       { onConflict: 'user_id,specialty_id', ignoreDuplicates: true },
     )
     expect(mocks.teamUpsert).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/auth/create-profile — champs fixés par le serveur', () => {
+  it('ignore verified et kyc_status envoyés par le client (route sans session)', async () => {
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    const res = await POST(requete({ user_id: USER_ID, company_name: 'Faux artisan', verified: true, kyc_status: 'approved' }) as never)
+
+    expect(res.status).toBe(200)
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'Faux artisan', verified: false, kyc_status: 'pending' })
+  })
+
+  it('ignore un marché KYC inconnu', async () => {
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    await POST(requete({ user_id: USER_ID, company_name: 'X', kyc_market: 'marche_sans_controle' }) as never)
+
+    expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
 })

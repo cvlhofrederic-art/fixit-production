@@ -1,4 +1,5 @@
 import { ImageResponse } from 'next/og'
+import { chargerPoliceOg } from '@/lib/seo/og-polices'
 
 // Génération dynamique des images Open Graph (1200×630) — aperçus WhatsApp / réseaux.
 // Style aligné sur la VRAIE landing page (fond blanc, logo VIT jaune + FIX noir,
@@ -6,7 +7,8 @@ import { ImageResponse } from 'next/og'
 // propre titre/sous-titre/langue → image unique par page (méthode pro, cf. audit SEO-08).
 //
 // Params : ?title=...&subtitle=...&eyebrow=...&locale=pt|fr|en
-// Polices Montserrat servies depuis /public/fonts (fetch origine, fallback police par défaut).
+// Polices Montserrat servies depuis /public/fonts via lib/seo/og-polices.ts (origine constante,
+// liste fermée de fichiers, fallback police par défaut).
 
 const YELLOW = '#FFD600'
 const INK = '#0D0D0D'
@@ -58,7 +60,7 @@ function Check({ size = 22 }: { size?: number }) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const locale = (searchParams.get('locale') || 'fr').toLowerCase()
   const L = LOCALES[locale] || LOCALES.fr
   const title = (searchParams.get('title') || L.defTitle).slice(0, 90)
@@ -67,15 +69,11 @@ export async function GET(request: Request) {
   const titleSize = title.length > 46 ? 44 : title.length > 30 ? 50 : 56
 
   // Polices Montserrat en WOFF (extensions exclues du middleware locale, cf. matcher).
-  // Fetch origine + vérif res.ok ; fallback police par défaut si indispo (jamais de 500).
-  const loadFont = async (file: string) => {
-    const r = await fetch(`${origin}/fonts/${file}`)
-    if (!r.ok) throw new Error(`font ${file} ${r.status}`)
-    return r.arrayBuffer()
-  }
+  // Origine constante et fichiers en liste fermée (jamais dérivés de la requête : SSRF) ;
+  // vérif res.ok ; fallback police par défaut si indispo (jamais de 500).
   let fonts: { name: string; data: ArrayBuffer; weight: 500 | 900; style: 'normal' }[] | undefined
   try {
-    const [black, medium] = await Promise.all([loadFont('Montserrat-900.woff'), loadFont('Montserrat-500.woff')])
+    const [black, medium] = await Promise.all([chargerPoliceOg('black'), chargerPoliceOg('medium')])
     fonts = [
       { name: 'Montserrat', data: black, weight: 900, style: 'normal' },
       { name: 'Montserrat', data: medium, weight: 500, style: 'normal' },

@@ -28,19 +28,24 @@ on:
       - "lib/administrateur-judiciaire/ia/**"
       - "app/api/administrateur-judiciaire/**"
 
-permissions:
-  contents: read
-  pull-requests: write
+# Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : le job
+# déclare le strict nécessaire.
+permissions: {}
 
 jobs:
   deepeval:
     name: "DeepEval — Régression prompts"
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write  # rapport posté en commentaire de PR
 
     steps:
       - name: Checkout du code
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Configurer Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -48,14 +53,19 @@ jobs:
           python-version: "3.11"
 
       - name: Installer DeepEval
-        run: pip install deepeval
+        # Version épinglée (lot 6 Aikido) : celle que `pip install deepeval` résolvait au 28/10/2026.
+        run: pip install deepeval==4.3.2
 
       - name: Vérifier la disponibilité de la clé API
         id: check-key
+        env:
+          # Secrets lus depuis l'environnement, jamais interpolés dans run:.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+          if [ -n "$OPENAI_API_KEY" ]; then
             echo "has_key=true" >> "$GITHUB_OUTPUT"
-          elif [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
+          elif [ -n "$ANTHROPIC_API_KEY" ]; then
             echo "has_key=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_key=false" >> "$GITHUB_OUTPUT"

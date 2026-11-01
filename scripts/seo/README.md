@@ -20,6 +20,8 @@ Mesures de contenu (méthode du rapport, section 11) : séquences glissantes de 
 
 Options : `--base` (défaut `https://vitfix.io`), `--out`, `--concurrence` (8), `--echantillon N` (N URL par groupe, pour un passage rapide), `--git`, `--date`.
 
+Les fichiers lus par les scripts (`--csv`, et pour `pt-tests.mjs` `--reference`, `--audit`, `--redirections`, `--porte`, `--lot` ; chemin relatif à la racine du dépôt, ou absolu) doivent être dans le dépôt ou dans le dossier `--out` (`fabriquerAbsolu` de `pt-audit/lib/chemins.mjs`, bâti sur `scripts/lib/safe-fs-path.mjs`) : un CSV téléchargé ailleurs se copie dans `data/seo/` avant l'audit, et un audit écrit avec `--out /tmp/seo` se relit avec `--audit /tmp/seo/pt-audit-{date}.json --out /tmp/seo`. Tout autre chemin arrête le script avec un message qui nomme l'option, le chemin et les dossiers autorisés. `--out` lui-même, dossier seulement écrit, peut viser l'extérieur du dépôt.
+
 Limites : analyse HTML par expressions régulières (suffisant pour le HTML généré par Next.js) ; le graphe ne connaît que les pages auditées comme sources ; `derniere_modif_reelle` est la date du dernier commit des fichiers qui produisent la page (`lib/data/seo-pages-data.ts` et la route), pas la date de modification de la seule entrée concernée.
 
 ## Tests T1 à T12 : `pt-tests.mjs`

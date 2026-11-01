@@ -13,7 +13,7 @@ Mobile : Capacitor 8.1 (`com.fixit.artisan`). Observabilité : Sentry 10 · Lang
 
 ## Règles projet (.claude/rules/) — lire avant de coder
 Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel.
-- **`artisan-vs-btp.md` — RÈGLE #1.** AVANT toute modif touchant devis, factures, `app/pro/`, `lib/pdf/`.
+- **`artisan-vs-btp.md` — RÈGLE #1.** AVANT toute modif touchant devis, factures, `app/(commun)/pro/`, `lib/pdf/`.
 - `ai-agents.md` — AVANT toute modif d'un agent Groq ou de la voix.
 - `testing.md` — AVANT d'écrire ou modifier un test.
 - `github-actions.md` — AVANT de toucher un workflow CI.
@@ -30,14 +30,32 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 
 ## Architecture (structure — chiffres et tailles : voir claude-mem)
 - `app/api/` → routes (auth, agents IA, stripe, kbis, simulateur…)
-- `app/pro/` → dashboard partagé artisan + pro_societe (BTP) — séparation par `orgRole`
-- `app/{fr,pt,en,es,nl}/` → locales SEO publiques
-- `app/{client,artisan}/` → landings pubs
-- `app/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans
+- `app/{fr,pt,en,es,nl}/` → locales SEO publiques. Pas de `app/layout.tsx` : chaque dossier de langue a son layout racine
+  statique (`<html lang>` fixé par le dossier, jamais de `cookies()`/`headers()`), la coquille HTML commune est
+  `components/common/CoquilleRacine.tsx` (entité `#business` unique) et ses métadonnées `lib/seo/metadonnees-racine.ts` ;
+  les pages SEO (servicos, precos, perto-de-mim, blog, cidade, services, ville, urgence…) sont pré-rendues au build
+  et servies telles quelles par le Worker : cache incrémental OpenNext en assets statiques, en lecture seule
+  (`open-next.config.ts`, copie de `.open-next/cache` dans `deploy-cloudflare.yml`). Donc pas de `revalidate` (une mise à
+  jour = un déploiement) ; une page qui lit l'URL (`useSearchParams`) ou la date au rendu garde
+  `export const dynamic = 'force-dynamic'`. Plusieurs layouts racine : passer d'une section à l'autre (ex. `/pt/…` vers
+  `/pt/contacto/` ou `/fr/…`) recharge la page. Ne pas ajouter de `app/layout.tsx`, même sans `<html>` : la 404 globale
+  resterait affichée après un clic, et Providers serait remonté à chaque changement de section.
+  Gardes : `tests/seo/layouts-racine-statiques.test.tsx`, et `scripts/seo/verifier-prerendu.mjs` après le build (CI et
+  déploiement : chaque page de section au prerender-manifest, sauf la liste nommée `RENDUES_A_LA_DEMANDE` ; planchers par
+  section, pages témoins). `getServerTranslation()` lit `cookies()` : une page qui l'appelle est rendue à la demande.
+- `app/(commun)/` → pages communes à toutes les langues, servies par réécriture `/fr/…` et `/pt/…` (next.config.ts) sous un
+  layout racine dynamique (locale par l'en-tête `x-locale` du middleware). `app/global-not-found.tsx`
+  (`experimental.globalNotFound`) rend la 404 de toute URL sans route ; jamais de route fourre-tout (une page qui lève
+  `notFound()` ne rend côté serveur qu'une coquille `__next_error__` vide). Toute nouvelle page sans langue dans
+  l'URL va dans ce groupe : hors section, `next build` échoue (« doesn't have a root layout ») et `next dev` crée un
+  layout minimal à côté de la page, à supprimer.
+- `app/(commun)/pro/` → dashboard partagé artisan + pro_societe (BTP) — séparation par `orgRole`
+- `app/(commun)/{client,artisan}/` → landings pubs
+- `app/(commun)/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans
   `components/coproprietaire-dashboard/ecrans/`, données réelles du syndic via `GET /api/coproprietaire/espace`
   (`lib/coproprietaire/` : accès par fiche `syndic_coproprios`, filtrage de ce qu'un copropriétaire peut voir),
   démonstration `lib/coproprietaire/demo.ts`. Spécification : `components/coproprietaire-dashboard/SPECIFICATION-ECRANS.md`.
-- `app/coproprietaire/portail` (portail léger sans compte) et `app/syndic/` (hors v54) → code conservé, ne pas y toucher
+- `app/(commun)/coproprietaire/portail` (portail léger sans compte) et `app/(commun)/syndic/` (hors v54) → code conservé, ne pas y toucher
 - `components/dashboard/` → composants `*Section.tsx`
 - `lib/` → logger, validation, types, groq, circuit-breaker, rate-limit, pdf/
 - `supabase/` → migrations + RLS policies
@@ -50,12 +68,12 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 
 ## SEO (règles techniques — FR et PT)
 - Schema FR : `HomeAndConstructionBusiness` + `AggregateRating` + `BreadcrumbList` + `FAQPage`.
-- Schema PT (phase 1 du plan SEO PT, 13/10/2026) : une seule entité `#business` (`app/layout.tsx`, adresse réelle dans `lib/seo/entite-pt.ts`) ; page métier x ville = `Service` (provider `#business`, `areaServed` = la ville) + `BreadcrumbList` (`lib/seo/pt-schemas.ts`). Jamais de `LocalBusiness` par ville, de `FAQPage`, de `HowTo`, d'avis auto-attribués ni d'`Offer` sans prix réel visible.
+- Schema PT (phase 1 du plan SEO PT, 13/10/2026) : une seule entité `#business` (`components/common/CoquilleRacine.tsx`, rendue par chaque layout racine ; adresse réelle dans `lib/seo/entite-pt.ts`) ; page métier x ville = `Service` (provider `#business`, `areaServed` = la ville) + `BreadcrumbList` (`lib/seo/pt-schemas.ts`). Jamais de `LocalBusiness` par ville, de `FAQPage`, de `HowTo`, d'avis auto-attribués ni d'`Offer` sans prix réel visible.
 - Title : la marque une seule fois. PT : titre de page sans marque, ajoutée par le template `%s | VITFIX` de `app/pt/layout.tsx`, 65 caractères max marque comprise (`lib/seo/pt-meta.ts`). FR : 50-60 caractères. Description 120-155 (PT) · 150-160 (FR) · un seul H1 · canonical vers vitfix.io.
 - hreflang PT : seulement vers une page FR réellement équivalente et réciproque ; `x-default` sur `/fr/…`, jamais sur `/` (302). Aucun hreflang sur la grille métier x ville.
 - Sitemaps PT : `/pt/sitemap-{servicos,hubs,cidades,blog,paginas}.xml` (`lib/sitemap-pt-pages.ts`), index `/pt/sitemap.xml` ; une URL dans un seul fichier, `lastmod` réel (`lib/seo/pt-datas.ts`).
 - Grille PT (phase 2, 13/10/2026) : une seule URL par couple métier x ville, `/pt/servicos/{metier}-{ville}/` ; `/pt/urgencia/{metier}-urgente-{ville}/` et `/pt/perto-de-mim/{metier}-{ville}/` répondent 301 (`middleware.ts` via `lib/seo/pt-consolidacao.ts`, table `data/seo/pt-redirects.csv`) ; les 21 hubs `/pt/perto-de-mim/{metier}/` restent. Ne jamais recréer ces modèles.
-- Plan de réindexation PT : `docs/seo/pt-inventaire.md`, journal `docs/seo/journal-pt.md`, tests `scripts/seo/pt-tests.mjs`. Gel A0 : aucune nouvelle page PT métier x ville avant la fin de la phase 3, sauf les trois pages de district autorisées par Frédéric le 20/10/2026 (`/pt/servicos/limpeza-de-telhados/`, `/pt/servicos/renovacao-de-fachadas/` et `/pt/servicos/trabalhos-verticais/` : `lib/data/pt-servicos-distrito.ts`, une page par service pour tout le distrito do Porto, jamais de série par concelho ; chaque page a sa date de contenu et sa date de liens `dataLigacoes`, une page qui lie plusieurs pages de district prend la plus récente ; une page concelho `/pt/servicos/{service}-{concelho}/` ne s'ouvre que sur chantiers réels documentés dans `data/seo/local-proof.json`, voir `concelhoDocumentado`). Exception demandée par Frédéric le 21/10/2026 : pages de service du concelho d'Águeda (`lib/data/pt-servicos-concelho.ts` : `/pt/servicos/limpeza-de-terrenos-agueda/`, `/pt/servicos/terraplanagem-agueda/`), zone desservie = tout le concelho ; une page par service, les freguesias en sections de la page, jamais une page par freguesia. Ce ne sont pas des pages concelho d'un service de district : c'est la page unique de chacun de ces services, dont la zone est le concelho. Frédéric a décidé le 22/10/2026 de les ouvrir sans chantier documenté ; les chantiers réels s'ajoutent ensuite dans `data/seo/local-proof.json` (clé = slug de la page) et s'affichent sans autre changement.
+- Plan de réindexation PT : `docs/seo/pt-inventaire.md`, journal `docs/seo/journal-pt.md`, tests `scripts/seo/pt-tests.mjs`. Gel A0 : aucune nouvelle page PT métier x ville avant la fin de la phase 3, sauf les trois pages de district autorisées par Frédéric le 20/10/2026 (`/pt/servicos/limpeza-de-telhados/`, `/pt/servicos/renovacao-de-fachadas/` et `/pt/servicos/trabalhos-verticais/` : `lib/data/pt-servicos-distrito.ts`, une page par service pour toute la zone de l'équipe, champ `distritos` : distritos do Porto, Braga e Aveiro depuis le 28/10/2026, zone dite en clair sans liste de concelhos, jamais de série par concelho ; chaque page a sa date de contenu et sa date de liens `dataLigacoes`, une page qui lie plusieurs pages de district prend la plus récente ; une page concelho `/pt/servicos/{service}-{concelho}/` ne s'ouvre que sur chantiers réels documentés dans `data/seo/local-proof.json`, voir `concelhoDocumentado`). Exception demandée par Frédéric le 21/10/2026 : pages de service du concelho d'Águeda (`lib/data/pt-servicos-concelho.ts` : `/pt/servicos/limpeza-de-terrenos-agueda/`, `/pt/servicos/terraplanagem-agueda/`), zone desservie = tout le concelho ; une page par service, les freguesias en sections de la page, jamais une page par freguesia. Ce ne sont pas des pages concelho d'un service de district : c'est la page unique de chacun de ces services, dont la zone est le concelho. Frédéric a décidé le 22/10/2026 de les ouvrir sans chantier documenté ; les chantiers réels s'ajoutent ensuite dans `data/seo/local-proof.json` (clé = slug de la page) et s'affichent sans autre changement.
 - Vérifier l'existant avant de créer une page — jamais de duplicata.
 - Contexte marché PT (langue, villes, ton) : `seo-portugal/CLAUDE.md`.
 

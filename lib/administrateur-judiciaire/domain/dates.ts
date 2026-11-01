@@ -98,6 +98,48 @@ export function ecartJours(depuis: string, jusqua: string): number {
   return Math.round((dateIsoVersUtcMs(jusqua) - dateIsoVersUtcMs(depuis)) / MS_PAR_JOUR)
 }
 
+/** En deçà, une année est une faute de frappe (Gestéam accepte « 1026 » comme « 2525 »). */
+export const ANNEE_PLANCHER = 1900
+
+/** Une date fixée à l'avance (audience, rendez-vous d'expertise) au-delà de ce nombre d'années est improbable. */
+export const ANNEES_A_VENIR_MAX = 3
+
+export type PlausibiliteDate = 'future' | 'trop_lointaine' | 'annee_improbable'
+
+/** Lève une erreur si la date du jour n'est pas une date ISO valide. */
+export function verifierAujourdhui(aujourdhui: string): void {
+  if (!estDateIsoValide(aujourdhui)) throw new Error(`Date du jour invalide (aujourd'hui : ${aujourdhui}) : AAAA-MM-JJ attendu.`)
+}
+
+/**
+ * Anomalie d'une date par rapport à `aujourdhui`, ou null : année antérieure à ANNEE_PLANCHER ; fait accompli
+ * (`futurAdmis: false`) daté après aujourd'hui ; date fixée à l'avance au-delà de ANNEES_A_VENIR_MAX ans.
+ */
+export function plausibiliteDate(
+  dateIso: string,
+  aujourdhui: string,
+  options: { futurAdmis: boolean },
+): PlausibiliteDate | null {
+  verifierAujourdhui(aujourdhui)
+  if (!estDateIsoValide(dateIso)) throw new Error(`Date invalide (${dateIso}) : AAAA-MM-JJ attendu.`)
+  if (decomposerDateIso(dateIso).a < ANNEE_PLANCHER) return 'annee_improbable'
+  if (dateIso <= aujourdhui) return null
+  if (!options.futurAdmis) return 'future'
+  return dateIso > ajouterMois(aujourdhui, 12 * ANNEES_A_VENIR_MAX) ? 'trop_lointaine' : null
+}
+
+/**
+ * Message d'une anomalie de plausibilité ; `datee` porte l'accord du libellé (« Jugement daté », « Audience datée »).
+ * L'année s'écrit sur 4 chiffres (« 08/10/0026 ») pour que la faute de frappe se voie.
+ */
+export function messagePlausibilite(datee: string, dateIso: string, nature: PlausibiliteDate): string {
+  const { a, m, j } = decomposerDateIso(dateIso)
+  const quand = `${datee} du ${String(j).padStart(2, '0')}/${String(m).padStart(2, '0')}/${String(a).padStart(4, '0')}`
+  if (nature === 'future') return `${quand}, après aujourd'hui.`
+  if (nature === 'trop_lointaine') return `${quand} : plus de ${ANNEES_A_VENIR_MAX} ans à venir, date improbable.`
+  return `${quand} : année improbable (faute de frappe ?).`
+}
+
 /** 0 = dimanche … 6 = samedi. */
 export function jourSemaine(dateIso: string): number {
   return new Date(dateIsoVersUtcMs(dateIso)).getUTCDay()

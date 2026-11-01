@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { safeMarkdownToHTML } from '@/lib/sanitize'
+import { assainirHtml } from '@/lib/security/assainir-html'
 import { AlfredoAvatar } from '@/components/common/RobotAvatars'
 import { useLocale } from '@/lib/i18n/context'
 import ConversationSidebar from '../ConversationSidebar'
@@ -237,7 +238,7 @@ export default function AlfredoAgentPage({ user: _user }: { user: UserWithProfil
                       {msg.role === 'user' ? '👤' : <AlfredoAvatar size={20} />}
                     </div>
                     <div className={`max-w-2xl rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-[#0D1B2E] text-white rounded-tr-sm' : 'bg-[#F7F4EE] text-gray-800 border border-gray-200 rounded-tl-sm'}`}
-                      dangerouslySetInnerHTML={{ __html: safeMarkdownToHTML(msg.content) }}
+                      dangerouslySetInnerHTML={{ __html: assainirHtml(safeMarkdownToHTML(msg.content)) }}
                     />
                   </div>
                 ))}
