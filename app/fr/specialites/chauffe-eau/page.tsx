@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { PHONE_FR } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Remplacement Chauffe-eau Marseille : Thermodynamique, urgence 24h | VITFIX',
+  title: 'Remplacement Chauffe-eau Marseille : Thermodynamique, urgence 24h',
   description: 'Remplacement chauffe-eau en panne à Marseille et PACA sous 24h : électrique, thermodynamique, gaz. Éligible MaPrimeRénov. Plombier certifié, devis gratuit.',
   alternates: {
     canonical: 'https://vitfix.io/fr/specialites/chauffe-eau/',

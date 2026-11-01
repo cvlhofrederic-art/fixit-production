@@ -1,7 +1,7 @@
 // tests/components/reservation-fiche-artisan.test.ts
 //
-// Fiche artisan (app/fr/artisan/[id]/page.tsx, réexportée par /fr/societe/[slug], /pt/empresa/[slug] et
-// /pt/profissional/[id]) : après une réservation réussie, le bouton reste désactivé. /confirmation/ est servie par
+// Fiche artisan (app/fr/artisan/[id]/page.tsx, réexportée par /pt/profissional/[id] et rendue par /fr/societe/[slug] et
+// /pt/empresa/[slug]) : après une réservation réussie, le bouton reste désactivé. /confirmation/ est servie par
 // app/(commun), sous un autre layout racine : Next attend la réponse du serveur avant de recharger la page, et un bouton
 // réactivé laissait un second clic créer une seconde réservation (l'API n'a pas de contrôle de doublon). La page
 // (données Supabase, étapes du formulaire) n'est pas montée ici : le test lit le chemin de succès de submitBooking.

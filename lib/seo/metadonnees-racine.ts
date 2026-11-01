@@ -4,7 +4,8 @@ import type { Locale } from '@/lib/i18n/config'
 /**
  * Métadonnées de l'ancien layout racine unique (app/layout.tsx), partagées par les layouts racine :
  * - statiques, un par langue : app/{pt,fr,en,nl,es}/layout.tsx (locale fixée par le dossier) ;
- * - dynamique, pages communes servies par réécriture : app/(commun)/layout.tsx (locale lue dans le cookie).
+ * - dynamique, pages communes servies par réécriture : app/(commun)/layout.tsx (langue du chemin, en-tête x-locale,
+ *   puis cookie).
  *
  * Next fusionne les métadonnées clé par clé, de la racine vers la page ({ ...parent, ...enfant }) : un layout de
  * langue qui déclare title, description, openGraph ou alternates remplace ces clés et hérite des autres
