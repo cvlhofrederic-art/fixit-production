@@ -10,9 +10,11 @@ import { metadonneesRacine } from '@/lib/seo/metadonnees-racine'
 export const metadata: Metadata = {
   ...metadonneesRacine('fr'),
   metadataBase: new URL('https://vitfix.io'),
+  // La marque une seule fois, comme en PT : les pages donnent un titre sans marque et ce template l'ajoute ; une page
+  // dont la phrase contient déjà la marque prend un titre absolu, titreAvecMarque (garde : tests/seo/titres-marque-unique.test.ts).
   title: {
     default: 'VITFIX Marseille, Plombier, Électricien, Peintre | Devis gratuit',
-    template: '%s | VITFIX Marseille',
+    template: '%s | VITFIX',
   },
   description: 'Trouvez un artisan qualifié à Marseille et en région PACA : plombier, électricien, peintre, plaquiste. Disponibles rapidement, devis gratuit, 7j/7.',
   openGraph: {

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
 import { useLocale } from '@/lib/i18n/context'
 import { titleCaseAddress } from '@/lib/devis-utils'
+import { getProfilePath } from '@/lib/utils'
 import Link from 'next/link'
 import {
   Star,
@@ -247,7 +248,9 @@ export default function ArtisanProfilePage() {
   }, [artisan?.id])
 
   const fetchArtisan = async () => {
-    const paramId = params.id as string
+    // Segment « id » pour /fr/artisan/[id] et /pt/profissional/[id], « slug » pour /fr/societe/[slug] et
+    // /pt/empresa/[slug] (lire seulement params.id y cherchait slug=eq.undefined : fiche toujours « non trouvée »).
+    const paramId = (params.id ?? params.slug) as string
 
     // Résolution par slug OU par UUID
     // UUID = format 8-4-4-4-12 hex, sinon c'est un slug
@@ -268,20 +271,13 @@ export default function ArtisanProfilePage() {
     if (!artisanData) { setLoading(false); return }
     const artisanId = artisanData.id
 
-    // Redirection vers l'URL canonique des sociétés : /{lang}/societe|empresa/<slug>.
-    // Les sociétés (SARL, SAS, SASU, EURL, SA) sont servies sous /societe/<slug>,
-    // les artisans individuels restent sous /artisan/<slug>. Cela ne s'applique
-    // qu'aux accès par UUID : si l'utilisateur est déjà sur un slug, pas de
-    // redirection (évite les boucles entre /societe/<slug> et /artisan/<slug>).
+    // Accès par UUID : redirection vers l'adresse publique de la fiche dans la langue de la route (getProfilePath) :
+    // /fr/artisan/<slug> sous /fr/ (l'adresse du sitemap 4 pour une fiche FR), /pt/empresa/<slug> (société) ou
+    // /pt/profissional/<slug> sous /pt/ ; aucune fiche PT n'est dans un sitemap. La cible porte le slug et seul un
+    // accès par UUID est redirigé : jamais vers l'adresse courante, pas de boucle entre deux routes de fiche.
     if (typeof window !== 'undefined' && isUuid && artisanData.slug) {
-      const legalFormNorm = String(artisanData.legal_form || '').replace(/[\s.]/g, '').toLowerCase()
-      const companyForms = ['sarl', 'sas', 'sasu', 'eurl', 'sa', 'lda', 'unipessoal']
-      const isCompany = companyForms.some((f) => legalFormNorm === f || legalFormNorm.startsWith(f))
-      if (isCompany) {
-        const targetBase = locale === 'pt' ? '/pt/empresa/' : '/fr/societe/'
-        router.replace(targetBase + artisanData.slug)
-        return
-      }
+      router.replace(getProfilePath(artisanData, locale))
+      return
     }
 
     const { data: servicesData } = await supabase
