@@ -122,7 +122,7 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     lecture.reponse = { ok: true, lignes: [] }
     const metadata = await generateMetadata({ params: params('xyz-inexistant-999') })
     expect(metadata.robots).toEqual({ index: false, follow: false })
-    expect(metadata.title).toBe('Artisan non trouvé - Vitfix')
+    expect(metadata.title).toBe('Artisan non trouvé')
   })
 
   it('Supabase en erreur : on ne conclut pas à un profil inexistant (pas de noindex), erreur journalisée', async () => {
@@ -130,14 +130,14 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     lecture.reponse = { ok: false, lignes: [] }
     const enErreur = await generateMetadata({ params: params('plomberie-durand') })
     expect(enErreur.robots).toBeUndefined()
-    expect(enErreur.title).toBe('Artisan non trouvé - Vitfix')
+    expect(enErreur.title).toBe('Artisan non trouvé')
     expect(journal.warn).toHaveBeenCalledWith(expect.stringContaining('[fr/artisan]'), expect.objectContaining({ status: 503 }))
 
     journal.warn.mockClear()
     lecture.reponse = 'erreur-reseau'
     const horsLigne = await generateMetadata({ params: params('plomberie-durand') })
     expect(horsLigne.robots).toBeUndefined()
-    expect(horsLigne.title).toBe('Artisan - Vitfix')
+    expect(horsLigne.title).toBe('Artisan')
     expect(journal.warn).toHaveBeenCalledWith(
       expect.stringContaining('[fr/artisan]'),
       expect.objectContaining({ id: 'plomberie-durand', error: expect.stringContaining('fetch failed') }),

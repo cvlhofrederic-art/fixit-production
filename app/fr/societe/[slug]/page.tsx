@@ -6,7 +6,7 @@ import { metadonneesFicheSociete, rendreFicheSociete, type ParamsFicheSociete } 
 
 export async function generateMetadata(props: ParamsFicheSociete): Promise<Metadata> {
   return metadonneesFicheSociete(props, 'fr/societe', (slug) => ({
-    title: `Société | Vitfix`,
+    title: `Société`,
     robots: { index: true, follow: true },
     // Même identifiant que la route (slug ou UUID), comme la canonical que /fr/artisan/[id] donne à une fiche FR.
     alternates: {

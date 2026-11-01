@@ -46,7 +46,7 @@ const ROUTES = [
     origine: '[fr/societe]',
     // Une seule URL indexable par fiche FR : canonical vers /fr/artisan/, la page reste en index, follow.
     metadonnees: (slug: string): Metadata => ({
-      title: 'Société | Vitfix',
+      title: 'Société',
       robots: { index: true, follow: true },
       alternates: { canonical: `https://vitfix.io/fr/artisan/${slug}/` },
     }),
