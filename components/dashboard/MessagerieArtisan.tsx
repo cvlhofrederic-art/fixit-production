@@ -11,6 +11,7 @@ import { useThemeVars } from './useThemeVars'
 import CarteDocumentPro from './messagerie/CarteDocumentPro'
 import EnvoiDocumentPro from './messagerie/EnvoiDocumentPro'
 import type { DocumentEnregistre } from './messagerie/documents-enregistres'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 
 const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 const authHeader = async (): Promise<Record<string, string>> => {
@@ -540,7 +541,10 @@ export default function MessagerieArtisan({ artisan, orgRole, onConversationRead
               return (
                 <div
                   key={conv.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveConv(conv)}
+                  onKeyDown={surActivationClavier(() => setActiveConv(conv))}
                   className={`v7-msg-item ${isSelected ? 'active' : ''}`}
                 >
                   <div className="v7-msg-av" style={{ background: avatarCol.bg, color: avatarCol.color }}>
