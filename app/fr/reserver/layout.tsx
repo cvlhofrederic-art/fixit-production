@@ -12,6 +12,8 @@ export const metadata: Metadata = {
     title: 'Réserver un artisan',
     description: 'Réservez un artisan vérifié en quelques clics. Confirmation instantanée.',
     type: 'website',
+    siteName: 'VITFIX',
+    locale: 'fr_FR',
   },
 }
 

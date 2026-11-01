@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Élagage Palmier PACA : Taille palmier Marseille & littoral',
     description: 'Spécialistes taille et élagage de palmiers en PACA. Traitement charançon rouge, taille ananas/marguerite. Toute la côte de Marseille à Hyères.',
+    siteName: 'VITFIX',
+    locale: 'fr_FR',
   },
 }
 
