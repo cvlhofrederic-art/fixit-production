@@ -10,6 +10,9 @@
 // Chaque lien rendu, dans chaque langue, connecté ou non, doit mener à une page, sans redirection, rejoué comme en
 // production : redirections de next.config.ts, puis middleware (préfixe de langue forcé, consolidation PT), puis
 // réécritures beforeFiles, puis pages de app/ (sans segment dynamique : /en/pricing/ tomberait sur app/en/[slug]).
+// Pour un compte connecté, le middleware renvoie en plus l'accueil d'une langue vers l'espace du compte : cette
+// redirection, rejouée avec un client Supabase simulé, doit elle aussi mener à une page (/en/ → /en/artisan/dashboard/
+// répondait 404).
 
 import React from 'react'
 import { existsSync, readdirSync } from 'node:fs'
@@ -17,6 +20,7 @@ import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { NextRequest } from 'next/server'
 import configurationNext from '@/next.config'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { SUPPORTED_LOCALES, type Locale } from '@/lib/i18n/config'
@@ -43,10 +47,16 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
+// Client Supabase du middleware : le même compte simulé.
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: () => ({ auth: { getUser: async () => ({ data: { user: etat.utilisateur } }) } }),
+}))
+
 import Header from '@/components/common/Header'
 import Footer from '@/components/common/Footer'
 import { LanguageProvider } from '@/lib/i18n/context'
 import { LIENS_ENTETE_PIED } from '@/lib/i18n/liens-entete-pied'
+import { middleware } from '@/middleware'
 
 // ── Rejeu du routage de production ──────────────────────────────────────────
 
@@ -104,6 +114,15 @@ async function defautDuLien(href: string): Promise<string | null> {
   return pageExiste(servi) ? null : `aucune page pour ${servi}`
 }
 
+/** Destination où le middleware renvoie le compte simulé (navigation de document), ou null s'il le laisse passer. */
+async function redirectionDuMiddleware(chemin: string): Promise<string | null> {
+  const reponse = await middleware(new NextRequest(`https://vitfix.io${chemin}`, { headers: { 'sec-fetch-dest': 'document' } }))
+  const location = reponse.headers.get('location')
+  if (reponse.status < 300 || reponse.status >= 400 || !location) return null
+  // Hors du serveur, NextURL ne connaît pas trailingSlash : la barre finale du site est remise ici.
+  return new URL(location, 'https://vitfix.io').pathname.replace(/\/?$/, '/')
+}
+
 // ── Rendu de l'en-tête et du pied ───────────────────────────────────────────
 
 const UTILISATEURS: Record<string, Utilisateur> = {
@@ -157,6 +176,34 @@ describe('en-tête et pied de page : chaque lien mène à une page, sans redirec
     }
     expect(await defautDuLien('/en/search/')).toBe('redirigé (next.config.ts) vers /en/')
     expect(await defautDuLien('/auth/login/')).toMatch(/^sans langue/)
+  })
+
+  it.each(SUPPORTED_LOCALES.flatMap((locale) => Object.keys(UTILISATEURS).map((role) => [locale, role] as const)))(
+    '%s, %s : la redirection du middleware vers l’espace du compte mène aussi à une page',
+    async (locale, role) => {
+      const defauts: string[] = []
+      for (const href of await liensRendus(locale, role)) {
+        let chemin = new URL(href, 'https://vitfix.io').pathname
+        // Accueil d'une langue → espace du compte ; l'espace lui-même laisse passer son propre rôle.
+        for (let saut = 0; saut < 3; saut++) {
+          const vers = await redirectionDuMiddleware(chemin)
+          if (!vers) break
+          const defaut = await defautDuLien(vers)
+          if (defaut) {
+            defauts.push(`${href} → ${vers} : ${defaut}`)
+            break
+          }
+          chemin = vers
+        }
+      }
+      expect(defauts).toEqual([])
+    },
+  )
+
+  it('rejoue bien la redirection d’un compte connecté (garde du rejeu)', async () => {
+    etat.utilisateur = UTILISATEURS.artisan
+    expect(await redirectionDuMiddleware('/fr/')).toBe('/fr/artisan/dashboard/')
+    expect(await redirectionDuMiddleware('/fr/cgu/')).toBeNull()
   })
 
   it('langue hors liste (cookie « locale=de » hors middleware) : pas d’exception, liens de la table vers les pages FR', async () => {

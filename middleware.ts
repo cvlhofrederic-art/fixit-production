@@ -12,6 +12,9 @@ import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 // ─── i18n constants (duplicated from lib/i18n/config to avoid import issues in middleware) ───
 const SUPPORTED_LOCALES = ['fr', 'pt', 'en', 'nl', 'es']
 const DEFAULT_LOCALE = 'fr'
+// Langues sous lesquelles next.config.ts réécrit les pages communes de app/(commun)/ (connexion, tableaux de bord,
+// espaces syndic et copropriétaire). EN, NL et ES n'en ont pas : leurs redirections vers ces pages visent /pt/.
+const LANGUES_PAGES_COMMUNES = ['fr', 'pt']
 
 function getLocaleFromPath(pathname: string): string | null {
   for (const locale of SUPPORTED_LOCALES) {
@@ -330,9 +333,12 @@ export async function middleware(request: NextRequest) {
   const role = user?.app_metadata?.role as string | undefined
 
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
+  // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
+  // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
   const localeRedirect = (path: string) => {
     const url = request.nextUrl.clone()
-    url.pathname = isInternalRoute ? path : `/${locale}${path}`
+    const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
+    url.pathname = isInternalRoute ? path : `/${langueCible}${path}`
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
       poserCookieLangue(request, resp, locale)
