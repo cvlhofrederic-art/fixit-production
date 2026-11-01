@@ -2,7 +2,8 @@
  * Données structurées des pages FR : chaque niveau du fil d'Ariane (BreadcrumbList) désigne l'URL finale,
  * jamais une URL qui redirige (https://vitfix.io/ en 302 géolocalisé, /recherche/ en 308, hub
  * /fr/pres-de-chez-moi/ en 308 vers /fr/).
- * Fiche artisan FR : un profil inexistant (page client servie en 200, « Artisan non trouvé ») est en noindex.
+ * Fiche artisan FR : un profil inexistant (page client servie en 200, « Artisan non trouvé ») est en noindex ; un profil
+ * introuvable ou illisible n'hérite d'aucun hreflang du layout FR.
  *
  * Les composants serveur sont appelés comme des fonctions : le JSON-LD est lu dans l'arbre d'éléments rendu,
  * sans monter les composants enfants. Supabase (REST) est simulé par un fetch factice.
@@ -10,6 +11,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { isValidElement, type ReactNode } from 'react'
+import type { Metadata } from 'next'
 
 const journal = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn(), info: vi.fn() }))
 
@@ -75,7 +77,7 @@ describe('/fr/pres-de-chez-moi/<slug>/ : pas de niveau vers le hub redirigé', (
 })
 
 describe('fiche artisan /fr/artisan/<id>/', () => {
-  const lecture: { reponse: null | { ok: boolean; lignes: unknown[] } | 'erreur-reseau' } = { reponse: null }
+  const lecture: { reponse: null | { ok: boolean; lignes: unknown[] } | 'erreur-reseau' | 'delai-depasse' } = { reponse: null }
 
   const ARTISAN = {
     company_name: 'Plomberie Durand',
@@ -97,6 +99,8 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
     vi.stubGlobal('fetch', vi.fn(async () => {
       if (lecture.reponse === 'erreur-reseau') throw new TypeError('fetch failed')
+      // Ce que lève fetch quand le signal AbortSignal.timeout de la lecture (3 s) expire.
+      if (lecture.reponse === 'delai-depasse') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
       if (!lecture.reponse) throw new Error('réponse Supabase non définie par le test')
       const { ok, lignes } = lecture.reponse
       return { ok, status: ok ? 200 : 503, json: async () => lignes }
@@ -165,6 +169,26 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     await generateMetadata({ params: params('plomberie-durand') })
     expect(journal.warn).not.toHaveBeenCalled()
     expect(journal.error).not.toHaveBeenCalled()
+  })
+
+  // app/fr/layout.tsx déclare six hreflang vers les accueils (x-default vers /). Next fusionne les métadonnées clé par
+  // clé : une page qui déclare `alternates` remplace la clé entière, sinon elle hérite de celle du layout.
+  const fusionAvecLayoutFr = (metadata: Metadata): Metadata => ({
+    alternates: { languages: { 'fr-FR': 'https://vitfix.io/fr/', 'pt-PT': 'https://vitfix.io/pt/', 'x-default': 'https://vitfix.io/' } },
+    ...metadata,
+  })
+
+  it.each([
+    ['délai de lecture dépassé', 'delai-depasse', undefined],
+    ['Supabase en erreur (lecture indisponible)', { ok: false, lignes: [] }, undefined],
+    ['profil inexistant', { ok: true, lignes: [] }, { index: false, follow: false }],
+  ] as Array<[string, typeof lecture.reponse, Metadata['robots']]>)('%s : alternates vides, aucun hreflang hérité du layout FR ni canonical bâtie sur l’identifiant', async (_cas, reponse, robots) => {
+    const { generateMetadata } = await charger()
+    lecture.reponse = reponse
+    const metadata = await generateMetadata({ params: params('plomberie-durand') })
+    expect(metadata.alternates).toEqual({})
+    expect(fusionAvecLayoutFr(metadata).alternates).toEqual({})
+    expect(metadata.robots).toEqual(robots)
   })
 
   it('profil existant : indexable, canonical sur la fiche', async () => {
