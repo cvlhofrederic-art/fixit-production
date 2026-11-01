@@ -45,6 +45,7 @@ export interface Artisan {
   insurance_scan_data?: Record<string, unknown> | null
   is_active?: boolean
   verified?: boolean
+  legal_form?: string | null
 }
 
 export interface Service {

@@ -217,14 +217,16 @@ describe('métadonnées des layouts racine (fusion clé par clé de Next conserv
     expect(metadata.openGraph?.locale).toBe({ pt: 'pt_PT', fr: 'fr_FR', en: 'en_GB', nl: 'nl_NL', es: 'es_ES' }[locale])
   })
 
-  it('PT : template « %s | VITFIX », manifest PT, x-default sur /fr/ ; FR : template Marseille, x-default sur /', async () => {
+  it('PT, FR et EN : template « %s | VITFIX » (la marque une seule fois) ; manifest PT, x-default sur /fr/ (PT) et sur / (FR)', async () => {
     const pt = ((await LAYOUTS.pt()) as { metadata: Metadata }).metadata
     expect(pt.title).toEqual({ default: 'Profissionais de construção verificados em Portugal', template: '%s | VITFIX' })
     expect(pt.manifest).toBe('/pt/manifest.webmanifest')
     expect(pt.alternates?.languages).toMatchObject({ 'x-default': 'https://vitfix.io/fr/' })
     const fr = ((await LAYOUTS.fr()) as { metadata: Metadata }).metadata
-    expect(fr.title).toMatchObject({ template: '%s | VITFIX Marseille' })
+    expect(fr.title).toMatchObject({ template: '%s | VITFIX' })
     expect(fr.alternates?.languages).toMatchObject({ 'x-default': 'https://vitfix.io/' })
+    const en = ((await LAYOUTS.en()) as { metadata: Metadata }).metadata
+    expect(en.title).toMatchObject({ template: '%s | VITFIX' })
   })
 
   it('metadonneesRacine : titre et Open Graph par langue, FR par défaut', () => {
@@ -289,11 +291,16 @@ describe('coquille commune (components/common/CoquilleRacine.tsx)', () => {
 })
 
 describe('layout racine commun (app/(commun)/layout.tsx) : locale de la requête, comme l’ancien app/layout.tsx', () => {
-  it('x-locale (middleware) prime sur le cookie ; sans les deux, fr ; métadonnées par le cookie', async () => {
+  it('x-locale (middleware) prime sur le cookie, pour le rendu comme pour les métadonnées ; sans les deux, fr', async () => {
     const { default: LayoutCommun, generateMetadata } = await import('@/app/(commun)/layout')
     requete.enTete = 'pt'
     requete.cookie = 'fr'
     expect(renderToStaticMarkup(await LayoutCommun({ children: <p>x</p> }))).toMatch(/^<html lang="pt-PT"/)
+    // Navigation côté client vers /pt/… : le cookie vaut encore fr (le middleware ne le pose que sur un document).
+    expect((await generateMetadata()).openGraph).toMatchObject({ locale: 'pt_PT' })
+    requete.enTete = 'fr'
+    requete.cookie = 'pt'
+    expect((await generateMetadata()).openGraph).toMatchObject({ locale: 'fr_FR' })
     requete.enTete = undefined
     requete.cookie = 'en'
     expect(renderToStaticMarkup(await LayoutCommun({ children: <p>x</p> }))).toMatch(/^<html lang="en"/)

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import CoquilleRacine from "@/components/common/CoquilleRacine";
-import type { Locale } from "@/lib/i18n/config";
+import { langueValideOuFr, type Locale } from "@/lib/i18n/config";
 import { metadonneesRacine } from "@/lib/seo/metadonnees-racine";
 
 // Layout racine des pages communes à toutes les langues (auth, pro, client, syndic, admin, contact, …), servies par
@@ -17,10 +17,12 @@ export async function generateMetadata(): Promise<Metadata> {
   // sont pas disponibles (pas de runtime Node). Fallback à 'fr' — l'app mobile
   // pré-release sert d'abord le marché FR ; la locale peut être switchée
   // dynamiquement côté client après hydratation.
+  // Langue du chemin (x-locale), puis cookie, comme le corps du layout : après une navigation côté client, le cookie peut
+  // encore valoir la langue de la page quittée (le middleware ne le pose que sur un document, poserCookieLangue).
   const isMobileBuild = process.env.MOBILE_BUILD === 'true'
-  const locale = (isMobileBuild
+  const locale = isMobileBuild
     ? 'fr'
-    : (await cookies()).get('locale')?.value || 'fr') as Locale
+    : langueValideOuFr((await headers()).get('x-locale'), (await cookies()).get('locale')?.value)
 
   return metadonneesRacine(locale)
 }
@@ -34,12 +36,14 @@ export default async function LayoutCommun({
   // over cookie, which may be stale when middleware updates it in the response.
   // En mode MOBILE_BUILD (export Capacitor), cookies()/headers() ne sont pas
   // disponibles — fallback 'fr' qui peut être surchargé côté client.
+  // Langue validée : une page commune servie hors du matcher du middleware (/tracking/x.png…) reçoit cookie et
+  // x-locale tels que le visiteur les envoie (voir app/global-not-found.tsx).
   const isMobileBuild = process.env.MOBILE_BUILD === 'true'
   let locale: Locale = 'fr'
   if (!isMobileBuild) {
     const cookieStore = await cookies()
     const headerStore = await headers()
-    locale = (headerStore.get('x-locale') || cookieStore.get('locale')?.value || 'fr') as Locale
+    locale = langueValideOuFr(headerStore.get('x-locale'), cookieStore.get('locale')?.value)
   }
 
   return <CoquilleRacine locale={locale}>{children}</CoquilleRacine>;

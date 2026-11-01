@@ -1,8 +1,8 @@
 // tests/components/politiques-legales.test.tsx
 //
 // Politiques communes aux pages FR (app/(commun)) et PT : components/legal/PolitiqueConfidentialite.tsx (les deux pages
-// listent les mêmes sous-traitants, dont Groq, Tavily et OpenRouter) et components/legal/PolitiqueCookies.tsx (en-têtes de
-// colonnes du tableau en <th>).
+// listent les mêmes sous-traitants, Cloudflare en hébergeur, Groq, Tavily et OpenRouter compris) et
+// components/legal/PolitiqueCookies.tsx (en-têtes de colonnes du tableau en <th>).
 // getServerTranslation simulé : t() renvoie la clé.
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -15,6 +15,8 @@ import PolitiqueConfidentialite from '@/components/legal/PolitiqueConfidentialit
 import PolitiqueCookies from '@/components/legal/PolitiqueCookies'
 import ConfidentialitePage from '@/app/(commun)/confidentialite/page'
 import PrivacidadePage from '@/app/pt/privacidade/page'
+import fr from '@/locales/fr.json'
+import pt from '@/locales/pt.json'
 
 const SOUS_TRAITANTS_IA = ['privacy.protection.subProcessorGroq', 'privacy.protection.subProcessorTavily', 'privacy.protection.subProcessorOpenrouter']
 
@@ -24,6 +26,17 @@ describe('PolitiqueConfidentialite', () => {
     const docuseal = html.indexOf('<li>privacy.protection.subProcessorDocuseal</li>')
     expect(docuseal).toBeGreaterThan(-1)
     for (const cle of SOUS_TRAITANTS_IA) expect(html.indexOf(`<li>${cle}</li>`), cle).toBeGreaterThan(docuseal)
+  })
+
+  it('hébergeur : Cloudflare en tête des sous-traitants, et plus aucune mention de Vercel', async () => {
+    const html = renderToStaticMarkup(await PolitiqueConfidentialite())
+    expect(html).toMatch(/<ul[^>]*><li>privacy\.protection\.subProcessorCloudflare<\/li>/)
+    expect(html).not.toMatch(/vercel/i)
+    for (const [langue, textes] of Object.entries({ fr, pt })) {
+      expect(textes.privacy.protection.p1, langue).toContain('Cloudflare')
+      expect(textes.privacy.protection.subProcessorCloudflare, langue).toMatch(/^Cloudflare \(/)
+      expect(JSON.stringify(textes.privacy), langue).not.toMatch(/vercel/i)
+    }
   })
 
   it('pages : /fr/confidentialite/ et /pt/privacidade/ rendent la même politique, sans option', () => {

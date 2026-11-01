@@ -63,7 +63,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const { service, city } = resolved
   const cityLabel = city ? ` à ${city.name}` : ' près de chez moi'
-  const title = `${service.name}${cityLabel}, Artisan disponible rapidement | VITFIX`
+  const title = `${service.name}${cityLabel}, Artisan disponible rapidement`
   const description = city
     ? `Vous cherchez un ${service.name.toLowerCase()} à ${city.name} ? Artisan disponible rapidement dans votre quartier. Devis gratuit, 7j/7.`
     : `Vous cherchez un ${service.name.toLowerCase()} près de chez vous ? Artisans vérifiés disponibles à Marseille et dans les Bouches-du-Rhône. Devis gratuit.`
