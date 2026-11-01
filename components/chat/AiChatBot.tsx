@@ -6,6 +6,7 @@ import { MessageSquare, Send, X, Calendar, FileText, Loader2, Mic, Camera } from
 import { FixyAvatar } from '@/components/common/RobotAvatars'
 import ReceiptScanner, { type DevisReceiptLine } from '@/components/common/ReceiptScanner'
 import { useLocale } from '@/lib/i18n/context'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import {
   parseDate, parseTime, parseClientName, parseServiceMatch, parseAmount, parseAddress,
   detectIntent, formatDateFr, formatRecordingTime,
@@ -209,15 +210,20 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
   // Load artisan's client database
   useEffect(() => {
     if (artisan?.id && !clientsLoaded) {
-      fetch(`/api/artisan-clients?artisan_id=${artisan.id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.clients) {
-            setClients(data.clients)
-          }
-          setClientsLoaded(true)
+      // Appel authentifié (Bearer) : un fetch nu recevait 401 à chaque chargement du dashboard, sans que rien ne
+      // le signale (lot 4 Sentry du 28/10/2026). Un 403 (compte sans fiche artisan) n'a simplement pas de clients.
+      fetchAuthentifie(`/api/artisan-clients?artisan_id=${artisan.id}`)
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          if (res.status === 403) return
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+          if (data.clients) setClients(data.clients)
         })
-        .catch(() => { setClientsLoaded(true); toast.error('Impossible de charger la liste des clients') })
+        .catch((e: unknown) => {
+          console.warn('[AiChatBot] liste des clients non chargée :', e instanceof Error ? e.message : e)
+          toast.error('Impossible de charger la liste des clients')
+        })
+        .finally(() => setClientsLoaded(true))
     }
   }, [artisan?.id, clientsLoaded])
 
@@ -408,9 +414,9 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 30000)
 
-      const res = await fetch('/api/fixy-ai', {
+      // La route exige le Bearer (getAuthUser) : appel authentifié.
+      const res = await fetchAuthentifie('/api/fixy-ai', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
         body: JSON.stringify({
           message: text,
@@ -675,9 +681,8 @@ export default function AiChatBot({ artisan, bookings, services, availability, d
 
       setProcessing(true)
       try {
-        const res = await fetch('/api/fixy-ai', {
+        const res = await fetchAuthentifie('/api/fixy-ai', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             artisan_id: artisan?.id,
             confirm_token: pc.confirm_token,
