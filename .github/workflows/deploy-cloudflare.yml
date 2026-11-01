@@ -153,7 +153,7 @@ jobs:
 
       - name: Vérifier /api/health
         run: |
-          HTTP_STATUS=$(curl -sL -o /tmp/health.json -w "%{http_code}" "$PROD_URL/api/health")
+          HTTP_STATUS=$(curl -sL --proto '=https' -o /tmp/health.json -w "%{http_code}" "$PROD_URL/api/health")
           echo "Status: $HTTP_STATUS"
           cat /tmp/health.json | jq .
           if [ "$HTTP_STATUS" -ne 200 ]; then
@@ -163,7 +163,7 @@ jobs:
 
       - name: Vérifier la page d'accueil FR
         run: |
-          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$PROD_URL/fr/")
+          HTTP_STATUS=$(curl -sL --proto '=https' -o /dev/null -w "%{http_code}" "$PROD_URL/fr/")
           echo "Homepage FR status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage FR returned $HTTP_STATUS"
@@ -172,7 +172,7 @@ jobs:
 
       - name: Vérifier la page d'accueil PT
         run: |
-          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$PROD_URL/pt/")
+          HTTP_STATUS=$(curl -sL --proto '=https' -o /dev/null -w "%{http_code}" "$PROD_URL/pt/")
           echo "Homepage PT status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage PT returned $HTTP_STATUS"

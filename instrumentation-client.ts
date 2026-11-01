@@ -67,5 +67,16 @@ try {
   console.warn("[Sentry] Init client impossible (non bloquant) :", error);
 }
 
+// Identifiant de l'utilisateur connecté sur les événements Sentry (id seul, RGPD) : lot 9 Sentry du 28/10/2026,
+// toutes les issues affichaient « 0 utilisateur ». Posé et retiré au fil des événements d'auth du client partagé.
+import("@/lib/sentry-utilisateur")
+  .then(async ({ lierUtilisateurSentry }) => {
+    const { supabase } = await import("@/lib/supabase");
+    lierUtilisateurSentry(supabase.auth);
+  })
+  .catch((error) => {
+    console.warn("[Sentry] identifiant utilisateur non lié (non bloquant) :", error);
+  });
+
 // Instrumente les navigations du router App Router (pattern officiel v10).
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
