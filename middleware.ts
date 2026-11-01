@@ -107,6 +107,19 @@ function detectPreferredLocale(request: NextRequest): string {
   return DEFAULT_LOCALE
 }
 
+// Cookie de langue (1 an), posé sur une navigation de document seulement, jamais sur les fetch() du routeur Next, dont
+// le préchargement d'un <Link> entré à l'écran ou survolé : ce n'est pas une visite. Sinon un lien d'une autre langue
+// seulement vu à l'écran (liens /pt/ de l'en-tête et du pied des pages EN, NL et ES) changeait la langue retenue, donc
+// la redirection de « / » et l'ouverture de la PWA (start_url « / »).
+// Next retire ses propres en-têtes (RSC, Next-Router-Prefetch…) avant d'appeler le middleware (FLIGHT_HEADERS,
+// next/dist/server/web/adapter.js) : seul Sec-Fetch-Dest, posé par le navigateur, distingue un document (« document »)
+// d'un fetch (« empty »). Sans cet en-tête (robots, anciens navigateurs) : posé, comme avant.
+function poserCookieLangue(request: NextRequest, response: NextResponse, locale: string) {
+  const destination = request.headers.get('sec-fetch-dest')
+  if (destination !== null && destination !== 'document') return
+  response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+}
+
 // ── Pages supprimées sans équivalent (phase 1 SEO PT, point 1.2) ──
 // Anciens articles du blog PT : 410 Gone plutôt qu'une redirection vers l'index /pt/blog/ (soft 404
 // pour Google) ou un 404 (Google réessaie plus longtemps). Liste à ne jamais réduire sans décision.
@@ -201,7 +214,7 @@ export async function middleware(request: NextRequest) {
       url.pathname = `/${locale}${pathname}`
       const response = NextResponse.redirect(url, 302)
       response.headers.set('Vary', 'Accept-Language')
-      response.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, response, locale)
       response.headers.set('Content-Security-Policy', cspHeader)
       return response
     }
@@ -251,7 +264,7 @@ export async function middleware(request: NextRequest) {
       // et permet au CDN de cacher sans Vary obligatoire).
       const existingLocaleCookie = request.cookies.get('locale')?.value
       if (existingLocaleCookie !== locale) {
-        supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+        poserCookieLangue(request, supabaseResponse, locale)
       }
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
@@ -322,7 +335,7 @@ export async function middleware(request: NextRequest) {
     url.pathname = isInternalRoute ? path : `/${locale}${path}`
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
-      resp.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, resp, locale)
     }
     // Propager les cookies Supabase rafraîchis vers le browser
     supabaseResponse.cookies.getAll().forEach(cookie => {
@@ -336,7 +349,7 @@ export async function middleware(request: NextRequest) {
   if (role === 'super_admin') {
     // Routes internes (/admin/) : pas de langue dans l'URL, on ne réécrit pas le cookie avec la langue par défaut.
     if (!isInternalRoute) {
-      supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+      poserCookieLangue(request, supabaseResponse, locale)
     }
     supabaseResponse.headers.set('X-API-Version', '1.0.0')
     supabaseResponse.headers.set('Content-Security-Policy', cspHeader)
@@ -442,9 +455,9 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Set locale cookie on all responses
+  // Set locale cookie on all responses (navigations de document seulement, voir poserCookieLangue)
   if (!isInternalRoute) {
-    supabaseResponse.cookies.set('locale', locale, { path: '/', maxAge: 365 * 24 * 60 * 60, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    poserCookieLangue(request, supabaseResponse, locale)
   }
 
   supabaseResponse.headers.set('X-API-Version', '1.0.0')

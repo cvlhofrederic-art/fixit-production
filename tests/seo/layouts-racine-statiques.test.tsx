@@ -291,11 +291,16 @@ describe('coquille commune (components/common/CoquilleRacine.tsx)', () => {
 })
 
 describe('layout racine commun (app/(commun)/layout.tsx) : locale de la requête, comme l’ancien app/layout.tsx', () => {
-  it('x-locale (middleware) prime sur le cookie ; sans les deux, fr ; métadonnées par le cookie', async () => {
+  it('x-locale (middleware) prime sur le cookie, pour le rendu comme pour les métadonnées ; sans les deux, fr', async () => {
     const { default: LayoutCommun, generateMetadata } = await import('@/app/(commun)/layout')
     requete.enTete = 'pt'
     requete.cookie = 'fr'
     expect(renderToStaticMarkup(await LayoutCommun({ children: <p>x</p> }))).toMatch(/^<html lang="pt-PT"/)
+    // Navigation côté client vers /pt/… : le cookie vaut encore fr (le middleware ne le pose que sur un document).
+    expect((await generateMetadata()).openGraph).toMatchObject({ locale: 'pt_PT' })
+    requete.enTete = 'fr'
+    requete.cookie = 'pt'
+    expect((await generateMetadata()).openGraph).toMatchObject({ locale: 'fr_FR' })
     requete.enTete = undefined
     requete.cookie = 'en'
     expect(renderToStaticMarkup(await LayoutCommun({ children: <p>x</p> }))).toMatch(/^<html lang="en"/)

@@ -1,11 +1,16 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { cookies } from 'next/headers'
-import type { Locale } from '@/lib/i18n/config'
+import { cookies, headers } from 'next/headers'
+import { langueValideOuFr } from '@/lib/i18n/config'
+
+// Langue du chemin (x-locale : /pt/pro/tarifs/ ou /fr/pro/tarifs/), puis cookie : après une navigation côté client, le
+// cookie peut encore valoir la langue de la page quittée (le middleware ne le pose que sur un document).
+async function langueDeLaPage() {
+  return langueValideOuFr((await headers()).get('x-locale'), (await cookies()).get('locale')?.value)
+}
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  const locale = await langueDeLaPage()
 
   if (locale === 'pt') {
     return {
@@ -69,8 +74,7 @@ function Cross() {
 }
 
 export default async function ProTarifsPage() {
-  const cookieStore = await cookies()
-  const locale = (cookieStore.get('locale')?.value || 'fr') as Locale
+  const locale = await langueDeLaPage()
   const isPt = locale === 'pt'
   const features = isPt ? featuresPT : featuresFR
   const registerHref = '/pro/register'
