@@ -53,13 +53,14 @@ type ModuleDeRoute = {
 }
 const MODULES = import.meta.glob<ModuleDeRoute>(['/app/fr/**/{page,layout}.tsx', '/app/en/**/{page,layout}.tsx'])
 
-type Titre = Metadata['title']
+type Couche = Metadata | undefined | null
 type TitreResolu = { chemin: string; titre: string; titresAvecTemplate: string[] }
 
-// Résolution de Next : `couches` = une entrée par segment (racine de app/, puis chaque dossier), puis la page. Après
-// chaque couche, sauf les deux dernières (layout du segment de la page et page), le template retenu devient celui du
-// titre résolu.
-function resoudreTitre(couches: Titre[]): Omit<TitreResolu, 'chemin'> {
+// Résolution de Next : `couches` = les métadonnées de chaque segment (racine de app/, puis chaque dossier), puis celles
+// de la page. Une couche qui déclare la clé title remplace le titre, même à undefined ou null : il devient vide (for…in
+// de mergeMetadata, puis resolveTitle). Après chaque couche, sauf les deux dernières (layout du segment de la page et
+// page), le template retenu devient celui du titre résolu.
+function resoudreTitre(couches: Couche[]): Omit<TitreResolu, 'chemin'> {
   let template: string | null = null
   let resolu: { absolute: string; template: string | null } | null = null
   const titresAvecTemplate: string[] = []
@@ -68,14 +69,19 @@ function resoudreTitre(couches: Titre[]): Omit<TitreResolu, 'chemin'> {
     titresAvecTemplate.push(titre)
     return template.replace(/%s/g, titre)
   }
-  for (const [i, titre] of couches.entries()) {
-    if (typeof titre === 'string') {
-      resolu = { absolute: appliquer(titre), template: null }
-    } else if (titre) {
-      let absolute = ''
-      if ('default' in titre) absolute = appliquer(titre.default)
-      if ('absolute' in titre && titre.absolute) absolute = titre.absolute
-      resolu = { absolute, template: 'template' in titre ? titre.template ?? null : null }
+  for (const [i, couche] of couches.entries()) {
+    if (couche && 'title' in couche) {
+      const titre = couche.title
+      if (typeof titre === 'string') {
+        resolu = { absolute: appliquer(titre), template: null }
+      } else if (titre) {
+        let absolute = ''
+        if ('default' in titre) absolute = appliquer(titre.default)
+        if ('absolute' in titre && titre.absolute) absolute = titre.absolute
+        resolu = { absolute, template: 'template' in titre ? titre.template ?? null : null }
+      } else {
+        resolu = { absolute: '', template: null }
+      }
     }
     if (i < couches.length - 2) template = resolu?.template ?? null
   }
@@ -104,12 +110,12 @@ async function titresDesPages(langue: (section: string) => string): Promise<Titr
         : [{}]
     expect(jeux.length, `${fichierPage} : generateStaticParams vide`).toBeGreaterThan(0)
     for (const params of jeux) {
-      const couches: Titre[] = [undefined]
+      const couches: Couche[] = [undefined]
       for (let k = 1; k <= dossiers.length; k++) {
         const layout = MODULES[`/app/${dossiers.slice(0, k).join('/')}/layout.tsx`]
-        couches.push((await metadonnees(layout && (await layout()), params))?.title)
+        couches.push(await metadonnees(layout && (await layout()), params))
       }
-      couches.push((await metadonnees(page, params))?.title)
+      couches.push(await metadonnees(page, params))
       const chemin = `/${dossiers.map((d) => (d.startsWith('[') ? params[d.slice(1, -1)] : d)).join('/')}/`
       resultats.push({ chemin, ...resoudreTitre(couches) })
     }
@@ -140,13 +146,18 @@ describe('titres FR et EN : la marque une seule fois', () => {
     vi.unstubAllGlobals()
   })
 
-  it('le résolveur reproduit Next : template des segments plus profonds, pas de la page du layout, title.absolute', () => {
-    const racine = { default: 'Accueil VITFIX', template: '%s | VITFIX' }
-    expect(resoudreTitre([undefined, racine, 'Artisans à Marseille | Vitfix']).titre).toBe('Artisans à Marseille | Vitfix')
-    expect(resoudreTitre([undefined, racine, undefined, undefined, 'Plombier Marseille']).titre).toBe('Plombier Marseille | VITFIX')
-    expect(resoudreTitre([undefined, racine, 'Titre du layout', 'Titre de la page']).titre).toBe('Titre de la page | VITFIX')
-    expect(resoudreTitre([undefined, racine, undefined, { absolute: 'Blog Vitfix' }]).titre).toBe('Blog Vitfix')
+  it('le résolveur reproduit Next : template des segments plus profonds, pas de la page du layout, title.absolute, clé title vide', () => {
+    const racine = { title: { default: 'Accueil VITFIX', template: '%s | VITFIX' } }
+    expect(resoudreTitre([undefined, racine, { title: 'Artisans à Marseille | Vitfix' }]).titre).toBe('Artisans à Marseille | Vitfix')
+    expect(resoudreTitre([undefined, racine, undefined, {}, { title: 'Plombier Marseille' }]).titre).toBe('Plombier Marseille | VITFIX')
+    expect(resoudreTitre([undefined, racine, { title: 'Titre du layout' }, { title: 'Titre de la page' }]).titre).toBe('Titre de la page | VITFIX')
+    expect(resoudreTitre([undefined, racine, undefined, { title: { absolute: 'Blog Vitfix' } }]).titre).toBe('Blog Vitfix')
     expect(resoudreTitre([undefined, racine, undefined, undefined]).titre).toBe('Accueil VITFIX')
+    // Clé title présente mais à undefined ou null : Next vide le titre, et la garde le signale (aucune marque).
+    const vide = resoudreTitre([undefined, racine, undefined, { title: undefined }])
+    expect(vide.titre).toBe('')
+    expect(fautifs([{ chemin: '/fr/vide/', ...vide }])).toHaveLength(1)
+    expect(resoudreTitre([undefined, racine, { title: null }, { description: 'Sans titre' }]).titre).toBe('')
   })
 
   it.each([
