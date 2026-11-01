@@ -1,10 +1,13 @@
+import { isStorageReadable } from '@/lib/safe-storage'
+
 // Synchronisation localStorage <-> table Supabase user_storage.
 //
 // Strategie : monkey-patch ponctuel de localStorage pour capturer toute
-// ecriture dont la cle commence par `fixit_`, puis batch debounce (500 ms)
+// ecriture dont la cle commence par `fixit_`, puis batch debounce (1,5 s)
 // vers /api/user-storage. A l'hydratation (login), on recupere toutes les
-// entrees du user et on les ecrit dans le localStorage AVANT d'installer
-// le patch (pour ne pas re-mirroir vers le serveur).
+// entrees du user et on les ecrit dans le localStorage sans repasser par le
+// patch ; les envois attendent la reponse et le serveur gagne sur les
+// ecritures en attente (voir hydrateStorageFromServer).
 //
 // Avantage : aucun refacto invasif des composants existants. Tout code
 // qui appelle deja `localStorage.setItem('fixit_xxx', ...)` est
@@ -14,6 +17,11 @@
 //  - cles ne commencant pas par `fixit_`
 //  - cles trop volumineuses (>200 KB) pour rester sous la limite serveur
 //  - flags one-shot type `fixit_clean_v6_*` (non sensibles, configurables)
+//
+// Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
+// SecurityError à la lecture de window.localStorage) coupe le miroir, l'hydratation et la migration. Un stockage
+// plein (QuotaExceededError à l'écriture) reste lisible et les garde actifs : suppressions et réécritures qui ne
+// l'agrandissent pas y réussissent encore et doivent atteindre le serveur.
 
 // Client applicatif partagé (cookies SSR). NE PAS recréer ici un client
 // @supabase/supabase-js : il lirait la session dans le localStorage (où elle
@@ -32,14 +40,57 @@ const FIXIT_PREFIX = 'fixit_'
 // afin de stocker l'URL au lieu du base64 ; en attendant, ce seuil
 // genereux garantit qu'aucune donnee n'est silencieusement perdue.
 const MAX_VALUE_BYTES = 5_000_000
-const DEBOUNCE_MS = 500
-// Batch de 10 pour rester sous la limite serveur (50 MB request max).
-const FLUSH_BATCH_SIZE = 10
+// Lot 8 Sentry du 28/10/2026 : avec 500 ms, le chargement du dashboard pro produisait 20 POST en 10 s. Les
+// écritures d'un même enchaînement partent maintenant ensemble, en un seul POST tant que la taille le permet.
+const DEBOUNCE_MS = 1500
+// Un POST regroupe jusqu'à FLUSH_BATCH_SIZE clés (= MAX_ENTRIES_PER_REQUEST de /api/user-storage) et
+// FLUSH_BATCH_BYTES de valeurs (une clé peut peser 5 Mo : logo, signature, justificatifs en base64).
+const FLUSH_BATCH_SIZE = 50
+const FLUSH_BATCH_BYTES = 4_000_000
 
 const pendingWrites = new Map<string, string>()
 const pendingDeletes = new Set<string>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
 let installed = false
+
+// Dernière valeur envoyée au serveur (ou reçue de lui) par clé : une valeur identique n'est pas renvoyée.
+const derniereValeurSynchronisee = new Map<string, string>()
+// setItem d'origine, capturé à l'installation du miroir : l'hydratation écrit sans repasser par le miroir
+// (avant, chaque valeur reçue du serveur repartait en POST 500 ms plus tard).
+let ecrireSansMiroirRef: ((key: string, value: string) => void) | null = null
+// Hydratations en cours : tant qu'il y en a une, flushNow n'envoie rien (voir flushNow). Un compteur plutôt qu'un
+// booléen : Providers peut lancer deux hydratations qui se chevauchent (bootstrap immédiat puis INITIAL_SESSION).
+let hydratationsEnCours = 0
+// POST en vol par clé, avec leur nombre (deux flush peuvent se chevaucher pour une même clé) : renseigné au départ
+// du POST, vidé à sa réponse, succès ou échec. Voir enregistrerEcritureMiroir.
+const postsEnVol = new Map<string, number>()
+
+function marquerEnVol(keys: string[]): void {
+  for (const k of keys) postsEnVol.set(k, (postsEnVol.get(k) ?? 0) + 1)
+}
+
+function libererEnVol(keys: string[]): void {
+  for (const k of keys) {
+    const restants = (postsEnVol.get(k) ?? 0) - 1
+    if (restants > 0) postsEnVol.set(k, restants)
+    else postsEnVol.delete(k)
+  }
+}
+
+function ecrireSansMiroir(key: string, value: string): void {
+  if (ecrireSansMiroirRef) ecrireSansMiroirRef(key, value)
+  else window.localStorage.setItem(key, value)
+}
+
+/** Valeur actuelle de la clé dans le localStorage ; undefined s'il est illisible (stockage bloqué). */
+function valeurLocale(key: string): string | null | undefined {
+  try {
+    return window.localStorage.getItem(key)
+  } catch (error) {
+    console.warn('[storage-sync] localStorage illisible :', error)
+    return undefined
+  }
+}
 
 async function getToken(): Promise<string | null> {
   try {
@@ -61,16 +112,25 @@ function shouldSync(key: string): boolean {
 }
 
 async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
+  // Rien ne part pendant l'hydratation : une écriture faite au montage avant la réponse du serveur (jeu par défaut
+  // de la bibliothèque ou des prestations, données de démo) écraserait la vraie valeur, saisie sur un autre appareil.
+  // L'envoi keepalive de fermeture d'onglet est retenu lui aussi, par choix : si l'onglet se ferme avant la réponse,
+  // ces écritures restent dans le localStorage sans partir (une clé absente du serveur repartira à sa prochaine
+  // écriture) plutôt que de risquer d'écraser le serveur avec une valeur par défaut. Elles restent en attente et la
+  // fin de l'hydratation relance l'envoi.
+  if (hydratationsEnCours > 0) return
   if (pendingWrites.size === 0 && pendingDeletes.size === 0) return
   const token = await getToken()
   if (!token) return
+  // Une hydratation a pu commencer pendant la lecture du jeton.
+  if (hydratationsEnCours > 0) return
 
   const writeKeys = Array.from(pendingWrites.keys())
   const writes = writeKeys.map(k => {
     const raw = pendingWrites.get(k)!
     let parsed: unknown
     try { parsed = JSON.parse(raw) } catch { parsed = raw }
-    return { key: k, value: parsed }
+    return { key: k, value: parsed, raw }
   }).filter(e => {
     try { return JSON.stringify(e.value).length <= MAX_VALUE_BYTES } catch { return false }
   })
@@ -78,16 +138,20 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   // ecriture survient pendant l'await (perte d'idempotence sinon).
   for (const k of writeKeys) pendingWrites.delete(k)
 
+  // Un seul POST avec toutes les clés modifiées, tant que le nombre et la taille le permettent.
+  const lots = grouperEnLots(writes)
+
   // keepalive: true survit au unload. Necessaire pour beforeunload + tablette
   // qui ferme la session avant la fin de la requete. Limite navigateur ~64 KB
   // par requete keepalive — au-dela on retire keepalive (le user verra ses
   // donnees au prochain login via hydrate).
-  for (let i = 0; i < writes.length; i += FLUSH_BATCH_SIZE) {
-    const slice = writes.slice(i, i + FLUSH_BATCH_SIZE)
-    const body = JSON.stringify({ entries: slice })
+  for (const slice of lots) {
+    const body = JSON.stringify({ entries: slice.map(e => ({ key: e.key, value: e.value })) })
     const useKeepalive = opts.keepalive && body.length < 60_000
+    const cles = slice.map(e => e.key)
+    marquerEnVol(cles)
     try {
-      await fetch('/api/user-storage', {
+      const res = await fetch('/api/user-storage', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,13 +160,17 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
         body,
         keepalive: useKeepalive,
       })
+      if (res.ok) for (const e of slice) derniereValeurSynchronisee.set(e.key, e.raw)
     } catch {
       // erreur reseau : tolerance — le localStorage reste la source operationnelle.
-      // On re-met les writes en pending pour retry au prochain flush.
+      // On re-met les writes en pending pour retry au prochain flush, sauf si la clé a changé depuis (réécrite,
+      // supprimée, ou remplacée par l'hydratation) : la valeur plus récente a son propre envoi, l'ancienne
+      // l'écraserait (aller-retour A → B → A pendant un POST de B en échec).
       for (const e of slice) {
-        const raw = typeof e.value === 'string' ? e.value : JSON.stringify(e.value)
-        pendingWrites.set(e.key, raw)
+        if (valeurLocale(e.key) === e.raw) pendingWrites.set(e.key, e.raw)
       }
+    } finally {
+      libererEnVol(cles)
     }
   }
 
@@ -132,12 +200,72 @@ function scheduleFlush() {
 }
 
 /**
+ * Cœur du miroir, appelé par le setItem intercepté. Une valeur identique à la dernière synchronisée n'est pas
+ * renvoyée (lot 8 Sentry : réécritures à l'identique au montage du dashboard), sauf si une autre valeur de la clé
+ * attend son envoi ou est en cours d'envoi : sinon l'aller-retour A → B → A (double-clic sur une bascule) enverrait
+ * B, ou laisserait B au serveur au retour de son POST. Exporté pour les tests : jsdom ne permet pas de remplacer
+ * localStorage.setItem (propriété nommée du Storage), les navigateurs le permettent.
+ */
+export function enregistrerEcritureMiroir(key: string, value: string): void {
+  if (!shouldSync(key)) return
+  if (derniereValeurSynchronisee.get(key) === value && !pendingWrites.has(key) && !postsEnVol.has(key)) return
+  pendingWrites.set(key, value)
+  pendingDeletes.delete(key) // annule un eventuel delete en attente
+  scheduleFlush()
+}
+
+/** Cœur du miroir pour removeItem : la clé sera renvoyée si elle est réécrite ensuite. */
+export function enregistrerSuppressionMiroir(key: string): void {
+  if (!shouldSync(key)) return
+  derniereValeurSynchronisee.delete(key)
+  pendingDeletes.add(key)
+  pendingWrites.delete(key)
+  scheduleFlush()
+}
+
+type EntreeAEnvoyer = { key: string; value: unknown; raw: string }
+
+/** Lots d'envoi : jusqu'à FLUSH_BATCH_SIZE clés et FLUSH_BATCH_BYTES de valeurs par POST (un seul lot en général). */
+function grouperEnLots(entries: EntreeAEnvoyer[]): EntreeAEnvoyer[][] {
+  const lots: EntreeAEnvoyer[][] = []
+  let tailleLot = 0
+  for (const e of entries) {
+    const dernier = lots[lots.length - 1]
+    if (dernier && dernier.length < FLUSH_BATCH_SIZE && tailleLot + e.raw.length <= FLUSH_BATCH_BYTES) {
+      dernier.push(e)
+      tailleLot += e.raw.length
+    } else {
+      lots.push([e])
+      tailleLot = e.raw.length
+    }
+  }
+  return lots
+}
+
+/**
  * Hydrate le localStorage depuis la DB pour l'utilisateur connecte.
- * A appeler au montage du dashboard, AVANT installStorageSync(), pour
- * eviter que les ecritures hydrate ne soient re-mirroir vers le serveur.
+ * Providers l'appelle après installStorageSync() : les valeurs reçues sont écrites sans repasser par le miroir et
+ * remplacent les écritures en attente des mêmes clés (le serveur gagne). Les envois sont retenus jusqu'à la fin
+ * (voir flushNow) ; ensuite, succès ou échec (réseau, 401), les écritures restées en attente repartent.
  */
 export async function hydrateStorageFromServer(): Promise<{ count: number }> {
-  if (typeof window === 'undefined') return { count: 0 }
+  // Lisible suffit : un stockage plein accepte encore toute valeur qui ne l'agrandit pas (entrées inchangées depuis la
+  // dernière synchronisation, valeurs raccourcies sur un autre appareil) ; une écriture refusée est ignorée plus bas.
+  // Exiger un stockage inscriptible renverrait 0 sans interroger le serveur : faute du drapeau de migration (qui ne
+  // s'écrit pas sur un stockage plein), Providers relancerait alors pushAllLocalToServer à chaque amorçage et
+  // écraserait sur le serveur les données enregistrées depuis les autres appareils.
+  if (typeof window === 'undefined' || !isStorageReadable('local')) return { count: 0 }
+  hydratationsEnCours++
+  try {
+    return await hydraterDepuisLeServeur()
+  } finally {
+    hydratationsEnCours--
+    // Clés absentes du serveur, écritures faites pendant une hydratation en échec : l'envoi retenu est relancé.
+    if (hydratationsEnCours === 0 && (pendingWrites.size > 0 || pendingDeletes.size > 0)) scheduleFlush()
+  }
+}
+
+async function hydraterDepuisLeServeur(): Promise<{ count: number }> {
   const token = await getToken()
   if (!token) return { count: 0 }
 
@@ -150,14 +278,19 @@ export async function hydrateStorageFromServer(): Promise<{ count: number }> {
     const entries = json.entries || {}
     let count = 0
     for (const [key, value] of Object.entries(entries)) {
+      // Le serveur gagne, comme avant le lot 8 où l'hydratation passait par le setItem intercepté et remplaçait la
+      // valeur en attente : une écriture faite au montage avant la réponse (jeu par défaut, données de démo) ne
+      // part pas écraser la vraie valeur. Retirée avant l'écriture locale, qui peut échouer (quota).
+      pendingWrites.delete(key)
+      pendingDeletes.delete(key)
       try {
         // On ecrit la valeur en string. Si c'est deja une primitive (string),
         // on la stocke telle quelle ; sinon JSON.stringify.
         const stringValue = typeof value === 'string' ? value : JSON.stringify(value)
-        // On utilise le setItem original (au cas ou installStorageSync a deja
-        // ete appele). Pour eviter le risque, hydrate doit etre appele AVANT
-        // installStorageSync.
-        window.localStorage.setItem(key, stringValue)
+        // setItem d'origine : une valeur reçue du serveur ne doit jamais repartir en POST (lot 8 Sentry :
+        // Providers installe le miroir avant d'hydrater, chaque clé hydratée était renvoyée).
+        ecrireSansMiroir(key, stringValue)
+        derniereValeurSynchronisee.set(key, stringValue)
         count++
       } catch {
         // ignore
@@ -180,34 +313,34 @@ export function installStorageSync(): void {
 
   // Stockage bloqué par le navigateur (réglage « bloquer les données des sites », iframe sandboxée, certaines
   // webviews) : la simple lecture de window.localStorage lève une SecurityError. Appelé sur chaque page par
-  // Providers : sans ce garde, ces visiteurs tombaient sur une erreur. Pas de miroir possible, le site reste utilisable.
-  let stockage: Storage
-  try {
-    stockage = window.localStorage
-  } catch (error) {
-    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', error)
+  // Providers : sans ce garde, ces visiteurs tombaient sur une erreur (Sentry G, S). Pas de miroir possible, le site
+  // reste utilisable. Un stockage plein ou en lecture seule reste lisible : le miroir est posé, car suppressions et
+  // réécritures plus courtes y réussissent et doivent être répliquées ; une écriture refusée lève comme sans miroir
+  // et n'est pas répliquée.
+  if (!isStorageReadable('local')) {
+    console.warn('[storage-sync] localStorage inaccessible, miroir désactivé :', 'lecture du stockage impossible (bloqué par le navigateur ou absent)')
     return
   }
 
-  const origSet = stockage.setItem.bind(stockage)
-  const origRemove = stockage.removeItem.bind(stockage)
+  try {
+    const stockage = window.localStorage
+    const origSet = stockage.setItem.bind(stockage)
+    const origRemove = stockage.removeItem.bind(stockage)
+    ecrireSansMiroirRef = origSet
 
-  stockage.setItem = (key: string, value: string) => {
-    origSet(key, value)
-    if (shouldSync(key)) {
-      pendingWrites.set(key, value)
-      pendingDeletes.delete(key) // annule un eventuel delete en attente
-      scheduleFlush()
+    stockage.setItem = (key: string, value: string) => {
+      origSet(key, value)
+      enregistrerEcritureMiroir(key, value)
     }
-  }
 
-  stockage.removeItem = (key: string) => {
-    origRemove(key)
-    if (shouldSync(key)) {
-      pendingDeletes.add(key)
-      pendingWrites.delete(key)
-      scheduleFlush()
+    stockage.removeItem = (key: string) => {
+      origRemove(key)
+      enregistrerSuppressionMiroir(key)
     }
+  } catch (error) {
+    // Objet Storage non modifiable (navigateur exotique) : pas de miroir, mais aucune erreur pour le visiteur.
+    console.warn('[storage-sync] miroir non installé :', error)
+    return
   }
 
   // Flush a la fermeture de l'onglet pour ne pas perdre les pending writes.
@@ -234,7 +367,8 @@ export function installStorageSync(): void {
  * on remonte tout.
  */
 export async function pushAllLocalToServer(): Promise<{ count: number }> {
-  if (typeof window === 'undefined') return { count: 0 }
+  // Lecture seule : un stockage plein (QuotaExceededError à l'écriture) se lit encore et doit pouvoir migrer.
+  if (typeof window === 'undefined' || !isStorageReadable('local')) return { count: 0 }
   const token = await getToken()
   if (!token) return { count: 0 }
 
@@ -245,18 +379,17 @@ export async function pushAllLocalToServer(): Promise<{ count: number }> {
   }
   if (keys.length === 0) return { count: 0 }
 
-  const entries = keys.map(k => {
+  const entries: EntreeAEnvoyer[] = keys.map(k => {
     const raw = window.localStorage.getItem(k) || ''
     let parsed: unknown
     try { parsed = JSON.parse(raw) } catch { parsed = raw }
-    return { key: k, value: parsed }
+    return { key: k, value: parsed, raw }
   }).filter(e => {
     try { return JSON.stringify(e.value).length <= MAX_VALUE_BYTES } catch { return false }
   })
 
   let count = 0
-  for (let i = 0; i < entries.length; i += FLUSH_BATCH_SIZE) {
-    const slice = entries.slice(i, i + FLUSH_BATCH_SIZE)
+  for (const slice of grouperEnLots(entries)) {
     try {
       const res = await fetch('/api/user-storage', {
         method: 'POST',
@@ -264,9 +397,12 @@ export async function pushAllLocalToServer(): Promise<{ count: number }> {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ entries: slice }),
+        body: JSON.stringify({ entries: slice.map(e => ({ key: e.key, value: e.value })) }),
       })
-      if (res.ok) count += slice.length
+      if (res.ok) {
+        count += slice.length
+        for (const e of slice) derniereValeurSynchronisee.set(e.key, e.raw)
+      }
     } catch { /* ignore */ }
   }
   return { count }
