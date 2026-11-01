@@ -34,15 +34,35 @@ export default function LocaleLink({ href, locale: explicitLocale, children, ...
     }
   }
 
-  // Lien vers une autre langue que celle de la page : autre layout racine, donc rechargement complet au clic ; une
-  // charge préchargée serait jetée. Pas de préchargement (le middleware ne pose pas non plus le cookie de langue sur
-  // un préchargement : poserCookieLangue, middleware.ts).
+  // Lien vers une autre langue que celle de la page : simple <a>, chargement d'un nouveau document, comme tout
+  // changement de section (validé le 30/10). Avec next/link, la navigation restait douce entre deux pages de
+  // app/(commun) (même layout racine) et gardait la langue du premier document (LanguageProvider, <html lang>) ; entre
+  // deux dossiers de langue, Next rechargeait de toute façon, après une requête RSC jetée. Le middleware pose le cookie
+  // de langue sur ce document (poserCookieLangue, middleware.ts).
   const langueCible = getLocaleFromPathname(localizedHref)
-  const autreLangue = langueCible !== null && langueCible !== currentLocale
+  if (langueCible !== null && langueCible !== currentLocale) {
+    // Props propres à next/link, sans attribut d'ancre équivalent.
+    const {
+      as: _as, replace: _replace, scroll: _scroll, shallow: _shallow, passHref: _passHref, prefetch: _prefetch,
+      legacyBehavior: _legacyBehavior, onNavigate: _onNavigate, transitionTypes: _transitionTypes, ...ancre
+    } = props
+    return (
+      <a href={avecBarreFinale(localizedHref)} {...ancre}>
+        {children}
+      </a>
+    )
+  }
 
   return (
-    <Link href={localizedHref} {...props} prefetch={autreLangue ? false : props.prefetch}>
+    <Link href={localizedHref} {...props}>
       {children}
     </Link>
   )
+}
+
+/** trailingSlash: true (next.config.ts) : barre finale avant ? et #, comme next/link (et lib/i18n/context.tsx). */
+function avecBarreFinale(href: string): string {
+  const coupure = href.search(/[?#]/)
+  const chemin = coupure === -1 ? href : href.slice(0, coupure)
+  return chemin.endsWith('/') ? href : `${chemin}/${href.slice(chemin.length)}`
 }

@@ -7,11 +7,12 @@
 // - middleware.ts : cookie de langue posé sur une navigation de document seulement. Next retire ses propres en-têtes
 //   (RSC, Next-Router-Prefetch…) avant d'appeler le middleware : les requêtes ci-dessous portent ce qu'il reçoit
 //   vraiment, les en-têtes Fetch Metadata du navigateur (Sec-Fetch-Dest « empty » pour un fetch, « document » sinon).
-// - LocaleLink : pas de préchargement vers une autre langue (autre layout racine : la charge serait jetée).
+// - LocaleLink : un lien vers une autre langue est un simple <a> (nouveau document, ni préchargement ni navigation
+//   douce qui garderait la langue de la page quittée) ; vers la même langue, next/link.
 
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
 import { NextRequest } from 'next/server'
 import { FLIGHT_HEADERS } from 'next/dist/client/components/app-router-headers'
 
@@ -23,10 +24,10 @@ vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({ auth: { getUser: async () => ({ data: { user: etat.utilisateur } }) } }),
 }))
 
-// next/link réduit à un <a> qui expose la valeur de prefetch reçue de LocaleLink.
+// next/link réduit à un <a> marqué, qui expose la valeur de prefetch reçue de LocaleLink.
 vi.mock('next/link', () => ({
   default: ({ href, prefetch, children }: { href: string; prefetch?: boolean | null; children: React.ReactNode }) => (
-    <a href={href} data-prefetch={String(prefetch)}>{children}</a>
+    <a href={href} data-next-link="" data-prefetch={String(prefetch)}>{children}</a>
   ),
 }))
 
@@ -129,40 +130,58 @@ describe('middleware : navigation de document inchangée', () => {
   })
 })
 
-function prefetchRendu(langue: Locale, href: string, prefetch?: boolean) {
+function lienRendu(langue: Locale, href: string, props: Partial<React.ComponentProps<typeof LocaleLink>> = {}) {
   const { container, unmount } = render(
     <LanguageProvider initialLocale={langue}>
-      <LocaleLink href={href} prefetch={prefetch}>lien</LocaleLink>
+      <LocaleLink href={href} {...props}>lien</LocaleLink>
     </LanguageProvider>,
   )
-  const valeur = container.querySelector('a')?.getAttribute('data-prefetch')
+  const a = container.querySelector('a')
+  // Clic sans navigation (jsdom ne navigue pas) : seul l'appel du gestionnaire transmis compte.
+  a?.addEventListener('click', (evenement) => evenement.preventDefault())
+  if (a) fireEvent.click(a)
+  const rendu = {
+    href: a?.getAttribute('href'),
+    nextLink: a?.hasAttribute('data-next-link') ?? false,
+    prefetch: a?.getAttribute('data-prefetch') ?? null,
+    classe: a?.getAttribute('class') ?? null,
+  }
   unmount()
-  return valeur
+  return rendu
 }
 
-describe('LocaleLink : pas de préchargement vers une autre langue', () => {
+describe('LocaleLink : simple <a> vers une autre langue', () => {
   it.each([
-    ['nl', '/pt/auth/login'],
-    ['en', '/pt/precos'],
-    ['es', '/pt/termos'],
-    ['fr', '/pt/'],
-    ['pt', '/fr/recherche'],
-  ] as const)('page %s, lien %s : prefetch={false}', (langue, href) => {
-    expect(prefetchRendu(langue, href)).toBe('false')
+    ['nl', '/pt/auth/login', '/pt/auth/login/'],
+    ['en', '/pt/precos', '/pt/precos/'],
+    ['es', '/pt/termos', '/pt/termos/'],
+    ['fr', '/pt/', '/pt/'],
+    ['pt', '/fr/recherche', '/fr/recherche/'],
+    ['nl', '/fr/recherche?cat=plombier#liste', '/fr/recherche/?cat=plombier#liste'],
+    ['en', '/pt/#how', '/pt/#how'],
+  ] as const)('page %s, lien %s : <a href="%s">, sans next/link', (langue, href, attendu) => {
+    expect(lienRendu(langue, href)).toEqual({ href: attendu, nextLink: false, prefetch: null, classe: null })
+  })
+
+  it('transmet classe, gestionnaire de clic et attributs d’ancre, sans les props de next/link', () => {
+    const auClic = vi.fn()
+    const rendu = lienRendu('en', '/pt/pro/faq', { className: 'lien-pied', onClick: auClic, prefetch: true, replace: true, scroll: false })
+    expect(rendu).toEqual({ href: '/pt/pro/faq/', nextLink: false, prefetch: null, classe: 'lien-pied' })
+    expect(auClic).toHaveBeenCalledTimes(1)
   })
 
   it.each([
-    ['fr', '/recherche'],
-    ['pt', '/pesquisar'],
-    ['en', '/en/'],
-    ['nl', '/nl/#how'],
-    ['en', '/legal-notices'],
-  ] as const)('page %s, lien %s (même langue) : préchargement par défaut', (langue, href) => {
-    expect(prefetchRendu(langue, href)).toBe('undefined')
+    ['fr', '/recherche', '/fr/recherche'],
+    ['pt', '/pesquisar', '/pt/pesquisar'],
+    ['en', '/en/', '/en/'],
+    ['nl', '/nl/#how', '/nl/#how'],
+    ['en', '/legal-notices', '/en/legal-notices'],
+  ] as const)('page %s, lien %s (même langue) : next/link, préchargement par défaut', (langue, href, attendu) => {
+    expect(lienRendu(langue, href)).toEqual({ href: attendu, nextLink: true, prefetch: 'undefined', classe: null })
   })
 
   it('garde un prefetch explicite vers la même langue', () => {
-    expect(prefetchRendu('fr', '/recherche', false)).toBe('false')
-    expect(prefetchRendu('fr', '/recherche', true)).toBe('true')
+    expect(lienRendu('fr', '/recherche', { prefetch: false })).toMatchObject({ nextLink: true, prefetch: 'false' })
+    expect(lienRendu('fr', '/recherche', { prefetch: true })).toMatchObject({ nextLink: true, prefetch: 'true' })
   })
 })

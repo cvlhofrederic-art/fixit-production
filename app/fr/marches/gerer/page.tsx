@@ -1,5 +1,6 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import type { Metadata } from 'next'
+import { langueValideOuFr } from '@/lib/i18n/config'
 import GererMarcheClient from './GererMarcheClient'
 
 export const metadata: Metadata = {
@@ -12,8 +13,8 @@ export const metadata: Metadata = {
 }
 
 export default async function GererMarchePage() {
-  const cookieStore = await cookies()
-  const locale = cookieStore.get('locale')?.value || 'fr'
+  // Langue du chemin (x-locale), puis cookie : après une navigation côté client, le cookie peut encore valoir pt.
+  const locale = langueValideOuFr((await headers()).get('x-locale'), (await cookies()).get('locale')?.value)
   const isPt = locale === 'pt'
 
   return <GererMarcheClient isPt={isPt} />
