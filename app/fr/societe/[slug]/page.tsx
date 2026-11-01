@@ -8,7 +8,8 @@ export async function generateMetadata(props: ParamsFicheSociete): Promise<Metad
   return metadonneesFicheSociete(props, 'fr/societe', (slug) => ({
     title: `Société | Vitfix`,
     robots: { index: true, follow: true },
-    // Même identifiant que la route (slug ou UUID), comme la canonical que /fr/artisan/[id] donne à une fiche FR.
+    // Repli quand la fiche n'a pas pu être lue : identifiant de la route. Fiche lue : metadonneesFicheSociete pointe la
+    // canonical vers son adresse publique (getProfilePath), le slug de la fiche même pour un accès par UUID.
     alternates: {
       canonical: `https://vitfix.io/fr/artisan/${slug}/`,
     },
