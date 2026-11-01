@@ -56,8 +56,8 @@ export const RENDUES_A_LA_DEMANDE = {
   '/en/legal-notices': 'getServerTranslation()',
   // Fiches d'artisan lues en base : segment dynamique sans generateStaticParams.
   '/fr/artisan/[id]': 'fiche artisan (page client, useParams), sans generateStaticParams',
-  '/fr/societe/[slug]': 'réexport de /fr/artisan/[id]',
-  '/pt/empresa/[slug]': 'réexport de /fr/artisan/[id]',
+  '/fr/societe/[slug]': 'fiche de /fr/artisan/[id], existence lue en base (404 si slug inconnu)',
+  '/pt/empresa/[slug]': 'fiche de /fr/artisan/[id], existence lue en base (404 si slug inconnu)',
   '/pt/profissional/[id]': 'réexport de /fr/artisan/[id]',
 }
 
