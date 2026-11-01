@@ -378,14 +378,30 @@ describe('1.4 / 1.5 métadonnées exportées par les routes de la grille et les 
     if (metadata.description) expect(metadata.description.length).toBeLessThanOrEqual(DESCRICAO_MAX)
   })
 
-  it.each([
-    ['/pt/empresa/<slug>/', () => import('@/app/pt/empresa/[slug]/page'), { slug: 'exemplo' }, 'https://vitfix.io/pt/empresa/exemplo/'],
-    ['/pt/profissional/<id>/', () => import('@/app/pt/profissional/[id]/page'), { id: 'exemplo' }, 'https://vitfix.io/pt/profissional/exemplo/'],
-  ] as Array<[string, () => Promise<unknown>, Record<string, string>, string]>)('%s : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async (_page, charger, params, canonical) => {
-    const { generateMetadata } = (await charger()) as { generateMetadata: (a: { params: Promise<Record<string, string>> }) => Promise<Metadata> }
-    const metadata = await generateMetadata({ params: Promise.resolve(params) })
+  it('/pt/empresa/<slug>/ (fiche existante) : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
+    // La route lit l'existence de la fiche en base (slug inconnu : 404) : Supabase simulé, fiche trouvée. Sans ce double,
+    // le cas ne passait que parce que le job Vitest n'a pas de variables Supabase (lecture « indisponible »).
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://exemple.supabase.co')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
+    const lecture = vi.fn(async () => ({ ok: true, status: 200, json: async () => [{ id: '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b' }] }))
+    vi.stubGlobal('fetch', lecture)
+    try {
+      const { generateMetadata } = await import('@/app/pt/empresa/[slug]/page')
+      const metadata = await generateMetadata({ params: Promise.resolve({ slug: 'exemplo' }) })
+      expect(lecture).toHaveBeenCalledOnce()
+      expect(metadata.title).not.toMatch(/vitfix/i)
+      expect(metadata.alternates).toEqual({ canonical: 'https://vitfix.io/pt/empresa/exemplo/' })
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('/pt/profissional/<id>/ : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
+    const { generateMetadata } = await import('@/app/pt/profissional/[id]/page')
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: 'exemplo' }) })
     expect(metadata.title).not.toMatch(/vitfix/i)
-    expect(metadata.alternates).toEqual({ canonical })
+    expect(metadata.alternates).toEqual({ canonical: 'https://vitfix.io/pt/profissional/exemplo/' })
   })
 
   it('/pt/pesquisar/ (composant partagé avec /fr/recherche/) : un seul h1 en PT, FR inchangé (h1 visible comme avant la phase 1)', () => {

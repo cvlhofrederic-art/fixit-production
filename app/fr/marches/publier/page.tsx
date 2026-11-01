@@ -14,8 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     title: isPt
-      ? 'Publique um pedido de orçamento | VITFIX'
-      : 'Publier un appel d\'offres | VITFIX',
+      ? 'Publique um pedido de orçamento'
+      : 'Publier un appel d\'offres',
     description: isPt
       ? 'Descreva o seu projeto e receba orçamentos de profissionais qualificados. Gratuito e sem compromisso.'
       : 'Publiez votre projet et recevez des devis d\'artisans qualifiés. Gratuit et sans engagement.',

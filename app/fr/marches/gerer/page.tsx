@@ -4,7 +4,7 @@ import { langueValideOuFr } from '@/lib/i18n/config'
 import GererMarcheClient from './GererMarcheClient'
 
 export const metadata: Metadata = {
-  title: 'Gérer mon appel d\'offres | Fixit',
+  title: 'Gérer mon appel d\'offres',
   description: 'Gérez votre appel d\'offres et consultez les candidatures reçues',
   // Page de gestion (espace authentifié) — ne doit pas apparaître dans
   // l'index Google. canonical explicite + noindex pour clarté.

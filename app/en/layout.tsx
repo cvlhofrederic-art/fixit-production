@@ -9,8 +9,10 @@ import { metadonneesRacine } from '@/lib/seo/metadonnees-racine'
 // Métadonnées : celles de l'ancien layout racine puis les clés ci-dessous.
 export const metadata: Metadata = {
   ...metadonneesRacine('en'),
+  // La marque une seule fois, comme en PT et en FR : les pages donnent un titre sans marque et ce template l'ajoute
+  // (garde : tests/seo/titres-marque-unique.test.ts).
   title: {
-    template: '%s | VITFIX Porto',
+    template: '%s | VITFIX',
     default: 'Home Services in Porto | English Speaking Professionals | VITFIX',
   },
   description: 'Find verified, English-speaking home service professionals in Porto. Plumbers, electricians, handymen and more. Free quotes, fast response.',
