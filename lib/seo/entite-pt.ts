@@ -8,7 +8,7 @@
 import { CONTACT_EMAIL, PHONE_PT, PT_NIF_EMPRESA } from '@/lib/constants'
 
 export const ENTITE_PT = {
-  /** Identifiant du nœud entreprise commun à tout le site (app/layout.tsx). */
+  /** Identifiant du nœud entreprise commun à tout le site (components/common/CoquilleRacine.tsx, rendu par chaque layout racine). */
   id: 'https://vitfix.io/#business',
   nome: 'VITFIX',
   legalName: 'VITFIX — Empresário em Nome Individual',
