@@ -15,6 +15,8 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({
     get: (nom: string) => (nom === 'locale' && cookieLocale.valeur ? { name: 'locale', value: cookieLocale.valeur } : undefined),
   }),
+  // Sans x-locale (langue du chemin), la langue vient du cookie, seul varié ici.
+  headers: async () => new Headers(),
 }))
 vi.mock('@/app/fr/recherche/page', () => ({ default: () => null }))
 vi.mock('@/app/fr/marches/gerer/GererMarcheClient', () => ({ default: () => null }))

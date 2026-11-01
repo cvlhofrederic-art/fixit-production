@@ -1,11 +1,16 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import type { Metadata } from 'next'
+import { langueValideOuFr } from '@/lib/i18n/config'
 import PublierMarcheClient from './PublierMarcheClient'
 
+// Langue du chemin (x-locale), puis cookie : avec le seul cookie pt, encore posé après une navigation côté client,
+// /fr/marches/publier/ sortait un titre PT et la canonique /pt/mercados/publicar/.
+async function estPt() {
+  return langueValideOuFr((await headers()).get('x-locale'), (await cookies()).get('locale')?.value) === 'pt'
+}
+
 export async function generateMetadata(): Promise<Metadata> {
-  const cookieStore = await cookies()
-  const locale = cookieStore.get('locale')?.value || 'fr'
-  const isPt = locale === 'pt'
+  const isPt = await estPt()
 
   return {
     title: isPt
@@ -28,9 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PublierMarchePage() {
-  const cookieStore = await cookies()
-  const locale = cookieStore.get('locale')?.value || 'fr'
-  const isPt = locale === 'pt'
+  const isPt = await estPt()
 
   return <PublierMarcheClient isPt={isPt} />
 }

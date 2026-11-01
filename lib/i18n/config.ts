@@ -37,11 +37,16 @@ export function isValidLocale(value: string): value is Locale {
 }
 
 /**
- * Première langue valide parmi des valeurs lues telles quelles (en-tête x-locale, puis cookie), sinon fr. Hors du
- * matcher du middleware (.png, .txt…), ces valeurs viennent du visiteur sans contrôle (ex. cookie « locale=de »).
+ * Première langue valide parmi des valeurs lues telles quelles (en-tête x-locale, puis cookie). Hors du matcher du
+ * middleware (.png, .txt…), ces valeurs viennent du visiteur sans contrôle (ex. cookie « locale=de »).
  */
+export function premiereLangueValide(...valeurs: (string | null | undefined)[]): Locale | undefined {
+  return valeurs.find((valeur): valeur is Locale => !!valeur && isValidLocale(valeur))
+}
+
+/** Comme premiereLangueValide, avec repli sur fr. */
 export function langueValideOuFr(...valeurs: (string | null | undefined)[]): Locale {
-  return valeurs.find((valeur): valeur is Locale => !!valeur && isValidLocale(valeur)) ?? 'fr'
+  return premiereLangueValide(...valeurs) ?? 'fr'
 }
 
 /**

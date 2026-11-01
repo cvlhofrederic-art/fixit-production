@@ -17,8 +17,12 @@ export async function generateMetadata(): Promise<Metadata> {
   // sont pas disponibles (pas de runtime Node). Fallback à 'fr' — l'app mobile
   // pré-release sert d'abord le marché FR ; la locale peut être switchée
   // dynamiquement côté client après hydratation.
+  // Langue du chemin (x-locale), puis cookie, comme le corps du layout : après une navigation côté client, le cookie peut
+  // encore valoir la langue de la page quittée (le middleware ne le pose que sur un document, poserCookieLangue).
   const isMobileBuild = process.env.MOBILE_BUILD === 'true'
-  const locale = isMobileBuild ? 'fr' : langueValideOuFr((await cookies()).get('locale')?.value)
+  const locale = isMobileBuild
+    ? 'fr'
+    : langueValideOuFr((await headers()).get('x-locale'), (await cookies()).get('locale')?.value)
 
   return metadonneesRacine(locale)
 }
