@@ -91,7 +91,7 @@ sequenceDiagram
     CB->>CB: Redirection selon user_metadata.role
 ```
 
-Le callback (`app/auth/callback/route.ts`) inspecte `user_metadata.role` pour router vers `/pro/dashboard` (artisan, pro_societe, pro_conciergerie, pro_gestionnaire) ou `/client/dashboard`.
+Le callback (`app/(commun)/auth/callback/route.ts`) inspecte `user_metadata.role` pour router vers `/pro/dashboard` (artisan, pro_societe, pro_conciergerie, pro_gestionnaire) ou `/client/dashboard`.
 
 ### 2.4 Reset de mot de passe
 

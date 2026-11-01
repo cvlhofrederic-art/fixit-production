@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { getServerTranslation } from '@/lib/i18n/server'
 
 export const metadata: Metadata = {
-  title: 'Terms & Conditions | Vitfix',
+  title: 'Terms & Conditions',
   robots: { index: false, follow: true },
   alternates: { canonical: 'https://vitfix.io/en/terms/' },
 }

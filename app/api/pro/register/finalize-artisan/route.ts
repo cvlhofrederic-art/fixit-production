@@ -4,11 +4,12 @@ import { lireProfilArtisan, verifierInscriptionArtisan } from '@/lib/inscription
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { runKycPipeline } from '@/lib/kyc-orchestrate'
 import { logger } from '@/lib/logger'
+import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
 
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/pro/register/finalize-artisan
 // Fin de l'inscription d'un artisan, appelée par le formulaire artisan
-// (app/pro/register) juste après /api/auth/create-profile. Route sœur de
+// (app/(commun)/pro/register) juste après /api/auth/create-profile. Route sœur de
 // /api/pro/register/finalize (sociétés BTP), réservée au rôle artisan.
 //
 // Quand la confirmation d'e-mail est active, supabase.auth.signUp ne renvoie
@@ -105,7 +106,9 @@ export async function POST(request: NextRequest) {
         continue
       }
       if (profil[f.colonne]) continue // pièce déjà déposée : jamais remplacée
-      const chemin = `${f.dossier}/${Date.now()}_${crypto.randomUUID().slice(0, 8)}.${f.type.ext}`
+      // Dossier = compte vérifié ci-dessus (jamais le corps), nom généré, extension de la liste blanche
+      // (type reconnu aux octets) : {user}/{pièce}/{uuid}.{ext}, segments vérifiés par buildStoragePath.
+      const chemin = buildStoragePath(userId, f.dossier, `${crypto.randomUUID()}.${f.type.ext}`)
       const { data: depot, error: depotError } = await supabaseAdmin.storage
         .from(BUCKET)
         .upload(chemin, f.contenu, { contentType: f.type.mime, upsert: false })
@@ -114,8 +117,10 @@ export async function POST(request: NextRequest) {
         depotEchoue = true
         continue
       }
-      const { data: signee } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(depot.path, DUREE_URL_SIGNEE_S)
-      urls[f.colonne] = signee?.signedUrl || supabaseAdmin.storage.from(BUCKET).getPublicUrl(depot.path).data.publicUrl
+      // Chemin renvoyé par Storage revérifié (défense en profondeur) avant l'URL signée.
+      const cheminDepose = assertStoragePath(depot.path, userId)
+      const { data: signee } = await supabaseAdmin.storage.from(BUCKET).createSignedUrl(cheminDepose, DUREE_URL_SIGNEE_S)
+      urls[f.colonne] = signee?.signedUrl || supabaseAdmin.storage.from(BUCKET).getPublicUrl(cheminDepose).data.publicUrl
       documents[f.champ] = true
     }
 
@@ -141,6 +146,10 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ ok: true, documents })
   } catch (err: unknown) {
+    if (err instanceof StoragePathError) {
+      logger.warn('[artisan-register-finalize] chemin de stockage refusé')
+      return NextResponse.json({ error: 'Requête invalide' }, { status: 400 })
+    }
     logger.error('[artisan-register-finalize] exception:', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }

@@ -1,6 +1,6 @@
 # Portail copropriétaire — spécification des écrans (refonte du 17/10/2026)
 
-Ce document est la référence des huit écrans du portail (`app/coproprietaire/dashboard`). Il est
+Ce document est la référence des huit écrans du portail (`app/(commun)/coproprietaire/dashboard`). Il est
 destiné à qui implémente un écran. Tout ce qui est affiché vient de `EspaceCopro`
 (`lib/coproprietaire/types.ts`) ; tous les libellés viennent de `lib/coproprietaire/textes.ts`
 (`t = textesCopro(langue)`, FR et PT) ; les composants visuels viennent de

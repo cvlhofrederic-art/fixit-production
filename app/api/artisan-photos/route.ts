@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { validateBody, artisanPhotosPatchSchema } from '@/lib/validation'
+import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/security/storage-path'
 
 const artisanPhotosFormSchema = z.object({
   artisan_id: z.string().uuid(),
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
     // Vérifier ownership artisan
     const { data: artisanProfile } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('user_id')
+      .select('id, user_id')
       .eq('id', artisanId)
       .single()
     if (!artisanProfile || artisanProfile.user_id !== user.id) {
@@ -138,18 +139,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Format image invalide (JPEG, PNG, GIF, WebP acceptés)' }, { status: 400 })
     }
 
-    // F11: whitelist d'extensions au lieu du nom fourni par le client
-    const ALLOWED_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }
-    const ext = ALLOWED_EXT[file.type] || 'jpg'
-    const timestamp = Date.now()
-    const randomSuffix = Math.random().toString(36).substring(2, 8)
-    const filename = `${artisanId}/${timestamp}_${randomSuffix}.${ext}`
+    // F11: type et extension déduits des octets reconnus (liste blanche), jamais du nom ni du type
+    // annoncés par le client ; nom généré côté serveur ; dossier = fiche artisan vérifiée (user_id de
+    // la session), segments vérifiés par buildStoragePath.
+    let typeImage = { mime: 'image/webp', ext: 'webp' }
+    if (isJPEG) typeImage = { mime: 'image/jpeg', ext: 'jpg' }
+    else if (isPNG) typeImage = { mime: 'image/png', ext: 'png' }
+    else if (isGIF) typeImage = { mime: 'image/gif', ext: 'gif' }
+    const filename = buildStoragePath(artisanProfile.id, `${crypto.randomUUID()}.${typeImage.ext}`)
 
     const { data: uploadData, error: uploadError } = await supabaseAdmin
       .storage
       .from('artisan-photos')
       .upload(filename, buffer, {
-        contentType: file.type,
+        contentType: typeImage.mime,
         upsert: false,
       })
 
@@ -160,10 +163,16 @@ export async function POST(request: NextRequest) {
 
     // Utiliser signed URL (7 jours) au lieu de public URL pour la sécurité
     // Les photos artisan portfolio sont accessibles via signed URLs renouvelables
+    // Chemin renvoyé par Storage revérifié (défense en profondeur) avant l'URL signée.
+    const cheminDepose = assertStoragePath(uploadData.path, artisanProfile.id)
     const { data: signedData, error: signError } = await supabaseAdmin.storage
       .from('artisan-photos')
-      .createSignedUrl(uploadData.path, 60 * 60 * 24 * 7) // 7 jours
-    const publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from('artisan-photos').getPublicUrl(uploadData.path).data.publicUrl
+      .createSignedUrl(cheminDepose, 60 * 60 * 24 * 7) // 7 jours
+    if (signError) {
+      // Bucket privé : l'URL publique de repli ne sera pas lisible, l'échec doit se voir dans les journaux.
+      logger.warn('[ARTISAN_PHOTOS] URL signée en échec, repli sur l’URL publique', { message: signError.message })
+    }
+    const publicUrl = signedData?.signedUrl || supabaseAdmin.storage.from('artisan-photos').getPublicUrl(cheminDepose).data.publicUrl
 
     // Insérer dans la table
     const { data: photo, error: insertError } = await supabaseAdmin
@@ -188,6 +197,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: photo })
   } catch (e: unknown) {
+    if (e instanceof StoragePathError) {
+      logger.warn('[ARTISAN_PHOTOS] chemin de stockage refusé')
+      return NextResponse.json({ error: 'Requête invalide' }, { status: 400 })
+    }
     logger.error('[ARTISAN_PHOTOS] Server error:', e)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
@@ -289,14 +302,21 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
   }
 
-  // Supprimer le fichier storage si possible
+  // Supprimer le fichier storage si possible (best-effort : la ligne reste la source de vérité).
+  // Chemin extrait de l'URL enregistrée, puis vérifié : traversée bloquée, dossier de la fiche imposé.
+  // Chemin refusé ou URL illisible : objet laissé, ligne supprimée (comme un échec de remove).
   try {
     const urlPath = new URL(photo.url).pathname
     const storagePath = urlPath.split('/artisan-photos/')[1]
     if (storagePath) {
-      await supabaseAdmin.storage.from('artisan-photos').remove([storagePath])
+      const { error: storageError } = await supabaseAdmin.storage
+        .from('artisan-photos')
+        .remove([assertStoragePath(storagePath, photo.artisan_id)])
+      if (storageError) logger.warn('[ARTISAN_PHOTOS] fichier non supprimé', { photo: id, message: storageError.message })
     }
-  } catch { /* ignore storage delete errors */ }
+  } catch (e) {
+    logger.warn('[ARTISAN_PHOTOS] fichier non supprimé', { photo: id, raison: e instanceof Error ? e.name : 'inconnue' })
+  }
 
   const { error } = await supabaseAdmin
     .from('artisan_photos')

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { titreAvecMarque } from '@/lib/seo/titre-avec-marque'
 
 export const metadata: Metadata = {
-  title: 'Artisans Vérifiés à Marseille : Garantie Vitfix | Vitfix',
+  title: titreAvecMarque('Artisans Vérifiés à Marseille : Garantie Vitfix'),
   description: 'Tous les artisans Vitfix sont vérifiés : SIRET, assurance RC Pro, qualifications. Travaux garantis à Marseille, Aix-en-Provence, Aubagne et en PACA. Avis clients authentiques.',
   openGraph: {
     title: 'Artisans Vérifiés à Marseille : Garantie Vitfix',

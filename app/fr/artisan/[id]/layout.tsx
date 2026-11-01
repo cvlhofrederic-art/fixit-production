@@ -1,36 +1,8 @@
 import type { Metadata } from 'next'
 import { logger } from '@/lib/logger'
 import { serialiserJsonLd } from '@/lib/seo/json-ld'
+import { fetchArtisanProfile, type LectureProfil } from '@/lib/seo/fiche-artisan'
 import { urlImagePublique } from '@/lib/storage/images-artisan'
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-
-// 'absent' : Supabase a répondu sans ligne (identifiant inconnu). 'indisponible' : configuration absente ou
-// réponse en erreur, on ne peut rien conclure sur l'existence du profil (pas de noindex sur une panne).
-type LectureProfil<T> = { statut: 'trouve'; profil: T } | { statut: 'absent' } | { statut: 'indisponible' }
-
-async function fetchArtisanProfile<T>(id: string, fields: string): Promise<LectureProfil<T>> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return { statut: 'indisponible' }
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-  const column = isUUID ? 'id' : 'slug'
-  const url = `${SUPABASE_URL}/rest/v1/profiles_artisan?select=${encodeURIComponent(fields)}&${column}=eq.${encodeURIComponent(id)}&limit=1`
-
-  const res = await fetch(url, {
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-    },
-    cache: 'no-store',
-  })
-
-  if (!res.ok) {
-    logger.warn('[fr/artisan] lecture Supabase en erreur', { id, status: res.status })
-    return { statut: 'indisponible' }
-  }
-  const rows: T[] = await res.json()
-  return rows[0] ? { statut: 'trouve', profil: rows[0] } : { statut: 'absent' }
-}
 
 type ArtisanMeta = {
   company_name: string | null
@@ -62,14 +34,17 @@ function getCanonicalPath(slug: string | null, id: string, isPT: boolean): strin
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
-  const fallback: Metadata = { title: 'Artisan - Vitfix', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.' }
+  // `alternates: {}` : sans clé alternates, la page hériterait des hreflang du layout FR (accueils, x-default vers /).
+  // Pas de canonical bâtie sur l'identifiant de la route : seule une fiche lue en porte une.
+  const fallback: Metadata = { title: 'Artisan', description: 'Consultez le profil de cet artisan vérifié sur Vitfix.', alternates: {} }
 
   let lecture: LectureProfil<ArtisanMeta>
 
   try {
     lecture = await fetchArtisanProfile<ArtisanMeta>(
       id,
-      'company_name,bio,categories,company_city,rating_avg,rating_count,language,profile_photo_url,slug'
+      'company_name,bio,categories,company_city,rating_avg,rating_count,language,profile_photo_url,slug',
+      'fr/artisan',
     )
   } catch (error) {
     logger.warn('[fr/artisan] métadonnées : profil illisible', { id, error: String(error) })
@@ -78,10 +53,12 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   if (lecture.statut !== 'trouve') {
     return {
-      title: 'Artisan non trouvé - Vitfix',
+      title: 'Artisan non trouvé',
       description: 'Cet artisan n\'existe pas ou a été supprimé.',
       // Profil inexistant : la page client répond 200 avec « Artisan non trouvé » (soft 404), jamais indexée.
       ...(lecture.statut === 'absent' ? { robots: { index: false, follow: false } } : {}),
+      // Ni hreflang hérité du layout FR, ni canonical bâtie sur l'identifiant (voir le repli ci-dessus).
+      alternates: {},
     }
   }
 
@@ -98,9 +75,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? (rating ? ` - Nota: ${rating}/5 (${artisan.rating_count} avaliações)` : '')
     : (rating ? ` - Note : ${rating}/5 (${artisan.rating_count} avis)` : '')
 
+  // Le template du layout ajoute la marque : le nom de repli du titre ne la contient pas (« Artisan Vitfix » la répéterait).
+  const nomTitre = artisan.company_name || (isPT ? 'Profissional' : 'Artisan')
   const title = isPT
-    ? `${name} - ${categories || 'Profissional'} em ${city} | VITFIX`
-    : `${name} - ${categories || 'Artisan'} à ${city} | Vitfix`
+    ? `${nomTitre} - ${categories || 'Profissional'} em ${city}`
+    : `${nomTitre} - ${categories || 'Artisan'} à ${city}`
 
   const description = isPT
     ? (artisan.bio?.substring(0, 160) || `${name}, ${categories} em ${city}.${ratingText} Reserve online no VITFIX.`)
@@ -140,7 +119,8 @@ export default async function ArtisanLayout({
   try {
     const lecture = await fetchArtisanProfile<ArtisanJsonLd>(
       id,
-      'company_name,categories,company_city,rating_avg,rating_count,language,latitude,longitude,profile_photo_url,slug,phone'
+      'company_name,categories,company_city,rating_avg,rating_count,language,latitude,longitude,profile_photo_url,slug,phone',
+      'fr/artisan',
     )
 
     if (lecture.statut === 'trouve') {
