@@ -1,5 +1,5 @@
 // Capture d'écran RÉELLE de la landing page → image Open Graph (1200×630).
-// Rend la vraie page (app/page.tsx) au format og, plutôt qu'une reproduction.
+// Rend la vraie page (app/(commun)/page.tsx) au format og, plutôt qu'une reproduction.
 // Usage : node scripts/gen-og-screenshot.mjs <pt|fr|en> [sortie.png]
 //   BASE (env) : origine du serveur (défaut http://127.0.0.1:3001)
 import { chromium } from 'playwright'

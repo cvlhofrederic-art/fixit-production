@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Tarifs - Vitfix',
+  title: 'Tarifs',
   description: 'Vitfix est gratuit pour les particuliers. Découvrez comment fonctionne notre service.',
   alternates: {
     canonical: 'https://vitfix.io/fr/tarifs/',

@@ -5,7 +5,8 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { echapperMotifLike, resoudreCoproprietaire, statutHttpAcces } from '@/lib/coproprietaire/acces'
 import { documentVisible, memeNom } from '@/lib/coproprietaire/filtrage'
-import { cheminStockageSur } from '@/lib/storage/chemin-sur'
+import { StoragePathError, assertStoragePath } from '@/lib/security/storage-path'
+import { prefixesStorageCabinet } from '@/lib/syndic/dossiers-storage'
 
 // ── GET /api/coproprietaire/documents/[id] ───────────────────────────────────
 // URL signée (10 minutes) d'un document de l'immeuble du copropriétaire connecté, demandée au
@@ -29,6 +30,7 @@ interface LigneDocumentStockage {
   publie_extranet?: boolean | null
   espace_extranet?: string | null
   coproprio_id?: string | null
+  uploaded_by?: string | null
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     const [{ data: doc, error: docErr }, { data: immeubles, error: immErr }] = await Promise.all([
-      supabaseAdmin.from('syndic_documents').select('id, immeuble_id, type, status, storage_path, filename, mime_type, publie_extranet, espace_extranet, coproprio_id').eq('id', id).eq('cabinet_id', cabinetId).maybeSingle(),
+      supabaseAdmin.from('syndic_documents').select('id, immeuble_id, type, status, storage_path, filename, mime_type, publie_extranet, espace_extranet, coproprio_id, uploaded_by').eq('id', id).eq('cabinet_id', cabinetId).maybeSingle(),
       supabaseAdmin.from('syndic_immeubles').select('id, nom').eq('cabinet_id', cabinetId).ilike('nom', echapperMotifLike(nomImmeuble)).limit(5),
     ])
     if (docErr || immErr) {
@@ -63,14 +65,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!ligne || !ligne.immeuble_id || !idsImmeuble.includes(ligne.immeuble_id) || !documentVisible(ligne, new Set(fiches.map(f => f.id)))) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
-    if (!cheminStockageSur(ligne.storage_path)) {
+    // Chemin relu en base : traversée bloquée, dossier du cabinet (ou de l'uploadeur s'il est membre du
+    // cabinet, format des dépôts antérieurs au 25/05/2026) imposé ; refus → 400 générique, sans détail du chemin.
+    let chemin: string
+    try {
+      chemin = assertStoragePath(ligne.storage_path, await prefixesStorageCabinet(supabaseAdmin, cabinetId, ligne.uploaded_by))
+    } catch (e) {
+      if (!(e instanceof StoragePathError)) throw e
       logger.error('[COPRO DOCUMENT] chemin de stockage refusé', { document: ligne.id })
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+      return NextResponse.json({ error: 'invalid_storage_path' }, { status: 400 })
     }
 
     const { data: signee, error: signErr } = await supabaseAdmin.storage
       .from('syndic-documents')
-      .createSignedUrl(ligne.storage_path, DUREE_URL_SECONDES)
+      .createSignedUrl(chemin, DUREE_URL_SECONDES)
     if (signErr || !signee?.signedUrl) {
       logger.error('[COPRO DOCUMENT] URL signée', { message: signErr?.message })
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })

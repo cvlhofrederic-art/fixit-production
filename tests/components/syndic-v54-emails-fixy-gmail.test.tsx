@@ -85,6 +85,22 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
     expect(screen.getByText(/MICROSOFT_CLIENT_ID manquant/)).toBeInTheDocument()
   })
 
+  it('adresse renvoyée hors Google/Microsoft : aucune redirection, même toast d’échec, bouton réutilisable', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/api/email-agent/status') return json(NON_CONNECTEE)
+      return json({ url: 'https://evil.example/oauth?client_id=m' })
+    }))
+    rendre(authed())
+    fireEvent.click(await screen.findByRole('button', { name: 'Outlook / Microsoft 365' }))
+    expect(await screen.findByText('Ligação da caixa de email impossível')).toBeInTheDocument()
+    expect(assign).not.toHaveBeenCalled()
+    expect(console.warn).toHaveBeenCalledWith('[safe-url] redirection refusée')
+    expect(screen.getByRole('button', { name: 'Outlook / Microsoft 365' })).toBeEnabled()
+  })
+
   it('connectée : fournisseur + adresse, e-mails analysés, brouillon à valider ; « Analisar agora » relève la boîte', async () => {
     let releves = 0
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
@@ -114,6 +130,8 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
       return json({}, 404)
     }))
     rendre(authed())
+    // Boîte chargée avant le clic : avant la réponse de /status, le bouton n'ouvre que le toast « bientôt » (faux rouge CI).
+    expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Analisar agora/ }))
     expect(await screen.findByText('12 novos emails · 20 lidos · 8 por analisar — clique novamente')).toBeInTheDocument()
   })
@@ -127,6 +145,8 @@ describe('E-mails Fixy — boîte e-mail du cabinet', () => {
       return json({}, 404)
     }))
     rendre(authed())
+    // Boîte chargée avant le clic : avant la réponse de /status, le bouton n'ouvre que le toast « bientôt » (faux rouge CI).
+    expect(await screen.findByText('Fuite colonne')).toBeInTheDocument()
     fireEvent.click(await screen.findByRole('button', { name: /Analisar agora/ }))
     expect(await screen.findByText('Análise impossível')).toBeInTheDocument()
     expect(screen.getByText('A ligação à caixa de email expirou: volte a ligá-la.')).toBeInTheDocument()

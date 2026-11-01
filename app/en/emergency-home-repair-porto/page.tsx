@@ -5,7 +5,7 @@ import TrustSignals from '@/components/en/TrustSignals'
 import { PHONE_PT } from '@/lib/constants'
 
 export const metadata: Metadata = {
-  title: 'Emergency Home Repair in Porto | Available Now | VITFIX',
+  title: 'Emergency Home Repair in Porto | Available Now',
   description: 'Urgent home repair needed in Porto? English-speaking professionals available 24/7. Plumbing, electrical, handyman. Free quote in 15 minutes.',
   openGraph: {
     title: 'Emergency Home Repair in Porto | VITFIX',

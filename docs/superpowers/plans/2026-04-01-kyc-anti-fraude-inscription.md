@@ -953,7 +953,7 @@ export async function POST(request: NextRequest) {
 
 ```bash
 # Dans .env.local (ne jamais committer) :
-INTERNAL_API_SECRET=un_secret_aleatoire_long_32_chars_min
+INTERNAL_API_SECRET=<chaîne aléatoire de 32 caractères minimum>
 ```
 
 - [ ] **Étape 4 : Vérifier TypeScript**

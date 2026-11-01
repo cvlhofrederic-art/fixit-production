@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Conditions Générales d\'Utilisation | VITFIX',
+  title: 'Conditions Générales d\'Utilisation',
   description: 'Consultez les conditions générales d\'utilisation de la plateforme VITFIX.',
   robots: { index: true, follow: true },
   alternates: { canonical: 'https://vitfix.io/fr/cgu/' },
