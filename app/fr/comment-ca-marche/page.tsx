@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Comment ça marche ? Trouvez un artisan vérifié à Marseille | Vitfix',
+  title: 'Comment ça marche ? Trouvez un artisan vérifié à Marseille',
   description: 'Découvrez comment Vitfix fonctionne : recherchez un artisan qualifié à Marseille et en PACA, comparez les avis, réservez en ligne. Devis gratuit, sans engagement, réponse rapide.',
   openGraph: {
     title: 'Comment ça marche ? Artisans vérifiés à Marseille : Vitfix',

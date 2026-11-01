@@ -47,6 +47,11 @@ export interface Copropriete extends EntiteEnregistree {
   depense: number
   impayes: number
   fondsTravaux: number
+  /**
+   * Fiche détaillée sur le modèle de la fiche Mandat de Gestéam (voir domain/fiche-copropriete). Optionnelle et non
+   * indexée : aucun changement de version de la base.
+   */
+  fiche?: import('@/lib/administrateur-judiciaire/domain/fiche-copropriete').FicheCopropriete
 }
 
 export interface Mandat extends EntiteEnregistree {
@@ -111,6 +116,11 @@ export interface Prestataire extends EntiteEnregistree {
   rcDecennaleEcheance?: string | null
   rcpNecessaire?: boolean
   rcpEcheance?: string | null
+  /**
+   * Fiche détaillée sur le modèle de la fiche Entreprise de Gestéam (voir domain/fiche-entreprise). Optionnelle et
+   * non indexée : aucun changement de version de la base.
+   */
+  fiche?: import('@/lib/administrateur-judiciaire/domain/fiche-entreprise').FicheEntreprise
 }
 
 /** Contrat (jamais écrit par l'application : lu pour la fiche 360). */

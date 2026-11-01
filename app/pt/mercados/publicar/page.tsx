@@ -2,6 +2,10 @@ import type { Metadata } from 'next'
 import PublierMarcheClient from '@/app/fr/marches/publier/PublierMarcheClient'
 import { grafo, noFilAriane, noWebPage } from '@/lib/seo/pt-schemas'
 
+// Rendu à chaque requête, comme sur /fr/marches/publier/ : PublierMarcheClient calcule au rendu la date minimale du
+// champ « Prazo » (new Date()), qu'un pré-rendu figerait au jour du build.
+export const dynamic = 'force-dynamic'
+
 // JSON-LD (phase 1 SEO PT, point 1.6) : WebPage + fil d'Ariane, comme les autres pages statiques PT.
 const jsonLd = grafo(
   noWebPage({ url: 'https://vitfix.io/pt/mercados/publicar/', nome: 'Publique um pedido de orçamento' }),

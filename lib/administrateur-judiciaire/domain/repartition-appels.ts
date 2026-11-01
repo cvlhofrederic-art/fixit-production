@@ -1,3 +1,4 @@
+import { repartirAuxPlusFortsRestes } from '@/lib/administrateur-judiciaire/domain/arrondis'
 import {
   numeroCompteCoproprietaire,
   positionsEnPlace,
@@ -50,17 +51,8 @@ export function creerCleRepartition(saisie: Omit<CleRepartition, 'totalTantiemes
 export function repartir(montantCentimes: number, cle: CleRepartition): { lotId: string; centimes: number }[] {
   if (!Number.isInteger(montantCentimes) || montantCentimes < 0)
     throw new Error(`Montant invalide (${montantCentimes}) : centimes entiers positifs attendus.`)
-  const bruts = cle.lots.map((l, rang) => {
-    const exact = (montantCentimes * l.tantiemes) / cle.totalTantiemes
-    return { lotId: l.lotId, rang, centimes: Math.floor(exact), reste: exact - Math.floor(exact) }
-  })
-  let aDistribuer = montantCentimes - bruts.reduce((s, b) => s + b.centimes, 0)
-  for (const b of [...bruts].sort((x, y) => y.reste - x.reste || x.rang - y.rang)) {
-    if (aDistribuer === 0) break
-    b.centimes += 1
-    aDistribuer -= 1
-  }
-  return bruts.map(({ lotId, centimes }) => ({ lotId, centimes }))
+  const parts = repartirAuxPlusFortsRestes(montantCentimes, cle.lots.map((l) => l.tantiemes))
+  return cle.lots.map((l, i) => ({ lotId: l.lotId, centimes: parts[i] }))
 }
 
 export type NatureEcheance = 'budget' | 'travaux' | 'fonds_travaux'
