@@ -175,7 +175,8 @@ describe('/fr/societe/[slug] : une seule URL indexable par fiche FR', () => {
 
 describe('fiche reprise sous une autre route : canonical vers son adresse publique (getProfilePath)', () => {
   // Ces adresses ne sont produites par aucun lien ; la canonical suit la langue et la forme juridique de la fiche lue,
-  // comme le sitemap et la redirection UUID. Une fiche qui relève de /pt/profissional/ (noindex) met la page en noindex.
+  // comme getProfilePath (la redirection UUID suit la langue de la route). Une fiche qui relève de /pt/profissional/
+  // (noindex) met la page en noindex.
   const ROUTE = {
     '/fr/societe/': () => import('@/app/fr/societe/[slug]/page') as Promise<ModuleFiche>,
     '/pt/empresa/': () => import('@/app/pt/empresa/[slug]/page') as Promise<ModuleFiche>,

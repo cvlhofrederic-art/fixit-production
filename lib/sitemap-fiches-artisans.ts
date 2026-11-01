@@ -5,8 +5,9 @@
 // lecture (PostgREST 42703) et le sitemap sort vide. Relevé du 31/10/2026 : org_role et is_verified n'existent pas,
 // et country, déclarée par les migrations (052), manque dans la table de production.
 // - verified + active : fiche vérifiée et publique (la lecture anonyme ne voit de toute façon que active = true, RLS) ;
-// - language : les fiches PT ('pt') sont hors de ce sitemap, les URL PT ont leurs propres fichiers /pt/sitemap-*.xml
-//   (une URL dans un seul sitemap) ; les autres sortent sous /fr/artisan/<slug>/, leur canonique
+// - language : les fiches PT ('pt') sont hors de ce sitemap : une URL PT n'a sa place que dans un /pt/sitemap-*.xml,
+//   et aucun ne liste de fiche pour l'instant (/pt/profissional/ est en noindex ; un sitemap PT des sociétés,
+//   /pt/empresa/, reste à décider). Les autres sortent sous /fr/artisan/<slug>/, leur canonique
 //   (app/fr/artisan/[id]/layout.tsx), société comprise.
 //
 // Règles : une seule URL par fiche ; pas de `lastmod`, faute de vraie date de contenu (lib/sitemap-helpers.ts) : le

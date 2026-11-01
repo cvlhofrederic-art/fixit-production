@@ -13,9 +13,10 @@ export type ParamsFicheSociete = { params: Promise<{ slug: string }> }
 
 // Métadonnées de la route (`metadonnees`, canonical bâtie sur l'identifiant de la route) :
 // - slug inconnu : noindex, au cas où ces métadonnées accompagneraient malgré tout la 404 de la page ;
-// - fiche lue : canonical vers son adresse publique, celle du sitemap et de la redirection UUID (getProfilePath) :
-//   /fr/artisan/<slug|id>/ pour une fiche FR, /pt/empresa/<slug|id>/ pour une société PT, /pt/profissional/<slug|id>/
-//   sinon ; cette dernière est en noindex, la page qui la reprend aussi (comme /pt/profissional/[id]) ;
+// - fiche lue : canonical vers son adresse publique selon la langue et la forme juridique de la fiche (getProfilePath),
+//   /fr/artisan/<slug|id>/ pour une fiche FR (celle du sitemap 4), /pt/empresa/<slug|id>/ pour une société PT,
+//   /pt/profissional/<slug|id>/ sinon : cette adresse est en noindex (/pt/profissional/[id]), la page qui la reprend
+//   aussi ; aucune fiche PT n'est dans un sitemap, et la redirection UUID de la page suit la langue de la route ;
 // - existence illisible (panne) : rien ne change, métadonnées de la route.
 export async function metadonneesFicheSociete(
   { params }: ParamsFicheSociete,

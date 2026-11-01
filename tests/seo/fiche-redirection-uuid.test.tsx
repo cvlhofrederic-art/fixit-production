@@ -1,8 +1,10 @@
 /**
  * Page client partagée des fiches (app/fr/artisan/[id]/page.tsx) : un accès par UUID est redirigé vers l'adresse
- * publique de la fiche, celle du sitemap (getProfilePath) : /fr/artisan/<slug> en FR, société comprise (/fr/societe/
- * n'a pas les métadonnées d'une fiche), /pt/empresa/<slug> ou /pt/profissional/<slug> en PT. Un accès par slug, ou une
- * fiche sans slug, n'est jamais redirigé : pas de boucle entre deux routes de fiche.
+ * publique de la fiche dans la langue de la route (getProfilePath). Sous la locale fr : /fr/artisan/<slug>, quelle que
+ * soit la fiche (société ou fiche pt comprises ; /fr/societe/ n'a pas les métadonnées d'une fiche), l'adresse du
+ * sitemap 4 pour une fiche FR. Sous la locale pt : /pt/empresa/<slug> ou /pt/profissional/<slug> ; aucune fiche PT
+ * n'est dans un sitemap. Un accès par slug, ou une fiche sans slug, n'est jamais redirigé : pas de boucle entre deux
+ * routes de fiche.
  *
  * La page est montée avec un client Supabase simulé qui renvoie la fiche ; les appels réseau qui suivent la lecture
  * (disponibilités, réservations) restent en attente : la page ne dépasse pas le chargement.
@@ -71,6 +73,15 @@ describe('fiche ouverte par UUID : redirection vers l’adresse publique (getPro
     etat.fiche = { id: UUID, slug: 'batiment-sud-aix-en-provence', legal_form: legalForm }
     render(<ArtisanProfilePage />)
     await waitFor(() => expect(remplacer).toHaveBeenCalledWith(cible))
+    expect(remplacer).toHaveBeenCalledTimes(1)
+  })
+
+  it('fiche pt sous la locale fr : la redirection suit la langue de la route, /fr/artisan/<slug>', async () => {
+    etat.params = { id: UUID }
+    etat.locale = 'fr'
+    etat.fiche = { id: UUID, slug: 'construcoes-ribeiro', language: 'pt', legal_form: 'Lda' }
+    render(<ArtisanProfilePage />)
+    await waitFor(() => expect(remplacer).toHaveBeenCalledWith('/fr/artisan/construcoes-ribeiro'))
     expect(remplacer).toHaveBeenCalledTimes(1)
   })
 

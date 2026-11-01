@@ -173,11 +173,6 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
 
   // app/fr/layout.tsx déclare six hreflang vers les accueils (x-default vers /). Next fusionne les métadonnées clé par
   // clé : une page qui déclare `alternates` remplace la clé entière, sinon elle hérite de celle du layout.
-  const fusionAvecLayoutFr = (metadata: Metadata): Metadata => ({
-    alternates: { languages: { 'fr-FR': 'https://vitfix.io/fr/', 'pt-PT': 'https://vitfix.io/pt/', 'x-default': 'https://vitfix.io/' } },
-    ...metadata,
-  })
-
   it.each([
     ['délai de lecture dépassé', 'delai-depasse', undefined],
     ['Supabase en erreur (lecture indisponible)', { ok: false, lignes: [] }, undefined],
@@ -187,7 +182,6 @@ describe('fiche artisan /fr/artisan/<id>/', () => {
     lecture.reponse = reponse
     const metadata = await generateMetadata({ params: params('plomberie-durand') })
     expect(metadata.alternates).toEqual({})
-    expect(fusionAvecLayoutFr(metadata).alternates).toEqual({})
     expect(metadata.robots).toEqual(robots)
   })
 

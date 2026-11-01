@@ -271,10 +271,10 @@ export default function ArtisanProfilePage() {
     if (!artisanData) { setLoading(false); return }
     const artisanId = artisanData.id
 
-    // Accès par UUID : redirection vers l'adresse publique de la fiche, celle du sitemap (getProfilePath) :
-    // /fr/artisan/<slug> en FR, /pt/empresa/<slug> (société) ou /pt/profissional/<slug> en PT. La cible porte
-    // le slug et seul un accès par UUID est redirigé : jamais vers l'adresse courante, pas de boucle entre
-    // deux routes de fiche.
+    // Accès par UUID : redirection vers l'adresse publique de la fiche dans la langue de la route (getProfilePath) :
+    // /fr/artisan/<slug> sous /fr/ (l'adresse du sitemap 4 pour une fiche FR), /pt/empresa/<slug> (société) ou
+    // /pt/profissional/<slug> sous /pt/ ; aucune fiche PT n'est dans un sitemap. La cible porte le slug et seul un
+    // accès par UUID est redirigé : jamais vers l'adresse courante, pas de boucle entre deux routes de fiche.
     if (typeof window !== 'undefined' && isUuid && artisanData.slug) {
       router.replace(getProfilePath(artisanData, locale))
       return
