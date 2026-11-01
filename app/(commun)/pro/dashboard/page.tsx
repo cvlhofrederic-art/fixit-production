@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
+import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
@@ -271,9 +272,14 @@ function DashboardPage() {
 
     const initAuth = async () => {
       // getSession suffit côté client — getUser (round-trip réseau) n'est nécessaire
-      // que si la session locale est corrompue, ce qui est géré par onAuthStateChange
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) { didLoad = true; loadDashboardData(session.user) }
+      // que si la session locale est corrompue, ce qui est géré par onAuthStateChange.
+      // Lecture protégée : un abandon du verrou d'auth, un délai ou une panne réseau ne redirige jamais
+      // (lot 1 Sentry du 28/10/2026) ; on attend alors INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED.
+      const { session, indisponible } = await lireSessionSure(supabase.auth)
+      // Un seul chargement : SIGNED_IN ou TOKEN_REFRESHED a pu le lancer pendant cette lecture (jeton expiré
+      // rafraîchi à l'initialisation du client, page déjà abonnée).
+      if (session?.user) { if (!didLoad) { didLoad = true; void loadDashboardData(session.user) } }
+      else if (indisponible) { console.warn('[pro/dashboard] session indisponible, attente de INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED') }
       // Si pas de session, on attend INITIAL_SESSION de onAuthStateChange
       // qui va soit fournir un user, soit on redirige après un timeout
       else { setTimeout(() => { if (!didLoad) window.location.href = `/${locale}/auth/login` }, 3000) }
@@ -290,10 +296,16 @@ function DashboardPage() {
 
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT') window.location.href = `/${locale}/auth/login`
-      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user) {
-        didLoad = true; loadDashboardData(session.user)
+    // Callback synchrone : aucun appel Supabase lancé dans un callback onAuthStateChange (interblocage documenté
+    // par Supabase) ; le chargement est différé. TOKEN_REFRESHED reprend une session restée indisponible au
+    // chargement : jeton expiré et rafraîchissement en échec réseau → INITIAL_SESSION nul, puis le tick
+    // d'auto-refresh d'auth-js réussit et n'émet que TOKEN_REFRESHED.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') { window.location.href = `/${locale}/auth/login`; return }
+      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        didLoad = true
+        const utilisateur = session.user
+        setTimeout(() => { void loadDashboardData(utilisateur) }, 0)
       }
     })
     return () => { isMountedRef.current = false; subscription.unsubscribe() }

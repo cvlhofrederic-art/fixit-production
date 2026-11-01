@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
+import { jetonAcces } from '@/lib/auth/jeton-acces'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
@@ -125,30 +127,54 @@ export default function ClientDashboardPage() {
 
   useEffect(() => {
     let didLoad = false
+    let redirige = false
+    // Une seule redirection vers la connexion, et seulement quand Supabase refuse la session : jamais sur une
+    // AbortError du verrou d'auth, un délai ou une panne réseau (lot 1 Sentry du 28/10/2026, issues C et X :
+    // page qui attendait le verrou 10 s puis repartait en boucle).
+    const versConnexion = () => {
+      if (redirige) return
+      redirige = true
+      window.location.href = `/${locale}/auth/login/`
+    }
 
     const initAuth = async () => {
-      // Always use getUser() — validates JWT with Supabase server (non-forgeable)
-      // getSession() reads from localStorage which can be tampered with
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      if (currentUser) {
+      // getUser() valide le JWT auprès de Supabase (non falsifiable) ; verdict par lib/auth/session-navigateur.ts.
+      const verdict = await verifierSessionNavigateur(supabase.auth)
+      if (verdict.statut === 'valide') {
+        if (didLoad) return
         didLoad = true
-        setUser(currentUser)
-        await fetchBookings(currentUser.id)
+        setUser(verdict.user)
+        await fetchBookings(verdict.user.id)
+      } else if (verdict.statut === 'refusee') {
+        versConnexion()
       } else {
-        window.location.href = '/auth/login'
+        // Session inconnue : on reste sur la page, sans rechargement (INITIAL_SESSION, SIGNED_IN ou TOKEN_REFRESHED
+        // peuvent encore apporter la session).
+        console.warn('[client/dashboard] session indisponible :', verdict.erreur)
+        if (!didLoad) {
+          toast.error(locale === 'pt'
+            ? 'Não foi possível verificar a sua sessão. Tente novamente dentro de instantes.'
+            : 'Impossible de vérifier votre session pour le moment. Réessayez dans quelques instants.')
+        }
       }
     }
 
     initAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // Callback synchrone : aucun appel Supabase attendu ici (interblocage documenté par Supabase) ; le
+    // chargement des réservations est différé. SIGNED_IN et TOKEN_REFRESHED reprennent une session restée
+    // indisponible au chargement : jeton expiré et rafraîchissement en échec réseau → INITIAL_SESSION nul, puis le
+    // tick d'auto-refresh d'auth-js réussit et n'émet que TOKEN_REFRESHED.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        window.location.href = '/auth/login'
+        versConnexion()
+        return
       }
-      if (!didLoad && event === 'INITIAL_SESSION' && session?.user) {
+      if (!didLoad && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         didLoad = true
-        setUser(session.user)
-        await fetchBookings(session.user.id)
+        const utilisateur = session.user
+        setUser(utilisateur)
+        setTimeout(() => { void fetchBookings(utilisateur.id) }, 0)
       }
     })
 
@@ -398,7 +424,7 @@ export default function ClientDashboardPage() {
   }
 
   // ── Messagerie enrichie helpers ──
-  const getAuthToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
+  const getAuthToken = async () => (await jetonAcces()) || ''
 
   const uploadMsgAttachment = async (file: File): Promise<string | null> => {
     setMsgUploading(true)

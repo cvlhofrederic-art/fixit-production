@@ -41,6 +41,8 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
       getUser: async () => ({ data: { user: etat.utilisateur } }),
+      // L’en-tête lit la session locale (getSession, sans appel réseau : lot 1 Sentry du 28/10/2026).
+      getSession: async () => ({ data: { session: etat.utilisateur ? { user: etat.utilisateur } : null }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
       signOut: async () => ({ error: null }),
     },
