@@ -78,6 +78,40 @@ describe('honoraires — éléments à facturer', () => {
   })
 })
 
+describe('honoraires — fiche précise visée par l’élément (point 66, rattachement { type, id } du point 47)', () => {
+  it('la fiche est facultative : absente ou null, l’élément se crée comme avant', () => {
+    expect(creerElement(saisie()).fiche).toBeUndefined()
+    expect(creerElement(saisie({ fiche: null })).fiche).toBeNull()
+  })
+
+  it('garde la fiche du dossier de l’élément, identifiant nettoyé', () => {
+    const element = creerElement(saisie({ dossier: 'Sinistre', fiche: { type: 'Sinistre', id: '  sin-42 ' } }))
+    expect(element.fiche).toEqual({ type: 'Sinistre', id: 'sin-42' })
+    expect(element.statut).toBe('A facturer')
+  })
+
+  it('refuse une fiche d’un autre dossier, une fiche porteuse, un identifiant vide, un type inconnu', () => {
+    expect(() => creerElement(saisie({ dossier: 'Sinistre', fiche: { type: 'Contentieux', id: 'ctx-1' } }))).toThrow(/dossier de l.élément/i)
+    expect(() => creerElement(saisie({ fiche: { type: 'Copropriété', id: 'copro-tilleuls' } }))).toThrow(/porteuse/i)
+    expect(() => creerElement(saisie({ fiche: { type: 'Entreprise', id: 'ent-1' } }))).toThrow(/porteuse/i)
+    expect(() => creerElement(saisie({ fiche: { type: 'Contentieux', id: '   ' } }))).toThrow(/identifiant/i)
+    expect(() => creerElement(saisie({ fiche: { type: 'Divers' as never, id: 'x' } }))).toThrow(/rattachement inconnu/i)
+  })
+
+  it('la facture se prépare de la même façon avec ou sans fiche', () => {
+    const elements = [creerElement(saisie({ fiche: { type: 'Contentieux', id: 'ctx-1' } })), creerElement(saisie({ id: 'el-2' }))]
+    const { facture } = preparerFacture(elements, {
+      id: 'f-1',
+      numero: 'H-2026-0001',
+      date: '2026-10-27',
+      mandatId: 'mandat-2026',
+      destinataire: 'Syndicat des copropriétaires',
+    })
+    expect(facture.lignes.map((l) => l.elementId)).toEqual(['el-1', 'el-2'])
+    expect(facture.totalHtCentimes).toBe(9_000)
+  })
+})
+
 describe('honoraires — factures', () => {
   const elements = [
     creerElement(saisie()),
