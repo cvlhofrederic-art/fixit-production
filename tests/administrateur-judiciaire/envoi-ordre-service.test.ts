@@ -20,13 +20,18 @@ import {
   REGLES_VISA_PAR_DEFAUT,
   VISAS_PERMETTANT_ENVOI,
   VISAS_SORTIE,
+  anomaliesCircuitVisa,
+  appliquerActionVisa,
+  attendusOs,
   autorisationConvention,
+  circuitVisaInitial,
   controlerAvantEnvoiOs,
   creerSortieOs,
   demandeEnvoiDepuisOs,
   demanderVisa,
   devisCaducALaReception,
   donnerVisa,
+  enregistrerRapport,
   enregistrerReception,
   envoyerOs,
   estEnvoye,
@@ -45,9 +50,14 @@ import {
   refuserVisa,
   relancerOs,
   relancesOsDues,
+  revoirCircuitVisa,
   revoirVisa,
+  visaPermetSortie,
+  type CircuitVisa,
+  type ConstatUrgence,
   type ContexteEnvoiOs,
   type OptionsVisa,
+  type PieceVisee,
   type ReglesVisaOs,
   type SaisieDiffusion,
   type SaisieEvenementVisa,
@@ -174,6 +184,9 @@ const envoyee = (s: SortieOrdreService = sortie(), d: Demande = demande()) => en
 
 const PRIX_6600_TTC = { montantTtcCentimes: 660_000, remiseCentimes: 0, tauxTvaPct: 10, baseHtCentimes: 600_000 }
 
+/** Constat de l'urgence par l'administrateur provisoire (décision de Hugo du 03/11/2026) : daté, motivé, attribué. */
+const CONSTAT: ConstatUrgence = { constateLe: '2026-10-02', motif: 'Fuite active sur colonne', collaborateurId: 'col-direction' }
+
 describe('référentiels du point 44', () => {
   it('Visa de sortie : les 5 valeurs de la tranche 40 ; seuls « Visa donné » et « Sortie libre » laissent partir l’OS', () => {
     expect([...VISAS_SORTIE]).toEqual(['Demande de visa', 'Visa refusé', 'Visa nécessaire', 'Visa donné', 'Sortie libre'])
@@ -272,11 +285,11 @@ describe('visa de sortie : motifs et création', () => {
     expect(motifs[0].fondement).toMatch(/D\. 1967 art\. 39/)
   })
 
-  it('administrateur provisoire au titre des pouvoirs de l’assemblée : avis du conseil syndical, sauf urgence motivée (D. 1967 art. 62-7)', () => {
+  it('administrateur provisoire au titre des pouvoirs de l’assemblée : avis du conseil syndical, sauf urgence constatée par l’administrateur provisoire (D. 1967 art. 62-7)', () => {
     const aj = sortie(demande(), { fondement: 'decision_aj_pouvoirs_ag' })
     expect(aj.visa).toBe('Visa nécessaire')
     expect(aj.motifsVisa).toEqual(['avis_conseil_syndical_aj'])
-    const urgente = sortie(demande(), { fondement: 'decision_aj_pouvoirs_ag', delai: 'urgence', motifUrgence: 'Fuite active sur colonne' })
+    const urgente = sortie(demande(), { fondement: 'decision_aj_pouvoirs_ag', delai: 'urgence', constatUrgence: CONSTAT })
     expect(urgente.visa).toBe('Sortie libre')
   })
 
@@ -494,12 +507,12 @@ describe('contrôle avant l’envoi', () => {
     expect(controlerAvantEnvoiOs(gros, visee({ devisDemandes: 2, avisConseilSyndicalLe: '2026-10-02' }), contexte)).toEqual([])
   })
 
-  it('fondement : non renseigné, sans référence, urgence non motivée, suites de l’urgence (D. 1967 art. 37)', () => {
+  it('fondement : non renseigné, sans référence, urgence non constatée, suites de l’urgence (D. 1967 art. 37)', () => {
     expect(codes(controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: null }), CONTEXTE))).toEqual(['fondement_non_renseigne'])
     const sansReference = sortie(demande(), { fondement: 'execution_resolution_ag', majoriteResolution: 'art24' })
     expect(codes(controlerAvantEnvoiOs(demande(), sansReference, CONTEXTE))).toEqual(['fondement_sans_reference'])
     const urgence = controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: 'urgence_sauvegarde', delai: 'urgence' }), CONTEXTE)
-    expect(codes(urgence)).toEqual(['urgence_non_motivee', 'urgence_suites'])
+    expect(codes(urgence)).toEqual(['urgence_non_constatee', 'urgence_suites'])
     expect(urgence[1].fondement).toMatch(/D\. 1967 art\. 37/)
     expect(urgence.every((a) => a.gravite === 'alerte')).toBe(true)
   })
@@ -616,7 +629,7 @@ describe('envoi et journal de diffusion (preuve)', () => {
 })
 
 describe('adaptateurs (branchements à faire plus tard)', () => {
-  it('relances dues pour le suivi « à faire » : OS envoyés, ni terminés ni refusés, avec une date de relance', () => {
+  it('relances dues pour le suivi « à faire » : OS envoyés, ni terminés ni refusés, avec une date de relance et un élément encore attendu (attendusOs)', () => {
     const d1 = demande()
     const d2 = demande({ id: 'dem-2', numero: '12.3.457' })
     const d3 = demande({ id: 'dem-3', numero: '12.3.458' })
@@ -630,6 +643,8 @@ describe('adaptateurs (branchements à faire plus tard)', () => {
       { demande: { ...d1, id: 'dem-4', statut: 'Terminé' }, sortie: { ...s1, demandeId: 'dem-4' } },
       { demande: { ...d1, id: 'dem-5', statut: 'Refusé' }, sortie: { ...s1, demandeId: 'dem-5' } },
       { demande: { ...d1, id: 'dem-6', stade: 'Refusée' }, sortie: { ...s1, demandeId: 'dem-6' } },
+      // réponse reçue (OS accepté) : rien n'est dû, malgré la date de relance
+      { demande: { ...d1, id: 'dem-7', statut: 'Accepté' }, sortie: { ...s1, demandeId: 'dem-7' } },
     ])
     expect(relances.map((r) => [r.id, r.date])).toEqual([
       ['demandes:relance_os:dem-2', '2026-10-08'],
@@ -701,7 +716,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     expect(bloquants(controlerAvantEnvoiOs(sansDate, creerSortieOs(sansDate, { ...PRETE, fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', majoriteResolution: 'art25' }), pendant))).toEqual(['execution_suspendue_art42'])
     expect(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: '2026-10-14' })).toEqual([])
     expect(controlerAvantEnvoiOs(d, resolution({ majoriteResolution: 'art24' }), pendant)).toEqual([])
-    expect(bloquants(controlerAvantEnvoiOs(d, resolution({ delai: 'urgence', motifUrgence: 'Infiltrations actives' }), pendant))).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(d, resolution({ delai: 'urgence', constatUrgence: { ...CONSTAT, motif: 'Infiltrations actives' } }), pendant))).toEqual([])
     expect(codes(controlerAvantEnvoiOs(d, resolution(), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
     expect(codes(controlerAvantEnvoiOs(d, resolution({ majoriteResolution: null }), CONTEXTE))).toEqual(['majorite_resolution_non_renseignee'])
   })
@@ -766,7 +781,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
   })
 
   it('D. 1967 art. 37 : la provision d’urgence rappelle son objet, l’avis du conseil syndical et le devis estimatif', () => {
-    const urgence = controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: 'urgence_sauvegarde', delai: 'urgence', motifUrgence: 'Fuite active' }), CONTEXTE)
+    const urgence = controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: 'urgence_sauvegarde', delai: 'urgence', constatUrgence: CONSTAT }), CONTEXTE)
     const suites = urgence.find((a) => a.code === 'urgence_suites')
     expect(suites?.message).toMatch(/ouverture du chantier/)
     expect(suites?.message).toMatch(/avis du conseil syndical/)
@@ -870,7 +885,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     expect(() => demandeEnvoiDepuisOs(long, sortie(long), { syndicArtisanId: 'a', copropriete: 'c' })).toThrow(/50/)
   })
 
-  it('motif d’urgence sans délai « urgence » : l’urgence n’est pas retenue, l’avis de D. 1967 art. 62-7 reste exigé, alerte', () => {
+  it('constat d’urgence sans délai « urgence » : l’urgence n’est pas retenue, l’avis de D. 1967 art. 62-7 reste exigé, alerte', () => {
     const d = demande()
     const cadre: SaisieSortieOs = {
       fondement: 'decision_aj_pouvoirs_ag',
@@ -878,14 +893,14 @@ describe('retours de relecture du point 44 (tour 1)', () => {
       decisionLe: '2026-10-02',
       justificatifs: { modeFinancement: 'appel de fonds' },
     }
-    const s = sortie(d, { ...cadre, motifUrgence: 'à voir' })
+    const s = sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, motif: 'à voir' } })
     expect(s.visa).toBe('Visa nécessaire')
     expect(s.motifsVisa).toEqual(['avis_conseil_syndical_aj'])
     const anomalies = controlerAvantEnvoiOs(d, viser(s, d), CONTEXTE)
     expect(bloquants(anomalies)).toEqual(['avis_conseil_syndical_aj_absent'])
-    expect(anomalies.find((a) => a.code === 'motif_urgence_sans_urgence')?.gravite).toBe('alerte')
-    // OS créé en urgence motivée, puis ramené au délai « normale » : l'avis redevient exigé
-    const rabaissee = modifierSortieOs(sortie(d, { ...cadre, delai: 'urgence', motifUrgence: 'Fuite active' }), d, { delai: 'normale' })
+    expect(anomalies.find((a) => a.code === 'constat_urgence_sans_urgence')?.gravite).toBe('alerte')
+    // OS créé en urgence constatée, puis ramené au délai « normale » : l'avis redevient exigé
+    const rabaissee = modifierSortieOs(sortie(d, { ...cadre, delai: 'urgence', constatUrgence: CONSTAT }), d, { delai: 'normale' })
     expect(bloquants(controlerAvantEnvoiOs(d, rabaissee, CONTEXTE))).toEqual(['visa_devenu_necessaire', 'avis_conseil_syndical_aj_absent'])
   })
 })
@@ -1062,6 +1077,461 @@ describe('retours de relecture du point 44 (tour 3)', () => {
   })
 })
 
+describe('décisions de Hugo du 03/11/2026', () => {
+  /** OS envoyé le 03/10/2026, relance fixée au 10/10/2026. */
+  const aRelancer = () => fixerRelance(envoyee(), '2026-10-10')
+  const avec = (changement: Partial<Demande>): Demande => ({ ...demande(), ...changement })
+  const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
+
+  it('3. relance : due tant que la réponse à l’OS manque ; reçue (statut « Accepté », stade de l’acceptation ou au-delà, réalisation, devis d’une demande de devis), plus rien n’est dû', () => {
+    const s = aRelancer()
+    // changement de comportement : la date de relance seule ne suffit plus, l'OS accepté n'est plus à relancer
+    expect(dues(avec({ statut: 'Accepté' }), s)).toEqual([])
+    expect(attendusOs(demande(), s)).toEqual(['reponse'])
+    expect(dues(demande(), s).map((r) => [r.id, r.date, r.attendus])).toEqual([['demandes:relance_os:dem-1', '2026-10-10', ['reponse']]])
+    // bornes de l'étape « Demandée » : une proposition n'est pas une réponse
+    expect(attendusOs(avec({ stade: 'Proposition en cours' }), s)).toEqual(['reponse'])
+    expect(attendusOs(avec({ stade: 'Proposition résident' }), s)).toEqual(['reponse'])
+    // réponse reçue : plus de relance due, même avec une date de relance fixée
+    const recues: Partial<Demande>[] = [
+      { statut: 'Accepté' },
+      { stade: 'Acceptée' },
+      { stade: 'Programmée' },
+      { stade: 'Réalisée', realiseeLe: '2026-10-15' },
+      { realiseeLe: '2026-10-15' },
+    ]
+    for (const changement of recues) {
+      expect(attendusOs(avec(changement), s), JSON.stringify(changement)).toEqual([])
+      expect(dues(avec(changement), s), JSON.stringify(changement)).toEqual([])
+    }
+    // demande de devis : le devis associé est la réponse ; pour une intervention, il précède l'OS et n'en est pas la réponse
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const sDevis = fixerRelance(envoyerOs(devis, sortie(devis), ENVOI, CONTEXTE), '2026-10-10')
+    expect(attendusOs(devis, sDevis)).toEqual(['reponse'])
+    expect(attendusOs({ ...devis, devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000 } }, sDevis)).toEqual([])
+    expect(attendusOs(avec({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000 } }), s)).toEqual(['reponse'])
+    // OS jamais envoyé, demande terminée ou refusée : rien n'est attendu ; sortie d'une autre demande : erreur
+    expect(attendusOs(demande(), sortie())).toEqual([])
+    expect(attendusOs(avec({ statut: 'Terminé' }), s)).toEqual([])
+    expect(attendusOs(avec({ stade: 'Refusée' }), s)).toEqual([])
+    expect(() => attendusOs(avec({ id: 'dem-2' }), s)).toThrow(/autre demande/)
+  })
+
+  it('3. relance : « Accusé demandé » → l’accusé est attendu jusqu’à la ligne « reception » du journal (enregistrerReception)', () => {
+    const s = aRelancer()
+    const accuse = avec({ statut: 'Accusé demandé', stade: 'Acceptée' })
+    expect(attendusOs(accuse, s)).toEqual(['accuse'])
+    const [relance] = dues(accuse, s)
+    expect(relance.attendus).toEqual(['accuse'])
+    expect(relance.libelle).toMatch(/accusé de réception/)
+    // réception enregistrée à l'heure même de l'envoi (borne) : reçu
+    const recu = enregistrerReception(s, { ...ENVOI, heure: '10:00' })
+    expect(attendusOs(accuse, recu)).toEqual([])
+    expect(dues(accuse, recu)).toEqual([])
+    // sans « Accusé demandé », la réception n'est pas attendue
+    expect(attendusOs(avec({ stade: 'Acceptée' }), s)).toEqual([])
+  })
+
+  it('3. relance : « Rapport demandé » → le rapport est attendu jusqu’à son enregistrement (enregistrerRapport), au plus tôt le jour du premier envoi', () => {
+    const s = aRelancer()
+    const rapport = avec({ statut: 'Rapport demandé', stade: 'Réalisée', realiseeLe: '2026-10-15' })
+    expect(attendusOs(rapport, s)).toEqual(['rapport'])
+    expect(dues(rapport, s).map((r) => r.attendus)).toEqual([['rapport']])
+    // bornes : la veille du premier envoi, refusé ; le jour même, reçu
+    expect(() => enregistrerRapport(rapport, s, { recuLe: '2026-10-02' })).toThrow(/premier envoi/)
+    const recu = enregistrerRapport(rapport, s, { recuLe: '2026-10-03', documentId: ' doc-7 ' })
+    expect(recu.rapportRecu).toEqual({ recuLe: '2026-10-03', documentId: 'doc-7' })
+    expect(s.rapportRecu).toBeNull()
+    expect(attendusOs(rapport, recu)).toEqual([])
+    expect(dues(rapport, recu)).toEqual([])
+    // une seule fois ; jamais sur un OS non envoyé ; date contrôlée ; sortie d'une autre demande refusée
+    expect(() => enregistrerRapport(rapport, recu, { recuLe: '2026-10-20' })).toThrow(/déjà enregistré/)
+    expect(() => enregistrerRapport(rapport, sortie(), { recuLe: '2026-10-20' })).toThrow(/jamais envoyé/)
+    expect(() => enregistrerRapport(rapport, s, { recuLe: '20/10/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => enregistrerRapport({ ...rapport, id: 'dem-2' }, s, { recuLe: '2026-10-20' })).toThrow(/autre demande/)
+  })
+
+  it('3. relance : plusieurs éléments manquants → UN élément par OS, à la date de relance, qui liste ce qui manque', () => {
+    const s = aRelancer()
+    const accuse = avec({ statut: 'Accusé demandé' })
+    expect(attendusOs(accuse, s)).toEqual(['reponse', 'accuse'])
+    const relances = dues(accuse, s)
+    expect(relances).toHaveLength(1)
+    expect(relances[0]).toMatchObject({ id: 'demandes:relance_os:dem-1', date: '2026-10-10', attendus: ['reponse', 'accuse'], assigneId: 'col-gestion' })
+    expect(relances[0].libelle).toMatch(/réponse à l'ordre de service, accusé de réception/)
+    expect(attendusOs(avec({ statut: 'Rapport demandé' }), s)).toEqual(['reponse', 'rapport'])
+    // après la relance, la date est vidée : la suivante se fixe par fixerRelance (l'OS reste dû entre-temps : tour 1 ci-dessous)
+    const relancee = relancerOs(s, { ...ENVOI, date: '2026-10-10', heure: '09:00' })
+    expect(relancee.relanceLe).toBeNull()
+    expect(dues(accuse, fixerRelance(relancee, '2026-10-17')).map((r) => [r.date, r.attendus, r.relanceAFixer])).toEqual([['2026-10-17', ['reponse', 'accuse'], false]])
+  })
+
+  it('4. courriers : le visa suit le même circuit (CircuitVisa), réutilisable pour une autre pièce de sortie', () => {
+    type MotifCourrier = 'mise_en_demeure'
+    interface CourrierVise extends CircuitVisa<MotifCourrier> {
+      courrierId: string
+    }
+    const lettre = (objet: string): PieceVisee => ({
+      designation: 'le courrier',
+      sortie: 'le dépôt',
+      datee: '2026-10-01',
+      empreinte: JSON.stringify([objet, 'id-1']),
+      champsVises: 'objet, destinataire',
+    })
+    const avant = lettre('Mise en demeure de payer')
+    const prepare: CourrierVise = { courrierId: 'courrier-1', ...circuitVisaInitial<MotifCourrier>(['mise_en_demeure']) }
+    expect(prepare).toMatchObject({ visa: 'Visa nécessaire', motifsVisa: ['mise_en_demeure'], empreinteVisee: null, historiqueVisa: [] })
+    expect(circuitVisaInitial([]).visa).toBe('Sortie libre')
+    expect(visaPermetSortie(prepare)).toBe(false)
+    // messages : la sortie du courrier est son dépôt (controlerDepot), pas un envoi
+    expect(anomaliesCircuitVisa(prepare, avant, [])).toEqual([{ code: 'visa_manquant', message: 'Visa nécessaire non demandé : demander le visa avant le dépôt.' }])
+    const demandee = appliquerActionVisa(prepare, avant, 'demande', DEMANDE_GESTION)
+    expect(demandee.courrierId).toBe('courrier-1')
+    expect(demandee.empreinteVisee).toBe(avant.empreinte)
+    expect(anomaliesCircuitVisa(demandee, avant, [])).toEqual([{ code: 'visa_manquant', message: 'Visa demandé, en attente du viseur : dépôt impossible.' }])
+    const refuse = appliquerActionVisa(demandee, avant, 'refuse', evenement('col-direction', 'Direction', '10:00', 'Ton trop vif'))
+    expect(anomaliesCircuitVisa(refuse, avant, [])).toEqual([
+      { code: 'visa_manquant', message: 'Visa refusé : revoir le courrier, puis demander de nouveau le visa. Motif du refus : Ton trop vif' },
+    ])
+    // mêmes règles que pour l'OS : viseur habilité, autre que le demandeur, refus motivé, horodatage, transitions
+    expect(() => appliquerActionVisa(demandee, avant, 'donne', evenement('col-gestion-2', 'Gestion', '10:00'))).toThrow(/non habilité/)
+    expect(() => appliquerActionVisa(demandee, avant, 'donne', evenement('col-gestion', 'Direction', '10:00'))).toThrow(/autre collaborateur/)
+    expect(() => appliquerActionVisa(demandee, avant, 'refuse', VISA_DIRECTION)).toThrow(/motif/)
+    expect(() => appliquerActionVisa(prepare, { ...avant, datee: '2026-10-05' }, 'demande', DEMANDE_GESTION)).toThrow(/antérieur au courrier du 05\/10\/2026/)
+    expect(() => appliquerActionVisa(prepare, avant, 'donne', VISA_DIRECTION)).toThrow(/impossible/)
+    const vise = appliquerActionVisa(demandee, avant, 'donne', VISA_DIRECTION)
+    expect(vise.visa).toBe('Visa donné')
+    expect(visaPermetSortie(vise)).toBe(true)
+    expect(anomaliesCircuitVisa(vise, avant, [])).toEqual([])
+    // le courrier change après le visa : à revoir, puis la revue le ramène à « Visa nécessaire »
+    const apres = lettre('Mise en demeure de payer sous huit jours')
+    expect(anomaliesCircuitVisa(vise, apres, [])).toEqual([
+      { code: 'visa_a_revoir', message: 'Le courrier a changé depuis le visa (objet, destinataire) : revoir le visa.' },
+    ])
+    const revu = revoirCircuitVisa(vise, apres, ['mise_en_demeure'], evenement('col-gestion', 'Gestion', '11:00'))
+    expect(revu).toMatchObject({ courrierId: 'courrier-1', visa: 'Visa nécessaire', empreinteVisee: null })
+    expect(revu.historiqueVisa.map((e) => e.action)).toEqual(['demande', 'donne', 'revu'])
+    expect(revoirCircuitVisa(vise, avant, ['mise_en_demeure'], evenement('col-gestion', 'Gestion', '11:00')).visa).toBe('Visa donné')
+    // un motif nouveau sur une sortie libre : visa devenu nécessaire
+    const libre: CourrierVise = { courrierId: 'courrier-2', ...circuitVisaInitial<MotifCourrier>([]) }
+    const motifs = [{ code: 'mise_en_demeure', message: 'Mise en demeure : visa de la direction.' }]
+    expect(codes(anomaliesCircuitVisa(libre, avant, motifs))).toEqual(['visa_devenu_necessaire'])
+  })
+
+  it('6. avis préalable sous administration provisoire (D. 1967 art. 62-7) : l’urgence est CONSTATÉE par l’administrateur provisoire (constat daté, motivé, attribué)', () => {
+    const d = demande()
+    const cadre: SaisieSortieOs = {
+      fondement: 'decision_aj_pouvoirs_ag',
+      fondementReference: 'registre n° 7',
+      decisionLe: '2026-10-02',
+      delai: 'urgence',
+      justificatifs: { modeFinancement: 'appel de fonds' },
+    }
+    // constat complet : l'avis n'est plus exigé
+    const constatee = sortie(d, { ...cadre, constatUrgence: CONSTAT })
+    expect(constatee.visa).toBe('Sortie libre')
+    expect(constatee.constatUrgence).toEqual(CONSTAT)
+    expect(controlerAvantEnvoiOs(d, constatee, CONTEXTE)).toEqual([])
+    expect(sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, motif: '  Fuite active  ', collaborateurId: ' col-direction ' } }).constatUrgence).toEqual({
+      ...CONSTAT,
+      motif: 'Fuite active',
+    })
+    // constat incomplet à la saisie : refusé (date, motif, auteur)
+    expect(() => sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, motif: '   ' } })).toThrow(/motif/)
+    expect(() => sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, constateLe: '02/10/2026' } })).toThrow(/AAAA-MM-JJ/)
+    expect(() => sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: ' ' } })).toThrow(/collaborateur/)
+    // sans constat : l'avis reste exigé (bloquant), l'urgence est signalée non constatée
+    const sansConstat = viser(sortie(d, cadre), d)
+    const anomalies = controlerAvantEnvoiOs(d, sansConstat, CONTEXTE)
+    expect(bloquants(anomalies)).toEqual(['avis_conseil_syndical_aj_absent'])
+    expect(anomalies.find((a) => a.code === 'urgence_non_constatee')).toMatchObject({ gravite: 'alerte' })
+    // constat incomplet repris d'ailleurs : il ne vaut pas constat, l'avis reste exigé
+    const incomplet: SortieOrdreService = { ...sansConstat, constatUrgence: { ...CONSTAT, motif: ' ' } }
+    expect(codes(motifsVisa(d, incomplet))).toEqual(['avis_conseil_syndical_aj'])
+    const anomaliesIncomplet = controlerAvantEnvoiOs(d, incomplet, CONTEXTE)
+    expect(bloquants(anomaliesIncomplet)).toEqual(['avis_conseil_syndical_aj_absent'])
+    expect(anomaliesIncomplet.find((a) => a.code === 'urgence_non_constatee')?.message).toMatch(/manque : motif/)
+    // délai « prioritaire » : toujours pas une urgence, même constatée
+    const prioritaire = sortie(d, { ...cadre, delai: 'prioritaire', constatUrgence: CONSTAT })
+    expect(prioritaire.motifsVisa).toEqual(['avis_conseil_syndical_aj'])
+    const anomaliesPrioritaire = controlerAvantEnvoiOs(d, viser(prioritaire, d), CONTEXTE)
+    expect(bloquants(anomaliesPrioritaire)).toEqual(['avis_conseil_syndical_aj_absent'])
+    expect(anomaliesPrioritaire.find((a) => a.code === 'constat_urgence_sans_urgence')).toMatchObject({ gravite: 'alerte' })
+  })
+})
+
+describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', () => {
+  /** Intervention décidée par l'administrateur provisoire au titre des pouvoirs de l'assemblée, inscrite au registre le 02/10/2026. */
+  const cadreAj = (constatUrgence: ConstatUrgence | null, saisie: SaisieSortieOs = {}): SaisieSortieOs => ({
+    fondement: 'decision_aj_pouvoirs_ag',
+    fondementReference: 'registre n° 7',
+    decisionLe: '2026-10-02',
+    delai: 'urgence',
+    constatUrgence,
+    ...saisie,
+    justificatifs: { modeFinancement: 'appel de fonds', ...saisie.justificatifs },
+  })
+  const le = (constateLe: string): ConstatUrgence => ({ ...CONSTAT, constateLe })
+  const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
+
+  it('constat daté après la décision au registre, avis du conseil syndical recueilli à temps : le constat ne sert pas, rien ne bloque', () => {
+    const d = demande()
+    const s = sortie(d, cadreAj(le('2026-10-03'), { justificatifs: { avisConseilSyndicalLe: '2026-10-01' } }))
+    expect(controlerAvantEnvoiOs(d, s, CONTEXTE)).toEqual([])
+    expect(envoyerOs(d, s, ENVOI, CONTEXTE).journal).toHaveLength(1)
+    // avis du jour même de la décision (borne) : à temps aussi
+    expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-03'), { justificatifs: { avisConseilSyndicalLe: '2026-10-02' } })), CONTEXTE)).toEqual([])
+  })
+
+  it('demande de devis au titre des pouvoirs de l’assemblée : aucun avis n’est exigé, la date du constat n’est pas contrôlée', () => {
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const contexte: ContexteEnvoiOs = { date: '2026-10-03', prestataireAvecCompteVitfix: true }
+    expect(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(null, { delai: 'normale' })), contexte)).toEqual([])
+    expect(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), contexte)).toEqual([])
+    expect(envoyerOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), ENVOI, contexte).journal).toHaveLength(1)
+  })
+
+  it('constat qui tient lieu de l’avis, daté après la décision au registre : alerte à confirmer (règle proposée, question à Hugo), plus de bloquant', () => {
+    const d = demande()
+    // bornes : constat du jour de la décision, rien ; du lendemain, alerte à confirmer
+    expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-02'))), CONTEXTE)).toEqual([])
+    const tardif = controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-03'))), CONTEXTE)
+    expect(tardif.map((a) => [a.code, a.gravite, a.aConfirmer])).toEqual([['constat_urgence_posterieur', 'alerte', true]])
+    expect(tardif[0].message).toMatch(/Urgence constatée le 03\/10\/2026, après la décision au registre du 02\/10\/2026/)
+    // l'issue proposée lève bien l'alerte : enregistrer l'avis recueilli à temps, ou corriger la date du constat
+    expect(tardif[0].message).toMatch(/enregistrer l'avis s'il a été recueilli au plus tard ce jour-là, ou corriger la date du constat/)
+    expect(tardif[0].fondement).toMatch(/62-7/)
+    expect(envoyerOs(d, sortie(d, cadreAj(le('2026-10-03'))), ENVOI, CONTEXTE).journal).toHaveLength(1)
+    // avis recueilli après la décision : il ne vaut pas avis préalable, le constat tardif reste signalé
+    const avisTardif = sortie(d, cadreAj(le('2026-10-03'), { justificatifs: { avisConseilSyndicalLe: '2026-10-03' } }))
+    expect(codes(controlerAvantEnvoiOs(d, avisTardif, CONTEXTE))).toEqual(['constat_urgence_posterieur'])
+    // décision non datée : le jour de l'envoi sert de borne ; un constat du lendemain est postérieur à l'envoi (tour 2 :
+    // bloquant constat_urgence_posterieur_envoi, et non plus l'alerte constat_urgence_posterieur)
+    const sansDate = (constateLe: string) => sortie(d, cadreAj(le(constateLe), { decisionLe: null }))
+    expect(controlerAvantEnvoiOs(d, sansDate('2026-10-03'), CONTEXTE)).toEqual([])
+    const apresEnvoi = controlerAvantEnvoiOs(d, sansDate('2026-10-04'), CONTEXTE)
+    expect(apresEnvoi.map((a) => [a.code, a.gravite])).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(apresEnvoi[0].message).toMatch(/après l'envoi du 03\/10\/2026/)
+  })
+
+  it('exécution d’une résolution (L. 1965 art. 42, al. 3, question 7 ouverte) et autres fondements : la date du constat n’est pas comparée à la décision', () => {
+    const d = demande()
+    const pendant = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+    // constat du jour de l'envoi, trois semaines après la résolution du 12/09/2026 (tour 2 : un constat postérieur à l'envoi
+    // est, lui, bloquant pour tous les fondements)
+    const resolution = sortie(d, {
+      fondement: 'execution_resolution_ag',
+      fondementReference: 'AG du 12/09/2026, résolution 7',
+      decisionLe: '2026-09-12',
+      majoriteResolution: 'art25',
+      delai: 'urgence',
+      constatUrgence: le('2026-10-03'),
+    })
+    expect(controlerAvantEnvoiOs(d, resolution, pendant)).toEqual([])
+    const sauvegarde = sortie(d, { fondement: 'urgence_sauvegarde', delai: 'urgence', constatUrgence: le('2026-10-03') })
+    expect(codes(controlerAvantEnvoiOs(d, sauvegarde, CONTEXTE))).toEqual(['urgence_suites'])
+  })
+
+  it('urgence non retenue : le message ne cite l’avis (D. 1967 art. 62-7) ou la suspension (L. 1965 art. 42, al. 3) que lorsqu’ils s’appliquent', () => {
+    const message = (d: Demande, saisie: SaisieSortieOs, code: string, contexte: ContexteEnvoiOs = CONTEXTE) =>
+      controlerAvantEnvoiOs(d, sortie(d, saisie), contexte).find((a) => a.code === code)?.message ?? ''
+    const d = demande()
+    // urgence de sauvegarde, administration courante : ni avis ni suspension
+    for (const fondement of ['urgence_sauvegarde', 'administration_courante'] as const) {
+      const neutre = message(d, { fondement, delai: 'urgence' }, 'urgence_non_constatee')
+      expect(neutre, fondement).toMatch(/sans lui, l'urgence n'est pas retenue\.$/)
+      expect(neutre, fondement).not.toMatch(/conseil syndical|art\. 42/)
+    }
+    // pouvoirs de l'assemblée, intervention : l'avis
+    const avis = message(d, cadreAj(null), 'urgence_non_constatee')
+    expect(avis).toMatch(/l'avis préalable du conseil syndical reste exigé \(D\. 1967 art\. 62-7\)/)
+    expect(avis).not.toMatch(/art\. 42/)
+    // résolution votée à l'art. 25 : la suspension ; à l'art. 24 : rien
+    const resolution: SaisieSortieOs = { fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', delai: 'urgence', majoriteResolution: 'art25' }
+    const suspension = message(d, resolution, 'urgence_non_constatee', { ...CONTEXTE, finDelaiContestationAg: '2026-10-01' })
+    expect(suspension).toMatch(/majorité de l'art\. 25 reste suspendue pendant le délai de contestation \(L\. 1965 art\. 42, al\. 3\)/)
+    expect(suspension).not.toMatch(/conseil syndical/)
+    expect(message(d, { ...resolution, majoriteResolution: 'art24' }, 'urgence_non_constatee')).toMatch(/n'est pas retenue\.$/)
+    // demande de devis au titre des pouvoirs de l'assemblée : aucun avis exigé
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const contexteDevis: ContexteEnvoiOs = { date: '2026-10-03', prestataireAvecCompteVitfix: true }
+    expect(message(devis, cadreAj(null), 'urgence_non_constatee', contexteDevis)).toMatch(/n'est pas retenue\.$/)
+    // constat sans délai « urgence » : même règle
+    const sansUrgence = message(d, { fondement: 'administration_courante', constatUrgence: CONSTAT }, 'constat_urgence_sans_urgence')
+    expect(sansUrgence).toMatch(/l'urgence n'est pas retenue ; choisir le délai « urgence » ou effacer le constat\.$/)
+    expect(sansUrgence).not.toMatch(/conseil syndical|art\. 42/)
+    expect(message(d, cadreAj(CONSTAT, { delai: 'normale' }), 'constat_urgence_sans_urgence')).toMatch(/l'avis préalable du conseil syndical reste exigé/)
+  })
+
+  it('3. relance : sans date de relance (jamais fixée, ou vidée par relancerOs), l’OS reste dû tant qu’un élément manque : la prochaine relance est à fixer', () => {
+    const accuse: Demande = { ...demande(), statut: 'Accusé demandé' }
+    // envoi sans date de relance : élément daté du premier envoi, prochaine relance à fixer (tour 2 : relanceAFixer, et non
+    // plus aConfirmer, réservé aux repères juridiques)
+    const envoye = envoyerOs(accuse, sortie(accuse), ENVOI, CONTEXTE)
+    expect(envoye.relanceLe).toBeNull()
+    const [aFixer] = dues(accuse, envoye)
+    expect(aFixer).toMatchObject({
+      id: 'demandes:relance_os:dem-1',
+      date: '2026-10-03',
+      aConfirmer: false,
+      relanceAFixer: true,
+      attendus: ['reponse', 'accuse'],
+      assigneId: 'col-gestion',
+    })
+    expect(aFixer.libelle).toMatch(/attendu : réponse à l'ordre de service, accusé de réception$/)
+    // date fixée : l'élément est daté d'elle, il n'y a plus de relance à fixer
+    const fixee = fixerRelance(envoye, '2026-10-10')
+    expect(dues(accuse, fixee).map((r) => [r.date, r.relanceAFixer])).toEqual([['2026-10-10', false]])
+    expect(dues(accuse, fixee)[0].libelle).not.toMatch(/Fixer/)
+    // relance faite, éléments encore manquants : élément daté de la dernière relance, prochaine relance à fixer
+    const relancee = relancerOs(fixee, { ...ENVOI, date: '2026-10-10', heure: '09:00' })
+    expect(dues(accuse, relancee).map((r) => [r.date, r.relanceAFixer, r.attendus])).toEqual([['2026-10-10', true, ['reponse', 'accuse']]])
+    const deuxFois = relancerOs(fixerRelance(relancee, '2026-10-17'), { ...ENVOI, date: '2026-10-17', heure: '09:00' })
+    expect(dues(accuse, deuxFois).map((r) => [r.date, r.relanceAFixer])).toEqual([['2026-10-17', true]])
+    // tout reçu : plus rien, avec ou sans date
+    const recu = enregistrerReception(relancee, { ...ENVOI, date: '2026-10-11', heure: '09:00' })
+    expect(dues({ ...accuse, statut: 'Accepté' }, recu)).toEqual([])
+    expect(dues({ ...accuse, stade: 'Acceptée' }, recu)).toEqual([])
+    expect(dues({ ...accuse, stade: 'Acceptée' }, relancee).map((r) => r.attendus)).toEqual([['accuse']])
+    // jamais envoyé : rien
+    expect(dues(accuse, sortie(accuse))).toEqual([])
+  })
+
+  it('3. relance : le rapport reçu vaut réponse à l’OS (l’entreprise qui le remet a répondu)', () => {
+    const rapport: Demande = { ...demande(), statut: 'Rapport demandé' }
+    const s = fixerRelance(envoyerOs(rapport, sortie(rapport), ENVOI, CONTEXTE), '2026-10-10')
+    expect(attendusOs(rapport, s)).toEqual(['reponse', 'rapport'])
+    const recu = enregistrerRapport(rapport, s, { recuLe: '2026-10-08', documentId: 'doc-1' })
+    expect(attendusOs(rapport, recu)).toEqual([])
+    expect(dues(rapport, recu)).toEqual([])
+    // rapport reçu sans avoir été demandé : la réponse est reçue, l'accusé demandé reste attendu
+    const accuse: Demande = { ...rapport, statut: 'Accusé demandé' }
+    expect(attendusOs(accuse, recu)).toEqual(['accuse'])
+  })
+
+  it('visa de l’OS : messages selon l’état ; le refus renvoie à la demande (l’OS est la demande), comme les autres messages', () => {
+    const d = demande()
+    const contexte = { ...CONTEXTE, regles: SEUIL_100 }
+    const manquant = (s: SortieOrdreService) => controlerAvantEnvoiOs(d, s, contexte).find((a) => a.code === 'visa_manquant')?.message
+    const necessaire = sortie(d, {}, { regles: SEUIL_100 })
+    expect(manquant(necessaire)).toBe("Visa nécessaire non demandé : demander le visa avant l'envoi.")
+    const demandee = demanderVisa(necessaire, d, DEMANDE_GESTION)
+    expect(manquant(demandee)).toBe('Visa demandé, en attente du viseur : envoi impossible.')
+    const refuse = refuserVisa(demandee, d, evenement('col-direction', 'Direction', '10:00', 'Prix à renégocier'))
+    expect(manquant(refuse)).toBe('Visa refusé : revoir la demande, puis demander de nouveau le visa. Motif du refus : Prix à renégocier')
+  })
+})
+
+describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', () => {
+  const le = (constateLe: string): ConstatUrgence => ({ ...CONSTAT, constateLe })
+  const resume = (liste: readonly { code: string; gravite: string }[]) => liste.map((a) => [a.code, a.gravite])
+  const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
+  const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+  /** Exécution d'une résolution votée à l'art. 25, intervention le 15/10/2026 pendant le délai de contestation. */
+  const resolution = (constatUrgence: ConstatUrgence | null): SaisieSortieOs => ({
+    fondement: 'execution_resolution_ag',
+    fondementReference: 'AG du 12/09/2026, résolution 7',
+    decisionLe: '2026-09-12',
+    majoriteResolution: 'art25',
+    delai: 'urgence',
+    constatUrgence,
+  })
+  /** Décision de l'administrateur provisoire au titre des pouvoirs de l'assemblée, au registre le 02/10/2026, sans avis. */
+  const cadreAj = (constatUrgence: ConstatUrgence | null): SaisieSortieOs => ({
+    fondement: 'decision_aj_pouvoirs_ag',
+    fondementReference: 'registre n° 7',
+    decisionLe: '2026-10-02',
+    delai: 'urgence',
+    constatUrgence,
+    justificatifs: { modeFinancement: 'appel de fonds' },
+  })
+
+  it('constat d’urgence daté après l’envoi, exécution d’une résolution (L. 1965 art. 42, al. 3) : bloquant ; bornes : jour de l’envoi, lendemain', () => {
+    const d = demande()
+    expect(bloquants(controlerAvantEnvoiOs(d, sortie(d, resolution(null)), pendant))).toEqual(['execution_suspendue_art42'])
+    // constat du jour de l'envoi : l'urgence est retenue, la suspension levée
+    expect(controlerAvantEnvoiOs(d, sortie(d, resolution(le('2026-10-03'))), pendant)).toEqual([])
+    // du lendemain : le jour de l'envoi, ce constat n'existe pas, la suspension n'est pas levée
+    const lendemain = controlerAvantEnvoiOs(d, sortie(d, resolution(le('2026-10-04'))), pendant)
+    expect(resume(lendemain)).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(lendemain[0]).toMatchObject({ fondement: null, aConfirmer: false })
+    expect(lendemain[0].message).toBe(
+      "Urgence constatée le 04/10/2026, après l'envoi du 03/10/2026 : le jour de l'envoi, ce constat n'existe pas encore, l'urgence n'est pas retenue : l'exécution des travaux votés à la majorité de l'art. 25 reste suspendue pendant le délai de contestation (L. 1965 art. 42, al. 3) ; corriger la date du constat (au plus tard le jour de l'envoi) ou l'effacer.",
+    )
+    // constat près de trois mois après l'envoi (cas 1 du constat de relecture) : l'envoi est refusé, rien n'est journalisé
+    expect(() => envoyerOs(d, sortie(d, resolution(le('2026-12-31'))), ENVOI, pendant)).toThrow(
+      /non envoyé : Urgence constatée le 31\/12\/2026, après l'envoi du 03\/10\/2026/,
+    )
+  })
+
+  it('constat d’urgence daté après l’envoi, décision de l’administrateur provisoire (D. 1967 art. 62-7) : bloquant, seul signalement, l’avis reste dû', () => {
+    const d = demande()
+    // cas 2 du constat de relecture : plus de « Sortie libre » qui part, ni de simple alerte « après la décision au registre »
+    const futur = controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-12-31'))), CONTEXTE)
+    expect(resume(futur)).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(futur[0].message).toMatch(
+      /^Urgence constatée le 31\/12\/2026, après l'envoi du 03\/10\/2026 : .*l'avis préalable du conseil syndical reste exigé \(D\. 1967 art\. 62-7\) ; corriger la date du constat/,
+    )
+    expect(() => envoyerOs(d, sortie(d, cadreAj(le('2026-12-31'))), ENVOI, CONTEXTE)).toThrow(/non envoyé/)
+    // bornes, décision du 02/10/2026, envoi du 03/10/2026 : jour de la décision, rien ; jour de l'envoi, alerte à confirmer
+    // (après la décision, question 🔴 ouverte) ; lendemain de l'envoi, bloquant
+    expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-02'))), CONTEXTE)).toEqual([])
+    expect(resume(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-03'))), CONTEXTE))).toEqual([['constat_urgence_posterieur', 'alerte']])
+    expect(resume(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-04'))), CONTEXTE))).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    // la date du constat corrigée avant l'envoi lève le bloquant
+    const corrigee = modifierSortieOs(sortie(d, cadreAj(le('2026-12-31'))), d, { constatUrgence: le('2026-10-02') })
+    expect(controlerAvantEnvoiOs(d, corrigee, CONTEXTE)).toEqual([])
+  })
+
+  it('constat d’urgence daté après l’envoi, autres fondements, demande de devis, constat sans délai « urgence » : même bloquant ; une date illisible reste un constat incomplet', () => {
+    const d = demande()
+    const sauvegarde = controlerAvantEnvoiOs(d, sortie(d, { fondement: 'urgence_sauvegarde', delai: 'urgence', constatUrgence: le('2026-10-04') }), CONTEXTE)
+    expect(resume(sauvegarde)).toEqual([
+      ['constat_urgence_posterieur_envoi', 'bloquant'],
+      ['urgence_suites', 'alerte'],
+    ])
+    expect(sauvegarde[0].message).toMatch(/n'existe pas encore, l'urgence n'est pas retenue ; corriger la date du constat/)
+    const courante = (constatUrgence: ConstatUrgence, delai: SaisieSortieOs['delai']) =>
+      resume(controlerAvantEnvoiOs(d, sortie(d, { fondement: 'administration_courante', delai, constatUrgence }), CONTEXTE))
+    expect(courante(le('2026-10-03'), 'urgence')).toEqual([])
+    expect(courante(le('2026-10-04'), 'urgence')).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(courante(le('2026-10-04'), 'normale')).toEqual([
+      ['constat_urgence_posterieur_envoi', 'bloquant'],
+      ['constat_urgence_sans_urgence', 'alerte'],
+    ])
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const contexteDevis: ContexteEnvoiOs = { date: '2026-10-03', prestataireAvecCompteVitfix: true }
+    expect(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), contexteDevis)).toEqual([])
+    expect(resume(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(le('2026-10-04'))), contexteDevis))).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    // constat repris d'ailleurs, date illisible : constat incomplet (urgence_non_constatee), sans comparaison de dates
+    const illisible: SortieOrdreService = { ...sortie(d, resolution(null)), constatUrgence: { ...CONSTAT, constateLe: '31/12/2026' } }
+    const anomalies = controlerAvantEnvoiOs(d, illisible, pendant)
+    expect(codes(anomalies)).toEqual(['urgence_non_constatee', 'execution_suspendue_art42'])
+    expect(anomalies[0].message).toMatch(/manque : date/)
+  })
+
+  it('relance sans date : aConfirmer reste faux (repère juridique, contrat d’ElementAFaire) ; l’élément demande de FIXER la prochaine relance (relanceAFixer), pas de relancer', () => {
+    const d: Demande = { ...demande(), statut: 'Accusé demandé' }
+    const attendu = "ordre de service 12.3.456 (Recherche de fuite colonne) ; attendu : réponse à l'ordre de service, accusé de réception"
+    // envoyé sans date de relance : dû le jour de l'envoi, pour fixer la relance
+    const envoye = envoyerOs(d, sortie(d), ENVOI, CONTEXTE)
+    const [aFixer] = dues(d, envoye)
+    expect(aFixer).toMatchObject({ date: '2026-10-03', aConfirmer: false, relanceAFixer: true })
+    expect(aFixer.libelle).toBe(`Fixer la prochaine relance de l'entreprise (fixerRelance) : ${attendu}`)
+    // borne : relance fixée au jour même de l'envoi, « Relancer l'entreprise » dû ce jour-là
+    const memeJour = dues(d, fixerRelance(envoye, '2026-10-03'))
+    expect(memeJour.map((r) => [r.date, r.aConfirmer, r.relanceAFixer])).toEqual([['2026-10-03', false, false]])
+    expect(memeJour[0].libelle).toBe(`Relancer l'entreprise : ${attendu}`)
+    // le jour de la relance faite, plus de « Relancer l'entreprise » (pas de relance en double) : la suivante est à fixer
+    const relancee = relancerOs(fixerRelance(envoye, '2026-10-10'), { ...ENVOI, date: '2026-10-10', heure: '09:00' })
+    const apres = dues(d, relancee)
+    expect(apres.map((r) => [r.date, r.aConfirmer, r.relanceAFixer])).toEqual([['2026-10-10', false, true]])
+    expect(apres[0].libelle).toBe(`Fixer la prochaine relance de l'entreprise (fixerRelance) : ${attendu}`)
+    // une relance due n'est jamais un repère juridique non confirmé, date fixée ou non
+    expect([...dues(d, envoye), ...memeJour, ...apres].every((r) => !r.aConfirmer)).toBe(true)
+  })
+})
+
 describe('retouches de demandes.ts (base #618)', () => {
   it('verifierSansBloquant, exporté, ne lève que sur les bloquants et les liste', () => {
     expect(() => verifierSansBloquant([{ gravite: 'alerte', message: 'A.' }], 'Refus')).not.toThrow()
@@ -1077,7 +1547,8 @@ describe('retouches de demandes.ts (base #618)', () => {
 
 describe('en-tête du module', () => {
   const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'envoi-ordre-service.ts'), 'utf8')
-  const enTete = source.slice(0, source.indexOf('*/'))
+  /** En-tête lu d'un seul tenant : les retours à la ligne du commentaire (« \n *   ») valent une espace. */
+  const enTete = source.slice(0, source.indexOf('*/')).replaceAll(/\r?\n \* */g, ' ')
 
   it('cite les tranches Gestéam, les marqueurs et la base du rôle de viseur', () => {
     for (const attendu of ['tranche 34', 'tranche 40', 'tranche 43', '🟢', '🔵', '🔴', 'CircuitValidationModule', 'ROLES_CABINET'])
@@ -1089,7 +1560,55 @@ describe('en-tête du module', () => {
       expect(enTete).toContain(attendu)
   })
 
+  it('tour 2 : branchement du suivi « à faire » par relanceAFixer (aConfirmer laissé aux repères juridiques) ; constat postérieur à l’envoi bloquant', () => {
+    expect(enTete).not.toContain('aConfirmer pour une date de relance à fixer')
+    expect(enTete).toContain('relanceAFixer')
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    expect(deduit).toContain('constat_urgence_posterieur_envoi')
+    // la question du moment du constat (décision ou envoi) reste ouverte
+    expect(enTete.slice(enTete.indexOf('🔴 Non établi'))).toContain("constat doit-il précéder la décision au registre, ou l'envoi")
+  })
+
   it('ne cite pas l’art. 1127-5 du code civil, abrogé', () => {
     expect(source).not.toContain('1127-5')
+  })
+
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : réponses 1 à 6 inscrites, leurs questions fermées, les autres restent ouvertes', () => {
+    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+    for (const attendu of ['PAR MANDAT', 'UrgenceOrdreAJ', 'CANAUX_ENVOI_OS', '« Accusé demandé »', '« Rapport demandé »', 'MÊME circuit', 'mise en concurrence', "nous constatons l'urgence"])
+      expect(decisions).toContain(attendu)
+    // décision 5 : le contenu de l'alinéa reste écrit ; décision 3 : la règle telle que le code l'applique
+    expect(decisions).toContain('L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) : le motif « mise en concurrence » est gardé')
+    expect(decisions).toContain('date de relance fixée ou non')
+    // la date du constat n'est pas une décision de Hugo
+    expect(decisions).not.toMatch(/borneAvisAj|constat_urgence_posterieur/)
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    expect(deduit).toContain('critère proposé, non contredit par Hugo')
+    expect(deduit).toContain('règle proposée, non demandée par Hugo')
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
+    for (const tranchee of [
+      'séquence par mandat (retenue) ou par mandat et plan',
+      'valeurs des listes Délai, Envoi et Signature',
+      'la relance vise-t-elle',
+      'le visa des courriers (tranche 20) suit-il',
+      "Qui constate l'urgence",
+      'vaut-il pour les marchés',
+    ])
+      expect(questions).not.toContain(tranchee)
+    for (const ouverte of [
+      'segment <plan>',
+      'au premier envoi',
+      'complété de zéros',
+      'liste Signature',
+      'devisExigesParAssemblee',
+      'Hugo (suite de la décision 6)',
+      'critère proposé (entretien courant',
+      'un délai « prioritaire » peut-il valoir urgence',
+      "constat doit-il précéder la décision au registre, ou l'envoi",
+      'L. 1965 art. 42, al. 3 : bloquant',
+      'un collaborateur peut-il signer',
+      'Hugo, preuve',
+    ])
+      expect(questions).toContain(ouverte)
   })
 })
