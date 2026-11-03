@@ -58,7 +58,8 @@ import type { StatutOrdreMission } from '@/lib/syndic/messagerie-pro'
  *   syndical et de mise en concurrence fixés par l'AG (L. 1965 art. 21 al. 2 ; D. 1967 art. 19-2), plafond d'une
  *   délégation (L. 1965 art. 25 a, 21-1 à 21-3), provision d'urgence au tiers du devis (D. 1967 art. 37), avis du conseil
  *   syndical avant une décision de l'administrateur provisoire (D. 1967 art. 62-7), honoraires sur travaux (L. 1965 art.
- *   18-1 A III), carnet d'entretien (L. 1965 art. 18 I ; décret 2001-477).
+ *   18-1 A III), carnet d'entretien (L. 1965 art. 18 I ; décret 2001-477). Les seuils de l'art. 21 et l'avis de D. 1967
+ *   art. 62-7 déclenchent le visa de l'ordre de service dans envoi-ordre-service.ts (point 44).
  *
  * 🔵 Déduit (règles de ce module) :
  * - étape de chaque stade et avancement de la frise : voir AVANCEMENT_PAR_STADE ; « Refusée » arrête la frise à
@@ -234,7 +235,10 @@ export interface Demande {
   /** Entreprise ; null tant qu'elle n'est pas choisie. */
   prestataireId: string | null
   demandeLe: string
-  /** N° d'ordre de service. */
+  /**
+   * N° d'ordre de service : libre à la saisie (repris d'ailleurs), ou attribué dans la séquence du mandat par
+   * numeroterDemande (envoi-ordre-service.ts, point 44).
+   */
   numero: string | null
   objet: string
   statut: StatutDemande
@@ -311,8 +315,8 @@ const estCentimes = (montant: number): boolean => Number.isInteger(montant) && m
 
 const euros = (centimes: number): string => formatEurosCentimes(centimes / 100)
 
-/** Lève une erreur listant les anomalies bloquantes. */
-function verifierSansBloquant(anomalies: AnomalieDemande[], prefixe: string): void {
+/** Lève une erreur listant les anomalies bloquantes (demandes, et envoi des ordres de service : envoi-ordre-service.ts). */
+export function verifierSansBloquant(anomalies: readonly { gravite: string; message: string }[], prefixe: string): void {
   const bloquantes = anomalies.filter((a) => a.gravite === 'bloquant')
   if (bloquantes.length > 0) throw new Error(`${prefixe} : ${bloquantes.map((a) => a.message).join(' ')}`)
 }
@@ -747,6 +751,14 @@ function montantHtDeLaDemande(d: Demande): number | null {
 }
 
 /**
+ * Montant HT de l'opération du contrôle déclaratif : celui donné par l'appelant (commandes de même objet cumulées), à
+ * défaut celui de la demande ; null s'il est inconnu. Erreur si un devis associé d'un autre montant que le prix n'a pas de
+ * montant HT (aussi lu par envoi-ordre-service.ts quand les pièces de l'entreprise manquent).
+ */
+export const montantHtOperationDemande = (d: Demande, montantHtOperationCentimes?: number): number | null =>
+  montantHtOperationCentimes ?? montantHtDeLaDemande(d)
+
+/**
  * Contrôle déclaratif de l'entreprise (bouton « Contrôle déclaratif » du bloc Règlement de l'onglet Suivi), au moment
  * choisi : controlerAvantOrdreService ou controlerAvantReglement de vigilance-entreprises.ts (point 37), réutilisés tels
  * quels, sur le montant HT de l'opération. Une demande de devis ne conclut aucun marché : rien à contrôler.
@@ -758,7 +770,7 @@ export function controleDeclaratifDemande(d: Demande, pieces: PiecesEntreprise, 
   if (d.prestataireId === null) throw new Error(`Demande ${d.id} sans entreprise : contrôle déclaratif impossible.`)
   if (pieces.prestataireId !== d.prestataireId)
     throw new Error(`Demande ${d.id} : pièces d'une autre entreprise (${pieces.prestataireId}) que celle de la demande (${d.prestataireId}).`)
-  const montantHtCentimes = options.montantHtOperationCentimes ?? montantHtDeLaDemande(d)
+  const montantHtCentimes = montantHtOperationDemande(d, options.montantHtOperationCentimes)
   if (montantHtCentimes === null)
     throw new Error(`Demande ${d.id} : montant HT de l'opération inconnu (base HT du prix à saisir) ; le seuil de vigilance ne peut pas être apprécié.`)
   const { date, decennaleObligatoire } = options
