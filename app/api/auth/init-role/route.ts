@@ -25,7 +25,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 // auto-assignables. Ils ne peuvent être attribués qu'en server-to-server via
 // /api/admin/setup, /api/syndic/team, /api/syndic/invite, /api/pro/invite.
 // pro_societe reste ici car l'onboarding BTP public le pose via cet endpoint
-// (app/pro/register) ; il ne donne accès qu'à sa propre société vide.
+// (app/(commun)/pro/register) ; il ne donne accès qu'à sa propre société vide.
 const ALLOWED_SELF_ROLES = new Set([
   'client',
   'artisan',

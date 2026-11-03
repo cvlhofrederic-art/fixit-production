@@ -9,7 +9,7 @@ import { StoragePathError, assertStoragePath, buildStoragePath } from '@/lib/sec
 // ════════════════════════════════════════════════════════════════════════════
 // POST /api/pro/register/finalize-artisan
 // Fin de l'inscription d'un artisan, appelée par le formulaire artisan
-// (app/pro/register) juste après /api/auth/create-profile. Route sœur de
+// (app/(commun)/pro/register) juste après /api/auth/create-profile. Route sœur de
 // /api/pro/register/finalize (sociétés BTP), réservée au rôle artisan.
 //
 // Quand la confirmation d'e-mail est active, supabase.auth.signUp ne renvoie

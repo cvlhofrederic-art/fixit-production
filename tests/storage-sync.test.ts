@@ -157,8 +157,8 @@ describe('storage-sync — interception localStorage', () => {
 
     window.localStorage.setItem('fixit_test_key', JSON.stringify({ foo: 'bar' }))
 
-    // Le debounce est de 500 ms
-    await new Promise(r => setTimeout(r, 700))
+    // Le debounce est de 1 500 ms (lot 8 Sentry)
+    await new Promise(r => setTimeout(r, 1700))
 
     const postCalls = mockFetch.mock.calls.filter(c => c[1]?.method === 'POST')
     expect(postCalls.length).toBeGreaterThan(0)
@@ -174,7 +174,7 @@ describe('storage-sync — interception localStorage', () => {
     window.localStorage.setItem('autre_app', 'value')
     window.localStorage.setItem('sb-auth-token', 'token-secret')
 
-    await new Promise(r => setTimeout(r, 700))
+    await new Promise(r => setTimeout(r, 1700))
 
     const postCalls = mockFetch.mock.calls.filter(c => c[1]?.method === 'POST')
     expect(postCalls.length).toBe(0)

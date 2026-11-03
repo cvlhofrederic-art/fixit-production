@@ -2,23 +2,25 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from '@/lib/i18n/context'
+import { safeRemove, safeSet } from '@/lib/safe-storage'
+import { getCookieConsent, memoriserConsentement, type ConsentState } from '@/lib/consentement-cookies'
 
-const COOKIE_KEY = 'vitfix_cookie_consent'
+// Lecture du consentement : partagée avec la mesure d'audience et lib/analytics (lib/consentement-cookies.ts).
+export { getCookieConsent, isAnalyticsAllowed } from '@/lib/consentement-cookies'
 
 // Cookie patterns per category
 const ANALYTICS_PATTERNS = ['_ga', '_gid', '_gat', '_gcl_', 'mp_', 'ajs_', '_hjid', '_hjSessionUser']
 const MARKETING_PATTERNS = ['_fbp', '_fbc', '__hssc', '__hssrc', '__hstc', 'hubspotutk']
 const PERSONALIZATION_PATTERNS = ['_intercom', '_drift']
 
-type ConsentState = {
-  performance: boolean
-  personalization: boolean
-  advertising: boolean
-  date: string
-}
-
 function removeCookiesByPatterns(patterns: string[]) {
-  const allCookies = document.cookie.split(';')
+  // Cookies bloqués ou document isolé : la lecture ou l'écriture de document.cookie peut lever ; rien à nettoyer alors.
+  let allCookies: string[]
+  try {
+    allCookies = document.cookie.split(';')
+  } catch {
+    return
+  }
   for (const cookie of allCookies) {
     const name = cookie.split('=')[0].trim()
     const isMatch = patterns.some(p => name.startsWith(p) || name.includes(p))
@@ -27,59 +29,26 @@ function removeCookiesByPatterns(patterns: string[]) {
       const paths = ['/', '']
       for (const domain of domains) {
         for (const path of paths) {
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path}${domain ? `;domain=${domain}` : ''}`
+          try {
+            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=${path}${domain ? `;domain=${domain}` : ''}`
+          } catch {
+            return
+          }
         }
       }
     }
   }
 }
 
-/**
- * Get stored cookie consent. Returns null if no choice made.
- */
-export function getCookieConsent(): ConsentState | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const stored = localStorage.getItem(COOKIE_KEY)
-    if (!stored) return null
-    const parsed = JSON.parse(stored)
-    // Backward compat: old format had { accepted: boolean }
-    if ('accepted' in parsed && !('performance' in parsed)) {
-      return {
-        performance: parsed.accepted,
-        personalization: parsed.accepted,
-        advertising: parsed.accepted,
-        date: parsed.date || new Date().toISOString(),
-      }
-    }
-    const consent = parsed as ConsentState
-    // Re-consent after 12 months (RGPD best practice)
-    if (consent.date) {
-      const consentDate = new Date(consent.date).getTime()
-      const twelveMonths = 365 * 24 * 60 * 60 * 1000
-      if (Date.now() - consentDate > twelveMonths) {
-        localStorage.removeItem(COOKIE_KEY)
-        return null
-      }
-    }
-    return consent
-  } catch {
-    return null
-  }
-}
-
-export function isAnalyticsAllowed(): boolean {
-  const consent = getCookieConsent()
-  return consent?.performance === true
-}
-
 function enforceConsent(consent: ConsentState) {
   // Performance / analytics
   if (!consent.performance) {
     removeCookiesByPatterns(ANALYTICS_PATTERNS)
-    try { localStorage.setItem('va_disable', '1'); localStorage.setItem('si_disable', '1') } catch {}
+    safeSet('va_disable', '1')
+    safeSet('si_disable', '1')
   } else {
-    try { localStorage.removeItem('va_disable'); localStorage.removeItem('si_disable') } catch {}
+    safeRemove('va_disable')
+    safeRemove('si_disable')
   }
 
   // Advertising / marketing
@@ -105,12 +74,11 @@ function enforceConsent(consent: ConsentState) {
 }
 
 function saveConsent(consent: ConsentState) {
-  try {
-    localStorage.setItem(COOKIE_KEY, JSON.stringify(consent))
-  } catch (error) {
-    // Stockage bloqué par le navigateur (SecurityError) ou plein : le choix s'applique à la visite en cours, le bandeau
-    // reviendra à la suivante. Sans ce garde, le clic levait une erreur et le bandeau ne se fermait plus.
-    console.warn('[cookie-consent] choix non mémorisé, localStorage inaccessible :', error)
+  // Ne lève jamais. Stockage bloqué par le navigateur (SecurityError) ou plein : le choix est gardé en mémoire pour
+  // la visite en cours (bandeau fermé, mesure d'audience activée si acceptée), et le bandeau reviendra au prochain
+  // chargement complet. Sans ce garde, le clic levait une erreur et le bandeau ne se fermait plus (Sentry T).
+  if (!memoriserConsentement(consent)) {
+    console.warn('[cookie-consent] stockage inaccessible : choix gardé en mémoire pour cette visite seulement')
   }
   enforceConsent(consent)
 }

@@ -38,7 +38,9 @@ jobs:
       - name: Installer les dépendances
         # Versions épinglées (lot 6 Aikido) : celles que l'installation sans contrainte
         # résolvait au 28/10/2026.
-        run: pip install langfuse==5.0.4 requests==2.34.2
+        # --only-binary :all: (SonarCloud S8541) : roues seulement, aucun setup.py exécuté ; résolution
+        # vérifiée le 29/10/2026 pour Python 3.11 / manylinux (28 paquets, tous disponibles en roue).
+        run: "pip install --only-binary :all: langfuse==5.0.4 requests==2.34.2"
 
       - name: Vérifier les clés Langfuse
         id: check-keys

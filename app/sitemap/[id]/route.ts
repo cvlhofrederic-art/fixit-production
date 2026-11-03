@@ -1,7 +1,5 @@
-import { createServerSupabaseClient } from '@/lib/supabase-server-component'
-import { logger } from '@/lib/logger'
-import { getProfilePath } from '@/lib/utils'
 import { formatSitemapXml, parseSitemapId, SITEMAP_HEADERS, type SitemapUrl } from '@/lib/sitemap-helpers'
+import { fichesArtisansSitemap } from '@/lib/sitemap-fiches-artisans'
 import { FR_BLOG_ARTICLES } from '@/lib/data/fr-blog-data'
 import { EN_SERVICE_PAGES } from '@/lib/data/en-services-data'
 import {
@@ -175,42 +173,8 @@ function investorAndIntlPages(baseUrl: string): SitemapUrl[] {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Sub-sitemap 4 : profils artisans vérifiés (Supabase)
+// Sub-sitemap 4 : profils artisans vérifiés (Supabase), lib/sitemap-fiches-artisans.ts
 // ────────────────────────────────────────────────────────────────────────────
-
-async function artisanProfilePages(baseUrl: string): Promise<SitemapUrl[]> {
-  try {
-    const supabase = await createServerSupabaseClient()
-    const { data: artisans, error } = await supabase
-      .from('profiles_artisan')
-      .select('id, slug, updated_at, org_role, country')
-      .eq('is_verified', true)
-    // supabase-js ne lève pas d'exception sur une erreur de requête : elle arrive dans `error`.
-    if (error) {
-      logger.warn('[sitemap] fiches artisans indisponibles', error)
-      return []
-    }
-    return (artisans || []).map((a) => {
-      const isPT = a.country === 'PT' || a.country === 'Portugal'
-      const locale = isPT ? 'pt' : 'fr'
-      const profilePath = getProfilePath(
-        { slug: a.slug, id: a.id, org_role: a.org_role },
-        locale,
-      )
-      // lastmod uniquement si updated_at présent en DB (vrai signal),
-      // sinon on omet le tag.
-      const lastModified = a.updated_at ? new Date(a.updated_at) : undefined
-      return {
-        url: `${baseUrl}${profilePath}/`,
-        lastModified,
-      }
-    })
-  } catch (error) {
-    // Sitemap des fiches vide plutôt qu'en erreur, mais la panne reste visible dans les logs.
-    logger.warn('[sitemap] fiches artisans indisponibles', error)
-    return []
-  }
-}
 
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: idParam } = await ctx.params
@@ -235,7 +199,7 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
       urls = investorAndIntlPages(baseUrl)
       break
     case 4:
-      urls = await artisanProfilePages(baseUrl)
+      urls = await fichesArtisansSitemap(baseUrl)
       break
     default:
       urls = []

@@ -107,7 +107,7 @@ export default async function ServiceCityPage({ params }: { params: Promise<{ sl
   const waEquipa = `https://wa.me/${PHONE_PT.replace('+', '')}?text=${encodeURIComponent(`Olá! Preciso de ${service.name.toLowerCase()} em ${city.name}. Podem ajudar?`)}`
   const relatedArticles = BLOG_ARTICLES.filter(a => a.relatedServices.includes(service.slug)).slice(0, 3)
 
-  // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business, app/layout.tsx)
+  // JSON-LD (phase 1 SEO PT) : un `Service` fourni par l'entité unique (#business, components/common/CoquilleRacine.tsx)
   // et servi dans la ville, plus le fil d'Ariane. Plus de LocalBusiness par ville (adresse et
   // horaires fictifs), ni d'OfferCatalog à prix fixe, ni de FAQPage (résultat enrichi retiré).
   const urlPagina = `https://vitfix.io/pt/servicos/${slug}/`

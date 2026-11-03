@@ -1,15 +1,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { toast } from 'sonner'
 import type { Booking, ChatMessage } from '@/lib/types'
 import { authFetch } from '@/lib/api-client'
-
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { jetonAcces, lireJetonAcces } from '@/lib/auth/jeton-acces'
 
 interface UseDashboardMessagingOptions {
   artisan: { id: string } | null
@@ -28,13 +23,14 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
   const [dashMsgBlockingAgenda, setDashMsgBlockingAgenda] = useState<string | null>(null)
   const [dashMsgFullscreenImg, setDashMsgFullscreenImg] = useState<string | null>(null)
 
+  // Jeton depuis le cache des événements d'auth (lib/auth/jeton-acces.ts). Redirection vers la connexion
+  // seulement quand la session est réellement absente, jamais quand elle est indisponible (verrou d'auth
+  // abandonné, délai, réseau) : lot 1 Sentry du 28/10/2026.
   const getDashAuthToken = useCallback(async (): Promise<string> => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) return session.access_token
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { window.location.href = '/auth/login'; return '' }
-    const { data: { session: s2 } } = await supabase.auth.getSession()
-    return s2?.access_token || ''
+    const { jeton, indisponible } = await lireJetonAcces()
+    if (jeton) return jeton
+    if (!indisponible) window.location.href = '/auth/login'
+    return ''
   }, [])
 
   const openDashMessages = useCallback(async (booking: Booking) => {
@@ -42,7 +38,7 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
     setDashMsgList([])
     setDashMsgText('')
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token || ''
+      const token = (await jetonAcces()) || ''
       const res = await authFetch(`/api/booking-messages?booking_id=${booking.id}`, token)
       const json = await res.json()
       if (json.data) setDashMsgList(json.data)
@@ -56,7 +52,7 @@ export function useDashboardMessaging({ artisan, isPt, dateFmtLocale }: UseDashb
     if (!dashMsgModal || !dashMsgText.trim() || dashMsgSending) return
     setDashMsgSending(true)
     try {
-      const token = (await supabase.auth.getSession()).data.session?.access_token || ''
+      const token = (await jetonAcces()) || ''
       const res = await authFetch('/api/booking-messages', token, {
         method: 'POST',
         body: JSON.stringify({ booking_id: dashMsgModal.id, content: dashMsgText.trim() }),

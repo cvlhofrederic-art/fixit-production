@@ -248,6 +248,13 @@ export interface CompteCoproprietaire {
   /** Numéro de série du compte (segment auxiliaire, 5 caractères). */
   serie: string
   libelle: string
+  /**
+   * Décision J10 (Hugo, 30/10/2026) — identité du mandataire commun des indivisaires du compte (L. 1965 art. 23, al. 2 :
+   * désigné d'accord entre eux ou, à défaut, par le président du tribunal judiciaire). Facultatif et non indexé ; absent,
+   * null ou vide : aucun désigné. Seul ce mandataire reçoit un règlement destiné à l'indivision
+   * (reglements-fournisseurs.ts, controlerBeneficiaireIndivisaire).
+   */
+  mandataireCommunId?: string | null
 }
 
 export function creerCompteCoproprietaire(saisie: CompteCoproprietaire): CompteCoproprietaire {

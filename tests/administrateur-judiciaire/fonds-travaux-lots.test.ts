@@ -565,6 +565,20 @@ describe('mutation d’un lot', () => {
     expect(mutation.cotisationsImpayeesVendeur.map((c) => c.posteId)).toEqual(['FT-1:lot-1', 'FT-2:lot-1'])
   })
 
+  it('J2 — appel émis après l’enregistrement de la mutation : avisDAppel porte au vendeur l’appel exigible le jour même, dû par lui', () => {
+    // Décision de Hugo du 30/10/2026 (D. 1967 art. 6-2) : mutation le 01/04/2026, jour de l'exigibilité de FT-2.
+    const vente = [...cession('2026-04-01'), positions[1]]
+    const postesVente = postesDepuisAvis(avisDAppel({ echeances, cles: [cle], positions: vente, comptes }), [cle])
+    expect(postesVente.filter((p) => p.lotId === 'lot-1').map((p) => [p.id, p.compteId])).toEqual([
+      ['B-1:lot-1', 'cpt-A'],
+      ['FT-1:lot-1', 'cpt-A'],
+      ['FT-2:lot-1', 'cpt-A'],
+    ])
+    const mutation = fondsTravauxALaMutation({ positions: vente, lotId: 'lot-1', date: '2026-04-01', nbLotsPrincipaux: 40, versements: [], emplois: [], cles, postes: postesVente })
+    expect(mutation.cotisationsImpayeesVendeur.map((c) => c.posteId)).toEqual(['FT-1:lot-1', 'FT-2:lot-1'])
+    expect(mutation.postesAReattribuer).toEqual([])
+  })
+
   it('L — impayés lus à la date de mutation : un arriéré réglé après reste dû à la mutation', () => {
     // Revue 20, P2 : le vendeur règle FT-2 le 01/06/2026, après la mutation du 01/05/2026.
     const E3: Encaissement = { id: 'E3', compteId: 'cpt-A', date: '2026-06-01', montantCentimes: 2_000 }

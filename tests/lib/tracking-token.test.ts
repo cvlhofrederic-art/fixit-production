@@ -1,7 +1,7 @@
 // tests/lib/tracking-token.test.ts
 //
 // Jeton de suivi GPS (lib/security/tracking-token.ts) : motif calqué sur le seul générateur,
-// app/pro/mobile/page.tsx. Le jeton sert de nom d'objet Storage ({token}.json) en service role :
+// app/(commun)/pro/mobile/page.tsx. Le jeton sert de nom d'objet Storage ({token}.json) en service role :
 // tout ce qui n'est pas un jeton émis est refusé avant toute construction de chemin.
 
 import { describe, it, expect } from 'vitest'

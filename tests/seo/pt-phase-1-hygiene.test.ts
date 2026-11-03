@@ -30,9 +30,10 @@ import { SERVICOS_DISTRITO, cobreDistrito, dataLigacoesServicos, servicosDistrit
 import { SERVICOS_CONCELHO } from '@/lib/data/pt-servicos-concelho'
 
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn() }))
-// Pages à generateMetadata par locale (cookie) : branche PT.
+// Pages à generateMetadata par locale (cookie, sans x-locale) : branche PT.
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: (nom: string) => (nom === 'locale' ? { name: 'locale', value: 'pt' } : undefined) }),
+  headers: async () => new Headers(),
 }))
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL || 'https://vitfix.io'
@@ -113,8 +114,8 @@ describe('1.3 entité unique : adresse réelle, NIF et téléphone PT', () => {
     expect(ADRESSE_PT_TEXTE).toBe('Av. Dr. Artur Melo e Castro 109, 4630-204 Marco de Canaveses')
   })
 
-  it('le nœud #business du layout racine utilise cette adresse et les 22 concelhos en areaServed', () => {
-    const layout = readFileSync(join(process.cwd(), 'app', 'layout.tsx'), 'utf8')
+  it('le nœud #business de la coquille racine (components/common/CoquilleRacine.tsx) utilise cette adresse et les 22 concelhos en areaServed', () => {
+    const layout = readFileSync(join(process.cwd(), 'components', 'common', 'CoquilleRacine.tsx'), 'utf8')
     expect(layout).toContain('ENTITE_PT.adresse')
     expect(layout).toContain('areaServidaPt()')
     expect(areaServidaPt()).toHaveLength(22)
@@ -377,14 +378,32 @@ describe('1.4 / 1.5 métadonnées exportées par les routes de la grille et les 
     if (metadata.description) expect(metadata.description.length).toBeLessThanOrEqual(DESCRICAO_MAX)
   })
 
-  it.each([
-    ['/pt/empresa/<slug>/', () => import('@/app/pt/empresa/[slug]/page'), { slug: 'exemplo' }, 'https://vitfix.io/pt/empresa/exemplo/'],
-    ['/pt/profissional/<id>/', () => import('@/app/pt/profissional/[id]/page'), { id: 'exemplo' }, 'https://vitfix.io/pt/profissional/exemplo/'],
-  ] as Array<[string, () => Promise<unknown>, Record<string, string>, string]>)('%s : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async (_page, charger, params, canonical) => {
-    const { generateMetadata } = (await charger()) as { generateMetadata: (a: { params: Promise<Record<string, string>> }) => Promise<Metadata> }
-    const metadata = await generateMetadata({ params: Promise.resolve(params) })
+  it('/pt/empresa/<slug>/ (fiche existante) : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
+    // La route lit la fiche en base (slug inconnu : 404 ; canonical vers son adresse publique) : Supabase simulé, société
+    // PT trouvée. Sans ce double, le cas ne passait que parce que le job Vitest n'a pas de variables Supabase (lecture
+    // « indisponible »).
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://exemple.supabase.co')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-anon-de-test')
+    const societePt = { id: '4f0b7c1e-2a3d-4e5f-8a9b-0c1d2e3f4a5b', slug: 'exemplo', language: 'pt', legal_form: 'Lda' }
+    const lecture = vi.fn(async () => ({ ok: true, status: 200, json: async () => [societePt] }))
+    vi.stubGlobal('fetch', lecture)
+    try {
+      const { generateMetadata } = await import('@/app/pt/empresa/[slug]/page')
+      const metadata = await generateMetadata({ params: Promise.resolve({ slug: 'exemplo' }) })
+      expect(lecture).toHaveBeenCalledOnce()
+      expect(metadata.title).not.toMatch(/vitfix/i)
+      expect(metadata.alternates).toEqual({ canonical: 'https://vitfix.io/pt/empresa/exemplo/' })
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('/pt/profissional/<id>/ : titre sans marque, canonical seule (aucun hreflang : /fr/artisan/ n’en émet pas en retour)', async () => {
+    const { generateMetadata } = await import('@/app/pt/profissional/[id]/page')
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: 'exemplo' }) })
     expect(metadata.title).not.toMatch(/vitfix/i)
-    expect(metadata.alternates).toEqual({ canonical })
+    expect(metadata.alternates).toEqual({ canonical: 'https://vitfix.io/pt/profissional/exemplo/' })
   })
 
   it('/pt/pesquisar/ (composant partagé avec /fr/recherche/) : un seul h1 en PT, FR inchangé (h1 visible comme avant la phase 1)', () => {
