@@ -48,6 +48,13 @@ import {
   type FicheSinistre,
 } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import {
+  bilanStatutsMandats,
+  demandesDesMandatsSuivis,
+  mandatHorsSuivi,
+  type PorteeStatuts,
+  type StatutDeMandat,
+} from '@/lib/administrateur-judiciaire/domain/statut-mandat'
+import {
   echeancesTravaux,
   etatPartFondsTravaux,
   type OperationTravaux,
@@ -95,6 +102,12 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
+ * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
+ * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
+ * (depuisDemandes) et de la balance âgée ; « En clôture » et « En gestion, en clôture » restent suivis ; une valeur
+ * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations). Le statut COURANT s'applique, même à
+ * une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé du 03/11/2026) :
+ * règle de GESTION.
  */
 
 export const FAMILLES_SUIVI = [
@@ -214,6 +227,11 @@ export interface RolesMandat {
 export interface AffectationMandat extends RolesMandat {
   mandatId: string
   cabinetId: string | null
+  /**
+   * Valeur libre de `Mandat.statut`, lue par statut-mandat.lireStatutMandat (point 55) : Prospect ou Archivé sortent le
+   * mandat du portefeuille, du suivi et de la balance âgée ; absente ou inconnue, le mandat reste suivi.
+   */
+  statut?: string | null
 }
 
 const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
@@ -222,14 +240,24 @@ const CHAMP_ROLE: Record<RoleMandat, keyof RolesMandat> = {
   assistant: 'assistantId',
 }
 
-/** Mandats du collaborateur : ceux où il tient l'un des rôles demandés (les trois par défaut). */
+/** Portée du statut (point 55, statut-mandat.ts) : « suivis » sans Prospect ni Archivé, « tous » quel que soit le statut. */
+export type { PorteeStatuts }
+
+/**
+ * Mandats du collaborateur : ceux où il tient l'un des rôles demandés (les trois par défaut), hors mandats Prospect et
+ * Archivé sauf portée « tous ».
+ */
 export function portefeuille(
   collaborateurId: string,
   affectations: AffectationMandat[],
   roles: readonly RoleMandat[] = ROLES_MANDAT,
+  portee: PorteeStatuts = 'suivis',
 ): Set<string> {
+  const horsSuivi = portee === 'tous' ? new Set<string>() : bilanStatutsMandats(affectations).horsSuivi
   return new Set(
-    affectations.filter((a) => roles.some((role) => a[CHAMP_ROLE[role]] === collaborateurId)).map((a) => a.mandatId),
+    affectations
+      .filter((a) => !horsSuivi.has(a.mandatId) && roles.some((role) => a[CHAMP_ROLE[role]] === collaborateurId))
+      .map((a) => a.mandatId),
   )
 }
 
@@ -312,11 +340,6 @@ const jourDeTraitement = (date: string): string => {
 }
 
 /**
- * Éléments que le réglage retient au jour donné : famille suivie, nature cochée, à traiter au plus tard à la fin de
- * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
- * collaborateur et ce qui lui est désigné). Tri par date.
- */
-/**
  * L'élément « à résilier » remplace la limite générique d'un contrat marqué : un réglage qui suit la « Limite de
  * résiliation » le suit aussi, avec l'horizon de cette nature s'il n'en a pas un propre.
  */
@@ -326,6 +349,23 @@ const natureCochee = (natures: readonly NatureSuivi[], nature: NatureSuivi): boo
 const horizonDeNature = (regle: ReglageFamille, nature: NatureSuivi): Horizon =>
   regle.horizonsParNature?.[nature] ?? (nature === 'a_resilier' ? regle.horizonsParNature?.limite_resiliation : undefined) ?? regle.horizon
 
+/** Tout le cabinet, ou le portefeuille du collaborateur et ce qui lui est désigné. */
+const dansPerimetre = (
+  element: ElementAFaire,
+  regle: ReglageFamille,
+  collaborateurId: string,
+  mesMandats: ReadonlySet<string>,
+): boolean =>
+  regle.perimetre === 'cabinet' ||
+  element.assigneId === collaborateurId ||
+  (element.mandatId !== null && mesMandats.has(element.mandatId))
+
+/**
+ * Éléments que le réglage retient au jour donné : famille suivie, nature cochée, à traiter au plus tard à la fin de
+ * l'horizon (un élément du week-end compte pour le vendredi), et dans le périmètre (tout le cabinet, ou le portefeuille du
+ * collaborateur et ce qui lui est désigné). Tri par date. Un élément d'un mandat Prospect ou Archivé (point 55) n'est
+ * jamais retenu, quels que soient le périmètre et la désignation.
+ */
 export function selectionnerAFaire(
   elements: ElementAFaire[],
   reglage: ReglageSuivi,
@@ -333,20 +373,18 @@ export function selectionnerAFaire(
   aujourdhui: string,
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
-  const mesMandats = portefeuille(reglage.collaborateurId, affectations)
+  const { horsSuivi } = bilanStatutsMandats(affectations)
+  // Portée « tous » : les éléments hors suivi sont écartés avant le périmètre, le statut n'est lu qu'une fois.
+  const mesMandats = portefeuille(reglage.collaborateurId, affectations, ROLES_MANDAT, 'tous')
   const retenus = new Map<string, ElementAFaire>()
   for (const element of elements) {
     verifierDate(element.date, `Date de l'élément ${element.id}`)
     const regle = reglage.familles[element.famille]
-    if (!regle?.actif || retenus.has(element.id)) continue
+    if (!regle?.actif || retenus.has(element.id) || mandatHorsSuivi(element.mandatId, horsSuivi)) continue
     if (regle.natures && !natureCochee(regle.natures, element.nature)) continue
     const limite = limiteHorizon(aujourdhui, horizonDeNature(regle, element.nature))
     if (jourDeTraitement(element.date) > limite) continue
-    const dansPerimetre =
-      regle.perimetre === 'cabinet' ||
-      element.assigneId === reglage.collaborateurId ||
-      (element.mandatId !== null && mesMandats.has(element.mandatId))
-    if (dansPerimetre) retenus.set(element.id, element)
+    if (dansPerimetre(element, regle, reglage.collaborateurId, mesMandats)) retenus.set(element.id, element)
   }
   return trier([...retenus.values()])
 }
@@ -550,14 +588,21 @@ const NATURE_RELANCE_DEMANDE: Readonly<Record<TypeDemande, NatureSuivi>> = {
  * franchi. Délais et seuils : règles de GESTION du cabinet, aucun texte (aConfirmer reste faux). Une demande vue
  * plusieurs fois ne compte qu'une fois, quel que soit l'ordre : les mêmes occurrences (demandesUniques) servent aux trois
  * calculs, relance datée de l'OS comprise.
+ * 🔵 Point 55 : `statutsMandats` (les affectations, ou { mandatId, statut } des mandats) écarte, après demandesUniques,
+ * les demandes d'un mandat Prospect ou Archivé (statut-mandat.demandesDesMandatsSuivis) : ni relance, ni place dans les
+ * demandes en cours de l'entreprise (sans quoi une demande restée ouverte d'un mandat archivé ferait franchir le seuil
+ * d'un élément du cabinet, que selectionnerAFaire ne peut rattacher à aucun mandat). Sans ce paramètre, rien n'est
+ * écarté. Branchement à faire : l'appelant de relance-demandes.controlerPlafondAvantAttribution applique le même filtre
+ * à ses `items`, pour que l'attribution compte les demandes en cours comme ce suivi.
  */
 export function depuisDemandes(
   items: readonly DemandeSuivie[],
   entreprises: readonly EntrepriseRelance[],
   aujourdhui: string,
+  statutsMandats: readonly StatutDeMandat[] = [],
 ): ElementAFaire[] {
   verifierDate(aujourdhui)
-  const uniques = demandesUniques(items)
+  const uniques = demandesDesMandatsSuivis(demandesUniques(items), statutsMandats)
   const avecSortie = uniques.flatMap(({ demande, sortie }) => (sortie ? [{ demande, sortie }] : []))
   const relances = relancesDemandesDues(uniques, entreprises, aujourdhui).map((r) =>
     elementSuivi('demandes', NATURE_RELANCE_DEMANDE[r.type], `${NATURE_RELANCE_DEMANDE[r.type]}:${r.demandeId}`, {
@@ -1064,7 +1109,8 @@ function totaliser(lignes: LigneBalanceAgee[]): Pick<BalanceAgee, 'sousTotaux' |
 
 /**
  * « Suivi des éléments en cours » : par cabinet et collaborateur, les dossiers ouverts à la date de référence, puis
- * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré.
+ * ceux en cours par ancienneté ; sous-total par cabinet, total général. Un dossier ouvert après la date est ignoré, comme
+ * celui d'un mandat Prospect ou Archivé (point 55) ; un mandat en clôture reste compté.
  */
 export function balanceAgee(
   dossiers: DossierOuvert[],
@@ -1078,13 +1124,15 @@ export function balanceAgee(
 ): BalanceAgee {
   verifierDate(dateReference)
   const parMandat = new Map(affectations.map((a) => [a.mandatId, a]))
+  const { horsSuivi } = bilanStatutsMandats(affectations)
+  const cabinetsRetenus = cabinets ? new Set(cabinets) : null
   const lignes = new Map<string, LigneBalanceAgee>()
   for (const dossier of dossiers) {
     controlerDossier(dossier)
-    if (dossier.ouvertLe > dateReference) continue
+    if (dossier.ouvertLe > dateReference || mandatHorsSuivi(dossier.mandatId, horsSuivi)) continue
     const affectation = dossier.mandatId === null ? undefined : parMandat.get(dossier.mandatId)
     const cabinetId = affectation?.cabinetId ?? null
-    if (cabinets && !cabinets.includes(cabinetId)) continue
+    if (cabinetsRetenus && !cabinetsRetenus.has(cabinetId)) continue
     const collaborateurId = collaborateurRattache(dossier, affectation, rattachement)
     const cle = JSON.stringify([cabinetId, collaborateurId])
     const ligne = lignes.get(cle) ?? { cabinetId, collaborateurId, ...compteurVide() }

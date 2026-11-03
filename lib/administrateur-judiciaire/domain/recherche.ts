@@ -77,7 +77,8 @@ export interface DonneesIndexRecherche {
 
 /**
  * Index : copropriétés, copropriétaires, lots, prestataires, échéances légales du portefeuille et actes pré-rédigés,
- * dans cet ordre.
+ * dans cet ordre. La recherche n'est pas une liste d'« à faire » : les échéances d'un mandat Prospect ou Archivé y
+ * restent (portée « tous », point 55), comme la copropriété elle-même.
  */
 export function construireIndexRecherche(donnees: DonneesIndexRecherche): EntreeIndexRecherche[] {
   const index: EntreeIndexRecherche[] = [],
@@ -135,7 +136,7 @@ export function construireIndexRecherche(donnees: DonneesIndexRecherche): Entree
       icon: 'wrench',
       route: 'prestataires',
     })
-  for (const { copro, echeance } of listerEcheancesPortefeuille(donnees.copros))
+  for (const { copro, echeance } of listerEcheancesPortefeuille(donnees.copros, 'tous'))
     index.push({
       id: `echeance:${copro.code}:${echeance.regleId}`,
       type: 'echeance',
