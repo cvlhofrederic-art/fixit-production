@@ -9,6 +9,14 @@ import {
   creerAssuranceImpayes,
   type AssuranceImpayesContentieux,
 } from '@/lib/administrateur-judiciaire/domain/contentieux-assurance-impayes'
+import {
+  creerDecisionContentieux,
+  creerVoiesExecution,
+  executionEngagee,
+  exigerAutorisationVente,
+  type SourceDecisionContentieux,
+  type VoiesExecutionContentieux,
+} from '@/lib/administrateur-judiciaire/domain/contentieux-voies-execution'
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { EtapeRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import {
@@ -88,6 +96,17 @@ import {
  * - 🔴 (Hugo) La case « Échéancier » du bloc Voie d'exécution (tranche 42) désigne-t-elle les délais de grâce accordés par
  *   le juge (C. civ. art. 1343-5), que la grille du bloc Échéancier peut aussi porter avec l'origine 'delais_grace', ou
  *   autre chose ? Tant que ce n'est pas établi, seule la grille (`SuiviEcheancier`) rend l'échéancier actif.
+ *
+ * Point 56 du bilan Gestéam — voies d'exécution, hypothèque, mise à prix et décision liée (🟢 tranche 42, onglet
+ * Règlements ; détail, droit et questions 🔴 dans contentieux-voies-execution.ts) :
+ * - champs FACULTATIFS, absents quand rien n'est saisi : `voiesExecution` (saisies, saisie immobilière, expulsion,
+ *   hypothèque, mise à prix et sommes estimées définitivement perdues), `decision` (assemblée + résolution, ou décision de
+ *   l'administrateur provisoire), `mandatId` et `compteId` (compte copropriétaire débiteur, D2 : clé de
+ *   PosteDette.contentieux et de reglementsSurContentieux, branchement à faire) ;
+ * - `creerDossierContentieux` refuse une saisie immobilière engagée sans décision liée, ou sans les deux montants du
+ *   projet de résolution (D. 1967 art. 55, al. 3 ; art. 11, I, 11°) ;
+ * - 🔵 une mesure d'exécution engagée (saisie cochée, saisie immobilière engagée, expulsion datée) donne, comme le
+ *   commandement, la phase suggérée « Exécution en cours ».
  */
 
 export const JALONS_PROCEDURE = [
@@ -142,6 +161,14 @@ export interface SaisieContentieux {
   jalons: Partial<Record<JalonProcedure, string>>
   /** Bloc Assurance (tranche 42) ; absent : aucune saisie. Les indemnités se lisent sur le sinistre lié. */
   assuranceImpayes?: AssuranceImpayesContentieux
+  /** Mandat (tranche 28) ; absent : non renseigné. */
+  mandatId?: string | null
+  /** Compte copropriétaire débiteur (D2) ; absent : non renseigné. */
+  compteId?: string | null
+  /** Listes Assemblée + Résolution (tranche 42), ou décision de l'administrateur provisoire ; absent : aucune. */
+  decision?: SourceDecisionContentieux | null
+  /** Blocs Voie d'exécution et Hypothèque (tranche 42) ; absent : aucune saisie. */
+  voiesExecution?: VoiesExecutionContentieux
 }
 
 export type DossierContentieux = SaisieContentieux
@@ -159,6 +186,32 @@ const assuranceNormalisee = (
 ): { assuranceImpayes?: AssuranceImpayesContentieux } =>
   assurance === undefined ? {} : { assuranceImpayes: creerAssuranceImpayes(assurance) }
 
+/** Identifiant rogné s'il est saisi ; refuse une chaîne vide. */
+function identifiantFacultatif(libelle: string, valeur: string | null | undefined): string | undefined {
+  if (valeur === undefined || valeur === null) return undefined
+  const id = valeur.trim()
+  if (id === '') throw new Error(`${libelle} du contentieux vide : identifiant attendu, ou rien.`)
+  return id
+}
+
+type ChampsPoint56 = Pick<SaisieContentieux, 'mandatId' | 'compteId' | 'decision' | 'voiesExecution'>
+
+/**
+ * Champs du point 56, normalisés s'ils sont saisis, absents sinon (null vaut absence) ; refuse une saisie immobilière
+ * engagée sans décision liée, ou sans les deux montants (contentieux-voies-execution.exigerAutorisationVente).
+ */
+function champsVoiesExecution(saisie: ChampsPoint56): ChampsPoint56 {
+  const champs: ChampsPoint56 = {}
+  const mandatId = identifiantFacultatif('Mandat', saisie.mandatId)
+  const compteId = identifiantFacultatif('Compte débiteur', saisie.compteId)
+  if (mandatId !== undefined) champs.mandatId = mandatId
+  if (compteId !== undefined) champs.compteId = compteId
+  if (saisie.decision !== undefined && saisie.decision !== null) champs.decision = creerDecisionContentieux(saisie.decision)
+  if (saisie.voiesExecution !== undefined) champs.voiesExecution = creerVoiesExecution(saisie.voiesExecution)
+  exigerAutorisationVente(champs.voiesExecution, champs.decision)
+  return champs
+}
+
 export function creerDossierContentieux(saisie: SaisieContentieux): DossierContentieux {
   if (!contient(TYPE_CONTENTIEUX, saisie.type)) throw new Error(`Type de contentieux inconnu : « ${saisie.type} ».`)
   if (!contient(PHASE_CONTENTIEUX, saisie.phase)) throw new Error(`Phase de contentieux inconnue : « ${saisie.phase} ».`)
@@ -173,7 +226,13 @@ export function creerDossierContentieux(saisie: SaisieContentieux): DossierConte
     verifierDate(cle, date)
   }
   for (const [role, intervenant] of Object.entries(saisie.intervenants)) verifierDate(`${role}.transmisLe`, intervenant.transmisLe)
-  return { ...saisie, objet: saisie.objet.replace(/\s+/g, ' ').trim(), ...assuranceNormalisee(saisie.assuranceImpayes) }
+  const { mandatId, compteId, decision, voiesExecution, ...reste } = saisie
+  return {
+    ...reste,
+    objet: saisie.objet.replace(/\s+/g, ' ').trim(),
+    ...assuranceNormalisee(saisie.assuranceImpayes),
+    ...champsVoiesExecution({ mandatId, compteId, decision, voiesExecution }),
+  }
 }
 
 export interface AnomalieContentieux {
@@ -283,7 +342,7 @@ const JALONS_JUDICIAIRES: JalonProcedure[] = ['refere', 'assignation', 'audience
 
 function phaseDesFaits(dossier: DossierContentieux): PhaseContentieux {
   if (dossier.dateCloture) return 'Clos'
-  if (dossier.jalons.commandement) return 'Exécution en cours'
+  if (dossier.jalons.commandement || executionEngagee(dossier.voiesExecution)) return 'Exécution en cours'
   if (JALONS_JUDICIAIRES.some((j) => dossier.jalons[j])) return 'Procédure Judiciaire'
   if (dossier.intervenants.avocat.transmisLe) return "Transmis à l'avocat"
   if (dossier.intervenants.huissier.transmisLe) return "Transmis à l'huissier"
