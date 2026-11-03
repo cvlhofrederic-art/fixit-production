@@ -5,8 +5,10 @@ import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { safeOpen, originesSupabase } from '@/lib/security/safe-url'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { useLocale } from '@/lib/i18n/context'
 import { titleCaseAddress } from '@/lib/devis-utils'
+import { getProfilePath } from '@/lib/utils'
 import Link from 'next/link'
 import {
   Star,
@@ -219,6 +221,16 @@ export default function ArtisanProfilePage() {
   const stepRef = useRef(step)
   useEffect(() => { stepRef.current = step }, [step])
 
+  // Après une réservation réussie, le bouton reste désactivé pendant le départ vers /confirmation/. Si le navigateur
+  // ramène ensuite cette fiche depuis son cache (retour arrière, bfcache), il redevient utilisable.
+  useEffect(() => {
+    const auRetour = (evenement: PageTransitionEvent) => {
+      if (evenement.persisted) setSubmitting(false)
+    }
+    window.addEventListener('pageshow', auRetour)
+    return () => window.removeEventListener('pageshow', auRetour)
+  }, [])
+
   // Check if artisan is favorited
   useEffect(() => {
     if (!artisan?.id) return
@@ -237,7 +249,9 @@ export default function ArtisanProfilePage() {
   }, [artisan?.id])
 
   const fetchArtisan = async () => {
-    const paramId = params.id as string
+    // Segment « id » pour /fr/artisan/[id] et /pt/profissional/[id], « slug » pour /fr/societe/[slug] et
+    // /pt/empresa/[slug] (lire seulement params.id y cherchait slug=eq.undefined : fiche toujours « non trouvée »).
+    const paramId = (params.id ?? params.slug) as string
 
     // Résolution par slug OU par UUID
     // UUID = format 8-4-4-4-12 hex, sinon c'est un slug
@@ -258,20 +272,13 @@ export default function ArtisanProfilePage() {
     if (!artisanData) { setLoading(false); return }
     const artisanId = artisanData.id
 
-    // Redirection vers l'URL canonique des sociétés : /{lang}/societe|empresa/<slug>.
-    // Les sociétés (SARL, SAS, SASU, EURL, SA) sont servies sous /societe/<slug>,
-    // les artisans individuels restent sous /artisan/<slug>. Cela ne s'applique
-    // qu'aux accès par UUID : si l'utilisateur est déjà sur un slug, pas de
-    // redirection (évite les boucles entre /societe/<slug> et /artisan/<slug>).
+    // Accès par UUID : redirection vers l'adresse publique de la fiche dans la langue de la route (getProfilePath) :
+    // /fr/artisan/<slug> sous /fr/ (l'adresse du sitemap 4 pour une fiche FR), /pt/empresa/<slug> (société) ou
+    // /pt/profissional/<slug> sous /pt/ ; aucune fiche PT n'est dans un sitemap. La cible porte le slug et seul un
+    // accès par UUID est redirigé : jamais vers l'adresse courante, pas de boucle entre deux routes de fiche.
     if (typeof window !== 'undefined' && isUuid && artisanData.slug) {
-      const legalFormNorm = String(artisanData.legal_form || '').replace(/[\s.]/g, '').toLowerCase()
-      const companyForms = ['sarl', 'sas', 'sasu', 'eurl', 'sa', 'lda', 'unipessoal']
-      const isCompany = companyForms.some((f) => legalFormNorm === f || legalFormNorm.startsWith(f))
-      if (isCompany) {
-        const targetBase = locale === 'pt' ? '/pt/empresa/' : '/fr/societe/'
-        router.replace(targetBase + artisanData.slug)
-        return
-      }
+      router.replace(getProfilePath(artisanData, locale))
+      return
     }
 
     const { data: servicesData } = await supabase
@@ -585,12 +592,14 @@ export default function ArtisanProfilePage() {
     const bookingJson = await bookingRes.json()
 
     if (!bookingJson.error && bookingJson.data) {
+      // Le bouton reste désactivé : /confirmation/ est servie par app/(commun), sous un autre layout racine que cette page,
+      // donc Next attend la réponse du serveur puis recharge la page. Le réactiver ici laissait un second clic créer une
+      // seconde réservation pendant ce temps.
       router.push(`/confirmation?id=${bookingJson.data.id}`)
-    } else {
-      const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
-      setBookingError(errMsg)
+      return
     }
-
+    const errMsg = typeof bookingJson.error === 'string' ? bookingJson.error : 'Erreur lors de la réservation. Veuillez réessayer.'
+    setBookingError(errMsg)
     setSubmitting(false)
   }
 
@@ -864,10 +873,13 @@ export default function ArtisanProfilePage() {
                             <div
                               key={photo.id || idx}
                               className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => {
                                 // portfolio_photos est modifiable par l'artisan : seules les photos du stockage Supabase s'ouvrent (jamais d'URL javascript: ni de site tiers)
                                 safeOpen(photo.url, { allowedOrigins: originesSupabase() })
                               }}
+                              onKeyDown={surActivationClavier(() => safeOpen(photo.url, { allowedOrigins: originesSupabase() }))}
                             >
                               <Image
                                 src={photo.url}

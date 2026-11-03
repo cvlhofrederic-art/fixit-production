@@ -118,8 +118,10 @@ describe('Content-Security-Policy', () => {
     // mesures des visiteurs de l'UE vers region1.google-analytics.com.
     expect(directive(politique, 'script-src')).toContain('https://www.googletagmanager.com')
     expect(directive(politique, 'connect-src')).toContain('https://*.google-analytics.com')
-    // app/pro/register/page.tsx : repli navigateur quand /api/verify-siret répond api_error.
+    // app/(commun)/pro/register/page.tsx : repli navigateur quand /api/verify-siret répond api_error.
     expect(directive(politique, 'connect-src')).toContain('https://recherche-entreprises.api.gouv.fr')
+    // lib/pdf/apercu-pdf.ts : l'URL blob d'un aperçu de devis peut être relue par fetch() (lecteur PDF, extension).
+    expect(directive(politique, 'connect-src')).toContain('blob:')
     expect(directive(politique, 'frame-ancestors')).toEqual(["'none'"])
   })
 })

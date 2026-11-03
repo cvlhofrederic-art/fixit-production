@@ -58,15 +58,24 @@ import {
  * l'art. 29-1 (simple accord de délais) ; l'attestation de non-recours suppose un délai calculé par opposant ou
  * défaillant, alors que finDelaiContestationAg n'en donne qu'un par assemblée.
  * La mise en demeure de l'art. 19-2 reste dans actes/actes-express.ts (générateur existant).
+ *
+ * Avis d'appel de fonds (point 17 du bilan 2, avis-appel.ts) — 🟢 Gestéam, tranche 43 § 22 : famille « Comptabilité
+ * syndic », modèle « appel provisions » en e-mail direct, contexte d'édition « Appel copropriétaire ». 🟢 Relu sur
+ * Légifrance le 29/10/2026 : l'avis précède la date d'exigibilité et part par voie électronique à l'adresse communiquée
+ * à cet effet, sinon par lettre simple (D. 1967 art. 35-2, rédaction du décret n° 2025-1292) ; il porte la mention de
+ * l'art. 64-2 et le rappel de l'art. 10 ; l'administrateur provisoire joint l'appel de fonds à la copie de ses décisions
+ * (art. 62-9). Ce n'est pas une notification : forme libre. 🔵 Le solde antérieur, le total à payer et le reste hors
+ * prélèvement peuvent être créditeurs : type de champ « montant_signe ».
  */
 
 export const FORMES_LEGALES = ['notification_coproprietaire', 'acte_extrajudiciaire', 'libre'] as const
 export type FormeLegale = (typeof FORMES_LEGALES)[number]
 
-export const CONTEXTES_FUSION_COURRIER = ['mutation', 'protocole', 'assemblee', 'sinistre'] as const
+export const CONTEXTES_FUSION_COURRIER = ['mutation', 'protocole', 'assemblee', 'sinistre', 'appel_coproprietaire'] as const
 export type ContexteFusionCourrier = (typeof CONTEXTES_FUSION_COURRIER)[number]
 
-export type TypeChampFusion = 'texte' | 'date' | 'montant' | 'booleen'
+/** « montant » : centimes entiers positifs ou nuls ; « montant_signe » : centimes entiers, négatif pour un crédit. */
+export type TypeChampFusion = 'texte' | 'date' | 'montant' | 'montant_signe' | 'booleen'
 
 export interface ChampFusion {
   cle: string
@@ -151,6 +160,29 @@ export const CHAMPS_PAR_CONTEXTE: Readonly<Record<ContexteFusionCourrier, readon
     champ('expertise.expert', 'Expert'),
     champ('expertise.dateNotification', "Notification de la désignation ou du rapport de l'expert", 'date'),
     champ('contestation.motifs', 'Motifs de la contestation'),
+  ],
+  appel_coproprietaire: [
+    champ('compte.numero', 'Compte copropriétaire (450)'),
+    champ('appel.dateEmission', "Date d'émission de l'avis", 'date'),
+    champ('appel.aReglerAvantLe', 'À régler avant le', 'date'),
+    champ('appel.lignes', 'Fonds appelés : type, libellé (objet de la dépense), base, clé, quote-part'),
+    champ('appel.totalAppeleCentimes', 'Total des appels', 'montant'),
+    champ('appel.soldeAnterieurCentimes', 'Solde antérieur (négatif : crédit)', 'montant_signe'),
+    champ('appel.totalAPayerCentimes', 'Total à payer (négatif : crédit)', 'montant_signe'),
+    champ('appel.souscriptionFondsTravauxCentimes', 'Souscription au fonds de travaux', 'montant'),
+    champ('appel.emploiFondsTravauxCentimes', 'Emploi du fonds de travaux (information, hors total)', 'montant'),
+    champ('reglement.mode', 'Mode de règlement'),
+    champ('reglement.instructions', 'Instructions de règlement'),
+    champ('prelevement.date', 'Date du prélèvement', 'date'),
+    champ('prelevement.montantCentimes', 'Montant prélevé', 'montant'),
+    champ('prelevement.resteCentimes', 'Reste à régler hors prélèvement (négatif : crédit)', 'montant_signe'),
+    champ('prelevement.rum', 'Référence unique du mandat'),
+    champ('creancier.ics', 'Identifiant créancier SEPA du syndicat'),
+    champ('mention.voiePostale', 'Faculté de recevoir les notifications par voie postale (D. 1967 art. 64-2)'),
+    champ('mention.ordreDuJour', "Rappel de l'art. 10 du D. 1967 (questions à l'ordre du jour)"),
+    champ('mention.fondsTravaux', 'Sommes du fonds de travaux attachées aux lots (L. 1965 art. 14-2-1, III)'),
+    champ('mention.prenotification', 'Pré-notification du prélèvement SEPA (montant, date, mandat, reste hors prélèvement)'),
+    champ('mention.decisionAdministrateur', "Décision de l'administrateur provisoire jointe à l'appel (D. 1967 art. 62-9)"),
   ],
 }
 
@@ -408,6 +440,40 @@ export const GABARITS_COURRIER = {
     delai: { libelle: "Récusation de l'expert dans les huit jours de la notification de sa désignation", fondement: 'C. assur. annexe II à l’art. A. 243-1, B 1° a', certitude: 'TEXTE' },
     mentions: ['Références du sinistre et de la police', 'Motif : récusation, désaccord chiffré', "Demande d'avance (trois quarts au moins de l'indemnité notifiée)"],
   },
+  avis_appel_fonds: {
+    famille: 'Comptabilité syndic',
+    objet: "Avis d'appel de fonds",
+    libelleGesteam: 'appel provisions',
+    contexte: 'appel_coproprietaire',
+    champsPropres: [
+      'compte.numero',
+      'appel.dateEmission',
+      'appel.aReglerAvantLe',
+      'appel.lignes',
+      'appel.totalAppeleCentimes',
+      'appel.totalAPayerCentimes',
+      'reglement.mode',
+      'mention.voiePostale',
+      'mention.ordreDuJour',
+    ],
+    formeLegale: 'libre',
+    formeEnvoiParDefaut: 'Email direct',
+    formeObservee: 'Email direct',
+    fondements: ['L. 1965 art. 14-1', 'L. 1965 art. 14-2-1', 'D. 1967 art. 10', 'D. 1967 art. 35-2', 'D. 1967 art. 62-9', 'D. 1967 art. 64-2'],
+    sansTexte: null,
+    delai: {
+      libelle: "Avant la date d'exigibilité ; par voie électronique à l'adresse communiquée à cet effet, sinon par lettre simple",
+      fondement: 'D. 1967 art. 35-2',
+      certitude: 'TEXTE',
+    },
+    mentions: [
+      'Montant de la provision exigible ; hors budget, montant et objet de la dépense (D. 1967 art. 35-2)',
+      'Faculté de recevoir les notifications et les mises en demeure par voie postale (D. 1967 art. 64-2)',
+      "Rappel des dispositions de l'art. 10 du D. 1967 (questions à inscrire à l'ordre du jour)",
+      'Prélèvement : montant et date du débit, qui valent pré-notification (recueil EPC SDD Core, règle du schéma) ; reste à régler hors prélèvement et son mode de règlement',
+      "Administrateur provisoire : l'appel consécutif à sa décision est joint à la copie de celle-ci (D. 1967 art. 62-9)",
+    ],
+  },
 } as const satisfies Record<string, GabaritCourrier>
 
 export type CleGabaritCourrier = keyof typeof GABARITS_COURRIER
@@ -454,6 +520,7 @@ export interface ControleContexteFusion {
 function motifInvalidite(type: TypeChampFusion, valeur: unknown): string | null {
   if (type === 'date') return estDateIsoValide(valeur) ? null : 'date AAAA-MM-JJ attendue'
   if (type === 'montant') return Number.isInteger(valeur) && (valeur as number) >= 0 ? null : 'centimes entiers positifs ou nuls attendus'
+  if (type === 'montant_signe') return Number.isInteger(valeur) ? null : 'centimes entiers attendus'
   if (type === 'booleen') return typeof valeur === 'boolean' ? null : 'oui ou non attendu'
   if (typeof valeur !== 'string') return 'texte attendu'
   return valeur.trim() ? null : 'texte vide'

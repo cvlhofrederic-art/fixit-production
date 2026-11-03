@@ -73,6 +73,26 @@ jobs:
           PAUSE_BUILD_SECONDES: "45"
         run: bash scripts/ci-build-avec-reprise.sh
 
+      # Pages pré-rendues servies par le Worker (open-next.config.ts : cache incrémental en assets statiques, lecture
+      # seule). Même copie que `opennextjs-cloudflare populateCache` pour ce cache (populateStaticAssetsIncrementalCache) ;
+      # si wrangler délègue le déploiement à `opennextjs-cloudflare deploy` (projet OpenNext détecté), la copie est refaite
+      # à l'identique. Cette étape la garantit, après la garde du pré-rendu (même script que ci.yml : chaque page de
+      # section pré-rendue sauf liste nommée, planchers, pages témoins, aucun revalidate). Les fichiers de cdn-cgi/ ne
+      # sont lisibles que par le Worker, jamais servis tels quels aux visiteurs.
+      - name: Pages pré-rendues dans les assets du Worker
+        run: |
+          set -euo pipefail
+          node scripts/seo/verifier-prerendu.mjs
+          test -d .open-next/cache || { echo "::error::.open-next/cache absent : le build OpenNext n'a rien pré-rendu."; exit 1; }
+          mkdir -p .open-next/assets/cdn-cgi/_next_cache
+          cp -R .open-next/cache/. .open-next/assets/cdn-cgi/_next_cache/
+          nombre=$(find .open-next/assets/cdn-cgi/_next_cache -name '*.cache' | wc -l)
+          echo "Pages pré-rendues copiées : $nombre"
+          if [ "$nombre" -eq 0 ]; then
+            echo "::error::Aucune page pré-rendue (.cache) copiée : le Worker rendrait chaque page à la demande."
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3.15.0
         env:
@@ -80,15 +100,23 @@ jobs:
           # le dépôt. Le même secret GitHub que l'étape de build est passé au Worker par l'action
           # (entrée `vars` ci-dessous → `wrangler deploy --var NEXT_PUBLIC_SUPABASE_ANON_KEY:…`).
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          # Clé du cache HTML des pages publiques (worker/cache-pages-publiques.ts, lot 7 Sentry du 28/10/2026) :
+          # chaque déploiement repart d'un cache vide, l'ancien contenu n'est jamais resservi. Passée au Worker par
+          # l'entrée `vars` ci-dessous, comme la clé anon.
+          VITFIX_BUILD_ID: ${{ github.sha }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Jamais de --var dans `command` : wrangler-action 3.15.0 n'ajoute les variables de `vars` que si la
+          # commande n'en contient aucun (dist/index.mjs) ; la clé anon serait alors perdue au déploiement.
           command: deploy
           # Variables d'environnement du Worker injectées au déploiement depuis `env:` ci-dessus
           # (une par ligne) : la clé anon reste lisible au runtime (process.env dynamique dans
-          # lib/env.ts et app/api/health) sans figurer dans [vars] de wrangler.toml.
+          # lib/env.ts et app/api/health) sans figurer dans [vars] de wrangler.toml ; VITFIX_BUILD_ID
+          # est la clé du cache HTML des pages publiques (lot 7 Sentry).
           vars: |
             NEXT_PUBLIC_SUPABASE_ANON_KEY
+            VITFIX_BUILD_ID
           # Sans wranglerVersion, l'action installe SA version par défaut
           # (vieille) au lieu de celle du lockfile : les assets @vercel/og de
           # next 16.x cassent son module-collector. 4.149.0 = version du
@@ -133,7 +161,7 @@ jobs:
 
       - name: Vérifier /api/health
         run: |
-          HTTP_STATUS=$(curl -sL -o /tmp/health.json -w "%{http_code}" "$PROD_URL/api/health")
+          HTTP_STATUS=$(curl -sL --proto '=https' -o /tmp/health.json -w "%{http_code}" "$PROD_URL/api/health")
           echo "Status: $HTTP_STATUS"
           cat /tmp/health.json | jq .
           if [ "$HTTP_STATUS" -ne 200 ]; then
@@ -143,7 +171,7 @@ jobs:
 
       - name: Vérifier la page d'accueil FR
         run: |
-          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$PROD_URL/fr/")
+          HTTP_STATUS=$(curl -sL --proto '=https' -o /dev/null -w "%{http_code}" "$PROD_URL/fr/")
           echo "Homepage FR status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage FR returned $HTTP_STATUS"
@@ -152,12 +180,36 @@ jobs:
 
       - name: Vérifier la page d'accueil PT
         run: |
-          HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$PROD_URL/pt/")
+          HTTP_STATUS=$(curl -sL --proto '=https' -o /dev/null -w "%{http_code}" "$PROD_URL/pt/")
           echo "Homepage PT status: $HTTP_STATUS"
           if [ "$HTTP_STATUS" -ne 200 ]; then
             echo "::error::Homepage PT returned $HTTP_STATUS"
             exit 1
           fi
+
+      # Pages pré-rendues servies depuis les assets du Worker : si la copie de .open-next/cache manquait ou si OpenNext
+      # changeait de chemin, chaque page serait de nouveau rendue à la demande, avec une réponse 200 quand même.
+      - name: Vérifier que les pages SEO viennent du cache
+        run: |
+          ENTETE=$(curl -sS --proto '=https' --proto-redir '=https' -o /dev/null -D - "$PROD_URL/pt/servicos/canalizador-porto/" | tr -d '\r' | grep -i '^x-nextjs-cache:' || true)
+          echo "/pt/servicos/canalizador-porto/ : ${ENTETE:-x-nextjs-cache absent}"
+          if ! printf '%s' "$ENTETE" | grep -qi 'HIT'; then
+            echo "::warning::/pt/servicos/canalizador-porto/ n'est pas servie depuis le cache des pages pré-rendues (attendu x-nextjs-cache: HIT)."
+          fi
+
+      # Accueils : leur réponse dépend de la session (redirection, jeton rafraîchi), aucun cache partagé ne doit les
+      # garder. Pré-rendus, ils ne restent en private, no-store que par l'en-tête du middleware (middleware.ts,
+      # CACHE_CONTROL_PRIVE), qu'OpenNext fait passer avant celui de Next.
+      - name: Vérifier que les accueils restent privés
+        run: |
+          for chemin in /pt/ /fr/; do
+            ENTETE=$(curl -sS --proto '=https' --proto-redir '=https' -o /dev/null -D - "$PROD_URL$chemin" | tr -d '\r' | grep -i '^cache-control:' || true)
+            echo "$chemin : ${ENTETE:-cache-control absent}"
+            if ! printf '%s' "$ENTETE" | grep -qi 'private' || ! printf '%s' "$ENTETE" | grep -qi 'no-store'; then
+              echo "::error::$chemin n'est pas en Cache-Control private, no-store : un cache partagé pourrait garder un accueil qui dépend de la session."
+              exit 1
+            fi
+          done
 
       - name: Résumé
         if: success()
@@ -168,6 +220,49 @@ jobs:
         run: |
           echo "::error::PRODUCTION SMOKE TEST FAILED — vérifier https://vitfix.io immédiatement"
           echo "Rollback: wrangler rollback ou redéployer le commit précédent via le workflow 'Deploy to Cloudflare Workers'"
+
+  # ── Préchauffage du cache HTML des pages publiques (lot 7 Sentry du 28/10/2026, ex post-deploy.yml) ──
+  # Le Worker met en cache le HTML des pages publiques (worker/cache-pages-publiques.ts, clé par déploiement) ;
+  # chaque URL des sitemaps PT, plus /pt/ et /fr/, est demandée une fois, en parallèle. Le Cache API des Workers
+  # est propre à chaque centre de données Cloudflare : lancé depuis un runner GitHub (en général aux États-Unis),
+  # ce préchauffage ne remplit que le cache du ou des centres de données qui servent ce runner. Il ne profite
+  # qu'aux requêtes routées vers ces mêmes centres de données, comme une partie de l'exploration de Googlebot
+  # (surtout depuis les États-Unis), pas aux visiteurs du Portugal, dont le centre de données se remplit à leurs
+  # propres visites. Best-effort : n'altère jamais le statut du déploiement (continue-on-error), 4 minutes au plus.
+  # Pas de checkout : curl, grep, sed, sort et xargs seulement.
+  prechauffage-cache:
+    name: Préchauffer le cache des pages publiques
+    needs: [deploy, smoke-test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    # Aucun jeton nécessaire : requêtes HTTPS vers vitfix.io seulement (moindre privilège).
+    permissions: {}
+    env:
+      PROD_URL: https://vitfix.io
+
+    steps:
+      - name: Préchauffer le cache des pages publiques PT
+        run: |
+          set -u
+          # HTTPS imposé, redirections comprises (SonarCloud S6506) : jamais de passage en clair.
+          recuperer() { curl -sL --proto =https --proto-redir =https "$@"; }
+          extraire_loc() { grep -o '<loc>[^<]*</loc>' | sed 's/<[^>]*>//g'; }
+          sous_sitemaps=$(recuperer "$PROD_URL/pt/sitemap.xml" | extraire_loc)
+          urls=$( {
+            echo "$PROD_URL/pt/"
+            echo "$PROD_URL/fr/"
+            echo "$sous_sitemaps" | while read -r sitemap; do
+              if [ -n "$sitemap" ]; then recuperer "$sitemap" | extraire_loc; fi
+            done
+          } | sort -u)
+          echo "$(echo "$urls" | wc -l) URL à préchauffer"
+          echo "$urls" | timeout 240 xargs -r -P 8 -I '{}' curl -sL --proto =https --proto-redir =https -o /dev/null -w '%{http_code} %{time_starttransfer}s {}\n' '{}' > /tmp/prechauffage.txt || true
+          echo "réponses : $(wc -l < /tmp/prechauffage.txt)"
+          awk '{print $1}' /tmp/prechauffage.txt | sort | uniq -c
+          echo "les 5 plus lentes :"
+          sort -k2 -r /tmp/prechauffage.txt | head -5
 
   # ── IndexNow (ex indexnow-post-deploy.yml, lot 6 Aikido 28/10/2026) ──────────
   # Notifie Bing/Yandex/Naver/Seznam des URL de tous les sitemaps après chaque

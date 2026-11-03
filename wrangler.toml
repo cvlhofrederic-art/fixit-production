@@ -5,7 +5,10 @@
 # Used with @opennextjs/cloudflare for Next.js deployment.
 
 name = "vitfix"
-main = ".open-next/worker.js"
+# worker/index.ts enveloppe le Worker généré par OpenNext (.open-next/worker.js) : cache HTML des pages publiques
+# pour les visiteurs anonymes + en-têtes x-vitfix-cache et Server-Timing (lot 7 Sentry, 28/10/2026).
+# VITFIX_BUILD_ID (clé de cache par déploiement) est posé par `wrangler deploy --var` dans deploy-cloudflare.yml.
+main = "worker/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
