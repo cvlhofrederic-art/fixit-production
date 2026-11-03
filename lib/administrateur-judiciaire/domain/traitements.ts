@@ -1,4 +1,5 @@
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { controlerVerrou, planDuCompte, type VerrouSaisie } from '@/lib/administrateur-judiciaire/domain/verrou-saisie'
 import {
   FAMILLE_TRAITEMENT,
   TYPE_APPEL_LIE_AU_MOUVEMENT,
@@ -21,6 +22,11 @@ import {
  * part récupérable). L'annulation (R6) les conserve, sauf l'état de répartition : la contre-passation, mouvement neuf,
  * est toujours « à répartir ». ⚪ Sens exact de « Non déductible » (fiscal, pour le copropriétaire bailleur ?) non
  * établi : simple marque.
+ *
+ * Verrou de saisie (point 27, verrou-saisie.ts) : creerTraitement et annulerTraitement refusent une date comptable
+ * couverte par une borne (édition figée, arrêté des comptes, limite inférieure de saisie du plan). « Inclus dans une
+ * édition » (tranche 37, onglet Statut) est porté par Mouvement.editionId, que seul figerEdition (etats-comptables.ts)
+ * pose : un mouvement neuf, contre-passation comprise, n'est jamais inclus dans une édition.
  */
 
 /** Famille de traitement : une valeur de FAMILLE_TRAITEMENT (tous blocs confondus). */
@@ -93,6 +99,8 @@ export interface LigneMouvement {
 /** Mouvement enregistré : toujours rattaché à son traitement (R6). */
 export interface Mouvement extends LigneMouvement {
   traitementId: string
+  /** Édition qui a inclus ce mouvement (Gestéam « Inclus dans une édition ») ; posé par figerEdition seulement. */
+  editionId?: string
 }
 
 export interface Traitement {
@@ -133,12 +141,24 @@ function verifierAttributs(attributs: AttributsMouvement | undefined): void {
 const total = (lignes: LigneMouvement[], sens: SensMouvement) =>
   lignes.filter((ligne) => ligne.sens === sens).reduce((somme, ligne) => somme + ligne.montantCentimes, 0)
 
+/** Options de saisie : le verrou du syndicat (verrou-saisie.ts) ; absent, rien n'est verrouillé. */
+export interface OptionsTraitement {
+  verrou?: VerrouSaisie
+}
+
+/** Mouvement neuf : jamais inclus dans une édition, même si la ligne reçue (copie d'un mouvement) en portait la marque. */
+function nouveauMouvement(ligne: LigneMouvement & { editionId?: string }, traitementId: string): Mouvement {
+  const { editionId: _jamaisRecopiee, ...reste } = ligne
+  return { ...reste, traitementId }
+}
+
 /**
- * Seul constructeur de mouvements : vérifie la famille, la date, les montants (centimes entiers > 0), les origines
- * (R8), les attributs (part récupérable, marque non déductible, base et taux d'honoraires, état de répartition) et
- * l'équilibre débit = crédit, puis rattache chaque mouvement au traitement (R6).
+ * Seul constructeur de mouvements : vérifie la famille, la date, les montants (centimes entiers > 0), les comptes, les
+ * origines (R8), les attributs (part récupérable, marque non déductible, base et taux d'honoraires, état de
+ * répartition), puis le verrou de saisie (point 27) — après les lignes, pour qu'une ligne mal formée soit refusée pour
+ * son propre motif — et l'équilibre débit = crédit ; enfin rattache chaque mouvement au traitement (R6).
  */
-export function creerTraitement(saisie: SaisieTraitement): Traitement {
+export function creerTraitement(saisie: SaisieTraitement, { verrou = [] }: OptionsTraitement = {}): Traitement {
   if (!FAMILLES.has(saisie.famille)) throw new Error(`Famille de traitement inconnue : « ${saisie.famille} ».`)
   if (!estDateIsoValide(saisie.date)) throw new Error(`Date comptable invalide : « ${saisie.date} » (AAAA-MM-JJ).`)
   if (saisie.mouvements.length < 2) throw new Error('Un traitement comporte au moins un débit et un crédit.')
@@ -150,6 +170,7 @@ export function creerTraitement(saisie: SaisieTraitement): Traitement {
       throw new Error(`Type d'appel inconnu : « ${ligne.origine.typeAppel} ».`)
     verifierAttributs(ligne.attributs)
   }
+  controlerVerrou(verrou, { date: saisie.date, famille: saisie.famille, comptes: saisie.mouvements.map((ligne) => ligne.compte) })
   const debit = total(saisie.mouvements, 'debit')
   const credit = total(saisie.mouvements, 'credit')
   if (debit !== credit)
@@ -158,7 +179,7 @@ export function creerTraitement(saisie: SaisieTraitement): Traitement {
     id: saisie.id,
     famille: saisie.famille,
     date: saisie.date,
-    mouvements: saisie.mouvements.map((ligne) => ({ ...ligne, traitementId: saisie.id })),
+    mouvements: saisie.mouvements.map((ligne) => nouveauMouvement(ligne, saisie.id)),
     ...(saisie.annule ? { annule: saisie.annule } : {}),
   }
 }
@@ -170,8 +191,14 @@ const attributsContrePasses = (attributs: AttributsMouvement): AttributsMouvemen
  * R6 — annulation : un NOUVEAU traitement, de la famille d'annulation observée, aux mouvements inversés. Le traitement
  * d'origine n'est jamais modifié (fonction pure). Refuse une famille sans annulation observée. Attributs et liens sont
  * repris ; une ligne qui portait un état de répartition est « à répartir » (la contre-passation n'a jamais été répartie).
+ * Point 27 : le verrou contrôle la date de la contre-passation, pas celle du traitement annulé (arrêté du 14 mars 2005,
+ * art. 5 : l'écriture erronée est annulée par une écriture contraire) ; la contre-passation n'est incluse dans aucune
+ * édition.
  */
-export function annulerTraitement(traitement: Traitement, { id, date }: { id: string; date: string }): Traitement {
+export function annulerTraitement(
+  traitement: Traitement,
+  { id, date, verrou }: { id: string; date: string } & OptionsTraitement,
+): Traitement {
   const famille = ANNULATION_PAR_FAMILLE[traitement.famille]
   if (!famille)
     throw new Error(`Aucune annulation observée pour la famille « ${traitement.famille} » : annulation refusée.`)
@@ -188,7 +215,7 @@ export function annulerTraitement(traitement: Traitement, { id, date }: { id: st
       ...(attributs ? { attributs: attributsContrePasses(attributs) } : {}),
       ...(liens ? { liens: { ...liens } } : {}),
     })),
-  })
+  }, { verrou })
 }
 
 /** R7 — encaissement : débit banque / crédit compte du copropriétaire. */
@@ -222,9 +249,6 @@ export function mouvementsDecaissement({
     { compte: compteBanque, sens: 'credit', montantCentimes },
   ]
 }
-
-/** Code du plan d'un compte « <syndicat>.<plan>.<auxiliaire>.0 », ou le compte lui-même s'il n'a pas de segment. */
-const planDuCompte = (compte: string): string => compte.split('.')[1] ?? compte
 
 /** Une ligne est à répartir si elle est marquée ainsi, ou si c'est une charge (classe 6) sans état de répartition. */
 const estARepartir = (m: Mouvement): boolean => {
