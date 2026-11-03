@@ -1,24 +1,36 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { etatEtape } from '@/lib/administrateur-judiciaire/domain/etapes'
 import {
   ANOMALIES_PROGRAMMATION,
+  CANAUX_ACCUSE_REALISATION,
   JOURS_SUIVI_ETAPE_AUTOMATIQUE,
   JOURS_SUIVI_ETAPE_MAX,
   LIBELLES_ANOMALIES_PROGRAMMATION,
+  LIBELLES_CANAUX_ACCUSE_REALISATION,
+  LIBELLES_NATURES_DEMANDEUR_ETAPE,
   LIBELLES_ORIGINE_ETAPE,
   LIBELLES_STATUT_ETAPE,
+  NATURES_DEMANDEUR_ETAPE,
+  TITRE_COPIE_AU_CS_POUR_INFO,
+  USAGES_ETAPES_CABINET_PAR_DEFAUT,
   anomaliesProgrammation,
   bilanDurees,
+  canalAccuseRealisation,
   creerEtapeDossier,
   detacherEtape,
   enchainerEtapeDossier,
   etapeAutomatiqueNonRealisee,
+  etapeCopieAuCsPourInfo,
   etapesEnFichesLiees,
   programmerEtape,
   rattacherEtape,
   realiserEtapeDossier,
+  relanceEtapeAutomatique,
   validerEtapeDossier,
   type EtapeDossier,
+  type NatureDemandeurEtape,
   type OrigineEtape,
   type SaisieEtapeDossier,
 } from '@/lib/administrateur-judiciaire/domain/etapes-dossier'
@@ -53,6 +65,7 @@ const saisie = (surcharge: Partial<SaisieEtapeDossier> = {}): SaisieEtapeDossier
   origine: 'manuelle',
   creeeParId: 'collab-A',
   demandeurId: 'collab-A',
+  demandeurNature: 'collaborateur',
   realisateurId: 'collab-B',
   validateurId: null,
   limite: '2026-11-05',
@@ -95,6 +108,7 @@ describe('étape d’un dossier — création', () => {
       creeeLe: '2026-10-20',
       origine: 'manuelle',
       creeeParId: 'collab-A',
+      demandeurNature: 'collaborateur',
       rattachements: [contentieux, copro],
       instructions: 'Joindre le décompte',
       aFaireLe: null,
@@ -134,6 +148,7 @@ describe('étape d’un dossier — création', () => {
     expect(() => creerEtapeDossier(saisie({ id: ' ' }))).toThrow(/identifiant/i)
     expect(() => creerEtapeDossier(saisie({ titre: ' ' }))).toThrow(/titre/i)
     expect(() => creerEtapeDossier(saisie({ demandeurId: '' }))).toThrow(/demandeur/i)
+    expect(() => creerEtapeDossier(saisie({ demandeurNature: 'syndic' as string as NatureDemandeurEtape }))).toThrow(/nature du demandeur/i)
     expect(() => creerEtapeDossier(saisie({ origine: 'importee' as string as OrigineEtape }))).toThrow(/origine/i)
     expect(() => creerEtapeDossier(saisie({ creeeParId: null }))).toThrow(/créateur/i)
     expect(() => creerEtapeDossier(saisie({ creeeParId: ' ' }))).toThrow(/créateur/i)
@@ -238,6 +253,8 @@ describe('étape d’un dossier — réalisation, accusé au demandeur, validati
     expect(accuse).toEqual({
       etapeId: 'e-1',
       destinataireId: 'collab-A',
+      destinataireNature: 'collaborateur',
+      canal: 'memo_interne',
       realiseParId: 'collab-B',
       titre: 'Lettre de mise en demeure',
       faitLe: '2026-10-21',
@@ -261,6 +278,24 @@ describe('étape d’un dossier — réalisation, accusé au demandeur, validati
       compteRendu: '',
     })
     expect(sansRealisateur.accuse).toMatchObject({ destinataireId: 'collab-A', realiseParId: null })
+  })
+
+  it('J22 : l’accusé part par e-mail vers un demandeur extérieur, en mémo interne entre collaborateurs (rien n’est envoyé)', () => {
+    expect(NATURES_DEMANDEUR_ETAPE).toEqual(['collaborateur', 'coproprietaire', 'conseil_syndical', 'tiers'])
+    expect(CANAUX_ACCUSE_REALISATION).toEqual(['memo_interne', 'courriel'])
+    expect(LIBELLES_CANAUX_ACCUSE_REALISATION).toEqual({ memo_interne: 'Mémo interne', courriel: 'E-mail' })
+    for (const nature of NATURES_DEMANDEUR_ETAPE) expect(LIBELLES_NATURES_DEMANDEUR_ETAPE[nature]).toBeTruthy()
+    expect(canalAccuseRealisation('collaborateur')).toBe('memo_interne')
+    for (const nature of ['coproprietaire', 'conseil_syndical', 'tiers'] as const) {
+      expect(canalAccuseRealisation(nature)).toBe('courriel')
+      const etape = creerEtapeDossier(saisie({ accuseAuDemandeur: true, demandeurId: 'identite-7', demandeurNature: nature }))
+      expect(etape.demandeurNature).toBe(nature)
+      const { accuse } = realiserEtapeDossier(etape, { date: '2026-10-21', compteRendu: 'Fuite réparée' })
+      expect(accuse).toMatchObject({ destinataireId: 'identite-7', destinataireNature: nature, canal: 'courriel', realiseParId: 'collab-B' })
+    }
+    // La case décochée l'emporte, quelle que soit la nature du demandeur.
+    const exterieur = creerEtapeDossier(saisie({ demandeurId: 'identite-7', demandeurNature: 'coproprietaire' }))
+    expect(realiserEtapeDossier(exterieur, { date: '2026-10-21', compteRendu: '' }).accuse).toBeNull()
   })
 
   it('refus : réalisation avant la création, étape déjà réalisée, date ou durée invalides', () => {
@@ -313,6 +348,15 @@ describe('étape d’un dossier — durées (onglet Programmation)', () => {
     expect(bilanDurees(validee, '2026-10-29')).toMatchObject({ ecartValidationMinutes: -5, cumulReelMinutes: 50 })
     expect(() => bilanDurees(etape, '2026-10-32')).toThrow(/date du jour/i)
   })
+
+  it('J23 : « en cours depuis » se compte de la création, et non de « à faire le »', () => {
+    const programmee = creerEtapeDossier(saisie({ aFaireLe: '2026-10-25' }))
+    expect(bilanDurees(programmee, '2026-10-29').enCoursDepuisJours).toBe(9)
+    const reportee = programmerEtape(programmee, { aFaireLe: '2026-10-28' })
+    expect(bilanDurees(reportee, '2026-10-29').enCoursDepuisJours).toBe(9)
+    const faite = realiserEtapeDossier(reportee, { date: '2026-10-28', compteRendu: '' }).etape
+    expect(bilanDurees(faite, '2026-11-30').enCoursDepuisJours).toBe(8)
+  })
 })
 
 describe('étape d’un dossier — enchaînement', () => {
@@ -334,7 +378,7 @@ describe('étape d’un dossier — enchaînement', () => {
       }),
     )
     const faite = realiserEtapeDossier(etape, { date: '2026-10-21', compteRendu: 'Envoyée', dureeReelleMinutes: 40 }).etape
-    const suivante = enchainerEtapeDossier(faite, processus, { id: 'e-2', date: '2026-10-21', origine: 'automatique', creeeParId: null })
+    const suivante = enchainerEtapeDossier(faite, processus, { id: 'e-2', date: '2026-10-21', creeeParId: 'collab-B' })
     expect(suivante).toEqual({
       id: 'e-2',
       titre: 'Copie au CS pour info',
@@ -349,8 +393,9 @@ describe('étape d’un dossier — enchaînement', () => {
       validationSansObjet: false,
       compteRendu: '',
       creeeLe: '2026-10-21',
-      origine: 'automatique',
-      creeeParId: null,
+      origine: 'manuelle',
+      creeeParId: 'collab-B',
+      demandeurNature: 'collaborateur',
       rattachements: [contentieux, copro],
       instructions: '',
       aFaireLe: null,
@@ -365,7 +410,7 @@ describe('étape d’un dossier — enchaînement', () => {
 
   it('instructions et case d’accusé se saisissent après la création : l’étape enchaînée, cochée, produit l’accusé', () => {
     const faite = realiserEtapeDossier(creerEtapeDossier(saisie()), { date: '2026-10-21', compteRendu: '' }).etape
-    const suivante = enchainerEtapeDossier(faite, processus, { id: 'e-2', date: '2026-10-21', origine: 'automatique', creeeParId: null }) as EtapeDossier
+    const suivante = enchainerEtapeDossier(faite, processus, { id: 'e-2', date: '2026-10-21', creeeParId: 'collab-A' }) as EtapeDossier
     expect(realiserEtapeDossier(suivante, { date: '2026-10-25', compteRendu: '' }).accuse).toBeNull()
     const programmee = programmerEtape(suivante, { accuseAuDemandeur: true, instructions: '  Joindre la mise en demeure  ' })
     expect(programmee).toMatchObject({ accuseAuDemandeur: true, instructions: 'Joindre la mise en demeure' })
@@ -386,19 +431,82 @@ describe('étape d’un dossier — enchaînement', () => {
   it('« sans objet » de la validation n’est pas recopié sur l’étape suivante (etapes.enchainer le recopierait)', () => {
     const faite = realiserEtapeDossier(creerEtapeDossier(saisie({ validateurId: 'collab-A' })), { date: '2026-10-21', compteRendu: '' }).etape
     const sansObjet: EtapeDossier = { ...faite, validationSansObjet: true }
-    const suivante = enchainerEtapeDossier(sansObjet, processus, { id: 'e-2', date: '2026-10-22', origine: 'manuelle', creeeParId: 'collab-B' })
+    const suivante = enchainerEtapeDossier(sansObjet, processus, { id: 'e-2', date: '2026-10-22', creeeParId: 'collab-B' })
     expect(suivante).toMatchObject({ validateurId: 'collab-A', validationSansObjet: false, creeeLe: '2026-10-22', creeeParId: 'collab-B' })
     expect(etatEtape(suivante as EtapeDossier, '2026-10-22').statut).toBe('a_faire')
   })
 
-  it('fin de processus : null ; refus avant réalisation, date antérieure à la réalisation, créateur incohérent', () => {
+  it('fin de processus : null ; refus avant réalisation, date antérieure à la réalisation, identifiant vide', () => {
     const faite = realiserEtapeDossier(creerEtapeDossier(saisie({ etapeType: 'COPIE_CS' })), { date: '2026-10-21', compteRendu: '' }).etape
-    expect(enchainerEtapeDossier(faite, processus, { id: 'x', date: '2026-10-21', origine: 'manuelle', creeeParId: 'collab-B' })).toBeNull()
+    expect(enchainerEtapeDossier(faite, processus, { id: 'x', date: '2026-10-21', creeeParId: 'collab-B' })).toBeNull()
     const med = realiserEtapeDossier(creerEtapeDossier(saisie()), { date: '2026-10-21', compteRendu: '' }).etape
-    expect(() => enchainerEtapeDossier(creerEtapeDossier(saisie()), processus, { id: 'x', date: '2026-10-21', origine: 'manuelle', creeeParId: 'collab-B' })).toThrow(/réalis/i)
-    expect(() => enchainerEtapeDossier(med, processus, { id: 'x', date: '2026-10-20', origine: 'manuelle', creeeParId: 'collab-B' })).toThrow(/réalisation/i)
-    expect(() => enchainerEtapeDossier(med, processus, { id: 'x', date: '2026-10-21', origine: 'manuelle', creeeParId: null })).toThrow(/créateur/i)
-    expect(() => enchainerEtapeDossier(med, processus, { id: ' ', date: '2026-10-21', origine: 'automatique', creeeParId: null })).toThrow(/identifiant/i)
+    expect(() => enchainerEtapeDossier(creerEtapeDossier(saisie()), processus, { id: 'x', date: '2026-10-21', creeeParId: 'collab-B' })).toThrow(/réalis/i)
+    expect(() => enchainerEtapeDossier(med, processus, { id: 'x', date: '2026-10-20', creeeParId: 'collab-B' })).toThrow(/réalisation/i)
+    expect(() => enchainerEtapeDossier(med, processus, { id: ' ', date: '2026-10-21', creeeParId: 'collab-B' })).toThrow(/identifiant/i)
+  })
+
+  it('J20 : « Créée par » = le collaborateur qui déclenche l’enchaînement (jamais « Automatique ») ; refus sans lui', () => {
+    const med = realiserEtapeDossier(creerEtapeDossier(saisie()), { date: '2026-10-21', compteRendu: '' }).etape
+    const suivante = enchainerEtapeDossier(med, processus, { id: 'e-2', date: '2026-10-22', creeeParId: ' collab-C ' }) as EtapeDossier
+    expect(suivante).toMatchObject({ origine: 'manuelle', creeeParId: 'collab-C', creeeLe: '2026-10-22' })
+    expect(LIBELLES_ORIGINE_ETAPE[suivante.origine]).toBe('Manuelle')
+    for (const absent of ['', '  ', null] as (string | null)[])
+      expect(() => enchainerEtapeDossier(med, processus, { id: 'e-2', date: '2026-10-22', creeeParId: absent as string })).toThrow(
+        /collaborateur qui déclenche l’enchaînement/i,
+      )
+    // Même après une étape automatique, l'étape enchaînée est créée par le collaborateur qui enchaîne.
+    const auto = realiserEtapeDossier(etapeAutomatique({ etapeType: 'MED' }), { date: '2026-09-02', compteRendu: '' }).etape
+    expect(enchainerEtapeDossier(auto, processus, { id: 'e-3', date: '2026-09-02', creeeParId: 'collab-B' })).toMatchObject({
+      origine: 'manuelle',
+      creeeParId: 'collab-B',
+    })
+  })
+
+  it('J20, conséquence : l’étape enchaînée n’est pas visée par la règle des N jours ; elle remonte par sa limite', () => {
+    const med = realiserEtapeDossier(creerEtapeDossier(saisie()), { date: '2026-10-21', compteRendu: '' }).etape
+    const suivante = enchainerEtapeDossier(med, processus, { id: 'e-2', date: '2026-10-21', creeeParId: 'collab-B' }) as EtapeDossier
+    const bienPlusTard = '2027-06-30'
+    expect(relanceEtapeAutomatique(suivante, bienPlusTard)).toBeNull()
+    expect(etapeAutomatiqueNonRealisee(suivante, bienPlusTard)).toBeNull()
+    expect(depuisEtapesAutomatiques([{ mandatId: 'M1', etape: suivante }], bienPlusTard)).toEqual([])
+    expect(depuisEtapes([{ mandatId: 'M1', etape: suivante }], '2026-10-22')).toEqual([
+      expect.objectContaining({ id: 'etapes:e-2:a_faire', date: '2026-10-29', assigneId: 'collab-B' }),
+    ])
+  })
+})
+
+describe('J24 : « Copie au CS pour info », usage du cabinet (réglage activable), pas une obligation', () => {
+  const declencheur = {
+    id: 'e-copie',
+    contentieuxId: 'C-3',
+    miseEnDemeureLe: '2026-10-20',
+    demandeurId: 'collab-A',
+    demandeurNature: 'collaborateur',
+    realisateurId: 'collab-B',
+  } as const
+
+  it('usage actif (par défaut, comme observé en tranche 42) : étape automatique créée à la date de la mise en demeure', () => {
+    expect(USAGES_ETAPES_CABINET_PAR_DEFAUT).toEqual({ copieAuCsPourInfo: true })
+    const etape = etapeCopieAuCsPourInfo(declencheur) as EtapeDossier
+    expect(etape).toMatchObject({
+      id: 'e-copie',
+      titre: TITRE_COPIE_AU_CS_POUR_INFO,
+      origine: 'automatique',
+      creeeParId: null,
+      creeeLe: '2026-10-20',
+      demandeurId: 'collab-A',
+      realisateurId: 'collab-B',
+      rattachements: [contentieux],
+    })
+    expect(TITRE_COPIE_AU_CS_POUR_INFO).toBe('Copie au CS pour info')
+    // Étape automatique : la règle des N jours la vise.
+    expect(etapeAutomatiqueNonRealisee(etape, '2026-11-19')).toEqual({ relanceLe: '2026-11-19', ouverteDepuisJours: 30 })
+  })
+
+  it('usage désactivé : aucune étape ; contrôles de la saisie conservés', () => {
+    expect(etapeCopieAuCsPourInfo(declencheur, { copieAuCsPourInfo: false })).toBeNull()
+    expect(() => etapeCopieAuCsPourInfo({ ...declencheur, miseEnDemeureLe: '20/10/2026' })).toThrow(/création/i)
+    expect(() => etapeCopieAuCsPourInfo({ ...declencheur, contentieuxId: ' ' })).toThrow(/identifiant/i)
   })
 })
 
@@ -527,5 +635,51 @@ describe('suivi « à faire » — étapes', () => {
       ['etapes:e-1:a_faire', '2026-10-27'],
       ['etapes:e-2:a_faire', '2026-10-25'],
     ])
+  })
+})
+
+describe('en-tête du module : décisions de Hugo du 03/11/2026 (J20 à J24) et 🔴 restants', () => {
+  const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-dossier.ts'), 'utf8')
+  const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
+  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduits'))
+  const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'), entete.indexOf('Le droit'))
+
+  /** Ligne « - Jxx : … » de la rubrique, seule : l'intro (« J20 à J24 ») et les renvois (« usage du cabinet : J24 ») n'y comptent pas. */
+  const ligneDecision = (j: string) => decisions.split(/ - (?=J\d{2} : |Question \d+ )/).find((ligne) => ligne.startsWith(`${j} : `)) ?? ''
+
+  it('rubrique des décisions : une ligne par décision, J20 à J24, chacune avec sa teneur', () => {
+    expect(entete).toContain('Décisions de Hugo du 03/11/2026')
+    expect(ligneDecision('J20')).toMatch(/^J20 : une étape issue d'un « Enchaînement » porte comme créateur le collaborateur qui a déclenché l'enchaînement/)
+    expect(ligneDecision('J20')).toMatch(/jamais « Automatique »/)
+    expect(ligneDecision('J20')).toMatch(/crée une étape d'origine « manuelle »/)
+    expect(ligneDecision('J20')).toMatch(/la règle « étape automatique non réalisée après N jours » ne vise pas l'étape enchaînée/)
+    expect(ligneDecision('J21')).toMatch(/^J21 : les champs Durée sont en minutes/)
+    expect(ligneDecision('J22')).toMatch(/^J22 : l'accusé de réalisation part par e-mail quand le demandeur est extérieur/)
+    expect(ligneDecision('J22')).toMatch(/il reste interne \(mémo\) entre collaborateurs/)
+    expect(ligneDecision('J22')).toMatch(/rien n'est envoyé/)
+    expect(ligneDecision('J23')).toMatch(/^J23 : « En cours depuis » se compte depuis la création de l'étape/)
+    expect(ligneDecision('J24')).toMatch(/^J24 : l'étape automatique « Copie au CS pour info » relève d'un usage du cabinet/)
+    expect(ligneDecision('J24')).toMatch(/pas d'une obligation du contrat de syndic/)
+    expect(ligneDecision('J24')).toMatch(/réglage activable \(UsagesEtapesCabinet, etapeCopieAuCsPourInfo\)/)
+  })
+
+  it('🔴 restants : case « Fixe », valeur de N, délais légaux d’un processus, « à compter de la demande » ; plus les questions tranchées', () => {
+    expect(nonEtabli).toMatch(/case « Fixe »/)
+    expect(nonEtabli).toMatch(/quelle valeur de N/)
+    expect(nonEtabli).toMatch(/première présentation/)
+    expect(nonEtabli).toMatch(/à compter de la demande/)
+    expect(nonEtabli).toMatch(/10\. Frédéric ou Hugo \(suite de J22\) : demandeur extérieur sans adresse électronique/)
+    // J24 tranche la nature de l'étape (usage du cabinet), pas sa valeur par défaut : à valider.
+    expect(nonEtabli).toMatch(/11\. Hugo : l'usage « Copie au CS pour info » est-il actif par défaut, ou à activer par le cabinet \?/)
+    expect(source).toMatch(/valeur par défaut à valider \(🔴 11\)/)
+    expect(nonEtabli).not.toMatch(/« Automatique » ou le collaborateur/)
+    expect(nonEtabli).not.toMatch(/unité des champs Durée/)
+    expect(nonEtabli).not.toMatch(/mémo interne, e-mail/)
+    expect(nonEtabli).not.toMatch(/depuis la création ou depuis/)
+    expect(nonEtabli).not.toMatch(/usage du cabinet ou du contrat de syndic/)
+  })
+
+  it('aucune date ISO dans la source', () => {
+    expect(source).not.toMatch(/\d{4}-\d{2}-\d{2}/)
   })
 })

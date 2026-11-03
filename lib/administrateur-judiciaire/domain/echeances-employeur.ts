@@ -49,10 +49,41 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   adhésion « demandée dans le délai d'un mois à compter de l'engagement du premier salarié » ; L7211-3, 7° : surveillance
  *   médicale de droit commun (L7214-1, visite annuelle propre aux concierges, abrogé) ;
  * - C. trav. R4624-10 : visite d'information et de prévention « dans un délai qui n'excède pas trois mois à compter de la
- *   prise effective du poste de travail » ; R4624-16 : renouvellement selon une périodicité fixée par le médecin du
- *   travail, « qui ne peut excéder cinq ans » ; R4624-31 (version du 15/06/2026) : examen de reprise après un congé de
- *   maternité, une maladie professionnelle, un accident du travail d'au moins trente jours, une maladie ou un accident non
- *   professionnel d'au moins soixante jours, « au plus tard dans un délai de huit jours qui suivent cette reprise » ;
+ *   prise effective du poste de travail » ;
+ * - C. trav. R4624-16 à R4624-18, R4624-24, R4624-28 et R4624-31, relus sur Légifrance le 03/11/2026 (bandeau « En vigueur au
+ *   03/11/2026 ») : R4624-16 (en vigueur depuis le 01/01/2017, décret n° 2016-1908 du 27 décembre 2016, art. 1) : « Le
+ *   travailleur bénéficie d'un renouvellement de la visite d'information et de prévention initiale, réalisée par un
+ *   professionnel de santé mentionné au premier alinéa de l'article L. 4624-1, selon une périodicité qui ne peut excéder
+ *   cinq ans. Ce délai, qui prend en compte les conditions de travail, l'âge et l'état de santé du salarié, ainsi que les
+ *   risques auxquels il est exposé, est fixé par le médecin du travail dans le cadre du protocole mentionné à l'article
+ *   L. 4624-1. » ; R4624-17 (même version) : « Tout travailleur dont l'état de santé, l'âge, les conditions de travail ou
+ *   les risques professionnels auxquels il est exposé le nécessitent, notamment les travailleurs handicapés, les
+ *   travailleurs qui déclarent être titulaires d'une pension d'invalidité et les travailleurs de nuit mentionnés à
+ *   l'article L. 3122-5, bénéficie, à l'issue de la visite d'information et de prévention, de modalités de suivi
+ *   adaptées déterminées dans le cadre du protocole écrit prévu au troisième alinéa de l'article L. 4624-1, selon une
+ *   périodicité qui n'excède pas une durée de trois ans. » ; R4624-18 (même version) : « Tout travailleur de nuit
+ *   mentionné à l'article L. 3122-5 et tout travailleur âgé de moins de dix-huit ans bénéficie d'une visite
+ *   d'information et de prévention réalisée par un professionnel de santé mentionné au premier alinéa de l'article
+ *   L. 4624-1 préalablement à son affectation sur le poste. » ; R4624-24 (même version) : « Le suivi individuel renforcé
+ *   comprend un examen médical d'aptitude, qui se substitue à la visite d'information et de prévention prévue à
+ *   l'article R. 4624-10. Il est effectué par le médecin du travail préalablement à l'affectation sur le poste. » ;
+ *   R4624-28 (même version) : le travailleur affecté à un poste
+ *   présentant des risques particuliers (tels que définis à l'art. R. 4624-23 : suivi individuel renforcé) bénéficie d'un
+ *   renouvellement de la visite « effectuée par le médecin du travail selon une périodicité qu'il détermine et qui ne peut
+ *   être supérieure à quatre ans. Une visite intermédiaire est effectuée par un professionnel de santé mentionné au
+ *   premier alinéa de l'article L. 4624-1 au plus tard deux ans après la visite avec le médecin du travail » ; R4624-31
+ *   (en vigueur depuis le 15/06/2026, décret n° 2026-503 du 12 juin 2026, art. 2) : « Le travailleur bénéficie d'un
+ *   examen de reprise du travail par le médecin du travail : 1° Après un congé de maternité ; 2° Après une absence pour
+ *   cause de maladie professionnelle ; 3° Après une absence d'au moins trente jours pour cause d'accident du travail ;
+ *   4° Après une absence d'au moins soixante jours pour cause de maladie ou d'accident non professionnel. », l'examen
+ *   étant organisé « le jour de la reprise effective du travail par le travailleur, et au plus tard dans un délai de
+ *   huit jours qui suivent cette reprise » ; son 3e alinéa (dérogation) : « Par dérogation aux dispositions des alinéas
+ *   précédents, et sauf demande du médecin du travail, de l'employeur ou du travailleur, la visite de reprise n'est pas
+ *   requise si l'ensemble des conditions suivantes sont réunies : 1° Le travailleur a bénéficié d'une visite de
+ *   préreprise prévue à l'article L. 4624-2-4 dans les trente jours précédant sa reprise effective du travail ; 2° Lors
+ *   de cette visite de préreprise, le médecin du travail a conclu qu'aucune mesure individuelle d'aménagement,
+ *   d'adaptation ou de transformation du poste ni aucune mesure d'aménagement du temps de travail n'était nécessaire en
+ *   vue de la reprise. » ;
  * - CCN IDCC 1043, art. 13 (« En vigueur étendu ») : « examen médical périodique tous les 2 ans » ; visite de reprise
  *   « au plus tard dans un délai de 8 jours » après une maladie professionnelle, un congé maternité, un arrêt d'au moins
  *   30 jours pour maladie ou accident non professionnel ou pour accident du travail ; art. 22, 3 : « Le salaire est payé
@@ -71,6 +102,25 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   autres produits, y compris ceux qui n'entrent pas dans le champ d'application de la TVA » ; § 220 : l'exonération des
  *   particuliers employeurs ne vaut pas pour les concierges des syndicats.
  *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J26 à J28 ; questions 17 à 19 de la liste) :
+ * - J26 : médecine du travail du personnel du syndicat : la règle du Code du travail par défaut, et non la CCN IDCC 1043,
+ *   art. 13 : renouvellement de la visite au plus tard cinq ans après la dernière, plafond du seul suivi individuel simple
+ *   (R4624-16), le suivi adapté étant de trois ans au plus (R4624-17) et le suivi individuel renforcé de quatre ans
+ *   (R4624-28) ; visite de reprise après une absence d'au moins soixante jours pour maladie ou accident non professionnel
+ *   (R4624-31, 4°), sauf dispense du 3e alinéa. Changement du réglage par défaut (referenceMedicale « code_du_travail ») ;
+ *   la CCN reste une option réglable (« ccn_1043 » : examen tous les 2 ans, reprise après 30 jours), dont les échéances
+ *   propres restent « à confirmer » (l'art. 13 renvoie à un R4624-18 réécrit depuis 2017). La catégorie de suivi n'étant
+ *   pas modélisée (🔴 9), la date à cinq ans calculée sans prochaine visite saisie reste « à confirmer », et son libellé
+ *   renvoie à la prochaine visite saisie, qui prime.
+ * - J27 : DUERP sous onze salariés : rappel de gestion de 12 mois, réglable (rappelDuerpMois) et désactivable (null) ;
+ *   choix actuel confirmé. L'échéance reste de nature « gestion » et n'est plus « à confirmer » ; le suivi « à faire » la
+ *   signale toujours comme telle, comme tout rappel de gestion (versElementsAFaire).
+ * - J28 : versement des cotisations reporté au jour ouvrable suivant quand son échéance (le 5 ou le 15, ou le 15 du mois
+ *   qui suit le trimestre) tombe un jour non ouvré, comme la DSN : même règle (reporterAuJourOuvrable de dates.ts, jours
+ *   fériés et Alsace-Moselle compris). Ni R243-6, II ni R243-6-1 ne le prévoient, et aucun texte lu ne le fait : c'est
+ *   une décision du cabinet, qui suit la pratique de l'Urssaf (non lue) ; le fondement de l'échéance le dit dès que la
+ *   date est reportée. DSN et versement tombant désormais le même jour, une seule échéance « DSN et versement » est émise.
+ *
  * 🔵 Déduit :
  * - Gestéam : aucun calcul de ces échéances observé dans les tranches relevées (tranche 38, réglage du Suivi : aucun bloc
  *   employeur) ;
@@ -79,14 +129,24 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   anciennes sont signalées par une échéance récapitulative (« à vérifier » si la dernière DSN n'est pas connue) ;
  *   « jour ouvrable suivant » lu comme le premier jour qui n'est ni samedi, ni dimanche, ni férié (reporterAuJourOuvrable :
  *   le samedi est « non ouvré ») ;
- * - versement des cotisations : le 5 ou le 15 du mois suivant (trimestriel : le 15 du mois qui suit le trimestre), sans
- *   report ; une seule échéance « DSN et versement » quand les deux dates coïncident, deux sinon (🔴 8) ;
+ * - versement des cotisations : le 5 ou le 15 du mois suivant (trimestriel : le 15 du mois qui suit le trimestre),
+ *   reporté comme la DSN (J28) ; une seule échéance « DSN et versement » quand les deux dates coïncident, ce qui est
+ *   désormais toujours le cas ; deux sinon (garde-fou) ; « pont » non férié (vendredi après l'Ascension) : jour ouvrable,
+ *   aucun report ;
  * - prise effective du poste = date d'entrée du salarié ; engagement du premier salarié = première entrée ;
  * - la prochaine visite saisie (fixée par le service de santé au travail) prime, sauf si une visite a eu lieu depuis (ou
  *   le jour même) : la visite périodique est alors calculée depuis la dernière ; sans visite connue : visite
- *   d'information et de prévention trois mois après l'entrée ; suivis adapté, renforcé ou de nuit (R4624-17, -18, -28)
- *   non distingués : la prochaine visite saisie les couvre ; salarié sorti : plus aucune visite à suivre, reprise comprise ;
- * - durée d'absence = jours écoulés du premier jour d'arrêt à la reprise ;
+ *   d'information et de prévention au plus tard trois mois après l'entrée, « à confirmer » (🔴 9), car ce délai de
+ *   R4624-10 ne vaut que pour le suivi simple : le travailleur de nuit ou de moins de dix-huit ans en bénéficie
+ *   « préalablement à son affectation sur le poste » (R4624-18), et le suivi individuel renforcé la remplace par un
+ *   examen médical d'aptitude effectué lui aussi « préalablement à l'affectation sur le poste » (R4624-24) ; ni l'âge ni
+ *   le travail de nuit ne sont modélisés ; suivis adapté, renforcé ou de nuit (R4624-17, -18, -24, -28)
+ *   non distingués : la prochaine visite saisie les couvre (le plafond de cinq ans de R4624-16 ne vaut ni pour le suivi
+ *   adapté, R4624-17 : « selon une périodicité qui n'excède pas une durée de trois ans », ni pour le suivi individuel
+ *   renforcé de R4624-28 : quatre ans, visite intermédiaire à deux ans) ; sans prochaine visite saisie, la date à cinq
+ *   ans est donc « à confirmer » (🔴 9) ; salarié sorti : plus aucune visite à suivre, reprise comprise ;
+ * - durée d'absence = jours écoulés du premier jour d'arrêt à la reprise ; la dispense de visite de reprise (R4624-31,
+ *   3e alinéa) n'est pas calculée : le cabinet la constate et la saisit (visiteRepriseLe), comme une visite passée ;
  * - DUERP absent : à établir dès la première entrée (aucun délai écrit) ; transmission au service de prévention et de
  *   santé au travail à la date de la mise à jour (aucun délai écrit) : à confirmer ;
  * - salaire à payer au dernier jour du mois du bulletin tant que les règlements du net en vigueur rattachés au bulletin
@@ -102,11 +162,8 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *   (art. 369, 1 : la taxe de l'année précédente fixe celle de l'année en cours) ; à défaut de ce montant, la période
  *   versée n'est pas préjugée.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo) :
- * 1. Hugo : pour la médecine du travail du gardien, faut-il retenir la CCN IDCC 1043, art. 13 (examen périodique tous les
- *    2 ans ; reprise après 30 jours d'arrêt pour maladie non professionnelle) ou le Code du travail (R4624-16 : au plus
- *    5 ans, délai fixé par le médecin ; R4624-31 : 60 jours) ? L'art. 13 renvoie à un R4624-18 dont le contenu a changé
- *    depuis 2017. Par défaut : la CCN (plus exigeante), réglable ; datesVisitePeriodique expose les deux dates.
+ * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 1, 3 et 8 sont tranchés : J26, J27 et J28, ci-dessus ;
+ *   le n° 9 suit J26) :
  * 2. Frédéric ou Hugo : un syndicat de copropriétaires bénéficie-t-il de l'exonération de taxe sur les salaires du CGI
  *    art. 231, 1, al. 2 (chiffre d'affaires de l'année précédente au plus égal aux plafonds de l'art. 293 B, 85 000 € et
  *    37 500 €) ? Selon le BOFiP § 180 (doctrine), ce chiffre d'affaires comprend « l'ensemble des recettes et autres
@@ -114,8 +171,6 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *    sorte que l'exonération ne joue que si le total des produits de l'année précédente reste sous ces plafonds ? Quelle
  *    est la pratique du cabinet ? L'art. 293 B est affiché à la fois en vigueur depuis le 01/03/2025 et « Abrogé par
  *    Ordonnance n° 2025-1247 du 17 décembre 2025 », sans date d'effet lisible.
- * 3. Hugo : sous onze salariés, le DUERP n'a pas d'échéance annuelle (R4121-2), seulement des mises à jour sur événement.
- *    Un rappel de gestion de 12 mois (réglable, désactivable) vous convient-il ?
  * 4. Comment calculer l'effectif (seuils de 11 et 50 salariés) ? CSS R130-1 non lu : l'effectif est fourni par
  *    l'appelant.
  * 5. Événements DSN (fin de contrat, arrêt sans subrogation) : délai fixé par un arrêté non lu (R133-14, II : il « ne peut
@@ -127,10 +182,15 @@ import type { Traitement } from '@/lib/administrateur-judiciaire/domain/traiteme
  *    contribution conventionnelle à la formation et date de collecte de la contribution au paritarisme (CCN art. 7, 6 :
  *    0,02 %). Hors champ : logement du gardien licencié (L7212-1, R7212-1 : trois mois) et remplaçant pendant les congés
  *    (L7213-2, R7213-8 : huit jours), qui demandent de distinguer gardien logé (catégorie B) et employé non logé (A).
- * 8. Hugo : le report au jour ouvrable suivant ne vise que la DSN (R133-14, I) ; aucun texte lu ne reporte le versement
- *    des cotisations (R243-6, II ; R243-6-1), alors que la majoration de retard court des dates limites d'exigibilité.
- *    VitFix affiche donc le versement au 5 ou au 15, même un samedi, un dimanche ou un jour férié. La pratique de l'Urssaf
- *    le reporte-t-elle, et faut-il suivre cette pratique ?
+ * 9. Frédéric ou Hugo : la catégorie de suivi du salarié (suivi individuel simple, R4624-16 : cinq ans au plus ; suivi
+ *    adapté, R4624-17 : trois ans au plus, notamment pour un travailleur handicapé, titulaire d'une pension d'invalidité
+ *    ou travailleur de nuit ; suivi individuel renforcé, R4624-28 : quatre ans, visite intermédiaire à deux ans) n'est
+ *    pas modélisée. Faut-il la saisir, et d'après quelle pièce ? D'ici là, sans prochaine visite saisie, la date à cinq
+ *    ans de la dernière visite reste « à confirmer ». La catégorie (et l'âge) décide aussi de la visite initiale : un
+ *    travailleur de nuit ou de moins de dix-huit ans en bénéficie « préalablement à son affectation sur le poste »
+ *    (R4624-18), et le suivi individuel renforcé passe par un examen médical d'aptitude, lui aussi préalable (R4624-24),
+ *    et non dans les trois mois (R4624-10) : sans visite saisie, la date à trois mois de l'entrée reste « à confirmer »,
+ *    elle aussi.
  *
  * Branchement à faire plus tard : suivi-a-faire.ts (sous PR) n'a pas de famille « personnel » ; versElementsAFaire range
  * donc ces échéances en « mandat / échéance légale », à basculer quand la famille existera. Écrans (Obligations, dossier
@@ -160,7 +220,11 @@ export interface ArretTravail {
   du: string
   /** Reprise effective, ou prévue dès qu'elle est connue ; null : inconnue. */
   repriseLe: string | null
-  /** Examen de reprise passé (ou dispense constatée) ; null : à faire. */
+  /**
+   * Examen de reprise passé, ou dispense constatée au sens de R4624-31, 3e alinéa (visite de préreprise dans les trente
+   * jours précédant la reprise effective, où le médecin du travail n'a jugé nécessaire aucune mesure d'aménagement, et
+   * aucune demande de visite du médecin du travail, de l'employeur ou du travailleur) ; null : à faire.
+   */
   visiteRepriseLe: string | null
 }
 
@@ -175,16 +239,17 @@ export const REFERENCES_MEDICALES = ['ccn_1043', 'code_du_travail'] as const
 export type ReferenceMedicale = (typeof REFERENCES_MEDICALES)[number]
 const REFERENCES_ADMISES: ReadonlySet<string> = new Set(REFERENCES_MEDICALES)
 
-/** Réglages de suivi (🔴 1 et 3). */
+/** Réglages de suivi (J26 et J27). */
 export interface ReglagesSuiviEmployeur {
+  /** J26 : le Code du travail par défaut ; la CCN IDCC 1043, art. 13 en option. */
   referenceMedicale: ReferenceMedicale
-  /** Rappel de gestion de la revue du DUERP sous onze salariés, en mois ; null : aucun rappel. */
+  /** J27 : rappel de gestion de la revue du DUERP sous onze salariés, en mois (12 par défaut) ; null : aucun rappel. */
   rappelDuerpMois: number | null
   alsaceMoselle: boolean
 }
 
 export const REGLAGES_SUIVI_EMPLOYEUR_PAR_DEFAUT: Readonly<ReglagesSuiviEmployeur> = {
-  referenceMedicale: 'ccn_1043',
+  referenceMedicale: 'code_du_travail',
   rappelDuerpMois: 12,
   alsaceMoselle: false,
 }
@@ -265,6 +330,8 @@ const MOIS_MISE_A_JOUR_DUERP = 12
 const FONDEMENT_CCN_MEDECINE = 'CCN IDCC 1043, art. 13'
 const FONDEMENT_DSN = 'CSS art. L133-5-3, R133-14, I et R243-6, II'
 const FONDEMENT_DSN_TRIMESTRIEL = 'CSS art. L133-5-3, R133-14, I, R243-6, II et R243-6-1'
+/** J28 : aucun texte lu ne reporte le versement (R243-6, II ; R243-6-1) ; décision du cabinet. */
+const MENTION_REPORT_VERSEMENT = 'versement reporté au jour ouvrable suivant (décision J28)'
 
 // ─── Outils de période ──────────────────────────────────────────────────────────────────────
 
@@ -306,18 +373,16 @@ export interface VersementCotisations {
   fondementAvecDsn: string
 }
 
-/**
- * Versement des cotisations d'une période, sans report (R243-6, II ; R243-6-1 ; 🔴 8) : le 5 ou le 15 du mois suivant ;
- * en versement trimestriel, le 15 du mois qui suit le trimestre, porté par son dernier mois ; null : aucun versement.
- */
-export function versementCotisations(
+type EcheanceTexteVersement = Omit<VersementCotisations, 'date'> & { jour: number }
+
+/** Jour du mois suivant fixé par le texte (R243-6, II ; R243-6-1), avant report ; null : aucun versement. */
+function echeanceTexteVersement(
   periode: PeriodePaie,
   etat: Pick<EtatEmployeur, 'effectif' | 'paieDuMoisMeme' | 'versementTrimestrielCotisations'>,
-): VersementCotisations | null {
-  const suivant = periodeDeIndex(indexPeriode(periode) + 1)
+): EcheanceTexteVersement | null {
   if (!etat.versementTrimestrielCotisations)
     return {
-      date: composerDateIso(suivant.annee, suivant.mois, jourEcheanceDsn(etat.effectif, etat.paieDuMoisMeme)),
+      jour: jourEcheanceDsn(etat.effectif, etat.paieDuMoisMeme),
       complement: ' et versement des cotisations',
       libelle: `Versement des cotisations de ${periodeLue(periode)}`,
       fondement: 'CSS art. R243-6, II',
@@ -325,7 +390,7 @@ export function versementCotisations(
     }
   if (periode.mois % 3 !== 0) return null
   return {
-    date: composerDateIso(suivant.annee, suivant.mois, JOUR_VERSEMENT_TRIMESTRIEL),
+    jour: JOUR_VERSEMENT_TRIMESTRIEL,
     complement: ' et versement des cotisations du trimestre',
     libelle: `Versement des cotisations du trimestre achevé en ${periodeLue(periode)}`,
     fondement: 'CSS art. R243-6-1',
@@ -333,13 +398,42 @@ export function versementCotisations(
   }
 }
 
+/**
+ * Versement des cotisations d'une période : le 5 ou le 15 du mois suivant (R243-6, II) ; en versement trimestriel, le 15
+ * du mois qui suit le trimestre, porté par son dernier mois (R243-6-1) ; reporté au jour ouvrable suivant quand ce jour
+ * est un samedi, un dimanche ou un jour férié, comme la DSN (décision J28 : aucun texte lu), le fondement le disant
+ * alors ; null : aucun versement.
+ */
+export function versementCotisations(
+  periode: PeriodePaie,
+  etat: Pick<EtatEmployeur, 'effectif' | 'paieDuMoisMeme' | 'versementTrimestrielCotisations'>,
+  options: OptionsJoursFeries = {},
+): VersementCotisations | null {
+  const texte = echeanceTexteVersement(periode, etat)
+  if (texte === null) return null
+  const suivant = periodeDeIndex(indexPeriode(periode) + 1)
+  const echeanceTexte = composerDateIso(suivant.annee, suivant.mois, texte.jour)
+  const date = reporterAuJourOuvrable(echeanceTexte, options)
+  const justifier = (fondement: string): string => (date === echeanceTexte ? fondement : `${fondement} ; ${MENTION_REPORT_VERSEMENT}`)
+  return {
+    date,
+    complement: texte.complement,
+    libelle: texte.libelle,
+    fondement: justifier(texte.fondement),
+    fondementAvecDsn: justifier(texte.fondementAvecDsn),
+  }
+}
+
 const BASE_DSN = { obligation: 'dsn', salarieId: null, nature: 'legale', aConfirmer: false } as const
 
-/** DSN d'une période et, s'il y en a un, versement des cotisations : une seule échéance si les deux dates coïncident. */
+/**
+ * DSN d'une période et, s'il y en a un, versement des cotisations : une seule échéance si les deux dates coïncident, ce
+ * qui est toujours le cas depuis J28 (même jour du texte, même report) ; deux sinon (garde-fou).
+ */
 function echeancesPeriodeDsn(periode: PeriodePaie, etat: EtatEmployeur, options: OptionsJoursFeries): EcheanceEmployeur[] {
   const cle = clePeriode(periode)
   const date = dateEcheanceDsn(periode, etat, options)
-  const versement = versementCotisations(periode, etat)
+  const versement = versementCotisations(periode, etat, options)
   if (versement?.date === date)
     return [{ ...BASE_DSN, cle: `dsn:${cle}`, libelle: `DSN de ${periodeLue(periode)}${versement.complement}`, date, fondement: versement.fondementAvecDsn }]
   const dsn: EcheanceEmployeur = { ...BASE_DSN, cle: `dsn:${cle}`, libelle: `DSN de ${periodeLue(periode)}`, date, fondement: FONDEMENT_DSN }
@@ -415,7 +509,7 @@ function echeancesAdhesion(etat: EtatEmployeur, aujourdhui: string): EcheanceEmp
   ]
 }
 
-/** Prochaine visite périodique selon la CCN (2 ans) et, au plus tard, selon le Code du travail (5 ans). */
+/** Prochaine visite périodique selon la CCN (2 ans) et, au plus tard, selon le Code du travail (5 ans : suivi simple, R4624-16). */
 export function datesVisitePeriodique(derniereVisiteLe: string): { ccn1043: string; codeDuTravailAuPlusTard: string } {
   return { ccn1043: ajouterMois(derniereVisiteLe, MOIS_VISITE_CCN), codeDuTravailAuPlusTard: ajouterMois(derniereVisiteLe, MOIS_VISITE_CODE_MAX) }
 }
@@ -432,20 +526,25 @@ function echeanceMedicale(salarie: SalarieSyndicat, suivi: SuiviMedical | undefi
   const prochaine = prochaineVisiteRetenue(suivi)
   if (prochaine)
     return { ...base, libelle: 'Visite médicale fixée par le service de santé au travail', date: prochaine, aConfirmer: false, fondement: 'C. trav. art. R4624-16' }
+  // Trois mois : plafond du seul suivi simple (R4624-10) ; nuit, moins de 18 ans (R4624-18), renforcé (R4624-24) : avant
+  // l'affectation. Ni l'âge ni la catégorie de suivi ne sont modélisés (🔴 9) : à confirmer, comme la date à cinq ans.
   if (!suivi?.derniereVisiteLe)
     return {
       ...base,
-      libelle: "Visite d'information et de prévention (embauche)",
+      libelle:
+        "Visite d'information et de prévention (suivi simple : au plus tard 3 mois après l'entrée ; travailleur de nuit, de moins de 18 ans ou en suivi renforcé : avant l'affectation, saisir la visite fixée)",
       date: ajouterMois(salarie.entreeLe, MOIS_VISITE_INFORMATION),
-      aConfirmer: false,
+      aConfirmer: true,
       fondement: 'C. trav. art. R4624-10',
     }
   const { ccn1043, codeDuTravailAuPlusTard } = datesVisitePeriodique(suivi.derniereVisiteLe)
+  // Option CCN : à confirmer (l'art. 13 renvoie à un R4624-18 réécrit depuis 2017) ; Code du travail : J26, par défaut.
   if (reglages.referenceMedicale === 'ccn_1043')
     return { ...base, libelle: 'Examen médical périodique (CCN : tous les 2 ans)', date: ccn1043, aConfirmer: true, fondement: FONDEMENT_CCN_MEDECINE }
+  // Cinq ans : plafond du seul suivi simple (R4624-16) ; adapté trois ans (R4624-17), renforcé quatre (R4624-28) : 🔴 9.
   return {
     ...base,
-    libelle: 'Renouvellement de la visite (au plus tard ; délai fixé par le médecin du travail)',
+    libelle: 'Renouvellement de la visite (suivi simple : au plus tard 5 ans ; suivi adapté ou renforcé : saisir la prochaine visite)',
     date: codeDuTravailAuPlusTard,
     aConfirmer: true,
     fondement: 'C. trav. art. R4624-16',
@@ -468,7 +567,7 @@ export function visiteRepriseRequise(arret: Pick<ArretTravail, 'motif' | 'du' | 
 
 type ArretARepris = ArretTravail & { repriseLe: string }
 
-/** À confirmer : arrêt antérieur à la version lue de R4624-31 (🔴 6), ou reprise exigée par la seule CCN (🔴 1). */
+/** À confirmer : arrêt antérieur à la version lue de R4624-31 (🔴 6), ou reprise exigée par la seule CCN (option, J26). */
 const repriseAConfirmer = (arret: ArretARepris): boolean =>
   arret.du < VIGUEUR_R4624_31 ||
   (arret.motif === 'non_professionnel' && ecartJours(arret.du, arret.repriseLe) < SEUIL_NON_PROFESSIONNEL_JOURS.code_du_travail)
@@ -509,6 +608,7 @@ function revueDuerp(misAJourLe: string, effectif: number, reglages: ReglagesSuiv
         fondement: 'C. trav. art. R4121-2, 1°',
       },
     ]
+  // J27 : rappel de gestion confirmé (12 mois par défaut, réglable, désactivable) ; jamais une échéance légale.
   if (reglages.rappelDuerpMois === null) return []
   return [
     {
@@ -517,7 +617,7 @@ function revueDuerp(misAJourLe: string, effectif: number, reglages: ReglagesSuiv
       libelle: 'Revue du DUERP (rappel de gestion : pas d’échéance annuelle sous onze salariés)',
       date: ajouterMois(misAJourLe, reglages.rappelDuerpMois),
       nature: 'gestion',
-      aConfirmer: true,
+      aConfirmer: false,
       fondement: 'C. trav. art. R4121-2, 2° et 3°',
     },
   ]

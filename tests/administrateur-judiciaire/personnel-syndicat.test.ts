@@ -367,11 +367,17 @@ describe('règlement de la paie : catégorie distincte du règlement fournisseur
     expect(codes(controlerReglementPaie(reglement({ bulletinId: null }), contexte))).toEqual(['bulletin_requis'])
   })
 
-  it('espèces : refus par choix de VitFix (compte 53 non tenu), sans texte qui l’impose ; à trancher (🔴)', () => {
+  it('J25 : salaire en espèces refusé (décision du cabinet, compte 53 non tenu) ; réserve de C. trav. L3241-1 dans le message', () => {
+    // Seule la paie est contrôlée ici ; les fournisseurs relèvent de reglements-fournisseurs.ts (J25 aussi).
     const [especes] = controlerReglementPaie(reglement({ mode: 'Espèces' }), contexte)
     expect(especes.code).toBe('especes')
     expect(especes.fondement).toBeNull()
-    expect(especes.message).toMatch(/choix de VitFix/)
+    expect(especes.message).toMatch(/décision J25/)
+    expect(especes.message).toMatch(/compte 53/)
+    expect(especes.message).not.toMatch(/à trancher/)
+    // L3241-1 : sous un montant mensuel fixé par décret, le salarié qui le demande est payé en espèces (🔴 10).
+    expect(especes.message).toMatch(/C\. trav\. L3241-1/)
+    expect(especes.message).toMatch(/au salarié qui le demande/)
   })
 
   it('espèces, « Pas de règlement », référence absente, compte qui n’est pas une banque : refusés', () => {
@@ -583,6 +589,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
   const deduit = entete.slice(entete.indexOf('🔵 Déduit'), entete.indexOf('🔴 Non établi'))
+  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
   it('🟢 art. 10 : aucune règle de fonctionnement pour les 42, 43, 442 et 64 (il en donne une pour les 441 et 443)', () => {
     expect(entete).toMatch(/comptes 42, 43, 442 et 64/)
@@ -594,11 +601,37 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(entete).not.toMatch(/« Employeur » \(7 types\)/)
   })
 
-  it('espèces : choix de VitFix posé en 🔴 (C. trav. L7211-3, 6°), plus en 🔵 ; prévoyance en 🔴', () => {
+  it('J25 : espèces tranchées (décision de Hugo), l’ancienne question 7 retirée du 🔴 ; prévoyance toujours en 🔴', () => {
+    expect(decisions).toMatch(/J25/)
+    expect(decisions).toMatch(/espèces/)
+    expect(decisions).toMatch(/compte 53/)
+    expect(decisions).toMatch(/L7211-3, 6°/)
     expect(deduit).not.toMatch(/espèces refusées/)
-    expect(nonEtabli).toMatch(/espèces/)
-    expect(nonEtabli).toMatch(/L7211-3, 6°/)
+    expect(nonEtabli).not.toMatch(/Faut-il admettre les espèces pour un salaire/)
     expect(nonEtabli).toMatch(/prévoyance/)
+  })
+
+  it('J25 : C. trav. L3241-1 relu (version, phrase exacte) ; la demande d’un salarié payé sous le seuil reste en 🔴', () => {
+    expect(entete).not.toMatch(/L3241-1 non lu/)
+    expect(decisions).not.toMatch(/aucun texte lu ne l'impose/)
+    expect(decisions).toMatch(/En vigueur au 03\/11\/2026/)
+    expect(decisions).toMatch(/en vigueur depuis le 27\/12\/2022/)
+    expect(decisions).toMatch(/loi n° 2021-1774 du 24 décembre 2021, art\. 1/)
+    expect(decisions).toMatch(/« En dessous d'un montant mensuel déterminé par décret, le salaire est payé en espèces au salarié qui le demande\. »/)
+    expect(decisions).toMatch(
+      /« Au-delà d'un montant mensuel déterminé par décret, le salaire est payé par chèque barré ou par virement à un compte bancaire ou postal dont le salarié est le titulaire ou le cotitulaire\. »/,
+    )
+    expect(nonEtabli).toMatch(/J25 vaut-il contre la demande d'un salarié payé sous ce seuil/)
+    expect(nonEtabli).toMatch(/décret qui fixe ce montant/)
+  })
+
+  it('J25 : la remise d’espèces reçues est tranchée à part (J29 du registre), hors de ce module', () => {
+    expect(decisions).not.toMatch(/reste à trancher/)
+    expect(decisions).toMatch(/J29/)
+    expect(decisions).toMatch(/types-ordres-banque\.ts/)
+    // reglements-fournisseurs.ts applique aussi J25.
+    expect(decisions).toMatch(/reglements-fournisseurs\.ts applique aussi J25/)
+    expect(decisions).not.toMatch(/à aligner sur J25/)
   })
 
   it('sources Gestéam, droit relu et marqueurs', () => {

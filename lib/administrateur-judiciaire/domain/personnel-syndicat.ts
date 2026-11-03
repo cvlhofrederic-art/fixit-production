@@ -56,7 +56,22 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   copropriétaires », le syndic signe le contrat de travail en mandataire ; art. 22, 1 : pour la catégorie B (gardien
  *   logé), la rémunération inclut le salaire en nature du logement de fonction ;
  * - C. trav. L7211-3, 6° : sont applicables aux salariés définis à l'art. L7211-2 les dispositions relatives « Au mode de
- *   paiement des salaires prévu par les articles L. 3241-1 et suivants » (L3241-1 non lu).
+ *   paiement des salaires prévu par les articles L. 3241-1 et suivants » (L3241-1 relu le 03/11/2026 : voir J25).
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J25 ; question 16 de la liste) :
+ * - J25 : aucun paiement en espèces, ni des salaires ni des fournisseurs ; le compte 53 « Caisse » n'est pas tenu. Le
+ *   refus des espèces (anomalie « especes », bloquante) devient une décision du cabinet, et non plus un choix provisoire
+ *   de VitFix ; son fondement reste vide, car c'est la décision, et non un texte, qui fonde le refus. Pour un salaire, le
+ *   texte applicable ne fonde pas un refus sans réserve : C. trav. L3241-1, applicable au gardien par L7211-3, 6°, relu
+ *   sur Légifrance le 03/11/2026 (bandeau « En vigueur au 03/11/2026 » ; version en vigueur depuis le 27/12/2022,
+ *   modifiée par la loi n° 2021-1774 du 24 décembre 2021, art. 1), dispose : « En dessous d'un montant mensuel
+ *   déterminé par décret, le salaire est payé en espèces au salarié qui le demande. » et « Au-delà d'un montant mensuel
+ *   déterminé par décret, le salaire est payé par chèque barré ou par virement à un compte bancaire ou postal dont le
+ *   salarié est le titulaire ou le cotitulaire. » Au-delà du seuil, le refus suit donc la loi ; en deçà, il peut
+ *   contredire la demande du salarié : question ouverte (🔴 10), que rappelle le message de l'anomalie. Le refus pour un
+ *   fournisseur n'est pas visé par L3241-1. Hors de ce module : la remise d'espèces REÇUES (ordres de banque,
+ *   types-ordres-banque.ts, inchangé), tranchée à part (J29 du registre : refusée) ; reglements-fournisseurs.ts applique
+ *   aussi J25 : le mode « Espèces » y est refusé par décision.
  *
  * 🔵 Déduit :
  * - un salaire n'est ni une facture ni un achat (art. 3 et 10) : le net à payer est crédité au 421 du salarié (sous-compte
@@ -95,7 +110,7 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * - SIRET attendu dès qu'un salarié est en poste (la DSN porte le numéro d'identité de l'employeur : CSS art. R133-14, V,
  *   1°, a) ; les autres identifiants employeur : alerte de gestion, jamais bloquante.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo) :
+ * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; le n° 7 est tranché : J25, ci-dessus, sous la réserve du n° 10) :
  * 1. Frédéric : la pratique Gestéam (salaire réglé comme une facture, 401 au nom du salarié, contrat « Prestation »)
  *    contredit l'arrêté. À la reprise d'un dossier, faut-il reclasser les soldes 401 « salarié » en 421, ou seulement les
  *    signaler ? Les contreparties 641/421, 642/431-432 et 643/442 sont déduites, pas lues : les confirmez-vous ?
@@ -109,14 +124,14 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * 5. Autres éléments du bulletin (acompte, saisie sur salaire, frais remboursés, indemnité non soumise) : non pris en
  *    charge (net incohérent) ; C. trav. L3242-1 et R3243-1 et suivants non lus. Faut-il les traiter, et sur quels comptes ?
  * 6. Récupérabilité des salaires du gardien (75 % lu sur l'analytique 010) : régime non lu ; quelle part retenir ?
- * 7. Hugo : paiement du salaire en espèces : VitFix le refuse par choix (compte 53 « Caisse » non tenu), aucun texte lu
- *    ne l'impose ; or C. trav. L7211-3, 6° rend applicable au gardien le mode de paiement des salaires des art. L3241-1 et
- *    suivants (non lus). Faut-il admettre les espèces pour un salaire, et tenir un compte 53 ? (Même question ouverte pour
- *    les fournisseurs dans reglements-fournisseurs.ts.)
  * 8. Part patronale de la prévoyance : 642 (« organismes sociaux ») ou 644, que seul le « etc. » couvrirait ? Par défaut
  *    642, réglable cotisation par cotisation (comptePatronal).
  * 9. Bulletin d'un mois postérieur à la sortie du salarié (rappel de salaire, régularisation) : admis sans alerte. Faut-il
  *    une alerte, ou le limiter au mois du paiement ?
+ * 10. Hugo ou Frédéric (réserve de J25) : C. trav. L3241-1 renvoie à un montant mensuel fixé par décret. J25 vaut-il
+ *    contre la demande d'un salarié payé sous ce seuil, à qui « le salaire est payé en espèces » s'il le demande ? Le
+ *    décret qui fixe ce montant reste à lire. D'ici là, l'anomalie « especes » reste bloquante et son message rappelle
+ *    la réserve.
  *
  * Branchements à faire plus tard (fichiers sous PR, non modifiés ici) : facture-ventilee.ts (controlerVentilation),
  * statuts-facture.ts et imputation-facture.ts : appeler controlerFactureHorsPaie ; reglements-fournisseurs.ts : refuser un
@@ -559,7 +574,10 @@ const COMPTE_NATURE: Record<NatureReglementPaie, CleComptePaie> = {
   taxe_salaires: 'etatImpots',
 }
 
-/** Modes admis : ni « Pas de règlement », ni « Espèces » (choix de VitFix, compte 53 non tenu : 🔴 7). */
+/**
+ * Modes admis : ni « Pas de règlement », ni « Espèces » (décision J25 : aucun paiement en espèces, compte 53 non tenu ;
+ * réserve de C. trav. L3241-1 pour un salarié payé sous le seuil qui le demande : 🔴 10).
+ */
 export type ModeReglementPaie = Exclude<ModeReglement, 'Pas de règlement' | 'Espèces'>
 const MODES_ADMIS: ReadonlySet<string> = new Set(MODE_REGLEMENT.filter((mode) => mode !== 'Pas de règlement' && mode !== 'Espèces'))
 
@@ -590,7 +608,13 @@ const COMPTE_BANQUE = /^([^.]{4})\.51[0-9A-Z]{3}\.[0-9A-Z]{5}\.[0-9A-Z]$/
 
 function anomaliesMode(mode: ModeReglement): AnomaliePaie[] {
   if (mode === 'Espèces')
-    return [anomalie('especes', 'Espèces : paiement refusé par choix de VitFix (compte 53 « Caisse » non tenu), aucun texte lu ne l’impose ; à trancher.')]
+    return [
+      anomalie(
+        'especes',
+        'Espèces : paiement refusé, aucun salaire ni fournisseur n’est payé en espèces (décision J25 du cabinet) ; compte 53 « Caisse » non tenu. ' +
+          'Réserve : sous un montant mensuel fixé par décret, le salaire est payé en espèces au salarié qui le demande (C. trav. L3241-1) ; ce cas reste ouvert.',
+      ),
+    ]
   return MODES_ADMIS.has(mode) ? [] : [anomalie('mode_invalide', `Mode « ${mode} » : chèque, virement, prélèvement ou TIP attendu.`)]
 }
 
