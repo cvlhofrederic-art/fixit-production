@@ -5,6 +5,11 @@ import {
   verifierAujourdhui,
   type PlausibiliteDate,
 } from '@/lib/administrateur-judiciaire/domain/dates'
+import {
+  creerAssuranceImpayes,
+  type AssuranceImpayesContentieux,
+} from '@/lib/administrateur-judiciaire/domain/contentieux-assurance-impayes'
+import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { EtapeRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import {
   PARTICULARITE_CONTENTIEUX,
@@ -27,6 +32,62 @@ import {
  * remplace jamais. « Règlement amiable » et « Déclaration Assurance » ne se déduisent d'aucune date.
  * Stades et groupes de relance : listes du paramétrage cabinet (tranche 27) ; leur correspondance avec les étapes de
  * recouvrement est 🔵 DÉDUITE, à valider avec le cabinet.
+ *
+ * Point 57 du bilan Gestéam — assurance impayés et échéancier actif :
+ * - 🟢 tranche 42, fiche réelle, onglet Règlements : bloc Assurance (couverture impayés, déclaré le, sinistre lié) et bloc
+ *   Échéancier (N fois, montant, périodicité, prochain le ; grille Date · Statut · Montant), sans origine affichée et sans
+ *   Particularité. Bloc Voie d'exécution : une case « Échéancier » voisine des saisies (mobilière, attribution, arrêt sur
+ *   salaire ou loyer).
+ * - 🟢 tranches 20 § 3 et 28 : la Particularité (deux valeurs, « Contentieux avec / sans échéancier ») est un critère de la
+ *   recherche des contentieux. 🔵 Elle est donc portée par chaque dossier, mais son champ n'a été vu sur aucune fiche
+ *   (tranche 28 : en-tête Date, N°, Type, Statut, Objet, Phase, Clos le ; onglet Règlements non ouvert ; tranche 42 : absente
+ *   de la fiche réelle). Saisie à la main ou calculée depuis la grille : non établi (🔴 Hugo ci-dessous).
+ * - L'assurance impayés est FACULTATIVE sur la saisie et normalisée à la création (contentieux-assurance-impayes.ts, qui
+ *   porte aussi ses contrôles et la lecture des indemnités sur le sinistre). L'objet reste un texte libre
+ *   (objets-contentieux.ts reconnaît les libellés Gestéam observés).
+ * - 🟢 Le droit, lu sur Légifrance le 29/10/2026 : aucun texte de la loi n° 65-557 ni du décret n° 67-223 ne fixe la forme ni
+ *   la durée d'un échéancier amiable conclu par un syndic (recherche limitée à ces deux textes). Ils prévoient en revanche
+ *   d'autres échelonnements de la dette d'un copropriétaire envers le syndicat, notamment : les échéanciers individualisés
+ *   que conclut l'administrateur provisoire (loi art. 29-5, V) ; le paiement par annuités égales au dixième de sa part
+ *   des travaux pour le copropriétaire qui n'a pas donné son accord à la décision, s'il le notifie au syndic dans les deux
+ *   mois de la notification du procès-verbal, la somme devenant immédiatement exigible à la première mutation entre vifs
+ *   de son lot, hors travaux imposés par une obligation légale ou réglementaire (loi art. 33). Les autres textes lus
+ *   prévoient aussi les
+ *   délais de grâce du juge (C. civ. art. 1343-5), l'accord de la procédure simplifiée de recouvrement des petites créances
+ *   (CPCE art. L. 125-1) et le plan conventionnel de redressement du surendettement, prévu à l'art. L. 732-1 selon C. consom.
+ *   art. L. 722-3 (L. 732-1 non relu) ; C. consom. art. L. 722-5, al. 3 cite en outre, pour les créances locatives, les
+ *   délais de paiement de la loi n° 89-462, art. 24, V et VI (non relus). Les effets d'un terme accordé relèvent de
+ *   C. civ. art. 1305-2 à 1305-4 : ce qui n'est dû qu'à terme ne peut être exigé avant l'échéance (1305-2) ; le terme
+ *   profite au débiteur, sauf s'il a été établi en faveur du créancier ou des deux parties (1305-3) ; le débiteur perd le
+ *   bénéfice du terme s'il ne fournit pas les sûretés promises ou diminue celles qui garantissent l'obligation (1305-4).
+ * - 🔵 La particularité et le groupe de relance 6 (protocole d'accord) se DÉDUISENT de la grille du débiteur
+ *   (decompte-contentieux.suivreEcheancier) : actif tant qu'une échéance n'est pas soldée, échue ou non, QUELLE QUE SOIT
+ *   l'origine de l'échéancier (non lue, 🔴 ci-dessous). La particularité portée par le dossier n'est jamais écrasée :
+ *   l'écart est signalé (`particulariteSuggeree`).
+ * - 🔴 (Frédéric) Une échéance échue restée impayée laisse-t-elle le débiteur en groupe 6 « avec échéancier » jusqu'à ce
+ *   que le gestionnaire dénonce l'échéancier, ou le dossier repasse-t-il « sans échéancier » (groupe 9 en procédure) ?
+ * - 🔴 (Frédéric) La grille n'est pas seulement amiable : decompte-contentieux.ts qualifie l'échéancier par
+ *   `DecisionEcheancier.origine`, dans ORIGINES_ECHEANCIER (amiable, accord_homologue, delais_grace, surendettement).
+ *   Quelles origines mettent le débiteur au groupe 6 « Protocole d'accord » ? Aujourd'hui `echeancierActif`,
+ *   `particulariteSuggeree` et `relanceDuContentieux` ne lisent que la grille (`SuiviEcheancier`) : des délais de grâce
+ *   du juge ou un plan de surendettement donnent aussi le groupe 6 (un test le montre). Si la réponse dépend de
+ *   l'origine, ces trois fonctions recevront l'origine (ou la `DecisionEcheancier`) en paramètre facultatif. Le
+ *   paiement par annuités de la loi art. 33 n'a pas d'origine dans ORIGINES_ECHEANCIER : faut-il l'ajouter, et met-il le
+ *   débiteur au groupe 6 ?
+ * - 🔴 (Frédéric) Un dossier de surendettement déclaré recevable interdit au débiteur de payer ses dettes antérieures et
+ *   suspend les exécutions (C. consom. art. L. 722-2 et L. 722-5) : un échéancier d'une autre origine que
+ *   'surendettement' devrait alors cesser d'être actif. La recevabilité n'est pas le plan (origine 'surendettement') :
+ *   faut-il, en plus de l'origine, un fait daté « recevabilité du surendettement » sur le contentieux ?
+ * - 🔴 (Frédéric) Un échéancier amiable en cours n'écarte pas, selon les textes lus, l'exigibilité des provisions qui
+ *   échoient ensuite (loi art. 14-1 et 19-2) : le groupe 6 ne bloque donc pas l'étape « exigibilite ». À valider.
+ * - 🔴 (Frédéric) Faut-il que `phaseSuggeree` propose « Déclaration Assurance » dès qu'une déclaration à l'assureur
+ *   impayés est datée sur un dossier de recouvrement ? Aujourd'hui cette phase ne se déduit d'aucune date (un test le
+ *   garde) : la date « Déclaré le » n'est pas lue par `phaseSuggeree`.
+ * - 🔴 (Hugo) Où se saisit la Particularité d'un contentieux, et Gestéam la déduit-il de la grille du bloc Échéancier ?
+ *   Tant que ce n'est pas établi, VitFix la traite comme une donnée du dossier et signale l'écart avec la grille.
+ * - 🔴 (Hugo) La case « Échéancier » du bloc Voie d'exécution (tranche 42) désigne-t-elle les délais de grâce accordés par
+ *   le juge (C. civ. art. 1343-5), que la grille du bloc Échéancier peut aussi porter avec l'origine 'delais_grace', ou
+ *   autre chose ? Tant que ce n'est pas établi, seule la grille (`SuiviEcheancier`) rend l'échéancier actif.
  */
 
 export const JALONS_PROCEDURE = [
@@ -79,6 +140,8 @@ export interface SaisieContentieux {
   montantDemandeCentimes: number
   intervenants: Record<RoleIntervenant, IntervenantContentieux>
   jalons: Partial<Record<JalonProcedure, string>>
+  /** Bloc Assurance (tranche 42) ; absent : aucune saisie. Les indemnités se lisent sur le sinistre lié. */
+  assuranceImpayes?: AssuranceImpayesContentieux
 }
 
 export type DossierContentieux = SaisieContentieux
@@ -89,6 +152,12 @@ const CLES_JALONS = JALONS_PROCEDURE.map((j) => j.cle) as readonly string[]
 const verifierDate = (champ: string, valeur: string | null | undefined): void => {
   if (valeur != null && !estDateIsoValide(valeur)) throw new Error(`Date invalide pour ${champ} (${valeur}) : AAAA-MM-JJ attendu.`)
 }
+
+/** Assurance impayés normalisée si elle est saisie ; rien sinon (le champ reste absent). */
+const assuranceNormalisee = (
+  assurance: AssuranceImpayesContentieux | undefined,
+): { assuranceImpayes?: AssuranceImpayesContentieux } =>
+  assurance === undefined ? {} : { assuranceImpayes: creerAssuranceImpayes(assurance) }
 
 export function creerDossierContentieux(saisie: SaisieContentieux): DossierContentieux {
   if (!contient(TYPE_CONTENTIEUX, saisie.type)) throw new Error(`Type de contentieux inconnu : « ${saisie.type} ».`)
@@ -104,7 +173,7 @@ export function creerDossierContentieux(saisie: SaisieContentieux): DossierConte
     verifierDate(cle, date)
   }
   for (const [role, intervenant] of Object.entries(saisie.intervenants)) verifierDate(`${role}.transmisLe`, intervenant.transmisLe)
-  return { ...saisie, objet: saisie.objet.replace(/\s+/g, ' ').trim() }
+  return { ...saisie, objet: saisie.objet.replace(/\s+/g, ' ').trim(), ...assuranceNormalisee(saisie.assuranceImpayes) }
 }
 
 export interface AnomalieContentieux {
@@ -257,4 +326,35 @@ export function relanceDepuisEtape(
   if (etape === 'solde') return { stade, groupe: '0' }
   if (avecEcheancier) return { stade, groupe: '6' }
   return { stade, groupe: etape === 'procedure' ? '9' : '0' }
+}
+
+/**
+ * Échéancier du débiteur en cours (🔵) : au moins une échéance non soldée, échue ou non (🔴 voir l'en-tête). Aucun
+ * échéancier, ou toutes les échéances payées : inactif.
+ */
+export function echeancierActif(suivi: SuiviEcheancier | null | undefined): boolean {
+  return suivi?.echeances.some((echeance) => echeance.statut !== 'payee') ?? false
+}
+
+/** Particularité cohérente avec l'échéancier ; `ecart` si elle diffère de celle du dossier, jamais écrasée (🔴 Hugo). */
+export function particulariteSuggeree(
+  dossier: DossierContentieux,
+  suivi: SuiviEcheancier | null | undefined,
+): { particularite: ParticulariteContentieux; ecart: boolean } {
+  const particularite: ParticulariteContentieux = echeancierActif(suivi)
+    ? 'Contentieux avec échéancier'
+    : 'Contentieux sans échéancier'
+  return { particularite, ecart: particularite !== dossier.particularite }
+}
+
+/**
+ * Stade et groupe de relance d'un dossier de recouvrement : étape déduite des faits datés, protocole d'accord (groupe 6)
+ * tant que l'échéancier est actif. Lit l'échéancier, pas la particularité du dossier. null pour un autre type de contentieux.
+ */
+export function relanceDuContentieux(
+  dossier: DossierContentieux,
+  suivi: SuiviEcheancier | null | undefined,
+): { stade: CodeStadeRelance; groupe: CodeGroupeRelance } | null {
+  const etape = etapeRecouvrementContentieux(dossier)
+  return etape === null ? null : relanceDepuisEtape(etape, echeancierActif(suivi))
 }
