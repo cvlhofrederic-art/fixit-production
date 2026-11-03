@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { creerElement, totalElement, type ElementAFacturer, type SaisieElement } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
+import {
+  NATURES_REMUNERATION,
+  creerElement,
+  totalElement,
+  type ElementAFacturer,
+  type SaisieElement,
+} from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
 import {
   CADRES_REMUNERATION_SINISTRE,
   DILIGENCES_SINISTRE_AU_FORFAIT,
@@ -22,6 +28,7 @@ import {
   type OuvertureSinistre,
   type ResultatOuvertureSinistre,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-sinistre'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Point 66 du bilan 2 — élément d'honoraires rattaché à une fiche sinistre (cartographie Gestéam, tranches 42 et 27).
@@ -123,6 +130,16 @@ describe('honoraires de sinistre — référentiel', () => {
 describe('honoraires de sinistre — rémunération et frais', () => {
   it('trois natures rémunèrent une diligence ; les autres (timbre, AR, copie, envois, diffuseurs) sont des frais (🔵)', () => {
     expect(NATURES_REMUNERATION_SINISTRE).toEqual(['Vacations', 'Honoraires', 'Prestations'])
+  })
+
+  it('la liste est celle de honoraires-facturation.ts, partagée avec le tableau des honoraires (une seule définition)', () => {
+    expect(NATURES_REMUNERATION_SINISTRE).toBe(NATURES_REMUNERATION)
+  })
+
+  it('en-tête : l’alinéa du 7.1.5 sur l’envoi des documents n’est pas le dernier (suivent les archives, l’accès en ligne, le prorata)', () => {
+    const { texte } = enTeteDuModule('honoraires-sinistre')
+    expect(texte).not.toMatch(/7\.1\.5, dernier alinéa/)
+    expect(texte).toMatch(/7\.1\.5, alinéa sur l'envoi des documents/)
   })
 
   it('deux natures de frais sont de la reprographie (7.1.1, al. 2) : la copie du cabinet et celle du diffuseur (🔵)', () => {
@@ -614,6 +631,55 @@ describe('honoraires de sinistre — déduction des sommes versées par l’assu
     expect(() => soldeHonorairesSinistre(elements, 'sin-42', [0], 'contrat_type_syndic')).toThrow(/versement/i)
     expect(() => soldeHonorairesSinistre(elements, ' ', [], 'contrat_type_syndic')).toThrow(/identifiant/i)
     expect(() => soldeHonorairesSinistre(elements, 'sin-42', [], 'forfait' as never)).toThrow(/cadre/i)
+  })
+})
+
+describe('honoraires de sinistre — élément offert ou en contrôle des coûts (point 67 ; tranche 43 § 13)', () => {
+  /** Une diligence au forfait se trace en « Offert » ou « Contrôle coûts » (tranche 43 § 13) : ni non due, ni à soumettre. */
+  const traces = [
+    elementSinistre({ id: 'of-decl', tarif: 'Sinistre - Déclaration du sinistre', qualification: 'Offert' }),
+    elementSinistre({ id: 'cc-regl', tarif: 'Sinistre - Règlement des indemnités aux bénéficiaires', qualification: 'Contrôle coûts' }),
+    elementSinistre({ id: 'cc-inc', tarif: 'Sinistre - FRAIS DIVERS', qualification: 'Contrôle coûts' }),
+    elementSinistre({ id: 'cc-sf', fiche: null, qualification: 'Contrôle coûts' }),
+    elementSinistre({
+      id: 'of-copie',
+      nature: 'Copie',
+      calcul: 'Coût unitaire',
+      quantite: 40,
+      prixUnitaireHtDixMilliemes: 1_500,
+      tarif: 'Sinistre - Copies de la déclaration du sinistre',
+      qualification: 'Offert',
+    }),
+  ]
+
+  it('contrôle : seule l’absence de fiche est signalée, dans chacun des cadres', () => {
+    for (const cadre of CADRES_REMUNERATION_SINISTRE)
+      expect(controlerHonorairesSinistre(traces, cadre).map((a) => [a.elementId, a.nature])).toEqual([['cc-sf', 'sans_fiche']])
+  })
+
+  it('la même diligence au forfait, facturable, reste signalée (contrat type, 7.1.1)', () => {
+    const facturable = elementSinistre({ id: 'fa-decl', tarif: 'Sinistre - Déclaration du sinistre', qualification: 'Facturable' })
+    expect(controlerHonorairesSinistre([facturable], 'contrat_type_syndic').map((a) => a.nature)).toEqual(['diligence_au_forfait'])
+  })
+
+  it('solde : les éléments non facturables sont hors base, hors frais et hors écartés', () => {
+    const fiche = [...traces, elementSinistre({ id: 'ok' }), elementSinistre({ id: 'timbre', nature: 'Timbre', calcul: 'Coût unitaire', prixUnitaireHtDixMilliemes: 12_900 })]
+    for (const cadre of CADRES_REMUNERATION_SINISTRE)
+      expect(soldeHonorairesSinistre(fiche, 'sin-42', [5_000], cadre)).toEqual({
+        elementIds: ['ok'],
+        ecartesIds: [],
+        totalHtCentimes: 9_000,
+        totalTtcCentimes: 10_800,
+        versementsCentimes: 5_000,
+        deductionCentimes: 5_000,
+        resteAChargeTtcCentimes: 5_800,
+        excedentCentimes: 0,
+        fraisTtcCentimes: 155,
+      })
+  })
+
+  it('la liste « Honoraires (€) » de la fiche montre aussi les éléments offerts ou en contrôle des coûts', () => {
+    expect(honorairesDuSinistre(traces, 'sin-42').total).toBe(4)
   })
 })
 

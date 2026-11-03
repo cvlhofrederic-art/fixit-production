@@ -9,7 +9,10 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import type { Regime } from '@/lib/administrateur-judiciaire/domain/fondements'
 import {
+  NATURES_REMUNERATION,
+  categorieDe,
   creerElement,
+  estFacturable,
   totalElement,
   type ElementAFacturer,
   type NatureElement,
@@ -56,13 +59,15 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  *   D'où le cadre « non établi » pour ces régimes : signalement, aucun élément, aucune diligence refusée.
  * 🔵 Le cadre « contrat type de syndic » ne se déduit d'aucun régime judiciaire : l'appelant le passe pour un mandat de
  * syndic conventionnel.
- * - 🟢 Frais d'envoi, contrat type : remboursés au syndic à part, pour les prestations du forfait (7.1.5, dernier alinéa)
- *   comme pour les prestations particulières (7.2.1, al. 2). Ces deux textes ne visent que l'affranchissement et
- *   l'acheminement. 🟢 Les frais de reprographie afférents aux prestations du forfait sont inclus dans le forfait
- *   (7.1.1, al. 2), et la déclaration comme le règlement des indemnités en font partie (7.1.1). 🔵 Une copie dont le
- *   tarif nomme l'une ou l'autre en relève : au contrat type, signalée « diligence_au_forfait » et écartée du solde, ni
- *   frais ni honoraires ; son envoi reste un frais remboursé (7.1.5, dernier alinéa). 🔵 Natures de la reprographie :
- *   Copie et Diffuseur copie. 🔵 Seules les natures Vacations, Honoraires et Prestations rémunèrent une diligence ; les autres
+ * - 🟢 Frais d'envoi, contrat type : remboursés au syndic à part, pour les prestations du forfait (7.1.5, alinéa sur
+ *   l'envoi des documents, que suivent ceux des archives, de l'accès en ligne et du prorata) comme pour les prestations
+ *   particulières (7.2.1, al. 2). Ces deux textes ne visent que l'affranchissement et l'acheminement. 🟢 Les frais de
+ *   reprographie afférents aux prestations du forfait sont inclus dans le forfait (7.1.1, al. 2), et la déclaration
+ *   comme le règlement des indemnités en font partie (7.1.1). 🔵 Une copie dont le tarif nomme l'une ou l'autre en
+ *   relève : au contrat type, signalée « diligence_au_forfait » et écartée du solde, ni frais ni honoraires ; son envoi
+ *   reste un frais remboursé (7.1.5, alinéa sur l'envoi des documents). 🔵 Natures de la reprographie : Copie et
+ *   Diffuseur copie. 🔵 Seules les natures Vacations, Honoraires et Prestations rémunèrent une diligence
+ *   (NATURES_REMUNERATION de honoraires-facturation.ts, liste partagée avec le tableau des honoraires) ; les autres
  *   (timbre, AR, copie, envois, diffuseurs) sont des frais : hors contrôle des diligences (sauf cette reprographie) et
  *   hors déduction de l'assureur (un timbre n'est ni une diligence ni un acte de l'art. 14).
  * - 🟢 Contrat type, 7.2.4 : la prestation faite hors jours et heures ouvrables, rendue nécessaire par l'urgence, est
@@ -72,6 +77,10 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  * dix-millième d'euro (demi au-dessus).
  * 🔵 « Gestion - Gestion des sinistres, rendez-vous constat » (tranche 27) n'est rattaché à aucune des quatre diligences :
  * diligence non identifiée sous le contrat type, dont l'annexe 2 est limitative ; sans objet hors du contrat type.
+ * Point 67 — 🟢 tranche 43 § 13 : « une diligence comprise dans le forfait se trace en offert ou contrôle coûts ».
+ * 🔵 Un élément offert ou en contrôle des coûts n'est ni facturé ni présenté comme dû : le contrôle n'y signale que
+ * l'absence de fiche (ni diligence au forfait, ni acte hors tarif, ni rémunération à soumettre au juge), et le solde
+ * l'ignore (hors base, hors frais, hors écartés). L'élément créé à l'ouverture reste « Facturable » (🟢 tranche 42).
  *
  * Questions ouvertes :
  * - 🔴 (Frédéric) En administration provisoire (art. 29-1), comment le cabinet chiffre-t-il les actes hors tarif de
@@ -95,6 +104,11 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  *   S'applique-t-elle aussi quand l'assureur verse au SYNDICAT une indemnité pour frais de gestion ? Et à 500 lots et
  *   plus, où l'art. 14 ne s'applique pas : choix actuel, la déduction est calculée et présentée au juge.
  * - 🔴 (Frédéric) Taux horaire et taux de TVA par défaut : réglages du cabinet, non relevés (passés par l'appelant).
+ * - 🔴 (Frédéric) Administration provisoire de 500 lots et plus : le juge fixe la rémunération « en fonction des frais
+ *   engagés et des diligences accomplies » (arrêté du 8 octobre 2015, art. 3). Un élément en contrôle des coûts doit-il
+ *   alors être signalé « à soumettre au juge » comme justificatif ? Choix actuel : non (seule l'absence de fiche), il
+ *   figure au tableau des honoraires (honoraires-tableau.ts). Et en AP de moins de 500 lots, faut-il créer à l'ouverture
+ *   un élément « Contrôle coûts » plutôt que le seul signalement ? Choix actuel : inchangé (signalement).
  * - 🔴 (Frédéric) Au contrat type, les copies d'un dossier sinistre afférentes à l'une des quatre diligences hors forfait :
  *   frais remboursés à part, ou comprises dans la rémunération du 7.2.4 ? Le 7.2.1, al. 2 ne vise que les frais d'envoi,
  *   et le 7.1.1, al. 2 que la reprographie des prestations du forfait (celle-ci est déjà signalée et écartée). Choix
@@ -169,8 +183,8 @@ const DILIGENCES_SINISTRE: readonly { code: DiligenceSinistre; libelle: string }
 /** 🟢 Tarif d'urgence (7.2.4) : prestation hors jours et heures ouvrables, sans majoration ou au coût horaire majoré. */
 export const TARIF_SINISTRE_HORS_HEURES_OUVRABLES = 'SINISTRE PRESTATION EN DEHORS JOURS ET HEURES OUVRABLES'
 
-/** 🔵 Natures qui rémunèrent une diligence ; les autres sont des frais (envoi, copie…), hors rémunération. */
-export const NATURES_REMUNERATION_SINISTRE = ['Vacations', 'Honoraires', 'Prestations'] as const satisfies readonly NatureElement[]
+/** 🔵 Natures qui rémunèrent une diligence (NATURES_REMUNERATION) ; les autres sont des frais (envoi, copie…). */
+export const NATURES_REMUNERATION_SINISTRE = NATURES_REMUNERATION
 
 /** 🔵 Natures de la reprographie (copies du cabinet ou du diffuseur), seuls frais visés par le 7.1.1, al. 2. */
 export const NATURES_REPROGRAPHIE_SINISTRE = ['Copie', 'Diffuseur copie'] as const satisfies readonly NatureElement[]
@@ -180,7 +194,7 @@ const aLaNature =
   (element: ElementAFacturer): boolean =>
     natures.includes(element.nature)
 
-const estRemuneration = aLaNature(NATURES_REMUNERATION_SINISTRE)
+const estRemuneration = (element: ElementAFacturer): boolean => categorieDe(element) === 'Rémunération'
 const estReprographie = aLaNature(NATURES_REPROGRAPHIE_SINISTRE)
 
 /** Majoration en centièmes de point de pourcentage ; dix-millièmes d'unité pour 100 % (base du calcul entier). */
@@ -519,11 +533,13 @@ const anomalieSansFiche = (element: ElementAFacturer): AnomalieHonorairesSinistr
     : { elementId: element.id, nature: 'sans_fiche', message: 'Élément du dossier Sinistre sans fiche : rattacher le sinistre précis (point 47).' }
 
 /**
- * Anomalies d'un élément. Rémunération : fiche, diligence, puis cadre, sauf pour une diligence non due (elle n'est pas un
- * acte hors tarif). Frais : la fiche, puis à 500 lots et plus le cadre (le juge tient compte des frais engagés), au
- * contrat type la reprographie d'une diligence au forfait (7.1.1, al. 2).
+ * Anomalies d'un élément. Offert ou contrôle des coûts (point 67) : la fiche seule, c'est la trace voulue. Rémunération :
+ * fiche, diligence, puis cadre, sauf pour une diligence non due (elle n'est pas un acte hors tarif). Frais : la fiche,
+ * puis à 500 lots et plus le cadre (le juge tient compte des frais engagés), au contrat type la reprographie d'une
+ * diligence au forfait (7.1.1, al. 2).
  */
 function anomaliesDeLElement(element: ElementAFacturer, cadre: CadreRemunerationSinistre): (AnomalieHonorairesSinistre | null)[] {
+  if (!estFacturable(element)) return [anomalieSansFiche(element)]
   if (!estRemuneration(element))
     return [
       anomalieSansFiche(element),
@@ -579,6 +595,8 @@ const visent = (element: ElementAFacturer, fiche: Rattachement): boolean => elem
  * écartée des frais (7.1.1, al. 2). 🔵 Éléments de rémunération de la fiche, facturés ou non ; une diligence non
  * identifiée reste dans la base (à vérifier, pas déclarée non due) ; les autres frais restent à part ; déduction
  * sur le TTC (🔴 question), plafonnée au total. Les indemnités versées au SYNDICAT (sinistres.ts) ne sont pas ces sommes.
+ * 🔵 Point 67 : seuls les éléments facturables comptent ; un élément offert ou en contrôle des coûts est hors base, hors
+ * frais et hors écartés (il n'est pas dû).
  */
 export function soldeHonorairesSinistre(
   elements: readonly ElementAFacturer[],
@@ -591,9 +609,9 @@ export function soldeHonorairesSinistre(
   for (const versement of versementsAssureurCentimes)
     if (!Number.isInteger(versement) || versement <= 0)
       throw new Error(`Versement de l'assureur invalide (${versement}) : centimes entiers strictement positifs attendus.`)
-  const ficheVisee = elements.filter((e) => visent(e, fiche))
-  const ecartes = ficheVisee.filter((e) => estNonDu(e, cadre))
-  const dus = ficheVisee.filter((e) => !ecartes.includes(e))
+  const facturables = elements.filter((e) => visent(e, fiche) && estFacturable(e))
+  const ecartes = facturables.filter((e) => estNonDu(e, cadre))
+  const dus = facturables.filter((e) => !ecartes.includes(e))
   const retenus = dus.filter(estRemuneration)
   const totaux = retenus.map(totalElement)
   const totalHtCentimes = totaux.reduce((s, t) => s + t.htCentimes, 0)
