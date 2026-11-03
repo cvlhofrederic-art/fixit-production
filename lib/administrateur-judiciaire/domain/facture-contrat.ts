@@ -111,11 +111,11 @@ const referenceDe = (c: ContratRapprochable): string => normaliserTexte(c.refere
 const contient = (corps: string, reference: string): boolean => corps.includes(` ${reference} `)
 
 /**
- * Contrats dont la référence (4 caractères au moins) est citée dans le texte de la facture. Une référence citée seulement
- * à l'intérieur d'une référence plus longue (« MAINT 4471 » dans « MAINT 4471 B ») est écartée ; citée aussi à part, elle
- * reste candidate.
+ * Candidats dont la référence normalisée (4 caractères au moins) est citée dans le texte de la facture. Une référence citée
+ * seulement à l'intérieur d'une référence plus longue (« MAINT 4471 » dans « MAINT 4471 B ») est écartée ; citée aussi à
+ * part, elle reste candidate. Sert aux références de contrat et aux N° d'ordre de service (facture-demande.ts).
  */
-function parReference(candidats: ContratRapprochable[], texte: string | undefined): ContratRapprochable[] {
+export function citesDansLeTexte<T>(candidats: readonly T[], referenceDe: (candidat: T) => string, texte: string | undefined): T[] {
   const corps = ` ${normaliserTexte(texte ?? '')} `
   const cites = candidats.filter((c) => referenceDe(c).replace(/ /g, '').length >= 4 && contient(corps, referenceDe(c)))
   return cites.filter((c) => {
@@ -165,7 +165,7 @@ export function rapprocherFactureContrat(facture: FactureARapprocher, contexte: 
     departage,
   })
   if (candidats.length === 1) return trouve(candidats[0], 'unique')
-  const references = parReference(candidats, facture.texte)
+  const references = citesDansLeTexte(candidats, referenceDe, facture.texte)
   if (references.length === 1) return trouve(references[0], 'reference')
   const restants = references.length > 1 ? references : candidats
   const prestatairesCandidats = new Set(restants.map((c) => c.prestataireId))
