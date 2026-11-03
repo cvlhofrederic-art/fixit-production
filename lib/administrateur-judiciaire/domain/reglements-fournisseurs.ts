@@ -2,7 +2,7 @@ import { MODES_TENUE_COMPTES, NATURES_COMPTE_BANCAIRE, validerIban, type ModeTen
 import { estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
-import { statutPositionA, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
+import { statutPositionA, type CompteCoproprietaire, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import {
   verifierIdentifiantsVirement,
   type LigneVirement,
@@ -17,10 +17,12 @@ import {
   type RapprochementPiece,
 } from '@/lib/administrateur-judiciaire/domain/rapprochement-pieces'
 import {
+  annulerTraitement,
   creerTraitement,
   type FamilleTraitement,
   type LigneMouvement,
   type LiensMouvement,
+  type Mouvement,
   type Traitement,
 } from '@/lib/administrateur-judiciaire/domain/traitements'
 import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -58,12 +60,17 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   fusion ni compensation ;
  * - C. civ. art. 1342-2 : « le paiement doit être fait au créancier ou à la personne désignée pour le recevoir » →
  *   bénéficiaire typé, pas un texte libre ;
+ * - L. 1965 art. 23, al. 2 (version en vigueur depuis le 01/06/2020, ord. n° 2019-1101 ; relu le 30/10/2026) : « En cas
+ *   d'indivision, les indivisaires sont représentés par un mandataire commun qui est, à défaut d'accord, désigné par le
+ *   président du tribunal judiciaire saisi par l'un d'entre eux ou par le syndic » ; al. 4 : la désignation judiciaire
+ *   est aux frais des indivisaires ;
  * - aucun des textes lus ne fixe de cycle de statuts pour un règlement : le cycle est une règle de GESTION (Gestéam).
  * 🔵 Déduit :
  * - sens des statuts : « Demandé » = règlement préparé, hors de tout ordre ; « À régler » = dans un ordre de virement
  *   non émis ; « Enregistré » = ordre émis, ou chèque, prélèvement ou TIP constaté hors ordre ; « Rapproché » = pointé
- *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, hypothèse de travail, voir son 🔴) ;
- *   « Annulé » = abandonné avant tout paiement ;
+ *   dans un arrêté (propagé seulement, par rapprochement-pieces.ts : au pointage, décision J8 de Hugo du 30/10/2026) ;
+ *   « Annulé » = abandonné avant tout paiement, ou virement rejeté ou retourné après émission (rejet renseigné, J9
+ *   ci-dessous) ;
  * - un virement ne se paie que par un ordre de virement (identifiant de bout en bout = n° de pièce, unique dans
  *   l'ordre) ; un ordre ne se compose que de règlements, exactement ceux de ses lignes, tous d'une même famille (il n'a
  *   qu'un traitement) ; une ligne groupée garde ses règlements (reglementIds), jamais son identifiant synthétique ;
@@ -71,32 +78,72 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   (« Enregistré » ou « Rapproché ») et les rend imputés, rattachés au traitement qui porte leur propre paire débit /
  *   crédit. Dans VitFix, un traitement compte dès qu'il existe (balance, grand livre : etats-comptables.ts) : passée
  *   avant le paiement, l'écriture d'un règlement sorti de son ordre ou annulé resterait sans écriture contraire (arrêté
- *   du 14 mars 2005, art. 5). Aucune écriture n'existe donc pour un règlement demandé, à régler, sorti ou annulé ; un
- *   règlement imputé n'entre dans aucun autre traitement. Le traitement Gestéam qui produit l'ordre (tranche 43 § 10 et
- *   § 12) n'est ici que l'identifiant traitementId de l'ordre, sous lequel l'écriture de tous ses règlements est passée
- *   en une fois, avec l'ordre émis : jamais en partie, jamais avec un règlement hors de l'ordre ;
+ *   du 14 mars 2005, art. 5). Aucune écriture n'existe donc pour un règlement demandé, à régler, sorti ou annulé avant
+ *   paiement ; un règlement imputé n'entre dans aucun autre traitement. Le traitement Gestéam qui produit l'ordre
+ *   (tranche 43 § 10 et § 12) n'est ici que l'identifiant traitementId de l'ordre, sous lequel l'écriture de tous ses
+ *   règlements est passée en une fois, avec l'ordre émis : jamais en partie, jamais avec un règlement hors de l'ordre ;
  * - contrepartie : un compte 512 du syndicat (D1) ; chaque part d'un paiement a la sienne ;
  * - paiement sur plusieurs mandats, syndicats ou comptes : seulement depuis le compte centralisateur du cabinet
  *   (décision D-BANQUE), jamais avec le compte du fonds de travaux ; un paiement groupé sur ce seul compte, pour un seul
  *   mandat, n'est pas visé ;
  * - type de bénéficiaire fermé (fournisseur, copropriétaire, indivisaire) : Mandant, Propriétaire et Cpte gérance
  *   relèvent de la gérance, hors champ ; la paie du personnel du syndicat n'y entre pas (point 42 : compte 421).
+ * Décision J9 de Hugo du 30/10/2026 — virement rejeté ou retourné après émission : écriture contraire « Annulation de
+ * règlements », par le même circuit de traitements que l'écriture du règlement ; retour de la facture à l'état d'avant
+ * (statuts-facture.ts, retourFactureApresRejet), avec le motif et la date du rejet ; le règlement passe « Annulé »
+ * (rejeterVirement).
+ * 🔵 Déduit pour J9 :
+ * - le rejet porte sur tout un virement : une ligne de l'ordre et tous ses règlements (une ligne groupée se rejette
+ *   entière), jamais deux lignes à la fois ; ordre émis, rejet daté au plus tôt du jour de l'émission ;
+ * - seulement après l'écriture de l'ordre (règlements imputés dans son traitement) : l'écriture contraire contre-passe
+ *   une écriture passée ; avant, il n'y a rien à contre-passer, et l'ordre s'écrit d'abord en une fois ;
+ * - écriture contraire : les paires débit / crédit des règlements du virement (mouvementsReglement), prises dans
+ *   l'écriture de l'ordre, fournie (ce qui a été écrit, non une reconstruction), inversées par annulerTraitement (R6,
+ *   traitements.ts) dans un traitement « Annulation de règlements » qui renvoie (annule) au traitement de l'ordre :
+ *   contre-passation partielle de ce traitement quand l'ordre porte d'autres virements ; datée du jour du rejet, ou du
+ *   jour de l'écriture de l'ordre si le rejet le précède (l'écriture contraire annule une écriture passée, arrêté du
+ *   14 mars 2005, art. 5 : elle ne la précède pas), le rejet gardant sa date réelle ; sous son propre identifiant ;
+ * - le règlement rejeté reste imputé et rattaché au traitement de l'ordre, garde son ordre, son n° de pièce et son
+ *   pointage, et porte son rejet (date, motif, traitement d'annulation) ; « Annulé » est définitif : un double rejet est
+ *   refusé, la facture se paie par un nouveau règlement ;
+ * - après rapprochement : traité, non refusé (J8 : « Rapproché » est posé au pointage, un retour peut donc arriver
+ *   après le pointage de la sortie). La sortie du relevé reste pointée : le virement est parti puis revenu ; le retour,
+ *   ligne au crédit du relevé, se pointe avec l'écriture contraire, sans pièce (une pièce « règlement » est une sortie).
+ *   rapprocherReglements lit un virement rejeté comme payé, pour ne pas signaler le pointage de sa sortie, puis lui rend
+ *   « Annulé », sauf à une date (aLaDate) antérieure au rejet : il garde alors le statut propagé à cette date.
+ * Décision J10 de Hugo du 30/10/2026 — bénéficiaire indivisaire : le règlement va au mandataire commun des indivisaires
+ * (L. 1965 art. 23, al. 2) ; un règlement à un indivisaire n'est admis que s'il est le mandataire commun désigné ; sans
+ * mandataire désigné, il est refusé (controlerBeneficiaireIndivisaire).
+ * 🔵 Déduit pour J10 :
+ * - l'art. 23, al. 2 fait représenter les indivisaires par le mandataire commun sans viser le paiement ; la décision en
+ *   fait la « personne désignée pour le recevoir » (C. civ. art. 1342-2) ;
+ * - le mandataire est porté par le compte copropriétaire débité (identites-positions.ts, mandataireCommunId : un compte,
+ *   une indivision, un mandataire), donnée facultative et non indexée ; le bénéficiaire doit à la fois tenir une
+ *   position « Indivisaire » en place sur ce compte (D2) et en être le mandataire ; les deux défauts se cumulent, chacun
+ *   bloquant.
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - paiement en espèces : refusé ici ; il sortirait du compte 53 « Caisse » et non d'un 512 (arrêté du 14 mars 2005,
  *   art. 3 et 7), compte que le domaine ne tient pas, avec le contrôle des espèces propre à l'administrateur judiciaire
  *   (carnet de reçus, arrêté du 16 août 1999) ; à modéliser avec une contrepartie 53, hors rapprochement bancaire ;
  * - Gestéam passe-t-il l'écriture du « Règlement de factures » dès le traitement qui produit l'ordre (imputée plus
  *   tard), ou au paiement ? Non observé ; VitFix l'écrit au paiement (ci-dessus) ;
- * - annulation après émission (virement rejeté ou retourné) : refusée ici ; elle demanderait une écriture contraire
- *   (« Annulation de règlements ») et un retour de la facture, que statuts-facture.ts n'admet pas depuis « Réglée » ;
+ * - J9, retour amputé de frais par la banque (montant revenu moindre) : non pris en charge ; l'écriture contraire porte
+ *   le montant du règlement, l'écart reste à écrire ;
+ * - chèque émis puis perdu, frappé d'opposition ou jamais présenté, prélèvement contesté : hors de J9 (virement), aucune
+ *   annulation après enregistrement ;
  * - contre-passation du traitement d'un règlement (annulerTraitement de traitements.ts, famille « Annulation de
- *   règlements ») : non prise en charge ici ; le règlement reste « Enregistré », imputé et rattaché au traitement
- *   annulé, et ne peut ni être réécrit ni passer « Annulé ». Question : une fois son traitement contre-passé, le
- *   règlement redevient-il « Non imputé » (à réécrire dans un nouveau traitement), passe-t-il « Annulé », ou reste-t-il
- *   « Enregistré » imputé avec un renvoi vers l'annulation, et la facture qu'il réglait quitte-t-elle « Réglée » ?
+ *   règlements ») hors rejet de virement (J9) : non prise en charge ici ; le règlement reste « Enregistré », imputé et
+ *   rattaché au traitement annulé, et ne peut ni être réécrit ni passer « Annulé ». Question : une fois son traitement
+ *   contre-passé, le règlement redevient-il « Non imputé » (à réécrire dans un nouveau traitement), passe-t-il
+ *   « Annulé », ou reste-t-il « Enregistré » imputé avec un renvoi vers l'annulation, et la facture qu'il réglait
+ *   quitte-t-elle « Réglée » ?
  * - créances nées avant la désignation (L. 1965 art. 29-3, I et II : suspension de l'exigibilité) : aucun blocage ici ;
- * - bénéficiaire indivisaire : à qui payer (mandataire commun de L. 1965 art. 23, al. 2, indivisaire mandaté selon
- *   C. civ. art. 815-3, ou tous) ; seul est contrôlé que l'identité est indivisaire en place sur le compte débité ;
+ * - J10, mandataire commun qui n'est pas lui-même indivisaire (tiers désigné par le juge, par exemple) : aucun type de
+ *   bénéficiaire ne le porte, un règlement à l'indivision est alors impossible ici ;
+ * - J10, désignation non datée : le mandataire porté sur le compte vaut à la date du contrôle, sans historique des
+ *   mandataires successifs ;
+ * - bénéficiaire « copropriétaire » d'un compte détenu en indivision ou en démembrement (L. 1965 art. 23, al. 2, 3 et 5) :
+ *   non contrôlé, le règlement ne nomme personne ; J10 ne vise que le type « indivisaire » ;
  * - remboursement de solde (copropriétaire, indivisaire) dans ce même objet, ou dans un objet frère ;
  * - sens de « Tranche » (non observé) : donnée opaque, rattachée à des travaux ; à ne pas confondre avec les tranches
  *   d'appel « <n°>-T<n> » de travaux-operations.ts ;
@@ -152,6 +199,18 @@ export interface ReglementFournisseur {
   impute: boolean
   /** Posé par la propagation depuis l'arrêté seulement (rapprocherReglements). */
   rapprochement: RapprochementPiece | null
+  /** Virement rejeté ou retourné après émission (J9, rejeterVirement) ; null sinon. */
+  rejet: RejetReglement | null
+}
+
+/** Rejet ou retour d'un virement après émission (J9). */
+export interface RejetReglement {
+  /** Jour où le rejet est constaté (AAAA-MM-JJ) : date de l'écriture contraire. */
+  le: string
+  /** Motif donné par la banque. */
+  motif: string
+  /** Traitement « Annulation de règlements » qui porte l'écriture contraire. */
+  traitementId: string
 }
 
 export interface SaisieReglementFournisseur {
@@ -181,6 +240,8 @@ export type CodeAnomalieReglement =
   | 'beneficiaires_differents'
   | 'modes_differents'
   | 'indivisaire_sans_position'
+  | 'indivisaire_sans_mandataire_commun'
+  | 'indivisaire_non_mandataire_commun'
 
 export interface AnomalieReglement {
   code: CodeAnomalieReglement
@@ -190,6 +251,7 @@ export interface AnomalieReglement {
 }
 
 const FONDEMENT_FONDS_TRAVAUX_SEPARE = citerFondement(refLoi1965('18, II, al. 4'))
+const FONDEMENT_MANDATAIRE_COMMUN = citerFondement(refLoi1965('23, al. 2'))
 const CODE_5 = /^[0-9A-Z]{5}$/
 const CONTREPARTIE_512 = /^([^.]{4})\.512[0-9A-Z]{2}\.[0-9A-Z]{5}\.[0-9A-Z]$/
 
@@ -311,6 +373,7 @@ export function creerReglementFournisseur(saisie: SaisieReglementFournisseur, { 
     statut: 'Demandé',
     impute: false,
     rapprochement: null,
+    rejet: null,
   }
 }
 
@@ -471,7 +534,10 @@ export function changerStatutReglementFournisseur(
   if (r.statut === 'À régler' && nouveau === 'Enregistré')
     throw new Error(`Règlement ${r.id} : un règlement à régler est enregistré par l'émission de son ordre (enregistrerOrdreEmis).`)
   if (!TRANSITIONS[r.statut].includes(nouveau)) {
-    const suite = r.statut === 'Enregistré' ? ' ; un règlement enregistré ne s’annule que par une écriture contraire, non prise en charge ici' : ''
+    const suite =
+      r.statut === 'Enregistré'
+        ? ' ; un règlement enregistré ne s’annule que par une écriture contraire : virement rejeté ou retourné (rejeterVirement, J9), toute autre contre-passation non prise en charge ici'
+        : ''
     throw new Error(`Transition refusée : « ${r.statut} » → « ${nouveau} »${suite}.`)
   }
   if (r.statut === 'À régler') return sortirDeLOrdre(r, nouveau, ordre)
@@ -570,6 +636,111 @@ export function traitementReglements(
   return { traitement, reglements: reglements.map((r): ReglementFournisseur => ({ ...r, impute: true, traitementId: id })) }
 }
 
+// ─── Virement rejeté ou retourné (J9) ───────────────────────────────────────────────────────
+
+function verifierEnTeteRejet(ordre: OrdreVirement, { id, date, motif }: { id: string; date: string; motif: string }): void {
+  texteRequis(id, 'Rejet de virement : identifiant du traitement d’annulation attendu.')
+  if (id === ordre.traitementId)
+    throw new Error(`Rejet de virement : le traitement d'annulation a son propre identifiant, distinct de celui de l'ordre ${ordre.numero} (${id}).`)
+  texteRequis(motif, 'Rejet de virement : motif du rejet attendu (motif donné par la banque).')
+  if (!estDateIsoValide(date)) throw new Error(`Date du rejet invalide (${date}) : AAAA-MM-JJ attendu.`)
+  if (ordre.statut !== 'Émis')
+    throw new Error(`Ordre ${ordre.numero} pas émis : aucun virement n'est parti ; sortir le règlement de l'ordre (changerStatutReglementFournisseur).`)
+  if (ordre.dateEmission !== null && date < ordre.dateEmission)
+    throw new Error(`Rejet du ${date} antérieur à l'émission de l'ordre ${ordre.numero} (${ordre.dateEmission}).`)
+}
+
+/** Règlement à rejeter : jamais rejeté, virement de l'ordre, payé, et déjà écrit dans le traitement de l'ordre. */
+function verifierARejeter(r: ReglementFournisseur, ordre: OrdreVirement): void {
+  if (r.rejet)
+    throw new Error(
+      `Règlement ${r.id} déjà rejeté le ${r.rejet.le} (${r.rejet.motif}) : son écriture contraire est le traitement ${r.rejet.traitementId} ; un rejet ne s'écrit qu'une fois.`,
+    )
+  if (r.ordreId !== ordre.id) throw new Error(`Règlement ${r.id} hors de l'ordre ${ordre.numero} : seul un virement de cet ordre se rejette avec lui.`)
+  verifierRattachementOrdre(r, ordre)
+  if (r.statut !== 'Enregistré' && r.statut !== 'Rapproché')
+    throw new Error(`Règlement ${r.id} « ${r.statut} » : seul un virement payé (enregistré ou rapproché) se rejette.`)
+  if (!r.impute || r.traitementId !== ordre.traitementId)
+    throw new Error(
+      `Règlement ${r.id} : écrire d'abord l'ordre ${ordre.numero} (traitementReglements, traitement ${ordre.traitementId}) ; le rejet en passe ensuite l'écriture contraire.`,
+    )
+}
+
+/** Le virement rejeté : la ligne de l'ordre que les règlements donnés composent exactement (une ligne, tous ses règlements). */
+function verifierVirementEntier(reglements: ReglementFournisseur[], ordre: OrdreVirement): void {
+  const pieces = [...new Set(reglements.map((r) => r.numeroPiece))]
+  if (pieces.length > 1) throw new Error(`Rejet refusé : règlements de plusieurs virements (${pieces.join(', ')}) ; un rejet porte sur un seul virement.`)
+  const ligne = ordre.lignes.find((l) => l.reglementId === pieces[0])
+  if (!ligne) throw new Error(`Virement « ${pieces[0]} » absent de l'ordre ${ordre.numero}.`)
+  const siens = reglementsDeLigne(ligne)
+  const fournis = new Set(reglements.map((r) => r.id))
+  const manquant = siens.find((id) => !fournis.has(id))
+  if (manquant) throw new Error(`Virement « ${ligne.reglementId} » : le rejet porte sur tout le virement ; règlement ${manquant} non fourni.`)
+  const etranger = reglements.find((r) => !siens.includes(r.id))
+  if (etranger) throw new Error(`Règlement ${etranger.id} absent du virement « ${ligne.reglementId} » de l'ordre ${ordre.numero}.`)
+  verifierLigne(ligne, reglements)
+}
+
+/** L'écriture fournie est celle du traitement de l'ordre. */
+function verifierEcritureOrdre(ecriture: Traitement, ordre: OrdreVirement): void {
+  if (ecriture.id !== ordre.traitementId)
+    throw new Error(`Rejet de virement : écriture ${ecriture.id} fournie, alors que l'ordre ${ordre.numero} est écrit dans le traitement ${ordre.traitementId}.`)
+}
+
+const memesLiens = (a: LiensMouvement = {}, b: LiensMouvement = {}): boolean =>
+  [...new Set([...Object.keys(a), ...Object.keys(b)] as (keyof LiensMouvement)[])].every((cle) => (a[cle] ?? null) === (b[cle] ?? null))
+
+const memeLigne = (m: Mouvement, attendu: LigneMouvement): boolean =>
+  m.compte === attendu.compte && m.sens === attendu.sens && m.montantCentimes === attendu.montantCentimes && memesLiens(m.liens, attendu.liens)
+
+/**
+ * Mouvements de l'écriture de l'ordre qui portent le virement : chaque ligne de mouvementsReglement y est cherchée
+ * (compte, sens, montant, liens) et prise une seule fois. L'écriture contraire inverse ce qui a été écrit, non une
+ * reconstruction.
+ */
+function mouvementsDuVirement(reglements: ReglementFournisseur[], ecriture: Traitement): Mouvement[] {
+  const restants = [...ecriture.mouvements]
+  return reglements.flatMap(mouvementsReglement).map((attendu) => {
+    const i = restants.findIndex((m) => memeLigne(m, attendu))
+    if (i < 0)
+      throw new Error(
+        `Écriture ${ecriture.id} de l'ordre : mouvement ${attendu.sens} ${attendu.compte} de ${attendu.montantCentimes} centimes introuvable ; l'écriture contraire ne contre-passe que ce qui a été écrit.`,
+      )
+    return restants.splice(i, 1)[0]
+  })
+}
+
+/**
+ * J9 — virement rejeté ou retourné après émission : les règlements d'une ligne de l'ordre émis, déjà écrits dans le
+ * traitement de l'ordre, reçoivent une écriture contraire, et passent « Annulé » avec leur rejet (date réelle, motif,
+ * traitement d'annulation). L'écriture contraire est la part de l'écriture de l'ordre (`ecritureOrdre`, le traitement de
+ * l'ordre) qui porte ce virement, prise dans ses mouvements, contre-passée par annulerTraitement : un traitement
+ * « Annulation de règlements » qui renvoie au traitement de l'ordre, daté du jour du rejet, ou de celui de l'écriture de
+ * l'ordre si le rejet le précède. Ils restent imputés et rattachés au traitement de l'ordre, gardent ordre, n° de pièce
+ * et pointage. Refuse un ordre non émis, un rejet daté d'avant l'émission, sans motif ou sous l'identifiant de l'ordre,
+ * une écriture qui n'est pas celle de l'ordre ou ne porte pas le virement, un règlement hors de l'ordre, non payé, non
+ * encore écrit ou déjà rejeté, une partie seulement d'un virement ou plusieurs virements. La facture se rétablit à part
+ * (statuts-facture.ts, retourFactureApresRejet).
+ */
+export function rejeterVirement(
+  reglements: ReglementFournisseur[],
+  ordre: OrdreVirement,
+  rejet: { id: string; date: string; motif: string },
+  ecritureOrdre: Traitement,
+): { traitement: Traitement; reglements: ReglementFournisseur[] } {
+  if (reglements.length === 0) throw new Error('Rejet de virement : aucun règlement.')
+  verifierEnTeteRejet(ordre, rejet)
+  verifierEcritureOrdre(ecritureOrdre, ordre)
+  indexer(reglements)
+  reglements.forEach((r) => verifierARejeter(r, ordre))
+  verifierVirementEntier(reglements, ordre)
+  const { id, date } = rejet
+  const partDuVirement: Traitement = { ...ecritureOrdre, mouvements: mouvementsDuVirement(reglements, ecritureOrdre) }
+  const traitement = annulerTraitement(partDuVirement, { id, date: date < ecritureOrdre.date ? ecritureOrdre.date : date })
+  const trace: RejetReglement = { le: date, motif: rejet.motif.trim(), traitementId: id }
+  return { traitement, reglements: reglements.map((r): ReglementFournisseur => ({ ...r, statut: 'Annulé', rejet: { ...trace } })) }
+}
+
 // ─── Contrôles ──────────────────────────────────────────────────────────────────────────────
 
 export interface ContextePaiement {
@@ -633,14 +804,9 @@ export function controlerPaiementPlusieursMandats(reglements: ReglementFournisse
   return parts.size > 1 ? [...anomalies, ...anomaliesCompteCabinet(reglements, contexte)] : anomalies
 }
 
-/**
- * Bénéficiaire indivisaire : l'identité doit tenir une position « Indivisaire » en place à la date sur le compte débité
- * (D2). 🔴 Ne dit pas si l'indivisaire peut recevoir seul le paiement. Sans objet pour un autre bénéficiaire.
- */
-export function controlerBeneficiaireIndivisaire(r: ReglementFournisseur, positions: Position[], date: string): AnomalieReglement[] {
-  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
-  const b = r.beneficiaire
-  if (b.type !== 'indivisaire') return []
+type BeneficiaireIndivisaire = Extract<BeneficiaireReglement, { type: 'indivisaire' }>
+
+function anomaliePositionIndivisaire(r: ReglementFournisseur, b: BeneficiaireIndivisaire, positions: Position[], date: string): AnomalieReglement[] {
   const enPlace = positions.some(
     (p) => p.identiteId === b.identiteId && p.compteId === b.compteCoproprietaireId && p.qualite === 'Indivisaire' && statutPositionA(p, date) === 'En place',
   )
@@ -654,18 +820,83 @@ export function controlerBeneficiaireIndivisaire(r: ReglementFournisseur, positi
   ]
 }
 
+/** J10 — le règlement va au mandataire commun désigné sur le compte débité, et à lui seul. */
+function anomalieMandataireCommun(
+  r: ReglementFournisseur,
+  b: BeneficiaireIndivisaire,
+  compte: Pick<CompteCoproprietaire, 'mandataireCommunId'>,
+): AnomalieReglement[] {
+  const mandataire = optionnel(compte.mandataireCommunId)
+  if (mandataire === null)
+    return [
+      {
+        code: 'indivisaire_sans_mandataire_commun',
+        message: `Règlement ${r.id} refusé : aucun mandataire commun désigné pour l'indivision du compte ${b.compteCoproprietaireId}. Le règlement va au seul mandataire commun des indivisaires ; le faire désigner (accord des indivisaires ou, à défaut, président du tribunal judiciaire saisi par l'un d'eux ou par le syndic) et le porter sur le compte.`,
+        fondement: FONDEMENT_MANDATAIRE_COMMUN,
+      },
+    ]
+  if (mandataire === b.identiteId.trim()) return []
+  return [
+    {
+      code: 'indivisaire_non_mandataire_commun',
+      message: `Règlement ${r.id} refusé : l'identité ${b.identiteId} n'est pas le mandataire commun de l'indivision du compte ${b.compteCoproprietaireId} (mandataire désigné : ${mandataire}) ; régler le mandataire commun.`,
+      fondement: FONDEMENT_MANDATAIRE_COMMUN,
+    },
+  ]
+}
+
+/**
+ * Bénéficiaire indivisaire (décision J10) : l'identité doit tenir une position « Indivisaire » en place à la date sur le
+ * compte débité (D2) et être le mandataire commun désigné sur ce compte (L. 1965 art. 23, al. 2). Sans mandataire
+ * désigné, ou réglé à un autre indivisaire : refusé. Anomalies bloquantes, cumulées. Le compte débité doit figurer parmi
+ * `comptes` (il porte le mandataire). Sans objet pour un autre bénéficiaire.
+ */
+export function controlerBeneficiaireIndivisaire(
+  r: ReglementFournisseur,
+  positions: Position[],
+  date: string,
+  comptes: Pick<CompteCoproprietaire, 'id' | 'mandataireCommunId'>[],
+): AnomalieReglement[] {
+  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  const b = r.beneficiaire
+  if (b.type !== 'indivisaire') return []
+  const compte = comptes.find((c) => c.id === b.compteCoproprietaireId)
+  if (!compte)
+    throw new Error(`Règlement ${r.id} : compte débité ${b.compteCoproprietaireId} non fourni ; il porte le mandataire commun des indivisaires (J10).`)
+  return [...anomaliePositionIndivisaire(r, b, positions, date), ...anomalieMandataireCommun(r, b, compte)]
+}
+
 // ─── Rapprochement ──────────────────────────────────────────────────────────────────────────
+
+/** J9 — rejeté à la date de la vue : sans date, dès qu'il porte son rejet ; à une date, si le rejet date de ce jour ou d'avant. */
+function rejeteA(r: ReglementFournisseur, aLaDate: string | undefined): boolean {
+  if (!r.rejet) return false
+  return aLaDate === undefined || r.rejet.le <= aLaDate
+}
+
+/** J9 — un virement rejeté se lit comme payé : sa sortie a pu être pointée au relevé avant son retour. */
+function commePaye(r: ReglementFournisseur): ReglementFournisseur {
+  if (!r.rejet) return r
+  const statut: StatutReglementFournisseur = r.rapprochement ? 'Rapproché' : 'Enregistré'
+  return { ...r, statut }
+}
 
 /**
  * Statut « Rapproché » propagé depuis les arrêtés (rapprochement-pieces.ts, partagé avec les encaissements) : un
- * règlement « Enregistré » pointé passe « Rapproché », un règlement dépointé revient « Enregistré ». Passer tous les
- * règlements des comptes concernés.
+ * règlement « Enregistré » pointé passe « Rapproché », un règlement dépointé revient « Enregistré ». Un virement rejeté
+ * (J9) prend ou perd le pointage de sa sortie sans anomalie et reste « Annulé » ; à une date (`aLaDate`) antérieure à son
+ * rejet, il garde le statut propagé à cette date. Passer tous les règlements des comptes concernés.
  */
 export function rapprocherReglements(
   reglements: ReglementFournisseur[],
   arretes: ArreteRapprochement[],
   { aLaDate }: { aLaDate?: string } = {},
 ): { reglements: ReglementFournisseur[]; anomalies: AnomalieLienRapprochement[] } {
-  const { pieces, anomalies } = propagerStatutRapproche(reglements, arretes, { type: 'reglement', rapproche: 'Rapproché', avant: 'Enregistré', aLaDate })
-  return { reglements: pieces, anomalies }
+  const { pieces, anomalies } = propagerStatutRapproche(reglements.map(commePaye), arretes, {
+    type: 'reglement',
+    rapproche: 'Rapproché',
+    avant: 'Enregistré',
+    aLaDate,
+  })
+  return { reglements: pieces.map((r): ReglementFournisseur => (rejeteA(r, aLaDate) ? { ...r, statut: 'Annulé' } : r)), anomalies }
 }
