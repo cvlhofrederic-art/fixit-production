@@ -1,12 +1,25 @@
 # ── Tests — Vitest, Playwright E2E, Axe-core WCAG ────────────────────────────
 # Suite complète de tests : unitaires, E2E multi-navigateur, accessibilité.
-# Déclenché sur push main et toutes les PR.
+# - PR vers main et lancement manuel : Vitest, E2E chromium, firefox et webkit, Axe-core
+#   (Axe-core sur les PR seulement : il poste son rapport en commentaire de la PR).
+# - Push sur main (chaque fusion) et chaque nuit : Vitest et E2E chromium. La CI d'une PR ne
+#   voit pas les fusions faites après elle : un test cassé par une fusion apparaît ici, sur le
+#   commit de main (01/11/2026 : #627 verte, un de ses tests rouge une fois #630 fusionnée).
+#   Firefox et webkit restent sur les PR : trois builds de production pour ~21 min de runner,
+#   contre ~6 min pour chromium seul (médianes de 63 passages de PR, 01/11/2026).
 
 name: "Tests — Unitaires, E2E & Accessibilité"
 
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  # 04:23 UTC, minute décalée des heures pleines. Des tests lisent l'horloge réelle (ex. prix vérifiés
+  # depuis moins de 730 jours, tests/prix-2026/data-integrity.test.ts) et l'image du runner évolue :
+  # un rouge de nuit sans fusion vient de là, pas d'une PR.
+  schedule:
+    - cron: "23 4 * * *"
   workflow_dispatch: {}
 
 # Aucune permission au niveau du workflow (lot 6 Aikido, 28/10/2026) : chaque job
@@ -18,7 +31,9 @@ jobs:
   unit:
     name: "Tests unitaires (Vitest)"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Suite avec couverture : 12,4 min en médiane, 13,5 au p90 (01/11/2026). À 15 min, un passage sur
+    # 150 était coupé en pleine couverture ; sur main, un délai dépassé serait une fausse alerte.
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -62,7 +77,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        # Chromium seul sur push main et la nuit, les trois navigateurs sinon (voir l'en-tête).
+        browser: ${{ fromJSON((github.event_name == 'push' || github.event_name == 'schedule') && '["chromium"]' || '["chromium", "firefox", "webkit"]') }}
     env:
       # Valeur de matrice passée par l'environnement, jamais interpolée dans run:.
       BROWSER: ${{ matrix.browser }}
