@@ -1,4 +1,9 @@
 import type { AlerteMandataireAdHoc } from '@/lib/administrateur-judiciaire/domain/alerte-mandataire-ad-hoc'
+import {
+  controlesAssurancesPno,
+  type LotAssurancePno,
+  type MotifControlePno,
+} from '@/lib/administrateur-judiciaire/domain/assurance-pno-lots'
 import { etapeRecouvrementContentieux, type DossierContentieux } from '@/lib/administrateur-judiciaire/domain/contentieux'
 import { dateLimiteResiliation, factureEnRetard, type FacturationContrat } from '@/lib/administrateur-judiciaire/domain/contrats-facturation'
 import {
@@ -108,6 +113,15 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * inconnue garde le mandat, l'anomalie se lit par bilanStatutsMandats(affectations). Le statut COURANT s'applique, même à
  * une balance âgée datée du passé (aucun historique du statut). Aucun texte ne règle ce statut (relevé du 03/11/2026) :
  * règle de GESTION.
+ * 🔵 Lots (point 71, assurance-pno-lots.ts ; Gestéam tranche 43 § 17, statut PNO des lots avec échéance) : famille
+ * AJOUTÉE par VitFix — aucun bloc PNO dans le réglage Gestéam du syndic (tranche 38 ; seul le bloc « Baux », en
+ * gérance, suit des « Attestations Assurance »). Attestation PNO à renouveler à son échéance, même dépassée ; à obtenir
+ * (échéance absente, illisible, ou PNO « Extérieure + sans contrat ») à la date du jour ; « Pas de PNO » ne produit
+ * rien. L. 1965 art. 9-1 oblige le copropriétaire et le syndicat à s'assurer, sans charger le syndic ni l'administrateur
+ * provisoire d'un contrôle (relevé du 04/11/2026) : règle de GESTION, échéances de contrats. PNO : `aConfirmer` reste
+ * faux (aucun repère juridique) ; une lecture non confirmée du statut (« Sans échéance », « Extérieure + sans contrat »)
+ * est dite dans le libellé. L'équipe de l'immeuble (equipe-immeuble.ts) n'entre pas dans le portefeuille : il reste
+ * fondé sur les trois rôles du mandat.
  */
 
 export const FAMILLES_SUIVI = [
@@ -122,6 +136,7 @@ export const FAMILLES_SUIVI = [
   'sinistres',
   'equipements',
   'diagnostics',
+  'lots',
   'contentieux',
   'exercices',
 ] as const
@@ -140,6 +155,7 @@ export const NATURES_SUIVI = {
   sinistres: ['a_declarer', 'prescription', 'indemnite_differee'],
   equipements: ['a_reviser', 'a_remplacer', 'fin_garantie'],
   diagnostics: ['a_renouveler'],
+  lots: ['pno_a_renouveler', 'pno_a_obtenir'],
   contentieux: ['suite_commandement', 'echeancier_impaye', 'non_regle', 'a_clore'],
   exercices: ['repartition_en_retard', 'alerte_29_1_a'],
 } as const satisfies Record<FamilleSuivi, readonly string[]>
@@ -157,6 +173,7 @@ export const LIBELLES_FAMILLES_SUIVI: Record<FamilleSuivi, string> = {
   sinistres: 'Sinistres',
   equipements: 'Équipements',
   diagnostics: 'Diagnostics',
+  lots: 'Lots (assurance PNO)',
   contentieux: 'Contentieux',
   exercices: 'Exercices',
 }
@@ -192,6 +209,8 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   a_remplacer: 'À remplacer',
   fin_garantie: 'Fin de garantie',
   a_renouveler: 'À renouveler',
+  pno_a_renouveler: 'Attestation PNO à renouveler',
+  pno_a_obtenir: 'Attestation PNO à obtenir',
 }
 
 export interface ElementAFaire {
@@ -994,6 +1013,38 @@ export function depuisDiagnostics(
             }),
           ],
     ),
+  )
+}
+
+const NATURE_CONTROLE_PNO: Readonly<Record<MotifControlePno, NatureSuivi>> = {
+  a_renouveler: 'pno_a_renouveler',
+  echeance_absente: 'pno_a_obtenir',
+  echeance_illisible: 'pno_a_obtenir',
+  attestation_absente: 'pno_a_obtenir',
+}
+
+/**
+ * Assurance PNO des lots (point 71, assurance-pno-lots.controlesAssurancesPno) : attestation à renouveler à son
+ * échéance, même dépassée ; attestation ou échéance à obtenir à la date du jour. Chaque lot vient avec le mandat de
+ * sa copropriété ; la fiche d'origine est le lot. Un lot passé deux fois donne deux fois la même clé : selectionnerAFaire
+ * n'en retient qu'un. Règle de GESTION (échéance d'un contrat) : `aConfirmer` reste faux ; la lecture non confirmée
+ * du statut est dite dans le libellé (controle.message).
+ */
+export function depuisAssurancesPno(
+  items: readonly { mandatId: string; lot: LotAssurancePno }[],
+  aujourdhui: string,
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  return items.flatMap(({ mandatId, lot }) =>
+    controlesAssurancesPno([lot]).map((controle) => {
+      const nature = NATURE_CONTROLE_PNO[controle.motif]
+      return elementSuivi('lots', nature, `${controle.lotId}:${nature}`, {
+        libelle: controle.message,
+        date: controle.date ?? aujourdhui,
+        mandatId,
+        objetId: controle.lotId,
+      })
+    }),
   )
 }
 
