@@ -10,13 +10,18 @@ import {
   cotisationMinimaleFondsTravaux,
   creerReglagesFondsTravaux,
   echeancesCotisationFondsTravaux,
+  lireDecisionAffectationAg,
+  lireOrdonnanceJuge,
   obligationFondsTravaux,
   PPT_INCONNU,
   questionSuspensionFondsTravaux,
   type DecaissementFondsTravaux,
+  type OptionsControleAffectation,
+  type OrdonnanceJuge,
   type SaisieObligationFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import { NATURE_PLAN_COMPTABLE } from '@/lib/data/referentiels-gesteam-judiciaire'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Décision J4 (Hugo Carvalho, 09/10/2026), tranchée sur Légifrance le 28/10/2026 et relue sur le texte officiel le
@@ -146,6 +151,166 @@ describe('J4 — contrôle d’affectation (art. 14-2-1, I et art. 29-14, 2°)',
       '4°',
     ])
     expect(Object.keys(AFFECTATION_FONDS_TRAVAUX)).toHaveLength(10)
+  })
+})
+
+/**
+ * Décision J30 de Hugo (03/11/2026) : l'ordonnance de l'art. 29-14, 2° n'est plus un texte libre. Forme exigée :
+ * juridiction, date et n° de l'ordonnance, chacun obligatoire, date ISO jamais après aujourd'hui. Décision d'affectation
+ * de l'assemblée : date de l'AG et n° de la résolution (🔵 déclinaison à confirmer). Une valeur ancienne en texte libre
+ * reste lisible et admise, signalée « forme incomplète » ; une nouvelle saisie en texte libre est refusée.
+ */
+describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décision d’affectation', () => {
+  const ORDONNANCE: OrdonnanceJuge = { juridiction: 'Tribunal judiciaire de Lyon', date: '2026-09-02', numero: 'RG 26/01234' }
+  const DECISION = { dateAg: '2026-03-12', numeroResolution: '8' }
+  const AU = { aujourdhui: AUJOURDHUI }
+  const parLeJuge = (autorisationJuge: DecaissementFondsTravaux['autorisationJuge'], options: OptionsControleAffectation = AU) =>
+    controlerAffectationFondsTravaux(decaissement({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge }), options)
+  const parAg = (decisionAg: DecaissementFondsTravaux['decisionAg'], options: OptionsControleAffectation = AU) =>
+    controlerAffectationFondsTravaux(decaissement({ objet: 'travaux_ppt', decisionAg }), options)
+
+  it('ordonnance complète (juridiction, date, n°) : usage admis, désignée dans le motif, forme complète', () => {
+    const resultat = parLeJuge(ORDONNANCE)
+    expect(resultat).toMatchObject({ autorise: true, cause: 'admis', fondement: 'L. 1965 art. 29-14', formeIncomplete: null })
+    expect(resultat.motif).toMatch(/ordonnance n° RG 26\/01234 du 02\/09\/2026, Tribunal judiciaire de Lyon/)
+  })
+
+  it.each([
+    ['juridiction', 'juridiction'],
+    ['date', "date de l'ordonnance"],
+    ['numero', "n° de l'ordonnance"],
+  ] as const)('ordonnance sans %s : refus explicite et motivé', (champ, libelle) => {
+    for (const vide of ['', '   ']) {
+      const resultat = parLeJuge({ ...ORDONNANCE, [champ]: vide })
+      expect(resultat).toMatchObject({ autorise: false, cause: 'reference_invalide', fondement: 'L. 1965 art. 29-14', formeIncomplete: null })
+      expect(resultat.motif).toContain(`manque : ${libelle}`)
+      expect(resultat.motif).toContain("forme exigée : juridiction, date et n° de l'ordonnance")
+    }
+  })
+
+  it('ordonnance à qui il manque plusieurs champs : tous nommés', () => {
+    const resultat = parLeJuge({ juridiction: ' ', date: '', numero: 'RG 26/01234' })
+    expect(resultat.motif).toContain("manque : juridiction, date de l'ordonnance")
+  })
+
+  it('date de l’ordonnance non ISO ou postérieure à aujourd’hui : refusée', () => {
+    for (const date of ['02/09/2026', '2026-02-30']) {
+      const resultat = parLeJuge({ ...ORDONNANCE, date })
+      expect(resultat).toMatchObject({ autorise: false, cause: 'reference_invalide' })
+      expect(resultat.motif).toContain("date de l'ordonnance au format AAAA-MM-JJ")
+    }
+    const future = parLeJuge({ ...ORDONNANCE, date: '2026-10-30' })
+    expect(future).toMatchObject({ autorise: false, cause: 'reference_invalide' })
+    expect(future.motif).toMatch(/date de l'ordonnance \(30\/10\/2026\) postérieure à aujourd'hui/)
+    expect(parLeJuge({ ...ORDONNANCE, date: AUJOURDHUI })).toMatchObject({ autorise: true, cause: 'admis' })
+  })
+
+  it('forme structurée sans date du jour, ou date du jour invalide : erreur d’appel', () => {
+    expect(() => parLeJuge(ORDONNANCE, {})).toThrow(/date du jour attendue/)
+    expect(() => parLeJuge(ORDONNANCE, { aujourdhui: '29/10/2026' })).toThrow(/Date du jour invalide/)
+  })
+
+  it('valeur ancienne en texte libre : lisible, admise, signalée « forme incomplète », même sans date du jour', () => {
+    const resultat = parLeJuge(' Ordonnance du 02/09/2026 ', {})
+    expect(resultat).toMatchObject({ autorise: true, cause: 'admis' })
+    expect(resultat.formeIncomplete).toEqual({
+      code: 'forme_incomplete',
+      texte: 'Ordonnance du 02/09/2026',
+      manquants: ['juridiction', "date de l'ordonnance", "n° de l'ordonnance"],
+      message: expect.stringMatching(/saisie en texte libre \(« Ordonnance du 02\/09\/2026 »\) : forme incomplète/),
+    })
+  })
+
+  it('texte blanc ou absent : toujours une autorisation manquante, qui rappelle la forme exigée', () => {
+    for (const vide of [null, undefined, '  ']) {
+      const resultat = parLeJuge(vide)
+      expect(resultat).toMatchObject({ autorise: false, cause: 'autorisation_manquante', formeIncomplete: null })
+      expect(resultat.motif).toContain("juridiction, date et n° de l'ordonnance")
+    }
+  })
+
+  it('🔵 décision d’affectation de l’assemblée : date de l’AG et n° de la résolution', () => {
+    const resultat = parAg(DECISION)
+    expect(resultat).toMatchObject({ autorise: true, cause: 'admis', formeIncomplete: null })
+    expect(resultat.motif).toMatch(/résolution n° 8 de l'assemblée du 12\/03\/2026/)
+    const sansNumero = parAg({ ...DECISION, numeroResolution: ' ' })
+    expect(sansNumero).toMatchObject({ autorise: false, cause: 'reference_invalide', fondement: 'L. 1965 art. 14-2-1, I' })
+    expect(sansNumero.motif).toContain('manque : n° de la résolution')
+    expect(sansNumero.motif).toContain("forme attendue : date de l'assemblée et n° de la résolution")
+    expect(parAg({ ...DECISION, dateAg: '2026-11-02' }).motif).toMatch(/date de l'assemblée \(02\/11\/2026\) postérieure à aujourd'hui/)
+  })
+
+  it('🔵 décision d’affectation ancienne en texte libre : admise, signalée « forme incomplète »', () => {
+    const resultat = parAg('AG du 12/03/2026, résolution 8', {})
+    expect(resultat).toMatchObject({ autorise: true, cause: 'admis' })
+    expect(resultat.formeIncomplete).toMatchObject({
+      texte: 'AG du 12/03/2026, résolution 8',
+      manquants: ["date de l'assemblée", 'n° de la résolution'],
+    })
+    expect(resultat.formeIncomplete?.message).toMatch(/forme incomplète/)
+  })
+
+  it('nouvelle saisie (nouvelleSaisie) : un texte libre est refusé, motif « forme incomplète » à l’appui', () => {
+    const ordonnance = parLeJuge('Ordonnance du 02/09/2026', { ...AU, nouvelleSaisie: true })
+    expect(ordonnance).toMatchObject({ autorise: false, cause: 'reference_invalide', fondement: 'L. 1965 art. 29-14', formeIncomplete: null })
+    expect(ordonnance.motif).toMatch(/saisie en texte libre \(« Ordonnance du 02\/09\/2026 »\) : forme incomplète/)
+    expect(ordonnance.motif).toMatch(/refusée pour une nouvelle saisie/)
+    expect(ordonnance.motif).toContain("forme exigée : juridiction, date et n° de l'ordonnance")
+    const decision = parAg('AG du 12/03/2026, résolution 8', { nouvelleSaisie: true })
+    expect(decision).toMatchObject({ autorise: false, cause: 'reference_invalide', fondement: 'L. 1965 art. 14-2-1, I' })
+    expect(decision.motif).toMatch(/forme incomplète/)
+    expect(decision.motif).toContain("forme attendue : date de l'assemblée et n° de la résolution")
+    expect(parLeJuge(ORDONNANCE, { ...AU, nouvelleSaisie: true })).toMatchObject({ autorise: true, cause: 'admis' })
+    expect(parLeJuge('  ', { ...AU, nouvelleSaisie: true })).toMatchObject({ autorise: false, cause: 'autorisation_manquante' })
+  })
+
+  it('valeur enregistrée lue par un calcul (aujourdhui: null) : forme contrôlée, date non comparée au jour, jamais d’erreur', () => {
+    const lecture = { aujourdhui: null }
+    expect(parLeJuge({ ...ORDONNANCE, date: '2027-01-15' }, lecture)).toMatchObject({ autorise: true, cause: 'admis', formeIncomplete: null })
+    expect(parAg({ ...DECISION, dateAg: '2027-01-15' }, lecture)).toMatchObject({ autorise: true, cause: 'admis' })
+    expect(parLeJuge({ ...ORDONNANCE, numero: '' }, lecture)).toMatchObject({ autorise: false, cause: 'reference_invalide' })
+    expect(parLeJuge({ ...ORDONNANCE, date: '02/09/2026' }, lecture).motif).toContain("date de l'ordonnance au format AAAA-MM-JJ")
+    expect(parLeJuge('Ordonnance du 02/09/2026', lecture)).toMatchObject({ autorise: true, formeIncomplete: { code: 'forme_incomplete' } })
+  })
+
+  it('lecture d’une valeur enregistrée : absente, complète, incomplète (texte ancien ou champ manquant), jamais rejetée', () => {
+    expect(lireOrdonnanceJuge(null)).toEqual({ forme: 'absente' })
+    expect(lireOrdonnanceJuge(' ')).toEqual({ forme: 'absente' })
+    expect(lireOrdonnanceJuge({ juridiction: ' TJ de Lyon ', date: '2026-09-02', numero: ' RG 26/01234' })).toEqual({
+      forme: 'complete',
+      valeur: { juridiction: 'TJ de Lyon', date: '2026-09-02', numero: 'RG 26/01234' },
+    })
+    expect(lireOrdonnanceJuge('Ordonnance du 02/09/2026')).toEqual({
+      forme: 'incomplete',
+      texte: 'Ordonnance du 02/09/2026',
+      manquants: ['juridiction', "date de l'ordonnance", "n° de l'ordonnance"],
+    })
+    expect(lireOrdonnanceJuge({ juridiction: 'TJ de Lyon', date: '2026-09-02' } as unknown as OrdonnanceJuge)).toEqual({
+      forme: 'incomplete',
+      texte: null,
+      manquants: ["n° de l'ordonnance"],
+    })
+    expect(lireDecisionAffectationAg({ dateAg: '2026-03-12', numeroResolution: ' 8 ' })).toEqual({
+      forme: 'complete',
+      valeur: { dateAg: '2026-03-12', numeroResolution: '8' },
+    })
+    expect(lireDecisionAffectationAg('Résolution 12')).toMatchObject({ forme: 'incomplete', texte: 'Résolution 12' })
+  })
+
+  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » avec J30, déclinaison de l’AG à confirmer', () => {
+    const { texte: entete, item } = enTeteDuModule('fonds-travaux')
+    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit du texte'))
+    expect(decisions).toMatch(/J30/)
+    expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
+    expect(decisions).toMatch(/🔵 à confirmer/)
+    expect(decisions).toMatch(/forme incomplète/)
+    expect(decisions).toMatch(/nouvelle saisie.*texte libre.*refusé/)
+    const branchements = item('Branchements à faire (J30)')
+    expect(branchements).toMatch(/fonds-travaux-lots\.ts et avis-appel\.ts.*signalent/)
+    // Tous deux reçoivent la forme structurée (constat J30 de l'avis d'appel) et la contrôlent sans date du jour.
+    expect(branchements).toMatch(/fonds-travaux-lots\.ts et avis-appel\.ts reçoivent la forme structurée.*`aujourdhui: null`/)
+    expect(branchements).toMatch(/travaux-operations\.ts.*perd/)
+    expect(branchements).not.toMatch(/passent encore la décision et l'ordonnance en texte libre \(signalé/)
   })
 })
 

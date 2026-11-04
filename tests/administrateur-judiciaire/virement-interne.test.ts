@@ -71,7 +71,13 @@ const saisie = (surcharge: Partial<SaisieVirementInterne> = {}): SaisieVirementI
   nombreOrdresDuLot: 1,
   ...surcharge,
 })
-const creer = (surcharge: Partial<SaisieVirementInterne> = {}) => creerVirementInterne(saisie(surcharge), { segmentSyndicat: SEGMENT })
+/** Date du jour des saisies (J30 : la date d'une décision ou d'une ordonnance structurée ne la dépasse pas). */
+const AUJOURDHUI = '2026-10-29'
+/** Décision d'affectation de l'assemblée et ordonnance du juge, dans la forme exigée par J30. */
+const DECISION_AG = { dateAg: '2026-06-12', numeroResolution: '14' }
+const ORDONNANCE = { juridiction: 'Tribunal judiciaire de Lyon', date: '2026-09-02', numero: 'RG 26/01234' }
+const creer = (surcharge: Partial<SaisieVirementInterne> = {}) =>
+  creerVirementInterne(saisie(surcharge), { segmentSyndicat: SEGMENT, aujourdhui: AUJOURDHUI })
 /** Émission d'un lot, le 30/10/2026, journal vide et aucun virement connu, sauf surcharge. */
 const emettreLot = (lot: VirementInterne[], options: Partial<Parameters<typeof emettreLotVirementsInternes>[1]> = {}) =>
   emettreLotVirementsInternes(lot, { dateEmission: '2026-10-30', journal: [], virementsConnus: [], ...options })
@@ -142,32 +148,92 @@ describe('sortie du fonds de travaux : décision d’affectation ou ordonnance (
   })
 
   it('travaux du plan avec décision d’assemblée : admise, contrôle d’affectation conservé', () => {
-    const v = sortie({ objet: 'travaux_ppt', decisionAg: 'AG du 12/06/2026, résolution 14' })
+    const v = sortie({ objet: 'travaux_ppt', decisionAg: DECISION_AG })
     expect(v.mouvementFondsTravaux).toBe('sortie')
     expect(v.affectation).toMatchObject({ autorise: true, cause: 'admis' })
-    expect(v.emploiFondsTravaux).toEqual({ objet: 'travaux_ppt', decisionAg: 'AG du 12/06/2026, résolution 14' })
+    expect(v.emploiFondsTravaux).toEqual({ objet: 'travaux_ppt', decisionAg: DECISION_AG })
+    expect(v.emploiFondsTravaux?.decisionAg).not.toBe(DECISION_AG)
   })
 
   it('travaux urgents sans décision, charges courantes : refusées', () => {
     expect(() => sortie({ objet: 'travaux_urgents', decisionAg: null })).toThrow(/décision d'assemblée/)
-    expect(() => sortie({ objet: 'charges_courantes', decisionAg: 'AG du 12/06/2026' })).toThrow(/exclue/)
+    expect(() => sortie({ objet: 'charges_courantes', decisionAg: DECISION_AG })).toThrow(/exclue/)
   })
 
   it('administration provisoire : gestion courante sur ordonnance du juge (art. 29-14, 2°)', () => {
     expect(() => sortie({ objet: 'redressement_29_14', decisionAg: null })).toThrow(/ordonnance/)
-    const v = sortie({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: 'Ordonnance du 02/09/2026' })
+    const v = sortie({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: ORDONNANCE })
     expect(v.affectation?.fondement).toContain('29-14')
+  })
+
+  describe('J30 : ordonnance de l’art. 29-14, 2° en forme structurée (juridiction, date, n°)', () => {
+    const sortieAu = (emploiFondsTravaux: SaisieVirementInterne['emploiFondsTravaux'], { aujourdhui }: { aujourdhui?: string } = { aujourdhui: AUJOURDHUI }) =>
+      creerVirementInterne(saisie({ source: FONDS, destination: COURANT, libelle: 'Gestion courante', emploiFondsTravaux }), {
+        segmentSyndicat: SEGMENT,
+        aujourdhui,
+      })
+
+    it('ordonnance complète : sortie admise, forme complète, ordonnance conservée sur le virement', () => {
+      const v = sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: ORDONNANCE })
+      expect(v.affectation).toMatchObject({ autorise: true, cause: 'admis', formeIncomplete: null })
+      expect(v.emploiFondsTravaux?.autorisationJuge).toEqual(ORDONNANCE)
+      expect(v.emploiFondsTravaux?.autorisationJuge).not.toBe(ORDONNANCE)
+    })
+
+    it('un champ manquant ou une date future : sortie refusée, motif explicite', () => {
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: { ...ORDONNANCE, numero: ' ' } })).toThrow(
+        /Sortie du fonds de travaux refusée : .*manque : n° de l'ordonnance.*forme exigée : juridiction, date et n° de l'ordonnance/,
+      )
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: { ...ORDONNANCE, date: '2026-11-15' } })).toThrow(
+        /postérieure à aujourd'hui/,
+      )
+    })
+
+    it('forme structurée sans date du jour : erreur d’appel', () => {
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: ORDONNANCE }, {})).toThrow(
+        /date du jour attendue/,
+      )
+    })
+
+    it('nouvelle saisie en texte libre (ordonnance ou décision d’AG) : sortie refusée, motif « forme incomplète » à l’appui', () => {
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: 'ok' })).toThrow(
+        /Sortie du fonds de travaux refusée : .*saisie en texte libre \(« ok »\) : forme incomplète, refusée pour une nouvelle saisie ; forme exigée : juridiction, date et n° de l'ordonnance/,
+      )
+      expect(() => sortieAu({ objet: 'redressement_29_14', decisionAg: null, autorisationJuge: 'Ordonnance du 02/09/2026' }, {})).toThrow(
+        /forme incomplète/,
+      )
+      expect(() => sortieAu({ objet: 'travaux_ppt', decisionAg: 'AG du 12/06/2026, résolution 14' })).toThrow(
+        /saisie en texte libre .* forme incomplète, refusée pour une nouvelle saisie ; forme attendue : date de l'assemblée et n° de la résolution/,
+      )
+    })
+
+    it('lot de virements : une sortie du fonds en texte libre fait refuser le lot', () => {
+      const emploiTexte = { objet: 'travaux_ppt' as const, decisionAg: 'Résolution 14' }
+      const sortieDuLot = saisieDuLot({ id: 'vi-2', numero: 'BAB-0002', source: FONDS, destination: COURANT, emploiFondsTravaux: emploiTexte })
+      const options = { traitementId: 't-lot', segmentSyndicat: SEGMENT, aujourdhui: AUJOURDHUI }
+      expect(() => creerLotVirementsInternes([saisieDuLot(), sortieDuLot], options)).toThrow(/forme incomplète, refusée pour une nouvelle saisie/)
+      const structuree = { ...sortieDuLot, emploiFondsTravaux: { ...emploiTexte, decisionAg: DECISION_AG } }
+      expect(creerLotVirementsInternes([saisieDuLot(), structuree], options)[1].affectation).toMatchObject({ autorise: true, formeIncomplete: null })
+    })
+
+    it('🔵 décision d’affectation de l’assemblée : date de l’AG et n° de la résolution', () => {
+      const v = sortieAu({ objet: 'travaux_ppt', decisionAg: { dateAg: '2026-06-12', numeroResolution: '14' } })
+      expect(v.affectation).toMatchObject({ autorise: true, formeIncomplete: null })
+      expect(() => sortieAu({ objet: 'travaux_ppt', decisionAg: { dateAg: '2026-06-12', numeroResolution: '' } })).toThrow(
+        /manque : n° de la résolution/,
+      )
+    })
   })
 
   it('🔴 vers un compte de placement : refusée (aucun texte lu), même avec emploi admis et décision de placement', () => {
     const versPlacement = () =>
-      creer({ source: FONDS, destination: PLACEMENT, emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: 'AG' }, decisionPlacement: 'AG du 12/06/2026, résolution 9' })
+      creer({ source: FONDS, destination: PLACEMENT, emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG }, decisionPlacement: 'AG du 12/06/2026, résolution 9' })
     expect(versPlacement).toThrow(/Fonds de travaux vers un compte de placement : refusé/)
     expect(versPlacement).toThrow(/à trancher/)
   })
 
   it('un emploi rattaché à un virement qui ne sort pas du fonds : refusé (sens à vérifier)', () => {
-    expect(() => creer({ emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: 'AG' } })).toThrow(/ne sort pas du fonds/)
+    expect(() => creer({ emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG } })).toThrow(/ne sort pas du fonds/)
   })
 })
 
@@ -217,7 +283,7 @@ describe('comptes du virement', () => {
     expect(() => solde({ destination: compte({ banqueId: 'b-centr', nature: 'sous_compte_centralisateur', iban: null, compte512: 'TILL.51250.00000.0' }) })).toThrow(/14-2-1/)
     expect(() => solde({ destination: PLACEMENT, decisionPlacement: 'AG' })).toThrow(/Fonds de travaux vers un compte de placement : refusé/)
     expect(solde({ destination: FONDS })).toMatchObject({ mouvementFondsTravaux: 'changement_de_compte', affectation: null })
-    const sortieAdmise = solde({ destination: COURANT, emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: 'AG du 12/06/2026, résolution 14' } })
+    const sortieAdmise = solde({ destination: COURANT, emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG } })
     expect(sortieAdmise).toMatchObject({ mouvementFondsTravaux: 'sortie', affectation: { autorise: true } })
     expect(() => creer({ destination: REPRIS_FONDS })).toThrow(/repris/)
   })
@@ -303,7 +369,7 @@ describe('émission et écriture', () => {
         source: FONDS,
         destination: COURANT,
         montantCentimes: 100_000,
-        emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: 'AG' },
+        emploiFondsTravaux: { objet: 'travaux_ppt', decisionAg: DECISION_AG },
       }),
     ])
     const { traitement } = traitementVirementsInternes([aller, retour], AU_30)
@@ -522,12 +588,12 @@ describe('en-tête : sources et marqueurs', () => {
   })
 
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
-  it('🔴 pose les questions ouvertes (compte de transit, sens inverse, compte centralisateur, annulation)', () => {
+  it('🔴 pose les questions encore ouvertes (compte de transit, sens inverse, textes de la Caisse des dépôts, annulation)', () => {
     for (const attendu of [
       '471, 472',
       "vire-t-il d'abord vers le compte courant",
-      'compte centralisateur',
       'Caisse des dépôts',
       'Annulation',
       'Ajustement bancaire fonds travaux',
@@ -542,14 +608,35 @@ describe('en-tête : sources et marqueurs', () => {
       "le syndic ne peut avancer de fonds au syndicat, à l'exception du syndic provisoire et de l'administrateur provisoire désigné en application des art. 29-1 et 29-11",
     )
     expect(entete).not.toContain('seuls le syndic provisoire')
-    expect(nonEtabli).toContain('D. 1967 art. 46')
-    expect(nonEtabli).toContain("L'administrateur provisoire de l'art. 47")
   })
 
-  it('🔴 la question sur l’emploi du fonds décrit le contrôle réel : décision d’affectation (1° à 4°) ou ordonnance de l’art. 29-14, 2°', () => {
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : J30, J31 et J37 inscrites, leurs questions fermées', () => {
+    expect(decisions).toMatch(/J30/)
+    expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
+    expect(decisions).toMatch(/🔵 à confirmer/)
+    expect(decisions).toMatch(/texte libre est refusé, motif « forme incomplète » à l'appui/)
+    expect(decisions).not.toMatch(/texte libre d'avant J30 reste admise/)
+    expect(decisions).toMatch(/J31/)
+    expect(decisions).toContain('D. 1967 art. 46')
+    expect(decisions).toContain("administrateur provisoire de l'art. 47")
+    expect(decisions).toMatch(/J37/)
+    expect(decisions).toMatch(/compte à la Caisse des dépôts, pas un compte centralisateur du cabinet/)
+    expect(decisions).toContain('art. 18, II, al. 4')
+    expect(nonEtabli).not.toContain("L'administrateur provisoire de l'art. 47, qui n'est pas désigné")
+    expect(nonEtabli).not.toContain('sont des textes libres')
+    expect(nonEtabli).not.toContain('quels textes fondent le compte centralisateur du cabinet')
+  })
+
+  it('🔴 restent ouverts : les textes du dépôt à la Caisse des dépôts, la forme de l’ordonnance de l’art. 29-1 citée comme décision', () => {
+    expect(nonEtabli).toMatch(/textes qui fondent le dépôt à la Caisse des dépôts/)
+    expect(nonEtabli).toMatch(/ordonnance de l'art\. 29-1 qui confie les pouvoirs de l'assemblée/)
+    expect(nonEtabli).toMatch(/ne peut plus la citer en texte libre/)
+    expect(nonEtabli).not.toMatch(/elle reste un texte libre, admis et signalé « forme incomplète »/)
+  })
+
+  it('🔵 l’emploi du fonds décrit le contrôle réel : décision d’affectation (1° à 4°) ou ordonnance de l’art. 29-14, 2°', () => {
     expect(entete).not.toContain("VitFix exige l'une ou l'autre")
     expect(entete).toContain('pour les seules dépenses du I, 1° à 4° (decisionAg)')
     expect(entete).toContain("exigent l'ordonnance de l'art. 29-14, 2° (autorisationJuge)")
-    expect(nonEtabli).toContain("l'ordonnance de l'art. 29-14, 2° (autorisationJuge) sont des textes libres")
   })
 })

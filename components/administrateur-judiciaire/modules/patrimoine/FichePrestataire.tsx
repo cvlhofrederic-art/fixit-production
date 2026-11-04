@@ -101,7 +101,7 @@ export function FichePrestataire({ prestataire, contrats, aujourdhui, onClose, o
               <Section titre="Contacts" icone="users">
                 <Tableau
                   entetes={['Contact, service, agence', 'Civilité', 'Fonction']}
-                  largeurs={[46, 20, 34]}
+                  largeurs={[40, 26, 34]}
                   lignes={(fiche?.contacts ?? []).map((contact) => [contact.nom, contact.civilite ?? '—', contact.fonction])}
                   vide="Aucun contact enregistré."
                 />

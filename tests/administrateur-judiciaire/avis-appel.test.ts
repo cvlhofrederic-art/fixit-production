@@ -26,6 +26,7 @@ import { genererPain008, preparerLotPrelevements } from '@/lib/administrateur-ju
 import { avisDAppel, creerCleRepartition, type EcheanceAppel } from '@/lib/administrateur-judiciaire/domain/repartition-appels'
 import { creerOperationTravaux, echeancesTravaux, emploisFondsTravauxDesTranches } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import { creerCommunicationAdresseElectronique, creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import { enTeteDuModule } from './en-tete-module'
 
 /**
  * Contenu de l'avis d'appel, adaptateur vers le prélèvement SEPA et préparation de la diffusion (point 17 du bilan 2 ;
@@ -236,6 +237,62 @@ describe('emploi du fonds de travaux — information ventilée par compte', () =
     expect(contenu.anomalies).toContainEqual(expect.objectContaining({ code: 'emploi_fonds_non_autorise', gravite: 'bloquant', fondement: 'L. 1965 art. 14-2-1, I' }))
     const sansDecision = contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, affectation: { objet: 'travaux_hors_ppt' } }] }))
     expect(sansDecision.anomalies.map((x) => x.code)).toContain('emploi_fonds_non_autorise')
+  })
+
+  it('J30 : décision ou ordonnance en texte libre (valeur enregistrée) : admise, signalée « forme incomplète », non bloquante', () => {
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [emploi] }))
+    const signalements = contenu.anomalies.filter((x) => x.code === 'emploi_fonds_forme_incomplete')
+    expect(signalements).toEqual([expect.objectContaining({ gravite: 'avertissement', fondement: 'L. 1965 art. 14-2-1, I' })])
+    expect(signalements[0].message).toMatch(
+      /^Ravalement — appel n° 1 \(30 %\) : Décision d'affectation de l'assemblée saisie en texte libre \(« Résolution 8 \(AG du 12\/03\/2026\) »\) : forme incomplète/,
+    )
+    expect(contenu.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+    const parLeJuge = { ...emploi, affectation: { objet: 'redressement_29_14' as const, autorisationJuge: 'Ordonnance du 02/09/2026' } }
+    const juge = contenuAvisAppel(avis, options({ emploisFonds: [parLeJuge] })).anomalies.filter((x) => x.code === 'emploi_fonds_forme_incomplete')
+    expect(juge).toEqual([expect.objectContaining({ gravite: 'avertissement', fondement: 'L. 1965 art. 29-14' })])
+    // Refusé pour un autre motif : la seule anomalie bloquante, sans signalement de forme.
+    const refuse = contenuAvisAppel(avis, options({ emploisFonds: [{ ...emploi, affectation: { objet: 'charges_courantes', decisionAg: 'Résolution 8' } }] }))
+    expect(refuse.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+  })
+
+  it('J30 : décision et ordonnance en forme structurée reçues par l’avis, contrôlées comme valeurs enregistrées (sans date du jour)', () => {
+    const structuree = { ...emploi, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: { dateAg: '2026-03-12', numeroResolution: '8' } } }
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [structuree] }))
+    expect(contenu.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+    expect(contenu.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+    expect([compteDe(contenu, 'cpt-A').emploiFondsTravauxCentimes, compteDe(contenu, 'cpt-B').emploiFondsTravauxCentimes]).toEqual([4_000, 6_000])
+    // Datée après l'émission de l'avis : valeur enregistrée, sa date n'est pas comparée au jour, aucune erreur levée.
+    const posterieure = { ...emploi, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: { dateAg: '2027-06-12', numeroResolution: '14' } } }
+    expect(contenuAvisAppel(avis, options({ emploisFonds: [posterieure] })).anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+    const ordonnance = { juridiction: 'Tribunal judiciaire de Marseille', date: '2026-09-02', numero: 'RG 26/01234' }
+    const parLeJuge = { ...emploi, affectation: { objet: 'redressement_29_14' as const, autorisationJuge: ordonnance } }
+    const juge = contenuAvisAppel(avis, options({ emploisFonds: [parLeJuge] }))
+    expect(juge.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+    expect(juge.anomalies.filter((x) => x.gravite === 'bloquant')).toEqual([])
+  })
+
+  it('J30 : forme structurée incomplète reçue par l’avis : refus bloquant qui nomme ce qui manque, sans signalement de forme', () => {
+    const incomplete = { ...emploi, affectation: { objet: 'travaux_hors_ppt' as const, decisionAg: { dateAg: '2026-03-12', numeroResolution: ' ' } } }
+    const contenu = contenuAvisAppel(avis, options({ emploisFonds: [incomplete] }))
+    const refus = contenu.anomalies.filter((x) => x.code === 'emploi_fonds_non_autorise')
+    expect(refus).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 14-2-1, I' })])
+    expect(refus[0].message).toMatch(/manque : n° de la résolution/)
+    expect(contenu.anomalies.map((x) => x.code)).not.toContain('emploi_fonds_forme_incomplete')
+    const ordonnanceSansNumero = { juridiction: 'Tribunal judiciaire de Marseille', date: '2026-09-02', numero: '' }
+    const sansNumero = { ...emploi, affectation: { objet: 'redressement_29_14' as const, autorisationJuge: ordonnanceSansNumero } }
+    const juge = contenuAvisAppel(avis, options({ emploisFonds: [sansNumero] })).anomalies.filter((x) => x.code === 'emploi_fonds_non_autorise')
+    expect(juge).toEqual([expect.objectContaining({ gravite: 'bloquant', fondement: 'L. 1965 art. 29-14' })])
+    expect(juge[0].message).toMatch(/manque : n° de l'ordonnance/)
+  })
+
+  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » (J30, forme structurée reçue, signalement non bloquant, branchement de travaux-operations à faire)', () => {
+    const decisions = enTeteDuModule('avis-appel').item('J30 :')
+    expect(decisions).toMatch(/emploi_fonds_forme_incomplete/)
+    expect(decisions).toMatch(/avertissement/)
+    expect(decisions).toMatch(/travaux-operations\.ts/)
+    expect(decisions).toMatch(/types de DecaissementFondsTravaux/)
+    expect(decisions).toMatch(/`aujourdhui: null`/)
+    expect(decisions).not.toMatch(/tant que son branchement n'est pas fait/)
   })
 
   it('refuse un emploi sur une échéance qui n’est pas de travaux, inconnue ou en double', () => {

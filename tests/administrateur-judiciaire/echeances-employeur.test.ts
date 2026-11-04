@@ -126,24 +126,61 @@ describe('DSN (CSS R133-14 et R243-6)', () => {
     expect(dsn[1].cle).toBe('dsn:2024-11')
   })
 
-  it('DSN prorogée au jour ouvrable suivant (R133-14, I), mais pas le versement des cotisations (R243-6, II : aucun report lu)', () => {
+  it('J28 : DSN (R133-14, I) et versement des cotisations (décision J28) reportés au même jour ouvrable : une seule échéance', () => {
     const toutes = echeances() // DSN de 10/2026 : le 15/11/2026 est un dimanche
-    expect(de(toutes, 'dsn').map((e) => [e.cle, e.date, e.libelle])).toEqual([['dsn:2026-10', '2026-11-16', 'DSN de 10/2026']])
-    expect(de(toutes, 'versement_cotisations')).toMatchObject([
-      { cle: 'cotisations:2026-10', date: '2026-11-15', libelle: 'Versement des cotisations de 10/2026', aConfirmer: false, fondement: 'CSS art. R243-6, II' },
+    expect(de(toutes, 'dsn').map((e) => [e.cle, e.date, e.libelle, e.fondement])).toEqual([
+      [
+        'dsn:2026-10',
+        '2026-11-16',
+        'DSN de 10/2026 et versement des cotisations',
+        'CSS art. L133-5-3, R133-14, I et R243-6, II ; versement reporté au jour ouvrable suivant (décision J28)',
+      ],
     ])
+    expect(de(toutes, 'versement_cotisations')).toEqual([])
     const ouvrable = echeances({ derniereDsn: { annee: 2026, mois: 7 }, radiationLe: '2026-08-20' }) // 15/09/2026 : un mardi
-    expect(de(ouvrable, 'dsn').map((e) => e.libelle)).toEqual(['DSN de 08/2026 et versement des cotisations'])
+    expect(de(ouvrable, 'dsn').map((e) => [e.libelle, e.fondement])).toEqual([
+      ['DSN de 08/2026 et versement des cotisations', 'CSS art. L133-5-3, R133-14, I et R243-6, II'],
+    ])
     expect(de(ouvrable, 'versement_cotisations')).toEqual([])
   })
 
-  it('versement trimestriel : le 15 du mois qui suit le trimestre, sans report, même quand la DSN est prorogée', () => {
+  it('J28 : versement des cotisations reporté au jour ouvrable suivant, aux bornes (samedi, dimanche, férié, pont, veille de pont)', () => {
+    const mensuel = { effectif: 1, paieDuMoisMeme: true, versementTrimestrielCotisations: false }
+    const leCinq = { effectif: 50, paieDuMoisMeme: true, versementTrimestrielCotisations: false }
+    const date = (annee: number, mois: number, etat = mensuel, options = {}) => versementCotisations({ annee, mois }, etat, options)?.date
+    expect(date(2027, 12, mensuel)).toBe('2028-01-17') // 15/01/2028 : samedi → lundi 17
+    expect(date(2026, 10)).toBe('2026-11-16') // 15/11/2026 : dimanche → lundi 16
+    expect(date(2028, 7)).toBe('2028-08-16') // 15/08/2028 : mardi férié (Assomption) → mercredi 16
+    expect(date(2031, 7)).toBe('2031-08-18') // 15/08/2031 : vendredi férié, puis le week-end → lundi 18
+    expect(date(2028, 5, leCinq)).toBe('2028-06-06') // 05/06/2028 : lundi de Pentecôte → mardi 6
+    expect(date(2026, 4)).toBe('2026-05-15') // 15/05/2026 : vendredi de pont (lendemain de l'Ascension), jour ouvrable : aucun report
+    expect(date(2027, 4, leCinq)).toBe('2027-05-05') // 05/05/2027 : mercredi, veille de l'Ascension : aucun report
+    expect(date(2026, 8)).toBe('2026-09-15') // 15/09/2026 : mardi ordinaire
+    // Alsace-Moselle (réglage) : le Vendredi saint 15/04/2033, puis le lundi de Pâques → mardi 19.
+    expect(date(2033, 3)).toBe('2033-04-15')
+    expect(date(2033, 3, mensuel, { alsaceMoselle: true })).toBe('2033-04-19')
+    expect(de(echeances({ derniereDsn: { annee: 2033, mois: 2 } }, { alsaceMoselle: true }, '2033-03-20'), 'dsn')).toMatchObject([
+      { cle: 'dsn:2033-03', date: '2033-04-19', libelle: 'DSN de 03/2033 et versement des cotisations' },
+    ])
+  })
+
+  it('J28 : versement reporté, avec la justification du report ; sans report, le seul texte', () => {
+    const mensuel = { effectif: 1, paieDuMoisMeme: true, versementTrimestrielCotisations: false }
+    expect(versementCotisations({ annee: 2026, mois: 10 }, mensuel)).toMatchObject({
+      date: '2026-11-16',
+      libelle: 'Versement des cotisations de 10/2026',
+      fondement: 'CSS art. R243-6, II ; versement reporté au jour ouvrable suivant (décision J28)',
+    })
+    expect(versementCotisations({ annee: 2026, mois: 8 }, mensuel)).toMatchObject({ date: '2026-09-15', fondement: 'CSS art. R243-6, II' })
+  })
+
+  it('versement trimestriel : le 15 du mois qui suit le trimestre, reporté comme la DSN (J28)', () => {
     const trimestriel = { effectif: 1, paieDuMoisMeme: true, versementTrimestrielCotisations: true }
     expect(dateEcheanceDsn({ annee: 2027, mois: 12 }, trimestriel)).toBe('2028-01-17') // 15/01/2028 : un samedi
     expect(versementCotisations({ annee: 2027, mois: 12 }, trimestriel)).toMatchObject({
-      date: '2028-01-15',
+      date: '2028-01-17',
       libelle: 'Versement des cotisations du trimestre achevé en 12/2027',
-      fondement: 'CSS art. R243-6-1',
+      fondement: 'CSS art. R243-6-1 ; versement reporté au jour ouvrable suivant (décision J28)',
     })
     expect(versementCotisations({ annee: 2027, mois: 11 }, trimestriel)).toBeNull()
   })
@@ -166,10 +203,23 @@ describe('santé au travail', () => {
     expect(de(echeances({ adhesionSanteTravailLe: null, salaries: [sorti], suivisMedicaux: [] }), 'adhesion_sante_travail')).toEqual([])
   })
 
-  it('visite d’information et de prévention : trois mois après l’entrée, sans visite connue', () => {
-    expect(de(echeances({ suivisMedicaux: [] }), 'medecine_travail')).toMatchObject([
-      { date: '2024-06-01', salarieId: 'sal-1', fondement: 'C. trav. art. R4624-10', aConfirmer: false },
+  it('visite d’information et de prévention : au plus tard trois mois après l’entrée, plafond du seul suivi simple : à confirmer (🔴 9)', () => {
+    // Travailleur de nuit ou de moins de dix-huit ans : visite « préalablement à son affectation sur le poste » (R4624-18) ;
+    // suivi individuel renforcé : examen médical d'aptitude, lui aussi préalable (R4624-24). Ni la catégorie de suivi ni
+    // l'âge ne sont modélisés : la date à trois mois de l'entrée (R4624-10) n'est donc pas certaine.
+    const [visite] = de(echeances({ suivisMedicaux: [] }), 'medecine_travail')
+    expect(visite).toMatchObject({ date: '2024-06-01', salarieId: 'sal-1', fondement: 'C. trav. art. R4624-10', aConfirmer: true })
+    expect(visite.libelle).toBe(
+      "Visite d'information et de prévention (suivi simple : au plus tard 3 mois après l'entrée ; travailleur de nuit, de moins de 18 ans ou en suivi renforcé : avant l'affectation, saisir la visite fixée)",
+    )
+    // Cas du constat : gardien entré le 01/10/2026, aucun suivi saisi, réglages par défaut.
+    const recrue = creerSalarieSyndicat({ ...gardien, entreeLe: '2026-10-01' })
+    expect(de(echeancesEmployeur(etat({ salaries: [recrue], suivisMedicaux: [] }), AUJ), 'medecine_travail')).toMatchObject([
+      { date: '2027-01-01', aConfirmer: true, fondement: 'C. trav. art. R4624-10' },
     ])
+    // Visite fixée par le service de santé au travail, même avant l'affectation : elle prime, certaine.
+    const fixee = [{ salarieId: 'sal-1', derniereVisiteLe: null, prochaineLe: '2024-02-26' }]
+    expect(de(echeances({ suivisMedicaux: fixee }), 'medecine_travail')).toMatchObject([{ date: '2024-02-26', aConfirmer: false }])
   })
 
   it('date fixée par le service de santé au travail : elle prime', () => {
@@ -179,17 +229,36 @@ describe('santé au travail', () => {
 
   it('prochaine visite dépassée par une visite passée depuis (ou le jour même) : ignorée, visite périodique calculée', () => {
     const perimee = [{ salarieId: 'sal-1', derniereVisiteLe: '2026-06-01', prochaineLe: '2026-05-15' }]
-    expect(de(echeances({ suivisMedicaux: perimee }), 'medecine_travail')).toMatchObject([{ date: '2028-06-01', fondement: 'CCN IDCC 1043, art. 13' }])
+    expect(de(echeances({ suivisMedicaux: perimee }), 'medecine_travail')).toMatchObject([{ date: '2031-06-01', fondement: 'C. trav. art. R4624-16' }])
     const faiteAuJourPrevu = [{ salarieId: 'sal-1', derniereVisiteLe: '2026-05-15', prochaineLe: '2026-05-15' }]
-    expect(de(echeances({ suivisMedicaux: faiteAuJourPrevu }), 'medecine_travail')).toMatchObject([{ date: '2028-05-15' }])
+    expect(de(echeances({ suivisMedicaux: faiteAuJourPrevu }), 'medecine_travail')).toMatchObject([{ date: '2031-05-15' }])
   })
 
-  it('visite périodique : CCN (2 ans) par défaut, Code du travail (5 ans au plus) au choix ; 🔴 à confirmer', () => {
+  it('J26 : visite périodique selon le Code du travail par défaut (au plus 5 ans, R4624-16) ; la CCN (2 ans) en option', () => {
+    expect(REGLAGES_SUIVI_EMPLOYEUR_PAR_DEFAUT.referenceMedicale).toBe('code_du_travail')
     expect(datesVisitePeriodique('2025-05-01')).toEqual({ ccn1043: '2027-05-01', codeDuTravailAuPlusTard: '2030-05-01' })
-    expect(de(echeances(), 'medecine_travail')).toMatchObject([{ date: '2027-05-01', aConfirmer: true, fondement: 'CCN IDCC 1043, art. 13' }])
-    expect(de(echeances({}, { referenceMedicale: 'code_du_travail' }), 'medecine_travail')).toMatchObject([
-      { date: '2030-05-01', aConfirmer: true, fondement: 'C. trav. art. R4624-16' },
+    expect(de(echeancesEmployeur(etat(), AUJ), 'medecine_travail')).toMatchObject([
+      {
+        date: '2030-05-01',
+        libelle: 'Renouvellement de la visite (suivi simple : au plus tard 5 ans ; suivi adapté ou renforcé : saisir la prochaine visite)',
+        fondement: 'C. trav. art. R4624-16',
+      },
     ])
+    expect(de(echeances({}, { referenceMedicale: 'ccn_1043' }), 'medecine_travail')).toMatchObject([
+      { date: '2027-05-01', aConfirmer: true, fondement: 'CCN IDCC 1043, art. 13' },
+    ])
+  })
+
+  it('J26 : sans prochaine visite saisie, les 5 ans ne sont que le plafond du suivi simple (R4624-16) : à confirmer (🔴 9)', () => {
+    // Gardien en suivi adapté (travailleur handicapé, pension d'invalidité, travail de nuit) : R4624-17, trois ans au plus,
+    // soit le 01/05/2028 ; la catégorie de suivi n'est pas modélisée, la date du 01/05/2030 n'est donc pas certaine.
+    const [visite] = de(echeancesEmployeur(etat(), AUJ), 'medecine_travail')
+    expect(visite).toMatchObject({ date: '2030-05-01', aConfirmer: true, fondement: 'C. trav. art. R4624-16' })
+    expect(visite.libelle).toMatch(/suivi simple/)
+    expect(visite.libelle).toMatch(/saisir la prochaine visite/)
+    // La prochaine visite saisie (fixée par le service de santé au travail) prime, et elle est certaine.
+    const fixee = [{ salarieId: 'sal-1', derniereVisiteLe: '2025-05-01', prochaineLe: '2028-05-01' }]
+    expect(de(echeances({ suivisMedicaux: fixee }), 'medecine_travail')).toMatchObject([{ date: '2028-05-01', aConfirmer: false }])
   })
 
   it('salarié sorti : plus de visite à suivre', () => {
@@ -215,8 +284,20 @@ describe('santé au travail', () => {
     ])
     expect(de(echeances({ arrets: [{ ...arret, visiteRepriseLe: '2026-08-17' }] }), 'visite_reprise')).toEqual([])
     expect(de(echeances({ arrets: [{ ...arret, du: '2026-05-01' }] }), 'visite_reprise')).toMatchObject([{ aConfirmer: true }])
-    expect(de(echeances({ arrets: [{ ...arret, motif: 'non_professionnel' }] }), 'visite_reprise')).toMatchObject([
+    // Maladie non professionnelle de 45 jours : aucune reprise exigée par le Code (60 jours) ; la seule CCN, en option.
+    expect(de(echeances({ arrets: [{ ...arret, motif: 'non_professionnel' }] }), 'visite_reprise')).toEqual([])
+    expect(de(echeances({ arrets: [{ ...arret, motif: 'non_professionnel' }] }, { referenceMedicale: 'ccn_1043' }), 'visite_reprise')).toMatchObject([
       { aConfirmer: true, fondement: 'CCN IDCC 1043, art. 13' },
+    ])
+  })
+
+  it('J26 : visite de reprise après 60 jours d’arrêt non professionnel par défaut (R4624-31, 4°), borne incluse', () => {
+    const arret = { id: 'arr-1', salarieId: 'sal-1', motif: 'non_professionnel' as const, du: '2026-07-01', visiteRepriseLe: null }
+    expect(visiteRepriseRequise({ ...arret, repriseLe: '2026-08-29' }, 'code_du_travail')).toBe(false) // 59 jours
+    expect(visiteRepriseRequise({ ...arret, repriseLe: '2026-08-30' }, 'code_du_travail')).toBe(true) // 60 jours
+    expect(de(echeances({ arrets: [{ ...arret, repriseLe: '2026-08-29' }] }), 'visite_reprise')).toEqual([])
+    expect(de(echeances({ arrets: [{ ...arret, repriseLe: '2026-08-30' }] }), 'visite_reprise')).toMatchObject([
+      { cle: 'visite_reprise:arr-1', date: '2026-09-07', aConfirmer: false, fondement: 'C. trav. art. R4624-31' },
     ])
   })
 
@@ -241,8 +322,10 @@ describe('DUERP (C. trav. R4121-1 à R4121-4, L4121-3-1)', () => {
     ])
   })
 
-  it('moins de 11 salariés : rappel de gestion seulement (réglable, désactivable)', () => {
-    expect(de(echeances(), 'duerp')).toMatchObject([{ cle: 'duerp:revue', date: '2027-02-01', nature: 'gestion' }])
+  it('J27 : moins de 11 salariés, rappel de gestion de 12 mois (décision), réglable et désactivable', () => {
+    expect(REGLAGES_SUIVI_EMPLOYEUR_PAR_DEFAUT.rappelDuerpMois).toBe(12)
+    expect(de(echeances(), 'duerp')).toMatchObject([{ cle: 'duerp:revue', date: '2027-02-01', nature: 'gestion', aConfirmer: false }])
+    expect(versElementsAFaire(de(echeances(), 'duerp'), 'mandat-1')).toMatchObject([{ aConfirmer: true }])
     expect(de(echeances({}, { rappelDuerpMois: 24 }), 'duerp')).toMatchObject([{ date: '2028-02-01' }])
     expect(de(echeances({}, { rappelDuerpMois: null }), 'duerp')).toEqual([])
   })
@@ -453,7 +536,7 @@ describe('assemblage et adaptateur vers le suivi « à faire »', () => {
       id: 'mandat:mandat-1:employeur:dsn:2026-10',
       famille: 'mandat',
       nature: 'echeance_legale',
-      libelle: 'DSN de 10/2026',
+      libelle: 'DSN de 10/2026 et versement des cotisations',
       date: '2026-11-16',
       mandatId: 'mandat-1',
       objetId: null,
@@ -470,6 +553,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
   const entete = source.slice(0, source.indexOf('*/')).replaceAll(/\s*\n\s*\*\s*/g, ' ')
   const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
   const deduit = entete.slice(entete.indexOf('🔵 Déduit'), entete.indexOf('🔴 Non établi'))
+  const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
 
   it('Gestéam : l’absence de calcul de ces échéances est une observation (🔵), pas un fait lu (🟢)', () => {
     const lu = entete.slice(entete.indexOf('Gestéam —'), entete.indexOf('Le droit —'))
@@ -482,9 +566,53 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(nonEtabli).toMatch(/§ 180/)
   })
 
-  it('🔴 : le report du versement des cotisations au jour ouvrable suivant n’est pas établi', () => {
-    expect(nonEtabli).toMatch(/versement des cotisations/)
+  it('J28 : le report du versement des cotisations est une décision (pratique de l’Urssaf), pas un texte lu', () => {
+    expect(decisions).toMatch(/J28/)
+    expect(decisions).toMatch(/aucun texte lu/)
+    expect(nonEtabli).not.toMatch(/versement des cotisations/)
     expect(deduit).not.toMatch(/même jour, le 15/)
+  })
+
+  it('J26 : R4624-16, R4624-28 et R4624-31 relus sur Légifrance, version en vigueur au 03/11/2026, cités exactement', () => {
+    expect(entete).toMatch(/En vigueur au 03\/11\/2026/)
+    expect(entete).toMatch(/selon une périodicité qui ne peut excéder cinq ans\. Ce délai, qui prend en compte les conditions de travail/)
+    expect(entete).toMatch(/selon une périodicité qu'il détermine et qui ne peut être supérieure à quatre ans\. Une visite intermédiaire/)
+    expect(entete).toMatch(/au plus tard deux ans après la visite avec le médecin du travail »/)
+    expect(entete).toMatch(/4° Après une absence d'au moins soixante jours pour cause de maladie ou d'accident non professionnel\. »/)
+    expect(entete).toMatch(/et au plus tard dans un délai de huit jours qui suivent cette reprise »/)
+    expect(entete).toMatch(/décret n° 2026-503 du 12 juin 2026, art\. 2/)
+    expect(decisions).toMatch(/J26/)
+    expect(decisions).toMatch(/J27/)
+  })
+
+  it('J26 : R4624-17 cité exactement (suivi adapté, 3 ans) ; les 5 ans, plafond du seul suivi simple ; catégorie de suivi en 🔴', () => {
+    expect(entete).toMatch(
+      /R4624-17 \(même version\) : .*les travailleurs handicapés, les travailleurs qui déclarent être titulaires d'une pension d'invalidité et les travailleurs de nuit mentionnés à l'article L\. 3122-5.* selon une périodicité qui n'excède pas une durée de trois ans\. »/,
+    )
+    expect(deduit).toMatch(/R4624-17 : « selon une périodicité qui n'excède pas une durée de trois ans »/)
+    expect(decisions).toMatch(/plafond du seul suivi individuel simple \(R4624-16\)/)
+    expect(nonEtabli).toMatch(/9\. Frédéric ou Hugo : la catégorie de suivi du salarié/)
+  })
+
+  it('visite initiale : R4624-18 et R4624-24 cités exactement ; les trois mois, plafond du seul suivi simple, à confirmer (🔴 9)', () => {
+    expect(entete).toMatch(
+      /R4624-18 \(même version\) : « Tout travailleur de nuit mentionné à l'article L\. 3122-5 et tout travailleur âgé de moins de dix-huit ans bénéficie d'une visite d'information et de prévention réalisée par un professionnel de santé mentionné au premier alinéa de l'article L\. 4624-1 préalablement à son affectation sur le poste\. »/,
+    )
+    expect(entete).toMatch(
+      /R4624-24 \(même version\) : « Le suivi individuel renforcé comprend un examen médical d'aptitude, qui se substitue à la visite d'information et de prévention prévue à l'article R\. 4624-10\. Il est effectué par le médecin du travail préalablement à l'affectation sur le poste\. »/,
+    )
+    expect(deduit).toMatch(/sans visite connue : visite d'information et de prévention au plus tard trois mois après l'entrée, « à confirmer » \(🔴 9\)/)
+    expect(nonEtabli).toMatch(/la date à trois mois de l'entrée reste « à confirmer », elle aussi/)
+    // Une déduction, pas une décision de Hugo : la rubrique J26 à J28 n'en dit rien.
+    expect(decisions).not.toMatch(/R4624-24|trois mois de l'entrée/)
+  })
+
+  it('R4624-31 : dérogation du 3e alinéa citée exactement, reliée à la dispense constatée (visiteRepriseLe)', () => {
+    expect(entete).toMatch(
+      /« Par dérogation aux dispositions des alinéas précédents, et sauf demande du médecin du travail, de l'employeur ou du travailleur, la visite de reprise n'est pas requise si l'ensemble des conditions suivantes sont réunies : 1° Le travailleur a bénéficié d'une visite de préreprise prévue à l'article L\. 4624-2-4 dans les trente jours précédant sa reprise effective du travail ; 2° Lors de cette visite de préreprise, le médecin du travail a conclu qu'aucune mesure individuelle d'aménagement, d'adaptation ou de transformation du poste ni aucune mesure d'aménagement du temps de travail n'était nécessaire en vue de la reprise\. »/,
+    )
+    const sourceAplatie = source.replaceAll(/\s*\n\s*\*\s*/g, ' ')
+    expect(sourceAplatie).toMatch(/dispense constatée au sens de R4624-31, 3e alinéa/)
   })
 
   it('sources Gestéam, droit relu et marqueurs', () => {
@@ -493,10 +621,10 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     for (const marqueur of ['🟢', '🔵', '🔴']) expect(entete).toContain(marqueur)
   })
 
-  it('🔴 questions exactes : CCN ou Code du travail, exonération de taxe sur les salaires, DUERP sous 11 salariés', () => {
-    expect(nonEtabli).toMatch(/faut-il retenir la CCN IDCC 1043, art\. 13/)
+  it('🔴 restants : exonération de taxe sur les salaires ; plus les questions tranchées (CCN ou Code, DUERP, report)', () => {
     expect(nonEtabli).toMatch(/bénéficie-t-il de l'exonération de taxe sur les salaires/)
-    expect(nonEtabli).toMatch(/rappel de gestion de 12 mois/)
+    expect(nonEtabli).not.toMatch(/faut-il retenir la CCN IDCC 1043, art\. 13/)
+    expect(nonEtabli).not.toMatch(/rappel de gestion de 12 mois/)
   })
 
   it('aucune date ISO dans la source', () => {
