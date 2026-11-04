@@ -73,11 +73,24 @@ const lirePersonnes = (): Record<string, string> => {
   return personnes && typeof personnes === 'object' && !Array.isArray(personnes) ? (personnes as Record<string, string>) : {}
 }
 
-/** Paramètres du lien direct depuis l'AJ (?aj=LM&personne=P1). */
-function lireParametres(): { code: string | null; personne: string | null } {
+/**
+ * Lien direct depuis l'AJ (?aj=LM&personne=P1) : les paramètres sont lus une fois, mémorisés comme des choix faits dans
+ * la barre (source, copropriété partagée avec l'AJ, copropriétaire), puis retirés de l'adresse. Un rechargement ou un
+ * changement d'écran garde ainsi la vue reliée, et un choix fait ensuite dans la barre n'est pas écrasé par l'adresse.
+ */
+function consommerParametres(): { code: string | null; personne: string | null } {
   if (typeof window === 'undefined') return { code: null, personne: null }
-  const p = new URLSearchParams(window.location.search)
-  return { code: p.get('aj'), personne: p.get('personne') }
+  const url = new URL(window.location.href)
+  const code = url.searchParams.get('aj')
+  const personne = url.searchParams.get('personne')
+  if (!code) return { code: null, personne: null }
+  ecrire(CLE_SOURCE_PORTAIL, 'aj')
+  ecrire(CLE_COPRO_AJ, JSON.stringify(code))
+  if (personne) ecrire(CLE_PERSONNE_PORTAIL, JSON.stringify({ ...lirePersonnes(), [code]: personne }))
+  url.searchParams.delete('aj')
+  url.searchParams.delete('personne')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  return { code, personne }
 }
 
 export interface SourceAj {
@@ -113,7 +126,7 @@ export function useSourceAj(superAdmin: boolean): SourceAj {
   // du syndic (comportement historique du portail).
   useEffect(() => {
     if (!superAdmin) return
-    const parametres = lireParametres()
+    const parametres = consommerParametres()
     const sourceMemorisee = lire(CLE_SOURCE_PORTAIL)
     // Choix lus après le premier rendu (stockage du navigateur) : l'état de départ reste celui du rendu serveur.
     setSource(parametres.code || sourceMemorisee === 'aj' ? 'aj' : 'syndic')

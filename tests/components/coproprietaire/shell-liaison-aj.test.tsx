@@ -118,6 +118,11 @@ describe('portail relié à l’Administrateur judiciaire (super admin)', () => 
     render(<Page />)
     await attendre(() => expect(screen.getByTestId('personne')).toHaveTextContent('Antoine Rousseau'))
     expect(screen.getByTestId('source')).toHaveTextContent('aj')
+    // Paramètres mémorisés comme des choix de la barre, puis retirés de l'adresse : un rechargement garde la vue reliée.
+    expect(window.location.search).toBe('')
+    expect(localStorage.getItem('vitfix.liaison.copro-aj.source')).toBe('aj')
+    expect(localStorage.getItem('vitfix.aj.dossierEnCours')).toBe('"TL"')
+    expect(JSON.parse(localStorage.getItem('vitfix.liaison.copro-aj.personne') ?? '{}')).toEqual({ TL: 'P7' })
   })
 
   it('une demande déposée sur le portail arrive dans la liaison et revient dans « Mes demandes » en direct', async () => {
