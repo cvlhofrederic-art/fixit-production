@@ -20,13 +20,19 @@ import {
   REGLES_VISA_PAR_DEFAUT,
   VISAS_PERMETTANT_ENVOI,
   VISAS_SORTIE,
+  anomaliesCircuitVisa,
+  appliquerActionVisa,
+  attendusOs,
   autorisationConvention,
+  circuitVisaInitial,
   controlerAvantEnvoiOs,
   creerSortieOs,
   demandeEnvoiDepuisOs,
   demanderVisa,
   devisCaducALaReception,
   donnerVisa,
+  ecartArCourrier,
+  enregistrerRapport,
   enregistrerReception,
   envoyerOs,
   estEnvoye,
@@ -41,16 +47,25 @@ import {
   numeroterDemande,
   premierEnvoi,
   preuveDeDiffusion,
+  preuveDeReception,
+  preuveReceptionOs,
   rangOsSuivant,
   refuserVisa,
   relancerOs,
   relancesOsDues,
+  revoirCircuitVisa,
   revoirVisa,
+  visaPermetSortie,
+  type CircuitVisa,
+  type ConstatUrgence,
   type ContexteEnvoiOs,
+  type EvenementDiffusion,
   type OptionsVisa,
+  type PieceVisee,
   type ReglesVisaOs,
   type SaisieDiffusion,
   type SaisieEvenementVisa,
+  type SaisieReception,
   type SaisieSortieOs,
   type SortieOrdreService,
 } from '@/lib/administrateur-judiciaire/domain/envoi-ordre-service'
@@ -64,7 +79,9 @@ import { ajOrdrePrestataireSchema } from '@/lib/validation'
  * Ordres de service : numérotation, visa de sortie, envoi et journal de diffusion (point 44 du bilan 2 ; Gestéam, tranche
  * 34 : N° <mandat>.<plan>.<n°>, Signature, Délai, Envoi, Relance, Diffuser, journal de diffusion ; tranche 40 : référentiel
  * Visa de sortie). Droit relu le 30/10/2026 : L. 1965 art. 18, 18-1 A, 21, 21-1 à 21-3, 25, 29-1, 42 ; D. 1967 art. 19-2,
- * 37, 39, 62-7, 62-8 ; C. civ. art. 1117, 1118, 1121, 1126, 1127, 1127-4 ; loi n° 2004-575 art. 1er, IV.
+ * 37, 39, 62-7, 62-8 ; C. civ. art. 1117, 1118, 1121, 1126, 1127, 1127-4 ; loi n° 2004-575 art. 1er, IV ; L. 1965
+ * art. 18, IV, 29-1, I et 42, al. 2 et 3 relus le 04/11/2026 (versions en vigueur au 03/11/2026). Décisions de Hugo du
+ * 03/11/2026 : J11 à J19.
  */
 
 const modele = (nature: string): ModeleDemande => {
@@ -174,6 +191,9 @@ const envoyee = (s: SortieOrdreService = sortie(), d: Demande = demande()) => en
 
 const PRIX_6600_TTC = { montantTtcCentimes: 660_000, remiseCentimes: 0, tauxTvaPct: 10, baseHtCentimes: 600_000 }
 
+/** Constat de l'urgence par l'administrateur provisoire (décision de Hugo du 03/11/2026) : daté, motivé, attribué. */
+const CONSTAT: ConstatUrgence = { constateLe: '2026-10-02', motif: 'Fuite active sur colonne', collaborateurId: 'col-direction' }
+
 describe('référentiels du point 44', () => {
   it('Visa de sortie : les 5 valeurs de la tranche 40 ; seuls « Visa donné » et « Sortie libre » laissent partir l’OS', () => {
     expect([...VISAS_SORTIE]).toEqual(['Demande de visa', 'Visa refusé', 'Visa nécessaire', 'Visa donné', 'Sortie libre'])
@@ -272,11 +292,11 @@ describe('visa de sortie : motifs et création', () => {
     expect(motifs[0].fondement).toMatch(/D\. 1967 art\. 39/)
   })
 
-  it('administrateur provisoire au titre des pouvoirs de l’assemblée : avis du conseil syndical, sauf urgence motivée (D. 1967 art. 62-7)', () => {
+  it('administrateur provisoire au titre des pouvoirs de l’assemblée : avis du conseil syndical, sauf urgence constatée par l’administrateur provisoire (D. 1967 art. 62-7)', () => {
     const aj = sortie(demande(), { fondement: 'decision_aj_pouvoirs_ag' })
     expect(aj.visa).toBe('Visa nécessaire')
     expect(aj.motifsVisa).toEqual(['avis_conseil_syndical_aj'])
-    const urgente = sortie(demande(), { fondement: 'decision_aj_pouvoirs_ag', delai: 'urgence', motifUrgence: 'Fuite active sur colonne' })
+    const urgente = sortie(demande(), { fondement: 'decision_aj_pouvoirs_ag', delai: 'urgence', constatUrgence: CONSTAT })
     expect(urgente.visa).toBe('Sortie libre')
   })
 
@@ -441,10 +461,10 @@ describe('contrôle avant l’envoi', () => {
     expect(controlerAvantEnvoiOs(demande(), courriel, { ...CONTEXTE, courrielCommunique: true })).toEqual([])
   })
 
-  it('signataire hors de la liste des habilités : bloquant à confirmer (L. 1965 art. 18, IV ; art. 29-1)', () => {
+  it('signataire hors de la liste des habilités par le cabinet : bloquant, règle de gestion (décision 8 : plus « à confirmer », aucun texte cité)', () => {
     const anomalies = controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, signatairesHabilites: new Set(['col-aj']) })
     expect(bloquants(anomalies)).toEqual(['signataire_non_habilite'])
-    expect(anomalies[0].aConfirmer).toBe(true)
+    expect(anomalies[0]).toMatchObject({ fondement: null, aConfirmer: false })
     expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, signatairesHabilites: new Set(['col-direction']) })).toEqual([])
   })
 
@@ -494,12 +514,12 @@ describe('contrôle avant l’envoi', () => {
     expect(controlerAvantEnvoiOs(gros, visee({ devisDemandes: 2, avisConseilSyndicalLe: '2026-10-02' }), contexte)).toEqual([])
   })
 
-  it('fondement : non renseigné, sans référence, urgence non motivée, suites de l’urgence (D. 1967 art. 37)', () => {
+  it('fondement : non renseigné, sans référence, urgence non constatée, suites de l’urgence (D. 1967 art. 37)', () => {
     expect(codes(controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: null }), CONTEXTE))).toEqual(['fondement_non_renseigne'])
     const sansReference = sortie(demande(), { fondement: 'execution_resolution_ag', majoriteResolution: 'art24' })
     expect(codes(controlerAvantEnvoiOs(demande(), sansReference, CONTEXTE))).toEqual(['fondement_sans_reference'])
     const urgence = controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: 'urgence_sauvegarde', delai: 'urgence' }), CONTEXTE)
-    expect(codes(urgence)).toEqual(['urgence_non_motivee', 'urgence_suites'])
+    expect(codes(urgence)).toEqual(['urgence_non_constatee', 'urgence_suites'])
     expect(urgence[1].fondement).toMatch(/D\. 1967 art\. 37/)
     expect(urgence.every((a) => a.gravite === 'alerte')).toBe(true)
   })
@@ -605,18 +625,19 @@ describe('envoi et journal de diffusion (preuve)', () => {
 
   it('preuve d’une diffusion : trace interne, ou état de notification du courrier AR lié (courriers.ts)', () => {
     const envoye = envoyee()
-    expect(preuveDeDiffusion(envoye.journal[0])).toBe('trace_interne')
+    expect(preuveDeDiffusion(envoye, envoye.journal[0])).toBe('trace_interne')
     const ar = { ...envoye.journal[0], canal: 'courrier_ar' as const, courrierId: 'courrier-1' }
+    const parAr = { ...envoye, journal: [ar] }
     const notifie: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', datePremierePresentation: '2026-10-05', dateAccuseReception: null }
-    expect(preuveDeDiffusion(ar, notifie)).toBe('notifie')
-    expect(preuveDeDiffusion(ar, { ...notifie, datePremierePresentation: null })).toBe('envoye_non_notifie')
-    expect(() => preuveDeDiffusion(ar)).toThrow(/courrier lié/)
-    expect(() => preuveDeDiffusion(ar, { ...notifie, formeEnvoi: 'Normal' })).toThrow(/AR/)
+    expect(preuveDeDiffusion(parAr, ar, notifie)).toBe('notifie')
+    expect(preuveDeDiffusion(parAr, ar, { ...notifie, datePremierePresentation: null })).toBe('envoye_non_notifie')
+    expect(() => preuveDeDiffusion(parAr, ar)).toThrow(/courrier lié/)
+    expect(() => preuveDeDiffusion(parAr, ar, { ...notifie, formeEnvoi: 'Normal' })).toThrow(/AR/)
   })
 })
 
 describe('adaptateurs (branchements à faire plus tard)', () => {
-  it('relances dues pour le suivi « à faire » : OS envoyés, ni terminés ni refusés, avec une date de relance', () => {
+  it('relances dues pour le suivi « à faire » : OS envoyés, ni terminés ni refusés, avec une date de relance et un élément encore attendu (attendusOs)', () => {
     const d1 = demande()
     const d2 = demande({ id: 'dem-2', numero: '12.3.457' })
     const d3 = demande({ id: 'dem-3', numero: '12.3.458' })
@@ -630,6 +651,8 @@ describe('adaptateurs (branchements à faire plus tard)', () => {
       { demande: { ...d1, id: 'dem-4', statut: 'Terminé' }, sortie: { ...s1, demandeId: 'dem-4' } },
       { demande: { ...d1, id: 'dem-5', statut: 'Refusé' }, sortie: { ...s1, demandeId: 'dem-5' } },
       { demande: { ...d1, id: 'dem-6', stade: 'Refusée' }, sortie: { ...s1, demandeId: 'dem-6' } },
+      // réponse reçue (OS accepté) : rien n'est dû, malgré la date de relance
+      { demande: { ...d1, id: 'dem-7', statut: 'Accepté' }, sortie: { ...s1, demandeId: 'dem-7' } },
     ])
     expect(relances.map((r) => [r.id, r.date])).toEqual([
       ['demandes:relance_os:dem-2', '2026-10-08'],
@@ -701,7 +724,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     expect(bloquants(controlerAvantEnvoiOs(sansDate, creerSortieOs(sansDate, { ...PRETE, fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', majoriteResolution: 'art25' }), pendant))).toEqual(['execution_suspendue_art42'])
     expect(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: '2026-10-14' })).toEqual([])
     expect(controlerAvantEnvoiOs(d, resolution({ majoriteResolution: 'art24' }), pendant)).toEqual([])
-    expect(bloquants(controlerAvantEnvoiOs(d, resolution({ delai: 'urgence', motifUrgence: 'Infiltrations actives' }), pendant))).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(d, resolution({ delai: 'urgence', constatUrgence: { ...CONSTAT, motif: 'Infiltrations actives' } }), pendant))).toEqual([])
     expect(codes(controlerAvantEnvoiOs(d, resolution(), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
     expect(codes(controlerAvantEnvoiOs(d, resolution({ majoriteResolution: null }), CONTEXTE))).toEqual(['majorite_resolution_non_renseignee'])
   })
@@ -766,7 +789,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
   })
 
   it('D. 1967 art. 37 : la provision d’urgence rappelle son objet, l’avis du conseil syndical et le devis estimatif', () => {
-    const urgence = controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: 'urgence_sauvegarde', delai: 'urgence', motifUrgence: 'Fuite active' }), CONTEXTE)
+    const urgence = controlerAvantEnvoiOs(demande(), sortie(demande(), { fondement: 'urgence_sauvegarde', delai: 'urgence', constatUrgence: CONSTAT }), CONTEXTE)
     const suites = urgence.find((a) => a.code === 'urgence_suites')
     expect(suites?.message).toMatch(/ouverture du chantier/)
     expect(suites?.message).toMatch(/avis du conseil syndical/)
@@ -870,7 +893,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     expect(() => demandeEnvoiDepuisOs(long, sortie(long), { syndicArtisanId: 'a', copropriete: 'c' })).toThrow(/50/)
   })
 
-  it('motif d’urgence sans délai « urgence » : l’urgence n’est pas retenue, l’avis de D. 1967 art. 62-7 reste exigé, alerte', () => {
+  it('constat d’urgence sans délai « urgence » : l’urgence n’est pas retenue, l’avis de D. 1967 art. 62-7 reste exigé, alerte', () => {
     const d = demande()
     const cadre: SaisieSortieOs = {
       fondement: 'decision_aj_pouvoirs_ag',
@@ -878,14 +901,14 @@ describe('retours de relecture du point 44 (tour 1)', () => {
       decisionLe: '2026-10-02',
       justificatifs: { modeFinancement: 'appel de fonds' },
     }
-    const s = sortie(d, { ...cadre, motifUrgence: 'à voir' })
+    const s = sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, motif: 'à voir' } })
     expect(s.visa).toBe('Visa nécessaire')
     expect(s.motifsVisa).toEqual(['avis_conseil_syndical_aj'])
     const anomalies = controlerAvantEnvoiOs(d, viser(s, d), CONTEXTE)
     expect(bloquants(anomalies)).toEqual(['avis_conseil_syndical_aj_absent'])
-    expect(anomalies.find((a) => a.code === 'motif_urgence_sans_urgence')?.gravite).toBe('alerte')
-    // OS créé en urgence motivée, puis ramené au délai « normale » : l'avis redevient exigé
-    const rabaissee = modifierSortieOs(sortie(d, { ...cadre, delai: 'urgence', motifUrgence: 'Fuite active' }), d, { delai: 'normale' })
+    expect(anomalies.find((a) => a.code === 'constat_urgence_sans_urgence')?.gravite).toBe('alerte')
+    // OS créé en urgence constatée, puis ramené au délai « normale » : l'avis redevient exigé
+    const rabaissee = modifierSortieOs(sortie(d, { ...cadre, delai: 'urgence', constatUrgence: CONSTAT }), d, { delai: 'normale' })
     expect(bloquants(controlerAvantEnvoiOs(d, rabaissee, CONTEXTE))).toEqual(['visa_devenu_necessaire', 'avis_conseil_syndical_aj_absent'])
   })
 })
@@ -1062,6 +1085,890 @@ describe('retours de relecture du point 44 (tour 3)', () => {
   })
 })
 
+describe('décisions de Hugo du 03/11/2026', () => {
+  /** OS envoyé le 03/10/2026, relance fixée au 10/10/2026. */
+  const aRelancer = () => fixerRelance(envoyee(), '2026-10-10')
+  const avec = (changement: Partial<Demande>): Demande => ({ ...demande(), ...changement })
+  const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
+
+  it('3. relance : due tant que la réponse à l’OS manque ; reçue (statut « Accepté », stade de l’acceptation ou au-delà, réalisation, devis d’une demande de devis), plus rien n’est dû', () => {
+    const s = aRelancer()
+    // changement de comportement : la date de relance seule ne suffit plus, l'OS accepté n'est plus à relancer
+    expect(dues(avec({ statut: 'Accepté' }), s)).toEqual([])
+    expect(attendusOs(demande(), s)).toEqual(['reponse'])
+    expect(dues(demande(), s).map((r) => [r.id, r.date, r.attendus])).toEqual([['demandes:relance_os:dem-1', '2026-10-10', ['reponse']]])
+    // bornes de l'étape « Demandée » : une proposition n'est pas une réponse
+    expect(attendusOs(avec({ stade: 'Proposition en cours' }), s)).toEqual(['reponse'])
+    expect(attendusOs(avec({ stade: 'Proposition résident' }), s)).toEqual(['reponse'])
+    // réponse reçue : plus de relance due, même avec une date de relance fixée
+    const recues: Partial<Demande>[] = [
+      { statut: 'Accepté' },
+      { stade: 'Acceptée' },
+      { stade: 'Programmée' },
+      { stade: 'Réalisée', realiseeLe: '2026-10-15' },
+      { realiseeLe: '2026-10-15' },
+    ]
+    for (const changement of recues) {
+      expect(attendusOs(avec(changement), s), JSON.stringify(changement)).toEqual([])
+      expect(dues(avec(changement), s), JSON.stringify(changement)).toEqual([])
+    }
+    // demande de devis : le devis associé est la réponse ; pour une intervention, il précède l'OS et n'en est pas la réponse
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const sDevis = fixerRelance(envoyerOs(devis, sortie(devis), ENVOI, CONTEXTE), '2026-10-10')
+    expect(attendusOs(devis, sDevis)).toEqual(['reponse'])
+    expect(attendusOs({ ...devis, devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000 } }, sDevis)).toEqual([])
+    expect(attendusOs(avec({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000 } }), s)).toEqual(['reponse'])
+    // OS jamais envoyé, demande terminée ou refusée : rien n'est attendu ; sortie d'une autre demande : erreur
+    expect(attendusOs(demande(), sortie())).toEqual([])
+    expect(attendusOs(avec({ statut: 'Terminé' }), s)).toEqual([])
+    expect(attendusOs(avec({ stade: 'Refusée' }), s)).toEqual([])
+    expect(() => attendusOs(avec({ id: 'dem-2' }), s)).toThrow(/autre demande/)
+  })
+
+  it('3. relance : « Accusé demandé » → l’accusé est attendu jusqu’à la ligne « reception » du journal (enregistrerReception)', () => {
+    const s = aRelancer()
+    const accuse = avec({ statut: 'Accusé demandé', stade: 'Acceptée' })
+    expect(attendusOs(accuse, s)).toEqual(['accuse'])
+    const [relance] = dues(accuse, s)
+    expect(relance.attendus).toEqual(['accuse'])
+    expect(relance.libelle).toMatch(/accusé de réception/)
+    // réception enregistrée à l'heure même de l'envoi (borne) : reçu
+    const recu = enregistrerReception(s, { ...ENVOI, heure: '10:00' })
+    expect(attendusOs(accuse, recu)).toEqual([])
+    expect(dues(accuse, recu)).toEqual([])
+    // sans « Accusé demandé », la réception n'est pas attendue
+    expect(attendusOs(avec({ stade: 'Acceptée' }), s)).toEqual([])
+  })
+
+  it('3. relance : « Rapport demandé » → le rapport est attendu jusqu’à son enregistrement (enregistrerRapport), au plus tôt le jour du premier envoi', () => {
+    const s = aRelancer()
+    const rapport = avec({ statut: 'Rapport demandé', stade: 'Réalisée', realiseeLe: '2026-10-15' })
+    expect(attendusOs(rapport, s)).toEqual(['rapport'])
+    expect(dues(rapport, s).map((r) => r.attendus)).toEqual([['rapport']])
+    // bornes : la veille du premier envoi, refusé ; le jour même, reçu
+    expect(() => enregistrerRapport(rapport, s, { recuLe: '2026-10-02' })).toThrow(/premier envoi/)
+    const recu = enregistrerRapport(rapport, s, { recuLe: '2026-10-03', documentId: ' doc-7 ' })
+    expect(recu.rapportRecu).toEqual({ recuLe: '2026-10-03', documentId: 'doc-7' })
+    expect(s.rapportRecu).toBeNull()
+    expect(attendusOs(rapport, recu)).toEqual([])
+    expect(dues(rapport, recu)).toEqual([])
+    // une seule fois ; jamais sur un OS non envoyé ; date contrôlée ; sortie d'une autre demande refusée
+    expect(() => enregistrerRapport(rapport, recu, { recuLe: '2026-10-20' })).toThrow(/déjà enregistré/)
+    expect(() => enregistrerRapport(rapport, sortie(), { recuLe: '2026-10-20' })).toThrow(/jamais envoyé/)
+    expect(() => enregistrerRapport(rapport, s, { recuLe: '20/10/2026' })).toThrow(/AAAA-MM-JJ/)
+    expect(() => enregistrerRapport({ ...rapport, id: 'dem-2' }, s, { recuLe: '2026-10-20' })).toThrow(/autre demande/)
+  })
+
+  it('3. relance : plusieurs éléments manquants → UN élément par OS, à la date de relance, qui liste ce qui manque', () => {
+    const s = aRelancer()
+    const accuse = avec({ statut: 'Accusé demandé' })
+    expect(attendusOs(accuse, s)).toEqual(['reponse', 'accuse'])
+    const relances = dues(accuse, s)
+    expect(relances).toHaveLength(1)
+    expect(relances[0]).toMatchObject({ id: 'demandes:relance_os:dem-1', date: '2026-10-10', attendus: ['reponse', 'accuse'], assigneId: 'col-gestion' })
+    expect(relances[0].libelle).toMatch(/réponse à l'ordre de service, accusé de réception/)
+    expect(attendusOs(avec({ statut: 'Rapport demandé' }), s)).toEqual(['reponse', 'rapport'])
+    // après la relance, la date est vidée : la suivante se fixe par fixerRelance (l'OS reste dû entre-temps : tour 1 ci-dessous)
+    const relancee = relancerOs(s, { ...ENVOI, date: '2026-10-10', heure: '09:00' })
+    expect(relancee.relanceLe).toBeNull()
+    expect(dues(accuse, fixerRelance(relancee, '2026-10-17')).map((r) => [r.date, r.attendus, r.relanceAFixer])).toEqual([['2026-10-17', ['reponse', 'accuse'], false]])
+  })
+
+  it('4. courriers : le visa suit le même circuit (CircuitVisa), réutilisable pour une autre pièce de sortie', () => {
+    type MotifCourrier = 'mise_en_demeure'
+    interface CourrierVise extends CircuitVisa<MotifCourrier> {
+      courrierId: string
+    }
+    const lettre = (objet: string): PieceVisee => ({
+      designation: 'le courrier',
+      sortie: 'le dépôt',
+      datee: '2026-10-01',
+      empreinte: JSON.stringify([objet, 'id-1']),
+      champsVises: 'objet, destinataire',
+    })
+    const avant = lettre('Mise en demeure de payer')
+    const prepare: CourrierVise = { courrierId: 'courrier-1', ...circuitVisaInitial<MotifCourrier>(['mise_en_demeure']) }
+    expect(prepare).toMatchObject({ visa: 'Visa nécessaire', motifsVisa: ['mise_en_demeure'], empreinteVisee: null, historiqueVisa: [] })
+    expect(circuitVisaInitial([]).visa).toBe('Sortie libre')
+    expect(visaPermetSortie(prepare)).toBe(false)
+    // messages : la sortie du courrier est son dépôt (controlerDepot), pas un envoi
+    expect(anomaliesCircuitVisa(prepare, avant, [])).toEqual([{ code: 'visa_manquant', message: 'Visa nécessaire non demandé : demander le visa avant le dépôt.' }])
+    const demandee = appliquerActionVisa(prepare, avant, 'demande', DEMANDE_GESTION)
+    expect(demandee.courrierId).toBe('courrier-1')
+    expect(demandee.empreinteVisee).toBe(avant.empreinte)
+    expect(anomaliesCircuitVisa(demandee, avant, [])).toEqual([{ code: 'visa_manquant', message: 'Visa demandé, en attente du viseur : dépôt impossible.' }])
+    const refuse = appliquerActionVisa(demandee, avant, 'refuse', evenement('col-direction', 'Direction', '10:00', 'Ton trop vif'))
+    expect(anomaliesCircuitVisa(refuse, avant, [])).toEqual([
+      { code: 'visa_manquant', message: 'Visa refusé : revoir le courrier, puis demander de nouveau le visa. Motif du refus : Ton trop vif' },
+    ])
+    // mêmes règles que pour l'OS : viseur habilité, autre que le demandeur, refus motivé, horodatage, transitions
+    expect(() => appliquerActionVisa(demandee, avant, 'donne', evenement('col-gestion-2', 'Gestion', '10:00'))).toThrow(/non habilité/)
+    expect(() => appliquerActionVisa(demandee, avant, 'donne', evenement('col-gestion', 'Direction', '10:00'))).toThrow(/autre collaborateur/)
+    expect(() => appliquerActionVisa(demandee, avant, 'refuse', VISA_DIRECTION)).toThrow(/motif/)
+    expect(() => appliquerActionVisa(prepare, { ...avant, datee: '2026-10-05' }, 'demande', DEMANDE_GESTION)).toThrow(/antérieur au courrier du 05\/10\/2026/)
+    expect(() => appliquerActionVisa(prepare, avant, 'donne', VISA_DIRECTION)).toThrow(/impossible/)
+    const vise = appliquerActionVisa(demandee, avant, 'donne', VISA_DIRECTION)
+    expect(vise.visa).toBe('Visa donné')
+    expect(visaPermetSortie(vise)).toBe(true)
+    expect(anomaliesCircuitVisa(vise, avant, [])).toEqual([])
+    // le courrier change après le visa : à revoir, puis la revue le ramène à « Visa nécessaire »
+    const apres = lettre('Mise en demeure de payer sous huit jours')
+    expect(anomaliesCircuitVisa(vise, apres, [])).toEqual([
+      { code: 'visa_a_revoir', message: 'Le courrier a changé depuis le visa (objet, destinataire) : revoir le visa.' },
+    ])
+    const revu = revoirCircuitVisa(vise, apres, ['mise_en_demeure'], evenement('col-gestion', 'Gestion', '11:00'))
+    expect(revu).toMatchObject({ courrierId: 'courrier-1', visa: 'Visa nécessaire', empreinteVisee: null })
+    expect(revu.historiqueVisa.map((e) => e.action)).toEqual(['demande', 'donne', 'revu'])
+    expect(revoirCircuitVisa(vise, avant, ['mise_en_demeure'], evenement('col-gestion', 'Gestion', '11:00')).visa).toBe('Visa donné')
+    // un motif nouveau sur une sortie libre : visa devenu nécessaire
+    const libre: CourrierVise = { courrierId: 'courrier-2', ...circuitVisaInitial<MotifCourrier>([]) }
+    const motifs = [{ code: 'mise_en_demeure', message: 'Mise en demeure : visa de la direction.' }]
+    expect(codes(anomaliesCircuitVisa(libre, avant, motifs))).toEqual(['visa_devenu_necessaire'])
+  })
+
+  it('6. avis préalable sous administration provisoire (D. 1967 art. 62-7) : l’urgence est CONSTATÉE par l’administrateur provisoire (constat daté, motivé, attribué)', () => {
+    const d = demande()
+    const cadre: SaisieSortieOs = {
+      fondement: 'decision_aj_pouvoirs_ag',
+      fondementReference: 'registre n° 7',
+      decisionLe: '2026-10-02',
+      delai: 'urgence',
+      justificatifs: { modeFinancement: 'appel de fonds' },
+    }
+    // constat complet : l'avis n'est plus exigé
+    const constatee = sortie(d, { ...cadre, constatUrgence: CONSTAT })
+    expect(constatee.visa).toBe('Sortie libre')
+    expect(constatee.constatUrgence).toEqual(CONSTAT)
+    expect(controlerAvantEnvoiOs(d, constatee, CONTEXTE)).toEqual([])
+    expect(sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, motif: '  Fuite active  ', collaborateurId: ' col-direction ' } }).constatUrgence).toEqual({
+      ...CONSTAT,
+      motif: 'Fuite active',
+    })
+    // constat incomplet à la saisie : refusé (date, motif, auteur)
+    expect(() => sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, motif: '   ' } })).toThrow(/motif/)
+    expect(() => sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, constateLe: '02/10/2026' } })).toThrow(/AAAA-MM-JJ/)
+    expect(() => sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: ' ' } })).toThrow(/collaborateur/)
+    // sans constat : l'avis reste exigé (bloquant), l'urgence est signalée non constatée
+    const sansConstat = viser(sortie(d, cadre), d)
+    const anomalies = controlerAvantEnvoiOs(d, sansConstat, CONTEXTE)
+    expect(bloquants(anomalies)).toEqual(['avis_conseil_syndical_aj_absent'])
+    expect(anomalies.find((a) => a.code === 'urgence_non_constatee')).toMatchObject({ gravite: 'alerte' })
+    // constat incomplet repris d'ailleurs : il ne vaut pas constat, l'avis reste exigé
+    const incomplet: SortieOrdreService = { ...sansConstat, constatUrgence: { ...CONSTAT, motif: ' ' } }
+    expect(codes(motifsVisa(d, incomplet))).toEqual(['avis_conseil_syndical_aj'])
+    const anomaliesIncomplet = controlerAvantEnvoiOs(d, incomplet, CONTEXTE)
+    expect(bloquants(anomaliesIncomplet)).toEqual(['avis_conseil_syndical_aj_absent'])
+    expect(anomaliesIncomplet.find((a) => a.code === 'urgence_non_constatee')?.message).toMatch(/manque : motif/)
+    // délai « prioritaire » : toujours pas une urgence, même constatée
+    const prioritaire = sortie(d, { ...cadre, delai: 'prioritaire', constatUrgence: CONSTAT })
+    expect(prioritaire.motifsVisa).toEqual(['avis_conseil_syndical_aj'])
+    const anomaliesPrioritaire = controlerAvantEnvoiOs(d, viser(prioritaire, d), CONTEXTE)
+    expect(bloquants(anomaliesPrioritaire)).toEqual(['avis_conseil_syndical_aj_absent'])
+    expect(anomaliesPrioritaire.find((a) => a.code === 'constat_urgence_sans_urgence')).toMatchObject({ gravite: 'alerte' })
+  })
+})
+
+describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', () => {
+  /** Intervention décidée par l'administrateur provisoire au titre des pouvoirs de l'assemblée, inscrite au registre le 02/10/2026. */
+  const cadreAj = (constatUrgence: ConstatUrgence | null, saisie: SaisieSortieOs = {}): SaisieSortieOs => ({
+    fondement: 'decision_aj_pouvoirs_ag',
+    fondementReference: 'registre n° 7',
+    decisionLe: '2026-10-02',
+    delai: 'urgence',
+    constatUrgence,
+    ...saisie,
+    justificatifs: { modeFinancement: 'appel de fonds', ...saisie.justificatifs },
+  })
+  const le = (constateLe: string): ConstatUrgence => ({ ...CONSTAT, constateLe })
+  const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
+
+  it('constat daté après la décision au registre, avis du conseil syndical recueilli à temps : le constat ne sert pas, rien ne bloque', () => {
+    const d = demande()
+    const s = sortie(d, cadreAj(le('2026-10-03'), { justificatifs: { avisConseilSyndicalLe: '2026-10-01' } }))
+    expect(controlerAvantEnvoiOs(d, s, CONTEXTE)).toEqual([])
+    expect(envoyerOs(d, s, ENVOI, CONTEXTE).journal).toHaveLength(1)
+    // avis du jour même de la décision (borne) : à temps aussi
+    expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-03'), { justificatifs: { avisConseilSyndicalLe: '2026-10-02' } })), CONTEXTE)).toEqual([])
+  })
+
+  it('demande de devis au titre des pouvoirs de l’assemblée : aucun avis n’est exigé, la date du constat n’est pas contrôlée', () => {
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const contexte: ContexteEnvoiOs = { date: '2026-10-03', prestataireAvecCompteVitfix: true }
+    expect(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(null, { delai: 'normale' })), contexte)).toEqual([])
+    expect(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), contexte)).toEqual([])
+    expect(envoyerOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), ENVOI, contexte).journal).toHaveLength(1)
+  })
+
+  it('constat qui tient lieu de l’avis, daté après la décision au registre : alerte à confirmer (règle proposée, question à Hugo), plus de bloquant', () => {
+    const d = demande()
+    // bornes : constat du jour de la décision, rien ; du lendemain, alerte à confirmer
+    expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-02'))), CONTEXTE)).toEqual([])
+    const tardif = controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-03'))), CONTEXTE)
+    expect(tardif.map((a) => [a.code, a.gravite, a.aConfirmer])).toEqual([['constat_urgence_posterieur', 'alerte', true]])
+    expect(tardif[0].message).toMatch(/Urgence constatée le 03\/10\/2026, après la décision au registre du 02\/10\/2026/)
+    // l'issue proposée lève bien l'alerte : enregistrer l'avis recueilli à temps, ou corriger la date du constat
+    expect(tardif[0].message).toMatch(/enregistrer l'avis s'il a été recueilli au plus tard ce jour-là, ou corriger la date du constat/)
+    expect(tardif[0].fondement).toMatch(/62-7/)
+    expect(envoyerOs(d, sortie(d, cadreAj(le('2026-10-03'))), ENVOI, CONTEXTE).journal).toHaveLength(1)
+    // avis recueilli après la décision : il ne vaut pas avis préalable, le constat tardif reste signalé
+    const avisTardif = sortie(d, cadreAj(le('2026-10-03'), { justificatifs: { avisConseilSyndicalLe: '2026-10-03' } }))
+    expect(codes(controlerAvantEnvoiOs(d, avisTardif, CONTEXTE))).toEqual(['constat_urgence_posterieur'])
+    // décision non datée : le jour de l'envoi sert de borne ; un constat du lendemain est postérieur à l'envoi (tour 2 :
+    // bloquant constat_urgence_posterieur_envoi, et non plus l'alerte constat_urgence_posterieur)
+    const sansDate = (constateLe: string) => sortie(d, cadreAj(le(constateLe), { decisionLe: null }))
+    expect(controlerAvantEnvoiOs(d, sansDate('2026-10-03'), CONTEXTE)).toEqual([])
+    const apresEnvoi = controlerAvantEnvoiOs(d, sansDate('2026-10-04'), CONTEXTE)
+    expect(apresEnvoi.map((a) => [a.code, a.gravite])).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(apresEnvoi[0].message).toMatch(/après l'envoi du 03\/10\/2026/)
+  })
+
+  it('exécution d’une résolution (L. 1965 art. 42, al. 3 ; la décision 7 ne fixe pas la date du constat) et autres fondements : la date du constat n’est pas comparée à la décision', () => {
+    const d = demande()
+    const pendant = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+    // constat du jour de l'envoi, trois semaines après la résolution du 12/09/2026 (tour 2 : un constat postérieur à l'envoi
+    // est, lui, bloquant pour tous les fondements)
+    const resolution = sortie(d, {
+      fondement: 'execution_resolution_ag',
+      fondementReference: 'AG du 12/09/2026, résolution 7',
+      decisionLe: '2026-09-12',
+      majoriteResolution: 'art25',
+      delai: 'urgence',
+      constatUrgence: le('2026-10-03'),
+    })
+    expect(controlerAvantEnvoiOs(d, resolution, pendant)).toEqual([])
+    const sauvegarde = sortie(d, { fondement: 'urgence_sauvegarde', delai: 'urgence', constatUrgence: le('2026-10-03') })
+    expect(codes(controlerAvantEnvoiOs(d, sauvegarde, CONTEXTE))).toEqual(['urgence_suites'])
+  })
+
+  it('urgence non retenue : le message ne cite l’avis (D. 1967 art. 62-7) ou la suspension (L. 1965 art. 42, al. 3) que lorsqu’ils s’appliquent', () => {
+    const message = (d: Demande, saisie: SaisieSortieOs, code: string, contexte: ContexteEnvoiOs = CONTEXTE) =>
+      controlerAvantEnvoiOs(d, sortie(d, saisie), contexte).find((a) => a.code === code)?.message ?? ''
+    const d = demande()
+    // urgence de sauvegarde, administration courante : ni avis ni suspension
+    for (const fondement of ['urgence_sauvegarde', 'administration_courante'] as const) {
+      const neutre = message(d, { fondement, delai: 'urgence' }, 'urgence_non_constatee')
+      expect(neutre, fondement).toMatch(/sans lui, l'urgence n'est pas retenue\.$/)
+      expect(neutre, fondement).not.toMatch(/conseil syndical|art\. 42/)
+    }
+    // pouvoirs de l'assemblée, intervention : l'avis
+    const avis = message(d, cadreAj(null), 'urgence_non_constatee')
+    expect(avis).toMatch(/l'avis préalable du conseil syndical reste exigé \(D\. 1967 art\. 62-7\)/)
+    expect(avis).not.toMatch(/art\. 42/)
+    // résolution votée à l'art. 25 : la suspension ; à l'art. 24 : rien
+    const resolution: SaisieSortieOs = { fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', delai: 'urgence', majoriteResolution: 'art25' }
+    const suspension = message(d, resolution, 'urgence_non_constatee', { ...CONTEXTE, finDelaiContestationAg: '2026-10-01' })
+    expect(suspension).toMatch(/majorité de l'art\. 25 reste suspendue pendant le délai de contestation \(L\. 1965 art\. 42, al\. 3\)/)
+    expect(suspension).not.toMatch(/conseil syndical/)
+    expect(message(d, { ...resolution, majoriteResolution: 'art24' }, 'urgence_non_constatee')).toMatch(/n'est pas retenue\.$/)
+    // demande de devis au titre des pouvoirs de l'assemblée : aucun avis exigé
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const contexteDevis: ContexteEnvoiOs = { date: '2026-10-03', prestataireAvecCompteVitfix: true }
+    expect(message(devis, cadreAj(null), 'urgence_non_constatee', contexteDevis)).toMatch(/n'est pas retenue\.$/)
+    // constat sans délai « urgence » : même règle
+    const sansUrgence = message(d, { fondement: 'administration_courante', constatUrgence: CONSTAT }, 'constat_urgence_sans_urgence')
+    expect(sansUrgence).toMatch(/l'urgence n'est pas retenue ; choisir le délai « urgence » ou effacer le constat\.$/)
+    expect(sansUrgence).not.toMatch(/conseil syndical|art\. 42/)
+    expect(message(d, cadreAj(CONSTAT, { delai: 'normale' }), 'constat_urgence_sans_urgence')).toMatch(/l'avis préalable du conseil syndical reste exigé/)
+  })
+
+  it('3. relance : sans date de relance (jamais fixée, ou vidée par relancerOs), l’OS reste dû tant qu’un élément manque : la prochaine relance est à fixer', () => {
+    const accuse: Demande = { ...demande(), statut: 'Accusé demandé' }
+    // envoi sans date de relance : élément daté du premier envoi, prochaine relance à fixer (tour 2 : relanceAFixer, et non
+    // plus aConfirmer, réservé aux repères juridiques)
+    const envoye = envoyerOs(accuse, sortie(accuse), ENVOI, CONTEXTE)
+    expect(envoye.relanceLe).toBeNull()
+    const [aFixer] = dues(accuse, envoye)
+    expect(aFixer).toMatchObject({
+      id: 'demandes:relance_os:dem-1',
+      date: '2026-10-03',
+      aConfirmer: false,
+      relanceAFixer: true,
+      attendus: ['reponse', 'accuse'],
+      assigneId: 'col-gestion',
+    })
+    expect(aFixer.libelle).toMatch(/attendu : réponse à l'ordre de service, accusé de réception$/)
+    // date fixée : l'élément est daté d'elle, il n'y a plus de relance à fixer
+    const fixee = fixerRelance(envoye, '2026-10-10')
+    expect(dues(accuse, fixee).map((r) => [r.date, r.relanceAFixer])).toEqual([['2026-10-10', false]])
+    expect(dues(accuse, fixee)[0].libelle).not.toMatch(/Fixer/)
+    // relance faite, éléments encore manquants : élément daté de la dernière relance, prochaine relance à fixer
+    const relancee = relancerOs(fixee, { ...ENVOI, date: '2026-10-10', heure: '09:00' })
+    expect(dues(accuse, relancee).map((r) => [r.date, r.relanceAFixer, r.attendus])).toEqual([['2026-10-10', true, ['reponse', 'accuse']]])
+    const deuxFois = relancerOs(fixerRelance(relancee, '2026-10-17'), { ...ENVOI, date: '2026-10-17', heure: '09:00' })
+    expect(dues(accuse, deuxFois).map((r) => [r.date, r.relanceAFixer])).toEqual([['2026-10-17', true]])
+    // tout reçu : plus rien, avec ou sans date
+    const recu = enregistrerReception(relancee, { ...ENVOI, date: '2026-10-11', heure: '09:00' })
+    expect(dues({ ...accuse, statut: 'Accepté' }, recu)).toEqual([])
+    expect(dues({ ...accuse, stade: 'Acceptée' }, recu)).toEqual([])
+    expect(dues({ ...accuse, stade: 'Acceptée' }, relancee).map((r) => r.attendus)).toEqual([['accuse']])
+    // jamais envoyé : rien
+    expect(dues(accuse, sortie(accuse))).toEqual([])
+  })
+
+  it('3. relance : le rapport reçu vaut réponse à l’OS (l’entreprise qui le remet a répondu)', () => {
+    const rapport: Demande = { ...demande(), statut: 'Rapport demandé' }
+    const s = fixerRelance(envoyerOs(rapport, sortie(rapport), ENVOI, CONTEXTE), '2026-10-10')
+    expect(attendusOs(rapport, s)).toEqual(['reponse', 'rapport'])
+    const recu = enregistrerRapport(rapport, s, { recuLe: '2026-10-08', documentId: 'doc-1' })
+    expect(attendusOs(rapport, recu)).toEqual([])
+    expect(dues(rapport, recu)).toEqual([])
+    // rapport reçu sans avoir été demandé : la réponse est reçue, l'accusé demandé reste attendu
+    const accuse: Demande = { ...rapport, statut: 'Accusé demandé' }
+    expect(attendusOs(accuse, recu)).toEqual(['accuse'])
+  })
+
+  it('visa de l’OS : messages selon l’état ; le refus renvoie à la demande (l’OS est la demande), comme les autres messages', () => {
+    const d = demande()
+    const contexte = { ...CONTEXTE, regles: SEUIL_100 }
+    const manquant = (s: SortieOrdreService) => controlerAvantEnvoiOs(d, s, contexte).find((a) => a.code === 'visa_manquant')?.message
+    const necessaire = sortie(d, {}, { regles: SEUIL_100 })
+    expect(manquant(necessaire)).toBe("Visa nécessaire non demandé : demander le visa avant l'envoi.")
+    const demandee = demanderVisa(necessaire, d, DEMANDE_GESTION)
+    expect(manquant(demandee)).toBe('Visa demandé, en attente du viseur : envoi impossible.')
+    const refuse = refuserVisa(demandee, d, evenement('col-direction', 'Direction', '10:00', 'Prix à renégocier'))
+    expect(manquant(refuse)).toBe('Visa refusé : revoir la demande, puis demander de nouveau le visa. Motif du refus : Prix à renégocier')
+  })
+})
+
+describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', () => {
+  const le = (constateLe: string): ConstatUrgence => ({ ...CONSTAT, constateLe })
+  const resume = (liste: readonly { code: string; gravite: string }[]) => liste.map((a) => [a.code, a.gravite])
+  const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
+  const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+  /** Exécution d'une résolution votée à l'art. 25, intervention le 15/10/2026 pendant le délai de contestation. */
+  const resolution = (constatUrgence: ConstatUrgence | null): SaisieSortieOs => ({
+    fondement: 'execution_resolution_ag',
+    fondementReference: 'AG du 12/09/2026, résolution 7',
+    decisionLe: '2026-09-12',
+    majoriteResolution: 'art25',
+    delai: 'urgence',
+    constatUrgence,
+  })
+  /** Décision de l'administrateur provisoire au titre des pouvoirs de l'assemblée, au registre le 02/10/2026, sans avis. */
+  const cadreAj = (constatUrgence: ConstatUrgence | null): SaisieSortieOs => ({
+    fondement: 'decision_aj_pouvoirs_ag',
+    fondementReference: 'registre n° 7',
+    decisionLe: '2026-10-02',
+    delai: 'urgence',
+    constatUrgence,
+    justificatifs: { modeFinancement: 'appel de fonds' },
+  })
+
+  it('constat d’urgence daté après l’envoi, exécution d’une résolution (L. 1965 art. 42, al. 3) : bloquant ; bornes : jour de l’envoi, lendemain', () => {
+    const d = demande()
+    expect(bloquants(controlerAvantEnvoiOs(d, sortie(d, resolution(null)), pendant))).toEqual(['execution_suspendue_art42'])
+    // constat du jour de l'envoi : l'urgence est retenue, la suspension levée
+    expect(controlerAvantEnvoiOs(d, sortie(d, resolution(le('2026-10-03'))), pendant)).toEqual([])
+    // du lendemain : le jour de l'envoi, ce constat n'existe pas, la suspension n'est pas levée
+    const lendemain = controlerAvantEnvoiOs(d, sortie(d, resolution(le('2026-10-04'))), pendant)
+    expect(resume(lendemain)).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(lendemain[0]).toMatchObject({ fondement: null, aConfirmer: false })
+    expect(lendemain[0].message).toBe(
+      "Urgence constatée le 04/10/2026, après l'envoi du 03/10/2026 : le jour de l'envoi, ce constat n'existe pas encore, l'urgence n'est pas retenue : l'exécution des travaux votés à la majorité de l'art. 25 reste suspendue pendant le délai de contestation (L. 1965 art. 42, al. 3) ; corriger la date du constat (au plus tard le jour de l'envoi) ou l'effacer.",
+    )
+    // constat près de trois mois après l'envoi (cas 1 du constat de relecture) : l'envoi est refusé, rien n'est journalisé
+    expect(() => envoyerOs(d, sortie(d, resolution(le('2026-12-31'))), ENVOI, pendant)).toThrow(
+      /non envoyé : Urgence constatée le 31\/12\/2026, après l'envoi du 03\/10\/2026/,
+    )
+  })
+
+  it('constat d’urgence daté après l’envoi, décision de l’administrateur provisoire (D. 1967 art. 62-7) : bloquant, seul signalement, l’avis reste dû', () => {
+    const d = demande()
+    // cas 2 du constat de relecture : plus de « Sortie libre » qui part, ni de simple alerte « après la décision au registre »
+    const futur = controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-12-31'))), CONTEXTE)
+    expect(resume(futur)).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(futur[0].message).toMatch(
+      /^Urgence constatée le 31\/12\/2026, après l'envoi du 03\/10\/2026 : .*l'avis préalable du conseil syndical reste exigé \(D\. 1967 art\. 62-7\) ; corriger la date du constat/,
+    )
+    expect(() => envoyerOs(d, sortie(d, cadreAj(le('2026-12-31'))), ENVOI, CONTEXTE)).toThrow(/non envoyé/)
+    // bornes, décision du 02/10/2026, envoi du 03/10/2026 : jour de la décision, rien ; jour de l'envoi, alerte à confirmer
+    // (après la décision, question 🔴 ouverte) ; lendemain de l'envoi, bloquant
+    expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-02'))), CONTEXTE)).toEqual([])
+    expect(resume(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-03'))), CONTEXTE))).toEqual([['constat_urgence_posterieur', 'alerte']])
+    expect(resume(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-04'))), CONTEXTE))).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    // la date du constat corrigée avant l'envoi lève le bloquant
+    const corrigee = modifierSortieOs(sortie(d, cadreAj(le('2026-12-31'))), d, { constatUrgence: le('2026-10-02') })
+    expect(controlerAvantEnvoiOs(d, corrigee, CONTEXTE)).toEqual([])
+  })
+
+  it('constat d’urgence daté après l’envoi, autres fondements, demande de devis, constat sans délai « urgence » : même bloquant ; une date illisible reste un constat incomplet', () => {
+    const d = demande()
+    const sauvegarde = controlerAvantEnvoiOs(d, sortie(d, { fondement: 'urgence_sauvegarde', delai: 'urgence', constatUrgence: le('2026-10-04') }), CONTEXTE)
+    expect(resume(sauvegarde)).toEqual([
+      ['constat_urgence_posterieur_envoi', 'bloquant'],
+      ['urgence_suites', 'alerte'],
+    ])
+    expect(sauvegarde[0].message).toMatch(/n'existe pas encore, l'urgence n'est pas retenue ; corriger la date du constat/)
+    const courante = (constatUrgence: ConstatUrgence, delai: SaisieSortieOs['delai']) =>
+      resume(controlerAvantEnvoiOs(d, sortie(d, { fondement: 'administration_courante', delai, constatUrgence }), CONTEXTE))
+    expect(courante(le('2026-10-03'), 'urgence')).toEqual([])
+    expect(courante(le('2026-10-04'), 'urgence')).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    expect(courante(le('2026-10-04'), 'normale')).toEqual([
+      ['constat_urgence_posterieur_envoi', 'bloquant'],
+      ['constat_urgence_sans_urgence', 'alerte'],
+    ])
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    const contexteDevis: ContexteEnvoiOs = { date: '2026-10-03', prestataireAvecCompteVitfix: true }
+    expect(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), contexteDevis)).toEqual([])
+    expect(resume(controlerAvantEnvoiOs(devis, sortie(devis, cadreAj(le('2026-10-04'))), contexteDevis))).toEqual([['constat_urgence_posterieur_envoi', 'bloquant']])
+    // constat repris d'ailleurs, date illisible : constat incomplet (urgence_non_constatee), sans comparaison de dates
+    const illisible: SortieOrdreService = { ...sortie(d, resolution(null)), constatUrgence: { ...CONSTAT, constateLe: '31/12/2026' } }
+    const anomalies = controlerAvantEnvoiOs(d, illisible, pendant)
+    expect(codes(anomalies)).toEqual(['urgence_non_constatee', 'execution_suspendue_art42'])
+    expect(anomalies[0].message).toMatch(/manque : date/)
+  })
+
+  it('relance sans date : aConfirmer reste faux (repère juridique, contrat d’ElementAFaire) ; l’élément demande de FIXER la prochaine relance (relanceAFixer), pas de relancer', () => {
+    const d: Demande = { ...demande(), statut: 'Accusé demandé' }
+    const attendu = "ordre de service 12.3.456 (Recherche de fuite colonne) ; attendu : réponse à l'ordre de service, accusé de réception"
+    // envoyé sans date de relance : dû le jour de l'envoi, pour fixer la relance
+    const envoye = envoyerOs(d, sortie(d), ENVOI, CONTEXTE)
+    const [aFixer] = dues(d, envoye)
+    expect(aFixer).toMatchObject({ date: '2026-10-03', aConfirmer: false, relanceAFixer: true })
+    expect(aFixer.libelle).toBe(`Fixer la prochaine relance de l'entreprise (fixerRelance) : ${attendu}`)
+    // borne : relance fixée au jour même de l'envoi, « Relancer l'entreprise » dû ce jour-là
+    const memeJour = dues(d, fixerRelance(envoye, '2026-10-03'))
+    expect(memeJour.map((r) => [r.date, r.aConfirmer, r.relanceAFixer])).toEqual([['2026-10-03', false, false]])
+    expect(memeJour[0].libelle).toBe(`Relancer l'entreprise : ${attendu}`)
+    // le jour de la relance faite, plus de « Relancer l'entreprise » (pas de relance en double) : la suivante est à fixer
+    const relancee = relancerOs(fixerRelance(envoye, '2026-10-10'), { ...ENVOI, date: '2026-10-10', heure: '09:00' })
+    const apres = dues(d, relancee)
+    expect(apres.map((r) => [r.date, r.aConfirmer, r.relanceAFixer])).toEqual([['2026-10-10', false, true]])
+    expect(apres[0].libelle).toBe(`Fixer la prochaine relance de l'entreprise (fixerRelance) : ${attendu}`)
+    // une relance due n'est jamais un repère juridique non confirmé, date fixée ou non
+    expect([...dues(d, envoye), ...memeJour, ...apres].every((r) => !r.aConfirmer)).toBe(true)
+  })
+})
+
+describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19)', () => {
+  const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+
+  it('7 (J17). L. 1965 art. 42, al. 3, « oui » compris comme la confirmation des trois choix : envoi bloqué pendant le délai, intervention = travaux, unanimité non suspendue (comportement inchangé)', () => {
+    const d = demande()
+    const resolution = (majoriteResolution: SaisieSortieOs['majoriteResolution'], cible: Demande = d) =>
+      sortie(cible, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution })
+    // (a) bloquant : l'envoi est refusé tant que l'intervention tombe dans le délai de contestation
+    for (const majorite of ['art25', 'art26'] as const) {
+      const [suspendu] = controlerAvantEnvoiOs(d, resolution(majorite), pendant)
+      expect(suspendu, majorite).toMatchObject({ code: 'execution_suspendue_art42', gravite: 'bloquant', fondement: 'L. 1965 art. 42, al. 3', aConfirmer: true })
+      expect(() => envoyerOs(d, resolution(majorite), ENVOI, pendant), majorite).toThrow(/non envoyé : Travaux votés à la majorité/)
+    }
+    // bornes : intervention le dernier jour du délai, bloquant ; le lendemain, rien
+    expect(bloquants(controlerAvantEnvoiOs(demande({ prevuLe: '2026-11-20' }), resolution('art25'), pendant))).toEqual(['execution_suspendue_art42'])
+    expect(controlerAvantEnvoiOs(demande({ prevuLe: '2026-11-21' }), resolution('art25'), pendant)).toEqual([])
+    // (b) toute intervention qui exécute la résolution vaut « travaux », quel que soit son objet ; une demande de devis n'exécute rien
+    const diagnostic = demande({ objet: 'Diagnostic amiante avant travaux' })
+    expect(bloquants(controlerAvantEnvoiOs(diagnostic, resolution('art25', diagnostic), pendant))).toEqual(['execution_suspendue_art42'])
+    const devis = demande({ numero: '12.3.9' }, DEVIS)
+    expect(controlerAvantEnvoiOs(devis, resolution('art25', devis), { date: '2026-10-03', prestataireAvecCompteVitfix: true, finDelaiContestationAg: '2026-11-20' })).toEqual([])
+    // (c) unanimité (et art. 24) : pas de suspension
+    expect(controlerAvantEnvoiOs(d, resolution('unanimite'), pendant)).toEqual([])
+    expect(controlerAvantEnvoiOs(d, resolution('art24'), pendant)).toEqual([])
+  })
+
+  it('8 (J18). signataire : un collaborateur habilité par le cabinet signe l’OS, pas seulement l’administrateur désigné ; la liste est un réglage du cabinet, fournie par l’appelant', () => {
+    const d = demande()
+    /** Réglage du cabinet : l'administrateur désigné et un collaborateur. */
+    const habilites = new Set(['col-aj', 'col-gestion'])
+    const contexte: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: habilites }
+    const parCollaborateur = sortie(d, { signataireId: 'col-gestion' })
+    expect(controlerAvantEnvoiOs(d, parCollaborateur, contexte)).toEqual([])
+    expect(envoyerOs(d, parCollaborateur, ENVOI, contexte).journal).toHaveLength(1)
+    // hors de la liste du cabinet : bloquant, règle de gestion (décision prise : ni texte cité, ni « à confirmer »)
+    const horsListe = sortie(d, { signataireId: 'col-stagiaire' })
+    const [hors] = controlerAvantEnvoiOs(d, horsListe, contexte)
+    expect(hors).toMatchObject({ code: 'signataire_non_habilite', gravite: 'bloquant', fondement: null, aConfirmer: false })
+    expect(hors.message).toBe(
+      "Signataire col-stagiaire hors des collaborateurs habilités par le cabinet à signer un OS (réglage du cabinet) : choisir un collaborateur habilité, ou l'ajouter à la liste du cabinet.",
+    )
+    expect(() => envoyerOs(d, horsListe, ENVOI, contexte)).toThrow(/non envoyé : Signataire col-stagiaire hors des collaborateurs habilités par le cabinet/)
+    // liste non fournie par l'appelant : non contrôlé ; signataire absent : toujours bloquant
+    expect(controlerAvantEnvoiOs(d, horsListe, CONTEXTE)).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(d, sortie(d, { signataireId: '  ' }), contexte))).toEqual(['signataire_absent'])
+  })
+
+  it('8 (J18), interprétation à confirmer : l’auteur du constat d’urgence hors des signataires habilités → alerte à confirmer, sans blocage ni effet sur l’urgence', () => {
+    const d = demande()
+    const cadre: SaisieSortieOs = {
+      fondement: 'decision_aj_pouvoirs_ag',
+      fondementReference: 'registre n° 7',
+      decisionLe: '2026-10-02',
+      delai: 'urgence',
+      justificatifs: { modeFinancement: 'appel de fonds' },
+    }
+    const contexte: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: new Set(['col-direction']) }
+    const parStagiaire = sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-stagiaire' } })
+    const anomalies = controlerAvantEnvoiOs(d, parStagiaire, contexte)
+    expect(anomalies.map((a) => [a.code, a.gravite, a.aConfirmer])).toEqual([['constat_urgence_auteur_non_habilite', 'alerte', true]])
+    expect(anomalies[0]).toMatchObject({ fondement: null })
+    expect(anomalies[0].message).toBe(
+      "Urgence constatée par col-stagiaire, hors des collaborateurs habilités par le cabinet à signer un OS : à confirmer (interprétation des décisions 6 et 8) : l'auteur du constat, qui agit au nom de l'administrateur provisoire comme le signataire, doit-il être un signataire habilité ? Ce signalement ne change pas l'urgence retenue.",
+    )
+    // l'urgence reste retenue : l'avis du conseil syndical n'est pas exigé, l'envoi part
+    expect(parStagiaire.visa).toBe('Sortie libre')
+    expect(envoyerOs(d, parStagiaire, ENVOI, contexte).journal).toHaveLength(1)
+    // auteur habilité, liste non fournie, ou aucun constat : rien
+    expect(controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: CONSTAT }), contexte)).toEqual([])
+    expect(controlerAvantEnvoiOs(d, parStagiaire, CONTEXTE)).toEqual([])
+    expect(controlerAvantEnvoiOs(d, sortie(d), contexte)).toEqual([])
+  })
+
+  it('9 (J19). l’AR fait preuve de la réception de l’OS : la réception porte son AR (référence, date de première présentation si elle est connue, comme J1)', () => {
+    const d = demande({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 } })
+    const envoiAr: SaisieDiffusion = { ...ENVOI, canal: 'courrier_ar', missionId: null, courrierId: 'courrier-1' }
+    const envoye = envoyerOs(d, sortie(d, { canal: 'courrier_ar' }), envoiAr, CONTEXTE)
+    const reception: SaisieDiffusion = { ...envoiAr, date: '2026-10-06', heure: '09:00' }
+    const avecAr = (premierePresentationLe?: string | null) => enregistrerReception(envoye, { ...reception, ar: { reference: 'AR-7', premierePresentationLe } })
+    const prouvee = enregistrerReception(envoye, { ...reception, ar: { reference: ' 1A 234 567 8901 2 ', premierePresentationLe: '2026-10-05' } })
+    const ligne = prouvee.journal[1]
+    expect(ligne).toMatchObject({ nature: 'reception', date: '2026-10-06', ar: { reference: '1A 234 567 8901 2', premierePresentationLe: '2026-10-05' } })
+    expect(preuveDeReception(ligne)).toBe('ar')
+    const courrierLie: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', datePremierePresentation: '2026-10-05', dateAccuseReception: '2026-10-06' }
+    expect(preuveDeDiffusion(prouvee, ligne, courrierLie)).toBe('ar')
+    // courrier AR : le courrier lié reste attendu par preuveDeDiffusion, comme pour l'envoi
+    expect(() => preuveDeDiffusion(prouvee, ligne)).toThrow(/courrier lié est attendu/)
+    expect(envoye.journal).toHaveLength(1)
+    // première présentation inconnue : l'AR fait preuve quand même
+    expect(avecAr().journal[1].ar).toEqual({ reference: 'AR-7', premierePresentationLe: null })
+    expect(preuveDeReception(avecAr(null).journal[1])).toBe('ar')
+    // bornes : le jour de l'envoi du pli (ici le premier envoi) et le jour de la réception, admises ; la veille de l'envoi, le lendemain de la réception, refusées
+    expect(avecAr('2026-10-03').journal[1].ar?.premierePresentationLe).toBe('2026-10-03')
+    expect(avecAr('2026-10-06').journal[1].ar?.premierePresentationLe).toBe('2026-10-06')
+    expect(() => avecAr('2026-10-02')).toThrow("Première présentation de l'AR (02/10/2026) antérieure à l'envoi de l'OS par le courrier courrier-1 (03/10/2026).")
+    expect(() => avecAr('2026-10-07')).toThrow(/après la réception/)
+    expect(() => avecAr('05/10/2026')).toThrow(/AAAA-MM-JJ/)
+    expect(() => enregistrerReception(envoye, { ...reception, ar: { reference: '  ' } })).toThrow(/référence/)
+    // l'envoi ne porte pas d'AR ; la relance non plus
+    expect(envoye.journal[0].ar).toBeNull()
+    expect(relancerOs(envoye, { ...envoiAr, date: '2026-10-05' }).journal[1].ar).toBeNull()
+    // aucune caducité codée ; la réception reste datée de sa ligne (la première présentation ne la remplace pas : question ouverte)
+    expect(codes(devisCaducALaReception(d, prouvee, '2026-10-05'))).toEqual(['devis_caduc'])
+  })
+
+  it('9 (J19). réception sans AR : admise (accusé reçu, sans blocage), marquée « sans preuve »', () => {
+    const accuse: Demande = { ...demande(), statut: 'Accusé demandé', stade: 'Acceptée' }
+    const envoye = envoyerOs(accuse, sortie(accuse), ENVOI, CONTEXTE)
+    const recue = enregistrerReception(envoye, { ...ENVOI, heure: '14:00' })
+    const ligne = recue.journal[1]
+    expect(ligne.ar).toBeNull()
+    expect(preuveDeReception(ligne)).toBe('sans_preuve')
+    expect(preuveDeDiffusion(recue, ligne)).toBe('sans_preuve')
+    expect(estRecu(recue)).toBe(true)
+    expect(attendusOs(accuse, recue)).toEqual([])
+    expect(relancesOsDues([{ demande: accuse, sortie: recue }])).toEqual([])
+    expect(preuveDeReception(enregistrerReception(envoye, { ...ENVOI, heure: '14:00', ar: null }).journal[1])).toBe('sans_preuve')
+    // seule une réception a une preuve de réception ; la preuve de l'envoi ne change pas
+    expect(() => preuveDeReception(envoye.journal[0])).toThrow(/réception/)
+    expect(preuveDeDiffusion(envoye, envoye.journal[0])).toBe('trace_interne')
+  })
+})
+
+describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
+  const d = demande({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 } })
+  const envoiAr: SaisieDiffusion = { ...ENVOI, canal: 'courrier_ar', missionId: null, courrierId: 'courrier-1' }
+  const envoyeAr = envoyerOs(d, sortie(d, { canal: 'courrier_ar' }), envoiAr, CONTEXTE)
+  const receptionAr: SaisieDiffusion = { ...envoiAr, date: '2026-10-06', heure: '09:00' }
+  /** Courrier AR lié (courriers.ts) : déposé le 03/10, présenté le 05/10, avis de réception signé le 06/10. */
+  const COURRIER_AR: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', datePremierePresentation: '2026-10-05', dateAccuseReception: '2026-10-06' }
+
+  it('9 (J19), non-régression : une réception par courrier AR sans AR saisi garde l’état de notification du courrier lié (preuveDeDiffusion, comme avant la décision 9)', () => {
+    const recue = enregistrerReception(envoyeAr, receptionAr)
+    const ligne = recue.journal[1]
+    expect(ligne.ar).toBeNull()
+    expect(preuveDeDiffusion(recue, ligne, COURRIER_AR)).toBe('notifie')
+    expect(preuveDeDiffusion(recue, ligne, { ...COURRIER_AR, datePremierePresentation: null, dateAccuseReception: null })).toBe('envoye_non_notifie')
+    expect(() => preuveDeDiffusion(recue, ligne)).toThrow(/courrier lié est attendu/)
+    expect(() => preuveDeDiffusion(recue, ligne, { ...COURRIER_AR, formeEnvoi: 'Normal' })).toThrow(/un courrier en AR est attendu/)
+    // la ligne seule ne porte pas d'AR
+    expect(preuveDeReception(ligne)).toBe('sans_preuve')
+  })
+
+  it('9 (J19) : l’AR saisi est rapproché du courrier lié : première présentation tirée du courrier quand elle n’est pas saisie, différente refusée (saisie et preuve)', () => {
+    const tiree = enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-7' } }, COURRIER_AR)
+    expect(tiree.journal[1].ar).toEqual({ reference: 'AR-7', premierePresentationLe: '2026-10-05' })
+    expect(preuveDeDiffusion(tiree, tiree.journal[1], COURRIER_AR)).toBe('ar')
+    const egale = enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-7', premierePresentationLe: '2026-10-05' } }, COURRIER_AR)
+    expect(egale.journal[1].ar?.premierePresentationLe).toBe('2026-10-05')
+    // courrier sans première présentation connue : la date saisie est gardée, aucune comparaison
+    const inconnue = { ...COURRIER_AR, datePremierePresentation: null }
+    expect(enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-7', premierePresentationLe: '2026-10-04' } }, inconnue).journal[1].ar?.premierePresentationLe).toBe('2026-10-04')
+    // différente : refusée à la saisie
+    const divergente = { ...receptionAr, ar: { reference: 'AR-7', premierePresentationLe: '2026-10-04' } }
+    expect(() => enregistrerReception(envoyeAr, divergente, COURRIER_AR)).toThrow(
+      "AR de la réception refusé : première présentation de l'AR (04/10/2026) différente de celle du courrier lié (05/10/2026) ; corriger l'AR saisi ou le suivi du courrier (courriers.ts).",
+    )
+    // saisie sans le courrier, lue avec lui : la preuve signale l'écart, sans lever (tour 2, constat 2)
+    const sansCourrier = enregistrerReception(envoyeAr, divergente)
+    expect(preuveDeDiffusion(sansCourrier, sansCourrier.journal[1], COURRIER_AR)).toBe('ar_ecart_courrier')
+    // le courrier lié doit être en AR, et ne vaut que pour une réception par courrier AR
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-7' } }, { ...COURRIER_AR, formeEnvoi: 'Normal' })).toThrow(/un courrier en AR est attendu/)
+    const parMessagerie: SaisieDiffusion = { ...ENVOI, date: '2026-10-06', heure: '09:00' }
+    expect(() => enregistrerReception(envoyeAr, parMessagerie, COURRIER_AR)).toThrow(
+      'Courrier lié : réservé à une réception par courrier AR (ici « messagerie_vitfix »).',
+    )
+    // la première présentation tirée du courrier respecte les mêmes bornes (pas après la réception)
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, date: '2026-10-04', ar: { reference: 'AR-7' } }, COURRIER_AR)).toThrow(/après la réception/)
+  })
+
+  it('9 (J19) : l’AR et la première présentation sont réservés à la réception par courrier AR (avis de réception du pli recommandé) ; par un autre canal, réception admise « sans preuve »', () => {
+    const dm = demande()
+    const envoye = envoyerOs(dm, sortie(dm), ENVOI, CONTEXTE)
+    const ar = { reference: 'x', premierePresentationLe: '2026-10-03' }
+    for (const canal of ['messagerie_vitfix', 'courriel', 'courrier', 'sms'] as const) {
+      const saisie: SaisieDiffusion = { ...ENVOI, canal, heure: '11:00' }
+      expect(() => enregistrerReception(envoye, { ...saisie, ar }), canal).toThrow(
+        `AR saisi sur une réception par « ${canal} » : l'AR est l'avis de réception du courrier AR ; par ce canal, la réception est admise sans AR (« sans preuve »).`,
+      )
+      expect(() => enregistrerReception(envoye, { ...saisie, ar: { reference: 'x' } }), canal).toThrow(/l'AR est l'avis de réception du courrier AR/)
+      expect(preuveDeReception(enregistrerReception(envoye, saisie).journal[1]), canal).toBe('sans_preuve')
+    }
+  })
+
+  it('9 (J19) : un AR reçu après une réception déjà enregistrée s’inscrit sur une nouvelle ligne « reception » ; preuveReceptionOs donne la preuve de l’OS, la réception reste datée de la première ligne', () => {
+    expect(preuveReceptionOs(envoyeAr)).toBeNull()
+    // l'entreprise confirme par la messagerie le 06/10 : réception sans AR
+    const confirmee = enregistrerReception(envoyeAr, { ...ENVOI, date: '2026-10-06', heure: '09:00' })
+    expect(preuveReceptionOs(confirmee)).toBe('sans_preuve')
+    // l'avis de réception revient le 09/10 : nouvelle ligne, par courrier AR, avec l'AR
+    const prouvee = enregistrerReception(confirmee, { ...receptionAr, date: '2026-10-09', ar: { reference: 'AR-7' } }, COURRIER_AR)
+    expect(prouvee.journal.map((e) => e.nature)).toEqual(['envoi', 'reception', 'reception'])
+    expect(prouvee.journal.slice(1).map((e) => preuveDeReception(e))).toEqual(['sans_preuve', 'ar'])
+    expect(preuveReceptionOs(prouvee)).toBe('ar')
+    // la réception reste datée de la première ligne (06/10) : caducité et accusé reçu
+    expect(estRecu(confirmee)).toBe(true)
+    expect(codes(devisCaducALaReception(d, prouvee, '2026-10-05'))).toEqual(['devis_caduc'])
+    expect(devisCaducALaReception(d, prouvee, '2026-10-06')).toEqual([])
+  })
+
+  it('9 (J19) : une ligne de réception écrite sans la clé « ar » (avant la décision 9) est lue sans AR, jamais comme prouvée', () => {
+    const ancienne: EvenementDiffusion = { ...enregistrerReception(envoyeAr, { ...ENVOI, date: '2026-10-06', heure: '09:00' }).journal[1] }
+    delete ancienne.ar
+    expect('ar' in ancienne).toBe(false)
+    expect(preuveDeReception(ancienne)).toBe('sans_preuve')
+    const avecAncienne = { ...envoyeAr, journal: [envoyeAr.journal[0], ancienne] }
+    expect(preuveDeDiffusion(avecAncienne, ancienne)).toBe('sans_preuve')
+    expect(preuveReceptionOs(avecAncienne)).toBe('sans_preuve')
+    const ancienneAr: EvenementDiffusion = { ...enregistrerReception(envoyeAr, receptionAr).journal[1] }
+    delete ancienneAr.ar
+    expect(preuveDeDiffusion({ ...envoyeAr, journal: [envoyeAr.journal[0], ancienneAr] }, ancienneAr, COURRIER_AR)).toBe('notifie')
+  })
+
+  it('8 (J18) : l’administrateur désigné (administrateurDesigneId) signe toujours, même hors de la liste du cabinet ; liste vide : lui seul ; sans lui, tout envoi est bloqué', () => {
+    const vide: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: new Set<string>() }
+    const parAj = sortie(d, { signataireId: 'col-aj' })
+    // liste vide sans administrateur désigné : tout signataire est bloqué
+    expect(bloquants(controlerAvantEnvoiOs(d, parAj, vide))).toEqual(['signataire_non_habilite'])
+    expect(() => envoyerOs(d, parAj, ENVOI, vide)).toThrow(/non envoyé : Signataire col-aj hors des collaborateurs habilités/)
+    // liste vide avec l'administrateur désigné : lui seul signe
+    const avecAj: ContexteEnvoiOs = { ...vide, administrateurDesigneId: 'col-aj' }
+    expect(controlerAvantEnvoiOs(d, parAj, avecAj)).toEqual([])
+    expect(envoyerOs(d, parAj, ENVOI, avecAj).journal).toHaveLength(1)
+    expect(bloquants(controlerAvantEnvoiOs(d, sortie(d, { signataireId: 'col-gestion' }), avecAj))).toEqual(['signataire_non_habilite'])
+    // liste du cabinet qui ne le contient pas : il signe quand même ; le collaborateur de la liste aussi
+    const sansLui: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: new Set(['col-gestion']), administrateurDesigneId: ' col-aj ' }
+    expect(controlerAvantEnvoiOs(d, parAj, sansLui)).toEqual([])
+    expect(controlerAvantEnvoiOs(d, sortie(d, { signataireId: 'col-gestion' }), sansLui)).toEqual([])
+    // il constate aussi l'urgence sans alerte (décision 6 : « nous constatons l'urgence »)
+    const cadre: SaisieSortieOs = {
+      fondement: 'decision_aj_pouvoirs_ag',
+      fondementReference: 'registre n° 7',
+      decisionLe: '2026-10-02',
+      delai: 'urgence',
+      justificatifs: { modeFinancement: 'appel de fonds' },
+      signataireId: 'col-gestion',
+    }
+    expect(controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-aj' } }), sansLui)).toEqual([])
+    expect(codes(controlerAvantEnvoiOs(d, sortie(d, { ...cadre, constatUrgence: { ...CONSTAT, collaborateurId: 'col-stagiaire' } }), sansLui))).toEqual([
+      'constat_urgence_auteur_non_habilite',
+    ])
+  })
+
+  it('7 (J17), (a) : un envoi pendant le délai de contestation pour une intervention prévue après le délai part sans anomalie (comportement décrit dans l’en-tête)', () => {
+    const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+    const apres = demande({ prevuLe: '2026-11-25' })
+    const resolution = sortie(apres, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25' })
+    expect(controlerAvantEnvoiOs(apres, resolution, pendant)).toEqual([])
+    expect(envoyerOs(apres, resolution, ENVOI, pendant).journal[0].date).toBe('2026-10-03')
+    // sans date d'intervention prévue, l'envoi pendant le délai est bloqué
+    const sansDate = demande({ prevuLe: null })
+    expect(bloquants(controlerAvantEnvoiOs(sansDate, sortie(sansDate, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25' }), pendant))).toEqual([
+      'execution_suspendue_art42',
+    ])
+  })
+})
+
+describe('retours de relecture des décisions 7 à 9 (J17 à J19, tour 2)', () => {
+  const d = demande({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 } })
+  const envoiAr: SaisieDiffusion = { ...ENVOI, canal: 'courrier_ar', missionId: null, courrierId: 'courrier-1' }
+  const envoyeAr = envoyerOs(d, sortie(d, { canal: 'courrier_ar' }), envoiAr, CONTEXTE)
+  const receptionAr: SaisieDiffusion = { ...envoiAr, date: '2026-10-06', heure: '09:00' }
+  /** Courrier AR lié (courriers.ts) : déposé le 03/10, présenté le 05/10, avis de réception signé le 06/10. */
+  const COURRIER_AR: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', datePremierePresentation: '2026-10-05', dateAccuseReception: '2026-10-06' }
+  const NON_DEPOSE: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: null, datePremierePresentation: null, dateAccuseReception: null }
+
+  it('9 (J19), constat 1 : l’AR ne prouve la réception de l’OS que s’il est celui du courrier AR qui a porté l’OS à l’entreprise (envoi ou rediffusion, même courrier)', () => {
+    const autrePli = /n'a pas porté l'OS à l'entreprise/
+    // (1) OS envoyé par la seule messagerie VitFix : aucun pli en courrier AR dans le journal
+    const dm = demande()
+    const parMessagerie = envoyerOs(dm, sortie(dm), ENVOI, CONTEXTE)
+    const sansRapport: SaisieReception = {
+      ...ENVOI,
+      canal: 'courrier_ar',
+      courrierId: 'courrier-sans-rapport',
+      missionId: null,
+      heure: '12:00',
+      ar: { reference: 'AR-X', premierePresentationLe: '2026-10-03' },
+    }
+    expect(() => enregistrerReception(parMessagerie, sansRapport)).toThrow(
+      "AR du courrier courrier-sans-rapport refusé : ce courrier n'a pas porté l'OS à l'entreprise (ni envoi ni rediffusion de l'OS par courrier AR à ent-1 sous ce courrier) ; l'AR d'un autre pli ne prouve pas la réception de l'OS.",
+    )
+    expect(() => enregistrerReception(parMessagerie, sansRapport, { ...COURRIER_AR, datePremierePresentation: '2026-10-03' })).toThrow(autrePli)
+    // (2) OS porté par « courrier-1 », réception sur « courrier-2 »
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, courrierId: 'courrier-2', ar: { reference: 'AR-2' } })).toThrow(autrePli)
+    // rediffusion de l'OS à l'entreprise par courrier AR « courrier-2 » le 08/10 : son AR prouve, présenté au plus tôt ce jour-là
+    const rediffuse = envoyerOs(d, envoyeAr, { ...envoiAr, courrierId: 'courrier-2', date: '2026-10-08' }, CONTEXTE)
+    const recu = (premierePresentationLe: string) =>
+      enregistrerReception(rediffuse, { ...receptionAr, courrierId: 'courrier-2', date: '2026-10-10', ar: { reference: 'AR-2', premierePresentationLe } })
+    expect(preuveReceptionOs(recu('2026-10-08'))).toBe('ar')
+    expect(() => recu('2026-10-07')).toThrow("Première présentation de l'AR (07/10/2026) antérieure à l'envoi de l'OS par le courrier courrier-2 (08/10/2026).")
+    // rediffusion par courrier AR à une autre fiche, ou relance par courrier AR : leur AR ne prouve pas la réception de l'OS par l'entreprise
+    const aLaCopropriete = envoyerOs(d, envoyeAr, { ...envoiAr, courrierId: 'courrier-3', destinataire: creerRattachement('Copropriété', 'copro-1') }, CONTEXTE)
+    expect(() => enregistrerReception(aLaCopropriete, { ...receptionAr, courrierId: 'courrier-3', ar: { reference: 'AR-3' } })).toThrow(autrePli)
+    const relance = relancerOs(envoyeAr, { ...envoiAr, courrierId: 'courrier-4', date: '2026-10-05' })
+    expect(() => enregistrerReception(relance, { ...receptionAr, courrierId: 'courrier-4', ar: { reference: 'AR-4' } })).toThrow(autrePli)
+    // le pli qui a porté l'OS : accepté (non-régression)
+    expect(preuveReceptionOs(enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-1' } }))).toBe('ar')
+  })
+
+  it('9 (J19), constat 1 : à la saisie, le courrier lié fourni est déposé, et l’AR n’est présenté ni avant le dépôt ni après le retrait du pli (comme courriers.ts)', () => {
+    // (3) courrier lié jamais déposé
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-3', premierePresentationLe: '2026-10-04' } }, NON_DEPOSE)).toThrow(
+      "AR de la réception refusé : courrier lié jamais déposé : l'AR n'est pas celui d'un pli parti ; corriger l'AR saisi ou le suivi du courrier (courriers.ts).",
+    )
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-3' } }, NON_DEPOSE)).toThrow(/jamais déposé/)
+    // (4) courrier déposé le 05/10, AR saisi présenté le 04/10
+    const depotTardif: CourrierSuivi = { ...NON_DEPOSE, dateDepot: '2026-10-05' }
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-4', premierePresentationLe: '2026-10-04' } }, depotTardif)).toThrow(
+      "AR de la réception refusé : première présentation de l'AR (04/10/2026) antérieure au dépôt du courrier lié (05/10/2026) ; corriger l'AR saisi ou le suivi du courrier (courriers.ts).",
+    )
+    expect(enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-4', premierePresentationLe: '2026-10-05' } }, depotTardif).journal[1].ar?.premierePresentationLe).toBe(
+      '2026-10-05',
+    )
+    // courrier écrit avant J1 : retrait connu, présentation absente ; l'AR présenté après le retrait est refusé
+    const avantJ1: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', dateAccuseReception: '2026-10-04' }
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-4', premierePresentationLe: '2026-10-05' } }, avantJ1)).toThrow(
+      /postérieure au retrait du pli \(04\/10\/2026\)/,
+    )
+    // sans AR, la réception par courrier AR reste admise comme avant la décision 9 ; sa preuve est l'état du courrier lié
+    const sansAr = enregistrerReception(envoyeAr, receptionAr, NON_DEPOSE)
+    expect(preuveDeDiffusion(sansAr, sansAr.journal[1], NON_DEPOSE)).toBe('non_envoye')
+  })
+
+  it('9 (J19), constat 2 : un écart entre l’AR et le courrier lié apparu après la saisie est signalé à la lecture (« ar_ecart_courrier »), jamais levé : la ligne ne se réécrit pas', () => {
+    // saisie : courrier lié sans première présentation connue, AR présenté le 04/10
+    const sansDate: CourrierSuivi = { ...COURRIER_AR, datePremierePresentation: null, dateAccuseReception: null }
+    const saisie = enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-5', premierePresentationLe: '2026-10-04' } }, sansDate)
+    const ligne = saisie.journal[1]
+    expect(preuveDeDiffusion(saisie, ligne, sansDate)).toBe('ar')
+    expect(ecartArCourrier(ligne, sansDate)).toBeNull()
+    // le suivi postal fixe ensuite la présentation au 05/10 (courriers.ts) : l'écart est signalé, rien n'est levé
+    expect(preuveDeDiffusion(saisie, ligne, COURRIER_AR)).toBe('ar_ecart_courrier')
+    expect(ecartArCourrier(ligne, COURRIER_AR)).toBe(
+      "AR de la réception du 06/10/2026 en écart avec le courrier lié : première présentation de l'AR (04/10/2026) différente de celle du courrier lié (05/10/2026) ; la ligne du journal ne se réécrit pas : enregistrer une nouvelle réception avec l'AR exact, ou corriger le suivi du courrier (courriers.ts).",
+    )
+    // nouvelle réception avec l'AR exact : sa ligne vaut « ar », l'ancienne reste signalée ; lire tout le journal ne lève pas
+    const corrigee = enregistrerReception(saisie, { ...receptionAr, date: '2026-10-07', ar: { reference: 'AR-5' } }, COURRIER_AR)
+    expect(corrigee.journal.map((l) => preuveDeDiffusion(corrigee, l, COURRIER_AR))).toEqual(['notifie', 'ar_ecart_courrier', 'ar'])
+    expect(preuveReceptionOs(corrigee)).toBe('ar')
+    // autres écarts lus : courrier jamais déposé, présentation avant le dépôt, après le retrait du pli (courrier écrit avant J1)
+    const avecSeule = enregistrerReception(envoyeAr, { ...receptionAr, ar: { reference: 'AR-6', premierePresentationLe: '2026-10-04' } })
+    const seule = avecSeule.journal[1]
+    expect(preuveDeDiffusion(avecSeule, seule, NON_DEPOSE)).toBe('ar_ecart_courrier')
+    expect(ecartArCourrier(seule, NON_DEPOSE)).toMatch(/: courrier lié jamais déposé : l'AR n'est pas celui d'un pli parti ;/)
+    expect(ecartArCourrier(seule, { ...NON_DEPOSE, dateDepot: '2026-10-05' })).toMatch(/antérieure au dépôt du courrier lié \(05\/10\/2026\)/)
+    expect(ecartArCourrier(seule, { formeEnvoi: 'AR', dateDepot: '2026-10-03', dateAccuseReception: '2026-10-03' })).toMatch(/postérieure au retrait du pli \(03\/10\/2026\)/)
+    // sans AR : aucun écart (preuve : état de notification du courrier, comme avant la décision 9) ; un courrier hors AR reste refusé
+    expect(ecartArCourrier(enregistrerReception(envoyeAr, receptionAr).journal[1], COURRIER_AR)).toBeNull()
+    expect(() => preuveDeDiffusion(saisie, ligne, { ...COURRIER_AR, formeEnvoi: 'Normal' })).toThrow(/un courrier en AR est attendu/)
+  })
+})
+
+describe('contrôle final des décisions 7 à 9 (J19) : toute réception par courrier AR, AR saisi ou non, est celle du pli qui a porté l’OS', () => {
+  const d = demande()
+  const envoiAr: SaisieDiffusion = { ...ENVOI, canal: 'courrier_ar', missionId: null, courrierId: 'courrier-1' }
+  const envoyeAr = envoyerOs(d, sortie(d, { canal: 'courrier_ar' }), envoiAr, CONTEXTE)
+  /** Réception par courrier AR, sans AR saisi. */
+  const receptionAr: SaisieReception = { ...envoiAr, date: '2026-10-06', heure: '09:00' }
+  /** Courrier AR lié (courriers.ts) : déposé le 03/10, présenté le 05/10, retiré le 06/10. */
+  const COURRIER_AR: CourrierSuivi = { formeEnvoi: 'AR', dateDepot: '2026-10-03', datePremierePresentation: '2026-10-05', dateAccuseReception: '2026-10-06' }
+  const refus = (courrierId: string) =>
+    `Réception par le courrier ${courrierId} refusée : ce courrier n'a pas porté l'OS à l'entreprise (ni envoi ni rediffusion de l'OS par courrier AR à ent-1 sous ce courrier) ; la réception d'un autre pli n'est pas celle de l'OS.`
+  const relancee = relancerOs(envoyeAr, { ...envoiAr, courrierId: 'courrier-4', date: '2026-10-05' })
+
+  it('cas nominal : sans AR saisi, sur le courrier AR qui a porté l’OS (envoi, ou rediffusion à l’entreprise), la réception est admise ; sa preuve est l’état de notification de ce courrier', () => {
+    const recue = enregistrerReception(envoyeAr, receptionAr, COURRIER_AR)
+    const ligne = recue.journal[1]
+    expect(ligne).toMatchObject({ nature: 'reception', canal: 'courrier_ar', courrierId: 'courrier-1', ar: null })
+    expect(preuveDeDiffusion(recue, ligne, COURRIER_AR)).toBe('notifie')
+    expect(preuveDeReception(ligne)).toBe('sans_preuve')
+    expect(preuveReceptionOs(recue)).toBe('sans_preuve')
+    // après une relance par un autre courrier, la réception sous le courrier de l'envoi reste admise
+    const apresRelance = enregistrerReception(relancee, receptionAr)
+    expect(preuveDeDiffusion(apresRelance, apresRelance.journal[2], COURRIER_AR)).toBe('notifie')
+    // rediffusion de l'OS à l'entreprise par « courrier-2 » : la réception sous ce courrier est admise
+    const rediffuse = envoyerOs(d, envoyeAr, { ...envoiAr, courrierId: 'courrier-2', date: '2026-10-04' }, CONTEXTE)
+    const parRediffusion = enregistrerReception(rediffuse, { ...receptionAr, courrierId: 'courrier-2' })
+    expect(parRediffusion.journal[2]).toMatchObject({ nature: 'reception', courrierId: 'courrier-2', ar: null })
+    expect(preuveDeDiffusion(parRediffusion, parRediffusion.journal[2], { ...COURRIER_AR, datePremierePresentation: null, dateAccuseReception: null })).toBe(
+      'envoye_non_notifie',
+    )
+  })
+
+  it('scénario 1 : OS parti par la seule messagerie VitFix ; une réception par courrier AR sans AR saisi est refusée, motif à l’appui', () => {
+    const parMessagerie = envoyerOs(d, sortie(d), ENVOI, CONTEXTE)
+    const sansRapport: SaisieReception = { ...ENVOI, canal: 'courrier_ar', courrierId: 'courrier-sans-rapport', missionId: null, heure: '12:00' }
+    expect(() => enregistrerReception(parMessagerie, sansRapport, COURRIER_AR)).toThrow(refus('courrier-sans-rapport'))
+    expect(() => enregistrerReception(parMessagerie, { ...sansRapport, ar: null })).toThrow(refus('courrier-sans-rapport'))
+  })
+
+  it('scénario 2 : OS parti par « courrier-1 », réception sans AR saisi sous « courrier-2 » : refusée', () => {
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, courrierId: 'courrier-2' }, COURRIER_AR)).toThrow(refus('courrier-2'))
+    expect(() => enregistrerReception(envoyeAr, { ...receptionAr, courrierId: 'courrier-2' })).toThrow(refus('courrier-2'))
+  })
+
+  it('scénario 3 : courrier d’une relance (« courrier-4 »), ou d’une rediffusion à une autre fiche : refusée sans AR saisi', () => {
+    expect(() => enregistrerReception(relancee, { ...receptionAr, courrierId: 'courrier-4' }, COURRIER_AR)).toThrow(refus('courrier-4'))
+    const aLaCopropriete = envoyerOs(d, envoyeAr, { ...envoiAr, courrierId: 'courrier-3', destinataire: creerRattachement('Copropriété', 'copro-1') }, CONTEXTE)
+    expect(() => enregistrerReception(aLaCopropriete, { ...receptionAr, courrierId: 'courrier-3' })).toThrow(refus('courrier-3'))
+  })
+
+  it('lecture : une réception sans AR dont le courrier n’a pas porté l’OS (ligne écrite sans ce contrôle) est « sans preuve », jamais l’état d’un pli non rattaché', () => {
+    const admise = enregistrerReception(envoyeAr, receptionAr).journal[1]
+    /** Ligne de réception sans la clé « ar », écrite avant la décision 9 sans le contrôle du pli, sous ce courrier. */
+    const ancienne = (s: SortieOrdreService, courrierId: string) => {
+      const ligne: EvenementDiffusion = { ...admise, courrierId }
+      delete ligne.ar
+      return { sortie: { ...s, journal: [...s.journal, ligne] }, ligne }
+    }
+    const scenarios = [
+      ancienne(envoyerOs(d, sortie(d), ENVOI, CONTEXTE), 'courrier-sans-rapport'),
+      ancienne(envoyeAr, 'courrier-2'),
+      ancienne(relancee, 'courrier-4'),
+    ]
+    for (const { sortie: s, ligne } of scenarios) {
+      expect(preuveDeDiffusion(s, ligne, COURRIER_AR), ligne.courrierId ?? '').toBe('sans_preuve')
+      expect(preuveReceptionOs(s), ligne.courrierId ?? '').toBe('sans_preuve')
+    }
+    // le courrier lié reste attendu de toute ligne par courrier AR ; la ligne d'envoi garde l'état de son courrier
+    const { sortie: autreCourrier, ligne } = scenarios[1]
+    expect(() => preuveDeDiffusion(autreCourrier, ligne)).toThrow(/courrier lié est attendu/)
+    expect(preuveDeDiffusion(autreCourrier, autreCourrier.journal[0], COURRIER_AR)).toBe('notifie')
+    // la même ligne ancienne, sous le courrier qui a porté l'OS : l'état de notification de ce courrier
+    const rattachee = ancienne(envoyeAr, 'courrier-1')
+    expect(preuveDeDiffusion(rattachee.sortie, rattachee.ligne, COURRIER_AR)).toBe('notifie')
+  })
+})
+
 describe('retouches de demandes.ts (base #618)', () => {
   it('verifierSansBloquant, exporté, ne lève que sur les bloquants et les liste', () => {
     expect(() => verifierSansBloquant([{ gravite: 'alerte', message: 'A.' }], 'Refus')).not.toThrow()
@@ -1077,7 +1984,8 @@ describe('retouches de demandes.ts (base #618)', () => {
 
 describe('en-tête du module', () => {
   const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'envoi-ordre-service.ts'), 'utf8')
-  const enTete = source.slice(0, source.indexOf('*/'))
+  /** En-tête lu d'un seul tenant : les retours à la ligne du commentaire (« \n *   ») valent une espace. */
+  const enTete = source.slice(0, source.indexOf('*/')).replaceAll(/\r?\n \* */g, ' ')
 
   it('cite les tranches Gestéam, les marqueurs et la base du rôle de viseur', () => {
     for (const attendu of ['tranche 34', 'tranche 40', 'tranche 43', '🟢', '🔵', '🔴', 'CircuitValidationModule', 'ROLES_CABINET'])
@@ -1089,7 +1997,167 @@ describe('en-tête du module', () => {
       expect(enTete).toContain(attendu)
   })
 
+  it('tour 2 : branchement du suivi « à faire » par relanceAFixer (aConfirmer laissé aux repères juridiques) ; constat postérieur à l’envoi bloquant', () => {
+    expect(enTete).not.toContain('aConfirmer pour une date de relance à fixer')
+    expect(enTete).toContain('relanceAFixer')
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    expect(deduit).toContain('constat_urgence_posterieur_envoi')
+    // la question du moment du constat (décision ou envoi) reste ouverte
+    expect(enTete.slice(enTete.indexOf('🔴 Non établi'))).toContain("constat doit-il précéder la décision au registre, ou l'envoi")
+  })
+
   it('ne cite pas l’art. 1127-5 du code civil, abrogé', () => {
     expect(source).not.toContain('1127-5')
+  })
+
+  it('retours de relecture J17 à J19 : textes du signataire gardés, art. 42 décrit selon le comportement, unanimité justifiée, réception distincte déduite, preuve de la réception', () => {
+    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
+    // J18 : les textes de la question 8 restent cités, la lecture est marquée 🔵 ; « sans texte » ne vaut que pour la liste du cabinet
+    expect(decisions).toContain('« Seul responsable de sa gestion, il ne peut se faire substituer. »')
+    expect(decisions).toContain("« L'administrateur provisoire exécute personnellement la mission qui lui est confiée. »")
+    expect(decisions).toContain("au nom et sous la responsabilité de l'administrateur provisoire, n'est pas une substitution")
+    expect(decisions).toContain('contrôle par la liste du cabinet : règle de gestion, sans texte')
+    expect(decisions).toContain('administrateurDesigneId')
+    expect(decisions).toContain('une liste vide bloque tout autre signataire')
+    expect(enTete).not.toContain('règle de gestion sans texte (signataire_non_habilite')
+    expect(enTete).not.toMatch(/AUCUN TEXTE pour [^.]*, le signataire,/)
+    expect(questions).toContain("textes sur l'habilitation des collaborateurs non lus")
+    // J17 (a) : la décision décrit le comportement ; le cas de l'intervention postérieure est à confirmer
+    expect(decisions).toContain("un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué")
+    expect(decisions).not.toContain("l'envoi de l'OS est BLOQUÉ pendant le délai de contestation (")
+    expect(questions).toContain('un envoi pendant le délai de contestation, pour une intervention prévue après la fin du délai, peut-il partir')
+    // J17 (c) : la raison de l'interprétation, et l'écart avec majorites-ag.ts
+    expect(decisions).not.toContain('seules les majorités des art. 25 et 26 le sont')
+    expect(decisions).toContain('ni opposant ni défaillant')
+    expect(decisions).toContain('« Les actions en contestation des décisions des assemblées générales doivent, à peine de déchéance, être introduites par les copropriétaires opposants ou défaillants')
+    expect(questions).toContain("MAJORITES_AG (majorites-ag.ts) fonde l'unanimité sur L. 1965 art. 26, dernier al.")
+    // J19 : réception distincte déduite (🔵), AR réservé au courrier AR, AR tardif, ligne ancienne, courrier lié
+    expect(decisions).toContain("déduit de « l'AR fait preuve »")
+    expect(deduit).toContain("l'AR est réservé à la réception par courrier AR")
+    expect(deduit).toContain('preuveReceptionOs')
+    expect(deduit).toContain('nouvelle ligne « reception »')
+    expect(deduit).toContain('lue sans AR')
+    expect(deduit).toContain("rapproché du courrier lié")
+  })
+
+  it('retours de relecture J17 à J19 (tour 2) : art. 18, IV et 29-1, I cités jusqu’aux phrases qui suivent ; administrateurDesigneId tiré du mandat, jamais du réglage du cabinet ; AR du pli qui a porté l’OS', () => {
+    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Branchements à faire plus tard'))
+    const branchements = enTete.slice(enTete.indexOf('Branchements à faire plus tard'))
+    // constat 3 : la phrase de l'art. 29-1, I qui suit « exécute personnellement » (et celle de l'art. 18, IV), mot pour mot
+    expect(decisions).toContain(
+      '« Il peut toutefois, lorsque le bon déroulement de la mission le requiert, se faire assister par un tiers désigné par le président du tribunal judiciaire sur sa proposition et rétribué sur sa rémunération. »',
+    )
+    expect(decisions).toContain("« L'assemblée générale peut seule autoriser, à la majorité prévue par l'article 25, une délégation de pouvoir à une fin déterminée. »")
+    expect(decisions).toContain('le seul concours que cet alinéa prévoit')
+    expect(decisions).toContain("le collaborateur n'est pas le tiers qui assiste l'administrateur provisoire")
+    expect(questions).toContain('collaborateurs du cabinet sont-ils des « tiers » au sens de L. 1965 art. 29-1, I')
+    expect(questions).toContain('« délégation de pouvoir » de L. 1965 art. 18, IV')
+    // constat 4 : l'administrateur provisoire est désigné pour chaque mandat par le président du tribunal judiciaire
+    /** Source entière, commentaires lus d'un seul tenant (« \n   * » vaut une espace). */
+    const joint = source.replaceAll(/\r?\n\s*\* */g, ' ')
+    expect(joint).not.toMatch(/administrateurDesigneId[^.;]*réglage du cabinet/)
+    expect(branchements).toContain('administrateurDesigneId tiré du MANDAT')
+    expect(decisions).toContain("administrateurDesigneId, l'administrateur provisoire désigné pour ce mandat par la décision du président du tribunal judiciaire")
+    const champ = joint.slice(joint.indexOf('administrateurDesigneId?: string | null') - 600, joint.indexOf('administrateurDesigneId?: string | null'))
+    expect(champ).toContain('désigné pour ce mandat par la décision du président du tribunal judiciaire')
+    expect(champ).toContain('jamais depuis le réglage du cabinet')
+    expect(questions).toContain('mandat qui nomme deux administrateurs judiciaires')
+    // constat 1 : l'AR est celui du pli qui a porté l'OS ; « comme courriers.ts » vaut pour le courrier lié lui-même
+    expect(deduit).toContain("celui du pli qui a porté l'OS à l'entreprise")
+    expect(deduit).not.toContain("n'est ni antérieure au premier envoi ni postérieure à la réception (comme courriers.ts")
+    // constat 2 : l'écart découvert à la lecture est signalé, jamais levé
+    expect(deduit).toContain('ar_ecart_courrier')
+    expect(deduit).not.toContain('refuse la même incohérence')
+  })
+
+  it('contrôle final J19 : toute réception par courrier AR, AR saisi ou non, rattachée au pli qui a porté l’OS ; sans AR, jamais la preuve d’un pli non rattaché', () => {
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    const branchements = enTete.slice(enTete.indexOf('Branchements à faire plus tard'))
+    expect(deduit).toContain('toute réception par courrier AR, AR saisi ou non')
+    expect(deduit).toContain("la réception d'un autre pli n'est pas celle de l'OS")
+    expect(deduit).toContain("« sans preuve », jamais l'état de notification d'un pli qui n'a pas porté l'OS")
+    expect(branchements).toContain('preuveDeDiffusion avec la sortie et le courrier lié de toute ligne par courrier AR')
+  })
+
+  it('L. 1965 art. 42, al. 3 cité mot pour mot (Légifrance, version en vigueur au 03/11/2026)', () => {
+    expect(enTete).toContain(
+      "« Sauf urgence, l'exécution par le syndic des travaux décidés par l'assemblée générale en application des articles 25 et 26 de la présente loi est suspendue jusqu'à l'expiration du délai de deux mois mentionné au deuxième alinéa du présent article. »",
+    )
+    expect(enTete).toContain('version en vigueur au 03/11/2026')
+    expect(enTete).not.toContain('suspendue jusqu\'à l\'expiration du délai de contestation de deux mois (L. 1965 art. 42, al. 3)')
+  })
+
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : réponses 1 à 9 (J11 à J19) inscrites, leurs questions fermées, les autres restent ouvertes', () => {
+    const decisions = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('🔵 Déduit'))
+    for (const attendu of ['PAR MANDAT', 'UrgenceOrdreAJ', 'CANAUX_ENVOI_OS', '« Accusé demandé »', '« Rapport demandé »', 'MÊME circuit', 'mise en concurrence', "nous constatons l'urgence"])
+      expect(decisions).toContain(attendu)
+    // décisions 7 à 9 (J17 à J19)
+    for (const attendu of [
+      '7 (J17)',
+      "interprétation de la réponse « oui », à confirmer par Hugo (🔵)",
+      'unanimité',
+      '8 (J18)',
+      'COLLABORATEUR',
+      'réglage du cabinet',
+      '9 (J19)',
+      'FAIT PREUVE',
+      'première présentation',
+      'aucune caducité codée',
+    ])
+      expect(decisions).toContain(attendu)
+    // l'auteur du constat face aux signataires : interprétation (🔵), pas une décision de Hugo
+    expect(decisions).not.toContain('constat_urgence_auteur_non_habilite')
+    // décision 5 : le contenu de l'alinéa reste écrit ; décision 3 : la règle telle que le code l'applique
+    expect(decisions).toContain('L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) : le motif « mise en concurrence » est gardé')
+    expect(decisions).toContain('date de relance fixée ou non')
+    // la date du constat n'est pas une décision de Hugo
+    expect(decisions).not.toMatch(/borneAvisAj|constat_urgence_posterieur/)
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    expect(deduit).toContain('critère proposé, non contredit par Hugo')
+    expect(deduit).toContain('règle proposée, non demandée par Hugo')
+    expect(deduit).toContain('constat_urgence_auteur_non_habilite')
+    expect(deduit).toContain('« sans preuve »')
+    expect(deduit).not.toContain("l'auteur du constat n'est pas comparé aux signataires habilités")
+    expect(deduit).not.toContain('question 7 ouverte')
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
+    for (const tranchee of [
+      'séquence par mandat (retenue) ou par mandat et plan',
+      'valeurs des listes Délai, Envoi et Signature',
+      'la relance vise-t-elle',
+      'le visa des courriers (tranche 20) suit-il',
+      "Qui constate l'urgence",
+      'vaut-il pour les marchés',
+      // décisions 7 à 9
+      'L. 1965 art. 42, al. 3 : bloquant',
+      'relève-t-elle de la suspension',
+      'un collaborateur peut-il signer',
+      '(question 7)',
+    ])
+      expect(questions).not.toContain(tranchee)
+    for (const ouverte of [
+      'segment <plan>',
+      'au premier envoi',
+      'complété de zéros',
+      'liste Signature',
+      'devisExigesParAssemblee',
+      'Hugo (suite de la décision 6)',
+      'critère proposé (entretien courant',
+      'un délai « prioritaire » peut-il valoir urgence',
+      "constat doit-il précéder la décision au registre, ou l'envoi",
+      // restes des décisions 8 et 9
+      "l'auteur du constat d'urgence doit-il être un signataire habilité",
+      'Hugo, preuve (suite de la décision 9)',
+      // registre J19 : « objet (devis ou OS) » ; la question imposée nommait le devis et l'AR
+      "la caducité d'un an vise-t-elle le devis accepté par l'OS, l'OS lui-même, ou l'AR lui-même ? À compter de quelle date : envoi, première présentation, réception ?",
+      // non répondue par Hugo : déduite de « l'AR fait preuve », elle reste à confirmer
+      "la réception distincte de l'envoi convient-elle",
+      "vaut-elle réception de l'OS au sens de C. civ. art. 1121",
+      "délai d'acheminement",
+    ])
+      expect(questions).toContain(ouverte)
   })
 })

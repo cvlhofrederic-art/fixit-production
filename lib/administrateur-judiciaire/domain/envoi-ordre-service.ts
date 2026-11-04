@@ -4,13 +4,14 @@ import { seuilsAtteints, type DecisionAnnuelle } from '@/lib/administrateur-judi
 import {
   controleDeclaratifDemande,
   estRefusee,
+  etapeDuStade,
   montantHtOperationDemande,
   prevuDemande,
   verifierSansBloquant,
   type Demande,
   type OptionsControleDeclaratif,
 } from '@/lib/administrateur-judiciaire/domain/demandes'
-import { creerRattachement, FICHES_PORTEUSES, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
+import { creerRattachement, FICHES_PORTEUSES, memeRattachement, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire/domain/majorites-ag'
 import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
@@ -37,7 +38,10 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (signataire pour le cabinet), Délai (ex. Urgent), Envoi (ex. E-mail), Relance (date), bouton Diffuser ; § Onglet Suivi,
  *   bloc Diffusion : Diffusable, Fax / SMS envoyés, journal horodaté des envois (date, heure, collaborateur, canal,
  *   destinataire) ; critères de recherche Visa de sortie et Référence diffusion. Les listes Délai, Envoi et Signature n'ont
- *   pas été ouvertes, le bouton Délégation n'a pas été cliqué ;
+ *   pas été ouvertes (valeurs de Délai et d'Envoi : décision de Hugo du 03/11/2026), le bouton Délégation n'a pas été
+ *   cliqué ;
+ * - référentiel STATUT_DEMANDE (Gestéam, module Demandes ; demandes.ts) : la demande peut être « Accusé demandé » ou
+ *   « Rapport demandé » ;
  * - tranche 40 : référentiel Visa de sortie, 5 valeurs (Demande de visa, Visa refusé, Visa nécessaire, Visa donné, Sortie
  *   libre) ; la tranche en déduit (🔵) un circuit d'approbation avant envoi : sortie libre, ou visa demandé puis donné ou
  *   refusé ;
@@ -63,10 +67,13 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (L. 1965 art. 21-1), pour un montant maximum fixé par elle (art. 21-2), pour deux ans au plus, renouvelable par
  *   décision expresse (art. 21-3) ; une délégation à une fin déterminée peut aussi être donnée au conseil syndical (art.
  *   25 a) ; les décisions de l'administrateur provisoire sont mentionnées, à leur date, au registre (D. 1967 art. 62-8) ;
- * - exécution d'une résolution : sauf urgence, l'exécution des travaux décidés par l'assemblée en application des art. 25
- *   et 26 est suspendue jusqu'à l'expiration du délai de contestation de deux mois (L. 1965 art. 42, al. 3) : BLOQUANT
- *   quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai, alerte quand la majorité ou la fin du délai
- *   manquent ;
+ * - exécution d'une résolution : L. 1965 art. 42, al. 3, relu sur Légifrance le 04/11/2026, version en vigueur au
+ *   03/11/2026 (en vigueur depuis le 01/06/2020, modifié par l'ordonnance n° 2019-1101 du 30 octobre 2019, art. 37) :
+ *   « Sauf urgence, l'exécution par le syndic des travaux décidés par l'assemblée générale en application des articles 25
+ *   et 26 de la présente loi est suspendue jusqu'à l'expiration du délai de deux mois mentionné au deuxième alinéa du
+ *   présent article. » (le délai de contestation ; le syndic : ici l'administrateur provisoire qui reçoit ses pouvoirs,
+ *   L. 1965 art. 29-1, I) : BLOQUANT quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai, alerte quand la
+ *   majorité ou la fin du délai manquent (décision 7) ;
  * - déclencheurs légaux du visa (MotifVisa ; intervention seulement : une demande de devis ne conclut aucun marché) :
  *   seuil de consultation du conseil syndical et seuil de mise en concurrence fixés par l'assemblée, obligatoires « à
  *   partir » de ces montants (L. 1965 art. 21, al. 2 ; sans conditions fixées par l'assemblée, la mise en concurrence
@@ -93,23 +100,82 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - un OS qui modifie le devis vaut offre nouvelle (C. civ. art. 1118, al. 3) et l'offre est caduque à l'expiration du
  *   délai fixé par son auteur (C. civ. art. 1117, al. 1) (🔵) : après le premier envoi, la sortie et son visa sont figés ;
  *   un devis associé échu avant que l'OS parvienne à l'entreprise est signalé ;
- * - AUCUN TEXTE pour la numérotation, le référentiel des visas, le refus d'envoyer sans visa, le signataire, le délai, la
- *   relance ni le journal : règles de gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS (🔵 : les formes
- *   de D. 1967 art. 64 visent les notifications et mises en demeure).
+ * - AUCUN TEXTE pour la numérotation, le référentiel des visas, le refus d'envoyer sans visa, le contrôle du signataire
+ *   par la liste du cabinet (textes lus sur la signature : décision 8), le délai, la relance ni le journal : règles de
+ *   gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS (🔵 : les formes de D. 1967 art. 64 visent les
+ *   notifications et mises en demeure).
+ *
+ * Décisions de Hugo du 03/11/2026 (questions « Ordres de service » 1 à 9 ; registre des décisions : J11 à J19) :
+ * - 1. N° : séquence PAR MANDAT (plus grand rang du segment mandat + 1, tous plans confondus : rangOsSuivant) ;
+ * - 2. listes de la tranche 34 : Délai = UrgenceOrdreAJ (normale, prioritaire, urgence), Envoi = CANAUX_ENVOI_OS ;
+ * - 3. relance : elle vise la réponse à l'OS, et AUSSI l'accusé et le rapport quand la demande est « Accusé demandé » ou
+ *   « Rapport demandé » : un OS envoyé reste à relancer tant que l'un d'eux manque, date de relance fixée ou non
+ *   (attendusOs, relancesOsDues) ;
+ * - 4. courriers : le visa des courriers (tranche 20) suit le MÊME circuit que celui des OS ; le circuit est commun aux
+ *   pièces de sortie (CircuitVisa, PieceVisee, circuitVisaInitial, appliquerActionVisa, revoirCircuitVisa,
+ *   anomaliesCircuitVisa, visaPermetSortie), sans modification des modules de courrier (branchement à faire) ;
+ * - 5. L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) : le motif « mise en
+ *   concurrence » est gardé ;
+ * - 6. avis préalable sous administration provisoire (D. 1967 art. 62-7) : « nous constatons l'urgence » : l'urgence qui
+ *   dispense de l'avis du conseil syndical est constatée par l'administrateur provisoire lui-même (le collaborateur qui
+ *   agit en son nom), dans un constat daté, motivé et attribué (constatUrgence) ; sans constat complet, l'avis reste exigé
+ *   pour des travaux décidés au titre des pouvoirs de l'assemblée. Hugo n'a rien dit du moment du constat (🔴) ;
+ * - 7 (J17). L. 1965 art. 42, al. 3 : « oui », compris comme la CONFIRMATION des trois choix du code, interprétation de la
+ *   réponse « oui », à confirmer par Hugo (🔵) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
+ *   « bloquant ou alerte ? » ; registre : « envoi bloqué pendant le délai de contestation ») : execution_suspendue_art42
+ *   quand l'intervention prévue (à défaut, l'envoi) tombe au plus tard le dernier jour du délai, sauf urgence retenue
+ *   (décision 6) ; un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué (🔴) ; (b)
+ *   l'intervention d'une entreprise qui exécute une résolution des art. 25 ou 26 vaut exécution de « travaux », quel que
+ *   soit son objet ; (c) une décision prise à l'unanimité n'est pas suspendue (MAJORITES_SUSPENSIVES : art25 et art26) ;
+ *   raison, interprétation à confirmer (🔵) : prise à l'unanimité des voix de tous les copropriétaires, elle n'a ni
+ *   opposant ni défaillant, or « Les actions en contestation des décisions des assemblées générales doivent, à peine de
+ *   déchéance, être introduites par les copropriétaires opposants ou défaillants dans un délai de deux mois à compter de
+ *   la notification du procès-verbal d'assemblée, sans ses annexes. » (L. 1965 art. 42, al. 2, même relecture) : aucune
+ *   action n'est ouverte pendant le délai qui borne la suspension ; écart avec majorites-ag.ts signalé (🔴) ;
+ * - 8 (J18). signataire : un COLLABORATEUR du cabinet peut signer l'OS, pas seulement l'administrateur désigné ; décision
+ *   rendue sur une question qui citait L. 1965 art. 18, IV (« Seul responsable de sa gestion, il ne peut se faire
+ *   substituer. ») et art. 29-1, I (« L'administrateur provisoire exécute personnellement la mission qui lui est
+ *   confiée. »), relus sur Légifrance le 04/11/2026 (versions en vigueur au 03/11/2026, modifiées par la loi n° 2024-322
+ *   du 9 avril 2024) ; la question ne citait pas la phrase qui suit chacune d'elles, lue le même jour : à l'art. 18, IV,
+ *   « L'assemblée générale peut seule autoriser, à la majorité prévue par l'article 25, une délégation de pouvoir à une
+ *   fin déterminée. » ; à l'art. 29-1, I, « Il peut toutefois, lorsque le bon déroulement de la mission le requiert, se
+ *   faire assister par un tiers désigné par le président du tribunal judiciaire sur sa proposition et rétribué sur sa
+ *   rémunération. », le seul concours que cet alinéa prévoit ; lecture de ces textes, à confirmer par Hugo (🔵) : la
+ *   signature d'un collaborateur, au nom et sous la responsabilité de l'administrateur provisoire, n'est pas une
+ *   substitution, ni une délégation de pouvoir, et le collaborateur n'est pas le tiers qui assiste l'administrateur
+ *   provisoire (aucune désignation par le président du tribunal judiciaire n'est demandée ici) : ces points restent des
+ *   questions (🔴) ; l'administrateur désigné signe toujours (« pas seulement l'administrateur désigné ») :
+ *   administrateurDesigneId, l'administrateur provisoire désigné pour ce mandat par la décision du président du tribunal
+ *   judiciaire (L. 1965 art. 29-1, I), fourni par l'appelant, accepté même hors de la liste ; un autre collaborateur signe
+ *   s'il figure dans la liste du cabinet (signatairesHabilites, réglage du cabinet fourni par l'appelant ; absente : non
+ *   contrôlée ; une liste vide bloque tout autre signataire que l'administrateur désigné, et tout envoi quand il n'est pas
+ *   fourni) ; contrôle par la liste du cabinet : règle de gestion, sans texte (signataire_non_habilite : bloquant,
+ *   fondement null, plus « à confirmer ») ;
+ * - 9 (J19). preuve : l'AR (accusé de réception) FAIT PREUVE de la réception de l'OS ; la réception, distincte de l'envoi
+ *   (enregistrerReception ; 🔵 : déduit de « l'AR fait preuve », qui suppose une réception distincte de l'envoi, à
+ *   confirmer par Hugo), peut porter son AR (ArReceptionOs : référence, et date de première présentation du pli si elle
+ *   est connue, comme la décision J1) ; « AR caduc après 1 an » : l'objet (devis, OS ou AR) et le point de départ de la
+ *   caducité ne sont pas établis (🔴), aucune caducité codée.
  *
  * 🔵 Déduit (règles de ce module) :
- * - N° : séquence PAR MANDAT (plus grand rang du segment mandat + 1, tous plans confondus), attribué une fois puis figé ;
- *   un N° hors du format, ou d'un autre segment mandat que celui de la séquence (segmentMandat), est signalé hors
- *   séquence, un N° déjà porté par une autre demande du mandat (numerosDuMandat) est signalé en double, jamais
- *   renuméroté ; corps de la messagerie VitFix : bornes de ajOrdrePrestataireSchema (lib/validation.ts) sur les champs tirés
- *   de la demande, N° (reference_aj) de 50 caractères au plus, objet requis et de 200 caractères au plus (bloquants au
- *   contrôle avant l'envoi, erreur dans demandeEnvoiDepuisOs) ;
+ * - N° (séquence par mandat : décision 1) : attribué une fois puis figé ; un N° hors du format, ou d'un autre segment
+ *   mandat que celui de la séquence (segmentMandat), est signalé hors séquence, un N° déjà porté par une autre demande du
+ *   mandat (numerosDuMandat) est signalé en double, jamais renuméroté ; corps de la messagerie VitFix : bornes de
+ *   ajOrdrePrestataireSchema (lib/validation.ts) sur les champs tirés de la demande, N° (reference_aj) de 50 caractères au
+ *   plus, objet requis et de 200 caractères au plus (bloquants au contrôle avant l'envoi, erreur dans
+ *   demandeEnvoiDepuisOs) ;
  * - visa : « Sortie libre » sans motif, sinon « Visa nécessaire » ; nécessaire ou refusé → demandé → donné ou refusé ;
  *   un collaborateur peut exiger un visa sur une sortie libre ; la demande soumise au visa, puis visée, est figée par une
  *   empreinte (prévu, entreprise, objet, nature, devis associé) : à la revue, un visa demandé ou donné, ou une sortie
  *   libre, repasse à « Visa nécessaire » quand un motif nouveau apparaît ou que la demande ne correspond plus à
  *   l'empreinte, et le contrôle avant l'envoi le bloque ; seuls « Visa donné » et « Sortie libre » permettent l'envoi ;
  *   aucun événement du visa ne précède la demande, et le premier envoi ne précède pas le dernier événement du visa ;
+ * - circuit du visa commun aux pièces de sortie (décision 4) : transitions, horodatage, viseur, refus motivé, empreinte,
+ *   revue et contrôle avant la sortie ne dépendent que de la pièce décrite par PieceVisee (désignation, sortie, date,
+ *   empreinte et libellé des champs visés), messages compris (« avant l'envoi » pour l'OS, « avant le dépôt » pour le
+ *   courrier) ; l'ordre de service y est la demande (visa refusé : « revoir la demande », comme les autres messages du
+ *   visa, au lieu de « revoir l'ordre de service » auparavant) ; le gel après la sortie (envoi de l'OS, dépôt du courrier)
+ *   et les motifs du visa restent propres à chaque pièce ;
  * - viseur : un rôle de rolesViseurs (Direction par défaut, d'après CircuitValidationModule : « validé et signé par la
  *   direction »), autre que le collaborateur qui a demandé le visa ; le refus est motivé ;
  * - premier envoi : à l'entreprise de la demande, par le canal choisi, après controlerAvantEnvoiOs ; les envois suivants
@@ -117,8 +183,55 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   premier envoi (marquerDiffusable) ; relance et réception concernent l'entreprise du premier envoi ; horodatages
  *   croissants ; preuve propre au canal : missionId pour la messagerie VitFix, courrierId pour le courrier AR (état de
  *   notification tiré de courriers.ts) ;
+ * - preuve de la réception (décision 9) : une réception sans AR reste admise (estRecu, accusé reçu pour la relance,
+ *   devisCaducALaReception), marquée « sans preuve » (preuveDeReception, preuveDeDiffusion), sans blocage ; l'AR est
+ *   réservé à la réception par courrier AR (avis de réception du pli recommandé, forme d'envoi « AR » de Gestéam ; la
+ *   première présentation est une notion postale) : saisi sur une réception par un autre canal, il est refusé ; il est
+ *   celui du pli qui a porté l'OS à l'entreprise, comme toute réception par courrier AR, AR saisi ou non : le
+ *   courrierId de la réception est celui d'une ligne d'envoi ou de rediffusion de l'OS par courrier AR à la même
+ *   entreprise (pas d'une relance, ni d'un pli adressé à une autre fiche), sinon la réception est refusée à la saisie,
+ *   motif à l'appui (pliDeLaReception) : l'AR d'un autre pli ne prouve pas la réception de l'OS, et la réception d'un
+ *   autre pli n'est pas celle de l'OS ; l'AR porte une référence non vide (numéro du pli recommandé ou pièce
+ *   numérisée) ; sa première présentation, quand elle est connue, n'est ni antérieure à l'envoi de ce pli ni
+ *   postérieure à la réception ; l'AR saisi est rapproché du courrier lié (CourrierSuivi, courriers.ts) : à la saisie
+ *   quand l'appelant le fournit (enregistrerReception : forme « AR » exigée, courrier déposé, première présentation
+ *   tirée du courrier quand elle n'est pas saisie ; comme courriers.ts le refuse pour ses propres dates, jamais avant
+ *   le dépôt ni après le retrait du pli, et différente de celle du courrier refusée), et à la lecture de la preuve
+ *   (preuveDeDiffusion, qui attend le courrier lié de toute ligne par courrier AR) : la ligne ne se réécrivant pas, un
+ *   écart apparu après la saisie (courrier non fourni à la saisie, suivi postal complété ou corrigé ensuite) ne lève
+ *   rien, il est signalé (preuve « ar_ecart_courrier », message par ecartArCourrier), et une nouvelle réception peut
+ *   porter l'AR exact ; une réception par courrier AR sans AR saisi garde la preuve d'avant la décision 9, l'état de
+ *   notification du courrier lié, celui qui a porté l'OS (preuveDeDiffusion, qui lit aussi le journal de la sortie ;
+ *   preuveDeReception, qui ne lit que la ligne, la dit « sans preuve ») ; écrite sans le contrôle de la saisie (avant
+ *   la décision 9) sous un courrier qui n'a pas porté l'OS (OS parti par un autre canal ou sous un autre courrier,
+ *   courrier d'une relance ou d'un pli adressé à une autre fiche), elle est « sans preuve », jamais l'état de
+ *   notification d'un pli qui n'a pas porté l'OS ; une ligne écrite sans la clé « ar » (avant la décision 9) est lue
+ *   sans AR, jamais comme prouvée ; le journal ne se réécrit pas : un AR revenu après une réception déjà enregistrée
+ *   s'inscrit sur une nouvelle ligne « reception » (par courrier AR), et preuveReceptionOs donne la preuve de l'OS
+ *   lui-même (« ar » dès qu'une réception porte son AR ; il ne lit que les lignes : l'écart d'un AR avec son courrier
+ *   lié se lit par preuveDeDiffusion) ; la réception reste datée de sa première ligne (estRecu,
+ *   devisCaducALaReception ; la première présentation n'en tient pas lieu : question ouverte) ; l'envoi, la rediffusion
+ *   et la relance ne portent pas d'AR ;
  * - date de relance : jamais avant la demande (refusée à la création), ni avant le premier envoi (refusée après l'envoi ;
  *   avant l'envoi, une date antérieure bloque celui-ci) ;
+ * - relance (décision 3) : un OS envoyé, ni terminé ni refusé, attend de l'entreprise (attendusOs) : (a) la réponse à l'OS,
+ *   toujours, reçue quand la demande la montre : statut « Accepté », stade de l'étape Acceptation ou au-delà (Acceptée,
+ *   Programmée, Réalisée, Contestée, Validée ; une proposition n'est pas une réponse), réalisation datée, ou, pour une
+ *   demande de devis, le devis associé ; reçue aussi quand le rapport est enregistré (l'entreprise qui remet son rapport
+ *   a répondu à l'OS) ; (b) l'accusé de réception, au statut « Accusé demandé », reçu dès la première ligne « reception »
+ *   du journal (enregistrerReception) ; (c) le rapport, au statut « Rapport demandé », reçu quand il est enregistré
+ *   (enregistrerRapport : daté, au plus tôt le jour du premier envoi, une seule fois) ; le statut étant unique, l'accusé
+ *   et le rapport ne sont pas demandés ensemble ; date de relance : celle de la fiche (relanceLe, seul champ Relance de la
+ *   tranche 34), la même pour tous les éléments ; sans date (jamais fixée, ou vidée par relancerOs après une relance),
+ *   l'OS reste dû : l'élément demande de fixer la prochaine relance (relanceAFixer ; « Fixer la prochaine relance de
+ *   l'entreprise », et non « Relancer l'entreprise », qui doublerait le jour même une relance faite), daté de la dernière
+ *   relance du journal ou, à défaut, du premier envoi (aucun délai inventé), jusqu'à ce que fixerRelance fixe la suivante ;
+ *   aConfirmer reste faux : il signale un repère juridique non confirmé (ElementAFaire, suivi-a-faire.ts), or aucun texte
+ *   ne fixe la relance, réglage de gestion ; plusieurs éléments manquants : UN élément de relance par OS (id
+ *   demandes:relance_os:<demande>) qui liste ce qui manque (attendus, libellé), car une relance de l'entreprise réclame
+ *   tout ce qui manque en une fois (relancerOs : une ligne « relance » à l'entreprise du premier envoi), à une seule date
+ *   et par un seul collaborateur, alors qu'un élément par attendu répéterait la même date et la même action ; tout reçu,
+ *   plus rien n'est dû, même avec une date fixée ; relance assignée au collaborateur du premier envoi ;
  * - canaux « courriel » et « sms » : bloquant si l'entreprise n'a pas communiqué la coordonnée, alerte si on ne le sait
  *   pas ;
  * - caducité du devis associé : appréciée quand l'OS parvient à l'entreprise ; le jour de l'envoi pour la messagerie, le
@@ -127,9 +240,34 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - contrôle déclaratif (point 37) avant l'envoi d'une intervention, avec les gravités de vigilance-entreprises.ts : c'est le
  *   blocage de l'envoi que le point 37 renvoie au 44 ; pièces non fournies : bloquant si l'opération atteint le seuil de
  *   vigilance, si son montant HT est inconnu ou si la décennale est obligatoire, sinon alerte ;
- * - urgence DÉCLARÉE : délai « urgence » ou fondement « urgence de sauvegarde », AVEC un motif (alerte sans motif) ; elle
- *   seule lève l'avis préalable de D. 1967 art. 62-7 et la suspension de L. 1965 art. 42, al. 3 ; un motif saisi sans
- *   délai « urgence » est signalé (alerte) et ne lève rien ;
+ * - urgence RETENUE (décision 6) : délai « urgence » ou fondement « urgence de sauvegarde », AVEC le constat complet de
+ *   l'administrateur provisoire (date valide, motif non vide, collaborateur identifié ; refusé incomplet à la saisie ; un
+ *   constat incomplet repris d'ailleurs ne vaut pas constat, alerte ; daté après l'envoi, il bloque celui-ci, ci-dessous) ;
+ *   elle seule lève l'avis préalable de D. 1967 art. 62-7 et la suspension de L. 1965 art. 42, al. 3 (même constat pour
+ *   les deux) ; un constat saisi sans délai « urgence » est signalé (alerte) et ne lève rien ; un délai « prioritaire » ne
+ *   vaut pas urgence, même constatée (choix gardé, non contredit par Hugo) ; urgence non retenue : le message ne nomme ce
+ *   qui reste dû que lorsque cela s'applique (l'avis pour une intervention au titre des pouvoirs de l'assemblée, la
+ *   suspension pour l'exécution d'une résolution votée aux art. 25 ou 26) ;
+ * - auteur du constat d'urgence face aux signataires habilités (décisions 6 et 8), interprétation à confirmer par Hugo :
+ *   le constat est fait au nom de l'administrateur provisoire, comme la signature de l'OS ; quand l'appelant fournit la
+ *   liste du cabinet (signatairesHabilites), un constat dont l'auteur n'y figure pas, et n'est pas l'administrateur
+ *   désigné (administrateurDesigneId), est signalé, alerte à confirmer (constat_urgence_auteur_non_habilite), sans
+ *   blocage : il ne change pas l'urgence retenue ou non ;
+ * - date du constat d'urgence face à l'envoi, pour tous les fondements et tous les délais : daté après l'envoi, il bloque
+ *   celui-ci (constat_urgence_posterieur_envoi), comme une décision postérieure à l'envoi ; le jour de l'envoi, ce constat
+ *   n'existe pas encore : sans constat, l'urgence n'est pas retenue (décision 6), et le message dit ce qui reste dû ; les
+ *   deux réponses possibles à la question 🔴 (précéder la décision ou l'envoi) supposent un constat au plus tard le jour de
+ *   l'envoi ; une date illisible fait un constat incomplet, sans comparaison ;
+ * - date du constat d'urgence face à la décision, règle proposée, non demandée par Hugo (🔴) : contrôlée seulement quand
+ *   le constat tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de l'assemblée, avis non
+ *   enregistré au plus tard le jour de la décision au registre : borneAvisAj) ; daté après la décision et au plus tard le
+ *   jour de l'envoi, il est signalé, alerte à confirmer (constat_urgence_posterieur), sans bloquer l'envoi ; ni pour une
+ *   demande de devis, ni pour la suspension de L. 1965 art. 42, al. 3 (la décision 7 ne fixe pas la date du constat), ni
+ *   pour les autres fondements, sa date n'est comparée à celle de la décision ;
+ * - avis préalable sous administration provisoire (D. 1967 art. 62-7), critère proposé, non contredit par Hugo (pas une
+ *   décision) : un OS d'entretien courant, ou qui exécute une décision déjà prise, relève des pouvoirs du syndic (sans
+ *   avis) ; des travaux décidés au titre des pouvoirs de l'assemblée (fondement decision_aj_pouvoirs_ag) exigent l'avis,
+ *   sauf urgence constatée ;
  * - convention liée sous administration provisoire : le « syndic » de D. 1967 art. 39 est l'administrateur provisoire,
  *   ses « préposés » les collaborateurs du cabinet ; la réponse sur le lien (entrepriseLiee) vaut pour l'entreprise de la
  *   demande au moment où elle est saisie (entrepriseLieeDeclareePour) : l'entreprise changée, la réponse est périmée
@@ -144,34 +282,41 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - conseil syndical délégataire : alerte à confirmer quand aucune délégation (générale, ou de l'art. 25 a au conseil
  *   syndical) ne figure dans les décisions d'assemblée en vigueur fournies ;
  * - majorité de la résolution exécutée : « art25 » aussi pour une décision de l'art. 25 adoptée au second vote de l'art.
- *   25-1 ;
- * - relance due (suivi « à faire ») : assignée au collaborateur du premier envoi.
+ *   25-1.
  *
  * 🔴 Non établi — questions :
- * - Hugo : sens du segment <plan> du N° ; séquence par mandat (retenue) ou par mandat et plan ; N° attribué à la création ou
+ * - Hugo (suite de la décision 1) : sens du segment <plan> du N° ; N° attribué à la création de la demande, ou
  *   au premier envoi ; rang complété de zéros ?
- * - Hugo : valeurs des listes Délai, Envoi et Signature (tranche 34) ; ici, Délai = UrgenceOrdreAJ, Envoi = CANAUX_ENVOI_OS.
- * - Hugo : la relance vise-t-elle seulement la réponse à l'OS, ou aussi l'accusé et le rapport (« Accusé demandé »,
- *   « Rapport demandé ») ?
- * - Hugo : le visa des courriers (tranche 20) suit-il le même circuit ?
+ * - Hugo (suite de la décision 2) : valeurs de la liste Signature (tranche 34).
+ * - Hugo (suite de la décision 6) : critère proposé (entretien courant ou exécution d'une décision déjà prise = pouvoirs du
+ *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer ;
+ *   un délai « prioritaire » peut-il valoir urgence (non ici) ? Le constat doit-il précéder la décision au registre, ou
+ *   l'envoi (ici : l'envoi au plus tard, bloquant sinon ; la décision, quand il tient lieu de l'avis, alerte à confirmer,
+ *   sans blocage) ? Et pour lever la suspension de L. 1965 art. 42, al. 3 (la décision 7 ne le dit pas) ?
+ * - Hugo (suite de la décision 7, interprétation de la réponse « oui ») : un envoi pendant le délai de contestation, pour
+ *   une intervention prévue après la fin du délai, peut-il partir (oui ici : seule la date de l'intervention prévue, à
+ *   défaut celle de l'envoi, est comparée à la fin du délai) ? Unanimité : MAJORITES_AG (majorites-ag.ts) fonde
+ *   l'unanimité sur L. 1965 art. 26, dernier al. ; une décision prise à l'unanimité l'est-elle « en application » de
+ *   l'art. 26 au sens de l'al. 3 de l'art. 42, donc suspendue (non ici : ni opposant ni défaillant) ?
+ * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
+ *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ? La lecture des textes cités
+ *   (signature d'un collaborateur au nom de l'administrateur provisoire : pas une substitution) est-elle juste ? Les
+ *   collaborateurs du cabinet sont-ils des « tiers » au sens de L. 1965 art. 29-1, I (assistance par un tiers désigné par
+ *   le président du tribunal judiciaire sur proposition de l'administrateur provisoire, rétribué sur sa rémunération) ?
+ *   Si oui, la signature de l'OS par l'un d'eux suppose-t-elle cette désignation (ici : non demandée) ? Est-elle une
+ *   « délégation de pouvoir » de L. 1965 art. 18, IV, que seule l'assemblée autorise (ici : non) ? (textes sur
+ *   l'habilitation des collaborateurs non lus) Un mandat qui nomme deux administrateurs judiciaires (volet judiciaire :
+ *   Associé 1, Associé 2, mandat-judiciaire.ts) : signent-ils tous deux toujours (ici : un seul administrateurDesigneId ;
+ *   l'autre signe s'il figure dans la liste du cabinet) ?
  * - Frédéric : quand un visa de gestion est-il nécessaire (seuil, natures, exécution forcée : aucun par défaut) et quels
  *   rôles visent (Direction par défaut ; Juridique ?) ; le rédacteur ou le signataire peut-il viser ; un visa donné
- *   tombe-t-il quand l'OS change (oui ici) ?
+ *   tombe-t-il quand l'OS change (oui ici) ? Pour les courriers (même circuit, décision 4) : quels motifs déclenchent leur
+ *   visa, et sur quels champs porte-t-il (empreinte) ?
  * - Frédéric ou Hugo : les seuils de L. 1965 art. 21, al. 2 déclenchent-ils le visa automatiquement (oui ici) ? Sans montant
  *   fixé par l'assemblée, la consultation n'est pas obligatoire : faut-il un seuil par défaut du cabinet
  *   (seuilPrevuTtcCentimes, règle de gestion) ?
- * - Hugo : L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) vaut-il pour les marchés
- *   de travaux ? Le motif « mise en concurrence » est gardé ici. Les conditions fixées par l'assemblée se réduisent-elles à
- *   un nombre de devis (devisExigesParAssemblee) ?
- * - Hugo : critère de l'avis préalable sous administration provisoire (D. 1967 art. 62-7) : un OS d'entretien courant, ou qui
- *   exécute une décision déjà prise, relève des pouvoirs du syndic (sans avis) ; des travaux décidés au titre des pouvoirs
- *   de l'assemblée exigent l'avis, sauf urgence. Juste ? Qui constate l'urgence (motifUrgence) ? Un délai « prioritaire »
- *   motivé vaut-il urgence (non ici) ?
- * - Hugo : L. 1965 art. 42, al. 3 : bloquant (retenu) ou alerte ? L'intervention d'une entreprise qui exécute une
- *   résolution des art. 25 ou 26 est-elle toujours une exécution de « travaux » (oui ici) ? Une décision prise à
- *   l'unanimité relève-t-elle de la suspension (non ici) ?
- * - Hugo : un collaborateur peut-il signer l'OS, ou seulement l'administrateur désigné (L. 1965 art. 18, IV ; art. 29-1,
- *   I) ? (liste signatairesHabilites au choix de l'appelant ; textes sur l'habilitation des collaborateurs non lus)
+ * - Hugo (suite de la décision 5) : les conditions de mise en concurrence fixées par l'assemblée se réduisent-elles à un
+ *   nombre de devis (devisExigesParAssemblee) ?
  * - non établi : l'administrateur provisoire investi des pouvoirs de l'assemblée peut-il autoriser lui-même une convention
  *   liée ? (la référence d'une autorisation est exigée ici) Le « syndic » de D. 1967 art. 39 est-il bien l'administrateur
  *   provisoire, et ses « préposés » les collaborateurs du cabinet (oui ici) ?
@@ -182,18 +327,36 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   de l'envoi), et non à la date de la décision du conseil syndical (decisionLe) : l'appelant doit-il fournir les
  *   décisions en vigueur à cette date ? Le prévu n'est pas comparé au montant maximum alloué au conseil syndical (L. 1965
  *   art. 21-2 : enveloppe_delegation_cs, annuelle et cumulée ; plafond_travaux_cs, par dépense) : quel cumul retenir ?
- * - Hugo, preuve : la réception distincte de l'envoi convient-elle ? Quelle preuve pour un courrier papier (simple ou
- *   recommandé) ? La première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art. 1121 ?
- *   Quel délai d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
+ * - Hugo, preuve (suite de la décision 9) : la réception distincte de l'envoi convient-elle (ici : oui, déduit de « l'AR
+ *   fait preuve ») ? « AR caduc après 1 an » : la caducité d'un an vise-t-elle le devis accepté par l'OS, l'OS lui-même,
+ *   ou l'AR lui-même ? À compter de quelle date : envoi, première présentation, réception ? (aucune caducité codée) La
+ *   première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art. 1121 (non ici : la
+ *   réception reste datée de sa première ligne du journal, même quand l'AR revient plus tard) ? Quelle preuve pour une
+ *   réception sans AR, par courrier simple, messagerie VitFix, courriel ou SMS (ici : admise, « sans preuve » ; un AR
+ *   n'y est pas admis, même un accusé de réception électronique au sens de C. civ. art. 1127-4) ? Quel délai
+ *   d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
  * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
  *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
  *
  * Branché au point 46 : suivi-a-faire.ts, famille « demandes » et nature « relance_os » (relancesOsDues, lu par
- * depuisDemandes). Branchements à faire plus tard (fichiers non modifiés) :
- * route /api/administrateur-judiciaire/ordres-prestataire : controlerAvantEnvoiOs avant
- * l'envoi (avec segmentMandat, numerosDuMandat, decisionsAgEnVigueur et finDelaiContestationAg, échéance retenue par
- * finDelaiContestationAg de statut-assemblee.ts), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ;
- * devisCaducALaReception après enregistrerReception ; VISAS_SORTIE, CANAUX_ENVOI_OS et FORME_ENVOI_PAR_CANAL vers
+ * depuisDemandes ; attendus et relanceAFixer en plus des champs d'ElementAFaire, dont aConfirmer, toujours faux, garde
+ * son sens). Branchements à faire plus tard (fichiers non modifiés) :
+ * route /api/administrateur-judiciaire/ordres-prestataire : controlerAvantEnvoiOs avant l'envoi (avec segmentMandat,
+ * numerosDuMandat, decisionsAgEnVigueur et finDelaiContestationAg, échéance retenue par finDelaiContestationAg de
+ * statut-assemblee.ts), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; enregistrerReception
+ * avec l'AR et le courrier AR lié (CourrierSuivi de courriers.ts) quand l'avis de réception revient (décision 9 :
+ * référence ; courrier de l'envoi ou de la rediffusion qui a porté l'OS, aussi pour une réception par courrier AR sans
+ * AR ; première présentation tirée du courrier), puis devisCaducALaReception et preuveReceptionOs ; preuveDeDiffusion
+ * avec la sortie et le courrier lié de toute ligne par courrier AR (« ar_ecart_courrier » : montrer ecartArCourrier) ;
+ * signataires (décision 8) : signatairesHabilites tiré du réglage du cabinet, administrateurDesigneId tiré du MANDAT
+ * (l'administrateur provisoire que la décision du président du tribunal judiciaire désigne pour ce mandat, L. 1965
+ * art. 29-1, I ; volet judiciaire de mandat-judiciaire.ts, Associé 1 et Associé 2, saisis en noms : à rapprocher de
+ * l'identifiant du collaborateur), jamais de ce réglage ; enregistrerRapport quand l'entreprise dépose un document
+ * « rapport » dans la messagerie VitFix (TypeDocumentPrestataire, lib/syndic/messagerie-pro.ts) ; courriers
+ * (décision 4) : courriers.ts
+ * (preparerCourrier, controlerDepot), gabarits-courrier.ts et les écrans des courriers porteront un CircuitVisa, décriront
+ * le courrier en PieceVisee (sortie : « le dépôt »), appliqueront appliquerActionVisa et revoirCircuitVisa, et refuseront
+ * le dépôt tant qu'anomaliesCircuitVisa n'est pas vide ; VISAS_SORTIE, CANAUX_ENVOI_OS et FORME_ENVOI_PAR_CANAL vers
  * referentiels-gesteam-judiciaire.ts ; table de SortieOrdreService et écran (Frédéric).
  */
 
@@ -205,7 +368,10 @@ export type VisaSortie = (typeof VISAS_SORTIE)[number]
 /** Visas qui laissent partir l'ordre de service (🔵). */
 export const VISAS_PERMETTANT_ENVOI: ReadonlySet<VisaSortie> = new Set<VisaSortie>(['Visa donné', 'Sortie libre'])
 
-/** Canal d'envoi (liste « Envoi » non ouverte, 🔴) : la messagerie VitFix, puis les formes d'envoi des courriers. */
+/**
+ * Canal d'envoi : valeurs de la liste « Envoi » de la tranche 34 (décision de Hugo du 03/11/2026) ; la messagerie VitFix,
+ * puis les formes d'envoi des courriers.
+ */
 export const CANAUX_ENVOI_OS = ['messagerie_vitfix', 'courriel', 'courrier', 'courrier_ar', 'sms'] as const
 export type CanalEnvoiOs = (typeof CANAUX_ENVOI_OS)[number]
 const CANAUX: ReadonlySet<string> = new Set(CANAUX_ENVOI_OS)
@@ -254,7 +420,10 @@ const CADRE_PAR_FONDEMENT: Readonly<Record<FondementOs, { libelle: string; texte
   },
 }
 
-/** Majorités dont les travaux ne s'exécutent pas pendant le délai de contestation (L. 1965 art. 42, al. 3), et leur article. */
+/**
+ * Majorités dont les travaux ne s'exécutent pas pendant le délai de contestation (L. 1965 art. 42, al. 3), et leur article ;
+ * l'unanimité n'en est pas (décision 7 (c), interprétation 🔵 : ni opposant ni défaillant, donc aucune action de l'al. 2).
+ */
 const MAJORITES_SUSPENSIVES: ReadonlyMap<TypeMajorite, string> = new Map<TypeMajorite, string>([
   ['art25', 'art. 25'],
   ['art26', 'art. 26'],
@@ -323,8 +492,9 @@ const horodatageFr = (e: { date: string; heure: string }): string => `${fr(e.dat
 // ─── Numérotation <mandat>.<plan>.<rang> ──────────────────────────────────────────────────────
 
 export interface SegmentsNumeroOs {
-  /** Code du mandat dans le N° (🔴 sens exact des segments à confirmer). */
+  /** Code du mandat dans le N° : la séquence est celle du mandat (décision de Hugo du 03/11/2026). */
   mandat: string
+  /** Segment <plan> du N° (🔴 sens à confirmer) : il ne découpe pas la séquence. */
   plan: string
 }
 
@@ -358,7 +528,10 @@ export function lireNumeroOs(numero: string | null): NumeroOs | null {
   return rang >= 1 ? { mandat: lu[1], plan: lu[2], rang } : null
 }
 
-/** Rang suivant dans la séquence du mandat : le plus grand rang de ce segment mandat, tous plans confondus, + 1. */
+/**
+ * Rang suivant dans la séquence du mandat (décision de Hugo du 03/11/2026 : séquence par mandat) : le plus grand rang de
+ * ce segment mandat, tous plans confondus, + 1.
+ */
 export function rangOsSuivant(numeros: readonly (string | null)[], mandat: string): number {
   const rangs = numeros.flatMap((numero) => {
     const lu = lireNumeroOs(numero)
@@ -418,6 +591,23 @@ export interface EvenementDiffusion {
   courrierId: string | null
   /** Mission syndic_missions créée par la route, exigée pour la messagerie VitFix. */
   missionId: string | null
+  /**
+   * Réception par courrier AR seulement : son AR, qui en fait preuve (décision 9) ; null sans AR (« sans preuve ») et hors
+   * réception. Absent sur les lignes écrites avant la décision 9 : lu comme null, jamais comme une preuve.
+   */
+  ar?: ArReceptionOs | null
+}
+
+/**
+ * Accusé de réception (AR) qui fait preuve de la réception de l'OS (décision de Hugo du 03/11/2026 : « l'AR fait preuve ») :
+ * l'avis de réception du courrier AR qui a porté l'OS à l'entreprise, envoi ou rediffusion (🔵). Aucune caducité n'est
+ * attachée (« AR caduc après 1 an » : objet, devis, OS ou AR, et point de départ non établis, 🔴).
+ */
+export interface ArReceptionOs {
+  /** Référence de l'AR : numéro du pli recommandé, ou pièce numérisée (identifiant). */
+  reference: string
+  /** Première présentation du pli, si elle est connue (comme la décision J1) ; null : inconnue. */
+  premierePresentationLe: string | null
 }
 
 export interface SaisieDiffusion {
@@ -429,6 +619,19 @@ export interface SaisieDiffusion {
   referenceDiffusion?: string | null
   courrierId?: string | null
   missionId?: string | null
+}
+
+export interface SaisieArReception {
+  reference: string
+  premierePresentationLe?: string | null
+}
+
+/**
+ * Réception de l'OS : la ligne du journal et, s'il est reçu, l'AR qui la prouve (réception par courrier AR seulement ;
+ * absent ou null : « sans preuve »).
+ */
+export interface SaisieReception extends SaisieDiffusion {
+  ar?: SaisieArReception | null
 }
 
 export interface JustificatifsOs {
@@ -450,14 +653,38 @@ export interface JustificatifsOs {
   autorisationConventionLiee: string | null
 }
 
-export interface SortieOrdreService {
+/**
+ * Constat de l'urgence par l'administrateur provisoire lui-même (décision de Hugo du 03/11/2026 : « nous constatons
+ * l'urgence ») : daté, motivé, attribué au collaborateur qui agit en son nom.
+ */
+export interface ConstatUrgence {
+  constateLe: string
+  /** Pourquoi les travaux ne peuvent pas attendre. */
+  motif: string
+  /** Collaborateur qui constate l'urgence au nom de l'administrateur provisoire (identifiant). */
+  collaborateurId: string
+}
+
+/** Rapport de l'entreprise reçu après l'OS (attendu au statut « Rapport demandé »). */
+export interface RapportRecu {
+  recuLe: string
+  /** Document du rapport (messagerie VitFix, pièce jointe) ; null s'il n'est pas lié. */
+  documentId: string | null
+}
+
+export interface SortieOrdreService extends CircuitVisa<CodeMotifVisa> {
   demandeId: string
-  /** Signature : signataire pour le cabinet. */
+  /**
+   * Signature : collaborateur qui signe pour le cabinet (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
+   * pas seulement l'administrateur désigné ; habilités : ContexteEnvoiOs.administrateurDesigneId et
+   * signatairesHabilites) ; valeurs de la liste « Signature » de Gestéam non établies (🔴).
+   */
   signataireId: string | null
-  /** Délai (🔵 liste non ouverte : l'urgence de l'écran Ordres de service). */
+  /** Délai : liste « Délai » de la tranche 34 = UrgenceOrdreAJ (décision de Hugo du 03/11/2026). */
   delai: UrgenceOrdreAJ
-  motifUrgence: string | null
-  /** Envoi : canal choisi pour le premier envoi. */
+  /** Constat de l'urgence par l'administrateur provisoire ; null : aucun constat. */
+  constatUrgence: ConstatUrgence | null
+  /** Envoi : canal choisi pour le premier envoi (liste « Envoi » = CANAUX_ENVOI_OS, décision de Hugo du 03/11/2026). */
   canal: CanalEnvoiOs | null
   diffusable: boolean
   relanceLe: string | null
@@ -491,12 +718,8 @@ export interface SortieOrdreService {
    * sans autorisation.
    */
   autorisationConventionLieePour: string | null
-  visa: VisaSortie
-  /** Motifs relevés à la création ou à la dernière revue : le visa donné porte sur eux. */
-  motifsVisa: CodeMotifVisa[]
-  /** Empreinte de la demande soumise au visa (visa demandé), puis visée (visa donné) ; null sinon. */
-  empreinteVisee: string | null
-  historiqueVisa: EvenementVisa[]
+  /** Rapport de l'entreprise reçu (enregistrerRapport) ; null : non reçu. */
+  rapportRecu: RapportRecu | null
   /** Journal de diffusion, en ajout seul. */
   journal: EvenementDiffusion[]
 }
@@ -504,7 +727,8 @@ export interface SortieOrdreService {
 export interface SaisieSortieOs {
   signataireId?: string | null
   delai?: UrgenceOrdreAJ
-  motifUrgence?: string | null
+  /** Constat complet (date, motif et collaborateur non vides) ou null pour l'effacer ; incomplet : refusé. */
+  constatUrgence?: ConstatUrgence | null
   canal?: CanalEnvoiOs | null
   diffusable?: boolean
   relanceLe?: string | null
@@ -572,6 +796,31 @@ function appliquerLien(s: SortieOrdreService, saisie: SaisieSortieOs, prestatair
   return { ...lien, justificatifs: { ...s.justificatifs, autorisationConventionLiee: null }, autorisationConventionLieePour: null }
 }
 
+/** Éléments du constat d'urgence et leur présence (décision de Hugo du 03/11/2026 : daté, motivé, attribué). */
+const ELEMENTS_CONSTAT: readonly (readonly [string, (c: ConstatUrgence) => boolean])[] = [
+  ['date', (c) => estDateIsoValide(c.constateLe)],
+  ['motif', (c) => texteOuNull(c.motif) !== null],
+  ['collaborateur', (c) => texteOuNull(c.collaborateurId) !== null],
+]
+
+/** Éléments manquants du constat (tous, sans constat). */
+const manquesConstat = (c: ConstatUrgence | null): string[] =>
+  ELEMENTS_CONSTAT.filter(([, present]) => c === null || !present(c)).map(([nom]) => nom)
+
+const constatComplet = (c: ConstatUrgence | null): c is ConstatUrgence => manquesConstat(c).length === 0
+
+/** Constat saisi (motif et collaborateur sans espaces superflus) ; null l'efface ; incomplet : refusé. */
+function lireConstatUrgence(c: ConstatUrgence | null): ConstatUrgence | null {
+  if (c === null) return null
+  if (!estDateIsoValide(c.constateLe)) throw new Error(`Constat d'urgence : date invalide (${c.constateLe}) : AAAA-MM-JJ attendu.`)
+  const motif = texteOuNull(c.motif)
+  if (motif === null) throw new Error("Constat d'urgence : motif obligatoire (pourquoi les travaux ne peuvent pas attendre).")
+  const collaborateurId = texteOuNull(c.collaborateurId)
+  if (collaborateurId === null)
+    throw new Error("Constat d'urgence : identifiant du collaborateur qui constate l'urgence au nom de l'administrateur provisoire attendu.")
+  return { constateLe: c.constateLe, motif, collaborateurId }
+}
+
 /** Entreprise de l'autorisation : celle de la demande quand l'autorisation est saisie, aucune quand elle est effacée. */
 function entrepriseDeLAutorisation(actuelle: string | null, saisie: SaisieSortieOs, autorisation: string | null, prestataireId: string | null): string | null {
   if (saisie.justificatifs?.autorisationConventionLiee === undefined) return actuelle
@@ -585,7 +834,7 @@ function appliquerSaisie(base: SortieOrdreService, saisie: SaisieSortieOs, prest
     ...s,
     signataireId: texteOuNull(garder(saisie.signataireId, s.signataireId)),
     delai: garder(saisie.delai, s.delai),
-    motifUrgence: texteOuNull(garder(saisie.motifUrgence, s.motifUrgence)),
+    constatUrgence: saisie.constatUrgence === undefined ? s.constatUrgence : lireConstatUrgence(saisie.constatUrgence),
     canal: garder(saisie.canal, s.canal),
     diffusable: garder(saisie.diffusable, s.diffusable),
     relanceLe: garder(saisie.relanceLe, s.relanceLe),
@@ -689,11 +938,14 @@ export interface OptionsVisa {
 }
 
 /** Ce que la sortie dit du cadre de l'OS. */
-export type CadreVisa = Pick<SortieOrdreService, 'fondement' | 'motifUrgence' | 'entrepriseLiee' | 'entrepriseLieeDeclareePour' | 'delai'>
+export type CadreVisa = Pick<SortieOrdreService, 'fondement' | 'constatUrgence' | 'entrepriseLiee' | 'entrepriseLieeDeclareePour' | 'delai'>
 
-/** Urgence déclarée : délai « urgence » ou fondement « urgence de sauvegarde », avec un motif (🔵). */
-const urgenceDeclaree = (c: Pick<SortieOrdreService, 'delai' | 'fondement' | 'motifUrgence'>): boolean =>
-  c.motifUrgence !== null && (c.delai === 'urgence' || c.fondement === 'urgence_sauvegarde')
+/** Urgence demandée : délai « urgence » ou fondement « urgence de sauvegarde » (un délai « prioritaire » n'en est pas une). */
+const urgenceDemandee = (c: Pick<SortieOrdreService, 'delai' | 'fondement'>): boolean => c.delai === 'urgence' || c.fondement === 'urgence_sauvegarde'
+
+/** Urgence retenue : demandée, et constatée par l'administrateur provisoire (constat complet ; décision de Hugo du 03/11/2026). */
+const urgenceConstatee = (c: Pick<SortieOrdreService, 'delai' | 'fondement' | 'constatUrgence'>): boolean =>
+  urgenceDemandee(c) && constatComplet(c.constatUrgence)
 
 const motif = (code: CodeMotifVisa, message: string, fondement: string | null = null, aConfirmer = false): MotifVisa => ({
   code,
@@ -754,11 +1006,11 @@ function motifsLegaux(d: Demande, cadre: CadreVisa, decisions: readonly Decision
         FONDEMENT_CONVENTION_LIEE,
       ),
     )
-  if (cadre.fondement === 'decision_aj_pouvoirs_ag' && !urgenceDeclaree(cadre))
+  if (cadre.fondement === 'decision_aj_pouvoirs_ag' && !urgenceConstatee(cadre))
     motifs.push(
       motif(
         'avis_conseil_syndical_aj',
-        "Décision de l'administrateur provisoire au titre des pouvoirs de l'assemblée : avis préalable du conseil syndical, sauf urgence déclarée.",
+        "Décision de l'administrateur provisoire au titre des pouvoirs de l'assemblée : avis préalable du conseil syndical, sauf urgence constatée par l'administrateur provisoire (délai « urgence » et constat daté, motivé et attribué).",
         FONDEMENT_AVIS_AJ,
         true,
       ),
@@ -782,7 +1034,7 @@ export function creerSortieOs(d: Demande, saisie: SaisieSortieOs = {}, options: 
     demandeId: d.id,
     signataireId: null,
     delai: 'normale',
-    motifUrgence: null,
+    constatUrgence: null,
     canal: null,
     diffusable: true,
     relanceLe: null,
@@ -794,17 +1046,14 @@ export function creerSortieOs(d: Demande, saisie: SaisieSortieOs = {}, options: 
     entrepriseLieeDeclareePour: null,
     justificatifs: JUSTIFICATIFS_VIDES,
     autorisationConventionLieePour: null,
-    visa: 'Sortie libre',
-    motifsVisa: [],
-    empreinteVisee: null,
-    historiqueVisa: [],
+    rapportRecu: null,
+    ...circuitVisaInitial<CodeMotifVisa>([]),
     journal: [],
   }
   const s = appliquerSaisie(vierge, saisie, d.prestataireId)
   if (s.relanceLe !== null && s.relanceLe < d.demandeLe)
     throw new Error(`Date de relance (${fr(s.relanceLe)}) antérieure à la demande du ${fr(d.demandeLe)}.`)
-  const codes = motifsVisa(d, s, options).map((m) => m.code)
-  return { ...s, visa: codes.length > 0 ? 'Visa nécessaire' : 'Sortie libre', motifsVisa: codes }
+  return { ...s, ...circuitVisaInitial(motifsVisa(d, s, options).map((m) => m.code)) }
 }
 
 /**
@@ -820,7 +1069,45 @@ export function modifierSortieOs(s: SortieOrdreService, d: Demande, changements:
 /** « Diffusable » (copie) : se règle avant comme après le premier envoi ; un OS non diffusable ne part pas et n'est pas rediffusé. */
 export const marquerDiffusable = (s: SortieOrdreService, diffusable: boolean): SortieOrdreService => ({ ...s, diffusable })
 
-// ─── Circuit du visa ──────────────────────────────────────────────────────────────────────────
+// ─── Circuit du visa (commun aux pièces de sortie) ────────────────────────────────────────────
+
+/**
+ * Visa d'une pièce de sortie : l'ordre de service ici ; le courrier (tranche 20) suit le MÊME circuit (décision de Hugo du
+ * 03/11/2026, branchement à faire). M : codes des motifs propres à la pièce.
+ */
+export interface CircuitVisa<M extends string = string> {
+  visa: VisaSortie
+  /** Motifs relevés à la création ou à la dernière revue : le visa donné porte sur eux. */
+  motifsVisa: M[]
+  /** Empreinte de la pièce soumise au visa (visa demandé), puis visée (visa donné) ; null sinon. */
+  empreinteVisee: string | null
+  historiqueVisa: EvenementVisa[]
+}
+
+/** La pièce soumise au visa, telle que le circuit la voit. */
+export interface PieceVisee {
+  /** Désignation avec son article, pour les messages (« la demande », « le courrier »). */
+  designation: string
+  /** Sortie de la pièce avec son article, pour les messages (« l'envoi » de l'OS, « le dépôt » du courrier). */
+  sortie: string
+  /** Date de la pièce : aucun événement du visa ne la précède. */
+  datee: string
+  /** Empreinte actuelle des champs visés : un visa demandé ou donné tombe quand elle change. */
+  empreinte: string
+  /** Champs visés, pour les messages (« prévu, entreprise, objet, nature ou devis associé »). */
+  champsVises: string
+}
+
+/** Rôles habilités à viser (rolesViseurs des règles du visa). */
+export type ReglesViseurs = Pick<ReglesVisaOs, 'rolesViseurs'>
+
+export type CodeAnomalieVisa = 'visa_manquant' | 'visa_a_revoir' | 'visa_devenu_necessaire'
+
+/** Ce qui retient la pièce au contrôle avant sa sortie (toujours bloquant). */
+export interface AnomalieVisa {
+  code: CodeAnomalieVisa
+  message: string
+}
 
 const TRANSITIONS_VISA: Readonly<Record<ActionVisa, { depuis: ReadonlySet<VisaSortie>; vers: VisaSortie }>> = {
   exige: { depuis: new Set<VisaSortie>(['Sortie libre']), vers: 'Visa nécessaire' },
@@ -832,8 +1119,141 @@ const TRANSITIONS_VISA: Readonly<Record<ActionVisa, { depuis: ReadonlySet<VisaSo
 
 const ACTIONS_DU_VISEUR: ReadonlySet<ActionVisa> = new Set<ActionVisa>(['donne', 'refuse'])
 
-/** Actions qui figent l'empreinte de la demande soumise au visa (demande), puis visée (donne). */
+/** Actions qui figent l'empreinte de la pièce soumise au visa (demande), puis visée (donne). */
 const ACTIONS_EMPREINTE: ReadonlySet<ActionVisa> = new Set<ActionVisa>(['demande', 'donne'])
+
+/** Préposition « à » devant la désignation, contractée devant « le » et « les » (« à la demande », « au courrier »). */
+const CONTRACTIONS: readonly (readonly [string, string])[] = [
+  ['les ', 'aux '],
+  ['le ', 'au '],
+]
+
+function precedeDeA(designation: string): string {
+  const contraction = CONTRACTIONS.find(([article]) => designation.startsWith(article))
+  return contraction ? `${contraction[1]}${designation.slice(contraction[0].length)}` : `à ${designation}`
+}
+
+const majuscule = (texte: string): string => texte.charAt(0).toUpperCase() + texte.slice(1)
+
+/** Articles retirés devant un nom (« l'envoi » → « envoi », « le dépôt » → « dépôt »). */
+const ARTICLES: readonly string[] = ["l'", 'l’', 'le ', 'la ', 'les ']
+
+function sansArticle(groupe: string): string {
+  const article = ARTICLES.find((a) => groupe.startsWith(a))
+  return article ? groupe.slice(article.length) : groupe
+}
+
+/** Circuit initial d'une pièce : « Visa nécessaire » s'il y a un motif, sinon « Sortie libre ». */
+export const circuitVisaInitial = <M extends string>(motifs: readonly M[]): CircuitVisa<M> => ({
+  visa: motifs.length > 0 ? 'Visa nécessaire' : 'Sortie libre',
+  motifsVisa: [...motifs],
+  empreinteVisee: null,
+  historiqueVisa: [],
+})
+
+/** Seuls « Visa donné » et « Sortie libre » laissent sortir la pièce. */
+export const visaPermetSortie = (c: Pick<CircuitVisa, 'visa'>): boolean => VISAS_PERMETTANT_ENVOI.has(c.visa)
+
+/** Visas qui portent l'empreinte figée de la pièce (soumise au visa, puis visée). */
+const VISAS_A_EMPREINTE: ReadonlySet<VisaSortie> = new Set<VisaSortie>(['Demande de visa', 'Visa donné'])
+
+/** Visa demandé ou donné sur une pièce qui ne correspond plus à l'empreinte figée. */
+const pieceChangeeDepuisVisa = (c: CircuitVisa, piece: PieceVisee): boolean => VISAS_A_EMPREINTE.has(c.visa) && c.empreinteVisee !== piece.empreinte
+
+function evenementVisa(c: CircuitVisa, piece: PieceVisee, action: ActionVisa, saisie: SaisieEvenementVisa): EvenementVisa {
+  verifierHorodatage('Visa', saisie.date, saisie.heure)
+  const collaborateurId = saisie.collaborateurId.trim()
+  if (!collaborateurId) throw new Error('Visa : identifiant du collaborateur attendu.')
+  if (!ROLES.has(saisie.role)) throw new Error(`Rôle inconnu : « ${saisie.role} » (${ROLES_CABINET.join(', ')}).`)
+  if (saisie.date < piece.datee)
+    throw new Error(`Visa : horodatage (${horodatageFr(saisie)}) antérieur ${precedeDeA(piece.designation)} du ${fr(piece.datee)}.`)
+  const dernier = c.historiqueVisa.at(-1)
+  if (dernier && horodatage(saisie) < horodatage(dernier))
+    throw new Error(`Visa : horodatage (${horodatageFr(saisie)}) antérieur au dernier événement du visa (${horodatageFr(dernier)}).`)
+  return { date: saisie.date, heure: saisie.heure, collaborateurId, role: saisie.role, action, motif: texteOuNull(saisie.motif) }
+}
+
+function verifierViseur(c: CircuitVisa, viseur: EvenementVisa, regles: ReglesViseurs): void {
+  if (!regles.rolesViseurs.has(viseur.role))
+    throw new Error(`Rôle « ${viseur.role} » non habilité à viser (viseurs : ${[...regles.rolesViseurs].join(', ')}).`)
+  const demande = c.historiqueVisa.findLast((e) => e.action === 'demande')
+  if (demande?.collaborateurId === viseur.collaborateurId) throw new Error('Le visa est donné ou refusé par un autre collaborateur que celui qui l’a demandé.')
+}
+
+/**
+ * Action du visa sur une pièce de sortie (copie) : transition permise, horodatage jamais antérieur à la pièce ni au dernier
+ * événement, viseur habilité et autre que le demandeur, refus motivé ; « demande » et « donne » figent l'empreinte de la
+ * pièce. Le gel après la sortie (envoi de l'OS, dépôt du courrier) est contrôlé par l'appelant.
+ */
+export function appliquerActionVisa<C extends CircuitVisa>(
+  c: C,
+  piece: PieceVisee,
+  action: ActionVisa,
+  saisie: SaisieEvenementVisa,
+  regles: ReglesViseurs = REGLES_VISA_PAR_DEFAUT,
+  motifs: C['motifsVisa'] = c.motifsVisa,
+): C {
+  const evenement = evenementVisa(c, piece, action, saisie)
+  const transition = TRANSITIONS_VISA[action]
+  if (!transition.depuis.has(c.visa))
+    throw new Error(`Visa « ${c.visa} » : action « ${action} » impossible (attendu : ${[...transition.depuis].join(', ')}).`)
+  if (ACTIONS_DU_VISEUR.has(action)) verifierViseur(c, evenement, regles)
+  if (action === 'refuse' && evenement.motif === null) throw new Error('Refus de visa : motif obligatoire.')
+  return {
+    ...c,
+    visa: transition.vers,
+    motifsVisa: motifs,
+    empreinteVisee: ACTIONS_EMPREINTE.has(action) ? piece.empreinte : null,
+    historiqueVisa: [...c.historiqueVisa, evenement],
+  }
+}
+
+/**
+ * Revue du visa d'une pièce (copie) : une sortie libre qui reçoit un motif, ou un visa demandé ou donné quand un motif
+ * nouveau apparaît ou que la pièce ne correspond plus à l'empreinte figée, repasse à « Visa nécessaire » (action
+ * « revu ») ; sinon seuls les motifs relevés (`codes`) sont mis à jour.
+ */
+export function revoirCircuitVisa<C extends CircuitVisa>(c: C, piece: PieceVisee, codes: C['motifsVisa'], saisie: SaisieEvenementVisa): C {
+  const vises = new Set<string>(c.motifsVisa)
+  const nouveau = codes.some((code) => !vises.has(code))
+  const aRevoir = c.visa === 'Sortie libre' ? codes.length > 0 : nouveau || pieceChangeeDepuisVisa(c, piece)
+  if (aRevoir && TRANSITIONS_VISA.revu.depuis.has(c.visa)) return appliquerActionVisa(c, piece, 'revu', saisie, REGLES_VISA_PAR_DEFAUT, codes)
+  return { ...c, motifsVisa: codes }
+}
+
+/**
+ * Visa manquant : messages nommés d'après la pièce et sa sortie (pour l'OS, « avant l'envoi », « envoi impossible »,
+ * « revoir la demande » : l'OS est la demande, comme dans les autres messages du visa).
+ */
+const MESSAGE_VISA_MANQUANT: ReadonlyMap<VisaSortie, (piece: PieceVisee) => string> = new Map<VisaSortie, (piece: PieceVisee) => string>([
+  ['Visa nécessaire', (piece) => `Visa nécessaire non demandé : demander le visa avant ${piece.sortie}.`],
+  ['Demande de visa', (piece) => `Visa demandé, en attente du viseur : ${sansArticle(piece.sortie)} impossible.`],
+  ['Visa refusé', (piece) => `Visa refusé : revoir ${piece.designation}, puis demander de nouveau le visa.`],
+])
+
+const motifDuRefus = (c: CircuitVisa): string => {
+  const refus = c.historiqueVisa.findLast((e) => e.action === 'refuse')
+  return refus?.motif ? ` Motif du refus : ${refus.motif}` : ''
+}
+
+/**
+ * Contrôle du visa avant la sortie de la pièce (bloquants) : visa manquant (nécessaire, demandé ou refusé), pièce changée
+ * depuis le visa, ou motif nouveau (`motifs` : ceux relevés au moment du contrôle) sur une sortie libre ou un visa donné.
+ */
+export function anomaliesCircuitVisa(c: CircuitVisa, piece: PieceVisee, motifs: readonly { code: string; message: string }[]): AnomalieVisa[] {
+  const manquant = MESSAGE_VISA_MANQUANT.get(c.visa)
+  if (manquant) return [{ code: 'visa_manquant', message: `${manquant(piece)}${motifDuRefus(c)}` }]
+  if (pieceChangeeDepuisVisa(c, piece))
+    return [{ code: 'visa_a_revoir', message: `${majuscule(piece.designation)} a changé depuis le visa (${piece.champsVises}) : revoir le visa.` }]
+  const vises = new Set<string>(c.motifsVisa)
+  const nouveaux = motifs.filter((m) => !vises.has(m.code)).map((m) => m.message)
+  if (nouveaux.length === 0) return []
+  if (c.visa === 'Sortie libre')
+    return [{ code: 'visa_devenu_necessaire', message: `Sortie libre, mais un visa est désormais nécessaire (revoir le visa) : ${nouveaux.join(' ')}` }]
+  return [{ code: 'visa_a_revoir', message: `Visa donné avant un motif nouveau (revoir le visa) : ${nouveaux.join(' ')}` }]
+}
+
+// ─── Visa de l'ordre de service ───────────────────────────────────────────────────────────────
 
 /** Champs de la demande sur lesquels porte le visa (🔵). */
 const CHAMPS_VISES: readonly ((d: Demande) => unknown)[] = [
@@ -847,52 +1267,19 @@ const CHAMPS_VISES: readonly ((d: Demande) => unknown)[] = [
 /** Empreinte de la demande sur les champs visés (prévu, entreprise, objet, nature, devis associé). */
 export const empreinteDemande = (d: Demande): string => JSON.stringify(CHAMPS_VISES.map((champ) => champ(d)))
 
-/** Visa demandé ou donné sur une demande qui ne correspond plus à l'empreinte figée. */
-const demandeChangeeDepuisVisa = (s: SortieOrdreService, d: Demande): boolean =>
-  (s.visa === 'Demande de visa' || s.visa === 'Visa donné') && s.empreinteVisee !== empreinteDemande(d)
+/** L'ordre de service est la demande (un seul objet, tranche 14) : sa date et l'empreinte de ses champs visés. */
+const pieceOs = (d: Demande): PieceVisee => ({
+  designation: 'la demande',
+  sortie: "l'envoi",
+  datee: d.demandeLe,
+  empreinte: empreinteDemande(d),
+  champsVises: 'prévu, entreprise, objet, nature ou devis associé',
+})
 
-function evenementVisa(s: SortieOrdreService, d: Demande, action: ActionVisa, saisie: SaisieEvenementVisa): EvenementVisa {
-  verifierHorodatage('Visa', saisie.date, saisie.heure)
-  const collaborateurId = saisie.collaborateurId.trim()
-  if (!collaborateurId) throw new Error('Visa : identifiant du collaborateur attendu.')
-  if (!ROLES.has(saisie.role)) throw new Error(`Rôle inconnu : « ${saisie.role} » (${ROLES_CABINET.join(', ')}).`)
-  if (saisie.date < d.demandeLe) throw new Error(`Visa : horodatage (${horodatageFr(saisie)}) antérieur à la demande du ${fr(d.demandeLe)}.`)
-  const dernier = s.historiqueVisa.at(-1)
-  if (dernier && horodatage(saisie) < horodatage(dernier))
-    throw new Error(`Visa : horodatage (${horodatageFr(saisie)}) antérieur au dernier événement du visa (${horodatageFr(dernier)}).`)
-  return { date: saisie.date, heure: saisie.heure, collaborateurId, role: saisie.role, action, motif: texteOuNull(saisie.motif) }
-}
-
-function verifierViseur(s: SortieOrdreService, viseur: EvenementVisa, regles: ReglesVisaOs): void {
-  if (!regles.rolesViseurs.has(viseur.role))
-    throw new Error(`Rôle « ${viseur.role} » non habilité à viser (viseurs : ${[...regles.rolesViseurs].join(', ')}).`)
-  const demande = s.historiqueVisa.findLast((e) => e.action === 'demande')
-  if (demande?.collaborateurId === viseur.collaborateurId) throw new Error('Le visa est donné ou refusé par un autre collaborateur que celui qui l’a demandé.')
-}
-
-function changerVisa(
-  s: SortieOrdreService,
-  d: Demande,
-  action: ActionVisa,
-  saisie: SaisieEvenementVisa,
-  regles: ReglesVisaOs = REGLES_VISA_PAR_DEFAUT,
-  motifs: CodeMotifVisa[] = s.motifsVisa,
-): SortieOrdreService {
+function changerVisa(s: SortieOrdreService, d: Demande, action: ActionVisa, saisie: SaisieEvenementVisa, regles: ReglesVisaOs = REGLES_VISA_PAR_DEFAUT): SortieOrdreService {
   verifierLien(d, s)
   verifierNonEnvoye(s, 'changer le visa')
-  const evenement = evenementVisa(s, d, action, saisie)
-  const transition = TRANSITIONS_VISA[action]
-  if (!transition.depuis.has(s.visa))
-    throw new Error(`Visa « ${s.visa} » : action « ${action} » impossible (attendu : ${[...transition.depuis].join(', ')}).`)
-  if (ACTIONS_DU_VISEUR.has(action)) verifierViseur(s, evenement, regles)
-  if (action === 'refuse' && evenement.motif === null) throw new Error('Refus de visa : motif obligatoire.')
-  return {
-    ...s,
-    visa: transition.vers,
-    motifsVisa: motifs,
-    empreinteVisee: ACTIONS_EMPREINTE.has(action) ? empreinteDemande(d) : null,
-    historiqueVisa: [...s.historiqueVisa, evenement],
-  }
+  return appliquerActionVisa(s, pieceOs(d), action, saisie, regles)
 }
 
 /** Un collaborateur exige un visa sur une sortie libre. */
@@ -910,19 +1297,18 @@ export const refuserVisa = (s: SortieOrdreService, d: Demande, saisie: SaisieEve
   changerVisa(s, d, 'refuse', saisie, regles)
 
 /**
- * Revue du visa avant l'envoi (copie) : une sortie libre qui reçoit un motif, ou un visa demandé ou donné quand un motif
- * nouveau apparaît ou que la demande ne correspond plus à l'empreinte figée, repasse à « Visa nécessaire » (action
- * « revu ») ; sinon seuls les motifs relevés sont mis à jour. Après le premier envoi : refusé (offre nouvelle, nouvel OS).
+ * Revue du visa de l'OS avant l'envoi (copie), sur les motifs relevés à ce moment (revoirCircuitVisa). Après le premier
+ * envoi : refusé (offre nouvelle, nouvel OS).
  */
 export function revoirVisa(s: SortieOrdreService, d: Demande, saisie: SaisieEvenementVisa, options: OptionsVisa = {}): SortieOrdreService {
   verifierLien(d, s)
   verifierNonEnvoye(s, 'revoir le visa')
-  const codes = motifsVisa(d, s, options).map((m) => m.code)
-  const vises = new Set(s.motifsVisa)
-  const nouveau = codes.some((code) => !vises.has(code))
-  const aRevoir = s.visa === 'Sortie libre' ? codes.length > 0 : nouveau || demandeChangeeDepuisVisa(s, d)
-  if (aRevoir && TRANSITIONS_VISA.revu.depuis.has(s.visa)) return changerVisa(s, d, 'revu', saisie, REGLES_VISA_PAR_DEFAUT, codes)
-  return { ...s, motifsVisa: codes }
+  return revoirCircuitVisa(
+    s,
+    pieceOs(d),
+    motifsVisa(d, s, options).map((m) => m.code),
+    saisie,
+  )
 }
 
 // ─── Contrôle avant l'envoi ───────────────────────────────────────────────────────────────────
@@ -947,11 +1333,12 @@ export type CodeAnomalieEnvoiOs =
   | 'courriel_a_verifier'
   | 'sms_non_communique'
   | 'sms_a_verifier'
-  | 'urgence_non_motivee'
-  | 'motif_urgence_sans_urgence'
-  | 'visa_manquant'
-  | 'visa_devenu_necessaire'
-  | 'visa_a_revoir'
+  | 'urgence_non_constatee'
+  | 'constat_urgence_sans_urgence'
+  | 'constat_urgence_posterieur'
+  | 'constat_urgence_posterieur_envoi'
+  | 'constat_urgence_auteur_non_habilite'
+  | CodeAnomalieVisa
   | 'lien_entreprise_perime'
   | 'lien_entreprise_non_renseigne'
   | 'convention_liee_non_autorisee'
@@ -993,8 +1380,21 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   courrielCommunique?: boolean | null
   /** L'entreprise a communiqué un numéro pour recevoir des SMS (canal sms) ; null ou absent : on ne sait pas. */
   smsCommunique?: boolean | null
-  /** Collaborateurs habilités à signer un OS (🔴) ; absent : non contrôlé. */
+  /**
+   * Collaborateurs habilités par le cabinet à signer un OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
+   * pas seulement l'administrateur désigné) : réglage du cabinet, fourni par l'appelant ; absent : non contrôlé. Fournie,
+   * la liste vaut pour tout signataire autre que l'administrateur désigné (administrateurDesigneId) : vide, elle ne laisse
+   * signer que lui, et bloque tout envoi quand il n'est pas fourni.
+   */
   signatairesHabilites?: ReadonlySet<string>
+  /**
+   * Collaborateur du cabinet qui est l'administrateur provisoire désigné pour ce mandat par la décision du président du
+   * tribunal judiciaire (L. 1965 art. 29-1, I), fourni par l'appelant depuis le mandat, jamais depuis le réglage du
+   * cabinet : un administrateur du cabinet qui n'est pas désigné pour ce mandat n'y signe que s'il figure dans
+   * signatairesHabilites. Il signe toujours, même hors de signatairesHabilites (décision 8 : « pas seulement
+   * l'administrateur désigné »), et constate l'urgence sans alerte (décision 6) ; absent : seule la liste compte.
+   */
+  administrateurDesigneId?: string | null
   /** Fin de validité du devis associé, fixée par l'entreprise. */
   validiteDevisAu?: string | null
   /** Segment mandat de la séquence des N° (SegmentsNumeroOs.mandat) ; absent : non contrôlé. */
@@ -1140,40 +1540,164 @@ function anomaliesCanal(canal: CanalEnvoiOs | null, contexte: ContexteEnvoiOs): 
   return [anomalie(controle.aVerifier.code, 'alerte', controle.aVerifier.message, controle.fondement, true)]
 }
 
-function anomaliesUrgence(s: SortieOrdreService): AnomalieEnvoiOs[] {
-  const urgenceDemandee = s.delai === 'urgence' || s.fondement === 'urgence_sauvegarde'
-  if (urgenceDemandee && s.motifUrgence === null)
-    return [anomalie('urgence_non_motivee', 'alerte', "Urgence sans motif : dire pourquoi les travaux ne peuvent pas attendre.", 'L. 1965 art. 18, I')]
-  if (!urgenceDemandee && s.motifUrgence !== null)
+/**
+ * Jour où l'avis doit être recueilli : celui de la décision au registre (D. 1967 art. 62-8), au plus tard celui de l'envoi
+ * (une décision datée après l'envoi bloque celui-ci : decision_posterieure_envoi).
+ */
+const borneAvisAj = (s: SortieOrdreService, date: string): string => (s.decisionLe !== null && s.decisionLe < date ? s.decisionLe : date)
+
+/** Avis du conseil syndical enregistré au plus tard le jour de la décision au registre (borneAvisAj). */
+function avisRecueilliATemps(s: SortieOrdreService, date: string): boolean {
+  const avisLe = s.justificatifs.avisConseilSyndicalLe
+  return avisLe !== null && avisLe <= borneAvisAj(s, date)
+}
+
+/** L'avis préalable de D. 1967 art. 62-7 vaut pour cet OS : intervention décidée au titre des pouvoirs de l'assemblée. */
+const avisAjApplicable = (d: Pick<Demande, 'type'>, s: Pick<SortieOrdreService, 'fondement'>): boolean =>
+  d.type === 'intervention' && s.fondement === 'decision_aj_pouvoirs_ag'
+
+/**
+ * Ce que l'urgence non retenue laisse dû, seulement quand cela s'applique : l'avis préalable (D. 1967 art. 62-7) pour une
+ * intervention au titre des pouvoirs de l'assemblée, la suspension (L. 1965 art. 42, al. 3) pour l'exécution d'une
+ * résolution votée à la majorité de l'art. 25 ou 26 ; null sinon.
+ */
+function consequenceSansUrgence(d: Demande, s: SortieOrdreService): string | null {
+  if (avisAjApplicable(d, s)) return "l'avis préalable du conseil syndical reste exigé (D. 1967 art. 62-7)"
+  const article = s.majoriteResolution === null ? undefined : MAJORITES_SUSPENSIVES.get(s.majoriteResolution)
+  if (d.type !== 'intervention' || s.fondement !== 'execution_resolution_ag' || article === undefined) return null
+  return `l'exécution des travaux votés à la majorité de l'${article} reste suspendue pendant le délai de contestation (L. 1965 art. 42, al. 3)`
+}
+
+function urgenceNonRetenue(d: Demande, s: SortieOrdreService): string {
+  const consequence = consequenceSansUrgence(d, s)
+  return consequence === null ? "l'urgence n'est pas retenue" : `l'urgence n'est pas retenue : ${consequence}`
+}
+
+/**
+ * Constat lisible daté après l'envoi : le jour de l'envoi, il n'existe pas encore et ne dispense de rien (🔵, tous
+ * fondements et tous délais : constat_urgence_posterieur_envoi, bloquant).
+ */
+const constatApresEnvoi = (c: ConstatUrgence | null, date: string): c is ConstatUrgence =>
+  c !== null && estDateIsoValide(c.constateLe) && c.constateLe > date
+
+/**
+ * Constat qui tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de l'assemblée, avis non
+ * enregistré à temps) daté après la décision au registre (borneAvisAj), au plus tard le jour de l'envoi : alerte à
+ * confirmer (règle proposée, non demandée par Hugo : question 🔴). Daté après l'envoi, il bloque celui-ci
+ * (anomaliesChronologie) ; ailleurs, sa date n'est comparée qu'à celle de l'envoi.
+ */
+function constatTardif(d: Demande, s: SortieOrdreService, constat: ConstatUrgence, date: string): AnomalieEnvoiOs[] {
+  if (!avisAjApplicable(d, s) || avisRecueilliATemps(s, date)) return []
+  // constat complet (date lisible) ; borne < constat ≤ envoi : la borne précède l'envoi, c'est la décision au registre
+  const borne = borneAvisAj(s, date)
+  if (constat.constateLe <= borne || constat.constateLe > date) return []
+  return [
+    anomalie(
+      'constat_urgence_posterieur',
+      'alerte',
+      `Urgence constatée le ${fr(constat.constateLe)}, après la décision au registre du ${fr(borne)} : le constat tient lieu de l'avis préalable du conseil syndical, qui précède la décision ; à confirmer : un constat postérieur en dispense-t-il ? Sinon, enregistrer l'avis s'il a été recueilli au plus tard ce jour-là, ou corriger la date du constat.`,
+      FONDEMENT_AVIS_AJ,
+      true,
+    ),
+  ]
+}
+
+/**
+ * Urgence (décision de Hugo du 03/11/2026) : retenue avec le délai « urgence » (ou le fondement « urgence de sauvegarde »)
+ * ET le constat complet de l'administrateur provisoire ; un constat sans délai « urgence » ne lève rien.
+ */
+function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): AnomalieEnvoiOs[] {
+  const demandee = urgenceDemandee(s)
+  const constat = s.constatUrgence
+  if (demandee && !constatComplet(constat))
     return [
       anomalie(
-        'motif_urgence_sans_urgence',
+        'urgence_non_constatee',
         'alerte',
-        `Motif d'urgence saisi avec le délai « ${s.delai} » : l'urgence n'est pas déclarée (l'avis du conseil syndical et la suspension de l'art. 42 restent dus) ; choisir le délai « urgence » ou effacer le motif.`,
+        `Urgence sans constat complet de l'administrateur provisoire (manque : ${manquesConstat(constat).join(', ')}) : dater, motiver et attribuer le constat ; sans lui, ${urgenceNonRetenue(d, s)}.`,
+        'L. 1965 art. 18, I',
+      ),
+    ]
+  if (!demandee && constat !== null)
+    return [
+      anomalie(
+        'constat_urgence_sans_urgence',
+        'alerte',
+        `Urgence constatée avec le délai « ${s.delai} » : ${urgenceNonRetenue(d, s)} ; choisir le délai « urgence » ou effacer le constat.`,
         null,
         true,
       ),
     ]
-  return []
-}
-
-function anomaliesSortie(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
-  const anomalies: AnomalieEnvoiOs[] = []
-  if (s.signataireId === null) anomalies.push(anomalie('signataire_absent', 'bloquant', 'Signataire pour le cabinet absent.'))
-  else if (contexte.signatairesHabilites && !contexte.signatairesHabilites.has(s.signataireId))
-    anomalies.push(
-      anomalie('signataire_non_habilite', 'bloquant', `Signataire ${s.signataireId} hors des collaborateurs habilités à signer un OS.`, 'L. 1965 art. 18, IV ; art. 29-1, I', true),
-    )
-  if (s.canal === null) anomalies.push(anomalie('canal_absent', 'bloquant', "Canal d'envoi absent (messagerie VitFix, courriel, courrier…)."))
-  if (!s.diffusable) anomalies.push(anomalie('non_diffusable', 'bloquant', 'Ordre de service non diffusable : cocher « Diffusable » pour l’envoyer.'))
-  return [...anomalies, ...anomaliesChronologie(s, contexte.date), ...anomaliesUrgence(s), ...anomaliesCanal(s.canal, contexte)]
+  return constat === null ? [] : constatTardif(d, s, constat, date)
 }
 
 /**
- * Dates de la sortie face à l'envoi : relance antérieure, ou décision qui fonde l'OS (résolution, procès-verbal du conseil
- * syndical, registre des décisions de l'administrateur provisoire, mentionnées à leur date : D. 1967 art. 62-8) postérieure.
+ * Collaborateur hors des signataires habilités (décision 8) : ni l'administrateur désigné (administrateurDesigneId), qui
+ * signe toujours, ni un collaborateur de la liste du cabinet (signatairesHabilites) ; liste non fournie : non contrôlé.
  */
-function anomaliesChronologie(s: SortieOrdreService, date: string): AnomalieEnvoiOs[] {
+function horsDesHabilites(collaborateurId: string, contexte: ContexteEnvoiOs): boolean {
+  const habilites = contexte.signatairesHabilites
+  if (habilites === undefined || collaborateurId === texteOuNull(contexte.administrateurDesigneId)) return false
+  return !habilites.has(collaborateurId)
+}
+
+/**
+ * Signataire de l'OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer, pas seulement l'administrateur
+ * désigné ; décision rendue sur L. 1965 art. 18, IV et art. 29-1, I, lus comme ne faisant pas de cette signature une
+ * substitution, 🔵) : absent, bloquant ; ni administrateur désigné ni dans la liste du cabinet (horsDesHabilites ; liste
+ * non fournie : non contrôlé), bloquant ; le contrôle par la liste du cabinet est une règle de gestion, sans texte
+ * (fondement null).
+ */
+function anomaliesSignataire(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  if (s.signataireId === null) return [anomalie('signataire_absent', 'bloquant', 'Signataire pour le cabinet absent.')]
+  if (!horsDesHabilites(s.signataireId, contexte)) return []
+  return [
+    anomalie(
+      'signataire_non_habilite',
+      'bloquant',
+      `Signataire ${s.signataireId} hors des collaborateurs habilités par le cabinet à signer un OS (réglage du cabinet) : choisir un collaborateur habilité, ou l'ajouter à la liste du cabinet.`,
+    ),
+  ]
+}
+
+/**
+ * Auteur du constat d'urgence hors des signataires habilités (interprétation des décisions 6 et 8, à confirmer : il agit
+ * au nom de l'administrateur provisoire, comme le signataire) : alerte à confirmer, sans blocage ni effet sur l'urgence.
+ */
+function anomaliesAuteurConstat(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const auteur = texteOuNull(s.constatUrgence?.collaborateurId)
+  if (auteur === null || !horsDesHabilites(auteur, contexte)) return []
+  return [
+    anomalie(
+      'constat_urgence_auteur_non_habilite',
+      'alerte',
+      `Urgence constatée par ${auteur}, hors des collaborateurs habilités par le cabinet à signer un OS : à confirmer (interprétation des décisions 6 et 8) : l'auteur du constat, qui agit au nom de l'administrateur provisoire comme le signataire, doit-il être un signataire habilité ? Ce signalement ne change pas l'urgence retenue.`,
+      null,
+      true,
+    ),
+  ]
+}
+
+function anomaliesSortie(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const anomalies = anomaliesSignataire(s, contexte)
+  if (s.canal === null) anomalies.push(anomalie('canal_absent', 'bloquant', "Canal d'envoi absent (messagerie VitFix, courriel, courrier…)."))
+  if (!s.diffusable) anomalies.push(anomalie('non_diffusable', 'bloquant', 'Ordre de service non diffusable : cocher « Diffusable » pour l’envoyer.'))
+  return [
+    ...anomalies,
+    ...anomaliesChronologie(d, s, contexte.date),
+    ...anomaliesUrgence(d, s, contexte.date),
+    ...anomaliesAuteurConstat(s, contexte),
+    ...anomaliesCanal(s.canal, contexte),
+  ]
+}
+
+/**
+ * Dates de la sortie face à l'envoi : relance antérieure ; décision qui fonde l'OS (résolution, procès-verbal du conseil
+ * syndical, registre des décisions de l'administrateur provisoire, mentionnées à leur date : D. 1967 art. 62-8)
+ * postérieure ; constat d'urgence postérieur (le jour de l'envoi, il n'existe pas encore : décision 6, sans constat,
+ * l'urgence n'est pas retenue).
+ */
+function anomaliesChronologie(d: Demande, s: SortieOrdreService, date: string): AnomalieEnvoiOs[] {
   const anomalies: AnomalieEnvoiOs[] = []
   if (s.relanceLe !== null && s.relanceLe < date)
     anomalies.push(anomalie('relance_avant_envoi', 'bloquant', `Date de relance (${fr(s.relanceLe)}) antérieure à l'envoi du ${fr(date)} : la reporter (fixerRelance).`))
@@ -1186,32 +1710,21 @@ function anomaliesChronologie(s: SortieOrdreService, date: string): AnomalieEnvo
         s.fondement === null ? null : CADRE_PAR_FONDEMENT[s.fondement].texte,
       ),
     )
+  const constat = s.constatUrgence
+  if (constatApresEnvoi(constat, date))
+    anomalies.push(
+      anomalie(
+        'constat_urgence_posterieur_envoi',
+        'bloquant',
+        `Urgence constatée le ${fr(constat.constateLe)}, après l'envoi du ${fr(date)} : le jour de l'envoi, ce constat n'existe pas encore, ${urgenceNonRetenue(d, s)} ; corriger la date du constat (au plus tard le jour de l'envoi) ou l'effacer.`,
+      ),
+    )
   return anomalies
 }
 
-const MESSAGE_VISA_MANQUANT: ReadonlyMap<VisaSortie, string> = new Map<VisaSortie, string>([
-  ['Visa nécessaire', "Visa nécessaire non demandé : demander le visa avant l'envoi."],
-  ['Demande de visa', 'Visa demandé, en attente du viseur : envoi impossible.'],
-  ['Visa refusé', "Visa refusé : revoir l'ordre de service, puis demander de nouveau le visa."],
-])
-
-const motifDuRefus = (s: SortieOrdreService): string => {
-  const refus = s.historiqueVisa.findLast((e) => e.action === 'refuse')
-  return refus?.motif ? ` Motif du refus : ${refus.motif}` : ''
-}
-
-function anomaliesVisa(d: Demande, s: SortieOrdreService, motifs: readonly MotifVisa[]): AnomalieEnvoiOs[] {
-  const manquant = MESSAGE_VISA_MANQUANT.get(s.visa)
-  if (manquant) return [anomalie('visa_manquant', 'bloquant', `${manquant}${motifDuRefus(s)}`)]
-  if (demandeChangeeDepuisVisa(s, d))
-    return [anomalie('visa_a_revoir', 'bloquant', 'La demande a changé depuis le visa (prévu, entreprise, objet, nature ou devis associé) : revoir le visa.')]
-  const vises = new Set(s.motifsVisa)
-  const nouveaux = motifs.filter((m) => !vises.has(m.code)).map((m) => m.message)
-  if (nouveaux.length === 0) return []
-  if (s.visa === 'Sortie libre')
-    return [anomalie('visa_devenu_necessaire', 'bloquant', `Sortie libre, mais un visa est désormais nécessaire (revoir le visa) : ${nouveaux.join(' ')}`)]
-  return [anomalie('visa_a_revoir', 'bloquant', `Visa donné avant un motif nouveau (revoir le visa) : ${nouveaux.join(' ')}`)]
-}
+/** Visa de l'OS avant l'envoi : le contrôle commun aux pièces de sortie (anomaliesCircuitVisa), bloquant. */
+const anomaliesVisa = (d: Demande, s: SortieOrdreService, motifs: readonly MotifVisa[]): AnomalieEnvoiOs[] =>
+  anomaliesCircuitVisa(s, pieceOs(d), motifs).map((a) => anomalie(a.code, 'bloquant', a.message))
 
 function anomaliesConvention(d: Demande, s: SortieOrdreService, codes: ReadonlySet<CodeMotifVisa>): AnomalieEnvoiOs[] {
   if (lienPerime(d, s))
@@ -1240,22 +1753,15 @@ function anomaliesConvention(d: Demande, s: SortieOrdreService, codes: ReadonlyS
   return [anomalie('convention_liee_non_autorisee', 'bloquant', message, FONDEMENT_CONVENTION_LIEE)]
 }
 
-/**
- * Jour où l'avis doit être recueilli : celui de la décision au registre (D. 1967 art. 62-8), au plus tard celui de l'envoi
- * (une décision datée après l'envoi bloque celui-ci : decision_posterieure_envoi).
- */
-const borneAvisAj = (s: SortieOrdreService, date: string): string => (s.decisionLe !== null && s.decisionLe < date ? s.decisionLe : date)
-
 /** Consultation du conseil syndical par l'administrateur provisoire (D. 1967 art. 62-7, al. 1 et 3 ; art. 62-8). */
 function anomaliesAvisAj(s: SortieOrdreService, date: string): AnomalieEnvoiOs[] {
   const anomalies: AnomalieEnvoiOs[] = []
-  const avisLe = s.justificatifs.avisConseilSyndicalLe
-  if (avisLe === null || avisLe > borneAvisAj(s, date))
+  if (!avisRecueilliATemps(s, date))
     anomalies.push(
       anomalie(
         'avis_conseil_syndical_aj_absent',
         'bloquant',
-        "Avis du conseil syndical non recueilli avant la décision de l'administrateur provisoire (ou urgence non déclarée : délai « urgence » et motif).",
+        "Avis du conseil syndical non recueilli avant la décision de l'administrateur provisoire (ou urgence non constatée : délai « urgence » et constat de l'administrateur provisoire, daté, motivé et attribué).",
         FONDEMENT_AVIS_AJ,
         true,
       ),
@@ -1351,7 +1857,7 @@ function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: C
       ),
     ]
   const article = MAJORITES_SUSPENSIVES.get(s.majoriteResolution)
-  if (article === undefined || urgenceDeclaree(s)) return []
+  if (article === undefined || urgenceConstatee(s)) return []
   const fin = contexte.finDelaiContestationAg ?? null
   if (fin === null)
     return [
@@ -1369,7 +1875,7 @@ function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: C
     anomalie(
       'execution_suspendue_art42',
       'bloquant',
-      `Travaux votés à la majorité de l'${article} : exécution suspendue jusqu'à la fin du délai de contestation (${fr(fin)} inclus), sauf urgence déclarée ; intervention au ${fr(execution)}.`,
+      `Travaux votés à la majorité de l'${article} : exécution suspendue jusqu'à la fin du délai de contestation (${fr(fin)} inclus), sauf urgence constatée ; intervention au ${fr(execution)}.`,
       FONDEMENT_SUSPENSION,
       true,
     ),
@@ -1489,7 +1995,7 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
   const motifs = motifsVisa(d, s, contexte)
   return [
     ...anomaliesDemande(d, s.canal, contexte),
-    ...anomaliesSortie(s, contexte),
+    ...anomaliesSortie(d, s, contexte),
     ...anomaliesVisa(d, s, motifs),
     ...anomaliesCadreLegal(d, s, motifs, contexte),
     ...anomaliesDevisAssocie(d, s, contexte),
@@ -1524,6 +2030,7 @@ function evenementDiffusion(s: SortieOrdreService, saisie: SaisieDiffusion, natu
     referenceDiffusion: texteOuNull(saisie.referenceDiffusion),
     courrierId: texteOuNull(saisie.courrierId),
     missionId: texteOuNull(saisie.missionId),
+    ar: null,
   }
   const preuve = PREUVE_PAR_CANAL.get(evenement.canal)
   if (preuve && evenement[preuve] === null) throw new Error(`Diffusion par « ${evenement.canal} » : ${preuve} attendu (preuve de l'envoi).`)
@@ -1577,19 +2084,131 @@ function evenementVersEntreprise(s: SortieOrdreService, saisie: SaisieDiffusion,
   return evenement
 }
 
-/** Relance de l'entreprise (journal « relance ») ; la date de relance est vidée. */
+/**
+ * Relance de l'entreprise (journal « relance ») ; la date de relance est vidée : tant qu'un élément manque, l'OS reste
+ * dans les relances dues, prochaine relance à fixer (relanceAFixer), jusqu'à ce que la suivante soit fixée (fixerRelance).
+ */
 export function relancerOs(s: SortieOrdreService, saisie: SaisieDiffusion): SortieOrdreService {
   const evenement = evenementVersEntreprise(s, saisie, 'relance', 'Relance')
   return { ...ajouter(s, evenement), relanceLe: null }
 }
 
+/** Courrier lié d'une ligne par courrier AR : envoyé en forme « AR » (FORME_ENVOI_PAR_CANAL, courriers.ts). */
+function verifierCourrierAr(courrier: CourrierSuivi): void {
+  if (courrier.formeEnvoi !== FORME_ENVOI_PAR_CANAL.courrier_ar)
+    throw new Error(`Courrier lié envoyé en « ${courrier.formeEnvoi} » : un courrier en AR est attendu pour ce canal.`)
+}
+
+/**
+ * Écart entre un AR et le courrier lié (courriers.ts) : courrier jamais déposé ; première présentation de l'AR, quand
+ * elle est connue, antérieure au dépôt, différente de celle du courrier (décision J1) ou postérieure au retrait du pli,
+ * comme courriers.ts le refuse pour ses propres dates (🔵) ; une date inconnue d'un côté ne se compare pas. Null : cohérents.
+ */
+function ecartDuCourrier(ar: ArReceptionOs, courrier: CourrierSuivi): string | null {
+  if (!courrier.dateDepot) return "courrier lié jamais déposé : l'AR n'est pas celui d'un pli parti"
+  const presentation = ar.premierePresentationLe
+  if (presentation === null) return null
+  const avant = `première présentation de l'AR (${fr(presentation)})`
+  if (presentation < courrier.dateDepot) return `${avant} antérieure au dépôt du courrier lié (${fr(courrier.dateDepot)})`
+  const duCourrier = courrier.datePremierePresentation ?? null
+  if (duCourrier !== null && presentation !== duCourrier) return `${avant} différente de celle du courrier lié (${fr(duCourrier)})`
+  const retrait = courrier.dateAccuseReception
+  if (retrait && presentation > retrait) return `${avant} postérieure au retrait du pli (${fr(retrait)})`
+  return null
+}
+
+/** Natures du journal qui portent l'OS lui-même : le premier envoi et les rediffusions (pas la relance). */
+const NATURES_PORTANT_OS: ReadonlySet<NatureDiffusion> = new Set<NatureDiffusion>(['envoi', 'rediffusion'])
+
+/**
+ * Pli qui a porté l'OS à l'entreprise de la réception (🔵 : l'AR prouve la réception du pli qu'il accompagne, et une
+ * réception par courrier AR, AR saisi ou non, est celle de ce pli) : ligne d'envoi ou de rediffusion par courrier AR,
+ * même courrier (courrierId), même destinataire ; undefined : aucun.
+ */
+const pliPortantOs = (s: SortieOrdreService, reception: EvenementDiffusion): EvenementDiffusion | undefined =>
+  s.journal.find(
+    (e) =>
+      NATURES_PORTANT_OS.has(e.nature) && e.canal === 'courrier_ar' && e.courrierId === reception.courrierId && memeRattachement(e.destinataire, reception.destinataire),
+  )
+
+/** Première présentation de l'AR, si elle est connue : ni antérieure à l'envoi du pli, ni postérieure à la réception (🔵). */
+function verifierBornesPresentation(presentation: string | null, reception: EvenementDiffusion, pli: EvenementDiffusion): void {
+  if (presentation === null) return
+  if (presentation < pli.date)
+    throw new Error(`Première présentation de l'AR (${fr(presentation)}) antérieure à l'envoi de l'OS par le courrier ${pli.courrierId} (${fr(pli.date)}).`)
+  if (presentation > reception.date)
+    throw new Error(`Première présentation de l'AR (${fr(presentation)}) après la réception du ${fr(reception.date)}.`)
+}
+
+/**
+ * Pli d'une réception par courrier AR, AR saisi ou non : le courrier AR qui a porté l'OS à l'entreprise (pliPortantOs),
+ * sinon refusé, motif à l'appui : l'AR d'un autre pli ne prouve pas la réception de l'OS, et la réception d'un autre pli
+ * n'est pas celle de l'OS (🔵).
+ */
+function pliDeLaReception(s: SortieOrdreService, reception: EvenementDiffusion, avecAr: boolean): EvenementDiffusion {
+  const pli = pliPortantOs(s, reception)
+  if (pli) return pli
+  const refus = avecAr ? `AR du courrier ${reception.courrierId} refusé` : `Réception par le courrier ${reception.courrierId} refusée`
+  const motif = avecAr ? "l'AR d'un autre pli ne prouve pas la réception de l'OS" : "la réception d'un autre pli n'est pas celle de l'OS"
+  throw new Error(
+    `${refus} : ce courrier n'a pas porté l'OS à l'entreprise (ni envoi ni rediffusion de l'OS par courrier AR à ${reception.destinataire.id} sous ce courrier) ; ${motif}.`,
+  )
+}
+
+/**
+ * AR saisi avec une réception par courrier AR (décision 9 ; 🔵 : avis de réception du pli recommandé), celle du pli qui
+ * a porté l'OS (pli, pliDeLaReception) : référence non vide ; première présentation saisie, sinon tirée du courrier lié
+ * quand il est fourni ; en écart avec ce courrier (ecartDuCourrier), refusé ; bornée par l'envoi du pli et la réception
+ * (verifierBornesPresentation) ; null sans AR.
+ */
+function lireArReception(
+  ar: SaisieArReception | null,
+  reception: EvenementDiffusion,
+  pli: EvenementDiffusion,
+  courrier: CourrierSuivi | undefined,
+): ArReceptionOs | null {
+  if (ar === null) return null
+  const reference = texteOuNull(ar.reference)
+  if (reference === null) throw new Error("AR de la réception : référence attendue (numéro du pli recommandé ou pièce numérisée).")
+  const saisie = ar.premierePresentationLe ?? null
+  verifierDate("Première présentation de l'AR", saisie)
+  const lu: ArReceptionOs = { reference, premierePresentationLe: saisie ?? courrier?.datePremierePresentation ?? null }
+  const ecart = courrier ? ecartDuCourrier(lu, courrier) : null
+  if (ecart !== null) throw new Error(`AR de la réception refusé : ${ecart} ; corriger l'AR saisi ou le suivi du courrier (courriers.ts).`)
+  verifierBornesPresentation(lu.premierePresentationLe, reception, pli)
+  return lu
+}
+
+/** Courrier lié fourni avec la réception : seulement pour une réception par courrier AR, envoyé en forme « AR ». */
+function verifierCourrierDeReception(reception: EvenementDiffusion, courrier: CourrierSuivi): void {
+  if (reception.canal !== 'courrier_ar') throw new Error(`Courrier lié : réservé à une réception par courrier AR (ici « ${reception.canal} »).`)
+  verifierCourrierAr(courrier)
+}
+
 /**
  * Accusé de réception de l'entreprise (journal « reception »), distinct de l'envoi : le contrat se forme quand
  * l'acceptation parvient (C. civ. art. 1121) ; pour un écrit électronique hors des cas des art. 1125 et 1126, la remise
- * est effective à l'accusé de réception (art. 1127-4). Puis devisCaducALaReception.
+ * est effective à l'accusé de réception (art. 1127-4). Toute réception par courrier AR, AR saisi ou non, est celle du
+ * pli qui a porté l'OS à l'entreprise (envoi ou rediffusion par courrier AR, même courrierId), sinon refusée
+ * (pliDeLaReception) ; elle peut porter son AR, qui en fait preuve (décision de Hugo du 03/11/2026), rapproché du
+ * courrier lié quand il est fourni (courrier : forme « AR » exigée, déposé, première présentation tirée de lui ou comparée
+ * à lui) ; l'AR saisi sur une réception par un autre canal est refusé ; sans AR, la réception est admise, « sans preuve »
+ * (preuveDeReception). Le journal ne se réécrit pas : un AR revenu après une réception déjà enregistrée passe par une
+ * nouvelle ligne (preuveReceptionOs), la réception restant datée de la première. Puis devisCaducALaReception.
  */
-export function enregistrerReception(s: SortieOrdreService, saisie: SaisieDiffusion): SortieOrdreService {
-  return ajouter(s, evenementVersEntreprise(s, saisie, 'reception', 'Réception'))
+export function enregistrerReception(s: SortieOrdreService, saisie: SaisieReception, courrier?: CourrierSuivi): SortieOrdreService {
+  const reception = evenementVersEntreprise(s, saisie, 'reception', 'Réception')
+  if (courrier) verifierCourrierDeReception(reception, courrier)
+  const ar = saisie.ar ?? null
+  if (reception.canal !== 'courrier_ar') {
+    if (ar !== null)
+      throw new Error(
+        `AR saisi sur une réception par « ${reception.canal} » : l'AR est l'avis de réception du courrier AR ; par ce canal, la réception est admise sans AR (« sans preuve »).`,
+      )
+    return ajouter(s, { ...reception, ar: null })
+  }
+  const pli = pliDeLaReception(s, reception, ar !== null)
+  return ajouter(s, { ...reception, ar: lireArReception(ar, reception, pli, courrier) })
 }
 
 /**
@@ -1625,45 +2244,188 @@ export function fixerRelance(s: SortieOrdreService, date: string | null): Sortie
   return { ...s, relanceLe: date }
 }
 
-export type PreuveDiffusion = 'trace_interne' | EtatNotificationCourrier
+// ─── Ce que l'entreprise doit faire parvenir (relance : décision de Hugo du 03/11/2026) ───────
+
+/** La relance vise la réponse à l'OS, et aussi l'accusé et le rapport quand ils sont demandés. */
+export const ATTENDUS_OS = ['reponse', 'accuse', 'rapport'] as const
+export type AttenduOs = (typeof ATTENDUS_OS)[number]
+
+interface RegleAttendu {
+  libelle: string
+  /** L'élément est attendu de cette demande. */
+  attendu: (d: Demande) => boolean
+  /** L'élément est reçu. */
+  recu: (d: Demande, s: SortieOrdreService) => boolean
+}
+
+/**
+ * Réponse de l'entreprise (🔵) : visible sur la demande (statut « Accepté », stade de l'étape Acceptation ou au-delà, une
+ * proposition n'en étant pas une, réalisation datée, ou, pour une demande de devis, le devis associé), ou rapport reçu
+ * (l'entreprise qui remet son rapport a répondu à l'OS).
+ */
+const reponseRecue = (d: Demande, s: SortieOrdreService): boolean =>
+  d.statut === 'Accepté' ||
+  etapeDuStade(d.stade) !== 'Demandée' ||
+  d.realiseeLe !== null ||
+  (d.type === 'devis' && d.devisAssocie !== null) ||
+  s.rapportRecu !== null
+
+const REGLES_ATTENDUS: Readonly<Record<AttenduOs, RegleAttendu>> = {
+  reponse: { libelle: "réponse à l'ordre de service", attendu: () => true, recu: reponseRecue },
+  accuse: { libelle: 'accusé de réception', attendu: (d) => d.statut === 'Accusé demandé', recu: (_d, s) => estRecu(s) },
+  rapport: { libelle: 'rapport', attendu: (d) => d.statut === 'Rapport demandé', recu: (_d, s) => s.rapportRecu !== null },
+}
+
+/**
+ * Éléments encore attendus de l'entreprise (dans l'ordre d'ATTENDUS_OS) pour un OS envoyé, ni terminé ni refusé ; aucun
+ * sinon. La réponse est toujours attendue (reçue : reponseRecue, rapport reçu compris) ; l'accusé au statut « Accusé
+ * demandé » (reçu : ligne « reception » du journal) ; le rapport au statut « Rapport demandé » (reçu : enregistrerRapport).
+ */
+export function attendusOs(d: Demande, s: SortieOrdreService): AttenduOs[] {
+  verifierLien(d, s)
+  if (!estEnvoye(s) || d.statut === 'Terminé' || estRefusee(d)) return []
+  return ATTENDUS_OS.filter((element) => REGLES_ATTENDUS[element].attendu(d) && !REGLES_ATTENDUS[element].recu(d, s))
+}
+
+export interface SaisieRapport {
+  recuLe: string
+  documentId?: string | null
+}
+
+/** Rapport de l'entreprise reçu (copie) : sur un OS envoyé, au plus tôt le jour du premier envoi, une seule fois (🔵). */
+export function enregistrerRapport(d: Demande, s: SortieOrdreService, saisie: SaisieRapport): SortieOrdreService {
+  verifierLien(d, s)
+  verifierDate('Date de réception du rapport', saisie.recuLe)
+  const envoi = premierEnvoi(s)
+  if (!envoi) throw new Error(`Rapport impossible : ordre de service ${d.numero ?? d.id} jamais envoyé.`)
+  if (saisie.recuLe < envoi.date) throw new Error(`Rapport reçu le ${fr(saisie.recuLe)}, avant le premier envoi de l'OS (${fr(envoi.date)}).`)
+  if (s.rapportRecu) throw new Error(`Rapport de l'OS ${d.numero ?? d.id} déjà enregistré (reçu le ${fr(s.rapportRecu.recuLe)}).`)
+  return { ...s, rapportRecu: { recuLe: saisie.recuLe, documentId: texteOuNull(saisie.documentId) } }
+}
+
+/** Preuve d'une réception (décision 9) : son AR, ou « sans preuve ». */
+export type PreuveReception = 'ar' | 'sans_preuve'
+
+/**
+ * Preuve d'une réception portée par sa ligne (décision de Hugo du 03/11/2026 : l'AR fait preuve) : « ar » quand elle porte
+ * son AR, sinon « sans_preuve » (ligne sans la clé « ar », écrite avant la décision 9, comprise) : la réception reste
+ * admise, sans blocage (🔵). Pour une réception par courrier AR, preuveDeDiffusion lit aussi le courrier lié et le
+ * journal de la sortie.
+ */
+export function preuveDeReception(evenement: EvenementDiffusion): PreuveReception {
+  if (evenement.nature !== 'reception') throw new Error(`Ligne « ${evenement.nature} » du journal : seule une réception a une preuve de réception.`)
+  return evenement.ar ? 'ar' : 'sans_preuve'
+}
+
+/**
+ * Preuve de la réception de l'OS lui-même (décision 9) : « ar » dès qu'une ligne « reception » du journal porte son AR, y
+ * compris un AR revenu après une première réception (nouvelle ligne : le journal ne se réécrit pas) ; « sans_preuve »
+ * quand l'OS est reçu sans AR ; null : jamais reçu. La réception reste datée de sa première ligne (estRecu,
+ * devisCaducALaReception). Lit les lignes seules (preuveDeReception) : l'état du courrier lié d'une réception par courrier
+ * AR sans AR saisi, et l'écart d'un AR avec son courrier lié apparu après la saisie (« ar_ecart_courrier »), se lisent par
+ * preuveDeDiffusion, ligne par ligne.
+ */
+export function preuveReceptionOs(s: SortieOrdreService): PreuveReception | null {
+  const receptions = s.journal.filter((e) => e.nature === 'reception')
+  if (receptions.length === 0) return null
+  return receptions.some((e) => preuveDeReception(e) === 'ar') ? 'ar' : 'sans_preuve'
+}
+
+/**
+ * Preuve d'une ligne du journal (preuveDeDiffusion) ; « ar_ecart_courrier » : la ligne porte un AR en écart avec le
+ * courrier lié (ecartArCourrier), écart apparu après la saisie, signalé à vérifier.
+ */
+export type PreuveDiffusion = 'trace_interne' | EtatNotificationCourrier | PreuveReception | 'ar_ecart_courrier'
+
+/**
+ * Écart entre l'AR d'une réception et son courrier lié (courriers.ts) apparu après la saisie (courrier non fourni à la
+ * saisie, suivi postal complété ou corrigé ensuite) : message, ou null (aucun AR, ou AR cohérent avec le courrier). La
+ * ligne du journal ne se réécrit pas : l'écart est signalé, jamais levé ; une nouvelle réception peut porter l'AR exact.
+ */
+export function ecartArCourrier(evenement: EvenementDiffusion, courrier: CourrierSuivi): string | null {
+  const ar = evenement.ar ?? null
+  const ecart = ar === null ? null : ecartDuCourrier(ar, courrier)
+  if (ecart === null) return null
+  return `AR de la réception du ${fr(evenement.date)} en écart avec le courrier lié : ${ecart} ; la ligne du journal ne se réécrit pas : enregistrer une nouvelle réception avec l'AR exact, ou corriger le suivi du courrier (courriers.ts).`
+}
 
 /**
  * Preuve d'une ligne du journal : la trace interne (journal horodaté) pour la messagerie, le courriel, le SMS et le
- * courrier simple ; pour le courrier AR, l'état de notification du courrier lié (courriers.ts).
+ * courrier simple, sauf pour une réception, qui a son AR ou est « sans preuve » (preuveDeReception) ; pour le courrier AR,
+ * le courrier lié est attendu (forme « AR ») : une réception qui porte son AR vaut « ar », ou « ar_ecart_courrier » quand
+ * l'AR est en écart avec le courrier (ecartArCourrier : signalé, sans lever, la ligne ne se réécrivant pas) ; une
+ * réception sans AR saisi dont le courrier n'a pas porté l'OS à l'entreprise (pliPortantOs, lu dans le journal de la
+ * sortie s : ligne écrite sans le contrôle de la saisie, avant la décision 9) est « sans preuve », jamais l'état de
+ * notification de ce pli ; toute autre ligne, réception sans AR saisi sur le pli qui a porté l'OS comprise (comme avant
+ * la décision 9), vaut l'état de notification du courrier lié (courriers.ts). Une ligne qui porte un AR a été rattachée
+ * au pli à la saisie (pliDeLaReception).
  */
-export function preuveDeDiffusion(evenement: EvenementDiffusion, courrier?: CourrierSuivi): PreuveDiffusion {
-  if (evenement.canal !== 'courrier_ar') return 'trace_interne'
+export function preuveDeDiffusion(s: SortieOrdreService, evenement: EvenementDiffusion, courrier?: CourrierSuivi): PreuveDiffusion {
+  if (evenement.canal !== 'courrier_ar') return evenement.nature === 'reception' ? preuveDeReception(evenement) : 'trace_interne'
   if (!courrier) throw new Error(`Courrier AR ${evenement.courrierId ?? ''} : le courrier lié est attendu (preuve de notification).`)
-  if (courrier.formeEnvoi !== FORME_ENVOI_PAR_CANAL.courrier_ar)
-    throw new Error(`Courrier lié envoyé en « ${courrier.formeEnvoi} » : un courrier en AR est attendu pour ce canal.`)
+  verifierCourrierAr(courrier)
+  const ar = evenement.ar ?? null
+  if (ar !== null) return ecartDuCourrier(ar, courrier) === null ? 'ar' : 'ar_ecart_courrier'
+  if (evenement.nature === 'reception' && !pliPortantOs(s, evenement)) return 'sans_preuve'
   return etatNotificationCourrier(courrier)
 }
 
 // ─── Adaptateurs (branchements à faire plus tard) ─────────────────────────────────────────────
 
-/** Élément du suivi « à faire » (famille « demandes », nature « relance_os » de suivi-a-faire.ts, point 46). */
-export type RelanceOsAFaire = Omit<ElementAFaire, 'famille' | 'nature'> & { famille: 'demandes'; nature: 'relance_os' }
+/**
+ * Élément du suivi « à faire » (famille « demandes », nature « relance_os » de suivi-a-faire.ts, point 46), avec la liste
+ * de ce qui manque (attendus) et l'état de la date de relance (relanceAFixer) ; aConfirmer reste faux : la relance est
+ * un réglage de gestion, pas un repère juridique (ElementAFaire).
+ */
+export type RelanceOsAFaire = Omit<ElementAFaire, 'famille' | 'nature'> & {
+  famille: 'demandes'
+  nature: 'relance_os'
+  attendus: AttenduOs[]
+  /**
+   * Aucune date de relance (jamais fixée, ou vidée par relancerOs) : l'élément demande de fixer la prochaine relance
+   * (fixerRelance), pas de relancer l'entreprise.
+   */
+  relanceAFixer: boolean
+}
 
-/** Relances dues des OS envoyés, ni terminés ni refusés, triées par date. */
+/**
+ * Relance due d'un OS envoyé, ni terminé ni refusé, dont un élément manque (attendusOs) ; null sinon. Avec une date de
+ * relance : « Relancer l'entreprise », dû à cette date. Sans elle (jamais fixée, ou vidée par relancerOs), l'OS reste
+ * dû : « Fixer la prochaine relance de l'entreprise » (relanceAFixer), dû le jour de la dernière relance du journal ou, à
+ * défaut, du premier envoi (aucun délai inventé), et non une seconde relance le jour d'une relance déjà faite.
+ */
+function relanceDue(d: Demande, s: SortieOrdreService): RelanceOsAFaire | null {
+  const attendus = attendusOs(d, s)
+  const envoi = premierEnvoi(s)
+  if (envoi === null || attendus.length === 0) return null
+  const relanceAFixer = s.relanceLe === null
+  const action = relanceAFixer ? "Fixer la prochaine relance de l'entreprise (fixerRelance)" : "Relancer l'entreprise"
+  const manque = attendus.map((element) => REGLES_ATTENDUS[element].libelle).join(', ')
+  return {
+    id: `demandes:relance_os:${d.id}`,
+    famille: 'demandes',
+    nature: 'relance_os',
+    libelle: `${action} : ordre de service ${d.numero ?? d.id} (${d.objet}) ; attendu : ${manque}`,
+    date: s.relanceLe ?? (s.journal.findLast((e) => e.nature === 'relance') ?? envoi).date,
+    mandatId: d.mandatId,
+    objetId: d.id,
+    assigneId: envoi.collaborateurId,
+    aConfirmer: false,
+    attendus,
+    relanceAFixer,
+  }
+}
+
+/**
+ * Relances dues (décision de Hugo du 03/11/2026) : UN élément par OS envoyé, ni terminé ni refusé, tant qu'un élément manque
+ * (attendusOs), date de relance fixée ou non (relanceDue : relancer, ou fixer la prochaine relance) ; il liste ce qui
+ * manque. Tout reçu : rien n'est dû. Triées par date.
+ */
 export function relancesOsDues(items: readonly { demande: Demande; sortie: SortieOrdreService }[]): RelanceOsAFaire[] {
   return items
-    .flatMap(({ demande: d, sortie: s }): RelanceOsAFaire[] => {
-      verifierLien(d, s)
-      const envoi = premierEnvoi(s)
-      if (s.relanceLe === null || envoi === null || d.statut === 'Terminé' || estRefusee(d)) return []
-      return [
-        {
-          id: `demandes:relance_os:${d.id}`,
-          famille: 'demandes',
-          nature: 'relance_os',
-          libelle: `Relancer l'entreprise : ordre de service ${d.numero ?? d.id} (${d.objet})`,
-          date: s.relanceLe,
-          mandatId: d.mandatId,
-          objetId: d.id,
-          assigneId: envoi.collaborateurId,
-          aConfirmer: false,
-        },
-      ]
+    .flatMap(({ demande: d, sortie: s }) => {
+      const due = relanceDue(d, s)
+      return due === null ? [] : [due]
     })
     .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
 }
