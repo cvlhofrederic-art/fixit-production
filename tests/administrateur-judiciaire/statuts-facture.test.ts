@@ -5,9 +5,11 @@ import {
   STATUTS_SAISIE_FACTURE,
   changerStatutReglement,
   lireCodeStatutGesteam,
+  retourFactureApresRejet,
   selectionnerFacturesAPayer,
   statutSaisieApresReglement,
   type FactureAPayer,
+  type RejetReglementFacture,
 } from '@/lib/administrateur-judiciaire/domain/statuts-facture'
 
 /**
@@ -227,5 +229,80 @@ describe('sélection des factures pour un ordre de virement', () => {
     expect(() =>
       selectionnerFacturesAPayer([facture('a'), facture('a')], { date: '2026-10-28', soldeDisponibleCentimes: 0 }),
     ).toThrow(/double/i)
+  })
+})
+
+describe('statuts — retour de la facture après un virement rejeté ou retourné (décision J9 de Hugo du 30/10/2026)', () => {
+  const REJET: RejetReglementFacture = { reglementId: 'r-1', le: '2026-11-03', motif: 'AC04 — compte clos', montantCentimes: 10_000 }
+  const TOTAL = { totalTtcCentimes: 10_000 }
+  const reglee = facture('a', { statutSaisie: 'Réglée', statutReglement: 'Réglée', resteDuCentimes: 0 })
+
+  it('« Réglée » revient « Bon à payer » : reste dû et statut de saisie rétablis, date et motif du rejet gardés', () => {
+    expect(retourFactureApresRejet(reglee, { ...REJET, motif: ' AC04 — compte clos  ' }, TOTAL)).toEqual({
+      ...reglee,
+      statutReglement: 'Bon à payer',
+      statutSaisie: 'Enregistrée',
+      resteDuCentimes: 10_000,
+      rejets: [REJET],
+    })
+  })
+
+  it('rejet d’une part du réglé seulement (le solde payé à part reste acquis) : « Rgt. partiel », reste dû = montant rejeté', () => {
+    expect(retourFactureApresRejet(reglee, { ...REJET, montantCentimes: 4_000 }, TOTAL)).toMatchObject({
+      statutReglement: 'Bon à payer',
+      statutSaisie: 'Rgt. partiel',
+      resteDuCentimes: 4_000,
+    })
+  })
+
+  it('acompte rejeté : la facture « En attente » du solde revient « Acompte à régler » pour le montant rejeté', () => {
+    const apresAcompte = facture('a', { statutSaisie: 'Rgt. partiel', statutReglement: 'En attente', resteDuCentimes: 6_000, acompteCentimes: 4_000 })
+    expect(retourFactureApresRejet(apresAcompte, { ...REJET, montantCentimes: 4_000 }, TOTAL)).toMatchObject({
+      statutReglement: 'Acompte à régler',
+      statutSaisie: 'Enregistrée',
+      resteDuCentimes: 10_000,
+      acompteCentimes: 4_000,
+    })
+  })
+
+  it('la facture revenue est reprise par la sélection d’un nouvel ordre de virement', () => {
+    const revenue = retourFactureApresRejet(reglee, REJET, TOTAL)
+    const selection = selectionnerFacturesAPayer([revenue], { date: '2026-11-04', soldeDisponibleCentimes: 100_000 })
+    expect(selection.montants).toEqual([{ factureId: 'a', montantCentimes: 10_000 }])
+  })
+
+  it('double rejet d’un même règlement refusé ; deux règlements successifs rejetés : les deux rejets gardés', () => {
+    const revenue = retourFactureApresRejet(reglee, REJET, TOTAL)
+    const repayee = { ...revenue, statutReglement: 'Réglée' as const, statutSaisie: 'Réglée' as const, resteDuCentimes: 0 }
+    expect(() => retourFactureApresRejet(repayee, REJET, TOTAL)).toThrow(/r-1 déjà rejeté le 2026-11-03/)
+    const second = { ...REJET, reglementId: 'r-2', le: '2026-11-10', motif: 'MS03 — motif non communiqué' }
+    expect(retourFactureApresRejet(repayee, second, TOTAL).rejets).toEqual([REJET, second])
+  })
+
+  it('refusé quand un nouveau cycle de règlement a commencé (bon à payer, acompte à régler, en règlement)', () => {
+    for (const statutReglement of ['Bon à payer', 'Acompte à régler', 'En règlement'] as const)
+      expect(() =>
+        retourFactureApresRejet(facture('a', { statutReglement, statutSaisie: 'Rgt. partiel', resteDuCentimes: 5_000 }), REJET, { totalTtcCentimes: 15_000 }),
+      ).toThrow(/nouveau cycle/)
+  })
+
+  it('contrôles : montant rejeté au plus le réglé, en centimes entiers > 0 ; règlement, date AAAA-MM-JJ, motif ; total cohérent', () => {
+    expect(() => retourFactureApresRejet(reglee, { ...REJET, montantCentimes: 12_000 }, TOTAL)).toThrow(/plus que le réglé/)
+    const jamaisPayee = facture('a', { statutReglement: 'En attente', resteDuCentimes: 10_000 })
+    expect(() => retourFactureApresRejet(jamaisPayee, REJET, TOTAL)).toThrow(/plus que le réglé/)
+    for (const montantCentimes of [0, -1, 10.5]) expect(() => retourFactureApresRejet(reglee, { ...REJET, montantCentimes }, TOTAL)).toThrow(/Montant/)
+    expect(() => retourFactureApresRejet(reglee, { ...REJET, reglementId: ' ' }, TOTAL)).toThrow(/règlement rejeté/)
+    expect(() => retourFactureApresRejet(reglee, { ...REJET, le: '03/11/2026' }, TOTAL)).toThrow(/AAAA-MM-JJ/)
+    expect(() => retourFactureApresRejet(reglee, { ...REJET, motif: '' }, TOTAL)).toThrow(/motif/)
+    expect(() => retourFactureApresRejet(facture('a', { statutReglement: 'Réglée', resteDuCentimes: 2_000 }), REJET, { totalTtcCentimes: 1_000 })).toThrow(
+      /Total/,
+    )
+  })
+
+  it('hors de ce retour, « Réglée » reste sans transition à la main ; la facture reçue n’est pas modifiée', () => {
+    expect(() => changerStatutReglement(reglee, 'Bon à payer')).toThrow(/transition/i)
+    retourFactureApresRejet(reglee, REJET, TOTAL)
+    expect(reglee).toMatchObject({ statutReglement: 'Réglée', resteDuCentimes: 0 })
+    expect(reglee.rejets).toBeUndefined()
   })
 })

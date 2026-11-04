@@ -83,7 +83,7 @@ jobs:
         run: npm ci
 
       - name: Installer les navigateurs Playwright
-        run: npx playwright install --with-deps "$BROWSER"
+        run: ./node_modules/.bin/playwright install --with-deps "$BROWSER"
 
       - name: Build de production
         run: bash scripts/ci-build-avec-reprise.sh
@@ -92,7 +92,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Lancer les tests E2E
-        run: npx playwright test --project="$BROWSER"
+        run: ./node_modules/.bin/playwright test --project="$BROWSER"
         env:
           CI: true
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -136,8 +136,8 @@ jobs:
         # @axe-core/playwright n'est pas dans package.json : version épinglée (lot 6 Aikido),
         # celle que l'installation sans contrainte résolvait au 28/10/2026.
         run: |
-          npx playwright install --with-deps chromium
-          npm install --no-save @axe-core/playwright@4.14.0
+          ./node_modules/.bin/playwright install --with-deps chromium
+          npm install --no-save --ignore-scripts @axe-core/playwright@4.14.0
 
       - name: Build de production
         run: bash scripts/ci-build-avec-reprise.sh

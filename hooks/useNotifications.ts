@@ -4,6 +4,33 @@ import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { POLL_NOTIFICATIONS, POLL_MISSIONS, TOAST_LONG, TOAST_DEFAULT } from '@/lib/constants'
 import type { Notification } from '@/lib/types'
 
+/**
+ * Sondage périodique « un seul intervalle à la fois » : appel immédiat puis toutes les `intervalleMs` tant que
+ * l'onglet est visible ; rien tant qu'il est caché (reprise avec un appel immédiat quand il redevient visible).
+ * Renvoie la fonction d'arrêt (intervalle coupé, écouteur retiré, requêtes en cours annulées).
+ */
+export function sonderQuandVisible(action: () => void | Promise<void>, intervalleMs: number, controleur: AbortController): () => void {
+  let intervalle: ReturnType<typeof setInterval> | null = null
+  const demarrer = () => {
+    if (intervalle !== null) return
+    void action()
+    intervalle = setInterval(() => { void action() }, intervalleMs)
+  }
+  const suspendre = () => {
+    if (intervalle === null) return
+    clearInterval(intervalle)
+    intervalle = null
+  }
+  const surVisibilite = () => { if (document.hidden) suspendre(); else demarrer() }
+  if (!document.hidden) demarrer()
+  document.addEventListener('visibilitychange', surVisibilite)
+  return () => {
+    suspendre()
+    document.removeEventListener('visibilitychange', surVisibilite)
+    controleur.abort()
+  }
+}
+
 type RealtimeCallbacks = {
   onNavigate: (page: string) => void
   onNewBooking: (booking: any) => void
@@ -51,14 +78,19 @@ export function useNotifications(
     }
   }, [])
 
+  // Requêtes en cours des sondages : annulées au démontage (plus de « Failed to fetch » à la fermeture de la page).
+  const abandonRef = useRef<AbortController | null>(null)
+
   // Load notifications from API — paused when tab is hidden
   useEffect(() => {
     if (!userId) return
+    const controleur = new AbortController()
     const loadNotifs = async () => {
       try {
         const token = await getAuthToken()
         const res = await fetch(`/api/syndic/notify-artisan?artisan_id=${userId}&limit=30`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
+          signal: controleur.signal,
         })
         if (res.ok) {
           const data = await res.json()
@@ -69,32 +101,21 @@ export function useNotifications(
         }
       } catch {}
     }
-    loadNotifs()
-    let interval = setInterval(loadNotifs, POLL_NOTIFICATIONS)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        loadNotifs()
-        interval = setInterval(loadNotifs, POLL_NOTIFICATIONS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
+    // Lot 8 Sentry du 28/10/2026 : un seul intervalle à la fois (avant, un montage onglet caché laissait courir deux
+    // sondages en parallèle), rien tant que l'onglet est caché, annulation au démontage.
+    return sonderQuandVisible(loadNotifs, POLL_NOTIFICATIONS, controleur)
   }, [userId])
 
   // Load unread message count — paused when tab is hidden
   const refreshUnreadMsgCount = useCallback(async () => {
     if (!userId) return
+    const signal = abandonRef.current?.signal
     try {
       const token = await getAuthToken()
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
       const [clientsRes, proRes] = await Promise.all([
-        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=particulier`, { headers }),
-        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=pro`, { headers }),
+        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=particulier`, { headers, signal }),
+        fetch(`/api/pro/messagerie?artisan_user_id=${userId}&contact_type=pro`, { headers, signal }),
       ])
       // Réponse en erreur (429, 500…) : le compteur affiché est conservé (avant : remis à 0, clignotement).
       if (!clientsRes.ok || !proRes.ok) return
@@ -103,27 +124,22 @@ export function useNotifications(
                     (pd.conversations || []).reduce((s: number, c: any) => s + (c.unread_count || 0), 0)
       setUnreadMsgCount(total)
     } catch (e) {
+      // Requête annulée au démontage ou à la fermeture de la page : rien à signaler.
+      if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) return
       console.warn('[notifications] compteur de messages non lus non rechargé', e)
     }
   }, [userId, getAuthToken])
 
   useEffect(() => {
     if (!userId) return
-    refreshUnreadMsgCount()
-    let interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        clearInterval(interval)
-      } else {
-        refreshUnreadMsgCount()
-        interval = setInterval(refreshUnreadMsgCount, POLL_MISSIONS)
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
+    const controleur = new AbortController()
+    abandonRef.current = controleur
+    const arreter = sonderQuandVisible(refreshUnreadMsgCount, POLL_MISSIONS, controleur)
     return () => {
-      clearInterval(interval)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      arreter()
+      if (abandonRef.current === controleur) abandonRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
   // Realtime subscription for notifications + bookings + messages

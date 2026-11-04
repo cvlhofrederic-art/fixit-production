@@ -113,6 +113,10 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  * - Gestéam « Exercice approuvé / Nouvel exercice / N+2 » : dernier exercice clos, exercice en cours, premier exercice
  *   ouvert après l'assemblée ; « Conseil syndical € » de la fiche exercice : montant alloué dans le budget de l'exercice.
  *
+ * L'alerte de l'art. 29-1 A (impayés à la clôture ; absence de vote de l'assemblée sur l'approbation des comptes depuis
+ * au moins deux ans, un vote de rejet comptant comme un vote) est modélisée à part (alerte-mandataire-ad-hoc.ts) : une
+ * approbation des comptes adoptée par l'assemblée et enregistrée ici y compte comme un vote.
+ *
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - sens de « Rendu des comptes N » : notification des comptes avec la convocation, ou date de l'assemblée qui les
  *   approuve ? VitFix ne s'en sert que pour tenir la convocation de l'assemblée des comptes pour faite ;
@@ -136,12 +140,11 @@ import { LIBELLES_ETATS_RESOLUTION, type Resolution } from '@/lib/administrateur
  *   membre figure dans les deux ;
  * - conseil syndical élu ou renouvelé par une assemblée tenue hors du délai de six mois après la clôture, ou par une
  *   assemblée extraordinaire : la fenêtre de six mois avant le terme suffit-elle à reconnaître son renouvellement, ou
- *   faut-il le saisir expressément ? VitFix s'en tient à la fenêtre ;
- * - alerte de l'art. 29-1 A (pas de vote sur l'approbation des comptes depuis deux ans) : non modélisée, un vote de rejet
- *   comptant aussi.
+ *   faut-il le saisir expressément ? VitFix s'en tient à la fenêtre.
  * Tranché par Hugo le 30/10/2026 : le décompte des 21 jours francs de la convocation (présentation au plus tard 22 jours
  * avant la réunion) est confirmé (décision J5) ; les seuils de l'art. 21 (consultation du conseil syndical, mise en
- * concurrence) s'entendent TTC, le texte ne le précisant pas (décision J6). L'alerte de l'art. 29-1 A est à modéliser.
+ * concurrence) s'entendent TTC, le texte ne le précisant pas (décision J6). L'alerte du mandataire ad hoc est modélisée
+ * à part, dans alerte-mandataire-ad-hoc.ts (décision J7, voir plus haut).
  *
  * La « reddition » de ce module (« Rendu des comptes N » de l'exercice) n'est ni la reddition de comptes de fin de mission
  * (planification-mandat.ts), ni celle de l'ancien syndic (L. 1965 art. 18-2).

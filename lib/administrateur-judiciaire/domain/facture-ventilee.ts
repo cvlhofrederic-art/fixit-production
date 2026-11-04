@@ -34,6 +34,10 @@ export interface LigneFacture {
   baseHonorairesCentimes?: number | null
   /** Taux d'honoraires appliqué à la base (Gestéam « Honoraires taux % »). */
   tauxHonorairesPct?: number | null
+  /** Marque « Non déductible » reprise de la fiche analytique (point 28) ; absente : non reportée sur le mouvement. */
+  nonDeductible?: boolean
+  /** Contrat au titre duquel la facture est reçue (lien du mouvement, T43 § 7) ; absent : aucun lien. */
+  contratId?: string | null
 }
 
 export interface AnomalieVentilation {
@@ -77,11 +81,12 @@ const LIEN_PAR_RATTACHEMENT = {
   sinistre: 'sinistreId',
 } as const satisfies Record<NonNullable<LigneFacture['rattachement']>['type'], keyof LiensMouvement>
 
-/** Liens d'une ligne de charge : fournisseur, lot, rattachement ; undefined si aucun. */
+/** Liens d'une ligne de charge : fournisseur, lot, contrat, rattachement ; undefined si aucun. */
 function liensLigne(l: LigneFacture, fournisseurId: string | null): LiensMouvement | undefined {
   const liens: LiensMouvement = {
     ...(fournisseurId ? { fournisseurId } : {}),
     ...(l.lotId ? { lotId: l.lotId } : {}),
+    ...(l.contratId ? { contratId: l.contratId } : {}),
     ...(l.rattachement ? { [LIEN_PAR_RATTACHEMENT[l.rattachement.type]]: l.rattachement.id } : {}),
   }
   return Object.keys(liens).length > 0 ? liens : undefined
@@ -89,9 +94,9 @@ function liensLigne(l: LigneFacture, fournisseurId: string | null): LiensMouveme
 
 /**
  * Écriture « Saisie de factures » : un débit par ligne, un crédit au compte fournisseur ; refusée si mal ventilée. Chaque
- * ligne de charge porte ses attributs (clé, analytique, rubrique, code fiscal, part récupérable, base et taux
- * d'honoraires, « à répartir ») et ses liens (fournisseur, lot, travaux, contentieux, sinistre) ; le crédit porte le
- * fournisseur. Une ligne sans lien n'a pas de clé `liens`.
+ * ligne de charge porte ses attributs (clé, analytique, rubrique, code fiscal, part récupérable, marque « non
+ * déductible » si la ligne la porte, base et taux d'honoraires, « à répartir ») et ses liens (fournisseur, lot, contrat,
+ * travaux, contentieux, sinistre) ; le crédit porte le fournisseur. Une ligne sans lien n'a pas de clé `liens`.
  */
 export function ecritureFactureVentilee({
   id,
@@ -132,6 +137,7 @@ export function ecritureFactureVentilee({
             recupLocatairePct: l.recupLocatairePct,
             baseHonorairesCentimes: l.baseHonorairesCentimes ?? null,
             tauxHonorairesPct: l.tauxHonorairesPct ?? null,
+            ...(l.nonDeductible === undefined ? {} : { nonDeductible: l.nonDeductible }),
             etatRepartition: 'a_repartir' as const,
           },
           ...(liens ? { liens } : {}),

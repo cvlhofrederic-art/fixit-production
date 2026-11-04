@@ -24,8 +24,9 @@ import { logger } from '@/lib/logger'
 // Migration vers Supabase Storage prevue (phase 2) ; en attendant,
 // on accepte ces payloads pour ne perdre aucune donnee.
 const MAX_VALUE_BYTES = 5_000_000
-// Batch reduit a 10 entrees pour limiter le request body a ~50 MB max.
-const MAX_ENTRIES_PER_REQUEST = 10
+// 50 entrées par requête : le client (lib/storage-sync.ts) envoie toutes les clés modifiées en un seul POST et
+// plafonne lui-même le volume à 4 Mo par requête (lot 8 Sentry du 28/10/2026 : 20 POST en 10 s avant).
+const MAX_ENTRIES_PER_REQUEST = 50
 
 const upsertSchema = z.object({
   entries: z.array(z.object({
