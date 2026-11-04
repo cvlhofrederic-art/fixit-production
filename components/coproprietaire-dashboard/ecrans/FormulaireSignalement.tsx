@@ -80,7 +80,7 @@ export function lieuDuLogement(espace: EspaceCopro, langue: LangueCopro, t: Text
   return parties.length > 0 ? parties.join(', ') : profil.immeuble
 }
 
-export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvoye, onVoirDemande, onAutre, liaisonAj }: PropsFormulaireSignalement) {
+export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvoye, onVoirDemande, onAutre, liaisonAj }: Readonly<PropsFormulaireSignalement>) {
   const local = LIBELLES_LOCAUX[langue]
   const demo = jeton === null || espace.source !== 'reel'
   const idBase = useId()

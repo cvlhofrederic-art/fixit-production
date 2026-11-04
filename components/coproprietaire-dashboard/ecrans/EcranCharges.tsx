@@ -362,7 +362,7 @@ function CarteRetard({ retard, t, langue }: { retard: ImpayeCopro; t: TextesCopr
 
 // ── Écran ────────────────────────────────────────────────────────────────────
 
-export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJourLe, aujourdhui }: PropsEcran) {
+export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJourLe, aujourdhui }: Readonly<PropsEcran>) {
   const tl = TEXTES_LOCAUX[langue]
   const idAppels = useId()
   const idFactures = useId()

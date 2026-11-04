@@ -149,7 +149,7 @@ export interface PropsDetailDemande {
 
 type EtatEnvoi = 'repos' | 'succes' | 'erreur' | 'demo'
 
-export default function DetailDemande({ demande, espace, t, langue, jeton, onRetour, rafraichir, onMessageAjoute, liaisonAj }: PropsDetailDemande) {
+export default function DetailDemande({ demande, espace, t, langue, jeton, onRetour, rafraichir, onMessageAjoute, liaisonAj }: Readonly<PropsDetailDemande>) {
   const local = LIBELLES_LOCAUX[langue]
   const demo = jeton === null || espace.source !== 'reel'
   const montantsVisibles = espace.profil.role !== 'locataire'

@@ -25,7 +25,7 @@ export type SourcePortail = 'syndic' | 'aj'
 
 /** Source choisie par le super admin (« aj » ou « syndic »). */
 export const CLE_SOURCE_PORTAIL = 'vitfix.liaison.copro-aj.source'
-/** Copropriétaire affiché, par copropriété de l'AJ (JSON { code: id }). */
+/** Copropriétaire affiché, par copropriété de l'AJ (JSON : paires [code, id]). */
 export const CLE_PERSONNE_PORTAIL = 'vitfix.liaison.copro-aj.personne'
 /** Copropriété choisie dans l'AJ (même clé que son sélecteur du haut de page, valeur JSON). */
 export const CLE_COPRO_AJ = 'vitfix.aj.dossierEnCours'
@@ -68,9 +68,21 @@ const lireCodeAj = (): string | null => {
   return typeof code === 'string' && code ? code : null
 }
 
-const lirePersonnes = (): Record<string, string> => {
-  const personnes = lireJson<unknown>(CLE_PERSONNE_PORTAIL, {})
-  return personnes && typeof personnes === 'object' && !Array.isArray(personnes) ? (personnes as Record<string, string>) : {}
+/**
+ * Copropriétaire mémorisé pour chaque copropriété. Une Map de paires, jamais un objet indexé : le code peut venir de
+ * l'adresse (lien direct), il ne doit pas pouvoir nommer une propriété (« __proto__ »…).
+ */
+const lirePersonnes = (): Map<string, string> => {
+  const brut = lireJson<unknown>(CLE_PERSONNE_PORTAIL, [])
+  if (!Array.isArray(brut)) return new Map()
+  const estPaire = (p: unknown): p is [string, string] => Array.isArray(p) && p.length === 2 && typeof p[0] === 'string' && typeof p[1] === 'string'
+  return new Map(brut.filter(estPaire))
+}
+
+const memoriserPersonne = (code: string, id: string): void => {
+  const personnes = lirePersonnes()
+  personnes.set(code, id)
+  ecrire(CLE_PERSONNE_PORTAIL, JSON.stringify([...personnes]))
 }
 
 /**
@@ -86,7 +98,7 @@ function consommerParametres(): { code: string | null; personne: string | null }
   if (!code) return { code: null, personne: null }
   ecrire(CLE_SOURCE_PORTAIL, 'aj')
   ecrire(CLE_COPRO_AJ, JSON.stringify(code))
-  if (personne) ecrire(CLE_PERSONNE_PORTAIL, JSON.stringify({ ...lirePersonnes(), [code]: personne }))
+  if (personne) memoriserPersonne(code, personne)
   url.searchParams.delete('aj')
   url.searchParams.delete('personne')
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
@@ -131,7 +143,7 @@ export function useSourceAj(superAdmin: boolean): SourceAj {
     // Choix lus après le premier rendu (stockage du navigateur) : l'état de départ reste celui du rendu serveur.
     setSource(parametres.code || sourceMemorisee === 'aj' ? 'aj' : 'syndic')
     const code = parametres.code ?? lireCodeAj()
-    setChoix({ code, personneId: parametres.personne ?? (code ? lirePersonnes()[code] ?? null : null) })
+    setChoix({ code, personneId: parametres.personne ?? (code ? lirePersonnes().get(code) ?? null : null) })
     setModeAj(lireModeStocke())
   }, [superAdmin])
 
@@ -155,7 +167,7 @@ export function useSourceAj(superAdmin: boolean): SourceAj {
     const surStockage = (e: StorageEvent) => {
       if (e.key !== CLE_COPRO_AJ) return
       const code = lireCodeAj()
-      if (code) setChoix((c) => (c.code === code ? c : { code, personneId: lirePersonnes()[code] ?? null }))
+      if (code) setChoix((c) => (c.code === code ? c : { code, personneId: lirePersonnes().get(code) ?? null }))
     }
     window.addEventListener('storage', surStockage)
     return () => window.removeEventListener('storage', surStockage)
@@ -178,14 +190,14 @@ export function useSourceAj(superAdmin: boolean): SourceAj {
   }, [])
 
   const choisirCopro = useCallback((code: string) => {
-    setChoix({ code, personneId: lirePersonnes()[code] ?? null })
+    setChoix({ code, personneId: lirePersonnes().get(code) ?? null })
     // Même clé que le sélecteur de l'AJ : un AJ ouvert dans un autre onglet suit ce choix.
     ecrire(CLE_COPRO_AJ, JSON.stringify(code))
   }, [])
 
   const choisirPersonne = useCallback((id: string) => {
     setChoix((c) => {
-      if (c.code) ecrire(CLE_PERSONNE_PORTAIL, JSON.stringify({ ...lirePersonnes(), [c.code]: id }))
+      if (c.code) memoriserPersonne(c.code, id)
       return { ...c, personneId: id }
     })
   }, [])

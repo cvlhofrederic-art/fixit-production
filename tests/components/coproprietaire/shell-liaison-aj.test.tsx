@@ -122,7 +122,7 @@ describe('portail relié à l’Administrateur judiciaire (super admin)', () => 
     expect(window.location.search).toBe('')
     expect(localStorage.getItem('vitfix.liaison.copro-aj.source')).toBe('aj')
     expect(localStorage.getItem('vitfix.aj.dossierEnCours')).toBe('"TL"')
-    expect(JSON.parse(localStorage.getItem('vitfix.liaison.copro-aj.personne') ?? '{}')).toEqual({ TL: 'P7' })
+    expect(JSON.parse(localStorage.getItem('vitfix.liaison.copro-aj.personne') ?? '[]')).toEqual([['TL', 'P7']])
   })
 
   it('une demande déposée sur le portail arrive dans la liaison et revient dans « Mes demandes » en direct', async () => {

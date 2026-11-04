@@ -19,6 +19,12 @@ const NOM_CABINET = 'Cabinet Delaunay'
 
 const PRIORITES: Record<DemandeLiaison['priorite'], string> = { urgente: 'Urgente', normale: 'Normale', planifiee: 'Planifiée' }
 
+/** Lieu de la demande : logement, ou parties communes avec la zone indiquée. */
+function lieuDemande(demande: DemandeLiaison): string {
+  if (!demande.partieCommune) return 'Logement'
+  return demande.zone ? `Parties communes — ${demande.zone}` : 'Parties communes'
+}
+
 const teinteStatut = (statut: StatutDemandeLiaison): 'sage' | 'amber' | 'rust' => {
   const doleance = STATUT_DOLEANCE[statut]
   if (doleance === 'Résolue') return 'sage'
@@ -83,7 +89,7 @@ export function DemandePortailModal({ demande, onClose }: Readonly<{ demande: De
                 ['Copropriétaire', demande.nomCoproprietaire],
                 ['Lot', demande.lot],
                 ['Copropriété', demande.nomCopro],
-                ['Lieu', demande.partieCommune ? `Parties communes${demande.zone ? ` — ${demande.zone}` : ''}` : 'Logement'],
+                ['Lieu', lieuDemande(demande)],
                 ['Priorité', PRIORITES[demande.priorite]],
                 ['Déposée le', dateHeure(demande.creeLe)],
               ].map(([libelle, valeur]) => (

@@ -51,7 +51,8 @@ export const LIBELLE_STATUT_PORTAIL: Record<StatutDemandeLiaison, string> = {
 /** Objet court de la demande : type et lieu (« Plomberie — Lot 12 — Apt B3 », « Ascenseur — parties communes (Hall) »). */
 export function objetDemande(d: DemandeLiaison): string {
   if (!d.partieCommune) return `${d.type} — ${d.lot}`
-  return `${d.type} — parties communes${d.zone ? ` (${d.zone})` : ''}`
+  const zone = d.zone ? ` (${d.zone})` : ''
+  return `${d.type} — parties communes${zone}`
 }
 
 /** Doléance de l'écran Doléances tirée d'une demande du portail. */
@@ -103,7 +104,7 @@ export function notificationsLiaison(etat: EtatLiaison): NotificationLiaison[] {
       kind: 'message',
       icon: 'chat',
       title: dernier ? `Message de ${d.nomCoproprietaire} (portail)` : `Nouvelle demande du portail : ${d.type}`,
-      desc: `${d.nomCopro} · ${d.lot}${dernier ? ` · « ${dernier.texte.slice(0, 80)} »` : ''}`,
+      desc: [d.nomCopro, d.lot, dernier ? `« ${dernier.texte.slice(0, 80)} »` : ''].filter(Boolean).join(' · '),
       time: dateHeure(quand),
       route: 'doleances',
       quand,

@@ -30,6 +30,12 @@ import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire
 import { useLiaisonCoproAj } from '@/lib/liaison-copro-aj/hooks'
 import { doleanceDepuisDemande } from '@/lib/liaison-copro-aj/vues-aj'
 
+/** « · 2 messages » après la copropriété d'une demande du portail ; rien sans message. */
+function mentionMessages(nombre: number): string {
+  if (nombre === 0) return ''
+  return nombre === 1 ? ' · 1 message' : ` · ${nombre} messages`
+}
+
 /** Teinte de la pastille de statut d'une doléance. */
 const TEINTE_STATUT_DOLEANCE: Record<DoleanceDemo[4], 'sage' | 'amber' | 'rust'> = { Résolue: 'sage', 'En cours': 'amber', Ouverte: 'rust' }
 
@@ -268,7 +274,7 @@ export function DoleancesModule() {
                     }}
                   >
                     {doleance[1]}
-                    {demande.messages.length > 0 ? ` · ${demande.messages.length} message${demande.messages.length > 1 ? 's' : ''}` : ''}
+                    {mentionMessages(demande.messages.length)}
                   </span>
                 </div>
               </div>

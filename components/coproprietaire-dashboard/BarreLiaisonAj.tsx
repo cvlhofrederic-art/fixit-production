@@ -48,10 +48,11 @@ export default function BarreLiaisonAj({ aj }: Readonly<{ aj: SourceAj }>) {
           <span>Vue super admin</span>
         </div>
 
-        <div role="group" aria-label="Données affichées" className="flex gap-1 rounded-xl border border-[#E4DDD0] bg-white p-1">
+        <fieldset className="m-0 flex min-w-0 gap-1 rounded-xl border border-[#E4DDD0] bg-white p-1">
+          <legend className="sr-only">Données affichées</legend>
           <BoutonSource valeur="aj" courante={aj.source} libelle="Administrateur judiciaire" onChoisir={aj.choisirSource} />
           <BoutonSource valeur="syndic" courante={aj.source} libelle="Syndic" onChoisir={aj.choisirSource} />
-        </div>
+        </fieldset>
 
         {aj.source === 'aj' && (
           <>
@@ -117,7 +118,7 @@ export default function BarreLiaisonAj({ aj }: Readonly<{ aj: SourceAj }>) {
         </p>
       )}
       {aj.source === 'aj' && aj.modeAj === 'reel' && (
-        <p className="mt-2 rounded-lg bg-[#FFF1D6] px-3 py-2 text-sm font-medium text-[#5C3A00]" role="status">
+        <p className="mt-2 rounded-lg bg-[#FFF1D6] px-3 py-2 text-sm font-medium text-[#5C3A00]">
           L’Administrateur judiciaire de ce navigateur est en mode « données réelles » : ce portail montre son jeu de démonstration. Repassez l’AJ en démonstration pour que les deux correspondent.
         </p>
       )}

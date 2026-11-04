@@ -105,7 +105,7 @@ export function numeroDeLot(libelle: string): string {
 /** Bâtiment et étage tirés de la situation de la fiche (« Bât. B, 3e étage », « 4e étage », « Rez-de-chaussée »). */
 export function batimentEtEtage(situation: string): { batiment: string; etage: string } {
   const batiment = /B[âa]t\.?\s*([A-Z0-9]+)/i.exec(situation)?.[1] ?? ''
-  const etageNombre = /(\d+)\s*(?:e|er|ème)\s+étage/i.exec(situation)?.[1]
+  const etageNombre = /(\d+)(?:er|e|ème) étage/i.exec(situation)?.[1]
   const etage = etageNombre ?? (/rez-de-chauss/i.test(situation) ? '0' : '')
   return { batiment, etage }
 }
@@ -116,10 +116,14 @@ export function lireTantiemes(texte: string): { lot: number; total: number } {
   return m ? { lot: Number(m[1]), total: Number(m[2]) } : { lot: 0, total: 0 }
 }
 
-/** Adresse « 14 rue de Verdun, 92000 Nanterre » découpée. */
+/** Adresse « 14 rue de Verdun, 92000 Nanterre » découpée à la dernière virgule (rue, puis code postal et ville). */
 function decouperAdresse(adresse: string): { adresse: string; codePostal: string; ville: string } {
-  const m = /^(.*?),\s*(\d{5})\s+(.+)$/.exec(adresse.trim())
-  return m ? { adresse: m[1], codePostal: m[2], ville: m[3] } : { adresse, codePostal: '', ville: '' }
+  const propre = adresse.trim()
+  const virgule = propre.lastIndexOf(',')
+  const fin = virgule < 0 ? '' : propre.slice(virgule + 1).trim()
+  const codePostal = fin.slice(0, 5)
+  if (!/^\d{5}$/.test(codePostal) || fin.charAt(5) !== ' ') return { adresse: propre, codePostal: '', ville: '' }
+  return { adresse: propre.slice(0, virgule).trim(), codePostal, ville: fin.slice(6).trim() }
 }
 
 /** Qualité du cabinet selon le fondement du mandat. */
@@ -260,7 +264,7 @@ export function appelsEtArriere(
       t = 4
     }
   }
-  const appels = retenus.reverse().map(({ a: an, t: trimestre, reste }): AppelDeCharges => {
+  const appels = retenus.toReversed().map(({ a: an, t: trimestre, reste }): AppelDeCharges => {
     const paye = arrondiCentimes(trimestriel - reste)
     let statut: AppelDeCharges['statut'] = 'en_retard'
     if (reste === 0) statut = 'solde'
@@ -326,7 +330,7 @@ function documentsDeLaCopro(code: string, assemblees: FicheAssemblee[]): Documen
 /** Type d'assurance du portail d'après l'intitulé du contrat de l'AJ. */
 function typeAssurance(intitule: string): AssuranceImmeuble['type'] {
   if (/multirisque/i.test(intitule)) return 'multirriscos'
-  if (/^RC\b|responsabilit/i.test(intitule)) return 'responsabilidade_civil'
+  if (/^RC\b/i.test(intitule) || /responsabilit/i.test(intitule)) return 'responsabilidade_civil'
   return 'outros'
 }
 
@@ -374,6 +378,12 @@ export function decoderIdResolutionAj(id: string): { agId: string; numero: numbe
   return i > 0 && Number.isInteger(numero) ? { agId: id.slice(0, i), numero } : null
 }
 
+/** Date (AAAA-MM-JJ) du vote du copropriétaire : celle du vote transmis par le portail, sinon celle de la séance. */
+function dateDuVote(voteLiaison: VoteLiaison | undefined, bulletin: unknown, dateSeance: string): string {
+  if (voteLiaison) return voteLiaison.date.slice(0, 10)
+  return bulletin ? dateSeance : ''
+}
+
 function assembleeDepuisFiche(fiche: FicheAssemblee, personneId: string, votes: VoteLiaison[]): AssembleeCopro | null {
   const statut = STATUTS_AG[fiche.statut]
   if (!statut) return null
@@ -396,7 +406,7 @@ function assembleeDepuisFiche(fiche: FicheAssemblee, personneId: string, votes: 
       voteAbstention: vote?.abstention ?? 0,
       statut: etat,
       monVote: voteLiaison?.choix ?? bulletin,
-      monVoteLe: voteLiaison ? voteLiaison.date.slice(0, 10) : bulletin ? fiche.date : '',
+      monVoteLe: dateDuVote(voteLiaison, bulletin, fiche.date),
     }
   })
   return {
