@@ -185,6 +185,7 @@ describe('pièces du Flux', () => {
       creeeLe: '2026-01-12',
       origine: 'automatique',
       demandeurId: 'collab-A',
+      demandeurNature: 'collaborateur',
       rattachements: [contentieux],
     })
     const faite = { ...etape, id: 'et-faite', faitLe: '2026-01-20' }
