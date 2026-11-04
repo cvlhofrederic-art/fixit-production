@@ -22,6 +22,7 @@ import {
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { pourcentageArrondi } from '@/lib/administrateur-judiciaire/domain/format'
 import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /**
  * Extranet copropriétaires (écran de démonstration ; surtitre « Gestion courante »), affiché selon la copropriété
@@ -44,37 +45,46 @@ export function ExtranetCoproprietairesModule() {
         title="Extranet copropriétaires"
         lede="Espace en ligne des copropriétaires : documents, soldes et demandes."
         actions={
-          <button
-            className="btn gold"
-            onClick={() =>
-              push({
-                kind: 'form',
-                icon: 'users',
-                title: 'Inviter une personne',
-                fields: [
-                  {
-                    label: 'Adresse e-mail',
-                    placeholder: 'nom@exemple.fr',
-                    full: true,
+          <>
+            {/* Portail copropriétaire relié (vue super admin), sur la copropriété choisie : données de la démonstration. */}
+            {MODE_ACTIF === 'demo' && code && (
+              <a className="btn" href={`/coproprietaire/dashboard?aj=${encodeURIComponent(code)}`} target="_blank" rel="noopener">
+                <Icon name="home" />
+                Voir le portail copropriétaire
+              </a>
+            )}
+            <button
+              className="btn gold"
+              onClick={() =>
+                push({
+                  kind: 'form',
+                  icon: 'users',
+                  title: 'Inviter une personne',
+                  fields: [
+                    {
+                      label: 'Adresse e-mail',
+                      placeholder: 'nom@exemple.fr',
+                      full: true,
+                    },
+                    {
+                      label: 'Rôle',
+                      type: 'select',
+                      options: ['Conseil syndical', 'Copropriétaire', 'Prestataire', 'Lecture seule'],
+                      full: true,
+                    },
+                    champCoproprieteChoisie(nom),
+                  ],
+                  submitLabel: 'Inviter',
+                  toast: {
+                    title: 'Invitation envoyée',
                   },
-                  {
-                    label: 'Rôle',
-                    type: 'select',
-                    options: ['Conseil syndical', 'Copropriétaire', 'Prestataire', 'Lecture seule'],
-                    full: true,
-                  },
-                  champCoproprieteChoisie(nom),
-                ],
-                submitLabel: 'Inviter',
-                toast: {
-                  title: 'Invitation envoyée',
-                },
-              })
-            }
-          >
-            <Icon name="mail" />
-            Inviter un copropriétaire
-          </button>
+                })
+              }
+            >
+              <Icon name="mail" />
+              Inviter un copropriétaire
+            </button>
+          </>
         }
       />
       <Kpis

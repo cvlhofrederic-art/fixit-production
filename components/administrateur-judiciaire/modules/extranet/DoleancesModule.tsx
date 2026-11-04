@@ -6,6 +6,7 @@ import {
   type DoleanceDemo,
   type PrioriteDoleance,
 } from '@/components/administrateur-judiciaire/data/doleances'
+import { DemandePortailModal } from '@/components/administrateur-judiciaire/modules/extranet/composants/DemandePortailModal'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
 import { DonutGauge } from '@/components/administrateur-judiciaire/ui/DonutGauge'
 import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
@@ -26,6 +27,8 @@ import {
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { pourcentageArrondi } from '@/lib/administrateur-judiciaire/domain/format'
 import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useLiaisonCoproAj } from '@/lib/liaison-copro-aj/hooks'
+import { doleanceDepuisDemande } from '@/lib/liaison-copro-aj/vues-aj'
 
 /** Ligne de la répartition par priorité : [priorité, nombre, teinte de la pastille et de la barre]. */
 export type RepartitionPrioriteDoleances = [priorite: PrioriteDoleance, nombre: number, teinte: string]
@@ -52,12 +55,19 @@ const repartirParPriorite = (doleances: readonly DoleanceDemo[]): RepartitionPri
  * cours, résolues et répartition par priorité sont calculés sur les doléances affichées ; le délai moyen (« 4j ») et
  * la conformité SLA (83 %) restent en dur, marqués « Tous les mandats » quand une copropriété est choisie. Les onglets sont autonomes ; chaque ligne de la liste ouvre la fiche
  * détail de la doléance.
+ * Les demandes déposées sur le portail copropriétaire relié (même navigateur, lib/liaison-copro-aj) viennent en tête,
+ * comptées dans les indicateurs ; leur fiche permet de répondre au copropriétaire et de changer le statut, ce qu'il voit
+ * aussitôt sur son portail.
  */
 export function DoleancesModule() {
   const { push } = useToast()
   const [doleanceOuverte, setDoleanceOuverte] = useState<DoleanceDemo | null>(null)
+  const [demandePortailOuverte, setDemandePortailOuverte] = useState<string | null>(null)
   const { code, nom } = useCoproChoisie()
-  const doleances = filtrerParCopro(DEMO_DOLEANCES, code, (doleance) => codeDeNomCopro(doleance[1]))
+  const liaison = useLiaisonCoproAj()
+  const demandesPortail = liaison.demandes.filter((demande) => !code || demande.codeCopro === code)
+  const doleancesDemo = filtrerParCopro(DEMO_DOLEANCES, code, (doleance) => codeDeNomCopro(doleance[1]))
+  const doleances: DoleanceDemo[] = [...demandesPortail.map(doleanceDepuisDemande), ...doleancesDemo]
   const compter = (statut: DoleanceDemo[4]) => doleances.filter((doleance) => doleance[4] === statut).length
   const repartition = repartirParPriorite(doleances)
 
@@ -214,7 +224,63 @@ export function DoleancesModule() {
         {doleances.length === 0 && (
           <EmptyState icon="clipboard" title={titreListeVide('Aucune doléance', nom)} />
         )}
-        {doleances.map((doleance, index) => (
+        {demandesPortail.map((demande) => {
+          const doleance = doleanceDepuisDemande(demande)
+          return (
+            <div
+              className="list-row"
+              onClick={() => setDemandePortailOuverte(demande.id)}
+              onKeyDown={surActivationClavier(() => setDemandePortailOuverte(demande.id))}
+              role="button"
+              tabIndex={0}
+              style={{
+                cursor: 'pointer',
+              }}
+              key={demande.id}
+            >
+              <div className="thumb">
+                <Icon name={doleance[4] === 'Résolue' ? 'check' : 'chat'} />
+              </div>
+              <div className="info">
+                <b>{doleance[0]}</b>
+                <div className="meta">
+                  <Pill kind="gold" noDot>
+                    Portail · {demande.nomCoproprietaire}
+                  </Pill>
+                  {!demande.vueParAj && (
+                    <Pill kind="rust" noDot>
+                      Nouveau
+                    </Pill>
+                  )}
+                  <Pill kind={doleance[3]} noDot>
+                    {doleance[2]}
+                  </Pill>
+                  <Pill kind={doleance[4] === 'Résolue' ? 'sage' : doleance[4] === 'En cours' ? 'amber' : 'rust'} noDot>
+                    {doleance[4]}
+                  </Pill>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      color: 'var(--navy-500)',
+                    }}
+                  >
+                    {doleance[1]}
+                    {demande.messages.length > 0 ? ` · ${demande.messages.length} message${demande.messages.length > 1 ? 's' : ''}` : ''}
+                  </span>
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: 'var(--navy-300)',
+                }}
+              >
+                {doleance[6]}
+              </div>
+            </div>
+          )
+        })}
+        {doleancesDemo.map((doleance, index) => (
           <div
             className="list-row"
             onClick={() => setDoleanceOuverte(doleance)}
@@ -292,6 +358,10 @@ export function DoleancesModule() {
             : []
         }
         footnote="Doléance versée au suivi du mandat."
+      />
+      <DemandePortailModal
+        demande={liaison.demandes.find((demande) => demande.id === demandePortailOuverte) ?? null}
+        onClose={() => setDemandePortailOuverte(null)}
       />
     </>
   )

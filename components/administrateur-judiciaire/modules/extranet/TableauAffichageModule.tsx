@@ -19,6 +19,9 @@ import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useCoproprietesAffichees } from '@/lib/administrateur-judiciaire/db/hooks'
 import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { maintenantLiaison } from '@/lib/liaison-copro-aj/horloge'
+import { useLiaisonCoproAj } from '@/lib/liaison-copro-aj/hooks'
+import { publierAvis, type AvisLiaison } from '@/lib/liaison-copro-aj/stockage'
 
 /** Catégorie du panneau latéral : [libellé, nombre d'avis, teinte de la pastille]. */
 export type CategorieAffichage = [libelle: string, nombre: number, teinte: string]
@@ -47,19 +50,53 @@ const compterCategories = (avis: readonly AvisAffichage[]): CategorieAffichage[]
 const variableBordureAvis = (teinte: TeinteAvis): string =>
   teinte === 'rust' ? '--rust-500' : teinte === 'amber' ? '--amber-500' : teinte === 'gold' ? '--gold-500' : '--sage-500'
 
+/** Catégories du formulaire « Nouvel avis » : rubrique et importance de l'avis publié sur le portail copropriétaire. */
+const PUBLICATION_PAR_CATEGORIE: Record<string, Pick<AvisLiaison, 'categorie' | 'importance'>> = {
+  Information: { categorie: 'Information', importance: '' },
+  Travaux: { categorie: 'Travaux', importance: 'Importante' },
+  Urgent: { categorie: 'Information', importance: 'Urgente' },
+  Réglementaire: { categorie: 'Juridique', importance: 'Importante' },
+}
+
+/** Avis publié sur le portail, au format des avis du panneau (rubrique « Portail », sans échéance). */
+const avisDepuisLiaison = (avis: AvisLiaison): AvisAffichage => [
+  avis.categorie,
+  'Portail',
+  avis.importance,
+  avis.nomCopro,
+  avis.titre,
+  avis.contenu,
+  '—',
+  avis.importance === 'Urgente' ? 'rust' : avis.importance === 'Importante' ? 'amber' : 'sage',
+]
+
 /**
  * Panneau d'affichage (barre latérale : « Tableau d'affichage » ; surtitre « Gestion courante »), affiché selon la
  * copropriété choisie dans le sélecteur du haut de page : avis filtrés, compteurs par catégorie recalculés, nouvel avis
  * prérempli. La liste « Copropriété » suit la copropriété choisie et la change ; sans copropriété choisie, elle garde
  * sa seule option « Toutes copropriétés » et les compteurs restent ceux de la démonstration. La recherche et les
  * listes « Statut » et « Catégorie » ne sont pas branchées ; « Détails » n'affiche qu'un toast.
+ * « Nouvel avis » publie l'avis sur le portail copropriétaire relié (même navigateur, lib/liaison-copro-aj) : il
+ * s'affiche dans les annonces des copropriétaires de cette copropriété, et en tête de ce panneau.
  */
 export function TableauAffichageModule() {
   const { push } = useToast()
   const { code, nom } = useCoproChoisie()
   const coproprietes = useCoproprietesAffichees()
   const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
-  const avisAffiches = filtrerParCopro(DEMO_AVIS_AFFICHAGE, code, (avis) => codeDeNomCopro(avis[3]))
+  const liaison = useLiaisonCoproAj()
+  const avisPublies = liaison.avis.filter((avis) => !code || avis.codeCopro === code).map(avisDepuisLiaison)
+  const avisAffiches = [...avisPublies, ...filtrerParCopro(DEMO_AVIS_AFFICHAGE, code, (avis) => codeDeNomCopro(avis[3]))]
+  const publier = (valeurs: Record<string, string>) => {
+    const nomCopro = (valeurs.copropriete || nom || '').trim()
+    const codeCopro = codeDeNomCopro(nomCopro, coproprietes)
+    const titre = (valeurs.titre || '').trim()
+    const contenu = (valeurs.contenu || '').trim()
+    if (!codeCopro) throw new Error('Choisissez la copropriété de l’avis.')
+    if (!titre || !contenu) throw new Error('Le titre et le contenu de l’avis sont nécessaires.')
+    const { categorie, importance } = PUBLICATION_PAR_CATEGORIE[valeurs.categorie] ?? PUBLICATION_PAR_CATEGORIE.Information
+    publierAvis({ codeCopro, nomCopro, categorie, importance, titre, contenu }, maintenantLiaison())
+  }
   const categories = code ? compterCategories(avisAffiches) : CATEGORIES_AFFICHAGE
 
   return (
@@ -77,28 +114,33 @@ export function TableauAffichageModule() {
                 icon: 'bell',
                 title: "Nouvel avis d'affichage",
                 fields: [
-                  champCoproprieteChoisie(nom),
+                  { ...champCoproprieteChoisie(nom), name: 'copropriete' },
                   {
+                    name: 'titre',
                     label: 'Titre',
                     placeholder: "ex. Coupure d'eau programmée",
                     full: true,
                   },
                   {
+                    name: 'categorie',
                     label: 'Catégorie',
                     type: 'select',
                     options: ['Information', 'Travaux', 'Urgent', 'Réglementaire'],
                     full: true,
                   },
                   {
+                    name: 'contenu',
                     label: 'Contenu',
                     type: 'textarea',
                     placeholder: "Texte de l'avis…",
                     full: true,
                   },
                 ],
-                submitLabel: 'Enregistrer',
+                submitLabel: 'Publier',
+                onSubmit: publier,
                 toast: {
                   title: 'Avis publié',
+                  desc: 'Visible par les copropriétaires sur leur portail.',
                 },
               })
             }
