@@ -68,6 +68,8 @@ ALTER TABLE signalements_qr_coproprietes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE signalements_qr ENABLE ROW LEVEL SECURITY;
 
 -- ── 4. updated_at (fonction set_updated_at de la migration 056, créée si elle manque) ──
+-- CREATE OR REPLACE TRIGGER (PostgreSQL 14+) : rejouable sans DROP, donc sans l'avertissement « destructive »
+-- de l'éditeur SQL de Supabase.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'set_updated_at') THEN
@@ -80,13 +82,11 @@ BEGIN
   END IF;
 END $$;
 
-DROP TRIGGER IF EXISTS trg_signalements_qr_coproprietes_updated_at ON signalements_qr_coproprietes;
-CREATE TRIGGER trg_signalements_qr_coproprietes_updated_at
+CREATE OR REPLACE TRIGGER trg_signalements_qr_coproprietes_updated_at
   BEFORE UPDATE ON signalements_qr_coproprietes
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-DROP TRIGGER IF EXISTS trg_signalements_qr_updated_at ON signalements_qr;
-CREATE TRIGGER trg_signalements_qr_updated_at
+CREATE OR REPLACE TRIGGER trg_signalements_qr_updated_at
   BEFORE UPDATE ON signalements_qr
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
