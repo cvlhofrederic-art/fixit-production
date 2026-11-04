@@ -6,6 +6,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { sendEmail, templateTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicTeamInviteSchema } from '@/lib/validation'
+import { jetonDuLien, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
 
 /**
  * Rôles qui administrent l'équipe du cabinet (invitation, modification, suppression).
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Sécurité : ne pas exposer les invite_token dans la réponse GET
-  // Le token est uniquement retourné lors du POST (création)
+  // (le lien d'invitation signé part seulement par e-mail, voir POST)
   const response = NextResponse.json({ members: data || [] })
   response.headers.set('Cache-Control', 'private, max-age=0, s-maxage=60, stale-while-revalidate=120')
   return response
@@ -91,13 +92,14 @@ export async function POST(request: NextRequest) {
   }
 
   const cabinetId = user.id // L'invitant est toujours le compte maître
+  const emailInvite = email.toLowerCase().trim()
 
   // Vérifier que ce membre n'existe pas déjà
   const { data: existing } = await supabaseAdmin
     .from('syndic_team_members')
     .select('id')
     .eq('cabinet_id', cabinetId)
-    .eq('email', email.toLowerCase().trim())
+    .eq('email', emailInvite)
     .maybeSingle()
 
   if (existing) {
@@ -106,11 +108,23 @@ export async function POST(request: NextRequest) {
 
   // Générer le token d'invitation
   const inviteToken = randomHex(24)
+  const memberId = crypto.randomUUID()
+
+  // Lien signé, envoyé seulement par e-mail et jamais renvoyé à l'invitant (lib/equipe/lien-invitation.ts).
+  // Signé avant l'insertion : sans clé de signature, rien n'est écrit.
+  let jetonLien: string
+  try {
+    jetonLien = await jetonDuLien('syndic', { id: memberId, email: emailInvite, invite_token: inviteToken, equipe_id: cabinetId })
+  } catch (err) {
+    logger.error('[TEAM] POST signature error:', err)
+    return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
+  }
 
   // Préparer l'insertion avec custom_modules optionnels
   const insertData: Record<string, unknown> = {
+    id: memberId,
     cabinet_id: cabinetId,
-    email: email.toLowerCase().trim(),
+    email: emailInvite,
     full_name: full_name.trim(),
     role: memberRole,
     invite_token: inviteToken,
@@ -134,7 +148,7 @@ export async function POST(request: NextRequest) {
 
   // URL d'invitation
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
-  const inviteUrl = `${appUrl}/syndic/invite?token=${inviteToken}`
+  const inviteUrl = `${appUrl}/syndic/invite?token=${jetonLien}`
 
   // ── Envoyer l'email d'invitation automatiquement ──────────────────
   const cabinetName = user.user_metadata?.cabinet_name || user.user_metadata?.full_name || 'Cabinet'
@@ -161,7 +175,7 @@ export async function POST(request: NextRequest) {
   let emailSent = false
   try {
     const emailResult = await sendEmail({
-      to: email.toLowerCase().trim(),
+      to: emailInvite,
       subject: emailTemplate.subject,
       html: emailTemplate.html,
       tags: [
@@ -177,13 +191,13 @@ export async function POST(request: NextRequest) {
     logger.warn('[TEAM] Email invite error:', emailErr instanceof Error ? emailErr.message : emailErr)
   }
 
+  // Ni le lien ni le jeton ne sont renvoyés : seule la boîte mail invitée reçoit le lien.
   return NextResponse.json({
-    member: data,
-    invite_url: inviteUrl,
+    member: data ? sansJetonInvitation(data) : data,
     email_sent: emailSent,
     message: emailSent
-      ? `Invitation envoyée par email à ${email}`
-      : `Invitation créée pour ${email}. Partagez ce lien : ${inviteUrl}`,
+      ? `Invitation envoyée par email à ${emailInvite}`
+      : `L'invitation pour ${emailInvite} est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse, supprimez l'invitation puis invitez à nouveau.`,
   })
 }
 

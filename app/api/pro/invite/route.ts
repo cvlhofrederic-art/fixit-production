@@ -3,8 +3,39 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, proInviteAcceptSchema } from '@/lib/validation'
+import {
+  lireJetonDuLien,
+  signatureValide,
+  compteRattachable,
+  MESSAGE_COMPTE_AUTRE_ESPACE,
+} from '@/lib/equipe/lien-invitation'
 
 const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+/**
+ * Invitation désignée par un lien signé (lib/equipe/lien-invitation.ts). Renvoie null si le lien est mal
+ * formé, inconnu, ou ne correspond plus à la ligne (e-mail, jeton ou société modifiés après l'envoi).
+ * Le jeton seul, tel qu'il est enregistré dans pro_team_members, ne suffit pas.
+ */
+async function lireInvitation(token: string) {
+  const lien = lireJetonDuLien(token)
+  if (!lien) return null
+
+  const { data, error } = await supabaseAdmin
+    .from('pro_team_members')
+    .select('*')
+    .eq('invite_token', lien.jeton)
+    .maybeSingle()
+  if (error || !data) return null
+
+  const valide = await signatureValide('pro', lien.signature, {
+    id: data.id,
+    email: data.email,
+    invite_token: data.invite_token,
+    equipe_id: data.company_id,
+  })
+  return valide ? data : null
+}
 
 // ── GET /api/pro/invite?token=xxx ───────────────────────────────────────────
 // Validate an invitation token (for the accept page)
@@ -20,18 +51,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Token manquant' }, { status: 400 })
     }
 
-    // Security: token must be 48 hex chars
-    if (!/^[a-f0-9]{48}$/i.test(token)) {
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('pro_team_members')
-      .select('id, email, full_name, role, company_id, accepted_at, created_at')
-      .eq('invite_token', token)
-      .maybeSingle()
-
-    if (error || !data) {
+    const data = await lireInvitation(token)
+    if (!data) {
       return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
     }
 
@@ -83,14 +104,9 @@ export async function POST(request: NextRequest) {
     }
     const { token, password } = validation.data
 
-    // Retrieve invitation
-    const { data: invite, error: inviteError } = await supabaseAdmin
-      .from('pro_team_members')
-      .select('*')
-      .eq('invite_token', token)
-      .maybeSingle()
-
-    if (inviteError || !invite) {
+    // Retrieve invitation (signed link only)
+    const invite = await lireInvitation(token)
+    if (!invite) {
       return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
     }
 
@@ -132,15 +148,30 @@ export async function POST(request: NextRequest) {
         }
 
         if (existingUser) {
-          const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          const { data: existingFull, error: lectureError } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
+          if (lectureError || !existingFull?.user) {
+            logger.error('[PRO_INVITE] Lecture du compte existant impossible:', lectureError)
+            return NextResponse.json({ error: 'Erreur lors de la liaison du compte' }, { status: 500 })
+          }
+          const appMetadata = existingFull.user.app_metadata || {}
+
+          // Un compte d'un autre espace (artisan, client, gérant, cabinet, admin…) n'est jamais converti.
+          if (!compteRattachable('pro', appMetadata)) {
+            return NextResponse.json({ error: MESSAGE_COMPTE_AUTRE_ESPACE }, { status: 409 })
+          }
+
+          const { error: majError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
             app_metadata: {
-              ...(existingFull?.user?.app_metadata || {}),
+              ...appMetadata,
               role: 'pro_societe',
               pro_team_role: invite.role,
               company_id: invite.company_id,
             },
           })
+          if (majError) {
+            logger.error('[PRO_INVITE] Liaison du compte existant impossible:', majError)
+            return NextResponse.json({ error: 'Erreur lors de la liaison du compte' }, { status: 500 })
+          }
 
           await supabaseAdmin
             .from('pro_team_members')

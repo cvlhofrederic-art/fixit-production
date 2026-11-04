@@ -3,6 +3,37 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicInviteSchema } from '@/lib/validation'
+import {
+  lireJetonDuLien,
+  signatureValide,
+  compteRattachable,
+  MESSAGE_COMPTE_AUTRE_ESPACE,
+} from '@/lib/equipe/lien-invitation'
+
+/**
+ * Invitation désignée par un lien signé (lib/equipe/lien-invitation.ts). Renvoie null si le lien est mal
+ * formé, inconnu, ou ne correspond plus à la ligne (e-mail, jeton ou cabinet modifiés après l'envoi).
+ * Le jeton seul, tel qu'il est enregistré dans syndic_team_members, ne suffit pas.
+ */
+async function lireInvitation(token: string) {
+  const lien = lireJetonDuLien(token)
+  if (!lien) return null
+
+  const { data, error } = await supabaseAdmin
+    .from('syndic_team_members')
+    .select('*')
+    .eq('invite_token', lien.jeton)
+    .maybeSingle()
+  if (error || !data) return null
+
+  const valide = await signatureValide('syndic', lien.signature, {
+    id: data.id,
+    email: data.email,
+    invite_token: data.invite_token,
+    equipe_id: data.cabinet_id,
+  })
+  return valide ? data : null
+}
 
 // ── GET /api/syndic/invite?token=xxx ─────────────────────────────────────────
 // Valider un token d'invitation (pour afficher la page d'accueil)
@@ -18,18 +49,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Token manquant' }, { status: 400 })
     }
 
-    // Sécurité : token doit avoir un format valide (48 hex chars) pour éviter énumération
-    if (!/^[a-f0-9]{48}$/i.test(token)) {
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('syndic_team_members')
-      .select('id, email, full_name, role, cabinet_id, accepted_at, created_at')
-      .eq('invite_token', token)
-      .maybeSingle()
-
-    if (error || !data) {
+    const data = await lireInvitation(token)
+    if (!data) {
       // Réponse générique pour ne pas révéler si le token existe
       return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
     }
@@ -75,14 +96,9 @@ export async function POST(request: NextRequest) {
     }
     const { token, password } = validation.data
 
-    // Récupérer l'invitation
-    const { data: invite, error: inviteError } = await supabaseAdmin
-      .from('syndic_team_members')
-      .select('*')
-      .eq('invite_token', token)
-      .maybeSingle()
-
-    if (inviteError || !invite) {
+    // Récupérer l'invitation (lien signé uniquement)
+    const invite = await lireInvitation(token)
+    if (!invite) {
       return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
     }
 
@@ -126,15 +142,30 @@ export async function POST(request: NextRequest) {
         }
 
         if (existingUser) {
+          const { data: existingFull, error: lectureError } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
+          if (lectureError || !existingFull?.user) {
+            logger.error('[INVITE] Lecture du compte existant impossible:', lectureError)
+            return NextResponse.json({ error: 'Erreur lors de la liaison du compte' }, { status: 500 })
+          }
+          const appMetadata = existingFull.user.app_metadata || {}
+
+          // Un compte d'un autre espace (cabinet, artisan, pro, admin…) n'est jamais converti.
+          if (!compteRattachable('syndic', appMetadata)) {
+            return NextResponse.json({ error: MESSAGE_COMPTE_AUTRE_ESPACE }, { status: 409 })
+          }
+
           // Rôle et cabinet_id dans app_metadata (server-only)
-          const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          const { error: majError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
             app_metadata: {
-              ...(existingFull?.user?.app_metadata || {}),
+              ...appMetadata,
               role: invite.role,
               cabinet_id: invite.cabinet_id,
             },
           })
+          if (majError) {
+            logger.error('[INVITE] Liaison du compte existant impossible:', majError)
+            return NextResponse.json({ error: 'Erreur lors de la liaison du compte' }, { status: 500 })
+          }
 
           // Marquer l'invitation comme acceptée
           await supabaseAdmin
