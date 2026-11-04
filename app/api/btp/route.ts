@@ -5,10 +5,12 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
-const BTP_VALID_TABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp', 'situations_btp', 'retenues_btp', 'dc4_btp', 'dce_analyses_btp', 'dpgf_btp', 'charges_fixes', 'ref_taux', 'rapports_btp'] as const
+// Tables écrivables par le POST. `ref_taux` (taux de référence globaux, posés par migration) n'y figure pas :
+// la route le sert seulement en lecture (`GET /api/btp?table=ref_taux`).
+const BTP_TABLES_ECRIVABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp', 'situations_btp', 'retenues_btp', 'dc4_btp', 'dce_analyses_btp', 'dpgf_btp', 'charges_fixes', 'rapports_btp'] as const
 
 const btpBodySchema = z.object({
-  table: z.enum(BTP_VALID_TABLES),
+  table: z.enum(BTP_TABLES_ECRIVABLES),
   action: z.enum(['insert', 'update', 'delete', 'upsert_settings', 'import']),
   data: z.unknown().optional(),
   id: z.string().optional(),
@@ -142,7 +144,7 @@ export async function POST(request: NextRequest) {
   const parsed = btpBodySchema.safeParse(rawBody)
   if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
 
-  const { table, action, data, id } = parsed.data as { table: typeof BTP_VALID_TABLES[number]; action: string; data: any; id?: string } // eslint-disable-line @typescript-eslint/no-explicit-any -- BTP data varies per table
+  const { table, action, data, id } = parsed.data as { table: typeof BTP_TABLES_ECRIVABLES[number]; action: string; data: any; id?: string } // eslint-disable-line @typescript-eslint/no-explicit-any -- BTP data varies per table
 
   try {
     // ── Import from localStorage (batch insert) ──────────────────────────────
