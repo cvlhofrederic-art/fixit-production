@@ -29,12 +29,13 @@ const ECRANS = {
   annonces: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranAnnonces')),
   informations: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranInformations')),
   question: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranQuestion')),
+  signalementsQr: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranSignalementsQr')),
 } satisfies Record<EcranCopro, unknown>
 
-const ORDRE_ECRANS: EcranCopro[] = ['accueil', 'demandes', 'charges', 'documents', 'assemblees', 'annonces', 'informations', 'question']
+const ORDRE_ECRANS: EcranCopro[] = ['accueil', 'demandes', 'charges', 'documents', 'assemblees', 'annonces', 'informations', 'question', 'signalementsQr']
 const ICONES: Record<EcranCopro, NomIcone> = {
   accueil: 'accueil', demandes: 'demandes', charges: 'charges', documents: 'documents',
-  assemblees: 'assemblees', annonces: 'annonces', informations: 'informations', question: 'question',
+  assemblees: 'assemblees', annonces: 'annonces', informations: 'informations', question: 'question', signalementsQr: 'qr',
 }
 /** Écrans réservés au propriétaire (un locataire n'est pas membre du syndicat). */
 const ECRANS_PROPRIETAIRE: ReadonlySet<EcranCopro> = new Set(['charges', 'assemblees'])
@@ -205,7 +206,8 @@ export default function CoproprietaireDashboard() {
   const t = useMemo(() => textesCopro(locale), [locale])
   const { etat: etatSyndic, rafraichir: rafraichirSyndic, changerLot, jeton: jetonSyndic, metadonnees } = useEspaceCopro()
   // Super admin : le portail peut montrer une copropriété de l'Administrateur judiciaire (barre du haut).
-  const aj = useSourceAj(estSuperAdmin(metadonnees))
+  const superAdmin = estSuperAdmin(metadonnees)
+  const aj = useSourceAj(superAdmin)
   const avecAj = aj.disponible && aj.source === 'aj'
   const etat: EtatEspace = useMemo(() => {
     if (!avecAj) return etatSyndic
@@ -258,7 +260,8 @@ export default function CoproprietaireDashboard() {
 
   const { espace } = etat
   const locataire = espace.profil.role === 'locataire'
-  const visibles = ORDRE_ECRANS.filter(e => !locataire || !ECRANS_PROPRIETAIRE.has(e))
+  // « AJ Signalement » (signalements reçus par QR code) : outil du super admin, jamais proposé à un copropriétaire.
+  const visibles = ORDRE_ECRANS.filter(e => (!locataire || !ECRANS_PROPRIETAIRE.has(e)) && (e !== 'signalementsQr' || superAdmin))
   const ecran: EcranCopro = visibles.includes(navigation.ecran) ? navigation.ecran : 'accueil'
   const Ecran = ECRANS[ecran]
   const lienAdmin = lienPanneauAdmin(metadonnees ?? undefined)
@@ -269,6 +272,8 @@ export default function CoproprietaireDashboard() {
     aujourdhui: avecAj ? aj.aujourdhui ?? undefined : undefined,
     liaisonAj: avecAj ? aj.actions ?? undefined : undefined,
   }
+  // AJ Signalement : son tableau appelle l'API avec le jeton du compte, même quand l'espace affiché est celui de l'AJ (jeton null).
+  const propsRendus: PropsEcran = ecran === 'signalementsQr' ? { ...propsEcran, jeton: jetonSyndic } : propsEcran
 
   const nomAffiche = `${espace.profil.prenom} ${espace.profil.nom}`.trim()
   let bandeauDemo: string | null = null
@@ -326,7 +331,7 @@ export default function CoproprietaireDashboard() {
           {etat.miseAJourImpossible && (
             <Encadre ton="avertissement" className="mb-4">{remplir(t.commun.miseAJourImpossible, { heure })}</Encadre>
           )}
-          <Ecran key={`${ecran}-${cleNavigation}-${espace.source}-${espace.profil.id}`} {...propsEcran} />
+          <Ecran key={`${ecran}-${cleNavigation}-${espace.source}-${espace.profil.id}`} {...propsRendus} />
           <p className="mt-8 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4A5E78]">
             <span>{remplir(t.commun.derniereMiseAJour, { heure })}</span>
             <Bouton variante="discret" petit icone="actualiser" onClick={() => { void rafraichir() }}>{t.commun.mettreAJour}</Bouton>

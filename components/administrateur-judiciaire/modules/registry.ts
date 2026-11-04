@@ -59,6 +59,7 @@ export const ECRANS_PAR_ROUTE: Record<string, ComponentType> = {
   affichage: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/TableauAffichageModule').then((mod) => mod.TableauAffichageModule)),
   sondages: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/SondagesModule').then((mod) => mod.SondagesModule)),
   doleances: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/DoleancesModule').then((mod) => mod.DoleancesModule)),
+  signalementsQr: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/SignalementsQrModule').then((mod) => mod.SignalementsQrModule)),
   rgpd: dynamic(() => import('@/components/administrateur-judiciaire/modules/conformite/CentreRgpdModule').then((mod) => mod.CentreRgpdModule)),
   accessibilite: dynamic(() => import('@/components/administrateur-judiciaire/modules/conformite/AccessibiliteModule').then((mod) => mod.AccessibiliteModule)),
   procurations: dynamic(() => import('@/components/administrateur-judiciaire/modules/conformite/ProcurationsModule').then((mod) => mod.ProcurationsModule)),
@@ -113,7 +114,7 @@ export const REGISTRE_ECRANS: Record<string, ComponentType> = {
  * (cockpit, retiré du menu le 29/10/2026 : son ancre est redirigée vers le tableau de bord).
  */
 export const STATUTS_ECRANS = {
-  reel: ['copros', 'prestataires', 'tresorerie', 'reprise', 'fiche360', 'personne360', 'dossierJuge', 'fixy'],
+  reel: ['copros', 'prestataires', 'tresorerie', 'reprise', 'fiche360', 'personne360', 'dossierJuge', 'fixy', 'signalementsQr'],
   partiel: [
     'cockpit',
     'dashboard',

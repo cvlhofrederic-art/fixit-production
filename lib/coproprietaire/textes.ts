@@ -16,7 +16,8 @@ export function langueCopro(locale: string | null | undefined): LangueCopro {
   return (locale || '').toLowerCase().startsWith('pt') ? 'pt' : 'fr'
 }
 
-export type EcranCopro = 'accueil' | 'demandes' | 'charges' | 'documents' | 'assemblees' | 'annonces' | 'informations' | 'question'
+/** Écrans du portail ; « signalementsQr » (AJ Signalement : signalements reçus par QR code) n'est proposé qu'au super admin. */
+export type EcranCopro = 'accueil' | 'demandes' | 'charges' | 'documents' | 'assemblees' | 'annonces' | 'informations' | 'question' | 'signalementsQr'
 
 export const TEXTES = {
   fr: {
@@ -29,6 +30,7 @@ export const TEXTES = {
       annonces: 'Annonces',
       informations: 'Mes informations',
       question: 'Poser une question',
+      signalementsQr: 'AJ Signalement',
       plus: 'Plus',
       /** Libellés courts de la barre du bas (téléphone). */
       court: { accueil: 'Accueil', demandes: 'Demandes', charges: 'Charges', documents: 'Documents' },
@@ -46,6 +48,7 @@ export const TEXTES = {
       annonces: 'Informations de votre syndic',
       informations: 'Votre lot tel que connu du syndic',
       question: 'Fixy répond avec les informations de votre espace',
+      signalementsQr: 'Signalements reçus par QR code : copropriétés, affiches, coordonnées des déclarants',
     },
     commun: {
       signalerProbleme: 'Signaler un problème',
@@ -381,6 +384,7 @@ export const TEXTES = {
       annonces: 'Avisos',
       informations: 'As minhas informações',
       question: 'Fazer uma pergunta',
+      signalementsQr: 'AJ Signalement',
       plus: 'Mais',
       court: { accueil: 'Início', demandes: 'Pedidos', charges: 'Quotas', documents: 'Documentos' },
       panneauAdmin: 'Painel de administração',
@@ -397,6 +401,7 @@ export const TEXTES = {
       annonces: 'Informações do seu administrador',
       informations: 'A sua fração tal como o administrador a conhece',
       question: 'O Fixy responde com as informações do seu espaço',
+      signalementsQr: 'Ocorrências recebidas por código QR: condomínios, cartazes, contactos dos declarantes',
     },
     commun: {
       signalerProbleme: 'Reportar um problema',

@@ -249,6 +249,30 @@ produites LOCALEMENT sans appel réseau à partir de `espace` (fonction `reponse
 prochaine AG ; syndic → coordonnées ; sinon phrase d'orientation vers le bon écran).
 Jamais de montant inventé : si l'espace n'a pas la donnée, dire qu'elle n'est pas publiée par le syndic.
 
+## 9. AJ Signalement — `EcranSignalementsQr` (super admin seulement, 04/11/2026)
+
+Tableau de bord des signalements déposés par QR code (`components/aj-signalement/TableauSignalementsQr.tsx`, textes français dans
+`lib/aj-signalement/affichage.ts`). Proposé au seul super admin (`estSuperAdmin(metadonnees)`), dans la barre latérale et le menu
+« Plus » ; jamais à un copropriétaire ni à un locataire (l'ancre `#signalementsQr` les ramène à l'accueil). Le shell lui passe le
+jeton du compte (`jetonSyndic`) même quand l'espace affiché vient de l'Administrateur judiciaire (les autres écrans reçoivent alors
+`jeton: null`) ; sans jeton, les cookies de session suffisent.
+
+- Données : `GET /api/aj-signalement/tableau` → tables `signalements_qr_coproprietes` et `signalements_qr`
+  (migration `supabase/migrations/20261104_signalements_qr.sql`, qui crée la copropriété de test « Parc Belle Ombre »), sans
+  aucun lien avec les tables `syndic_*`. Migration absente → encadré « base non prête » avec le nom du fichier.
+- Copropriétés : une carte par copropriété — QR code en SVG (lien `/fr/signalement/<jeton>/`, origine du site courant),
+  « Copier le lien », destinataires des e-mails (vide = `ADMIN_EMAIL` / `ADMIN_EMAIL_2`), compteurs, « Télécharger l'affiche (PDF) »
+  (A4, jsPDF), « Télécharger le QR code (PNG) », « Modifier » (nom, adresse, e-mails, QR actif, « Remplacer le QR code » après
+  confirmation) ; « Ajouter une copropriété » (POST, jeton tiré par le serveur).
+- Signalements : du plus récent au plus ancien, filtre par copropriété, statut (À traiter / Pris en charge / En cours / Résolu /
+  Classé sans suite) et « Urgent » ; détail en fenêtre : déclarant, téléphone (`tel:`), e-mail (`mailto:`), lot, lieu, type,
+  urgence, date, numéro, état de l'e-mail envoyé, description, boutons de statut (`ACTIONS_STATUT_QR`, PATCH).
+- Parcours public, hors portail : `app/(commun)/signalement/[jeton]/page.tsx` → `components/aj-signalement/AppSignalementQr.tsx`
+  (FR / PT) : coordonnées obligatoires (prénom, nom, téléphone, e-mail, étage, numéro de lot ; bâtiment facultatif), puis le
+  parcours de « Signaler un problème » (où, zone, type, description, urgence) ; `POST /api/aj-signalement/signalements`
+  enregistre le signalement et l'envoie par e-mail (réponse directe au déclarant). Même liste dans l'Administrateur judiciaire
+  (`SignalementsQrModule`, route `signalementsQr`, « Données réelles » : lecture et statut seulement).
+
 ## Décisions juridiques à respecter (relecture droit du 17/10/2026)
 
 - Le vote en ligne est une intention de vote transmise au syndic, qui la reporte sur le formulaire
