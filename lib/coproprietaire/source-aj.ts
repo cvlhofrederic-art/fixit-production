@@ -221,10 +221,18 @@ export function demandeDepuisLiaison(d: DemandeLiaison, batiment: string, etage:
 
 // ── Charges : appels trimestriels répartis depuis le budget voté ────────────────────────────────────────────────
 
+/** Trimestres remontés au plus pour porter une dette (quatre exercices) ; au-delà, le reste est un arriéré. */
+const TRIMESTRES_MAX = 16
+
+/** Échéance d'un trimestre (1er janvier, avril, juillet, octobre). */
+const echeanceTrimestre = (annee: number, t: number): string => `${annee}-${String((t - 1) * 3 + 1).padStart(2, '0')}-01`
+
 /**
- * Appels de l'exercice en cours échus à `dateDuJour` (1er janvier, avril, juillet, octobre), quote-part du lot sur le
- * budget voté. La dette du compte (solde négatif) est portée par les appels les plus récents ; ce qui la dépasse est un
- * arriéré des exercices antérieurs. Ainsi le total dû du portail est exactement le solde affiché par l'AJ.
+ * Appels trimestriels du compte au jour de l'AJ, quote-part du lot sur le budget voté : ceux de l'exercice en cours
+ * échus à `dateDuJour`, payés ou non. La dette du compte (solde négatif) est portée par les appels échus les plus
+ * récents, en remontant aux trimestres des exercices précédents tant qu'il le faut (seuls ceux qui restent dus sont
+ * montrés) ; au-delà de TRIMESTRES_MAX, le reste est rendu en arriéré. Le total des restes à payer est ainsi
+ * exactement le solde affiché par l'AJ.
  */
 export function appelsEtArriere(
   budget: number,
@@ -235,33 +243,41 @@ export function appelsEtArriere(
 ): { appels: AppelDeCharges[]; arriere: number } {
   const annee = Number(dateDuJour.slice(0, 4))
   const trimestriel = tantiemes.total > 0 ? arrondiCentimes((budget * tantiemes.lot) / tantiemes.total / 4) : 0
-  const trimestres = [1, 2, 3, 4]
-    .map((t) => ({ t, echeance: `${annee}-${String((t - 1) * 3 + 1).padStart(2, '0')}-01` }))
-    .filter((t) => t.echeance <= dateDuJour)
   let dette = solde < 0 ? arrondiCentimes(-solde) : 0
-  const restes = new Map<number, number>()
-  for (const { t } of [...trimestres].reverse()) {
-    const reste = Math.min(trimestriel, dette)
-    restes.set(t, arrondiCentimes(reste))
+  // Trimestres échus, du plus récent au plus ancien.
+  const retenus: { a: number; t: number; reste: number }[] = []
+  let a = annee
+  let t = 4
+  while (echeanceTrimestre(a, t) > dateDuJour) t -= 1
+  for (let rang = 0; rang < TRIMESTRES_MAX && t >= 1; rang++) {
+    const reste = arrondiCentimes(Math.min(trimestriel, dette))
     dette = arrondiCentimes(dette - reste)
+    if (a === annee || reste > 0) retenus.push({ a, t, reste })
+    if (a < annee && (dette === 0 || trimestriel === 0)) break
+    t -= 1
+    if (t === 0) {
+      a -= 1
+      t = 4
+    }
   }
-  const appels = trimestres.map(({ t, echeance }): AppelDeCharges => {
-    const reste = restes.get(t) ?? 0
+  const appels = retenus.reverse().map(({ a: an, t: trimestre, reste }): AppelDeCharges => {
     const paye = arrondiCentimes(trimestriel - reste)
-    const statut: AppelDeCharges['statut'] = reste === 0 ? 'solde' : paye > 0 ? 'partiellement_paye' : 'en_retard'
-    const finTrimestre = new Date(Date.UTC(annee, t * 3, 0)).toISOString().slice(0, 10)
+    let statut: AppelDeCharges['statut'] = 'en_retard'
+    if (reste === 0) statut = 'solde'
+    else if (paye > 0) statut = 'partiellement_paye'
+    const echeance = echeanceTrimestre(an, trimestre)
     return {
-      id: `aj-appel-${reference}-${annee}-T${t}`,
-      exercice: `${annee}-T${t}`,
+      id: `aj-appel-${reference}-${an}-T${trimestre}`,
+      exercice: `${an}-T${trimestre}`,
       periodeDebut: echeance,
-      periodeFin: finTrimestre,
+      periodeFin: new Date(Date.UTC(an, trimestre * 3, 0)).toISOString().slice(0, 10),
       montantTotal: trimestriel,
       montantPaye: paye,
       resteAPayer: reste,
       statut,
       echeance,
       iban: IBAN_SYNDICAT_AJ_DEMO,
-      referencePaiement: `${reference}-${annee}T${t}`,
+      referencePaiement: `${reference}-${an}T${trimestre}`,
     }
   })
   return { appels, arriere: dette }

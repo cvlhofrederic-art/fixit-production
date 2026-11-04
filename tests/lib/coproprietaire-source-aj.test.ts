@@ -93,10 +93,18 @@ describe('espace d’un copropriétaire de l’AJ', () => {
     expect(appels[1]).toMatchObject({ resteAPayer: 1524.6, statut: 'en_retard' })
     expect(appels[0]).toMatchObject({ resteAPayer: 315.4, statut: 'partiellement_paye' })
     expect(arriere).toBe(0)
-    // Dette supérieure aux appels de l'exercice : le reste est un arriéré.
+    // Dette supérieure aux appels de l'exercice : elle remonte sur les trimestres de l'exercice précédent.
     const contentieux = appelsEtArriere(96000, { lot: 640, total: 10000 }, -9200, JOUR, 'TL00008')
-    expect(contentieux.appels.every((a) => a.statut === 'en_retard')).toBe(true)
-    expect(contentieux.arriere).toBe(6128)
+    expect(contentieux.appels.map((a) => a.exercice)).toEqual(['2025-T1', '2025-T2', '2025-T3', '2025-T4', '2026-T1', '2026-T2'])
+    expect(contentieux.appels.map((a) => a.resteAPayer)).toEqual([1520, 1536, 1536, 1536, 1536, 1536])
+    expect(contentieux.appels[0].statut).toBe('partiellement_paye')
+    expect(contentieux.appels.slice(1).every((a) => a.statut === 'en_retard')).toBe(true)
+    expect(contentieux.arriere).toBe(0)
+    // Compte à jour : les appels échus de l'exercice, tous soldés, aucun trimestre antérieur.
+    expect(appelsEtArriere(142000, { lot: 412, total: 10000 }, 0, JOUR, 'LM00012').appels.map((a) => [a.exercice, a.statut]))
+      .toEqual([['2026-T1', 'solde'], ['2026-T2', 'solde']])
+    // Dette au-delà de quatre exercices : le reste est un arriéré.
+    expect(appelsEtArriere(10000, { lot: 100, total: 10000 }, -1000, JOUR, 'X').arriere).toBe(600)
   })
 
   it('ordres de service : parties communes de la copropriété et lot du copropriétaire, jamais le lot privé d’un autre', () => {
