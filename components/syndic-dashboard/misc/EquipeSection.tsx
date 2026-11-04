@@ -114,7 +114,6 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
   const [formModules, setFormModules] = useState<string[]>([])
   const [showFormModules, setShowFormModules] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   // Modal modules pour un membre existant
@@ -212,7 +211,9 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || t('syndicDash.common.loading')); return }
-      setInviteUrl(data.invite_url)
+      // Le lien d'invitation part seulement par e-mail : l'API ne le renvoie pas.
+      if (data.email_sent) toast.success(t('syndicDash.equipe.inviteSent'))
+      else toast.warning(t('syndicDash.equipe.inviteEmailFailed'))
       setForm({ email: '', full_name: '', role: 'syndic_tech' })
       setShowForm(false)
       setShowFormModules(false)
@@ -311,23 +312,6 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
           </button>
         )}
       </div>
-
-      {/* Lien d'invitation */}
-      {inviteUrl && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-green-800 mb-2">✅ {t('syndicDash.equipe.inviteCreated')}</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 bg-white border border-green-200 rounded-lg px-3 py-2 text-xs text-gray-700 truncate">{inviteUrl}</code>
-            <button
-              onClick={() => { navigator.clipboard.writeText(inviteUrl); toast.success(t('syndicDash.equipe.linkCopied')) }}
-              className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-green-700 transition"
-            >
-              {t('syndicDash.common.copy')}
-            </button>
-          </div>
-          <button onClick={() => setInviteUrl(null)} className="text-xs text-gray-500 mt-2 hover:text-gray-600">{t('syndicDash.common.close')}</button>
-        </div>
-      )}
 
       {/* Formulaire invitation */}
       {showForm && (
@@ -497,18 +481,6 @@ export default function EquipeSection({ cabinetId, currentUserRole, rolePages, m
                     {isAdmin && (
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2 justify-end">
-                          {!m.accepted_at && m.invite_token && (
-                            <button
-                              onClick={() => {
-                                const url = `${window.location.origin}/syndic/invite?token=${m.invite_token}`
-                                navigator.clipboard.writeText(url)
-                                toast.success(t('syndicDash.equipe.linkCopied'))
-                              }}
-                              className="text-xs text-[#C9A84C] hover:text-[#B8963D] px-2 py-1 rounded border border-[#E4DDD0] hover:bg-[#F7F4EE] transition"
-                            >
-                              {t('syndicDash.equipe.copyLink')}
-                            </button>
-                          )}
                           <button
                             onClick={() => handleToggleActive(m)}
                             disabled={actionLoading === `toggle-${m.id}`}
