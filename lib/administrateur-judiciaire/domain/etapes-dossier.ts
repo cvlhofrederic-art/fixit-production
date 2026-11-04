@@ -18,10 +18,11 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
 
 /**
  * Étapes d'un dossier (point 48 du bilan 2) : rattachement, instructions, « à faire le », durées, accusé au demandeur,
- * date de création et origine, règle de suivi « étape automatique non réalisée après N jours ». Fonctions pures, dates
- * AAAA-MM-JJ, durées en minutes entières, sans écran ni table : la table d'étapes (à la place de la table `taches`) et
- * l'écran relèvent de Frédéric. Complète etapes.ts (PR #566), inchangé : une EtapeDossier est une Etape enrichie, donc
- * etatEtape, realiserEtape, validerEtape, enchainer et suivi-a-faire.depuisEtapes la prennent telle quelle.
+ * date de création et origine, règle de suivi « étape automatique non réalisée après N jours », usages du cabinet.
+ * Fonctions pures, dates AAAA-MM-JJ, durées en minutes entières (J21), sans écran ni table : la table d'étapes (à la
+ * place de la table `taches`) et l'écran relèvent de Frédéric. Complète etapes.ts (PR #566), inchangé : une
+ * EtapeDossier est une Etape enrichie, donc etatEtape, realiserEtape, validerEtape, enchainer et
+ * suivi-a-faire.depuisEtapes la prennent telle quelle.
  *
  * Gestéam (cartographie, tranches lues) :
  * 🟢 Tranche 35 § Étapes, fiche : « Le » (date, heure) ; Titre ; Étape type ; rattachement Immeuble, Mandat, Entreprise,
@@ -33,43 +34,66 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  * 🟢 Tranche 14 § 6 : cinq acteurs (créateur, demandeur, réalisateur, valideur, collaborateur assigné), quatre dates
  *   (création, à faire, à valider, limite).
  * 🟢 Tranche 42 § Étapes du contentieux : « Copie au CS pour info », créée « Automatique » à la date de la mise en
- *   demeure, rattachée au dossier Contentieux (aucun texte lu ne l'impose ; usage du cabinet ou contrat : question 7).
+ *   demeure, rattachée au dossier Contentieux (aucun texte lu ne l'impose ; usage du cabinet : décision J24).
  * 🟢 Tranche 43 § 1 : une étape automatique, jamais réalisée (date « 00/00/00 » dans le Flux), reste ouverte depuis des
  *   années ; aucune relance ne l'a soldée. D'où la règle « étape automatique non réalisée après N jours », comptée ici
  *   depuis la création (🔵 : la date vide du Flux n'est pas celle de création, connue par la tranche 42).
  * 🟢 Tranche 38, réglage du suivi : famille Étapes « À faire · Relance d'étape · Dossier (filtre) ».
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J20 à J24 ; questions 10 à 15 de la liste) :
+ * - J20 : une étape issue d'un « Enchaînement » porte comme créateur le collaborateur qui a déclenché l'enchaînement :
+ *   « Créée par » affiche ce collaborateur, jamais « Automatique ». enchainerEtapeDossier reçoit son identifiant
+ *   (obligatoire) et crée une étape d'origine « manuelle ». Conséquence : la règle « étape automatique non réalisée après
+ *   N jours » ne vise pas l'étape enchaînée ; elle remonte au suivi « à faire » par sa limite (réalisation + délai du
+ *   processus), que l'enchaînement fixe toujours. « Automatique » reste réservé aux étapes que le logiciel crée seul
+ *   (déclencheur, usage du cabinet : J24).
+ * - J21 : les champs Durée sont en minutes (entières, positives ou nulles).
+ * - J22 : l'accusé de réalisation part par e-mail quand le demandeur est extérieur (copropriétaire, conseil syndical,
+ *   tiers) ; il reste interne (mémo) entre collaborateurs. L'étape porte la nature de son demandeur
+ *   (NATURES_DEMANDEUR_ETAPE) et l'accusé décrit son canal (canalAccuseRealisation) ; rien n'est envoyé.
+ * - J23 : « En cours depuis » se compte depuis la création de l'étape, jusqu'à sa réalisation ou aujourd'hui
+ *   (bilanDurees comptait déjà ainsi : inchangé).
+ * - J24 : l'étape automatique « Copie au CS pour info » relève d'un usage du cabinet, pas d'une obligation du contrat de
+ *   syndic : réglage activable (UsagesEtapesCabinet, etapeCopieAuCsPourInfo).
+ * - Question 13 (case « Fixe ») : non tranchée, voir 🔴 5.
+ *
  * 🔵 Déduits :
  * - l'origine se lit dans « Créée par » : « Automatique » à la place d'un collaborateur (creeeParId null) ;
  * - la colonne Date de la liste est la date « Le » de création ; le rattachement passe par le Rattachement générique du
  *   point 47 (Immeuble → Copropriété, Mandat → dossier « Mandat de syndic », Personne → Identité, Dossier → type DOSSIER) ;
- * - libellés de statut autres que « À faire » ; durées en minutes entières ; « En cours depuis » compté de la création
- *   jusqu'à la réalisation (ou aujourd'hui) ; pas d'accusé quand le demandeur a lui-même réalisé l'étape ; anomalies de
+ * - libellés de statut autres que « À faire » ; pas d'accusé quand le demandeur a lui-même réalisé l'étape ; anomalies de
  *   programmation (avertissements, jamais bloquants) ; réalisateur et valideur vides ou blancs valent « aucun » ; pas de
  *   validation d'une étape sans valideur ou « sans objet » (« Terminée »), ni de seconde validation ;
- * - l'enchaînement garde le dossier et les acteurs, remet à zéro la saisie propre à l'étape (« sans objet », instructions,
- *   programmation, durées, case d'accusé) : enchainer recopie toute l'étape précédente ; instructions et case d'accusé se
- *   ressaisissent ensuite (programmerEtape, ou la case au moment de réaliser) ;
+ * - l'enchaînement garde le dossier et les acteurs (nature du demandeur comprise), remet à zéro la saisie propre à
+ *   l'étape (« sans objet », instructions, programmation, durées, case d'accusé) : enchainer recopie toute l'étape
+ *   précédente ; instructions et case d'accusé se ressaisissent ensuite (programmerEtape, ou la case au moment de
+ *   réaliser) ;
+ * - J22 : seul le demandeur « collaborateur » est interne au cabinet, toute autre nature est extérieure ; la case
+ *   d'accusé décochée l'emporte, quelle que soit la nature ; l'adresse électronique se résout à l'envoi, hors domaine ;
+ * - J24 : usage actif par défaut (USAGES_ETAPES_CABINET_PAR_DEFAUT), comme observé en tranche 42 ; J24 tranche la nature
+ *   de l'étape, pas cette valeur par défaut, à valider (🔴 11) ; l'étape créée est « Automatique », donc visée par la
+ *   règle des N jours ; demandeur et réalisateur fournis par l'appelant (non observés) ;
  * - la règle des N jours s'applique avec ou sans limite, et « Relance d'étape » (tranche 38) en est rapprochée sans
  *   certitude : le suivi reçoit la date de relance, même future, et le réglage y applique l'horizon et le week-end ; N est
  *   plafonné (JOURS_SUIVI_ETAPE_MAX, garde-fou). Heures, agenda et report d'agenda : point 68 ; déclencheur par courrier et
  *   mode de réalisation : point 50 ; modèles par type de dossier : point 49.
- * 🔴 Non établi (fiches lues vides, aucun « Effectuer » actionné ; aucun texte) — questions :
- * 1. Hugo : sur une étape issue d'« Enchaînement », « Créée par » affiche-t-il « Automatique » ou le collaborateur qui a
- *    cliqué ? (origine passée à enchainerEtapeDossier)
+ * 🔴 Non établi (fiches lues vides, aucun « Effectuer » actionné ; aucun texte) — questions restantes ; les n° 1, 3, 4,
+ *   6 et 7 sont tranchées (J20 à J24, ci-dessus) :
  * 2. Frédéric : quelle valeur de N pour « étape automatique non réalisée » (30 jours proposés) ; réglage par cabinet ou
  *    par collaborateur ?
- * 3. Hugo : quelle est l'unité des champs Durée (minutes, heures, hh:mm) ?
- * 4. Hugo : sous quelle forme part l'« Accusé de réalisation au demandeur » (mémo interne, e-mail) ; sert-il seulement
- *    entre collaborateurs, ou aussi envers un demandeur extérieur (copropriétaire, conseil syndical) ?
- * 5. Hugo : que signifie la case « Fixe » à côté de « À faire le » et de « Prévue le » ?
- * 6. Hugo : « En cours depuis » se compte-t-il depuis la création ou depuis « à faire le » ?
- * 7. Hugo : l'étape automatique « Copie au CS pour info » vient-elle d'un usage du cabinet ou du contrat de syndic ?
+ * 5. Hugo : que signifie la case « Fixe » à côté de « À faire le » et de « Prévue le » ? (conservée telle quelle, sans
+ *    effet)
  * 8. Frédéric ou Hugo : quand un processus d'étapes modélise un délai légal (ex. 30 j de L. 1965 art. 19-2), la limite
  *    de l'étape suivante doit-elle partir de la première présentation ou de la transmission de l'avis électronique
  *    (D. 1967 art. 64 et 64-1) et non de la réalisation (l'envoi) ? Sinon, ces délais restent marqués « de gestion ».
  *    Frédéric : la prorogation au premier jour ouvrable (CPC art. 642) s'applique-t-elle à ce délai de 30 jours ?
  * 9. Frédéric : dans « à compter de la demande » (L. 1965 art. 8-2 et 21), compte-t-on de l'envoi ou de la réception
  *    par le syndic ? La date de création d'une étape n'est pas, à ce jour, la date de la demande.
+ * 10. Frédéric ou Hugo (suite de J22) : demandeur extérieur sans adresse électronique connue : quel canal de repli
+ *    (courrier, appel) ? L'accusé décrit « E-mail » ; l'envoi relève de l'écran.
+ * 11. Hugo : l'usage « Copie au CS pour info » est-il actif par défaut, ou à activer par le cabinet ? (suite de J24, qui
+ *    en fait un réglage activable sans en fixer la valeur par défaut ; VitFix le garde actif, comme observé en tranche
+ *    42 : USAGES_ETAPES_CABINET_PAR_DEFAUT)
  *
  * Le droit (relevé sur Légifrance le 29/10/2026) :
  * - aucun texte ne régit le rattachement, les instructions, « à faire le », la date de création, l'origine, les durées,
@@ -91,9 +115,35 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
 
 export const ORIGINES_ETAPE = ['manuelle', 'automatique'] as const
 export type OrigineEtape = (typeof ORIGINES_ETAPE)[number]
+const ORIGINES_ADMISES: ReadonlySet<string> = new Set(ORIGINES_ETAPE)
 
-/** Ce qu'affiche « Créée par » : 🟢 « Automatique » pour une étape créée par le logiciel. */
+/**
+ * Ce qu'affiche « Créée par » : 🟢 « Automatique » pour une étape créée par le logiciel ; une étape enchaînée affiche le
+ * collaborateur qui a déclenché l'enchaînement (J20).
+ */
 export const LIBELLES_ORIGINE_ETAPE: Record<OrigineEtape, string> = { manuelle: 'Manuelle', automatique: 'Automatique' }
+
+/** Nature du demandeur (J22) : un collaborateur du cabinet, ou un demandeur extérieur. */
+export const NATURES_DEMANDEUR_ETAPE = ['collaborateur', 'coproprietaire', 'conseil_syndical', 'tiers'] as const
+export type NatureDemandeurEtape = (typeof NATURES_DEMANDEUR_ETAPE)[number]
+const NATURES_DEMANDEUR_ADMISES: ReadonlySet<string> = new Set(NATURES_DEMANDEUR_ETAPE)
+
+export const LIBELLES_NATURES_DEMANDEUR_ETAPE: Record<NatureDemandeurEtape, string> = {
+  collaborateur: 'Collaborateur du cabinet',
+  coproprietaire: 'Copropriétaire',
+  conseil_syndical: 'Conseil syndical',
+  tiers: 'Tiers',
+}
+
+/** Canal de l'accusé de réalisation (J22). */
+export const CANAUX_ACCUSE_REALISATION = ['memo_interne', 'courriel'] as const
+export type CanalAccuseRealisation = (typeof CANAUX_ACCUSE_REALISATION)[number]
+
+export const LIBELLES_CANAUX_ACCUSE_REALISATION: Record<CanalAccuseRealisation, string> = { memo_interne: 'Mémo interne', courriel: 'E-mail' }
+
+/** J22 : mémo interne entre collaborateurs ; e-mail vers un demandeur extérieur (copropriétaire, conseil syndical, tiers). */
+export const canalAccuseRealisation = (nature: NatureDemandeurEtape): CanalAccuseRealisation =>
+  nature === 'collaborateur' ? 'memo_interne' : 'courriel'
 
 /** 🟢 « À faire » observé ; 🔵 les autres libellés. */
 export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
@@ -103,7 +153,7 @@ export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
   terminee: 'Terminée',
 }
 
-/** Onglet Programmation : durées en minutes entières, positives ou nulles (🔵 unité VitFix ; 🔴 unité Gestéam). */
+/** Onglet Programmation : durées en minutes entières, positives ou nulles (unité : décision J21). */
 export interface DureesEtape {
   realisationEstimee: number | null
   realisationReelle: number | null
@@ -115,8 +165,10 @@ export interface EtapeDossier extends Etape {
   /** Date « Le » de la fiche : création (AAAA-MM-JJ). */
   creeeLe: string
   origine: OrigineEtape
-  /** Collaborateur créateur ; null pour une étape automatique (« Automatique »). */
+  /** Collaborateur créateur (celui qui enchaîne, pour une étape enchaînée : J20) ; null pour une étape automatique. */
   creeeParId: string | null
+  /** Nature du demandeur (demandeurId) : fixe le canal de l'accusé de réalisation (J22). */
+  demandeurNature: NatureDemandeurEtape
   /** Dossiers et fiches porteuses de l'étape (point 47). */
   rattachements: Rattachement[]
   instructions: string
@@ -142,6 +194,8 @@ export interface SaisieEtapeDossier {
   /** Obligatoire pour une étape manuelle ; absent ou null pour une étape automatique. */
   creeeParId?: string | null
   demandeurId: string
+  /** Collaborateur du cabinet ou demandeur extérieur (J22). */
+  demandeurNature: NatureDemandeurEtape
   realisateurId?: string | null
   validateurId?: string | null
   limite?: string | null
@@ -159,8 +213,8 @@ export interface SaisieEtapeDossier {
 
 // ─── Contrôles ──────────────────────────────────────────────────────────────────────────────
 
-const texteObligatoire = (valeur: string, message: string): string => {
-  const brut = valeur.trim()
+const texteObligatoire = (valeur: string | null | undefined, message: string): string => {
+  const brut = valeur?.trim() ?? ''
   if (!brut) throw new Error(message)
   return brut
 }
@@ -194,8 +248,7 @@ function verifierDatesEtape(saisie: SaisieEtapeDossier): void {
 
 /** Créateur retenu : obligatoire pour une étape manuelle ; aucun pour une étape automatique. */
 function verifierOrigine(origine: OrigineEtape, creeeParId: string | null | undefined): string | null {
-  if (!(ORIGINES_ETAPE as readonly string[]).includes(origine))
-    throw new Error(`Origine d’étape inconnue : « ${origine} » (manuelle ou automatique attendue).`)
+  if (!ORIGINES_ADMISES.has(origine)) throw new Error(`Origine d’étape inconnue : « ${origine} » (manuelle ou automatique attendue).`)
   const createur = creeeParId?.trim() ?? ''
   if (origine === 'automatique') {
     if (createur) throw new Error('Étape automatique : aucun créateur attendu (affichée « Automatique »).')
@@ -203,6 +256,12 @@ function verifierOrigine(origine: OrigineEtape, creeeParId: string | null | unde
   }
   if (!createur) throw new Error('Étape manuelle : créateur attendu.')
   return createur
+}
+
+function verifierNatureDemandeur(nature: NatureDemandeurEtape): NatureDemandeurEtape {
+  if (!NATURES_DEMANDEUR_ADMISES.has(nature))
+    throw new Error(`Nature du demandeur inconnue : « ${nature} » (collaborateur, copropriétaire, conseil syndical ou tiers attendu).`)
+  return nature
 }
 
 /** Rattachements contrôlés (creerRattachement), sans doublon, dans l'ordre reçu. */
@@ -254,13 +313,15 @@ function champsProgrammation(
 }
 
 /**
- * Nouvelle étape, à faire. Refus : identifiant, titre ou demandeur vides ; date invalide ; origine inconnue ; étape
- * manuelle sans créateur ou automatique avec un créateur ; durée non entière ou négative ; rattachement hors référentiel.
- * Réalisateur et valideur vides ou blancs : aucun. La saisie reçue n'est pas modifiée.
+ * Nouvelle étape, à faire. Refus : identifiant, titre ou demandeur vides ; nature du demandeur inconnue ; date
+ * invalide ; origine inconnue ; étape manuelle sans créateur ou automatique avec un créateur ; durée non entière ou
+ * négative ; rattachement hors référentiel. Réalisateur et valideur vides ou blancs : aucun. La saisie reçue n'est pas
+ * modifiée.
  */
 export function creerEtapeDossier(saisie: SaisieEtapeDossier): EtapeDossier {
   verifierDatesEtape(saisie)
   const creeeParId = verifierOrigine(saisie.origine, saisie.creeeParId)
+  const demandeurNature = verifierNatureDemandeur(saisie.demandeurNature)
   const realisationEstimee = saisie.durees?.realisationEstimee ?? null
   const validationEstimee = saisie.durees?.validationEstimee ?? null
   verifierDuree(realisationEstimee, 'Durée de réalisation estimée')
@@ -270,6 +331,7 @@ export function creerEtapeDossier(saisie: SaisieEtapeDossier): EtapeDossier {
     creeeLe: saisie.creeeLe,
     origine: saisie.origine,
     creeeParId,
+    demandeurNature,
     rattachements: rattachementsUniques(saisie.rattachements ?? []),
     instructions: (saisie.instructions ?? '').trim(),
     ...champsProgrammation(saisie),
@@ -382,11 +444,16 @@ export function anomaliesProgrammation(etape: EtapeDossier): AnomalieProgrammati
 
 // ─── Réalisation, accusé au demandeur, validation ──────────────────────────────────────────
 
-/** Accusé de réalisation : une description pure, adressée au demandeur ; rien n'est envoyé (🔴 forme Gestéam non vue). */
+/**
+ * Accusé de réalisation : une description pure, adressée au demandeur, avec son canal (J22 : e-mail vers un demandeur
+ * extérieur, mémo interne entre collaborateurs) ; rien n'est envoyé.
+ */
 export interface AccuseRealisation {
   etapeId: string
   /** Le demandeur de l'étape. */
   destinataireId: string
+  destinataireNature: NatureDemandeurEtape
+  canal: CanalAccuseRealisation
   realiseParId: string | null
   titre: string
   faitLe: string
@@ -399,6 +466,8 @@ function accuseDeRealisation(etape: EtapeDossier): AccuseRealisation | null {
   return {
     etapeId: etape.id,
     destinataireId: etape.demandeurId,
+    destinataireNature: etape.demandeurNature,
+    canal: canalAccuseRealisation(etape.demandeurNature),
     realiseParId: etape.realisateurId,
     titre: etape.titre,
     faitLe: etape.faitLe,
@@ -463,7 +532,7 @@ export function validerEtapeDossier(
 // ─── Durées ─────────────────────────────────────────────────────────────────────────────────
 
 export interface BilanDureesEtape {
-  /** 🔵 De la création à la réalisation, ou à aujourd'hui tant qu'elle est à faire (🔴 point de départ Gestéam). */
+  /** De la création à la réalisation, ou à aujourd'hui tant qu'elle est à faire (J23 : depuis la création). */
   enCoursDepuisJours: number
   /** Réel − estimé, en minutes ; null si l'une des deux manque. */
   ecartRealisationMinutes: number | null
@@ -491,18 +560,23 @@ export function bilanDurees(etape: EtapeDossier, aujourdhui: string): BilanDuree
 
 /**
  * Étape suivante du processus (etapes.enchainer : limite = réalisation + délai, délai de GESTION) ; null en fin de
- * processus. Garde le dossier (rattachements) et les acteurs ; la nouvelle étape est créée le `date` (au plus tôt le jour
- * de la réalisation), avec son origine et son créateur (🔴 « Automatique » ou le collaborateur qui enchaîne : non
- * observé) ; « sans objet » de la validation, instructions, programmation, durées et case d'accusé repartent à zéro au
- * lieu d'être recopiés (à ressaisir par programmerEtape).
+ * processus. Garde le dossier (rattachements) et les acteurs, nature du demandeur comprise ; la nouvelle étape est créée
+ * le `date` (au plus tôt le jour de la réalisation) par `creeeParId`, le collaborateur qui déclenche l'enchaînement
+ * (J20 : « Créée par » l'affiche, origine « manuelle », donc hors de la règle des N jours) ; « sans objet » de la
+ * validation, instructions, programmation, durées et case d'accusé repartent à zéro au lieu d'être recopiés (à
+ * ressaisir par programmerEtape). Refus : identifiant ou collaborateur vides, date invalide ou antérieure à la
+ * réalisation, étape non réalisée.
  */
 export function enchainerEtapeDossier(
   etape: EtapeDossier,
   processus: EtapeTypeProcessus[],
-  { id, date, origine, creeeParId }: { id: string; date: string; origine: OrigineEtape; creeeParId: string | null },
+  { id, date, creeeParId }: { id: string; date: string; creeeParId: string },
 ): EtapeDossier | null {
   const nouvelId = texteObligatoire(id, 'Identifiant d’étape attendu.')
-  const createur = verifierOrigine(origine, creeeParId)
+  const createur = texteObligatoire(
+    creeeParId,
+    'Enchaînement refusé : collaborateur qui déclenche l’enchaînement attendu (« Créée par », décision J20).',
+  )
   verifierDateObligatoire(date, 'Date de création')
   if (etape.faitLe !== null && date < etape.faitLe)
     throw new Error(`Enchaînement refusé : le ${dateIsoVersFr(date)} précède la réalisation (${dateIsoVersFr(etape.faitLe)}).`)
@@ -512,8 +586,9 @@ export function enchainerEtapeDossier(
     ...suivante,
     validationSansObjet: false,
     creeeLe: date,
-    origine,
+    origine: 'manuelle',
     creeeParId: createur,
+    demandeurNature: etape.demandeurNature,
     rattachements: etape.rattachements.map((r) => ({ ...r })),
     instructions: '',
     aFaireLe: null,
@@ -544,7 +619,7 @@ export function verifierJoursSuiviEtape(jours: number): void {
     throw new Error(`Nombre de jours de suivi invalide (${jours}) : nombre entier de jours entre 0 et ${JOURS_SUIVI_ETAPE_MAX} attendu.`)
 }
 
-/** Étape automatique encore à faire : la seule que vise la règle des N jours. */
+/** Étape automatique encore à faire : la seule que vise la règle des N jours (jamais une étape enchaînée : J20). */
 const automatiqueAFaire = (etape: EtapeDossier, aujourdhui: string): boolean =>
   etape.origine === 'automatique' && etatEtape(etape, aujourdhui).statut === 'a_faire'
 
@@ -582,4 +657,54 @@ export function etapeAutomatiqueNonRealisee(
   if (!automatiqueAFaire(etape, aujourdhui)) return null
   const ouverteDepuisJours = ecartJours(etape.creeeLe, aujourdhui)
   return ouverteDepuisJours >= jours ? { relanceLe: ajouterJours(etape.creeeLe, jours), ouverteDepuisJours } : null
+}
+
+// ─── Usages du cabinet (décision J24) ───────────────────────────────────────────────────────
+
+/** Étapes automatiques d'usage : réglages activables du cabinet, jamais une obligation légale ou contractuelle. */
+export interface UsagesEtapesCabinet {
+  /** « Copie au CS pour info » à la mise en demeure d'un contentieux (🟢 tranche 42) : usage du cabinet (J24). */
+  copieAuCsPourInfo: boolean
+}
+
+/** 🔵 Actif par défaut : l'usage observé du cabinet (tranche 42) ; désactivable ; valeur par défaut à valider (🔴 11). */
+export const USAGES_ETAPES_CABINET_PAR_DEFAUT: Readonly<UsagesEtapesCabinet> = { copieAuCsPourInfo: true }
+
+/** 🟢 Titre observé (tranche 42). */
+export const TITRE_COPIE_AU_CS_POUR_INFO = 'Copie au CS pour info'
+
+export interface DeclencheurCopieAuCs {
+  id: string
+  /** Dossier Contentieux de la mise en demeure, auquel l'étape est rattachée. */
+  contentieuxId: string
+  /** Date de la mise en demeure : date de création de l'étape (tranche 42). */
+  miseEnDemeureLe: string
+  demandeurId: string
+  demandeurNature: NatureDemandeurEtape
+  realisateurId?: string | null
+  etapeType?: string | null
+}
+
+/**
+ * Étape automatique « Copie au CS pour info », créée « Automatique » à la date de la mise en demeure et rattachée au
+ * dossier Contentieux, si l'usage est actif ; null sinon. Mêmes contrôles que creerEtapeDossier ; l'étape relève de la
+ * règle des N jours comme toute étape automatique.
+ */
+export function etapeCopieAuCsPourInfo(
+  declencheur: DeclencheurCopieAuCs,
+  usages: UsagesEtapesCabinet = USAGES_ETAPES_CABINET_PAR_DEFAUT,
+): EtapeDossier | null {
+  if (!usages.copieAuCsPourInfo) return null
+  return creerEtapeDossier({
+    id: declencheur.id,
+    titre: TITRE_COPIE_AU_CS_POUR_INFO,
+    etapeType: declencheur.etapeType ?? null,
+    creeeLe: declencheur.miseEnDemeureLe,
+    origine: 'automatique',
+    creeeParId: null,
+    demandeurId: declencheur.demandeurId,
+    demandeurNature: declencheur.demandeurNature,
+    realisateurId: declencheur.realisateurId ?? null,
+    rattachements: [creerRattachement('Contentieux', declencheur.contentieuxId)],
+  })
 }

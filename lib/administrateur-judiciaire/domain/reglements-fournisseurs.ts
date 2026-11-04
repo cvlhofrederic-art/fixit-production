@@ -121,10 +121,13 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   une indivision, un mandataire), donnée facultative et non indexée ; le bénéficiaire doit à la fois tenir une
  *   position « Indivisaire » en place sur ce compte (D2) et en être le mandataire ; les deux défauts se cumulent, chacun
  *   bloquant.
+ * Décision J25 de Hugo du 03/11/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs ; le compte 53
+ * « Caisse » n'est pas tenu. Le refus du mode « Espèces » devient une décision du cabinet, et non plus un choix
+ * provisoire de VitFix : un tel paiement sortirait du compte 53 et non d'un 512 (arrêté du 14 mars 2005, art. 3 et 7),
+ * avec le contrôle des espèces propre à l'administrateur judiciaire (carnet de reçus, arrêté du 16 août 1999). La
+ * réserve de C. trav. L3241-1 (salaire payé en espèces au salarié qui le demande, sous un seuil) ne vise que les
+ * salaires (personnel-syndicat.ts, 🔴 10), pas un fournisseur.
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
- * - paiement en espèces : refusé ici ; il sortirait du compte 53 « Caisse » et non d'un 512 (arrêté du 14 mars 2005,
- *   art. 3 et 7), compte que le domaine ne tient pas, avec le contrôle des espèces propre à l'administrateur judiciaire
- *   (carnet de reçus, arrêté du 16 août 1999) ; à modéliser avec une contrepartie 53, hors rapprochement bancaire ;
  * - Gestéam passe-t-il l'écriture du « Règlement de factures » dès le traitement qui produit l'ordre (imputée plus
  *   tard), ou au paiement ? Non observé ; VitFix l'écrit au paiement (ci-dessus) ;
  * - J9, retour amputé de frais par la banque (montant revenu moindre) : non pris en charge ; l'écriture contraire porte
@@ -160,7 +163,7 @@ export type BeneficiaireReglement =
   | { type: 'coproprietaire'; compteCoproprietaireId: string; serie450: string }
   | { type: 'indivisaire'; compteCoproprietaireId: string; serie450: string; identiteId: string }
 
-/** Modes admis : ni « Pas de règlement », ni « Espèces » (compte 53 non tenu, 🔴). */
+/** Modes admis : ni « Pas de règlement », ni « Espèces » (décision J25 : compte 53 non tenu). */
 export type ModePaiementReglement = Exclude<ModeReglement, 'Pas de règlement' | 'Espèces'>
 
 export interface ReglementFournisseur {
@@ -276,7 +279,7 @@ function verifierMode(mode: ModeReglement, iban: string | null): ModePaiementReg
   if (mode === 'Pas de règlement') throw new Error('Mode « Pas de règlement » : aucun règlement à créer.')
   if (mode === 'Espèces')
     throw new Error(
-      'Espèces : paiement refusé ; il sortirait du compte 53 « Caisse », que VitFix ne tient pas, et non d’un compte 512 (arrêté du 14 mars 2005, art. 3 et 7) ; à trancher.',
+      'Espèces : paiement refusé (décision J25 : aucun paiement en espèces) ; il sortirait du compte 53 « Caisse », que VitFix ne tient pas, et non d’un compte 512 (arrêté du 14 mars 2005, art. 3 et 7).',
     )
   if (mode === 'Virement' && (iban === null || !validerIban(iban))) throw new Error('Virement : IBAN du bénéficiaire absent ou invalide.')
   return mode
@@ -334,7 +337,7 @@ function verifierEnTete(saisie: SaisieReglementFournisseur): void {
 
 /**
  * Crée un règlement « Demandé », non imputé, hors de tout ordre, traitement et arrêté. Refuse un montant qui n'est pas
- * un nombre entier de centimes > 0, une échéance non ISO, un mode inconnu, « Pas de règlement » ou « Espèces » (🔴), un
+ * un nombre entier de centimes > 0, une échéance non ISO, un mode inconnu, « Pas de règlement » ou « Espèces » (J25), un
  * virement sans IBAN valide, un fournisseur sans facture, un remboursement avec facture ou contrat, une tranche sans
  * travaux, une contrepartie qui n'est pas un 512 du syndicat.
  */
