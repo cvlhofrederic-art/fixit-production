@@ -142,8 +142,18 @@ describe('objet ReglementFournisseur', () => {
     expect(creer({ mode: 'Chèque', iban: null })).toMatchObject({ mode: 'Chèque', iban: null })
   })
 
-  it('🔴 espèces refusées : le paiement sortirait du compte 53 « Caisse », que le domaine ne tient pas, jamais d’un 512', () => {
-    expect(() => creer({ mode: 'Espèces', iban: null })).toThrow(/Espèces.*53/)
+  it('J25 : espèces refusées par décision du cabinet ; le paiement sortirait du compte 53 « Caisse », jamais d’un 512', () => {
+    expect(() => creer({ mode: 'Espèces', iban: null })).toThrow(/Espèces.*décision J25.*53/)
+    expect(() => creer({ mode: 'Espèces', iban: null })).not.toThrow(/à trancher/)
+  })
+
+  it('en-tête : la décision J25 remplace le 🔴 du paiement en espèces', () => {
+    const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
+    const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(entete).toMatch(/Décision J25 de Hugo du 03\/11\/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs/)
+    expect(entete).toMatch(/ne vise que les salaires \(personnel-syndicat\.ts, 🔴 10\), pas un fournisseur/)
+    const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/paiement en espèces/)
   })
 
   it('bénéficiaire fournisseur : facture obligatoire, auxiliaire 401 sur 5 caractères', () => {

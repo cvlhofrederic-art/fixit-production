@@ -51,8 +51,8 @@ import {
  *   (tranche 28 : en-tête Date, N°, Type, Statut, Objet, Phase, Clos le ; onglet Règlements non ouvert ; tranche 42 : absente
  *   de la fiche réelle). Saisie à la main ou calculée depuis la grille : non établi (🔴 Hugo ci-dessous).
  * - L'assurance impayés est FACULTATIVE sur la saisie et normalisée à la création (contentieux-assurance-impayes.ts, qui
- *   porte aussi ses contrôles et la lecture des indemnités sur le sinistre). L'objet reste un texte libre
- *   (objets-contentieux.ts reconnaît les libellés Gestéam observés).
+ *   porte aussi ses contrôles et la lecture des indemnités sur le sinistre). L'objet reste un texte libre (décision
+ *   J34 : champ de saisie libre dans Gestéam ; objets-contentieux.ts reconnaît les libellés Gestéam observés).
  * - 🟢 Le droit, lu sur Légifrance le 29/10/2026 : aucun texte de la loi n° 65-557 ni du décret n° 67-223 ne fixe la forme ni
  *   la durée d'un échéancier amiable conclu par un syndic (recherche limitée à ces deux textes). Ils prévoient en revanche
  *   d'autres échelonnements de la dette d'un copropriétaire envers le syndicat, notamment : les échéanciers individualisés
@@ -68,17 +68,19 @@ import {
  *   C. civ. art. 1305-2 à 1305-4 : ce qui n'est dû qu'à terme ne peut être exigé avant l'échéance (1305-2) ; le terme
  *   profite au débiteur, sauf s'il a été établi en faveur du créancier ou des deux parties (1305-3) ; le débiteur perd le
  *   bénéfice du terme s'il ne fournit pas les sûretés promises ou diminue celles qui garantissent l'obligation (1305-4).
- * - 🔵 La particularité et le groupe de relance 6 (protocole d'accord) se DÉDUISENT de la grille du débiteur
- *   (decompte-contentieux.suivreEcheancier) : actif tant qu'une échéance n'est pas soldée, échue ou non, QUELLE QUE SOIT
- *   l'origine de l'échéancier (non lue, 🔴 ci-dessous). La particularité portée par le dossier n'est jamais écrasée :
- *   l'écart est signalé (`particulariteSuggeree`).
+ * - 🔵 La particularité et le groupe de relance 6 (protocole d'accord) se DÉDUISENT de l'échéancier du débiteur : la
+ *   grille (decompte-contentieux.suivreEcheancier), active tant qu'une échéance n'est pas soldée, échue ou non, QUELLE QUE
+ *   SOIT l'origine de l'échéancier (non lue, 🔴 ci-dessous), ou la case « Échéancier » du bloc Voie d'exécution (J33,
+ *   ci-dessous). La particularité portée par le dossier n'est jamais écrasée : l'écart est signalé
+ *   (`particulariteSuggeree`).
  * - 🔴 (Frédéric) Une échéance échue restée impayée laisse-t-elle le débiteur en groupe 6 « avec échéancier » jusqu'à ce
  *   que le gestionnaire dénonce l'échéancier, ou le dossier repasse-t-il « sans échéancier » (groupe 9 en procédure) ?
  * - 🔴 (Frédéric) La grille n'est pas seulement amiable : decompte-contentieux.ts qualifie l'échéancier par
  *   `DecisionEcheancier.origine`, dans ORIGINES_ECHEANCIER (amiable, accord_homologue, delais_grace, surendettement).
- *   Quelles origines mettent le débiteur au groupe 6 « Protocole d'accord » ? Aujourd'hui `echeancierActif`,
- *   `particulariteSuggeree` et `relanceDuContentieux` ne lisent que la grille (`SuiviEcheancier`) : des délais de grâce
- *   du juge ou un plan de surendettement donnent aussi le groupe 6 (un test le montre). Si la réponse dépend de
+ *   Quelles origines mettent le débiteur au groupe 6 « Protocole d'accord » ? Aujourd'hui `echeancierActif` ne lit que
+ *   la grille (`SuiviEcheancier`), et `particulariteSuggeree` et `relanceDuContentieux` la grille et la case
+ *   « Échéancier » (J33) : des délais de grâce du juge ou un plan de surendettement donnent aussi le groupe 6 (un test le
+ *   montre). Si la réponse dépend de
  *   l'origine, ces trois fonctions recevront l'origine (ou la `DecisionEcheancier`) en paramètre facultatif. Le
  *   paiement par annuités de la loi art. 33 n'a pas d'origine dans ORIGINES_ECHEANCIER : faut-il l'ajouter, et met-il le
  *   débiteur au groupe 6 ?
@@ -93,9 +95,24 @@ import {
  *   garde) : la date « Déclaré le » n'est pas lue par `phaseSuggeree`.
  * - 🔴 (Hugo) Où se saisit la Particularité d'un contentieux, et Gestéam la déduit-il de la grille du bloc Échéancier ?
  *   Tant que ce n'est pas établi, VitFix la traite comme une donnée du dossier et signale l'écart avec la grille.
- * - 🔴 (Hugo) La case « Échéancier » du bloc Voie d'exécution (tranche 42) désigne-t-elle les délais de grâce accordés par
- *   le juge (C. civ. art. 1343-5), que la grille du bloc Échéancier peut aussi porter avec l'origine 'delais_grace', ou
- *   autre chose ? Tant que ce n'est pas établi, seule la grille (`SuiviEcheancier`) rend l'échéancier actif.
+ * - 🔴 (Frédéric ou Hugo) La décision du juge qui accorde des délais de grâce suspend les procédures d'exécution engagées
+ *   par le créancier (C. civ. art. 1343-5, al. 4) : faut-il signaler une mesure d'exécution engagée (saisie cochée,
+ *   saisie immobilière engagée, expulsion datée) sur un dossier dont la case « Échéancier » est cochée ? Rien ne le
+ *   signale aujourd'hui, et la phase suggérée n'en dépend pas.
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J33 ; question 26 de la liste) :
+ * - J33 : la case « Échéancier » du bloc Voie d'exécution (tranche 42) désigne l'échéancier fixé par décision du juge
+ *   (délais de grâce, C. civ. art. 1343-5). 🟢 Art. 1343-5 relu sur Légifrance le 03/11/2026 (bandeau « En vigueur au
+ *   03/11/2026 » ; créé par l'ordonnance n° 2016-131 du 10 février 2016, art. 3, en vigueur depuis le 01/10/2016, sans
+ *   modification depuis) : le juge peut, compte tenu de la situation du débiteur et des besoins du créancier, reporter ou
+ *   échelonner le paiement des sommes dues « dans la limite de deux années » (al. 1) ; sa décision suspend les
+ *   procédures d'exécution engagées par le créancier (al. 4) ; l'article ne vaut pas pour les dettes d'aliment (al. 6).
+ *   Cochée, la case rend l'échéancier actif, source « décision du juge » (`echeancierDuContentieux`), avec ou sans
+ *   grille ; `particulariteSuggeree` et `relanceDuContentieux` la lisent (particularité « avec échéancier », groupe 6).
+ *   Décochée, seule la grille compte, comme avant (source « grille »). 🔵 Cochée, la case l'emporte sur une grille soldée
+ *   ou absente (`grilleActive` le montre) : elle se décoche quand les délais prennent fin. Les deux ans de l'al. 1 se
+ *   contrôlent sur la grille (decompte-contentieux.controlerEcheancier, origine 'delais_grace'). La « Particularité »
+ *   (question 25) reste ouverte, sans changement.
  *
  * Point 56 du bilan Gestéam — voies d'exécution, hypothèque, mise à prix et décision liée (🟢 tranche 42, onglet
  * Règlements ; détail, droit et questions 🔴 dans contentieux-voies-execution.ts) :
@@ -388,19 +405,52 @@ export function relanceDepuisEtape(
 }
 
 /**
- * Échéancier du débiteur en cours (🔵) : au moins une échéance non soldée, échue ou non (🔴 voir l'en-tête). Aucun
- * échéancier, ou toutes les échéances payées : inactif.
+ * Grille de l'échéancier du débiteur en cours (🔵) : au moins une échéance non soldée, échue ou non (🔴 voir l'en-tête).
+ * Aucun échéancier, ou toutes les échéances payées : inactif. La grille seule : la case « Échéancier » (J33) se lit par
+ * echeancierDuContentieux.
  */
 export function echeancierActif(suivi: SuiviEcheancier | null | undefined): boolean {
   return suivi?.echeances.some((echeance) => echeance.statut !== 'payee') ?? false
 }
 
-/** Particularité cohérente avec l'échéancier ; `ecart` si elle diffère de celle du dossier, jamais écrasée (🔴 Hugo). */
+/** D'où vient un échéancier actif (J33) : la grille du bloc Échéancier, ou la case « Échéancier » du bloc Voie d'exécution. */
+export const SOURCES_ECHEANCIER = {
+  grille: 'Grille du bloc Échéancier (origine non lue)',
+  decision_du_juge:
+    "Case « Échéancier » du bloc Voie d'exécution : échéancier fixé par décision du juge (délais de grâce, C. civ. art. 1343-5)",
+} as const
+export type SourceEcheancier = keyof typeof SOURCES_ECHEANCIER
+
+export interface EcheancierDuContentieux {
+  actif: boolean
+  /** null : aucun échéancier actif. */
+  source: SourceEcheancier | null
+  /** La grille seule (echeancierActif), pour voir l'écart avec une case cochée. */
+  grilleActive: boolean
+}
+
+/**
+ * Échéancier du dossier (J33) : la case « Échéancier » cochée le rend actif, source « décision du juge », quelle que soit
+ * la grille (🔵) ; sinon la grille seule, source « grille ».
+ */
+export function echeancierDuContentieux(
+  dossier: Pick<DossierContentieux, 'voiesExecution'>,
+  suivi: SuiviEcheancier | null | undefined,
+): EcheancierDuContentieux {
+  const grilleActive = echeancierActif(suivi)
+  if (dossier.voiesExecution?.caseEcheancier === true) return { actif: true, source: 'decision_du_juge', grilleActive }
+  return { actif: grilleActive, source: grilleActive ? 'grille' : null, grilleActive }
+}
+
+/**
+ * Particularité cohérente avec l'échéancier (grille ou case « Échéancier », J33) ; `ecart` si elle diffère de celle du
+ * dossier, jamais écrasée (🔴 Hugo).
+ */
 export function particulariteSuggeree(
   dossier: DossierContentieux,
   suivi: SuiviEcheancier | null | undefined,
 ): { particularite: ParticulariteContentieux; ecart: boolean } {
-  const particularite: ParticulariteContentieux = echeancierActif(suivi)
+  const particularite: ParticulariteContentieux = echeancierDuContentieux(dossier, suivi).actif
     ? 'Contentieux avec échéancier'
     : 'Contentieux sans échéancier'
   return { particularite, ecart: particularite !== dossier.particularite }
@@ -408,12 +458,13 @@ export function particulariteSuggeree(
 
 /**
  * Stade et groupe de relance d'un dossier de recouvrement : étape déduite des faits datés, protocole d'accord (groupe 6)
- * tant que l'échéancier est actif. Lit l'échéancier, pas la particularité du dossier. null pour un autre type de contentieux.
+ * tant que l'échéancier est actif (grille ou case « Échéancier », J33). Lit l'échéancier, pas la particularité du
+ * dossier. null pour un autre type de contentieux.
  */
 export function relanceDuContentieux(
   dossier: DossierContentieux,
   suivi: SuiviEcheancier | null | undefined,
 ): { stade: CodeStadeRelance; groupe: CodeGroupeRelance } | null {
   const etape = etapeRecouvrementContentieux(dossier)
-  return etape === null ? null : relanceDepuisEtape(etape, echeancierActif(suivi))
+  return etape === null ? null : relanceDepuisEtape(etape, echeancierDuContentieux(dossier, suivi).actif)
 }

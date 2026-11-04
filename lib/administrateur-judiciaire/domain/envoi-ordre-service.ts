@@ -338,9 +338,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
  *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
  *
- * Branchements à faire plus tard (fichiers non modifiés) : suivi-a-faire.ts, famille « demandes » et nature « relance_os »
- * (relancesOsDues, point 46 ; attendus et relanceAFixer en plus des champs d'ElementAFaire, dont aConfirmer, toujours
- * faux, garde son sens) ;
+ * Branché au point 46 : suivi-a-faire.ts, famille « demandes » et nature « relance_os » (relancesOsDues, lu par
+ * depuisDemandes ; attendus et relanceAFixer en plus des champs d'ElementAFaire, dont aConfirmer, toujours faux, garde
+ * son sens). Branchements à faire plus tard (fichiers non modifiés) :
  * route /api/administrateur-judiciaire/ordres-prestataire : controlerAvantEnvoiOs avant l'envoi (avec segmentMandat,
  * numerosDuMandat, decisionsAgEnVigueur et finDelaiContestationAg, échéance retenue par finDelaiContestationAg de
  * statut-assemblee.ts), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; enregistrerReception
@@ -2373,9 +2373,9 @@ export function preuveDeDiffusion(s: SortieOrdreService, evenement: EvenementDif
 // ─── Adaptateurs (branchements à faire plus tard) ─────────────────────────────────────────────
 
 /**
- * Élément du suivi « à faire » (famille et nature à ajouter à suivi-a-faire.ts, point 46), avec la liste de ce qui manque
- * (attendus) et l'état de la date de relance (relanceAFixer) ; aConfirmer reste faux : la relance est un réglage de
- * gestion, pas un repère juridique (ElementAFaire).
+ * Élément du suivi « à faire » (famille « demandes », nature « relance_os » de suivi-a-faire.ts, point 46), avec la liste
+ * de ce qui manque (attendus) et l'état de la date de relance (relanceAFixer) ; aConfirmer reste faux : la relance est
+ * un réglage de gestion, pas un repère juridique (ElementAFaire).
  */
 export type RelanceOsAFaire = Omit<ElementAFaire, 'famille' | 'nature'> & {
   famille: 'demandes'

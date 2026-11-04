@@ -82,6 +82,11 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  * l'absence de fiche (ni diligence au forfait, ni acte hors tarif, ni rémunération à soumettre au juge), et le solde
  * l'ignore (hors base, hors frais, hors écartés). L'élément créé à l'ouverture reste « Facturable » (🟢 tranche 42).
  *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J38 ; question 30 de la liste) :
+ * - J38 : l'élément d'honoraires créé à l'ouverture d'un sinistre compte 1 heure, comme Gestéam
+ *   (HEURES_A_L_OUVERTURE_SINISTRE) ; le temps passé se corrige ensuite (corrigerHeures). Choix actuel confirmé : il
+ *   n'est plus « à trancher », et creerElement continue de refuser une quantité nulle.
+ *
  * Questions ouvertes :
  * - 🔴 (Frédéric) En administration provisoire (art. 29-1), comment le cabinet chiffre-t-il les actes hors tarif de
  *   l'art. 14 de l'arrêté (sinistres, recouvrement, mutation, réunions d'information) : temps passé × un taux horaire du
@@ -95,9 +100,6 @@ import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
  * - 🔴 (Frédéric) Quelle base de rémunération le cabinet applique-t-il pour un AP désigné faute de syndic (art. 47), un
  *   administrateur ad hoc (art. 49) ou un syndic judiciaire (art. 46) : ce que fixe l'ordonnance ?
  * - 🔴 (Frédéric) Le cabinet gère-t-il dans VitFix des mandats de syndic conventionnels (seul cas où l'élément est créé) ?
- * - 🔴 (Hugo) Gestéam crée l'élément à l'ouverture pour 1 heure ; le contrat type dit « au prorata du temps passé ».
- *   Garder 1 heure par défaut (choix actuel), ou créer l'élément à 0 heure, à compléter (creerElement refuse aujourd'hui
- *   une quantité nulle) ?
  * - 🔴 (Frédéric ou Hugo) Quel arrondi pour taux horaire × durée ? Choix actuel : durée en minutes exactes, heures au
  *   centième (comme le « Nbre d'heure » Gestéam), montant arrondi au centime par totalElement.
  * - 🔴 (Frédéric) La déduction des sommes de l'assureur s'impute-t-elle sur le TTC (choix actuel) ou sur le HT ?
@@ -338,6 +340,9 @@ function verifierHorsContratType(code: DiligenceSinistre, tarif: string | undefi
   if (tarif !== undefined) verifierTarifCoherent(tarif, lue, diligence)
 }
 
+/** Durée de l'élément créé à l'ouverture d'un sinistre : 1 heure, comme Gestéam (🟢 tranche 42 ; décision J38). */
+export const HEURES_A_L_OUVERTURE_SINISTRE = 1
+
 export interface OuvertureSinistre {
   elementId: string
   sinistreId: string
@@ -356,7 +361,7 @@ export interface OuvertureSinistre {
   diligence?: DiligenceSinistre
   /** Par défaut : le tarif du catalogue pour la diligence. */
   tarif?: string
-  /** 🔵 Par défaut : 1 heure (Gestéam), à corriger ensuite (corrigerHeures). */
+  /** Par défaut : HEURES_A_L_OUVERTURE_SINISTRE (1 heure, J38), à corriger ensuite (corrigerHeures). */
   heures?: number
   /** 🟢 Par défaut : « Syndicat des copropriétaires ». */
   destinataire?: string
@@ -425,7 +430,7 @@ export function elementAOuvertureSinistre(ouverture: OuvertureSinistre, cadre: C
     nature: 'Prestations',
     tarif,
     calcul: 'Coût horaire',
-    quantite: ouverture.heures ?? 1,
+    quantite: ouverture.heures ?? HEURES_A_L_OUVERTURE_SINISTRE,
     prixUnitaireHtDixMilliemes: ouverture.coutHoraireHtDixMilliemes,
     soumisTva: ouverture.soumisTva,
     tauxTvaPct: ouverture.tauxTvaPct,

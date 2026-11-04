@@ -46,11 +46,30 @@ import {
  * - arrêté du 14 mars 2005, art. 7 et 8 : classe 5 = 50 Fonds placés, 512 Banques, 514, 53 Caisse ; ni 5115 ni 58
  *   « Virements internes » ; seuls ces comptes et leurs subdivisions sont utilisables ; art. 10 : le compte 105 « Fonds de
  *   travaux » est crédité des cotisations et débité par le 705 « Affectation du fonds de travaux ».
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30, J31 et J37 ; questions 21 à 23 de la liste) :
+ * - J30 : l'ordonnance de l'art. 29-14, 2° (autorisationJuge) se saisit en forme structurée : juridiction, date et n° de
+ *   l'ordonnance, chacun obligatoire, date jamais postérieure à aujourd'hui (fonds-travaux.ts, OrdonnanceJuge). La
+ *   décision d'affectation de l'assemblée (decisionAg) : date de l'AG et n° de la résolution (DecisionAffectationAg ;
+ *   🔵 à confirmer par Hugo). Une sortie du fonds dont la forme structurée est incomplète, ou datée après aujourd'hui,
+ *   est refusée, motif à l'appui. creerVirementInterne et creerLotVirementsInternes sont des saisies nouvelles : un
+ *   texte libre est refusé, motif « forme incomplète » à l'appui (contrôle d'affectation avec `nouvelleSaisie`) ; la
+ *   lecture d'une valeur enregistrée avant J30 reste celle de fonds-travaux.ts (lireOrdonnanceJuge,
+ *   lireDecisionAffectationAg ; formeIncomplete du contrôle). creerVirementInterne reçoit la date du jour
+ *   (`aujourdhui`), exigée dès qu'une forme structurée est contrôlée.
+ * - J31 : aucune avance de fonds au syndicat, ni par le syndic désigné en justice (D. 1967 art. 46), ni par
+ *   l'administrateur provisoire de l'art. 47. Le refus devient une décision : ce module n'enregistre aucune avance, et un
+ *   compte d'un autre syndicat (ou du cabinet) reste refusé.
+ * - J37 : le compte de l'administrateur provisoire est un compte à la Caisse des dépôts, pas un compte centralisateur du
+ *   cabinet (pratique du cabinet, comptes-bancaires.ts : MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE) ; le fonds de travaux y
+ *   reste sur un compte distinct (L. 1965 art. 18, II, al. 4) : nature « fonds_travaux », identifiant et 512 propres,
+ *   même sans IBAN (verifierPaire). D-BANQUE est inchangée : aucun mode n'est imposé.
+ *
  * 🔵 Déduit :
  * - un virement interne relie deux comptes ACTIFS, distincts, du MÊME syndicat (D1), sans tiers ; une avance de fonds du
  *   gestionnaire au syndicat (interdite au syndic par l'art. 18, II, dernier al., sauf au syndic provisoire et à
  *   l'administrateur provisoire désigné en application des art. 29-1 et 29-11) viendrait d'un tiers : ce n'est jamais un
- *   virement interne ; refusée ici, ce module n'en enregistre aucune (voir 🔴 pour les régimes des art. 46 et 47) ;
+ *   virement interne ; refusée ici, ce module n'en enregistre aucune (J31 pour les régimes des art. 46 et 47) ;
  * - rang : chaque virement porte son rang dans le lot (colonne « Or. ») et la taille de son lot (nombreOrdresDuLot,
  *   donnée VitFix : la fiche Gestéam ne montre que « Traitement n° + rang »), saisis ensemble (rang ≤ taille) ou
  *   attribués par creerLotVirementsInternes ; le lot est fermé comme un ordre de virement l'est par ses lignes, et
@@ -92,18 +111,17 @@ import {
  *   VitFix admet la sortie du fonds sous contrôle d'affectation ;
  * - Frédéric : le syndic peut-il prélever sur le fonds, sans assemblée, pour des travaux d'urgence (art. 14-2-1, I, 3°) ?
  *   VitFix : non (J4), D. 1967 art. 37 ne visant qu'une provision limitée au tiers du devis ;
- * - Hugo : la décision d'affectation (decisionAg : assemblée, ou ordonnance de l'art. 29-1 qui en confie le pouvoir) et
- *   l'ordonnance de l'art. 29-14, 2° (autorisationJuge) sont des textes libres, que VitFix ne lit pas : quelle forme en
- *   exiger (juridiction, date, n° de l'ordonnance) ?
- * - Hugo : le syndic désigné en justice (D. 1967 art. 46) est-il un « syndic provisoire » au sens de l'art. 18, II,
- *   dernier al. ? L'administrateur provisoire de l'art. 47, qui n'est pas désigné en application des art. 29-1 ou 29-11,
- *   peut-il avancer des fonds au syndicat ? Sans réponse, ce module n'enregistre aucune avance ;
+ * - Hugo (reste de J30) : en administration provisoire, l'ordonnance de l'art. 29-1 qui confie les pouvoirs de l'assemblée,
+ *   citée comme décision d'affectation (decisionAg), prend-elle la même forme que celle de l'art. 29-14, 2° (juridiction,
+ *   date, n°) ? J30 ne vise que l'ordonnance de l'art. 29-14, 2° et la décision de l'AG. Conséquence de la forme exigée
+ *   (decisionAg : date de l'AG et n° de la résolution, 🔵) : une nouvelle sortie du fonds ne peut plus la citer en texte
+ *   libre, refusé à la création ; seule une valeur enregistrée avant J30 reste lue et signalée « forme incomplète » ;
  * - Frédéric : un compte repris qui tenait le fonds de travaux se distingue-t-il dans Gestéam (tranche 29 : un seul
  *   libellé « Banque ancien AJ / ancien syndic ») ? VitFix le marque à la saisie du compte (tenaitFondsTravaux) ;
- * - Hugo : quels textes fondent le compte centralisateur du cabinet ou le dépôt à la Caisse des dépôts pour un
- *   administrateur provisoire (C. com., livre VIII, non lu) ? VitFix admet un sous-compte centralisateur et un compte à la
- *   Caisse des dépôts comme comptes du syndicat (D-BANQUE) ; quand le fonds est déposé à la Caisse des dépôts, y a-t-il
- *   un compte distinct pour lui ?
+ * - Hugo (reste de J37) : les textes qui fondent le dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire
+ *   restent à citer (C. com., livre VIII, non lu). Seul L. 1965 art. 29-3, V, lu sur Légifrance le 30/10/2026, vise les
+ *   sommes versées à la Caisse des dépôts et consignations par l'administrateur provisoire (aucune procédure d'exécution
+ *   n'y est recevable), sans en faire une obligation ;
  * - Hugo ou Frédéric : un virement du fonds vers un compte de placement est-il un emploi (décision d'affectation), un
  *   placement (art. 35-1) ou interdit, le compte du fonds étant déjà rémunéré ? Refusé ici ;
  * - Frédéric : Gestéam rattache-t-il le virement de banque à banque à un ordre de type « Ordre de virement », le syndicat
@@ -281,8 +299,17 @@ function verifierPaire(source: CompteVirementInterne, destination: CompteViremen
     throw new Error(`Compte ${destination.banqueId} repris de l'ancien gestionnaire : il se solde vers le compte du mandat puis se clôture, jamais alimenté.`)
 }
 
-/** Sortie du fonds de travaux : jamais vers un placement (🔴) ; sinon un emploi admis par le contrôle d'affectation. */
-function controlerSortieDuFonds(saisie: SaisieVirementInterne): { affectation: ResultatAffectation; emploi: EmploiFondsTravaux } {
+/** Copie d'une référence de l'emploi : une forme structurée (J30) n'est pas partagée avec la saisie. */
+const copieReference = <R>(reference: R): R => (typeof reference === 'object' && reference !== null ? { ...reference } : reference)
+
+/**
+ * Sortie du fonds de travaux : jamais vers un placement (🔴) ; sinon un emploi admis par le contrôle d'affectation, en
+ * saisie nouvelle (J30) : forme structurée contrôlée à la date du jour, texte libre refusé.
+ */
+function controlerSortieDuFonds(
+  saisie: SaisieVirementInterne,
+  aujourdhui: string | undefined,
+): { affectation: ResultatAffectation; emploi: EmploiFondsTravaux } {
   if (saisie.destination.nature === 'placement')
     throw new Error(
       `Fonds de travaux vers un compte de placement : refusé ; le fonds est déposé sur son compte séparé rémunéré (${FONDEMENT_FONDS_SEPARE}) et aucun texte lu n'en prévoit le placement ailleurs ; à trancher.`,
@@ -292,16 +319,20 @@ function controlerSortieDuFonds(saisie: SaisieVirementInterne): { affectation: R
     throw new Error(
       `Sortie du fonds de travaux : rattacher l'emploi du fonds, avec la décision d'affectation de l'assemblée (${FONDEMENT_AFFECTATION}) ou l'ordonnance du juge (${FONDEMENT_29_14}).`,
     )
-  const affectation = controlerAffectationFondsTravaux({ ...emploi, montantCentimes: saisie.montantCentimes })
+  const affectation = controlerAffectationFondsTravaux({ ...emploi, montantCentimes: saisie.montantCentimes }, { aujourdhui, nouvelleSaisie: true })
   if (!affectation.autorise) throw new Error(`Sortie du fonds de travaux refusée : ${affectation.motif} (${affectation.fondement})`)
-  return { affectation, emploi: { ...emploi } }
+  return {
+    affectation,
+    emploi: { ...emploi, decisionAg: copieReference(emploi.decisionAg), autorisationJuge: copieReference(emploi.autorisationJuge) },
+  }
 }
 
 function controlerFondsTravaux(
   saisie: SaisieVirementInterne,
   mouvement: MouvementFondsTravaux,
+  aujourdhui: string | undefined,
 ): { affectation: ResultatAffectation | null; emploi: EmploiFondsTravaux | null } {
-  if (mouvement === 'sortie') return controlerSortieDuFonds(saisie)
+  if (mouvement === 'sortie') return controlerSortieDuFonds(saisie, aujourdhui)
   if (saisie.emploiFondsTravaux)
     throw new Error(`Emploi du fonds de travaux rattaché à un virement qui ne sort pas du fonds (${mouvement}) : vérifier le sens du virement.`)
   return { affectation: null, emploi: null }
@@ -329,15 +360,19 @@ function controlerPlacement(saisie: SaisieVirementInterne): string | null {
  * syndicat, deux fois le même compte (identifiant, 512 ou IBAN), un compte repris en destination, la mention « tenait le
  * fonds de travaux » sur un compte non repris, une sortie du fonds de travaux (compte du fonds ou compte repris qui le
  * tenait) sans emploi admis ou vers un placement, un placement sans décision, un emploi ou une décision de placement sans
- * objet.
+ * objet, une décision ou une ordonnance saisie en texte libre (J30 : forme incomplète). `aujourdhui` : la date du jour,
+ * exigée pour contrôler une décision ou une ordonnance en forme structurée (J30).
  */
-export function creerVirementInterne(saisie: SaisieVirementInterne, { segmentSyndicat }: { segmentSyndicat: string }): VirementInterne {
+export function creerVirementInterne(
+  saisie: SaisieVirementInterne,
+  { segmentSyndicat, aujourdhui }: { segmentSyndicat: string; aujourdhui?: string },
+): VirementInterne {
   verifierEnTete(saisie)
   verifierCompte(saisie.source, 'source', saisie.coproprieteId, segmentSyndicat)
   verifierCompte(saisie.destination, 'destination', saisie.coproprieteId, segmentSyndicat)
   verifierPaire(saisie.source, saisie.destination)
   const mouvement = mouvementFondsTravaux(saisie.source, saisie.destination)
-  const { affectation, emploi } = controlerFondsTravaux(saisie, mouvement)
+  const { affectation, emploi } = controlerFondsTravaux(saisie, mouvement, aujourdhui)
   const decisionPlacement = controlerPlacement(saisie)
   return {
     id: saisie.id,
@@ -381,15 +416,17 @@ function verifierCompositionDuLot(elements: readonly { id: string; coproprieteId
 
 /**
  * Crée d'un coup les virements d'un lot, sous un même traitement : rang = position dans la saisie (1 à n), taille du lot
- * = n ; chaque virement est contrôlé par creerVirementInterne. Refuse un lot vide, un traitement absent, un virement en
- * double et des virements de plusieurs syndicats (D1).
+ * = n ; chaque virement est contrôlé par creerVirementInterne (avec `aujourdhui` pour une forme structurée, J30).
+ * Refuse un lot vide, un traitement absent, un virement en double et des virements de plusieurs syndicats (D1).
  */
 export function creerLotVirementsInternes(
   saisies: SaisieVirementDuLot[],
-  { traitementId, segmentSyndicat }: { traitementId: string; segmentSyndicat: string },
+  { traitementId, segmentSyndicat, aujourdhui }: { traitementId: string; segmentSyndicat: string; aujourdhui?: string },
 ): VirementInterne[] {
   verifierCompositionDuLot(saisies, traitementId)
-  return saisies.map((s, i) => creerVirementInterne({ ...s, traitementId, rang: i + 1, nombreOrdresDuLot: saisies.length }, { segmentSyndicat }))
+  return saisies.map((s, i) =>
+    creerVirementInterne({ ...s, traitementId, rang: i + 1, nombreOrdresDuLot: saisies.length }, { segmentSyndicat, aujourdhui }),
+  )
 }
 
 /**
