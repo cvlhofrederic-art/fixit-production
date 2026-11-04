@@ -118,7 +118,7 @@ export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier,
               <Section titre="Lots et tantièmes" icone="home">
                 <Tableau
                   entetes={['Lot', 'Occupation', 'Nature']}
-                  largeurs={[40, 26, 34]}
+                  largeurs={[36, 32, 32]}
                   lignes={fiche.lots.map((lot, index) => [
                     onOuvrirLot ? (
                       <LienFiche key={lot.lot} libelle={lot.lot} onClick={() => onOuvrirLot(coproprietaire, index)} />
