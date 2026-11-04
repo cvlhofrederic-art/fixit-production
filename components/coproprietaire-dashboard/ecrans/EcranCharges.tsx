@@ -10,7 +10,8 @@
 //
 // Le prochain appel est calculé ici (`prochainAppelCharges`), même règle que l'Accueil :
 // non annulé, reste > 0, trié par échéance ; en retard si le statut est en_retard ou si
-// l'échéance est passée. La date de référence est celle du dernier chargement (`miseAJourLe`).
+// l'échéance est passée ; en retard, « Ce que vous devez » donne la somme de tous les appels en retard (date du
+// plus ancien). Jour de référence : celui de l'espace (démonstration de l'AJ), sinon le dernier chargement (`miseAJourLe`).
 
 import { useId, useState } from 'react'
 import type { PropsEcran } from '@/components/coproprietaire-dashboard/contrat'
@@ -88,6 +89,8 @@ export interface ProchainAppel {
   appel: AppelDeCharges
   /** Statut en_retard, ou échéance strictement antérieure au jour de référence. */
   enRetard: boolean
+  /** Reste à payer de tous les appels en retard (0 si aucun) : ce que le copropriétaire doit déjà, pas seulement le plus ancien. */
+  montantEnRetard: number
 }
 
 /** Jour local AAAA-MM-JJ d'une date (comparaison au jour près, sans effet de fuseau). */
@@ -107,10 +110,14 @@ export function prochainAppelCharges(appels: readonly AppelDeCharges[], aujourdh
   if (ouverts.length === 0) return null
   const cle = (a: AppelDeCharges) => a.echeance.slice(0, 10) || '9999-12-31'
   const tries = [...ouverts].sort((a, b) => cle(a).localeCompare(cle(b)))
+  const jour = jourIso(aujourdhui)
+  const estEnRetard = (a: AppelDeCharges) => {
+    const echeance = a.echeance.slice(0, 10)
+    return a.statut === 'en_retard' || (echeance !== '' && echeance < jour)
+  }
   const appel = tries[0]
-  const echeance = appel.echeance.slice(0, 10)
-  const echeancePassee = echeance !== '' && echeance < jourIso(aujourdhui)
-  return { appel, enRetard: appel.statut === 'en_retard' || echeancePassee }
+  const montantEnRetard = Math.round(ouverts.filter(estEnRetard).reduce((total, a) => total + a.resteAPayer, 0) * 100) / 100
+  return { appel, enRetard: estEnRetard(appel), montantEnRetard }
 }
 
 // ── Outils d'affichage ───────────────────────────────────────────────────────
@@ -195,7 +202,7 @@ function CarteCeQueVousDevez({ prochain, du, retards, t, langue, tl }: {
 }) {
   const titre = t.charges.ceQueVousDevez
   const resume = prochain
-    ? { montant: prochain.appel.resteAPayer, date: prochain.appel.echeance, enRetard: prochain.enRetard, solde: false }
+    ? { montant: prochain.enRetard ? prochain.montantEnRetard : prochain.appel.resteAPayer, date: prochain.appel.echeance, enRetard: prochain.enRetard, solde: false }
     : du ? { montant: du.montant, date: du.date, enRetard: du.enRetard, solde: du.source === 'solde' } : null
   if (!resume) {
     return (
