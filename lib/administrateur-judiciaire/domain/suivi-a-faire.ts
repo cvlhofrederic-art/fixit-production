@@ -12,7 +12,9 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { EcheanceCalculee } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
+import type { TypeDemande } from '@/lib/administrateur-judiciaire/domain/demandes'
 import { estEcheanceAccomplieOuRevolue } from '@/lib/administrateur-judiciaire/domain/echeances-affichage'
+import { relancesOsDues } from '@/lib/administrateur-judiciaire/domain/envoi-ordre-service'
 import {
   echeancesEquipement,
   type FicheEquipement,
@@ -29,6 +31,15 @@ import type { Exercice } from '@/lib/administrateur-judiciaire/domain/exercices-
 import { echeanceReglement } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { echeancesDiagnostics, type Diagnostic } from '@/lib/administrateur-judiciaire/domain/immeuble-juridique'
+import {
+  alertesChargeEntreprises,
+  demandesUniques,
+  libelleChargeEntreprise,
+  libelleRelanceDemande,
+  relancesDemandesDues,
+  type DemandeSuivie,
+  type EntrepriseRelance,
+} from '@/lib/administrateur-judiciaire/domain/relance-demandes'
 import {
   etapeSuiviSinistre,
   phaseApresDeclaration,
@@ -48,9 +59,10 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * sans écran. Chaque module fournit ses éléments datés par un adaptateur `depuis…`, qui reprend la règle du module sans la
  * recalculer ; le collaborateur règle ce qu'il suit ; le résultat se range par jour de la semaine.
  *
- * Gestéam — onglet Réglage : un bloc par famille (Dem. interv., Courriers, Documents, Mémos, Étapes, Évènements, Agenda,
- * Tickets appel, Sinistres, Équipements, Travaux, Assemblées, Contrats, Contentieux, Baux…), un bouton « de mon
- * portefeuille », des critères à cocher, chacun avec un horizon (« Maintenant » ou un nombre et une unité) ; Copier /
+ * Gestéam — onglet Réglage : un bloc par famille (Dem. interv. et Demandes devis, réunis ici en famille « demandes »,
+ * Courriers, Documents, Mémos, Étapes, Évènements, Agenda, Tickets appel, Sinistres, Équipements, Travaux, Assemblées,
+ * Contrats, Contentieux, Baux…), un bouton « de mon portefeuille », des critères à cocher, chacun avec un horizon
+ * (« Maintenant » ou un nombre et une unité) ; Copier /
  * Coller d'un collaborateur à l'autre. Onglet Suivi : colonnes Avant · lundi … vendredi. Suivi des éléments en cours :
  * dossiers ouverts par collaborateur (responsable, comptable ou assistant du mandat, ou responsable de la fiche), en quatre
  * tranches d'ancienneté selon la périodicité (sur 30 jours, mensuelle, trimestre, année), sous-total par cabinet, total.
@@ -74,6 +86,12 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * automatique encore à faire remonte à sa date de relance, N jours après sa création (tranche 43 § 1), avec l'horizon et
  * la règle du week-end comme les autres natures ; N (JOURS_SUIVI_ETAPE_AUTOMATIQUE) est un réglage de GESTION du
  * cabinet, jamais un délai légal ; le critère Gestéam « Relance d'étape » en est rapproché sans certitude.
+ * 🔵 Demandes (point 46, relance-demandes.ts ; Gestéam tranche 38, blocs « Dem. interv. » et « Demandes devis », critère
+ * « À relancer » ; tranche 39, réglages de relance de l'entreprise par service) : relance d'une demande de devis ou
+ * d'intervention au délai de relance de l'entreprise ; date de relance saisie sur l'OS (relancesOsDues, point 44) ;
+ * demandes en cours au-delà du seuil d'alerte ou au maximum de l'entreprise. Délais et seuils : réglages de GESTION,
+ * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
+ * codé (🔴 date et demandes visées à préciser par Hugo).
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
  * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
@@ -84,6 +102,7 @@ export const FAMILLES_SUIVI = [
   'assemblees',
   'etapes',
   'taches',
+  'demandes',
   'travaux',
   'contrats',
   'factures',
@@ -101,6 +120,7 @@ export const NATURES_SUIVI = {
   assemblees: ['convocation_a_presenter', 'pv_a_signer'],
   etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
+  demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'],
   travaux: ['fonds_a_appeler'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
@@ -117,6 +137,7 @@ export const LIBELLES_FAMILLES_SUIVI: Record<FamilleSuivi, string> = {
   assemblees: 'Assemblées',
   etapes: 'Étapes',
   taches: 'Tâches',
+  demandes: 'Demandes (devis et interventions)',
   travaux: 'Travaux',
   contrats: 'Contrats',
   factures: 'Factures fournisseurs',
@@ -135,6 +156,10 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   a_valider: 'À valider',
   automatique_non_realisee: 'Étape automatique non réalisée',
   tache: 'Tâche',
+  devis_a_relancer: 'Demande de devis à relancer',
+  intervention_a_relancer: "Demande d'intervention à relancer",
+  relance_os: "Relance datée de l'ordre de service",
+  plafond_demandes: "Demandes en cours au-delà du seuil de l'entreprise",
   fonds_a_appeler: 'Fonds à appeler',
   limite_resiliation: 'Limite de résiliation',
   a_resilier: 'À résilier',
@@ -509,6 +534,49 @@ export function depuisTaches(taches: TacheSuivie[]): ElementAFaire[] {
       assigneId: tache.assigneId,
     })
   })
+}
+
+const NATURE_RELANCE_DEMANDE: Readonly<Record<TypeDemande, NatureSuivi>> = {
+  devis: 'devis_a_relancer',
+  intervention: 'intervention_a_relancer',
+}
+
+/**
+ * Demandes (point 46, relance-demandes.ts) : relance due d'une demande de devis ou d'intervention en cours qui attend
+ * l'entreprise, au délai de relance de sa fiche (service et type), émise même future (l'horizon s'y applique) et assignée
+ * au collaborateur du premier envoi ; date de relance saisie sur la sortie de l'OS (envoi-ordre-service.relancesOsDues) :
+ * elle seule compte, nature « relance_os » ; demandes en cours d'une entreprise au-delà de son seuil d'alerte ou à son
+ * maximum : un élément du cabinet (aucun mandat : visible au périmètre « cabinet »), daté du jour où le niveau a été
+ * franchi. Délais et seuils : règles de GESTION du cabinet, aucun texte (aConfirmer reste faux). Une demande vue
+ * plusieurs fois ne compte qu'une fois, quel que soit l'ordre : les mêmes occurrences (demandesUniques) servent aux trois
+ * calculs, relance datée de l'OS comprise.
+ */
+export function depuisDemandes(
+  items: readonly DemandeSuivie[],
+  entreprises: readonly EntrepriseRelance[],
+  aujourdhui: string,
+): ElementAFaire[] {
+  verifierDate(aujourdhui)
+  const uniques = demandesUniques(items)
+  const avecSortie = uniques.flatMap(({ demande, sortie }) => (sortie ? [{ demande, sortie }] : []))
+  const relances = relancesDemandesDues(uniques, entreprises, aujourdhui).map((r) =>
+    elementSuivi('demandes', NATURE_RELANCE_DEMANDE[r.type], `${NATURE_RELANCE_DEMANDE[r.type]}:${r.demandeId}`, {
+      libelle: libelleRelanceDemande(r),
+      date: r.date,
+      mandatId: r.mandatId,
+      objetId: r.demandeId,
+      assigneId: r.assigneId,
+    }),
+  )
+  const alertes = alertesChargeEntreprises(uniques, entreprises, aujourdhui).map((c) =>
+    elementSuivi('demandes', 'plafond_demandes', `plafond_demandes:${c.prestataireId}:${c.service}:${c.type}`, {
+      libelle: libelleChargeEntreprise(c),
+      date: c.depuisLe ?? aujourdhui,
+      mandatId: null,
+      objetId: c.prestataireId,
+    }),
+  )
+  return [...relancesOsDues(avecSortie), ...relances, ...alertes]
 }
 
 /**
