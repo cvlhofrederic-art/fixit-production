@@ -85,3 +85,19 @@ describe('échéance de règlement', () => {
     })
   })
 })
+
+describe('marque « non déductible » et contrat de la ligne (point 28)', () => {
+  it('reportés sur le débit quand la ligne les porte (attributs, liens) ; absents sinon', () => {
+    const t = ecritureFactureVentilee({
+      id: 't-1',
+      date: '2026-10-15',
+      segmentSyndicat: 'TILL',
+      auxiliaireFournisseur: 'PLOMB',
+      totalTtcCentimes: 48_000,
+      lignes: [ligne({ nonDeductible: true, contratId: 'ctr-9' }), ligne({ montantTtcCentimes: 18_000 })],
+    })
+    expect(t.mouvements[0]).toMatchObject({ attributs: { nonDeductible: true }, liens: { contratId: 'ctr-9' } })
+    expect(t.mouvements[1].attributs).not.toHaveProperty('nonDeductible')
+    expect(t.mouvements[1]).not.toHaveProperty('liens')
+  })
+})

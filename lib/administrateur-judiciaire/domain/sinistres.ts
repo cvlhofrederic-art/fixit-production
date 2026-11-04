@@ -115,6 +115,26 @@ export function etapeSuiviSinistre(sinistre: FicheSinistre): EtapeSuiviSinistre 
   return 'a_declarer'
 }
 
+/**
+ * Phases Gestéam saisies qui suivent la déclaration à l'assureur. 🔵 Déduit de la chaîne « déclaration → expertise →
+ * relances → indemnités » portée par la phase (tranche 20) ; « Accusé réception » : accusé de l'assureur, 🔴 à confirmer
+ * (le type de document « Accusé réception de sinistre » figure dans la catégorie Assurances, tranche 18, mais aussi dans
+ * la catégorie Copropriétaire, tranche 43 § 19, et la liste des phases le place avant « Déclaration »). « Général »
+ * (valeur initiale), « Déclaration » (l'étape elle-même) et « Dommages Ouvrages » (un régime, pas une étape) n'en
+ * disent rien. Axe saisi, distinct de etapeSuiviSinistre (dates) : il ne la remplace pas.
+ */
+export const PHASES_APRES_DECLARATION: readonly PhaseSinistre[] = [
+  'Accusé réception',
+  "Mission d'expertise",
+  'Relances',
+  'Complément de document',
+  'Indemnités',
+]
+
+/** Phase saisie qui suit la déclaration (PHASES_APRES_DECLARATION), sinon null. */
+export const phaseApresDeclaration = (sinistre: FicheSinistre): PhaseSinistre | null =>
+  sinistre.phase !== null && PHASES_APRES_DECLARATION.includes(sinistre.phase) ? sinistre.phase : null
+
 /** Statut Gestéam (STATUT_SINISTRE) : « Terminé » dès que la clôture est datée. */
 export const statutSinistre = (sinistre: FicheSinistre): StatutSinistre => (sinistre.dateCloture ? 'Terminé' : 'En cours')
 
