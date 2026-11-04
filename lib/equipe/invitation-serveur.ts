@@ -47,9 +47,14 @@ export interface ResultatAcceptation {
 
 const INVALIDE: LectureInvitation = { ok: false, status: 404, error: 'Invitation invalide ou expirée' }
 
-/** E-mail affiché sur la page d'invitation : deux premiers caractères, puis le domaine. */
+/**
+ * E-mail affiché sur la page d'invitation : deux premiers caractères, puis le domaine (depuis le dernier @).
+ * Moins de deux caractères avant le @ : e-mail inchangé.
+ */
 export function masquerEmail(email: string | null | undefined): string {
-  return email ? email.replace(/^(.{2})(.*)(@.*)$/, '$1***$3') : ''
+  if (!email) return ''
+  const arobase = email.lastIndexOf('@')
+  return arobase >= 2 ? `${email.slice(0, 2)}***${email.slice(arobase)}` : email
 }
 
 /** Envoie l'e-mail d'invitation ; faux si l'envoi a échoué (déjà journalisé). */
@@ -104,11 +109,13 @@ async function rattacherCompteExistant(
   // Recherche paginée, pour ne pas charger tous les comptes en mémoire
   let existant: { id: string } | null = null
   const parPage = 100
-  for (let page = 1; !existant; page++) {
+  let page = 1
+  while (!existant) {
     const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: parPage })
     if (error || !users || users.length === 0) break
     existant = users.find(u => u.email === email) || null
     if (users.length < parPage) break // dernière page
+    page++
   }
   if (!existant) return { statut: 'introuvable' }
 

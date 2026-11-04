@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { nouvelleBase, clientMemoire, appelsDe, type BaseMemoire } from './syndic-supabase-memoire'
 import { jetonDuLien, lireJetonDuLien, signatureValide, type EspaceEquipe } from '@/lib/equipe/lien-invitation'
+import { masquerEmail } from '@/lib/equipe/invitation-serveur'
 
 const h = vi.hoisted(() => ({
   espace: 'pro' as 'pro' | 'syndic',
@@ -301,5 +302,26 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
         expect(misesAJour()).toHaveLength(0)
       })
     })
+  })
+})
+
+describe('masquerEmail', () => {
+  // Mêmes résultats que l'ancien masquage par expression régulière, vérifiés cas par cas.
+  it.each([
+    ['claire@exemple.fr', 'cl***@exemple.fr'],
+    ['ab@x.fr', 'ab***@x.fr'],
+    ['a@b.fr', 'a@b.fr'],
+    ['a@b@c.fr', 'a@***@c.fr'],
+    ['pr.nom+tag@sous.domaine.pt', 'pr***@sous.domaine.pt'],
+    ['sansarobase', 'sansarobase'],
+    ['@x.fr', '@x.fr'],
+  ])('%s → %s', (email, attendu) => {
+    expect(masquerEmail(email)).toBe(attendu)
+  })
+
+  it('vide ou absent : chaîne vide', () => {
+    expect(masquerEmail('')).toBe('')
+    expect(masquerEmail(null)).toBe('')
+    expect(masquerEmail(undefined)).toBe('')
   })
 })

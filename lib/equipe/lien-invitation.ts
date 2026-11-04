@@ -59,7 +59,7 @@ const enHex = (octets: ArrayBuffer) => Array.from(new Uint8Array(octets), (o) =>
 
 function depuisHex(hex: string) {
   const octets = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < octets.length; i++) octets[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  for (let i = 0; i < octets.length; i++) octets[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16)
   return octets
 }
 
