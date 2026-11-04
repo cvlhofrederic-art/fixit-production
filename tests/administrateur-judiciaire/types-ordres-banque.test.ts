@@ -292,8 +292,13 @@ describe('ordres constatés (les six autres types)', () => {
     expect(creerOrdreConstate(constat()).numeroPiece).toBeNull()
   })
 
-  it('🔴 remise d’espèces refusée (compte 53 non tenu) ; virement CAF à confirmer', () => {
+  it('J29 : remise d’espèces refusée par décision (compte 53 non tenu, aucun paiement en espèces) ; virement CAF à confirmer', () => {
     expect(() => creerOrdreConstate(constat({ type: "Remise d'espèces", tiers: null }))).toThrow(/53/)
+    const especes = TYPES_ORDRE_BANQUE["Remise d'espèces"]
+    expect(especes.priseEnCharge).toBe('refuse')
+    expect(especes.motif).toMatch(/décision du cabinet/)
+    expect(especes.motif).toMatch(/aucun paiement en espèces/)
+    expect(especes.motif).not.toMatch(/à trancher/)
     expect(() => creerOrdreConstate(constat({ type: 'Virement CAF' }))).toThrow(/confirmer/)
   })
 
@@ -346,9 +351,21 @@ describe('en-tête : sources et marqueurs', () => {
     for (const marqueur of ['🟢', '🔵', '🔴']) expect(entete).toContain(marqueur)
   })
 
-  it('🔴 pose les questions des types non établis', () => {
+  it('🔴 pose les questions des types non établis ; la remise d’espèces n’en fait plus partie', () => {
     const nonEtabli = entete.slice(entete.indexOf('🔴'))
-    for (const type of ['Prélèvement émis', 'TIP encaissé', 'Virement CAF', "Remise d'espèces"]) expect(nonEtabli).toContain(type)
+    for (const type of ['Prélèvement émis', 'TIP encaissé', 'Virement CAF']) expect(nonEtabli).toContain(type)
+    expect(nonEtabli).not.toContain("Remise d'espèces")
+  })
+
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : J29, remise d’espèces refusée (compte 53 non tenu, J25)', () => {
+    const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit'))
+    expect(decisions).toMatch(/J29/)
+    expect(decisions).toContain("Remise d'espèces")
+    expect(decisions).toMatch(/compte 53/)
+    expect(decisions).toMatch(/J25/)
+    // Le contrôle des mouvements en espèces de l'AJ (arrêté du 16 août 1999), lu, reste cité en contexte.
+    expect(decisions).toMatch(/arrêté du 16 août 1999, annexe, 1re partie, II, 2, D/)
+    expect(decisions).toMatch(/reglements-fournisseurs\.ts/)
   })
 
   it('🔴 pose la question du n° d’un chèque émis avant l’émission (série de chèques Gestéam, tranche 29)', () => {

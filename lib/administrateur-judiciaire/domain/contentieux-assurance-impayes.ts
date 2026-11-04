@@ -39,6 +39,12 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  *   notification ou s'il en a pris acte ; invocable par lui dès qu'il en a connaissance ; opposable aux tiers dès le
  *   paiement).
  *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J32 ; question 24 de la liste) :
+ * - J32 : le bouton « Historique » du bloc Assurance (tranche 42, non ouvert) trace l'historique du dossier de
+ *   contentieux. Le domaine n'expose aucun historique du dossier de contentieux : le contentieux n'est pas persisté, et
+ *   fiches-liees.ts ne donne que le Flux des fiches rattachées (point 47), pas les changements du dossier. Rien n'est
+ *   relié ici et aucun écran n'est créé : branchement à faire avec la table des contentieux.
+ *
  * 🔵 Déduit :
  * - la garantie impayés se déclare comme un sinistre « Charges Impayées » ou « Loyers Impayés » : le contentieux porte la
  *   couverture, la date de déclaration et le lien `sinistreId` ; les indemnités se LISENT sur le sinistre
@@ -65,7 +71,6 @@ import type { TypeContentieux, TypeSinistre } from '@/lib/data/referentiels-gest
  *    « Assurance loyer impayé », garantie de la multirisque) à relier, ou est-elle saisie librement ? Sous administration
  *    provisoire, la souscription d'une police au nom du syndicat suit-elle la mission de l'ordonnance (loi art. 29-1, I,
  *    al. 2 ; contrat type de syndic, prestation V-16° : vote de l'AG) ?
- * 4. (Hugo) Que trace le bouton « Historique » du bloc Assurance ?
  */
 
 /** Types de sinistre de la garantie impayés (référentiel Gestéam TYPE_SINISTRE). */

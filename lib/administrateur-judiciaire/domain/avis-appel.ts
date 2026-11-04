@@ -4,6 +4,7 @@ import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/li
 import {
   controlerAffectationFondsTravaux,
   controlerSeuilFondsTravaux,
+  type DecaissementFondsTravaux,
   type ObjetDecaissementFondsTravaux,
   type ReglagesFondsTravaux,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
@@ -128,6 +129,17 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  * - D. 1967 art. 62-9 : l'appelant porte la décision de l'administrateur provisoire sur l'échéance dont l'appel accompagne la
  *   copie (premier appel consécutif à la décision) ; le circuit Courrier ne joint pas encore de pièce : avertissement.
  *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, 🔵 à confirmer) et l'ordonnance de l'art.
+ *   29-14, 2° (juridiction, date, n°) de l'emploi du fonds (EmploiFondsEcheance.affectation) se reçoivent en forme
+ *   structurée, aux types de DecaissementFondsTravaux (fonds-travaux.ts), ou en texte libre d'avant J30. Elles se
+ *   contrôlent comme des valeurs enregistrées, `aujourdhui: null` : forme contrôlée, date non comparée au jour, jamais
+ *   d'erreur levée pour l'avoir omise. Un refus (forme structurée incomplète comprise) reste bloquant ; un texte libre
+ *   d'avant J30 reste admis, signalé par une anomalie non bloquante (emploi_fonds_forme_incomplete, avertissement), à
+ *   compléter. travaux-operations.ts, hors de ce lot, fournit encore ces références en texte libre (il convertit même
+ *   la résolution de l'opération en texte) : chaque emploi d'une opération porte ce signalement jusqu'à ce que sa
+ *   saisie passe à la forme structurée, que l'avis reçoit déjà.
+ *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - pré-notification de 14 jours calendaires, séquence FRST facultative depuis 2016, caducité d'un mandat inutilisé
  *   36 mois : règles du recueil EPC SDD Core 2025 (§ 4.3 et PT-04.02 ; historique des versions, v9.3 de 2016 ; § 4.2),
@@ -209,11 +221,18 @@ export interface ReglementCompte {
   mandat?: MandatPrelevement | null
 }
 
-/** Plafond d'emploi du fonds de travaux sur une échéance de travaux, et la décision qui affecte le fonds. */
+/**
+ * Plafond d'emploi du fonds de travaux sur une échéance de travaux, et la décision qui affecte le fonds : décision d'AG
+ * et ordonnance du juge aux types de DecaissementFondsTravaux (J30 : forme structurée, ou texte libre d'avant J30).
+ */
 export interface EmploiFondsEcheance {
   echeanceId: string
   plafondCentimes: number
-  affectation: { objet: ObjetDecaissementFondsTravaux; decisionAg?: string | null; autorisationJuge?: string | null }
+  affectation: {
+    objet: ObjetDecaissementFondsTravaux
+    decisionAg?: DecaissementFondsTravaux['decisionAg']
+    autorisationJuge?: DecaissementFondsTravaux['autorisationJuge']
+  }
 }
 
 export interface EmploiFondsCompte {
@@ -311,6 +330,7 @@ export type CodeAnomalieAvis =
   | 'mode_non_pris_en_charge'
   | 'reglement_attendu'
   | 'emploi_fonds_non_autorise'
+  | 'emploi_fonds_forme_incomplete'
   | 'emploi_superieur_au_fonds'
   | 'sous_montant_bloque'
   | 'cotisation_a_virer'
@@ -567,17 +587,28 @@ function compteDuLot(avis: AvisAppels, echeanceId: string, lotId: string): strin
   return compte.compteId
 }
 
-/** Contrôle J4 de l'affectation (fonds-travaux.ts) ; un refus devient une anomalie bloquante de l'avis. */
-function controlerEmploi(emploi: EmploiFondsEcheance, echeance: EcheanceAppel): AnomalieAvis | null {
+/**
+ * Contrôle J4 de l'affectation (fonds-travaux.ts) d'une valeur enregistrée (J30 : `aujourdhui: null`, la date d'une
+ * décision ou d'une ordonnance structurée n'est pas comparée au jour) : un refus devient une anomalie bloquante de
+ * l'avis ; une décision ou une ordonnance admise mais en texte libre d'avant J30, un avertissement « forme
+ * incomplète ».
+ */
+function controlerEmploi(emploi: EmploiFondsEcheance, echeance: EcheanceAppel): AnomalieAvis[] {
   if (echeance.nature !== 'travaux')
     throw new Error(`Emploi du fonds de travaux sur « ${echeance.id} » : seule une échéance de travaux peut l'employer (L. 1965 art. 14-2-1, I).`)
-  const controle = controlerAffectationFondsTravaux({
-    objet: emploi.affectation.objet,
-    montantCentimes: emploi.plafondCentimes,
-    decisionAg: emploi.affectation.decisionAg ?? null,
-    autorisationJuge: emploi.affectation.autorisationJuge ?? null,
-  })
-  return controle.autorise ? null : anomalie('emploi_fonds_non_autorise', 'bloquant', `${echeance.libelle} : ${controle.motif}`, controle.fondement)
+  const controle = controlerAffectationFondsTravaux(
+    {
+      objet: emploi.affectation.objet,
+      montantCentimes: emploi.plafondCentimes,
+      decisionAg: emploi.affectation.decisionAg ?? null,
+      autorisationJuge: emploi.affectation.autorisationJuge ?? null,
+    },
+    { aujourdhui: null },
+  )
+  if (!controle.autorise) return [anomalie('emploi_fonds_non_autorise', 'bloquant', `${echeance.libelle} : ${controle.motif}`, controle.fondement)]
+  if (controle.formeIncomplete)
+    return [anomalie('emploi_fonds_forme_incomplete', 'avertissement', `${echeance.libelle} : ${controle.formeIncomplete.message}`, controle.fondement)]
+  return []
 }
 
 /** Plafond réparti sur la clé de la dépense (art. 14-2-1, I, al. 7), rattaché aux comptes par les lignes de l'avis. */
@@ -616,8 +647,7 @@ function ventilerEmploisFonds(
     if (vus.has(emploi.echeanceId)) throw new Error(`Emploi du fonds de travaux en double sur l'échéance « ${emploi.echeanceId} ».`)
     vus.add(emploi.echeanceId)
     const echeance = echeanceDe(echeances, emploi.echeanceId)
-    const refus = controlerEmploi(emploi, echeance)
-    if (refus) anomalies.push(refus)
+    anomalies.push(...controlerEmploi(emploi, echeance))
     totalCentimes += emploi.plafondCentimes
     for (const { compteId, emploi: part } of ventilerUnEmploi(avis, echeance, emploi.plafondCentimes, options.cles))
       parCompte.set(compteId, [...(parCompte.get(compteId) ?? []), part])

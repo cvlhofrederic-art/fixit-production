@@ -11,6 +11,7 @@ import {
   DILIGENCES_SINISTRE_AU_FORFAIT,
   DILIGENCES_SINISTRE_HORS_FORFAIT,
   FONDEMENTS_HONORAIRES_SINISTRE,
+  HEURES_A_L_OUVERTURE_SINISTRE,
   NATURES_REMUNERATION_SINISTRE,
   NATURES_REPROGRAPHIE_SINISTRE,
   SEUIL_LOTS_REMUNERATION_PAR_LE_JUGE,
@@ -246,6 +247,18 @@ describe('honoraires de sinistre — élément créé à l’ouverture (contrat 
     expect(() => elementAOuvertureSinistre(ouverture({ sinistreId: '  ' }), 'contrat_type_syndic')).toThrow(/identifiant/i)
     expect(() => elementAOuvertureSinistre(ouverture(), 'forfait' as never)).toThrow(/cadre/i)
     expect(() => elementAOuvertureSinistre(ouverture({ diligence: 'expertise' as never }), 'contrat_type_syndic')).toThrow(/inconnue/i)
+  })
+
+  it('J38 : l’élément s’ouvre à 1 heure, comme Gestéam (choix confirmé), puis se corrige', () => {
+    expect(HEURES_A_L_OUVERTURE_SINISTRE).toBe(1)
+    const element = genere(elementAOuvertureSinistre(ouverture(), 'contrat_type_syndic'))
+    expect(element.quantite).toBe(HEURES_A_L_OUVERTURE_SINISTRE)
+    expect(corrigerHeures(element, 1.75).quantite).toBe(1.75)
+    const { texte } = enTeteDuModule('honoraires-sinistre')
+    const decisions = texte.slice(texte.indexOf('Décisions de Hugo du 03/11/2026'), texte.indexOf('Questions ouvertes'))
+    expect(decisions).toMatch(/J38/)
+    expect(decisions).toMatch(/1 heure/)
+    expect(texte).not.toMatch(/Garder 1 heure par défaut \(choix actuel\), ou créer l'élément à 0 heure/)
   })
 
   it('les contrôles de l’élément restent ceux de creerElement (date, durée, taux)', () => {

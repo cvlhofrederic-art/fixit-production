@@ -240,4 +240,12 @@ describe('assurance impayés — en-tête : lecture des textes', () => {
     expect(source).not.toMatch(/assureur de biens/)
     expect(source).toMatch(/assurances de dommages/)
   })
+
+  it('J32 : le bouton « Historique » trace l’historique du dossier de contentieux ; aucun historique dans le domaine, dit sans écran', () => {
+    const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('🔵 Déduit'))
+    expect(decisions).toMatch(/J32/)
+    expect(decisions).toMatch(/historique du dossier de contentieux/)
+    expect(decisions).toMatch(/aucun historique du dossier de contentieux/)
+    expect(source).not.toMatch(/Que trace le bouton « Historique »/)
+  })
 })

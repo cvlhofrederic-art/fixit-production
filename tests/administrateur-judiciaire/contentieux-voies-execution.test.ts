@@ -5,6 +5,7 @@ import {
   GARANTIE_ENCHERE_MINIMUM_CENTIMES,
   SAISIES_EXECUTION,
   SANS_VOIES_EXECUTION,
+  controlerAutorisationActionEnJustice,
   controlerAutorisationSaisieVente,
   controlerDatesVoiesExecution,
   creerDecisionContentieux,
@@ -168,11 +169,21 @@ describe('voies d’exécution — création et normalisation', () => {
     expect(v.venteLot).toEqual({ miseAPrixCentimes: 5_000_000, sommesEstimeesPerduesCentimes: null })
   })
 
-  it('conserve la case « Échéancier » sans effet ; refuse une valeur qui n’est pas oui ou non', () => {
+  it('J33 : la case « Échéancier » (délais de grâce du juge) n’est pas une mesure d’exécution ; refuse une valeur qui n’est pas oui ou non', () => {
     const v = voies({ caseEcheancier: true })
     expect(v.caseEcheancier).toBe(true)
     expect(executionEngagee(v)).toBe(false)
     expect(() => creerVoiesExecution({ caseEcheancier: 'oui' as unknown as boolean })).toThrow(/Échéancier/)
+  })
+
+  it('🔵 J35 : la mise à prix se saisit sans que la case Saisie immobilière soit cochée, sans refus ni anomalie', () => {
+    const v = voies({ venteLot: { miseAPrixCentimes: 5_000_000 } })
+    expect(v.saisieImmobiliere).toBeNull()
+    expect(v.venteLot).toEqual({ miseAPrixCentimes: 5_000_000, sommesEstimeesPerduesCentimes: null })
+    const dossier = creerDossierContentieux(saisie({ voiesExecution: v }))
+    expect(dossier.voiesExecution?.venteLot?.miseAPrixCentimes).toBe(5_000_000)
+    expect(controlerAutorisationSaisieVente(dossier).cause).toBe('non_requise')
+    expect(controlerDatesVoiesExecution(dossier, AUJOURDHUI)).toEqual([])
   })
 
   it('décision liée : identifiants rognés ; chaîne vide ou origine inconnue refusées', () => {
@@ -448,6 +459,95 @@ describe('voies d’exécution — contrôle de fond de l’autorisation de la s
   })
 })
 
+/**
+ * Décision J35 de Hugo (03/11/2026), 🔵 interprétation à confirmer : l'Assemblée et la Résolution du dossier autorisent
+ * aussi une action en justice hors recouvrement (D. 1967 art. 55, al. 1). Le recouvrement de créance n'en demande pas
+ * (al. 3).
+ */
+describe('🔵 J35 — autorisation d’une action en justice hors recouvrement (D. 1967 art. 55, al. 1)', () => {
+  const action = (type: SaisieContentieux['type'], decision: SourceDecisionContentieux | null = DECISION_AG) => ({
+    coproprieteId: 'copro-1',
+    type,
+    decision,
+  })
+
+  it('recouvrement de charges : aucune autorisation requise (al. 3)', () => {
+    const r = controlerAutorisationActionEnJustice(action('Recouvrement de charges/loyer', null))
+    expect(r).toMatchObject({ autorise: true, cause: 'non_requise', aConfirmer: false, fondement: 'D. 1967 art. 55, al. 3' })
+  })
+
+  it('hors recouvrement, la résolution adoptée du dossier autorise l’action : admise, à confirmer, avec ses rappels', () => {
+    for (const type of ['Garantie décennale', 'Litige entreprise', 'Litige Personne', 'Litige sur un bail', 'Litige autre syndicat'] as const) {
+      const r = controlerAutorisationActionEnJustice(action(type), CONTEXTE_AG)
+      expect(r).toMatchObject({ autorise: true, cause: 'admise', aConfirmer: true, fondement: 'D. 1967 art. 55, al. 1' })
+      expect(r.motif).toMatch(/Action en justice autorisée par la résolution n° 7, adoptée/)
+      expect(r.rappels.join(' ')).toMatch(/prochaine assemblée générale des actions introduites \(D\. 1967 art\. 55, al\. 4\)/)
+      expect(r.rappels.join(' ')).toMatch(/antériorité de la décision à l'introduction de l'action n'est pas contrôlée/)
+    }
+  })
+
+  it('hors recouvrement, sans décision liée : non autorisée, à vérifier, avec toutes les dispenses de l’al. 3 en vigueur', () => {
+    const r = controlerAutorisationActionEnJustice(action('Garantie décennale', null))
+    expect(r).toMatchObject({ autorise: false, cause: 'decision_manquante', aConfirmer: true, fondement: 'D. 1967 art. 55, al. 1 et 3' })
+    expect(r.motif).toMatch(/autorisé par une décision de l'assemblée générale/)
+    // Al. 3 en vigueur depuis le 25/12/2025 (D. 2025-1292, art. 12), lu sur Légifrance le 30/10/2026.
+    for (const dispense of [
+      'les actions en recouvrement de créance',
+      "la mise en œuvre des voies d'exécution forcée, à l'exception de la saisie en vue de la vente d'un lot",
+      'les mesures conservatoires',
+      "l'opposition aux travaux permettant la recharge normale des véhicules électriques (CCH art. R. 113-8)",
+      'les demandes qui relèvent des pouvoirs du juge des référés',
+      'la défense aux actions intentées contre le syndicat',
+      'la saisine du président du tribunal judiciaire en application des premiers alinéas des art. 29-1 A et 29-1 de la loi du 10 juillet 1965 ou du premier alinéa de CCH art. L. 615-6',
+    ])
+      expect(r.motif).toContain(dispense)
+    expect(r.motif).toMatch(/à vérifier/)
+  })
+
+  it('🔵 contestation d’assemblée : le syndicat défend à l’action des copropriétaires (L. 1965 art. 42, al. 2), sans autorisation (al. 3)', () => {
+    for (const decision of [null, DECISION_AG]) {
+      const contexte = decision === null ? {} : CONTEXTE_AG
+      const r = controlerAutorisationActionEnJustice(action("Contestation d'assemblée", decision), contexte)
+      expect(r).toMatchObject({ autorise: true, cause: 'non_requise', aConfirmer: true, fondement: 'D. 1967 art. 55, al. 3 ; L. 1965 art. 42, al. 2' })
+      expect(r.motif).toMatch(/copropriétaires opposants ou défaillants/)
+      expect(r.motif).toMatch(/défendre aux actions intentées contre le syndicat/)
+      expect(r.motif).not.toMatch(/Action en justice autorisée par la résolution/)
+    }
+  })
+
+  it('hors recouvrement : résolution à rattacher, d’une autre copropriété ou non adoptée', () => {
+    expect(controlerAutorisationActionEnJustice(action('Litige entreprise'))).toMatchObject({ autorise: false, cause: 'resolution_a_rattacher' })
+    expect(
+      controlerAutorisationActionEnJustice(action('Litige entreprise'), { ...CONTEXTE_AG, assemblee: assemblee({ coproprieteId: 'copro-2' }) }),
+    ).toMatchObject({ autorise: false, cause: 'assemblee_autre_copropriete' })
+    const rejetee = controlerAutorisationActionEnJustice(action('Litige entreprise'), { ...CONTEXTE_AG, resolution: resolution({ etat: 'rejetee' }) })
+    expect(rejetee).toMatchObject({ autorise: false, cause: 'resolution_non_adoptee' })
+    expect(rejetee.motif).toMatch(/^Action en justice : la résolution n° 7 est rejetée/)
+  })
+
+  it('hors recouvrement, sous administrateur provisoire de l’art. 29-1 : mêmes règles des pouvoirs que pour la saisie', () => {
+    const sousAp = { ...CONTEXTE_AG, regime: 'ap291', pouvoirsAgConfies: 'tous' } as const
+    const dessaisie = controlerAutorisationActionEnJustice(action('Litige entreprise'), sousAp)
+    expect(dessaisie).toMatchObject({ autorise: false, cause: 'pouvoir_ag_confie_a_l_administrateur' })
+    expect(dessaisie.motif).toMatch(/l'autorisation d'agir en justice revient à l'administrateur provisoire/)
+    const parAp = controlerAutorisationActionEnJustice(action('Litige entreprise', DECISION_AP), { regime: 'ap291', pouvoirsAgConfies: 'tous' })
+    expect(parAp).toMatchObject({ autorise: true, cause: 'admise', aConfirmer: true })
+    expect(parAp.rappels.join(' ')).toMatch(/D\. 1967 art\. 62-7, al\. 1/)
+  })
+
+  it('une résolution ou une assemblée qui ne sont pas celles du dossier : erreur d’appel', () => {
+    expect(() =>
+      controlerAutorisationActionEnJustice(action('Litige entreprise'), { ...CONTEXTE_AG, resolution: resolution({ id: 'res-8' }) }),
+    ).toThrow(/n'est pas celle du dossier/)
+  })
+
+  it('la saisie en vue de la vente garde son propre contrôle, motif inchangé', () => {
+    expect(controlerAutorisationSaisieVente(dossierVente(), { ...CONTEXTE_AG, resolution: resolution({ etat: 'rejetee' }) }).motif).toMatch(
+      /^Saisie immobilière : la résolution n° 7 est rejetée/,
+    )
+  })
+})
+
 describe('voies d’exécution — engager la saisie immobilière', () => {
   const preparee = () => dossierVente({})
 
@@ -684,6 +784,27 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).toMatch(/majorité de l'art\. 24 \(règle par défaut, L\. 1965 art\. 24, I/)
     expect(source).toMatch(/L'administrateur provisoire de l'art\. 29-1 investi des pouvoirs de l'AG/)
     expect(source).toMatch(/égales à 0 € sont-elles admises/)
+  })
+
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33, J35 et J36 inscrites, 🔵 à confirmer ; questions 3 et 5 fermées', () => {
+    const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('🔵 Déduit :'))
+    expect(decisions).toMatch(/J33/)
+    expect(decisions).toMatch(/C\. civ\. art\. 1343-5/)
+    expect(decisions).toMatch(/J35 \(🔵 interprétation à confirmer\)/)
+    expect(decisions).toMatch(/controlerAutorisationActionEnJustice/)
+    expect(decisions).toMatch(/D\. 2025-1292, art\. 12/)
+    expect(decisions).toMatch(/recharge normale des véhicules électriques \(CCH art\. R\. 113-8\)/)
+    expect(decisions).toMatch(/29-1 A et 29-1 de la loi du 10 juillet 1965 ou du premier alinéa de CCH art\. L\. 615-6/)
+    expect(source).not.toMatch(/04\/11\/2026/)
+    expect(decisions).toMatch(/Contestation d'assemblée.*L\. 1965 art\. 42, al\. 2/)
+    expect(decisions).not.toMatch(/les mesures conservatoires, les demandes qui relèvent des pouvoirs du juge des référés et la défense aux actions intentées contre le syndicat n'en demandent pas \(al\. 3\), ce que/)
+    expect(decisions).toMatch(/J36 \(🔵 interprétation à confirmer\)/)
+    expect(decisions).toMatch(/audience d'orientation \(CPCE R\. 322-15\)/)
+    expect(decisions).toMatch(/commandement de payer valant saisie \(CPCE R\. 321-1\)/)
+    const nonEtabli = source.slice(source.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/se saisit-elle sans que la case Saisie/)
+    expect(nonEtabli).not.toMatch(/dates fixées à l'avance ou constats/)
+    expect(source).not.toMatch(/case « Échéancier » est conservée sans effet/)
   })
 
   it('cite l’art. 62-7 (avis du conseil syndical, mode de financement) et le titre exécutoire de la saisie immobilière', () => {

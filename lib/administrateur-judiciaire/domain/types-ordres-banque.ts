@@ -26,6 +26,14 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  * 🟢 Lu (Gestéam) : les dix types et leur ordre ; un ordre est UNE LIGNE d'un lot, numérotée par son rang dans le
  *   traitement qui l'a produit, avec ses pièces ; il passe d'« Enregistré » à « Émis » quand le fichier part ; le virement
  *   de banque à banque est un traitement distinct (virement-interne.ts).
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J29 ; question 20 de la liste) :
+ * - J29 : la « Remise d'espèces » reçues est refusée. Le compte 53 « Caisse » (arrêté du 14 mars 2005, art. 7) n'est pas
+ *   tenu et aucun paiement ne se fait en espèces (J25 : ni salaires ni fournisseurs). Le refus (prise en charge
+ *   « refuse ») devient une décision du cabinet, et non plus un choix provisoire de VitFix : la question est fermée. Le
+ *   motif ne renvoie plus au contrôle des mouvements en espèces de l'administrateur judiciaire (arrêté du 16 août 1999,
+ *   annexe, 1re partie, II, 2, D, 🟢 lu : reglements-fournisseurs.ts) : la décision suffit au refus.
+ *
  * 🔵 Déduit :
  * - correspondance : l'« ordre » Gestéam est une LigneVirement de VitFix (un bénéficiaire, ses règlements) ; le lot est le
  *   traitement producteur, porté par OrdreBanque.traitementId ; le rang est la position de la ligne dans le lot ; le tiers
@@ -50,9 +58,6 @@ import type { ModeReglement } from '@/lib/data/referentiels-gesteam-judiciaire'
  *   le sens déduit ci-dessus (sortie subie, puis encaissement présenté par le syndicat) ? Quel traitement produit chacun ?
  * - Frédéric ou Hugo : « Virement CAF » existe-t-il en copropriété, ou relève-t-il de la gérance (allocations de logement
  *   versées au bailleur) ? Refusé ici tant que ce n'est pas établi ;
- * - Hugo : « Remise d'espèces » suppose le compte 53 « Caisse » (arrêté du 14 mars 2005, art. 7), que le domaine ne tient
- *   pas, et le contrôle des mouvements en espèces de l'administrateur judiciaire (arrêté du 16 août 1999) : faut-il la
- *   modéliser ? Refusée ici, comme le paiement en espèces (reglements-fournisseurs.ts) ;
  * - Frédéric : un ordre sans fichier (chèque émis, virement reçu) passe-t-il « Émis » ? Non observé ;
  *   emettreOrdreConstate l'accepte, sans l'exiger ;
  * - Frédéric : Gestéam tient une série de chèques par compte (« Émission de chèques : N° prochain / N° dernier »,
@@ -79,8 +84,9 @@ export interface DefinitionTypeOrdre {
   motif: string | null
 }
 
+/** Décision J29 (03/11/2026) : remise d'espèces refusée, compte 53 non tenu, aucun paiement en espèces (J25). */
 const MOTIF_ESPECES =
-  "remise refusée : elle entrerait au compte 53 « Caisse » (arrêté du 14 mars 2005, art. 7), que VitFix ne tient pas, avec le contrôle des espèces de l'administrateur judiciaire (arrêté du 16 août 1999) ; à trancher."
+  'remise refusée par décision du cabinet : elle entrerait au compte 53 « Caisse » (arrêté du 14 mars 2005, art. 7), qui n’est pas tenu ; aucun paiement en espèces n’est admis.'
 
 /** Les dix types d'ordre de Gestéam, dans l'ordre du sélecteur (tranche 43 § 12). */
 export const TYPES_ORDRE_BANQUE = {
@@ -316,8 +322,8 @@ function verifierConstat(saisie: SaisieOrdreConstate, nombrePieces: number): voi
 /**
  * Ordre constaté d'un des six types sans constructeur dans ordres-banque.ts (chèque émis, prélèvement, TIP émis,
  * virement reçu, prélèvement émis, TIP encaissé) : « Enregistré », non émis, non imputé. Refuse un type inconnu, un
- * ordre de virement ou une remise de chèques (constructeurs d'ordres-banque.ts), une remise d'espèces et un virement CAF
- * (🔴), un tiers absent, un IBAN de tiers invalide, un chèque émis sans n° de chèque, un rang ou un nombre de pièces qui
+ * ordre de virement ou une remise de chèques (constructeurs d'ordres-banque.ts), une remise d'espèces (décision J29), un
+ * virement CAF (🔴), un tiers absent, un IBAN de tiers invalide, un chèque émis sans n° de chèque, un rang ou un nombre de pièces qui
  * n'est pas un entier ≥ 1, un montant qui n'est pas un nombre entier de centimes > 0, une date non ISO.
  */
 export function creerOrdreConstate(saisie: SaisieOrdreConstate): OrdreDuLot {
