@@ -19,7 +19,7 @@ const euros = (n: number): string =>
 const CLASSES_LISTE =
   'min-h-[44px] w-full rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E] focus:border-[#C9A84C] focus:outline-none sm:w-auto sm:max-w-[320px]'
 
-function BoutonSource({ valeur, courante, libelle, onChoisir }: { valeur: SourcePortail; courante: SourcePortail; libelle: string; onChoisir: (s: SourcePortail) => void }) {
+function BoutonSource({ valeur, courante, libelle, onChoisir }: Readonly<{ valeur: SourcePortail; courante: SourcePortail; libelle: string; onChoisir: (s: SourcePortail) => void }>) {
   const actif = valeur === courante
   return (
     <button
@@ -35,7 +35,7 @@ function BoutonSource({ valeur, courante, libelle, onChoisir }: { valeur: Source
   )
 }
 
-export default function BarreLiaisonAj({ aj }: { aj: SourceAj }) {
+export default function BarreLiaisonAj({ aj }: Readonly<{ aj: SourceAj }>) {
   const id = useId()
   if (!aj.disponible) return null
   const copro = aj.copros.find((c) => c.code === aj.code) ?? null

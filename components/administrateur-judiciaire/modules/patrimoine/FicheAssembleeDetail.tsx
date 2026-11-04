@@ -22,6 +22,7 @@ import { dateHeure } from '@/lib/liaison-copro-aj/vues-aj'
 const nombre = (valeur: number) => valeur.toLocaleString('fr-FR')
 const date = (valeur: string | null) => (valeur ? dateIsoVersFr(valeur) : '')
 const ouiNon = (valeur: boolean) => (valeur ? 'Oui' : 'Non')
+const LIBELLES_VOTE = { pour: 'Pour', contre: 'Contre', abstention: 'Abstention' } as const
 const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
 const jourDeLaSemaine = (iso: string) => JOURS[new Date(`${iso}T12:00:00Z`).getUTCDay()]
 const TENUE = new Set(['Tenue', 'PV signé', 'Notifiée'])
@@ -160,7 +161,7 @@ export function FicheAssembleeDetail({ assemblee, nomCopro, onClose, onFicheCopr
                 lignes={votesPortail.map((vote) => [
                   vote.nomCoproprietaire,
                   `${vote.resolutionNumero}. ${assemblee.resolutions.find((r) => r.numero === vote.resolutionNumero)?.intitule ?? ''}`,
-                  vote.choix === 'pour' ? 'Pour' : vote.choix === 'contre' ? 'Contre' : 'Abstention',
+                  LIBELLES_VOTE[vote.choix],
                   dateHeure(vote.date),
                 ])}
               />

@@ -323,15 +323,21 @@ function documentsDeLaCopro(code: string, assemblees: FicheAssemblee[]): Documen
   return [...pv, ...ged].sort((a, b) => b.ajouteLe.localeCompare(a.ajouteLe))
 }
 
+/** Type d'assurance du portail d'après l'intitulé du contrat de l'AJ. */
+function typeAssurance(intitule: string): AssuranceImmeuble['type'] {
+  if (/multirisque/i.test(intitule)) return 'multirriscos'
+  if (/^RC\b|responsabilit/i.test(intitule)) return 'responsabilidade_civil'
+  return 'outros'
+}
+
 function assurancesDeLaCopro(code: string): AssuranceImmeuble[] {
   return DEMO_CONTRATS_ASSURANCE.filter(([, , , , copros]) => copros.includes(code)).map(([intitule, assureurEtReference, echeance], rang) => {
     const [assureur, ...reste] = assureurEtReference.split('·').map((s) => s.trim())
     const fin = dateFrVersIso(echeance.replace(/^Échéance\s+/i, ''))
-    const type: AssuranceImmeuble['type'] = /multirisque/i.test(intitule) ? 'multirriscos' : /^RC\b|responsabilit/i.test(intitule) ? 'responsabilidade_civil' : 'outros'
     return {
       id: `aj-assurance-${code}-${rang}`,
       assureur: `${assureur} — ${intitule}`,
-      type,
+      type: typeAssurance(intitule),
       police: reste.join(' · '),
       primeAnnuelle: 0,
       capital: 0,
@@ -349,6 +355,8 @@ const heureIso = (heure: string): string => {
   const m = /(\d{1,2})\s*h\s*(\d{2})?/i.exec(heure)
   return m ? `${m[1].padStart(2, '0')}:${m[2] ?? '00'}` : '00:00'
 }
+
+const NATURES_AG: Record<FicheAssemblee['nature'], string> = { Annuelle: 'annuelle', Spéciale: 'spéciale', Judiciaire: 'judiciaire' }
 
 const STATUTS_AG: Record<FicheAssemblee['statut'], AssembleeCopro['statut'] | null> = {
   Projet: null,
@@ -391,10 +399,9 @@ function assembleeDepuisFiche(fiche: FicheAssemblee, personneId: string, votes: 
       monVoteLe: voteLiaison ? voteLiaison.date.slice(0, 10) : bulletin ? fiche.date : '',
     }
   })
-  const nature = fiche.nature === 'Annuelle' ? 'annuelle' : fiche.nature === 'Spéciale' ? 'spéciale' : 'judiciaire'
   return {
     id: fiche.id,
-    titre: `Assemblée générale ${nature} (n° ${fiche.numero})`,
+    titre: `Assemblée générale ${NATURES_AG[fiche.nature]} (n° ${fiche.numero})`,
     date: `${fiche.date}T${heureIso(fiche.heureDebut)}:00`,
     lieu: fiche.visio ? `${fiche.lieu} — également en visioconférence` : fiche.lieu,
     type: fiche.nature === 'Annuelle' ? 'ordinaire' : 'extraordinaire',

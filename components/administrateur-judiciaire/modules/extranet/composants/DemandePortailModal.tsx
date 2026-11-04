@@ -38,7 +38,7 @@ const LIBELLE_CHAMP = {
  * Demande reçue du portail copropriétaire (liaison du navigateur) : fiche, fil des échanges, réponse au copropriétaire
  * et statut. Tout ce que le cabinet écrit ici revient aussitôt sur le portail (« Mes demandes »).
  */
-export function DemandePortailModal({ demande, onClose }: { demande: DemandeLiaison | null; onClose: () => void }) {
+export function DemandePortailModal({ demande, onClose }: Readonly<{ demande: DemandeLiaison | null; onClose: () => void }>) {
   const { push } = useToast()
   const [reponse, setReponse] = useState('')
   const ouverte = demande !== null

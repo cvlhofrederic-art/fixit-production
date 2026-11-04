@@ -30,6 +30,9 @@ import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire
 import { useLiaisonCoproAj } from '@/lib/liaison-copro-aj/hooks'
 import { doleanceDepuisDemande } from '@/lib/liaison-copro-aj/vues-aj'
 
+/** Teinte de la pastille de statut d'une doléance. */
+const TEINTE_STATUT_DOLEANCE: Record<DoleanceDemo[4], 'sage' | 'amber' | 'rust'> = { Résolue: 'sage', 'En cours': 'amber', Ouverte: 'rust' }
+
 /** Ligne de la répartition par priorité : [priorité, nombre, teinte de la pastille et de la barre]. */
 export type RepartitionPrioriteDoleances = [priorite: PrioriteDoleance, nombre: number, teinte: string]
 
@@ -255,7 +258,7 @@ export function DoleancesModule() {
                   <Pill kind={doleance[3]} noDot>
                     {doleance[2]}
                   </Pill>
-                  <Pill kind={doleance[4] === 'Résolue' ? 'sage' : doleance[4] === 'En cours' ? 'amber' : 'rust'} noDot>
+                  <Pill kind={TEINTE_STATUT_DOLEANCE[doleance[4]]} noDot>
                     {doleance[4]}
                   </Pill>
                   <span

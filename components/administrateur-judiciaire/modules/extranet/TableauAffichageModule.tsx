@@ -58,6 +58,9 @@ const PUBLICATION_PAR_CATEGORIE: Record<string, Pick<AvisLiaison, 'categorie' | 
   Réglementaire: { categorie: 'Juridique', importance: 'Importante' },
 }
 
+/** Teinte d'un avis publié selon son importance. */
+const TEINTE_PAR_IMPORTANCE: Record<AvisLiaison['importance'], TeinteAvis> = { Urgente: 'rust', Importante: 'amber', '': 'sage' }
+
 /** Avis publié sur le portail, au format des avis du panneau (rubrique « Portail », sans échéance). */
 const avisDepuisLiaison = (avis: AvisLiaison): AvisAffichage => [
   avis.categorie,
@@ -67,7 +70,7 @@ const avisDepuisLiaison = (avis: AvisLiaison): AvisAffichage => [
   avis.titre,
   avis.contenu,
   '—',
-  avis.importance === 'Urgente' ? 'rust' : avis.importance === 'Importante' ? 'amber' : 'sage',
+  TEINTE_PAR_IMPORTANCE[avis.importance],
 ]
 
 /**

@@ -163,7 +163,9 @@ export function useSourceAj(superAdmin: boolean): SourceAj {
 
   const valide = useMemo(() => (module ? module.choixValide(choix.code, choix.personneId) : null), [module, choix])
   const copros = useMemo(() => (module ? module.listeCoprosAj() : []), [module])
-  const dateDuJour = module ? (modeAj === 'demo' ? module.DATE_DU_JOUR_AJ_DEMO : new Date().toISOString().slice(0, 10)) : null
+  // Jour de l'AJ : sa date figée en démonstration, aujourd'hui en données réelles (null tant que le module manque).
+  let dateDuJour: string | null = null
+  if (module) dateDuJour = modeAj === 'demo' ? module.DATE_DU_JOUR_AJ_DEMO : new Date().toISOString().slice(0, 10)
 
   const espace = useMemo(() => {
     if (!superAdmin || source !== 'aj' || !module || !valide || !dateDuJour) return null
