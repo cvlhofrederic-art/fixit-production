@@ -11,6 +11,8 @@
 // Clé : dérivée (HKDF-SHA256) de SUPABASE_SERVICE_ROLE_KEY, secret serveur déjà présent dans le Worker.
 // Aucun nouveau secret. Changer cette clé invalide les invitations en attente (7 jours au plus).
 
+import { randomHex } from '@/lib/crypto-compat'
+
 export type EspaceEquipe = 'pro' | 'syndic'
 
 /** Ligne d'invitation telle qu'enregistrée en base. */
@@ -65,6 +67,19 @@ function depuisHex(hex: string) {
 export async function jetonDuLien(espace: EspaceEquipe, invitation: InvitationSignee): Promise<string> {
   const signature = await crypto.subtle.sign('HMAC', await cleHmac(), message(espace, invitation))
   return `${invitation.invite_token}.${enHex(signature)}`
+}
+
+/**
+ * Identifiants d'une nouvelle invitation, à insérer tels quels (id, invite_token), et jeton signé du lien.
+ * Échoue sans clé de signature : à appeler avant toute écriture.
+ */
+export async function nouvelleInvitation(
+  espace: EspaceEquipe,
+  email: string,
+  equipeId: string,
+): Promise<{ id: string; invite_token: string; jetonLien: string }> {
+  const invitation = { id: crypto.randomUUID(), email, invite_token: randomHex(24), equipe_id: equipeId }
+  return { id: invitation.id, invite_token: invitation.invite_token, jetonLien: await jetonDuLien(espace, invitation) }
 }
 
 /** Découpe le jeton reçu dans l'URL ; null si son format n'est pas celui d'un lien signé. */

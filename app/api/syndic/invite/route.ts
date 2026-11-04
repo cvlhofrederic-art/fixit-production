@@ -1,39 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicInviteSchema } from '@/lib/validation'
-import {
-  lireJetonDuLien,
-  signatureValide,
-  compteRattachable,
-  MESSAGE_COMPTE_AUTRE_ESPACE,
-} from '@/lib/equipe/lien-invitation'
+import { lireInvitationValide, accepterInvitation, masquerEmail } from '@/lib/equipe/invitation-serveur'
 
-/**
- * Invitation désignée par un lien signé (lib/equipe/lien-invitation.ts). Renvoie null si le lien est mal
- * formé, inconnu, ou ne correspond plus à la ligne (e-mail, jeton ou cabinet modifiés après l'envoi).
- * Le jeton seul, tel qu'il est enregistré dans syndic_team_members, ne suffit pas.
- */
-async function lireInvitation(token: string) {
-  const lien = lireJetonDuLien(token)
-  if (!lien) return null
-
-  const { data, error } = await supabaseAdmin
-    .from('syndic_team_members')
-    .select('*')
-    .eq('invite_token', lien.jeton)
-    .maybeSingle()
-  if (error || !data) return null
-
-  const valide = await signatureValide('syndic', lien.signature, {
-    id: data.id,
-    email: data.email,
-    invite_token: data.invite_token,
-    equipe_id: data.cabinet_id,
-  })
-  return valide ? data : null
-}
+// Le lien d'invitation est signé et n'est envoyé qu'à la boîte mail invitée (lib/equipe/lien-invitation.ts) :
+// le jeton seul, tel qu'il est enregistré dans syndic_team_members, ne suffit pas pour lire ou accepter.
 
 // ── GET /api/syndic/invite?token=xxx ─────────────────────────────────────────
 // Valider un token d'invitation (pour afficher la page d'accueil)
@@ -49,32 +21,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Token manquant' }, { status: 400 })
     }
 
-    const data = await lireInvitation(token)
-    if (!data) {
-      // Réponse générique pour ne pas révéler si le token existe
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
-    }
-
-    if (data.accepted_at) {
-      return NextResponse.json({ error: 'Invitation déjà utilisée' }, { status: 409 })
-    }
-
-    // Expiration : 7 jours après création
-    const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
-    if (data.created_at && Date.now() - new Date(data.created_at).getTime() > INVITE_EXPIRY_MS) {
-      return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
+    // Réponse générique (404) si le lien est invalide, pour ne pas révéler si le token existe
+    const lecture = await lireInvitationValide('syndic', token)
+    if (!lecture.ok) {
+      return NextResponse.json({ error: lecture.error }, { status: lecture.status })
     }
 
     // Retourner uniquement les infos minimales (masquer l'email complet)
-    const maskedEmail = data.email
-      ? data.email.replace(/^(.{2})(.*)(@.*)$/, '$1***$3')
-      : ''
-
     return NextResponse.json({
       valid: true,
-      email: maskedEmail,
-      full_name: data.full_name,
-      role: data.role,
+      email: masquerEmail(lecture.invite.email),
+      full_name: lecture.invite.full_name,
+      role: lecture.invite.role,
     })
   } catch (err) {
     logger.error('[syndic/invite/GET] Unexpected error:', err)
@@ -96,129 +54,18 @@ export async function POST(request: NextRequest) {
     }
     const { token, password } = validation.data
 
-    // Récupérer l'invitation (lien signé uniquement)
-    const invite = await lireInvitation(token)
-    if (!invite) {
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
+    const lecture = await lireInvitationValide('syndic', token)
+    if (!lecture.ok) {
+      return NextResponse.json({ error: lecture.error }, { status: lecture.status })
     }
 
-    if (invite.accepted_at) {
-      return NextResponse.json({ error: 'Invitation déjà utilisée' }, { status: 409 })
-    }
-
-    // Expiration : 7 jours après création
-    const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
-    if (invite.created_at && Date.now() - new Date(invite.created_at).getTime() > INVITE_EXPIRY_MS) {
-      return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
-    }
-
-    // Créer le compte utilisateur Supabase — rôle dans app_metadata (non forgeable)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: invite.email,
-      password,
-      email_confirm: true,
-      app_metadata: {
-        role: invite.role,
-        cabinet_id: invite.cabinet_id,
-      },
-      user_metadata: {
-        full_name: invite.full_name,
-      },
+    // Rôle et cabinet_id dans app_metadata (non forgeable)
+    const { invite } = lecture
+    const resultat = await accepterInvitation('syndic', invite, password, {
+      role: invite.role,
+      cabinet_id: invite.equipe_id,
     })
-
-    if (authError) {
-      // Si le compte existe déjà, on le lie
-      if (authError.message?.includes('already')) {
-        // Récupérer le compte existant (pagination pour éviter de charger tous les users en mémoire)
-        let existingUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null
-        let page = 1
-        const perPage = 100
-        while (!existingUser) {
-          const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
-          if (listError || !users || users.length === 0) break
-          existingUser = users.find(u => u.email === invite.email) || null
-          if (users.length < perPage) break // dernière page
-          page++
-        }
-
-        if (existingUser) {
-          const { data: existingFull, error: lectureError } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
-          if (lectureError || !existingFull?.user) {
-            logger.error('[INVITE] Lecture du compte existant impossible:', lectureError)
-            return NextResponse.json({ error: 'Erreur lors de la liaison du compte' }, { status: 500 })
-          }
-          const appMetadata = existingFull.user.app_metadata || {}
-
-          // Un compte d'un autre espace (cabinet, artisan, pro, admin…) n'est jamais converti.
-          if (!compteRattachable('syndic', appMetadata)) {
-            return NextResponse.json({ error: MESSAGE_COMPTE_AUTRE_ESPACE }, { status: 409 })
-          }
-
-          // Rôle et cabinet_id dans app_metadata (server-only)
-          const { error: majError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            app_metadata: {
-              ...appMetadata,
-              role: invite.role,
-              cabinet_id: invite.cabinet_id,
-            },
-          })
-          if (majError) {
-            logger.error('[INVITE] Liaison du compte existant impossible:', majError)
-            return NextResponse.json({ error: 'Erreur lors de la liaison du compte' }, { status: 500 })
-          }
-
-          // Marquer l'invitation comme acceptée
-          await supabaseAdmin
-            .from('syndic_team_members')
-            .update({
-              user_id: existingUser.id,
-              accepted_at: new Date().toISOString(),
-              invite_token: null,
-            })
-            .eq('id', invite.id)
-
-          return NextResponse.json({
-            success: true,
-            message: 'Compte lié avec succès. Vous pouvez maintenant vous connecter.',
-          })
-        }
-      }
-
-      logger.error('[INVITE] Auth error:', authError)
-      return NextResponse.json({ error: 'Erreur lors de la création du compte' }, { status: 500 })
-    }
-
-    const newUser = authData.user
-    if (!newUser) {
-      return NextResponse.json({ error: 'Erreur lors de la création du compte' }, { status: 500 })
-    }
-
-    // Marquer l'invitation comme acceptée + lier l'user_id
-    const { error: updateError } = await supabaseAdmin
-      .from('syndic_team_members')
-      .update({
-        user_id: newUser.id,
-        accepted_at: new Date().toISOString(),
-        invite_token: null, // Invalider le token
-      })
-      .eq('id', invite.id)
-
-    if (updateError) {
-      logger.error('[INVITE] Update error:', updateError)
-      // Le compte a été créé mais l'invitation n'a pas été marquée comme acceptée
-      // → retourner une erreur partielle pour que l'admin sache qu'il faut vérifier
-      return NextResponse.json({
-        success: false,
-        message: 'Le compte a été créé mais l\'invitation n\'a pas pu être validée. Contactez le support.',
-        email: invite.email,
-      }, { status: 207 })
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Compte créé avec succès. Vous pouvez maintenant vous connecter.',
-      email: invite.email,
-    })
+    return NextResponse.json(resultat.corps, { status: resultat.status })
   } catch (err) {
     logger.error('[syndic/invite/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

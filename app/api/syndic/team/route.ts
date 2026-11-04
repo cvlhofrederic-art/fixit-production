@@ -1,12 +1,12 @@
-import { randomHex } from '@/lib/crypto-compat'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole, isSyndicRole, resolveCabinetId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { sendEmail, templateTeamInvite } from '@/lib/email'
+import { templateTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { validateBody, syndicTeamInviteSchema } from '@/lib/validation'
-import { jetonDuLien, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
+import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
+import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
 
 /**
  * Rôles qui administrent l'équipe du cabinet (invitation, modification, suppression).
@@ -106,15 +106,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
   }
 
-  // Générer le token d'invitation
-  const inviteToken = randomHex(24)
-  const memberId = crypto.randomUUID()
-
-  // Lien signé, envoyé seulement par e-mail et jamais renvoyé à l'invitant (lib/equipe/lien-invitation.ts).
-  // Signé avant l'insertion : sans clé de signature, rien n'est écrit.
-  let jetonLien: string
+  // Générer l'invitation et son lien signé, envoyé seulement par e-mail et jamais renvoyé à l'invitant
+  // (lib/equipe/lien-invitation.ts). Signé avant l'insertion : sans clé de signature, rien n'est écrit.
+  let invitation: Awaited<ReturnType<typeof nouvelleInvitation>>
   try {
-    jetonLien = await jetonDuLien('syndic', { id: memberId, email: emailInvite, invite_token: inviteToken, equipe_id: cabinetId })
+    invitation = await nouvelleInvitation('syndic', emailInvite, cabinetId)
   } catch (err) {
     logger.error('[TEAM] POST signature error:', err)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
@@ -122,12 +118,12 @@ export async function POST(request: NextRequest) {
 
   // Préparer l'insertion avec custom_modules optionnels
   const insertData: Record<string, unknown> = {
-    id: memberId,
+    id: invitation.id,
     cabinet_id: cabinetId,
     email: emailInvite,
     full_name: full_name.trim(),
     role: memberRole,
-    invite_token: inviteToken,
+    invite_token: invitation.invite_token,
     invite_sent_at: new Date().toISOString(),
   }
   // Si des modules personnalisés sont fournis, les stocker
@@ -148,7 +144,7 @@ export async function POST(request: NextRequest) {
 
   // URL d'invitation
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
-  const inviteUrl = `${appUrl}/syndic/invite?token=${jetonLien}`
+  const inviteUrl = `${appUrl}/syndic/invite?token=${invitation.jetonLien}`
 
   // ── Envoyer l'email d'invitation automatiquement ──────────────────
   const cabinetName = user.user_metadata?.cabinet_name || user.user_metadata?.full_name || 'Cabinet'
@@ -172,24 +168,10 @@ export async function POST(request: NextRequest) {
     locale: inviterLocale,
   })
 
-  let emailSent = false
-  try {
-    const emailResult = await sendEmail({
-      to: emailInvite,
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      tags: [
-        { name: 'template', value: 'team_invite' },
-        { name: 'cabinet_id', value: user.id },
-      ],
-    })
-    emailSent = emailResult.success
-    if (!emailResult.success) {
-      logger.warn('[TEAM] Email invite failed:', emailResult.error)
-    }
-  } catch (emailErr: unknown) {
-    logger.warn('[TEAM] Email invite error:', emailErr instanceof Error ? emailErr.message : emailErr)
-  }
+  const emailSent = await envoyerEmailInvitation(emailInvite, emailTemplate, [
+    { name: 'template', value: 'team_invite' },
+    { name: 'cabinet_id', value: user.id },
+  ], '[TEAM]')
 
   // Ni le lien ni le jeton ne sont renvoyés : seule la boîte mail invitée reçoit le lien.
   return NextResponse.json({

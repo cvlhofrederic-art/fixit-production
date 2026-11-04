@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   jetonDuLien,
+  nouvelleInvitation,
   lireJetonDuLien,
   signatureValide,
   compteRattachable,
@@ -55,6 +56,24 @@ describe('jetonDuLien / lireJetonDuLien', () => {
     expect(lireJetonDuLien(`${'g'.repeat(48)}.${'b'.repeat(64)}`)).toBeNull()
     expect(lireJetonDuLien(`${'a'.repeat(48)}.${'b'.repeat(64)}.x`)).toBeNull()
     expect(lireJetonDuLien('')).toBeNull()
+  })
+})
+
+describe('nouvelleInvitation', () => {
+  it('donne un id, un jeton de ligne et un lien signé pour ces valeurs', async () => {
+    const n = await nouvelleInvitation('syndic', invitation.email, invitation.equipe_id)
+    expect(n.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(n.invite_token).toMatch(/^[a-f0-9]{48}$/)
+    const lu = lireJetonDuLien(n.jetonLien)
+    expect(lu?.jeton).toBe(n.invite_token)
+    expect(await signatureValide('syndic', lu!.signature, {
+      id: n.id, email: invitation.email, invite_token: n.invite_token, equipe_id: invitation.equipe_id,
+    })).toBe(true)
+  })
+
+  it('échoue sans clé de signature', async () => {
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY
+    await expect(nouvelleInvitation('pro', invitation.email, invitation.equipe_id)).rejects.toThrow()
   })
 })
 
