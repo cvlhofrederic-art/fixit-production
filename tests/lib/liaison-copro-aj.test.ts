@@ -118,8 +118,8 @@ describe('vues de l’AJ', () => {
     expect(notificationsLiaison(lireLiaison()).every((n) => n.lue)).toBe(true)
   })
 
-  it('lien vers le portail relié', () => {
-    expect(lienPortailCoproprietaire('LM', 'P1')).toBe('/coproprietaire/dashboard?aj=LM&personne=P1')
+  it('lien vers le portail relié, toujours en français (jamais la langue du cookie)', () => {
+    expect(lienPortailCoproprietaire('LM', 'P1')).toBe('/fr/coproprietaire/dashboard/?aj=LM&personne=P1')
   })
 
   it('horloge : jour figé de la démonstration de l’AJ à l’heure du navigateur, maintenant en mode réel', () => {

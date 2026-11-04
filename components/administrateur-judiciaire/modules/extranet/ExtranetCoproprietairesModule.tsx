@@ -48,7 +48,7 @@ export function ExtranetCoproprietairesModule() {
           <>
             {/* Portail copropriétaire relié (vue super admin), sur la copropriété choisie : données de la démonstration. */}
             {MODE_ACTIF === 'demo' && code && (
-              <a className="btn" href={`/coproprietaire/dashboard?aj=${encodeURIComponent(code)}`} target="_blank" rel="noopener">
+              <a className="btn" href={`/fr/coproprietaire/dashboard/?aj=${encodeURIComponent(code)}`} target="_blank" rel="noopener">
                 <Icon name="home" />
                 Voir le portail copropriétaire
               </a>
