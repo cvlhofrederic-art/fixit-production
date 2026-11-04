@@ -22,6 +22,7 @@ import { idLocal } from './DetailDemande'
 import {
   Bouton, Carte, Champ, ChoixCartes, CLASSES_SAISIE, Encadre, type OptionChoix,
 } from '@/components/coproprietaire-dashboard/ui'
+import type { ActionsLiaisonAj } from '@/components/coproprietaire-dashboard/contrat'
 
 export interface PropsFormulaireSignalement {
   espace: EspaceCopro
@@ -32,22 +33,26 @@ export interface PropsFormulaireSignalement {
   onEnvoye: (demande: DemandeCopro) => void
   onVoirDemande: (id: string) => void
   onAutre: () => void
+  /** Portail relié à l'Administrateur judiciaire : la demande lui est transmise (même navigateur). */
+  liaisonAj?: ActionsLiaisonAj
 }
 
 type Lieu = 'logement' | 'communes'
 type Urgence = 'non' | 'genant' | 'urgent'
 
 /** Libellés propres au formulaire (absents de textes.ts), FR / PT. */
-const LIBELLES_LOCAUX: Record<LangueCopro, { bat: string; autreZoneValeur: string; demo: string }> = {
+const LIBELLES_LOCAUX: Record<LangueCopro, { bat: string; autreZoneValeur: string; demo: string; demoAj: string }> = {
   fr: {
     bat: 'bât.',
     autreZoneValeur: 'Autre',
     demo: 'Démonstration : cette demande est affichée dans votre espace, mais rien n’est envoyé à votre syndic.',
+    demoAj: 'Démonstration reliée : la demande est arrivée dans l’Administrateur judiciaire (écran Doléances), ouvert dans ce navigateur.',
   },
   pt: {
     bat: 'bloco',
     autreZoneValeur: 'Outra',
     demo: 'Demonstração: este pedido é apresentado no seu espaço, mas nada é enviado ao seu administrador.',
+    demoAj: 'Demonstração ligada: o pedido chegou ao Administrador judicial (ecrã Doléances), aberto neste navegador.',
   },
 }
 
@@ -75,9 +80,9 @@ export function lieuDuLogement(espace: EspaceCopro, langue: LangueCopro, t: Text
   return parties.length > 0 ? parties.join(', ') : profil.immeuble
 }
 
-export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvoye, onVoirDemande, onAutre }: PropsFormulaireSignalement) {
+export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvoye, onVoirDemande, onAutre, liaisonAj }: PropsFormulaireSignalement) {
   const local = LIBELLES_LOCAUX[langue]
-  const demo = jeton === null || espace.source === 'demo'
+  const demo = jeton === null || espace.source !== 'reel'
   const idBase = useId()
   const idZone = `${idBase}-zone`
   const idType = `${idBase}-type`
@@ -153,6 +158,15 @@ export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvo
       intervention: null,
     })
 
+    if (liaisonAj) {
+      const demande = liaisonAj.deposerDemande({
+        type: corps.typeIntervention, description: corps.description, priorite, partieCommune, zone: corps.zoneSignalee ?? '',
+      })
+      onEnvoye(demande)
+      setConfirmation({ id: demande.id, date: demande.creeLe })
+      return
+    }
+
     if (demo) {
       const demande = construire(idLocal('demo-sig'))
       onEnvoye(demande)
@@ -183,7 +197,7 @@ export default function FormulaireSignalement({ espace, t, langue, jeton, onEnvo
           </p>
           <p className="text-base text-[#1F2D3D]">{t.demandes.confirmationSuite}</p>
         </div>
-        {demo && <Encadre ton="info" className="mt-4">{local.demo}</Encadre>}
+        {demo && <Encadre ton="info" className="mt-4">{liaisonAj ? local.demoAj : local.demo}</Encadre>}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <Bouton variante="principal" onClick={() => onVoirDemande(confirmation.id)}>{t.demandes.voirMaDemande}</Bouton>
           <Bouton variante="secondaire" onClick={() => { reinitialiser(); onAutre() }}>{t.demandes.autreDemande}</Bouton>

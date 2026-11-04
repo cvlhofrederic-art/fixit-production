@@ -355,7 +355,7 @@ function CarteRetard({ retard, t, langue }: { retard: ImpayeCopro; t: TextesCopr
 
 // ── Écran ────────────────────────────────────────────────────────────────────
 
-export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJourLe }: PropsEcran) {
+export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJourLe, aujourdhui }: PropsEcran) {
   const tl = TEXTES_LOCAUX[langue]
   const idAppels = useId()
   const idFactures = useId()
@@ -368,15 +368,17 @@ export default function EcranCharges({ espace, t, langue, jeton, allerA, miseAJo
 
   const { finances } = espace
   const appels = trierAppels(finances.appels.filter(a => a.statut !== 'annule'))
-  const prochain = prochainAppelCharges(finances.appels, miseAJourLe)
+  // Jour de référence : celui de l'espace (démonstration de l'AJ, date figée), sinon le dernier chargement.
+  const reference = aujourdhui ?? miseAJourLe
+  const prochain = prochainAppelCharges(finances.appels, reference)
   // Sans appel à payer : factures à régler, retards ouverts ou solde débiteur (jamais « aucun appel » à qui doit).
-  const du = prochain ? null : sommeDueHorsAppels(finances, miseAJourLe)
+  const du = prochain ? null : sommeDueHorsAppels(finances, reference)
   // Moyens de paiement : ceux de l'appel à payer, sinon ceux du dernier appel qui en porte.
   const appelPaiement = prochain?.appel ?? appels.find(a => a.iban !== '' || a.referencePaiement !== '') ?? null
   const phrases = phrasesComprendre(espace, t, langue)
 
   const ouvrirPdf = async (id: string) => {
-    if (!jeton || espace.source === 'demo') {
+    if (!jeton || espace.source !== 'reel') {
       setOuvertures(o => ({ ...o, [id]: 'demo' }))
       return
     }
