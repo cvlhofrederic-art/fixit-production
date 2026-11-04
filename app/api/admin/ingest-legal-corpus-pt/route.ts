@@ -15,7 +15,7 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { createHash } from 'node:crypto'
-import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
+import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
 import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { embedBatch, formatVectorLiteral } from '@/lib/syndic/embed'
@@ -24,21 +24,23 @@ import { parseLegalMarkdown, type ParsedChunk } from '@/lib/syndic/max-parser'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { logger } from '@/lib/logger'
 
-// Auth triple-path :
+// Auth triple-path (super_admin = isSuperAdmin : rôle app_metadata + liste ADMIN_EMAIL / ADMIN_EMAIL_2) :
 //  1. Bearer Supabase JWT (script avec access_token super_admin)
 //  2. Cookie SSR (super_admin connecté dans le navigateur)
 //  3. Header x-cron-secret = INTERNAL_API_SECRET (GitHub Actions / CI)
 async function authenticateSuperAdmin(request: NextRequest): Promise<boolean> {
   // Path 1 : Bearer Supabase JWT (script/CI)
   const bearerUser = await getAuthUser(request)
-  if (bearerUser && isSyndicRole(bearerUser)) return true
+  if (bearerUser && isSuperAdmin(bearerUser)) return true
   // Path 2 : cookies SSR (navigateur logged in)
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (user && isSyndicRole(user)) return true
-  } catch {
-    // ignore
+    if (user && isSuperAdmin(user)) return true
+  } catch (err) {
+    logger.warn('[ingest-legal-corpus-pt] session cookie illisible', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
   // Path 3 : shared secret pour automation CI (pattern x-cron-secret existant).
   // Même niveau de privilège que les workflows cron — l'endpoint est idempotent

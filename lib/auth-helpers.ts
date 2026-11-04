@@ -86,15 +86,19 @@ const SUPER_ADMIN_EMAILS = [
   process.env.ADMIN_EMAIL_2,
 ].filter(Boolean).map(e => (e as string).toLowerCase())
 
+// ── L'e-mail du compte est-il dans la liste des super_admin ? ────────────────
+// Liste vide (variables absentes) ou compte sans e-mail → false.
+// Seul, ce test ne suffit pas : il complète la vérification du rôle (isSuperAdmin,
+// ou _original_role pendant une « vue en tant que » de /api/admin/impersonate).
+export function hasSuperAdminEmail(user: User): boolean {
+  if (SUPER_ADMIN_EMAILS.length === 0 || !user.email) return false
+  return SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase())
+}
+
 // ── Vérifie si l'utilisateur est super_admin ─────────────────────────────────
 // SÉCURITÉ : double vérification app_metadata.role + email allowlist
 export function isSuperAdmin(user: User): boolean {
-  if (getUserRole(user) !== 'super_admin') return false
-  // Defense-in-depth : email doit être dans la liste autorisée
-  if (SUPER_ADMIN_EMAILS.length > 0 && user.email) {
-    return SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase())
-  }
-  return false
+  return getUserRole(user) === 'super_admin' && hasSuperAdminEmail(user)
 }
 
 // ── Cache cabinet_id en mémoire (TTL 5min) pour éviter les requêtes DB répétées ──
