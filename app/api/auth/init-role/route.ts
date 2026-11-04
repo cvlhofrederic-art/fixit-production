@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { estRoleAutoAttribuable } from '@/lib/auth/roles-auto-attribuables'
 
 // ──────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/init-role
@@ -19,20 +20,11 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 //     (admin/setup, pro/invite, syndic/invite, set-pro-role)
 // ──────────────────────────────────────────────────────────────────────────────
 
-// Rôles assignables via self-init après signup (onboarding public ouvert).
-// SÉCURITÉ : les rôles à privilèges ou dormants — syndic, coproprio,
-// pro_conciergerie, pro_gestionnaire (+ super_admin, admin) — NE sont PAS
-// auto-assignables. Ils ne peuvent être attribués qu'en server-to-server via
-// /api/admin/setup, /api/syndic/team, /api/syndic/invite, /api/pro/invite.
-// pro_societe reste ici car l'onboarding BTP public le pose via cet endpoint
-// (app/(commun)/pro/register) ; il ne donne accès qu'à sa propre société vide.
-const ALLOWED_SELF_ROLES = new Set([
-  'client',
-  'artisan',
-  'particulier',
-  'locataire',
-  'pro_societe',
-])
+// Rôles assignables via self-init après signup : ROLES_AUTO_ATTRIBUABLES
+// (lib/auth/roles-auto-attribuables.ts), la même liste que le trigger
+// trg_sync_user_role. SÉCURITÉ : les rôles à privilèges ou dormants — syndic,
+// coproprio, pro_conciergerie, pro_gestionnaire (+ super_admin, admin) — NE sont
+// PAS auto-assignables (détail dans le module).
 
 const initRoleSchema = z.object({
   role: z.string().min(1).max(50),
@@ -51,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const { role } = parsed.data
 
-  if (!ALLOWED_SELF_ROLES.has(role)) {
+  if (!estRoleAutoAttribuable(role)) {
     return NextResponse.json({ error: 'Rôle non autorisé via self-init' }, { status: 403 })
   }
 
