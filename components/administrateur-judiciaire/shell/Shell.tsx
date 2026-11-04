@@ -4,19 +4,25 @@ import { useEffect, useRef, useState, type ComponentType, type KeyboardEvent as 
 import { useFixy } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useFixy'
 import { TableauDeBordModule } from '@/components/administrateur-judiciaire/modules/mandat/TableauDeBordModule'
 import { REGISTRE_ECRANS, statutEcran } from '@/components/administrateur-judiciaire/modules/registry'
+import { BarreRecherche, raccourciPaletteNavigateur } from '@/components/administrateur-judiciaire/shell/BarreRecherche'
 import { DemoBanner } from '@/components/administrateur-judiciaire/shell/DemoBanner'
 import { FixyLauncher } from '@/components/administrateur-judiciaire/shell/FixyLauncher'
+import { useCoproParDefautMemorisee } from '@/components/administrateur-judiciaire/shell/memoire-copro'
 import {
   LIBELLES_GROUPES_PALETTE,
   LIBELLES_ROUTES,
+  ROUTE_ACCUEIL,
   ROUTE_SOUS_TITRE,
   SECTIONS_NAVIGATION,
+  routeRedirigee,
   type EntreeNavigation,
   type SectionNavigation,
 } from '@/components/administrateur-judiciaire/shell/nav-config'
 import { naviguerVers, routeCourante } from '@/components/administrateur-judiciaire/shell/navigation'
 import { RoleCabinetContext } from '@/components/administrateur-judiciaire/shell/RoleCabinetContext'
+import { SelecteurCoproGlobal } from '@/components/administrateur-judiciaire/shell/SelecteurCoproGlobal'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
+import { champCoproprieteChoisie, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
@@ -82,6 +88,16 @@ function enregistrerStocke(cle: string, valeur: string): void {
   } catch {
     // localStorage inaccessible ou plein : la préférence ne sera pas conservée au rechargement.
   }
+}
+
+/** Élément qui a le focus ; null s'il n'y en a pas (focus sur le document). */
+const elementFocalise = (): HTMLElement | null =>
+  document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null
+
+/** Focus rendu après la palette : à cet élément s'il est encore affiché, sinon au contenu principal. */
+function rendreFocusApresPalette(element: HTMLElement | null): void {
+  const cible = element?.isConnected ? element : document.getElementById('main')
+  cible?.focus()
 }
 
 const estPresent = <T,>(valeur: T | null | undefined): valeur is T => Boolean(valeur)
@@ -418,14 +434,21 @@ function PaletteCommandes({
 
 // ── Nouvelle intervention ─────────────────────────────────────────────────────────────────────────────────────────
 
-/** Champs du formulaire ; copropriétés et prestataires : démonstration en démo, base en mode réel. */
-const champsNouvelOrdreDeService = (nomsCoproprietes: string[], nomsPrestataires: string[]): ChampFormModal[] => [
-  {
+/**
+ * Champs du formulaire ; copropriétés et prestataires : démonstration en démo, base en mode réel. La copropriété
+ * choisie en haut de page est proposée par défaut.
+ */
+const champsNouvelOrdreDeService = (
+  nomsCoproprietes: string[],
+  nomsPrestataires: string[],
+  nomCoproChoisie: string | null,
+): ChampFormModal[] => [
+  champCoproprieteChoisie<ChampFormModal>(nomCoproChoisie, {
     label: 'Copropriété',
     type: 'select',
     options: nomsCoproprietes,
     full: true,
-  },
+  }),
   {
     label: 'Objet',
     required: true,
@@ -452,7 +475,7 @@ const champsNouvelOrdreDeService = (nomsCoproprietes: string[], nomsPrestataires
 
 export function Shell() {
   const { push } = useToast()
-  const [route, setRoute] = useState('cockpit')
+  const [route, setRoute] = useState(ROUTE_ACCUEIL)
   const [role, setRole] = useState<RoleCabinet>(lireRoleStocke)
   const [sectionsRepliees, setSectionsRepliees] = useState<Record<string, boolean>>(() =>
     lireJsonStocke<Record<string, boolean>>(CLE_SECTIONS_REPLIEES, '{}', {}),
@@ -477,19 +500,29 @@ export function Shell() {
   const boutonNotificationsRef = useRef<HTMLButtonElement>(null)
   /** Ouverture de la palette, lue par l'écouteur clavier global (installé une seule fois). */
   const paletteOuverteRef = useRef(false)
+  /** Élément focalisé à l'ouverture de la palette, qui reprend le focus à sa fermeture ; null : le contenu principal. */
+  const focusAvantPaletteRef = useRef<HTMLElement | null>(null)
   const nbNonLues = notificationsCentre.filter((notification) => !estLue(notification.id)).length
   // Une route absente du registre retombe sur le tableau de bord.
   const Ecran = ECRANS_PAR_ANCRE[route] || TableauDeBordModule
 
   useEffect(() => {
+    const etaitOuverte = paletteOuverteRef.current
     paletteOuverteRef.current = paletteOuverte
+    // Palette refermée : le focus revient d'où elle a été ouverte (barre de recherche, loupe, menu), ou au contenu
+    // principal après une navigation ou si cet élément a disparu.
+    if (etaitOuverte && !paletteOuverte) rendreFocusApresPalette(focusAvantPaletteRef.current)
   }, [paletteOuverte])
 
   useEffect(() => {
-    // L'ancre n'est retenue que si elle désigne un écran du registre.
+    // L'ancre n'est retenue que si elle désigne, après redirection, un écran du registre. Une route retirée du menu
+    // (#cockpit) ouvre sa remplaçante ; l'ancre est corrigée sans nouvelle entrée d'historique ni « hashchange ».
     const suivreAncre = () => {
-      const routeAncre = routeCourante()
-      if (routeAncre && ECRANS_PAR_ANCRE[routeAncre]) setRoute(routeAncre)
+      const ancre = routeCourante()
+      const routeAncre = routeRedirigee(ancre)
+      if (!routeAncre || !ECRANS_PAR_ANCRE[routeAncre]) return
+      if (routeAncre !== ancre) window.history.replaceState(window.history.state, '', `#${routeAncre}`)
+      setRoute(routeAncre)
     }
     suivreAncre()
     window.addEventListener('hashchange', suivreAncre)
@@ -500,6 +533,7 @@ export function Shell() {
     const basculerPalette = (evenement: KeyboardEvent) => {
       if ((evenement.metaKey || evenement.ctrlKey) && evenement.key.toLowerCase() === 'k') {
         evenement.preventDefault()
+        if (!paletteOuverteRef.current) focusAvantPaletteRef.current = elementFocalise()
         setPaletteOuverte((ouverte) => !ouverte)
       }
       if (evenement.key === 'Escape') setPaletteOuverte(false)
@@ -586,6 +620,19 @@ export function Shell() {
   const fixy = useFixy()
   const nbCopros = fixy.p.copros.length
   const selection = useSelectionDossier()
+  // Copropriété du sélecteur du haut de page : copropriété par défaut, puis mémoire de chaque choix.
+  useCoproParDefautMemorisee()
+  const { nom: nomCoproChoisie } = useCoproChoisie()
+
+  /**
+   * Ouvre la palette en retenant l'élément focalisé (il reprend le focus à la fermeture) ; `texte` remplace la
+   * recherche en cours (barre de recherche, loupe : une nouvelle recherche), sinon elle est gardée.
+   */
+  const ouvrirPalette = (texte?: string) => {
+    if (!paletteOuverteRef.current) focusAvantPaletteRef.current = elementFocalise()
+    if (texte !== undefined) setRequete(texte)
+    setPaletteOuverte(true)
+  }
 
   const changerRole = (nouveauRole: RoleCabinet) => {
     setRole(nouveauRole)
@@ -620,7 +667,10 @@ export function Shell() {
     if (id !== 'logout') setRecents((actuels) => [id, ...actuels.filter((recent) => recent !== id)].slice(0, NB_RECENTS_MAX))
   }
 
-  /** Ouvre un écran ; « logout » n'affiche qu'un toast (aucune session dans cette version). */
+  /**
+   * Ouvre un écran ; « logout » n'affiche qu'un toast (aucune session dans cette version). Une route retirée du menu
+   * (« cockpit », cible des actes pré-rédigés de l'index) ouvre sa remplaçante, mémorisée comme récente à sa place.
+   */
   const naviguer = (cible: string) => {
     if (cible === 'logout') {
       push({
@@ -630,9 +680,12 @@ export function Shell() {
       })
       return
     }
-    ajouterRecent(cible)
-    naviguerVers(cible)
-    setRoute(cible)
+    const routeCible = routeRedirigee(cible)
+    ajouterRecent(routeCible)
+    naviguerVers(routeCible)
+    setRoute(routeCible)
+    // Depuis la palette : à sa fermeture, le focus va au contenu de l'écran ouvert.
+    focusAvantPaletteRef.current = null
     window.scrollTo(0, 0)
     setPaletteOuverte(false)
   }
@@ -646,11 +699,14 @@ export function Shell() {
     naviguer(element.route || element.id)
   }
 
-  /** Compteur affiché : copropriétés de la base pour « copros » et « mandats », rappels de Fixy pour « cockpit ». */
+  /**
+   * Compteur affiché : copropriétés de la base pour « copros » et « mandats », rappels de Fixy pour la page d'accueil
+   * (pastille reprise de l'ancienne entrée « Aujourd'hui »).
+   */
   const compteurEntree = (routeEntree: string, compteurStatique: number | null | undefined) =>
     routeEntree === 'copros' || routeEntree === 'mandats'
       ? nbCopros || compteurStatique
-      : (routeEntree === 'cockpit' && fixy.veille.length) || compteurStatique
+      : (routeEntree === ROUTE_ACCUEIL && fixy.veille.length) || compteurStatique
 
   const requeteNormalisee = requete.trim().toLowerCase()
   const elementsPalette = construireElementsPalette(requeteNormalisee, indexRecherche, recents, favoris)
@@ -672,7 +728,7 @@ export function Shell() {
           </div>
           <button
             className="side-search"
-            onClick={() => setPaletteOuverte(true)}
+            onClick={() => ouvrirPalette()}
             aria-label="Ouvrir la palette de commandes"
             style={{
               textAlign: 'left',
@@ -827,7 +883,9 @@ export function Shell() {
             <div className="crumb-mobile">
               <b>{LIBELLES_ROUTES[route] || route}</b>
             </div>
+            <SelecteurCoproGlobal route={route} />
             <div className="spacer" />
+            <BarreRecherche onOuvrir={ouvrirPalette} />
             <label
               className="vfx-role"
               style={{
@@ -867,7 +925,7 @@ export function Shell() {
                 ))}
               </select>
             </label>
-            <div className="crumb">
+            <div className="crumb vfx-date-topbar">
               <time dateTime={AUJOURDHUI.toISOString()}>
                 {new Intl.DateTimeFormat('fr-FR', {
                   dateStyle: 'full',
@@ -875,10 +933,13 @@ export function Shell() {
                 }).format(AUJOURDHUI)}
               </time>
             </div>
+            {/* Loupe : remplace la barre de recherche quand la place manque (aj-selecteur-copro.css). */}
             <button
-              className="icon-btn"
-              aria-label="Ouvrir la palette de commandes (⌘K)"
-              onClick={() => setPaletteOuverte(true)}
+              className="icon-btn vfx-loupe-palette"
+              aria-label={`Ouvrir la palette de commandes (${raccourciPaletteNavigateur()})`}
+              aria-haspopup="dialog"
+              aria-keyshortcuts="Control+K Meta+K"
+              onClick={() => ouvrirPalette('')}
             >
               <Icon name="search" aria-hidden="true" />
             </button>
@@ -953,9 +1014,14 @@ export function Shell() {
                 </div>
               )}
             </div>
-            <button className="btn gold topbar-actions-desktop" onClick={() => setInterventionOuverte(true)}>
+            <button
+              className="btn gold topbar-actions-desktop"
+              title="Nouvelle intervention"
+              onClick={() => setInterventionOuverte(true)}
+            >
               <Icon name="plus" aria-hidden="true" />
-              Nouvelle intervention
+              {/* Libellé masqué visuellement quand la place manque (aj-selecteur-copro.css) : il reste le nom du bouton. */}
+              <span className="vfx-libelle-action">Nouvelle intervention</span>
             </button>
           </div>
           <div className="content" role="region" aria-label="Page">
@@ -991,7 +1057,7 @@ export function Shell() {
           onClose={() => setInterventionOuverte(false)}
           title="Nouvel ordre de service"
           icon="clipboard"
-          fields={champsNouvelOrdreDeService(nomsCoproprietes, nomsPrestataires)}
+          fields={champsNouvelOrdreDeService(nomsCoproprietes, nomsPrestataires, nomCoproChoisie)}
           submitLabel="Créer"
           onDone={() =>
             push({

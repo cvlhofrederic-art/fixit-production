@@ -19,7 +19,7 @@ import {
   type StatutDiligence,
 } from '@/lib/administrateur-judiciaire/domain/prise-de-fonction'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
-import { codeCoproSelectionne } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Couleur de pastille par statut de diligence. */
 export const PILL_PAR_STATUT_DILIGENCE: Record<StatutDiligence, string> = {
@@ -52,7 +52,8 @@ const ACCENT_KPI_PAR_TON: Partial<Record<TonPastille, string>> = {
  */
 export function PriseFonctionModule() {
   const { push } = useToast()
-  const [code, setCode] = useState(() => codeCoproSelectionne('VM'))
+  const code = useCodeCoproCourant('VM')
+  const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
   const copro = useCoproParCode(code)
   const [diligences, setDiligences] = useState(() => construireChecklistPriseFonction(copro))
   useEffect(() => {
@@ -103,7 +104,7 @@ export function PriseFonctionModule() {
         lede="Reprise de la mission : récupération des archives et fonds, compte séparé, assurance, immatriculation. La douleur la plus concrète d'un début de mandat, structurée et suivie."
         actions={
           <>
-            <SelecteurCopropriete value={code} onChange={setCode} />
+            <SelecteurCopropriete value={code} onChange={choisirCopro} />
             <button
               className="btn gold"
               onClick={() =>

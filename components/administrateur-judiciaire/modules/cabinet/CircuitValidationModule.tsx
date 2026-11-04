@@ -7,15 +7,18 @@ import {
   type ActeCircuit,
   type EtapeCircuit,
 } from '@/components/administrateur-judiciaire/data/circuit-validation'
+import { titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useRoleCabinet } from '@/components/administrateur-judiciaire/shell/RoleCabinetContext'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable, type ColonneTableau } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { LIBELLES_ROLES_CABINET } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
+import { filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Message du toast affiché quand un acte avance dans le circuit. */
 interface MessageAvancementCircuit {
@@ -26,11 +29,14 @@ interface MessageAvancementCircuit {
 /**
  * Circuit de validation des actes : préparé → vérifié par le juriste → validé et signé par la direction.
  * Les actions dépendent du rôle choisi dans la barre du haut ; l'avancement est local (démo, sans persistance).
+ * Actes et indicateurs de la copropriété choisie en haut de page (tous sans choix) ; l'avancement de tous est conservé.
  */
 export function CircuitValidationModule() {
   const role = useRoleCabinet()
   const { push } = useToast()
   const [actes, setActes] = useState<ActeCircuit[]>(DEMO_ACTES_CIRCUIT_VALIDATION)
+  const { code, nom: nomCopro, codeDeNom } = useCoproChoisie()
+  const actesAffiches = filtrerParCopro(actes, code, (acte) => codeDeNom(acte.copro))
   const faireAvancer = (id: number, etape: EtapeCircuit, message: MessageAvancementCircuit) => {
     setActes((liste) =>
       liste.map((acte) =>
@@ -48,9 +54,9 @@ export function CircuitValidationModule() {
       desc: message.description,
     })
   }
-  const aVerifier = actes.filter((acte) => acte.stage === 'prepare').length,
-    aValider = actes.filter((acte) => acte.stage === 'verifie').length,
-    valides = actes.filter((acte) => acte.stage === 'valide').length
+  const aVerifier = actesAffiches.filter((acte) => acte.stage === 'prepare').length,
+    aValider = actesAffiches.filter((acte) => acte.stage === 'verifie').length,
+    valides = actesAffiches.filter((acte) => acte.stage === 'valide').length
 
   const colonnes: ColonneTableau<ActeCircuit>[] = [
     {
@@ -205,13 +211,17 @@ export function CircuitValidationModule() {
           },
           {
             icon: 'clipboard',
-            num: actes.length,
+            num: actesAffiches.length,
             lbl: 'Actes au circuit',
           },
         ]}
       />
       <Panel title="File de validation" sub="préparé → vérifié (juriste) → validé & signé (direction)" icon="check" flush>
-        <DataTable rowKey="id" columns={colonnes} rows={actes} />
+        {code && actesAffiches.length === 0 ? (
+          <EmptyState icon="check" title={titreListeVide('Aucun acte au circuit', nomCopro)} />
+        ) : (
+          <DataTable rowKey="id" columns={colonnes} rows={actesAffiches} />
+        )}
       </Panel>
     </>
   )

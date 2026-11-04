@@ -2,14 +2,17 @@
 
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
-import { useCoproParCode } from '@/lib/administrateur-judiciaire/db/hooks'
+import { ficheRegimeCopro } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeLigneDemo } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /** Créancier du syndicat et son échéancier d'apurement. */
 export interface CreancierRedressement {
@@ -57,22 +60,48 @@ export const CREANCIERS_REDRESSEMENT: CreancierRedressement[] = [
   },
 ]
 
+/** Créanciers de démonstration par code de copropriété (Les Tilleuls) ; autre code : aucun créancier connu. */
+const CREANCIERS_PAR_CODE: Readonly<Record<string, readonly CreancierRedressement[]>> = {
+  TL: CREANCIERS_REDRESSEMENT,
+}
+
+/** Durée de l'échéancier d'apurement proposé, en mois. */
+const DUREE_APUREMENT_MOIS = 18
+
+const EYEBROW = 'Pilotage judiciaire'
+const TITRE = 'Redressement — copropriété en difficulté'
+const LEDE =
+  "Mandat art. 29-1 : rétablir l'équilibre financier et le fonctionnement normal. Seuil d'alerte des impayés, plan d'apurement et suspension des poursuites."
+
 /**
- * Redressement d'une copropriété en difficulté (statut partiel), toujours sur le mandat « TL » (Les Tilleuls), sans
- * sélecteur : taux d'impayés face au seuil de 25 %, dette fournisseurs et plan d'apurement des créanciers.
- * Le document « Plan d'apurement » reprend des chiffres figés (34 800 €, 1 933 €, 18 mois).
+ * Redressement d'une copropriété en difficulté (statut partiel), sur la copropriété choisie (« TL », Les Tilleuls, à
+ * défaut de sélection) : taux d'impayés face au seuil de 25 % (0 % sans budget connu), dette fournisseurs et plan
+ * d'apurement des créanciers (démonstration : ceux des Tilleuls). Hors art. 29-1, un état vide le dit. Le document
+ * « Plan d'apurement » étale les impayés de la copropriété sur 18 mois (première échéance figée au 01/07/2026).
  */
 export function RedressementModule() {
   const { push } = useToast()
-  const copro = useCoproParCode('TL')
-  const tauxImpayes = Math.round((copro.impayes / copro.budget) * 100)
-  const detteFournisseurs = CREANCIERS_REDRESSEMENT.reduce((total, creancier) => total + creancier.montant, 0)
+  const copro = useCoproCourante('TL')
+  if (ficheRegimeCopro(copro).code !== 'ap291')
+    return (
+      <>
+        <PageHead eyebrow={EYEBROW} title={TITRE} lede={LEDE} />
+        <EmptyState
+          icon="scale"
+          title={`Aucun redressement pour ${copro.nom}`}
+          desc={`Le redressement ne concerne que les copropriétés sous administration provisoire (art. 29-1). Fondement du mandat : ${copro.fondement || 'non renseigné'}.`}
+        />
+      </>
+    )
+  const tauxImpayes = copro.budget > 0 ? Math.round((copro.impayes / copro.budget) * 100) : 0
+  const creanciers = CREANCIERS_PAR_CODE[codeLigneDemo(copro.code) ?? ''] ?? []
+  const detteFournisseurs = creanciers.reduce((total, creancier) => total + creancier.montant, 0)
   return (
     <>
       <PageHead
-        eyebrow="Pilotage judiciaire"
-        title="Redressement — copropriété en difficulté"
-        lede="Mandat art. 29-1 : rétablir l'équilibre financier et le fonctionnement normal. Seuil d'alerte des impayés, plan d'apurement et suspension des poursuites."
+        eyebrow={EYEBROW}
+        title={TITRE}
+        lede={LEDE}
         actions={
           <button
             className="btn gold"
@@ -83,19 +112,19 @@ export function RedressementModule() {
                 title: "Plan d'apurement",
                 eyebrow: 'Syndic judiciaire · Cabinet Delaunay',
                 docTitle: "Plan d'apurement de la dette",
-                meta: 'Copropriété Les Tilleuls · dette 34 800 €',
+                meta: `${copro.nom} · dette ${formatEuros(copro.impayes)}`,
                 lines: [
-                  "Échéancier proposé pour l'apurement de la dette de copropriété sur 18 mois.",
+                  `Échéancier proposé pour l'apurement de la dette de copropriété sur ${DUREE_APUREMENT_MOIS} mois.`,
                   {
                     h: 'Échéancier',
                   },
                   {
                     k: 'Mensualité',
-                    v: '1 933 €',
+                    v: formatEuros(Math.round(copro.impayes / DUREE_APUREMENT_MOIS)),
                   },
                   {
                     k: 'Durée',
-                    v: '18 mois',
+                    v: `${DUREE_APUREMENT_MOIS} mois`,
                   },
                   {
                     k: 'Première échéance',
@@ -103,7 +132,7 @@ export function RedressementModule() {
                   },
                   {
                     k: 'Solde à apurer',
-                    v: '34 800 €',
+                    v: formatEuros(copro.impayes),
                   },
                 ],
               })
@@ -151,7 +180,7 @@ export function RedressementModule() {
             icon: 'fact',
             num: formatEuros(detteFournisseurs),
             lbl: 'Dette fournisseurs',
-            sub: `${CREANCIERS_REDRESSEMENT.length} créanciers`,
+            sub: `${creanciers.length} créancier${creanciers.length > 1 ? 's' : ''}`,
             accent: 'amber',
           },
           {
@@ -290,8 +319,9 @@ export function RedressementModule() {
               ),
             },
           ]}
-          rows={CREANCIERS_REDRESSEMENT}
+          rows={creanciers}
         />
+        {creanciers.length === 0 && <EmptyState icon="handshake" title={`Aucun créancier pour ${copro.nom}`} />}
       </Panel>
     </>
   )

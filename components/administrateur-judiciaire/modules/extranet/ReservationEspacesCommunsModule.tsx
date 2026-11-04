@@ -1,6 +1,7 @@
 'use client'
 
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
+import { champCoproprieteChoisie, titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
+import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
@@ -8,6 +9,7 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { codeLigneDemo, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 
 /** Espace de la légende du calendrier : [libellé, couleur CSS de la pastille]. */
 export type EspaceLegendeReservation = [libelle: string, couleur: string]
@@ -41,23 +43,49 @@ const construireCasesCalendrier = (): number[] => {
 
 const CASES_CALENDRIER = construireCasesCalendrier()
 
+/** Réservation de démonstration : jour de juin 2026, libellé « HH:MM Espace », teinte de l'étiquette, copropriété. */
+interface ReservationDemo {
+  jour: number
+  libelle: string
+  teinte: 'gold' | 'green'
+  code: string
+}
+
+/** Réservations du calendrier (celles que la maquette saisissait en dur), rattachées chacune à une copropriété. */
+const RESERVATIONS_DEMO: readonly ReservationDemo[] = [
+  { jour: 5, libelle: '14:00 Salle réunion', teinte: 'gold', code: 'LM' },
+  { jour: 8, libelle: '10:00 Salle commune', teinte: 'gold', code: 'LM' },
+  { jour: 8, libelle: '18:00 Terrasse', teinte: 'green', code: 'LM' },
+  { jour: 11, libelle: '17:30 Local vélos', teinte: 'green', code: 'CV' },
+  { jour: 15, libelle: '09:00 Salle réunion', teinte: 'gold', code: 'TL' },
+  { jour: 15, libelle: '14:00 Terrasse', teinte: 'green', code: 'TL' },
+  { jour: 22, libelle: '18:30 Salle commune (CS)', teinte: 'gold', code: 'LM' },
+  { jour: 27, libelle: '11:00 Buanderie', teinte: 'green', code: 'VM' },
+]
+
+/** Chapeau de l'écran : la copropriété choisie en haut de page, « la copropriété » sans choix. */
+const chapeauReservation = (nomCopro: string | null): string =>
+  `Gérez les réservations, les espaces et les règles d'utilisation de ${nomCopro || 'la copropriété'}.`
+
 /**
  * Réservation des espaces communs (écran de démonstration). Le surtitre vaut « Gestion courante » alors que
  * l'écran est rangé dans la section Extranet de la barre latérale (conservé).
- * Calendrier figé sur juin 2026 : le jour 4 est « aujourd'hui » en dur et les réservations sont saisies en dur
- * (jours 5, 8, 11, 15, 22 et 27). Les boutons de navigation et de vue n'affichent qu'un toast ; les cases non vides
- * ont role=button (comme dans la maquette), ainsi que tabIndex et activation au clavier (écart volontaire : la
- * maquette ne les rendait pas accessibles au clavier).
+ * Calendrier figé sur juin 2026 : le jour 4 est « aujourd'hui » en dur ; les réservations de démonstration (jours 5, 8,
+ * 11, 15, 22 et 27) sont celles de la copropriété choisie en haut de page (toutes sans choix). Les boutons de
+ * navigation et de vue n'affichent qu'un toast ; les cases non vides ont role=button (comme dans la maquette), ainsi
+ * que tabIndex et activation au clavier (écart volontaire : la maquette ne les rendait pas accessibles au clavier).
  */
 export function ReservationEspacesCommunsModule() {
   const { push } = useToast()
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const reservations = filtrerParCopro(RESERVATIONS_DEMO, code, (reservation) => codeLigneDemo(reservation.code))
 
   return (
     <>
       <PageHead
         eyebrow="Gestion courante"
         title="Réservation des espaces communs"
-        lede="Gérez les réservations, les espaces et les règles d'utilisation de la copropriété."
+        lede={chapeauReservation(nomCopro)}
         actions={
           <button
             className="btn gold"
@@ -67,7 +95,7 @@ export function ReservationEspacesCommunsModule() {
                 icon: 'calendar',
                 title: 'Nouvelle réservation',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(nomCopro),
                   {
                     label: 'Espace',
                     type: 'select',
@@ -221,6 +249,9 @@ export function ReservationEspacesCommunsModule() {
           Mois
         </button>
       </div>
+      {code && reservations.length === 0 && (
+        <Alert kind="info" icon="calendar" title={`${titreListeVide('Aucune réservation', nomCopro)} en juin 2026.`} />
+      )}
       <Panel flush>
         <div className="calendar">
           {JOURS_SEMAINE.map((jourSemaine) => (
@@ -253,22 +284,13 @@ export function ReservationEspacesCommunsModule() {
                 >
                   {jour || ''}
                 </div>
-                {jour === 5 && <div className="ev gold">14:00 Salle réunion</div>}
-                {jour === 8 && (
-                  <>
-                    <div className="ev gold">10:00 Salle commune</div>
-                    <div className="ev green">18:00 Terrasse</div>
-                  </>
-                )}
-                {jour === 11 && <div className="ev green">17:30 Local vélos</div>}
-                {jour === 15 && (
-                  <>
-                    <div className="ev gold">09:00 Salle réunion</div>
-                    <div className="ev green">14:00 Terrasse</div>
-                  </>
-                )}
-                {jour === 22 && <div className="ev gold">18:30 Salle commune (CS)</div>}
-                {jour === 27 && <div className="ev green">11:00 Buanderie</div>}
+                {reservations
+                  .filter((reservation) => reservation.jour === jour)
+                  .map((reservation) => (
+                    <div className={`ev ${reservation.teinte}`} key={reservation.libelle}>
+                      {reservation.libelle}
+                    </div>
+                  ))}
               </div>
             )
           })}

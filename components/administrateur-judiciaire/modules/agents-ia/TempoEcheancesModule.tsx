@@ -5,7 +5,6 @@ import {
   DEMO_AUTOMATISATIONS,
   type Automatisation,
 } from '@/components/administrateur-judiciaire/data/automatisations'
-import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { AgentChatPage } from '@/components/administrateur-judiciaire/modules/agents-ia/AgentChatPage'
 import {
   CreerAutomatisationModal,
@@ -19,6 +18,7 @@ import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
 
 /** Prochaine exécution affichée (libellé t, moment w, couleur k de la pastille et du statut, statut s). */
 interface ProchaineExecution {
@@ -59,10 +59,12 @@ const PROCHAINES_EXECUTIONS: ProchaineExecution[] = [
 /**
  * Tempo — Échéances : onglet « Assistant » (conversation simulée) et onglet « Tableau » des automatisations
  * (activation / pause, création simulée). Chiffres en dur : 90 exécutions ce mois, 1 échec, et « 7 automatisations
- * actives » dans l'introduction, quelle que soit la liste.
+ * actives » dans l'introduction, quelle que soit la liste. L'Assistant suit la copropriété choisie en haut de page ; le
+ * Tableau reste celui du cabinet (les automatisations ne sont rattachées à aucune copropriété).
  */
 export function TempoEcheancesModule() {
   const { push } = useToast()
+  const nomsCoproprietes = useNomsCoproprietesSelonMode()
   const [onglet, setOnglet] = useState<OngletAgent>('assistant')
   const [automatisations, setAutomatisations] = useState<Automatisation[]>(DEMO_AUTOMATISATIONS)
   const [creationOuverte, setCreationOuverte] = useState(false)
@@ -135,7 +137,7 @@ export function TempoEcheancesModule() {
           introDetail="Je surveille vos échéances : fin de mission, convocation de l'AG, reddition, taxation, obligations réglementaires. 7 automatisations actives, 90 exécutions ce mois."
           contextSelector={{
             label: 'Copropriété',
-            options: DEMO_NOMS_COPROPRIETES,
+            options: nomsCoproprietes,
           }}
           suggestions={[
             'Quelles automatisations sont actives en ce moment ?',

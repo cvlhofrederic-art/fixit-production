@@ -3,46 +3,29 @@
 import { useState } from 'react'
 import { AUTOMATISATIONS_PAR_ROLE } from '@/components/administrateur-judiciaire/data/automatisations'
 import { DEMO_COPROPRIETES, DEMO_TOTAL_LOTS } from '@/components/administrateur-judiciaire/data/coproprietes'
-import { DEMO_TACHES, type TacheDemo } from '@/components/administrateur-judiciaire/data/taches'
 import { AssistantMandatModal } from '@/components/administrateur-judiciaire/modules/mandat/composants/AssistantMandatModal'
+import {
+  AlerteEcheancesDepassees,
+  PanneauActesExpress,
+  PanneauEcheancesLegales,
+  RadarMandats,
+  estEnRetard,
+  pastilleUrgence,
+  tachesDuRole,
+  type ActeExpressOuvert,
+  type TacheDatee,
+} from '@/components/administrateur-judiciaire/modules/mandat/composants/EtatGeneralMandats'
 import { GenerationActeModal } from '@/components/administrateur-judiciaire/modules/mandat/composants/GenerationActeModal'
 import { naviguerVers } from '@/components/administrateur-judiciaire/shell/navigation'
 import { ICONES_ROLES_CABINET, useRoleCabinet } from '@/components/administrateur-judiciaire/shell/RoleCabinetContext'
-import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
-import { ListeEcheancesLegales } from '@/components/administrateur-judiciaire/ui/ListeEcheancesLegales'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useTrouverCopro } from '@/lib/administrateur-judiciaire/db/hooks'
-import { useEcheancesPortefeuille } from '@/lib/administrateur-judiciaire/db/use-echeances'
-import {
-  MODELES_ACTES_EXPRESS,
-  type CleActeExpress,
-  type ModeleActeExpress,
-} from '@/lib/administrateur-judiciaire/domain/actes/actes-express'
-import { dateIsoVersFr, ecartJours, joursAvantDateFr } from '@/lib/administrateur-judiciaire/domain/dates'
-import {
-  MESSAGES_ETAT_ECHEANCES,
-  filtrerEcheancesAAfficher,
-} from '@/lib/administrateur-judiciaire/domain/echeances-mandat'
+import type { CleActeExpress } from '@/lib/administrateur-judiciaire/domain/actes/actes-express'
 import { LIBELLES_ROLES_CABINET } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
-import { AUJOURDHUI, AUJOURDHUI_ISO, MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
-
-/** Acte express ouvert dans la GenerationActeModal : modèle et copropriété proposée. */
-export interface ActeExpressOuvert {
-  tpl: CleActeExpress | undefined
-  code: string
-}
-
-/** Pastille d'urgence d'une échéance : libellé et variante de couleur (chaîne vide = pastille neutre). */
-export interface PastilleUrgence {
-  lbl: string
-  k: '' | 'rust' | 'amber' | 'gold' | 'sage'
-}
-
-/** Tâche de la file d'actions, avec le nombre de jours avant son échéance (null si date illisible). */
-type TacheCockpit = TacheDemo & { d: number | null }
+import { AUJOURDHUI, MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
 
 /** Assistant IA proposé : route, nom, rôle et pictogramme. */
 type AssistantIaCockpit = [route: string, nom: string, description: string, icone: string]
@@ -55,44 +38,11 @@ const ASSISTANTS_IA_COCKPIT: AssistantIaCockpit[] = [
 ]
 
 /**
- * Échelle d'urgence : sans date « — » ; en retard ou aujourd'hui en rouille ; J-1 à J-3 ambre ; J-4 à J-10 or ;
- * au-delà sauge.
- */
-export const pastilleUrgence = (jours: number | null): PastilleUrgence =>
-  jours == null
-    ? {
-        lbl: '—',
-        k: '',
-      }
-    : jours < 0
-      ? {
-          lbl: `Retard ${Math.abs(jours)} j`,
-          k: 'rust',
-        }
-      : jours === 0
-        ? {
-            lbl: "Aujourd'hui",
-            k: 'rust',
-          }
-        : jours <= 3
-          ? {
-              lbl: `J-${jours}`,
-              k: 'amber',
-            }
-          : jours <= 10
-            ? {
-                lbl: `J-${jours}`,
-                k: 'gold',
-              }
-            : {
-                lbl: `J-${jours}`,
-                k: 'sage',
-              }
-
-/**
- * Cockpit (écran par défaut) : bandeau du jour selon le rôle du cabinet, radar des mandats, échéances légales du
- * portefeuille (fenêtre J-60 à J+120), file d'actions triée par urgence (état « fait » local, non persisté),
- * centre d'automatisation, génération express d'actes et assistants IA.
+ * Cockpit, ancienne page « Aujourd'hui » : retirée du menu le 29/10/2026 (doublon de la page d'accueil), son ancre
+ * #cockpit ouvre le tableau de bord, qui reprend son radar, ses échéances légales, son alerte et ses actes express.
+ * Écran conservé : bandeau du jour selon le rôle du cabinet, radar des mandats, échéances légales du portefeuille
+ * (fenêtre J-60 à J+120), file d'actions triée par urgence (état « fait » local, non persisté), centre
+ * d'automatisation, génération express d'actes et assistants IA.
  */
 export function CockpitModule() {
   const role = useRoleCabinet(),
@@ -115,33 +65,14 @@ export function CockpitModule() {
         else suivants.add(id)
         return suivants
       }),
-    portefeuille = useEcheancesPortefeuille(),
     trouverCopro = useTrouverCopro(),
-    echeancesFenetre = filtrerEcheancesAAfficher(portefeuille.items, AUJOURDHUI_ISO).filter((item) => {
-      if (!item.echeance.dateRetenue) return false
-      const jours = ecartJours(AUJOURDHUI_ISO, item.echeance.dateRetenue)
-      return jours >= -60 && jours <= 120
-    }),
-    nombreSurEvenement = portefeuille.items.filter((item) => !item.echeance.dateRetenue).length,
-    taches: TacheCockpit[] = (role === 'Direction' ? DEMO_TACHES : DEMO_TACHES.filter((tache) => tache.role === role))
-      .map((tache) => ({
-        ...tache,
-        d: joursAvantDateFr(tache.due),
-      }))
-      .sort((a, b) => (a.d ?? 999) - (b.d ?? 999)),
+    taches: TacheDatee[] = tachesDuRole(role),
     nombreAMener = taches.filter((tache) => !faits.has(tache.id)).length,
-    nombreEnRetard = taches.filter((tache) => !faits.has(tache.id) && tache.d != null && tache.d < 0).length,
+    nombreEnRetard = taches.filter((tache) => !faits.has(tache.id) && estEnRetard(tache)).length,
     nombreAujourdhui = taches.filter((tache) => !faits.has(tache.id) && tache.d === 0).length,
     heuresEconomisees = (12.5 + faits.size * 0.6).toFixed(1),
-    salutation = (MODE_ACTIF === 'demo' ? 9 : new Date().getHours()) < 13 ? 'Bonjour' : 'Bonsoir',
-    titreAlerteRetard =
-      nombreEnRetard +
-      ' échéance' +
-      (nombreEnRetard > 1 ? 's' : '') +
-      ' légale' +
-      (nombreEnRetard > 1 ? 's' : '') +
-      ' dépassée' +
-      (nombreEnRetard > 1 ? 's' : '')
+    heure = MODE_ACTIF === 'demo' ? 9 : new Date().getHours(),
+    salutation = heure < 13 ? 'Bonjour' : 'Bonsoir'
   return (
     <>
       <div className="hero">
@@ -228,131 +159,9 @@ export function CockpitModule() {
           </div>
         </div>
       </div>
-      {nombreEnRetard > 0 && (
-        <Alert kind="warn" icon="siren" title={titreAlerteRetard}>
-          {
-            "Une échéance non tenue engage la responsabilité du cabinet auprès du tribunal. Traitez les actions en rouge en priorité — l'acte correspondant se génère en un clic."
-          }
-        </Alert>
-      )}
-      <div className="section-eyebrow">
-        <span>Radar des mandats — prochaine échéance de mission</span>
-        <div className="line" />
-      </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
-          gap: 12,
-          marginBottom: 8,
-        }}
-      >
-        {DEMO_COPROPRIETES.map((copro) => {
-          const jours = joursAvantDateFr(copro.echeance),
-            pastille = pastilleUrgence(jours)
-          return (
-            <button
-              onClick={() => ouvrirEcran('mandats')}
-              style={{
-                textAlign: 'left',
-                cursor: 'pointer',
-                background: 'var(--paper)',
-                border: '1px solid var(--line)',
-                borderRadius: 12,
-                padding: 16,
-              }}
-              key={copro.id}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 8,
-                }}
-              >
-                <span
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: 8,
-                    background: 'var(--cream)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontFamily: 'Cormorant Garamond,serif',
-                    fontWeight: 600,
-                  }}
-                >
-                  {copro.code}
-                </span>
-                <Pill kind={pastille.k} noDot>
-                  {pastille.lbl}
-                </Pill>
-              </div>
-              <div
-                style={{
-                  fontFamily: 'Cormorant Garamond, serif',
-                  fontSize: 17,
-                  fontWeight: 500,
-                  lineHeight: 1.2,
-                }}
-              >
-                {copro.nom}
-              </div>
-              <div
-                style={{
-                  fontSize: 11.5,
-                  color: 'var(--navy-300)',
-                  marginTop: 3,
-                }}
-              >
-                {copro.fondement}
-              </div>
-              <div
-                style={{
-                  fontSize: 11.5,
-                  color: 'var(--navy-500)',
-                  marginTop: 6,
-                }}
-              >
-                {'Fin de mission · '}
-                {copro.echeance}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-      <Panel
-        title="Échéances légales · tous les mandats"
-        sub={`Moteur de délais légaux · de J-60 à J+120 autour du ${dateIsoVersFr(AUJOURDHUI_ISO)} · ${nombreSurEvenement} échéance${nombreSurEvenement > 1 ? 's' : ''} à déclencher sur événement`}
-        icon="clock"
-        right={
-          <Pill kind="navy" noDot>
-            {echeancesFenetre.length}
-          </Pill>
-        }
-        flush
-      >
-        {portefeuille.loading ? (
-          <div
-            style={{
-              padding: '22px',
-              textAlign: 'center',
-              color: 'var(--navy-300)',
-              fontSize: 13,
-            }}
-          >
-            Chargement des mandats…
-          </div>
-        ) : (
-          <ListeEcheancesLegales
-            items={echeancesFenetre}
-            reference={AUJOURDHUI_ISO}
-            max={8}
-            vide={portefeuille.erreur ? MESSAGES_ETAT_ECHEANCES.indisponible : 'Aucune échéance légale dans la fenêtre.'}
-          />
-        )}
-      </Panel>
+      <AlerteEcheancesDepassees nombre={nombreEnRetard} />
+      <RadarMandats />
+      <PanneauEcheancesLegales />
       <Panel
         title={role === 'Direction' ? "File d'actions du cabinet" : `Ma file d'actions — ${role}`}
         sub="Générée automatiquement depuis les échéances légales · triée par urgence"
@@ -662,67 +471,7 @@ export function CockpitModule() {
           gap: 16,
         }}
       >
-        <Panel
-          title="Génération express d'actes"
-          sub="Un clic = l'acte prêt, données du mandat fusionnées"
-          icon="sparkle"
-        >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 10,
-            }}
-          >
-            {(Object.entries(MODELES_ACTES_EXPRESS) as [CleActeExpress, ModeleActeExpress][]).map(([cle, modele]) => (
-              <button
-                onClick={() => ouvrirActe(cle, modele.code)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  background: '#fff',
-                  border: '1px solid var(--line)',
-                  borderRadius: 10,
-                  padding: '12px 14px',
-                }}
-                key={cle}
-              >
-                <span
-                  style={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: 9,
-                    background: 'var(--cream)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    color: 'var(--navy-700)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon
-                    name={modele.icon}
-                    style={{
-                      width: 17,
-                      height: 17,
-                    }}
-                  />
-                </span>
-                <span
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    lineHeight: 1.25,
-                  }}
-                >
-                  {modele.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Panel>
+        <PanneauActesExpress onChoisir={ouvrirActe} />
         <Panel title="Assistants IA" sub="Délègue les tâches chronophages" icon="bot">
           {ASSISTANTS_IA_COCKPIT.map(([route, nom, description, icone]) => (
             <button

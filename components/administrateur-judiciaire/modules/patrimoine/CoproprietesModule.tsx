@@ -24,7 +24,8 @@ import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/copr
 import { nouvelleFicheCopropriete, type FicheCopropriete } from '@/lib/administrateur-judiciaire/domain/fiche-copropriete'
 import { FONDEMENTS_FORMULAIRE_COPROPRIETE } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatDateFr, formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
-import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
+import { enPremierPourCopro, prestataireDeLaCopro } from '@/lib/administrateur-judiciaire/domain/patrimoine-copropriete'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
  * Entreprises de l'immeuble : prestataires sous contrat pour la copropriété, ou qui y interviennent selon leur fiche
@@ -32,8 +33,8 @@ import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
  */
 function entreprisesDeLImmeuble(copro: CoproprieteVue, prestataires: Prestataire[], contrats: Contrat[]): EntrepriseImmeuble[] {
   return prestataires.map(completerAvecDemo).flatMap((prestataire) => {
+    if (!prestataireDeLaCopro(prestataire, copro, contrats)) return []
     const contrat = contrats.find((c) => c.prestataireId === prestataire.id && c.coproprieteId === copro.id)
-    if (!contrat && !prestataire.fiche?.intervientPour.includes(copro.nom)) return []
     const sansContrat = prestataire.statut === 'Contrat cadre' ? 'Contrat cadre' : 'Sur demande'
     return [{ nom: prestataire.nom, domaine: prestataire.metier, contrat: contrat?.statut ?? sansContrat }]
   })
@@ -84,7 +85,11 @@ function ficheSaisie(base: FicheCopropriete, valeurs: ValeursFormulaireToast): F
 }
 
 /**
- * Copropriétés administrées (données réelles : base locale, copropriétés fusionnées avec leur mandat).
+ * Copropriétés administrées (données réelles : base locale, copropriétés fusionnées avec leur mandat). Registre
+ * complet : la copropriété choisie dans le sélecteur du haut de page vient en tête, marquée « Copropriété choisie » ;
+ * « Lots & copropriétaires » choisit la copropriété de la carte, pour que l'écran des lots s'affiche sur elle.
+ * « Détails » et « Modifier » ne changent pas le choix : la carte sur laquelle on travaille garde sa place dans la
+ * grille. Sans copropriété choisie (écran rendu seul) : ordre de la base.
  * « Détails » ouvre la fiche sur le modèle de la fiche Mandat de Gestéam (FicheCoproprieteDetail). Création et
  * modification passent par le formulaire rapide du ToastProvider (valeurs pré-remplies en modification, fiche détaillée
  * comprise) ; « Lots & copropriétaires » navigue vers l'écran « lots ». L'indicateur « Assurance RC » (100 %) est en dur.
@@ -94,6 +99,8 @@ export function CoproprietesModule() {
   const { copros, loading, create, update } = useCoproprietes()
   const { prestataires, contrats } = useDonneesLocales()
   const { choisirCopro } = useSelectionDossier()
+  const codeChoisi = useCodeCoproCourant()
+  const registre = enPremierPourCopro(copros, (copro) => copro.code === codeChoisi, false)
   const [ficheId, setFicheId] = useState<string | null>(null)
   const [agOuverteId, setAgOuverteId] = useState<string | null>(null)
   const [agEditeeId, setAgEditeeId] = useState<string | null>(null)
@@ -233,8 +240,12 @@ export function CoproprietesModule() {
         <p className="muted">Chargement…</p>
       ) : (
         <div className="card-grid cols-2">
-          {copros.map((copro) => (
-            <div className="panel entity-card" key={copro.id}>
+          {registre.map((copro) => (
+            <div
+              className="panel entity-card"
+              key={copro.id}
+              aria-current={copro.code === codeChoisi ? 'true' : undefined}
+            >
               <div className="entity-card__head">
                 <div className="entity-card__avatar">{copro.code}</div>
                 <div
@@ -257,6 +268,11 @@ export function CoproprietesModule() {
                     <Pill kind="navy" noDot>
                       {copro.fondement}
                     </Pill>
+                    {copro.code === codeChoisi && (
+                      <Pill kind="gold" noDot>
+                        Copropriété choisie
+                      </Pill>
+                    )}
                   </div>
                 </div>
               </div>
@@ -287,6 +303,7 @@ export function CoproprietesModule() {
                 <button
                   className="btn ghost sm"
                   onClick={() => {
+                    choisirCopro(copro.code)
                     naviguerVers('lots')
                   }}
                 >

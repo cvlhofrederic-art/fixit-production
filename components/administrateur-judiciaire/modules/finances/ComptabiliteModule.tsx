@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   DEMO_DERNIERS_APPELS_COMPTABILITE,
   DEMO_ECRITURES_COMPTABILITE,
@@ -8,26 +8,25 @@ import {
   DOCUMENTS_COMPTABLES_AG,
   type EcritureComptable,
 } from '@/components/administrateur-judiciaire/data/comptabilite'
-import {
-  DEMO_COPROPRIETES,
-  DEMO_TOTAL_BUDGET,
-  DEMO_TOTAL_DEPENSES,
-  DEMO_TOTAL_IMPAYES,
-} from '@/components/administrateur-judiciaire/data/coproprietes'
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
+import { DEMO_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/clavier'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
-import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
+import { Kpis, type KpiProps } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { ProgressBar } from '@/components/administrateur-judiciaire/ui/ProgressBar'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
+import { champCoproprieteChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import type { CoproprieteAffichee } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeDeNomCopro, codeLigneDemo, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /** Criticité d'une étape de clôture : « rust » = critique, « gold » = clé, « sage » = standard. */
 export type TonEtapeCloture = 'rust' | 'gold' | 'sage'
@@ -47,21 +46,99 @@ export const ETAPES_CLOTURE_EXERCICE: EtapeClotureExercice[] = [
 ]
 
 /**
- * Comptabilité du syndicat (données de démonstration). Onglets contrôlés : tableau de bord, clôture d'exercice
- * (checklist cochable, non persistée) et rapports AG (aperçu et génération simulés). Le solde des comptes séparés
- * (171 400 €) est saisi en dur.
+ * Copropriété des écritures de démonstration, par libellé (DEMO_ECRITURES_COMPTABILITE, transmises telles quelles aux
+ * agents IA, n'en portent pas) : reprise du compte séparé de l'Open Banking ou du lot du compte extranet ; à défaut,
+ * répartie entre les autres copropriétés.
+ */
+const CODE_COPRO_ECRITURE_DEMO: Readonly<Record<string, string>> = {
+  'Encaissement charges M. Bernard': 'LM',
+  'Facture Plomberie Centrale': 'LM',
+  'Cotisation fonds travaux': 'VM',
+  'Facture électricité parties communes': 'CV',
+  'Honoraires de gestion (mandat)': 'TL',
+  'Remboursement trop-perçu Mme Olivier': 'LM',
+}
+
+type MontantsCopro = Pick<CoproprieteAffichee, 'budget' | 'depense' | 'impayes' | 'fondsTravaux'>
+
+/**
+ * Indicateurs du tableau de bord, cumulés sur les copropriétés du périmètre. Le solde des comptes séparés n'existe
+ * qu'en cumul saisi en dur (171 400 €), sans détail par copropriété : « — » quand une copropriété est choisie.
+ */
+function indicateursComptabilite(perimetre: readonly MontantsCopro[], coproChoisie: boolean): KpiProps[] {
+  const somme = (champ: keyof MontantsCopro) => perimetre.reduce((total, copro) => total + copro[champ], 0)
+  return [
+    {
+      icon: 'bank',
+      num: coproChoisie ? '—' : formatEuros(171400),
+      lbl: 'Solde comptes séparés',
+      accent: 'sage',
+    },
+    {
+      icon: 'coin',
+      num: formatEuros(somme('budget')),
+      lbl: 'Budget annuel voté',
+    },
+    {
+      icon: 'chart',
+      num: formatEuros(somme('depense')),
+      lbl: 'Dépenses engagées',
+      accent: 'amber',
+    },
+    {
+      icon: 'alert',
+      num: formatEuros(somme('impayes')),
+      lbl: 'Impayés',
+      accent: 'rust',
+    },
+    {
+      icon: 'shield',
+      num: formatEuros(somme('fondsTravaux')),
+      lbl: 'Fonds travaux',
+      accent: 'sage',
+    },
+  ]
+}
+
+/** Contenu d'un panneau filtré sur la copropriété choisie : ce contenu s'il a des lignes, sinon un état vide. */
+function SiLignes({ nombre, vide, children }: { nombre: number; vide: string; children: ReactNode }) {
+  return nombre > 0 ? children : <EmptyState icon="fact" title={vide} />
+}
+
+/**
+ * Comptabilité du syndicat de la copropriété choisie en haut de page (données de démonstration) ; sans copropriété
+ * choisie (écran rendu seul), celle de toutes les copropriétés et leurs cumuls. Onglets contrôlés : tableau de bord,
+ * clôture d'exercice (checklist cochable, propre à chaque copropriété, non persistée) et rapports AG (aperçu et
+ * génération simulés). « Nouvelle écriture » est préremplie avec la copropriété choisie.
  */
 export function ComptabiliteModule() {
   const { push } = useToast()
   const [onglet, setOnglet] = useState('board')
   const [ecritureOuverte, setEcritureOuverte] = useState<EcritureComptable | null>(null)
-  const [etapesCochees, setEtapesCochees] = useState<Record<string, boolean>>({})
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const perimetre: readonly MontantsCopro[] = code ? [copro] : DEMO_COPROPRIETES
+  const appels = filtrerParCopro(DEMO_DERNIERS_APPELS_COMPTABILITE, code, (appel) => codeDeNomCopro(appel[1]))
+  const ecritures = filtrerParCopro(
+    DEMO_ECRITURES_COMPTABILITE,
+    code,
+    (ecriture) => codeLigneDemo(CODE_COPRO_ECRITURE_DEMO[ecriture[2]]),
+  )
+  const dernieresEcritures = ecritures.slice(0, 5)
+  const exercices = filtrerParCopro(DEMO_EXERCICES_COMPTABLES, code, (exercice) => codeDeNomCopro(exercice[1]))
+  // Étapes cochées par copropriété (clé vide sans copropriété choisie) : changer de copropriété affiche les siennes.
+  const [etapesParCopro, setEtapesParCopro] = useState<Record<string, Record<string, boolean>>>({})
+  const cleCopro = code ?? ''
+  const etapesCochees = etapesParCopro[cleCopro] ?? {}
   const nombreCochees = ETAPES_CLOTURE_EXERCICE.filter((etape) => etapesCochees[etape[0]]).length
   const pourcentage = Math.round((nombreCochees / ETAPES_CLOTURE_EXERCICE.length) * 100)
   const basculerEtape = (id: string) =>
-    setEtapesCochees((precedentes) => ({
+    setEtapesParCopro((precedentes) => ({
       ...precedentes,
-      [id]: !precedentes[id],
+      [cleCopro]: {
+        ...precedentes[cleCopro],
+        [id]: !precedentes[cleCopro]?.[id],
+      },
     }))
 
   return (
@@ -79,7 +156,7 @@ export function ComptabiliteModule() {
                 icon: 'coin',
                 title: 'Nouvelle écriture comptable',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(code && copro.nom),
                   {
                     label: 'Compte',
                     placeholder: 'ex. 614 — Charges',
@@ -137,180 +214,154 @@ export function ComptabiliteModule() {
       />
       {onglet === 'board' && (
         <>
-          <Kpis
-            items={[
-              {
-                icon: 'bank',
-                num: formatEuros(171400),
-                lbl: 'Solde comptes séparés',
-                accent: 'sage',
-              },
-              {
-                icon: 'coin',
-                num: formatEuros(DEMO_TOTAL_BUDGET),
-                lbl: 'Budget annuel voté',
-              },
-              {
-                icon: 'chart',
-                num: formatEuros(DEMO_TOTAL_DEPENSES),
-                lbl: 'Dépenses engagées',
-                accent: 'amber',
-              },
-              {
-                icon: 'alert',
-                num: formatEuros(DEMO_TOTAL_IMPAYES),
-                lbl: 'Impayés',
-                accent: 'rust',
-              },
-              {
-                icon: 'shield',
-                num: formatEuros(DEMO_COPROPRIETES.reduce((total, copro) => total + copro.fondsTravaux, 0)),
-                lbl: 'Fonds travaux',
-                accent: 'sage',
-              },
-            ]}
-          />
+          <Kpis items={indicateursComptabilite(perimetre, !!code)} />
           <div className="card-grid cols-2">
             <Panel title="Derniers appels de fonds" icon="coin">
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                }}
-              >
-                {DEMO_DERNIERS_APPELS_COMPTABILITE.map((appel, index) => (
-                  <li
-                    style={{
-                      padding: '10px 0',
-                      borderBottom: index < DEMO_DERNIERS_APPELS_COMPTABILITE.length - 1 ? '1px solid var(--line)' : 'none',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      fontSize: 13,
-                    }}
-                    key={index}
-                  >
-                    <span
+              <SiLignes nombre={appels.length} vide={`Aucun appel de fonds pour ${copro.nom}`}>
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                  }}
+                >
+                  {appels.map((appel, index) => (
+                    <li
                       style={{
-                        minWidth: 0,
+                        padding: '10px 0',
+                        borderBottom: index < appels.length - 1 ? '1px solid var(--line)' : 'none',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        fontSize: 13,
                       }}
+                      key={index}
                     >
-                      {appel[0]}
                       <span
                         style={{
-                          display: 'block',
-                          fontSize: 11,
-                          color: 'var(--navy-300)',
+                          minWidth: 0,
                         }}
                       >
-                        {appel[1]}
+                        {appel[0]}
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 11,
+                            color: 'var(--navy-300)',
+                          }}
+                        >
+                          {appel[1]}
+                        </span>
                       </span>
-                    </span>
-                    <span
-                      className="mono"
-                      style={{
-                        flexShrink: 0,
-                      }}
-                    >
-                      {appel[2]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      <span
+                        className="mono"
+                        style={{
+                          flexShrink: 0,
+                        }}
+                      >
+                        {appel[2]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </SiLignes>
             </Panel>
             <Panel title="Dernières écritures" icon="fact">
-              <ul
-                style={{
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: 0,
-                }}
-              >
-                {DEMO_ECRITURES_COMPTABILITE.slice(0, 5).map((ecriture, index) => (
-                  <li
-                    style={{
-                      padding: '10px 0',
-                      borderBottom: index < 4 ? '1px solid var(--line)' : 'none',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 10,
-                      fontSize: 13,
-                    }}
-                    key={index}
-                  >
-                    <span
+              <SiLignes nombre={dernieresEcritures.length} vide={`Aucune écriture pour ${copro.nom}`}>
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                  }}
+                >
+                  {dernieresEcritures.map((ecriture, index) => (
+                    <li
                       style={{
-                        minWidth: 0,
+                        padding: '10px 0',
+                        borderBottom: index < dernieresEcritures.length - 1 ? '1px solid var(--line)' : 'none',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                        fontSize: 13,
                       }}
+                      key={index}
                     >
-                      {ecriture[2]}
                       <span
                         style={{
-                          display: 'block',
-                          fontSize: 11,
-                          color: 'var(--navy-300)',
+                          minWidth: 0,
                         }}
                       >
-                        {ecriture[0]}
-                        {' · '}
-                        {ecriture[1]}
+                        {ecriture[2]}
+                        <span
+                          style={{
+                            display: 'block',
+                            fontSize: 11,
+                            color: 'var(--navy-300)',
+                          }}
+                        >
+                          {ecriture[0]}
+                          {' · '}
+                          {ecriture[1]}
+                        </span>
                       </span>
-                    </span>
-                    <span
-                      className="mono"
-                      style={{
-                        flexShrink: 0,
-                        color: ecriture[4].startsWith('-') ? 'var(--rust-600)' : 'var(--sage-600)',
-                      }}
-                    >
-                      {ecriture[4]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                      <span
+                        className="mono"
+                        style={{
+                          flexShrink: 0,
+                          color: ecriture[4].startsWith('-') ? 'var(--rust-600)' : 'var(--sage-600)',
+                        }}
+                      >
+                        {ecriture[4]}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </SiLignes>
             </Panel>
           </div>
           <Panel title="Journal des écritures" icon="fact" flush>
-            <DataTable
-              columns={[
-                {
-                  h: 'Date',
-                  render: (ecriture) => <span className="mono">{ecriture[0]}</span>,
-                },
-                {
-                  h: 'Compte',
-                  render: (ecriture) => ecriture[1],
-                },
-                {
-                  h: 'Description',
-                  render: (ecriture) => <b>{ecriture[2]}</b>,
-                },
-                {
-                  h: 'Type',
-                  render: (ecriture) => (
-                    <Pill kind={ecriture[3] === 'recette' ? 'sage' : 'amber'} noDot>
-                      {ecriture[3]}
-                    </Pill>
-                  ),
-                },
-                {
-                  h: 'Montant',
-                  render: (ecriture) => (
-                    <span
-                      className="mono"
-                      style={{
-                        color: ecriture[4].startsWith('-') ? 'var(--rust-600)' : 'var(--sage-600)',
-                      }}
-                    >
-                      {ecriture[4]}
-                    </span>
-                  ),
-                },
-              ]}
-              rows={DEMO_ECRITURES_COMPTABILITE}
-              onRow={setEcritureOuverte}
-            />
+            <SiLignes nombre={ecritures.length} vide={`Aucune écriture pour ${copro.nom}`}>
+              <DataTable
+                columns={[
+                  {
+                    h: 'Date',
+                    render: (ecriture) => <span className="mono">{ecriture[0]}</span>,
+                  },
+                  {
+                    h: 'Compte',
+                    render: (ecriture) => ecriture[1],
+                  },
+                  {
+                    h: 'Description',
+                    render: (ecriture) => <b>{ecriture[2]}</b>,
+                  },
+                  {
+                    h: 'Type',
+                    render: (ecriture) => (
+                      <Pill kind={ecriture[3] === 'recette' ? 'sage' : 'amber'} noDot>
+                        {ecriture[3]}
+                      </Pill>
+                    ),
+                  },
+                  {
+                    h: 'Montant',
+                    render: (ecriture) => (
+                      <span
+                        className="mono"
+                        style={{
+                          color: ecriture[4].startsWith('-') ? 'var(--rust-600)' : 'var(--sage-600)',
+                        }}
+                      >
+                        {ecriture[4]}
+                      </span>
+                    ),
+                  },
+                ]}
+                rows={ecritures}
+                onRow={setEcritureOuverte}
+              />
+            </SiLignes>
           </Panel>
         </>
       )}
@@ -379,31 +430,33 @@ export function ComptabiliteModule() {
             </div>
           </Panel>
           <Panel title="Exercices comptables" icon="folder" flush>
-            <DataTable
-              columns={[
-                {
-                  h: 'Année',
-                  render: (exercice) => <span className="mono">{exercice[0]}</span>,
-                },
-                {
-                  h: 'Copropriété',
-                  render: (exercice) => <b>{exercice[1]}</b>,
-                },
-                {
-                  h: 'Total prévu',
-                  render: (exercice) => <span className="mono">{exercice[2]}</span>,
-                },
-                {
-                  h: 'État',
-                  render: (exercice) => (
-                    <Pill kind={exercice[3] === 'clôturé' ? 'sage' : 'amber'} noDot>
-                      {exercice[3]}
-                    </Pill>
-                  ),
-                },
-              ]}
-              rows={DEMO_EXERCICES_COMPTABLES}
-            />
+            <SiLignes nombre={exercices.length} vide={`Aucun exercice pour ${copro.nom}`}>
+              <DataTable
+                columns={[
+                  {
+                    h: 'Année',
+                    render: (exercice) => <span className="mono">{exercice[0]}</span>,
+                  },
+                  {
+                    h: 'Copropriété',
+                    render: (exercice) => <b>{exercice[1]}</b>,
+                  },
+                  {
+                    h: 'Total prévu',
+                    render: (exercice) => <span className="mono">{exercice[2]}</span>,
+                  },
+                  {
+                    h: 'État',
+                    render: (exercice) => (
+                      <Pill kind={exercice[3] === 'clôturé' ? 'sage' : 'amber'} noDot>
+                        {exercice[3]}
+                      </Pill>
+                    ),
+                  },
+                ]}
+                rows={exercices}
+              />
+            </SiLignes>
           </Panel>
         </>
       )}

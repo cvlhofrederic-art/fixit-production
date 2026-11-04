@@ -1,17 +1,29 @@
 'use client'
 
-import { DEMO_AVIS_AFFICHAGE, type TeinteAvis } from '@/components/administrateur-judiciaire/data/avis-affichage'
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
+import {
+  DEMO_AVIS_AFFICHAGE,
+  type AvisAffichage,
+  type TeinteAvis,
+} from '@/components/administrateur-judiciaire/data/avis-affichage'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
+import {
+  champCoproprieteChoisie,
+  titreListeVide,
+  useCoproChoisie,
+} from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { useCoproprietesAffichees } from '@/lib/administrateur-judiciaire/db/hooks'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Catégorie du panneau latéral : [libellé, nombre d'avis, teinte de la pastille]. */
 export type CategorieAffichage = [libelle: string, nombre: number, teinte: string]
 
-/** Compteurs par catégorie, saisis en dur (non dérivés des avis affichés). */
+/** Compteurs par catégorie de tout le panneau, saisis en dur (affichés sans copropriété choisie). */
 const CATEGORIES_AFFICHAGE: readonly CategorieAffichage[] = [
   ['Assemblée', 3, 'gold'],
   ['Technique', 5, 'sage'],
@@ -19,16 +31,36 @@ const CATEGORIES_AFFICHAGE: readonly CategorieAffichage[] = [
   ['Juridique', 4, 'rust'],
 ]
 
+/** Catégorie du panneau latéral d'un avis : sa rubrique si c'en est une (« Assemblée »), sinon sa catégorie. */
+const categorieAvis = (avis: AvisAffichage): string | undefined =>
+  [avis[1], avis[0]].find((libelle) => CATEGORIES_AFFICHAGE.some(([categorie]) => categorie === libelle))
+
+/** Compteurs par catégorie recalculés sur les avis de la copropriété choisie (teintes et ordre du panneau). */
+const compterCategories = (avis: readonly AvisAffichage[]): CategorieAffichage[] =>
+  CATEGORIES_AFFICHAGE.map(([libelle, , teinte]) => [
+    libelle,
+    avis.filter((unAvis) => categorieAvis(unAvis) === libelle).length,
+    teinte,
+  ])
+
 /** Variable CSS de la bordure gauche d'un avis selon sa teinte (sauge par défaut). */
 const variableBordureAvis = (teinte: TeinteAvis): string =>
   teinte === 'rust' ? '--rust-500' : teinte === 'amber' ? '--amber-500' : teinte === 'gold' ? '--gold-500' : '--sage-500'
 
 /**
- * Panneau d'affichage (barre latérale : « Tableau d'affichage » ; surtitre « Gestion courante »).
- * La recherche et les trois listes déroulantes ne sont pas branchées ; « Détails » n'affiche qu'un toast.
+ * Panneau d'affichage (barre latérale : « Tableau d'affichage » ; surtitre « Gestion courante »), affiché selon la
+ * copropriété choisie dans le sélecteur du haut de page : avis filtrés, compteurs par catégorie recalculés, nouvel avis
+ * prérempli. La liste « Copropriété » suit la copropriété choisie et la change ; sans copropriété choisie, elle garde
+ * sa seule option « Toutes copropriétés » et les compteurs restent ceux de la démonstration. La recherche et les
+ * listes « Statut » et « Catégorie » ne sont pas branchées ; « Détails » n'affiche qu'un toast.
  */
 export function TableauAffichageModule() {
   const { push } = useToast()
+  const { code, nom } = useCoproChoisie()
+  const coproprietes = useCoproprietesAffichees()
+  const choisirCopro = useSelectionDossier((etat) => etat.choisirCopro)
+  const avisAffiches = filtrerParCopro(DEMO_AVIS_AFFICHAGE, code, (avis) => codeDeNomCopro(avis[3]))
+  const categories = code ? compterCategories(avisAffiches) : CATEGORIES_AFFICHAGE
 
   return (
     <>
@@ -45,7 +77,7 @@ export function TableauAffichageModule() {
                 icon: 'bell',
                 title: "Nouvel avis d'affichage",
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(nom),
                   {
                     label: 'Titre',
                     placeholder: "ex. Coupure d'eau programmée",
@@ -119,9 +151,24 @@ export function TableauAffichageModule() {
         <select className="btn" aria-label="Catégorie">
           <option>Toutes catégories</option>
         </select>
-        <select className="btn" aria-label="Copropriété">
-          <option>Toutes copropriétés</option>
-        </select>
+        {code ? (
+          <select
+            className="btn"
+            aria-label="Copropriété"
+            value={code}
+            onChange={(evenement) => choisirCopro(evenement.target.value)}
+          >
+            {coproprietes.map((copro) => (
+              <option value={copro.code} key={copro.code}>
+                {copro.nom}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <select className="btn" aria-label="Copropriété">
+            <option>Toutes copropriétés</option>
+          </select>
+        )}
       </div>
       <div
         style={{
@@ -131,7 +178,12 @@ export function TableauAffichageModule() {
         }}
       >
         <div>
-          {DEMO_AVIS_AFFICHAGE.map((avis, index) => (
+          {avisAffiches.length === 0 && (
+            <div className="panel">
+              <EmptyState icon="bell" title={titreListeVide('Aucun avis affiché', nom)} />
+            </div>
+          )}
+          {avisAffiches.map((avis, index) => (
             <div
               className="panel"
               style={{
@@ -212,7 +264,7 @@ export function TableauAffichageModule() {
         </div>
         <div>
           <Panel title="Catégories" icon="grid">
-            {CATEGORIES_AFFICHAGE.map((categorie, index) => (
+            {categories.map((categorie, index) => (
               <div
                 style={{
                   display: 'flex',

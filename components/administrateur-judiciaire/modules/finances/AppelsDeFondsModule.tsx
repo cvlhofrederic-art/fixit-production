@@ -5,27 +5,38 @@ import {
   DEMO_QUOTES_PARTS_APPELS_FONDS,
   type QuotePartAppelFonds,
 } from '@/components/administrateur-judiciaire/data/appels-de-fonds'
-import { DEMO_TOTAL_BUDGET, DEMO_TOTAL_IMPAYES } from '@/components/administrateur-judiciaire/data/coproprietes'
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
+import { DEMO_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
+import { champCoproprieteChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import type { CoproprieteAffichee } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCodeCoproCourant, useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /**
- * Appels de fonds : budget voté, quotes-parts par copropriété et suivi du recouvrement (données de démonstration).
+ * Appels de fonds de la copropriété choisie en haut de page : budget voté, quote-part et suivi du recouvrement
+ * (données de démonstration). Sans copropriété choisie (écran rendu seul), toutes les copropriétés et leurs cumuls.
  * Les onglets sont autonomes (non branchés : seul « Quotes-parts » est affiché). Le formulaire « Nouvel appel de
- * fonds » est simulé (toast « Appel de fonds émis »).
+ * fonds », prérempli avec la copropriété choisie, est simulé (toast « Appel de fonds émis »).
  */
 export function AppelsDeFondsModule() {
   const { push } = useToast()
   const [ligneOuverte, setLigneOuverte] = useState<QuotePartAppelFonds | null>(null)
+  const code = useCodeCoproCourant()
+  const copro = useCoproCourante()
+  const perimetre: readonly Pick<CoproprieteAffichee, 'budget' | 'impayes'>[] = code ? [copro] : DEMO_COPROPRIETES
+  const budget = perimetre.reduce((total, candidate) => total + candidate.budget, 0)
+  const impayes = perimetre.reduce((total, candidate) => total + candidate.impayes, 0)
+  const quotesParts = filtrerParCopro(DEMO_QUOTES_PARTS_APPELS_FONDS, code, (ligne) => codeDeNomCopro(ligne[0]))
 
   return (
     <>
@@ -42,7 +53,7 @@ export function AppelsDeFondsModule() {
                 icon: 'mail',
                 title: 'Nouvel appel de fonds',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(code && copro.nom),
                   {
                     label: 'Période',
                     type: 'select',
@@ -77,18 +88,19 @@ export function AppelsDeFondsModule() {
         items={[
           {
             icon: 'bank',
-            num: formatEuros(DEMO_TOTAL_BUDGET),
+            num: formatEuros(budget),
             lbl: 'Budget annuel voté',
           },
           {
             icon: 'coin',
-            num: formatEuros(Math.round(DEMO_TOTAL_BUDGET * 0.05)),
+            num: formatEuros(Math.round(budget * 0.05)),
             lbl: 'Cotisation fonds travaux',
             accent: 'gold',
           },
           {
             icon: 'chart',
-            num: Math.round(((DEMO_TOTAL_BUDGET - DEMO_TOTAL_IMPAYES) / DEMO_TOTAL_BUDGET) * 100) + ' %',
+            // Budget nul (copropriété de la base sans budget saisi) : pas de taux plutôt que « NaN % ».
+            num: budget > 0 ? Math.round(((budget - impayes) / budget) * 100) + ' %' : '—',
             lbl: 'Taux de recouvrement',
             accent: 'amber',
           },
@@ -125,40 +137,44 @@ export function AppelsDeFondsModule() {
         ]}
       />
       <Panel title="Quotes-parts par copropriété" icon="coin" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Copropriété',
-              render: (ligne) => <b>{ligne[0]}</b>,
-            },
-            {
-              h: 'Budget voté',
-              render: (ligne) => <span className="mono">{ligne[1]}</span>,
-            },
-            {
-              h: 'Quote-part moy.',
-              render: (ligne) => <span className="mono">{ligne[2]}</span>,
-            },
-            {
-              h: 'Émis',
-              render: (ligne) => <span className="mono">{ligne[3]}</span>,
-            },
-            {
-              h: 'Recouvré',
-              render: (ligne) => <span className="mono">{ligne[4]}</span>,
-            },
-            {
-              h: 'Taux',
-              render: (ligne) => (
-                <Pill kind={ligne[6]} noDot>
-                  {ligne[5]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={DEMO_QUOTES_PARTS_APPELS_FONDS}
-          onRow={setLigneOuverte}
-        />
+        {quotesParts.length > 0 ? (
+          <DataTable
+            columns={[
+              {
+                h: 'Copropriété',
+                render: (ligne) => <b>{ligne[0]}</b>,
+              },
+              {
+                h: 'Budget voté',
+                render: (ligne) => <span className="mono">{ligne[1]}</span>,
+              },
+              {
+                h: 'Quote-part moy.',
+                render: (ligne) => <span className="mono">{ligne[2]}</span>,
+              },
+              {
+                h: 'Émis',
+                render: (ligne) => <span className="mono">{ligne[3]}</span>,
+              },
+              {
+                h: 'Recouvré',
+                render: (ligne) => <span className="mono">{ligne[4]}</span>,
+              },
+              {
+                h: 'Taux',
+                render: (ligne) => (
+                  <Pill kind={ligne[6]} noDot>
+                    {ligne[5]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={quotesParts}
+            onRow={setLigneOuverte}
+          />
+        ) : (
+          <EmptyState icon="coin" title={`Aucune quote-part pour ${copro.nom}`} />
+        )}
       </Panel>
       <DetailModal
         open={!!ligneOuverte}

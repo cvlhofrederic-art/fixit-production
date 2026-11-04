@@ -5,32 +5,47 @@ import {
   DEMO_CARNET_ENTRETIEN,
   type InterventionCarnetDemo,
 } from '@/components/administrateur-judiciaire/data/carnet-entretien'
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { DetailModal } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { Tabs } from '@/components/administrateur-judiciaire/ui/Tabs'
+import {
+  champCoproprieteChoisie,
+  sousTitreFige,
+  titreListeVide,
+  useCoproChoisie,
+} from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+
+/** Couleur de la pastille « État » d'une intervention (or pour tout autre état). */
+const COULEUR_ETAT_INTERVENTION: Readonly<Partial<Record<string, string>>> = { fait: 'sage', 'en cours': 'amber' }
 
 /**
  * Carnet d'entretien & technique (écran de démonstration). Le surtitre « Patrimoine » est celui de la maquette,
- * bien que l'écran soit rangé dans Technique & travaux. Les onglets sont autonomes (non branchés) et les
- * indicateurs sont en dur.
+ * bien que l'écran soit rangé dans Technique & travaux. Affiché selon la copropriété choisie dans le sélecteur du haut
+ * de page : interventions filtrées (colonne « Bâtiment »), « Interventions consignées » et « Sous garantie » (garantie
+ * autre qu'un contrat) calculés sur elles, nouvelle intervention préremplie ; « Contrats actifs » et « Équipements
+ * suivis » restent en dur (4, 12 ; marqués « Tous les mandats » quand une copropriété est choisie). Les onglets sont autonomes (non branchés).
  */
 export function CarnetEntretienModule() {
   const { push } = useToast()
   const [interventionOuverte, setInterventionOuverte] = useState<InterventionCarnetDemo | null>(null)
+  const { code, nom } = useCoproChoisie()
+  const interventions = filtrerParCopro(DEMO_CARNET_ENTRETIEN, code, (intervention) => codeDeNomCopro(intervention[2]))
+  const portee = nom ? `de ${nom}` : 'des copropriétés sous mandat'
 
   return (
     <>
       <PageHead
         eyebrow="Patrimoine"
         title="Carnet d'entretien & technique"
-        lede="Historique des interventions, équipements et contrats des copropriétés sous mandat."
+        lede={`Historique des interventions, équipements et contrats ${portee}.`}
         actions={
           <button
             className="btn gold"
@@ -40,7 +55,7 @@ export function CarnetEntretienModule() {
                 icon: 'wrench',
                 title: 'Nouvelle intervention',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  champCoproprieteChoisie(nom),
                   {
                     label: 'Prestataire',
                     type: 'select',
@@ -80,12 +95,12 @@ export function CarnetEntretienModule() {
         items={[
           {
             icon: 'wrench',
-            num: 5,
+            num: interventions.length,
             lbl: 'Interventions consignées',
           },
           {
             icon: 'shield',
-            num: 3,
+            num: interventions.filter((intervention) => intervention[5] !== 'Contrat').length,
             lbl: 'Sous garantie',
             accent: 'sage',
           },
@@ -93,11 +108,13 @@ export function CarnetEntretienModule() {
             icon: 'doc',
             num: 4,
             lbl: 'Contrats actifs',
+            sub: sousTitreFige(code),
           },
           {
             icon: 'building',
             num: 12,
             lbl: 'Équipements suivis',
+            sub: sousTitreFige(code),
           },
         ]}
       />
@@ -132,44 +149,48 @@ export function CarnetEntretienModule() {
         ]}
       />
       <Panel title="Interventions" icon="wrench" flush>
-        <DataTable
-          columns={[
-            {
-              h: 'Date',
-              render: (intervention) => <span className="mono">{intervention[0]}</span>,
-            },
-            {
-              h: 'Nature',
-              render: (intervention) => <b>{intervention[1]}</b>,
-            },
-            {
-              h: 'Bâtiment',
-              render: (intervention) => intervention[2],
-            },
-            {
-              h: 'Prestataire',
-              render: (intervention) => intervention[3],
-            },
-            {
-              h: 'Coût',
-              render: (intervention) => <span className="mono">{intervention[4]}</span>,
-            },
-            {
-              h: 'Garantie',
-              render: (intervention) => <Pill noDot>{intervention[5]}</Pill>,
-            },
-            {
-              h: 'État',
-              render: (intervention) => (
-                <Pill kind={intervention[6] === 'fait' ? 'sage' : intervention[6] === 'en cours' ? 'amber' : 'gold'} noDot>
-                  {intervention[6]}
-                </Pill>
-              ),
-            },
-          ]}
-          rows={DEMO_CARNET_ENTRETIEN}
-          onRow={setInterventionOuverte}
-        />
+        {interventions.length === 0 ? (
+          <EmptyState icon="wrench" title={titreListeVide('Aucune intervention consignée', nom)} />
+        ) : (
+          <DataTable
+            columns={[
+              {
+                h: 'Date',
+                render: (intervention) => <span className="mono">{intervention[0]}</span>,
+              },
+              {
+                h: 'Nature',
+                render: (intervention) => <b>{intervention[1]}</b>,
+              },
+              {
+                h: 'Bâtiment',
+                render: (intervention) => intervention[2],
+              },
+              {
+                h: 'Prestataire',
+                render: (intervention) => intervention[3],
+              },
+              {
+                h: 'Coût',
+                render: (intervention) => <span className="mono">{intervention[4]}</span>,
+              },
+              {
+                h: 'Garantie',
+                render: (intervention) => <Pill noDot>{intervention[5]}</Pill>,
+              },
+              {
+                h: 'État',
+                render: (intervention) => (
+                  <Pill kind={COULEUR_ETAT_INTERVENTION[intervention[6]] ?? 'gold'} noDot>
+                    {intervention[6]}
+                  </Pill>
+                ),
+              },
+            ]}
+            rows={interventions}
+            onRow={setInterventionOuverte}
+          />
+        )}
       </Panel>
       <DetailModal
         open={!!interventionOuverte}

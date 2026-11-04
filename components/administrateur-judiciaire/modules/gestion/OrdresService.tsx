@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { DEMO_NOMS_COPROPRIETES } from '@/components/administrateur-judiciaire/data/coproprietes'
 import { DEMO_ORDRES_DE_SERVICE, type OrdreDeServiceDemo } from '@/components/administrateur-judiciaire/data/ordres-de-service'
 import { DEMO_PRESTATAIRES } from '@/components/administrateur-judiciaire/data/prestataires'
+import { champCoproprieteChoisie, sousTitreFige, titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { messageErreurOrdre } from '@/components/administrateur-judiciaire/modules/gestion/vitfix/api'
 import {
   EnvoiPrestataireModal,
@@ -13,6 +14,7 @@ import { SuiviPrestataire, dateCourte } from '@/components/administrateur-judici
 import { useOrdresPrestataire } from '@/components/administrateur-judiciaire/modules/gestion/vitfix/useOrdresPrestataire'
 import { Alert } from '@/components/administrateur-judiciaire/ui/Alert'
 import { DetailModal, type ChampDetail } from '@/components/administrateur-judiciaire/ui/DetailModal'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -22,6 +24,7 @@ import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useNomsCoproprietesSelonMode } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import {
   LIBELLE_STATUT_ORDRE,
   TEINTE_STATUT_ORDRE,
@@ -75,6 +78,14 @@ const CHAMPS_NOUVEL_ORDRE: ChampFormModal[] = [
   },
 ]
 
+/** Champs du formulaire, copropriété choisie préremplie (tels quels sans copropriété choisie). */
+const champsNouvelOrdre = (nomCopro: string | null): ChampFormModal[] =>
+  CHAMPS_NOUVEL_ORDRE.map((champ) => (champ.label === 'Copropriété' ? champCoproprieteChoisie(nomCopro, champ) : champ))
+
+/** Copropriétés de la saisie libre, la copropriété choisie en tête (valeur par défaut) ; telles quelles sans choix. */
+const coproprietesEnvoi = (noms: string[], nomCopro: string | null): string[] =>
+  nomCopro ? [nomCopro, ...noms.filter((nom) => nom !== nomCopro)] : noms
+
 /** Intervention de l'écran transmise au prestataire Vitfix (son numéro relie l'ordre envoyé à la carte). */
 const sourceDepuisOrdreDemo = (ordre: OrdreDeServiceDemo): SourceEnvoi => ({
   reference: ordre.id,
@@ -101,6 +112,8 @@ function PastilleVitfix({ ordre }: { ordre: OrdrePrestataire }) {
 /**
  * Ordres de service : interventions sur les parties communes (création, suivi, validation), dans la limite des
  * pouvoirs des articles 18 à 18-2. Données de démonstration, actions simulées. « Planifié » n'apparaît que dans « Tous ».
+ * Interventions, saisies libres et compteurs de la copropriété choisie en haut de page (toutes sans choix) ; les
+ * formulaires la proposent par défaut.
  * Seul circuit réel : « Envoyer au prestataire » transmet l'intervention à un prestataire Vitfix du cabinet (envoi
  * réel, même en démonstration) ; son suivi (statut, échanges, documents, réponse) s'affiche sous la carte.
  */
@@ -111,17 +124,20 @@ export function OrdresServiceModule() {
   const [detail, setDetail] = useState<DetailOrdre | null>(null)
   const vitfix = useOrdresPrestataire()
   const nomsCoproprietes = useNomsCoproprietesSelonMode()
+  const { code, nom: nomCopro, codeDeNom } = useCoproChoisie()
   // Fenêtre d'envoi : intervention transmise (null = saisie libre), undefined = fermée.
   const [envoi, setEnvoi] = useState<SourceEnvoi | null | undefined>(undefined)
   // Suivis dépliés, par numéro d'ordre de service (ou identifiant de mission pour une saisie libre).
   const [suivisOuverts, setSuivisOuverts] = useState<Record<string, boolean>>({})
-  const ordres = DEMO_ORDRES_DE_SERVICE
+  const ordres = filtrerParCopro(DEMO_ORDRES_DE_SERVICE, code, (ordre) => codeDeNom(ordre.copro))
   const parReference = useMemo(() => dernierOrdreParReference(vitfix.ordres), [vitfix.ordres])
   // Ordres envoyés sans carte à l'écran (saisie libre) : affichés en tête de « Tous ».
   const ordresLibres = useMemo(() => {
     const references = new Set(DEMO_ORDRES_DE_SERVICE.map((ordre) => ordre.id))
     return vitfix.ordres.filter((ordre) => !ordre.referenceAj || !references.has(ordre.referenceAj))
   }, [vitfix.ordres])
+  const ordresLibresAffiches = filtrerParCopro(ordresLibres, code, (ordre) => codeDeNom(ordre.copropriete))
+  const aucunOrdreDeLaCopro = !!code && ordres.length + ordresLibresAffiches.length === 0
   const basculerSuivi = (cle: string) => setSuivisOuverts((ouverts) => ({ ...ouverts, [cle]: !ouverts[cle] }))
 
   const envoyerOrdre = async (demande: DemandeEnvoiOrdre) => {
@@ -219,7 +235,7 @@ export function OrdresServiceModule() {
             icon: 'clipboard',
             num: ordres.filter((ordre) => ordre.statut === 'En cours').length,
             lbl: 'En cours',
-            sub: '4 copropriétés',
+            sub: nomCopro || '4 copropriétés',
             accent: 'amber',
           },
           {
@@ -233,14 +249,14 @@ export function OrdresServiceModule() {
             icon: 'check',
             num: 18,
             lbl: 'Clôturés (mois)',
-            sub: 'délai moyen 3,1 j',
+            sub: sousTitreFige(code, 'délai moyen 3,1 j'),
             accent: 'sage',
           },
           {
             icon: 'coin',
             num: formatEuros(12840),
             lbl: 'Engagé (mois)',
-            sub: 'hors travaux votés',
+            sub: sousTitreFige(code, 'hors travaux votés'),
           },
         ]}
       />
@@ -273,8 +289,9 @@ export function OrdresServiceModule() {
         </div>
       )}
       <Panel flush>
+        {aucunOrdreDeLaCopro && <EmptyState icon="clipboard" title={titreListeVide('Aucun ordre de service', nomCopro)} />}
         {filtre === 'tous' &&
-          ordresLibres.map((ordre) => (
+          ordresLibresAffiches.map((ordre) => (
             <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--line)' }} key={ordre.missionId}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 <Pill noDot kind={ordre.urgence === 'urgente' ? 'rust' : ordre.urgence === 'haute' ? 'amber' : ''}>
@@ -455,7 +472,7 @@ export function OrdresServiceModule() {
         source={envoi ?? null}
         prestataires={vitfix.prestataires}
         prestatairesCharges={vitfix.charge}
-        coproprietes={nomsCoproprietes}
+        coproprietes={coproprietesEnvoi(nomsCoproprietes, nomCopro)}
         onClose={() => setEnvoi(undefined)}
         onEnvoyer={envoyerOrdre}
       />
@@ -464,7 +481,7 @@ export function OrdresServiceModule() {
         onClose={() => setFormulaireOuvert(false)}
         title="Nouvel ordre de service"
         icon="clipboard"
-        fields={CHAMPS_NOUVEL_ORDRE}
+        fields={champsNouvelOrdre(nomCopro)}
         submitLabel="Créer"
         onDone={() =>
           push({

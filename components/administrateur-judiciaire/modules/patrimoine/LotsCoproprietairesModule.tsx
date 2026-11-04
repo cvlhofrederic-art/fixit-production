@@ -15,6 +15,7 @@ import {
 } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheCompteCoproprietaire'
 import { FicheLotDetail } from '@/components/administrateur-judiciaire/modules/patrimoine/FicheLotDetail'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
+import { EmptyState } from '@/components/administrateur-judiciaire/ui/EmptyState'
 import { FormModal, type ChampFormModal, type ValeursFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
@@ -23,6 +24,9 @@ import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
+import { champCoproprieteChoisie, titreListeVide, useCoproChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
+import { codeDeNomCopro, filtrerParCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { useCoproCourante } from '@/lib/administrateur-judiciaire/selection'
 
 /** Champs du locataire, communs à l'ajout d'un copropriétaire et à la modification de la fiche. */
 const CHAMPS_LOCATAIRE: (ChampFormModal & { cle: keyof LocataireDemo })[] = [
@@ -111,10 +115,13 @@ function champsModification(coproprietaire: CoproprietaireDemo): ChampFormModal[
 
 /**
  * Lots & copropriétaires. Registre de démonstration (échantillon statique, et non la base locale contrairement à
- * l'écran Copropriétés) ; l'indicateur « 10 000 » tantièmes est en dur. Solde en rouge s'il est négatif, en vert
- * sinon. Un clic sur une ligne ouvre la fiche du compte (modèle Gestéam, avec le locataire du lot) ; « Modifier la
- * fiche » change la démonstration le temps de la session, sans rien enregistrer. « Exporter » ouvre un récapitulatif
- * simulé ; « Ajouter un copropriétaire » ouvre une FormModal sans validation suivie d'un toast « Simulation ».
+ * l'écran Copropriétés), affiché selon la copropriété choisie dans le sélecteur du haut de page : registre filtré,
+ * indicateurs calculés sur lui (lots de la copropriété), copropriété du formulaire d'ajout préremplie. Sans copropriété
+ * choisie (écran rendu seul) : tout l'échantillon. L'indicateur « 10 000 » tantièmes est en dur. Solde en rouge s'il
+ * est négatif, en vert sinon. Un clic sur une ligne ouvre la fiche du compte (modèle Gestéam, avec le locataire du
+ * lot) ; « Modifier la fiche » change la démonstration le temps de la session, sans rien enregistrer. « Exporter »
+ * ouvre un récapitulatif simulé ; « Ajouter un copropriétaire » ouvre une FormModal sans validation suivie d'un toast
+ * « Simulation ».
  */
 export function LotsCoproprietairesModule() {
   const { push } = useToast()
@@ -124,7 +131,10 @@ export function LotsCoproprietairesModule() {
   const [editionId, setEditionId] = useState<string | null>(null)
   const [lotOuvert, setLotOuvert] = useState<{ id: string; index: number } | null>(null)
   const [lotEdite, setLotEdite] = useState<{ id: string; index: number } | null>(null)
+  const { code, nom: nomCopro } = useCoproChoisie()
+  const copro = useCoproCourante()
   const coproprietaires = DEMO_COPROPRIETAIRES.map((coproprietaire) => modifies[coproprietaire.id] ?? coproprietaire)
+  const registre = filtrerParCopro(coproprietaires, code, (coproprietaire) => codeDeNomCopro(coproprietaire.copro))
   const trouver = (id: string | undefined) => coproprietaires.find((coproprietaire) => coproprietaire.id === id) ?? null
   const fiche = trouver(ficheId ?? undefined)
   const edition = trouver(editionId ?? undefined)
@@ -158,20 +168,20 @@ export function LotsCoproprietairesModule() {
         items={[
           {
             icon: 'users',
-            num: DEMO_COPROPRIETAIRES.length,
+            num: registre.length,
             lbl: 'Copropriétaires (échantillon)',
-            sub: `${DEMO_TOTAL_LOTS} lots au total`,
+            sub: `${code ? copro.lots : DEMO_TOTAL_LOTS} lots au total`,
           },
           {
             icon: 'check',
-            num: DEMO_COPROPRIETAIRES.filter((coproprietaire) => coproprietaire.statut === 'À jour').length,
+            num: registre.filter((coproprietaire) => coproprietaire.statut === 'À jour').length,
             lbl: 'À jour',
             sub: 'charges réglées',
             accent: 'sage',
           },
           {
             icon: 'alert',
-            num: DEMO_COPROPRIETAIRES.filter((coproprietaire) => coproprietaire.solde < 0).length,
+            num: registre.filter((coproprietaire) => coproprietaire.solde < 0).length,
             lbl: 'En retard / impayé',
             sub: 'à relancer',
             accent: 'rust',
@@ -190,65 +200,69 @@ export function LotsCoproprietairesModule() {
         icon="users"
         flush
       >
-        <DataTable
-          rowKey="id"
-          columns={[
-            {
-              h: 'Copropriétaire',
-              render: (coproprietaire) => (
-                <b
-                  style={{
-                    fontWeight: 600,
-                  }}
-                >
-                  {coproprietaire.nom}
-                </b>
-              ),
-            },
-            {
-              h: 'Copropriété',
-              render: (coproprietaire) => coproprietaire.copro,
-            },
-            {
-              h: 'Lot',
-              render: (coproprietaire) => (
-                <LienFiche libelle={coproprietaire.lot} onClick={() => ouvrirLot(coproprietaire, 0)} />
-              ),
-            },
-            {
-              h: 'Tantièmes',
-              render: (coproprietaire) => (
-                <span
-                  className="mono"
-                  style={{
-                    fontSize: 12,
-                  }}
-                >
-                  {coproprietaire.tantiemes}
-                </span>
-              ),
-            },
-            {
-              h: 'Solde',
-              render: (coproprietaire) => (
-                <span
-                  style={{
-                    color: coproprietaire.solde < 0 ? 'var(--rust-700)' : 'var(--sage-700)',
-                    fontWeight: 600,
-                  }}
-                >
-                  {formatEurosCentimes(coproprietaire.solde)}
-                </span>
-              ),
-            },
-            {
-              h: 'Statut',
-              render: (coproprietaire) => <Pill kind={coproprietaire.pill}>{coproprietaire.statut}</Pill>,
-            },
-          ]}
-          rows={coproprietaires}
-          onRow={(coproprietaire) => setFicheId(coproprietaire.id)}
-        />
+        {registre.length === 0 ? (
+          <EmptyState icon="users" title={titreListeVide('Aucun copropriétaire', nomCopro)} />
+        ) : (
+          <DataTable
+            rowKey="id"
+            columns={[
+              {
+                h: 'Copropriétaire',
+                render: (coproprietaire) => (
+                  <b
+                    style={{
+                      fontWeight: 600,
+                    }}
+                  >
+                    {coproprietaire.nom}
+                  </b>
+                ),
+              },
+              {
+                h: 'Copropriété',
+                render: (coproprietaire) => coproprietaire.copro,
+              },
+              {
+                h: 'Lot',
+                render: (coproprietaire) => (
+                  <LienFiche libelle={coproprietaire.lot} onClick={() => ouvrirLot(coproprietaire, 0)} />
+                ),
+              },
+              {
+                h: 'Tantièmes',
+                render: (coproprietaire) => (
+                  <span
+                    className="mono"
+                    style={{
+                      fontSize: 12,
+                    }}
+                  >
+                    {coproprietaire.tantiemes}
+                  </span>
+                ),
+              },
+              {
+                h: 'Solde',
+                render: (coproprietaire) => (
+                  <span
+                    style={{
+                      color: coproprietaire.solde < 0 ? 'var(--rust-700)' : 'var(--sage-700)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {formatEurosCentimes(coproprietaire.solde)}
+                  </span>
+                ),
+              },
+              {
+                h: 'Statut',
+                render: (coproprietaire) => <Pill kind={coproprietaire.pill}>{coproprietaire.statut}</Pill>,
+              },
+            ]}
+            rows={registre}
+            onRow={(coproprietaire) => setFicheId(coproprietaire.id)}
+          />
+        )}
       </Panel>
       <FormModal
         open={ajoutOuvert}
@@ -268,11 +282,11 @@ export function LotsCoproprietairesModule() {
           {
             label: 'Prénom',
           },
-          {
-            label: 'Copropriété',
-            type: 'select',
-            options: DEMO_NOMS_COPROPRIETES,
-          },
+          champCoproprieteChoisie(nomCopro, {
+              label: 'Copropriété',
+              type: 'select',
+              options: DEMO_NOMS_COPROPRIETES,
+          }),
           {
             label: 'Lot',
             placeholder: 'ex. Lot 12 — Apt B3',

@@ -1,18 +1,17 @@
 'use client'
 
-import { useState } from 'react'
-import { CHAMP_COPROPRIETE } from '@/components/administrateur-judiciaire/data/elements-communs'
 import { DataTable } from '@/components/administrateur-judiciaire/ui/DataTable'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Kpis } from '@/components/administrateur-judiciaire/ui/Kpis'
 import { PageHead } from '@/components/administrateur-judiciaire/ui/PageHead'
 import { Panel } from '@/components/administrateur-judiciaire/ui/Panel'
 import { SelecteurCopropriete } from '@/components/administrateur-judiciaire/ui/SelecteurCopropriete'
+import { champCoproprieteChoisie } from '@/components/administrateur-judiciaire/ui/copro-choisie'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { useCoproParCode } from '@/lib/administrateur-judiciaire/db/hooks'
 import { formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
 import { ETAPES_TAXATION } from '@/lib/administrateur-judiciaire/domain/honoraires'
-import { codeCoproSelectionne } from '@/lib/administrateur-judiciaire/selection'
+import { useCodeCoproCourant, useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /** Diligence du relevé : date « JJ/MM/AAAA », nature, temps passé (h) et taux horaire HT (€/h). */
 export interface DiligenceTaxation {
@@ -70,7 +69,8 @@ export const DILIGENCES_TAXATION_DEMO: DiligenceTaxation[] = [
  */
 export function HonorairesTaxationModule() {
   const { push } = useToast(),
-    [code, setCode] = useState(() => codeCoproSelectionne('LM')),
+    code = useCodeCoproCourant('LM'),
+    choisirCopro = useSelectionDossier((etat) => etat.choisirCopro),
     copro = useCoproParCode(code),
     etapeCourante = ETAPE_TAXATION_PAR_CODE[code] || 0,
     diligences = DILIGENCES_TAXATION_DEMO,
@@ -85,7 +85,7 @@ export function HonorairesTaxationModule() {
         lede="En auxiliaire de justice, la rémunération ne suit pas le contrat-type syndic mais les articles 704 à 718 du CPC : état de frais soumis à la taxation du président du tribunal."
         actions={
           <>
-            <SelecteurCopropriete value={code} onChange={setCode} />
+            <SelecteurCopropriete value={code} onChange={choisirCopro} />
             <button
               className="btn gold"
               onClick={() =>
@@ -225,7 +225,8 @@ export function HonorairesTaxationModule() {
                 icon: 'clipboard',
                 title: 'Nouvelle diligence',
                 fields: [
-                  CHAMP_COPROPRIETE,
+                  // Copie préremplie avec la copropriété affichée (son nom ajouté aux options s'il y manque).
+                  champCoproprieteChoisie(copro.nom),
                   {
                     label: 'Nature',
                     placeholder: 'ex. Mise en demeure',
