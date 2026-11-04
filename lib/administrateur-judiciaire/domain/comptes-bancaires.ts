@@ -13,15 +13,25 @@ import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux
  * placements, CDC travaux, comptes repris de l'ancien syndic ou de l'ancien AJ) et le cabinet un compte centralisateur
  * `0000.51200…` (tranches 25 et 29). Les comptes en banque et à la Caisse des dépôts coexistent donc.
  *
- * Le droit, seul invariant appliqué ici : le fonds de travaux est déposé sur un compte séparé (L. 1965 art. 14-2-1),
- * jamais confondu avec la trésorerie courante (voir fonds-travaux.ts, J4).
+ * Le droit, seul invariant appliqué ici : le fonds de travaux est déposé sur un compte séparé (L. 1965 art. 18, II, al. 4,
+ * lu sur Légifrance le 30/10/2026, version en vigueur depuis le 11/04/2024 : compte séparé rémunéré au nom du syndicat, sans fusion ni compensation), jamais
+ * confondu avec la trésorerie courante ; l'art. 14-2-1 fixe l'objet du fonds, pas son compte (voir fonds-travaux.ts, J4).
  *
- * 🔴 Non établi : les textes du régime des AJ sur le dépôt des fonds (C. com., livre VIII) et la portée de l'obligation
- *    de compte séparé (L. 1965 art. 18) quand le mandataire est un administrateur judiciaire — à confirmer sur
- *    Légifrance avant d'en faire une règle. D'ici là, aucun mode n'est présenté comme imposé par la loi.
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J37 ; question 23 de la liste) :
+ * - J37 : dans la pratique du cabinet, le compte de l'administrateur provisoire est un compte à la Caisse des dépôts, pas
+ *   un compte centralisateur du cabinet. La pratique est consignée (MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE, mode
+ *   « caisse_depots »), sans rien imposer : D-BANQUE n'est pas remise en cause, le réglage du cabinet garde son défaut et
+ *   chaque mandat son choix. Le fonds de travaux reste sur un compte distinct (L. 1965 art. 18, II, al. 4, lu sur
+ *   Légifrance le 30/10/2026 : compte séparé rémunéré, sans fusion ni compensation) : à la Caisse des dépôts aussi, sans
+ *   IBAN propre, il exige son compte de nature « fonds_travaux » (anomalie fonds_travaux_manquant).
+ *
+ * 🔴 Non établi : les textes qui fondent le dépôt à la Caisse des dépôts des fonds de l'administrateur provisoire restent
+ *    à citer (C. com., livre VIII, non lu) ; seul L. 1965 art. 29-3, V, lu le 30/10/2026, vise les sommes qu'il y verse,
+ *    sans en faire une obligation. Reste aussi à établir, pour ce compte, la portée de l'art. 18, II, al. 3 (compte
+ *    séparé au nom du syndicat). D'ici là, aucun mode n'est présenté comme imposé par la loi.
  */
 
-const FONDEMENT_FONDS_TRAVAUX = citerFondement(refLoi1965('14-2-1'))
+const FONDEMENT_FONDS_TRAVAUX = citerFondement(refLoi1965('18, II, al. 4'))
 
 /** Nature d'un compte bancaire : décide des contrôles applicables (comme `Compte.nature` chez Gestéam). */
 export const NATURES_COMPTE_BANCAIRE = {
@@ -55,6 +65,12 @@ export const MODES_TENUE_COMPTES = {
   },
 } as const satisfies Record<string, { libelle: string; naturesRequises: readonly NatureCompteBancaire[] }>
 export type ModeTenueComptes = keyof typeof MODES_TENUE_COMPTES
+
+/**
+ * Pratique du cabinet pour le compte de l'administrateur provisoire (décision J37) : un compte à la Caisse des dépôts,
+ * pas le compte centralisateur. Proposée, jamais imposée (D-BANQUE) : le fonds de travaux s'y ajoute à part.
+ */
+export const MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE = 'caisse_depots' as const satisfies ModeTenueComptes
 
 const verifierMode = (mode: string): ModeTenueComptes => {
   if (!Object.hasOwn(MODES_TENUE_COMPTES, mode)) throw new Error(`Mode de tenue inconnu : « ${mode} ».`)

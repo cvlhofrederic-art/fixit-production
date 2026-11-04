@@ -5,6 +5,7 @@ import {
   dateIsoVersFr,
   decomposerDateIso,
   estDateIsoValide,
+  verifierAujourdhui,
 } from '@/lib/administrateur-judiciaire/domain/dates'
 import { citerFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { refLoi1965 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
@@ -42,6 +43,19 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   plan de sauvegarde (1°), et autoriser l'administrateur provisoire à utiliser le fonds pour le redressement ou la
  *   gestion courante (2°).
  *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * - J30 : l'ordonnance de l'art. 29-14, 2° (autorisationJuge) n'est plus un texte libre. Forme exigée : juridiction, date
+ *   et n° de l'ordonnance (OrdonnanceJuge), chacun obligatoire ; date ISO valide, jamais postérieure à aujourd'hui. Il en
+ *   manque un, ou la date est invalide ou future : refus motivé (cause « reference_invalide »), qui nomme ce qui manque.
+ *   Pour la décision d'affectation de l'assemblée (decisionAg) : date de l'AG et n° de la résolution
+ *   (DecisionAffectationAg), mêmes règles ; cette déclinaison est une interprétation (🔵 à confirmer par Hugo).
+ *   Lecture et saisie sont distinctes. Une nouvelle saisie (option `nouvelleSaisie`, passée par virement-interne.ts) en
+ *   texte libre est refusée, motif « forme incomplète » à l'appui. Une valeur enregistrée avant J30 en texte libre reste
+ *   lisible (lireOrdonnanceJuge, lireDecisionAffectationAg) et admise comme avant, jamais rejetée en silence : le
+ *   contrôle la signale « forme incomplète » (formeIncomplete), avec ce qui manque. Un texte blanc vaut absence. La date
+ *   du jour est exigée dès qu'une forme structurée est contrôlée ; un calcul sur des valeurs enregistrées passe
+ *   `aujourdhui: null` (forme contrôlée, date non comparée au jour).
+ *
  * 🔵 Déduit du texte (non écrit en toutes lettres) :
  * - le syndic décide seul des travaux urgents (art. 18), pas de l'usage du fonds : aucune disposition ne lui permet d'y
  *   puiser sans décision d'affectation de l'assemblée ;
@@ -71,6 +85,14 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  * non observé, très probablement l'amélioration 5.4.20 « Fonds travaux : Trésorerie mini ». Dans VitFix : paramètre de
  * GESTION, modifiable, jamais présenté comme une règle légale.
  * 🔴 Non observé : l'effet de ce champ dans Gestéam (blocage à la saisie, simple alerte, ou affichage).
+ *
+ * Branchements à faire (J30) : virement-interne.ts refuse le texte libre à la création (nouvelleSaisie) et expose le
+ * signalement des valeurs enregistrées (affectation.formeIncomplete) ; fonds-travaux-lots.ts et avis-appel.ts
+ * reçoivent la forme structurée et la contrôlent comme valeur enregistrée (`aujourdhui: null`), et signalent le texte
+ * libre par une anomalie non bloquante (emploi_forme_incomplete, emploi_fonds_forme_incomplete) ; fonds-travaux-lots.ts
+ * rapproche en outre la date de l'AG d'une décision structurée de celle de l'emploi. travaux-operations.ts, hors de ce
+ * lot, saisit encore décision et ordonnance en texte libre, fabrique un texte à partir de la résolution de l'opération
+ * et perd le signalement (etatPartFondsTravaux ne rend que autorise et motif) : sa saisie recevra la forme structurée.
  */
 
 const FONDEMENT_I = citerFondement(refLoi1965('14-2-1, I'))
@@ -159,66 +181,262 @@ export const AFFECTATION_FONDS_TRAVAUX = {
 export type ObjetDecaissementFondsTravaux = keyof typeof AFFECTATION_FONDS_TRAVAUX
 
 /** Exclusions qu'une ordonnance de l'art. 29-14, 2° peut ouvrir à l'administrateur provisoire. */
-const OUVERTS_PAR_LE_JUGE: readonly ObjetDecaissementFondsTravaux[] = ['charges_courantes', 'frais_contentieux']
+const OUVERTS_PAR_LE_JUGE: ReadonlySet<ObjetDecaissementFondsTravaux> = new Set(['charges_courantes', 'frais_contentieux'])
+
+/** Ordonnance du juge (art. 29-14, 2°), forme exigée par la décision J30 : juridiction, date et n°, chacun obligatoire. */
+export interface OrdonnanceJuge {
+  juridiction: string
+  /** Date de l'ordonnance (AAAA-MM-JJ), jamais postérieure à aujourd'hui. */
+  date: string
+  numero: string
+}
+
+/** Décision d'affectation de l'assemblée (I, al. 7) : date de l'AG et n° de la résolution (J30, 🔵 à confirmer). */
+export interface DecisionAffectationAg {
+  /** Date de l'assemblée (AAAA-MM-JJ), jamais postérieure à aujourd'hui. */
+  dateAg: string
+  numeroResolution: string
+}
+
+/**
+ * Référence saisie avant la décision J30 : texte libre, lu et signalé « forme incomplète », jamais rejeté en silence ;
+ * refusé pour une nouvelle saisie (OptionsControleAffectation.nouvelleSaisie).
+ */
+export type TexteLibreAncien = string
 
 export interface DecaissementFondsTravaux {
   objet: ObjetDecaissementFondsTravaux
   montantCentimes: number
-  /** Référence de la décision d'assemblée qui affecte le fonds à la dépense ; null si absente. */
-  decisionAg: string | null
-  /** Référence de l'ordonnance du juge (art. 29-14, 2°) ; exigée pour l'usage judiciaire du fonds. */
-  autorisationJuge?: string | null
+  /** Décision d'assemblée qui affecte le fonds à la dépense (J30 : date de l'AG et n° de la résolution) ; null si absente. */
+  decisionAg: DecisionAffectationAg | TexteLibreAncien | null
+  /** Ordonnance du juge (art. 29-14, 2° ; J30 : juridiction, date, n°) ; exigée pour l'usage judiciaire du fonds. */
+  autorisationJuge?: OrdonnanceJuge | TexteLibreAncien | null
 }
 
-export type CauseAffectation = 'admis' | 'exclu' | 'decision_manquante' | 'autorisation_manquante'
+/** Lecture d'une référence enregistrée : absente, complète, ou incomplète (texte libre ancien, champ manquant ou invalide). */
+export type LectureReference<T> =
+  | { forme: 'absente' }
+  | { forme: 'complete'; valeur: T }
+  | { forme: 'incomplete'; texte: string | null; manquants: string[] }
+
+interface ChampForme<T> {
+  cle: keyof T & string
+  libelle: string
+  date: boolean
+}
+
+/** Forme exigée d'une référence : ses champs et leur désignation dans les messages. */
+interface CadreForme<T> {
+  nom: string
+  /** « exigée » (texte de la décision) ou « attendue » (déclinaison à confirmer). */
+  exigence: string
+  description: string
+  champs: readonly ChampForme<T>[]
+  designer: (valeur: T) => string
+}
+
+const CADRE_ORDONNANCE: CadreForme<OrdonnanceJuge> = {
+  nom: 'Ordonnance du juge (art. 29-14, 2°)',
+  exigence: 'forme exigée',
+  description: "juridiction, date et n° de l'ordonnance",
+  champs: [
+    { cle: 'juridiction', libelle: 'juridiction', date: false },
+    { cle: 'date', libelle: "date de l'ordonnance", date: true },
+    { cle: 'numero', libelle: "n° de l'ordonnance", date: false },
+  ],
+  designer: (o) => `ordonnance n° ${o.numero} du ${dateIsoVersFr(o.date)}, ${o.juridiction}`,
+}
+
+const CADRE_DECISION_AG: CadreForme<DecisionAffectationAg> = {
+  nom: "Décision d'affectation de l'assemblée",
+  exigence: 'forme attendue',
+  description: "date de l'assemblée et n° de la résolution",
+  champs: [
+    { cle: 'dateAg', libelle: "date de l'assemblée", date: true },
+    { cle: 'numeroResolution', libelle: 'n° de la résolution', date: false },
+  ],
+  designer: (d) => `résolution n° ${d.numeroResolution} de l'assemblée du ${dateIsoVersFr(d.dateAg)}`,
+}
+
+/** Champ lu, rogné ; message de ce qui manque s'il est vide, d'un autre type ou, pour une date, hors AAAA-MM-JJ. */
+function lireChamp(brut: unknown, champ: { libelle: string; date: boolean }): { texte: string } | { manque: string } {
+  const texte = typeof brut === 'string' ? brut.trim() : ''
+  if (texte === '') return { manque: champ.libelle }
+  if (champ.date && !estDateIsoValide(texte)) return { manque: `${champ.libelle} au format AAAA-MM-JJ` }
+  return { texte }
+}
+
+function lireReference<T>(valeur: T | TexteLibreAncien | null | undefined, cadre: CadreForme<T>): LectureReference<T> {
+  if (valeur === null || valeur === undefined) return { forme: 'absente' }
+  if (typeof valeur === 'string') {
+    const texte = valeur.trim()
+    if (texte === '') return { forme: 'absente' }
+    return { forme: 'incomplete', texte, manquants: cadre.champs.map((c) => c.libelle) }
+  }
+  const lu: Partial<Record<keyof T & string, string>> = {}
+  const manquants: string[] = []
+  for (const champ of cadre.champs) {
+    const resultatChamp = lireChamp((valeur as Record<string, unknown>)[champ.cle], champ)
+    if ('manque' in resultatChamp) manquants.push(resultatChamp.manque)
+    else lu[champ.cle] = resultatChamp.texte
+  }
+  if (manquants.length > 0) return { forme: 'incomplete', texte: null, manquants }
+  return { forme: 'complete', valeur: lu as T }
+}
+
+/** Ordonnance enregistrée (structurée, ou texte libre d'avant J30), lue sans jamais être rejetée. */
+export function lireOrdonnanceJuge(valeur: OrdonnanceJuge | TexteLibreAncien | null | undefined): LectureReference<OrdonnanceJuge> {
+  return lireReference(valeur, CADRE_ORDONNANCE)
+}
+
+/** Décision d'affectation enregistrée (structurée, ou texte libre d'avant J30), lue sans jamais être rejetée. */
+export function lireDecisionAffectationAg(
+  valeur: DecisionAffectationAg | TexteLibreAncien | null | undefined,
+): LectureReference<DecisionAffectationAg> {
+  return lireReference(valeur, CADRE_DECISION_AG)
+}
+
+export type CauseAffectation = 'admis' | 'exclu' | 'decision_manquante' | 'autorisation_manquante' | 'reference_invalide'
+
+/** Référence admise mais saisie en texte libre avant J30 : ce qui manque à la forme exigée. */
+export interface FormeIncomplete {
+  code: 'forme_incomplete'
+  texte: string
+  manquants: string[]
+  message: string
+}
 
 export interface ResultatAffectation {
   autorise: boolean
   cause: CauseAffectation
   motif: string
   fondement: string
+  /** Décision ou ordonnance admise mais en texte libre d'avant J30 ; null sinon. */
+  formeIncomplete: FormeIncomplete | null
+}
+
+const resultatAffectation = (
+  cause: CauseAffectation,
+  motif: string,
+  fondement = FONDEMENT_I,
+  formeIncomplete: FormeIncomplete | null = null,
+): ResultatAffectation => ({ autorise: cause === 'admis', cause, motif, fondement, formeIncomplete })
+
+/**
+ * Contexte du contrôle d'affectation (J30).
+ * - `aujourdhui` : date du jour (AAAA-MM-JJ) d'une saisie ; une décision ou une ordonnance structurée datée après elle
+ *   est refusée. Exigée dès qu'une forme structurée est contrôlée. `null` : calcul sur une valeur déjà enregistrée
+ *   (parts du fonds par lot, avis d'appel), dont la date n'est pas comparée au jour ; la forme reste contrôlée.
+ * - `nouvelleSaisie` : la référence est saisie maintenant ; un texte libre est alors refusé, motif « forme incomplète » à
+ *   l'appui. Absent ou faux : valeur enregistrée, dont le texte libre d'avant J30 est admis et signalé.
+ */
+export interface OptionsControleAffectation {
+  aujourdhui?: string | null
+  nouvelleSaisie?: boolean
+}
+
+/** Contrôle de la forme d'une référence présente : refus motivé, ou admission (avec la désignation ou le signalement). */
+type ControleReference = { refus: string } | { refus: null; designation: string; formeIncomplete: FormeIncomplete | null }
+
+function datePosterieure<T>(valeur: T, cadre: CadreForme<T>, aujourdhui: string | null | undefined): string | null {
+  if (aujourdhui === null) return null
+  if (aujourdhui === undefined)
+    throw new Error(`${cadre.nom} : date du jour attendue pour vérifier que sa date n'est pas postérieure à aujourd'hui.`)
+  verifierAujourdhui(aujourdhui)
+  const champ = cadre.champs.find((c) => c.date && String(valeur[c.cle]) > aujourdhui)
+  return champ ? `${champ.libelle} (${dateIsoVersFr(String(valeur[champ.cle]))}) postérieure à aujourd'hui` : null
+}
+
+/** Forme structurée à qui il manque un champ : refus ; texte libre : refus pour une nouvelle saisie, signalement sinon. */
+function controlerFormeIncomplete(
+  { texte, manquants }: Extract<LectureReference<unknown>, { forme: 'incomplete' }>,
+  nom: string,
+  exigee: string,
+  nouvelleSaisie: boolean,
+): ControleReference {
+  if (texte === null) return { refus: `${nom} incomplète (manque : ${manquants.join(', ')}) ; ${exigee}.` }
+  const enTexteLibre = `${nom} saisie en texte libre (« ${texte} ») : forme incomplète`
+  if (nouvelleSaisie) return { refus: `${enTexteLibre}, refusée pour une nouvelle saisie ; ${exigee}.` }
+  const message = `${enTexteLibre} ; à compléter (${exigee}).`
+  return { refus: null, designation: '', formeIncomplete: { code: 'forme_incomplete', texte, manquants, message } }
+}
+
+function controlerReference<T>(
+  lecture: Exclude<LectureReference<T>, { forme: 'absente' }>,
+  cadre: CadreForme<T>,
+  { aujourdhui, nouvelleSaisie = false }: OptionsControleAffectation,
+): ControleReference {
+  const exigee = `${cadre.exigence} : ${cadre.description}`
+  if (lecture.forme === 'incomplete') return controlerFormeIncomplete(lecture, cadre.nom, exigee, nouvelleSaisie)
+  const future = datePosterieure(lecture.valeur, cadre, aujourdhui)
+  if (future) return { refus: `${cadre.nom} : ${future} ; ${exigee}.` }
+  return { refus: null, designation: ` (${cadre.designer(lecture.valeur)})`, formeIncomplete: null }
+}
+
+function motifExclusion(objet: ObjetDecaissementFondsTravaux, libelle: string): string {
+  let motif = `${libelle} : dépense exclue du fonds de travaux, réservé aux dépenses de l'art. 14-2-1, I (1° à 4°). À imputer sur un autre compte.`
+  if (objet === 'travaux_amelioration')
+    motif += ' Ils ne peuvent être financés par le fonds que s’ils figurent au plan pluriannuel de travaux adopté (2°).'
+  if (OUVERTS_PAR_LE_JUGE.has(objet))
+    motif += ' En administration provisoire, seul le juge peut ouvrir cet usage (art. 29-14, 2° : redressement ou gestion courante).'
+  return motif
+}
+
+function controlerOrdonnance(
+  libelle: string,
+  valeur: DecaissementFondsTravaux['autorisationJuge'],
+  options: OptionsControleAffectation,
+): ResultatAffectation {
+  const lecture = lireOrdonnanceJuge(valeur)
+  if (lecture.forme === 'absente')
+    return resultatAffectation(
+      'autorisation_manquante',
+      `${libelle} : rattacher l'ordonnance du juge qui autorise l'administrateur provisoire à utiliser le fonds (${CADRE_ORDONNANCE.description}).`,
+      FONDEMENT_29_14,
+    )
+  const controle = controlerReference(lecture, CADRE_ORDONNANCE, options)
+  if (controle.refus !== null) return resultatAffectation('reference_invalide', `${libelle} : ${controle.refus}`, FONDEMENT_29_14)
+  return resultatAffectation('admis', `${libelle} : usage autorisé par le juge${controle.designation}.`, FONDEMENT_29_14, controle.formeIncomplete)
+}
+
+function controlerDecisionAg(
+  objet: ObjetDecaissementFondsTravaux,
+  libelle: string,
+  valeur: DecaissementFondsTravaux['decisionAg'],
+  options: OptionsControleAffectation,
+): ResultatAffectation {
+  const lecture = lireDecisionAffectationAg(valeur)
+  if (lecture.forme === 'absente') {
+    let motif = `${libelle} : rattacher la décision d'assemblée qui affecte le fonds à cette dépense (à la même majorité que la dépense) avant de décaisser.`
+    if (objet === 'travaux_urgents') motif += ' Le syndic décide seul des travaux urgents, pas de l’usage du fonds.'
+    return resultatAffectation('decision_manquante', motif)
+  }
+  const controle = controlerReference(lecture, CADRE_DECISION_AG, options)
+  if (controle.refus !== null) return resultatAffectation('reference_invalide', `${libelle} : ${controle.refus}`)
+  return resultatAffectation('admis', `${libelle} : affectation admise${controle.designation}.`, FONDEMENT_I, controle.formeIncomplete)
 }
 
 /**
  * Contrôle d'affectation (le droit) : un décaissement sur le fonds de travaux n'est admis que pour une dépense du I,
  * sur décision d'affectation de l'assemblée, ou pour l'usage judiciaire de l'art. 29-14, 2°, sur ordonnance du juge.
- * Lève une erreur sur une saisie invalide (montant, objet inconnu) ; renvoie un refus motivé sinon.
+ * Décision et ordonnance en forme structurée (J30) : un champ manquant, une date invalide ou postérieure à
+ * `aujourdhui` (sauf `aujourdhui: null`) est refusé, motif à l'appui. En texte libre : refusées pour une nouvelle
+ * saisie (`nouvelleSaisie`) ; valeur enregistrée avant J30 : admises, signalées « forme incomplète ».
+ * Lève une erreur sur une saisie invalide (montant, objet inconnu) et, pour une forme structurée, si `aujourdhui`
+ * manque ou est invalide ; renvoie un refus motivé sinon.
  */
-export function controlerAffectationFondsTravaux(decaissement: DecaissementFondsTravaux): ResultatAffectation {
+export function controlerAffectationFondsTravaux(
+  decaissement: DecaissementFondsTravaux,
+  options: OptionsControleAffectation = {},
+): ResultatAffectation {
   verifierCentimes(decaissement.montantCentimes, true)
   if (!Object.hasOwn(AFFECTATION_FONDS_TRAVAUX, decaissement.objet))
     throw new Error(`Objet de décaissement inconnu : « ${decaissement.objet} ».`)
   const affectation: { libelle: string; admis: boolean; base: BaseAffectation | null } =
     AFFECTATION_FONDS_TRAVAUX[decaissement.objet]
-  const resultat = (cause: CauseAffectation, motif: string, fondement = FONDEMENT_I): ResultatAffectation => ({
-    autorise: cause === 'admis',
-    cause,
-    motif,
-    fondement,
-  })
-  if (!affectation.admis) {
-    let motif = `${affectation.libelle} : dépense exclue du fonds de travaux, réservé aux dépenses de l'art. 14-2-1, I (1° à 4°). À imputer sur un autre compte.`
-    if (decaissement.objet === 'travaux_amelioration')
-      motif += ' Ils ne peuvent être financés par le fonds que s’ils figurent au plan pluriannuel de travaux adopté (2°).'
-    if (OUVERTS_PAR_LE_JUGE.includes(decaissement.objet))
-      motif += ' En administration provisoire, seul le juge peut ouvrir cet usage (art. 29-14, 2° : redressement ou gestion courante).'
-    return resultat('exclu', motif)
-  }
-  if (affectation.base === 'autorisation_juge') {
-    if (!decaissement.autorisationJuge?.trim())
-      return resultat(
-        'autorisation_manquante',
-        `${affectation.libelle} : rattacher l'ordonnance du juge qui autorise l'administrateur provisoire à utiliser le fonds.`,
-        FONDEMENT_29_14,
-      )
-    return resultat('admis', `${affectation.libelle} : usage autorisé par le juge.`, FONDEMENT_29_14)
-  }
-  if (!decaissement.decisionAg?.trim()) {
-    let motif = `${affectation.libelle} : rattacher la décision d'assemblée qui affecte le fonds à cette dépense (à la même majorité que la dépense) avant de décaisser.`
-    if (decaissement.objet === 'travaux_urgents') motif += ' Le syndic décide seul des travaux urgents, pas de l’usage du fonds.'
-    return resultat('decision_manquante', motif)
-  }
-  return resultat('admis', `${affectation.libelle} : affectation admise.`)
+  if (!affectation.admis) return resultatAffectation('exclu', motifExclusion(decaissement.objet, affectation.libelle))
+  if (affectation.base === 'autorisation_juge') return controlerOrdonnance(affectation.libelle, decaissement.autorisationJuge, options)
+  return controlerDecisionAg(decaissement.objet, affectation.libelle, decaissement.decisionAg, options)
 }
 
 // ─── Obligation ──────────────────────────────────────────────────────────────────────────────────────────────────

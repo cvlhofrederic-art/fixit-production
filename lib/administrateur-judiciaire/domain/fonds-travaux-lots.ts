@@ -4,7 +4,10 @@ import {
   AFFECTATION_FONDS_TRAVAUX,
   controlerAffectationFondsTravaux,
   ENTREE_EN_VIGUEUR_FONDS_TRAVAUX,
+  lireDecisionAffectationAg,
   type DecaissementFondsTravaux,
+  type DecisionAffectationAg,
+  type ResultatAffectation,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import { estQualiteCopropriete, positionsEnPlace, type Position } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import { soldePoste, type Encaissement, type PosteDette, type ResultatImputation } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
@@ -100,13 +103,26 @@ import { etatPartFondsTravaux, type OperationTravaux } from '@/lib/administrateu
  *   de répartition entre les lots) ; division ou réunion de lots ; part du fonds de Gestéam (net ou brut des emplois) ;
  * - rédactions de L. 721-2 antérieures au 29/08/2015 et de l'ancien art. 14-2 antérieures au 25/11/2018 non relues
  *   (promesse ou mutation antérieure : fondement « à établir ») ;
- * - date d'une décision d'AG saisie en texte libre et date d'une autorisation du juge : non contrôlées face à la date de
- *   l'emploi.
+ * - date d'une décision d'AG saisie en texte libre (avant J30) et date d'une ordonnance du juge, même structurée : non
+ *   contrôlées face à la date de l'emploi (`dateDecision` et la date de l'AG d'une décision structurée le sont : J30).
  * Décision de Hugo Carvalho du 30/10/2026 (D. 1967 art. 6-2, relu sur Légifrance le 30/10/2026) : un appel exigible le
  * jour de la mutation est dû par le vendeur ; avisDAppel le porte désormais au compte vendeur (règle, citations et 🔴
  * restants : en-tête de repartition-appels.ts). Un appel du fonds émis après l'enregistrement de la mutation et exigible
  * ce jour-là figure donc, ici, parmi les postes du vendeur échus au plus tard le jour de la mutation, et non parmi les
  * postes à réattribuer.
+ *
+ * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
+ * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, 🔵 à confirmer) et l'ordonnance de l'art.
+ *   29-14, 2° (juridiction, date, n°) d'un emploi se lisent en forme structurée (fonds-travaux.ts). Le calcul porte sur
+ *   des emplois enregistrés : le contrôle d'affectation reçoit `aujourdhui: null` (forme contrôlée, date non comparée
+ *   au jour, jamais d'erreur levée en plein calcul). Une forme structurée incomplète rend l'emploi non autorisé ; un
+ *   texte libre d'avant J30 reste admis et déduit comme avant, signalé par une anomalie de l'état
+ *   (emploi_forme_incomplete). La date de l'AG d'une décision structurée qui fonde l'emploi est rapprochée de celle de
+ *   l'emploi comme `dateDecision` (les deux connues : la plus tardive) : un emploi antérieur est signalé
+ *   (emploi_avant_decision), non déduit, mais sorti du fonds (art. 14-2-1, I, al. 7). emploiDepuisOperation transmet
+ *   la résolution de l'opération en forme structurée (date de l'AG, résolution) ; une décision distincte ou une
+ *   ordonnance saisie sur l'opération en texte libre (travaux-operations.ts, hors de ce lot) reste un texte, donc
+ *   signalée.
  */
 
 /** Cotisation (appel du fonds de travaux pour un lot) que règle un versement. */
@@ -141,6 +157,7 @@ export interface AnomalieFondsTravauxLots {
   code:
     | 'versement_sans_lot'
     | 'emploi_non_autorise'
+    | 'emploi_forme_incomplete'
     | 'emploi_avant_decision'
     | 'cle_emploi_inconnue'
     | 'emploi_excede_parts_cle'
@@ -257,7 +274,9 @@ export interface EmploiFondsTravaux {
   partOperationCentimes: number | null
   /**
    * Date de la décision d'AG qui affecte le fonds, quand elle est connue (résolution de l'opération qui en tient lieu) :
-   * un emploi antérieur n'est pas déduit. null : décision saisie en texte libre ou autorisation du juge (🔴 non contrôlée).
+   * un emploi antérieur n'est pas déduit. Une décision structurée (J30) porte aussi la sienne (date de l'AG),
+   * rapprochée de même de l'emploi ; les deux connues, la plus tardive compte. null : la date de l'AG d'une décision
+   * structurée suffit ; décision en texte libre d'avant J30 ou autorisation du juge : 🔴 date non contrôlée.
    */
   dateDecision: string | null
 }
@@ -277,7 +296,8 @@ function montantDeLEmploi(operation: OperationTravaux, id: string, montantCentim
  * un emploi par tranche, chacun avec son identifiant) ; refusé sans affectation admise, au-delà de la part du fonds de
  * l'opération, ou daté avant la résolution de l'opération quand celle-ci tient lieu de décision d'affectation (art.
  * 14-2-1, I, al. 7). L'emploi porte la part du fonds de l'opération : partsFondsTravauxParLot signale, sans le déduire,
- * ce que la somme des emplois de l'opération dépasse de cette part.
+ * ce que la somme des emplois de l'opération dépasse de cette part. La résolution de l'opération passe en forme
+ * structurée (J30 : date de l'AG, résolution) ; une décision distincte saisie sur l'opération reste son texte.
  */
 export function emploiDepuisOperation(
   operation: OperationTravaux,
@@ -296,7 +316,8 @@ export function emploiDepuisOperation(
     throw new Error(
       `Opération ${operation.numero} : emploi du ${dateIsoVersFr(date)} antérieur à la résolution du ${dateIsoVersFr(parResolution.date)} qui affecte le fonds ; dater l'emploi au plus tôt de cette décision.`,
     )
-  const decisionAg = decisionDistincte || (decision ? `${decision.resolution} (AG du ${dateIsoVersFr(decision.date)})` : null)
+  const resolutionDeLOperation: DecisionAffectationAg | null = decision ? { dateAg: decision.date, numeroResolution: decision.resolution } : null
+  const decisionAg = decisionDistincte || resolutionDeLOperation
   return {
     id,
     date,
@@ -501,15 +522,47 @@ function evenementsJusquA(versements: VersementFondsTravaux[], emplois: EmploiFo
   return evenements.sort((a, b) => comparer(a.date, b.date) || a.rang - b.rang || comparer(a.id, b.id))
 }
 
+/**
+ * Contrôle d'affectation d'un emploi enregistré (J30) : `aujourdhui: null`, la date d'une décision ou d'une ordonnance
+ * structurée n'est pas comparée au jour, et le calcul ne lève jamais d'erreur pour l'avoir omise.
+ */
+const controleDeLEmploi = (emploi: EmploiFondsTravaux): ResultatAffectation =>
+  controlerAffectationFondsTravaux(emploi.decaissement, { aujourdhui: null })
+
+/** Décision ou ordonnance admise mais en texte libre d'avant J30 : signalée « forme incomplète », l'emploi reste déduit. */
+function formeIncompleteDeLEmploi(emploi: EmploiFondsTravaux, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
+  if (!controle.formeIncomplete) return null
+  return { code: 'emploi_forme_incomplete', refId: emploi.id, message: `Emploi ${emploi.id} : ${controle.formeIncomplete.message}` }
+}
+
+/**
+ * Date de l'AG d'une décision d'affectation structurée (J30) qui fonde l'emploi ; null si l'emploi repose sur
+ * l'ordonnance du juge ou si la décision est un texte libre d'avant J30. Appelée sur un emploi dont l'objet est
+ * contrôlé.
+ */
+function dateAgDeLEmploi({ decaissement }: EmploiFondsTravaux): string | null {
+  if (AFFECTATION_FONDS_TRAVAUX[decaissement.objet].base !== 'affectation_ag') return null
+  const lecture = lireDecisionAffectationAg(decaissement.decisionAg)
+  return lecture.forme === 'complete' ? lecture.valeur.dateAg : null
+}
+
+/** Date de décision rapprochée de l'emploi (I, al. 7) : `dateDecision` ou date de l'AG structurée, la plus tardive. */
+function dateDeLaDecision(emploi: EmploiFondsTravaux): string | null {
+  const dateAg = dateAgDeLEmploi(emploi)
+  if (dateAg === null) return emploi.dateDecision
+  if (emploi.dateDecision !== null && emploi.dateDecision > dateAg) return emploi.dateDecision
+  return dateAg
+}
+
 /** Anomalie d'un emploi qui ne peut pas être déduit (non autorisé, antérieur à sa décision, clé inconnue) ; null sinon. */
-function emploiNonDeductible(emploi: EmploiFondsTravaux, cle: CleRepartition | undefined): AnomalieFondsTravauxLots | null {
-  const controle = controlerAffectationFondsTravaux(emploi.decaissement)
+function emploiNonDeductible(emploi: EmploiFondsTravaux, cle: CleRepartition | undefined, controle: ResultatAffectation): AnomalieFondsTravauxLots | null {
   if (!controle.autorise) return { code: 'emploi_non_autorise', refId: emploi.id, message: `Emploi ${emploi.id} non déduit : ${controle.motif}` }
-  if (emploi.dateDecision !== null && emploi.date < emploi.dateDecision)
+  const dateDecision = dateDeLaDecision(emploi)
+  if (dateDecision !== null && emploi.date < dateDecision)
     return {
       code: 'emploi_avant_decision',
       refId: emploi.id,
-      message: `Emploi ${emploi.id} non déduit : daté du ${dateIsoVersFr(emploi.date)}, avant la décision d'affectation du ${dateIsoVersFr(emploi.dateDecision)}.`,
+      message: `Emploi ${emploi.id} non déduit : daté du ${dateIsoVersFr(emploi.date)}, avant la décision d'affectation du ${dateIsoVersFr(dateDecision)}.`,
     }
   if (!cle) return { code: 'cle_emploi_inconnue', refId: emploi.id, message: `Emploi ${emploi.id} non déduit : clé « ${emploi.cleId} » inconnue.` }
   return null
@@ -549,7 +602,10 @@ function appliquerEmploi(
       message: `Emploi ${emploi.id} : ${excedent} centimes au-delà de la part du fonds de travaux de l'opération ${emploi.operationNumero} (${emploi.partOperationCentimes} centimes), compte tenu de ses autres emplois ; excédent sorti du fonds, non déduit des parts des lots.`,
     })
   const cle = cles.find((c) => c.id === emploi.cleId)
-  const refus = emploiNonDeductible(emploi, cle)
+  const controle = controleDeLEmploi(emploi)
+  const formeIncomplete = formeIncompleteDeLEmploi(emploi, controle)
+  if (formeIncomplete) anomalies.push(formeIncomplete)
+  const refus = emploiNonDeductible(emploi, cle, controle)
   if (refus) return [...anomalies, refus]
   const aDeduire = emploi.montantCentimes - excedent
   if (aDeduire === 0) return anomalies
