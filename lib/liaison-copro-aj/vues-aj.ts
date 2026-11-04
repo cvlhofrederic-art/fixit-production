@@ -125,6 +125,9 @@ export function notificationsLiaison(etat: EtatLiaison): NotificationLiaison[] {
   return [...demandes, ...votes].sort((a, b) => b.quand.localeCompare(a.quand)).slice(0, MAX_NOTIFICATIONS_LIAISON)
 }
 
-/** Portail copropriétaire relié (vue super admin), ouvert sur ce copropriétaire de l'AJ. */
+/**
+ * Portail copropriétaire relié (vue super admin), ouvert sur ce copropriétaire de l'AJ, toujours en français : sans
+ * préfixe, le middleware choisirait la langue du cookie, et la dernière page /pt/ ouverte l'aurait mis en portugais.
+ */
 export const lienPortailCoproprietaire = (codeCopro: string, coproprietaireId: string): string =>
-  `/coproprietaire/dashboard?aj=${encodeURIComponent(codeCopro)}&personne=${encodeURIComponent(coproprietaireId)}`
+  `/fr/coproprietaire/dashboard/?aj=${encodeURIComponent(codeCopro)}&personne=${encodeURIComponent(coproprietaireId)}`
