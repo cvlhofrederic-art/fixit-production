@@ -11,7 +11,7 @@ import {
   type Demande,
   type OptionsControleDeclaratif,
 } from '@/lib/administrateur-judiciaire/domain/demandes'
-import { creerRattachement, FICHES_PORTEUSES, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
+import { creerRattachement, FICHES_PORTEUSES, memeRattachement, type Rattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire/domain/majorites-ag'
 import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
@@ -67,10 +67,13 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (L. 1965 art. 21-1), pour un montant maximum fixé par elle (art. 21-2), pour deux ans au plus, renouvelable par
  *   décision expresse (art. 21-3) ; une délégation à une fin déterminée peut aussi être donnée au conseil syndical (art.
  *   25 a) ; les décisions de l'administrateur provisoire sont mentionnées, à leur date, au registre (D. 1967 art. 62-8) ;
- * - exécution d'une résolution : sauf urgence, l'exécution des travaux décidés par l'assemblée en application des art. 25
- *   et 26 est suspendue jusqu'à l'expiration du délai de contestation de deux mois (L. 1965 art. 42, al. 3) : BLOQUANT
- *   quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai, alerte quand la majorité ou la fin du délai
- *   manquent ;
+ * - exécution d'une résolution : L. 1965 art. 42, al. 3, relu sur Légifrance le 04/11/2026, version en vigueur au
+ *   03/11/2026 (en vigueur depuis le 01/06/2020, modifié par l'ordonnance n° 2019-1101 du 30 octobre 2019, art. 37) :
+ *   « Sauf urgence, l'exécution par le syndic des travaux décidés par l'assemblée générale en application des articles 25
+ *   et 26 de la présente loi est suspendue jusqu'à l'expiration du délai de deux mois mentionné au deuxième alinéa du
+ *   présent article. » (le délai de contestation ; le syndic : ici l'administrateur provisoire qui reçoit ses pouvoirs,
+ *   L. 1965 art. 29-1, I) : BLOQUANT quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai, alerte quand la
+ *   majorité ou la fin du délai manquent (décision 7) ;
  * - déclencheurs légaux du visa (MotifVisa ; intervention seulement : une demande de devis ne conclut aucun marché) :
  *   seuil de consultation du conseil syndical et seuil de mise en concurrence fixés par l'assemblée, obligatoires « à
  *   partir » de ces montants (L. 1965 art. 21, al. 2 ; sans conditions fixées par l'assemblée, la mise en concurrence
@@ -97,11 +100,12 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - un OS qui modifie le devis vaut offre nouvelle (C. civ. art. 1118, al. 3) et l'offre est caduque à l'expiration du
  *   délai fixé par son auteur (C. civ. art. 1117, al. 1) (🔵) : après le premier envoi, la sortie et son visa sont figés ;
  *   un devis associé échu avant que l'OS parvienne à l'entreprise est signalé ;
- * - AUCUN TEXTE pour la numérotation, le référentiel des visas, le refus d'envoyer sans visa, le signataire, le délai, la
- *   relance ni le journal : règles de gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS (🔵 : les formes
- *   de D. 1967 art. 64 visent les notifications et mises en demeure).
+ * - AUCUN TEXTE pour la numérotation, le référentiel des visas, le refus d'envoyer sans visa, le contrôle du signataire
+ *   par la liste du cabinet (textes lus sur la signature : décision 8), le délai, la relance ni le journal : règles de
+ *   gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS (🔵 : les formes de D. 1967 art. 64 visent les
+ *   notifications et mises en demeure).
  *
- * Décisions de Hugo du 03/11/2026 (questions « Ordres de service » 1 à 6) :
+ * Décisions de Hugo du 03/11/2026 (questions « Ordres de service » 1 à 9 ; registre des décisions : J11 à J19) :
  * - 1. N° : séquence PAR MANDAT (plus grand rang du segment mandat + 1, tous plans confondus : rangOsSuivant) ;
  * - 2. listes de la tranche 34 : Délai = UrgenceOrdreAJ (normale, prioritaire, urgence), Envoi = CANAUX_ENVOI_OS ;
  * - 3. relance : elle vise la réponse à l'OS, et AUSSI l'accusé et le rapport quand la demande est « Accusé demandé » ou
@@ -115,7 +119,43 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - 6. avis préalable sous administration provisoire (D. 1967 art. 62-7) : « nous constatons l'urgence » : l'urgence qui
  *   dispense de l'avis du conseil syndical est constatée par l'administrateur provisoire lui-même (le collaborateur qui
  *   agit en son nom), dans un constat daté, motivé et attribué (constatUrgence) ; sans constat complet, l'avis reste exigé
- *   pour des travaux décidés au titre des pouvoirs de l'assemblée. Hugo n'a rien dit du moment du constat (🔴).
+ *   pour des travaux décidés au titre des pouvoirs de l'assemblée. Hugo n'a rien dit du moment du constat (🔴) ;
+ * - 7 (J17). L. 1965 art. 42, al. 3 : « oui », compris comme la CONFIRMATION des trois choix du code, interprétation de la
+ *   réponse « oui », à confirmer par Hugo (🔵) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
+ *   « bloquant ou alerte ? » ; registre : « envoi bloqué pendant le délai de contestation ») : execution_suspendue_art42
+ *   quand l'intervention prévue (à défaut, l'envoi) tombe au plus tard le dernier jour du délai, sauf urgence retenue
+ *   (décision 6) ; un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué (🔴) ; (b)
+ *   l'intervention d'une entreprise qui exécute une résolution des art. 25 ou 26 vaut exécution de « travaux », quel que
+ *   soit son objet ; (c) une décision prise à l'unanimité n'est pas suspendue (MAJORITES_SUSPENSIVES : art25 et art26) ;
+ *   raison, interprétation à confirmer (🔵) : prise à l'unanimité des voix de tous les copropriétaires, elle n'a ni
+ *   opposant ni défaillant, or « Les actions en contestation des décisions des assemblées générales doivent, à peine de
+ *   déchéance, être introduites par les copropriétaires opposants ou défaillants dans un délai de deux mois à compter de
+ *   la notification du procès-verbal d'assemblée, sans ses annexes. » (L. 1965 art. 42, al. 2, même relecture) : aucune
+ *   action n'est ouverte pendant le délai qui borne la suspension ; écart avec majorites-ag.ts signalé (🔴) ;
+ * - 8 (J18). signataire : un COLLABORATEUR du cabinet peut signer l'OS, pas seulement l'administrateur désigné ; décision
+ *   rendue sur une question qui citait L. 1965 art. 18, IV (« Seul responsable de sa gestion, il ne peut se faire
+ *   substituer. ») et art. 29-1, I (« L'administrateur provisoire exécute personnellement la mission qui lui est
+ *   confiée. »), relus sur Légifrance le 04/11/2026 (versions en vigueur au 03/11/2026, modifiées par la loi n° 2024-322
+ *   du 9 avril 2024) ; la question ne citait pas la phrase qui suit chacune d'elles, lue le même jour : à l'art. 18, IV,
+ *   « L'assemblée générale peut seule autoriser, à la majorité prévue par l'article 25, une délégation de pouvoir à une
+ *   fin déterminée. » ; à l'art. 29-1, I, « Il peut toutefois, lorsque le bon déroulement de la mission le requiert, se
+ *   faire assister par un tiers désigné par le président du tribunal judiciaire sur sa proposition et rétribué sur sa
+ *   rémunération. », le seul concours que cet alinéa prévoit ; lecture de ces textes, à confirmer par Hugo (🔵) : la
+ *   signature d'un collaborateur, au nom et sous la responsabilité de l'administrateur provisoire, n'est pas une
+ *   substitution, ni une délégation de pouvoir, et le collaborateur n'est pas le tiers qui assiste l'administrateur
+ *   provisoire (aucune désignation par le président du tribunal judiciaire n'est demandée ici) : ces points restent des
+ *   questions (🔴) ; l'administrateur désigné signe toujours (« pas seulement l'administrateur désigné ») :
+ *   administrateurDesigneId, l'administrateur provisoire désigné pour ce mandat par la décision du président du tribunal
+ *   judiciaire (L. 1965 art. 29-1, I), fourni par l'appelant, accepté même hors de la liste ; un autre collaborateur signe
+ *   s'il figure dans la liste du cabinet (signatairesHabilites, réglage du cabinet fourni par l'appelant ; absente : non
+ *   contrôlée ; une liste vide bloque tout autre signataire que l'administrateur désigné, et tout envoi quand il n'est pas
+ *   fourni) ; contrôle par la liste du cabinet : règle de gestion, sans texte (signataire_non_habilite : bloquant,
+ *   fondement null, plus « à confirmer ») ;
+ * - 9 (J19). preuve : l'AR (accusé de réception) FAIT PREUVE de la réception de l'OS ; la réception, distincte de l'envoi
+ *   (enregistrerReception ; 🔵 : déduit de « l'AR fait preuve », qui suppose une réception distincte de l'envoi, à
+ *   confirmer par Hugo), peut porter son AR (ArReceptionOs : référence, et date de première présentation du pli si elle
+ *   est connue, comme la décision J1) ; « AR caduc après 1 an » : l'objet (devis, OS ou AR) et le point de départ de la
+ *   caducité ne sont pas établis (🔴), aucune caducité codée.
  *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué une fois puis figé ; un N° hors du format, ou d'un autre segment
@@ -143,6 +183,35 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   premier envoi (marquerDiffusable) ; relance et réception concernent l'entreprise du premier envoi ; horodatages
  *   croissants ; preuve propre au canal : missionId pour la messagerie VitFix, courrierId pour le courrier AR (état de
  *   notification tiré de courriers.ts) ;
+ * - preuve de la réception (décision 9) : une réception sans AR reste admise (estRecu, accusé reçu pour la relance,
+ *   devisCaducALaReception), marquée « sans preuve » (preuveDeReception, preuveDeDiffusion), sans blocage ; l'AR est
+ *   réservé à la réception par courrier AR (avis de réception du pli recommandé, forme d'envoi « AR » de Gestéam ; la
+ *   première présentation est une notion postale) : saisi sur une réception par un autre canal, il est refusé ; il est
+ *   celui du pli qui a porté l'OS à l'entreprise, comme toute réception par courrier AR, AR saisi ou non : le
+ *   courrierId de la réception est celui d'une ligne d'envoi ou de rediffusion de l'OS par courrier AR à la même
+ *   entreprise (pas d'une relance, ni d'un pli adressé à une autre fiche), sinon la réception est refusée à la saisie,
+ *   motif à l'appui (pliDeLaReception) : l'AR d'un autre pli ne prouve pas la réception de l'OS, et la réception d'un
+ *   autre pli n'est pas celle de l'OS ; l'AR porte une référence non vide (numéro du pli recommandé ou pièce
+ *   numérisée) ; sa première présentation, quand elle est connue, n'est ni antérieure à l'envoi de ce pli ni
+ *   postérieure à la réception ; l'AR saisi est rapproché du courrier lié (CourrierSuivi, courriers.ts) : à la saisie
+ *   quand l'appelant le fournit (enregistrerReception : forme « AR » exigée, courrier déposé, première présentation
+ *   tirée du courrier quand elle n'est pas saisie ; comme courriers.ts le refuse pour ses propres dates, jamais avant
+ *   le dépôt ni après le retrait du pli, et différente de celle du courrier refusée), et à la lecture de la preuve
+ *   (preuveDeDiffusion, qui attend le courrier lié de toute ligne par courrier AR) : la ligne ne se réécrivant pas, un
+ *   écart apparu après la saisie (courrier non fourni à la saisie, suivi postal complété ou corrigé ensuite) ne lève
+ *   rien, il est signalé (preuve « ar_ecart_courrier », message par ecartArCourrier), et une nouvelle réception peut
+ *   porter l'AR exact ; une réception par courrier AR sans AR saisi garde la preuve d'avant la décision 9, l'état de
+ *   notification du courrier lié, celui qui a porté l'OS (preuveDeDiffusion, qui lit aussi le journal de la sortie ;
+ *   preuveDeReception, qui ne lit que la ligne, la dit « sans preuve ») ; écrite sans le contrôle de la saisie (avant
+ *   la décision 9) sous un courrier qui n'a pas porté l'OS (OS parti par un autre canal ou sous un autre courrier,
+ *   courrier d'une relance ou d'un pli adressé à une autre fiche), elle est « sans preuve », jamais l'état de
+ *   notification d'un pli qui n'a pas porté l'OS ; une ligne écrite sans la clé « ar » (avant la décision 9) est lue
+ *   sans AR, jamais comme prouvée ; le journal ne se réécrit pas : un AR revenu après une réception déjà enregistrée
+ *   s'inscrit sur une nouvelle ligne « reception » (par courrier AR), et preuveReceptionOs donne la preuve de l'OS
+ *   lui-même (« ar » dès qu'une réception porte son AR ; il ne lit que les lignes : l'écart d'un AR avec son courrier
+ *   lié se lit par preuveDeDiffusion) ; la réception reste datée de sa première ligne (estRecu,
+ *   devisCaducALaReception ; la première présentation n'en tient pas lieu : question ouverte) ; l'envoi, la rediffusion
+ *   et la relance ne portent pas d'AR ;
  * - date de relance : jamais avant la demande (refusée à la création), ni avant le premier envoi (refusée après l'envoi ;
  *   avant l'envoi, une date antérieure bloque celui-ci) ;
  * - relance (décision 3) : un OS envoyé, ni terminé ni refusé, attend de l'entreprise (attendusOs) : (a) la réponse à l'OS,
@@ -178,8 +247,12 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   les deux) ; un constat saisi sans délai « urgence » est signalé (alerte) et ne lève rien ; un délai « prioritaire » ne
  *   vaut pas urgence, même constatée (choix gardé, non contredit par Hugo) ; urgence non retenue : le message ne nomme ce
  *   qui reste dû que lorsque cela s'applique (l'avis pour une intervention au titre des pouvoirs de l'assemblée, la
- *   suspension pour l'exécution d'une résolution votée aux art. 25 ou 26) ; l'auteur du constat n'est pas comparé aux
- *   signataires habilités (question du signataire ouverte) ;
+ *   suspension pour l'exécution d'une résolution votée aux art. 25 ou 26) ;
+ * - auteur du constat d'urgence face aux signataires habilités (décisions 6 et 8), interprétation à confirmer par Hugo :
+ *   le constat est fait au nom de l'administrateur provisoire, comme la signature de l'OS ; quand l'appelant fournit la
+ *   liste du cabinet (signatairesHabilites), un constat dont l'auteur n'y figure pas, et n'est pas l'administrateur
+ *   désigné (administrateurDesigneId), est signalé, alerte à confirmer (constat_urgence_auteur_non_habilite), sans
+ *   blocage : il ne change pas l'urgence retenue ou non ;
  * - date du constat d'urgence face à l'envoi, pour tous les fondements et tous les délais : daté après l'envoi, il bloque
  *   celui-ci (constat_urgence_posterieur_envoi), comme une décision postérieure à l'envoi ; le jour de l'envoi, ce constat
  *   n'existe pas encore : sans constat, l'urgence n'est pas retenue (décision 6), et le message dit ce qui reste dû ; les
@@ -189,8 +262,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   le constat tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de l'assemblée, avis non
  *   enregistré au plus tard le jour de la décision au registre : borneAvisAj) ; daté après la décision et au plus tard le
  *   jour de l'envoi, il est signalé, alerte à confirmer (constat_urgence_posterieur), sans bloquer l'envoi ; ni pour une
- *   demande de devis, ni pour la suspension de L. 1965 art. 42, al. 3 (question 7 ouverte), ni pour les autres fondements,
- *   sa date n'est comparée à celle de la décision ;
+ *   demande de devis, ni pour la suspension de L. 1965 art. 42, al. 3 (la décision 7 ne fixe pas la date du constat), ni
+ *   pour les autres fondements, sa date n'est comparée à celle de la décision ;
  * - avis préalable sous administration provisoire (D. 1967 art. 62-7), critère proposé, non contredit par Hugo (pas une
  *   décision) : un OS d'entretien courant, ou qui exécute une décision déjà prise, relève des pouvoirs du syndic (sans
  *   avis) ; des travaux décidés au titre des pouvoirs de l'assemblée (fondement decision_aj_pouvoirs_ag) exigent l'avis,
@@ -219,7 +292,22 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer ;
  *   un délai « prioritaire » peut-il valoir urgence (non ici) ? Le constat doit-il précéder la décision au registre, ou
  *   l'envoi (ici : l'envoi au plus tard, bloquant sinon ; la décision, quand il tient lieu de l'avis, alerte à confirmer,
- *   sans blocage) ? Et pour lever la suspension de L. 1965 art. 42, al. 3 (question 7) ?
+ *   sans blocage) ? Et pour lever la suspension de L. 1965 art. 42, al. 3 (la décision 7 ne le dit pas) ?
+ * - Hugo (suite de la décision 7, interprétation de la réponse « oui ») : un envoi pendant le délai de contestation, pour
+ *   une intervention prévue après la fin du délai, peut-il partir (oui ici : seule la date de l'intervention prévue, à
+ *   défaut celle de l'envoi, est comparée à la fin du délai) ? Unanimité : MAJORITES_AG (majorites-ag.ts) fonde
+ *   l'unanimité sur L. 1965 art. 26, dernier al. ; une décision prise à l'unanimité l'est-elle « en application » de
+ *   l'art. 26 au sens de l'al. 3 de l'art. 42, donc suspendue (non ici : ni opposant ni défaillant) ?
+ * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
+ *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ? La lecture des textes cités
+ *   (signature d'un collaborateur au nom de l'administrateur provisoire : pas une substitution) est-elle juste ? Les
+ *   collaborateurs du cabinet sont-ils des « tiers » au sens de L. 1965 art. 29-1, I (assistance par un tiers désigné par
+ *   le président du tribunal judiciaire sur proposition de l'administrateur provisoire, rétribué sur sa rémunération) ?
+ *   Si oui, la signature de l'OS par l'un d'eux suppose-t-elle cette désignation (ici : non demandée) ? Est-elle une
+ *   « délégation de pouvoir » de L. 1965 art. 18, IV, que seule l'assemblée autorise (ici : non) ? (textes sur
+ *   l'habilitation des collaborateurs non lus) Un mandat qui nomme deux administrateurs judiciaires (volet judiciaire :
+ *   Associé 1, Associé 2, mandat-judiciaire.ts) : signent-ils tous deux toujours (ici : un seul administrateurDesigneId ;
+ *   l'autre signe s'il figure dans la liste du cabinet) ?
  * - Frédéric : quand un visa de gestion est-il nécessaire (seuil, natures, exécution forcée : aucun par défaut) et quels
  *   rôles visent (Direction par défaut ; Juridique ?) ; le rédacteur ou le signataire peut-il viser ; un visa donné
  *   tombe-t-il quand l'OS change (oui ici) ? Pour les courriers (même circuit, décision 4) : quels motifs déclenchent leur
@@ -229,11 +317,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (seuilPrevuTtcCentimes, règle de gestion) ?
  * - Hugo (suite de la décision 5) : les conditions de mise en concurrence fixées par l'assemblée se réduisent-elles à un
  *   nombre de devis (devisExigesParAssemblee) ?
- * - Hugo : L. 1965 art. 42, al. 3 : bloquant (retenu) ou alerte ? L'intervention d'une entreprise qui exécute une
- *   résolution des art. 25 ou 26 est-elle toujours une exécution de « travaux » (oui ici) ? Une décision prise à
- *   l'unanimité relève-t-elle de la suspension (non ici) ?
- * - Hugo : un collaborateur peut-il signer l'OS, ou seulement l'administrateur désigné (L. 1965 art. 18, IV ; art. 29-1,
- *   I) ? (liste signatairesHabilites au choix de l'appelant ; textes sur l'habilitation des collaborateurs non lus)
  * - non établi : l'administrateur provisoire investi des pouvoirs de l'assemblée peut-il autoriser lui-même une convention
  *   liée ? (la référence d'une autorisation est exigée ici) Le « syndic » de D. 1967 art. 39 est-il bien l'administrateur
  *   provisoire, et ses « préposés » les collaborateurs du cabinet (oui ici) ?
@@ -244,9 +327,14 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   de l'envoi), et non à la date de la décision du conseil syndical (decisionLe) : l'appelant doit-il fournir les
  *   décisions en vigueur à cette date ? Le prévu n'est pas comparé au montant maximum alloué au conseil syndical (L. 1965
  *   art. 21-2 : enveloppe_delegation_cs, annuelle et cumulée ; plafond_travaux_cs, par dépense) : quel cumul retenir ?
- * - Hugo, preuve : la réception distincte de l'envoi convient-elle ? Quelle preuve pour un courrier papier (simple ou
- *   recommandé) ? La première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art. 1121 ?
- *   Quel délai d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
+ * - Hugo, preuve (suite de la décision 9) : la réception distincte de l'envoi convient-elle (ici : oui, déduit de « l'AR
+ *   fait preuve ») ? « AR caduc après 1 an » : la caducité d'un an vise-t-elle le devis accepté par l'OS, l'OS lui-même,
+ *   ou l'AR lui-même ? À compter de quelle date : envoi, première présentation, réception ? (aucune caducité codée) La
+ *   première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art. 1121 (non ici : la
+ *   réception reste datée de sa première ligne du journal, même quand l'AR revient plus tard) ? Quelle preuve pour une
+ *   réception sans AR, par courrier simple, messagerie VitFix, courriel ou SMS (ici : admise, « sans preuve » ; un AR
+ *   n'y est pas admis, même un accusé de réception électronique au sens de C. civ. art. 1127-4) ? Quel délai
+ *   d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
  * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
  *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
  *
@@ -255,9 +343,17 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * faux, garde son sens) ;
  * route /api/administrateur-judiciaire/ordres-prestataire : controlerAvantEnvoiOs avant l'envoi (avec segmentMandat,
  * numerosDuMandat, decisionsAgEnVigueur et finDelaiContestationAg, échéance retenue par finDelaiContestationAg de
- * statut-assemblee.ts), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; devisCaducALaReception
- * après enregistrerReception ; enregistrerRapport quand l'entreprise dépose un document « rapport » dans la messagerie
- * VitFix (TypeDocumentPrestataire, lib/syndic/messagerie-pro.ts) ; courriers (décision 4) : courriers.ts
+ * statut-assemblee.ts), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; enregistrerReception
+ * avec l'AR et le courrier AR lié (CourrierSuivi de courriers.ts) quand l'avis de réception revient (décision 9 :
+ * référence ; courrier de l'envoi ou de la rediffusion qui a porté l'OS, aussi pour une réception par courrier AR sans
+ * AR ; première présentation tirée du courrier), puis devisCaducALaReception et preuveReceptionOs ; preuveDeDiffusion
+ * avec la sortie et le courrier lié de toute ligne par courrier AR (« ar_ecart_courrier » : montrer ecartArCourrier) ;
+ * signataires (décision 8) : signatairesHabilites tiré du réglage du cabinet, administrateurDesigneId tiré du MANDAT
+ * (l'administrateur provisoire que la décision du président du tribunal judiciaire désigne pour ce mandat, L. 1965
+ * art. 29-1, I ; volet judiciaire de mandat-judiciaire.ts, Associé 1 et Associé 2, saisis en noms : à rapprocher de
+ * l'identifiant du collaborateur), jamais de ce réglage ; enregistrerRapport quand l'entreprise dépose un document
+ * « rapport » dans la messagerie VitFix (TypeDocumentPrestataire, lib/syndic/messagerie-pro.ts) ; courriers
+ * (décision 4) : courriers.ts
  * (preparerCourrier, controlerDepot), gabarits-courrier.ts et les écrans des courriers porteront un CircuitVisa, décriront
  * le courrier en PieceVisee (sortie : « le dépôt »), appliqueront appliquerActionVisa et revoirCircuitVisa, et refuseront
  * le dépôt tant qu'anomaliesCircuitVisa n'est pas vide ; VISAS_SORTIE, CANAUX_ENVOI_OS et FORME_ENVOI_PAR_CANAL vers
@@ -324,7 +420,10 @@ const CADRE_PAR_FONDEMENT: Readonly<Record<FondementOs, { libelle: string; texte
   },
 }
 
-/** Majorités dont les travaux ne s'exécutent pas pendant le délai de contestation (L. 1965 art. 42, al. 3), et leur article. */
+/**
+ * Majorités dont les travaux ne s'exécutent pas pendant le délai de contestation (L. 1965 art. 42, al. 3), et leur article ;
+ * l'unanimité n'en est pas (décision 7 (c), interprétation 🔵 : ni opposant ni défaillant, donc aucune action de l'al. 2).
+ */
 const MAJORITES_SUSPENSIVES: ReadonlyMap<TypeMajorite, string> = new Map<TypeMajorite, string>([
   ['art25', 'art. 25'],
   ['art26', 'art. 26'],
@@ -492,6 +591,23 @@ export interface EvenementDiffusion {
   courrierId: string | null
   /** Mission syndic_missions créée par la route, exigée pour la messagerie VitFix. */
   missionId: string | null
+  /**
+   * Réception par courrier AR seulement : son AR, qui en fait preuve (décision 9) ; null sans AR (« sans preuve ») et hors
+   * réception. Absent sur les lignes écrites avant la décision 9 : lu comme null, jamais comme une preuve.
+   */
+  ar?: ArReceptionOs | null
+}
+
+/**
+ * Accusé de réception (AR) qui fait preuve de la réception de l'OS (décision de Hugo du 03/11/2026 : « l'AR fait preuve ») :
+ * l'avis de réception du courrier AR qui a porté l'OS à l'entreprise, envoi ou rediffusion (🔵). Aucune caducité n'est
+ * attachée (« AR caduc après 1 an » : objet, devis, OS ou AR, et point de départ non établis, 🔴).
+ */
+export interface ArReceptionOs {
+  /** Référence de l'AR : numéro du pli recommandé, ou pièce numérisée (identifiant). */
+  reference: string
+  /** Première présentation du pli, si elle est connue (comme la décision J1) ; null : inconnue. */
+  premierePresentationLe: string | null
 }
 
 export interface SaisieDiffusion {
@@ -503,6 +619,19 @@ export interface SaisieDiffusion {
   referenceDiffusion?: string | null
   courrierId?: string | null
   missionId?: string | null
+}
+
+export interface SaisieArReception {
+  reference: string
+  premierePresentationLe?: string | null
+}
+
+/**
+ * Réception de l'OS : la ligne du journal et, s'il est reçu, l'AR qui la prouve (réception par courrier AR seulement ;
+ * absent ou null : « sans preuve »).
+ */
+export interface SaisieReception extends SaisieDiffusion {
+  ar?: SaisieArReception | null
 }
 
 export interface JustificatifsOs {
@@ -545,7 +674,11 @@ export interface RapportRecu {
 
 export interface SortieOrdreService extends CircuitVisa<CodeMotifVisa> {
   demandeId: string
-  /** Signature : signataire pour le cabinet (valeurs de la liste « Signature » non établies, 🔴). */
+  /**
+   * Signature : collaborateur qui signe pour le cabinet (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
+   * pas seulement l'administrateur désigné ; habilités : ContexteEnvoiOs.administrateurDesigneId et
+   * signatairesHabilites) ; valeurs de la liste « Signature » de Gestéam non établies (🔴).
+   */
   signataireId: string | null
   /** Délai : liste « Délai » de la tranche 34 = UrgenceOrdreAJ (décision de Hugo du 03/11/2026). */
   delai: UrgenceOrdreAJ
@@ -1204,6 +1337,7 @@ export type CodeAnomalieEnvoiOs =
   | 'constat_urgence_sans_urgence'
   | 'constat_urgence_posterieur'
   | 'constat_urgence_posterieur_envoi'
+  | 'constat_urgence_auteur_non_habilite'
   | CodeAnomalieVisa
   | 'lien_entreprise_perime'
   | 'lien_entreprise_non_renseigne'
@@ -1246,8 +1380,21 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   courrielCommunique?: boolean | null
   /** L'entreprise a communiqué un numéro pour recevoir des SMS (canal sms) ; null ou absent : on ne sait pas. */
   smsCommunique?: boolean | null
-  /** Collaborateurs habilités à signer un OS (🔴) ; absent : non contrôlé. */
+  /**
+   * Collaborateurs habilités par le cabinet à signer un OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer,
+   * pas seulement l'administrateur désigné) : réglage du cabinet, fourni par l'appelant ; absent : non contrôlé. Fournie,
+   * la liste vaut pour tout signataire autre que l'administrateur désigné (administrateurDesigneId) : vide, elle ne laisse
+   * signer que lui, et bloque tout envoi quand il n'est pas fourni.
+   */
   signatairesHabilites?: ReadonlySet<string>
+  /**
+   * Collaborateur du cabinet qui est l'administrateur provisoire désigné pour ce mandat par la décision du président du
+   * tribunal judiciaire (L. 1965 art. 29-1, I), fourni par l'appelant depuis le mandat, jamais depuis le réglage du
+   * cabinet : un administrateur du cabinet qui n'est pas désigné pour ce mandat n'y signe que s'il figure dans
+   * signatairesHabilites. Il signe toujours, même hors de signatairesHabilites (décision 8 : « pas seulement
+   * l'administrateur désigné »), et constate l'urgence sans alerte (décision 6) ; absent : seule la liste compte.
+   */
+  administrateurDesigneId?: string | null
   /** Fin de validité du devis associé, fixée par l'entreprise. */
   validiteDevisAu?: string | null
   /** Segment mandat de la séquence des N° (SegmentsNumeroOs.mandat) ; absent : non contrôlé. */
@@ -1484,16 +1631,64 @@ function anomaliesUrgence(d: Demande, s: SortieOrdreService, date: string): Anom
   return constat === null ? [] : constatTardif(d, s, constat, date)
 }
 
+/**
+ * Collaborateur hors des signataires habilités (décision 8) : ni l'administrateur désigné (administrateurDesigneId), qui
+ * signe toujours, ni un collaborateur de la liste du cabinet (signatairesHabilites) ; liste non fournie : non contrôlé.
+ */
+function horsDesHabilites(collaborateurId: string, contexte: ContexteEnvoiOs): boolean {
+  const habilites = contexte.signatairesHabilites
+  if (habilites === undefined || collaborateurId === texteOuNull(contexte.administrateurDesigneId)) return false
+  return !habilites.has(collaborateurId)
+}
+
+/**
+ * Signataire de l'OS (décision de Hugo du 03/11/2026 : un collaborateur peut signer, pas seulement l'administrateur
+ * désigné ; décision rendue sur L. 1965 art. 18, IV et art. 29-1, I, lus comme ne faisant pas de cette signature une
+ * substitution, 🔵) : absent, bloquant ; ni administrateur désigné ni dans la liste du cabinet (horsDesHabilites ; liste
+ * non fournie : non contrôlé), bloquant ; le contrôle par la liste du cabinet est une règle de gestion, sans texte
+ * (fondement null).
+ */
+function anomaliesSignataire(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  if (s.signataireId === null) return [anomalie('signataire_absent', 'bloquant', 'Signataire pour le cabinet absent.')]
+  if (!horsDesHabilites(s.signataireId, contexte)) return []
+  return [
+    anomalie(
+      'signataire_non_habilite',
+      'bloquant',
+      `Signataire ${s.signataireId} hors des collaborateurs habilités par le cabinet à signer un OS (réglage du cabinet) : choisir un collaborateur habilité, ou l'ajouter à la liste du cabinet.`,
+    ),
+  ]
+}
+
+/**
+ * Auteur du constat d'urgence hors des signataires habilités (interprétation des décisions 6 et 8, à confirmer : il agit
+ * au nom de l'administrateur provisoire, comme le signataire) : alerte à confirmer, sans blocage ni effet sur l'urgence.
+ */
+function anomaliesAuteurConstat(s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  const auteur = texteOuNull(s.constatUrgence?.collaborateurId)
+  if (auteur === null || !horsDesHabilites(auteur, contexte)) return []
+  return [
+    anomalie(
+      'constat_urgence_auteur_non_habilite',
+      'alerte',
+      `Urgence constatée par ${auteur}, hors des collaborateurs habilités par le cabinet à signer un OS : à confirmer (interprétation des décisions 6 et 8) : l'auteur du constat, qui agit au nom de l'administrateur provisoire comme le signataire, doit-il être un signataire habilité ? Ce signalement ne change pas l'urgence retenue.`,
+      null,
+      true,
+    ),
+  ]
+}
+
 function anomaliesSortie(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
-  const anomalies: AnomalieEnvoiOs[] = []
-  if (s.signataireId === null) anomalies.push(anomalie('signataire_absent', 'bloquant', 'Signataire pour le cabinet absent.'))
-  else if (contexte.signatairesHabilites && !contexte.signatairesHabilites.has(s.signataireId))
-    anomalies.push(
-      anomalie('signataire_non_habilite', 'bloquant', `Signataire ${s.signataireId} hors des collaborateurs habilités à signer un OS.`, 'L. 1965 art. 18, IV ; art. 29-1, I', true),
-    )
+  const anomalies = anomaliesSignataire(s, contexte)
   if (s.canal === null) anomalies.push(anomalie('canal_absent', 'bloquant', "Canal d'envoi absent (messagerie VitFix, courriel, courrier…)."))
   if (!s.diffusable) anomalies.push(anomalie('non_diffusable', 'bloquant', 'Ordre de service non diffusable : cocher « Diffusable » pour l’envoyer.'))
-  return [...anomalies, ...anomaliesChronologie(d, s, contexte.date), ...anomaliesUrgence(d, s, contexte.date), ...anomaliesCanal(s.canal, contexte)]
+  return [
+    ...anomalies,
+    ...anomaliesChronologie(d, s, contexte.date),
+    ...anomaliesUrgence(d, s, contexte.date),
+    ...anomaliesAuteurConstat(s, contexte),
+    ...anomaliesCanal(s.canal, contexte),
+  ]
 }
 
 /**
@@ -1835,6 +2030,7 @@ function evenementDiffusion(s: SortieOrdreService, saisie: SaisieDiffusion, natu
     referenceDiffusion: texteOuNull(saisie.referenceDiffusion),
     courrierId: texteOuNull(saisie.courrierId),
     missionId: texteOuNull(saisie.missionId),
+    ar: null,
   }
   const preuve = PREUVE_PAR_CANAL.get(evenement.canal)
   if (preuve && evenement[preuve] === null) throw new Error(`Diffusion par « ${evenement.canal} » : ${preuve} attendu (preuve de l'envoi).`)
@@ -1897,13 +2093,122 @@ export function relancerOs(s: SortieOrdreService, saisie: SaisieDiffusion): Sort
   return { ...ajouter(s, evenement), relanceLe: null }
 }
 
+/** Courrier lié d'une ligne par courrier AR : envoyé en forme « AR » (FORME_ENVOI_PAR_CANAL, courriers.ts). */
+function verifierCourrierAr(courrier: CourrierSuivi): void {
+  if (courrier.formeEnvoi !== FORME_ENVOI_PAR_CANAL.courrier_ar)
+    throw new Error(`Courrier lié envoyé en « ${courrier.formeEnvoi} » : un courrier en AR est attendu pour ce canal.`)
+}
+
+/**
+ * Écart entre un AR et le courrier lié (courriers.ts) : courrier jamais déposé ; première présentation de l'AR, quand
+ * elle est connue, antérieure au dépôt, différente de celle du courrier (décision J1) ou postérieure au retrait du pli,
+ * comme courriers.ts le refuse pour ses propres dates (🔵) ; une date inconnue d'un côté ne se compare pas. Null : cohérents.
+ */
+function ecartDuCourrier(ar: ArReceptionOs, courrier: CourrierSuivi): string | null {
+  if (!courrier.dateDepot) return "courrier lié jamais déposé : l'AR n'est pas celui d'un pli parti"
+  const presentation = ar.premierePresentationLe
+  if (presentation === null) return null
+  const avant = `première présentation de l'AR (${fr(presentation)})`
+  if (presentation < courrier.dateDepot) return `${avant} antérieure au dépôt du courrier lié (${fr(courrier.dateDepot)})`
+  const duCourrier = courrier.datePremierePresentation ?? null
+  if (duCourrier !== null && presentation !== duCourrier) return `${avant} différente de celle du courrier lié (${fr(duCourrier)})`
+  const retrait = courrier.dateAccuseReception
+  if (retrait && presentation > retrait) return `${avant} postérieure au retrait du pli (${fr(retrait)})`
+  return null
+}
+
+/** Natures du journal qui portent l'OS lui-même : le premier envoi et les rediffusions (pas la relance). */
+const NATURES_PORTANT_OS: ReadonlySet<NatureDiffusion> = new Set<NatureDiffusion>(['envoi', 'rediffusion'])
+
+/**
+ * Pli qui a porté l'OS à l'entreprise de la réception (🔵 : l'AR prouve la réception du pli qu'il accompagne, et une
+ * réception par courrier AR, AR saisi ou non, est celle de ce pli) : ligne d'envoi ou de rediffusion par courrier AR,
+ * même courrier (courrierId), même destinataire ; undefined : aucun.
+ */
+const pliPortantOs = (s: SortieOrdreService, reception: EvenementDiffusion): EvenementDiffusion | undefined =>
+  s.journal.find(
+    (e) =>
+      NATURES_PORTANT_OS.has(e.nature) && e.canal === 'courrier_ar' && e.courrierId === reception.courrierId && memeRattachement(e.destinataire, reception.destinataire),
+  )
+
+/** Première présentation de l'AR, si elle est connue : ni antérieure à l'envoi du pli, ni postérieure à la réception (🔵). */
+function verifierBornesPresentation(presentation: string | null, reception: EvenementDiffusion, pli: EvenementDiffusion): void {
+  if (presentation === null) return
+  if (presentation < pli.date)
+    throw new Error(`Première présentation de l'AR (${fr(presentation)}) antérieure à l'envoi de l'OS par le courrier ${pli.courrierId} (${fr(pli.date)}).`)
+  if (presentation > reception.date)
+    throw new Error(`Première présentation de l'AR (${fr(presentation)}) après la réception du ${fr(reception.date)}.`)
+}
+
+/**
+ * Pli d'une réception par courrier AR, AR saisi ou non : le courrier AR qui a porté l'OS à l'entreprise (pliPortantOs),
+ * sinon refusé, motif à l'appui : l'AR d'un autre pli ne prouve pas la réception de l'OS, et la réception d'un autre pli
+ * n'est pas celle de l'OS (🔵).
+ */
+function pliDeLaReception(s: SortieOrdreService, reception: EvenementDiffusion, avecAr: boolean): EvenementDiffusion {
+  const pli = pliPortantOs(s, reception)
+  if (pli) return pli
+  const refus = avecAr ? `AR du courrier ${reception.courrierId} refusé` : `Réception par le courrier ${reception.courrierId} refusée`
+  const motif = avecAr ? "l'AR d'un autre pli ne prouve pas la réception de l'OS" : "la réception d'un autre pli n'est pas celle de l'OS"
+  throw new Error(
+    `${refus} : ce courrier n'a pas porté l'OS à l'entreprise (ni envoi ni rediffusion de l'OS par courrier AR à ${reception.destinataire.id} sous ce courrier) ; ${motif}.`,
+  )
+}
+
+/**
+ * AR saisi avec une réception par courrier AR (décision 9 ; 🔵 : avis de réception du pli recommandé), celle du pli qui
+ * a porté l'OS (pli, pliDeLaReception) : référence non vide ; première présentation saisie, sinon tirée du courrier lié
+ * quand il est fourni ; en écart avec ce courrier (ecartDuCourrier), refusé ; bornée par l'envoi du pli et la réception
+ * (verifierBornesPresentation) ; null sans AR.
+ */
+function lireArReception(
+  ar: SaisieArReception | null,
+  reception: EvenementDiffusion,
+  pli: EvenementDiffusion,
+  courrier: CourrierSuivi | undefined,
+): ArReceptionOs | null {
+  if (ar === null) return null
+  const reference = texteOuNull(ar.reference)
+  if (reference === null) throw new Error("AR de la réception : référence attendue (numéro du pli recommandé ou pièce numérisée).")
+  const saisie = ar.premierePresentationLe ?? null
+  verifierDate("Première présentation de l'AR", saisie)
+  const lu: ArReceptionOs = { reference, premierePresentationLe: saisie ?? courrier?.datePremierePresentation ?? null }
+  const ecart = courrier ? ecartDuCourrier(lu, courrier) : null
+  if (ecart !== null) throw new Error(`AR de la réception refusé : ${ecart} ; corriger l'AR saisi ou le suivi du courrier (courriers.ts).`)
+  verifierBornesPresentation(lu.premierePresentationLe, reception, pli)
+  return lu
+}
+
+/** Courrier lié fourni avec la réception : seulement pour une réception par courrier AR, envoyé en forme « AR ». */
+function verifierCourrierDeReception(reception: EvenementDiffusion, courrier: CourrierSuivi): void {
+  if (reception.canal !== 'courrier_ar') throw new Error(`Courrier lié : réservé à une réception par courrier AR (ici « ${reception.canal} »).`)
+  verifierCourrierAr(courrier)
+}
+
 /**
  * Accusé de réception de l'entreprise (journal « reception »), distinct de l'envoi : le contrat se forme quand
  * l'acceptation parvient (C. civ. art. 1121) ; pour un écrit électronique hors des cas des art. 1125 et 1126, la remise
- * est effective à l'accusé de réception (art. 1127-4). Puis devisCaducALaReception.
+ * est effective à l'accusé de réception (art. 1127-4). Toute réception par courrier AR, AR saisi ou non, est celle du
+ * pli qui a porté l'OS à l'entreprise (envoi ou rediffusion par courrier AR, même courrierId), sinon refusée
+ * (pliDeLaReception) ; elle peut porter son AR, qui en fait preuve (décision de Hugo du 03/11/2026), rapproché du
+ * courrier lié quand il est fourni (courrier : forme « AR » exigée, déposé, première présentation tirée de lui ou comparée
+ * à lui) ; l'AR saisi sur une réception par un autre canal est refusé ; sans AR, la réception est admise, « sans preuve »
+ * (preuveDeReception). Le journal ne se réécrit pas : un AR revenu après une réception déjà enregistrée passe par une
+ * nouvelle ligne (preuveReceptionOs), la réception restant datée de la première. Puis devisCaducALaReception.
  */
-export function enregistrerReception(s: SortieOrdreService, saisie: SaisieDiffusion): SortieOrdreService {
-  return ajouter(s, evenementVersEntreprise(s, saisie, 'reception', 'Réception'))
+export function enregistrerReception(s: SortieOrdreService, saisie: SaisieReception, courrier?: CourrierSuivi): SortieOrdreService {
+  const reception = evenementVersEntreprise(s, saisie, 'reception', 'Réception')
+  if (courrier) verifierCourrierDeReception(reception, courrier)
+  const ar = saisie.ar ?? null
+  if (reception.canal !== 'courrier_ar') {
+    if (ar !== null)
+      throw new Error(
+        `AR saisi sur une réception par « ${reception.canal} » : l'AR est l'avis de réception du courrier AR ; par ce canal, la réception est admise sans AR (« sans preuve »).`,
+      )
+    return ajouter(s, { ...reception, ar: null })
+  }
+  const pli = pliDeLaReception(s, reception, ar !== null)
+  return ajouter(s, { ...reception, ar: lireArReception(ar, reception, pli, courrier) })
 }
 
 /**
@@ -1998,17 +2303,70 @@ export function enregistrerRapport(d: Demande, s: SortieOrdreService, saisie: Sa
   return { ...s, rapportRecu: { recuLe: saisie.recuLe, documentId: texteOuNull(saisie.documentId) } }
 }
 
-export type PreuveDiffusion = 'trace_interne' | EtatNotificationCourrier
+/** Preuve d'une réception (décision 9) : son AR, ou « sans preuve ». */
+export type PreuveReception = 'ar' | 'sans_preuve'
+
+/**
+ * Preuve d'une réception portée par sa ligne (décision de Hugo du 03/11/2026 : l'AR fait preuve) : « ar » quand elle porte
+ * son AR, sinon « sans_preuve » (ligne sans la clé « ar », écrite avant la décision 9, comprise) : la réception reste
+ * admise, sans blocage (🔵). Pour une réception par courrier AR, preuveDeDiffusion lit aussi le courrier lié et le
+ * journal de la sortie.
+ */
+export function preuveDeReception(evenement: EvenementDiffusion): PreuveReception {
+  if (evenement.nature !== 'reception') throw new Error(`Ligne « ${evenement.nature} » du journal : seule une réception a une preuve de réception.`)
+  return evenement.ar ? 'ar' : 'sans_preuve'
+}
+
+/**
+ * Preuve de la réception de l'OS lui-même (décision 9) : « ar » dès qu'une ligne « reception » du journal porte son AR, y
+ * compris un AR revenu après une première réception (nouvelle ligne : le journal ne se réécrit pas) ; « sans_preuve »
+ * quand l'OS est reçu sans AR ; null : jamais reçu. La réception reste datée de sa première ligne (estRecu,
+ * devisCaducALaReception). Lit les lignes seules (preuveDeReception) : l'état du courrier lié d'une réception par courrier
+ * AR sans AR saisi, et l'écart d'un AR avec son courrier lié apparu après la saisie (« ar_ecart_courrier »), se lisent par
+ * preuveDeDiffusion, ligne par ligne.
+ */
+export function preuveReceptionOs(s: SortieOrdreService): PreuveReception | null {
+  const receptions = s.journal.filter((e) => e.nature === 'reception')
+  if (receptions.length === 0) return null
+  return receptions.some((e) => preuveDeReception(e) === 'ar') ? 'ar' : 'sans_preuve'
+}
+
+/**
+ * Preuve d'une ligne du journal (preuveDeDiffusion) ; « ar_ecart_courrier » : la ligne porte un AR en écart avec le
+ * courrier lié (ecartArCourrier), écart apparu après la saisie, signalé à vérifier.
+ */
+export type PreuveDiffusion = 'trace_interne' | EtatNotificationCourrier | PreuveReception | 'ar_ecart_courrier'
+
+/**
+ * Écart entre l'AR d'une réception et son courrier lié (courriers.ts) apparu après la saisie (courrier non fourni à la
+ * saisie, suivi postal complété ou corrigé ensuite) : message, ou null (aucun AR, ou AR cohérent avec le courrier). La
+ * ligne du journal ne se réécrit pas : l'écart est signalé, jamais levé ; une nouvelle réception peut porter l'AR exact.
+ */
+export function ecartArCourrier(evenement: EvenementDiffusion, courrier: CourrierSuivi): string | null {
+  const ar = evenement.ar ?? null
+  const ecart = ar === null ? null : ecartDuCourrier(ar, courrier)
+  if (ecart === null) return null
+  return `AR de la réception du ${fr(evenement.date)} en écart avec le courrier lié : ${ecart} ; la ligne du journal ne se réécrit pas : enregistrer une nouvelle réception avec l'AR exact, ou corriger le suivi du courrier (courriers.ts).`
+}
 
 /**
  * Preuve d'une ligne du journal : la trace interne (journal horodaté) pour la messagerie, le courriel, le SMS et le
- * courrier simple ; pour le courrier AR, l'état de notification du courrier lié (courriers.ts).
+ * courrier simple, sauf pour une réception, qui a son AR ou est « sans preuve » (preuveDeReception) ; pour le courrier AR,
+ * le courrier lié est attendu (forme « AR ») : une réception qui porte son AR vaut « ar », ou « ar_ecart_courrier » quand
+ * l'AR est en écart avec le courrier (ecartArCourrier : signalé, sans lever, la ligne ne se réécrivant pas) ; une
+ * réception sans AR saisi dont le courrier n'a pas porté l'OS à l'entreprise (pliPortantOs, lu dans le journal de la
+ * sortie s : ligne écrite sans le contrôle de la saisie, avant la décision 9) est « sans preuve », jamais l'état de
+ * notification de ce pli ; toute autre ligne, réception sans AR saisi sur le pli qui a porté l'OS comprise (comme avant
+ * la décision 9), vaut l'état de notification du courrier lié (courriers.ts). Une ligne qui porte un AR a été rattachée
+ * au pli à la saisie (pliDeLaReception).
  */
-export function preuveDeDiffusion(evenement: EvenementDiffusion, courrier?: CourrierSuivi): PreuveDiffusion {
-  if (evenement.canal !== 'courrier_ar') return 'trace_interne'
+export function preuveDeDiffusion(s: SortieOrdreService, evenement: EvenementDiffusion, courrier?: CourrierSuivi): PreuveDiffusion {
+  if (evenement.canal !== 'courrier_ar') return evenement.nature === 'reception' ? preuveDeReception(evenement) : 'trace_interne'
   if (!courrier) throw new Error(`Courrier AR ${evenement.courrierId ?? ''} : le courrier lié est attendu (preuve de notification).`)
-  if (courrier.formeEnvoi !== FORME_ENVOI_PAR_CANAL.courrier_ar)
-    throw new Error(`Courrier lié envoyé en « ${courrier.formeEnvoi} » : un courrier en AR est attendu pour ce canal.`)
+  verifierCourrierAr(courrier)
+  const ar = evenement.ar ?? null
+  if (ar !== null) return ecartDuCourrier(ar, courrier) === null ? 'ar' : 'ar_ecart_courrier'
+  if (evenement.nature === 'reception' && !pliPortantOs(s, evenement)) return 'sans_preuve'
   return etatNotificationCourrier(courrier)
 }
 
