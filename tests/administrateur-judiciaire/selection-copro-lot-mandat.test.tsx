@@ -205,22 +205,23 @@ describe('Dossier du juge', () => {
     await waitFor(() => expect((rapport as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(rapport)
     expect(dernierToast(push)?.meta).toContain('Le Clos des Vignes · RG 25/03517')
+    expect(screen.queryAllByText('art. 29-1 — difficulté')).toHaveLength(0)
 
     choisir('TL')
     expect(selectCopro().value).toBe('TL')
-    await waitFor(() => {
-      fireEvent.click(screen.getByRole('button', { name: /Rapport au juge/ }))
-      expect(dernierToast(push)?.meta).toContain('Copropriété Les Tilleuls · RG 24/04521')
-    })
+    // Fiche 360 des Tilleuls chargée (fondement art. 29-1 dans les indicateurs) : un seul clic, hors de waitFor.
+    await waitFor(() => expect(screen.getAllByText('art. 29-1 — difficulté').length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByRole('button', { name: /Rapport au juge/ }))
+    expect(dernierToast(push)?.meta).toContain('Copropriété Les Tilleuls · RG 24/04521')
   })
 
   it('sans sélection : Les Tilleuls par défaut', async () => {
     const { push } = rendre(<DossierJugeModule />)
     expect(selectCopro().value).toBe('TL')
-    await waitFor(() => {
-      fireEvent.click(screen.getByRole('button', { name: /Rapport au juge/ }))
-      expect(dernierToast(push)?.meta).toContain('Copropriété Les Tilleuls · RG 24/04521')
-    })
+    const rapport = await screen.findByRole('button', { name: /Rapport au juge/ })
+    await waitFor(() => expect((rapport as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(rapport)
+    expect(dernierToast(push)?.meta).toContain('Copropriété Les Tilleuls · RG 24/04521')
   })
 })
 
