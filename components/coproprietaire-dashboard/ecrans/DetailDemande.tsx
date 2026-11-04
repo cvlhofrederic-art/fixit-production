@@ -20,6 +20,7 @@ import {
   dateHeure, dateLongue, euros, libelleStatutDemande, remplir, type LangueCopro, type TextesCopro,
 } from '@/lib/coproprietaire/textes'
 import { envoyerMessageDemande } from '@/lib/coproprietaire/api'
+import type { ActionsLiaisonAj } from '@/components/coproprietaire-dashboard/contrat'
 import {
   Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, Icone, Ligne, type TonBadge,
 } from '@/components/coproprietaire-dashboard/ui'
@@ -142,13 +143,15 @@ export interface PropsDetailDemande {
   rafraichir: () => Promise<void>
   /** Message ajouté localement (démonstration, ou en attendant le rechargement). */
   onMessageAjoute: (idDemande: string, message: MessageDemande) => void
+  /** Portail relié à l'Administrateur judiciaire : le message lui est transmis (même navigateur). */
+  liaisonAj?: ActionsLiaisonAj
 }
 
 type EtatEnvoi = 'repos' | 'succes' | 'erreur' | 'demo'
 
-export default function DetailDemande({ demande, espace, t, langue, jeton, onRetour, rafraichir, onMessageAjoute }: PropsDetailDemande) {
+export default function DetailDemande({ demande, espace, t, langue, jeton, onRetour, rafraichir, onMessageAjoute, liaisonAj }: Readonly<PropsDetailDemande>) {
   const local = LIBELLES_LOCAUX[langue]
-  const demo = jeton === null || espace.source === 'demo'
+  const demo = jeton === null || espace.source !== 'reel'
   const montantsVisibles = espace.profil.role !== 'locataire'
   const idChamp = useId()
   const [texte, setTexte] = useState('')
@@ -168,6 +171,17 @@ export default function DetailDemande({ demande, espace, t, langue, jeton, onRet
     const propre = texte.trim()
     if (!propre || envoi) return
     const auteur = `${espace.profil.prenom} ${espace.profil.nom}`.trim()
+    if (liaisonAj) {
+      const message = liaisonAj.envoyerMessage(demande.id, propre)
+      if (!message) {
+        setEtat('erreur')
+        return
+      }
+      onMessageAjoute(demande.id, message)
+      setTexte('')
+      setEtat('succes')
+      return
+    }
     if (demo || !jeton) {
       onMessageAjoute(demande.id, { id: idLocal('demo-msg'), auteur, role: 'coproprio', texte: propre, date: new Date().toISOString(), deMoi: true })
       setTexte('')

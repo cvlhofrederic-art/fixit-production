@@ -13,8 +13,10 @@ import { useLocale } from '@/lib/i18n/context'
 import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { seDeconnecter, useEspaceCopro, type EtatEspace } from '@/lib/coproprietaire/etat'
+import { estSuperAdmin, useSourceAj } from '@/lib/coproprietaire/liaison-aj'
 import { heureCourte, langueCopro, remplir, textesCopro, type EcranCopro, type TextesCopro } from '@/lib/coproprietaire/textes'
 import { Bouton, Encadre, Icone, Modale, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
+import BarreLiaisonAj from '@/components/coproprietaire-dashboard/BarreLiaisonAj'
 import type { PropsEcran } from '@/components/coproprietaire-dashboard/contrat'
 import type { EspaceCopro } from '@/lib/coproprietaire/types'
 
@@ -201,7 +203,19 @@ export default function CoproprietaireDashboard() {
   const locale = useLocale()
   const langue = langueCopro(locale)
   const t = useMemo(() => textesCopro(locale), [locale])
-  const { etat, rafraichir, changerLot, jeton, metadonnees } = useEspaceCopro()
+  const { etat: etatSyndic, rafraichir: rafraichirSyndic, changerLot, jeton: jetonSyndic, metadonnees } = useEspaceCopro()
+  // Super admin : le portail peut montrer une copropriété de l'Administrateur judiciaire (barre du haut).
+  const aj = useSourceAj(estSuperAdmin(metadonnees))
+  const avecAj = aj.disponible && aj.source === 'aj'
+  const etat: EtatEspace = useMemo(() => {
+    if (!avecAj) return etatSyndic
+    return aj.espace
+      ? { statut: 'pret', espace: aj.espace, jeton: null, miseAJourLe: new Date(aj.espace.chargeLe), miseAJourImpossible: false }
+      : { statut: 'chargement' }
+  }, [avecAj, aj.espace, etatSyndic])
+  // Avec l'AJ, rien à recharger : l'espace suit la liaison du navigateur en direct.
+  const rafraichir = useCallback(async () => { if (!avecAj) await rafraichirSyndic() }, [avecAj, rafraichirSyndic])
+  const jeton = avecAj ? null : jetonSyndic
 
   const [navigation, setNavigation] = useState<{ ecran: EcranCopro; cible?: string }>({ ecran: 'accueil' })
   // Incrémenté à chaque navigation volontaire : l'écran est remonté, donc une cible identique
@@ -232,7 +246,15 @@ export default function CoproprietaireDashboard() {
   }, [changerLot])
 
   if (etat.statut === 'chargement') return <Chargement t={t} />
-  if (etat.statut !== 'pret') return <PageAcces etat={etat} t={t} langue={langue} />
+  if (etat.statut !== 'pret') {
+    // Super admin : la barre reste là pour basculer sur l'Administrateur judiciaire si la base du syndic ne répond pas.
+    return (
+      <>
+        <BarreLiaisonAj aj={aj} />
+        <PageAcces etat={etat} t={t} langue={langue} />
+      </>
+    )
+  }
 
   const { espace } = etat
   const locataire = espace.profil.role === 'locataire'
@@ -244,11 +266,19 @@ export default function CoproprietaireDashboard() {
 
   const propsEcran: PropsEcran = {
     espace, t, langue, jeton, allerA, cible: navigation.cible, rafraichir, miseAJourLe: etat.miseAJourLe,
+    aujourdhui: avecAj ? aj.aujourdhui ?? undefined : undefined,
+    liaisonAj: avecAj ? aj.actions ?? undefined : undefined,
   }
 
-  const bandeauDemo = espace.source === 'demo'
-    ? (espace.vueSuperAdmin ? remplir(t.shell.demoSuperAdmin, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : t.shell.demoVisiteur)
-    : espace.vueSuperAdmin ? remplir(t.shell.vueSuperAdminReelle, { nom: `${espace.profil.prenom} ${espace.profil.nom}` }) : null
+  const nomAffiche = `${espace.profil.prenom} ${espace.profil.nom}`.trim()
+  let bandeauDemo: string | null = null
+  if (espace.source === 'aj') {
+    bandeauDemo = `Vue super admin — démonstration reliée à l’Administrateur judiciaire : espace de ${nomAffiche} (${espace.immeuble.nom}, lot ${espace.profil.numLot}).`
+  } else if (espace.source === 'demo') {
+    bandeauDemo = espace.vueSuperAdmin ? remplir(t.shell.demoSuperAdmin, { nom: nomAffiche }) : t.shell.demoVisiteur
+  } else if (espace.vueSuperAdmin) {
+    bandeauDemo = remplir(t.shell.vueSuperAdminReelle, { nom: nomAffiche })
+  }
 
   return (
     <div id="copro-dashboard" className="flex min-h-screen bg-[#F7F4EE]">
@@ -258,9 +288,11 @@ export default function CoproprietaireDashboard() {
         {bandeauDemo && (
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-[#FFF1D6] px-4 py-2 text-center text-[15px] font-medium text-[#5C3A00]" role="status">
             <span>{bandeauDemo}</span>
-            {!jeton && <a href={langue === 'pt' ? '/pt/auth/login' : '/auth/login'} className="font-bold underline underline-offset-4">{t.shell.seConnecter}</a>}
+            {!jeton && !aj.disponible && <a href={langue === 'pt' ? '/pt/auth/login' : '/auth/login'} className="font-bold underline underline-offset-4">{t.shell.seConnecter}</a>}
           </div>
         )}
+
+        <BarreLiaisonAj aj={aj} />
 
         <header className="sticky top-0 z-30 border-b border-[#E4DDD0] bg-white px-4 py-3 md:px-9">
           <div className="flex items-center justify-between gap-3">
@@ -294,7 +326,7 @@ export default function CoproprietaireDashboard() {
           {etat.miseAJourImpossible && (
             <Encadre ton="avertissement" className="mb-4">{remplir(t.commun.miseAJourImpossible, { heure })}</Encadre>
           )}
-          <Ecran key={`${ecran}-${cleNavigation}`} {...propsEcran} />
+          <Ecran key={`${ecran}-${cleNavigation}-${espace.source}-${espace.profil.id}`} {...propsEcran} />
           <p className="mt-8 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4A5E78]">
             <span>{remplir(t.commun.derniereMiseAJour, { heure })}</span>
             <Bouton variante="discret" petit icone="actualiser" onClick={() => { void rafraichir() }}>{t.commun.mettreAJour}</Bouton>

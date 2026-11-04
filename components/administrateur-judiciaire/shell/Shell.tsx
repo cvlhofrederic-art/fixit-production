@@ -26,6 +26,7 @@ import { champCoproprieteChoisie, useCoproChoisie } from '@/components/administr
 import { FormModal, type ChampFormModal } from '@/components/administrateur-judiciaire/ui/FormModal'
 import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
+import { marquerNotificationLiaisonVue, marquerVuParAj } from '@/lib/liaison-copro-aj/stockage'
 import LienPanneauAdmin from '@/components/common/LienPanneauAdmin'
 import {
   useDonneesCadre,
@@ -646,7 +647,11 @@ export function Shell() {
       return suivantes
     })
 
-  const toutMarquerLu = () => setNotificationsLues(new Set(notificationsCentre.map((notification) => notification.id)))
+  const toutMarquerLu = () => {
+    setNotificationsLues(new Set(notificationsCentre.map((notification) => notification.id)))
+    // Échanges du portail copropriétaire : vus, et enregistrés comme tels (ils restent lus au rechargement).
+    marquerVuParAj()
+  }
 
   const basculerSection = (titre: string) =>
     setSectionsRepliees((repliees) => ({
@@ -982,6 +987,11 @@ export function Shell() {
                             onClick={() => {
                               marquerLue(notification.id)
                               setNotificationsOuvertes(false)
+                              // Échange du portail copropriétaire : vu (enregistré), puis l'écran qui le traite.
+                              if (notification.route) {
+                                marquerNotificationLiaisonVue(notification.id)
+                                naviguer(notification.route)
+                              }
                             }}
                           >
                             <span className={`notifs-item-icon kind-${notification.kind}`} aria-hidden="true">

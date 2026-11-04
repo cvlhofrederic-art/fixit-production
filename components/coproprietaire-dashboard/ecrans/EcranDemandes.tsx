@@ -186,9 +186,9 @@ function CarteTravaux({ intervention: i, t, langue, montantsVisibles, local }: {
 // ── Écran ────────────────────────────────────────────────────────────────────
 
 export default function EcranDemandes(props: PropsEcran) {
-  const { espace, t, langue, jeton, cible, rafraichir } = props
+  const { espace, t, langue, jeton, cible, rafraichir, liaisonAj } = props
   const local = LIBELLES_LOCAUX[langue]
-  const demo = jeton === null || espace.source === 'demo'
+  const demo = jeton === null || espace.source !== 'reel'
   const montantsVisibles = espace.profil.role !== 'locataire'
   const idBase = useId()
 
@@ -243,6 +243,7 @@ export default function EcranDemandes(props: PropsEcran) {
           onEnvoye={ajouterDemande}
           onVoirDemande={id => { void voirDemande(id) }}
           onAutre={ouvrirFormulaire}
+          liaisonAj={liaisonAj}
         />
       </div>
     )
@@ -259,6 +260,7 @@ export default function EcranDemandes(props: PropsEcran) {
         onRetour={retourListe}
         rafraichir={rafraichir}
         onMessageAjoute={ajouterMessage}
+        liaisonAj={liaisonAj}
       />
     )
   }
