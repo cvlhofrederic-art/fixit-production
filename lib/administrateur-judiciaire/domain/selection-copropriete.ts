@@ -24,6 +24,8 @@ export const ROUTES_CABINET: ReadonlySet<string> = new Set([
   'modules',
   'parametres',
   'rgpd',
+  // AJ Signalement : copropriétés dotées d'un QR code, sans lien avec les copropriétés de l'AJ (04/11/2026).
+  'signalementsQr',
 ])
 
 /** « generale » : vue de tous les mandats ou du cabinet ; « copro » : page affichée selon la copropriété choisie. */

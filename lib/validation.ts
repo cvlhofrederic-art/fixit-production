@@ -379,6 +379,50 @@ export const coproSignalementSchema = z.object({
   lot: z.string().uuid().optional(),
 })
 
+// ── AJ Signalement (signalements déposés par QR code) ───────────────────────
+// Dépôt public : la copropriété est désignée par le jeton du QR code ; les coordonnées du déclarant
+// sont obligatoires (bâtiment facultatif). Mêmes bornes que lib/aj-signalement/formulaire.ts.
+export const jetonQrSchema = z.string().regex(/^[0-9a-f]{32}$/, 'Jeton de QR code invalide')
+
+export const signalementQrSchema = z.object({
+  jeton: jetonQrSchema,
+  prenom: z.string().trim().min(1, 'Prénom requis').max(100),
+  nom: z.string().trim().min(1, 'Nom requis').max(100),
+  telephone: z.string().trim().min(6, 'Téléphone requis').max(30)
+    .regex(/^\+?[0-9 .()\-]+$/, 'Téléphone invalide')
+    .refine((v) => (v.match(/\d/g) ?? []).length >= 6, 'Téléphone invalide'),
+  email: strictEmail,
+  batiment: z.string().trim().max(50).optional().default(''),
+  etage: z.string().trim().min(1, 'Étage requis').max(20),
+  numLot: z.string().trim().min(1, 'Numéro de lot requis').max(20),
+  estPartieCommune: z.boolean(),
+  zoneSignalee: z.string().trim().max(200).optional().default(''),
+  typeIntervention: z.string().trim().min(1, 'Type de problème requis').max(100),
+  description: z.string().trim().min(10, 'Description requise (minimum 10 caractères)').max(5000),
+  priorite: z.enum(['urgente', 'normale', 'planifiee']),
+  langue: z.enum(['fr', 'pt']).optional().default('fr'),
+})
+
+// Tableau de bord (super admin) : copropriété dotée d'un QR code.
+export const coproprieteQrSchema = z.object({
+  nom: z.string().trim().min(1, 'Nom requis').max(200),
+  adresse: z.string().trim().max(300).optional().default(''),
+  emailsDestinataires: z.array(strictEmail).max(10).optional().default([]),
+})
+
+export const modificationCoproprieteQrSchema = z.object({
+  nom: z.string().trim().min(1, 'Nom requis').max(200).optional(),
+  adresse: z.string().trim().max(300).optional(),
+  emailsDestinataires: z.array(strictEmail).max(10).optional(),
+  actif: z.boolean().optional(),
+  // Tire un nouveau jeton : l'ancien QR code ne répond plus.
+  regenererJeton: z.boolean().optional(),
+})
+
+export const statutSignalementQrSchema = z.object({
+  statut: z.enum(['en_attente', 'acceptee', 'en_cours', 'terminee', 'annulee']),
+})
+
 // ── Devis Sign schema ────────────────────────────────────────────────────────
 export const devisSignSchema = z.object({
   booking_id: z.string().uuid('booking_id doit \u00eatre un UUID valide'),

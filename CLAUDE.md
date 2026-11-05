@@ -51,10 +51,13 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
   layout minimal à côté de la page, à supprimer.
 - `app/(commun)/pro/` → dashboard partagé artisan + pro_societe (BTP) — séparation par `orgRole`
 - `app/(commun)/{client,artisan}/` → landings pubs
-- `app/(commun)/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans
+- `app/(commun)/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans (neuf pour le super admin)
   `components/coproprietaire-dashboard/ecrans/`, données réelles du syndic via `GET /api/coproprietaire/espace`
   (`lib/coproprietaire/` : accès par fiche `syndic_coproprios`, filtrage de ce qu'un copropriétaire peut voir),
   démonstration `lib/coproprietaire/demo.ts`. Spécification : `components/coproprietaire-dashboard/SPECIFICATION-ECRANS.md`.
+- `app/(commun)/signalement/[jeton]` + `lib/aj-signalement/` + `components/aj-signalement/` → « AJ Signalement » (04/11/2026) :
+  signalements déposés par QR code sans compte (coordonnées obligatoires), tables `signalements_qr_*` sans lien avec `syndic_*`,
+  e-mail à l’administrateur ; tableau de bord = écran `signalementsQr` du portail copropriétaire (super admin) et écran miroir dans l’AJ.
 - `app/(commun)/coproprietaire/portail` (portail léger sans compte) et `app/(commun)/syndic/` (hors v54) → code conservé, ne pas y toucher
 - `components/dashboard/` → composants `*Section.tsx`
 - `lib/` → logger, validation, types, groq, circuit-breaker, rate-limit, pdf/
