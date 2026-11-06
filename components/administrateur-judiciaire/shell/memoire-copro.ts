@@ -65,7 +65,19 @@ export function useCoproParDefautMemorisee(): void {
     const desabonner = useSelectionDossier.subscribe((etat, precedent) => {
       if (etat.code !== precedent.code) revalider()
     })
+    // Choix fait dans un autre onglet (portail copropriétaire relié, autre fenêtre de l'AJ) : l'AJ le suit s'il connaît
+    // cette copropriété.
+    const surStockage = (evenement: StorageEvent) => {
+      if (evenement.key !== CLE_DOSSIER_EN_COURS) return
+      const code = lireCodeCoproMemorise()
+      const { code: courant, choisirCopro } = useSelectionDossier.getState()
+      if (code && code !== courant && copros.some((copro) => copro.code === code)) choisirCopro(code)
+    }
+    window.addEventListener('storage', surStockage)
     revalider()
-    return desabonner
+    return () => {
+      desabonner()
+      window.removeEventListener('storage', surStockage)
+    }
   }, [charge, codes])
 }

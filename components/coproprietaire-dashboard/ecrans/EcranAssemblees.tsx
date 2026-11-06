@@ -29,6 +29,7 @@ interface LibellesLocaux {
   lireModele: string
   copieImpossible: string
   demoVote: string
+  voteTransmisAj: string
 }
 
 const LIBELLES_LOCAUX: Record<LangueCopro, LibellesLocaux> = {
@@ -38,6 +39,7 @@ const LIBELLES_LOCAUX: Record<LangueCopro, LibellesLocaux> = {
     lireModele: 'Lire le modèle de lettre',
     copieImpossible: 'La copie n’a pas fonctionné. Ouvrez « Lire le modèle de lettre » et sélectionnez le texte.',
     demoVote: 'Démonstration : votre vote est simulé ici, rien n’est transmis au syndic.',
+    voteTransmisAj: 'Démonstration reliée : votre vote par correspondance est arrivé dans l’Administrateur judiciaire, ouvert dans ce navigateur.',
   },
   pt: {
     pourInformation: 'Para informação — a convocatória oficial é-lhe enviada separadamente.',
@@ -45,6 +47,7 @@ const LIBELLES_LOCAUX: Record<LangueCopro, LibellesLocaux> = {
     lireModele: 'Ler o modelo de carta',
     copieImpossible: 'A cópia não funcionou. Abra « Ler o modelo de carta » e selecione o texto.',
     demoVote: 'Demonstração: o seu voto é simulado aqui, nada é transmitido ao administrador.',
+    voteTransmisAj: 'Demonstração ligada: o seu voto por correspondência chegou ao Administrador judicial, aberto neste navegador.',
   },
 }
 
@@ -264,7 +267,7 @@ function ResolutionVote({ resolution: r, vote, ouvert, enModification, erreur, d
 // ── Écran ────────────────────────────────────────────────────────────────────
 
 export default function EcranAssemblees(props: PropsEcran) {
-  const { espace, t, langue, jeton, rafraichir } = props
+  const { espace, t, langue, jeton, rafraichir, liaisonAj } = props
   const tl = LIBELLES_LOCAUX[langue]
   const [votesLocaux, setVotesLocaux] = useState<Record<string, VoteConnu>>({})
   const [modifications, setModifications] = useState<Record<string, boolean>>({})
@@ -274,7 +277,7 @@ export default function EcranAssemblees(props: PropsEcran) {
   const [demoTentee, setDemoTentee] = useState(false)
   const [copie, setCopie] = useState<'aucune' | 'ok' | 'erreur'>('aucune')
 
-  const maintenant = new Date()
+  const maintenant = props.aujourdhui ?? new Date()
   const convoquees = espace.assemblees.filter(a => a.statut === 'convoquee').sort(parDateCroissante)
   const enCours = espace.assemblees.filter(a => a.statut === 'en_cours').sort(parDateCroissante)
   const precedentes = espace.assemblees.filter(a => a.statut === 'cloturee' || a.statut === 'annulee').sort((a, b) => parDateCroissante(b, a))
@@ -299,7 +302,19 @@ export default function EcranAssemblees(props: PropsEcran) {
   const confirmerVote = async () => {
     if (!confirmation) return
     const { resolution, choix } = confirmation
-    if (jeton === null || espace.source === 'demo') {
+    if (liaisonAj) {
+      const vote = liaisonAj.voter(resolution.id, choix)
+      setConfirmation(null)
+      if (!vote) {
+        setErreurs(e => ({ ...e, [resolution.id]: true }))
+        return
+      }
+      enregistrerLocalement(resolution.id, vote)
+      setDemoTentee(true)
+      toast.success(t.assemblees.voteEnregistre)
+      return
+    }
+    if (jeton === null || espace.source !== 'reel') {
       enregistrerLocalement(resolution.id, { choix, enregistreLe: new Date().toISOString() })
       setDemoTentee(true)
       setConfirmation(null)
@@ -380,7 +395,7 @@ export default function EcranAssemblees(props: PropsEcran) {
             )}
             <p className="mt-3 text-sm text-[#4A5E78]">{tl.pourInformation}</p>
 
-            {demoTentee && <Encadre ton="info" className="mt-4">{tl.demoVote}</Encadre>}
+            {demoTentee && <Encadre ton="info" className="mt-4">{liaisonAj ? tl.voteTransmisAj : tl.demoVote}</Encadre>}
 
             {resolutions.length > 0 && (
               <section className="mt-5">

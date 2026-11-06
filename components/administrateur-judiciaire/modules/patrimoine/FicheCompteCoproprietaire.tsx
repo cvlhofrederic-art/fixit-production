@@ -7,6 +7,9 @@ import { Icon } from '@/components/administrateur-judiciaire/ui/Icon'
 import { Modal, ModalBody, ModalFooter, ModalHeader } from '@/components/administrateur-judiciaire/ui/Modal'
 import { Pill } from '@/components/administrateur-judiciaire/ui/Pill'
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
+import { codeDeNomCopro } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { MODE_ACTIF } from '@/lib/administrateur-judiciaire/mode'
+import { lienPortailCoproprietaire } from '@/lib/liaison-copro-aj/vues-aj'
 
 /** Téléphones et courriels : le courriel et le téléphone principaux du compte, puis les autres. */
 export function telecomsDuCompte(coproprietaire: CoproprietaireDemo): TelecomDemo[] {
@@ -53,6 +56,9 @@ export function LienFiche({ libelle, onClick }: { libelle: string; onClick: () =
  * du lot, voie de notification, conseil syndical, extranet, notes et avertissement (affiché en tête s'il existe).
  */
 export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier, onOuvrirLot }: FicheCompteCoproprietaireProps) {
+  // Portail copropriétaire relié (vue super admin) : en démonstration seulement, ses données étant celles de la démo.
+  const codeCopro = coproprietaire ? codeDeNomCopro(coproprietaire.copro) : null
+  const lienPortail = MODE_ACTIF === 'demo' && coproprietaire && codeCopro ? lienPortailCoproprietaire(codeCopro, coproprietaire.id) : null
   const fiche = coproprietaire?.fiche
   return (
     <Modal open={!!coproprietaire} onClose={onClose} size="lg" labelledBy="fc-t">
@@ -179,6 +185,12 @@ export function FicheCompteCoproprietaire({ coproprietaire, onClose, onModifier,
             <button className="btn" onClick={onClose}>
               Fermer
             </button>
+            {lienPortail && (
+              <a className="btn" href={lienPortail} target="_blank" rel="noopener">
+                <Icon name="home" />
+                Voir son espace copropriétaire
+              </a>
+            )}
             <button className="btn gold" onClick={() => onModifier(coproprietaire)}>
               <Icon name="pencil" />
               Modifier la fiche

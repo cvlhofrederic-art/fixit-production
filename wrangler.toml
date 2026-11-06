@@ -9,6 +9,9 @@ name = "vitfix"
 # pour les visiteurs anonymes + en-têtes x-vitfix-cache et Server-Timing (lot 7 Sentry, 28/10/2026).
 # VITFIX_BUILD_ID (clé de cache par déploiement) est posé par `wrangler deploy --var` dans deploy-cloudflare.yml.
 main = "worker/index.ts"
+# Pas d'envoi des cartes de source : wrangler >= 4.150 les envoie par défaut, or la nôtre fait 67 MiB (mesuré le
+# 04/11/2026) pour une limite Cloudflare de 60 MiB. Sans effet en 4.149 ; à garder pour la prochaine montée de wrangler.
+upload_source_maps = false
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
@@ -29,7 +32,12 @@ pattern = "www.vitfix.io/*"
 zone_name = "vitfix.io"
 
 # ── Workers Limits ───────────────────────────────────────────────────────────
-# Workers Paid: 30s CPU time, 128 MB memory, 10 MB compressed bundle
+# Workers Paid: 30s CPU time, 128 MB memory
+# Worker size: 64 MiB uncompressed on every plan ("Total Upload" in the deploy log).
+# No compressed limit since 2026-09-04: the old 10 MB gzip limit is gone, the gzip figure is informative only.
+# If "Total Upload" nears the limit: `minify = true` saves 12 MiB (48.8 -> 36.9 MiB, tested on 2026-11-04: same
+# responses). Not enabled: about 0.65 s more on the first request of each isolate (measured locally) and harder
+# to read server stacks. If enabled, keep_names must stay true (OpenNext compares constructor.name).
 # Queues consumers get up to 15 minutes per batch
 
 # ── KV Namespace Bindings ──────────────���─────────────────────────────────────

@@ -54,7 +54,7 @@ function jourLocal(d: Date): string {
  * d'abord (les appels sans échéance en dernier). `enRetard` si le syndic l'a marqué en retard
  * ou si l'échéance est antérieure au jour d'`aujourdhui` (le jour même n'est pas en retard).
  */
-export function prochainAppel(appels: AppelDeCharges[], aujourdhui: Date): { appel: AppelDeCharges; enRetard: boolean } | null {
+export function prochainAppel(appels: AppelDeCharges[], aujourdhui: Date): { appel: AppelDeCharges; enRetard: boolean; montantEnRetard: number } | null {
   const candidats = appels
     .filter(a => a.statut !== 'annule' && a.resteAPayer > 0)
     .map(a => ({ appel: a, date: dateEcheance(a.echeance) }))
@@ -66,8 +66,11 @@ export function prochainAppel(appels: AppelDeCharges[], aujourdhui: Date): { app
     })
   const premier = candidats[0]
   if (!premier) return null
-  const echeancePassee = premier.date !== null && jourLocal(premier.date) < jourLocal(aujourdhui)
-  return { appel: premier.appel, enRetard: premier.appel.statut === 'en_retard' || echeancePassee }
+  const estEnRetard = (c: (typeof candidats)[number]) =>
+    c.appel.statut === 'en_retard' || (c.date !== null && jourLocal(c.date) < jourLocal(aujourdhui))
+  // En retard : la somme de tous les appels en retard, pas seulement le reste du plus ancien.
+  const montantEnRetard = Math.round(candidats.filter(estEnRetard).reduce((total, c) => total + c.appel.resteAPayer, 0) * 100) / 100
+  return { appel: premier.appel, enRetard: estEnRetard(premier), montantEnRetard }
 }
 
 const STATUTS_EN_COURS: ReadonlySet<StatutIntervention> = new Set(['en_attente', 'acceptee', 'en_cours'])
@@ -139,7 +142,7 @@ function CarteFinances({ espace, t, langue, aujourdhui, allerA }: Pick<PropsEcra
   let contenu: ReactNode
   if (prochain) {
     const { appel, enRetard } = prochain
-    const montant = euros(appel.resteAPayer, langue)
+    const montant = euros(enRetard ? prochain.montantEnRetard : appel.resteAPayer, langue)
     const date = dateLongue(appel.echeance, langue)
     if (enRetard) {
       ton = 'rouge'
