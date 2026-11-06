@@ -1090,7 +1090,7 @@
      {
       "kind": "insurance",
       "titre": "Sinistre déclaré",
-      "description": "Le Clos des Vignes · dégât des eaux 4e étage · #SIN-2026-014",
+      "description": "Le Clos des Vignes · dégât des eaux 4e étage · CV.00014",
       "date": "2026-06-04T05:00:00.000Z",
       "lu": false,
       "coproprieteId": null,
@@ -1223,7 +1223,7 @@
       "apres": {
        "kind": "insurance",
        "titre": "Sinistre déclaré",
-       "description": "Le Clos des Vignes · dégât des eaux 4e étage · #SIN-2026-014",
+       "description": "Le Clos des Vignes · dégât des eaux 4e étage · CV.00014",
        "date": "2026-06-04T05:00:00.000Z",
        "lu": false,
        "coproprieteId": null,
@@ -4945,7 +4945,7 @@
      {
       "kind": "insurance",
       "titre": "Sinistre déclaré",
-      "description": "Le Clos des Vignes · dégât des eaux 4e étage · #SIN-2026-014",
+      "description": "Le Clos des Vignes · dégât des eaux 4e étage · CV.00014",
       "date": "2026-06-04T05:00:00.000Z",
       "lu": false,
       "coproprieteId": null,
@@ -9672,7 +9672,7 @@
      {
       "kind": "insurance",
       "titre": "Sinistre déclaré",
-      "description": "Le Clos des Vignes · dégât des eaux 4e étage · #SIN-2026-014",
+      "description": "Le Clos des Vignes · dégât des eaux 4e étage · CV.00014",
       "date": "2026-06-04T05:00:00.000Z",
       "lu": false,
       "coproprieteId": null,
@@ -19246,7 +19246,7 @@
       {
        "kind": "insurance",
        "titre": "Sinistre déclaré",
-       "description": "Le Clos des Vignes · dégât des eaux 4e étage · #SIN-2026-014",
+       "description": "Le Clos des Vignes · dégât des eaux 4e étage · CV.00014",
        "date": "2026-06-04T05:00:00.000Z",
        "lu": false,
        "coproprieteId": null,

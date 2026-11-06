@@ -25,6 +25,7 @@ import type {
 } from '@/lib/administrateur-judiciaire/domain/fiche-360'
 import { LIBELLES_REGIMES, regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
 import { formatDateOuPoint, formatEuros } from '@/lib/administrateur-judiciaire/domain/format'
+import { statutSinistre } from '@/lib/administrateur-judiciaire/domain/sinistres'
 import { AUJOURDHUI_ISO } from '@/lib/administrateur-judiciaire/mode'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
@@ -53,13 +54,25 @@ export const PILL_SITUATION_CHRONOLOGIE: Record<SituationChronologie, { kind: To
 }
 
 /**
- * Sinistre tel que l'écran le lit : type, référence et statut ne sont pas déclarés dans le schéma de la base
- * (table jamais alimentée) ; absents, ils ne s'affichent pas, comme dans la maquette.
+ * Ligne d'un sinistre de la base (écrit par l'écran Sinistres en mode réel) : type, n° Gestéam et statut, lu sur
+ * « Clos le » (statutSinistre, jamais stocké).
  */
-type SinistreAffiche = Sinistre & {
-  type?: string
-  reference?: string
-  statut?: string
+function LigneSinistre360({ sinistre }: { sinistre: Sinistre }) {
+  return (
+    <div
+      style={{
+        padding: '11px 22px',
+        borderBottom: '1px solid var(--line)',
+        fontSize: 13,
+      }}
+    >
+      <b>{sinistre.type ?? 'Sinistre'}</b>
+      {' · '}
+      {sinistre.numero ?? 'sans numéro'}
+      {' · '}
+      {statutSinistre(sinistre)}
+    </div>
+  )
 }
 
 /** Échéance du moteur dont la date retenue est connue. */
@@ -172,7 +185,6 @@ export function Fiche360CoproprieteModule() {
   // Taux d'impayés en pourcentage : utilisé seulement quand le taux est connu.
   const pourcentageImpayes = Math.round((tauxImpayes ?? 0) * 100)
   const compteSepare = echeances.echeances.find((echeance) => echeance.regleId === 'compte-separe-sj')
-  const sinistresAffiches: SinistreAffiche[] = sinistres
   return (
     <>
       <PageHead
@@ -501,8 +513,9 @@ export function Fiche360CoproprieteModule() {
           {/* Maquette : le test porte sur contrats + sinistres, mais la liste affiche prestataires puis sinistres. */}
           {contrats.length + sinistres.length === 0 ? (
             <MessagePanneauVide>
-              Aucun contrat ni sinistre enregistré dans la base pour cette copropriété : les modules Contrats et Sinistres
-              restent sur leurs données de démonstration (migration M6).
+              Aucun contrat ni sinistre enregistré dans la base pour cette copropriété : les sinistres se déclarent dans
+              l’écran Sinistres (données réelles) ; le module Contrats reste sur ses données de démonstration (migration
+              M6).
             </MessagePanneauVide>
           ) : (
             <>
@@ -522,21 +535,8 @@ export function Fiche360CoproprieteModule() {
                   {prestataire.ville}
                 </div>
               ))}
-              {sinistresAffiches.map((sinistre) => (
-                <div
-                  style={{
-                    padding: '11px 22px',
-                    borderBottom: '1px solid var(--line)',
-                    fontSize: 13,
-                  }}
-                  key={sinistre.id}
-                >
-                  <b>{sinistre.type}</b>
-                  {' · '}
-                  {sinistre.reference}
-                  {' · '}
-                  {sinistre.statut}
-                </div>
+              {sinistres.map((sinistre) => (
+                <LigneSinistre360 sinistre={sinistre} key={sinistre.id} />
               ))}
             </>
           )}
