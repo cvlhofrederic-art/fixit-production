@@ -1,13 +1,14 @@
-import { randomHex } from '@/lib/crypto-compat'
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isProSocieteRole, isProGerant, resolveCompanyId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { sendEmail, templateProTeamInvite } from '@/lib/email'
+import { templateProTeamInvite } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { validateBody, proTeamInviteSchema } from '@/lib/validation'
 import { ROLE_LABELS, isValidProTeamRole } from '@/lib/permissions'
 import type { ProTeamRole } from '@/lib/permissions'
+import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
+import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
 
 // ── GET /api/pro/team ────────────────────────────────────────────────────────
 // List team members for the authenticated company
@@ -120,30 +121,39 @@ export async function POST(request: NextRequest) {
   }
 
   const companyId = user.id // Gérant = company owner
+  const emailInvite = email.toLowerCase().trim()
 
   // Check if member already exists
   const { data: existing } = await supabaseAdmin
     .from('pro_team_members')
     .select('id')
     .eq('company_id', companyId)
-    .eq('email', email.toLowerCase().trim())
+    .eq('email', emailInvite)
     .maybeSingle()
 
   if (existing) {
     return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
   }
 
-  // Generate invitation token
-  const inviteToken = randomHex(24)
+  // Invitation et lien signé, envoyé seulement par e-mail et jamais renvoyé à l'invitant
+  // (lib/equipe/lien-invitation.ts). Signé avant l'insertion : sans clé de signature, rien n'est écrit.
+  let invitation: Awaited<ReturnType<typeof nouvelleInvitation>>
+  try {
+    invitation = await nouvelleInvitation('pro', emailInvite, companyId)
+  } catch (err) {
+    logger.error('[PRO_TEAM] POST signature error:', err)
+    return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
+  }
 
   const insertData: Record<string, unknown> = {
+    id: invitation.id,
     company_id: companyId,
-    email: email.toLowerCase().trim(),
+    email: emailInvite,
     full_name: full_name.trim(),
     phone: phone?.trim() || '',
     role: memberRole,
     assigned_chantiers: assigned_chantiers || [],
-    invite_token: inviteToken,
+    invite_token: invitation.invite_token,
     invite_sent_at: new Date().toISOString(),
   }
 
@@ -180,7 +190,7 @@ export async function POST(request: NextRequest) {
 
   // Build invitation URL
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
-  const inviteUrl = `${appUrl}/pro/invite?token=${inviteToken}`
+  const inviteUrl = `${appUrl}/pro/invite?token=${invitation.jetonLien}`
 
   // Send invitation email
   const companyName = user.user_metadata?.company_name || user.user_metadata?.full_name || 'Entreprise'
@@ -196,32 +206,18 @@ export async function POST(request: NextRequest) {
     locale,
   })
 
-  let emailSent = false
-  try {
-    const emailResult = await sendEmail({
-      to: email.toLowerCase().trim(),
-      subject: emailTemplate.subject,
-      html: emailTemplate.html,
-      tags: [
-        { name: 'template', value: 'pro_team_invite' },
-        { name: 'company_id', value: user.id },
-      ],
-    })
-    emailSent = emailResult.success
-    if (!emailResult.success) {
-      logger.warn('[PRO_TEAM] Email invite failed:', emailResult.error)
-    }
-  } catch (emailErr: unknown) {
-    logger.warn('[PRO_TEAM] Email invite error:', emailErr instanceof Error ? emailErr.message : emailErr)
-  }
+  const emailSent = await envoyerEmailInvitation(emailInvite, emailTemplate, [
+    { name: 'template', value: 'pro_team_invite' },
+    { name: 'company_id', value: user.id },
+  ], '[PRO_TEAM]')
 
+  // Ni le lien ni le jeton ne sont renvoyés : seule la boîte mail invitée reçoit le lien.
   return NextResponse.json({
-    member,
-    invite_url: inviteUrl,
+    member: member ? sansJetonInvitation(member) : member,
     email_sent: emailSent,
     message: emailSent
-      ? `Invitation envoyée par email à ${email}`
-      : `Invitation créée pour ${email}. Partagez ce lien : ${inviteUrl}`,
+      ? `Invitation envoyée par email à ${emailInvite}`
+      : `L'invitation pour ${emailInvite} est créée, mais l'e-mail n'a pas pu être envoyé. Vérifiez l'adresse puis renvoyez l'invitation.`,
   })
 }
 

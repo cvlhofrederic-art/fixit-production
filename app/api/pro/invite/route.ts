@@ -3,8 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, proInviteAcceptSchema } from '@/lib/validation'
+import { lireInvitationValide, accepterInvitation, masquerEmail } from '@/lib/equipe/invitation-serveur'
 
-const INVITE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+// Le lien d'invitation est signé et n'est envoyé qu'à la boîte mail invitée (lib/equipe/lien-invitation.ts) :
+// le jeton seul, tel qu'il est enregistré dans pro_team_members, ne suffit pas pour lire ou accepter.
 
 // ── GET /api/pro/invite?token=xxx ───────────────────────────────────────────
 // Validate an invitation token (for the accept page)
@@ -20,47 +22,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Token manquant' }, { status: 400 })
     }
 
-    // Security: token must be 48 hex chars
-    if (!/^[a-f0-9]{48}$/i.test(token)) {
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
+    const lecture = await lireInvitationValide('pro', token)
+    if (!lecture.ok) {
+      return NextResponse.json({ error: lecture.error }, { status: lecture.status })
     }
-
-    const { data, error } = await supabaseAdmin
-      .from('pro_team_members')
-      .select('id, email, full_name, role, company_id, accepted_at, created_at')
-      .eq('invite_token', token)
-      .maybeSingle()
-
-    if (error || !data) {
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
-    }
-
-    if (data.accepted_at) {
-      return NextResponse.json({ error: 'Invitation déjà utilisée' }, { status: 409 })
-    }
-
-    // Check expiry
-    if (data.created_at && Date.now() - new Date(data.created_at).getTime() > INVITE_EXPIRY_MS) {
-      return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
-    }
+    const { invite } = lecture
 
     // Fetch company name
     const { data: companyProfile } = await supabaseAdmin
       .from('profiles_artisan')
       .select('company_name')
-      .eq('user_id', data.company_id)
+      .eq('user_id', invite.equipe_id)
       .maybeSingle()
-
-    // Masked email
-    const maskedEmail = data.email
-      ? data.email.replace(/^(.{2})(.*)(@.*)$/, '$1***$3')
-      : ''
 
     return NextResponse.json({
       valid: true,
-      email: maskedEmail,
-      full_name: data.full_name,
-      role: data.role,
+      email: masquerEmail(invite.email),
+      full_name: invite.full_name,
+      role: invite.role,
       company_name: companyProfile?.company_name || 'Entreprise',
     })
   } catch (err) {
@@ -83,123 +62,31 @@ export async function POST(request: NextRequest) {
     }
     const { token, password } = validation.data
 
-    // Retrieve invitation
-    const { data: invite, error: inviteError } = await supabaseAdmin
-      .from('pro_team_members')
-      .select('*')
-      .eq('invite_token', token)
-      .maybeSingle()
-
-    if (inviteError || !invite) {
-      return NextResponse.json({ error: 'Invitation invalide ou expirée' }, { status: 404 })
+    const lecture = await lireInvitationValide('pro', token)
+    if (!lecture.ok) {
+      return NextResponse.json({ error: lecture.error }, { status: lecture.status })
     }
+    const { invite } = lecture
 
-    if (invite.accepted_at) {
-      return NextResponse.json({ error: 'Invitation déjà utilisée' }, { status: 409 })
-    }
-
-    if (invite.created_at && Date.now() - new Date(invite.created_at).getTime() > INVITE_EXPIRY_MS) {
-      return NextResponse.json({ error: 'Invitation expirée. Demandez une nouvelle invitation.' }, { status: 410 })
-    }
-
-    // Create Supabase auth user — rôle dans app_metadata (server-only)
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: invite.email,
-      password,
-      email_confirm: true,
-      app_metadata: {
-        role: 'pro_societe',
-        pro_team_role: invite.role,
-        company_id: invite.company_id,
-      },
-      user_metadata: {
-        full_name: invite.full_name,
-      },
+    // Rôle dans app_metadata (server-only)
+    const resultat = await accepterInvitation('pro', invite, password, {
+      role: 'pro_societe',
+      pro_team_role: invite.role,
+      company_id: invite.equipe_id,
     })
 
-    if (authError) {
-      // If account already exists, link it
-      if (authError.message?.includes('already')) {
-        let existingUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null = null
-        let page = 1
-        const perPage = 100
-        while (!existingUser) {
-          const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage })
-          if (listError || !users || users.length === 0) break
-          existingUser = users.find(u => u.email === invite.email) || null
-          if (users.length < perPage) break
-          page++
-        }
-
-        if (existingUser) {
-          const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existingUser.id)
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            app_metadata: {
-              ...(existingFull?.user?.app_metadata || {}),
-              role: 'pro_societe',
-              pro_team_role: invite.role,
-              company_id: invite.company_id,
-            },
-          })
-
-          await supabaseAdmin
-            .from('pro_team_members')
-            .update({
-              user_id: existingUser.id,
-              accepted_at: new Date().toISOString(),
-              invite_token: null,
-            })
-            .eq('id', invite.id)
-
-          return NextResponse.json({
-            success: true,
-            message: 'Compte lié avec succès. Vous pouvez maintenant vous connecter.',
-          })
-        }
-      }
-
-      logger.error('[PRO_INVITE] Auth error:', authError)
-      return NextResponse.json({ error: 'Erreur lors de la création du compte' }, { status: 500 })
-    }
-
-    const newUser = authData.user
-    if (!newUser) {
-      return NextResponse.json({ error: 'Erreur lors de la création du compte' }, { status: 500 })
-    }
-
-    // Mark invitation as accepted + link user_id
-    const { error: updateError } = await supabaseAdmin
-      .from('pro_team_members')
-      .update({
-        user_id: newUser.id,
-        accepted_at: new Date().toISOString(),
-        invite_token: null,
+    // Audit log (new account)
+    if (resultat.nouveauCompteId) {
+      await supabaseAdmin.from('pro_team_audit_log').insert({
+        company_id: invite.equipe_id,
+        actor_id: resultat.nouveauCompteId,
+        action: 'accept_invite',
+        target_member_id: invite.id,
+        details: { role: invite.role },
       })
-      .eq('id', invite.id)
-
-    if (updateError) {
-      logger.error('[PRO_INVITE] Update error:', updateError)
-      return NextResponse.json({
-        success: false,
-        message: 'Le compte a été créé mais l\'invitation n\'a pas pu être validée. Contactez le support.',
-        email: invite.email,
-      }, { status: 207 })
     }
 
-    // Audit log
-    await supabaseAdmin.from('pro_team_audit_log').insert({
-      company_id: invite.company_id,
-      actor_id: newUser.id,
-      action: 'accept_invite',
-      target_member_id: invite.id,
-      details: { role: invite.role },
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: 'Compte créé avec succès. Vous pouvez maintenant vous connecter.',
-      email: invite.email,
-    })
+    return NextResponse.json(resultat.corps, { status: resultat.status })
   } catch (err) {
     logger.error('[pro/invite/POST] Unexpected error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
