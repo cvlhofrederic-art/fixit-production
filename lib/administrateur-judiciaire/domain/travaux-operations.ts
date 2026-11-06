@@ -7,6 +7,7 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
 import type { EmploiFondsEcheance } from '@/lib/administrateur-judiciaire/domain/avis-appel'
 import type { EcheanceAppelSuivie, StatutEcheanceAppel } from '@/lib/administrateur-judiciaire/domain/echeancier-appels'
+import { estAuCentieme, retenueAuTaux, TAUX_MAXIMAL_RETENUE_GARANTIE_PCT } from '@/lib/administrateur-judiciaire/domain/facture-ventilee'
 import type { CompteCoproprietaire } from '@/lib/administrateur-judiciaire/domain/identites-positions'
 import type { PosteDette } from '@/lib/administrateur-judiciaire/domain/imputation-encaissements'
 import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire/domain/majorites-ag'
@@ -116,8 +117,11 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   déjà (facture-ventilee.ts) ; l'encaissé de chaque tranche vient des postes de dette nés de ses échéances
  *   (statutsDesTranches) ;
  * - historique des statuts prêt pour la table des changements de statut (changementsStatutAHistoriser), comme l'AG (J2) ;
- * - retenue de garantie : 5 % au plus (loi n° 71-584 du 16 juillet 1971, art. 1er), libérée un an après la réception
- *   sauf opposition motivée. 🔴 Délai et conditions de libération à confirmer avant d'en faire une échéance.
+ * - retenue de garantie : 5 % au plus (loi n° 71-584 du 16 juillet 1971, art. 1er), libérée à l'expiration du délai
+ *   d'une année à compter de la réception sauf opposition motivée notifiée par lettre recommandée (art. 2, lu sur
+ *   Légifrance le 04/11/2026, point 32) ; marchés, consignation, libération, échéance du suivi « à faire » et part
+ *   déductible : travaux-retenue-garantie.ts ; retenueGarantie, ici, reste le calcul simple d'un règlement (taux fini à
+ *   deux décimales au plus, arrondi entier borné au plafond de 5 % : retenueAuTaux, facture-ventilee.ts).
  * Point 17 du bilan 2 — plafond d'emploi du fonds par tranche (Gestéam, tranche 30 : « Montant € maximum d'emploi des
  * fonds travaux » de l'échéance) : la part du fonds répartie comme les appels (emploisFondsTravauxDesTranches), entrée
  * de l'avis d'appel (avis-appel.ts).
@@ -1069,7 +1073,13 @@ export function reglementsSansOperation(operations: readonly OperationTravaux[],
 
 // ─── Retenue de garantie ─────────────────────────────────────────────────────────────────────
 
-/** Retenue de garantie sur un règlement de travaux : 5 % au plus, libérée un an après la réception. */
+/**
+ * Retenue de garantie sur un règlement de travaux : 5 % au plus (loi n° 71-584, art. 1er), taux fini à deux décimales au
+ * plus exigé, montant au centime le plus proche borné au plafond (retenueAuTaux, facture-ventilee.ts, en calcul entier :
+ * l'arrondi ne dépasse jamais 5 % du TTC) ;
+ * `liberationLe` : expiration du délai d'une année à compter de la réception (art. 2), même date que
+ * expirationDelaiGarantie (travaux-retenue-garantie.ts, point 32, qui suit la garantie par marché).
+ */
 export function retenueGarantie({
   montantTtcCentimes,
   tauxPct,
@@ -1079,10 +1089,11 @@ export function retenueGarantie({
   tauxPct: number
   dateReception: string | null
 }): { retenueCentimes: number; netAPayerCentimes: number; liberationLe: string | null } {
-  if (tauxPct < 0 || tauxPct > 5) throw new Error(`Retenue de garantie à ${tauxPct} % : 5 % au plus (loi n° 71-584, art. 1er).`)
+  if (!estAuCentieme(tauxPct) || tauxPct < 0 || tauxPct > TAUX_MAXIMAL_RETENUE_GARANTIE_PCT)
+    throw new Error(`Retenue de garantie à ${tauxPct} % : ${TAUX_MAXIMAL_RETENUE_GARANTIE_PCT} % au plus, deux décimales au plus (loi n° 71-584, art. 1er).`)
   if (!Number.isInteger(montantTtcCentimes) || montantTtcCentimes <= 0) throw new Error('Montant invalide : centimes entiers positifs attendus.')
   if (dateReception !== null && !estDateIsoValide(dateReception)) throw new Error(`Date de réception invalide (${dateReception}).`)
-  const retenueCentimes = Math.round((montantTtcCentimes * tauxPct) / 100)
+  const retenueCentimes = retenueAuTaux(montantTtcCentimes, tauxPct)
   return {
     retenueCentimes,
     netAPayerCentimes: montantTtcCentimes - retenueCentimes,
