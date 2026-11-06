@@ -9,11 +9,16 @@ import {
   type EcheanceCalculee,
 } from '@/lib/administrateur-judiciaire/domain/delais-legaux'
 import { regimeDepuisFondement } from '@/lib/administrateur-judiciaire/domain/fondements'
+import { estMandatSuivi, type PorteeStatuts } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 import type { CoproprieteVue } from '@/lib/administrateur-judiciaire/domain/coproprietes'
 
 /**
  * Échéances légales d'un mandat enregistré : passage de la vue copropriété (dates en objets Date) au contexte
  * du moteur de délais (dates ISO), puis calcul, et listes du portefeuille.
+ * Point 55 (statut-mandat.ts ; Gestéam tranche 41, un mandat archivé ne produit plus d'« à faire ») : les échéances du
+ * portefeuille (listerEcheancesPortefeuille, portée « suivis » par défaut) écartent les mandats Prospect et Archivé ;
+ * « En clôture », une valeur absente ou inconnue les gardent. Les échéances d'UNE copropriété
+ * (calculerEcheancesCopropriete : fiche 360, reprise) ne sont pas bornées par le statut.
  */
 
 /** Champs d'une copropriété lus pour construire le contexte du moteur. */
@@ -87,6 +92,8 @@ export type EtatMoteur = 'chargement' | 'indisponible' | 'introuvable' | 'ordonn
 export type CoproprieteMoteur = Pick<CoproprieteVue, 'code' | 'fondement' | 'dureeMois' | 'notifOrdonnance'> & {
   ordonnance?: unknown
   echeance?: unknown
+  /** Valeur libre de `Mandat.statut` (CoproprieteVue.statut), lue par statut-mandat.estMandatSuivi (point 55). */
+  statut?: string | null
 }
 
 export interface ResultatEcheancesMandat<C = CoproprieteVue> {
@@ -149,9 +156,16 @@ export interface EcheancePortefeuille<C = CoproprieteVue> {
   echeance: EcheanceCalculee
 }
 
-/** Toutes les échéances du portefeuille, triées par date retenue (sans date en dernier). */
-export function listerEcheancesPortefeuille<C extends CoproprieteMoteur>(copros: C[]): EcheancePortefeuille<C>[] {
+/**
+ * Toutes les échéances du portefeuille, triées par date retenue (sans date en dernier) : sans les mandats Prospect ni
+ * Archivé (point 55), sauf portée « tous ».
+ */
+export function listerEcheancesPortefeuille<C extends CoproprieteMoteur>(
+  copros: C[],
+  portee: PorteeStatuts = 'suivis',
+): EcheancePortefeuille<C>[] {
   return copros
+    .filter((copro) => portee === 'tous' || estMandatSuivi(copro.statut))
     .flatMap((copro) =>
       calculerEcheancesCopropriete(copro).echeances.map((echeance) => ({
         copro,

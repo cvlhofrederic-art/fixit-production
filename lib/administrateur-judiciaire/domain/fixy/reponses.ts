@@ -17,6 +17,7 @@ import {
   PARCOURS_RECOUVREMENT_DEBITEUR,
   type DefinitionEtapeRecouvrement,
 } from '@/lib/administrateur-judiciaire/domain/recouvrement'
+import { estMandatSuivi } from '@/lib/administrateur-judiciaire/domain/statut-mandat'
 import { normaliserTexteLibre } from '@/lib/administrateur-judiciaire/domain/texte'
 
 /**
@@ -443,10 +444,36 @@ function repondreCoproOuComptes(intention: IntentionFixy, fiche: Fiche360Copropr
   }
 }
 
+/** Dernière ligne d'une liste du portefeuille dont des copropriétés hors suivi (mandat Prospect ou Archivé) sont écartées. */
+const noteHorsSuivi = (nombre: number): string =>
+  nombre > 1
+    ? `${nombre} copropriétés hors suivi (mandat Prospect ou Archivé) ne sont pas comptées ; cite la copropriété pour l'interroger.`
+    : "1 copropriété hors suivi (mandat Prospect ou Archivé) n'est pas comptée ; cite la copropriété pour l'interroger."
+
+/**
+ * Débiteurs ou échéances. Sur la copropriété citée : quel que soit le statut de son mandat, comme la fiche 360. Sur tout
+ * le portefeuille (aucune copropriété citée, « Qu'est-ce que j'ai à faire ? ») : sans les mandats Prospect ni Archivé
+ * (point 55, statut-mandat.ts ; Gestéam tranche 41, un mandat archivé ne produit plus d'« à faire »), comme la veille,
+ * les échéances du portefeuille et la balance âgée ; En clôture, une valeur absente ou inconnue restent. Les copropriétés
+ * écartées sont comptées dans une dernière ligne, jamais en silence.
+ */
+function repondreListeFiches(
+  type: 'debiteurs' | 'echeances',
+  fiches: Fiche360Copropriete[],
+  coproCitee: boolean,
+  donnees: DonneesFixy,
+): ReponseFixy {
+  const retenues = coproCitee ? fiches : fiches.filter((fiche) => estMandatSuivi(fiche.vue.statut)),
+    reponse = type === 'debiteurs' ? repondreDebiteurs(retenues, donnees) : repondreEcheances(retenues, donnees.reference),
+    ecartees = fiches.length - retenues.length
+  return ecartees > 0 ? { ...reponse, lignes: [...reponse.lignes, noteHorsSuivi(ecartees)] } : reponse
+}
+
 /**
  * Réponse de Fixy à une intention. Ordre des branches : aide / inconnu, navigation, personne (ou échéances d'une
  * personne), action (étape de recouvrement à confirmer), acte « rapport » (Dossier du juge), acte, juridique ; puis,
  * sur la copropriété citée ou tout le portefeuille : interventions, débiteurs, échéances, comptes ou fiche copropriété.
+ * Débiteurs et échéances du portefeuille écartent les mandats Prospect et Archivé (repondreListeFiches, point 55).
  */
 export function repondreDemandeFixy(intention: IntentionFixy, donnees: DonneesFixy): ReponseFixy {
   const reference = donnees.reference
@@ -478,7 +505,7 @@ export function repondreDemandeFixy(intention: IntentionFixy, donnees: DonneesFi
       source: 'base locale',
     }
   if (intention.type === 'intervention') return repondreInterventions(intention, donnees)
-  if (intention.type === 'debiteurs') return repondreDebiteurs(fiches, donnees)
-  if (intention.type === 'echeances') return repondreEcheances(fiches, reference)
+  if (intention.type === 'debiteurs' || intention.type === 'echeances')
+    return repondreListeFiches(intention.type, fiches, !!codeCible, donnees)
   return repondreCoproOuComptes(intention, fiches[0], reference)
 }

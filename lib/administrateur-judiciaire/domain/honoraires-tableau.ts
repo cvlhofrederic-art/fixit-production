@@ -19,7 +19,7 @@ import {
   type QualificationElement,
   type TotauxElement,
 } from '@/lib/administrateur-judiciaire/domain/honoraires-facturation'
-import { portefeuille, type AffectationMandat } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import { portefeuille, ROLES_MANDAT, type AffectationMandat } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 
 /**
  * Tableau des honoraires (point 67 du bilan 2) : état des éléments d'honoraires d'une période, regroupés par mandat ou
@@ -73,6 +73,10 @@ import { portefeuille, type AffectationMandat } from '@/lib/administrateur-judic
  *   au juge (L. 1965 art. 29-1, I, al. 2) ? Faut-il y séparer syndic et administration provisoire ?
  * - 🔴 (Frédéric) Sens de « Pas de mandat exclu », « Liste de contrôle », « Produire une liste de … », Source, Cabinet
  *   et Libellé : non modélisés.
+ * - 🔴 (Frédéric) Statut du mandat (point 55, statut-mandat.ts) : le tableau garde-t-il les éléments des mandats
+ *   Prospect et Archivé ? Choix actuel : oui, avec ou sans filtre Collaborateur (portefeuille en portée « tous ») : les
+ *   honoraires d'un mandat archivé datés de la période restent à contrôler (🔵). « Pas de mandat exclu » pourrait être ce
+ *   réglage ; son sens n'est pas établi (question précédente).
  * - 🔴 (Frédéric) Le contrôle des coûts doit-il être valorisé au prix de l'élément ? Choix actuel : oui.
  * - 🔴 (Frédéric) Les échéances du scénario de gestion courante (echeancesScenario) entrent-elles dans le tableau ?
  *   Choix actuel : non, seuls les éléments.
@@ -255,10 +259,14 @@ function responsablesParMandat(affectations: readonly AffectationMandat[]): Map<
   return responsables
 }
 
-/** Mandats retenus : le portefeuille du collaborateur (les trois rôles), ou tous s'il n'est pas donné. */
+/**
+ * Mandats retenus : le portefeuille du collaborateur (les trois rôles), ou tous s'il n'est pas donné. Quel que soit le
+ * statut du mandat (portée « tous », point 55) : les honoraires d'un mandat archivé, datés de la période, restent à
+ * contrôler (🔵 ; 🔴 à confirmer par Frédéric, question « Statut du mandat » de l'en-tête).
+ */
 function filtreDesMandats(collaborateurId: string | null, affectations: readonly AffectationMandat[]): (mandatId: string) => boolean {
   if (collaborateurId === null) return () => true
-  const mandats = portefeuille(collaborateurId, [...affectations])
+  const mandats = portefeuille(collaborateurId, [...affectations], ROLES_MANDAT, 'tous')
   return (mandatId) => mandats.has(mandatId)
 }
 
