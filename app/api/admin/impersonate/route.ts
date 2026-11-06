@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, hasSuperAdminEmail } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -48,10 +48,11 @@ export async function POST(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
 
-  // Lecture du rôle RÉEL : soit app_metadata.role (normal) soit _original_role (déjà en override)
+  // Lecture du rôle RÉEL : soit app_metadata.role (normal) soit _original_role (déjà en override),
+  // plus l'e-mail de la liste ADMIN_EMAIL / ADMIN_EMAIL_2 (même contrôle que isSuperAdmin)
   const currentRole = getUserRole(user)
   const originalRole = (user.app_metadata?._original_role as string | undefined) || currentRole
-  if (originalRole !== 'super_admin') {
+  if (originalRole !== 'super_admin' || !hasSuperAdminEmail(user)) {
     return NextResponse.json({ error: 'Accès réservé aux super_admin' }, { status: 403 })
   }
 
