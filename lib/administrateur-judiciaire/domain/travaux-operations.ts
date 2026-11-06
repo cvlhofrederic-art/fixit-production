@@ -1,6 +1,7 @@
 import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   controlerAffectationFondsTravaux,
+  type DecaissementFondsTravaux,
   type ObjetDecaissementFondsTravaux,
   type ResultatAffectation,
 } from '@/lib/administrateur-judiciaire/domain/fonds-travaux'
@@ -105,7 +106,9 @@ import { STATUT_TRAVAUX, TYPE_TRAVAUX, type StatutTravaux, type TypeTravaux } fr
  *   tranche donne une échéance par clé, sur le montant à appeler de la clé ;
  * - part du fonds de travaux (J4, fonds-travaux.ts) : affectation exigée dès qu'elle est positive ; objet exclu refusé
  *   dès la création ; l'appel exige la décision qui affecte le fonds (ou, art. 29-14, 2°, l'ordonnance du juge) ; une
- *   affectation votée à part l'est à la même majorité que les travaux (art. 14-2-1, I, al. 7) ;
+ *   affectation votée à part l'est à la même majorité que les travaux (art. 14-2-1, I, al. 7) ; « Ne pas utiliser les
+ *   fonds travaux » (point 31) refuse toute part du fonds ; affectationFondsDeLOperation (point 31) rend l'affectation
+ *   sans montant, pour le contrôle de chaque emploi du fonds (travaux-budget.ts) ;
  * - série de comptes générée à la création : 10200, 12000, 67100, 70200, 71147, auxiliaire = n° d'opération (règle
  *   « No des travaux ») ; les appels sont crédités sur l'auxiliaire de l'opération (traitementAppelDeFondsTravaux, qui
  *   retrouve l'opération par l'identifiant de l'échéance ; les échéances elles-mêmes restent celles d'avant le point 30),
@@ -255,6 +258,11 @@ export interface SaisieOperationTravaux {
     autorisationJuge?: string | null
     majorite?: TypeMajorite | null
   } | null
+  /**
+   * Gestéam « Ne pas utiliser les fonds travaux » (onglet Budget, point 31) : l'opération ne puise pas dans le fonds de
+   * travaux ; sa part du fonds est alors nulle (travaux-budget.ts : marquerNePasUtiliserFondsTravaux, suivi financier).
+   */
+  nePasUtiliserFondsTravaux?: boolean | null
   tranches: TrancheAppel[]
 }
 
@@ -664,16 +672,26 @@ function decisionAffectationFonds({ affectationFonds, decision }: SaisieOperatio
   return distincte || (decision ? referenceDecisionTravaux(decision) : null)
 }
 
-/** Contrôle d'affectation de la part (positive) du fonds ; null si l'affectation n'est pas précisée. */
-function controlerPartFonds(operation: SaisieOperationTravaux): ResultatAffectation | null {
+/**
+ * Affectation de la part du fonds de l'opération, sans montant : objet, décision qui affecte le fonds (la distincte, à
+ * défaut celle des travaux), ordonnance du juge ; null si l'affectation n'est pas précisée. Le décaissement de
+ * controlerAffectationFondsTravaux, au montant près (point 31 : travaux-budget.ts, controlerEmploiFondsOperation).
+ */
+export function affectationFondsDeLOperation(operation: SaisieOperationTravaux): Omit<DecaissementFondsTravaux, 'montantCentimes'> | null {
   const { affectationFonds } = operation
   if (!affectationFonds) return null
-  return controlerAffectationFondsTravaux({
+  return {
     objet: affectationFonds.objet,
-    montantCentimes: operation.financementFondsTravauxCentimes,
     decisionAg: decisionAffectationFonds(operation),
     autorisationJuge: affectationFonds.autorisationJuge ?? null,
-  })
+  }
+}
+
+/** Contrôle d'affectation de la part (positive) du fonds ; null si l'affectation n'est pas précisée. */
+function controlerPartFonds(operation: SaisieOperationTravaux): ResultatAffectation | null {
+  const affectation = affectationFondsDeLOperation(operation)
+  if (!affectation) return null
+  return controlerAffectationFondsTravaux({ ...affectation, montantCentimes: operation.financementFondsTravauxCentimes })
 }
 
 /**
@@ -704,6 +722,8 @@ function verifierEnTete(saisie: SaisieOperationTravaux): void {
 function verifierPartFondsSaisie(saisie: SaisieOperationTravaux): void {
   verifierMajoriteAffectation(saisie)
   if (saisie.financementFondsTravauxCentimes <= 0) return
+  if (saisie.nePasUtiliserFondsTravaux)
+    throw new Error(`Opération ${saisie.numero} : « Ne pas utiliser les fonds travaux » avec une part du fonds de travaux ; la part est alors nulle.`)
   const controle = controlerPartFonds(saisie)
   if (!controle) throw new Error(`Opération ${saisie.numero} : ${MOTIF_AFFECTATION_ABSENTE}`)
   if (controle.cause === 'exclu') throw new Error(`Opération ${saisie.numero} : ${controle.motif}`)
@@ -914,13 +934,8 @@ export function echeancesTravaux(operation: OperationTravaux): EcheanceAppel[] {
 export function emploisFondsTravauxDesTranches(operation: OperationTravaux): EmploiFondsEcheance[] {
   if (operation.financementFondsTravauxCentimes <= 0) return []
   echeancesTravaux(operation)
-  const { affectationFonds } = operation
-  if (!affectationFonds) throw new Error(`Opération ${operation.numero} : ${MOTIF_AFFECTATION_ABSENTE}`)
-  const affectation = {
-    objet: affectationFonds.objet,
-    decisionAg: decisionAffectationFonds(operation),
-    autorisationJuge: affectationFonds.autorisationJuge ?? null,
-  }
+  const affectation = affectationFondsDeLOperation(operation)
+  if (!affectation) throw new Error(`Opération ${operation.numero} : ${MOTIF_AFFECTATION_ABSENTE}`)
   return lignesAppel(operation)
     .filter((l) => l.plafondFondsCentimes > 0)
     .map((l) => ({ echeanceId: l.id, plafondCentimes: l.plafondFondsCentimes, affectation }))

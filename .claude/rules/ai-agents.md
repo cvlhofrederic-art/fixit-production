@@ -7,8 +7,9 @@
   (`wrangler secret put`). Sans clé, ou si Claude échoue avant la première réponse : bascule sur Groq.
 - **Artisan / BTP** : Groq (Llama 3.3 70B) via API REST directe (`lib/groq.ts`).
 - Fallback Groq : Llama 3.1 8B (auto) + Cerebras + OpenRouter (matériaux)
-- Pas de SDK tiers — tout via fetch + circuit breaker (lib/circuit-breaker.ts). Le Worker Cloudflare est
-  proche de sa taille maximale : ne pas ajouter `@anthropic-ai/sdk`.
+- Pas de SDK tiers — tout via fetch + circuit breaker (lib/circuit-breaker.ts). Chaque dépendance alourdit
+  le Worker Cloudflare (limite : 64 Mio non compressés, ligne « Total Upload » du déploiement ; plus de limite
+  gzip depuis le 04/09/2026) : ne pas ajouter `@anthropic-ai/sdk`.
 - Recherche web : Tavily API (matériaux AI)
 
 ## Claude Sonnet 5.5 — contraintes d'API (lib/claude.ts les applique)
