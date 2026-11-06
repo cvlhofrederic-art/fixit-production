@@ -1,3 +1,4 @@
+import { normaliserEspaces } from '@/lib/administrateur-judiciaire/domain/texte'
 import { STATUT_MANDAT, type StatutMandat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -123,14 +124,12 @@ export type LectureStatutMandat =
   /** Statut non transmis : mandat suivi, sans anomalie. */
   | { etat: 'absent'; suivi: true; enCloture: false }
 
-const normaliser = (valeur: string): string => valeur.normalize('NFC').replace(/\s+/g, ' ').trim()
-
-const STATUTS_CONNUS: ReadonlyMap<string, StatutMandat> = new Map(STATUT_MANDAT.map((statut) => [normaliser(statut), statut]))
+const STATUTS_CONNUS: ReadonlyMap<string, StatutMandat> = new Map(STATUT_MANDAT.map((statut) => [normaliserEspaces(statut), statut]))
 
 /** Lit la valeur libre de `Mandat.statut` : statut du référentiel, valeur inconnue (signalée) ou statut absent. */
 export function lireStatutMandat(valeur: string | null | undefined): LectureStatutMandat {
   if (valeur === null || valeur === undefined) return { etat: 'absent', suivi: true, enCloture: false }
-  const normalisee = normaliser(valeur)
+  const normalisee = normaliserEspaces(valeur)
   const statut = STATUTS_CONNUS.get(normalisee)
   if (statut === undefined) return { etat: 'inconnu', valeur: normalisee, suivi: true, enCloture: false }
   return { etat: 'connu', statut, suivi: !STATUTS_HORS_SUIVI.has(statut), enCloture: STATUTS_EN_CLOTURE.has(statut) }
