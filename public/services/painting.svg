@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Pintor">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffaea"/>
+      <stop offset="1" stop-color="#f5f3ef"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <path d="M180 360 Q400 280 620 340 T1020 320" stroke="#FFC107" stroke-width="44" fill="none" stroke-linecap="round"/>
+  <g transform="translate(960 240) rotate(35)">
+    <rect x="0" y="0" width="160" height="48" fill="#1a1a1a" rx="4"/>
+    <rect x="160" y="6" width="40" height="36" fill="#6b6b6b"/>
+    <rect x="200" y="-10" width="120" height="68" fill="#FFC107" rx="6"/>
+  </g>
+  <text x="600" y="500" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="40" font-weight="700" fill="#1a1a1a">Pintura Interior &amp; Exterior</text>
+  <text x="600" y="560" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" fill="#6b6b6b">VITFIX Portugal</text>
+</svg>
