@@ -42,12 +42,8 @@ const h = vi.hoisted(() => {
 })
 
 vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.user) }))
-vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: vi.fn(async () => true),
-  getClientIP: vi.fn(() => '127.0.0.1'),
-  rateLimitResponse: vi.fn(() => Response.json({ error: 'rate' }, { status: 429 })),
-}))
-vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
+vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.from(t) } }))
 
 const { GET, POST } = await import('@/app/api/btp/route')
