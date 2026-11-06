@@ -66,6 +66,8 @@ const nextConfig: NextConfig = {
         { source: '/fr/rejoindre', destination: '/rejoindre' },
         { source: '/fr/rejoindre/', destination: '/rejoindre/' },
         { source: '/fr/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        // AJ Signalement : page ouverte par le QR code d'une copropriété (lib/aj-signalement/types.ts, urlSignalementQr).
+        { source: '/fr/signalement/:jeton', destination: '/signalement/:jeton' },
         // ── Shared root pages accessible via /pt/ prefix ──
         { source: '/pt/auth/:path*', destination: '/auth/:path*' },
         { source: '/pt/pro/:path*', destination: '/pro/:path*' },
@@ -89,11 +91,13 @@ const nextConfig: NextConfig = {
         { source: '/pt/rejoindre', destination: '/rejoindre' },
         { source: '/pt/rejoindre/', destination: '/rejoindre/' },
         { source: '/pt/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        { source: '/pt/signalement/:jeton', destination: '/signalement/:jeton' },
         // ── Mêmes liens e-mail suivis par un visiteur en/nl/es (pages partagées, contenu non traduit plutôt qu'un 404) ──
         { source: '/:locale(en|nl|es)/tracking/:token', destination: '/tracking/:token' },
         { source: '/:locale(en|nl|es)/rejoindre', destination: '/rejoindre' },
         { source: '/:locale(en|nl|es)/rejoindre/', destination: '/rejoindre/' },
         { source: '/:locale(en|nl|es)/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
+        { source: '/:locale(en|nl|es)/signalement/:jeton', destination: '/signalement/:jeton' },
       ],
       afterFiles: [],
       fallback: [],

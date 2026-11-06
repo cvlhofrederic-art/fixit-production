@@ -26,7 +26,7 @@ export type NomIcone =
   | 'accueil' | 'demandes' | 'charges' | 'documents' | 'assemblees' | 'annonces' | 'informations' | 'question' | 'plus'
   | 'alerte' | 'check' | 'chevron-bas' | 'chevron-droite' | 'fermer' | 'copier' | 'ouvrir' | 'retour' | 'actualiser'
   | 'deconnexion' | 'menu' | 'envoyer' | 'telephone' | 'mail' | 'adresse' | 'calendrier' | 'outil' | 'immeuble'
-  | 'euro' | 'info' | 'cadenas' | 'utilisateur' | 'horloge'
+  | 'euro' | 'info' | 'cadenas' | 'utilisateur' | 'horloge' | 'qr'
 
 const TRACES: Record<NomIcone, ReactNode> = {
   accueil: <><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v10h14V10" /><path d="M10 20v-6h4v6" /></>,
@@ -61,6 +61,7 @@ const TRACES: Record<NomIcone, ReactNode> = {
   cadenas: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   utilisateur: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   horloge: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  qr: <><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><path d="M14 14h3v3h-3z" /><path d="M20 14v2M17 20h3M20 18h.01" /></>,
 }
 
 export function Icone({ nom, taille = 20, className = '' }: { nom: NomIcone; taille?: number; className?: string }) {

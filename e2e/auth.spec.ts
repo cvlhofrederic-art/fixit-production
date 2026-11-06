@@ -105,8 +105,9 @@ test.describe('Tableau de bord client : pas de boucle de rechargement', () => {
     expect(page.url()).toContain('/auth/login')
   })
 
-  // Exige un compte client de test : E2E_CLIENT_EMAIL et E2E_CLIENT_PASSWORD (absents en CI aujourd'hui, le test
-  // est alors ignoré). En local : E2E_CLIENT_EMAIL=… E2E_CLIENT_PASSWORD=… npx playwright test e2e/auth.spec.ts
+  // Exige un compte client de test : E2E_CLIENT_EMAIL et E2E_CLIENT_PASSWORD, secrets GitHub du même nom transmis
+  // par tests.yml (sans eux, le test est ignoré). En local :
+  // E2E_CLIENT_EMAIL=… E2E_CLIENT_PASSWORD=… npx playwright test e2e/auth.spec.ts
   test('connecté : le tableau de bord reste chargé 60 s sans navigation ni AbortError', async ({ page }) => {
     const email = process.env.E2E_CLIENT_EMAIL
     const motDePasse = process.env.E2E_CLIENT_PASSWORD
