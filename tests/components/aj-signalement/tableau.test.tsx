@@ -22,6 +22,7 @@ const marie: SignalementQr = {
   prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie@example.com', batiment: 'B', etage: '4', numLot: '12',
   estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier',
   priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: '2026-11-04T14:05:10.000Z', emailErreur: null,
+  confirmationEnvoyeeLe: '2026-11-04T14:05:12.000Z', confirmationErreur: null,
   creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
 }
 const paul: SignalementQr = {
@@ -29,6 +30,7 @@ const paul: SignalementQr = {
   prenom: 'Paul', nom: 'Martin', telephone: '04 91 00 00 00', email: 'paul@example.com', batiment: '', etage: '1', numLot: '3',
   estPartieCommune: true, zoneSignalee: 'Hall d’entrée', typeIntervention: 'Ascenseur', description: 'Ascenseur bloqué',
   priorite: 'normale', statut: 'terminee', emailEnvoyeLe: null, emailErreur: 'RESEND_API_KEY not configured',
+  confirmationEnvoyeeLe: null, confirmationErreur: 'limite atteinte pour cette adresse',
   creeLe: '2026-11-03T08:59:00.000Z', misAJourLe: '2026-11-03T12:00:00.000Z',
 }
 
@@ -128,6 +130,7 @@ describe('détail d’un signalement', () => {
     expect(within(dialogue).getByRole('link', { name: 'marie@example.com' })).toHaveAttribute('href', 'mailto:marie@example.com')
     expect(dialogue).toHaveTextContent('Fuite sous l’évier')
     expect(dialogue).toHaveTextContent('Signalement 5F2C9A1E')
+    expect(dialogue).toHaveTextContent('Confirmation envoyée au déclarant le 4 novembre 2026 à 15:05.')
 
     fireEvent.click(within(dialogue).getByRole('button', { name: 'Prendre en charge' }))
     await waitFor(() => expect(within(dialogue).getByRole('button', { name: 'Intervention en cours' })).toBeInTheDocument())
@@ -143,10 +146,11 @@ describe('détail d’un signalement', () => {
     expect(screen.getAllByText('1 signalement')).toHaveLength(2)
   })
 
-  it('e-mail non envoyé : l’erreur est rappelée dans la fiche', async () => {
+  it('e-mail non envoyé : l’erreur est rappelée dans la fiche, comme celle de la confirmation au déclarant', async () => {
     await rendrePret()
     fireEvent.click(within(within(screen.getByRole('list')).getAllByRole('listitem')[1]).getByRole('button', { name: T.voirDetail }))
     expect(screen.getByRole('dialog')).toHaveTextContent('E-mail non envoyé : RESEND_API_KEY not configured')
+    expect(screen.getByRole('dialog')).toHaveTextContent('Confirmation non envoyée au déclarant : limite atteinte pour cette adresse.')
   })
 })
 

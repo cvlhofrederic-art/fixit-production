@@ -60,6 +60,9 @@ export interface SignalementQr {
   langue: LangueSignalementQr
   emailEnvoyeLe: string | null
   emailErreur: string | null
+  /** E-mail de confirmation au déclarant (migration 20261106) ; null et null pour les dépôts antérieurs. */
+  confirmationEnvoyeeLe: string | null
+  confirmationErreur: string | null
   creeLe: string
   misAJourLe: string
 }

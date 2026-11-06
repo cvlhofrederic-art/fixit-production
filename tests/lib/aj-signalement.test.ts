@@ -13,10 +13,10 @@ import {
 } from '@/lib/aj-signalement/formulaire'
 import { estJetonQr, numeroSignalementQr, urlSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
 import {
-  ACTIONS_STATUT_QR, analyserEmailsQr, compteursTableauQr, filtrerSignalementsQr, lieuSignalementQr, messageErreurTableauQr,
-  resumeCompteursQr, situationLotQr,
+  ACTIONS_STATUT_QR, analyserEmailsQr, compteursTableauQr, dateHeureParis, etatConfirmationQr, filtrerSignalementsQr, lieuSignalementQr,
+  messageErreurTableauQr, resumeCompteursQr, situationLotQr,
 } from '@/lib/aj-signalement/affichage'
-import { codeDepuisReponseQr } from '@/lib/aj-signalement/api'
+import { codeDepuisReponseQr, envoyerSignalementQr } from '@/lib/aj-signalement/api'
 import { coproprieteQrSchema, modificationCoproprieteQrSchema, signalementQrSchema, statutSignalementQrSchema } from '@/lib/validation'
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -38,6 +38,7 @@ export function signalementTest(sur: Partial<SignalementQr> = {}): SignalementQr
     typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier',
     priorite: 'urgente', statut: 'en_attente', langue: 'fr',
     emailEnvoyeLe: '2026-11-04T14:05:10.000Z', emailErreur: null,
+    confirmationEnvoyeeLe: '2026-11-04T14:05:12.000Z', confirmationErreur: null,
     creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
     ...sur,
   }
@@ -174,6 +175,31 @@ describe('tableau de bord : libellés et calculs', () => {
     expect(ACTIONS_STATUT_QR.en_attente.map((a) => a.statut)).toEqual(['acceptee', 'terminee', 'annulee'])
     expect(ACTIONS_STATUT_QR.terminee).toEqual([{ libelle: 'Rouvrir', statut: 'en_attente' }])
     expect(messageErreurTableauQr('base_absente')).toContain('20261104_signalements_qr.sql')
+  })
+
+  it('état de la confirmation au déclarant : envoyée (date de Paris), non envoyée avec ou sans raison', () => {
+    expect(etatConfirmationQr(signalementTest())).toBe('Confirmation envoyée au déclarant le 4 novembre 2026 à 15:05.')
+    expect(etatConfirmationQr(signalementTest({ confirmationEnvoyeeLe: null, confirmationErreur: 'limite atteinte' })))
+      .toBe('Confirmation non envoyée au déclarant : limite atteinte.')
+    // Dépôts antérieurs à la confirmation (colonnes nulles).
+    expect(etatConfirmationQr(signalementTest({ confirmationEnvoyeeLe: null, confirmationErreur: null }))).toBe('Confirmation non envoyée au déclarant.')
+  })
+
+  it('date et heure de Paris en français (par défaut) et en portugais', () => {
+    expect(dateHeureParis('2026-11-04T13:05:00.000Z')).toBe('4 novembre 2026 à 14:05')
+    expect(dateHeureParis('2026-11-04T13:05:00.000Z', 'pt')).toBe('4 de novembro de 2026 às 14:05')
+    expect(dateHeureParis('pas une date', 'pt')).toBe('pas une date')
+  })
+})
+
+describe('API cliente : dépôt', () => {
+  it('lit l’état des deux e-mails dans la réponse ; confirmation absente = non envoyée', async () => {
+    const reponse = (signalement: Record<string, unknown>) => (async () => new Response(JSON.stringify({ signalement }), { status: 200 })) as unknown as typeof fetch
+    const saisie = construireSaisieQr(complet, JETON, 'fr')
+    const base = { id: 'b1c2d3e4-0000-4000-8000-000000000000', numero: 'B1C2D3E4', creeLe: '2026-11-04T14:05:00.000Z', emailEnvoye: true }
+    expect(await envoyerSignalementQr(saisie, reponse({ ...base, confirmationEnvoyee: true })))
+      .toEqual({ ok: true, ...base, confirmationEnvoyee: true })
+    expect(await envoyerSignalementQr(saisie, reponse(base))).toMatchObject({ ok: true, confirmationEnvoyee: false })
   })
 })
 

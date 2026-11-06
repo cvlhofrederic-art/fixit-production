@@ -4,24 +4,61 @@
 // Sans session : la copropriété est désignée par son jeton (32 hexadécimaux, tiré par la base) ; le corps
 // est validé par signalementQrSchema (coordonnées obligatoires : prénom, nom, téléphone, e-mail, étage,
 // numéro de lot). Le signalement est enregistré dans signalements_qr puis envoyé par e-mail aux
-// destinataires de la copropriété (sinon ADMIN_EMAIL) ; l'état de l'envoi est conservé sur la ligne.
+// destinataires de la copropriété (sinon ADMIN_EMAIL), puis un récapitulatif part au déclarant, dans la
+// langue de la page (au plus 3 par heure vers une même boîte). L'échec d'un e-mail n'annule jamais le
+// dépôt : l'état des deux envois est conservé sur la ligne (un seul update final).
 // Limites : 5 dépôts par minute et par adresse IP, 30 par 10 minutes et par copropriété (QR code public).
 // Codes : 400 invalide · 404 introuvable (jeton inconnu ou désactivé) · 429 · 503 base_absente (migration
 // 20261104 non appliquée) · 500 serveur. Aucun lien avec les tables du logiciel Syndic.
+// Colonnes confirmation_* : migration 20261106_signalements_qr_confirmation.sql, à appliquer avant le déploiement.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { signalementQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
-import { numeroSignalementQr } from '@/lib/aj-signalement/types'
+import { numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
 import {
   TABLE_SIGNALEMENTS_QR, destinatairesSignalement, lireCoproprieteParJeton, reponseErreur, reponseErreurBase,
   signalementDepuisLigne,
 } from '@/lib/aj-signalement/serveur'
-import { envoyerEmailSignalementQr } from '@/lib/aj-signalement/email'
+import {
+  FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerConfirmationQr, envoyerEmailSignalementQr,
+} from '@/lib/aj-signalement/email'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
+
+/** Erreur conservée (et montrée au super admin) quand la limite par adresse bloque la confirmation. */
+const ERREUR_LIMITE_CONFIRMATION = `limite atteinte : ${LIMITE_CONFIRMATIONS_PAR_ADRESSE} confirmations par heure au plus vers cette boîte (variantes « + » comprises)`
+
+/** Remplace toute adresse e-mail d'un message que la route écrit au logger. */
+const masquerEmails = (texte: string): string => texte.replace(/[^\s@<>"'`]+@[^\s@<>"'`]+/g, '[e-mail]')
+
+/**
+ * Récapitulatif au déclarant, après l'enregistrement. Ne lève jamais : un refus de Resend, la limite par adresse ou
+ * une exception donnent { envoyeeLe: null, erreur }. La limite compte par boîte (variantes « + » et points Gmail
+ * comprises, voir boiteCanoniqueConfirmationQr). L'adresse n'est pas dans la clé du limiteur (empreinte SHA-256) et
+ * la route la masque dans ce qu'elle écrit au logger, si le message d'erreur de Resend la cite ; la ligne garde
+ * l'erreur brute. Limite connue : en cas d'échec, sendEmail (lib/email.ts, commun à tous les e-mails) écrit lui-même
+ * l'erreur brute de Resend dans la console, donc dans les journaux Workers, adresse comprise si Resend la cite.
+ */
+async function confirmerAuDeclarant(signalement: SignalementQr, nomCopropriete: string): Promise<{ envoyeeLe: string | null; erreur: string | null }> {
+  try {
+    const cle = await cleLimiteConfirmationQr(signalement.email)
+    if (!(await checkRateLimit(cle, LIMITE_CONFIRMATIONS_PAR_ADRESSE, FENETRE_CONFIRMATIONS_MS))) {
+      logger.warn(`${CONTEXTE} confirmation non envoyée : limite par adresse atteinte`, { signalement: signalement.id })
+      return { envoyeeLe: null, erreur: ERREUR_LIMITE_CONFIRMATION }
+    }
+    const envoi = await envoyerConfirmationQr({ signalement, copropriete: { nom: nomCopropriete } })
+    if (envoi.success) return { envoyeeLe: new Date().toISOString(), erreur: null }
+    const erreur = (envoi.error || 'envoi impossible').slice(0, 500)
+    logger.error(`${CONTEXTE} confirmation au déclarant non envoyée`, { erreur: masquerEmails(erreur), signalement: signalement.id })
+    return { envoyeeLe: null, erreur }
+  } catch (e: unknown) {
+    logger.error(`${CONTEXTE} confirmation au déclarant`, { message: masquerEmails(e instanceof Error ? e.message : String(e)), signalement: signalement.id })
+    return { envoyeeLe: null, erreur: 'erreur interne lors de l’envoi' }
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,7 +100,10 @@ export async function POST(request: NextRequest) {
       return reponseErreurBase(error)
     }
     const signalement = signalementDepuisLigne(
-      { ...ligne, id: data.id, email_envoye_le: null, email_erreur: null, created_at: data.created_at, updated_at: data.updated_at ?? data.created_at },
+      {
+        ...ligne, id: data.id, email_envoye_le: null, email_erreur: null, confirmation_envoyee_le: null, confirmation_erreur: null,
+        created_at: data.created_at, updated_at: data.updated_at ?? data.created_at,
+      },
       copropriete.nom ?? '',
     )
 
@@ -86,14 +126,28 @@ export async function POST(request: NextRequest) {
         logger.error(`${CONTEXTE} e-mail non envoyé`, { erreur: envoi.error, signalement: data.id })
       }
     }
+    // Récapitulatif au déclarant, après l'e-mail de l'administrateur ; même règle : le dépôt reste acquis.
+    const confirmation = await confirmerAuDeclarant(signalement, copropriete.nom ?? '')
+
     const { error: erreurMaj } = await supabaseAdmin
       .from(TABLE_SIGNALEMENTS_QR)
-      .update({ email_envoye_le: emailEnvoyeLe, email_erreur: emailErreur })
+      .update({
+        email_envoye_le: emailEnvoyeLe,
+        email_erreur: emailErreur,
+        confirmation_envoyee_le: confirmation.envoyeeLe,
+        confirmation_erreur: confirmation.erreur,
+      })
       .eq('id', data.id)
-    if (erreurMaj) logger.warn(`${CONTEXTE} état de l’e-mail non enregistré`, { code: erreurMaj.code, message: erreurMaj.message })
+    if (erreurMaj) logger.warn(`${CONTEXTE} état des e-mails non enregistré`, { code: erreurMaj.code, message: erreurMaj.message })
 
     return NextResponse.json({
-      signalement: { id: data.id, numero: numeroSignalementQr(data.id), creeLe: data.created_at, emailEnvoye: emailEnvoyeLe !== null },
+      signalement: {
+        id: data.id,
+        numero: numeroSignalementQr(data.id),
+        creeLe: data.created_at,
+        emailEnvoye: emailEnvoyeLe !== null,
+        confirmationEnvoyee: confirmation.envoyeeLe !== null,
+      },
     })
   } catch (e: unknown) {
     logger.error(`${CONTEXTE} dépôt`, { message: e instanceof Error ? e.message : String(e) }, e)

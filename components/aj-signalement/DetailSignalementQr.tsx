@@ -3,8 +3,9 @@
 // ── Détail d'un signalement reçu : coordonnées, lieu, description, statut ──────────────────────────
 //
 // Contenu d'une fenêtre (Modale du socle UI). Téléphone et e-mail sont des liens (appel, courriel) ;
-// l'état de l'e-mail envoyé à l'administrateur est rappelé ; les boutons de statut suivent
-// ACTIONS_STATUT_QR et appellent la route PATCH ; l'erreur reste affichée, le statut ne bouge pas.
+// l'état de l'e-mail envoyé à l'administrateur et celui de la confirmation au déclarant sont rappelés ;
+// les boutons de statut suivent ACTIONS_STATUT_QR et appellent la route PATCH ; l'erreur reste affichée,
+// le statut ne bouge pas.
 
 import { useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -13,7 +14,7 @@ import { numeroSignalementQr, type SignalementQr, type StatutSignalementQr } fro
 import { changerStatutSignalementQr } from '@/lib/aj-signalement/api'
 import {
   ACTIONS_STATUT_QR, LIBELLE_PRIORITE_QR, LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR as T, TON_STATUT_QR, dateHeureParis,
-  lieuSignalementQr, nomDeclarantQr, situationLotQr,
+  etatConfirmationQr, lieuSignalementQr, nomDeclarantQr, situationLotQr,
 } from '@/lib/aj-signalement/affichage'
 
 export interface PropsDetailSignalementQr {
@@ -74,6 +75,7 @@ export default function DetailSignalementQr({ signalement: s, jeton, onFermer, o
       ) : (
         <Encadre ton="avertissement">{remplir(d.emailNonEnvoye, { erreur: s.emailErreur || '—' })}</Encadre>
       )}
+      <p className="text-sm text-[#4A5E78]">{etatConfirmationQr(s)}</p>
 
       {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
 

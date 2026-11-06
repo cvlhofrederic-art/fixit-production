@@ -22,13 +22,15 @@ const h = vi.hoisted(() => {
     ligneMaj: null as null | Record<string, unknown>,
     insertions: [] as Array<Record<string, unknown>>,
     misesAJour: [] as Array<{ table: string; valeurs: Record<string, unknown>; filtres: Array<[string, unknown]> }>,
+    colonnesLues: [] as Array<{ table: string; colonnes: string }>,
   }
   const from = (table: string) => {
     const q: Record<string, unknown> = {}
     const maj = { table, valeurs: {} as Record<string, unknown>, filtres: [] as Array<[string, unknown]> }
     let enMaj = false
     let insertion: Record<string, unknown> | null = null
-    for (const m of ['select', 'order', 'limit']) q[m] = () => q
+    for (const m of ['order', 'limit']) q[m] = () => q
+    q.select = (colonnes?: string) => { if (typeof colonnes === 'string') etat.colonnesLues.push({ table, colonnes }); return q }
     q.eq = (col: string, val: unknown) => { if (enMaj) maj.filtres.push([col, val]); return q }
     q.insert = (ligne: Record<string, unknown>) => { insertion = ligne; etat.insertions.push({ table, ...ligne }); return q }
     q.update = (ligne: Record<string, unknown>) => { enMaj = true; maj.valeurs = ligne; etat.misesAJour.push(maj); return q }
@@ -82,6 +84,7 @@ beforeEach(() => {
   h.etat.ligneMaj = null
   h.etat.insertions = []
   h.etat.misesAJour = []
+  h.etat.colonnesLues = []
   h.etat.coproprietes = [
     { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' },
     { id: 'c0000000-0000-4000-8000-000000000002', nom: 'Les Oliviers', adresse: 'Aubagne', jeton: 'f'.repeat(32), emails_destinataires: ['o@example.com'], actif: false, created_at: '2026-11-04T11:00:00.000Z' },
@@ -90,12 +93,15 @@ beforeEach(() => {
     {
       id: ID_SIGNALEMENT, copropriete_id: ID_COPRO, prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie@example.com',
       batiment: '', etage: '4', num_lot: '12', est_partie_commune: false, zone_signalee: '', type_intervention: 'Plomberie', description: 'Fuite sous l’évier',
-      priorite: 'urgente', statut: 'en_attente', langue: 'fr', email_envoye_le: null, email_erreur: 'boom', created_at: '2026-11-04T14:05:00.000Z', updated_at: null,
+      priorite: 'urgente', statut: 'en_attente', langue: 'fr', email_envoye_le: null, email_erreur: 'boom',
+      // Dépôt antérieur à la confirmation au déclarant : les colonnes confirmation_* sont nulles.
+      confirmation_envoyee_le: null, confirmation_erreur: null, created_at: '2026-11-04T14:05:00.000Z', updated_at: null,
     },
     {
       id: '6a000000-0000-4000-8000-000000000002', copropriete_id: ID_COPRO, prenom: 'Paul', nom: 'Martin', telephone: '0491000000', email: 'paul@example.com',
       batiment: 'A', etage: '1', num_lot: '3', est_partie_commune: true, zone_signalee: 'Hall d’entrée', type_intervention: 'Ascenseur', description: 'Ascenseur bloqué au rez-de-chaussée',
-      priorite: 'normale', statut: 'terminee', langue: 'fr', email_envoye_le: '2026-11-03T09:00:00.000Z', email_erreur: null, created_at: '2026-11-03T08:59:00.000Z', updated_at: '2026-11-03T12:00:00.000Z',
+      priorite: 'normale', statut: 'terminee', langue: 'fr', email_envoye_le: '2026-11-03T09:00:00.000Z', email_erreur: null,
+      confirmation_envoyee_le: '2026-11-03T09:00:01.000Z', confirmation_erreur: null, created_at: '2026-11-03T08:59:00.000Z', updated_at: '2026-11-03T12:00:00.000Z',
     },
   ]
 })
@@ -136,9 +142,17 @@ describe('GET tableau', () => {
       id: ID_SIGNALEMENT, coproprieteId: ID_COPRO, coproprieteNom: 'Parc Belle Ombre', prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78',
       email: 'marie@example.com', batiment: '', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie',
       description: 'Fuite sous l’évier', priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: null, emailErreur: 'boom',
+      confirmationEnvoyeeLe: null, confirmationErreur: null,
       creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
     })
-    expect(tableau.signalements[1]).toMatchObject({ estPartieCommune: true, zoneSignalee: 'Hall d’entrée', statut: 'terminee', misAJourLe: '2026-11-03T12:00:00.000Z' })
+    expect(tableau.signalements[1]).toMatchObject({
+      estPartieCommune: true, zoneSignalee: 'Hall d’entrée', statut: 'terminee', misAJourLe: '2026-11-03T12:00:00.000Z',
+      confirmationEnvoyeeLe: '2026-11-03T09:00:01.000Z', confirmationErreur: null,
+    })
+    // L'état de la confirmation au déclarant est lu avec le reste du signalement.
+    const lecture = h.etat.colonnesLues.find((l) => l.table === 'signalements_qr' && l.colonnes.includes('email_erreur'))
+    expect(lecture?.colonnes).toContain('confirmation_envoyee_le')
+    expect(lecture?.colonnes).toContain('confirmation_erreur')
   })
 
   it('503 base_absente quand les tables manquent', async () => {

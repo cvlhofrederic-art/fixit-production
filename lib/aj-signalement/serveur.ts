@@ -40,7 +40,8 @@ export const reponseErreurBase = (erreur: { code?: string } | null | undefined):
 export const COLONNES_COPROPRIETE_QR = 'id, nom, adresse, jeton, emails_destinataires, actif, created_at'
 export const COLONNES_SIGNALEMENT_QR =
   'id, copropriete_id, prenom, nom, telephone, email, batiment, etage, num_lot, est_partie_commune, zone_signalee, ' +
-  'type_intervention, description, priorite, statut, langue, email_envoye_le, email_erreur, created_at, updated_at'
+  'type_intervention, description, priorite, statut, langue, email_envoye_le, email_erreur, ' +
+  'confirmation_envoyee_le, confirmation_erreur, created_at, updated_at'
 
 export interface LigneCoproprieteQr {
   id: string
@@ -71,6 +72,9 @@ export interface LigneSignalementQr {
   langue: string | null
   email_envoye_le: string | null
   email_erreur: string | null
+  /** Migration 20261106 : e-mail de confirmation au déclarant. */
+  confirmation_envoyee_le: string | null
+  confirmation_erreur: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -125,6 +129,8 @@ export function signalementDepuisLigne(ligne: LigneSignalementQr, coproprieteNom
     langue: langueValide(ligne.langue),
     emailEnvoyeLe: ligne.email_envoye_le ?? null,
     emailErreur: ligne.email_erreur ?? null,
+    confirmationEnvoyeeLe: ligne.confirmation_envoyee_le ?? null,
+    confirmationErreur: ligne.confirmation_erreur ?? null,
     creeLe: chaine(ligne.created_at),
     misAJourLe: chaine(ligne.updated_at) || chaine(ligne.created_at),
   }

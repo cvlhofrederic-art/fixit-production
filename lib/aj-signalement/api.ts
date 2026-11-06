@@ -19,7 +19,9 @@ export const URL_API_QR = '/api/aj-signalement'
  */
 export type CodeErreurQr = 'invalide' | 'introuvable' | 'trop_de_demandes' | 'non_authentifie' | 'interdit' | 'base_absente' | 'serveur' | 'reseau'
 
-export type ResultatEnvoiQr = { ok: true; id: string; numero: string; creeLe: string; emailEnvoye: boolean } | { ok: false; code: CodeErreurQr }
+export type ResultatEnvoiQr =
+  | { ok: true; id: string; numero: string; creeLe: string; emailEnvoye: boolean; confirmationEnvoyee: boolean }
+  | { ok: false; code: CodeErreurQr }
 export type ResultatTableauQr = { ok: true; tableau: TableauQr } | { ok: false; code: CodeErreurQr }
 export type ResultatCoproprieteQr = { ok: true; copropriete: CoproprieteQr } | { ok: false; code: CodeErreurQr }
 export type ResultatStatutQr = { ok: true; statut: StatutSignalementQr; misAJourLe: string } | { ok: false; code: CodeErreurQr }
@@ -70,7 +72,10 @@ export async function envoyerSignalementQr(saisie: SaisieSignalementQr, fetchImp
   if (!r.ok) return r
   const s = (r.corps as { signalement?: Record<string, unknown> } | null)?.signalement
   if (!s || typeof s.id !== 'string') return { ok: false, code: 'serveur' }
-  return { ok: true, id: s.id, numero: chaine(s.numero), creeLe: chaine(s.creeLe), emailEnvoye: s.emailEnvoye === true }
+  return {
+    ok: true, id: s.id, numero: chaine(s.numero), creeLe: chaine(s.creeLe),
+    emailEnvoye: s.emailEnvoye === true, confirmationEnvoyee: s.confirmationEnvoyee === true,
+  }
 }
 
 /** Copropriétés (avec leur QR code) et signalements reçus — super admin. */
