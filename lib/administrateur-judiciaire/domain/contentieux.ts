@@ -20,10 +20,8 @@ import {
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import type { EtapeRecouvrement } from '@/lib/administrateur-judiciaire/domain/recouvrement'
 import {
-  PARTICULARITE_CONTENTIEUX,
   PHASE_CONTENTIEUX,
   TYPE_CONTENTIEUX,
-  type ParticulariteContentieux,
   type PhaseContentieux,
   type TypeContentieux,
 } from '@/lib/data/referentiels-gesteam-judiciaire'
@@ -34,7 +32,8 @@ import {
  *
  * Gestéam — fiche : date, n°, type, objet, phase, clos le ; immeuble, mandat, débiteur, montant demandé ; huissier,
  * avocat, expert (chacun : référence, transmis le) ; dates de procédure : mise en demeure, commandement, référé,
- * assignation, audience, ordonnance, jugement, signification. Type, phase, particularité : référentiels complets.
+ * assignation, audience, ordonnance, jugement, signification. Type, phase, particularité : référentiels complets (la
+ * particularité n'est pas reprise dans VitFix : décision J44).
  *
  * La PHASE est saisie par le gestionnaire. VitFix en suggère une d'après les faits datés et signale l'écart : il ne la
  * remplace jamais. « Règlement amiable » et « Déclaration Assurance » ne se déduisent d'aucune date.
@@ -47,9 +46,9 @@ import {
  *   Particularité. Bloc Voie d'exécution : une case « Échéancier » voisine des saisies (mobilière, attribution, arrêt sur
  *   salaire ou loyer).
  * - 🟢 tranches 20 § 3 et 28 : la Particularité (deux valeurs, « Contentieux avec / sans échéancier ») est un critère de la
- *   recherche des contentieux. 🔵 Elle est donc portée par chaque dossier, mais son champ n'a été vu sur aucune fiche
- *   (tranche 28 : en-tête Date, N°, Type, Statut, Objet, Phase, Clos le ; onglet Règlements non ouvert ; tranche 42 : absente
- *   de la fiche réelle). Saisie à la main ou calculée depuis la grille : non établi (🔴 Hugo ci-dessous).
+ *   recherche des contentieux. Son champ n'a été vu sur aucune fiche (tranche 28 : en-tête Date, N°, Type, Statut, Objet,
+ *   Phase, Clos le ; onglet Règlements non ouvert ; tranche 42 : absente de la fiche réelle). VitFix ne la reprend pas
+ *   (décision J44, ci-dessous).
  * - L'assurance impayés est FACULTATIVE sur la saisie et normalisée à la création (contentieux-assurance-impayes.ts, qui
  *   porte aussi ses contrôles et la lecture des indemnités sur le sinistre). L'objet reste un texte libre (décision
  *   J34 : champ de saisie libre dans Gestéam ; objets-contentieux.ts reconnaît les libellés Gestéam observés).
@@ -68,17 +67,16 @@ import {
  *   C. civ. art. 1305-2 à 1305-4 : ce qui n'est dû qu'à terme ne peut être exigé avant l'échéance (1305-2) ; le terme
  *   profite au débiteur, sauf s'il a été établi en faveur du créancier ou des deux parties (1305-3) ; le débiteur perd le
  *   bénéfice du terme s'il ne fournit pas les sûretés promises ou diminue celles qui garantissent l'obligation (1305-4).
- * - 🔵 La particularité et le groupe de relance 6 (protocole d'accord) se DÉDUISENT de l'échéancier du débiteur : la
- *   grille (decompte-contentieux.suivreEcheancier), active tant qu'une échéance n'est pas soldée, échue ou non, QUELLE QUE
- *   SOIT l'origine de l'échéancier (non lue, 🔴 ci-dessous), ou la case « Échéancier » du bloc Voie d'exécution (J33,
- *   ci-dessous). La particularité portée par le dossier n'est jamais écrasée : l'écart est signalé
- *   (`particulariteSuggeree`).
+ * - 🔵 Le groupe de relance 6 (protocole d'accord) se DÉDUIT de l'échéancier du débiteur : la grille
+ *   (decompte-contentieux.suivreEcheancier), active tant qu'une échéance n'est pas soldée, échue ou non, QUELLE QUE SOIT
+ *   l'origine de l'échéancier (non lue, 🔴 ci-dessous), ou la case « Échéancier » du bloc Voie d'exécution (J33,
+ *   ci-dessous).
  * - 🔴 (Frédéric) Une échéance échue restée impayée laisse-t-elle le débiteur en groupe 6 « avec échéancier » jusqu'à ce
  *   que le gestionnaire dénonce l'échéancier, ou le dossier repasse-t-il « sans échéancier » (groupe 9 en procédure) ?
  * - 🔴 (Frédéric) La grille n'est pas seulement amiable : decompte-contentieux.ts qualifie l'échéancier par
  *   `DecisionEcheancier.origine`, dans ORIGINES_ECHEANCIER (amiable, accord_homologue, delais_grace, surendettement).
  *   Quelles origines mettent le débiteur au groupe 6 « Protocole d'accord » ? Aujourd'hui `echeancierActif` ne lit que
- *   la grille (`SuiviEcheancier`), et `particulariteSuggeree` et `relanceDuContentieux` la grille et la case
+ *   la grille (`SuiviEcheancier`), et `echeancierDuContentieux` et `relanceDuContentieux` la grille et la case
  *   « Échéancier » (J33) : des délais de grâce du juge ou un plan de surendettement donnent aussi le groupe 6 (un test le
  *   montre). Si la réponse dépend de
  *   l'origine, ces trois fonctions recevront l'origine (ou la `DecisionEcheancier`) en paramètre facultatif. Le
@@ -93,12 +91,6 @@ import {
  * - 🔴 (Frédéric) Faut-il que `phaseSuggeree` propose « Déclaration Assurance » dès qu'une déclaration à l'assureur
  *   impayés est datée sur un dossier de recouvrement ? Aujourd'hui cette phase ne se déduit d'aucune date (un test le
  *   garde) : la date « Déclaré le » n'est pas lue par `phaseSuggeree`.
- * - 🔴 (Hugo) Où se saisit la Particularité d'un contentieux, et Gestéam la déduit-il de la grille du bloc Échéancier ?
- *   Tant que ce n'est pas établi, VitFix la traite comme une donnée du dossier et signale l'écart avec la grille.
- * - 🔴 (Frédéric ou Hugo) La décision du juge qui accorde des délais de grâce suspend les procédures d'exécution engagées
- *   par le créancier (C. civ. art. 1343-5, al. 4) : faut-il signaler une mesure d'exécution engagée (saisie cochée,
- *   saisie immobilière engagée, expulsion datée) sur un dossier dont la case « Échéancier » est cochée ? Rien ne le
- *   signale aujourd'hui, et la phase suggérée n'en dépend pas.
  *
  * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J33 ; question 26 de la liste) :
  * - J33 : la case « Échéancier » du bloc Voie d'exécution (tranche 42) désigne l'échéancier fixé par décision du juge
@@ -108,11 +100,24 @@ import {
  *   échelonner le paiement des sommes dues « dans la limite de deux années » (al. 1) ; sa décision suspend les
  *   procédures d'exécution engagées par le créancier (al. 4) ; l'article ne vaut pas pour les dettes d'aliment (al. 6).
  *   Cochée, la case rend l'échéancier actif, source « décision du juge » (`echeancierDuContentieux`), avec ou sans
- *   grille ; `particulariteSuggeree` et `relanceDuContentieux` la lisent (particularité « avec échéancier », groupe 6).
- *   Décochée, seule la grille compte, comme avant (source « grille »). 🔵 Cochée, la case l'emporte sur une grille soldée
- *   ou absente (`grilleActive` le montre) : elle se décoche quand les délais prennent fin. Les deux ans de l'al. 1 se
- *   contrôlent sur la grille (decompte-contentieux.controlerEcheancier, origine 'delais_grace'). La « Particularité »
- *   (question 25) reste ouverte, sans changement.
+ *   grille ; `relanceDuContentieux` la lit (groupe 6). Décochée, seule la grille compte, comme avant (source « grille »).
+ *   🔵 Cochée, la case l'emporte sur une grille soldée ou absente (`grilleActive` le montre) : elle se décoche quand les
+ *   délais prennent fin. Les deux ans de l'al. 1 se contrôlent sur la grille (decompte-contentieux.controlerEcheancier,
+ *   origine 'delais_grace'). La « Particularité » (question 25) est supprimée : J44, ci-dessous.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J43 et J44 ; PR #643, J33, et question 25 de la
+ * liste) :
+ * - J43 : case « Échéancier » cochée (échéancier fixé par décision du juge, C. civ. art. 1343-5) et exécution déjà
+ *   engagée sur le même dossier (saisie cochée, saisie immobilière engagée, expulsion datée : executionEngagee) :
+ *   signalée par contentieux-voies-execution.controlerExecutionSousEcheancierDuJuge, avertissement non bloquant (gravité
+ *   justifiée et art. 1343-5 relu sur Légifrance le 06/11/2026 : en-tête de contentieux-voies-execution.ts). C. civ.
+ *   art. 1343-5, al. 4 : la décision du juge suspend les procédures d'exécution qui auraient été engagées par le
+ *   créancier. La question 🔴 correspondante disparaît ; la phase suggérée n'en dépend toujours pas.
+ * - J44 : la « Particularité » du contentieux est supprimée : plus de champ sur le dossier (SaisieContentieux), plus de
+ *   contrôle à la création, plus de particularité suggérée. Le comportement de l'échéancier du juge (J33) est
+ *   identique, sans passer par elle : echeancierDuContentieux et relanceDuContentieux lisent la grille et la case
+ *   « Échéancier ». La question 🔴 de son lieu de saisie disparaît. La liste relevée dans Gestéam reste dans le
+ *   référentiel généré (lib/data/referentiels-gesteam-judiciaire.ts), comme trace du relevé ; aucun module ne la lit.
  *
  * Point 56 du bilan Gestéam — voies d'exécution, hypothèque, mise à prix et décision liée (🟢 tranche 42, onglet
  * Règlements ; détail, droit et questions 🔴 dans contentieux-voies-execution.ts) :
@@ -169,7 +174,6 @@ export interface SaisieContentieux {
   coproprieteId: string
   type: TypeContentieux
   phase: PhaseContentieux
-  particularite: ParticulariteContentieux
   dateOuverture: string
   dateCloture: string | null
   objet: string
@@ -232,8 +236,6 @@ function champsVoiesExecution(saisie: ChampsPoint56): ChampsPoint56 {
 export function creerDossierContentieux(saisie: SaisieContentieux): DossierContentieux {
   if (!contient(TYPE_CONTENTIEUX, saisie.type)) throw new Error(`Type de contentieux inconnu : « ${saisie.type} ».`)
   if (!contient(PHASE_CONTENTIEUX, saisie.phase)) throw new Error(`Phase de contentieux inconnue : « ${saisie.phase} ».`)
-  if (!contient(PARTICULARITE_CONTENTIEUX, saisie.particularite))
-    throw new Error(`Particularité de contentieux inconnue : « ${saisie.particularite} ».`)
   if (!estDateIsoValide(saisie.dateOuverture)) throw new Error(`Date d'ouverture invalide (${saisie.dateOuverture}) : AAAA-MM-JJ attendu.`)
   verifierDate('dateCloture', saisie.dateCloture)
   if (!Number.isInteger(saisie.montantDemandeCentimes) || saisie.montantDemandeCentimes < 0)
@@ -443,23 +445,9 @@ export function echeancierDuContentieux(
 }
 
 /**
- * Particularité cohérente avec l'échéancier (grille ou case « Échéancier », J33) ; `ecart` si elle diffère de celle du
- * dossier, jamais écrasée (🔴 Hugo).
- */
-export function particulariteSuggeree(
-  dossier: DossierContentieux,
-  suivi: SuiviEcheancier | null | undefined,
-): { particularite: ParticulariteContentieux; ecart: boolean } {
-  const particularite: ParticulariteContentieux = echeancierDuContentieux(dossier, suivi).actif
-    ? 'Contentieux avec échéancier'
-    : 'Contentieux sans échéancier'
-  return { particularite, ecart: particularite !== dossier.particularite }
-}
-
-/**
  * Stade et groupe de relance d'un dossier de recouvrement : étape déduite des faits datés, protocole d'accord (groupe 6)
- * tant que l'échéancier est actif (grille ou case « Échéancier », J33). Lit l'échéancier, pas la particularité du
- * dossier. null pour un autre type de contentieux.
+ * tant que l'échéancier est actif (grille ou case « Échéancier », J33 ; aucune Particularité : J44). null pour un autre
+ * type de contentieux.
  */
 export function relanceDuContentieux(
   dossier: DossierContentieux,

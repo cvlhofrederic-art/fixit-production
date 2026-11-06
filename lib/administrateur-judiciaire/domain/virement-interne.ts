@@ -51,7 +51,7 @@ import {
  * - J30 : l'ordonnance de l'art. 29-14, 2° (autorisationJuge) se saisit en forme structurée : juridiction, date et n° de
  *   l'ordonnance, chacun obligatoire, date jamais postérieure à aujourd'hui (fonds-travaux.ts, OrdonnanceJuge). La
  *   décision d'affectation de l'assemblée (decisionAg) : date de l'AG et n° de la résolution (DecisionAffectationAg ;
- *   🔵 à confirmer par Hugo). Une sortie du fonds dont la forme structurée est incomplète, ou datée après aujourd'hui,
+ *   confirmée par J42, ci-dessous). Une sortie du fonds dont la forme structurée est incomplète, ou datée après aujourd'hui,
  *   est refusée, motif à l'appui. creerVirementInterne et creerLotVirementsInternes sont des saisies nouvelles : un
  *   texte libre est refusé, motif « forme incomplète » à l'appui (contrôle d'affectation avec `nouvelleSaisie`) ; la
  *   lecture d'une valeur enregistrée avant J30 reste celle de fonds-travaux.ts (lireOrdonnanceJuge,
@@ -64,6 +64,12 @@ import {
  *   cabinet (pratique du cabinet, comptes-bancaires.ts : MODE_COMPTES_ADMINISTRATEUR_PROVISOIRE) ; le fonds de travaux y
  *   reste sur un compte distinct (L. 1965 art. 18, II, al. 4) : nature « fonds_travaux », identifiant et 512 propres,
  *   même sans IBAN (verifierPaire). D-BANQUE est inchangée : aucun mode n'est imposé.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
+ *   libre est refusé pour toute nouvelle saisie (creerVirementInterne, creerLotVirementsInternes). L'interprétation de
+ *   J30 est confirmée : sa marque de doute est retirée, comportement inchangé (mêmes refus, mêmes motifs :
+ *   fonds-travaux.ts).
  *
  * 🔵 Déduit :
  * - un virement interne relie deux comptes ACTIFS, distincts, du MÊME syndicat (D1), sans tiers ; une avance de fonds du
@@ -114,7 +120,7 @@ import {
  * - Hugo (reste de J30) : en administration provisoire, l'ordonnance de l'art. 29-1 qui confie les pouvoirs de l'assemblée,
  *   citée comme décision d'affectation (decisionAg), prend-elle la même forme que celle de l'art. 29-14, 2° (juridiction,
  *   date, n°) ? J30 ne vise que l'ordonnance de l'art. 29-14, 2° et la décision de l'AG. Conséquence de la forme exigée
- *   (decisionAg : date de l'AG et n° de la résolution, 🔵) : une nouvelle sortie du fonds ne peut plus la citer en texte
+ *   (decisionAg : date de l'AG et n° de la résolution, J42) : une nouvelle sortie du fonds ne peut plus la citer en texte
  *   libre, refusé à la création ; seule une valeur enregistrée avant J30 reste lue et signalée « forme incomplète » ;
  * - Frédéric : un compte repris qui tenait le fonds de travaux se distingue-t-il dans Gestéam (tranche 29 : un seul
  *   libellé « Banque ancien AJ / ancien syndic ») ? VitFix le marque à la saisie du compte (tenaitFondsTravaux) ;

@@ -99,7 +99,6 @@ describe('assurance impayés — portée sur le dossier contentieux', () => {
     coproprieteId: 'copro-1',
     type: 'Recouvrement de charges/loyer',
     phase: 'Ouverture',
-    particularite: 'Contentieux sans échéancier',
     dateOuverture: '2026-01-15',
     dateCloture: null,
     objet: 'Charges impayées 2025',

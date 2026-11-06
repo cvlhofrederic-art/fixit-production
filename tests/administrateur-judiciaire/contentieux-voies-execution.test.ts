@@ -8,6 +8,7 @@ import {
   controlerAutorisationActionEnJustice,
   controlerAutorisationSaisieVente,
   controlerDatesVoiesExecution,
+  controlerExecutionSousEcheancierDuJuge,
   creerDecisionContentieux,
   creerVoiesExecution,
   engagerSaisieImmobiliere,
@@ -43,7 +44,6 @@ const saisie = (surcharge: Partial<SaisieContentieux> = {}): SaisieContentieux =
   coproprieteId: 'copro-1',
   type: 'Recouvrement de charges/loyer',
   phase: 'Procédure Judiciaire',
-  particularite: 'Contentieux sans échéancier',
   dateOuverture: '2026-01-15',
   dateCloture: null,
   objet: 'Charges impayées 2025',
@@ -727,6 +727,59 @@ describe('voies d’exécution — exécution engagée et phase « Exécution en
   })
 })
 
+/**
+ * Décision J43 de Hugo (06/11/2026) : case « Échéancier » cochée (échéancier fixé par décision du juge, C. civ. art.
+ * 1343-5) et exécution déjà engagée sur le même dossier : signalée. « La décision du juge suspend les procédures
+ * d'exécution qui auraient été engagées par le créancier. » (al. 4, relu sur Légifrance le 06/11/2026).
+ */
+describe('J43 — case « Échéancier » cochée et exécution déjà engagée : signalée (C. civ. art. 1343-5, al. 4)', () => {
+  const dossierAvec = (surcharge: SaisieVoiesExecution) => ({ voiesExecution: voies(surcharge) })
+
+  it('saisies cochées, saisie immobilière engagée, expulsion datée : un avertissement, non bloquant, qui nomme chaque mesure', () => {
+    const alerte = controlerExecutionSousEcheancierDuJuge(
+      dossierAvec({
+        caseEcheancier: true,
+        saisies: ['attribution', 'mobiliere'],
+        saisieImmobiliere: { engageeLe: '2026-04-01' },
+        expulsionLe: '2026-05-04',
+      }),
+    )
+    expect(alerte).toMatchObject({
+      code: 'execution_engagee_sous_echeancier_du_juge',
+      gravite: 'avertissement',
+      bloquant: false,
+      fondement: 'C. civ. art. 1343-5, al. 4',
+    })
+    expect(alerte?.mesures).toEqual([
+      'Saisie mobilière',
+      'Saisie attribution',
+      'Engagement de la saisie immobilière daté du 01/04/2026',
+      'Expulsion datée du 04/05/2026',
+    ])
+    expect(alerte?.message).toContain("« La décision du juge suspend les procédures d'exécution qui auraient été engagées par le créancier. »")
+    expect(alerte?.message).toContain('Saisie attribution')
+  })
+
+  it('une seule mesure suffit : saisie cochée, saisie immobilière datée par son audience, ou expulsion datée', () => {
+    for (const surcharge of [{ saisies: ['arretSalaire'] }, { saisieImmobiliere: { audienceLe: '2026-09-01' } }, { expulsionLe: '2026-09-01' }])
+      expect(controlerExecutionSousEcheancierDuJuge(dossierAvec({ caseEcheancier: true, ...surcharge }))?.mesures).toHaveLength(1)
+  })
+
+  it('rien à signaler : case décochée, aucune exécution engagée, hypothèque seule, saisie immobilière cochée sans date, aucune voie', () => {
+    expect(controlerExecutionSousEcheancierDuJuge(dossierAvec({ caseEcheancier: false, saisies: ['attribution'] }))).toBeNull()
+    expect(controlerExecutionSousEcheancierDuJuge(dossierAvec({ caseEcheancier: true }))).toBeNull()
+    expect(controlerExecutionSousEcheancierDuJuge(dossierAvec({ caseEcheancier: true, hypotheque: { inscriteLe: '2026-03-01' } }))).toBeNull()
+    expect(controlerExecutionSousEcheancierDuJuge(dossierAvec({ caseEcheancier: true, saisieImmobiliere: {} }))).toBeNull()
+    expect(controlerExecutionSousEcheancierDuJuge({})).toBeNull()
+  })
+
+  it('signaler n’est pas refuser : le dossier se crée avec la case et la saisie, la phase reste « Exécution en cours »', () => {
+    const dossier = creerDossierContentieux(saisie({ voiesExecution: voies({ caseEcheancier: true, saisies: ['attribution'] }) }))
+    expect(controlerExecutionSousEcheancierDuJuge(dossier)?.mesures).toEqual(['Saisie attribution'])
+    expect(phaseSuggeree(dossier).phase).toBe('Exécution en cours')
+  })
+})
+
 describe('voies d’exécution — garantie de l’enchérisseur et hypothèque', () => {
   it('garantie : 10 % de la mise à prix, au moins 3 000 € (CPCE R. 322-41), arrondie au centime supérieur', () => {
     expect(GARANTIE_ENCHERE_MINIMUM_CENTIMES).toBe(300_000)
@@ -813,6 +866,32 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).not.toMatch(/décide seul/)
     expect(source).toMatch(/CPCE art\. L\. 311-2/)
     expect(source).toMatch(/en vigueur à la date de la décision/)
+  })
+
+  it('rubrique « Décisions de Hugo du 06/11/2026 » : J43, art. 1343-5 relu sur Légifrance le 06/11/2026, gravité justifiée', () => {
+    const decisions0611 = source.slice(source.indexOf('Décisions de Hugo du 06/11/2026'), source.indexOf('🔵 Déduit :'))
+    expect(decisions0611).toMatch(/J43 : /)
+    expect(decisions0611).toMatch(/relu sur Légifrance le 06\/11\/2026/)
+    expect(decisions0611).toMatch(/En vigueur au 06\/11\/2026/)
+    expect(decisions0611).toMatch(/ordonnance n° 2016-131 du 10 février 2016, art\. 3/)
+    expect(decisions0611).toContain("« La décision du juge suspend les procédures d'exécution qui auraient été engagées par le créancier. »")
+    expect(decisions0611).toMatch(/controlerExecutionSousEcheancierDuJuge/)
+    expect(decisions0611).toMatch(/Gravité : avertissement, non bloquant/)
+    // Les raisons du choix de la gravité : plus qu'une information, pas un refus (renvoi à J2), la case ne date rien.
+    expect(decisions0611).toMatch(/Plus qu'une information : la mesure engagée est suspendue par la décision du juge \(al\. 4\)/)
+    expect(decisions0611).toMatch(/Pas un refus : la suspension est l'effet de cette décision, non d'un contrôle de VitFix/)
+    expect(decisions0611).toMatch(/comme J2 : une donnée fausse vaut moins qu'une donnée incomplète et signalée/)
+    expect(decisions0611).toMatch(/la case ne porte ni la date de la décision ni les délais accordés/)
+    // Question 9 (suite de J43, jalon « Commandement ») : posée dans la partie 🔴, avec le choix actuel de VitFix.
+    const nonEtabli = source.slice(source.indexOf('🔴 Non établi'), source.indexOf('Branchements à faire plus tard'))
+    expect(nonEtabli).toMatch(/9\. \(Frédéric ou Hugo, suite de J43\) Le jalon « Commandement » du dossier/)
+    expect(nonEtabli).toMatch(/VitFix : non, seules les mesures du bloc Voie d'exécution \(executionEngagee\)/)
+  })
+
+  it('J43 : l’alerte, produite par aucun flux existant, figure dans les « Branchements à faire plus tard »', () => {
+    const branchements = source.slice(source.indexOf('Branchements à faire plus tard'), source.indexOf('Référentiel des saisies (tenu à part du point 29)'))
+    expect(branchements).toMatch(/controlerExecutionSousEcheancierDuJuge \(J43\)/)
+    expect(branchements).toMatch(/qu'aucun flux n'appelle encore : à produire dans le suivi « à faire » et la fiche du contentieux \(écran : Frédéric\)/)
   })
 
   it('l’en-tête de contentieux.ts renvoie au point 56', () => {

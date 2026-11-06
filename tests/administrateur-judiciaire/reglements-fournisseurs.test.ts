@@ -151,7 +151,11 @@ describe('objet ReglementFournisseur', () => {
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'reglements-fournisseurs.ts'), 'utf8')
     const entete = source.slice(0, source.indexOf('*/')).replace(/\s*\n\s*\*\s*/g, ' ')
     expect(entete).toMatch(/Décision J25 de Hugo du 03\/11\/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs/)
-    expect(entete).toMatch(/ne vise que les salaires \(personnel-syndicat\.ts, 🔴 10\), pas un fournisseur/)
+    expect(entete).toMatch(/ne vise que les salaires \(personnel-syndicat\.ts\), pas un fournisseur/)
+    // J40 (06/11/2026) : la réserve est tranchée, aucun salaire n'est payé en espèces, même sous le seuil.
+    expect(entete).toMatch(/Décisions de Hugo du 06\/11\/2026 \(J40\)/)
+    expect(entete).toMatch(/même sous le seuil/)
+    expect(source).not.toMatch(/🔴 10/)
     const nonEtabli = entete.slice(entete.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/paiement en espèces/)
   })

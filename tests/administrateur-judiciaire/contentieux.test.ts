@@ -11,7 +11,6 @@ import {
   echeancierActif,
   echeancierDuContentieux,
   etapeRecouvrementContentieux,
-  particulariteSuggeree,
   phaseSuggeree,
   relanceDepuisEtape,
   relanceDuContentieux,
@@ -27,8 +26,8 @@ import {
 /**
  * Contentieux (cartographie Gestéam, tranches 20, 27 et 28) : dossier, intervenants (huissier, avocat, expert),
  * jalons de procédure datés, phase, lien avec le recouvrement et les stades / groupes de relance.
- * - Type, phase et particularité : référentiels Gestéam existants (TYPE_CONTENTIEUX, PHASE_CONTENTIEUX,
- *   PARTICULARITE_CONTENTIEUX).
+ * - Type et phase : référentiels Gestéam existants (TYPE_CONTENTIEUX, PHASE_CONTENTIEUX). La Particularité de Gestéam
+ *   n'est pas reprise (décision J44 de Hugo du 06/11/2026).
  * - La phase est SAISIE ; VitFix en SUGGÈRE une d'après les faits datés et signale l'écart, sans l'écraser.
  */
 
@@ -36,7 +35,6 @@ const saisie = (surcharge: Partial<SaisieContentieux> = {}): SaisieContentieux =
   coproprieteId: 'copro-1',
   type: 'Recouvrement de charges/loyer',
   phase: 'Ouverture',
-  particularite: 'Contentieux sans échéancier',
   dateOuverture: '2026-01-15',
   dateCloture: null,
   objet: 'Charges impayées 2025',
@@ -84,10 +82,16 @@ describe('contentieux — référentiels et création', () => {
     expect(creerDossierContentieux(saisie({ objet: '  Charges  impayées ' })).objet).toBe('Charges impayées')
   })
 
-  it('refuse type, phase ou particularité inconnus, une date invalide, un montant non entier', () => {
+  it('J44 : la Particularité du contentieux est supprimée : le dossier se crée sans elle et n’en porte aucune', async () => {
+    const dossier = creerDossierContentieux(saisie())
+    expect(dossier).not.toHaveProperty('particularite')
+    const exportsDuModule = await import('@/lib/administrateur-judiciaire/domain/contentieux')
+    expect(exportsDuModule).not.toHaveProperty('particulariteSuggeree')
+  })
+
+  it('refuse type ou phase inconnus, une date invalide, un montant non entier', () => {
     expect(() => creerDossierContentieux(saisie({ type: 'Litige' as never }))).toThrow(/type/i)
     expect(() => creerDossierContentieux(saisie({ phase: 'Audience' as never }))).toThrow(/phase/i)
-    expect(() => creerDossierContentieux(saisie({ particularite: 'Avec plan' as never }))).toThrow(/particularit/i)
     expect(() => creerDossierContentieux(saisie({ jalons: { jugement: '12/03/2026' } }))).toThrow(/date/i)
     expect(() => creerDossierContentieux(saisie({ montantDemandeCentimes: 12.5 }))).toThrow(/montant/i)
     expect(() => creerDossierContentieux(saisie({ jalons: { plaidoirie: '2026-03-12' } as never }))).toThrow(/jalon/i)
@@ -200,11 +204,11 @@ describe('contentieux — lien avec le recouvrement et les relances', () => {
 })
 
 /**
- * Point 57 du bilan Gestéam : la particularité « avec / sans échéancier » et le groupe de relance 6 (protocole d'accord)
- * se DÉDUISENT de l'échéancier du débiteur (decompte-contentieux.suivreEcheancier). La particularité saisie n'est jamais
- * écrasée : l'écart est signalé. 🔵 Un échéancier reste actif tant qu'une échéance n'est pas soldée, échue ou non.
+ * Point 57 du bilan Gestéam : le groupe de relance 6 (protocole d'accord) se DÉDUIT de l'échéancier du débiteur
+ * (decompte-contentieux.suivreEcheancier, ou case « Échéancier » : J33). La Particularité « avec / sans échéancier » de
+ * Gestéam n'est pas reprise (J44). 🔵 Un échéancier reste actif tant qu'une échéance n'est pas soldée, échue ou non.
  */
-describe('contentieux — échéancier actif, particularité, relance', () => {
+describe('contentieux — échéancier actif et relance', () => {
   const echeances = genererEcheancier({ nombre: 3, tousLes: 1, unite: 'mois', premiereLe: '2026-04-05', montantCentimes: 100_000 })
   const suivi = (montantRegle: number, aujourdhui: string) =>
     suivreEcheancier(echeances, montantRegle > 0 ? [{ id: 'R1', date: '2026-04-05', montantCentimes: montantRegle }] : [], aujourdhui)
@@ -238,17 +242,6 @@ describe('contentieux — échéancier actif, particularité, relance', () => {
     expect(echeancierActif(suivreEcheancier([], [], '2026-08-01'))).toBe(false)
   })
 
-  it('particularité suggérée d’après l’échéancier, écart signalé sans écraser la saisie', () => {
-    const sans = dossier()
-    expect(particulariteSuggeree(sans, aVenir)).toEqual({ particularite: 'Contentieux avec échéancier', ecart: true })
-    expect(sans.particularite).toBe('Contentieux sans échéancier')
-    expect(particulariteSuggeree(sans, null)).toEqual({ particularite: 'Contentieux sans échéancier', ecart: false })
-    const avec = dossier({ particularite: 'Contentieux avec échéancier' })
-    expect(particulariteSuggeree(avec, echueImpayee)).toEqual({ particularite: 'Contentieux avec échéancier', ecart: false })
-    expect(particulariteSuggeree(avec, null)).toEqual({ particularite: 'Contentieux sans échéancier', ecart: true })
-    expect(particulariteSuggeree(avec, solde)).toEqual({ particularite: 'Contentieux sans échéancier', ecart: true })
-  })
-
   it('relance du dossier : groupe 6 sous échéancier actif, sinon le groupe de l’étape', () => {
     const enProcedure = dossier({ jalons: { assignation: '2026-04-10' } })
     expect(relanceDuContentieux(enProcedure, null)).toEqual({ stade: '9', groupe: '9' })
@@ -259,9 +252,11 @@ describe('contentieux — échéancier actif, particularité, relance', () => {
     expect(relanceDuContentieux(dossier({ dateCloture: '2026-09-01' }), aVenir)).toEqual({ stade: '0', groupe: '0' })
   })
 
-  it('la relance suit l’échéancier, pas la particularité saisie', () => {
-    const avecSaisi = dossier({ particularite: 'Contentieux avec échéancier', jalons: { assignation: '2026-04-10' } })
-    expect(relanceDuContentieux(avecSaisi, null)).toEqual({ stade: '9', groupe: '9' })
+  it('J44 : sans Particularité, la relance ne lit que l’échéancier (grille ou case « Échéancier »), comme avant', () => {
+    const enProcedure = dossier({ jalons: { assignation: '2026-04-10' } })
+    expect(relanceDuContentieux(enProcedure, null)).toEqual({ stade: '9', groupe: '9' })
+    const caseCochee = dossier({ jalons: { assignation: '2026-04-10' }, voiesExecution: creerVoiesExecution({ caseEcheancier: true }) })
+    expect(relanceDuContentieux(caseCochee, null)).toEqual({ stade: '9', groupe: '6' })
   })
 
   it('aucune relance pour un autre type de contentieux', () => {
@@ -273,7 +268,7 @@ describe('contentieux — échéancier actif, particularité, relance', () => {
     expect(controlerEcheancier(echeances, decision)).toEqual([])
     const juge = dossier({ jalons: { assignation: '2026-02-10', jugement: '2026-03-20' } })
     expect(relanceDuContentieux(juge, aVenir)).toEqual({ stade: '9', groupe: '6' })
-    expect(particulariteSuggeree(juge, aVenir).particularite).toBe('Contentieux avec échéancier')
+    expect(echeancierDuContentieux(juge, aVenir)).toEqual({ actif: true, source: 'grille', grilleActive: true })
   })
 
   /**
@@ -305,12 +300,7 @@ describe('contentieux — échéancier actif, particularité, relance', () => {
       expect(echeancierActif(solde)).toBe(false)
     })
 
-    it('la case donne la particularité « avec échéancier » et le groupe 6, sans grille ou grille soldée', () => {
-      expect(particulariteSuggeree(avecCase(), null)).toEqual({ particularite: 'Contentieux avec échéancier', ecart: true })
-      expect(particulariteSuggeree(avecCase({ particularite: 'Contentieux avec échéancier' }), solde)).toEqual({
-        particularite: 'Contentieux avec échéancier',
-        ecart: false,
-      })
+    it('la case donne le groupe 6, sans grille ou grille soldée, sans passer par une Particularité (J44)', () => {
       expect(relanceDuContentieux(avecCase(enProcedure), null)).toEqual({ stade: '9', groupe: '6' })
       expect(relanceDuContentieux(avecCase(enProcedure), solde)).toEqual({ stade: '9', groupe: '6' })
       expect(relanceDuContentieux(dossier(enProcedure), solde)).toEqual({ stade: '9', groupe: '9' })
@@ -345,20 +335,34 @@ describe('contentieux — en-tête du point 57 : sources et points ouverts', () 
     expect(source).toMatch(/Le paiement par annuités de la loi art\. 33 n'a pas d'origine dans ORIGINES_ECHEANCIER/)
   })
 
-  it('la Particularité n’est lue que comme critère de recherche ; son lieu de saisie est une question', () => {
+  it('J44 : la Particularité, critère de recherche observé dans Gestéam, n’est pas reprise ; sa question 🔴 disparaît', () => {
     expect(source).not.toMatch(/est saisie et sert de critère de recherche/)
     expect(source).toMatch(/tranches 20 § 3 et 28/)
-    expect(source).toMatch(/Où se saisit la Particularité/)
+    expect(source).not.toMatch(/Où se saisit la Particularité/)
+    expect(source).not.toMatch(/particulariteSuggeree|ParticulariteContentieux|particularite:/)
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33 inscrite, art. 1343-5 relu ; la Particularité (question 25) reste ouverte', () => {
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33 inscrite, art. 1343-5 relu', () => {
     const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('Point 56 du bilan Gestéam'))
     expect(decisions).toMatch(/J33/)
     expect(decisions).toMatch(/C\. civ\. art\. 1343-5/)
     expect(decisions).toMatch(/relu sur Légifrance le 03\/11\/2026/)
     expect(decisions).toMatch(/« dans la limite de deux années »/)
     expect(source).not.toMatch(/désigne-t-elle les délais de grâce accordés par/)
-    expect(source).toMatch(/🔴 \(Hugo\) Où se saisit la Particularité/)
+  })
+
+  it('rubrique « Décisions de Hugo du 06/11/2026 » : J43 (exécution engagée sous échéancier du juge signalée) et J44 (Particularité supprimée)', () => {
+    const decisions0611 = source.slice(source.indexOf('Décisions de Hugo du 06/11/2026'), source.indexOf('Point 56 du bilan Gestéam'))
+    expect(decisions0611).toMatch(/J43 : /)
+    expect(decisions0611).toMatch(/controlerExecutionSousEcheancierDuJuge/)
+    expect(decisions0611).toMatch(/C\. civ\. art\. 1343-5, al\. 4/)
+    // La gravité et la relecture du 06/11/2026 sont justifiées dans l'en-tête de contentieux-voies-execution.ts, pas ici.
+    expect(decisions0611).toMatch(/relu sur Légifrance le 06\/11\/2026 : en-tête de contentieux-voies-execution\.ts\)/)
+    expect(decisions0611).not.toMatch(/en-tête de ce module/)
+    expect(decisions0611).toMatch(/J44 : la « Particularité » du contentieux est supprimée/)
+    expect(decisions0611).toMatch(/echeancierDuContentieux et relanceDuContentieux/)
+    expect(source).not.toMatch(/faut-il signaler une mesure d'exécution engagée/)
+    expect(source).not.toMatch(/La « Particularité » \(question 25\) reste ouverte/)
   })
 
   it('les questions sur le groupe 6 citent l’origine de l’échéancier déjà modélisée', () => {

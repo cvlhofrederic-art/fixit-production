@@ -100,6 +100,21 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   signification du commandement de payer valant saisie (CPCE R. 321-1), qui engage la procédure. Textes lus sur
  *   Légifrance le 30/10/2026. Aucun comportement ne change.
  *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J43 ; PR #643, suite de J33) :
+ * - J43 : quand la case « Échéancier » est cochée (échéancier fixé par décision du juge, J33), une exécution déjà engagée
+ *   sur le même dossier est signalée : controlerExecutionSousEcheancierDuJuge rend une alerte qui nomme chaque mesure
+ *   engagée (saisie cochée, saisie immobilière engagée, expulsion datée : celles d'executionEngagee). C. civ. art. 1343-5
+ *   relu sur Légifrance le 06/11/2026 (bandeau « En vigueur au 06/11/2026 », en vigueur depuis le 01/10/2016 ; créé par
+ *   l'ordonnance n° 2016-131 du 10 février 2016, art. 3, aucun texte modificatif indiqué ; six alinéas), al. 4 : « La
+ *   décision du juge suspend les procédures d'exécution qui auraient été engagées par le créancier. » et « Les
+ *   majorations d'intérêts ou les pénalités prévues en cas de retard ne sont pas encourues pendant le délai fixé par le
+ *   juge. » Gravité : avertissement, non bloquant. Plus qu'une information : la mesure engagée est suspendue par la
+ *   décision du juge (al. 4). Pas un refus : la suspension est l'effet de cette décision, non d'un contrôle de VitFix, et
+ *   une mesure engagée avant elle est un fait exact, qu'un refus forcerait à effacer (comme J2 : une donnée fausse vaut
+ *   moins qu'une donnée incomplète et signalée) ; la case ne porte ni la date de la décision ni les délais accordés :
+ *   VitFix ne sait pas si la mesure précède la décision, ou suit la fin des délais sur une case restée cochée. La
+ *   phase suggérée n'en dépend pas ; le dossier se crée comme avant.
+ *
  * 🔵 Déduit :
  * - la saisie immobilière est ENGAGÉE dès qu'une de ses dates (Engagée le, Audience éventuelle, Adjudication) est saisie ;
  *   cochée sans date, elle se prépare (projet de résolution) et n'exige encore rien ; son PREMIER ACTE est la date la
@@ -153,13 +168,19 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *    mise à prix initiale votée ? VitFix n'en garde qu'une.
  * 8. (Frédéric) Libellés : ceux de Gestéam (« Saisie arrêt salaire », « Saisie arrêt loyer ») ou ceux du code (saisie des
  *    rémunérations, saisie-attribution) ? VitFix garde ceux de Gestéam et donne la désignation du code.
+ * 9. (Frédéric ou Hugo, suite de J43) Le jalon « Commandement » du dossier (contentieux.ts), qui donne la phase suggérée
+ *    « Exécution en cours », compte-t-il aussi comme une exécution engagée à signaler sous la case « Échéancier » ?
+ *    VitFix : non, seules les mesures du bloc Voie d'exécution (executionEngagee), celles que la question tranchée par J43
+ *    énumérait.
  *
  * Branchements à faire plus tard (fichiers d'autres PR, écran) : suivi « à faire » (audience d'adjudication à venir,
- * saisie en vue de la vente non autorisée ; NATURES_SUIVI.contentieux est figé) ; compte rendu à la prochaine AG des
- * actions introduites (art. 55, al. 4) ; décompte des voix sans le débiteur (art. 19-2, al. 5, module AG) ; notification
- * du projet avec l'ordre du jour (art. 11, I) ; reglementsSurContentieux par le compteId du dossier ; registre des
- * décisions de l'administrateur provisoire (art. 62-8 : référence et date) et avis du conseil syndical (art. 62-7) ; table
- * des contentieux et onglet Règlements (Frédéric).
+ * saisie en vue de la vente non autorisée ; NATURES_SUIVI.contentieux est figé) ; alerte de
+ * controlerExecutionSousEcheancierDuJuge (J43), qu'aucun flux n'appelle encore : à produire dans le suivi « à faire » et
+ * la fiche du contentieux (écran : Frédéric), faute de quoi l'exécution engagée sous l'échéancier du juge n'est pas
+ * signalée ; compte rendu à la prochaine AG des actions introduites (art. 55, al. 4) ; décompte des voix sans le débiteur
+ * (art. 19-2, al. 5, module AG) ; notification du projet avec l'ordre du jour (art. 11, I) ; reglementsSurContentieux
+ * par le compteId du dossier ; registre des décisions de l'administrateur provisoire (art. 62-8 : référence et date) et
+ * avis du conseil syndical (art. 62-7) ; table des contentieux et onglet Règlements (Frédéric).
  */
 
 // ─── Référentiel des saisies (tenu à part du point 29) ─────────────────────────────────────────────────────────────
@@ -390,6 +411,54 @@ export function saisieVenteEngagee(voies: VoiesExecutionContentieux | null | und
 export function executionEngagee(voies: VoiesExecutionContentieux | null | undefined): boolean {
   if (estAbsent(voies)) return false
   return voies.saisies.length > 0 || voies.expulsionLe !== null || saisieVenteEngagee(voies)
+}
+
+// ─── Exécution engagée sous l'échéancier du juge (décision J43) ──────────────────────────────────────────────────
+
+/** Mesures engagées, dans l'ordre de la fiche : saisies cochées, premier acte de la saisie immobilière, expulsion datée. */
+function mesuresEngagees(voies: VoiesExecutionContentieux): string[] {
+  const mesures: string[] = SAISIES_EXECUTION.filter((s) => voies.saisies.includes(s.cle)).map((s) => s.libelle)
+  const premier = premierActeSaisie(voies.saisieImmobiliere)
+  if (premier !== null) mesures.push(libelleActe(premier))
+  if (voies.expulsionLe !== null) mesures.push(`${DATES_VOIES.expulsionLe.datee} du ${dateIsoVersFr(voies.expulsionLe)}`)
+  return mesures
+}
+
+export const FONDEMENT_SUSPENSION_EXECUTION = 'C. civ. art. 1343-5, al. 4'
+
+/** C. civ. art. 1343-5, al. 4, première phrase (relue sur Légifrance le 06/11/2026). */
+const SUSPENSION_PAR_LE_JUGE = "« La décision du juge suspend les procédures d'exécution qui auraient été engagées par le créancier. »"
+
+export interface AlerteExecutionSousEcheancier {
+  code: 'execution_engagee_sous_echeancier_du_juge'
+  /** Avertissement, non bloquant (décision J43 ; gravité justifiée dans l'en-tête). */
+  gravite: 'avertissement'
+  bloquant: false
+  /** Mesures engagées, nommées, dans l'ordre de la fiche. */
+  mesures: string[]
+  message: string
+  fondement: string
+}
+
+/**
+ * Décision J43 : case « Échéancier » cochée (échéancier fixé par décision du juge, J33) et exécution déjà engagée sur le
+ * même dossier (executionEngagee) : avertissement non bloquant, qui nomme chaque mesure ; null sinon. Signale, ne refuse
+ * pas : le dossier reste tel quel.
+ */
+export function controlerExecutionSousEcheancierDuJuge(
+  dossier: Pick<DossierVoiesExecution, 'voiesExecution'>,
+): AlerteExecutionSousEcheancier | null {
+  const voies = dossier.voiesExecution
+  if (voies === undefined || !voies.caseEcheancier || !executionEngagee(voies)) return null
+  const mesures = mesuresEngagees(voies)
+  return {
+    code: 'execution_engagee_sous_echeancier_du_juge',
+    gravite: 'avertissement',
+    bloquant: false,
+    mesures,
+    message: `Case « Échéancier » cochée (échéancier fixé par décision du juge) et exécution engagée sur le même dossier : ${mesures.join(' ; ')}. ${SUSPENSION_PAR_LE_JUGE} (${FONDEMENT_SUSPENSION_EXECUTION}) : vérifier sur la décision, dont le dossier ne porte ni la date ni les délais, l'état de ces mesures.`,
+    fondement: FONDEMENT_SUSPENSION_EXECUTION,
+  }
 }
 
 const FONDEMENT_AUTORISATION = 'D. 1967 art. 55, al. 1 et 3'
