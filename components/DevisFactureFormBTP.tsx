@@ -29,6 +29,7 @@ import {
 } from '@/lib/devis-types'
 import { mapLegalFormToCode, titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
 import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/facture-depuis-devis'
+import { statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { localFallbackDocNumber } from '@/lib/doc-number'
@@ -220,24 +221,9 @@ export default function DevisFactureFormBTP({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
-  const [statutJuridique, setStatutJuridique] = useState(() => {
-    if (initialData?.companyStatus) return initialData.companyStatus
-    if (artisan?.legal_form) {
-      const code = mapLegalFormToCode(artisan.legal_form)
-      // Map code retourné → valeur exacte STATUTS_JURIDIQUES
-      const codeToLabel: Record<string, string> = {
-        'ei': 'Entreprise Individuelle (EI)',
-        'eurl': 'EURL',
-        'sarl': 'SARL',
-        'sas': 'SAS',
-        'sasu': 'SASU',
-        'ae': 'Auto-entrepreneur',
-        'sa': 'SA',
-      }
-      return codeToLabel[code] || 'Entreprise Individuelle (EI)'
-    }
-    return 'Entreprise Individuelle (EI)'
-  })
+  // Champ verrouillé, « défini à l'inscription » : forme du profil, sauf document déjà émis (figée avec lui)
+  const [statutJuridique, setStatutJuridique] = useState(() =>
+    statutJuridiqueInitialBtp(initialData, artisan?.legal_form))
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   // L'adresse arrive parfois en MAJ depuis le Kbis (KINNOVA GROUP 115 RUE …).

@@ -51,4 +51,18 @@ describe('champsSocieteProfil', () => {
     expect(champsSocieteProfil({ siren: '123456789', nafCode: ' ', address: '' }, '', 'FR')).toEqual({ siren: '123456789' })
     expect(champsSocieteProfil(null, '', 'FR')).toEqual({})
   })
+
+  // Le registre renvoie « Entrepreneur individuel » pour toute nature juridique 1xxx ; le sélecteur BTP,
+  // sans option EI, le préremplit en « eurl » (mapLegalFormToKey, « correspondance la plus proche »).
+  it('garde « Entrepreneur individuel » du registre plutôt que l\'EURL préremplie', () => {
+    const ei = { ...SOCIETE, legalForm: 'Entrepreneur individuel' }
+    const champs = champsSocieteProfil(ei, 'eurl', 'FR')
+    expect(champs.legal_form).toBe('Entrepreneur individuel')
+    expect(mapLegalFormToCode(champs.legal_form)).toBe('ei')
+  })
+
+  it('remet sur une ligne une adresse VIES écrite sur plusieurs', () => {
+    const vies = { address: 'AV 24 DE JULHO N 12\nLISBOA\r\n1249-300 LISBOA' }
+    expect(champsSocieteProfil(vies, 'lda', 'PT').company_address).toBe('AV 24 DE JULHO N 12, LISBOA, 1249-300 LISBOA')
+  })
 })
