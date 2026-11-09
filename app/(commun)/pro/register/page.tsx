@@ -12,6 +12,7 @@ import { mapLegalFormToKey, getLegalStructureOptions } from '@/lib/tax-calculato
 import { getDefaultCategoriesFromNaf } from '@/lib/naf-to-categories'
 import { formatSiegeAddress } from '@/lib/sirene-address'
 import { SECTEURS_BTP_FR, SECTEURS_BTP_PT, secteursToSlugs } from '@/lib/btp-secteurs'
+import { champsSocieteProfil } from '@/lib/profil-societe-inscription'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -936,6 +937,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               kyc_status: 'pending',
               kyc_market: btpMarket,
               verified: false,
+              // Forme juridique, SIREN, NAF et siège vérifiés : sans eux, legal_form restait vide et
+              // le devis BTP affichait « Entreprise Individuelle (EI) » pour une SAS.
+              ...champsSocieteProfil(company, legalStructure, registrationCountry),
               // Spécialités écrites côté serveur : fonctionne aussi sans session
               specialty_slugs: orgType === 'societe_btp' ? secteursToSlugs(form.secteurs) : [],
             }),
