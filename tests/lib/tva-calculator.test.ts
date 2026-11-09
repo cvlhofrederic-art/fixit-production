@@ -25,7 +25,7 @@ describe('MENTIONS_LEGALES', () => {
 
   it('autoliquidation_btp uses official wording from CGI art. 283, 2 nonies', () => {
     expect(MENTIONS_LEGALES.autoliquidation_btp).toBe(
-      'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+      'Autoliquidation : article 283, 2 nonies du CGI. TVA due par le preneur.',
     )
   })
 })
@@ -155,7 +155,7 @@ describe('computeTva — regime autoliquidation_btp', () => {
       lines: [{ totalHT: 1000, tvaRate: 20 }],
     })
     expect(result.mention).toBe(
-      'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+      'Autoliquidation : article 283, 2 nonies du CGI. TVA due par le preneur.',
     )
   })
 
@@ -294,7 +294,7 @@ describe('getMentionLegale — locale-aware mentions', () => {
 
   it('FR autoliquidation renders art. 283, 2 nonies CGI wording', () => {
     expect(getMentionLegale('autoliquidation_btp', 'fr')).toBe(
-      'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+      'Autoliquidation : article 283, 2 nonies du CGI. TVA due par le preneur.',
     )
   })
 
@@ -311,7 +311,7 @@ describe('getMentionLegale — locale-aware mentions', () => {
 
   it('defaults to FR when locale omitted', () => {
     expect(getMentionLegale('autoliquidation_btp')).toBe(
-      'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+      'Autoliquidation : article 283, 2 nonies du CGI. TVA due par le preneur.',
     )
   })
 })
@@ -331,7 +331,7 @@ describe('computeTva — locale support', () => {
       regime: 'autoliquidation_btp',
       lines: [{ totalHT: 1000, tvaRate: 20 }],
     })
-    expect(result.mention).toBe('Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.')
+    expect(result.mention).toBe('Autoliquidation : article 283, 2 nonies du CGI. TVA due par le preneur.')
   })
 })
 
