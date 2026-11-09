@@ -19,7 +19,7 @@ de 10 s. Constat en production du 09/11/2026 : demande faite sur le PC, lien ouv
 
 1. Lien de l'e-mail : `GET /auth/confirm/?token_hash=…&type=recovery` (`app/(commun)/auth/confirm/route.ts`). La route
    n'appelle pas Supabase et ne consomme pas le jeton (une messagerie ou un antivirus qui ouvre le lien ne le grille
-   pas). Elle le range dans le cookie `vitfix_reinit_mdp` (httpOnly, SameSite=Strict, chemin `/api/auth/`, 1 heure) et
+   pas). Elle le range dans le cookie `vitfix_reinit_mdp` (httpOnly, SameSite=Lax, chemin `/api/auth/`, 1 heure) et
    renvoie vers `/{fr|pt}/auth/update-password/?lien=1`.
 2. La page affiche le formulaire sans attendre de session. À l'envoi, `POST /api/auth/update-password`
    (`app/api/auth/update-password/route.ts`) contrôle le mot de passe, puis vérifie le jeton (`verifyOtp`) et change le
@@ -39,9 +39,9 @@ Détails :
   en fr et pt, règles `/:locale(en|nl|es)/auth/confirm` de `next.config.ts`) ;
 - lien incomplet, malformé ou d'un autre `type` : `?erreur=lien-invalide` (« lien expiré » tout de suite) ou page de
   connexion ; la destination ne vient jamais du lien (`next`, `redirect_to` ignorés) ;
-- `POST /api/auth/update-password` : refusé depuis une autre origine (middleware) et cookie SameSite=Strict ; 10
+- `POST /api/auth/update-password` : refusé depuis une autre origine (middleware), cookie SameSite=Lax jamais envoyé par un POST venu d'un autre site ; 10
   essais par 5 minutes et par adresse IP (`lib/rate-limit.ts`) ; mot de passe contrôlé avant `verifyOtp`, qui consomme
-  le jeton ; GoTrue saturé ou injoignable → jeton gardé, l'utilisateur peut réessayer ; même mot de passe que l'actuel
+  le jeton (règle du formulaire, 72 octets au plus comme GoTrue) ; GoTrue saturé ou injoignable → jeton gardé, l'utilisateur peut réessayer ; même mot de passe que l'actuel
   → « connectez-vous avec lui » ;
 - ancien lien (`?code=…`) et utilisateur déjà connecté : page inchangée, `supabase.auth.updateUser` comme avant.
 

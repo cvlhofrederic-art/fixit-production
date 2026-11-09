@@ -210,12 +210,17 @@ describe('POST /api/auth/update-password — réponses de Supabase', () => {
     ['même mot de passe que l’actuel', erreurGoTrue(422, 'same_password', 'New password should be different from the old password.'), 422, 'meme-mot-de-passe'],
     ['mot de passe refusé par GoTrue', erreurGoTrue(422, 'weak_password', 'Password is known to be weak and easy to guess'), 422, 'mot-de-passe-refuse'],
     ['échec inattendu', erreurGoTrue(500, 'unexpected_failure', 'Unexpected failure'), 500, 'lien-invalide'],
-  ])('%s après vérification : jeton consommé, cookie effacé', async (_cas, user, statut, erreur) => {
+  ])('%s après vérification : jeton consommé, cookie effacé, session de récupération fermée', async (_cas, user, statut, erreur) => {
     reponses.user = user
     const reponse = await POST(requete({ password: MOT_DE_PASSE }))
     expect(reponse.status).toBe(statut)
     expect(await reponse.json()).toEqual({ erreur })
     expect(cookieJetonEfface(reponse)).toBe(true)
+    expect(appels.map(({ methode, chemin }) => `${methode} ${chemin}`)).toEqual([
+      'POST /auth/v1/verify',
+      'PUT /auth/v1/user',
+      'POST /auth/v1/logout?scope=local',
+    ])
     expect(reponse.headers.getSetCookie().filter((ligne) => ligne.startsWith('sb-'))).toEqual([])
     sansSecretAuJournal()
   })

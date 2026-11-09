@@ -57,7 +57,7 @@ describe('GET /auth/confirm/ — lien « mot de passe oublié » ouvert sur un a
     expect(reponse.cookies.get('vitfix_reinit_mdp')).toMatchObject({
       value: JETON,
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/api/auth/',
       maxAge: 3600,
     })
@@ -137,7 +137,7 @@ describe('lib/auth/lien-email', () => {
     expect(jetonLienValide('x'.repeat(201))).toBe(false)
   })
 
-  it('applique la règle du formulaire, plus la limite de 72 caractères de GoTrue', () => {
+  it('applique la règle du formulaire, plus la limite de 72 octets de GoTrue', () => {
     expect(motDePasseConforme('Abcdefg1')).toBe(true)
     expect(motDePasseConforme('Abcdef1')).toBe(false)
     expect(motDePasseConforme('abcdefg1')).toBe(false)
@@ -145,6 +145,9 @@ describe('lib/auth/lien-email', () => {
     expect(motDePasseConforme('Abcdefgh')).toBe(false)
     expect(motDePasseConforme(`Ab1${'x'.repeat(69)}`)).toBe(true)
     expect(motDePasseConforme(`Ab1${'x'.repeat(70)}`)).toBe(false)
+    // 38 caractères mais 74 octets : refusé avant de consommer le jeton, comme GoTrue le refuserait après.
+    expect(motDePasseConforme(`Àb1${'é'.repeat(35)}`)).toBe(false)
+    expect(motDePasseConforme(`Ab1${'é'.repeat(34)}`)).toBe(true)
   })
 
   it('ramène toute langue aux pages communes /fr et /pt', () => {

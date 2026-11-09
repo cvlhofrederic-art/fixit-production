@@ -43,7 +43,8 @@ describe('middleware et lien des e-mails Supabase', () => {
 })
 
 describe('middleware et POST /api/auth/update-password', () => {
-  // Second rempart après le cookie SameSite=Strict du jeton : un formulaire d'un autre site ne change aucun mot de passe.
+  // Second rempart après le cookie SameSite=Lax du jeton (jamais envoyé par un POST venu d'un autre site) : un
+  // formulaire d'un autre site ne change aucun mot de passe.
   const envoyer = (origine: string) =>
     middleware(new NextRequest('https://vitfix.io/api/auth/update-password/', {
       method: 'POST',

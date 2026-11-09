@@ -442,7 +442,7 @@ describe('pages partagées servies sous /fr et /pt', () => {
     ['es', '/rfq/repondre/abc123/', '/rfq/repondre/abc123'],
     ['en', '/tracking/abc123/', '/tracking/abc123'],
     ['nl', '/tracking/abc123/', '/tracking/abc123'],
-    // Liens des e-mails Supabase (mot de passe oublié, confirmation d'inscription) : route app/(commun)/auth/confirm/.
+    // Lien de l'e-mail Supabase « mot de passe oublié » : route app/(commun)/auth/confirm/.
     ['fr', '/auth/confirm/', '/auth/confirm'],
     ['pt', '/auth/confirm/', '/auth/confirm'],
     ['en', '/auth/confirm/', '/auth/confirm'],

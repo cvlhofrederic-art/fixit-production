@@ -68,10 +68,11 @@ export function jetonLienValide(jeton: string | null): jeton is string {
 
 /**
  * Règle du mot de passe, identique à celle du formulaire (8 caractères au moins, une majuscule, une minuscule, un
- * chiffre), plus la limite de 72 caractères de GoTrue : vérifiée AVANT de consommer le jeton.
+ * chiffre), plus la limite de GoTrue : 72 octets (bcrypt ; un caractère accentué en compte deux). Vérifiée AVANT de
+ * consommer le jeton.
  */
 export function motDePasseConforme(motDePasse: string): boolean {
-  return motDePasse.length >= 8 && motDePasse.length <= 72
+  return motDePasse.length >= 8 && new TextEncoder().encode(motDePasse).length <= 72
     && /[A-Z]/.test(motDePasse) && /[a-z]/.test(motDePasse) && /\d/.test(motDePasse)
 }
 

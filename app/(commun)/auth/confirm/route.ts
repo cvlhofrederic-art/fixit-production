@@ -37,8 +37,9 @@ export function GET(request: NextRequest) {
 
   reponse.cookies.set(COOKIE_LIEN_MDP, jeton, {
     httpOnly: true,
-    // Strict : jamais envoyé par une requête venue d'un autre site (le POST qui le lit part de la page vitfix.io).
-    sameSite: 'strict',
+    // Lax : envoyé par le POST de la page vitfix.io, jamais par un POST venu d'un autre site. Strict conviendrait
+    // aussi, mais Lax reste sûr dans les navigateurs intégrés aux messageries (iOS compris).
+    sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: CHEMIN_COOKIE_LIEN_MDP,
     maxAge: DUREE_COOKIE_LIEN_MDP_S,
