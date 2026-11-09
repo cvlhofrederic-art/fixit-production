@@ -1,9 +1,10 @@
 // Statut juridique du formulaire de devis et facture BTP (lib/statut-juridique-btp.ts). Le champ est
-// verrouillé, « défini à l'inscription » : un brouillon ou un nouveau document suit le profil, un document
-// déjà émis garde la forme figée avec lui.
+// verrouillé, « défini à l'inscription ». Un document déjà enregistré (brouillon ou émis) garde exactement le
+// sien, car le formulaire réenregistre un brouillon dès son ouverture ; un nouveau document, même tiré d'un
+// ancien, prend la forme du profil.
 
 import { describe, it, expect } from 'vitest'
-import { documentEmis, statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
+import { documentEmis, documentExistant, statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
 
 const EI = 'Entreprise Individuelle (EI)'
 
@@ -21,19 +22,34 @@ describe('documentEmis', () => {
   })
 })
 
+describe('documentExistant', () => {
+  it('brouillon enregistré, document émis ou document identifié : existant', () => {
+    expect(documentExistant({ savedAt: '2026-11-09T20:00:00.000Z' })).toBe(true)
+    expect(documentExistant({ id: 'a1b2c3' })).toBe(true)
+    expect(documentExistant({ docNumber: 'FACT-2026-014' })).toBe(true)
+  })
+
+  it('document tiré d\'un autre (sans identifiant, horodatage ni numéro légal) ou nouveau : pas existant', () => {
+    expect(documentExistant({ docNumber: '', companyStatus: EI } as never)).toBe(false)
+    expect(documentExistant({ docNumber: 'BR-2026-002' })).toBe(false)
+    expect(documentExistant(undefined)).toBe(false)
+  })
+})
+
 describe('statutJuridiqueInitialBtp', () => {
   it('prend la forme du profil pour un nouveau document', () => {
     expect(statutJuridiqueInitialBtp(undefined, 'SAS')).toBe('SAS')
     expect(statutJuridiqueInitialBtp(undefined, 'Société à responsabilité limitée')).toBe('SARL')
   })
 
-  it('prend la forme du profil pour une facture tirée d\'un devis resté en EI (pas encore de numéro)', () => {
+  it('prend la forme du profil pour une facture tirée d\'un devis resté en EI (ni identifiant, ni enregistrement)', () => {
     expect(statutJuridiqueInitialBtp({ companyStatus: EI, docNumber: '' }, 'SAS')).toBe('SAS')
     expect(statutJuridiqueInitialBtp({ companyStatus: EI }, 'SAS')).toBe('SAS')
   })
 
-  it('prend la forme du profil pour un brouillon au numéro provisoire', () => {
-    expect(statutJuridiqueInitialBtp({ companyStatus: EI, docNumber: 'BR-2026-002' }, 'SAS')).toBe('SAS')
+  it('ne modifie jamais un brouillon déjà enregistré', () => {
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, savedAt: '2026-11-09T20:00:00.000Z' }, 'SAS')).toBe(EI)
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, id: 'brouillon-1', docNumber: 'BR-2026-002' }, 'SAS')).toBe(EI)
   })
 
   it('garde la forme figée d\'un document déjà émis', () => {

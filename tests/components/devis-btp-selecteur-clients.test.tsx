@@ -10,7 +10,7 @@
 //     du serveur restent proposés.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
 
 const h = vi.hoisted(() => ({ fetchAuthentifie: vi.fn(), toastErreur: vi.fn() }))
@@ -118,5 +118,37 @@ describe('formulaire BTP, sélecteur de clients : les clients manuels ne dépend
     expect(document.querySelectorAll('.picker-item')).toHaveLength(1)
     expect(h.toastErreur).not.toHaveBeenCalled()
     expect(avertissement).toHaveBeenCalledWith('[DevisBTP] clients manuels illisibles :', expect.anything())
+  })
+})
+
+// Statut juridique verrouillé, « défini à l'inscription ». Le formulaire réenregistre un brouillon 1,5 s après
+// son ouverture : un document déjà enregistré doit ressortir avec exactement son statut, même quand le profil
+// a désormais une autre forme juridique. Seul un nouveau document (tiré d'un devis, sans identifiant ni
+// enregistrement) prend la forme du profil.
+describe('formulaire BTP, statut juridique : un document enregistré n’est jamais modifié', () => {
+  const EI = 'Entreprise Individuelle (EI)'
+  const CONTENU = {
+    docType: 'facture', docNumber: '', status: 'brouillon', companyStatus: EI, clientName: 'Client Pro SAS',
+    lines: [{ id: 1, description: 'Pose de menuiseries', qty: 1, unit: 'u', priceHT: 1000, tvaRate: 20, totalHT: 1000 }],
+  }
+
+  async function enregistrementAutomatique(initialData: Record<string, unknown>) {
+    const onSave = vi.fn()
+    render(<DevisFactureFormBTP artisan={{ ...ARTISAN, legal_form: 'SAS' } as ArtisanBasic} services={[]} bookings={[]}
+      onBack={vi.fn()} onSave={onSave} initialData={initialData as never} />)
+    await waitFor(() => expect(onSave).toHaveBeenCalled(), { timeout: 4000 })
+    return onSave.mock.calls.at(-1)?.[0] as { companyStatus?: string }
+  }
+
+  it('un brouillon déjà enregistré garde son statut après l’enregistrement automatique', async () => {
+    const doc = await enregistrementAutomatique({ ...CONTENU, id: '6f1c2a34-0000-4000-8000-0000000000b1', savedAt: '2026-11-09T20:00:00.000Z' })
+    expect(doc.companyStatus).toBe(EI)
+    const brouillons = JSON.parse(localStorage.getItem(`fixit_drafts_${ARTISAN.id}`) || '[]') as Array<{ companyStatus?: string }>
+    expect(brouillons.map((b) => b.companyStatus)).toEqual([EI])
+  })
+
+  it('une nouvelle facture tirée d’un devis resté en EI prend la forme du profil', async () => {
+    const doc = await enregistrementAutomatique({ ...CONTENU })
+    expect(doc.companyStatus).toBe('SAS')
   })
 })
