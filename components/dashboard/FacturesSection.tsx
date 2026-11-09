@@ -20,6 +20,7 @@ import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill } from '@/lib/acompte-par-taux'
 import { aNumeroDefinitif } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
+import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
@@ -907,8 +908,10 @@ function FacturesSectionV5({
             const tid = toast.loading('Émission de l\'acompte…')
             try {
               const emitted = await emitDocument({
-                // BTP : RIB du profil au jour de l'émission, pas celui figé dans la facture parente.
-                payload: orgRole === 'pro_societe' ? appliquerRibCourant(prefilled, await chargerRibProfil()) : prefilled,
+                // BTP : RIB et forme juridique du profil au jour de l'émission, pas ceux figés dans la facture parente.
+                payload: orgRole === 'pro_societe'
+                  ? appliquerFormeProfil(appliquerRibCourant(prefilled, await chargerRibProfil()), (artisan as { legal_form?: string } | null)?.legal_form)
+                  : prefilled,
                 artisanId: artisan.id,
                 getNumber: () => fetchNextDocNumber('acompte', artisan.id),
                 sync: syncDocumentSafe,

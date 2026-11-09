@@ -831,10 +831,9 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
       const data = await res.json()
       if (data.verified) {
         setSiretStatus('verified'); setCompany(data.company); setForm(f => ({ ...f, companyName: data.company.name || f.companyName }))
-        if (data.company.legalForm) {
-          const mapped = mapLegalFormToKey(data.company.legalForm, registrationCountry)
-          if (mapped) setLegalStructure(mapped)
-        }
+        // Chaque vérification repart de zéro : la forme d'un SIRET vérifié avant ne doit pas rester,
+        // elle est enregistrée au profil et le devis BTP l'affiche sans pouvoir la changer.
+        setLegalStructure((data.company.legalForm && mapLegalFormToKey(data.company.legalForm, registrationCountry)) || '')
         return
       }
       // Fallback: call gouv API directly from browser if internal API fails
@@ -847,7 +846,7 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
             if (e.etat_administratif === 'C') { setSiretStatus('error'); setSiretError('Cette entreprise est radiée/fermée.'); return }
             const comp = { name: e.nom_complet || '', siret: clean, siren: e.siren || clean.substring(0, 9), nafCode: e.activite_principale || '', nafLabel: e.activite_principale_label || '', legalForm: e.nature_juridique_label || '', address: formatSiegeAddress(e.siege), city: e.siege?.libelle_commune || '', postalCode: e.siege?.code_postal || '', isActive: e.etat_administratif === 'A', creationDate: e.date_creation || '', isArtisanActivity: true }
             setSiretStatus('verified'); setCompany(comp); setForm(f => ({ ...f, companyName: comp.name || f.companyName }))
-            if (comp.legalForm) { const mapped = mapLegalFormToKey(comp.legalForm, registrationCountry); if (mapped) setLegalStructure(mapped) }
+            setLegalStructure((comp.legalForm && mapLegalFormToKey(comp.legalForm, registrationCountry)) || '')
             return
           }
         }

@@ -175,6 +175,30 @@ describe('DevisSection — « Facturer » propose Totale ou Acompte (BTP)', () =
     expect(emis(setSavedDocuments, 1)).toMatchObject({ factureSubType: 'acompte', iban: 'FR76 NOUVEAU', bic: 'NOUVEAUBIC' })
   })
 
+  it('forme juridique : la facture et l\'acompte portent celle du profil, pas celle recopiée du devis', async () => {
+    const devis = { ...DEVIS, companyStatus: 'Entreprise Individuelle (EI)' }
+    const setSavedDocuments = vi.fn()
+    render(<DevisSection {...props(vi.fn(), setSavedDocuments, [], devis)} artisan={{ ...ARTISAN, legal_form: 'SAS' } as typeof ARTISAN} />)
+    await cliquerFactureTotale()
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalledTimes(1))
+    expect(emis(setSavedDocuments)).toMatchObject({ companyStatus: 'SAS' })
+
+    fireEvent.click(screen.getByText('proDash.devis.facturer'))
+    fireEvent.click(screen.getByRole('button', { name: /Facture d'acompte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Acompte 1.*50/ }))
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalledTimes(2))
+    expect(emis(setSavedDocuments, 1)).toMatchObject({ factureSubType: 'acompte', companyStatus: 'SAS' })
+  })
+
+  it('forme juridique : sans forme au profil, la facture garde celle du devis, comme avant', async () => {
+    const devis = { ...DEVIS, companyStatus: 'SARL' }
+    const setSavedDocuments = vi.fn()
+    render(<DevisSection {...props(vi.fn(), setSavedDocuments, [], devis)} />)
+    await cliquerFactureTotale()
+    await waitFor(() => expect(setSavedDocuments).toHaveBeenCalledTimes(1))
+    expect(emis(setSavedDocuments)).toMatchObject({ companyStatus: 'SARL' })
+  })
+
   it('RIB illisible (hors ligne) : l\'ancien RIB du devis est retiré, le PDF relira le profil', async () => {
     const devis = { ...DEVIS, iban: 'FR76 ANCIEN', bic: 'ANCIENBIC' }
     vi.mocked(chargerRibProfil).mockResolvedValue(null)

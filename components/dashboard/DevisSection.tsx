@@ -20,6 +20,7 @@ import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill, formaterMontantCents } from '@/lib/acompte-par-taux'
 import { acomptesDejaFacturesPourDevis, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
+import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
@@ -485,10 +486,10 @@ function DevisSectionV5({
     emissionEnCours.current = true
     const tid = toast.loading(isPt ? 'A emitir a fatura…' : 'Émission de la facture…')
     try {
-      // RIB du profil au jour de l'émission (comme le formulaire), pas celui figé dans le devis.
+      // RIB et forme juridique du profil au jour de l'émission (comme le formulaire), pas ceux figés dans le devis.
       const rib = await chargerRibProfil()
       const emitted = await emitDocument({
-        payload: appliquerRibCourant(resultat.payload, rib),
+        payload: appliquerFormeProfil(appliquerRibCourant(resultat.payload, rib), (artisan as { legal_form?: string } | null)?.legal_form),
         artisanId: artisan.id,
         getNumber: () => fetchNextDocNumber('facture', artisan.id),
         sync: syncDocumentSafe,
@@ -853,13 +854,17 @@ function DevisSectionV5({
               // (acomptes déjà facturés pris en compte). Artisan : lignes du devis au pourcentage, inchangé.
               const parentDoc = parent as unknown as Record<string, unknown>
               const prefilled = estBtp
-                ? appliquerRibCourant(
-                    buildAcompteParTauxPrefill(parentDoc, params, {
-                      locale: isPt ? 'pt' : 'fr',
-                      dejaFacture: acomptesDejaFacturesPourDevis(parentDoc, factures as unknown as Record<string, unknown>[]),
-                    }),
-                    // RIB du profil au jour de l'émission, pas celui figé dans le devis.
-                    await chargerRibProfil(),
+                ? appliquerFormeProfil(
+                    appliquerRibCourant(
+                      buildAcompteParTauxPrefill(parentDoc, params, {
+                        locale: isPt ? 'pt' : 'fr',
+                        dejaFacture: acomptesDejaFacturesPourDevis(parentDoc, factures as unknown as Record<string, unknown>[]),
+                      }),
+                      // RIB du profil au jour de l'émission, pas celui figé dans le devis.
+                      await chargerRibProfil(),
+                    ),
+                    // Forme juridique du profil, de même (le champ du formulaire BTP est verrouillé).
+                    (artisan as { legal_form?: string } | null)?.legal_form,
                   )
                 : buildAcomptePrefill(parentDoc, params)
               if (estBtp && (prefilled.lines as unknown[]).length === 0) {

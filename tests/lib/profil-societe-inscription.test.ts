@@ -51,4 +51,30 @@ describe('champsSocieteProfil', () => {
     expect(champsSocieteProfil({ siren: '123456789', nafCode: ' ', address: '' }, '', 'FR')).toEqual({ siren: '123456789' })
     expect(champsSocieteProfil(null, '', 'FR')).toEqual({})
   })
+
+  // Le registre renvoie « Entrepreneur individuel » pour toute nature juridique 1xxx ; le sélecteur BTP,
+  // sans option EI, le préremplit en « eurl » (mapLegalFormToKey, « correspondance la plus proche »).
+  it('garde « Entrepreneur individuel » du registre plutôt que l\'EURL préremplie', () => {
+    const ei = { ...SOCIETE, legalForm: 'Entrepreneur individuel' }
+    const champs = champsSocieteProfil(ei, 'eurl', 'FR')
+    expect(champs.legal_form).toBe('Entrepreneur individuel')
+    expect(mapLegalFormToCode(champs.legal_form)).toBe('ei')
+  })
+
+  it('remet sur une ligne une adresse VIES écrite sur plusieurs', () => {
+    const vies = { address: 'AV 24 DE JULHO N 12\nLISBOA\r\n1249-300 LISBOA' }
+    expect(champsSocieteProfil(vies, 'lda', 'PT').company_address).toBe('AV 24 DE JULHO N 12, LISBOA, 1249-300 LISBOA')
+  })
+
+  it('sans virgule parasite pour une ligne vide en tête ou en fin, ni valeur faite de sauts de ligne', () => {
+    expect(champsSocieteProfil({ address: '1 rue du Port\n' }, '', 'FR').company_address).toBe('1 rue du Port')
+    expect(champsSocieteProfil({ address: '\n1 rue du Port' }, '', 'FR').company_address).toBe('1 rue du Port')
+    expect(champsSocieteProfil({ address: ' \r\n ' }, '', 'FR')).not.toHaveProperty('company_address')
+  })
+
+  it('reste linéaire sur une longue suite d\'espaces', () => {
+    const debut = performance.now()
+    champsSocieteProfil({ address: `${' '.repeat(40_000)}x` }, '', 'FR')
+    expect(performance.now() - debut).toBeLessThan(200)
+  })
 })

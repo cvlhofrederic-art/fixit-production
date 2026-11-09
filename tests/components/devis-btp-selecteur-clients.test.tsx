@@ -10,7 +10,7 @@
 //     du serveur restent proposés.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
 
 const h = vi.hoisted(() => ({ fetchAuthentifie: vi.fn(), toastErreur: vi.fn() }))
@@ -118,5 +118,110 @@ describe('formulaire BTP, sélecteur de clients : les clients manuels ne dépend
     expect(document.querySelectorAll('.picker-item')).toHaveLength(1)
     expect(h.toastErreur).not.toHaveBeenCalled()
     expect(avertissement).toHaveBeenCalledWith('[DevisBTP] clients manuels illisibles :', expect.anything())
+  })
+})
+
+// Statut juridique verrouillé, « défini à l'inscription ». Le formulaire réenregistre un brouillon 1,5 s après
+// son ouverture : un document déjà enregistré doit ressortir avec exactement son statut, même quand le profil
+// a désormais une autre forme juridique. Seul un nouveau document (avoir sans identifiant, duplicata marqué
+// isDuplicate) prend la forme du profil.
+describe('formulaire BTP, statut juridique : un document enregistré n’est jamais modifié', () => {
+  const EI = 'Entreprise Individuelle (EI)'
+  const CONTENU = {
+    docType: 'facture', docNumber: '', status: 'brouillon', companyStatus: EI, clientName: 'Client Pro SAS',
+    lines: [{ id: 1, description: 'Pose de menuiseries', qty: 1, unit: 'u', priceHT: 1000, tvaRate: 20, totalHT: 1000 }],
+  }
+
+  async function enregistrementAutomatique(initialData: Record<string, unknown>) {
+    const onSave = vi.fn()
+    render(<DevisFactureFormBTP artisan={{ ...ARTISAN, legal_form: 'SAS' } as ArtisanBasic} services={[]} bookings={[]}
+      onBack={vi.fn()} onSave={onSave} initialData={initialData as never} />)
+    await waitFor(() => expect(onSave).toHaveBeenCalled(), { timeout: 4000 })
+    return onSave.mock.calls.at(-1)?.[0] as { companyStatus?: string }
+  }
+
+  it('un brouillon déjà enregistré garde son statut après l’enregistrement automatique', async () => {
+    const doc = await enregistrementAutomatique({ ...CONTENU, id: '6f1c2a34-0000-4000-8000-0000000000b1', savedAt: '2026-11-09T20:00:00.000Z' })
+    expect(doc.companyStatus).toBe(EI)
+    const brouillons = JSON.parse(localStorage.getItem(`fixit_drafts_${ARTISAN.id}`) || '[]') as Array<{ companyStatus?: string }>
+    expect(brouillons.map((b) => b.companyStatus)).toEqual([EI])
+  })
+
+  it('un nouveau document sans identifiant ni enregistrement (avoir) prend la forme du profil', async () => {
+    const doc = await enregistrementAutomatique({ ...CONTENU })
+    expect(doc.companyStatus).toBe('SAS')
+  })
+
+  it('un duplicata d’un devis resté en EI (nouvel identifiant, isDuplicate) prend la forme du profil', async () => {
+    const doc = await enregistrementAutomatique({ ...CONTENU, docType: 'devis', id: '6f1c2a34-0000-4000-8000-0000000000d2', isDuplicate: true })
+    expect(doc.companyStatus).toBe('SAS')
+  })
+})
+
+// Import d'un client : le type « Particulier / Professionnel » suit la fiche (type B2B ou SIRET, règle de la base
+// clients). Il restait sur « Particulier » : il fallait recliquer « Professionnel » pour la raison sociale et le
+// SIRET, et le bloc des garanties restait intitulé « client particulier ».
+describe('formulaire BTP, import d’un client : type Particulier ou Professionnel', () => {
+  const CLIENT_PRO = { id: 'pro-1', name: 'SUD BATIMENT SAS', siret: '95181901000012', type: 'societe' }
+  const CLIENT_PARTICULIER = { id: 'part-1', name: 'Marie Dubois', type: 'particulier', firstName: 'Marie', lastName: 'Dubois' }
+  const RAISON_SOCIALE = 'Ex : SCI Le Mail, Syndic Foncia'
+
+  async function importer(client: { name: string }) {
+    fireEvent.click(await screen.findByText(client.name))
+    expect(screen.queryByText('Importer depuis la base client')).toBeNull()
+  }
+
+  it('un client professionnel passe le formulaire en « Professionnel », avec raison sociale et SIRET', async () => {
+    h.fetchAuthentifie.mockResolvedValue(reponse(200, { clients: [CLIENT_PRO] }))
+    ouvrirSelecteur()
+
+    await importer(CLIENT_PRO)
+
+    expect(screen.getByPlaceholderText(RAISON_SOCIALE)).toHaveValue('SUD BATIMENT SAS')
+    expect(screen.getByDisplayValue('95181901000012')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Marie')).toBeNull()
+    expect(screen.getByText('GARANTIES LÉGALES (CLIENT PROFESSIONNEL)')).toBeInTheDocument()
+    expect(screen.queryByText(/L\. 217-3 C\. conso/)).toBeNull()
+  })
+
+  it('un client particulier ramène le formulaire en « Particulier », même après « Professionnel »', async () => {
+    h.fetchAuthentifie.mockResolvedValue(reponse(200, { clients: [CLIENT_PARTICULIER] }))
+    render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={vi.fn()} />)
+    fireEvent.click(screen.getByText('Professionnel'))
+    expect(screen.getByPlaceholderText(RAISON_SOCIALE)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('+ Importer depuis la base client'))
+
+    await importer(CLIENT_PARTICULIER)
+
+    expect(screen.queryByPlaceholderText(RAISON_SOCIALE)).toBeNull()
+    expect(screen.getByDisplayValue('Marie')).toBeInTheDocument()
+    expect(screen.getByText('GARANTIES LÉGALES (CLIENT PARTICULIER)')).toBeInTheDocument()
+  })
+})
+
+// Résumé et mentions du formulaire : en autoliquidation, pas de « TVA 20 % » à 0,00 € ni de « TOTAL TTC » ; la
+// mention d'immatriculation n'écrit le préfixe RCS qu'une fois (le champ des réglages se saisit préfixé).
+describe('formulaire BTP, résumé TVA et mention d’immatriculation', () => {
+  it('autoliquidation : le résumé affiche « TVA : Autoliquidation » et « TOTAL NET »', () => {
+    render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={vi.fn()}
+      initialData={{ docType: 'facture', regimeTva: 'autoliquidation_btp' } as never} />)
+    const lignesTva = Array.from(document.querySelectorAll('.dv-resume-row.tva')).map((l) => l.textContent)
+    expect(lignesTva).toEqual(['TVAAutoliquidation'])
+    expect(document.querySelector('.dv-resume-row.total')?.textContent).toMatch(/^TOTAL NET/)
+  })
+
+  it('régime classique : la ligne « TVA 20 % » et « TOTAL TTC » restent', () => {
+    render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={vi.fn()} />)
+    const lignesTva = Array.from(document.querySelectorAll('.dv-resume-row.tva')).map((l) => l.textContent)
+    expect(lignesTva).toHaveLength(1)
+    expect(lignesTva[0]).toMatch(/^TVA 20 %/)
+    expect(document.querySelector('.dv-resume-row.total')?.textContent).toMatch(/^TOTAL TTC/)
+  })
+
+  it('SAS avec un RCS saisi préfixé : « Immatriculée au RCS Aix-en-Provence 941 761 967 », sans « RCS de RCS »', () => {
+    const artisanSas = { ...ARTISAN, legal_form: 'SAS', rcs_number: 'RCS Aix-en-Provence 941 761 967', share_capital: '1 000' }
+    render(<DevisFactureFormBTP artisan={artisanSas as ArtisanBasic} services={[]} bookings={[]} onBack={vi.fn()} />)
+    expect(screen.getByText(/Immatriculée au RCS Aix-en-Provence 941 761 967\./)).toBeInTheDocument()
+    expect(screen.queryByText(/RCS de RCS/)).toBeNull()
   })
 })
