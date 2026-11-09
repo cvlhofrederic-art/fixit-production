@@ -442,6 +442,13 @@ describe('pages partagées servies sous /fr et /pt', () => {
     ['es', '/rfq/repondre/abc123/', '/rfq/repondre/abc123'],
     ['en', '/tracking/abc123/', '/tracking/abc123'],
     ['nl', '/tracking/abc123/', '/tracking/abc123'],
+    // Liens des e-mails Supabase (mot de passe oublié, confirmation d'inscription) : route app/(commun)/auth/confirm/.
+    ['fr', '/auth/confirm/', '/auth/confirm'],
+    ['pt', '/auth/confirm/', '/auth/confirm'],
+    ['en', '/auth/confirm/', '/auth/confirm'],
+    ['nl', '/auth/confirm/', '/auth/confirm'],
+    ['es', '/auth/confirm/', '/auth/confirm'],
+    ['en', '/auth/confirm', '/auth/confirm'],
   ])('lien e-mail suivi en locale %s : %s est servi par %s', async (locale, chemin, page) => {
     // Le middleware préfixe un lien sans locale par la locale du cookie ou de l'Accept-Language, en/nl/es compris.
     const [avantFichiers] = await reecritures()

@@ -98,6 +98,10 @@ const nextConfig: NextConfig = {
         { source: '/:locale(en|nl|es)/rejoindre/', destination: '/rejoindre/' },
         { source: '/:locale(en|nl|es)/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
         { source: '/:locale(en|nl|es)/signalement/:jeton', destination: '/signalement/:jeton' },
+        // Liens des e-mails Supabase (mot de passe oublié, confirmation d'inscription) : route app/(commun)/auth/confirm/,
+        // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
+        { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
+        { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
       ],
       afterFiles: [],
       fallback: [],
