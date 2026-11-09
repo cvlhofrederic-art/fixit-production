@@ -44,7 +44,11 @@ export function champsSocieteProfil(
   }
   const resultat: Record<string, string> = {}
   for (const [cle, valeur] of Object.entries(champs)) {
-    const propre = typeof valeur === 'string' ? valeur.replace(/\s*[\r\n]+\s*/g, ', ').trim() : ''
+    // Découpage par lignes plutôt qu'une regex \s*[\r\n]+\s* (quadratique sur une longue suite d'espaces),
+    // sans virgule parasite pour une ligne vide en tête ou en fin
+    const propre = typeof valeur === 'string'
+      ? valeur.split(/[\r\n]+/).map((ligne) => ligne.trim()).filter(Boolean).join(', ')
+      : ''
     if (propre) resultat[cle] = propre
   }
   return resultat

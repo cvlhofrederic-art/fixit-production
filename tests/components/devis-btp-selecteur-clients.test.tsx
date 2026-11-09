@@ -123,8 +123,8 @@ describe('formulaire BTP, sélecteur de clients : les clients manuels ne dépend
 
 // Statut juridique verrouillé, « défini à l'inscription ». Le formulaire réenregistre un brouillon 1,5 s après
 // son ouverture : un document déjà enregistré doit ressortir avec exactement son statut, même quand le profil
-// a désormais une autre forme juridique. Seul un nouveau document (tiré d'un devis, sans identifiant ni
-// enregistrement) prend la forme du profil.
+// a désormais une autre forme juridique. Seul un nouveau document (avoir sans identifiant, duplicata marqué
+// isDuplicate) prend la forme du profil.
 describe('formulaire BTP, statut juridique : un document enregistré n’est jamais modifié', () => {
   const EI = 'Entreprise Individuelle (EI)'
   const CONTENU = {
@@ -147,8 +147,13 @@ describe('formulaire BTP, statut juridique : un document enregistré n’est jam
     expect(brouillons.map((b) => b.companyStatus)).toEqual([EI])
   })
 
-  it('une nouvelle facture tirée d’un devis resté en EI prend la forme du profil', async () => {
+  it('un nouveau document sans identifiant ni enregistrement (avoir) prend la forme du profil', async () => {
     const doc = await enregistrementAutomatique({ ...CONTENU })
+    expect(doc.companyStatus).toBe('SAS')
+  })
+
+  it('un duplicata d’un devis resté en EI (nouvel identifiant, isDuplicate) prend la forme du profil', async () => {
+    const doc = await enregistrementAutomatique({ ...CONTENU, docType: 'devis', id: '6f1c2a34-0000-4000-8000-0000000000d2', isDuplicate: true })
     expect(doc.companyStatus).toBe('SAS')
   })
 })

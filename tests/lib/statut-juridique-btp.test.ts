@@ -4,7 +4,7 @@
 // ancien, prend la forme du profil.
 
 import { describe, it, expect } from 'vitest'
-import { documentEmis, documentExistant, statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
+import { appliquerFormeProfil, documentEmis, documentExistant, statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
 
 const EI = 'Entreprise Individuelle (EI)'
 
@@ -34,6 +34,22 @@ describe('documentExistant', () => {
     expect(documentExistant({ docNumber: 'BR-2026-002' })).toBe(false)
     expect(documentExistant(undefined)).toBe(false)
   })
+
+  it('duplicata BTP : nouvel identifiant marqué isDuplicate, pas encore enregistré, donc neuf', () => {
+    expect(documentExistant({ id: '6f1c2a34-0000-4000-8000-0000000000d2', isDuplicate: true })).toBe(false)
+  })
+})
+
+describe('appliquerFormeProfil (facture totale et acompte émis en un clic)', () => {
+  it('pose la forme du profil au jour de l\'émission, à la place de celle recopiée du devis', () => {
+    expect(appliquerFormeProfil({ companyStatus: EI, docType: 'facture' }, 'SAS')).toEqual({ companyStatus: 'SAS', docType: 'facture' })
+  })
+
+  it('garde la forme du devis quand le profil n\'en a pas', () => {
+    const payload = { companyStatus: EI, docType: 'facture' }
+    expect(appliquerFormeProfil(payload, '')).toBe(payload)
+    expect(appliquerFormeProfil(payload, null)).toBe(payload)
+  })
 })
 
 describe('statutJuridiqueInitialBtp', () => {
@@ -42,7 +58,8 @@ describe('statutJuridiqueInitialBtp', () => {
     expect(statutJuridiqueInitialBtp(undefined, 'Société à responsabilité limitée')).toBe('SARL')
   })
 
-  it('prend la forme du profil pour une facture tirée d\'un devis resté en EI (ni identifiant, ni enregistrement)', () => {
+  it('prend la forme du profil pour un document tiré d\'un autre resté en EI (avoir, duplicata)', () => {
+    expect(statutJuridiqueInitialBtp({ companyStatus: EI, id: '6f1c2a34-0000-4000-8000-0000000000d2', isDuplicate: true }, 'SAS')).toBe('SAS')
     expect(statutJuridiqueInitialBtp({ companyStatus: EI, docNumber: '' }, 'SAS')).toBe('SAS')
     expect(statutJuridiqueInitialBtp({ companyStatus: EI }, 'SAS')).toBe('SAS')
   })
