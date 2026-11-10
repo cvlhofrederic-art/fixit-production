@@ -35,6 +35,11 @@ export const MIGRATION_QR = 'supabase/migrations/20261104_signalements_qr.sql'
 /** Migrations du 06/11/2026, à appliquer dans cet ordre (avant la fusion) ; d'ici là, repli sans leurs colonnes. */
 export const MIGRATION_CONFIRMATION_QR = 'supabase/migrations/20261106_signalements_qr_confirmation.sql'
 export const MIGRATION_GEOLOC_QUALITE_QR = 'supabase/migrations/20261106_signalements_qr_geoloc_qualite.sql'
+/**
+ * Migration des cabinets clients, gestionnaires, attributions et journal (à appliquer après les deux précédentes) ;
+ * d'ici là, repli sans ses tables, colonnes et fonctions (42P01, 42703, PGRST204, PGRST202, PGRST200).
+ */
+export const MIGRATION_GESTIONNAIRES_QR = 'supabase/migrations/20261111_signalements_qr_gestionnaires.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 

@@ -166,3 +166,166 @@ export const numeroSignalementQr = (id: string): string => id.replace(/-/g, '').
  */
 export const ANCRE_TABLEAU_QR: VueEspaceQr = 'signalements'
 export const CHEMIN_TABLEAU_QR = `${CHEMIN_ESPACE_QR}#${ANCRE_TABLEAU_QR}`
+
+// ── Cabinets clients, gestionnaires, journal (migration 20261111_signalements_qr_gestionnaires) ──────────────
+//
+// Demandes de Hugo du 10/11/2026 : chaque cabinet client a sa ligne (nom, identifiant du chemin public
+// vitfix.io/<identifiant>/…, langue, domaines e-mail), saisie par le super admin dans l'espace, jamais dans le code ;
+// ses gestionnaires reçoivent par e-mail les signalements de leurs copropriétés. Les listes fermées ci-dessous sont
+// celles des CHECK de la migration (tests/lib/aj-signalement-types-journal.test.ts les compare au texte SQL).
+
+/** Langue de la page publique de signalement d'un cabinet (colonne signalements_qr_cabinets.langue, fr par défaut). */
+export type LangueCabinetQr = 'fr' | 'pt'
+export const LANGUES_CABINET_QR: readonly LangueCabinetQr[] = ['fr', 'pt']
+
+/** Ce qu'une copropriété ou une fiche porte de son cabinet. */
+export interface CabinetResumeQr {
+  id: string
+  nom: string
+  /** Chemin public : /<identifiant>/signalement/<jeton>/. */
+  identifiant: string
+}
+
+/** Cabinet client tel que l'espace du super admin le voit. */
+export interface CabinetQr extends CabinetResumeQr {
+  langue: LangueCabinetQr
+  /** Domaines e-mail des gestionnaires (minuscules) ; un domaine appartient à un seul cabinet. */
+  domaines: string[]
+  /** Vrai dès que le cabinet a une copropriété ou un gestionnaire : l'identifiant ne change plus (trigger en base). */
+  identifiantFige: boolean
+  nbCoproprietes: number
+  nbGestionnaires: number
+}
+
+/** États d'une fiche gestionnaire : les 5 premiers en PR 1 ; les 4 suivants réservés à la PR 2 (accès à sa page). */
+export const ETATS_GESTIONNAIRE_QR = [
+  'confirmation_envoyee', 'confirmation_expiree', 'adresse_confirmee', 'adresse_contestee', 'desactive',
+  'acces_envoye', 'acces_ouvert', 'refus_autre_espace', 'effacement_demande',
+] as const
+export type EtatGestionnaireQr = (typeof ETATS_GESTIONNAIRE_QR)[number]
+
+/** Gestionnaire tel qu'une copropriété le cite (nom null : fiche pseudonymisée, « Ancien gestionnaire »). */
+export interface GestionnaireResumeQr {
+  id: string
+  nom: string | null
+}
+
+/** Ligne de la liste des gestionnaires (jamais de jeton d'envoi). */
+export interface GestionnaireQr extends GestionnaireResumeQr {
+  cabinet: CabinetResumeQr
+  /** null : fiche pseudonymisée (RGPD). */
+  email: string | null
+  etat: EtatGestionnaireQr
+  /** Adresse hors des domaines du cabinet, acceptée par le super admin (journalisé). */
+  domaineForce: boolean
+  /** Nombre de copropriétés attribuées. */
+  coproprietes: number
+  ouverts: number
+  urgents: number
+  creeLe: string
+  confirmeeLe: string | null
+}
+
+/** D'où vient une attribution (CHECK de signalements_qr_attributions.origine). */
+export const ORIGINES_ATTRIBUTION_QR = ['super_admin', 'creation', 'import', 'reattribution'] as const
+export type OrigineAttributionQr = (typeof ORIGINES_ATTRIBUTION_QR)[number]
+
+/** Auteur d'une ligne du journal (CHECK de signalements_qr_journal.acteur_profil). */
+export const PROFILS_ACTEUR_QR = ['super_admin', 'gestionnaire', 'systeme'] as const
+export type ProfilActeurQr = (typeof PROFILS_ACTEUR_QR)[number]
+
+/**
+ * Actions du journal (CHECK signalements_qr_journal_action_valeurs) : liste fermée posée une seule fois, actions de la
+ * PR 2 comprises (accès des gestionnaires).
+ */
+export const ACTIONS_JOURNAL_QR = [
+  'cabinet.cree', 'cabinet.modifie', 'cabinet.domaines_modifies',
+  'copropriete.creee', 'copropriete.modifiee', 'copropriete.desactivee', 'copropriete.reactivee',
+  'copropriete.jeton_remplace', 'copropriete.supprimee', 'copropriete.tous_active', 'copropriete.tous_retire',
+  'copropriete.rattachee',
+  'attribution.ajoutee', 'attribution.retiree',
+  'gestionnaire.cree', 'gestionnaire.modifie', 'gestionnaire.confirmation_envoyee', 'gestionnaire.adresse_confirmee',
+  'gestionnaire.adresse_contestee', 'gestionnaire.domaine_force', 'gestionnaire.desactive', 'gestionnaire.reactive',
+  'gestionnaire.pseudonymise', 'gestionnaire.exporte',
+  'gestionnaire.acces_envoye', 'gestionnaire.acces_ouvert', 'gestionnaire.refus_autre_espace',
+  'gestionnaire.connexion_bloquee', 'gestionnaire.effacement_demande',
+  'signalement.statut', 'doublon.refuse', 'doublon.force', 'import.realise', 'journal.purge',
+] as const
+export type ActionJournalQr = (typeof ACTIONS_JOURNAL_QR)[number]
+
+/** Ligne du journal vue par le super admin : identifiants, noms de champs, énumérations et nombres seulement. */
+export interface EvenementJournalQr {
+  /** BIGINT de la base, rendu en chaîne. */
+  id: string
+  creeLe: string
+  cabinetId: string | null
+  action: ActionJournalQr
+  /** nom : joint pour l'affichage (gestionnaire auteur) ; null pour le super admin, le système ou une fiche effacée. */
+  acteur: { profil: ProfilActeurQr; nom: string | null }
+  coproprieteId: string | null
+  coproprieteNom: string | null
+  gestionnaireId: string | null
+  gestionnaireNom: string | null
+  signalementId: string | null
+  operationId: string | null
+  /** NOMS des champs modifiés, jamais leurs valeurs. */
+  champs: string[]
+  details: Record<string, unknown>
+}
+
+/** Résultat de signalements_qr_creer_coproprietes (saisie = lot d'une ligne, ou import). */
+export interface ResultatCreationQr {
+  creees: Array<{ numeroLigne: number; id: string; jeton: string }>
+  completees: Array<{ numeroLigne: number; id: string }>
+  /** Vrai : même operationId déjà traité, résultat du premier appel. */
+  rejeu: boolean
+}
+
+/**
+ * Messages des erreurs métier levées par les fonctions SQL (SQLSTATE P0001), traduits par les routes en codes publics
+ * 409 ; 42501 (interdit) et 22023 (paramètre invalide) n'en font pas partie.
+ */
+export const ERREURS_METIER_SQL_QR = [
+  'doublon', 'a_reverifier', 'sans_cabinet', 'identifiant_pris', 'identifiant_fige', 'domaine_pris', 'cabinet_fige',
+  'hors_domaine',
+] as const
+export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
+
+/** Auteur d'une copropriété : le super admin, ou un gestionnaire (PR 2). */
+export type CreateurCoproprieteQr = 'administrateur' | { gestionnaireId: string; nom: string | null }
+
+/**
+ * Champs de gestion d'une copropriété (migration 20261111) : cabinet, fiche détaillée, gestionnaires, compteurs. Tous
+ * obligatoires. CoproprieteQr les reçoit quand le serveur les calcule (lot 3) ; d'ici là, et pour une réponse ancienne
+ * ou un simulacre de test, gestionCoproprieteQrVide() donne leurs valeurs par défaut.
+ */
+export interface GestionCoproprieteQr {
+  /** null : copropriété sans cabinet (adresse /fr/signalement/<jeton>/, aucun gestionnaire). */
+  cabinet: CabinetResumeQr | null
+  codePostal: string
+  ville: string
+  immatriculation: string | null
+  referenceCabinet: string | null
+  batiments: string[]
+  /** Vue par tous les gestionnaires actifs de son cabinet (copropriété de test) ; jamais sans cabinet. */
+  attribueeATous: boolean
+  gestionnaires: GestionnaireResumeQr[]
+  creePar: CreateurCoproprieteQr
+  ouverts: number
+  urgentsOuverts: number
+  /** Signalements en attente depuis plus de 48 heures. */
+  attente48h: number
+  /** Date du dernier signalement ; null s'il n'y en a aucun. */
+  dernier: string | null
+  /** Adresses saisies qui sont celles d'une fiche gestionnaire (données antérieures, à nettoyer par le super admin). */
+  adressesDeGestionnaires: number
+}
+
+/** Valeurs par défaut des champs de gestion : tableaux neufs à chaque appel. */
+export function gestionCoproprieteQrVide(): GestionCoproprieteQr {
+  return {
+    cabinet: null, codePostal: '', ville: '', immatriculation: null, referenceCabinet: null, batiments: [],
+    attribueeATous: false, gestionnaires: [], creePar: 'administrateur',
+    ouverts: 0, urgentsOuverts: 0, attente48h: 0, dernier: null, adressesDeGestionnaires: 0,
+  }
+}
