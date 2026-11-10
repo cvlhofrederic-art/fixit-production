@@ -97,6 +97,8 @@ Le callback (`app/(commun)/auth/callback/route.ts`) inspecte `user_metadata.role
 
 Le endpoint `POST /api/auth/reset-password` accepte un email, appelle `supabase.auth.resetPasswordForEmail()` avec un `redirectTo` vers `/auth/update-password`. Rate limit : 3 requetes par 5 minutes par IP.
 
+Le lien de l'e-mail (modele Supabase « Reset password ») pointe vers `GET /auth/confirm/?token_hash=…&type=recovery` (`app/(commun)/auth/confirm/route.ts`), qui range le jeton sans le consommer dans un cookie httpOnly reserve a `/api/auth/` et renvoie vers `/{fr|pt}/auth/update-password/?lien=1`. A l'envoi du formulaire, `POST /api/auth/update-password` verifie le jeton (`verifyOtp`) et change le mot de passe cote serveur ; aucune session n'est posee dans le navigateur, l'utilisateur se connecte ensuite avec son nouveau mot de passe. Le lien marche ainsi sur n'importe quel appareil (le lien par defaut `{{ .ConfirmationURL }}`, flux PKCE, ne marchait que dans le navigateur de la demande) sans qu'un lien piege puisse connecter quelqu'un au compte d'un autre. Modele et ordre de bascule : [auth-liens-email.md](auth-liens-email.md).
+
 ---
 
 ## 3. Roles et permissions
@@ -345,6 +347,7 @@ Le rate limiting utilise **Upstash Redis** en production avec fallback automatiq
 | `POST /api/auth/log-attempt` | `login_attempt_${ip}` | 10 req | 60 sec |
 | `POST /api/auth/log-attempt` (echecs) | `login_failed_${ip}` | 5 echecs | 15 min |
 | `POST /api/auth/reset-password` | `reset_pwd_${ip}` | 3 req | 5 min |
+| `POST /api/auth/update-password` | `auth_update_password_${ip}` | 10 req | 5 min |
 | `GET /api/user/export-data` | `export_data_${userId}` | 5 req | 60 sec |
 | `DELETE /api/user/delete-account` | `delete_account_${userId}` | 3 req | 60 sec |
 | Autres API routes | `api_${identifier}` | 20 req (defaut) | 60 sec |

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useTranslation } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { CarteMotDePasse, SuccesMotDePasse } from '@/components/auth/CarteMotDePasse'
+import { PARAMETRE_LIEN, type ErreurNouveauMotDePasse } from '@/lib/auth/lien-email'
 
 export default function UpdatePasswordPage() {
   const { t } = useTranslation()
@@ -16,9 +17,22 @@ export default function UpdatePasswordPage() {
   const [sessionReady, setSessionReady] = useState(false)
 
   const [tokenExpired, setTokenExpired] = useState(false)
+  // Lien de l'e-mail passé par /auth/confirm (?lien=1) : le jeton attend dans un cookie httpOnly et sera vérifié par
+  // POST /api/auth/update-password à l'envoi du formulaire (lib/auth/lien-email.ts). Aucune session à attendre.
+  const [modeLien, setModeLien] = useState(false)
 
   useEffect(() => {
-    // Supabase automatically handles the recovery token from the URL hash
+    const parametres = new URLSearchParams(window.location.search)
+    if (parametres.has(PARAMETRE_LIEN)) {
+      setModeLien(true)
+      return
+    }
+    // Ancien lien (?code=…, modèle {{ .ConfirmationURL }}) : le SDK l'échange lui-même, dans le seul navigateur qui a
+    // fait la demande ; la session est alors trouvée par getSession() ci-dessous (l'échange émet SIGNED_IN, pas
+    // PASSWORD_RECOVERY). Utilisateur déjà connecté : même chemin.
+    // ?erreur= : lien refusé par /auth/confirm, inutile d'attendre 10 s s'il n'y a aucune session.
+    const lienRefuse = parametres.has('erreur')
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setSessionReady(true)
@@ -28,6 +42,7 @@ export default function UpdatePasswordPage() {
     // Also check if we already have a session (in case onAuthStateChange already fired)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setSessionReady(true)
+      else if (lienRefuse) setTokenExpired(true)
     })
 
     // Timeout after 10s — token likely expired or invalid
@@ -37,6 +52,49 @@ export default function UpdatePasswordPage() {
 
     return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
+
+  const terminer = () => {
+    setSuccess(true)
+    // Redirect to login after 3 seconds
+    setTimeout(() => {
+      window.location.href = '/auth/login'
+    }, 3000)
+  }
+
+  // Lien de l'e-mail : le serveur vérifie le jeton du cookie et change le mot de passe ; aucune session n'est ouverte,
+  // la connexion se fait ensuite avec le nouveau mot de passe.
+  const envoyerParLien = async () => {
+    const reponse = await fetch('/api/auth/update-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    const corps = (await reponse.json().catch(() => ({}))) as { ok?: boolean; erreur?: ErreurNouveauMotDePasse }
+    if (reponse.ok && corps.ok) {
+      terminer()
+      return
+    }
+    switch (corps.erreur) {
+      case 'lien-invalide':
+        setModeLien(false)
+        setTokenExpired(true)
+        break
+      case 'meme-mot-de-passe':
+        setError(t('auth.samePasswordLogin', 'Ce mot de passe est déjà celui de votre compte : connectez-vous avec lui.'))
+        break
+      case 'mot-de-passe-refuse':
+        setError(t('auth.passwordRejected', 'Ce mot de passe a été refusé (trop faible ou trop courant). Demandez un nouveau lien, puis choisissez-en un autre.'))
+        break
+      case 'mot-de-passe-faible':
+        setError(t('auth.passwordTooShort', 'Le mot de passe doit contenir au moins 8 caractères, 1 majuscule, 1 minuscule et 1 chiffre'))
+        break
+      case 'trop-de-tentatives':
+        setError(t('auth.tooManyAttempts', 'Trop de tentatives. Réessayez dans quelques minutes.'))
+        break
+      default:
+        setError(t('common.error', 'Une erreur est survenue'))
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -54,15 +112,15 @@ export default function UpdatePasswordPage() {
 
     setLoading(true)
     try {
+      if (modeLien) {
+        await envoyerParLien()
+        return
+      }
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) {
         setError(updateError.message)
       } else {
-        setSuccess(true)
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          window.location.href = '/auth/login'
-        }, 3000)
+        terminer()
       }
     } catch {
       setError(t('common.error', 'Une erreur est survenue'))
@@ -82,7 +140,7 @@ export default function UpdatePasswordPage() {
           message={t('auth.passwordUpdatedDesc', 'Votre mot de passe a \u00e9t\u00e9 modifi\u00e9 avec succ\u00e8s. Redirection vers la connexion...')}
           retourConnexion={t('auth.backToLogin', 'Retour \u00e0 la connexion')}
         />
-      ) : !sessionReady ? (
+      ) : !sessionReady && !modeLien ? (
         <div className="text-center py-8">
           {tokenExpired ? (
             <>
