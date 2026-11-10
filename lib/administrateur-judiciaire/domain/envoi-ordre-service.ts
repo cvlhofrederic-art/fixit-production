@@ -1,5 +1,5 @@
 import { etatNotificationCourrier, type CourrierSuivi, type EtatNotificationCourrier } from '@/lib/administrateur-judiciaire/domain/courriers'
-import { dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { seuilsAtteints, type DecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import {
   controleDeclaratifDemande,
@@ -101,9 +101,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   délai fixé par son auteur (C. civ. art. 1117, al. 1) (🔵) : après le premier envoi, la sortie et son visa sont figés ;
  *   un devis associé échu avant que l'OS parvienne à l'entreprise est signalé ;
  * - AUCUN TEXTE pour la numérotation, le référentiel des visas, le refus d'envoyer sans visa, le contrôle du signataire
- *   par la liste du cabinet (textes lus sur la signature : décision 8), le délai, la relance ni le journal : règles de
- *   gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS (🔵 : les formes de D. 1967 art. 64 visent les
- *   notifications et mises en demeure).
+ *   par la liste du cabinet (textes lus sur la signature : décision 8), le délai, la relance, le journal ni la caducité
+ *   du devis un an après sa date (J47) : règles de gestion. Aucun texte lu ne fixe la forme ni le canal d'envoi d'un OS
+ *   (🔵 : les formes de D. 1967 art. 64 visent les notifications et mises en demeure).
  *
  * Décisions de Hugo du 03/11/2026 (questions « Ordres de service » 1 à 9 ; registre des décisions : J11 à J19) :
  * - 1. N° : séquence PAR MANDAT (plus grand rang du segment mandat + 1, tous plans confondus : rangOsSuivant) ;
@@ -119,19 +119,21 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - 6. avis préalable sous administration provisoire (D. 1967 art. 62-7) : « nous constatons l'urgence » : l'urgence qui
  *   dispense de l'avis du conseil syndical est constatée par l'administrateur provisoire lui-même (le collaborateur qui
  *   agit en son nom), dans un constat daté, motivé et attribué (constatUrgence) ; sans constat complet, l'avis reste exigé
- *   pour des travaux décidés au titre des pouvoirs de l'assemblée. Hugo n'a rien dit du moment du constat (🔴) ;
- * - 7 (J17). L. 1965 art. 42, al. 3 : « oui », compris comme la CONFIRMATION des trois choix du code, interprétation de la
- *   réponse « oui », à confirmer par Hugo (🔵) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
+ *   pour des travaux décidés au titre des pouvoirs de l'assemblée. Le moment du constat est fixé par J46 (décisions du
+ *   06/11/2026, ci-dessous) ;
+ * - 7 (J17). L. 1965 art. 42, al. 3 : « oui », compris comme la CONFIRMATION des trois choix du code, compréhension
+ *   confirmée par Hugo le 06/11/2026 (ci-dessous) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
  *   « bloquant ou alerte ? » ; registre : « envoi bloqué pendant le délai de contestation ») : execution_suspendue_art42
  *   quand l'intervention prévue (à défaut, l'envoi) tombe au plus tard le dernier jour du délai, sauf urgence retenue
  *   (décision 6) ; un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué (🔴) ; (b)
  *   l'intervention d'une entreprise qui exécute une résolution des art. 25 ou 26 vaut exécution de « travaux », quel que
  *   soit son objet ; (c) une décision prise à l'unanimité n'est pas suspendue (MAJORITES_SUSPENSIVES : art25 et art26) ;
- *   raison, interprétation à confirmer (🔵) : prise à l'unanimité des voix de tous les copropriétaires, elle n'a ni
- *   opposant ni défaillant, or « Les actions en contestation des décisions des assemblées générales doivent, à peine de
- *   déchéance, être introduites par les copropriétaires opposants ou défaillants dans un délai de deux mois à compter de
- *   la notification du procès-verbal d'assemblée, sans ses annexes. » (L. 1965 art. 42, al. 2, même relecture) : aucune
- *   action n'est ouverte pendant le délai qui borne la suspension ; écart avec majorites-ag.ts signalé (🔴) ;
+ *   raison : prise à l'unanimité des voix de tous les copropriétaires, elle n'a ni opposant ni défaillant, or « Les
+ *   actions en contestation des décisions des assemblées générales doivent, à peine de déchéance, être introduites par les
+ *   copropriétaires opposants ou défaillants dans un délai de deux mois à compter de la notification du procès-verbal
+ *   d'assemblée, sans ses annexes. » (L. 1965 art. 42, al. 2, même relecture) : aucune action n'est ouverte pendant le
+ *   délai qui borne la suspension ; MAJORITES_AG (majorites-ag.ts) fonde l'unanimité sur L. 1965 art. 26, dernier al. :
+ *   cet écart est tranché par la confirmation, l'unanimité n'est pas suspendue ;
  * - 8 (J18). signataire : un COLLABORATEUR du cabinet peut signer l'OS, pas seulement l'administrateur désigné ; décision
  *   rendue sur une question qui citait L. 1965 art. 18, IV (« Seul responsable de sa gestion, il ne peut se faire
  *   substituer. ») et art. 29-1, I (« L'administrateur provisoire exécute personnellement la mission qui lui est
@@ -154,8 +156,35 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - 9 (J19). preuve : l'AR (accusé de réception) FAIT PREUVE de la réception de l'OS ; la réception, distincte de l'envoi
  *   (enregistrerReception ; 🔵 : déduit de « l'AR fait preuve », qui suppose une réception distincte de l'envoi, à
  *   confirmer par Hugo), peut porter son AR (ArReceptionOs : référence, et date de première présentation du pli si elle
- *   est connue, comme la décision J1) ; « AR caduc après 1 an » : l'objet (devis, OS ou AR) et le point de départ de la
- *   caducité ne sont pas établis (🔴), aucune caducité codée.
+ *   est connue, comme la décision J1) ; « AR caduc après 1 an » : précisé par J47 (ci-dessous), c'est le devis qui
+ *   devient caduc un an après sa date.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques : J46 et J47, suites de J16 et J19 ; confirmation
+ * de J17) :
+ * - J17 confirmée : envoi de l'OS bloqué pendant le délai de contestation (L. 1965 art. 42, al. 3), exécution d'une
+ *   résolution des art. 25 ou 26 = « travaux », unanimité non suspendue ; la compréhension de la réponse « oui » (décision
+ *   7) est confirmée, comportement inchangé ; le cas d'une intervention prévue après la fin du délai reste une question
+ *   (🔴, ci-dessous) ;
+ * - J46 (date du constat d'urgence, suite de J16) : la règle est VALIDÉE, comportement inchangé. Daté après l'envoi, pour
+ *   tous les fondements et tous les délais, le constat bloque celui-ci (constat_urgence_posterieur_envoi), comme une
+ *   décision postérieure à l'envoi ; le jour de l'envoi, ce constat n'existe pas encore : sans constat, l'urgence n'est
+ *   pas retenue (décision 6), et le message dit ce qui reste dû ; une date illisible fait un constat incomplet, sans
+ *   comparaison. Quand le constat tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de
+ *   l'assemblée, avis non enregistré au plus tard le jour de la décision au registre : borneAvisAj), daté après la
+ *   décision et au plus tard le jour de l'envoi, il donne une alerte à confirmer (constat_urgence_posterieur), sans
+ *   bloquer l'envoi ; ni pour une demande de devis, ni pour la suspension de L. 1965 art. 42, al. 3, ni pour les autres
+ *   fondements, sa date n'est comparée à celle de la décision : seule la borne de l'envoi vaut ;
+ * - J47 (« AR caduc après 1 an », suite de J19) : c'est le DEVIS qui devient caduc UN AN APRÈS SA DATE
+ *   (MOIS_CADUCITE_DEVIS_OS, 12 mois : règle du cabinet, aucun texte, fondement null). Un OS qui accepte un devis daté de
+ *   plus d'un an à la date de l'envoi est refusé (devis_trop_ancien, bloquant : un nouveau devis est nécessaire). Bornes,
+ *   choix du code et non de Hugo (🔵 : lecture de « daté de plus d'un an » et de dates.ajouterMois, à confirmer par
+ *   Hugo, question ci-dessous) : un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire ;
+ *   sans quantième identique, le dernier jour du mois : le devis du 29 février a un an le 28 février suivant, il est
+ *   refusé dès le 1er mars. Le devis associé de la demande (DevisAssocie, demandes.ts) ne porte que son
+ *   identifiant et ses montants : sa date (dateDevis) est fournie par l'appelant, comme sa fin de validité
+ *   (validiteDevisAu, lue par devisCaducALaReception) ; inconnue, l'OS n'est pas bloqué, alerte date_devis_inconnue.
+ *   Contrôlé avant l'envoi (controlerAvantEnvoiOs), d'une intervention seulement (🔵 : une demande de devis n'accepte
+ *   aucun devis) ; ni l'OS ni l'AR ne deviennent caducs.
  *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué une fois puis figé ; un N° hors du format, ou d'un autre segment
@@ -242,7 +271,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   vigilance, si son montant HT est inconnu ou si la décennale est obligatoire, sinon alerte ;
  * - urgence RETENUE (décision 6) : délai « urgence » ou fondement « urgence de sauvegarde », AVEC le constat complet de
  *   l'administrateur provisoire (date valide, motif non vide, collaborateur identifié ; refusé incomplet à la saisie ; un
- *   constat incomplet repris d'ailleurs ne vaut pas constat, alerte ; daté après l'envoi, il bloque celui-ci, ci-dessous) ;
+ *   constat incomplet repris d'ailleurs ne vaut pas constat, alerte ; daté après l'envoi, il bloque celui-ci : J46) ;
  *   elle seule lève l'avis préalable de D. 1967 art. 62-7 et la suspension de L. 1965 art. 42, al. 3 (même constat pour
  *   les deux) ; un constat saisi sans délai « urgence » est signalé (alerte) et ne lève rien ; un délai « prioritaire » ne
  *   vaut pas urgence, même constatée (choix gardé, non contredit par Hugo) ; urgence non retenue : le message ne nomme ce
@@ -253,17 +282,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   liste du cabinet (signatairesHabilites), un constat dont l'auteur n'y figure pas, et n'est pas l'administrateur
  *   désigné (administrateurDesigneId), est signalé, alerte à confirmer (constat_urgence_auteur_non_habilite), sans
  *   blocage : il ne change pas l'urgence retenue ou non ;
- * - date du constat d'urgence face à l'envoi, pour tous les fondements et tous les délais : daté après l'envoi, il bloque
- *   celui-ci (constat_urgence_posterieur_envoi), comme une décision postérieure à l'envoi ; le jour de l'envoi, ce constat
- *   n'existe pas encore : sans constat, l'urgence n'est pas retenue (décision 6), et le message dit ce qui reste dû ; les
- *   deux réponses possibles à la question 🔴 (précéder la décision ou l'envoi) supposent un constat au plus tard le jour de
- *   l'envoi ; une date illisible fait un constat incomplet, sans comparaison ;
- * - date du constat d'urgence face à la décision, règle proposée, non demandée par Hugo (🔴) : contrôlée seulement quand
- *   le constat tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de l'assemblée, avis non
- *   enregistré au plus tard le jour de la décision au registre : borneAvisAj) ; daté après la décision et au plus tard le
- *   jour de l'envoi, il est signalé, alerte à confirmer (constat_urgence_posterieur), sans bloquer l'envoi ; ni pour une
- *   demande de devis, ni pour la suspension de L. 1965 art. 42, al. 3 (la décision 7 ne fixe pas la date du constat), ni
- *   pour les autres fondements, sa date n'est comparée à celle de la décision ;
  * - avis préalable sous administration provisoire (D. 1967 art. 62-7), critère proposé, non contredit par Hugo (pas une
  *   décision) : un OS d'entretien courant, ou qui exécute une décision déjà prise, relève des pouvoirs du syndic (sans
  *   avis) ; des travaux décidés au titre des pouvoirs de l'assemblée (fondement decision_aj_pouvoirs_ag) exigent l'avis,
@@ -290,14 +308,10 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - Hugo (suite de la décision 2) : valeurs de la liste Signature (tranche 34).
  * - Hugo (suite de la décision 6) : critère proposé (entretien courant ou exécution d'une décision déjà prise = pouvoirs du
  *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer ;
- *   un délai « prioritaire » peut-il valoir urgence (non ici) ? Le constat doit-il précéder la décision au registre, ou
- *   l'envoi (ici : l'envoi au plus tard, bloquant sinon ; la décision, quand il tient lieu de l'avis, alerte à confirmer,
- *   sans blocage) ? Et pour lever la suspension de L. 1965 art. 42, al. 3 (la décision 7 ne le dit pas) ?
- * - Hugo (suite de la décision 7, interprétation de la réponse « oui ») : un envoi pendant le délai de contestation, pour
- *   une intervention prévue après la fin du délai, peut-il partir (oui ici : seule la date de l'intervention prévue, à
- *   défaut celle de l'envoi, est comparée à la fin du délai) ? Unanimité : MAJORITES_AG (majorites-ag.ts) fonde
- *   l'unanimité sur L. 1965 art. 26, dernier al. ; une décision prise à l'unanimité l'est-elle « en application » de
- *   l'art. 26 au sens de l'al. 3 de l'art. 42, donc suspendue (non ici : ni opposant ni défaillant) ?
+ *   un délai « prioritaire » peut-il valoir urgence (non ici) ?
+ * - Hugo (suite de la décision 7, J17 confirmée le 06/11/2026) : un envoi pendant le délai de contestation, pour une
+ *   intervention prévue après la fin du délai, peut-il partir (oui ici : seule la date de l'intervention prévue, à défaut
+ *   celle de l'envoi, est comparée à la fin du délai) ?
  * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
  *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ? La lecture des textes cités
  *   (signature d'un collaborateur au nom de l'administrateur provisoire : pas une substitution) est-elle juste ? Les
@@ -328,13 +342,15 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   décisions en vigueur à cette date ? Le prévu n'est pas comparé au montant maximum alloué au conseil syndical (L. 1965
  *   art. 21-2 : enveloppe_delegation_cs, annuelle et cumulée ; plafond_travaux_cs, par dépense) : quel cumul retenir ?
  * - Hugo, preuve (suite de la décision 9) : la réception distincte de l'envoi convient-elle (ici : oui, déduit de « l'AR
- *   fait preuve ») ? « AR caduc après 1 an » : la caducité d'un an vise-t-elle le devis accepté par l'OS, l'OS lui-même,
- *   ou l'AR lui-même ? À compter de quelle date : envoi, première présentation, réception ? (aucune caducité codée) La
- *   première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art. 1121 (non ici : la
- *   réception reste datée de sa première ligne du journal, même quand l'AR revient plus tard) ? Quelle preuve pour une
- *   réception sans AR, par courrier simple, messagerie VitFix, courriel ou SMS (ici : admise, « sans preuve » ; un AR
- *   n'y est pas admis, même un accusé de réception électronique au sens de C. civ. art. 1127-4) ? Quel délai
- *   d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
+ *   fait preuve ») ? La première présentation d'un AR (décision J1) vaut-elle réception de l'OS au sens de C. civ. art.
+ *   1121 (non ici : la réception reste datée de sa première ligne du journal, même quand l'AR revient plus tard) ? Quelle
+ *   preuve pour une réception sans AR, par courrier simple, messagerie VitFix, courriel ou SMS (ici : admise, « sans
+ *   preuve » ; un AR n'y est pas admis, même un accusé de réception électronique au sens de C. civ. art. 1127-4) ? Quel
+ *   délai d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
+ * - Hugo, caducité du devis (suite de J47) : « caduc un an après sa date » et « daté de plus d'un an » divergent le jour
+ *   anniversaire : un devis daté d'un an pile est-il encore accepté (oui ici ; avis-appel.ts lit à l'inverse
+ *   MOIS_CADUCITE_MANDAT_SEPA : le mandat y est caduc le jour anniversaire) ? Sans quantième identique, le devis du 29
+ *   février a-t-il un an le 28 février suivant (oui ici : dates.ajouterMois) ?
  * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
  *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
  *
@@ -343,7 +359,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * son sens). Branchements à faire plus tard (fichiers non modifiés) :
  * route /api/administrateur-judiciaire/ordres-prestataire : controlerAvantEnvoiOs avant l'envoi (avec segmentMandat,
  * numerosDuMandat, decisionsAgEnVigueur et finDelaiContestationAg, échéance retenue par finDelaiContestationAg de
- * statut-assemblee.ts), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; enregistrerReception
+ * statut-assemblee.ts, et dateDevis, date du devis associé : J47, sans quoi l'alerte date_devis_inconnue accompagne tout
+ * OS qui accepte un devis), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; enregistrerReception
  * avec l'AR et le courrier AR lié (CourrierSuivi de courriers.ts) quand l'avis de réception revient (décision 9 :
  * référence ; courrier de l'envoi ou de la rediffusion qui a porté l'OS, aussi pour une réception par courrier AR sans
  * AR ; première présentation tirée du courrier), puis devisCaducALaReception et preuveReceptionOs ; preuveDeDiffusion
@@ -422,7 +439,8 @@ const CADRE_PAR_FONDEMENT: Readonly<Record<FondementOs, { libelle: string; texte
 
 /**
  * Majorités dont les travaux ne s'exécutent pas pendant le délai de contestation (L. 1965 art. 42, al. 3), et leur article ;
- * l'unanimité n'en est pas (décision 7 (c), interprétation 🔵 : ni opposant ni défaillant, donc aucune action de l'al. 2).
+ * l'unanimité n'en est pas (décision 7 (c), confirmée par Hugo le 06/11/2026 : ni opposant ni défaillant, donc aucune
+ * action de l'al. 2).
  */
 const MAJORITES_SUSPENSIVES: ReadonlyMap<TypeMajorite, string> = new Map<TypeMajorite, string>([
   ['art25', 'art. 25'],
@@ -439,6 +457,11 @@ export const LONGUEUR_MAX_NUMERO_OS = 50
 export const LONGUEUR_MAX_OBJET_OS = 200
 /** « Plusieurs devis » (D. 1967 art. 19-2) : au moins deux (🔵). */
 export const NOMBRE_MIN_DEVIS_CONCURRENCE = 2
+/**
+ * Durée au-delà de laquelle le devis accepté par l'OS est caduc, comptée de sa date (décision J47 de Hugo du 06/11/2026) :
+ * règle du cabinet, aucun texte.
+ */
+export const MOIS_CADUCITE_DEVIS_OS = 12
 
 const FONDEMENT_CONSULTATION = 'L. 1965 art. 21, al. 2 ; D. 1967 art. 26'
 const FONDEMENT_CONCURRENCE = 'L. 1965 art. 21, al. 2 ; D. 1967 art. 19-2'
@@ -601,7 +624,7 @@ export interface EvenementDiffusion {
 /**
  * Accusé de réception (AR) qui fait preuve de la réception de l'OS (décision de Hugo du 03/11/2026 : « l'AR fait preuve ») :
  * l'avis de réception du courrier AR qui a porté l'OS à l'entreprise, envoi ou rediffusion (🔵). Aucune caducité n'est
- * attachée (« AR caduc après 1 an » : objet, devis, OS ou AR, et point de départ non établis, 🔴).
+ * attachée à l'AR : « AR caduc après 1 an » vise le devis, caduc un an après sa date (J47, MOIS_CADUCITE_DEVIS_OS).
  */
 export interface ArReceptionOs {
   /** Référence de l'AR : numéro du pli recommandé, ou pièce numérisée (identifiant). */
@@ -1355,6 +1378,8 @@ export type CodeAnomalieEnvoiOs =
   | 'delai_contestation_inconnu'
   | 'execution_suspendue_art42'
   | 'devis_caduc'
+  | 'devis_trop_ancien'
+  | 'date_devis_inconnue'
   | 'controle_declaratif_non_fait'
   | 'controle_declaratif_impossible'
 
@@ -1397,6 +1422,11 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   administrateurDesigneId?: string | null
   /** Fin de validité du devis associé, fixée par l'entreprise. */
   validiteDevisAu?: string | null
+  /**
+   * Date du devis associé (décision J47 : caduc un an après elle, MOIS_CADUCITE_DEVIS_OS) ; null ou absent : inconnue,
+   * alerte date_devis_inconnue sans blocage.
+   */
+  dateDevis?: string | null
   /** Segment mandat de la séquence des N° (SegmentsNumeroOs.mandat) ; absent : non contrôlé. */
   segmentMandat?: string
   /** N° des autres demandes du mandat (doublons) ; absent : non contrôlé. */
@@ -1574,8 +1604,8 @@ function urgenceNonRetenue(d: Demande, s: SortieOrdreService): string {
 }
 
 /**
- * Constat lisible daté après l'envoi : le jour de l'envoi, il n'existe pas encore et ne dispense de rien (🔵, tous
- * fondements et tous délais : constat_urgence_posterieur_envoi, bloquant).
+ * Constat lisible daté après l'envoi : le jour de l'envoi, il n'existe pas encore et ne dispense de rien (décision J46 de
+ * Hugo du 06/11/2026, tous fondements et tous délais : constat_urgence_posterieur_envoi, bloquant).
  */
 const constatApresEnvoi = (c: ConstatUrgence | null, date: string): c is ConstatUrgence =>
   c !== null && estDateIsoValide(c.constateLe) && c.constateLe > date
@@ -1583,7 +1613,7 @@ const constatApresEnvoi = (c: ConstatUrgence | null, date: string): c is Constat
 /**
  * Constat qui tient lieu de l'avis du conseil syndical (intervention au titre des pouvoirs de l'assemblée, avis non
  * enregistré à temps) daté après la décision au registre (borneAvisAj), au plus tard le jour de l'envoi : alerte à
- * confirmer (règle proposée, non demandée par Hugo : question 🔴). Daté après l'envoi, il bloque celui-ci
+ * confirmer (décision J46 de Hugo du 06/11/2026). Daté après l'envoi, il bloque celui-ci
  * (anomaliesChronologie) ; ailleurs, sa date n'est comparée qu'à celle de l'envoi.
  */
 function constatTardif(d: Demande, s: SortieOrdreService, constat: ConstatUrgence, date: string): AnomalieEnvoiOs[] {
@@ -1936,6 +1966,36 @@ function anomaliesDevisAssocie(d: Demande, s: SortieOrdreService, contexte: Cont
   ]
 }
 
+/**
+ * Ancienneté du devis accepté par l'OS (décision J47 de Hugo du 06/11/2026) : le devis devient caduc un an après sa date
+ * (MOIS_CADUCITE_DEVIS_OS, règle du cabinet, fondement null) ; daté de plus d'un an à la date de l'envoi, l'OS est refusé
+ * (bloquant : un nouveau devis est nécessaire). Bornes (🔵 : lecture de « daté de plus d'un an » et de dates.ajouterMois,
+ * à confirmer par Hugo) : un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire ; sans
+ * quantième identique, le dernier jour du mois : le devis du 29 février a un an le 28 février suivant. Date du devis
+ * inconnue : alerte, sans blocage. Intervention seulement : une demande de devis n'accepte aucun devis (🔵).
+ */
+function anomaliesAncienneteDevis(d: Demande, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
+  if (d.type !== 'intervention' || d.devisAssocie === null) return []
+  const devisLe = contexte.dateDevis ?? null
+  if (devisLe === null)
+    return [
+      anomalie(
+        'date_devis_inconnue',
+        'alerte',
+        `Date du devis inconnue : l'ancienneté du devis associé n'est pas contrôlée ; un devis daté de plus de ${MOIS_CADUCITE_DEVIS_OS} mois à l'envoi ne peut plus être accepté par l'OS (un nouveau devis est nécessaire) : renseigner la date du devis.`,
+      ),
+    ]
+  const valableJusquAu = ajouterMois(devisLe, MOIS_CADUCITE_DEVIS_OS)
+  if (contexte.date <= valableJusquAu) return []
+  return [
+    anomalie(
+      'devis_trop_ancien',
+      'bloquant',
+      `Devis associé du ${fr(devisLe)}, daté de plus de ${MOIS_CADUCITE_DEVIS_OS} mois à l'envoi du ${fr(contexte.date)} (caduc après le ${fr(valableJusquAu)}, règle du cabinet) : il ne peut plus être accepté par l'OS ; un nouveau devis est nécessaire.`,
+    ),
+  ]
+}
+
 const depuisAnomalieEntreprise = (a: AnomalieEntreprise): AnomalieEnvoiOs => anomalie(a.code, a.gravite, a.message, a.fondement, a.aConfirmer)
 
 /** Pourquoi l'absence des pièces de l'entreprise bloque l'envoi (point 37 : vigilance, décennale) ; null : simple alerte. */
@@ -1991,6 +2051,7 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
   verifierLien(d, s)
   if (!estDateIsoValide(contexte.date)) throw new Error(`Date de l'envoi invalide (${contexte.date}) : AAAA-MM-JJ attendu.`)
   verifierDate('Fin de validité du devis associé', contexte.validiteDevisAu)
+  verifierDate('Date du devis associé', contexte.dateDevis)
   verifierDate('Fin du délai de contestation', contexte.finDelaiContestationAg)
   const motifs = motifsVisa(d, s, contexte)
   return [
@@ -1999,6 +2060,7 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
     ...anomaliesVisa(d, s, motifs),
     ...anomaliesCadreLegal(d, s, motifs, contexte),
     ...anomaliesDevisAssocie(d, s, contexte),
+    ...anomaliesAncienneteDevis(d, contexte),
     ...anomaliesControleDeclaratif(d, contexte),
   ]
 }

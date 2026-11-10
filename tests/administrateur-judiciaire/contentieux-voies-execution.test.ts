@@ -176,7 +176,7 @@ describe('voies d’exécution — création et normalisation', () => {
     expect(() => creerVoiesExecution({ caseEcheancier: 'oui' as unknown as boolean })).toThrow(/Échéancier/)
   })
 
-  it('🔵 J35 : la mise à prix se saisit sans que la case Saisie immobilière soit cochée, sans refus ni anomalie', () => {
+  it('J35 (confirmée le 06/11/2026) : la mise à prix se saisit sans que la case Saisie immobilière soit cochée, sans refus ni anomalie', () => {
     const v = voies({ venteLot: { miseAPrixCentimes: 5_000_000 } })
     expect(v.saisieImmobiliere).toBeNull()
     expect(v.venteLot).toEqual({ miseAPrixCentimes: 5_000_000, sommesEstimeesPerduesCentimes: null })
@@ -460,11 +460,11 @@ describe('voies d’exécution — contrôle de fond de l’autorisation de la s
 })
 
 /**
- * Décision J35 de Hugo (03/11/2026), 🔵 interprétation à confirmer : l'Assemblée et la Résolution du dossier autorisent
- * aussi une action en justice hors recouvrement (D. 1967 art. 55, al. 1). Le recouvrement de créance n'en demande pas
- * (al. 3).
+ * Décision J35 de Hugo (03/11/2026), confirmée le 06/11/2026 : l'Assemblée et la Résolution du dossier autorisent aussi
+ * une action en justice hors recouvrement (D. 1967 art. 55, al. 1). Le recouvrement de créance n'en demande pas (al. 3).
+ * Décision J45 (06/11/2026) : le syndicat se défend à une contestation d'assemblée sans autorisation (al. 3).
  */
-describe('🔵 J35 — autorisation d’une action en justice hors recouvrement (D. 1967 art. 55, al. 1)', () => {
+describe('J35 — autorisation d’une action en justice hors recouvrement (D. 1967 art. 55, al. 1)', () => {
   const action = (type: SaisieContentieux['type'], decision: SourceDecisionContentieux | null = DECISION_AG) => ({
     coproprieteId: 'copro-1',
     type,
@@ -476,7 +476,7 @@ describe('🔵 J35 — autorisation d’une action en justice hors recouvrement 
     expect(r).toMatchObject({ autorise: true, cause: 'non_requise', aConfirmer: false, fondement: 'D. 1967 art. 55, al. 3' })
   })
 
-  it('hors recouvrement, la résolution adoptée du dossier autorise l’action : admise, à confirmer, avec ses rappels', () => {
+  it('hors recouvrement, la résolution adoptée du dossier autorise l’action : admise, à confirmer (antériorité non contrôlée), avec ses rappels', () => {
     for (const type of ['Garantie décennale', 'Litige entreprise', 'Litige Personne', 'Litige sur un bail', 'Litige autre syndicat'] as const) {
       const r = controlerAutorisationActionEnJustice(action(type), CONTEXTE_AG)
       expect(r).toMatchObject({ autorise: true, cause: 'admise', aConfirmer: true, fondement: 'D. 1967 art. 55, al. 1' })
@@ -504,14 +504,20 @@ describe('🔵 J35 — autorisation d’une action en justice hors recouvrement 
     expect(r.motif).toMatch(/à vérifier/)
   })
 
-  it('🔵 contestation d’assemblée : le syndicat défend à l’action des copropriétaires (L. 1965 art. 42, al. 2), sans autorisation (al. 3)', () => {
+  it('J45 (06/11/2026) : contestation d’assemblée, le syndicat se défend à l’action des copropriétaires (L. 1965 art. 42, al. 2), sans autorisation (al. 3) : confirmé, sans marque « à confirmer »', () => {
     for (const decision of [null, DECISION_AG]) {
       const contexte = decision === null ? {} : CONTEXTE_AG
       const r = controlerAutorisationActionEnJustice(action("Contestation d'assemblée", decision), contexte)
-      expect(r).toMatchObject({ autorise: true, cause: 'non_requise', aConfirmer: true, fondement: 'D. 1967 art. 55, al. 3 ; L. 1965 art. 42, al. 2' })
-      expect(r.motif).toMatch(/copropriétaires opposants ou défaillants/)
-      expect(r.motif).toMatch(/défendre aux actions intentées contre le syndicat/)
-      expect(r.motif).not.toMatch(/Action en justice autorisée par la résolution/)
+      expect(r).toEqual({
+        autorise: true,
+        cause: 'non_requise',
+        motif:
+          "Contestation d'assemblée : l'action est introduite contre le syndicat par les copropriétaires opposants ou défaillants (L. 1965 art. 42, al. 2) ; le syndic peut défendre aux actions intentées contre le syndicat sans autorisation de l'assemblée (D. 1967 art. 55, al. 3).",
+        fondement: 'D. 1967 art. 55, al. 3 ; L. 1965 art. 42, al. 2',
+        aConfirmer: false,
+        rappels: [],
+      })
+      expect(r.motif).not.toMatch(/Déduit|🔵|à confirmer/)
     }
   })
 
@@ -839,11 +845,11 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).toMatch(/égales à 0 € sont-elles admises/)
   })
 
-  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33, J35 et J36 inscrites, 🔵 à confirmer ; questions 3 et 5 fermées', () => {
+  it('rubrique « Décisions de Hugo du 03/11/2026 » : J33, J35 et J36 inscrites, J35 et J36 confirmées le 06/11/2026 ; questions 3 et 5 fermées', () => {
     const decisions = source.slice(source.indexOf('Décisions de Hugo du 03/11/2026'), source.indexOf('🔵 Déduit :'))
     expect(decisions).toMatch(/J33/)
     expect(decisions).toMatch(/C\. civ\. art\. 1343-5/)
-    expect(decisions).toMatch(/J35 \(🔵 interprétation à confirmer\)/)
+    expect(decisions).toMatch(/J35 \(confirmée par Hugo le 06\/11\/2026\)/)
     expect(decisions).toMatch(/controlerAutorisationActionEnJustice/)
     expect(decisions).toMatch(/D\. 2025-1292, art\. 12/)
     expect(decisions).toMatch(/recharge normale des véhicules électriques \(CCH art\. R\. 113-8\)/)
@@ -851,13 +857,35 @@ describe('voies d’exécution — en-têtes : sources et points ouverts', () =>
     expect(source).not.toMatch(/04\/11\/2026/)
     expect(decisions).toMatch(/Contestation d'assemblée.*L\. 1965 art\. 42, al\. 2/)
     expect(decisions).not.toMatch(/les mesures conservatoires, les demandes qui relèvent des pouvoirs du juge des référés et la défense aux actions intentées contre le syndicat n'en demandent pas \(al\. 3\), ce que/)
-    expect(decisions).toMatch(/J36 \(🔵 interprétation à confirmer\)/)
+    expect(decisions).toMatch(/J36 \(confirmée par Hugo le 06\/11\/2026\)/)
     expect(decisions).toMatch(/audience d'orientation \(CPCE R\. 322-15\)/)
     expect(decisions).toMatch(/commandement de payer valant saisie \(CPCE R\. 321-1\)/)
     const nonEtabli = source.slice(source.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/se saisit-elle sans que la case Saisie/)
     expect(nonEtabli).not.toMatch(/dates fixées à l'avance ou constats/)
+    expect(nonEtabli).toMatch(/3\. Tranchée le 03\/11\/2026 \(J35, ci-dessus\), confirmée le 06\/11\/2026\./)
+    expect(nonEtabli).toMatch(/5\. Tranchée le 03\/11\/2026 \(J36, ci-dessus\), confirmée le 06\/11\/2026\./)
     expect(source).not.toMatch(/case « Échéancier » est conservée sans effet/)
+  })
+
+  it('rubrique « Décisions de Hugo du 06/11/2026 » : J45 (contestation d’assemblée) et confirmation de J35 et J36 ; plus aucune marque « à confirmer » de ces décisions', () => {
+    const decisions0611 = source.slice(source.indexOf('Décisions de Hugo du 06/11/2026'), source.indexOf('🔵 Déduit :'))
+    expect(decisions0611).toMatch(/J45 \(contestation d'assemblée, point 56, suite de J35\) : /)
+    expect(decisions0611).toMatch(/action intentée contre le syndicat/)
+    expect(decisions0611).toMatch(/s'y défend sans autorisation de l'assemblée \(D\. 1967 art\. 55, al\. 3\)/)
+    expect(decisions0611).toMatch(/controlerAutorisationActionEnJustice rend la cause « non_requise »/)
+    expect(decisions0611).toMatch(/J35 et J36 confirmées/)
+    expect(decisions0611).toMatch(/mise à prix sans la case Saisie immobilière/)
+    expect(decisions0611).toMatch(/audience d'orientation, CPCE R\. 322-15/)
+    expect(decisions0611).toMatch(/commandement valant saisie, CPCE R\. 321-1/)
+    // les marques tranchées disparaissent partout dans le module
+    expect(source).not.toMatch(/interprétation à confirmer/)
+    expect(source).not.toMatch(/à confirmer avec J35/)
+    expect(source).not.toMatch(/J3[56], 🔵 à confirmer/)
+    expect(source).not.toMatch(/décision J35, 🔵 à confirmer/)
+    expect(source).not.toMatch(/Déduit \(🔵\), à confirmer/)
+    // l'admission d'une action hors recouvrement reste à confirmer pour une autre raison : l'antériorité non contrôlée
+    expect(source).toMatch(/Toute admission est à confirmer : l'antériorité de la décision à l'introduction de l'action n'est pas contrôlée/)
   })
 
   it('cite l’art. 62-7 (avis du conseil syndical, mode de financement) et le titre exécutoire de la saisie immobilière', () => {

@@ -76,31 +76,30 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   grâce, C. civ. art. 1343-5, relu sur Légifrance le 03/11/2026 : voir contentieux.ts). Ce n'est pas une mesure
  *   d'exécution (executionEngagee ne la lit pas) ; cochée, elle rend l'échéancier actif, source « décision du juge »
  *   (contentieux.echeancierDuContentieux).
- * - J35 (🔵 interprétation à confirmer) : « oui », compris comme oui aux deux questions. La mise à prix (venteLot) se
+ * - J35 (confirmée par Hugo le 06/11/2026) : « oui », compris comme oui aux deux questions. La mise à prix (venteLot) se
  *   saisit sans que la case Saisie immobilière soit cochée : creerVoiesExecution l'accepte, sans refus ni anomalie (choix
  *   actuel confirmé). L'Assemblée et la Résolution du dossier (decision) autorisent aussi une action en justice hors
  *   recouvrement (D. 1967 art. 55, al. 1) : controlerAutorisationActionEnJustice. Pour le recouvrement de charges,
- *   aucune autorisation n'est requise (al. 3). Hors recouvrement (et hors contestation d'assemblée, ci-dessous), la
- *   décision liée se contrôle comme celle de la saisie
+ *   aucune autorisation n'est requise (al. 3). Hors recouvrement (et hors contestation d'assemblée : J45, décisions du
+ *   06/11/2026), la décision liée se contrôle comme celle de la saisie
  *   (résolution adoptée, assemblée de la même copropriété, pouvoirs de l'administrateur provisoire de l'art. 29-1), sans
- *   contrôle de date : l'admission reste à confirmer. Sans décision liée, l'action est déclarée non autorisée, à
+ *   contrôle de date : l'admission reste à confirmer, l'antériorité de la décision à l'introduction de l'action n'étant
+ *   pas contrôlée (RAPPELS_ACTION_EN_JUSTICE). Sans décision liée, l'action est déclarée non autorisée, à
  *   vérifier : l'al. 3, en vigueur depuis le 25/12/2025 (D. 2025-1292, art. 12 ; lu sur Légifrance le 30/10/2026),
  *   dispense d'autorisation les actions en recouvrement de créance, la mise en œuvre des voies d'exécution forcée (sauf
  *   la saisie en vue de la vente d'un lot), les mesures conservatoires, l'opposition aux travaux permettant la recharge
  *   normale des véhicules électriques (CCH art. R. 113-8), les demandes qui relèvent des pouvoirs du juge des référés et
  *   la défense aux actions intentées contre le syndicat, ainsi que la saisine du président du tribunal judiciaire en
  *   application des premiers alinéas des art. 29-1 A et 29-1 de la loi du 10 juillet 1965 ou du premier alinéa de CCH art. L. 615-6 ; le
- *   message les cite toutes, le dossier ne disant pas laquelle s'applique. 🔵 Déduit, à confirmer avec J35 : une
- *   « Contestation d'assemblée » est introduite contre le syndicat par les copropriétaires opposants ou défaillants (L.
- *   1965 art. 42, al. 2, version en vigueur depuis le 01/06/2020, lu sur Légifrance le 30/10/2026) ; le syndicat y défend, sans autorisation (al. 3) : cause
- *   « non_requise », avec ou sans décision liée.
- * - J36 (🔵 interprétation à confirmer) : « oui », compris comme la confirmation des choix actuels. L'audience
+ *   message les cite toutes, le dossier ne disant pas laquelle s'applique.
+ * - J36 (confirmée par Hugo le 06/11/2026) : « oui », compris comme la confirmation des choix actuels. L'audience
  *   (« Audience éventuelle ») et l'adjudication peuvent être fixées à l'avance (date future admise), pas l'expulsion (un
  *   constat) ; « Audience éventuelle » est l'audience d'orientation (CPCE R. 322-15) ; « Engagée le » est la date de
  *   signification du commandement de payer valant saisie (CPCE R. 321-1), qui engage la procédure. Textes lus sur
  *   Légifrance le 30/10/2026. Aucun comportement ne change.
  *
- * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J43 ; PR #643, suite de J33) :
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J43, PR #643, suite de J33 ; J45, suite de J35 ;
+ * confirmation de J35 et J36) :
  * - J43 : quand la case « Échéancier » est cochée (échéancier fixé par décision du juge, J33), une exécution déjà engagée
  *   sur le même dossier est signalée : controlerExecutionSousEcheancierDuJuge rend une alerte qui nomme chaque mesure
  *   engagée (saisie cochée, saisie immobilière engagée, expulsion datée : celles d'executionEngagee). C. civ. art. 1343-5
@@ -114,6 +113,18 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *   moins qu'une donnée incomplète et signalée) ; la case ne porte ni la date de la décision ni les délais accordés :
  *   VitFix ne sait pas si la mesure précède la décision, ou suit la fin des délais sur une case restée cochée. La
  *   phase suggérée n'en dépend pas ; le dossier se crée comme avant.
+ * - J45 (contestation d'assemblée, point 56, suite de J35) : une « Contestation d'assemblée » (type du contentieux) est
+ *   une action intentée contre le syndicat par les copropriétaires opposants ou défaillants (L. 1965 art. 42, al. 2,
+ *   version en vigueur depuis le 01/06/2020, lu sur Légifrance le 30/10/2026), qui s'y défend sans autorisation de
+ *   l'assemblée (D. 1967 art. 55, al. 3) : controlerAutorisationActionEnJustice rend la cause « non_requise », avec ou
+ *   sans décision liée. Comportement confirmé ; sa marque « déduit, à confirmer » est retirée du motif et du résultat
+ *   (aConfirmer faux, comme pour le recouvrement de charges).
+ * - J35 et J36 confirmées : la compréhension des réponses « oui » du 03/11/2026 (ci-dessus) est confirmée, comportement
+ *   inchangé : mise à prix sans la case Saisie immobilière ; l'Assemblée et la Résolution du dossier autorisent aussi une
+ *   action en justice hors recouvrement (D. 1967 art. 55, al. 1) ; audience et adjudication fixées à l'avance, pas
+ *   l'expulsion ; « Audience éventuelle » = audience d'orientation, CPCE R. 322-15 ; « Engagée le » = commandement valant
+ *   saisie, CPCE R. 321-1. L'admission d'une action hors recouvrement reste à confirmer pour une autre raison, inchangée :
+ *   l'antériorité de la décision à l'introduction de l'action n'est pas contrôlée.
  *
  * 🔵 Déduit :
  * - la saisie immobilière est ENGAGÉE dès qu'une de ses dates (Engagée le, Audience éventuelle, Adjudication) est saisie ;
@@ -158,11 +169,11 @@ import type { TypeContentieux } from '@/lib/data/referentiels-gesteam-judiciaire
  *    l'assemblée, après avis du conseil syndical sauf urgence (D. 1967 art. 62-7, al. 1 ; 🔵) : sa décision inscrite au
  *    registre doit-elle porter la mise à prix et les sommes estimées définitivement perdues, alors que l'art. 11, I, 11°
  *    vise les projets notifiés avec l'ordre du jour d'une AG ? VitFix exige les deux montants dans les deux cas.
- * 3. Tranchée le 03/11/2026 (J35, ci-dessus), interprétation à confirmer.
+ * 3. Tranchée le 03/11/2026 (J35, ci-dessus), confirmée le 06/11/2026.
  * 4. (Frédéric) Quel plafond appliquer au montant de l'hypothèque : les cinq ans de l'art. 19, al. 4, ou l'année courante
  *    et les quatre dernières années échues de C. civ. art. 2402, 3° (visé par l'art. 19-1) ? VitFix n'applique que l'al. 4
  *    (postesHorsInscriptionHypotheque).
- * 5. Tranchée le 03/11/2026 (J36, ci-dessus), interprétation à confirmer.
+ * 5. Tranchée le 03/11/2026 (J36, ci-dessus), confirmée le 06/11/2026.
  * 6. (Frédéric) Une mise à prix ou des sommes perdues égales à 0 € sont-elles admises ? VitFix accepte un montant ≥ 0.
  * 7. (Frédéric) Faut-il un second champ pour la mise à prix fixée par le juge (CPCE L. 322-6, al. 2), distincte de la
  *    mise à prix initiale votée ? VitFix n'en garde qu'une.
@@ -209,9 +220,9 @@ const CLES_SAISIES: ReadonlySet<string> = new Set(SAISIES_EXECUTION.map((s) => s
 // ─── Types ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export interface SaisieImmobiliere {
-  /** « Engagée le » : signification du commandement de payer valant saisie (CPCE R. 321-1 ; J36, 🔵 à confirmer). */
+  /** « Engagée le » : signification du commandement de payer valant saisie (CPCE R. 321-1 ; J36). */
   engageeLe: string | null
-  /** « Audience éventuelle » : audience d'orientation (CPCE R. 322-15 ; J36, 🔵 à confirmer), fixée à l'avance. */
+  /** « Audience éventuelle » : audience d'orientation (CPCE R. 322-15 ; J36), fixée à l'avance. */
   audienceLe: string | null
   /** « Adjudication », fixée à l'avance (J36). */
   adjudicationLe: string | null
@@ -371,7 +382,7 @@ export function creerDecisionContentieux(saisie: SourceDecisionContentieux): Sou
 
 export type ChampDateVoieExecution = 'engageeLe' | 'audienceLe' | 'adjudicationLe' | 'expulsionLe' | 'inscriteLe'
 
-/** Libellé accordé et date fixée à l'avance (future admise) ou constat (J36, 🔵 à confirmer). */
+/** Libellé accordé et date fixée à l'avance (future admise) ou constat (J36). */
 const DATES_VOIES: Record<ChampDateVoieExecution, { datee: string; futurAdmis: boolean }> = {
   engageeLe: { datee: 'Engagement de la saisie immobilière daté', futurAdmis: false },
   audienceLe: { datee: 'Audience de saisie immobilière datée', futurAdmis: true },
@@ -543,7 +554,10 @@ export interface ResultatAutorisationVente {
   cause: CauseAutorisationVente
   motif: string
   fondement: string
-  /** Admise sous réserve d'une question ouverte (majorité, étendue des pouvoirs confiés). */
+  /**
+   * Admise sous réserve d'une question ouverte (majorité, étendue des pouvoirs confiés) ou d'un point non contrôlé
+   * (antériorité de l'autorisation d'une action en justice).
+   */
   aConfirmer: boolean
   /**
    * Points que le module ne contrôle pas, pour une décision admise : décompte des voix et notification du projet (résolution
@@ -631,7 +645,7 @@ const RESOLUTION_SOUS_AP: Record<'partie' | 'inconnue', string> = {
 
 /**
  * Ce qu'autorise la décision liée : la saisie en vue de la vente d'un lot (art. 55, al. 3), ou une action en justice
- * hors recouvrement (art. 55, al. 1 ; J35, 🔵 à confirmer). Les règles sont les mêmes ; sujet, fondement et rappels
+ * hors recouvrement (art. 55, al. 1 ; J35). Les règles sont les mêmes ; sujet, fondement et rappels
  * changent.
  */
 interface ObjetAutorisation {
@@ -644,7 +658,10 @@ interface ObjetAutorisation {
   fondement: string
   /** La majorité de l'art. 24 est-elle à confirmer (🔴 1, saisie seulement) ? */
   majoriteADouter: boolean
-  /** Toute admission est à confirmer (J35). */
+  /**
+   * Toute admission est à confirmer : l'antériorité de la décision à l'introduction de l'action n'est pas contrôlée
+   * (action en justice seulement ; la saisie contrôle la date de son premier acte).
+   */
   aConfirmer: boolean
   rappelsResolution: readonly string[]
   rappelsAdministrateur: readonly string[]
@@ -872,12 +889,12 @@ const DISPENSES_ART_55_AL_3: readonly string[] = [
 const ACTION_SANS_DECISION = `Action en justice hors recouvrement sans décision liée : le syndic n'agit qu'autorisé par une décision de l'assemblée générale (al. 1) ; à vérifier, car l'autorisation n'est pas nécessaire pour ${DISPENSES_ART_55_AL_3.join(' ; ')} (al. 3), ce que le dossier ne dit pas.`
 
 const CONTESTATION_EN_DEFENSE =
-  "Contestation d'assemblée : l'action est introduite contre le syndicat par les copropriétaires opposants ou défaillants (L. 1965 art. 42, al. 2) ; le syndic peut défendre aux actions intentées contre le syndicat sans autorisation de l'assemblée (D. 1967 art. 55, al. 3). Déduit (🔵), à confirmer avec J35."
+  "Contestation d'assemblée : l'action est introduite contre le syndicat par les copropriétaires opposants ou défaillants (L. 1965 art. 42, al. 2) ; le syndic peut défendre aux actions intentées contre le syndicat sans autorisation de l'assemblée (D. 1967 art. 55, al. 3)."
 
 /**
- * Autorisation d'une action en justice (décision J35, 🔵 à confirmer) : non requise pour le recouvrement de charges
- * (art. 55, al. 3), ni pour une contestation d'assemblée, que le syndicat défend (🔵 : L. 1965 art. 42, al. 2 ; art. 55,
- * al. 3) ; hors de ces deux types, l'Assemblée et la Résolution du dossier l'autorisent (art. 55, al. 1), contrôlées
+ * Autorisation d'une action en justice (décisions J35 et J45 de Hugo) : non requise pour le recouvrement de charges
+ * (art. 55, al. 3), ni pour une contestation d'assemblée, que le syndicat défend (J45 : L. 1965 art. 42, al. 2 ; art.
+ * 55, al. 3) ; hors de ces deux types, l'Assemblée et la Résolution du dossier l'autorisent (art. 55, al. 1), contrôlées
  * comme pour la saisie en vue de la vente (résolution adoptée, assemblée de la même copropriété, pouvoirs de
  * l'administrateur provisoire), sans contrôle de date. Sans décision liée : non autorisée, à vérifier (dispenses de
  * l'al. 3, toutes citées). Lève une erreur si la résolution ou l'assemblée fournie n'est pas celle du lien, ou si la
@@ -896,7 +913,7 @@ export function controlerAutorisationActionEnJustice(
       'D. 1967 art. 55, al. 3',
     )
   if (dossier.type === TYPE_CONTESTATION_AG)
-    return resultat('non_requise', CONTESTATION_EN_DEFENSE, 'D. 1967 art. 55, al. 3 ; L. 1965 art. 42, al. 2', { aConfirmer: true })
+    return resultat('non_requise', CONTESTATION_EN_DEFENSE, 'D. 1967 art. 55, al. 3 ; L. 1965 art. 42, al. 2')
   if (decision === null) return resultat('decision_manquante', ACTION_SANS_DECISION, FONDEMENT_AUTORISATION, { aConfirmer: true })
   if (decision.origine === 'administrateur') {
     dateDecisionAdministrateur(decision.date)
