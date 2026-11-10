@@ -10,9 +10,11 @@
 
 import { sendEmail, type EmailResult } from '@/lib/email'
 import {
-  CHEMIN_TABLEAU_QR, numeroSignalementQr, type LangueSignalementQr, type PrioriteSignalementQr, type SignalementQr,
+  CHEMIN_TABLEAU_QR, numeroSignalementQr, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr,
 } from '@/lib/aj-signalement/types'
-import { LIBELLE_PRIORITE_QR, dateHeureParis, lieuSignalementQr } from '@/lib/aj-signalement/affichage'
+import {
+  LIBELLE_PRIORITE_QR, TEXTES_TABLEAU_QR, dateHeureParis, libelleQualiteQr, lieuSignalementQr, texteSignalementLieQr,
+} from '@/lib/aj-signalement/affichage'
 import { remplir } from '@/lib/coproprietaire/textes'
 
 const ECHAPPEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -45,13 +47,18 @@ export function templateSignalementQr({ copropriete, signalement: s, origine = '
   const telephoneLien = s.telephone.replace(/[\s.()-]/g, '')
   const description = e(s.description).replace(/\r?\n/g, '<br/>')
   const urgent = s.priorite === 'urgente'
+  const d = TEXTES_TABLEAU_QR.detail
   const lignes = [
     ligne('Copropriété', `<strong>${e(copropriete.nom)}</strong>${copropriete.adresse ? `<br/><span style="color:#4A5E78;">${e(copropriete.adresse)}</span>` : ''}`),
+    // Copropriété sans adresse : celle que la position du déclarant a permis de proposer (texte saisi par le public, échappé).
+    s.adresseProposee ? ligne(d.adresseProposee, e(s.adresseProposee)) : '',
     ligne('Déclarant', `<strong>${e(s.prenom)} ${e(s.nom)}</strong>`),
+    s.qualiteDeclarant ? ligne(d.qualite, e(libelleQualiteQr(s.qualiteDeclarant))) : '',
     ligne('Téléphone', `<a href="tel:${e(telephoneLien)}" style="color:#0D1B2E;">${e(s.telephone)}</a>`),
     ligne('E-mail', `<a href="mailto:${e(s.email)}" style="color:#0D1B2E;">${e(s.email)}</a>`),
     ligne('Lot', `${s.batiment ? `bât. ${e(s.batiment)} · ` : ''}étage ${e(s.etage)} · lot ${e(s.numLot)}`),
     ligne('Lieu du problème', e(lieuSignalementQr(s))),
+    s.signalementLieId ? ligne(d.signalementLie, `<strong>${e(texteSignalementLieQr(s.signalementLieId))}</strong>`) : '',
     ligne('Type', e(s.typeIntervention)),
     ligne('Urgence', urgent ? '<strong style="color:#9B2C20;">Urgent</strong>' : e(LIBELLE_PRIORITE_QR[s.priorite])),
     ligne('Déposé le', e(dateHeureParis(s.creeLe))),
@@ -168,8 +175,12 @@ export interface TextesConfirmationQr {
   copropriete: string
   deposeLe: string
   heureParis: string
+  qualite: string
+  qualites: Record<QualiteDeclarantQr, string>
   lieu: string
   zone: string
+  signalementLie: string
+  memeProbleme: string
   type: string
   urgence: string
   description: string
@@ -199,8 +210,12 @@ export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmat
     copropriete: 'Copropriété',
     deposeLe: 'Déposé le',
     heureParis: '(heure de Paris)',
+    qualite: 'Vous êtes',
+    qualites: { proprietaire: 'Propriétaire', locataire: 'Locataire' },
     lieu: 'Lieu du problème',
     zone: 'Zone',
+    signalementLie: 'Signalement lié',
+    memeProbleme: 'Même problème que le signalement n° {numero}',
     type: 'Type de problème',
     urgence: 'Urgence',
     description: 'Description',
@@ -227,8 +242,12 @@ export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmat
     copropriete: 'Condomínio',
     deposeLe: 'Registada em',
     heureParis: '(hora de Paris)',
+    qualite: 'Na qualidade de',
+    qualites: { proprietaire: 'Proprietário', locataire: 'Inquilino' },
     lieu: 'Local do problema',
     zone: 'Zona',
+    signalementLie: 'Ocorrência associada',
+    memeProbleme: 'Mesmo problema que a ocorrência n.º {numero}',
     type: 'Tipo de problema',
     urgence: 'Urgência',
     description: 'Descrição',
@@ -282,8 +301,10 @@ export function templateConfirmationQr({ copropriete, signalement: s }: Parametr
     ligne(t.numero, `<strong>${e(numero)}</strong>`),
     ligne(t.copropriete, e(copropriete.nom)),
     ligne(t.deposeLe, `${e(dateHeureParis(s.creeLe, s.langue))} ${t.heureParis}`),
+    s.qualiteDeclarant ? ligne(t.qualite, e(t.qualites[s.qualiteDeclarant])) : '',
     ligne(t.lieu, lieuConfirmationHtml(s, t)),
     s.estPartieCommune && s.zoneSignalee ? ligne(t.zone, e(s.zoneSignalee)) : '',
+    s.signalementLieId ? ligne(t.signalementLie, e(remplir(t.memeProbleme, { numero: numeroSignalementQr(s.signalementLieId) }))) : '',
     ligne(t.type, e(s.typeIntervention)),
     ligne(t.urgence, e(t.priorites[s.priorite])),
   ].join('')

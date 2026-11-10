@@ -3,8 +3,9 @@
 // ── Tableau de bord « AJ Signalement » (vue super admin du portail copropriétaire) ───────────────────
 //
 // Un seul chargement (GET /api/aj-signalement/tableau), puis : indicateurs, copropriétés avec leur QR code
-// (affiche PDF, QR PNG, lien, destinataires, modification, nouvelle copropriété), signalements reçus
-// (filtre par copropriété, détail avec coordonnées et changement de statut). Rien n'est écrit dans le
+// (affiche PDF, QR PNG, lien, destinataires, modification, nouvelle copropriété, adresse proposée d'après la
+// position d'un déclarant quand elle manque), signalements reçus (filtre par copropriété, « même problème que le
+// signalement n° X », détail avec coordonnées et changement de statut). Rien n'est écrit dans le
 // navigateur : les données servies restent en mémoire. Textes en français (outil de l'administrateur).
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -14,10 +15,10 @@ import CarteCoproprieteQr from '@/components/aj-signalement/CarteCoproprieteQr'
 import ModaleCoproprieteQr from '@/components/aj-signalement/ModaleCoproprieteQr'
 import DetailSignalementQr from '@/components/aj-signalement/DetailSignalementQr'
 import type { CoproprieteQr, SignalementQr, StatutSignalementQr, TableauQr } from '@/lib/aj-signalement/types'
-import { chargerTableauQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
+import { chargerTableauQr, modifierCoproprieteQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import {
   LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR as T, TON_STATUT_QR, compteursTableauQr, dateHeureParis, filtrerSignalementsQr,
-  lieuSignalementQr, messageErreurTableauQr, nomDeclarantQr, situationLotQr,
+  lieuSignalementQr, messageErreurTableauQr, nomDeclarantQr, situationLotQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
 
 export interface PropsTableauSignalementsQr {
@@ -64,14 +65,28 @@ export default function TableauSignalementsQr({ jeton }: Readonly<PropsTableauSi
     setEtat((e) => {
       if (e.statut !== 'pret') return e
       const existante = e.tableau.coproprietes.find((c) => c.id === copropriete.id)
+      // Compteurs connus conservés ; la dernière adresse proposée aussi, tant que l'adresse reste vide.
       const coproprietes = existante
-        ? e.tableau.coproprietes.map((c) => (c.id === copropriete.id ? { ...copropriete, nbSignalements: c.nbSignalements, nbEnAttente: c.nbEnAttente } : c))
+        ? e.tableau.coproprietes.map((c) => (c.id === copropriete.id
+          ? {
+            ...copropriete, nbSignalements: c.nbSignalements, nbEnAttente: c.nbEnAttente,
+            derniereAdresseProposee: copropriete.adresse.trim() ? null : c.derniereAdresseProposee,
+          }
+          : c))
         : [...e.tableau.coproprietes, copropriete]
       const signalements = e.tableau.signalements.map((s) => (s.coproprieteId === copropriete.id ? { ...s, coproprieteNom: copropriete.nom } : s))
       return { ...e, tableau: { coproprietes, signalements } }
     })
     setMessage(texte ?? null)
     setFenetre(null)
+  }
+
+  /** « Utiliser cette adresse » : PATCH { adresse } (route existante, super admin) ; false si refusé. */
+  const utiliserAdresse = async (copropriete: CoproprieteQr, adresse: string): Promise<boolean> => {
+    const resultat = await modifierCoproprieteQr(copropriete.id, { adresse }, jeton)
+    if (!resultat.ok) return false
+    mettreAJourCopro(resultat.copropriete, T.adresseEnregistree)
+    return true
   }
 
   const changerStatut = (id: string, statut: StatutSignalementQr, misAJourLe: string) => {
@@ -144,7 +159,13 @@ export default function TableauSignalementsQr({ jeton }: Readonly<PropsTableauSi
         ) : (
           <div className="grid gap-4">
             {coproprietes.map((c) => (
-              <CarteCoproprieteQr key={c.id} copropriete={c} origine={origine} onModifier={() => { setMessage(null); setFenetre({ type: 'modification', copropriete: c }) }} />
+              <CarteCoproprieteQr
+                key={c.id}
+                copropriete={c}
+                origine={origine}
+                onModifier={() => { setMessage(null); setFenetre({ type: 'modification', copropriete: c }) }}
+                onUtiliserAdresse={(adresse) => { setMessage(null); return utiliserAdresse(c, adresse) }}
+              />
             ))}
           </div>
         )}
@@ -207,6 +228,7 @@ function LigneSignalement({ signalement: s, onOuvrir }: Readonly<{ signalement: 
             <span className="text-base font-bold text-[#0D1B2E]">{s.typeIntervention}</span>
           </div>
           <p className="text-base text-[#1F2D3D]">{lieuSignalementQr(s)}</p>
+          {s.signalementLieId && <p className="text-sm font-semibold text-[#0D1B2E]">{texteSignalementLieQr(s.signalementLieId)}</p>}
           <p className="text-sm text-[#4A5E78]">
             {nomDeclarantQr(s)} · {situationLotQr(s)} · {s.telephone}
           </p>

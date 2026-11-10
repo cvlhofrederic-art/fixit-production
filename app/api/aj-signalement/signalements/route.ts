@@ -2,25 +2,33 @@
 //
 // POST — dépôt public d'un signalement après scan du QR code d'une copropriété (AJ Signalement).
 // Sans session : la copropriété est désignée par son jeton (32 hexadécimaux, tiré par la base) ; le corps
-// est validé par signalementQrSchema (coordonnées obligatoires : prénom, nom, téléphone, e-mail, étage,
-// numéro de lot). Le signalement est enregistré dans signalements_qr puis envoyé par e-mail aux
-// destinataires de la copropriété (sinon ADMIN_EMAIL), puis un récapitulatif part au déclarant, dans la
-// langue de la page (au plus 3 par heure vers une même boîte). L'échec d'un e-mail n'annule jamais le
-// dépôt : l'état des deux envois est conservé sur la ligne (un seul update final).
+// est validé par signalementQrSchema (tous les champs obligatoires : prénom, nom, téléphone, e-mail, bâtiment,
+// étage, numéro de lot, qualité propriétaire / locataire). Le signalement est enregistré dans signalements_qr
+// puis envoyé par e-mail aux destinataires de la copropriété (sinon ADMIN_EMAIL), puis un récapitulatif part
+// au déclarant, dans la langue de la page (au plus 3 par heure vers une même boîte). L'échec d'un e-mail
+// n'annule jamais le dépôt : l'état des deux envois est conservé sur la ligne (un seul update final).
+// Demandes de Hugo du 06/11/2026, enregistrées avec le dépôt :
+//   - qualite_declarant ;
+//   - adresse_proposee : adresse d'après la position du déclarant (texte seul), gardée seulement si la
+//     copropriété n'a pas d'adresse ;
+//   - signalement_lie_id : signalement désigné comme « le même problème », retrouvé par son numéro parmi les
+//     signalements semblables de la copropriété du jeton (parties communes, ouverts, moins de 60 jours, même
+//     bâtiment et même zone) ; un numéro introuvable est ignoré, le dépôt reste acquis.
 // Limites : 5 dépôts par minute et par adresse IP, 30 par 10 minutes et par copropriété (QR code public).
 // Codes : 400 invalide · 404 introuvable (jeton inconnu ou désactivé) · 429 · 503 base_absente (migration
 // 20261104 non appliquée) · 500 serveur. Aucun lien avec les tables du logiciel Syndic.
-// Colonnes confirmation_* : migration 20261106_signalements_qr_confirmation.sql, à appliquer avant le déploiement.
+// Migrations 20261106_signalements_qr_confirmation.sql puis 20261106_signalements_qr_geoloc_qualite.sql : à
+// appliquer avant la fusion ; d'ici là, insertion et état des e-mails se replient sur les colonnes d'origine
+// (lib/aj-signalement/serveur.ts).
 
 import { NextResponse, type NextRequest } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { signalementQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
 import {
-  TABLE_SIGNALEMENTS_QR, destinatairesSignalement, lireCoproprieteParJeton, reponseErreur, reponseErreurBase,
-  signalementDepuisLigne,
+  coproprieteActiveQr, destinatairesSignalement, enregistrerEtatEmailsQr, insererSignalementQr, lireSemblablesQr, reponseErreurBase,
+  reponseErreur, signalementDepuisLigne,
 } from '@/lib/aj-signalement/serveur'
 import {
   FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerConfirmationQr, envoyerEmailSignalementQr,
@@ -60,6 +68,22 @@ async function confirmerAuDeclarant(signalement: SignalementQr, nomCopropriete: 
   }
 }
 
+/**
+ * Signalement désigné comme « le même problème » : jamais un identifiant venu du public. Le numéro est cherché parmi
+ * les signalements semblables de la copropriété du jeton (parties communes, ouverts, moins de 60 jours, même bâtiment,
+ * même zone) ; introuvable → null, le dépôt continue.
+ */
+async function resoudreSignalementLie(
+  coproprieteId: string, saisie: { estPartieCommune: boolean; signalementLieNumero: string; batiment: string; zoneSignalee: string },
+): Promise<string | null> {
+  if (!saisie.estPartieCommune || !saisie.signalementLieNumero) return null
+  const lecture = await lireSemblablesQr(coproprieteId, { batiment: saisie.batiment, zone: saisie.zoneSignalee })
+  if (!lecture.ok) return null
+  const lie = lecture.lignes.find((l) => numeroSignalementQr(l.id) === saisie.signalementLieNumero)
+  if (!lie) logger.info(`${CONTEXTE} lien ignoré : aucun signalement ouvert semblable ne porte ce numéro`, { copropriete: coproprieteId })
+  return lie?.id ?? null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request)
@@ -70,10 +94,9 @@ export async function POST(request: NextRequest) {
     if (!validation.success) return NextResponse.json({ error: 'invalide', details: validation.error }, { status: 400 })
     const saisie = validation.data
 
-    const lecture = await lireCoproprieteParJeton(saisie.jeton)
-    if (!lecture.ok) return reponseErreur(lecture.code, lecture.code === 'base_absente' ? 503 : 500)
-    const copropriete = lecture.copropriete
-    if (!copropriete) return reponseErreur('introuvable', 404)
+    const active = await coproprieteActiveQr(saisie.jeton)
+    if (!active.ok) return active.reponse
+    const copropriete = active.copropriete
     if (!(await checkRateLimit(`qr_signalement_copro_${copropriete.id}`, 30, 600_000))) return rateLimitResponse()
 
     const ligne = {
@@ -93,8 +116,12 @@ export async function POST(request: NextRequest) {
       priorite: saisie.priorite,
       statut: 'en_attente',
       langue: saisie.langue,
+      qualite_declarant: saisie.qualiteDeclarant,
+      // Adresse déjà renseignée (même entre-temps) : la proposition est ignorée.
+      adresse_proposee: (copropriete.adresse ?? '').trim() ? null : saisie.adresseProposee || null,
+      signalement_lie_id: await resoudreSignalementLie(copropriete.id, saisie),
     }
-    const { data, error } = await supabaseAdmin.from(TABLE_SIGNALEMENTS_QR).insert(ligne).select('id, created_at, updated_at').single()
+    const { data, error } = await insererSignalementQr(ligne)
     if (error || !data) {
       logger.error(`${CONTEXTE} insertion refusée`, { code: error?.code, message: error?.message, copropriete: copropriete.id })
       return reponseErreurBase(error)
@@ -129,16 +156,13 @@ export async function POST(request: NextRequest) {
     // Récapitulatif au déclarant, après l'e-mail de l'administrateur ; même règle : le dépôt reste acquis.
     const confirmation = await confirmerAuDeclarant(signalement, copropriete.nom ?? '')
 
-    const { error: erreurMaj } = await supabaseAdmin
-      .from(TABLE_SIGNALEMENTS_QR)
-      .update({
-        email_envoye_le: emailEnvoyeLe,
-        email_erreur: emailErreur,
-        confirmation_envoyee_le: confirmation.envoyeeLe,
-        confirmation_erreur: confirmation.erreur,
-      })
-      .eq('id', data.id)
-    if (erreurMaj) logger.warn(`${CONTEXTE} état des e-mails non enregistré`, { code: erreurMaj.code, message: erreurMaj.message })
+    // Un seul update final des quatre états (réduit à email_* tant que la migration de la confirmation manque).
+    await enregistrerEtatEmailsQr(data.id, {
+      email_envoye_le: emailEnvoyeLe,
+      email_erreur: emailErreur,
+      confirmation_envoyee_le: confirmation.envoyeeLe,
+      confirmation_erreur: confirmation.erreur,
+    })
 
     return NextResponse.json({
       signalement: {

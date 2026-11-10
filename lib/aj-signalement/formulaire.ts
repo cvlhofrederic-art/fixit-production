@@ -1,11 +1,13 @@
 // ── Formulaire public « AJ Signalement » : règles du parcours, sans React ─────
 //
-// Les coordonnées (prénom, nom, téléphone, e-mail, étage, numéro de lot) sont obligatoires ; le bâtiment
-// est facultatif. Le reste du parcours est celui du portail copropriétaire : où (logement / parties
-// communes + zone), quel type, description de 10 caractères au moins, urgence. Le bouton d'envoi reste
-// désactivé tant que tout n'est pas rempli ; les erreurs de saisie s'affichent sous le champ quitté.
+// Tous les champs sont obligatoires (demande de Hugo du 06/11/2026) : coordonnées (prénom, nom, téléphone,
+// e-mail, bâtiment, étage, numéro de lot) et qualité (propriétaire / locataire). Le reste du parcours est celui
+// du portail copropriétaire : où (logement / parties communes + zone), quel type, description de 10 caractères
+// au moins, urgence. Le bouton d'envoi reste désactivé tant que tout n'est pas rempli ; les erreurs de saisie
+// s'affichent sous le champ quitté. Le choix « même problème / autre problème » face aux signalements déjà faits
+// au même endroit n'entre pas dans ces règles : il n'empêche jamais l'envoi.
 
-import type { LangueSignalementQr, PrioriteSignalementQr, SaisieSignalementQr } from '@/lib/aj-signalement/types'
+import { NUMERO_QR, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SaisieSignalementQr } from '@/lib/aj-signalement/types'
 import type { TextesSignalementQr } from '@/lib/aj-signalement/textes'
 import type { TextesCopro } from '@/lib/coproprietaire/textes'
 
@@ -20,6 +22,7 @@ export interface ValeursFormulaireQr {
   batiment: string
   etage: string
   numLot: string
+  qualite: '' | QualiteDeclarantQr
   lieu: LieuQr
   zone: string
   type: string
@@ -28,7 +31,7 @@ export interface ValeursFormulaireQr {
 }
 
 export const VALEURS_INITIALES_QR: ValeursFormulaireQr = {
-  prenom: '', nom: '', telephone: '', email: '', batiment: '', etage: '', numLot: '',
+  prenom: '', nom: '', telephone: '', email: '', batiment: '', etage: '', numLot: '', qualite: '',
   lieu: '', zone: '', type: '', description: '', urgence: '',
 }
 
@@ -45,11 +48,12 @@ export function telephoneValide(telephone: string): boolean {
 }
 
 export type ChampCoordonnees = 'prenom' | 'nom' | 'telephone' | 'email' | 'batiment' | 'etage' | 'numLot'
-export type ChampObligatoire = Exclude<ChampCoordonnees, 'batiment'>
+/** Toutes les coordonnées sont obligatoires, bâtiment compris. */
+export type ChampObligatoire = ChampCoordonnees
 export type ErreurChamp = 'obligatoire' | 'invalide'
 
 export const CHAMPS_COORDONNEES: readonly ChampCoordonnees[] = ['prenom', 'nom', 'telephone', 'email', 'batiment', 'etage', 'numLot']
-export const CHAMPS_OBLIGATOIRES: readonly ChampObligatoire[] = ['prenom', 'nom', 'telephone', 'email', 'etage', 'numLot']
+export const CHAMPS_OBLIGATOIRES: readonly ChampObligatoire[] = CHAMPS_COORDONNEES
 
 /** Erreurs des coordonnées : champ obligatoire vide, e-mail ou téléphone mal formé. Vide quand tout est correct. */
 export function erreursCoordonnees(valeurs: ValeursFormulaireQr): Partial<Record<ChampObligatoire, ErreurChamp>> {
@@ -68,10 +72,13 @@ export function messageErreurChamp(champ: ChampObligatoire, erreur: ErreurChamp,
   return champ === 'email' ? tq.emailInvalide : tq.telephoneInvalide
 }
 
-/** Le formulaire peut partir : coordonnées correctes et parcours complet (lieu, zone, type, description, urgence). */
+/**
+ * Le formulaire peut partir : coordonnées correctes, qualité choisie et parcours complet (lieu, zone, type, description,
+ * urgence). Zone des parties communes : même règle que signalementQrSchema (vide après nettoyage = manquante).
+ */
 export function formulaireComplet(valeurs: ValeursFormulaireQr): boolean {
-  if (Object.keys(erreursCoordonnees(valeurs)).length > 0) return false
-  if (valeurs.lieu === '' || (valeurs.lieu === 'communes' && valeurs.zone === '')) return false
+  if (Object.keys(erreursCoordonnees(valeurs)).length > 0 || valeurs.qualite === '') return false
+  if (valeurs.lieu === '' || (valeurs.lieu === 'communes' && valeurs.zone.trim() === '')) return false
   return valeurs.type !== '' && valeurs.description.trim().length >= DESCRIPTION_MIN_QR && valeurs.urgence !== ''
 }
 
@@ -80,9 +87,18 @@ export const prioriteDepuisUrgence = (urgence: UrgenceQr): PrioriteSignalementQr
 
 const texte = (valeur: string, max: number): string => valeur.trim().slice(0, max)
 
+/** Ce qui s'ajoute à la saisie au moment de l'envoi : adresse proposée d'après la position, signalement désigné comme le même. */
+export interface ComplementsSaisieQr {
+  adresseProposee?: string
+  signalementLieNumero?: string
+}
+
 /** Corps du POST à partir des valeurs saisies (mêmes bornes que signalementQrSchema). */
-export function construireSaisieQr(valeurs: ValeursFormulaireQr, jeton: string, langue: LangueSignalementQr): SaisieSignalementQr {
+export function construireSaisieQr(
+  valeurs: ValeursFormulaireQr, jeton: string, langue: LangueSignalementQr, complements: ComplementsSaisieQr = {},
+): SaisieSignalementQr {
   const communes = valeurs.lieu === 'communes'
+  const numeroLie = complements.signalementLieNumero ?? ''
   return {
     jeton,
     prenom: texte(valeurs.prenom, 100),
@@ -92,12 +108,16 @@ export function construireSaisieQr(valeurs: ValeursFormulaireQr, jeton: string, 
     batiment: texte(valeurs.batiment, 50),
     etage: texte(valeurs.etage, 20),
     numLot: texte(valeurs.numLot, 20),
+    qualiteDeclarant: valeurs.qualite,
     estPartieCommune: communes,
     zoneSignalee: communes ? texte(valeurs.zone, 200) : '',
     typeIntervention: texte(valeurs.type, 100),
     description: texte(valeurs.description, 5000),
     priorite: prioriteDepuisUrgence(valeurs.urgence),
     langue,
+    adresseProposee: texte(complements.adresseProposee ?? '', 300),
+    // Un logement n'est jamais rattaché à un signalement des parties communes.
+    signalementLieNumero: communes && NUMERO_QR.test(numeroLie) ? numeroLie : '',
   }
 }
 

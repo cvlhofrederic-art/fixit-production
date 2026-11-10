@@ -12,8 +12,8 @@ import { surActivationClavier } from '@/components/administrateur-judiciaire/ui/
 import { useToast } from '@/components/administrateur-judiciaire/ui/toast'
 import { changerStatutSignalementQr, chargerTableauQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import {
-  ACTIONS_STATUT_QR, LIBELLE_PRIORITE_QR, LIBELLE_STATUT_QR, compteursTableauQr, dateHeureParis, lieuSignalementQr,
-  messageErreurTableauQr, nomDeclarantQr, situationLotQr,
+  ACTIONS_STATUT_QR, LIBELLE_PRIORITE_QR, LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR, compteursTableauQr, dateHeureParis, libelleQualiteQr,
+  lieuSignalementQr, messageErreurTableauQr, nomDeclarantQr, situationLotQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
 import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type SignalementQr, type StatutSignalementQr, type TableauQr } from '@/lib/aj-signalement/types'
 
@@ -43,6 +43,30 @@ function jourMois(iso: string): string {
 }
 
 type Etat = { statut: 'chargement' } | { statut: 'pret'; tableau: TableauQr } | { statut: 'erreur'; code: CodeErreurQr }
+
+const D = TEXTES_TABLEAU_QR.detail
+
+/** Fiche d'un signalement : couples [libellé, valeur] ; qualité toujours, lien et adresse proposée quand il y en a. */
+function champsFiche(s: SignalementQr): Array<[string, string]> {
+  const champs: Array<[string, string]> = [
+    ['Déclarant', nomDeclarantQr(s)],
+    [D.qualite, libelleQualiteQr(s.qualiteDeclarant)],
+    ['Téléphone', s.telephone],
+    ['E-mail', s.email],
+    ['Lot', situationLotQr(s)],
+    ['Copropriété', s.coproprieteNom],
+    ['Lieu', lieuSignalementQr(s)],
+  ]
+  if (s.signalementLieId) champs.push([D.signalementLie, texteSignalementLieQr(s.signalementLieId)])
+  if (s.adresseProposee) champs.push([D.adresseProposee, s.adresseProposee])
+  champs.push(
+    ['Urgence', LIBELLE_PRIORITE_QR[s.priorite]],
+    ['Déposé le', dateHeureParis(s.creeLe)],
+    ['Numéro', numeroSignalementQr(s.id)],
+    ['E-mail à l’administrateur', s.emailEnvoyeLe ? `reçu le ${dateHeureParis(s.emailEnvoyeLe)}` : `non envoyé (${s.emailErreur || 'erreur inconnue'})`],
+  )
+  return champs
+}
 
 const TITRE_ERREUR: Record<CodeErreurQr, string> = {
   base_absente: 'Base non initialisée',
@@ -158,6 +182,9 @@ export function SignalementsQrModule() {
                 <span style={{ fontSize: 11.5, color: 'var(--navy-500)' }}>
                   {nomDeclarantQr(s)} · {situationLotQr(s)}
                 </span>
+                {s.signalementLieId && (
+                  <span style={{ fontSize: 11.5, color: 'var(--navy-700)', fontWeight: 600 }}>{texteSignalementLieQr(s.signalementLieId)}</span>
+                )}
               </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--navy-300)' }}>{jourMois(s.creeLe)}</div>
@@ -176,18 +203,7 @@ export function SignalementsQrModule() {
                 {signalement.priorite === 'urgente' && <Pill kind="rust" noDot>Urgent</Pill>}
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 24px' }}>
-                {[
-                  ['Déclarant', nomDeclarantQr(signalement)],
-                  ['Téléphone', signalement.telephone],
-                  ['E-mail', signalement.email],
-                  ['Lot', situationLotQr(signalement)],
-                  ['Copropriété', signalement.coproprieteNom],
-                  ['Lieu', lieuSignalementQr(signalement)],
-                  ['Urgence', LIBELLE_PRIORITE_QR[signalement.priorite]],
-                  ['Déposé le', dateHeureParis(signalement.creeLe)],
-                  ['Numéro', numeroSignalementQr(signalement.id)],
-                  ['E-mail à l’administrateur', signalement.emailEnvoyeLe ? `reçu le ${dateHeureParis(signalement.emailEnvoyeLe)}` : `non envoyé (${signalement.emailErreur || 'erreur inconnue'})`],
-                ].map(([libelle, valeur]) => (
+                {champsFiche(signalement).map(([libelle, valeur]) => (
                   <div key={libelle}>
                     <div style={LIBELLE_CHAMP}>{libelle}</div>
                     <div style={{ fontSize: 13.5, color: 'var(--navy-700)', overflowWrap: 'anywhere' }}>{valeur}</div>

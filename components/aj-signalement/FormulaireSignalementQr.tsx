@@ -4,20 +4,27 @@
 //
 // Même parcours que « Signaler un problème » du portail copropriétaire (FormulaireSignalement.tsx) :
 // où (mon logement / parties communes + zone), quel type, description (10 caractères minimum, compteur),
-// urgence ; précédé des coordonnées du déclarant, toutes obligatoires sauf le bâtiment. Bouton désactivé
-// tant que le formulaire est incomplet ; erreur de saisie sous le champ quitté ; erreur d'envoi persistante
-// au-dessus du bouton, formulaire intact. Envoi par lib/aj-signalement/api (POST public).
+// urgence ; précédé des coordonnées du déclarant, toutes obligatoires (bâtiment compris) et de sa qualité
+// (propriétaire / locataire). Bouton désactivé tant que le formulaire est incomplet ; erreur de saisie sous le
+// champ quitté ; erreur d'envoi persistante au-dessus du bouton, formulaire intact. Envoi par
+// lib/aj-signalement/api (POST public).
+// Parties communes : les signalements déjà faits au même endroit (même bâtiment, même zone) sont montrés sous la
+// zone ; la personne peut dire « c'est le même problème » ou « c'est un autre problème », sans que cela bloque l'envoi.
+// L'adresse proposée d'après la position (copropriété sans adresse) est lue au moment de l'envoi : rien n'attend la
+// géolocalisation.
 
-import { useId, useState, type InputHTMLAttributes } from 'react'
+import { useId, useRef, useState, type InputHTMLAttributes } from 'react'
 import { TYPES_PROBLEME, ZONES_COMMUNES, remplir, type TextesCopro } from '@/lib/coproprietaire/textes'
-import type { LangueSignalementQr } from '@/lib/aj-signalement/types'
+import type { LangueSignalementQr, QualiteDeclarantQr, SignalementSemblableQr } from '@/lib/aj-signalement/types'
 import type { TextesSignalementQr } from '@/lib/aj-signalement/textes'
 import { envoyerSignalementQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import {
   CHAMPS_COORDONNEES, DESCRIPTION_MIN_QR, VALEURS_INITIALES_QR, construireSaisieQr, erreursCoordonnees, formulaireComplet,
-  lieuLogementQr, messageErreurChamp, type ChampCoordonnees, type ChampObligatoire, type LieuQr, type UrgenceQr, type ValeursFormulaireQr,
+  lieuLogementQr, messageErreurChamp, type ChampCoordonnees, type LieuQr, type UrgenceQr, type ValeursFormulaireQr,
 } from '@/lib/aj-signalement/formulaire'
 import { Bouton, Carte, Champ, ChoixCartes, CLASSES_SAISIE, Encadre, type OptionChoix } from '@/components/coproprietaire-dashboard/ui'
+import SignalementsSemblablesQr, { type ChoixSemblableQr } from '@/components/aj-signalement/SignalementsSemblablesQr'
+import { useSignalementsSemblablesQr } from '@/components/aj-signalement/useSignalementsSemblablesQr'
 
 export interface ConfirmationSignalementQr {
   id: string
@@ -33,6 +40,8 @@ export interface PropsFormulaireSignalementQr {
   langue: LangueSignalementQr
   t: TextesCopro
   tq: TextesSignalementQr
+  /** Adresse proposée d'après la position (copropriété sans adresse) ; '' tant qu'il n'y en a pas. */
+  adresseProposee?: string
   onEnvoye: (confirmation: ConfirmationSignalementQr) => void
 }
 
@@ -52,6 +61,22 @@ const LOCAL: Record<LangueSignalementQr, { autreZoneValeur: string }> = {
   pt: { autreZoneValeur: 'Outra' },
 }
 
+type ChoixFait = { endroit: string; choix: ChoixSemblableQr }
+
+const AUCUN_CHOIX: ChoixFait = { endroit: '', choix: null }
+
+/**
+ * Choix « même problème / autre problème » encore valable : fait pour l'endroit affiché (lieu, bâtiment, zone) et,
+ * pour « même problème », sur un signalement toujours dans la liste. Le choix fait ailleurs est en outre effacé dès
+ * que l'endroit change (voir le composant) : il ne revient pas quand la personne revient au même endroit.
+ */
+function choixValable(fait: ChoixFait, endroit: string, semblables: readonly SignalementSemblableQr[]): ChoixSemblableQr {
+  if (!endroit || fait.endroit !== endroit || !fait.choix) return null
+  if (fait.choix.type === 'autre') return fait.choix
+  const { numero } = fait.choix
+  return semblables.some((s) => s.numero === numero) ? fait.choix : null
+}
+
 /** Message d'une erreur d'envoi ; un code sans texte dédié (session) vaut une erreur serveur. */
 function messageErreurEnvoi(code: CodeErreurQr, tq: TextesSignalementQr): string {
   switch (code) {
@@ -66,7 +91,7 @@ function messageErreurEnvoi(code: CodeErreurQr, tq: TextesSignalementQr): string
   }
 }
 
-export default function FormulaireSignalementQr({ jeton, langue, t, tq, onEnvoye }: Readonly<PropsFormulaireSignalementQr>) {
+export default function FormulaireSignalementQr({ jeton, langue, t, tq, adresseProposee = '', onEnvoye }: Readonly<PropsFormulaireSignalementQr>) {
   const idBase = useId()
   const idZone = `${idBase}-zone`
   const idType = `${idBase}-type`
@@ -76,6 +101,19 @@ export default function FormulaireSignalementQr({ jeton, langue, t, tq, onEnvoye
   const [quittes, setQuittes] = useState<ReadonlySet<ChampCoordonnees>>(() => new Set())
   const [envoi, setEnvoi] = useState(false)
   const [erreur, setErreur] = useState<CodeErreurQr | null>(null)
+  // Deux clics avant le nouveau rendu ne doivent pas faire deux dépôts.
+  const enCours = useRef(false)
+
+  // Signalements déjà faits au même endroit ; le choix ne vaut que pour l'endroit où il a été fait.
+  const { cle: endroit, semblables } = useSignalementsSemblablesQr({
+    jeton, langue, communes: valeurs.lieu === 'communes', batiment: valeurs.batiment, zone: valeurs.zone,
+  })
+  const [choixFait, setChoixFait] = useState<ChoixFait>(AUCUN_CHOIX)
+  // L'endroit a changé (lieu, bâtiment normalisé ou zone) : le choix fait ailleurs est effacé pendant le rendu
+  // (état dérivé, sans effet), pour qu'il ne revienne pas quand la personne revient à l'endroit d'origine.
+  if (choixFait.choix !== null && choixFait.endroit !== endroit) setChoixFait(AUCUN_CHOIX)
+  const choix = choixValable(choixFait, endroit, semblables)
+  const numeroLie = choix?.type === 'meme' ? choix.numero : ''
 
   const changer = <C extends keyof ValeursFormulaireQr>(champ: C, valeur: ValeursFormulaireQr[C]) => {
     setValeurs((v) => {
@@ -107,13 +145,20 @@ export default function FormulaireSignalementQr({ jeton, langue, t, tq, onEnvoye
     { valeur: 'genant', libelle: t.demandes.urgenceGenant },
     { valeur: 'urgent', libelle: t.demandes.urgenceUrgent },
   ]
+  const optionsQualite: OptionChoix<QualiteDeclarantQr>[] = [
+    { valeur: 'proprietaire', libelle: tq.qualites.proprietaire },
+    { valeur: 'locataire', libelle: tq.qualites.locataire },
+  ]
 
   const envoyer = async () => {
-    if (!complet || envoi) return
+    if (!complet || envoi || enCours.current) return
+    enCours.current = true
     setErreur(null)
     setEnvoi(true)
-    const saisie = construireSaisieQr(valeurs, jeton, langue)
+    // L'adresse proposée et le choix sont ceux du moment de l'envoi : rien n'attend la géolocalisation.
+    const saisie = construireSaisieQr(valeurs, jeton, langue, { adresseProposee, signalementLieNumero: numeroLie })
     const resultat = await envoyerSignalementQr(saisie)
+    enCours.current = false
     setEnvoi(false)
     if (!resultat.ok) {
       setErreur(resultat.code)
@@ -134,14 +179,15 @@ export default function FormulaireSignalementQr({ jeton, langue, t, tq, onEnvoye
         <div className="grid gap-4 sm:grid-cols-2">
           {CHAMPS_COORDONNEES.map((champ) => {
             const id = `${idBase}-${champ}`
-            const obligatoire = champ !== 'batiment'
-            const erreurChamp = obligatoire && quittes.has(champ) ? erreurs[champ as ChampObligatoire] : undefined
+            const erreurChamp = quittes.has(champ) ? erreurs[champ] : undefined
+            const aide = champ === 'batiment' ? tq.batimentAide : undefined
             return (
               <Champ
                 key={champ}
                 id={id}
                 etiquette={tq[champ]}
-                erreur={erreurChamp ? messageErreurChamp(champ as ChampObligatoire, erreurChamp, tq) : undefined}
+                aide={aide}
+                erreur={erreurChamp ? messageErreurChamp(champ, erreurChamp, tq) : undefined}
               >
                 <input
                   id={id}
@@ -149,15 +195,24 @@ export default function FormulaireSignalementQr({ jeton, langue, t, tq, onEnvoye
                   value={valeurs[champ]}
                   onChange={(e) => changer(champ, e.target.value)}
                   onBlur={() => quitter(champ)}
-                  required={obligatoire}
+                  required
                   aria-invalid={erreurChamp ? true : undefined}
-                  aria-describedby={erreurChamp ? `${id}-aide` : undefined}
+                  aria-describedby={erreurChamp || aide ? `${id}-aide` : undefined}
                   className={CLASSES_SAISIE}
                   {...ATTRIBUTS_CHAMP[champ]}
                 />
               </Champ>
             )
           })}
+        </div>
+        <div className="mt-4">
+          <ChoixCartes
+            nom={`${idBase}-qualite`}
+            legende={tq.qualite}
+            options={optionsQualite}
+            valeur={valeurs.qualite}
+            onChange={(v) => changer('qualite', v)}
+          />
         </div>
       </Carte>
 
@@ -180,6 +235,14 @@ export default function FormulaireSignalementQr({ jeton, langue, t, tq, onEnvoye
               </select>
             </Champ>
           )}
+
+          <SignalementsSemblablesQr
+            semblables={semblables}
+            choix={choix}
+            onChoisir={(c) => setChoixFait({ endroit, choix: c })}
+            langue={langue}
+            tq={tq}
+          />
 
           <Champ id={idType} etiquette={t.demandes.typeProbleme}>
             <select id={idType} value={valeurs.type} onChange={(e) => changer('type', e.target.value)} className={CLASSES_SAISIE}>

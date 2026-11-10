@@ -6,13 +6,33 @@
 // formulaire (coordonnées obligatoires puis le parcours du portail copropriétaire), et la confirmation
 // avec le numéro du signalement. Pas de compte, pas de suivi : l'administrateur recontacte le déclarant
 // au téléphone ou à l'e-mail laissés. Pensée pour un téléphone (une colonne, cibles de 44 px).
+// Copropriété sans adresse (demande de Hugo du 06/11/2026) : une carte « Copropriété » explique en une phrase à
+// quoi sert la position, puis montre l'adresse proposée d'après elle (copropriété « à moitié identifiée ») ; refus
+// ou échec n'empêchent rien. Adresse connue : elle est affichée et aucune position n'est demandée.
 
 import { useState } from 'react'
 import { dateLongue, remplir, textesCopro } from '@/lib/coproprietaire/textes'
 import type { CoproprieteQrPublique, LangueSignalementQr } from '@/lib/aj-signalement/types'
-import { TEXTES_SIGNALEMENT_QR } from '@/lib/aj-signalement/textes'
+import { TEXTES_SIGNALEMENT_QR, type TextesSignalementQr } from '@/lib/aj-signalement/textes'
 import { Bouton, Carte, Icone } from '@/components/coproprietaire-dashboard/ui'
 import FormulaireSignalementQr, { type ConfirmationSignalementQr } from '@/components/aj-signalement/FormulaireSignalementQr'
+import { useAdresseProposeeQr, type AdresseProposeeEtat } from '@/components/aj-signalement/useAdresseProposeeQr'
+
+/** Message de la carte « Copropriété » selon l'état de la géolocalisation ; '' pendant la demande au navigateur. */
+function messageAdresse(a: AdresseProposeeEtat, tq: TextesSignalementQr): string {
+  switch (a.etat) {
+    case 'recherche':
+      return tq.adresseRecherche
+    case 'proposee':
+      return remplir(tq.adresseProposee, { adresse: a.adresse })
+    case 'refusee':
+      return tq.positionRefusee
+    case 'echec':
+      return tq.adresseIntrouvable
+    default:
+      return ''
+  }
+}
 
 export interface PropsAppSignalementQr {
   jeton: string
@@ -26,6 +46,8 @@ export default function AppSignalementQr({ jeton, copropriete, langue }: Readonl
   const [confirmation, setConfirmation] = useState<ConfirmationSignalementQr | null>(null)
   // Incrémentée à chaque nouveau signalement : le formulaire est remonté vide.
   const [cle, setCle] = useState(0)
+  // Ici et non dans le formulaire : un nouveau signalement ne redemande pas la position.
+  const adresse = useAdresseProposeeQr(jeton, copropriete.adresse)
 
   const enHaut = () => {
     if (typeof window !== 'undefined') window.scrollTo({ top: 0 })
@@ -66,12 +88,20 @@ export default function AppSignalementQr({ jeton, copropriete, langue }: Readonl
           <>
             <h2 className="font-serif text-xl text-[#0D1B2E] md:text-2xl">{tq.titre}</h2>
             <p className="mb-5 mt-2 text-base">{remplir(tq.accroche, { copropriete: copropriete.nom })}</p>
+            {adresse.etat !== 'inutile' && (
+              <Carte titre={tq.copropriete} className="mb-6">
+                <p className="text-base font-semibold text-[#0D1B2E]">{copropriete.nom}</p>
+                <p className="mt-1 text-sm text-[#4A5E78]">{tq.geolocalisationExplication}</p>
+                <p aria-live="polite" className="mt-2 text-base text-[#1F2D3D]">{messageAdresse(adresse, tq)}</p>
+              </Carte>
+            )}
             <FormulaireSignalementQr
               key={cle}
               jeton={jeton}
               langue={langue}
               t={t}
               tq={tq}
+              adresseProposee={adresse.etat === 'proposee' ? adresse.adresse : ''}
               onEnvoye={(c) => { setConfirmation(c); enHaut() }}
             />
           </>

@@ -5,12 +5,16 @@
 //   destinataires), signalements du plus récent au plus ancien ;
 // - détail : coordonnées cliquables, changement de statut (PATCH) répercuté sur la liste et les indicateurs ;
 // - nouvelle copropriété (POST) : carte ajoutée ; e-mails invalides refusés avant tout appel ;
-// - base non initialisée : message avec la migration et bouton Réessayer ; filtre par copropriété.
+// - base non initialisée : message avec la migration et bouton Réessayer ; filtre par copropriété ;
+// - qualité du déclarant et « même problème que le signalement n° X » dans le détail et la liste ;
+// - copropriété sans adresse : dernière adresse proposée d'après la position d'un déclarant, « Utiliser cette
+//   adresse » (PATCH { adresse }) ; rien pour une copropriété dont l'adresse est renseignée.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
-import { TEXTES_TABLEAU_QR as T } from '@/lib/aj-signalement/affichage'
+import { TEXTES_TABLEAU_QR as T, dateHeureParis } from '@/lib/aj-signalement/affichage'
+import { remplir } from '@/lib/coproprietaire/textes'
 import type { SignalementQr, TableauQr } from '@/lib/aj-signalement/types'
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -23,6 +27,7 @@ const marie: SignalementQr = {
   estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier',
   priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: '2026-11-04T14:05:10.000Z', emailErreur: null,
   confirmationEnvoyeeLe: '2026-11-04T14:05:12.000Z', confirmationErreur: null,
+  qualiteDeclarant: 'locataire', adresseProposee: '1 Quai du Port 13002 Marseille', signalementLieId: '1a2b3c4d-0000-4000-8000-000000000001',
   creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
 }
 const paul: SignalementQr = {
@@ -31,14 +36,21 @@ const paul: SignalementQr = {
   estPartieCommune: true, zoneSignalee: 'Hall d’entrée', typeIntervention: 'Ascenseur', description: 'Ascenseur bloqué',
   priorite: 'normale', statut: 'terminee', emailEnvoyeLe: null, emailErreur: 'RESEND_API_KEY not configured',
   confirmationEnvoyeeLe: null, confirmationErreur: 'limite atteinte pour cette adresse',
+  qualiteDeclarant: null, adresseProposee: '', signalementLieId: null,
   creeLe: '2026-11-03T08:59:00.000Z', misAJourLe: '2026-11-03T12:00:00.000Z',
 }
 
 function tableau(): TableauQr {
   return {
     coproprietes: [
-      { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 1, nbEnAttente: 1 },
-      { id: ID_COPRO_2, nom: 'Les Oliviers', adresse: 'Aubagne', jeton: 'f'.repeat(32), emailsDestinataires: ['o@example.com'], actif: true, creeLe: '2026-11-04T11:00:00.000Z', nbSignalements: 1, nbEnAttente: 0 },
+      {
+        id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 1, nbEnAttente: 1,
+        derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-04T14:05:00.000Z' },
+      },
+      {
+        id: ID_COPRO_2, nom: 'Les Oliviers', adresse: 'Aubagne', jeton: 'f'.repeat(32), emailsDestinataires: ['o@example.com'], actif: true, creeLe: '2026-11-04T11:00:00.000Z', nbSignalements: 1, nbEnAttente: 0,
+        derniereAdresseProposee: null,
+      },
     ],
     signalements: [paul, marie],
   }
@@ -186,7 +198,7 @@ describe('copropriétés', () => {
 
   it('modifie une copropriété : PATCH avec nom, adresse, destinataires et activation', async () => {
     await rendrePret((appel) => (appel.init?.method === 'PATCH'
-      ? json({ copropriete: { ...tableau().coproprietes[0], nom: 'Parc Belle Ombre (bât. B)', actif: false, nbSignalements: 0, nbEnAttente: 0 } })
+      ? json({ copropriete: { ...tableau().coproprietes[0], nom: 'Parc Belle Ombre (bât. B)', actif: false, nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
       : json({ tableau: tableau() })))
     fireEvent.click(screen.getAllByRole('button', { name: T.modifier })[0])
     const dialogue = screen.getByRole('dialog')
@@ -198,7 +210,67 @@ describe('copropriétés', () => {
     expect(patch?.url).toBe(`/api/aj-signalement/coproprietes/${ID_COPRO}`)
     expect(JSON.parse(String(patch?.init?.body))).toEqual({ nom: 'Parc Belle Ombre (bât. B)', adresse: '', emailsDestinataires: [], actif: false })
     expect(screen.getByText(T.qrDesactive)).toBeInTheDocument()
+    // Les compteurs connus sont conservés, comme la dernière adresse proposée tant que l'adresse reste vide.
+    expect(screen.getByText('1 signalement · 1 à traiter')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: T.utiliserAdresse })).toBeInTheDocument()
+  })
+})
+
+describe('qualité du déclarant et signalement lié', () => {
+  it('détail : qualité, « même problème que le signalement n° X », adresse proposée ; « Non indiquée » pour un signalement antérieur', async () => {
+    await rendrePret()
+    const lignes = within(screen.getByRole('list')).getAllByRole('listitem')
+    expect(lignes[0]).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
+    expect(lignes[1]).not.toHaveTextContent('Même problème')
+    fireEvent.click(within(lignes[0]).getByRole('button', { name: T.voirDetail }))
+    const dialogue = screen.getByRole('dialog')
+    expect(within(dialogue).getByText(T.detail.qualite).parentElement).toHaveTextContent('Locataire')
+    expect(within(dialogue).getByText(T.detail.signalementLie).parentElement).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
+    expect(within(dialogue).getByText(T.detail.adresseProposee).parentElement).toHaveTextContent('1 Quai du Port 13002 Marseille')
+    fireEvent.click(within(dialogue).getByRole('button', { name: T.detail.fermer }))
+
+    fireEvent.click(within(within(screen.getByRole('list')).getAllByRole('listitem')[1]).getByRole('button', { name: T.voirDetail }))
+    const autre = screen.getByRole('dialog')
+    expect(within(autre).getByText(T.detail.qualite).parentElement).toHaveTextContent('Non indiquée')
+    expect(within(autre).queryByText(T.detail.signalementLie)).toBeNull()
+    expect(within(autre).queryByText(T.detail.adresseProposee)).toBeNull()
+  })
+})
+
+describe('adresse proposée d’après la position d’un déclarant', () => {
+  const texteProposee = remplir(T.derniereAdresseProposee, { date: dateHeureParis('2026-11-04T14:05:00.000Z'), adresse: '1 Quai du Port 13002 Marseille' })
+  const carte = (nom: string) => screen.getByRole('heading', { name: nom }).closest('section') as HTMLElement
+
+  it('copropriété sans adresse : dernière adresse proposée (date) et « Utiliser cette adresse » ; rien pour une copropriété qui a une adresse', async () => {
+    await rendrePret()
+    expect(within(carte('Parc Belle Ombre')).getByText(texteProposee)).toBeInTheDocument()
+    expect(within(carte('Parc Belle Ombre')).getByText(T.sansAdresse)).toBeInTheDocument()
+    expect(within(carte('Les Oliviers')).queryByRole('button', { name: T.utiliserAdresse })).toBeNull()
+    expect(screen.getAllByRole('button', { name: T.utiliserAdresse })).toHaveLength(1)
+  })
+
+  it('« Utiliser cette adresse » : PATCH { adresse } puis l’adresse devient celle de la copropriété', async () => {
+    await rendrePret((appel) => (appel.init?.method === 'PATCH'
+      ? json({ copropriete: { ...tableau().coproprietes[0], adresse: '1 Quai du Port 13002 Marseille', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
+      : json({ tableau: tableau() })))
+    fireEvent.click(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse }))
+    await waitFor(() => expect(screen.getByText(T.adresseEnregistree)).toBeInTheDocument())
+    const patch = appels.find((a) => a.init?.method === 'PATCH')
+    expect(patch?.url).toBe(`/api/aj-signalement/coproprietes/${ID_COPRO}`)
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({ adresse: '1 Quai du Port 13002 Marseille' })
+    expect((patch?.init?.headers as Record<string, string>).Authorization).toBe('Bearer jeton')
+    expect(within(carte('Parc Belle Ombre')).getByText('1 Quai du Port 13002 Marseille')).toBeInTheDocument()
+    expect(within(carte('Parc Belle Ombre')).queryByText(T.sansAdresse)).toBeNull()
+    expect(screen.queryByRole('button', { name: T.utiliserAdresse })).toBeNull()
     // Les compteurs connus sont conservés.
     expect(screen.getByText('1 signalement · 1 à traiter')).toBeInTheDocument()
+  })
+
+  it('enregistrement refusé : erreur dans la carte, l’adresse proposée reste', async () => {
+    await rendrePret((appel) => (appel.init?.method === 'PATCH' ? json({ error: 'interdit' }, 403) : json({ tableau: tableau() })))
+    fireEvent.click(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse }))
+    await waitFor(() => expect(within(carte('Parc Belle Ombre')).getByRole('alert')).toHaveTextContent(T.erreurAdresse))
+    expect(within(carte('Parc Belle Ombre')).getByText(texteProposee)).toBeInTheDocument()
+    expect(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse })).toBeEnabled()
   })
 })

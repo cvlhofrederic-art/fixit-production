@@ -4,7 +4,10 @@
 // admin), l'écran miroir de l'Administrateur judiciaire et l'e-mail envoyé à l'administrateur. Textes
 // en français : l'administrateur est un outil français ; la page publique, elle, est FR / PT (textes.ts).
 
-import type { CoproprieteQr, LangueSignalementQr, PrioriteSignalementQr, SignalementQr, StatutSignalementQr } from '@/lib/aj-signalement/types'
+import {
+  numeroSignalementQr, type CoproprieteQr, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr,
+  type StatutSignalementQr,
+} from '@/lib/aj-signalement/types'
 import type { CodeErreurQr } from '@/lib/aj-signalement/api'
 import { remplir } from '@/lib/coproprietaire/textes'
 
@@ -68,6 +71,18 @@ export function lieuSignalementQr(s: Pick<SignalementQr, 'estPartieCommune' | 'z
 
 /** « Prénom Nom ». */
 export const nomDeclarantQr = (s: Pick<SignalementQr, 'prenom' | 'nom'>): string => `${s.prenom} ${s.nom}`.trim()
+
+export const LIBELLE_QUALITE_QR: Record<QualiteDeclarantQr, string> = {
+  proprietaire: 'Propriétaire',
+  locataire: 'Locataire',
+}
+
+/** Qualité du déclarant ; « Non indiquée » pour les signalements déposés avant le 06/11/2026. */
+export const libelleQualiteQr = (qualite: QualiteDeclarantQr | null): string => (qualite ? LIBELLE_QUALITE_QR[qualite] : 'Non indiquée')
+
+/** « Même problème que le signalement n° 1A2B3C4D » ; '' sans signalement lié. */
+export const texteSignalementLieQr = (id: string | null): string =>
+  (id ? remplir(TEXTES_TABLEAU_QR.memeProbleme, { numero: numeroSignalementQr(id) }) : '')
 
 /** « bât. B · étage 4 · lot 12 », sans les parties vides. */
 export function situationLotQr(s: Pick<SignalementQr, 'batiment' | 'etage' | 'numLot'>): string {
@@ -183,6 +198,12 @@ export const TEXTES_TABLEAU_QR = {
   libelleQr: 'QR code de la copropriété {nom}',
   qrDesactive: 'QR code désactivé',
   sansAdresse: 'Adresse non renseignée',
+  derniereAdresseProposee: 'Dernière adresse proposée d’après la position d’un déclarant ({date}) : {adresse}',
+  utiliserAdresse: 'Utiliser cette adresse',
+  enregistrementAdresse: 'Enregistrement…',
+  adresseEnregistree: 'Adresse enregistrée.',
+  erreurAdresse: 'L’adresse n’a pas pu être enregistrée. Réessayez.',
+  memeProbleme: 'Même problème que le signalement n° {numero}',
   signalements: 'Signalements reçus',
   aucunSignalement: 'Aucun signalement reçu pour le moment.',
   aucunSignalementFiltre: 'Aucun signalement pour cette copropriété.',
@@ -194,6 +215,9 @@ export const TEXTES_TABLEAU_QR = {
   detail: {
     titre: 'Signalement {numero}',
     declarant: 'Déclarant',
+    qualite: 'Qualité',
+    signalementLie: 'Signalement lié',
+    adresseProposee: 'Adresse proposée (position du déclarant)',
     telephone: 'Téléphone',
     email: 'E-mail',
     lot: 'Lot',

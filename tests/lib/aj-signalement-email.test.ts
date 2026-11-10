@@ -31,6 +31,7 @@ function signalement(sur: Partial<SignalementQr> = {}): SignalementQr {
     typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier\n<script>alert(1)</script>',
     priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: null, emailErreur: null,
     confirmationEnvoyeeLe: null, confirmationErreur: null,
+    qualiteDeclarant: 'proprietaire', adresseProposee: '', signalementLieId: null,
     creeLe: '2026-11-04T13:05:00.000Z', misAJourLe: '2026-11-04T13:05:00.000Z',
     ...sur,
   }
@@ -193,5 +194,56 @@ describe('confirmation au déclarant', () => {
     expect(await cleLimiteConfirmationQr('x+2@d.fr')).toBe(cleX)
     expect(await cleLimiteConfirmationQr('x.y@d.fr')).not.toBe(await cleLimiteConfirmationQr('xy@d.fr'))
     expect(await cleLimiteConfirmationQr('victime@outlook.fr')).not.toBe(cleGmail)
+  })
+})
+
+describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 06/11/2026)', () => {
+  const ID_LIE = '1a2b3c4d-0000-4000-8000-000000000001'
+
+  it('administrateur : qualité, « même problème que le signalement n° X », adresse proposée échappée', () => {
+    const { html } = templateSignalementQr({
+      copropriete: { nom: 'Parc Belle Ombre', adresse: '' },
+      signalement: signalement({ qualiteDeclarant: 'locataire', signalementLieId: ID_LIE, adresseProposee: '1 Quai du Port <i>13002</i> Marseille' }),
+    })
+    expect(html).toContain('Qualité')
+    expect(html).toContain('Locataire')
+    expect(html).toContain('Même problème que le signalement n° 1A2B3C4D')
+    expect(html).toContain('Adresse proposée')
+    expect(html).toContain('1 Quai du Port &lt;i&gt;13002&lt;/i&gt; Marseille')
+    expect(html).not.toContain('<i>13002')
+  })
+
+  it('administrateur : sans lien ni adresse proposée, ces lignes n’apparaissent pas', () => {
+    const { html } = templateSignalementQr({ copropriete, signalement: signalement() })
+    expect(html).toContain('Propriétaire')
+    expect(html).not.toContain('Même problème')
+    expect(html).not.toContain('Adresse proposée')
+  })
+
+  it('confirmation FR : « Vous êtes » et « même problème » ; l’adresse proposée n’y figure pas', () => {
+    const { html } = templateConfirmationQr({
+      copropriete: { nom: 'Parc Belle Ombre' },
+      signalement: signalement({ signalementLieId: ID_LIE, adresseProposee: '1 Quai du Port 13002 Marseille' }),
+    })
+    expect(html).toContain('Vous êtes')
+    expect(html).toContain('Propriétaire')
+    expect(html).toContain('Même problème que le signalement n° 1A2B3C4D')
+    expect(html).not.toContain('Quai du Port')
+  })
+
+  it('confirmation PT : « Na qualidade de », « Inquilino », « Mesmo problema que a ocorrência n.º X »', () => {
+    const { html } = templateConfirmationQr({
+      copropriete: { nom: 'Parc Belle Ombre' },
+      signalement: signalement({ langue: 'pt', qualiteDeclarant: 'locataire', signalementLieId: ID_LIE }),
+    })
+    expect(html).toContain('Na qualidade de')
+    expect(html).toContain('Inquilino')
+    expect(html).toContain('Mesmo problema que a ocorrência n.º 1A2B3C4D')
+    expect(html).not.toContain('Vous êtes')
+  })
+
+  it('qualité inconnue (signalement antérieur) : la ligne n’apparaît pas dans la confirmation', () => {
+    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: signalement({ qualiteDeclarant: null }) })
+    expect(html).not.toContain('Vous êtes')
   })
 })
