@@ -73,6 +73,14 @@ import {
  * - D. 1967 art. 46, al. 3 : le syndic désigné par le président du tribunal judiciaire administre selon les art. 18 à
  *   18-2 de la loi ; art. 47 (administrateur provisoire faute de syndic) : rien sur sa rémunération.
  *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J39 ; question de la PR #651, point 31) :
+ * - J39 : le barème du droit proportionnel de l'administrateur provisoire sur travaux (arrêté du 8 octobre 2015, art. 11 ;
+ *   D. 1967 art. 61-1-5, I, 2°) s'applique opération par opération. Chaque opération a son propre calcul par tranches
+ *   (droitProportionnelTravauxAdministrateurProvisoire, sur le montant hors taxes d'une seule opération) ; le droit de
+ *   plusieurs opérations est la somme de leurs droits (droitsProportionnelsTravauxParOperation), jamais le barème appliqué
+ *   au cumul de leurs montants. La question 🔴 « opération par opération, ou une seule fois au montant total » est
+ *   tranchée ; l'assiette et la présentation au juge restent ouvertes (🔴 ci-dessous).
+ *
  * Règles :
  * - budget de l'opération en quatre postes (Travaux, Dommages-ouvrage, Honoraires cabinet, Honoraires presta.) : montant
  *   engagé TTC et suppléments, réglé et reste à régler par poste ; total engagé ; budget adopté (celui de la décision)
@@ -110,8 +118,9 @@ import {
  * - honoraires sur travaux : un poste du budget, jamais un élément à facturer (honoraires-facturation.ts inchangé) ;
  *   cadre selon le régime du mandat (cadreHonorairesTravaux) ; sous le cadre de l'art. 18-1 A, III, le vote est
  *   contrôlé (même assemblée, même majorité, pourcentage du hors taxes) ; sous administration provisoire de l'art. 29-1,
- *   le poste est une prévision soumise au juge, estimée au barème de l'art. 11 de l'arrêté du 8 octobre 2015
- *   (droitProportionnelTravauxAdministrateurProvisoire) ;
+ *   le poste est une prévision soumise au juge, estimée au barème de l'art. 11 de l'arrêté du 8 octobre 2015, opération
+ *   par opération (J39 : droitProportionnelTravauxAdministrateurProvisoire pour une opération,
+ *   droitsProportionnelsTravauxParOperation pour plusieurs) ;
  * - le budget contrôlé est celui de l'opération (même n°, même syndicat, D1), au suivi comme au contrôle des honoraires ;
  *   la date de l'assemblée qui vote les honoraires est une date ISO valide.
  *
@@ -141,7 +150,10 @@ import {
  *   honoraires non établi ; le syndic désigné par l'assemblée se passe explicitement (« syndic »), comme le cadre du
  *   contrat type que l'appelant passe à honoraires-sinistre.ts ;
  * - barème de l'art. 11 appliqué par tranches (« dégressifs par tranche », D. 1967 art. 61-1-5, I, 2°), bornes à 12 500
- *   et 25 000 euros, arrondi au centime le plus proche (demi au-dessus) du total ;
+ *   et 25 000 euros, arrondi au centime le plus proche (demi au-dessus) du droit de chaque opération (J39 : l'arrondi
+ *   aussi se fait opération par opération) ; le total des droits de l'art. 11 des opérations est rapproché du seuil de
+ *   l'art. 15 (75 000 euros), sans les droits des art. 12 et 13, que ce module ne connaît pas : un dépassement est
+ *   certain, son absence ne l'est pas ;
  * - la rémunération de l'administrateur provisoire ne se vote pas : des honoraires votés sous ce régime sont signalés.
  *
  * 🔴 Non établi (questions pour Frédéric ou Hugo) :
@@ -168,11 +180,14 @@ import {
  * - « Les postes du budget se ventilent-ils par clé, comme la grille des devis de l'onglet Budget ? » (VitFix : par
  *   opération) ; « Un engagement au-delà du budget adopté exige-t-il une nouvelle décision avant la commande ? » (VitFix :
  *   signalé, non bloqué) ;
- * - « Le barème de l'art. 11 de l'arrêté du 8 octobre 2015 s'applique-t-il opération par opération, ou une seule fois au
- *   "montant total" des travaux de la mission ? Sur quelle assiette : les seuls travaux, ou aussi les études, la
- *   dommages-ouvrage et les honoraires des prestataires (Gestéam : cases DO, Autres honoraires) ? » (VitFix : sur le
- *   montant hors taxes fourni, opération par opération, à confirmer) ; « Comment le cabinet présente-t-il ce droit au
- *   juge (compte provisoire détaillé des émoluments, D. 1967 art. 61-1-5, II) ? » ;
+ * - « Sur quelle assiette s'applique, pour chaque opération (J39), le barème de l'art. 11 de l'arrêté du 8 octobre
+ *   2015 : les seuls travaux, ou aussi les études, la dommages-ouvrage et les honoraires des prestataires (Gestéam : cases
+ *   DO, Autres honoraires) ? » (VitFix : le montant hors taxes fourni pour chaque opération, à confirmer) ; « Comment le
+ *   cabinet présente-t-il ce droit au juge (compte provisoire détaillé des émoluments, D. 1967 art. 61-1-5, II) ? » ;
+ * - « (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations
+ *   (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s'additionnent-ils avant un
+ *   seul calcul par tranches ? » (VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas ; deux calculs pour
+ *   une même opération feraient repartir le barème de sa première tranche) ;
  * - « Le syndic désigné en justice (D. 1967 art. 46) perçoit-il des honoraires de travaux votés selon l'art. 18-1 A,
  *   III ? Qui fixe sa rémunération ? » (VitFix : cadre de l'art. 18-1 A, III, à confirmer) ; « Quelle rémunération pour
  *   l'administrateur provisoire de l'art. 47 ? » (aucun texte trouvé : cadre non établi) ; « En administration
@@ -1127,6 +1142,8 @@ export const BAREME_DROIT_PROPORTIONNEL_TRAVAUX: readonly { jusquACentimes: numb
 /** Arrêté du 8 octobre 2015, art. 15 : au-delà, D. 1967 art. 61-1-5, III, al. 2 et 3 (rémunération arrêtée par le juge). */
 export const SEUIL_DROITS_PROPORTIONNELS_HT_CENTIMES = 7_500_000
 
+const FONDEMENTS_DROIT_PROPORTIONNEL: readonly string[] = ['Arrêté du 8 octobre 2015, art. 11 et 15', 'D. 1967 art. 61-1-5, I, 2°']
+
 export interface DroitProportionnelTravaux {
   /** Droit hors taxes, arrondi au centime. */
   droitHtCentimes: number
@@ -1138,14 +1155,16 @@ export interface DroitProportionnelTravaux {
    */
   depasseSeuilArticle15: boolean
   fondements: readonly string[]
-  /** Toujours vrai : assiette et application opération par opération à confirmer (🔴 en-tête). */
+  /** Toujours vrai : assiette à confirmer (🔴 en-tête) ; l'application opération par opération est décidée (J39). */
   aConfirmer: true
 }
 
 /**
- * Estimation du droit proportionnel de l'administrateur provisoire sur des travaux (arrêté du 8 octobre 2015, art. 11),
- * par tranches, sur le montant hors taxes fourni. Prévision du poste « Honoraires cabinet » : la rémunération est
- * arrêtée par le juge (D. 1967 art. 61-1-5, II et III), jamais facturée sur ce calcul.
+ * Estimation du droit proportionnel de l'administrateur provisoire sur les travaux d'UNE opération (arrêté du 8 octobre
+ * 2015, art. 11 ; décision J39 : opération par opération), par tranches, sur le montant hors taxes fourni pour cette
+ * opération. Plusieurs opérations : droitsProportionnelsTravauxParOperation, jamais ce calcul sur leur cumul. Prévision
+ * du poste « Honoraires cabinet » : la rémunération est arrêtée par le juge (D. 1967 art. 61-1-5, II et III), jamais
+ * facturée sur ce calcul.
  */
 export function droitProportionnelTravauxAdministrateurProvisoire(montantTravauxHtCentimes: number): DroitProportionnelTravaux {
   verifierCentimes(montantTravauxHtCentimes, 'Montant hors taxes des travaux')
@@ -1164,7 +1183,56 @@ export function droitProportionnelTravauxAdministrateurProvisoire(montantTravaux
     droitHtCentimes,
     tranches,
     depasseSeuilArticle15: droitHtCentimes > SEUIL_DROITS_PROPORTIONNELS_HT_CENTIMES,
-    fondements: ['Arrêté du 8 octobre 2015, art. 11 et 15', 'D. 1967 art. 61-1-5, I, 2°'],
+    fondements: [...FONDEMENTS_DROIT_PROPORTIONNEL],
+    aConfirmer: true,
+  }
+}
+
+/** Une opération du calcul J39 : son numéro et le montant hors taxes de ses travaux. */
+export interface MontantTravauxOperation {
+  numero: string
+  montantTravauxHtCentimes: number
+}
+
+export interface DroitsProportionnelsDesOperations {
+  /** Chaque opération, avec son propre calcul par tranches (J39), dans l'ordre reçu ; numéro rogné. */
+  operations: (MontantTravauxOperation & { droit: DroitProportionnelTravaux })[]
+  /** Somme des droits des opérations, chacun arrondi au centime : jamais le barème appliqué au cumul des montants (J39). */
+  totalDroitHtCentimes: number
+  /**
+   * Le total des droits de l'art. 11 des opérations excède 75 000 euros HT (art. 15). Les droits des art. 12 et 13 de la
+   * mission n'y sont pas : vrai, le seuil est dépassé ; faux, ces droits peuvent encore le faire dépasser.
+   */
+  depasseSeuilArticle15: boolean
+  fondements: readonly string[]
+  /** Toujours vrai : assiette à confirmer (🔴 en-tête). */
+  aConfirmer: true
+}
+
+/**
+ * Droit proportionnel de plusieurs opérations (décision J39) : le barème s'applique à chacune
+ * (droitProportionnelTravauxAdministrateurProvisoire), le total est la somme de leurs droits. Refus : numéro vide, et
+ * les refus du calcul d'une opération. Opération fournie deux fois : refusée, choix de VitFix à confirmer (🔴 en-tête),
+ * que J39 ne dit pas : deux calculs pour une même opération feraient repartir le barème de sa première tranche.
+ */
+export function droitsProportionnelsTravauxParOperation(operations: readonly MontantTravauxOperation[]): DroitsProportionnelsDesOperations {
+  const numeros = new Set<string>()
+  const calculs = operations.map(({ numero, montantTravauxHtCentimes }) => {
+    const retenu = numero.trim()
+    if (retenu === '') throw new Error("Numéro d'opération attendu : le droit proportionnel se calcule opération par opération (décision J39).")
+    if (numeros.has(retenu))
+      throw new Error(
+        `Opération ${retenu} fournie deux fois : refusée (choix de VitFix, à confirmer) ; deux calculs pour une même opération feraient repartir le barème de sa première tranche.`,
+      )
+    numeros.add(retenu)
+    return { numero: retenu, montantTravauxHtCentimes, droit: droitProportionnelTravauxAdministrateurProvisoire(montantTravauxHtCentimes) }
+  })
+  const totalDroitHtCentimes = somme(calculs.map((calcul) => calcul.droit.droitHtCentimes))
+  return {
+    operations: calculs,
+    totalDroitHtCentimes,
+    depasseSeuilArticle15: totalDroitHtCentimes > SEUIL_DROITS_PROPORTIONNELS_HT_CENTIMES,
+    fondements: [...FONDEMENTS_DROIT_PROPORTIONNEL],
     aConfirmer: true,
   }
 }

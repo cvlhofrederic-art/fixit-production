@@ -48,13 +48,20 @@ import type { NaturePlanComptable } from '@/lib/data/referentiels-gesteam-judici
  *   et n° de l'ordonnance (OrdonnanceJuge), chacun obligatoire ; date ISO valide, jamais postérieure à aujourd'hui. Il en
  *   manque un, ou la date est invalide ou future : refus motivé (cause « reference_invalide »), qui nomme ce qui manque.
  *   Pour la décision d'affectation de l'assemblée (decisionAg) : date de l'AG et n° de la résolution
- *   (DecisionAffectationAg), mêmes règles ; cette déclinaison est une interprétation (🔵 à confirmer par Hugo).
+ *   (DecisionAffectationAg), mêmes règles ; cette déclinaison est confirmée par J42 (ci-dessous).
  *   Lecture et saisie sont distinctes. Une nouvelle saisie (option `nouvelleSaisie`, passée par virement-interne.ts) en
  *   texte libre est refusée, motif « forme incomplète » à l'appui. Une valeur enregistrée avant J30 en texte libre reste
  *   lisible (lireOrdonnanceJuge, lireDecisionAffectationAg) et admise comme avant, jamais rejetée en silence : le
  *   contrôle la signale « forme incomplète » (formeIncomplete), avec ce qui manque. Un texte blanc vaut absence. La date
  *   du jour est exigée dès qu'une forme structurée est contrôlée ; un calcul sur des valeurs enregistrées passe
  *   `aujourdhui: null` (forme contrôlée, date non comparée au jour).
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
+ *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : la marque de doute de cette
+ *   déclinaison est retirée ici et dans virement-interne.ts, avis-appel.ts et fonds-travaux-lots.ts, comportement
+ *   inchangé (mêmes refus, mêmes causes, mêmes motifs, même lecture des valeurs enregistrées avant J30) : le motif d'un
+ *   refus garde « forme attendue » pour la décision de l'AG et « forme exigée » pour l'ordonnance (CadreForme.exigence).
  *
  * 🔵 Déduit du texte (non écrit en toutes lettres) :
  * - le syndic décide seul des travaux urgents (art. 18), pas de l'usage du fonds : aucune disposition ne lui permet d'y
@@ -191,7 +198,7 @@ export interface OrdonnanceJuge {
   numero: string
 }
 
-/** Décision d'affectation de l'assemblée (I, al. 7) : date de l'AG et n° de la résolution (J30, 🔵 à confirmer). */
+/** Décision d'affectation de l'assemblée (I, al. 7) : date de l'AG et n° de la résolution, obligatoires (J30, J42). */
 export interface DecisionAffectationAg {
   /** Date de l'assemblée (AAAA-MM-JJ), jamais postérieure à aujourd'hui. */
   dateAg: string
@@ -228,7 +235,7 @@ interface ChampForme<T> {
 /** Forme exigée d'une référence : ses champs et leur désignation dans les messages. */
 interface CadreForme<T> {
   nom: string
-  /** « exigée » (texte de la décision) ou « attendue » (déclinaison à confirmer). */
+  /** Libellé du motif : « forme exigée » (ordonnance) ou « forme attendue » (décision de l'AG), gardés par J42. */
   exigence: string
   description: string
   champs: readonly ChampForme<T>[]

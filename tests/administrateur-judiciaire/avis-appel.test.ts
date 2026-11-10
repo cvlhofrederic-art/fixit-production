@@ -293,6 +293,13 @@ describe('emploi du fonds de travaux — information ventilée par compte', () =
     expect(decisions).toMatch(/types de DecaissementFondsTravaux/)
     expect(decisions).toMatch(/`aujourdhui: null`/)
     expect(decisions).not.toMatch(/tant que son branchement n'est pas fait/)
+    expect(decisions).not.toMatch(/à confirmer/)
+  })
+
+  it('en-tête : rubrique « Décisions de Hugo du 06/11/2026 » (J42 : forme de la décision d’affectation confirmée, comportement inchangé)', () => {
+    const j42 = enTeteDuModule('avis-appel').item('J42 :')
+    expect(j42).toMatch(/date de l'AG \+ n° de la résolution, obligatoires/)
+    expect(j42).toMatch(/comportement inchangé/)
   })
 
   it('refuse un emploi sur une échéance qui n’est pas de travaux, inconnue ou en double', () => {

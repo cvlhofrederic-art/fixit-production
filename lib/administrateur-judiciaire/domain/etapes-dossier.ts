@@ -30,7 +30,7 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *   Fait le, case « Accusé de réalisation au demandeur ». Validation : Collaborateur, « Prévue le » (case Fixe), Durée,
  *   Validée le, Sans objet le, Alerte de sécurité. Programmation : durées estimées / réelles (réalisation, validation),
  *   « En cours depuis », Cumul. Boutons Enchaînement, Dupliquer, Ajouter. Recherche : « Créée par / du … au », « À faire
- *   du … au », « À valider du … au », Limite, Dossier.
+ *   du … au », « À valider du … au », Limite, Dossier. Les deux cases « Fixe », observées, ne sont pas reprises (J44).
  * 🟢 Tranche 14 § 6 : cinq acteurs (créateur, demandeur, réalisateur, valideur, collaborateur assigné), quatre dates
  *   (création, à faire, à valider, limite).
  * 🟢 Tranche 42 § Étapes du contentieux : « Copie au CS pour info », créée « Automatique » à la date de la mise en
@@ -55,7 +55,15 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *   (bilanDurees comptait déjà ainsi : inchangé).
  * - J24 : l'étape automatique « Copie au CS pour info » relève d'un usage du cabinet, pas d'une obligation du contrat de
  *   syndic : réglage activable (UsagesEtapesCabinet, etapeCopieAuCsPourInfo).
- * - Question 13 (case « Fixe ») : non tranchée, voir 🔴 5.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J41 et J44 ; anciennes questions du 🔴 n° 11, de
+ * la PR #642, et n° 5, question 13 de la liste) :
+ * - J41 : l'usage « Copie au CS pour info » est INACTIF par défaut, réglage activable par le cabinet :
+ *   USAGES_ETAPES_CABINET_PAR_DEFAUT le désactive ; sans réglage qui l'active (UsagesEtapesCabinet), etapeCopieAuCsPourInfo
+ *   ne crée aucune étape. Activé, il crée l'étape comme avant (« Automatique », à la date de la mise en demeure).
+ * - J44 : la case « Fixe » de « À faire le » et de « Prévue le » est supprimée : elle n'est plus saisie à la création, ni
+ *   programmée, ni recopiée à l'enchaînement. Les dates « À faire le » et « Prévue le » restent, inchangées ; la question
+ *   du sens de la case disparaît.
  *
  * 🔵 Déduits :
  * - l'origine se lit dans « Créée par » : « Automatique » à la place d'un collaborateur (creeeParId null) ;
@@ -70,19 +78,16 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *   réaliser) ;
  * - J22 : seul le demandeur « collaborateur » est interne au cabinet, toute autre nature est extérieure ; la case
  *   d'accusé décochée l'emporte, quelle que soit la nature ; l'adresse électronique se résout à l'envoi, hors domaine ;
- * - J24 : usage actif par défaut (USAGES_ETAPES_CABINET_PAR_DEFAUT), comme observé en tranche 42 ; J24 tranche la nature
- *   de l'étape, pas cette valeur par défaut, à valider (🔴 11) ; l'étape créée est « Automatique », donc visée par la
- *   règle des N jours ; demandeur et réalisateur fournis par l'appelant (non observés) ;
+ * - J24 : l'étape créée par l'usage activé est « Automatique », donc visée par la règle des N jours ; demandeur et
+ *   réalisateur fournis par l'appelant (non observés) ;
  * - la règle des N jours s'applique avec ou sans limite, et « Relance d'étape » (tranche 38) en est rapprochée sans
  *   certitude : le suivi reçoit la date de relance, même future, et le réglage y applique l'horizon et le week-end ; N est
  *   plafonné (JOURS_SUIVI_ETAPE_MAX, garde-fou). Heures, agenda et report d'agenda : point 68 ; déclencheur par courrier et
  *   mode de réalisation : point 50 ; modèles par type de dossier : point 49.
- * 🔴 Non établi (fiches lues vides, aucun « Effectuer » actionné ; aucun texte) — questions restantes ; les n° 1, 3, 4,
- *   6 et 7 sont tranchées (J20 à J24, ci-dessus) :
+ * 🔴 Non établi (fiches lues vides, aucun « Effectuer » actionné ; aucun texte) — questions restantes ; les n° 1, 3 à 7
+ *   et 11 sont tranchées (J20 à J24, J41 et J44, ci-dessus) :
  * 2. Frédéric : quelle valeur de N pour « étape automatique non réalisée » (30 jours proposés) ; réglage par cabinet ou
  *    par collaborateur ?
- * 5. Hugo : que signifie la case « Fixe » à côté de « À faire le » et de « Prévue le » ? (conservée telle quelle, sans
- *    effet)
  * 8. Frédéric ou Hugo : quand un processus d'étapes modélise un délai légal (ex. 30 j de L. 1965 art. 19-2), la limite
  *    de l'étape suivante doit-elle partir de la première présentation ou de la transmission de l'avis électronique
  *    (D. 1967 art. 64 et 64-1) et non de la réalisation (l'envoi) ? Sinon, ces délais restent marqués « de gestion ».
@@ -91,9 +96,6 @@ import { creerRattachement, memeRattachement, type FicheLiee, type Rattachement 
  *    par le syndic ? La date de création d'une étape n'est pas, à ce jour, la date de la demande.
  * 10. Frédéric ou Hugo (suite de J22) : demandeur extérieur sans adresse électronique connue : quel canal de repli
  *    (courrier, appel) ? L'accusé décrit « E-mail » ; l'envoi relève de l'écran.
- * 11. Hugo : l'usage « Copie au CS pour info » est-il actif par défaut, ou à activer par le cabinet ? (suite de J24, qui
- *    en fait un réglage activable sans en fixer la valeur par défaut ; VitFix le garde actif, comme observé en tranche
- *    42 : USAGES_ETAPES_CABINET_PAR_DEFAUT)
  *
  * Le droit (relevé sur Légifrance le 29/10/2026) :
  * - aucun texte ne régit le rattachement, les instructions, « à faire le », la date de création, l'origine, les durées,
@@ -172,14 +174,10 @@ export interface EtapeDossier extends Etape {
   /** Dossiers et fiches porteuses de l'étape (point 47). */
   rattachements: Rattachement[]
   instructions: string
-  /** « À faire le » (sous-onglet Réalisation). */
+  /** « À faire le » (sous-onglet Réalisation ; sans case « Fixe » : J44). */
   aFaireLe: string | null
-  /** Case « Fixe » de « À faire le » (🔴 sens non observé : conservée telle quelle). */
-  aFaireLeFixe: boolean
-  /** « Prévue le » (sous-onglet Validation). */
+  /** « Prévue le » (sous-onglet Validation ; sans case « Fixe » : J44). */
   validationPrevueLe: string | null
-  /** Case « Fixe » de « Prévue le » (🔴 sens non observé). */
-  validationPrevueLeFixe: boolean
   /** Case « Accusé de réalisation au demandeur ». */
   accuseAuDemandeur: boolean
   durees: DureesEtape
@@ -203,9 +201,7 @@ export interface SaisieEtapeDossier {
   rattachements?: readonly Rattachement[]
   instructions?: string
   aFaireLe?: string | null
-  aFaireLeFixe?: boolean
   validationPrevueLe?: string | null
-  validationPrevueLeFixe?: boolean
   accuseAuDemandeur?: boolean
   /** Durées estimées ; les durées réelles se saisissent à la réalisation et à la validation. */
   durees?: { realisationEstimee?: number | null; validationEstimee?: number | null }
@@ -299,15 +295,11 @@ function champsEtape(saisie: SaisieEtapeDossier): Etape {
   }
 }
 
-/** Programmation saisie à la création : « à faire le », « prévue le », cases Fixe et d'accusé. */
-function champsProgrammation(
-  saisie: SaisieEtapeDossier,
-): Pick<EtapeDossier, 'aFaireLe' | 'aFaireLeFixe' | 'validationPrevueLe' | 'validationPrevueLeFixe' | 'accuseAuDemandeur'> {
+/** Programmation saisie à la création : « à faire le », « prévue le », case d'accusé (plus de case « Fixe » : J44). */
+function champsProgrammation(saisie: SaisieEtapeDossier): Pick<EtapeDossier, 'aFaireLe' | 'validationPrevueLe' | 'accuseAuDemandeur'> {
   return {
     aFaireLe: saisie.aFaireLe ?? null,
-    aFaireLeFixe: saisie.aFaireLeFixe ?? false,
     validationPrevueLe: saisie.validationPrevueLe ?? null,
-    validationPrevueLeFixe: saisie.validationPrevueLeFixe ?? false,
     accuseAuDemandeur: saisie.accuseAuDemandeur ?? false,
   }
 }
@@ -380,9 +372,7 @@ export function etapesEnFichesLiees(etapes: readonly EtapeDossier[], aujourdhui:
  */
 export interface ProgrammationEtape {
   aFaireLe?: string | null
-  aFaireLeFixe?: boolean
   validationPrevueLe?: string | null
-  validationPrevueLeFixe?: boolean
   dureeRealisationEstimee?: number | null
   dureeValidationEstimee?: number | null
   instructions?: string
@@ -405,9 +395,7 @@ export function programmerEtape(etape: EtapeDossier, programmation: Programmatio
     instructions: garder(programmation.instructions?.trim(), etape.instructions),
     accuseAuDemandeur: garder(programmation.accuseAuDemandeur, etape.accuseAuDemandeur),
     aFaireLe: garder(programmation.aFaireLe, etape.aFaireLe),
-    aFaireLeFixe: garder(programmation.aFaireLeFixe, etape.aFaireLeFixe),
     validationPrevueLe: garder(programmation.validationPrevueLe, etape.validationPrevueLe),
-    validationPrevueLeFixe: garder(programmation.validationPrevueLeFixe, etape.validationPrevueLeFixe),
     durees: {
       ...etape.durees,
       realisationEstimee: garder(programmation.dureeRealisationEstimee, etape.durees.realisationEstimee),
@@ -592,9 +580,7 @@ export function enchainerEtapeDossier(
     rattachements: etape.rattachements.map((r) => ({ ...r })),
     instructions: '',
     aFaireLe: null,
-    aFaireLeFixe: false,
     validationPrevueLe: null,
-    validationPrevueLeFixe: false,
     accuseAuDemandeur: false,
     durees: dureesVides(),
   }
@@ -667,8 +653,8 @@ export interface UsagesEtapesCabinet {
   copieAuCsPourInfo: boolean
 }
 
-/** 🔵 Actif par défaut : l'usage observé du cabinet (tranche 42) ; désactivable ; valeur par défaut à valider (🔴 11). */
-export const USAGES_ETAPES_CABINET_PAR_DEFAUT: Readonly<UsagesEtapesCabinet> = { copieAuCsPourInfo: true }
+/** Inactif par défaut (décision J41) : le cabinet active l'usage par son réglage. */
+export const USAGES_ETAPES_CABINET_PAR_DEFAUT: Readonly<UsagesEtapesCabinet> = { copieAuCsPourInfo: false }
 
 /** 🟢 Titre observé (tranche 42). */
 export const TITRE_COPIE_AU_CS_POUR_INFO = 'Copie au CS pour info'
@@ -687,8 +673,8 @@ export interface DeclencheurCopieAuCs {
 
 /**
  * Étape automatique « Copie au CS pour info », créée « Automatique » à la date de la mise en demeure et rattachée au
- * dossier Contentieux, si l'usage est actif ; null sinon. Mêmes contrôles que creerEtapeDossier ; l'étape relève de la
- * règle des N jours comme toute étape automatique.
+ * dossier Contentieux, si l'usage est actif ; null sinon, et par défaut (J41 : usage inactif sans réglage du cabinet).
+ * Mêmes contrôles que creerEtapeDossier ; l'étape relève de la règle des N jours comme toute étape automatique.
  */
 export function etapeCopieAuCsPourInfo(
   declencheur: DeclencheurCopieAuCs,

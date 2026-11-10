@@ -67,11 +67,19 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *   modifiée par la loi n° 2021-1774 du 24 décembre 2021, art. 1), dispose : « En dessous d'un montant mensuel
  *   déterminé par décret, le salaire est payé en espèces au salarié qui le demande. » et « Au-delà d'un montant mensuel
  *   déterminé par décret, le salaire est payé par chèque barré ou par virement à un compte bancaire ou postal dont le
- *   salarié est le titulaire ou le cotitulaire. » Au-delà du seuil, le refus suit donc la loi ; en deçà, il peut
- *   contredire la demande du salarié : question ouverte (🔴 10), que rappelle le message de l'anomalie. Le refus pour un
- *   fournisseur n'est pas visé par L3241-1. Hors de ce module : la remise d'espèces REÇUES (ordres de banque,
- *   types-ordres-banque.ts, inchangé), tranchée à part (J29 du registre : refusée) ; reglements-fournisseurs.ts applique
- *   aussi J25 : le mode « Espèces » y est refusé par décision.
+ *   salarié est le titulaire ou le cotitulaire. » Au-delà du seuil, le refus suit donc la loi ; en deçà, il contredit la
+ *   demande du salarié : tranché par J40 (ci-dessous). Le refus pour un fournisseur n'est pas visé par L3241-1. Hors de
+ *   ce module : la remise d'espèces REÇUES (ordres de banque, types-ordres-banque.ts, inchangé), tranchée à part (J29 du
+ *   registre : refusée) ; reglements-fournisseurs.ts applique aussi J25 : le mode « Espèces » y est refusé par décision.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J40 ; PR #642, ancienne question 🔴 n° 10) :
+ * - J40 : aucun paiement en espèces, même pour un salarié payé sous le seuil de C. trav. L3241-1 qui le demande : choix
+ *   du cabinet, plus strict que la loi. L'anomalie « especes » reste bloquante, sans réserve ouverte ; son message dit
+ *   le choix et le texte qu'il écarte. Risque : C. trav. L3241-1 donne ce droit au salarié qui le demande, sous le
+ *   montant mensuel fixé par décret (« En dessous d'un montant mensuel déterminé par décret, le salaire est payé en
+ *   espèces au salarié qui le demande. », relu le 03/11/2026, ci-dessus) ; le refus opposé à cette demande contredit ce
+ *   droit. Le décret qui fixe ce montant n'a pas été lu : la règle n'en dépend plus, le refus valant quel que soit le
+ *   salaire.
  *
  * 🔵 Déduit :
  * - un salaire n'est ni une facture ni un achat (art. 3 et 10) : le net à payer est crédité au 421 du salarié (sous-compte
@@ -110,7 +118,7 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  * - SIRET attendu dès qu'un salarié est en poste (la DSN porte le numéro d'identité de l'employeur : CSS art. R133-14, V,
  *   1°, a) ; les autres identifiants employeur : alerte de gestion, jamais bloquante.
  *
- * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; le n° 7 est tranché : J25, ci-dessus, sous la réserve du n° 10) :
+ * 🔴 Non établi (questions exactes pour Frédéric ou Hugo ; les n° 7 et 10 sont tranchés : J25 et J40, ci-dessus) :
  * 1. Frédéric : la pratique Gestéam (salaire réglé comme une facture, 401 au nom du salarié, contrat « Prestation »)
  *    contredit l'arrêté. À la reprise d'un dossier, faut-il reclasser les soldes 401 « salarié » en 421, ou seulement les
  *    signaler ? Les contreparties 641/421, 642/431-432 et 643/442 sont déduites, pas lues : les confirmez-vous ?
@@ -128,10 +136,6 @@ import { MODE_REGLEMENT, QUALITE_IDENTITE, type ModeReglement, type TypeEntrepri
  *    642, réglable cotisation par cotisation (comptePatronal).
  * 9. Bulletin d'un mois postérieur à la sortie du salarié (rappel de salaire, régularisation) : admis sans alerte. Faut-il
  *    une alerte, ou le limiter au mois du paiement ?
- * 10. Hugo ou Frédéric (réserve de J25) : C. trav. L3241-1 renvoie à un montant mensuel fixé par décret. J25 vaut-il
- *    contre la demande d'un salarié payé sous ce seuil, à qui « le salaire est payé en espèces » s'il le demande ? Le
- *    décret qui fixe ce montant reste à lire. D'ici là, l'anomalie « especes » reste bloquante et son message rappelle
- *    la réserve.
  *
  * Branchements à faire plus tard (fichiers sous PR, non modifiés ici) : facture-ventilee.ts (controlerVentilation),
  * statuts-facture.ts et imputation-facture.ts : appeler controlerFactureHorsPaie ; reglements-fournisseurs.ts : refuser un
@@ -576,7 +580,7 @@ const COMPTE_NATURE: Record<NatureReglementPaie, CleComptePaie> = {
 
 /**
  * Modes admis : ni « Pas de règlement », ni « Espèces » (décision J25 : aucun paiement en espèces, compte 53 non tenu ;
- * réserve de C. trav. L3241-1 pour un salarié payé sous le seuil qui le demande : 🔴 10).
+ * décision J40 : pas davantage pour un salarié payé sous le seuil de C. trav. L3241-1 qui le demande).
  */
 export type ModeReglementPaie = Exclude<ModeReglement, 'Pas de règlement' | 'Espèces'>
 const MODES_ADMIS: ReadonlySet<string> = new Set(MODE_REGLEMENT.filter((mode) => mode !== 'Pas de règlement' && mode !== 'Espèces'))
@@ -612,7 +616,7 @@ function anomaliesMode(mode: ModeReglement): AnomaliePaie[] {
       anomalie(
         'especes',
         'Espèces : paiement refusé, aucun salaire ni fournisseur n’est payé en espèces (décision J25 du cabinet) ; compte 53 « Caisse » non tenu. ' +
-          'Réserve : sous un montant mensuel fixé par décret, le salaire est payé en espèces au salarié qui le demande (C. trav. L3241-1) ; ce cas reste ouvert.',
+          'Même sous le montant mensuel fixé par décret, en dessous duquel le salaire est payé en espèces au salarié qui le demande (C. trav. L3241-1), le refus est maintenu (décision J40 du cabinet, plus strict que la loi).',
       ),
     ]
   return MODES_ADMIS.has(mode) ? [] : [anomalie('mode_invalide', `Mode « ${mode} » : chèque, virement, prélèvement ou TIP attendu.`)]

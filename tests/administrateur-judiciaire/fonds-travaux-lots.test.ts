@@ -974,5 +974,9 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(decisions).toMatch(/date de l'AG d'une décision structurée.*emploi_avant_decision/)
     expect(nonEtabli).not.toMatch(/même en forme structurée/)
     expect(nonEtabli).toMatch(/décision d'AG saisie en texte libre.*ordonnance du juge, même structurée.*contrôlées face à la date de l'emploi/)
+    // J42 (06/11/2026) : la déclinaison de la décision d'affectation de l'AG est confirmée, sans changement de comportement.
+    expect(decisions).not.toMatch(/n° de la résolution, 🔵 à confirmer/)
+    expect(decisions).toMatch(/Décisions de Hugo du 06\/11\/2026/)
+    expect(decisions).toMatch(/J42 : la décision d'affectation de l'AG prend la forme date de l'AG \+ n° de la résolution, obligatoires/)
   })
 })

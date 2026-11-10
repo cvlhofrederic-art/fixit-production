@@ -367,7 +367,7 @@ describe('règlement de la paie : catégorie distincte du règlement fournisseur
     expect(codes(controlerReglementPaie(reglement({ bulletinId: null }), contexte))).toEqual(['bulletin_requis'])
   })
 
-  it('J25 : salaire en espèces refusé (décision du cabinet, compte 53 non tenu) ; réserve de C. trav. L3241-1 dans le message', () => {
+  it('J25 et J40 : salaire en espèces refusé (décision du cabinet, compte 53 non tenu), même sous le seuil de C. trav. L3241-1', () => {
     // Seule la paie est contrôlée ici ; les fournisseurs relèvent de reglements-fournisseurs.ts (J25 aussi).
     const [especes] = controlerReglementPaie(reglement({ mode: 'Espèces' }), contexte)
     expect(especes.code).toBe('especes')
@@ -375,9 +375,12 @@ describe('règlement de la paie : catégorie distincte du règlement fournisseur
     expect(especes.message).toMatch(/décision J25/)
     expect(especes.message).toMatch(/compte 53/)
     expect(especes.message).not.toMatch(/à trancher/)
-    // L3241-1 : sous un montant mensuel fixé par décret, le salarié qui le demande est payé en espèces (🔴 10).
+    // J40 (06/11/2026) : refus maintenu sous le seuil de L3241-1, même à la demande du salarié ; choix plus strict que la loi.
     expect(especes.message).toMatch(/C\. trav\. L3241-1/)
     expect(especes.message).toMatch(/au salarié qui le demande/)
+    expect(especes.message).toMatch(/décision J40/)
+    expect(especes.message).toMatch(/plus strict que la loi/)
+    expect(especes.message).not.toMatch(/reste ouvert/)
   })
 
   it('espèces, « Pas de règlement », référence absente, compte qui n’est pas une banque : refusés', () => {
@@ -611,7 +614,7 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(nonEtabli).toMatch(/prévoyance/)
   })
 
-  it('J25 : C. trav. L3241-1 relu (version, phrase exacte) ; la demande d’un salarié payé sous le seuil reste en 🔴', () => {
+  it('J25 : C. trav. L3241-1 relu (version, phrase exacte)', () => {
     expect(entete).not.toMatch(/L3241-1 non lu/)
     expect(decisions).not.toMatch(/aucun texte lu ne l'impose/)
     expect(decisions).toMatch(/En vigueur au 03\/11\/2026/)
@@ -621,8 +624,17 @@ describe('en-tête du module (marqueurs 🟢 / 🔵 / 🔴)', () => {
     expect(decisions).toMatch(
       /« Au-delà d'un montant mensuel déterminé par décret, le salaire est payé par chèque barré ou par virement à un compte bancaire ou postal dont le salarié est le titulaire ou le cotitulaire\. »/,
     )
-    expect(nonEtabli).toMatch(/J25 vaut-il contre la demande d'un salarié payé sous ce seuil/)
-    expect(nonEtabli).toMatch(/décret qui fixe ce montant/)
+  })
+
+  it('J40 (décision de Hugo du 06/11/2026) : aucun salaire en espèces, même sous le seuil ; le 🔴 10 devient une décision, le risque est dit', () => {
+    const decisions0611 = entete.slice(entete.indexOf('Décisions de Hugo du 06/11/2026'), entete.indexOf('🔵 Déduit'))
+    expect(decisions0611).toMatch(/J40 : aucun paiement en espèces, même pour un salarié payé sous le seuil de C\. trav\. L3241-1 qui le demande/)
+    expect(decisions0611).toMatch(/choix du cabinet, plus strict que la loi/)
+    expect(decisions0611).toMatch(/Risque : C\. trav\. L3241-1 donne ce droit au salarié qui le demande, sous le montant mensuel fixé par décret/)
+    expect(decisions).not.toMatch(/question ouverte \(🔴 10\)/)
+    expect(nonEtabli).not.toMatch(/J25 vaut-il contre la demande d'un salarié payé sous ce seuil/)
+    expect(nonEtabli).not.toMatch(/^10\.| 10\. /)
+    expect(source).not.toMatch(/🔴 10/)
   })
 
   it('J25 : la remise d’espèces reçues est tranchée à part (J29 du registre), hors de ce module', () => {

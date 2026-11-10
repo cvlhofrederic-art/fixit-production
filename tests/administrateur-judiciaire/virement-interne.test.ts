@@ -613,7 +613,13 @@ describe('en-tête : sources et marqueurs', () => {
   it('rubrique « Décisions de Hugo du 03/11/2026 » : J30, J31 et J37 inscrites, leurs questions fermées', () => {
     expect(decisions).toMatch(/J30/)
     expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
-    expect(decisions).toMatch(/🔵 à confirmer/)
+    expect(decisions).not.toMatch(/🔵 à confirmer/)
+    // J42 (06/11/2026) : la déclinaison de la décision d'affectation de l'AG est confirmée, sans changement de comportement.
+    expect(decisions).toMatch(/J42 : la décision d'affectation de l'AG prend la forme date de l'AG \+ n° de la résolution, obligatoires/)
+    expect(nonEtabli).not.toMatch(/n° de la résolution, 🔵\)/)
+    // Aucun motif ne change : l'en-tête ne prétend plus que le refus dit « forme exigée » pour la décision de l'AG.
+    expect(decisions).not.toMatch(/le motif du refus dit « forme exigée »/)
+    expect(decisions).toMatch(/comportement inchangé \(mêmes refus, mêmes motifs/)
     expect(decisions).toMatch(/texte libre est refusé, motif « forme incomplète » à l'appui/)
     expect(decisions).not.toMatch(/texte libre d'avant J30 reste admise/)
     expect(decisions).toMatch(/J31/)

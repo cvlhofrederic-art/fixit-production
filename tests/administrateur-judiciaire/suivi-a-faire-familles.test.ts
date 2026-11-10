@@ -41,7 +41,6 @@ const saisieContentieux = (surcharge: Partial<SaisieContentieux> = {}): SaisieCo
   coproprieteId: 'copro-1',
   type: 'Recouvrement de charges/loyer',
   phase: 'Ouverture',
-  particularite: 'Contentieux sans échéancier',
   dateOuverture: '2026-03-02',
   dateCloture: null,
   objet: 'Charges impayées',
@@ -203,7 +202,7 @@ describe('source — contentieux', () => {
       [{ id: 'R1', date: '2026-07-04', montantCentimes: 70_000 }],
       AUJOURDHUI,
     )
-    const dossier = contentieux({ particularite: 'Contentieux avec échéancier' })
+    const dossier = contentieux()
     const elements = depuisContentieux([{ id: 'C5', mandatId: 'M1', libelle: 'x', dossier, echeancier }], AUJOURDHUI)
     expect(elements.find((e) => e.nature === 'echeancier_impaye')).toMatchObject({ id: 'contentieux:C5:echeancier_impaye', date: '2026-08-05' })
     const respecte = suivreEcheancier([{ rang: 1, date: '2026-07-05', montantCentimes: 50_000 }], [{ id: 'R1', date: '2026-07-04', montantCentimes: 50_000 }], AUJOURDHUI)

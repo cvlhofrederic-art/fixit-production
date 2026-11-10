@@ -112,9 +112,7 @@ describe('étape d’un dossier — création', () => {
       rattachements: [contentieux, copro],
       instructions: 'Joindre le décompte',
       aFaireLe: null,
-      aFaireLeFixe: false,
       validationPrevueLe: null,
-      validationPrevueLeFixe: false,
       accuseAuDemandeur: false,
       durees: { realisationEstimee: null, realisationReelle: null, validationEstimee: null, validationReelle: null },
     })
@@ -133,14 +131,13 @@ describe('étape d’un dossier — création', () => {
       saisie({
         rattachements: [contentieux, { type: 'Contentieux', id: ' C-3 ' }, copro],
         aFaireLe: '2026-10-25',
-        aFaireLeFixe: true,
         validationPrevueLe: '2026-10-27',
         accuseAuDemandeur: true,
         durees: { realisationEstimee: 30, validationEstimee: 10 },
       }),
     )
     expect(etape.rattachements).toEqual([contentieux, copro])
-    expect(etape).toMatchObject({ aFaireLe: '2026-10-25', aFaireLeFixe: true, validationPrevueLe: '2026-10-27', accuseAuDemandeur: true })
+    expect(etape).toMatchObject({ aFaireLe: '2026-10-25', validationPrevueLe: '2026-10-27', accuseAuDemandeur: true })
     expect(etape.durees).toEqual({ realisationEstimee: 30, realisationReelle: null, validationEstimee: 10, validationReelle: null })
   })
 
@@ -208,17 +205,31 @@ describe('étape d’un dossier — rattachement et fiches liées', () => {
 })
 
 describe('étape d’un dossier — programmation', () => {
-  it('« à faire le », « prévue le », cases Fixe et durées estimées : absent = inchangé, null = effacé', () => {
+  it('« à faire le », « prévue le » et durées estimées : absent = inchangé, null = effacé', () => {
     const etape = creerEtapeDossier(saisie({ aFaireLe: '2026-10-25', durees: { realisationEstimee: 30 } }))
-    const programmee = programmerEtape(etape, { aFaireLeFixe: true, validationPrevueLe: '2026-10-28', dureeValidationEstimee: 15 })
-    expect(programmee).toMatchObject({ aFaireLe: '2026-10-25', aFaireLeFixe: true, validationPrevueLe: '2026-10-28', validationPrevueLeFixe: false })
+    const programmee = programmerEtape(etape, { validationPrevueLe: '2026-10-28', dureeValidationEstimee: 15 })
+    expect(programmee).toMatchObject({ aFaireLe: '2026-10-25', validationPrevueLe: '2026-10-28' })
     expect(programmee.durees).toEqual({ realisationEstimee: 30, realisationReelle: null, validationEstimee: 15, validationReelle: null })
     const effacee = programmerEtape(programmee, { aFaireLe: null, dureeRealisationEstimee: null })
     expect(effacee).toMatchObject({ aFaireLe: null, validationPrevueLe: '2026-10-28' })
     expect(effacee.durees.realisationEstimee).toBeNull()
-    expect(etape.aFaireLeFixe).toBe(false)
+    expect(etape.validationPrevueLe).toBeNull()
     expect(() => programmerEtape(etape, { aFaireLe: '25/10/2026' })).toThrow(/à faire le/i)
     expect(() => programmerEtape(etape, { dureeRealisationEstimee: -1 })).toThrow(/durée/i)
+  })
+
+  it('J44 : la case « Fixe » n’existe plus, ni à « À faire le », ni à « Prévue le » : ni créée, ni programmée, ni recopiée', () => {
+    const etape = creerEtapeDossier(saisie({ aFaireLe: '2026-10-25', validationPrevueLe: '2026-10-27' }))
+    const programmee = programmerEtape(etape, { aFaireLe: '2026-10-26', validationPrevueLe: '2026-10-28' })
+    const faite = realiserEtapeDossier(programmee, { date: '2026-10-26', compteRendu: '' }).etape
+    const processus = [
+      { etapeType: 'MED', titre: 'Lettre de mise en demeure', delaiJours: 0 },
+      { etapeType: 'COPIE_CS', titre: 'Copie au CS pour info', delaiJours: 8 },
+    ]
+    const suivante = enchainerEtapeDossier(faite, processus, { id: 'e-2', date: '2026-10-26', creeeParId: 'collab-B' }) as EtapeDossier
+    for (const champ of ['aFaireLeFixe', 'validationPrevueLeFixe'])
+      for (const fiche of [etape, programmee, faite, suivante]) expect(fiche).not.toHaveProperty(champ)
+    expect(programmee).toMatchObject({ aFaireLe: '2026-10-26', validationPrevueLe: '2026-10-28' })
   })
 
   it('anomalies non bloquantes : à faire avant la création ou après la limite, validation prévue trop tôt ou sans valideur', () => {
@@ -371,7 +382,6 @@ describe('étape d’un dossier — enchaînement', () => {
       saisie({
         accuseAuDemandeur: true,
         aFaireLe: '2026-10-21',
-        aFaireLeFixe: true,
         validationPrevueLe: '2026-10-22',
         alerteSecurite: '2026-11-01',
         durees: { realisationEstimee: 30 },
@@ -399,9 +409,7 @@ describe('étape d’un dossier — enchaînement', () => {
       rattachements: [contentieux, copro],
       instructions: '',
       aFaireLe: null,
-      aFaireLeFixe: false,
       validationPrevueLe: null,
-      validationPrevueLeFixe: false,
       accuseAuDemandeur: false,
       durees: { realisationEstimee: null, realisationReelle: null, validationEstimee: null, validationReelle: null },
     })
@@ -485,9 +493,16 @@ describe('J24 : « Copie au CS pour info », usage du cabinet (réglage activabl
     realisateurId: 'collab-B',
   } as const
 
-  it('usage actif (par défaut, comme observé en tranche 42) : étape automatique créée à la date de la mise en demeure', () => {
-    expect(USAGES_ETAPES_CABINET_PAR_DEFAUT).toEqual({ copieAuCsPourInfo: true })
-    const etape = etapeCopieAuCsPourInfo(declencheur) as EtapeDossier
+  const ACTIF = { copieAuCsPourInfo: true }
+
+  it('J41 : usage INACTIF par défaut (réglage activable) : sans réglage du cabinet, aucune étape', () => {
+    expect(USAGES_ETAPES_CABINET_PAR_DEFAUT).toEqual({ copieAuCsPourInfo: false })
+    expect(etapeCopieAuCsPourInfo(declencheur)).toBeNull()
+    expect(etapeCopieAuCsPourInfo(declencheur, USAGES_ETAPES_CABINET_PAR_DEFAUT)).toBeNull()
+  })
+
+  it('usage activé par le cabinet : étape automatique créée à la date de la mise en demeure', () => {
+    const etape = etapeCopieAuCsPourInfo(declencheur, ACTIF) as EtapeDossier
     expect(etape).toMatchObject({
       id: 'e-copie',
       titre: TITRE_COPIE_AU_CS_POUR_INFO,
@@ -503,10 +518,10 @@ describe('J24 : « Copie au CS pour info », usage du cabinet (réglage activabl
     expect(etapeAutomatiqueNonRealisee(etape, '2026-11-19')).toEqual({ relanceLe: '2026-11-19', ouverteDepuisJours: 30 })
   })
 
-  it('usage désactivé : aucune étape ; contrôles de la saisie conservés', () => {
+  it('usage désactivé : aucune étape ; activé, contrôles de la saisie conservés', () => {
     expect(etapeCopieAuCsPourInfo(declencheur, { copieAuCsPourInfo: false })).toBeNull()
-    expect(() => etapeCopieAuCsPourInfo({ ...declencheur, miseEnDemeureLe: '20/10/2026' })).toThrow(/création/i)
-    expect(() => etapeCopieAuCsPourInfo({ ...declencheur, contentieuxId: ' ' })).toThrow(/identifiant/i)
+    expect(() => etapeCopieAuCsPourInfo({ ...declencheur, miseEnDemeureLe: '20/10/2026' }, ACTIF)).toThrow(/création/i)
+    expect(() => etapeCopieAuCsPourInfo({ ...declencheur, contentieuxId: ' ' }, ACTIF)).toThrow(/identifiant/i)
   })
 })
 
@@ -663,20 +678,30 @@ describe('en-tête du module : décisions de Hugo du 03/11/2026 (J20 à J24) et 
     expect(ligneDecision('J24')).toMatch(/réglage activable \(UsagesEtapesCabinet, etapeCopieAuCsPourInfo\)/)
   })
 
-  it('🔴 restants : case « Fixe », valeur de N, délais légaux d’un processus, « à compter de la demande » ; plus les questions tranchées', () => {
-    expect(nonEtabli).toMatch(/case « Fixe »/)
+  it('🔴 restants : valeur de N, délais légaux d’un processus, « à compter de la demande », canal de repli ; plus les questions tranchées', () => {
     expect(nonEtabli).toMatch(/quelle valeur de N/)
     expect(nonEtabli).toMatch(/première présentation/)
     expect(nonEtabli).toMatch(/à compter de la demande/)
     expect(nonEtabli).toMatch(/10\. Frédéric ou Hugo \(suite de J22\) : demandeur extérieur sans adresse électronique/)
-    // J24 tranche la nature de l'étape (usage du cabinet), pas sa valeur par défaut : à valider.
-    expect(nonEtabli).toMatch(/11\. Hugo : l'usage « Copie au CS pour info » est-il actif par défaut, ou à activer par le cabinet \?/)
-    expect(source).toMatch(/valeur par défaut à valider \(🔴 11\)/)
+    // J41 et J44 (06/11/2026) : valeur par défaut de l'usage et case « Fixe » tranchées.
+    expect(nonEtabli).not.toMatch(/case « Fixe »/)
+    expect(nonEtabli).not.toMatch(/11\. Hugo : l'usage « Copie au CS pour info » est-il actif par défaut/)
+    expect(source).not.toMatch(/🔴 11/)
+    expect(source).not.toMatch(/🔴 5\b/)
     expect(nonEtabli).not.toMatch(/« Automatique » ou le collaborateur/)
     expect(nonEtabli).not.toMatch(/unité des champs Durée/)
     expect(nonEtabli).not.toMatch(/mémo interne, e-mail/)
     expect(nonEtabli).not.toMatch(/depuis la création ou depuis/)
     expect(nonEtabli).not.toMatch(/usage du cabinet ou du contrat de syndic/)
+  })
+
+  it('rubrique « Décisions de Hugo du 06/11/2026 » : J41 (usage inactif par défaut) et J44 (case « Fixe » supprimée)', () => {
+    const decisions0611 = entete.slice(entete.indexOf('Décisions de Hugo du 06/11/2026'), entete.indexOf('🔵 Déduits'))
+    expect(decisions0611).toMatch(/J41 : l'usage « Copie au CS pour info » est INACTIF par défaut/)
+    expect(decisions0611).toMatch(/USAGES_ETAPES_CABINET_PAR_DEFAUT/)
+    expect(decisions0611).toMatch(/J44 : la case « Fixe » de « À faire le » et de « Prévue le » est supprimée/)
+    expect(decisions).not.toMatch(/Question 13 \(case « Fixe »\) : non tranchée/)
+    expect(source).not.toMatch(/aFaireLeFixe|validationPrevueLeFixe/)
   })
 
   it('aucune date ISO dans la source', () => {
