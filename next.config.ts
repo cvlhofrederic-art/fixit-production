@@ -47,6 +47,10 @@ const nextConfig: NextConfig = {
         { source: '/fr/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
         { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        // Espace AJ Signalement (super admin) : une seule page, vues par ancre (#signalements…), d'où des règles exactes
+        // seulement. Une sous-page un jour (ex. /gestionnaires/) : ajouter « :path* » APRÈS ces deux règles (OpenNext).
+        { source: '/fr/aj-signalement', destination: '/aj-signalement' },
+        { source: '/fr/aj-signalement/', destination: '/aj-signalement/' },
         { source: '/fr/contact', destination: '/contact' },
         { source: '/fr/contact/', destination: '/contact/' },
         { source: '/fr/confirmation', destination: '/confirmation' },
@@ -81,6 +85,8 @@ const nextConfig: NextConfig = {
         { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        { source: '/pt/aj-signalement', destination: '/aj-signalement' },
+        { source: '/pt/aj-signalement/', destination: '/aj-signalement/' },
         // Slug PT du contact (phase 1 SEO PT, point 1.8) ; /pt/contact/ redirige vers /pt/contacto/.
         { source: '/pt/contacto', destination: '/contact' },
         { source: '/pt/contacto/', destination: '/contact/' },
@@ -302,6 +308,12 @@ const nextConfig: NextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
+      // Espace AJ Signalement (super admin) : jamais indexable. Les réponses du middleware (redirections, refus 403)
+      // portent le même en-tête (middleware.ts, viseEspacePrive).
+      ...['/:locale(fr|pt)/aj-signalement/:path*', '/aj-signalement/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      })),
     ]
   },
 };

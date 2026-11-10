@@ -4,8 +4,8 @@
 // par un composant client. Accès aux tables signalements_qr_* avec la clé service (supabaseAdmin) :
 // la RLS n'a aucune politique, donc tout contrôle d'accès est ici.
 //   - dépôt public : la copropriété est trouvée par son jeton (QR code) ; rien d'autre n'est exigé ;
-//   - tableau de bord : super admin seulement, par jeton Bearer (portail copropriétaire) ou par les
-//     cookies de session (Administrateur judiciaire). Les copropriétés QR n'appartiennent à aucun cabinet.
+//   - tableau de bord : super admin seulement ; espace AJ Signalement (/fr/aj-signalement/, cookies de session ;
+//     jeton Bearer accepté quand l'appelant en donne un). Les copropriétés QR n'appartiennent à aucun cabinet.
 // Colonnes ajoutées le 06/11/2026 (confirmation au déclarant, qualité, adresse proposée, signalement lié) : tant
 // que leurs migrations ne sont pas appliquées en production, PostgREST refuse toute requête qui les nomme (42703 en
 // lecture, PGRST204 en écriture). Chaque lecture ou écriture qui les nomme prévoit donc un repli sans elles,
@@ -192,8 +192,8 @@ export function signalementDepuisLigne(ligne: LigneSignalementQr, coproprieteNom
 export type ControleSuperAdmin = { ok: true; user: User } | { ok: false; reponse: NextResponse }
 
 /**
- * Utilisateur du tableau de bord : jeton Bearer (portail copropriétaire), sinon cookies de session
- * (Administrateur judiciaire). 401 sans session, 403 pour un compte qui n'est pas super admin.
+ * Utilisateur de l'espace AJ Signalement : jeton Bearer quand l'appelant en donne un, sinon cookies de session (ce que
+ * fait l'espace /fr/aj-signalement/). 401 sans session, 403 pour un compte qui n'est pas super admin.
  */
 export async function controlerSuperAdmin(request: NextRequest): Promise<ControleSuperAdmin> {
   let user: User | null = await getAuthUser(request)

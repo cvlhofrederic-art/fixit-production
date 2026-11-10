@@ -2,7 +2,7 @@
 //
 // GET — tableau de bord « AJ Signalement » (super admin) : toutes les copropriétés dotées d'un QR code,
 // avec leurs compteurs, et les signalements reçus les plus récents (coordonnées complètes des déclarants).
-// Jeton Bearer (portail copropriétaire) ou cookies de session (Administrateur judiciaire).
+// Espace AJ Signalement (/fr/aj-signalement/, cookies de session ; jeton Bearer accepté quand l'appelant en donne un).
 // 401 sans session · 403 pour un autre rôle · 503 base_absente tant que la migration 20261104 n'est pas appliquée.
 
 import { NextResponse, type NextRequest } from 'next/server'

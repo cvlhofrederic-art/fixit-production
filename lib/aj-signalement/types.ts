@@ -8,6 +8,8 @@
 // copropriété. Aucun lien avec le logiciel Syndic : ces types ne connaissent ni cabinet, ni immeuble, ni
 // fiche de copropriétaire.
 
+import { CHEMIN_ESPACE_QR, type VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
+
 export type StatutSignalementQr = 'en_attente' | 'acceptee' | 'en_cours' | 'terminee' | 'annulee'
 export type PrioriteSignalementQr = 'urgente' | 'normale' | 'planifiee'
 export type LangueSignalementQr = 'fr' | 'pt'
@@ -158,6 +160,9 @@ export function urlSignalementQr(jeton: string, origine = 'https://vitfix.io'): 
 /** Numéro communiqué au déclarant : huit premiers caractères de l'identifiant, en majuscules (comme le portail). */
 export const numeroSignalementQr = (id: string): string => id.replace(/-/g, '').slice(0, 8).toUpperCase()
 
-/** Ancre du tableau de bord dans le portail copropriétaire (vue super admin). */
-export const ANCRE_TABLEAU_QR = 'signalementsQr'
-export const CHEMIN_TABLEAU_QR = `/fr/coproprietaire/dashboard/#${ANCRE_TABLEAU_QR}`
+/**
+ * Vue « Signalements » de l'espace indépendant AJ Signalement (lien de l'e-mail envoyé à l'administrateur). Les e-mails
+ * envoyés avant le 10/11/2026 pointent vers l'ancien écran du portail (#signalementsQr), qui ramène à son accueil.
+ */
+export const ANCRE_TABLEAU_QR: VueEspaceQr = 'signalements'
+export const CHEMIN_TABLEAU_QR = `${CHEMIN_ESPACE_QR}#${ANCRE_TABLEAU_QR}`

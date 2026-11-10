@@ -455,6 +455,26 @@ describe('pages partagées servies sous /fr et /pt', () => {
     expect(sansBarreFinale(resoudre(avantFichiers, `/${locale}${chemin}`))).toBe(page)
   })
 
+  it.each(['/fr/aj-signalement/', '/fr/aj-signalement', '/pt/aj-signalement/', '/pt/aj-signalement'])(
+    '%s est servie par l’espace AJ Signalement (règles exactes, sans « :path* »)',
+    async (chemin) => {
+      // Espace indépendant du super admin (10/11/2026) : une seule page, vues par ancre (#signalements…).
+      const [avantFichiers] = await reecritures()
+      expect(pageExiste('/aj-signalement')).toBe(true)
+      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/aj-signalement')
+    },
+  )
+
+  it('l’espace AJ Signalement ne capte ni la page publique du QR code ni un sous-chemin', async () => {
+    const [avantFichiers] = await reecritures()
+    const jeton = '0123456789abcdef0123456789abcdef'
+    expect(sansBarreFinale(resoudre(avantFichiers, `/fr/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
+    // Aucune règle « :path* » tant qu'il n'y a pas de sous-page : pas de destination littérale possible.
+    expect(resoudre(avantFichiers, '/fr/aj-signalement/autre/')).toBeNull()
+    expect(avantFichiers.filter(({ source }) => source.includes('aj-signalement')).map(({ source }) => source))
+      .toEqual(['/fr/aj-signalement', '/fr/aj-signalement/', '/pt/aj-signalement', '/pt/aj-signalement/'])
+  })
+
   it('le lien « Avis » du Footer FR mène à une page', () => {
     expect(routeExiste('/fr/avis')).toBe(true)
   })

@@ -4,8 +4,8 @@
 // porte `ok` et, en cas d'échec, un code que les écrans traduisent en message.
 //   - envoyerSignalementQr, proposerAdresseQr, chargerSemblablesQr : page publique ouverte par le QR code, sans
 //     session (dépôt, adresse proposée d'après la position, signalements déjà faits au même endroit) ;
-//   - les autres : tableau de bord (super admin). Le jeton Bearer est ajouté quand il est connu ;
-//     sinon les cookies de session suffisent (credentials same-origin), comme dans l'Administrateur judiciaire.
+//   - les autres : espace AJ Signalement (/fr/aj-signalement/, super admin). Le jeton Bearer est ajouté quand il est
+//     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace.
 
 import {
   NUMERO_QR, estStatutOuvertQr,

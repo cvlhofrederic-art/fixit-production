@@ -1,8 +1,8 @@
 // ── Libellés et calculs d'affichage du tableau de bord « AJ Signalement » ─────
 //
-// Fonctions pures, sans React, partagées par le tableau de bord du portail copropriétaire (vue super
-// admin), l'écran miroir de l'Administrateur judiciaire et l'e-mail envoyé à l'administrateur. Textes
-// en français : l'administrateur est un outil français ; la page publique, elle, est FR / PT (textes.ts).
+// Fonctions pures, sans React, partagées par l'espace « AJ Signalement » du super admin (/fr/aj-signalement/)
+// et l'e-mail envoyé à l'administrateur. Textes en français : l'administrateur est un outil français ; la
+// page publique, elle, est FR / PT (textes.ts).
 
 import {
   numeroSignalementQr, type CoproprieteQr, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr,

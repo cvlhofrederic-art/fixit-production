@@ -249,29 +249,28 @@ produites LOCALEMENT sans appel réseau à partir de `espace` (fonction `reponse
 prochaine AG ; syndic → coordonnées ; sinon phrase d'orientation vers le bon écran).
 Jamais de montant inventé : si l'espace n'a pas la donnée, dire qu'elle n'est pas publiée par le syndic.
 
-## 9. AJ Signalement — `EcranSignalementsQr` (super admin seulement, 04/11/2026)
+## 9. AJ Signalement — sorti du portail (espace indépendant, 10/11/2026)
 
-Tableau de bord des signalements déposés par QR code (`components/aj-signalement/TableauSignalementsQr.tsx`, textes français dans
-`lib/aj-signalement/affichage.ts`). Proposé au seul super admin (`estSuperAdmin(metadonnees)`), dans la barre latérale et le menu
-« Plus » ; jamais à un copropriétaire ni à un locataire (l'ancre `#signalementsQr` les ramène à l'accueil). Le shell lui passe le
-jeton du compte (`jetonSyndic`) même quand l'espace affiché vient de l'Administrateur judiciaire (les autres écrans reçoivent alors
-`jeton: null`) ; sans jeton, les cookies de session suffisent.
+Le tableau de bord des signalements déposés par QR code n'est plus un écran du portail (ancien `EcranSignalementsQr`, du
+04/11 au 10/11/2026) : il vit dans son espace indépendant **/fr/aj-signalement/** (`app/(commun)/aj-signalement/`,
+`components/aj-signalement/espace/EspaceAjSignalement.tsx`), avec son menu (Tableau de bord, Copropriétés, Signalements) et sa
+connexion (`/fr/auth/login/?retour=/fr/aj-signalement/`). Accès : `lib/aj-signalement/acces-espace.ts` (super admin
+aujourd'hui, « vue en tant que » comprise ; le rôle gestionnaire s'y ajoutera), contrôlé par le middleware puis par la garde du
+navigateur ; les routes `/api/aj-signalement/*` restent réservées au super admin.
+
+Le portail n'en garde qu'un **lien « AJ Signalement »** (icône `qr`, `t.menu.ajSignalement`), pour le seul super admin
+(`lienEspaceQr(metadonnees)`), au pied de la barre latérale (à côté de « Panneau admin ») et dans le menu « Plus » du téléphone ;
+jamais pour un copropriétaire ni un locataire. Les huit écrans sont les mêmes pour tous ; l'ancre `#signalementsQr` (e-mails
+envoyés avant le 10/11/2026) ramène à l'accueil. Même chose dans l'Administrateur judiciaire : plus d'écran « Signalements QR »,
+un lien au pied de la barre latérale (`components/common/LienAjSignalement.tsx`).
 
 - Données : `GET /api/aj-signalement/tableau` → tables `signalements_qr_coproprietes` et `signalements_qr`
   (migration `supabase/migrations/20261104_signalements_qr.sql`, qui crée la copropriété de test « Parc Belle Ombre »), sans
-  aucun lien avec les tables `syndic_*`. Migration absente → encadré « base non prête » avec le nom du fichier.
-- Copropriétés : une carte par copropriété — QR code en SVG (lien `/fr/signalement/<jeton>/`, origine du site courant),
-  « Copier le lien », destinataires des e-mails (vide = `ADMIN_EMAIL` / `ADMIN_EMAIL_2`), compteurs, « Télécharger l'affiche (PDF) »
-  (A4, jsPDF), « Télécharger le QR code (PNG) », « Modifier » (nom, adresse, e-mails, QR actif, « Remplacer le QR code » après
-  confirmation) ; « Ajouter une copropriété » (POST, jeton tiré par le serveur).
-- Signalements : du plus récent au plus ancien, filtre par copropriété, statut (À traiter / Pris en charge / En cours / Résolu /
-  Classé sans suite) et « Urgent » ; détail en fenêtre : déclarant, téléphone (`tel:`), e-mail (`mailto:`), lot, lieu, type,
-  urgence, date, numéro, état de l'e-mail envoyé, description, boutons de statut (`ACTIONS_STATUT_QR`, PATCH).
-- Parcours public, hors portail : `app/(commun)/signalement/[jeton]/page.tsx` → `components/aj-signalement/AppSignalementQr.tsx`
-  (FR / PT) : coordonnées obligatoires (prénom, nom, téléphone, e-mail, étage, numéro de lot ; bâtiment facultatif), puis le
-  parcours de « Signaler un problème » (où, zone, type, description, urgence) ; `POST /api/aj-signalement/signalements`
-  enregistre le signalement et l'envoie par e-mail (réponse directe au déclarant). Même liste dans l'Administrateur judiciaire
-  (`SignalementsQrModule`, route `signalementsQr`, « Données réelles » : lecture et statut seulement).
+  aucun lien avec les tables `syndic_*` ni avec le sélecteur de copropriété de l'AJ ou du portail.
+- Contenu de l'espace : `components/aj-signalement/TableauSignalementsQr.tsx` (une instance gardée montée, prop `vue`, un seul
+  chargement), cartes `CarteCoproprieteQr`, fenêtres `ModaleCoproprieteQr` et `DetailSignalementQr` ; filtre par copropriété
+  toujours visible dans la vue Signalements.
+- Parcours public, inchangé : `app/(commun)/signalement/[jeton]/page.tsx` → `components/aj-signalement/AppSignalementQr.tsx`.
 
 ## Décisions juridiques à respecter (relecture droit du 17/10/2026)
 

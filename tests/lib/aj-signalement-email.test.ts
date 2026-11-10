@@ -57,7 +57,9 @@ describe('objet et contenu', () => {
     expect(html).toContain('Fuite sous l’évier<br/>&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(html).not.toContain('<script>')
     expect(html).toContain('5F2C9A1E')
-    expect(html).toContain('https://vitfix.io/fr/coproprietaire/dashboard/#signalementsQr')
+    // Espace indépendant du super admin (10/11/2026), vue Signalements ; plus de lien vers le portail copropriétaire.
+    expect(html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+    expect(html).not.toContain('coproprietaire/dashboard')
     expect(html).toContain('4 novembre 2026')
     expect(html).toContain('Signalement urgent')
   })
@@ -116,6 +118,7 @@ describe('confirmation au déclarant', () => {
     expect(html).not.toContain('mailto:')
     expect(html).not.toContain('tel:')
     expect(html).not.toContain('coproprietaire/dashboard')
+    expect(html).not.toContain('aj-signalement/')
     expect(html).not.toContain('@')
     expect(html).not.toContain('06 12 34 56 78')
     expect(html).not.toContain('Durand')

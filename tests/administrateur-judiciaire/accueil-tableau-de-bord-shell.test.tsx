@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { act, cleanup, fireEvent, render, renderHook, screen, within, type RenderResult } from '@testing-library/react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFixy } from '@/components/administrateur-judiciaire/modules/agents-ia/fixy/useFixy'
-import { statutEcran } from '@/components/administrateur-judiciaire/modules/registry'
+import { ECRANS_PAR_ROUTE, STATUTS_ECRANS, statutEcran } from '@/components/administrateur-judiciaire/modules/registry'
 import {
   LIBELLES_ROUTES,
   NB_TACHES_ECHEANCE_PROCHE,
@@ -18,7 +18,7 @@ import { ToastProvider } from '@/components/administrateur-judiciaire/ui/toast'
 import { useDonneesStore } from '@/lib/administrateur-judiciaire/db/donnees-store'
 import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { initialiserBaseDemo } from '@/lib/administrateur-judiciaire/db/seed-demo'
-import { porteeRoute } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
+import { ROUTES_CABINET, porteeRoute } from '@/lib/administrateur-judiciaire/domain/selection-copropriete'
 import { useSelectionDossier } from '@/lib/administrateur-judiciaire/selection'
 
 /**
@@ -267,5 +267,41 @@ describe('Shell — le Tableau de bord, page d’accueil', () => {
     const recents = JSON.parse(localStorage.getItem(CLE_RECENTS) || '[]') as string[]
     expect(recents[0]).toBe('dashboard')
     expect(recents).not.toContain('cockpit')
+  })
+})
+
+/**
+ * « AJ Signalement » sort de l'AJ (demande de Hugo du 10/11/2026) : l'écran « Signalements QR » quitte le menu, la
+ * palette, le fil d'Ariane et le registre ; l'espace indépendant (/fr/aj-signalement/) n'a plus qu'un lien au pied de
+ * la barre latérale, pour le seul super admin (tests/components/panneau-admin-liens.test.tsx). Une ancre, un favori ou
+ * un récent hérités ne mènent à rien de mort.
+ */
+describe('AJ Signalement sorti de l’AJ', () => {
+  const ROUTE = 'signalementsQr'
+
+  it('ni menu, ni fil d’Ariane, ni palette, ni registre, ni page du cabinet', () => {
+    const entrees = SECTIONS_NAVIGATION.flatMap((section) => section.items)
+    expect(entrees.map((entree) => entree[0])).not.toContain(ROUTE)
+    expect(entrees.map((entree) => entree[1])).not.toContain('Signalements QR')
+    expect(Object.hasOwn(LIBELLES_ROUTES, ROUTE)).toBe(false)
+    expect(MODULES_PALETTE.map((module) => module.id)).not.toContain(ROUTE)
+    expect(Object.hasOwn(ECRANS_PAR_ROUTE, ROUTE)).toBe(false)
+    expect(STATUTS_ECRANS.reel).not.toContain(ROUTE)
+    expect(ROUTES_CABINET.has(ROUTE)).toBe(false)
+  })
+
+  it('ancre héritée #signalementsQr au chargement : Tableau de bord', async () => {
+    const rendu = await monterShell(ROUTE)
+    expect(filAriane(rendu)).toBe('Tableau de bord')
+    expect(rendu.queryByTestId('ecran-registre')).not.toBeNull()
+  })
+
+  it('favori et récent hérités « signalementsQr » : ignorés par la palette', async () => {
+    localStorage.setItem(CLE_RECENTS, JSON.stringify([ROUTE, 'copros']))
+    localStorage.setItem('vitfix.aj.favorites', JSON.stringify([ROUTE]))
+    await monterShell()
+    await ouvrirPalette()
+    expect(libellesOptionsPalette()).not.toContain('Signalements QR')
+    expect((palette() as HTMLElement).textContent).not.toContain('Signalements QR')
   })
 })

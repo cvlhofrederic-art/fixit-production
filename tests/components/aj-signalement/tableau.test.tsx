@@ -1,11 +1,14 @@
 // tests/components/aj-signalement/tableau.test.tsx
 //
-// Tableau de bord « AJ Signalement » (vue super admin du portail copropriétaire) :
-// - chargement (GET tableau avec le jeton) : indicateurs, carte de la copropriété (lien, QR code dessiné,
-//   destinataires), signalements du plus récent au plus ancien ;
+// Contenu de l'espace « AJ Signalement » (/fr/aj-signalement/, super admin) : TableauSignalementsQr, une seule instance
+// gardée montée par l'espace, qui affiche la vue choisie dans son menu (Tableau de bord, Copropriétés, Signalements) :
+// - un seul chargement (GET tableau, avec le jeton quand il est donné) pour les trois vues ;
+// - changement de vue (menu ou bouton Retour du navigateur) : la fenêtre ouverte se ferme, le message de succès s'efface ;
+// - tableau de bord : présentation et indicateurs ; copropriétés : cartes (lien, QR code dessiné, destinataires),
+//   ajout, modification ; signalements : liste du plus récent au plus ancien, filtre par copropriété toujours visible ;
 // - détail : coordonnées cliquables, changement de statut (PATCH) répercuté sur la liste et les indicateurs ;
 // - nouvelle copropriété (POST) : carte ajoutée ; e-mails invalides refusés avant tout appel ;
-// - base non initialisée : message avec la migration et bouton Réessayer ; filtre par copropriété ;
+// - base non initialisée : message avec la migration et bouton Réessayer ;
 // - qualité du déclarant et « même problème que le signalement n° X » dans le détail et la liste ;
 // - copropriété sans adresse : dernière adresse proposée d'après la position d'un déclarant, « Utiliser cette
 //   adresse » (PATCH { adresse }) ; rien pour une copropriété dont l'adresse est renseignée.
@@ -14,6 +17,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
 import { TEXTES_TABLEAU_QR as T, dateHeureParis } from '@/lib/aj-signalement/affichage'
+import type { VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import { remplir } from '@/lib/coproprietaire/textes'
 import type { SignalementQr, TableauQr } from '@/lib/aj-signalement/types'
 
@@ -73,70 +77,142 @@ function simulerFetch(routeur: (appel: Appel) => Response) {
 
 const lienPublic = () => `${window.location.origin}/fr/signalement/${JETON}/`
 const indicateurs = () => screen.getByRole('region', { name: T.indicateurs })
+const lignes = () => within(screen.getByRole('list')).getAllByRole('listitem')
+const appelsTableau = () => appels.filter((a) => a.url === '/api/aj-signalement/tableau')
 
-async function rendrePret(routeur: (appel: Appel) => Response = () => json({ tableau: tableau() })) {
+/** Monte le tableau sur une vue, attend la fin du chargement ; `afficher` change de vue sur la même instance. */
+async function rendrePret(vue: VueEspaceQr, routeur: (appel: Appel) => Response = () => json({ tableau: tableau() }), jeton: string | null = 'jeton') {
   simulerFetch(routeur)
-  render(<TableauSignalementsQr jeton="jeton" />)
-  await waitFor(() => expect(screen.getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument())
+  const { rerender } = render(<TableauSignalementsQr jeton={jeton} vue={vue} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: T.mettreAJour })).toBeInTheDocument())
+  return { afficher: (autre: VueEspaceQr) => rerender(<TableauSignalementsQr jeton={jeton} vue={autre} />) }
 }
 
 beforeEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('chargement', () => {
-  it('appelle le tableau avec le jeton ; indicateurs, copropriétés (lien, QR code, destinataires) et signalements', async () => {
-    await rendrePret()
+describe('chargement et vues', () => {
+  it('un seul appel (avec le jeton) pour les trois vues ; chaque vue n’affiche que sa partie', async () => {
+    const { afficher } = await rendrePret('tableau-de-bord')
     expect(appels[0].url).toBe('/api/aj-signalement/tableau')
     expect((appels[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer jeton')
 
+    // Tableau de bord : présentation et indicateurs.
+    expect(screen.getByText(T.intro)).toBeInTheDocument()
     expect(within(indicateurs()).getByText(T.kpis.recus).parentElement).toHaveTextContent('2')
     expect(within(indicateurs()).getByText(T.kpis.aTraiter).parentElement).toHaveTextContent('1')
     expect(within(indicateurs()).getByText(T.kpis.resolus).parentElement).toHaveTextContent('1')
+    expect(screen.queryByRole('heading', { name: 'Parc Belle Ombre' })).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
 
+    // Copropriétés : cartes (lien, QR code, destinataires, compteurs).
+    afficher('coproprietes')
+    expect(screen.getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
     expect(screen.getByText(lienPublic())).toBeInTheDocument()
     expect(screen.getByText(T.destinatairesDefaut, { exact: false })).toBeInTheDocument()
     expect(screen.getByText('o@example.com', { exact: false })).toBeInTheDocument()
     expect(screen.getByText('1 signalement · 1 à traiter')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('img', { name: 'QR code de la copropriété Parc Belle Ombre' })).toBeInTheDocument())
     expect(screen.getAllByRole('button', { name: T.affichePdf })[0]).toBeEnabled()
+    expect(screen.queryByRole('region', { name: T.indicateurs })).toBeNull()
+    expect(screen.queryByRole('list')).toBeNull()
 
-    const lignes = within(screen.getByRole('list')).getAllByRole('listitem')
-    expect(lignes).toHaveLength(2)
-    expect(lignes[0]).toHaveTextContent('Marie Durand')
-    expect(lignes[0]).toHaveTextContent('Urgent')
-    expect(lignes[0]).toHaveTextContent('À traiter')
-    expect(lignes[0]).toHaveTextContent('Logement (bât. B, étage 4, lot 12)')
-    expect(lignes[1]).toHaveTextContent('Paul Martin')
-    expect(lignes[1]).toHaveTextContent('Parties communes — Hall d’entrée')
-    expect(lignes[1]).toHaveTextContent('Résolu')
+    // Signalements : liste du plus récent au plus ancien.
+    afficher('signalements')
+    expect(lignes()).toHaveLength(2)
+    expect(lignes()[0]).toHaveTextContent('Marie Durand')
+    expect(lignes()[0]).toHaveTextContent('Urgent')
+    expect(lignes()[0]).toHaveTextContent('À traiter')
+    expect(lignes()[0]).toHaveTextContent('Logement (bât. B, étage 4, lot 12)')
+    expect(lignes()[1]).toHaveTextContent('Paul Martin')
+    expect(lignes()[1]).toHaveTextContent('Parties communes — Hall d’entrée')
+    expect(lignes()[1]).toHaveTextContent('Résolu')
+    expect(screen.queryByRole('heading', { name: 'Parc Belle Ombre' })).toBeNull()
+
+    expect(appelsTableau()).toHaveLength(1)
   })
 
   it('filtre par copropriété', async () => {
-    await rendrePret()
+    await rendrePret('signalements')
     fireEvent.change(screen.getByLabelText(T.filtrerCopro), { target: { value: ID_COPRO_2 } })
-    const lignes = within(screen.getByRole('list')).getAllByRole('listitem')
-    expect(lignes).toHaveLength(1)
-    expect(lignes[0]).toHaveTextContent('Paul Martin')
+    expect(lignes()).toHaveLength(1)
+    expect(lignes()[0]).toHaveTextContent('Paul Martin')
   })
 
-  it('base non initialisée : message avec la migration, bouton Réessayer', async () => {
+  it('filtre visible même avec une seule copropriété', async () => {
+    const seule: TableauQr = { coproprietes: [tableau().coproprietes[0]], signalements: [marie] }
+    await rendrePret('signalements', () => json({ tableau: seule }))
+    const filtre = screen.getByLabelText(T.filtrerCopro)
+    expect(within(filtre).getAllByRole('option').map((o) => o.textContent)).toEqual([T.toutesCopros, 'Parc Belle Ombre'])
+  })
+
+  it('changement de vue (bouton Retour du navigateur) : la fenêtre de détail ouverte se ferme', async () => {
+    const { afficher } = await rendrePret('signalements')
+    fireEvent.click(within(lignes()[0]).getByRole('button', { name: T.voirDetail }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    afficher('tableau-de-bord')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // Revenir à la vue ne la rouvre pas.
+    afficher('signalements')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it.each([
+    ['création', () => fireEvent.click(screen.getByRole('button', { name: T.ajouterCopro }))],
+    ['modification', () => fireEvent.click(screen.getAllByRole('button', { name: T.modifier })[0])],
+  ])('changement de vue : la fenêtre de %s ouverte se ferme', async (_cas, ouvrirFenetre) => {
+    const { afficher } = await rendrePret('coproprietes')
+    ouvrirFenetre()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    afficher('signalements')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('changement de vue : le message de succès (« Adresse enregistrée ») ne réapparaît pas au retour', async () => {
+    const { afficher } = await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH'
+      ? json({ copropriete: { ...tableau().coproprietes[0], adresse: '1 Quai du Port 13002 Marseille', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
+      : json({ tableau: tableau() })))
+    fireEvent.click(screen.getByRole('button', { name: T.utiliserAdresse }))
+    await waitFor(() => expect(screen.getByText(T.adresseEnregistree)).toBeInTheDocument())
+    afficher('signalements')
+    afficher('coproprietes')
+    expect(screen.queryByText(T.adresseEnregistree)).toBeNull()
+    // L'adresse enregistrée, elle, reste.
+    expect(screen.getByText('1 Quai du Port 13002 Marseille')).toBeInTheDocument()
+  })
+
+  it('même vue rendue à nouveau : la fenêtre ouverte reste', async () => {
+    const { afficher } = await rendrePret('signalements')
+    fireEvent.click(within(lignes()[0]).getByRole('button', { name: T.voirDetail }))
+    afficher('signalements')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('base non initialisée : message avec la migration, bouton Réessayer ; sans jeton, les cookies suffisent', async () => {
     simulerFetch(() => json({ error: 'base_absente' }, 503))
-    render(<TableauSignalementsQr jeton={null} />)
+    render(<TableauSignalementsQr jeton={null} vue="tableau-de-bord" />)
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('20261104_signalements_qr.sql'))
     expect((appels[0].init?.headers as Record<string, string>).Authorization).toBeUndefined()
     simulerFetch(() => json({ tableau: tableau() }))
     fireEvent.click(screen.getByRole('button', { name: T.reessayer }))
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('region', { name: T.indicateurs })).toBeInTheDocument())
+  })
+
+  it('compte marqué super admin mais refusé par le serveur (403) : message « interdit », aucune donnée', async () => {
+    simulerFetch(() => json({ error: 'interdit' }, 403))
+    render(<TableauSignalementsQr jeton={null} vue="signalements" />)
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(T.erreurs.interdit))
+    expect(screen.queryByRole('list')).toBeNull()
   })
 })
 
 describe('détail d’un signalement', () => {
-  it('coordonnées cliquables, e-mail non envoyé signalé, changement de statut répercuté', async () => {
-    await rendrePret((appel) => (appel.init?.method === 'PATCH'
+  it('coordonnées cliquables, e-mail non envoyé signalé, changement de statut répercuté dans toutes les vues', async () => {
+    const { afficher } = await rendrePret('signalements', (appel) => (appel.init?.method === 'PATCH'
       ? json({ signalement: { id: marie.id, statut: 'acceptee', misAJourLe: '2026-11-04T15:00:00.000Z' } })
       : json({ tableau: tableau() })))
-    fireEvent.click(within(within(screen.getByRole('list')).getAllByRole('listitem')[0]).getByRole('button', { name: T.voirDetail }))
+    fireEvent.click(within(lignes()[0]).getByRole('button', { name: T.voirDetail }))
     const dialogue = screen.getByRole('dialog')
     expect(within(dialogue).getByRole('link', { name: '06 12 34 56 78' })).toHaveAttribute('href', 'tel:0612345678')
     expect(within(dialogue).getByRole('link', { name: 'marie@example.com' })).toHaveAttribute('href', 'mailto:marie@example.com')
@@ -152,15 +228,18 @@ describe('détail d’un signalement', () => {
 
     fireEvent.click(within(dialogue).getByRole('button', { name: T.detail.fermer }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(within(screen.getByRole('list')).getAllByRole('listitem')[0]).toHaveTextContent('Pris en charge')
+    expect(lignes()[0]).toHaveTextContent('Pris en charge')
+    afficher('tableau-de-bord')
     expect(within(indicateurs()).getByText(T.kpis.aTraiter).parentElement).toHaveTextContent('0')
     // Les deux copropriétés ont désormais un signalement sans rien à traiter.
+    afficher('coproprietes')
     expect(screen.getAllByText('1 signalement')).toHaveLength(2)
+    expect(appelsTableau()).toHaveLength(1)
   })
 
   it('e-mail non envoyé : l’erreur est rappelée dans la fiche, comme celle de la confirmation au déclarant', async () => {
-    await rendrePret()
-    fireEvent.click(within(within(screen.getByRole('list')).getAllByRole('listitem')[1]).getByRole('button', { name: T.voirDetail }))
+    await rendrePret('signalements')
+    fireEvent.click(within(lignes()[1]).getByRole('button', { name: T.voirDetail }))
     expect(screen.getByRole('dialog')).toHaveTextContent('E-mail non envoyé : RESEND_API_KEY not configured')
     expect(screen.getByRole('dialog')).toHaveTextContent('Confirmation non envoyée au déclarant : limite atteinte pour cette adresse.')
   })
@@ -168,7 +247,7 @@ describe('détail d’un signalement', () => {
 
 describe('copropriétés', () => {
   it('ajoute une copropriété : POST puis nouvelle carte avec son QR code', async () => {
-    await rendrePret((appel) => (appel.init?.method === 'POST'
+    await rendrePret('coproprietes', (appel) => (appel.init?.method === 'POST'
       ? json({ copropriete: { id: 'c3', nom: 'Villa Rose', adresse: 'Cassis', jeton: 'a'.repeat(32), emailsDestinataires: ['rose@example.com'], actif: true, creeLe: '2026-11-04T12:00:00.000Z', nbSignalements: 0, nbEnAttente: 0 } }, 201)
       : json({ tableau: tableau() })))
     fireEvent.click(screen.getByRole('button', { name: T.ajouterCopro }))
@@ -186,7 +265,7 @@ describe('copropriétés', () => {
   })
 
   it('e-mails invalides ou nom vide : refusés avant tout appel', async () => {
-    await rendrePret()
+    await rendrePret('coproprietes')
     fireEvent.click(screen.getByRole('button', { name: T.ajouterCopro }))
     const dialogue = screen.getByRole('dialog')
     fireEvent.change(within(dialogue).getByLabelText(T.formulaire.nom), { target: { value: 'Villa Rose' } })
@@ -197,7 +276,7 @@ describe('copropriétés', () => {
   })
 
   it('modifie une copropriété : PATCH avec nom, adresse, destinataires et activation', async () => {
-    await rendrePret((appel) => (appel.init?.method === 'PATCH'
+    await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH'
       ? json({ copropriete: { ...tableau().coproprietes[0], nom: 'Parc Belle Ombre (bât. B)', actif: false, nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
       : json({ tableau: tableau() })))
     fireEvent.click(screen.getAllByRole('button', { name: T.modifier })[0])
@@ -218,18 +297,17 @@ describe('copropriétés', () => {
 
 describe('qualité du déclarant et signalement lié', () => {
   it('détail : qualité, « même problème que le signalement n° X », adresse proposée ; « Non indiquée » pour un signalement antérieur', async () => {
-    await rendrePret()
-    const lignes = within(screen.getByRole('list')).getAllByRole('listitem')
-    expect(lignes[0]).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
-    expect(lignes[1]).not.toHaveTextContent('Même problème')
-    fireEvent.click(within(lignes[0]).getByRole('button', { name: T.voirDetail }))
+    await rendrePret('signalements')
+    expect(lignes()[0]).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
+    expect(lignes()[1]).not.toHaveTextContent('Même problème')
+    fireEvent.click(within(lignes()[0]).getByRole('button', { name: T.voirDetail }))
     const dialogue = screen.getByRole('dialog')
     expect(within(dialogue).getByText(T.detail.qualite).parentElement).toHaveTextContent('Locataire')
     expect(within(dialogue).getByText(T.detail.signalementLie).parentElement).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
     expect(within(dialogue).getByText(T.detail.adresseProposee).parentElement).toHaveTextContent('1 Quai du Port 13002 Marseille')
     fireEvent.click(within(dialogue).getByRole('button', { name: T.detail.fermer }))
 
-    fireEvent.click(within(within(screen.getByRole('list')).getAllByRole('listitem')[1]).getByRole('button', { name: T.voirDetail }))
+    fireEvent.click(within(lignes()[1]).getByRole('button', { name: T.voirDetail }))
     const autre = screen.getByRole('dialog')
     expect(within(autre).getByText(T.detail.qualite).parentElement).toHaveTextContent('Non indiquée')
     expect(within(autre).queryByText(T.detail.signalementLie)).toBeNull()
@@ -242,7 +320,7 @@ describe('adresse proposée d’après la position d’un déclarant', () => {
   const carte = (nom: string) => screen.getByRole('heading', { name: nom }).closest('section') as HTMLElement
 
   it('copropriété sans adresse : dernière adresse proposée (date) et « Utiliser cette adresse » ; rien pour une copropriété qui a une adresse', async () => {
-    await rendrePret()
+    await rendrePret('coproprietes')
     expect(within(carte('Parc Belle Ombre')).getByText(texteProposee)).toBeInTheDocument()
     expect(within(carte('Parc Belle Ombre')).getByText(T.sansAdresse)).toBeInTheDocument()
     expect(within(carte('Les Oliviers')).queryByRole('button', { name: T.utiliserAdresse })).toBeNull()
@@ -250,7 +328,7 @@ describe('adresse proposée d’après la position d’un déclarant', () => {
   })
 
   it('« Utiliser cette adresse » : PATCH { adresse } puis l’adresse devient celle de la copropriété', async () => {
-    await rendrePret((appel) => (appel.init?.method === 'PATCH'
+    await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH'
       ? json({ copropriete: { ...tableau().coproprietes[0], adresse: '1 Quai du Port 13002 Marseille', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null } })
       : json({ tableau: tableau() })))
     fireEvent.click(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse }))
@@ -267,7 +345,7 @@ describe('adresse proposée d’après la position d’un déclarant', () => {
   })
 
   it('enregistrement refusé : erreur dans la carte, l’adresse proposée reste', async () => {
-    await rendrePret((appel) => (appel.init?.method === 'PATCH' ? json({ error: 'interdit' }, 403) : json({ tableau: tableau() })))
+    await rendrePret('coproprietes', (appel) => (appel.init?.method === 'PATCH' ? json({ error: 'interdit' }, 403) : json({ tableau: tableau() })))
     fireEvent.click(within(carte('Parc Belle Ombre')).getByRole('button', { name: T.utiliserAdresse }))
     await waitFor(() => expect(within(carte('Parc Belle Ombre')).getByRole('alert')).toHaveTextContent(T.erreurAdresse))
     expect(within(carte('Parc Belle Ombre')).getByText(texteProposee)).toBeInTheDocument()

@@ -148,7 +148,6 @@ export const SECTIONS_NAVIGATION: SectionNavigation[] = [
       ['sondages', 'Sondages', 'poll'],
       ['reservation', 'Réservation parties communes', 'calendar'],
       ['doleances', 'Doléances', 'wrench'],
-      ['signalementsQr', 'Signalements QR', 'qr'],
       ['sms', 'WhatsApp / SMS', 'chat'],
       ['remboursements', 'Remboursements', 'refresh'],
       ['nps', 'Enquête de satisfaction', 'heart'],

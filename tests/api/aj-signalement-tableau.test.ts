@@ -148,7 +148,20 @@ describe('droits', () => {
     expect((await POST(requete('/api/aj-signalement/coproprietes', json({ nom: 'X' })))).status).toBe(403)
   })
 
-  it('la session par cookies (Administrateur judiciaire) suffit', async () => {
+  it('403 aussi sur les modifications (copropriété, statut d’un signalement), sans rien écrire', async () => {
+    // Espace AJ Signalement (10/11/2026) : la garde de la page ne donne aucun droit, chaque route revérifie.
+    h.etat.superAdmin = false
+    const contexte = (id: string) => ({ params: Promise.resolve({ id }) })
+    const copro = await PATCH_COPRO(requete(`/api/aj-signalement/coproprietes/${ID_COPRO}`, json({ adresse: '1 Quai du Port' }, 'PATCH')), contexte(ID_COPRO))
+    const statut = await PATCH_SIGNALEMENT(requete(`/api/aj-signalement/signalements/${ID_SIGNALEMENT}`, json({ statut: 'terminee' }, 'PATCH')), contexte(ID_SIGNALEMENT))
+    expect(copro.status).toBe(403)
+    expect(statut.status).toBe(403)
+    expect(await copro.json()).toEqual({ error: 'interdit' })
+    expect(h.etat.misesAJour).toEqual([])
+    expect(h.etat.insertions).toEqual([])
+  })
+
+  it('la session par cookies (espace AJ Signalement, sans jeton Bearer) suffit', async () => {
     h.etat.userBearer = null
     h.etat.userCookie = ADMIN
     expect((await GET(requete('/api/aj-signalement/tableau'))).status).toBe(200)
