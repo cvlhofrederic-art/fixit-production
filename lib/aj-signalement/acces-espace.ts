@@ -11,6 +11,12 @@
 // lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces
 // décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient le super admin côté serveur
 // (controlerSuperAdmin). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas.
+// La portée d'un gestionnaire et ses droits sur une copropriété (fin du fichier) sont calculés ici aussi, sur des
+// données relues en base par le serveur à chaque appel : c'est la seule fonction d'accès d'AJ Signalement.
+
+import type {
+  CoproDroitsQr, DroitsCoproprieteQr, FicheDroitsQr, PorteeQr, ProfilDroitsQr,
+} from '@/lib/aj-signalement/types'
 
 /** Segment de l'espace, sans préfixe de langue (servi par réécriture depuis /fr/ et /pt/, next.config.ts). */
 export const SEGMENT_ESPACE_QR = '/aj-signalement'
@@ -197,3 +203,48 @@ export const TEXTES_ESPACE_QR = {
   /** Compte connecté sans accès (page de connexion de l'espace) : ne nomme aucun rôle, n'affiche aucune donnée. */
   sansAcces: 'Cet espace n’est pas accessible avec votre compte.',
 } as const
+
+// ── Portée d'un gestionnaire et droits sur une copropriété (SPEC § 1.5, RG-05) ──────────────────────────────────
+//
+// Q1 (Hugo, 10/11/2026) : les droits suivent l'attribution, même pour le créateur d'une copropriété. Q2 : « attribuée à
+// tous » (copropriété de test) donne la lecture, le statut et les e-mails à tous les gestionnaires actifs de SON
+// cabinet, jamais la modification de la fiche. En PR 1, seul le super admin se connecte : la page de suivi qu'il voit
+// pour un gestionnaire est calculée par porteeGestionnaireQr ; les droits d'un gestionnaire connecté viennent en PR 2.
+
+/** Portée vide (aucune copropriété) : ensembles neufs à chaque appel. */
+export const porteeVideQr = (): PorteeQr => ({ visibles: new Set<string>(), modifiables: new Set<string>() })
+
+/**
+ * Portée d'une fiche relue en base : fiche inactive → rien ; sinon, parmi les copropriétés de SON cabinet seulement,
+ * visibles = attributions explicites ∪ « à tous », modifiables = attributions explicites (origine « creation »
+ * comprise). Une attribution vers une copropriété d'un autre cabinet, sans cabinet ou inconnue ne donne rien.
+ */
+export function porteeGestionnaireQr(
+  fiche: FicheDroitsQr, copros: readonly CoproDroitsQr[], attributions: ReadonlySet<string>,
+): PorteeQr {
+  const portee = { visibles: new Set<string>(), modifiables: new Set<string>() }
+  if (!fiche.actif) return portee
+  for (const copro of copros) {
+    if (copro.cabinetId === null || copro.cabinetId !== fiche.cabinetId) continue
+    if (attributions.has(copro.id)) {
+      portee.visibles.add(copro.id)
+      portee.modifiables.add(copro.id)
+    } else if (copro.attribueeATous) {
+      portee.visibles.add(copro.id)
+    }
+  }
+  return portee
+}
+
+const AUCUN_DROIT_QR: DroitsCoproprieteQr = { voir: false, changerStatut: false, modifierFiche: false, administrer: false }
+
+/**
+ * Droits d'un profil sur une copropriété (matrice SPEC § 1.5) : super admin, tout ; gestionnaire, voir et changer le
+ * statut dans sa portée, modifier la fiche si elle lui est attribuée explicitement, jamais administrer ; aucun, rien.
+ * L'existence de la copropriété (404) est vérifiée par la route.
+ */
+export function droitsSurCoproprieteQr(profil: ProfilDroitsQr, coproId: string, portee: PorteeQr): DroitsCoproprieteQr {
+  if (profil === 'super_admin') return { voir: true, changerStatut: true, modifierFiche: true, administrer: true }
+  if (profil !== 'gestionnaire' || !portee.visibles.has(coproId)) return { ...AUCUN_DROIT_QR }
+  return { voir: true, changerStatut: true, modifierFiche: portee.modifiables.has(coproId), administrer: false }
+}

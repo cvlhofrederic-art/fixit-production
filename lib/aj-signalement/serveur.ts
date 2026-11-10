@@ -27,6 +27,7 @@ import {
   COLONNES_SEMBLABLES_QR, SEMBLABLES_LUS_MAX, dateLimiteSemblablesQr, selectionnerSemblablesQr, variantesZoneQr,
   type LigneSemblableQr, type RechercheSemblablesQr,
 } from '@/lib/aj-signalement/semblables'
+import { destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
 
 export const TABLE_COPROPRIETES_QR = 'signalements_qr_coproprietes'
 export const TABLE_SIGNALEMENTS_QR = 'signalements_qr'
@@ -399,19 +400,16 @@ export async function compterSignalementsQr(coproprieteId: string): Promise<Comp
 
 // ── Destinataires et jetons ──────────────────────────────────────────────────
 
-const emailPropre = (valeur: unknown): string | null => {
-  const propre = typeof valeur === 'string' ? valeur.trim().toLowerCase() : ''
-  return propre.includes('@') ? propre : null
-}
-
-/** Destinataires de l'e-mail : ceux de la copropriété, sinon l'administrateur du déploiement (ADMIN_EMAIL, ADMIN_EMAIL_2). */
+/**
+ * Destinataires de l'e-mail : ceux de la copropriété, sinon l'administrateur du déploiement (ADMIN_EMAIL, ADMIN_EMAIL_2).
+ * Calcul de destinatairesSignalementQr sans gestionnaire (comportement actuel) ; le dépôt passera aux gestionnaires de
+ * la copropriété au lot 3, avec un e-mail par destinataire sous budget.
+ */
 export function destinatairesSignalement(
   copropriete: { emails_destinataires?: string[] | null },
   env: Record<string, string | undefined> = process.env,
 ): string[] {
-  const propres = (copropriete.emails_destinataires ?? []).map(emailPropre).filter((e): e is string => e !== null)
-  if (propres.length > 0) return [...new Set(propres)]
-  return [...new Set([env.ADMIN_EMAIL, env.ADMIN_EMAIL_2].map(emailPropre).filter((e): e is string => e !== null))]
+  return destinatairesSignalementQr(copropriete, [], env).destinataires.map((d) => d.email)
 }
 
 /** Nouveau jeton de QR code : UUID aléatoire sans tirets (32 hexadécimaux, 122 bits d'aléa). */

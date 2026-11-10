@@ -329,3 +329,160 @@ export function gestionCoproprieteQrVide(): GestionCoproprieteQr {
     ouverts: 0, urgentsOuverts: 0, attente48h: 0, dernier: null, adressesDeGestionnaires: 0,
   }
 }
+
+// ── Fonctions pures du lot 2 (chemin par client, droits, doublons, destinataires, budget, fiches) ──────────────
+
+/** Chemin public d'un cabinet reconnu par cheminPublicCabinetQr (chemin-cabinet.ts) ; aucun droit n'en découle. */
+export type CheminCabinetQr =
+  | { page: 'signalement'; identifiant: string; jeton: string }
+  | { page: 'confirmation-adresse'; identifiant: string }
+
+/** Refus d'un identifiant de chemin : hors format (3 à 40 caractères…) ou réservé (route du site, mot gardé). */
+export type ValidationIdentifiantCabinetQr = { ok: true } | { ok: false; raison: 'format' | 'reserve' }
+
+/** Refus d'un domaine e-mail de cabinet : hors format, ou messagerie publique (gmail.com…). */
+export type ValidationDomaineCabinetQr = { ok: true } | { ok: false; raison: 'format' | 'public' }
+
+/**
+ * Profil pour le calcul des droits (acces-espace.ts) : le super admin, un gestionnaire à fiche active (PR 2), ou
+ * aucun droit (fiche désactivée, rôle sans fiche, tout autre compte).
+ */
+export type ProfilDroitsQr = 'super_admin' | 'gestionnaire' | 'aucun'
+
+/** Colonnes de droits d'une copropriété (aucune autre n'entre dans la portée). */
+export interface CoproDroitsQr {
+  id: string
+  /** null : copropriété sans cabinet, jamais dans la portée d'un gestionnaire. */
+  cabinetId: string | null
+  attribueeATous: boolean
+}
+
+/** Fiche gestionnaire relue en base à chaque appel (jamais app_metadata). */
+export interface FicheDroitsQr {
+  id: string
+  cabinetId: string
+  actif: boolean
+}
+
+/** Portée d'un gestionnaire (RG-05) : identifiants de copropriétés. modifiables ⊆ visibles. */
+export interface PorteeQr {
+  visibles: ReadonlySet<string>
+  modifiables: ReadonlySet<string>
+}
+
+/** Droits sur une copropriété (matrice SPEC § 1.5). */
+export interface DroitsCoproprieteQr {
+  /** Voir la copropriété, son QR code, ses signalements (coordonnées comprises). */
+  voir: boolean
+  changerStatut: boolean
+  /** Nom, adresse, CP, ville, immatriculation, référence, bâtiments, destinataires. */
+  modifierFiche: boolean
+  /** Désactiver, remplacer le QR, supprimer, attribuer, « à tous », gestionnaires, import, journal. */
+  administrer: boolean
+}
+
+export type CertitudeDoublonQr = 'certain' | 'probable'
+/** Critère du doublon, du plus sûr au moins sûr (SPEC § 1.6). */
+export type CritereDoublonQr = 'immatriculation' | 'reference_cabinet' | 'nom_code_postal' | 'adresse_code_postal' | 'nom'
+
+/** Champs comparés pour les doublons (saisie, ligne d'import, ou copropriété existante). */
+export interface FicheDoublonQr {
+  nom: string
+  adresse: string
+  codePostal: string
+  immatriculation: string | null
+  referenceCabinet: string | null
+}
+
+/** Copropriété existante du cabinet, active ou non (sa clé de nom est recalculée : cle_nom peut être NULL). */
+export interface CoproprieteDoublonQr extends FicheDoublonQr {
+  id: string
+  ville: string
+}
+
+export interface DoublonQr {
+  certitude: CertitudeDoublonQr
+  critere: CritereDoublonQr
+  /** Seul le doublon nom + code postal se force (« Ce n'est pas un doublon », super admin seul). */
+  forcable: boolean
+  copropriete: { id: string; nom: string; ville: string }
+}
+
+/**
+ * Décision sur les doublons d'une création ou d'une modification. doublonForce : un doublon nom + CP a été forcé par
+ * le super admin (la route passe alors forcerDoublon à la fonction SQL, qui journalise doublon.force).
+ */
+export type DecisionDoublonsQr =
+  | { ok: true; doublonForce: boolean; probableConfirme: boolean }
+  | { ok: false; doublon: DoublonQr }
+
+export type TypeDestinataireQr = 'gestionnaire' | 'saisi' | 'administrateur'
+
+/** Ligne de signalements_qr_emails_gestionnaires : exclu = false → destinataire ; exclu = true → à retirer des saisies. */
+export interface LigneEmailGestionnaireQr {
+  gestionnaireId: string
+  email: string
+  accesOuvert: boolean
+  exclu: boolean
+}
+
+export interface DestinataireQr {
+  /** Adresse canonique (rognée, minuscules). */
+  email: string
+  type: TypeDestinataireQr
+  /** Gestionnaire qui a accès à sa page de suivi (PR 2) ; false sinon. */
+  accesOuvert: boolean
+}
+
+/** Destinataires d'un signalement, plafonnés ; auDelaDuPlafond > 0 : adresses écartées (avertissement sans adresse). */
+export interface CalculDestinatairesQr {
+  destinataires: DestinataireQr[]
+  auDelaDuPlafond: number
+}
+
+/** Adresses saisies montrées à un gestionnaire (PR 2) : celles d'une autre fiche sont remplacées par un compteur. */
+export interface SaisiesVisiblesQr {
+  emails: string[]
+  adressesMasquees: number
+}
+
+/** Messages déjà comptés sur la dernière heure, et messages de ce dépôt (budget d'e-mails, RG-06 ter). */
+export interface ConsommationEmailsQr {
+  sommeCopropriete: number
+  sommeCabinet: number
+  nombre: number
+}
+
+export type DecisionBudgetEmailsQr = { accorde: true } | { accorde: false; limite: 'copropriete' | 'cabinet' }
+
+/** Objet d'un envoi à un gestionnaire (CHECK de signalements_qr_invitations.objet) ; 'acces' : PR 2. */
+export const OBJETS_ENVOI_QR = ['confirmation_adresse', 'acces'] as const
+export type ObjetEnvoiQr = (typeof OBJETS_ENVOI_QR)[number]
+
+/** Refus d'un envoi (CHECK de signalements_qr_invitations.refus) ; 'compte_autre_espace' : PR 2. */
+export const REFUS_ENVOI_QR = ['compte_autre_espace', 'pas_moi'] as const
+export type RefusEnvoiQr = (typeof REFUS_ENVOI_QR)[number]
+
+/** Ce que l'état d'une fiche lit de la fiche elle-même. */
+export interface FicheEtatGestionnaireQr {
+  actif: boolean
+  adresseConfirmeeLe: string | null
+  adresseContesteeLe: string | null
+}
+
+/** Un envoi (ligne de signalements_qr_invitations), sans son jeton. */
+export interface EnvoiGestionnaireQr {
+  objet: ObjetEnvoiQr
+  /** created_at : départ des 7 jours de validité. */
+  creeLe: string
+  /** invite_sent_at : posé par la route après un envoi réussi ; null si l'e-mail n'est jamais parti. */
+  envoyeLe: string | null
+  accepteLe: string | null
+  refus: RefusEnvoiQr | null
+}
+
+/** États d'une fiche calculés en PR 1 (les 4 autres d'ETATS_GESTIONNAIRE_QR viennent avec la PR 2). */
+export type EtatGestionnairePr1Qr = Extract<
+  EtatGestionnaireQr,
+  'confirmation_envoyee' | 'confirmation_expiree' | 'adresse_confirmee' | 'adresse_contestee' | 'desactive'
+>
