@@ -18,7 +18,9 @@ jobs:
   unit:
     name: "Tests unitaires (Vitest)"
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 662 fichiers de tests puis le rapport de couverture : 15 min ne suffisaient plus (coupé à 15 min 16 s
+    # sur #664 le 09/11/2026, tous les tests passés, annulé pendant la couverture)
+    timeout-minutes: 20
     permissions:
       contents: read
 
