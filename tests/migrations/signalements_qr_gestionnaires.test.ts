@@ -631,3 +631,55 @@ describe(`Migration ${FICHIER} : journal, opérations, budget d’e-mails`, () =
     expect(code).not.toMatch(/hashtext\(/)
   })
 })
+
+describe(`Migration ${FICHIER} : ordre unique des verrous de ligne (essai PGlite du 11/11, D7)`, () => {
+  // Fiches avant copropriétés, chacune par identifiant croissant, dans toutes les fonctions qui écrivent les deux : un
+  // remplacement (copropriété puis fiche) et une page profil ou un départ (fiche puis copropriété) ne se bloquent plus
+  // mutuellement (40P01). Une fiche contrôlée active l'est SOUS verrou : un départ concurrent ne la désactive qu'après.
+  const position = (corps: string, motif: string): number => {
+    const m = new RegExp(espaces(motif)).exec(corps)
+    expect(m, motif).not.toBeNull()
+    return m?.index ?? -1
+  }
+
+  it('création : verrou du cabinet, puis fiches des lignes, puis copropriétés à compléter, AVANT la boucle des lignes ; fiche de l’auteur revérifiée', () => {
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    const cabinet = position(corps, "PERFORM pg_advisory_xact_lock(hashtextextended('signalements_qr_creation:' || v_cab::text, 0));")
+    const fiches = position(corps, 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_fiches) ORDER BY g.id FOR NO KEY UPDATE;')
+    const copros = position(corps, 'PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_a_completer) ORDER BY c.id FOR NO KEY UPDATE;')
+    const revue = position(corps, "IF p_profil = 'gestionnaire' AND NOT EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g WHERE g.id = p_gestionnaire AND g.actif AND g.cabinet_id = p_cabinet) THEN RAISE EXCEPTION 'interdit'")
+    const boucle = corps.indexOf('FOR v_l IN')
+    expect([cabinet < fiches, fiches < copros, copros < revue, revue < boucle]).toEqual([true, true, true, true])
+    expect(corps).toMatch(/v_fiches := ARRAY\(SELECT DISTINCT x\.val::uuid/)
+  })
+
+  it('remplacement des attributions : fiches de la liste (par id) AVANT la copropriété', () => {
+    const corps = fonction('signalements_qr_remplacer_attributions').corps
+    const fiches = position(corps, 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_nouveaux) ORDER BY g.id FOR NO KEY UPDATE;')
+    const copro = position(corps, 'FROM signalements_qr_coproprietes c WHERE c.id = p_copropriete FOR UPDATE;')
+    const controle = position(corps, 'WHERE g.id = t.x AND g.actif AND g.cabinet_id = v_cab')
+    expect([fiches < copro, copro < controle]).toEqual([true, true])
+  })
+
+  it('page profil : la fiche (FOR UPDATE), puis ses copropriétés anciennes et nouvelles (par id), AVANT toute écriture', () => {
+    const corps = fonction('signalements_qr_attribuer_au_gestionnaire').corps
+    const fiche = position(corps, 'FROM signalements_qr_gestionnaires g WHERE g.id = p_gestionnaire FOR UPDATE;')
+    const copros = position(corps, 'PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_cibles) OR c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_gestionnaire) ORDER BY c.id FOR NO KEY UPDATE;')
+    expect([fiche < copros, copros < corps.indexOf('INSERT INTO signalements_qr_attributions')]).toEqual([true, true])
+  })
+
+  it('départ : la fiche et ses successeurs par id (une seule boucle), puis les copropriétés par id ; attributions relues SOUS ces verrous', () => {
+    const corps = fonction('signalements_qr_desactiver_gestionnaire').corps
+    const boucle = position(corps, "FOR v_f IN SELECT t.x FROM (SELECT p_id AS x UNION SELECT nullif(e.val->>'versGestionnaireId', '')::uuid FROM jsonb_array_elements(v_succ) AS e(val)) AS t WHERE t.x IS NOT NULL ORDER BY t.x LOOP")
+    const copros = position(corps, 'PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id) OR (v_email IS NOT NULL AND v_email = ANY (c.emails_destinataires)) ORDER BY c.id FOR NO KEY UPDATE;')
+    const attr = position(corps, 'v_attr := ARRAY(SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id);')
+    expect([boucle < copros, copros < attr]).toEqual([true, true])
+    expect([...corps.matchAll(/FROM signalements_qr_gestionnaires g WHERE g\.id = p_id FOR UPDATE/g)]).toHaveLength(1)
+  })
+
+  it.each(['signalements_qr_confirmer_adresse', 'signalements_qr_contester_adresse'])('%s : la fiche AVANT l’envoi (même ordre que le départ, qui efface ses jetons)', (nom) => {
+    const corps = fonction(nom).corps
+    const fiche = position(corps, 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation) FOR NO KEY UPDATE;')
+    expect(fiche).toBeLessThan(corps.indexOf('UPDATE signalements_qr_invitations i SET'))
+  })
+})

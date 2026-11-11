@@ -152,9 +152,16 @@ const CONTRAINTES_UNIQUES_QR: ReadonlyArray<[string, string]> = [
 ]
 
 /**
+ * Conflit avec une écriture concurrente : blocage mutuel (40P01) ou échec de sérialisation (40001). La transaction est
+ * annulée en entier (rien n'est écrit) ; l'écran met à jour la page et recommence (essai PGlite du 11/11, D7).
+ */
+export const conflitConcurrenceQr = (erreur: ErreurBase | null | undefined): boolean => erreur?.code === '40P01' || erreur?.code === '40001'
+
+/**
  * Code public d'une erreur de la base (fonctions SQL et tables d'AJ Signalement). P0001 : message de la liste fermée
- * ERREURS_METIER_SQL_QR (409), sinon 500 ; 23505 : selon la contrainte (409) ; 23503 : 409 a_reverifier ; 42501 :
- * 403 interdit ; 22023 : 400 invalide ; structure absente : 503 base_absente. Le message n'est jamais rendu.
+ * ERREURS_METIER_SQL_QR (409), sinon 500 ; 23505 : selon la contrainte (409) ; 23503 : 409 a_reverifier ; 40P01 et
+ * 40001 (conflit avec une écriture concurrente) : 409 a_reverifier ; 42501 : 403 interdit ; 22023 : 400 invalide ;
+ * structure absente : 503 base_absente. Le message n'est jamais rendu.
  */
 export function codeDepuisErreurSqlQr(erreur: ErreurBase | null | undefined): { code: string; status: number } {
   const code = erreur?.code ?? ''
@@ -166,7 +173,7 @@ export function codeDepuisErreurSqlQr(erreur: ErreurBase | null | undefined): { 
     const trouvee = CONTRAINTES_UNIQUES_QR.find(([contrainte]) => message.includes(`"${contrainte}"`))
     return { code: trouvee?.[1] ?? 'a_reverifier', status: 409 }
   }
-  if (code === '23503') return { code: 'a_reverifier', status: 409 }
+  if (code === '23503' || conflitConcurrenceQr(erreur)) return { code: 'a_reverifier', status: 409 }
   if (code === '42501') return { code: 'interdit', status: 403 }
   if (code === '22023') return { code: 'invalide', status: 400 }
   if (tableAbsenteQr(erreur) || fonctionAbsenteQr(erreur)) return { code: 'base_absente', status: 503 }
@@ -177,6 +184,7 @@ export function codeDepuisErreurSqlQr(erreur: ErreurBase | null | undefined): { 
 export function reponseErreurSqlQr(erreur: ErreurBase | null | undefined, operation: string, ids: Record<string, string> = {}): NextResponse {
   const { code, status } = codeDepuisErreurSqlQr(erreur)
   if (status >= 500) logger.error(`${CONTEXTE} ${operation} refusée par la base`, { code: erreur?.code, ...ids })
+  else if (conflitConcurrenceQr(erreur)) logger.warn(`${CONTEXTE} ${operation} : conflit avec une écriture concurrente, à recommencer`, { code: erreur?.code, ...ids })
   return reponseErreur(code, status)
 }
 

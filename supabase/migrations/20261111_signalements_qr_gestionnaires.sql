@@ -342,6 +342,8 @@ DECLARE
   v_cp_avant   text;
   v_cle     text;
   v_cp      text;
+  v_fiches       uuid[];
+  v_a_completer  uuid[];
   v_creees  jsonb := '[]'::jsonb;
   v_compl   jsonb := '[]'::jsonb;
   v_rendu   jsonb;
@@ -396,6 +398,26 @@ BEGIN
       FROM jsonb_array_elements(coalesce(v_deja->'creees', '[]'::jsonb)) AS e(val)
       JOIN signalements_qr_coproprietes c ON c.id = (e.val->>'id')::uuid;
     RETURN jsonb_build_object('creees', v_rendu, 'completees', coalesce(v_deja->'completees', '[]'::jsonb), 'rejeu', true);
+  END IF;
+
+  -- Ordre unique des verrous (toutes les fonctions) : fiches, puis copropriétés, chacune par identifiant croissant. Une
+  -- fiche contrôlée (active, du cabinet) le reste jusqu'à la fin de la transaction : un départ concurrent attend, ou se
+  -- fait attendre puis relit les attributions ; jamais d'attribution sur une fiche désactivée, jamais de blocage mutuel.
+  v_fiches := ARRAY(SELECT DISTINCT x.val::uuid
+                      FROM jsonb_array_elements(p_lignes) AS e(val),
+                           jsonb_array_elements_text(CASE WHEN jsonb_typeof(e.val->'gestionnaireIds') = 'array'
+                                                          THEN e.val->'gestionnaireIds' ELSE '[]'::jsonb END) AS x(val));
+  IF p_gestionnaire IS NOT NULL THEN
+    v_fiches := array_append(v_fiches, p_gestionnaire);
+  END IF;
+  PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_fiches) ORDER BY g.id FOR NO KEY UPDATE;
+  v_a_completer := ARRAY(SELECT (e.val->>'coproprieteId')::uuid FROM jsonb_array_elements(p_lignes) AS e(val)
+                          WHERE jsonb_typeof(e.val) = 'object' AND e.val->>'action' = 'completer');
+  PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_a_completer) ORDER BY c.id FOR NO KEY UPDATE;
+  -- Fiche de l'auteur (PR 2) revérifiée sous son verrou : désactivée depuis le premier contrôle, rien n'est créé.
+  IF p_profil = 'gestionnaire' AND NOT EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
+                                                WHERE g.id = p_gestionnaire AND g.actif AND g.cabinet_id = p_cabinet) THEN
+    RAISE EXCEPTION 'interdit' USING ERRCODE = '42501';
   END IF;
 
   -- Les lignes « compléter » passent AVANT les créations, chacune dans l'ordre du lot : la décision ne dépend pas de
@@ -556,6 +578,9 @@ BEGIN
   IF p_copropriete IS NULL OR p_acteur IS NULL OR cardinality(v_nouveaux) > 100 THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
+  -- Ordre unique des verrous : les fiches de la liste (par identifiant), puis la copropriété. Les fiches contrôlées
+  -- (actives, du cabinet) le restent jusqu'à la fin de la transaction : un départ concurrent attend.
+  PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_nouveaux) ORDER BY g.id FOR NO KEY UPDATE;
   SELECT c.cabinet_id, c.attribuee_a_tous INTO v_cab, v_tous_avant
     FROM signalements_qr_coproprietes c WHERE c.id = p_copropriete FOR UPDATE;
   IF NOT FOUND THEN
@@ -644,6 +669,11 @@ BEGIN
   IF NOT FOUND OR (NOT v_actif AND cardinality(v_cibles) > 0) THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
+  -- Ordre unique des verrous : la fiche (ci-dessus), puis ses copropriétés, anciennes et nouvelles, par identifiant.
+  PERFORM 1 FROM signalements_qr_coproprietes c
+   WHERE c.id = ANY (v_cibles)
+      OR c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_gestionnaire)
+   ORDER BY c.id FOR NO KEY UPDATE;
   -- Copropriétés du MÊME cabinet seulement (une copropriété sans cabinet n'a pas de gestionnaire).
   IF EXISTS (SELECT 1 FROM unnest(v_cibles) AS t(x)
               WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes c WHERE c.id = t.x AND c.cabinet_id = v_cab)) THEN
@@ -705,15 +735,33 @@ DECLARE
   v_retirees   int := 0;
   v_c          uuid;
   v_ccab       uuid;
+  v_f          uuid;
+  v_trouvee    boolean := false;
 BEGIN
   IF p_id IS NULL OR p_acteur IS NULL OR jsonb_typeof(v_succ) <> 'array' THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
-  SELECT g.cabinet_id, g.actif, g.email INTO v_cab, v_actif, v_email
-    FROM signalements_qr_gestionnaires g WHERE g.id = p_id FOR UPDATE;
-  IF NOT FOUND OR NOT v_actif THEN
+  -- Ordre unique des verrous : la fiche et ses successeurs, par identifiant (la fiche FOR UPDATE ; ses successeurs, une
+  -- fois contrôlés actifs, le restent jusqu'à la fin), puis les copropriétés, par identifiant.
+  FOR v_f IN SELECT t.x FROM (SELECT p_id AS x
+                               UNION SELECT nullif(e.val->>'versGestionnaireId', '')::uuid FROM jsonb_array_elements(v_succ) AS e(val)) AS t
+              WHERE t.x IS NOT NULL ORDER BY t.x LOOP
+    IF v_f = p_id THEN
+      SELECT g.cabinet_id, g.actif, g.email INTO v_cab, v_actif, v_email
+        FROM signalements_qr_gestionnaires g WHERE g.id = p_id FOR UPDATE;
+      v_trouvee := FOUND;
+    ELSE
+      PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = v_f FOR NO KEY UPDATE;
+    END IF;
+  END LOOP;
+  IF NOT v_trouvee OR NOT v_actif THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
+  PERFORM 1 FROM signalements_qr_coproprietes c
+   WHERE c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id)
+      OR (v_email IS NOT NULL AND v_email = ANY (c.emails_destinataires))
+   ORDER BY c.id FOR NO KEY UPDATE;
+  -- Attributions relues sous ces verrous : aucune ne s'ajoute ni ne se retire plus d'ici la fin de la transaction.
   v_attr := ARRAY(SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id);
   -- Une entrée, et une seule, pour chacune de ses attributions ; aucune autre.
   IF jsonb_array_length(v_succ) <> cardinality(v_attr)
@@ -870,6 +918,10 @@ DECLARE
   v_g    uuid;
   v_cab  uuid;
 BEGIN
+  -- La fiche d'abord, puis l'envoi : même ordre que le départ (fiche, puis ses envois), jamais de blocage mutuel.
+  PERFORM 1 FROM signalements_qr_gestionnaires g
+   WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation)
+   FOR NO KEY UPDATE;
   UPDATE signalements_qr_invitations i SET accepted_at = now()
    WHERE i.id = p_invitation AND i.objet = 'confirmation_adresse' AND i.accepted_at IS NULL AND i.refus IS NULL
      AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'
@@ -895,6 +947,10 @@ DECLARE
   v_g    uuid;
   v_cab  uuid;
 BEGIN
+  -- La fiche d'abord, puis ses envois (même ordre que le départ et « C'est moi »).
+  PERFORM 1 FROM signalements_qr_gestionnaires g
+   WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation)
+   FOR NO KEY UPDATE;
   UPDATE signalements_qr_invitations i SET refus = 'pas_moi', invite_token = NULL
    WHERE i.id = p_invitation AND i.objet = 'confirmation_adresse' AND i.accepted_at IS NULL AND i.refus IS NULL
      AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'

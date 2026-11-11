@@ -423,6 +423,23 @@ describe('PUT gestionnaires/[id]/coproprietes (P1-R13) et départ (P1-R14)', () 
     const mal = await DEPART(requeteQr(`/api/aj-signalement/gestionnaires/${G_MARIE}/depart`, 'POST', { successions: [{ coproprieteId: 'x' }] }), contexteQr(G_MARIE))
     expect(mal.status).toBe(400)
   })
+
+  it.each([['40P01', 'deadlock detected'], ['40001', 'could not serialize access due to concurrent update']])(
+    'conflit de verrous (%s, essai PGlite du 11/11, D7) : attributions et départ répondent 409 a_reverifier au lieu de 500, journalisé avec son code',
+    async (code, message) => {
+      baseQr.etat.fonctions.signalements_qr_attribuer_au_gestionnaire = () => ({ error: { code, message } })
+      baseQr.etat.fonctions.signalements_qr_desactiver_gestionnaire = () => ({ error: { code, message } })
+      const attribuer = await ATTRIBUER(requeteQr(`/api/aj-signalement/gestionnaires/${G_MARIE}/coproprietes`, 'PUT', { coproprieteIds: [COPRO_A] }), contexteQr(G_MARIE))
+      expect(attribuer.status).toBe(409)
+      expect(await attribuer.json()).toEqual({ error: 'a_reverifier' })
+      const depart = await DEPART(requeteQr(`/api/aj-signalement/gestionnaires/${G_MARIE}/depart`, 'POST', { successions: [] }), contexteQr(G_MARIE))
+      expect(depart.status).toBe(409)
+      expect(await depart.json()).toEqual({ error: 'a_reverifier' })
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+      expect(simulQr.logger.warn.mock.calls.filter((c) => JSON.stringify(c).includes(`"code":"${code}"`))).toHaveLength(2)
+      expect(texteJournalServeurQr()).not.toContain(message)
+    },
+  )
 })
 
 describe('GET gestionnaires/[id]/export (P1-R15)', () => {

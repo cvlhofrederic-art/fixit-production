@@ -388,4 +388,17 @@ describe('PUT coproprietes/[id]/gestionnaires (P1-R6)', () => {
     expect(await (await remplacer(COPRO_SANS_CABINET, { gestionnaireIds: [G] })).json()).toEqual({ error: 'sans_cabinet' })
     expect((await remplacer('c0000000-0000-4000-8000-00000000dead', { gestionnaireIds: [] })).status).toBe(404)
   })
+
+  it.each([['40P01', 'deadlock detected'], ['40001', 'could not serialize access due to concurrent update']])(
+    'conflit de verrous avec une autre écriture (%s, essai PGlite du 11/11, D7) : 409 a_reverifier (« mettez à jour la page puis recommencez »), journalisé avec son code',
+    async (code, message) => {
+      baseQr.etat.fonctions.signalements_qr_remplacer_attributions = () => ({ error: { code, message } })
+      const res = await remplacer(COPRO, { gestionnaireIds: [G] })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'a_reverifier' })
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+      expect(texteJournalServeurQr()).toContain(`"code":"${code}"`)
+      expect(texteJournalServeurQr()).not.toContain(message)
+    },
+  )
 })

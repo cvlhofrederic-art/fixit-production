@@ -263,6 +263,17 @@ describe('mode « creer »', () => {
     expect((await (await importer(corps('creer', [ligne(3, { immatriculation: 'CD7654321' })]))).json()).error).toBe('a_reverifier')
   })
 
+  it.each(['40P01', '40001'])('conflit de verrous avec une écriture concurrente (%s, essai PGlite du 11/11, D7) : 409 a_reverifier, diagnostics relus, journalisé avec son code', async (code) => {
+    baseQr.etat.fonctions.signalements_qr_creer_coproprietes = () => ({ error: { code, message: 'deadlock detected' } })
+    const res = await importer(corps('creer', [ligne(2, { codePostal: '13002' })]))
+    expect(res.status).toBe(409)
+    const r = await res.json()
+    expect(r.error).toBe('a_reverifier')
+    expect(r.diagnostics).toHaveLength(1)
+    expect(simulQr.logger.error).not.toHaveBeenCalled()
+    expect(texteJournalServeurQr()).toContain(`"code":"${code}"`)
+  })
+
   it('operationId rejoué (double clic, coupure) : le résultat du premier passage, sans nouvelle création', async () => {
     const lignes = [ligne(2, { codePostal: '13002' }), ligne(3, { codePostal: '13003' })]
     const premier = await (await importer(corps('creer', lignes))).json()
