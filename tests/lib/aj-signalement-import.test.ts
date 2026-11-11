@@ -512,6 +512,68 @@ describe('diagnostics : doublons (mêmes clés que la saisie, SPEC § 1.6)', () 
   })
 })
 
+describe('diagnostics : « compléter » et « créer » dans le même fichier (essai PGlite du 11/11, D3)', () => {
+  // « Les Oliviers », saisie sans code postal, reconnue par son immatriculation. La base complète AVANT de créer
+  // (signalements_qr_creer_coproprietes) : l'aperçu compare chaque ligne aux fiches telles que les complétions du fichier
+  // les laisseront ; la décision ne dépend pas de l'ordre des lignes, et jamais deux fiches de même nom et même code postal
+  // sans « Ce n'est pas un doublon » (forçage journalisé).
+  const E3 = 'e0000000-0000-4000-8000-000000000003'
+  const E4 = 'e0000000-0000-4000-8000-000000000004'
+  const E5 = 'e0000000-0000-4000-8000-000000000005'
+  const oliviers: CoproprieteDoublonQr = { id: E3, nom: 'Les Oliviers', adresse: '', codePostal: '', ville: '', immatriculation: 'EF1234567', referenceCabinet: null }
+  const avecOliviers: ContexteImportQr = { ...contexte, existantes: [...existantes, oliviers] }
+  const creer = (sur: Partial<LigneImportQr> = {}) => ligne(2, { nom: 'Oliviers', adresse: '9 avenue Exemple', codePostal: '13100', ...sur })
+  const completer = (sur: Partial<LigneImportQr> = {}) => ligne(3, {
+    nom: 'Ensemble du 5 rue Exemple', adresse: '5 rue Exemple', codePostal: '13100', immatriculation: 'EF1234567',
+    actionSiExiste: 'completer', coproprieteExistanteId: E3, ...sur,
+  })
+  const decisions = (lignes: LigneImportQr[], ctx: ContexteImportQr = avecOliviers) => {
+    const v = diagnostiquerImportQr(lignes, ctx)
+    return {
+      lignes: Object.fromEntries(v.diagnostics.map((d) => [d.numeroLigne, [d.etat, d.action]])),
+      sql: planCreationImportQr(lignes, v).lignesSql.map((l) => `${l.action}:${l.numeroLigne}${l.forcerDoublon ? ':force' : ''}`).sort(),
+    }
+  }
+
+  it('création homonyme (même nom, code postal apporté par la complétion) : « existe déjà », ignorée, dans les deux ordres', () => {
+    const attendu = { lignes: { 2: ['existe_deja', 'ignorer'], 3: ['existe_deja', 'completer'] }, sql: ['completer:3'] }
+    expect(decisions([creer(), completer()])).toEqual(attendu)
+    expect(decisions([completer(), creer()])).toEqual(attendu)
+    expect(diagnostiquerImportQr([creer(), completer()], avecOliviers).diagnostics[0].doublon).toMatchObject({
+      certitude: 'certain', critere: 'nom_code_postal', forcable: true, copropriete: { id: E3, nom: 'Les Oliviers' },
+    })
+  })
+
+  it('« Ce n’est pas un doublon » sur la création : les deux lignes partent, forçage transmis, dans les deux ordres', () => {
+    expect(decisions([creer({ forcerDoublon: true }), completer()]).sql).toEqual(['completer:3', 'creer:2:force'])
+    expect(decisions([completer(), creer({ forcerDoublon: true })]).sql).toEqual(['completer:3', 'creer:2:force'])
+  })
+
+  it('complétion qui donnerait à la fiche le nom et le code postal d’une AUTRE fiche du cabinet : ligne en erreur, jamais envoyée', () => {
+    const autre: CoproprieteDoublonQr = { id: E4, nom: 'Résidence Les Oliviers', adresse: '', codePostal: '13100', ville: 'Aix', immatriculation: null, referenceCabinet: null }
+    const ctx = { ...avecOliviers, existantes: [...avecOliviers.existantes, autre] }
+    const v = diagnostiquerImportQr([completer()], ctx)
+    expect(v.diagnostics[0]).toMatchObject({ etat: 'erreur', action: 'aucune' })
+    expect(v.diagnostics[0].messages.filter((m) => m.niveau === 'erreur').map((m) => m.texte))
+      .toEqual(['Existe déjà : « Résidence Les Oliviers » (Aix), même nom et même code postal'])
+    expect(planCreationImportQr([completer()], v).lignesSql).toEqual([])
+  })
+
+  it('deux complétions qui donneraient le même nom et le même code postal à deux fiches : les deux en erreur, dans les deux ordres', () => {
+    const jumelle: CoproprieteDoublonQr = { id: E5, nom: 'Oliviers', adresse: '', codePostal: '', ville: '', immatriculation: 'IJ1234567', referenceCabinet: null }
+    const ctx = { ...avecOliviers, existantes: [...avecOliviers.existantes, jumelle] }
+    const seconde = ligne(6, { nom: 'Bâtiment Exemple', codePostal: '13100', immatriculation: 'IJ1234567', actionSiExiste: 'completer', coproprieteExistanteId: E5 })
+    const attendu = { lignes: { 3: ['erreur', 'aucune'], 6: ['erreur', 'aucune'] }, sql: [] }
+    expect(decisions([completer(), seconde], ctx)).toEqual(attendu)
+    expect(decisions([seconde, completer()], ctx)).toEqual(attendu)
+  })
+
+  it('complétion sans nouveau code postal : aucun changement de décision (le code postal existant est gardé)', () => {
+    const v = diagnostiquerImportQr([completer({ codePostal: '' }), creer()], avecOliviers)
+    expect(v.diagnostics.map((d) => [d.numeroLigne, d.etat, d.action])).toEqual([[3, 'existe_deja', 'completer'], [2, 'avertissement', 'creer']])
+  })
+})
+
 describe('lignes envoyées à signalements_qr_creer_coproprietes (un seul appel, tout ou rien)', () => {
   it('créées et complétées seulement ; erreurs et ignorées exclues ; origine « import » ; cleNom calculée ; adresses nettoyées', () => {
     const lignes = [

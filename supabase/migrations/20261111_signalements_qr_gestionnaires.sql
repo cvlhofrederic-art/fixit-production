@@ -338,6 +338,10 @@ DECLARE
   v_id      uuid;
   v_jeton   text;
   v_g       uuid;
+  v_cle_avant  text;
+  v_cp_avant   text;
+  v_cle     text;
+  v_cp      text;
   v_creees  jsonb := '[]'::jsonb;
   v_compl   jsonb := '[]'::jsonb;
   v_rendu   jsonb;
@@ -394,7 +398,11 @@ BEGIN
     RETURN jsonb_build_object('creees', v_rendu, 'completees', coalesce(v_deja->'completees', '[]'::jsonb), 'rejeu', true);
   END IF;
 
-  FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) AS e(val) LOOP
+  -- Les lignes « compléter » passent AVANT les créations, chacune dans l'ordre du lot : la décision ne dépend pas de
+  -- l'ordre des lignes, et chaque création est comparée aux fiches telles que les complétions du lot les laissent (jamais
+  -- deux fiches de même clé de nom et même code postal sans forçage journalisé ; plan d'import : même ordre).
+  FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) WITH ORDINALITY AS e(val, rang)
+              ORDER BY coalesce(e.val->>'action' = 'completer', false) DESC, e.rang LOOP
     v_num := coalesce(v_l->>'numeroLigne', '');
     IF jsonb_typeof(v_l) <> 'object' OR coalesce(v_l->>'action', '') NOT IN ('creer', 'completer') THEN
       RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023', DETAIL = v_num;
@@ -403,6 +411,13 @@ BEGIN
     IF v_l->>'action' = 'completer' THEN
       IF p_profil <> 'super_admin' THEN
         RAISE EXCEPTION 'interdit' USING ERRCODE = '42501';
+      END IF;
+      v_id := (v_l->>'coproprieteId')::uuid;
+      SELECT c.cle_nom, c.code_postal INTO v_cle_avant, v_cp_avant
+        FROM signalements_qr_coproprietes c WHERE c.id = v_id AND coalesce(c.cabinet_id, v_zero) = v_cab
+        FOR NO KEY UPDATE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001', DETAIL = v_num;
       END IF;
       UPDATE signalements_qr_coproprietes c SET          -- ne remplit QUE les champs vides
         adresse           = CASE WHEN c.adresse = '' THEN coalesce(v_l->>'adresse', '') ELSE c.adresse END,
@@ -415,11 +430,15 @@ BEGIN
                               ELSE c.batiments END,
         -- Clé du nom EXISTANT (le nom n'est pas changé) : celle de la ligne fausserait le contrôle nom + code postal.
         cle_nom           = coalesce(c.cle_nom, nullif(v_l->>'cleNomExistante', ''))
-      WHERE c.id = (v_l->>'coproprieteId')::uuid AND coalesce(c.cabinet_id, v_zero) = v_cab;
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001', DETAIL = v_num;
+      WHERE c.id = v_id
+      RETURNING c.cle_nom, c.code_postal INTO v_cle, v_cp;
+      -- Même règle que la création : si la complétion change la clé du nom ou le code postal de la fiche, aucune AUTRE
+      -- fiche du cabinet ne porte les mêmes (aucun forçage pour une complétion).
+      IF (v_cle IS DISTINCT FROM v_cle_avant OR v_cp IS DISTINCT FROM v_cp_avant) AND v_cle IS NOT NULL AND v_cp <> ''
+         AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d
+                      WHERE coalesce(d.cabinet_id, v_zero) = v_cab AND d.id <> v_id AND d.cle_nom = v_cle AND d.code_postal = v_cp) THEN
+        RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001', DETAIL = v_num;
       END IF;
-      v_id := (v_l->>'coproprieteId')::uuid;
       v_compl := v_compl || jsonb_build_object('numeroLigne', (v_l->>'numeroLigne')::int, 'id', v_id);
     ELSE
       IF NOT (p_profil = 'super_admin' AND coalesce((v_l->>'forcerDoublon')::boolean, false))

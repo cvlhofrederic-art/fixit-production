@@ -325,11 +325,64 @@ const ficheDoublon = (l: LigneImportQr): FicheDoublonQr => ({
   nom: l.nom, adresse: l.adresse, codePostal: l.codePostal, immatriculation: l.immatriculation || null, referenceCabinet: l.referenceCabinet || null,
 })
 
+/** Fiche existante telle que « Compléter » la laisse : signalements_qr_creer_coproprietes ne remplit que les champs vides. */
+function completeeQr(e: CoproprieteDoublonQr, l: LigneImportQr): CoproprieteDoublonQr {
+  return {
+    ...e,
+    adresse: e.adresse === '' ? l.adresse : e.adresse,
+    codePostal: e.codePostal === '' ? l.codePostal : e.codePostal,
+    ville: e.ville === '' ? l.ville : e.ville,
+    immatriculation: e.immatriculation ?? (l.immatriculation || null),
+    referenceCabinet: e.referenceCabinet ?? (l.referenceCabinet || null),
+  }
+}
+
+const memeFicheQr = (a: CoproprieteDoublonQr, b: CoproprieteDoublonQr): boolean =>
+  a.adresse === b.adresse && a.codePostal === b.codePostal && a.ville === b.ville
+  && a.immatriculation === b.immatriculation && a.referenceCabinet === b.referenceCabinet
+
 /**
  * Diagnostics d'un import pour UN cabinet : la même fonction sert l'aperçu (navigateur) et la vérification du serveur
  * (P1-R19), qui lit le contexte en base. Rien n'est écrit ; aucun message ne part dans un journal.
+ *
+ * La base fait les complétions AVANT les créations (signalements_qr_creer_coproprietes, essai PGlite du 11/11) : quand
+ * une ligne « Compléter » remplit des champs vides, chaque ligne est revue contre les fiches telles qu'elles seront
+ * complétées (une création homonyme devient « existe déjà », forçable pour nom + code postal seulement), et une complétion
+ * qui donnerait à sa fiche le nom et le code postal d'une AUTRE fiche du cabinet est en erreur. La décision ne dépend
+ * donc pas de l'ordre des lignes, et jamais deux fiches de même nom et même code postal sans forçage journalisé.
  */
 export function diagnostiquerImportQr(lignes: readonly LigneImportQr[], contexte: ContexteImportQr): VerificationImportQr {
+  const premiere = diagnostiquerSurExistantesQr(lignes, contexte)
+  const parNumero = new Map(lignes.map((l) => [l.numeroLigne, l]))
+  const parId = new Map(contexte.existantes.map((e) => [e.id, e]))
+  const completees = new Map<string, CoproprieteDoublonQr>()
+  for (const d of premiere.diagnostics) {
+    const l = parNumero.get(d.numeroLigne)
+    const e = d.action === 'completer' && d.doublon ? parId.get(d.doublon.copropriete.id) : undefined
+    if (!l || !e) continue
+    const apres = completeeQr(e, l)
+    if (!memeFicheQr(apres, e)) completees.set(e.id, apres)
+  }
+  if (completees.size === 0) return premiere
+
+  const existantes = contexte.existantes.map((e) => completees.get(e.id) ?? e)
+  const seconde = diagnostiquerSurExistantesQr(lignes, { ...contexte, existantes })
+  const diagnostics = seconde.diagnostics.map((d): DiagnosticLigneImportQr => {
+    const id = d.action === 'completer' ? d.doublon?.copropriete.id : undefined
+    const avant = id === undefined ? undefined : parId.get(id)
+    const apres = id === undefined ? undefined : completees.get(id)
+    if (!avant || !apres || apres.codePostal === avant.codePostal) return d
+    const conflit = doublonsCoproprieteQr(apres, existantes, { ignorerId: avant.id })
+      .find((x) => x.certitude === 'certain' && x.critere === 'nom_code_postal')
+    if (!conflit) return d
+    const { nom, ville } = conflit.copropriete
+    return { ...d, etat: 'erreur', action: 'aucune', messages: [...d.messages, { niveau: 'erreur', champ: null, texte: M.existeDeja(nom, ville, conflit.critere) }] }
+  })
+  return { ...seconde, diagnostics }
+}
+
+/** Diagnostics des lignes contre un état donné des copropriétés du cabinet (voir diagnostiquerImportQr). */
+function diagnostiquerSurExistantesQr(lignes: readonly LigneImportQr[], contexte: ContexteImportQr): VerificationImportQr {
   const fichesParEmail = new Map<string, FicheImportQr>()
   for (const f of contexte.fiches) {
     const email = emailCanoniqueQr(f.email)

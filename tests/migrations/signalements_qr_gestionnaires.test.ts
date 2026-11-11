@@ -446,6 +446,26 @@ describe(`Migration ${FICHIER} : copropriétés (création unique, doublons, cab
     expect(completer).not.toContain("v_l->>'cleNom'")
   })
 
+  it('« compléter » et « créer » dans un même lot (essai PGlite du 11/11, D3) : complétions d’abord, quel que soit l’ordre des lignes ; complétion qui fait apparaître un doublon nom + code postal refusée', () => {
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    // Une seule boucle : les lignes « compléter » passent avant les autres, chacune dans l'ordre du lot.
+    expect(corps).toMatch(new RegExp(espaces(
+      "FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) WITH ORDINALITY AS e(val, rang) ORDER BY coalesce(e.val->>'action' = 'completer', false) DESC, e.rang LOOP",
+    )))
+    expect([...corps.matchAll(/FOR v_l IN/g)]).toHaveLength(1)
+    const debut = corps.indexOf("IF v_l->>'action' = 'completer'")
+    const completer = corps.slice(debut, corps.indexOf('v_compl := v_compl', debut))
+    // Clé et code postal lus avant, relus après la complétion ; comparés aux AUTRES fiches du cabinet si l'un a changé.
+    expect(completer).toMatch(/SELECT c\.cle_nom, c\.code_postal INTO v_cle_avant, v_cp_avant\s+FROM signalements_qr_coproprietes c WHERE c\.id = v_id AND coalesce\(c\.cabinet_id, v_zero\) = v_cab/)
+    expect(completer).toMatch(/RETURNING c\.cle_nom, c\.code_postal INTO v_cle, v_cp;/)
+    const controle = new RegExp(espaces(
+      "IF (v_cle IS DISTINCT FROM v_cle_avant OR v_cp IS DISTINCT FROM v_cp_avant) AND v_cle IS NOT NULL AND v_cp <> '' AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d WHERE coalesce(d.cabinet_id, v_zero) = v_cab AND d.id <> v_id AND d.cle_nom = v_cle AND d.code_postal = v_cp) THEN RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001', DETAIL = v_num;",
+    ))
+    expect(completer).toMatch(controle)
+    // Aucun forçage pour une complétion (le plan d'import envoie toujours forcerDoublon: false).
+    expect(completer).not.toMatch(/forcerDoublon/)
+  })
+
   it('import (lot 5) : un fichier d’UNE ligne reste un import ; « compléter » ne remplit que les champs vides, n’écrase rien', () => {
     const corps = fonction('signalements_qr_creer_coproprietes').corps
     expect(corps).toMatch(/v_type := CASE WHEN v_nb = 1 AND coalesce\(p_lignes->0->>'origine', ''\) <> 'import' THEN 'creation' ELSE 'import' END;/)
