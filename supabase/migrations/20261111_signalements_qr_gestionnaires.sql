@@ -750,9 +750,9 @@ BEGIN
   SELECT v_cab, p_acteur, 'super_admin', 'attribution.retiree', t.x, p_id, '{"motif": "depart"}'::jsonb FROM unnest(v_attr) AS t(x);
 
   UPDATE signalements_qr_gestionnaires SET actif = false, desactive_le = now(), desactive_par = p_acteur WHERE id = p_id;
-  -- Les liens envoyés et pas encore ouverts ne valent plus rien.
+  -- Ses liens ne valent plus rien : ceux pas encore ouverts, et celui déjà confirmé (fiche désactivée : 404 générique).
   UPDATE signalements_qr_invitations SET invite_token = NULL
-   WHERE gestionnaire_id = p_id AND accepted_at IS NULL AND invite_token IS NOT NULL;
+   WHERE gestionnaire_id = p_id AND invite_token IS NOT NULL;
 
   -- Son adresse quitte les adresses saisies de TOUTES les copropriétés qui la contiennent (quel que soit leur cabinet).
   IF v_email IS NOT NULL THEN
@@ -861,13 +861,16 @@ BEGIN
 END $fn$;
 
 -- « C'est moi » : l'envoi (déjà relu et vérifié par la route, lireInvitationValide) confirme l'adresse de la fiche.
+-- Le jeton est GARDÉ : accepted_at fait foi (usage unique : confirmer et contester exigent accepted_at NULL), et le lien
+-- rouvert se retrouve par son jeton (lireInvitationValide) pour afficher « Adresse déjà confirmée. ». Le départ et la
+-- contestation effacent les jetons de TOUS les envois de la fiche : son lien confirmé redevient introuvable (404).
 CREATE OR REPLACE FUNCTION signalements_qr_confirmer_adresse(p_invitation uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
   v_g    uuid;
   v_cab  uuid;
 BEGIN
-  UPDATE signalements_qr_invitations i SET accepted_at = now(), invite_token = NULL
+  UPDATE signalements_qr_invitations i SET accepted_at = now()
    WHERE i.id = p_invitation AND i.objet = 'confirmation_adresse' AND i.accepted_at IS NULL AND i.refus IS NULL
      AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'
      AND EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
@@ -903,8 +906,9 @@ BEGIN
   END IF;
   UPDATE signalements_qr_gestionnaires SET adresse_contestee_le = now() WHERE id = v_g
   RETURNING cabinet_id INTO v_cab;
+  -- Tous ses liens caducs, celui d'un envoi déjà accepté compris (fiche contestée : 404 générique).
   UPDATE signalements_qr_invitations SET invite_token = NULL
-   WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;
+   WHERE gestionnaire_id = v_g AND invite_token IS NOT NULL;
   INSERT INTO signalements_qr_journal (cabinet_id, acteur_profil, acteur_gestionnaire_id, action, gestionnaire_id)
   VALUES (v_cab, 'gestionnaire', v_g, 'gestionnaire.adresse_contestee', v_g);
   RETURN true;

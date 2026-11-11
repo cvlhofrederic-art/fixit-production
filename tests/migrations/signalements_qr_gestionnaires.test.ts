@@ -360,6 +360,20 @@ describe(`Migration ${FICHIER} : gestionnaires et envois`, () => {
     expect(fonction('signalements_qr_confirmer_adresse').corps).toMatch(/adresse_confirmee_le = coalesce\(adresse_confirmee_le, now\(\)\)/)
   })
 
+  it('lien rouvert après « C’est moi » (essai PGlite du 11/11, D4) : le jeton reste et accepted_at fait foi (usage unique) ; départ et contestation effacent TOUS les jetons de la fiche', () => {
+    // lireInvitationValide (lib/equipe) retrouve l'envoi par son jeton : effacé, la page dirait « lien invalide » au lieu
+    // de « Adresse déjà confirmée. ». Gardé, il n'accorde rien de plus : confirmer et contester exigent accepted_at NULL.
+    const confirmer = fonction('signalements_qr_confirmer_adresse').corps
+    expect(confirmer).toMatch(/UPDATE signalements_qr_invitations i SET accepted_at = now\(\)\s+WHERE i\.id = p_invitation/)
+    expect(confirmer).not.toMatch(/invite_token\s*=\s*NULL/)
+    expect(confirmer).toMatch(/i\.accepted_at IS NULL AND i\.refus IS NULL\s+AND i\.invite_token IS NOT NULL/)
+    for (const [nom, fiche] of [['signalements_qr_contester_adresse', 'v_g'], ['signalements_qr_desactiver_gestionnaire', 'p_id']]) {
+      const corps = fonction(nom).corps
+      expect(corps, nom).toMatch(new RegExp(espaces(`UPDATE signalements_qr_invitations SET invite_token = NULL WHERE gestionnaire_id = ${fiche} AND invite_token IS NOT NULL;`)))
+      expect(corps, nom).not.toMatch(/SET invite_token = NULL\s+WHERE gestionnaire_id = \w+ AND accepted_at IS NULL/)
+    }
+  })
+
   it('réactivation refusée pour une fiche pseudonymisée', () => {
     expect(fonction('signalements_qr_reactiver_gestionnaire').corps).toMatch(/pseudonymise_le IS NULL/)
   })

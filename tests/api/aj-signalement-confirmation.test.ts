@@ -61,17 +61,20 @@ beforeEach(async () => {
   baseQr.etat.tables.signalements_qr_gestionnaires = [
     { id: G, cabinet_id: CAB, nom: 'Marie Exemple', email: EMAIL, actif: true, adresse_confirmee_le: null, adresse_contestee_le: null },
   ]
+  // Fonctions SQL réduites à leurs règles (20261111, essai PGlite du 11/11, D4) : « C'est moi » GARDE le jeton (accepted_at
+  // fait foi : usage unique) ; « Ce n'est pas moi » efface les jetons de TOUS les envois de la fiche.
   baseQr.etat.fonctions.signalements_qr_confirmer_adresse = (a) => {
     const envoi = baseQr.table('signalements_qr_invitations').find((i) => i.id === a.p_invitation)
-    if (!envoi || envoi.accepted_at || !envoi.invite_token) return { data: false }
-    Object.assign(envoi, { accepted_at: new Date().toISOString(), invite_token: null })
+    if (!envoi || envoi.accepted_at || envoi.refus || !envoi.invite_token) return { data: false }
+    Object.assign(envoi, { accepted_at: new Date().toISOString() })
     Object.assign(baseQr.table('signalements_qr_gestionnaires')[0], { adresse_confirmee_le: new Date().toISOString() })
     return { data: true }
   }
   baseQr.etat.fonctions.signalements_qr_contester_adresse = (a) => {
     const envoi = baseQr.table('signalements_qr_invitations').find((i) => i.id === a.p_invitation)
-    if (!envoi || envoi.refus || !envoi.invite_token) return { data: false }
-    Object.assign(envoi, { refus: 'pas_moi', invite_token: null })
+    if (!envoi || envoi.accepted_at || envoi.refus || !envoi.invite_token) return { data: false }
+    Object.assign(envoi, { refus: 'pas_moi' })
+    for (const i of baseQr.table('signalements_qr_invitations')) if (i.gestionnaire_id === envoi.gestionnaire_id) i.invite_token = null
     Object.assign(baseQr.table('signalements_qr_gestionnaires')[0], { adresse_contestee_le: new Date().toISOString() })
     return { data: true }
   }
@@ -155,12 +158,28 @@ describe('lecture (P1-R16)', () => {
 })
 
 describe('« C’est moi » (P1-R17)', () => {
-  it('confirme par la fonction SQL ; le même lien ne vaut plus rien ensuite', async () => {
+  it('confirme par la fonction SQL ; le même lien rouvert dit « Adresse déjà confirmée. » (409) et n’accorde plus rien (essai PGlite du 11/11, D4)', async () => {
     const res = await confirmer(corps())
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ confirmee: true })
     expect(baseQr.etat.appelsRpc).toEqual([{ nom: 'signalements_qr_confirmer_adresse', args: { p_invitation: idEnvoi } }])
-    expect((await confirmer(corps())).status).toBe(404)
+    // Lien rouvert : la page affiche « déjà confirmée », ni « lien invalide » ni un nom ou une adresse.
+    for (const route of [lire, confirmer, refuser]) {
+      const deja = await route(corps())
+      expect(deja.status).toBe(409)
+      expect(await deja.json()).toEqual({ error: 'deja_confirmee' })
+    }
+    // Usage unique : aucune seconde confirmation, aucune contestation par ce lien.
+    expect(baseQr.etat.appelsRpc).toHaveLength(1)
+    expect(baseQr.table('signalements_qr_gestionnaires')[0].adresse_contestee_le).toBeNull()
+  })
+
+  it('lien confirmé, puis départ du gestionnaire (la fonction efface tous ses jetons) : le même 404 générique', async () => {
+    expect((await confirmer(corps())).status).toBe(200)
+    Object.assign(baseQr.table('signalements_qr_invitations')[0], { invite_token: null })
+    Object.assign(baseQr.table('signalements_qr_gestionnaires')[0], { actif: false })
+    for (const route of [lire, confirmer, refuser]) expect((await route(corps())).status).toBe(404)
+    expect(baseQr.etat.appelsRpc).toHaveLength(1)
   })
 
   it('cabinet du chemin ≠ celui de la fiche : 404, aucune fonction appelée', async () => {
