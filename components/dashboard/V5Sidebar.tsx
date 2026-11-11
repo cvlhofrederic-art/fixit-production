@@ -46,9 +46,14 @@ interface V5SidebarProps {
 // Bloc « Compte » (toujours en bas du menu) : mêmes entrées que le rendu fixe plus bas, pour la recherche.
 const MODULES_COMPTE: ReadonlyArray<{ id: string; icon: string; fr: string; pt: string; descriptionFr: string; descriptionPt: string }> = [
   { id: 'settings', icon: '⚙️', fr: 'Mon profil', pt: 'Meu perfil', descriptionFr: 'Paramètres du compte', descriptionPt: 'Definições da conta' },
-  { id: 'modules', icon: '🧩', fr: 'Modules', pt: 'Modules', descriptionFr: 'Activer, désactiver et réorganiser le menu', descriptionPt: 'Ativar, desativar e reorganizar o menu' },
-  { id: 'help', icon: '❓', fr: 'Aide', pt: 'Ajuda', descriptionFr: 'Questions fréquentes et support', descriptionPt: 'Perguntas frequentes e suporte' },
+  { id: 'modules', icon: '🧩', fr: 'Modules', pt: 'Modules', descriptionFr: 'Activer, désactiver et réorganiser le menu', descriptionPt: 'Módulos: ativar, desativar e reorganizar o menu' },
+  { id: 'help', icon: '❓', fr: 'Aide', pt: 'Ajuda', descriptionFr: 'Questions fréquentes (FAQ) et support', descriptionPt: 'Perguntas frequentes (FAQ) e suporte' },
 ]
+
+// Mots que l'on tape pour un module dont ni le nom ni la description ne les contiennent (lus avec la description).
+const MOTS_CLES: Record<string, { fr: string; pt: string }> = {
+  home: { fr: 'accueil', pt: 'início' },
+}
 
 // ─── Routing alias: motifs → prestations (URL key) ───
 const ROUTE_ALIAS: Record<string, string> = { motifs: 'prestations' }
@@ -93,7 +98,7 @@ function V5SidebarItem({ icon, label, active, badge, onClick, page, choisi }: {
     }
   }
   return (
-    <button type="button" onClick={onClick} onMouseEnter={handleHover} className={`v5-sb-i${active ? ' active' : ''}${choisi ? ' choix' : ''}`} aria-current={active ? 'page' : undefined} data-choix={choisi ? 'oui' : undefined}>
+    <button type="button" onClick={onClick} onMouseEnter={handleHover} className={`v5-sb-i${active ? ' active' : ''}${choisi ? ' choix' : ''}`} aria-current={active ? 'page' : undefined} data-module={page} data-choix={choisi ? 'oui' : undefined}>
       <span className="v5-sb-icon" aria-hidden="true">{icon}</span>
       <span className="v5-sb-label">{label}</span>
       {badge != null && badge > 0 && <span className="v5-sb-badge" aria-label={`${badge}`}>{badge}</span>}
@@ -115,6 +120,8 @@ export default function V5Sidebar({
   const [choixClavier, setChoixClavier] = useState<string | null>(null)
   const champRecherche = useRef<HTMLInputElement>(null)
   const zoneNavigation = useRef<HTMLDivElement>(null)
+  // Module ouvert au clavier : son entrée de menu reçoit le focus une fois le menu complet revenu.
+  const focusApresOuverture = useRef<string | null>(null)
 
   // Rubriques réellement affichées : la même liste sert au rendu du menu et à la recherche,
   // qui ne peut donc rien montrer que le menu ne montre pas.
@@ -132,27 +139,37 @@ export default function V5Sidebar({
   }, [dynamicCategories, isPt, isModuleEnabled])
 
   const recherche = useMemo(() => {
+    // Sans menu dynamique il n'y a pas de champ : une saisie restée en mémoire ne doit rien filtrer.
+    if (!useDynamic) return rechercherModules('', [])
     const nomCompte = isPt ? 'Conta' : 'Compte'
     const descriptions = new Map((definitionsModules ?? []).map(def => [def.id, def.description]))
     const vus = new Set<string>()
     const cherchables: ModuleCherchable[] = []
     const ajouter = (entree: ModuleCherchable) => {
+      // Un module présent deux fois dans le menu (rubrique « Compte » supprimée dans Modules) ne compte qu'une fois.
       if (vus.has(entree.id)) return
       vus.add(entree.id)
       cherchables.push(entree)
     }
     for (const rubrique of rubriques) {
       for (const mod of rubrique.modules) {
-        ajouter({ id: mod.id, libelle: mod.name, rubrique: rubrique.nom, description: descriptions.get(mod.id) })
+        const motsCles = isPt ? MOTS_CLES[mod.id]?.pt : MOTS_CLES[mod.id]?.fr
+        ajouter({ id: mod.id, libelle: mod.name, rubrique: rubrique.nom, description: `${descriptions.get(mod.id) ?? ''} ${motsCles ?? ''}` })
       }
     }
     for (const mod of MODULES_COMPTE) {
       ajouter({ id: mod.id, libelle: isPt ? mod.pt : mod.fr, rubrique: nomCompte, description: isPt ? mod.descriptionPt : mod.descriptionFr })
     }
     return rechercherModules(requete, cherchables)
-  }, [requete, rubriques, definitionsModules, isPt])
+  }, [useDynamic, requete, rubriques, definitionsModules, isPt])
 
   const retenus = useMemo(() => new Set(recherche.ids), [recherche])
+  // Entrées du bloc « Compte » trouvées par la recherche, sauf celles qu'une rubrique du menu affiche déjà.
+  const compteTrouves = useMemo(() => {
+    if (!recherche.active) return []
+    const dejaAuMenu = new Set(rubriques.flatMap(rubrique => rubrique.modules.map(m => m.id)))
+    return MODULES_COMPTE.filter(mod => retenus.has(mod.id) && !dejaAuMenu.has(mod.id))
+  }, [recherche.active, rubriques, retenus])
   const idChoisi = choixClavier && retenus.has(choixClavier) ? choixClavier : recherche.meilleur
   const libelleChoisi = useMemo(() => {
     if (!idChoisi) return ''
@@ -190,20 +207,49 @@ export default function V5Sidebar({
     else if (e.key === 'Enter') {
       if (!idChoisi) return
       e.preventDefault()
-      champRecherche.current?.blur()
+      focusApresOuverture.current = idChoisi
       ouvrir(idChoisi)
-    } else if (e.key === 'Escape') {
-      if (requete) { e.preventDefault(); effacerRecherche() }
-      else champRecherche.current?.blur()
+    } else if (e.key === 'Escape' && requete) {
+      e.preventDefault()
+      effacerRecherche()
     }
   }
+
+  // Après une ouverture au clavier, le focus va sur l'entrée de menu du module ouvert (comme après un clic)
+  // au lieu de retomber sur <body>.
+  useEffect(() => {
+    const id = focusApresOuverture.current
+    if (!id || recherche.active) return
+    focusApresOuverture.current = null
+    const entrees = zoneNavigation.current?.querySelectorAll<HTMLElement>('[data-module]')
+    for (const entree of entrees ?? []) {
+      if (entree.dataset.module === id) { entree.focus(); return }
+    }
+  })
+
+  // Menu réduit aux icônes (≤ 768 px, voir dashboard-v5.css) : le champ est masqué. Une recherche en cours est
+  // refermée, sinon le menu resterait filtré sans moyen de l'effacer (tablette que l'on fait pivoter).
+  useEffect(() => {
+    if (typeof globalThis.matchMedia !== 'function') return
+    const petitEcran = globalThis.matchMedia('(max-width: 768px)')
+    const surChangement = (e: MediaQueryListEvent) => {
+      if (!e.matches) return
+      setRequete('')
+      setChoixClavier(null)
+    }
+    petitEcran.addEventListener('change', surChangement)
+    return () => petitEcran.removeEventListener('change', surChangement)
+  }, [])
 
   // Raccourci Ctrl+K (⌘K sur Mac) : place le curseur dans la recherche. Sans effet quand le champ est masqué
   // (menu réduit aux icônes sur petit écran) : le raccourci du navigateur reste alors disponible.
   useEffect(() => {
     if (!useDynamic) return
+    // Sur Mac, Ctrl+K appartient aux champs de texte (effacer la fin de la ligne) : seul ⌘K est pris.
+    const estMac = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? '')
     const surRaccourci = (e: globalThis.KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'k') return
+      const modificateur = estMac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
+      if (!modificateur || e.altKey || e.shiftKey || typeof e.key !== 'string' || e.key.toLowerCase() !== 'k') return
       const champ = champRecherche.current
       const bloc = champ?.parentElement
       if (!champ || !bloc || globalThis.getComputedStyle(bloc).display === 'none') return
@@ -252,7 +298,7 @@ export default function V5Sidebar({
       </div>
       {/* ═══ RECHERCHE DE MODULES — menu dynamique seulement ═══ */}
       {useDynamic && (
-        <div className="v5-sb-rech" role="search">
+        <div className={`v5-sb-rech${requete === '' ? '' : ' saisie'}`} role="search">
           <svg className="v5-sb-rech-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
             <circle cx="11" cy="11" r="7" />
             <path d="m20 20-3.5-3.5" />
@@ -266,7 +312,7 @@ export default function V5Sidebar({
             onKeyDown={surToucheRecherche}
             placeholder={isPt ? 'Pesquisar um módulo…' : 'Rechercher un module…'}
             aria-label={isPt ? 'Pesquisar um módulo' : 'Rechercher un module'}
-            title={isPt ? 'Pesquisar um módulo (Ctrl+K)' : 'Rechercher un module (Ctrl+K)'}
+            title={isPt ? 'Pesquisar um módulo (Ctrl+K, ⌘K no Mac)' : 'Rechercher un module (Ctrl+K, ⌘K sur Mac)'}
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
@@ -282,7 +328,8 @@ export default function V5Sidebar({
               ×
             </button>
           )}
-          <span className="sr-only" role="status" aria-live="polite">{annonceRecherche}</span>
+          {/* Zone d'état native (rôle status) : annonce le nombre de résultats aux lecteurs d'écran. */}
+          <output className="sr-only" aria-live="polite">{annonceRecherche}</output>
         </div>
       )}
       <div className="v5-sb-nav" ref={zoneNavigation}>
@@ -311,10 +358,10 @@ export default function V5Sidebar({
         })}
 
         {/* ═══ RECHERCHE — entrées du bloc « Compte » trouvées, à la suite des résultats ═══ */}
-        {recherche.active && MODULES_COMPTE.some(mod => retenus.has(mod.id)) && (
+        {compteTrouves.length > 0 && (
           <div className="v5-sb-sec">
             <div className="v5-sb-sec-t">{isPt ? 'Conta' : 'Compte'}</div>
-            {MODULES_COMPTE.filter(mod => retenus.has(mod.id)).map(mod => (
+            {compteTrouves.map(mod => (
               <V5SidebarItem
                 key={mod.id}
                 icon={mod.icon}
