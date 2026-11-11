@@ -5,16 +5,18 @@
 // colonnes sur la fiche (compte relié, dates d'accès, de blocage, de demande d'effacement), FK vers auth.users en
 // NOT VALID puis VALIDATE, index unique « un compte = une fiche », envoi d'un accès en une transaction, trigger de
 // liaison du compte à l'acceptation, corps de signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel, même
-// signature, exclusions comparées sur la boîte : sous-adresses « + » comprises), corps de
-// signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi » depuis un lien d'accès, fiche sans compte
-// relié, objet de l'envoi au journal). Aucune table nouvelle (les domaines sont en PR 1), aucune donnée, aucune
-// valeur de client (dépôt public). Le texte SQL est contrôlé ici : aucune base PostgreSQL ne le rejoue en local ni en CI.
+// signature, exclusions comparées sur la boîte : sous-adresses « + » comprises, et sur la partie locale de boîte pour un
+// autre domaine du cabinet de la fiche), corps de signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi »
+// depuis un lien d'accès, fiche sans compte relié, objet de l'envoi au journal). Aucune table nouvelle (les domaines
+// sont en PR 1), aucune donnée, aucune valeur de client (dépôt public). Le texte SQL est contrôlé ici : aucune base
+// PostgreSQL ne le rejoue en local ni en CI.
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { MIGRATION_ACCES_QR, MIGRATION_GESTIONNAIRES_QR } from '@/lib/aj-signalement/serveur'
 import { ETIQUETTE_EMAIL_QR } from '@/lib/aj-signalement/gestionnaires'
+import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
 const FICHIER = '20261112_signalements_qr_acces_gestionnaires.sql'
@@ -272,25 +274,68 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
     expect(nouvelle().corps).not.toMatch(/false AS acces_ouvert/)
   })
 
-  // Relecture 2 du lot 6 : une sous-adresse « + » d'une fiche partie ou contestée (même boîte) est exclue comme son
-  // adresse ; même expression que boiteEmailQr (lib/aj-signalement/gestionnaires.ts), des deux côtés de la comparaison.
-  const boite = (x: string) => `regexp_replace(${x}, '${ETIQUETTE_EMAIL_QR.source}', '\\1@')`
-  const EXCLUSION_BOITE = `JOIN signalements_qr_gestionnaires g ON ${boite('g.email')} = ANY (ARRAY(SELECT ${boite('s.e')} FROM unnest(c.emails_destinataires) AS s(e)))`
+  // Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée quand elle a la même BOÎTE (relecture 2
+  // du lot 6 : sous-adresse « + ») ou, corrections du tour 2, la même partie locale de boîte sur un domaine DÉCLARÉ par le
+  // cabinet de la fiche (un cabinet à deux domaines les livre aux mêmes boîtes). Même règle que adressesDeFichesQr
+  // (lib/aj-signalement/destinataires.ts) ; la ligne exclue porte la SAISIE reconnue (retirée telle quelle de l'envoi).
+  const boite = (x: string) => `regexp_replace(lower(btrim(${x})), '${ETIQUETTE_EMAIL_QR.source}', '\\1@')`
+  const EXCLUSION = `SELECT g.id, s.e, false, true
+      FROM signalements_qr_coproprietes c
+      CROSS JOIN LATERAL (SELECT u.e, ${boite('u.e')} AS boite FROM unnest(c.emails_destinataires) AS u(e)) AS s
+      JOIN signalements_qr_gestionnaires g
+        ON ${boite('g.email')} = s.boite
+        OR (split_part(${boite('g.email')}, '@', 1) = split_part(s.boite, '@', 1)
+            AND EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+                         WHERE d.cabinet_id = g.cabinet_id AND d.domaine = split_part(s.boite, '@', 2)))`
+  const EXCLUSION_1111 = 'SELECT g.id, g.email, false, true FROM signalements_qr_coproprietes c JOIN signalements_qr_gestionnaires g ON g.email = ANY (c.emails_destinataires)'
 
-  it('exclusions : adresse saisie d’une fiche partie ou contestée, sous-adresse « + » comprise (même boîte, même règle que le code)', () => {
+  it('exclusions : même boîte (sous-adresse « + ») ou même partie locale sur un domaine du cabinet de la fiche ; la saisie reconnue est rendue', () => {
     expect(ETIQUETTE_EMAIL_QR.source).toBe(String.raw`^([^@+]+)\+[^@]*@`)
-    expect(compacter(nouvelle().corps)).toContain(compacter(EXCLUSION_BOITE))
-    expect(nouvelle().corps).toContain(String.raw`regexp_replace(g.email, '^([^@+]+)\+[^@]*@', '\1@')`)
+    expect(compacter(nouvelle().corps)).toContain(compacter(EXCLUSION))
+    expect(nouvelle().corps).toContain(String.raw`regexp_replace(lower(btrim(g.email)), '^([^@+]+)\+[^@]*@', '\1@')`)
     expect(nouvelle().corps).not.toMatch(/g\.email = ANY \(c\.emails_destinataires\)/)
   })
 
   it('le reste du corps est celui de la 20261111 : même cabinet, adresse confirmée non contestée, exclusions, limite', () => {
-    const attendu = compacter(ancienne().corps).replace('false AS acces_ouvert', compacter(ACCES_REEL))
-      .replace('JOIN signalements_qr_gestionnaires g ON g.email = ANY (c.emails_destinataires)', compacter(EXCLUSION_BOITE))
+    const avant = compacter(ancienne().corps)
+    expect(avant).toContain(EXCLUSION_1111)
+    const attendu = avant.replace('false AS acces_ouvert', compacter(ACCES_REEL)).replace(EXCLUSION_1111, compacter(EXCLUSION))
     expect(compacter(nouvelle().corps)).toBe(attendu)
     expect(nouvelle().corps).toMatch(/g\.cabinet_id = c\.cabinet_id/)
     expect(nouvelle().corps).toMatch(/NOT g\.actif OR g\.adresse_contestee_le IS NOT NULL/)
     expect(nouvelle().corps).toMatch(/ORDER BY t\.exclu DESC, t\.gestionnaire_id\s+LIMIT 100/)
+  })
+
+  // Aucune base ne rejoue ce SQL : la condition de jointure ci-dessus est traduite mot pour mot (regexp_replace sans
+  // drapeau « g » = premier motif ; split_part = n-ième morceau, '' au-delà) et comparée à la règle du code sur des cas.
+  it('la condition SQL et adressesDeFichesQr donnent la même réponse (partie locale, étiquette, domaine du cabinet de la fiche)', () => {
+    const boiteSql = (x: string) => x.trim().toLowerCase().replace(ETIQUETTE_EMAIL_QR, '$1@')
+    const splitPart = (x: string, n: number) => x.split('@')[n - 1] ?? ''
+    const CAB = 'ca000000-0000-4000-8000-000000000001'
+    const CAB_AUTRE = 'ca000000-0000-4000-8000-000000000002'
+    const domaines: Record<string, string> = { 'exemple.test': CAB, 'exemple-bis.test': CAB, 'autre-exemple.test': CAB_AUTRE }
+    const exclueSql = (saisie: string, fiche: { email: string; cabinetId: string }) => {
+      const s = boiteSql(saisie)
+      const f = boiteSql(fiche.email)
+      return f === s || (splitPart(f, 1) === splitPart(s, 1) && domaines[splitPart(s, 2)] === fiche.cabinetId)
+    }
+    const cabinets = new Map(Object.entries(domaines))
+    const fiches = [
+      { id: 'g1', email: 'marie.exemple@exemple.test', cabinetId: CAB },
+      { id: 'g2', email: 'paul+aj@exemple.test', cabinetId: CAB },
+      { id: 'g3', email: 'jeanne@gmail.com', cabinetId: CAB },
+      { id: 'g4', email: 'luc@autre-exemple.test', cabinetId: CAB_AUTRE },
+    ]
+    const saisies = [
+      'marie.exemple@exemple.test', 'Marie.Exemple+Suivi@Exemple-Bis.test', 'marie.exemple@autre-exemple.test', 'marie.exemple@externe.test',
+      'paul@exemple-bis.test', 'paul+x@exemple.test', 'jeanne@exemple-bis.test', 'jeanne@outlook.fr', 'luc@exemple.test', 'luc+y@autre-exemple.test',
+      'accueil@exemple-bis.test', '+suivi@exemple.test',
+    ]
+    for (const saisie of saisies) {
+      for (const fiche of fiches) {
+        expect(exclueSql(saisie, fiche), `${saisie} / ${fiche.email}`).toBe(adressesDeFichesQr([saisie], [fiche], cabinets).length > 0)
+      }
+    }
   })
 })
 

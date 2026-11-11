@@ -10,7 +10,9 @@
 // admin), le jeton d'une copropriété désactivée (aucun QR code), la fiche de suivi du super admin.
 
 import { saisiesVisiblesQr } from '@/lib/aj-signalement/destinataires'
-import type { AuteurStatutQr, CoproprieteQr, PorteeQr, SignalementQr, TableauQr } from '@/lib/aj-signalement/types'
+import type {
+  AuteurStatutQr, CabinetsDesDomainesQr, CoproprieteQr, FicheAdresseQr, PorteeQr, SignalementQr, TableauQr,
+} from '@/lib/aj-signalement/types'
 
 /** Trace du dernier changement de statut (colonnes statut_modifie_par / statut_modifie_profil, migration 20261111). */
 export interface TraceStatutQr {
@@ -25,8 +27,13 @@ export interface VueGestionnaireQr {
   gestionnaireId: string
   nom: string | null
   portee: PorteeQr
-  /** Fiches dont l'adresse figure dans les saisies affichées (id et adresse), pour masquer celles des collègues. */
-  fichesSaisies: ReadonlyArray<{ id: string; email: string | null }>
+  /**
+   * Fiches dont une saisie affichée peut être l'adresse (id, adresse, cabinet), pour masquer celles des collègues : même
+   * boîte, ou même partie locale sur un domaine de leur cabinet (lireContexteGestionStrictQr).
+   */
+  fichesSaisies: ReadonlyArray<FicheAdresseQr & { id: string }>
+  /** Domaines des saisies affichées → cabinet qui les a déclarés (lus avec les fiches). */
+  cabinetsDesDomaines: CabinetsDesDomainesQr
 }
 
 /** Qui a changé le statut, sans nom : « vous » (ce compte), « collègue » (autre gestionnaire), « cabinet » (super admin). */
@@ -39,7 +46,7 @@ export function auteurStatutQr(trace: TraceStatutQr | null | undefined, userId: 
 
 /** Copropriété vue par le gestionnaire (nouvel objet ; la copropriété reçue n'est pas modifiée). */
 export function coproprieteVueGestionnaireQr(c: CoproprieteQr, vue: VueGestionnaireQr): CoproprieteQr {
-  const saisies = saisiesVisiblesQr(c.emailsDestinataires, vue.fichesSaisies, vue.gestionnaireId)
+  const saisies = saisiesVisiblesQr(c.emailsDestinataires, vue.fichesSaisies, vue.gestionnaireId, vue.cabinetsDesDomaines)
   const creeeParVous = typeof c.creePar === 'object' && c.creePar.gestionnaireId === vue.gestionnaireId
   return {
     ...c,

@@ -35,7 +35,7 @@ import {
 import {
   COLONNES_COPROPRIETE_QR, TABLE_COPROPRIETES_QR, contexteGestionVideQr, controlerAccesQr, coproprieteDepuisLigne, fonctionAbsenteQr,
   genererJetonQr, journaliserRepliGestionQr, lireCabinetQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireFichesParEmailsQr, porteeDuProfilQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, reponseLectureGestionnaireQr,
+  lireFichesDesAdressesQr, porteeDuProfilQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, reponseLectureGestionnaireQr,
   reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
@@ -75,9 +75,10 @@ export async function POST(request: NextRequest) {
     }
 
     const emails = canoniques(s.emailsDestinataires)
-    const fiches = await lireFichesParEmailsQr(emails)
+    // RG-06 bis-1 : même boîte, ou même partie locale sur un autre domaine du cabinet de la fiche (corrections, tour 2).
+    const fiches = await lireFichesDesAdressesQr(emails)
     if (!fiches.ok) return reponseErreurSqlQr(fiches.erreur, 'lecture des fiches (destinataires)')
-    if (adressesDeFichesQr(emails, fiches.valeur).length > 0) {
+    if (adressesDeFichesQr(emails, fiches.valeur.fiches, fiches.valeur.cabinetsDesDomaines).length > 0) {
       return reponseInvalide('emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété')
     }
     if (domaines.length > 0 && !s.confirmerHorsDomaine && emails.some((e) => !emailDansDomainesQr(e, domaines))) {

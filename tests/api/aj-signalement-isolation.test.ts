@@ -126,6 +126,35 @@ describe('tableau (P1-R1) vu par un gestionnaire', () => {
     expect(JSON.parse(texte)).toEqual({ error: 'serveur' })
     sansDonneeDautrui(texte)
   })
+
+  // Corrections, tour 2 : sans les domaines des saisies, l'adresse d'un collègue sur l'autre domaine du cabinet ne serait
+  // pas masquée ; la lecture est stricte pour un gestionnaire.
+  it('domaines des saisies illisibles (panne) → 500, jamais l’adresse d’un collègue sur l’autre domaine du cabinet', async () => {
+    baseQr.etat.tables.signalements_qr_domaines_autorises.push({ cabinet_id: A.CAB, domaine: 'exemple-bis.test' })
+    baseQr.table('signalements_qr_coproprietes').find((c) => c.id === A.C1)!.emails_destinataires = ['cs-une@externe.test', 'paul.collegue@exemple-bis.test']
+    expect(JSON.stringify((await lireTableau()).corps)).not.toContain('paul.collegue')
+    const from = baseQr.client.from
+    const espion = vi.spyOn(baseQr.client, 'from').mockImplementation((table: string) => {
+      const q = from(table)
+      if (table === 'signalements_qr_domaines_autorises') {
+        const select = q.select as (c: string, ...reste: unknown[]) => unknown
+        q.select = ((c: string, ...reste: unknown[]) => {
+          if (c.includes('cabinet_id')) baseQr.etat.erreursPonctuelles.signalements_qr_domaines_autorises = { code: 'XX000', message: 'panne' }
+          return select(c, ...reste)
+        }) as typeof q.select
+      }
+      return q
+    })
+    try {
+      const res = await TABLEAU(requeteQr('/api/aj-signalement/tableau'))
+      expect(res.status).toBe(500)
+      const texte = await res.text()
+      expect(JSON.parse(texte)).toEqual({ error: 'serveur' })
+      expect(texte).not.toContain('paul.collegue')
+    } finally {
+      espion.mockRestore()
+    }
+  })
 })
 
 /**

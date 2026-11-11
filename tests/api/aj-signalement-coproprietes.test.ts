@@ -161,10 +161,22 @@ describe('POST coproprietes (P1-R3)', () => {
     expect(await res.json()).toEqual({ error: 'invalide', details: 'emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété' })
     expect(appelsCreation()).toEqual([])
     const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires')
-    expect(lectures.map((l) => l.filtres)).toEqual([['email=in.(marie.exemple+copro@exemple.test,marie.exemple@exemple.test)']])
+    expect(lectures.map((l) => l.filtres)).toContainEqual(['email=in.(marie.exemple+copro@exemple.test,marie.exemple@exemple.test)'])
   })
 
-  it('relecture 11 : plus de 1 000 fiches (plafond PostgREST) : l’adresse d’une fiche reste refusée ; seules les adresses proposées sont cherchées', async () => {
+  // Corrections, tour 2 : même règle que pour un gestionnaire (un cabinet à deux domaines les livre aux mêmes boîtes).
+  it('partie locale d’une fiche sur un AUTRE domaine de son cabinet : 400 comme son adresse ; autre partie locale : acceptée', async () => {
+    baseQr.etat.tables.signalements_qr_domaines_autorises.push({ cabinet_id: CAB, domaine: 'exemple-bis.test' })
+    for (const email of ['marie.exemple@exemple-bis.test', 'Marie.Exemple+Copro@Exemple-Bis.test']) {
+      const res = await creer({ nom: 'Villa Exemple', emailsDestinataires: [email] })
+      expect(res.status).toBe(400)
+      expect(await res.json()).toEqual({ error: 'invalide', details: 'emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété' })
+    }
+    expect(appelsCreation()).toEqual([])
+    expect((await creer({ nom: 'Villa Exemple', emailsDestinataires: ['accueil@exemple-bis.test'] })).status).toBe(201)
+  })
+
+  it('relecture 11 : plus de 1 000 fiches (plafond PostgREST) : l’adresse d’une fiche reste refusée ; lectures filtrées (adresses proposées, cabinet de leur domaine), page par page', async () => {
     const t = baseQr.etat.tables
     t.signalements_qr_gestionnaires = [
       ...Array.from({ length: 1200 }, (_, i) => ({ id: `a1000000-0000-4000-8000-${String(i).padStart(12, '0')}`, cabinet_id: CAB, nom: `Fiche ${i}`, email: `fiche${i}@exemple.test`, actif: true })),
@@ -174,8 +186,17 @@ describe('POST coproprietes (P1-R3)', () => {
     const res = await creer({ nom: 'Villa Exemple', emailsDestinataires: ['marie.exemple@exemple.test'] })
     expect(res.status).toBe(400)
     expect(appelsCreation()).toEqual([])
-    const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires')
-    expect(lectures.map((l) => l.filtres)).toEqual([['email=in.(marie.exemple@exemple.test)']])
+    const filtres = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires').map((l) => l.filtres)
+    // Par l'adresse proposée, puis les fiches du SEUL cabinet qui a déclaré son domaine (1 201 lignes : deux pages).
+    expect(filtres.filter((f) => f[0]?.startsWith('email='))).toEqual([['email=in.(marie.exemple@exemple.test)']])
+    expect(filtres.filter((f) => f[0]?.startsWith('cabinet_id='))).toEqual([[`cabinet_id=in.(${CAB})`], [`cabinet_id=in.(${CAB})`]])
+    expect(filtres).toHaveLength(3)
+  })
+
+  it('adresse sur un domaine qu’aucun cabinet n’a déclaré : aucune fiche lue par cabinet', async () => {
+    expect((await creer({ nom: 'Villa Exemple', emailsDestinataires: ['cs@externe.test'] })).status).toBe(201)
+    const parCabinet = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires' && l.filtres.some((f) => f.startsWith('cabinet_id=')))
+    expect(parCabinet).toEqual([])
   })
 
   it('adresse hors des domaines du cabinet : 409 hors_domaine sauf confirmerHorsDomaine ; sans cabinet : aucun contrôle', async () => {
@@ -286,6 +307,14 @@ describe('PATCH coproprietes/[id] (P1-R4)', () => {
     expect(ajout.status).toBe(400)
     Object.assign(baseQr.table('signalements_qr_coproprietes')[0], { emails_destinataires: ['marie.exemple@exemple.test'] })
     expect((await modifier(COPRO, { emailsDestinataires: ['marie.exemple@exemple.test'], nom: 'Résidence Exemple' })).status).toBe(200)
+  })
+
+  it('AJOUT de la partie locale d’une fiche sur un autre domaine de son cabinet : 400 (corrections, tour 2)', async () => {
+    baseQr.etat.tables.signalements_qr_domaines_autorises.push({ cabinet_id: CAB, domaine: 'exemple-bis.test' })
+    const ajout = await modifier(COPRO, { emailsDestinataires: ['cs@externe.test', 'marie.exemple@exemple-bis.test'], confirmerHorsDomaine: true })
+    expect(ajout.status).toBe(400)
+    expect(await ajout.json()).toEqual({ error: 'invalide', details: 'emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété' })
+    expect(baseQr.ecrituresDe('signalements_qr_coproprietes', 'update')).toEqual([])
   })
 
   it('adresse AJOUTÉE hors domaines : 409 hors_domaine sauf confirmation ; adresse hors domaines déjà présente : sans contrôle', async () => {

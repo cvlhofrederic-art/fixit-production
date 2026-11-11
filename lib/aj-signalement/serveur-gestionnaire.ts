@@ -13,7 +13,7 @@ import { coproprieteVueGestionnaireQr } from '@/lib/aj-signalement/minimisation'
 import type { DoublonQr, PorteeQr, ProfilGestionnaireQr } from '@/lib/aj-signalement/types'
 import {
   compterSignalementsQr, compteursVidesQr, coproprieteDepuisLigne, journaliserQr, lireContexteGestionStrictQr, lireDomainesCabinetQr,
-  lireFichesParEmailsQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseInvalide, reponseStructureGestionnaireQr,
+  lireFichesDesAdressesQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseInvalide, reponseStructureGestionnaireQr,
   type EcritureJournalQr, type LectureCoproprieteCompleteQr,
 } from '@/lib/aj-signalement/serveur'
 
@@ -26,21 +26,24 @@ export type AdressesEcritesQr = { ok: true; ecrites: string[] } | { ok: false; r
 
 /**
  * Destinataires écrits par un gestionnaire (RG-06 bis, RG-22, Q4) : `existantes` (saisies actuelles ; aucune à la
- * création), `envoyees` (ce qu'il voit, modifié). Fiches de ces adresses relues (masquage des adresses d'autres fiches,
- * refus d'une adresse de fiche ajoutée) ; domaines de SON cabinet relus seulement s'il ajoute une adresse. Liste écrite :
- * saisiesEcritesGestionnaireQr (adresses masquées conservées) ; refus → 400 invalide (message sans adresse).
+ * création), `envoyees` (ce qu'il voit, modifié). Fiches et domaines de ces adresses relus (lireFichesDesAdressesQr,
+ * strict : même règle que le masquage du tableau, pour conserver ce qu'il ne voit pas et refuser une adresse de fiche
+ * ajoutée, sa partie locale sur un autre domaine du cabinet comprise) ; domaines de SON cabinet relus seulement s'il
+ * ajoute une adresse. Liste écrite : saisiesEcritesGestionnaireQr (adresses masquées conservées) ; refus → 400 invalide
+ * (message sans adresse).
  */
 export async function adressesEcritesGestionnaireQr(
   profil: ProfilGestionnaireQr, existantes: readonly string[], envoyees: readonly string[],
 ): Promise<AdressesEcritesQr> {
   const ids = { gestionnaire: profil.gestionnaireId }
-  const fiches = await lireFichesParEmailsQr([...existantes, ...envoyees], { strict: true })
-  if (!fiches.ok) return { ok: false, reponse: reponseStructureGestionnaireQr(fiches.erreur, 'lecture des fiches (destinataires d’un gestionnaire)', ids) }
-  const { ecrites, ajoutees } = saisiesEcritesGestionnaireQr(existantes, envoyees, fiches.valeur, profil.gestionnaireId)
+  const lues = await lireFichesDesAdressesQr([...existantes, ...envoyees], { strict: true })
+  if (!lues.ok) return { ok: false, reponse: reponseStructureGestionnaireQr(lues.erreur, 'lecture des fiches (destinataires d’un gestionnaire)', ids) }
+  const { fiches, cabinetsDesDomaines } = lues.valeur
+  const { ecrites, ajoutees } = saisiesEcritesGestionnaireQr(existantes, envoyees, fiches, profil.gestionnaireId, cabinetsDesDomaines)
   if (ajoutees.length === 0) return { ok: true, ecrites }
   const domaines = await lireDomainesCabinetQr(profil.cabinetId, { strict: true })
   if (!domaines.ok) return { ok: false, reponse: reponseStructureGestionnaireQr(domaines.erreur, 'lecture des domaines (gestionnaire)', ids) }
-  const refus = refusAdressesAjouteesQr(ajoutees, domaines.valeur, fiches.valeur)
+  const refus = refusAdressesAjouteesQr(ajoutees, domaines.valeur, fiches, cabinetsDesDomaines)
   return refus ? { ok: false, reponse: reponseInvalide(refus) } : { ok: true, ecrites }
 }
 
@@ -112,6 +115,7 @@ export async function lireCoproprieteGestionnaireQr(
     ok: true,
     copropriete: coproprieteVueGestionnaireQr(coproprieteDepuisLigne(ligne, compteurs, null, contexte), {
       userId: profil.userId, gestionnaireId: profil.gestionnaireId, nom: profil.nom, portee, fichesSaisies: contexte.emailsFiches,
+      cabinetsDesDomaines: contexte.cabinetsDesDomaines,
     }),
   }
 }

@@ -28,9 +28,9 @@ import { logger } from '@/lib/logger'
 import {
   ERREURS_METIER_SQL_QR, JETON_QR, PRIORITES_SIGNALEMENT_QR, ROLE_GESTIONNAIRE_QR, STATUTS_OUVERTS_QR, STATUTS_SIGNALEMENT_QR,
   estQualiteDeclarantQr, gestionCoproprieteQrVide,
-  type AdresseProposeeQr, type CabinetResumeQr, type CoproprieteDoublonQr, type CoproprieteQr, type CreateurCoproprieteQr,
-  type GestionnaireResumeQr, type GestionnaireSuiviQr, type LangueCabinetQr, type LangueSignalementQr, type LigneEmailGestionnaireQr,
-  type PorteeQr, type PrioriteSignalementQr, type ProfilGestionnaireQr, type ProfilQr, type ReservationEmailsQr, type SignalementQr,
+  type AdresseProposeeQr, type CabinetResumeQr, type CabinetsDesDomainesQr, type CoproprieteDoublonQr, type CoproprieteQr,
+  type CreateurCoproprieteQr, type GestionnaireResumeQr, type GestionnaireSuiviQr, type LangueCabinetQr, type LangueSignalementQr,
+  type LigneEmailGestionnaireQr, type PorteeQr, type PrioriteSignalementQr, type ProfilGestionnaireQr, type ProfilQr, type ReservationEmailsQr, type SignalementQr,
   type StatutSignalementQr, type TableauQr, type TypeProfilQr,
 } from '@/lib/aj-signalement/types'
 import { tableauVuGestionnaireQr, type TraceStatutQr } from '@/lib/aj-signalement/minimisation'
@@ -39,7 +39,7 @@ import {
   type LigneSemblableQr, type RechercheSemblablesQr,
 } from '@/lib/aj-signalement/semblables'
 import { adressesDeFichesQr, destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
-import { boiteEmailQr, emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
+import { boiteEmailQr, emailCanoniqueQr, partiesBoiteQr } from '@/lib/aj-signalement/gestionnaires'
 import { porteeGestionnaireQr } from '@/lib/aj-signalement/acces-espace'
 import { validerIdentifiantCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { BUDGET_EMAILS_CABINET_HEURE, BUDGET_EMAILS_COPRO_HEURE } from '@/lib/aj-signalement/budget-emails'
@@ -311,12 +311,17 @@ export interface ContexteGestionQr {
   cabinets: ReadonlyMap<string, CabinetResumeQr>
   gestionnairesParCopro: ReadonlyMap<string, GestionnaireResumeQr[]>
   nomsFiches: ReadonlyMap<string, string | null>
-  /** Fiches dont l'adresse figure dans les saisies affichées (compteur du super admin, masquage pour un gestionnaire). */
-  emailsFiches: ReadonlyArray<{ id: string; email: string | null }>
+  /**
+   * Fiches dont une saisie affichée peut être l'adresse (compteur du super admin, masquage pour un gestionnaire) : même
+   * boîte, ou fiches du cabinet qui a déclaré le domaine d'une saisie (lireFichesDesAdressesQr).
+   */
+  emailsFiches: ReadonlyArray<FicheAdresseLueQr>
+  /** Domaines des saisies affichées → cabinet qui les a déclarés. */
+  cabinetsDesDomaines: CabinetsDesDomainesQr
 }
 
 export const contexteGestionVideQr = (): ContexteGestionQr => ({
-  cabinets: new Map(), gestionnairesParCopro: new Map(), nomsFiches: new Map(), emailsFiches: [],
+  cabinets: new Map(), gestionnairesParCopro: new Map(), nomsFiches: new Map(), emailsFiches: [], cabinetsDesDomaines: new Map(),
 })
 
 const chaineOuNull = (valeur: unknown): string | null => (typeof valeur === 'string' && valeur.trim() ? valeur : null)
@@ -361,7 +366,7 @@ export function coproprieteDepuisLigne(
     urgentsOuverts: compteurs.urgentsOuverts,
     attente48h: compteurs.attente48h,
     dernier: compteurs.dernier,
-    adressesDeGestionnaires: adressesDeFichesQr(emailsDestinataires, contexte.emailsFiches).length,
+    adressesDeGestionnaires: adressesDeFichesQr(emailsDestinataires, contexte.emailsFiches, contexte.cabinetsDesDomaines).length,
   }
 }
 
@@ -730,20 +735,20 @@ async function lireTableContexteQr<T>(operation: string, lecture: PromiseLike<Le
 
 /**
  * Cabinets, gestionnaires et attributions des copropriétés AFFICHÉES (tables du 11/11/2026, vides sans elles) : les
- * attributions de ces copropriétés, les fiches qu'elles nomment (gestionnaires, créateurs) et celles dont l'adresse (ou
- * sa boîte, sous-adresse « + ») est dans leurs saisies (compteur RG-06 bis-5, masquage RG-06 bis-4) ; jamais toutes les
- * lignes de tous les cabinets (relecture 11). `strict` : voir lireTableContexteQr.
+ * attributions de ces copropriétés, les fiches qu'elles nomment (gestionnaires, créateurs) et celles dont une saisie peut
+ * être l'adresse (lireFichesDesAdressesQr : même boîte, ou fiches du cabinet qui a déclaré le domaine d'une saisie ;
+ * compteur RG-06 bis-5, masquage RG-06 bis-4) ; jamais toutes les lignes de tous les cabinets (relecture 11). `strict` :
+ * voir lireTableContexteQr (domaines et fiches des saisies compris : sans eux, rien ne serait masqué).
  */
 async function lireContexteModeQr(copros: ReadonlyArray<CoproprieteContexteQr>, strict: boolean): Promise<LectureQr<ContexteGestionQr>> {
   const ids = copros.map((c) => c.id)
-  const saisies = adressesEtBoitesQr(copros.flatMap((c) => (Array.isArray(c.emails_destinataires) ? c.emails_destinataires : [])))
+  const saisies = copros.flatMap((c) => (Array.isArray(c.emails_destinataires) ? c.emails_destinataires : []))
   const [cabinets, attributions, fichesSaisies] = await Promise.all([
     lireTableContexteQr<LigneCabinetResumeQr>('lecture des cabinets', enLectureQr(supabaseAdmin.from(TABLE_CABINETS_QR).select('id, nom, identifiant')), strict),
     lireTableContexteQr<LigneAttributionContexteQr>('lecture des attributions', lireParValeursQr<LigneAttributionContexteQr>(ids, (lot) =>
       supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, gestionnaire_id').in('copropriete_id', lot)
         .order('copropriete_id', { ascending: true }).order('gestionnaire_id', { ascending: true })), strict),
-    lireTableContexteQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(saisies, (lot) =>
-      supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('email', lot).order('id', { ascending: true })), strict),
+    lireFichesDesAdressesModeQr(saisies, strict ? 'strict' : 'affichage'),
   ])
   if (!cabinets.ok) return cabinets
   if (!attributions.ok) return attributions
@@ -769,7 +774,8 @@ async function lireContexteModeQr(copros: ReadonlyArray<CoproprieteContexteQr>, 
       cabinets: new Map(cabinets.valeur.map((c) => [c.id, cabinetResumeDepuisLigneQr(c)])),
       gestionnairesParCopro,
       nomsFiches,
-      emailsFiches: fichesSaisies.valeur.map((f) => ({ id: f.id, email: f.email })),
+      emailsFiches: fichesSaisies.valeur.fiches,
+      cabinetsDesDomaines: fichesSaisies.valeur.cabinetsDesDomaines,
     },
   }
 }
@@ -1045,6 +1051,7 @@ export async function lireTableauGestionnaireQr(profil: ProfilGestionnaireQr): P
     ok: true,
     tableau: tableauVuGestionnaireQr(tableau, traces, {
       userId: profil.userId, gestionnaireId: profil.gestionnaireId, nom: profil.nom, portee: portee.valeur, fichesSaisies: contexte.emailsFiches,
+      cabinetsDesDomaines: contexte.cabinetsDesDomaines,
     }),
   }
 }
@@ -1180,9 +1187,11 @@ export function adressesEtBoitesQr(emails: readonly unknown[]): string[] {
 }
 
 /**
- * Fiches gestionnaires, actives ou non, de tout cabinet, dont l'adresse est parmi `emails` ou leurs boîtes (RG-06 bis-1) :
- * seules les adresses proposées sont cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune (`strict` : erreur
- * rendue) ; autre erreur rendue (contrôle avant écriture, relecture 4).
+ * Fiches gestionnaires, actives ou non, de tout cabinet, dont l'adresse est parmi `emails` ou leurs boîtes : conversion
+ * des adresses de fiches par l'import (égalité exacte). Les contrôles RG-06 bis-1 et le masquage passent par
+ * lireFichesDesAdressesQr (même partie locale sur un autre domaine du cabinet). Seules les adresses proposées sont
+ * cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune (`strict` : erreur rendue) ; autre erreur
+ * rendue (contrôle avant écriture, relecture 4).
  */
 export async function lireFichesParEmailsQr(
   emails: readonly string[], options: OptionsLectureControleQr = {},
@@ -1192,6 +1201,69 @@ export async function lireFichesParEmailsQr(
     (lot) => supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, email').in('email', lot).order('id', { ascending: true }),
   )
   return options.strict ? lecture : lireControleQr<{ id: string; email: string | null }>('lecture des fiches', lecture)
+}
+
+/**
+ * Comment une lecture d'une table du 11/11/2026 est reçue : 'controle' (avant une écriture du super admin : structure
+ * absente → liste vide du repli, toute autre erreur rendue, lireControleQr) ; 'strict' (gestionnaire : toute erreur
+ * rendue, jamais une liste vide) ; 'affichage' (super admin : toute erreur → liste vide, journalisée, lireOuVideQr).
+ */
+type ModeLectureQr = 'controle' | 'strict' | 'affichage'
+
+async function lireSelonModeQr<T>(mode: ModeLectureQr, operation: string, lecture: PromiseLike<LectureQr<T[]>>): Promise<LectureQr<T[]>> {
+  if (mode === 'strict') return lecture
+  if (mode === 'controle') return lireControleQr<T>(operation, lecture)
+  return { ok: true, valeur: await lireOuVideQr<T>(operation, lecture) }
+}
+
+/** Fiche lue pour reconnaître son adresse (adresseDeFicheQr) : identifiant, adresse, cabinet. */
+export interface FicheAdresseLueQr { id: string; email: string | null; cabinetId: string | null }
+
+/** Fiches et domaines lus pour reconnaître des adresses de fiches (lireFichesDesAdressesQr). */
+export interface FichesDesAdressesQr {
+  fiches: FicheAdresseLueQr[]
+  /** Domaines des adresses déclarés par un cabinet → ce cabinet (un domaine, un seul cabinet). */
+  cabinetsDesDomaines: Map<string, string>
+}
+
+interface LigneFicheAdresseQr { id: string; email: string | null; cabinet_id: string | null }
+interface LigneDomaineCabinetQr { domaine: string; cabinet_id: string }
+
+const COLONNES_FICHE_ADRESSE_QR = 'id, email, cabinet_id'
+
+async function lireFichesDesAdressesModeQr(emails: readonly unknown[], mode: ModeLectureQr): Promise<LectureQr<FichesDesAdressesQr>> {
+  const domaines = [...new Set(emails.map((e) => partiesBoiteQr(e)?.domaine).filter((d): d is string => typeof d === 'string'))]
+  const [lusDomaines, parAdresse] = await Promise.all([
+    lireSelonModeQr<LigneDomaineCabinetQr>(mode, 'lecture des domaines des adresses', lireParValeursQr<LigneDomaineCabinetQr>(domaines, (lot) =>
+      supabaseAdmin.from(TABLE_DOMAINES_QR).select('domaine, cabinet_id').in('domaine', lot).order('domaine', { ascending: true }))),
+    lireSelonModeQr<LigneFicheAdresseQr>(mode, 'lecture des fiches', lireParValeursQr<LigneFicheAdresseQr>(adressesEtBoitesQr(emails), (lot) =>
+      supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select(COLONNES_FICHE_ADRESSE_QR).in('email', lot).order('id', { ascending: true }))),
+  ])
+  if (!lusDomaines.ok) return lusDomaines
+  if (!parAdresse.ok) return parAdresse
+  const cabinetsDesDomaines = new Map(lusDomaines.valeur.map((l) => [l.domaine, l.cabinet_id]))
+  const parCabinet = await lireSelonModeQr<LigneFicheAdresseQr>(mode, 'lecture des fiches des cabinets', lireParValeursQr<LigneFicheAdresseQr>(
+    [...new Set(cabinetsDesDomaines.values())],
+    (lot) => supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select(COLONNES_FICHE_ADRESSE_QR).in('cabinet_id', lot).order('id', { ascending: true }),
+  ))
+  if (!parCabinet.ok) return parCabinet
+  const fiches = new Map<string, FicheAdresseLueQr>()
+  for (const l of [...parAdresse.valeur, ...parCabinet.valeur]) {
+    if (!fiches.has(l.id)) fiches.set(l.id, { id: l.id, email: l.email ?? null, cabinetId: l.cabinet_id ?? null })
+  }
+  return { ok: true, valeur: { fiches: [...fiches.values()], cabinetsDesDomaines } }
+}
+
+/**
+ * Ce qu'il faut pour reconnaître, parmi `emails`, les adresses de fiches (adresseDeFicheQr, RG-06 bis-1 ; corrections
+ * du tour 2) : les domaines de ces adresses déclarés par un cabinet (→ ce cabinet), les fiches de même adresse ou de même
+ * boîte (tout cabinet, actives ou non) et toutes les fiches des SEULS cabinets trouvés (liste courte : même partie locale
+ * sur un autre domaine du cabinet, fiche dont l'adresse porte elle-même une étiquette « + »). Jamais toutes les fiches :
+ * domaines filtrés par les adresses, fiches par adresse ou par ces cabinets, page par page (relecture 11). Contrôle avant
+ * écriture : structure absente → rien (repli journalisé ; `strict` : erreur rendue), autre erreur rendue (relecture 4).
+ */
+export function lireFichesDesAdressesQr(emails: readonly unknown[], options: OptionsLectureControleQr = {}): Promise<LectureQr<FichesDesAdressesQr>> {
+  return lireFichesDesAdressesModeQr(emails, options.strict ? 'strict' : 'controle')
 }
 
 interface LigneDoublonQr {

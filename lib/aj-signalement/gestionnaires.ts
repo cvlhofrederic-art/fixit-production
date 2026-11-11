@@ -7,6 +7,7 @@
 //     signalements_qr_inviter_gestionnaire (égalité EXACTE du domaine après le « @ », sous-domaines refusés) ;
 //   - boiteEmailQr : la boîte d'une adresse, sans l'étiquette « + » de sa partie locale (RG-06 bis : une sous-adresse
 //     « prenom+etiquette@ » d'une fiche est l'adresse de la fiche) ; même expression en SQL (migration 20261112) ;
+//     partiesBoiteQr : sa partie locale et son domaine (même partie locale sur un autre domaine du cabinet de la fiche) ;
 //   - validerDomaineCabinetQr : format du CHECK signalements_qr_domaines_domaine_format, messageries publiques refusées ;
 //   - nomCourtQr : « Marie M. », pour que l'e-mail et la page de confirmation nomment la personne (RG-02) ;
 //   - etatGestionnaireQr : état d'une fiche affiché au super admin (5 états en PR 1, les 4 états d'accès en PR 2).
@@ -37,6 +38,20 @@ export const ETIQUETTE_EMAIL_QR = /^([^@+]+)\+[^@]*@/
 export function boiteEmailQr(valeur: unknown): string | null {
   const propre = emailCanoniqueQr(valeur)
   return propre === null ? null : propre.replace(ETIQUETTE_EMAIL_QR, '$1@')
+}
+
+/**
+ * Partie locale de la boîte (sans étiquette « + ») et domaine d'une adresse ; null si ce n'est pas une adresse à un seul
+ * « @ » aux deux parties non vides. Sert à reconnaître l'adresse d'une fiche sur un AUTRE domaine de son cabinet
+ * (corrections, tour 2 : un cabinet à deux domaines les livre aux mêmes boîtes) ; même découpage en SQL (split_part de
+ * la boîte, migration 20261112).
+ */
+export function partiesBoiteQr(valeur: unknown): { locale: string; domaine: string } | null {
+  const boite = boiteEmailQr(valeur)
+  if (boite === null) return null
+  const parties = boite.split('@')
+  if (parties.length !== 2 || !parties[0] || !parties[1]) return null
+  return { locale: parties[0], domaine: parties[1] }
 }
 
 /** Domaine d'une adresse : la partie après l'UNIQUE « @ », en minuscules ; null si zéro ou plusieurs « @ » ou partie vide. */

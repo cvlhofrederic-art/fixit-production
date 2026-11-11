@@ -103,6 +103,21 @@ describe('destinataires automatiques', () => {
     expect(messages[0].html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
   })
 
+  // Corrections, tour 2 : la 20261112 rend la SAISIE reconnue (ici la partie locale de la fiche partie sur l'autre domaine
+  // de son cabinet) ; elle quitte l'envoi comme l'adresse de la fiche.
+  it('ligne exclue portant une saisie sur l’autre domaine du cabinet de la fiche partie : aucun message vers elle', async () => {
+    baseQr.etat.tables.signalements_qr_coproprietes[0].emails_destinataires = ['cs@externe.test', 'luc.parti@exemple-bis.test']
+    baseQr.etat.fonctions.signalements_qr_emails_gestionnaires = () => ({
+      data: [
+        { gestionnaire_id: G_PARTI, email: 'luc.parti@exemple-bis.test', acces_ouvert: false, exclu: true },
+        { gestionnaire_id: G1, email: 'marie.exemple@exemple.test', acces_ouvert: false, exclu: false },
+      ],
+    })
+    expect((await deposer()).status).toBe(200)
+    expect(versAdministrateur().map((m) => m.to)).toEqual(['cs@externe.test', 'marie.exemple@exemple.test'])
+    expect(JSON.stringify(messagesEnvoyesQr())).not.toContain('luc.parti')
+  })
+
   it('fonction des gestionnaires absente (PGRST202) : envoi aux saisies, dépôt 200, journalisé une fois', async () => {
     delete baseQr.etat.fonctions.signalements_qr_emails_gestionnaires
     delete baseQr.etat.fonctions.signalements_qr_reserver_emails

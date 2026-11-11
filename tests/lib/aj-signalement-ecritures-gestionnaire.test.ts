@@ -21,6 +21,25 @@ const FICHES = [
   { id: COLLEGUE, email: 'paul@exemple.test' },
 ]
 
+// Corrections, tour 2 : le cabinet déclare aussi « exemple-bis.test » (même messagerie, mêmes boîtes).
+const CAB = 'ca000000-0000-4000-8000-000000000001'
+const FICHES_CAB = FICHES.map((f) => ({ ...f, cabinetId: CAB }))
+const DOMAINES_CAB = ['exemple.test', 'exemple-bis.test']
+const CABINETS = new Map(DOMAINES_CAB.map((d) => [d, CAB]))
+
+describe('autre domaine du même cabinet (corrections, tour 2)', () => {
+  it('refusAdressesAjouteesQr : sa partie locale ou celle d’un collègue sur l’autre domaine du cabinet : même refus', () => {
+    expect(refusAdressesAjouteesQr(['marie@exemple-bis.test'], DOMAINES_CAB, FICHES_CAB, CABINETS)).toBe(M.adresseDeFiche)
+    expect(refusAdressesAjouteesQr([' Paul+Copro@Exemple-Bis.test'], DOMAINES_CAB, FICHES_CAB, CABINETS)).toBe(M.adresseDeFiche)
+    expect(refusAdressesAjouteesQr(['accueil@exemple-bis.test'], DOMAINES_CAB, FICHES_CAB, CABINETS)).toBeNull()
+  })
+
+  it('saisiesEcritesGestionnaireQr : l’adresse d’un collègue sur l’autre domaine (masquée pour lui) est conservée à sa place', () => {
+    expect(saisiesEcritesGestionnaireQr(['paul@exemple-bis.test', 'marie@exemple-bis.test', 'cs@externe.test'], [], FICHES_CAB, MOI, CABINETS))
+      .toEqual({ ecrites: ['paul@exemple-bis.test'], ajoutees: [] })
+  })
+})
+
 describe('refusAdressesAjouteesQr', () => {
   it('aucune adresse ajoutée : aucun refus, même sans domaine', () => {
     expect(refusAdressesAjouteesQr([], [], FICHES)).toBeNull()

@@ -10,7 +10,8 @@
 -- départ, date d'une demande d'effacement transmise au cabinet), FK vers auth.users (ON DELETE SET NULL), index unique
 -- « un compte = une fiche », envoi d'un accès en une transaction (signalements_qr_envoyer_acces), trigger de liaison du
 -- compte, corps de signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel : bouton « Ouvrir le suivi » des
--- e-mails ; même signature ; exclusions comparées sur la boîte, sous-adresses « + » comprises), corps de
+-- e-mails ; même signature ; exclusions comparées sur la boîte, sous-adresses « + » comprises, et sur la partie locale
+-- pour un autre domaine du cabinet de la fiche), corps de
 -- signalements_qr_contester_adresse élargi (« Ce n'est pas moi » aussi depuis un lien d'accès ; même signature). Les
 -- actions du journal et les valeurs des envois (objet 'acces', refus 'compte_autre_espace') sont déjà dans les CHECK
 -- de la 20261111 : aucune contrainte n'est remplacée.
@@ -120,9 +121,12 @@ CREATE OR REPLACE TRIGGER trg_signalements_qr_invitations_liaison
 -- ── 4. Destinataires : même signature et même corps que la 20261111, sauf acces_ouvert (réel) et les exclusions ──
 -- acces_ouvert : le gestionnaire a un compte relié, son accès est ouvert et sa connexion n'est pas bloquée (bouton
 -- « Ouvrir le suivi » dans l'e-mail d'un signalement, sans jeton).
--- Exclusions (RG-06 bis-3) comparées sur la BOÎTE : une sous-adresse « prenom+etiquette@ » restée dans les saisies est
--- celle de la fiche « prenom@ » (même boîte de réception) ; une fiche partie ou contestée ne reçoit donc rien par elle.
--- Même expression que boiteEmailQr (lib/aj-signalement/gestionnaires.ts), des deux côtés.
+-- Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée quand elle a la même BOÎTE (une
+-- sous-adresse « prenom+etiquette@ » est celle de la fiche « prenom@ ») ou la même partie locale de boîte sur un domaine
+-- DÉCLARÉ par le cabinet de la fiche (un cabinet à deux domaines, ancien et nouveau nom ou domaine secondaire, les fait
+-- livrer par sa messagerie aux mêmes boîtes : « prenom@ancien » est « prenom@nouveau ») ; elle ne reçoit donc rien. La
+-- ligne exclue porte cette SAISIE (retirée telle quelle de l'envoi). Même règle que adresseDeFicheQr
+-- (lib/aj-signalement/destinataires.ts) ; boîte : même expression que boiteEmailQr (lib/aj-signalement/gestionnaires.ts).
 CREATE OR REPLACE FUNCTION signalements_qr_emails_gestionnaires(p_copropriete uuid)
 RETURNS TABLE(gestionnaire_id uuid, email text, acces_ouvert boolean, exclu boolean)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
@@ -135,11 +139,15 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
        AND (c.attribuee_a_tous OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
                                            WHERE a.copropriete_id = c.id AND a.gestionnaire_id = g.id))
     UNION ALL
-    SELECT g.id, g.email, false, true
+    SELECT g.id, s.e, false, true
       FROM signalements_qr_coproprietes c
+      CROSS JOIN LATERAL (SELECT u.e, regexp_replace(lower(btrim(u.e)), '^([^@+]+)\+[^@]*@', '\1@') AS boite
+                            FROM unnest(c.emails_destinataires) AS u(e)) AS s
       JOIN signalements_qr_gestionnaires g
-        ON regexp_replace(g.email, '^([^@+]+)\+[^@]*@', '\1@')
-           = ANY (ARRAY(SELECT regexp_replace(s.e, '^([^@+]+)\+[^@]*@', '\1@') FROM unnest(c.emails_destinataires) AS s(e)))
+        ON regexp_replace(lower(btrim(g.email)), '^([^@+]+)\+[^@]*@', '\1@') = s.boite
+        OR (split_part(regexp_replace(lower(btrim(g.email)), '^([^@+]+)\+[^@]*@', '\1@'), '@', 1) = split_part(s.boite, '@', 1)
+            AND EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+                         WHERE d.cabinet_id = g.cabinet_id AND d.domaine = split_part(s.boite, '@', 2)))
      WHERE c.id = p_copropriete
        AND (NOT g.actif OR g.adresse_contestee_le IS NOT NULL)
   ) AS t

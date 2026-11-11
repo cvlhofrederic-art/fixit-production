@@ -539,6 +539,99 @@ describe('destinataires modifiés par un gestionnaire (RG-06 bis, RG-22)', () =>
   })
 })
 
+// Corrections, tour 2 : le cabinet déclare un second domaine (ancien nom, domaine secondaire) que sa messagerie livre aux
+// mêmes boîtes. Sa partie locale (ou celle d'un collègue) sur ce domaine est l'adresse de la fiche : refusée à l'ajout,
+// masquée et conservée comme elle (sinon elle survivrait à son départ, avec les coordonnées des déclarants).
+describe('autre domaine du même cabinet : même partie locale = adresse de la fiche (corrections, tour 2)', () => {
+  beforeEach(() => {
+    baseQr.etat.tables.signalements_qr_domaines_autorises.push({ cabinet_id: A.CAB, domaine: 'exemple-bis.test' })
+  })
+
+  const CAS_FICHE = [
+    ['sa partie locale sur l’autre domaine', 'marie.exemple@exemple-bis.test'],
+    ['sa partie locale sur l’autre domaine, avec une étiquette « + »', 'Marie.Exemple+Suivi@Exemple-Bis.test'],
+    ['la partie locale d’un collègue sur l’autre domaine', 'paul.collegue@exemple-bis.test'],
+  ] as const
+
+  it.each(CAS_FICHE)('POST, %s : 400, même message, rien créé, personne nommé', async (_cas, email) => {
+    const res = await creer({ ...CORPS, emailsDestinataires: ['conseil@exemple.test', email] })
+    expect(res.status).toBe(400)
+    const corps = await res.json()
+    expect(corps.details).toContain(ADRESSE_DE_FICHE)
+    expect(appelsCreation()).toEqual([])
+    expect(JSON.stringify(corps)).not.toMatch(/paul|marie/i)
+  })
+
+  it.each(CAS_FICHE)('PATCH, %s ajoutée : 400, même message, rien écrit', async (_cas, email) => {
+    const res = await modifier(A.C1, { emailsDestinataires: ['cs-une@externe.test', email] })
+    expect(res.status).toBe(400)
+    expect((await res.json()).details).toContain(ADRESSE_DE_FICHE)
+    expect(misesAJourCopro()).toEqual([])
+  })
+
+  it('une autre partie locale sur l’autre domaine, ou celle d’une fiche d’un AUTRE cabinet : acceptées', async () => {
+    expect((await creer({ ...CORPS, emailsDestinataires: ['accueil@exemple-bis.test', 'luc.ailleurs@exemple-bis.test'] })).status).toBe(201)
+    expect((await modifier(A.C1, { emailsDestinataires: ['cs-une@externe.test', 'accueil@exemple-bis.test'] })).status).toBe(200)
+    expect(misesAJourCopro()[0].valeurs).toEqual({ emails_destinataires: ['cs-une@externe.test', 'accueil@exemple-bis.test'] })
+  })
+
+  it('adresse d’un collègue sur l’autre domaine restée dans les saisies : masquée (compteur), conservée à l’écriture', async () => {
+    copro(A.C1).emails_destinataires = ['cs-une@externe.test', 'paul.collegue@exemple-bis.test']
+    const vue = await (await TABLEAU(requeteQr('/api/aj-signalement/tableau'))).json()
+    expect(vue.tableau.coproprietes.find((c: { id: string }) => c.id === A.C1)).toMatchObject({ emailsDestinataires: ['cs-une@externe.test'], adressesMasquees: 1 })
+    expect(JSON.stringify(vue)).not.toContain('paul.collegue')
+
+    const res = await modifier(A.C1, { emailsDestinataires: ['autre@exemple.test'] })
+    expect(res.status).toBe(200)
+    expect(misesAJourCopro()[0].valeurs).toEqual({ emails_destinataires: ['paul.collegue@exemple-bis.test', 'autre@exemple.test'] })
+    const corps = await res.json()
+    expect(corps.copropriete).toMatchObject({ emailsDestinataires: ['autre@exemple.test'], adressesMasquees: 1 })
+    expect(JSON.stringify(corps)).not.toContain('paul.collegue')
+  })
+
+  it('sa propre partie locale sur l’autre domaine déjà présente (données antérieures) : visible pour lui, retirable', async () => {
+    copro(A.C1).emails_destinataires = ['marie.exemple@exemple-bis.test']
+    const vue = await (await TABLEAU(requeteQr('/api/aj-signalement/tableau'))).json()
+    expect(vue.tableau.coproprietes.find((c: { id: string }) => c.id === A.C1)).toMatchObject({ emailsDestinataires: ['marie.exemple@exemple-bis.test'], adressesMasquees: 0 })
+    expect((await modifier(A.C1, { emailsDestinataires: [] })).status).toBe(200)
+    expect(misesAJourCopro()[0].valeurs).toEqual({ emails_destinataires: [] })
+  })
+
+  it('lectures courtes : domaines des adresses proposées, puis fiches de CE cabinet seulement', async () => {
+    expect((await modifier(A.C1, { emailsDestinataires: ['cs-une@externe.test', 'accueil@exemple-bis.test'] })).status).toBe(200)
+    // Contrôle avant l'écriture, puis contexte de la réponse (copropriété relue et minimisée) : mêmes lectures filtrées.
+    const domaines = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_domaines_autorises' && l.colonnes.includes('cabinet_id'))
+    expect(domaines.length).toBeGreaterThan(0)
+    for (const l of domaines) expect(l.filtres).toEqual(['domaine=in.(externe.test,exemple-bis.test)'])
+    const parCabinet = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires' && l.filtres.some((f) => f.startsWith('cabinet_id=')))
+    expect(parCabinet.length).toBeGreaterThan(0)
+    for (const l of parCabinet) expect(l.filtres).toEqual([`cabinet_id=in.(${A.CAB})`])
+    for (const l of baseQr.etat.lectures.filter((x) => x.table === 'signalements_qr_gestionnaires')) expect(l.filtres.length).toBeGreaterThan(0)
+  })
+
+  it('fiches du cabinet illisibles (délai dépassé) : 500 avant toute écriture, jamais un contrôle sauté', async () => {
+    const from = baseQr.client.from
+    const espion = vi.spyOn(baseQr.client, 'from').mockImplementation((table: string) => {
+      const q = from(table)
+      if (table === 'signalements_qr_gestionnaires') {
+        const inOriginal = q.in as (c: string, v: unknown[]) => unknown
+        q.in = ((c: string, v: unknown[]) => {
+          if (c === 'cabinet_id') baseQr.etat.erreursPonctuelles.signalements_qr_gestionnaires = { code: '57014', message: 'canceling statement due to statement timeout' }
+          return inOriginal(c, v)
+        }) as typeof q.in
+      }
+      return q
+    })
+    try {
+      const res = await modifier(A.C1, { emailsDestinataires: ['cs-une@externe.test', 'accueil@exemple-bis.test'] })
+      expect(res.status).toBe(500)
+      expect(misesAJourCopro()).toEqual([])
+    } finally {
+      espion.mockRestore()
+    }
+  })
+})
+
 describe('règle de sûreté (PATCH) : colonne absente à l’écriture → 503, jamais une écriture réduite', () => {
   it('PGRST204 à la mise à jour : 503 base_absente, une seule tentative par appel (jamais rejouée réduite), un avertissement', async () => {
     const from = baseQr.client.from

@@ -38,7 +38,7 @@ import {
 import {
   COLONNES_COPROPRIETE_QR, TABLE_ATTRIBUTIONS_QR, TABLE_COPROPRIETES_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid,
   genererJetonQr, journaliserQr, journaliserRepliGestionQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireFichesParEmailsQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseErreur, reponseErreurSqlQr, reponseInvalide,
+  lireFichesDesAdressesQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseErreur, reponseErreurSqlQr, reponseInvalide,
   reponseLectureGestionnaireQr, reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
@@ -133,9 +133,10 @@ async function controlerAdressesAjoutees(m: Modification, avant: LigneCopropriet
   if (ajoutees.length === 0) return null
   // Lectures de contrôle en échec (autre que la table absente) : 500 avant d'écrire, jamais un contrôle sauté
   // (relecture 4 : le PATCH n'a pas le filet SQL de la création).
-  const fiches = await lireFichesParEmailsQr(ajoutees)
+  // RG-06 bis-1 : même boîte, ou même partie locale sur un autre domaine du cabinet de la fiche (corrections, tour 2).
+  const fiches = await lireFichesDesAdressesQr(ajoutees)
   if (!fiches.ok) return reponseErreurSqlQr(fiches.erreur, 'lecture des fiches (destinataires)', { copropriete: avant.id })
-  if (adressesDeFichesQr(ajoutees, fiches.valeur).length > 0) {
+  if (adressesDeFichesQr(ajoutees, fiches.valeur.fiches, fiches.valeur.cabinetsDesDomaines).length > 0) {
     return reponseInvalide('emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété')
   }
   let domaines: string[] = []

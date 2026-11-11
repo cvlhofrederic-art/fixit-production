@@ -474,7 +474,11 @@ export type DecisionDoublonsQr =
 
 export type TypeDestinataireQr = 'gestionnaire' | 'saisi' | 'administrateur'
 
-/** Ligne de signalements_qr_emails_gestionnaires : exclu = false → destinataire ; exclu = true → à retirer des saisies. */
+/**
+ * Ligne de signalements_qr_emails_gestionnaires : exclu = false → destinataire (adresse de la fiche) ; exclu = true → à
+ * retirer des saisies (20261111 : l'adresse de la fiche partie ou contestée ; 20261112 : la SAISIE reconnue comme la
+ * sienne, même boîte ou même partie locale sur un autre domaine de son cabinet).
+ */
 export interface LigneEmailGestionnaireQr {
   gestionnaireId: string
   email: string
@@ -501,6 +505,23 @@ export interface SaisiesVisiblesQr {
   emails: string[]
   adressesMasquees: number
 }
+
+/**
+ * Une fiche telle que la règle « adresse d'une fiche » la lit (RG-06 bis) : son adresse et son cabinet. Sans cabinet,
+ * seule la boîte compte (pas de rapprochement par la partie locale).
+ */
+export interface FicheAdresseQr {
+  id?: string
+  email: string | null
+  cabinetId?: string | null
+}
+
+/**
+ * Domaines déclarés (minuscules) → leur cabinet. Un domaine n'appartient qu'à un cabinet (contrainte
+ * signalements_qr_domaines_domaine_unique de la 20261111). Corrections, tour 2 : même partie locale de boîte sur un domaine
+ * du cabinet de la fiche = adresse de la fiche (un cabinet à deux domaines les livre aux mêmes boîtes).
+ */
+export type CabinetsDesDomainesQr = ReadonlyMap<string, string>
 
 /** Objet d'un envoi à un gestionnaire (CHECK de signalements_qr_invitations.objet) ; 'acces' : PR 2. */
 export const OBJETS_ENVOI_QR = ['confirmation_adresse', 'acces'] as const

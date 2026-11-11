@@ -15,7 +15,7 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import {
   DOMAINES_PUBLICS_QR, DUREE_VALIDITE_ENVOI_QR_MS, FORMAT_DOMAINE_QR, LONGUEUR_MAX_DOMAINE_QR, boiteEmailQr, domaineDeEmailQr,
-  emailCanoniqueQr, emailDansDomainesQr, etatGestionnaireQr, nomCourtQr, validerDomaineCabinetQr,
+  emailCanoniqueQr, emailDansDomainesQr, etatGestionnaireQr, nomCourtQr, partiesBoiteQr, validerDomaineCabinetQr,
 } from '@/lib/aj-signalement/gestionnaires'
 import { echapperHtml } from '@/lib/aj-signalement/email'
 import {
@@ -74,6 +74,17 @@ describe('adresses et domaines', () => {
     expect(boiteEmailQr('+suivi@exemple.test')).toBe('+suivi@exemple.test')
     expect(boiteEmailQr('pas-une-adresse')).toBeNull()
     expect(boiteEmailQr(undefined)).toBeNull()
+  })
+
+  it('partiesBoiteQr : partie locale de la boîte (sans étiquette « + ») et domaine ; null si ce n’est pas une adresse à un seul « @ »', () => {
+    expect(partiesBoiteQr(' Marie.Exemple+Suivi@Exemple-Bis.TEST ')).toEqual({ locale: 'marie.exemple', domaine: 'exemple-bis.test' })
+    expect(partiesBoiteQr('marie.exemple@exemple.test')).toEqual({ locale: 'marie.exemple', domaine: 'exemple.test' })
+    expect(partiesBoiteQr('+suivi@exemple.test')).toEqual({ locale: '+suivi', domaine: 'exemple.test' })
+    expect(partiesBoiteQr('marie@')).toBeNull()
+    expect(partiesBoiteQr('@exemple.test')).toBeNull()
+    expect(partiesBoiteQr('a@b.test@exemple.test')).toBeNull()
+    expect(partiesBoiteQr('pas-une-adresse')).toBeNull()
+    expect(partiesBoiteQr(null)).toBeNull()
   })
 
   it('domaineDeEmailQr : partie après l’unique « @ », en minuscules ; null si zéro ou plusieurs « @ », ou partie vide', () => {

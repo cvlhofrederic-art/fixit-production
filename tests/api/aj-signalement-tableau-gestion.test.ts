@@ -146,6 +146,27 @@ describe('sans paramètre : contrat conservé, champs ajoutés', () => {
     },
   )
 
+  // Corrections, tour 2 : la partie locale d'une fiche sur un autre domaine de son cabinet est son adresse (compteur).
+  it('adresse d’une fiche sur un autre domaine de son cabinet : comptée parmi les adresses de gestionnaires saisies', async () => {
+    const t = baseQr.etat.tables
+    t.signalements_qr_domaines_autorises = [
+      { cabinet_id: CAB, domaine: 'exemple.test' }, { cabinet_id: CAB, domaine: 'exemple-bis.test' }, { cabinet_id: CAB_AUTRE, domaine: 'autre-exemple.test' },
+    ]
+    t.signalements_qr_coproprietes[0].emails_destinataires = ['marie.exemple@exemple-bis.test', 'Marie.Exemple+Copro@exemple-bis.test', 'marie.exemple@autre-exemple.test', 'cs@externe.test']
+    const { corps } = await lire()
+    expect(corps.tableau.coproprietes.find((c: { id: string }) => c.id === C_ATTRIBUEE)).toMatchObject({ adressesDeGestionnaires: 2 })
+  })
+
+  it('domaines illisibles (délai dépassé) pour le super admin : 200, compteur sur la boîte seule (affichage), journalisé', async () => {
+    baseQr.etat.tables.signalements_qr_domaines_autorises = [{ cabinet_id: CAB, domaine: 'exemple-bis.test' }]
+    baseQr.etat.tables.signalements_qr_coproprietes[0].emails_destinataires = ['marie.exemple@exemple-bis.test', 'marie.exemple@exemple.test']
+    baseQr.etat.erreursPonctuelles.signalements_qr_domaines_autorises = { code: '57014', message: 'canceling statement due to statement timeout' }
+    const { res, corps } = await lire()
+    expect(res.status).toBe(200)
+    expect(corps.tableau.coproprietes.find((c: { id: string }) => c.id === C_ATTRIBUEE)).toMatchObject({ adressesDeGestionnaires: 1 })
+    expect(simulQr.logger.error).toHaveBeenCalled()
+  })
+
   it('paramètre inconnu : 400 ; identifiant mal formé : 400', async () => {
     expect((await lire('?vue=1')).res.status).toBe(400)
     expect((await lire('?gestionnaire=pas-un-uuid')).res.status).toBe(400)

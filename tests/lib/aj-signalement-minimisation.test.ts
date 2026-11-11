@@ -46,7 +46,8 @@ const signalement = (id: string, coproprieteId: string, sur: Partial<Signalement
 const vue = (sur: Partial<VueGestionnaireQr> = {}): VueGestionnaireQr => ({
   userId: U1, gestionnaireId: G1, nom: 'Marie Exemple',
   portee: { visibles: new Set([C1, C_TOUS]), modifiables: new Set([C1]) },
-  fichesSaisies: [{ id: G1, email: 'marie.exemple@exemple.test' }, { id: G2, email: 'paul.collegue@exemple.test' }],
+  fichesSaisies: [{ id: G1, email: 'marie.exemple@exemple.test', cabinetId: CAB }, { id: G2, email: 'paul.collegue@exemple.test', cabinetId: CAB }],
+  cabinetsDesDomaines: new Map([['exemple.test', CAB]]),
   ...sur,
 })
 
@@ -83,6 +84,15 @@ describe('coproprieteVueGestionnaireQr', () => {
     expect(texte).not.toContain(G2)
     expect(texte).not.toMatch(/Paul/i)
     expect(texte).not.toContain('paul.collegue')
+  })
+
+  it('adresse d’un collègue sur un autre domaine de leur cabinet (corrections, tour 2) : masquée par le compteur', () => {
+    const c = coproprieteVueGestionnaireQr(copro(C1, { emailsDestinataires: ['cs@externe.test', 'paul.collegue@exemple-bis.test'] }), vue({
+      cabinetsDesDomaines: new Map([['exemple.test', CAB], ['exemple-bis.test', CAB]]),
+    }))
+    expect(c.emailsDestinataires).toEqual(['cs@externe.test'])
+    expect(c.adressesMasquees).toBe(1)
+    expect(JSON.stringify(c)).not.toContain('paul.collegue')
   })
 
   it('créée par lui : « créée par vous », son nom seulement ; attribuée explicitement : modifiable', () => {

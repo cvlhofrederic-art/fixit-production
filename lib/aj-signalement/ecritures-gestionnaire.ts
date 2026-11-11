@@ -5,7 +5,8 @@
 //   - RG-22 et Q4 (Hugo, 10/11/2026) : une adresse qu'il AJOUTE aux destinataires appartient à un domaine e-mail de SON
 //     cabinet (liste vide : aucun ajout possible) et n'est jamais l'adresse d'une fiche, la sienne comprise (RG-06 bis-1 :
 //     un gestionnaire reçoit par son attribution, qui s'arrête quand il la perd, jamais par une saisie qui survivrait à
-//     son départ ; une sous-adresse « + » de la boîte d'une fiche est l'adresse de la fiche, relecture 2 du lot 6). Le
+//     son départ ; une sous-adresse « + » de la boîte d'une fiche est l'adresse de la fiche, relecture 2 du lot 6, comme
+//     sa partie locale sur un autre domaine du cabinet de la fiche, corrections du tour 2 : adresseDeFicheQr). Le
 //     domaine est contrôlé avant la fiche, et le message est le même pour sa propre adresse et celle d'un
 //     collègue : la réponse ne nomme personne. Les adresses déjà posées par le super admin restent conservables ;
 //   - RG-06 bis-4 : les saisies MASQUÉES (adresse d'une autre fiche, données antérieures) ne lui sont jamais montrées ; il
@@ -13,9 +14,9 @@
 //     existant, les ajouts à la fin (une liste inchangée à l'écran n'est jamais une modification) ;
 //   - SPEC § 1.6 : un doublon n'est nommé que s'il est dans sa portée ; il n'est jamais forçable (decisionDoublonsQr).
 
-import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
-import { boiteEmailQr, emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
-import type { DoublonQr, DoublonRenduGestionnaireQr } from '@/lib/aj-signalement/types'
+import { adresseDeFicheQr, adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
+import { emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
+import type { CabinetsDesDomainesQr, DoublonQr, DoublonRenduGestionnaireQr, FicheAdresseQr } from '@/lib/aj-signalement/types'
 
 /** Détails des refus (400 invalide) : nom du champ en tête, comme les messages de Zod ; jamais une adresse. */
 export const MESSAGES_ADRESSES_GESTIONNAIRE_QR = {
@@ -29,31 +30,33 @@ const canoniques = (emails: readonly unknown[]): string[] =>
   [...new Set(emails.map(emailCanoniqueQr).filter((e): e is string => e !== null))]
 
 /**
- * Refus d'adresses AJOUTÉES par un gestionnaire (null : aucune). `domaines` : ceux de SON cabinet ; `fiches` : fiches
- * (de tout cabinet, actives ou non) dont l'adresse est parmi les ajouts.
+ * Refus d'adresses AJOUTÉES par un gestionnaire (null : aucune). `domaines` : ceux de SON cabinet ; `fiches` et
+ * `cabinets` : lus par lireFichesDesAdressesQr (fiches de même boîte, de tout cabinet, actives ou non, et fiches du
+ * cabinet qui a déclaré le domaine d'une adresse ; domaines des adresses → leur cabinet).
  */
 export function refusAdressesAjouteesQr(
-  ajoutees: readonly string[], domaines: readonly string[], fiches: ReadonlyArray<{ email: string | null }>,
+  ajoutees: readonly string[], domaines: readonly string[], fiches: ReadonlyArray<FicheAdresseQr>, cabinets?: CabinetsDesDomainesQr,
 ): string | null {
   if (ajoutees.length === 0) return null
   if (domaines.length === 0) return MESSAGES_ADRESSES_GESTIONNAIRE_QR.aucunDomaine
   if (ajoutees.some((email) => !emailDansDomainesQr(email, domaines))) return MESSAGES_ADRESSES_GESTIONNAIRE_QR.horsDomaine
-  if (adressesDeFichesQr(ajoutees, fiches).length > 0) return MESSAGES_ADRESSES_GESTIONNAIRE_QR.adresseDeFiche
+  if (adressesDeFichesQr(ajoutees, fiches, cabinets).length > 0) return MESSAGES_ADRESSES_GESTIONNAIRE_QR.adresseDeFiche
   return null
 }
 
 /**
  * Saisies à écrire quand le gestionnaire `gestionnaireId` envoie `envoyees` (ce qu'il voit, modifié) : dans l'ordre
- * existant, chaque adresse gardée par lui ou masquée pour lui (adresse d'une AUTRE fiche, parmi `fiches`), puis ses
- * ajouts. `ajoutees` : adresses absentes des saisies existantes (à contrôler par refusAdressesAjouteesQr).
+ * existant, chaque adresse gardée par lui ou masquée pour lui (adresse d'une AUTRE fiche, parmi `fiches` et selon
+ * `cabinets`), puis ses ajouts. `ajoutees` : adresses absentes des saisies existantes (à contrôler par
+ * refusAdressesAjouteesQr).
  */
 export function saisiesEcritesGestionnaireQr(
-  existantes: readonly string[], envoyees: readonly string[], fiches: ReadonlyArray<{ id: string; email: string | null }>, gestionnaireId: string,
+  existantes: readonly string[], envoyees: readonly string[], fiches: ReadonlyArray<FicheAdresseQr & { id: string }>, gestionnaireId: string,
+  cabinets?: CabinetsDesDomainesQr,
 ): { ecrites: string[]; ajoutees: string[] } {
   const anciennes = canoniques(existantes)
-  // Boîtes des AUTRES fiches : même règle que saisiesVisiblesQr (ce qu'il ne voit pas est conservé).
-  const masquees = new Set(fiches.filter((f) => f.id !== gestionnaireId).map((f) => boiteEmailQr(f.email)).filter((e): e is string => e !== null))
-  const masquee = (email: string) => masquees.has(boiteEmailQr(email) ?? email)
+  // Adresses des AUTRES fiches : même règle que saisiesVisiblesQr (ce qu'il ne voit pas est conservé).
+  const masquee = adresseDeFicheQr(fiches.filter((f) => f.id !== gestionnaireId), cabinets)
   const gardees = canoniques(envoyees)
   const envoyeesSet = new Set(gardees)
   const anciennesSet = new Set(anciennes)
