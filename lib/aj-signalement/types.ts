@@ -510,11 +510,20 @@ export type ObjetEnvoiQr = (typeof OBJETS_ENVOI_QR)[number]
 export const REFUS_ENVOI_QR = ['compte_autre_espace', 'pas_moi'] as const
 export type RefusEnvoiQr = (typeof REFUS_ENVOI_QR)[number]
 
+/** Champs d'accès d'une fiche (migration 20261112, PR 2) que son état lit : dates et drapeau, jamais le compte. */
+export interface AccesFicheEtatQr {
+  accesOuvertLe: string | null
+  compteRelie: boolean
+  effacementDemandeLe: string | null
+}
+
 /** Ce que l'état d'une fiche lit de la fiche elle-même. */
 export interface FicheEtatGestionnaireQr {
   actif: boolean
   adresseConfirmeeLe: string | null
   adresseContesteeLe: string | null
+  /** PR 2, lot 5 : absent tant que la migration 20261112 manque (l'état est alors celui de la PR 1, envois « acces » ignorés). */
+  acces?: AccesFicheEtatQr
 }
 
 /** Un envoi (ligne de signalements_qr_invitations), sans son jeton. */
@@ -528,7 +537,7 @@ export interface EnvoiGestionnaireQr {
   refus: RefusEnvoiQr | null
 }
 
-/** États d'une fiche calculés en PR 1 (les 4 autres d'ETATS_GESTIONNAIRE_QR viennent avec la PR 2). */
+/** États d'une fiche calculés en PR 1 (les 4 autres d'ETATS_GESTIONNAIRE_QR viennent avec la PR 2, lot 5). */
 export type EtatGestionnairePr1Qr = Extract<
   EtatGestionnaireQr,
   'confirmation_envoyee' | 'confirmation_expiree' | 'adresse_confirmee' | 'adresse_contestee' | 'desactive'

@@ -6,8 +6,8 @@
 // (vitfix.io/<identifiant>/confirmation-adresse/) a ses textes ici aussi (FR seulement, SPEC § 1.7.4).
 
 import {
-  type ActionJournalQr, type AnalyseDomainesQr, type AttributionVueQr, type CoproprieteQr, type DecisionDepartQr, type EtatGestionnaireQr,
-  type EvenementJournalQr, type FiltreCoproprietesQr, type GestionnaireQr, type GroupesDepartQr, type OrigineAttributionQr,
+  type ActionJournalQr, type AnalyseDomainesQr, type AttributionVueQr, type CoproprieteQr, type DecisionDepartQr, type EnvoiGestionnaireQr,
+  type EtatGestionnaireQr, type EvenementJournalQr, type FiltreCoproprietesQr, type GestionnaireQr, type GroupesDepartQr, type OrigineAttributionQr,
 } from '@/lib/aj-signalement/types'
 import { validerDomaineCabinetQr } from '@/lib/aj-signalement/gestionnaires'
 
@@ -171,6 +171,30 @@ export function analyserDomainesQr(texte: string): AnalyseDomainesQr {
 /** Aperçu de l'adresse des QR codes d'un cabinet. */
 export const apercuCheminCabinetQr = (identifiant: string): string => `vitfix.io/${identifiant || '<identifiant>'}/signalement/…`
 
+// ── Accès d'un gestionnaire à l'espace de son cabinet (PR 2, lot 5) ──────────
+
+/** États où aucun accès ne s'ouvre ni ne se renvoie (départ, adresse contestée ou d'un autre espace, effacement, déjà ouvert). */
+const ETATS_SANS_ACTION_ACCES_QR: ReadonlySet<EtatGestionnaireQr> = new Set<EtatGestionnaireQr>([
+  'desactive', 'adresse_contestee', 'refus_autre_espace', 'effacement_demande', 'acces_ouvert',
+])
+
+/**
+ * Bouton d'accès d'une fiche (super admin) : « ouvrir » (fiche active, non contestée, sans compte relié, adresse connue),
+ * « renvoyer » (un accès est en attente, ou un envoi « acces » existe déjà : page profil), null sinon. Champs d'accès
+ * absents (migration 20261112 non appliquée : la route répondrait 503) → null.
+ */
+export function actionAccesGestionnaireQr(
+  g: Pick<GestionnaireQr, 'etat' | 'email' | 'compteRelie'>, envois?: readonly EnvoiGestionnaireQr[],
+): 'ouvrir' | 'renvoyer' | null {
+  if (g.compteRelie === undefined || g.compteRelie || !g.email || ETATS_SANS_ACTION_ACCES_QR.has(g.etat)) return null
+  if (g.etat === 'acces_envoye' || (envois ?? []).some((e) => e.objet === 'acces')) return 'renvoyer'
+  return 'ouvrir'
+}
+
+/** Fiches de l'action groupée « Ouvrir l'accès aux gestionnaires (n) » : les seules à OUVRIR, dans l'ordre de la liste. */
+export const fichesAccesOuvrablesQr = <T extends Pick<GestionnaireQr, 'etat' | 'email' | 'compteRelie'>>(gestionnaires: readonly T[]): T[] =>
+  gestionnaires.filter((g) => actionAccesGestionnaireQr(g) === 'ouvrir')
+
 // ── Textes ───────────────────────────────────────────────────────────────────
 
 export const TEXTES_GESTION_QR = {
@@ -300,6 +324,21 @@ export const TEXTES_GESTION_QR = {
     effacerAvertissement: 'Le nom et l’adresse seront effacés définitivement ; l’historique reste, sans nom.',
     confirmerEffacer: 'Oui, effacer définitivement',
     efface: 'Données effacées.',
+  },
+  // PR 2, lot 5 : accès de chaque gestionnaire à l'espace de son cabinet (vitfix.io/<identifiant>/suivi/).
+  acces: {
+    ouvrir: 'Ouvrir l’accès à son suivi',
+    renvoyer: 'Renvoyer l’accès',
+    envoye: 'Accès envoyé à {email} : il choisit son mot de passe depuis le lien reçu (valable 7 jours).',
+    nonParti: 'L’e-mail d’accès n’est pas parti. Réessayez plus tard.',
+    groupe: 'Ouvrir l’accès aux gestionnaires ({n})',
+    groupeAide: 'Chaque gestionnaire actif, sans compte, reçoit un lien pour choisir son mot de passe et suivre ses copropriétés.',
+    confirmerGroupe: 'Oui, envoyer l’accès à {n} gestionnaire(s)',
+    groupeEnvoye: 'Accès envoyé à {n} gestionnaire(s).',
+    groupeEchecs: 'Non envoyé pour : {noms}.',
+    ouvertLe: 'Accès ouvert le {date}',
+    effacementDemandeLe: 'Demande d’effacement le {date}',
+    envoiRefuseAutreEspace: 'refusé : adresse déjà utilisée par un compte d’un autre espace',
   },
   suivi: {
     aucune: 'Aucune copropriété dans sa portée.',

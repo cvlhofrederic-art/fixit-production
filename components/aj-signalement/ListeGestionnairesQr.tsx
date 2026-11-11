@@ -9,6 +9,10 @@
 // forçage) ; cabinet sans domaine → ses domaines d'abord ; adresse
 // déjà en fiche → « Ouvrir la fiche ». Par ligne : Ouvrir (page profil, où se fait le départ), Renvoyer la
 // confirmation, Réactiver. Aucun compte, aucune connexion de gestionnaire en PR 1.
+// PR 2, lot 5 : accès de chaque gestionnaire à l'espace de son cabinet : « Ouvrir l'accès à son suivi » / « Renvoyer
+// l'accès » par ligne (actionAccesGestionnaireQr : jamais sans les champs d'accès de la migration 20261112), action
+// groupée « Ouvrir l'accès aux gestionnaires (n) » après confirmation (fiches à ouvrir seulement, par lots de 50),
+// états d'accès et « Demande d'effacement le … ».
 
 import { useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -16,11 +20,13 @@ import { Badge, Bouton, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale } from 
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import {
-  creerGestionnaireQr, modifierGestionnaireQr, renvoyerConfirmationQr, type CodeErreurQr, type ResultatCreationGestionnaireQr,
+  creerGestionnaireQr, modifierGestionnaireQr, ouvrirAccesGestionnaireQr, ouvrirAccesGroupeQr, renvoyerConfirmationQr, type CodeErreurQr,
+  type ResultatCreationGestionnaireQr,
 } from '@/lib/aj-signalement/api'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import {
-  LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G, TON_ETAT_GESTIONNAIRE_QR as TON, dateParisQr,
+  LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G, TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, dateParisQr,
+  fichesAccesOuvrablesQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
 import type { CabinetQr, CoproprieteQr, GestionnaireQr } from '@/lib/aj-signalement/types'
@@ -42,6 +48,9 @@ export interface PropsListeGestionnairesQr {
 /** Confirmation à (re)envoyer : en attente ou expirée. */
 const confirmationEnAttente = (g: GestionnaireQr): boolean => g.etat === 'confirmation_envoyee' || g.etat === 'confirmation_expiree'
 
+/** Fiches par appel de l'action groupée (accesGroupeQrSchema : 50 au plus). */
+const LOT_ACCES_QR = 50
+
 export default function ListeGestionnairesQr({
   gestionnaires, cabinets, erreur, coproprietes, onOuvrir, onModifie, onReessayer, onCabinets,
 }: Readonly<PropsListeGestionnairesQr>) {
@@ -51,6 +60,7 @@ export default function ListeGestionnairesQr({
   const [messages, setMessages] = useState<string[]>([])
   const [erreurAction, setErreurAction] = useState<string | null>(null)
   const [occupe, setOccupe] = useState<string | null>(null)
+  const [confirmerGroupe, setConfirmerGroupe] = useState(false)
 
   if (erreur) {
     return (
@@ -63,13 +73,19 @@ export default function ListeGestionnairesQr({
   if (gestionnaires === null) return <p role="status" className="py-10 text-center text-base text-[#4A5E78]">{G.chargement}</p>
 
   const visibles = filtreCabinet ? gestionnaires.filter((g) => g.cabinet.id === filtreCabinet) : gestionnaires
+  const ouvrables = fichesAccesOuvrablesQr(visibles)
 
-  const agir = async (g: GestionnaireQr, action: 'renvoyer' | 'reactiver') => {
+  const agir = async (g: GestionnaireQr, action: 'renvoyer' | 'reactiver' | 'acces') => {
     if (occupe) return
     setMessages([])
     setErreurAction(null)
     setOccupe(g.id)
-    if (action === 'renvoyer') {
+    if (action === 'acces') {
+      const r = await ouvrirAccesGestionnaireQr(g.id)
+      setOccupe(null)
+      if (!r.ok) return setErreurAction(messageEchecQr(r.code))
+      setMessages([r.emailEnvoye ? remplir(G.acces.envoye, { email: g.email ?? '' }) : G.acces.nonParti])
+    } else if (action === 'renvoyer') {
       const r = await renvoyerConfirmationQr(g.id)
       setOccupe(null)
       if (!r.ok) return setErreurAction(messageEchecQr(r.code))
@@ -80,6 +96,32 @@ export default function ListeGestionnairesQr({
       if (!r.ok) return setErreurAction(messageEchecQr(r.code))
       setMessages([G.gestionnaires.reactive])
     }
+    onModifie()
+  }
+
+  /** Action groupée (P2-R1b) : les fiches à ouvrir, par lots de 50 ; bilan des envois et des échecs (noms seulement). */
+  const ouvrirGroupe = async () => {
+    if (occupe || ouvrables.length === 0) return
+    setMessages([])
+    setErreurAction(null)
+    setConfirmerGroupe(false)
+    setOccupe('groupe')
+    let envoyes = 0
+    const echecs: string[] = []
+    for (let i = 0; i < ouvrables.length; i += LOT_ACCES_QR) {
+      const r = await ouvrirAccesGroupeQr(ouvrables.slice(i, i + LOT_ACCES_QR).map((g) => g.id))
+      if (!r.ok) {
+        setOccupe(null)
+        setErreurAction(messageEchecQr(r.code))
+        if (envoyes > 0) onModifie()
+        return
+      }
+      envoyes += r.envoyes
+      echecs.push(...r.echecs.map((e) => e.id))
+    }
+    setOccupe(null)
+    const noms = echecs.map((id) => gestionnaires.find((g) => g.id === id)?.nom ?? G.fiche.ancien)
+    setMessages([remplir(G.acces.groupeEnvoye, { n: envoyes }), ...(noms.length > 0 ? [remplir(G.acces.groupeEchecs, { noms: noms.join(', ') })] : [])])
     onModifie()
   }
 
@@ -108,8 +150,26 @@ export default function ListeGestionnairesQr({
             </select>
           </label>
         ) : <span />}
-        <Bouton variante="or" icone="plus" disabled={!cabinets} onClick={() => { setMessages([]); setCreation(true) }}>{G.gestionnaires.ajouter}</Bouton>
+        <div className="flex flex-wrap gap-2">
+          {ouvrables.length > 0 && (
+            <Bouton variante="secondaire" icone="envoyer" disabled={occupe !== null} onClick={() => setConfirmerGroupe(true)}>
+              {remplir(G.acces.groupe, { n: ouvrables.length })}
+            </Bouton>
+          )}
+          <Bouton variante="or" icone="plus" disabled={!cabinets} onClick={() => { setMessages([]); setCreation(true) }}>{G.gestionnaires.ajouter}</Bouton>
+        </div>
       </div>
+      {confirmerGroupe && ouvrables.length > 0 && (
+        <Encadre ton="info">
+          <p>{G.acces.groupeAide}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Bouton variante="principal" petit icone="envoyer" disabled={occupe !== null} onClick={() => { void ouvrirGroupe() }}>
+              {remplir(G.acces.confirmerGroupe, { n: ouvrables.length })}
+            </Bouton>
+            <Bouton variante="secondaire" petit disabled={occupe !== null} onClick={() => setConfirmerGroupe(false)}>{G.annuler}</Bouton>
+          </div>
+        </Encadre>
+      )}
       {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
       {erreurAction && <Encadre ton="erreur">{erreurAction}</Encadre>}
 
@@ -123,6 +183,7 @@ export default function ListeGestionnairesQr({
                     <h3 className="text-base font-bold text-[#0D1B2E]">{g.nom ?? G.fiche.ancien}</h3>
                     <Badge ton={TON[g.etat]}>{ETAT[g.etat]}</Badge>
                     {g.domaineForce && <Badge ton="ambre">{G.gestionnaires.domaineForce}</Badge>}
+                    {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
                   </div>
                   {g.email && <p className="break-all text-sm text-[#1F2D3D]">{g.email}</p>}
                   <p className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.compteurs, { copros: g.coproprietes, ouverts: g.ouverts, urgents: g.urgents })}</p>
@@ -137,6 +198,11 @@ export default function ListeGestionnairesQr({
                   )}
                   {g.etat === 'desactive' && g.nom !== null && (
                     <Bouton variante="discret" petit icone="actualiser" disabled={occupe !== null} onClick={() => { void agir(g, 'reactiver') }}>{G.gestionnaires.reactiver}</Bouton>
+                  )}
+                  {actionAccesGestionnaireQr(g) && (
+                    <Bouton variante="discret" petit icone="cadenas" disabled={occupe !== null} onClick={() => { void agir(g, 'acces') }}>
+                      {actionAccesGestionnaireQr(g) === 'renvoyer' ? G.acces.renvoyer : G.acces.ouvrir}
+                    </Bouton>
                   )}
                 </div>
               </div>

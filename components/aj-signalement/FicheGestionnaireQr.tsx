@@ -7,6 +7,8 @@
 // page de suivi » (SuiviGestionnaireQr, ce qu'il verra en PR 2), copropriétés attribuées (origine, retrait, ajout),
 // communes à tous (lecture), créations (PR 2), activité (journal de la fiche), export RGPD, départ (successions),
 // réactivation et effacement (fiche désactivée seulement). Jamais de jeton d'envoi : le serveur ne les rend pas.
+// PR 2, lot 5 : « Ouvrir l'accès à son suivi » / « Renvoyer l'accès » (actionAccesGestionnaireQr), accès ouvert le …,
+// demande d'effacement, envoi d'accès refusé pour une adresse d'un compte d'un autre espace.
 
 import { useCallback, useEffect, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -16,12 +18,13 @@ import FenetreDepartGestionnaireQr from '@/components/aj-signalement/FenetreDepa
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import {
-  attribuerCoproprietesGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr, renvoyerConfirmationQr,
+  attribuerCoproprietesGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr, ouvrirAccesGestionnaireQr,
+  renvoyerConfirmationQr,
 } from '@/lib/aj-signalement/api'
 import { dateHeureParis } from '@/lib/aj-signalement/affichage'
 import {
   LIBELLE_ACTION_JOURNAL_QR, LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, LIBELLE_ORIGINE_ATTRIBUTION_QR, TEXTES_GESTION_QR as G,
-  TON_ETAT_GESTIONNAIRE_QR as TON, auteurJournalQr, dateParisQr,
+  TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, auteurJournalQr, dateParisQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { telechargerFichier } from '@/lib/aj-signalement/qr'
 import type { CoproprieteQr, EnvoiGestionnaireQr, FicheGestionnaireDetailQr, GestionnaireQr } from '@/lib/aj-signalement/types'
@@ -45,6 +48,7 @@ function texteEnvoi(e: EnvoiGestionnaireQr): string {
   parties.push(e.envoyeLe ? remplir(G.fiche.envoiParti, { date: dateHeureParis(e.envoyeLe) }) : G.fiche.envoiNonParti)
   if (e.accepteLe) parties.push(remplir(G.fiche.envoiConfirme, { date: dateHeureParis(e.accepteLe) }))
   if (e.refus === 'pas_moi') parties.push(G.fiche.envoiRefuse)
+  if (e.refus === 'compte_autre_espace') parties.push(G.acces.envoiRefuseAutreEspace)
   return parties.join(' · ')
 }
 
@@ -88,6 +92,7 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
   const coprosCabinet = coproprietes.filter((c) => c.cabinet?.id === g.cabinet.id)
   const communes = coprosCabinet.filter((c) => c.attribueeATous && !attribuees.has(c.id))
   const ajoutables = coprosCabinet.filter((c) => !attribuees.has(c.id))
+  const actionAcces = actionAccesGestionnaireQr(g, envois)
 
   /** Action qui modifie la fiche : messages en cas de succès, fiche rechargée, espace prévenu. */
   const executer = async (action: () => Promise<{ ok: true; textes: string[] } | { ok: false; message: string }>) => {
@@ -134,6 +139,12 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
     return { ok: true, textes: [r.emailEnvoye ? remplir(G.gestionnaires.renvoye, { email: g.email ?? '' }) : G.gestionnaires.renvoiSansEmail] }
   })
 
+  const ouvrirAcces = () => executer(async () => {
+    const r = await ouvrirAccesGestionnaireQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [r.emailEnvoye ? remplir(G.acces.envoye, { email: g.email ?? '' }) : G.acces.nonParti] }
+  })
+
   // L'export ne modifie rien : pas de rechargement.
   const exporter = async () => {
     if (occupe) return
@@ -162,11 +173,18 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
           <div className="flex flex-wrap gap-2">
             {g.domaineForce && <Badge ton="ambre">{G.gestionnaires.domaineForce}</Badge>}
             {g.confirmeeLe && <span className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.confirmeeLe, { date: dateParisQr(g.confirmeeLe) })}</span>}
+            {g.accesOuvertLe && <span className="text-sm text-[#4A5E78]">{remplir(G.acces.ouvertLe, { date: dateParisQr(g.accesOuvertLe) })}</span>}
+            {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
           </div>
           <div className="flex flex-wrap gap-2">
             {!efface && <Bouton variante="secondaire" petit icone="outil" disabled={occupe} onClick={() => { setNouveauNom(g.nom ?? ''); setPanneau('nom') }}>{G.fiche.modifierNom}</Bouton>}
             {(g.etat === 'confirmation_envoyee' || g.etat === 'confirmation_expiree') && (
               <Bouton variante="secondaire" petit icone="envoyer" disabled={occupe} onClick={() => { void renvoyer() }}>{G.gestionnaires.renvoyer}</Bouton>
+            )}
+            {actionAcces && (
+              <Bouton variante="secondaire" petit icone="cadenas" disabled={occupe} onClick={() => { void ouvrirAcces() }}>
+                {actionAcces === 'renvoyer' ? G.acces.renvoyer : G.acces.ouvrir}
+              </Bouton>
             )}
             <Bouton variante="secondaire" petit icone="documents" disabled={occupe} onClick={() => { void exporter() }}>{G.fiche.exporter}</Bouton>
             {!desactive && <Bouton variante="danger" petit icone="deconnexion" disabled={occupe} onClick={() => setPanneau('depart')}>{G.fiche.depart}</Bouton>}

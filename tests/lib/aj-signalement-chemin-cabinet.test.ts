@@ -253,3 +253,12 @@ describe('adresses produites', () => {
     expect(cheminPublicCabinetQr(lu.pathname)).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
   })
 })
+
+// ── PR 2, lot 5 : lien « Ouvrir le suivi » des e-mails (RG-25 : aucun jeton) ────────────────────────────────────────
+describe('urlSuiviCabinetQr', () => {
+  it('origine sans barre finale, chemin de l’espace du cabinet, vue Signalements ; aucun jeton', async () => {
+    const { urlSuiviCabinetQr } = await import('@/lib/aj-signalement/chemin-cabinet')
+    expect(urlSuiviCabinetQr('cabinet-exemple', 'https://vitfix.io/')).toBe('https://vitfix.io/cabinet-exemple/suivi/#signalements')
+    expect(urlSuiviCabinetQr('cabinet-exemple', 'https://apercu.exemple.test')).toBe('https://apercu.exemple.test/cabinet-exemple/suivi/#signalements')
+  })
+})

@@ -7,10 +7,10 @@
 //     signalements_qr_inviter_gestionnaire (égalité EXACTE du domaine après le « @ », sous-domaines refusés) ;
 //   - validerDomaineCabinetQr : format du CHECK signalements_qr_domaines_domaine_format, messageries publiques refusées ;
 //   - nomCourtQr : « Marie M. », pour que l'e-mail et la page de confirmation nomment la personne (RG-02) ;
-//   - etatGestionnaireQr : état d'une fiche affiché au super admin (5 états en PR 1).
+//   - etatGestionnaireQr : état d'une fiche affiché au super admin (5 états en PR 1, les 4 états d'accès en PR 2).
 
 import type {
-  EnvoiGestionnaireQr, EtatGestionnairePr1Qr, FicheEtatGestionnaireQr, ValidationDomaineCabinetQr,
+  EnvoiGestionnaireQr, EtatGestionnairePr1Qr, EtatGestionnaireQr, FicheEtatGestionnaireQr, ValidationDomaineCabinetQr,
 } from '@/lib/aj-signalement/types'
 
 // ── Adresses et domaines ─────────────────────────────────────────────────────
@@ -82,28 +82,59 @@ export const DUREE_VALIDITE_ENVOI_QR_MS = 7 * 24 * 60 * 60 * 1000
 
 const dateMs = (valeur: string | null): number => (valeur ? Date.parse(valeur) : Number.NaN)
 
-/**
- * État d'une fiche (PR 1), dans cet ordre : désactivée ; adresse contestée (« Ce n'est pas moi ») ; adresse confirmée ;
- * sinon le dernier envoi de confirmation fait foi (un renvoi rend les précédents caducs) : parti il y a moins de
- * 7 jours et en attente → confirmation envoyée ; expiré, jamais parti, illisible ou absent → confirmation expirée
- * (lien inutilisable : à renvoyer). Les envois « acces » (PR 2) ne comptent pas ici.
- */
-export function etatGestionnaireQr(
-  fiche: FicheEtatGestionnaireQr, envois: readonly EnvoiGestionnaireQr[], maintenant: Date = new Date(),
-): EtatGestionnairePr1Qr {
-  if (!fiche.actif) return 'desactive'
-  if (fiche.adresseContesteeLe) return 'adresse_contestee'
-  if (fiche.adresseConfirmeeLe) return 'adresse_confirmee'
-  const dernier = envois
-    .filter((e) => e.objet === 'confirmation_adresse')
+/** Le plus récent des envois d'un objet (un renvoi rend les précédents caducs) ; null s'il n'y en a aucun. */
+function dernierEnvoiQr(envois: readonly EnvoiGestionnaireQr[], objet: EnvoiGestionnaireQr['objet']): EnvoiGestionnaireQr | null {
+  return envois
+    .filter((e) => e.objet === objet)
     .reduce<EnvoiGestionnaireQr | null>((plusRecent, e) => {
       if (!plusRecent) return e
       return (dateMs(e.creeLe) || 0) > (dateMs(plusRecent.creeLe) || 0) ? e : plusRecent
     }, null)
+}
+
+/** Envoi parti il y a moins de 7 jours, ni accepté ni refusé : son lien est encore utilisable. */
+function enAttenteQr(envoi: EnvoiGestionnaireQr, maintenant: Date): boolean {
+  if (envoi.accepteLe || envoi.refus || !envoi.envoyeLe) return false
+  const age = maintenant.getTime() - dateMs(envoi.creeLe)
+  return Number.isFinite(age) && age < DUREE_VALIDITE_ENVOI_QR_MS
+}
+
+/**
+ * État d'une fiche d'après la confirmation de son adresse (PR 1), dans cet ordre : désactivée ; adresse contestée
+ * (« Ce n'est pas moi ») ; adresse confirmée ; sinon le dernier envoi de confirmation fait foi : parti il y a moins de
+ * 7 jours et en attente → confirmation envoyée ; expiré, jamais parti, illisible ou absent → confirmation expirée (lien
+ * inutilisable : à renvoyer). Les envois « acces » ne comptent pas ici.
+ */
+function etatConfirmationQr(fiche: FicheEtatGestionnaireQr, envois: readonly EnvoiGestionnaireQr[], maintenant: Date): EtatGestionnairePr1Qr {
+  if (!fiche.actif) return 'desactive'
+  if (fiche.adresseContesteeLe) return 'adresse_contestee'
+  if (fiche.adresseConfirmeeLe) return 'adresse_confirmee'
+  const dernier = dernierEnvoiQr(envois, 'confirmation_adresse')
   if (!dernier) return 'confirmation_expiree'
   if (dernier.refus === 'pas_moi') return 'adresse_contestee'
   if (dernier.accepteLe) return 'adresse_confirmee'
-  if (dernier.refus || !dernier.envoyeLe) return 'confirmation_expiree'
-  const age = maintenant.getTime() - dateMs(dernier.creeLe)
-  return Number.isFinite(age) && age < DUREE_VALIDITE_ENVOI_QR_MS ? 'confirmation_envoyee' : 'confirmation_expiree'
+  return enAttenteQr(dernier, maintenant) ? 'confirmation_envoyee' : 'confirmation_expiree'
+}
+
+/**
+ * État d'une fiche affiché au super admin : celui de la confirmation d'adresse (PR 1, etatConfirmationQr), puis, PR 2
+ * lot 5, seulement si la fiche porte ses champs d'accès (migration 20261112 appliquée ; sinon l'état de la PR 1, envois
+ * « acces » ignorés) : désactivée et contestée restent en tête (les boutons Réactiver et Effacer en dépendent) ; puis la
+ * demande d'effacement (fiche active) ; l'accès ouvert (compte relié) ; enfin le dernier envoi « acces » : « Ce n'est pas
+ * moi » → contestée, refus pour un compte d'un autre espace → refus_autre_espace, en attente → acces_envoye. Un envoi
+ * expiré, jamais parti ou accepté sans liaison rend l'état de la PR 1 (accès à renvoyer).
+ */
+export function etatGestionnaireQr(
+  fiche: FicheEtatGestionnaireQr, envois: readonly EnvoiGestionnaireQr[], maintenant: Date = new Date(),
+): EtatGestionnaireQr {
+  const confirmation = etatConfirmationQr(fiche, envois, maintenant)
+  const acces = fiche.acces
+  if (!acces || confirmation === 'desactive' || confirmation === 'adresse_contestee') return confirmation
+  if (acces.effacementDemandeLe) return 'effacement_demande'
+  if (acces.compteRelie && acces.accesOuvertLe) return 'acces_ouvert'
+  const dernier = dernierEnvoiQr(envois, 'acces')
+  if (dernier?.refus === 'pas_moi') return 'adresse_contestee'
+  if (dernier?.refus === 'compte_autre_espace') return 'refus_autre_espace'
+  if (dernier && enAttenteQr(dernier, maintenant)) return 'acces_envoye'
+  return confirmation
 }

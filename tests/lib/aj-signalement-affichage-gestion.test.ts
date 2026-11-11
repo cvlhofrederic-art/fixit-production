@@ -7,12 +7,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   LIBELLE_ACTION_JOURNAL_QR, LIBELLE_ETAT_GESTIONNAIRE_QR, LIBELLE_ORIGINE_ATTRIBUTION_QR, TON_ETAT_GESTIONNAIRE_QR,
-  analyserDomainesQr, apercuCheminCabinetQr, auteurJournalQr, filtrerCoproprietesQr, groupesDepartQr, successionsDepartQr,
+  actionAccesGestionnaireQr, analyserDomainesQr, apercuCheminCabinetQr, auteurJournalQr, fichesAccesOuvrablesQr, filtrerCoproprietesQr,
+  groupesDepartQr, successionsDepartQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_TABLEAU_QR, messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import {
   ACTIONS_JOURNAL_QR, ETATS_GESTIONNAIRE_QR, ORIGINES_ATTRIBUTION_QR, gestionCoproprieteQrVide,
-  type AttributionVueQr, type CoproprieteQr, type EvenementJournalQr,
+  type AttributionVueQr, type CoproprieteQr, type EvenementJournalQr, type GestionnaireQr,
 } from '@/lib/aj-signalement/types'
 
 const G1 = '11111111-1111-4111-8111-111111111111'
@@ -132,5 +133,54 @@ describe('saisie d’un cabinet', () => {
   it('aperçu de l’adresse des QR codes', () => {
     expect(apercuCheminCabinetQr('cabinet-exemple')).toBe('vitfix.io/cabinet-exemple/signalement/…')
     expect(apercuCheminCabinetQr('')).toBe('vitfix.io/<identifiant>/signalement/…')
+  })
+})
+
+// ── PR 2, lot 5 : ouverture de l'accès d'une fiche (boutons du super admin) ─────────────────────────────────────────
+// « Ouvrir l'accès à son suivi » : fiche active, non contestée, sans compte relié, adresse connue, aucun refus « autre
+// espace » ni demande d'effacement, et migration 20261112 appliquée (champs d'accès présents : sinon aucun bouton, la
+// route répondrait 503). « Renvoyer l'accès » : un accès est déjà en attente, ou un envoi « acces » existe (page profil).
+// L'action groupée ne reprend que les fiches à OUVRIR (un accès en attente n'est pas renvoyé en masse).
+describe('accès d’une fiche à l’espace de son cabinet (PR 2)', () => {
+  const resume = { id: 'k1', nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }
+  const fiche = (id: string, sur: Partial<GestionnaireQr> = {}): GestionnaireQr => ({
+    id, nom: `Fiche ${id}`, cabinet: resume, email: `${id}@exemple.test`, etat: 'adresse_confirmee', domaineForce: false, coproprietes: 1,
+    ouverts: 0, urgents: 0, creeLe: '2026-11-01T09:00:00.000Z', confirmeeLe: '2026-11-02T09:00:00.000Z',
+    accesOuvertLe: null, connexionBloquee: false, effacementDemandeLe: null, compteRelie: false, ...sur,
+  })
+  const envoiAcces = { objet: 'acces' as const, creeLe: '2026-11-01T09:00:00.000Z', envoyeLe: '2026-11-01T09:00:00.000Z', accepteLe: null, refus: null }
+
+  it('fiche active sans compte : « ouvrir » (adresse confirmée, confirmation envoyée ou expirée)', () => {
+    expect(actionAccesGestionnaireQr(fiche('a'))).toBe('ouvrir')
+    expect(actionAccesGestionnaireQr(fiche('b', { etat: 'confirmation_envoyee' }))).toBe('ouvrir')
+    expect(actionAccesGestionnaireQr(fiche('c', { etat: 'confirmation_expiree' }))).toBe('ouvrir')
+  })
+
+  it('accès en attente, ou un envoi « acces » déjà fait (page profil) : « renvoyer »', () => {
+    expect(actionAccesGestionnaireQr(fiche('a', { etat: 'acces_envoye' }))).toBe('renvoyer')
+    expect(actionAccesGestionnaireQr(fiche('b'), [envoiAcces])).toBe('renvoyer')
+    expect(actionAccesGestionnaireQr(fiche('c'), [{ ...envoiAcces, objet: 'confirmation_adresse' }])).toBe('ouvrir')
+  })
+
+  it('aucun bouton : migration 20261112 absente, compte relié, fiche désactivée, contestée, refus « autre espace », effacement, adresse effacée', () => {
+    const { accesOuvertLe: _a, connexionBloquee: _b, effacementDemandeLe: _c, compteRelie: _d, ...pr1 } = fiche('x')
+    expect(actionAccesGestionnaireQr(pr1)).toBeNull()
+    expect(actionAccesGestionnaireQr(fiche('a', { compteRelie: true }))).toBeNull()
+    expect(actionAccesGestionnaireQr(fiche('b', { etat: 'acces_ouvert', compteRelie: true, accesOuvertLe: '2026-11-03T09:00:00.000Z' }))).toBeNull()
+    for (const etat of ['desactive', 'adresse_contestee', 'refus_autre_espace', 'effacement_demande'] as const) {
+      expect(actionAccesGestionnaireQr(fiche(etat, { etat }))).toBeNull()
+    }
+    expect(actionAccesGestionnaireQr(fiche('c', { email: null }))).toBeNull()
+  })
+
+  it('action groupée : les seules fiches à ouvrir, dans l’ordre de la liste', () => {
+    const liste = [fiche('a'), fiche('b', { etat: 'acces_envoye' }), fiche('c', { compteRelie: true }), fiche('d', { etat: 'desactive' }), fiche('e')]
+    expect(fichesAccesOuvrablesQr(liste).map((g) => g.id)).toEqual(['a', 'e'])
+  })
+
+  it('états d’accès nommés pour le super admin', () => {
+    expect(LIBELLE_ETAT_GESTIONNAIRE_QR.acces_envoye).toBe('Accès envoyé')
+    expect(LIBELLE_ETAT_GESTIONNAIRE_QR.acces_ouvert).toBe('Accès ouvert')
+    expect(LIBELLE_ETAT_GESTIONNAIRE_QR.refus_autre_espace).toBe('Adresse déjà utilisée par un autre espace')
   })
 })

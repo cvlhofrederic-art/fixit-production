@@ -219,3 +219,11 @@ export function urlConfirmationAdresseQr(identifiant: string, jetonLien: string,
 export function urlInvitationAccesQr(identifiant: string, jetonLien: string, origine: string): string {
   return `${sansBarreFinale(origine)}/${identifiant}/invitation/#${jetonLien}`
 }
+
+/**
+ * Bouton « Ouvrir le suivi » de l'e-mail d'un signalement (PR 2, RG-25) : l'espace du cabinet, vue Signalements. AUCUN
+ * jeton : la page exige la session du gestionnaire (sinon sa connexion), les droits sont relus par chaque route.
+ */
+export function urlSuiviCabinetQr(identifiant: string, origine: string): string {
+  return `${sansBarreFinale(origine)}${cheminSuiviCabinetQr(identifiant)}#signalements`
+}

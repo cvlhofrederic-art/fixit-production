@@ -404,3 +404,93 @@ describe('fiche désactivée', () => {
     expect(appels.find((a) => a.methode === 'PATCH')?.corps).toEqual({ pseudonymiser: true })
   })
 })
+
+// ── PR 2, lot 5 : accès de chaque gestionnaire à l'espace de son cabinet (boutons et états du super admin) ─────────────
+// « Ouvrir l'accès à son suivi » (POST …/gestionnaires/<id>/acces) sur une fiche active, non contestée, sans compte ;
+// « Renvoyer l'accès » si un accès est en attente ; aucun bouton sans les champs d'accès (migration 20261112 absente : la
+// route répondrait 503), ni pour un accès ouvert. Action groupée « Ouvrir l'accès aux gestionnaires (n) », confirmée,
+// pour les seules fiches à ouvrir (POST …/gestionnaires/acces). Page profil : accès ouvert le …, demande d'effacement,
+// envoi refusé pour une adresse d'un autre espace.
+describe('accès des gestionnaires à leur suivi (PR 2)', () => {
+  const ACCES = { accesOuvertLe: null, connexionBloquee: false, effacementDemandeLe: null, compteRelie: false }
+  const marieSansCompte = { ...marie, ...ACCES }
+  const leaEnvoyee = { ...lea, ...ACCES, etat: 'acces_envoye' as const }
+  const paulOuvert = { ...fiche(G2, 'Paul Exemple', 'acces_ouvert'), ...ACCES, compteRelie: true, accesOuvertLe: '2026-11-03T09:00:00.000Z' }
+
+  it('liste : « Ouvrir l’accès à son suivi » (fiche sans compte), « Renvoyer l’accès » (en attente), rien pour un accès ouvert', async () => {
+    simulerFetch(() => json({ emailEnvoye: true }))
+    rendreListe([paulOuvert, marieSansCompte, leaEnvoyee])
+    expect(within(ligne('Paul Exemple')).queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+    expect(within(ligne('Paul Exemple')).queryByRole('button', { name: G.acces.renvoyer })).toBeNull()
+    expect(within(ligne('Paul Exemple')).getByText(ETAT.acces_ouvert)).toBeInTheDocument()
+    expect(within(ligne('Léa Exemple')).getByRole('button', { name: G.acces.renvoyer })).toBeInTheDocument()
+    fireEvent.click(within(ligne('Marie Exemple')).getByRole('button', { name: G.acces.ouvrir }))
+    await waitFor(() => expect(appels).toEqual([{ url: `/api/aj-signalement/gestionnaires/${G1}/acces`, methode: 'POST', corps: null }]))
+    expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+    expect(rappelsListe.onModifie).toHaveBeenCalled()
+  })
+
+  it('sans les champs d’accès (migration 20261112 absente) : aucun bouton d’accès, aucune action groupée', () => {
+    rendreListe([marie, lea])
+    expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Ouvrir l’accès aux gestionnaires/ })).toBeNull()
+  })
+
+  it('refus du serveur (409 deja_ouvert) : message, sans rechargement', async () => {
+    simulerFetch(() => json({ error: 'deja_ouvert' }, 409))
+    rendreListe([marieSansCompte])
+    fireEvent.click(within(ligne('Marie Exemple')).getByRole('button', { name: G.acces.ouvrir }))
+    expect(await screen.findByText(messageErreurTableauQr('deja_ouvert'))).toBeInTheDocument()
+    expect(rappelsListe.onModifie).not.toHaveBeenCalled()
+  })
+
+  it('action groupée : les fiches à ouvrir seulement, après confirmation ; bilan des envois et des échecs nommés', async () => {
+    const jean = { ...fiche('44444444-4444-4444-8444-444444444444', 'Jean Exemple', 'confirmation_envoyee'), ...ACCES }
+    simulerFetch(() => json({ envoyes: 1, echecs: [{ id: jean.id, code: 'adresse_contestee' }] }))
+    rendreListe([paulOuvert, marieSansCompte, leaEnvoyee, jean])
+    fireEvent.click(screen.getByRole('button', { name: remplir(G.acces.groupe, { n: 2 }) }))
+    expect(appels).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: remplir(G.acces.confirmerGroupe, { n: 2 }) }))
+    await waitFor(() => expect(appels).toEqual([{ url: '/api/aj-signalement/gestionnaires/acces', methode: 'POST', corps: { gestionnaireIds: [G1, jean.id] } }]))
+    expect(await screen.findByText(remplir(G.acces.groupeEnvoye, { n: 1 }))).toBeInTheDocument()
+    expect(screen.getByText(remplir(G.acces.groupeEchecs, { noms: 'Jean Exemple' }))).toBeInTheDocument()
+    expect(rappelsListe.onModifie).toHaveBeenCalled()
+  })
+
+  it('demande d’effacement : badge daté, dans la liste comme sur la page profil', async () => {
+    const demande = { ...marieSansCompte, etat: 'effacement_demande' as const, compteRelie: true, effacementDemandeLe: '2026-11-09T09:00:00.000Z' }
+    rendreListe([demande])
+    expect(within(ligne('Marie Exemple')).getByText(remplir(G.acces.effacementDemandeLe, { date: '9 novembre 2026' }))).toBeInTheDocument()
+    expect(within(ligne('Marie Exemple')).queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+  })
+
+  it('page profil : accès ouvert le …, aucun bouton ; envoi refusé pour une adresse d’un autre espace', async () => {
+    const f = detail({ ...paulOuvert })
+    f.envois = [...f.envois, { objet: 'acces', creeLe: '2026-11-02T09:00:00.000Z', envoyeLe: '2026-11-02T09:00:05.000Z', accepteLe: null, refus: 'compte_autre_espace' }]
+    await rendreFiche(f)
+    expect(screen.getByText(remplir(G.acces.ouvertLe, { date: '3 novembre 2026' }))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+    expect(screen.queryByRole('button', { name: G.acces.renvoyer })).toBeNull()
+    const envois = screen.getByRole('heading', { name: G.fiche.envois }).closest('section') as HTMLElement
+    expect(within(envois).getByText(G.fiche.objets.acces)).toBeInTheDocument()
+    expect(envois).toHaveTextContent(G.acces.envoiRefuseAutreEspace)
+  })
+
+  it('page profil : « Ouvrir l’accès à son suivi », puis « Renvoyer l’accès » une fois un envoi fait', async () => {
+    await rendreFiche(detail({ ...marieSansCompte }))
+    const routeur = routeurFiche({ fiche: detail({ ...marieSansCompte }) })
+    simulerFetch((a) => (a.url.endsWith('/acces') ? json({ emailEnvoye: true }) : routeur(a)))
+    fireEvent.click(screen.getByRole('button', { name: G.acces.ouvrir }))
+    await waitFor(() => expect(appels.some((a) => a.url === `/api/aj-signalement/gestionnaires/${G1}/acces` && a.methode === 'POST')).toBe(true))
+    expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+    expect(rappelsFiche.onModifie).toHaveBeenCalled()
+  })
+
+  it('page profil : un envoi « acces » expiré déjà fait → « Renvoyer l’accès »', async () => {
+    const avecEnvoi = detail({ ...marieSansCompte })
+    avecEnvoi.envois = [...avecEnvoi.envois, { objet: 'acces', creeLe: '2026-10-01T09:00:00.000Z', envoyeLe: '2026-10-01T09:00:05.000Z', accepteLe: null, refus: null }]
+    await rendreFiche(avecEnvoi)
+    expect(screen.getByRole('button', { name: G.acces.renvoyer })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+  })
+})

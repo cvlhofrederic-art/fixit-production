@@ -1199,6 +1199,34 @@ export async function cabinetDeCoproprieteQr(coproprieteId: string): Promise<str
   return typeof id === 'string' ? id : null
 }
 
+/**
+ * PR 2, lot 5 (RG-25) : identifiant du chemin du cabinet d'une copropriété, pour le bouton « Ouvrir le suivi » de
+ * l'e-mail d'un dépôt. Lu par la route de dépôt SEULEMENT si un destinataire a l'accès ouvert. Ne lève jamais : sans
+ * cabinet, structure absente (colonne cabinet_id 42703, table des cabinets PGRST205 / 42P01 : repli journalisé une fois),
+ * autre erreur (code seul au journal) ou identifiant non valable → null, et l'e-mail part avec la phrase de la PR 1.
+ */
+export async function identifiantCabinetDuSuiviQr(coproprieteId: string): Promise<string | null> {
+  const operation = 'cabinet du lien de suivi'
+  const repli = (erreur: ErreurBase): null => {
+    if (structureAbsenteQr(erreur)) journaliserRepliGestionQr(operation, erreur)
+    else logger.warn(`${CONTEXTE} ${operation} non lu`, { code: erreur.code, copropriete: coproprieteId })
+    return null
+  }
+  try {
+    const copro = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('cabinet_id').eq('id', coproprieteId).maybeSingle()
+    if (copro.error) return repli(copro.error)
+    const cabinetId = (copro.data as { cabinet_id?: unknown } | null)?.cabinet_id
+    if (typeof cabinetId !== 'string') return null
+    const cabinet = await lireCabinetQr({ id: cabinetId })
+    if (!cabinet.ok) return repli(cabinet.erreur)
+    const identifiant = cabinet.cabinet?.identifiant
+    return typeof identifiant === 'string' && validerIdentifiantCabinetQr(identifiant).ok ? identifiant : null
+  } catch (e: unknown) {
+    logger.warn(`${CONTEXTE} ${operation} non lu (exception)`, { message: e instanceof Error ? e.name : 'inconnue', copropriete: coproprieteId })
+    return null
+  }
+}
+
 // ── Écritures d'un dépôt (avec repli tant que les migrations du 06/11/2026 manquent) ──
 
 const sansColonnesNouvelles = (ligne: Record<string, unknown>): Record<string, unknown> =>

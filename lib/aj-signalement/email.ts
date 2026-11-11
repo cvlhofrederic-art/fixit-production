@@ -15,6 +15,8 @@
 //   - confirmation d'adresse d'un gestionnaire (nom court, nom du cabinet, lien du chemin client) et alertes au super
 //     admin (adresse contestée, limite d'envoi), sans nom ni adresse de personne. Tout passe par sendBatchEmails :
 //     sendEmail écrit l'erreur brute du service dans la console (lib/email.ts).
+// PR 2, lot 5 (RG-25) : un gestionnaire à l'accès ouvert reçoit le bouton « Ouvrir le suivi » (espace de son cabinet,
+// /<identifiant>/suivi/#signalements, aucun jeton) au lieu de la phrase « Le cabinet suit ce signalement… ».
 
 import { sendBatchEmails, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -48,9 +50,15 @@ export interface ParametresEmailQr {
   destinataire?: TypeDestinataireQr
   /** Signalements retenus pendant la limite d'envoi (budget d'e-mails), sans leur contenu ; null : aucun. */
   mention?: string | null
+  /**
+   * PR 2, lot 5 (RG-25) : espace du cabinet de la copropriété (urlSuiviCabinetQr, aucun jeton), bouton « Ouvrir le
+   * suivi » d'un GESTIONNAIRE à l'accès ouvert. envoyerEmailsSignalementQr ne le passe qu'à ceux-là ; absent : la phrase
+   * de la PR 1.
+   */
+  lienSuivi?: string | null
 }
 
-/** Phrase de pied du message selon le destinataire (PR 1 : un gestionnaire n'a pas encore accès à l'espace). */
+/** Phrase de pied du message d'un gestionnaire sans accès ouvert à l'espace de son cabinet (PR 1). */
 const SUIVI_PAR_CABINET_QR = 'Le cabinet suit ce signalement dans AJ Signalement.'
 
 function ligne(libelle: string, valeurHtml: string): string {
@@ -61,7 +69,7 @@ function ligne(libelle: string, valeurHtml: string): string {
 }
 
 export function templateSignalementQr({
-  copropriete, signalement: s, origine = 'https://vitfix.io', destinataire = 'administrateur', mention = null,
+  copropriete, signalement: s, origine = 'https://vitfix.io', destinataire = 'administrateur', mention = null, lienSuivi = null,
 }: ParametresEmailQr): { subject: string; html: string } {
   const e = echapperHtml
   const telephoneLien = s.telephone.replace(/[\s.()-]/g, '')
@@ -85,13 +93,18 @@ export function templateSignalementQr({
     ligne('Numéro', e(numeroSignalementQr(s.id))),
   ].join('')
   const urlTableau = `${origine.replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
-  // Bouton de l'espace : l'administrateur seul (un gestionnaire n'y a pas encore accès, une adresse saisie jamais).
-  const bouton = destinataire === 'administrateur'
-    ? `<p style="margin:16px 0 0;">
-            <a href="${e(urlTableau)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir le tableau des signalements</a>
+  const boutonVers = (url: string, libelle: string) => `<p style="margin:16px 0 0;">
+            <a href="${e(url)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">${libelle}</a>
           </p>`
+  // Bouton de l'espace global : l'administrateur seul. Gestionnaire à l'accès ouvert (PR 2) : l'espace de son cabinet,
+  // sans jeton ; gestionnaire sans accès : la phrase de la PR 1 ; adresse saisie : rien.
+  const suiviGestionnaire = destinataire === 'gestionnaire' && lienSuivi ? lienSuivi : null
+  let bouton = ''
+  if (destinataire === 'administrateur') bouton = boutonVers(urlTableau, 'Ouvrir le tableau des signalements')
+  else if (suiviGestionnaire) bouton = boutonVers(suiviGestionnaire, 'Ouvrir le suivi')
+  const suivi = destinataire === 'gestionnaire' && !suiviGestionnaire
+    ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${SUIVI_PAR_CABINET_QR}</p>`
     : ''
-  const suivi = destinataire === 'gestionnaire' ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${SUIVI_PAR_CABINET_QR}</p>` : ''
   const rappel = mention
     ? `<p style="margin:0 0 16px;padding:10px 14px;background:#F7F4EE;border-radius:10px;color:#0D1B2E;font-size:14px;">${e(mention)}</p>`
     : ''
@@ -197,7 +210,9 @@ export async function envoyerEmailsSignalementQr(
   p: Omit<ParametresEmailQr, 'destinataire'> & { destinataires: readonly DestinataireQr[] },
 ): Promise<BilanEnvoiQr> {
   const messages: EmailPayload[] = p.destinataires.map((d) => {
-    const { subject, html } = templateSignalementQr({ ...p, destinataire: d.type })
+    // RG-25 : le lien de suivi n'est donné qu'à un gestionnaire dont l'accès est ouvert (compte relié, non bloqué).
+    const lienSuivi = d.type === 'gestionnaire' && d.accesOuvert ? p.lienSuivi ?? null : null
+    const { subject, html } = templateSignalementQr({ ...p, destinataire: d.type, lienSuivi })
     return { to: d.email, subject, html, replyTo: p.signalement.email, tags: [{ name: 'type', value: 'aj-signalement' }] }
   })
   return envoyerParLotQr(messages)

@@ -8,6 +8,8 @@
 //     gestionnaire (vitfix.io/<identifiant>/confirmation-adresse/#<jeton>) : le jeton part dans le CORPS, jamais dans
 //     l'adresse ; lireLienAccesQr, accepterAccesQr, contesterAccesQr : page publique d'ouverture de son accès
 //     (vitfix.io/<identifiant>/invitation/#<jeton>, PR 2), même règle ;
+//   - chargerMoiQr, creerCoproprieteGestionnaireQr, modifierCoproprieteGestionnaireQr (PR 2, lot 5) : espace d'un cabinet
+//     (vitfix.io/<identifiant>/suivi/), gestionnaire connecté ; refus 403 lus depuis le corps (CODES_REFUS_QR) ;
 //   - les autres : espace AJ Signalement (/fr/aj-signalement/, super admin). Le jeton Bearer est ajouté quand il est
 //     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace. Dont
 //     verifierImportQr / creerImportQr (import d'un fichier, lot 5) : seules les lignes normalisées partent, jamais le
@@ -18,7 +20,7 @@
 import {
   NUMERO_QR, estStatutOuvertQr, gestionCoproprieteQrVide,
   type ActionImportQr, type CabinetQr, type CabinetResumeQr, type ChampImportQr, type CoproprieteQr, type DiagnosticLigneImportQr,
-  type DoublonRenduQr, type EtatLigneImportQr, type EvenementJournalQr, type FicheGestionnaireDetailQr,
+  type DoublonRenduGestionnaireQr, type DoublonRenduQr, type EtatLigneImportQr, type EvenementJournalQr, type FicheGestionnaireDetailQr,
   type FiltreJournalQr, type GestionnaireInconnuImportQr, type GestionnaireQr, type GestionnaireResumeQr, type LangueSignalementQr,
   type MessageImportQr, type ResultatImportQr, type SaisieCabinetQr, type SaisieImportQr,
   type SaisieCoproprieteQr, type SaisieGestionCoproprieteQr, type SaisieGestionnaireQr, type SaisieSignalementQr, type SignalementQr,
@@ -39,13 +41,20 @@ export const CODES_METIER_QR = [
 export type CodeMetierQr = (typeof CODES_METIER_QR)[number]
 
 /**
+ * PR 2, lot 5 : refus 403 d'un gestionnaire connecté, lus depuis le corps (sinon « interdit ») : accès retiré (fiche
+ * désactivée, bloquée ou absente : relue à chaque appel), copropriété visible mais en lecture seule pour lui.
+ */
+export const CODES_REFUS_QR = ['acces_retire', 'lecture_seule'] as const
+export type CodeRefusQr = (typeof CODES_REFUS_QR)[number]
+
+/**
  * Codes d'échec : invalide (4xx), introuvable (404 : QR code inconnu ou désactivé), trop_de_demandes (429),
  * non_authentifie (401), interdit (403 : pas super admin), base_absente (503 : migration non appliquée),
  * serveur (5xx), reseau ; et les codes métier des 409 / 410 (CODES_METIER_QR).
  */
 export type CodeErreurQr =
   | 'invalide' | 'introuvable' | 'trop_de_demandes' | 'non_authentifie' | 'interdit' | 'base_absente' | 'serveur' | 'reseau'
-  | CodeMetierQr
+  | CodeMetierQr | CodeRefusQr
 
 /** Échec d'un appel : le code, et pour certains refus ce que l'écran en montre. */
 export interface EchecQr {
@@ -53,6 +62,11 @@ export interface EchecQr {
   code: CodeErreurQr
   /** 409 doublon : la copropriété semblable. */
   doublon?: DoublonRenduQr
+  /**
+   * 409 doublon refusé à un gestionnaire (PR 2) : certitude et critère, et la copropriété existante seulement si elle
+   * est dans sa portée (sinon elle n'est jamais nommée).
+   */
+  doublonCabinet?: DoublonRenduGestionnaireQr
   /** 409 existe_deja : la fiche qui porte déjà cette adresse. */
   id?: string
   /** 409 a_reverifier d'un import : les diagnostics à jour (l'existant a changé depuis la vérification). */
@@ -72,6 +86,7 @@ export type ResultatSimpleQr = { ok: true } | EchecQr
 type Fetch = typeof fetch
 
 const estCodeMetier = (v: unknown): v is CodeMetierQr => typeof v === 'string' && (CODES_METIER_QR as readonly string[]).includes(v)
+const estCodeRefus = (v: unknown): v is CodeRefusQr => typeof v === 'string' && (CODES_REFUS_QR as readonly string[]).includes(v)
 
 /** Code d'échec d'une réponse HTTP, d'après son statut et son champ `error`. */
 export function codeDepuisReponseQr(status: number, corps: unknown): CodeErreurQr {
@@ -80,7 +95,7 @@ export function codeDepuisReponseQr(status: number, corps: unknown): CodeErreurQ
   if ((status === 409 || status === 410) && estCodeMetier(erreur)) return erreur
   if (status === 410) return 'expire'
   if (status === 401) return 'non_authentifie'
-  if (status === 403) return 'interdit'
+  if (status === 403) return estCodeRefus(erreur) ? erreur : 'interdit'
   if (status === 404) return 'introuvable'
   if (status === 429) return 'trop_de_demandes'
   if (status >= 400 && status < 500) return 'invalide'
@@ -106,6 +121,15 @@ function doublonDepuisCorps(v: unknown): DoublonRenduQr | null {
   return { certitude: v.certitude, critere: v.critere as DoublonRenduQr['critere'], copropriete: { id: c.id, nom: chaine(c.nom), ville: chaine(c.ville) } }
 }
 
+/**
+ * Doublon d'une réponse 409 faite à un gestionnaire (PR 2), sans la copropriété existante (hors de sa portée, elle n'est
+ * jamais nommée) ; null si la forme est inconnue.
+ */
+function doublonSansCoproprieteDepuisCorps(v: unknown): DoublonRenduGestionnaireQr | null {
+  if (!estObjet(v) || (v.certitude !== 'certain' && v.certitude !== 'probable') || typeof v.critere !== 'string') return null
+  return { certitude: v.certitude, critere: v.critere as DoublonRenduGestionnaireQr['critere'] }
+}
+
 /** Échec d'une réponse : code, et compléments d'un 409 (doublon, fiche existante). */
 function echecDepuisReponse(status: number, corps: unknown): EchecQr {
   const code = codeDepuisReponseQr(status, corps)
@@ -113,6 +137,9 @@ function echecDepuisReponse(status: number, corps: unknown): EchecQr {
   if (code === 'doublon' && estObjet(corps)) {
     const doublon = doublonDepuisCorps(corps.doublon)
     if (doublon) echec.doublon = doublon
+    // Réponse à un gestionnaire, copropriété hors de sa portée : certitude et critère seuls.
+    const sansCopropriete = doublon ? null : doublonSansCoproprieteDepuisCorps(corps.doublon)
+    if (sansCopropriete) echec.doublonCabinet = sansCopropriete
   }
   if (code === 'existe_deja' && estObjet(corps) && typeof corps.id === 'string') echec.id = corps.id
   if (code === 'a_reverifier') {
@@ -326,15 +353,83 @@ export async function chargerSignalementsCoproprieteQr(
   return { ok: true, signalements: Array.isArray(c.signalements) ? (c.signalements as SignalementQr[]) : [], suite: suiteDepuisCorps(c.suite) }
 }
 
+/**
+ * Statut d'un signalement. `statutAttendu` (PR 2) : le statut affiché à l'écran ; changé entre-temps → 409
+ * conflit_statut (exigé pour un gestionnaire, facultatif pour le super admin) ; absent : le corps d'avant.
+ */
 export async function changerStatutSignalementQr(
-  id: string, statut: StatutSignalementQr, jeton: string | null, fetchImpl: Fetch = fetch,
+  id: string, statut: StatutSignalementQr, jeton: string | null, fetchImpl: Fetch = fetch, statutAttendu?: StatutSignalementQr,
 ): Promise<ResultatStatutQr> {
   const r = await appeler(fetchImpl, `${URL_API_QR}/signalements/${segment(id)}`, {
-    method: 'PATCH', headers: entetes(jeton, true), body: JSON.stringify({ statut }),
+    method: 'PATCH', headers: entetes(jeton, true), body: JSON.stringify(statutAttendu ? { statut, statutAttendu } : { statut }),
   })
   if (!r.ok) return r
   const s = (r.corps as { signalement?: { statut?: unknown; misAJourLe?: unknown } } | null)?.signalement
   return { ok: true, statut: (chaine(s?.statut) || statut) as StatutSignalementQr, misAJourLe: chaine(s?.misAJourLe) }
+}
+
+// ── Espace d'un cabinet : gestionnaire connecté (PR 2, lot 5) ─────────────────
+
+/** Profil de la session (GET /moi) : jamais d'identifiant ; le cabinet et ses domaines viennent de la FICHE. */
+export type MoiQr =
+  | { profil: 'super_admin' }
+  | { profil: 'gestionnaire'; nom: string | null; cabinet: { identifiant: string; nom: string; domaines: string[] } }
+export type ResultatMoiQr = { ok: true; moi: MoiQr } | EchecQr
+
+/** Profil de la session et cabinet de sa fiche (domaines des adresses qu'il peut ajouter aux destinataires). */
+export async function chargerMoiQr(fetchImpl: Fetch = fetch): Promise<ResultatMoiQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/moi`, 'GET')
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : {}
+  if (c.profil === 'super_admin') return { ok: true, moi: { profil: 'super_admin' } }
+  if (c.profil !== 'gestionnaire' || !estObjet(c.cabinet) || typeof c.cabinet.identifiant !== 'string') return { ok: false, code: 'serveur' }
+  const domaines = Array.isArray(c.cabinet.domaines) ? c.cabinet.domaines.filter((d): d is string => typeof d === 'string') : []
+  return {
+    ok: true,
+    moi: { profil: 'gestionnaire', nom: typeof c.nom === 'string' ? c.nom : null, cabinet: { identifiant: c.cabinet.identifiant, nom: chaine(c.cabinet.nom), domaines } },
+  }
+}
+
+/**
+ * Saisie d'une copropriété par un gestionnaire (coproprieteGestionnaireQrSchema, strict) : jamais de cabinet, de
+ * gestionnaires, de « à tous » ni de forçage ; le cabinet et l'attribution viennent de sa fiche, côté serveur.
+ */
+export interface SaisieCoproprieteGestionnaireQr {
+  /** Tiré à l'ouverture de la fenêtre : un double clic ou un renvoi ne crée pas deux copropriétés. */
+  operationId: string
+  nom: string
+  adresse: string
+  codePostal: string
+  ville: string
+  immatriculation?: string
+  referenceCabinet?: string
+  batiments?: string[]
+  emailsDestinataires?: string[]
+  confirmerDoublonProbable?: boolean
+}
+
+/** Modification par un gestionnaire (modificationCoproprieteGestionnaireQrSchema) : les seuls champs changés. */
+export type ModificationCoproprieteGestionnaireQr = Partial<Omit<SaisieCoproprieteGestionnaireQr, 'operationId'>>
+
+/** Échec rendu à l'écran d'un gestionnaire : un doublon est toujours dans doublonCabinet (copropriété dans sa portée ou non). */
+function echecGestionnaire(echec: EchecQr): EchecQr {
+  if (echec.code !== 'doublon' || !echec.doublon) return echec
+  const { doublon, ...reste } = echec
+  return { ...reste, doublonCabinet: { certitude: doublon.certitude, critere: doublon.critere, copropriete: doublon.copropriete } }
+}
+
+/** Création par un gestionnaire : la copropriété lui est attribuée d'office, avec son QR code (réponse minimisée). */
+export async function creerCoproprieteGestionnaireQr(saisie: SaisieCoproprieteGestionnaireQr, fetchImpl: Fetch = fetch): Promise<ResultatCoproprieteQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes`, 'POST', saisie)
+  return r.ok ? coproprieteDepuisCorps(r.corps) : echecGestionnaire(r)
+}
+
+/** Modification par un gestionnaire d'une copropriété qui lui est attribuée (403 lecture_seule sinon). */
+export async function modifierCoproprieteGestionnaireQr(
+  id: string, modification: ModificationCoproprieteGestionnaireQr, fetchImpl: Fetch = fetch,
+): Promise<ResultatCoproprieteQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/${segment(id)}`, 'PATCH', modification)
+  return r.ok ? coproprieteDepuisCorps(r.corps) : echecGestionnaire(r)
 }
 
 // ── Gestionnaires (fiches du super admin) ────────────────────────────────────

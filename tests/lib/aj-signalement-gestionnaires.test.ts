@@ -180,3 +180,68 @@ describe('etatGestionnaireQr', () => {
     expect(sql).toMatch(/CHECK \(refus IS NULL OR refus IN \('compte_autre_espace', 'pas_moi'\)\)/)
   })
 })
+
+// ── PR 2, lot 5 : états d'accès d'une fiche (migration 20261112) ─────────────────────────────────────────────────
+// Les 4 états réservés à la PR 2 ne sont calculés que si la fiche porte ses champs d'accès (lus à part par le serveur,
+// absents tant que la 20261112 manque : l'état est alors exactement celui de la PR 1). Désactivée et contestée restent
+// en tête ; puis la demande d'effacement (fiche encore active) ; l'accès ouvert (compte relié) ; enfin le dernier envoi
+// « acces » : refusé pour un compte d'un autre espace, ou parti il y a moins de 7 jours et en attente. Un envoi
+// expiré, jamais parti ou accepté sans liaison rend l'état de la PR 1 (accès à renvoyer).
+describe('etatGestionnaireQr : états de l’accès (PR 2)', () => {
+  const MAINTENANT = new Date('2026-11-10T12:00:00.000Z')
+  const JOUR = 86_400_000
+  const ilYa = (ms: number) => new Date(MAINTENANT.getTime() - ms).toISOString()
+  const SANS_ACCES = { accesOuvertLe: null, compteRelie: false, effacementDemandeLe: null }
+  const fiche = (champs: Partial<FicheEtatGestionnaireQr> = {}): FicheEtatGestionnaireQr => ({
+    actif: true, adresseConfirmeeLe: ilYa(5 * JOUR), adresseContesteeLe: null, acces: { ...SANS_ACCES }, ...champs,
+  })
+  const acces = (champs: Partial<EnvoiGestionnaireQr> = {}): EnvoiGestionnaireQr => ({
+    objet: 'acces', creeLe: ilYa(JOUR), envoyeLe: ilYa(JOUR), accepteLe: null, refus: null, ...champs,
+  })
+
+  it('sans champs d’accès (migration 20261112 absente) : l’état de la PR 1, même avec un envoi « acces »', () => {
+    expect(etatGestionnaireQr(fiche({ acces: undefined }), [acces()], MAINTENANT)).toBe('adresse_confirmee')
+  })
+
+  it('accès envoyé il y a moins de 7 jours, en attente : « acces_envoye » (adresse confirmée ou non)', () => {
+    expect(etatGestionnaireQr(fiche(), [acces()], MAINTENANT)).toBe('acces_envoye')
+    expect(etatGestionnaireQr(fiche({ adresseConfirmeeLe: null }), [acces()], MAINTENANT)).toBe('acces_envoye')
+  })
+
+  it('accès expiré, jamais parti ou accepté sans liaison : l’état de la PR 1 (à renvoyer)', () => {
+    expect(etatGestionnaireQr(fiche(), [acces({ creeLe: ilYa(8 * JOUR) })], MAINTENANT)).toBe('adresse_confirmee')
+    expect(etatGestionnaireQr(fiche(), [acces({ envoyeLe: null })], MAINTENANT)).toBe('adresse_confirmee')
+    expect(etatGestionnaireQr(fiche(), [acces({ accepteLe: ilYa(1000) })], MAINTENANT)).toBe('adresse_confirmee')
+  })
+
+  it('le DERNIER envoi « acces » fait foi : un nouvel envoi après un refus « autre espace » est « acces_envoye »', () => {
+    const refuse = acces({ creeLe: ilYa(3 * JOUR), refus: 'compte_autre_espace' })
+    expect(etatGestionnaireQr(fiche(), [refuse], MAINTENANT)).toBe('refus_autre_espace')
+    expect(etatGestionnaireQr(fiche(), [refuse, acces({ creeLe: ilYa(1000) })], MAINTENANT)).toBe('acces_envoye')
+    expect(etatGestionnaireQr(fiche(), [acces({ creeLe: ilYa(1000) }), refuse], MAINTENANT)).toBe('acces_envoye')
+  })
+
+  it('compte relié et accès ouvert : « acces_ouvert », quels que soient les envois', () => {
+    const ouvert = { accesOuvertLe: ilYa(2 * JOUR), compteRelie: true, effacementDemandeLe: null }
+    expect(etatGestionnaireQr(fiche({ acces: ouvert }), [acces({ accepteLe: ilYa(2 * JOUR) })], MAINTENANT)).toBe('acces_ouvert')
+    expect(etatGestionnaireQr(fiche({ acces: ouvert }), [], MAINTENANT)).toBe('acces_ouvert')
+    // Compte effacé (FK ON DELETE SET NULL) : plus d'accès ouvert.
+    expect(etatGestionnaireQr(fiche({ acces: { ...ouvert, compteRelie: false } }), [], MAINTENANT)).toBe('adresse_confirmee')
+  })
+
+  it('demande d’effacement d’une fiche active : « effacement_demande », avant l’accès ouvert', () => {
+    const demande = { accesOuvertLe: ilYa(2 * JOUR), compteRelie: true, effacementDemandeLe: ilYa(1000) }
+    expect(etatGestionnaireQr(fiche({ acces: demande }), [], MAINTENANT)).toBe('effacement_demande')
+  })
+
+  it('désactivée puis contestée restent en tête (départ : les boutons Réactiver et Effacer restent servis)', () => {
+    const demande = { accesOuvertLe: ilYa(2 * JOUR), compteRelie: true, effacementDemandeLe: ilYa(1000) }
+    expect(etatGestionnaireQr(fiche({ actif: false, acces: demande }), [acces()], MAINTENANT)).toBe('desactive')
+    expect(etatGestionnaireQr(fiche({ adresseContesteeLe: ilYa(1000), acces: demande }), [acces()], MAINTENANT)).toBe('adresse_contestee')
+    expect(etatGestionnaireQr(fiche(), [acces({ refus: 'pas_moi' })], MAINTENANT)).toBe('adresse_contestee')
+  })
+
+  it('tous les états rendus sont dans ETATS_GESTIONNAIRE_QR', () => {
+    expect(ETATS_GESTIONNAIRE_QR.slice(5)).toEqual(['acces_envoye', 'acces_ouvert', 'refus_autre_espace', 'effacement_demande'])
+  })
+})

@@ -213,13 +213,18 @@ export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[
   const liste = fiches.map((f): GestionnaireQr => {
     const visibles = [...(portees.get(f.id)?.visibles ?? [])]
     const cabinet: CabinetResumeQr = cabinetsPar.get(f.cabinet_id) ?? { id: f.cabinet_id, nom: '', identifiant: '' }
+    // PR 2, lot 5 : états d'accès seulement avec la 20261112 (sinon l'état de la PR 1, exactement).
+    const acces = accesPar ? champsAccesQr(accesPar.get(f.id)) : null
     return {
       id: f.id,
       nom: f.nom ?? null,
       cabinet,
       email: f.email ?? null,
       etat: etatGestionnaireQr(
-        { actif: f.actif === true, adresseConfirmeeLe: f.adresse_confirmee_le ?? null, adresseContesteeLe: f.adresse_contestee_le ?? null },
+        {
+          actif: f.actif === true, adresseConfirmeeLe: f.adresse_confirmee_le ?? null, adresseContesteeLe: f.adresse_contestee_le ?? null,
+          ...(acces ? { acces: { accesOuvertLe: acces.accesOuvertLe ?? null, compteRelie: acces.compteRelie === true, effacementDemandeLe: acces.effacementDemandeLe ?? null } } : {}),
+        },
         envoisPar.get(f.id) ?? [], maintenant,
       ),
       domaineForce: f.domaine_force === true,
@@ -229,7 +234,7 @@ export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[
       creeLe: chaine(f.created_at),
       confirmeeLe: f.adresse_confirmee_le ?? null,
       // Sans la migration 20261112 : aucun champ d'accès (réponse identique à la PR 1).
-      ...(accesPar ? champsAccesQr(accesPar.get(f.id)) : {}),
+      ...(acces ?? {}),
     }
   })
   const rang = (g: GestionnaireQr) => (g.etat === 'adresse_contestee' ? 0 : 1)

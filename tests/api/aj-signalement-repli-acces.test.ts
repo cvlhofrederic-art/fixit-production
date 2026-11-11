@@ -195,3 +195,36 @@ describe('avec les deux migrations : les champs d’accès sont rendus au super 
     expect(avertissementsAcces()).toEqual([])
   })
 })
+
+// ── PR 2, lot 5 : états d'accès calculés pour le super admin (etatGestionnaireQr étendu) ─────────────────────────
+// Avec la 20261112 : « Accès ouvert » (compte relié), « Accès envoyé » (envoi « acces » en attente), « Adresse déjà
+// utilisée par un autre espace » (refus), « Demande d'effacement ». Sans elle : l'état de la PR 1, même avec un envoi.
+describe('états d’accès des fiches (lot 5)', () => {
+  const envoiAcces = (gestionnaireId: string, sur: Record<string, unknown> = {}) => ({
+    id: `e-${gestionnaireId}`, gestionnaire_id: gestionnaireId, objet: 'acces', created_at: new Date(Date.now() - 3_600_000).toISOString(),
+    invite_sent_at: new Date(Date.now() - 3_600_000).toISOString(), accepted_at: null, refus: null, ...sur,
+  })
+  const etats = async () => {
+    const { gestionnaires } = await (await LISTE(requeteQr('/api/aj-signalement/gestionnaires'))).json()
+    return Object.fromEntries((gestionnaires as Array<{ id: string; etat: string }>).map((g) => [g.id, g.etat]))
+  }
+
+  it('avec les deux migrations : accès ouvert, accès envoyé, refus « autre espace », demande d’effacement', async () => {
+    const f2 = A.ficheSimuleeQr(A.G2)
+    f2.user_id = null
+    f2.acces_ouvert_le = null
+    const f3 = A.ficheSimuleeQr(A.G3)
+    f3.user_id = null
+    f3.acces_ouvert_le = null
+    baseQr.etat.tables.signalements_qr_invitations = [envoiAcces(A.G2), envoiAcces(A.G3, { refus: 'compte_autre_espace', invite_token: null })]
+    expect(await etats()).toEqual({ [A.G1]: 'acces_ouvert', [A.G2]: 'acces_envoye', [A.G3]: 'refus_autre_espace' })
+    A.ficheSimuleeQr(A.G1).effacement_demande_le = '2026-11-10T09:00:00+00:00'
+    expect((await etats())[A.G1]).toBe('effacement_demande')
+  })
+
+  it('sans la 20261112 : états de la PR 1 (adresse confirmée), même avec un envoi « acces » en attente', async () => {
+    baseQr.etat.tables.signalements_qr_invitations = [envoiAcces(A.G2)]
+    simulerProductionAvant1112Qr()
+    expect(new Set(Object.values(await etats()))).toEqual(new Set(['adresse_confirmee']))
+  })
+})

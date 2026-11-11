@@ -255,3 +255,83 @@ describe('accès des gestionnaires (PR 2, lot 3)', () => {
     expect(await lireLienAccesQr(TOKEN, 'cabinet-exemple', fetchImpl)).toEqual({ ok: false, code: 'reseau' })
   })
 })
+
+// ── PR 2, lot 5 : appels de l'espace d'un cabinet (gestionnaire connecté) ─────────────────────────────────────────────
+// GET /moi (profil et cabinet de la session) ; création et modification d'une copropriété avec les schémas stricts du
+// gestionnaire (operationId, champs obligatoires ; jamais cabinet, gestionnaires, « à tous », forçage) ; statut avec le
+// statut affiché (statutAttendu) ; refus 403 lus depuis le corps (acces_retire, lecture_seule) ; doublon d'un
+// gestionnaire : la copropriété existante n'est jointe que si elle est dans sa portée (sinon certitude et critère seuls).
+describe('espace d’un cabinet (PR 2, lot 5)', () => {
+  it('403 avec un code de refus connu : acces_retire, lecture_seule ; autre 403 : interdit', () => {
+    expect(codeDepuisReponseQr(403, { error: 'acces_retire' })).toBe('acces_retire')
+    expect(codeDepuisReponseQr(403, { error: 'lecture_seule' })).toBe('lecture_seule')
+    expect(codeDepuisReponseQr(403, { error: 'interdit' })).toBe('interdit')
+    expect(codeDepuisReponseQr(403, { error: 'autre_chose' })).toBe('interdit')
+    // Un code de refus n'est lu que d'un 403.
+    expect(codeDepuisReponseQr(409, { error: 'acces_retire' })).toBe('invalide')
+  })
+
+  it('GET /moi : gestionnaire (nom, cabinet, domaines triés tels quels) ; super admin ; 403 acces_retire ; réponse mal formée → serveur', async () => {
+    const { chargerMoiQr } = await import('@/lib/aj-signalement/api')
+    const g = simuler({ profil: 'gestionnaire', nom: 'Marie Exemple', cabinet: { identifiant: 'cabinet-exemple', nom: 'Cabinet Exemple', domaines: ['exemple.test', 3] } })
+    expect(await chargerMoiQr(g.fetchImpl)).toEqual({
+      ok: true, moi: { profil: 'gestionnaire', nom: 'Marie Exemple', cabinet: { identifiant: 'cabinet-exemple', nom: 'Cabinet Exemple', domaines: ['exemple.test'] } },
+    })
+    expect(g.appels[0].url).toBe('/api/aj-signalement/moi')
+    expect(g.appels[0].init?.method).toBe('GET')
+    expect(await chargerMoiQr(simuler({ profil: 'super_admin' }).fetchImpl)).toEqual({ ok: true, moi: { profil: 'super_admin' } })
+    expect(await chargerMoiQr(simuler({ error: 'acces_retire' }, 403).fetchImpl)).toEqual({ ok: false, code: 'acces_retire' })
+    expect(await chargerMoiQr(simuler({ error: 'base_absente' }, 503).fetchImpl)).toEqual({ ok: false, code: 'base_absente' })
+    expect(await chargerMoiQr(simuler({ profil: 'gestionnaire' }).fetchImpl)).toEqual({ ok: false, code: 'serveur' })
+  })
+
+  it('création par un gestionnaire : POST /coproprietes avec le corps du schéma gestionnaire, tel quel', async () => {
+    const { creerCoproprieteGestionnaireQr } = await import('@/lib/aj-signalement/api')
+    const s = simuler({ copropriete: { ...coproBrute, modifiable: true, creeeParVous: true, adressesMasquees: 0 } }, 201)
+    const saisie = {
+      operationId: 'f0000000-0000-4000-8000-000000000001', nom: 'Résidence Neuve', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille',
+      emailsDestinataires: ['conseil@exemple.test'],
+    }
+    const r = await creerCoproprieteGestionnaireQr(saisie, s.fetchImpl)
+    expect(r.ok && r.copropriete).toMatchObject({ id: C1, modifiable: true, creeeParVous: true, adressesMasquees: 0 })
+    expect(s.appels[0].url).toBe('/api/aj-signalement/coproprietes')
+    expect(s.appels[0].init?.method).toBe('POST')
+    expect(s.corps()).toEqual(saisie)
+  })
+
+  it('doublon refusé à un gestionnaire : hors portée, certitude et critère seuls ; dans sa portée, la copropriété', async () => {
+    const { creerCoproprieteGestionnaireQr } = await import('@/lib/aj-signalement/api')
+    const saisie = { operationId: 'f0000000-0000-4000-8000-000000000001', nom: 'X', adresse: 'Y', codePostal: '13002', ville: 'Z' }
+    expect(await creerCoproprieteGestionnaireQr(saisie, simuler({ error: 'doublon', doublon: { certitude: 'certain', critere: 'nom_code_postal' } }, 409).fetchImpl))
+      .toEqual({ ok: false, code: 'doublon', doublonCabinet: { certitude: 'certain', critere: 'nom_code_postal' } })
+    const dansPortee = { certitude: 'probable', critere: 'nom', copropriete: { id: C1, nom: 'Résidence Une', ville: 'Marseille' } }
+    const r = await creerCoproprieteGestionnaireQr(saisie, simuler({ error: 'doublon', doublon: dansPortee }, 409).fetchImpl)
+    expect(r).toEqual({ ok: false, code: 'doublon', doublonCabinet: dansPortee })
+    // Forme inconnue : aucun complément.
+    expect(await creerCoproprieteGestionnaireQr(saisie, simuler({ error: 'doublon', doublon: { certitude: 'peut-etre' } }, 409).fetchImpl))
+      .toEqual({ ok: false, code: 'doublon' })
+  })
+
+  it('modification par un gestionnaire : PATCH /coproprietes/<id> avec les seuls champs changés ; 403 lecture_seule', async () => {
+    const { modifierCoproprieteGestionnaireQr } = await import('@/lib/aj-signalement/api')
+    const s = simuler({ copropriete: coproBrute })
+    expect((await modifierCoproprieteGestionnaireQr(C1, { ville: 'Aubagne' }, s.fetchImpl)).ok).toBe(true)
+    expect(s.appels[0].url).toBe(`/api/aj-signalement/coproprietes/${C1}`)
+    expect(s.appels[0].init?.method).toBe('PATCH')
+    expect(s.corps()).toEqual({ ville: 'Aubagne' })
+    expect(await modifierCoproprieteGestionnaireQr(C1, { ville: 'Aubagne' }, simuler({ error: 'lecture_seule' }, 403).fetchImpl))
+      .toEqual({ ok: false, code: 'lecture_seule' })
+  })
+
+  it('statut : le statut affiché part avec la demande (statutAttendu) ; sans lui, le corps d’avant', async () => {
+    const { changerStatutSignalementQr } = await import('@/lib/aj-signalement/api')
+    const avec = simuler({ signalement: { statut: 'acceptee', misAJourLe: '2026-11-10T10:00:00Z' } })
+    expect(await changerStatutSignalementQr('s1', 'acceptee', null, avec.fetchImpl, 'en_attente')).toEqual({ ok: true, statut: 'acceptee', misAJourLe: '2026-11-10T10:00:00Z' })
+    expect(avec.corps()).toEqual({ statut: 'acceptee', statutAttendu: 'en_attente' })
+    const sans = simuler({ signalement: { statut: 'acceptee', misAJourLe: '' } })
+    await changerStatutSignalementQr('s1', 'acceptee', null, sans.fetchImpl)
+    expect(sans.corps()).toEqual({ statut: 'acceptee' })
+    expect(await changerStatutSignalementQr('s1', 'acceptee', null, simuler({ error: 'conflit_statut' }, 409).fetchImpl, 'en_attente'))
+      .toEqual({ ok: false, code: 'conflit_statut' })
+  })
+})

@@ -67,6 +67,8 @@ function reponseSimulee(url: string): unknown {
   if (url.startsWith('/api/aj-signalement/gestionnaires?')) return { gestionnaires: [marie] }
   if (url === `/api/aj-signalement/gestionnaires/${GESTIONNAIRE_ID}`) return { gestionnaire: marie, envois: [], attributions: [], creations: [], journal: [] }
   if (url.startsWith('/api/aj-signalement/journal')) return { evenements: [], suite: null }
+  // PR 2, lot 5 : profil d'un gestionnaire connecté (espace d'un cabinet seulement ; le super admin ne l'appelle pas).
+  if (url === '/api/aj-signalement/moi') return { profil: 'gestionnaire', nom: 'Marie Exemple', cabinet: { identifiant: 'cabinet-exemple', nom: 'Cabinet Exemple', domaines: ['exemple.test'] } }
   return {}
 }
 
@@ -409,8 +411,8 @@ describe('espace d’un cabinet : garde et coquille du gestionnaire', () => {
     fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Copropriétés' }))
     expect(await screen.findByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
     await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
-    // Aucune route du super admin (cabinets, fiches des gestionnaires) : 403 pour un gestionnaire.
-    expect(appelsFetch).toEqual(['/api/aj-signalement/tableau'])
+    // Aucune route du super admin (cabinets, fiches des gestionnaires) : 403 pour un gestionnaire. Lot 5 : son profil (/moi) d'abord.
+    expect(appelsFetch).toEqual(['/api/aj-signalement/moi', '/api/aj-signalement/tableau'])
     expect(screen.queryByRole('button', { name: /Importer/ })).toBeNull()
   })
 
