@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
+// Seuls champs renvoyés au client : la réponse est publique et mise en cache.
+const CHAMPS_PUBLICS = [
+  'id', 'user_id', 'company_name', 'first_name', 'last_name', 'email', 'phone',
+  'company_city', 'naf_code', 'naf_label', 'verified', 'kyc_status', 'categories',
+] as const
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const specialty = searchParams.get('specialty')
@@ -53,9 +59,11 @@ export async function GET(req: NextRequest) {
   )
 
   // 3. Fetch approved artisan profiles
+  // select('*') : le schéma de prod ne suit pas les migrations, et une colonne
+  // absente dans un select explicite fait échouer toute la requête PostgREST.
   let artisanQuery = supabaseAdmin
     .from('profiles_artisan')
-    .select('id, user_id, company_name, first_name, last_name, email, phone, company_city, naf_code, naf_label, verified, kyc_status, categories')
+    .select('*')
     .in('user_id', userIds)
     .eq('kyc_status', 'approved')
 
@@ -70,8 +78,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Search failed' }, { status: 500 })
   }
 
+  // Une colonne absente du schéma vaut null.
   const results = (artisans ?? []).map(a => ({
-    ...a,
+    ...Object.fromEntries(CHAMPS_PUBLICS.map(c => [c, a[c] ?? null])),
     verified_source: verifiedSourceMap[a.user_id] ?? 'self_declared',
     profile_type: 'artisan' as const,
   }))
