@@ -11,7 +11,9 @@
 // signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi » depuis un lien d'accès, fiche sans compte
 // relié, objet de l'envoi au journal), départ (signalements_qr_desactiver_gestionnaire, corps de la 20261111 corrigée)
 // qui retire des saisies l'adresse de la fiche ET ses variantes par la règle (contrôle 2, C1), effacement RGPD en une
-// transaction (signalements_qr_pseudonymiser_gestionnaire : variantes retirées AVANT que l'adresse ne disparaisse).
+// transaction (signalements_qr_pseudonymiser_gestionnaire : variantes retirées AVANT que l'adresse ne disparaisse),
+// retraits d'attribution (signalements_qr_remplacer_attributions, signalements_qr_attribuer_au_gestionnaire, corps de
+// la 20261111 corrigée) par la même règle (C3).
 // Aucune table nouvelle (les domaines sont en PR 1), aucune donnée, aucune valeur de client (dépôt public). Le texte
 // SQL est contrôlé ici ; l'essai PGlite (aj-pr2/pglite-essai, hors CI) le rejoue sur PostgreSQL 18.
 
@@ -62,6 +64,8 @@ const RPC: Record<string, string> = {
   signalements_qr_contester_adresse: 'uuid',
   signalements_qr_desactiver_gestionnaire: 'uuid, jsonb, uuid',
   signalements_qr_pseudonymiser_gestionnaire: 'uuid, uuid',
+  signalements_qr_remplacer_attributions: 'uuid, uuid[], boolean, uuid',
+  signalements_qr_attribuer_au_gestionnaire: 'uuid, uuid[], uuid',
   // La règle, appelée par les fonctions ci-dessus (SECURITY INVOKER : avec le droit de l'appelant, service_role).
   signalements_qr_adresse_de_fiche: 'text, text, text[]',
   signalements_qr_saisies_sans_fiche: 'text[], text, text[]',
@@ -70,6 +74,7 @@ const FONCTIONS_TRIGGER = ['signalements_qr_lier_gestionnaire']
 /** Fonctions de la 20261111 dont celle-ci remplace le corps (même signature), à partir de sa version corrigée. */
 const REDEFINIES_1111 = [
   'signalements_qr_emails_gestionnaires', 'signalements_qr_contester_adresse', 'signalements_qr_desactiver_gestionnaire',
+  'signalements_qr_remplacer_attributions', 'signalements_qr_attribuer_au_gestionnaire',
 ]
 const COLONNES = [
   ['user_id', 'UUID'], ['acces_ouvert_le', 'TIMESTAMPTZ'], ['connexion_bloquee_le', 'TIMESTAMPTZ'], ['effacement_demande_le', 'TIMESTAMPTZ'],
@@ -545,5 +550,48 @@ describe(`Migration ${FICHIER} : effacement RGPD (signalements_qr_pseudonymiser_
   it('ni envois ni ligne gestionnaire.pseudonymise ici : la route les écrit, comme en PR 1', () => {
     expect(corps()).not.toMatch(/signalements_qr_invitations/)
     expect(corps()).not.toMatch(/gestionnaire\.pseudonymise/)
+  })
+})
+
+// ── Contrôle 2, constat C3 : un retrait d'attribution (fiche de la copropriété, page profil du gestionnaire) ne
+// retirait des saisies que l'adresse EXACTE de la fiche ; ses variantes y restaient (destinataires « saisis »).
+
+const DOMAINES_CABINET_C3 = 'v_domaines := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab ORDER BY d.domaine);'
+
+describe(`Migration ${FICHIER} : retrait d’attribution (signalements_qr_remplacer_attributions, corps de la 20261111 corrigée)`, () => {
+  const nouvelle = () => fonction('signalements_qr_remplacer_attributions')
+  const ancienne = () => fonction('signalements_qr_remplacer_attributions', fonctionsDefinies(code1111))
+
+  it('même signature et même en-tête que la 20261111', () => {
+    expect(nouvelle().types).toBe(ancienne().types)
+    expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
+  })
+
+  it('corps de la 20261111 corrigée (verrous, borne de 1 000, journal) ; seul change le retrait des saisies d’une fiche qui perd la copropriété', () => {
+    const attendu = corpsAttendu('signalements_qr_remplacer_attributions', [
+      ['v_retirees int := 0; BEGIN', 'v_retirees int := 0; v_domaines text[]; BEGIN'],
+      ['FOR v_email IN SELECT g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP UPDATE signalements_qr_coproprietes SET emails_destinataires = array_remove(emails_destinataires, v_email) WHERE id = p_copropriete AND v_email = ANY (emails_destinataires);',
+        `${DOMAINES_CABINET_C3} FOR v_email IN SELECT g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines) WHERE c.id = p_copropriete AND ${variante('v_email')};`],
+    ])
+    expect(compacter(nouvelle().corps)).toBe(attendu)
+  })
+})
+
+describe(`Migration ${FICHIER} : retrait d’attribution (signalements_qr_attribuer_au_gestionnaire, corps de la 20261111 corrigée)`, () => {
+  const nouvelle = () => fonction('signalements_qr_attribuer_au_gestionnaire')
+  const ancienne = () => fonction('signalements_qr_attribuer_au_gestionnaire', fonctionsDefinies(code1111))
+
+  it('même signature et même en-tête que la 20261111', () => {
+    expect(nouvelle().types).toBe(ancienne().types)
+    expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
+  })
+
+  it('corps de la 20261111 corrigée (fiche puis copropriétés verrouillées, « à tous » épargné) ; seul change le retrait des saisies', () => {
+    const attendu = corpsAttendu('signalements_qr_attribuer_au_gestionnaire', [
+      ['v_retirees int := 0; BEGIN', 'v_retirees int := 0; v_domaines text[]; BEGIN'],
+      ['IF v_email IS NOT NULL AND cardinality(v_perdues) > 0 THEN FOR v_c IN UPDATE signalements_qr_coproprietes SET emails_destinataires = array_remove(emails_destinataires, v_email) WHERE id = ANY (v_perdues) AND NOT attribuee_a_tous AND v_email = ANY (emails_destinataires) RETURNING id LOOP',
+        `IF v_email IS NOT NULL AND cardinality(v_perdues) > 0 THEN ${DOMAINES_CABINET_C3} FOR v_c IN UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines) WHERE c.id = ANY (v_perdues) AND NOT c.attribuee_a_tous AND ${variante('v_email')} RETURNING c.id LOOP`],
+    ])
+    expect(compacter(nouvelle().corps)).toBe(attendu)
   })
 })
