@@ -19,7 +19,7 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement
 vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
-const { baseQr } = await import('../helpers/aj-signalement-base')
+const { baseQr, simulerProductionAvant1111Qr } = await import('../helpers/aj-signalement-base')
 const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
 const { POST } = await import('@/app/api/aj-signalement/coproprietes/route')
 const { PATCH, DELETE } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
@@ -217,6 +217,27 @@ describe('POST coproprietes (P1-R3)', () => {
     expect((await creer({ nom: 'Villa Exemple', cabinetId: CAB })).status).toBe(503)
   })
 
+  it.each(['42P01', 'PGRST205'] as const)(
+    'production avant la migration du 11/11 (tables %s, fonction PGRST202) : corps actuel créé à l’ancienne (201) ; cabinet demandé : 503',
+    async (code) => {
+      baseQr.etat.tables.signalements_qr_coproprietes = []
+      simulerProductionAvant1111Qr(baseQr, code)
+      const res = await creer({ nom: 'Villa Exemple', adresse: '2 rue Exemple', emailsDestinataires: ['cs@externe.test'] })
+      expect(res.status).toBe(201)
+      expect(baseQr.ecrituresDe('signalements_qr_coproprietes', 'insert')).toHaveLength(1)
+      expect((await res.json()).copropriete).toMatchObject({ nom: 'Villa Exemple', emailsDestinataires: ['cs@externe.test'], cabinet: null, gestionnaires: [] })
+      // Fiches des destinataires lues dans la table absente : la branche « table absente » est bien prise.
+      expect(baseQr.etat.tablesAbsentesLues).toContain('signalements_qr_gestionnaires')
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+
+      const avecCabinet = await creer({ nom: 'Villa Exemple Bis', cabinetId: CAB })
+      expect(avecCabinet.status).toBe(503)
+      expect(await avecCabinet.json()).toEqual({ error: 'base_absente' })
+      expect(baseQr.etat.tablesAbsentesLues).toContain('signalements_qr_cabinets')
+      expect(baseQr.ecrituresDe('signalements_qr_coproprietes', 'insert')).toHaveLength(1)
+    },
+  )
+
   it('le journal serveur ne reçoit ni nom ni adresse', async () => {
     baseQr.etat.fonctions.signalements_qr_creer_coproprietes = () => ({ error: { code: 'XX000', message: 'panne : Villa Exemple cs@externe.test' } })
     expect((await creer({ nom: 'Villa Exemple', emailsDestinataires: ['cs@externe.test'] })).status).toBe(500)
@@ -300,6 +321,21 @@ describe('PATCH coproprietes/[id] (P1-R4)', () => {
     const majs = baseQr.ecrituresDe('signalements_qr_coproprietes', 'update')
     expect(majs.at(-1)?.valeurs).toEqual({ nom: 'Résidence Exemple Bis' })
   })
+
+  it.each(['42P01', 'PGRST205'] as const)(
+    'production avant la migration du 11/11 (tables %s, colonnes PGRST204) : nom modifié à l’ancienne (200) ; code postal : 503',
+    async (code) => {
+      simulerProductionAvant1111Qr(baseQr, code)
+      const res = await modifier(COPRO, { nom: 'Résidence Exemple Bis', adresse: '5 rue Exemple' })
+      expect(res.status).toBe(200)
+      expect(baseQr.ecrituresDe('signalements_qr_coproprietes', 'update').at(-1)?.valeurs).toEqual({ nom: 'Résidence Exemple Bis', adresse: '5 rue Exemple' })
+      expect(baseQr.etat.tablesAbsentesLues).toContain('signalements_qr_journal')
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+      const codePostal = await modifier(COPRO, { codePostal: '13002' })
+      expect(codePostal.status).toBe(503)
+      expect(await codePostal.json()).toEqual({ error: 'base_absente' })
+    },
+  )
 
   it('copropriété inconnue ou identifiant mal formé : 404', async () => {
     expect((await modifier('c0000000-0000-4000-8000-00000000dead', { nom: 'X' })).status).toBe(404)

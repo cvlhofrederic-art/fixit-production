@@ -4,8 +4,11 @@
 // ou '*', { count, head }), eq / neq / in / is / not.is / lt / lte / gt / gte / contains / or (arbre and(…) simple),
 // order, limit, range, insert / update / delete suivis de select, single / maybeSingle ; rpc par fonctions simulées.
 // maxLignes : plafond de lignes par réponse de PostgREST (max-rows de Supabase, 1 000), coupé SANS erreur comme lui.
-// Une colonne déclarée absente donne 42703 en lecture et PGRST204 en écriture ; une table déclarée absente, 42P01 ;
-// une fonction non simulée, PGRST202 (migration non appliquée). Aucune donnée réelle : exemples en @exemple.test.
+// Une colonne déclarée absente donne 42703 en lecture et PGRST204 en écriture ; une table déclarée absente, 42P01 par
+// défaut, ou PGRST205 (« Could not find the table … in the schema cache ») avec etat.codeTableAbsente = 'PGRST205' :
+// c'est ce que répond la production (PostgREST 13) ; une fonction non simulée, PGRST202 (migration non appliquée).
+// etat.tablesAbsentesLues garde chaque table absente qu'une requête a nommée : preuve que la branche a été prise.
+// Aucune donnée réelle : exemples en @exemple.test.
 // À utiliser dans une fabrique vi.mock asynchrone :
 //   vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('../helpers/aj-signalement-base')).baseQr.client }))
 
@@ -92,10 +95,22 @@ const nouvelId = (): string => {
   return `d0000000-0000-4000-8000-${String(compteurIds).padStart(12, '0')}`
 }
 
+/** Code d'une table absente : 42P01 (PostgreSQL) ou PGRST205 (PostgREST 12 et suivants, dont la production). */
+export type CodeTableAbsente = '42P01' | 'PGRST205'
+
+/** Erreur rendue pour une table absente, au format de PostgreSQL (42P01) ou du cache de schéma de PostgREST (PGRST205). */
+export const erreurTableAbsente = (nomTable: string, code: CodeTableAbsente): ErreurSimulee => (code === 'PGRST205'
+  ? { code, message: `Could not find the table 'public.${nomTable}' in the schema cache` }
+  : { code, message: `relation "public.${nomTable}" does not exist` })
+
 export function creerBaseQr() {
   const etat = {
     tables: {} as Record<string, Ligne[]>,
     tablesAbsentes: [] as string[],
+    /** Code rendu pour une table de tablesAbsentes ; 'PGRST205' : comme la production (PostgREST 13). */
+    codeTableAbsente: '42P01' as CodeTableAbsente,
+    /** Tables absentes nommées par une requête, dans l'ordre (chaque requête refusée en ajoute une). */
+    tablesAbsentesLues: [] as string[],
     colonnesAbsentes: {} as Record<string, string[]>,
     /** Erreur forcée à la prochaine requête sur la table (puis effacée). */
     erreursPonctuelles: {} as Record<string, ErreurSimulee>,
@@ -133,7 +148,8 @@ export function creerBaseQr() {
         return { data: null, error: ponctuelle }
       }
       if (etat.tablesAbsentes.includes(nomTable)) {
-        return { data: null, error: { code: '42P01', message: `relation "public.${nomTable}" does not exist` } }
+        etat.tablesAbsentesLues.push(nomTable)
+        return { data: null, error: erreurTableAbsente(nomTable, etat.codeTableAbsente) }
       }
       const absentes = etat.colonnesAbsentes[nomTable] ?? []
       if (op === 'insert' || op === 'update') {
@@ -235,6 +251,8 @@ export function creerBaseQr() {
   function reinitialiser(): void {
     etat.tables = {}
     etat.tablesAbsentes = []
+    etat.codeTableAbsente = '42P01'
+    etat.tablesAbsentesLues = []
     etat.colonnesAbsentes = {}
     etat.erreursPonctuelles = {}
     etat.fonctions = {}
@@ -253,3 +271,41 @@ export function creerBaseQr() {
 
 /** Instance partagée par la fabrique vi.mock et le fichier de test (même module). */
 export const baseQr = creerBaseQr()
+
+// ── La production avant la migration du 11/11/2026 ───────────────────────────
+// Structure de supabase/migrations/20261111_signalements_qr_gestionnaires.sql (tables, colonnes ajoutées, fonctions) :
+// tant qu'elle n'est pas appliquée, la production répond PGRST205 (tables), 42703 / PGRST204 (colonnes) et PGRST202
+// (fonctions). Les migrations du 06/11/2026 sont appliquées (11/11/2026) : leurs colonnes restent présentes.
+
+export const TABLES_MIGRATION_1111_QR: readonly string[] = [
+  'signalements_qr_cabinets', 'signalements_qr_domaines_autorises', 'signalements_qr_gestionnaires', 'signalements_qr_invitations',
+  'signalements_qr_attributions', 'signalements_qr_journal', 'signalements_qr_operations',
+]
+export const COLONNES_MIGRATION_1111_QR: Readonly<Record<string, readonly string[]>> = {
+  signalements_qr_coproprietes: [
+    'cabinet_id', 'code_postal', 'ville', 'immatriculation', 'reference_cabinet', 'batiments', 'attribuee_a_tous', 'cle_nom',
+    'cree_par_gestionnaire_id', 'operation_id',
+  ],
+  signalements_qr: ['statut_modifie_le', 'statut_modifie_par', 'statut_modifie_profil', 'nb_emails_envoyes', 'email_retenu'],
+}
+export const FONCTIONS_MIGRATION_1111_QR: readonly string[] = [
+  'signalements_qr_identifiant_fige', 'signalements_qr_cabinet_copro_fige', 'signalements_qr_creer_coproprietes', 'signalements_qr_compteurs',
+  'signalements_qr_remplacer_attributions', 'signalements_qr_attribuer_au_gestionnaire', 'signalements_qr_desactiver_gestionnaire',
+  'signalements_qr_reactiver_gestionnaire', 'signalements_qr_inviter_gestionnaire', 'signalements_qr_confirmer_adresse',
+  'signalements_qr_contester_adresse', 'signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails',
+  'signalements_qr_purger_journal', 'signalements_qr_enregistrer_cabinet', 'signalements_qr_rattacher_coproprietes',
+]
+
+/**
+ * Met la base simulée dans l'état de la production avant la migration du 11/11/2026 : tables absentes (PGRST205 par
+ * défaut, comme PostgREST 13 ; 42P01 sur demande), colonnes absentes, fonctions retirées. À appeler après avoir posé les
+ * lignes du test (les lignes des tables absentes restent en mémoire mais ne sont plus lisibles).
+ */
+export function simulerProductionAvant1111Qr(base: ReturnType<typeof creerBaseQr> = baseQr, code: CodeTableAbsente = 'PGRST205'): void {
+  base.etat.codeTableAbsente = code
+  base.etat.tablesAbsentes = [...new Set([...base.etat.tablesAbsentes, ...TABLES_MIGRATION_1111_QR])]
+  for (const [table, colonnes] of Object.entries(COLONNES_MIGRATION_1111_QR)) {
+    base.etat.colonnesAbsentes[table] = [...new Set([...(base.etat.colonnesAbsentes[table] ?? []), ...colonnes])]
+  }
+  for (const fonction of FONCTIONS_MIGRATION_1111_QR) delete base.etat.fonctions[fonction]
+}

@@ -16,8 +16,8 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement
 vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
-const { baseQr } = await import('../helpers/aj-signalement-base')
-const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr } = await import('../helpers/aj-signalement-routes')
+const { baseQr, simulerProductionAvant1111Qr } = await import('../helpers/aj-signalement-base')
+const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
 const { PATCH } = await import('@/app/api/aj-signalement/signalements/[id]/route')
 const { changerStatutSignalementQr } = await import('@/lib/aj-signalement/api')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
@@ -76,6 +76,26 @@ describe('PATCH signalements/[id] (P1-R7)', () => {
     expect(baseQr.ecrituresDe('signalements_qr', 'update').at(-1)?.valeurs).toEqual({ statut: 'acceptee' })
     expect((await res.json()).signalement).toMatchObject({ statut: 'acceptee', statutModifieLe: null })
   })
+
+  it.each(['42P01', 'PGRST205'] as const)(
+    'production avant la migration du 11/11 (journal %s, colonnes PGRST204) : statut écrit sans trace, 200, replis journalisés une fois',
+    async (code) => {
+      simulerProductionAvant1111Qr(baseQr, code)
+      const res = await patcher({ statut: 'en_cours' })
+      expect(res.status).toBe(200)
+      expect(baseQr.ecrituresDe('signalements_qr', 'update').at(-1)?.valeurs).toEqual({ statut: 'en_cours' })
+      expect(baseQr.table('signalements_qr')[0].statut).toBe('en_cours')
+      expect((await res.json()).signalement).toMatchObject({ statut: 'en_cours', statutModifieLe: null })
+      expect(baseQr.etat.tablesAbsentesLues).toEqual(['signalements_qr_journal'])
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+      expect((await patcher({ statut: 'acceptee' })).status).toBe(200)
+      const replis = simulQr.logger.warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('migration du 11/11/2026 absente'))
+      expect(replis).toEqual([
+        '[AJ SIGNALEMENT] migration du 11/11/2026 absente : repli (trace du statut)',
+        '[AJ SIGNALEMENT] migration du 11/11/2026 absente : repli (journal)',
+      ])
+    },
+  )
 
   it('signalement inconnu : 404 sans écriture ; clé inconnue : 400', async () => {
     baseQr.etat.tables.signalements_qr = []

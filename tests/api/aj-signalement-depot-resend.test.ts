@@ -8,8 +8,9 @@
 //     par emails.send ;
 //   - lot refusé par Resend (une adresse refusée suffit) : renvoi un par un, email_erreur résumé sans adresse ;
 //   - copropriété sans adresse saisie : un message à ADMIN_EMAIL, avec le bouton du tableau.
-// Base : la production d'avant la migration du 11/11/2026 (colonnes du 06/11 présentes, migrations appliquées le
-// 11/11/2026 ; tables, colonnes et fonctions du 11/11 absentes). Données fictives (@exemple.test, @externe.test).
+// Base : la production d'avant la migration du 11/11/2026 (simulerProductionAvant1111Qr : tables absentes en PGRST205
+// comme PostgREST 13, colonnes et fonctions du 11/11 absentes ; colonnes du 06/11 présentes, migrations appliquées le
+// 11/11/2026). Données fictives (@exemple.test, @externe.test).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -45,7 +46,7 @@ vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/aj-signaleme
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement-routes')).mockLimites())
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
-const { baseQr } = await import('../helpers/aj-signalement-base')
+const { baseQr, simulerProductionAvant1111Qr } = await import('../helpers/aj-signalement-base')
 const { reinitialiserSimulQr, requeteQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
 const { POST } = await import('@/app/api/aj-signalement/signalements/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
@@ -57,15 +58,6 @@ const CORPS = {
   jeton: JETON, prenom: 'Prénom', nom: 'Déclarant', telephone: '06 00 00 00 00', email: 'Declarant@Exemple.test',
   batiment: 'A', etage: '2', numLot: '7', estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie',
   description: 'Fuite d’eau au plafond de la cuisine', priorite: 'normale', langue: 'fr', qualiteDeclarant: 'locataire',
-}
-/** Structure de la migration du 11/11/2026, absente de la production tant qu'elle n'est pas appliquée. */
-const TABLES_1111 = [
-  'signalements_qr_cabinets', 'signalements_qr_domaines_autorises', 'signalements_qr_gestionnaires', 'signalements_qr_invitations',
-  'signalements_qr_attributions', 'signalements_qr_journal', 'signalements_qr_operations',
-]
-const COLONNES_1111 = {
-  signalements_qr_coproprietes: ['cabinet_id', 'code_postal', 'ville', 'immatriculation', 'reference_cabinet', 'batiments', 'attribuee_a_tous', 'cle_nom', 'cree_par_gestionnaire_id', 'operation_id'],
-  signalements_qr: ['statut_modifie_le', 'statut_modifie_par', 'statut_modifie_profil', 'nb_emails_envoyes', 'email_retenu'],
 }
 
 type MessageResend = {
@@ -91,8 +83,7 @@ beforeEach(() => {
     { id: 'c0000000-0000-4000-8000-000000000002', nom: 'Les Tilleuls', adresse: '', jeton: JETON_SANS_ADRESSE, actif: true, created_at: '2026-11-02T09:00:00+00:00', emails_destinataires: [] },
   ]
   baseQr.etat.tables.signalements_qr = []
-  baseQr.etat.tablesAbsentes = [...TABLES_1111]
-  baseQr.etat.colonnesAbsentes = { ...COLONNES_1111 }
+  simulerProductionAvant1111Qr(baseQr, 'PGRST205')
 })
 
 const deposer = (corps: Record<string, unknown> = CORPS) => POST(requeteQr('/api/aj-signalement/signalements', 'POST', corps))
@@ -123,6 +114,11 @@ describe('dépôt public, vrai lib/email.ts, SDK Resend simulé', () => {
     expect((resend.simples[0] as MessageResend).to).toEqual(['declarant@exemple.test'])
     expect((resend.simples[0] as MessageResend).tags).toEqual([{ name: 'type', value: 'aj-signalement-confirmation' }])
     expect(etatFinal()).toMatchObject({ email_envoye_le: expect.any(String), email_erreur: null, confirmation_envoyee_le: expect.any(String) })
+    // Le dépôt ne nomme aucune table du 11/11 : destinataires et budget passent par des fonctions (PGRST202), repli
+    // journalisé une fois chacun.
+    expect(baseQr.etat.tablesAbsentesLues).toEqual([])
+    expect(baseQr.etat.appelsRpc.map((a) => a.nom)).toEqual(['signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails'])
+    expect(simulQr.logger.warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('migration du 11/11/2026 absente'))).toHaveLength(2)
   })
 
   it('lot refusé par Resend (validation stricte) : renvoi un par un, tout part, email_erreur vide', async () => {
@@ -155,5 +151,19 @@ describe('dépôt public, vrai lib/email.ts, SDK Resend simulé', () => {
     expect(lot[0].replyTo).toBe('declarant@exemple.test')
     expect(lot[0].html).toContain('Ouvrir le tableau des signalements')
     expect(lot[0].html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+  })
+})
+
+describe('table d’origine absente (migration 20261104), selon le code de PostgREST', () => {
+  it.each(['42P01', 'PGRST205'] as const)('%s : 503 base_absente, rien n’est enregistré, aucun e-mail', async (code) => {
+    baseQr.etat.codeTableAbsente = code
+    baseQr.etat.tablesAbsentes = ['signalements_qr_coproprietes', 'signalements_qr']
+    const res = await deposer()
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'base_absente' })
+    expect(baseQr.etat.tablesAbsentesLues).toContain('signalements_qr_coproprietes')
+    expect(baseQr.ecrituresDe('signalements_qr')).toEqual([])
+    expect(resend.lots).toEqual([])
+    expect(resend.simples).toEqual([])
   })
 })

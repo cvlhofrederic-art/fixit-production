@@ -66,8 +66,12 @@ const CONTEXTE = '[AJ SIGNALEMENT]'
 
 export type ErreurBase = { code?: string; message?: string; details?: string }
 
-/** Erreur PostgREST « relation does not exist » : la migration n'est pas appliquée. */
-export const baseAbsente = (erreur: { code?: string } | null | undefined): boolean => erreur?.code === '42P01'
+/**
+ * Table absente : la migration n'est pas appliquée. 42P01 (« relation does not exist », PostgreSQL) ou PGRST205
+ * (« Could not find the table … in the schema cache ») : PostgREST 12 et suivants, dont la production (PostgREST 13),
+ * répondent PGRST205 avant même d'interroger PostgreSQL. Même règle que tableAbsenteQr.
+ */
+export const baseAbsente = (erreur: { code?: string } | null | undefined): boolean => erreur?.code === '42P01' || erreur?.code === 'PGRST205'
 
 /**
  * Colonne inconnue de la base : 42703 (« column … does not exist ») en lecture, PGRST204 (« Could not find the '…'

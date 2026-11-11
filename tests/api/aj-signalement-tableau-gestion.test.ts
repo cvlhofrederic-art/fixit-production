@@ -18,7 +18,7 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement
 vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
-const { baseQr } = await import('../helpers/aj-signalement-base')
+const { baseQr, simulerProductionAvant1111Qr } = await import('../helpers/aj-signalement-base')
 const { ADMIN_QR, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
 const { GET } = await import('@/app/api/aj-signalement/tableau/route')
 const { chargerTableauQr } = await import('@/lib/aj-signalement/api')
@@ -130,6 +130,21 @@ describe('sans paramètre : contrat conservé, champs ajoutés', () => {
     expect(res.status).toBe(200)
     expect(corps.tableau.coproprietes[0]).toMatchObject({ cabinet: null, gestionnaires: [], attribueeATous: false, codePostal: '', adressesDeGestionnaires: 0 })
   })
+
+  it.each(['42P01', 'PGRST205'] as const)(
+    'production avant la migration du 11/11 (tables %s, colonnes 42703, fonctions PGRST202) : 200, forme actuelle et valeurs par défaut',
+    async (code) => {
+      simulerProductionAvant1111Qr(baseQr, code)
+      const { res, corps } = await lire()
+      expect(res.status).toBe(200)
+      expect(corps.tableau.coproprietes).toHaveLength(5)
+      expect(corps.tableau.coproprietes[0]).toMatchObject({ cabinet: null, gestionnaires: [], attribueeATous: false, codePostal: '', creePar: 'administrateur', adressesDeGestionnaires: 0 })
+      expect(corps.tableau.signalements).toHaveLength(5)
+      // Les fiches des adresses saisies sont lues dans la table absente : la branche « table absente » est bien prise.
+      expect(baseQr.etat.tablesAbsentesLues).toContain('signalements_qr_gestionnaires')
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+    },
+  )
 
   it('paramètre inconnu : 400 ; identifiant mal formé : 400', async () => {
     expect((await lire('?vue=1')).res.status).toBe(400)
