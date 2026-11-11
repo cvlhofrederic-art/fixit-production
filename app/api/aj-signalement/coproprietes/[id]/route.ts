@@ -9,6 +9,13 @@
 //   - une adresse AJOUTÉE aux destinataires est refusée si c'est celle d'une fiche gestionnaire (400), et soumise à
 //     confirmerHorsDomaine si elle est hors des domaines du cabinet (409) ; une adresse déjà présente ne bloque rien ;
 //   - journal : NOMS des champs modifiés, jamais leurs valeurs ; désactivation, réactivation, jeton remplacé.
+// Gestionnaire connecté (PR 2, SPEC § 2.5, RG-21) : corps strict modificationCoproprieteGestionnaireQrSchema (ni actif, ni
+// jeton, ni attributions, ni « à tous », ni forçage : 400) ; 30 modifications / 10 min par compte ; portée relue AVANT
+// la copropriété : hors portée 404 (aucune autre lecture), « à tous » non attribuée nommément ou copropriété désactivée
+// 403 lecture_seule ; nom, adresse, code postal et ville jamais vidés ; doublons revérifiés sur tout le cabinet, jamais
+// forçables ; adresse AJOUTÉE : domaines de SON cabinet, jamais celle d'une fiche ; adresses masquées (autres fiches)
+// conservées ; écriture filtrée par id ET cabinet de la fiche, sans écriture réduite (colonne absente : 503) ; journal à
+// son nom ; réponse minimisée.
 // DELETE — suppression (P1-R5) : seulement sans aucun signalement (la CASCADE effacerait des données de déclarants) et
 // sur le nom exact ; la copropriété est d'abord désactivée (plus aucun dépôt), le compte refait, le journal écrit,
 // puis la ligne supprimée. Sinon 409 signalements_presents (désactiver plutôt).
@@ -16,16 +23,23 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { modificationCoproprieteQrSchema, suppressionCoproprieteQrSchema, validateBody } from '@/lib/validation'
+import {
+  modificationCoproprieteGestionnaireQrSchema, modificationCoproprieteQrSchema, suppressionCoproprieteQrSchema, validateBody,
+} from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { droitsSurCoproprieteQr } from '@/lib/aj-signalement/acces-espace'
 import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
 import { cleNomCoproQr, decisionDoublonsQr, doublonsCoproprieteQr } from '@/lib/aj-signalement/doublons'
 import { emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
-import type { DecisionDoublonsQr } from '@/lib/aj-signalement/types'
+import type { DecisionDoublonsQr, DoublonQr, ProfilGestionnaireQr, TypeProfilQr } from '@/lib/aj-signalement/types'
+import {
+  adressesEcritesGestionnaireQr, journalGestionnaireQr, journaliserProbableConfirmeQr, lireCoproprieteGestionnaireQr, refusDoublonGestionnaireQr,
+} from '@/lib/aj-signalement/serveur-gestionnaire'
 import {
   COLONNES_COPROPRIETE_QR, TABLE_ATTRIBUTIONS_QR, TABLE_COPROPRIETES_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid,
   genererJetonQr, journaliserQr, journaliserRepliGestionQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireFichesParEmailsQr, lireLigneCoproprieteQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, type LigneCoproprieteQr,
+  lireFichesParEmailsQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseErreur, reponseErreurSqlQr, reponseInvalide,
+  reponseLectureGestionnaireQr, reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -71,15 +85,27 @@ function ecritures(m: Modification, avant: LigneCoproprieteQr): { valeurs: Recor
   return { valeurs, champs }
 }
 
-/** Doublons revérifiés quand un champ comparé change (SPEC § 1.6) ; la copropriété elle-même est ignorée. */
-async function controlerDoublons(id: string, m: Modification, avant: LigneCoproprieteQr): Promise<DecisionDoublonsQr | { erreur: NextResponse }> {
+/**
+ * Doublons revérifiés quand un champ comparé change (SPEC § 1.6) ; la copropriété elle-même est ignorée. Gestionnaire :
+ * jamais de forçage, lecture stricte (colonnes absentes → 503, jamais un contrôle sauté).
+ */
+async function controlerDoublons(
+  id: string, m: Modification, avant: LigneCoproprieteQr, profil: TypeProfilQr,
+): Promise<{ decision: DecisionDoublonsQr; doublons: DoublonQr[] } | { erreur: NextResponse }> {
   const change = (m.nom !== undefined && m.nom !== chaine(avant.nom))
     || (m.codePostal !== undefined && m.codePostal !== chaine(avant.code_postal))
     || (m.immatriculation !== undefined && (m.immatriculation || null) !== (avant.immatriculation ?? null))
     || (m.referenceCabinet !== undefined && (m.referenceCabinet || null) !== (avant.reference_cabinet ?? null))
-  if (!change) return { ok: true, doublonForce: false, probableConfirme: false }
-  const existantes = await lireCoproprietesDoublonsQr(avant.cabinet_id ?? null)
-  if (!existantes.ok) return { erreur: reponseErreurSqlQr(existantes.erreur, 'lecture des doublons', { copropriete: id }) }
+  if (!change) return { decision: { ok: true, doublonForce: false, probableConfirme: false }, doublons: [] }
+  const gestionnaire = profil === 'gestionnaire'
+  const existantes = await lireCoproprietesDoublonsQr(avant.cabinet_id ?? null, { strict: gestionnaire })
+  if (!existantes.ok) {
+    return {
+      erreur: gestionnaire
+        ? reponseStructureGestionnaireQr(existantes.erreur, 'lecture des doublons (gestionnaire)', { copropriete: id })
+        : reponseErreurSqlQr(existantes.erreur, 'lecture des doublons', { copropriete: id }),
+    }
+  }
   const fiche = {
     nom: m.nom ?? chaine(avant.nom),
     adresse: m.adresse ?? chaine(avant.adresse),
@@ -87,9 +113,13 @@ async function controlerDoublons(id: string, m: Modification, avant: LigneCoprop
     immatriculation: m.immatriculation !== undefined ? m.immatriculation || null : avant.immatriculation ?? null,
     referenceCabinet: m.referenceCabinet !== undefined ? m.referenceCabinet || null : avant.reference_cabinet ?? null,
   }
-  return decisionDoublonsQr(doublonsCoproprieteQr(fiche, existantes.coproprietes, { ignorerId: id }), {
-    profil: 'super_admin', forcerDoublon: m.forcerDoublon === true, confirmerDoublonProbable: m.confirmerDoublonProbable === true,
-  })
+  const doublons = doublonsCoproprieteQr(fiche, existantes.coproprietes, { ignorerId: id })
+  return {
+    doublons,
+    decision: decisionDoublonsQr(doublons, {
+      profil, forcerDoublon: !gestionnaire && m.forcerDoublon === true, confirmerDoublonProbable: m.confirmerDoublonProbable === true,
+    }),
+  }
 }
 
 /** RG-06 bis-1 et RG-02, sur les seules adresses AJOUTÉES (une adresse déjà présente ne bloque pas la modification). */
@@ -150,11 +180,12 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
   try {
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`qr_copropriete_patch_${ip}`, 30, 60_000))) return rateLimitResponse()
-    const controle = await controlerAccesQr(request, { profils: ['super_admin'] })
+    const controle = await controlerAccesQr(request, { profils: ['super_admin', 'gestionnaire'] })
     if (!controle.ok) return controle.reponse
+    const { id } = await params
+    if (controle.profil.type === 'gestionnaire') return await modificationParGestionnaire(request, id, controle.profil)
     if (!(await checkRateLimit(`qr_copropriete_patch_${controle.user.id}`, 30, 60_000))) return rateLimitResponse()
 
-    const { id } = await params
     if (!estUuid(id)) return reponseErreur('introuvable', 404)
     const body: unknown = await request.json().catch(() => null)
     const validation = validateBody(modificationCoproprieteQrSchema, body)
@@ -168,8 +199,9 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     const cabinetId = avant.cabinet_id ?? null
     if (m.attribueeATous !== undefined && !cabinetId) return reponseErreur('sans_cabinet', 409)
 
-    const decision = await controlerDoublons(id, m, avant)
-    if ('erreur' in decision) return decision.erreur
+    const doublons = await controlerDoublons(id, m, avant, 'super_admin')
+    if ('erreur' in doublons) return doublons.erreur
+    const decision = doublons.decision
     if (!decision.ok) {
       const { certitude, critere, copropriete } = decision.doublon
       return NextResponse.json({ error: 'doublon', doublon: { certitude, critere, copropriete } }, { status: 409 })
@@ -201,6 +233,70 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     logger.error(`${CONTEXTE} modification de copropriété`, { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)
   }
+}
+
+/**
+ * Mise à jour par un gestionnaire : filtrée par id ET cabinet de SA fiche (fenêtre entre contrôle et écriture fermée) ;
+ * colonne absente → 503 (jamais rejouée réduite aux colonnes d'origine : l'écran croirait sa saisie enregistrée).
+ */
+async function mettreAJourParGestionnaire(id: string, profil: ProfilGestionnaireQr, valeurs: Record<string, unknown>): Promise<NextResponse | null> {
+  if (Object.keys(valeurs).length === 0) return null
+  const r = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).update(valeurs).eq('id', id).eq('cabinet_id', profil.cabinetId)
+    .select(COLONNES_COPROPRIETE_QR).maybeSingle()
+  if (r.error) return reponseStructureGestionnaireQr(r.error, 'modification de copropriété (gestionnaire)', { copropriete: id })
+  return r.data ? null : reponseErreur('introuvable', 404)
+}
+
+/**
+ * Modification par un gestionnaire connecté (RG-21) : ses attributions explicites seulement (Q1 : les droits suivent
+ * l'attribution, même pour le créateur) ; tout vient de sa fiche et de sa portée, relues à chaque appel.
+ */
+async function modificationParGestionnaire(request: NextRequest, id: string, profil: ProfilGestionnaireQr): Promise<Response> {
+  if (!(await checkRateLimit(`qr_copropriete_patch_${profil.userId}`, 30, 600_000))) return rateLimitResponse()
+  if (!estUuid(id)) return reponseErreur('introuvable', 404)
+  const ids = { gestionnaire: profil.gestionnaireId, copropriete: id }
+  const body: unknown = await request.json().catch(() => null)
+  const validation = validateBody(modificationCoproprieteGestionnaireQrSchema, body)
+  if (!validation.success) return reponseInvalide(validation.error)
+  const m: Modification = validation.data
+
+  // Portée relue AVANT la copropriété : hors portée, la réponse d'une copropriété inconnue, sans aucune autre lecture.
+  const portee = await porteeDuProfilQr(profil)
+  if (!portee.ok) return reponseLectureGestionnaireQr(portee.erreur, 'portée d’un gestionnaire', ids)
+  const droits = droitsSurCoproprieteQr('gestionnaire', id, portee.valeur)
+  if (!droits.voir) return reponseErreur('introuvable', 404)
+  if (!droits.modifierFiche) return reponseErreur('lecture_seule', 403)
+
+  const lecture = await lireLigneCoproprieteQr(id)
+  if (!lecture.ok) return reponseStructureGestionnaireQr(lecture.erreur, 'lecture de la copropriété (gestionnaire)', ids)
+  const avant = lecture.ligne
+  if (!avant || avant.cabinet_id !== profil.cabinetId) return reponseErreur('introuvable', 404)
+  // Désactivée par le cabinet : visible en lecture seulement (SPEC § 2.5), comme le dit la minimisation (modifiable).
+  if (avant.actif === false) return reponseErreur('lecture_seule', 403)
+
+  const doublons = await controlerDoublons(id, m, avant, 'gestionnaire')
+  if ('erreur' in doublons) return doublons.erreur
+  if (!doublons.decision.ok) {
+    return refusDoublonGestionnaireQr(doublons.decision.doublon, profil, portee.valeur, { operation: 'modification', coproprieteId: id })
+  }
+
+  let saisie = m
+  if (m.emailsDestinataires !== undefined) {
+    const adresses = await adressesEcritesGestionnaireQr(profil, avant.emails_destinataires ?? [], m.emailsDestinataires)
+    if (!adresses.ok) return adresses.reponse
+    saisie = { ...m, emailsDestinataires: adresses.ecrites }
+  }
+  const { valeurs, champs } = ecritures(saisie, avant)
+  const refus = await mettreAJourParGestionnaire(id, profil, valeurs)
+  if (refus) return refus
+
+  if (champs.length > 0) await journaliserQr({ ...journalGestionnaireQr(profil), action: 'copropriete.modifiee', coproprieteId: id, champs })
+  if (doublons.decision.probableConfirme) await journaliserProbableConfirmeQr(profil, id, doublons.doublons)
+
+  const complete = await lireCoproprieteGestionnaireQr(id, profil, { portee: portee.valeur })
+  if (!complete.ok) return reponseStructureGestionnaireQr(complete.erreur, 'relecture de la copropriété (gestionnaire)', ids)
+  if (!complete.copropriete) return reponseErreur('introuvable', 404)
+  return reponsePriveeQr({ copropriete: complete.copropriete })
 }
 
 /** Nombre de signalements de la copropriété (sans les lire). */

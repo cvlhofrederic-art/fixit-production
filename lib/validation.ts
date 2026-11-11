@@ -523,6 +523,40 @@ export const modificationCoproprieteQrSchema = z.strictObject({
   confirmerHorsDomaine: z.boolean().optional(),
 }).refine((m) => Object.keys(m).some((k) => !DRAPEAUX_CONFIRMATION_QR.includes(k)), 'Rien à modifier')
 
+// PR 2 (SPEC § 2.5, RG-20, RG-21) : corps d'un GESTIONNAIRE connecté. Ni cabinet, ni gestionnaires, ni « à tous », ni
+// forçage, ni confirmation hors domaine, ni activation, ni jeton : une clé inconnue → 400 (le cabinet, la fiche et
+// l'auteur viennent de la session, jamais du corps). Nom, adresse, code postal et ville obligatoires (comparés pour les
+// doublons) et jamais vidés ; operationId obligatoire à la création (double clic sans effet).
+const champObligatoireQr = (max: number, message: string) => z.string().trim().min(1, message).max(max)
+const adresseObligatoireQr = champObligatoireQr(300, 'Adresse requise')
+const codePostalObligatoireQr = codePostalQr.refine((v) => v !== '', 'Code postal requis')
+const villeObligatoireQr = champObligatoireQr(100, 'Ville requise')
+
+export const coproprieteGestionnaireQrSchema = z.strictObject({
+  operationId: z.uuid(),
+  nom: nomCoproQr,
+  adresse: adresseObligatoireQr,
+  codePostal: codePostalObligatoireQr,
+  ville: villeObligatoireQr,
+  immatriculation: immatriculationQr.optional().default(''),
+  referenceCabinet: referenceCabinetQr.optional().default(''),
+  batiments: batimentsQr.optional().default([]),
+  emailsDestinataires: emailsQr.optional().default([]),
+  confirmerDoublonProbable: z.boolean().optional().default(false),
+})
+
+export const modificationCoproprieteGestionnaireQrSchema = z.strictObject({
+  nom: nomCoproQr.optional(),
+  adresse: adresseObligatoireQr.optional(),
+  codePostal: codePostalObligatoireQr.optional(),
+  ville: villeObligatoireQr.optional(),
+  immatriculation: immatriculationQr.optional(),
+  referenceCabinet: referenceCabinetQr.optional(),
+  batiments: batimentsQr.optional(),
+  emailsDestinataires: emailsQr.optional(),
+  confirmerDoublonProbable: z.boolean().optional(),
+}).refine((m) => Object.keys(m).some((k) => k !== 'confirmerDoublonProbable'), 'Rien à modifier')
+
 export const suppressionCoproprieteQrSchema = z.strictObject({ nomConfirmation: z.string().trim().min(1).max(200) })
 
 export const attributionsCoproprieteQrSchema = z.strictObject({

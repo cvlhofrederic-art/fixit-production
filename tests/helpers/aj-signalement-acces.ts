@@ -5,7 +5,7 @@
 // dans le second, un gestionnaire G3 et sa propre copropriété « à tous ». Une copropriété sans cabinet. Chaque
 // gestionnaire a un compte (rôle app_metadata gestionnaire_signalement, repère de routage) relié à sa fiche par
 // user_id (état d'après la liaison : la base simulée ne joue pas les triggers). Aucune donnée réelle : @exemple.test,
-// @autre-exemple.test, @externe.test, « Résidence … ».
+// @autre-exemple.test, @externe.test, « Résidence … ». Lot 2 : fonction de création simulée (simulerCreationCoproprietesQr).
 
 import { baseQr, type Ligne } from './aj-signalement-base'
 import { simulQr, type UtilisateurSimule } from './aj-signalement-routes'
@@ -115,6 +115,52 @@ export function poserJeuAccesQr(): void {
   baseQr.etat.fonctions.signalements_qr_compteurs = (a) => ({
     data: (a.p_ids as string[]).map((id) => ({ copropriete_id: id, total: 1, en_attente: 1, ouverts: 1, urgents_ouverts: 0, attente_48h: 0, dernier: '2026-11-10T09:00:00+00:00' })),
   })
+}
+
+/** Première copropriété créée par la fonction simulée (…101, puis …102). */
+export const C_CREEE = 'c0000000-0000-4000-8000-000000000101'
+
+/**
+ * Fonction de création simulée (signalements_qr_creer_coproprietes, migration 20261111), au plus près de son corps SQL
+ * pour une saisie (lot d'une ligne) : rejeu par operationId réservé au même auteur et au même cabinet, fiche active du
+ * cabinet exigée d'un gestionnaire (42501 sinon), copropriété insérée dans le cabinet du PARAMÈTRE, adresses de fiches
+ * retirées des saisies, auteur gestionnaire et attribution « creation » d'office, journal. Le re-contrôle nom + code
+ * postal sous verrou n'est pas simulé (pré-contrôle de la route). `sansAttribution` : base incohérente (aucune
+ * attribution posée), pour prouver que la route le voit.
+ */
+export function simulerCreationCoproprietesQr(options: { sansAttribution?: boolean } = {}): void {
+  let creees = 0
+  baseQr.etat.fonctions.signalements_qr_creer_coproprietes = (a) => {
+    const deja = baseQr.table('signalements_qr_operations').find((o) => o.id === a.p_operation)
+    if (deja) {
+      if (deja.acteur_id !== a.p_acteur || deja.cabinet_id !== a.p_cabinet) return { error: { code: 'P0001', message: 'a_reverifier' } }
+      return { data: { ...(deja.resultat as Ligne), rejeu: true } }
+    }
+    if (a.p_profil === 'gestionnaire'
+      && !baseQr.table('signalements_qr_gestionnaires').some((g) => g.id === a.p_gestionnaire && g.actif === true && g.cabinet_id === a.p_cabinet)) {
+      return { error: { code: '42501', message: 'interdit' } }
+    }
+    const [l] = a.p_lignes as Ligne[]
+    creees += 1
+    const id = `c0000000-0000-4000-8000-0000000001${String(creees).padStart(2, '0')}`
+    const jetonCree = `${'e'.repeat(30)}${String(creees).padStart(2, '0')}`
+    const emailsFiches = new Set(baseQr.table('signalements_qr_gestionnaires').map((g) => g.email))
+    baseQr.table('signalements_qr_coproprietes').push(ligneCoproQr(id, 9, String(l.nom), {
+      adresse: l.adresse, code_postal: l.codePostal, ville: l.ville, immatriculation: l.immatriculation || null,
+      reference_cabinet: l.referenceCabinet || null, batiments: l.batiments,
+      emails_destinataires: (l.emails as string[]).filter((e) => !emailsFiches.has(e)), jeton: jetonCree, cabinet_id: a.p_cabinet,
+      cle_nom: l.cleNom, cree_par_gestionnaire_id: a.p_gestionnaire ?? null, operation_id: a.p_operation, created_at: '2026-11-11T10:00:00+00:00',
+    }))
+    const journal = baseQr.table('signalements_qr_journal')
+    journal.push({ action: 'copropriete.creee', cabinet_id: a.p_cabinet, acteur_id: a.p_acteur, acteur_profil: a.p_profil, acteur_gestionnaire_id: a.p_gestionnaire ?? null, copropriete_id: id })
+    if (a.p_profil === 'gestionnaire' && !options.sansAttribution) {
+      baseQr.table('signalements_qr_attributions').push({ copropriete_id: id, gestionnaire_id: a.p_gestionnaire, origine: 'creation', created_at: '2026-11-11T10:00:00+00:00' })
+      journal.push({ action: 'attribution.ajoutee', cabinet_id: a.p_cabinet, acteur_id: a.p_acteur, acteur_profil: 'gestionnaire', copropriete_id: id, gestionnaire_id: a.p_gestionnaire })
+    }
+    const resultat = { creees: [{ numeroLigne: 1, id, jeton: jetonCree }], completees: [] }
+    baseQr.table('signalements_qr_operations').push({ id: a.p_operation, acteur_id: a.p_acteur, cabinet_id: a.p_cabinet, resultat })
+    return { data: { ...resultat, rejeu: false } }
+  }
 }
 
 /** Session du gestionnaire (jeton Bearer simulé). */

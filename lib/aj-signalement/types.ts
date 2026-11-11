@@ -580,6 +580,12 @@ export interface BilanEnvoiQr {
 export type DoublonRenduQr = Pick<DoublonQr, 'certitude' | 'critere' | 'copropriete'>
 
 /**
+ * Doublon rendu à un GESTIONNAIRE (PR 2, SPEC § 1.6) : la copropriété n'est nommée que si elle est dans sa portée
+ * (« elle est déjà dans vos copropriétés ») ; hors portée, ni nom, ni identifiant, ni ville.
+ */
+export type DoublonRenduGestionnaireQr = Pick<DoublonQr, 'certitude' | 'critere'> & { copropriete?: DoublonQr['copropriete'] }
+
+/**
  * Champs de gestion d'une copropriété saisis à l'écran (création, modification) : facultatifs, envoyés seulement s'ils
  * sont remplis ou changés (la route répond 503 base_absente à un champ nouveau tant que la migration manque).
  */

@@ -10,9 +10,10 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  attributionsCoproprieteQrSchema, attributionsGestionnaireQrSchema, cabinetQrSchema, coproprieteQrSchema, departGestionnaireQrSchema,
-  domaineQrSchema, gestionnaireQrSchema, identifiantCabinetQrSchema, jetonLienQrSchema, journalQrQuerySchema, langueCabinetQrSchema,
-  listeGestionnairesQrQuerySchema, modificationCabinetQrSchema, modificationCoproprieteQrSchema, modificationGestionnaireQrSchema,
+  attributionsCoproprieteQrSchema, attributionsGestionnaireQrSchema, cabinetQrSchema, coproprieteGestionnaireQrSchema, coproprieteQrSchema,
+  departGestionnaireQrSchema, domaineQrSchema, gestionnaireQrSchema, identifiantCabinetQrSchema, jetonLienQrSchema, journalQrQuerySchema,
+  langueCabinetQrSchema, listeGestionnairesQrQuerySchema, modificationCabinetQrSchema, modificationCoproprieteGestionnaireQrSchema,
+  modificationCoproprieteQrSchema, modificationGestionnaireQrSchema,
   rattachementQrSchema, semblablesQrQuerySchema, signalementQrSchema, signalementsCoproQrQuerySchema, statutSignalementQrSchema,
   suppressionCoproprieteQrSchema, tableauQrQuerySchema,
 } from '@/lib/validation'
@@ -158,6 +159,53 @@ describe('cabinets : identifiant, langue, domaines', () => {
     expect(modificationCabinetQrSchema.safeParse({ domaines: [] }).success).toBe(true)
     expect(rattachementQrSchema.safeParse({ coproprieteIds: [] }).success).toBe(false)
     expect(rattachementQrSchema.safeParse({ coproprieteIds: [UUID] }).success).toBe(true)
+  })
+})
+
+describe('corps d’un gestionnaire connecté (PR 2, lot 2 ; RG-20, RG-21)', () => {
+  const OPERATION = 'f0000000-0000-4000-8000-000000000001'
+  const SAISIE = { operationId: OPERATION, nom: ' Résidence Neuve ', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille' }
+
+  it('création : operationId, nom, adresse, code postal et ville obligatoires ; le reste par défaut', () => {
+    const r = coproprieteGestionnaireQrSchema.safeParse(SAISIE)
+    expect(r.success && r.data).toEqual({
+      operationId: OPERATION, nom: 'Résidence Neuve', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille',
+      immatriculation: '', referenceCabinet: '', batiments: [], emailsDestinataires: [], confirmerDoublonProbable: false,
+    })
+    for (const champ of ['operationId', 'nom', 'adresse', 'codePostal', 'ville'] as const) {
+      const { [champ]: _retire, ...sans } = SAISIE
+      expect(coproprieteGestionnaireQrSchema.safeParse(sans).success, champ).toBe(false)
+    }
+    for (const vide of [{ nom: ' ' }, { adresse: '  ' }, { codePostal: '' }, { ville: '' }, { codePostal: '1300' }]) {
+      expect(coproprieteGestionnaireQrSchema.safeParse({ ...SAISIE, ...vide }).success, JSON.stringify(vide)).toBe(false)
+    }
+    expect(coproprieteGestionnaireQrSchema.safeParse({ ...SAISIE, codePostal: '1000-001' }).success).toBe(true)
+  })
+
+  it.each([
+    ['cabinetId', { cabinetId: UUID }], ['gestionnaireIds', { gestionnaireIds: [UUID] }], ['attribueeATous', { attribueeATous: true }],
+    ['forcerDoublon', { forcerDoublon: true }], ['confirmerHorsDomaine', { confirmerHorsDomaine: true }], ['actif', { actif: true }],
+    ['regenererJeton', { regenererJeton: true }], ['jeton', { jeton: '0'.repeat(32) }], ['creeParGestionnaireId', { creeParGestionnaireId: UUID }],
+  ])('création : %s refusé (clé inconnue → 400 ; cabinet, fiche et auteur viennent de la session)', (_cle, intrus) => {
+    expect(coproprieteGestionnaireQrSchema.safeParse({ ...SAISIE, ...intrus }).success).toBe(false)
+  })
+
+  it('modification : tout facultatif, au moins un champ autre que la confirmation ; champs obligatoires jamais vidés', () => {
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ ville: 'Aix' }).success).toBe(true)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ immatriculation: '', referenceCabinet: '', emailsDestinataires: [] }).success).toBe(true)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({}).success).toBe(false)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ confirmerDoublonProbable: true }).success).toBe(false)
+    for (const vide of [{ nom: '' }, { adresse: ' ' }, { codePostal: '' }, { ville: '' }]) {
+      expect(modificationCoproprieteGestionnaireQrSchema.safeParse(vide).success, JSON.stringify(vide)).toBe(false)
+    }
+  })
+
+  it.each([
+    ['actif', { actif: false }], ['regenererJeton', { regenererJeton: true }], ['attribueeATous', { attribueeATous: true }],
+    ['gestionnaireIds', { gestionnaireIds: [UUID] }], ['cabinetId', { cabinetId: UUID }], ['forcerDoublon', { forcerDoublon: true }],
+    ['confirmerHorsDomaine', { confirmerHorsDomaine: true }], ['operationId', { operationId: UUID }],
+  ])('modification : %s refusé', (_cle, intrus) => {
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ ville: 'Aix', ...intrus }).success).toBe(false)
   })
 })
 

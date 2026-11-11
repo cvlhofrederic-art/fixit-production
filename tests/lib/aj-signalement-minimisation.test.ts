@@ -100,6 +100,10 @@ describe('coproprieteVueGestionnaireQr', () => {
     expect(c.jeton).toBe('')
   })
 
+  it('copropriété désactivée : en lecture seulement, même attribuée nommément (SPEC § 2.5)', () => {
+    expect(coproprieteVueGestionnaireQr(copro(C1, { actif: false }), vue()).modifiable).toBe(false)
+  })
+
   it('n’écrit pas dans la copropriété reçue', () => {
     const origine = copro(C1, { emailsDestinataires: ['paul.collegue@exemple.test'] })
     coproprieteVueGestionnaireQr(origine, vue())

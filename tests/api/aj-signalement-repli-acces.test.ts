@@ -29,6 +29,8 @@ const { GET: MOI } = await import('@/app/api/aj-signalement/moi/route')
 const { GET: LISTE } = await import('@/app/api/aj-signalement/gestionnaires/route')
 const { GET: FICHE, PATCH: MODIFIER_FICHE } = await import('@/app/api/aj-signalement/gestionnaires/[id]/route')
 const { POST: DEPART } = await import('@/app/api/aj-signalement/gestionnaires/[id]/depart/route')
+const { POST: CREER_COPRO } = await import('@/app/api/aj-signalement/coproprietes/route')
+const { PATCH: MODIFIER_COPRO } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const { MIGRATION_ACCES_QR, reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 
 /** Clés d'une fiche gestionnaire telles que la PR 1 les rend (aucun champ d'accès). */
@@ -59,12 +61,22 @@ const DEPOT = {
   description: 'Fuite d’eau au plafond de la cuisine', priorite: 'normale', langue: 'fr', qualiteDeclarant: 'locataire',
 }
 
-/** Toutes les routes ouvertes à un gestionnaire au lot 1. */
+/** Saisie d'une copropriété par un gestionnaire (lot 2). */
+const CREATION_GESTIONNAIRE = {
+  operationId: 'f0000000-0000-4000-8000-000000000001', nom: 'Résidence Neuve', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille',
+  emailsDestinataires: ['conseil@exemple.test'],
+}
+
+/** Toutes les routes ouvertes à un gestionnaire (lots 1 et 2). */
 const routesGestionnaire = () => [
   ['moi', () => MOI(requeteQr('/api/aj-signalement/moi'))],
   ['tableau', () => TABLEAU(requeteQr('/api/aj-signalement/tableau'))],
   ['signalements d’une copropriété', () => SIGNALEMENTS_COPRO(requeteQr(`/api/aj-signalement/coproprietes/${A.C1}/signalements`), contexteQr(A.C1))],
   ['statut', () => STATUT(requeteQr(`/api/aj-signalement/signalements/${A.S1}`, 'PATCH', { statut: 'en_cours', statutAttendu: 'en_attente' }), contexteQr(A.S1))],
+  ['création de copropriété', () => CREER_COPRO(requeteQr('/api/aj-signalement/coproprietes', 'POST', CREATION_GESTIONNAIRE))],
+  ['modification de copropriété', () => MODIFIER_COPRO(
+    requeteQr(`/api/aj-signalement/coproprietes/${A.C1}`, 'PATCH', { ville: 'Aubagne', emailsDestinataires: ['nouveau@exemple.test'] }), contexteQr(A.C1),
+  )],
 ] as const
 
 describe('sans la migration 20261112 (20261111 appliquée) : le super admin et le public comme en PR 1', () => {
@@ -108,6 +120,17 @@ describe('sans la migration 20261112 (20261111 appliquée) : le super admin et l
     expect(tableau.coproprietes[0]).not.toHaveProperty('adressesMasquees')
     expect(tableau.signalements[0]).not.toHaveProperty('statutModifiePar')
     expect(tableau.signalements).toHaveLength(6)
+  })
+
+  it('création et modification de copropriété par le super admin : comme en PR 1 (aucune colonne de la 20261112)', async () => {
+    A.simulerCreationCoproprietesQr()
+    const creation = await CREER_COPRO(requeteQr('/api/aj-signalement/coproprietes', 'POST', { nom: 'Villa Exemple', cabinetId: A.CAB, gestionnaireIds: [A.G1] }))
+    expect(creation.status).toBe(201)
+    expect(baseQr.etat.appelsRpc.find((a) => a.nom === 'signalements_qr_creer_coproprietes')?.args).toMatchObject({ p_profil: 'super_admin', p_gestionnaire: null })
+    const modification = await MODIFIER_COPRO(requeteQr(`/api/aj-signalement/coproprietes/${A.C_TOUS}`, 'PATCH', { ville: 'Aubagne', actif: false }), contexteQr(A.C_TOUS))
+    expect(modification.status).toBe(200)
+    expect(baseQr.ecrituresDe('signalements_qr_coproprietes', 'update')[0].filtres).toEqual([`id=eq.${A.C_TOUS}`])
+    expect(avertissementsAcces()).toEqual([])
   })
 
   it('statut changé par le super admin : 200, trace super_admin', async () => {

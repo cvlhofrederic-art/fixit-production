@@ -894,6 +894,20 @@ export function reponseLectureGestionnaireQr(erreur: ErreurBase, operation: stri
 }
 
 /**
+ * Réponse d'une lecture ou d'une écriture refusée pour un GESTIONNAIRE (PR 2, lot 2) sur une structure de la migration
+ * du 11/11/2026 (domaines, fiches, colonnes des copropriétés, fonction de création) : absente → 503 base_absente,
+ * journalisé une fois ; sinon la traduction commune (P0001 métier 409, 42501 403, 500 journalisé avec son seul code).
+ * Jamais le repli du super admin (contrôle sauté, insertion d'origine, écriture réduite aux colonnes d'origine).
+ */
+export function reponseStructureGestionnaireQr(erreur: ErreurBase, operation: string, ids: Record<string, string> = {}): NextResponse {
+  if (structureAbsenteQr(erreur)) {
+    journaliserRepliGestionQr(operation, erreur)
+    return reponseErreur('base_absente', 503)
+  }
+  return reponseErreurSqlQr(erreur, operation, ids)
+}
+
+/**
  * Tableau de bord : copropriétés (compteurs, champs de gestion et, sans adresse, la dernière adresse proposée) et
  * signalements les plus récents. Options (P1-R1) : `cabinet` (ses copropriétés), `gestionnaire` (sa page de suivi : sa
  * portée, 100 signalements au plus). Colonne inconnue (migrations du 06/11/2026) : relecture par select('*').
@@ -1060,13 +1074,20 @@ export async function lireCabinetQr(cle: { id: string } | { identifiant: string 
 /** Cabinet par l'identifiant du chemin (page publique, confirmation d'adresse) ; null s'il n'existe pas. */
 export const lireCabinetParIdentifiantQr = (identifiant: string): Promise<LectureCabinetQr> => lireCabinetQr({ identifiant })
 
+/** Lecture d'une table du 11/11/2026 pour un contrôle : `strict` (gestionnaire, PR 2), aucune liste vide de repli. */
+export interface OptionsLectureControleQr {
+  /** Structure absente rendue comme une erreur (la route répond 503), jamais réputée vide. */
+  strict?: boolean
+}
+
 /**
  * Domaines e-mail d'un cabinet, lus pour un contrôle avant écriture : table absente → liste réputée vide (comme avant
- * la migration) ; toute autre erreur est rendue (la route répond 500 sans rien écrire, relecture 4).
+ * la migration ; `strict` : erreur rendue) ; toute autre erreur est rendue (la route répond 500 sans rien écrire,
+ * relecture 4).
  */
-export async function lireDomainesCabinetQr(cabinetId: string): Promise<LectureQr<string[]>> {
-  const r = await lireControleQr<{ domaine: string }>('lecture des domaines',
-    enLectureQr(supabaseAdmin.from(TABLE_DOMAINES_QR).select('domaine').eq('cabinet_id', cabinetId)))
+export async function lireDomainesCabinetQr(cabinetId: string, options: OptionsLectureControleQr = {}): Promise<LectureQr<string[]>> {
+  const lecture = enLectureQr<{ domaine: string }>(supabaseAdmin.from(TABLE_DOMAINES_QR).select('domaine').eq('cabinet_id', cabinetId))
+  const r = options.strict ? await lecture : await lireControleQr<{ domaine: string }>('lecture des domaines', lecture)
   return r.ok ? { ok: true, valeur: r.valeur.map((l) => l.domaine) } : r
 }
 
@@ -1084,14 +1105,17 @@ export async function lireDomainesAutresCabinetsQr(cabinetId: string, domaines: 
 
 /**
  * Fiches gestionnaires, actives ou non, de tout cabinet, dont l'adresse est parmi `emails` (RG-06 bis-1) : seules les
- * adresses proposées sont cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune ; autre erreur
- * rendue (contrôle avant écriture, relecture 4).
+ * adresses proposées sont cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune (`strict` : erreur
+ * rendue) ; autre erreur rendue (contrôle avant écriture, relecture 4).
  */
-export async function lireFichesParEmailsQr(emails: readonly string[]): Promise<LectureQr<Array<{ id: string; email: string | null }>>> {
-  return lireControleQr<{ id: string; email: string | null }>('lecture des fiches', lireParValeursQr<{ id: string; email: string | null }>(
+export async function lireFichesParEmailsQr(
+  emails: readonly string[], options: OptionsLectureControleQr = {},
+): Promise<LectureQr<Array<{ id: string; email: string | null }>>> {
+  const lecture = lireParValeursQr<{ id: string; email: string | null }>(
     emails.map(emailCanoniqueQr).filter((e): e is string => e !== null),
     (lot) => supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, email').in('email', lot).order('id', { ascending: true }),
-  ))
+  )
+  return options.strict ? lecture : lireControleQr<{ id: string; email: string | null }>('lecture des fiches', lecture)
 }
 
 interface LigneDoublonQr {
@@ -1108,15 +1132,16 @@ interface LigneDoublonQr {
 /**
  * Copropriétés du même groupe (cabinet, ou « sans cabinet »), actives ou non, pour le pré-contrôle des doublons
  * (SPEC § 1.6 ; la clé du nom est recalculée : cle_nom est NULL pour les lignes antérieures). Colonnes absentes :
- * toutes les copropriétés forment le groupe « sans cabinet » (nom et adresse seulement). `ignorerOperation` : la
- * copropriété déjà créée par ce même lot (nouvel essai d'un double clic) n'est pas son propre doublon.
+ * toutes les copropriétés forment le groupe « sans cabinet » (nom et adresse seulement ; `strict`, pour un
+ * gestionnaire : erreur rendue, jamais un contrôle sauté). `ignorerOperation` : la copropriété déjà créée par ce même
+ * lot (nouvel essai d'un double clic) n'est pas son propre doublon.
  */
 export async function lireCoproprietesDoublonsQr(
-  cabinetId: string | null, options: { ignorerOperation?: string } = {},
+  cabinetId: string | null, options: { ignorerOperation?: string } & OptionsLectureControleQr = {},
 ): Promise<{ ok: true; coproprietes: CoproprieteDoublonQr[] } | { ok: false; erreur: ErreurBase }> {
   const etendue = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom, adresse, code_postal, ville, immatriculation, reference_cabinet, operation_id')
   let r = await (cabinetId === null ? etendue.is('cabinet_id', null) : etendue.eq('cabinet_id', cabinetId))
-  if (colonneInconnue(r.error)) {
+  if (colonneInconnue(r.error) && !options.strict) {
     journaliserRepliGestionQr('lecture des doublons', r.error)
     if (cabinetId !== null) return { ok: true, coproprietes: [] }
     r = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom, adresse')

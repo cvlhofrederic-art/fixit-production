@@ -1,7 +1,9 @@
 // tests/api/aj-signalement-isolation.test.ts
 //
-// Isolation entre gestionnaires (PR 2, SPEC § 2.4 et § 2.5) sur les lectures et le changement de statut :
-//   - tableau (P1-R1), signalements d'une copropriété (P1-R2), statut d'un signalement (P1-R7) ;
+// Isolation entre gestionnaires (PR 2, SPEC § 2.4 et § 2.5) sur les lectures, le changement de statut et (lot 2) les
+// écritures d'une copropriété :
+//   - tableau (P1-R1), signalements d'une copropriété (P1-R2), statut d'un signalement (P1-R7), fiche (P1-R4) et doublon
+//     d'une création (P1-R3) ;
 //   - G1 et G2 (même cabinet, copropriétés distinctes) + une copropriété « attribuée à tous » + G3 d'un autre cabinet ;
 //   - hors portée = 404, jamais 403, et le statut n'est PAS écrit ; « à tous » : lecture et statut pour tous les
 //     gestionnaires de SON cabinet, jamais pour ceux d'un autre ;
@@ -27,6 +29,8 @@ const { GET: TABLEAU } = await import('@/app/api/aj-signalement/tableau/route')
 const { GET: SIGNALEMENTS_COPRO } = await import('@/app/api/aj-signalement/coproprietes/[id]/signalements/route')
 const { PATCH: STATUT } = await import('@/app/api/aj-signalement/signalements/[id]/route')
 const { GET: MOI } = await import('@/app/api/aj-signalement/moi/route')
+const { POST: CREER } = await import('@/app/api/aj-signalement/coproprietes/route')
+const { PATCH: MODIFIER } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 
 beforeEach(() => {
@@ -192,6 +196,45 @@ describe('statut d’un signalement (P1-R7) changé par un gestionnaire', () => 
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'conflit_statut' })
     expect(baseQr.table('signalements_qr_journal')).toEqual([])
+  })
+})
+
+describe('fiche d’une copropriété (P1-R4) et doublon d’une création (P1-R3) par un gestionnaire', () => {
+  const modifierFiche = (id: string) => MODIFIER(requeteQr(`/api/aj-signalement/coproprietes/${id}`, 'PATCH', { nom: 'Prise de contrôle' }), contexteQr(id))
+
+  it.each([
+    ['copropriété d’un collègue', A.C2],
+    ['copropriété d’un autre cabinet', A.C3],
+    ['« à tous » d’un autre cabinet', A.C_TOUS_AUTRE],
+    ['copropriété sans cabinet', A.C_SANS],
+  ])('PATCH %s : 404, rien écrit', async (_cas, id) => {
+    const res = await modifierFiche(id)
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'introuvable' })
+    expect(baseQr.etat.ecritures).toEqual([])
+  })
+
+  it('PATCH « à tous » de son cabinet : 403 lecture_seule (visible, non modifiable)', async () => {
+    const res = await modifierFiche(A.C_TOUS)
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'lecture_seule' })
+    expect(baseQr.etat.ecritures.filter((e) => e.table === 'signalements_qr_coproprietes')).toEqual([])
+  })
+
+  it('G3 : PATCH de la « à tous » du premier cabinet → 404 (il ne la voit pas)', async () => {
+    A.connecterQr(A.COMPTE_G3)
+    expect((await modifierFiche(A.C_TOUS)).status).toBe(404)
+  })
+
+  it('doublon d’une copropriété d’un collègue : 409 sans son identifiant, son nom, ni rien de G2', async () => {
+    const res = await CREER(requeteQr('/api/aj-signalement/coproprietes', 'POST', {
+      operationId: 'f0000000-0000-4000-8000-000000000001', nom: 'Résidence Deux', adresse: '2 rue Exemple', codePostal: '13001', ville: 'Marseille',
+    }))
+    expect(res.status).toBe(409)
+    const texte = JSON.stringify(await res.json())
+    sansDonneeDautrui(texte)
+    expect(texte).not.toContain(A.C2)
+    expect(texte).not.toContain('Deux')
   })
 })
 

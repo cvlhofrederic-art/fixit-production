@@ -1,7 +1,10 @@
 // tests/api/aj-signalement-elevation.test.ts
 //
-// Élévation de droits d'un gestionnaire connecté (PR 2, SPEC § 2.4 et § 2.11), partie LECTURE et STATUT (lot 1) ; la
-// partie écriture (création et modification de copropriété) vient avec le lot 2.
+// Élévation de droits d'un gestionnaire connecté (PR 2, SPEC § 2.4 et § 2.11), partie LECTURE et STATUT (lot 1), puis
+// ÉCRITURE (lot 2 : création et modification de copropriété) :
+//   - corps avec actif, regenererJeton, attribueeATous, gestionnaireIds, cabinetId, forcerDoublon, confirmerHorsDomaine
+//     (ou tout paramètre de la fonction SQL) → 400, sans aucun appel ni écriture ;
+//   - p_acteur, p_gestionnaire et p_cabinet viennent de la session (fiche relue), jamais du corps ni du repère ;
 //   - ?gestionnaire= et ?cabinet= du tableau : réservés au super admin → 403 interdit (même vers son propre cabinet) ;
 //   - routes réservées au super admin (gestionnaires/*, cabinets/*, coproprietes/[id]/gestionnaires, DELETE, import,
 //     journal) → 403 interdit, SANS que la fiche du compte soit lue (aucune colonne de la 20261112 nommée) ;
@@ -32,6 +35,7 @@ const DEPART = await import('@/app/api/aj-signalement/gestionnaires/[id]/depart/
 const EXPORT = await import('@/app/api/aj-signalement/gestionnaires/[id]/export/route')
 const CONFIRMATION = await import('@/app/api/aj-signalement/gestionnaires/[id]/confirmation/route')
 const COPROS_GESTIONNAIRE = await import('@/app/api/aj-signalement/gestionnaires/[id]/coproprietes/route')
+const COPROS = await import('@/app/api/aj-signalement/coproprietes/route')
 const COPRO = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const COPRO_GESTIONNAIRES = await import('@/app/api/aj-signalement/coproprietes/[id]/gestionnaires/route')
 const IMPORT = await import('@/app/api/aj-signalement/coproprietes/import/route')
@@ -127,6 +131,54 @@ describe('statut : statutAttendu exigé d’un gestionnaire', () => {
     reinitialiserSimulQr()
     const res = await STATUT(requeteQr(`/api/aj-signalement/signalements/${A.S1}`, 'PATCH', { statut: 'en_cours' }), contexteQr(A.S1))
     expect(res.status).toBe(200)
+  })
+})
+
+describe('écritures d’une copropriété : le corps ne donne aucun droit d’administration (RG-20, RG-21)', () => {
+  const SAISIE = { operationId: 'f0000000-0000-4000-8000-000000000001', nom: 'Résidence Neuve', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille' }
+  const INTRUS: Array<[string, Record<string, unknown>]> = [
+    ['actif', { actif: false }],
+    ['regenererJeton', { regenererJeton: true }],
+    ['attribueeATous', { attribueeATous: true }],
+    ['gestionnaireIds', { gestionnaireIds: [A.G2] }],
+    ['cabinetId', { cabinetId: A.CAB_AUTRE }],
+    ['forcerDoublon', { forcerDoublon: true }],
+    ['confirmerHorsDomaine', { confirmerHorsDomaine: true }],
+    ['p_cabinet', { p_cabinet: A.CAB_AUTRE }],
+    ['p_gestionnaire', { p_gestionnaire: A.G2 }],
+    ['p_acteur', { p_acteur: A.U2 }],
+    ['p_profil', { p_profil: 'super_admin' }],
+  ]
+  const creer = (corps: unknown) => COPROS.POST(requeteQr('/api/aj-signalement/coproprietes', 'POST', corps))
+
+  it.each(INTRUS)('POST avec %s : 400, aucun appel, rien écrit', async (_cle, intrus) => {
+    const res = await creer({ ...SAISIE, ...intrus })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('invalide')
+    expect(baseQr.etat.appelsRpc).toEqual([])
+    expect(baseQr.etat.ecritures).toEqual([])
+  })
+
+  it.each(INTRUS)('PATCH de SA copropriété avec %s : 400, rien écrit', async (_cle, intrus) => {
+    const res = await appeler(COPRO.PATCH, `/api/aj-signalement/coproprietes/${A.C1}`, 'PATCH', A.C1, { ville: 'Aubagne', ...intrus })
+    expect(res.status).toBe(400)
+    expect(baseQr.etat.ecritures).toEqual([])
+    expect(baseQr.etat.appelsRpc).toEqual([])
+  })
+
+  it('p_acteur, p_gestionnaire et p_cabinet viennent de la session : un repère d’un autre cabinet est sans effet', async () => {
+    A.simulerCreationCoproprietesQr()
+    simulQr.user = { ...A.COMPTE_G1, app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'autre-cabinet' } }
+    const res = await creer(SAISIE)
+    expect(res.status).toBe(201)
+    const appel = baseQr.etat.appelsRpc.find((a) => a.nom === 'signalements_qr_creer_coproprietes')
+    expect(appel?.args).toMatchObject({ p_acteur: A.U1, p_profil: 'gestionnaire', p_gestionnaire: A.G1, p_cabinet: A.CAB })
+  })
+
+  it('« à tous » non modifiable : 403 lecture_seule, même pour un champ anodin', async () => {
+    const res = await appeler(COPRO.PATCH, `/api/aj-signalement/coproprietes/${A.C_TOUS}`, 'PATCH', A.C_TOUS, { ville: 'Aubagne' })
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'lecture_seule' })
   })
 })
 

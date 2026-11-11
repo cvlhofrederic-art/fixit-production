@@ -52,7 +52,8 @@ export function coproprieteVueGestionnaireQr(c: CoproprieteQr, vue: VueGestionna
     gestionnaires: [],
     creePar: creeeParVous ? { gestionnaireId: vue.gestionnaireId, nom: vue.nom } : 'administrateur',
     creeeParVous,
-    modifiable: vue.portee.modifiables.has(c.id),
+    // Attribuée nommément ET active : une copropriété désactivée reste visible en lecture seulement (SPEC § 2.5).
+    modifiable: c.actif && vue.portee.modifiables.has(c.id),
   }
 }
 
