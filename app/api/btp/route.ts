@@ -233,13 +233,13 @@ export async function POST(request: NextRequest) {
 
       if (table === 'chantiers_btp') row.updated_at = new Date().toISOString()
 
-      const { data: updated, error } = await supabaseAdmin
-        .from(table)
-        .update(row)
-        .eq('id', id)
-        .eq('owner_id', user.id)
-        .select()
-        .single()
+      // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
+      // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient
+      // bien à l'appelant avant de toucher à ses membres.
+      const cible = Object.keys(row).length === 0
+        ? supabaseAdmin.from(table).select().eq('id', id).eq('owner_id', user.id).single()
+        : supabaseAdmin.from(table).update(row).eq('id', id).eq('owner_id', user.id).select().single()
+      const { data: updated, error } = await cible
       if (error) throw error
 
       // Re-sync equipe membres

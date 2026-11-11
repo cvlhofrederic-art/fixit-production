@@ -209,7 +209,7 @@ export function mapToSupabase(table: ShortName, item: any): any {
 }
 
 // Champs du formulaire qui alimentent chaque colonne — mêmes correspondances que mapToSupabase ci-dessus
-// (tests/lib/use-btp-data-modification-partielle.test.ts vérifie que les deux restent alignés).
+// (tests/lib/use-btp-data-modification-partielle.test.tsx vérifie que les deux restent alignés).
 // Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par
 // une modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
 export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, readonly string[]>>> = {
@@ -631,7 +631,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     try {
       // Seuls les champs fournis partent : une modification partielle ne réécrit pas le reste de la fiche.
       const mapped = colonnesModifiees(table, changes as Record<string, unknown>)
-      if (Object.keys(mapped).length === 0) return true
+      if (Object.keys(mapped).length === 0) {
+        // Rien d'enregistrable : rien ne part et rien n'est écrasé. La trace aide à repérer un champ de formulaire
+        // qui n'a pas (encore) de colonne dans mapToSupabase.
+        console.warn(`[btp] update ${tableName} : aucun champ enregistrable parmi`, Object.keys(changes))
+        return true
+      }
       const res = await fetch('/api/btp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },

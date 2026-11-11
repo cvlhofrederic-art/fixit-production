@@ -32,8 +32,8 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 
   it('retenue de garantie : mainlevée demandée puis libération', () => {
     // RetenuesGarantieSection envoie toujours la clé dateLiberation, undefined tant que la retenue n'est pas libérée.
-    expect(colonnesModifiees('retenues', { statut: 'mainlevée demandée', dateLiberation: undefined }))
-      .toEqual({ statut: 'mainlevée demandée', date_liberation: null })
+    expect(colonnesModifiees('retenues', { statut: 'mainlevée_demandée', dateLiberation: undefined }))
+      .toEqual({ statut: 'mainlevée_demandée', date_liberation: null })
     expect(colonnesModifiees('retenues', { statut: 'libérée', dateLiberation: '2026-11-11' }))
       .toEqual({ statut: 'libérée', date_liberation: '2026-11-11' })
   })
@@ -46,7 +46,7 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 
   it('appel d’offres (DPGF) : ajout d’un lot, statut', () => {
     expect(colonnesModifiees('dpgf', { lots: [{ numero: 1 }] })).toEqual({ lots: '[{"numero":1}]' })
-    expect(colonnesModifiees('dpgf', { statut: 'remis' })).toEqual({ statut: 'remis' })
+    expect(colonnesModifiees('dpgf', { statut: 'soumis' })).toEqual({ statut: 'soumis' })
   })
 
   it('salarié : désactivation seule ; équipe : renommage sans toucher à ses membres', () => {
@@ -69,7 +69,7 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
   it('un champ fourni vide est bien vidé ; un champ inconnu ou aucun champ n’écrit rien', () => {
     expect(colonnesModifiees('chantiers', { client: '', description: '' })).toEqual({ client: null, description: null })
     expect(colonnesModifiees('membres', { salaire_brut_mensuel: undefined })).toEqual({ salaire_brut_mensuel: null })
-    expect(colonnesModifiees('chantiers', { id: 'x', geoRayonM: 100 })).toEqual({})
+    expect(colonnesModifiees('chantiers', { id: 'x', champInconnu: 100 })).toEqual({})
     expect(colonnesModifiees('chantiers', {})).toEqual({})
   })
 
@@ -86,16 +86,48 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 describe('SOURCES_DES_COLONNES reste aligné sur mapToSupabase', () => {
   // Colonnes posées d'office à la création, volontairement absentes des modifications.
   const POSEES_A_LA_CREATION: Record<string, string[]> = { pointages: ['mode'] }
+  const trier = (liste: readonly string[]) => [...liste].sort((a, b) => a.localeCompare(b))
+  const tries = (parColonne: Record<string, readonly string[]>) =>
+    Object.fromEntries(Object.entries(parColonne).map(([colonne, champs]) => [colonne, trier(champs)]))
+
+  // Les dates par défaut de mapToSupabase lisent l'horloge : figée, deux appels rendent la même ligne.
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-11T12:00:00Z')) })
+  afterEach(() => { vi.useRealTimers() })
+
+  /**
+   * Champs que mapToSupabase lit RÉELLEMENT, colonne par colonne : un espion note chaque champ consulté, puis
+   * chaque champ est fourni seul pour voir quelles colonnes il fait varier. Comparer les seuls noms de colonnes ne
+   * suffisait pas : un champ source mal nommé ou oublié dans la table (une modification alors ignorée en silence)
+   * passait inaperçu.
+   */
+  function sourcesReelles(table: Table): Record<string, string[]> {
+    const lus = new Set<string>()
+    const noter = (champ: string | symbol) => { if (typeof champ === 'string') lus.add(champ) }
+    const espion = new Proxy({}, {
+      get: (_cible, champ) => { noter(champ); return undefined },
+      has: (_cible, champ) => { noter(champ); return false },
+    })
+    mapToSupabase(table, espion)
+    const vide = mapToSupabase(table, {}) as Record<string, unknown>
+    const reel: Record<string, string[]> = {}
+    for (const champ of lus) {
+      const avec = mapToSupabase(table, { [champ]: '7' }) as Record<string, unknown>
+      for (const colonne of new Set([...Object.keys(avec), ...Object.keys(vide)])) {
+        const varie = (colonne in avec) !== (colonne in vide) || JSON.stringify(avec[colonne]) !== JSON.stringify(vide[colonne])
+        if (varie) (reel[colonne] ??= []).push(champ)
+      }
+    }
+    return reel
+  }
 
   for (const [table, sources] of Object.entries(SOURCES_DES_COLONNES)) {
-    it(`${table} : chaque colonne écrite à la création a ses champs source, et inversement`, () => {
-      // Tous les champs source à la fois : la modification doit alors porter sur toutes les colonnes de la création.
-      const tousLesChamps = Object.fromEntries(Object.values(sources).flat().map(champ => [champ, 'x']))
-      const creation = Object.keys(mapToSupabase(table as Table, tousLesChamps)).sort((a, b) => a.localeCompare(b))
-      const attendues = [...Object.keys(sources), ...(POSEES_A_LA_CREATION[table] ?? [])].sort((a, b) => a.localeCompare(b))
-      expect(creation).toEqual(attendues)
-      expect(Object.keys(colonnesModifiees(table as Table, tousLesChamps)).sort((a, b) => a.localeCompare(b)))
-        .toEqual(Object.keys(sources).sort((a, b) => a.localeCompare(b)))
+    it(`${table} : les champs source déclarés sont exactement ceux que mapToSupabase lit, colonne par colonne`, () => {
+      expect(tries(sourcesReelles(table as Table))).toEqual(tries(sources))
+    })
+
+    it(`${table} : seules les colonnes posées d’office à la création échappent aux modifications`, () => {
+      const creation = Object.keys(mapToSupabase(table as Table, {}))
+      expect(trier(creation.filter(colonne => !(colonne in sources)))).toEqual(trier(POSEES_A_LA_CREATION[table] ?? []))
     })
   }
 
@@ -120,8 +152,13 @@ describe('useBTPData.update — ce qui part réellement vers /api/btp', () => {
   })
   afterEach(() => { vi.restoreAllMocks() })
 
+  // Un compte par montage, fixé AVANT le rendu : le hook met ses lectures en cache par compte, et un identifiant
+  // recalculé à chaque rendu relancerait le chargement.
+  let montages = 0
   const monter = async (table: 'chantiers' | 'situations') => {
-    const hook = renderHook(() => useBTPData({ table, artisanId: 'a1', userId: `u-${table}-${Date.now()}`, autoImport: false }))
+    montages += 1
+    const userId = `u-${table}-${montages}`
+    const hook = renderHook(() => useBTPData({ table, artisanId: 'a1', userId, autoImport: false }))
     await waitFor(() => expect(hook.result.current.loading).toBe(false))
     return hook.result
   }
@@ -140,12 +177,14 @@ describe('useBTPData.update — ce qui part réellement vers /api/btp', () => {
     expect(envois).toEqual([{ table: 'chantiers_btp', action: 'update', id: 'c1', data: { latitude: 43.3, longitude: 5.4 } }])
   })
 
-  it('une modification sans aucun champ reconnu n’appelle pas le serveur', async () => {
+  it('une modification sans aucun champ reconnu n’appelle pas le serveur, et le signale dans la console', async () => {
+    const avertissement = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const hook = await monter('chantiers')
     let ok = false
-    await act(async () => { ok = await hook.current.update('c1', { geoRayonM: 100 }) })
+    await act(async () => { ok = await hook.current.update('c1', { champInconnu: 100 }) })
     expect(ok).toBe(true)
     expect(envois).toEqual([])
+    expect(avertissement).toHaveBeenCalledWith(expect.stringContaining('chantiers_btp'), ['champInconnu'])
   })
 
   it('une création garde ses valeurs par défaut', async () => {

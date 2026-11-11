@@ -1,0 +1,121 @@
+// @vitest-environment node
+// tests/api/btp-modification-equipe.test.ts — POST /api/btp, action `update` sur une équipe (11/11/2026).
+//
+// Depuis que useBTPData n'envoie plus que les champs modifiés, une équipe peut arriver avec ses seuls membres
+// (`data: { membreIds }`) : il ne reste alors aucune colonne à écrire, et PostgREST ne renvoie aucune ligne pour un
+// UPDATE vide. La route lit la ligne à la place — ce qui garde le contrôle d'appartenance avant de toucher aux
+// membres. Un renommage sans `membreIds` ne détache plus personne.
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
+
+type Ligne = Record<string, unknown>
+interface Operation { table: string; operation: 'select' | 'insert' | 'update' | 'delete'; valeur?: unknown; filtres: Ligne }
+
+const h = vi.hoisted(() => {
+  const etat = {
+    user: null as null | { id: string },
+    equipes: [] as Array<Record<string, unknown>>,
+    operations: [] as Array<{ table: string; operation: string; valeur?: unknown; filtres: Record<string, unknown> }>,
+  }
+  const from = (table: string) => {
+    const op = { table, operation: 'select', valeur: undefined as unknown, filtres: {} as Record<string, unknown> }
+    etat.operations.push(op)
+    const trouvees = () => (table === 'equipes_btp' ? etat.equipes : [])
+      .filter(ligne => Object.entries(op.filtres).every(([colonne, valeur]) => ligne[colonne] === valeur))
+    const b: Record<string, unknown> = {}
+    b.select = () => b
+    b.eq = (colonne: string, valeur: unknown) => { op.filtres[colonne] = valeur; return b }
+    b.insert = (valeur: unknown) => { op.operation = 'insert'; op.valeur = valeur; return b }
+    b.update = (valeur: unknown) => { op.operation = 'update'; op.valeur = valeur; return b }
+    b.delete = () => { op.operation = 'delete'; return b }
+    b.single = async () => {
+      // Comme PostgREST : un UPDATE sans colonne ne renvoie aucune ligne, `.single()` échoue (PGRST116).
+      const ecrit = op.operation === 'update' ? (op.valeur as Record<string, unknown>) : null
+      const ligne = ecrit && Object.keys(ecrit).length === 0 ? undefined : trouvees()[0]
+      return ligne
+        ? { data: { ...ligne, ...ecrit }, error: null }
+        : { data: null, error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' } }
+    }
+    b.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) =>
+      Promise.resolve({ data: trouvees(), error: null }).then(ok, ko)
+    return b
+  }
+  return { etat, from }
+})
+
+vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.user) }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
+vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
+vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.from(t) } }))
+
+const { POST } = await import('@/app/api/btp/route')
+
+const SOCIETE_A = '550e8400-e29b-41d4-a716-446655440000'
+const SOCIETE_B = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+
+const modifier = async (id: string, data: Ligne) => {
+  const res = await POST(new NextRequest('https://vitfix.io/api/btp', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ table: 'equipes_btp', action: 'update', id, data }),
+  }))
+  return { status: res.status, json: await res.json() }
+}
+
+const operations = (table: string) => (h.etat.operations as Operation[]).filter(o => o.table === table)
+
+beforeEach(() => {
+  h.etat.user = { id: SOCIETE_A }
+  h.etat.operations = []
+  h.etat.equipes = [
+    { id: 'equipe-a', owner_id: SOCIETE_A, nom: 'Maçons', metier: 'Maçonnerie' },
+    { id: 'equipe-b', owner_id: SOCIETE_B, nom: 'Couvreurs', metier: 'Couverture' },
+  ]
+})
+
+describe('POST /api/btp — modifier une équipe', () => {
+  it('seuls les membres changent : aucun UPDATE vide, la ligne est lue, les membres sont remplacés', async () => {
+    const res = await modifier('equipe-a', { membreIds: ['m1', 'm2'] })
+
+    expect(res.status).toBe(200)
+    expect(res.json.row).toMatchObject({ id: 'equipe-a', nom: 'Maçons' })
+    expect(operations('equipes_btp')).toEqual([
+      { table: 'equipes_btp', operation: 'select', valeur: undefined, filtres: { id: 'equipe-a', owner_id: SOCIETE_A } },
+    ])
+    expect(operations('equipe_membres_btp')).toEqual([
+      { table: 'equipe_membres_btp', operation: 'delete', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
+      { table: 'equipe_membres_btp', operation: 'insert', valeur: [{ equipe_id: 'equipe-a', membre_id: 'm1' }, { equipe_id: 'equipe-a', membre_id: 'm2' }], filtres: {} },
+    ])
+  })
+
+  it('équipe d’une autre société : refus, ses membres ne sont pas touchés', async () => {
+    const res = await modifier('equipe-b', { membreIds: ['m1'] })
+
+    expect(res.status).toBe(500)
+    expect(res.json).toEqual({ error: 'Erreur serveur' })
+    expect(operations('equipe_membres_btp')).toEqual([])
+  })
+
+  it('renommage seul : une seule colonne écrite, personne n’est détaché', async () => {
+    const res = await modifier('equipe-a', { nom: 'Maçons — équipe 1' })
+
+    expect(res.status).toBe(200)
+    expect(operations('equipes_btp')).toEqual([
+      { table: 'equipes_btp', operation: 'update', valeur: { nom: 'Maçons — équipe 1' }, filtres: { id: 'equipe-a', owner_id: SOCIETE_A } },
+    ])
+    expect(operations('equipe_membres_btp')).toEqual([])
+  })
+
+  it('formulaire complet : colonnes écrites sans `membreIds`, puis membres remplacés (vidés si la liste est vide)', async () => {
+    const res = await modifier('equipe-a', { nom: 'Maçons', metier: 'Gros œuvre', membreIds: [], owner_id: SOCIETE_B, id: 'equipe-b' })
+
+    expect(res.status).toBe(200)
+    expect(operations('equipes_btp')).toEqual([
+      { table: 'equipes_btp', operation: 'update', valeur: { nom: 'Maçons', metier: 'Gros œuvre' }, filtres: { id: 'equipe-a', owner_id: SOCIETE_A } },
+    ])
+    expect(operations('equipe_membres_btp')).toEqual([
+      { table: 'equipe_membres_btp', operation: 'delete', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
+    ])
+  })
+})
