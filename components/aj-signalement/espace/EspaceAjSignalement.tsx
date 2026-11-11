@@ -59,10 +59,11 @@ export default function EspaceAjSignalement() {
   }
   return (
     <PagePleine>
-      <div className="text-center" role="status">
-        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#C9A84C] border-t-transparent" />
-        <p className="text-base font-medium text-[#4A5E78]">{etat.statut === 'connexion' ? E.redirectionConnexion : E.verification}</p>
-      </div>
+      {/* Zone d'état native (rôle status) ; <output> n'admet que du contenu phrasé : span en block, même rendu que div et p. */}
+      <output className="block text-center">
+        <span className="mx-auto mb-4 block h-12 w-12 animate-spin rounded-full border-4 border-[#C9A84C] border-t-transparent" />
+        <span className="block text-base font-medium text-[#4A5E78]">{etat.statut === 'connexion' ? E.redirectionConnexion : E.verification}</span>
+      </output>
       {etat.statut === 'connexion' && (
         <div className="mt-6"><Bouton variante="principal" href={connexion} icone="utilisateur" pleineLargeur>{E.seConnecter}</Bouton></div>
       )}

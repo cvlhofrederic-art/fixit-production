@@ -35,27 +35,25 @@ describe('règles de gestion', () => {
   })
 })
 
+/** Chaque saisie donne le bâtiment normalisé attendu (la saisie est rappelée en cas d'échec). */
+function verifierNormalisation(cas: ReadonlyArray<readonly [saisie: string, attendu: string]>) {
+  for (const [saisie, attendu] of cas) expect(normaliserBatimentQr(saisie), saisie).toBe(attendu)
+}
+
 describe('normalisation du bâtiment', () => {
   it.each(['Bât. B', 'bat b', 'BÂTIMENT  B', 'Bloc B', 'b', ' B ', 'Bâtiment-B', 'bât.B', 'Bloco B', 'bâtiment b'])('« %s » → b', (saisie) => {
     expect(normaliserBatimentQr(saisie)).toBe('b')
   })
 
   it('chiffres : zéros de tête retirés, lettres et chiffres comparés sans séparateur', () => {
-    expect(normaliserBatimentQr('B 2')).toBe('b2')
-    expect(normaliserBatimentQr('b02')).toBe('b2')
-    expect(normaliserBatimentQr('B-2')).toBe('b2')
-    expect(normaliserBatimentQr('Bât. 02')).toBe('2')
-    expect(normaliserBatimentQr('bat2')).toBe('2')
-    expect(normaliserBatimentQr('0')).toBe('0')
+    verifierNormalisation([['B 2', 'b2'], ['b02', 'b2'], ['B-2', 'b2'], ['Bât. 02', '2'], ['bat2', '2'], ['0', '0']])
   })
 
   it('noms : accents et espaces retirés ; « Batignolles » et « Blocus » ne sont pas coupés', () => {
-    expect(normaliserBatimentQr('Les Pins')).toBe('lespins')
-    expect(normaliserBatimentQr('les  pins')).toBe('lespins')
-    expect(normaliserBatimentQr('Hélios')).toBe('helios')
-    expect(normaliserBatimentQr('Batignolles')).toBe('batignolles')
-    expect(normaliserBatimentQr('Bloc Batignolles')).toBe('batignolles')
-    expect(normaliserBatimentQr('Blocus')).toBe('blocus')
+    verifierNormalisation([
+      ['Les Pins', 'lespins'], ['les  pins', 'lespins'], ['Hélios', 'helios'],
+      ['Batignolles', 'batignolles'], ['Bloc Batignolles', 'batignolles'], ['Blocus', 'blocus'],
+    ])
   })
 
   it.each(['Bât n°2', 'Bâtiment 2', 'bât. n° 02', 'Bloco n.º 2', 'Bâtiment No 2', 'bat num. 2', 'Bâtiment numéro 2', 'nº2', '2'])('numéro : « %s » → 2', (saisie) => {
@@ -63,18 +61,11 @@ describe('normalisation du bâtiment', () => {
   })
 
   it('le marqueur de numéro n’est écarté que devant des chiffres dont il est séparé : « Bâtiment N », « N2 », « B n°2 »', () => {
-    expect(normaliserBatimentQr('Bâtiment N')).toBe('n')
-    expect(normaliserBatimentQr('N')).toBe('n')
-    expect(normaliserBatimentQr('N2')).toBe('n2')
-    expect(normaliserBatimentQr('Bâtiment N2')).toBe('n2')
-    expect(normaliserBatimentQr('B n°2')).toBe('b2')
-    expect(normaliserBatimentQr('Nord')).toBe('nord')
+    verifierNormalisation([['Bâtiment N', 'n'], ['N', 'n'], ['N2', 'n2'], ['Bâtiment N2', 'n2'], ['B n°2', 'b2'], ['Nord', 'nord']])
   })
 
   it('saisie réduite au seul mot « bâtiment » : le mot est gardé ; saisie vide ou sans lettre ni chiffre → vide', () => {
-    expect(normaliserBatimentQr('Bâtiment')).toBe('batiment')
-    expect(normaliserBatimentQr('   ')).toBe('')
-    expect(normaliserBatimentQr('--.')).toBe('')
+    verifierNormalisation([['Bâtiment', 'batiment'], ['   ', ''], ['--.', '']])
   })
 })
 

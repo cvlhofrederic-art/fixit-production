@@ -14,10 +14,10 @@
 
 import { TYPES_PROBLEME, ZONES_COMMUNES } from '@/lib/coproprietaire/textes'
 import {
-  STATUTS_OUVERTS_QR, estStatutOuvertQr, numeroSignalementQr, type LangueSignalementQr, type SignalementSemblableQr,
+  estStatutOuvertQr, numeroSignalementQr, type LangueSignalementQr, type SignalementSemblableQr,
 } from '@/lib/aj-signalement/types'
 
-export { STATUTS_OUVERTS_QR }
+export { STATUTS_OUVERTS_QR } from '@/lib/aj-signalement/types'
 
 /**
  * Règle de gestion (Hugo, 06/11/2026) : un signalement est « récent » pendant 60 jours après son dépôt. Au-delà,
@@ -112,7 +112,8 @@ export function zonePubliqueQr(zone: string, langue: LangueSignalementQr): strin
 export function typePublicQr(type: string, langue: LangueSignalementQr): string {
   const i = indiceDans(TYPES_PROBLEME, type)
   const liste = TYPES_PROBLEME[langue]
-  return i >= 0 ? liste[i] : liste[liste.length - 1]
+  // La liste fixe n'est jamais vide : la chaîne vide n'est qu'une garde de typage.
+  return i >= 0 ? liste[i] : (liste.at(-1) ?? '')
 }
 
 /** Colonnes lues pour la recherche : toutes de la migration 20261104 (aucun repli sur une colonne absente à prévoir). */

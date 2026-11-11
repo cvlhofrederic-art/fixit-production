@@ -15,6 +15,7 @@ import {
 import {
   LIBELLE_PRIORITE_QR, TEXTES_TABLEAU_QR, dateHeureParis, libelleQualiteQr, lieuSignalementQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
+import { parLangue } from '@/lib/aj-signalement/bilingue'
 import { remplir } from '@/lib/coproprietaire/textes'
 
 const ECHAPPEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -165,6 +166,33 @@ export async function cleLimiteConfirmationQr(email: string): Promise<string> {
   return `qr_confirmation_${Array.from(empreinte, (o) => o.toString(16).padStart(2, '0')).join('')}`
 }
 
+/** Caractères qui bornent une adresse dans un message : espaces, chevrons, guillemets, accent grave (et « @ », à part). */
+const BORNE_ADRESSE = /([\s<>"'`])/
+
+/**
+ * Remplace par « [e-mail] » toute adresse (« partie@domaine ») d'un message que la route écrit au logger. Mêmes
+ * remplacements que /[^\s@<>"'`]+@[^\s@<>"'`]+/g, mais en temps linéaire : cette expression, réessayée à chaque
+ * position, revenait en arrière sur toute la suite de caractères (temps quadratique sur un long message sans « @ »).
+ * Le message est découpé aux bornes, puis chaque mot à ses « @ » : deux parties non vides de part et d'autre d'un
+ * « @ » forment une adresse, lue de gauche à droite comme le faisait l'expression.
+ */
+export function masquerEmailsQr(texte: string): string {
+  return texte.split(BORNE_ADRESSE).map((morceau, i) => (i % 2 === 1 ? morceau : masquerAdressesDuMot(morceau))).join('')
+}
+
+/** Mot sans borne : « a@b » devient « [e-mail] », « a@b@c » devient « [e-mail]@c », « a@@b » reste tel quel. */
+function masquerAdressesDuMot(mot: string): string {
+  const parties = mot.split('@')
+  const sortie: string[] = []
+  let i = 0
+  while (i < parties.length) {
+    const adresse = parties[i] !== '' && (parties[i + 1] ?? '') !== ''
+    sortie.push(adresse ? '[e-mail]' : parties[i])
+    i += adresse ? 2 : 1
+  }
+  return sortie.join('@')
+}
+
 export interface TextesConfirmationQr {
   sujet: string
   titre: string
@@ -199,72 +227,63 @@ export interface TextesConfirmationQr {
 }
 
 /** Textes de la confirmation, dans la langue de la page publique. Aucune promesse d'intervention ni de délai. */
-export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmationQr> = {
-  fr: {
-    sujet: 'Votre signalement n° {numero} a bien été enregistré — {copropriete}',
-    titre: 'Votre signalement est enregistré',
-    bonjour: 'Bonjour,',
-    introduction: 'Votre signalement pour la copropriété {copropriete} a bien été enregistré sous le numéro {numero}.',
-    recapitulatif: 'Ce que vous avez déclaré',
-    numero: 'Numéro',
-    copropriete: 'Copropriété',
-    deposeLe: 'Déposé le',
-    heureParis: '(heure de Paris)',
-    qualite: 'Vous êtes',
-    qualites: { proprietaire: 'Propriétaire', locataire: 'Locataire' },
-    lieu: 'Lieu du problème',
-    zone: 'Zone',
-    signalementLie: 'Signalement lié',
-    memeProbleme: 'Même problème que le signalement n° {numero}',
-    type: 'Type de problème',
-    urgence: 'Urgence',
-    description: 'Description',
-    partiesCommunes: 'Parties communes',
-    votreLogement: 'Votre logement',
-    batiment: 'bât.',
-    etage: 'étage',
-    lot: 'lot',
-    priorites: { urgente: 'Urgent', normale: 'Normal', planifiee: 'À planifier' },
-    suiteTitre: 'Et maintenant ?',
-    suite: 'Votre signalement a été transmis à l’administrateur de la copropriété, qui pourra vous recontacter au téléphone ou à l’adresse e-mail que vous avez indiqués.',
-    conserverNumero: 'Gardez ce numéro : il permet de retrouver votre signalement si vous en reparlez avec l’administrateur.',
-    pasDeReponse: 'Message automatique : ne répondez pas à cet e-mail.',
-    pasVous: 'Si vous n’êtes pas à l’origine de ce signalement, ignorez ce message.',
-    piedDePage: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmationQr> = parLangue<TextesConfirmationQr>({
+  sujet: {
+    fr: 'Votre signalement n° {numero} a bien été enregistré — {copropriete}',
+    pt: 'A sua ocorrência n.º {numero} foi registada — {copropriete}',
   },
-  pt: {
-    sujet: 'A sua ocorrência n.º {numero} foi registada — {copropriete}',
-    titre: 'A sua ocorrência foi registada',
-    bonjour: 'Olá,',
-    introduction: 'A sua ocorrência relativa ao condomínio {copropriete} foi registada com o número {numero}.',
-    recapitulatif: 'O que declarou',
-    numero: 'Número',
-    copropriete: 'Condomínio',
-    deposeLe: 'Registada em',
-    heureParis: '(hora de Paris)',
-    qualite: 'Na qualidade de',
-    qualites: { proprietaire: 'Proprietário', locataire: 'Inquilino' },
-    lieu: 'Local do problema',
-    zone: 'Zona',
-    signalementLie: 'Ocorrência associada',
-    memeProbleme: 'Mesmo problema que a ocorrência n.º {numero}',
-    type: 'Tipo de problema',
-    urgence: 'Urgência',
-    description: 'Descrição',
-    partiesCommunes: 'Partes comuns',
-    votreLogement: 'A sua habitação',
-    batiment: 'bloco',
-    etage: 'piso',
-    lot: 'fração',
-    priorites: { urgente: 'Urgente', normale: 'Normal', planifiee: 'A planear' },
-    suiteTitre: 'E agora?',
-    suite: 'A sua ocorrência foi transmitida ao administrador do condomínio, que poderá contactá-lo pelo telefone ou pelo endereço de e-mail que indicou.',
-    conserverNumero: 'Guarde este número: permite identificar a sua ocorrência se voltar a falar dela com o administrador.',
-    pasDeReponse: 'Mensagem automática: não responda a este e-mail.',
-    pasVous: 'Se não foi o autor desta ocorrência, ignore esta mensagem.',
-    piedDePage: 'AJ Signalement — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
+  titre: { fr: 'Votre signalement est enregistré', pt: 'A sua ocorrência foi registada' },
+  bonjour: { fr: 'Bonjour,', pt: 'Olá,' },
+  introduction: {
+    fr: 'Votre signalement pour la copropriété {copropriete} a bien été enregistré sous le numéro {numero}.',
+    pt: 'A sua ocorrência relativa ao condomínio {copropriete} foi registada com o número {numero}.',
   },
-}
+  recapitulatif: { fr: 'Ce que vous avez déclaré', pt: 'O que declarou' },
+  numero: { fr: 'Numéro', pt: 'Número' },
+  copropriete: { fr: 'Copropriété', pt: 'Condomínio' },
+  deposeLe: { fr: 'Déposé le', pt: 'Registada em' },
+  heureParis: { fr: '(heure de Paris)', pt: '(hora de Paris)' },
+  qualite: { fr: 'Vous êtes', pt: 'Na qualidade de' },
+  qualites: parLangue({
+    proprietaire: { fr: 'Propriétaire', pt: 'Proprietário' },
+    locataire: { fr: 'Locataire', pt: 'Inquilino' },
+  }),
+  lieu: { fr: 'Lieu du problème', pt: 'Local do problema' },
+  zone: { fr: 'Zone', pt: 'Zona' },
+  signalementLie: { fr: 'Signalement lié', pt: 'Ocorrência associada' },
+  memeProbleme: { fr: 'Même problème que le signalement n° {numero}', pt: 'Mesmo problema que a ocorrência n.º {numero}' },
+  type: { fr: 'Type de problème', pt: 'Tipo de problema' },
+  urgence: { fr: 'Urgence', pt: 'Urgência' },
+  description: { fr: 'Description', pt: 'Descrição' },
+  partiesCommunes: { fr: 'Parties communes', pt: 'Partes comuns' },
+  votreLogement: { fr: 'Votre logement', pt: 'A sua habitação' },
+  batiment: { fr: 'bât.', pt: 'bloco' },
+  etage: { fr: 'étage', pt: 'piso' },
+  lot: { fr: 'lot', pt: 'fração' },
+  priorites: parLangue({
+    urgente: { fr: 'Urgent', pt: 'Urgente' },
+    normale: { fr: 'Normal', pt: 'Normal' },
+    planifiee: { fr: 'À planifier', pt: 'A planear' },
+  }),
+  suiteTitre: { fr: 'Et maintenant ?', pt: 'E agora?' },
+  suite: {
+    fr: 'Votre signalement a été transmis à l’administrateur de la copropriété, qui pourra vous recontacter au téléphone ou à l’adresse e-mail que vous avez indiqués.',
+    pt: 'A sua ocorrência foi transmitida ao administrador do condomínio, que poderá contactá-lo pelo telefone ou pelo endereço de e-mail que indicou.',
+  },
+  conserverNumero: {
+    fr: 'Gardez ce numéro : il permet de retrouver votre signalement si vous en reparlez avec l’administrateur.',
+    pt: 'Guarde este número: permite identificar a sua ocorrência se voltar a falar dela com o administrador.',
+  },
+  pasDeReponse: { fr: 'Message automatique : ne répondez pas à cet e-mail.', pt: 'Mensagem automática: não responda a este e-mail.' },
+  pasVous: {
+    fr: 'Si vous n’êtes pas à l’origine de ce signalement, ignorez ce message.',
+    pt: 'Se não foi o autor desta ocorrência, ignore esta mensagem.',
+  },
+  piedDePage: {
+    fr: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+    pt: 'AJ Signalement — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
+  },
+})
 
 /** Objet : « Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Belle Ombre » (texte brut, pas de HTML). */
 export function sujetConfirmationQr(numero: string, nomCopropriete: string, langue: LangueSignalementQr): string {

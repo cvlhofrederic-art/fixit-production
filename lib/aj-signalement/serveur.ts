@@ -137,8 +137,11 @@ export interface CompteursCoproprieteQr {
   enAttente: number
 }
 
+/** Copropriété sans signalement (compteurs absents). */
+const COMPTEURS_VIDES: Readonly<CompteursCoproprieteQr> = Object.freeze({ total: 0, enAttente: 0 })
+
 export function coproprieteDepuisLigne(
-  ligne: LigneCoproprieteQr, compteurs: CompteursCoproprieteQr = { total: 0, enAttente: 0 }, derniereAdresseProposee: AdresseProposeeQr | null = null,
+  ligne: LigneCoproprieteQr, compteurs: Readonly<CompteursCoproprieteQr> = COMPTEURS_VIDES, derniereAdresseProposee: AdresseProposeeQr | null = null,
 ): CoproprieteQr {
   const adresse = chaine(ligne.adresse)
   return {

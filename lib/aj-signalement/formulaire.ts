@@ -48,16 +48,15 @@ export function telephoneValide(telephone: string): boolean {
 }
 
 export type ChampCoordonnees = 'prenom' | 'nom' | 'telephone' | 'email' | 'batiment' | 'etage' | 'numLot'
-/** Toutes les coordonnées sont obligatoires, bâtiment compris. */
-export type ChampObligatoire = ChampCoordonnees
 export type ErreurChamp = 'obligatoire' | 'invalide'
 
 export const CHAMPS_COORDONNEES: readonly ChampCoordonnees[] = ['prenom', 'nom', 'telephone', 'email', 'batiment', 'etage', 'numLot']
-export const CHAMPS_OBLIGATOIRES: readonly ChampObligatoire[] = CHAMPS_COORDONNEES
+/** Toutes les coordonnées sont obligatoires, bâtiment compris. */
+export const CHAMPS_OBLIGATOIRES: readonly ChampCoordonnees[] = CHAMPS_COORDONNEES
 
 /** Erreurs des coordonnées : champ obligatoire vide, e-mail ou téléphone mal formé. Vide quand tout est correct. */
-export function erreursCoordonnees(valeurs: ValeursFormulaireQr): Partial<Record<ChampObligatoire, ErreurChamp>> {
-  const erreurs: Partial<Record<ChampObligatoire, ErreurChamp>> = {}
+export function erreursCoordonnees(valeurs: ValeursFormulaireQr): Partial<Record<ChampCoordonnees, ErreurChamp>> {
+  const erreurs: Partial<Record<ChampCoordonnees, ErreurChamp>> = {}
   for (const champ of CHAMPS_OBLIGATOIRES) {
     if (!valeurs[champ].trim()) erreurs[champ] = 'obligatoire'
   }
@@ -67,7 +66,7 @@ export function erreursCoordonnees(valeurs: ValeursFormulaireQr): Partial<Record
 }
 
 /** Message d'une erreur de coordonnées, dans la langue de la page. */
-export function messageErreurChamp(champ: ChampObligatoire, erreur: ErreurChamp, tq: TextesSignalementQr): string {
+export function messageErreurChamp(champ: ChampCoordonnees, erreur: ErreurChamp, tq: TextesSignalementQr): string {
   if (erreur === 'obligatoire') return tq.champObligatoire
   return champ === 'email' ? tq.emailInvalide : tq.telephoneInvalide
 }

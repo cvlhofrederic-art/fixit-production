@@ -74,6 +74,19 @@ const utilisateur = (role: string, metadonnees: Record<string, unknown> = {}, us
 const abortError = () => new DOMException('signal is aborted without reason', 'AbortError')
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** Choisit l'espace, attend le formulaire de connexion, le remplit avec cette adresse et l'envoie. */
+async function envoyerFormulaire(espace: string, email: string) {
+  fireEvent.click(screen.getByText(espace))
+  const formulaire = await waitFor(() => {
+    const f = document.querySelector('form')
+    if (!f) throw new Error('formulaire absent')
+    return f
+  })
+  fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: email } })
+  fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'secret-de-test' } })
+  fireEvent.submit(formulaire)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   simul.getSession.mockResolvedValue({ data: { session: null }, error: null })
@@ -124,15 +137,7 @@ describe('page de connexion — session déjà présente', () => {
     simul.signInWithPassword.mockResolvedValue({ data: { user: utilisateur('client') }, error: null })
     render(<LoginPage />)
 
-    fireEvent.click(screen.getByText('auth.espaceParticulier'))
-    const formulaire = await waitFor(() => {
-      const f = document.querySelector('form')
-      if (!f) throw new Error('formulaire absent')
-      return f
-    })
-    fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: 'camille@example.com' } })
-    fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'secret-de-test' } })
-    fireEvent.submit(formulaire)
+    await envoyerFormulaire('auth.espaceParticulier', 'camille@example.com')
     await waitFor(() => expect(navigations).toEqual(['/fr/client/dashboard']))
 
     await act(async () => {
@@ -150,15 +155,7 @@ describe('page de connexion — retour vers l’espace AJ Signalement', () => {
     simul.getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() })
     simul.signInWithPassword.mockResolvedValue({ data: { user: utilisateur(role) }, error: null })
     render(<LoginPage />)
-    fireEvent.click(screen.getByText('auth.espacePro'))
-    const formulaire = await waitFor(() => {
-      const f = document.querySelector('form')
-      if (!f) throw new Error('formulaire absent')
-      return f
-    })
-    fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: 'admin@example.com' } })
-    fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'secret-de-test' } })
-    fireEvent.submit(formulaire)
+    await envoyerFormulaire('auth.espacePro', 'admin@example.com')
   }
 
   it('session déjà validée d’un super admin : arrivée sur l’espace, ancre connue comprise', async () => {

@@ -108,6 +108,11 @@ describe('chargement et vues', () => {
 
     // Copropriétés : cartes (lien, QR code, destinataires, compteurs).
     afficher('coproprietes')
+    // Cartes dans un groupe nommé natif (fieldset, rôle group) qui ne s'élargit pas au-delà de sa colonne (min-w-0).
+    const groupe = screen.getByRole('group', { name: T.coproprietes })
+    expect(groupe.tagName).toBe('FIELDSET')
+    expect(groupe).toHaveClass('grid', 'min-w-0', 'gap-4')
+    expect(within(groupe).getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
     expect(screen.getByText(lienPublic())).toBeInTheDocument()
     expect(screen.getByText(T.destinatairesDefaut, { exact: false })).toBeInTheDocument()

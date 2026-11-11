@@ -34,17 +34,10 @@ const h = vi.hoisted(() => {
 
 vi.mock('@sentry/nextjs', () => ({ suppressTracing: <T,>(rappel: () => T): T => rappel(), captureException: vi.fn(), withScope: vi.fn() }))
 vi.mock('@/lib/logger', () => ({ logger: { error: h.error, warn: h.warn, info: h.info, debug: vi.fn() } }))
-vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: vi.fn(async (cle: string) => {
-    h.etat.limites.push(cle)
-    return !h.etat.refuser.some((prefixe) => cle.startsWith(prefixe))
-  }),
-  getClientIP: vi.fn(() => '127.0.0.1'),
-  rateLimitResponse: vi.fn(() => Response.json({ error: 'rate' }, { status: 429 })),
-}))
-vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (table: string) => h.from(table) } }))
-vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: null } }) } })) }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => null) }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/simulations-aj-signalement')).limiteurParPrefixe(h.etat))
+vi.mock('@/lib/supabase-server', async () => (await import('../helpers/simulations-aj-signalement')).supabaseAdminSimule(h.from))
+vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/simulations-aj-signalement')).sessionServeurAnonyme())
+vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/simulations-aj-signalement')).authAnonyme())
 
 const { POST } = await import('@/app/api/aj-signalement/adresse/route')
 
@@ -120,11 +113,16 @@ describe('validation', () => {
 })
 
 describe('copropriété', () => {
+  /** Le corps type reçoit le statut HTTP et le code d'erreur attendus. */
+  async function attendreErreur(statut: number, error: string) {
+    const res = await poster(CORPS)
+    expect(res.status).toBe(statut)
+    expect(await res.json()).toEqual({ error })
+  }
+
   it('404 quand le jeton ne désigne aucune copropriété active (filtre actif = true)', async () => {
     h.etat.copropriete = null
-    const res = await poster(CORPS)
-    expect(res.status).toBe(404)
-    expect(await res.json()).toEqual({ error: 'introuvable' })
+    await attendreErreur(404, 'introuvable')
     expect(h.etat.filtres).toContainEqual(['jeton', JETON])
     expect(h.etat.filtres).toContainEqual(['actif', true])
     expect(appelsBan).toHaveLength(0)
@@ -132,24 +130,20 @@ describe('copropriété', () => {
 
   it('409 adresse_connue quand l’adresse est déjà renseignée : le service de géocodage n’est pas appelé', async () => {
     h.etat.copropriete = { ...COPRO, adresse: '12 allée des Pins, 13009 Marseille' }
-    const res = await poster(CORPS)
-    expect(res.status).toBe(409)
-    expect(await res.json()).toEqual({ error: 'adresse_connue' })
+    await attendreErreur(409, 'adresse_connue')
     expect(appelsBan).toHaveLength(0)
   })
 
   it('503 base_absente tant que la migration 20261104 n’est pas appliquée', async () => {
     h.etat.erreurLecture = { code: '42P01', message: 'relation "signalements_qr_coproprietes" does not exist' }
-    const res = await poster(CORPS)
-    expect(res.status).toBe(503)
-    expect(await res.json()).toEqual({ error: 'base_absente' })
+    await attendreErreur(503, 'base_absente')
   })
 
   it('429 au-delà de la limite par adresse IP, puis par copropriété', async () => {
-    h.etat.refuser = ['qr_adresse_127']
-    expect((await poster(CORPS)).status).toBe(429)
-    h.etat.refuser = ['qr_adresse_copro_']
-    expect((await poster(CORPS)).status).toBe(429)
+    for (const prefixe of ['qr_adresse_127', 'qr_adresse_copro_']) {
+      h.etat.refuser = [prefixe]
+      expect((await poster(CORPS)).status).toBe(429)
+    }
     expect(h.etat.limites).toContain(`qr_adresse_copro_${COPRO.id}`)
     expect(appelsBan).toHaveLength(0)
   })

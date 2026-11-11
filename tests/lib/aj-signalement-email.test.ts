@@ -7,6 +7,8 @@
 // Paris, récapitulatif échappé, suite sans promesse, « ne répondez pas » ; envoyé au seul déclarant, sans
 // adresse de réponse ; clé de la limite par adresse = empreinte SHA-256 (jamais l'adresse en clair) de la boîte
 // canonique (sans sous-adresse « + » ; sans points et en gmail.com pour Gmail).
+// Adresses masquées dans ce que la route écrit au logger : mêmes remplacements que l'ancienne expression régulière,
+// en temps linéaire (retour SonarCloud S8786 de la PR 669).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHash } from 'node:crypto'
@@ -18,7 +20,8 @@ vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail }))
 
 import {
   FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, boiteCanoniqueConfirmationQr, cleLimiteConfirmationQr, envoyerConfirmationQr,
-  envoyerEmailSignalementQr, echapperHtml, sujetConfirmationQr, sujetSignalementQr, templateConfirmationQr, templateSignalementQr,
+  envoyerEmailSignalementQr, echapperHtml, masquerEmailsQr, sujetConfirmationQr, sujetSignalementQr, templateConfirmationQr,
+  templateSignalementQr,
 } from '@/lib/aj-signalement/email'
 import type { SignalementQr } from '@/lib/aj-signalement/types'
 
@@ -248,5 +251,53 @@ describe('qualité, adresse proposée et signalement lié (demandes de Hugo du 0
   it('qualité inconnue (signalement antérieur) : la ligne n’apparaît pas dans la confirmation', () => {
     const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: signalement({ qualiteDeclarant: null }) })
     expect(html).not.toContain('Vous êtes')
+  })
+})
+
+describe('adresses masquées dans le journal de la route (masquerEmailsQr, retour SonarCloud S8786)', () => {
+  // Ancienne expression de la route, gardée ici comme référence : les remplacements doivent rester les mêmes.
+  const reference = (texte: string) => texte.replace(/[^\s@<>"'`]+@[^\s@<>"'`]+/g, '[e-mail]')
+
+  it.each([
+    ['', ''],
+    ['aucune adresse', 'aucune adresse'],
+    ['Invalid `to` field: marie.durand@example.com.', 'Invalid `to` field: [e-mail]'],
+    ['<marie@example.com>, "paul@ex.fr"', '<[e-mail]>, "[e-mail]"'],
+    ['a@b@c', '[e-mail]@c'],
+    ['a@@b', 'a@@b'],
+    ['@a@b', '@[e-mail]'],
+    ['a@b@c@d', '[e-mail]@[e-mail]'],
+    ['fin@ et @début', 'fin@ et @début'],
+    ['x@y z@w', '[e-mail] [e-mail]'],
+    ["l'adresse 'zoe+test@example.com' refusée", "l'adresse '[e-mail]' refusée"],
+    ['a@b\nc@d\te@f', '[e-mail]\n[e-mail]\t[e-mail]'],
+  ])('%j → %j (comme l’ancienne expression)', (entree, attendu) => {
+    expect(masquerEmailsQr(entree)).toBe(attendu)
+    expect(reference(entree)).toBe(attendu)
+  })
+
+  it('mêmes remplacements que l’ancienne expression sur 3 000 messages tirés au hasard (graine fixe)', () => {
+    const alphabet = ['a', 'é', '.', '+', ',', '@', '@', ' ', '\n', ' ', '<', '>', '"', "'", '`']
+    let graine = 20261111
+    const tirage = (n: number) => {
+      graine = (Math.imul(graine, 1103515245) + 12345) >>> 0
+      return (graine >>> 16) % n
+    }
+    for (let k = 0; k < 3000; k++) {
+      const message = Array.from({ length: tirage(25) }, () => alphabet[tirage(alphabet.length)]).join('')
+      expect(masquerEmailsQr(message), JSON.stringify(message)).toBe(reference(message))
+    }
+  })
+
+  it('entrées longues piégeuses : temps linéaire (l’ancienne expression y passait plusieurs secondes)', () => {
+    const pieges = ['a'.repeat(100_000), `${'a'.repeat(100_000)}@ `, `${'a'.repeat(50_000)}@@${'b'.repeat(50_000)}`]
+    for (const piege of pieges) {
+      const debut = performance.now()
+      const sortie = masquerEmailsQr(piege)
+      expect(performance.now() - debut).toBeLessThan(500)
+      expect(sortie).toBe(piege)
+    }
+    const adresses = Array.from({ length: 20_000 }, (_, i) => `u${i}@exemple.fr`).join(' ')
+    expect(masquerEmailsQr(adresses)).toBe(Array.from({ length: 20_000 }, () => '[e-mail]').join(' '))
   })
 })

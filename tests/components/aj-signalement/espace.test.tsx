@@ -78,6 +78,26 @@ function simulerLocation(pathname: string, hash = '') {
 const menuLateral = () => screen.getAllByRole('navigation', { name: 'Menu AJ Signalement' })[0]
 const titre = () => screen.getByRole('heading', { level: 1 })
 
+/** Retour du navigateur : l'adresse change, puis popstate. */
+async function revenirA(adresse: string) {
+  window.history.replaceState(null, '', adresse)
+  await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')) })
+}
+
+/**
+ * Super admin arrivé par le lien de l'e-mail (#signalements), vue Signalements affichée. Le titre d'onglet est posé
+ * par l'effet qui suit celui de l'écoute de popstate : l'attendre garantit que le retour du navigateur sera entendu
+ * (sinon, sur une machine chargée, popstate partait parfois avant l'effet et le test échouait au hasard).
+ */
+async function ouvrirSurSignalements() {
+  window.history.replaceState(null, '', '/fr/aj-signalement/#signalements')
+  document.title = ''
+  simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
+  render(<EspaceAjSignalement />)
+  await waitFor(() => expect(titre()).toHaveTextContent('Signalements'))
+  await waitFor(() => expect(document.title).toBe('Signalements — AJ Signalement'))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   simul.rappels = []
@@ -101,6 +121,9 @@ describe('garde de l’espace : aucune donnée avant le contrôle de rôle', () 
     simul.getUser.mockReturnValue(new Promise(() => {}))
     render(<EspaceAjSignalement />)
     expect(screen.getByRole('status')).toHaveTextContent('Vérification de l’accès…')
+    // Zone d'état native : <output> (rôle status implicite) affiché en bloc, comme l'ancien div.
+    expect(screen.getByRole('status').tagName).toBe('OUTPUT')
+    expect(screen.getByRole('status')).toHaveClass('block', 'text-center')
     expect(screen.queryByRole('navigation')).toBeNull()
     await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
     expect(appelsFetch).toEqual([])
@@ -196,22 +219,14 @@ describe('super admin : coquille de l’espace', () => {
   })
 
   it('ancre à l’ouverture (#signalements, lien de l’e-mail) : vue Signalements ; retour du navigateur suivi', async () => {
-    window.history.replaceState(null, '', '/fr/aj-signalement/#signalements')
-    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
-    render(<EspaceAjSignalement />)
-    await waitFor(() => expect(titre()).toHaveTextContent('Signalements'))
-    window.history.replaceState(null, '', '/fr/aj-signalement/#coproprietes')
-    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    await ouvrirSurSignalements()
+    await revenirA('/fr/aj-signalement/#coproprietes')
     expect(titre()).toHaveTextContent('Copropriétés')
   })
 
   it('ancre qui ne désigne aucune vue (lien d’évitement #main-content) : la vue en cours reste', async () => {
-    window.history.replaceState(null, '', '/fr/aj-signalement/#signalements')
-    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
-    render(<EspaceAjSignalement />)
-    await waitFor(() => expect(titre()).toHaveTextContent('Signalements'))
-    window.history.replaceState(null, '', '/fr/aj-signalement/#main-content')
-    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    await ouvrirSurSignalements()
+    await revenirA('/fr/aj-signalement/#main-content')
     expect(titre()).toHaveTextContent('Signalements')
     expect(document.title).toBe('Signalements — AJ Signalement')
     expect(within(menuLateral()).getByRole('link', { name: 'Signalements' })).toHaveAttribute('aria-current', 'page')
@@ -219,12 +234,8 @@ describe('super admin : coquille de l’espace', () => {
   })
 
   it('retour du navigateur sans ancre (/fr/aj-signalement/) : Tableau de bord', async () => {
-    window.history.replaceState(null, '', '/fr/aj-signalement/#signalements')
-    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
-    render(<EspaceAjSignalement />)
-    await waitFor(() => expect(titre()).toHaveTextContent('Signalements'))
-    window.history.replaceState(null, '', '/fr/aj-signalement/')
-    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    await ouvrirSurSignalements()
+    await revenirA('/fr/aj-signalement/')
     expect(titre()).toHaveTextContent('Tableau de bord')
   })
 
@@ -235,8 +246,7 @@ describe('super admin : coquille de l’espace', () => {
     fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Copropriétés' }))
     fireEvent.click(await screen.findByRole('button', { name: T.ajouterCopro }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    window.history.replaceState(null, '', '/fr/aj-signalement/#tableau-de-bord')
-    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    await revenirA('/fr/aj-signalement/#tableau-de-bord')
     expect(titre()).toHaveTextContent('Tableau de bord')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(titre())

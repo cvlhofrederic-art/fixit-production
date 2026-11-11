@@ -32,15 +32,13 @@ import {
 } from '@/lib/aj-signalement/serveur'
 import {
   FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerConfirmationQr, envoyerEmailSignalementQr,
+  masquerEmailsQr,
 } from '@/lib/aj-signalement/email'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
 /** Erreur conservée (et montrée au super admin) quand la limite par adresse bloque la confirmation. */
 const ERREUR_LIMITE_CONFIRMATION = `limite atteinte : ${LIMITE_CONFIRMATIONS_PAR_ADRESSE} confirmations par heure au plus vers cette boîte (variantes « + » comprises)`
-
-/** Remplace toute adresse e-mail d'un message que la route écrit au logger. */
-const masquerEmails = (texte: string): string => texte.replace(/[^\s@<>"'`]+@[^\s@<>"'`]+/g, '[e-mail]')
 
 /**
  * Récapitulatif au déclarant, après l'enregistrement. Ne lève jamais : un refus de Resend, la limite par adresse ou
@@ -60,10 +58,10 @@ async function confirmerAuDeclarant(signalement: SignalementQr, nomCopropriete: 
     const envoi = await envoyerConfirmationQr({ signalement, copropriete: { nom: nomCopropriete } })
     if (envoi.success) return { envoyeeLe: new Date().toISOString(), erreur: null }
     const erreur = (envoi.error || 'envoi impossible').slice(0, 500)
-    logger.error(`${CONTEXTE} confirmation au déclarant non envoyée`, { erreur: masquerEmails(erreur), signalement: signalement.id })
+    logger.error(`${CONTEXTE} confirmation au déclarant non envoyée`, { erreur: masquerEmailsQr(erreur), signalement: signalement.id })
     return { envoyeeLe: null, erreur }
   } catch (e: unknown) {
-    logger.error(`${CONTEXTE} confirmation au déclarant`, { message: masquerEmails(e instanceof Error ? e.message : String(e)), signalement: signalement.id })
+    logger.error(`${CONTEXTE} confirmation au déclarant`, { message: masquerEmailsQr(e instanceof Error ? e.message : String(e)), signalement: signalement.id })
     return { envoyeeLe: null, erreur: 'erreur interne lors de l’envoi' }
   }
 }

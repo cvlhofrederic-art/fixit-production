@@ -242,7 +242,9 @@ function VueCoproprietesQr({ coproprietes, message, onAjouter, onModifier, onUti
       {coproprietes.length === 0 ? (
         <EtatVide texte={T.aucuneCopro} icone="qr" />
       ) : (
-        <div className="grid gap-4" aria-label={T.coproprietes} role="group">
+        // Groupe nommé natif (rôle group) ; min-w-0 annule le min-inline-size: min-content que le navigateur donne à un
+        // fieldset (bordure, marge et retrait sont déjà remis à zéro par Tailwind) : même rendu que l'ancien div.
+        <fieldset className="grid min-w-0 gap-4" aria-label={T.coproprietes}>
           {coproprietes.map((c) => (
             <CarteCoproprieteQr
               key={c.id}
@@ -252,7 +254,7 @@ function VueCoproprietesQr({ coproprietes, message, onAjouter, onModifier, onUti
               onUtiliserAdresse={(adresse) => onUtiliserAdresse(c, adresse)}
             />
           ))}
-        </div>
+        </fieldset>
       )}
     </>
   )

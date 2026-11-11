@@ -52,17 +52,10 @@ const h = vi.hoisted(() => {
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
 vi.mock('@/lib/logger', () => ({ logger: { error: h.error, warn: h.warn, info: vi.fn(), debug: vi.fn() } }))
-vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: vi.fn(async (cle: string) => {
-    h.etat.limites.push(cle)
-    return !h.etat.refuser.some((prefixe) => cle.startsWith(prefixe))
-  }),
-  getClientIP: vi.fn(() => '127.0.0.1'),
-  rateLimitResponse: vi.fn(() => Response.json({ error: 'rate' }, { status: 429 })),
-}))
-vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (table: string) => h.from(table) } }))
-vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: null } }) } })) }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => null) }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/simulations-aj-signalement')).limiteurParPrefixe(h.etat))
+vi.mock('@/lib/supabase-server', async () => (await import('../helpers/simulations-aj-signalement')).supabaseAdminSimule(h.from))
+vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/simulations-aj-signalement')).sessionServeurAnonyme())
+vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/simulations-aj-signalement')).authAnonyme())
 
 const { GET } = await import('@/app/api/aj-signalement/similaires/route')
 
