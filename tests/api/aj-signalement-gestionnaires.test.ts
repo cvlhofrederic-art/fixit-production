@@ -265,6 +265,8 @@ describe('GET gestionnaires (P1-R8)', () => {
       cabinet: { id: CAB, nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' },
       // Une copropriété attribuée ; portée = attribuée ∪ « à tous » du même cabinet (2 × 2 ouverts, 2 × 1 urgent).
       coproprietes: 1, ouverts: 4, urgents: 2, creeLe: '2026-11-10T09:00:00+00:00', confirmeeLe: '2026-11-10T10:00:00+00:00',
+      // PR 2 (colonnes de la 20261112, lues à part) : aucun compte relié ici ; sans la migration, ces champs sont absents.
+      accesOuvertLe: null, connexionBloquee: false, effacementDemandeLe: null, compteRelie: false,
     })
     expect(gestionnaires[0].etat).toBe('adresse_contestee')
     expect(JSON.stringify(gestionnaires)).not.toContain(JETON_LIGNE)

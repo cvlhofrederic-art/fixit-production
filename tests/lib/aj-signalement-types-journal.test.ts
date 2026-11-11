@@ -4,17 +4,20 @@
 // langues d'un cabinet, erreurs métier levées par les fonctions SQL) sont celles de la migration
 // 20261111_signalements_qr_gestionnaires.sql : une action ajoutée d'un seul côté ferait échouer l'écriture du journal
 // (CHECK) ou laisserait une erreur SQL sans code public. Lues dans le texte SQL, ordre indifférent.
+// PR 2 : la migration 20261112_signalements_qr_acces_gestionnaires.sql lève ses propres erreurs métier (deja_ouvert,
+// adresse_contestee) et écrit une action par trigger (gestionnaire.acces_ouvert) : les deux fichiers sont lus.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import {
-  ACTIONS_JOURNAL_QR, ERREURS_METIER_SQL_QR, ETATS_GESTIONNAIRE_QR, LANGUES_CABINET_QR, ORIGINES_ATTRIBUTION_QR,
-  PROFILS_ACTEUR_QR, gestionCoproprieteQrVide,
+  ACTIONS_JOURNAL_QR, CLE_REPERE_CABINET_QR, ERREURS_METIER_SQL_QR, ETATS_GESTIONNAIRE_QR, LANGUES_CABINET_QR, ORIGINES_ATTRIBUTION_QR,
+  PROFILS_ACTEUR_QR, ROLE_GESTIONNAIRE_QR, gestionCoproprieteQrVide,
 } from '@/lib/aj-signalement/types'
 
-const sql = readFileSync(join(process.cwd(), 'supabase/migrations/20261111_signalements_qr_gestionnaires.sql'), 'utf-8')
-const code = sql.replace(/--[^\n]*/g, '')
+const lireSql = (fichier: string) => readFileSync(join(process.cwd(), 'supabase/migrations', fichier), 'utf-8').replace(/--[^\n]*/g, '')
+const code = lireSql('20261111_signalements_qr_gestionnaires.sql')
+const code1112 = lireSql('20261112_signalements_qr_acces_gestionnaires.sql')
 const trie = (valeurs: Iterable<string>) => [...valeurs].sort((a, b) => a.localeCompare(b))
 
 /** Valeurs littérales d'un CHECK (colonne IN (…)) nommé ou repéré par son début. */
@@ -24,7 +27,7 @@ function valeursCheck(debut: RegExp): string[] {
   return [...m[1].matchAll(/'([^']*)'/g)].map((v) => v[1])
 }
 
-const corpsFonctions = [...code.matchAll(/\$fn\$([\s\S]*?)\$fn\$/g)].map((m) => m[1]).join('\n')
+const corpsFonctions = [...`${code}\n${code1112}`.matchAll(/\$fn\$([\s\S]*?)\$fn\$/g)].map((m) => m[1]).join('\n')
 
 describe('actions du journal', () => {
   const actionsSql = valeursCheck(/CONSTRAINT signalements_qr_journal_action_valeurs CHECK \(action IN/)
@@ -64,9 +67,11 @@ describe('autres listes fermées', () => {
     expect(LANGUES_CABINET_QR[0]).toBe('fr')
   })
 
-  it('ERREURS_METIER_SQL_QR = messages levés en P0001 par les fonctions (chacun traduit en 409 par les routes)', () => {
-    const levees = new Set([...code.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
+  it('ERREURS_METIER_SQL_QR = messages levés en P0001 par les fonctions des DEUX migrations (chacun traduit en 409)', () => {
+    const levees = new Set([...`${code}\n${code1112}`.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
     expect(trie(levees)).toEqual(trie(ERREURS_METIER_SQL_QR))
+    expect(ERREURS_METIER_SQL_QR).toContain('deja_ouvert')
+    expect(ERREURS_METIER_SQL_QR).toContain('adresse_contestee')
   })
 
   it('aucune autre erreur levée que P0001 (métier), 42501 (interdit) et 22023 (paramètre invalide)', () => {
@@ -80,6 +85,24 @@ describe('autres listes fermées', () => {
   it('états d’un gestionnaire : 5 en PR 1, puis 4 réservés à la PR 2', () => {
     expect(ETATS_GESTIONNAIRE_QR.slice(0, 5)).toEqual(['confirmation_envoyee', 'confirmation_expiree', 'adresse_confirmee', 'adresse_contestee', 'desactive'])
     expect(ETATS_GESTIONNAIRE_QR.slice(5)).toEqual(['acces_envoye', 'acces_ouvert', 'refus_autre_espace', 'effacement_demande'])
+  })
+})
+
+describe('rôle du gestionnaire et repère de routage (PR 2)', () => {
+  it('ROLE_GESTIONNAIRE_QR = valeur du CHECK des envois = rôle admis par lib/equipe pour l’espace aj_signalement', () => {
+    expect(ROLE_GESTIONNAIRE_QR).toBe('gestionnaire_signalement')
+    expect(code).toMatch(new RegExp(`role\\s+TEXT NOT NULL DEFAULT '${ROLE_GESTIONNAIRE_QR}' CHECK \\(role = '${ROLE_GESTIONNAIRE_QR}'\\)`))
+    const equipe = readFileSync(join(process.cwd(), 'lib/equipe/lien-invitation.ts'), 'utf-8')
+    expect(/const ROLE_GESTIONNAIRE_SIGNALEMENT = '([^']+)'/.exec(equipe)?.[1]).toBe(ROLE_GESTIONNAIRE_QR)
+  })
+
+  it('ne commence ni par syndic ni par pro_ (aucune branche de ces espaces ne l’admet)', () => {
+    expect(ROLE_GESTIONNAIRE_QR.startsWith('syndic')).toBe(false)
+    expect(ROLE_GESTIONNAIRE_QR.startsWith('pro_')).toBe(false)
+  })
+
+  it('repère de routage dans app_metadata : aj_signalement_cabinet (aiguillage seulement, aucun droit)', () => {
+    expect(CLE_REPERE_CABINET_QR).toBe('aj_signalement_cabinet')
   })
 })
 

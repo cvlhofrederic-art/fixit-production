@@ -21,7 +21,8 @@ import {
 } from '@/lib/aj-signalement/types'
 import {
   TABLE_ATTRIBUTIONS_QR, TABLE_CABINETS_QR, TABLE_COPROPRIETES_QR, TABLE_DOMAINES_QR, TABLE_GESTIONNAIRES_QR, TABLE_INVITATIONS_QR,
-  cabinetResumeDepuisLigneQr, compteursQr, journaliserQr, langueCabinetQr, lireCabinetQr, structureAbsenteQr, type ErreurBase,
+  cabinetResumeDepuisLigneQr, compteursQr, journaliserQr, journaliserRepliAccesQr, langueCabinetQr, lireCabinetQr, lireParValeursQr,
+  structureAbsenteQr, type ErreurBase,
 } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -141,23 +142,58 @@ export async function lireEnvoisQr(gestionnaireIds: readonly string[]): Promise<
 }
 
 /**
+ * Colonnes d'accès d'une fiche (migration 20261112, PR 2), lues À PART de COLONNES_FICHE_QR : tant que la migration
+ * manque, la fiche reste servie telle qu'en PR 1. L'identifiant du compte n'est jamais rendu (seulement compteRelie).
+ */
+export const COLONNES_ACCES_FICHE_QR = 'id, user_id, acces_ouvert_le, connexion_bloquee_le, effacement_demande_le'
+
+interface LigneAccesFicheQr {
+  id: string
+  user_id: string | null
+  acces_ouvert_le: string | null
+  connexion_bloquee_le: string | null
+  effacement_demande_le: string | null
+}
+
+/** Champs d'accès des fiches par id ; null : colonnes absentes (repli journalisé une fois) ; autre erreur rendue. */
+async function lireAccesFichesQr(ids: readonly string[]): Promise<Lecture<ReadonlyMap<string, LigneAccesFicheQr> | null>> {
+  const r = await lireParValeursQr<LigneAccesFicheQr>(ids, (lot) =>
+    supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select(COLONNES_ACCES_FICHE_QR).in('id', lot).order('id', { ascending: true }))
+  if (r.ok) return { ok: true, valeur: new Map(r.valeur.map((l) => [l.id, l])) }
+  if (!structureAbsenteQr(r.erreur)) return r
+  journaliserRepliAccesQr('champs d’accès des fiches', r.erreur)
+  return { ok: true, valeur: null }
+}
+
+/** Champs d'accès d'une fiche gestionnaire (PR 2) : dates et drapeaux seulement. */
+const champsAccesQr = (a: LigneAccesFicheQr | undefined): Pick<GestionnaireQr, 'accesOuvertLe' | 'connexionBloquee' | 'effacementDemandeLe' | 'compteRelie'> => ({
+  accesOuvertLe: a?.acces_ouvert_le ?? null,
+  connexionBloquee: Boolean(a?.connexion_bloquee_le),
+  effacementDemandeLe: a?.effacement_demande_le ?? null,
+  compteRelie: typeof a?.user_id === 'string' && a.user_id !== '',
+})
+
+/**
  * Formes publiques des fiches (liste et page profil) : cabinet, état calculé (etatGestionnaireQr), nombre de copropriétés
- * attribuées, signalements ouverts et urgents de sa portée (attributions ∪ « à tous » de SON cabinet). Fiches
- * contestées en tête, puis par nom. Compteurs indisponibles : 0.
+ * attribuées, signalements ouverts et urgents de sa portée (attributions ∪ « à tous » de SON cabinet), et, si la
+ * migration 20261112 est appliquée, les champs d'accès (PR 2). Fiches contestées en tête, puis par nom. Compteurs
+ * indisponibles : 0.
  */
 export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[]): Promise<Lecture<GestionnaireQr[]>> {
   if (fiches.length === 0) return { ok: true, valeur: [] }
   const ids = fiches.map((f) => f.id)
   const cabinetsIds = [...new Set(fiches.map((f) => f.cabinet_id))]
-  const [cabinets, envois, attributions, copros] = await Promise.all([
+  const [cabinets, envois, attributions, copros, acces] = await Promise.all([
     lire<{ id: string; nom: string | null; identifiant: string | null }>(supabaseAdmin.from(TABLE_CABINETS_QR).select('id, nom, identifiant').in('id', cabinetsIds)),
     lireEnvoisQr(ids),
     lire<{ copropriete_id: string; gestionnaire_id: string }>(supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, gestionnaire_id').in('gestionnaire_id', ids)),
     lire<{ id: string; cabinet_id: string | null; attribuee_a_tous: boolean | null }>(
       supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, cabinet_id, attribuee_a_tous').in('cabinet_id', cabinetsIds),
     ),
+    lireAccesFichesQr(ids),
   ])
-  for (const r of [cabinets, envois, attributions, copros]) if (!r.ok) return r
+  for (const r of [cabinets, envois, attributions, copros, acces]) if (!r.ok) return r
+  const accesPar = acces.ok ? acces.valeur : null
   const cabinetsPar = new Map((cabinets.ok ? cabinets.valeur : []).map((c) => [c.id, cabinetResumeDepuisLigneQr(c)]))
   const envoisPar = new Map<string, EnvoiGestionnaireQr[]>()
   for (const e of envois.ok ? envois.valeur : []) envoisPar.set(e.gestionnaire_id, [...(envoisPar.get(e.gestionnaire_id) ?? []), envoiDepuisLigneQr(e)])
@@ -192,6 +228,8 @@ export async function gestionnairesDepuisFichesQr(fiches: readonly LigneFicheQr[
       urgents: visibles.reduce((n, id) => n + (compteurs.get(id)?.urgentsOuverts ?? 0), 0),
       creeLe: chaine(f.created_at),
       confirmeeLe: f.adresse_confirmee_le ?? null,
+      // Sans la migration 20261112 : aucun champ d'accès (réponse identique à la PR 1).
+      ...(accesPar ? champsAccesQr(accesPar.get(f.id)) : {}),
     }
   })
   const rang = (g: GestionnaireQr) => (g.etat === 'adresse_contestee' ? 0 : 1)

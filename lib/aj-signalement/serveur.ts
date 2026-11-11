@@ -5,8 +5,11 @@
 // la RLS n'a aucune politique, donc tout contrôle d'accès est ici.
 //   - dépôt public : la copropriété est trouvée par son jeton (QR code) ; rien d'autre n'est exigé ;
 //   - espace AJ Signalement (/fr/aj-signalement/, cookies de session ; jeton Bearer accepté quand l'appelant en donne
-//     un) : super admin seulement, par controlerAccesQr (isSuperAdmin : rôle ET liste ADMIN_EMAIL, jamais la « vue en
-//     tant que »). En PR 2, les gestionnaires d'un cabinet client y entreront par le même contrôle.
+//     un) : super admin, par controlerAccesQr (isSuperAdmin : rôle ET liste ADMIN_EMAIL, jamais la « vue en tant
+//     que ») ; depuis la PR 2, aussi le gestionnaire d'un cabinet client sur les routes qui l'admettent (rôle
+//     gestionnaire_signalement ET fiche active relue par user_id à chaque appel ; portée : porteeDuProfilQr).
+// Migration du 12/11/2026 (accès des gestionnaires : compte relié à la fiche) : même règle de repli ; tant qu'elle manque,
+// un compte gestionnaire reçoit 503 base_absente et l'espace du super admin répond comme en PR 1.
 // Colonnes ajoutées le 06/11/2026 (confirmation au déclarant, qualité, adresse proposée, signalement lié) : tant
 // que leurs migrations ne sont pas appliquées en production, PostgREST refuse toute requête qui les nomme (42703 en
 // lecture, PGRST204 en écriture). Chaque lecture ou écriture qui les nomme prévoit donc un repli sans elles,
@@ -23,13 +26,14 @@ import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import {
-  ERREURS_METIER_SQL_QR, JETON_QR, PRIORITES_SIGNALEMENT_QR, STATUTS_OUVERTS_QR, STATUTS_SIGNALEMENT_QR, estQualiteDeclarantQr,
-  gestionCoproprieteQrVide,
+  ERREURS_METIER_SQL_QR, JETON_QR, PRIORITES_SIGNALEMENT_QR, ROLE_GESTIONNAIRE_QR, STATUTS_OUVERTS_QR, STATUTS_SIGNALEMENT_QR,
+  estQualiteDeclarantQr, gestionCoproprieteQrVide,
   type AdresseProposeeQr, type CabinetResumeQr, type CoproprieteDoublonQr, type CoproprieteQr, type CreateurCoproprieteQr,
   type GestionnaireResumeQr, type GestionnaireSuiviQr, type LangueCabinetQr, type LangueSignalementQr, type LigneEmailGestionnaireQr,
-  type PrioriteSignalementQr, type ProfilQr, type ReservationEmailsQr, type SignalementQr, type StatutSignalementQr, type TableauQr,
-  type TypeProfilQr,
+  type PorteeQr, type PrioriteSignalementQr, type ProfilGestionnaireQr, type ProfilQr, type ReservationEmailsQr, type SignalementQr,
+  type StatutSignalementQr, type TableauQr, type TypeProfilQr,
 } from '@/lib/aj-signalement/types'
+import { tableauVuGestionnaireQr, type TraceStatutQr } from '@/lib/aj-signalement/minimisation'
 import {
   COLONNES_SEMBLABLES_QR, SEMBLABLES_LUS_MAX, dateLimiteSemblablesQr, selectionnerSemblablesQr, variantesZoneQr,
   type LigneSemblableQr, type RechercheSemblablesQr,
@@ -57,6 +61,11 @@ export const MIGRATION_GEOLOC_QUALITE_QR = 'supabase/migrations/20261106_signale
  * d'ici là, repli sans ses tables, colonnes et fonctions (42P01, 42703, PGRST204, PGRST202, PGRST200).
  */
 export const MIGRATION_GESTIONNAIRES_QR = 'supabase/migrations/20261111_signalements_qr_gestionnaires.sql'
+/**
+ * Migration de l'accès des gestionnaires (PR 2 : compte relié à la fiche, envoi d'un accès), à appliquer après la
+ * précédente ; d'ici là, les routes du gestionnaire répondent 503 base_absente et le super admin est servi comme en PR 1.
+ */
+export const MIGRATION_ACCES_QR = 'supabase/migrations/20261112_signalements_qr_acces_gestionnaires.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 /** Signalements renvoyés pour la page de suivi d'un gestionnaire (P1-R1 ?gestionnaire=). */
@@ -115,6 +124,21 @@ export function journaliserRepliGestionQr(operation: string, erreur: ErreurBase 
   if (replisJournalises.has(cle)) return
   replisJournalises.add(cle)
   logger.warn(`${CONTEXTE} migration du 11/11/2026 absente : repli (${operation})`, { migration: MIGRATION_GESTIONNAIRES_QR, code: erreur?.code })
+}
+
+/**
+ * Même règle pour la migration du 12/11/2026 (accès des gestionnaires) ; une table absente relève de celle du
+ * 11/11/2026 (journalisée comme elle).
+ */
+export function journaliserRepliAccesQr(operation: string, erreur: ErreurBase | null | undefined): void {
+  if (tableAbsenteQr(erreur)) {
+    journaliserRepliGestionQr(operation, erreur)
+    return
+  }
+  const cle = `acces:${operation}`
+  if (replisJournalises.has(cle)) return
+  replisJournalises.add(cle)
+  logger.warn(`${CONTEXTE} migration du 12/11/2026 absente : repli (${operation})`, { migration: MIGRATION_ACCES_QR, code: erreur?.code })
 }
 
 /** Tests : chaque cas repart d'un isolat « neuf ». */
@@ -195,6 +219,11 @@ export const COLONNES_SIGNALEMENT_QR =
   'id, copropriete_id, prenom, nom, telephone, email, batiment, etage, num_lot, est_partie_commune, zone_signalee, ' +
   'type_intervention, description, priorite, statut, langue, email_envoye_le, email_erreur, ' +
   `${COLONNES_NOUVELLES_SIGNALEMENT_QR.join(', ')}, created_at, updated_at`
+/**
+ * Lecture des signalements pour un gestionnaire : la trace du dernier changement de statut (migration du 11/11/2026),
+ * réduite par la minimisation à « vous / un collègue / le cabinet ». Colonnes absentes : relecture par select('*').
+ */
+export const COLONNES_SIGNALEMENT_GESTIONNAIRE_QR = `${COLONNES_SIGNALEMENT_QR}, statut_modifie_par, statut_modifie_profil`
 
 export interface LigneCoproprieteQr {
   id: string
@@ -241,9 +270,18 @@ export interface LigneSignalementQr {
   qualite_declarant?: string | null
   adresse_proposee?: string | null
   signalement_lie_id?: string | null
+  /** Migration 20261111 : trace du dernier changement de statut (lue pour un gestionnaire seulement). */
+  statut_modifie_par?: string | null
+  statut_modifie_profil?: string | null
   created_at: string | null
   updated_at: string | null
 }
+
+/** Trace du statut d'une ligne (minimisée avant d'être rendue à un gestionnaire). */
+export const traceStatutDepuisLigneQr = (l: Pick<LigneSignalementQr, 'statut_modifie_par' | 'statut_modifie_profil'>): TraceStatutQr => ({
+  par: typeof l.statut_modifie_par === 'string' ? l.statut_modifie_par : null,
+  profil: typeof l.statut_modifie_profil === 'string' ? l.statut_modifie_profil : null,
+})
 
 const chaine = (valeur: unknown): string => (typeof valeur === 'string' ? valeur : '')
 
@@ -272,7 +310,8 @@ export interface ContexteGestionQr {
   cabinets: ReadonlyMap<string, CabinetResumeQr>
   gestionnairesParCopro: ReadonlyMap<string, GestionnaireResumeQr[]>
   nomsFiches: ReadonlyMap<string, string | null>
-  emailsFiches: ReadonlyArray<{ email: string | null }>
+  /** Fiches dont l'adresse figure dans les saisies affichées (compteur du super admin, masquage pour un gestionnaire). */
+  emailsFiches: ReadonlyArray<{ id: string; email: string | null }>
 }
 
 export const contexteGestionVideQr = (): ContexteGestionQr => ({
@@ -374,18 +413,70 @@ async function utilisateurDeLaRequete(request: NextRequest): Promise<User | null
   }
 }
 
+/** Rôle serveur d'un compte : app_metadata seul (posé côté serveur), jamais user_metadata. */
+const roleServeurQr = (user: User): string => {
+  const metadonnees: unknown = user.app_metadata
+  if (typeof metadonnees !== 'object' || metadonnees === null) return ''
+  const role = (metadonnees as Record<string, unknown>).role
+  return typeof role === 'string' ? role : ''
+}
+
+/** Colonnes de la fiche relue pour le contrôle d'un compte gestionnaire (user_id et connexion_bloquee_le : 20261112). */
+const COLONNES_FICHE_COMPTE_QR = 'id, cabinet_id, nom, actif, connexion_bloquee_le, pseudonymise_le, user_id'
+
+interface LigneFicheCompteQr {
+  id: string
+  cabinet_id: string
+  nom: string | null
+  actif: boolean | null
+  connexion_bloquee_le: string | null
+  pseudonymise_le: string | null
+}
+
 /**
- * Contrôle serveur de toute route non publique d'AJ Signalement (SPEC § 1.5) : 401 sans session ; profil super admin
- * par isSuperAdmin (rôle app_metadata ET e-mail de la liste ADMIN_EMAIL / ADMIN_EMAIL_2 : la « vue en tant que » et la
- * liste vide ne passent pas, alignement #650) ; profil non admis par la route → 403 interdit. PR 2 : profil
- * gestionnaire (rôle gestionnaire_signalement, fiche relue en base par user_id à chaque appel).
+ * Fiche reliée au compte, relue en base À CHAQUE appel (clé service, aucun cache : un départ prend effet à la requête
+ * suivante). Absente, inactive, bloquée ou pseudonymisée → 403 acces_retire ; colonne ou table absente (migration non
+ * appliquée) → 503 base_absente, journalisé une fois ; autre erreur → 500, journalisée avec son seul code.
+ */
+async function profilGestionnaireQr(user: User): Promise<{ ok: true; profil: ProfilGestionnaireQr } | { ok: false; reponse: NextResponse }> {
+  const { data, error } = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select(COLONNES_FICHE_COMPTE_QR).eq('user_id', user.id).maybeSingle()
+  if (error) {
+    if (structureAbsenteQr(error)) {
+      journaliserRepliAccesQr('fiche du compte gestionnaire', error)
+      return { ok: false, reponse: reponseErreur('base_absente', 503) }
+    }
+    logger.error(`${CONTEXTE} fiche du compte gestionnaire non lue`, { code: error.code })
+    return { ok: false, reponse: reponseErreur('serveur', 500) }
+  }
+  const fiche = (data as LigneFicheCompteQr | null) ?? null
+  if (!fiche || fiche.actif !== true || fiche.connexion_bloquee_le || fiche.pseudonymise_le) {
+    return { ok: false, reponse: reponseErreur('acces_retire', 403) }
+  }
+  return {
+    ok: true,
+    profil: { type: 'gestionnaire', userId: user.id, gestionnaireId: fiche.id, cabinetId: fiche.cabinet_id, nom: fiche.nom ?? null },
+  }
+}
+
+/**
+ * Contrôle serveur de toute route non publique d'AJ Signalement (SPEC § 1.5, § 2.4) : 401 sans session ; profil super
+ * admin par isSuperAdmin (rôle app_metadata ET e-mail de la liste ADMIN_EMAIL / ADMIN_EMAIL_2 : la « vue en tant que »
+ * et la liste vide ne passent pas, alignement #650) ; profil gestionnaire (PR 2) : rôle app_metadata
+ * gestionnaire_signalement ET fiche active relue par user_id (profilGestionnaireQr) — sur une route qui ne l'admet pas,
+ * 403 interdit SANS lire la fiche (les routes du super admin ne nomment aucune colonne de la 20261112) ; tout autre
+ * compte, ou profil non admis par la route → 403 interdit. Le profil ne porte que des données de la fiche.
  */
 export async function controlerAccesQr(request: NextRequest, options: { profils: readonly TypeProfilQr[] }): Promise<ControleAccesQr> {
   const user = await utilisateurDeLaRequete(request)
   if (!user) return { ok: false, reponse: reponseErreur('non_authentifie', 401) }
-  const profil: ProfilQr | null = isSuperAdmin(user) ? { type: 'super_admin', userId: user.id } : null
-  if (!profil || !options.profils.includes(profil.type)) return { ok: false, reponse: reponseErreur('interdit', 403) }
-  return { ok: true, user, profil }
+  const interdit = (): ControleAccesQr => ({ ok: false, reponse: reponseErreur('interdit', 403) })
+  if (isSuperAdmin(user)) {
+    const profil: ProfilQr = { type: 'super_admin', userId: user.id }
+    return options.profils.includes(profil.type) ? { ok: true, user, profil } : interdit()
+  }
+  if (roleServeurQr(user) !== ROLE_GESTIONNAIRE_QR || !options.profils.includes('gestionnaire')) return interdit()
+  const gestionnaire = await profilGestionnaireQr(user)
+  return gestionnaire.ok ? { ok: true, user, profil: gestionnaire.profil } : gestionnaire
 }
 
 /** Alias le temps de la PR : super admin seul (même règle que controlerAccesQr). */
@@ -398,6 +489,8 @@ export interface EcritureJournalQr {
   cabinetId?: string | null
   acteurId?: string | null
   profil?: 'super_admin' | 'gestionnaire' | 'systeme'
+  /** Fiche de l'auteur quand c'est un gestionnaire connecté (PR 2) : acteur_gestionnaire_id. */
+  acteurGestionnaireId?: string | null
   coproprieteId?: string | null
   gestionnaireId?: string | null
   signalementId?: string | null
@@ -415,6 +508,8 @@ export async function journaliserQr(e: EcritureJournalQr): Promise<boolean> {
       cabinet_id: e.cabinetId ?? null,
       acteur_id: e.acteurId ?? null,
       acteur_profil: e.profil ?? 'super_admin',
+      // Colonne de la 20261111 (même table) : nommée seulement quand un gestionnaire est l'auteur.
+      ...(e.acteurGestionnaireId ? { acteur_gestionnaire_id: e.acteurGestionnaireId } : {}),
       copropriete_id: e.coproprieteId ?? null,
       gestionnaire_id: e.gestionnaireId ?? null,
       signalement_id: e.signalementId ?? null,
@@ -656,7 +751,7 @@ export async function lireContexteGestionQr(copros: ReadonlyArray<Pick<LigneCopr
     cabinets: new Map(cabinets.map((c) => [c.id, cabinetResumeDepuisLigneQr(c)])),
     gestionnairesParCopro,
     nomsFiches,
-    emailsFiches: fichesSaisies.map((f) => ({ email: f.email })),
+    emailsFiches: fichesSaisies.map((f) => ({ id: f.id, email: f.email })),
   }
 }
 
@@ -759,6 +854,46 @@ async function porteeSuiviQr(gestionnaireId: string, coproprietes: readonly Lign
 }
 
 /**
+ * Portée d'un gestionnaire CONNECTÉ (SPEC § 2.4), relue à chaque appel : copropriétés de SON cabinet (celui de la fiche,
+ * jamais du compte ni du corps) et attributions explicites de sa fiche → porteeGestionnaireQr. `copros` : copropriétés
+ * du cabinet déjà lues par l'appelant (tableau), sinon lues ici (id, cabinet, « à tous »), page par page. Toute erreur
+ * est rendue (l'appelant répond 503 ou 500 sans rien lire ni écrire d'autre).
+ */
+export async function porteeDuProfilQr(
+  profil: ProfilGestionnaireQr,
+  copros?: ReadonlyArray<Pick<LigneCoproprieteQr, 'id' | 'cabinet_id' | 'attribuee_a_tous'>>,
+): Promise<LectureQr<PorteeQr>> {
+  const lues = copros
+    ? { ok: true as const, valeur: [...copros] }
+    : await lireParValeursQr<Pick<LigneCoproprieteQr, 'id' | 'cabinet_id' | 'attribuee_a_tous'>>([profil.cabinetId], (lot) =>
+      supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, cabinet_id, attribuee_a_tous').in('cabinet_id', lot).order('id', { ascending: true }))
+  if (!lues.ok) return lues
+  const attributions = await lireParValeursQr<{ copropriete_id: string }>([profil.gestionnaireId], (lot) =>
+    supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id').in('gestionnaire_id', lot).order('copropriete_id', { ascending: true }))
+  if (!attributions.ok) return attributions
+  return {
+    ok: true,
+    valeur: porteeGestionnaireQr(
+      { id: profil.gestionnaireId, cabinetId: profil.cabinetId, actif: true },
+      lues.valeur.map((c) => ({ id: c.id, cabinetId: c.cabinet_id ?? null, attribueeATous: c.attribuee_a_tous === true })),
+      new Set(attributions.valeur.map((a) => a.copropriete_id)),
+    ),
+  }
+}
+
+/**
+ * Réponse d'une lecture refusée pour un gestionnaire : structure absente (migration non appliquée) → 503 base_absente,
+ * journalisé une fois ; sinon la traduction commune (500 journalisé avec son seul code).
+ */
+export function reponseLectureGestionnaireQr(erreur: ErreurBase, operation: string, ids: Record<string, string> = {}): NextResponse {
+  if (structureAbsenteQr(erreur)) {
+    journaliserRepliAccesQr(operation, erreur)
+    return reponseErreur('base_absente', 503)
+  }
+  return reponseErreurSqlQr(erreur, operation, ids)
+}
+
+/**
  * Tableau de bord : copropriétés (compteurs, champs de gestion et, sans adresse, la dernière adresse proposée) et
  * signalements les plus récents. Options (P1-R1) : `cabinet` (ses copropriétés), `gestionnaire` (sa page de suivi : sa
  * portée, 100 signalements au plus). Colonne inconnue (migrations du 06/11/2026) : relecture par select('*').
@@ -797,17 +932,64 @@ export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: 
     }
     lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
   }
+  const { tableau, contexte } = await assemblerTableauQr(lignesCopros, lignesSignalements)
+  if (suivi) {
+    suivi.cabinet = contexte.cabinets.get(suivi.cabinet.id) ?? suivi.cabinet
+    tableau.gestionnaire = suivi
+  }
+  return { ok: true, tableau }
+}
+
+/** Formes publiques du tableau (compteurs en base, sinon calculés ; champs de gestion), et le contexte lu pour elles. */
+async function assemblerTableauQr(
+  lignesCopros: readonly LigneCoproprieteQr[], lignesSignalements: readonly LigneSignalementQr[],
+): Promise<{ tableau: TableauQr; contexte: ContexteGestionQr }> {
   const [enBase, contexte] = await Promise.all([compteursQr(lignesCopros.map((c) => c.id)), lireContexteGestionQr(lignesCopros)])
   const compteurs = enBase ?? compteursDepuisSignalementsQr(lignesSignalements)
   const noms = new Map(lignesCopros.map((c) => [c.id, chaine(c.nom)]))
   const dernieres = dernieresAdressesProposees(lignesSignalements)
-  if (suivi) suivi.cabinet = contexte.cabinets.get(suivi.cabinet.id) ?? suivi.cabinet
-  const tableau: TableauQr = {
-    coproprietes: lignesCopros.map((c) => coproprieteDepuisLigne(c, compteurs.get(c.id) ?? compteursVidesQr(), dernieres.get(c.id) ?? null, contexte)),
-    signalements: lignesSignalements.map((s) => signalementDepuisLigne(s, noms.get(s.copropriete_id) ?? '')),
+  return {
+    tableau: {
+      coproprietes: lignesCopros.map((c) => coproprieteDepuisLigne(c, compteurs.get(c.id) ?? compteursVidesQr(), dernieres.get(c.id) ?? null, contexte)),
+      signalements: lignesSignalements.map((s) => signalementDepuisLigne(s, noms.get(s.copropriete_id) ?? '')),
+    },
+    contexte,
   }
-  if (suivi) tableau.gestionnaire = suivi
-  return { ok: true, tableau }
+}
+
+export type LectureTableauGestionnaireQr = { ok: true; tableau: TableauQr } | { ok: false; erreur: ErreurBase }
+
+/**
+ * Tableau de bord d'un gestionnaire connecté (SPEC § 2.4 et § 2.5 ; Hugo, 11/11/2026 : même présentation que l'espace
+ * global, limitée à sa portée) : copropriétés visibles de SON cabinet (attributions ∪ « à tous »), les 500 signalements
+ * les plus récents de ces copropriétés, puis minimisation (tableauVuGestionnaireQr). Aucune lecture « globale » de
+ * signalements. Colonnes de la trace du statut absentes : relecture par select('*'), journalisée une fois.
+ */
+export async function lireTableauGestionnaireQr(profil: ProfilGestionnaireQr): Promise<LectureTableauGestionnaireQr> {
+  const copros = await lireLignesCoproprietesQr({ cabinet: profil.cabinetId })
+  if (!copros.ok) return { ok: false, erreur: copros.erreur }
+  const portee = await porteeDuProfilQr(profil, copros.lignes)
+  if (!portee.ok) return portee
+  const lignesCopros = copros.lignes.filter((c) => portee.valeur.visibles.has(c.id))
+  const ids = lignesCopros.map((c) => c.id)
+  let lignesSignalements: LigneSignalementQr[] = []
+  if (ids.length > 0) {
+    let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_GESTIONNAIRE_QR, ids, SIGNALEMENTS_MAX)
+    if (colonneInconnue(signalements.error)) {
+      journaliserRepliGestionQr('lecture du tableau d’un gestionnaire', signalements.error)
+      signalements = await lireSignalementsTableau('*', ids, SIGNALEMENTS_MAX)
+    }
+    if (signalements.error) return { ok: false, erreur: signalements.error }
+    lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
+  }
+  const { tableau, contexte } = await assemblerTableauQr(lignesCopros, lignesSignalements)
+  const traces = new Map(lignesSignalements.map((s) => [s.id, traceStatutDepuisLigneQr(s)]))
+  return {
+    ok: true,
+    tableau: tableauVuGestionnaireQr(tableau, traces, {
+      userId: profil.userId, gestionnaireId: profil.gestionnaireId, nom: profil.nom, portee: portee.valeur, fichesSaisies: contexte.emailsFiches,
+    }),
+  }
 }
 
 export type LectureCoproprieteCompleteQr = { ok: true; copropriete: CoproprieteQr | null } | { ok: false; erreur: ErreurBase }

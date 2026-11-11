@@ -105,7 +105,15 @@ export interface SignalementQr {
   signalementLieId: string | null
   creeLe: string
   misAJourLe: string
+  /**
+   * Vue d'un gestionnaire seulement (PR 2, lib/aj-signalement/minimisation.ts) : qui a changé le statut en dernier, sans
+   * nom ni compte (vous, un collègue, le cabinet) ; null : jamais changé. Absent pour le super admin.
+   */
+  statutModifiePar?: AuteurStatutQr | null
 }
+
+/** Auteur d'un changement de statut tel qu'un gestionnaire le voit (jamais un nom ni un identifiant). */
+export type AuteurStatutQr = 'vous' | 'collegue' | 'cabinet'
 
 /** Corps du POST public /api/aj-signalement/signalements (validé par signalementQrSchema, lib/validation.ts). */
 export interface SaisieSignalementQr {
@@ -244,6 +252,14 @@ export interface GestionnaireQr extends GestionnaireResumeQr {
   urgents: number
   creeLe: string
   confirmeeLe: string | null
+  /**
+   * Accès à l'espace du cabinet (PR 2, colonnes de la migration 20261112, lues à part) : ABSENTS tant que la migration
+   * manque (réponse identique à la PR 1). Jamais l'identifiant du compte relié.
+   */
+  accesOuvertLe?: string | null
+  connexionBloquee?: boolean
+  effacementDemandeLe?: string | null
+  compteRelie?: boolean
 }
 
 /** D'où vient une attribution (CHECK de signalements_qr_attributions.origine). */
@@ -308,6 +324,8 @@ export interface ResultatCreationQr {
 export const ERREURS_METIER_SQL_QR = [
   'doublon', 'a_reverifier', 'sans_cabinet', 'identifiant_pris', 'identifiant_fige', 'domaine_pris', 'cabinet_fige',
   'hors_domaine', 'domaine_autre_cabinet',
+  // Migration 20261112 (PR 2) : envoi d'un accès (signalements_qr_envoyer_acces).
+  'deja_ouvert', 'adresse_contestee',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
@@ -339,6 +357,13 @@ export interface GestionCoproprieteQr {
   dernier: string | null
   /** Adresses saisies qui sont celles d'une fiche gestionnaire (données antérieures, à nettoyer par le super admin). */
   adressesDeGestionnaires: number
+  /**
+   * Vue d'un gestionnaire seulement (PR 2, lib/aj-signalement/minimisation.ts), absents pour le super admin :
+   * fiche modifiable par lui (attribuée nommément), saisies masquées (adresse d'une autre fiche), créée par lui.
+   */
+  modifiable?: boolean
+  adressesMasquees?: number
+  creeeParVous?: boolean
 }
 
 /** Valeurs par défaut des champs de gestion : tableaux neufs à chaque appel. */
@@ -500,13 +525,26 @@ export type EtatGestionnairePr1Qr = Extract<
 
 // ── Routes du lot 3 (contrôle d'accès, réponses, envois) ────────────────────────────────────────────────────────
 
+/** Rôle serveur (app_metadata.role) d'un compte gestionnaire d'un cabinet client, posé à l'acceptation de son accès. */
+export const ROLE_GESTIONNAIRE_QR = 'gestionnaire_signalement'
+
 /**
- * Profil d'un appel authentifié, rendu par controlerAccesQr (lib/aj-signalement/serveur.ts) après isSuperAdmin. En
- * PR 1, le super admin seul ; la PR 2 ajoutera { type: 'gestionnaire'; userId; gestionnaireId; cabinetId } et
- * { type: 'acces_retire' } (fiche relue en base par user_id, jamais app_metadata).
+ * Repère de routage posé dans app_metadata à l'acceptation (identifiant du chemin de SON cabinet) : il sert au
+ * middleware, qui n'a pas la base, à aiguiller le gestionnaire vers vitfix.io/<identifiant>/suivi/. Il ne donne AUCUN
+ * droit : les routes ne lisent que la fiche.
  */
-export type ProfilQr = { type: 'super_admin'; userId: string }
+export const CLE_REPERE_CABINET_QR = 'aj_signalement_cabinet'
+
+/**
+ * Profil d'un appel authentifié, rendu par controlerAccesQr (lib/aj-signalement/serveur.ts) : le super admin
+ * (isSuperAdmin), ou un gestionnaire (rôle app_metadata gestionnaire_signalement ET fiche ACTIVE relue en base par
+ * user_id à chaque appel ; cabinet et nom viennent de la fiche, jamais du compte).
+ */
+export type ProfilQr =
+  | { type: 'super_admin'; userId: string }
+  | { type: 'gestionnaire'; userId: string; gestionnaireId: string; cabinetId: string; nom: string | null }
 export type TypeProfilQr = ProfilQr['type']
+export type ProfilGestionnaireQr = Extract<ProfilQr, { type: 'gestionnaire' }>
 
 /** Curseur de page (created_at BRUT de PostgREST, microsecondes comprises, et id de la dernière ligne) ; null : fin. */
 export type SuitePageQr = { avant: string; avantId: string } | null
