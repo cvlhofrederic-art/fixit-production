@@ -156,9 +156,11 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 $fn$;
 
 -- ── 5. « Ce n'est pas moi » aussi depuis un lien d'accès (route POST /api/aj-signalement/invitation/refus) ──
--- Même signature et même corps que la 20261111, avec : envoi de confirmation d'adresse OU d'accès ; fiche SANS compte
--- relié (un compte ouvert a déjà prouvé la boîte : la fiche ne se conteste plus) ; objet de l'envoi au journal
--- (details { objet }). La fiche est figée, pas désactivée : le super admin choisit les successions.
+-- Même signature et même corps que la 20261111 (version corrigée de la PR 1 : la fiche verrouillée d'abord, puis ses
+-- envois ; les jetons de TOUS ses envois effacés, celui d'un envoi déjà accepté compris), avec : envoi de confirmation
+-- d'adresse OU d'accès ; fiche SANS compte relié (un compte ouvert a déjà prouvé la boîte : la fiche ne se conteste
+-- plus) ; objet de l'envoi au journal (details { objet }). La fiche est figée, pas désactivée : le super admin choisit
+-- les successions.
 CREATE OR REPLACE FUNCTION signalements_qr_contester_adresse(p_invitation uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
@@ -166,6 +168,10 @@ DECLARE
   v_cab  uuid;
   v_objet text;
 BEGIN
+  -- La fiche d'abord, puis ses envois (même ordre que le départ et « C'est moi »).
+  PERFORM 1 FROM signalements_qr_gestionnaires g
+   WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation)
+   FOR NO KEY UPDATE;
   UPDATE signalements_qr_invitations i SET refus = 'pas_moi', invite_token = NULL
    WHERE i.id = p_invitation AND i.objet IN ('confirmation_adresse', 'acces') AND i.accepted_at IS NULL AND i.refus IS NULL
      AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'
@@ -178,8 +184,9 @@ BEGIN
   END IF;
   UPDATE signalements_qr_gestionnaires SET adresse_contestee_le = now() WHERE id = v_g
   RETURNING cabinet_id INTO v_cab;
+  -- Tous ses liens caducs, celui d'un envoi déjà accepté compris (fiche contestée : 404 générique).
   UPDATE signalements_qr_invitations SET invite_token = NULL
-   WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;
+   WHERE gestionnaire_id = v_g AND invite_token IS NOT NULL;
   INSERT INTO signalements_qr_journal (cabinet_id, acteur_profil, acteur_gestionnaire_id, action, gestionnaire_id, details)
   VALUES (v_cab, 'gestionnaire', v_g, 'gestionnaire.adresse_contestee', v_g, jsonb_build_object('objet', v_objet));
   RETURN true;

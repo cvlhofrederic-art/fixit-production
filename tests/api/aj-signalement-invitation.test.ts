@@ -691,6 +691,17 @@ describe('« Ce n’est pas moi » (P2-R3b, publique)', () => {
     expect((await accepter(corpsAcceptation())).status).toBe(404)
   })
 
+  it('lien de confirmation déjà confirmé (jeton gardé par « C’est moi », PR 1) : effacé lui aussi, comme tous les liens de la fiche', async () => {
+    const confirme = {
+      id: 'e1000000-0000-4000-8000-0000000000c1', gestionnaire_id: G, objet: 'confirmation_adresse', email: EMAIL, invite_token: 'c'.repeat(48),
+      accepted_at: '2026-11-11T09:00:00+00:00', refus: null, created_at: '2026-11-11T08:30:00+00:00',
+    }
+    baseQr.table('signalements_qr_invitations').push(confirme)
+    expect((await refuser(corpsLien())).status).toBe(200)
+    expect(envoi(confirme.id)).toMatchObject({ invite_token: null, accepted_at: confirme.accepted_at, refus: null })
+    expect(envoi(idEnvoi)).toMatchObject({ invite_token: null, refus: 'pas_moi' })
+  })
+
   it('cabinet du chemin ≠ celui de la fiche : 404, aucune fonction appelée', async () => {
     expect((await refuser(corpsLien({ cabinet: 'autre-cabinet' }))).status).toBe(404)
     expect(baseQr.etat.appelsRpc).toEqual([])

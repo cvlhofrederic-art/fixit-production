@@ -348,6 +348,19 @@ describe(`Migration ${FICHIER} : « Ce n’est pas moi » depuis un lien d’acc
     expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
   })
 
+  // Corrections de la PR 1 après l'essai PGlite du 11/11 (13eae891, 299762c9) : la 20261111 comparée est bien la version
+  // corrigée, et le corps élargi les garde (sinon la 20261112, appliquée après, les annulerait en production).
+  const VERROU_FICHE = 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation) FOR NO KEY UPDATE;'
+  const TOUS_LES_JETONS = 'UPDATE signalements_qr_invitations SET invite_token = NULL WHERE gestionnaire_id = v_g AND invite_token IS NOT NULL;'
+  const ANCIEN_EFFACEMENT = 'UPDATE signalements_qr_invitations SET invite_token = NULL WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;'
+
+  it('la 20261111 de référence est la version corrigée de la PR 1 : fiche verrouillée d’abord, jetons de TOUS ses envois effacés', () => {
+    const avant = compacter(ancienne().corps)
+    expect(avant).toContain(VERROU_FICHE)
+    expect(avant).toContain(TOUS_LES_JETONS)
+    expect(avant).not.toContain(ANCIEN_EFFACEMENT)
+  })
+
   it('envoi de confirmation OU d’accès, fiche SANS compte relié, objet de l’envoi au journal ; le reste du corps est celui de la 20261111', () => {
     const remplacements: Array<[string, string]> = [
       ['v_cab uuid; BEGIN', 'v_cab uuid; v_objet text; BEGIN'],
@@ -371,7 +384,16 @@ describe(`Migration ${FICHIER} : « Ce n’est pas moi » depuis un lien d’acc
     expect(corps).toContain("i.created_at > now() - interval '7 days'")
     expect(corps).toContain('i.accepted_at IS NULL AND i.refus IS NULL AND i.invite_token IS NOT NULL')
     expect(corps).toContain('UPDATE signalements_qr_gestionnaires SET adresse_contestee_le = now() WHERE id = v_g')
-    expect(corps).toContain('UPDATE signalements_qr_invitations SET invite_token = NULL WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;')
+    // Tous ses liens, celui d'un envoi déjà accepté compris (« C'est moi » garde le jeton : accepted_at fait foi).
+    expect(corps).toContain(TOUS_LES_JETONS)
+    expect(corps).not.toContain(ANCIEN_EFFACEMENT)
+  })
+
+  it('ordre unique des verrous (PR 1) : la fiche d’abord, puis ses envois, comme le départ et « C’est moi »', () => {
+    const corps = compacter(nouvelle().corps)
+    const verrou = corps.indexOf(VERROU_FICHE)
+    expect(verrou).toBeGreaterThan(0)
+    expect(verrou).toBeLessThan(corps.indexOf("UPDATE signalements_qr_invitations i SET refus = 'pas_moi'"))
   })
 
   it('définie APRÈS l’ajout de la colonne user_id qu’elle lit (même fichier, ordre d’application)', () => {

@@ -200,7 +200,11 @@ export function simulerEnvoiAccesQr(): void {
 
 const SEPT_JOURS_MS = 7 * 24 * 3600 * 1000
 
-/** Nouveau corps de signalements_qr_contester_adresse : envoi de confirmation OU d'accès, fiche sans compte relié. */
+/**
+ * Nouveau corps de signalements_qr_contester_adresse : envoi de confirmation OU d'accès, fiche sans compte relié ; comme
+ * la 20261111 corrigée (PR 1), les jetons de TOUS les envois de la fiche sont effacés, celui d'un envoi déjà accepté
+ * compris (« C'est moi » garde le jeton). Le verrou de la fiche (pris d'abord) ne se simule pas.
+ */
 export function simulerContestationAccesQr(): void {
   baseQr.etat.fonctions.signalements_qr_contester_adresse = (a) => {
     const envois = baseQr.table('signalements_qr_invitations')
@@ -211,7 +215,7 @@ export function simulerContestationAccesQr(): void {
     if (!inv || !g) return { data: false }
     Object.assign(inv, { refus: 'pas_moi', invite_token: null })
     g.adresse_contestee_le = maintenantIso()
-    for (const e of envois) if (e.gestionnaire_id === g.id && !e.accepted_at && e.invite_token) e.invite_token = null
+    for (const e of envois) if (e.gestionnaire_id === g.id && e.invite_token) e.invite_token = null
     baseQr.table('signalements_qr_journal').push({
       cabinet_id: g.cabinet_id, acteur_profil: 'gestionnaire', acteur_gestionnaire_id: g.id, action: 'gestionnaire.adresse_contestee',
       gestionnaire_id: g.id, details: { objet: inv.objet }, created_at: maintenantIso(),
