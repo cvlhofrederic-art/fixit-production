@@ -25,6 +25,14 @@ import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { useThemeVars, ThemeVars } from './useThemeVars'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
+import type { ChampRecherche } from '@/lib/documents/recherche-documents'
+import {
+  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, IndiceResultat,
+  useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
+} from '@/components/dashboard/documents/OutilsListeDocuments'
+
+// Colonnes de la liste V5 des factures : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
+const CHAMPS_VISIBLES_FACTURES: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client'])
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -497,17 +505,12 @@ function FacturesSectionV5({
   const [acompteParent, setAcompteParent] = useState<PersistedDocument | null>(null)
   const [avoirParent, setAvoirParent] = useState<PersistedDocument | null>(null)
 
-  const filtered = factureDocs
+  // Recherche dans tout ce qui est relié à la facture : client, objet, chantier, adresses, lignes, notes,
+  // devis d'origine, date… (indexée une fois pour la liste, pas à chaque filtre).
+  const recherche = useRechercheDocuments(factureDocs, search, locale, CHAMPS_VISIBLES_FACTURES)
+  const filtered = recherche.documents
     .filter(d => docMatchesType(d, typeFilter))
     .filter(d => docMatchesStatus(d, statusFilter))
-    .filter(d => {
-      if (!search) return true
-      const q = search.toLowerCase()
-      return (
-        d.docNumber?.toLowerCase().includes(q) ||
-        d.clientName?.toLowerCase().includes(q)
-      )
-    })
     // Tri « du plus récent au plus ancien » via compareDocsForList :
     // - même série (FACT vs FACT) : seq DESC strict — l'utilisateur attend
     //   FACT-2026-004 au-dessus de FACT-2026-003 même si 003 a été ré-enregistrée
@@ -515,6 +518,18 @@ function FacturesSectionV5({
     // - séries différentes (AC vs FACT) : time DESC — un acompte récent
     //   AC-2026-002 reste au-dessus d'une vieille FACT-2026-017.
     .sort(compareDocsForList)
+
+  // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP. « Tout télécharger » prend les
+  // factures affichées, donc après recherche et filtres (ex. Factures + Émises pour le comptable).
+  const selection = useSelectionDocuments(filtered)
+  const facturesCochees = selection.selectionnes(factureDocs)
+  const { progression, telecharger } = useTelechargementGroupe({
+    artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveFactures'),
+  })
+  const telechargerListe = async () => {
+    const cochees = facturesCochees.length > 0
+    if (await telecharger(cochees ? facturesCochees : filtered) && cochees) selection.vider()
+  }
 
   const getV5Badge = (doc: PersistedDocument) => {
     // Accepte les statuts FR (localStorage) ET EN (DB Supabase).
@@ -635,6 +650,15 @@ function FacturesSectionV5({
           placeholder={t('proDash.factures.rechercher')}
           value={search}
           onChange={e => setSearch(e.target.value)}
+          aria-label={t('proDash.factures.rechercher')}
+        />
+        <BoutonsTelechargementGroupe
+          nbAffiches={filtered.length}
+          nbSelectionnes={facturesCochees.length}
+          progression={progression}
+          onTelecharger={() => { void telechargerListe() }}
+          onVider={selection.vider}
+          t={t}
         />
         <button className="v5-btn v5-btn-p" onClick={() => openFactureForm()}>
           {t('proDash.factures.nouvelle')}
@@ -694,6 +718,7 @@ function FacturesSectionV5({
         <table className="v5-dt">
           <thead>
             <tr>
+              <EnteteSelection etat={selection.etatEntete} onBasculer={selection.basculerTout} t={t} />
               <th>{t('proDash.factures.colNum')}</th>
               <th>{t('proDash.factures.colClient')}</th>
               <th>{t('proDash.factures.colType')}</th>
@@ -760,8 +785,16 @@ function FacturesSectionV5({
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>
+                  <CelluleSelection
+                    coche={selection.estSelectionne(doc)}
+                    onBasculer={plage => selection.basculer(doc, plage)}
+                    libelle={`${t('proDash.documentsListe.selectionner')} ${doc.docNumber || doc.clientName || ''}`.trim()}
+                  />
                   <td style={{ fontWeight: 600 }}>{doc.docNumber || 'Brouillon'}</td>
-                  <td>{doc.clientName || t('proDash.factures.nonRenseigne')}</td>
+                  <td>
+                    {doc.clientName || t('proDash.factures.nonRenseigne')}
+                    <IndiceResultat indice={recherche.indiceDe(doc)} t={t} />
+                  </td>
                   <td>{guessType(doc)}</td>
                   <td>{totalTTC.toLocaleString(dateLocale, { maximumFractionDigits: 0 })} €</td>
                   <td><span className={badge.cls}>{badge.label}</span></td>
@@ -881,7 +914,7 @@ function FacturesSectionV5({
               )
             }) : (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
+                <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
                   {search ? t('proDash.factures.aucuneRecherche') : t('proDash.factures.aucune')}
                 </td>
               </tr>
