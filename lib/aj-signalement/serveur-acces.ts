@@ -30,7 +30,7 @@ import {
 import { emailCanoniqueQr, nomCourtQr } from '@/lib/aj-signalement/gestionnaires'
 import { CLE_REPERE_CABINET_QR, ROLE_GESTIONNAIRE_QR } from '@/lib/aj-signalement/types'
 import {
-  TABLE_GESTIONNAIRES_QR, TABLE_INVITATIONS_QR, codeDepuisErreurSqlQr, journaliserQr, journaliserRepliAccesQr, lireCabinetQr,
+  TABLE_GESTIONNAIRES_QR, TABLE_INVITATIONS_QR, codeDepuisErreurSqlQr, conflitConcurrenceQr, journaliserQr, journaliserRepliAccesQr, lireCabinetQr,
   reponseErreur, reponseErreurSqlQr, structureAbsenteQr, type ErreurBase,
 } from '@/lib/aj-signalement/serveur'
 import { COLONNES_FICHE_QR, lienDuCabinetQr, origineLiensQr, type LigneFicheQr } from '@/lib/aj-signalement/serveur-gestion'
@@ -45,7 +45,8 @@ const echec = (code: string, status: number): EchecAccesQr => ({ ok: false, code
 /**
  * Erreur de la base sur une opération d'accès : structure absente (migration 20261111 ou 20261112 non appliquée) →
  * 503 base_absente, journalisé une fois par opération ; sinon la traduction commune (codeDepuisErreurSqlQr), journalisée
- * avec son seul code si elle est un 5xx.
+ * avec son seul code si elle est un 5xx, ou en avertissement si c'est un conflit avec une écriture concurrente (40P01,
+ * 40001 : 409 a_reverifier, comme reponseErreurSqlQr).
  */
 export function echecBaseAccesQr(erreur: ErreurBase, operation: string, ids: Record<string, string> = {}): EchecAccesQr {
   if (structureAbsenteQr(erreur)) {
@@ -54,6 +55,7 @@ export function echecBaseAccesQr(erreur: ErreurBase, operation: string, ids: Rec
   }
   const { code, status } = codeDepuisErreurSqlQr(erreur)
   if (status >= 500) logger.error(`${CONTEXTE} ${operation} refusée par la base`, { code: erreur.code, ...ids })
+  else if (conflitConcurrenceQr(erreur)) logger.warn(`${CONTEXTE} ${operation} : conflit avec une écriture concurrente, à recommencer`, { code: erreur.code, ...ids })
   return echec(code, status)
 }
 

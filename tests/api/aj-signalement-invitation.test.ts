@@ -240,6 +240,16 @@ describe('envoi d’un accès (P2-R1, super admin)', () => {
     expect(avertissementsAcces()[0][1]).toMatchObject({ migration: MIGRATION_ACCES_QR, code: 'PGRST202' })
   })
 
+  it.each(['40P01', '40001'])('conflit avec une écriture concurrente (%s, PR 1) : 409 a_reverifier, avertissement, aucun e-mail', async (code) => {
+    baseQr.etat.fonctions.signalements_qr_envoyer_acces = () => ({ error: { code, message: 'conflit' } })
+    const res = await envoyer()
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'a_reverifier' })
+    expect(messagesEnvoyesQr()).toEqual([])
+    expect(simulQr.logger.error).not.toHaveBeenCalled()
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('à recommencer'), expect.objectContaining({ code, gestionnaire: G }))
+  })
+
   it('sans la 20261111 (tables absentes, PGRST205) : 503 base_absente, aucun e-mail', async () => {
     simulerProductionAvant1111Qr()
     const res = await envoyer()
@@ -711,6 +721,19 @@ describe('« Ce n’est pas moi » (P2-R3b, publique)', () => {
     baseQr.etat.fonctions.signalements_qr_contester_adresse = () => ({ data: false })
     expect((await refuser(corpsLien())).status).toBe(404)
     expect(messagesEnvoyesQr()).toEqual([])
+  })
+
+  // PR 1 (essai PGlite du 11/11, D7) : la fonction verrouille la fiche d'abord ; un conflit avec une écriture concurrente
+  // (40P01 blocage mutuel, 40001 sérialisation) annule tout et se traduit comme partout : 409 a_reverifier, signalé en
+  // avertissement (« à recommencer »), jamais une erreur serveur.
+  it.each(['40P01', '40001'])('conflit avec une écriture concurrente (%s) : 409 a_reverifier, avertissement, aucune alerte', async (code) => {
+    baseQr.etat.fonctions.signalements_qr_contester_adresse = () => ({ error: { code, message: 'conflit' } })
+    const res = await refuser(corpsLien())
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'a_reverifier' })
+    expect(messagesEnvoyesQr()).toEqual([])
+    expect(simulQr.logger.error).not.toHaveBeenCalled()
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('à recommencer'), expect.objectContaining({ code, gestionnaire: G }))
   })
 
   it('alerte impossible : la contestation reste acquise (200)', async () => {
