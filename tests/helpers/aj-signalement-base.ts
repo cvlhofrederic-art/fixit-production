@@ -216,8 +216,13 @@ export function creerBaseQr() {
       range(de: number, a: number) { debut = de; limite = a - de + 1; return q },
       single() { unique = 'single'; return Promise.resolve(executer()) },
       maybeSingle() { unique = 'maybe'; return Promise.resolve(executer()) },
-      then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { return Promise.resolve(executer()).then(ok, ko) },
     }
+    // Le constructeur de requête de Supabase s'attend (`await supabase.from(…).select(…)`) sans être une promesse : le
+    // simulacre doit l'imiter. `then` est posé hors du littéral, qu'un littéral portant `then` soit signalé (S7739).
+    Object.defineProperty(q, 'then', {
+      enumerable: true,
+      value: (ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(executer()).then(ok, ko),
+    })
     return q
   }
 
