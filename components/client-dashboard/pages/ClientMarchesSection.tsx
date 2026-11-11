@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Hammer, FileText, MapPin, User, Calendar, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 
 interface ClientMarchesSectionProps {
   userId: string | undefined
@@ -17,7 +18,8 @@ export default function ClientMarchesSection({ userId, locale }: ClientMarchesSe
   const fetchMyMarches = useCallback(async (uid: string) => {
     setMarchesLoading(true)
     try {
-      const res = await fetch(`/api/marches?publisher_user_id=${uid}`)
+      // Route réservée au compte lui-même (la réponse contient les clés de gestion de ses offres) : jeton requis.
+      const res = await fetchAuthentifie(`/api/marches?publisher_user_id=${uid}`)
       if (res.ok) {
         const data = await res.json()
         setMyMarches(data.marches || [])
@@ -29,11 +31,11 @@ export default function ClientMarchesSection({ userId, locale }: ClientMarchesSe
     finally { setMarchesLoading(false) }
   }, [])
 
+  // Un seul chargement par compte. L'ancienne condition (« liste vide et pas de chargement en cours ») relançait
+  // la lecture dès qu'une réponse vide arrivait : un client sans offre publiée appelait l'API en boucle.
   useEffect(() => {
-    if (userId && myMarches.length === 0 && !marchesLoading) {
-      fetchMyMarches(userId)
-    }
-  }, [userId, myMarches.length, marchesLoading, fetchMyMarches])
+    if (userId) void fetchMyMarches(userId)
+  }, [userId, fetchMyMarches])
 
   return (
     <div>

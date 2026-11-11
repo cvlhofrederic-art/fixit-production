@@ -31,11 +31,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Marché non trouvé' }, { status: 404 })
   }
 
-  // Vue publique : masquer le access_token et les infos sensibles
+  // Vue publique : masquer le access_token et les infos sensibles, dont les identifiants de compte
+  // (celui du publieur et ceux des entreprises ciblées).
   const publicMarche = { ...marche }
   delete publicMarche.access_token
   delete publicMarche.publisher_email
   delete publicMarche.publisher_phone
+  delete publicMarche.publisher_user_id
+  delete publicMarche.matched_artisans
 
   // Si le token correspond, c'est le publisher → inclure les candidatures
   if (token && token === marche.access_token) {

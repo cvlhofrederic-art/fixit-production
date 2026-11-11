@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
 import { cacheable } from '@/lib/cache'
 import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
@@ -108,6 +109,27 @@ export async function GET(request: NextRequest) {
   //   • 'tous' / null                  → pas de filtre
   const marcheType = url.searchParams.get('marche_type')
 
+  // ── Modes personnels : réservés au compte concerné ─────────────────────────
+  // Ces trois modes rendent des données d'un compte précis (clés de gestion de ses offres, ses candidatures avec
+  // leurs prix, les marchés qui lui sont proposés et leur distance à son adresse). L'identifiant passé dans l'URL
+  // ne suffit pas : la lecture se fait avec le client « service role », seul le jeton prouve qui appelle.
+  if (publisherUserId || artisanUserId || (myBids === 'true' && artisanId)) {
+    const user = await getAuthUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+    const autreCompte = (publisherUserId && publisherUserId !== user.id) || (artisanUserId && artisanUserId !== user.id)
+    if (autreCompte) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+    if (myBids === 'true' && artisanId && !publisherUserId) {
+      // La fiche dont on demande les candidatures doit appartenir au compte appelant.
+      const { data: fiche } = await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('id', artisanId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (!fiche) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+    }
+  }
+
   // ── Publisher mode: return all marches published by a user ─────────────────
   if (publisherUserId) {
     const { data: publisherMarches, error: pubError } = await supabaseAdmin
@@ -178,9 +200,11 @@ export async function GET(request: NextRequest) {
   const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}:${marcheType || ''}:${(allowedCategoryIds || []).sort().join(',')}`
 
   const fetchMarches = async (): Promise<MarcheRow[]> => {
+    // Liste publique : `matched_artisans` (identifiants de compte des entreprises ciblées) n'est jamais renvoyé ;
+    // la colonne sert seulement au filtre `artisan_user_id` plus bas.
     let query = supabaseAdmin
       .from('marches')
-      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type, btp_company_name, mission_type, start_date, duration_text, nb_intervenants_souhaite')
+      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type, btp_company_name, mission_type, start_date, duration_text, nb_intervenants_souhaite')
       .eq('status', 'open')
       .gte('deadline', today)
       .order('created_at', { ascending: false })

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import {
   CATEGORIES,
@@ -306,7 +307,8 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
   const fetchMyBids = useCallback(async () => {
     if (!isPro || !artisan?.id) return
     try {
-      const res = await fetch(`/api/marches?my_bids=true&artisan_id=${artisan.id}`)
+      // Route réservée au titulaire de la fiche (ses candidatures et leurs prix) : jeton requis.
+      const res = await fetchAuthentifie(`/api/marches?my_bids=true&artisan_id=${artisan.id}`)
       if (!res.ok) throw new Error('Failed to fetch bids')
       const data = await res.json()
       const bids = data.candidatures || data.bids || []
