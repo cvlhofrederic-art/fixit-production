@@ -202,7 +202,8 @@ describe('redirectionEspaceQr (middleware) : chemin sans langue vers lequel redi
       expect(redirectionEspaceQr(chemin, langue, trafique)).toBe('/aj-signalement/connexion/')
       expect(redirectionEspaceQr(chemin, langue, { app_metadata: {} })).toBe('/aj-signalement/connexion/')
       expect(redirectionEspaceQr(chemin, langue, admin)).toBeNull()
-      expect(redirectionEspaceQr(chemin, langue, vueEnTantQue)).toBeNull()
+      // La « vue en tant que » est refusée depuis le 11/11/2026, comme par les routes (isSuperAdmin, #650).
+      expect(redirectionEspaceQr(chemin, langue, vueEnTantQue)).toBe('/aj-signalement/connexion/')
     }
   })
 
@@ -213,7 +214,8 @@ describe('redirectionEspaceQr (middleware) : chemin sans langue vers lequel redi
       expect(redirectionEspaceQr(chemin, langue, syndic)).toBeNull()
       expect(redirectionEspaceQr(chemin, langue, trafique)).toBeNull()
       expect(redirectionEspaceQr(chemin, langue, admin)).toBe('/aj-signalement/')
-      expect(redirectionEspaceQr(chemin, langue, vueEnTantQue)).toBe('/aj-signalement/')
+      // La « vue en tant que » n'entre pas : la page de connexion lui est servie, avec son message neutre.
+      expect(redirectionEspaceQr(chemin, langue, vueEnTantQue)).toBeNull()
     }
   })
 
@@ -245,17 +247,16 @@ describe('destinationConnexionEspaceQr : arrivée après la connexion profession
   })
 
   it('ancre vide, inconnue ou détournée : l’espace seul', () => {
-    for (const ancre of ['', '#', '#admin', '#signalements/../../admin', '#gestionnaires', null, undefined]) {
+    // « #gestionnaires » n'est plus ici : c'est une vue du super admin depuis le 11/11/2026.
+    for (const ancre of ['', '#', '#admin', '#signalements/../../admin', null, undefined]) {
       expect(destinationConnexionEspaceQr(espace, ancre, superAdmin)).toBe('/fr/aj-signalement/')
     }
   })
 
-  it('« vue en tant que » ouverte par un super admin : l’espace', () => {
-    expect(destinationConnexionEspaceQr(espace, '', { role: 'coproprio', _original_role: 'super_admin' })).toBe('/fr/aj-signalement/')
-  })
-
-  it('compte sans accès, métadonnées absentes ou illisibles : null (la page affiche le message neutre)', () => {
-    for (const metadonnees of [{ role: 'coproprio' }, { role: 'syndic' }, {}, null, undefined]) {
+  it('compte sans accès, « vue en tant que », métadonnées absentes ou illisibles : null (la page affiche le message neutre)', () => {
+    for (const metadonnees of [
+      { role: 'coproprio' }, { role: 'syndic' }, { role: 'coproprio', _original_role: 'super_admin' }, {}, null, undefined,
+    ]) {
       expect(destinationConnexionEspaceQr(espace, '#signalements', metadonnees)).toBeNull()
     }
   })

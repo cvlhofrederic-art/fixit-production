@@ -326,10 +326,11 @@ describe('super admin : coquille de l’espace', () => {
     expect(document.activeElement).toBe(titre())
   })
 
-  it('« vue en tant que » ouverte par un super admin : message neutre (même règle que les routes, 11/11/2026), aucune donnée', async () => {
+  it('« vue en tant que » ouverte par un super admin : refusée (même règle que les routes, 11/11/2026), renvoi vers la connexion, aucune donnée', async () => {
+    simulerLocation('/fr/aj-signalement/')
     simul.getUser.mockResolvedValue(utilisateur({ role: 'coproprio', _original_role: 'super_admin' }))
     render(<EspaceAjSignalement />)
-    expect(await screen.findByRole('heading', { level: 1, name: 'Accès réservé' })).toBeInTheDocument()
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/connexion/')]))
     expect(appelsFetch).toEqual([])
   })
 
