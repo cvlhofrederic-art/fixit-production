@@ -149,12 +149,28 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
 
   // ── Lecture du fichier ──────────────────────────────────────────────────────
 
-  /** Feuille lue : ligne d'en-têtes trouvée, correspondance retenue (mêmes en-têtes) ou proposée. */
+  /**
+   * Nouveau lot (autre fichier, autre feuille, autre cabinet, import fait ou refusé) : nouvelle opération. Le serveur ne
+   * rejoue un résultat que pour le même lot ; un identifiant réutilisé ferait sinon revérifier pour rien (relecture 1).
+   */
+  const nouvelleOperation = () => setOperationId(globalThis.crypto.randomUUID())
+
+  /** Feuille lue : ligne d'en-têtes trouvée, correspondance retenue (mêmes en-têtes) ou proposée ; choix et résultat effacés. */
   const appliquerLecture = (lu: Lu) => {
     const index = trouverLigneEntetesQr(lu.lignes)
     proposerCorrespondance(lu.lignes[index] ?? [])
+    nouvelleOperation()
     setLecture(lu)
     setIndexEntetes(index)
+    setChoix({})
+    setVerifie(null)
+    setResultat(null)
+    setMessage(null)
+  }
+
+  const choisirCabinet = (id: string) => {
+    setCabinetId(id)
+    nouvelleOperation()
     setVerifie(null)
     setResultat(null)
     setMessage(null)
@@ -190,10 +206,8 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
         setErreurLecture(I.erreursLecture[lu.code])
         return
       }
-      // Nouveau fichier : nouvelle opération (un import déjà fait ne se rejoue pas sur un autre fichier).
-      setOperationId(globalThis.crypto.randomUUID())
+      // Nouveau fichier : nouvelle opération et choix effacés (appliquerLecture).
       setFichier({ octets, type })
-      setChoix({})
       appliquerLecture(lu)
     } catch (e) {
       console.warn('[aj-signalement] fichier non lu', e instanceof Error ? e.name : 'inconnue')
@@ -371,21 +385,25 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
     setOccupe(null)
     if (!r.ok) {
       if (r.code === 'a_reverifier' && r.verification) {
+        // Rien n'a été écrit sous cet identifiant (ou il est celui d'un autre lot) : le prochain envoi en tire un neuf.
+        nouvelleOperation()
         setVerifie({ normalisation: verifie.normalisation, verification: r.verification })
         setMessage({ ton: 'avertissement', texte: I.aReverifier })
         return
       }
+      // Réseau, serveur, limite : identifiant gardé, pour qu'un nouvel essai rejoue l'import s'il a eu lieu.
       setMessage({ ton: 'erreur', texte: messageEchecQr(r.code) })
       return
     }
-    const saisies = new Map(lignes.map((l) => [l.numeroLigne, l]))
+    // Affiches et export : ce que la base a enregistré (nom, adresse, jeton), jamais les saisies de l'écran ; les noms des
+    // gestionnaires viennent de la vérification de ce même lot.
     const diagnostics = new Map(verifie.verification.diagnostics.map((d) => [d.numeroLigne, d]))
-    const exports = r.resultat.creees.flatMap((c): LigneExportCoproprieteQr[] => {
-      const s = saisies.get(c.numeroLigne)
-      if (!s) return []
-      const gestionnaires = (diagnostics.get(c.numeroLigne)?.gestionnaires ?? []).map((g) => g.nom ?? '').filter(Boolean)
-      return [{ nom: s.nom, adresse: s.adresse, codePostal: s.codePostal, ville: s.ville, gestionnaires, jeton: c.jeton, identifiantCabinet: cabinet.identifiant || null }]
-    })
+    const exports = r.resultat.creees.map((c): LigneExportCoproprieteQr => ({
+      nom: c.nom, adresse: c.adresse, codePostal: c.codePostal, ville: c.ville,
+      gestionnaires: (diagnostics.get(c.numeroLigne)?.gestionnaires ?? []).map((g) => g.nom ?? '').filter(Boolean),
+      jeton: c.jeton, identifiantCabinet: cabinet.identifiant || null,
+    }))
+    nouvelleOperation()
     setResultat({ resultat: r.resultat, exports })
     onImporte()
   }
@@ -435,7 +453,7 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
         <Champ id={`${idBase}-cabinet`} etiquette={I.cabinet}>
           <select
             id={`${idBase}-cabinet`} value={cabinetId} className={CLASSES_SAISIE} disabled={occupe !== null}
-            onChange={(e) => { setCabinetId(e.target.value); setVerifie(null) }}
+            onChange={(e) => choisirCabinet(e.target.value)}
           >
             <option value="">{I.choisirCabinet}</option>
             {cabinets.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}

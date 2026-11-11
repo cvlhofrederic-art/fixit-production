@@ -579,7 +579,13 @@ export const modificationCabinetQrSchema = z.strictObject({
   domaines: z.array(domaineQrSchema).max(20).optional(),
 }).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
 
-export const rattachementQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).min(1).max(500) })
+// P1-R23 : rattachement définitif ; doublon avec le cabinet (RG-08) refusé sauf confirmation (probable) ou « Ce n'est
+// pas un doublon » (nom + code postal, super admin, journalisé doublon.force).
+export const rattachementQrSchema = z.strictObject({
+  coproprieteIds: z.array(z.uuid()).min(1).max(500),
+  forcerDoublon: z.boolean().optional().default(false),
+  confirmerDoublonProbable: z.boolean().optional().default(false),
+})
 
 // P1-R19 (SPEC § 1.9.6) : import des copropriétés d'UN cabinet client (obligatoire : isolation entre cabinets). Les lignes
 // sont normalisées dans le navigateur (lib/aj-signalement/import/ligne.ts, mêmes bornes) ; le fichier n'est jamais envoyé.

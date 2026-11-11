@@ -274,13 +274,15 @@ CREATE INDEX IF NOT EXISTS idx_signalements_qr_journal_acteur ON signalements_qr
 COMMENT ON TABLE signalements_qr_journal IS 'AJ Signalement : traçabilité (qui a créé ou changé quoi), sans donnée personnelle ; 12 mois glissants.';
 COMMENT ON COLUMN signalements_qr_journal.details IS 'Énumérations, identifiants et nombres seulement (exception : nom d''une copropriété supprimée).';
 
--- Un lot de création (saisie = lot d'une ligne, ou import) = un identifiant tiré par le navigateur : rejeu sans effet.
+-- Un lot de création (saisie = lot d'une ligne, ou import) = un identifiant tiré par le navigateur : rejeu sans effet,
+-- seulement pour le même auteur, le même cabinet et le même lot (empreinte des lignes reçues).
 CREATE TABLE IF NOT EXISTS signalements_qr_operations (
   id             UUID PRIMARY KEY,
   cabinet_id     UUID,
   acteur_id      UUID NOT NULL,
   acteur_profil  TEXT NOT NULL CHECK (acteur_profil IN ('super_admin', 'gestionnaire')),
   type           TEXT NOT NULL CHECK (type IN ('creation', 'import')),
+  empreinte_lignes TEXT NOT NULL,                     -- sha256 (hex) du lot reçu : aucun contenu de fichier en clair
   resultat       JSONB NOT NULL DEFAULT '{}'::jsonb,   -- identifiants et jetons créés ; aucun contenu de fichier
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -313,8 +315,10 @@ END $fn$;
 
 -- Création unique des copropriétés (saisie du super admin = lot d'une ligne, import, saisie d'un gestionnaire en PR 2).
 -- p_lignes : [{ numeroLigne, action: 'creer' | 'completer', origine?: 'import', coproprieteId?, nom, cleNom, adresse, codePostal, ville,
--- immatriculation?, referenceCabinet?, batiments[], emails[], gestionnaireIds[], forcerDoublon }].
+-- immatriculation?, referenceCabinet?, batiments[], emails[], gestionnaireIds[], forcerDoublon }] ; « compléter » porte
+-- cleNomExistante (clé du nom de la fiche existante, calculée par la route) au lieu de cleNom.
 -- p_cabinet NULL = copropriétés sans cabinet (super admin seulement, aucun gestionnaire possible).
+-- Rendu : créées { numeroLigne, id, jeton, nom, adresse, codePostal, ville } relues en base, complétées { numeroLigne, id }.
 CREATE OR REPLACE FUNCTION signalements_qr_creer_coproprietes(
   p_operation uuid, p_acteur uuid, p_profil text, p_gestionnaire uuid, p_cabinet uuid, p_lignes jsonb
 ) RETURNS jsonb
@@ -326,6 +330,9 @@ DECLARE
   v_type    text;
   v_deja    jsonb;
   v_auteur  uuid;
+  v_cab_op  uuid;
+  v_empreinte     text;
+  v_empreinte_op  text;
   v_l       jsonb;
   v_num     text;
   v_id      uuid;
@@ -333,11 +340,14 @@ DECLARE
   v_g       uuid;
   v_creees  jsonb := '[]'::jsonb;
   v_compl   jsonb := '[]'::jsonb;
+  v_rendu   jsonb;
 BEGIN
   IF p_operation IS NULL OR p_acteur IS NULL OR p_profil IS NULL OR p_profil NOT IN ('super_admin', 'gestionnaire')
      OR p_lignes IS NULL OR jsonb_typeof(p_lignes) <> 'array' THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
+  -- Empreinte du lot : le texte d'un jsonb est canonique (clés triées, sans doublon), le même lot donne la même empreinte.
+  v_empreinte := encode(sha256(convert_to(p_lignes::text, 'UTF8')), 'hex');
   v_nb := jsonb_array_length(p_lignes);
   IF v_nb NOT BETWEEN 1 AND 500 THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
@@ -365,13 +375,23 @@ BEGIN
   -- Toutes les créations d'un cabinet sont sérialisées : la course nom + code postal est fermée sans index unique.
   PERFORM pg_advisory_xact_lock(hashtextextended('signalements_qr_creation:' || v_cab::text, 0));
 
-  SELECT o.resultat, o.acteur_id INTO v_deja, v_auteur FROM signalements_qr_operations o WHERE o.id = p_operation;
+  SELECT o.resultat, o.acteur_id, o.cabinet_id, o.empreinte_lignes INTO v_deja, v_auteur, v_cab_op, v_empreinte_op
+    FROM signalements_qr_operations o WHERE o.id = p_operation;
   IF FOUND THEN
-    -- Double clic, nouvel essai réseau : le résultat du premier appel, et seulement à son auteur.
-    IF v_auteur IS DISTINCT FROM p_acteur THEN
+    -- Double clic, nouvel essai réseau : le résultat du premier appel, seulement à son auteur, pour le MÊME cabinet et
+    -- le MÊME lot. Un autre lot sous le même identifiant (autre feuille, autre cabinet) n'est pas un rejeu : rien n'est
+    -- rendu ni créé, l'écran revérifie (sinon ses affiches porteraient les jetons d'autres copropriétés).
+    IF v_auteur IS DISTINCT FROM p_acteur OR v_cab_op IS DISTINCT FROM p_cabinet OR v_empreinte_op IS DISTINCT FROM v_empreinte THEN
       RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
     END IF;
-    RETURN v_deja || jsonb_build_object('rejeu', true);
+    -- Noms, adresses et jetons d'aujourd'hui (un QR code remplacé depuis rend son nouveau jeton), relus en base.
+    SELECT coalesce(jsonb_agg(jsonb_build_object('numeroLigne', (e.val->>'numeroLigne')::int, 'id', c.id,
+             'jeton', c.jeton, 'nom', c.nom, 'adresse', c.adresse, 'codePostal', c.code_postal, 'ville', c.ville)
+             ORDER BY (e.val->>'numeroLigne')::int), '[]'::jsonb)
+      INTO v_rendu
+      FROM jsonb_array_elements(coalesce(v_deja->'creees', '[]'::jsonb)) AS e(val)
+      JOIN signalements_qr_coproprietes c ON c.id = (e.val->>'id')::uuid;
+    RETURN jsonb_build_object('creees', v_rendu, 'completees', coalesce(v_deja->'completees', '[]'::jsonb), 'rejeu', true);
   END IF;
 
   FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) AS e(val) LOOP
@@ -393,7 +413,8 @@ BEGIN
         batiments         = CASE WHEN cardinality(c.batiments) = 0
                               THEN ARRAY(SELECT b.val FROM jsonb_array_elements_text(coalesce(v_l->'batiments', '[]'::jsonb)) AS b(val))
                               ELSE c.batiments END,
-        cle_nom           = coalesce(c.cle_nom, v_l->>'cleNom')
+        -- Clé du nom EXISTANT (le nom n'est pas changé) : celle de la ligne fausserait le contrôle nom + code postal.
+        cle_nom           = coalesce(c.cle_nom, nullif(v_l->>'cleNomExistante', ''))
       WHERE c.id = (v_l->>'coproprieteId')::uuid AND coalesce(c.cabinet_id, v_zero) = v_cab;
       IF NOT FOUND THEN
         RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001', DETAIL = v_num;
@@ -465,14 +486,21 @@ BEGIN
     END IF;
   END LOOP;
 
-  INSERT INTO signalements_qr_operations (id, cabinet_id, acteur_id, acteur_profil, type, resultat)
-  VALUES (p_operation, p_cabinet, p_acteur, p_profil, v_type, jsonb_build_object('creees', v_creees, 'completees', v_compl));
+  INSERT INTO signalements_qr_operations (id, cabinet_id, acteur_id, acteur_profil, type, empreinte_lignes, resultat)
+  VALUES (p_operation, p_cabinet, p_acteur, p_profil, v_type, v_empreinte, jsonb_build_object('creees', v_creees, 'completees', v_compl));
   IF v_type = 'import' THEN
     INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, operation_id, details)
     VALUES (p_cabinet, p_acteur, p_profil, 'import.realise', p_operation,
             jsonb_build_object('creees', jsonb_array_length(v_creees), 'completees', jsonb_array_length(v_compl)));
   END IF;
-  RETURN jsonb_build_object('creees', v_creees, 'completees', v_compl, 'rejeu', false);
+  -- Même rendu qu'au rejeu : ce que la base a enregistré (les affiches et l'export n'utilisent jamais les saisies).
+  SELECT coalesce(jsonb_agg(jsonb_build_object('numeroLigne', (e.val->>'numeroLigne')::int, 'id', c.id,
+           'jeton', c.jeton, 'nom', c.nom, 'adresse', c.adresse, 'codePostal', c.code_postal, 'ville', c.ville)
+           ORDER BY (e.val->>'numeroLigne')::int), '[]'::jsonb)
+    INTO v_rendu
+    FROM jsonb_array_elements(v_creees) AS e(val)
+    JOIN signalements_qr_coproprietes c ON c.id = (e.val->>'id')::uuid;
+  RETURN jsonb_build_object('creees', v_rendu, 'completees', v_compl, 'rejeu', false);
 END $fn$;
 
 -- Compteurs par copropriété, calculés en base (une réponse PostgREST est bornée à 1 000 lignes).
@@ -775,6 +803,11 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM signalements_qr_cabinets k WHERE k.id = v_cab) THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
+  -- Domaine déclaré par un AUTRE cabinet client : refusé, forçage compris (son titulaire est salarié d'un autre client).
+  IF EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+              WHERE d.cabinet_id <> v_cab AND d.domaine = split_part(v_email, '@', 2)) THEN
+    RAISE EXCEPTION 'domaine_autre_cabinet' USING ERRCODE = 'P0001';
+  END IF;
   -- Une fiche n'est créée que dans les domaines de SON cabinet, sauf forçage du super admin (journalisé).
   IF NOT v_force AND NOT EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
                                   WHERE d.cabinet_id = v_cab AND d.domaine = split_part(v_email, '@', 2)) THEN
@@ -1031,15 +1064,20 @@ BEGIN
 END $fn$;
 
 -- Rattachement de copropriétés sans cabinet à un cabinet (définitif) : toutes ou aucune.
+-- p_cles_nom : { "<id>": "<clé du nom>" } calculée par la route (cleNomCoproQr), posée là où cle_nom manque (anciennes
+-- copropriétés). Doublon nom + code postal avec le cabinet ou dans le lot (RG-08) refusé sous le verrou, sauf
+-- p_forcer_doublon (« Ce n'est pas un doublon », super admin), journalisé doublon.force.
 CREATE OR REPLACE FUNCTION signalements_qr_rattacher_coproprietes(
-  p_cabinet uuid, p_coproprietes uuid[], p_acteur uuid
+  p_cabinet uuid, p_coproprietes uuid[], p_acteur uuid, p_cles_nom jsonb, p_forcer_doublon boolean
 ) RETURNS jsonb
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
-  v_ids  uuid[] := ARRAY(SELECT DISTINCT t.x FROM unnest(coalesce(p_coproprietes, '{}'::uuid[])) AS t(x) WHERE t.x IS NOT NULL);
-  v_n    bigint;
+  v_ids       uuid[] := ARRAY(SELECT DISTINCT t.x FROM unnest(coalesce(p_coproprietes, '{}'::uuid[])) AS t(x) WHERE t.x IS NOT NULL);
+  v_n         bigint;
+  v_doublons  uuid[];
 BEGIN
-  IF p_cabinet IS NULL OR p_acteur IS NULL OR cardinality(v_ids) NOT BETWEEN 1 AND 500 THEN
+  IF p_cabinet IS NULL OR p_acteur IS NULL OR cardinality(v_ids) NOT BETWEEN 1 AND 500
+     OR p_cles_nom IS NULL OR jsonb_typeof(p_cles_nom) <> 'object' THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
   PERFORM 1 FROM signalements_qr_cabinets k WHERE k.id = p_cabinet FOR SHARE;
@@ -1053,6 +1091,19 @@ BEGIN
      <> cardinality(v_ids) THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
+  -- Clé du nom posée où elle manque : ce contrôle et celui de la création la comparent ensuite.
+  UPDATE signalements_qr_coproprietes c SET cle_nom = coalesce(c.cle_nom, nullif(p_cles_nom->>c.id::text, ''))
+   WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL;
+  -- Doublon nom + code postal (RG-08) avec une copropriété du cabinet ou une autre du lot, sous le verrou.
+  v_doublons := ARRAY(SELECT c.id FROM signalements_qr_coproprietes c
+                       WHERE c.id = ANY (v_ids) AND c.code_postal <> '' AND c.cle_nom IS NOT NULL
+                         AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d
+                                      WHERE d.id <> c.id AND (d.cabinet_id = p_cabinet OR d.id = ANY (v_ids))
+                                        AND d.cle_nom = c.cle_nom AND d.code_postal = c.code_postal)
+                       ORDER BY c.id);
+  IF cardinality(v_doublons) > 0 AND NOT coalesce(p_forcer_doublon, false) THEN
+    RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001';
+  END IF;
   WITH rattachees AS (
     UPDATE signalements_qr_coproprietes c SET cabinet_id = p_cabinet
      WHERE c.id = ANY (v_ids) AND c.cabinet_id IS NULL
@@ -1061,6 +1112,8 @@ BEGIN
   INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id)
   SELECT p_cabinet, p_acteur, 'super_admin', 'copropriete.rattachee', r.id FROM rattachees r;
   GET DIAGNOSTICS v_n = ROW_COUNT;               -- 23505 : immatriculation ou référence déjà prise dans le cabinet
+  INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id, details)
+  SELECT p_cabinet, p_acteur, 'super_admin', 'doublon.force', x.id, '{"critere": "nom_code_postal"}'::jsonb FROM unnest(v_doublons) AS x(id);
   RETURN jsonb_build_object('rattachees', v_n);
 END $fn$;
 
@@ -1091,8 +1144,8 @@ REVOKE EXECUTE ON FUNCTION signalements_qr_purger_journal() FROM PUBLIC, anon, a
 GRANT  EXECUTE ON FUNCTION signalements_qr_purger_journal() TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_enregistrer_cabinet(uuid, text, text, text, text[], uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_enregistrer_cabinet(uuid, text, text, text, text[], uuid) TO service_role;
-REVOKE EXECUTE ON FUNCTION signalements_qr_rattacher_coproprietes(uuid, uuid[], uuid) FROM PUBLIC, anon, authenticated;
-GRANT  EXECUTE ON FUNCTION signalements_qr_rattacher_coproprietes(uuid, uuid[], uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_rattacher_coproprietes(uuid, uuid[], uuid, jsonb, boolean) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_rattacher_coproprietes(uuid, uuid[], uuid, jsonb, boolean) TO service_role;
 -- Fonctions de trigger : jamais appelables directement (le trigger s'exécute sans ce droit).
 REVOKE EXECUTE ON FUNCTION signalements_qr_identifiant_fige() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION signalements_qr_cabinet_copro_fige() FROM PUBLIC, anon, authenticated;

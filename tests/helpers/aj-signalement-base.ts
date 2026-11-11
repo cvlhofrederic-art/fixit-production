@@ -2,7 +2,8 @@
 //
 // Petit moteur en mémoire, au plus près de PostgREST pour ce que les routes utilisent : select (colonnes nommées
 // ou '*', { count, head }), eq / neq / in / is / not.is / lt / lte / gt / gte / contains / or (arbre and(…) simple),
-// order, limit, insert / update / delete suivis de select, single / maybeSingle ; rpc par fonctions simulées.
+// order, limit, range, insert / update / delete suivis de select, single / maybeSingle ; rpc par fonctions simulées.
+// maxLignes : plafond de lignes par réponse de PostgREST (max-rows de Supabase, 1 000), coupé SANS erreur comme lui.
 // Une colonne déclarée absente donne 42703 en lecture et PGRST204 en écriture ; une table déclarée absente, 42P01 ;
 // une fonction non simulée, PGRST202 (migration non appliquée). Aucune donnée réelle : exemples en @exemple.test.
 // À utiliser dans une fabrique vi.mock asynchrone :
@@ -102,6 +103,8 @@ export function creerBaseQr() {
     appelsRpc: [] as Array<{ nom: string; args: Record<string, unknown> }>,
     ecritures: [] as EcritureSimulee[],
     lectures: [] as Array<{ table: string; colonnes: string; filtres: string[] }>,
+    /** Plafond de lignes par réponse (null : aucun) ; une réponse plus longue est tronquée en silence, comme PostgREST. */
+    maxLignes: null as number | null,
   }
 
   const table = (nom: string): Ligne[] => {
@@ -118,6 +121,7 @@ export function creerBaseQr() {
     const textesFiltres: string[] = []
     const ordres: Array<{ colonne: string; croissant: boolean }> = []
     let limite: number | null = null
+    let debut = 0
     let unique: 'single' | 'maybe' | null = null
 
     const filtrer = (texte: string, f: Comparateur) => { filtres.push(f); textesFiltres.push(texte); return q }
@@ -168,7 +172,8 @@ export function creerBaseQr() {
         }
       }
       const total = resultat.length
-      if (limite !== null) resultat = resultat.slice(0, limite)
+      if (debut > 0 || limite !== null) resultat = resultat.slice(debut, limite === null ? undefined : debut + limite)
+      if (etat.maxLignes !== null && op === 'select' && !options.head) resultat = resultat.slice(0, etat.maxLignes)
       const projetees = selection && selection !== '*'
         ? resultat.map((l) => Object.fromEntries(colonnesDe(selection as string).map((c) => [c, l[c] === undefined ? null : l[c]])))
         : resultat.map((l) => ({ ...l }))
@@ -208,6 +213,7 @@ export function creerBaseQr() {
       or: (expression: string) => filtrer(`or=(${expression})`, arbre(expression, 'or')),
       order(c: string, o: { ascending?: boolean } = {}) { ordres.push({ colonne: c, croissant: o.ascending !== false }); return q },
       limit(n: number) { limite = n; return q },
+      range(de: number, a: number) { debut = de; limite = a - de + 1; return q },
       single() { unique = 'single'; return Promise.resolve(executer()) },
       maybeSingle() { unique = 'maybe'; return Promise.resolve(executer()) },
       then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { return Promise.resolve(executer()).then(ok, ko) },
@@ -232,6 +238,7 @@ export function creerBaseQr() {
     etat.appelsRpc = []
     etat.ecritures = []
     etat.lectures = []
+    etat.maxLignes = null
   }
 
   /** Écritures d'une table (insert, update ou delete), dans l'ordre. */

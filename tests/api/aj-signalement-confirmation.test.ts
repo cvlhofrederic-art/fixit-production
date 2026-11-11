@@ -133,6 +133,21 @@ describe('lecture (P1-R16)', () => {
     expect(await deja.json()).toEqual({ error: 'deja_confirmee' })
   })
 
+  it.each([
+    ['expiré', { created_at: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString() }],
+    ['déjà utilisé', { accepted_at: new Date().toISOString() }],
+  ])('relecture 3 : lien %s d’un autre cabinet, présenté sous /autre-cabinet/ : le même 404 générique (ni 410 ni 409)', async (_cas, etat) => {
+    Object.assign(baseQr.table('signalements_qr_invitations')[0], etat)
+    for (const route of [lire, confirmer, refuser]) {
+      const res = await route(corps({ cabinet: 'autre-cabinet' }))
+      expect(res.status).toBe(404)
+      expect(await res.json()).toEqual({ error: 'introuvable' })
+    }
+    expect(baseQr.etat.appelsRpc).toEqual([])
+    // Sous SON chemin, le même lien garde son code (410 expiré, 409 déjà utilisé).
+    expect([409, 410]).toContain((await lire(corps())).status)
+  })
+
   it('limite par IP : 20 par minute', async () => {
     simulQr.refuser = ['qr_confirmation_lecture_']
     expect((await lire(corps())).status).toBe(429)

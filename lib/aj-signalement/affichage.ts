@@ -267,6 +267,7 @@ export const TEXTES_TABLEAU_QR = {
     // Refus métier des routes du 11/11/2026 (cabinets clients, gestionnaires) : le message seul, jamais le texte du serveur.
     doublon: 'Une copropriété semblable existe déjà.',
     hors_domaine: 'Cette adresse n’est pas dans les domaines e-mail du cabinet.',
+    domaine_autre_cabinet: 'Ce domaine e-mail est celui d’un autre cabinet client : vérifiez le cabinet choisi.',
     existe_deja: 'Cette adresse a déjà une fiche gestionnaire.',
     identifiant_pris: 'Cet identifiant est déjà celui d’un autre cabinet : choisissez-en un autre.',
     identifiant_fige: 'L’identifiant ne peut plus changer : le cabinet a déjà des copropriétés ou des gestionnaires.',

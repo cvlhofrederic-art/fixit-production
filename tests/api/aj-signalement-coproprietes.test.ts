@@ -155,6 +155,20 @@ describe('POST coproprietes (P1-R3)', () => {
     expect(appelsCreation()).toEqual([])
   })
 
+  it('relecture 11 : plus de 1 000 fiches (plafond PostgREST) : l’adresse d’une fiche reste refusée ; seules les adresses proposées sont cherchées', async () => {
+    const t = baseQr.etat.tables
+    t.signalements_qr_gestionnaires = [
+      ...Array.from({ length: 1200 }, (_, i) => ({ id: `a1000000-0000-4000-8000-${String(i).padStart(12, '0')}`, cabinet_id: CAB, nom: `Fiche ${i}`, email: `fiche${i}@exemple.test`, actif: true })),
+      ...t.signalements_qr_gestionnaires,
+    ]
+    baseQr.etat.maxLignes = 1000
+    const res = await creer({ nom: 'Villa Exemple', emailsDestinataires: ['marie.exemple@exemple.test'] })
+    expect(res.status).toBe(400)
+    expect(appelsCreation()).toEqual([])
+    const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires')
+    expect(lectures.map((l) => l.filtres)).toEqual([['email=in.(marie.exemple@exemple.test)']])
+  })
+
   it('adresse hors des domaines du cabinet : 409 hors_domaine sauf confirmerHorsDomaine ; sans cabinet : aucun contrôle', async () => {
     const refus = await creer({ nom: 'Villa Exemple', cabinetId: CAB, emailsDestinataires: ['cs@externe.test'] })
     expect(refus.status).toBe(409)
@@ -162,6 +176,22 @@ describe('POST coproprietes (P1-R3)', () => {
     expect((await creer({ nom: 'Villa Exemple', cabinetId: CAB, emailsDestinataires: ['cs@externe.test'], confirmerHorsDomaine: true })).status).toBe(201)
     expect((await creer({ nom: 'Villa B', emailsDestinataires: ['cs@externe.test'] })).status).toBe(201)
   })
+
+  it.each([
+    // Fiches illisibles : l'adresse d'un gestionnaire passerait pour une adresse saisie.
+    ['signalements_qr_gestionnaires', { emailsDestinataires: ['marie.exemple@exemple.test'], confirmerHorsDomaine: true }],
+    // Domaines illisibles : une adresse extérieure passerait sans confirmation.
+    ['signalements_qr_domaines_autorises', { emailsDestinataires: ['autre@externe.test'] }],
+  ])(
+    'relecture 4 : %s illisible (délai dépassé, pas une table absente) : 500 AVANT toute écriture',
+    async (table, corps) => {
+      baseQr.etat.erreursPonctuelles[table] = { code: '57014', message: 'canceling statement due to statement timeout' }
+      const res = await creer({ nom: 'Villa Exemple', cabinetId: CAB, ...corps })
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'serveur' })
+      expect(appelsCreation()).toEqual([])
+    },
+  )
 
   it('gestionnaire ou « à tous » sans cabinet : 409 sans_cabinet', async () => {
     expect(await (await creer({ nom: 'Villa Exemple', gestionnaireIds: [G] })).json()).toEqual({ error: 'sans_cabinet' })
@@ -233,6 +263,20 @@ describe('PATCH coproprietes/[id] (P1-R4)', () => {
     expect((await modifier(COPRO, { emailsDestinataires: ['cs@externe.test', 'autre@externe.test'], confirmerHorsDomaine: true })).status).toBe(200)
     expect((await modifier(COPRO, { emailsDestinataires: ['autre@externe.test'] })).status).toBe(200)
   })
+
+  it.each([
+    ['signalements_qr_gestionnaires', { emailsDestinataires: ['cs@externe.test', 'marie.exemple@exemple.test'], confirmerHorsDomaine: true }],
+    ['signalements_qr_domaines_autorises', { emailsDestinataires: ['cs@externe.test', 'autre@externe.test'] }],
+  ])(
+    'relecture 4 : adresse AJOUTÉE, %s illisible (délai dépassé) : 500, rien n’est écrit',
+    async (table, corps) => {
+      baseQr.etat.erreursPonctuelles[table] = { code: '57014', message: 'canceling statement due to statement timeout' }
+      const res = await modifier(COPRO, corps)
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'serveur' })
+      expect(baseQr.ecrituresDe('signalements_qr_coproprietes', 'update')).toEqual([])
+    },
+  )
 
   it('nom changé vers celui d’une autre copropriété du cabinet (même CP) : 409 doublon', async () => {
     baseQr.table('signalements_qr_coproprietes').push(ligneCopro({ id: 'c0000000-0000-4000-8000-000000000003', nom: 'Les Pins Exemple', jeton: 'e'.repeat(32) }))

@@ -90,6 +90,54 @@ describe('ouverture du lien', () => {
     expect(await screen.findByRole('button', { name: C.cestMoi })).toBeInTheDocument()
     expect(appels.map((a) => a.corps)).toEqual([{ token: TOKEN, cabinet: 'cabinet-exemple' }, { token: TOKEN, cabinet: 'cabinet-exemple' }])
   })
+
+  it('React.StrictMode (effets joués deux fois en développement) : le jeton lu une fois, une seule lecture, jamais « pas valable »', async () => {
+    simulerFetch(() => lectureOk())
+    render(<React.StrictMode><ConfirmationAdresseQr identifiant="cabinet-exemple" /></React.StrictMode>)
+    expect(await screen.findByRole('button', { name: C.cestMoi })).toBeInTheDocument()
+    expect(screen.queryByText(C.invalide)).toBeNull()
+    expect(new Set(appels.map((a) => JSON.stringify(a.corps)))).toEqual(new Set([JSON.stringify({ token: TOKEN, cabinet: 'cabinet-exemple' })]))
+  })
+})
+
+describe('rendu serveur puis hydratation (relecture 5 et 6)', () => {
+  it('HTML du serveur neutre (« vérification », jamais « pas valable ») ; hydratation SANS erreur avec une ancre valable', async () => {
+    simulerFetch(() => lectureOk())
+    const { renderToString } = await import('react-dom/server')
+    const { hydrateRoot } = await import('react-dom/client')
+    // Rendu serveur (Next, OpenNext) : aucun window, comme sur le Worker.
+    const fenetre = globalThis.window
+    Reflect.deleteProperty(globalThis, 'window')
+    let html = ''
+    try {
+      html = renderToString(<ConfirmationAdresseQr identifiant="cabinet-exemple" />)
+    } finally {
+      globalThis.window = fenetre
+    }
+    expect(html).toContain(C.verification)
+    expect(html).not.toContain(C.invalide)
+
+    // Navigateur : l'adresse porte un jeton valable ; le HTML du serveur est hydraté.
+    const conteneur = document.createElement('div')
+    conteneur.innerHTML = html
+    document.body.appendChild(conteneur)
+    const erreurs: string[] = []
+    const ancien = (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT
+    ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+    const racine = await React.act(async () => hydrateRoot(conteneur, <ConfirmationAdresseQr identifiant="cabinet-exemple" />, {
+      onRecoverableError: (e) => { erreurs.push(e instanceof Error ? e.message.slice(0, 120) : String(e)) },
+    }))
+    try {
+      await waitFor(() => expect(conteneur.textContent).toContain('Marie M.'))
+      expect(erreurs).toEqual([])
+      expect(window.location.hash).toBe('')
+      expect(appels.map((a) => a.ancreAuMomentDeLAppel)).toEqual([''])
+    } finally {
+      await React.act(async () => racine.unmount())
+      conteneur.remove()
+      ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = ancien
+    }
+  })
 })
 
 describe('réponse de la personne', () => {

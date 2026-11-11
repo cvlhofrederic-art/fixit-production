@@ -195,6 +195,39 @@ describe('rattachement des copropriétés sans cabinet', () => {
     expect(screen.getByText(remplir(G.cabinets.rattachees, { n: 1 }))).toBeInTheDocument()
   })
 
+  it.each([
+    // Nom + code postal : « Ce n'est pas un doublon, rattacher » (forçage journalisé) ; nom seul : « Rattacher quand même ».
+    ['certain', 'nom_code_postal', G.cabinets.pasDoublonRattacher, { forcerDoublon: true }],
+    ['probable', 'nom', G.cabinets.rattacherQuandMeme, { confirmerDoublonProbable: true }],
+  ])('relecture 9 : doublon %s avec le cabinet (409) : la copropriété semblable, puis un nouvel envoi avec le choix', async (certitude, critere, bouton, drapeau) => {
+    const doublon = { certitude, critere, copropriete: { id: C2, nom: 'Résidence Exemple', ville: 'Marseille' } }
+    simulerFetch(() => (appels.length === 1 ? json({ error: 'doublon', doublon }, 409) : json({ rattachees: 1 })))
+    rendre()
+    const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
+    fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
+    fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
+    expect(await within(bloc).findByText(remplir(G.copropriete.doublon, { nom: 'Résidence Exemple', ville: 'Marseille' }))).toBeInTheDocument()
+    expect(rappels.onModifie).not.toHaveBeenCalled()
+    fireEvent.click(within(bloc).getByRole('button', { name: bouton }))
+    await waitFor(() => expect(rappels.onModifie).toHaveBeenCalledTimes(1))
+    expect(appels.map((a) => a.corps)).toEqual([{ coproprieteIds: [C1] }, { coproprieteIds: [C1], ...drapeau }])
+  })
+
+  it('relecture 9 : doublon d’immatriculation (jamais forçable) : message bloquant, aucun bouton de forçage', async () => {
+    simulerFetch(() => json({ error: 'doublon', doublon: { certitude: 'certain', critere: 'immatriculation', copropriete: { id: C2, nom: 'Résidence Exemple', ville: '' } } }, 409))
+    rendre()
+    const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
+    fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+    fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
+    fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
+    fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
+    expect(await within(bloc).findByText(G.copropriete.doublonBloquant)).toBeInTheDocument()
+    expect(within(bloc).queryByRole('button', { name: G.cabinets.pasDoublonRattacher })).toBeNull()
+    expect(within(bloc).queryByRole('button', { name: G.cabinets.rattacherQuandMeme })).toBeNull()
+  })
+
   it('rien de choisi : aucun appel', () => {
     rendre()
     const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement

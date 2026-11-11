@@ -186,16 +186,34 @@ describe('POST gestionnaires (P1-R9)', () => {
     expect(await res.json()).toEqual({ error: 'domaines_a_renseigner' })
   })
 
-  it('domaine d’un AUTRE cabinet : 409 hors_domaine ; forcerDomaine : 201, fiche « domaine forcé »', async () => {
-    const refus = await creer({ ...NOUVELLE, email: 'julie@autre-exemple.test' })
+  it('domaine déclaré par un AUTRE cabinet client : 409 domaine_autre_cabinet, même avec forcerDomaine (relecture 2)', async () => {
+    for (const forcerDomaine of [false, true]) {
+      const refus = await creer({ ...NOUVELLE, email: 'julie@autre-exemple.test', forcerDomaine })
+      expect(refus.status).toBe(409)
+      expect(await refus.json()).toEqual({ error: 'domaine_autre_cabinet' })
+    }
+    expect(baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_inviter_gestionnaire')).toEqual([])
+    expect(baseQr.table('signalements_qr_gestionnaires').some((f) => f.email === 'julie@autre-exemple.test')).toBe(false)
+  })
+
+  it('domaine d’AUCUN cabinet : 409 hors_domaine ; forcerDomaine : 201, fiche « domaine forcé »', async () => {
+    const refus = await creer({ ...NOUVELLE, email: 'julie@ailleurs.test' })
     expect(refus.status).toBe(409)
     expect(await refus.json()).toEqual({ error: 'hors_domaine' })
     expect(baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_inviter_gestionnaire')).toEqual([])
-    const force = await creer({ ...NOUVELLE, email: 'julie@autre-exemple.test', forcerDomaine: true })
+    const force = await creer({ ...NOUVELLE, email: 'julie@ailleurs.test', forcerDomaine: true })
     expect(force.status).toBe(201)
     const appel = baseQr.etat.appelsRpc.find((a) => a.nom === 'signalements_qr_inviter_gestionnaire')
     expect((appel?.args.p_gestionnaire as Record<string, unknown>).domaineForce).toBe(true)
     expect((await force.json()).gestionnaire.domaineForce).toBe(true)
+  })
+
+  it('lecture des domaines en échec (autre que table absente) : 500, rien n’est créé (relecture 4)', async () => {
+    baseQr.etat.erreursPonctuelles.signalements_qr_domaines_autorises = { code: '57014', message: 'canceling statement due to statement timeout' }
+    const res = await creer(NOUVELLE)
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'serveur' })
+    expect(baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_inviter_gestionnaire')).toEqual([])
   })
 
   it('sous-domaine refusé (égalité exacte du domaine, comme la fonction SQL)', async () => {

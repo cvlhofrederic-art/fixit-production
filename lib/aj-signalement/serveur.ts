@@ -35,6 +35,7 @@ import {
   type LigneSemblableQr, type RechercheSemblablesQr,
 } from '@/lib/aj-signalement/semblables'
 import { adressesDeFichesQr, destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
+import { emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
 import { porteeGestionnaireQr } from '@/lib/aj-signalement/acces-espace'
 import { BUDGET_EMAILS_CABINET_HEURE, BUDGET_EMAILS_COPRO_HEURE } from '@/lib/aj-signalement/budget-emails'
 
@@ -526,12 +527,79 @@ export async function lireLigneCoproprieteQr(id: string): Promise<{ ok: true; li
   return { ok: true, ligne: (r.data as unknown as LigneCoproprieteQr | null) ?? null }
 }
 
-/** Lecture d'une table du 11/11/2026 : absente → liste vide (repli) ; autre erreur → liste vide, journalisée. */
-async function lireOuVideQr<T>(operation: string, requete: PromiseLike<{ data: unknown; error: ErreurBase | null }>): Promise<T[]> {
+/** Résultat d'une lecture : les lignes, ou l'erreur de la base (l'appelant choisit la réponse). */
+export type LectureQr<T> = { ok: true; valeur: T } | { ok: false; erreur: ErreurBase }
+
+type ReponseLectureQr = { data: unknown; error: ErreurBase | null }
+
+/** PostgREST rend au plus 1 000 lignes par réponse (max-rows de Supabase) : au-delà, lecture page par page. */
+export const PAGE_POSTGREST_QR = 1000
+
+/**
+ * Lots de valeurs pour un filtre `.in()` : adresse de la requête bornée (≈ 6 000 caractères de valeurs, 200 valeurs au
+ * plus par lot), valeurs dédoublonnées.
+ */
+export function lotsPourFiltreQr(valeurs: readonly string[], maxCaracteres = 6000, maxValeurs = 200): string[][] {
+  const lots: string[][] = []
+  let lot: string[] = []
+  let taille = 0
+  for (const v of new Set(valeurs)) {
+    if (lot.length > 0 && (lot.length >= maxValeurs || taille + v.length + 1 > maxCaracteres)) {
+      lots.push(lot)
+      lot = []
+      taille = 0
+    }
+    lot.push(v)
+    taille += v.length + 1
+  }
+  if (lot.length > 0) lots.push(lot)
+  return lots
+}
+
+/**
+ * Toutes les lignes qui correspondent aux valeurs (relecture 11, piège 4 de la SPEC : plus aucune lecture « tout » sans
+ * filtre ni pagination) : un filtre `.in()` par lot, chaque lot lu par pages de 1 000 (la fabrique ORDONNE la requête,
+ * pour des pages stables). Aucune valeur : aucune requête.
+ */
+export async function lireParValeursQr<T>(
+  valeurs: readonly string[], fabrique: (lot: string[]) => { range: (de: number, a: number) => PromiseLike<ReponseLectureQr> },
+): Promise<LectureQr<T[]>> {
+  const lignes: T[] = []
+  for (const lot of lotsPourFiltreQr(valeurs)) {
+    for (let de = 0; ; de += PAGE_POSTGREST_QR) {
+      const { data, error } = await fabrique(lot).range(de, de + PAGE_POSTGREST_QR - 1)
+      if (error) return { ok: false, erreur: error }
+      const page = (Array.isArray(data) ? data : []) as T[]
+      lignes.push(...page)
+      if (page.length < PAGE_POSTGREST_QR) break
+    }
+  }
+  return { ok: true, valeur: lignes }
+}
+
+/**
+ * Lecture d'une table du 11/11/2026 pour un CONTRÔLE fait avant une écriture (relecture 4) : seule une structure absente
+ * (migration non appliquée) donne la liste vide du repli ; toute autre erreur (délai dépassé, réseau) est rendue, et la
+ * route répond 500 avant d'écrire (jamais un contrôle sauté en silence).
+ */
+async function lireControleQr<T>(operation: string, lecture: PromiseLike<LectureQr<T[]>>): Promise<LectureQr<T[]>> {
+  const r = await lecture
+  if (r.ok || !structureAbsenteQr(r.erreur)) return r
+  journaliserRepliGestionQr(operation, r.erreur)
+  return { ok: true, valeur: [] }
+}
+
+/** Réponse brute d'une requête mise sous la forme d'une lecture. */
+async function enLectureQr<T>(requete: PromiseLike<ReponseLectureQr>): Promise<LectureQr<T[]>> {
   const { data, error } = await requete
-  if (!error) return (data ?? []) as T[]
-  if (structureAbsenteQr(error)) journaliserRepliGestionQr(operation, error)
-  else logger.error(`${CONTEXTE} ${operation} : lecture impossible`, { code: error.code })
+  return error ? { ok: false, erreur: error } : { ok: true, valeur: (Array.isArray(data) ? data : []) as T[] }
+}
+
+/** Lecture d'AFFICHAGE d'une table du 11/11/2026 : absente → liste vide (repli) ; autre erreur → liste vide, journalisée. */
+async function lireOuVideQr<T>(operation: string, lecture: PromiseLike<LectureQr<T[]>>): Promise<T[]> {
+  const r = await lireControleQr<T>(operation, lecture)
+  if (r.ok) return r.valeur
+  logger.error(`${CONTEXTE} ${operation} : lecture impossible`, { code: r.erreur.code })
   return []
 }
 
@@ -541,13 +609,29 @@ interface LigneAttributionContexteQr { copropriete_id: string; gestionnaire_id: 
 
 export const cabinetResumeDepuisLigneQr = (l: LigneCabinetResumeQr): CabinetResumeQr => ({ id: l.id, nom: chaine(l.nom), identifiant: chaine(l.identifiant) })
 
-/** Cabinets, gestionnaires et attributions pour la fiche des copropriétés (tables du 11/11/2026, vides sans elles). */
-export async function lireContexteGestionQr(): Promise<ContexteGestionQr> {
-  const [cabinets, fiches, attributions] = await Promise.all([
-    lireOuVideQr<LigneCabinetResumeQr>('lecture des cabinets', supabaseAdmin.from(TABLE_CABINETS_QR).select('id, nom, identifiant')),
-    lireOuVideQr<LigneFicheContexteQr>('lecture des gestionnaires', supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email')),
-    lireOuVideQr<LigneAttributionContexteQr>('lecture des attributions', supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, gestionnaire_id')),
+/**
+ * Cabinets, gestionnaires et attributions des copropriétés AFFICHÉES (tables du 11/11/2026, vides sans elles) : les
+ * attributions de ces copropriétés, les fiches qu'elles nomment (gestionnaires, créateurs) et celles dont l'adresse est
+ * dans leurs saisies (compteur RG-06 bis-5) ; jamais toutes les lignes de tous les cabinets (relecture 11).
+ */
+export async function lireContexteGestionQr(copros: ReadonlyArray<Pick<LigneCoproprieteQr, 'id' | 'cree_par_gestionnaire_id' | 'emails_destinataires'>>): Promise<ContexteGestionQr> {
+  const ids = copros.map((c) => c.id)
+  const saisies = copros.flatMap((c) => (Array.isArray(c.emails_destinataires) ? c.emails_destinataires : []))
+    .map(emailCanoniqueQr).filter((e): e is string => e !== null)
+  const [cabinets, attributions, fichesSaisies] = await Promise.all([
+    lireOuVideQr<LigneCabinetResumeQr>('lecture des cabinets', enLectureQr(supabaseAdmin.from(TABLE_CABINETS_QR).select('id, nom, identifiant'))),
+    lireOuVideQr<LigneAttributionContexteQr>('lecture des attributions', lireParValeursQr<LigneAttributionContexteQr>(ids, (lot) =>
+      supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, gestionnaire_id').in('copropriete_id', lot)
+        .order('copropriete_id', { ascending: true }).order('gestionnaire_id', { ascending: true }))),
+    lireOuVideQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(saisies, (lot) =>
+      supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('email', lot).order('id', { ascending: true }))),
   ])
+  const nommees = [...new Set([
+    ...attributions.map((a) => a.gestionnaire_id),
+    ...copros.map((c) => c.cree_par_gestionnaire_id).filter((g): g is string => typeof g === 'string' && g !== ''),
+  ])]
+  const fiches = await lireOuVideQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(nommees, (lot) =>
+    supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('id', lot).order('id', { ascending: true })))
   const nomsFiches = new Map(fiches.map((f) => [f.id, f.nom ?? null]))
   const gestionnairesParCopro = new Map<string, GestionnaireResumeQr[]>()
   for (const a of attributions) {
@@ -560,7 +644,7 @@ export async function lireContexteGestionQr(): Promise<ContexteGestionQr> {
     cabinets: new Map(cabinets.map((c) => [c.id, cabinetResumeDepuisLigneQr(c)])),
     gestionnairesParCopro,
     nomsFiches,
-    emailsFiches: fiches.map((f) => ({ email: f.email })),
+    emailsFiches: fichesSaisies.map((f) => ({ email: f.email })),
   }
 }
 
@@ -701,7 +785,7 @@ export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: 
     }
     lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
   }
-  const [enBase, contexte] = await Promise.all([compteursQr(lignesCopros.map((c) => c.id)), lireContexteGestionQr()])
+  const [enBase, contexte] = await Promise.all([compteursQr(lignesCopros.map((c) => c.id)), lireContexteGestionQr(lignesCopros)])
   const compteurs = enBase ?? compteursDepuisSignalementsQr(lignesSignalements)
   const noms = new Map(lignesCopros.map((c) => [c.id, chaine(c.nom)]))
   const dernieres = dernieresAdressesProposees(lignesSignalements)
@@ -727,7 +811,7 @@ export async function lireCoproprieteCompleteQr(id: string, options: { nouvelle?
   if (!ligne) return { ok: true, copropriete: null }
   const [compteurs, contexte] = await Promise.all([
     options.nouvelle ? Promise.resolve(compteursVidesQr()) : compterSignalementsQr(id),
-    lireContexteGestionQr(),
+    lireContexteGestionQr([ligne]),
   ])
   return { ok: true, copropriete: coproprieteDepuisLigne(ligne, compteurs, null, contexte) }
 }
@@ -782,15 +866,38 @@ export async function lireCabinetQr(cle: { id: string } | { identifiant: string 
 /** Cabinet par l'identifiant du chemin (page publique, confirmation d'adresse) ; null s'il n'existe pas. */
 export const lireCabinetParIdentifiantQr = (identifiant: string): Promise<LectureCabinetQr> => lireCabinetQr({ identifiant })
 
-/** Domaines e-mail d'un cabinet (table absente : liste réputée vide, comme avant la migration). */
-export async function lireDomainesCabinetQr(cabinetId: string): Promise<string[]> {
-  const lignes = await lireOuVideQr<{ domaine: string }>('lecture des domaines', supabaseAdmin.from(TABLE_DOMAINES_QR).select('domaine').eq('cabinet_id', cabinetId))
-  return lignes.map((l) => l.domaine)
+/**
+ * Domaines e-mail d'un cabinet, lus pour un contrôle avant écriture : table absente → liste réputée vide (comme avant
+ * la migration) ; toute autre erreur est rendue (la route répond 500 sans rien écrire, relecture 4).
+ */
+export async function lireDomainesCabinetQr(cabinetId: string): Promise<LectureQr<string[]>> {
+  const r = await lireControleQr<{ domaine: string }>('lecture des domaines',
+    enLectureQr(supabaseAdmin.from(TABLE_DOMAINES_QR).select('domaine').eq('cabinet_id', cabinetId)))
+  return r.ok ? { ok: true, valeur: r.valeur.map((l) => l.domaine) } : r
 }
 
-/** Adresses des fiches gestionnaires, actives ou non, de tout cabinet (RG-06 bis-1) ; table absente : aucune. */
-export async function lireEmailsFichesQr(): Promise<Array<{ id: string; email: string | null }>> {
-  return lireOuVideQr<{ id: string; email: string | null }>('lecture des fiches', supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, email'))
+/**
+ * Parmi `domaines`, ceux déclarés par un AUTRE cabinet client (relecture 2 : une fiche n'est jamais créée sur le domaine
+ * d'un autre client, même forcée). Même règle d'erreur que lireDomainesCabinetQr ; aucune valeur : aucune requête.
+ */
+export async function lireDomainesAutresCabinetsQr(cabinetId: string, domaines: readonly string[]): Promise<LectureQr<string[]>> {
+  const r = await lireControleQr<{ domaine: string }>('lecture des domaines des autres cabinets', lireParValeursQr<{ domaine: string }>(
+    domaines.map((d) => d.trim().toLowerCase()).filter(Boolean),
+    (lot) => supabaseAdmin.from(TABLE_DOMAINES_QR).select('domaine').in('domaine', lot).neq('cabinet_id', cabinetId).order('domaine', { ascending: true }),
+  ))
+  return r.ok ? { ok: true, valeur: [...new Set(r.valeur.map((l) => l.domaine))] } : r
+}
+
+/**
+ * Fiches gestionnaires, actives ou non, de tout cabinet, dont l'adresse est parmi `emails` (RG-06 bis-1) : seules les
+ * adresses proposées sont cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune ; autre erreur
+ * rendue (contrôle avant écriture, relecture 4).
+ */
+export async function lireFichesParEmailsQr(emails: readonly string[]): Promise<LectureQr<Array<{ id: string; email: string | null }>>> {
+  return lireControleQr<{ id: string; email: string | null }>('lecture des fiches', lireParValeursQr<{ id: string; email: string | null }>(
+    emails.map(emailCanoniqueQr).filter((e): e is string => e !== null),
+    (lot) => supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, email').in('email', lot).order('id', { ascending: true }),
+  ))
 }
 
 interface LigneDoublonQr {

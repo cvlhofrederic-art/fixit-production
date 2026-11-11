@@ -23,7 +23,7 @@ import { emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gest
 import {
   COLONNES_COPROPRIETE_QR, TABLE_COPROPRIETES_QR, contexteGestionVideQr, controlerAccesQr, coproprieteDepuisLigne, fonctionAbsenteQr,
   genererJetonQr, journaliserRepliGestionQr, lireCabinetQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireEmailsFichesQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, type LigneCoproprieteQr,
+  lireFichesParEmailsQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -54,11 +54,16 @@ export async function POST(request: NextRequest) {
       const cabinet = await lireCabinetQr({ id: cabinetId })
       if (!cabinet.ok) return reponseErreurSqlQr(cabinet.erreur, 'lecture du cabinet')
       if (!cabinet.cabinet) return reponseErreur('a_reverifier', 409)
-      domaines = await lireDomainesCabinetQr(cabinetId)
+      const lus = await lireDomainesCabinetQr(cabinetId)
+      // Lecture en échec (autre que la table absente) : 500 avant d'écrire, jamais un contrôle sauté (relecture 4).
+      if (!lus.ok) return reponseErreurSqlQr(lus.erreur, 'lecture des domaines', { cabinet: cabinetId })
+      domaines = lus.valeur
     }
 
     const emails = canoniques(s.emailsDestinataires)
-    if (adressesDeFichesQr(emails, await lireEmailsFichesQr()).length > 0) {
+    const fiches = await lireFichesParEmailsQr(emails)
+    if (!fiches.ok) return reponseErreurSqlQr(fiches.erreur, 'lecture des fiches (destinataires)')
+    if (adressesDeFichesQr(emails, fiches.valeur).length > 0) {
       return reponseInvalide('emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété')
     }
     if (domaines.length > 0 && !s.confirmerHorsDomaine && emails.some((e) => !emailDansDomainesQr(e, domaines))) {

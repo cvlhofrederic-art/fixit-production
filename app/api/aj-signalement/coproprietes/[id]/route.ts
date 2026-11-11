@@ -25,7 +25,7 @@ import type { DecisionDoublonsQr } from '@/lib/aj-signalement/types'
 import {
   COLONNES_COPROPRIETE_QR, TABLE_ATTRIBUTIONS_QR, TABLE_COPROPRIETES_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid,
   genererJetonQr, journaliserQr, journaliserRepliGestionQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireEmailsFichesQr, lireLigneCoproprieteQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, type LigneCoproprieteQr,
+  lireFichesParEmailsQr, lireLigneCoproprieteQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -98,10 +98,19 @@ async function controlerAdressesAjoutees(m: Modification, avant: LigneCopropriet
   const anciennes = new Set(canoniques(avant.emails_destinataires ?? []))
   const ajoutees = canoniques(m.emailsDestinataires).filter((e) => !anciennes.has(e))
   if (ajoutees.length === 0) return null
-  if (adressesDeFichesQr(ajoutees, await lireEmailsFichesQr()).length > 0) {
+  // Lectures de contrôle en échec (autre que la table absente) : 500 avant d'écrire, jamais un contrôle sauté
+  // (relecture 4 : le PATCH n'a pas le filet SQL de la création).
+  const fiches = await lireFichesParEmailsQr(ajoutees)
+  if (!fiches.ok) return reponseErreurSqlQr(fiches.erreur, 'lecture des fiches (destinataires)', { copropriete: avant.id })
+  if (adressesDeFichesQr(ajoutees, fiches.valeur).length > 0) {
     return reponseInvalide('emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété')
   }
-  const domaines = avant.cabinet_id ? await lireDomainesCabinetQr(avant.cabinet_id) : []
+  let domaines: string[] = []
+  if (avant.cabinet_id) {
+    const lus = await lireDomainesCabinetQr(avant.cabinet_id)
+    if (!lus.ok) return reponseErreurSqlQr(lus.erreur, 'lecture des domaines', { copropriete: avant.id })
+    domaines = lus.valeur
+  }
   if (domaines.length > 0 && m.confirmerHorsDomaine !== true && ajoutees.some((e) => !emailDansDomainesQr(e, domaines))) {
     return NextResponse.json({ error: 'hors_domaine', champ: 'emailsDestinataires' }, { status: 409 })
   }

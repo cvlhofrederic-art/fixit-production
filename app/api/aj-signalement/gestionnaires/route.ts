@@ -8,7 +8,9 @@
 //   reçoit les signalements de ses copropriétés une fois son adresse confirmée, et seulement sur un domaine e-mail de
 //   SON cabinet). Dans cet ordre : adresse de l'administrateur → 409 adresse_reservee ; cabinet inconnu → 409
 //   a_reverifier ; aucun domaine → 409 domaines_a_renseigner ; adresse déjà en table → 409 existe_deja { id } ;
-//   domaine hors du cabinet → 409 hors_domaine sauf forcerDomaine (fiche « domaine forcé », journalisée) ; puis
+//   domaine déclaré par un AUTRE cabinet client → 409 domaine_autre_cabinet, sans forçage possible ; domaine d'aucun
+//   cabinet → 409 hors_domaine sauf forcerDomaine (fiche « domaine forcé », journalisée) ; lecture des domaines en
+//   échec → 500 avant toute écriture ; puis
 //   l'identifiant de la fiche est tiré ICI et signé dans le lien (nouvelleInvitation) AVANT toute écriture ; la
 //   fonction SQL insère la fiche avec cet id, l'envoi, les attributions et le journal en une transaction ; enfin
 //   l'e-mail part (lien /<identifiant>/confirmation-adresse/#<jeton>). Ni le lien ni le jeton ne sont renvoyés.
@@ -21,7 +23,7 @@ import { logger } from '@/lib/logger'
 import { nouvelleInvitation } from '@/lib/equipe/lien-invitation'
 import { emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
 import {
-  TABLE_COPROPRIETES_QR, TABLE_GESTIONNAIRES_QR, controlerAccesQr, lireCabinetQr, lireDomainesCabinetQr, parametresQr, reponseErreur,
+  TABLE_COPROPRIETES_QR, TABLE_GESTIONNAIRES_QR, controlerAccesQr, lireCabinetQr, lireDomainesAutresCabinetsQr, lireDomainesCabinetQr, parametresQr, reponseErreur,
   reponseErreurSqlQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import { envoyerLienConfirmationQr, gestionnairesDepuisFichesQr, lireFicheQr, lireFichesQr } from '@/lib/aj-signalement/serveur-gestion'
@@ -68,16 +70,24 @@ export async function POST(request: NextRequest) {
     const cabinet = await lireCabinetQr({ id: s.cabinetId })
     if (!cabinet.ok) return reponseErreurSqlQr(cabinet.erreur, 'lecture du cabinet')
     if (!cabinet.cabinet) return reponseErreur('a_reverifier', 409)
+    // Lecture des domaines en échec (délai dépassé…) : 500 sans rien écrire, jamais un contrôle sauté (relecture 4).
     const domaines = await lireDomainesCabinetQr(s.cabinetId)
-    if (domaines.length === 0) return reponseErreur('domaines_a_renseigner', 409)
+    if (!domaines.ok) return reponseErreurSqlQr(domaines.erreur, 'lecture des domaines', { cabinet: s.cabinetId })
+    if (domaines.valeur.length === 0) return reponseErreur('domaines_a_renseigner', 409)
 
     const existante = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id').eq('email', s.email).maybeSingle()
     if (existante.error) return reponseErreurSqlQr(existante.error, 'lecture des gestionnaires')
     const idExistant = (existante.data as { id?: unknown } | null)?.id
     if (typeof idExistant === 'string') return NextResponse.json({ error: 'existe_deja', id: idExistant }, { status: 409 })
 
-    const dansDomaines = emailDansDomainesQr(s.email, domaines)
-    if (!dansDomaines && !s.forcerDomaine) return reponseErreur('hors_domaine', 409)
+    const dansDomaines = emailDansDomainesQr(s.email, domaines.valeur)
+    if (!dansDomaines) {
+      // Domaine déclaré par un AUTRE cabinet client : refusé sans forçage possible (§ 6, relecture 2).
+      const autres = await lireDomainesAutresCabinetsQr(s.cabinetId, [s.email.split('@')[1] ?? ''])
+      if (!autres.ok) return reponseErreurSqlQr(autres.erreur, 'lecture des domaines des autres cabinets', { cabinet: s.cabinetId })
+      if (autres.valeur.length > 0) return reponseErreur('domaine_autre_cabinet', 409)
+      if (!s.forcerDomaine) return reponseErreur('hors_domaine', 409)
+    }
 
     // L'identifiant de la fiche existe AVANT la signature et est inséré tel quel (aucun DEFAULT en base).
     const gestionnaireId = globalThis.crypto.randomUUID()

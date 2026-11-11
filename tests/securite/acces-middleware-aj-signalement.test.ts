@@ -143,11 +143,12 @@ describe('espace, super admin', () => {
     expect(r.cache).toContain('private')
   })
 
-  it('« vue en tant que » ouverte par un super admin (_original_role) : refus neutre (403), comme les routes', async () => {
+  it('« vue en tant que » ouverte par un super admin (_original_role) : refusée comme les routes, donc envoyée à la connexion', async () => {
     connecte({ role: 'coproprio', _original_role: 'super_admin', _admin_override: true })
     const r = await visiter('/fr/aj-signalement/')
-    expect(r).toMatchObject({ statut: 403, vers: null })
-    expect(r.cache).toContain('no-store')
+    expect(r.statut).toBe(307)
+    expect(r.vers?.pathname.replace(/\/$/, '')).toBe('/fr/aj-signalement/connexion')
+    expect(r.vers?.search).toBe('')
   })
 
   it('en portugais aussi', async () => {
@@ -164,9 +165,11 @@ describe('espace, super admin', () => {
     expect(r.robots).toBe(NOINDEX)
   })
 
-  it('« vue en tant que » depuis /en/ : refus neutre, sans renvoi', async () => {
+  it('« vue en tant que » depuis /en/ : refusée, envoyée à la connexion portugaise', async () => {
     connecte({ role: 'coproprio', _original_role: 'super_admin' })
-    expect(await visiter('/en/aj-signalement/')).toMatchObject({ statut: 403, vers: null })
+    const r = await visiter('/en/aj-signalement/')
+    expect(r.statut).toBe(307)
+    expect(r.vers?.pathname.replace(/\/$/, '')).toBe('/pt/aj-signalement/connexion')
   })
 })
 
@@ -190,9 +193,14 @@ describe('page de connexion de l’espace (/fr/aj-signalement/connexion/)', () =
     expect(r.cache).toContain('no-store')
   })
 
+  it('« vue en tant que » : page servie, jamais l’espace (refusée depuis le 11/11/2026, comme les routes)', async () => {
+    connecte({ role: 'coproprio', _original_role: 'super_admin' })
+    const r = await visiter('/fr/aj-signalement/connexion/')
+    expect(r).toMatchObject({ statut: 200, vers: null })
+  })
+
   it.each([
     ['super admin', { role: 'super_admin' }],
-    ['« vue en tant que »', { role: 'coproprio', _original_role: 'super_admin' }],
   ])('%s : 307 vers l’espace, non indexable', async (_cas, app) => {
     connecte(app)
     const fr = await visiter('/fr/aj-signalement/connexion/')

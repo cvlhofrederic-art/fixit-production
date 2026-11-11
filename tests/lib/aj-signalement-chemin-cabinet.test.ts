@@ -144,8 +144,8 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(segment.test('/cabinet-exemple/')).toBe(true)
   })
 
-  it('segments du chemin d’un cabinet : signalement et confirmation-adresse servis ; suivi et invitation réservés à la PR 2', () => {
-    expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation'])
+  it('segments du chemin d’un cabinet : signalement et confirmation-adresse servis ; suivi, invitation et connexion (espace du cabinet, § 6) réservés à la PR 2', () => {
+    expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'])
   })
 })
 

@@ -236,7 +236,9 @@ describe('POST cabinets/[id]/rattachement', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ rattachees: 1 })
     expect(baseQr.etat.appelsRpc[0]).toEqual({
-      nom: 'signalements_qr_rattacher_coproprietes', args: { p_cabinet: CAB, p_coproprietes: [COPRO_LIBRE], p_acteur: ADMIN_QR.id },
+      nom: 'signalements_qr_rattacher_coproprietes',
+      // Clé du nom calculée par la route (cle_nom est NULL pour les anciennes) ; aucun doublon forcé.
+      args: { p_cabinet: CAB, p_coproprietes: [COPRO_LIBRE], p_acteur: ADMIN_QR.id, p_cles_nom: { [COPRO_LIBRE]: 'exemple' }, p_forcer_doublon: false },
     })
   })
 
@@ -244,6 +246,76 @@ describe('POST cabinets/[id]/rattachement', () => {
     const res = await rattacher(CAB, { coproprieteIds: [COPRO_RATTACHEE] })
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'a_reverifier' })
+  })
+
+  describe('relecture 9 : doublons nom + code postal avec le cabinet (RG-08, SPEC § 1.6)', () => {
+    const DU_CABINET = 'c0000000-0000-4000-8000-000000000003'
+    const AUTRE_LIBRE = 'c0000000-0000-4000-8000-000000000004'
+    const appelsRattachement = () => baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_rattacher_coproprietes')
+    const libre = () => baseQr.table('signalements_qr_coproprietes').find((c) => c.id === COPRO_LIBRE) as Record<string, unknown>
+    beforeEach(() => {
+      // L'import du fichier du client a déjà créé « Résidence Exemple » (avec son code postal) dans le cabinet.
+      baseQr.table('signalements_qr_coproprietes').push({ id: DU_CABINET, nom: 'Résidence Exemple', cabinet_id: CAB, code_postal: '13001', ville: 'Marseille', adresse: '' })
+    })
+
+    it('même nom, code postal absent (doublon probable) : 409 doublon, rien n’est rattaché ; confirmé : rattaché', async () => {
+      const refus = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE] })
+      expect(refus.status).toBe(409)
+      expect(await refus.json()).toEqual({
+        error: 'doublon', doublon: { certitude: 'probable', critere: 'nom', copropriete: { id: DU_CABINET, nom: 'Résidence Exemple', ville: 'Marseille' } },
+      })
+      expect(appelsRattachement()).toEqual([])
+      expect(libre().cabinet_id).toBeNull()
+      const ok = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE], confirmerDoublonProbable: true })
+      expect(ok.status).toBe(200)
+      expect(appelsRattachement()[0].args).toMatchObject({ p_forcer_doublon: false })
+    })
+
+    it('même nom ET même code postal (certain) : 409 même confirmé ; « Ce n’est pas un doublon » (forcerDoublon) : rattaché, forçage transmis', async () => {
+      Object.assign(libre(), { code_postal: '13001' })
+      for (const corps of [{ coproprieteIds: [COPRO_LIBRE] }, { coproprieteIds: [COPRO_LIBRE], confirmerDoublonProbable: true }]) {
+        const refus = await rattacher(CAB, corps)
+        expect(refus.status).toBe(409)
+        expect((await refus.json()).doublon).toMatchObject({ certitude: 'certain', critere: 'nom_code_postal' })
+      }
+      expect(appelsRattachement()).toEqual([])
+      const force = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE], forcerDoublon: true })
+      expect(force.status).toBe(200)
+      expect(appelsRattachement()[0].args).toMatchObject({ p_forcer_doublon: true, p_cles_nom: { [COPRO_LIBRE]: 'exemple' } })
+    })
+
+    it('même immatriculation : 409, jamais forçable', async () => {
+      Object.assign(libre(), { nom: 'Villa Exemple', immatriculation: 'AB1234567' })
+      Object.assign(baseQr.table('signalements_qr_coproprietes').find((c) => c.id === DU_CABINET) as Record<string, unknown>, { immatriculation: 'AB1234567' })
+      const res = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE], forcerDoublon: true })
+      expect(res.status).toBe(409)
+      expect((await res.json()).doublon).toMatchObject({ certitude: 'certain', critere: 'immatriculation' })
+      expect(appelsRattachement()).toEqual([])
+    })
+
+    it('deux copropriétés du même lot, même nom et même code postal : 409 doublon', async () => {
+      baseQr.etat.tables.signalements_qr_coproprietes = baseQr.table('signalements_qr_coproprietes').filter((c) => c.id !== DU_CABINET)
+      Object.assign(libre(), { nom: 'Villa Exemple', code_postal: '13002' })
+      baseQr.table('signalements_qr_coproprietes').push({ id: AUTRE_LIBRE, nom: 'VILLA exemple', cabinet_id: null, code_postal: '13002', ville: '', adresse: '' })
+      const res = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE, AUTRE_LIBRE] })
+      expect(res.status).toBe(409)
+      expect((await res.json()).doublon).toMatchObject({ certitude: 'certain', critere: 'nom_code_postal' })
+      expect(appelsRattachement()).toEqual([])
+    })
+
+    it('doublon apparu entre-temps (contrôle SQL sous le verrou, P0001 doublon) : 409 doublon', async () => {
+      baseQr.etat.fonctions.signalements_qr_rattacher_coproprietes = () => ERREUR_METIER('doublon')
+      const res = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE], confirmerDoublonProbable: true })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'doublon' })
+    })
+
+    it('copropriétés illisibles (délai dépassé) : 500, rien n’est rattaché', async () => {
+      baseQr.etat.erreursPonctuelles.signalements_qr_coproprietes = { code: '57014', message: 'canceling statement due to statement timeout' }
+      const res = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE] })
+      expect(res.status).toBe(500)
+      expect(appelsRattachement()).toEqual([])
+    })
   })
 
   it('liste vide ou de plus de 500 copropriétés : 400 ; cabinet inconnu : 404', async () => {

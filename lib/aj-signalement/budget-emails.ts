@@ -5,27 +5,12 @@
 // copropriété, 300 par heure et par cabinet (Q6, retenue par Hugo le 10/11/2026). Au-delà, le signalement est
 // ENREGISTRÉ (jamais perdu) et seul l'e-mail est retenu ; le super admin est alerté une fois, et le prochain e-mail de
 // la copropriété mentionne les signalements retenus.
-// La réservation atomique est faite en base (signalements_qr_reserver_emails, sous verrou du cabinet : identique sur
-// tous les isolats du Worker) ; decisionBudgetEmailsQr en est la règle pure, testée égale au texte SQL.
-
-import type { ConsommationEmailsQr, DecisionBudgetEmailsQr } from '@/lib/aj-signalement/types'
+// La décision est prise en base, et seulement là (signalements_qr_reserver_emails, sous verrou du cabinet : identique
+// sur tous les isolats du Worker ; son texte est contrôlé par tests/migrations/signalements_qr_gestionnaires.test.ts).
+// Ce module porte les plafonds passés à la fonction et les textes (relecture 10 : plus de copie TypeScript de la règle).
 
 export const BUDGET_EMAILS_COPRO_HEURE = 60
 export const BUDGET_EMAILS_CABINET_HEURE = 300
-
-export interface PlafondsEmailsQr {
-  copropriete: number
-  cabinet: number
-}
-
-const PLAFONDS_QR: PlafondsEmailsQr = { copropriete: BUDGET_EMAILS_COPRO_HEURE, cabinet: BUDGET_EMAILS_CABINET_HEURE }
-
-/** Accordé si les messages de la dernière heure plus ceux du dépôt restent sous le plafond de la copropriété ET du cabinet. */
-export function decisionBudgetEmailsQr(conso: ConsommationEmailsQr, plafonds: PlafondsEmailsQr = PLAFONDS_QR): DecisionBudgetEmailsQr {
-  if (conso.sommeCopropriete + conso.nombre > plafonds.copropriete) return { accorde: false, limite: 'copropriete' }
-  if (conso.sommeCabinet + conso.nombre > plafonds.cabinet) return { accorde: false, limite: 'cabinet' }
-  return { accorde: true }
-}
 
 /**
  * Une seule alerte au super admin : au premier dépôt retenu depuis le dernier e-mail parti de la copropriété

@@ -41,7 +41,7 @@ const h = vi.hoisted(() => {
     // Tables de la migration du 11/11/2026 (cabinets, gestionnaires, attributions, journal…) : absentes ici.
     const connue = table === 'signalements_qr' || table === 'signalements_qr_coproprietes'
     const absente = { data: null, error: { code: '42P01', message: `relation "${table}" does not exist` } }
-    for (const m of ['order', 'limit', 'is', 'in', 'not', 'neq', 'lt', 'gte', 'or', 'contains']) q[m] = () => q
+    for (const m of ['order', 'limit', 'range', 'is', 'in', 'not', 'neq', 'lt', 'gte', 'or', 'contains']) q[m] = () => q
     q.select = (colonnes?: string) => {
       if (typeof colonnes === 'string') { etat.colonnesLues.push({ table, colonnes }); colonnesSelect = colonnes }
       return q

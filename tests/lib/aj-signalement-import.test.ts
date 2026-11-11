@@ -369,6 +369,7 @@ const contexte: ContexteImportQr = {
     { id: G5, nom: 'Jean Exemple', email: 'jean.autre@exemple.test', actif: true, contestee: false },
   ],
   emailsAutresCabinets: ['zoe.exemple@autre-exemple.test'],
+  domainesAutresCabinets: ['autre-exemple.test'],
   existantes,
 }
 
@@ -402,6 +403,20 @@ describe('diagnostics : gestionnaires de la ligne', () => {
       { email: 'nina.exemple@exemple.test', nomPropose: 'Nina Exemple', dansDomaines: true, lignes: [6] },
       { email: 'max.exemple@ailleurs.test', nomPropose: 'Max Exemple', dansDomaines: false, lignes: [6] },
     ])
+  })
+
+  it('relecture 2 : adresse sans fiche sur un domaine d’un AUTRE cabinet client → erreur, jamais proposée à la création (pas de forçage)', () => {
+    const v = diagnostiquerImportQr([
+      ligne(2, { gestionnaires: ['nina.exemple@autre-exemple.test'] }),
+      ligne(3, { gestionnaires: ['NINA.exemple@Autre-Exemple.test', 'max.exemple@ailleurs.test'] }),
+    ], contexte)
+    expect(v.diagnostics[0]).toMatchObject({
+      etat: 'erreur', action: 'aucune',
+      messages: [{ niveau: 'erreur', champ: 'gestionnaires', texte: 'Gestionnaire « nina.exemple@autre-exemple.test » : domaine d’un autre cabinet client' }],
+    })
+    expect(v.diagnostics[1].messages[0].texte).toBe('Gestionnaire « nina.exemple@autre-exemple.test » : domaine d’un autre cabinet client')
+    // Seule l'adresse d'un domaine d'AUCUN cabinet reste proposée (avec sa case « Créer quand même »).
+    expect(v.gestionnairesInconnus).toEqual([{ email: 'max.exemple@ailleurs.test', nomPropose: 'Max Exemple', dansDomaines: false, lignes: [3] }])
   })
 
   it('par nom (sans adresse) : reconnu sans accent ni casse ; homonymes → erreur ; nom inconnu → erreur', () => {
@@ -516,7 +531,8 @@ describe('lignes envoyées à signalements_qr_creer_coproprietes (un seul appel,
         ville: '', immatriculation: '', referenceCabinet: '', batiments: ['A'], emails: ['cs@externe.test'], gestionnaireIds: [G1], forcerDoublon: false,
       },
       {
-        numeroLigne: 4, action: 'completer', origine: 'import', coproprieteId: E1, nom: 'Autre nom 2', cleNom: cleNomCoproQr('Autre nom 2'), adresse: '9 rue Exemple',
+        // Relecture 8 : clé du nom de la fiche EXISTANTE (« Résidence Le Parc »), jamais celle de la ligne (« Autre nom 2 »).
+        numeroLigne: 4, action: 'completer', origine: 'import', coproprieteId: E1, nom: 'Autre nom 2', cleNomExistante: cleNomCoproQr('Résidence Le Parc'), adresse: '9 rue Exemple',
         codePostal: '', ville: '', immatriculation: '', referenceCabinet: 'REF-01', batiments: [], emails: [], gestionnaireIds: [], forcerDoublon: false,
       },
       {

@@ -135,6 +135,48 @@ describe('sans paramètre : contrat conservé, champs ajoutés', () => {
     expect((await lire('?vue=1')).res.status).toBe(400)
     expect((await lire('?gestionnaire=pas-un-uuid')).res.status).toBe(400)
   })
+
+  it('relecture 11 : plus de 1 000 fiches et attributions dans d’autres cabinets (plafond PostgREST) : rien ne manque, lectures filtrées', async () => {
+    const t = baseQr.etat.tables
+    const autres = Array.from({ length: 1200 }, (_, i) => `a1000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
+    // Les lignes utiles en DERNIER : une lecture de toute la table, coupée à 1 000 lignes, les perdrait.
+    t.signalements_qr_gestionnaires = [
+      ...autres.map((id, i) => ({ id, cabinet_id: CAB_AUTRE, nom: `Fiche ${i}`, email: `fiche${i}@autre-exemple.test`, actif: true })),
+      ...t.signalements_qr_gestionnaires,
+    ]
+    t.signalements_qr_attributions = [...autres.map((id) => ({ copropriete_id: C_AUTRE_CAB, gestionnaire_id: id })), ...t.signalements_qr_attributions]
+    baseQr.etat.maxLignes = 1000
+    const { res, corps } = await lire(`?cabinet=${CAB}`)
+    expect(res.status).toBe(200)
+    expect(corps.tableau.coproprietes.find((c: { id: string }) => c.id === C_ATTRIBUEE)).toMatchObject({
+      gestionnaires: [{ id: G, nom: 'Marie Exemple' }], creePar: { gestionnaireId: G, nom: 'Marie Exemple' }, adressesDeGestionnaires: 1,
+    })
+    // Aucune lecture « tout » : attributions par copropriété lue, fiches par identifiant ou par adresse saisie.
+    const lectures = baseQr.etat.lectures.filter((l) => ['signalements_qr_gestionnaires', 'signalements_qr_attributions'].includes(l.table))
+    expect(lectures.length).toBeGreaterThan(0)
+    for (const l of lectures) expect(l.filtres.some((f) => /^(copropriete_id|id|email)=in\./.test(f))).toBe(true)
+  })
+
+  it('relecture 11 : lireParValeursQr lit page par page (2 500 lignes sous un plafond de 1 000) et découpe les valeurs en lots', async () => {
+    const { lireParValeursQr, lotsPourFiltreQr } = await import('@/lib/aj-signalement/serveur')
+    baseQr.etat.tables.signalements_qr_attributions = Array.from({ length: 2500 }, (_, i) => ({
+      copropriete_id: C_ATTRIBUEE, gestionnaire_id: `a1000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+    }))
+    baseQr.etat.maxLignes = 1000
+    type Requete = {
+      select: (c: string) => Requete; in: (c: string, v: string[]) => Requete; order: (c: string, o: { ascending: boolean }) => Requete
+      range: (de: number, a: number) => PromiseLike<{ data: unknown; error: null }>
+    }
+    const attributions = () => baseQr.client.from('signalements_qr_attributions') as unknown as Requete
+    const r = await lireParValeursQr<{ gestionnaire_id: string }>([C_ATTRIBUEE], (lot) => attributions()
+      .select('copropriete_id, gestionnaire_id').in('copropriete_id', lot).order('gestionnaire_id', { ascending: true }))
+    expect(r.ok && r.valeur.length).toBe(2500)
+    expect(r.ok && new Set(r.valeur.map((l) => l.gestionnaire_id)).size).toBe(2500)
+    expect(await lireParValeursQr([], () => { throw new Error('aucune requête attendue') })).toEqual({ ok: true, valeur: [] })
+    const lots = lotsPourFiltreQr(Array.from({ length: 450 }, (_, i) => `v${i}`), 6000, 200)
+    expect(lots.map((l) => l.length)).toEqual([200, 200, 50])
+    expect(lotsPourFiltreQr(['a', 'a', 'b'])).toEqual([['a', 'b']])
+  })
 })
 
 describe('?gestionnaire= : page de suivi d’un gestionnaire vue par le super admin', () => {

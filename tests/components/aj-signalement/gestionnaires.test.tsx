@@ -13,7 +13,7 @@ import React from 'react'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G } from '@/lib/aj-signalement/affichage-gestion'
-import { TEXTES_TABLEAU_QR as T } from '@/lib/aj-signalement/affichage'
+import { TEXTES_TABLEAU_QR as T, messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { remplir } from '@/lib/coproprietaire/textes'
 import {
   gestionCoproprieteQrVide, type CabinetQr, type CoproprieteQr, type FicheGestionnaireDetailQr, type GestionnaireQr, type SignalementQr,
@@ -153,6 +153,29 @@ describe('ajout d’un gestionnaire', () => {
     fireEvent.click(within(fenetre).getByRole('button', { name: G.gestionnaires.creerQuandMeme }))
     await waitFor(() => expect(appels).toHaveLength(1))
     expect(appels[0].corps).toMatchObject({ email: 'jean@autre-exemple.test', forcerDomaine: true })
+  })
+
+  it('relecture 2 : adresse sur le domaine d’un AUTRE cabinet client : refus, sans « Créer quand même », aucun appel', () => {
+    const autre: CabinetQr = { ...cabinet, id: 'a0000000-0000-4000-8000-0000000000a2', nom: 'Autre Cabinet Exemple', identifiant: 'autre-exemple', domaines: ['autre-exemple.test'] }
+    rendreListe(undefined, [cabinet, autre])
+    const fenetre = ouvrir()
+    remplirFenetre(fenetre, 'jean@autre-exemple.test')
+    fireEvent.change(within(fenetre).getByLabelText(G.gestionnaires.cabinet), { target: { value: K1 } })
+    fireEvent.click(within(fenetre).getByRole('button', { name: G.gestionnaires.creer }))
+    expect(within(fenetre).getByText(messageErreurTableauQr('domaine_autre_cabinet'))).toBeInTheDocument()
+    expect(within(fenetre).queryByRole('button', { name: G.gestionnaires.creerQuandMeme })).toBeNull()
+    expect(appels).toEqual([])
+  })
+
+  it('relecture 2 : refus domaine_autre_cabinet du serveur : message, sans « Créer quand même »', async () => {
+    simulerFetch(() => json({ error: 'domaine_autre_cabinet' }, 409))
+    rendreListe()
+    const fenetre = ouvrir()
+    remplirFenetre(fenetre, 'jean@ailleurs.test')
+    fireEvent.click(within(fenetre).getByRole('button', { name: G.gestionnaires.creer }))
+    fireEvent.click(within(fenetre).getByRole('button', { name: G.gestionnaires.creerQuandMeme }))
+    expect(await within(fenetre).findByText(messageErreurTableauQr('domaine_autre_cabinet'))).toBeInTheDocument()
+    expect(within(fenetre).queryByRole('button', { name: G.gestionnaires.creerQuandMeme })).toBeNull()
   })
 
   it('« Corriger » referme l’avertissement sans rien envoyer', () => {

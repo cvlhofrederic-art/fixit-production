@@ -31,6 +31,7 @@ export const MESSAGES_IMPORT_QR = {
   gestionnaireDesactive: (valeur: string) => `Gestionnaire « ${valeur} » : fiche désactivée`,
   gestionnaireConteste: (valeur: string) => `Gestionnaire « ${valeur} » : adresse contestée par son destinataire`,
   gestionnaireAutreCabinet: (valeur: string) => `Gestionnaire « ${valeur} » : fiche d’un autre cabinet`,
+  gestionnaireDomaineAutreCabinet: (valeur: string) => `Gestionnaire « ${valeur} » : domaine d’un autre cabinet client`,
   gestionnaireHomonymes: (valeur: string) => `Gestionnaire « ${valeur} » : plusieurs fiches portent ce nom, indiquez son adresse e-mail`,
   destinataireGestionnaire: (valeur: string) => `« ${valeur} » est l’adresse d’un gestionnaire : mise dans Gestionnaire(s)`,
   destinataireRetire: (valeur: string) => `« ${valeur} » est l’adresse d’une fiche désactivée ou contestée : retirée`,

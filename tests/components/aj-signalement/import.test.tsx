@@ -36,6 +36,8 @@ const K2 = 'a0000000-0000-4000-8000-0000000000a2'
 const E1 = 'c0000000-0000-4000-8000-000000000001'
 const NOUVELLE = 'c0000000-0000-4000-8000-000000000101'
 const JETON = 'b'.repeat(32)
+/** Copropriété créée telle que la route la rend (nom, adresse, code postal et ville lus en base). */
+const CREEE = { numeroLigne: 2, id: NOUVELLE, jeton: JETON, nom: 'Villa Exemple', adresse: '', codePostal: '13002', ville: 'Marseille' }
 
 const cabinet = (id: string, nom: string, identifiant: string): CabinetQr => ({
   id, nom, identifiant, langue: 'fr', domaines: ['exemple.test'], identifiantFige: false, nbCoproprietes: 0, nbGestionnaires: 0,
@@ -95,11 +97,116 @@ beforeEach(() => {
   window.localStorage.clear()
   simulerFetch((a) => {
     if (a.corps?.mode === 'verifier') return json(verification())
-    if (a.corps?.mode === 'creer') return json({ creees: [{ numeroLigne: 2, id: NOUVELLE, jeton: JETON }], completees: [], ignorees: 1, rejeu: false })
+    if (a.corps?.mode === 'creer') return json({ creees: [CREEE], completees: [], ignorees: 1, rejeu: false })
     return json({ error: 'introuvable' }, 404)
   })
 })
 afterEach(() => vi.unstubAllGlobals())
+
+// ── Relecture 1 : un operationId par lot ; affiches et export d'après ce que le serveur a créé ──────────────────
+
+const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+const cellule = (ref: string, texte: string) => `<c r="${ref}" t="inlineStr"><is><t>${texte}</t></is></c>`
+
+/** Classeur de deux feuilles (« Lot A », « Lot B ») d'une copropriété chacune, construit ici. */
+async function classeurDeuxFeuilles(): Promise<Uint8Array> {
+  const { strToU8, zipSync } = await import('fflate')
+  const feuilles = [['Lot A', 'Villa Exemple', '13002'], ['Lot B', 'Mas Exemple', '13004']]
+  const fichiers: Record<string, string> = {
+    '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+    'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${NS}" xmlns:r="${NS_R}"><sheets>${
+      feuilles.map(([nom], i) => `<sheet name="${nom}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
+    'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${
+      feuilles.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${NS_R}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`,
+  }
+  feuilles.forEach(([, nom, cp], i) => {
+    fichiers[`xl/worksheets/sheet${i + 1}.xml`] = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${NS}"><sheetData>`
+      + `<row r="1">${cellule('A1', 'Nom de la copropriété')}${cellule('B1', 'Code postal')}</row>`
+      + `<row r="2">${cellule('A2', nom)}${cellule('B2', cp)}</row></sheetData></worksheet>`
+  })
+  return zipSync(Object.fromEntries(Object.entries(fichiers).map(([n, t]) => [n, strToU8(t)])))
+}
+
+/** Vérification puis import d'une seule ligne à créer (aucune erreur), jusqu'au résultat ou au message. */
+async function verifierPuisImporter(attendu: string) {
+  fireEvent.click(screen.getByRole('button', { name: I.verifier }))
+  await screen.findByText(I.apercu)
+  fireEvent.click(screen.getByRole('button', { name: remplir(I.importer, { n: 1, m: 0 }) }))
+  await screen.findByText(attendu)
+}
+
+describe('relecture 1 : un operationId par lot, affiches d’après le serveur', () => {
+  const unSeul = () => simulerFetch((a) => {
+    if (a.corps?.mode === 'verifier') return json(verification({ diagnostics: [diag(2)] }))
+    return json({ creees: [CREEE], completees: [], ignorees: 0, rejeu: false })
+  })
+  const resultatUn = remplir(I.resultat, { creees: 1, completees: 0, ignorees: 0 })
+
+  it('autre feuille après un import : nouvel operationId (l’import de la feuille 1 ne se rejoue pas sur la feuille 2)', async () => {
+    unSeul()
+    rendre()
+    fireEvent.change(screen.getByLabelText(I.fichier), { target: { files: [new File([new Uint8Array(await classeurDeuxFeuilles())], 'deux.xlsx')] } })
+    await screen.findByText(I.correspondance)
+    await verifierPuisImporter(resultatUn)
+    fireEvent.change(screen.getByLabelText(I.feuille), { target: { value: 'Lot B' } })
+    await waitFor(() => expect(screen.queryByText(resultatUn)).toBeNull())
+    await verifierPuisImporter(resultatUn)
+    const [premier, second] = appelsImport('creer')
+    expect((second.corps?.lignes as Array<{ nom: string }>)[0].nom).toBe('Mas Exemple')
+    expect(second.corps?.operationId).not.toBe(premier.corps?.operationId)
+  })
+
+  it('autre cabinet après un import : résultat effacé, nouvel operationId', async () => {
+    unSeul()
+    rendre([CABINET, cabinet(K2, 'Autre Cabinet Exemple', 'autre-exemple')])
+    fireEvent.change(screen.getByLabelText(I.cabinet), { target: { value: K1 } })
+    await choisirFichier('Nom de la copropriété;Code postal\r\nVilla Exemple;13002')
+    await verifierPuisImporter(resultatUn)
+    fireEvent.change(screen.getByLabelText(I.cabinet), { target: { value: K2 } })
+    expect(screen.queryByText(resultatUn)).toBeNull()
+    await verifierPuisImporter(resultatUn)
+    const [premier, second] = appelsImport('creer')
+    expect(second.corps?.cabinetId).toBe(K2)
+    expect(second.corps?.operationId).not.toBe(premier.corps?.operationId)
+  })
+
+  it('409 a_reverifier : la création suivante part avec un nouvel operationId', async () => {
+    let creations = 0
+    simulerFetch((a) => {
+      if (a.corps?.mode === 'verifier') return json(verification({ diagnostics: [diag(2)] }))
+      creations += 1
+      return creations === 1 ? json({ ...verification({ diagnostics: [diag(2)] }), error: 'a_reverifier' }, 409) : json({ creees: [CREEE], completees: [], ignorees: 0, rejeu: false })
+    })
+    rendre()
+    await choisirFichier('Nom de la copropriété;Code postal\r\nVilla Exemple;13002')
+    await verifierPuisImporter(I.aReverifier)
+    fireEvent.click(screen.getByRole('button', { name: remplir(I.importer, { n: 1, m: 0 }) }))
+    await screen.findByText(resultatUn)
+    const [premier, second] = appelsImport('creer')
+    expect(second.corps?.operationId).not.toBe(premier.corps?.operationId)
+  })
+
+  it('affiches et export : nom et adresse RENDUS par le serveur (même au rejeu), jamais les saisies de l’écran', async () => {
+    simulerFetch((a) => {
+      if (a.corps?.mode === 'verifier') return json(verification({ diagnostics: [diag(2)] }))
+      return json({ creees: [{ ...CREEE, nom: 'Résidence du Serveur', adresse: '3 rue Exemple', codePostal: '13009' }], completees: [], ignorees: 0, rejeu: true })
+    })
+    rendre()
+    await choisirFichier('Nom de la copropriété;Code postal\r\nVilla Exemple;13002')
+    await verifierPuisImporter(resultatUn)
+    fireEvent.click(screen.getByRole('button', { name: I.affiches }))
+    await waitFor(() => expect(qr.affichesPdfQr).toHaveBeenCalled())
+    expect(vi.mocked(qr.affichesPdfQr).mock.calls[0][0]).toEqual([
+      { nom: 'Résidence du Serveur', adresse: '3 rue Exemple, 13009 Marseille', url: `https://vitfix.io/cabinet-exemple/signalement/${JETON}/` },
+    ])
+    fireEvent.click(screen.getByRole('button', { name: I.export }))
+    const appel = vi.mocked(qr.telechargerFichier).mock.calls.find(([nom]) => nom === 'coproprietes-importees.csv')
+    const texte = await (appel?.[1] as Blob).text()
+    expect(texte).toContain('Résidence du Serveur')
+    expect(texte).not.toContain('Villa Exemple')
+  })
+})
 
 describe('cabinet client obligatoire', () => {
   it('aucun cabinet : renvoi vers la vue Cabinets, pas de champ fichier', () => {
@@ -236,7 +343,7 @@ describe('vérification, aperçu, création', () => {
   it('destinataires hors des domaines du cabinet : import bloqué jusqu’à la confirmation, envoyée avec la création', async () => {
     simulerFetch((a) => {
       if (a.corps?.mode === 'verifier') return json(verification({ horsDomaine: true, diagnostics: [diag(2, { emailsHorsDomaine: ['cs@externe.test'], emailsDestinataires: ['cs@externe.test'] }), verification().diagnostics[1]] }))
-      return json({ creees: [{ numeroLigne: 2, id: NOUVELLE, jeton: JETON }], completees: [], ignorees: 0, rejeu: false })
+      return json({ creees: [CREEE], completees: [], ignorees: 0, rejeu: false })
     })
     rendre()
     await choisirFichier()

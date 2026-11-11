@@ -217,6 +217,9 @@ export const TEXTES_GESTION_QR = {
     rattacher: 'Rattacher…',
     rattachementAvertissement: 'L’adresse du QR code deviendra vitfix.io/{identifiant}/signalement/… ; les affiches déjà imprimées restent valables. Rattachement définitif.',
     confirmerRattachement: 'Oui, rattacher définitivement',
+    // Doublon avec une copropriété du cabinet (RG-08) : le texte du doublon est celui de la fiche (copropriete.doublon).
+    pasDoublonRattacher: 'Ce n’est pas un doublon, rattacher',
+    rattacherQuandMeme: 'Rattacher quand même',
     choisirAuMoinsUne: 'Choisissez au moins une copropriété et le cabinet.',
     rattachees: '{n} copropriété(s) rattachée(s).',
     voirJournal: 'Voir le journal',

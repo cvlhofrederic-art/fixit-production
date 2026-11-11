@@ -44,7 +44,7 @@ const RPC: Record<string, string> = {
   signalements_qr_reserver_emails: 'uuid, int, int, int',
   signalements_qr_purger_journal: '',
   signalements_qr_enregistrer_cabinet: 'uuid, text, text, text, text[], uuid',
-  signalements_qr_rattacher_coproprietes: 'uuid, uuid[], uuid',
+  signalements_qr_rattacher_coproprietes: 'uuid, uuid[], uuid, jsonb, boolean',
 }
 const FONCTIONS_TRIGGER = ['signalements_qr_identifiant_fige', 'signalements_qr_cabinet_copro_fige']
 
@@ -245,6 +245,27 @@ describe(`Migration ${FICHIER} : cabinets clients et domaines`, () => {
     expect(corps).toMatch(/RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'/)
     expect(corps).toContain("'copropriete.rattachee'")
   })
+
+  it('rattachement (relecture 9) : clé du nom posée là où elle manque, doublon nom + code postal refusé SOUS le verrou sauf forçage journalisé', () => {
+    const corps = fonction('signalements_qr_rattacher_coproprietes').corps
+    const verrou = corps.indexOf("pg_advisory_xact_lock(hashtextextended('signalements_qr_creation:'")
+    expect(corps).toMatch(new RegExp(espaces("cle_nom = coalesce(c.cle_nom, nullif(p_cles_nom->>c.id::text, ''))")))
+    const controle = new RegExp(espaces(
+      "WHERE c.id = ANY (v_ids) AND c.code_postal <> '' AND c.cle_nom IS NOT NULL AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d WHERE d.id <> c.id AND (d.cabinet_id = p_cabinet OR d.id = ANY (v_ids)) AND d.cle_nom = c.cle_nom AND d.code_postal = c.code_postal)",
+    ))
+    const m = controle.exec(corps)
+    expect(m).not.toBeNull()
+    expect(m?.index ?? -1).toBeGreaterThan(verrou)
+    expect(verrou).toBeGreaterThan(0)
+    const refus = corps.search(new RegExp(espaces("IF cardinality(v_doublons) > 0 AND NOT coalesce(p_forcer_doublon, false) THEN RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001';")))
+    expect(refus).toBeGreaterThan(m?.index ?? Infinity)
+    // Le refus précède le rattachement ; le forçage est journalisé (doublon.force) pour chaque copropriété en cause.
+    expect(refus).toBeLessThan(corps.indexOf('UPDATE signalements_qr_coproprietes c SET cabinet_id = p_cabinet'))
+    expect(corps).toMatch(new RegExp(espaces(
+      "SELECT p_cabinet, p_acteur, 'super_admin', 'doublon.force', x.id, '{\"critere\": \"nom_code_postal\"}'::jsonb FROM unnest(v_doublons) AS x(id)",
+    )))
+    expect(corps).toMatch(new RegExp(espaces("jsonb_typeof(p_cles_nom) <> 'object'")))
+  })
 })
 
 describe(`Migration ${FICHIER} : gestionnaires et envois`, () => {
@@ -287,6 +308,18 @@ describe(`Migration ${FICHIER} : gestionnaires et envois`, () => {
     expect(corps).toMatch(/d\.cabinet_id = v_cab AND d\.domaine = split_part\(v_email, '@', 2\)/)
     expect(corps).toMatch(/RAISE EXCEPTION 'hors_domaine' USING ERRCODE = 'P0001'/)
     for (const action of ['gestionnaire.cree', 'gestionnaire.domaine_force', 'attribution.ajoutee']) expect(corps).toContain(`'${action}'`)
+  })
+
+  it('création d’une fiche (relecture 2) : domaine déclaré par un AUTRE cabinet refusé, forçage compris, AVANT l’insertion', () => {
+    const corps = fonction('signalements_qr_inviter_gestionnaire').corps
+    const motif = new RegExp(espaces(
+      "IF EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id <> v_cab AND d.domaine = split_part(v_email, '@', 2)) THEN RAISE EXCEPTION 'domaine_autre_cabinet' USING ERRCODE = 'P0001';",
+    ))
+    const m = motif.exec(corps)
+    expect(m).not.toBeNull()
+    // Ni conditionné par v_force, ni placé après l'insertion de la fiche.
+    expect(corps.slice(0, m?.index ?? 0)).not.toMatch(/IF NOT v_force[^;]*$/)
+    expect(m?.index ?? Infinity).toBeLessThan(corps.indexOf('INSERT INTO signalements_qr_gestionnaires'))
   })
 
   it.each(['signalements_qr_confirmer_adresse', 'signalements_qr_contester_adresse'])(
@@ -369,6 +402,32 @@ describe(`Migration ${FICHIER} : copropriétés (création unique, doublons, cab
     expect(corps).toMatch(/RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001'/)
     expect(corps).toMatch(/replace\(gen_random_uuid\(\)::text, '-', ''\)/)
     expect(corps).toMatch(/INSERT INTO signalements_qr_operations \(id, cabinet_id,/)
+  })
+
+  it('rejeu (relecture 1) : même auteur, même cabinet et MÊME lot (empreinte des lignes), sinon a_reverifier ; rendu relu en base', () => {
+    expect(blocTable('signalements_qr_operations')).toMatch(/\n\s*empreinte_lignes\s+TEXT NOT NULL,/)
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    expect(corps).toMatch(/v_empreinte := encode\(sha256\(convert_to\(p_lignes::text, 'UTF8'\)\), 'hex'\);/)
+    expect(corps).toMatch(/SELECT o\.resultat, o\.acteur_id, o\.cabinet_id, o\.empreinte_lignes INTO v_deja, v_auteur, v_cab_op, v_empreinte_op/)
+    expect(corps).toMatch(new RegExp(espaces(
+      'IF v_auteur IS DISTINCT FROM p_acteur OR v_cab_op IS DISTINCT FROM p_cabinet OR v_empreinte_op IS DISTINCT FROM v_empreinte THEN RAISE EXCEPTION \'a_reverifier\'',
+    )))
+    expect(corps).toMatch(/INSERT INTO signalements_qr_operations \(id, cabinet_id, acteur_id, acteur_profil, type, empreinte_lignes, resultat\)/)
+    // Le résultat conservé ne garde ni nom ni adresse ; le rendu (premier passage et rejeu) les relit dans la base.
+    expect(corps).toMatch(/v_creees := v_creees \|\| jsonb_build_object\('numeroLigne', \(v_l->>'numeroLigne'\)::int, 'id', v_id, 'jeton', v_jeton\);/)
+    const rendus = [...corps.matchAll(/'jeton', c\.jeton, 'nom', c\.nom, 'adresse', c\.adresse, 'codePostal', c\.code_postal, 'ville', c\.ville/g)]
+    expect(rendus).toHaveLength(2)
+    expect([...corps.matchAll(/JOIN signalements_qr_coproprietes c ON c\.id = \(e\.val->>'id'\)::uuid/g)]).toHaveLength(2)
+    expect(corps).toMatch(/RETURN jsonb_build_object\('creees', v_rendu, 'completees', coalesce\(v_deja->'completees', '\[\]'::jsonb\), 'rejeu', true\);/)
+    expect(corps).toMatch(/RETURN jsonb_build_object\('creees', v_rendu, 'completees', v_compl, 'rejeu', false\);/)
+  })
+
+  it('« compléter » (relecture 8) : cle_nom reçoit la clé du nom EXISTANT, jamais celle du nom de la ligne', () => {
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    const debut = corps.indexOf("IF v_l->>'action' = 'completer'")
+    const completer = corps.slice(debut, corps.indexOf('v_compl := v_compl', debut))
+    expect(completer).toMatch(/cle_nom\s+= coalesce\(c\.cle_nom, nullif\(v_l->>'cleNomExistante', ''\)\)/)
+    expect(completer).not.toContain("v_l->>'cleNom'")
   })
 
   it('import (lot 5) : un fichier d’UNE ligne reste un import ; « compléter » ne remplit que les champs vides, n’écrase rien', () => {
@@ -470,6 +529,36 @@ describe(`Migration ${FICHIER} : journal, opérations, budget d’e-mails`, () =
     expect(corps).toMatch(/email_retenu = true/)
     expect(corps).toMatch(/jsonb_build_object\('accorde', true, 'retenus', v_retenus\)/)
     expect(corps).toMatch(/jsonb_build_object\('accorde', false, 'retenus', v_retenus\)/)
+  })
+
+  it('budget d’e-mails (relecture 10) : texte exact des deux sommes, de la fenêtre, du dernier envoi, des retenus et des deux issues', () => {
+    // La décision n'existe qu'en base (aucune copie TypeScript) : chaque pièce de la règle est contrôlée ici. Un essai sur
+    // une vraie base (branche ou base de test) reste à décider avec Frédéric.
+    const corps = fonction('signalements_qr_reserver_emails').corps
+    const morceaux = [
+      // Fenêtre : la dernière heure glissante.
+      "v_depuis timestamptz := now() - interval '1 hour';",
+      // Cabinet de la copropriété du dépôt.
+      'SELECT s.copropriete_id, c.cabinet_id INTO v_copro, v_cab FROM signalements_qr s JOIN signalements_qr_coproprietes c ON c.id = s.copropriete_id WHERE s.id = p_signalement;',
+      "PERFORM pg_advisory_xact_lock(hashtextextended('signalements_qr_emails:' || coalesce(v_cab, v_zero)::text, 0));",
+      // Somme de la copropriété : messages de l'heure, sans le dépôt en cours.
+      'SELECT coalesce(sum(s.nb_emails_envoyes), 0) INTO v_somme_copro FROM signalements_qr s WHERE s.copropriete_id = v_copro AND s.created_at > v_depuis AND s.id <> p_signalement;',
+      // Somme du cabinet : toutes ses copropriétés (le groupe « sans cabinet » compte comme un cabinet), même fenêtre.
+      'SELECT coalesce(sum(s.nb_emails_envoyes), 0) INTO v_somme_cabinet FROM signalements_qr s JOIN signalements_qr_coproprietes c ON c.id = s.copropriete_id WHERE coalesce(c.cabinet_id, v_zero) = coalesce(v_cab, v_zero) AND s.created_at > v_depuis AND s.id <> p_signalement;',
+      // Dernier e-mail parti de la copropriété, puis dépôts retenus depuis (mention de rattrapage, alerte unique).
+      'SELECT max(s.created_at) INTO v_dernier_envoi FROM signalements_qr s WHERE s.copropriete_id = v_copro AND s.email_envoye_le IS NOT NULL AND s.id <> p_signalement;',
+      'SELECT count(*) INTO v_retenus FROM signalements_qr s WHERE s.copropriete_id = v_copro AND s.email_retenu AND s.id <> p_signalement AND (v_dernier_envoi IS NULL OR s.created_at > v_dernier_envoi);',
+      // Accordé (≤ aux DEUX plafonds) : nb_emails_envoyes = p_nombre ; sinon retenu, dépôt gardé.
+      'IF v_somme_copro + p_nombre <= p_max_copro AND v_somme_cabinet + p_nombre <= p_max_cabinet THEN UPDATE signalements_qr SET nb_emails_envoyes = p_nombre, email_retenu = false WHERE id = p_signalement;',
+      'UPDATE signalements_qr SET nb_emails_envoyes = 0, email_retenu = true WHERE id = p_signalement;',
+    ]
+    let position = 0
+    for (const morceau of morceaux) {
+      const m = new RegExp(espaces(morceau)).exec(corps.slice(position))
+      expect(m, morceau).not.toBeNull()
+      // Dans cet ordre : verrou AVANT les sommes, sommes AVANT la décision.
+      position += (m?.index ?? 0) + (m?.[0].length ?? 0)
+    }
   })
 
   it('purge du journal : 12 mois glissants, une ligne journal.purge', () => {

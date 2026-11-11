@@ -3,7 +3,8 @@
 // Choix de Hugo du 10/11/2026 : chaque client a son chemin sur vitfix.io (pas de sous-domaine) :
 //   - /<identifiant>/signalement/<jeton>/            page publique ouverte par le QR code ;
 //   - /<identifiant>/confirmation-adresse/#<jeton>   confirmation d'adresse d'un gestionnaire (jeton après le « # ») ;
-//   - /<identifiant>/suivi/, /<identifiant>/invitation/   réservés à la PR 2, non servis en PR 1.
+//   - /<identifiant>/suivi/, /<identifiant>/invitation/, /<identifiant>/connexion/   réservés à la PR 2, non servis en
+//     PR 1 (connexion : page de connexion professionnelle de l'espace du cabinet, Hugo, 11/11/2026, SPEC § 6).
 // L'identifiant (« cabinet-exemple ») est saisi par le super admin dans l'espace, jamais écrit dans le code.
 //
 // Module pur, sans aucune dépendance à l'exécution : importé par le middleware (edge, AVANT la détection de langue),
@@ -43,8 +44,11 @@ export const MOTIF_CHEMIN_CABINET_QR = new RegExp(
   `^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse))\\/?$`,
 )
 
-/** 2ᵉ segment des chemins d'un cabinet : servis en PR 1 (signalement, confirmation-adresse), réservés à la PR 2. */
-export const SEGMENTS_CABINET_QR = ['signalement', 'confirmation-adresse', 'suivi', 'invitation'] as const
+/**
+ * 2ᵉ segment des chemins d'un cabinet : servis en PR 1 (signalement, confirmation-adresse), réservés à la PR 2 (suivi,
+ * invitation, connexion). Aucune route du site ne doit les avoir en 2ᵉ segment (garde : identifiants réservés).
+ */
+export const SEGMENTS_CABINET_QR = ['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'] as const
 
 /** Chemin public d'un cabinet (page de signalement ou de confirmation), ou null. Aucune lecture de base. */
 export function cheminPublicCabinetQr(pathname: string): CheminCabinetQr | null {

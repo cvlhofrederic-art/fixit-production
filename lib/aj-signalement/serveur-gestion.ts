@@ -9,6 +9,7 @@
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { lireInvitationValide, type LigneInvitation } from '@/lib/equipe/invitation-serveur'
+import { lireJetonDuLien } from '@/lib/equipe/lien-invitation'
 import { porteeGestionnaireQr } from '@/lib/aj-signalement/acces-espace'
 import { urlConfirmationAdresseQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { envoyerConfirmationAdresseQr } from '@/lib/aj-signalement/email'
@@ -293,16 +294,41 @@ export type RelectureLienQr =
 const INTROUVABLE: RelectureLienQr = { ok: false, code: 'introuvable', status: 404 }
 
 /**
+ * Le lien (signature déjà vérifiée par lireInvitationValide) est-il celui d'une fiche du cabinet du chemin ? Lu avant
+ * de traduire « expiré » ou « déjà utilisé » : sous un autre chemin, le même 404 générique (relecture 3). Toute
+ * lecture impossible vaut « non » (404, aucun indice), journalisée avec son seul code.
+ */
+async function lienDuCabinetQr(token: string, identifiantCabinet: string): Promise<boolean> {
+  const lien = lireJetonDuLien(token)
+  if (!lien) return false
+  const envoi = await supabaseAdmin.from(TABLE_INVITATIONS_QR).select('gestionnaire_id').eq('invite_token', lien.jeton).maybeSingle()
+  const gestionnaireId = (envoi.data as { gestionnaire_id?: unknown } | null)?.gestionnaire_id
+  if (envoi.error || typeof gestionnaireId !== 'string') {
+    if (envoi.error) logger.warn(`${CONTEXTE} envoi d’un lien expiré ou utilisé non relu`, { code: envoi.error.code })
+    return false
+  }
+  const fiche = await lireFicheQr(gestionnaireId)
+  if (!fiche.ok || !fiche.valeur) {
+    if (!fiche.ok) logger.warn(`${CONTEXTE} fiche d’un lien expiré ou utilisé non relue`, { code: fiche.erreur.code })
+    return false
+  }
+  const cabinet = await lireCabinetQr({ id: fiche.valeur.cabinet_id })
+  if (!cabinet.ok) logger.warn(`${CONTEXTE} cabinet d’un lien expiré ou utilisé non relu`, { code: cabinet.erreur.code })
+  return cabinet.ok && cabinet.cabinet?.identifiant === identifiantCabinet
+}
+
+/**
  * Relecture d'un lien de confirmation d'adresse (pages publiques P1-R16, R17, R17b), SANS effet : signature, envoi de
  * confirmation sans refus, fiche active non contestée à la même adresse, et cabinet de la fiche = cabinet du chemin.
- * Tout autre cas répond le même 404 générique (aucun indice) ; expiré 410 ; déjà confirmé 409.
+ * Tout autre cas répond le même 404 générique (aucun indice) ; expiré 410 et déjà confirmé 409 seulement sous le
+ * chemin du cabinet de la fiche (sinon 404, relecture 3).
  */
 export async function relireLienConfirmationQr(token: string, identifiantCabinet: string): Promise<RelectureLienQr> {
   const lecture = await lireInvitationValide('aj_signalement', token)
   if (!lecture.ok) {
-    if (lecture.status === 409) return { ok: false, code: 'deja_confirmee', status: 409 }
-    if (lecture.status === 410) return { ok: false, code: 'expire', status: 410 }
-    return INTROUVABLE
+    if (lecture.status !== 409 && lecture.status !== 410) return INTROUVABLE
+    if (!(await lienDuCabinetQr(token, identifiantCabinet))) return INTROUVABLE
+    return lecture.status === 409 ? { ok: false, code: 'deja_confirmee', status: 409 } : { ok: false, code: 'expire', status: 410 }
   }
   const envoi = lecture.invite as LigneInvitation & { objet?: unknown; refus?: unknown }
   if (envoi.objet !== 'confirmation_adresse' || envoi.refus) return INTROUVABLE

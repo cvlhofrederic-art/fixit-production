@@ -5,7 +5,8 @@
 // Demandes de Hugo du 10/11/2026 : des fiches par gestionnaire (pages profil), qui reçoivent AUTOMATIQUEMENT par e-mail
 // les signalements de leurs copropriétés, sur un domaine e-mail de LEUR cabinet. Liste dans l'ordre du serveur (adresse
 // contestée en tête, à traiter), état, domaine forcé, compteurs ; « Ajouter un gestionnaire » (SPEC § 1.8) : adresse
-// hors des domaines → avertissement puis « Créer quand même » ; cabinet sans domaine → ses domaines d'abord ; adresse
+// hors des domaines → avertissement puis « Créer quand même », sauf domaine d'un AUTRE cabinet client (refus, sans
+// forçage) ; cabinet sans domaine → ses domaines d'abord ; adresse
 // déjà en fiche → « Ouvrir la fiche ». Par ligne : Ouvrir (page profil, où se fait le départ), Renvoyer la
 // confirmation, Réactiver. Aucun compte, aucune connexion de gestionnaire en PR 1.
 
@@ -193,7 +194,13 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
     if (!FORMAT_EMAIL_QR.test(emailPropre)) return setErreur(G.gestionnaires.emailInvalide)
     if (!cabinet) return setErreur(G.gestionnaires.cabinetRequis)
     setErreur(null)
-    if (!forcerDomaine && !emailDansDomainesQr(emailPropre, cabinet.domaines)) return setHorsDomaine(true)
+    const dansCabinet = emailDansDomainesQr(emailPropre, cabinet.domaines)
+    // Domaine d'un AUTRE cabinet client : refusé, sans « Créer quand même » (§ 6 ; le serveur refuse aussi).
+    if (!dansCabinet && cabinets.some((c) => c.id !== cabinet.id && emailDansDomainesQr(emailPropre, c.domaines))) {
+      setHorsDomaine(false)
+      return setErreur(messageEchecQr('domaine_autre_cabinet'))
+    }
+    if (!forcerDomaine && !dansCabinet) return setHorsDomaine(true)
     setHorsDomaine(false)
     setOccupe(true)
     const ids = new Set(coprosCabinet.map((c) => c.id))
@@ -203,6 +210,7 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
     setOccupe(false)
     if (r.ok) return onCree(r)
     if (r.code === 'hors_domaine') return setHorsDomaine(true)
+    if (r.code === 'domaine_autre_cabinet') setHorsDomaine(false)
     if (r.code === 'existe_deja' && r.id) setFicheExistante(r.id)
     setErreur(messageEchecQr(r.code))
   }

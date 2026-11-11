@@ -9,7 +9,7 @@
 // « Ce n'est pas moi » demande une confirmation, puis conteste (la fiche est figée, le cabinet prévenu). Page publique,
 // en français, au socle visuel de l'espace ; aucune ressource tierce.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Bouton, Encadre } from '@/components/coproprietaire-dashboard/ui'
@@ -38,23 +38,31 @@ function finDepuisCode(code: CodeErreurQr): Fin | null {
 
 const messageReprise = (code: CodeErreurQr): string => (code === 'reseau' ? C.reseau : C.indisponible)
 
-/** Jeton de l'ancre de l'adresse (lu sans l'effacer : l'effacement suit, avant tout appel). */
+/** Jeton de l'ancre de l'adresse (lu sans l'effacer : l'effacement suit, avant tout appel). Navigateur seulement. */
 function jetonDeLAncre(): string | null {
-  if (typeof window === 'undefined') return null
   const brut = window.location.hash.replace(/^#/, '')
   return FORMAT_JETON_LIEN_QR.test(brut) ? brut : null
 }
 
 export default function ConfirmationAdresseQr({ identifiant }: Readonly<{ identifiant: string }>) {
-  const [jeton] = useState<string | null>(jetonDeLAncre)
-  const [etat, setEtat] = useState<Etat>(() => (jeton ? { statut: 'lecture' } : FIN_INVALIDE))
+  // undefined : ancre pas encore lue. Le rendu du serveur (l'ancre ne lui parvient jamais) et la première passe du
+  // navigateur (hydratation) montrent donc le même « Vérification du lien… », jamais « Ce lien n'est pas valable »
+  // (relecture 5 et 6 : plus d'erreur d'hydratation). null : ancre absente ou hors format.
+  const [jeton, setJeton] = useState<string | null | undefined>(undefined)
+  const lu = useRef<string | null | undefined>(undefined)
+  const [etatLecture, setEtat] = useState<Etat>({ statut: 'lecture' })
+  const etat: Etat = jeton === null ? FIN_INVALIDE : etatLecture
   const [essai, setEssai] = useState(0)
   const [demandeRefus, setDemandeRefus] = useState(false)
   const [occupe, setOccupe] = useState(false)
 
-  // Ancre effacée de l'adresse dès l'ouverture, avant l'appel ci-dessous (effets exécutés dans cet ordre).
+  // Au montage : jeton lu dans l'ancre UNE fois (gardé en référence : React.StrictMode rejoue cet effet après
+  // l'effacement), ancre effacée de l'adresse, puis lecture par l'effet suivant (aucun appel avant l'effacement).
   useEffect(() => {
+    lu.current ??= jetonDeLAncre()
     if (window.location.hash) window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`)
+    // Valeur du navigateur, lisible seulement après l'hydratation.
+    setJeton(lu.current)
   }, [])
 
   useEffect(() => {

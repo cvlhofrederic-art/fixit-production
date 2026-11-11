@@ -307,7 +307,7 @@ export interface ResultatCreationQr {
  */
 export const ERREURS_METIER_SQL_QR = [
   'doublon', 'a_reverifier', 'sans_cabinet', 'identifiant_pris', 'identifiant_fige', 'domaine_pris', 'cabinet_fige',
-  'hors_domaine',
+  'hors_domaine', 'domaine_autre_cabinet',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
@@ -465,15 +465,6 @@ export interface SaisiesVisiblesQr {
   emails: string[]
   adressesMasquees: number
 }
-
-/** Messages déjà comptés sur la dernière heure, et messages de ce dépôt (budget d'e-mails, RG-06 ter). */
-export interface ConsommationEmailsQr {
-  sommeCopropriete: number
-  sommeCabinet: number
-  nombre: number
-}
-
-export type DecisionBudgetEmailsQr = { accorde: true } | { accorde: false; limite: 'copropriete' | 'cabinet' }
 
 /** Objet d'un envoi à un gestionnaire (CHECK de signalements_qr_invitations.objet) ; 'acces' : PR 2. */
 export const OBJETS_ENVOI_QR = ['confirmation_adresse', 'acces'] as const
@@ -760,25 +751,30 @@ export interface FicheImportQr {
   contestee: boolean
 }
 
-/** Ce que la vérification lit du cabinet (et seulement de lui, hors adresses des fiches des autres cabinets). */
+/**
+ * Ce que la vérification lit du cabinet (et seulement de lui) ; des autres cabinets, rien que les adresses des fiches et
+ * les domaines cités par le fichier.
+ */
 export interface ContexteImportQr {
   domaines: readonly string[]
   fiches: readonly FicheImportQr[]
   /** Adresses (canoniques) des fiches des AUTRES cabinets : jamais attribuables, jamais destinataires. */
   emailsAutresCabinets: readonly string[]
+  /**
+   * Domaines e-mail déclarés par d'AUTRES cabinets clients : une adresse sans fiche sur l'un d'eux est en erreur, jamais
+   * proposée à la création, même forcée (relecture 2, § 6 : un gestionnaire n'est accepté que sur un domaine de SON cabinet).
+   */
+  domainesAutresCabinets: readonly string[]
   /** Copropriétés du cabinet, actives ou non. */
   existantes: readonly CoproprieteDoublonQr[]
 }
 
-/** Ligne passée à signalements_qr_creer_coproprietes (p_lignes). */
-export interface LigneSqlImportQr {
+/** Champs communs d'une ligne passée à signalements_qr_creer_coproprietes (p_lignes). */
+interface LigneSqlImportCommuneQr {
   numeroLigne: number
-  action: 'creer' | 'completer'
   /** Un fichier d'une seule ligne reste un import (journal, origine des attributions). */
   origine: 'import'
-  coproprieteId?: string
   nom: string
-  cleNom: string
   adresse: string
   codePostal: string
   ville: string
@@ -789,6 +785,14 @@ export interface LigneSqlImportQr {
   gestionnaireIds: string[]
   forcerDoublon: boolean
 }
+
+/**
+ * Ligne de p_lignes : « creer » porte la clé de SON nom ; « compléter » (le nom de la fiche ne change pas) porte la clé
+ * du nom de la fiche EXISTANTE, écrite dans cle_nom si elle y manque (relecture 8).
+ */
+export type LigneSqlImportQr =
+  | (LigneSqlImportCommuneQr & { action: 'creer'; cleNom: string })
+  | (LigneSqlImportCommuneQr & { action: 'completer'; coproprieteId: string; cleNomExistante: string })
 
 export interface PlanImportQr {
   lignesSql: LigneSqlImportQr[]
@@ -804,12 +808,26 @@ export interface SaisieImportQr {
   confirmerHorsDomaine: boolean
 }
 
+/**
+ * Copropriété créée par un import, telle que la base l'a enregistrée (relue par la fonction SQL) : les affiches et
+ * l'export en sont faits, jamais des saisies de l'écran (relecture 1).
+ */
+export interface CoproprieteCreeeImportQr {
+  numeroLigne: number
+  id: string
+  jeton: string
+  nom: string
+  adresse: string
+  codePostal: string
+  ville: string
+}
+
 /** Réponse de « creer ». */
 export interface ResultatImportQr {
-  creees: Array<{ numeroLigne: number; id: string; jeton: string }>
+  creees: CoproprieteCreeeImportQr[]
   completees: Array<{ numeroLigne: number; id: string }>
   ignorees: number
-  /** Même operationId déjà traité : le résultat du premier passage. */
+  /** Même operationId, même cabinet et même lot déjà traités : le résultat du premier passage. */
   rejeu: boolean
 }
 

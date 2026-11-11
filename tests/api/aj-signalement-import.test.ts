@@ -68,9 +68,20 @@ beforeEach(() => {
   t.signalements_qr_coproprietes = [copro({}), copro({ id: E_AUTRE, cabinet_id: CAB2, nom: 'Villa Exemple', code_postal: '13002', immatriculation: null, jeton: '2'.repeat(32) })]
   t.signalements_qr_operations = []
   t.signalements_qr_journal = []
+  // Modèle de la fonction SQL : rejeu accepté pour le même auteur, le même cabinet et le MÊME lot (empreinte des
+  // lignes), sinon a_reverifier ; créées rendues d'après la base (nom, adresse, code postal, ville, jeton).
   baseQr.etat.fonctions.signalements_qr_creer_coproprietes = (a) => {
+    const empreinte = JSON.stringify(a.p_lignes)
+    const rendu = (liste: unknown) => (liste as Array<{ numeroLigne: number; id: string }>).map((c) => {
+      const l = baseQr.table('signalements_qr_coproprietes').find((x) => x.id === c.id) ?? {}
+      return { numeroLigne: c.numeroLigne, id: c.id, jeton: l.jeton, nom: l.nom, adresse: l.adresse, codePostal: l.code_postal, ville: l.ville }
+    })
     const deja = baseQr.table('signalements_qr_operations').find((o) => o.id === a.p_operation)
-    if (deja) return { data: { ...(deja.resultat as Record<string, unknown>), rejeu: true } }
+    if (deja) {
+      if (deja.acteur_id !== a.p_acteur || deja.cabinet_id !== a.p_cabinet || deja.empreinte !== empreinte) return { error: { code: 'P0001', message: 'a_reverifier' } }
+      const r = deja.resultat as { creees: unknown; completees: unknown }
+      return { data: { creees: rendu(r.creees), completees: r.completees, rejeu: true } }
+    }
     const creees: unknown[] = []
     const completees: unknown[] = []
     for (const l of a.p_lignes as Array<Record<string, unknown>>) {
@@ -88,11 +99,10 @@ beforeEach(() => {
         id, nom: l.nom, adresse: l.adresse, code_postal: l.codePostal, ville: l.ville, immatriculation: l.immatriculation || null, jeton,
         cle_nom: l.cleNom, emails_destinataires: l.emails, operation_id: a.p_operation,
       }))
-      creees.push({ numeroLigne: l.numeroLigne, id, jeton })
+      creees.push({ numeroLigne: l.numeroLigne, id, jeton })   // conservé comme en base : ni nom ni adresse
     }
-    const resultat = { creees, completees }
-    baseQr.table('signalements_qr_operations').push({ id: a.p_operation, resultat })
-    return { data: { ...resultat, rejeu: false } }
+    baseQr.table('signalements_qr_operations').push({ id: a.p_operation, acteur_id: a.p_acteur, cabinet_id: a.p_cabinet, empreinte, resultat: { creees, completees } })
+    return { data: { creees: rendu(creees), completees, rejeu: false } }
   }
 })
 
@@ -165,6 +175,41 @@ describe('mode « verifier »', () => {
   })
 })
 
+describe('relecture 2 : domaine d’un autre cabinet client', () => {
+  it('adresse sans fiche sur le domaine d’un AUTRE cabinet : erreur de ligne, jamais proposée à la création', async () => {
+    const res = await importer(corps('verifier', [ligne(2, { gestionnaires: ['nina.exemple@autre-exemple.test'] })]))
+    const { diagnostics, gestionnairesInconnus } = await res.json()
+    expect(diagnostics[0]).toMatchObject({ etat: 'erreur', action: 'aucune' })
+    expect(diagnostics[0].messages[0].texte).toMatch(/domaine d’un autre cabinet client/)
+    expect(gestionnairesInconnus).toEqual([])
+  })
+})
+
+describe('relecture 4 : lectures de contrôle en échec', () => {
+  it.each([
+    ['signalements_qr_domaines_autorises'],
+    ['signalements_qr_gestionnaires'],
+  ])('%s illisible (délai dépassé) : 500, aucune vérification rendue, rien n’est écrit', async (table) => {
+    // La lecture des fiches du cabinet passe ; celle qui échoue est celle des contrôles (domaines, adresses des fiches).
+    const passe = table === 'signalements_qr_gestionnaires' ? 1 : 0
+    let vues = 0
+    const client = baseQr.client as { from: (t: string) => unknown }
+    const from = client.from
+    client.from = (t: string) => {
+      if (t === table && vues++ >= passe) baseQr.etat.erreursPonctuelles[t] = { code: '57014', message: 'canceling statement due to statement timeout' }
+      return from(t)
+    }
+    try {
+      const res = await importer(corps('creer', [ligne(2, { emailsDestinataires: ['cs@externe.test'] })], { confirmerHorsDomaine: true }))
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'serveur' })
+      expect(appelsCreation()).toEqual([])
+    } finally {
+      client.from = from
+    }
+  })
+})
+
 describe('mode « creer »', () => {
   it('vérification refaite puis UN appel de la fonction : p_profil super_admin, p_acteur = la session, cabinet, lignes retenues', async () => {
     const res = await importer(corps('creer', [
@@ -181,7 +226,11 @@ describe('mode « creer »', () => {
       [2, 'creer', 'import', [G1]], [4, 'completer', 'import', []],
     ])
     expect(await res.json()).toEqual({
-      creees: [{ numeroLigne: 2, id: 'c0000000-0000-4000-8000-000000000101', jeton: expect.stringMatching(/^[0-9a-f]{32}$/) }],
+      // Nom, adresse, code postal et ville rendus d'après la base : l'écran en fait les affiches et l'export.
+      creees: [{
+        numeroLigne: 2, id: 'c0000000-0000-4000-8000-000000000101', jeton: expect.stringMatching(/^[0-9a-f]{32}$/),
+        nom: 'Villa Exemple 2', adresse: '', codePostal: '13002', ville: '',
+      }],
       completees: [{ numeroLigne: 4, id: E1 }],
       ignorees: 1,
       rejeu: false,
@@ -222,6 +271,35 @@ describe('mode « creer »', () => {
     expect(rejeu.status).toBe(200)
     expect(await rejeu.json()).toEqual({ ...premier, rejeu: true })
     expect(baseQr.table('signalements_qr_coproprietes').filter((c) => c.operation_id === OPERATION)).toHaveLength(2)
+  })
+
+  it('même operationId, AUTRES lignes (autre feuille) : 409 a_reverifier, rien n’est créé, diagnostics relus sans ignorer l’opération', async () => {
+    await importer(corps('creer', [ligne(2, { codePostal: '13002' })]))
+    const avant = baseQr.table('signalements_qr_coproprietes').length
+    const res = await importer(corps('creer', [ligne(2, { codePostal: '13002' }), ligne(3, { codePostal: '13003' })]))
+    expect(res.status).toBe(409)
+    const r = await res.json()
+    expect(r.error).toBe('a_reverifier')
+    // La copropriété créée par le premier lot est un doublon de la ligne 2 du second : l'écran le montre.
+    expect(r.diagnostics.map((d: { numeroLigne: number; etat: string }) => [d.numeroLigne, d.etat])).toEqual([[2, 'existe_deja'], [3, 'a_creer']])
+    expect(baseQr.table('signalements_qr_coproprietes')).toHaveLength(avant)
+  })
+
+  it('même operationId, AUTRE cabinet : 409 a_reverifier, aucune copropriété créée dans ce cabinet', async () => {
+    await importer(corps('creer', [ligne(2, { codePostal: '13002' })]))
+    const res = await importer(corps('creer', [ligne(2, { nom: 'Mas Exemple', codePostal: '13004' })], { cabinetId: CAB2 }))
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('a_reverifier')
+    expect(baseQr.table('signalements_qr_coproprietes').filter((c) => c.cabinet_id === CAB2 && c.nom === 'Mas Exemple')).toEqual([])
+  })
+
+  it('rejeu dont les numéros de ligne ne sont pas ceux de la requête (base qui ne comparerait pas le lot) : 409 a_reverifier', async () => {
+    await importer(corps('creer', [ligne(2, { codePostal: '13002' })]))
+    const stocke = baseQr.table('signalements_qr_operations')[0].resultat as Record<string, unknown>
+    baseQr.etat.fonctions.signalements_qr_creer_coproprietes = () => ({ data: { ...stocke, rejeu: true } })
+    const res = await importer(corps('creer', [ligne(5, { nom: 'Mas Exemple', codePostal: '13004' })]))
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('a_reverifier')
   })
 
   it('destinataire hors des domaines du cabinet : 409 hors_domaine sans confirmerHorsDomaine, accepté avec', async () => {

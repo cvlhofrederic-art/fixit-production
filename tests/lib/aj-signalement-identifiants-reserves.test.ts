@@ -153,6 +153,9 @@ function cheminsCaptes(premier: string): SegmentCapte[][] {
   const id = estDynamique(premier) ? 'cabinet-exemple' : premier
   // Le premier segment est-il un identifiant pour le motif ? (« fr », « api », « admin » ne le sont pas.)
   if (!cheminPublicCabinetQr(`/${id}/confirmation-adresse/`)) return []
+  // Un préfixe réservé ne masque rien : aucun cabinet ne peut porter ce nom (validerIdentifiantCabinetQr le refuse).
+  // Ex. /aj-signalement/connexion/ (page de connexion de l'espace, #669) : « aj-signalement » est un préfixe réservé.
+  if (PREFIXES_RESERVES_QR.some((prefixe) => id.startsWith(prefixe))) return []
   const valeur = (texte: string): SegmentCapte => ({ texte, mot: false })
   const mot = (texte: string): SegmentCapte => ({ texte, mot: true })
   return [

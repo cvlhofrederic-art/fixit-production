@@ -356,6 +356,9 @@ export function diagnostiquerImportQr(lignes: readonly LigneImportQr[], contexte
         else attribuer(fiche)
       } else if (autresCabinets.has(email)) {
         erreur('gestionnaires', M.gestionnaireAutreCabinet(email))
+      } else if (emailDansDomainesQr(email, contexte.domainesAutresCabinets)) {
+        // Domaine d'un AUTRE cabinet client : jamais proposé à la création, même forcée (§ 6, relecture 2).
+        erreur('gestionnaires', M.gestionnaireDomaineAutreCabinet(email))
       } else {
         erreur('gestionnaires', M.gestionnaireInconnu(email))
         const deja = inconnus.get(email)
@@ -458,14 +461,18 @@ export function planCreationImportQr(lignes: readonly LigneImportQr[], verificat
     if (!d || d.action === 'aucune') { erreurs += 1; continue }
     if (d.action === 'ignorer') { ignorees += 1; continue }
     const commun = {
-      numeroLigne: l.numeroLigne, origine: 'import' as const, nom: l.nom, cleNom: cleNomCoproQr(l.nom), adresse: l.adresse,
+      numeroLigne: l.numeroLigne, origine: 'import' as const, nom: l.nom, adresse: l.adresse,
       codePostal: l.codePostal, ville: l.ville, immatriculation: l.immatriculation, referenceCabinet: l.referenceCabinet, batiments: l.batiments,
       gestionnaireIds: d.gestionnaires.map((g) => g.id),
     }
+    const existante = d.doublon?.copropriete
     if (d.action === 'creer') {
-      lignesSql.push({ ...commun, action: 'creer', emails: d.emailsDestinataires, forcerDoublon: actionImportQr(d.doublon, l).forcerDoublon })
-    } else if (l.coproprieteExistanteId) {
-      lignesSql.push({ ...commun, action: 'completer', coproprieteId: l.coproprieteExistanteId, emails: [], forcerDoublon: false })
+      lignesSql.push({ ...commun, action: 'creer', cleNom: cleNomCoproQr(l.nom), emails: d.emailsDestinataires, forcerDoublon: actionImportQr(d.doublon, l).forcerDoublon })
+    } else if (l.coproprieteExistanteId && existante?.id === l.coproprieteExistanteId) {
+      // Le nom de la fiche existante ne change pas : sa clé (et non celle de la ligne) complète cle_nom (relecture 8).
+      lignesSql.push({
+        ...commun, action: 'completer', coproprieteId: l.coproprieteExistanteId, cleNomExistante: cleNomCoproQr(existante.nom), emails: [], forcerDoublon: false,
+      })
     } else {
       erreurs += 1
     }

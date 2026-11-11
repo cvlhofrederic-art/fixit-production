@@ -31,7 +31,7 @@ export const URL_API_QR = '/api/aj-signalement'
 export const CODES_METIER_QR = [
   'doublon', 'hors_domaine', 'existe_deja', 'identifiant_pris', 'identifiant_fige', 'domaine_pris', 'sans_cabinet', 'cabinet_fige',
   'a_reverifier', 'deja_confirmee', 'adresse_contestee', 'adresse_reservee', 'domaines_a_renseigner', 'fiche_active', 'fiche_effacee',
-  'signalements_presents', 'conflit_statut', 'expire',
+  'signalements_presents', 'conflit_statut', 'expire', 'domaine_autre_cabinet',
 ] as const
 export type CodeMetierQr = (typeof CODES_METIER_QR)[number]
 
@@ -470,9 +470,15 @@ export async function modifierCabinetQr(id: string, modification: Partial<Saisie
   return r.ok ? resultatCabinet(r.corps) : r
 }
 
-/** Rattachement définitif de copropriétés sans cabinet (leur QR code passe sous le chemin du cabinet). */
-export async function rattacherCoproprietesQr(cabinetId: string, coproprieteIds: string[], fetchImpl: Fetch = fetch): Promise<{ ok: true; rattachees: number } | EchecQr> {
-  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/rattachement`, 'POST', { coproprieteIds })
+/**
+ * Rattachement définitif de copropriétés sans cabinet (leur QR code passe sous le chemin du cabinet). 409 doublon : la
+ * copropriété semblable du cabinet (echec.doublon) ; renvoyer avec confirmerDoublonProbable ou forcerDoublon.
+ */
+export async function rattacherCoproprietesQr(
+  cabinetId: string, coproprieteIds: string[], fetchImpl: Fetch = fetch,
+  drapeaux: { forcerDoublon?: true; confirmerDoublonProbable?: true } = {},
+): Promise<{ ok: true; rattachees: number } | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/rattachement`, 'POST', { coproprieteIds, ...drapeaux })
   if (!r.ok) return r
   return { ok: true, rattachees: estObjet(r.corps) ? entier(r.corps.rattachees) : 0 }
 }
@@ -530,7 +536,10 @@ export async function verifierImportQr(saisie: SaisieImportQr, fetchImpl: Fetch 
   return verification ? { ok: true, verification } : { ok: false, code: 'serveur' }
 }
 
-/** Création, tout ou rien ; 409 a_reverifier : l'échec porte les diagnostics à jour (verification). */
+/**
+ * Création, tout ou rien ; 409 a_reverifier : l'échec porte les diagnostics à jour (verification). Les créées portent
+ * ce que la base a enregistré (nom, adresse, code postal, ville, jeton) : affiches et export en sont faits.
+ */
 export async function creerImportQr(saisie: SaisieImportQr, fetchImpl: Fetch = fetch): Promise<ResultatCreationImportQr> {
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/import`, 'POST', { mode: 'creer', ...saisie })
   if (!r.ok) return r
@@ -538,7 +547,8 @@ export async function creerImportQr(saisie: SaisieImportQr, fetchImpl: Fetch = f
   const liste: unknown[] = Array.isArray(c.creees) ? c.creees : []
   const listeCompletees: unknown[] = Array.isArray(c.completees) ? c.completees : []
   const creees = liste.flatMap((x) => (estObjet(x) && typeof x.numeroLigne === 'number' && typeof x.id === 'string' && typeof x.jeton === 'string'
-    ? [{ numeroLigne: x.numeroLigne, id: x.id, jeton: x.jeton }] : []))
+    ? [{ numeroLigne: x.numeroLigne, id: x.id, jeton: x.jeton, nom: chaine(x.nom), adresse: chaine(x.adresse), codePostal: chaine(x.codePostal), ville: chaine(x.ville) }]
+    : []))
   const completees = listeCompletees.flatMap((x) => (estObjet(x) && typeof x.numeroLigne === 'number' && typeof x.id === 'string'
     ? [{ numeroLigne: x.numeroLigne, id: x.id }] : []))
   return { ok: true, resultat: { creees, completees, ignorees: entier(c.ignorees), rejeu: c.rejeu === true } }

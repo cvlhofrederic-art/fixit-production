@@ -16,7 +16,7 @@
 // #gestionnaire/<uuid>), Cabinets et Journal. Le tableau, chargé une fois par TableauSignalementsQr (caché hors de ses
 // trois vues), leur est partagé ; cabinets et fiches sont chargés une fois, à la première vue qui en a besoin.
 
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
 import ListeGestionnairesQr from '@/components/aj-signalement/ListeGestionnairesQr'

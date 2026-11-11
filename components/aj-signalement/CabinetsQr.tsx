@@ -6,7 +6,8 @@
 // viendront) et chaque client a son adresse, vitfix.io/<identifiant>/… Chaque cabinet est une ligne saisie ici (jamais dans le
 // code) : nom, identifiant du chemin (proposé depuis le nom, aperçu de l'adresse, réservés refusés ; figé dès qu'il a
 // une copropriété ou un gestionnaire), langue de la page de signalement, domaines e-mail des gestionnaires (messageries
-// publiques refusées). Rattachement DÉFINITIF des copropriétés sans cabinet (avertissement d'abord). Lien vers le Journal,
+// publiques refusées). Rattachement DÉFINITIF des copropriétés sans cabinet (avertissement d'abord ; doublon avec le
+// cabinet : la copropriété semblable, puis « Ce n'est pas un doublon » ou « Rattacher quand même »). Lien vers le Journal,
 // absent de la barre du bas du téléphone.
 
 import { useId, useState } from 'react'
@@ -18,7 +19,9 @@ import { creerCabinetQr, modifierCabinetQr, rattacherCoproprietesQr, type CodeEr
 import { TEXTES_GESTION_QR as G, analyserDomainesQr, apercuCheminCabinetQr } from '@/lib/aj-signalement/affichage-gestion'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { proposerIdentifiantCabinetQr, validerIdentifiantCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
-import { LANGUES_CABINET_QR, type CabinetQr, type CoproprieteQr, type LangueCabinetQr, type SaisieCabinetQr } from '@/lib/aj-signalement/types'
+import {
+  LANGUES_CABINET_QR, type CabinetQr, type CoproprieteQr, type DoublonRenduQr, type LangueCabinetQr, type SaisieCabinetQr,
+} from '@/lib/aj-signalement/types'
 
 const DOMAINES_MAX_QR = 20
 
@@ -233,27 +236,36 @@ function RattachementQr({ cabinets, coproprietes, onFait }: Readonly<PropsRattac
   const [selection, setSelection] = useState<string[]>([])
   const [cabinetId, setCabinetId] = useState('')
   const [confirmer, setConfirmer] = useState(false)
+  const [doublon, setDoublon] = useState<DoublonRenduQr | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
   const cible = cabinets.find((c) => c.id === cabinetId) ?? null
+  const changer = () => { setConfirmer(false); setDoublon(null) }
 
   const demander = () => {
     if (selection.length === 0 || !cible) return setErreur(G.cabinets.choisirAuMoinsUne)
     setErreur(null)
+    setDoublon(null)
     setConfirmer(true)
   }
 
-  const rattacher = async () => {
+  const rattacher = async (drapeaux: { forcerDoublon?: true; confirmerDoublonProbable?: true } = {}) => {
     if (!cible || occupe) return
     setOccupe(true)
-    const r = await rattacherCoproprietesQr(cible.id, selection)
+    const r = await rattacherCoproprietesQr(cible.id, selection, fetch, drapeaux)
     setOccupe(false)
+    setConfirmer(false)
     if (!r.ok) {
-      setConfirmer(false)
+      // Doublon avec une copropriété du cabinet (RG-08) : la montrer, et le choix possible (relecture 9).
+      if (r.code === 'doublon' && r.doublon) {
+        setErreur(null)
+        return setDoublon(r.doublon)
+      }
+      setDoublon(null)
       return setErreur(messageEchecQr(r.code))
     }
     setSelection([])
-    setConfirmer(false)
+    setDoublon(null)
     onFait(r.rattachees)
   }
 
@@ -262,15 +274,29 @@ function RattachementQr({ cabinets, coproprietes, onFait }: Readonly<PropsRattac
       <div className="space-y-4">
         <ChoixCoproprietesQr
           legende={G.cabinets.choisirCopros} coproprietes={coproprietes} selection={selection}
-          onChange={(ids) => { setSelection(ids); setConfirmer(false) }}
+          onChange={(ids) => { setSelection(ids); changer() }}
         />
         <Champ id={`${idBase}-cabinet`} etiquette={G.cabinets.rattacherA}>
-          <select id={`${idBase}-cabinet`} value={cabinetId} onChange={(e) => { setCabinetId(e.target.value); setConfirmer(false) }} className={CLASSES_SAISIE}>
+          <select id={`${idBase}-cabinet`} value={cabinetId} onChange={(e) => { setCabinetId(e.target.value); changer() }} className={CLASSES_SAISIE}>
             <option value="">{G.cabinets.choisirCabinet}</option>
             {cabinets.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>
         </Champ>
         {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
+        {doublon && (
+          <Encadre ton="avertissement">
+            <p>{remplir(G.copropriete.doublon, { nom: doublon.copropriete.nom, ville: doublon.copropriete.ville || '—' })}</p>
+            {doublon.certitude === 'certain' && doublon.critere !== 'nom_code_postal' && <p className="mt-1">{G.copropriete.doublonBloquant}</p>}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {doublon.certitude === 'certain' && doublon.critere === 'nom_code_postal' && (
+                <Bouton variante="danger" petit disabled={occupe} onClick={() => { void rattacher({ forcerDoublon: true }) }}>{G.cabinets.pasDoublonRattacher}</Bouton>
+              )}
+              {doublon.certitude === 'probable' && (
+                <Bouton variante="danger" petit disabled={occupe} onClick={() => { void rattacher({ confirmerDoublonProbable: true }) }}>{G.cabinets.rattacherQuandMeme}</Bouton>
+              )}
+            </div>
+          </Encadre>
+        )}
         {confirmer && cible ? (
           <div className="space-y-3">
             <Encadre ton="avertissement">{remplir(G.cabinets.rattachementAvertissement, { identifiant: cible.identifiant })}</Encadre>
