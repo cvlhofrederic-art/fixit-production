@@ -47,6 +47,14 @@ const nextConfig: NextConfig = {
         { source: '/fr/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/fr/admin/:path*', destination: '/admin/:path*' },
         { source: '/fr/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        // Espace AJ Signalement (super admin) : l'espace (vues par ancre, #signalements…) et sa page de connexion
+        // professionnelle, en règles exactes seulement. Une autre sous-page un jour (ex. /gestionnaires/) : ses deux
+        // règles exactes, ou « :path* » APRÈS toutes ces règles exactes (OpenNext : « :path* » vide laisse la destination
+        // littérale).
+        { source: '/fr/aj-signalement', destination: '/aj-signalement' },
+        { source: '/fr/aj-signalement/', destination: '/aj-signalement/' },
+        { source: '/fr/aj-signalement/connexion', destination: '/aj-signalement/connexion' },
+        { source: '/fr/aj-signalement/connexion/', destination: '/aj-signalement/connexion/' },
         { source: '/fr/contact', destination: '/contact' },
         { source: '/fr/contact/', destination: '/contact/' },
         { source: '/fr/confirmation', destination: '/confirmation' },
@@ -81,6 +89,10 @@ const nextConfig: NextConfig = {
         { source: '/pt/administrateur-judiciaire/:path*', destination: '/administrateur-judiciaire/:path*' },
         { source: '/pt/admin/:path*', destination: '/admin/:path*' },
         { source: '/pt/coproprietaire/:path*', destination: '/coproprietaire/:path*' },
+        { source: '/pt/aj-signalement', destination: '/aj-signalement' },
+        { source: '/pt/aj-signalement/', destination: '/aj-signalement/' },
+        { source: '/pt/aj-signalement/connexion', destination: '/aj-signalement/connexion' },
+        { source: '/pt/aj-signalement/connexion/', destination: '/aj-signalement/connexion/' },
         // Slug PT du contact (phase 1 SEO PT, point 1.8) ; /pt/contact/ redirige vers /pt/contacto/.
         { source: '/pt/contacto', destination: '/contact' },
         { source: '/pt/contacto/', destination: '/contact/' },
@@ -98,6 +110,10 @@ const nextConfig: NextConfig = {
         { source: '/:locale(en|nl|es)/rejoindre/', destination: '/rejoindre/' },
         { source: '/:locale(en|nl|es)/rfq/repondre/:token', destination: '/rfq/repondre/:token' },
         { source: '/:locale(en|nl|es)/signalement/:jeton', destination: '/signalement/:jeton' },
+        // Lien de l'e-mail Supabase « mot de passe oublié » : route app/(commun)/auth/confirm/,
+        // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
+        { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
+        { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
       ],
       afterFiles: [],
       fallback: [],
@@ -298,6 +314,12 @@ const nextConfig: NextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
         ],
       },
+      // Espace AJ Signalement (super admin), page de connexion comprise : jamais indexable. Les redirections du middleware
+      // portent le même en-tête (middleware.ts, viseEspacePrive).
+      ...['/:locale(fr|pt)/aj-signalement/:path*', '/aj-signalement/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      })),
     ]
   },
 };

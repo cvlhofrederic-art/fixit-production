@@ -29,6 +29,8 @@ import {
 } from '@/lib/devis-types'
 import { mapLegalFormToCode, titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
 import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/facture-depuis-devis'
+import { statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
+import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassique } from '@/lib/devis-btp-affichage'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { localFallbackDocNumber } from '@/lib/doc-number'
@@ -220,24 +222,9 @@ export default function DevisFactureFormBTP({
   const [docTitle, setDocTitle] = useState(initialData?.docTitle || '')
 
   // Entreprise
-  const [statutJuridique, setStatutJuridique] = useState(() => {
-    if (initialData?.companyStatus) return initialData.companyStatus
-    if (artisan?.legal_form) {
-      const code = mapLegalFormToCode(artisan.legal_form)
-      // Map code retourné → valeur exacte STATUTS_JURIDIQUES
-      const codeToLabel: Record<string, string> = {
-        'ei': 'Entreprise Individuelle (EI)',
-        'eurl': 'EURL',
-        'sarl': 'SARL',
-        'sas': 'SAS',
-        'sasu': 'SASU',
-        'ae': 'Auto-entrepreneur',
-        'sa': 'SA',
-      }
-      return codeToLabel[code] || 'Entreprise Individuelle (EI)'
-    }
-    return 'Entreprise Individuelle (EI)'
-  })
+  // Champ verrouillé, « défini à l'inscription » : forme du profil, sauf document déjà émis (figée avec lui)
+  const [statutJuridique, setStatutJuridique] = useState(() =>
+    statutJuridiqueInitialBtp(initialData, artisan?.legal_form))
   const [companyName, setCompanyName] = useState(initialData?.companyName || artisan?.company_name || '')
   const [companySiret, setCompanySiret] = useState(initialData?.companySiret || artisan?.siret || '')
   // L'adresse arrive parfois en MAJ depuis le Kbis (KINNOVA GROUP 115 RUE …).
@@ -923,8 +910,10 @@ export default function DevisFactureFormBTP({
       } catch { /* Sentry indisponible — pas bloquant */ }
     }
 
-    return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC }
+    return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC, totalLabel: tva.totalLabel }
   }, [lines, materialLines, fraisLines, materialLinesEnabled, fraisLinesEnabled, customTables, regimeTva])
+  // Autoliquidation ou franchise : pas de taux à afficher dans le résumé (il montrait « TVA 20 % » à 0,00 €)
+  const ligneTvaResume = ligneTvaHorsClassique(regimeTva)
 
   /* ──────── Conformité légale (checklist sidebar) ──────── */
 
@@ -1249,6 +1238,9 @@ export default function DevisFactureFormBTP({
     setClientAddress(c.mainAddress || c.address || '')
     // BTP — pré-remplir les champs détaillés s'ils existent (clients créés avec le nouveau format)
     const cAny = c as Record<string, unknown>
+    // Même règle que la base clients (type B2B ou SIRET) : un client pro passe en « Professionnel »,
+    // avec raison sociale et SIRET ; le type restait sur « Particulier » à l'import.
+    setClientType(estClientProfessionnel(cAny) ? 'professionnel' : 'particulier')
     setClientFirstName((cAny.firstName as string) || '')
     setClientLastName((cAny.lastName as string) || '')
     setClientStreet((cAny.street as string) || '')
@@ -2334,7 +2326,7 @@ export default function DevisFactureFormBTP({
                     <strong>Mode autoliquidation activé.</strong> La TVA n&apos;est pas collectée par votre société —
                     elle est due par le donneur d&apos;ordre. Les taux TVA des lignes sont ignorés au PDF,
                     le total apparaît comme &laquo;&nbsp;TOTAL NET&nbsp;&raquo; avec la mention obligatoire
-                    «&nbsp;Autoliquidation — Article 283, 2 nonies du CGI&nbsp;».
+                    «&nbsp;Autoliquidation : article 283, 2 nonies du CGI&nbsp;».
                     <br />
                     <strong>Conditions :</strong> client professionnel, SIRET renseigné, votre N° TVA intracom renseigné.
                   </div>
@@ -3376,7 +3368,7 @@ export default function DevisFactureFormBTP({
 
           {/* 10. GARANTIES LÉGALES */}
           <div className="dv-section">
-            <div className="dv-section-t">GARANTIES LÉGALES (CLIENT PARTICULIER)</div>
+            <div className="dv-section-t">{clientType === 'particulier' ? 'GARANTIES LÉGALES (CLIENT PARTICULIER)' : 'GARANTIES LÉGALES (CLIENT PROFESSIONNEL)'}</div>
             <div className="dv-info-strip">
               <div className="ico">🛡️</div>
               <div className="txt">
@@ -3392,7 +3384,8 @@ export default function DevisFactureFormBTP({
                     if (elig === 'conditional') {
                       return "Garanties 1792 applicables uniquement si l'intervention constitue un ouvrage : parfait achèvement (1 an, art. 1792-6) · biennale (2 ans, art. 1792-3) · décennale (10 ans, art. 1792). Sinon : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.)."
                     }
-                    return 'Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · Garantie légale de conformité (art. L. 217-3 C. conso.) · Garantie des vices cachés (art. 1641 C. civ.).'
+                    // Garantie légale de conformité : Code de la consommation, client particulier seulement
+                    return `Garantie de parfait achèvement (1 an, art. 1792-6 C. civ.) · Garantie biennale de bon fonctionnement (2 ans, art. 1792-3) · Garantie décennale (10 ans, art. 1792) · ${clientType === 'particulier' ? 'Garantie légale de conformité (art. L. 217-3 C. conso.) · ' : ''}Garantie des vices cachés (art. 1641 C. civ.).`
                   })()}
                 </div>
               </div>
@@ -3620,13 +3613,13 @@ export default function DevisFactureFormBTP({
                     <>Micro-entrepreneur — Dispensé d&apos;immatriculation au RCS/RM (art. L. 123-1-1 C. com.). TVA non applicable, article 293 B du CGI.<br /></>
                   )}
                   {(statutJuridique === 'SARL' || statutJuridique === 'EURL') && (
-                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
                   )}
                   {(statutJuridique === 'SAS' || statutJuridique === 'SASU') && (
-                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                    <>{statutJuridique} au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
                   )}
                   {statutJuridique === 'SA' && (
-                    <>SA au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au RCS de {companyRCS || '[RCS à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                    <>SA au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
                   )}
                 </>
               )}
@@ -3745,7 +3738,7 @@ export default function DevisFactureFormBTP({
                 if (elig === 'conditional') {
                   return <>GARANTIES LÉGALES : applicables uniquement aux travaux constituant un ouvrage (art. 1792 C. civ.) — parfait achèvement (1 an, art. 1792-6), biennale (2 ans, art. 1792-3), décennale (10 ans, art. 1792). Prestations d&apos;entretien : responsabilité contractuelle de droit commun (art. 1231-1 C. civ.).<br /><br /></>
                 }
-                return <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).<br /><br /></>
+                return <>GARANTIES LÉGALES : parfait achèvement (1 an), bon fonctionnement (2 ans), décennale (10 ans) — articles 1792 et suivants du Code civil. {clientType === 'particulier' ? <>Garantie légale de conformité (art. L. 217-3 C. conso.) et garantie des vices cachés (art. 1641 C. civ.).</> : <>Garantie des vices cachés (art. 1641 C. civ.).</>}<br /><br /></>
               })()}
 
               {/* ═══ 9. GESTION DES DÉCHETS — obligatoire BTP France depuis 01/07/2021 (loi AGEC) ═══ */}
@@ -3786,7 +3779,9 @@ export default function DevisFactureFormBTP({
             <div className="dv-resume-row"><span>Remise</span><span>− {fmt(totaux.remise)}</span></div>
             <div className="dv-resume-row subtotal"><span>Total HT</span><span>{fmt(totaux.totalHT)}</span></div>
             {tvaEnabled ? (
-              totaux.tvaEntries.length === 0 ? (
+              ligneTvaResume ? (
+                <div className="dv-resume-row tva"><span>{ligneTvaResume.libelle}</span><span>{ligneTvaResume.valeur}</span></div>
+              ) : totaux.tvaEntries.length === 0 ? (
                 <div className="dv-resume-row tva"><span>TVA 20 %</span><span>{fmt(0)}</span></div>
               ) : (
                 <>
@@ -3802,7 +3797,7 @@ export default function DevisFactureFormBTP({
                 </>
               )
             ) : null}
-            <div className="dv-resume-row total"><span>TOTAL TTC</span><span>{fmt(totaux.totalTTC)}</span></div>
+            <div className="dv-resume-row total"><span>{totaux.totalLabel}</span><span>{fmt(totaux.totalTTC)}</span></div>
           </div>
 
           {/* CONFORMITÉ LÉGALE */}

@@ -16,6 +16,7 @@ import {
   controlerHonorairesTravaux,
   creerBudgetOperationTravaux,
   droitProportionnelTravauxAdministrateurProvisoire,
+  droitsProportionnelsTravauxParOperation,
   marquerNePasUtiliserFondsTravaux,
   POSTES_BUDGET_TRAVAUX,
   suiviFinancierOperationTravaux,
@@ -388,6 +389,82 @@ describe('droit proportionnel de l’administrateur provisoire sur travaux (arr�
   })
 })
 
+/**
+ * Décision J39 de Hugo (06/11/2026, question de la PR #651, point 31) : le barème de l'art. 11 de l'arrêté du 8 octobre
+ * 2015 s'applique OPÉRATION PAR OPÉRATION. Chaque opération a son propre calcul par tranches ; le droit de plusieurs
+ * opérations est la somme de leurs droits, jamais le barème appliqué au cumul de leurs montants.
+ */
+describe('J39 — droit proportionnel opération par opération, jamais sur le cumul de plusieurs opérations', () => {
+  const droitDuBloc = (centimes: number) => droitProportionnelTravauxAdministrateurProvisoire(centimes).droitHtCentimes
+
+  it('deux opérations de 12 500 € HT : 250 € chacune, 500 € en tout ; le barème sur le cumul (25 000 €) donnerait 437,50 €', () => {
+    const deux = droitsProportionnelsTravauxParOperation([
+      { numero: 'T-1', montantTravauxHtCentimes: 1_250_000 },
+      { numero: 'T-2', montantTravauxHtCentimes: 1_250_000 },
+    ])
+    expect(deux.operations.map((o) => [o.numero, o.droit.droitHtCentimes])).toEqual([
+      ['T-1', 25_000],
+      ['T-2', 25_000],
+    ])
+    expect(deux.totalDroitHtCentimes).toBe(50_000)
+    expect(droitDuBloc(2_500_000)).toBe(43_750)
+    expect(deux.totalDroitHtCentimes).not.toBe(droitDuBloc(2_500_000))
+    // Chaque opération repart de la première tranche du barème (2 % jusqu'à 12 500 €).
+    for (const { droit } of deux.operations) expect(droit.tranches[0]).toEqual({ tauxPct: 2, baseCentimes: 1_250_000 })
+  })
+
+  it('trois opérations : chacune son barème ; le total n’est jamais celui du cumul des montants', () => {
+    const trois = droitsProportionnelsTravauxParOperation([
+      { numero: 'T-1', montantTravauxHtCentimes: 4_000_000 },
+      { numero: 'T-2', montantTravauxHtCentimes: 1_000_000 },
+      { numero: 'T-3', montantTravauxHtCentimes: 3_000_000 },
+    ])
+    // 587,50 € + 200 € + 487,50 € = 1 275 € ; sur le cumul de 80 000 € : 987,50 €.
+    expect(trois.operations.map((o) => o.droit.droitHtCentimes)).toEqual([58_750, 20_000, 48_750])
+    expect(trois.totalDroitHtCentimes).toBe(127_500)
+    expect(droitDuBloc(8_000_000)).toBe(98_750)
+    for (const o of trois.operations) expect(o.droit).toEqual(droitProportionnelTravauxAdministrateurProvisoire(o.montantTravauxHtCentimes))
+  })
+
+  it('l’arrondi au centime se fait opération par opération, pas sur le cumul', () => {
+    const petites = droitsProportionnelsTravauxParOperation([
+      { numero: 'T-1', montantTravauxHtCentimes: 33 },
+      { numero: 'T-2', montantTravauxHtCentimes: 33 },
+    ])
+    expect(petites.totalDroitHtCentimes).toBe(2)
+    expect(droitDuBloc(66)).toBe(1)
+  })
+
+  it('numéro vide refusé ; aucune opération : aucun droit ; opération en double : refus, choix de VitFix à confirmer, pas une décision J39', () => {
+    const doublon = () =>
+      droitsProportionnelsTravauxParOperation([
+        { numero: 'T-1', montantTravauxHtCentimes: 1_000_000 },
+        { numero: ' T-1 ', montantTravauxHtCentimes: 250_000 },
+      ])
+    expect(doublon).toThrow(/Opération T-1 fournie deux fois : refusée \(choix de VitFix, à confirmer\)/)
+    expect(doublon).toThrow(/deux calculs pour une même opération feraient repartir le barème de sa première tranche/)
+    // J39 dit seulement que chaque opération a son propre calcul : le refus du doublon ne l'invoque pas.
+    expect(doublon).not.toThrow(/J39/)
+    expect(() => droitsProportionnelsTravauxParOperation([{ numero: ' ', montantTravauxHtCentimes: 1_000 }])).toThrow(/numéro/i)
+    expect(() => droitsProportionnelsTravauxParOperation([{ numero: 'T-1', montantTravauxHtCentimes: -1 }])).toThrow(/centimes entiers/)
+    expect(droitsProportionnelsTravauxParOperation([])).toMatchObject({ operations: [], totalDroitHtCentimes: 0, depasseSeuilArticle15: false })
+  })
+
+  it('art. 15 : le total des droits de l’art. 11 des opérations est rapproché du seuil de 75 000 € HT', () => {
+    // 37 500 € de droit par opération : 75 000 € en tout, seuil non dépassé ; un centime de plus le dépasse.
+    const total = (seconde: number) =>
+      droitsProportionnelsTravauxParOperation([
+        { numero: 'T-1', montantTravauxHtCentimes: 373_125_000 },
+        { numero: 'T-2', montantTravauxHtCentimes: seconde },
+      ])
+    expect(total(373_125_000)).toMatchObject({ totalDroitHtCentimes: 7_500_000, depasseSeuilArticle15: false })
+    const auDela = total(373_125_100)
+    expect(auDela).toMatchObject({ totalDroitHtCentimes: 7_500_001, depasseSeuilArticle15: true, aConfirmer: true })
+    expect(auDela.operations.every((o) => !o.droit.depasseSeuilArticle15)).toBe(true)
+    expect(auDela.fondements).toEqual(['Arrêté du 8 octobre 2015, art. 11 et 15', 'D. 1967 art. 61-1-5, I, 2°'])
+  })
+})
+
 describe('honoraires sur travaux : contrôle du poste « Honoraires cabinet »', () => {
   const op = operation()
   const b = budget(op)
@@ -736,7 +813,7 @@ describe('en-tête : sources, marqueurs et questions', () => {
 
   it('pose les questions ouvertes avec le choix actuel de VitFix', () => {
     expect(texte).toContain('« La ligne "Fonds de prévoyance" de l\'onglet Budget porte-t-elle la part financée par le fonds de travaux')
-    expect(texte).toContain('(VitFix : sur le montant hors taxes fourni, opération par opération, à confirmer)')
+    expect(texte).toContain('(VitFix : le montant hors taxes fourni pour chaque opération, à confirmer)')
     expect(texte).toContain(
       '« Le bouton "Ne pas utiliser les fonds travaux" exclut-il tout emploi du fonds pour l\'opération (part, emploi, règlement depuis le compte du fonds), ou seulement le règlement de ses factures depuis ce compte ? »',
     )
@@ -746,6 +823,30 @@ describe('en-tête : sources, marqueurs et questions', () => {
   it('signale les ajouts hors du module et les branchements à faire', () => {
     expect(texte).toContain('travaux-operations.ts (ajout du point 31)')
     expect(texte).toContain('virement-interne.ts')
+  })
+
+  it('J39 (décision de Hugo du 06/11/2026) : barème opération par opération ; le 🔴 ne garde que l’assiette et la présentation au juge', () => {
+    expect(texte).toContain('Décisions de Hugo du 06/11/2026')
+    const j39 = item('J39 :')
+    expect(j39).toMatch(/opération par opération/)
+    expect(j39).toMatch(/arrêté du 8 octobre 2015, art\. 11/)
+    expect(j39).toMatch(/droitsProportionnelsTravauxParOperation/)
+    expect(j39).toMatch(/jamais le barème appliqué au cumul/)
+    const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(nonEtabli).not.toMatch(/s'applique-t-il opération par opération/)
+    expect(nonEtabli).not.toMatch(/une seule fois au "montant total"/)
+    expect(nonEtabli).toMatch(/Sur quelle assiette/)
+    expect(nonEtabli).toMatch(/compte provisoire détaillé des émoluments/)
+  })
+
+  it('le refus d’une opération fournie deux fois est un choix de VitFix, posé en question 🔴 à Hugo, non une décision J39', () => {
+    const deduit = texte.slice(texte.indexOf('🔵 Déduit'), texte.indexOf('🔴 Non établi'))
+    expect(deduit).not.toMatch(/un numéro fourni deux fois est refusé/)
+    const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
+    expect(nonEtabli).toContain(
+      '« (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s\'additionnent-ils avant un seul calcul par tranches ? »',
+    )
+    expect(nonEtabli).toMatch(/\(VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas/)
   })
 })
 

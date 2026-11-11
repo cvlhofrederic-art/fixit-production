@@ -442,10 +442,56 @@ describe('pages partagées servies sous /fr et /pt', () => {
     ['es', '/rfq/repondre/abc123/', '/rfq/repondre/abc123'],
     ['en', '/tracking/abc123/', '/tracking/abc123'],
     ['nl', '/tracking/abc123/', '/tracking/abc123'],
+    // Lien de l'e-mail Supabase « mot de passe oublié » : route app/(commun)/auth/confirm/.
+    ['fr', '/auth/confirm/', '/auth/confirm'],
+    ['pt', '/auth/confirm/', '/auth/confirm'],
+    ['en', '/auth/confirm/', '/auth/confirm'],
+    ['nl', '/auth/confirm/', '/auth/confirm'],
+    ['es', '/auth/confirm/', '/auth/confirm'],
+    ['en', '/auth/confirm', '/auth/confirm'],
   ])('lien e-mail suivi en locale %s : %s est servi par %s', async (locale, chemin, page) => {
     // Le middleware préfixe un lien sans locale par la locale du cookie ou de l'Accept-Language, en/nl/es compris.
     const [avantFichiers] = await reecritures()
     expect(sansBarreFinale(resoudre(avantFichiers, `/${locale}${chemin}`))).toBe(page)
+  })
+
+  it.each(['/fr/aj-signalement/', '/fr/aj-signalement', '/pt/aj-signalement/', '/pt/aj-signalement'])(
+    '%s est servie par l’espace AJ Signalement (règles exactes, sans « :path* »)',
+    async (chemin) => {
+      // Espace indépendant du super admin (10/11/2026) : une seule page, vues par ancre (#signalements…).
+      const [avantFichiers] = await reecritures()
+      expect(pageExiste('/aj-signalement')).toBe(true)
+      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/aj-signalement')
+    },
+  )
+
+  it.each(['/fr/aj-signalement/connexion/', '/fr/aj-signalement/connexion', '/pt/aj-signalement/connexion/', '/pt/aj-signalement/connexion'])(
+    '%s est servie par la page de connexion professionnelle de l’espace (règles exactes, sans « :path* »)',
+    async (chemin) => {
+      // Connexion professionnelle de l'espace (Hugo, 11/11/2026) : e-mail et mot de passe, sans choix Particulier / Pro.
+      const [avantFichiers] = await reecritures()
+      expect(pageExiste('/aj-signalement/connexion')).toBe(true)
+      expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe('/aj-signalement/connexion')
+    },
+  )
+
+  it('l’espace AJ Signalement ne capte ni la page publique du QR code ni un autre sous-chemin', async () => {
+    const [avantFichiers] = await reecritures()
+    const jeton = '0123456789abcdef0123456789abcdef'
+    expect(sansBarreFinale(resoudre(avantFichiers, `/fr/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
+    // Aucune règle « :path* » : pas de destination littérale possible ; chaque page a ses deux règles exactes.
+    expect(resoudre(avantFichiers, '/fr/aj-signalement/autre/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/aj-signalement/connexion/autre/')).toBeNull()
+    expect(avantFichiers.filter(({ source }) => source.includes('aj-signalement')).map(({ source }) => source)).toEqual([
+      '/fr/aj-signalement', '/fr/aj-signalement/', '/fr/aj-signalement/connexion', '/fr/aj-signalement/connexion/',
+      '/pt/aj-signalement', '/pt/aj-signalement/', '/pt/aj-signalement/connexion', '/pt/aj-signalement/connexion/',
+    ])
+  })
+
+  it('la page de connexion générale (/fr|pt/auth/login/) reste servie par sa règle habituelle', async () => {
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, '/fr/auth/login/'))).toBe('/auth/login')
+    expect(sansBarreFinale(resoudre(avantFichiers, '/pt/auth/login/'))).toBe('/auth/login')
   })
 
   it('le lien « Avis » du Footer FR mène à une page', () => {

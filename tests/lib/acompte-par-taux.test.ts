@@ -289,7 +289,7 @@ describe('régimes sans TVA facturée', () => {
     expect(lignes[0].description).toBe('Acompte de 30 % sur travaux sous-traités — autoliquidation de la TVA')
     const acompte = buildAcompteParTauxPrefill(devis, PARAMS_30)
     expect(acompte.regimeTva).toBe('autoliquidation_btp')
-    expect(String(acompte.notes)).toContain('Autoliquidation — Article 283, 2 nonies du CGI')
+    expect(String(acompte.notes)).toContain('Autoliquidation : article 283, 2 nonies du CGI')
     expect(String(acompte.notes)).not.toContain('exigible')
   })
 

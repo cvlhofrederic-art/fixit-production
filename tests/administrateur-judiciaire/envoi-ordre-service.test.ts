@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { CourrierSuivi } from '@/lib/administrateur-judiciaire/domain/courriers'
+import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { DecisionAnnuelle, TypeDecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import {
   codificationFacture,
@@ -17,6 +18,8 @@ import {
   FORME_ENVOI_PAR_CANAL,
   LONGUEUR_MAX_NUMERO_OS,
   LONGUEUR_MAX_OBJET_OS,
+  MOIS_ALERTE_REVALORISATION_DEVIS,
+  MOIS_CADUCITE_DEVIS_OS,
   REGLES_VISA_PAR_DEFAUT,
   VISAS_PERMETTANT_ENVOI,
   VISAS_SORTIE,
@@ -81,7 +84,8 @@ import { ajOrdrePrestataireSchema } from '@/lib/validation'
  * Visa de sortie). Droit relu le 30/10/2026 : L. 1965 art. 18, 18-1 A, 21, 21-1 à 21-3, 25, 29-1, 42 ; D. 1967 art. 19-2,
  * 37, 39, 62-7, 62-8 ; C. civ. art. 1117, 1118, 1121, 1126, 1127, 1127-4 ; loi n° 2004-575 art. 1er, IV ; L. 1965
  * art. 18, IV, 29-1, I et 42, al. 2 et 3 relus le 04/11/2026 (versions en vigueur au 03/11/2026). Décisions de Hugo du
- * 03/11/2026 : J11 à J19.
+ * 03/11/2026 : J11 à J19 ; du 06/11/2026 : J17 confirmée, J46 et J47 ; du 10/11/2026 : J48 (précision de J17, L. 1965
+ * art. 42, al. 3 relu le 10/11/2026) et J49 (suite de J47).
  */
 
 const modele = (nature: string): ModeleDemande => {
@@ -134,6 +138,9 @@ const CONTEXTE: ContexteEnvoiOs = {
   controle: { decennaleObligatoire: false },
   prestataireAvecCompteVitfix: true,
 }
+
+/** Contexte d'un OS qui accepte un devis associé daté de moins d'un an (décision J47 : date du devis connue). */
+const CONTEXTE_DEVIS: ContexteEnvoiOs = { ...CONTEXTE, dateDevis: '2026-09-15' }
 
 const evenement = (collaborateurId: string, role: RoleCabinet, heure: string, motif?: string): SaisieEvenementVisa => ({
   date: '2026-10-02',
@@ -526,10 +533,10 @@ describe('contrôle avant l’envoi', () => {
 
   it('devis associé échu à la date de l’envoi : alerte (C. civ. art. 1117)', () => {
     const d = demande({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 } })
-    const anomalies = controlerAvantEnvoiOs(d, sortie(d), { ...CONTEXTE, validiteDevisAu: '2026-10-02' })
+    const anomalies = controlerAvantEnvoiOs(d, sortie(d), { ...CONTEXTE_DEVIS, validiteDevisAu: '2026-10-02' })
     expect(codes(anomalies)).toEqual(['devis_caduc'])
     expect(anomalies[0].fondement).toMatch(/1117/)
-    expect(controlerAvantEnvoiOs(d, sortie(d), { ...CONTEXTE, validiteDevisAu: '2026-10-03' })).toEqual([])
+    expect(controlerAvantEnvoiOs(d, sortie(d), { ...CONTEXTE_DEVIS, validiteDevisAu: '2026-10-03' })).toEqual([])
   })
 
   it('contrôle déclaratif (point 37) : non fait sous le seuil → alerte ; vigilance manquante au-delà du seuil → bloquant ; pièces d’une autre entreprise → bloquant', () => {
@@ -722,7 +729,9 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     // sans date prévue : la date de l'envoi
     const sansDate = demande({ prevuLe: null })
     expect(bloquants(controlerAvantEnvoiOs(sansDate, creerSortieOs(sansDate, { ...PRETE, fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', majoriteResolution: 'art25' }), pendant))).toEqual(['execution_suspendue_art42'])
-    expect(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: '2026-10-14' })).toEqual([])
+    // délai expiré avant l'envoi du 03/10 (intervention prévue le 15/10) : rien (J48 : l'envoi pendant le délai est bloqué)
+    expect(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: composerDateIso(2026, 10, 2) })).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: composerDateIso(2026, 10, 14) }))).toEqual(['execution_suspendue_art42'])
     expect(controlerAvantEnvoiOs(d, resolution({ majoriteResolution: 'art24' }), pendant)).toEqual([])
     expect(bloquants(controlerAvantEnvoiOs(d, resolution({ delai: 'urgence', constatUrgence: { ...CONSTAT, motif: 'Infiltrations actives' } }), pendant))).toEqual([])
     expect(codes(controlerAvantEnvoiOs(d, resolution(), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
@@ -763,7 +772,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
 
   it('devis associé : échu avant que le courrier parvienne à l’entreprise (C. civ. art. 1117, 1121), et à la réception enregistrée', () => {
     const d = demande({ devisAssocie: { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 } })
-    const jourMeme = { ...CONTEXTE, validiteDevisAu: '2026-10-03' }
+    const jourMeme = { ...CONTEXTE_DEVIS, validiteDevisAu: '2026-10-03' }
     for (const canal of ['courrier', 'courrier_ar'] as const) {
       const anomalies = controlerAvantEnvoiOs(d, sortie(d, { canal }), jourMeme)
       expect(codes(anomalies), canal).toEqual(['devis_caduc'])
@@ -771,7 +780,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
       expect(anomalies[0].aConfirmer).toBe(true)
     }
     expect(controlerAvantEnvoiOs(d, sortie(d), jourMeme)).toEqual([])
-    expect(controlerAvantEnvoiOs(d, sortie(d, { canal: 'courrier' }), { ...CONTEXTE, validiteDevisAu: '2026-10-04' })).toEqual([])
+    expect(controlerAvantEnvoiOs(d, sortie(d, { canal: 'courrier' }), { ...CONTEXTE_DEVIS, validiteDevisAu: '2026-10-04' })).toEqual([])
     const envoye = envoyerOs(d, sortie(d), ENVOI, CONTEXTE)
     const recu = enregistrerReception(envoye, { ...ENVOI, date: '2026-10-05', heure: '09:00' })
     const tardive = devisCaducALaReception(d, recu, '2026-10-04')
@@ -1299,7 +1308,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', (
     expect(envoyerOs(devis, sortie(devis, cadreAj(le('2026-10-03'))), ENVOI, contexte).journal).toHaveLength(1)
   })
 
-  it('constat qui tient lieu de l’avis, daté après la décision au registre : alerte à confirmer (règle proposée, question à Hugo), plus de bloquant', () => {
+  it('constat qui tient lieu de l’avis, daté après la décision au registre : alerte à confirmer (décision J46 de Hugo du 06/11/2026), plus de bloquant', () => {
     const d = demande()
     // bornes : constat du jour de la décision, rien ; du lendemain, alerte à confirmer
     expect(controlerAvantEnvoiOs(d, sortie(d, cadreAj(le('2026-10-02'))), CONTEXTE)).toEqual([])
@@ -1322,7 +1331,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', (
     expect(apresEnvoi[0].message).toMatch(/après l'envoi du 03\/10\/2026/)
   })
 
-  it('exécution d’une résolution (L. 1965 art. 42, al. 3 ; la décision 7 ne fixe pas la date du constat) et autres fondements : la date du constat n’est pas comparée à la décision', () => {
+  it('exécution d’une résolution (L. 1965 art. 42, al. 3 ; J46 : seule la borne de l’envoi vaut) et autres fondements : la date du constat n’est pas comparée à la décision', () => {
     const d = demande()
     const pendant = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
     // constat du jour de l'envoi, trois semaines après la résolution du 12/09/2026 (tour 2 : un constat postérieur à l'envoi
@@ -1543,19 +1552,20 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', (
 describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19)', () => {
   const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
 
-  it('7 (J17). L. 1965 art. 42, al. 3, « oui » compris comme la confirmation des trois choix : envoi bloqué pendant le délai, intervention = travaux, unanimité non suspendue (comportement inchangé)', () => {
+  it('7 (J17). L. 1965 art. 42, al. 3, « oui » compris comme la confirmation des trois choix : envoi bloqué pendant le délai, intervention = travaux, unanimité non suspendue (précisé par J48 : l’envoi pendant le délai suffit à bloquer)', () => {
     const d = demande()
     const resolution = (majoriteResolution: SaisieSortieOs['majoriteResolution'], cible: Demande = d) =>
       sortie(cible, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution })
-    // (a) bloquant : l'envoi est refusé tant que l'intervention tombe dans le délai de contestation
+    // (a) bloquant : l'envoi est refusé pendant le délai de contestation, que l'intervention tombe dans le délai ou, depuis J48, après lui
     for (const majorite of ['art25', 'art26'] as const) {
       const [suspendu] = controlerAvantEnvoiOs(d, resolution(majorite), pendant)
       expect(suspendu, majorite).toMatchObject({ code: 'execution_suspendue_art42', gravite: 'bloquant', fondement: 'L. 1965 art. 42, al. 3', aConfirmer: true })
       expect(() => envoyerOs(d, resolution(majorite), ENVOI, pendant), majorite).toThrow(/non envoyé : Travaux votés à la majorité/)
     }
-    // bornes : intervention le dernier jour du délai, bloquant ; le lendemain, rien
-    expect(bloquants(controlerAvantEnvoiOs(demande({ prevuLe: '2026-11-20' }), resolution('art25'), pendant))).toEqual(['execution_suspendue_art42'])
-    expect(controlerAvantEnvoiOs(demande({ prevuLe: '2026-11-21' }), resolution('art25'), pendant)).toEqual([])
+    // intervention le dernier jour du délai, bloquant ; le lendemain, envoi pendant le délai : bloquant aussi depuis J48
+    // (bornes sur la date de l'envoi : décision J48, plus bas)
+    expect(bloquants(controlerAvantEnvoiOs(demande({ prevuLe: composerDateIso(2026, 11, 20) }), resolution('art25'), pendant))).toEqual(['execution_suspendue_art42'])
+    expect(bloquants(controlerAvantEnvoiOs(demande({ prevuLe: composerDateIso(2026, 11, 21) }), resolution('art25'), pendant))).toEqual(['execution_suspendue_art42'])
     // (b) toute intervention qui exécute la résolution vaut « travaux », quel que soit son objet ; une demande de devis n'exécute rien
     const diagnostic = demande({ objet: 'Diagnostic amiante avant travaux' })
     expect(bloquants(controlerAvantEnvoiOs(diagnostic, resolution('art25', diagnostic), pendant))).toEqual(['execution_suspendue_art42'])
@@ -1641,7 +1651,7 @@ describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19
     // l'envoi ne porte pas d'AR ; la relance non plus
     expect(envoye.journal[0].ar).toBeNull()
     expect(relancerOs(envoye, { ...envoiAr, date: '2026-10-05' }).journal[1].ar).toBeNull()
-    // aucune caducité codée ; la réception reste datée de sa ligne (la première présentation ne la remplace pas : question ouverte)
+    // aucune caducité de l'AR (J47 : seul le devis devient caduc) ; la réception reste datée de sa ligne (la première présentation ne la remplace pas : question ouverte)
     expect(codes(devisCaducALaReception(d, prouvee, '2026-10-05'))).toEqual(['devis_caduc'])
   })
 
@@ -1754,7 +1764,7 @@ describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
   })
 
   it('8 (J18) : l’administrateur désigné (administrateurDesigneId) signe toujours, même hors de la liste du cabinet ; liste vide : lui seul ; sans lui, tout envoi est bloqué', () => {
-    const vide: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: new Set<string>() }
+    const vide: ContexteEnvoiOs = { ...CONTEXTE_DEVIS, signatairesHabilites: new Set<string>() }
     const parAj = sortie(d, { signataireId: 'col-aj' })
     // liste vide sans administrateur désigné : tout signataire est bloqué
     expect(bloquants(controlerAvantEnvoiOs(d, parAj, vide))).toEqual(['signataire_non_habilite'])
@@ -1765,7 +1775,7 @@ describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
     expect(envoyerOs(d, parAj, ENVOI, avecAj).journal).toHaveLength(1)
     expect(bloquants(controlerAvantEnvoiOs(d, sortie(d, { signataireId: 'col-gestion' }), avecAj))).toEqual(['signataire_non_habilite'])
     // liste du cabinet qui ne le contient pas : il signe quand même ; le collaborateur de la liste aussi
-    const sansLui: ContexteEnvoiOs = { ...CONTEXTE, signatairesHabilites: new Set(['col-gestion']), administrateurDesigneId: ' col-aj ' }
+    const sansLui: ContexteEnvoiOs = { ...CONTEXTE_DEVIS, signatairesHabilites: new Set(['col-gestion']), administrateurDesigneId: ' col-aj ' }
     expect(controlerAvantEnvoiOs(d, parAj, sansLui)).toEqual([])
     expect(controlerAvantEnvoiOs(d, sortie(d, { signataireId: 'col-gestion' }), sansLui)).toEqual([])
     // il constate aussi l'urgence sans alerte (décision 6 : « nous constatons l'urgence »)
@@ -1783,17 +1793,130 @@ describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
     ])
   })
 
-  it('7 (J17), (a) : un envoi pendant le délai de contestation pour une intervention prévue après le délai part sans anomalie (comportement décrit dans l’en-tête)', () => {
-    const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
-    const apres = demande({ prevuLe: '2026-11-25' })
+  it('7 (J17), (a), précisée par J48 : un envoi pendant le délai de contestation pour une intervention prévue après le délai est bloqué', () => {
+    const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: composerDateIso(2026, 11, 20) }
+    const apres = demande({ prevuLe: composerDateIso(2026, 11, 25) })
     const resolution = sortie(apres, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25' })
-    expect(controlerAvantEnvoiOs(apres, resolution, pendant)).toEqual([])
-    expect(envoyerOs(apres, resolution, ENVOI, pendant).journal[0].date).toBe('2026-10-03')
+    expect(bloquants(controlerAvantEnvoiOs(apres, resolution, pendant))).toEqual(['execution_suspendue_art42'])
+    expect(() => envoyerOs(apres, resolution, ENVOI, pendant)).toThrow(/non envoyé : Travaux votés à la majorité de l'art\. 25/)
     // sans date d'intervention prévue, l'envoi pendant le délai est bloqué
     const sansDate = demande({ prevuLe: null })
     expect(bloquants(controlerAvantEnvoiOs(sansDate, sortie(sansDate, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25' }), pendant))).toEqual([
       'execution_suspendue_art42',
     ])
+  })
+})
+
+/**
+ * Décision J48 de Hugo du 10/11/2026 (précision de J17, réponse « voir la législation ») : L. 1965 art. 42, al. 3 suspend
+ * « l'exécution par le syndic des travaux » votés aux art. 25 et 26 ; l'OS, qui accepte le devis, conclut le marché dès qu'il
+ * parvient à l'entreprise (C. civ. art. 1121) : il ne part pas pendant le délai de contestation, même pour une intervention
+ * prévue après la fin du délai, sauf urgence retenue (décision 6, J46). Interprétation protectrice, à confirmer (🔵).
+ */
+describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le délai de contestation est bloqué, même pour une intervention prévue après le délai', () => {
+  /** Fin du délai de contestation : le 20/11/2026 ; intervention prévue après lui, le 25/11/2026. */
+  const FIN = composerDateIso(2026, 11, 20)
+  const APRES_FIN = composerDateIso(2026, 11, 25)
+  const avecFin: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: FIN }
+  const resolution = (d: Demande, saisie: SaisieSortieOs = {}) =>
+    sortie(d, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25', ...saisie })
+  const envoiLe = (date: string): ContexteEnvoiOs => ({ ...avecFin, date })
+  const apres = demande({ prevuLe: APRES_FIN })
+
+  it('envoi pendant le délai, intervention prévue après lui : bloquant, à confirmer, message qui cite L. 1965 art. 42, al. 3 ; l’OS n’est pas envoyé', () => {
+    expect(CONTEXTE.date).toBe(composerDateIso(2026, 10, 3))
+    const anomalies = controlerAvantEnvoiOs(apres, resolution(apres), avecFin)
+    expect(anomalies.map((a) => [a.code, a.gravite, a.fondement, a.aConfirmer])).toEqual([['execution_suspendue_art42', 'bloquant', 'L. 1965 art. 42, al. 3', true]])
+    // la citation porte sur la suspension ; l'OS ne part qu'à partir du lendemain de la fin du délai, date écrite
+    expect(anomalies[0].message).toBe(
+      "Travaux votés à la majorité de l'art. 25 : exécution suspendue (L. 1965 art. 42, al. 3) jusqu'à la fin du délai de contestation (20/11/2026 inclus), sauf urgence constatée par l'administrateur provisoire ; envoi le 03/10/2026, pendant le délai, intervention prévue le 25/11/2026, après lui : l'OS, qui conclut le marché dès qu'il parvient à l'entreprise (C. civ. art. 1121), ne part pas avant le 21/11/2026, lendemain de la fin du délai, même pour une intervention prévue après le délai.",
+    )
+    expect(() => envoyerOs(apres, resolution(apres), ENVOI, avecFin)).toThrow(/non envoyé : Travaux votés à la majorité de l'art\. 25/)
+    expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art26' }), avecFin))).toEqual(['execution_suspendue_art42'])
+  })
+
+  it('envoi et intervention prévue tous deux pendant le délai (cas courant) : le message le dit, sans évoquer une intervention postérieure', () => {
+    // envoi le 03/10/2026, intervention prévue le 15/10/2026 (demande par défaut), fin du délai le 20/11/2026
+    const d = demande()
+    expect(d.prevuLe).toBe(composerDateIso(2026, 10, 15))
+    const [suspendu, ...autres] = controlerAvantEnvoiOs(d, resolution(d), avecFin)
+    expect(autres).toEqual([])
+    expect(suspendu.message).toBe(
+      "Travaux votés à la majorité de l'art. 25 : exécution suspendue (L. 1965 art. 42, al. 3) jusqu'à la fin du délai de contestation (20/11/2026 inclus), sauf urgence constatée par l'administrateur provisoire ; envoi le 03/10/2026 et intervention prévue le 15/10/2026, tous deux pendant le délai : l'OS, qui conclut le marché dès qu'il parvient à l'entreprise (C. civ. art. 1121), ne part pas avant le 21/11/2026, lendemain de la fin du délai, pour une intervention prévue à partir de cette date.",
+    )
+    expect(suspendu.message).not.toContain('après le délai')
+    // l'intervention le dernier jour du délai est encore « pendant le délai »
+    const leDernierJour = demande({ prevuLe: FIN })
+    expect(controlerAvantEnvoiOs(leDernierJour, resolution(leDernierJour), avecFin)[0].message).toContain(
+      'envoi le 03/10/2026 et intervention prévue le 20/11/2026, tous deux pendant le délai :',
+    )
+  })
+
+  it('bornes sur la date de l’envoi : le dernier jour du délai, bloquant ; le lendemain, l’OS part', () => {
+    expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres), envoiLe(FIN)))).toEqual(['execution_suspendue_art42'])
+    // le dernier jour, le message donne le lendemain comme première date d'envoi possible
+    expect(controlerAvantEnvoiOs(apres, resolution(apres), envoiLe(FIN))[0].message).toContain(
+      'envoi le 20/11/2026, pendant le délai, intervention prévue le 25/11/2026, après lui : l\'OS, qui conclut le marché dès qu\'il parvient à l\'entreprise (C. civ. art. 1121), ne part pas avant le 21/11/2026, lendemain de la fin du délai',
+    )
+    expect(controlerAvantEnvoiOs(apres, resolution(apres), envoiLe(composerDateIso(2026, 11, 21)))).toEqual([])
+    const leLendemain = { ...ENVOI, date: composerDateIso(2026, 11, 21) }
+    expect(envoyerOs(apres, resolution(apres), leLendemain, avecFin).journal[0].date).toBe(composerDateIso(2026, 11, 21))
+  })
+
+  it('bornes sur la date de l’intervention, envoi le lendemain du délai : prévue le dernier jour du délai, bloquant ; le lendemain, rien', () => {
+    const leLendemain = envoiLe(composerDateIso(2026, 11, 21))
+    const leDernierJour = demande({ prevuLe: FIN })
+    expect(bloquants(controlerAvantEnvoiOs(leDernierJour, resolution(leDernierJour), leLendemain))).toEqual(['execution_suspendue_art42'])
+    const apresLeDelai = demande({ prevuLe: composerDateIso(2026, 11, 21) })
+    expect(controlerAvantEnvoiOs(apresLeDelai, resolution(apresLeDelai), leLendemain)).toEqual([])
+  })
+
+  it('sans date d’intervention prévue : la date de l’envoi seule ; pendant le délai, bloquant, le message le dit', () => {
+    const sansDate = demande({ prevuLe: null })
+    const [suspendu] = controlerAvantEnvoiOs(sansDate, resolution(sansDate), avecFin)
+    expect(suspendu.code).toBe('execution_suspendue_art42')
+    expect(suspendu.message).toMatch(
+      /; envoi le 03\/10\/2026, pendant le délai, sans date d'intervention prévue : l'OS, qui conclut le marché dès qu'il parvient à l'entreprise \(C\. civ\. art\. 1121\), ne part pas avant le 21\/11\/2026, lendemain de la fin du délai\.$/,
+    )
+    expect(suspendu.message).not.toContain('après le délai')
+    expect(controlerAvantEnvoiOs(sansDate, resolution(sansDate), envoiLe(composerDateIso(2026, 11, 21)))).toEqual([])
+  })
+
+  it('inchangé : intervention prévue au plus tard le dernier jour du délai, bloquant, même quand l’OS est envoyé après le délai', () => {
+    const pendantLeDelai = demande({ prevuLe: composerDateIso(2026, 11, 15) })
+    const [suspendu] = controlerAvantEnvoiOs(pendantLeDelai, resolution(pendantLeDelai), envoiLe(composerDateIso(2026, 11, 21)))
+    expect([suspendu.code, suspendu.gravite]).toEqual(['execution_suspendue_art42', 'bloquant'])
+    expect(suspendu.message).toMatch(/^Travaux votés à la majorité de l'art\. 25 : exécution suspendue \(L\. 1965 art\. 42, al\. 3\) jusqu'à/)
+    expect(suspendu.message).toMatch(/sauf urgence constatée par l'administrateur provisoire ; intervention prévue le 15\/11\/2026, pendant le délai\.$/)
+  })
+
+  it('alertes (fin du délai ou majorité inconnues) : elles disent que l’envoi de l’OS lui-même ne part pas pendant le délai, même pour une intervention prévue après lui', () => {
+    const [inconnu, ...autres] = controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE)
+    expect(autres).toEqual([])
+    expect([inconnu.code, inconnu.gravite, inconnu.fondement, inconnu.aConfirmer]).toEqual(['delai_contestation_inconnu', 'alerte', 'L. 1965 art. 42, al. 3', true])
+    expect(inconnu.message).toBe(
+      "Résolution votée à la majorité de l'art. 25 : fin du délai de contestation non calculée. Vérifier que l'envoi de l'OS et l'intervention prévue tombent tous deux après la fin du délai : sauf urgence constatée par l'administrateur provisoire, l'OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.",
+    )
+    const [majorite] = controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), avecFin)
+    expect([majorite.code, majorite.gravite]).toEqual(['majorite_resolution_non_renseignee', 'alerte'])
+    expect(majorite.message).toBe(
+      "Majorité de la résolution exécutée non renseignée : sauf urgence constatée par l'administrateur provisoire, les travaux votés aux art. 25 et 26 ne s'exécutent pas avant la fin du délai de contestation, et leur OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.",
+    )
+  })
+
+  it('l’urgence retenue (décision 6, J46) lève toujours la suspension ; un délai « urgence » sans constat ne la lève pas', () => {
+    const urgente = resolution(apres, { delai: 'urgence', constatUrgence: { ...CONSTAT, motif: 'Infiltrations actives' } })
+    expect(bloquants(controlerAvantEnvoiOs(apres, urgente, avecFin))).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { delai: 'urgence' }), avecFin))).toContain('execution_suspendue_art42')
+  })
+
+  it('inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée, majorité ou fin du délai inconnues en alerte', () => {
+    expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'unanimite' }), avecFin)).toEqual([])
+    expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art24' }), avecFin)).toEqual([])
+    const devis = demande({ numero: '12.3.9', prevuLe: APRES_FIN }, DEVIS)
+    expect(controlerAvantEnvoiOs(devis, resolution(devis), { date: CONTEXTE.date, prestataireAvecCompteVitfix: true, finDelaiContestationAg: FIN })).toEqual([])
+    expect(codes(controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
+    expect(codes(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), avecFin))).toEqual(['majorite_resolution_non_renseignee'])
   })
 })
 
@@ -1969,6 +2092,160 @@ describe('contrôle final des décisions 7 à 9 (J19) : toute réception par cou
   })
 })
 
+/**
+ * Décision J47 de Hugo du 06/11/2026 (registre J19, « AR caduc après 1 an ») : c'est le DEVIS qui devient caduc un an
+ * après sa date ; un OS qui accepte un devis daté de plus d'un an à la date de l'envoi est refusé (un nouveau devis est
+ * nécessaire). Durée : MOIS_CADUCITE_DEVIS_OS, 12 mois, règle du cabinet (aucun texte). Date du devis inconnue : l'OS
+ * n'est pas bloqué, une alerte est rendue.
+ */
+describe('décision J47 de Hugo du 06/11/2026 : le devis accepté par l’OS est caduc un an après sa date', () => {
+  const DEVIS_ASSOCIE = { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 }
+  const CODES_J47: ReadonlySet<string> = new Set(['devis_trop_ancien', 'date_devis_inconnue'])
+  const avecDevis = demande({ devisAssocie: DEVIS_ASSOCIE })
+  /** Anomalies de J47 seules, pour un OS qui accepte le devis daté de `dateDevis`, envoyé le `envoiLe`. */
+  const anciennete = (envoiLe: string, dateDevis: string) => {
+    const d = demande({ demandeLe: envoiLe, devisAssocie: DEVIS_ASSOCIE })
+    return controlerAvantEnvoiOs(d, sortie(d), { ...CONTEXTE, date: envoiLe, dateDevis }).filter((a) => CODES_J47.has(a.code))
+  }
+  const refuse = (envoiLe: string, dateDevis: string) => anciennete(envoiLe, dateDevis).map((a) => [a.code, a.gravite])
+
+  it('durée : paramètre nommé de 12 mois, règle du cabinet', () => {
+    expect(MOIS_CADUCITE_DEVIS_OS).toBe(12)
+  })
+
+  it('bornes : un an moins un jour, accepté ; un an pile, accepté avec l’alerte de revalorisation (J49) ; un an plus un jour, refusé (bloquant, un nouveau devis est nécessaire)', () => {
+    // envoi du 03/10/2026 : devis du 04/10/2025 (un an moins un jour), du 03/10/2025 (un an pile), du 02/10/2025 (un an plus un jour)
+    expect(CONTEXTE.date).toBe(composerDateIso(2026, 10, 3))
+    expect(controlerAvantEnvoiOs(avecDevis, sortie(avecDevis), { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 4) })).toEqual([])
+    expect(codes(controlerAvantEnvoiOs(avecDevis, sortie(avecDevis), { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 3) }))).toEqual(['devis_revalorisation_a_demander'])
+    const perime = controlerAvantEnvoiOs(avecDevis, sortie(avecDevis), { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 2) })
+    expect(perime.map((a) => [a.code, a.gravite, a.fondement, a.aConfirmer])).toEqual([['devis_trop_ancien', 'bloquant', null, false]])
+    expect(perime[0].message).toBe(
+      "Devis associé du 02/10/2025, daté de plus de 12 mois à l'envoi du 03/10/2026 (caduc après le 02/10/2026, règle du cabinet) : il ne peut plus être accepté par l'OS ; un nouveau devis est nécessaire.",
+    )
+  })
+
+  it('l’OS qui accepte un devis de plus d’un an n’est pas envoyé', () => {
+    expect(() => envoyerOs(avecDevis, sortie(avecDevis), ENVOI, { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 2) })).toThrow(/un nouveau devis est nécessaire/)
+    expect(() => envoyerOs(avecDevis, sortie(avecDevis), ENVOI, { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 3) })).not.toThrow()
+  })
+
+  it('🔵 années bissextiles (lecture à confirmer par Hugo) : un devis du 29 février a un an le 28 février suivant (dernier jour du mois)', () => {
+    const devis29 = composerDateIso(2024, 2, 29)
+    expect(refuse(composerDateIso(2025, 2, 27), devis29)).toEqual([])
+    expect(refuse(composerDateIso(2025, 2, 28), devis29)).toEqual([])
+    expect(refuse(composerDateIso(2025, 3, 1), devis29)).toEqual([['devis_trop_ancien', 'bloquant']])
+    expect(anciennete(composerDateIso(2025, 3, 1), devis29)[0].message).toContain('(caduc après le 28/02/2025, règle du cabinet)')
+  })
+
+  it('années bissextiles : le 29 février compte dans l’année qui le contient', () => {
+    // devis du 01/03/2023 : un an moins un jour le 29/02/2024, un an pile le 01/03/2024, un an plus un jour le 02/03/2024
+    const devisMars = composerDateIso(2023, 3, 1)
+    expect(refuse(composerDateIso(2024, 2, 29), devisMars)).toEqual([])
+    expect(refuse(composerDateIso(2024, 3, 1), devisMars)).toEqual([])
+    expect(refuse(composerDateIso(2024, 3, 2), devisMars)).toEqual([['devis_trop_ancien', 'bloquant']])
+    // devis du 28/02/2023 : un an pile le 28/02/2024, un an plus un jour le 29/02/2024
+    const devisFevrier = composerDateIso(2023, 2, 28)
+    expect(refuse(composerDateIso(2024, 2, 28), devisFevrier)).toEqual([])
+    expect(refuse(composerDateIso(2024, 2, 29), devisFevrier)).toEqual([['devis_trop_ancien', 'bloquant']])
+    // devis du 28/02/2024 : un an pile le 28/02/2025, un an plus un jour le 01/03/2025
+    const devisBissextile = composerDateIso(2024, 2, 28)
+    expect(refuse(composerDateIso(2025, 2, 28), devisBissextile)).toEqual([])
+    expect(refuse(composerDateIso(2025, 3, 1), devisBissextile)).toEqual([['devis_trop_ancien', 'bloquant']])
+  })
+
+  it('date du devis inconnue : l’OS n’est pas bloqué, alerte « date du devis inconnue »', () => {
+    for (const contexte of [CONTEXTE, { ...CONTEXTE, dateDevis: null }]) {
+      const anomalies = controlerAvantEnvoiOs(avecDevis, sortie(avecDevis), contexte)
+      expect(anomalies.map((a) => [a.code, a.gravite, a.fondement, a.aConfirmer])).toEqual([['date_devis_inconnue', 'alerte', null, false]])
+      expect(anomalies[0].message).toBe(
+        "Date du devis inconnue : l'ancienneté du devis associé n'est pas contrôlée ; un devis daté de plus de 12 mois à l'envoi ne peut plus être accepté par l'OS (un nouveau devis est nécessaire) : renseigner la date du devis.",
+      )
+      expect(() => envoyerOs(avecDevis, sortie(avecDevis), ENVOI, contexte)).not.toThrow()
+    }
+  })
+
+  it('sans devis associé, ou pour une demande de devis (elle n’accepte aucun devis) : rien', () => {
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, dateDevis: composerDateIso(2020, 1, 1) })).toEqual([])
+    expect(controlerAvantEnvoiOs(demande(), sortie(), CONTEXTE)).toEqual([])
+    const demandeDeDevis = demande({ devisAssocie: DEVIS_ASSOCIE }, DEVIS)
+    for (const dateDevis of [undefined, null, composerDateIso(2020, 1, 1)]) {
+      const anomalies = controlerAvantEnvoiOs(demandeDeDevis, sortie(demandeDeDevis), { ...CONTEXTE, dateDevis })
+      expect(anomalies.filter((a) => CODES_J47.has(a.code))).toEqual([])
+    }
+  })
+
+  it('la caducité du devis à sa fin de validité (C. civ. art. 1117) reste contrôlée à part', () => {
+    const anomalies = controlerAvantEnvoiOs(avecDevis, sortie(avecDevis), {
+      ...CONTEXTE,
+      dateDevis: composerDateIso(2025, 10, 2),
+      validiteDevisAu: composerDateIso(2026, 10, 2),
+    })
+    expect(codes(anomalies)).toEqual(['devis_caduc', 'devis_trop_ancien'])
+  })
+
+  it('date du devis illisible : erreur d’appel', () => {
+    expect(() => controlerAvantEnvoiOs(avecDevis, sortie(avecDevis), { ...CONTEXTE, dateDevis: '02/10/2025' })).toThrow(
+      'Date du devis associé invalide (02/10/2025) : AAAA-MM-JJ attendu.',
+    )
+  })
+})
+
+/**
+ * Décision J49 de Hugo du 10/11/2026 (suite de J47, « oui mais peut-être une revalorisation est à demander à l'entreprise ») :
+ * le devis daté d'un an pile reste accepté le jour anniversaire ; ce jour-là, une alerte non bloquante recommande de demander
+ * à l'entreprise si son prix est maintenu ou révisé. Seuil : MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet.
+ */
+describe('décision J49 de Hugo du 10/11/2026 : devis d’un an pile accepté, revalorisation à demander à l’entreprise', () => {
+  const DEVIS_ASSOCIE = { devisId: 'devis-1', montantTtcCentimes: 120_000, montantHtCentimes: 109_091 }
+  const CODES_ANCIENNETE: ReadonlySet<string> = new Set(['devis_trop_ancien', 'date_devis_inconnue', 'devis_revalorisation_a_demander'])
+  /** Anomalies d'ancienneté du devis (J47, J49) pour un OS qui accepte le devis daté de `dateDevis`, envoyé le `envoiLe`. */
+  const anciennete = (envoiLe: string, dateDevis: string | null, m: ModeleDemande = OS) => {
+    const d = demande({ demandeLe: envoiLe, devisAssocie: DEVIS_ASSOCIE }, m)
+    return controlerAvantEnvoiOs(d, sortie(d), { ...CONTEXTE, date: envoiLe, dateDevis }).filter((a) => CODES_ANCIENNETE.has(a.code))
+  }
+  const graves = (envoiLe: string, dateDevis: string | null, m?: ModeleDemande) => anciennete(envoiLe, dateDevis, m).map((a) => [a.code, a.gravite])
+  const ENVOI_LE = composerDateIso(2026, 10, 3)
+
+  it('seuil : paramètre nommé de 12 mois, règle du cabinet, au plus la durée de caducité de J47', () => {
+    expect(MOIS_ALERTE_REVALORISATION_DEVIS).toBe(12)
+    expect(MOIS_ALERTE_REVALORISATION_DEVIS).toBeLessThanOrEqual(MOIS_CADUCITE_DEVIS_OS)
+  })
+
+  it('un an pile : accepté (non bloquant), alerte de revalorisation, fondement null ; l’OS part', () => {
+    const [revalorisation, ...autres] = anciennete(ENVOI_LE, composerDateIso(2025, 10, 3))
+    expect(autres).toEqual([])
+    expect([revalorisation.code, revalorisation.gravite, revalorisation.fondement, revalorisation.aConfirmer]).toEqual(['devis_revalorisation_a_demander', 'alerte', null, false])
+    expect(revalorisation.message).toBe(
+      "Devis associé du 03/10/2025, daté de 12 mois ou plus à l'envoi du 03/10/2026 (acceptable par l'OS jusqu'au 03/10/2026 inclus, règle du cabinet) : il est recommandé de demander à l'entreprise si son prix est maintenu ou révisé avant d'envoyer l'OS.",
+    )
+    // l'OS est l'acceptation du devis, à un instant donné : pas « accepté jusqu'au »
+    expect(revalorisation.message).not.toContain("accepté jusqu'au")
+    const d = demande({ devisAssocie: DEVIS_ASSOCIE })
+    expect(envoyerOs(d, sortie(d), ENVOI, { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 3) }).journal).toHaveLength(1)
+  })
+
+  it('avec 12 mois, seul le jour anniversaire déclenche l’alerte : la veille, rien ; le lendemain, J47 bloque, sans alerte', () => {
+    expect(graves(ENVOI_LE, composerDateIso(2025, 10, 4))).toEqual([])
+    expect(graves(ENVOI_LE, composerDateIso(2025, 10, 3))).toEqual([['devis_revalorisation_a_demander', 'alerte']])
+    expect(graves(ENVOI_LE, composerDateIso(2025, 10, 2))).toEqual([['devis_trop_ancien', 'bloquant']])
+    expect(graves(ENVOI_LE, composerDateIso(2026, 1, 15))).toEqual([])
+  })
+
+  it('🔵 29 février (lecture du code, sans réponse de Hugo) : le devis du 29/02/2024 a un an le 28/02/2025, alerte ce jour-là, refusé dès le 1er mars', () => {
+    const devis29 = composerDateIso(2024, 2, 29)
+    expect(graves(composerDateIso(2025, 2, 27), devis29)).toEqual([])
+    expect(graves(composerDateIso(2025, 2, 28), devis29)).toEqual([['devis_revalorisation_a_demander', 'alerte']])
+    expect(graves(composerDateIso(2025, 3, 1), devis29)).toEqual([['devis_trop_ancien', 'bloquant']])
+  })
+
+  it('date du devis inconnue, demande de devis, ou sans devis associé : pas d’alerte de revalorisation', () => {
+    expect(graves(ENVOI_LE, null)).toEqual([['date_devis_inconnue', 'alerte']])
+    expect(graves(ENVOI_LE, composerDateIso(2025, 10, 3), DEVIS)).toEqual([])
+    expect(controlerAvantEnvoiOs(demande(), sortie(), { ...CONTEXTE, dateDevis: composerDateIso(2025, 10, 3) })).toEqual([])
+  })
+})
+
 describe('retouches de demandes.ts (base #618)', () => {
   it('verifierSansBloquant, exporté, ne lève que sur les bloquants et les liste', () => {
     expect(() => verifierSansBloquant([{ gravite: 'alerte', message: 'A.' }], 'Refus')).not.toThrow()
@@ -2000,10 +2277,10 @@ describe('en-tête du module', () => {
   it('tour 2 : branchement du suivi « à faire » par relanceAFixer (aConfirmer laissé aux repères juridiques) ; constat postérieur à l’envoi bloquant', () => {
     expect(enTete).not.toContain('aConfirmer pour une date de relance à fixer')
     expect(enTete).toContain('relanceAFixer')
-    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
-    expect(deduit).toContain('constat_urgence_posterieur_envoi')
-    // la question du moment du constat (décision ou envoi) reste ouverte
-    expect(enTete.slice(enTete.indexOf('🔴 Non établi'))).toContain("constat doit-il précéder la décision au registre, ou l'envoi")
+    // J46 (06/11/2026) : la règle de date du constat est une décision de Hugo ; la question du moment du constat est fermée
+    const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('🔵 Déduit'))
+    expect(decisions0611).toContain('constat_urgence_posterieur_envoi')
+    expect(enTete.slice(enTete.indexOf('🔴 Non établi'))).not.toContain("constat doit-il précéder la décision au registre, ou l'envoi")
   })
 
   it('ne cite pas l’art. 1127-5 du code civil, abrogé', () => {
@@ -2024,15 +2301,17 @@ describe('en-tête du module', () => {
     expect(enTete).not.toContain('règle de gestion sans texte (signataire_non_habilite')
     expect(enTete).not.toMatch(/AUCUN TEXTE pour [^.]*, le signataire,/)
     expect(questions).toContain("textes sur l'habilitation des collaborateurs non lus")
-    // J17 (a) : la décision décrit le comportement ; le cas de l'intervention postérieure est à confirmer
-    expect(decisions).toContain("un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué")
+    // J17 (a) : la décision décrit le comportement ; le cas de l'intervention postérieure est tranché par J48 (10/11/2026)
+    expect(decisions).not.toContain("un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué")
+    expect(decisions).toContain('étendu par J48 (décisions du 10/11/2026, ci-dessous) à tout envoi pendant le délai, même pour une intervention prévue après lui')
     expect(decisions).not.toContain("l'envoi de l'OS est BLOQUÉ pendant le délai de contestation (")
-    expect(questions).toContain('un envoi pendant le délai de contestation, pour une intervention prévue après la fin du délai, peut-il partir')
-    // J17 (c) : la raison de l'interprétation, et l'écart avec majorites-ag.ts
+    expect(questions).not.toContain('un envoi pendant le délai de contestation, pour une intervention prévue après la fin du délai, peut-il partir')
+    // J17 (c) : la raison du choix, et l'écart avec majorites-ag.ts, tranché par la confirmation de J17 (06/11/2026)
     expect(decisions).not.toContain('seules les majorités des art. 25 et 26 le sont')
     expect(decisions).toContain('ni opposant ni défaillant')
     expect(decisions).toContain('« Les actions en contestation des décisions des assemblées générales doivent, à peine de déchéance, être introduites par les copropriétaires opposants ou défaillants')
-    expect(questions).toContain("MAJORITES_AG (majorites-ag.ts) fonde l'unanimité sur L. 1965 art. 26, dernier al.")
+    expect(decisions).toContain("MAJORITES_AG (majorites-ag.ts) fonde l'unanimité sur L. 1965 art. 26, dernier al. : cet écart est tranché par la confirmation, l'unanimité n'est pas suspendue")
+    expect(questions).not.toContain('Unanimité : MAJORITES_AG')
     // J19 : réception distincte déduite (🔵), AR réservé au courrier AR, AR tardif, ligne ancienne, courrier lié
     expect(decisions).toContain("déduit de « l'AR fait preuve »")
     expect(deduit).toContain("l'AR est réservé à la réception par courrier AR")
@@ -2098,7 +2377,7 @@ describe('en-tête du module', () => {
     // décisions 7 à 9 (J17 à J19)
     for (const attendu of [
       '7 (J17)',
-      "interprétation de la réponse « oui », à confirmer par Hugo (🔵)",
+      'compréhension confirmée par Hugo le 06/11/2026',
       'unanimité',
       '8 (J18)',
       'COLLABORATEUR',
@@ -2106,7 +2385,7 @@ describe('en-tête du module', () => {
       '9 (J19)',
       'FAIT PREUVE',
       'première présentation',
-      'aucune caducité codée',
+      "c'est le devis qui devient caduc un an après sa date",
     ])
       expect(decisions).toContain(attendu)
     // l'auteur du constat face aux signataires : interprétation (🔵), pas une décision de Hugo
@@ -2114,11 +2393,12 @@ describe('en-tête du module', () => {
     // décision 5 : le contenu de l'alinéa reste écrit ; décision 3 : la règle telle que le code l'applique
     expect(decisions).toContain('L. 1965 art. 21, al. 6 (pas de conseil syndical : mise en concurrence non obligatoire) : le motif « mise en concurrence » est gardé')
     expect(decisions).toContain('date de relance fixée ou non')
-    // la date du constat n'est pas une décision de Hugo
-    expect(decisions).not.toMatch(/borneAvisAj|constat_urgence_posterieur/)
+    // la date du constat n'est pas une décision du 03/11/2026 : c'est J46, du 06/11/2026
+    const decisions0311 = enTete.slice(enTete.indexOf('Décisions de Hugo du 03/11/2026'), enTete.indexOf('Décisions de Hugo du 06/11/2026'))
+    expect(decisions0311).not.toMatch(/borneAvisAj|constat_urgence_posterieur/)
     const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
     expect(deduit).toContain('critère proposé, non contredit par Hugo')
-    expect(deduit).toContain('règle proposée, non demandée par Hugo')
+    expect(deduit).not.toContain('règle proposée, non demandée par Hugo')
     expect(deduit).toContain('constat_urgence_auteur_non_habilite')
     expect(deduit).toContain('« sans preuve »')
     expect(deduit).not.toContain("l'auteur du constat n'est pas comparé aux signataires habilités")
@@ -2136,6 +2416,15 @@ describe('en-tête du module', () => {
       'relève-t-elle de la suspension',
       'un collaborateur peut-il signer',
       '(question 7)',
+      // J46, J47 et confirmation de J17 (06/11/2026)
+      "constat doit-il précéder la décision au registre, ou l'envoi",
+      'Et pour lever la suspension de L. 1965 art. 42, al. 3',
+      'Unanimité : MAJORITES_AG',
+      "la caducité d'un an vise-t-elle",
+      'aucune caducité codée',
+      // J48 et J49 (10/11/2026)
+      'un envoi pendant le délai de contestation, pour une intervention prévue après la fin du délai, peut-il partir',
+      "un devis daté d'un an pile est-il encore accepté",
     ])
       expect(questions).not.toContain(tranchee)
     for (const ouverte of [
@@ -2147,17 +2436,105 @@ describe('en-tête du module', () => {
       'Hugo (suite de la décision 6)',
       'critère proposé (entretien courant',
       'un délai « prioritaire » peut-il valoir urgence',
-      "constat doit-il précéder la décision au registre, ou l'envoi",
       // restes des décisions 8 et 9
       "l'auteur du constat d'urgence doit-il être un signataire habilité",
       'Hugo, preuve (suite de la décision 9)',
-      // registre J19 : « objet (devis ou OS) » ; la question imposée nommait le devis et l'AR
-      "la caducité d'un an vise-t-elle le devis accepté par l'OS, l'OS lui-même, ou l'AR lui-même ? À compter de quelle date : envoi, première présentation, réception ?",
       // non répondue par Hugo : déduite de « l'AR fait preuve », elle reste à confirmer
       "la réception distincte de l'envoi convient-elle",
       "vaut-elle réception de l'OS au sens de C. civ. art. 1121",
       "délai d'acheminement",
     ])
       expect(questions).toContain(ouverte)
+  })
+
+  it('rubrique « Décisions de Hugo du 06/11/2026 » : J17 confirmée, J46 et J47 inscrites ; leurs 🔵 et 🔴 tranchés retirés', () => {
+    const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('Décisions de Hugo du 10/11/2026'))
+    const deduit = enTete.slice(enTete.indexOf('🔵 Déduit'), enTete.indexOf('🔴 Non établi'))
+    const joint = source.replaceAll(/\r?\n\s*\* */g, ' ')
+    // J17 : confirmée, sans « interprétation à confirmer »
+    expect(decisions0611).toContain('J17 confirmée : envoi de l\'OS bloqué pendant le délai de contestation (L. 1965 art. 42, al. 3)')
+    expect(decisions0611).toContain('unanimité non suspendue')
+    expect(decisions0611).toContain('comportement inchangé')
+    expect(enTete).not.toContain('interprétation de la réponse « oui », à confirmer')
+    expect(enTete).not.toContain('raison, interprétation à confirmer')
+    expect(joint).not.toContain('interprétation 🔵 : ni opposant')
+    expect(joint).toContain('décision 7 (c), confirmée par Hugo le 06/11/2026')
+    // J46 : la règle de date du constat devient une décision
+    expect(decisions0611).toContain("J46 (date du constat d'urgence, suite de J16) : la règle est VALIDÉE, comportement inchangé")
+    expect(decisions0611).toContain('le constat bloque celui-ci (constat_urgence_posterieur_envoi)')
+    expect(decisions0611).toContain('il donne une alerte à confirmer (constat_urgence_posterieur), sans bloquer l\'envoi')
+    expect(deduit).not.toContain("date du constat d'urgence face")
+    expect(joint).not.toContain('non demandée par Hugo')
+    expect(joint).toContain('alerte à confirmer (décision J46 de Hugo du 06/11/2026)')
+    // J47 : le devis caduc un an après sa date ; le 🔴 « caducité d'un an » disparaît
+    expect(decisions0611).toContain("J47 (« AR caduc après 1 an », suite de J19) : c'est le DEVIS qui devient caduc UN AN APRÈS SA DATE")
+    expect(decisions0611).toContain('MOIS_CADUCITE_DEVIS_OS, 12 mois : règle du cabinet, aucun texte, fondement null')
+    expect(decisions0611).toContain('devis_trop_ancien, bloquant : un nouveau devis est nécessaire')
+    expect(decisions0611).toContain('alerte date_devis_inconnue')
+    expect(decisions0611).toContain('dateDevis')
+    expect(joint).not.toContain('aucune caducité codée')
+    expect(joint).not.toContain("la caducité d'un an vise-t-elle")
+    expect(joint).not.toMatch(/AR caduc après 1 an » : (l'objet|objet)/)
+    expect(joint).toContain("Aucune caducité n'est attachée à l'AR : « AR caduc après 1 an » vise le devis, caduc un an après sa date (J47, MOIS_CADUCITE_DEVIS_OS)")
+    expect(enTete.slice(enTete.indexOf('Branchements à faire plus tard'))).toContain('dateDevis, date du devis associé : J47')
+  })
+
+  it('J47 et J49 : le jour anniversaire est la décision J49 ; le 29 février → 28 février reste une lecture du code (🔵), à confirmer par Hugo', () => {
+    const decisions0611 = enTete.slice(enTete.indexOf('Décisions de Hugo du 06/11/2026'), enTete.indexOf('Décisions de Hugo du 10/11/2026'))
+    const j47 = decisions0611.slice(decisions0611.indexOf('- J47'))
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'))
+    const joint = source.replaceAll(/\r?\n\s*\* */g, ' ')
+    const doc = joint.slice(joint.indexOf("Ancienneté du devis accepté par l'OS"), joint.indexOf('function anomaliesAncienneteDevis'))
+    const lecture = '🔵 : lecture de dates.ajouterMois, à confirmer par Hugo'
+    for (const [lieu, texte] of [['en-tête J47', j47], ['doc de anomaliesAncienneteDevis', doc]] as const) {
+      expect(texte, lieu).toContain(lecture)
+      expect(texte, lieu).toContain('le devis du 29 février a un an le 28 février suivant')
+      expect(texte, lieu).toContain("un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire (décision J49")
+      // le jour anniversaire n'est plus une lecture à confirmer
+      expect(texte, lieu).not.toContain("🔵 : lecture de « daté de plus d'un an »")
+      expect(texte, lieu).not.toMatch(/(suivant|ajouterMois)\) n'est pas « plus d'un an »/)
+    }
+    expect(questions).toContain('Hugo, caducité du devis (suite de J47 et J49 ; le jour anniversaire est tranché par J49)')
+    expect(questions).not.toContain("un devis daté d'un an pile est-il encore accepté")
+    expect(questions).toContain('le devis du 29 février a-t-il un an le 28 février suivant (oui ici : dates.ajouterMois')
+  })
+
+  it('rubrique « Décisions de Hugo du 10/11/2026 » : J48 (précision de J17, d’après la législation, 🔵) et J49 (revalorisation) inscrites, avec leurs sources', () => {
+    const decisions1011 = enTete.slice(enTete.indexOf('Décisions de Hugo du 10/11/2026'), enTete.indexOf('🔵 Déduit'))
+    const j48 = decisions1011.slice(decisions1011.indexOf('- J48'), decisions1011.indexOf('- J49'))
+    const j49 = decisions1011.slice(decisions1011.indexOf('- J49'))
+    expect(decisions1011).toContain('J48 et J49')
+    // J48 : la règle, ses sources, sa marque d'incertitude
+    for (const attendu of [
+      '« voir la législation »',
+      'execution_suspendue_art42',
+      'même pour une intervention prévue après la fin du délai',
+      'L. 1965 art. 42, al. 3, relu sur Légifrance le 10/11/2026',
+      'rapport du Sénat n° 53 (1985-1986)',
+      'loi n° 85-1470 du 31/12/1985',
+      'C. civ. art. 1121',
+      'D. 1967 art. 18',
+      'Cass. 3e civ., 24/11/2021, n° 20-22.487',
+      'Cass. 3e civ., 28/01/2015, n° 13-23.552',
+      'aucun arrêt lu ne tranche',
+      '🔵 Interprétation protectrice, confiance moyenne',
+      "la lecture littérale (laisser partir l'OS) reste défendable",
+      'J46',
+    ])
+      expect(j48).toContain(attendu)
+    // J49 : la règle, son seuil nommé, sa nature (règle du cabinet), le 29 février laissé en 🔵
+    for (const attendu of [
+      "« oui mais peut-être une revalorisation est à demander à l'entreprise »",
+      'ACCEPTÉ le jour anniversaire',
+      'devis_revalorisation_a_demander',
+      'MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet, aucun texte',
+      'MOIS_CADUCITE_MANDAT_SEPA',
+      'Le cas du 29 février reste une lecture du code (🔵',
+    ])
+      expect(j49).toContain(attendu)
+    // la description du droit et de la décision 7 suit J48
+    expect(enTete).not.toContain("BLOQUANT quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai")
+    expect(enTete).toContain("BLOQUANT quand l'envoi de l'OS ou l'intervention prévue tombe dans ce délai")
+    expect(enTete).not.toContain("le cas d'une intervention prévue après la fin du délai reste une question")
   })
 })

@@ -126,7 +126,10 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  * provisoire de VitFix : un tel paiement sortirait du compte 53 et non d'un 512 (arrêté du 14 mars 2005, art. 3 et 7),
  * avec le contrôle des espèces propre à l'administrateur judiciaire (carnet de reçus, arrêté du 16 août 1999). La
  * réserve de C. trav. L3241-1 (salaire payé en espèces au salarié qui le demande, sous un seuil) ne vise que les
- * salaires (personnel-syndicat.ts, 🔴 10), pas un fournisseur.
+ * salaires (personnel-syndicat.ts), pas un fournisseur.
+ * Décisions de Hugo du 06/11/2026 (J40) — cette réserve est tranchée : aucun salaire n'est payé en espèces, même sous le
+ * seuil et à la demande du salarié (personnel-syndicat.ts, choix du cabinet plus strict que la loi). Rien ne change ici :
+ * le mode « Espèces » reste refusé pour un fournisseur (J25).
  * 🔴 Non établi (à trancher par Frédéric ou Hugo) :
  * - Gestéam passe-t-il l'écriture du « Règlement de factures » dès le traitement qui produit l'ordre (imputée plus
  *   tard), ou au paiement ? Non observé ; VitFix l'écrit au paiement (ci-dessus) ;

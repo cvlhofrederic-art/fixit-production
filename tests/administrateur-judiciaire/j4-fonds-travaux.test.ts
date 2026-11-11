@@ -157,8 +157,9 @@ describe('J4 — contrôle d’affectation (art. 14-2-1, I et art. 29-14, 2°)',
 /**
  * Décision J30 de Hugo (03/11/2026) : l'ordonnance de l'art. 29-14, 2° n'est plus un texte libre. Forme exigée :
  * juridiction, date et n° de l'ordonnance, chacun obligatoire, date ISO jamais après aujourd'hui. Décision d'affectation
- * de l'assemblée : date de l'AG et n° de la résolution (🔵 déclinaison à confirmer). Une valeur ancienne en texte libre
- * reste lisible et admise, signalée « forme incomplète » ; une nouvelle saisie en texte libre est refusée.
+ * de l'assemblée : date de l'AG et n° de la résolution, déclinaison confirmée par la décision J42 du 06/11/2026. Une
+ * valeur ancienne en texte libre reste lisible et admise, signalée « forme incomplète » ; une nouvelle saisie en texte
+ * libre est refusée.
  */
 describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décision d’affectation', () => {
   const ORDONNANCE: OrdonnanceJuge = { juridiction: 'Tribunal judiciaire de Lyon', date: '2026-09-02', numero: 'RG 26/01234' }
@@ -229,7 +230,7 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
     }
   })
 
-  it('🔵 décision d’affectation de l’assemblée : date de l’AG et n° de la résolution', () => {
+  it('J42 : décision d’affectation de l’assemblée : date de l’AG et n° de la résolution ; motif inchangé (« forme attendue »)', () => {
     const resultat = parAg(DECISION)
     expect(resultat).toMatchObject({ autorise: true, cause: 'admis', formeIncomplete: null })
     expect(resultat.motif).toMatch(/résolution n° 8 de l'assemblée du 12\/03\/2026/)
@@ -240,7 +241,7 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
     expect(parAg({ ...DECISION, dateAg: '2026-11-02' }).motif).toMatch(/date de l'assemblée \(02\/11\/2026\) postérieure à aujourd'hui/)
   })
 
-  it('🔵 décision d’affectation ancienne en texte libre : admise, signalée « forme incomplète »', () => {
+  it('décision d’affectation ancienne en texte libre : admise, signalée « forme incomplète » (comportement inchangé par J42)', () => {
     const resultat = parAg('AG du 12/03/2026, résolution 8', {})
     expect(resultat).toMatchObject({ autorise: true, cause: 'admis' })
     expect(resultat.formeIncomplete).toMatchObject({
@@ -297,12 +298,20 @@ describe('J30 — forme de l’ordonnance de l’art. 29-14, 2° et de la décis
     expect(lireDecisionAffectationAg('Résolution 12')).toMatchObject({ forme: 'incomplete', texte: 'Résolution 12' })
   })
 
-  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » avec J30, déclinaison de l’AG à confirmer', () => {
+  it('en-tête : rubrique « Décisions de Hugo du 03/11/2026 » avec J30 ; rubrique du 06/11/2026 : J42 confirme la déclinaison de l’AG', () => {
     const { texte: entete, item } = enTeteDuModule('fonds-travaux')
     const decisions = entete.slice(entete.indexOf('Décisions de Hugo du 03/11/2026'), entete.indexOf('🔵 Déduit du texte'))
     expect(decisions).toMatch(/J30/)
     expect(decisions).toMatch(/juridiction, date et n° de l'ordonnance/)
-    expect(decisions).toMatch(/🔵 à confirmer/)
+    expect(decisions).not.toMatch(/à confirmer/)
+    expect(entete).not.toMatch(/déclinaison à confirmer/)
+    const j42 = item('J42 :')
+    expect(j42).toMatch(/date de l'AG \+ n° de la résolution, obligatoires/)
+    expect(j42).toMatch(/texte libre est refusé pour toute nouvelle saisie/)
+    expect(j42).toMatch(/comportement inchangé/)
+    // J42 ne change aucun motif : la décision de l'AG garde « forme attendue », l'ordonnance « forme exigée ».
+    expect(j42).toMatch(/mêmes motifs/)
+    expect(j42).not.toMatch(/au lieu de « forme attendue »/)
     expect(decisions).toMatch(/forme incomplète/)
     expect(decisions).toMatch(/nouvelle saisie.*texte libre.*refusé/)
     const branchements = item('Branchements à faire (J30)')

@@ -2,12 +2,15 @@
 //
 // Module sans React ; fetch injectable pour les tests. Aucune fonction ne lève : chaque résultat
 // porte `ok` et, en cas d'échec, un code que les écrans traduisent en message.
-//   - envoyerSignalementQr : dépôt public (page ouverte par le QR code), sans session ;
-//   - les autres : tableau de bord (super admin). Le jeton Bearer est ajouté quand il est connu ;
-//     sinon les cookies de session suffisent (credentials same-origin), comme dans l'Administrateur judiciaire.
+//   - envoyerSignalementQr, proposerAdresseQr, chargerSemblablesQr : page publique ouverte par le QR code, sans
+//     session (dépôt, adresse proposée d'après la position, signalements déjà faits au même endroit) ;
+//   - les autres : espace AJ Signalement (/fr/aj-signalement/, super admin). Le jeton Bearer est ajouté quand il est
+//     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace.
 
-import type {
-  CoproprieteQr, SaisieCoproprieteQr, SaisieSignalementQr, StatutSignalementQr, TableauQr,
+import {
+  NUMERO_QR, estStatutOuvertQr,
+  type CoproprieteQr, type LangueSignalementQr, type SaisieCoproprieteQr, type SaisieSignalementQr, type SignalementSemblableQr,
+  type StatutSignalementQr, type TableauQr,
 } from '@/lib/aj-signalement/types'
 
 export const URL_API_QR = '/api/aj-signalement'
@@ -19,10 +22,14 @@ export const URL_API_QR = '/api/aj-signalement'
  */
 export type CodeErreurQr = 'invalide' | 'introuvable' | 'trop_de_demandes' | 'non_authentifie' | 'interdit' | 'base_absente' | 'serveur' | 'reseau'
 
-export type ResultatEnvoiQr = { ok: true; id: string; numero: string; creeLe: string; emailEnvoye: boolean } | { ok: false; code: CodeErreurQr }
+export type ResultatEnvoiQr =
+  | { ok: true; id: string; numero: string; creeLe: string; emailEnvoye: boolean; confirmationEnvoyee: boolean }
+  | { ok: false; code: CodeErreurQr }
 export type ResultatTableauQr = { ok: true; tableau: TableauQr } | { ok: false; code: CodeErreurQr }
 export type ResultatCoproprieteQr = { ok: true; copropriete: CoproprieteQr } | { ok: false; code: CodeErreurQr }
 export type ResultatStatutQr = { ok: true; statut: StatutSignalementQr; misAJourLe: string } | { ok: false; code: CodeErreurQr }
+export type ResultatAdresseQr = { ok: true; adresse: string | null } | { ok: false; code: CodeErreurQr }
+export type ResultatSemblablesQr = { ok: true; semblables: SignalementSemblableQr[] } | { ok: false; code: CodeErreurQr }
 
 type Fetch = typeof fetch
 
@@ -70,7 +77,47 @@ export async function envoyerSignalementQr(saisie: SaisieSignalementQr, fetchImp
   if (!r.ok) return r
   const s = (r.corps as { signalement?: Record<string, unknown> } | null)?.signalement
   if (!s || typeof s.id !== 'string') return { ok: false, code: 'serveur' }
-  return { ok: true, id: s.id, numero: chaine(s.numero), creeLe: chaine(s.creeLe), emailEnvoye: s.emailEnvoye === true }
+  return {
+    ok: true, id: s.id, numero: chaine(s.numero), creeLe: chaine(s.creeLe),
+    emailEnvoye: s.emailEnvoye === true, confirmationEnvoyee: s.confirmationEnvoyee === true,
+  }
+}
+
+/**
+ * Adresse proposée d'après la position du navigateur (copropriété sans adresse). La position part dans le corps du
+ * POST, jamais dans l'URL ; le serveur ne la conserve pas. adresse null : rien trouvé à cet endroit.
+ */
+export async function proposerAdresseQr(jeton: string, latitude: number, longitude: number, fetchImpl: Fetch = fetch): Promise<ResultatAdresseQr> {
+  const r = await appeler(fetchImpl, `${URL_API_QR}/adresse`, {
+    method: 'POST', headers: entetes(null, true), body: JSON.stringify({ jeton, latitude, longitude }),
+  })
+  if (!r.ok) return r
+  const adresse = (r.corps as { adresse?: unknown } | null)?.adresse
+  return { ok: true, adresse: typeof adresse === 'string' && adresse.trim() ? adresse.trim() : null }
+}
+
+/** Jour d'une fiche semblable : AAAA-MM-JJ, jamais l'heure du dépôt. */
+const JOUR_QR = /^\d{4}-\d{2}-\d{2}$/
+
+/** Fiche reçue du serveur, gardée seulement si elle a la forme attendue (date = jour seul). */
+function semblableDepuisCorps(valeur: unknown): SignalementSemblableQr | null {
+  if (!valeur || typeof valeur !== 'object') return null
+  const v = valeur as Record<string, unknown>
+  if (typeof v.numero !== 'string' || !NUMERO_QR.test(v.numero) || !estStatutOuvertQr(v.statut)) return null
+  if (typeof v.typeIntervention !== 'string' || typeof v.zone !== 'string' || typeof v.creeLe !== 'string' || !JOUR_QR.test(v.creeLe)) return null
+  return { numero: v.numero, typeIntervention: v.typeIntervention, zone: v.zone, creeLe: v.creeLe, statut: v.statut }
+}
+
+/** Signalements déjà faits au même endroit (même copropriété, bâtiment et zone des parties communes). */
+export async function chargerSemblablesQr(
+  recherche: { jeton: string; batiment: string; zone: string; langue: LangueSignalementQr }, fetchImpl: Fetch = fetch,
+): Promise<ResultatSemblablesQr> {
+  const parametres = new URLSearchParams({ jeton: recherche.jeton, batiment: recherche.batiment, zone: recherche.zone, langue: recherche.langue })
+  const r = await appeler(fetchImpl, `${URL_API_QR}/similaires?${parametres.toString()}`, { method: 'GET' })
+  if (!r.ok) return r
+  const liste = (r.corps as { semblables?: unknown } | null)?.semblables
+  const semblables = Array.isArray(liste) ? liste.map(semblableDepuisCorps).filter((s): s is SignalementSemblableQr => s !== null) : []
+  return { ok: true, semblables }
 }
 
 /** Copropriétés (avec leur QR code) et signalements reçus — super admin. */

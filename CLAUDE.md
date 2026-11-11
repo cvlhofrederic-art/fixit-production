@@ -85,7 +85,7 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
   paramètre vide n'est pas compilée : une règle exacte précède la règle `:path*` pour tout préfixe qui a une page racine.
 - `app/(commun)/pro/` → dashboard partagé artisan + pro_societe (BTP) — séparation par `orgRole`
 - `app/(commun)/{client,artisan}/` → landings pubs
-- `app/(commun)/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans (neuf pour le super admin)
+- `app/(commun)/coproprietaire/dashboard` → portail copropriétaire (actif depuis le 17/10/2026) : huit écrans (le super admin y a en plus un lien vers AJ Signalement)
   `components/coproprietaire-dashboard/ecrans/`, données réelles du syndic via `GET /api/coproprietaire/espace`
   (`lib/coproprietaire/` : accès par fiche `syndic_coproprios`, filtrage de ce qu'un copropriétaire peut voir),
   démonstration `lib/coproprietaire/demo.ts`. Spécification : `components/coproprietaire-dashboard/SPECIFICATION-ECRANS.md`.
@@ -97,9 +97,11 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 - `components/syndic-dashboard/v54` → Syndic v54 (PT par défaut ; version FR adaptée au droit français sous
   `/fr/syndic/v54` via `lib/syndic/v54/i18n`). PT et FR sont deux réalités juridiques : ne jamais calquer un correctif
   ou un module de l'un sur l'autre.
-- `app/(commun)/signalement/[jeton]` + `lib/aj-signalement/` + `components/aj-signalement/` → « AJ Signalement » (04/11/2026) :
+- `app/(commun)/signalement/[jeton]` + `app/(commun)/aj-signalement/` + `lib/aj-signalement/` + `components/aj-signalement/` → « AJ Signalement » (04/11/2026) :
   signalements déposés par QR code sans compte (coordonnées obligatoires), tables `signalements_qr_*` sans lien avec `syndic_*`,
-  e-mail à l’administrateur ; tableau de bord = écran `signalementsQr` du portail copropriétaire (super admin) et écran miroir dans l’AJ.
+  e-mail à l’administrateur et accusé de réception au déclarant ; tableau de bord = espace indépendant `/fr/aj-signalement/`
+  (depuis le 10/11/2026 ; super admin seul, accès décidé par `lib/aj-signalement/acces-espace.ts` et contrôlé dans le middleware).
+  Le portail copropriétaire et l’AJ n’en gardent qu’un lien, réservé au super admin : ne pas y recréer d’écran de signalements.
 - `app/(commun)/coproprietaire/portail` (portail léger sans compte) et `app/(commun)/syndic/` (hors v54) → code conservé, ne pas y toucher
 - `components/dashboard/` → composants `*Section.tsx`
 - `lib/` → logger, validation, types, claude, groq, circuit-breaker, rate-limit, pdf/, seo/, i18n/

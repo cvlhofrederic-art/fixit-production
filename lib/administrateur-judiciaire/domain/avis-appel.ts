@@ -130,7 +130,7 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   copie (premier appel consécutif à la décision) ; le circuit Courrier ne joint pas encore de pièce : avertissement.
  *
  * Décisions de Hugo du 03/11/2026 (registre des décisions juridiques, J30 ; question 21 de la liste) :
- * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, 🔵 à confirmer) et l'ordonnance de l'art.
+ * - J30 : la décision d'affectation (date de l'AG et n° de la résolution, confirmée par J42) et l'ordonnance de l'art.
  *   29-14, 2° (juridiction, date, n°) de l'emploi du fonds (EmploiFondsEcheance.affectation) se reçoivent en forme
  *   structurée, aux types de DecaissementFondsTravaux (fonds-travaux.ts), ou en texte libre d'avant J30. Elles se
  *   contrôlent comme des valeurs enregistrées, `aujourdhui: null` : forme contrôlée, date non comparée au jour, jamais
@@ -139,6 +139,11 @@ import type { FormeEnvoiCourrier, ModeReglement, TypeAppelLieAuMouvement } from 
  *   compléter. travaux-operations.ts, hors de ce lot, fournit encore ces références en texte libre (il convertit même
  *   la résolution de l'opération en texte) : chaque emploi d'une opération porte ce signalement jusqu'à ce que sa
  *   saisie passe à la forme structurée, que l'avis reçoit déjà.
+ *
+ * Décisions de Hugo du 06/11/2026 (registre des décisions juridiques, J42 ; PR #643, suite de J30) :
+ * - J42 : la décision d'affectation de l'AG prend la forme date de l'AG + n° de la résolution, obligatoires ; un texte
+ *   libre est refusé pour toute nouvelle saisie. L'interprétation de J30 est confirmée : sa marque de doute est retirée,
+ *   comportement inchangé (l'avis reçoit des valeurs enregistrées : un texte libre d'avant J30 reste admis et signalé).
  *
  * 🔴 Non établi (questions pour Hugo ou Frédéric) :
  * - pré-notification de 14 jours calendaires, séquence FRST facultative depuis 2016, caducité d'un mandat inutilisé

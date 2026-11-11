@@ -37,7 +37,7 @@ export type TvaLocale = 'fr' | 'pt'
  *
  * **France (locale='fr') :**
  *   - art. 293 B CGI         : "TVA non applicable, article 293 B du CGI."
- *   - art. 283, 2 nonies CGI : "Autoliquidation — Article 283, 2 nonies du CGI..."
+ *   - art. 283, 2 nonies CGI : "Autoliquidation : article 283, 2 nonies du CGI..."
  *     (BOFiP impose au minimum "Autoliquidation" — wording étendu retenu pour rigueur)
  *
  * **Portugal (locale='pt') :**
@@ -54,7 +54,7 @@ const MENTIONS_BY_LOCALE: Record<TvaLocale, Record<TvaRegime, string | null>> = 
   fr: {
     classique: null,
     franchise_293b: 'TVA non applicable, article 293 B du CGI.',
-    autoliquidation_btp: 'Autoliquidation — Article 283, 2 nonies du CGI. TVA due par le preneur.',
+    autoliquidation_btp: 'Autoliquidation : article 283, 2 nonies du CGI. TVA due par le preneur.',
   },
   pt: {
     classique: null,
