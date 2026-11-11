@@ -1,5 +1,5 @@
 import { etatNotificationCourrier, type CourrierSuivi, type EtatNotificationCourrier } from '@/lib/administrateur-judiciaire/domain/courriers'
-import { ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
+import { ajouterJours, ajouterMois, dateIsoVersFr, estDateIsoValide } from '@/lib/administrateur-judiciaire/domain/dates'
 import { seuilsAtteints, type DecisionAnnuelle } from '@/lib/administrateur-judiciaire/domain/decisions-annuelles-ag'
 import {
   controleDeclaratifDemande,
@@ -72,8 +72,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   « Sauf urgence, l'exécution par le syndic des travaux décidés par l'assemblée générale en application des articles 25
  *   et 26 de la présente loi est suspendue jusqu'à l'expiration du délai de deux mois mentionné au deuxième alinéa du
  *   présent article. » (le délai de contestation ; le syndic : ici l'administrateur provisoire qui reçoit ses pouvoirs,
- *   L. 1965 art. 29-1, I) : BLOQUANT quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai, alerte quand la
- *   majorité ou la fin du délai manquent (décision 7) ;
+ *   L. 1965 art. 29-1, I) : BLOQUANT quand l'envoi de l'OS ou l'intervention prévue tombe dans ce délai (décision 7,
+ *   précisée par J48), alerte quand la majorité ou la fin du délai manquent (décision 7) ;
  * - déclencheurs légaux du visa (MotifVisa ; intervention seulement : une demande de devis ne conclut aucun marché) :
  *   seuil de consultation du conseil syndical et seuil de mise en concurrence fixés par l'assemblée, obligatoires « à
  *   partir » de ces montants (L. 1965 art. 21, al. 2 ; sans conditions fixées par l'assemblée, la mise en concurrence
@@ -125,7 +125,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   confirmée par Hugo le 06/11/2026 (ci-dessous) ; le comportement ne change pas : (a) bloquant (la question 7 demandait
  *   « bloquant ou alerte ? » ; registre : « envoi bloqué pendant le délai de contestation ») : execution_suspendue_art42
  *   quand l'intervention prévue (à défaut, l'envoi) tombe au plus tard le dernier jour du délai, sauf urgence retenue
- *   (décision 6) ; un envoi pendant le délai pour une intervention prévue après lui n'est pas bloqué (🔴) ; (b)
+ *   (décision 6) ; étendu par J48 (décisions du 10/11/2026, ci-dessous) à tout envoi pendant le délai, même pour une
+ *   intervention prévue après lui ; (b)
  *   l'intervention d'une entreprise qui exécute une résolution des art. 25 ou 26 vaut exécution de « travaux », quel que
  *   soit son objet ; (c) une décision prise à l'unanimité n'est pas suspendue (MAJORITES_SUSPENSIVES : art25 et art26) ;
  *   raison : prise à l'unanimité des voix de tous les copropriétaires, elle n'a ni opposant ni défaillant, or « Les
@@ -163,8 +164,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * de J17) :
  * - J17 confirmée : envoi de l'OS bloqué pendant le délai de contestation (L. 1965 art. 42, al. 3), exécution d'une
  *   résolution des art. 25 ou 26 = « travaux », unanimité non suspendue ; la compréhension de la réponse « oui » (décision
- *   7) est confirmée, comportement inchangé ; le cas d'une intervention prévue après la fin du délai reste une question
- *   (🔴, ci-dessous) ;
+ *   7) est confirmée, comportement inchangé ; le cas d'une intervention prévue après la fin du délai, resté ouvert, est
+ *   tranché par J48 (10/11/2026, ci-dessous) ;
  * - J46 (date du constat d'urgence, suite de J16) : la règle est VALIDÉE, comportement inchangé. Daté après l'envoi, pour
  *   tous les fondements et tous les délais, le constat bloque celui-ci (constat_urgence_posterieur_envoi), comme une
  *   décision postérieure à l'envoi ; le jour de l'envoi, ce constat n'existe pas encore : sans constat, l'urgence n'est
@@ -176,15 +177,45 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   fondements, sa date n'est comparée à celle de la décision : seule la borne de l'envoi vaut ;
  * - J47 (« AR caduc après 1 an », suite de J19) : c'est le DEVIS qui devient caduc UN AN APRÈS SA DATE
  *   (MOIS_CADUCITE_DEVIS_OS, 12 mois : règle du cabinet, aucun texte, fondement null). Un OS qui accepte un devis daté de
- *   plus d'un an à la date de l'envoi est refusé (devis_trop_ancien, bloquant : un nouveau devis est nécessaire). Bornes,
- *   choix du code et non de Hugo (🔵 : lecture de « daté de plus d'un an » et de dates.ajouterMois, à confirmer par
- *   Hugo, question ci-dessous) : un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire ;
- *   sans quantième identique, le dernier jour du mois : le devis du 29 février a un an le 28 février suivant, il est
- *   refusé dès le 1er mars. Le devis associé de la demande (DevisAssocie, demandes.ts) ne porte que son
- *   identifiant et ses montants : sa date (dateDevis) est fournie par l'appelant, comme sa fin de validité
- *   (validiteDevisAu, lue par devisCaducALaReception) ; inconnue, l'OS n'est pas bloqué, alerte date_devis_inconnue.
+ *   plus d'un an à la date de l'envoi est refusé (devis_trop_ancien, bloquant : un nouveau devis est nécessaire). Bornes :
+ *   un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire (décision J49 de Hugo du
+ *   10/11/2026, ci-dessous, avec l'alerte devis_revalorisation_a_demander) ; sans quantième identique, le dernier jour du
+ *   mois (choix du code et non de Hugo, 🔵 : lecture de dates.ajouterMois, à confirmer par Hugo, question ci-dessous) :
+ *   le devis du 29 février a un an le 28 février suivant, il est refusé dès le 1er mars. Le devis associé de la demande
+ *   (DevisAssocie, demandes.ts) ne porte que son identifiant et ses montants : sa date (dateDevis) est fournie par
+ *   l'appelant, comme sa fin de validité (validiteDevisAu, lue par devisCaducALaReception) ; inconnue, l'OS n'est pas
+ *   bloqué, alerte date_devis_inconnue.
  *   Contrôlé avant l'envoi (controlerAvantEnvoiOs), d'une intervention seulement (🔵 : une demande de devis n'accepte
  *   aucun devis) ; ni l'OS ni l'AR ne deviennent caducs.
+ *
+ * Décisions de Hugo du 10/11/2026 (registre des décisions juridiques : J48 et J49, précisions de J17 et J47) :
+ * - J48 (précision de J17 ; à la question « un OS envoyé pendant le délai de contestation, pour des travaux prévus après
+ *   la fin du délai, peut-il partir ? », réponse « voir la législation ») : l'OS envoyé au plus tard le dernier jour du
+ *   délai de contestation est BLOQUÉ (execution_suspendue_art42, bloquant, à confirmer), même pour une intervention
+ *   prévue après la fin du délai ; l'envoi du lendemain part ; seule l'urgence retenue (décision 6, date du constat :
+ *   J46) lève la suspension. Le droit : L. 1965 art. 42, al. 3, relu sur Légifrance le 10/11/2026 (version en vigueur
+ *   depuis le 01/06/2020, cité plus haut), suspend « l'exécution par le syndic des travaux » sans définir l'exécution ; le
+ *   syndic ne fait pas lui-même les travaux, son acte d'exécution est de les commander ; le rapport du Sénat n° 53
+ *   (1985-1986), à l'origine de la phrase (loi n° 85-1470 du 31/12/1985, art. 14), vise à interdire au syndic
+ *   « d'engager les travaux » ; l'OS accepte le devis : le marché est conclu dès qu'il parvient à l'entreprise (C. civ.
+ *   art. 1121), quelle que soit la date d'intervention prévue ; la fin du délai dépend de chaque notification (D. 1967
+ *   art. 18). Jurisprudence : aucun arrêt lu ne tranche le point (l'envoi de l'OS ou la signature du marché vaut-il
+ *   « exécution » ?) ; sur le risque, l'exécution d'une décision d'assemblée ne fait pas obstacle à son annulation
+ *   (Cass. 3e civ., 24/11/2021, n° 20-22.487) et une notification irrégulière ne fait pas courir le délai (Cass. 3e civ.,
+ *   28/01/2015, n° 13-23.552). 🔵 Interprétation protectrice, confiance moyenne : le texte ne règle pas ce cas, la
+ *   lecture littérale (laisser partir l'OS) reste défendable ; à confirmer par Hugo (aConfirmer). Inchangés : intervention
+ *   prévue au plus tard le dernier jour du délai (bloquant, même quand l'OS est envoyé après lui), unanimité et art. 24
+ *   non suspendus, demande de devis non contrôlée (elle ne conclut aucun marché), majorité ou fin du délai inconnues
+ *   (alertes) ;
+ * - J49 (suite de J47 ; à la question « un devis daté d'un an pile est-il encore valable le jour anniversaire ? »,
+ *   réponse « oui mais peut-être une revalorisation est à demander à l'entreprise ») : le devis daté d'un an pile (même
+ *   quantième) reste ACCEPTÉ le jour anniversaire (devis_trop_ancien seulement au-delà), alors que
+ *   MOIS_CADUCITE_MANDAT_SEPA (avis-appel.ts) rend le mandat caduc le jour anniversaire ; ce jour-là, une ALERTE non
+ *   bloquante (devis_revalorisation_a_demander, fondement null) recommande de demander à l'entreprise si son prix est
+ *   maintenu ou révisé avant d'envoyer l'OS. Seuil : MOIS_ALERTE_REVALORISATION_DEVIS, 12 mois, règle du cabinet, aucun
+ *   texte : l'alerte vaut dès que le devis a ce nombre de mois à l'envoi, tant que J47 ne le refuse pas ; à 12, seul le
+ *   jour anniversaire la déclenche, et le cabinet peut l'avancer en baissant ce seuil. Le cas du 29 février reste une
+ *   lecture du code (🔵, J47) : le devis du 29 février a l'alerte le 28 février suivant.
  *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué une fois puis figé ; un N° hors du format, ou d'un autre segment
@@ -309,9 +340,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - Hugo (suite de la décision 6) : critère proposé (entretien courant ou exécution d'une décision déjà prise = pouvoirs du
  *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer ;
  *   un délai « prioritaire » peut-il valoir urgence (non ici) ?
- * - Hugo (suite de la décision 7, J17 confirmée le 06/11/2026) : un envoi pendant le délai de contestation, pour une
- *   intervention prévue après la fin du délai, peut-il partir (oui ici : seule la date de l'intervention prévue, à défaut
- *   celle de l'envoi, est comparée à la fin du délai) ?
  * - Hugo (suite de la décision 8) : l'auteur du constat d'urgence doit-il être un signataire habilité (ici :
  *   interprétation, alerte à confirmer constat_urgence_auteur_non_habilite, sans blocage) ? La lecture des textes cités
  *   (signature d'un collaborateur au nom de l'administrateur provisoire : pas une substitution) est-elle juste ? Les
@@ -347,10 +375,9 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   preuve pour une réception sans AR, par courrier simple, messagerie VitFix, courriel ou SMS (ici : admise, « sans
  *   preuve » ; un AR n'y est pas admis, même un accusé de réception électronique au sens de C. civ. art. 1127-4) ? Quel
  *   délai d'acheminement d'un courrier retenir pour la caducité du devis (jour même ici) ?
- * - Hugo, caducité du devis (suite de J47) : « caduc un an après sa date » et « daté de plus d'un an » divergent le jour
- *   anniversaire : un devis daté d'un an pile est-il encore accepté (oui ici ; avis-appel.ts lit à l'inverse
- *   MOIS_CADUCITE_MANDAT_SEPA : le mandat y est caduc le jour anniversaire) ? Sans quantième identique, le devis du 29
- *   février a-t-il un an le 28 février suivant (oui ici : dates.ajouterMois) ?
+ * - Hugo, caducité du devis (suite de J47 et J49 ; le jour anniversaire est tranché par J49) : sans quantième identique,
+ *   le devis du 29 février a-t-il un an le 28 février suivant (oui ici : dates.ajouterMois ; ce jour-là il est encore
+ *   accepté, avec l'alerte devis_revalorisation_a_demander, et il est refusé dès le 1er mars) ?
  * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
  *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
  *
@@ -462,6 +489,13 @@ export const NOMBRE_MIN_DEVIS_CONCURRENCE = 2
  * règle du cabinet, aucun texte.
  */
 export const MOIS_CADUCITE_DEVIS_OS = 12
+/**
+ * Ancienneté du devis, comptée de sa date, à partir de laquelle le contrôle avant l'envoi recommande de demander à
+ * l'entreprise si son prix est maintenu ou révisé (décision J49 de Hugo du 10/11/2026 : « oui mais peut-être une
+ * revalorisation est à demander à l'entreprise ») : règle du cabinet, aucun texte. À 12, seul le jour anniversaire
+ * déclenche l'alerte (au-delà, J47 refuse le devis) ; le cabinet peut l'avancer en baissant ce seuil.
+ */
+export const MOIS_ALERTE_REVALORISATION_DEVIS = 12
 
 const FONDEMENT_CONSULTATION = 'L. 1965 art. 21, al. 2 ; D. 1967 art. 26'
 const FONDEMENT_CONCURRENCE = 'L. 1965 art. 21, al. 2 ; D. 1967 art. 19-2'
@@ -1379,6 +1413,7 @@ export type CodeAnomalieEnvoiOs =
   | 'execution_suspendue_art42'
   | 'devis_caduc'
   | 'devis_trop_ancien'
+  | 'devis_revalorisation_a_demander'
   | 'date_devis_inconnue'
   | 'controle_declaratif_non_fait'
   | 'controle_declaratif_impossible'
@@ -1423,8 +1458,9 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   /** Fin de validité du devis associé, fixée par l'entreprise. */
   validiteDevisAu?: string | null
   /**
-   * Date du devis associé (décision J47 : caduc un an après elle, MOIS_CADUCITE_DEVIS_OS) ; null ou absent : inconnue,
-   * alerte date_devis_inconnue sans blocage.
+   * Date du devis associé (décision J47 : caduc un an après elle, MOIS_CADUCITE_DEVIS_OS ; décision J49 : alerte de
+   * revalorisation dès MOIS_ALERTE_REVALORISATION_DEVIS mois) ; null ou absent : inconnue, alerte date_devis_inconnue sans
+   * blocage.
    */
   dateDevis?: string | null
   /** Segment mandat de la séquence des N° (SegmentsNumeroOs.mandat) ; absent : non contrôlé. */
@@ -1874,14 +1910,51 @@ function anomaliesDelegationCs(decisions: readonly DecisionAnnuelle[] | undefine
   ]
 }
 
-/** Suspension de l'exécution des travaux votés aux art. 25 et 26 pendant le délai de contestation, sauf urgence. */
+/**
+ * Ce qui tombe dans le délai de contestation qui finit le `fin` (décision J48 de Hugo du 10/11/2026, précision de J17) :
+ * l'envoi de l'OS, qui conclut le marché dès qu'il parvient à l'entreprise (C. civ. art. 1121), même pour une
+ * intervention prévue après la fin du délai ; il ne part qu'à partir du lendemain de `fin`, date écrite dans le message ;
+ * quand l'OS est envoyé après le délai, l'intervention prévue au plus tard son dernier jour ; null : rien n'y tombe.
+ */
+function faitPendantLeDelai(d: Demande, date: string, fin: string): string | null {
+  if (date <= fin) {
+    const { envoi, suite } = envoiPendantLeDelai(date, d.prevuLe, fin)
+    return `${envoi} : l'OS, qui conclut le marché dès qu'il parvient à l'entreprise (C. civ. art. 1121), ne part pas avant le ${fr(ajouterJours(fin, 1))}, lendemain de la fin du délai${suite}`
+  }
+  if (d.prevuLe !== null && d.prevuLe <= fin) return `intervention prévue le ${fr(d.prevuLe)}, pendant le délai`
+  return null
+}
+
+/**
+ * Pour un OS envoyé le `date`, au plus tard le dernier jour `fin` du délai de contestation (J48) : la place de l'envoi et
+ * de l'intervention prévue face au délai (`envoi`), et ce qui suit la date à partir de laquelle l'OS peut partir
+ * (`suite`) ; « même pour une intervention prévue après le délai » seulement quand elle l'est.
+ */
+function envoiPendantLeDelai(date: string, prevuLe: string | null, fin: string): { envoi: string; suite: string } {
+  if (prevuLe === null) return { envoi: `envoi le ${fr(date)}, pendant le délai, sans date d'intervention prévue`, suite: '' }
+  if (prevuLe <= fin)
+    return {
+      envoi: `envoi le ${fr(date)} et intervention prévue le ${fr(prevuLe)}, tous deux pendant le délai`,
+      suite: ', pour une intervention prévue à partir de cette date',
+    }
+  return {
+    envoi: `envoi le ${fr(date)}, pendant le délai, intervention prévue le ${fr(prevuLe)}, après lui`,
+    suite: ', même pour une intervention prévue après le délai',
+  }
+}
+
+/**
+ * Suspension de l'exécution des travaux votés aux art. 25 et 26 pendant le délai de contestation, sauf urgence (J17) :
+ * l'envoi de l'OS pendant le délai est bloqué, même pour une intervention prévue après lui (J48, 🔵 interprétation
+ * protectrice, à confirmer : aConfirmer).
+ */
 function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   if (s.majoriteResolution === null)
     return [
       anomalie(
         'majorite_resolution_non_renseignee',
         'alerte',
-        "Majorité de la résolution exécutée non renseignée : sauf urgence, les travaux votés aux art. 25 et 26 ne s'exécutent pas avant la fin du délai de contestation.",
+        "Majorité de la résolution exécutée non renseignée : sauf urgence constatée par l'administrateur provisoire, les travaux votés aux art. 25 et 26 ne s'exécutent pas avant la fin du délai de contestation, et leur OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.",
         FONDEMENT_SUSPENSION,
         true,
       ),
@@ -1894,18 +1967,18 @@ function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: C
       anomalie(
         'delai_contestation_inconnu',
         'alerte',
-        `Résolution votée à la majorité de l'${article} : fin du délai de contestation non calculée, vérifier que l'intervention ne tombe pas pendant la suspension de l'exécution.`,
+        `Résolution votée à la majorité de l'${article} : fin du délai de contestation non calculée. Vérifier que l'envoi de l'OS et l'intervention prévue tombent tous deux après la fin du délai : sauf urgence constatée par l'administrateur provisoire, l'OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.`,
         FONDEMENT_SUSPENSION,
         true,
       ),
     ]
-  const execution = d.prevuLe ?? contexte.date
-  if (execution > fin) return []
+  const fait = faitPendantLeDelai(d, contexte.date, fin)
+  if (fait === null) return []
   return [
     anomalie(
       'execution_suspendue_art42',
       'bloquant',
-      `Travaux votés à la majorité de l'${article} : exécution suspendue jusqu'à la fin du délai de contestation (${fr(fin)} inclus), sauf urgence constatée ; intervention au ${fr(execution)}.`,
+      `Travaux votés à la majorité de l'${article} : exécution suspendue (${FONDEMENT_SUSPENSION}) jusqu'à la fin du délai de contestation (${fr(fin)} inclus), sauf urgence constatée par l'administrateur provisoire ; ${fait}.`,
       FONDEMENT_SUSPENSION,
       true,
     ),
@@ -1969,10 +2042,12 @@ function anomaliesDevisAssocie(d: Demande, s: SortieOrdreService, contexte: Cont
 /**
  * Ancienneté du devis accepté par l'OS (décision J47 de Hugo du 06/11/2026) : le devis devient caduc un an après sa date
  * (MOIS_CADUCITE_DEVIS_OS, règle du cabinet, fondement null) ; daté de plus d'un an à la date de l'envoi, l'OS est refusé
- * (bloquant : un nouveau devis est nécessaire). Bornes (🔵 : lecture de « daté de plus d'un an » et de dates.ajouterMois,
- * à confirmer par Hugo) : un devis daté d'un an pile (même quantième) est encore accepté le jour anniversaire ; sans
- * quantième identique, le dernier jour du mois : le devis du 29 février a un an le 28 février suivant. Date du devis
- * inconnue : alerte, sans blocage. Intervention seulement : une demande de devis n'accepte aucun devis (🔵).
+ * (bloquant : un nouveau devis est nécessaire). Bornes : un devis daté d'un an pile (même quantième) est encore accepté le
+ * jour anniversaire (décision J49 de Hugo du 10/11/2026), avec une alerte qui recommande de demander à l'entreprise si son
+ * prix est maintenu ou révisé, dès MOIS_ALERTE_REVALORISATION_DEVIS mois (règle du cabinet, fondement null) ; sans
+ * quantième identique, le dernier jour du mois (🔵 : lecture de dates.ajouterMois, à confirmer par Hugo) : le devis du 29
+ * février a un an le 28 février suivant. Date du devis inconnue : alerte, sans blocage. Intervention seulement : une
+ * demande de devis n'accepte aucun devis (🔵).
  */
 function anomaliesAncienneteDevis(d: Demande, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   if (d.type !== 'intervention' || d.devisAssocie === null) return []
@@ -1986,12 +2061,20 @@ function anomaliesAncienneteDevis(d: Demande, contexte: ContexteEnvoiOs): Anomal
       ),
     ]
   const valableJusquAu = ajouterMois(devisLe, MOIS_CADUCITE_DEVIS_OS)
-  if (contexte.date <= valableJusquAu) return []
+  if (contexte.date > valableJusquAu)
+    return [
+      anomalie(
+        'devis_trop_ancien',
+        'bloquant',
+        `Devis associé du ${fr(devisLe)}, daté de plus de ${MOIS_CADUCITE_DEVIS_OS} mois à l'envoi du ${fr(contexte.date)} (caduc après le ${fr(valableJusquAu)}, règle du cabinet) : il ne peut plus être accepté par l'OS ; un nouveau devis est nécessaire.`,
+      ),
+    ]
+  if (contexte.date < ajouterMois(devisLe, MOIS_ALERTE_REVALORISATION_DEVIS)) return []
   return [
     anomalie(
-      'devis_trop_ancien',
-      'bloquant',
-      `Devis associé du ${fr(devisLe)}, daté de plus de ${MOIS_CADUCITE_DEVIS_OS} mois à l'envoi du ${fr(contexte.date)} (caduc après le ${fr(valableJusquAu)}, règle du cabinet) : il ne peut plus être accepté par l'OS ; un nouveau devis est nécessaire.`,
+      'devis_revalorisation_a_demander',
+      'alerte',
+      `Devis associé du ${fr(devisLe)}, daté de ${MOIS_ALERTE_REVALORISATION_DEVIS} mois ou plus à l'envoi du ${fr(contexte.date)} (acceptable par l'OS jusqu'au ${fr(valableJusquAu)} inclus, règle du cabinet) : il est recommandé de demander à l'entreprise si son prix est maintenu ou révisé avant d'envoyer l'OS.`,
     ),
   ]
 }
