@@ -6,12 +6,13 @@
 // - e-mail + mot de passe, « Mot de passe oublié ? » ; ni Particulier / Artisan / Pro, ni Google, ni « Créer un compte » ;
 // - saisie vérifiée avant tout appel, erreurs reliées aux champs (aria-invalid, aria-describedby), focus sur le
 //   premier champ en erreur ;
-// - compte admis : arrivée dans l'espace (ancre d'une vue comprise) ; compte sans accès : message neutre, session que
-//   la page vient d'ouvrir fermée (portée locale), aucune navigation ;
+// - compte admis : arrivée dans l'espace (ancre d'une vue comprise), adresse REMPLACÉE ; compte sans accès : message
+//   neutre annoncé (role=alert) et focalisé, session que la page vient d'ouvrir fermée (portée locale), aucune navigation ;
 // - erreurs de Supabase : trois messages qui ne disent jamais si l'adresse existe ; journal sans e-mail ni mot de passe ;
-// - au chargement (secours sans middleware) : session admise → espace ; session sans accès → message neutre ;
+// - au chargement (secours sans middleware) : session admise → espace ; session sans accès → message neutre (status) ;
+// - « Mot de passe oublié » dans la page (POST /api/auth/reset-password), aucun lien vers les pages communes /auth/… ;
 // - réutilisable pour l'espace d'un cabinet (PR 2) : contexte en paramètre.
-// Supabase et sonner sont simulés : aucune requête réelle, e-mails en @exemple.test, mot de passe fictif.
+// Supabase, sonner et fetch sont simulés : aucune requête réelle, e-mails en @exemple.test, mot de passe fictif.
 
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -43,6 +44,8 @@ const { default: ConnexionEspaceQr } = await import('@/components/aj-signalement
 const EMAIL = 'gestion@exemple.test'
 const MOT_DE_PASSE = 'mot-de-passe-fictif'
 
+// Chaque navigation est notée avec sa méthode (« replace … », « assign … », « reload ») : un test d'arrivée prouve que
+// l'adresse est REMPLACÉE (« retour » ne ramène pas au formulaire), et non ajoutée à l'historique par assign().
 let navigations: string[] = []
 let descripteurLocation: PropertyDescriptor | undefined
 function simulerLocation(pathname: string, hash = '') {
@@ -54,12 +57,14 @@ function simulerLocation(pathname: string, hash = '') {
     value: {
       origin: 'https://vitfix.io', pathname, search: '', hash,
       href: `https://vitfix.io${pathname}${hash}`,
-      assign: (destination: string) => { navigations.push(destination) },
-      replace: (destination: string) => { navigations.push(destination) },
-      reload: () => { navigations.push('rechargement') },
+      assign: (destination: string) => { navigations.push(`assign ${destination}`) },
+      replace: (destination: string) => { navigations.push(`replace ${destination}`) },
+      reload: () => { navigations.push('reload') },
     },
   })
 }
+/** Navigation attendue : l'adresse remplacée par window.location.replace. */
+const remplacement = (destination: string) => `replace ${destination}`
 
 const compte = (app_metadata: Record<string, unknown>, user_metadata: Record<string, unknown> = {}) =>
   ({ id: 'u1', email: EMAIL, app_metadata, user_metadata })
@@ -77,6 +82,24 @@ function enAttente<T>() {
 const champEmail = () => screen.getByLabelText('Adresse e-mail professionnelle') as HTMLInputElement
 const champMotDePasse = () => screen.getByLabelText('Mot de passe') as HTMLInputElement
 const boutonConnexion = () => screen.getByRole('button', { name: /Se connecter|Connexion…/ })
+const boutonOubli = () => screen.getByRole('button', { name: 'Mot de passe oublié ?' })
+/** Liens de la page vers les pages communes de VitFix (/auth/login/, /auth/reset-password/…). */
+const liensVersPagesCommunes = () =>
+  Array.from(document.querySelectorAll('a[href]')).map((lien) => lien.getAttribute('href')).filter((href) => href?.includes('/auth'))
+
+/** Le focus est sur ce message (ou sur son cadre focalisable) : ni perdu sur la page (body), ni ailleurs. */
+const aLeFocus = (element: HTMLElement) => {
+  const actif = document.activeElement
+  return actif !== null && actif !== document.body && actif.contains(element)
+}
+
+/** Élément focalisable suivant dans l'ordre du clavier (Tab), après l'élément qui a le focus. */
+function focalisableSuivant(): Element | undefined {
+  const depart = document.activeElement
+  if (!depart) return undefined
+  return Array.from(document.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .find((element) => (depart.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0 && !depart.contains(element))
+}
 
 function saisir(email: string, motDePasse: string) {
   fireEvent.change(champEmail(), { target: { value: email } })
@@ -103,6 +126,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   avertissements.mockRestore()
   if (descripteurLocation) Object.defineProperty(window, 'location', descripteurLocation)
   descripteurLocation = undefined
@@ -123,7 +147,8 @@ describe('écran : connexion professionnelle, e-mail et mot de passe seulement',
     }
     expect(boutonConnexion()).toHaveAttribute('type', 'submit')
     expect(boutonConnexion()).toHaveTextContent('Se connecter')
-    expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/fr/auth/reset-password/')
+    // « Mot de passe oublié ? » s'ouvre dans la page (relecture du 11/11/2026) : plus de lien vers la page commune.
+    expect(boutonOubli()).toHaveAttribute('type', 'button')
   })
 
   it('ni Particulier / Artisan / Pro, ni Google, ni « Créer un compte », ni « Se souvenir de moi »', async () => {
@@ -132,15 +157,19 @@ describe('écran : connexion professionnelle, e-mail et mot de passe seulement',
     for (const mot of ['particulier', 'artisan', 'google', 'créer un compte', 'se souvenir', 'super']) expect(texte).not.toContain(mot)
     expect(screen.queryByRole('button', { name: /pro$/i })).toBeNull()
     expect(screen.queryByRole('checkbox')).toBeNull()
-    // Deux boutons seulement : afficher le mot de passe et se connecter.
-    expect(screen.getAllByRole('button')).toHaveLength(2)
+    // Trois boutons seulement : afficher le mot de passe, mot de passe oublié, se connecter.
+    expect(screen.getAllByRole('button').map((bouton) => bouton.textContent || bouton.getAttribute('aria-label')))
+      .toEqual(['Afficher le mot de passe', 'Mot de passe oublié ?', 'Se connecter'])
   })
 
-  it('en portugais (/pt/…) : « Mot de passe oublié ? » vers /pt/auth/reset-password/', async () => {
-    simulerLocation('/pt/aj-signalement/connexion/')
-    await rendre()
-    expect(screen.getByRole('link', { name: 'Mot de passe oublié ?' })).toHaveAttribute('href', '/pt/auth/reset-password/')
-  })
+  it.each(['/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/'])(
+    '%s : aucun lien vers les pages communes de connexion (/auth/…), qui proposent Particulier / Artisan / Pro et Google',
+    async (chemin) => {
+      simulerLocation(chemin)
+      await rendre()
+      expect(liensVersPagesCommunes()).toEqual([])
+    },
+  )
 
   it('afficher / masquer le mot de passe (bouton qui n’envoie pas le formulaire)', async () => {
     await rendre()
@@ -202,7 +231,7 @@ describe('compte admis : arrivée dans l’espace', () => {
     await rendre()
     saisir(EMAIL, MOT_DE_PASSE)
     envoyer()
-    await waitFor(() => expect(navigations).toEqual([destination]))
+    await waitFor(() => expect(navigations).toEqual([remplacement(destination)]))
     expect(simul.signOut).not.toHaveBeenCalled()
   })
 
@@ -217,7 +246,7 @@ describe('compte admis : arrivée dans l’espace', () => {
     expect(boutonConnexion()).toBeDisabled()
     expect(boutonConnexion()).toHaveTextContent('Connexion…')
     await act(async () => { attente.regler(connexionReussie({ role: 'super_admin' })) })
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/')]))
   })
 })
 
@@ -241,6 +270,39 @@ describe('compte sans accès : message neutre, session fermée (portée locale),
     expect(champEmail()).toHaveValue(EMAIL)
     expect(document.body.textContent?.toLowerCase()).not.toContain('super')
     expect(simul.toastErreur).not.toHaveBeenCalled()
+  })
+
+  it('lecteur d’écran : message annoncé (role=alert, comme les erreurs), focus posé sur lui, puis le champ e-mail au clavier', async () => {
+    simul.signInWithPassword.mockResolvedValue(connexionReussie({ role: 'coproprio' }))
+    await rendre()
+    expect(screen.queryByRole('alert')).toBeNull()
+    saisir(EMAIL, MOT_DE_PASSE)
+    envoyer()
+    const alerte = await screen.findByRole('alert')
+    expect(alerte).toHaveTextContent('Cet espace n’est pas accessible avec votre compte.')
+    expect(alerte).toHaveTextContent('Connectez-vous avec un autre compte.')
+    // Le focus ne se perd pas (le bouton désactivé pendant l'envoi l'aurait rendu à la page) : il est sur le message,
+    // qui est lu en entier ; Tab mène ensuite au champ e-mail.
+    await waitFor(() => expect(aLeFocus(alerte)).toBe(true))
+    expect(document.activeElement).toHaveAttribute('tabindex', '-1')
+    await waitFor(() => expect(boutonConnexion()).toBeEnabled())
+    expect(focalisableSuivant()).toBe(champEmail())
+  })
+
+  it('second refus de suite : le message est de nouveau annoncé et reçoit de nouveau le focus', async () => {
+    simul.signInWithPassword.mockResolvedValue(connexionReussie({ role: 'coproprio' }))
+    await rendre()
+    saisir(EMAIL, MOT_DE_PASSE)
+    envoyer()
+    await screen.findByRole('alert')
+    await waitFor(() => expect(boutonConnexion()).toBeEnabled())
+    champEmail().focus()
+    saisir('autre@exemple.test', MOT_DE_PASSE)
+    envoyer()
+    await waitFor(() => expect(simul.signOut).toHaveBeenCalledTimes(2))
+    const alerte = await screen.findByRole('alert')
+    expect(alerte).toHaveTextContent('Cet espace n’est pas accessible avec votre compte.')
+    await waitFor(() => expect(aLeFocus(alerte)).toBe(true))
   })
 
   it.each([
@@ -289,7 +351,7 @@ describe('erreurs de connexion : trois messages, jamais la fermeture d’une ses
     await screen.findByRole('alert')
     simul.signInWithPassword.mockResolvedValueOnce(connexionReussie({ role: 'super_admin' }))
     envoyer()
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/')]))
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })
@@ -299,7 +361,7 @@ describe('au chargement : session déjà ouverte dans ce navigateur (secours san
     simulerLocation('/fr/aj-signalement/connexion/', '#signalements')
     simul.getUser.mockResolvedValue({ data: { user: compte({ role: 'super_admin' }) }, error: null })
     render(<ConnexionEspaceQr contexte={CONTEXTE_CONNEXION_GLOBAL_QR} />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/#signalements']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/#signalements')]))
     expect(simul.signInWithPassword).not.toHaveBeenCalled()
   })
 
@@ -310,6 +372,10 @@ describe('au chargement : session déjà ouverte dans ce navigateur (secours san
     expect(champEmail()).toBeInTheDocument()
     expect(simul.signOut).not.toHaveBeenCalled()
     expect(navigations).toEqual([])
+    // Au chargement, sans action de la personne : zone d'état (role=status), le focus n'est pas déplacé.
+    expect(screen.getByRole('status')).toHaveTextContent('Cet espace n’est pas accessible avec votre compte.')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.activeElement).toBe(document.body)
   })
 
   it('session indisponible (réseau) : formulaire seul, ni message ni navigation', async () => {
@@ -337,6 +403,146 @@ describe('au chargement : session déjà ouverte dans ce navigateur (secours san
   })
 })
 
+// Relecture du 11/11/2026 : le lien vers la page commune /fr/auth/reset-password/ ramenait le professionnel sur la page
+// de connexion générale (« Retour à la connexion », bouton du message « Email envoyé ») : choix Particulier / Artisan /
+// Pro et Google. Le lien se demande donc dans la page, par la route existante POST /api/auth/reset-password.
+describe('mot de passe oublié : demande du lien dans la page, sans passer par la page générale', () => {
+  let appels: Array<{ url: string; init: RequestInit | undefined }> = []
+  function simulerRoute(reponse: () => Response | Promise<Response>) {
+    appels = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      appels.push({ url, init })
+      return reponse()
+    }))
+  }
+  const reponseJson = (statut: number, corps: Record<string, unknown>) =>
+    new Response(JSON.stringify(corps), { status: statut, headers: { 'content-type': 'application/json' } })
+  const MESSAGE_ENVOYE = 'Si un compte existe avec cette adresse, vous recevrez dans quelques minutes un lien pour choisir un nouveau mot de passe.'
+  const titreOubli = () => screen.getByRole('heading', { level: 2, name: 'Mot de passe oublié' })
+  const boutonEnvoyerLien = () => screen.getByRole('button', { name: /Envoyer le lien|Envoi…/ })
+  const boutonRetour = () => screen.getByRole('button', { name: 'Retour à la connexion professionnelle' })
+  const aideEmail = () => document.getElementById(champEmail().getAttribute('aria-describedby') ?? '')
+
+  /** Page rendue, étape « Mot de passe oublié » ouverte, e-mail saisi. */
+  async function ouvrirOubli(email = EMAIL) {
+    await rendre()
+    fireEvent.click(boutonOubli())
+    fireEvent.change(champEmail(), { target: { value: email } })
+  }
+
+  beforeEach(() => simulerRoute(() => reponseJson(200, { message: 'Email envoyé' })))
+
+  it('ouverture : étape « Mot de passe oublié » (h2 qui reçoit le focus), e-mail déjà saisi repris, un seul h1, aucun appel', async () => {
+    await rendre()
+    saisir(EMAIL, MOT_DE_PASSE)
+    fireEvent.click(boutonOubli())
+    expect(document.activeElement).toBe(titreOubli())
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Connexion professionnelle')
+    expect(champEmail()).toHaveValue(EMAIL)
+    expect(screen.queryByLabelText('Mot de passe')).toBeNull()
+    expect(boutonEnvoyerLien()).toHaveAttribute('type', 'submit')
+    expect(liensVersPagesCommunes()).toEqual([])
+    expect(appels).toEqual([])
+    expect(simul.signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('envoi : POST /api/auth/reset-password { email } rogné, message neutre qui reçoit le focus, toujours aucun lien vers les pages communes', async () => {
+    await ouvrirOubli(`  ${EMAIL} `)
+    envoyer()
+    const message = await screen.findByText(MESSAGE_ENVOYE)
+    expect(appels).toHaveLength(1)
+    expect(appels[0].url).toBe('/api/auth/reset-password')
+    expect(appels[0].init?.method).toBe('POST')
+    expect(new Headers(appels[0].init?.headers).get('content-type')).toBe('application/json')
+    expect(JSON.parse(String(appels[0].init?.body))).toEqual({ email: EMAIL })
+    // Le formulaire (et son bouton, qui avait le focus) disparaît : le focus va au message, lu en entier.
+    await waitFor(() => expect(aLeFocus(message)).toBe(true))
+    expect(screen.queryByRole('button', { name: /Envoyer le lien/ })).toBeNull()
+    expect(boutonRetour()).toBeInTheDocument()
+    expect(liensVersPagesCommunes()).toEqual([])
+    expect(simul.signInWithPassword).not.toHaveBeenCalled()
+    expect(simul.signOut).not.toHaveBeenCalled()
+  })
+
+  it('e-mail vide puis mal formé : message relié au champ, focus sur lui, aucun appel', async () => {
+    await ouvrirOubli('')
+    envoyer()
+    expect(champEmail()).toHaveAttribute('aria-invalid', 'true')
+    expect(aideEmail()).toHaveTextContent('Indiquez votre adresse e-mail.')
+    expect(document.activeElement).toBe(champEmail())
+    fireEvent.change(champEmail(), { target: { value: 'gestion@exemple' } })
+    envoyer()
+    expect(aideEmail()).toHaveTextContent('Adresse e-mail invalide.')
+    expect(appels).toEqual([])
+  })
+
+  it('adresse refusée par le serveur (400) : « Adresse e-mail invalide. » sous le champ, focus sur lui, message du serveur jamais montré', async () => {
+    simulerRoute(() => reponseJson(400, { error: 'Email invalide : un domaine avec TLD est requis (ex: nom@domaine.fr)' }))
+    await ouvrirOubli()
+    envoyer()
+    await waitFor(() => expect(champEmail()).toHaveAttribute('aria-invalid', 'true'))
+    expect(aideEmail()).toHaveTextContent('Adresse e-mail invalide.')
+    expect(document.activeElement).toBe(champEmail())
+    expect(screen.queryByText(/TLD/)).toBeNull()
+    expect(boutonEnvoyerLien()).toBeEnabled()
+  })
+
+  it.each([
+    ['trop de demandes (429)', () => reponseJson(429, { error: 'Too many requests. Please wait before retrying.' }), 'Trop de demandes. Réessayez dans quelques minutes.'],
+    ['serveur en échec (500)', () => reponseJson(500, { error: 'Erreur lors de l’envoi' }), 'Envoi impossible pour le moment. Réessayez dans un instant.'],
+    ['réseau coupé (exception)', (): Response => { throw new TypeError('Failed to fetch') }, 'Envoi impossible pour le moment. Réessayez dans un instant.'],
+  ])('%s : message d’erreur (role=alert), formulaire de nouveau utilisable, journal sans l’e-mail', async (_cas, reponse, texte) => {
+    simulerRoute(reponse)
+    await ouvrirOubli()
+    envoyer()
+    expect(await screen.findByRole('alert')).toHaveTextContent(texte)
+    expect(boutonEnvoyerLien()).toBeEnabled()
+    expect(boutonEnvoyerLien()).toHaveTextContent('Envoyer le lien')
+    expect(screen.queryByText(MESSAGE_ENVOYE)).toBeNull()
+    expect(avertissements).toHaveBeenCalled()
+    expect(JSON.stringify(avertissements.mock.calls)).not.toContain(EMAIL)
+  })
+
+  it('double envoi pendant l’attente : un seul appel, bouton désactivé « Envoi… »', async () => {
+    const attente = enAttente<Response>()
+    simulerRoute(() => attente.promesse)
+    await ouvrirOubli()
+    envoyer()
+    envoyer()
+    expect(appels).toHaveLength(1)
+    expect(boutonEnvoyerLien()).toBeDisabled()
+    expect(boutonEnvoyerLien()).toHaveTextContent('Envoi…')
+    await act(async () => { attente.regler(reponseJson(200, { message: 'Email envoyé' })) })
+    expect(await screen.findByText(MESSAGE_ENVOYE)).toBeInTheDocument()
+  })
+
+  it('« Retour à la connexion professionnelle » : formulaire de connexion de nouveau, e-mail repris, focus sur lui', async () => {
+    await ouvrirOubli()
+    fireEvent.click(boutonRetour())
+    expect(screen.queryByRole('heading', { level: 2, name: 'Mot de passe oublié' })).toBeNull()
+    expect(champMotDePasse()).toBeInTheDocument()
+    expect(champEmail()).toHaveValue(EMAIL)
+    expect(document.activeElement).toBe(champEmail())
+    expect(appels).toEqual([])
+  })
+
+  it('après une erreur de connexion : l’ancien message ne suit ni dans l’étape ni au retour', async () => {
+    simul.signInWithPassword.mockResolvedValue(connexionRefusee(new AuthApiError('Invalid login credentials', 400, 'invalid_credentials')))
+    await rendre()
+    saisir(EMAIL, MOT_DE_PASSE)
+    envoyer()
+    await screen.findByRole('alert')
+    fireEvent.click(boutonOubli())
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(boutonRetour())
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('E-mail ou mot de passe incorrect.')).toBeNull()
+  })
+})
+
+// Le contexte porte le nom affiché et l'adresse d'arrivée. La décision d'accès ne lit aujourd'hui que le rôle (seul le
+// super admin entre, dans tout espace) : la PR 2 devra lui passer le cabinet de l'espace avant d'admettre un gestionnaire.
 describe('réutilisable pour l’espace d’un cabinet (PR 2) : contexte en paramètre', () => {
   const cabinet: ContexteConnexionQr = { nom: 'Cabinet Exemple', espace: { fr: '/cabinet-exemple/', pt: '/cabinet-exemple/' } }
 
@@ -348,6 +554,6 @@ describe('réutilisable pour l’espace d’un cabinet (PR 2) : contexte en para
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Connexion professionnelle')
     saisir(EMAIL, MOT_DE_PASSE)
     envoyer()
-    await waitFor(() => expect(navigations).toEqual(['/cabinet-exemple/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/cabinet-exemple/')]))
   })
 })

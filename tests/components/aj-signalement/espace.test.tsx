@@ -57,7 +57,9 @@ let appelsFetch: string[] = []
 const utilisateur = (app_metadata: Record<string, unknown>, user_metadata: Record<string, unknown> = {}) =>
   ({ data: { user: { id: 'u1', email: 'admin@example.com', app_metadata, user_metadata } }, error: null })
 
-// Navigation simulée (redirections vers la connexion, déconnexion) : jsdom ne navigue pas.
+// Navigation simulée (redirections vers la connexion, déconnexion) : jsdom ne navigue pas. Chaque navigation est notée
+// avec sa méthode (« replace … », « assign … », « reload ») : les renvois doivent REMPLACER l'adresse (« retour » ne
+// ramène ni sur la garde ni dans l'espace d'une session fermée), et non l'ajouter à l'historique par assign().
 let navigations: string[] = []
 let descripteurLocation: PropertyDescriptor | undefined
 function simulerLocation(pathname: string, hash = '') {
@@ -68,12 +70,14 @@ function simulerLocation(pathname: string, hash = '') {
     value: {
       origin: 'https://vitfix.io', pathname, search: '', hash,
       href: `https://vitfix.io${pathname}${hash}`,
-      assign: (destination: string) => { navigations.push(destination) },
-      replace: (destination: string) => { navigations.push(destination) },
-      reload: () => { navigations.push('rechargement') },
+      assign: (destination: string) => { navigations.push(`assign ${destination}`) },
+      replace: (destination: string) => { navigations.push(`replace ${destination}`) },
+      reload: () => { navigations.push('reload') },
     },
   })
 }
+/** Navigation attendue : l'adresse remplacée par window.location.replace. */
+const remplacement = (destination: string) => `replace ${destination}`
 
 const menuLateral = () => screen.getAllByRole('navigation', { name: 'Menu AJ Signalement' })[0]
 const titre = () => screen.getByRole('heading', { level: 1 })
@@ -133,7 +137,7 @@ describe('garde de l’espace : aucune donnée avant le contrôle de rôle', () 
     simulerLocation('/fr/aj-signalement/', '#signalements')
     simul.getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() })
     render(<EspaceAjSignalement />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/#signalements']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/connexion/#signalements')]))
     expect(screen.getByRole('status')).toHaveTextContent('Redirection vers la page de connexion…')
     expect(screen.getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', '/fr/aj-signalement/connexion/')
     expect(appelsFetch).toEqual([])
@@ -143,7 +147,7 @@ describe('garde de l’espace : aucune donnée avant le contrôle de rôle', () 
     simulerLocation('/pt/aj-signalement/')
     simul.getUser.mockResolvedValue({ data: { user: null }, error: null })
     render(<EspaceAjSignalement />)
-    await waitFor(() => expect(navigations).toEqual(['/pt/aj-signalement/connexion/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/pt/aj-signalement/connexion/')]))
   })
 
   it.each([
@@ -154,7 +158,7 @@ describe('garde de l’espace : aucune donnée avant le contrôle de rôle', () 
     simulerLocation('/fr/aj-signalement/', '#signalements')
     simul.getUser.mockResolvedValue(utilisateur(app, user))
     render(<EspaceAjSignalement />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/#signalements']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/connexion/#signalements')]))
     expect(screen.getByRole('status')).toHaveTextContent('Redirection vers la page de connexion…')
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
     expect(screen.queryByText('Accès réservé')).toBeNull()
@@ -280,7 +284,7 @@ describe('déconnexion', () => {
     simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
     render(<EspaceAjSignalement />)
     fireEvent.click(await screen.findByRole('button', { name: 'Se déconnecter' }))
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/connexion/')]))
     expect(simul.signOut).toHaveBeenCalledTimes(1)
   })
 
@@ -289,7 +293,7 @@ describe('déconnexion', () => {
     simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
     render(<EspaceAjSignalement />)
     fireEvent.click(await screen.findByRole('button', { name: 'Se déconnecter' }))
-    await waitFor(() => expect(navigations).toEqual(['/pt/aj-signalement/connexion/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/pt/aj-signalement/connexion/')]))
   })
 
   it('échec de la déconnexion : message (toast), on reste dans l’espace', async () => {
@@ -308,7 +312,7 @@ describe('déconnexion', () => {
     render(<EspaceAjSignalement />)
     await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
     await act(async () => { simul.rappels.forEach((rappel) => rappel('SIGNED_OUT', null)) })
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/']))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/connexion/')]))
     expect(screen.queryByRole('navigation')).toBeNull()
   })
 })

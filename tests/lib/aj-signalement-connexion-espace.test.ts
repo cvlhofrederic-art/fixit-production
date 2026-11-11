@@ -2,17 +2,18 @@
 //
 // Page de connexion professionnelle de l'espace « AJ Signalement » (demande de Hugo du 11/11/2026 : « il faut taper
 // professionnel avec le mail et mot de passe ») : partie pure (lib/aj-signalement/connexion-espace.ts).
-// - contexte de la page (nom affiché, adresse de l'espace par langue) : sérialisable, réutilisable pour l'espace d'un
-//   cabinet (PR 2) sans rien changer au composant ;
+// - contexte de la page (nom affiché, adresse de l'espace par langue) : sérialisable ; l'espace d'un cabinet (PR 2)
+//   passera le sien (la décision d'accès par cabinet viendra avec la PR 2) ;
 // - validation de la saisie avant tout appel ; classement des erreurs de Supabase en trois messages qui ne disent
 //   jamais si l'adresse existe ;
+// - « Mot de passe oublié » dans la page : route existante POST /api/auth/reset-password, réponse classée en quatre cas ;
 // - aucun texte ne parle de particulier, d'artisan, de Google ni du rôle requis.
 
 import { describe, expect, it } from 'vitest'
 import { AuthApiError, AuthRetryableFetchError, AuthUnknownError } from '@supabase/supabase-js'
 import {
-  CONTEXTE_CONNEXION_GLOBAL_QR, TEXTES_CONNEXION_QR, cheminMotDePasseOublieQr, classerErreurConnexionQr,
-  resumeErreurConnexionQr, validerSaisieConnexionQr,
+  CONTEXTE_CONNEXION_GLOBAL_QR, ROUTE_LIEN_MOT_DE_PASSE_QR, TEXTES_CONNEXION_QR, classerErreurConnexionQr,
+  classerReponseLienMotDePasseQr, resumeErreurConnexionQr, validerEmailConnexionQr, validerSaisieConnexionQr,
 } from '@/lib/aj-signalement/connexion-espace'
 
 /** Tous les textes d'un objet, à plat. */
@@ -31,9 +32,36 @@ describe('contexte de la page', () => {
     expect(JSON.parse(JSON.stringify(CONTEXTE_CONNEXION_GLOBAL_QR))).toEqual(CONTEXTE_CONNEXION_GLOBAL_QR)
   })
 
-  it('« Mot de passe oublié ? » : parcours existant de la langue de la page', () => {
-    expect(cheminMotDePasseOublieQr('fr')).toBe('/fr/auth/reset-password/')
-    expect(cheminMotDePasseOublieQr('pt')).toBe('/pt/auth/reset-password/')
+})
+
+describe('« Mot de passe oublié » dans la page (relecture du 11/11/2026)', () => {
+  it('route existante de VitFix, sans passer par la page commune /auth/reset-password/', () => {
+    expect(ROUTE_LIEN_MOT_DE_PASSE_QR).toBe('/api/auth/reset-password')
+  })
+
+  it('réponse de la route : 2xx → envoyé (message neutre), 400 → adresse refusée, 429 → trop de demandes, reste → indisponible', () => {
+    expect(classerReponseLienMotDePasseQr(200)).toBe('envoye')
+    expect(classerReponseLienMotDePasseQr(204)).toBe('envoye')
+    expect(classerReponseLienMotDePasseQr(400)).toBe('email')
+    expect(classerReponseLienMotDePasseQr(429)).toBe('tentatives')
+    for (const statut of [401, 403, 404, 413, 500, 502, 503]) expect(classerReponseLienMotDePasseQr(statut)).toBe('indisponible')
+  })
+
+  it('textes : message envoyé neutre (« Si un compte existe… »), retour vers la connexion professionnelle', () => {
+    const T = TEXTES_CONNEXION_QR.oubli
+    expect(T.titre).toBe('Mot de passe oublié')
+    expect(T.envoye).toBe('Si un compte existe avec cette adresse, vous recevrez dans quelques minutes un lien pour choisir un nouveau mot de passe.')
+    expect(T.retour).toBe('Retour à la connexion professionnelle')
+    expect(T.erreurs).toEqual({
+      tentatives: 'Trop de demandes. Réessayez dans quelques minutes.',
+      indisponible: 'Envoi impossible pour le moment. Réessayez dans un instant.',
+    })
+  })
+
+  it('validerEmailConnexionQr : mêmes règles et mêmes messages que la connexion', () => {
+    expect(validerEmailConnexionQr('  gestion@exemple.test ')).toEqual({ ok: true, email: 'gestion@exemple.test' })
+    expect(validerEmailConnexionQr('   ')).toEqual({ ok: false, erreur: 'Indiquez votre adresse e-mail.' })
+    expect(validerEmailConnexionQr('gestion@exemple')).toEqual({ ok: false, erreur: 'Adresse e-mail invalide.' })
   })
 })
 

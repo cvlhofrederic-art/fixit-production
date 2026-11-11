@@ -168,6 +168,9 @@ export function redirectionEspaceQr(
  * Adresse d'arrivée après la connexion professionnelle : l'espace donné par la page (jamais lu dans l'URL : aucune
  * redirection ouverte possible), plus l'ancre si elle désigne exactement une vue du rôle (#signalements du lien de
  * l'e-mail) ; null si le compte n'a pas accès (la page affiche alors le message neutre).
+ * Ne lit que le rôle : aujourd'hui seul le super admin entre, dans tout espace. PR 2 (page de connexion de chaque
+ * cabinet) : lui passer le cabinet de l'espace AVANT d'ajouter le rôle gestionnaire à roleEspaceQr, sinon un
+ * gestionnaire d'un autre cabinet serait envoyé dans cet espace.
  */
 export function destinationConnexionEspaceQr(espace: string, ancre: string | null | undefined, appMetadata: MetadonneesApp): string | null {
   const role = roleEspaceQr(appMetadata)
