@@ -32,6 +32,7 @@ const { PATCH: STATUT } = await import('@/app/api/aj-signalement/signalements/[i
 const GESTIONNAIRES = await import('@/app/api/aj-signalement/gestionnaires/route')
 const GESTIONNAIRE = await import('@/app/api/aj-signalement/gestionnaires/[id]/route')
 const DEPART = await import('@/app/api/aj-signalement/gestionnaires/[id]/depart/route')
+const BLOQUER = await import('@/app/api/aj-signalement/gestionnaires/[id]/bloquer/route')
 const EXPORT = await import('@/app/api/aj-signalement/gestionnaires/[id]/export/route')
 const CONFIRMATION = await import('@/app/api/aj-signalement/gestionnaires/[id]/confirmation/route')
 const ACCES = await import('@/app/api/aj-signalement/gestionnaires/[id]/acces/route')
@@ -89,6 +90,8 @@ describe('routes réservées au super admin : 403 interdit pour un gestionnaire,
     ['GET gestionnaires/[id]', GESTIONNAIRE.GET, `/api/aj-signalement/gestionnaires/${G}`, 'GET', G],
     ['PATCH gestionnaires/[id]', GESTIONNAIRE.PATCH, `/api/aj-signalement/gestionnaires/${G}`, 'PATCH', G, { actif: true }],
     ['POST gestionnaires/[id]/depart', DEPART.POST, `/api/aj-signalement/gestionnaires/${G}/depart`, 'POST', G, { successions: [] }],
+    // Lot 6 : blocage de la connexion d'un compte parti, jamais par un gestionnaire.
+    ['POST gestionnaires/[id]/bloquer', BLOQUER.POST, `/api/aj-signalement/gestionnaires/${G}/bloquer`, 'POST', G],
     ['GET gestionnaires/[id]/export', EXPORT.GET, `/api/aj-signalement/gestionnaires/${G}/export`, 'GET', G],
     ['POST gestionnaires/[id]/confirmation', CONFIRMATION.POST, `/api/aj-signalement/gestionnaires/${G}/confirmation`, 'POST', G, {}],
     // Lot 3 : ouverture des accès (envoi d'une fiche, envoi groupé), jamais par un gestionnaire, même pour lui-même.

@@ -9,6 +9,9 @@
 // réactivation et effacement (fiche désactivée seulement). Jamais de jeton d'envoi : le serveur ne les rend pas.
 // PR 2, lot 5 : « Ouvrir l'accès à son suivi » / « Renvoyer l'accès » (actionAccesGestionnaireQr), accès ouvert le …,
 // demande d'effacement, envoi d'accès refusé pour une adresse d'un compte d'un autre espace.
+// PR 2, lot 6 : le compte VitFix relié suit la fiche ; quand l'authentification n'a pas suivi (réponse 207), la reprise
+// est proposée ici : « Connexion à bloquer » et « Bloquer la connexion » (départ), « Débloquer la connexion »
+// (réactivation), « Supprimer son compte » (effacement). Sans les champs d'accès (migration 20261112 absente) : rien.
 
 import { useCallback, useEffect, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -18,13 +21,14 @@ import FenetreDepartGestionnaireQr from '@/components/aj-signalement/FenetreDepa
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import {
-  attribuerCoproprietesGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr, ouvrirAccesGestionnaireQr,
-  renvoyerConfirmationQr,
+  attribuerCoproprietesGestionnaireQr, bloquerConnexionGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr,
+  ouvrirAccesGestionnaireQr, renvoyerConfirmationQr,
 } from '@/lib/aj-signalement/api'
 import { dateHeureParis } from '@/lib/aj-signalement/affichage'
 import {
   LIBELLE_ACTION_JOURNAL_QR, LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, LIBELLE_ORIGINE_ATTRIBUTION_QR, TEXTES_GESTION_QR as G,
-  TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, auteurJournalQr, dateParisQr,
+  TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, auteurJournalQr, compteASupprimerQr, connexionABloquerQr, connexionADebloquerQr,
+  dateParisQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { telechargerFichier } from '@/lib/aj-signalement/qr'
 import type { CoproprieteQr, EnvoiGestionnaireQr, FicheGestionnaireDetailQr, GestionnaireQr } from '@/lib/aj-signalement/types'
@@ -42,6 +46,8 @@ export interface PropsFicheGestionnaireQr {
 
 type Etat = { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; fiche: FicheGestionnaireDetailQr }
 type Panneau = 'nom' | 'ajout' | 'effacer' | 'depart' | null
+/** Résultat d'une action : textes de succès (et, PR 2, ce qui reste à reprendre : montré comme une erreur), ou l'échec. */
+type ResultatAction = { ok: true; textes: string[]; avertissement?: string } | { ok: false; message: string }
 
 function texteEnvoi(e: EnvoiGestionnaireQr): string {
   const parties = [remplir(G.fiche.envoiDemande, { date: dateParisQr(e.creeLe) })]
@@ -95,7 +101,7 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
   const actionAcces = actionAccesGestionnaireQr(g, envois)
 
   /** Action qui modifie la fiche : messages en cas de succès, fiche rechargée, espace prévenu. */
-  const executer = async (action: () => Promise<{ ok: true; textes: string[] } | { ok: false; message: string }>) => {
+  const executer = async (action: () => Promise<ResultatAction>) => {
     if (occupe) return
     setOccupe(true)
     setMessages([])
@@ -105,6 +111,7 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
     if (!r.ok) return setErreur(r.message)
     setPanneau(null)
     setMessages(r.textes)
+    if (r.avertissement) setErreur(r.avertissement)
     recharger()
     onModifie()
   }
@@ -125,12 +132,33 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
 
   const reactiver = () => executer(async () => {
     const r = await modifierGestionnaireQr(g.id, { actif: true })
-    return r.ok ? { ok: true, textes: [G.gestionnaires.reactive] } : { ok: false, message: messageEchecQr(r.code) }
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [G.gestionnaires.reactive], ...(r.incomplet ? { avertissement: G.compte.nonDebloquee } : {}) }
   })
 
   const effacer = () => executer(async () => {
     const r = await modifierGestionnaireQr(g.id, { pseudonymiser: true })
-    return r.ok ? { ok: true, textes: [G.fiche.efface] } : { ok: false, message: messageEchecQr(r.code) }
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [G.fiche.efface], ...(r.incomplet ? { avertissement: G.compte.nonSupprime } : {}) }
+  })
+
+  // PR 2, lot 6 : reprises côté compte (POST …/bloquer, ou le même PATCH ; idempotents côté serveur).
+  const bloquer = () => executer(async () => {
+    const r = await bloquerConnexionGestionnaireQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return r.bloquee ? { ok: true, textes: [G.compte.bloquee] } : { ok: false, message: G.compte.bloquerEchec }
+  })
+
+  const debloquer = () => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { actif: true })
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return r.incomplet ? { ok: false, message: G.compte.nonDebloquee } : { ok: true, textes: [G.compte.debloquee] }
+  })
+
+  const supprimerCompte = () => executer(async () => {
+    const r = await modifierGestionnaireQr(g.id, { pseudonymiser: true })
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return r.incomplet ? { ok: false, message: G.compte.nonSupprime } : { ok: true, textes: [G.compte.compteSupprime] }
   })
 
   const renvoyer = () => executer(async () => {
@@ -175,6 +203,8 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
             {g.confirmeeLe && <span className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.confirmeeLe, { date: dateParisQr(g.confirmeeLe) })}</span>}
             {g.accesOuvertLe && <span className="text-sm text-[#4A5E78]">{remplir(G.acces.ouvertLe, { date: dateParisQr(g.accesOuvertLe) })}</span>}
             {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
+            {connexionABloquerQr(g) && <Badge ton="ambre">{G.compte.aBloquer}</Badge>}
+            {connexionADebloquerQr(g) && <Badge ton="ambre">{G.compte.bloqueeBadge}</Badge>}
           </div>
           <div className="flex flex-wrap gap-2">
             {!efface && <Bouton variante="secondaire" petit icone="outil" disabled={occupe} onClick={() => { setNouveauNom(g.nom ?? ''); setPanneau('nom') }}>{G.fiche.modifierNom}</Bouton>}
@@ -190,6 +220,9 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
             {!desactive && <Bouton variante="danger" petit icone="deconnexion" disabled={occupe} onClick={() => setPanneau('depart')}>{G.fiche.depart}</Bouton>}
             {desactive && !efface && <Bouton variante="secondaire" petit icone="actualiser" disabled={occupe} onClick={() => { void reactiver() }}>{G.gestionnaires.reactiver}</Bouton>}
             {desactive && !efface && <Bouton variante="danger" petit disabled={occupe} onClick={() => setPanneau('effacer')}>{G.fiche.effacer}</Bouton>}
+            {connexionABloquerQr(g) && <Bouton variante="danger" petit icone="cadenas" disabled={occupe} onClick={() => { void bloquer() }}>{G.compte.bloquer}</Bouton>}
+            {connexionADebloquerQr(g) && <Bouton variante="secondaire" petit icone="cadenas" disabled={occupe} onClick={() => { void debloquer() }}>{G.compte.debloquer}</Bouton>}
+            {compteASupprimerQr(g) && <Bouton variante="danger" petit disabled={occupe} onClick={() => { void supprimerCompte() }}>{G.compte.supprimerCompte}</Bouton>}
           </div>
 
           {panneau === 'nom' && (
@@ -300,6 +333,7 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
             onFait={(bilan) => {
               setPanneau(null)
               setMessages([remplir(G.depart.fait, { deplacees: bilan.deplacees, sans: bilan.laisseesSansGestionnaire })])
+              setErreur(bilan.connexionNonBloquee ? G.compte.nonBloquee : null)
               recharger()
               onModifie()
             }}

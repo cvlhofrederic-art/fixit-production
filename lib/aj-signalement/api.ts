@@ -480,7 +480,16 @@ export async function chargerFicheGestionnaireQr(id: string, fetchImpl: Fetch = 
   }
 }
 
-export type ResultatGestionnaireQr = { ok: true; gestionnaire: GestionnaireQr | null } | EchecQr
+/**
+ * Suite non faite sur le compte VitFix relié (PR 2, lot 6 : réponse 207, l'action de la fiche est faite) : déblocage
+ * après une réactivation, suppression après un effacement ; null : tout est fait.
+ */
+export type CompteIncompletQr = 'connexion_non_debloquee' | 'compte_non_supprime'
+
+export type ResultatGestionnaireQr = { ok: true; gestionnaire: GestionnaireQr | null; incomplet: CompteIncompletQr | null } | EchecQr
+
+/** Code d'une réponse 207 (« fait, sauf … ») ; null si la réponse n'en porte pas. */
+const codeIncomplet = (corps: unknown): string | null => (estObjet(corps) && typeof corps.error === 'string' ? corps.error : null)
 
 /** Une seule action : nom, réactivation, ou effacement (fiche désactivée seulement). */
 export async function modifierGestionnaireQr(
@@ -489,7 +498,19 @@ export async function modifierGestionnaireQr(
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires/${segment(id)}`, 'PATCH', action)
   if (!r.ok) return r
   const g = estObjet(r.corps) ? r.corps.gestionnaire : null
-  return { ok: true, gestionnaire: estObjet(g) ? (g as unknown as GestionnaireQr) : null }
+  const code = codeIncomplet(r.corps)
+  const incomplet = code === 'connexion_non_debloquee' || code === 'compte_non_supprime' ? code : null
+  return { ok: true, gestionnaire: estObjet(g) ? (g as unknown as GestionnaireQr) : null, incomplet }
+}
+
+/**
+ * « Bloquer la connexion » d'une fiche désactivée (PR 2, P2-R6, idempotent) ; bloquee false : la connexion n'a pas pu
+ * être bloquée (207), à relancer.
+ */
+export async function bloquerConnexionGestionnaireQr(id: string, fetchImpl: Fetch = fetch): Promise<{ ok: true; bloquee: boolean } | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires/${segment(id)}/bloquer`, 'POST')
+  if (!r.ok) return r
+  return { ok: true, bloquee: estObjet(r.corps) && r.corps.connexionBloquee === true }
 }
 
 /** Nouvel envoi du lien de confirmation d'adresse ; emailEnvoye false : l'e-mail n'est pas parti. */
@@ -530,14 +551,20 @@ export async function attribuerCoproprietesGestionnaireQr(
   return { ok: true, coproprietes: ids, adressesRetirees: entier(c.adressesRetirees) }
 }
 
-export type ResultatDepartQr = { ok: true; deplacees: number; laisseesSansGestionnaire: number; adressesRetirees: number } | EchecQr
+/** connexionNonBloquee (PR 2, 207) : départ fait, mais le compte relié n'a pas été banni (« Bloquer la connexion »). */
+export type ResultatDepartQr =
+  | { ok: true; deplacees: number; laisseesSansGestionnaire: number; adressesRetirees: number; connexionNonBloquee: boolean }
+  | EchecQr
 
-/** Départ : une succession pour chacune de ses copropriétés, puis la fiche est désactivée. */
+/** Départ : une succession pour chacune de ses copropriétés, puis la fiche est désactivée (et son compte banni, PR 2). */
 export async function departGestionnaireQr(id: string, successions: SuccessionDepartQr[], fetchImpl: Fetch = fetch): Promise<ResultatDepartQr> {
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires/${segment(id)}/depart`, 'POST', { successions })
   if (!r.ok) return r
   const c = estObjet(r.corps) ? r.corps : {}
-  return { ok: true, deplacees: entier(c.deplacees), laisseesSansGestionnaire: entier(c.laisseesSansGestionnaire), adressesRetirees: entier(c.adressesRetirees) }
+  return {
+    ok: true, deplacees: entier(c.deplacees), laisseesSansGestionnaire: entier(c.laisseesSansGestionnaire), adressesRetirees: entier(c.adressesRetirees),
+    connexionNonBloquee: codeIncomplet(c) === 'connexion_non_bloquee',
+  }
 }
 
 export type ResultatExportQr = { ok: true; fichier: Blob; nomFichier: string } | EchecQr

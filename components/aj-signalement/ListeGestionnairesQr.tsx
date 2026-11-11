@@ -13,6 +13,8 @@
 // l'accès » par ligne (actionAccesGestionnaireQr : jamais sans les champs d'accès de la migration 20261112), action
 // groupée « Ouvrir l'accès aux gestionnaires (n) » après confirmation (fiches à ouvrir seulement, par lots de 50),
 // états d'accès et « Demande d'effacement le … ».
+// PR 2, lot 6 : « Connexion à bloquer » (départ dont le bannissement du compte a échoué ; le bouton est sur la page
+// profil) ; une réactivation dont le déblocage du compte échoue (207) le dit, à reprendre depuis la page profil.
 
 import { useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -25,8 +27,8 @@ import {
 } from '@/lib/aj-signalement/api'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import {
-  LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G, TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, dateParisQr,
-  fichesAccesOuvrablesQr,
+  LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G, TON_ETAT_GESTIONNAIRE_QR as TON, actionAccesGestionnaireQr, connexionABloquerQr,
+  dateParisQr, fichesAccesOuvrablesQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
 import type { CabinetQr, CoproprieteQr, GestionnaireQr } from '@/lib/aj-signalement/types'
@@ -95,6 +97,7 @@ export default function ListeGestionnairesQr({
       setOccupe(null)
       if (!r.ok) return setErreurAction(messageEchecQr(r.code))
       setMessages([G.gestionnaires.reactive])
+      if (r.incomplet) setErreurAction(G.compte.nonDebloquee)
     }
     onModifie()
   }
@@ -184,6 +187,7 @@ export default function ListeGestionnairesQr({
                     <Badge ton={TON[g.etat]}>{ETAT[g.etat]}</Badge>
                     {g.domaineForce && <Badge ton="ambre">{G.gestionnaires.domaineForce}</Badge>}
                     {g.effacementDemandeLe && <Badge ton="ambre">{remplir(G.acces.effacementDemandeLe, { date: dateParisQr(g.effacementDemandeLe) })}</Badge>}
+                    {connexionABloquerQr(g) && <Badge ton="ambre">{G.compte.aBloquer}</Badge>}
                   </div>
                   {g.email && <p className="break-all text-sm text-[#1F2D3D]">{g.email}</p>}
                   <p className="text-sm text-[#4A5E78]">{remplir(G.gestionnaires.compteurs, { copros: g.coproprietes, ouverts: g.ouverts, urgents: g.urgents })}</p>

@@ -314,6 +314,15 @@ export const ALERTE_LIAISON_INCOMPLETE_QR = {
   texte: 'Un gestionnaire a accepté son accès, mais son compte n’a pas pu être relié à sa fiche. Ouvrez la fiche, puis renvoyez l’accès : le compte existant sera rattaché.',
 } as const
 
+/**
+ * Un gestionnaire a demandé, depuis son compte, la suppression de ses données (RGPD, delete-account refusé : son compte
+ * est géré par le cabinet, responsable de traitement). PR 2, lot 6.
+ */
+export const ALERTE_EFFACEMENT_DEMANDE_QR = {
+  objet: 'AJ Signalement — demande d’effacement d’un gestionnaire',
+  texte: 'Un gestionnaire a demandé la suppression de ses données depuis son compte. Rien n’a été supprimé : transmettez la demande au cabinet ; s’il l’accepte, faites le départ de la fiche, puis « Effacer ses données ».',
+} as const
+
 export function templateAlerteAdministrateurQr(p: { objet: string; texte: string; lien: string }): { subject: string; html: string } {
   const e = echapperHtml
   const corps = `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#0D1B2E;">${e(p.texte)}</p>

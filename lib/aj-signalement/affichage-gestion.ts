@@ -195,6 +195,23 @@ export function actionAccesGestionnaireQr(
 export const fichesAccesOuvrablesQr = <T extends Pick<GestionnaireQr, 'etat' | 'email' | 'compteRelie'>>(gestionnaires: readonly T[]): T[] =>
   gestionnaires.filter((g) => actionAccesGestionnaireQr(g) === 'ouvrir')
 
+// ── Compte relié d'une fiche (PR 2, lot 6) : reprises après un échec côté authentification ────────────────────────
+// Champs d'accès absents (migration 20261112 non appliquée) : compteRelie et connexionBloquee sont undefined, rien ne
+// s'affiche.
+
+type ChampsCompteFicheQr = Pick<GestionnaireQr, 'etat' | 'nom' | 'compteRelie' | 'connexionBloquee'>
+
+/** « Connexion à bloquer » : fiche désactivée dont le compte relié n'a pas été banni (départ en 207). */
+export const connexionABloquerQr = (g: ChampsCompteFicheQr): boolean =>
+  g.etat === 'desactive' && g.compteRelie === true && g.connexionBloquee === false
+
+/** Fiche active (réactivée) dont le compte relié est encore bloqué (déblocage en 207) : « Débloquer la connexion ». */
+export const connexionADebloquerQr = (g: ChampsCompteFicheQr): boolean =>
+  g.etat !== 'desactive' && g.compteRelie === true && g.connexionBloquee === true
+
+/** Fiche effacée (nom effacé) dont le compte relié n'a pas été supprimé (effacement en 207) : « Supprimer son compte ». */
+export const compteASupprimerQr = (g: ChampsCompteFicheQr): boolean => g.nom === null && g.compteRelie === true
+
 // ── Textes ───────────────────────────────────────────────────────────────────
 
 export const TEXTES_GESTION_QR = {
@@ -339,6 +356,21 @@ export const TEXTES_GESTION_QR = {
     ouvertLe: 'Accès ouvert le {date}',
     effacementDemandeLe: 'Demande d’effacement le {date}',
     envoiRefuseAutreEspace: 'refusé : adresse déjà utilisée par un compte d’un autre espace',
+  },
+  // PR 2, lot 6 : le compte VitFix relié suit la fiche (départ, réactivation, effacement).
+  compte: {
+    aBloquer: 'Connexion à bloquer',
+    bloquer: 'Bloquer la connexion',
+    bloquee: 'Connexion bloquée : son compte ne peut plus se connecter.',
+    bloquerEchec: 'La connexion n’a pas pu être bloquée. Réessayez dans un instant.',
+    nonBloquee: 'Départ enregistré, connexion non bloquée : utilisez « Bloquer la connexion ».',
+    bloqueeBadge: 'Connexion bloquée',
+    debloquer: 'Débloquer la connexion',
+    debloquee: 'Connexion débloquée : il se reconnecte avec son mot de passe (ou « Mot de passe oublié »).',
+    nonDebloquee: 'Fiche réactivée, connexion non débloquée : utilisez « Débloquer la connexion » sur sa page profil.',
+    supprimerCompte: 'Supprimer son compte',
+    compteSupprime: 'Compte VitFix supprimé.',
+    nonSupprime: 'Données effacées, compte VitFix non supprimé : utilisez « Supprimer son compte ».',
   },
   suivi: {
     aucune: 'Aucune copropriété dans sa portée.',

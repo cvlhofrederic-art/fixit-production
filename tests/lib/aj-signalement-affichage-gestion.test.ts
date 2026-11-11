@@ -7,8 +7,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   LIBELLE_ACTION_JOURNAL_QR, LIBELLE_ETAT_GESTIONNAIRE_QR, LIBELLE_ORIGINE_ATTRIBUTION_QR, TON_ETAT_GESTIONNAIRE_QR,
-  actionAccesGestionnaireQr, analyserDomainesQr, apercuCheminCabinetQr, auteurJournalQr, fichesAccesOuvrablesQr, filtrerCoproprietesQr,
-  groupesDepartQr, successionsDepartQr,
+  actionAccesGestionnaireQr, analyserDomainesQr, apercuCheminCabinetQr, auteurJournalQr, compteASupprimerQr, connexionABloquerQr,
+  connexionADebloquerQr, fichesAccesOuvrablesQr, filtrerCoproprietesQr, groupesDepartQr, successionsDepartQr,
 } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_TABLEAU_QR, messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import {
@@ -182,5 +182,38 @@ describe('accès d’une fiche à l’espace de son cabinet (PR 2)', () => {
     expect(LIBELLE_ETAT_GESTIONNAIRE_QR.acces_envoye).toBe('Accès envoyé')
     expect(LIBELLE_ETAT_GESTIONNAIRE_QR.acces_ouvert).toBe('Accès ouvert')
     expect(LIBELLE_ETAT_GESTIONNAIRE_QR.refus_autre_espace).toBe('Adresse déjà utilisée par un autre espace')
+  })
+})
+
+// PR 2, lot 6 : actions sur le compte relié d'une fiche (super admin), seulement avec les champs d'accès (20261112).
+describe('compte relié d’une fiche : bloquer, débloquer, supprimer (PR 2, lot 6)', () => {
+  const resume = { id: 'k1', nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }
+  const fiche = (sur: Partial<GestionnaireQr> = {}): GestionnaireQr => ({
+    id: G1, nom: 'Marie Exemple', cabinet: resume, email: 'marie@exemple.test', etat: 'desactive', domaineForce: false, coproprietes: 0,
+    ouverts: 0, urgents: 0, creeLe: '2026-11-01T09:00:00.000Z', confirmeeLe: null,
+    accesOuvertLe: '2026-11-02T09:00:00.000Z', connexionBloquee: false, effacementDemandeLe: null, compteRelie: true, ...sur,
+  })
+  const { accesOuvertLe: _a, connexionBloquee: _b, effacementDemandeLe: _c, compteRelie: _d, ...pr1 } = fiche()
+
+  it('connexion à bloquer : fiche désactivée, compte relié, connexion non bloquée', () => {
+    expect(connexionABloquerQr(fiche())).toBe(true)
+    expect(connexionABloquerQr(fiche({ connexionBloquee: true }))).toBe(false)
+    expect(connexionABloquerQr(fiche({ compteRelie: false }))).toBe(false)
+    expect(connexionABloquerQr(fiche({ etat: 'acces_ouvert' }))).toBe(false)
+    expect(connexionABloquerQr(pr1)).toBe(false)
+  })
+
+  it('connexion à débloquer : fiche active (réactivée) au compte encore bloqué', () => {
+    expect(connexionADebloquerQr(fiche({ etat: 'acces_ouvert', connexionBloquee: true }))).toBe(true)
+    expect(connexionADebloquerQr(fiche({ connexionBloquee: true }))).toBe(false)
+    expect(connexionADebloquerQr(fiche({ etat: 'acces_ouvert' }))).toBe(false)
+    expect(connexionADebloquerQr(pr1)).toBe(false)
+  })
+
+  it('compte à supprimer : fiche effacée (nom effacé) dont le compte reste relié', () => {
+    expect(compteASupprimerQr(fiche({ nom: null, email: null }))).toBe(true)
+    expect(compteASupprimerQr(fiche({ nom: null, email: null, compteRelie: false }))).toBe(false)
+    expect(compteASupprimerQr(fiche())).toBe(false)
+    expect(compteASupprimerQr({ ...pr1, nom: null })).toBe(false)
   })
 })

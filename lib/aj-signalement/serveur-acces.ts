@@ -15,9 +15,10 @@
 // passe par signalements_qr_envoyer_acces (20261112) : fonction absente → 503. Aucune donnée personnelle au journal
 // serveur (identifiants et codes seulement).
 
-import type { NextResponse } from 'next/server'
+import type { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
+import { corpsVideQrSchema, validateBody } from '@/lib/validation'
 import { accepterInvitation, lireInvitationValide, type LigneInvitation } from '@/lib/equipe/invitation-serveur'
 import { nouvelleInvitation } from '@/lib/equipe/lien-invitation'
 import { CHEMIN_ESPACE_QR } from '@/lib/aj-signalement/acces-espace'
@@ -72,7 +73,11 @@ const adressesReserveesQr = (env: Record<string, string | undefined> = process.e
 /** Lien vers la page profil d'une fiche dans l'espace du super admin (alertes, sans nom ni adresse). */
 const lienFicheQr = (gestionnaireId: string): string => `${origineLiensQr()}${CHEMIN_ESPACE_QR}#gestionnaire/${gestionnaireId}`
 
-async function alerterQr(alerte: { objet: string; texte: string }, gestionnaireId: string, sujet: string): Promise<void> {
+/**
+ * Alerte au super admin (ADMIN_EMAIL, ADMIN_EMAIL_2) : texte fixe et lien vers la page profil de la fiche, jamais un nom
+ * ni une adresse. Un envoi impossible est journalisé (identifiant de la fiche seulement), jamais levé.
+ */
+export async function alerterAdministrateurQr(alerte: { objet: string; texte: string }, gestionnaireId: string, sujet: string): Promise<void> {
   const bilan = await envoyerAlerteAdministrateurQr({ ...alerte, lien: lienFicheQr(gestionnaireId) })
   if (bilan.total === 0 || bilan.refuses > 0) {
     logger.warn(`${CONTEXTE} alerte « ${sujet} » non envoyée au super admin`, { gestionnaire: gestionnaireId, refuses: bilan.refuses, total: bilan.total })
@@ -191,14 +196,14 @@ async function refuserAutreEspaceQr(lien: LienAccesQr): Promise<ReponseAccesQr> 
     action: 'gestionnaire.refus_autre_espace', cabinetId: lien.fiche.cabinet_id, profil: 'gestionnaire',
     acteurGestionnaireId: lien.fiche.id, gestionnaireId: lien.fiche.id,
   })
-  await alerterQr(ALERTE_REFUS_AUTRE_ESPACE_QR, lien.fiche.id, 'accès refusé (autre espace)')
+  await alerterAdministrateurQr(ALERTE_REFUS_AUTRE_ESPACE_QR, lien.fiche.id, 'accès refusé (autre espace)')
   return { status: 409, corps: { error: 'compte_autre_espace' } }
 }
 
 /** Compte créé ou rattaché, mais la liaison à la fiche manque : 207, journal serveur (identifiants), alerte. */
 async function liaisonIncompleteQr(lien: LienAccesQr, raison: string): Promise<ReponseAccesQr> {
   logger.error(`${CONTEXTE} accès accepté mais compte non relié à la fiche`, { gestionnaire: lien.fiche.id, envoi: lien.envoiId, raison })
-  await alerterQr(ALERTE_LIAISON_INCOMPLETE_QR, lien.fiche.id, 'liaison incomplète')
+  await alerterAdministrateurQr(ALERTE_LIAISON_INCOMPLETE_QR, lien.fiche.id, 'liaison incomplète')
   return { status: 207, corps: { error: 'liaison_incomplete' } }
 }
 
@@ -253,7 +258,7 @@ export async function contesterLienAccesQr(lien: LienAccesQr): Promise<ReponseAc
     return { status: e.status, corps: { error: e.code } }
   }
   if (data !== true) return { status: 404, corps: { error: 'introuvable' } }
-  await alerterQr(ALERTE_ADRESSE_CONTESTEE_QR, lien.fiche.id, 'adresse contestée (accès)')
+  await alerterAdministrateurQr(ALERTE_ADRESSE_CONTESTEE_QR, lien.fiche.id, 'adresse contestée (accès)')
   return { status: 200, corps: { contestee: true } }
 }
 
@@ -263,4 +268,20 @@ export async function contesterLienAccesQr(lien: LienAccesQr): Promise<ReponseAc
 export async function empreinteJetonQr(token: string): Promise<string> {
   const octets = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))
   return Array.from(octets, (o) => o.toString(16).padStart(2, '0')).join('')
+}
+
+// ── Corps vide des routes d'action du super admin (P2-R1, P2-R6) ─────────────
+
+/** Corps facultatif d'une action sans paramètre : absent, ou un objet vide (toute clé : 400, détail Zod). */
+export async function lireCorpsVideQr(request: NextRequest): Promise<{ ok: true } | { ok: false; details: string }> {
+  const texte = await request.text()
+  if (texte.trim() === '') return { ok: true }
+  let lu: unknown
+  try {
+    lu = JSON.parse(texte)
+  } catch {
+    return { ok: false, details: 'corps : JSON invalide' }
+  }
+  const validation = validateBody(corpsVideQrSchema, lu)
+  return validation.success ? { ok: true } : { ok: false, details: validation.error }
 }

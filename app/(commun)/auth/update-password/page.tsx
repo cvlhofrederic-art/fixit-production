@@ -6,6 +6,7 @@ import { useTranslation } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 import { CarteMotDePasse, SuccesMotDePasse } from '@/components/auth/CarteMotDePasse'
 import { PARAMETRE_LIEN, type ErreurNouveauMotDePasse } from '@/lib/auth/lien-email'
+import { connexionApresMotDePasseQr, retourConnexionMotDePasseQr } from '@/lib/aj-signalement/acces-espace'
 
 export default function UpdatePasswordPage() {
   const { t } = useTranslation()
@@ -53,11 +54,16 @@ export default function UpdatePasswordPage() {
     return () => { subscription.unsubscribe(); clearTimeout(timeout) }
   }, [])
 
-  const terminer = () => {
+  // AJ Signalement (PR 2) : un gestionnaire d'un cabinet client retourne vers la connexion professionnelle de son
+  // cabinet (destination du serveur ou app_metadata du compte, vérifiée : aucune redirection ouverte) ; sinon /auth/login.
+  const [retourConnexion, setRetourConnexion] = useState<string | null>(null)
+
+  const terminer = (connexion: string | null = null) => {
+    setRetourConnexion(connexion)
     setSuccess(true)
     // Redirect to login after 3 seconds
     setTimeout(() => {
-      window.location.href = '/auth/login'
+      window.location.href = connexion ?? '/auth/login'
     }, 3000)
   }
 
@@ -69,9 +75,9 @@ export default function UpdatePasswordPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password }),
     })
-    const corps = (await reponse.json().catch(() => ({}))) as { ok?: boolean; erreur?: ErreurNouveauMotDePasse }
+    const corps = (await reponse.json().catch(() => ({}))) as { ok?: boolean; erreur?: ErreurNouveauMotDePasse; connexion?: unknown }
     if (reponse.ok && corps.ok) {
-      terminer()
+      terminer(retourConnexionMotDePasseQr(corps.connexion))
       return
     }
     switch (corps.erreur) {
@@ -116,11 +122,11 @@ export default function UpdatePasswordPage() {
         await envoyerParLien()
         return
       }
-      const { error: updateError } = await supabase.auth.updateUser({ password })
+      const { data: misAJour, error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) {
         setError(updateError.message)
       } else {
-        terminer()
+        terminer(connexionApresMotDePasseQr(misAJour?.user?.app_metadata))
       }
     } catch {
       setError(t('common.error', 'Une erreur est survenue'))
@@ -139,6 +145,7 @@ export default function UpdatePasswordPage() {
           titre={t('auth.passwordUpdated', 'Mot de passe mis \u00e0 jour !')}
           message={t('auth.passwordUpdatedDesc', 'Votre mot de passe a \u00e9t\u00e9 modifi\u00e9 avec succ\u00e8s. Redirection vers la connexion...')}
           retourConnexion={t('auth.backToLogin', 'Retour \u00e0 la connexion')}
+          lienConnexion={retourConnexion ?? undefined}
         />
       ) : !sessionReady && !modeLien ? (
         <div className="text-center py-8">

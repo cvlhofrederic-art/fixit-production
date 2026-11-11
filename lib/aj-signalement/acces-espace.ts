@@ -17,7 +17,8 @@
 // de connexion, l'espace lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais
 // user_metadata. Ces décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient tout côté serveur
 // (controlerAccesQr : rôle ET liste d'e-mails ADMIN_EMAIL pour le super admin, fiche ACTIVE relue par user_id à chaque
-// appel pour un gestionnaire). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas.
+// appel pour un gestionnaire). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas ; la fin du
+// « mot de passe oublié » (route et page communes /auth/update-password/) lit connexionApresMotDePasseQr (PR 2, lot 6).
 // La portée d'un gestionnaire et ses droits sur une copropriété (fin du fichier) sont calculés ici aussi, sur des
 // données relues en base par le serveur à chaque appel : c'est la seule fonction d'accès d'AJ Signalement.
 
@@ -334,6 +335,33 @@ export function aiguillageGestionnaireQr(cheminSansLangue: string, appMetadata: 
   const repere = repereCabinetQr(appMetadata)
   if (repere) return estPageAiguilleeQr(chemin) || estPageAiguilleeQr(`${chemin}/`) ? cheminSuiviCabinetQr(repere) : null
   return estAccueilOuConnexionGeneraleQr(chemin) ? cheminConnexionEspaceQr('fr') : null
+}
+
+// ── Fin du « mot de passe oublié » (PR 2, lot 6, point 7.9 du plan) ─────────
+
+/**
+ * Connexion où renvoyer un compte gestionnaire qui vient de choisir son nouveau mot de passe (page commune
+ * /auth/update-password/, qui renvoie sinon vers la connexion générale, avec le choix Particulier / Artisan / Pro que
+ * Hugo refuse pour un professionnel) : la connexion de SON cabinet si le repère est valable, sinon la connexion de
+ * l'espace (message neutre). Tout autre compte (super admin compris : il est aussi l'administrateur de tout VitFix) :
+ * null, la page garde son comportement. app_metadata seul.
+ */
+export function connexionApresMotDePasseQr(appMetadata: MetadonneesApp): string | null {
+  if (!estObjet(appMetadata) || appMetadata.role !== ROLE_GESTIONNAIRE_QR) return null
+  const repere = repereCabinetQr(appMetadata)
+  return repere ? cheminConnexionCabinetQr(repere) : cheminConnexionEspaceQr('fr')
+}
+
+/**
+ * Destination de retour reçue par la page commune (réponse de POST /api/auth/update-password) : suivie seulement si elle
+ * a l'une des deux formes que rend connexionApresMotDePasseQr (aucune redirection ouverte, rien d'une autre origine) ;
+ * sinon null (la page garde /auth/login).
+ */
+export function retourConnexionMotDePasseQr(valeur: unknown): string | null {
+  if (typeof valeur !== 'string') return null
+  if (valeur === cheminConnexionEspaceQr('fr')) return valeur
+  const m = /^\/([^/]+)\/connexion\/$/.exec(valeur)
+  return m && validerIdentifiantCabinetQr(m[1]).ok ? cheminConnexionCabinetQr(m[1]) : null
 }
 
 // ── Textes ───────────────────────────────────────────────────────────────────

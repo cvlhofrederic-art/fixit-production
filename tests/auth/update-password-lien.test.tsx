@@ -185,3 +185,56 @@ describe('ancien lien (?code=…) ou utilisateur connecté : session du SDK', ()
     expect(screen.queryByText(LIEN_EXPIRE)).not.toBeInTheDocument()
   })
 })
+
+// PR 2 AJ Signalement, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client est renvoyé vers la connexion
+// professionnelle de SON cabinet (destination rendue par le serveur, ou lue dans app_metadata du compte mis à jour par
+// le SDK), jamais vers la connexion générale. Une destination qui n'a pas la forme attendue est ignorée (aucune
+// redirection ouverte) : comportement actuel, /auth/login.
+describe('gestionnaire AJ Signalement : retour vers la connexion de son cabinet', () => {
+  const RETOUR = 'Retour à la connexion'
+
+  const redirectionApres3s = (minuteries: { mock: { calls: unknown[][] } }) => {
+    const redirection = minuteries.mock.calls.find(([, delai]) => delai === 3000)
+    expect(redirection).toBeDefined()
+    act(() => { (redirection![0] as () => void)() })
+    return window.location.href
+  }
+
+  it('lien de l’e-mail : destination du serveur → bouton et redirection vers /<identifiant>/connexion/', async () => {
+    reseau.mockResolvedValue(Response.json({ ok: true, connexion: '/cabinet-exemple/connexion/' }))
+    const minuteries = vi.spyOn(window, 'setTimeout')
+    const { container } = ouvrir('/fr/auth/update-password/?lien=1')
+    await screen.findByRole('button', { name: BOUTON })
+    saisirEtEnvoyer(container)
+    expect(await screen.findByText(SUCCES)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: RETOUR })).toHaveAttribute('href', '/cabinet-exemple/connexion/')
+    expect(redirectionApres3s(minuteries)).toBe('/cabinet-exemple/connexion/')
+  })
+
+  it.each(['https://autre.example/connexion/', '//autre.example/connexion/', '/cabinet-exemple/suivi/', '/api/connexion/', 42])(
+    'destination inattendue (%j) : ignorée, /auth/login comme aujourd’hui',
+    async (connexion) => {
+      reseau.mockResolvedValue(Response.json({ ok: true, connexion }))
+      const minuteries = vi.spyOn(window, 'setTimeout')
+      const { container } = ouvrir('/fr/auth/update-password/?lien=1')
+      await screen.findByRole('button', { name: BOUTON })
+      saisirEtEnvoyer(container)
+      expect(await screen.findByText(SUCCES)).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: RETOUR })).toHaveAttribute('href', '/auth/login')
+      expect(redirectionApres3s(minuteries)).toBe('/auth/login')
+    },
+  )
+
+  it('ancien lien (session du SDK) : app_metadata du compte mis à jour → connexion de son cabinet', async () => {
+    simul.session = { access_token: 'jeton' }
+    simul.updateUser.mockResolvedValue({
+      data: { user: { app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' } } }, error: null,
+    })
+    const minuteries = vi.spyOn(window, 'setTimeout')
+    const { container } = ouvrir('/fr/auth/update-password/?code=code-pkce')
+    await screen.findByRole('button', { name: BOUTON })
+    saisirEtEnvoyer(container)
+    expect(await screen.findByText(SUCCES)).toBeInTheDocument()
+    expect(redirectionApres3s(minuteries)).toBe('/cabinet-exemple/connexion/')
+  })
+})

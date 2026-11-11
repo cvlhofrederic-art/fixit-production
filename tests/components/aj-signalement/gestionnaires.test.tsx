@@ -494,3 +494,111 @@ describe('accès des gestionnaires à leur suivi (PR 2)', () => {
     expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
   })
 })
+
+// ── PR 2, lot 6 : le compte suit la fiche (départ, blocage, réactivation, effacement) ─────────────────────────────────
+// Départ d'une fiche au compte relié : le serveur bannit le compte ; s'il n'y parvient pas (207 connexion_non_bloquee),
+// la fiche désactivée porte « Connexion à bloquer » et le bouton « Bloquer la connexion » (POST …/bloquer, idempotent).
+// Réactivation dont le déblocage échoue (207 connexion_non_debloquee) : « Débloquer la connexion » (même PATCH) ;
+// effacement dont la suppression du compte échoue (207 compte_non_supprime) : « Supprimer son compte » (même PATCH).
+// Sans les champs d'accès (migration 20261112 absente) : rien de tout cela.
+describe('compte d’un gestionnaire : blocage, déblocage, suppression (PR 2, lot 6)', () => {
+  const ACCES = { accesOuvertLe: '2026-11-03T09:00:00.000Z', connexionBloquee: false, effacementDemandeLe: null, compteRelie: true }
+  const partie = { ...fiche(G1, 'Marie Exemple', 'desactive'), ...ACCES }
+  const partieBloquee = { ...partie, connexionBloquee: true }
+
+  const avecReponse = (f: FicheGestionnaireDetailQr, predicat: (a: Appel) => boolean, reponse: () => Response) => {
+    const routeur = routeurFiche({ fiche: f })
+    simulerFetch((a) => (predicat(a) ? reponse() : routeur(a)))
+  }
+
+  it('liste : « Connexion à bloquer » pour une fiche désactivée au compte non bloqué, seulement', () => {
+    rendreListe([partie, { ...partieBloquee, id: G2, nom: 'Paul Exemple' }, fiche(G3, 'Léa Exemple', 'desactive')])
+    expect(within(ligne('Marie Exemple')).getByText(G.compte.aBloquer)).toBeInTheDocument()
+    expect(within(ligne('Paul Exemple')).queryByText(G.compte.aBloquer)).toBeNull()
+    expect(within(ligne('Léa Exemple')).queryByText(G.compte.aBloquer)).toBeNull()
+  })
+
+  it('liste : réactivation dont le déblocage échoue (207) → message à reprendre depuis la page profil', async () => {
+    simulerFetch(() => json({ gestionnaire: { ...partieBloquee, etat: 'adresse_confirmee' }, error: 'connexion_non_debloquee' }, 207))
+    rendreListe([partieBloquee])
+    fireEvent.click(within(ligne('Marie Exemple')).getByRole('button', { name: G.gestionnaires.reactiver }))
+    expect(await screen.findByText(G.compte.nonDebloquee)).toBeInTheDocument()
+    expect(rappelsListe.onModifie).toHaveBeenCalled()
+  })
+
+  it('page profil : « Bloquer la connexion » → POST …/bloquer sans corps, puis rechargement', async () => {
+    const f = detail({ ...partie })
+    await rendreFiche(f)
+    expect(screen.getByText(G.compte.aBloquer)).toBeInTheDocument()
+    avecReponse(f, (a) => a.url.endsWith('/bloquer'), () => json({ connexionBloquee: true }))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.bloquer }))
+    await waitFor(() => expect(appels.some((a) => a.url === `/api/aj-signalement/gestionnaires/${G1}/bloquer` && a.methode === 'POST' && a.corps === null)).toBe(true))
+    expect(await screen.findByText(G.compte.bloquee)).toBeInTheDocument()
+    expect(rappelsFiche.onModifie).toHaveBeenCalled()
+  })
+
+  it('page profil : blocage encore impossible (207) → message d’échec, bouton toujours là', async () => {
+    const f = detail({ ...partie })
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.url.endsWith('/bloquer'), () => json({ error: 'connexion_non_bloquee' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.bloquer }))
+    expect(await screen.findByText(G.compte.bloquerEchec)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: G.compte.bloquer })).toBeInTheDocument()
+  })
+
+  it('départ dont le bannissement échoue (207) : départ annoncé, puis « connexion non bloquée »', async () => {
+    const active = detail({ ...marie, ...ACCES })
+    await rendreFiche(active)
+    avecReponse(active, (a) => a.url.endsWith('/depart'), () => json({ deplacees: 0, laisseesSansGestionnaire: 2, adressesRetirees: 0, error: 'connexion_non_bloquee' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.depart }))
+    const fenetre = screen.getByRole('dialog')
+    fireEvent.change(within(fenetre).getByLabelText(remplir(G.depart.successeur, { nom: 'Résidence Une' })), { target: { value: 'sans' } })
+    fireEvent.click(within(fenetre).getByRole('button', { name: G.depart.confirmer }))
+    expect(await screen.findByText(remplir(G.depart.fait, { deplacees: 0, sans: 2 }))).toBeInTheDocument()
+    expect(screen.getByText(G.compte.nonBloquee)).toBeInTheDocument()
+  })
+
+  it('réactivation dont le déblocage échoue (207) : message « connexion non débloquée »', async () => {
+    const f = detail({ ...partieBloquee })
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: partieBloquee, error: 'connexion_non_debloquee' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.gestionnaires.reactiver }))
+    expect(await screen.findByText(G.compte.nonDebloquee)).toBeInTheDocument()
+  })
+
+  it('fiche active au compte bloqué : « Connexion bloquée » et « Débloquer la connexion » (PATCH { actif: true })', async () => {
+    const bloquee = { ...marie, ...ACCES, connexionBloquee: true }
+    const f = detail(bloquee)
+    await rendreFiche(f)
+    expect(screen.getByText(G.compte.bloqueeBadge)).toBeInTheDocument()
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: { ...bloquee, connexionBloquee: false } }))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.debloquer }))
+    await waitFor(() => expect(appels.find((a) => a.methode === 'PATCH')?.corps).toEqual({ actif: true }))
+    expect(await screen.findByText(G.compte.debloquee)).toBeInTheDocument()
+  })
+
+  it('effacement dont la suppression du compte échoue (207) : message « compte non supprimé »', async () => {
+    const f = detail({ ...partie })
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: { ...partie, nom: null, email: null }, error: 'compte_non_supprime' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.effacer }))
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.confirmerEffacer }))
+    expect(await screen.findByText(G.compte.nonSupprime)).toBeInTheDocument()
+  })
+
+  it('fiche effacée dont le compte reste : « Supprimer son compte » (PATCH { pseudonymiser: true })', async () => {
+    const effacee = { ...partie, nom: null, email: null }
+    const f = detail(effacee)
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: { ...effacee, compteRelie: false } }))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.supprimerCompte }))
+    await waitFor(() => expect(appels.find((a) => a.methode === 'PATCH')?.corps).toEqual({ pseudonymiser: true }))
+    expect(await screen.findByText(G.compte.compteSupprime)).toBeInTheDocument()
+  })
+
+  it('sans les champs d’accès (migration 20261112 absente) : aucun de ces états ni boutons', async () => {
+    await rendreFiche(detail(fiche(G1, 'Marie Exemple', 'desactive')))
+    for (const texte of [G.compte.aBloquer, G.compte.bloqueeBadge]) expect(screen.queryByText(texte)).toBeNull()
+    for (const nom of [G.compte.bloquer, G.compte.debloquer, G.compte.supprimerCompte]) expect(screen.queryByRole('button', { name: nom })).toBeNull()
+  })
+})

@@ -450,3 +450,35 @@ describe('destinationConnexionEspaceQr avec le cabinet de la page (PR 2)', () =>
     expect(destinationConnexionEspaceQr('/fr/aj-signalement/', '', g('Mauvais'))).toBeNull()
   })
 })
+
+// PR 2, lot 6 (plan § 2.5, point 7.9) : fin du « mot de passe oublié » d'un gestionnaire. La route
+// POST /api/auth/update-password rend la connexion professionnelle de SON cabinet (app_metadata du compte vérifié) ; la
+// page commune ne suit qu'une destination de cette forme (aucune redirection ouverte).
+describe('retour après « mot de passe oublié » (PR 2, lot 6)', () => {
+  const g = (repere?: unknown) => ({ role: 'gestionnaire_signalement', ...(repere === undefined ? {} : { aj_signalement_cabinet: repere }) })
+
+  it('connexionApresMotDePasseQr : gestionnaire au repère valable → connexion de son cabinet ; sans repère → connexion de l’espace', () => {
+    expect(accesEspace.connexionApresMotDePasseQr(g('cabinet-exemple'))).toBe('/cabinet-exemple/connexion/')
+    expect(accesEspace.connexionApresMotDePasseQr(g())).toBe('/fr/aj-signalement/connexion/')
+    expect(accesEspace.connexionApresMotDePasseQr(g('Mauvais'))).toBe('/fr/aj-signalement/connexion/')
+    expect(accesEspace.connexionApresMotDePasseQr(g('aj-signalement'))).toBe('/fr/aj-signalement/connexion/')
+    expect(accesEspace.connexionApresMotDePasseQr(g(42))).toBe('/fr/aj-signalement/connexion/')
+  })
+
+  it('connexionApresMotDePasseQr : tout autre compte → null (comportement actuel de la page commune)', () => {
+    for (const meta of [superAdmin, { role: 'client' }, { role: 'syndic' }, { aj_signalement_cabinet: 'cabinet-exemple' }, {}, null, undefined, 'gestionnaire_signalement']) {
+      expect(accesEspace.connexionApresMotDePasseQr(meta as never), JSON.stringify(meta)).toBeNull()
+    }
+  })
+
+  it('retourConnexionMotDePasseQr : seules les deux formes rendues par le serveur sont suivies', () => {
+    expect(accesEspace.retourConnexionMotDePasseQr('/cabinet-exemple/connexion/')).toBe('/cabinet-exemple/connexion/')
+    expect(accesEspace.retourConnexionMotDePasseQr('/fr/aj-signalement/connexion/')).toBe('/fr/aj-signalement/connexion/')
+    for (const v of [
+      'https://autre.example/connexion/', '//autre.example/connexion/', '/cabinet-exemple/suivi/', '/cabinet-exemple/connexion',
+      '/api/connexion/', '/fr/connexion/', '/Cabinet/connexion/', '/cabinet-exemple/connexion/?x=1', '/a/b/connexion/', '', null, 42, {},
+    ]) {
+      expect(accesEspace.retourConnexionMotDePasseQr(v), JSON.stringify(v)).toBeNull()
+    }
+  })
+})

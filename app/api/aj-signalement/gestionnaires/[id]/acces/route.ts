@@ -10,27 +10,12 @@
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { corpsVideQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { controlerAccesQr, estUuid, reponseErreur, reponseInvalide } from '@/lib/aj-signalement/serveur'
 import { lireFicheQr } from '@/lib/aj-signalement/serveur-gestion'
-import { envoyerAccesFicheQr, reponseBaseAccesQr } from '@/lib/aj-signalement/serveur-acces'
+import { envoyerAccesFicheQr, lireCorpsVideQr, reponseBaseAccesQr } from '@/lib/aj-signalement/serveur-acces'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
-
-/** Corps facultatif : absent, ou un objet vide (toute clé : 400). */
-async function corpsVide(request: NextRequest): Promise<{ ok: true } | { ok: false; details: string }> {
-  const texte = await request.text()
-  if (texte.trim() === '') return { ok: true }
-  let lu: unknown
-  try {
-    lu = JSON.parse(texte)
-  } catch {
-    return { ok: false, details: 'corps : JSON invalide' }
-  }
-  const validation = validateBody(corpsVideQrSchema, lu)
-  return validation.success ? { ok: true } : { ok: false, details: validation.error }
-}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -42,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { id } = await params
     if (!estUuid(id)) return reponseErreur('introuvable', 404)
-    const corps = await corpsVide(request)
+    const corps = await lireCorpsVideQr(request)
     if (!corps.ok) return reponseInvalide(corps.details)
     if (!(await checkRateLimit(`qr_acces_fiche_${id}`, 3, 3_600_000))) return rateLimitResponse()
 
