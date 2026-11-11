@@ -68,12 +68,34 @@ function libelleDocument(doc: SavedDevis): string {
   return doc.docNumber || doc.clientName || doc.docTitle || '?'
 }
 
+/**
+ * Nom du PDF dans l'archive. Un document numéroté garde le nom du bouton « Télécharger » de sa ligne ; un
+ * brouillon sans numéro (« devis.pdf » ou « Devis__Client.pdf » sinon) est nommé « Brouillon - Devis - Client »,
+ * pour ne pas se confondre avec un document émis. Seul le nom dans l'archive change, pas le PDF.
+ */
+const LIBELLES_BROUILLON = {
+  fr: { brouillon: 'Brouillon', devis: 'Devis', facture: 'Facture' },
+  pt: { brouillon: 'Rascunho', devis: 'Orcamento', facture: 'Fatura' },
+} as const
+
+function nomDansArchive(doc: SavedDevis, nomGenere: string, locale: DownloadContext['locale']): string {
+  if (doc.docNumber) return nomGenere
+  const libelles = locale === 'pt' ? LIBELLES_BROUILLON.pt : LIBELLES_BROUILLON.fr
+  const type = doc.docType === 'facture' ? libelles.facture : libelles.devis
+  const client = doc.clientName ? ` - ${doc.clientName}` : ''
+  return `${libelles.brouillon} - ${type}${client}.pdf`
+}
+
+// Erreurs « métier » des générateurs, dont le message est fait pour l'utilisateur ; toute autre erreur (technique)
+// reste dans la console, l'utilisateur voit « Réessayez ».
+const RAISONS_AFFICHABLES = [/^Assurance RC Pro obligatoire/]
 const LONGUEUR_MAX_RAISON = 160
 
-/** Message d'une erreur de génération, sur une ligne et abrégé (les générateurs lèvent des phrases explicites). */
+/** Message d'une erreur métier connue, sur une ligne et abrégé ; null pour une erreur technique. */
 function raisonErreur(erreur: unknown): string | null {
-  const message = (erreur instanceof Error ? erreur.message : String(erreur ?? '')).replace(/\s+/g, ' ').trim()
-  if (!message) return null
+  if (!(erreur instanceof Error)) return null
+  const message = erreur.message.replace(/\s+/g, ' ').trim()
+  if (!RAISONS_AFFICHABLES.some(motif => motif.test(message))) return null
   return message.length > LONGUEUR_MAX_RAISON ? `${message.slice(0, LONGUEUR_MAX_RAISON - 1)}…` : message
 }
 
@@ -118,7 +140,7 @@ export async function telechargerDocumentsGroupes(
     try {
       const { nom, octets } = await produire(doc, ctx)
       // PDF déjà compressés : rangés sans recompression (archive aussi rapide à produire qu'à ouvrir).
-      entrees[nomUniqueDansArchive(nom, nomsPris)] = [octets, { level: 0 }]
+      entrees[nomUniqueDansArchive(nomDansArchive(doc, nom, ctx.locale), nomsPris)] = [octets, { level: 0 }]
     } catch (erreur) {
       console.warn('[telechargement-groupe] PDF impossible :', libelleDocument(doc), erreur)
       echecs.push(libelleDocument(doc))
@@ -134,8 +156,9 @@ export async function telechargerDocumentsGroupes(
   const archive = `${nomDeFichierSur(options.nomArchive) || 'documents'}.zip`
   // Chargée au premier téléchargement groupé seulement : rien de plus à l'ouverture du tableau de bord.
   const { zipSync } = await import('fflate')
-  const octets = zipSync(entrees)
+  // Le tableau rendu par zipSync est neuf (tampon à lui seul) : remis au Blob sans copie supplémentaire.
+  const octets = zipSync(entrees) as Uint8Array<ArrayBuffer>
   const enregistrer = options.enregistrer ?? enregistrerDansLeNavigateur
-  enregistrer(new Blob([new Uint8Array(octets)], { type: 'application/zip' }), archive)
+  enregistrer(new Blob([octets], { type: 'application/zip' }), archive)
   return { telecharges, echecs, raison, archive }
 }

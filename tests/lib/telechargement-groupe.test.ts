@@ -71,7 +71,7 @@ describe('telechargerDocumentsGroupes', () => {
     const docs = [{ docNumber: 'FACT-1' }, { docNumber: 'FACT-2' }, { docNumber: 'FACT-3' }]
     const resultat = await telechargerDocumentsGroupes(docs, CTX, { nomArchive: 'Factures', produire: produireFactice(['FACT-2']), enregistrer })
 
-    expect(resultat).toEqual({ telecharges: 2, echecs: ['FACT-2'], raison: 'PDF impossible', archive: 'Factures.zip' })
+    expect(resultat).toEqual({ telecharges: 2, echecs: ['FACT-2'], raison: null, archive: 'Factures.zip' })
     expect(Object.keys(await lireArchive(enregistrer.mock.calls[0][0] as Blob))).toEqual(['FACT-1.pdf', 'FACT-3.pdf'])
   })
 
@@ -79,31 +79,49 @@ describe('telechargerDocumentsGroupes', () => {
     const enregistrer = vi.fn()
     const docs = [{ docNumber: 'A' }, { docNumber: 'B' }]
     const resultat = await telechargerDocumentsGroupes(docs, CTX, { nomArchive: 'Devis', produire: produireFactice(['A', 'B']), enregistrer })
-    expect(resultat).toEqual({ telecharges: 0, echecs: ['A', 'B'], raison: 'PDF impossible', archive: null })
+    expect(resultat).toEqual({ telecharges: 0, echecs: ['A', 'B'], raison: null, archive: null })
     expect(enregistrer).not.toHaveBeenCalled()
   })
 
-  it('raison du premier échec : celle du générateur (ex. assurance RC Pro manquante), sur une ligne', async () => {
+  it('raison du premier échec métier (assurance RC Pro manquante) : rendue, sur une ligne', async () => {
     const produire = vi.fn(async () => { throw new Error('Assurance RC Pro obligatoire pour générer un devis\n(art. L243-2 C. assurances)') })
     const resultat = await telechargerDocumentsGroupes([{ docNumber: 'A' }, { docNumber: 'B' }], CTX, { nomArchive: 'Devis', produire })
     expect(resultat.raison).toBe('Assurance RC Pro obligatoire pour générer un devis (art. L243-2 C. assurances)')
   })
 
-  it('un seul document en échec : signalé avec sa raison, rien ne part', async () => {
-    vi.mocked(downloadSavedDevis).mockRejectedValueOnce(new Error('jsPDF'))
-    const resultat = await telechargerDocumentsGroupes([{ clientName: 'M. Brouillon' }], CTX, { nomArchive: 'Devis' })
-    expect(resultat).toEqual({ telecharges: 0, echecs: ['M. Brouillon'], raison: 'jsPDF', archive: null })
+  it('erreur technique (message brut d\'exception) : jamais rendue comme raison', async () => {
+    const produire = vi.fn(async () => { throw new TypeError("Cannot read properties of undefined (reading 'lines')") })
+    const resultat = await telechargerDocumentsGroupes([{ docNumber: 'A' }, { docNumber: 'B' }], CTX, { nomArchive: 'Devis', produire })
+    expect(resultat).toMatchObject({ telecharges: 0, echecs: ['A', 'B'], raison: null })
   })
 
-  it('brouillons sans numéro : noms distincts dans l\'archive (rien n\'est écrasé)', async () => {
+  it('un seul document en échec : signalé, rien ne part', async () => {
+    vi.mocked(downloadSavedDevis).mockRejectedValueOnce(new Error('jsPDF'))
+    const resultat = await telechargerDocumentsGroupes([{ clientName: 'M. Brouillon' }], CTX, { nomArchive: 'Devis' })
+    expect(resultat).toEqual({ telecharges: 0, echecs: ['M. Brouillon'], raison: null, archive: null })
+  })
+
+  it('brouillons sans numéro : « Brouillon - <type> - <client> », distincts dans l\'archive (rien n\'est écrasé)', async () => {
     const enregistrer = vi.fn()
-    const docs = [{ clientName: 'A' }, { clientName: 'B' }, { clientName: 'C' }]
+    const docs = [
+      { docType: 'devis' as const, clientName: 'A' }, { docType: 'devis' as const, clientName: 'A' },
+      { docType: 'facture' as const, clientName: 'B' }, { docType: 'devis' as const }, { docNumber: 'DEV-2026-001', clientName: 'A' },
+    ]
     await telechargerDocumentsGroupes(docs, CTX, { nomArchive: 'Devis', produire: produireFactice(), enregistrer })
-    expect(await lireArchive(enregistrer.mock.calls[0][0] as Blob)).toEqual({
-      'devis.pdf': '%PDF A',
-      'devis (2).pdf': '%PDF B',
-      'devis (3).pdf': '%PDF C',
-    })
+    expect(Object.keys(await lireArchive(enregistrer.mock.calls[0][0] as Blob))).toEqual([
+      'Brouillon - Devis - A.pdf',
+      'Brouillon - Devis - A (2).pdf',
+      'Brouillon - Facture - B.pdf',
+      'Brouillon - Devis.pdf',
+      'DEV-2026-001.pdf', // numéroté : nom du bouton de la ligne, inchangé
+    ])
+  })
+
+  it('brouillons en portugais : « Rascunho - Fatura - <client> »', async () => {
+    const enregistrer = vi.fn()
+    const docs = [{ docType: 'facture' as const, clientName: 'Cliente' }, { docNumber: 'FT-1' }]
+    await telechargerDocumentsGroupes(docs, { ...CTX, locale: 'pt' }, { nomArchive: 'Faturas', produire: produireFactice(), enregistrer })
+    expect(Object.keys(await lireArchive(enregistrer.mock.calls[0][0] as Blob))).toEqual(['Rascunho - Fatura - Cliente.pdf', 'FT-1.pdf'])
   })
 
   it('aucun document : rien', async () => {

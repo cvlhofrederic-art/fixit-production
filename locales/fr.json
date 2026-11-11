@@ -2660,6 +2660,8 @@
       "echecsPartiels": "Impossible de produire :",
       "aucunPdf": "Aucun PDF n'a pu être produit",
       "reessayez": "Réessayez.",
+      "etUnAutre": "et 1 autre",
+      "etAutres": "et {n} autres",
       "erreurArchive": "Le téléchargement a échoué. Réessayez.",
       "archiveDevis": "Devis",
       "archiveFactures": "Factures",

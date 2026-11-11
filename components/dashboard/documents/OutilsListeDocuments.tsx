@@ -25,6 +25,8 @@ import type { DownloadContext, SavedDevis } from '@/lib/pdf/download-saved-devis
 type Traduire = (cle: string) => string
 
 const CLE_TEXTES = 'proDash.documentsListe'
+/** Clé de traduction d'un texte des listes : « proDash.documentsListe.<nom> ». */
+const cleTexte = (nom: string): string => `${CLE_TEXTES}.${nom}`
 
 function localeRecherche(locale: string): LocaleRecherche {
   return locale === 'pt' ? 'pt' : 'fr'
@@ -56,11 +58,11 @@ const STYLE_INDICE = {
 } as const
 
 /** Petite ligne sous le nom du client : pourquoi ce document est dans les résultats (champ non affiché). */
-export function IndiceResultat({ indice, t }: { indice: IndiceRecherche | null; t: Traduire }) {
+export function IndiceResultat({ indice, t }: Readonly<{ indice: IndiceRecherche | null; t: Traduire }>) {
   if (!indice) return null
   return (
     <div style={STYLE_INDICE} title={indice.texte}>
-      {t(`${CLE_TEXTES}.champs.${indice.champ}`)} : {indice.texte}
+      {t(cleTexte(`champs.${indice.champ}`))} : {indice.texte}
     </div>
   )
 }
@@ -152,12 +154,16 @@ const STYLE_ZONE_CASE = {
   cursor: 'pointer', userSelect: 'none',
 } as const
 
-export function EnteteSelection({ etat, onBasculer, t }: { etat: EtatSelectionEntete; onBasculer: () => void; t: Traduire }) {
+export function EnteteSelection({ etat, onBasculer, t }: Readonly<{
+  etat: EtatSelectionEntete
+  onBasculer: () => void
+  t: Traduire
+}>) {
   const ref = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = etat === 'partiel'
   }, [etat])
-  const libelle = t(`${CLE_TEXTES}.toutSelectionner`)
+  const libelle = t(cleTexte('toutSelectionner'))
   return (
     <th style={{ width: 44, padding: 0 }}>
       <label style={STYLE_ZONE_CASE} title={libelle}>
@@ -168,11 +174,11 @@ export function EnteteSelection({ etat, onBasculer, t }: { etat: EtatSelectionEn
 }
 
 /** Cellule de case à cocher : toute la cellule est cliquable, et le clic n'ouvre pas le document. */
-export function CelluleSelection({ coche, onBasculer, libelle }: {
+export function CelluleSelection({ coche, onBasculer, libelle }: Readonly<{
   coche: boolean
   onBasculer: (plage: boolean) => void
   libelle: string
-}) {
+}>) {
   return (
     <td style={{ width: 44, padding: 0 }} onClick={e => e.stopPropagation()}>
       <label style={STYLE_ZONE_CASE}>
@@ -193,9 +199,19 @@ export interface ProgressionTelechargement {
 /** Fiche de l'artisan ou de la société, telle que les listes la reçoivent (champs lus comme par chaque ligne). */
 type ArtisanTelechargement = { id: string; company_name?: string | null } | null
 
-const champTexte = (fiche: object, cle: string): string | null => {
-  const valeur = (fiche as Record<string, unknown>)[cle]
+const champTexte = (fiche: object, nom: string): string | null => {
+  const valeur = (fiche as Record<string, unknown>)[nom]
   return typeof valeur === 'string' ? valeur : null
+}
+
+const MAX_ECHECS_AFFICHES = 5
+
+/** Numéros des documents en échec, cinq au plus (« … et 3 autres ») : le message reste lisible. */
+function listeEchecs(echecs: readonly string[], t: Traduire): string {
+  if (echecs.length <= MAX_ECHECS_AFFICHES) return echecs.join(', ')
+  const reste = echecs.length - MAX_ECHECS_AFFICHES
+  const suite = reste === 1 ? t(cleTexte('etUnAutre')) : t(cleTexte('etAutres')).replace('{n}', String(reste))
+  return `${echecs.slice(0, MAX_ECHECS_AFFICHES).join(', ')} ${suite}`
 }
 
 /**
@@ -235,23 +251,25 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
         onProgression: (faits, total) => setProgression({ faits, total }),
       })
       const nombre = resultat.telecharges === 1
-        ? t(`${CLE_TEXTES}.unTelecharge`)
-        : `${resultat.telecharges} ${t(`${CLE_TEXTES}.telecharges`)}`
+        ? t(cleTexte('unTelecharge'))
+        : `${resultat.telecharges} ${t(cleTexte('telecharges'))}`
       if (resultat.echecs.length === 0) {
-        toast.success(`${nombre}${resultat.archive ? ` (${resultat.archive})` : ''}`)
+        const archive = resultat.archive ? ` (${resultat.archive})` : ''
+        toast.success(nombre + archive)
         return true
       }
-      // Raison du premier échec (ex. « Assurance RC Pro obligatoire… ») : « Réessayez » seulement sans raison connue.
+      // Raison du premier échec métier (ex. « Assurance RC Pro obligatoire… ») ; sans raison connue : « Réessayez ».
       const raison = resultat.raison ? ` — ${resultat.raison}` : ''
       if (resultat.telecharges > 0) {
-        toast.error(`${nombre}. ${t(`${CLE_TEXTES}.echecsPartiels`)} ${resultat.echecs.join(', ')}${raison}`)
+        toast.error(`${nombre}. ${t(cleTexte('echecsPartiels'))} ${listeEchecs(resultat.echecs, t)}${raison}`)
       } else {
-        toast.error(`${t(`${CLE_TEXTES}.aucunPdf`)}${raison || `. ${t(`${CLE_TEXTES}.reessayez`)}`}`)
+        const suite = raison || `. ${t(cleTexte('reessayez'))}`
+        toast.error(t(cleTexte('aucunPdf')) + suite)
       }
       return false
     } catch (erreur) {
       console.warn('[telechargement-groupe] archive impossible', erreur)
-      toast.error(t(`${CLE_TEXTES}.erreurArchive`))
+      toast.error(t(cleTexte('erreurArchive')))
       return false
     } finally {
       enCours.current = false
@@ -275,28 +293,28 @@ function IconeTelechargement() {
  * Boutons de la barre de recherche : « Tout télécharger (N) » quand rien n'est coché (les N documents affichés),
  * « Télécharger la sélection (k) » sinon, plus « Désélectionner ».
  */
-export function BoutonsTelechargementGroupe({ nbAffiches, nbSelectionnes, progression, onTelecharger, onVider, t }: {
+export function BoutonsTelechargementGroupe({ nbAffiches, nbSelectionnes, progression, onTelecharger, onVider, t }: Readonly<{
   nbAffiches: number
   nbSelectionnes: number
   progression: ProgressionTelechargement | null
   onTelecharger: () => void
   onVider: () => void
   t: Traduire
-}) {
+}>) {
   const enCours = progression !== null
-  let libelle = `${t(`${CLE_TEXTES}.toutTelecharger`)} (${nbAffiches})`
-  let titre = t(`${CLE_TEXTES}.titreToutTelecharger`)
+  let libelle = `${t(cleTexte('toutTelecharger'))} (${nbAffiches})`
+  let titre = t(cleTexte('titreToutTelecharger'))
   if (progression) {
-    libelle = `${t(`${CLE_TEXTES}.preparation`)} ${progression.faits}/${progression.total}`
+    libelle = `${t(cleTexte('preparation'))} ${progression.faits}/${progression.total}`
   } else if (nbSelectionnes > 0) {
-    libelle = `${t(`${CLE_TEXTES}.telechargerSelection`)} (${nbSelectionnes})`
-    titre = t(`${CLE_TEXTES}.titreSelection`)
+    libelle = `${t(cleTexte('telechargerSelection'))} (${nbSelectionnes})`
+    titre = t(cleTexte('titreSelection'))
   }
   return (
     <>
       {nbSelectionnes > 0 && !enCours && (
         <button type="button" className="v5-btn" onClick={onVider}>
-          {t(`${CLE_TEXTES}.deselectionner`)}
+          {t(cleTexte('deselectionner'))}
         </button>
       )}
       <button type="button" className="v5-btn" onClick={onTelecharger} title={titre} aria-busy={enCours}

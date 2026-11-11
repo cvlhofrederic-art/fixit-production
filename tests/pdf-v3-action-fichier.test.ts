@@ -81,13 +81,14 @@ describe('generateDevisPdfV3 — mode « fichier »', () => {
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
   })
 
-  it('même PDF qu\'en « download » (qui, lui, déclenche un téléchargement)', async () => {
+  it('même PDF que celui que le mode « download » enregistre réellement (octets passés à pdf.save)', async () => {
     const telechargement = await generateDevisPdfV3(entree('download'))
     expect(enregistrement).toHaveBeenCalledTimes(1)
-    expect(enregistrement?.mock.calls[0][0]).toBe('Devis_DEV-2026-030_Jean_Dupont.pdf')
+    const [nomEnregistre, octetsEnregistres] = enregistrement?.mock.calls[0] as [string, Uint8Array]
+    expect(nomEnregistre).toBe('Devis_DEV-2026-030_Jean_Dupont.pdf')
     const groupe = await generateDevisPdfV3(entree('fichier'))
     expect(enregistrement).toHaveBeenCalledTimes(1)
-    expect(sansHorodatage(groupe.fichier)).toBe(sansHorodatage(telechargement.fichier))
+    expect(sansHorodatage(groupe.fichier)).toBe(sansHorodatage(octetsEnregistres))
     expect(groupe.filename).toBe(telechargement.filename)
   })
 })

@@ -2663,6 +2663,8 @@
       "echecsPartiels": "Não foi possível gerar:",
       "aucunPdf": "Não foi possível gerar nenhum PDF",
       "reessayez": "Tente novamente.",
+      "etUnAutre": "e mais 1",
+      "etAutres": "e mais {n}",
       "erreurArchive": "A transferência falhou. Tente novamente.",
       "archiveDevis": "Orcamentos",
       "archiveFactures": "Faturas",

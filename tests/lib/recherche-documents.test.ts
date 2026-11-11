@@ -44,6 +44,11 @@ describe('normaliserRecherche', () => {
     expect(motsRecherche('')).toEqual([])
     expect(motsRecherche('  - , ')).toEqual([])
   })
+  it('un numéro ou une date avec séparateurs restent d\'un bloc ; le reste est découpé en mots', () => {
+    expect(motsRecherche('DEV-2026-001 Saint-Étienne')).toEqual(['dev 2026 001', 'saint', 'etienne'])
+    expect(motsRecherche('5/9/2026 12.5')).toEqual(['05 09 2026', '12 5'])
+    expect(motsRecherche('5/9/26 9/2026')).toEqual(['05 09 2026', '09 2026'])
+  })
 })
 
 describe('correspondDocument — tout ce qui est relié au document', () => {
@@ -132,6 +137,53 @@ describe('correspondDocument — tout ce qui est relié au document', () => {
     expect(() => indexerDocument(abime, 'fr')).not.toThrow()
     expect(trouve(abime, '42').trouve).toBe(true)
     expect(trouve(abime, 'oops').trouve).toBe(false)
+  })
+})
+
+describe('précision des nombres : un numéro court ne se trouve pas au milieu d\'un SIRET, d\'un téléphone ou d\'une date', () => {
+  // Clients professionnels : NIC « 00019 » et « 00012 », téléphone avec « 12 », dates d'octobre.
+  const LISTE = [
+    { docNumber: 'DEV-2026-001', docDate: '2026-10-05', clientName: 'Jean Dupont' },
+    { docNumber: 'DEV-2026-012', docDate: '2026-10-12', clientName: 'Mme Bernard' },
+    { docNumber: 'DEV-2026-014', docDate: '2026-10-05', clientName: 'SAS Alpha', clientSiret: '812 345 678 00019', clientPhone: '06 12 34 56 78' },
+    { docNumber: 'DEV-2026-027', docDate: '2026-09-21', clientName: 'SARL Beta', clientSiret: '552 100 554 00012' },
+    { docNumber: 'DEV-2026-033', docDate: '2026-11-02', clientName: 'SCI Gamma', clientSiret: '330 001 991 00019' },
+  ]
+  const index = LISTE.map(d => indexerDocument(d, 'fr'))
+  const numeros = (requete: string) => filtrerDocuments(index, requete, AUCUN_VISIBLE).map(r => r.doc.docNumber)
+
+  it('« DEV-2026-001 », « 2026-001 », « DEV-2026-012 » : seulement ces devis (cherchés d\'un bloc)', () => {
+    expect(numeros('DEV-2026-001')).toEqual(['DEV-2026-001'])
+    expect(numeros('dev 2026-001')).toEqual(['DEV-2026-001'])
+    expect(numeros('2026-001')).toEqual(['DEV-2026-001'])
+    expect(numeros('DEV-2026-012')).toEqual(['DEV-2026-012'])
+  })
+
+  it('un numéro court seul commence un mot : pas dans « 00019 », mais un groupe « 001 » d\'un SIRET compte', () => {
+    expect(numeros('012')).toEqual(['DEV-2026-012'])
+    expect(numeros('001')).toEqual(['DEV-2026-001', 'DEV-2026-033'])
+  })
+
+  it('date : « 12/10/2026 » seulement le devis de ce jour, « 5/10/2026 » complété, « 10/2026 » le mois', () => {
+    expect(numeros('12/10/2026')).toEqual(['DEV-2026-012'])
+    expect(numeros('12/10/26')).toEqual(['DEV-2026-012'])
+    expect(numeros('5/10/2026')).toEqual(['DEV-2026-001', 'DEV-2026-014'])
+    expect(numeros('10/2026')).toEqual(['DEV-2026-001', 'DEV-2026-012', 'DEV-2026-014'])
+  })
+
+  it('téléphone tapé avec des points : cherché d\'un bloc', () => {
+    expect(numeros('06.12.34.56.78')).toEqual(['DEV-2026-014'])
+  })
+
+  it('téléphone ou SIRET tapé en partie : à partir de 6 chiffres, n\'importe où', () => {
+    expect(numeros('612345')).toEqual(['DEV-2026-014'])
+    expect(numeros('0612')).toEqual(['DEV-2026-014'])
+    expect(numeros('81234567800019')).toEqual(['DEV-2026-014'])
+    expect(numeros('00019')).toEqual(['DEV-2026-014', 'DEV-2026-033'])
+  })
+
+  it('un mot sans chiffre se trouve toujours n\'importe où (« upon » → Dupont)', () => {
+    expect(numeros('upon')).toEqual(['DEV-2026-001'])
   })
 })
 

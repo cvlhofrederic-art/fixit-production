@@ -91,10 +91,13 @@ function propsFactures(savedDocuments: object[] = [FACTURE, ACOMPTE]) {
 }
 
 const T = 'proDash.documentsListe'
+// Métacaractères échappés avant new RegExp (le « . » de la clé de traduction).
+const echapper = (texte: string) => texte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const T_REGEX = echapper(T)
 const rechercherDevis = (texte: string) =>
   fireEvent.change(screen.getByPlaceholderText('proDash.devis.rechercher'), { target: { value: texte } })
 const numerosAffiches = () =>
-  screen.queryAllByRole('checkbox', { name: new RegExp(`^${T}\\.selectionner `) })
+  screen.queryAllByRole('checkbox', { name: new RegExp(`^${T_REGEX}\\.selectionner `) })
     .map(c => (c.getAttribute('aria-label') || '').replace(`${T}.selectionner `, ''))
 const caseDe = (numero: string) => screen.getByRole('checkbox', { name: `${T}.selectionner ${numero}` })
 const telechargementAppele = () => vi.mocked(telechargerDocumentsGroupes).mock.calls
@@ -133,7 +136,7 @@ describe('Liste Devis V5 — recherche dans tout ce qui est relié au devis', ()
     render(<DevisSection {...propsDevis()} />)
     rechercherDevis('bernard')
     expect(numerosAffiches()).toEqual(['DEV-2026-003'])
-    expect(screen.queryByText(new RegExp(`${T}\\.champs\\.`))).not.toBeInTheDocument()
+    expect(screen.queryByText(new RegExp(`${T_REGEX}\\.champs\\.`))).not.toBeInTheDocument()
   })
 
   it('rien trouvé : le message habituel', () => {
@@ -153,7 +156,7 @@ describe('Liste Devis V5 — sélection et téléchargement groupé (BTP)', () =
     expect(docs).toEqual([DEVIS_3, DEVIS_2, DEVIS_1])
     expect(ctx.useBtpDesign).toBe(true)
     expect(ctx.artisan).toEqual({ id: 'art-1', company_name: 'SUD TRAVAUX', logo_url: null, rm: null, rc_pro: null })
-    expect(options.nomArchive).toMatch(new RegExp(`^${T}\\.archiveDevis_\\d{4}-\\d{2}-\\d{2}$`))
+    expect(options.nomArchive).toMatch(new RegExp(`^${T_REGEX}\\.archiveDevis_\\d{4}-\\d{2}-\\d{2}$`))
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith(`3 ${T}.telecharges (archive.zip)`))
   })
 
@@ -237,6 +240,18 @@ describe('Liste Devis V5 — sélection et téléchargement groupé (BTP)', () =
     expect(caseDe('DEV-2026-001')).toBeChecked()
   })
 
+  it('beaucoup d\'échecs : cinq numéros au plus dans le message, puis « et N autres »', async () => {
+    const echecs = ['D-1', 'D-2', 'D-3', 'D-4', 'D-5', 'D-6', 'D-7']
+    vi.mocked(telechargerDocumentsGroupes)
+      .mockResolvedValueOnce({ telecharges: 2, echecs, raison: null, archive: 'archive.zip' })
+      .mockResolvedValueOnce({ telecharges: 2, echecs: echecs.slice(0, 6), raison: null, archive: 'archive.zip' })
+    render(<DevisSection {...propsDevis()} />)
+    fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (3)` }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(`2 ${T}.telecharges. ${T}.echecsPartiels D-1, D-2, D-3, D-4, D-5 ${T}.etAutres`))
+    fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (3)` }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(`2 ${T}.telecharges. ${T}.echecsPartiels D-1, D-2, D-3, D-4, D-5 ${T}.etUnAutre`))
+  })
+
   it('aucun PDF produit : la raison du générateur est affichée ; sans raison, « Réessayez »', async () => {
     vi.mocked(telechargerDocumentsGroupes)
       .mockResolvedValueOnce({ telecharges: 0, echecs: ['DEV-2026-001'], raison: 'Assurance RC Pro obligatoire', archive: null })
@@ -294,7 +309,7 @@ describe('Liste Factures V5', () => {
     await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
     expect(telechargementAppele()[0][0]).toEqual([ACOMPTE])
     expect(telechargementAppele()[0][1].useBtpDesign).toBe(false)
-    expect(telechargementAppele()[0][2].nomArchive).toMatch(new RegExp(`^${T}\\.archiveFactures_`))
+    expect(telechargementAppele()[0][2].nomArchive).toMatch(new RegExp(`^${T_REGEX}\\.archiveFactures_`))
   })
 
   it('BTP : la sélection part avec le modèle V3', async () => {

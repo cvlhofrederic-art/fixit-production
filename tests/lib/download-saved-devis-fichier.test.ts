@@ -9,6 +9,8 @@ const recu = vi.hoisted(() => ({
   wrapEchoue: false,
   blobs: [] as Blob[],
   clics: [] as Array<{ download: string; href: string }>,
+  /** Noms passés à pdf.save (enregistrement jsPDF du PDF brut, repli quand l'habillage PDF/A-3 échoue). */
+  enregistrementsJsPdf: [] as string[],
 }))
 
 vi.mock('@/lib/supabase', () => {
@@ -29,7 +31,10 @@ vi.mock('@/lib/pdf/devis-pdf-v3', () => ({
 vi.mock('@/lib/pdf/devis-generator-v2', () => ({
   generateDevisPdfV2: vi.fn(async (entree: Record<string, unknown>) => {
     recu.v2.push(entree)
-    return { output: () => new TextEncoder().encode('%PDF-brut').buffer, save: vi.fn() }
+    return {
+      output: () => new TextEncoder().encode('%PDF-brut').buffer,
+      save: (nom: string) => { recu.enregistrementsJsPdf.push(nom) },
+    }
   }),
 }))
 
@@ -66,6 +71,7 @@ let clic: { mockRestore: () => void } | null = null
 beforeEach(() => {
   vi.clearAllMocks()
   recu.v3.length = 0; recu.v2.length = 0; recu.blobs.length = 0; recu.clics.length = 0; recu.wrapEchoue = false
+  recu.enregistrementsJsPdf.length = 0
   URL.createObjectURL = vi.fn((blob: Blob) => { recu.blobs.push(blob); return 'blob:test' })
   URL.revokeObjectURL = vi.fn()
   clic = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
@@ -114,14 +120,17 @@ describe('produireFichierDocument — artisan (modèle V2)', () => {
     expect(groupe).toEqual(telechargement)
   })
 
-  it('métadonnées impossibles à ajouter : le PDF brut, comme au téléchargement', async () => {
+  it('métadonnées impossibles à ajouter : le PDF brut, comme au téléchargement, sans rien enregistrer', async () => {
     recu.wrapEchoue = true
     const fichier = await produireFichierDocument(FACTURE, ctx(false))
     expect(new TextDecoder().decode(fichier.octets)).toBe('%PDF-brut')
+    expect(fichier).toEqual({ nom: 'FACT-2026-040.pdf', octets: fichier.octets }) // rien d'autre que le fichier
+    expect(recu.enregistrementsJsPdf).toHaveLength(0)
+    expect(recu.clics).toHaveLength(0)
   })
 })
 
-describe('downloadSavedDevis (bouton de la ligne) — inchangé', () => {
+describe('downloadSavedDevis (bouton de la ligne) — même mécanisme et même fichier qu\'avant', () => {
   it('artisan : télécharge « <numéro>.pdf » avec ses métadonnées', async () => {
     await downloadSavedDevis(FACTURE, ctx(false))
     expect(recu.clics).toEqual([{ download: 'FACT-2026-040.pdf', href: 'blob:test' }])
@@ -129,11 +138,11 @@ describe('downloadSavedDevis (bouton de la ligne) — inchangé', () => {
     expect(await lireBlob(recu.blobs[0])).toBe('%PDF-avec-metadonnees')
   })
 
-  it('artisan, métadonnées impossibles : télécharge quand même le PDF brut', async () => {
+  it('artisan, métadonnées impossibles : le PDF brut enregistré par jsPDF (pdf.save), comme avant', async () => {
     recu.wrapEchoue = true
     await downloadSavedDevis({ ...FACTURE, docNumber: '' }, ctx(false))
-    expect(recu.clics).toEqual([{ download: 'devis.pdf', href: 'blob:test' }])
-    expect(await lireBlob(recu.blobs[0])).toBe('%PDF-brut')
+    expect(recu.enregistrementsJsPdf).toEqual(['devis.pdf'])
+    expect(recu.clics).toHaveLength(0)
   })
 
   it('BTP : le générateur V3 télécharge lui-même (mode « download »)', async () => {

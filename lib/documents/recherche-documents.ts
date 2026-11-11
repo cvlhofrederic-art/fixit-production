@@ -8,9 +8,15 @@
  * La saisie est découpée en mots : chaque mot doit se trouver dans le document, pas forcément dans le même
  * champ (« dupont marseille » trouve le devis du client Dupont dont le chantier est à Marseille). Les
  * majuscules, les accents et la ponctuation ne comptent pas (« saint etienne » trouve « Saint-Étienne »).
+ * Un mot sans chiffre se trouve n'importe où (« upon » trouve « Dupont ») ; un mot avec chiffre doit commencer
+ * un mot du document (« 001 » ne se trouve pas dans le SIRET « … 00019 ») ; une suite d'au moins 6 chiffres se
+ * trouve n'importe où (morceau d'un téléphone ou d'un SIRET). Un numéro ou une date tapés avec leurs séparateurs
+ * (« DEV-2026-001 », « 12/10/2026 », « 06.12.34.56.78 ») se cherchent d'un bloc : ses parties doivent se suivre.
  *
  * Lecture seule : rien n'est écrit dans les documents.
  */
+
+import { normalizeForSearch } from '@/lib/fuzzy-match'
 
 export type ChampRecherche =
   | 'numero'
@@ -31,7 +37,7 @@ interface EntreeIndex {
   champ: ChampRecherche
   /** Texte tel qu'il est affiché dans l'indice « trouvé dans… ». */
   texte: string
-  /** Texte normalisé dans lequel on cherche. */
+  /** Texte normalisé dans lequel on cherche, précédé d'une espace (début de mot = « espace + mot »). */
   normalise: string
 }
 
@@ -51,9 +57,13 @@ export interface ResultatRecherche<T> {
   indice: IndiceRecherche | null
 }
 
-const DIACRITIQUES = /[̀-ͯ]/g
 const SEPARATEURS = /[^a-z0-9]+/g
 const NON_CHIFFRES = /\D/g
+const CHIFFRE = /\d/
+const LONGUE_SUITE_DE_CHIFFRES = /^\d{6,}$/
+// Date tapée « 12/10/2026 », « 5/10 » ou « 10/2026 » (« / » seulement : « 12.5 » reste un nombre).
+const DATE_SAISIE = /^\d{1,4}(?:\/\d{1,4}){1,2}$/
+const ESPACES = /\s+/
 const LONGUEUR_MAX_INDICE = 90
 
 const MOIS: Record<LocaleRecherche, readonly string[]> = {
@@ -63,20 +73,33 @@ const MOIS: Record<LocaleRecherche, readonly string[]> = {
 
 /** Minuscules, sans accents ; toute ponctuation (tiret, apostrophe, virgule, °…) devient une espace. */
 export function normaliserRecherche(texte: string): string {
-  return texte
-    .normalize('NFD')
-    .replace(DIACRITIQUES, '')
-    .toLowerCase()
+  return normalizeForSearch(texte)
     .replace(/œ/g, 'oe')
     .replace(/æ/g, 'ae')
     .replace(SEPARATEURS, ' ')
     .trim()
 }
 
-/** Mots de la saisie, normalisés. Une saisie vide ou faite de ponctuation ne filtre rien. */
+/**
+ * Mots de la saisie, normalisés. Une saisie vide ou faite de ponctuation ne filtre rien. Un morceau avec chiffres
+ * et séparateurs (« DEV-2026-001 », « 12/10/2026 ») reste un seul « mot » à parties séparées par des espaces.
+ */
 export function motsRecherche(requete: string): string[] {
-  const normalise = normaliserRecherche(requete)
-  return normalise ? normalise.split(' ') : []
+  const mots: string[] = []
+  for (const morceau of requete.trim().split(ESPACES)) {
+    if (DATE_SAISIE.test(morceau)) {
+      // Comme dans l'index : jour et mois sur deux chiffres, année sur quatre (« 5/10/26 » cherche « 05 10 2026 »).
+      const parties = morceau.split('/').map(partie => partie.padStart(2, '0'))
+      if (parties.length === 3 && parties[2].length === 2) parties[2] = `20${parties[2]}`
+      mots.push(parties.join(' '))
+      continue
+    }
+    const normalise = normaliserRecherche(morceau)
+    if (!normalise) continue
+    if (CHIFFRE.test(normalise) && normalise.includes(' ')) mots.push(normalise)
+    else mots.push(...normalise.split(' '))
+  }
+  return mots
 }
 
 function texteDe(valeur: unknown): string {
@@ -121,7 +144,7 @@ export function indexerDocument<T extends object>(doc: T, locale: LocaleRecherch
   const ajouter = (champ: ChampRecherche, texte: string, complement = ''): void => {
     if (!texte) return
     const normalise = normaliserRecherche(complement ? `${texte} ${complement}` : texte)
-    if (normalise) entrees.push({ champ, texte, normalise })
+    if (normalise) entrees.push({ champ, texte, normalise: ` ${normalise}` })
   }
   const joindre = (...valeurs: unknown[]): string => valeurs.map(texteDe).filter(Boolean).join(', ')
   // Téléphone et SIRET : aussi sans espaces, pour trouver « 0612345678 » quand la fiche porte « 06 12 34 56 78 ».
@@ -170,6 +193,14 @@ function abreger(texte: string): string {
 }
 
 /**
+ * Ce qu'il faut chercher pour un mot : le mot n'importe où (mot sans chiffre, ou suite d'au moins 6 chiffres), ou
+ * « espace + mot » (début de mot), pour qu'un numéro court ne se trouve pas au milieu d'un SIRET ou d'une date.
+ */
+function motifDeRecherche(mot: string): string {
+  return !CHIFFRE.test(mot) || LONGUE_SUITE_DE_CHIFFRES.test(mot) ? mot : ` ${mot}`
+}
+
+/**
  * Le document contient-il tous les mots ? `indice` : le champ non affiché dans la ligne (hors `champsVisibles`)
  * qui explique la correspondance, pour que l'utilisateur voie pourquoi le document est là (« Chantier : 12 rue… »).
  */
@@ -180,7 +211,8 @@ export function correspondDocument<T>(
 ): { trouve: boolean; indice: IndiceRecherche | null } {
   let meilleure = -1
   for (const mot of mots) {
-    const position = index.entrees.findIndex(e => e.normalise.includes(mot))
+    const motif = motifDeRecherche(mot)
+    const position = index.entrees.findIndex(e => e.normalise.includes(motif))
     if (position < 0) return { trouve: false, indice: null }
     const entree = index.entrees[position]
     // Un mot trouvé d'abord dans un champ visible (numéro, client…) n'a pas besoin d'indice.

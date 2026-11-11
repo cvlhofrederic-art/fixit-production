@@ -182,7 +182,12 @@ async function fetchFreshArtisanData(
 }
 
 // ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
-async function produireFichierV2(doc: SavedDevis, ctx: DownloadContext): Promise<FichierDocument> {
+// `enregistrerBrut` : présent quand l'habillage PDF/A-3 a échoué ; le bouton de la ligne enregistre alors le PDF
+// brut par jsPDF (pdf.save), comme avant le téléchargement groupé.
+async function produireFichierV2(
+  doc: SavedDevis,
+  ctx: DownloadContext,
+): Promise<FichierDocument & { enregistrerBrut?: () => void }> {
   const { artisan } = ctx
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
@@ -303,12 +308,20 @@ async function produireFichierV2(doc: SavedDevis, ctx: DownloadContext): Promise
     // Fallback : si le wrapping échoue, on garde au moins le PDF non-PDF/A
     // pour que le user ait son téléchargement.
     console.warn('[download-saved-devis] PDF/A-3 wrap failed, falling back to plain PDF:', e)
-    return { nom, octets: new Uint8Array(pdf.output('arraybuffer') as ArrayBuffer) }
+    return {
+      nom,
+      octets: new Uint8Array(pdf.output('arraybuffer') as ArrayBuffer),
+      enregistrerBrut: () => { pdf.save(nom) },
+    }
   }
 }
 
 async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
-  const { nom, octets } = await produireFichierV2(doc, ctx)
+  const { nom, octets, enregistrerBrut } = await produireFichierV2(doc, ctx)
+  if (enregistrerBrut) {
+    enregistrerBrut()
+    return
+  }
   // Trigger download via Blob (jsPDF.save équivalent)
   const blob = new Blob([new Uint8Array(octets).buffer as ArrayBuffer], { type: 'application/pdf' })
   const url = URL.createObjectURL(blob)
@@ -566,5 +579,6 @@ export async function produireFichierDocument(doc: SavedDevis, ctx: DownloadCont
     const { filename, fichier } = await genererAvecV3(doc, ctx, 'fichier')
     return { nom: filename, octets: fichier }
   }
-  return produireFichierV2(doc, ctx)
+  const { nom, octets } = await produireFichierV2(doc, ctx)
+  return { nom, octets }
 }
