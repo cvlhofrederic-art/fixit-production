@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Carpinteiro">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffaea"/>
+      <stop offset="1" stop-color="#f5f3ef"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g transform="translate(360 180)">
+    <rect x="0" y="0" width="480" height="80" fill="#FFC107" stroke="#1a1a1a" stroke-width="6" rx="4"/>
+    <line x1="60" y1="0" x2="60" y2="80" stroke="#1a1a1a" stroke-width="3"/>
+    <line x1="180" y1="0" x2="180" y2="80" stroke="#1a1a1a" stroke-width="3"/>
+    <line x1="320" y1="0" x2="320" y2="80" stroke="#1a1a1a" stroke-width="3"/>
+    <line x1="420" y1="0" x2="420" y2="80" stroke="#1a1a1a" stroke-width="3"/>
+  </g>
+  <g transform="translate(700 110)">
+    <path d="M0 60 L260 0 L260 30 L40 90 Z" fill="#1a1a1a"/>
+    <path d="M40 90 L260 30 L260 90 Z" fill="#FFC107" stroke="#1a1a1a" stroke-width="4"/>
+  </g>
+  <text x="600" y="500" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="40" font-weight="700" fill="#1a1a1a">Carpintaria &amp; Pladur</text>
+  <text x="600" y="560" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="24" fill="#6b6b6b">VITFIX Portugal</text>
+</svg>
