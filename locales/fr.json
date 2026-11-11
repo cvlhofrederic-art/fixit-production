@@ -2662,9 +2662,18 @@
       "reessayez": "Réessayez.",
       "etUnAutre": "et 1 autre",
       "etAutres": "et {n} autres",
+      "annuler": "Annuler",
+      "annule": "Téléchargement annulé",
       "erreurArchive": "Le téléchargement a échoué. Réessayez.",
       "archiveDevis": "Devis",
       "archiveFactures": "Factures",
+      "filtresDevis": {
+        "tous": "Tous",
+        "brouillons": "Brouillons",
+        "envoyes": "Envoyés",
+        "acceptes": "Acceptés",
+        "refuses": "Refusés"
+      },
       "champs": {
         "numero": "N°",
         "client": "Client",
@@ -2676,7 +2685,8 @@
         "documentLie": "Document lié",
         "lignes": "Ligne",
         "notes": "Notes",
-        "date": "Date"
+        "date": "Date",
+        "montant": "Montant"
       }
     },
     "settings": {

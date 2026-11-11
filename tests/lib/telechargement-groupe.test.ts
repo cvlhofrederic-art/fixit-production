@@ -124,6 +124,20 @@ describe('telechargerDocumentsGroupes', () => {
     expect(Object.keys(await lireArchive(enregistrer.mock.calls[0][0] as Blob))).toEqual(['Rascunho - Fatura - Cliente.pdf', 'FT-1.pdf'])
   })
 
+  it('« Annuler » pendant la préparation : on s\'arrête après le PDF en cours, rien n\'est téléchargé', async () => {
+    const enregistrer = vi.fn()
+    let annule = false
+    const produire = vi.fn(async (doc: SavedDevis) => {
+      annule = true // l'utilisateur clique « Annuler » pendant le premier PDF
+      return { nom: `${doc.docNumber}.pdf`, octets: octets('%PDF') }
+    })
+    const docs = [{ docNumber: 'A' }, { docNumber: 'B' }, { docNumber: 'C' }]
+    const resultat = await telechargerDocumentsGroupes(docs, CTX, { nomArchive: 'Devis', produire, enregistrer, estAnnule: () => annule })
+    expect(resultat).toEqual({ telecharges: 0, echecs: [], raison: null, archive: null, annule: true })
+    expect(produire).toHaveBeenCalledTimes(1)
+    expect(enregistrer).not.toHaveBeenCalled()
+  })
+
   it('aucun document : rien', async () => {
     const enregistrer = vi.fn()
     expect(await telechargerDocumentsGroupes([], CTX, { nomArchive: 'Devis', enregistrer })).toEqual({ telecharges: 0, echecs: [], raison: null, archive: null })

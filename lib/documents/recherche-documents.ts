@@ -3,7 +3,8 @@
  *
  * Tout ce qui est relié au document se cherche : numéro, client (nom, adresse, téléphone, e-mail, SIRET),
  * objet de l'intervention, adresse et lieu du chantier, maître d'ouvrage, lignes et sections, notes, documents
- * liés (devis d'origine, facture parente, ordre de service), date d'émission (jour ou mois : « octobre 2026 »).
+ * liés (devis d'origine, facture parente, ordre de service), date d'émission (jour ou mois : « octobre 2026 »),
+ * montant affiché par la liste (« 3400 », « 3 400 » ou « 3400,50 » ; un avoir se cherche sans le signe).
  *
  * La saisie est découpée en mots : chaque mot doit se trouver dans le document, pas forcément dans le même
  * champ (« dupont marseille » trouve le devis du client Dupont dont le chantier est à Marseille). Les
@@ -30,6 +31,7 @@ export type ChampRecherche =
   | 'lignes'
   | 'notes'
   | 'date'
+  | 'montant'
 
 export type LocaleRecherche = 'fr' | 'pt'
 
@@ -127,6 +129,30 @@ function textesDate(valeur: unknown, locale: LocaleRecherche): { affiche: string
   return { affiche, cherche: `${affiche} ${MOIS[locale][mois - 1]} ${m[1]}` }
 }
 
+/** « 1250 » → « 1 250 » (groupes de trois chiffres, sans expression régulière). */
+function grouperMilliers(chiffres: string): string {
+  const groupes: string[] = []
+  for (let fin = chiffres.length; fin > 0; fin -= 3) groupes.unshift(chiffres.slice(Math.max(0, fin - 3), fin))
+  return groupes.join(' ')
+}
+
+/**
+ * Montant tel qu'on le tape : « 3400 », « 3 400 », « 3400,50 », « 1 250,50 ». Valeur absolue (un avoir négatif se
+ * cherche sans signe) ; centimes indexés même quand la liste les arrondit à l'affichage.
+ */
+function textesMontant(montant: number): { affiche: string; cherche: string } {
+  const centimesTotaux = Math.round(Math.abs(montant) * 100)
+  const entier = String(Math.floor(centimesTotaux / 100))
+  const centimes = String(centimesTotaux % 100).padStart(2, '0')
+  const groupe = grouperMilliers(entier)
+  const decimales = centimes === '00' ? '' : ` ${centimes}`
+  const virgule = decimales ? `,${centimes}` : ''
+  return {
+    affiche: `${groupe}${virgule} €`,
+    cherche: `${entier}${decimales} ${groupe}${decimales}`,
+  }
+}
+
 /** Une ligne de devis : description, détail libre et étapes rattachées. */
 function textesLigne(ligne: Record<string, unknown>): string[] {
   const textes = [texteDe(ligne.description), texteDe(ligne.lineDetail), texteDe(ligne.designation)]
@@ -138,7 +164,12 @@ function textesLigne(ligne: Record<string, unknown>): string[] {
  * Index d'un document : la liste des textes cherchables, dans l'ordre de priorité de l'indice (le premier champ
  * qui contient un mot est celui qu'on montre). À calculer une fois par liste (useMemo), pas à chaque frappe.
  */
-export function indexerDocument<T extends object>(doc: T, locale: LocaleRecherche): DocumentIndexe<T> {
+export function indexerDocument<T extends object>(
+  doc: T,
+  locale: LocaleRecherche,
+  /** Montant affiché par la liste (HT des devis, TTC des factures) ; absent : non cherchable. */
+  montant?: number | null,
+): DocumentIndexe<T> {
   const d = doc as Record<string, unknown>
   const entrees: EntreeIndex[] = []
   const ajouter = (champ: ChampRecherche, texte: string, complement = ''): void => {
@@ -183,6 +214,11 @@ export function indexerDocument<T extends object>(doc: T, locale: LocaleRecherch
 
   const date = textesDate(d.docDate, locale) ?? textesDate(d.savedAt, locale)
   if (date) ajouter('date', date.affiche, date.cherche)
+
+  if (typeof montant === 'number' && Number.isFinite(montant)) {
+    const { affiche, cherche } = textesMontant(montant)
+    ajouter('montant', affiche, cherche)
+  }
 
   return { doc, entrees }
 }

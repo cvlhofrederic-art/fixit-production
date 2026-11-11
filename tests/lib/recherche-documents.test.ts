@@ -187,6 +187,36 @@ describe('précision des nombres : un numéro court ne se trouve pas au milieu d
   })
 })
 
+describe('montant affiché par la liste', () => {
+  const avec = (montant: number | null, requete: string, visibles: ReadonlySet<ChampRecherche> = AUCUN_VISIBLE) =>
+    correspondDocument(indexerDocument({ docNumber: 'FACT-2026-050' }, 'fr', montant), motsRecherche(requete), visibles)
+
+  it('montant rond : « 3400 » et « 3 400 », pas de centimes inventés', () => {
+    expect(avec(3400, '3400').trouve).toBe(true)
+    expect(avec(3400, '3 400').trouve).toBe(true)
+    expect(avec(3400, '3400,50').trouve).toBe(false)
+    expect(avec(3400, '34000').trouve).toBe(false)
+  })
+
+  it('avec centimes : « 1250,50 », « 1 250,50 », « 1250.5 » et « 1250 »', () => {
+    expect(avec(1250.5, '1250,50').trouve).toBe(true)
+    expect(avec(1250.5, '1 250,50').trouve).toBe(true)
+    expect(avec(1250.5, '1250.5').trouve).toBe(true)
+    expect(avec(1250.5, '1250').trouve).toBe(true)
+    expect(avec(1250.5, '1250,40').trouve).toBe(false)
+  })
+
+  it('avoir (montant négatif) : se cherche sans signe ; montant absent : rien d\'indexé', () => {
+    expect(avec(-1250.5, '1250,50').trouve).toBe(true)
+    expect(avec(null, '1250').trouve).toBe(false)
+  })
+
+  it('colonne affichée : pas d\'indice ; sinon « 1 250,50 € »', () => {
+    expect(avec(1250.5, '1250', new Set<ChampRecherche>(['montant'])).indice).toBeNull()
+    expect(avec(1250.5, '1250').indice).toEqual({ champ: 'montant', texte: '1 250,50 €' })
+  })
+})
+
 describe('filtrerDocuments', () => {
   const index = [DEVIS_DUPONT, FACTURE_MARTIN].map(d => indexerDocument(d, 'fr'))
 

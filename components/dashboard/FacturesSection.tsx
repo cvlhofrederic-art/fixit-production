@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import DevisFactureForm from '@/components/DevisFactureForm'
@@ -27,12 +27,12 @@ import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
 import {
-  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, IndiceResultat,
+  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, FiltreStatut, IndiceResultat,
   useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
 } from '@/components/dashboard/documents/OutilsListeDocuments'
 
 // Colonnes de la liste V5 des factures : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
-const CHAMPS_VISIBLES_FACTURES: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client'])
+const CHAMPS_VISIBLES_FACTURES: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client', 'montant'])
 
 // A persisted document extends DevisFactureData with storage metadata
 interface PersistedDocument extends Omit<Partial<DevisFactureData>, 'docType' | 'lines'> {
@@ -414,6 +414,55 @@ export default function FacturesSection({
 type DocTypeFilter = 'all' | 'facture' | 'acompte' | 'avoir'
 type DocStatusFilter = 'all' | 'sent' | 'paid' | 'draft'
 
+/**
+ * Montant TTC de la colonne « Montant TTC » de la liste V5 (aussi cherchable dans la recherche).
+ * Respecte les 3 régimes TVA (cf. lib/tva-calculator.ts) :
+ *   - classique           : TTC = HT + TVA par taux
+ *   - franchise_293b      : TTC = HT (pas de TVA, art. 293 B CGI)
+ *   - autoliquidation_btp : TTC = HT (TVA due par le preneur, art. 283-2 nonies)
+ * Fallback rétro-compat : si regimeTva absent, dérive depuis
+ * autoliquidationBTP (legacy flag) ou tvaEnabled (franchise quand false).
+ * filter(Boolean) protège contre les lignes null/undefined (localStorage
+ * corrompu après flow Facturer interrompu, cf. plan Phase 3).
+ */
+function totalTtcListe(doc: PersistedDocument, orgRole: OrgRole | undefined): number {
+  const docRec = doc as {
+    regimeTva?: TvaRegime
+    regime_tva?: TvaRegime
+    autoliquidationBTP?: boolean
+    tvaEnabled?: boolean
+  }
+  const tvaEnabled = docRec.tvaEnabled !== false
+  const regimeSansDrapeau: TvaRegime = tvaEnabled ? 'classique' : 'franchise_293b'
+  const effectiveRegime: TvaRegime =
+    docRec.regimeTva
+    ?? docRec.regime_tva
+    ?? (docRec.autoliquidationBTP ? 'autoliquidation_btp' : regimeSansDrapeau)
+  // Collect lines from both flat lines[] and BTP customTables[].lines[]
+  const flatLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
+  const customTables = (doc as unknown as Record<string, unknown>).customTables as Array<{ lines?: Array<Record<string, unknown>> }> | undefined
+  const tableLines = Array.isArray(customTables)
+    ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
+    : []
+  // Combine flat lines and customTables lines (BTP docs use both)
+  // BTP : même périmètre que le PDF et la base (Matériaux et Frais compris). Sans cela,
+  // une facture de solde — dont la déduction des acomptes est une table — s'afficherait
+  // sans ces sections, jusqu'à un montant négatif. Artisan : calcul historique inchangé.
+  const allLines: unknown[] = orgRole === 'pro_societe'
+    ? buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0])
+    : [...flatLines, ...tableLines]
+  const tva = computeTva({
+    regime: effectiveRegime,
+    lines: allLines
+      .filter((l): l is { totalHT?: number; tvaRate?: number } => l !== null && typeof l === 'object')
+      .map(l => ({
+        totalHT: (l.totalHT as number) || 0,
+        tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
+      })),
+  })
+  return tva.totalTTC
+}
+
 function FacturesSectionV5({
   factureDocs, setShowFactureForm, setConvertingDevis, openFactureForm,
   artisan, setSavedDocuments, dateLocale, locale, t, tv, orgRole,
@@ -506,8 +555,9 @@ function FacturesSectionV5({
   const [avoirParent, setAvoirParent] = useState<PersistedDocument | null>(null)
 
   // Recherche dans tout ce qui est relié à la facture : client, objet, chantier, adresses, lignes, notes,
-  // devis d'origine, date… (indexée une fois pour la liste, pas à chaque filtre).
-  const recherche = useRechercheDocuments(factureDocs, search, locale, CHAMPS_VISIBLES_FACTURES)
+  // devis d'origine, date, montant TTC affiché… (indexée une fois pour la liste, pas à chaque filtre).
+  const montantTtc = useCallback((d: PersistedDocument) => totalTtcListe(d, orgRole), [orgRole])
+  const recherche = useRechercheDocuments(factureDocs, search, locale, CHAMPS_VISIBLES_FACTURES, montantTtc)
   const filtered = recherche.documents
     .filter(d => docMatchesType(d, typeFilter))
     .filter(d => docMatchesStatus(d, statusFilter))
@@ -523,7 +573,7 @@ function FacturesSectionV5({
   // factures affichées, donc après recherche et filtres (ex. Factures + Émises pour le comptable).
   const selection = useSelectionDocuments(filtered)
   const facturesCochees = selection.selectionnes(factureDocs)
-  const { progression, telecharger } = useTelechargementGroupe({
+  const { progression, telecharger, annuler } = useTelechargementGroupe({
     artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveFactures'),
   })
   const telechargerListe = async () => {
@@ -658,6 +708,7 @@ function FacturesSectionV5({
           progression={progression}
           onTelecharger={() => { void telechargerListe() }}
           onVider={selection.vider}
+          onAnnuler={annuler}
           t={t}
         />
         <button className="v5-btn v5-btn-p" onClick={() => openFactureForm()}>
@@ -689,29 +740,13 @@ function FacturesSectionV5({
         })}
       </div>
 
-      {/* Filtre par statut : Toutes / Émises / Payées / Brouillons. */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {([['all', 'Toutes'], ['sent', 'Émises'], ['paid', 'Payées'], ['draft', 'Brouillons']] as Array<[DocStatusFilter, string]>).map(([key, label]) => {
-          const active = statusFilter === key
-          const count = factureDocs.filter(d => docMatchesStatus(d, key)).length
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setStatusFilter(key)}
-              aria-pressed={active}
-              style={{
-                padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: active ? 700 : 500,
-                border: `1px solid ${active ? '#16a34a' : '#ddd'}`,
-                background: active ? 'rgba(22, 163, 74, 0.12)' : '#fff',
-                color: active ? '#15803d' : '#444',
-              }}
-            >
-              {label} ({count})
-            </button>
-          )
-        })}
-      </div>
+      {/* Filtre par statut : Toutes / Émises / Payées / Brouillons (puces partagées avec la liste des devis). */}
+      <FiltreStatut
+        options={([['all', 'Toutes'], ['sent', 'Émises'], ['paid', 'Payées'], ['draft', 'Brouillons']] as Array<[DocStatusFilter, string]>)
+          .map(([cle, libelle]) => ({ cle, libelle, nombre: factureDocs.filter(d => docMatchesStatus(d, cle)).length }))}
+        actif={statusFilter}
+        onChoisir={setStatusFilter}
+      />
 
       {/* Table */}
       <div className="v5-card" style={{ overflowX: 'auto' }}>
@@ -730,49 +765,6 @@ function FacturesSectionV5({
           <tbody>
             {filtered.length > 0 ? filtered.map((doc, i) => {
               const totalHT = computeDocumentTotalHT(doc)
-              // Respecte les 3 régimes TVA (cf. lib/tva-calculator.ts) :
-              //   - classique           : TTC = HT + TVA par taux
-              //   - franchise_293b      : TTC = HT (pas de TVA, art. 293 B CGI)
-              //   - autoliquidation_btp : TTC = HT (TVA due par le preneur, art. 283-2 nonies)
-              // Fallback rétro-compat : si regimeTva absent, dérive depuis
-              // autoliquidationBTP (legacy flag) ou tvaEnabled (franchise quand false).
-              // filter(Boolean) protège contre les lignes null/undefined (localStorage
-              // corrompu après flow Facturer interrompu, cf. plan Phase 3).
-              const docRec = doc as {
-                regimeTva?: TvaRegime
-                regime_tva?: TvaRegime
-                autoliquidationBTP?: boolean
-                tvaEnabled?: boolean
-              }
-              const tvaEnabled = docRec.tvaEnabled !== false
-              const effectiveRegime: TvaRegime =
-                docRec.regimeTva
-                ?? docRec.regime_tva
-                ?? (docRec.autoliquidationBTP
-                  ? 'autoliquidation_btp'
-                  : (tvaEnabled ? 'classique' : 'franchise_293b'))
-              // Collect lines from both flat lines[] and BTP customTables[].lines[]
-              const flatLines = Array.isArray(doc.lines) ? doc.lines.filter(Boolean) : []
-              const customTables = (doc as unknown as Record<string, unknown>).customTables as Array<{ lines?: Array<Record<string, unknown>> }> | undefined
-              const tableLines = Array.isArray(customTables)
-                ? customTables.flatMap(t => Array.isArray(t.lines) ? t.lines.filter(Boolean) : [])
-                : []
-              // Combine flat lines and customTables lines (BTP docs use both)
-              // BTP : même périmètre que le PDF et la base (Matériaux et Frais compris). Sans cela,
-              // une facture de solde — dont la déduction des acomptes est une table — s'afficherait
-              // sans ces sections, jusqu'à un montant négatif. Artisan : calcul historique inchangé.
-              const allLines: unknown[] = orgRole === 'pro_societe'
-                ? buildDocumentLines(doc as unknown as Parameters<typeof buildDocumentLines>[0])
-                : [...flatLines, ...tableLines]
-              const tva = computeTva({
-                regime: effectiveRegime,
-                lines: allLines
-                  .filter((l): l is { totalHT?: number; tvaRate?: number } => l !== null && typeof l === 'object')
-                  .map(l => ({
-                    totalHT: (l.totalHT as number) || 0,
-                    tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
-                  })),
-              })
               // FR-V1.3 — Affiche le total brut des lignes, identique au PDF generator V3
               // et à `total_ttc_cents` en DB (source de vérité légale, art. L441-9 C. com.).
               // L'ancienne multiplication `totalTTC * firstAcompte.pourcentage / 100`
@@ -781,7 +773,7 @@ function FacturesSectionV5({
               // Pour un acompte propre, l'utilisateur édite les lignes pour qu'elles
               // représentent directement l'acompte consolidé par TVA (workflow Gourdon :
               // "Acompte 50% — Travaux d'amélioration (TVA 10%)" + "(TVA 20%)", art. 269-2-c CGI).
-              const totalTTC = tva.totalTTC
+              const totalTTC = totalTtcListe(doc, orgRole)
               const badge = getV5Badge(doc)
               return (
                 <tr key={`v5-fac-${i}`} style={{ cursor: 'pointer' }} onClick={() => { setConvertingDevis(doc); setShowFactureForm(true) }}>

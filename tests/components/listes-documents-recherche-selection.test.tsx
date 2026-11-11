@@ -6,7 +6,7 @@
 //    du rôle (V3 pour le BTP, V2 pour l'artisan).
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor, within, act } from '@testing-library/react'
 
 const role = vi.hoisted(() => ({ orgRole: 'pro_societe' as 'pro_societe' | 'artisan' }))
 
@@ -36,7 +36,7 @@ vi.mock('@/lib/pdf/telechargement-groupe', () => ({
     telecharges: docs.length, echecs: [], raison: null, archive: docs.length > 1 ? 'archive.zip' : null,
   })),
 }))
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn(() => 'tid') } }))
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), loading: vi.fn(() => 'tid') } }))
 
 import DevisSection from '@/components/dashboard/DevisSection'
 import FacturesSection from '@/components/dashboard/FacturesSection'
@@ -55,12 +55,12 @@ const DEVIS_1 = {
 const DEVIS_2 = {
   id: 'd2', docType: 'devis', docNumber: 'DEV-2026-002', status: 'envoye', docDate: '2026-10-05',
   clientName: 'SCI Martin', docTitle: 'Ravalement', clientCity: 'Lyon', clientStreet: '8 avenue Foch',
-  lines: [ligne('Nettoyage façade')],
+  lines: [ligne('Nettoyage façade', 3400)],
 }
 const DEVIS_3 = {
   id: 'd3', docType: 'devis', docNumber: 'DEV-2026-003', status: 'brouillon', docDate: '2026-11-03',
   clientName: 'Mme Bernard', docTitle: 'Cuisine', interventionAddress: '4 place Bellecour, Lyon',
-  lines: [ligne('Plan de travail chêne')],
+  lines: [ligne('Plan de travail chêne', 900)],
 }
 const TOUS_DEVIS = [DEVIS_1, DEVIS_2, DEVIS_3]
 
@@ -269,6 +269,68 @@ describe('Liste Devis V5 — sélection et téléchargement groupé (BTP)', () =
   })
 })
 
+describe('Liste Devis V5 — filtre par statut, montant, annulation', () => {
+  const puce = (cle: string, nombre: number) => screen.getByRole('button', { name: `${T}.filtresDevis.${cle} (${nombre})` })
+
+  it('puces Tous / Brouillons / Envoyés / Acceptés / Refusés, comptées sur toute la liste', () => {
+    render(<DevisSection {...propsDevis()} />)
+    expect(puce('tous', 3)).toHaveAttribute('aria-pressed', 'true')
+    expect(puce('brouillons', 1)).toHaveAttribute('aria-pressed', 'false')
+    expect(puce('envoyes', 2)).toBeInTheDocument()
+    expect(puce('acceptes', 0)).toBeInTheDocument()
+    expect(puce('refuses', 0)).toBeInTheDocument()
+  })
+
+  it('« Envoyés » : la liste et « Tout télécharger » ne prennent que les devis envoyés', async () => {
+    render(<DevisSection {...propsDevis()} />)
+    fireEvent.click(puce('envoyes', 2))
+    expect(numerosAffiches()).toEqual(['DEV-2026-002', 'DEV-2026-001'])
+    fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (2)` }))
+    await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
+    expect(telechargementAppele()[0][0]).toEqual([DEVIS_2, DEVIS_1])
+  })
+
+  it('un devis signé compte comme accepté ; filtre sans résultat : « aucun devis trouvé »', () => {
+    render(<DevisSection {...propsDevis([...TOUS_DEVIS, { ...DEVIS_1, id: 'd4', docNumber: 'DEV-2026-004', status: 'signed' }])} />)
+    fireEvent.click(puce('acceptes', 1))
+    expect(numerosAffiches()).toEqual(['DEV-2026-004'])
+    fireEvent.click(puce('refuses', 0))
+    expect(numerosAffiches()).toEqual([])
+    expect(screen.getByText('proDash.devis.aucunDevisTrouve')).toBeInTheDocument()
+  })
+
+  it('montant HT affiché : « 3400 » et « 3 400 » trouvent le devis', () => {
+    render(<DevisSection {...propsDevis()} />)
+    rechercherDevis('3400')
+    expect(numerosAffiches()).toEqual(['DEV-2026-002'])
+    rechercherDevis('3 400')
+    expect(numerosAffiches()).toEqual(['DEV-2026-002'])
+  })
+
+  it('« Annuler » pendant la préparation : demande transmise, rien ne part, la sélection reste', async () => {
+    let terminer: (resultat: Awaited<ReturnType<typeof telechargerDocumentsGroupes>>) => void = () => undefined
+    let estAnnule: (() => boolean) | undefined
+    vi.mocked(telechargerDocumentsGroupes).mockImplementationOnce((_docs, _ctx, options) => new Promise(resolve => {
+      estAnnule = options.estAnnule
+      options.onProgression?.(1, 2)
+      terminer = resolve
+    }))
+    render(<DevisSection {...propsDevis()} />)
+    fireEvent.click(caseDe('DEV-2026-001'))
+    fireEvent.click(caseDe('DEV-2026-002'))
+    fireEvent.click(screen.getByRole('button', { name: `${T}.telechargerSelection (2)` }))
+    expect(screen.getByRole('button', { name: `${T}.preparation 1/2` })).toBeDisabled()
+    expect(estAnnule?.()).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: `${T}.annuler` }))
+    expect(estAnnule?.()).toBe(true)
+    await act(async () => { terminer({ telecharges: 0, echecs: [], raison: null, archive: null, annule: true }) })
+    expect(toast.info).toHaveBeenCalledWith(`${T}.annule`)
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(caseDe('DEV-2026-001')).toBeChecked()
+    expect(screen.queryByRole('button', { name: `${T}.annuler` })).not.toBeInTheDocument()
+  })
+})
+
 describe('Liste Devis V5 — artisan', () => {
   it('téléchargement groupé avec le modèle artisan (V2)', async () => {
     role.orgRole = 'artisan'
@@ -288,6 +350,25 @@ describe('Liste Factures V5', () => {
     fireEvent.change(screen.getByPlaceholderText('proDash.factures.rechercher'), { target: { value: 'DEV-2026-002' } })
     expect(numerosAffiches()).toEqual(['FACT-2026-040'])
     expect(screen.getByText(`${T}.champs.documentLie : DEV-2026-002`)).toBeInTheDocument()
+  })
+
+  it('par le montant TTC affiché (1 000 € HT à 20 % → 1 200 €)', () => {
+    render(<FacturesSection {...propsFactures()} />)
+    const champ = screen.getByPlaceholderText('proDash.factures.rechercher')
+    fireEvent.change(champ, { target: { value: '1200' } })
+    expect(numerosAffiches()).toEqual(['FACT-2026-040'])
+    fireEvent.change(champ, { target: { value: '360' } })
+    expect(numerosAffiches()).toEqual(['AC-2026-007'])
+  })
+
+  it('le filtre par statut garde son rendu (puces « Toutes », « Émises »…) et filtre toujours', () => {
+    render(<FacturesSection {...propsFactures([FACTURE, ACOMPTE, { ...FACTURE, id: 'f2', docNumber: '', status: 'brouillon' }])} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Brouillons (1)' }))
+    expect(numerosAffiches()).toEqual(['SCI Martin']) // brouillon sans numéro : case nommée par le client
+    expect(screen.getByRole('button', { name: 'Brouillons (1)' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: `${T}.toutTelecharger (1)` })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Émises (2)' }))
+    expect(numerosAffiches()).toEqual(['AC-2026-007', 'FACT-2026-040'])
   })
 
   it('cocher une facture n\'ouvre pas le formulaire ; cliquer la ligne l\'ouvre toujours', () => {

@@ -28,6 +28,8 @@ export interface ResultatTelechargementGroupe {
   raison: string | null
   /** Nom de l'archive téléchargée ; null quand un seul PDF a été téléchargé, ou rien. */
   archive: string | null
+  /** Vrai quand l'utilisateur a annulé : rien n'a été téléchargé. */
+  annule?: boolean
 }
 
 export interface OptionsTelechargementGroupe {
@@ -35,6 +37,8 @@ export interface OptionsTelechargementGroupe {
   nomArchive: string
   /** Appelé après chaque document produit (réussi ou non). */
   onProgression?: (faits: number, total: number) => void
+  /** Lu avant chaque PDF : vrai = l'utilisateur a cliqué « Annuler », on s'arrête sans rien télécharger. */
+  estAnnule?: () => boolean
   /** Production d'un PDF ; remplaçable dans les tests. */
   produire?: (doc: SavedDevis, ctx: DownloadContext) => Promise<FichierDocument>
   /** Téléchargement d'un document seul ; remplaçable dans les tests. */
@@ -136,7 +140,9 @@ export async function telechargerDocumentsGroupes(
   const echecs: string[] = []
   let raison: string | null = null
   let faits = 0
+  const annulation: ResultatTelechargementGroupe = { telecharges: 0, echecs: [], raison: null, archive: null, annule: true }
   for (const doc of docs) {
+    if (options.estAnnule?.()) return annulation
     try {
       const { nom, octets } = await produire(doc, ctx)
       // PDF déjà compressés : rangés sans recompression (archive aussi rapide à produire qu'à ouvrir).
@@ -150,6 +156,8 @@ export async function telechargerDocumentsGroupes(
     options.onProgression?.(faits, total)
   }
 
+  // Annulé pendant le dernier PDF : rien ne part non plus.
+  if (options.estAnnule?.()) return annulation
   const telecharges = total - echecs.length
   if (telecharges === 0) return { telecharges: 0, echecs, raison, archive: null }
 

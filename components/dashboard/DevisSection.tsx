@@ -26,12 +26,24 @@ import { fetchNextDocNumber } from '@/lib/doc-number'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
 import {
-  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, IndiceResultat,
+  BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, FiltreStatut, IndiceResultat,
   useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
 } from '@/components/dashboard/documents/OutilsListeDocuments'
 
 // Colonnes de la liste V5 des devis : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
-const CHAMPS_VISIBLES_DEVIS: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client', 'intitule', 'date'])
+const CHAMPS_VISIBLES_DEVIS: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client', 'intitule', 'date', 'montant'])
+
+// Filtre par statut de la liste V5 des devis (« Tout télécharger » suit le filtre, ex. seulement les acceptés).
+type FiltreStatutDevis = 'tous' | 'brouillons' | 'envoyes' | 'acceptes' | 'refuses'
+const FILTRES_STATUT_DEVIS: readonly FiltreStatutDevis[] = ['tous', 'brouillons', 'envoyes', 'acceptes', 'refuses']
+
+/** Statut d'un devis pour ce filtre, aligné sur son badge (statuts FR du navigateur et EN de la base). */
+function filtreDuDevis(status: string | undefined): Exclude<FiltreStatutDevis, 'tous'> {
+  if (status === 'accepte' || status === 'accepted' || status === 'signe' || status === 'signed') return 'acceptes'
+  if (status === 'refuse' || status === 'rejected') return 'refuses'
+  if (status === 'envoye' || status === 'sent') return 'envoyes'
+  return 'brouillons'
+}
 
 interface DevisLine {
   totalHT?: number
@@ -462,6 +474,7 @@ function DevisSectionV5({
   const { useBtpDesign } = useOrgRoleContext()
   const isPt = locale === 'pt'
   const [search, setSearch] = useState('')
+  const [filtreStatut, setFiltreStatut] = useState<FiltreStatutDevis>('tous')
   // « Facturer » (méthode pro 2026, BTP) : choix Facture totale (conversion
   // directe existante) ou Facture d'acompte (échéancier du devis / % choisi →
   // émission directe d'une facture d'acompte reliée au devis).
@@ -529,13 +542,15 @@ function DevisSectionV5({
       .map(a => Number((a as { acompteOrdre?: number }).acompteOrdre))
       .filter(n => Number.isFinite(n))
 
-  // Recherche dans tout ce qui est relié au devis : client, objet, chantier, adresses, lignes, notes, date…
-  const recherche = useRechercheDocuments(devisDocs, search, locale, CHAMPS_VISIBLES_DEVIS)
-  const filtered = [...recherche.documents].sort((a, b) => getDocSeq(b) - getDocSeq(a))
+  // Recherche dans tout ce qui est relié au devis : client, objet, chantier, adresses, lignes, notes, date, montant HT…
+  const recherche = useRechercheDocuments(devisDocs, search, locale, CHAMPS_VISIBLES_DEVIS, computeDevisTotalHT)
+  const filtered = recherche.documents
+    .filter(d => filtreStatut === 'tous' || filtreDuDevis(d.status) === filtreStatut)
+    .sort((a, b) => getDocSeq(b) - getDocSeq(a))
   // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP.
   const selection = useSelectionDocuments(filtered)
   const devisCoches = selection.selectionnes(devisDocs)
-  const { progression, telecharger } = useTelechargementGroupe({
+  const { progression, telecharger, annuler } = useTelechargementGroupe({
     artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveDevis'),
   })
   const telechargerListe = async () => {
@@ -623,12 +638,24 @@ function DevisSectionV5({
           progression={progression}
           onTelecharger={() => { void telechargerListe() }}
           onVider={selection.vider}
+          onAnnuler={annuler}
           t={t}
         />
         <button className="v5-btn v5-btn-p" onClick={() => openDevisForm()}>
           + {t('proDash.devis.creerDevisV5')}
         </button>
       </div>
+
+      {/* Filtre par statut : Tous / Brouillons / Envoyés / Acceptés / Refusés. */}
+      <FiltreStatut
+        options={FILTRES_STATUT_DEVIS.map(cle => ({
+          cle,
+          libelle: t(`proDash.documentsListe.filtresDevis.${cle}`),
+          nombre: cle === 'tous' ? devisDocs.length : devisDocs.filter(d => filtreDuDevis(d.status) === cle).length,
+        }))}
+        actif={filtreStatut}
+        onChoisir={setFiltreStatut}
+      />
 
       {/* Table */}
       <div className="v5-card" style={{ overflowX: 'auto' }}>
@@ -796,7 +823,7 @@ function DevisSectionV5({
             }) : (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
-                  {search ? t('proDash.devis.aucunDevisTrouve') : t('proDash.devis.aucunDevisCreer')}
+                  {search || filtreStatut !== 'tous' ? t('proDash.devis.aucunDevisTrouve') : t('proDash.devis.aucunDevisCreer')}
                 </td>
               </tr>
             )}

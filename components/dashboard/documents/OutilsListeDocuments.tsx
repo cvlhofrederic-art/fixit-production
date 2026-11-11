@@ -34,15 +34,22 @@ function localeRecherche(locale: string): LocaleRecherche {
 
 /* ─── Recherche ─────────────────────────────────────────────────────────── */
 
-/** Documents trouvés (ordre de `docs` conservé) et, pour chacun, l'indice « trouvé dans… » éventuel. */
+/**
+ * Documents trouvés (ordre de `docs` conservé) et, pour chacun, l'indice « trouvé dans… » éventuel.
+ * `montantDe` : montant affiché par la liste, cherchable aussi (identité stable : fonction du module ou useCallback).
+ */
 export function useRechercheDocuments<T extends object>(
   docs: readonly T[],
   requete: string,
   locale: string,
   champsVisibles: ReadonlySet<ChampRecherche>,
+  montantDe?: (doc: T) => number,
 ): { documents: T[]; indiceDe: (doc: T) => IndiceRecherche | null } {
   const loc = localeRecherche(locale)
-  const index = useMemo(() => docs.map(d => indexerDocument(d, loc)), [docs, loc])
+  const index = useMemo(
+    () => docs.map(d => indexerDocument(d, loc, montantDe?.(d))),
+    [docs, loc, montantDe],
+  )
   return useMemo(() => {
     const resultats = filtrerDocuments(index, requete, champsVisibles)
     const indices = new Map<T, IndiceRecherche>()
@@ -63,6 +70,45 @@ export function IndiceResultat({ indice, t }: Readonly<{ indice: IndiceRecherche
   return (
     <div style={STYLE_INDICE} title={indice.texte}>
       {t(cleTexte(`champs.${indice.champ}`))} : {indice.texte}
+    </div>
+  )
+}
+
+/* ─── Filtre par statut ─────────────────────────────────────────────────── */
+
+export interface OptionFiltre<K extends string> {
+  cle: K
+  libelle: string
+  nombre: number
+}
+
+// Puce verte quand elle est active : même rendu que le filtre par statut historique des factures.
+const styleFiltre = (actif: boolean) => ({
+  padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: actif ? 700 : 500,
+  border: `1px solid ${actif ? '#16a34a' : '#ddd'}`,
+  background: actif ? 'rgba(22, 163, 74, 0.12)' : '#fff',
+  color: actif ? '#15803d' : '#444',
+})
+
+/** Puces de filtre par statut (« Toutes (12) », « Émises (8) »…) : « Tout télécharger » suit le filtre choisi. */
+export function FiltreStatut<K extends string>({ options, actif, onChoisir }: Readonly<{
+  options: readonly OptionFiltre<K>[]
+  actif: K
+  onChoisir: (cle: K) => void
+}>) {
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+      {options.map(option => (
+        <button
+          key={option.cle}
+          type="button"
+          onClick={() => onChoisir(option.cle)}
+          aria-pressed={actif === option.cle}
+          style={styleFiltre(actif === option.cle)}
+        >
+          {option.libelle} ({option.nombre})
+        </button>
+      ))}
     </div>
   )
 }
@@ -228,10 +274,13 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
 }) {
   const [progression, setProgression] = useState<ProgressionTelechargement | null>(null)
   const enCours = useRef(false)
+  // « Annuler » pendant la préparation : lu avant chaque PDF (le PDF en cours se termine, puis rien ne part).
+  const annulation = useRef(false)
 
   const telecharger = async (docs: readonly object[]): Promise<boolean> => {
     if (enCours.current || docs.length === 0) return false
     enCours.current = true
+    annulation.current = false
     setProgression({ faits: 0, total: docs.length })
     const ctx: DownloadContext = {
       locale: locale as DownloadContext['locale'],
@@ -249,7 +298,12 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
       const resultat = await telechargerDocumentsGroupes(docs as readonly SavedDevis[], ctx, {
         nomArchive: `${nomListe}_${dateDuJourLocale()}`,
         onProgression: (faits, total) => setProgression({ faits, total }),
+        estAnnule: () => annulation.current,
       })
+      if (resultat.annule) {
+        toast.info(t(cleTexte('annule')))
+        return false
+      }
       const nombre = resultat.telecharges === 1
         ? t(cleTexte('unTelecharge'))
         : `${resultat.telecharges} ${t(cleTexte('telecharges'))}`
@@ -277,7 +331,11 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
     }
   }
 
-  return { progression, telecharger }
+  const annuler = (): void => {
+    annulation.current = true
+  }
+
+  return { progression, telecharger, annuler }
 }
 
 function IconeTelechargement() {
@@ -291,14 +349,15 @@ function IconeTelechargement() {
 
 /**
  * Boutons de la barre de recherche : « Tout télécharger (N) » quand rien n'est coché (les N documents affichés),
- * « Télécharger la sélection (k) » sinon, plus « Désélectionner ».
+ * « Télécharger la sélection (k) » sinon, plus « Désélectionner » ; « Annuler » pendant la préparation.
  */
-export function BoutonsTelechargementGroupe({ nbAffiches, nbSelectionnes, progression, onTelecharger, onVider, t }: Readonly<{
+export function BoutonsTelechargementGroupe({ nbAffiches, nbSelectionnes, progression, onTelecharger, onVider, onAnnuler, t }: Readonly<{
   nbAffiches: number
   nbSelectionnes: number
   progression: ProgressionTelechargement | null
   onTelecharger: () => void
   onVider: () => void
+  onAnnuler: () => void
   t: Traduire
 }>) {
   const enCours = progression !== null
@@ -315,6 +374,11 @@ export function BoutonsTelechargementGroupe({ nbAffiches, nbSelectionnes, progre
       {nbSelectionnes > 0 && !enCours && (
         <button type="button" className="v5-btn" onClick={onVider}>
           {t(cleTexte('deselectionner'))}
+        </button>
+      )}
+      {enCours && (
+        <button type="button" className="v5-btn" onClick={onAnnuler}>
+          {t(cleTexte('annuler'))}
         </button>
       )}
       <button type="button" className="v5-btn" onClick={onTelecharger} title={titre} aria-busy={enCours}
