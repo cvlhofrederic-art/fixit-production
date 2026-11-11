@@ -89,6 +89,14 @@ describe(`Migration ${FICHIER} : fichier et ordre`, () => {
   it('se termine par la relecture du schéma par PostgREST', () => {
     expect(code).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/)
   })
+
+  it('en-tête : chaque message P0001 levé par une fonction ou un trigger y est cité (essai PGlite du 11/11)', () => {
+    const entete = sql.slice(0, sql.indexOf('-- ── 1.'))
+    expect(entete.length).toBeGreaterThan(0)
+    const leves = new Set([...code.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
+    expect(leves.size).toBeGreaterThan(0)
+    expect([...leves].filter((m) => !new RegExp(`\\b${m}\\b`).test(entete))).toEqual([])
+  })
 })
 
 describe(`Migration ${FICHIER} : rejouable, sans donnée`, () => {
@@ -139,6 +147,14 @@ describe(`Migration ${FICHIER} : sécurité (clé service seulement)`, () => {
     expect(m).not.toBeNull()
     const tables = (m?.[1] ?? '').split(',').map((t) => t.trim())
     expect(trie(tables)).toEqual(trie(TABLES_NOUVELLES))
+  })
+
+  it('séquence du journal (identité) : droits par défaut de Supabase retirés à anon et authenticated, jamais redonnés (essai PGlite du 11/11)', () => {
+    // GENERATED ALWAYS AS IDENTITY crée signalements_qr_journal_id_seq ; Supabase y donne USAGE, SELECT, UPDATE à anon et
+    // authenticated (droits par défaut du schéma public). L'insertion par la clé service n'en a pas besoin (nextval interne).
+    expect(code).toMatch(/REVOKE ALL ON SEQUENCE signalements_qr_journal_id_seq FROM PUBLIC, anon, authenticated;/)
+    expect(code).not.toMatch(/\bGRANT\b[^;]*\bON\s+SEQUENCE\b/i)
+    expect([...code.matchAll(/GENERATED (?:ALWAYS|BY DEFAULT) AS IDENTITY|\bSERIAL\b|\bBIGSERIAL\b/gi)]).toHaveLength(1)
   })
 
   it('16 fonctions définies : les 14 appelées par les routes et les 2 de trigger, aucune autre', () => {

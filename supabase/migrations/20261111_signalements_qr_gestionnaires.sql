@@ -10,9 +10,9 @@
 --
 -- Tables nouvelles (7) : signalements_qr_cabinets, signalements_qr_domaines_autorises, signalements_qr_gestionnaires,
 -- signalements_qr_invitations, signalements_qr_attributions, signalements_qr_journal, signalements_qr_operations.
--- RLS activée sans politique, droits retirés à anon et authenticated : clé service seulement (routes
--- app/api/aj-signalement/*). 14 fonctions appelées par les routes (EXECUTE donné à service_role seul) et 2 fonctions de
--- trigger (gel de l'identifiant d'un cabinet, rattachement définitif d'une copropriété).
+-- RLS activée sans politique, droits retirés à anon et authenticated (tables, et séquence de l'identité du journal) :
+-- clé service seulement (routes app/api/aj-signalement/*). 14 fonctions appelées par les routes (EXECUTE donné à
+-- service_role seul) et 2 fonctions de trigger (gel de l'identifiant d'un cabinet, rattachement définitif d'une copropriété).
 --
 -- Règles :
 --   - un gestionnaire et un domaine appartiennent toujours à un cabinet (cabinet_id NOT NULL) ; un domaine à un seul ;
@@ -23,8 +23,8 @@
 --   - toute comparaison « même cabinet » sur les copropriétés passe par coalesce(cabinet_id, UUID nul) : le groupe
 --     « sans cabinet » est isolé comme un cabinet (doublons, verrous, budget d'e-mails).
 -- Erreurs levées par les fonctions : P0001 (doublon, a_reverifier, sans_cabinet, identifiant_pris, identifiant_fige,
--- domaine_pris, cabinet_fige, hors_domaine : codes publics 409 des routes), 42501 (interdit), 22023 (paramètre
--- invalide) ; jamais renvoyées telles quelles au navigateur.
+-- domaine_pris, cabinet_fige, hors_domaine, domaine_autre_cabinet : codes publics 409 des routes), 42501 (interdit),
+-- 22023 (paramètre invalide) ; jamais renvoyées telles quelles au navigateur.
 --
 -- Additive et rejouable (modèle 20261106_signalements_qr_geoloc_qualite.sql) : CREATE TABLE / INDEX IF NOT EXISTS,
 -- ADD COLUMN IF NOT EXISTS, contraintes nommées des tables existantes créées seulement si absentes de pg_constraint, en
@@ -1161,6 +1161,10 @@ ALTER TABLE signalements_qr_operations         ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON signalements_qr_cabinets, signalements_qr_domaines_autorises, signalements_qr_gestionnaires,
               signalements_qr_invitations, signalements_qr_attributions, signalements_qr_journal,
               signalements_qr_operations FROM anon, authenticated;
+-- Séquence de l'identité du journal : Supabase y donne USAGE, SELECT et UPDATE à anon et authenticated (droits par
+-- défaut du schéma public). La clé service garde les siens ; une identité GENERATED ALWAYS n'exige d'ailleurs aucun
+-- droit sur sa séquence pour insérer (nextval interne).
+REVOKE ALL ON SEQUENCE signalements_qr_journal_id_seq FROM PUBLIC, anon, authenticated;
 
 -- ── 10. Triggers (set_updated_at existe : migration 056, ou créée par 20261104_signalements_qr.sql) ──
 CREATE OR REPLACE TRIGGER trg_signalements_qr_cabinets_updated_at
