@@ -10,6 +10,8 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { MIGRATION_GESTIONNAIRES_QR } from '@/lib/aj-signalement/serveur'
+import { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from '@/lib/aj-signalement/types'
+import { attributionsGestionnaireQrSchema, departGestionnaireQrSchema } from '@/lib/validation'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
 const FICHIER = '20261111_signalements_qr_gestionnaires.sql'
@@ -89,6 +91,14 @@ describe(`Migration ${FICHIER} : fichier et ordre`, () => {
   it('se termine par la relecture du schéma par PostgREST', () => {
     expect(code).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/)
   })
+
+  it('en-tête : chaque message P0001 levé par une fonction ou un trigger y est cité (essai PGlite du 11/11)', () => {
+    const entete = sql.slice(0, sql.indexOf('-- ── 1.'))
+    expect(entete.length).toBeGreaterThan(0)
+    const leves = new Set([...code.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
+    expect(leves.size).toBeGreaterThan(0)
+    expect([...leves].filter((m) => !new RegExp(`\\b${m}\\b`).test(entete))).toEqual([])
+  })
 })
 
 describe(`Migration ${FICHIER} : rejouable, sans donnée`, () => {
@@ -139,6 +149,14 @@ describe(`Migration ${FICHIER} : sécurité (clé service seulement)`, () => {
     expect(m).not.toBeNull()
     const tables = (m?.[1] ?? '').split(',').map((t) => t.trim())
     expect(trie(tables)).toEqual(trie(TABLES_NOUVELLES))
+  })
+
+  it('séquence du journal (identité) : droits par défaut de Supabase retirés à anon et authenticated, jamais redonnés (essai PGlite du 11/11)', () => {
+    // GENERATED ALWAYS AS IDENTITY crée signalements_qr_journal_id_seq ; Supabase y donne USAGE, SELECT, UPDATE à anon et
+    // authenticated (droits par défaut du schéma public). L'insertion par la clé service n'en a pas besoin (nextval interne).
+    expect(code).toMatch(/REVOKE ALL ON SEQUENCE signalements_qr_journal_id_seq FROM PUBLIC, anon, authenticated;/)
+    expect(code).not.toMatch(/\bGRANT\b[^;]*\bON\s+SEQUENCE\b/i)
+    expect([...code.matchAll(/GENERATED (?:ALWAYS|BY DEFAULT) AS IDENTITY|\bSERIAL\b|\bBIGSERIAL\b/gi)]).toHaveLength(1)
   })
 
   it('16 fonctions définies : les 14 appelées par les routes et les 2 de trigger, aucune autre', () => {
@@ -249,7 +267,15 @@ describe(`Migration ${FICHIER} : cabinets clients et domaines`, () => {
   it('rattachement (relecture 9) : clé du nom posée là où elle manque, doublon nom + code postal refusé SOUS le verrou sauf forçage journalisé', () => {
     const corps = fonction('signalements_qr_rattacher_coproprietes').corps
     const verrou = corps.indexOf("pg_advisory_xact_lock(hashtextextended('signalements_qr_creation:'")
-    expect(corps).toMatch(new RegExp(espaces("cle_nom = coalesce(c.cle_nom, nullif(p_cles_nom->>c.id::text, ''))")))
+    // Essai PGlite du 11/11 (D5) : une clé manquante (copropriété que la route n'a pas lue) est REFUSÉE, avant toute
+    // écriture ; avant, le contrôle nom + code postal sautait en silence (cle_nom restait NULL).
+    const manque = corps.search(new RegExp(espaces(
+      "IF EXISTS (SELECT 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL AND jsonb_typeof(p_cles_nom->(c.id::text)) IS DISTINCT FROM 'string') THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';",
+    )))
+    const pose = corps.search(new RegExp(espaces('UPDATE signalements_qr_coproprietes c SET cle_nom = p_cles_nom->>(c.id::text) WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL;')))
+    expect(manque).toBeGreaterThan(verrou)
+    expect(pose).toBeGreaterThan(manque)
+    expect(corps).not.toMatch(/nullif\(p_cles_nom/)
     const controle = new RegExp(espaces(
       "WHERE c.id = ANY (v_ids) AND c.code_postal <> '' AND c.cle_nom IS NOT NULL AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d WHERE d.id <> c.id AND (d.cabinet_id = p_cabinet OR d.id = ANY (v_ids)) AND d.cle_nom = c.cle_nom AND d.code_postal = c.code_postal)",
     ))
@@ -344,6 +370,20 @@ describe(`Migration ${FICHIER} : gestionnaires et envois`, () => {
     expect(fonction('signalements_qr_confirmer_adresse').corps).toMatch(/adresse_confirmee_le = coalesce\(adresse_confirmee_le, now\(\)\)/)
   })
 
+  it('lien rouvert après « C’est moi » (essai PGlite du 11/11, D4) : le jeton reste et accepted_at fait foi (usage unique) ; départ et contestation effacent TOUS les jetons de la fiche', () => {
+    // lireInvitationValide (lib/equipe) retrouve l'envoi par son jeton : effacé, la page dirait « lien invalide » au lieu
+    // de « Adresse déjà confirmée. ». Gardé, il n'accorde rien de plus : confirmer et contester exigent accepted_at NULL.
+    const confirmer = fonction('signalements_qr_confirmer_adresse').corps
+    expect(confirmer).toMatch(/UPDATE signalements_qr_invitations i SET accepted_at = now\(\)\s+WHERE i\.id = p_invitation/)
+    expect(confirmer).not.toMatch(/invite_token\s*=\s*NULL/)
+    expect(confirmer).toMatch(/i\.accepted_at IS NULL AND i\.refus IS NULL\s+AND i\.invite_token IS NOT NULL/)
+    for (const [nom, fiche] of [['signalements_qr_contester_adresse', 'v_g'], ['signalements_qr_desactiver_gestionnaire', 'p_id']]) {
+      const corps = fonction(nom).corps
+      expect(corps, nom).toMatch(new RegExp(espaces(`UPDATE signalements_qr_invitations SET invite_token = NULL WHERE gestionnaire_id = ${fiche} AND invite_token IS NOT NULL;`)))
+      expect(corps, nom).not.toMatch(/SET invite_token = NULL\s+WHERE gestionnaire_id = \w+ AND accepted_at IS NULL/)
+    }
+  })
+
   it('réactivation refusée pour une fiche pseudonymisée', () => {
     expect(fonction('signalements_qr_reactiver_gestionnaire').corps).toMatch(/pseudonymise_le IS NULL/)
   })
@@ -428,6 +468,26 @@ describe(`Migration ${FICHIER} : copropriétés (création unique, doublons, cab
     const completer = corps.slice(debut, corps.indexOf('v_compl := v_compl', debut))
     expect(completer).toMatch(/cle_nom\s+= coalesce\(c\.cle_nom, nullif\(v_l->>'cleNomExistante', ''\)\)/)
     expect(completer).not.toContain("v_l->>'cleNom'")
+  })
+
+  it('« compléter » et « créer » dans un même lot (essai PGlite du 11/11, D3) : complétions d’abord, quel que soit l’ordre des lignes ; complétion qui fait apparaître un doublon nom + code postal refusée', () => {
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    // Une seule boucle : les lignes « compléter » passent avant les autres, chacune dans l'ordre du lot.
+    expect(corps).toMatch(new RegExp(espaces(
+      "FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) WITH ORDINALITY AS e(val, rang) ORDER BY coalesce(e.val->>'action' = 'completer', false) DESC, e.rang LOOP",
+    )))
+    expect([...corps.matchAll(/FOR v_l IN/g)]).toHaveLength(1)
+    const debut = corps.indexOf("IF v_l->>'action' = 'completer'")
+    const completer = corps.slice(debut, corps.indexOf('v_compl := v_compl', debut))
+    // Clé et code postal lus avant, relus après la complétion ; comparés aux AUTRES fiches du cabinet si l'un a changé.
+    expect(completer).toMatch(/SELECT c\.cle_nom, c\.code_postal INTO v_cle_avant, v_cp_avant\s+FROM signalements_qr_coproprietes c WHERE c\.id = v_id AND coalesce\(c\.cabinet_id, v_zero\) = v_cab/)
+    expect(completer).toMatch(/RETURNING c\.cle_nom, c\.code_postal INTO v_cle, v_cp;/)
+    const controle = new RegExp(espaces(
+      "IF (v_cle IS DISTINCT FROM v_cle_avant OR v_cp IS DISTINCT FROM v_cp_avant) AND v_cle IS NOT NULL AND v_cp <> '' AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d WHERE coalesce(d.cabinet_id, v_zero) = v_cab AND d.id <> v_id AND d.cle_nom = v_cle AND d.code_postal = v_cp) THEN RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001', DETAIL = v_num;",
+    ))
+    expect(completer).toMatch(controle)
+    // Aucun forçage pour une complétion (le plan d'import envoie toujours forcerDoublon: false).
+    expect(completer).not.toMatch(/forcerDoublon/)
   })
 
   it('import (lot 5) : un fichier d’UNE ligne reste un import ; « compléter » ne remplit que les champs vides, n’écrase rien', () => {
@@ -571,5 +631,90 @@ describe(`Migration ${FICHIER} : journal, opérations, budget d’e-mails`, () =
     expect([...code.matchAll(/pg_advisory_xact_lock\(hashtextextended\(/g)].length).toBeGreaterThanOrEqual(3)
     expect(code).not.toMatch(/pg_advisory_lock\(/)
     expect(code).not.toMatch(/hashtext\(/)
+  })
+})
+
+describe(`Migration ${FICHIER} : au plus ${ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR} attributions par fiche (essai PGlite du 11/11, D6)`, () => {
+  // Le départ exige UNE succession par attribution et la page profil envoie l'ensemble complet : les deux routes en
+  // acceptent au plus ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR. Sans borne en base, une fiche à 1 001 attributions (imports
+  // successifs) ne pouvait plus partir. La borne est vérifiée, fiches verrouillées, par chaque fonction qui ajoute des
+  // attributions à une fiche existante ; attribuer_au_gestionnaire pose l'ensemble complet (≤ 1 000) et
+  // inviter_gestionnaire une fiche neuve (≤ 500).
+  const borne = (corps: string, fiches: string): RegExpMatchArray | null => corps.match(new RegExp(espaces(
+    `IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (${fiches}) GROUP BY a.gestionnaire_id HAVING count(*) > ${ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR}) THEN RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';`,
+  )))
+
+  it.each([
+    ['signalements_qr_creer_coproprietes', 'v_fiches'],
+    ['signalements_qr_remplacer_attributions', 'v_nouveaux'],
+    ['signalements_qr_desactiver_gestionnaire', 'v_successeurs'],
+  ])('%s : borne vérifiée après les insertions, sur les fiches verrouillées (%s)', (nom, fiches) => {
+    const corps = fonction(nom).corps
+    const m = borne(corps, fiches)
+    expect(m).not.toBeNull()
+    expect(m?.index ?? -1).toBeGreaterThan(corps.indexOf('INSERT INTO signalements_qr_attributions'))
+  })
+
+  it('une seule borne dans le fichier, égale à celle des routes (page profil, départ)', () => {
+    expect(new Set([...code.matchAll(/HAVING count\(\*\) > (\d+)/g)].map((m) => Number(m[1])))).toEqual(new Set([ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR]))
+    expect(code).toMatch(new RegExp(`cardinality\\(v_cibles\\) > ${ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR}`))
+    const ids = Array.from({ length: ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR + 1 }, (_, i) => `c0000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
+    const successions = ids.map((coproprieteId) => ({ coproprieteId, versGestionnaireId: null }))
+    expect(departGestionnaireQrSchema.safeParse({ successions: successions.slice(0, -1) }).success).toBe(true)
+    expect(departGestionnaireQrSchema.safeParse({ successions }).success).toBe(false)
+    expect(attributionsGestionnaireQrSchema.safeParse({ coproprieteIds: ids.slice(0, -1) }).success).toBe(true)
+    expect(attributionsGestionnaireQrSchema.safeParse({ coproprieteIds: ids }).success).toBe(false)
+  })
+})
+
+describe(`Migration ${FICHIER} : ordre unique des verrous de ligne (essai PGlite du 11/11, D7)`, () => {
+  // Fiches avant copropriétés, chacune par identifiant croissant, dans toutes les fonctions qui écrivent les deux : un
+  // remplacement (copropriété puis fiche) et une page profil ou un départ (fiche puis copropriété) ne se bloquent plus
+  // mutuellement (40P01). Une fiche contrôlée active l'est SOUS verrou : un départ concurrent ne la désactive qu'après.
+  const position = (corps: string, motif: string): number => {
+    const m = new RegExp(espaces(motif)).exec(corps)
+    expect(m, motif).not.toBeNull()
+    return m?.index ?? -1
+  }
+
+  it('création : verrou du cabinet, puis fiches des lignes, puis copropriétés à compléter, AVANT la boucle des lignes ; fiche de l’auteur revérifiée', () => {
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    const cabinet = position(corps, "PERFORM pg_advisory_xact_lock(hashtextextended('signalements_qr_creation:' || v_cab::text, 0));")
+    const fiches = position(corps, 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_fiches) ORDER BY g.id FOR NO KEY UPDATE;')
+    const copros = position(corps, 'PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_a_completer) ORDER BY c.id FOR NO KEY UPDATE;')
+    const revue = position(corps, "IF p_profil = 'gestionnaire' AND NOT EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g WHERE g.id = p_gestionnaire AND g.actif AND g.cabinet_id = p_cabinet) THEN RAISE EXCEPTION 'interdit'")
+    const boucle = corps.indexOf('FOR v_l IN')
+    expect([cabinet < fiches, fiches < copros, copros < revue, revue < boucle]).toEqual([true, true, true, true])
+    expect(corps).toMatch(/v_fiches := ARRAY\(SELECT DISTINCT x\.val::uuid/)
+  })
+
+  it('remplacement des attributions : fiches de la liste (par id) AVANT la copropriété', () => {
+    const corps = fonction('signalements_qr_remplacer_attributions').corps
+    const fiches = position(corps, 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_nouveaux) ORDER BY g.id FOR NO KEY UPDATE;')
+    const copro = position(corps, 'FROM signalements_qr_coproprietes c WHERE c.id = p_copropriete FOR UPDATE;')
+    const controle = position(corps, 'WHERE g.id = t.x AND g.actif AND g.cabinet_id = v_cab')
+    expect([fiches < copro, copro < controle]).toEqual([true, true])
+  })
+
+  it('page profil : la fiche (FOR UPDATE), puis ses copropriétés anciennes et nouvelles (par id), AVANT toute écriture', () => {
+    const corps = fonction('signalements_qr_attribuer_au_gestionnaire').corps
+    const fiche = position(corps, 'FROM signalements_qr_gestionnaires g WHERE g.id = p_gestionnaire FOR UPDATE;')
+    const copros = position(corps, 'PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_cibles) OR c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_gestionnaire) ORDER BY c.id FOR NO KEY UPDATE;')
+    expect([fiche < copros, copros < corps.indexOf('INSERT INTO signalements_qr_attributions')]).toEqual([true, true])
+  })
+
+  it('départ : la fiche et ses successeurs par id (une seule boucle), puis les copropriétés par id ; attributions relues SOUS ces verrous', () => {
+    const corps = fonction('signalements_qr_desactiver_gestionnaire').corps
+    const boucle = position(corps, "FOR v_f IN SELECT t.x FROM (SELECT p_id AS x UNION SELECT nullif(e.val->>'versGestionnaireId', '')::uuid FROM jsonb_array_elements(v_succ) AS e(val)) AS t WHERE t.x IS NOT NULL ORDER BY t.x LOOP")
+    const copros = position(corps, 'PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id) OR (v_email IS NOT NULL AND v_email = ANY (c.emails_destinataires)) ORDER BY c.id FOR NO KEY UPDATE;')
+    const attr = position(corps, 'v_attr := ARRAY(SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id);')
+    expect([boucle < copros, copros < attr]).toEqual([true, true])
+    expect([...corps.matchAll(/FROM signalements_qr_gestionnaires g WHERE g\.id = p_id FOR UPDATE/g)]).toHaveLength(1)
+  })
+
+  it.each(['signalements_qr_confirmer_adresse', 'signalements_qr_contester_adresse'])('%s : la fiche AVANT l’envoi (même ordre que le départ, qui efface ses jetons)', (nom) => {
+    const corps = fonction(nom).corps
+    const fiche = position(corps, 'PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation) FOR NO KEY UPDATE;')
+    expect(fiche).toBeLessThan(corps.indexOf('UPDATE signalements_qr_invitations i SET'))
   })
 })

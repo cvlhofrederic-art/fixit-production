@@ -10,9 +10,9 @@
 --
 -- Tables nouvelles (7) : signalements_qr_cabinets, signalements_qr_domaines_autorises, signalements_qr_gestionnaires,
 -- signalements_qr_invitations, signalements_qr_attributions, signalements_qr_journal, signalements_qr_operations.
--- RLS activée sans politique, droits retirés à anon et authenticated : clé service seulement (routes
--- app/api/aj-signalement/*). 14 fonctions appelées par les routes (EXECUTE donné à service_role seul) et 2 fonctions de
--- trigger (gel de l'identifiant d'un cabinet, rattachement définitif d'une copropriété).
+-- RLS activée sans politique, droits retirés à anon et authenticated (tables, et séquence de l'identité du journal) :
+-- clé service seulement (routes app/api/aj-signalement/*). 14 fonctions appelées par les routes (EXECUTE donné à
+-- service_role seul) et 2 fonctions de trigger (gel de l'identifiant d'un cabinet, rattachement définitif d'une copropriété).
 --
 -- Règles :
 --   - un gestionnaire et un domaine appartiennent toujours à un cabinet (cabinet_id NOT NULL) ; un domaine à un seul ;
@@ -23,8 +23,8 @@
 --   - toute comparaison « même cabinet » sur les copropriétés passe par coalesce(cabinet_id, UUID nul) : le groupe
 --     « sans cabinet » est isolé comme un cabinet (doublons, verrous, budget d'e-mails).
 -- Erreurs levées par les fonctions : P0001 (doublon, a_reverifier, sans_cabinet, identifiant_pris, identifiant_fige,
--- domaine_pris, cabinet_fige, hors_domaine : codes publics 409 des routes), 42501 (interdit), 22023 (paramètre
--- invalide) ; jamais renvoyées telles quelles au navigateur.
+-- domaine_pris, cabinet_fige, hors_domaine, domaine_autre_cabinet : codes publics 409 des routes), 42501 (interdit),
+-- 22023 (paramètre invalide) ; jamais renvoyées telles quelles au navigateur.
 --
 -- Additive et rejouable (modèle 20261106_signalements_qr_geoloc_qualite.sql) : CREATE TABLE / INDEX IF NOT EXISTS,
 -- ADD COLUMN IF NOT EXISTS, contraintes nommées des tables existantes créées seulement si absentes de pg_constraint, en
@@ -338,6 +338,12 @@ DECLARE
   v_id      uuid;
   v_jeton   text;
   v_g       uuid;
+  v_cle_avant  text;
+  v_cp_avant   text;
+  v_cle     text;
+  v_cp      text;
+  v_fiches       uuid[];
+  v_a_completer  uuid[];
   v_creees  jsonb := '[]'::jsonb;
   v_compl   jsonb := '[]'::jsonb;
   v_rendu   jsonb;
@@ -394,7 +400,31 @@ BEGIN
     RETURN jsonb_build_object('creees', v_rendu, 'completees', coalesce(v_deja->'completees', '[]'::jsonb), 'rejeu', true);
   END IF;
 
-  FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) AS e(val) LOOP
+  -- Ordre unique des verrous (toutes les fonctions) : fiches, puis copropriétés, chacune par identifiant croissant. Une
+  -- fiche contrôlée (active, du cabinet) le reste jusqu'à la fin de la transaction : un départ concurrent attend, ou se
+  -- fait attendre puis relit les attributions ; jamais d'attribution sur une fiche désactivée, jamais de blocage mutuel.
+  v_fiches := ARRAY(SELECT DISTINCT x.val::uuid
+                      FROM jsonb_array_elements(p_lignes) AS e(val),
+                           jsonb_array_elements_text(CASE WHEN jsonb_typeof(e.val->'gestionnaireIds') = 'array'
+                                                          THEN e.val->'gestionnaireIds' ELSE '[]'::jsonb END) AS x(val));
+  IF p_gestionnaire IS NOT NULL THEN
+    v_fiches := array_append(v_fiches, p_gestionnaire);
+  END IF;
+  PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_fiches) ORDER BY g.id FOR NO KEY UPDATE;
+  v_a_completer := ARRAY(SELECT (e.val->>'coproprieteId')::uuid FROM jsonb_array_elements(p_lignes) AS e(val)
+                          WHERE jsonb_typeof(e.val) = 'object' AND e.val->>'action' = 'completer');
+  PERFORM 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_a_completer) ORDER BY c.id FOR NO KEY UPDATE;
+  -- Fiche de l'auteur (PR 2) revérifiée sous son verrou : désactivée depuis le premier contrôle, rien n'est créé.
+  IF p_profil = 'gestionnaire' AND NOT EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
+                                                WHERE g.id = p_gestionnaire AND g.actif AND g.cabinet_id = p_cabinet) THEN
+    RAISE EXCEPTION 'interdit' USING ERRCODE = '42501';
+  END IF;
+
+  -- Les lignes « compléter » passent AVANT les créations, chacune dans l'ordre du lot : la décision ne dépend pas de
+  -- l'ordre des lignes, et chaque création est comparée aux fiches telles que les complétions du lot les laissent (jamais
+  -- deux fiches de même clé de nom et même code postal sans forçage journalisé ; plan d'import : même ordre).
+  FOR v_l IN SELECT e.val FROM jsonb_array_elements(p_lignes) WITH ORDINALITY AS e(val, rang)
+              ORDER BY coalesce(e.val->>'action' = 'completer', false) DESC, e.rang LOOP
     v_num := coalesce(v_l->>'numeroLigne', '');
     IF jsonb_typeof(v_l) <> 'object' OR coalesce(v_l->>'action', '') NOT IN ('creer', 'completer') THEN
       RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023', DETAIL = v_num;
@@ -403,6 +433,13 @@ BEGIN
     IF v_l->>'action' = 'completer' THEN
       IF p_profil <> 'super_admin' THEN
         RAISE EXCEPTION 'interdit' USING ERRCODE = '42501';
+      END IF;
+      v_id := (v_l->>'coproprieteId')::uuid;
+      SELECT c.cle_nom, c.code_postal INTO v_cle_avant, v_cp_avant
+        FROM signalements_qr_coproprietes c WHERE c.id = v_id AND coalesce(c.cabinet_id, v_zero) = v_cab
+        FOR NO KEY UPDATE;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001', DETAIL = v_num;
       END IF;
       UPDATE signalements_qr_coproprietes c SET          -- ne remplit QUE les champs vides
         adresse           = CASE WHEN c.adresse = '' THEN coalesce(v_l->>'adresse', '') ELSE c.adresse END,
@@ -415,11 +452,15 @@ BEGIN
                               ELSE c.batiments END,
         -- Clé du nom EXISTANT (le nom n'est pas changé) : celle de la ligne fausserait le contrôle nom + code postal.
         cle_nom           = coalesce(c.cle_nom, nullif(v_l->>'cleNomExistante', ''))
-      WHERE c.id = (v_l->>'coproprieteId')::uuid AND coalesce(c.cabinet_id, v_zero) = v_cab;
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001', DETAIL = v_num;
+      WHERE c.id = v_id
+      RETURNING c.cle_nom, c.code_postal INTO v_cle, v_cp;
+      -- Même règle que la création : si la complétion change la clé du nom ou le code postal de la fiche, aucune AUTRE
+      -- fiche du cabinet ne porte les mêmes (aucun forçage pour une complétion).
+      IF (v_cle IS DISTINCT FROM v_cle_avant OR v_cp IS DISTINCT FROM v_cp_avant) AND v_cle IS NOT NULL AND v_cp <> ''
+         AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d
+                      WHERE coalesce(d.cabinet_id, v_zero) = v_cab AND d.id <> v_id AND d.cle_nom = v_cle AND d.code_postal = v_cp) THEN
+        RAISE EXCEPTION 'doublon' USING ERRCODE = 'P0001', DETAIL = v_num;
       END IF;
-      v_id := (v_l->>'coproprieteId')::uuid;
       v_compl := v_compl || jsonb_build_object('numeroLigne', (v_l->>'numeroLigne')::int, 'id', v_id);
     ELSE
       IF NOT (p_profil = 'super_admin' AND coalesce((v_l->>'forcerDoublon')::boolean, false))
@@ -486,6 +527,13 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Au plus 1 000 attributions par fiche : le départ (une succession par attribution) et la page profil (ensemble
+  -- complet) en reçoivent au plus 1 000 (lib/validation.ts). Fiches verrouillées ci-dessus : aucune course ne la dépasse.
+  IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (v_fiches)
+              GROUP BY a.gestionnaire_id HAVING count(*) > 1000) THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
+
   INSERT INTO signalements_qr_operations (id, cabinet_id, acteur_id, acteur_profil, type, empreinte_lignes, resultat)
   VALUES (p_operation, p_cabinet, p_acteur, p_profil, v_type, v_empreinte, jsonb_build_object('creees', v_creees, 'completees', v_compl));
   IF v_type = 'import' THEN
@@ -537,6 +585,9 @@ BEGIN
   IF p_copropriete IS NULL OR p_acteur IS NULL OR cardinality(v_nouveaux) > 100 THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
+  -- Ordre unique des verrous : les fiches de la liste (par identifiant), puis la copropriété. Les fiches contrôlées
+  -- (actives, du cabinet) le restent jusqu'à la fin de la transaction : un départ concurrent attend.
+  PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_nouveaux) ORDER BY g.id FOR NO KEY UPDATE;
   SELECT c.cabinet_id, c.attribuee_a_tous INTO v_cab, v_tous_avant
     FROM signalements_qr_coproprietes c WHERE c.id = p_copropriete FOR UPDATE;
   IF NOT FOUND THEN
@@ -563,6 +614,11 @@ BEGIN
   INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id, gestionnaire_id, details)
   SELECT v_cab, p_acteur, 'super_admin', 'attribution.ajoutee', p_copropriete, a.gestionnaire_id, '{"origine": "super_admin"}'::jsonb
     FROM ajoutees a;
+  -- Au plus 1 000 attributions par fiche (voir signalements_qr_creer_coproprietes ; fiches verrouillées ci-dessus).
+  IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (v_nouveaux)
+              GROUP BY a.gestionnaire_id HAVING count(*) > 1000) THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
 
   IF v_tous_apres IS DISTINCT FROM v_tous_avant THEN
     UPDATE signalements_qr_coproprietes SET attribuee_a_tous = v_tous_apres WHERE id = p_copropriete;
@@ -625,6 +681,11 @@ BEGIN
   IF NOT FOUND OR (NOT v_actif AND cardinality(v_cibles) > 0) THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
+  -- Ordre unique des verrous : la fiche (ci-dessus), puis ses copropriétés, anciennes et nouvelles, par identifiant.
+  PERFORM 1 FROM signalements_qr_coproprietes c
+   WHERE c.id = ANY (v_cibles)
+      OR c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_gestionnaire)
+   ORDER BY c.id FOR NO KEY UPDATE;
   -- Copropriétés du MÊME cabinet seulement (une copropriété sans cabinet n'a pas de gestionnaire).
   IF EXISTS (SELECT 1 FROM unnest(v_cibles) AS t(x)
               WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes c WHERE c.id = t.x AND c.cabinet_id = v_cab)) THEN
@@ -686,15 +747,34 @@ DECLARE
   v_retirees   int := 0;
   v_c          uuid;
   v_ccab       uuid;
+  v_f          uuid;
+  v_trouvee    boolean := false;
+  v_successeurs  uuid[] := '{}';
 BEGIN
   IF p_id IS NULL OR p_acteur IS NULL OR jsonb_typeof(v_succ) <> 'array' THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
-  SELECT g.cabinet_id, g.actif, g.email INTO v_cab, v_actif, v_email
-    FROM signalements_qr_gestionnaires g WHERE g.id = p_id FOR UPDATE;
-  IF NOT FOUND OR NOT v_actif THEN
+  -- Ordre unique des verrous : la fiche et ses successeurs, par identifiant (la fiche FOR UPDATE ; ses successeurs, une
+  -- fois contrôlés actifs, le restent jusqu'à la fin), puis les copropriétés, par identifiant.
+  FOR v_f IN SELECT t.x FROM (SELECT p_id AS x
+                               UNION SELECT nullif(e.val->>'versGestionnaireId', '')::uuid FROM jsonb_array_elements(v_succ) AS e(val)) AS t
+              WHERE t.x IS NOT NULL ORDER BY t.x LOOP
+    IF v_f = p_id THEN
+      SELECT g.cabinet_id, g.actif, g.email INTO v_cab, v_actif, v_email
+        FROM signalements_qr_gestionnaires g WHERE g.id = p_id FOR UPDATE;
+      v_trouvee := FOUND;
+    ELSE
+      PERFORM 1 FROM signalements_qr_gestionnaires g WHERE g.id = v_f FOR NO KEY UPDATE;
+    END IF;
+  END LOOP;
+  IF NOT v_trouvee OR NOT v_actif THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
+  PERFORM 1 FROM signalements_qr_coproprietes c
+   WHERE c.id IN (SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id)
+      OR (v_email IS NOT NULL AND v_email = ANY (c.emails_destinataires))
+   ORDER BY c.id FOR NO KEY UPDATE;
+  -- Attributions relues sous ces verrous : aucune ne s'ajoute ni ne se retire plus d'ici la fin de la transaction.
   v_attr := ARRAY(SELECT a.copropriete_id FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id);
   -- Une entrée, et une seule, pour chacune de ses attributions ; aucune autre.
   IF jsonb_array_length(v_succ) <> cardinality(v_attr)
@@ -721,9 +801,16 @@ BEGIN
         INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id, gestionnaire_id, details)
         VALUES (v_cab, p_acteur, 'super_admin', 'attribution.ajoutee', v_copro, v_vers, '{"origine": "reattribution"}'::jsonb);
       END IF;
+      v_successeurs := array_append(v_successeurs, v_vers);
       v_deplacees := v_deplacees + 1;
     END IF;
   END LOOP;
+  -- Au plus 1 000 attributions par fiche, successeurs compris (voir signalements_qr_creer_coproprietes) : la fiche qui part
+  -- n'en a jamais plus, ses 1 000 successions au plus passent toujours (« sans gestionnaire » si un successeur est plein).
+  IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (v_successeurs)
+              GROUP BY a.gestionnaire_id HAVING count(*) > 1000) THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
 
   -- Successeurs posés d'abord, puis retrait : la copropriété n'est jamais un instant sans son successeur.
   DELETE FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id;
@@ -731,9 +818,9 @@ BEGIN
   SELECT v_cab, p_acteur, 'super_admin', 'attribution.retiree', t.x, p_id, '{"motif": "depart"}'::jsonb FROM unnest(v_attr) AS t(x);
 
   UPDATE signalements_qr_gestionnaires SET actif = false, desactive_le = now(), desactive_par = p_acteur WHERE id = p_id;
-  -- Les liens envoyés et pas encore ouverts ne valent plus rien.
+  -- Ses liens ne valent plus rien : ceux pas encore ouverts, et celui déjà confirmé (fiche désactivée : 404 générique).
   UPDATE signalements_qr_invitations SET invite_token = NULL
-   WHERE gestionnaire_id = p_id AND accepted_at IS NULL AND invite_token IS NOT NULL;
+   WHERE gestionnaire_id = p_id AND invite_token IS NOT NULL;
 
   -- Son adresse quitte les adresses saisies de TOUTES les copropriétés qui la contiennent (quel que soit leur cabinet).
   IF v_email IS NOT NULL THEN
@@ -842,13 +929,20 @@ BEGIN
 END $fn$;
 
 -- « C'est moi » : l'envoi (déjà relu et vérifié par la route, lireInvitationValide) confirme l'adresse de la fiche.
+-- Le jeton est GARDÉ : accepted_at fait foi (usage unique : confirmer et contester exigent accepted_at NULL), et le lien
+-- rouvert se retrouve par son jeton (lireInvitationValide) pour afficher « Adresse déjà confirmée. ». Le départ et la
+-- contestation effacent les jetons de TOUS les envois de la fiche : son lien confirmé redevient introuvable (404).
 CREATE OR REPLACE FUNCTION signalements_qr_confirmer_adresse(p_invitation uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
   v_g    uuid;
   v_cab  uuid;
 BEGIN
-  UPDATE signalements_qr_invitations i SET accepted_at = now(), invite_token = NULL
+  -- La fiche d'abord, puis l'envoi : même ordre que le départ (fiche, puis ses envois), jamais de blocage mutuel.
+  PERFORM 1 FROM signalements_qr_gestionnaires g
+   WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation)
+   FOR NO KEY UPDATE;
+  UPDATE signalements_qr_invitations i SET accepted_at = now()
    WHERE i.id = p_invitation AND i.objet = 'confirmation_adresse' AND i.accepted_at IS NULL AND i.refus IS NULL
      AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'
      AND EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
@@ -873,6 +967,10 @@ DECLARE
   v_g    uuid;
   v_cab  uuid;
 BEGIN
+  -- La fiche d'abord, puis ses envois (même ordre que le départ et « C'est moi »).
+  PERFORM 1 FROM signalements_qr_gestionnaires g
+   WHERE g.id = (SELECT i.gestionnaire_id FROM signalements_qr_invitations i WHERE i.id = p_invitation)
+   FOR NO KEY UPDATE;
   UPDATE signalements_qr_invitations i SET refus = 'pas_moi', invite_token = NULL
    WHERE i.id = p_invitation AND i.objet = 'confirmation_adresse' AND i.accepted_at IS NULL AND i.refus IS NULL
      AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'
@@ -884,8 +982,9 @@ BEGIN
   END IF;
   UPDATE signalements_qr_gestionnaires SET adresse_contestee_le = now() WHERE id = v_g
   RETURNING cabinet_id INTO v_cab;
+  -- Tous ses liens caducs, celui d'un envoi déjà accepté compris (fiche contestée : 404 générique).
   UPDATE signalements_qr_invitations SET invite_token = NULL
-   WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;
+   WHERE gestionnaire_id = v_g AND invite_token IS NOT NULL;
   INSERT INTO signalements_qr_journal (cabinet_id, acteur_profil, acteur_gestionnaire_id, action, gestionnaire_id)
   VALUES (v_cab, 'gestionnaire', v_g, 'gestionnaire.adresse_contestee', v_g);
   RETURN true;
@@ -1065,8 +1164,9 @@ END $fn$;
 
 -- Rattachement de copropriétés sans cabinet à un cabinet (définitif) : toutes ou aucune.
 -- p_cles_nom : { "<id>": "<clé du nom>" } calculée par la route (cleNomCoproQr), posée là où cle_nom manque (anciennes
--- copropriétés). Doublon nom + code postal avec le cabinet ou dans le lot (RG-08) refusé sous le verrou, sauf
--- p_forcer_doublon (« Ce n'est pas un doublon », super admin), journalisé doublon.force.
+-- copropriétés) ; obligatoire pour chacune d'elles (sinon a_reverifier). Doublon nom + code postal avec le cabinet ou
+-- dans le lot (RG-08) refusé sous le verrou, sauf p_forcer_doublon (« Ce n'est pas un doublon », super admin), journalisé
+-- doublon.force.
 CREATE OR REPLACE FUNCTION signalements_qr_rattacher_coproprietes(
   p_cabinet uuid, p_coproprietes uuid[], p_acteur uuid, p_cles_nom jsonb, p_forcer_doublon boolean
 ) RETURNS jsonb
@@ -1091,8 +1191,13 @@ BEGIN
      <> cardinality(v_ids) THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
-  -- Clé du nom posée où elle manque : ce contrôle et celui de la création la comparent ensuite.
-  UPDATE signalements_qr_coproprietes c SET cle_nom = coalesce(c.cle_nom, nullif(p_cles_nom->>c.id::text, ''))
+  -- Clé du nom posée où elle manque : ce contrôle et celui de la création la comparent ensuite. Une clé manquante
+  -- (copropriété que la route n'a pas lue) est refusée : le contrôle nom + code postal ne saute jamais en silence.
+  IF EXISTS (SELECT 1 FROM signalements_qr_coproprietes c
+              WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL AND jsonb_typeof(p_cles_nom->(c.id::text)) IS DISTINCT FROM 'string') THEN
+    RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE signalements_qr_coproprietes c SET cle_nom = p_cles_nom->>(c.id::text)
    WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL;
   -- Doublon nom + code postal (RG-08) avec une copropriété du cabinet ou une autre du lot, sous le verrou.
   v_doublons := ARRAY(SELECT c.id FROM signalements_qr_coproprietes c
@@ -1161,6 +1266,10 @@ ALTER TABLE signalements_qr_operations         ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON signalements_qr_cabinets, signalements_qr_domaines_autorises, signalements_qr_gestionnaires,
               signalements_qr_invitations, signalements_qr_attributions, signalements_qr_journal,
               signalements_qr_operations FROM anon, authenticated;
+-- Séquence de l'identité du journal : Supabase y donne USAGE, SELECT et UPDATE à anon et authenticated (droits par
+-- défaut du schéma public). La clé service garde les siens ; une identité GENERATED ALWAYS n'exige d'ailleurs aucun
+-- droit sur sa séquence pour insérer (nextval interne).
+REVOKE ALL ON SEQUENCE signalements_qr_journal_id_seq FROM PUBLIC, anon, authenticated;
 
 -- ── 10. Triggers (set_updated_at existe : migration 056, ou créée par 20261104_signalements_qr.sql) ──
 CREATE OR REPLACE TRIGGER trg_signalements_qr_cabinets_updated_at

@@ -232,10 +232,12 @@ export function creerBaseQr() {
       range(de: number, a: number) { debut = de; limite = a - de + 1; return q },
       single() { unique = 'single'; return Promise.resolve(executer()) },
       maybeSingle() { unique = 'maybe'; return Promise.resolve(executer()) },
-      // NOSONAR typescript:S7739 - « thenable » VOULU : le constructeur de requête de Supabase s'attend sans être une
-      // promesse (`await supabase.from(…).select(…)`) ; le simulacre doit l'imiter, sinon le code testé ne peut pas
-      // s'exécuter. La requête ne part qu'à l'attente, comme chez Supabase.
-      then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { return Promise.resolve(executer()).then(ok, ko) },
+      // « thenable » VOULU (règle S7739 neutralisée sur la ligne suivante, NOSONAR ne vaut que pour sa propre ligne) :
+      // le constructeur de requête de Supabase s'attend sans être une promesse (`await supabase.from(…).select(…)`) ;
+      // le simulacre doit l'imiter, sinon le code testé ne peut pas s'exécuter. La requête ne part qu'à l'attente.
+      then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { // NOSONAR typescript:S7739
+        return Promise.resolve(executer()).then(ok, ko)
+      },
     }
     return q
   }

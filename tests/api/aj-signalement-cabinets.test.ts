@@ -303,6 +303,37 @@ describe('POST cabinets/[id]/rattachement', () => {
       expect(appelsRattachement()).toEqual([])
     })
 
+    // Essai PGlite du 11/11 (D5) : PostgREST rend au plus 1 000 lignes (max_rows), coupées sans erreur. La route lisait
+    // TOUTES les copropriétés sans cabinet en une requête : au-delà, la copropriété demandée manquait, sa clé du nom
+    // n'était pas transmise et le doublon nom + code postal passait sans contrôle (la fonction le sautait aussi).
+    const remplissage = (prefixe: string, cabinet: string | null) => Array.from({ length: 1000 }, (_, i) => ({
+      id: `${prefixe}-0000-4000-8000-${String(i).padStart(12, '0')}`, nom: `Résidence Remplissage ${i}`, cabinet_id: cabinet, code_postal: '13999', ville: '', adresse: '',
+    }))
+
+    it('plus de 1 000 copropriétés sans cabinet : la copropriété demandée est lue, comparée, et sa clé du nom transmise (D5)', async () => {
+      baseQr.etat.maxLignes = 1000
+      Object.assign(libre(), { code_postal: '13001' })
+      baseQr.etat.tables.signalements_qr_coproprietes = [...remplissage('c1000000', null), ...baseQr.table('signalements_qr_coproprietes')]
+      const refus = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE] })
+      expect(refus.status).toBe(409)
+      expect((await refus.json()).doublon).toMatchObject({ certitude: 'certain', critere: 'nom_code_postal', copropriete: { id: DU_CABINET } })
+      expect(appelsRattachement()).toEqual([])
+      const force = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE], forcerDoublon: true })
+      expect(force.status).toBe(200)
+      expect(appelsRattachement()[0].args).toMatchObject({ p_cles_nom: { [COPRO_LIBRE]: 'exemple' }, p_forcer_doublon: true })
+    })
+
+    it('plus de 1 000 copropriétés dans le cabinet : celle qui fait doublon est lue (pages de 1 000) (D5)', async () => {
+      baseQr.etat.maxLignes = 1000
+      Object.assign(libre(), { code_postal: '13001' })
+      const lignes = baseQr.table('signalements_qr_coproprietes')
+      baseQr.etat.tables.signalements_qr_coproprietes = [...lignes.filter((c) => c.id !== DU_CABINET), ...remplissage('c2000000', CAB), ...lignes.filter((c) => c.id === DU_CABINET)]
+      const refus = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE] })
+      expect(refus.status).toBe(409)
+      expect((await refus.json()).doublon).toMatchObject({ certitude: 'certain', critere: 'nom_code_postal', copropriete: { id: DU_CABINET } })
+      expect(appelsRattachement()).toEqual([])
+    })
+
     it('doublon apparu entre-temps (contrôle SQL sous le verrou, P0001 doublon) : 409 doublon', async () => {
       baseQr.etat.fonctions.signalements_qr_rattacher_coproprietes = () => ERREUR_METIER('doublon')
       const res = await rattacher(CAB, { coproprieteIds: [COPRO_LIBRE], confirmerDoublonProbable: true })

@@ -177,9 +177,16 @@ const CONTRAINTES_UNIQUES_QR: ReadonlyArray<[string, string]> = [
 ]
 
 /**
+ * Conflit avec une écriture concurrente : blocage mutuel (40P01) ou échec de sérialisation (40001). La transaction est
+ * annulée en entier (rien n'est écrit) ; l'écran met à jour la page et recommence (essai PGlite du 11/11, D7).
+ */
+export const conflitConcurrenceQr = (erreur: ErreurBase | null | undefined): boolean => erreur?.code === '40P01' || erreur?.code === '40001'
+
+/**
  * Code public d'une erreur de la base (fonctions SQL et tables d'AJ Signalement). P0001 : message de la liste fermée
- * ERREURS_METIER_SQL_QR (409), sinon 500 ; 23505 : selon la contrainte (409) ; 23503 : 409 a_reverifier ; 42501 :
- * 403 interdit ; 22023 : 400 invalide ; structure absente : 503 base_absente. Le message n'est jamais rendu.
+ * ERREURS_METIER_SQL_QR (409), sinon 500 ; 23505 : selon la contrainte (409) ; 23503 : 409 a_reverifier ; 40P01 et
+ * 40001 (conflit avec une écriture concurrente) : 409 a_reverifier ; 42501 : 403 interdit ; 22023 : 400 invalide ;
+ * structure absente : 503 base_absente. Le message n'est jamais rendu.
  */
 export function codeDepuisErreurSqlQr(erreur: ErreurBase | null | undefined): { code: string; status: number } {
   const code = erreur?.code ?? ''
@@ -191,7 +198,7 @@ export function codeDepuisErreurSqlQr(erreur: ErreurBase | null | undefined): { 
     const trouvee = CONTRAINTES_UNIQUES_QR.find(([contrainte]) => message.includes(`"${contrainte}"`))
     return { code: trouvee?.[1] ?? 'a_reverifier', status: 409 }
   }
-  if (code === '23503') return { code: 'a_reverifier', status: 409 }
+  if (code === '23503' || conflitConcurrenceQr(erreur)) return { code: 'a_reverifier', status: 409 }
   if (code === '42501') return { code: 'interdit', status: 403 }
   if (code === '22023') return { code: 'invalide', status: 400 }
   if (tableAbsenteQr(erreur) || fonctionAbsenteQr(erreur)) return { code: 'base_absente', status: 503 }
@@ -202,6 +209,7 @@ export function codeDepuisErreurSqlQr(erreur: ErreurBase | null | undefined): { 
 export function reponseErreurSqlQr(erreur: ErreurBase | null | undefined, operation: string, ids: Record<string, string> = {}): NextResponse {
   const { code, status } = codeDepuisErreurSqlQr(erreur)
   if (status >= 500) logger.error(`${CONTEXTE} ${operation} refusée par la base`, { code: erreur?.code, ...ids })
+  else if (conflitConcurrenceQr(erreur)) logger.warn(`${CONTEXTE} ${operation} : conflit avec une écriture concurrente, à recommencer`, { code: erreur?.code, ...ids })
   return reponseErreur(code, status)
 }
 
@@ -679,15 +687,28 @@ export async function lireParValeursQr<T>(
 ): Promise<LectureQr<T[]>> {
   const lignes: T[] = []
   for (const lot of lotsPourFiltreQr(valeurs)) {
-    for (let de = 0; ; de += PAGE_POSTGREST_QR) {
-      const { data, error } = await fabrique(lot).range(de, de + PAGE_POSTGREST_QR - 1)
-      if (error) return { ok: false, erreur: error }
-      const page = (Array.isArray(data) ? data : []) as T[]
-      lignes.push(...page)
-      if (page.length < PAGE_POSTGREST_QR) break
-    }
+    const r = await lirePagesQr<T>(() => fabrique(lot))
+    if (!r.ok) return r
+    lignes.push(...r.valeur)
   }
   return { ok: true, valeur: lignes }
+}
+
+/**
+ * Toutes les lignes d'une requête FILTRÉE (un groupe borné : les copropriétés d'un cabinet…), page par page : PostgREST
+ * coupe sans erreur au-delà de 1 000 lignes (max-rows). La fabrique ORDONNE la requête, pour des pages stables.
+ */
+export async function lirePagesQr<T>(
+  fabrique: () => { range: (de: number, a: number) => PromiseLike<ReponseLectureQr> },
+): Promise<LectureQr<T[]>> {
+  const lignes: T[] = []
+  for (let de = 0; ; de += PAGE_POSTGREST_QR) {
+    const { data, error } = await fabrique().range(de, de + PAGE_POSTGREST_QR - 1)
+    if (error) return { ok: false, erreur: error }
+    const page = (Array.isArray(data) ? data : []) as T[]
+    lignes.push(...page)
+    if (page.length < PAGE_POSTGREST_QR) return { ok: true, valeur: lignes }
+  }
 }
 
 /**
@@ -1282,21 +1303,32 @@ interface LigneDoublonQr {
  * (SPEC § 1.6 ; la clé du nom est recalculée : cle_nom est NULL pour les lignes antérieures). Colonnes absentes :
  * toutes les copropriétés forment le groupe « sans cabinet » (nom et adresse seulement ; `strict`, pour un
  * gestionnaire : erreur rendue, jamais un contrôle sauté). `ignorerOperation` : la copropriété déjà créée par ce même
- * lot (nouvel essai d'un double clic) n'est pas son propre doublon.
+ * lot (nouvel essai d'un double clic) n'est pas son propre doublon. `ids` : seulement ces copropriétés du groupe
+ * (rattachement : celles demandées). Tout le groupe est lu, par pages de 1 000 (essai PGlite du 11/11, D5 : au-delà de
+ * max-rows, PostgREST coupait sans erreur et des doublons passaient sans contrôle).
  */
 export async function lireCoproprietesDoublonsQr(
-  cabinetId: string | null, options: { ignorerOperation?: string } & OptionsLectureControleQr = {},
+  cabinetId: string | null, options: { ignorerOperation?: string; ids?: readonly string[] } & OptionsLectureControleQr = {},
 ): Promise<{ ok: true; coproprietes: CoproprieteDoublonQr[] } | { ok: false; erreur: ErreurBase }> {
-  const etendue = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom, adresse, code_postal, ville, immatriculation, reference_cabinet, operation_id')
-  let r = await (cabinetId === null ? etendue.is('cabinet_id', null) : etendue.eq('cabinet_id', cabinetId))
-  if (colonneInconnue(r.error) && !options.strict) {
-    journaliserRepliGestionQr('lecture des doublons', r.error)
-    if (cabinetId !== null) return { ok: true, coproprietes: [] }
-    r = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom, adresse')
+  const { ids } = options
+  // Requête ordonnée (pages stables), filtrée sur le groupe ; `groupe` faux : colonnes absentes, toutes « sans cabinet ».
+  const requete = (colonnes: string, groupe: boolean, lot?: string[]) => {
+    const base = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select(colonnes)
+    const parIds = lot ? base.in('id', lot) : base
+    const filtree = !groupe ? parIds : cabinetId === null ? parIds.is('cabinet_id', null) : parIds.eq('cabinet_id', cabinetId)
+    return filtree.order('id', { ascending: true })
   }
-  if (r.error) return { ok: false, erreur: r.error }
-  const lignes = ((r.data ?? []) as unknown as LigneDoublonQr[])
-    .filter((l) => !options.ignorerOperation || l.operation_id !== options.ignorerOperation)
+  const lire = (colonnes: string, groupe: boolean) => (ids
+    ? lireParValeursQr<LigneDoublonQr>(ids, (lot) => requete(colonnes, groupe, lot))
+    : lirePagesQr<LigneDoublonQr>(() => requete(colonnes, groupe)))
+  let r = await lire('id, nom, adresse, code_postal, ville, immatriculation, reference_cabinet, operation_id', true)
+  if (!r.ok && colonneInconnue(r.erreur) && !options.strict) {
+    journaliserRepliGestionQr('lecture des doublons', r.erreur)
+    if (cabinetId !== null) return { ok: true, coproprietes: [] }
+    r = await lire('id, nom, adresse', false)
+  }
+  if (!r.ok) return { ok: false, erreur: r.erreur }
+  const lignes = r.valeur.filter((l) => !options.ignorerOperation || l.operation_id !== options.ignorerOperation)
   return {
     ok: true,
     coproprietes: lignes.map((l) => ({
