@@ -6,7 +6,7 @@ import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
 } from './aj-signalement/chemin-cabinet'
 import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
-import { ACTIONS_JOURNAL_QR } from './aj-signalement/types'
+import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './aj-signalement/types'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -552,10 +552,12 @@ export const modificationGestionnaireQrSchema = z.union([
   z.strictObject({ pseudonymiser: z.literal(true) }),
 ])
 
-export const attributionsGestionnaireQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).max(1000) })
+// P1-R13, P1-R14 : ensemble complet des attributions d'une fiche, et une succession par attribution. Même borne que la
+// base (au plus ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR attributions par fiche) : le départ passe toujours.
+export const attributionsGestionnaireQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).max(ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR) })
 
 export const departGestionnaireQrSchema = z.strictObject({
-  successions: z.array(z.strictObject({ coproprieteId: z.uuid(), versGestionnaireId: z.uuid().nullable() })).max(1000),
+  successions: z.array(z.strictObject({ coproprieteId: z.uuid(), versGestionnaireId: z.uuid().nullable() })).max(ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR),
 })
 
 // P1-R16, R17, R17b (publiques) : jeton signé du lien + identifiant du chemin du cabinet (vérifié contre la fiche).

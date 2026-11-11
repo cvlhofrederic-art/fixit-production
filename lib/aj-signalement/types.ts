@@ -311,6 +311,12 @@ export const ERREURS_METIER_SQL_QR = [
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
+/**
+ * Attributions d'une fiche gestionnaire, au plus (borne de la base, 20261111 : HAVING count(*) > 1000 → 22023). La page
+ * profil (ensemble complet) et le départ (une succession par attribution) en reçoivent autant au plus (lib/validation.ts).
+ */
+export const ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR = 1000
+
 /** Auteur d'une copropriété : le super admin, ou un gestionnaire (PR 2). */
 export type CreateurCoproprieteQr = 'administrateur' | { gestionnaireId: string; nom: string | null }
 

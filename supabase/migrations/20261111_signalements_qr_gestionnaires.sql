@@ -527,6 +527,13 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- Au plus 1 000 attributions par fiche : le départ (une succession par attribution) et la page profil (ensemble
+  -- complet) en reçoivent au plus 1 000 (lib/validation.ts). Fiches verrouillées ci-dessus : aucune course ne la dépasse.
+  IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (v_fiches)
+              GROUP BY a.gestionnaire_id HAVING count(*) > 1000) THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
+
   INSERT INTO signalements_qr_operations (id, cabinet_id, acteur_id, acteur_profil, type, empreinte_lignes, resultat)
   VALUES (p_operation, p_cabinet, p_acteur, p_profil, v_type, v_empreinte, jsonb_build_object('creees', v_creees, 'completees', v_compl));
   IF v_type = 'import' THEN
@@ -607,6 +614,11 @@ BEGIN
   INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id, gestionnaire_id, details)
   SELECT v_cab, p_acteur, 'super_admin', 'attribution.ajoutee', p_copropriete, a.gestionnaire_id, '{"origine": "super_admin"}'::jsonb
     FROM ajoutees a;
+  -- Au plus 1 000 attributions par fiche (voir signalements_qr_creer_coproprietes ; fiches verrouillées ci-dessus).
+  IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (v_nouveaux)
+              GROUP BY a.gestionnaire_id HAVING count(*) > 1000) THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
 
   IF v_tous_apres IS DISTINCT FROM v_tous_avant THEN
     UPDATE signalements_qr_coproprietes SET attribuee_a_tous = v_tous_apres WHERE id = p_copropriete;
@@ -737,6 +749,7 @@ DECLARE
   v_ccab       uuid;
   v_f          uuid;
   v_trouvee    boolean := false;
+  v_successeurs  uuid[] := '{}';
 BEGIN
   IF p_id IS NULL OR p_acteur IS NULL OR jsonb_typeof(v_succ) <> 'array' THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
@@ -788,9 +801,16 @@ BEGIN
         INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id, gestionnaire_id, details)
         VALUES (v_cab, p_acteur, 'super_admin', 'attribution.ajoutee', v_copro, v_vers, '{"origine": "reattribution"}'::jsonb);
       END IF;
+      v_successeurs := array_append(v_successeurs, v_vers);
       v_deplacees := v_deplacees + 1;
     END IF;
   END LOOP;
+  -- Au plus 1 000 attributions par fiche, successeurs compris (voir signalements_qr_creer_coproprietes) : la fiche qui part
+  -- n'en a jamais plus, ses 1 000 successions au plus passent toujours (« sans gestionnaire » si un successeur est plein).
+  IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (v_successeurs)
+              GROUP BY a.gestionnaire_id HAVING count(*) > 1000) THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
 
   -- Successeurs posés d'abord, puis retrait : la copropriété n'est jamais un instant sans son successeur.
   DELETE FROM signalements_qr_attributions a WHERE a.gestionnaire_id = p_id;

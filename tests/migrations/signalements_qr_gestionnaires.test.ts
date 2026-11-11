@@ -10,6 +10,8 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { MIGRATION_GESTIONNAIRES_QR } from '@/lib/aj-signalement/serveur'
+import { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from '@/lib/aj-signalement/types'
+import { attributionsGestionnaireQrSchema, departGestionnaireQrSchema } from '@/lib/validation'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
 const FICHIER = '20261111_signalements_qr_gestionnaires.sql'
@@ -629,6 +631,39 @@ describe(`Migration ${FICHIER} : journal, opérations, budget d’e-mails`, () =
     expect([...code.matchAll(/pg_advisory_xact_lock\(hashtextextended\(/g)].length).toBeGreaterThanOrEqual(3)
     expect(code).not.toMatch(/pg_advisory_lock\(/)
     expect(code).not.toMatch(/hashtext\(/)
+  })
+})
+
+describe(`Migration ${FICHIER} : au plus ${ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR} attributions par fiche (essai PGlite du 11/11, D6)`, () => {
+  // Le départ exige UNE succession par attribution et la page profil envoie l'ensemble complet : les deux routes en
+  // acceptent au plus ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR. Sans borne en base, une fiche à 1 001 attributions (imports
+  // successifs) ne pouvait plus partir. La borne est vérifiée, fiches verrouillées, par chaque fonction qui ajoute des
+  // attributions à une fiche existante ; attribuer_au_gestionnaire pose l'ensemble complet (≤ 1 000) et
+  // inviter_gestionnaire une fiche neuve (≤ 500).
+  const borne = (corps: string, fiches: string): RegExpMatchArray | null => corps.match(new RegExp(espaces(
+    `IF EXISTS (SELECT 1 FROM signalements_qr_attributions a WHERE a.gestionnaire_id = ANY (${fiches}) GROUP BY a.gestionnaire_id HAVING count(*) > ${ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR}) THEN RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';`,
+  )))
+
+  it.each([
+    ['signalements_qr_creer_coproprietes', 'v_fiches'],
+    ['signalements_qr_remplacer_attributions', 'v_nouveaux'],
+    ['signalements_qr_desactiver_gestionnaire', 'v_successeurs'],
+  ])('%s : borne vérifiée après les insertions, sur les fiches verrouillées (%s)', (nom, fiches) => {
+    const corps = fonction(nom).corps
+    const m = borne(corps, fiches)
+    expect(m).not.toBeNull()
+    expect(m?.index ?? -1).toBeGreaterThan(corps.indexOf('INSERT INTO signalements_qr_attributions'))
+  })
+
+  it('une seule borne dans le fichier, égale à celle des routes (page profil, départ)', () => {
+    expect(new Set([...code.matchAll(/HAVING count\(\*\) > (\d+)/g)].map((m) => Number(m[1])))).toEqual(new Set([ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR]))
+    expect(code).toMatch(new RegExp(`cardinality\\(v_cibles\\) > ${ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR}`))
+    const ids = Array.from({ length: ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR + 1 }, (_, i) => `c0000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
+    const successions = ids.map((coproprieteId) => ({ coproprieteId, versGestionnaireId: null }))
+    expect(departGestionnaireQrSchema.safeParse({ successions: successions.slice(0, -1) }).success).toBe(true)
+    expect(departGestionnaireQrSchema.safeParse({ successions }).success).toBe(false)
+    expect(attributionsGestionnaireQrSchema.safeParse({ coproprieteIds: ids.slice(0, -1) }).success).toBe(true)
+    expect(attributionsGestionnaireQrSchema.safeParse({ coproprieteIds: ids }).success).toBe(false)
   })
 })
 
