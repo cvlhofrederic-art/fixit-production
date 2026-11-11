@@ -161,20 +161,22 @@ describe('Sinistres', () => {
     expect(kpi('Assureurs')).toBe('2')
     expect(screen.getByText('MMA · AXA')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Déclarer un sinistre/ }))
-    expect(within(screen.getByRole('dialog')).getByLabelText('Copropriété')).toHaveValue('Résidence Le Méridien')
+    expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Copropriété' })).toHaveValue('Résidence Le Méridien')
   })
 
   it('sinistres de la copropriété choisie, indicateurs recalculés, déclaration préremplie ; état vide', () => {
     useSelectionDossier.setState({ code: 'TL' })
     rendre(<SinistresModule />)
-    expect(colonne(1)).toEqual(['Infiltration toiture'])
+    // Colonnes Gestéam (06/11/2026) : Date · N° · Type · Copropriété / mandat · Lésés / situation · … ; la colonne
+    // « Objet » de la maquette (« Infiltration toiture ») a disparu, l'origine est désormais un champ de la fiche.
+    expect(colonne(1)).toEqual(['TL.00009'])
     expect(kpi('Sinistres suivis')).toBe('1')
     expect(kpi('En cours')).toBe('1')
     expect(kpi('Clôturés')).toBe('0')
     expect(kpi('Assureurs')).toBe('1')
     expect(screen.getByText('AXA', { selector: '.sub' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Déclarer un sinistre/ }))
-    expect(within(screen.getByRole('dialog')).getByLabelText('Copropriété')).toHaveValue('Copropriété Les Tilleuls')
+    expect(within(screen.getByRole('dialog')).getByRole('combobox', { name: 'Copropriété' })).toHaveValue('Copropriété Les Tilleuls')
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Annuler' }))
 
     choisir('VM')
