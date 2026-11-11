@@ -260,6 +260,16 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       expect(misesAJour()[0].eq).toContainEqual(['id', INVITE_ID])
     })
 
+    // AJ Signalement (PR 2, relecture 4 du lot 6) lit le code de l'erreur : la réponse des routes pro et syndic ne change pas.
+    it('mot de passe refusé par Supabase Auth (weak_password) : réponse de la route inchangée (500), rien accepté', async () => {
+      h.base.lignes[table] = [ligne()]
+      h.admin.createUser.mockResolvedValue({ data: { user: null }, error: { message: 'Password is known to be weak', code: 'weak_password', status: 422 } })
+      const res = await accepter(await jetonSigne())
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({ error: 'Erreur lors de la création du compte' })
+      expect(misesAJour()).toHaveLength(0)
+    })
+
     describe('compte existant', () => {
       beforeEach(() => {
         h.base.lignes[table] = [ligne()]

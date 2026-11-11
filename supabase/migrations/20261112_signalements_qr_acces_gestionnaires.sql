@@ -10,9 +10,10 @@
 -- départ, date d'une demande d'effacement transmise au cabinet), FK vers auth.users (ON DELETE SET NULL), index unique
 -- « un compte = une fiche », envoi d'un accès en une transaction (signalements_qr_envoyer_acces), trigger de liaison du
 -- compte, corps de signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel : bouton « Ouvrir le suivi » des
--- e-mails ; même signature, mêmes exclusions), corps de signalements_qr_contester_adresse élargi (« Ce n'est pas moi »
--- aussi depuis un lien d'accès ; même signature). Les actions du journal et les valeurs des envois (objet 'acces', refus
--- 'compte_autre_espace') sont déjà dans les CHECK de la 20261111 : aucune contrainte n'est remplacée.
+-- e-mails ; même signature ; exclusions comparées sur la boîte, sous-adresses « + » comprises), corps de
+-- signalements_qr_contester_adresse élargi (« Ce n'est pas moi » aussi depuis un lien d'accès ; même signature). Les
+-- actions du journal et les valeurs des envois (objet 'acces', refus 'compte_autre_espace') sont déjà dans les CHECK
+-- de la 20261111 : aucune contrainte n'est remplacée.
 --
 -- À appliquer par Frédéric (Supabase > SQL Editor) APRÈS 20261111_signalements_qr_gestionnaires.sql. Additive et
 -- rejouable (ADD COLUMN IF NOT EXISTS, contrainte créée seulement si absente de pg_constraint, NOT VALID puis VALIDATE,
@@ -116,9 +117,12 @@ CREATE OR REPLACE TRIGGER trg_signalements_qr_invitations_liaison
   AFTER UPDATE OF user_id ON signalements_qr_invitations
   FOR EACH ROW EXECUTE FUNCTION signalements_qr_lier_gestionnaire();
 
--- ── 4. Destinataires : même signature et même corps que la 20261111, seul acces_ouvert devient réel ──
+-- ── 4. Destinataires : même signature et même corps que la 20261111, sauf acces_ouvert (réel) et les exclusions ──
 -- acces_ouvert : le gestionnaire a un compte relié, son accès est ouvert et sa connexion n'est pas bloquée (bouton
 -- « Ouvrir le suivi » dans l'e-mail d'un signalement, sans jeton).
+-- Exclusions (RG-06 bis-3) comparées sur la BOÎTE : une sous-adresse « prenom+etiquette@ » restée dans les saisies est
+-- celle de la fiche « prenom@ » (même boîte de réception) ; une fiche partie ou contestée ne reçoit donc rien par elle.
+-- Même expression que boiteEmailQr (lib/aj-signalement/gestionnaires.ts), des deux côtés.
 CREATE OR REPLACE FUNCTION signalements_qr_emails_gestionnaires(p_copropriete uuid)
 RETURNS TABLE(gestionnaire_id uuid, email text, acces_ouvert boolean, exclu boolean)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
@@ -133,7 +137,9 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
     UNION ALL
     SELECT g.id, g.email, false, true
       FROM signalements_qr_coproprietes c
-      JOIN signalements_qr_gestionnaires g ON g.email = ANY (c.emails_destinataires)
+      JOIN signalements_qr_gestionnaires g
+        ON regexp_replace(g.email, '^([^@+]+)\+[^@]*@', '\1@')
+           = ANY (ARRAY(SELECT regexp_replace(s.e, '^([^@+]+)\+[^@]*@', '\1@') FROM unnest(c.emails_destinataires) AS s(e)))
      WHERE c.id = p_copropriete
        AND (NOT g.actif OR g.adresse_contestee_le IS NOT NULL)
   ) AS t

@@ -156,7 +156,8 @@ export default function InvitationAccesQr({ identifiant }: Readonly<{ identifian
     const r = await accepterAccesQr(jeton, identifiant, motDePasse)
     setOccupe(false)
     if (r.ok) {
-      terminer(r.liaisonIncomplete ? fin('avertissement', T.liaisonIncomplete) : fin('succes', T.ouvert, true))
+      if (r.liaisonIncomplete) terminer(fin('avertissement', T.liaisonIncomplete))
+      else terminer(r.compteExistant ? fin('info', T.ouvertCompteExistant, true) : fin('succes', T.ouvert, true))
       return
     }
     const arret = finDepuisCode(r.code)
@@ -213,7 +214,9 @@ export default function InvitationAccesQr({ identifiant }: Readonly<{ identifian
                         required
                         value={motDePasse}
                         onChange={(e) => setMotDePasse(e.target.value)}
-                        {...attributsErreur(ID_MOT_DE_PASSE, erreurs.motDePasse)}
+                        // La règle (aide, puis l'erreur à sa place) est toujours annoncée avec le champ.
+                        aria-describedby={`${ID_MOT_DE_PASSE}-aide`}
+                        {...(erreurs.motDePasse ? { 'aria-invalid': true } : {})}
                         className={`${CLASSES_SAISIE} pr-14`}
                       />
                       <button

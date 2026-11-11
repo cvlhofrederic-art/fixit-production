@@ -20,9 +20,11 @@ vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-rout
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
 const { baseQr, simulerProductionAvant1111Qr, simulerProductionAvant1112Qr } = await import('../helpers/aj-signalement-base')
-const { ADMIN_QR, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
+const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr, simulQr } = await import('../helpers/aj-signalement-routes')
 const A = await import('../helpers/aj-signalement-acces')
 const { GET } = await import('@/app/api/user/export-data/route')
+const { POST: CREER } = await import('@/app/api/aj-signalement/coproprietes/route')
+const { PATCH: MODIFIER } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 
 const CLIENT = { id: '0c000000-0000-4000-8000-000000000001', email: 'client@exemple.test', app_metadata: { role: 'client' } }
@@ -117,6 +119,57 @@ describe('compte d’un gestionnaire : section aj_signalement', () => {
     expect(status).toBe(200)
     expect(trie(Object.keys(corps))).toEqual(CLES_EXPORT)
     expect(simulQr.logger.warn).toHaveBeenCalled()
+  })
+})
+
+describe('doublon refusé hors de sa portée : ni nom ni identifiant de la copropriété existante (SPEC § 2.5, relecture 1)', () => {
+  // C2 (« Résidence Deux ») est attribuée à G2 seul : hors de la portée de G1, dans le même cabinet. Sa référence et son
+  // immatriculation (publique) servent de critères « certains ».
+  beforeEach(() => {
+    A.connecterQr(A.COMPTE_G1)
+    A.simulerCreationCoproprietesQr()
+    baseQr.etat.tables.signalements_qr_journal = []
+    const c2 = baseQr.table('signalements_qr_coproprietes').find((c) => c.id === A.C2)!
+    c2.reference_cabinet = 'REF-002'
+    c2.immatriculation = 'AB1234567'
+    baseQr.table('signalements_qr_coproprietes').find((c) => c.id === A.C_TOUS)!.reference_cabinet = 'REF-003'
+  })
+  const creer = (referenceCabinet: string) => CREER(requeteQr('/api/aj-signalement/coproprietes', 'POST', {
+    operationId: 'f0000000-0000-4000-8000-0000000000aa', nom: 'Sonde', adresse: '1 rue Sonde', codePostal: '13009', ville: 'Marseille', referenceCabinet,
+  }))
+  const section = async () => (await exporter()).corps.aj_signalement as { journal: Array<{ action: string; copropriete: string | null }> }
+
+  it('création refusée (référence du cabinet) : la ligne doublon.refuse est exportée sans copropriété', async () => {
+    const res = await creer('REF-002')
+    expect(res.status).toBe(409)
+    expect(baseQr.table('signalements_qr_journal')).toContainEqual(expect.objectContaining({ action: 'doublon.refuse', copropriete_id: A.C2 }))
+    const exportee = await section()
+    expect(exportee.journal).toContainEqual(expect.objectContaining({ action: 'doublon.refuse', auteur: 'vous', copropriete: null }))
+    const texte = JSON.stringify(exportee)
+    expect(texte).not.toContain('Résidence Deux')
+    expect(texte).not.toContain(A.C2)
+  })
+
+  it('modification de SA copropriété refusée (immatriculation) : même chose', async () => {
+    const res = await MODIFIER(requeteQr(`/api/aj-signalement/coproprietes/${A.C1}`, 'PATCH', { immatriculation: 'AB1234567' }), contexteQr(A.C1))
+    expect(res.status).toBe(409)
+    const exportee = await section()
+    expect(exportee.journal).toContainEqual(expect.objectContaining({ action: 'doublon.refuse', copropriete: null }))
+    expect(JSON.stringify(exportee)).not.toContain('Résidence Deux')
+  })
+
+  it('doublon dans sa portée (déjà nommé par la réponse 409) : la copropriété reste nommée', async () => {
+    const res = await creer('REF-003')
+    expect(res.status).toBe(409)
+    expect((await res.json()).doublon.copropriete).toMatchObject({ id: A.C_TOUS, nom: 'Résidence Test' })
+    expect((await section()).journal).toContainEqual(expect.objectContaining({ action: 'doublon.refuse', copropriete: 'Résidence Test' }))
+  })
+
+  it('ligne doublon.refuse sans portée connue (details absents) : sans copropriété, par prudence', async () => {
+    baseQr.etat.tables.signalements_qr_journal = [
+      { id: 9, cabinet_id: A.CAB, acteur_id: A.U1, acteur_profil: 'gestionnaire', acteur_gestionnaire_id: A.G1, action: 'doublon.refuse', copropriete_id: A.C2, gestionnaire_id: null, signalement_id: null, operation_id: null, champs: [], details: null, created_at: ilYA(1) },
+    ]
+    expect((await section()).journal).toEqual([expect.objectContaining({ action: 'doublon.refuse', copropriete: null })])
   })
 })
 

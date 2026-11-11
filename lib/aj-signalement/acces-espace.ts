@@ -281,8 +281,10 @@ export function destinationConnexionEspaceQr(
  * servie. Adresses sans langue (l'espace est en français pour tout cabinet). Matrice du plan § 1.5 :
  * - /<id>/ : toujours le suivi (le middleware n'a même pas besoin de la session) ;
  * - /<id>/connexion/ : servie sans session et à tout compte sans accès ici (message neutre, aucune boucle ; un
- *   gestionnaire d'un autre cabinet compris : rien ne dit que l'autre cabinet existe) ; le gestionnaire de CE cabinet
- *   → le suivi ; le super admin → son espace global ;
+ *   gestionnaire d'un autre cabinet compris : rien ne lui dit qu'il n'est pas de ce cabinet). La page porte le nom du
+ *   cabinet de l'adresse, pour tout visiteur : l'existence et le nom d'un cabinet client se lisent sous son adresse
+ *   (identifiant inconnu : 404), choix à valider par Hugo et Frédéric (relecture du lot 6, cabinet-du-chemin.ts) ; le
+ *   gestionnaire de CE cabinet → le suivi ; le super admin → son espace global ;
  * - /<id>/suivi/ : le gestionnaire de CE cabinet → servi ; le super admin → son espace global ; tout autre cas → la
  *   connexion du cabinet.
  */

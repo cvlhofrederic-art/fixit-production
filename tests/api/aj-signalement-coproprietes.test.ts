@@ -155,6 +155,15 @@ describe('POST coproprietes (P1-R3)', () => {
     expect(appelsCreation()).toEqual([])
   })
 
+  it('sous-adresse « + » d’une fiche (même boîte) : 400 comme son adresse (relecture 2 du lot 6) ; boîte cherchée avec l’adresse', async () => {
+    const res = await creer({ nom: 'Villa Exemple', emailsDestinataires: ['Marie.Exemple+Copro@exemple.test'] })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'invalide', details: 'emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété' })
+    expect(appelsCreation()).toEqual([])
+    const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires')
+    expect(lectures.map((l) => l.filtres)).toEqual([['email=in.(marie.exemple+copro@exemple.test,marie.exemple@exemple.test)']])
+  })
+
   it('relecture 11 : plus de 1 000 fiches (plafond PostgREST) : l’adresse d’une fiche reste refusée ; seules les adresses proposées sont cherchées', async () => {
     const t = baseQr.etat.tables
     t.signalements_qr_gestionnaires = [

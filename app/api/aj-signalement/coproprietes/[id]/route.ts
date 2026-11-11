@@ -87,17 +87,20 @@ function ecritures(m: Modification, avant: LigneCoproprieteQr): { valeurs: Recor
 
 /**
  * Doublons revérifiés quand un champ comparé change (SPEC § 1.6) ; la copropriété elle-même est ignorée. Gestionnaire :
- * jamais de forçage, lecture stricte (colonnes absentes → 503, jamais un contrôle sauté).
+ * jamais de forçage, lecture stricte (colonnes absentes → 503, jamais un contrôle sauté) ; l'adresse seule changée relance
+ * aussi le contrôle (doublon probable « même adresse et code postal », SPEC § 2.5 : doublons revérifiés ; relecture du
+ * lot 6). Super admin : déclencheur de la PR 1 inchangé (« Utiliser cette adresse » ne pose aucune question).
  */
 async function controlerDoublons(
   id: string, m: Modification, avant: LigneCoproprieteQr, profil: TypeProfilQr,
 ): Promise<{ decision: DecisionDoublonsQr; doublons: DoublonQr[] } | { erreur: NextResponse }> {
+  const gestionnaire = profil === 'gestionnaire'
   const change = (m.nom !== undefined && m.nom !== chaine(avant.nom))
     || (m.codePostal !== undefined && m.codePostal !== chaine(avant.code_postal))
     || (m.immatriculation !== undefined && (m.immatriculation || null) !== (avant.immatriculation ?? null))
     || (m.referenceCabinet !== undefined && (m.referenceCabinet || null) !== (avant.reference_cabinet ?? null))
+    || (gestionnaire && m.adresse !== undefined && m.adresse !== chaine(avant.adresse))
   if (!change) return { decision: { ok: true, doublonForce: false, probableConfirme: false }, doublons: [] }
-  const gestionnaire = profil === 'gestionnaire'
   const existantes = await lireCoproprietesDoublonsQr(avant.cabinet_id ?? null, { strict: gestionnaire })
   if (!existantes.ok) {
     return {

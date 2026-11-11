@@ -216,11 +216,15 @@ describe('accès des gestionnaires (PR 2, lot 3)', () => {
   it('acceptation : corps complet (case cochée) ; 200 ouvert, 207 liaison incomplète (succès partiel), 409 / 410 en codes', async () => {
     const { accepterAccesQr } = await import('@/lib/aj-signalement/api')
     const ok = simuler({ acces: 'ouvert' })
-    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', ok.fetchImpl)).toEqual({ ok: true, liaisonIncomplete: false })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', ok.fetchImpl)).toEqual({ ok: true, liaisonIncomplete: false, compteExistant: false })
     expect(ok.appels[0].url).toBe('/api/aj-signalement/invitation')
     expect(ok.corps()).toEqual({ token: TOKEN, cabinet: 'cabinet-exemple', password: 'Bonjour2026', politiqueLue: true })
     expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'liaison_incomplete' }, 207).fetchImpl))
-      .toEqual({ ok: true, liaisonIncomplete: true })
+      .toEqual({ ok: true, liaisonIncomplete: true, compteExistant: false })
+    // Relecture 5 du lot 6 : compte existant rattaché, mot de passe inchangé.
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ acces: 'ouvert', compte: 'existant' }).fetchImpl))
+      .toEqual({ ok: true, liaisonIncomplete: false, compteExistant: true })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'invalide' }, 422).fetchImpl)).toEqual({ ok: false, code: 'invalide' })
     expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'compte_autre_espace' }, 409).fetchImpl))
       .toEqual({ ok: false, code: 'compte_autre_espace' })
     expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'expire' }, 410).fetchImpl)).toEqual({ ok: false, code: 'expire' })

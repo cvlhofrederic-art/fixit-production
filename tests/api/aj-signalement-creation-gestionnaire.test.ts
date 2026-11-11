@@ -156,6 +156,9 @@ describe('destinataires ajoutés par un gestionnaire (RG-22, Q4)', () => {
     ['sa propre adresse', A.EMAIL_G1, ADRESSE_DE_FICHE],
     ['l’adresse d’un collègue', A.EMAIL_G2, ADRESSE_DE_FICHE],
     ['l’adresse d’un collègue, en majuscules', A.EMAIL_G2.toUpperCase(), ADRESSE_DE_FICHE],
+    // Relecture 2 du lot 6 : une étiquette « + » ne change pas la boîte (elle survivrait sinon à son départ).
+    ['une sous-adresse « + » de sa propre boîte', 'marie.exemple+suivi@exemple.test', ADRESSE_DE_FICHE],
+    ['une sous-adresse « + » d’un collègue', 'Paul.Collegue+Copro@exemple.test', ADRESSE_DE_FICHE],
   ])('%s : 400 invalide, rien créé', async (_cas, email, message) => {
     const res = await creer({ ...CORPS, emailsDestinataires: ['conseil@exemple.test', email] })
     expect(res.status).toBe(400)
@@ -413,6 +416,20 @@ describe('PATCH coproprietes/[id] par un gestionnaire (P1-R4, RG-21)', () => {
     const corps = await (await modifier(A.C1, { nom: 'Résidence Test' })).json()
     expect(corps.doublon).toEqual({ certitude: 'certain', critere: 'nom_code_postal', copropriete: { id: A.C_TOUS, nom: 'Résidence Test', ville: 'Marseille' } })
   })
+
+  it('relecture du lot 6 : l’ADRESSE seule changée vers celle d’une autre copropriété (même code postal) : 409 probable, puis confirmée et journalisée', async () => {
+    const question = await modifier(A.C1, { adresse: '2 rue Exemple' })
+    expect(question.status).toBe(409)
+    expect(await question.json()).toEqual({ error: 'doublon', doublon: { certitude: 'probable', critere: 'adresse_code_postal' } })
+    expect(misesAJourCopro()).toEqual([])
+    const res = await modifier(A.C1, { adresse: '2 rue Exemple', confirmerDoublonProbable: true })
+    expect(res.status).toBe(200)
+    expect(misesAJourCopro()[0].valeurs).toEqual({ adresse: '2 rue Exemple' })
+    expect(journal().filter((l) => String(l.action).startsWith('doublon.'))).toEqual([expect.objectContaining({
+      action: 'doublon.force', acteur_profil: 'gestionnaire', acteur_gestionnaire_id: A.G1, copropriete_id: A.C1,
+      details: { critere: 'adresse_code_postal', doublonProbableConfirme: true },
+    })])
+  })
 })
 
 describe('destinataires modifiés par un gestionnaire (RG-06 bis, RG-22)', () => {
@@ -437,6 +454,8 @@ describe('destinataires modifiés par un gestionnaire (RG-06 bis, RG-22)', () =>
   it.each([
     ['sa propre adresse', A.EMAIL_G1],
     ['l’adresse d’un collègue', A.EMAIL_G2],
+    ['une sous-adresse « + » de sa propre boîte', 'marie.exemple+suivi@exemple.test'],
+    ['une sous-adresse « + » d’un collègue', 'paul.collegue+copro@exemple.test'],
   ])('%s ajoutée : 400, même message, rien écrit', async (_cas, email) => {
     const res = await modifier(A.C1, { emailsDestinataires: ['cs-une@externe.test', email] })
     expect(res.status).toBe(400)
@@ -463,6 +482,18 @@ describe('destinataires modifiés par un gestionnaire (RG-06 bis, RG-22)', () =>
     const corps = await res.json()
     expect(corps.copropriete).toMatchObject({ emailsDestinataires: ['autre@exemple.test'], adressesMasquees: 1 })
     expect(JSON.stringify(corps)).not.toContain(A.EMAIL_G2)
+  })
+
+  it('sous-adresse « + » d’un collègue restée dans les saisies : masquée comme son adresse, conservée à l’écriture', async () => {
+    copro(A.C1).emails_destinataires = ['cs-une@externe.test', 'paul.collegue+copro@exemple.test']
+    const vue = await (await TABLEAU(requeteQr('/api/aj-signalement/tableau'))).json()
+    expect(vue.tableau.coproprietes.find((c: { id: string }) => c.id === A.C1)).toMatchObject({ emailsDestinataires: ['cs-une@externe.test'], adressesMasquees: 1 })
+    expect(JSON.stringify(vue)).not.toContain('paul.collegue')
+
+    const res = await modifier(A.C1, { emailsDestinataires: ['autre@exemple.test'] })
+    expect(res.status).toBe(200)
+    expect(misesAJourCopro()[0].valeurs).toEqual({ emails_destinataires: ['paul.collegue+copro@exemple.test', 'autre@exemple.test'] })
+    expect(JSON.stringify(await res.json())).not.toContain('paul.collegue')
   })
 
   it('liste inchangée vue par lui (adresse masquée comprise) : aucune modification journalisée', async () => {

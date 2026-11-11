@@ -25,7 +25,7 @@
 // copropriété » par la fenêtre du gestionnaire (domaines de SON cabinet) ; statut changé entre-temps (409) : liste
 // rechargée ; messages d'échec du gestionnaire (accès retiré, fonction pas encore activée, toast si le réseau est coupé).
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { heureCourte, remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Encadre, EtatVide, Modale, Montant } from '@/components/coproprietaire-dashboard/ui'
@@ -174,11 +174,26 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
     if (autre) ouvrir({ type: 'modification', copropriete: autre })
   }
 
-  /** Gestionnaire : « Voir cette copropriété » (doublon déjà dans ses copropriétés) ferme la fenêtre et montre sa carte. */
+  /**
+   * Gestionnaire : « Voir cette copropriété » (doublon déjà dans ses copropriétés) ferme la fenêtre et mène à sa carte :
+   * défilement ET focus, posés APRÈS la fermeture (la fenêtre rend d'abord le focus au bouton qui l'a ouverte), pour que
+   * le clavier et le lecteur d'écran arrivent sur la carte (relecture du lot 6).
+   */
+  const carteAMontrer = useRef<string | null>(null)
   const montrerCopro = (id: string) => {
+    carteAMontrer.current = id
     setFenetre(null)
-    document.getElementById(idCarteCoproprieteQr(id))?.scrollIntoView?.({ block: 'start' })
   }
+  useEffect(() => {
+    const id = carteAMontrer.current
+    if (fenetre !== null || !id) return
+    carteAMontrer.current = null
+    const carte = document.getElementById(idCarteCoproprieteQr(id))
+    if (!carte) return
+    if (!carte.hasAttribute('tabindex')) carte.setAttribute('tabindex', '-1')
+    carte.focus({ preventScroll: true })
+    carte.scrollIntoView?.({ block: 'start' })
+  }, [fenetre])
 
   /** « Utiliser cette adresse » : PATCH { adresse } (route existante, super admin) ; false si refusé. */
   const utiliserAdresse = async (copropriete: CoproprieteQr, adresse: string): Promise<boolean> => {

@@ -319,7 +319,8 @@ export const TEXTES_GESTION_QR = {
     envoiConfirme: 'confirmé le {date}',
     envoiRefuse: 'réponse : « Ce n’est pas moi »',
     suivi: 'Sa page de suivi',
-    suiviAide: 'Ses copropriétés et leurs signalements, tels qu’il les verra.',
+    // Relecture du lot 6 (texte à valider par Frédéric) : le gestionnaire voit, lui, l'espace de son cabinet.
+    suiviAide: 'Ses copropriétés et leurs signalements, vus par le cabinet ; il les suit dans l’espace de son cabinet.',
     attribuees: 'Copropriétés attribuées ({n})',
     aucuneAttribuee: 'Aucune copropriété attribuée.',
     attribueeLe: '{origine} le {date}',
@@ -522,6 +523,8 @@ export const TEXTES_INVITATION_ACCES_QR = {
   confirmerPasMoi: 'Confirmer : ce n’est pas moi',
   annuler: 'Annuler',
   ouvert: 'Accès ouvert. Connectez-vous.',
+  // Relecture 5 du lot 6 (texte à valider par Frédéric) : compte rattaché dont le mot de passe n'a pas pu être remplacé.
+  ouvertCompteExistant: 'Accès ouvert. Votre compte VitFix existait déjà et garde son mot de passe : connectez-vous avec celui-ci, ou utilisez « Mot de passe oublié ».',
   seConnecter: 'Se connecter',
   liaisonIncomplete: 'Votre compte existe mais l’accès n’a pas pu être relié. Le cabinet a été prévenu.',
   dejaOuvert: 'Votre accès est déjà ouvert. Connectez-vous ; si vous avez perdu votre mot de passe, utilisez « Mot de passe oublié ».',

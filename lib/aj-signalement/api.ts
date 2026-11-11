@@ -753,7 +753,8 @@ export async function lireLienAccesQr(token: string, cabinet: string, fetchImpl:
 }
 
 /** Acceptation : liaisonIncomplete (207) = le compte existe mais l'accès n'a pas pu être relié (le cabinet est prévenu). */
-export type ResultatAcceptationAccesQr = { ok: true; liaisonIncomplete: boolean } | EchecQr
+/** `compteExistant` : compte VitFix rattaché dont le mot de passe n'a pas pu être remplacé (il garde le sien). */
+export type ResultatAcceptationAccesQr = { ok: true; liaisonIncomplete: boolean; compteExistant: boolean } | EchecQr
 
 /** Ouverture de l'accès avec le mot de passe choisi (case « politique de confidentialité » cochée). */
 export async function accepterAccesQr(token: string, cabinet: string, password: string, fetchImpl: Fetch = fetch): Promise<ResultatAcceptationAccesQr> {
@@ -762,7 +763,7 @@ export async function accepterAccesQr(token: string, cabinet: string, password: 
   })
   if (!r.ok) return r
   const c = estObjet(r.corps) ? r.corps : {}
-  return { ok: true, liaisonIncomplete: c.acces !== 'ouvert' }
+  return { ok: true, liaisonIncomplete: c.acces !== 'ouvert', compteExistant: c.acces === 'ouvert' && c.compte === 'existant' }
 }
 
 /** « Ce n'est pas moi » depuis un lien d'accès : aucun compte créé, la fiche est figée et le cabinet prévenu. */

@@ -119,6 +119,33 @@ describe('adressesDeFichesQr (RG-06 bis-1 : une adresse de gestionnaire n’est 
   })
 })
 
+describe('sous-adresses « + » : la boîte d’une fiche sous une étiquette est l’adresse de la fiche (relecture 2 du lot 6)', () => {
+  const fiches = [{ id: 'g1', email: 'marie.martin@exemple.test' }, { id: 'g2', email: 'paul.durand@exemple.test' }]
+
+  it('adressesDeFichesQr : « prenom+etiquette@ » est repérée (rendue telle que proposée, canonique)', () => {
+    expect(adressesDeFichesQr(['cs+copro@exemple.test', ' Marie.Martin+Suivi@exemple.test'], fiches)).toEqual(['marie.martin+suivi@exemple.test'])
+  })
+
+  it('fiche dont l’adresse porte elle-même une étiquette : sa boîte et ses autres étiquettes sont repérées', () => {
+    expect(adressesDeFichesQr(['marie@exemple.test', 'marie+autre@exemple.test', 'mariette@exemple.test'], [{ email: 'marie+aj@exemple.test' }]))
+      .toEqual(['marie@exemple.test', 'marie+autre@exemple.test'])
+  })
+
+  it('saisiesVisiblesQr : la sous-adresse d’un collègue est masquée, la sienne reste visible', () => {
+    expect(saisiesVisiblesQr(['paul.durand+x@exemple.test', 'marie.martin+y@exemple.test', 'cs+z@exemple.test'], fiches, 'g1'))
+      .toEqual({ emails: ['marie.martin+y@exemple.test', 'cs+z@exemple.test'], adressesMasquees: 1 })
+  })
+
+  it('destinatairesSignalementQr : la sous-adresse d’une fiche exclue (partie, contestée) quitte l’envoi ; une autre adresse reste', () => {
+    const r = destinatairesSignalementQr(
+      { emails_destinataires: ['marie.martin+suivi@exemple.test', 'cs+copro@exemple.test'] },
+      [g('g1', 'marie.martin@exemple.test', { exclu: true })],
+      ENV,
+    )
+    expect(adresses(r)).toEqual(['cs+copro@exemple.test'])
+  })
+})
+
 describe('saisiesVisiblesQr (PR 2, RG-06 bis-4 : un gestionnaire ne voit pas l’adresse d’un collègue)', () => {
   const fiches = [{ id: 'g1', email: 'marie.martin@exemple.test' }, { id: 'g2', email: 'paul.durand@exemple.test' }]
 

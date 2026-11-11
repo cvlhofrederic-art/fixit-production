@@ -43,6 +43,13 @@ export interface PropsModaleCoproprieteGestionnaireQr {
 const listeBatiments = (texte: string): string[] => [...new Set(texte.split(',').map((b) => b.trim()).filter(Boolean))]
 const memesListes = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i])
 
+/** Texte d'un doublon reçu par le gestionnaire : nommé seulement dans sa portée (le serveur ne nomme rien d'autre). */
+function texteDoublonGestionnaireQr(doublon: DoublonRenduGestionnaireQr): string {
+  const f = E.formulaire
+  if (doublon.certitude === 'probable') return doublon.copropriete ? remplir(f.doublonProbableVous, { nom: doublon.copropriete.nom }) : f.doublonProbable
+  return doublon.copropriete ? remplir(f.doublonVous, { nom: doublon.copropriete.nom }) : f.doublonCabinet
+}
+
 export default function ModaleCoproprieteGestionnaireQr({
   copropriete, domaines, onFermer, onEnregistre, onOuvrir,
 }: Readonly<PropsModaleCoproprieteGestionnaireQr>) {
@@ -142,9 +149,7 @@ export default function ModaleCoproprieteGestionnaireQr({
 
       {doublon && (
         <Encadre ton="avertissement">
-          {doublon.certitude === 'probable' ? <p>{f.doublonProbable}</p> : (
-            <p>{doublon.copropriete ? remplir(f.doublonVous, { nom: doublon.copropriete.nom }) : f.doublonCabinet}</p>
-          )}
+          <p>{texteDoublonGestionnaireQr(doublon)}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {doublon.copropriete && onOuvrir && (
               <Bouton variante="secondaire" petit icone="chevron-droite" onClick={() => onOuvrir(doublon.copropriete?.id ?? '')}>{f.voirDoublon}</Bouton>

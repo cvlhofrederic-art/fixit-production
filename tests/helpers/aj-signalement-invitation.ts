@@ -2,7 +2,9 @@
 //
 // - authQr : comptes Supabase Auth simulés (createUser, listUsers, getUserById, updateUserById) au plus près de GoTrue
 //   pour ce que lib/equipe utilise : une adresse déjà inscrite donne « A user with this email address has already been
-//   registered » ; une méthode peut être mise en échec, et un rappel peut agir juste avant qu'elle ne réponde ;
+//   registered » ; une méthode peut être mise en échec, et un rappel peut agir juste avant qu'elle ne réponde ; la
+//   politique du mot de passe du projet (refusMotDePasse) refuse createUser et updateUserById quand ils portent un mot de
+//   passe (weak_password, code d'AuthWeakPasswordError), APRÈS le contrôle de l'adresse déjà inscrite (ordre de GoTrue) ;
 // - clientInvitationQr : le client de la base simulée (tests/helpers/aj-signalement-base.ts) avec auth.admin, et la
 //   LIAISON du trigger trg_signalements_qr_invitations_liaison de la 20261112 rejouée après chaque écriture des envois
 //   (la base simulée ne joue aucun trigger) : mêmes gardes que le corps SQL ; liaison.active = false la coupe ;
@@ -20,6 +22,8 @@ export interface CompteSimule {
   app_metadata: Record<string, unknown>
   user_metadata: Record<string, unknown>
   ban_duration?: string
+  /** Dernier mot de passe posé (createUser ou updateUserById). */
+  password?: string
 }
 
 type MethodeAuth = 'createUser' | 'listUsers' | 'getUserById' | 'updateUserById' | 'deleteUser'
@@ -31,6 +35,8 @@ export const authQr = {
   echecs: {} as Partial<Record<MethodeAuth, string>>,
   /** Rappel joué juste avant la réponse d'une méthode (ex. : poser une erreur ponctuelle de la base). */
   avant: {} as Partial<Record<MethodeAuth, () => void>>,
+  /** Politique du mot de passe du projet : refus de tout mot de passe (null : aucun refus). */
+  refusMotDePasse: null as null | { message: string; code: string },
   compteur: 0,
 }
 
@@ -39,6 +45,7 @@ export function reinitialiserAuthQr(): void {
   authQr.appels = []
   authQr.echecs = {}
   authQr.avant = {}
+  authQr.refusMotDePasse = null
   authQr.compteur = 0
 }
 
@@ -51,6 +58,10 @@ const noter = (methode: MethodeAuth, args: unknown[]) => {
 
 const copie = (c: CompteSimule) => ({ ...c, app_metadata: { ...c.app_metadata }, user_metadata: { ...c.user_metadata } })
 
+/** Refus de la politique du mot de passe, au format d'AuthWeakPasswordError (code weak_password, statut 422). */
+const refusPolitique = (password: string | undefined) =>
+  (password !== undefined && authQr.refusMotDePasse ? { ...authQr.refusMotDePasse, status: 422 } : null)
+
 export const adminAuthQr = {
   async createUser(p: { email: string; password: string; email_confirm?: boolean; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }) {
     const echec = noter('createUser', [p])
@@ -58,10 +69,12 @@ export const adminAuthQr = {
     if (authQr.comptes.some((c) => c.email === p.email)) {
       return { data: { user: null }, error: { message: 'A user with this email address has already been registered', status: 422 } }
     }
+    const refus = refusPolitique(p.password)
+    if (refus) return { data: { user: null }, error: refus }
     authQr.compteur += 1
     const compte: CompteSimule = {
       id: `0e000000-0000-4000-8000-${String(authQr.compteur).padStart(12, '0')}`, email: p.email,
-      app_metadata: { ...(p.app_metadata ?? {}) }, user_metadata: { ...(p.user_metadata ?? {}) },
+      app_metadata: { ...(p.app_metadata ?? {}) }, user_metadata: { ...(p.user_metadata ?? {}) }, password: p.password,
     }
     authQr.comptes.push(compte)
     return { data: { user: copie(compte) }, error: null }
@@ -79,12 +92,15 @@ export const adminAuthQr = {
     if (echec || !compte) return { data: { user: null }, error: echec ?? { message: 'User not found', status: 404 } }
     return { data: { user: copie(compte) }, error: null }
   },
-  async updateUserById(id: string, attributs: { app_metadata?: Record<string, unknown>; ban_duration?: string }) {
+  async updateUserById(id: string, attributs: { app_metadata?: Record<string, unknown>; ban_duration?: string; password?: string }) {
     const echec = noter('updateUserById', [id, attributs])
     const compte = authQr.comptes.find((c) => c.id === id)
     if (echec || !compte) return { data: { user: null }, error: echec ?? { message: 'User not found', status: 404 } }
+    const refus = refusPolitique(attributs.password)
+    if (refus) return { data: { user: null }, error: refus }
     if (attributs.app_metadata) compte.app_metadata = { ...attributs.app_metadata }
     if (attributs.ban_duration !== undefined) compte.ban_duration = attributs.ban_duration
+    if (attributs.password !== undefined) compte.password = attributs.password
     return { data: { user: copie(compte) }, error: null }
   },
   async deleteUser(id: string) {

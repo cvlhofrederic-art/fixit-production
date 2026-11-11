@@ -5,6 +5,8 @@
 // dans l'espace, jamais dans le code). Aucune donnée réelle ici : les domaines se saisissent à l'écran.
 //   - emailCanoniqueQr / domaineDeEmailQr / emailDansDomainesQr : même règle que la fonction SQL
 //     signalements_qr_inviter_gestionnaire (égalité EXACTE du domaine après le « @ », sous-domaines refusés) ;
+//   - boiteEmailQr : la boîte d'une adresse, sans l'étiquette « + » de sa partie locale (RG-06 bis : une sous-adresse
+//     « prenom+etiquette@ » d'une fiche est l'adresse de la fiche) ; même expression en SQL (migration 20261112) ;
 //   - validerDomaineCabinetQr : format du CHECK signalements_qr_domaines_domaine_format, messageries publiques refusées ;
 //   - nomCourtQr : « Marie M. », pour que l'e-mail et la page de confirmation nomment la personne (RG-02) ;
 //   - etatGestionnaireQr : état d'une fiche affiché au super admin (5 états en PR 1, les 4 états d'accès en PR 2).
@@ -19,6 +21,22 @@ import type {
 export function emailCanoniqueQr(valeur: unknown): string | null {
   const propre = typeof valeur === 'string' ? valeur.trim().toLowerCase() : ''
   return propre.includes('@') ? propre : null
+}
+
+/**
+ * Étiquette « + » d'une partie locale (« prenom+etiquette@ » : sous-adressage de Microsoft 365, Google Workspace…), avec au
+ * moins un caractère avant le premier « + ». Reprise telle quelle par la migration 20261112 (regexp_replace de
+ * signalements_qr_emails_gestionnaires), ce que vérifie son test.
+ */
+export const ETIQUETTE_EMAIL_QR = /^([^@+]+)\+[^@]*@/
+
+/**
+ * Boîte de réception d'une adresse : canonique, sans l'étiquette « + » de sa partie locale ; null si ce n'est pas une
+ * adresse. Deux adresses de même boîte arrivent au même endroit (RG-06 bis, relecture 2 du lot 6).
+ */
+export function boiteEmailQr(valeur: unknown): string | null {
+  const propre = emailCanoniqueQr(valeur)
+  return propre === null ? null : propre.replace(ETIQUETTE_EMAIL_QR, '$1@')
 }
 
 /** Domaine d'une adresse : la partie après l'UNIQUE « @ », en minuscules ; null si zéro ou plusieurs « @ » ou partie vide. */

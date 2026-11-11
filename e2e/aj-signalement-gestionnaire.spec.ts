@@ -6,7 +6,9 @@
 //     requête /api/aj-signalement/** non prévue est interrompue et fait échouer le test ;
 //   - ni trace, ni capture, ni vidéo ; aucun compte, aucune connexion, aucune écriture en base.
 // Pages parcourues : l'ouverture de l'accès d'un gestionnaire (/<identifiant>/invitation/#<jeton> : page cliente, aucune
-// lecture serveur) et la connexion professionnelle de l'espace (/fr/aj-signalement/connexion/, statique). La connexion
+// lecture serveur), la confirmation d'adresse (/<identifiant>/confirmation-adresse/#<jeton>, PR 1 : page cliente, aucune
+// lecture serveur ; SPEC § 2.11, relecture du lot 6) et la connexion professionnelle de l'espace
+// (/fr/aj-signalement/connexion/, statique). La connexion
 // d'un cabinet (/<identifiant>/connexion/, qui lit le cabinet côté serveur) et l'espace connecté sont couverts par les
 // tests de composants et la recette manuelle (tests/securite/e2e-aj-signalement-garde-fous.test.ts garde ces règles).
 
@@ -22,6 +24,9 @@ const MOT_DE_PASSE = 'MotDePasse2026'
 const LECTURE = '/api/aj-signalement/invitation/lecture'
 const ACCEPTATION = '/api/aj-signalement/invitation'
 const REFUS = '/api/aj-signalement/invitation/refus'
+const LECTURE_CONFIRMATION = '/api/aj-signalement/confirmation/lecture'
+const CONFIRMATION = '/api/aj-signalement/confirmation'
+const REFUS_CONFIRMATION = '/api/aj-signalement/confirmation/refus'
 
 type ReponsesSimulees = Record<string, { status: number; corps: unknown }>
 
@@ -121,6 +126,40 @@ test.describe('AJ Signalement — ouverture de l’accès d’un gestionnaire (/
     await page.goto(`/${IDENTIFIANT}/invitation/`)
     await expect(page.getByText('Ce lien n’est pas valable.')).toBeVisible()
     expect(api.recues).toEqual([])
+    expect(api.imprevues).toEqual([])
+  })
+})
+
+test.describe('AJ Signalement — confirmation d’adresse d’un gestionnaire (/<identifiant>/confirmation-adresse/)', () => {
+  test.beforeEach(async ({ page }) => { await refuserCookies(page) })
+
+  test('le jeton est effacé de l’adresse, lu sans effet, puis « C’est moi » confirme l’adresse', async ({ page }) => {
+    const api = await simulerApi(page, { [LECTURE_CONFIRMATION]: LECTURE_OK, [CONFIRMATION]: { status: 200, corps: { confirmee: true } } })
+    const reponse = await page.goto(`/${IDENTIFIANT}/confirmation-adresse/#${JETON}`)
+    expect(reponse?.status()).toBe(200)
+    await expect(page.getByText(`Marie E., gestionnaire chez Cabinet Exemple — adresse ${ADRESSE}`)).toBeVisible()
+    expect(page.url()).not.toContain('#')
+    expect(page.url()).not.toContain(JETON)
+    // Lecture sans effet : seul appel avant le clic (jeton et identifiant du chemin dans le CORPS, jamais l'adresse).
+    expect(api.recues.length).toBeGreaterThan(0)
+    for (const r of api.recues) expect(r).toEqual({ chemin: LECTURE_CONFIRMATION, corps: { token: JETON, cabinet: IDENTIFIANT } })
+    await expect(page.locator('meta[name="referrer"][content="no-referrer"]')).toHaveCount(1)
+    await expect(page.locator('meta[name="robots"][content*="noindex"]')).toHaveCount(1)
+
+    await page.getByRole('button', { name: 'C’est moi : confirmer l’adresse' }).click()
+    await expect(page.getByText('Adresse confirmée. Vous recevrez désormais les signalements de vos copropriétés.')).toBeVisible()
+    expect(api.recues.filter((r) => r.chemin === CONFIRMATION)).toEqual([{ chemin: CONFIRMATION, corps: { token: JETON, cabinet: IDENTIFIANT } }])
+    expect(api.imprevues).toEqual([])
+  })
+
+  test('« Ce n’est pas moi » : confirmation, puis contestation (le cabinet est prévenu)', async ({ page }) => {
+    const api = await simulerApi(page, { [LECTURE_CONFIRMATION]: LECTURE_OK, [REFUS_CONFIRMATION]: { status: 200, corps: { contestee: true } } })
+    await page.goto(`/${IDENTIFIANT}/confirmation-adresse/#${JETON}`)
+    await page.getByRole('button', { name: 'Ce n’est pas moi' }).click()
+    await expect(page.getByText('Vous ne recevrez aucun signalement et le cabinet sera prévenu.')).toBeVisible()
+    await page.getByRole('button', { name: 'Confirmer : ce n’est pas moi' }).click()
+    await expect(page.getByText('C’est noté : vous ne recevrez rien, le cabinet est prévenu.')).toBeVisible()
+    expect(api.recues.filter((r) => r.chemin !== LECTURE_CONFIRMATION)).toEqual([{ chemin: REFUS_CONFIRMATION, corps: { token: JETON, cabinet: IDENTIFIANT } }])
     expect(api.imprevues).toEqual([])
   })
 })

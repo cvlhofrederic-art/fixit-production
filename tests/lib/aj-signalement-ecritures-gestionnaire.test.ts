@@ -48,6 +48,12 @@ describe('refusAdressesAjouteesQr', () => {
     expect(refusAdressesAjouteesQr(['PAUL@exemple.test'], ['exemple.test'], FICHES)).toBe(M.adresseDeFiche)
   })
 
+  it('sous-adresse « + » de sa propre boîte ou de celle d’un collègue : même refus (relecture 2 du lot 6)', () => {
+    expect(refusAdressesAjouteesQr(['marie+suivi@exemple.test'], ['exemple.test'], FICHES)).toBe(M.adresseDeFiche)
+    expect(refusAdressesAjouteesQr([' Paul+Copro@Exemple.test'], ['exemple.test'], FICHES)).toBe(M.adresseDeFiche)
+    expect(refusAdressesAjouteesQr(['accueil+copro@exemple.test'], ['exemple.test'], FICHES)).toBeNull()
+  })
+
   it('le domaine est contrôlé avant la fiche (aucune fiche d’un autre cabinet n’est révélée)', () => {
     expect(refusAdressesAjouteesQr(['luc@autre-exemple.test'], ['exemple.test'], [...FICHES, { id: 'x', email: 'luc@autre-exemple.test' }])).toBe(M.horsDomaine)
   })
@@ -68,6 +74,10 @@ describe('saisiesEcritesGestionnaireQr', () => {
   it('adresse masquée (autre fiche) conservée à sa place, adresses retirées, ajouts à la fin', () => {
     expect(saisiesEcritesGestionnaireQr(['cs@externe.test', 'paul@exemple.test', 'vieux@externe.test'], ['nouveau@exemple.test'], FICHES, MOI))
       .toEqual({ ecrites: ['paul@exemple.test', 'nouveau@exemple.test'], ajoutees: ['nouveau@exemple.test'] })
+  })
+
+  it('sous-adresse d’un collègue (masquée pour lui) : conservée à sa place', () => {
+    expect(saisiesEcritesGestionnaireQr(['paul+copro@exemple.test', 'cs@externe.test'], [], FICHES, MOI)).toEqual({ ecrites: ['paul+copro@exemple.test'], ajoutees: [] })
   })
 
   it('liste vide envoyée : seules les adresses masquées restent', () => {

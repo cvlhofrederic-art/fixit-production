@@ -12,7 +12,7 @@ import { doublonVuGestionnaireQr, refusAdressesAjouteesQr, saisiesEcritesGestion
 import { coproprieteVueGestionnaireQr } from '@/lib/aj-signalement/minimisation'
 import type { DoublonQr, PorteeQr, ProfilGestionnaireQr } from '@/lib/aj-signalement/types'
 import {
-  compterSignalementsQr, compteursVidesQr, coproprieteDepuisLigne, journaliserQr, lireContexteGestionQr, lireDomainesCabinetQr,
+  compterSignalementsQr, compteursVidesQr, coproprieteDepuisLigne, journaliserQr, lireContexteGestionStrictQr, lireDomainesCabinetQr,
   lireFichesParEmailsQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseInvalide, reponseStructureGestionnaireQr,
   type EcritureJournalQr, type LectureCoproprieteCompleteQr,
 } from '@/lib/aj-signalement/serveur'
@@ -101,10 +101,13 @@ export async function lireCoproprieteGestionnaireQr(
     portee = lue.valeur
   }
   if (!portee.visibles.has(id)) return { ok: true, copropriete: null }
-  const [compteurs, contexte] = await Promise.all([
+  const [compteurs, lu] = await Promise.all([
     options.nouvelle ? Promise.resolve(compteursVidesQr()) : compterSignalementsQr(id),
-    lireContexteGestionQr([ligne]),
+    // Strict (relecture 3 du lot 6) : sans les fiches des saisies, rien ne serait masqué.
+    lireContexteGestionStrictQr([ligne]),
   ])
+  if (!lu.ok) return { ok: false, erreur: lu.erreur }
+  const contexte = lu.valeur
   return {
     ok: true,
     copropriete: coproprieteVueGestionnaireQr(coproprieteDepuisLigne(ligne, compteurs, null, contexte), {

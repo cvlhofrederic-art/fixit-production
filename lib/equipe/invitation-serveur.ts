@@ -45,6 +45,12 @@ export interface ResultatAcceptation {
   status: number
   corps: Record<string, unknown>
   nouveauCompteId?: string
+  /**
+   * Code de l'erreur de Supabase Auth quand le compte n'a pas pu être créé (ex. weak_password : politique du mot de
+   * passe du projet) ; jamais dans `corps`. Lu par AJ Signalement (lib/aj-signalement/serveur-acces.ts) ; les routes pro
+   * et syndic renvoient `corps` et `status`, inchangés.
+   */
+  codeAuth?: string
 }
 
 const INVALIDE: LectureInvitation = { ok: false, status: 404, error: 'Invitation invalide ou expirée' }
@@ -179,7 +185,8 @@ export async function accepterInvitation(
       return { status: 200, corps: { success: true, message: 'Compte lié avec succès. Vous pouvez maintenant vous connecter.' } }
     }
     logger.error(`${journal} Auth error:`, authError)
-    return { status: 500, corps: { error: 'Erreur lors de la création du compte' } }
+    const codeAuth = typeof authError.code === 'string' && authError.code ? authError.code : undefined
+    return { status: 500, corps: { error: 'Erreur lors de la création du compte' }, ...(codeAuth ? { codeAuth } : {}) }
   }
 
   const nouveau = authData.user

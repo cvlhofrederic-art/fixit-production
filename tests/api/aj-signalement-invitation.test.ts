@@ -518,6 +518,40 @@ describe('acceptation (P2-R3, publique)', () => {
     expect(laFiche().user_id).toBe(COMPTE_EXISTANT)
   })
 
+  it('relecture 5 du lot 6 : compte rattaché → le mot de passe choisi sur la page est le sien, et sa connexion est débloquée', async () => {
+    I.authQr.comptes = [{
+      id: COMPTE_EXISTANT, email: EMAIL, app_metadata: { role: 'gestionnaire_signalement' }, user_metadata: {}, password: 'AncienMot2025', ban_duration: '876000h',
+    }]
+    const res = await accepter(corpsAcceptation())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ acces: 'ouvert' })
+    expect(I.authQr.comptes[0]).toMatchObject({ password: MOT_DE_PASSE, ban_duration: 'none' })
+    // Appliqué APRÈS la liaison de la fiche à CE compte (jamais à un compte que le trigger a refusé).
+    const maj = I.authQr.appels.filter((a) => a.methode === 'updateUserById').map((a) => a.args[1])
+    expect(maj.at(-1)).toEqual({ password: MOT_DE_PASSE, ban_duration: 'none' })
+    expect(texteJournalServeurQr()).not.toMatch(/marie|exemple\.test|Bonjour2026/i)
+  })
+
+  it('compte rattaché mais liaison refusée par la base : aucun mot de passe appliqué (207 liaison_incomplete)', async () => {
+    I.authQr.comptes = [{ id: COMPTE_EXISTANT, email: EMAIL, app_metadata: { role: 'gestionnaire_signalement' }, user_metadata: {}, password: 'AncienMot2025' }]
+    I.liaisonQr.active = false
+    expect((await accepter(corpsAcceptation())).status).toBe(207)
+    expect(I.authQr.comptes[0].password).toBe('AncienMot2025')
+    expect(I.authQr.appels.filter((a) => a.methode === 'updateUserById').map((a) => a.args[1])).not.toContainEqual(expect.objectContaining({ password: MOT_DE_PASSE }))
+  })
+
+  it('compte rattaché, mot de passe refusé par Supabase Auth : 200 { acces: ouvert, compte: existant } (il garde son mot de passe)', async () => {
+    I.authQr.comptes = [{ id: COMPTE_EXISTANT, email: EMAIL, app_metadata: { role: 'gestionnaire_signalement' }, user_metadata: {}, password: 'AncienMot2025' }]
+    I.authQr.refusMotDePasse = { code: 'weak_password', message: 'Password is known to be weak and easy to guess, please choose a different one.' }
+    const res = await accepter(corpsAcceptation())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ acces: 'ouvert', compte: 'existant' })
+    expect(laFiche().user_id).toBe(COMPTE_EXISTANT)
+    expect(I.authQr.comptes[0].password).toBe('AncienMot2025')
+    expect(simulQr.logger.error).toHaveBeenCalledWith(expect.stringContaining('mot de passe'), expect.objectContaining({ gestionnaire: G, code: 'weak_password' }))
+    expect(texteJournalServeurQr()).not.toMatch(/marie|exemple\.test|Bonjour2026/i)
+  })
+
   it('rattaché mais envoi non marqué (erreur ignorée par lib/equipe) : 207 liaison_incomplete, logger.error sans adresse, alerte', async () => {
     I.authQr.comptes = [{ id: COMPTE_EXISTANT, email: EMAIL, app_metadata: { role: 'gestionnaire_signalement' }, user_metadata: {} }]
     I.authQr.avant.updateUserById = () => {
@@ -576,8 +610,23 @@ describe('acceptation (P2-R3, publique)', () => {
     expect(I.authQr.appels).toEqual([])
   })
 
-  it('mot de passe refusé par Supabase Auth (politique du projet) : 500 serveur, journal sans adresse ni mot de passe', async () => {
-    I.authQr.echecs.createUser = 'Password is known to be weak and easy to guess, please choose a different one.'
+  it('relecture 4 du lot 6 : mot de passe refusé par la politique de Supabase Auth (weak_password) : 422 invalide, rien créé, le lien reste valable', async () => {
+    I.authQr.refusMotDePasse = { code: 'weak_password', message: 'Password is known to be weak and easy to guess, please choose a different one.' }
+    const res = await accepter(corpsAcceptation())
+    expect(res.status).toBe(422)
+    expect(await res.json()).toEqual({ error: 'invalide' })
+    expect(I.authQr.comptes).toEqual([])
+    expect(envoi(idEnvoi).accepted_at).toBeNull()
+    expect(texteJournalServeurQr()).not.toMatch(/marie|exemple\.test|Bonjour2026/i)
+    // Un autre mot de passe, accepté par la politique : le même lien ouvre l'accès.
+    I.authQr.refusMotDePasse = null
+    const reprise = await accepter(corpsAcceptation({ password: 'AutreMot2026' }))
+    expect(reprise.status).toBe(200)
+    expect(I.authQr.comptes[0].password).toBe('AutreMot2026')
+  })
+
+  it('autre refus de Supabase Auth à la création (service en panne) : 500 serveur, journal sans adresse ni mot de passe', async () => {
+    I.authQr.echecs.createUser = 'Database error creating new user'
     const res = await accepter(corpsAcceptation())
     expect(res.status).toBe(500)
     expect(await res.json()).toEqual({ error: 'serveur' })

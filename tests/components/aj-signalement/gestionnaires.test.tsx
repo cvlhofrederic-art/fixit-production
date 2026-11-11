@@ -308,6 +308,23 @@ describe('page profil d’un gestionnaire', () => {
     expect(within(une).queryByRole('button', { name: G.suivi.voirPlus })).toBeNull()
   })
 
+  it('relecture du lot 6 : statut changé entre-temps (409 conflit_statut) dans « Sa page de suivi » : la liste est rechargée, la fiche reste ouverte', async () => {
+    const f = detail()
+    const base = routeurFiche({ fiche: f })
+    simulerFetch((a) => (a.methode === 'PATCH' && a.url.startsWith('/api/aj-signalement/signalements/') ? json({ error: 'conflit_statut' }, 409) : base(a)))
+    render(<FicheGestionnaireQr id={f.gestionnaire.id} coproprietes={coproprietes} gestionnaires={[marie, paul, lea]} {...rappelsFiche} />)
+    const suivi = (await screen.findByRole('heading', { name: G.fiche.suivi })).closest('section') as HTMLElement
+    const une = (await within(suivi).findByText('Résidence Une')).closest('li') as HTMLElement
+    fireEvent.click(within(une).getByRole('button', { name: G.suivi.voir }))
+    fireEvent.click(await within(une).findByRole('button', { name: G.suivi.voirDetail }))
+    const listes = () => appels.filter((a) => a.url === `/api/aj-signalement/coproprietes/${C1}/signalements?statut=ouverts`)
+    expect(listes()).toHaveLength(1)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Prendre en charge' }))
+    expect(await within(screen.getByRole('dialog')).findByText(T.detail.conflitStatut)).toBeInTheDocument()
+    await waitFor(() => expect(listes()).toHaveLength(2))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
   it('retirer une attribution : PUT des copropriétés restantes, puis rechargement', async () => {
     await rendreFiche()
     const attribuees = screen.getByRole('heading', { name: remplir(G.fiche.attribuees, { n: 2 }) }).closest('section') as HTMLElement

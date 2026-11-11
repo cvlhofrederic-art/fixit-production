@@ -39,7 +39,7 @@ import {
   type LigneSemblableQr, type RechercheSemblablesQr,
 } from '@/lib/aj-signalement/semblables'
 import { adressesDeFichesQr, destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
-import { emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
+import { boiteEmailQr, emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
 import { porteeGestionnaireQr } from '@/lib/aj-signalement/acces-espace'
 import { validerIdentifiantCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { BUDGET_EMAILS_CABINET_HEURE, BUDGET_EMAILS_COPRO_HEURE } from '@/lib/aj-signalement/budget-emails'
@@ -717,43 +717,72 @@ interface LigneAttributionContexteQr { copropriete_id: string; gestionnaire_id: 
 
 export const cabinetResumeDepuisLigneQr = (l: LigneCabinetResumeQr): CabinetResumeQr => ({ id: l.id, nom: chaine(l.nom), identifiant: chaine(l.identifiant) })
 
+type CoproprieteContexteQr = Pick<LigneCoproprieteQr, 'id' | 'cree_par_gestionnaire_id' | 'emails_destinataires'>
+
+/**
+ * Une table du contexte : AFFICHAGE (super admin) → liste vide si elle est absente ou en panne (lireOuVideQr) ; STRICT
+ * (gestionnaire) → toute erreur rendue, car une liste de fiches vide ne masquerait aucune adresse d'un collègue
+ * (relecture 3 du lot 6 : la minimisation ne se fait jamais sans les fiches).
+ */
+async function lireTableContexteQr<T>(operation: string, lecture: PromiseLike<LectureQr<T[]>>, strict: boolean): Promise<LectureQr<T[]>> {
+  return strict ? lecture : { ok: true, valeur: await lireOuVideQr<T>(operation, lecture) }
+}
+
 /**
  * Cabinets, gestionnaires et attributions des copropriétés AFFICHÉES (tables du 11/11/2026, vides sans elles) : les
- * attributions de ces copropriétés, les fiches qu'elles nomment (gestionnaires, créateurs) et celles dont l'adresse est
- * dans leurs saisies (compteur RG-06 bis-5) ; jamais toutes les lignes de tous les cabinets (relecture 11).
+ * attributions de ces copropriétés, les fiches qu'elles nomment (gestionnaires, créateurs) et celles dont l'adresse (ou
+ * sa boîte, sous-adresse « + ») est dans leurs saisies (compteur RG-06 bis-5, masquage RG-06 bis-4) ; jamais toutes les
+ * lignes de tous les cabinets (relecture 11). `strict` : voir lireTableContexteQr.
  */
-export async function lireContexteGestionQr(copros: ReadonlyArray<Pick<LigneCoproprieteQr, 'id' | 'cree_par_gestionnaire_id' | 'emails_destinataires'>>): Promise<ContexteGestionQr> {
+async function lireContexteModeQr(copros: ReadonlyArray<CoproprieteContexteQr>, strict: boolean): Promise<LectureQr<ContexteGestionQr>> {
   const ids = copros.map((c) => c.id)
-  const saisies = copros.flatMap((c) => (Array.isArray(c.emails_destinataires) ? c.emails_destinataires : []))
-    .map(emailCanoniqueQr).filter((e): e is string => e !== null)
+  const saisies = adressesEtBoitesQr(copros.flatMap((c) => (Array.isArray(c.emails_destinataires) ? c.emails_destinataires : [])))
   const [cabinets, attributions, fichesSaisies] = await Promise.all([
-    lireOuVideQr<LigneCabinetResumeQr>('lecture des cabinets', enLectureQr(supabaseAdmin.from(TABLE_CABINETS_QR).select('id, nom, identifiant'))),
-    lireOuVideQr<LigneAttributionContexteQr>('lecture des attributions', lireParValeursQr<LigneAttributionContexteQr>(ids, (lot) =>
+    lireTableContexteQr<LigneCabinetResumeQr>('lecture des cabinets', enLectureQr(supabaseAdmin.from(TABLE_CABINETS_QR).select('id, nom, identifiant')), strict),
+    lireTableContexteQr<LigneAttributionContexteQr>('lecture des attributions', lireParValeursQr<LigneAttributionContexteQr>(ids, (lot) =>
       supabaseAdmin.from(TABLE_ATTRIBUTIONS_QR).select('copropriete_id, gestionnaire_id').in('copropriete_id', lot)
-        .order('copropriete_id', { ascending: true }).order('gestionnaire_id', { ascending: true }))),
-    lireOuVideQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(saisies, (lot) =>
-      supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('email', lot).order('id', { ascending: true }))),
+        .order('copropriete_id', { ascending: true }).order('gestionnaire_id', { ascending: true })), strict),
+    lireTableContexteQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(saisies, (lot) =>
+      supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('email', lot).order('id', { ascending: true })), strict),
   ])
+  if (!cabinets.ok) return cabinets
+  if (!attributions.ok) return attributions
+  if (!fichesSaisies.ok) return fichesSaisies
   const nommees = [...new Set([
-    ...attributions.map((a) => a.gestionnaire_id),
+    ...attributions.valeur.map((a) => a.gestionnaire_id),
     ...copros.map((c) => c.cree_par_gestionnaire_id).filter((g): g is string => typeof g === 'string' && g !== ''),
   ])]
-  const fiches = await lireOuVideQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(nommees, (lot) =>
-    supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('id', lot).order('id', { ascending: true })))
-  const nomsFiches = new Map(fiches.map((f) => [f.id, f.nom ?? null]))
+  const fiches = await lireTableContexteQr<LigneFicheContexteQr>('lecture des gestionnaires', lireParValeursQr<LigneFicheContexteQr>(nommees, (lot) =>
+    supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, nom, email').in('id', lot).order('id', { ascending: true })), strict)
+  if (!fiches.ok) return fiches
+  const nomsFiches = new Map(fiches.valeur.map((f) => [f.id, f.nom ?? null]))
   const gestionnairesParCopro = new Map<string, GestionnaireResumeQr[]>()
-  for (const a of attributions) {
+  for (const a of attributions.valeur) {
     if (!nomsFiches.has(a.gestionnaire_id)) continue
     const liste = gestionnairesParCopro.get(a.copropriete_id) ?? []
     liste.push({ id: a.gestionnaire_id, nom: nomsFiches.get(a.gestionnaire_id) ?? null })
     gestionnairesParCopro.set(a.copropriete_id, liste)
   }
   return {
-    cabinets: new Map(cabinets.map((c) => [c.id, cabinetResumeDepuisLigneQr(c)])),
-    gestionnairesParCopro,
-    nomsFiches,
-    emailsFiches: fichesSaisies.map((f) => ({ id: f.id, email: f.email })),
+    ok: true,
+    valeur: {
+      cabinets: new Map(cabinets.valeur.map((c) => [c.id, cabinetResumeDepuisLigneQr(c)])),
+      gestionnairesParCopro,
+      nomsFiches,
+      emailsFiches: fichesSaisies.valeur.map((f) => ({ id: f.id, email: f.email })),
+    },
   }
+}
+
+/** Contexte d'AFFICHAGE (super admin) : vide pour ce qui ne se lit pas (repli des migrations du 11/11/2026). */
+export async function lireContexteGestionQr(copros: ReadonlyArray<CoproprieteContexteQr>): Promise<ContexteGestionQr> {
+  const lu = await lireContexteModeQr(copros, false)
+  return lu.ok ? lu.valeur : contexteGestionVideQr()
+}
+
+/** Contexte d'une réponse à un GESTIONNAIRE (minimisation) : toute lecture en échec est rendue, jamais un contexte vide. */
+export function lireContexteGestionStrictQr(copros: ReadonlyArray<CoproprieteContexteQr>): Promise<LectureQr<ContexteGestionQr>> {
+  return lireContexteModeQr(copros, true)
 }
 
 interface LigneCompteursQr {
@@ -947,7 +976,10 @@ export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: 
     }
     lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
   }
-  const { tableau, contexte } = await assemblerTableauQr(lignesCopros, lignesSignalements)
+  const assemble = await assemblerTableauQr(lignesCopros, lignesSignalements, false)
+  // Contexte d'affichage : vide pour ce qui ne se lit pas, jamais un échec (branche gardée pour le typage).
+  if (!assemble.ok) return { ok: false, code: 'serveur' }
+  const { tableau, contexte } = assemble.valeur
   if (suivi) {
     suivi.cabinet = contexte.cabinets.get(suivi.cabinet.id) ?? suivi.cabinet
     tableau.gestionnaire = suivi
@@ -955,20 +987,28 @@ export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: 
   return { ok: true, tableau }
 }
 
-/** Formes publiques du tableau (compteurs en base, sinon calculés ; champs de gestion), et le contexte lu pour elles. */
+/**
+ * Formes publiques du tableau (compteurs en base, sinon calculés ; champs de gestion), et le contexte lu pour elles.
+ * `strict` : tableau d'un gestionnaire (une lecture du contexte en échec est rendue, jamais un contexte vide).
+ */
 async function assemblerTableauQr(
-  lignesCopros: readonly LigneCoproprieteQr[], lignesSignalements: readonly LigneSignalementQr[],
-): Promise<{ tableau: TableauQr; contexte: ContexteGestionQr }> {
-  const [enBase, contexte] = await Promise.all([compteursQr(lignesCopros.map((c) => c.id)), lireContexteGestionQr(lignesCopros)])
+  lignesCopros: readonly LigneCoproprieteQr[], lignesSignalements: readonly LigneSignalementQr[], strict: boolean,
+): Promise<LectureQr<{ tableau: TableauQr; contexte: ContexteGestionQr }>> {
+  const [enBase, lu] = await Promise.all([compteursQr(lignesCopros.map((c) => c.id)), lireContexteModeQr(lignesCopros, strict)])
+  if (!lu.ok) return lu
+  const contexte = lu.valeur
   const compteurs = enBase ?? compteursDepuisSignalementsQr(lignesSignalements)
   const noms = new Map(lignesCopros.map((c) => [c.id, chaine(c.nom)]))
   const dernieres = dernieresAdressesProposees(lignesSignalements)
   return {
-    tableau: {
-      coproprietes: lignesCopros.map((c) => coproprieteDepuisLigne(c, compteurs.get(c.id) ?? compteursVidesQr(), dernieres.get(c.id) ?? null, contexte)),
-      signalements: lignesSignalements.map((s) => signalementDepuisLigne(s, noms.get(s.copropriete_id) ?? '')),
+    ok: true,
+    valeur: {
+      tableau: {
+        coproprietes: lignesCopros.map((c) => coproprieteDepuisLigne(c, compteurs.get(c.id) ?? compteursVidesQr(), dernieres.get(c.id) ?? null, contexte)),
+        signalements: lignesSignalements.map((s) => signalementDepuisLigne(s, noms.get(s.copropriete_id) ?? '')),
+      },
+      contexte,
     },
-    contexte,
   }
 }
 
@@ -997,7 +1037,9 @@ export async function lireTableauGestionnaireQr(profil: ProfilGestionnaireQr): P
     if (signalements.error) return { ok: false, erreur: signalements.error }
     lignesSignalements = (signalements.data ?? []) as unknown as LigneSignalementQr[]
   }
-  const { tableau, contexte } = await assemblerTableauQr(lignesCopros, lignesSignalements)
+  const assemble = await assemblerTableauQr(lignesCopros, lignesSignalements, true)
+  if (!assemble.ok) return { ok: false, erreur: assemble.erreur }
+  const { tableau, contexte } = assemble.valeur
   const traces = new Map(lignesSignalements.map((s) => [s.id, traceStatutDepuisLigneQr(s)]))
   return {
     ok: true,
@@ -1130,15 +1172,23 @@ export async function lireDomainesAutresCabinetsQr(cabinetId: string, domaines: 
 }
 
 /**
- * Fiches gestionnaires, actives ou non, de tout cabinet, dont l'adresse est parmi `emails` (RG-06 bis-1) : seules les
- * adresses proposées sont cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune (`strict` : erreur
+ * Adresses canoniques à chercher parmi les fiches : chacune, puis sa boîte si elle porte une étiquette « + »
+ * (« prenom+etiquette@ » est l'adresse de la fiche « prenom@ », relecture 2 du lot 6), dédoublonnées.
+ */
+export function adressesEtBoitesQr(emails: readonly unknown[]): string[] {
+  return [...new Set(emails.flatMap((e) => [emailCanoniqueQr(e), boiteEmailQr(e)]).filter((e): e is string => e !== null))]
+}
+
+/**
+ * Fiches gestionnaires, actives ou non, de tout cabinet, dont l'adresse est parmi `emails` ou leurs boîtes (RG-06 bis-1) :
+ * seules les adresses proposées sont cherchées, jamais toutes les fiches (relecture 11). Table absente : aucune (`strict` : erreur
  * rendue) ; autre erreur rendue (contrôle avant écriture, relecture 4).
  */
 export async function lireFichesParEmailsQr(
   emails: readonly string[], options: OptionsLectureControleQr = {},
 ): Promise<LectureQr<Array<{ id: string; email: string | null }>>> {
   const lecture = lireParValeursQr<{ id: string; email: string | null }>(
-    emails.map(emailCanoniqueQr).filter((e): e is string => e !== null),
+    adressesEtBoitesQr(emails),
     (lot) => supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('id, email').in('email', lot).order('id', { ascending: true }),
   )
   return options.strict ? lecture : lireControleQr<{ id: string; email: string | null }>('lecture des fiches', lecture)

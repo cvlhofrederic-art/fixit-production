@@ -107,7 +107,7 @@ function EspaceGestionnaireQr({ identifiantCabinet, onDeconnexion }: Readonly<{ 
   }
   if (etat.statut === 'chargement') {
     return (
-      <PagePleineQr>
+      <PagePleineQr titre={E.nom}>
         <output className="block text-center">
           <span className="mx-auto mb-4 block h-12 w-12 animate-spin rounded-full border-4 border-[#C9A84C] border-t-transparent" />
           <span className="block text-base font-medium text-[#4A5E78]">{EC.chargement}</span>
@@ -118,14 +118,14 @@ function EspaceGestionnaireQr({ identifiantCabinet, onDeconnexion }: Readonly<{ 
   const sortie = <Bouton variante="secondaire" icone="deconnexion" pleineLargeur onClick={onDeconnexion}>{E.seDeconnecter}</Bouton>
   if (etat.statut === 'retire' || etat.statut === 'autre_espace') {
     return (
-      <PagePleineQr>
+      <PagePleineQr titre={E.nom}>
         <Encadre ton="avertissement">{etat.statut === 'retire' ? EC.accesRetire : E.sansAcces}</Encadre>
         <div className="mt-6">{sortie}</div>
       </PagePleineQr>
     )
   }
   return (
-    <PagePleineQr>
+    <PagePleineQr titre={E.nom}>
       <Encadre ton={etat.code === 'base_absente' ? 'avertissement' : 'erreur'}>{messageErreurGestionnaireQr(etat.code)}</Encadre>
       <div className="mt-6 space-y-3">
         <Bouton variante="principal" icone="actualiser" pleineLargeur onClick={reessayer}>{E.reessayer}</Bouton>

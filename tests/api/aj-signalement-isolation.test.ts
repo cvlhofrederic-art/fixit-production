@@ -118,7 +118,36 @@ describe('tableau (P1-R1) vu par un gestionnaire', () => {
     await lireTableau()
     expect(simulQr.limites).toEqual(['qr_tableau_203.0.113.7', `qr_tableau_${A.U1}`])
   })
+
+  it('relecture 3 du lot 6 : fiches des saisies illisibles (panne) → 500, jamais une réponse où rien n’est masqué', async () => {
+    const res = await avecFichesEnPanneApresControle(() => TABLEAU(requeteQr('/api/aj-signalement/tableau')))
+    expect(res.status).toBe(500)
+    const texte = await res.text()
+    expect(JSON.parse(texte)).toEqual({ error: 'serveur' })
+    sansDonneeDautrui(texte)
+  })
 })
+
+/**
+ * Toute lecture de signalements_qr_gestionnaires APRÈS celle du contrôle d'accès (fiche du compte) échoue (XX000) : la
+ * minimisation d'un gestionnaire ne doit jamais s'appliquer avec une liste de fiches vide (rien ne serait masqué).
+ */
+async function avecFichesEnPanneApresControle(appel: () => Promise<Response>): Promise<Response> {
+  const from = baseQr.client.from
+  let lectures = 0
+  const espion = vi.spyOn(baseQr.client, 'from').mockImplementation((table: string) => {
+    if (table === 'signalements_qr_gestionnaires') {
+      lectures += 1
+      if (lectures >= 2) baseQr.etat.erreursPonctuelles.signalements_qr_gestionnaires = { code: 'XX000', message: 'panne' }
+    }
+    return from(table)
+  })
+  try {
+    return await appel()
+  } finally {
+    espion.mockRestore()
+  }
+}
 
 describe('signalements d’une copropriété (P1-R2) vus par un gestionnaire', () => {
   it.each([
@@ -235,6 +264,13 @@ describe('fiche d’une copropriété (P1-R4) et doublon d’une création (P1-R
     sansDonneeDautrui(texte)
     expect(texte).not.toContain(A.C2)
     expect(texte).not.toContain('Deux')
+  })
+
+  it('relecture 3 du lot 6 : copropriété relue après sa modification, fiches illisibles (panne) → 500 sans l’adresse d’un collègue', async () => {
+    baseQr.table('signalements_qr_coproprietes').find((c) => c.id === A.C1)!.emails_destinataires = ['cs-une@externe.test', A.EMAIL_G2]
+    const res = await avecFichesEnPanneApresControle(() => MODIFIER(requeteQr(`/api/aj-signalement/coproprietes/${A.C1}`, 'PATCH', { ville: 'Aubagne' }), contexteQr(A.C1)))
+    expect(res.status).toBe(500)
+    sansDonneeDautrui(await res.text())
   })
 })
 

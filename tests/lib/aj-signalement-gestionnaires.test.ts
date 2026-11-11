@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import {
-  DOMAINES_PUBLICS_QR, DUREE_VALIDITE_ENVOI_QR_MS, FORMAT_DOMAINE_QR, LONGUEUR_MAX_DOMAINE_QR, domaineDeEmailQr,
+  DOMAINES_PUBLICS_QR, DUREE_VALIDITE_ENVOI_QR_MS, FORMAT_DOMAINE_QR, LONGUEUR_MAX_DOMAINE_QR, boiteEmailQr, domaineDeEmailQr,
   emailCanoniqueQr, emailDansDomainesQr, etatGestionnaireQr, nomCourtQr, validerDomaineCabinetQr,
 } from '@/lib/aj-signalement/gestionnaires'
 import { echapperHtml } from '@/lib/aj-signalement/email'
@@ -64,6 +64,16 @@ describe('adresses et domaines', () => {
     expect(emailCanoniqueQr('pas-une-adresse')).toBeNull()
     expect(emailCanoniqueQr(undefined)).toBeNull()
     expect(emailCanoniqueQr(42)).toBeNull()
+  })
+
+  it('boiteEmailQr : adresse canonique sans l’étiquette « + » de la partie locale (même boîte de réception)', () => {
+    expect(boiteEmailQr(' Marie.Exemple+Suivi@Exemple.TEST ')).toBe('marie.exemple@exemple.test')
+    expect(boiteEmailQr('marie.exemple+a+b@exemple.test')).toBe('marie.exemple@exemple.test')
+    expect(boiteEmailQr('marie.exemple@exemple.test')).toBe('marie.exemple@exemple.test')
+    // Partie locale vide avant l'étiquette : rien à retirer (ce n'est pas une sous-adresse).
+    expect(boiteEmailQr('+suivi@exemple.test')).toBe('+suivi@exemple.test')
+    expect(boiteEmailQr('pas-une-adresse')).toBeNull()
+    expect(boiteEmailQr(undefined)).toBeNull()
   })
 
   it('domaineDeEmailQr : partie après l’unique « @ », en minuscules ; null si zéro ou plusieurs « @ », ou partie vide', () => {

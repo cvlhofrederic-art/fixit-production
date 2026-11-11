@@ -109,6 +109,16 @@ describe('ouverture du lien', () => {
 })
 
 describe('choix du mot de passe : contrôles AVANT tout envoi', () => {
+  it('la règle du mot de passe est toujours reliée au champ (aria-describedby), avant toute erreur', async () => {
+    simulerFetch(routeur(() => json({ acces: 'ouvert' })))
+    render(<InvitationAccesQr identifiant="cabinet-exemple" />)
+    const champ = await screen.findByLabelText(T.motDePasse)
+    const aide = champ.getAttribute('aria-describedby')
+    expect(aide).toBeTruthy()
+    expect(document.getElementById(String(aide))).toHaveTextContent(T.regle)
+    expect(champ).not.toHaveAttribute('aria-invalid')
+  })
+
   it.each([
     ['mot de passe non conforme', 'bonjour', 'bonjour', true, T.erreurs.regle],
     ['deux saisies différentes', MOT_DE_PASSE, 'Bonjour2027', true, T.erreurs.differents],
@@ -155,12 +165,21 @@ describe('acceptation', () => {
     expect(screen.queryByLabelText(T.motDePasse)).toBeNull()
   })
 
-  it('400 (mot de passe refusé par le serveur) : message, formulaire gardé', async () => {
-    simulerFetch(routeur(() => json({ error: 'invalide' }, 400)))
+  it.each([400, 422])('%i (mot de passe refusé par le serveur ou par la politique de Supabase Auth) : message, formulaire gardé', async (status) => {
+    simulerFetch(routeur(() => json({ error: 'invalide' }, status)))
     render(<InvitationAccesQr identifiant="cabinet-exemple" />)
     await remplirFormulaire()
     expect(await screen.findByText(T.erreurs.refuse)).toBeInTheDocument()
     expect(screen.getByLabelText(T.motDePasse)).toBeInTheDocument()
+  })
+
+  it('relecture 5 du lot 6 : compte existant dont le mot de passe n’a pas changé : message dédié et lien vers la connexion', async () => {
+    simulerFetch(routeur(() => json({ acces: 'ouvert', compte: 'existant' })))
+    render(<InvitationAccesQr identifiant="cabinet-exemple" />)
+    await remplirFormulaire()
+    expect(await screen.findByText(T.ouvertCompteExistant)).toBeInTheDocument()
+    expect(screen.queryByText(T.ouvert)).toBeNull()
+    expect(screen.getByRole('link', { name: T.seConnecter })).toHaveAttribute('href', '/cabinet-exemple/connexion/')
   })
 
   it('réseau coupé : toast et message, formulaire gardé (on peut réessayer)', async () => {

@@ -153,6 +153,8 @@ describe('chargement et coquille', () => {
     routeur = (a) => (a.url === '/api/aj-signalement/moi' ? json({ error: 'acces_retire' }, 403) : undefined)
     render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
     expect(await screen.findByText('Votre accès a été retiré par le cabinet.')).toBeInTheDocument()
+    // Relecture du lot 6 (accessibilité) : un titre de page, même sur un état pleine page (lu, non affiché).
+    expect(titre()).toHaveTextContent('AJ Signalement')
     expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument()
     expect(screen.queryByRole('navigation')).toBeNull()
     expect(appelsVers('/api/aj-signalement/tableau')).toEqual([])
@@ -162,6 +164,7 @@ describe('chargement et coquille', () => {
     routeur = (a) => (a.url === '/api/aj-signalement/moi' ? json({ error: 'base_absente' }, 503) : undefined)
     render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
     expect(await screen.findByText('Fonction pas encore activée.')).toBeInTheDocument()
+    expect(titre()).toHaveTextContent('AJ Signalement')
     routeur = () => undefined
     fireEvent.click(screen.getByRole('button', { name: T.reessayer }))
     await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
@@ -364,6 +367,35 @@ describe('copropriétés', () => {
     const posts = appelsVers('/api/aj-signalement/coproprietes', 'POST')
     expect(posts).toHaveLength(2)
     expect(posts[1].corps).toEqual({ ...(posts[0].corps as object), confirmerDoublonProbable: true })
+  })
+
+  it('relecture du lot 6 : « Voir cette copropriété » ferme la fenêtre et porte le focus sur sa carte (pas sur « Ajouter »)', async () => {
+    routeur = (a) => (a.methode === 'POST'
+      ? json({ error: 'doublon', doublon: { certitude: 'certain', critere: 'immatriculation', copropriete: { id: C1, nom: 'Résidence Une', ville: 'Marseille' } } }, 409)
+      : undefined)
+    await ouvrir('Copropriétés')
+    fireEvent.click(screen.getByRole('button', { name: T.ajouterCopro }))
+    const fenetre = screen.getByRole('dialog')
+    remplirCreation(fenetre)
+    fireEvent.click(within(fenetre).getByRole('button', { name: T.formulaire.creerBouton }))
+    fireEvent.click(await within(fenetre).findByRole('button', { name: E.formulaire.voirDoublon }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(carte('Résidence Une')))
+  })
+
+  it('relecture du lot 6 : doublon probable DANS sa portée : « déjà dans vos copropriétés : <nom> », la question et « Voir cette copropriété »', async () => {
+    routeur = (a) => (a.methode === 'POST'
+      ? json({ error: 'doublon', doublon: { certitude: 'probable', critere: 'adresse_code_postal', copropriete: { id: C1, nom: 'Résidence Une', ville: 'Marseille' } } }, 409)
+      : undefined)
+    await ouvrir('Copropriétés')
+    fireEvent.click(screen.getByRole('button', { name: T.ajouterCopro }))
+    const fenetre = screen.getByRole('dialog')
+    remplirCreation(fenetre)
+    fireEvent.click(within(fenetre).getByRole('button', { name: T.formulaire.creerBouton }))
+    expect(await within(fenetre).findByText(remplir(E.formulaire.doublonProbableVous, { nom: 'Résidence Une' }))).toBeInTheDocument()
+    expect(within(fenetre).queryByText(E.formulaire.doublonProbable)).toBeNull()
+    expect(within(fenetre).getByRole('button', { name: E.formulaire.voirDoublon })).toBeInTheDocument()
+    expect(within(fenetre).getByRole('button', { name: E.formulaire.ouiCreer })).toBeInTheDocument()
   })
 
   it('« Modifier » (copropriété attribuée) : champs préremplis, seuls les champs changés partent ; 403 lecture_seule → message', async () => {

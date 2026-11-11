@@ -52,6 +52,8 @@ export const TEXTES_ESPACE_CABINET_QR = {
     doublonCabinet: 'Cette copropriété existe déjà au cabinet. Demandez son attribution à l’administrateur.',
     doublonVous: 'Elle est déjà dans vos copropriétés : {nom}.',
     doublonProbable: 'Une copropriété semblable existe ailleurs. S’agit-il d’une autre copropriété ?',
+    // Relecture du lot 6 (texte à valider par Frédéric) : doublon probable nommé (dans sa portée).
+    doublonProbableVous: 'Une copropriété semblable est déjà dans vos copropriétés : {nom}. S’agit-il d’une autre copropriété ?',
     ouiCreer: 'Oui, créer',
     ouiEnregistrer: 'Oui, enregistrer',
     voirDoublon: 'Voir cette copropriété',

@@ -209,9 +209,10 @@ async function liaisonIncompleteQr(lien: LienAccesQr, raison: string): Promise<R
 
 /**
  * Contrôle après coup (sans toucher lib/equipe) : l'envoi est accepté avec un compte, la fiche est reliée à CE compte
- * et son accès est daté. `compteCree` : le compte que createUser vient de créer (doit être celui de l'envoi).
+ * et son accès est daté. `compteCree` : le compte que createUser vient de créer (doit être celui de l'envoi). Rend le
+ * compte relié.
  */
-async function liaisonFaiteQr(lien: LienAccesQr, compteCree: string | undefined): Promise<{ ok: true } | { ok: false; raison: string }> {
+async function liaisonFaiteQr(lien: LienAccesQr, compteCree: string | undefined): Promise<{ ok: true; userId: string } | { ok: false; raison: string }> {
   const [envoi, fiche] = await Promise.all([
     supabaseAdmin.from(TABLE_INVITATIONS_QR).select('user_id, accepted_at').eq('id', lien.envoiId).maybeSingle(),
     supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('user_id, acces_ouvert_le').eq('id', lien.fiche.id).maybeSingle(),
@@ -222,25 +223,52 @@ async function liaisonFaiteQr(lien: LienAccesQr, compteCree: string | undefined)
   if (!e?.accepted_at || typeof e.user_id !== 'string') return { ok: false, raison: 'envoi non marqué' }
   if (compteCree && e.user_id !== compteCree) return { ok: false, raison: 'envoi relié à un autre compte' }
   if (f?.user_id !== e.user_id || !f?.acces_ouvert_le) return { ok: false, raison: 'fiche non reliée' }
-  return { ok: true }
+  return { ok: true, userId: e.user_id }
+}
+
+/**
+ * Compte EXISTANT rattaché (il porte déjà le rôle des gestionnaires ; le lien, remis à sa seule boîte, la prouve comme
+ * « Mot de passe oublié ») et que le trigger vient de relier à cette fiche active : le mot de passe choisi sur la page
+ * devient le sien, et sa connexion est débloquée (relecture 5 du lot 6 ; sinon « Accès ouvert. Connectez-vous. » serait
+ * faux). Appelé APRÈS la liaison : jamais sur un compte que la base a refusé de relier. Faux : refusé par Supabase Auth
+ * (politique du mot de passe, panne) — le compte garde son mot de passe ; journal serveur sans adresse ni mot de passe.
+ */
+async function appliquerMotDePasseQr(userId: string, password: string, lien: LienAccesQr): Promise<boolean> {
+  try {
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password, ban_duration: 'none' })
+    if (!error) return true
+    logger.error(`${CONTEXTE} mot de passe d’un compte rattaché non appliqué`, { gestionnaire: lien.fiche.id, code: error.code ?? null, statut: error.status ?? null })
+  } catch (e: unknown) {
+    logger.error(`${CONTEXTE} mot de passe d’un compte rattaché non appliqué`, { gestionnaire: lien.fiche.id, message: e instanceof Error ? e.name : 'inconnue' })
+  }
+  return false
 }
 
 /**
  * Acceptation d'un lien relu par relireLienAccesQr : accepterInvitation (lib/equipe) avec le rôle et le repère fixés
- * ici — compte neuf (adresse confirmée, la boîte est prouvée par le lien) ou compte qui porte déjà le rôle (rattaché) ;
- * tout autre compte : refus neutre 409. Puis contrôle après coup : 200 { acces: 'ouvert' } ou 207 liaison_incomplete.
+ * ici — compte neuf (adresse confirmée, la boîte est prouvée par le lien) ou compte qui porte déjà le rôle (rattaché, qui
+ * reçoit le mot de passe choisi : appliquerMotDePasseQr) ; tout autre compte : refus neutre 409. Mot de passe refusé
+ * par la politique de Supabase Auth (weak_password) : 422 invalide, rien n'est créé et le lien reste valable (l'écran dit
+ * d'en choisir un autre). Puis contrôle après coup : 200 { acces: 'ouvert' } (`compte: 'existant'` si le mot de passe
+ * d'un compte rattaché n'a pas pu être appliqué) ou 207 liaison_incomplete.
  * Aucune session n'est ouverte ici : le gestionnaire se connecte ensuite sur la page de connexion de son cabinet.
  */
 export async function accepterAccesQr(lien: LienAccesQr, password: string): Promise<ReponseAccesQr> {
   const resultat = await accepterInvitation('aj_signalement', lien.invite, password, metadonneesAccesQr(lien.cabinet.identifiant))
   if (resultat.status === 409) return refuserAutreEspaceQr(lien)
   if (resultat.status === 207) return liaisonIncompleteQr(lien, 'envoi non marqué (compte créé)')
+  // Relecture 4 du lot 6 : la politique du projet (longueur, caractères, mot de passe connu) n'est pas celle de
+  // motDePasseConforme ; « le service ne répond pas » ferait réessayer le même mot de passe sans fin.
+  if (resultat.codeAuth === 'weak_password') return { status: 422, corps: { error: 'invalide' } }
   if (resultat.status !== 200) {
     logger.error(`${CONTEXTE} acceptation d’un accès impossible`, { gestionnaire: lien.fiche.id, statut: resultat.status })
     return { status: 500, corps: { error: 'serveur' } }
   }
   const controle = await liaisonFaiteQr(lien, resultat.nouveauCompteId)
   if (!controle.ok) return liaisonIncompleteQr(lien, controle.raison)
+  if (!resultat.nouveauCompteId && !(await appliquerMotDePasseQr(controle.userId, password, lien))) {
+    return { status: 200, corps: { acces: 'ouvert', compte: 'existant' } }
+  }
   return { status: 200, corps: { acces: 'ouvert' } }
 }
 

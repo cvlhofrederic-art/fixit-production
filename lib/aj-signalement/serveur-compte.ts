@@ -229,8 +229,18 @@ interface LigneJournalExportQr {
   action: string
   copropriete_id: string | null
   champs: string[] | null
+  /** Lu pour la seule règle de coproprieteNommeeQr ; jamais exporté. */
+  details: Record<string, unknown> | null
   created_at: string
 }
+
+/**
+ * La copropriété d'une ligne peut-elle être nommée dans l'export ? Non pour un doublon refusé hors de sa portée (SPEC
+ * § 2.5 : « hors portée : aucun nom ni identifiant ») : doublon.refuse porte la copropriété EXISTANTE, que la réponse 409
+ * lui a tue ; seule details.dansPortee === true (déjà nommée par cette réponse) la laisse nommer. Relecture 1 du lot 6.
+ */
+const coproprieteNommeeQr = (l: LigneJournalExportQr): l is LigneJournalExportQr & { copropriete_id: string } =>
+  typeof l.copropriete_id === 'string' && (l.action !== 'doublon.refuse' || l.details?.dansPortee === true)
 
 /** Auteur d'une ligne vu par le gestionnaire : lui, un collègue, le cabinet (super admin) ou le système ; jamais un nom. */
 function auteurLigneQr(l: LigneJournalExportQr, ficheId: string, userId: string): 'vous' | 'collegue' | 'cabinet' | 'systeme' {
@@ -245,7 +255,7 @@ async function lireJournalExportQr(ficheId: string, userId: string): Promise<{ o
   const lignes: LigneJournalExportQr[] = []
   for (let page = 0; page < PAGES_JOURNAL_EXPORT_MAX_QR; page += 1) {
     const { data, error } = await supabaseAdmin.from(TABLE_JOURNAL_QR)
-      .select('acteur_id, acteur_profil, acteur_gestionnaire_id, action, copropriete_id, champs, created_at')
+      .select('acteur_id, acteur_profil, acteur_gestionnaire_id, action, copropriete_id, champs, details, created_at')
       .or(`acteur_id.eq.${userId},acteur_gestionnaire_id.eq.${ficheId},gestionnaire_id.eq.${ficheId}`)
       .gte('created_at', depuis.toISOString())
       .order('created_at', { ascending: true }).order('id', { ascending: true })
@@ -261,7 +271,8 @@ async function lireJournalExportQr(ficheId: string, userId: string): Promise<{ o
 /**
  * Section aj_signalement de l'export d'un compte relié à une fiche (rôle gestionnaire, ou compte relié) : sa fiche,
  * ses attributions et les lignes du journal (12 mois) où il est l'auteur ou le sujet ; aucun identifiant, aucun nom ni
- * aucune adresse d'une autre personne. L'export est journalisé (gestionnaire.exporte, acteur : lui-même). null : aucune
+ * aucune adresse d'une autre personne, ni le nom d'une copropriété qu'un doublon refusé lui a tue (coproprieteNommeeQr).
+ * L'export est journalisé (gestionnaire.exporte, acteur : lui-même). null : aucune
  * fiche, structure absente (repli journalisé une fois) ou lecture impossible (journal serveur) — la section est omise.
  * Ne lève jamais.
  */
@@ -283,8 +294,10 @@ export async function exportGestionnaireDuCompteQr(user: { id: string }): Promis
     }
     const lignesAttributions = (attributions.data ?? []) as Array<{ copropriete_id: string; origine: string | null; created_at: string | null }>
     const lignesJournal = journal.ok ? journal.lignes : []
-    const coproIds = [...new Set([...lignesAttributions.map((a) => a.copropriete_id), ...lignesJournal.map((l) => l.copropriete_id)]
-      .filter((v): v is string => typeof v === 'string'))]
+    const coproIds = [...new Set([
+      ...lignesAttributions.map((a) => a.copropriete_id),
+      ...lignesJournal.filter(coproprieteNommeeQr).map((l) => l.copropriete_id),
+    ].filter((v): v is string => typeof v === 'string'))]
     const noms = new Map<string, string | null>()
     if (coproIds.length > 0) {
       const copros = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom').in('id', coproIds)
@@ -303,7 +316,7 @@ export async function exportGestionnaireDuCompteQr(user: { id: string }): Promis
       attributions: lignesAttributions.map((a) => ({ copropriete: noms.get(a.copropriete_id) ?? null, origine: a.origine, depuis: a.created_at })),
       journal: lignesJournal.map((l) => ({
         date: l.created_at, action: l.action, auteur: auteurLigneQr(l, f.id, user.id),
-        copropriete: l.copropriete_id ? noms.get(l.copropriete_id) ?? null : null, champs: Array.isArray(l.champs) ? l.champs : [],
+        copropriete: coproprieteNommeeQr(l) ? noms.get(l.copropriete_id) ?? null : null, champs: Array.isArray(l.champs) ? l.champs : [],
       })),
     }
   } catch (e: unknown) {
