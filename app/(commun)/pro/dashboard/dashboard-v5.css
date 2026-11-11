@@ -49,6 +49,22 @@
 .v5-sb-i.logout { color: #E53935; }
 .v5-sb-i.logout:hover { background: #FFEBEE; border-left-color: #E53935; color: #C62828; }
 
+/* ─── SIDEBAR — recherche de modules (BTP pro uniquement : V5Sidebar) ─── */
+.v5-sb-rech { position: relative; flex-shrink: 0; padding: .5rem .75rem; border-bottom: 1px solid var(--v5-sidebar-border); }
+.v5-sb-rech-ic { position: absolute; left: calc(.75rem + 9px); top: 50%; transform: translateY(-50%); color: #767676; pointer-events: none; }
+.v5-sb-rech-in { display: block; width: 100%; height: 30px; padding: 0 26px 0 28px; border: 1px solid var(--v5-border-color); border-radius: 4px; background: #fff; color: var(--v5-text-primary); font-size: 12px; font-family: inherit; box-sizing: border-box; min-width: 0; min-height: 0; margin: 0; }
+.v5-sb-rech-in::placeholder { color: #767676; opacity: 1; }
+.v5-sb-rech-in:focus, .v5-sb-rech-in:focus-visible { outline: none; border-color: var(--v5-primary-yellow); box-shadow: 0 0 0 2px rgba(255,193,7,.2); }
+.v5-sb-rech-x { position: absolute; right: calc(.75rem + 4px); top: 50%; transform: translateY(-50%); width: 22px; height: 22px; min-width: 0; min-height: 0; padding: 0; border: none; border-radius: 3px; background: none; color: #767676; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: inherit; }
+.v5-sb-rech-x:hover, .v5-sb-rech-x:focus-visible { outline: none; background: #EFEFEF; color: #333; }
+.v5-sb-i.choix { background: var(--v5-highlight-yellow); color: var(--v5-text-primary); border-left-color: var(--v5-primary-yellow); }
+.v5-sb-entree { margin-left: auto; flex-shrink: 0; font-size: 12px; color: #8D6E00; }
+.v5-sb-badge + .v5-sb-entree { margin-left: 6px; }
+.v5-sb-rech-vide { padding: .25rem 1rem .75rem; font-size: 12px; color: #666; }
+.v5-sb-rech-vide p { margin: 0 0 .35rem; }
+.v5-sb-rech-lien { padding: 0; border: none; background: none; min-width: 0; min-height: 0; color: #8D6E00; font-size: 12px; font-family: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.v5-sb-rech-lien:hover, .v5-sb-rech-lien:focus-visible { outline: none; color: var(--v5-text-primary); }
+
 /* ─── MAIN ─── */
 .v5-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .v5-hdr { background: var(--v5-sidebar-bg); padding: 0 2rem; display: flex; align-items: center; justify-content: flex-end; flex-shrink: 0; border-bottom: 1px solid var(--v5-sidebar-border); gap: 12px; height: 48px; }
@@ -384,7 +400,7 @@
 }
 @media (max-width: 768px) {
   .v5-sb { width: 60px; }
-  .v5-sb-label, .v5-sb-sec-t, .v5-sb-logo-badge { display: none; }
+  .v5-sb-label, .v5-sb-sec-t, .v5-sb-logo-badge, .v5-sb-rech { display: none; }
   .v5-sb-i { padding: .5rem; justify-content: center; }
   .v5-sb-icon { width: auto; }
   .v5-sb-logo-name { font-size: 11px; text-align: center; }
