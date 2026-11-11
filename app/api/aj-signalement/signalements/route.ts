@@ -17,8 +17,8 @@
 // Limites : 5 dépôts par minute et par adresse IP, 30 par 10 minutes et par copropriété (QR code public).
 // Codes : 400 invalide · 404 introuvable (jeton inconnu ou désactivé) · 429 · 503 base_absente (migration
 // 20261104 non appliquée) · 500 serveur. Aucun lien avec les tables du logiciel Syndic.
-// Migrations 20261106_signalements_qr_confirmation.sql puis 20261106_signalements_qr_geoloc_qualite.sql : à
-// appliquer avant la fusion ; d'ici là, insertion et état des e-mails se replient sur les colonnes d'origine
+// Migrations 20261106_signalements_qr_confirmation.sql puis 20261106_signalements_qr_geoloc_qualite.sql : appliquées
+// en production le 11/11/2026 ; sans elles, insertion et état des e-mails se replient sur les colonnes d'origine
 // (lib/aj-signalement/serveur.ts).
 // Depuis le 11/11/2026 (P1-R20 ; demande de Hugo : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses
 // copropriétés) :

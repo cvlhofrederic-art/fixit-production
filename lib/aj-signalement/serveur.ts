@@ -49,7 +49,7 @@ export const TABLE_ATTRIBUTIONS_QR = 'signalements_qr_attributions'
 export const TABLE_JOURNAL_QR = 'signalements_qr_journal'
 /** Migration à appliquer en production pour que les tables existent. */
 export const MIGRATION_QR = 'supabase/migrations/20261104_signalements_qr.sql'
-/** Migrations du 06/11/2026, à appliquer dans cet ordre (avant la fusion) ; d'ici là, repli sans leurs colonnes. */
+/** Migrations du 06/11/2026, dans cet ordre (appliquées en production le 11/11/2026) ; sans elles, repli sans leurs colonnes. */
 export const MIGRATION_CONFIRMATION_QR = 'supabase/migrations/20261106_signalements_qr_confirmation.sql'
 export const MIGRATION_GEOLOC_QUALITE_QR = 'supabase/migrations/20261106_signalements_qr_geoloc_qualite.sql'
 /**
