@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
+import { SELECT_PUBLIC_MARCHE } from '@/lib/marches-public'
 import { cacheable } from '@/lib/cache'
 import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
@@ -8,6 +9,10 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { haversineDistance } from '@/lib/geo'
 import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 // crypto.randomUUID() is available globally (Web Crypto API)
+
+// Une réponse propre à un compte (ses offres et leurs clés de gestion, ses candidatures, ses marchés proposés)
+// ne doit être gardée par aucun cache, ni navigateur ni mandataire.
+const CACHE_PERSONNEL = 'private, no-store'
 
 /**
  * Déduit le pays (FR/PT) depuis le format du code postal.
@@ -118,8 +123,9 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
     const autreCompte = (publisherUserId && publisherUserId !== user.id) || (artisanUserId && artisanUserId !== user.id)
     if (autreCompte) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
-    if (myBids === 'true' && artisanId && !publisherUserId) {
-      // La fiche dont on demande les candidatures doit appartenir au compte appelant.
+    if (myBids === 'true' && artisanId) {
+      // La fiche dont on demande les candidatures doit appartenir au compte appelant (contrôlé même quand un
+      // autre mode personnel est demandé en même temps : la garde ne dépend pas de l'ordre des blocs plus bas).
       const { data: fiche } = await supabaseAdmin
         .from('profiles_artisan')
         .select('id')
@@ -144,7 +150,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    return NextResponse.json({ marches: publisherMarches || [] })
+    return NextResponse.json({ marches: publisherMarches || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── My bids mode: return all candidatures for an artisan ──────────────────
@@ -168,7 +174,7 @@ export async function GET(request: NextRequest) {
       my_candidature_id: c.id,
     }))
 
-    return NextResponse.json({ candidatures: enriched })
+    return NextResponse.json({ candidatures: enriched }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   const today = new Date().toISOString().split('T')[0]
@@ -204,7 +210,7 @@ export async function GET(request: NextRequest) {
     // la colonne sert seulement au filtre `artisan_user_id` plus bas.
     let query = supabaseAdmin
       .from('marches')
-      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type, btp_company_name, mission_type, start_date, duration_text, nb_intervenants_souhaite')
+      .select(SELECT_PUBLIC_MARCHE)
       .eq('status', 'open')
       .gte('deadline', today)
       .order('created_at', { ascending: false })
@@ -259,7 +265,8 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query
     if (error) throw error
-    return data || []
+    // La liste de colonnes n'est plus une chaîne littérale : le client ne peut plus en déduire le type des lignes.
+    return (data ?? []) as unknown as MarcheRow[]
   }
 
   let marches: MarcheRow[]
@@ -296,7 +303,8 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ marches })
-  response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=300')
+  // La liste filtrée pour un compte (distances depuis son adresse) n'est jamais gardée par un cache partagé.
+  response.headers.set('Cache-Control', isPersonalized ? CACHE_PERSONNEL : 'public, max-age=0, s-maxage=120, stale-while-revalidate=300')
   return response
 }
 

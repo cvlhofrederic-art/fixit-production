@@ -1,16 +1,17 @@
 // tests/components/marches-appels-authentifies.test.tsx
 //
-// Les deux écrans qui lisent les modes personnels de /api/marches envoient le jeton de la session
-// (la route ne répond plus sans : tests/api/marches-acces.test.ts) :
+// Les écrans qui lisent les modes personnels des routes /api/marches envoient le jeton de la session
+// (ces routes ne répondent plus sans : tests/api/marches-acces.test.ts) :
 //   - espace client, « Bourse aux Marchés » : ses offres publiées (?publisher_user_id=…) ;
-//   - tableau de bord artisan / BTP, « Bourse aux Marchés » : ses candidatures (?my_bids=true&artisan_id=…).
+//   - tableau de bord artisan / BTP, « Bourse aux Marchés » : ses candidatures (?my_bids=true&artisan_id=…) ;
+//   - tableau de bord BTP, « Recruter sous-traitants » : ses offres (sous-traitance?btp_company_id=…).
 // Sans l'en-tête, ces listes resteraient vides en silence.
 
 import React from 'react'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 
-const h = vi.hoisted(() => ({ jeton: 'jeton-de-session' as string | null }))
+const h = vi.hoisted(() => ({ jeton: 'jeton-de-session' as string | null, statut: 200 }))
 
 vi.mock('@/lib/supabase', () => {
   const canal = { on: () => canal, subscribe: () => canal, unsubscribe: () => {} }
@@ -27,11 +28,15 @@ vi.mock('@/lib/realtime-reconnect', () => ({ subscribeWithReconnect: (canal: unk
 vi.mock('next/dynamic', () => ({ default: () => function VueFactice() { return null } }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
+import { toast } from 'sonner'
 import ClientMarchesSection from '@/components/client-dashboard/pages/ClientMarchesSection'
 import BourseAuxMarchesSection from '@/components/marches/BourseAuxMarchesSection'
+import SousTraitanceOffresSection from '@/components/dashboard/SousTraitanceOffresSection'
 
 const COMPTE = '11111111-1111-4111-8111-111111111111'
+const AUTRE_COMPTE = '22222222-2222-4222-8222-222222222222'
 const FICHE = '33333333-3333-4333-8333-333333333333'
+const SOCIETE = { id: FICHE, user_id: COMPTE, company_name: 'Bâtiment du Banc SARL', categories: [] }
 
 type AppelReseau = { url: string; autorisation: string | undefined }
 let appels: AppelReseau[] = []
@@ -39,54 +44,87 @@ let appels: AppelReseau[] = []
 beforeEach(() => {
   appels = []
   h.jeton = 'jeton-de-session'
+  h.statut = 200
+  vi.mocked(toast.error).mockClear()
   vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, options?: RequestInit) => {
     const entetes = (options?.headers ?? {}) as Record<string, string>
     appels.push({ url: String(url), autorisation: entetes.Authorization })
-    return new Response(JSON.stringify({ marches: [], candidatures: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ marches: [], candidatures: [], offers: [] }), { status: h.statut, headers: { 'Content-Type': 'application/json' } })
   }))
 })
 afterEach(() => { vi.unstubAllGlobals() })
 
-const appelVers = (fragment: string) => appels.find(a => a.url.includes(fragment))
+const appelsVers = (fragment: string) => appels.filter(a => a.url.includes(fragment))
+/** Laisse aux effets le temps de se rejouer. */
+const laisserPasser = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 50)) })
 
 describe('Espace client — mes appels d’offres publiés', () => {
   it('la lecture part avec le jeton de la session', async () => {
     await act(async () => { render(<ClientMarchesSection userId={COMPTE} locale="fr" />) })
-    await vi.waitFor(() => expect(appelVers('publisher_user_id=')).toBeDefined())
-    expect(appelVers('publisher_user_id=')).toEqual({
+    await vi.waitFor(() => expect(appelsVers('publisher_user_id=')).toHaveLength(1))
+    expect(appelsVers('publisher_user_id=')[0]).toEqual({
       url: `/api/marches?publisher_user_id=${COMPTE}`,
       autorisation: 'Bearer jeton-de-session',
     })
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('une liste vide ne relance pas la lecture (un seul appel, pas de boucle)', async () => {
     await act(async () => { render(<ClientMarchesSection userId={COMPTE} locale="fr" />) })
-    await vi.waitFor(() => expect(appelVers('publisher_user_id=')).toBeDefined())
-    // Laisse aux effets le temps de se rejouer : avant correction, chaque réponse vide relançait un appel.
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)) })
-    expect(appels.filter(a => a.url.includes('publisher_user_id='))).toHaveLength(1)
+    await vi.waitFor(() => expect(appelsVers('publisher_user_id=')).toHaveLength(1))
+    // Avant correction, chaque réponse vide relançait un appel.
+    await laisserPasser()
+    expect(appelsVers('publisher_user_id=')).toHaveLength(1)
   })
 
-  it('sans session, l’appel part quand même (la route répond 401 au lieu d’un échec muet)', async () => {
+  it('un refus du serveur (session expirée) est dit à l’utilisateur, sans relance', async () => {
     h.jeton = null
+    h.statut = 401
     await act(async () => { render(<ClientMarchesSection userId={COMPTE} locale="fr" />) })
-    await vi.waitFor(() => expect(appelVers('publisher_user_id=')).toBeDefined())
-    expect(appelVers('publisher_user_id=')?.autorisation).toBeUndefined()
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Impossible de charger vos marchés'))
+    await laisserPasser()
+    expect(appelsVers('publisher_user_id=')).toEqual([{ url: `/api/marches?publisher_user_id=${COMPTE}`, autorisation: undefined }])
+    expect(toast.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('pas de compte : aucun appel ; changement de compte : nouvelle lecture pour le nouveau compte', async () => {
+    let rendu!: ReturnType<typeof render>
+    await act(async () => { rendu = render(<ClientMarchesSection userId={undefined} locale="fr" />) })
+    await laisserPasser()
+    expect(appels).toHaveLength(0)
+    await act(async () => { rendu.rerender(<ClientMarchesSection userId={COMPTE} locale="fr" />) })
+    await vi.waitFor(() => expect(appelsVers('publisher_user_id=')).toHaveLength(1))
+    await act(async () => { rendu.rerender(<ClientMarchesSection userId={AUTRE_COMPTE} locale="fr" />) })
+    await vi.waitFor(() => expect(appelsVers('publisher_user_id=')).toHaveLength(2))
+    expect(appelsVers('publisher_user_id=')[1].url).toBe(`/api/marches?publisher_user_id=${AUTRE_COMPTE}`)
   })
 })
 
 describe('Tableau de bord artisan / BTP — mes candidatures', () => {
   for (const orgRole of ['pro_societe', 'artisan'] as const) {
     it(`${orgRole} : la lecture des candidatures part avec le jeton de la session`, async () => {
-      const artisan = { id: FICHE, user_id: COMPTE, company_name: 'Bâtiment du Banc SARL', categories: [] }
-      await act(async () => { render(<BourseAuxMarchesSection artisan={artisan} orgRole={orgRole} navigateTo={vi.fn()} />) })
-      await vi.waitFor(() => expect(appelVers('my_bids=true')).toBeDefined())
-      expect(appelVers('my_bids=true')).toEqual({
+      await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole={orgRole} navigateTo={vi.fn()} />) })
+      await vi.waitFor(() => expect(appelsVers('my_bids=true')).not.toHaveLength(0))
+      expect(appelsVers('my_bids=true')[0]).toEqual({
         url: `/api/marches?my_bids=true&artisan_id=${FICHE}`,
         autorisation: 'Bearer jeton-de-session',
       })
-      // La liste publique des marchés, elle, n'a pas besoin de jeton.
-      expect(appels.some(a => a.url.startsWith('/api/marches?') && a.url.includes('pays=FR') && !a.url.includes('my_bids'))).toBe(true)
+      // La liste publique des marchés, elle, part sans jeton.
+      const listePublique = appels.filter(a => a.url.startsWith('/api/marches?') && a.url.includes('pays=FR') && !a.url.includes('my_bids'))
+      expect(listePublique.length).toBeGreaterThan(0)
+      expect(listePublique.every(a => a.autorisation === undefined)).toBe(true)
     })
   }
+})
+
+describe('Tableau de bord BTP — mes offres de sous-traitance', () => {
+  it('la lecture des offres de la société part avec le jeton de la session', async () => {
+    await act(async () => { render(<SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="pro_societe" />) })
+    await vi.waitFor(() => expect(appelsVers('sous-traitance?btp_company_id=')).not.toHaveLength(0))
+    expect(appelsVers('sous-traitance?btp_company_id=')[0]).toEqual({
+      url: `/api/marches/sous-traitance?btp_company_id=${FICHE}`,
+      autorisation: 'Bearer jeton-de-session',
+    })
+    expect(screen.queryByText('Session expirée')).toBeNull()
+  })
 })

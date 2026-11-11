@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { validateBody, VALID_UUID } from '@/lib/validation'
+import { vuePubliqueMarche } from '@/lib/marches-public'
 
 const marchesPatchSchema = z.object({
   access_token: z.string().max(200).optional(),
@@ -31,16 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Marché non trouvé' }, { status: 404 })
   }
 
-  // Vue publique : masquer le access_token et les infos sensibles, dont les identifiants de compte
-  // (celui du publieur et ceux des entreprises ciblées).
-  const publicMarche = { ...marche }
-  delete publicMarche.access_token
-  delete publicMarche.publisher_email
-  delete publicMarche.publisher_phone
-  delete publicMarche.publisher_user_id
-  delete publicMarche.matched_artisans
-
-  // Si le token correspond, c'est le publisher → inclure les candidatures
+  // Si le token correspond, c'est le publisher → fiche complète et candidatures, jamais gardées par un cache.
   if (token && token === marche.access_token) {
     const { data: candidatures } = await supabaseAdmin
       .from('marches_candidatures')
@@ -52,10 +44,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       marche: { ...marche },
       candidatures: candidatures || [],
       is_publisher: true,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
-  const response = NextResponse.json({ marche: publicMarche })
+  // Vue publique : liste blanche des colonnes (lib/marches-public.ts), la même que celle de la liste publique.
+  // Ni clé de gestion, ni coordonnées du publieur, ni identifiant de compte, ni adresse précise des travaux.
+  const response = NextResponse.json({ marche: vuePubliqueMarche(marche) })
   response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
   return response
 }

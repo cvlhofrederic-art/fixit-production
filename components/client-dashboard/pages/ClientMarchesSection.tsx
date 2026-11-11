@@ -20,10 +20,10 @@ export default function ClientMarchesSection({ userId, locale }: ClientMarchesSe
     try {
       // Route réservée au compte lui-même (la réponse contient les clés de gestion de ses offres) : jeton requis.
       const res = await fetchAuthentifie(`/api/marches?publisher_user_id=${uid}`)
-      if (res.ok) {
-        const data = await res.json()
-        setMyMarches(data.marches || [])
-      }
+      // Un refus (session expirée, limite de débit, panne) est dit à l'utilisateur, pas affiché comme « aucune offre ».
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setMyMarches(data.marches || [])
     } catch (e) {
       console.warn('[ClientMarchesSection] fetchMyMarches failed:', e)
       toast.error('Impossible de charger vos marchés')

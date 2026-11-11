@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -161,7 +162,8 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
     if (!artisan?.id) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/marches/sous-traitance?btp_company_id=${artisan.id}`)
+      // Route réservée au compte lui-même (ses offres, tous statuts confondus) : jeton requis.
+      const res = await fetchAuthentifie(`/api/marches/sous-traitance?btp_company_id=${artisan.id}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
       setOffers(data.offers || [])
