@@ -35,6 +35,8 @@ describe('next.config.ts : espaces jamais indexables', () => {
   it.each([
     `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:path*`,
     `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/:path*`,
+    // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3).
+    `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/:path*`,
     '/cabinet/:path*',
   ])('chemin public d’un cabinet (%s) : noindex', async (source) => {
     expect(await robotsDe(source)).toBe('noindex, nofollow, noarchive')

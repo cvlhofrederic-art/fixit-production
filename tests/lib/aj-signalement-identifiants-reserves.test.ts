@@ -10,9 +10,9 @@
 //    dans PREFIXES_RESERVES_QR. Le test n'importe pas next.config.ts (il tourne sans le Sentry local).
 //    Limite : il ne voit pas la base. Avant d'ajouter une redirection racine « /<x>/:path* », vérifier en base
 //    qu'aucun cabinet ne porte déjà l'identifiant <x> (sinon ses QR codes imprimés seraient captés).
-// 2. Masquage : le middleware reconnaît « /<x>/signalement/<32 hex>/ » et « /<x>/confirmation-adresse/ » pour tout
-//    <x> du motif, avant la langue. Aucune page de app/ ne doit donc avoir l'une de ces formes (ni « suivi » ou
-//    « invitation », réservés à la PR 2), sinon elle deviendrait injoignable.
+// 2. Masquage : le middleware reconnaît « /<x>/signalement/<32 hex>/ », « /<x>/confirmation-adresse/ » et
+//    « /<x>/invitation/ » (PR 2, lot 3) pour tout <x> du motif, avant la langue. Aucune page de app/ ne doit donc avoir
+//    l'une de ces formes (ni « suivi » ou « connexion », réservés au lot 4), sinon elle deviendrait injoignable.
 // 3. Aucun identifiant ni domaine réel d'un client en dur : il se saisit dans l'espace par le super admin. Le mot
 //    cherché est construit par concaténation (il n'apparaît pas dans ce fichier).
 

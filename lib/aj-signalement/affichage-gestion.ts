@@ -420,3 +420,45 @@ export const TEXTES_CONFIRMATION_QR = {
   indisponible: 'Le service ne répond pas pour le moment. Réessayez dans un instant.',
   reessayer: 'Réessayer',
 } as const
+
+/**
+ * Page publique d'ouverture de l'accès d'un gestionnaire (vitfix.io/<identifiant>/invitation/, PR 2 ; français
+ * seulement, comme tout l'espace). Règle du mot de passe : celle de « mot de passe oublié » (motDePasseConforme).
+ */
+export const TEXTES_INVITATION_ACCES_QR = {
+  titre: 'Ouverture de votre accès',
+  verification: 'Vérification du lien…',
+  presentation: '{nomCourt}, gestionnaire chez {cabinet} — adresse {email}',
+  explication: 'Choisissez votre mot de passe : il ouvre votre compte professionnel VitFix et l’espace AJ Signalement de votre cabinet, où vous suivez les signalements de vos copropriétés.',
+  motDePasse: 'Mot de passe',
+  confirmation: 'Confirmez le mot de passe',
+  regle: '8 caractères au moins, dont une majuscule, une minuscule et un chiffre.',
+  afficher: 'Afficher les mots de passe',
+  masquer: 'Masquer les mots de passe',
+  politique: 'J’ai pris connaissance de la',
+  politiqueLien: 'politique de confidentialité',
+  ouvrir: 'Ouvrir mon accès',
+  ouvertureEnCours: 'Ouverture en cours…',
+  erreurs: {
+    regle: 'Le mot de passe doit compter 8 caractères au moins, dont une majuscule, une minuscule et un chiffre.',
+    differents: 'Les deux mots de passe ne sont pas identiques.',
+    politique: 'Cochez la case pour continuer.',
+    refuse: 'Ce mot de passe n’est pas accepté : choisissez-en un autre.',
+    tropDeDemandes: 'Trop d’essais en peu de temps : patientez quelques minutes, puis réessayez.',
+  },
+  pasMoi: 'Ce n’est pas moi',
+  pasMoiAvertissement: 'Aucun compte ne sera créé et le cabinet sera prévenu.',
+  confirmerPasMoi: 'Confirmer : ce n’est pas moi',
+  annuler: 'Annuler',
+  ouvert: 'Accès ouvert. Connectez-vous.',
+  seConnecter: 'Se connecter',
+  liaisonIncomplete: 'Votre compte existe mais l’accès n’a pas pu être relié. Le cabinet a été prévenu.',
+  dejaOuvert: 'Votre accès est déjà ouvert. Connectez-vous ; si vous avez perdu votre mot de passe, utilisez « Mot de passe oublié ».',
+  autreEspace: 'Cette adresse est déjà celle d’un compte VitFix d’un autre espace : elle ne peut pas servir à cet accès. Le cabinet a été prévenu.',
+  contestee: 'C’est noté : aucun compte n’a été créé, le cabinet est prévenu.',
+  invalide: 'Ce lien n’est pas valable.',
+  expire: 'Ce lien a expiré. Demandez un nouvel envoi au cabinet.',
+  reseau: 'Connexion impossible : vérifiez votre réseau puis réessayez.',
+  indisponible: 'Le service ne répond pas pour le moment. Réessayez dans un instant.',
+  reessayer: 'Réessayer',
+} as const

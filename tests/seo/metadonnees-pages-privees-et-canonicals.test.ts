@@ -127,6 +127,14 @@ describe('pages privées : noindex, nofollow', () => {
     expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
     expect(metadata.referrer).toBe('no-referrer')
   })
+
+  it('/<identifiant>/invitation/ (ouverture de l’accès d’un gestionnaire) : noindex, aucun Referer, titre propre', async () => {
+    vi.doMock('@/components/aj-signalement/InvitationAccesQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/invitation/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+    expect(metadata.title).toBe('AJ Signalement — Ouverture de votre accès')
+  })
 })
 
 describe('sitemaps : aucune page privée soumise', () => {

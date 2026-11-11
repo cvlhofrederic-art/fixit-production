@@ -195,3 +195,63 @@ describe('confirmation d’adresse (page publique)', () => {
     expect(await lireLienConfirmationQr('x', 'cabinet-exemple', fetchImpl)).toEqual({ ok: false, code: 'reseau' })
   })
 })
+
+describe('accès des gestionnaires (PR 2, lot 3)', () => {
+  const TOKEN = `${'a'.repeat(48)}.${'b'.repeat(64)}`
+
+  it('codes 409 propres à l’accès lus tels quels : deja_ouvert, compte_autre_espace', () => {
+    expect(codeDepuisReponseQr(409, { error: 'deja_ouvert' })).toBe('deja_ouvert')
+    expect(codeDepuisReponseQr(409, { error: 'compte_autre_espace' })).toBe('compte_autre_espace')
+  })
+
+  it('lecture du lien : POST /invitation/lecture { token, cabinet } (le jeton dans le CORPS, jamais dans l’adresse)', async () => {
+    const { lireLienAccesQr } = await import('@/lib/aj-signalement/api')
+    const s = simuler({ nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', email: 'ma***@exemple.test' })
+    expect(await lireLienAccesQr(TOKEN, 'cabinet-exemple', s.fetchImpl)).toEqual({ ok: true, nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', email: 'ma***@exemple.test' })
+    expect(s.appels[0].url).toBe('/api/aj-signalement/invitation/lecture')
+    expect(s.appels[0].init?.method).toBe('POST')
+    expect(s.corps()).toEqual({ token: TOKEN, cabinet: 'cabinet-exemple' })
+  })
+
+  it('acceptation : corps complet (case cochée) ; 200 ouvert, 207 liaison incomplète (succès partiel), 409 / 410 en codes', async () => {
+    const { accepterAccesQr } = await import('@/lib/aj-signalement/api')
+    const ok = simuler({ acces: 'ouvert' })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', ok.fetchImpl)).toEqual({ ok: true, liaisonIncomplete: false })
+    expect(ok.appels[0].url).toBe('/api/aj-signalement/invitation')
+    expect(ok.corps()).toEqual({ token: TOKEN, cabinet: 'cabinet-exemple', password: 'Bonjour2026', politiqueLue: true })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'liaison_incomplete' }, 207).fetchImpl))
+      .toEqual({ ok: true, liaisonIncomplete: true })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'compte_autre_espace' }, 409).fetchImpl))
+      .toEqual({ ok: false, code: 'compte_autre_espace' })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'Bonjour2026', simuler({ error: 'expire' }, 410).fetchImpl)).toEqual({ ok: false, code: 'expire' })
+    expect(await accepterAccesQr(TOKEN, 'cabinet-exemple', 'x', simuler({ error: 'invalide' }, 400).fetchImpl)).toEqual({ ok: false, code: 'invalide' })
+  })
+
+  it('« Ce n’est pas moi » : POST /invitation/refus { token, cabinet }', async () => {
+    const { contesterAccesQr } = await import('@/lib/aj-signalement/api')
+    const s = simuler({ contestee: true })
+    expect(await contesterAccesQr(TOKEN, 'cabinet-exemple', s.fetchImpl)).toEqual({ ok: true })
+    expect(s.appels[0].url).toBe('/api/aj-signalement/invitation/refus')
+    expect(s.corps()).toEqual({ token: TOKEN, cabinet: 'cabinet-exemple' })
+  })
+
+  it('super admin : ouvrir l’accès d’une fiche (POST …/gestionnaires/<id>/acces), puis de plusieurs (POST …/gestionnaires/acces)', async () => {
+    const { ouvrirAccesGestionnaireQr, ouvrirAccesGroupeQr } = await import('@/lib/aj-signalement/api')
+    const un = simuler({ emailEnvoye: true })
+    expect(await ouvrirAccesGestionnaireQr(G1, un.fetchImpl)).toEqual({ ok: true, emailEnvoye: true })
+    expect(un.appels[0].url).toBe(`/api/aj-signalement/gestionnaires/${G1}/acces`)
+    expect(un.appels[0].init?.method).toBe('POST')
+    expect(await ouvrirAccesGestionnaireQr(G1, simuler({ error: 'deja_ouvert' }, 409).fetchImpl)).toEqual({ ok: false, code: 'deja_ouvert' })
+    const groupe = simuler({ envoyes: 1, echecs: [{ id: K1, code: 'adresse_contestee' }, { id: 5, code: 'x' }] })
+    expect(await ouvrirAccesGroupeQr([G1, K1], groupe.fetchImpl)).toEqual({ ok: true, envoyes: 1, echecs: [{ id: K1, code: 'adresse_contestee' }] })
+    expect(groupe.appels[0].url).toBe('/api/aj-signalement/gestionnaires/acces')
+    expect(groupe.corps()).toEqual({ gestionnaireIds: [G1, K1] })
+  })
+
+  it('réseau coupé : aucune exception, code reseau', async () => {
+    const { lireLienAccesQr } = await import('@/lib/aj-signalement/api')
+    const fetchImpl = vi.fn(async () => { throw new TypeError('Failed to fetch') }) as unknown as typeof fetch
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect(await lireLienAccesQr(TOKEN, 'cabinet-exemple', fetchImpl)).toEqual({ ok: false, code: 'reseau' })
+  })
+})

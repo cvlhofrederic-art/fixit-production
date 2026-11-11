@@ -7,6 +7,7 @@ import {
 } from './aj-signalement/chemin-cabinet'
 import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
 import { ACTIONS_JOURNAL_QR } from './aj-signalement/types'
+import { motDePasseConforme } from './auth/lien-email'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -593,10 +594,28 @@ export const departGestionnaireQrSchema = z.strictObject({
 })
 
 // P1-R16, R17, R17b (publiques) : jeton signé du lien + identifiant du chemin du cabinet (vérifié contre la fiche).
+// Aussi P2-R2 et P2-R3b (lien d'accès d'un gestionnaire, PR 2).
 export const jetonLienQrSchema = z.strictObject({
   token: z.string().regex(/^[a-f0-9]{48}\.[a-f0-9]{64}$/),
   cabinet: identifiantCheminQrSchema,
 })
+
+// P2-R3 (publique) : acceptation de l'accès d'un gestionnaire. Mot de passe : la règle de « mot de passe oublié »
+// (motDePasseConforme : 8 caractères au moins, une majuscule, une minuscule, un chiffre, 72 octets au plus), jamais
+// rogné ni transformé ; case « politique de confidentialité » obligatoire. Ni rôle, ni repère, ni cabinet d'arrivée :
+// le serveur les fixe (clé inconnue → 400).
+export const invitationGestionnaireQrSchema = z.strictObject({
+  token: z.string().regex(/^[a-f0-9]{48}\.[a-f0-9]{64}$/),
+  cabinet: identifiantCheminQrSchema,
+  password: z.string().max(200).refine(motDePasseConforme, '8 caractères au moins, dont une majuscule, une minuscule et un chiffre'),
+  politiqueLue: z.literal(true),
+})
+
+// P2-R1b : envoi groupé des accès (super admin), 1 à 50 fiches, une à une.
+export const accesGroupeQrSchema = z.strictObject({ gestionnaireIds: z.array(z.uuid()).min(1).max(50) })
+
+// P2-R1 : envoi de l'accès d'une fiche, sans corps (ou un objet vide).
+export const corpsVideQrSchema = z.strictObject({})
 
 // P1-R21, R22, R23 : cabinets clients (saisis par le super admin, jamais dans le code).
 export const cabinetQrSchema = z.strictObject({

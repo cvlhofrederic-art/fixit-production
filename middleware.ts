@@ -156,7 +156,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
-  // /<identifiant>/confirmation-adresse/ ; choix de Hugo du 10/11/2026). Reconnu AVANT la langue (sinon 302 vers
+  // /<identifiant>/confirmation-adresse/, et /<identifiant>/invitation/ depuis la PR 2 ; choix de Hugo du 10/11/2026).
+  // Reconnu AVANT la langue (sinon 302 vers
   // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/aj-signalement/chemin-cabinet.ts) ; la
   // réécriture de next.config.ts mène ensuite à la page interne, qui vérifie que le jeton appartient au cabinet du chemin.
   // Ni Supabase, ni cookie de langue, ni redirection ; jamais indexé ni mis en cache partagé.

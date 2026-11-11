@@ -118,10 +118,13 @@ const nextConfig: NextConfig = {
         // AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/aj-signalement/chemin-cabinet.ts),
         // laissé sans langue par le middleware (même motif). Deux paramètres capturés : la destination est toujours compilée
         // par OpenNext (jamais littérale). Pages internes app/(commun)/cabinet/[identifiant]/…, joignables seulement ainsi.
-        // Paire avec et sans barre finale pour la confirmation, comme les règles exactes ci-dessus.
+        // Paire avec et sans barre finale pour la confirmation et l'ouverture de l'accès d'un gestionnaire (PR 2), comme
+        // les règles exactes ci-dessus ; jamais « :path* ».
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`, destination: '/cabinet/:identifiant/signalement/:jeton' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`, destination: '/cabinet/:identifiant/confirmation-adresse' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`, destination: '/cabinet/:identifiant/confirmation-adresse/' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`, destination: '/cabinet/:identifiant/invitation' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`, destination: '/cabinet/:identifiant/invitation/' },
       ],
       afterFiles: [],
       fallback: [],
@@ -333,6 +336,7 @@ const nextConfig: NextConfig = {
       ...[
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:path*`,
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/:path*`,
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/:path*`,
         '/cabinet/:path*',
       ].map((source) => ({
         source,

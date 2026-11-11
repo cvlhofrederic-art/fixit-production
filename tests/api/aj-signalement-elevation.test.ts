@@ -34,6 +34,8 @@ const GESTIONNAIRE = await import('@/app/api/aj-signalement/gestionnaires/[id]/r
 const DEPART = await import('@/app/api/aj-signalement/gestionnaires/[id]/depart/route')
 const EXPORT = await import('@/app/api/aj-signalement/gestionnaires/[id]/export/route')
 const CONFIRMATION = await import('@/app/api/aj-signalement/gestionnaires/[id]/confirmation/route')
+const ACCES = await import('@/app/api/aj-signalement/gestionnaires/[id]/acces/route')
+const ACCES_GROUPE = await import('@/app/api/aj-signalement/gestionnaires/acces/route')
 const COPROS_GESTIONNAIRE = await import('@/app/api/aj-signalement/gestionnaires/[id]/coproprietes/route')
 const COPROS = await import('@/app/api/aj-signalement/coproprietes/route')
 const COPRO = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
@@ -89,6 +91,10 @@ describe('routes réservées au super admin : 403 interdit pour un gestionnaire,
     ['POST gestionnaires/[id]/depart', DEPART.POST, `/api/aj-signalement/gestionnaires/${G}/depart`, 'POST', G, { successions: [] }],
     ['GET gestionnaires/[id]/export', EXPORT.GET, `/api/aj-signalement/gestionnaires/${G}/export`, 'GET', G],
     ['POST gestionnaires/[id]/confirmation', CONFIRMATION.POST, `/api/aj-signalement/gestionnaires/${G}/confirmation`, 'POST', G, {}],
+    // Lot 3 : ouverture des accès (envoi d'une fiche, envoi groupé), jamais par un gestionnaire, même pour lui-même.
+    ['POST gestionnaires/[id]/acces', ACCES.POST, `/api/aj-signalement/gestionnaires/${G}/acces`, 'POST', G],
+    ['POST gestionnaires/[id]/acces (sa propre fiche)', ACCES.POST, `/api/aj-signalement/gestionnaires/${A.G1}/acces`, 'POST', A.G1],
+    ['POST gestionnaires/acces', ACCES_GROUPE.POST, '/api/aj-signalement/gestionnaires/acces', 'POST', '', { gestionnaireIds: [A.G1, G] }],
     ['PUT gestionnaires/[id]/coproprietes', COPROS_GESTIONNAIRE.PUT, `/api/aj-signalement/gestionnaires/${G}/coproprietes`, 'PUT', G, { coproprieteIds: [C] }],
     ['DELETE coproprietes/[id]', COPRO.DELETE, `/api/aj-signalement/coproprietes/${C}`, 'DELETE', C],
     ['PUT coproprietes/[id]/gestionnaires', COPRO_GESTIONNAIRES.PUT, `/api/aj-signalement/coproprietes/${C}/gestionnaires`, 'PUT', C, { gestionnaireIds: [A.G1] }],

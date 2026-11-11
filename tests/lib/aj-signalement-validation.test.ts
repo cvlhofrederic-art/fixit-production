@@ -220,3 +220,50 @@ describe('schémas publics inchangés', () => {
     expect(semblablesQrQuerySchema.safeParse({ jeton: '0'.repeat(32), batiment: 'A', zone: 'Hall', autre: '1' }).success).toBe(true)
   })
 })
+
+describe('accès d’un gestionnaire (PR 2, lot 3)', () => {
+  const ACCEPTATION = { token: JETON_LIEN, cabinet: 'cabinet-exemple', password: 'Bonjour2026', politiqueLue: true }
+
+  it('acceptation : jeton signé, identifiant du chemin, mot de passe conforme (règle de « mot de passe oublié »), case cochée', async () => {
+    const { invitationGestionnaireQrSchema } = await import('@/lib/validation')
+    expect(invitationGestionnaireQrSchema.safeParse(ACCEPTATION).success).toBe(true)
+    const r = invitationGestionnaireQrSchema.safeParse({ ...ACCEPTATION, cabinet: ' Cabinet-Exemple ' })
+    expect(r.success && r.data.cabinet).toBe('cabinet-exemple')
+    // Le mot de passe n'est jamais rogné ni transformé.
+    const espaces = invitationGestionnaireQrSchema.safeParse({ ...ACCEPTATION, password: ' Bonjour2026 ' })
+    expect(espaces.success && espaces.data.password).toBe(' Bonjour2026 ')
+  })
+
+  it.each([
+    ['trop court', { password: 'Abc123' }],
+    ['sans majuscule', { password: 'bonjour2026' }],
+    ['sans minuscule', { password: 'BONJOUR2026' }],
+    ['sans chiffre', { password: 'BonjourBonjour' }],
+    ['plus de 72 octets', { password: `Aa1${'é'.repeat(40)}` }],
+    ['plus de 200 caractères', { password: `Aa1${'b'.repeat(200)}` }],
+    ['case non cochée', { politiqueLue: false }],
+    ['case absente', { politiqueLue: undefined }],
+    ['jeton mal formé', { token: 'a'.repeat(48) }],
+    ['identifiant hors format', { cabinet: 'Cabinet Exemple' }],
+    ['rôle fourni', { role: 'super_admin' }],
+    ['repère fourni', { aj_signalement_cabinet: 'autre-cabinet' }],
+  ])('acceptation refusée : %s', async (_cas, sur) => {
+    const { invitationGestionnaireQrSchema } = await import('@/lib/validation')
+    expect(invitationGestionnaireQrSchema.safeParse({ ...ACCEPTATION, ...sur }).success).toBe(false)
+  })
+
+  it('envoi groupé : 1 à 50 fiches (uuid), strict', async () => {
+    const { accesGroupeQrSchema } = await import('@/lib/validation')
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: [UUID] }).success).toBe(true)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: [] }).success).toBe(false)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: Array.from({ length: 51 }, () => UUID) }).success).toBe(false)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: ['x'] }).success).toBe(false)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: [UUID], cabinetId: UUID }).success).toBe(false)
+  })
+
+  it('envoi d’un accès : corps vide seulement', async () => {
+    const { corpsVideQrSchema } = await import('@/lib/validation')
+    expect(corpsVideQrSchema.safeParse({}).success).toBe(true)
+    expect(corpsVideQrSchema.safeParse({ email: 'x@exemple.test' }).success).toBe(false)
+  })
+})

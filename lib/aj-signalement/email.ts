@@ -243,12 +243,60 @@ export async function envoyerConfirmationAdresseQr(p: ParametresConfirmationAdre
   return envoyerUnQr({ to: p.email, subject, html, tags: [{ name: 'type', value: 'aj-signalement-adresse' }] })
 }
 
+// ── Ouverture de l'accès d'un gestionnaire à l'espace de son cabinet (PR 2, SPEC § 2.3.2) ──
+
+/** Mêmes paramètres que la confirmation d'adresse ; lien /<identifiant>/invitation/#<jeton> (jeton après le « # »). */
+export type ParametresAccesGestionnaireQr = ParametresConfirmationAdresseQr
+
+/**
+ * Accès au suivi des signalements de ses copropriétés (compte professionnel VitFix, mot de passe choisi sur la page du
+ * lien). Comme la confirmation, l'e-mail nomme la personne et le cabinet pour qu'un mauvais destinataire réponde « Ce
+ * n'est pas moi ». Aucune donnée de copropriété ni de signalement, aucun mot de passe. FR seul (tout l'espace est en
+ * français).
+ */
+export function templateAccesGestionnaireQr({ nomCourt, cabinet, lien }: ParametresAccesGestionnaireQr): { subject: string; html: string } {
+  const e = echapperHtml
+  const paragraphe = (texte: string, marge = '0 0 14px') => `<p style="margin:${marge};font-size:15px;line-height:1.55;color:#0D1B2E;">${texte}</p>`
+  const corps = `${paragraphe(`Bonjour ${e(nomCourt)},`)}
+          ${paragraphe(`${e(cabinet)} vous ouvre un accès à son espace AJ Signalement : vous y suivrez les signalements de vos copropriétés et pourrez changer leur statut. Choisissez votre mot de passe pour créer votre compte professionnel. Ce lien est valable 7 jours et ne sert qu’une fois.`)}
+          <p style="margin:20px 0;">
+            <a href="${e(lien)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir mon accès</a>
+          </p>
+          ${paragraphe(`<strong>Vous n’êtes pas ${e(nomCourt)}, gestionnaire chez ${e(cabinet)} ?</strong> Ouvrez le lien et cliquez « Ce n’est pas moi » : le cabinet sera prévenu et aucun compte ne sera créé.`)}
+          <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#4A5E78;">Vos nom et adresse professionnelle sont traités par votre employeur pour le suivi des signalements (VitFix, sous-traitant). Durée : le temps de votre mission, puis 12 mois. Contact : votre employeur. <a href="https://vitfix.io/fr/confidentialite/" style="color:#4A5E78;">Politique de confidentialité</a></p>`
+  const html = cadreEmailQr({
+    langue: 'fr',
+    titreHtml: 'Votre accès à AJ Signalement',
+    corpsHtml: corps,
+    piedHtml: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+  })
+  return { subject: `AJ Signalement — ${cabinet} : ouvrez votre accès`, html }
+}
+
+/** Envoie l'accès à la seule adresse de la fiche (sendBatchEmails) ; vrai si parti. Ne lève jamais. */
+export async function envoyerAccesGestionnaireQr(p: ParametresAccesGestionnaireQr & { email: string }): Promise<boolean> {
+  const { subject, html } = templateAccesGestionnaireQr(p)
+  return envoyerUnQr({ to: p.email, subject, html, tags: [{ name: 'type', value: 'aj-signalement-acces' }] })
+}
+
 // ── Alertes au super admin (sans nom ni adresse de personne) ─────────────────
 
-/** « Ce n'est pas moi » (P1-R17b). */
+/** « Ce n'est pas moi » (P1-R17b ; aussi depuis un lien d'accès, P2-R3b). */
 export const ALERTE_ADRESSE_CONTESTEE_QR = {
   objet: 'AJ Signalement — adresse de gestionnaire contestée',
   texte: 'Une adresse de gestionnaire a été contestée par son destinataire : aucun e-mail ne lui sera envoyé. Créez une fiche avec la bonne adresse, puis faites le départ de la fiche contestée.',
+} as const
+
+/** Acceptation d'un accès refusée : l'adresse est celle d'un compte VitFix d'un autre espace (P2-R3, jamais converti). */
+export const ALERTE_REFUS_AUTRE_ESPACE_QR = {
+  objet: 'AJ Signalement — accès d’un gestionnaire refusé (adresse d’un autre espace)',
+  texte: 'L’adresse d’un gestionnaire est déjà celle d’un compte VitFix d’un autre espace : son accès n’a pas été ouvert (un compte existant n’est jamais converti). Créez une fiche avec une autre adresse, puis faites le départ de celle-ci.',
+} as const
+
+/** Accès accepté, mais le compte n'a pas pu être relié à la fiche (contrôle après coup de P2-R3). */
+export const ALERTE_LIAISON_INCOMPLETE_QR = {
+  objet: 'AJ Signalement — accès d’un gestionnaire à vérifier',
+  texte: 'Un gestionnaire a accepté son accès, mais son compte n’a pas pu être relié à sa fiche. Ouvrez la fiche, puis renvoyez l’accès : le compte existant sera rattaché.',
 } as const
 
 export function templateAlerteAdministrateurQr(p: { objet: string; texte: string; lien: string }): { subject: string; html: string } {

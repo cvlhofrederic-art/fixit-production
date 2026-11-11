@@ -10,7 +10,8 @@
 -- départ, date d'une demande d'effacement transmise au cabinet), FK vers auth.users (ON DELETE SET NULL), index unique
 -- « un compte = une fiche », envoi d'un accès en une transaction (signalements_qr_envoyer_acces), trigger de liaison du
 -- compte, corps de signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel : bouton « Ouvrir le suivi » des
--- e-mails ; même signature, mêmes exclusions). Les actions du journal et les valeurs des envois (objet 'acces', refus
+-- e-mails ; même signature, mêmes exclusions), corps de signalements_qr_contester_adresse élargi (« Ce n'est pas moi »
+-- aussi depuis un lien d'accès ; même signature). Les actions du journal et les valeurs des envois (objet 'acces', refus
 -- 'compte_autre_espace') sont déjà dans les CHECK de la 20261111 : aucune contrainte n'est remplacée.
 --
 -- À appliquer par Frédéric (Supabase > SQL Editor) APRÈS 20261111_signalements_qr_gestionnaires.sql. Additive et
@@ -140,14 +141,43 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   LIMIT 100
 $fn$;
 
--- ── 5. « Ce n'est pas moi » depuis un lien d'accès : corps de signalements_qr_contester_adresse élargi au lot 3 de la
--- PR 2 (objet 'acces' admis, fiche sans compte relié), même signature ; d'ici là, le corps de la 20261111 reste.
+-- ── 5. « Ce n'est pas moi » aussi depuis un lien d'accès (route POST /api/aj-signalement/invitation/refus) ──
+-- Même signature et même corps que la 20261111, avec : envoi de confirmation d'adresse OU d'accès ; fiche SANS compte
+-- relié (un compte ouvert a déjà prouvé la boîte : la fiche ne se conteste plus) ; objet de l'envoi au journal
+-- (details { objet }). La fiche est figée, pas désactivée : le super admin choisit les successions.
+CREATE OR REPLACE FUNCTION signalements_qr_contester_adresse(p_invitation uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+DECLARE
+  v_g    uuid;
+  v_cab  uuid;
+  v_objet text;
+BEGIN
+  UPDATE signalements_qr_invitations i SET refus = 'pas_moi', invite_token = NULL
+   WHERE i.id = p_invitation AND i.objet IN ('confirmation_adresse', 'acces') AND i.accepted_at IS NULL AND i.refus IS NULL
+     AND i.invite_token IS NOT NULL AND i.created_at > now() - interval '7 days'
+     AND EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
+                  WHERE g.id = i.gestionnaire_id AND g.actif AND g.adresse_contestee_le IS NULL AND g.email = i.email
+                    AND g.user_id IS NULL)
+  RETURNING i.gestionnaire_id, i.objet INTO v_g, v_objet;
+  IF NOT FOUND THEN
+    RETURN false;
+  END IF;
+  UPDATE signalements_qr_gestionnaires SET adresse_contestee_le = now() WHERE id = v_g
+  RETURNING cabinet_id INTO v_cab;
+  UPDATE signalements_qr_invitations SET invite_token = NULL
+   WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;
+  INSERT INTO signalements_qr_journal (cabinet_id, acteur_profil, acteur_gestionnaire_id, action, gestionnaire_id, details)
+  VALUES (v_cab, 'gestionnaire', v_g, 'gestionnaire.adresse_contestee', v_g, jsonb_build_object('objet', v_objet));
+  RETURN true;
+END $fn$;
 
 -- ── 6. Droits ──
 REVOKE EXECUTE ON FUNCTION signalements_qr_envoyer_acces(uuid, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_envoyer_acces(uuid, jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_emails_gestionnaires(uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_emails_gestionnaires(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_contester_adresse(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_contester_adresse(uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_lier_gestionnaire() FROM PUBLIC, anon, authenticated;
 
 NOTIFY pgrst, 'reload schema';

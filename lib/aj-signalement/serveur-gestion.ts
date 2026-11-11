@@ -334,13 +334,16 @@ const INTROUVABLE: RelectureLienQr = { ok: false, code: 'introuvable', status: 4
 /**
  * Le lien (signature déjà vérifiée par lireInvitationValide) est-il celui d'une fiche du cabinet du chemin ? Lu avant
  * de traduire « expiré » ou « déjà utilisé » : sous un autre chemin, le même 404 générique (relecture 3). Toute
- * lecture impossible vaut « non » (404, aucun indice), journalisée avec son seul code.
+ * lecture impossible vaut « non » (404, aucun indice), journalisée avec son seul code. `objet` (PR 2) : l'envoi doit
+ * aussi être de cet objet (un lien de confirmation expiré présenté à la page d'accès reste un 404).
  */
-async function lienDuCabinetQr(token: string, identifiantCabinet: string): Promise<boolean> {
+export async function lienDuCabinetQr(token: string, identifiantCabinet: string, objet?: ObjetEnvoiQr): Promise<boolean> {
   const lien = lireJetonDuLien(token)
   if (!lien) return false
-  const envoi = await supabaseAdmin.from(TABLE_INVITATIONS_QR).select('gestionnaire_id').eq('invite_token', lien.jeton).maybeSingle()
-  const gestionnaireId = (envoi.data as { gestionnaire_id?: unknown } | null)?.gestionnaire_id
+  const envoi = await supabaseAdmin.from(TABLE_INVITATIONS_QR).select(objet ? 'gestionnaire_id, objet' : 'gestionnaire_id').eq('invite_token', lien.jeton).maybeSingle()
+  const lu = envoi.data as { gestionnaire_id?: unknown; objet?: unknown } | null
+  const gestionnaireId = lu?.gestionnaire_id
+  if (objet && lu && lu.objet !== objet) return false
   if (envoi.error || typeof gestionnaireId !== 'string') {
     if (envoi.error) logger.warn(`${CONTEXTE} envoi d’un lien expiré ou utilisé non relu`, { code: envoi.error.code })
     return false

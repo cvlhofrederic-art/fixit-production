@@ -6,7 +6,8 @@
 //     session (dépôt, adresse proposée d'après la position, signalements déjà faits au même endroit) ;
 //   - lireLienConfirmationQr, confirmerAdresseQr, contesterAdresseQr : page publique de confirmation d'adresse d'un
 //     gestionnaire (vitfix.io/<identifiant>/confirmation-adresse/#<jeton>) : le jeton part dans le CORPS, jamais dans
-//     l'adresse ;
+//     l'adresse ; lireLienAccesQr, accepterAccesQr, contesterAccesQr : page publique d'ouverture de son accès
+//     (vitfix.io/<identifiant>/invitation/#<jeton>, PR 2), même règle ;
 //   - les autres : espace AJ Signalement (/fr/aj-signalement/, super admin). Le jeton Bearer est ajouté quand il est
 //     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace. Dont
 //     verifierImportQr / creerImportQr (import d'un fichier, lot 5) : seules les lignes normalisées partent, jamais le
@@ -32,6 +33,8 @@ export const CODES_METIER_QR = [
   'doublon', 'hors_domaine', 'existe_deja', 'identifiant_pris', 'identifiant_fige', 'domaine_pris', 'sans_cabinet', 'cabinet_fige',
   'a_reverifier', 'deja_confirmee', 'adresse_contestee', 'adresse_reservee', 'domaines_a_renseigner', 'fiche_active', 'fiche_effacee',
   'signalements_presents', 'conflit_statut', 'expire', 'domaine_autre_cabinet',
+  // PR 2 (accès des gestionnaires) : accès déjà ouvert, adresse d'un compte d'un autre espace (jamais converti).
+  'deja_ouvert', 'compte_autre_espace',
 ] as const
 export type CodeMetierQr = (typeof CODES_METIER_QR)[number]
 
@@ -401,6 +404,26 @@ export async function renvoyerConfirmationQr(id: string, fetchImpl: Fetch = fetc
   return { ok: true, emailEnvoye: estObjet(r.corps) && r.corps.emailEnvoye === true }
 }
 
+/** Ouvre l'accès d'une fiche à l'espace de son cabinet (PR 2, P2-R1) ; emailEnvoye false : l'e-mail n'est pas parti. */
+export async function ouvrirAccesGestionnaireQr(id: string, fetchImpl: Fetch = fetch): Promise<{ ok: true; emailEnvoye: boolean } | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires/${segment(id)}/acces`, 'POST')
+  if (!r.ok) return r
+  return { ok: true, emailEnvoye: estObjet(r.corps) && r.corps.emailEnvoye === true }
+}
+
+export type ResultatAccesGroupeQr = { ok: true; envoyes: number; echecs: Array<{ id: string; code: string }> } | EchecQr
+
+/** Ouvre l'accès de plusieurs fiches, une à une (PR 2, P2-R1b) : nombre d'envois partis et échecs avec leur code. */
+export async function ouvrirAccesGroupeQr(gestionnaireIds: string[], fetchImpl: Fetch = fetch): Promise<ResultatAccesGroupeQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/gestionnaires/acces`, 'POST', { gestionnaireIds })
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : {}
+  const echecs = (Array.isArray(c.echecs) ? c.echecs : [])
+    .filter((e): e is { id: string; code: string } => estObjet(e) && typeof e.id === 'string' && typeof e.code === 'string')
+    .map((e) => ({ id: e.id, code: e.code }))
+  return { ok: true, envoyes: entier(c.envoyes), echecs }
+}
+
 /** Copropriétés attribuées à une fiche (remplace la liste). */
 export async function attribuerCoproprietesGestionnaireQr(
   id: string, coproprieteIds: string[], fetchImpl: Fetch = fetch,
@@ -594,5 +617,34 @@ export async function confirmerAdresseQr(token: string, cabinet: string, fetchIm
 /** « Ce n'est pas moi » : la fiche est figée et le cabinet prévenu. */
 export async function contesterAdresseQr(token: string, cabinet: string, fetchImpl: Fetch = fetch): Promise<ResultatSimpleQr> {
   const r = await appeler(fetchImpl, `${URL_API_QR}/confirmation/refus`, corpsLien(token, cabinet))
+  return r.ok ? { ok: true } : r
+}
+
+// ── Page publique d'ouverture de l'accès d'un gestionnaire (PR 2, sans session) ──
+
+/** Lecture du lien d'accès, SANS effet : nom court, cabinet et adresse masquée. */
+export async function lireLienAccesQr(token: string, cabinet: string, fetchImpl: Fetch = fetch): Promise<ResultatLienConfirmationQr> {
+  const r = await appeler(fetchImpl, `${URL_API_QR}/invitation/lecture`, corpsLien(token, cabinet))
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : {}
+  return { ok: true, nomCourt: chaine(c.nomCourt), cabinet: chaine(c.cabinet), email: chaine(c.email) }
+}
+
+/** Acceptation : liaisonIncomplete (207) = le compte existe mais l'accès n'a pas pu être relié (le cabinet est prévenu). */
+export type ResultatAcceptationAccesQr = { ok: true; liaisonIncomplete: boolean } | EchecQr
+
+/** Ouverture de l'accès avec le mot de passe choisi (case « politique de confidentialité » cochée). */
+export async function accepterAccesQr(token: string, cabinet: string, password: string, fetchImpl: Fetch = fetch): Promise<ResultatAcceptationAccesQr> {
+  const r = await appeler(fetchImpl, `${URL_API_QR}/invitation`, {
+    method: 'POST', headers: entetes(null, true), body: JSON.stringify({ token, cabinet, password, politiqueLue: true }),
+  })
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : {}
+  return { ok: true, liaisonIncomplete: c.acces !== 'ouvert' }
+}
+
+/** « Ce n'est pas moi » depuis un lien d'accès : aucun compte créé, la fiche est figée et le cabinet prévenu. */
+export async function contesterAccesQr(token: string, cabinet: string, fetchImpl: Fetch = fetch): Promise<ResultatSimpleQr> {
+  const r = await appeler(fetchImpl, `${URL_API_QR}/invitation/refus`, corpsLien(token, cabinet))
   return r.ok ? { ok: true } : r
 }

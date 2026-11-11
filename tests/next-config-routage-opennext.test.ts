@@ -512,6 +512,9 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     [`/cabinet-exemple/signalement/${jeton}`, `/cabinet/cabinet-exemple/signalement/${jeton}`],
     ['/cabinet-exemple/confirmation-adresse/', '/cabinet/cabinet-exemple/confirmation-adresse'],
     ['/cabinet-exemple/confirmation-adresse', '/cabinet/cabinet-exemple/confirmation-adresse'],
+    // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : paire exacte, comme la confirmation.
+    ['/cabinet-exemple/invitation/', '/cabinet/cabinet-exemple/invitation'],
+    ['/cabinet-exemple/invitation', '/cabinet/cabinet-exemple/invitation'],
     [`/abc/signalement/${jeton}/`, `/cabinet/abc/signalement/${jeton}`],
   ])('%s est servi par %s', async (chemin, page) => {
     const [avantFichiers] = await reecritures()
@@ -529,6 +532,10 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     `/Cabinet-Exemple/signalement/${jeton}/`,
     `/cabinet-exemple/signalement/${jeton}/autre/`,
     '/cabinet-exemple/suivi/',
+    '/cabinet-exemple/connexion/',
+    '/cabinet-exemple/invitation/autre/',
+    '/Cabinet-Exemple/invitation/',
+    '/api/invitation/',
     '/cabinet-exemple/',
   ])('%s : aucune réécriture du chemin client', async (chemin) => {
     expect((await reglesCabinet()).map((regle) => resoudre([regle], chemin)).filter(Boolean)).toEqual([])
@@ -540,22 +547,25 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     expect(sansBarreFinale(resoudre(avantFichiers, `/pt/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
   })
 
-  it('trois règles, chacune à deux paramètres capturés ou plus : jamais de destination littérale', async () => {
+  it('cinq règles (QR code, puis paires exactes de la confirmation et de l’invitation) : jamais de destination littérale', async () => {
     const regles = await reglesCabinet()
     expect(regles.map(({ source }) => source)).toEqual([
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`,
     ])
+    const exemples = [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/', '/cabinet-exemple/confirmation-adresse',
+      '/cabinet-exemple/invitation/', '/cabinet-exemple/invitation']
     for (const regle of regles) {
-      const exemple = regle.source.includes(':jeton') ? `/cabinet-exemple/signalement/${jeton}/` : '/cabinet-exemple/confirmation-adresse/'
-      expect(resoudre([regle], exemple) ?? '').not.toContain(':')
+      for (const exemple of exemples) expect(resoudre([regle], exemple) ?? '').not.toContain(':')
     }
   })
 
   it('aucune redirection ne capte un chemin client (les redirections passent avant le middleware)', async () => {
     const regles = await redirections()
-    for (const chemin of [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/']) {
+    for (const chemin of [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/', '/cabinet-exemple/invitation/', '/cabinet-exemple/invitation']) {
       expect(resoudre(regles, chemin)).toBeNull()
     }
   })
@@ -564,5 +574,7 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     const [avantFichiers] = await reecritures()
     expect(resoudre(avantFichiers, `/fr/cabinet/cabinet-exemple/signalement/${jeton}/`)).toBeNull()
     expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/confirmation-adresse/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/invitation/')).toBeNull()
+    expect(resoudre(avantFichiers, '/pt/cabinet-exemple/invitation/')).toBeNull()
   })
 })

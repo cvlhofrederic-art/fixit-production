@@ -381,6 +381,8 @@ export function gestionCoproprieteQrVide(): GestionCoproprieteQr {
 export type CheminCabinetQr =
   | { page: 'signalement'; identifiant: string; jeton: string }
   | { page: 'confirmation-adresse'; identifiant: string }
+  // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : lien de l'e-mail, page publique.
+  | { page: 'invitation'; identifiant: string }
 
 /** Refus d'un identifiant de chemin : hors format (3 à 40 caractères…) ou réservé (route du site, mot gardé). */
 export type ValidationIdentifiantCabinetQr = { ok: true } | { ok: false; raison: 'format' | 'reserve' }

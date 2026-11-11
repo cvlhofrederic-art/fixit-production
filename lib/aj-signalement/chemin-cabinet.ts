@@ -3,8 +3,10 @@
 // Choix de Hugo du 10/11/2026 : chaque client a son chemin sur vitfix.io (pas de sous-domaine) :
 //   - /<identifiant>/signalement/<jeton>/            page publique ouverte par le QR code ;
 //   - /<identifiant>/confirmation-adresse/#<jeton>   confirmation d'adresse d'un gestionnaire (jeton après le « # ») ;
-//   - /<identifiant>/suivi/, /<identifiant>/invitation/, /<identifiant>/connexion/   réservés à la PR 2, non servis en
-//     PR 1 (connexion : page de connexion professionnelle de l'espace du cabinet, Hugo, 11/11/2026, SPEC § 6).
+//   - /<identifiant>/invitation/#<jeton>             ouverture de l'accès d'un gestionnaire à l'espace de son cabinet
+//     (PR 2, lot 3 ; lien de l'e-mail, publique comme la confirmation, jeton après le « # ») ;
+//   - /<identifiant>/suivi/, /<identifiant>/connexion/   réservés au lot 4 de la PR 2 (connexion : page de connexion
+//     professionnelle de l'espace du cabinet, Hugo, 11/11/2026, SPEC § 6).
 // L'identifiant (« cabinet-exemple ») est saisi par le super admin dans l'espace, jamais écrit dans le code.
 //
 // Module pur, sans aucune dépendance à l'exécution : importé par le middleware (edge, AVANT la détection de langue),
@@ -14,8 +16,8 @@
 // Deux règles distinctes, à ne pas confondre :
 //   1. le MOTIF du middleware (MOTIF_CHEMIN_CABINET_QR) est FIGÉ : il ne lit aucune liste. Si une route ajoutée plus
 //      tard entrait dans une liste lue au routage, les QR codes déjà imprimés d'un cabinet de ce nom cesseraient de
-//      marcher. Il ne masque une page que si elle a exactement « signalement/<32 hex> » ou « confirmation-adresse » en
-//      2ᵉ segment, ce que tests/lib/aj-signalement-identifiants-reserves.test.ts interdit ;
+//      marcher. Il ne masque une page que si elle a exactement « signalement/<32 hex> », « confirmation-adresse » ou
+//      « invitation » en 2ᵉ segment, ce que tests/lib/aj-signalement-identifiants-reserves.test.ts interdit ;
 //   2. la SAISIE de l'identifiant (validerIdentifiantCabinetQr) refuse le hors format et les noms réservés (routes du
 //      site, préfixes, mots gardés). Le même test calcule les routes depuis le disque et next.config.ts et échoue si
 //      l'une d'elles n'est pas réservée.
@@ -39,22 +41,27 @@ export const FORMAT_IDENTIFIANT_CABINET_QR = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
  */
 export const SOURCE_IDENTIFIANT_CABINET_QR = '(?!(?:api|admin)/)[a-z][a-z0-9-]{1,38}[a-z0-9]'
 
-/** Motif FIGÉ des chemins publics d'un cabinet, barre finale facultative. Sensible à la casse. */
+/**
+ * Motif FIGÉ des chemins publics d'un cabinet, barre finale facultative. Sensible à la casse. Pages publiques, sans
+ * session : le QR code, la confirmation d'adresse et l'ouverture de l'accès (liens des e-mails, jeton après le « # »).
+ */
 export const MOTIF_CHEMIN_CABINET_QR = new RegExp(
-  `^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse))\\/?$`,
+  `^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation))\\/?$`,
 )
 
 /**
- * 2ᵉ segment des chemins d'un cabinet : servis en PR 1 (signalement, confirmation-adresse), réservés à la PR 2 (suivi,
- * invitation, connexion). Aucune route du site ne doit les avoir en 2ᵉ segment (garde : identifiants réservés).
+ * 2ᵉ segment des chemins d'un cabinet : servis (signalement et confirmation-adresse en PR 1, invitation au lot 3 de la
+ * PR 2), réservés au lot 4 (suivi, connexion). Aucune route du site ne doit les avoir en 2ᵉ segment (garde :
+ * identifiants réservés).
  */
 export const SEGMENTS_CABINET_QR = ['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'] as const
 
-/** Chemin public d'un cabinet (page de signalement ou de confirmation), ou null. Aucune lecture de base. */
+/** Chemin public d'un cabinet (signalement, confirmation d'adresse, ouverture de l'accès), ou null. Aucune lecture de base. */
 export function cheminPublicCabinetQr(pathname: string): CheminCabinetQr | null {
   const m = MOTIF_CHEMIN_CABINET_QR.exec(pathname)
   if (!m) return null
-  return m[2] ? { page: 'signalement', identifiant: m[1], jeton: m[2] } : { page: 'confirmation-adresse', identifiant: m[1] }
+  if (m[2]) return { page: 'signalement', identifiant: m[1], jeton: m[2] }
+  return m[3] === 'invitation' ? { page: 'invitation', identifiant: m[1] } : { page: 'confirmation-adresse', identifiant: m[1] }
 }
 
 // ── Identifiants réservés (saisie seulement, jamais le routage) ──────────────
@@ -150,4 +157,12 @@ export function urlSignalementCabinetQr(identifiant: string, jeton: string, orig
  */
 export function urlConfirmationAdresseQr(identifiant: string, jetonLien: string, origine: string): string {
   return `${sansBarreFinale(origine)}/${identifiant}/confirmation-adresse/#${jetonLien}`
+}
+
+/**
+ * Lien d'ouverture de l'accès d'un gestionnaire à l'espace de son cabinet (PR 2) : même règle que la confirmation, le
+ * jeton du lien est APRÈS le « # ». Origine obligatoire (NEXT_PUBLIC_APP_URL côté route).
+ */
+export function urlInvitationAccesQr(identifiant: string, jetonLien: string, origine: string): string {
+  return `${sansBarreFinale(origine)}/${identifiant}/invitation/#${jetonLien}`
 }

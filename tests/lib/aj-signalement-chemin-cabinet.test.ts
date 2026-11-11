@@ -2,8 +2,9 @@
 //
 // Chemin public par cabinet client (choix de Hugo du 10/11/2026) : vitfix.io/<identifiant>/signalement/<jeton>/ pour la
 // page ouverte par le QR code, vitfix.io/<identifiant>/confirmation-adresse/#<jeton> pour la confirmation d'adresse d'un
-// gestionnaire. Module pur lib/aj-signalement/chemin-cabinet.ts, lu par le middleware (edge) avant la détection de
-// langue : son motif est FIGÉ (aucune liste lue au routage), la liste des identifiants réservés ne sert qu'à la saisie.
+// gestionnaire, vitfix.io/<identifiant>/invitation/#<jeton> pour l'ouverture de son accès (PR 2, lot 3). Module pur
+// lib/aj-signalement/chemin-cabinet.ts, lu par le middleware (edge) avant la détection de langue : son motif est FIGÉ
+// (aucune liste lue au routage), la liste des identifiants réservés ne sert qu'à la saisie.
 // Exemples fictifs seulement (« cabinet-exemple »).
 
 import { describe, expect, it } from 'vitest'
@@ -13,7 +14,7 @@ import {
   FORMAT_IDENTIFIANT_CABINET_QR, IDENTIFIANTS_RESERVES_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR,
   LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, MOTIF_CHEMIN_CABINET_QR, PREFIXES_RESERVES_QR, SEGMENTS_CABINET_QR,
   SOURCE_IDENTIFIANT_CABINET_QR, cheminPublicCabinetQr, proposerIdentifiantCabinetQr, urlConfirmationAdresseQr,
-  urlSignalementCabinetQr, validerIdentifiantCabinetQr,
+  urlInvitationAccesQr, urlSignalementCabinetQr, validerIdentifiantCabinetQr,
 } from '@/lib/aj-signalement/chemin-cabinet'
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -101,6 +102,11 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(cheminPublicCabinetQr('/cabinet-exemple/confirmation-adresse')).toEqual({ page: 'confirmation-adresse', identifiant: 'cabinet-exemple' })
   })
 
+  it('/cabinet-exemple/invitation/, avec ou sans barre finale → ouverture de l’accès (lien de l’e-mail, publique comme la confirmation)', () => {
+    expect(cheminPublicCabinetQr('/cabinet-exemple/invitation/')).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
+    expect(cheminPublicCabinetQr('/cabinet-exemple/invitation')).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
+  })
+
   it('jamais une langue, l’API, l’admin, _next, un jeton mal formé, une majuscule ni un autre chemin du cabinet', () => {
     const ignores = [
       `/fr/signalement/${JETON}/`, `/pt/signalement/${JETON}/`, `/en/signalement/${JETON}/`,
@@ -109,7 +115,8 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
       `/cabinet-exemple/signalement/${JETON.slice(1)}/`, `/cabinet-exemple/signalement/${JETON}0/`,
       `/cabinet-exemple/signalement/${JETON.toUpperCase()}/`, `/Cabinet-Exemple/signalement/${JETON}/`,
       '/cabinet-exemple/', '/cabinet-exemple', `/cabinet-exemple/signalement/${JETON}/autre/`,
-      '/cabinet-exemple/suivi/', '/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/autre/',
+      '/cabinet-exemple/suivi/', '/cabinet-exemple/connexion/', '/cabinet-exemple/confirmation-adresse/autre/',
+      '/cabinet-exemple/invitation/autre/', '/Cabinet-Exemple/invitation/', '/api/invitation/', '/admin/invitation/',
       `/ab/signalement/${JETON}/`, `/${'a'.repeat(41)}/signalement/${JETON}/`, `/-ab/signalement/${JETON}/`,
       `//signalement/${JETON}/`, `/cabinet-exemple//signalement/${JETON}/`, '/', '',
     ]
@@ -133,7 +140,7 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
   it('le motif est construit sur SOURCE_IDENTIFIANT_CABINET_QR (le même texte servira aux réécritures de next.config.ts)', () => {
     // RegExp.source réécrit « / » en « \/ » : on compare à la même regex reconstruite depuis la source.
     expect(MOTIF_CHEMIN_CABINET_QR.source).toBe(
-      new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse))\\/?$`).source,
+      new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation))\\/?$`).source,
     )
     expect(SOURCE_IDENTIFIANT_CABINET_QR).toBe('(?!(?:api|admin)/)[a-z][a-z0-9-]{1,38}[a-z0-9]')
     expect(MOTIF_CHEMIN_CABINET_QR.flags).toBe('')
@@ -144,7 +151,7 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(segment.test('/cabinet-exemple/')).toBe(true)
   })
 
-  it('segments du chemin d’un cabinet : signalement et confirmation-adresse servis ; suivi, invitation et connexion (espace du cabinet, § 6) réservés à la PR 2', () => {
+  it('segments du chemin d’un cabinet : signalement, confirmation-adresse et invitation servis ; suivi et connexion (espace du cabinet, § 6) réservés au lot 4', () => {
     expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'])
   })
 })
@@ -164,5 +171,15 @@ describe('adresses produites', () => {
     expect(lu.search).toBe('')
     expect(lu.hash).toBe(`#${JETON_LIEN}`)
     expect(cheminPublicCabinetQr(lu.pathname)).toEqual({ page: 'confirmation-adresse', identifiant: 'cabinet-exemple' })
+  })
+
+  it('ouverture de l’accès d’un gestionnaire : <origine>/<identifiant>/invitation/#<jeton> (jeton APRÈS le « # »)', () => {
+    const url = urlInvitationAccesQr('cabinet-exemple', JETON_LIEN, 'https://vitfix.io/')
+    expect(url).toBe(`https://vitfix.io/cabinet-exemple/invitation/#${JETON_LIEN}`)
+    const lu = new URL(url)
+    expect(lu.pathname).toBe('/cabinet-exemple/invitation/')
+    expect(lu.search).toBe('')
+    expect(lu.hash).toBe(`#${JETON_LIEN}`)
+    expect(cheminPublicCabinetQr(lu.pathname)).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
   })
 })

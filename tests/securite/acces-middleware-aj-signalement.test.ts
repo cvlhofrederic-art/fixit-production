@@ -291,6 +291,9 @@ describe('chemin public d’un cabinet client', () => {
     `/cabinet-exemple/signalement/${JETON}`,
     '/cabinet-exemple/confirmation-adresse/',
     '/cabinet-exemple/confirmation-adresse',
+    // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : lien de l'e-mail, publique comme la confirmation.
+    '/cabinet-exemple/invitation/',
+    '/cabinet-exemple/invitation',
   ])('%s : servie telle quelle (réécriture ensuite), sans Supabase ni cookie de langue, non indexable, privée', async (chemin) => {
     const r = await document(chemin)
     expect(r.statut).toBe(200)
@@ -311,6 +314,8 @@ describe('chemin public d’un cabinet client', () => {
     expect((await document(`/cabinet-exemple/signalement/${JETON}/`)).statut).toBe(200)
     connecte({ role: 'syndic' })
     expect((await document('/cabinet-exemple/confirmation-adresse/')).statut).toBe(200)
+    connecte({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'autre-cabinet' })
+    expect((await document('/cabinet-exemple/invitation/')).statut).toBe(200)
     expect(appelsGetUser).toBe(0)
   })
 
@@ -323,8 +328,10 @@ describe('chemin public d’un cabinet client', () => {
     '/Cabinet-Exemple/confirmation-adresse/',
     `/ab/signalement/${JETON}/`,
     '/cabinet-exemple/suivi/',
-    '/cabinet-exemple/invitation/',
+    '/cabinet-exemple/invitation/autre/',
+    '/Cabinet-Exemple/invitation/',
     // Pages internes de la réécriture : jamais servies directement.
+    '/cabinet/cabinet-exemple/invitation/',
     `/cabinet/cabinet-exemple/signalement/${JETON}/`,
   ])('%s : hors du motif, 302 de langue comme avant (puis 404 s’il n’y a pas de page)', async (chemin) => {
     const r = await document(chemin)

@@ -5,8 +5,10 @@
 // colonnes sur la fiche (compte relié, dates d'accès, de blocage, de demande d'effacement), FK vers auth.users en
 // NOT VALID puis VALIDATE, index unique « un compte = une fiche », envoi d'un accès en une transaction, trigger de
 // liaison du compte à l'acceptation, corps de signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel, même
-// signature, mêmes exclusions). Aucune table nouvelle (les domaines sont en PR 1), aucune donnée, aucune valeur de
-// client (dépôt public). Le texte SQL est contrôlé ici : aucune base PostgreSQL ne le rejoue en local ni en CI.
+// signature, mêmes exclusions), corps de signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi » depuis
+// un lien d'accès, fiche sans compte relié, objet de l'envoi au journal). Aucune table nouvelle (les domaines sont en
+// PR 1), aucune donnée, aucune valeur de client (dépôt public). Le texte SQL est contrôlé ici : aucune base PostgreSQL
+// ne le rejoue en local ni en CI.
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
@@ -50,6 +52,7 @@ const fonction = (nom: string, liste: FonctionSql[] = FONCTIONS): FonctionSql =>
 const RPC: Record<string, string> = {
   signalements_qr_envoyer_acces: 'uuid, jsonb, uuid',
   signalements_qr_emails_gestionnaires: 'uuid',
+  signalements_qr_contester_adresse: 'uuid',
 }
 const FONCTIONS_TRIGGER = ['signalements_qr_lier_gestionnaire']
 const COLONNES = [
@@ -152,7 +155,7 @@ describe(`Migration ${FICHIER} : compte relié à la fiche`, () => {
 })
 
 describe(`Migration ${FICHIER} : fonctions et droits (clé service seulement)`, () => {
-  it('3 fonctions définies : l’envoi d’un accès, les destinataires (corps remplacé) et la fonction du trigger de liaison', () => {
+  it('4 fonctions définies : l’envoi d’un accès, les destinataires et la contestation (corps remplacés), la fonction du trigger de liaison', () => {
     expect(trie(FONCTIONS.map((f) => f.nom))).toEqual(trie([...Object.keys(RPC), ...FONCTIONS_TRIGGER]))
   })
 
@@ -275,5 +278,45 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
     expect(nouvelle().corps).toMatch(/g\.email = ANY \(c\.emails_destinataires\)/)
     expect(nouvelle().corps).toMatch(/NOT g\.actif OR g\.adresse_contestee_le IS NOT NULL/)
     expect(nouvelle().corps).toMatch(/ORDER BY t\.exclu DESC, t\.gestionnaire_id\s+LIMIT 100/)
+  })
+})
+
+describe(`Migration ${FICHIER} : « Ce n’est pas moi » depuis un lien d’accès (signalements_qr_contester_adresse, corps élargi)`, () => {
+  const nouvelle = () => fonction('signalements_qr_contester_adresse')
+  const ancienne = () => fonction('signalements_qr_contester_adresse', fonctionsDefinies(code1111))
+
+  it('même signature et même en-tête que la 20261111 (RETURNS boolean, SECURITY INVOKER)', () => {
+    expect(nouvelle().types).toBe(ancienne().types)
+    expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
+  })
+
+  it('envoi de confirmation OU d’accès, fiche SANS compte relié, objet de l’envoi au journal ; le reste du corps est celui de la 20261111', () => {
+    const remplacements: Array<[string, string]> = [
+      ['v_cab uuid; BEGIN', 'v_cab uuid; v_objet text; BEGIN'],
+      ["i.objet = 'confirmation_adresse'", "i.objet IN ('confirmation_adresse', 'acces')"],
+      ['g.email = i.email) RETURNING i.gestionnaire_id INTO v_g;', 'g.email = i.email AND g.user_id IS NULL) RETURNING i.gestionnaire_id, i.objet INTO v_g, v_objet;'],
+      [
+        "(cabinet_id, acteur_profil, acteur_gestionnaire_id, action, gestionnaire_id) VALUES (v_cab, 'gestionnaire', v_g, 'gestionnaire.adresse_contestee', v_g);",
+        "(cabinet_id, acteur_profil, acteur_gestionnaire_id, action, gestionnaire_id, details) VALUES (v_cab, 'gestionnaire', v_g, 'gestionnaire.adresse_contestee', v_g, jsonb_build_object('objet', v_objet));",
+      ],
+    ]
+    let attendu = compacter(ancienne().corps)
+    for (const [avant, apres] of remplacements) {
+      expect(attendu, avant).toContain(avant)
+      attendu = attendu.replace(avant, apres)
+    }
+    expect(compacter(nouvelle().corps)).toBe(attendu)
+  })
+
+  it('toujours : 7 jours, envoi non accepté ni refusé, jeton présent ; fiche figée et tous ses liens caducs', () => {
+    const corps = compacter(nouvelle().corps)
+    expect(corps).toContain("i.created_at > now() - interval '7 days'")
+    expect(corps).toContain('i.accepted_at IS NULL AND i.refus IS NULL AND i.invite_token IS NOT NULL')
+    expect(corps).toContain('UPDATE signalements_qr_gestionnaires SET adresse_contestee_le = now() WHERE id = v_g')
+    expect(corps).toContain('UPDATE signalements_qr_invitations SET invite_token = NULL WHERE gestionnaire_id = v_g AND accepted_at IS NULL AND invite_token IS NOT NULL;')
+  })
+
+  it('définie APRÈS l’ajout de la colonne user_id qu’elle lit (même fichier, ordre d’application)', () => {
+    expect(code.indexOf('FUNCTION signalements_qr_contester_adresse')).toBeGreaterThan(code.indexOf('ADD COLUMN IF NOT EXISTS user_id'))
   })
 })
