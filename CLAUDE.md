@@ -101,7 +101,10 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
   signalements déposés par QR code sans compte (coordonnées obligatoires), tables `signalements_qr_*` sans lien avec `syndic_*`,
   e-mail à l’administrateur et accusé de réception au déclarant ; tableau de bord = espace indépendant `/fr/aj-signalement/`
   (depuis le 10/11/2026 ; super admin seul, accès décidé par `lib/aj-signalement/acces-espace.ts` et contrôlé dans le middleware).
-  Le portail copropriétaire et l’AJ n’en gardent qu’un lien, réservé au super admin : ne pas y recréer d’écran de signalements.
+  Entrées : sa page de connexion professionnelle `/fr/aj-signalement/connexion/` (sans session, l’espace y renvoie), la carte
+  « AJ Signalement » du panneau admin (`/admin/dashboard`) ; le portail copropriétaire (pied de la barre latérale, menu « Plus »
+  sur téléphone) et l’AJ (pied de la barre latérale) n’en gardent qu’un lien, réservé au super admin : ne pas y recréer
+  d’écran de signalements.
 - `app/(commun)/coproprietaire/portail` (portail léger sans compte) et `app/(commun)/syndic/` (hors v54) → code conservé, ne pas y toucher
 - `components/dashboard/` → composants `*Section.tsx`
 - `lib/` → logger, validation, types, claude, groq, circuit-breaker, rate-limit, pdf/, seo/, i18n/
