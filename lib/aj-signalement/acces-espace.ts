@@ -5,7 +5,8 @@
 // demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Aujourd'hui seul le
 // super admin y entre, PAS en « vue en tant que » (_original_role) depuis le 11/11/2026 : même règle que les routes
 // (isSuperAdmin, #650) ; chaque gestionnaire y aura plus tard sa page : il suffira d'ajouter son rôle à RoleEspaceQr,
-// une branche à roleEspaceQr et ses entrées de menu (« Gestionnaires » pour le super admin).
+// une branche à roleEspaceQr et ses entrées de menu. Le super admin a, depuis le 11/11/2026, les vues Gestionnaires
+// (page profil à l'ancre #gestionnaire/<uuid>), Cabinets et Journal.
 //
 // Module pur, sans aucune dépendance : importé par le middleware (edge), la page de connexion de l'espace, l'espace
 // lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces
@@ -100,10 +101,16 @@ export function lienEspaceQr(appMetadata: MetadonneesApp): string | null {
 
 // ── Menu ─────────────────────────────────────────────────────────────────────
 
-/** Vues de l'espace, chacune à son ancre (#signalements…). Plus tard : 'gestionnaires' (super admin). */
-export type VueEspaceQr = 'tableau-de-bord' | 'coproprietes' | 'signalements'
+/**
+ * Vues de l'espace, chacune à son ancre (#signalements…). Depuis le 11/11/2026 (demandes de Hugo du 10/11) : les fiches
+ * des gestionnaires (page profil à l'ancre #gestionnaire/<uuid>), les cabinets clients et le journal (super admin).
+ */
+export type VueEspaceQr = 'tableau-de-bord' | 'coproprietes' | 'signalements' | 'gestionnaires' | 'cabinets' | 'journal'
 
 export const VUE_PAR_DEFAUT_QR: VueEspaceQr = 'tableau-de-bord'
+
+/** Vues servies par l'instance unique de TableauSignalementsQr (un seul chargement du tableau). */
+export const VUES_TABLEAU_QR: readonly VueEspaceQr[] = ['tableau-de-bord', 'coproprietes', 'signalements']
 
 export interface EntreeMenuQr {
   vue: VueEspaceQr
@@ -111,28 +118,54 @@ export interface EntreeMenuQr {
   sousTitre: string
   /** Rôles qui voient l'entrée. */
   roles: readonly RoleEspaceQr[]
+  /** Présente dans la barre du bas du téléphone (5 places au plus). */
+  barreDuBas: boolean
 }
 
 export const ENTREES_MENU_QR: readonly EntreeMenuQr[] = [
-  { vue: 'tableau-de-bord', libelle: 'Tableau de bord', sousTitre: 'Vue d’ensemble des signalements reçus par QR code', roles: ['super_admin'] },
-  { vue: 'coproprietes', libelle: 'Copropriétés', sousTitre: 'QR codes, affiches et destinataires des e-mails', roles: ['super_admin'] },
-  { vue: 'signalements', libelle: 'Signalements', sousTitre: 'Signalements reçus, détail et suivi', roles: ['super_admin'] },
-  // Place réservée : « Gestionnaires » (super admin), quand le rôle gestionnaire existera.
+  { vue: 'tableau-de-bord', libelle: 'Tableau de bord', sousTitre: 'Vue d’ensemble des signalements reçus par QR code', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'coproprietes', libelle: 'Copropriétés', sousTitre: 'QR codes, affiches, gestionnaires et destinataires des e-mails', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'signalements', libelle: 'Signalements', sousTitre: 'Signalements reçus, détail et suivi', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'gestionnaires', libelle: 'Gestionnaires', sousTitre: 'Fiches, adresses confirmées, copropriétés attribuées et page de suivi', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'cabinets', libelle: 'Cabinets', sousTitre: 'Cabinets clients : adresse vitfix.io/<identifiant>/ et domaines e-mail', roles: ['super_admin'], barreDuBas: true },
+  // Journal : barre latérale seulement (barre du bas pleine), joignable depuis la vue Cabinets.
+  { vue: 'journal', libelle: 'Journal', sousTitre: 'Actions du super admin et des gestionnaires (12 mois)', roles: ['super_admin'], barreDuBas: false },
 ]
 
 /** Entrées du menu visibles pour un rôle, dans l'ordre. */
 export const entreesMenuQr = (role: RoleEspaceQr): EntreeMenuQr[] => ENTREES_MENU_QR.filter((entree) => entree.roles.includes(role))
 
-/** Vue d'une ancre (« #signalements » ou « signalements ») pour un rôle ; vide, inconnue ou non permise : la vue par défaut. */
-export function vueDepuisAncreQr(ancre: string, role: RoleEspaceQr): VueEspaceQr {
-  const nom = ancre.replace(/^#/, '')
-  return entreesMenuQr(role).find((entree) => entree.vue === nom)?.vue ?? VUE_PAR_DEFAUT_QR
+/** Entrées de la barre du bas du téléphone pour un rôle. */
+export const entreesBarreDuBasQr = (role: RoleEspaceQr): EntreeMenuQr[] => entreesMenuQr(role).filter((entree) => entree.barreDuBas)
+
+/** Vue désignée par une ancre, et la fiche ouverte pour la page profil d'un gestionnaire. */
+export interface AncreEspaceQr {
+  vue: VueEspaceQr
+  gestionnaireId: string | null
 }
 
-/** Vue exactement désignée par l'ancre, sans repli (arrivée après connexion) ; null si l'ancre n'en désigne aucune. */
-function vueExacteQr(ancre: string | null | undefined, role: RoleEspaceQr): VueEspaceQr | null {
+/** Page profil : « gestionnaire/<uuid> » en minuscules, rien d'autre (jamais de chemin ni de suite). */
+const ANCRE_GESTIONNAIRE_QR = /^gestionnaire\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
+
+/**
+ * Ancre exactement reconnue pour un rôle (« #cabinets », « cabinets », « #gestionnaire/<uuid> ») ; null si elle ne
+ * désigne aucune vue de ce rôle (lien d'évitement #main-content, ancre inconnue ou avec une suite).
+ */
+export function ancreEspaceQr(ancre: string | null | undefined, role: RoleEspaceQr): AncreEspaceQr | null {
   const nom = (ancre ?? '').replace(/^#/, '')
-  return entreesMenuQr(role).find((entree) => entree.vue === nom)?.vue ?? null
+  const vues = entreesMenuQr(role).map((entree) => entree.vue)
+  const profil = ANCRE_GESTIONNAIRE_QR.exec(nom)
+  if (profil) return vues.includes('gestionnaires') ? { vue: 'gestionnaires', gestionnaireId: profil[1] } : null
+  const vue = vues.find((v) => v === nom)
+  return vue ? { vue, gestionnaireId: null } : null
+}
+
+/** Ancre à poser dans l'adresse, sans « # » : la vue, ou « gestionnaire/<uuid> » pour une page profil. */
+export const texteAncreQr = (a: AncreEspaceQr): string => (a.gestionnaireId ? `gestionnaire/${a.gestionnaireId}` : a.vue)
+
+/** Vue d'une ancre (« #signalements » ou « signalements ») pour un rôle ; vide, inconnue ou non permise : la vue par défaut. */
+export function vueDepuisAncreQr(ancre: string, role: RoleEspaceQr): VueEspaceQr {
+  return ancreEspaceQr(ancre, role)?.vue ?? VUE_PAR_DEFAUT_QR
 }
 
 /**
@@ -141,7 +174,7 @@ function vueExacteQr(ancre: string | null | undefined, role: RoleEspaceQr): VueE
  */
 export function vueApresRetourQr(ancre: string, role: RoleEspaceQr): VueEspaceQr | null {
   if (ancre.replace(/^#/, '') === '') return VUE_PAR_DEFAUT_QR
-  return vueExacteQr(ancre, role)
+  return ancreEspaceQr(ancre, role)?.vue ?? null
 }
 
 // ── Connexion professionnelle de l'espace ────────────────────────────────────
@@ -184,8 +217,8 @@ export function redirectionEspaceQr(
 export function destinationConnexionEspaceQr(espace: string, ancre: string | null | undefined, appMetadata: MetadonneesApp): string | null {
   const role = roleEspaceQr(appMetadata)
   if (!role) return null
-  const vue = vueExacteQr(ancre, role)
-  return vue ? `${espace}#${vue}` : espace
+  const a = ancreEspaceQr(ancre, role)
+  return a ? `${espace}#${texteAncreQr(a)}` : espace
 }
 
 // ── Textes ───────────────────────────────────────────────────────────────────

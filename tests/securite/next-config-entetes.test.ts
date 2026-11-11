@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import configurationNext from '@/next.config'
+import { SOURCE_IDENTIFIANT_CABINET_QR } from '@/lib/aj-signalement/chemin-cabinet'
 
 describe('next.config.ts : en-têtes du framework', () => {
   it('désactive poweredByHeader, y compris après withSentryConfig', () => {
@@ -26,6 +27,16 @@ describe('next.config.ts : espaces jamais indexables', () => {
   })
 
   it.each(['/:locale(fr|pt)/administrateur-judiciaire/:path*', '/administrateur-judiciaire/:path*'])('succursale AJ (%s) : inchangée', async (source) => {
+    expect(await robotsDe(source)).toBe('noindex, nofollow, noarchive')
+  })
+
+  // Chemin public d'un cabinet client (vitfix.io/<identifiant>/…) et ses pages internes : le jeton est l'adresse du
+  // formulaire, jamais indexée (le middleware pose aussi l'en-tête, OpenNext n'ajoutant pas headers() à ses réponses).
+  it.each([
+    `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:path*`,
+    `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/:path*`,
+    '/cabinet/:path*',
+  ])('chemin public d’un cabinet (%s) : noindex', async (source) => {
     expect(await robotsDe(source)).toBe('noindex, nofollow, noarchive')
   })
 })

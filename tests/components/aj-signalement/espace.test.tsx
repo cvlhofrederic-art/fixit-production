@@ -53,7 +53,25 @@ const tableau = (): TableauQr => ({
   signalements: [],
 })
 
+const GESTIONNAIRE_ID = '11111111-1111-4111-8111-111111111111'
+const CABINET = { id: 'a0000000-0000-4000-8000-0000000000a1', nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple' }
+const marie = {
+  id: GESTIONNAIRE_ID, nom: 'Marie Exemple', cabinet: CABINET, email: 'marie.exemple@exemple.test', etat: 'adresse_confirmee', domaineForce: false,
+  coproprietes: 0, ouverts: 0, urgents: 0, creeLe: '2026-11-01T09:00:00.000Z', confirmeeLe: '2026-11-02T09:00:00.000Z',
+}
+
+/** Réponses des routes de l'espace (tableau, cabinets, fiches, page profil). */
+function reponseSimulee(url: string): unknown {
+  if (url.startsWith('/api/aj-signalement/tableau')) return { tableau: tableau() }
+  if (url === '/api/aj-signalement/cabinets') return { cabinets: [{ ...CABINET, langue: 'fr', domaines: ['exemple.test'], identifiantFige: true, nbCoproprietes: 0, nbGestionnaires: 1 }] }
+  if (url.startsWith('/api/aj-signalement/gestionnaires?')) return { gestionnaires: [marie] }
+  if (url === `/api/aj-signalement/gestionnaires/${GESTIONNAIRE_ID}`) return { gestionnaire: marie, envois: [], attributions: [], creations: [], journal: [] }
+  if (url.startsWith('/api/aj-signalement/journal')) return { evenements: [], suite: null }
+  return {}
+}
+
 let appelsFetch: string[] = []
+const appelsTableau = () => appelsFetch.filter((u) => u === '/api/aj-signalement/tableau')
 const utilisateur = (app_metadata: Record<string, unknown>, user_metadata: Record<string, unknown> = {}) =>
   ({ data: { user: { id: 'u1', email: 'admin@example.com', app_metadata, user_metadata } }, error: null })
 
@@ -113,7 +131,7 @@ beforeEach(() => {
   appelsFetch = []
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     appelsFetch.push(url)
-    return new Response(JSON.stringify({ tableau: tableau() }), { status: 200, headers: { 'content-type': 'application/json' } })
+    return new Response(JSON.stringify(reponseSimulee(url)), { status: 200, headers: { 'content-type': 'application/json' } })
   }))
   window.history.replaceState(null, '', '/fr/aj-signalement/')
 })
@@ -188,17 +206,18 @@ describe('garde de l’espace : aucune donnée avant le contrôle de rôle', () 
 })
 
 describe('super admin : coquille de l’espace', () => {
-  it('en-tête « AJ Signalement », menu à trois entrées, vue Tableau de bord par défaut, un seul chargement', async () => {
+  it('en-tête « AJ Signalement », menu à six entrées (cinq dans la barre du bas), vue Tableau de bord par défaut, un seul chargement', async () => {
     simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
     render(<EspaceAjSignalement />)
     await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
     expect(screen.getAllByText('AJ Signalement').length).toBeGreaterThan(0)
     const entrees = within(menuLateral()).getAllByRole('link')
-    expect(entrees.map((e) => e.textContent)).toEqual(['Tableau de bord', 'Copropriétés', 'Signalements'])
-    expect(entrees.map((e) => e.getAttribute('href'))).toEqual(['#tableau-de-bord', '#coproprietes', '#signalements'])
+    expect(entrees.map((e) => e.textContent)).toEqual(['Tableau de bord', 'Copropriétés', 'Signalements', 'Gestionnaires', 'Cabinets', 'Journal'])
+    expect(entrees.map((e) => e.getAttribute('href'))).toEqual(['#tableau-de-bord', '#coproprietes', '#signalements', '#gestionnaires', '#cabinets', '#journal'])
     expect(entrees[0]).toHaveAttribute('aria-current', 'page')
     expect(entrees[1]).not.toHaveAttribute('aria-current')
-    expect(screen.queryByText('Gestionnaires')).toBeNull()
+    const barreDuBas = screen.getAllByRole('navigation', { name: 'Menu AJ Signalement' })[1]
+    expect(within(barreDuBas).getAllByRole('link').map((e) => e.textContent)).toEqual(['Tableau de bord', 'Copropriétés', 'Signalements', 'Gestionnaires', 'Cabinets'])
     await waitFor(() => expect(screen.getByRole('region', { name: T.indicateurs })).toBeInTheDocument())
     expect(document.title).toBe('Tableau de bord — AJ Signalement')
     expect(appelsFetch).toEqual(['/api/aj-signalement/tableau'])
@@ -225,7 +244,52 @@ describe('super admin : coquille de l’espace', () => {
     expect(screen.getByRole('button', { name: T.ajouterCopro })).toBeInTheDocument()
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(appelsFetch).toEqual(['/api/aj-signalement/tableau'])
+    // Un seul chargement du tableau ; la vue Copropriétés charge en plus, une fois, les cabinets et les fiches (fenêtre).
+    expect(appelsTableau()).toEqual(['/api/aj-signalement/tableau'])
+  })
+
+  it('Gestionnaires : cabinets et fiches chargés une fois à la première visite ; la page profil par son ancre ; retour', async () => {
+    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
+    render(<EspaceAjSignalement />)
+    await waitFor(() => expect(screen.getByRole('region', { name: T.indicateurs })).toBeInTheDocument())
+    await effetsPoses()
+    fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Gestionnaires' }))
+    expect(window.location.hash).toBe('#gestionnaires')
+    expect(titre()).toHaveTextContent('Gestionnaires')
+    fireEvent.click(await screen.findByRole('button', { name: 'Ouvrir' }))
+    expect(window.location.hash).toBe(`#gestionnaire/${GESTIONNAIRE_ID}`)
+    expect(await screen.findByRole('heading', { name: 'Marie Exemple', level: 2 })).toBeInTheDocument()
+    expect(within(menuLateral()).getByRole('link', { name: 'Gestionnaires' })).toHaveAttribute('aria-current', 'page')
+    expect(appelsFetch.filter((u) => u === '/api/aj-signalement/cabinets')).toHaveLength(1)
+    expect(appelsFetch.filter((u) => u === '/api/aj-signalement/gestionnaires?etat=tous')).toHaveLength(1)
+    expect(appelsFetch).toContain(`/api/aj-signalement/gestionnaires/${GESTIONNAIRE_ID}`)
+    expect(appelsTableau()).toEqual(['/api/aj-signalement/tableau'])
+
+    window.history.replaceState(null, '', '/fr/aj-signalement/#gestionnaires')
+    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')) })
+    expect(await screen.findByRole('button', { name: 'Ouvrir' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Marie Exemple', level: 2 })).toBeNull()
+  })
+
+  it('ouverture sur #gestionnaire/<uuid> (lien de l’alerte « adresse contestée ») : la page profil', async () => {
+    window.history.replaceState(null, '', `/fr/aj-signalement/#gestionnaire/${GESTIONNAIRE_ID}`)
+    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
+    render(<EspaceAjSignalement />)
+    expect(await screen.findByRole('heading', { name: 'Marie Exemple', level: 2 })).toBeInTheDocument()
+    expect(titre()).toHaveTextContent('Gestionnaires')
+  })
+
+  it('Cabinets puis Journal : chaque vue s’affiche dans la même coquille', async () => {
+    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
+    render(<EspaceAjSignalement />)
+    await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
+    fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Cabinets' }))
+    expect(await screen.findByRole('heading', { name: 'Cabinet Exemple' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Voir le journal' }))
+    expect(window.location.hash).toBe('#journal')
+    expect(titre()).toHaveTextContent('Journal')
+    await waitFor(() => expect(appelsFetch).toContain('/api/aj-signalement/journal'))
+    expect(screen.queryByRole('region', { name: T.indicateurs })).toBeNull()
   })
 
   it('ancre à l’ouverture (#signalements, lien de l’e-mail) : vue Signalements ; retour du navigateur suivi', async () => {

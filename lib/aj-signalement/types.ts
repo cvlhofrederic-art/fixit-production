@@ -9,6 +9,7 @@
 // fiche de copropriétaire.
 
 import { CHEMIN_ESPACE_QR, type VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
+import { urlSignalementCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 export type StatutSignalementQr = 'en_attente' | 'acceptee' | 'en_cours' | 'terminee' | 'annulee'
 export type PrioriteSignalementQr = 'urgente' | 'normale' | 'planifiee'
@@ -166,8 +167,13 @@ export interface SaisieCoproprieteQr {
   emailsDestinataires: string[]
 }
 
-/** Adresse publique du QR code (toujours sous /fr/ : la page est en français, la langue de l'administrateur). */
-export function urlSignalementQr(jeton: string, origine = 'https://vitfix.io'): string {
+/**
+ * Adresse publique du QR code. Copropriété rattachée à un cabinet client (choix de Hugo du 10/11/2026) :
+ * …/<identifiant>/signalement/<jeton>/ ; sans cabinet : l'ancienne adresse …/fr/signalement/<jeton>/, que gardent les
+ * affiches déjà imprimées (l'ancienne page redirige vers le chemin du cabinet une fois la copropriété rattachée).
+ */
+export function urlSignalementQr(jeton: string, origine = 'https://vitfix.io', identifiantCabinet?: string | null): string {
+  if (identifiantCabinet) return urlSignalementCabinetQr(identifiantCabinet, jeton, origine)
   return `${origine.replace(/\/+$/, '')}/fr/signalement/${jeton}/`
 }
 
@@ -537,6 +543,83 @@ export interface BilanEnvoiQr {
   envoyes: number
   refuses: number
   total: number
+}
+
+// ── Écrans du super admin (lot 4) : saisies envoyées par lib/aj-signalement/api.ts ───────────────────────────
+
+/** Doublon rendu par POST / PATCH /coproprietes (409 doublon), tel que l'écran le montre. */
+export type DoublonRenduQr = Pick<DoublonQr, 'certitude' | 'critere' | 'copropriete'>
+
+/**
+ * Champs de gestion d'une copropriété saisis à l'écran (création, modification) : facultatifs, envoyés seulement s'ils
+ * sont remplis ou changés (la route répond 503 base_absente à un champ nouveau tant que la migration manque).
+ */
+export interface SaisieGestionCoproprieteQr {
+  cabinetId?: string
+  codePostal?: string
+  ville?: string
+  immatriculation?: string
+  referenceCabinet?: string
+  batiments?: string[]
+  gestionnaireIds?: string[]
+  attribueeATous?: boolean
+  forcerDoublon?: boolean
+  confirmerDoublonProbable?: boolean
+  confirmerHorsDomaine?: boolean
+}
+
+/** Saisie d'un cabinet client (POST /cabinets). */
+export interface SaisieCabinetQr {
+  nom: string
+  identifiant: string
+  langue: LangueCabinetQr
+  domaines: string[]
+}
+
+/** Saisie d'une fiche gestionnaire (POST /gestionnaires) : ni id ni jeton, tirés par la route. */
+export interface SaisieGestionnaireQr {
+  nom: string
+  email: string
+  cabinetId: string
+  coproprieteIds: string[]
+  forcerDomaine: boolean
+}
+
+/** Succession d'une copropriété au départ d'un gestionnaire : un successeur, ou null (sans gestionnaire, ou retrait seul). */
+export interface SuccessionDepartQr {
+  coproprieteId: string
+  versGestionnaireId: string | null
+}
+
+/**
+ * Copropriétés d'un gestionnaire au départ (SPEC § 1.8) : celles dont il est le seul gestionnaire (successeur à choisir,
+ * ou « sans gestionnaire ») et celles où d'autres restent (simplement retirées).
+ */
+export interface GroupesDepartQr {
+  seul: AttributionVueQr[]
+  partages: AttributionVueQr[]
+}
+
+/** Successions prêtes à envoyer, ou les copropriétés dont le successeur reste à choisir. */
+export type DecisionDepartQr = { ok: true; successions: SuccessionDepartQr[] } | { ok: false; manquantes: string[] }
+
+/** Domaines e-mail saisis dans la fiche d'un cabinet : retenus (canoniques, sans doublon) et refusés. */
+export interface AnalyseDomainesQr {
+  domaines: string[]
+  invalides: string[]
+}
+
+/** Filtre de la liste des copropriétés : '' (toutes), sans_cabinet, sans_gestionnaire, a_tous, adresses_gestionnaires, gestionnaire:<id>. */
+export type FiltreCoproprietesQr = string
+
+/** Filtres et curseur du journal (GET /journal) ; une valeur vide n'est pas envoyée. */
+export interface FiltreJournalQr {
+  action?: ActionJournalQr | ''
+  copropriete?: string
+  gestionnaire?: string
+  cabinet?: string
+  avant?: string
+  avantId?: string
 }
 
 /** Réponse de signalements_qr_reserver_emails : retenus = dépôts retenus depuis le dernier e-mail parti. */

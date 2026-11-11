@@ -12,21 +12,39 @@
 // Le contenu (TableauSignalementsQr) reste monté d'une vue à l'autre : un seul chargement. Socle visuel du portail
 // copropriétaire (components/coproprietaire-dashboard/ui), comme les composants de components/aj-signalement/.
 // Pas de <main> ici : la coquille racine en pose déjà un (#main-content).
+// Depuis le 11/11/2026 (demandes de Hugo du 10/11) : vues Gestionnaires (liste, puis page profil à l'ancre
+// #gestionnaire/<uuid>), Cabinets et Journal. Le tableau, chargé une fois par TableauSignalementsQr (caché hors de ses
+// trois vues), leur est partagé ; cabinets et fiches sont chargés une fois, à la première vue qui en a besoin.
 
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
+import ListeGestionnairesQr from '@/components/aj-signalement/ListeGestionnairesQr'
+import FicheGestionnaireQr from '@/components/aj-signalement/FicheGestionnaireQr'
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
+import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
+import JournalQr from '@/components/aj-signalement/JournalQr'
 import { useAccesEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
+import { useReferentielsQr } from '@/components/aj-signalement/espace/useReferentielsQr'
 import {
-  TEXTES_ESPACE_QR as E, entreesMenuQr, vueApresRetourQr, vueDepuisAncreQr, type EntreeMenuQr, type RoleEspaceQr, type VueEspaceQr,
+  TEXTES_ESPACE_QR as E, VUES_TABLEAU_QR, VUE_PAR_DEFAUT_QR, ancreEspaceQr, entreesBarreDuBasQr, entreesMenuQr, texteAncreQr,
+  type AncreEspaceQr, type EntreeMenuQr, type RoleEspaceQr, type VueEspaceQr,
 } from '@/lib/aj-signalement/acces-espace'
+import type { TableauQr } from '@/lib/aj-signalement/types'
 
 const ICONES_VUES: Record<VueEspaceQr, NomIcone> = {
   'tableau-de-bord': 'accueil',
   coproprietes: 'immeuble',
   signalements: 'demandes',
+  gestionnaires: 'assemblees',
+  cabinets: 'documents',
+  journal: 'horloge',
 }
+
+/** Vues qui ont besoin des cabinets et des fiches (fenêtre de copropriété comprise). */
+const VUES_REFERENTIELS_QR: readonly VueEspaceQr[] = ['coproprietes', 'gestionnaires', 'cabinets', 'journal']
+
+const ANCRE_PAR_DEFAUT_QR: AncreEspaceQr = { vue: VUE_PAR_DEFAUT_QR, gestionnaireId: null }
 
 export default function EspaceAjSignalement() {
   const { etat, connexion, reessayer, seDeconnecter } = useAccesEspaceQr()
@@ -66,20 +84,27 @@ interface PropsCoquille {
 
 function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoquille>) {
   const entrees = entreesMenuQr(role)
-  const [vue, setVue] = useState<VueEspaceQr>(() => vueDepuisAncreQr(window.location.hash, role))
+  const [ancre, setAncre] = useState<AncreEspaceQr>(() => ancreEspaceQr(window.location.hash, role) ?? ANCRE_PAR_DEFAUT_QR)
+  const vue = ancre.vue
   const titre = useRef<HTMLHeadingElement>(null)
   // Le focus ne va au titre qu'après une navigation de l'utilisateur, jamais à l'ouverture.
   const focusAPoser = useRef(false)
   const entree = entrees.find((e) => e.vue === vue) ?? entrees[0]
+  // Tableau chargé par TableauSignalementsQr, partagé avec les autres vues ; actualisation : rechargement demandé.
+  const [tableau, setTableau] = useState<TableauQr | null>(null)
+  const [actualisation, setActualisation] = useState(0)
+  const referentiels = useReferentielsQr(VUES_REFERENTIELS_QR.includes(vue))
+  const { recharger } = referentiels
 
   // Retour du navigateur (ou ancre modifiée à la main) : la vue suit l'ancre ; une ancre qui ne désigne aucune vue
   // (lien d'évitement « Aller au contenu principal », #main-content) laisse la vue en cours.
   useEffect(() => {
     const surRetour = () => {
-      const cible = vueApresRetourQr(window.location.hash, role)
+      const brute = window.location.hash
+      const cible = brute.replace(/^#/, '') === '' ? ANCRE_PAR_DEFAUT_QR : ancreEspaceQr(brute, role)
       if (!cible) return
       focusAPoser.current = true
-      setVue(cible)
+      setAncre(cible)
     }
     window.addEventListener('popstate', surRetour)
     return () => window.removeEventListener('popstate', surRetour)
@@ -89,14 +114,54 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
     document.title = `${entree.libelle} — ${E.nom}`
     if (focusAPoser.current) titre.current?.focus()
     focusAPoser.current = false
-  }, [entree])
+  }, [entree, ancre.gestionnaireId])
 
-  const allerA = (cible: VueEspaceQr) => {
+  const allerA = (cible: AncreEspaceQr) => {
     focusAPoser.current = true
-    setVue(cible)
-    if (window.location.hash !== `#${cible}`) window.history.pushState(null, '', `#${cible}`)
+    setAncre(cible)
+    const texte = `#${texteAncreQr(cible)}`
+    if (window.location.hash !== texte) window.history.pushState(null, '', texte)
     window.scrollTo({ top: 0 })
   }
+  /** Entrée du menu : la vue elle-même (la liste des gestionnaires, jamais une page profil). */
+  const allerAVue = (cible: VueEspaceQr) => allerA({ vue: cible, gestionnaireId: null })
+
+  /** Une fiche, un cabinet ou des attributions ont changé : cabinets, fiches et tableau rechargés. */
+  const rafraichir = useCallback(() => {
+    void recharger()
+    setActualisation((n) => n + 1)
+  }, [recharger])
+
+  const coproprietes = tableau?.coproprietes ?? []
+  const contenu = (() => {
+    if (vue === 'gestionnaires' && ancre.gestionnaireId) {
+      return (
+        <FicheGestionnaireQr
+          key={ancre.gestionnaireId} id={ancre.gestionnaireId} coproprietes={coproprietes} gestionnaires={referentiels.gestionnaires}
+          onRetour={() => allerA({ vue: 'gestionnaires', gestionnaireId: null })} onModifie={rafraichir}
+        />
+      )
+    }
+    if (vue === 'gestionnaires') {
+      return (
+        <ListeGestionnairesQr
+          gestionnaires={referentiels.gestionnaires} cabinets={referentiels.cabinets} erreur={referentiels.erreur} coproprietes={coproprietes}
+          onOuvrir={(id) => allerA({ vue: 'gestionnaires', gestionnaireId: id })} onModifie={rafraichir} onReessayer={rafraichir}
+          onCabinets={() => allerA({ vue: 'cabinets', gestionnaireId: null })}
+        />
+      )
+    }
+    if (vue === 'cabinets') {
+      return (
+        <CabinetsQr
+          cabinets={referentiels.cabinets} erreur={referentiels.erreur} coproprietes={coproprietes} onModifie={rafraichir}
+          onReessayer={rafraichir} onJournal={() => allerA({ vue: 'journal', gestionnaireId: null })}
+        />
+      )
+    }
+    if (vue === 'journal') return <JournalQr coproprietes={coproprietes} gestionnaires={referentiels.gestionnaires} />
+    return null
+  })()
 
   return (
     <div id="aj-signalement" lang="fr" className="flex min-h-screen bg-[#F7F4EE]">
@@ -110,7 +175,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
             <div className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">{E.marque}</div>
           </div>
         </div>
-        <MenuEspaceQr entrees={entrees} vue={vue} allerA={allerA} disposition="lateral" />
+        <MenuEspaceQr entrees={entrees} vue={vue} allerA={allerAVue} disposition="lateral" />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -129,10 +194,16 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
         </header>
 
         <div className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-9 md:pb-12">
-          <TableauSignalementsQr jeton={null} vue={vue} />
+          <div hidden={!VUES_TABLEAU_QR.includes(vue)}>
+            <TableauSignalementsQr
+              jeton={null} vue={vue} onTableau={setTableau} actualisation={actualisation}
+              gestion={{ cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires }}
+            />
+          </div>
+          {contenu}
         </div>
 
-        <MenuEspaceQr entrees={entrees} vue={vue} allerA={allerA} disposition="bas" />
+        <MenuEspaceQr entrees={entreesBarreDuBasQr(role)} vue={vue} allerA={allerAVue} disposition="bas" />
       </div>
     </div>
   )

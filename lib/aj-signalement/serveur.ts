@@ -440,6 +440,43 @@ export async function lireCoproprieteParJeton(jeton: string): Promise<LectureCop
   return { ok: true, copropriete: (data as LigneCoproprieteQr | null) ?? null }
 }
 
+export type LecturePagePubliqueQr =
+  | { ok: true; copropriete: LigneCoproprieteQr | null; cabinet: LigneCabinetQr | null }
+  | { ok: false; code: 'base_absente' | 'serveur' }
+
+/**
+ * Pages publiques du QR code (chemin d'un cabinet, ancienne adresse) : la copropriété active du jeton et son cabinet
+ * (id, nom, identifiant du chemin, langue) ; null et null si le jeton est inconnu, mal formé ou désactivé. Deux lectures
+ * simples plutôt qu'un embarqué PostgREST. Colonne cabinet_id absente (migration du 11/11/2026 non appliquée) : relue
+ * comme avant, cabinet null — la page du chemin client répond alors 404 et l'ancienne adresse sert comme aujourd'hui.
+ */
+export async function lireCoproprieteEtCabinetParJetonQr(jeton: string): Promise<LecturePagePubliqueQr> {
+  if (!JETON_QR.test(jeton)) return { ok: true, copropriete: null, cabinet: null }
+  const { data, error } = await supabaseAdmin
+    .from(TABLE_COPROPRIETES_QR)
+    .select(`${COLONNES_COPROPRIETE_QR}, cabinet_id`)
+    .eq('jeton', jeton)
+    .eq('actif', true)
+    .maybeSingle()
+  if (error) {
+    if (!colonneInconnue(error)) {
+      logger.error(`${CONTEXTE} lecture de la copropriété et de son cabinet par jeton`, { code: error.code })
+      return { ok: false, code: baseAbsente(error) ? 'base_absente' : 'serveur' }
+    }
+    journaliserRepliGestionQr('lecture de la page publique', error)
+    const lecture = await lireCoproprieteParJeton(jeton)
+    return lecture.ok ? { ok: true, copropriete: lecture.copropriete, cabinet: null } : lecture
+  }
+  const copropriete = (data as LigneCoproprieteQr | null) ?? null
+  if (!copropriete?.cabinet_id) return { ok: true, copropriete, cabinet: null }
+  const cabinet = await lireCabinetQr({ id: copropriete.cabinet_id })
+  if (!cabinet.ok) {
+    logger.error(`${CONTEXTE} lecture du cabinet d’une copropriété`, { code: cabinet.erreur.code, copropriete: copropriete.id })
+    return { ok: false, code: 'serveur' }
+  }
+  return { ok: true, copropriete, cabinet: cabinet.cabinet }
+}
+
 export type CoproprieteActiveQr = { ok: true; copropriete: LigneCoproprieteQr } | { ok: false; reponse: NextResponse }
 
 /**

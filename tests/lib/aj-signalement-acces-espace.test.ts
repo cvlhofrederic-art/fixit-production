@@ -11,11 +11,13 @@
 import { describe, expect, it } from 'vitest'
 import * as accesEspace from '@/lib/aj-signalement/acces-espace'
 import {
-  CHEMIN_ESPACE_QR, ENTREES_MENU_QR, cheminConnexionEspaceQr, cheminEspaceQr, decisionAccesEspaceQr, destinationConnexionEspaceQr,
-  entreesMenuQr, estConnexionEspaceQr, lienEspaceQr, redirectionEspaceQr, viseEspaceQr, vueApresRetourQr, vueDepuisAncreQr,
+  CHEMIN_ESPACE_QR, ENTREES_MENU_QR, VUES_TABLEAU_QR, ancreEspaceQr, cheminConnexionEspaceQr, cheminEspaceQr,
+  decisionAccesEspaceQr, destinationConnexionEspaceQr, entreesBarreDuBasQr, entreesMenuQr, estConnexionEspaceQr, lienEspaceQr,
+  redirectionEspaceQr, texteAncreQr, viseEspaceQr, vueApresRetourQr, vueDepuisAncreQr,
 } from '@/lib/aj-signalement/acces-espace'
 
 const JETON = '0123456789abcdef0123456789abcdef'
+const UUID = '9b1d2c3e-4f50-4a6b-8c7d-0e1f2a3b4c5d'
 const superAdmin = { role: 'super_admin' }
 
 describe('adresse de l’espace', () => {
@@ -93,27 +95,38 @@ describe('lienEspaceQr (portail copropriétaire et tableau de bord AJ)', () => {
 })
 
 describe('menu de l’espace', () => {
-  it('super admin : Tableau de bord, Copropriétés, Signalements, dans cet ordre', () => {
+  it('super admin : six entrées, dans cet ordre (Gestionnaires, Cabinets et Journal depuis le 11/11/2026)', () => {
     expect(entreesMenuQr('super_admin').map((e) => [e.vue, e.libelle])).toEqual([
       ['tableau-de-bord', 'Tableau de bord'],
       ['coproprietes', 'Copropriétés'],
       ['signalements', 'Signalements'],
+      ['gestionnaires', 'Gestionnaires'],
+      ['cabinets', 'Cabinets'],
+      ['journal', 'Journal'],
     ])
   })
 
-  it('aucune entrée « Gestionnaires » tant que le rôle n’existe pas ; chaque entrée dit qui la voit', () => {
-    expect(ENTREES_MENU_QR.map((e) => e.vue)).not.toContain('gestionnaires')
+  it('barre du bas du téléphone : cinq entrées, sans le Journal (joignable depuis la vue Cabinets)', () => {
+    expect(entreesBarreDuBasQr('super_admin').map((e) => e.vue)).toEqual(['tableau-de-bord', 'coproprietes', 'signalements', 'gestionnaires', 'cabinets'])
+  })
+
+  it('chaque entrée dit qui la voit et a un sous-titre ; les vues du tableau sont les trois premières', () => {
     expect(ENTREES_MENU_QR.every((e) => e.roles.length > 0 && e.sousTitre.length > 0)).toBe(true)
+    expect(VUES_TABLEAU_QR).toEqual(['tableau-de-bord', 'coproprietes', 'signalements'])
   })
 
   it('vueDepuisAncreQr : ancre connue → sa vue ; vide, inconnue ou avec une suite → tableau de bord', () => {
     expect(vueDepuisAncreQr('#signalements', 'super_admin')).toBe('signalements')
     expect(vueDepuisAncreQr('coproprietes', 'super_admin')).toBe('coproprietes')
     expect(vueDepuisAncreQr('#tableau-de-bord', 'super_admin')).toBe('tableau-de-bord')
+    expect(vueDepuisAncreQr('#gestionnaires', 'super_admin')).toBe('gestionnaires')
+    expect(vueDepuisAncreQr('#cabinets', 'super_admin')).toBe('cabinets')
+    expect(vueDepuisAncreQr('#journal', 'super_admin')).toBe('journal')
+    expect(vueDepuisAncreQr(`#gestionnaire/${UUID}`, 'super_admin')).toBe('gestionnaires')
     expect(vueDepuisAncreQr('', 'super_admin')).toBe('tableau-de-bord')
     expect(vueDepuisAncreQr('#signalementsQr', 'super_admin')).toBe('tableau-de-bord')
-    expect(vueDepuisAncreQr('#gestionnaires', 'super_admin')).toBe('tableau-de-bord')
     expect(vueDepuisAncreQr('#signalements/autre', 'super_admin')).toBe('tableau-de-bord')
+    expect(vueDepuisAncreQr('#gestionnaire/pas-un-uuid', 'super_admin')).toBe('tableau-de-bord')
   })
 
   it('vueApresRetourQr (retour du navigateur) : vide → tableau de bord ; vue connue → sa vue ; ancre qui ne désigne aucune vue → null (la vue en cours reste)', () => {
@@ -121,9 +134,28 @@ describe('menu de l’espace', () => {
     expect(vueApresRetourQr('#', 'super_admin')).toBe('tableau-de-bord')
     expect(vueApresRetourQr('#signalements', 'super_admin')).toBe('signalements')
     expect(vueApresRetourQr('#coproprietes', 'super_admin')).toBe('coproprietes')
+    expect(vueApresRetourQr('#gestionnaires', 'super_admin')).toBe('gestionnaires')
+    expect(vueApresRetourQr(`#gestionnaire/${UUID}`, 'super_admin')).toBe('gestionnaires')
     expect(vueApresRetourQr('#main-content', 'super_admin')).toBeNull()
     expect(vueApresRetourQr('#signalementsQr', 'super_admin')).toBeNull()
-    expect(vueApresRetourQr('#gestionnaires', 'super_admin')).toBeNull()
+    expect(vueApresRetourQr('#gestionnaire/', 'super_admin')).toBeNull()
+  })
+
+  it('ancreEspaceQr : vue, ou page profil d’un gestionnaire (#gestionnaire/<uuid> en minuscules) ; sinon null', () => {
+    expect(ancreEspaceQr('#cabinets', 'super_admin')).toEqual({ vue: 'cabinets', gestionnaireId: null })
+    expect(ancreEspaceQr(`gestionnaire/${UUID}`, 'super_admin')).toEqual({ vue: 'gestionnaires', gestionnaireId: UUID })
+    expect(ancreEspaceQr(`#gestionnaire/${UUID.toUpperCase()}`, 'super_admin')).toBeNull()
+    expect(ancreEspaceQr(`#gestionnaire/${UUID}/autre`, 'super_admin')).toBeNull()
+    expect(ancreEspaceQr('#gestionnaire/../admin', 'super_admin')).toBeNull()
+    expect(ancreEspaceQr('', 'super_admin')).toBeNull()
+    expect(ancreEspaceQr(null, 'super_admin')).toBeNull()
+    expect(ancreEspaceQr('#main-content', 'super_admin')).toBeNull()
+  })
+
+  it('texteAncreQr : l’ancre à poser dans l’adresse (sans « # »)', () => {
+    expect(texteAncreQr({ vue: 'journal', gestionnaireId: null })).toBe('journal')
+    expect(texteAncreQr({ vue: 'gestionnaires', gestionnaireId: UUID })).toBe(`gestionnaire/${UUID}`)
+    expect(ancreEspaceQr(texteAncreQr({ vue: 'gestionnaires', gestionnaireId: UUID }), 'super_admin')).toEqual({ vue: 'gestionnaires', gestionnaireId: UUID })
   })
 })
 

@@ -8,6 +8,9 @@
 // Copropriété sans adresse : la dernière adresse proposée d'après la position d'un déclarant (avec sa date) et
 // « Utiliser cette adresse », qui l'enregistre par la route de modification (super admin). Une adresse proposée
 // vient du public : elle n'est appliquée que par ce clic.
+// Depuis le 11/11/2026 : copropriété rattachée à un cabinet client → le QR code, le lien et l'affiche portent le chemin
+// du cabinet (vitfix.io/<identifiant>/signalement/<jeton>/) ; cabinet, gestionnaires ou « Tous les gestionnaires »,
+// créateur, CP, ville, immatriculation, et rappel des adresses de gestionnaires restées dans les destinataires.
 
 import { useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -15,6 +18,7 @@ import { Badge, Bouton, BoutonCopier, Carte, Encadre } from '@/components/coprop
 import QrCodeSvg from '@/components/aj-signalement/QrCodeSvg'
 import { urlSignalementQr, type CoproprieteQr } from '@/lib/aj-signalement/types'
 import { TEXTES_TABLEAU_QR as T, dateHeureParis, destinatairesAffichesQr, resumeCompteursQr } from '@/lib/aj-signalement/affichage'
+import { TEXTES_GESTION_QR as G, dateParisQr } from '@/lib/aj-signalement/affichage-gestion'
 import { affichePdfQr, nomFichierQr, pngQr, telechargerFichier, type MatriceQr } from '@/lib/aj-signalement/qr'
 
 export interface PropsCarteCoproprieteQr {
@@ -31,7 +35,12 @@ export default function CarteCoproprieteQr({ copropriete, origine, onModifier, o
   const [preparation, setPreparation] = useState(false)
   const [enregistrement, setEnregistrement] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
-  const url = urlSignalementQr(copropriete.jeton, origine)
+  const url = urlSignalementQr(copropriete.jeton, origine, copropriete.cabinet?.identifiant)
+  const g = G.copropriete
+  const createur = copropriete.creePar === 'administrateur'
+    ? g.creeeParAdmin
+    : remplir(g.creeePar, { nom: copropriete.creePar.nom ?? G.fiche.ancien })
+  const localisation = `${copropriete.codePostal} ${copropriete.ville}`.trim()
   const proposee = copropriete.adresse.trim() ? null : copropriete.derniereAdresseProposee
 
   const utiliserAdresse = async () => {
@@ -91,6 +100,27 @@ export default function CarteCoproprieteQr({ copropriete, origine, onModifier, o
             <span className="font-semibold">{T.destinataires}</span> {destinatairesAffichesQr(copropriete)}
           </p>
           <p className="text-sm text-[#4A5E78]">{resumeCompteursQr(copropriete)}</p>
+          {copropriete.cabinet && (
+            <div className="space-y-1 text-sm text-[#4A5E78]">
+              <p>{remplir(g.cabinetLigne, { nom: copropriete.cabinet.nom })}</p>
+              {copropriete.attribueeATous ? <Badge ton="or">{g.tousGestionnaires}</Badge> : (
+                <p>
+                  {copropriete.gestionnaires.length > 0
+                    ? remplir(g.gestionnairesLigne, { noms: copropriete.gestionnaires.map((x) => x.nom ?? G.fiche.ancien).join(', ') })
+                    : g.sansGestionnaire}
+                </p>
+              )}
+            </div>
+          )}
+          {(localisation || copropriete.immatriculation) && (
+            <p className="text-sm text-[#4A5E78]">
+              {[localisation, copropriete.immatriculation ? remplir(g.immatriculationLigne, { numero: copropriete.immatriculation }) : ''].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          <p className="text-sm text-[#4A5E78]">{createur} · {dateParisQr(copropriete.creeLe)}</p>
+          {copropriete.adressesDeGestionnaires > 0 && (
+            <Encadre ton="avertissement">{remplir(g.adressesGestionnaires, { n: copropriete.adressesDeGestionnaires })}</Encadre>
+          )}
           {proposee && (
             <Encadre ton="info">
               <p>{remplir(T.derniereAdresseProposee, { date: dateHeureParis(proposee.le), adresse: proposee.adresse })}</p>

@@ -114,6 +114,19 @@ describe('pages privées : noindex, nofollow', () => {
     expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
     expect(metadata.title).toBe('Connexion professionnelle — AJ Signalement')
   })
+
+  it('/<identifiant>/… (chemin public d’un cabinet client, AJ Signalement) : noindex, nofollow, noarchive', async () => {
+    const segment = await import('@/app/(commun)/cabinet/[identifiant]/layout')
+    const metadata = await metadataDe(Promise.resolve(segment))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+  })
+
+  it('/<identifiant>/confirmation-adresse/ : noindex et aucun Referer (le jeton du lien est dans l’ancre)', async () => {
+    vi.doMock('@/components/aj-signalement/ConfirmationAdresseQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/confirmation-adresse/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+  })
 })
 
 describe('sitemaps : aucune page privée soumise', () => {

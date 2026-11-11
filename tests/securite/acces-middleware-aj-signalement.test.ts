@@ -258,3 +258,82 @@ describe('chemins voisins inchangés', () => {
     expect(r.vers?.searchParams.has('retour')).toBe(false)
   })
 })
+
+// ── Chemin public d'un cabinet client (vitfix.io/<identifiant>/…, choix de Hugo du 10/11/2026) ──
+// Reconnu AVANT la détection de langue (sinon 302 vers /fr/<identifiant>/… puis 404), par un motif figé
+// (lib/aj-signalement/chemin-cabinet.ts) : ni base, ni Supabase, ni cookie ; noindex et réponse privée.
+describe('chemin public d’un cabinet client', () => {
+  /** Navigation de document (Sec-Fetch-Dest: document) : c'est le cas où le cookie de langue serait posé. */
+  async function document(chemin: string) {
+    const reponse = await middleware(new NextRequest(`https://vitfix.io${chemin}`, { headers: { 'sec-fetch-dest': 'document', 'accept-language': 'pt-PT' } }))
+    return {
+      statut: reponse.status,
+      location: reponse.headers.get('location'),
+      suite: reponse.headers.get('x-middleware-next'),
+      langue: reponse.headers.get('x-middleware-request-x-locale'),
+      robots: reponse.headers.get('x-robots-tag'),
+      cache: reponse.headers.get('cache-control'),
+      csp: reponse.headers.get('content-security-policy'),
+      cookies: reponse.headers.get('set-cookie'),
+    }
+  }
+
+  it.each([
+    `/cabinet-exemple/signalement/${JETON}/`,
+    `/cabinet-exemple/signalement/${JETON}`,
+    '/cabinet-exemple/confirmation-adresse/',
+    '/cabinet-exemple/confirmation-adresse',
+  ])('%s : servie telle quelle (réécriture ensuite), sans Supabase ni cookie de langue, non indexable, privée', async (chemin) => {
+    const r = await document(chemin)
+    expect(r.statut).toBe(200)
+    expect(r.location).toBeNull()
+    expect(r.suite).toBe('1')
+    // Coquille déterministe en français ; la page pose la langue du cabinet.
+    expect(r.langue).toBe('fr')
+    expect(r.robots).toBe(NOINDEX)
+    expect(r.cache).toContain('no-store')
+    expect(r.cache).toContain('private')
+    expect(r.csp).toBeTruthy()
+    expect(r.cookies).toBeNull()
+    expect(appelsGetUser).toBe(0)
+  })
+
+  it('même avec une session ouverte : aucun appel à Supabase (aucun rôle ne change rien)', async () => {
+    connecte({ role: 'super_admin' })
+    expect((await document(`/cabinet-exemple/signalement/${JETON}/`)).statut).toBe(200)
+    connecte({ role: 'syndic' })
+    expect((await document('/cabinet-exemple/confirmation-adresse/')).statut).toBe(200)
+    expect(appelsGetUser).toBe(0)
+  })
+
+  it.each([
+    '/cabinet-exemple/',
+    '/blog/',
+    `/cabinet-exemple/signalement/${JETON}/autre/`,
+    `/cabinet-exemple/signalement/${JETON.slice(1)}/`,
+    `/cabinet-exemple/signalement/${JETON.toUpperCase()}/`,
+    '/Cabinet-Exemple/confirmation-adresse/',
+    `/ab/signalement/${JETON}/`,
+    '/cabinet-exemple/suivi/',
+    '/cabinet-exemple/invitation/',
+    // Pages internes de la réécriture : jamais servies directement.
+    `/cabinet/cabinet-exemple/signalement/${JETON}/`,
+  ])('%s : hors du motif, 302 de langue comme avant (puis 404 s’il n’y a pas de page)', async (chemin) => {
+    const r = await document(chemin)
+    expect(r.statut).toBe(302)
+    expect(new URL(r.location ?? '', 'https://vitfix.io').pathname).toBe(`/pt${chemin}`)
+    expect(r.robots).toBeNull()
+  })
+
+  it('/fr/signalement/<jeton>/ (anciens QR codes) : inchangé, sans Supabase', async () => {
+    const r = await document(`/fr/signalement/${JETON}/`)
+    expect(r).toMatchObject({ statut: 200, location: null, robots: null, langue: 'fr' })
+    expect(appelsGetUser).toBe(0)
+  })
+
+  it('/api/… n’est jamais pris pour un cabinet', async () => {
+    const reponse = await middleware(new NextRequest(`https://vitfix.io/api/signalement/${JETON}/`))
+    expect(reponse.headers.get('x-robots-tag')).toBeNull()
+    expect(reponse.headers.get('location')).toBeNull()
+  })
+})
