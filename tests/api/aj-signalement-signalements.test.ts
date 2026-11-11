@@ -96,10 +96,27 @@ vi.mock('@/lib/rate-limit', () => ({
   getClientIP: vi.fn(() => '127.0.0.1'),
   rateLimitResponse: vi.fn(() => Response.json({ error: 'rate' }, { status: 429 })),
 }))
-vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (table: string) => h.from(table) } }))
+// Production avant la migration du 11/11/2026 : ses fonctions (gestionnaires destinataires, budget d'e-mails) sont
+// absentes (PGRST202) ; l'envoi se fait alors aux adresses saisies, sans budget (repli, journalisé une fois).
+// tests/api/aj-signalement-depot-gestionnaires.test.ts couvre la base migrée.
+vi.mock('@/lib/supabase-server', () => ({
+  supabaseAdmin: {
+    from: (table: string) => h.from(table),
+    rpc: async (nom: string) => ({ data: null, error: { code: 'PGRST202', message: `Could not find the function public.${nom}` } }),
+  },
+}))
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: null } }) } })) }))
 vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => null) }))
-vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail }))
+// Depuis le 11/11/2026, l'e-mail du signalement part en UN message par destinataire (sendBatchEmails) ; le lot est
+// simulé message par message par le même espion que sendEmail (confirmation au déclarant), dans l'ordre d'envoi.
+vi.mock('@/lib/email', () => ({
+  sendEmail: h.sendEmail,
+  sendBatchEmails: async (lot: unknown[]) => {
+    let sent = 0
+    for (const message of lot) if ((await h.sendEmail(message)).success) sent += 1
+    return { sent, failed: lot.length - sent, errors: [] }
+  },
+}))
 
 const { POST } = await import('@/app/api/aj-signalement/signalements/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
@@ -195,8 +212,9 @@ describe('dépôt', () => {
     })
     // L'e-mail de l'administrateur part d'abord, la confirmation au déclarant ensuite.
     expect(h.sendEmail).toHaveBeenCalledTimes(2)
-    const email = h.sendEmail.mock.calls[0][0] as { to: string[]; subject: string; replyTo: string; html: string }
-    expect(email.to).toEqual(['cabinet@example.com'])
+    // Un message par destinataire : un seul `to` (11/11/2026).
+    const email = h.sendEmail.mock.calls[0][0] as { to: string; subject: string; replyTo: string; html: string }
+    expect(email.to).toBe('cabinet@example.com')
     expect(email.replyTo).toBe('marie.durand@example.com')
     expect(email.subject).toBe('[AJ Signalement] URGENT — Plomberie (fuite, colonne, robinetterie) — Parc Belle Ombre — lot 12')
     expect(email.html).toContain('12 allée des Pins')
@@ -216,7 +234,8 @@ describe('dépôt', () => {
     vi.stubEnv('ADMIN_EMAIL_2', 'second@vitfix.io')
     h.etat.copropriete = { ...COPRO, emails_destinataires: [] }
     await poster(CORPS)
-    expect((h.sendEmail.mock.calls[0][0] as { to: string[] }).to).toEqual(['admin@vitfix.io', 'second@vitfix.io'])
+    // Un message chacun : l'un ne voit pas l'adresse de l'autre.
+    expect(h.sendEmail.mock.calls.slice(0, 2).map((c) => (c[0] as { to: string }).to)).toEqual(['admin@vitfix.io', 'second@vitfix.io'])
   })
 
   it('aucun destinataire du tout : le dépôt est gardé, l’erreur conservée et journalisée ; seul le déclarant reçoit sa confirmation', async () => {
@@ -232,13 +251,13 @@ describe('dépôt', () => {
     expect(h.loggerError).toHaveBeenCalled()
   })
 
-  it('e-mail refusé par Resend : 200, emailEnvoye false, erreur conservée', async () => {
+  it('e-mail refusé par Resend : 200, emailEnvoye false, erreur résumée (sans le texte du service ni adresse)', async () => {
     h.sendEmail.mockResolvedValue({ success: false, error: 'RESEND_API_KEY not configured' })
     const res = await poster(CORPS)
     expect(res.status).toBe(200)
     expect((await res.json()).signalement).toMatchObject({ emailEnvoye: false, confirmationEnvoyee: false })
     expect(h.etat.misesAJour[0]).toMatchObject({
-      email_envoye_le: null, email_erreur: 'RESEND_API_KEY not configured',
+      email_envoye_le: null, email_erreur: '1 envoi(s) sur 1 refusé(s) par le service d’e-mail',
       confirmation_envoyee_le: null, confirmation_erreur: 'RESEND_API_KEY not configured',
     })
   })
@@ -260,7 +279,7 @@ describe('confirmation au déclarant', () => {
 
   it('part après l’e-mail de l’administrateur, au seul déclarant, sans adresse de réponse, en français', async () => {
     await poster(CORPS)
-    expect(charge(0).to).toEqual(['cabinet@example.com'])
+    expect(charge(0).to).toBe('cabinet@example.com')
     const confirmation = charge(1)
     expect(confirmation.to).toEqual(['marie.durand@example.com'])
     expect(confirmation).not.toHaveProperty('replyTo')
@@ -318,7 +337,7 @@ describe('confirmation au déclarant', () => {
     expect(res.status).toBe(200)
     expect((await res.json()).signalement).toMatchObject({ emailEnvoye: true, confirmationEnvoyee: false })
     expect(h.sendEmail).toHaveBeenCalledTimes(1)
-    expect(charge(0).to).toEqual(['cabinet@example.com'])
+    expect(charge(0).to).toBe('cabinet@example.com')
     expect(h.etat.parametresLimites).toContainEqual([CLE_MARIE, 3, 3_600_000])
     expect(h.etat.limites.some((cle) => cle.includes('@') || cle.includes('marie'))).toBe(false)
     expect(h.etat.misesAJour[0]).toMatchObject({ confirmation_envoyee_le: null, confirmation_erreur: expect.stringContaining('limite') })
@@ -472,7 +491,8 @@ describe('même problème qu’un signalement déjà fait au même endroit', () 
 })
 
 describe('repli tant que les migrations du 06/11/2026 ne sont pas appliquées en production', () => {
-  const avertissementsRepli = () => h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('repli'))
+  // Replis des migrations du 06/11/2026 seulement (ceux de la migration du 11/11/2026 sont comptés à part).
+  const avertissementsRepli = () => h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('repli') && String(c[0]).includes('06/11/2026'))
 
   it.each([
     ['qualite_declarant', 'PGRST204'], ['adresse_proposee', 'PGRST204'], ['signalement_lie_id', 'PGRST204'],

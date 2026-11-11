@@ -2,7 +2,8 @@
 //
 // « AJ Signalement » sort du portail copropriétaire (demande de Hugo du 10/11/2026) : l'écran des signalements reçus
 // par QR code vit désormais dans son espace indépendant (/fr/aj-signalement/). Le portail n'en garde qu'un lien,
-// pour le seul super admin (ou sa « vue en tant que »), dans la barre latérale et le menu « Plus » du téléphone.
+// pour le seul super admin (pas sa « vue en tant que », refusée par l'espace depuis le 11/11/2026), dans la barre
+// latérale et le menu « Plus » du téléphone.
 // Même pour un super admin : aucun écran « AJ Signalement », huit écrans comme pour tous, l'ancre #signalementsQr
 // ramène à l'accueil. Un copropriétaire (huit écrans) ou un vrai locataire (six écrans, sans Charges ni Assemblées)
 // ne voit pas le lien.
@@ -91,10 +92,10 @@ describe('AJ Signalement hors du portail copropriétaire', () => {
     expect(within(dialogue).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
   })
 
-  it('« vue en tant que » ouverte par un super admin : lien présent', () => {
+  it('« vue en tant que » ouverte par un super admin : pas de lien (l’espace la refuse depuis le 11/11/2026, comme les routes)', () => {
     h.metadonnees = { role: 'coproprio', _original_role: 'super_admin' }
     render(<Page />)
-    expect(within(barreLaterale()).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
+    expect(within(barreLaterale()).queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
   })
 
   it('copropriétaire : ni lien, ni écran ; ses huit écrans ; l’ancre #signalementsQr ramène à l’accueil', () => {

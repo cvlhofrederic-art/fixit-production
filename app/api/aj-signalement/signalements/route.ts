@@ -20,19 +20,33 @@
 // Migrations 20261106_signalements_qr_confirmation.sql puis 20261106_signalements_qr_geoloc_qualite.sql : à
 // appliquer avant la fusion ; d'ici là, insertion et état des e-mails se replient sur les colonnes d'origine
 // (lib/aj-signalement/serveur.ts).
+// Depuis le 11/11/2026 (P1-R20 ; demande de Hugo : le gestionnaire reçoit AUTOMATIQUEMENT les signalements de ses
+// copropriétés) :
+//   - destinataires = (adresses saisies MOINS celles de fiches inactives ou contestées) ∪ gestionnaires confirmés de la
+//     copropriété (signalements_qr_emails_gestionnaires) ; ADMIN_EMAIL seulement si l'union est vide ;
+//   - UN e-mail par destinataire (personne ne voit les autres adresses), repli un par un si le service refuse le lot ;
+//     email_erreur résumé, jamais l'adresse ni le texte du service ;
+//   - budget d'e-mails (60 / h par copropriété, 300 / h par cabinet), réservé en base AVANT l'envoi : au-delà, le dépôt
+//     reste ENREGISTRÉ (réponse inchangée), l'e-mail est retenu, le super admin alerté une fois ; le prochain e-mail
+//     parti mentionne les signalements retenus. Les limites du dépôt ne changent pas ;
+//   - migration du 11/11/2026 absente : envoi aux adresses saisies, sans budget, comme avant (journalisé une fois).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { signalementQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
-import { numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
+import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
 import {
-  coproprieteActiveQr, destinatairesSignalement, enregistrerEtatEmailsQr, insererSignalementQr, lireSemblablesQr, reponseErreurBase,
-  reponseErreur, signalementDepuisLigne,
+  coproprieteActiveQr, corrigerEmailsEnvoyesQr, enregistrerEtatEmailsQr, insererSignalementQr, lireGestionnairesDestinatairesQr, lireSemblablesQr,
+  reponseErreurBase, reponseErreur, reserverEmailsQr, signalementDepuisLigne, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
+import { destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
 import {
-  FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerConfirmationQr, envoyerEmailSignalementQr,
-  masquerEmailsQr,
+  ALERTE_LIMITE_ENVOI_QR, ERREUR_LIMITE_ENVOI_QR, alerteBudgetEmailsQr, mentionSignalementsRetenusQr,
+} from '@/lib/aj-signalement/budget-emails'
+import {
+  FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerAlerteAdministrateurQr, envoyerConfirmationQr,
+  envoyerEmailsSignalementQr, masquerEmailsQr, resumeErreurEnvoiQr,
 } from '@/lib/aj-signalement/email'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -80,6 +94,42 @@ async function resoudreSignalementLie(
   const lie = lecture.lignes.find((l) => numeroSignalementQr(l.id) === saisie.signalementLieNumero)
   if (!lie) logger.info(`${CONTEXTE} lien ignoré : aucun signalement ouvert semblable ne porte ce numéro`, { copropriete: coproprieteId })
   return lie?.id ?? null
+}
+
+/**
+ * Un e-mail par destinataire, sous budget (RG-06 ter) ; ne lève jamais. Rend l'état à enregistrer : envoyé dès qu'un
+ * message est parti ; erreur résumée (nombres seulement) ou limite d'envoi atteinte.
+ */
+async function envoyerAuxDestinataires(
+  copropriete: LigneCoproprieteQr, signalement: SignalementQr,
+): Promise<{ emailEnvoyeLe: string | null; emailErreur: string | null }> {
+  const lignes = await lireGestionnairesDestinatairesQr(copropriete.id)
+  const { destinataires, auDelaDuPlafond } = destinatairesSignalementQr(copropriete, lignes)
+  if (auDelaDuPlafond > 0) logger.warn(`${CONTEXTE} destinataires au-delà du plafond : non envoyés`, { copropriete: copropriete.id, nombre: auDelaDuPlafond })
+  if (destinataires.length === 0) {
+    logger.error(`${CONTEXTE} aucun destinataire : ni e-mails de la copropriété, ni gestionnaire, ni ADMIN_EMAIL`, { copropriete: copropriete.id })
+    return { emailEnvoyeLe: null, emailErreur: 'aucun destinataire configuré' }
+  }
+  const origine = process.env.NEXT_PUBLIC_APP_URL || undefined
+  // Budget réservé en base AVANT l'envoi ; null : migration absente ou erreur (envoi sans budget, comme avant).
+  const reservation = await reserverEmailsQr(signalement.id, destinataires.length)
+  if (reservation && !reservation.accorde) {
+    logger.warn(`${CONTEXTE} limite d’envoi atteinte : e-mail retenu, dépôt enregistré`, { copropriete: copropriete.id, signalement: signalement.id })
+    if (alerteBudgetEmailsQr(reservation)) {
+      const lien = `${(origine ?? 'https://vitfix.io').replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
+      const alerte = await envoyerAlerteAdministrateurQr({ objet: ALERTE_LIMITE_ENVOI_QR.objet, texte: ALERTE_LIMITE_ENVOI_QR.texte, lien })
+      if (alerte.refuses > 0) logger.warn(`${CONTEXTE} alerte de limite d’envoi non envoyée`, { refuses: alerte.refuses, total: alerte.total })
+    }
+    return { emailEnvoyeLe: null, emailErreur: ERREUR_LIMITE_ENVOI_QR }
+  }
+  const bilan = await envoyerEmailsSignalementQr({
+    destinataires, signalement, copropriete: { nom: copropriete.nom ?? '', adresse: copropriete.adresse ?? '' },
+    origine, mention: reservation ? mentionSignalementsRetenusQr(reservation.retenus) : null,
+  })
+  if (reservation && bilan.envoyes < destinataires.length) await corrigerEmailsEnvoyesQr(signalement.id, bilan.envoyes)
+  const emailErreur = resumeErreurEnvoiQr(bilan)
+  if (emailErreur) logger.error(`${CONTEXTE} e-mails refusés par le service`, { signalement: signalement.id, refuses: bilan.refuses, total: bilan.total })
+  return { emailEnvoyeLe: bilan.envoyes > 0 ? new Date().toISOString() : null, emailErreur }
 }
 
 export async function POST(request: NextRequest) {
@@ -132,25 +182,8 @@ export async function POST(request: NextRequest) {
       copropriete.nom ?? '',
     )
 
-    // E-mail aux destinataires : l'échec n'annule pas le dépôt (le tableau de bord le montre, email_erreur le garde).
-    const destinataires = destinatairesSignalement(copropriete)
-    let emailEnvoyeLe: string | null = null
-    let emailErreur: string | null = null
-    if (destinataires.length === 0) {
-      emailErreur = 'aucun destinataire configuré'
-      logger.error(`${CONTEXTE} aucun destinataire : ni e-mails de la copropriété, ni ADMIN_EMAIL`, { copropriete: copropriete.id })
-    } else {
-      const envoi = await envoyerEmailSignalementQr({
-        destinataires, signalement, copropriete: { nom: copropriete.nom ?? '', adresse: copropriete.adresse ?? '' },
-        origine: process.env.NEXT_PUBLIC_APP_URL || undefined,
-      })
-      if (envoi.success) {
-        emailEnvoyeLe = new Date().toISOString()
-      } else {
-        emailErreur = (envoi.error || 'envoi impossible').slice(0, 500)
-        logger.error(`${CONTEXTE} e-mail non envoyé`, { erreur: envoi.error, signalement: data.id })
-      }
-    }
+    // E-mails aux destinataires : l'échec n'annule pas le dépôt (le tableau de bord le montre, email_erreur le garde).
+    const { emailEnvoyeLe, emailErreur } = await envoyerAuxDestinataires(copropriete, signalement)
     // Récapitulatif au déclarant, après l'e-mail de l'administrateur ; même règle : le dépôt reste acquis.
     const confirmation = await confirmerAuDeclarant(signalement, copropriete.nom ?? '')
 

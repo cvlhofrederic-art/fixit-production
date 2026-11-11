@@ -1,6 +1,8 @@
 // lib/equipe/lien-invitation.ts
 //
-// Lien d'invitation d'équipe (pro BTP : pro_team_members, syndic : syndic_team_members).
+// Lien d'invitation d'équipe (pro BTP : pro_team_members, syndic : syndic_team_members, AJ Signalement :
+// signalements_qr_invitations, envois aux gestionnaires d'un cabinet client — confirmation d'adresse en PR 1).
+// L'espace fait partie du message signé : un lien d'un espace ne vaut rien dans un autre.
 //
 // Le jeton du lien est `<jeton de la ligne>.<signature>`. La signature (HMAC-SHA256, calculée côté
 // serveur) couvre la ligne d'invitation : id, équipe, e-mail invité et jeton de la ligne. Le lien n'est
@@ -13,7 +15,10 @@
 
 import { randomHex } from '@/lib/crypto-compat'
 
-export type EspaceEquipe = 'pro' | 'syndic'
+export type EspaceEquipe = 'pro' | 'syndic' | 'aj_signalement'
+
+/** Rôle des gestionnaires d'AJ Signalement (posé par le serveur seul, PR 2) ; égalité stricte. */
+const ROLE_GESTIONNAIRE_SIGNALEMENT = 'gestionnaire_signalement'
 
 /** Ligne d'invitation telle qu'enregistrée en base. */
 export interface InvitationSignee {
@@ -103,6 +108,9 @@ export async function signatureValide(espace: EspaceEquipe, signature: string, i
  */
 export function compteRattachable(espace: EspaceEquipe, appMetadata: Record<string, unknown> | undefined): boolean {
   const role = typeof appMetadata?.role === 'string' ? appMetadata.role : ''
+  // AJ Signalement : AVANT le test « sans rôle » ; seul un compte qui porte déjà le rôle des gestionnaires est
+  // rattaché, jamais un compte sans rôle ni celui d'un autre espace.
+  if (espace === 'aj_signalement') return role === ROLE_GESTIONNAIRE_SIGNALEMENT
   if (!role) return true
   if (espace === 'syndic') return role.startsWith('syndic_')
   const roleEquipe = appMetadata?.pro_team_role

@@ -14,6 +14,11 @@
 // reste choisi dans l'autre) et la même fenêtre de détail.
 // Aucun lien avec le sélecteur de copropriété de l'AJ ni avec celui du portail. Rien n'est écrit dans le navigateur :
 // les données servies restent en mémoire. Textes en français (outil de l'administrateur).
+// Depuis le 11/11/2026 : filtre de la liste des copropriétés (sans cabinet, sans gestionnaire, « à tous », adresses de
+// gestionnaires, par gestionnaire), fenêtre enrichie (cabinet, gestionnaires, doublons, suppression), et le tableau
+// partagé avec les vues Gestionnaires, Cabinets et Journal de l'espace (onTableau ; rechargé sur « actualisation »).
+// Lot 5 : « Importer un fichier » (Excel ou CSV, espace seulement) ouvre l'assistant d'import ; la liste est rechargée
+// après l'import.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { heureCourte, remplir } from '@/lib/coproprietaire/textes'
@@ -21,19 +26,34 @@ import { Badge, Bouton, Carte, Encadre, EtatVide, Modale, Montant } from '@/comp
 import CarteCoproprieteQr from '@/components/aj-signalement/CarteCoproprieteQr'
 import ModaleCoproprieteQr from '@/components/aj-signalement/ModaleCoproprieteQr'
 import DetailSignalementQr from '@/components/aj-signalement/DetailSignalementQr'
+import AssistantImportQr from '@/components/aj-signalement/AssistantImportQr'
 import type { VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
-import type { CoproprieteQr, SignalementQr, StatutSignalementQr, TableauQr } from '@/lib/aj-signalement/types'
+import type { CabinetQr, CoproprieteQr, GestionnaireQr, SignalementQr, StatutSignalementQr, TableauQr } from '@/lib/aj-signalement/types'
 import { chargerTableauQr, modifierCoproprieteQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import {
   LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR as T, TON_STATUT_QR, compteursTableauQr, dateHeureParis, filtrerSignalementsQr,
   lieuSignalementQr, messageErreurTableauQr, nomDeclarantQr, situationLotQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
+import { TEXTES_GESTION_QR as G, filtrerCoproprietesQr } from '@/lib/aj-signalement/affichage-gestion'
+import { TEXTES_IMPORT_QR as I } from '@/lib/aj-signalement/import/textes'
+
+/** Cabinets et fiches de l'espace (fenêtre de copropriété) ; null : pas encore chargés. */
+export interface GestionTableauQr {
+  cabinets: readonly CabinetQr[] | null
+  gestionnaires: readonly GestionnaireQr[] | null
+}
 
 export interface PropsTableauSignalementsQr {
   /** Jeton de session du compte (Bearer) ; null : les cookies de session suffisent. */
   jeton: string | null
   /** Vue choisie dans le menu de l'espace ; changer de vue ne recharge rien. */
   vue: VueEspaceQr
+  /** Cabinets et gestionnaires (depuis le 11/11/2026) ; absent : fenêtre de copropriété d'avant. */
+  gestion?: GestionTableauQr
+  /** Tableau chargé ou modifié ici : partagé avec les autres vues de l'espace (un seul chargement). */
+  onTableau?: (tableau: TableauQr) => void
+  /** Change quand l'espace demande un rechargement (cabinet, rattachement, attributions modifiés ailleurs). */
+  actualisation?: number
 }
 
 type Etat =
@@ -41,7 +61,8 @@ type Etat =
   | { statut: 'pret'; tableau: TableauQr; miseAJourLe: Date }
   | { statut: 'erreur'; code: CodeErreurQr }
 
-type Fenetre = { type: 'creation' } | { type: 'modification'; copropriete: CoproprieteQr } | { type: 'detail'; id: string } | null
+type Fenetre =
+  | { type: 'creation' } | { type: 'import' } | { type: 'modification'; copropriete: CoproprieteQr } | { type: 'detail'; id: string } | null
 
 /**
  * Copropriété enregistrée par le serveur, fusionnée dans la liste : compteurs connus conservés ; la dernière adresse
@@ -62,10 +83,11 @@ function origineCourante(): string {
   return typeof window === 'undefined' ? 'https://vitfix.io' : window.location.origin
 }
 
-export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTableauSignalementsQr>) {
+export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, actualisation = 0 }: Readonly<PropsTableauSignalementsQr>) {
   const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
   const [fenetre, setFenetre] = useState<Fenetre>(null)
   const [filtreCopro, setFiltreCopro] = useState('')
+  const [filtreListe, setFiltreListe] = useState('')
   const [message, setMessage] = useState<string | null>(null)
 
   // Changement de vue (menu, ou bouton Retour du navigateur) : la fenêtre ouverte et le message de succès appartiennent
@@ -86,11 +108,18 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
     setEtat({ statut: 'pret', tableau: resultat.tableau, miseAJourLe: new Date() })
   }, [jeton])
 
-  // Chargement initial depuis le serveur : l'état n'est posé qu'à la réponse (asynchrone), pas dans le corps de l'effet.
+  // Chargement initial depuis le serveur, puis à chaque demande de l'espace (actualisation) : l'état n'est posé qu'à la
+  // réponse (asynchrone), pas dans le corps de l'effet.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void charger()
-  }, [charger])
+  }, [charger, actualisation])
+
+  // Le tableau chargé ou modifié ici sert aussi les vues Gestionnaires, Cabinets et Journal (un seul chargement).
+  const tableauPret = etat.statut === 'pret' ? etat.tableau : null
+  useEffect(() => {
+    if (tableauPret && onTableau) onTableau(tableauPret)
+  }, [tableauPret, onTableau])
 
   const fermer = useCallback(() => setFenetre(null), [])
   const ouvrir = (nouvelle: Exclude<Fenetre, null>) => {
@@ -106,10 +135,23 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
         ? e.tableau.coproprietes.map((c) => fusionnerCoproprieteQr(c, copropriete))
         : [...e.tableau.coproprietes, copropriete]
       const signalements = e.tableau.signalements.map((s) => (s.coproprieteId === copropriete.id ? { ...s, coproprieteNom: copropriete.nom } : s))
-      return { ...e, tableau: { coproprietes, signalements } }
+      return { ...e, tableau: { ...e.tableau, coproprietes, signalements } }
     })
     setMessage(texte ?? null)
     setFenetre(null)
+  }
+
+  /** Copropriété supprimée (sans signalement) : retirée de la liste. */
+  const retirerCopro = (id: string) => {
+    setEtat((e) => (e.statut === 'pret' ? { ...e, tableau: { ...e.tableau, coproprietes: e.tableau.coproprietes.filter((c) => c.id !== id) } } : e))
+    setMessage(G.copropriete.supprimee)
+    setFenetre(null)
+  }
+
+  /** « Ouvrir » la copropriété signalée comme doublon : sa fenêtre de modification remplace la fenêtre en cours. */
+  const ouvrirCopro = (id: string) => {
+    const autre = etat.statut === 'pret' ? etat.tableau.coproprietes.find((c) => c.id === id) : undefined
+    if (autre) ouvrir({ type: 'modification', copropriete: autre })
   }
 
   /** « Utiliser cette adresse » : PATCH { adresse } (route existante, super admin) ; false si refusé. */
@@ -129,7 +171,7 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
         ...c,
         nbEnAttente: signalements.filter((s) => s.coproprieteId === c.id && s.statut === 'en_attente').length,
       }))
-      return { ...e, tableau: { coproprietes, signalements } }
+      return { ...e, tableau: { ...e.tableau, coproprietes, signalements } }
     })
   }
 
@@ -169,7 +211,10 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
         <VueCoproprietesQr
           coproprietes={coproprietes}
           message={message}
+          filtre={filtreListe}
+          onFiltre={setFiltreListe}
           onAjouter={() => ouvrir({ type: 'creation' })}
+          onImporter={gestion ? () => ouvrir({ type: 'import' }) : undefined}
           onModifier={(c) => ouvrir({ type: 'modification', copropriete: c })}
           onUtiliserAdresse={utiliserAdresse}
         />
@@ -183,12 +228,24 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
 
       {fenetre?.type === 'creation' && (
         <Modale titre={T.formulaire.creer} onFermer={fermer} labelFermer={T.fermerFenetre}>
-          <ModaleCoproprieteQr copropriete={null} jeton={jeton} onFermer={fermer} onEnregistre={mettreAJourCopro} />
+          <ModaleCoproprieteQr
+            copropriete={null} jeton={jeton} onFermer={fermer} onEnregistre={mettreAJourCopro}
+            cabinets={gestion?.cabinets} gestionnaires={gestion?.gestionnaires} onOuvrir={ouvrirCopro}
+          />
+        </Modale>
+      )}
+      {fenetre?.type === 'import' && (
+        <Modale titre={I.titre} onFermer={fermer} labelFermer={T.fermerFenetre}>
+          <AssistantImportQr cabinets={gestion?.cabinets ?? null} origine={origineCourante()} onFermer={fermer} onImporte={() => { void charger() }} />
         </Modale>
       )}
       {fenetre?.type === 'modification' && (
         <Modale titre={T.formulaire.modifier} onFermer={fermer} labelFermer={T.fermerFenetre}>
-          <ModaleCoproprieteQr copropriete={fenetre.copropriete} jeton={jeton} onFermer={fermer} onEnregistre={mettreAJourCopro} />
+          <ModaleCoproprieteQr
+            key={fenetre.copropriete.id}
+            copropriete={fenetre.copropriete} jeton={jeton} onFermer={fermer} onEnregistre={mettreAJourCopro}
+            cabinets={gestion?.cabinets} gestionnaires={gestion?.gestionnaires} onSupprimee={gestion ? retirerCopro : undefined} onOuvrir={ouvrirCopro}
+          />
         </Modale>
       )}
       {detail && (
@@ -240,26 +297,53 @@ function VueTableauDeBordQr({ liste }: Readonly<{ liste: PropsListeSignalementsQ
 interface PropsVueCoproprietesQr {
   coproprietes: readonly CoproprieteQr[]
   message: string | null
+  /** Filtre de la liste (filtrerCoproprietesQr) : '' = toutes. */
+  filtre: string
+  onFiltre: (filtre: string) => void
   onAjouter: () => void
+  /** Espace seulement (cabinets connus) : « Importer un fichier ». */
+  onImporter?: () => void
   onModifier: (copropriete: CoproprieteQr) => void
   onUtiliserAdresse: (copropriete: CoproprieteQr, adresse: string) => Promise<boolean>
 }
 
-function VueCoproprietesQr({ coproprietes, message, onAjouter, onModifier, onUtiliserAdresse }: Readonly<PropsVueCoproprietesQr>) {
+function VueCoproprietesQr({ coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse }: Readonly<PropsVueCoproprietesQr>) {
   const origine = origineCourante()
+  const visibles = useMemo(() => filtrerCoproprietesQr(coproprietes, filtre), [coproprietes, filtre])
+  // Gestionnaires cités par les copropriétés : un filtre chacun (SPEC § 1.8).
+  const gestionnaires = useMemo(() => {
+    const noms = new Map<string, string>()
+    for (const c of coproprietes) for (const g of c.gestionnaires) noms.set(g.id, g.nom ?? G.fiche.ancien)
+    return [...noms].sort((a, b) => a[1].localeCompare(b[1], 'fr'))
+  }, [coproprietes])
+  const filtres = G.copropriete.filtres
   return (
     <>
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <Bouton variante="or" icone="plus" onClick={onAjouter}>{T.ajouterCopro}</Bouton>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {coproprietes.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-[#4A5E78]">
+            <span>{G.copropriete.filtre}</span>
+            <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
+              {(Object.keys(filtres) as Array<keyof typeof filtres>).map((cle) => <option key={cle} value={cle}>{filtres[cle]}</option>)}
+              {gestionnaires.map(([id, nom]) => <option key={id} value={`gestionnaire:${id}`}>{remplir(G.copropriete.filtreGestionnaire, { nom })}</option>)}
+            </select>
+          </label>
+        ) : <span />}
+        <div className="flex flex-wrap gap-2">
+          {onImporter && <Bouton variante="secondaire" icone="documents" onClick={onImporter}>{I.bouton}</Bouton>}
+          <Bouton variante="or" icone="plus" onClick={onAjouter}>{T.ajouterCopro}</Bouton>
+        </div>
       </div>
       {message && <Encadre ton="succes">{message}</Encadre>}
       {coproprietes.length === 0 ? (
         <EtatVide texte={T.aucuneCopro} icone="qr" />
+      ) : visibles.length === 0 ? (
+        <EtatVide texte={G.copropriete.aucuneFiltre} icone="qr" />
       ) : (
         // Groupe nommé natif (rôle group) ; min-w-0 annule le min-inline-size: min-content que le navigateur donne à un
         // fieldset (bordure, marge et retrait sont déjà remis à zéro par Tailwind) : même rendu que l'ancien div.
         <fieldset className="grid min-w-0 gap-4" aria-label={T.coproprietes}>
-          {coproprietes.map((c) => (
+          {visibles.map((c) => (
             <CarteCoproprieteQr
               key={c.id}
               copropriete={c}

@@ -20,7 +20,9 @@ const DUREE_VALIDITE_MS = 7 * 24 * 60 * 60 * 1000 // 7 jours après la création
 const ESPACES = {
   pro: { table: 'pro_team_members', colonneEquipe: 'company_id', journal: '[PRO_INVITE]' },
   syndic: { table: 'syndic_team_members', colonneEquipe: 'cabinet_id', journal: '[INVITE]' },
-} as const
+  // AJ Signalement : une ligne par envoi à un gestionnaire ; l'« équipe » signée est la fiche du gestionnaire.
+  aj_signalement: { table: 'signalements_qr_invitations', colonneEquipe: 'gestionnaire_id', journal: '[AJ SIGNALEMENT INVITE]' },
+} as const satisfies Record<EspaceEquipe, { table: string; colonneEquipe: string; journal: string }>
 
 /** Ligne d'invitation lue en base ; `equipe_id` reprend company_id (pro) ou cabinet_id (syndic). */
 export interface LigneInvitation {
