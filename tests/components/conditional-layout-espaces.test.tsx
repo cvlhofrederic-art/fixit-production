@@ -51,3 +51,28 @@ describe('ConditionalLayout — espace AJ Signalement', () => {
     expect(screen.getByTestId('pied-marketing')).toBeInTheDocument()
   })
 })
+
+// Espace de chaque cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire, sans habillage marketing,
+// comme l'espace global. usePathname peut rendre l'adresse affichée (/<id>/suivi/) ou la page interne de la réécriture
+// (/cabinet/<id>/suivi/) : les deux formes sont reconnues (à vérifier sur l'aperçu, plan § 8).
+describe('ConditionalLayout — espace d’un cabinet', () => {
+  it.each([
+    '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/', '/cabinet-exemple/suivi',
+    '/cabinet/cabinet-exemple/connexion/', '/cabinet/cabinet-exemple/suivi/',
+  ])('%s : contenu seul, sans habillage marketing', (chemin) => {
+    const { container } = rendre(chemin)
+    expect(screen.getByText('contenu')).toBeInTheDocument()
+    expect(screen.queryByTestId('entete-marketing')).toBeNull()
+    expect(screen.queryByTestId('pied-marketing')).toBeNull()
+    expect(screen.queryByTestId('site-protection')).toBeNull()
+    expect(container.querySelector('.pt-\\[68px\\]')).toBeNull()
+  })
+
+  it.each(['/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', '/blog/suivi/'])(
+    '%s : habillage inchangé (pages publiques de la PR 1 et du lot 3)',
+    (chemin) => {
+      rendre(chemin)
+      expect(screen.getByTestId('entete-marketing')).toBeInTheDocument()
+    },
+  )
+})

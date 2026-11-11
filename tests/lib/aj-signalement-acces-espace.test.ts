@@ -261,8 +261,192 @@ describe('destinationConnexionEspaceQr : arrivée après la connexion profession
     }
   })
 
-  it('l’adresse vient du contexte de la page, jamais de l’URL : espace d’un cabinet (PR 2) pris tel quel', () => {
-    expect(destinationConnexionEspaceQr('/cabinet-exemple/', '#signalements', superAdmin)).toBe('/cabinet-exemple/#signalements')
-    expect(destinationConnexionEspaceQr('/cabinet-exemple/', '', superAdmin)).toBe('/cabinet-exemple/')
+  it('l’adresse vient du contexte de la page, jamais de l’URL : prise telle quelle (page sans cabinet)', () => {
+    expect(destinationConnexionEspaceQr('/autre-espace/', '#signalements', superAdmin)).toBe('/autre-espace/#signalements')
+    expect(destinationConnexionEspaceQr('/autre-espace/', '', superAdmin)).toBe('/autre-espace/')
+  })
+})
+
+// ── PR 2, lot 4 : espace de chaque cabinet (vitfix.io/<identifiant>/connexion/ et /suivi/) ───────────────────────────
+//
+// Décisions de Hugo du 11/11/2026 (SPEC § 6) et plan § 1.5 : chaque cabinet a SA page de connexion professionnelle et SON
+// espace de suivi ; le gestionnaire y est reconnu par son rôle serveur (gestionnaire_signalement) ET par le repère de
+// routage app_metadata.aj_signalement_cabinet (identifiant de SON cabinet), posé par le serveur à l'acceptation. Le
+// repère ne donne aucun droit (les routes relisent la fiche) : il aiguille seulement. Seul app_metadata compte.
+
+describe('espace d’un cabinet : rôle gestionnaire et repère de routage', () => {
+  const g = (repere: unknown = 'cabinet-exemple', extra: Record<string, unknown> = {}) =>
+    ({ role: 'gestionnaire_signalement', aj_signalement_cabinet: repere, ...extra })
+
+  it('rôle et clé du repère : mêmes valeurs qu’en base et à l’acceptation (types.ts les reprend d’ici)', async () => {
+    const types = await import('@/lib/aj-signalement/types')
+    expect(accesEspace.ROLE_GESTIONNAIRE_QR).toBe('gestionnaire_signalement')
+    expect(accesEspace.CLE_REPERE_CABINET_QR).toBe('aj_signalement_cabinet')
+    expect(types.ROLE_GESTIONNAIRE_QR).toBe(accesEspace.ROLE_GESTIONNAIRE_QR)
+    expect(types.CLE_REPERE_CABINET_QR).toBe(accesEspace.CLE_REPERE_CABINET_QR)
+  })
+
+  it('repereCabinetQr : l’identifiant du cabinet pour un compte gestionnaire, s’il est un identifiant valable (sinon null)', () => {
+    expect(accesEspace.repereCabinetQr(g())).toBe('cabinet-exemple')
+    for (const meta of [
+      g(''), g('Cabinet-Exemple'), g('ab'), g('aj-signalement'), g('api'), g('cabinet-exemple/suivi'), g('../admin'), g(42), g(['cabinet-exemple']),
+      g(null), { role: 'gestionnaire_signalement' }, { role: 'syndic', aj_signalement_cabinet: 'cabinet-exemple' },
+      { role: 'super_admin', aj_signalement_cabinet: 'cabinet-exemple' }, {}, null, undefined,
+    ]) {
+      expect(accesEspace.repereCabinetQr(meta as Record<string, unknown> | null | undefined), JSON.stringify(meta)).toBeNull()
+    }
+  })
+
+  it('decisionAccesEspaceQr dans l’espace d’un cabinet : seul un gestionnaire de CE cabinet entre', () => {
+    expect(decisionAccesEspaceQr({ app_metadata: g() }, 'cabinet-exemple')).toEqual({ acces: 'autorise', role: 'gestionnaire' })
+    expect(decisionAccesEspaceQr({ app_metadata: g('autre-cabinet') }, 'cabinet-exemple')).toEqual({ acces: 'refuse' })
+    expect(decisionAccesEspaceQr({ app_metadata: { role: 'gestionnaire_signalement' } }, 'cabinet-exemple')).toEqual({ acces: 'refuse' })
+    // Le super admin a son espace global : il n'entre pas dans celui d'un cabinet (la connexion du cabinet l'y renvoie).
+    expect(decisionAccesEspaceQr({ app_metadata: superAdmin }, 'cabinet-exemple')).toEqual({ acces: 'refuse' })
+    for (const role of ['syndic', 'coproprio', 'client', 'artisan', 'pro_societe', undefined]) {
+      expect(decisionAccesEspaceQr({ app_metadata: { role, aj_signalement_cabinet: 'cabinet-exemple' } }, 'cabinet-exemple')).toEqual({ acces: 'refuse' })
+    }
+    // user_metadata ne donne rien, repère compris.
+    const trafique = { app_metadata: { role: 'client' }, user_metadata: g() }
+    expect(decisionAccesEspaceQr(trafique, 'cabinet-exemple')).toEqual({ acces: 'refuse' })
+    expect(decisionAccesEspaceQr(null, 'cabinet-exemple')).toEqual({ acces: 'connexion' })
+  })
+
+  it('l’espace global reste au super admin : un gestionnaire, même avec un repère, y est refusé', () => {
+    expect(decisionAccesEspaceQr({ app_metadata: g() })).toEqual({ acces: 'refuse' })
+    expect(decisionAccesEspaceQr({ app_metadata: g() }, null)).toEqual({ acces: 'refuse' })
+    expect(decisionAccesEspaceQr({ app_metadata: superAdmin }, null)).toEqual({ acces: 'autorise', role: 'super_admin' })
+    expect(lienEspaceQr(g())).toBeNull()
+  })
+
+  it('menu du gestionnaire : Tableau de bord, Copropriétés, Signalements (mêmes libellés que l’espace global), barre du bas comprise', () => {
+    expect(entreesMenuQr('gestionnaire').map((e) => [e.vue, e.libelle])).toEqual([
+      ['tableau-de-bord', 'Tableau de bord'],
+      ['coproprietes', 'Copropriétés'],
+      ['signalements', 'Signalements'],
+    ])
+    expect(entreesBarreDuBasQr('gestionnaire').map((e) => e.vue)).toEqual(['tableau-de-bord', 'coproprietes', 'signalements'])
+    // Le super admin garde ses six entrées.
+    expect(entreesMenuQr('super_admin')).toHaveLength(6)
+  })
+
+  it('ancres du gestionnaire : ses trois vues seulement (jamais une page profil, les cabinets ni le journal)', () => {
+    expect(ancreEspaceQr('#signalements', 'gestionnaire')).toEqual({ vue: 'signalements', gestionnaireId: null })
+    expect(ancreEspaceQr('coproprietes', 'gestionnaire')).toEqual({ vue: 'coproprietes', gestionnaireId: null })
+    for (const ancre of ['#gestionnaires', `#gestionnaire/${UUID}`, '#cabinets', '#journal', '#main-content']) {
+      expect(ancreEspaceQr(ancre, 'gestionnaire'), ancre).toBeNull()
+    }
+    expect(vueDepuisAncreQr('#journal', 'gestionnaire')).toBe('tableau-de-bord')
+    expect(vueApresRetourQr('#cabinets', 'gestionnaire')).toBeNull()
+  })
+})
+
+describe('redirectionEspaceCabinetQr (middleware) : matrice du plan § 1.5', () => {
+  const id = 'cabinet-exemple'
+  type Compte = { app_metadata: Record<string, unknown> } | null
+  const PROFILS: Array<[string, Compte]> = [
+    ['sans session', null],
+    ['compte sans accès (client)', { app_metadata: { role: 'client' } }],
+    ['compte sans accès (syndic)', { app_metadata: { role: 'syndic' } }],
+    ['« vue en tant que » d’un super admin', { app_metadata: { role: 'coproprio', _original_role: 'super_admin' } }],
+    ['gestionnaire sans repère', { app_metadata: { role: 'gestionnaire_signalement' } }],
+    ['gestionnaire au repère mal formé', { app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'Cabinet-Exemple' } }],
+    ['gestionnaire d’un AUTRE cabinet', { app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'autre-cabinet' } }],
+  ]
+  const DU_CABINET: Compte = { app_metadata: { role: 'gestionnaire_signalement', aj_signalement_cabinet: id } }
+  const SUPER_ADMIN: Compte = { app_metadata: superAdmin }
+
+  it('/<id>/ : toujours vers /<id>/suivi/ (aucune session lue)', () => {
+    for (const u of [...PROFILS.map(([, c]) => c), DU_CABINET, SUPER_ADMIN]) {
+      expect(accesEspace.redirectionEspaceCabinetQr({ page: 'accueil', identifiant: id }, u)).toBe('/cabinet-exemple/suivi/')
+    }
+  })
+
+  it.each(PROFILS)('%s : connexion servie (message neutre au besoin), suivi → connexion du cabinet', (_cas, u) => {
+    expect(accesEspace.redirectionEspaceCabinetQr({ page: 'connexion', identifiant: id }, u)).toBeNull()
+    expect(accesEspace.redirectionEspaceCabinetQr({ page: 'suivi', identifiant: id }, u)).toBe('/cabinet-exemple/connexion/')
+  })
+
+  it('gestionnaire de CE cabinet : connexion → suivi ; suivi servi', () => {
+    expect(accesEspace.redirectionEspaceCabinetQr({ page: 'connexion', identifiant: id }, DU_CABINET)).toBe('/cabinet-exemple/suivi/')
+    expect(accesEspace.redirectionEspaceCabinetQr({ page: 'suivi', identifiant: id }, DU_CABINET)).toBeNull()
+  })
+
+  it('super admin : renvoyé vers son espace global (connexion et suivi)', () => {
+    expect(accesEspace.redirectionEspaceCabinetQr({ page: 'connexion', identifiant: id }, SUPER_ADMIN)).toBe('/fr/aj-signalement/')
+    expect(accesEspace.redirectionEspaceCabinetQr({ page: 'suivi', identifiant: id }, SUPER_ADMIN)).toBe('/fr/aj-signalement/')
+  })
+})
+
+describe('aiguillageGestionnaireQr (middleware) : un gestionnaire est envoyé vers l’espace de SON cabinet', () => {
+  const g = { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' }
+  const AIGUILLES = [
+    '', '/', '/auth/login', '/auth/login/', '/client/dashboard', '/client/dashboard/', '/pro/dashboard/', '/pro/mobile/',
+    '/artisan/dashboard', '/artisan/dashboard/devis/', '/syndic/dashboard/', '/syndic/login/', '/coproprietaire/dashboard/',
+    '/coproprietaire/portail/', '/administrateur-judiciaire', '/administrateur-judiciaire/', '/aj-signalement/',
+    '/aj-signalement', '/aj-signalement/connexion/',
+  ]
+
+  it.each(AIGUILLES)('repère valable, « %s » → /cabinet-exemple/suivi/ (sans langue)', (chemin) => {
+    expect(accesEspace.aiguillageGestionnaireQr(chemin, g)).toBe('/cabinet-exemple/suivi/')
+  })
+
+  it('ailleurs : rien (pages publiques, fiches artisans, confidentialité, API, admin)', () => {
+    for (const chemin of ['/blog/', '/artisan/abc123/', '/artisan/dashboard-plomberie/', '/confidentialite/', '/a-propos/', '/api/aj-signalement/moi', '/admin/dashboard/']) {
+      expect(accesEspace.aiguillageGestionnaireQr(chemin, g), chemin).toBeNull()
+    }
+  })
+
+  it('repère absent ou mal formé : accueil et connexion générale → connexion de l’espace global (message neutre, aucune boucle) ; le reste comme avant', () => {
+    const sansRepere = [
+      { role: 'gestionnaire_signalement' },
+      { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'API' },
+      { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'aj-signalement' },
+    ]
+    for (const meta of sansRepere) {
+      for (const chemin of ['', '/', '/auth/login', '/auth/login/']) {
+        expect(accesEspace.aiguillageGestionnaireQr(chemin, meta), chemin).toBe('/fr/aj-signalement/connexion/')
+      }
+      // Pas de boucle : la connexion de l'espace global sert un compte non admis (message neutre).
+      for (const chemin of ['/aj-signalement/connexion/', '/aj-signalement/', '/client/dashboard/', '/syndic/dashboard/']) {
+        expect(accesEspace.aiguillageGestionnaireQr(chemin, meta), chemin).toBeNull()
+      }
+    }
+  })
+
+  it('tout autre compte : rien (repère sans le rôle, super admin, syndic, sans métadonnées)', () => {
+    for (const meta of [{ role: 'client', aj_signalement_cabinet: 'cabinet-exemple' }, { role: 'super_admin' }, { role: 'syndic' }, {}, null, undefined]) {
+      expect(accesEspace.aiguillageGestionnaireQr('/', meta)).toBeNull()
+    }
+  })
+})
+
+describe('destinationConnexionEspaceQr avec le cabinet de la page (PR 2)', () => {
+  const espace = '/cabinet-exemple/suivi/'
+  const g = (repere: string) => ({ role: 'gestionnaire_signalement', aj_signalement_cabinet: repere })
+
+  it('page d’un cabinet : son gestionnaire → l’espace du cabinet (ancre d’une de ses vues comprise)', () => {
+    expect(destinationConnexionEspaceQr(espace, '', g('cabinet-exemple'), 'cabinet-exemple')).toBe('/cabinet-exemple/suivi/')
+    expect(destinationConnexionEspaceQr(espace, '#signalements', g('cabinet-exemple'), 'cabinet-exemple')).toBe('/cabinet-exemple/suivi/#signalements')
+    expect(destinationConnexionEspaceQr(espace, '#journal', g('cabinet-exemple'), 'cabinet-exemple')).toBe('/cabinet-exemple/suivi/')
+    expect(destinationConnexionEspaceQr(espace, `#gestionnaire/${UUID}`, g('cabinet-exemple'), 'cabinet-exemple')).toBe('/cabinet-exemple/suivi/')
+  })
+
+  it('page d’un cabinet : gestionnaire d’un autre cabinet, sans repère, autre compte → null (message neutre, rien ne dit que l’autre cabinet existe)', () => {
+    for (const meta of [g('autre-cabinet'), { role: 'gestionnaire_signalement' }, { role: 'client' }, { role: 'coproprio', _original_role: 'super_admin' }, {}, null]) {
+      expect(destinationConnexionEspaceQr(espace, '#signalements', meta, 'cabinet-exemple'), JSON.stringify(meta)).toBeNull()
+    }
+  })
+
+  it('page d’un cabinet : super admin → son espace global (jamais l’espace du cabinet)', () => {
+    expect(destinationConnexionEspaceQr(espace, '', superAdmin, 'cabinet-exemple')).toBe('/fr/aj-signalement/')
+    expect(destinationConnexionEspaceQr(espace, '#signalements', superAdmin, 'cabinet-exemple')).toBe('/fr/aj-signalement/#signalements')
+  })
+
+  it('page globale : un gestionnaire avec repère est envoyé vers l’espace de SON cabinet ; sans repère, null', () => {
+    expect(destinationConnexionEspaceQr('/fr/aj-signalement/', '#signalements', g('cabinet-exemple'))).toBe('/cabinet-exemple/suivi/#signalements')
+    expect(destinationConnexionEspaceQr('/fr/aj-signalement/', '#cabinets', g('cabinet-exemple'))).toBe('/cabinet-exemple/suivi/')
+    expect(destinationConnexionEspaceQr('/fr/aj-signalement/', '', { role: 'gestionnaire_signalement' })).toBeNull()
+    expect(destinationConnexionEspaceQr('/fr/aj-signalement/', '', g('Mauvais'))).toBeNull()
   })
 })

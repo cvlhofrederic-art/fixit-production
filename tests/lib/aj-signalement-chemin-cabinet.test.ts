@@ -13,8 +13,9 @@ import { join } from 'path'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, IDENTIFIANTS_RESERVES_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR,
   LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, MOTIF_CHEMIN_CABINET_QR, PREFIXES_RESERVES_QR, SEGMENTS_CABINET_QR,
-  SOURCE_IDENTIFIANT_CABINET_QR, cheminPublicCabinetQr, proposerIdentifiantCabinetQr, urlConfirmationAdresseQr,
-  urlInvitationAccesQr, urlSignalementCabinetQr, validerIdentifiantCabinetQr,
+  SOURCE_IDENTIFIANT_CABINET_QR, cheminConnexionCabinetQr, cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr,
+  estEspaceCabinetQr, proposerIdentifiantCabinetQr, urlConfirmationAdresseQr, urlInvitationAccesQr, urlSignalementCabinetQr,
+  validerIdentifiantCabinetQr,
 } from '@/lib/aj-signalement/chemin-cabinet'
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -151,8 +152,77 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(segment.test('/cabinet-exemple/')).toBe(true)
   })
 
-  it('segments du chemin d’un cabinet : signalement, confirmation-adresse et invitation servis ; suivi et connexion (espace du cabinet, § 6) réservés au lot 4', () => {
+  it('segments du chemin d’un cabinet : signalement, confirmation-adresse, invitation (pages publiques), suivi et connexion (espace du cabinet, lot 4)', () => {
     expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'])
+  })
+})
+
+// ── PR 2, lot 4 : espace du cabinet (vitfix.io/<identifiant>/, /connexion/, /suivi/), avec session ──────────────────
+// Deuxième famille de chemins, reconnue elle aussi AVANT la langue, mais SEULEMENT pour un identifiant qui passe
+// validerIdentifiantCabinetQr (format ET noms réservés) : sinon /aj-signalement/connexion/ (page de la #669, atteinte sans
+// langue par 302) serait prise pour le cabinet « aj-signalement », et le segment seul /<x>/ capterait toute page du site.
+describe('espace d’un cabinet : reconnaissance par le middleware (avec la liste des réservés)', () => {
+  it('/<id>/ (accueil), /<id>/connexion/ et /<id>/suivi/, avec ou sans barre finale', () => {
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/')).toEqual({ page: 'accueil', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple')).toEqual({ page: 'accueil', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/connexion/')).toEqual({ page: 'connexion', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/connexion')).toEqual({ page: 'connexion', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/suivi/')).toEqual({ page: 'suivi', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/suivi')).toEqual({ page: 'suivi', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/apis/suivi/')).toEqual({ page: 'suivi', identifiant: 'apis' })
+  })
+
+  it('jamais un nom réservé (page de connexion de la #669, routes du site, API, admin), une langue ni un préfixe réservé', () => {
+    for (const chemin of [
+      '/aj-signalement/connexion/', '/aj-signalement/connexion', '/aj-signalement/', '/aj-signalement-exemple/suivi/',
+      '/api/', '/api/connexion/', '/admin/', '/admin/connexion/', '/blog/', '/syndic/connexion/', '/auth/', '/cabinet/',
+      '/cabinet/cabinet-exemple/suivi/', '/signalement/', '/servicos/', '/confirmation-x/', '/suivi/', '/connexion/',
+      '/fr/', '/pt/', '/en/', '/fr/cabinet-exemple/suivi/', '/plumber-porto/', '/loodgieter-porto/', '/fontanero-oporto/',
+    ]) {
+      expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('jamais une casse différente, un hors format, un autre segment ni un sous-chemin', () => {
+    for (const chemin of [
+      '/Cabinet-Exemple/', '/Cabinet-Exemple/suivi/', '/cabinet-exemple/Suivi/', '/ab/', '/a--b/suivi/', '/-ab/', '/cabinet_exemple/',
+      `/${'a'.repeat(41)}/`, '/cabinet-exemple/suivi/autre/', '/cabinet-exemple/connexion/autre/', '/cabinet-exemple/suivix/',
+      '/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', `/cabinet-exemple/signalement/${JETON}/`,
+      '/cabinet-exemple//', '//cabinet-exemple/', '/_next/', '/', '',
+    ]) {
+      expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('les deux familles ne se recouvrent pas (pages publiques sans session d’un côté, espace avec session de l’autre)', () => {
+    for (const chemin of ['/cabinet-exemple/', '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/']) {
+      expect(cheminPublicCabinetQr(chemin), chemin).toBeNull()
+    }
+    for (const chemin of ['/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', `/cabinet-exemple/signalement/${JETON}/`]) {
+      expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('adresses de l’espace : /<id>/suivi/ et /<id>/connexion/ (barre finale), reconnues par le motif', () => {
+    expect(cheminSuiviCabinetQr('cabinet-exemple')).toBe('/cabinet-exemple/suivi/')
+    expect(cheminConnexionCabinetQr('cabinet-exemple')).toBe('/cabinet-exemple/connexion/')
+    expect(cheminEspaceCabinetQr(cheminSuiviCabinetQr('cabinet-exemple'))?.page).toBe('suivi')
+    expect(cheminEspaceCabinetQr(cheminConnexionCabinetQr('cabinet-exemple'))?.page).toBe('connexion')
+  })
+
+  it('estEspaceCabinetQr (ConditionalLayout) : connexion et suivi, sous l’adresse affichée comme sous la page interne', () => {
+    for (const chemin of [
+      '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/', '/cabinet-exemple/suivi',
+      '/cabinet/cabinet-exemple/connexion/', '/cabinet/cabinet-exemple/suivi/', '/cabinet/cabinet-exemple/suivi',
+    ]) {
+      expect(estEspaceCabinetQr(chemin), chemin).toBe(true)
+    }
+    for (const chemin of [
+      '/cabinet-exemple/', '/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', '/cabinet/cabinet-exemple/invitation/',
+      '/aj-signalement/connexion/', '/blog/suivi/', '/cabinet/', '/cabinet/suivi/', '/', '', null, undefined,
+    ]) {
+      expect(estEspaceCabinetQr(chemin), String(chemin)).toBe(false)
+    }
   })
 })
 

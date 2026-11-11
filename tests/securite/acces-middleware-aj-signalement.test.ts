@@ -23,12 +23,18 @@ type Utilisateur = { app_metadata: Record<string, unknown>; user_metadata?: Reco
 
 let utilisateurCourant: Utilisateur | null = null
 let appelsGetUser = 0
+/** Cookies que Supabase « rafraîchit » pendant getUser (setAll du patron officiel), pour vérifier leur recopie. */
+type CookieSupabase = { name: string; value: string; options: Record<string, unknown> }
+let cookiesRafraichis: CookieSupabase[] = []
+let getUserLeve = false
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => ({
+  createServerClient: (_url: string, _cle: string, options: { cookies: { setAll: (c: CookieSupabase[]) => void } }) => ({
     auth: {
       getUser: async () => {
         appelsGetUser += 1
+        if (getUserLeve) throw new Error('Supabase injoignable')
+        if (cookiesRafraichis.length) options.cookies.setAll(cookiesRafraichis)
         return { data: { user: utilisateurCourant } }
       },
     },
@@ -62,6 +68,8 @@ const connecte = (app_metadata: Record<string, unknown>, user_metadata: Record<s
 beforeEach(() => {
   utilisateurCourant = null
   appelsGetUser = 0
+  cookiesRafraichis = []
+  getUserLeve = false
 })
 
 describe('espace, sans session : page de connexion de l’espace', () => {
@@ -320,24 +328,29 @@ describe('chemin public d’un cabinet client', () => {
   })
 
   it.each([
-    '/cabinet-exemple/',
     '/blog/',
     `/cabinet-exemple/signalement/${JETON}/autre/`,
     `/cabinet-exemple/signalement/${JETON.slice(1)}/`,
     `/cabinet-exemple/signalement/${JETON.toUpperCase()}/`,
     '/Cabinet-Exemple/confirmation-adresse/',
     `/ab/signalement/${JETON}/`,
-    '/cabinet-exemple/suivi/',
     '/cabinet-exemple/invitation/autre/',
     '/Cabinet-Exemple/invitation/',
+    // Espace du cabinet (lot 4) : sous-chemin, casse ou nom réservé ne sont jamais pris pour lui.
+    '/cabinet-exemple/suivi/autre/',
+    '/Cabinet-Exemple/suivi/',
+    '/Cabinet-Exemple/',
+    '/plumber-porto/',
     // Pages internes de la réécriture : jamais servies directement.
     '/cabinet/cabinet-exemple/invitation/',
+    '/cabinet/cabinet-exemple/suivi/',
     `/cabinet/cabinet-exemple/signalement/${JETON}/`,
   ])('%s : hors du motif, 302 de langue comme avant (puis 404 s’il n’y a pas de page)', async (chemin) => {
     const r = await document(chemin)
     expect(r.statut).toBe(302)
     expect(new URL(r.location ?? '', 'https://vitfix.io').pathname).toBe(`/pt${chemin}`)
     expect(r.robots).toBeNull()
+    expect(appelsGetUser).toBe(0)
   })
 
   it('/fr/signalement/<jeton>/ (anciens QR codes) : inchangé, sans Supabase', async () => {
@@ -350,5 +363,187 @@ describe('chemin public d’un cabinet client', () => {
     const reponse = await middleware(new NextRequest(`https://vitfix.io/api/signalement/${JETON}/`))
     expect(reponse.headers.get('x-robots-tag')).toBeNull()
     expect(reponse.headers.get('location')).toBeNull()
+  })
+})
+
+// ── PR 2, lot 4 : espace de chaque cabinet (vitfix.io/<identifiant>/, /connexion/, /suivi/), plan § 1.3 et § 1.5 ──
+// Reconnu AVANT la langue, seulement pour un identifiant valable (validerIdentifiantCabinetQr) ; session lue par le
+// patron officiel @supabase/ssr ; décision pure (redirectionEspaceCabinetQr) ; chaque 3xx porte lui-même noindex, la
+// CSP et un cache privé (OpenNext n'ajoute pas les headers() de next.config.ts aux réponses du middleware) et recopie
+// les cookies de session rafraîchis ; aucune langue dans les adresses du cabinet (x-locale: fr pour la coquille).
+describe('espace d’un cabinet', () => {
+  const G_DU_CABINET = { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' }
+  const G_AUTRE_CABINET = { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'autre-cabinet' }
+
+  async function document(chemin: string) {
+    const reponse = await middleware(new NextRequest(`https://vitfix.io${chemin}`, { headers: { 'sec-fetch-dest': 'document', 'accept-language': 'pt-PT' } }))
+    const location = reponse.headers.get('location')
+    return {
+      reponse,
+      statut: reponse.status,
+      vers: location ? new URL(location) : null,
+      suite: reponse.headers.get('x-middleware-next'),
+      langue: reponse.headers.get('x-middleware-request-x-locale'),
+      robots: reponse.headers.get('x-robots-tag'),
+      cache: reponse.headers.get('cache-control'),
+      csp: reponse.headers.get('content-security-policy'),
+      cookieLangue: reponse.cookies.get('locale')?.value ?? null,
+    }
+  }
+
+  /** En-têtes d'une réponse de l'espace du cabinet (servie ou redirigée). */
+  const privee = (r: Awaited<ReturnType<typeof document>>) => {
+    expect(r.robots).toBe(NOINDEX)
+    expect(r.cache).toContain('no-store')
+    expect(r.cache).toContain('private')
+    expect(r.csp).toBeTruthy()
+    expect(r.cookieLangue).toBeNull()
+  }
+
+  it.each(['/cabinet-exemple/', '/cabinet-exemple', '/cabinet-exemple/?x=1&redirect=//evil.example'])(
+    '%s : 307 vers /cabinet-exemple/suivi/, requête vidée, sans Supabase',
+    async (chemin) => {
+      connecte(G_DU_CABINET)
+      const r = await document(chemin)
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/cabinet-exemple/suivi/')
+      expect(r.vers?.search).toBe('')
+      expect(r.vers?.origin).toBe('https://vitfix.io')
+      privee(r)
+      expect(appelsGetUser).toBe(0)
+    },
+  )
+
+  describe('/<id>/connexion/', () => {
+    it.each([
+      ['sans session', null],
+      ['compte client', { role: 'client' }],
+      ['compte syndic', { role: 'syndic' }],
+      ['« vue en tant que »', { role: 'coproprio', _original_role: 'super_admin' }],
+      ['gestionnaire sans repère', { role: 'gestionnaire_signalement' }],
+      ['gestionnaire d’un autre cabinet', G_AUTRE_CABINET],
+    ])('%s : page servie (réécriture ensuite), x-locale fr, un seul getUser', async (_cas, app) => {
+      if (app) connecte(app)
+      const r = await document('/cabinet-exemple/connexion/')
+      expect(r).toMatchObject({ statut: 200, vers: null, suite: '1', langue: 'fr' })
+      privee(r)
+      expect(appelsGetUser).toBe(1)
+    })
+
+    it('gestionnaire de CE cabinet : 307 vers /cabinet-exemple/suivi/ (requête vidée)', async () => {
+      connecte(G_DU_CABINET)
+      const r = await document('/cabinet-exemple/connexion/?retour=/admin/')
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/cabinet-exemple/suivi/')
+      expect(r.vers?.search).toBe('')
+      privee(r)
+    })
+
+    it('super admin : 307 vers son espace global /fr/aj-signalement/ (jamais /pt/)', async () => {
+      connecte({ role: 'super_admin' })
+      const r = await document('/cabinet-exemple/connexion')
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/fr/aj-signalement/')
+      privee(r)
+    })
+  })
+
+  describe('/<id>/suivi/', () => {
+    it.each([
+      ['sans session', null],
+      ['compte client', { role: 'client' }],
+      ['« vue en tant que »', { role: 'artisan', _original_role: 'super_admin' }],
+      ['gestionnaire sans repère', { role: 'gestionnaire_signalement' }],
+      ['gestionnaire d’un autre cabinet', G_AUTRE_CABINET],
+      ['repère sans le rôle', { role: 'client', aj_signalement_cabinet: 'cabinet-exemple' }],
+    ])('%s : 307 vers /cabinet-exemple/connexion/ (message neutre là-bas), non indexable', async (_cas, app) => {
+      if (app) connecte(app)
+      const r = await document('/cabinet-exemple/suivi/?x=1')
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/cabinet-exemple/connexion/')
+      expect(r.vers?.search).toBe('')
+      privee(r)
+    })
+
+    it('user_metadata trafiqué (rôle et repère) : même renvoi, seul app_metadata compte', async () => {
+      connecte({ role: 'client' }, G_DU_CABINET)
+      expect((await document('/cabinet-exemple/suivi/')).vers?.pathname).toBe('/cabinet-exemple/connexion/')
+    })
+
+    it('gestionnaire de CE cabinet : page servie, x-locale fr, privée', async () => {
+      connecte(G_DU_CABINET)
+      for (const chemin of ['/cabinet-exemple/suivi/', '/cabinet-exemple/suivi']) {
+        const r = await document(chemin)
+        expect(r).toMatchObject({ statut: 200, vers: null, suite: '1', langue: 'fr' })
+        privee(r)
+      }
+    })
+
+    it('super admin : 307 vers /fr/aj-signalement/', async () => {
+      connecte({ role: 'super_admin' })
+      const r = await document('/cabinet-exemple/suivi/')
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/fr/aj-signalement/')
+      privee(r)
+    })
+
+    it('Supabase injoignable : traité comme sans session (renvoi vers la connexion du cabinet), jamais une erreur', async () => {
+      getUserLeve = true
+      const r = await document('/cabinet-exemple/suivi/')
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/cabinet-exemple/connexion/')
+    })
+  })
+
+  it('cookies de session rafraîchis par Supabase : recopiés sur la redirection et sur la page servie, options comprises', async () => {
+    cookiesRafraichis = [{ name: 'sb-projet-auth-token', value: 'jeton-rafraichi', options: { path: '/', maxAge: 3600, httpOnly: true, sameSite: 'lax' } }]
+    connecte(G_DU_CABINET)
+    const servie = await document('/cabinet-exemple/suivi/')
+    expect(servie.statut).toBe(200)
+    expect(servie.reponse.cookies.get('sb-projet-auth-token')).toMatchObject({ value: 'jeton-rafraichi', maxAge: 3600, httpOnly: true, path: '/' })
+    const redirigee = await document('/cabinet-exemple/connexion/')
+    expect(redirigee.statut).toBe(307)
+    expect(redirigee.reponse.cookies.get('sb-projet-auth-token')).toMatchObject({ value: 'jeton-rafraichi', maxAge: 3600, httpOnly: true, path: '/' })
+  })
+
+  it('identifiant réservé : jamais l’espace d’un cabinet (/aj-signalement/connexion/ part en 302 de langue, sans Supabase)', async () => {
+    for (const chemin of ['/aj-signalement/connexion/', '/blog/', '/syndic/connexion/', '/servicos/']) {
+      const r = await document(chemin)
+      expect(r.statut, chemin).toBe(302)
+      expect(r.vers?.pathname, chemin).toBe(`/pt${chemin}`)
+    }
+    expect(appelsGetUser).toBe(0)
+  })
+})
+
+describe('aiguillage d’un gestionnaire vers l’espace de SON cabinet (plan § 1.3, repère de routage)', () => {
+  const G = { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' }
+
+  it.each(['/fr/aj-signalement/', '/pt/aj-signalement/', '/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/', '/en/aj-signalement/'])(
+    'espace global %s avec une session de gestionnaire → /cabinet-exemple/suivi/ (jamais /pt/<id>/), non indexable',
+    async (chemin) => {
+      connecte(G)
+      const r = await visiter(`${chemin}?x=1`)
+      expect(r.statut).toBe(307)
+      expect(r.vers?.pathname).toBe('/cabinet-exemple/suivi/')
+      expect(r.vers?.search).toBe('')
+      expect(r.robots).toBe(NOINDEX)
+      expect(r.cache).toContain('no-store')
+      expect(r.csp).toBeTruthy()
+    },
+  )
+
+  it('gestionnaire sans repère sur l’espace global : connexion de l’espace (message neutre), page de connexion servie (aucune boucle)', async () => {
+    connecte({ role: 'gestionnaire_signalement' })
+    expect(cheminDe(await visiter('/fr/aj-signalement/'))).toBe('/fr/aj-signalement/connexion')
+    expect(await visiter('/fr/aj-signalement/connexion/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  it('cookies rafraîchis recopiés sur l’aiguillage', async () => {
+    cookiesRafraichis = [{ name: 'sb-projet-auth-token', value: 'jeton-rafraichi', options: { path: '/', maxAge: 3600 } }]
+    connecte(G)
+    const reponse = await middleware(new NextRequest('https://vitfix.io/fr/aj-signalement/'))
+    expect(reponse.status).toBe(307)
+    expect(reponse.cookies.get('sb-projet-auth-token')).toMatchObject({ value: 'jeton-rafraichi', maxAge: 3600 })
   })
 })

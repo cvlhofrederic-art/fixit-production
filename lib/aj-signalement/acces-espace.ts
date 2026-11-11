@@ -2,23 +2,39 @@
 //
 // Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) :
 // une adresse à lui (/fr/aj-signalement/), son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/,
-// demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Aujourd'hui seul le
-// super admin y entre, PAS en « vue en tant que » (_original_role) depuis le 11/11/2026 : même règle que les routes
-// (isSuperAdmin, #650) ; chaque gestionnaire y aura plus tard sa page : il suffira d'ajouter son rôle à RoleEspaceQr,
-// une branche à roleEspaceQr et ses entrées de menu. Le super admin a, depuis le 11/11/2026, les vues Gestionnaires
-// (page profil à l'ancre #gestionnaire/<uuid>), Cabinets et Journal.
+// demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Seul le super admin
+// entre dans l'espace global, PAS en « vue en tant que » (_original_role) depuis le 11/11/2026 : même règle que les
+// routes (isSuperAdmin, #650). Le super admin a, depuis le 11/11/2026, les vues Gestionnaires (page profil à l'ancre
+// #gestionnaire/<uuid>), Cabinets et Journal.
+// PR 2, lot 4 (Hugo, 11/11/2026, SPEC § 6) : chaque cabinet client a SON espace sous vitfix.io/<identifiant>/ (connexion
+// /<identifiant>/connexion/, suivi /<identifiant>/suivi/). Le gestionnaire y entre par son rôle serveur
+// (gestionnaire_signalement) ET le repère de routage app_metadata.aj_signalement_cabinet, égal à l'identifiant du
+// cabinet de la page : les décisions reçoivent donc ce cabinet. Il n'entre jamais dans l'espace global, ni dans celui
+// d'un autre cabinet ; il est aiguillé vers le sien (aiguillageGestionnaireQr). Le super admin, lui, est renvoyé de
+// l'espace d'un cabinet vers son espace global.
 //
-// Module pur, sans aucune dépendance : importé par le middleware (edge), la page de connexion de l'espace, l'espace
-// lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces
-// décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient le super admin côté serveur
-// (controlerAccesQr, rôle ET liste d'e-mails ADMIN_EMAIL, que le navigateur ne connaît pas). La page de connexion
-// générale de VitFix (/fr/auth/login/) n'en dépend pas.
+// Module pur, sans autre dépendance que chemin-cabinet.ts (pur lui aussi) : importé par le middleware (edge), les pages
+// de connexion, l'espace lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais
+// user_metadata. Ces décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient tout côté serveur
+// (controlerAccesQr : rôle ET liste d'e-mails ADMIN_EMAIL pour le super admin, fiche ACTIVE relue par user_id à chaque
+// appel pour un gestionnaire). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas.
 // La portée d'un gestionnaire et ses droits sur une copropriété (fin du fichier) sont calculés ici aussi, sur des
 // données relues en base par le serveur à chaque appel : c'est la seule fonction d'accès d'AJ Signalement.
 
 import type {
-  CoproDroitsQr, DroitsCoproprieteQr, FicheDroitsQr, PorteeQr, ProfilDroitsQr,
+  CoproDroitsQr, DroitsCoproprieteQr, EspaceCabinetQr, FicheDroitsQr, PorteeQr, ProfilDroitsQr,
 } from '@/lib/aj-signalement/types'
+import { cheminConnexionCabinetQr, cheminSuiviCabinetQr, validerIdentifiantCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+
+/** Rôle serveur (app_metadata.role) d'un compte gestionnaire d'un cabinet client, posé à l'acceptation de son accès. */
+export const ROLE_GESTIONNAIRE_QR = 'gestionnaire_signalement'
+
+/**
+ * Repère de routage posé dans app_metadata à l'acceptation (identifiant du chemin de SON cabinet) : il sert au
+ * middleware, qui n'a pas la base, à aiguiller le gestionnaire vers vitfix.io/<identifiant>/suivi/. Il ne donne AUCUN
+ * droit : les routes ne lisent que la fiche.
+ */
+export const CLE_REPERE_CABINET_QR = 'aj_signalement_cabinet'
 
 /** Segment de l'espace, sans préfixe de langue (servi par réécriture depuis /fr/ et /pt/, next.config.ts). */
 export const SEGMENT_ESPACE_QR = '/aj-signalement'
@@ -58,8 +74,8 @@ export function estConnexionEspaceQr(cheminSansLangue: string): boolean {
 
 // ── Droits ───────────────────────────────────────────────────────────────────
 
-/** Rôles admis dans l'espace. Plus tard : 'gestionnaire' (sa propre page), sans rien changer aux appelants. */
-export type RoleEspaceQr = 'super_admin'
+/** Rôles admis : le super admin dans l'espace global, le gestionnaire dans l'espace de SON cabinet (PR 2). */
+export type RoleEspaceQr = 'super_admin' | 'gestionnaire'
 
 export type DecisionAccesEspaceQr =
   | { acces: 'autorise'; role: RoleEspaceQr }
@@ -71,30 +87,50 @@ type MetadonneesApp = Record<string, unknown> | null | undefined
 const estObjet = (valeur: unknown): valeur is Record<string, unknown> =>
   typeof valeur === 'object' && valeur !== null && !Array.isArray(valeur)
 
-/** Rôle de l'espace d'après app_metadata ; null : aucun accès. */
-function roleEspaceQr(metadonnees: MetadonneesApp): RoleEspaceQr | null {
-  if (!estObjet(metadonnees)) return null
-  // La « vue en tant que » (_original_role) n'entre pas : sinon un super admin en vue d'emprunt verrait la coquille de
-  // l'espace et un 403 à chaque appel des routes.
-  if (metadonnees.role === 'super_admin') return 'super_admin'
-  return null
+/** Super admin d'après app_metadata.role seul (la « vue en tant que », _original_role, n'entre pas). */
+const estSuperAdminQr = (metadonnees: MetadonneesApp): boolean => estObjet(metadonnees) && metadonnees.role === 'super_admin'
+
+/**
+ * Repère de routage d'un compte gestionnaire : l'identifiant de SON cabinet, s'il est un identifiant valable (format et
+ * noms réservés, validerIdentifiantCabinetQr) ; null pour tout autre compte, sans repère ou au repère mal formé. Il
+ * aiguille seulement : il ne donne aucun droit.
+ */
+export function repereCabinetQr(metadonnees: MetadonneesApp): string | null {
+  if (!estObjet(metadonnees) || metadonnees.role !== ROLE_GESTIONNAIRE_QR) return null
+  const repere = metadonnees[CLE_REPERE_CABINET_QR]
+  return typeof repere === 'string' && validerIdentifiantCabinetQr(repere).ok ? repere : null
 }
 
 /**
- * Décision d'accès pour un utilisateur Supabase (ou null sans session). Seul `app_metadata` est lu.
- * - pas de compte → « connexion » (page de connexion de l'espace) ;
- * - rôle admis → « autorise » ;
- * - tout autre compte, app_metadata absent ou illisible compris → « refuse » (page de connexion de l'espace, avec un
- *   message neutre : aucune donnée, aucun rôle nommé).
+ * Rôle d'après app_metadata dans un espace ; null : aucun accès. Espace global (cabinet absent) : le super admin seul
+ * (sinon il verrait, en « vue en tant que », la coquille de l'espace et un 403 à chaque appel des routes). Espace d'un
+ * cabinet : le gestionnaire dont le repère est ce cabinet, seul (le super admin a son espace global).
  */
-export function decisionAccesEspaceQr(utilisateur: { app_metadata?: unknown } | null | undefined): DecisionAccesEspaceQr {
+function roleEspaceQr(metadonnees: MetadonneesApp, cabinet?: string | null): RoleEspaceQr | null {
+  if (!estObjet(metadonnees)) return null
+  if (cabinet === undefined || cabinet === null) return estSuperAdminQr(metadonnees) ? 'super_admin' : null
+  return repereCabinetQr(metadonnees) === cabinet ? 'gestionnaire' : null
+}
+
+/**
+ * Décision d'accès pour un utilisateur Supabase (ou null sans session), dans l'espace global ou dans celui d'un cabinet
+ * (identifiant du cabinet de la page). Seul `app_metadata` est lu.
+ * - pas de compte → « connexion » (page de connexion de l'espace) ;
+ * - rôle admis dans CET espace → « autorise » ;
+ * - tout autre compte, app_metadata absent ou illisible compris → « refuse » (page de connexion de l'espace, avec un
+ *   message neutre : aucune donnée, aucun rôle nommé, rien ne dit qu'un autre cabinet existe).
+ */
+export function decisionAccesEspaceQr(
+  utilisateur: { app_metadata?: unknown } | null | undefined,
+  cabinet?: string | null,
+): DecisionAccesEspaceQr {
   if (!utilisateur) return { acces: 'connexion' }
   const metadonnees = estObjet(utilisateur.app_metadata) ? utilisateur.app_metadata : null
-  const role = roleEspaceQr(metadonnees)
+  const role = roleEspaceQr(metadonnees, cabinet)
   return role ? { acces: 'autorise', role } : { acces: 'refuse' }
 }
 
-/** Lien « AJ Signalement » du portail copropriétaire et de l'AJ : l'adresse de l'espace pour un rôle admis, sinon null. */
+/** Lien « AJ Signalement » du portail copropriétaire et de l'AJ : l'adresse de l'espace global pour un rôle admis, sinon null. */
 export function lienEspaceQr(appMetadata: MetadonneesApp): string | null {
   return roleEspaceQr(appMetadata) ? CHEMIN_ESPACE_QR : null
 }
@@ -122,10 +158,13 @@ export interface EntreeMenuQr {
   barreDuBas: boolean
 }
 
+/** Les trois vues du tableau, communes au super admin et au gestionnaire (mêmes libellés, point 7.7 du plan). */
+const TOUS_LES_ROLES_QR: readonly RoleEspaceQr[] = ['super_admin', 'gestionnaire']
+
 export const ENTREES_MENU_QR: readonly EntreeMenuQr[] = [
-  { vue: 'tableau-de-bord', libelle: 'Tableau de bord', sousTitre: 'Vue d’ensemble des signalements reçus par QR code', roles: ['super_admin'], barreDuBas: true },
-  { vue: 'coproprietes', libelle: 'Copropriétés', sousTitre: 'QR codes, affiches, gestionnaires et destinataires des e-mails', roles: ['super_admin'], barreDuBas: true },
-  { vue: 'signalements', libelle: 'Signalements', sousTitre: 'Signalements reçus, détail et suivi', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'tableau-de-bord', libelle: 'Tableau de bord', sousTitre: 'Vue d’ensemble des signalements reçus par QR code', roles: TOUS_LES_ROLES_QR, barreDuBas: true },
+  { vue: 'coproprietes', libelle: 'Copropriétés', sousTitre: 'QR codes, affiches, gestionnaires et destinataires des e-mails', roles: TOUS_LES_ROLES_QR, barreDuBas: true },
+  { vue: 'signalements', libelle: 'Signalements', sousTitre: 'Signalements reçus, détail et suivi', roles: TOUS_LES_ROLES_QR, barreDuBas: true },
   { vue: 'gestionnaires', libelle: 'Gestionnaires', sousTitre: 'Fiches, adresses confirmées, copropriétés attribuées et page de suivi', roles: ['super_admin'], barreDuBas: true },
   { vue: 'cabinets', libelle: 'Cabinets', sousTitre: 'Cabinets clients : adresse vitfix.io/<identifiant>/ et domaines e-mail', roles: ['super_admin'], barreDuBas: true },
   // Journal : barre latérale seulement (barre du bas pleine), joignable depuis la vue Cabinets.
@@ -189,6 +228,7 @@ export const cheminConnexionEspaceQr = (langue: string): string => `/${langueEsp
  *   un compte admis est envoyé dans l'espace ;
  * - reste de l'espace : sans session ou sans accès → page de connexion de l'espace ; accès → la page.
  * Depuis en, nl ou es (aucune page dans ces langues), toujours un renvoi vers la même destination.
+ * Un gestionnaire n'est jamais admis ici : le middleware l'aiguille avant vers SON espace (aiguillageGestionnaireQr).
  */
 export function redirectionEspaceQr(
   cheminSansLangue: string,
@@ -206,19 +246,94 @@ export function redirectionEspaceQr(
   return pageDeLaLangue ? null : `${SEGMENT_ESPACE_QR}/`
 }
 
+/** Adresse plus l'ancre si elle désigne exactement une vue du rôle (#signalements du lien de l'e-mail), sinon l'adresse seule. */
+function avecAncreQr(adresse: string, ancre: string | null | undefined, role: RoleEspaceQr): string {
+  const a = ancreEspaceQr(ancre, role)
+  return a ? `${adresse}#${texteAncreQr(a)}` : adresse
+}
+
 /**
  * Adresse d'arrivée après la connexion professionnelle : l'espace donné par la page (jamais lu dans l'URL : aucune
- * redirection ouverte possible), plus l'ancre si elle désigne exactement une vue du rôle (#signalements du lien de
- * l'e-mail) ; null si le compte n'a pas accès (la page affiche alors le message neutre).
- * Ne lit que le rôle : aujourd'hui seul le super admin entre, dans tout espace. PR 2 (page de connexion de chaque
- * cabinet) : lui passer le cabinet de l'espace AVANT d'ajouter le rôle gestionnaire à roleEspaceQr, sinon un
- * gestionnaire d'un autre cabinet serait envoyé dans cet espace.
+ * redirection ouverte possible), plus l'ancre si elle désigne exactement une vue du rôle ; null si le compte n'a pas
+ * accès (la page affiche alors le message neutre).
+ * - page d'un cabinet (identifiant du cabinet passé par la page) : son gestionnaire → l'espace du cabinet ; le super
+ *   admin → son espace global ; tout autre compte (gestionnaire d'un autre cabinet compris) → null ;
+ * - page globale : le super admin → l'espace global ; un gestionnaire au repère valable → l'espace de SON cabinet ;
+ *   tout autre compte → null.
  */
-export function destinationConnexionEspaceQr(espace: string, ancre: string | null | undefined, appMetadata: MetadonneesApp): string | null {
-  const role = roleEspaceQr(appMetadata)
-  if (!role) return null
-  const a = ancreEspaceQr(ancre, role)
-  return a ? `${espace}#${texteAncreQr(a)}` : espace
+export function destinationConnexionEspaceQr(
+  espace: string, ancre: string | null | undefined, appMetadata: MetadonneesApp, cabinet?: string | null,
+): string | null {
+  if (cabinet !== undefined && cabinet !== null) {
+    if (roleEspaceQr(appMetadata, cabinet) === 'gestionnaire') return avecAncreQr(espace, ancre, 'gestionnaire')
+    return estSuperAdminQr(appMetadata) ? avecAncreQr(CHEMIN_ESPACE_QR, ancre, 'super_admin') : null
+  }
+  if (roleEspaceQr(appMetadata) === 'super_admin') return avecAncreQr(espace, ancre, 'super_admin')
+  const repere = repereCabinetQr(appMetadata)
+  return repere ? avecAncreQr(cheminSuiviCabinetQr(repere), ancre, 'gestionnaire') : null
+}
+
+// ── Espace de chaque cabinet (PR 2, lot 4) : décisions du middleware ─────────
+
+/**
+ * Redirection du middleware pour l'espace d'un cabinet (chemin reconnu par cheminEspaceCabinetQr), null : la page est
+ * servie. Adresses sans langue (l'espace est en français pour tout cabinet). Matrice du plan § 1.5 :
+ * - /<id>/ : toujours le suivi (le middleware n'a même pas besoin de la session) ;
+ * - /<id>/connexion/ : servie sans session et à tout compte sans accès ici (message neutre, aucune boucle ; un
+ *   gestionnaire d'un autre cabinet compris : rien ne dit que l'autre cabinet existe) ; le gestionnaire de CE cabinet
+ *   → le suivi ; le super admin → son espace global ;
+ * - /<id>/suivi/ : le gestionnaire de CE cabinet → servi ; le super admin → son espace global ; tout autre cas → la
+ *   connexion du cabinet.
+ */
+export function redirectionEspaceCabinetQr(
+  chemin: EspaceCabinetQr,
+  utilisateur: { app_metadata?: unknown } | null | undefined,
+): string | null {
+  const { page, identifiant } = chemin
+  if (page === 'accueil') return cheminSuiviCabinetQr(identifiant)
+  const metadonnees = utilisateur && estObjet(utilisateur.app_metadata) ? utilisateur.app_metadata : null
+  if (estSuperAdminQr(metadonnees)) return CHEMIN_ESPACE_QR
+  const duCabinet = roleEspaceQr(metadonnees, identifiant) === 'gestionnaire'
+  if (page === 'connexion') return duCabinet ? cheminSuiviCabinetQr(identifiant) : null
+  return duCabinet ? null : cheminConnexionCabinetQr(identifiant)
+}
+
+/** Chemin sans langue et sans barre finale (« / » pour l'accueil). */
+const sansBarreFinaleQr = (chemin: string): string => (chemin.length > 1 ? chemin.replace(/\/+$/, '') : chemin)
+
+/** Accueil d'une langue (« », « / ») ou connexion générale (/auth/login), avec ou sans barre finale. */
+const estAccueilOuConnexionGeneraleQr = (chemin: string): boolean => chemin === '' || chemin === '/' || chemin === '/auth/login'
+
+/**
+ * Pages d'où un gestionnaire est aiguillé vers l'espace de SON cabinet (chemins sans langue, ceux que le middleware
+ * contrôle avec la session) : accueil, connexion générale, tableaux de bord client, pro, artisan, syndic, copropriétaire,
+ * succursale AJ, espace global AJ Signalement et sa connexion. Jamais une page publique (fiche artisan, blog…).
+ */
+function estPageAiguilleeQr(chemin: string): boolean {
+  return estAccueilOuConnexionGeneraleQr(chemin)
+    || chemin === '/client/dashboard' || chemin.startsWith('/client/dashboard/')
+    || chemin.startsWith('/pro/')
+    || chemin === '/artisan/dashboard' || chemin.startsWith('/artisan/dashboard/')
+    || chemin.startsWith('/syndic/')
+    || chemin.startsWith('/coproprietaire/')
+    || chemin === '/administrateur-judiciaire' || chemin.startsWith('/administrateur-judiciaire/')
+    || viseEspaceQr(chemin)
+}
+
+/**
+ * Aiguillage d'un compte gestionnaire (app_metadata seul) depuis un chemin SANS langue ; null : rien à faire (tout autre
+ * compte, ou une page publique). Adresse rendue sans langue, jamais sous /pt/ :
+ * - repère valable : les pages de estPageAiguilleeQr → /<repère>/suivi/ ;
+ * - sans repère (ou repère mal formé) : accueil et connexion générale → connexion de l'espace global (message neutre ;
+ *   aucune boucle : cette page sert un compte non admis) ; ailleurs, comme aujourd'hui.
+ * Il aiguille seulement : chaque route /api/aj-signalement/* refait le contrôle sur la fiche.
+ */
+export function aiguillageGestionnaireQr(cheminSansLangue: string, appMetadata: MetadonneesApp): string | null {
+  if (!estObjet(appMetadata) || appMetadata.role !== ROLE_GESTIONNAIRE_QR) return null
+  const chemin = sansBarreFinaleQr(cheminSansLangue)
+  const repere = repereCabinetQr(appMetadata)
+  if (repere) return estPageAiguilleeQr(chemin) || estPageAiguilleeQr(`${chemin}/`) ? cheminSuiviCabinetQr(repere) : null
+  return estAccueilOuConnexionGeneraleQr(chemin) ? cheminConnexionEspaceQr('fr') : null
 }
 
 // ── Textes ───────────────────────────────────────────────────────────────────

@@ -4,11 +4,10 @@
 // /fr/aj-signalement/connexion/ ne montre qu'un e-mail et un mot de passe (ni Particulier / Artisan / Pro, ni Google) ;
 // la page de connexion générale de VitFix ne change pas.
 // - Contexte de la page : nom affiché et adresse de l'espace par langue. Sérialisable (une page serveur le passe au
-//   composant client) ; l'espace de chaque cabinet (vitfix.io/<client>/connexion, PR 2) passera le sien. Limite : la
-//   décision d'accès (destinationConnexionEspaceQr) ne lit aujourd'hui que le rôle, et seul le super admin entre, dans
-//   tout espace. Avant d'admettre un rôle gestionnaire sur la page d'un cabinet, la PR 2 devra ajouter au contexte
-//   l'identité du cabinet et la passer à cette décision (et à la garde de l'espace) : sinon un gestionnaire d'un autre
-//   cabinet y serait envoyé.
+//   composant client). Depuis la PR 2 (lot 4), la page de chaque cabinet (vitfix.io/<identifiant>/connexion/) passe le
+//   sien avec l'identifiant du cabinet, transmis à la décision d'accès (destinationConnexionEspaceQr) : seul un
+//   gestionnaire de CE cabinet y entre ; le super admin est renvoyé vers son espace global ; un gestionnaire d'un autre
+//   cabinet reçoit le message neutre.
 // - Validation de la saisie avant tout appel ; classement des erreurs de Supabase en trois messages qui ne disent
 //   jamais si l'adresse existe ; résumé d'erreur pour le journal, sans e-mail ni mot de passe.
 // - « Mot de passe oublié » dans la page (relecture du 11/11/2026) : la page commune /auth/reset-password/ ramenait
@@ -18,14 +17,16 @@
 
 import { isAuthError } from '@supabase/supabase-js'
 import { TEXTES_ESPACE_QR, cheminEspaceQr, type LangueEspaceQr } from '@/lib/aj-signalement/acces-espace'
+import { cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { EMAIL_VALIDE_QR } from '@/lib/aj-signalement/formulaire'
 
 export interface ContexteConnexionQr {
-  /** Nom affiché au-dessus du titre : « AJ Signalement » ; en PR 2, le nom du cabinet. */
+  /** Nom affiché au-dessus du titre : « AJ Signalement », ou le nom du cabinet (PR 2). */
   nom: string
-  /** Adresse de l'espace d'arrivée selon la langue de la page ; en PR 2, l'adresse /<client>/ du cabinet. */
+  /** Adresse de l'espace d'arrivée selon la langue de la page ; pour un cabinet, /<identifiant>/suivi/ dans les deux. */
   espace: Readonly<Record<LangueEspaceQr, string>>
-  // Pas encore d'identité de cabinet : elle viendra en PR 2, avec la décision d'accès par cabinet (voir plus haut).
+  /** Cabinet de la page (PR 2, lot 4) : sa présence change la décision d'accès (gestionnaire de CE cabinet seul). */
+  cabinet?: Readonly<{ identifiant: string }>
 }
 
 /** Espace global du super admin (/fr/aj-signalement/, /pt/aj-signalement/). */
@@ -33,6 +34,18 @@ export const CONTEXTE_CONNEXION_GLOBAL_QR: ContexteConnexionQr = {
   nom: TEXTES_ESPACE_QR.nom,
   espace: { fr: cheminEspaceQr('fr'), pt: cheminEspaceQr('pt') },
 }
+
+/**
+ * Page de connexion d'un cabinet (vitfix.io/<identifiant>/connexion/, PR 2) : nom du cabinet, son espace de suivi (sans
+ * langue : l'espace est en français pour tout cabinet) et son identifiant pour la décision d'accès.
+ */
+export function contexteConnexionCabinetQr(cabinet: Readonly<{ identifiant: string; nom: string }>): ContexteConnexionQr {
+  const suivi = cheminSuiviCabinetQr(cabinet.identifiant)
+  return { nom: cabinet.nom, espace: { fr: suivi, pt: suivi }, cabinet: { identifiant: cabinet.identifiant } }
+}
+
+/** Titre d'onglet de la page de connexion : « Connexion professionnelle — <nom de l'espace ou du cabinet> ». */
+export const titreOngletConnexionQr = (nom: string): string => `Connexion professionnelle — ${nom}`
 
 /**
  * « Mot de passe oublié » : route existante de VitFix (3 demandes par 5 minutes et par IP). Elle envoie l'e-mail de
@@ -43,7 +56,7 @@ export const ROUTE_LIEN_MOT_DE_PASSE_QR = '/api/auth/reset-password'
 
 export const TEXTES_CONNEXION_QR = {
   titre: 'Connexion professionnelle',
-  titreOnglet: `Connexion professionnelle — ${TEXTES_ESPACE_QR.nom}`,
+  titreOnglet: titreOngletConnexionQr(TEXTES_ESPACE_QR.nom),
   aide: 'Espace réservé aux professionnels. Connectez-vous avec votre adresse e-mail et votre mot de passe.',
   email: 'Adresse e-mail professionnelle',
   motDePasse: 'Mot de passe',

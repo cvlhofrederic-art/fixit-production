@@ -41,6 +41,7 @@ import {
 import { adressesDeFichesQr, destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
 import { emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
 import { porteeGestionnaireQr } from '@/lib/aj-signalement/acces-espace'
+import { validerIdentifiantCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { BUDGET_EMAILS_CABINET_HEURE, BUDGET_EMAILS_COPRO_HEURE } from '@/lib/aj-signalement/budget-emails'
 
 export const TABLE_COPROPRIETES_QR = 'signalements_qr_coproprietes'
@@ -1073,6 +1074,31 @@ export async function lireCabinetQr(cle: { id: string } | { identifiant: string 
 
 /** Cabinet par l'identifiant du chemin (page publique, confirmation d'adresse) ; null s'il n'existe pas. */
 export const lireCabinetParIdentifiantQr = (identifiant: string): Promise<LectureCabinetQr> => lireCabinetQr({ identifiant })
+
+/** Cabinet d'une page de l'espace d'un cabinet : identifiant et nom seulement (rien d'autre n'est rendu à la page). */
+export type CabinetDuCheminQr = { ok: true; cabinet: { identifiant: string; nom: string } | null } | { ok: false }
+
+/**
+ * Pages /<identifiant>/connexion/ et /<identifiant>/suivi/ (PR 2, lot 4) : le cabinet du chemin. Identifiant invalide ou
+ * réservé → aucun cabinet, sans lecture. Migration du 11/11/2026 absente (table ou colonne : aucun cabinet ne peut
+ * exister) → aucun cabinet, journalisé une fois (la page répond 404, rien d'autre ne change) ; toute autre erreur → rendue
+ * (la page lève : page d'erreur), journalisée avec son code seulement.
+ */
+export async function lireCabinetDuCheminQr(identifiant: string): Promise<CabinetDuCheminQr> {
+  if (!validerIdentifiantCabinetQr(identifiant).ok) return { ok: true, cabinet: null }
+  const lecture = await lireCabinetParIdentifiantQr(identifiant)
+  if (!lecture.ok) {
+    if (structureAbsenteQr(lecture.erreur)) {
+      journaliserRepliGestionQr('lecture du cabinet de l’espace', lecture.erreur)
+      return { ok: true, cabinet: null }
+    }
+    logger.error(`${CONTEXTE} lecture du cabinet de l’espace`, { code: lecture.erreur.code })
+    return { ok: false }
+  }
+  const ligne = lecture.cabinet
+  if (!ligne || ligne.identifiant !== identifiant) return { ok: true, cabinet: null }
+  return { ok: true, cabinet: { identifiant: ligne.identifiant, nom: chaine(ligne.nom) } }
+}
 
 /** Lecture d'une table du 11/11/2026 pour un contrôle : `strict` (gestionnaire, PR 2), aucune liste vide de repli. */
 export interface OptionsLectureControleQr {

@@ -386,3 +386,73 @@ describe('déconnexion', () => {
     expect(screen.queryByRole('navigation')).toBeNull()
   })
 })
+
+// ── PR 2, lot 4 : garde de l'espace d'un cabinet (vitfix.io/<identifiant>/suivi/) ───────────────────────────────────
+// La garde reçoit le cabinet de la page : seul un gestionnaire de CE cabinet (rôle serveur + repère de routage) entre ;
+// tout autre cas renvoie vers la connexion DU CABINET (/<identifiant>/connexion/, ancre comprise), jamais vers celle de
+// l'espace global (sinon boucle avec l'aiguillage du middleware). Les écrans propres au gestionnaire viennent au lot 5 :
+// ici, la coquille à trois entrées et aucun appel aux routes réservées au super admin (cabinets, fiches).
+describe('espace d’un cabinet : garde et coquille du gestionnaire', () => {
+  const CABINET_PAGE = { identifiant: 'cabinet-exemple', nom: 'Cabinet Exemple' }
+  const gestionnaire = (repere: string) => utilisateur({ role: 'gestionnaire_signalement', aj_signalement_cabinet: repere })
+
+  it('gestionnaire de CE cabinet : coquille à trois entrées (barre du bas comprise), tableau seul chargé, ni panneau admin ni import', async () => {
+    window.history.replaceState(null, '', '/cabinet-exemple/suivi/')
+    simul.getUser.mockResolvedValue(gestionnaire('cabinet-exemple'))
+    render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
+    await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
+    expect(within(menuLateral()).getAllByRole('link').map((e) => e.textContent)).toEqual(['Tableau de bord', 'Copropriétés', 'Signalements'])
+    const barreDuBas = screen.getAllByRole('navigation', { name: 'Menu AJ Signalement' })[1]
+    expect(within(barreDuBas).getAllByRole('link').map((e) => e.textContent)).toEqual(['Tableau de bord', 'Copropriétés', 'Signalements'])
+    expect(screen.queryByRole('link', { name: 'Panneau admin' })).toBeNull()
+    await waitFor(() => expect(screen.getByRole('region', { name: T.indicateurs })).toBeInTheDocument())
+    fireEvent.click(within(menuLateral()).getByRole('link', { name: 'Copropriétés' }))
+    expect(await screen.findByRole('heading', { name: 'Parc Belle Ombre' })).toBeInTheDocument()
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)) })
+    // Aucune route du super admin (cabinets, fiches des gestionnaires) : 403 pour un gestionnaire.
+    expect(appelsFetch).toEqual(['/api/aj-signalement/tableau'])
+    expect(screen.queryByRole('button', { name: /Importer/ })).toBeNull()
+  })
+
+  it('ancre d’une vue du super admin (#journal) : la vue par défaut du gestionnaire', async () => {
+    window.history.replaceState(null, '', '/cabinet-exemple/suivi/#journal')
+    simul.getUser.mockResolvedValue(gestionnaire('cabinet-exemple'))
+    render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
+    await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
+    expect(appelsFetch.filter((u) => u.startsWith('/api/aj-signalement/journal'))).toEqual([])
+  })
+
+  it.each([
+    ['sans session', null],
+    ['gestionnaire d’un autre cabinet', { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'autre-cabinet' }],
+    ['gestionnaire sans repère', { role: 'gestionnaire_signalement' }],
+    ['super admin (son espace est global : la connexion du cabinet l’y renvoie)', { role: 'super_admin' }],
+    ['client', { role: 'client' }],
+  ])('%s : renvoi vers la connexion du cabinet (ancre comprise), aucune donnée', async (_cas, app) => {
+    simulerLocation('/cabinet-exemple/suivi/', '#signalements')
+    simul.getUser.mockResolvedValue(app ? utilisateur(app) : { data: { user: null }, error: new AuthSessionMissingError() })
+    render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
+    await waitFor(() => expect(navigations).toEqual([remplacement('/cabinet-exemple/connexion/#signalements')]))
+    expect(screen.getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', '/cabinet-exemple/connexion/')
+    expect(screen.queryByRole('navigation')).toBeNull()
+    expect(appelsFetch).toEqual([])
+  })
+
+  it('« Se déconnecter » : fermeture de la session puis connexion du cabinet', async () => {
+    simulerLocation('/cabinet-exemple/suivi/')
+    simul.getUser.mockResolvedValue(gestionnaire('cabinet-exemple'))
+    render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Se déconnecter' }))
+    await waitFor(() => expect(navigations).toEqual([remplacement('/cabinet-exemple/connexion/')]))
+    expect(simul.signOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('espace global : un gestionnaire, même avec repère, n’entre pas (renvoi vers la connexion globale, qui l’aiguille)', async () => {
+    simulerLocation('/fr/aj-signalement/')
+    simul.getUser.mockResolvedValue(gestionnaire('cabinet-exemple'))
+    render(<EspaceAjSignalement />)
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/connexion/')]))
+    expect(screen.queryByRole('navigation')).toBeNull()
+    expect(appelsFetch).toEqual([])
+  })
+})

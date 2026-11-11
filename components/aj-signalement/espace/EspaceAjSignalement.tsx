@@ -15,6 +15,10 @@
 // Depuis le 11/11/2026 (demandes de Hugo du 10/11) : vues Gestionnaires (liste, puis page profil à l'ancre
 // #gestionnaire/<uuid>), Cabinets et Journal. Le tableau, chargé une fois par TableauSignalementsQr (caché hors de ses
 // trois vues), leur est partagé ; cabinets et fiches sont chargés une fois, à la première vue qui en a besoin.
+// PR 2, lot 4 : la même coquille sert l'espace de chaque cabinet (vitfix.io/<identifiant>/suivi/), avec le cabinet de la
+// page passé à la garde. Le gestionnaire y a ses trois vues (Tableau de bord, Copropriétés, Signalements) ; cabinets et
+// fiches (routes du super admin) ne sont jamais chargés pour lui. Ses écrans propres (fenêtre de copropriété, cartes,
+// détail, nom du cabinet dans l'en-tête) viennent au lot 5.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
@@ -24,7 +28,7 @@ import FicheGestionnaireQr from '@/components/aj-signalement/FicheGestionnaireQr
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
 import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
 import JournalQr from '@/components/aj-signalement/JournalQr'
-import { useAccesEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
+import { useAccesEspaceQr, type CabinetEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
 import { useReferentielsQr } from '@/components/aj-signalement/espace/useReferentielsQr'
 import {
   TEXTES_ESPACE_QR as E, VUES_TABLEAU_QR, VUE_PAR_DEFAUT_QR, ancreEspaceQr, entreesBarreDuBasQr, entreesMenuQr, texteAncreQr,
@@ -46,8 +50,13 @@ const VUES_REFERENTIELS_QR: readonly VueEspaceQr[] = ['coproprietes', 'gestionna
 
 const ANCRE_PAR_DEFAUT_QR: AncreEspaceQr = { vue: VUE_PAR_DEFAUT_QR, gestionnaireId: null }
 
-export default function EspaceAjSignalement() {
-  const { etat, connexion, reessayer, seDeconnecter } = useAccesEspaceQr()
+export interface PropsEspaceAjSignalement {
+  /** Cabinet de la page (espace d'un cabinet, PR 2) ; absent : espace global du super admin. */
+  cabinet?: CabinetEspaceQr
+}
+
+export default function EspaceAjSignalement({ cabinet }: Readonly<PropsEspaceAjSignalement> = {}) {
+  const { etat, connexion, reessayer, seDeconnecter } = useAccesEspaceQr(cabinet?.identifiant)
 
   if (etat.statut === 'autorise') {
     return <CoquilleEspaceQr role={etat.role} lienAdmin={etat.lienAdmin} onDeconnexion={() => { void seDeconnecter() }} />
@@ -93,7 +102,9 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
   // Tableau chargé par TableauSignalementsQr, partagé avec les autres vues ; actualisation : rechargement demandé.
   const [tableau, setTableau] = useState<TableauQr | null>(null)
   const [actualisation, setActualisation] = useState(0)
-  const referentiels = useReferentielsQr(VUES_REFERENTIELS_QR.includes(vue))
+  // Cabinets et fiches : routes du super admin seulement (un gestionnaire y recevrait 403).
+  const superAdmin = role === 'super_admin'
+  const referentiels = useReferentielsQr(superAdmin && VUES_REFERENTIELS_QR.includes(vue))
   const { recharger } = referentiels
 
   // Retour du navigateur (ou ancre modifiée à la main) : la vue suit l'ancre ; une ancre qui ne désigne aucune vue
@@ -197,7 +208,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
           <div hidden={!VUES_TABLEAU_QR.includes(vue)}>
             <TableauSignalementsQr
               jeton={null} vue={vue} onTableau={setTableau} actualisation={actualisation}
-              gestion={{ cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires }}
+              gestion={superAdmin ? { cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires } : undefined}
             />
           </div>
           {contenu}

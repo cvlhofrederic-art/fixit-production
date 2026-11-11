@@ -384,6 +384,15 @@ export type CheminCabinetQr =
   // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : lien de l'e-mail, page publique.
   | { page: 'invitation'; identifiant: string }
 
+/**
+ * Espace d'un cabinet reconnu par cheminEspaceCabinetQr (PR 2, lot 4) : /<id>/ (accueil, redirigé vers le suivi),
+ * /<id>/connexion/, /<id>/suivi/ ; identifiant valable (jamais un nom réservé). Aucun droit n'en découle.
+ */
+export interface EspaceCabinetQr {
+  page: 'accueil' | 'connexion' | 'suivi'
+  identifiant: string
+}
+
 /** Refus d'un identifiant de chemin : hors format (3 à 40 caractères…) ou réservé (route du site, mot gardé). */
 export type ValidationIdentifiantCabinetQr = { ok: true } | { ok: false; raison: 'format' | 'reserve' }
 
@@ -527,15 +536,13 @@ export type EtatGestionnairePr1Qr = Extract<
 
 // ── Routes du lot 3 (contrôle d'accès, réponses, envois) ────────────────────────────────────────────────────────
 
-/** Rôle serveur (app_metadata.role) d'un compte gestionnaire d'un cabinet client, posé à l'acceptation de son accès. */
-export const ROLE_GESTIONNAIRE_QR = 'gestionnaire_signalement'
-
 /**
- * Repère de routage posé dans app_metadata à l'acceptation (identifiant du chemin de SON cabinet) : il sert au
- * middleware, qui n'a pas la base, à aiguiller le gestionnaire vers vitfix.io/<identifiant>/suivi/. Il ne donne AUCUN
- * droit : les routes ne lisent que la fiche.
+ * Rôle serveur (app_metadata.role) d'un compte gestionnaire d'un cabinet client, posé à l'acceptation de son accès, et
+ * repère de routage posé avec lui (identifiant du chemin de SON cabinet : il aiguille vers vitfix.io/<identifiant>/suivi/
+ * et ne donne AUCUN droit, les routes ne lisent que la fiche). Définis dans acces-espace.ts (module pur lu par le
+ * middleware, lot 4), repris ici pour les routes.
  */
-export const CLE_REPERE_CABINET_QR = 'aj_signalement_cabinet'
+export { CLE_REPERE_CABINET_QR, ROLE_GESTIONNAIRE_QR } from '@/lib/aj-signalement/acces-espace'
 
 /**
  * Profil d'un appel authentifié, rendu par controlerAccesQr (lib/aj-signalement/serveur.ts) : le super admin

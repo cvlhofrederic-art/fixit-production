@@ -125,6 +125,13 @@ const nextConfig: NextConfig = {
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`, destination: '/cabinet/:identifiant/confirmation-adresse/' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`, destination: '/cabinet/:identifiant/invitation' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`, destination: '/cabinet/:identifiant/invitation/' },
+        // Espace du cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire, mêmes paires exactes. Le
+        // middleware, qui passe avant, ne laisse arriver ici que les identifiants valables (jamais un nom réservé : la
+        // connexion de l'espace global /aj-signalement/connexion/ part en 302 de langue) et redirige lui-même /<id>/.
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion`, destination: '/cabinet/:identifiant/connexion' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`, destination: '/cabinet/:identifiant/connexion/' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`, destination: '/cabinet/:identifiant/suivi' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`, destination: '/cabinet/:identifiant/suivi/' },
       ],
       afterFiles: [],
       fallback: [],
@@ -337,6 +344,9 @@ const nextConfig: NextConfig = {
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:path*`,
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/:path*`,
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/:path*`,
+        // Espace du cabinet (PR 2, lot 4).
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/:path*`,
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/:path*`,
         '/cabinet/:path*',
       ].map((source) => ({
         source,

@@ -29,7 +29,18 @@ const ROLES_PRIVILEGIES = [
   'coproprio',
   'pro_conciergerie',
   'pro_gestionnaire',
+  // AJ Signalement (PR 2) : posé par le serveur seul, à l'acceptation d'une invitation signée (lib/aj-signalement/serveur-acces.ts).
+  'gestionnaire_signalement',
 ]
+
+describe('rôle gestionnaire_signalement (AJ Signalement, PR 2)', () => {
+  it('le commentaire de sécurité de la liste le nomme parmi les rôles attribués côté serveur seulement', () => {
+    const source = readFileSync(join(process.cwd(), 'lib/auth/roles-auto-attribuables.ts'), 'utf-8')
+    const securite = /\/\/ SÉCURITÉ :([\s\S]*?)export const/.exec(source)?.[1] ?? ''
+    expect(securite).toContain('gestionnaire_signalement')
+    expect(estRoleAutoAttribuable('gestionnaire_signalement')).toBe(false)
+  })
+})
 
 const DOSSIER_MIGRATIONS = join(process.cwd(), 'supabase/migrations')
 

@@ -115,3 +115,21 @@ describe('POST /api/admin/impersonate — pendant une vue d\'emprunt', () => {
     expect(h.updateUserById).not.toHaveBeenCalled()
   })
 })
+
+// AJ Signalement (PR 2) : le rôle d'un gestionnaire de cabinet client n'est jamais emprunté. Ses droits viennent de sa
+// fiche (relue par les routes à chaque appel), pas du rôle : une « vue en tant que » n'y donnerait qu'un 403.
+describe('POST /api/admin/impersonate — rôle gestionnaire_signalement', () => {
+  it('super_admin de la liste → 400 « Rôle non autorisé », aucune écriture', async () => {
+    h.user = superAdminAutorise(ID_COMPTE)
+    const res = await POST(requete('gestionnaire_signalement'))
+    expect(res.status).toBe(400)
+    expect(h.updateUserById).not.toHaveBeenCalled()
+  })
+
+  it('pendant une vue d’emprunt : même refus', async () => {
+    h.user = enVueEmprunt(EMAIL_SUPER_ADMIN)
+    const res = await POST(requete('gestionnaire_signalement'))
+    expect(res.status).toBe(400)
+    expect(h.updateUserById).not.toHaveBeenCalled()
+  })
+})

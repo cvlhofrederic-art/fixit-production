@@ -5,24 +5,31 @@
 //   - /<identifiant>/confirmation-adresse/#<jeton>   confirmation d'adresse d'un gestionnaire (jeton après le « # ») ;
 //   - /<identifiant>/invitation/#<jeton>             ouverture de l'accès d'un gestionnaire à l'espace de son cabinet
 //     (PR 2, lot 3 ; lien de l'e-mail, publique comme la confirmation, jeton après le « # ») ;
-//   - /<identifiant>/suivi/, /<identifiant>/connexion/   réservés au lot 4 de la PR 2 (connexion : page de connexion
-//     professionnelle de l'espace du cabinet, Hugo, 11/11/2026, SPEC § 6).
+//   - /<identifiant>/ (redirigé vers /suivi/), /<identifiant>/connexion/, /<identifiant>/suivi/   espace du cabinet
+//     (PR 2, lot 4 ; Hugo, 11/11/2026, SPEC § 6) : connexion professionnelle DU cabinet et espace de suivi de ses
+//     gestionnaires, avec session.
 // L'identifiant (« cabinet-exemple ») est saisi par le super admin dans l'espace, jamais écrit dans le code.
 //
 // Module pur, sans aucune dépendance à l'exécution : importé par le middleware (edge, AVANT la détection de langue),
 // le navigateur et les tests. Il ne donne aucun droit : la page interne relit la copropriété par son jeton et vérifie
-// qu'elle appartient au cabinet du chemin (sinon 404).
+// qu'elle appartient au cabinet du chemin (sinon 404) ; l'espace du cabinet est gardé par acces-espace.ts et chaque
+// route /api/aj-signalement/* relit la fiche du gestionnaire.
 //
-// Deux règles distinctes, à ne pas confondre :
-//   1. le MOTIF du middleware (MOTIF_CHEMIN_CABINET_QR) est FIGÉ : il ne lit aucune liste. Si une route ajoutée plus
-//      tard entrait dans une liste lue au routage, les QR codes déjà imprimés d'un cabinet de ce nom cesseraient de
+// Trois règles distinctes, à ne pas confondre :
+//   1. le MOTIF des pages publiques (MOTIF_CHEMIN_CABINET_QR) est FIGÉ : il ne lit aucune liste. Si une route ajoutée
+//      plus tard entrait dans une liste lue au routage, les QR codes déjà imprimés d'un cabinet de ce nom cesseraient de
 //      marcher. Il ne masque une page que si elle a exactement « signalement/<32 hex> », « confirmation-adresse » ou
 //      « invitation » en 2ᵉ segment, ce que tests/lib/aj-signalement-identifiants-reserves.test.ts interdit ;
-//   2. la SAISIE de l'identifiant (validerIdentifiantCabinetQr) refuse le hors format et les noms réservés (routes du
-//      site, préfixes, mots gardés). Le même test calcule les routes depuis le disque et next.config.ts et échoue si
-//      l'une d'elles n'est pas réservée.
+//   2. l'ESPACE du cabinet (cheminEspaceCabinetQr, lot 4) lit, lui, la liste des réservés : le risque est inverse. Sans
+//      ce filtre, /aj-signalement/connexion/ (page de la #669, atteinte sans langue par 302) serait prise pour le
+//      cabinet « aj-signalement », et le segment seul /<x>/ capterait toute page du site. Une route ajoutée plus tard au
+//      nom d'un cabinet existant ne lui ferait perdre que les raccourcis de son espace, jamais ses QR codes ;
+//   3. la SAISIE de l'identifiant (validerIdentifiantCabinetQr) refuse le hors format et les noms réservés (routes du
+//      site, préfixes, mots gardés, valeurs des routes dynamiques de premier niveau des langues). Le même test calcule
+//      les routes depuis le disque, next.config.ts et les modules de données, et échoue si l'une d'elles n'est pas
+//      réservée.
 
-import type { CheminCabinetQr, ValidationIdentifiantCabinetQr } from '@/lib/aj-signalement/types'
+import type { CheminCabinetQr, EspaceCabinetQr, ValidationIdentifiantCabinetQr } from '@/lib/aj-signalement/types'
 
 export const LONGUEUR_MIN_IDENTIFIANT_CABINET_QR = 3
 export const LONGUEUR_MAX_IDENTIFIANT_CABINET_QR = 40
@@ -50,8 +57,8 @@ export const MOTIF_CHEMIN_CABINET_QR = new RegExp(
 )
 
 /**
- * 2ᵉ segment des chemins d'un cabinet : servis (signalement et confirmation-adresse en PR 1, invitation au lot 3 de la
- * PR 2), réservés au lot 4 (suivi, connexion). Aucune route du site ne doit les avoir en 2ᵉ segment (garde :
+ * 2ᵉ segment des chemins d'un cabinet : signalement et confirmation-adresse (PR 1), invitation (PR 2, lot 3), suivi et
+ * connexion (espace du cabinet, PR 2, lot 4). Aucune route du site ne doit les avoir en 2ᵉ segment (garde :
  * identifiants réservés).
  */
 export const SEGMENTS_CABINET_QR = ['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'] as const
@@ -89,6 +96,14 @@ export const IDENTIFIANTS_RESERVES_QR: readonly string[] = [
   'profissional', 'servicos', 'simulador-orcamento', 'sobre', 'termos', 'torne-se-parceiro', 'urgencia',
   // app/en/
   'cookie-policy', 'emergency-home-repair-porto', 'legal-notices', 'privacy', 'terms',
+  // Valeurs des routes dynamiques de premier niveau (PR 2, lot 4 : « /<x>/ » sans langue part aujourd'hui en 302 vers
+  // « /<langue>/<x>/ ») : app/en/[slug] (lib/data/en-services-data.ts), app/nl/[slug] et app/es/[slug]
+  // (lib/data/investor-pages-data.ts ; les slugs FR de ce module sont des dossiers de app/fr/, plus haut).
+  'plumber-porto', 'emergency-plumber-porto', 'electrician-porto', 'handyman-porto', 'home-repair-porto',
+  'property-maintenance-porto', 'english-speaking-plumber-porto', 'apartment-renovation-porto',
+  'english-speaking-electrician-porto',
+  'appartement-renovatie-porto', 'loodgieter-porto', 'elektricien-porto', 'appartement-onderhoud-porto',
+  'reformas-apartamento-oporto', 'fontanero-oporto', 'electricista-oporto', 'mantenimiento-apartamento-oporto',
   // Sources de next.config.ts absentes de app/ (premier segment, ou segment qui suit la langue).
   'mois', 'contacto', 'reservar', 'search', 'reviews',
   // public/
@@ -141,6 +156,44 @@ export function proposerIdentifiantCabinetQr(nom: string): string {
     .replace(/^[^a-z]+/, '')
   return base.slice(0, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR).replace(/-+$/, '')
 }
+
+// ── Espace du cabinet (PR 2, lot 4) : avec session, identifiant valable seulement ──────────────────────────────
+
+/**
+ * Chemins de l'espace d'un cabinet, avant tout contrôle de la liste : « /<x> », « /<x>/ » (accueil), « /<x>/connexion »
+ * et « /<x>/suivi » (barre finale facultative). Sensible à la casse. Jamais seul : cheminEspaceCabinetQr filtre ensuite
+ * par validerIdentifiantCabinetQr (règle 2 de l'en-tête).
+ */
+const MOTIF_ESPACE_CABINET_QR = new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})(?:\\/(?:(connexion|suivi)\\/?)?)?$`)
+
+/**
+ * Espace d'un cabinet (accueil, connexion, suivi), ou null. Aucune lecture de base : un identifiant valable mais
+ * inconnu mène à la connexion du cabinet, qui répond 404. Jamais un nom ou un préfixe réservé (routes du site, page de
+ * connexion de l'espace global /aj-signalement/connexion/, langues, api, admin).
+ */
+export function cheminEspaceCabinetQr(pathname: string): EspaceCabinetQr | null {
+  const m = MOTIF_ESPACE_CABINET_QR.exec(pathname)
+  if (!m || !validerIdentifiantCabinetQr(m[1]).ok) return null
+  const page = m[2] === 'connexion' || m[2] === 'suivi' ? m[2] : 'accueil'
+  return { page, identifiant: m[1] }
+}
+
+/**
+ * Page de l'espace d'un cabinet qui a sa propre coquille (connexion, suivi), sous l'adresse affichée (/<id>/suivi/) ou
+ * sous la page interne de la réécriture (/cabinet/<id>/suivi/), selon ce que rend usePathname (ConditionalLayout).
+ */
+export function estEspaceCabinetQr(pathname: string | null | undefined): boolean {
+  if (!pathname) return false
+  const interne = /^\/cabinet(\/.+)$/.exec(pathname)
+  const page = cheminEspaceCabinetQr(interne ? interne[1] : pathname)?.page
+  return page === 'connexion' || page === 'suivi'
+}
+
+/** Espace de suivi d'un cabinet (barre finale : site en trailingSlash), sans langue. */
+export const cheminSuiviCabinetQr = (identifiant: string): string => `/${identifiant}/suivi/`
+
+/** Connexion professionnelle d'un cabinet, sans langue. */
+export const cheminConnexionCabinetQr = (identifiant: string): string => `/${identifiant}/connexion/`
 
 // ── Adresses ─────────────────────────────────────────────────────────────────
 

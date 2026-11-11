@@ -13,7 +13,8 @@ import { describe, expect, it } from 'vitest'
 import { AuthApiError, AuthRetryableFetchError, AuthUnknownError } from '@supabase/supabase-js'
 import {
   CONTEXTE_CONNEXION_GLOBAL_QR, ROUTE_LIEN_MOT_DE_PASSE_QR, TEXTES_CONNEXION_QR, classerErreurConnexionQr,
-  classerReponseLienMotDePasseQr, resumeErreurConnexionQr, validerEmailConnexionQr, validerSaisieConnexionQr,
+  classerReponseLienMotDePasseQr, contexteConnexionCabinetQr, resumeErreurConnexionQr, titreOngletConnexionQr, validerEmailConnexionQr,
+  validerSaisieConnexionQr,
 } from '@/lib/aj-signalement/connexion-espace'
 
 /** Tous les textes d'un objet, à plat. */
@@ -32,6 +33,22 @@ describe('contexte de la page', () => {
     expect(JSON.parse(JSON.stringify(CONTEXTE_CONNEXION_GLOBAL_QR))).toEqual(CONTEXTE_CONNEXION_GLOBAL_QR)
   })
 
+  it('espace global : aucun cabinet (la décision d’accès admet le super admin seul)', () => {
+    expect(CONTEXTE_CONNEXION_GLOBAL_QR).not.toHaveProperty('cabinet')
+  })
+
+  it('page d’un cabinet (PR 2, lot 4) : nom du cabinet, espace /<identifiant>/suivi/ dans les deux langues, identifiant pour la décision', () => {
+    const contexte = contexteConnexionCabinetQr({ identifiant: 'cabinet-exemple', nom: 'Cabinet Exemple' })
+    expect(contexte).toEqual({
+      nom: 'Cabinet Exemple', espace: { fr: '/cabinet-exemple/suivi/', pt: '/cabinet-exemple/suivi/' }, cabinet: { identifiant: 'cabinet-exemple' },
+    })
+    expect(JSON.parse(JSON.stringify(contexte))).toEqual(contexte)
+  })
+
+  it('titre d’onglet : « Connexion professionnelle — <nom> » (espace global inchangé)', () => {
+    expect(titreOngletConnexionQr('Cabinet Exemple')).toBe('Connexion professionnelle — Cabinet Exemple')
+    expect(TEXTES_CONNEXION_QR.titreOnglet).toBe('Connexion professionnelle — AJ Signalement')
+  })
 })
 
 describe('« Mot de passe oublié » dans la page (relecture du 11/11/2026)', () => {
