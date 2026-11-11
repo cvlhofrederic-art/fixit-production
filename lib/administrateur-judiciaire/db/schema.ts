@@ -144,8 +144,10 @@ export interface Contrat extends EntiteEnregistree {
 }
 
 /**
- * Sinistre (jamais écrit par l'application : lu pour la fiche 360). Champs de la fiche Gestéam (tranche 28) optionnels,
- * non indexés : voir domain/sinistres.ts.
+ * Sinistre : écrit par l'écran Sinistres en mode données réelles (db/sinistres.ts, enregistrerSinistre) ; lu par
+ * l'écran Sinistres et la fiche 360. Champs de la fiche Gestéam (tranches 28, 42, 43) optionnels et non indexés (voir
+ * domain/sinistres.ts) : leur ajout n'a demandé aucun changement de version de la base. Le statut n'est pas stocké
+ * (statutSinistre : « Terminé » dès que « Clos le » est daté).
  */
 export interface Sinistre
   extends EntiteEnregistree,
