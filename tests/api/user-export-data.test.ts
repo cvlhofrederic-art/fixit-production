@@ -26,6 +26,7 @@ const { GET } = await import('@/app/api/user/export-data/route')
 const { POST: CREER } = await import('@/app/api/aj-signalement/coproprietes/route')
 const { PATCH: MODIFIER } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } = await import('@/lib/aj-signalement/types')
 
 const CLIENT = { id: '0c000000-0000-4000-8000-000000000001', email: 'client@exemple.test', app_metadata: { role: 'client' } }
 /** Clés de l'export tel qu'il est rendu à tout compte avant la PR 2. */
@@ -111,6 +112,28 @@ describe('compte d’un gestionnaire : section aj_signalement', () => {
     }
     expect(avertissementsMigration()).toHaveLength(1)
     expect(baseQr.etat.ecritures.filter((e) => e.table.startsWith('signalements_qr'))).toEqual([])
+  })
+
+  it('ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR attributions (borne de la PR 1) : toutes nommées, noms lus par lots filtrés (lireParValeursQr)', async () => {
+    const t = baseQr.etat.tables
+    const ids = Array.from({ length: ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR }, (_v, i) => `c1000000-0000-4000-8000-${String(i).padStart(12, '0')}`)
+    t.signalements_qr_attributions = t.signalements_qr_attributions.filter((a) => a.gestionnaire_id !== A.G1)
+    for (const [i, id] of ids.entries()) {
+      t.signalements_qr_coproprietes.push(A.ligneCoproQr(id, 7, `Lot ${i}`))
+      t.signalements_qr_attributions.push({ copropriete_id: id, gestionnaire_id: A.G1, origine: 'import', created_at: '2026-11-05T09:00:00+00:00' })
+    }
+    baseQr.etat.maxLignes = 1000   // max-rows de PostgREST : une réponse plus longue serait tronquée en silence
+    const { corps } = await exporter()
+    const attributions = (corps.aj_signalement as { attributions: Array<{ copropriete: string | null }> }).attributions
+    expect(attributions).toHaveLength(ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR)
+    expect(attributions.filter((a) => a.copropriete === null)).toEqual([])
+    const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_coproprietes')
+    expect(lectures.length).toBeGreaterThan(1)
+    for (const l of lectures) {
+      const filtre = l.filtres.find((f) => f.startsWith('id=in.('))
+      expect(filtre).toBeDefined()
+      expect(filtre?.slice('id=in.('.length, -1).split(',').length).toBeLessThanOrEqual(200)
+    }
   })
 
   it('lecture en panne : 200, section omise (journal serveur), rien d’autre ne change', async () => {

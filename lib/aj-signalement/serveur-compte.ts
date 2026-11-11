@@ -26,7 +26,7 @@ import { ROLE_GESTIONNAIRE_QR } from '@/lib/aj-signalement/acces-espace'
 import { ALERTE_EFFACEMENT_DEMANDE_QR } from '@/lib/aj-signalement/email'
 import {
   PAGE_POSTGREST_QR, TABLE_ATTRIBUTIONS_QR, TABLE_CABINETS_QR, TABLE_COPROPRIETES_QR, TABLE_GESTIONNAIRES_QR, TABLE_JOURNAL_QR,
-  journaliserQr, journaliserRepliAccesQr, structureAbsenteQr, type ErreurBase,
+  journaliserQr, journaliserRepliAccesQr, lireParValeursQr, structureAbsenteQr, type ErreurBase,
 } from '@/lib/aj-signalement/serveur'
 import { alerterAdministrateurQr } from '@/lib/aj-signalement/serveur-acces'
 
@@ -299,11 +299,12 @@ export async function exportGestionnaireDuCompteQr(user: { id: string }): Promis
       ...lignesJournal.filter(coproprieteNommeeQr).map((l) => l.copropriete_id),
     ].filter((v): v is string => typeof v === 'string'))]
     const noms = new Map<string, string | null>()
-    if (coproIds.length > 0) {
-      const copros = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom').in('id', coproIds)
-      if (copros.error) logger.warn(`${CONTEXTE} noms des copropriétés de l’export non lus`, { code: copros.error.code, gestionnaire: f.id })
-      for (const c of (copros.data ?? []) as Array<{ id: string; nom: string | null }>) noms.set(c.id, c.nom ?? null)
-    }
+    // Jusqu'à ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR attributions, plus les copropriétés du journal : noms lus par lots
+    // filtrés et ordonnés (lireParValeursQr : URL bornée, pages de 1 000 ; un seul .in() serait tronqué par max-rows).
+    const copros = await lireParValeursQr<{ id: string; nom: string | null }>(coproIds, (lot) =>
+      supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom').in('id', lot).order('id', { ascending: true }))
+    if (copros.ok) for (const c of copros.valeur) noms.set(c.id, c.nom ?? null)
+    else logger.warn(`${CONTEXTE} noms des copropriétés de l’export non lus`, { code: copros.erreur.code, gestionnaire: f.id })
     await journaliserQr({
       action: 'gestionnaire.exporte', cabinetId: f.cabinet_id, acteurId: user.id, profil: 'gestionnaire', acteurGestionnaireId: f.id, gestionnaireId: f.id,
     })
