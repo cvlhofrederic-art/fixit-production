@@ -169,7 +169,8 @@ describe('schémas Zod de la route', () => {
 
   it('copropriété : nom requis, e-mails valides, valeurs par défaut ; modification : jeton régénérable, statut borné', () => {
     const r = coproprieteQrSchema.safeParse({ nom: 'Parc Belle Ombre' })
-    expect(r.success && r.data).toEqual({ nom: 'Parc Belle Ombre', adresse: '', emailsDestinataires: [] })
+    // Champs de gestion ajoutés le 11/11/2026 (tests/lib/aj-signalement-validation.test.ts) : valeurs par défaut.
+    expect(r.success && r.data).toMatchObject({ nom: 'Parc Belle Ombre', adresse: '', emailsDestinataires: [], gestionnaireIds: [], attribueeATous: false })
     expect(coproprieteQrSchema.safeParse({ nom: '   ' }).success).toBe(false)
     expect(coproprieteQrSchema.safeParse({ nom: 'X', emailsDestinataires: ['pas-un-email'] }).success).toBe(false)
     expect(modificationCoproprieteQrSchema.safeParse({ regenererJeton: true }).success).toBe(true)

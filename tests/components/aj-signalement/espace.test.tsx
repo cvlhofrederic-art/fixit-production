@@ -18,7 +18,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { AuthSessionMissingError } from '@supabase/supabase-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TEXTES_TABLEAU_QR as T } from '@/lib/aj-signalement/affichage'
-import type { TableauQr } from '@/lib/aj-signalement/types'
+import { gestionCoproprieteQrVide, type TableauQr } from '@/lib/aj-signalement/types'
 
 type Rappel = (evenement: string, session: unknown) => void
 
@@ -48,7 +48,7 @@ const { default: EspaceAjSignalement } = await import('@/components/aj-signaleme
 const tableau = (): TableauQr => ({
   coproprietes: [{
     id: 'c1', nom: 'Parc Belle Ombre', adresse: 'Marseille', jeton: '0123456789abcdef0123456789abcdef', emailsDestinataires: [], actif: true,
-    creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null,
+    creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null, ...gestionCoproprieteQrVide(),
   }],
   signalements: [],
 })
@@ -81,6 +81,10 @@ const remplacement = (destination: string) => `replace ${destination}`
 
 const menuLateral = () => screen.getAllByRole('navigation', { name: 'Menu AJ Signalement' })[0]
 const titre = () => screen.getByRole('heading', { level: 1 })
+// La session arrive de façon asynchrone : la coquille s'affiche hors act et son effet (écoute de popstate) peut être
+// encore en attente quand le titre apparaît. On laisse les effets s'exécuter avant de simuler le bouton Retour, sinon
+// l'événement peut partir avant l'écoute (échec intermittent sous charge, vu dès le lot 1).
+const effetsPoses = () => act(async () => { await new Promise((r) => setTimeout(r, 0)) })
 
 /** Retour du navigateur : l'adresse change, puis popstate. */
 async function revenirA(adresse: string) {
@@ -258,10 +262,11 @@ describe('super admin : coquille de l’espace', () => {
     expect(document.activeElement).toBe(titre())
   })
 
-  it('« vue en tant que » ouverte par un super admin : espace ouvert', async () => {
+  it('« vue en tant que » ouverte par un super admin : message neutre (même règle que les routes, 11/11/2026), aucune donnée', async () => {
     simul.getUser.mockResolvedValue(utilisateur({ role: 'coproprio', _original_role: 'super_admin' }))
     render(<EspaceAjSignalement />)
-    await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Accès réservé' })).toBeInTheDocument()
+    expect(appelsFetch).toEqual([])
   })
 
   it('n’utilise ni le sélecteur de copropriété de l’AJ ni celui du portail', async () => {

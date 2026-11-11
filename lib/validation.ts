@@ -2,6 +2,11 @@
 // Centralized input validation — replaces manual regex checks
 import { z } from 'zod'
 import { TRACKING_TOKEN_PATTERN } from './security/tracking-token'
+import {
+  FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
+} from './aj-signalement/chemin-cabinet'
+import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
+import { ACTIONS_JOURNAL_QR } from './aj-signalement/types'
 
 // ── Email strict : exige un TLD valide (rejette test@localhost, user@192.168.1.1) ──
 // Zod .email() accepte des formats comme test@localhost → on ajoute un .refine()
@@ -424,24 +429,183 @@ export const semblablesQrQuerySchema = z.object({
   langue: z.enum(['fr', 'pt']).optional().default('fr'),
 })
 
-// Tableau de bord (super admin) : copropriété dotée d'un QR code.
-export const coproprieteQrSchema = z.object({
-  nom: z.string().trim().min(1, 'Nom requis').max(200),
+// ── AJ Signalement : administration (super admin ; gestionnaires en PR 2) ─────
+// Demandes de Hugo du 10/11/2026 (cabinets clients, gestionnaires, chemin vitfix.io/<identifiant>/…). Tous les corps
+// écrits sont STRICTS (z.strictObject : une clé inconnue est refusée, l'auteur vient toujours de la session). Les corps
+// actuels des écrans restent acceptés (creerCoproprieteQr, modifierCoproprieteQr, changerStatutSignalementQr) : on
+// n'ajoute que des clés facultatives. Les schémas publics ci-dessus (dépôt, adresse, semblables) ne changent pas.
+const STATUTS_SIGNALEMENT_QR_ZOD = ['en_attente', 'acceptee', 'en_cours', 'terminee', 'annulee'] as const
+const nomCoproQr = z.string().trim().min(1, 'Nom requis').max(200)
+const codePostalQr = z.string().trim().regex(/^(\d{5}|\d{4}-\d{3})?$/, 'Code postal : 5 chiffres')
+const immatriculationQr = z.string().transform((v) => v.toUpperCase().replace(/[\s.-]/g, ''))
+  .pipe(z.string().regex(/^[A-Z0-9]{0,20}$/, 'N° d’immatriculation invalide'))
+const referenceCabinetQr = z.string().trim().max(50)
+const batimentsQr = z.array(z.string().trim().min(1).max(50)).max(50)
+const emailsQr = z.array(strictEmail).max(10)
+
+const ficheCoproQr = {
+  nom: nomCoproQr,
   adresse: z.string().trim().max(300).optional().default(''),
-  emailsDestinataires: z.array(strictEmail).max(10).optional().default([]),
+  codePostal: codePostalQr.optional().default(''),
+  ville: z.string().trim().max(100).optional().default(''),
+  immatriculation: immatriculationQr.optional().default(''),
+  referenceCabinet: referenceCabinetQr.optional().default(''),
+  batiments: batimentsQr.optional().default([]),
+  emailsDestinataires: emailsQr.optional().default([]),
+}
+
+/** Identifiant du chemin public d'un cabinet (vitfix.io/<identifiant>/…) : rogné, minuscules, format, noms réservés. */
+export const identifiantCabinetQrSchema = z.string().trim().toLowerCase().superRefine((valeur, ctx) => {
+  const v = validerIdentifiantCabinetQr(valeur)
+  if (!v.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      message: v.raison === 'reserve'
+        ? 'Identifiant réservé'
+        : 'Identifiant : 3 à 40 caractères, minuscules, chiffres et tirets simples, commençant par une lettre',
+    })
+  }
 })
 
-export const modificationCoproprieteQrSchema = z.object({
-  nom: z.string().trim().min(1, 'Nom requis').max(200).optional(),
+/**
+ * Identifiant lu dans le chemin d'une page publique (lien de confirmation) : format seul. Un nom réservé APRÈS la
+ * création d'un cabinet ne doit pas rendre ses liens déjà envoyés invalides ; le cabinet est relu en base.
+ */
+const identifiantCheminQrSchema = z.string().trim().toLowerCase().refine(
+  (v) => v.length >= LONGUEUR_MIN_IDENTIFIANT_CABINET_QR && v.length <= LONGUEUR_MAX_IDENTIFIANT_CABINET_QR && FORMAT_IDENTIFIANT_CABINET_QR.test(v),
+  'Identifiant invalide',
+)
+
+export const langueCabinetQrSchema = z.enum(['fr', 'pt'])
+
+/** Domaine e-mail d'un cabinet : rogné, minuscules, format du CHECK SQL, jamais une messagerie publique. */
+export const domaineQrSchema = z.string().trim().toLowerCase().superRefine((valeur, ctx) => {
+  const v = validerDomaineCabinetQr(valeur)
+  if (!v.ok) {
+    ctx.addIssue({
+      code: 'custom',
+      message: v.raison === 'public' ? 'Messagerie publique : ce n’est pas le domaine d’un cabinet' : 'Domaine invalide (exemple : cabinet.fr)',
+    })
+  }
+})
+
+// P1-R3. Compatible avec l'appel actuel { nom, adresse, emailsDestinataires } (sans operationId : la route en tire un,
+// sans idempotence, tant que l'écran ne le fournit pas). cabinetId absent : copropriété sans cabinet.
+export const coproprieteQrSchema = z.strictObject({
+  operationId: z.uuid().optional(),
+  ...ficheCoproQr,
+  cabinetId: z.uuid().optional(),
+  gestionnaireIds: z.array(z.uuid()).max(100).optional().default([]),
+  attribueeATous: z.boolean().optional().default(false),
+  forcerDoublon: z.boolean().optional().default(false),            // « Ce n'est pas un doublon » (super admin)
+  confirmerDoublonProbable: z.boolean().optional().default(false),
+  confirmerHorsDomaine: z.boolean().optional().default(false),     // destinataire saisi hors des domaines (RG-02)
+})
+
+// P1-R4 : tous facultatifs, au moins un autre qu'un drapeau de confirmation. cabinetId refusé (rattachement par
+// POST /cabinets/[id]/rattachement seulement, définitif).
+const DRAPEAUX_CONFIRMATION_QR: readonly string[] = ['forcerDoublon', 'confirmerDoublonProbable', 'confirmerHorsDomaine']
+export const modificationCoproprieteQrSchema = z.strictObject({
+  nom: nomCoproQr.optional(),
   adresse: z.string().trim().max(300).optional(),
-  emailsDestinataires: z.array(strictEmail).max(10).optional(),
+  codePostal: codePostalQr.optional(),
+  ville: z.string().trim().max(100).optional(),
+  immatriculation: immatriculationQr.optional(),
+  referenceCabinet: referenceCabinetQr.optional(),
+  batiments: batimentsQr.optional(),
+  emailsDestinataires: emailsQr.optional(),
   actif: z.boolean().optional(),
   // Tire un nouveau jeton : l'ancien QR code ne répond plus.
-  regenererJeton: z.boolean().optional(),
+  regenererJeton: z.literal(true).optional(),
+  attribueeATous: z.boolean().optional(),
+  forcerDoublon: z.boolean().optional(),
+  confirmerDoublonProbable: z.boolean().optional(),
+  confirmerHorsDomaine: z.boolean().optional(),
+}).refine((m) => Object.keys(m).some((k) => !DRAPEAUX_CONFIRMATION_QR.includes(k)), 'Rien à modifier')
+
+export const suppressionCoproprieteQrSchema = z.strictObject({ nomConfirmation: z.string().trim().min(1).max(200) })
+
+export const attributionsCoproprieteQrSchema = z.strictObject({
+  gestionnaireIds: z.array(z.uuid()).max(100),
+  attribueeATous: z.boolean().optional(),
 })
 
-export const statutSignalementQrSchema = z.object({
-  statut: z.enum(['en_attente', 'acceptee', 'en_cours', 'terminee', 'annulee']),
+// P1-R7 : { statut } seul (appel actuel) ; statutAttendu facultatif (contrôle de concurrence, 409 conflit_statut).
+export const statutSignalementQrSchema = z.strictObject({
+  statut: z.enum(STATUTS_SIGNALEMENT_QR_ZOD),
+  statutAttendu: z.enum(STATUTS_SIGNALEMENT_QR_ZOD).optional(),
+})
+
+// P1-R9 : ni id ni jeton — l'identifiant de la fiche est tiré par la route et signé dans le lien.
+export const gestionnaireQrSchema = z.strictObject({
+  nom: z.string().trim().min(1, 'Nom requis').max(120),
+  email: strictEmail.transform((e) => e.trim().toLowerCase()),
+  cabinetId: z.uuid(),
+  coproprieteIds: z.array(z.uuid()).max(500).optional().default([]),
+  forcerDomaine: z.boolean().optional().default(false),   // adresse hors des domaines du cabinet (RG-02), journalisé
+})
+
+// P1-R11 : une seule action (la désactivation passe par le départ).
+export const modificationGestionnaireQrSchema = z.union([
+  z.strictObject({ nom: z.string().trim().min(1).max(120) }),
+  z.strictObject({ actif: z.literal(true) }),
+  z.strictObject({ pseudonymiser: z.literal(true) }),
+])
+
+export const attributionsGestionnaireQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).max(1000) })
+
+export const departGestionnaireQrSchema = z.strictObject({
+  successions: z.array(z.strictObject({ coproprieteId: z.uuid(), versGestionnaireId: z.uuid().nullable() })).max(1000),
+})
+
+// P1-R16, R17, R17b (publiques) : jeton signé du lien + identifiant du chemin du cabinet (vérifié contre la fiche).
+export const jetonLienQrSchema = z.strictObject({
+  token: z.string().regex(/^[a-f0-9]{48}\.[a-f0-9]{64}$/),
+  cabinet: identifiantCheminQrSchema,
+})
+
+// P1-R21, R22, R23 : cabinets clients (saisis par le super admin, jamais dans le code).
+export const cabinetQrSchema = z.strictObject({
+  nom: z.string().trim().min(1, 'Nom requis').max(200),
+  identifiant: identifiantCabinetQrSchema,
+  langue: langueCabinetQrSchema.optional().default('fr'),
+  domaines: z.array(domaineQrSchema).max(20).optional().default([]),
+})
+
+export const modificationCabinetQrSchema = z.strictObject({
+  nom: z.string().trim().min(1).max(200).optional(),
+  identifiant: identifiantCabinetQrSchema.optional(),
+  langue: langueCabinetQrSchema.optional(),
+  domaines: z.array(domaineQrSchema).max(20).optional(),
+}).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
+
+export const rattachementQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).min(1).max(500) })
+
+// Paramètres de requête (GET), lus par Object.fromEntries(searchParams) : un paramètre inconnu donne 400.
+// Curseur : PostgREST renvoie les timestamptz en « 2026-11-10T12:00:00.123456+00:00 ». Sans { offset: true }, Zod 4
+// n'accepte que le suffixe « Z » : la deuxième page répondrait 400. Le curseur est passé TEL QUEL à la base.
+const curseurDateQr = z.iso.datetime({ offset: true })
+export const tableauQrQuerySchema = z.strictObject({ gestionnaire: z.uuid().optional(), cabinet: z.uuid().optional() })
+export const signalementsCoproQrQuerySchema = z.strictObject({
+  statut: z.enum(['ouverts', 'tous', 'clos']).optional().default('ouverts'),
+  priorite: z.enum(['urgente', 'normale', 'planifiee']).optional(),
+  avant: curseurDateQr.optional(),
+  avantId: z.uuid().optional(),
+  limite: z.coerce.number().int().min(1).max(100).default(50),
+})
+export const listeGestionnairesQrQuerySchema = z.strictObject({
+  etat: z.enum(['actifs', 'desactives', 'tous']).optional().default('actifs'),
+  cabinet: z.uuid().optional(),
+})
+export const journalQrQuerySchema = z.strictObject({
+  action: z.enum(ACTIONS_JOURNAL_QR).optional(),
+  copropriete: z.uuid().optional(),
+  gestionnaire: z.uuid().optional(),
+  cabinet: z.uuid().optional(),
+  avant: curseurDateQr.optional(),
+  // Identifiant BIGINT de la ligne (départage les lignes du même instant).
+  avantId: z.string().regex(/^\d{1,19}$/).optional(),
+  limite: z.coerce.number().int().min(1).max(100).default(100),
 })
 
 // ── Devis Sign schema ────────────────────────────────────────────────────────

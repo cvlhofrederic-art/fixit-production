@@ -127,14 +127,14 @@ describe('Administrateur judiciaire — pied de sidebar', () => {
 // Espace indépendant « AJ Signalement » (10/11/2026) : l'AJ n'en garde qu'un lien, pour le seul super admin, au pied
 // de la barre latérale (à côté de « Panneau admin »). Décision lue dans app_metadata (lienEspaceQr), jamais user_metadata.
 describe('Administrateur judiciaire — lien « AJ Signalement »', () => {
-  it('LienAjSignalement : super admin et « vue en tant que » → /fr/aj-signalement/', async () => {
+  it('LienAjSignalement : super admin → /fr/aj-signalement/ ; « vue en tant que » → rien (l’espace la refuse, 11/11/2026)', async () => {
     h.session = sessionAvec({ role: 'super_admin' })
     render(<LienAjSignalement />)
     expect((await screen.findByRole('link', { name: 'AJ Signalement' }, { timeout: 5000 })).getAttribute('href')).toBe('/fr/aj-signalement/')
     cleanup()
     h.session = sessionAvec({ role: 'syndic', _original_role: 'super_admin' })
-    render(<LienAjSignalement />)
-    expect((await screen.findByRole('link', { name: 'AJ Signalement' }, { timeout: 5000 })).getAttribute('href')).toBe('/fr/aj-signalement/')
+    await act(async () => { render(<LienAjSignalement />) })
+    expect(screen.queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
   })
 
   it('LienAjSignalement : syndic, user_metadata trafiqué ou pas de session → rien', async () => {

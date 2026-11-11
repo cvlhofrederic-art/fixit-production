@@ -7,10 +7,20 @@
 //   - déclarant : récapitulatif dans la langue de la page (FR / PT), envoyé à sa seule adresse, sans adresse de
 //     réponse ni copie (l'adresse de l'administrateur et celle des destinataires n'y figurent jamais), sans
 //     promesse d'intervention ni de délai. Limité par boîte de destination (formulaire public).
+// Depuis le 11/11/2026 (gestionnaires d'un cabinet client, SPEC § 1.7) :
+//   - le signalement part en UN message par destinataire (sendBatchEmails : un appel, un `to` par message) : personne
+//     ne voit les autres adresses ; contenu selon le type (administrateur : bouton de l'espace ; gestionnaire sans accès
+//     et adresse saisie : pas de bouton) ; si le service refuse le lot, renvoi un par un (20 au plus) ; le bilan ne
+//     garde que des nombres (jamais l'adresse ni le texte du service d'e-mail) ;
+//   - confirmation d'adresse d'un gestionnaire (nom court, nom du cabinet, lien du chemin client) et alertes au super
+//     admin (adresse contestée, limite d'envoi), sans nom ni adresse de personne. Tout passe par sendBatchEmails :
+//     sendEmail écrit l'erreur brute du service dans la console (lib/email.ts).
 
-import { sendEmail, type EmailResult } from '@/lib/email'
+import { sendBatchEmails, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
+import { logger } from '@/lib/logger'
 import {
-  CHEMIN_TABLEAU_QR, numeroSignalementQr, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr,
+  CHEMIN_TABLEAU_QR, numeroSignalementQr, type BilanEnvoiQr, type DestinataireQr, type LangueSignalementQr, type PrioriteSignalementQr,
+  type QualiteDeclarantQr, type SignalementQr, type TypeDestinataireQr,
 } from '@/lib/aj-signalement/types'
 import {
   LIBELLE_PRIORITE_QR, TEXTES_TABLEAU_QR, dateHeureParis, libelleQualiteQr, lieuSignalementQr, texteSignalementLieQr,
@@ -34,7 +44,14 @@ export interface ParametresEmailQr {
   signalement: SignalementQr
   /** Origine du site (lien vers le tableau de bord). */
   origine?: string
+  /** Destinataire du message : seul l'administrateur reçoit le bouton de l'espace (défaut : administrateur). */
+  destinataire?: TypeDestinataireQr
+  /** Signalements retenus pendant la limite d'envoi (budget d'e-mails), sans leur contenu ; null : aucun. */
+  mention?: string | null
 }
+
+/** Phrase de pied du message selon le destinataire (PR 1 : un gestionnaire n'a pas encore accès à l'espace). */
+const SUIVI_PAR_CABINET_QR = 'Le cabinet suit ce signalement dans AJ Signalement.'
 
 function ligne(libelle: string, valeurHtml: string): string {
   return `<tr>
@@ -43,7 +60,9 @@ function ligne(libelle: string, valeurHtml: string): string {
     </tr>`
 }
 
-export function templateSignalementQr({ copropriete, signalement: s, origine = 'https://vitfix.io' }: ParametresEmailQr): { subject: string; html: string } {
+export function templateSignalementQr({
+  copropriete, signalement: s, origine = 'https://vitfix.io', destinataire = 'administrateur', mention = null,
+}: ParametresEmailQr): { subject: string; html: string } {
   const e = echapperHtml
   const telephoneLien = s.telephone.replace(/[\s.()-]/g, '')
   const description = e(s.description).replace(/\r?\n/g, '<br/>')
@@ -66,14 +85,22 @@ export function templateSignalementQr({ copropriete, signalement: s, origine = '
     ligne('Numéro', e(numeroSignalementQr(s.id))),
   ].join('')
   const urlTableau = `${origine.replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
-
-  const corps = `${urgent ? '<p style="margin:0 0 16px;padding:10px 14px;background:#FBE4E1;border-radius:10px;color:#6E1C13;font-size:14px;font-weight:600;">Le déclarant indique une urgence (fuite importante, panne d’ascenseur, danger).</p>' : ''}
-          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${lignes}</table>
-          ${blocDescription('Description', description)}
-          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">Répondre à cet e-mail écrit directement au déclarant.</p>
-          <p style="margin:16px 0 0;">
+  // Bouton de l'espace : l'administrateur seul (un gestionnaire n'y a pas encore accès, une adresse saisie jamais).
+  const bouton = destinataire === 'administrateur'
+    ? `<p style="margin:16px 0 0;">
             <a href="${e(urlTableau)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir le tableau des signalements</a>
           </p>`
+    : ''
+  const suivi = destinataire === 'gestionnaire' ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${SUIVI_PAR_CABINET_QR}</p>` : ''
+  const rappel = mention
+    ? `<p style="margin:0 0 16px;padding:10px 14px;background:#F7F4EE;border-radius:10px;color:#0D1B2E;font-size:14px;">${e(mention)}</p>`
+    : ''
+
+  const corps = `${urgent ? '<p style="margin:0 0 16px;padding:10px 14px;background:#FBE4E1;border-radius:10px;color:#6E1C13;font-size:14px;font-weight:600;">Le déclarant indique une urgence (fuite importante, panne d’ascenseur, danger).</p>' : ''}
+          ${rappel}<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${lignes}</table>
+          ${blocDescription('Description', description)}
+          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">Répondre à cet e-mail écrit directement au déclarant.</p>
+          ${suivi}${bouton}`
   const html = cadreEmailQr({
     langue: 'fr',
     titreHtml: `${urgent ? 'Signalement urgent' : 'Nouveau signalement'} — ${e(copropriete.nom)}`,
@@ -115,16 +142,135 @@ function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corps
 </html>`
 }
 
-/** Envoie l'e-mail du signalement aux destinataires ; ne lève jamais (le résultat porte success / error). */
-export async function envoyerEmailSignalementQr(p: ParametresEmailQr & { destinataires: string[] }): Promise<EmailResult> {
-  const { subject, html } = templateSignalementQr(p)
-  return sendEmail({
-    to: p.destinataires,
-    subject,
-    html,
-    replyTo: p.signalement.email,
-    tags: [{ name: 'type', value: 'aj-signalement' }],
+// ── Envoi par lot, un message par destinataire ───────────────────────────────
+
+/** Renvois un par un au plus, quand le service refuse tout le lot (une seule adresse refusée suffit chez Resend). */
+export const REPLIS_UN_PAR_UN_MAX_QR = 20
+
+const BILAN_VIDE: BilanEnvoiQr = { envoyes: 0, refuses: 0, total: 0 }
+
+/** Un message, jamais d'exception : vrai si le service l'a accepté. */
+async function envoyerUnQr(message: EmailPayload): Promise<boolean> {
+  try {
+    const r = await sendBatchEmails([message])
+    return r.failed === 0 && r.sent > 0
+  } catch {
+    // Le texte de l'exception (adresse comprise, parfois) n'est jamais journalisé : le bilan compte le refus.
+    logger.warn('[AJ SIGNALEMENT] envoi d’un message impossible (exception du service d’e-mail)')
+    return false
+  }
+}
+
+/**
+ * Envoie des messages (un `to` chacun) en un appel ; si le service refuse le lot, les renvoie un par un (les
+ * REPLIS_UN_PAR_UN_MAX_QR premiers ; les suivants sont comptés refusés). Ne lève jamais ; rend des nombres seulement.
+ */
+export async function envoyerParLotQr(messages: readonly EmailPayload[]): Promise<BilanEnvoiQr> {
+  if (messages.length === 0) return { ...BILAN_VIDE }
+  let lot: { sent: number; failed: number } | null
+  try {
+    lot = await sendBatchEmails([...messages])
+  } catch {
+    // Même traitement qu'un lot refusé (repli un par un) ; aucun texte du service n'est gardé ni journalisé.
+    logger.warn('[AJ SIGNALEMENT] envoi par lot impossible (exception du service d’e-mail) : repli un par un', { messages: messages.length })
+    lot = null
+  }
+  if (lot && lot.failed === 0) return { envoyes: Math.min(lot.sent, messages.length), refuses: 0, total: messages.length }
+  if (messages.length === 1) return { envoyes: 0, refuses: 1, total: 1 }
+  let envoyes = 0
+  for (const message of messages.slice(0, REPLIS_UN_PAR_UN_MAX_QR)) {
+    if (await envoyerUnQr(message)) envoyes += 1
+  }
+  return { envoyes, refuses: messages.length - envoyes, total: messages.length }
+}
+
+/** email_erreur d'un signalement : « 2 envoi(s) sur 7 refusé(s) par le service d’e-mail » ; null si tout est parti. */
+export function resumeErreurEnvoiQr(bilan: BilanEnvoiQr): string | null {
+  return bilan.refuses > 0 ? `${bilan.refuses} envoi(s) sur ${bilan.total} refusé(s) par le service d’e-mail` : null
+}
+
+/**
+ * Signalement à ses destinataires : un message par destinataire (contenu selon son type), réponse directe au déclarant.
+ * Ne lève jamais.
+ */
+export async function envoyerEmailsSignalementQr(
+  p: Omit<ParametresEmailQr, 'destinataire'> & { destinataires: readonly DestinataireQr[] },
+): Promise<BilanEnvoiQr> {
+  const messages: EmailPayload[] = p.destinataires.map((d) => {
+    const { subject, html } = templateSignalementQr({ ...p, destinataire: d.type })
+    return { to: d.email, subject, html, replyTo: p.signalement.email, tags: [{ name: 'type', value: 'aj-signalement' }] }
   })
+  return envoyerParLotQr(messages)
+}
+
+// ── Confirmation d'adresse d'un gestionnaire (SPEC § 1.7.3) ──────────────────
+
+export interface ParametresConfirmationAdresseQr {
+  /** « Marie M. » (nomCourtQr), texte brut : échappé ici. */
+  nomCourt: string
+  /** Nom du cabinet client (signalements_qr_cabinets.nom). */
+  cabinet: string
+  /** /<identifiant>/confirmation-adresse/#<jeton> : le jeton est après le « # ». */
+  lien: string
+}
+
+/**
+ * La confirmation prouve la boîte, pas l'identité (RG-02) : l'e-mail nomme la personne et le cabinet pour qu'un mauvais
+ * destinataire se reconnaisse et clique « Ce n'est pas moi ». Aucune donnée de copropriété ni de signalement. FR seul.
+ */
+export function templateConfirmationAdresseQr({ nomCourt, cabinet, lien }: ParametresConfirmationAdresseQr): { subject: string; html: string } {
+  const e = echapperHtml
+  const paragraphe = (texte: string, marge = '0 0 14px') => `<p style="margin:${marge};font-size:15px;line-height:1.55;color:#0D1B2E;">${texte}</p>`
+  const corps = `${paragraphe(`Bonjour ${e(nomCourt)},`)}
+          ${paragraphe(`${e(cabinet)} vous a désigné(e) comme gestionnaire dans AJ Signalement. Confirmez votre adresse pour recevoir les signalements de vos copropriétés (ils contiennent les coordonnées des résidents qui les déposent). Ce lien est valable 7 jours.`)}
+          <p style="margin:20px 0;">
+            <a href="${e(lien)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Confirmer mon adresse</a>
+          </p>
+          ${paragraphe(`<strong>Vous n’êtes pas ${e(nomCourt)}, gestionnaire chez ${e(cabinet)} ?</strong> Ouvrez le lien et cliquez « Ce n’est pas moi » : le cabinet sera prévenu et vous ne recevrez rien.`)}
+          <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#4A5E78;">Vos nom et adresse professionnelle sont traités par votre employeur pour le suivi des signalements (VitFix, sous-traitant). Durée : le temps de votre mission, puis 12 mois. Contact : votre employeur. <a href="https://vitfix.io/fr/confidentialite/" style="color:#4A5E78;">Politique de confidentialité</a></p>`
+  const html = cadreEmailQr({
+    langue: 'fr',
+    titreHtml: 'Confirmez votre adresse',
+    corpsHtml: corps,
+    piedHtml: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+  })
+  return { subject: `AJ Signalement — ${cabinet} : confirmez votre adresse`, html }
+}
+
+/** Envoie la confirmation à la seule adresse de la fiche (sendBatchEmails) ; vrai si partie. Ne lève jamais. */
+export async function envoyerConfirmationAdresseQr(p: ParametresConfirmationAdresseQr & { email: string }): Promise<boolean> {
+  const { subject, html } = templateConfirmationAdresseQr(p)
+  return envoyerUnQr({ to: p.email, subject, html, tags: [{ name: 'type', value: 'aj-signalement-adresse' }] })
+}
+
+// ── Alertes au super admin (sans nom ni adresse de personne) ─────────────────
+
+/** « Ce n'est pas moi » (P1-R17b). */
+export const ALERTE_ADRESSE_CONTESTEE_QR = {
+  objet: 'AJ Signalement — adresse de gestionnaire contestée',
+  texte: 'Une adresse de gestionnaire a été contestée par son destinataire : aucun e-mail ne lui sera envoyé. Créez une fiche avec la bonne adresse, puis faites le départ de la fiche contestée.',
+} as const
+
+export function templateAlerteAdministrateurQr(p: { objet: string; texte: string; lien: string }): { subject: string; html: string } {
+  const e = echapperHtml
+  const corps = `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#0D1B2E;">${e(p.texte)}</p>
+          <p style="margin:16px 0 0;">
+            <a href="${e(p.lien)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir AJ Signalement</a>
+          </p>`
+  const html = cadreEmailQr({
+    langue: 'fr', titreHtml: 'Alerte', corpsHtml: corps,
+    piedHtml: 'AJ Signalement — VITFIX. Cet e-mail a été envoyé automatiquement.',
+  })
+  return { subject: p.objet, html }
+}
+
+/** Une alerte à chaque adresse ADMIN_EMAIL / ADMIN_EMAIL_2 (un message chacune). Ne lève jamais. */
+export async function envoyerAlerteAdministrateurQr(
+  p: { objet: string; texte: string; lien: string }, env: Record<string, string | undefined> = process.env,
+): Promise<BilanEnvoiQr> {
+  const adresses = [...new Set([env.ADMIN_EMAIL, env.ADMIN_EMAIL_2].map((a) => (a ?? '').trim().toLowerCase()).filter((a) => a.includes('@')))]
+  const { subject, html } = templateAlerteAdministrateurQr(p)
+  return envoyerParLotQr(adresses.map((to) => ({ to, subject, html, tags: [{ name: 'type', value: 'aj-signalement-alerte' }] })))
 }
 
 // ── Confirmation au déclarant ────────────────────────────────────────────────

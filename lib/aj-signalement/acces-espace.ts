@@ -3,14 +3,15 @@
 // Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) :
 // une adresse à lui (/fr/aj-signalement/), son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/,
 // demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Aujourd'hui seul le
-// super admin y entre (y compris en « vue en tant que », _original_role) ; chaque gestionnaire y aura plus tard sa
-// page : il suffira d'ajouter son rôle à RoleEspaceQr, une branche à roleEspaceQr et ses entrées de menu
-// (« Gestionnaires » pour le super admin).
+// super admin y entre, PAS en « vue en tant que » (_original_role) depuis le 11/11/2026 : même règle que les routes
+// (isSuperAdmin, #650) ; chaque gestionnaire y aura plus tard sa page : il suffira d'ajouter son rôle à RoleEspaceQr,
+// une branche à roleEspaceQr et ses entrées de menu (« Gestionnaires » pour le super admin).
 //
 // Module pur, sans aucune dépendance : importé par le middleware (edge), la page de connexion de l'espace, l'espace
 // lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces
 // décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient le super admin côté serveur
-// (controlerSuperAdmin). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas.
+// (controlerAccesQr, rôle ET liste d'e-mails ADMIN_EMAIL, que le navigateur ne connaît pas). La page de connexion
+// générale de VitFix (/fr/auth/login/) n'en dépend pas.
 // La portée d'un gestionnaire et ses droits sur une copropriété (fin du fichier) sont calculés ici aussi, sur des
 // données relues en base par le serveur à chaque appel : c'est la seule fonction d'accès d'AJ Signalement.
 
@@ -72,7 +73,9 @@ const estObjet = (valeur: unknown): valeur is Record<string, unknown> =>
 /** Rôle de l'espace d'après app_metadata ; null : aucun accès. */
 function roleEspaceQr(metadonnees: MetadonneesApp): RoleEspaceQr | null {
   if (!estObjet(metadonnees)) return null
-  if (metadonnees.role === 'super_admin' || metadonnees._original_role === 'super_admin') return 'super_admin'
+  // La « vue en tant que » (_original_role) n'entre pas : sinon un super admin en vue d'emprunt verrait la coquille de
+  // l'espace et un 403 à chaque appel des routes.
+  if (metadonnees.role === 'super_admin') return 'super_admin'
   return null
 }
 

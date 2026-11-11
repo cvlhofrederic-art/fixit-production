@@ -43,8 +43,12 @@ export interface AdresseProposeeQr {
   le: string
 }
 
-/** Copropriété dotée d'un QR code, telle que le tableau de bord la voit. */
-export interface CoproprieteQr {
+/**
+ * Copropriété dotée d'un QR code, telle que le tableau de bord la voit. Les champs de gestion (cabinet, gestionnaires,
+ * compteurs…, GestionCoproprieteQr) sont calculés par le serveur depuis le 11/11/2026 ; tant que la migration manque,
+ * ils prennent leurs valeurs par défaut (gestionCoproprieteQrVide).
+ */
+export interface CoproprieteQr extends GestionCoproprieteQr {
   id: string
   nom: string
   adresse: string
@@ -143,6 +147,16 @@ export interface SignalementSemblableQr {
 export interface TableauQr {
   coproprietes: CoproprieteQr[]
   signalements: SignalementQr[]
+  /** Avec ?gestionnaire=<id> seulement : la fiche dont c'est la page de suivi (vue par le super admin). */
+  gestionnaire?: GestionnaireSuiviQr
+}
+
+/** Fiche dont le tableau est la page de suivi (sa portée : attributions ∪ « à tous » de son cabinet). */
+export interface GestionnaireSuiviQr {
+  id: string
+  nom: string | null
+  actif: boolean
+  cabinet: CabinetResumeQr
 }
 
 /** Copropriété saisie ou modifiée depuis le tableau de bord. */
@@ -486,3 +500,47 @@ export type EtatGestionnairePr1Qr = Extract<
   EtatGestionnaireQr,
   'confirmation_envoyee' | 'confirmation_expiree' | 'adresse_confirmee' | 'adresse_contestee' | 'desactive'
 >
+
+// ── Routes du lot 3 (contrôle d'accès, réponses, envois) ────────────────────────────────────────────────────────
+
+/**
+ * Profil d'un appel authentifié, rendu par controlerAccesQr (lib/aj-signalement/serveur.ts) après isSuperAdmin. En
+ * PR 1, le super admin seul ; la PR 2 ajoutera { type: 'gestionnaire'; userId; gestionnaireId; cabinetId } et
+ * { type: 'acces_retire' } (fiche relue en base par user_id, jamais app_metadata).
+ */
+export type ProfilQr = { type: 'super_admin'; userId: string }
+export type TypeProfilQr = ProfilQr['type']
+
+/** Curseur de page (created_at BRUT de PostgREST, microsecondes comprises, et id de la dernière ligne) ; null : fin. */
+export type SuitePageQr = { avant: string; avantId: string } | null
+
+/** Attribution d'une copropriété à une fiche, vue sur la page profil. */
+export interface AttributionVueQr {
+  coproprieteId: string
+  nom: string
+  origine: OrigineAttributionQr
+  creeLe: string
+}
+
+/** Page profil d'un gestionnaire (GET /gestionnaires/[id]) : jamais de jeton d'envoi. */
+export interface FicheGestionnaireDetailQr {
+  gestionnaire: GestionnaireQr
+  envois: EnvoiGestionnaireQr[]
+  attributions: AttributionVueQr[]
+  /** Copropriétés créées par ce gestionnaire (PR 2). */
+  creations: Array<{ id: string; nom: string }>
+  journal: EvenementJournalQr[]
+}
+
+/** Bilan d'un envoi par lot : messages acceptés et refusés par le service d'e-mail (jamais son texte). */
+export interface BilanEnvoiQr {
+  envoyes: number
+  refuses: number
+  total: number
+}
+
+/** Réponse de signalements_qr_reserver_emails : retenus = dépôts retenus depuis le dernier e-mail parti. */
+export interface ReservationEmailsQr {
+  accorde: boolean
+  retenus: number
+}

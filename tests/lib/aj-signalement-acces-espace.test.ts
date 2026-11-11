@@ -3,9 +3,10 @@
 // Espace indépendant « AJ Signalement » (demande de Hugo du 10/11/2026) : adresse, contrôle d'accès, menu, page de
 // connexion professionnelle de l'espace (demande de Hugo du 11/11/2026) et arrivée après connexion, dans un module pur
 // (lib/aj-signalement/acces-espace.ts) partagé par le middleware, la page de connexion de l'espace, l'espace lui-même et
-// les liens du portail copropriétaire et de l'AJ. Aujourd'hui seul le super admin entre (y compris en « vue en tant
-// que ») ; la décision ne lit que app_metadata, jamais user_metadata. La page de connexion générale de VitFix n'est
-// plus concernée : aucun paramètre « retour ».
+// les liens du portail copropriétaire et de l'AJ. Aujourd'hui seul le super admin entre ; la décision ne lit que
+// app_metadata, jamais user_metadata. Depuis le 11/11/2026 (alignement des routes sur isSuperAdmin, #650), la « vue en
+// tant que » (_original_role) n'entre plus : même règle que les routes de l'API. La page de connexion générale de
+// VitFix n'est plus concernée : aucun paramètre « retour ».
 
 import { describe, expect, it } from 'vitest'
 import * as accesEspace from '@/lib/aj-signalement/acces-espace'
@@ -50,9 +51,9 @@ describe('decisionAccesEspaceQr', () => {
     expect(decisionAccesEspaceQr({ app_metadata: superAdmin })).toEqual({ acces: 'autorise', role: 'super_admin' })
   })
 
-  it('« vue en tant que » ouverte par un super admin : autorisé', () => {
-    expect(decisionAccesEspaceQr({ app_metadata: { role: 'coproprio', _original_role: 'super_admin' } }))
-      .toEqual({ acces: 'autorise', role: 'super_admin' })
+  it('« vue en tant que » ouverte par un super admin : refusé (les routes la refusent aussi, isSuperAdmin)', () => {
+    expect(decisionAccesEspaceQr({ app_metadata: { role: 'coproprio', _original_role: 'super_admin' } })).toEqual({ acces: 'refuse' })
+    expect(decisionAccesEspaceQr({ app_metadata: { role: 'artisan', _original_role: 'super_admin', _admin_override: true } })).toEqual({ acces: 'refuse' })
   })
 
   it.each(['syndic', 'syndic_admin', 'syndic_gestionnaire', 'coproprio', 'locataire', 'artisan', 'pro_societe', 'client', 'gestionnaire', undefined])(
@@ -77,9 +78,9 @@ describe('decisionAccesEspaceQr', () => {
 })
 
 describe('lienEspaceQr (portail copropriétaire et tableau de bord AJ)', () => {
-  it('super admin ou « vue en tant que » : adresse de l’espace', () => {
+  it('super admin : adresse de l’espace ; « vue en tant que » : aucun lien (l’espace la refuse)', () => {
     expect(lienEspaceQr(superAdmin)).toBe('/fr/aj-signalement/')
-    expect(lienEspaceQr({ role: 'syndic', _original_role: 'super_admin' })).toBe('/fr/aj-signalement/')
+    expect(lienEspaceQr({ role: 'syndic', _original_role: 'super_admin' })).toBeNull()
   })
 
   it('tout autre compte, ou pas de session : aucun lien', () => {

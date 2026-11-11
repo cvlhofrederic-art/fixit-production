@@ -5,8 +5,9 @@
  * - sans session : 307 vers la page de connexion de l'espace dans la langue (la requête d'origine n'est pas reprise) ;
  * - tout autre compte : même 307 vers la page de connexion de l'espace (message neutre là-bas), jamais l'espace du
  *   compte ni la page de connexion générale, plus de 403 ;
- * - super admin, ou « vue en tant que » ouverte par un super admin (_original_role) : page servie ; depuis /en/, /nl/
- *   ou /es/ (aucune page dans ces langues), renvoi vers /pt/aj-signalement/ ;
+ * - super admin : page servie ; depuis /en/, /nl/ ou /es/ (aucune page dans ces langues), renvoi vers
+ *   /pt/aj-signalement/. La « vue en tant que » (_original_role) est refusée depuis le 11/11/2026, comme par les
+ *   routes de l'API (isSuperAdmin, #650) ;
  * - page de connexion de l'espace : servie sans session et à un compte sans accès (aucune boucle) ; un compte admis
  *   est envoyé dans l'espace ;
  * - chaque redirection qui part de l'espace (302 de langue, 307) porte X-Robots-Tag (OpenNext n'ajoute pas les
@@ -142,10 +143,10 @@ describe('espace, super admin', () => {
     expect(r.cache).toContain('private')
   })
 
-  it('« vue en tant que » ouverte par un super admin (_original_role) : page servie', async () => {
+  it('« vue en tant que » ouverte par un super admin (_original_role) : refus neutre (403), comme les routes', async () => {
     connecte({ role: 'coproprio', _original_role: 'super_admin', _admin_override: true })
     const r = await visiter('/fr/aj-signalement/')
-    expect(r).toMatchObject({ statut: 200, vers: null })
+    expect(r).toMatchObject({ statut: 403, vers: null })
     expect(r.cache).toContain('no-store')
   })
 
@@ -163,11 +164,9 @@ describe('espace, super admin', () => {
     expect(r.robots).toBe(NOINDEX)
   })
 
-  it('« vue en tant que » depuis /en/ : même renvoi vers /pt/aj-signalement/', async () => {
+  it('« vue en tant que » depuis /en/ : refus neutre, sans renvoi', async () => {
     connecte({ role: 'coproprio', _original_role: 'super_admin' })
-    const r = await visiter('/en/aj-signalement/')
-    expect(r.statut).toBe(307)
-    expect(r.vers?.pathname).toBe('/pt/aj-signalement/')
+    expect(await visiter('/en/aj-signalement/')).toMatchObject({ statut: 403, vers: null })
   })
 })
 
