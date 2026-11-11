@@ -581,6 +581,29 @@ export const modificationCabinetQrSchema = z.strictObject({
 
 export const rattachementQrSchema = z.strictObject({ coproprieteIds: z.array(z.uuid()).min(1).max(500) })
 
+// P1-R19 (SPEC § 1.9.6) : import des copropriétés d'UN cabinet client (obligatoire : isolation entre cabinets). Les lignes
+// sont normalisées dans le navigateur (lib/aj-signalement/import/ligne.ts, mêmes bornes) ; le fichier n'est jamais envoyé.
+// Gestionnaires : adresses (résolues au serveur sur les fiches actives du cabinet) ou, à défaut, noms (sans ambiguïté).
+const ligneImportQrSchema = z.strictObject({
+  numeroLigne: z.number().int().min(1).max(100_000),
+  ...ficheCoproQr,
+  gestionnaires: z.array(strictEmail.transform((e) => e.trim().toLowerCase())).max(20).optional().default([]),
+  nomsGestionnaires: z.array(z.string().trim().min(1).max(120)).max(20).optional().default([]),
+  actionSiExiste: z.enum(['ignorer', 'completer']).optional().default('ignorer'),
+  coproprieteExistanteId: z.uuid().optional(),
+  forcerDoublon: z.boolean().optional().default(false),
+  creerSiDoublonProbable: z.boolean().optional().default(true),
+}).refine((l) => l.actionSiExiste !== 'completer' || l.coproprieteExistanteId !== undefined, {
+  path: ['coproprieteExistanteId'], message: 'Copropriété à compléter requise',
+})
+export const importCoproprietesQrSchema = z.strictObject({
+  mode: z.enum(['verifier', 'creer']),
+  operationId: z.uuid(),
+  cabinetId: z.uuid(),
+  lignes: z.array(ligneImportQrSchema).min(1).max(500),
+  confirmerHorsDomaine: z.boolean().optional().default(false),   // destinataires hors des domaines du cabinet (RG-02)
+}).refine((c) => new Set(c.lignes.map((l) => l.numeroLigne)).size === c.lignes.length, { path: ['lignes'], message: 'N° de ligne en double' })
+
 // Paramètres de requête (GET), lus par Object.fromEntries(searchParams) : un paramètre inconnu donne 400.
 // Curseur : PostgREST renvoie les timestamptz en « 2026-11-10T12:00:00.123456+00:00 ». Sans { offset: true }, Zod 4
 // n'accepte que le suffixe « Z » : la deuxième page répondrait 400. Le curseur est passé TEL QUEL à la base.

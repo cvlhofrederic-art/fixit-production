@@ -627,3 +627,214 @@ export interface ReservationEmailsQr {
   accorde: boolean
   retenus: number
 }
+
+// ── Import des copropriétés depuis un fichier Excel ou CSV (lot 5, SPEC § 1.9) ────────────────────────────────
+//
+// Demande de Hugo du 10/11/2026 : « créer les copropriétés à partir d'un tableau Excel fourni par le client ». Le fichier
+// est lu dans le navigateur (lib/aj-signalement/import/*), jamais envoyé ni conservé : seules les lignes normalisées
+// partent vers POST /api/aj-signalement/coproprietes/import, qui refait toute la vérification (même fonction pure).
+
+/** Champs d'une ligne d'import (colonnes du modèle). */
+export type ChampImportQr =
+  | 'nom' | 'adresse' | 'codePostal' | 'ville' | 'immatriculation' | 'referenceCabinet' | 'batiments' | 'gestionnaires'
+  | 'emailsDestinataires'
+
+/** Colonne du modèle à télécharger : en-tête, rôle, règle, exemple, synonymes reconnus dans le fichier d'un client. */
+export interface ColonneModeleImportQr {
+  champ: ChampImportQr
+  entete: string
+  obligatoire: 'oui' | 'conseille' | 'non'
+  format: string
+  exemple: string
+  synonymes: readonly string[]
+}
+
+/** Colonne du fichier (index à partir de 0) reliée à chaque champ ; un champ absent est ignoré. */
+export type CorrespondanceImportQr = Partial<Record<ChampImportQr, number>>
+
+export interface OptionsImportQr {
+  /** Une seule colonne contient l'adresse complète : « 12 rue Exemple 13008 Marseille » est séparée. */
+  adresseComplete?: boolean
+}
+
+export type NiveauMessageImportQr = 'erreur' | 'avertissement'
+
+/** Message d'une ligne (texte en français, pour le super admin ; jamais journalisé au serveur). */
+export interface MessageImportQr {
+  niveau: NiveauMessageImportQr
+  champ: ChampImportQr | null
+  texte: string
+}
+
+/** Ce qu'il faut faire d'une ligne qui ressemble à une copropriété existante du cabinet. */
+export type ActionSiExisteImportQr = 'ignorer' | 'completer'
+
+/** Ligne normalisée envoyée au serveur (importCoproprietesQrSchema). */
+export interface LigneImportQr {
+  /** N° de la ligne dans le tableur (1 = première ligne du fichier). */
+  numeroLigne: number
+  nom: string
+  adresse: string
+  codePostal: string
+  ville: string
+  immatriculation: string
+  referenceCabinet: string
+  batiments: string[]
+  /** Adresses e-mail des gestionnaires (minuscules), résolues au serveur sur les fiches du cabinet. */
+  gestionnaires: string[]
+  /** À défaut d'adresse : noms, reconnus sans ambiguïté parmi les fiches du cabinet. */
+  nomsGestionnaires: string[]
+  emailsDestinataires: string[]
+  actionSiExiste: ActionSiExisteImportQr
+  /** Obligatoire avec actionSiExiste = 'completer' : la copropriété existante à compléter. */
+  coproprieteExistanteId?: string
+  /** « Ce n'est pas un doublon » (nom + code postal, super admin), journalisé. */
+  forcerDoublon: boolean
+  /** Doublon probable : créer quand même (par défaut). */
+  creerSiDoublonProbable: boolean
+}
+
+/** Choix du super admin sur une ligne (aperçu). */
+export type ChoixLigneImportQr = Pick<LigneImportQr, 'actionSiExiste' | 'coproprieteExistanteId' | 'forcerDoublon' | 'creerSiDoublonProbable'>
+
+/** Ligne lue et normalisée dans le navigateur ; saisie null : erreur de format, la ligne n'est pas envoyée. */
+export interface LigneNormaliseeImportQr {
+  numeroLigne: number
+  nom: string
+  saisie: LigneImportQr | null
+  messages: MessageImportQr[]
+}
+
+export interface NormalisationImportQr {
+  lignes: LigneNormaliseeImportQr[]
+  /** Plus de LIGNES_IMPORT_MAX_QR lignes de données : « divisez le fichier ». */
+  tropDeLignes: boolean
+}
+
+export type EtatLigneImportQr = 'a_creer' | 'avertissement' | 'erreur' | 'doublon_fichier' | 'existe_deja'
+/** aucune : ligne en erreur, jamais envoyée à la fonction SQL. */
+export type ActionImportQr = 'creer' | 'completer' | 'ignorer' | 'aucune'
+
+/** Diagnostic d'une ligne, calculé par la même fonction pure au navigateur et au serveur. */
+export interface DiagnosticLigneImportQr {
+  numeroLigne: number
+  nom: string
+  etat: EtatLigneImportQr
+  action: ActionImportQr
+  messages: MessageImportQr[]
+  /** Le doublon le plus grave avec une copropriété existante du cabinet ; null s'il n'y en a pas. */
+  doublon: DoublonQr | null
+  /** Fiches actives du cabinet attribuées par la ligne (colonne Gestionnaire(s), adresses de fiche des destinataires). */
+  gestionnaires: GestionnaireResumeQr[]
+  /** Destinataires retenus (canoniques, sans adresse de fiche). */
+  emailsDestinataires: string[]
+  /** Destinataires retenus hors des domaines du cabinet (confirmerHorsDomaine). */
+  emailsHorsDomaine: string[]
+}
+
+/** Gestionnaire cité par le fichier sans fiche au cabinet : panneau « créer ces fiches ». */
+export interface GestionnaireInconnuImportQr {
+  email: string
+  /** « prenom.nom@… » → « Prénom Nom », modifiable avant la création. */
+  nomPropose: string
+  /** Domaine de l'adresse parmi ceux du cabinet ; sinon, création seulement par une case cochée (forcerDomaine). */
+  dansDomaines: boolean
+  lignes: number[]
+}
+
+/** Réponse de « verifier » (et diagnostics à jour d'un 409 a_reverifier). */
+export interface VerificationImportQr {
+  diagnostics: DiagnosticLigneImportQr[]
+  gestionnairesInconnus: GestionnaireInconnuImportQr[]
+  /** Une ligne à créer a un destinataire hors des domaines du cabinet : confirmerHorsDomaine exigé. */
+  horsDomaine: boolean
+}
+
+/** Fiche gestionnaire du cabinet, telle que la vérification la lit. */
+export interface FicheImportQr {
+  id: string
+  nom: string | null
+  email: string | null
+  actif: boolean
+  /** « Ce n'est pas moi » : l'adresse ne reçoit rien et n'est pas attribuable. */
+  contestee: boolean
+}
+
+/** Ce que la vérification lit du cabinet (et seulement de lui, hors adresses des fiches des autres cabinets). */
+export interface ContexteImportQr {
+  domaines: readonly string[]
+  fiches: readonly FicheImportQr[]
+  /** Adresses (canoniques) des fiches des AUTRES cabinets : jamais attribuables, jamais destinataires. */
+  emailsAutresCabinets: readonly string[]
+  /** Copropriétés du cabinet, actives ou non. */
+  existantes: readonly CoproprieteDoublonQr[]
+}
+
+/** Ligne passée à signalements_qr_creer_coproprietes (p_lignes). */
+export interface LigneSqlImportQr {
+  numeroLigne: number
+  action: 'creer' | 'completer'
+  /** Un fichier d'une seule ligne reste un import (journal, origine des attributions). */
+  origine: 'import'
+  coproprieteId?: string
+  nom: string
+  cleNom: string
+  adresse: string
+  codePostal: string
+  ville: string
+  immatriculation: string
+  referenceCabinet: string
+  batiments: string[]
+  emails: string[]
+  gestionnaireIds: string[]
+  forcerDoublon: boolean
+}
+
+export interface PlanImportQr {
+  lignesSql: LigneSqlImportQr[]
+  ignorees: number
+  erreurs: number
+}
+
+/** Corps de POST /coproprietes/import. */
+export interface SaisieImportQr {
+  cabinetId: string
+  operationId: string
+  lignes: LigneImportQr[]
+  confirmerHorsDomaine: boolean
+}
+
+/** Réponse de « creer ». */
+export interface ResultatImportQr {
+  creees: Array<{ numeroLigne: number; id: string; jeton: string }>
+  completees: Array<{ numeroLigne: number; id: string }>
+  ignorees: number
+  /** Même operationId déjà traité : le résultat du premier passage. */
+  rejeu: boolean
+}
+
+/** Feuille d'un classeur .xlsx (masquée : jamais choisie d'office). */
+export interface FeuilleClasseurQr {
+  nom: string
+  visible: boolean
+}
+
+/** Refus de lecture d'un fichier (aucun texte de la bibliothèque n'est montré). */
+export type CodeLectureImportQr = 'trop_gros' | 'format_ancien' | 'illisible' | 'bombe' | 'vide'
+
+/** Fichier lu : cellules en texte, ligne par ligne (index = n° de ligne - 1). */
+export type LectureTableurQr =
+  | { ok: true; feuilles: FeuilleClasseurQr[]; feuille: string | null; lignes: string[][]; avertissements: string[]; tronque: boolean }
+  | { ok: false; code: CodeLectureImportQr }
+
+/** Copropriété créée par l'import, pour l'export CSV et les affiches. */
+export interface LigneExportCoproprieteQr {
+  nom: string
+  adresse: string
+  codePostal: string
+  ville: string
+  gestionnaires: string[]
+  jeton: string
+  /** Chemin du cabinet client (vitfix.io/<identifiant>/signalement/…) ; null : ancien chemin. */
+  identifiantCabinet: string | null
+}

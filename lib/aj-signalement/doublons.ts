@@ -74,13 +74,26 @@ interface ClesQr {
   codePostal: string
 }
 
-const cles = (f: FicheDoublonQr): ClesQr => ({
-  immatriculation: cleImmatriculation(f.immatriculation),
-  reference: cleReference(f.referenceCabinet),
-  nom: cleNomCoproQr(f.nom),
-  adresse: cleAdresseQr(f.adresse),
-  codePostal: f.codePostal.trim(),
-})
+/**
+ * Clés déjà calculées, par fiche (objet) : un import de 500 lignes compare chaque ligne aux précédentes et aux
+ * copropriétés du cabinet ; sans ce cache, chaque comparaison renormaliserait les deux fiches (≈ 2 s pour 500 lignes).
+ * Les fiches comparées ne sont jamais modifiées après coup (objets construits pour la comparaison).
+ */
+const CLES_CALCULEES = new WeakMap<FicheDoublonQr, ClesQr>()
+
+function cles(f: FicheDoublonQr): ClesQr {
+  const connues = CLES_CALCULEES.get(f)
+  if (connues) return connues
+  const calculees: ClesQr = {
+    immatriculation: cleImmatriculation(f.immatriculation),
+    reference: cleReference(f.referenceCabinet),
+    nom: cleNomCoproQr(f.nom),
+    adresse: cleAdresseQr(f.adresse),
+    codePostal: f.codePostal.trim(),
+  }
+  CLES_CALCULEES.set(f, calculees)
+  return calculees
+}
 
 /** Rang de gravité : certains non forçables, certains forçables, probables. */
 const rang = (d: DoublonQr): number => (d.certitude === 'certain' ? (d.forcable ? 1 : 0) : 2)

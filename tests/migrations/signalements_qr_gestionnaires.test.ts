@@ -371,6 +371,22 @@ describe(`Migration ${FICHIER} : copropriétés (création unique, doublons, cab
     expect(corps).toMatch(/INSERT INTO signalements_qr_operations \(id, cabinet_id,/)
   })
 
+  it('import (lot 5) : un fichier d’UNE ligne reste un import ; « compléter » ne remplit que les champs vides, n’écrase rien', () => {
+    const corps = fonction('signalements_qr_creer_coproprietes').corps
+    expect(corps).toMatch(/v_type := CASE WHEN v_nb = 1 AND coalesce\(p_lignes->0->>'origine', ''\) <> 'import' THEN 'creation' ELSE 'import' END;/)
+    for (const [colonne, cle] of [['adresse', 'adresse'], ['code_postal', 'codePostal'], ['ville', 'ville']]) {
+      expect(corps).toMatch(new RegExp(`${colonne}\\s+= CASE WHEN c\\.${colonne} = '' THEN coalesce\\(v_l->>'${cle}', ''\\) ELSE c\\.${colonne} END`))
+    }
+    expect(corps).toMatch(/immatriculation\s+= coalesce\(c\.immatriculation, nullif\(v_l->>'immatriculation', ''\)\)/)
+    expect(corps).toMatch(/reference_cabinet = coalesce\(c\.reference_cabinet, nullif\(v_l->>'referenceCabinet', ''\)\)/)
+    expect(corps).toMatch(/batiments\s+= CASE WHEN cardinality\(c\.batiments\) = 0/)
+    // Les destinataires saisis d'une copropriété existante ne sont jamais touchés par « compléter ».
+    const debut = corps.indexOf("IF v_l->>'action' = 'completer'")
+    const completer = corps.slice(debut, corps.indexOf('v_compl := v_compl', debut))
+    expect(completer.length).toBeGreaterThan(0)
+    expect(completer).not.toMatch(/emails_destinataires/)
+  })
+
   it('« attribuée à tous » exige un cabinet', () => {
     expect(code).toMatch(/ADD CONSTRAINT signalements_qr_copros_tous_cabinet\s+CHECK \(NOT attribuee_a_tous OR cabinet_id IS NOT NULL\) NOT VALID/)
   })

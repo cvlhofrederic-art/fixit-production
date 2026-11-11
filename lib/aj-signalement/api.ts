@@ -8,17 +8,21 @@
 //     gestionnaire (vitfix.io/<identifiant>/confirmation-adresse/#<jeton>) : le jeton part dans le CORPS, jamais dans
 //     l'adresse ;
 //   - les autres : espace AJ Signalement (/fr/aj-signalement/, super admin). Le jeton Bearer est ajouté quand il est
-//     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace.
+//     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace. Dont
+//     verifierImportQr / creerImportQr (import d'un fichier, lot 5) : seules les lignes normalisées partent, jamais le
+//     fichier ; un 409 a_reverifier porte les diagnostics à jour.
 // Les codes 409 / 410 des routes (doublon, hors_domaine, identifiant_fige…) sont rendus tels quels (CODES_METIER_QR),
 // avec leurs compléments utiles à l'écran (doublon, id de la fiche existante) ; jamais un texte du serveur.
 
 import {
   NUMERO_QR, estStatutOuvertQr, gestionCoproprieteQrVide,
-  type CabinetQr, type CabinetResumeQr, type CoproprieteQr, type DoublonRenduQr, type EvenementJournalQr, type FicheGestionnaireDetailQr,
-  type FiltreJournalQr, type GestionnaireQr, type GestionnaireResumeQr, type LangueSignalementQr, type SaisieCabinetQr,
+  type ActionImportQr, type CabinetQr, type CabinetResumeQr, type ChampImportQr, type CoproprieteQr, type DiagnosticLigneImportQr,
+  type DoublonRenduQr, type EtatLigneImportQr, type EvenementJournalQr, type FicheGestionnaireDetailQr,
+  type FiltreJournalQr, type GestionnaireInconnuImportQr, type GestionnaireQr, type GestionnaireResumeQr, type LangueSignalementQr,
+  type MessageImportQr, type ResultatImportQr, type SaisieCabinetQr, type SaisieImportQr,
   type SaisieCoproprieteQr, type SaisieGestionCoproprieteQr, type SaisieGestionnaireQr, type SaisieSignalementQr, type SignalementQr,
   type SignalementSemblableQr,
-  type StatutSignalementQr, type SuccessionDepartQr, type SuitePageQr, type TableauQr,
+  type StatutSignalementQr, type SuccessionDepartQr, type SuitePageQr, type TableauQr, type VerificationImportQr,
 } from '@/lib/aj-signalement/types'
 
 export const URL_API_QR = '/api/aj-signalement'
@@ -48,6 +52,8 @@ export interface EchecQr {
   doublon?: DoublonRenduQr
   /** 409 existe_deja : la fiche qui porte déjà cette adresse. */
   id?: string
+  /** 409 a_reverifier d'un import : les diagnostics à jour (l'existant a changé depuis la vérification). */
+  verification?: VerificationImportQr
 }
 
 export type ResultatEnvoiQr =
@@ -106,6 +112,10 @@ function echecDepuisReponse(status: number, corps: unknown): EchecQr {
     if (doublon) echec.doublon = doublon
   }
   if (code === 'existe_deja' && estObjet(corps) && typeof corps.id === 'string') echec.id = corps.id
+  if (code === 'a_reverifier') {
+    const verification = verificationDepuisCorps(corps)
+    if (verification) echec.verification = verification
+  }
   return echec
 }
 
@@ -465,6 +475,73 @@ export async function rattacherCoproprietesQr(cabinetId: string, coproprieteIds:
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/rattachement`, 'POST', { coproprieteIds })
   if (!r.ok) return r
   return { ok: true, rattachees: estObjet(r.corps) ? entier(r.corps.rattachees) : 0 }
+}
+
+// ── Import des copropriétés (lot 5, P1-R19) ──────────────────────────────────
+
+const ETATS_IMPORT_QR: readonly EtatLigneImportQr[] = ['a_creer', 'avertissement', 'erreur', 'doublon_fichier', 'existe_deja']
+const ACTIONS_IMPORT_QR: readonly ActionImportQr[] = ['creer', 'completer', 'ignorer', 'aucune']
+const chaines = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+
+function messageImport(v: unknown): MessageImportQr | null {
+  if (!estObjet(v) || typeof v.texte !== 'string') return null
+  return { niveau: v.niveau === 'avertissement' ? 'avertissement' : 'erreur', champ: typeof v.champ === 'string' ? (v.champ as ChampImportQr) : null, texte: v.texte }
+}
+
+/** Diagnostic d'une ligne reçu du serveur ; une valeur inconnue devient une erreur (jamais une création par défaut). */
+function diagnosticImport(v: unknown): DiagnosticLigneImportQr | null {
+  if (!estObjet(v) || typeof v.numeroLigne !== 'number') return null
+  const rendu = doublonDepuisCorps(v.doublon)
+  const doublon = rendu && estObjet(v.doublon) ? { ...rendu, forcable: v.doublon.forcable === true } : null
+  return {
+    numeroLigne: v.numeroLigne,
+    nom: chaine(v.nom),
+    etat: (ETATS_IMPORT_QR as readonly unknown[]).includes(v.etat) ? (v.etat as EtatLigneImportQr) : 'erreur',
+    action: (ACTIONS_IMPORT_QR as readonly unknown[]).includes(v.action) ? (v.action as ActionImportQr) : 'aucune',
+    messages: Array.isArray(v.messages) ? v.messages.map(messageImport).filter((m): m is MessageImportQr => m !== null) : [],
+    doublon,
+    gestionnaires: Array.isArray(v.gestionnaires) ? v.gestionnaires.map(gestionnaireResume).filter((g): g is GestionnaireResumeQr => g !== null) : [],
+    emailsDestinataires: chaines(v.emailsDestinataires),
+    emailsHorsDomaine: chaines(v.emailsHorsDomaine),
+  }
+}
+
+/** Vérification reçue du serveur (« verifier », ou diagnostics à jour d'un 409 a_reverifier) ; null si mal formée. */
+function verificationDepuisCorps(corps: unknown): VerificationImportQr | null {
+  if (!estObjet(corps) || !Array.isArray(corps.diagnostics)) return null
+  const inconnus: unknown[] = Array.isArray(corps.gestionnairesInconnus) ? corps.gestionnairesInconnus : []
+  return {
+    diagnostics: corps.diagnostics.map(diagnosticImport).filter((d): d is DiagnosticLigneImportQr => d !== null),
+    gestionnairesInconnus: inconnus.flatMap((g): GestionnaireInconnuImportQr[] => (estObjet(g) && typeof g.email === 'string'
+      ? [{ email: g.email, nomPropose: chaine(g.nomPropose), dansDomaines: g.dansDomaines === true, lignes: Array.isArray(g.lignes) ? g.lignes.filter((n): n is number => typeof n === 'number') : [] }]
+      : [])),
+    horsDomaine: corps.horsDomaine === true,
+  }
+}
+
+export type ResultatVerificationImportQr = { ok: true; verification: VerificationImportQr } | EchecQr
+export type ResultatCreationImportQr = { ok: true; resultat: ResultatImportQr } | EchecQr
+
+/** Vérification à blanc (rien n'est écrit) des lignes normalisées d'un fichier, pour un cabinet. */
+export async function verifierImportQr(saisie: SaisieImportQr, fetchImpl: Fetch = fetch): Promise<ResultatVerificationImportQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/import`, 'POST', { mode: 'verifier', ...saisie })
+  if (!r.ok) return r
+  const verification = verificationDepuisCorps(r.corps)
+  return verification ? { ok: true, verification } : { ok: false, code: 'serveur' }
+}
+
+/** Création, tout ou rien ; 409 a_reverifier : l'échec porte les diagnostics à jour (verification). */
+export async function creerImportQr(saisie: SaisieImportQr, fetchImpl: Fetch = fetch): Promise<ResultatCreationImportQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/import`, 'POST', { mode: 'creer', ...saisie })
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : {}
+  const liste: unknown[] = Array.isArray(c.creees) ? c.creees : []
+  const listeCompletees: unknown[] = Array.isArray(c.completees) ? c.completees : []
+  const creees = liste.flatMap((x) => (estObjet(x) && typeof x.numeroLigne === 'number' && typeof x.id === 'string' && typeof x.jeton === 'string'
+    ? [{ numeroLigne: x.numeroLigne, id: x.id, jeton: x.jeton }] : []))
+  const completees = listeCompletees.flatMap((x) => (estObjet(x) && typeof x.numeroLigne === 'number' && typeof x.id === 'string'
+    ? [{ numeroLigne: x.numeroLigne, id: x.id }] : []))
+  return { ok: true, resultat: { creees, completees, ignorees: entier(c.ignorees), rejeu: c.rejeu === true } }
 }
 
 // ── Journal ──────────────────────────────────────────────────────────────────

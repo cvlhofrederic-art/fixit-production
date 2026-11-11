@@ -312,7 +312,7 @@ END $fn$;
 -- ── 7. Fonctions appelées par les routes (clé service) ──
 
 -- Création unique des copropriétés (saisie du super admin = lot d'une ligne, import, saisie d'un gestionnaire en PR 2).
--- p_lignes : [{ numeroLigne, action: 'creer' | 'completer', coproprieteId?, nom, cleNom, adresse, codePostal, ville,
+-- p_lignes : [{ numeroLigne, action: 'creer' | 'completer', origine?: 'import', coproprieteId?, nom, cleNom, adresse, codePostal, ville,
 -- immatriculation?, referenceCabinet?, batiments[], emails[], gestionnaireIds[], forcerDoublon }].
 -- p_cabinet NULL = copropriétés sans cabinet (super admin seulement, aucun gestionnaire possible).
 CREATE OR REPLACE FUNCTION signalements_qr_creer_coproprietes(
@@ -342,11 +342,13 @@ BEGIN
   IF v_nb NOT BETWEEN 1 AND 500 THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
-  v_type := CASE WHEN v_nb = 1 THEN 'creation' ELSE 'import' END;
+  -- Un fichier d'import d'UNE ligne reste un import (journal import.realise, attributions d'origine « import ») : la
+  -- route d'import marque ses lignes origine = 'import' ; la saisie (lot d'une ligne) ne le fait pas.
+  v_type := CASE WHEN v_nb = 1 AND coalesce(p_lignes->0->>'origine', '') <> 'import' THEN 'creation' ELSE 'import' END;
 
   IF p_profil = 'gestionnaire' THEN
-    -- PR 2 : un gestionnaire crée une copropriété à la fois, dans le cabinet de SA fiche active.
-    IF p_gestionnaire IS NULL OR p_cabinet IS NULL OR v_nb <> 1 THEN
+    -- PR 2 : un gestionnaire crée une copropriété à la fois, dans le cabinet de SA fiche active (jamais un import).
+    IF p_gestionnaire IS NULL OR p_cabinet IS NULL OR v_nb <> 1 OR v_type <> 'creation' THEN
       RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
