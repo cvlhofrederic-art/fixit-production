@@ -191,11 +191,13 @@ describe('montant affiché par la liste', () => {
   const avec = (montant: number | null, requete: string, visibles: ReadonlySet<ChampRecherche> = AUCUN_VISIBLE) =>
     correspondDocument(indexerDocument({ docNumber: 'FACT-2026-050' }, 'fr', montant), motsRecherche(requete), visibles)
 
-  it('montant rond : « 3400 » et « 3 400 », pas de centimes inventés', () => {
+  it('montant rond : « 3400 » et « 3 400 », pas de centimes inventés, pas de début de nombre', () => {
     expect(avec(3400, '3400').trouve).toBe(true)
     expect(avec(3400, '3 400').trouve).toBe(true)
     expect(avec(3400, '3400,50').trouve).toBe(false)
     expect(avec(3400, '34000').trouve).toBe(false)
+    expect(avec(3400, '340').trouve).toBe(false)
+    expect(avec(3400, '400').trouve).toBe(false)
   })
 
   it('avec centimes : « 1250,50 », « 1 250,50 », « 1250.5 » et « 1250 »', () => {
@@ -206,6 +208,15 @@ describe('montant affiché par la liste', () => {
     expect(avec(1250.5, '1250,40').trouve).toBe(false)
   })
 
+  it('arrondi à l\'euro comme dans la liste : 1 250,70 € affiché « 1 251 € » se trouve par « 1251 » et « 1 251 »', () => {
+    expect(avec(1250.7, '1251').trouve).toBe(true)
+    expect(avec(1250.7, '1 251').trouve).toBe(true)
+    expect(avec(1250.7, '1250,70').trouve).toBe(true)
+    expect(avec(1250.7, '1250,7').trouve).toBe(true)
+    expect(avec(-1500.6, '1501').trouve).toBe(true)
+    expect(avec(1250.3, '1251').trouve).toBe(false)
+  })
+
   it('avoir (montant négatif) : se cherche sans signe ; montant absent : rien d\'indexé', () => {
     expect(avec(-1250.5, '1250,50').trouve).toBe(true)
     expect(avec(null, '1250').trouve).toBe(false)
@@ -214,6 +225,36 @@ describe('montant affiché par la liste', () => {
   it('colonne affichée : pas d\'indice ; sinon « 1 250,50 € »', () => {
     expect(avec(1250.5, '1250', new Set<ChampRecherche>(['montant'])).indice).toBeNull()
     expect(avec(1250.5, '1250').indice).toEqual({ champ: 'montant', texte: '1 250,50 €' })
+  })
+
+  it('pas de document parasite : numéro, montant voisin, mois, ligne', () => {
+    const LISTE: Array<{ doc: Record<string, unknown>; montant: number }> = [
+      { doc: { docNumber: 'FACT-2026-040', docDate: '2026-09-01' }, montant: 1200 },
+      { doc: { docNumber: 'FACT-2026-041', docDate: '2026-09-02' }, montant: 1040 },
+      { doc: { docNumber: 'FACT-2026-042', docDate: '2026-09-03' }, montant: 15000 },
+      { doc: { docNumber: 'DEV-2026-050', docDate: '2026-10-05' }, montant: 250 },
+      { doc: { docNumber: 'DEV-2026-051', docDate: '2026-11-05' }, montant: 2250 },
+      { doc: { docNumber: 'DEV-2026-052', docDate: '2026-09-04', lines: [{ description: '3 portes isoplanes' }] }, montant: 400 },
+    ]
+    const index = LISTE.map(({ doc, montant }) => indexerDocument(doc, 'fr', montant))
+    const numeros = (requete: string) => filtrerDocuments(index, requete, AUCUN_VISIBLE).map(r => r.doc.docNumber)
+    expect(numeros('040')).toEqual(['FACT-2026-040'])
+    expect(numeros('150')).toEqual([])
+    expect(numeros('15 000')).toEqual(['FACT-2026-042'])
+    expect(numeros('1 250')).toEqual([])
+    expect(numeros('3 400')).toEqual([])
+    expect(numeros('2 250')).toEqual(['DEV-2026-051'])
+  })
+})
+
+describe('motsRecherche : montants tapés avec des espaces de milliers', () => {
+  it('« 1 250 », « 15 000 », « 1 250,50 » redeviennent un seul nombre ; un téléphone reste découpé', () => {
+    expect(motsRecherche('1 250 15 000 1 250,50 06 12 34')).toEqual(['1250', '15000', '1250 50', '06', '12', '34'])
+  })
+
+  it('SIRET tapé avec ses espaces : toujours trouvé', () => {
+    const index = [indexerDocument({ docNumber: 'DEV-2026-014', clientSiret: '812 345 678 00019' }, 'fr')]
+    expect(filtrerDocuments(index, '812 345 678 00019', AUCUN_VISIBLE)).toHaveLength(1)
   })
 })
 

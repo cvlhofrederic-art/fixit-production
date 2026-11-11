@@ -166,6 +166,9 @@ export async function telechargerDocumentsGroupes(
   const { zipSync } = await import('fflate')
   // Le tableau rendu par zipSync est neuf (tampon à lui seul) : remis au Blob sans copie supplémentaire.
   const octets = zipSync(entrees) as Uint8Array<ArrayBuffer>
+  // Dernier contrôle juste avant l'envoi : un clic sur « Annuler » pendant le chargement de fflate ou la mise en
+  // archive compte aussi.
+  if (options.estAnnule?.()) return annulation
   const enregistrer = options.enregistrer ?? enregistrerDansLeNavigateur
   enregistrer(new Blob([octets], { type: 'application/zip' }), archive)
   return { telecharges, echecs, raison, archive }

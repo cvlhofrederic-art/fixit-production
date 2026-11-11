@@ -323,11 +323,28 @@ describe('Liste Devis V5 — filtre par statut, montant, annulation', () => {
     expect(estAnnule?.()).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: `${T}.annuler` }))
     expect(estAnnule?.()).toBe(true)
+    // Retour visuel : « Annulation… », bouton désactivé, jusqu'à la fin du PDF en cours.
+    expect(screen.getByRole('button', { name: `${T}.annulationEnCours` })).toBeDisabled()
     await act(async () => { terminer({ telecharges: 0, echecs: [], raison: null, archive: null, annule: true }) })
     expect(toast.info).toHaveBeenCalledWith(`${T}.annule`)
     expect(toast.success).not.toHaveBeenCalled()
     expect(caseDe('DEV-2026-001')).toBeChecked()
     expect(screen.queryByRole('button', { name: `${T}.annuler` })).not.toBeInTheDocument()
+  })
+
+  it('un document seul part d\'un bloc : pas de bouton « Annuler » qui n\'aurait aucun effet', async () => {
+    let terminer: (resultat: Awaited<ReturnType<typeof telechargerDocumentsGroupes>>) => void = () => undefined
+    vi.mocked(telechargerDocumentsGroupes).mockImplementationOnce((_docs, _ctx, options) => new Promise(resolve => {
+      options.onProgression?.(0, 1)
+      terminer = resolve
+    }))
+    render(<DevisSection {...propsDevis()} />)
+    fireEvent.click(caseDe('DEV-2026-002'))
+    fireEvent.click(screen.getByRole('button', { name: `${T}.telechargerSelection (1)` }))
+    expect(screen.getByRole('button', { name: `${T}.preparation 0/1` })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: `${T}.annuler` })).not.toBeInTheDocument()
+    await act(async () => { terminer({ telecharges: 1, echecs: [], raison: null, archive: null }) })
+    expect(toast.success).toHaveBeenCalledWith(`${T}.unTelecharge`)
   })
 })
 
@@ -359,6 +376,20 @@ describe('Liste Factures V5', () => {
     expect(numerosAffiches()).toEqual(['FACT-2026-040'])
     fireEvent.change(champ, { target: { value: '360' } })
     expect(numerosAffiches()).toEqual(['AC-2026-007'])
+  })
+
+  it('montant TTC arrondi à l\'euro comme dans la colonne : 1 042,25 € HT à 20 % = 1 250,70 €, affiché « 1 251 € »', () => {
+    const facture = {
+      ...FACTURE, id: 'f3', docNumber: 'FACT-2026-077', sourceDevisNumber: undefined,
+      lines: [{ id: 1, description: 'Reprise enduit', qty: 1, priceHT: 1042.25, tvaRate: 20, totalHT: 1042.25 }],
+    }
+    render(<FacturesSection {...propsFactures([facture])} />)
+    expect(screen.getByText('1 251 €')).toBeInTheDocument()
+    const champ = screen.getByPlaceholderText('proDash.factures.rechercher')
+    fireEvent.change(champ, { target: { value: '1 251' } })
+    expect(numerosAffiches()).toEqual(['FACT-2026-077'])
+    fireEvent.change(champ, { target: { value: '1250,70' } })
+    expect(numerosAffiches()).toEqual(['FACT-2026-077'])
   })
 
   it('le filtre par statut garde son rendu (puces « Toutes », « Émises »…) et filtre toujours', () => {

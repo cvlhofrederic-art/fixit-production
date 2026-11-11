@@ -4,7 +4,8 @@
  * Tout ce qui est relié au document se cherche : numéro, client (nom, adresse, téléphone, e-mail, SIRET),
  * objet de l'intervention, adresse et lieu du chantier, maître d'ouvrage, lignes et sections, notes, documents
  * liés (devis d'origine, facture parente, ordre de service), date d'émission (jour ou mois : « octobre 2026 »),
- * montant affiché par la liste (« 3400 », « 3 400 » ou « 3400,50 » ; un avoir se cherche sans le signe).
+ * montant affiché par la liste, par un nombre complet (« 3400 », « 3 400 », « 3400,50 », ou l'euro arrondi de la
+ * colonne : « 1251 » pour 1 250,70 €) ; un avoir se cherche sans le signe.
  *
  * La saisie est découpée en mots : chaque mot doit se trouver dans le document, pas forcément dans le même
  * champ (« dupont marseille » trouve le devis du client Dupont dont le chantier est à Marseille). Les
@@ -39,8 +40,13 @@ interface EntreeIndex {
   champ: ChampRecherche
   /** Texte tel qu'il est affiché dans l'indice « trouvé dans… ». */
   texte: string
-  /** Texte normalisé dans lequel on cherche, précédé d'une espace (début de mot = « espace + mot »). */
+  /** Texte normalisé dans lequel on cherche, entouré d'espaces (début de mot = « espace + mot »). */
   normalise: string
+  /**
+   * Montant : formes exactes acceptées (« 1250 », « 1250 70 », « 1251 »). Un montant se trouve par un nombre
+   * complet, jamais par un début de nombre (« 150 » ne trouve pas 15 000 €).
+   */
+  formes?: readonly string[]
 }
 
 export interface DocumentIndexe<T> {
@@ -66,6 +72,10 @@ const LONGUE_SUITE_DE_CHIFFRES = /^\d{6,}$/
 // Date tapée « 12/10/2026 », « 5/10 » ou « 10/2026 » (« / » seulement : « 12.5 » reste un nombre).
 const DATE_SAISIE = /^\d{1,4}(?:\/\d{1,4}){1,2}$/
 const ESPACES = /\s+/
+// Montant tapé avec des espaces entre les milliers : « 1 250 », « 15 000 », « 1 250,50 ».
+const TETE_MILLIERS = /^\d{1,3}$/
+const GROUPE_MILLIERS = /^\d{3}$/
+const DERNIER_GROUPE_DECIMALES = /^\d{3}[.,]\d{1,2}$/
 const LONGUEUR_MAX_INDICE = 90
 
 const MOIS: Record<LocaleRecherche, readonly string[]> = {
@@ -83,12 +93,38 @@ export function normaliserRecherche(texte: string): string {
 }
 
 /**
+ * « 1 250 » → « 1250 », « 1 250,50 » → « 1250,50 » : un montant tapé avec ses espaces de milliers redevient un seul
+ * nombre (sinon « 1 » et « 250 » se trouveraient chacun ailleurs : un mois « 10 », un devis de 250 €).
+ */
+function recollerMilliers(morceaux: readonly string[]): string[] {
+  const resultat: string[] = []
+  let i = 0
+  while (i < morceaux.length) {
+    let nombre = morceaux[i]
+    let suivant = i + 1
+    if (TETE_MILLIERS.test(nombre)) {
+      while (suivant < morceaux.length && GROUPE_MILLIERS.test(morceaux[suivant])) {
+        nombre += morceaux[suivant]
+        suivant++
+      }
+      if (suivant < morceaux.length && DERNIER_GROUPE_DECIMALES.test(morceaux[suivant])) {
+        nombre += morceaux[suivant]
+        suivant++
+      }
+    }
+    resultat.push(nombre)
+    i = suivant
+  }
+  return resultat
+}
+
+/**
  * Mots de la saisie, normalisés. Une saisie vide ou faite de ponctuation ne filtre rien. Un morceau avec chiffres
  * et séparateurs (« DEV-2026-001 », « 12/10/2026 ») reste un seul « mot » à parties séparées par des espaces.
  */
 export function motsRecherche(requete: string): string[] {
   const mots: string[] = []
-  for (const morceau of requete.trim().split(ESPACES)) {
+  for (const morceau of recollerMilliers(requete.trim().split(ESPACES))) {
     if (DATE_SAISIE.test(morceau)) {
       // Comme dans l'index : jour et mois sur deux chiffres, année sur quatre (« 5/10/26 » cherche « 05 10 2026 »).
       const parties = morceau.split('/').map(partie => partie.padStart(2, '0'))
@@ -137,20 +173,22 @@ function grouperMilliers(chiffres: string): string {
 }
 
 /**
- * Montant tel qu'on le tape : « 3400 », « 3 400 », « 3400,50 », « 1 250,50 ». Valeur absolue (un avoir négatif se
- * cherche sans signe) ; centimes indexés même quand la liste les arrondit à l'affichage.
+ * Montant tel qu'on le tape (« 3400 », « 3 400 » recollé, « 1250,70 », « 1250,7 ») et tel que la liste l'affiche
+ * arrondi à l'euro (« 1251 » pour 1 250,70 €). Valeur absolue : un avoir négatif se cherche sans signe.
  */
-function textesMontant(montant: number): { affiche: string; cherche: string } {
+function formesMontant(montant: number): { affiche: string; formes: string[] } {
   const centimesTotaux = Math.round(Math.abs(montant) * 100)
   const entier = String(Math.floor(centimesTotaux / 100))
   const centimes = String(centimesTotaux % 100).padStart(2, '0')
-  const groupe = grouperMilliers(entier)
-  const decimales = centimes === '00' ? '' : ` ${centimes}`
-  const virgule = decimales ? `,${centimes}` : ''
-  return {
-    affiche: `${groupe}${virgule} €`,
-    cherche: `${entier}${decimales} ${groupe}${decimales}`,
+  const formes = [entier]
+  if (centimes !== '00') {
+    formes.push(`${entier} ${centimes}`)
+    if (centimes.endsWith('0')) formes.push(`${entier} ${centimes[0]}`)
+    const arrondi = String(Math.round(centimesTotaux / 100))
+    if (arrondi !== entier) formes.push(arrondi)
   }
+  const virgule = centimes === '00' ? '' : `,${centimes}`
+  return { affiche: `${grouperMilliers(entier)}${virgule} €`, formes }
 }
 
 /** Une ligne de devis : description, détail libre et étapes rattachées. */
@@ -175,7 +213,7 @@ export function indexerDocument<T extends object>(
   const ajouter = (champ: ChampRecherche, texte: string, complement = ''): void => {
     if (!texte) return
     const normalise = normaliserRecherche(complement ? `${texte} ${complement}` : texte)
-    if (normalise) entrees.push({ champ, texte, normalise: ` ${normalise}` })
+    if (normalise) entrees.push({ champ, texte, normalise: ` ${normalise} ` })
   }
   const joindre = (...valeurs: unknown[]): string => valeurs.map(texteDe).filter(Boolean).join(', ')
   // Téléphone et SIRET : aussi sans espaces, pour trouver « 0612345678 » quand la fiche porte « 06 12 34 56 78 ».
@@ -216,8 +254,8 @@ export function indexerDocument<T extends object>(
   if (date) ajouter('date', date.affiche, date.cherche)
 
   if (typeof montant === 'number' && Number.isFinite(montant)) {
-    const { affiche, cherche } = textesMontant(montant)
-    ajouter('montant', affiche, cherche)
+    const { affiche, formes } = formesMontant(montant)
+    entrees.push({ champ: 'montant', texte: affiche, normalise: '', formes })
   }
 
   return { doc, entrees }
@@ -248,7 +286,7 @@ export function correspondDocument<T>(
   let meilleure = -1
   for (const mot of mots) {
     const motif = motifDeRecherche(mot)
-    const position = index.entrees.findIndex(e => e.normalise.includes(motif))
+    const position = index.entrees.findIndex(e => (e.formes ? e.formes.includes(mot) : e.normalise.includes(motif)))
     if (position < 0) return { trouve: false, indice: null }
     const entree = index.entrees[position]
     // Un mot trouvé d'abord dans un champ visible (numéro, client…) n'a pas besoin d'indice.

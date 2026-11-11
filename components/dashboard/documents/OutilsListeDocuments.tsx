@@ -240,6 +240,8 @@ export function CelluleSelection({ coche, onBasculer, libelle }: Readonly<{
 export interface ProgressionTelechargement {
   faits: number
   total: number
+  /** « Annuler » cliqué : le PDF en cours se termine, puis rien ne part (le bouton l'indique). */
+  annulationDemandee?: boolean
 }
 
 /** Fiche de l'artisan ou de la société, telle que les listes la reçoivent (champs lus comme par chaque ligne). */
@@ -297,7 +299,7 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
     try {
       const resultat = await telechargerDocumentsGroupes(docs as readonly SavedDevis[], ctx, {
         nomArchive: `${nomListe}_${dateDuJourLocale()}`,
-        onProgression: (faits, total) => setProgression({ faits, total }),
+        onProgression: (faits, total) => setProgression(avant => ({ faits, total, annulationDemandee: avant?.annulationDemandee })),
         estAnnule: () => annulation.current,
       })
       if (resultat.annule) {
@@ -333,6 +335,7 @@ export function useTelechargementGroupe({ artisan, locale, t, useBtpDesign, nomL
 
   const annuler = (): void => {
     annulation.current = true
+    setProgression(avant => (avant ? { ...avant, annulationDemandee: true } : avant))
   }
 
   return { progression, telecharger, annuler }
@@ -376,9 +379,10 @@ export function BoutonsTelechargementGroupe({ nbAffiches, nbSelectionnes, progre
           {t(cleTexte('deselectionner'))}
         </button>
       )}
-      {enCours && (
-        <button type="button" className="v5-btn" onClick={onAnnuler}>
-          {t(cleTexte('annuler'))}
+      {/* Un document seul part d'un bloc (rien à annuler) : le bouton n'apparaît que pour un lot. */}
+      {progression && progression.total > 1 && (
+        <button type="button" className="v5-btn" onClick={onAnnuler} disabled={progression.annulationDemandee === true}>
+          {t(cleTexte(progression.annulationDemandee ? 'annulationEnCours' : 'annuler'))}
         </button>
       )}
       <button type="button" className="v5-btn" onClick={onTelecharger} title={titre} aria-busy={enCours}

@@ -138,6 +138,18 @@ describe('telechargerDocumentsGroupes', () => {
     expect(enregistrer).not.toHaveBeenCalled()
   })
 
+  it('« Annuler » pendant la mise en archive (après le dernier PDF) : rien n\'est téléchargé non plus', async () => {
+    const enregistrer = vi.fn()
+    let lectures = 0
+    // 2 documents : lu avant chaque PDF (2), après la boucle (3), puis juste avant l'envoi (4) — vrai seulement là.
+    const estAnnule = () => { lectures += 1; return lectures >= 4 }
+    const docs = [{ docNumber: 'A' }, { docNumber: 'B' }]
+    const resultat = await telechargerDocumentsGroupes(docs, CTX, { nomArchive: 'Devis', produire: produireFactice(), enregistrer, estAnnule })
+    expect(resultat).toMatchObject({ annule: true, archive: null })
+    expect(lectures).toBe(4)
+    expect(enregistrer).not.toHaveBeenCalled()
+  })
+
   it('aucun document : rien', async () => {
     const enregistrer = vi.fn()
     expect(await telechargerDocumentsGroupes([], CTX, { nomArchive: 'Devis', enregistrer })).toEqual({ telecharges: 0, echecs: [], raison: null, archive: null })
