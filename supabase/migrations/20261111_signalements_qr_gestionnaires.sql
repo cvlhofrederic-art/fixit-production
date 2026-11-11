@@ -1088,8 +1088,9 @@ END $fn$;
 
 -- Rattachement de copropriétés sans cabinet à un cabinet (définitif) : toutes ou aucune.
 -- p_cles_nom : { "<id>": "<clé du nom>" } calculée par la route (cleNomCoproQr), posée là où cle_nom manque (anciennes
--- copropriétés). Doublon nom + code postal avec le cabinet ou dans le lot (RG-08) refusé sous le verrou, sauf
--- p_forcer_doublon (« Ce n'est pas un doublon », super admin), journalisé doublon.force.
+-- copropriétés) ; obligatoire pour chacune d'elles (sinon a_reverifier). Doublon nom + code postal avec le cabinet ou
+-- dans le lot (RG-08) refusé sous le verrou, sauf p_forcer_doublon (« Ce n'est pas un doublon », super admin), journalisé
+-- doublon.force.
 CREATE OR REPLACE FUNCTION signalements_qr_rattacher_coproprietes(
   p_cabinet uuid, p_coproprietes uuid[], p_acteur uuid, p_cles_nom jsonb, p_forcer_doublon boolean
 ) RETURNS jsonb
@@ -1114,8 +1115,13 @@ BEGIN
      <> cardinality(v_ids) THEN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
-  -- Clé du nom posée où elle manque : ce contrôle et celui de la création la comparent ensuite.
-  UPDATE signalements_qr_coproprietes c SET cle_nom = coalesce(c.cle_nom, nullif(p_cles_nom->>c.id::text, ''))
+  -- Clé du nom posée où elle manque : ce contrôle et celui de la création la comparent ensuite. Une clé manquante
+  -- (copropriété que la route n'a pas lue) est refusée : le contrôle nom + code postal ne saute jamais en silence.
+  IF EXISTS (SELECT 1 FROM signalements_qr_coproprietes c
+              WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL AND jsonb_typeof(p_cles_nom->(c.id::text)) IS DISTINCT FROM 'string') THEN
+    RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
+  END IF;
+  UPDATE signalements_qr_coproprietes c SET cle_nom = p_cles_nom->>(c.id::text)
    WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL;
   -- Doublon nom + code postal (RG-08) avec une copropriété du cabinet ou une autre du lot, sous le verrou.
   v_doublons := ARRAY(SELECT c.id FROM signalements_qr_coproprietes c

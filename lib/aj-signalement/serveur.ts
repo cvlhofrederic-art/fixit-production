@@ -578,15 +578,28 @@ export async function lireParValeursQr<T>(
 ): Promise<LectureQr<T[]>> {
   const lignes: T[] = []
   for (const lot of lotsPourFiltreQr(valeurs)) {
-    for (let de = 0; ; de += PAGE_POSTGREST_QR) {
-      const { data, error } = await fabrique(lot).range(de, de + PAGE_POSTGREST_QR - 1)
-      if (error) return { ok: false, erreur: error }
-      const page = (Array.isArray(data) ? data : []) as T[]
-      lignes.push(...page)
-      if (page.length < PAGE_POSTGREST_QR) break
-    }
+    const r = await lirePagesQr<T>(() => fabrique(lot))
+    if (!r.ok) return r
+    lignes.push(...r.valeur)
   }
   return { ok: true, valeur: lignes }
+}
+
+/**
+ * Toutes les lignes d'une requête FILTRÉE (un groupe borné : les copropriétés d'un cabinet…), page par page : PostgREST
+ * coupe sans erreur au-delà de 1 000 lignes (max-rows). La fabrique ORDONNE la requête, pour des pages stables.
+ */
+export async function lirePagesQr<T>(
+  fabrique: () => { range: (de: number, a: number) => PromiseLike<ReponseLectureQr> },
+): Promise<LectureQr<T[]>> {
+  const lignes: T[] = []
+  for (let de = 0; ; de += PAGE_POSTGREST_QR) {
+    const { data, error } = await fabrique().range(de, de + PAGE_POSTGREST_QR - 1)
+    if (error) return { ok: false, erreur: error }
+    const page = (Array.isArray(data) ? data : []) as T[]
+    lignes.push(...page)
+    if (page.length < PAGE_POSTGREST_QR) return { ok: true, valeur: lignes }
+  }
 }
 
 /**
@@ -927,21 +940,32 @@ interface LigneDoublonQr {
  * Copropriétés du même groupe (cabinet, ou « sans cabinet »), actives ou non, pour le pré-contrôle des doublons
  * (SPEC § 1.6 ; la clé du nom est recalculée : cle_nom est NULL pour les lignes antérieures). Colonnes absentes :
  * toutes les copropriétés forment le groupe « sans cabinet » (nom et adresse seulement). `ignorerOperation` : la
- * copropriété déjà créée par ce même lot (nouvel essai d'un double clic) n'est pas son propre doublon.
+ * copropriété déjà créée par ce même lot (nouvel essai d'un double clic) n'est pas son propre doublon. `ids` : seulement
+ * ces copropriétés du groupe (rattachement : celles demandées). Tout le groupe est lu, par pages de 1 000 (essai PGlite
+ * du 11/11, D5 : au-delà de max-rows, PostgREST coupait sans erreur et des doublons passaient sans contrôle).
  */
 export async function lireCoproprietesDoublonsQr(
-  cabinetId: string | null, options: { ignorerOperation?: string } = {},
+  cabinetId: string | null, options: { ignorerOperation?: string; ids?: readonly string[] } = {},
 ): Promise<{ ok: true; coproprietes: CoproprieteDoublonQr[] } | { ok: false; erreur: ErreurBase }> {
-  const etendue = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom, adresse, code_postal, ville, immatriculation, reference_cabinet, operation_id')
-  let r = await (cabinetId === null ? etendue.is('cabinet_id', null) : etendue.eq('cabinet_id', cabinetId))
-  if (colonneInconnue(r.error)) {
-    journaliserRepliGestionQr('lecture des doublons', r.error)
-    if (cabinetId !== null) return { ok: true, coproprietes: [] }
-    r = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, nom, adresse')
+  const { ids } = options
+  // Requête ordonnée (pages stables), filtrée sur le groupe ; `groupe` faux : colonnes absentes, toutes « sans cabinet ».
+  const requete = (colonnes: string, groupe: boolean, lot?: string[]) => {
+    const base = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select(colonnes)
+    const parIds = lot ? base.in('id', lot) : base
+    const filtree = !groupe ? parIds : cabinetId === null ? parIds.is('cabinet_id', null) : parIds.eq('cabinet_id', cabinetId)
+    return filtree.order('id', { ascending: true })
   }
-  if (r.error) return { ok: false, erreur: r.error }
-  const lignes = ((r.data ?? []) as unknown as LigneDoublonQr[])
-    .filter((l) => !options.ignorerOperation || l.operation_id !== options.ignorerOperation)
+  const lire = (colonnes: string, groupe: boolean) => (ids
+    ? lireParValeursQr<LigneDoublonQr>(ids, (lot) => requete(colonnes, groupe, lot))
+    : lirePagesQr<LigneDoublonQr>(() => requete(colonnes, groupe)))
+  let r = await lire('id, nom, adresse, code_postal, ville, immatriculation, reference_cabinet, operation_id', true)
+  if (!r.ok && colonneInconnue(r.erreur)) {
+    journaliserRepliGestionQr('lecture des doublons', r.erreur)
+    if (cabinetId !== null) return { ok: true, coproprietes: [] }
+    r = await lire('id, nom, adresse', false)
+  }
+  if (!r.ok) return { ok: false, erreur: r.erreur }
+  const lignes = r.valeur.filter((l) => !options.ignorerOperation || l.operation_id !== options.ignorerOperation)
   return {
     ok: true,
     coproprietes: lignes.map((l) => ({

@@ -265,7 +265,15 @@ describe(`Migration ${FICHIER} : cabinets clients et domaines`, () => {
   it('rattachement (relecture 9) : clé du nom posée là où elle manque, doublon nom + code postal refusé SOUS le verrou sauf forçage journalisé', () => {
     const corps = fonction('signalements_qr_rattacher_coproprietes').corps
     const verrou = corps.indexOf("pg_advisory_xact_lock(hashtextextended('signalements_qr_creation:'")
-    expect(corps).toMatch(new RegExp(espaces("cle_nom = coalesce(c.cle_nom, nullif(p_cles_nom->>c.id::text, ''))")))
+    // Essai PGlite du 11/11 (D5) : une clé manquante (copropriété que la route n'a pas lue) est REFUSÉE, avant toute
+    // écriture ; avant, le contrôle nom + code postal sautait en silence (cle_nom restait NULL).
+    const manque = corps.search(new RegExp(espaces(
+      "IF EXISTS (SELECT 1 FROM signalements_qr_coproprietes c WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL AND jsonb_typeof(p_cles_nom->(c.id::text)) IS DISTINCT FROM 'string') THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';",
+    )))
+    const pose = corps.search(new RegExp(espaces('UPDATE signalements_qr_coproprietes c SET cle_nom = p_cles_nom->>(c.id::text) WHERE c.id = ANY (v_ids) AND c.cle_nom IS NULL;')))
+    expect(manque).toBeGreaterThan(verrou)
+    expect(pose).toBeGreaterThan(manque)
+    expect(corps).not.toMatch(/nullif\(p_cles_nom/)
     const controle = new RegExp(espaces(
       "WHERE c.id = ANY (v_ids) AND c.code_postal <> '' AND c.cle_nom IS NOT NULL AND EXISTS (SELECT 1 FROM signalements_qr_coproprietes d WHERE d.id <> c.id AND (d.cabinet_id = p_cabinet OR d.id = ANY (v_ids)) AND d.cle_nom = c.cle_nom AND d.code_postal = c.code_postal)",
     ))

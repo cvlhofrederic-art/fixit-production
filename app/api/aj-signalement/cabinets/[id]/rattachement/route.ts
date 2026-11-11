@@ -8,8 +8,10 @@
 // du lot, AVANT l'appel → 409 doublon { doublon } ; un doublon probable passe avec confirmerDoublonProbable, un doublon
 // nom + code postal avec forcerDoublon (journalisé doublon.force par la fonction) ; immatriculation ou référence :
 // jamais. La fonction refait le contrôle nom + code postal sous le verrou (clés des noms calculées ici : cle_nom est NULL
-// pour les anciennes copropriétés). Réponse { rattachees }. Les QR codes déjà imprimés (/fr/signalement/<jeton>/)
-// continuent de marcher (redirection vers le chemin du cabinet).
+// pour les anciennes copropriétés ; une clé manquante est refusée, 409 a_reverifier). Seules les copropriétés demandées
+// sont lues dans le groupe « sans cabinet », celles du cabinet le sont toutes, par pages de 1 000 (essai PGlite du 11/11,
+// D5 : max-rows de PostgREST). Réponse { rattachees }. Les QR codes déjà imprimés (/fr/signalement/<jeton>/) continuent
+// de marcher (redirection vers le chemin du cabinet).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -41,7 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!cabinet.ok) return reponseErreurSqlQr(cabinet.erreur, 'lecture du cabinet', { cabinet: id })
     if (!cabinet.cabinet) return reponseErreur('introuvable', 404)
 
-    const [sansCabinet, duCabinet] = await Promise.all([lireCoproprietesDoublonsQr(null), lireCoproprietesDoublonsQr(id)])
+    const [sansCabinet, duCabinet] = await Promise.all([lireCoproprietesDoublonsQr(null, { ids: s.coproprieteIds }), lireCoproprietesDoublonsQr(id)])
     if (!sansCabinet.ok) return reponseErreurSqlQr(sansCabinet.erreur, 'lecture des copropriétés sans cabinet', { cabinet: id })
     if (!duCabinet.ok) return reponseErreurSqlQr(duCabinet.erreur, 'lecture des copropriétés du cabinet', { cabinet: id })
     const demandees = new Set(s.coproprieteIds)
