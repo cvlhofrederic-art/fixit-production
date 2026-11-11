@@ -313,14 +313,14 @@ export function simulerProductionAvant1111Qr(base: ReturnType<typeof creerBaseQr
 }
 
 // ── La production avant la migration du 12/11/2026 (accès des gestionnaires, PR 2) ──
-// Structure de supabase/migrations/20261112_signalements_qr_acces_gestionnaires.sql : 4 colonnes sur la fiche, une
-// fonction nouvelle (les corps remplacés gardent leur signature : ils répondent comme en PR 1). Tant qu'elle n'est pas
-// appliquée, la production répond 42703 / PGRST204 (colonnes) et PGRST202 (fonction).
+// Structure de supabase/migrations/20261112_signalements_qr_acces_gestionnaires.sql : 4 colonnes sur la fiche, les
+// fonctions nouvelles appelées par les routes (les corps remplacés gardent leur signature : ils répondent comme en PR 1).
+// Tant qu'elle n'est pas appliquée, la production répond 42703 / PGRST204 (colonnes) et PGRST202 (fonctions).
 
 export const COLONNES_MIGRATION_1112_QR: Readonly<Record<string, readonly string[]>> = {
   signalements_qr_gestionnaires: ['user_id', 'acces_ouvert_le', 'connexion_bloquee_le', 'effacement_demande_le'],
 }
-export const FONCTIONS_MIGRATION_1112_QR: readonly string[] = ['signalements_qr_envoyer_acces']
+export const FONCTIONS_MIGRATION_1112_QR: readonly string[] = ['signalements_qr_envoyer_acces', 'signalements_qr_pseudonymiser_gestionnaire']
 
 /**
  * Met la base simulée dans l'état de la production avant la migration du 12/11/2026 (la 20261111 appliquée) : colonnes

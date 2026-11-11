@@ -8,6 +8,8 @@
 //   - boiteEmailQr : la boîte d'une adresse, sans l'étiquette « + » de sa partie locale (RG-06 bis : une sous-adresse
 //     « prenom+etiquette@ » d'une fiche est l'adresse de la fiche) ; même expression en SQL (migration 20261112) ;
 //     partiesBoiteQr : sa partie locale et son domaine (même partie locale sur un autre domaine du cabinet de la fiche) ;
+//   - estAdresseDeFicheQr / boitesDeFicheQr : LA règle « adresse d'une fiche » (RG-06 bis), jumelle de la fonction SQL
+//     signalements_qr_adresse_de_fiche (migration 20261112) ; mêmes réponses sur la table de cas commune ;
 //   - validerDomaineCabinetQr : format du CHECK signalements_qr_domaines_domaine_format, messageries publiques refusées ;
 //   - nomCourtQr : « Marie M. », pour que l'e-mail et la page de confirmation nomment la personne (RG-02) ;
 //   - etatGestionnaireQr : état d'une fiche affiché au super admin (5 états en PR 1, les 4 états d'accès en PR 2).
@@ -52,6 +54,36 @@ export function partiesBoiteQr(valeur: unknown): { locale: string; domaine: stri
   const parties = boite.split('@')
   if (parties.length !== 2 || !parties[0] || !parties[1]) return null
   return { locale: parties[0], domaine: parties[1] }
+}
+
+/**
+ * Boîtes qui sont l'adresse d'une fiche : sa boîte, puis, si elle a une partie locale (un seul « @ »), cette partie
+ * locale sur chaque domaine déclaré de son cabinet (un cabinet à deux domaines les livre aux mêmes boîtes) ; rien si la
+ * fiche n'a pas d'adresse (pseudonymisée). Les domaines sont pris tels quels (forme canonique de la base) ; une valeur
+ * vide ou contenant « @ » ne fait pas de boîte. Sert d'index (refus, masquage, compteur, import) : une adresse est celle
+ * de la fiche si et seulement si sa boîte est dans cette liste (estAdresseDeFicheQr).
+ */
+export function boitesDeFicheQr(ficheEmail: unknown, domainesDuCabinet: ReadonlyArray<string | null | undefined>): string[] {
+  const boite = boiteEmailQr(ficheEmail)
+  if (boite === null) return []
+  const parties = partiesBoiteQr(boite)
+  const autres = parties === null ? [] : domainesDuCabinet
+    .filter((d): d is string => typeof d === 'string' && d !== '' && !d.includes('@'))
+    .map((d) => `${parties.locale}@${d}`)
+  return [...new Set([boite, ...autres])]
+}
+
+/**
+ * LA règle « adresse d'une fiche » (RG-06 bis ; contrôle 2 de la PR 2) : même BOÎTE (canonique, sans l'étiquette « + »
+ * de sa partie locale), ou même partie locale de boîte sur un domaine déclaré par le cabinet de la fiche
+ * (`domainesDuCabinet`) ; le domaine de la fiche n'entre pas en compte (une fiche forcée sur une messagerie publique
+ * garde sa partie locale sur les domaines de son cabinet). Jumelle de signalements_qr_adresse_de_fiche (20261112) :
+ * mêmes réponses sur la table de cas commune (tests/helpers/aj-signalement-adresse-de-fiche.cas.json), domaine des
+ * entrées : adresses validées (ASCII, sans espace intérieur).
+ */
+export function estAdresseDeFicheQr(adresse: unknown, ficheEmail: unknown, domainesDuCabinet: ReadonlyArray<string | null | undefined>): boolean {
+  const boite = boiteEmailQr(adresse)
+  return boite !== null && boitesDeFicheQr(ficheEmail, domainesDuCabinet).includes(boite)
 }
 
 /** Domaine d'une adresse : la partie après l'UNIQUE « @ », en minuscules ; null si zéro ou plusieurs « @ » ou partie vide. */

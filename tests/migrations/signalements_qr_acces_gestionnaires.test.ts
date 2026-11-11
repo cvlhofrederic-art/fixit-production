@@ -4,18 +4,22 @@
 // l'espace de SON cabinet, vitfix.io/<identifiant>/suivi/). Additive et rejouable, appliquée APRÈS la 20261111 : 4
 // colonnes sur la fiche (compte relié, dates d'accès, de blocage, de demande d'effacement), FK vers auth.users en
 // NOT VALID puis VALIDATE, index unique « un compte = une fiche », envoi d'un accès en une transaction, trigger de
-// liaison du compte à l'acceptation, corps de signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel, même
-// signature, exclusions comparées sur la boîte : sous-adresses « + » comprises, et sur la partie locale de boîte pour un
-// autre domaine du cabinet de la fiche), corps de signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi »
-// depuis un lien d'accès, fiche sans compte relié, objet de l'envoi au journal). Aucune table nouvelle (les domaines
-// sont en PR 1), aucune donnée, aucune valeur de client (dépôt public). Le texte SQL est contrôlé ici : aucune base
-// PostgreSQL ne le rejoue en local ni en CI.
+// liaison du compte à l'acceptation, règle « adresse d'une fiche » en UNE fonction (signalements_qr_adresse_de_fiche :
+// même boîte, sous-adresses « + » comprises, ou même partie locale de boîte sur un domaine du cabinet de la fiche ; sa
+// jumelle TypeScript et la table de cas commune : tests/lib/aj-signalement-adresse-de-fiche.test.ts), corps de
+// signalements_qr_emails_gestionnaires remplacé (acces_ouvert réel, même signature, exclusions par la règle), corps de
+// signalements_qr_contester_adresse élargi (lot 3 : « Ce n'est pas moi » depuis un lien d'accès, fiche sans compte
+// relié, objet de l'envoi au journal), départ (signalements_qr_desactiver_gestionnaire, corps de la 20261111 corrigée)
+// qui retire des saisies l'adresse de la fiche ET ses variantes par la règle (contrôle 2, C1), effacement RGPD en une
+// transaction (signalements_qr_pseudonymiser_gestionnaire : variantes retirées AVANT que l'adresse ne disparaisse).
+// Aucune table nouvelle (les domaines sont en PR 1), aucune donnée, aucune valeur de client (dépôt public). Le texte
+// SQL est contrôlé ici ; l'essai PGlite (aj-pr2/pglite-essai, hors CI) le rejoue sur PostgreSQL 18.
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { MIGRATION_ACCES_QR, MIGRATION_GESTIONNAIRES_QR } from '@/lib/aj-signalement/serveur'
-import { ETIQUETTE_EMAIL_QR } from '@/lib/aj-signalement/gestionnaires'
+import { estAdresseDeFicheQr } from '@/lib/aj-signalement/gestionnaires'
 import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
@@ -56,8 +60,17 @@ const RPC: Record<string, string> = {
   signalements_qr_envoyer_acces: 'uuid, jsonb, uuid',
   signalements_qr_emails_gestionnaires: 'uuid',
   signalements_qr_contester_adresse: 'uuid',
+  signalements_qr_desactiver_gestionnaire: 'uuid, jsonb, uuid',
+  signalements_qr_pseudonymiser_gestionnaire: 'uuid, uuid',
+  // La règle, appelée par les fonctions ci-dessus (SECURITY INVOKER : avec le droit de l'appelant, service_role).
+  signalements_qr_adresse_de_fiche: 'text, text, text[]',
+  signalements_qr_saisies_sans_fiche: 'text[], text, text[]',
 }
 const FONCTIONS_TRIGGER = ['signalements_qr_lier_gestionnaire']
+/** Fonctions de la 20261111 dont celle-ci remplace le corps (même signature), à partir de sa version corrigée. */
+const REDEFINIES_1111 = [
+  'signalements_qr_emails_gestionnaires', 'signalements_qr_contester_adresse', 'signalements_qr_desactiver_gestionnaire',
+]
 const COLONNES = [
   ['user_id', 'UUID'], ['acces_ouvert_le', 'TIMESTAMPTZ'], ['connexion_bloquee_le', 'TIMESTAMPTZ'], ['effacement_demande_le', 'TIMESTAMPTZ'],
 ] as const
@@ -76,12 +89,14 @@ describe(`Migration ${FICHIER} : fichier et ordre`, () => {
 
   // Essai PGlite du 11/11 (contre.mjs, rejeu de la 20261111 seule après la 20261112) : CREATE OR REPLACE remet les deux
   // corps de la 20261111 (acces_ouvert faux, contestation d'un lien d'accès refusée). L'en-tête le dit à qui applique.
-  it('l’en-tête prévient : la 20261111 rejouée après celle-ci remet ses deux corps, rejouer alors celle-ci', () => {
+  it('l’en-tête prévient : la 20261111 rejouée après celle-ci remet ses corps, rejouer alors celle-ci', () => {
     const entete = sql.slice(0, sql.indexOf('-- ── 1.'))
     expect(entete).toMatch(/rejouée APRÈS celle-ci/)
-    expect(entete).toContain('signalements_qr_emails_gestionnaires')
-    expect(entete).toContain('signalements_qr_contester_adresse')
     expect(entete).toMatch(/rejouer ensuite celle-ci/)
+    // Chaque fonction de la 20261111 dont celle-ci remplace le corps est nommée (contrôle 2 : le départ en plus).
+    const redefinies = FONCTIONS.map((f) => f.nom).filter((nom) => fonctionsDefinies(code1111).some((f) => f.nom === nom))
+    expect(trie(redefinies)).toEqual(trie(REDEFINIES_1111))
+    for (const nom of redefinies) expect(entete, nom).toContain(nom)
   })
 
   it('se termine par la relecture du schéma par PostgREST', () => {
@@ -168,7 +183,7 @@ describe(`Migration ${FICHIER} : compte relié à la fiche`, () => {
 })
 
 describe(`Migration ${FICHIER} : fonctions et droits (clé service seulement)`, () => {
-  it('4 fonctions définies : l’envoi d’un accès, les destinataires et la contestation (corps remplacés), la fonction du trigger de liaison', () => {
+  it('fonctions définies : envoi d’un accès, règle, destinataires, contestation et départ (corps remplacés), effacement, trigger', () => {
     expect(trie(FONCTIONS.map((f) => f.nom))).toEqual(trie([...Object.keys(RPC), ...FONCTIONS_TRIGGER]))
   })
 
@@ -284,26 +299,27 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
     expect(nouvelle().corps).not.toMatch(/false AS acces_ouvert/)
   })
 
-  // Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée quand elle a la même BOÎTE (relecture 2
-  // du lot 6 : sous-adresse « + ») ou, corrections du tour 2, la même partie locale de boîte sur un domaine DÉCLARÉ par le
-  // cabinet de la fiche (un cabinet à deux domaines les livre aux mêmes boîtes). Même règle que adressesDeFichesQr
-  // (lib/aj-signalement/destinataires.ts) ; la ligne exclue porte la SAISIE reconnue (retirée telle quelle de l'envoi).
-  const boite = (x: string) => `regexp_replace(lower(btrim(${x})), '${ETIQUETTE_EMAIL_QR.source}', '\\1@')`
-  const EXCLUSION = `SELECT g.id, s.e, false, true
+  // Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée selon la règle commune
+  // signalements_qr_adresse_de_fiche (même BOÎTE, sous-adresse « + » comprise, ou même partie locale de boîte sur un
+  // domaine DÉCLARÉ par le cabinet de la fiche), domaines du cabinet de la fiche. La ligne exclue porte la SAISIE
+  // reconnue (retirée telle quelle de l'envoi).
+  const EXCLUSION = `SELECT g.id, u.e, false, true
       FROM signalements_qr_coproprietes c
-      CROSS JOIN LATERAL (SELECT u.e, ${boite('u.e')} AS boite FROM unnest(c.emails_destinataires) AS u(e)) AS s
+      CROSS JOIN LATERAL unnest(c.emails_destinataires) AS u(e)
       JOIN signalements_qr_gestionnaires g
-        ON ${boite('g.email')} = s.boite
-        OR (split_part(${boite('g.email')}, '@', 1) = split_part(s.boite, '@', 1)
-            AND EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
-                         WHERE d.cabinet_id = g.cabinet_id AND d.domaine = split_part(s.boite, '@', 2)))`
+        ON signalements_qr_adresse_de_fiche(u.e, g.email,
+             ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id))`
   const EXCLUSION_1111 = 'SELECT g.id, g.email, false, true FROM signalements_qr_coproprietes c JOIN signalements_qr_gestionnaires g ON g.email = ANY (c.emails_destinataires)'
 
-  it('exclusions : même boîte (sous-adresse « + ») ou même partie locale sur un domaine du cabinet de la fiche ; la saisie reconnue est rendue', () => {
-    expect(ETIQUETTE_EMAIL_QR.source).toBe(String.raw`^([^@+]+)\+[^@]*@`)
+  it('exclusions : la règle commune (domaines du cabinet de la fiche) ; la saisie reconnue est rendue', () => {
     expect(compacter(nouvelle().corps)).toContain(compacter(EXCLUSION))
-    expect(nouvelle().corps).toContain(String.raw`regexp_replace(lower(btrim(g.email)), '^([^@+]+)\+[^@]*@', '\1@')`)
+    expect(nouvelle().corps).not.toMatch(/regexp_replace|split_part/)
     expect(nouvelle().corps).not.toMatch(/g\.email = ANY \(c\.emails_destinataires\)/)
+  })
+
+  it('définie APRÈS la règle qu’elle appelle (fonction SQL : corps contrôlé à la création)', () => {
+    expect(code.indexOf('FUNCTION signalements_qr_emails_gestionnaires')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_adresse_de_fiche'))
+    expect(code.indexOf('FUNCTION signalements_qr_saisies_sans_fiche')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_adresse_de_fiche'))
   })
 
   it('le reste du corps est celui de la 20261111 : même cabinet, adresse confirmée non contestée, exclusions, limite', () => {
@@ -316,19 +332,16 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
     expect(nouvelle().corps).toMatch(/ORDER BY t\.exclu DESC, t\.gestionnaire_id\s+LIMIT 100/)
   })
 
-  // Aucune base ne rejoue ce SQL : la condition de jointure ci-dessus est traduite mot pour mot (regexp_replace sans
-  // drapeau « g » = premier motif ; split_part = n-ième morceau, '' au-delà) et comparée à la règle du code sur des cas.
-  it('la condition SQL et adressesDeFichesQr donnent la même réponse (partie locale, étiquette, domaine du cabinet de la fiche)', () => {
-    const boiteSql = (x: string) => x.trim().toLowerCase().replace(ETIQUETTE_EMAIL_QR, '$1@')
-    const splitPart = (x: string, n: number) => x.split('@')[n - 1] ?? ''
+  // La jointure appelle la règle avec les domaines du cabinet de CHAQUE fiche ; le code (adressesDeFichesQr) reçoit, lui,
+  // la correspondance « domaine → cabinet » : les deux formes donnent la même réponse, fiche par fiche, tous cabinets
+  // mêlés (la règle elle-même est comparée cas par cas dans tests/lib/aj-signalement-adresse-de-fiche.test.ts).
+  it('appel de la jointure (domaines du cabinet de la fiche) et adressesDeFichesQr (domaine → cabinet) : même réponse', () => {
     const CAB = 'ca000000-0000-4000-8000-000000000001'
     const CAB_AUTRE = 'ca000000-0000-4000-8000-000000000002'
     const domaines: Record<string, string> = { 'exemple.test': CAB, 'exemple-bis.test': CAB, 'autre-exemple.test': CAB_AUTRE }
-    const exclueSql = (saisie: string, fiche: { email: string; cabinetId: string }) => {
-      const s = boiteSql(saisie)
-      const f = boiteSql(fiche.email)
-      return f === s || (splitPart(f, 1) === splitPart(s, 1) && domaines[splitPart(s, 2)] === fiche.cabinetId)
-    }
+    const domainesDuCabinet = (cabinetId: string) => Object.keys(domaines).filter((d) => domaines[d] === cabinetId)
+    const exclueSql = (saisie: string, fiche: { email: string; cabinetId: string }) =>
+      estAdresseDeFicheQr(saisie, fiche.email, domainesDuCabinet(fiche.cabinetId))
     const cabinets = new Map(Object.entries(domaines))
     const fiches = [
       { id: 'g1', email: 'marie.exemple@exemple.test', cabinetId: CAB },
@@ -408,5 +421,129 @@ describe(`Migration ${FICHIER} : « Ce n’est pas moi » depuis un lien d’acc
 
   it('définie APRÈS l’ajout de la colonne user_id qu’elle lit (même fichier, ordre d’application)', () => {
     expect(code.indexOf('FUNCTION signalements_qr_contester_adresse')).toBeGreaterThan(code.indexOf('ADD COLUMN IF NOT EXISTS user_id'))
+  })
+})
+
+// ── Contrôle 2, constat C1 : une variante de l'adresse d'une fiche (étiquette « + », même partie locale sur un autre
+// domaine du cabinet) restée dans les saisies d'une copropriété doit en sortir au départ ET à l'effacement, par la
+// MÊME règle que l'exclusion à l'envoi, avant que l'adresse de la fiche ne disparaisse (après l'effacement, plus rien
+// ne l'exclurait : la jointure d'exclusion porte sur g.email).
+
+describe(`Migration ${FICHIER} : une seule règle « adresse d’une fiche » (signalements_qr_adresse_de_fiche)`, () => {
+  it('la boîte (regexp_replace, lower, btrim) n’est calculée QUE dans la règle ; aucun array_remove ni comparaison exacte des saisies', () => {
+    const regle = fonction('signalements_qr_adresse_de_fiche').corps
+    const total = [...code.matchAll(/regexp_replace\(lower\(btrim\(/g)].length
+    expect(total).toBe(2)
+    expect([...regle.matchAll(/regexp_replace\(lower\(btrim\(/g)].length).toBe(total)
+    expect(code).not.toMatch(/array_remove\s*\(/)
+    expect(code).not.toMatch(/=\s*ANY\s*\(\s*(?:c\.)?emails_destinataires\s*\)/)
+  })
+
+  it('chaque écriture des saisies passe par signalements_qr_saisies_sans_fiche, chaque recherche par la règle', () => {
+    for (const f of FONCTIONS) {
+      const corps = compacter(f.corps)
+      const ecritures = [...corps.matchAll(/SET emails_destinataires = ([^;]*?) WHERE/g)].map((m) => m[1])
+      for (const e of ecritures) expect(e, f.nom).toMatch(/^signalements_qr_saisies_sans_fiche\(c\.emails_destinataires, [a-z_.]+, v_domaines\)$/)
+      for (const m of corps.matchAll(/unnest\(c\.emails_destinataires\) AS u\(e\) WHERE (signalements_qr_[a-z_]+)\(/g)) {
+        expect(m[1], f.nom).toBe('signalements_qr_adresse_de_fiche')
+      }
+    }
+  })
+
+  it('immuables, sans accès aux tables (les domaines leur sont passés par l’appelant)', () => {
+    for (const nom of ['signalements_qr_adresse_de_fiche', 'signalements_qr_saisies_sans_fiche']) {
+      expect(fonction(nom).entete, nom).toMatch(/LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER/)
+      expect(fonction(nom).corps, nom).not.toMatch(/\bsignalements_qr_(?!adresse_de_fiche\b)[a-z_]+/)
+    }
+  })
+})
+
+/** Corps de la 20261111 (corrigée, PR 1) modifié par des remplacements exacts, chacun présent une seule fois. */
+function corpsAttendu(nom: string, remplacements: ReadonlyArray<readonly [string, string]>): string {
+  let attendu = compacter(fonction(nom, fonctionsDefinies(code1111)).corps)
+  for (const [avant, apres] of remplacements) {
+    expect(attendu.split(avant).length - 1, `${nom} : « ${avant} »`).toBe(1)
+    attendu = attendu.replace(avant, apres)
+  }
+  return attendu
+}
+
+const DOMAINES_CABINET = 'v_domaines := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab ORDER BY d.domaine);'
+const variante = (email: string) =>
+  `EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e) WHERE signalements_qr_adresse_de_fiche(u.e, ${email}, v_domaines))`
+const JOURNAL_DEPART = "VALUES (v_ccab, p_acteur, 'super_admin', 'copropriete.modifiee', v_c, p_id, ARRAY['emails_destinataires'], '{\"motif\": \"depart\"}'::jsonb);"
+
+describe(`Migration ${FICHIER} : départ (signalements_qr_desactiver_gestionnaire, corps de la 20261111 corrigée)`, () => {
+  const nouvelle = () => fonction('signalements_qr_desactiver_gestionnaire')
+  const ancienne = () => fonction('signalements_qr_desactiver_gestionnaire', fonctionsDefinies(code1111))
+
+  it('même signature et même en-tête que la 20261111', () => {
+    expect(nouvelle().types).toBe(ancienne().types)
+    expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
+  })
+
+  it('corps de la 20261111 corrigée (verrous, borne de 1 000, jetons) ; seuls changent la recherche et le retrait des saisies', () => {
+    const attendu = corpsAttendu('signalements_qr_desactiver_gestionnaire', [
+      ["v_successeurs uuid[] := '{}'; BEGIN", "v_successeurs uuid[] := '{}'; v_domaines text[]; BEGIN"],
+      ["IF NOT v_trouvee OR NOT v_actif THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'; END IF;",
+        `IF NOT v_trouvee OR NOT v_actif THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'; END IF; ${DOMAINES_CABINET}`],
+      ['OR (v_email IS NOT NULL AND v_email = ANY (c.emails_destinataires))', `OR (v_email IS NOT NULL AND ${variante('v_email')})`],
+      ['UPDATE signalements_qr_coproprietes SET emails_destinataires = array_remove(emails_destinataires, v_email) WHERE v_email = ANY(emails_destinataires) RETURNING id, cabinet_id',
+        `UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines) WHERE ${variante('v_email')} RETURNING c.id, c.cabinet_id`],
+    ])
+    expect(compacter(nouvelle().corps)).toBe(attendu)
+  })
+
+  it('les copropriétés aux variantes sont verrouillées avec les autres, AVANT tout retrait (ordre fiches puis copropriétés)', () => {
+    const corps = compacter(nouvelle().corps)
+    const verrou = corps.indexOf(`OR (v_email IS NOT NULL AND ${variante('v_email')}) ORDER BY c.id FOR NO KEY UPDATE;`)
+    expect(verrou).toBeGreaterThan(corps.indexOf('FOR UPDATE;'))
+    expect(verrou).toBeLessThan(corps.indexOf('SET emails_destinataires'))
+    expect(corps.indexOf(DOMAINES_CABINET)).toBeLessThan(verrou)
+  })
+
+  it('journal inchangé : une ligne copropriete.modifiee (motif depart) par copropriété retouchée, cabinet de la copropriété', () => {
+    expect(compacter(nouvelle().corps)).toContain(JOURNAL_DEPART)
+  })
+})
+
+describe(`Migration ${FICHIER} : effacement RGPD (signalements_qr_pseudonymiser_gestionnaire)`, () => {
+  const corps = () => compacter(fonction('signalements_qr_pseudonymiser_gestionnaire').corps)
+  const RETRAIT = `UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_g.email, v_domaines) WHERE ${variante('v_g.email')} RETURNING c.id, c.cabinet_id`
+  const EFFACEMENT = 'UPDATE signalements_qr_gestionnaires SET nom = NULL, email = NULL, pseudonymise_le = now() WHERE id = p_id;'
+
+  it('fonction appelée par la route (clé service), plpgsql, rendue en jsonb', () => {
+    expect(fonction('signalements_qr_pseudonymiser_gestionnaire').entete).toMatch(/RETURNS jsonb\s+LANGUAGE plpgsql SECURITY INVOKER/)
+    expect(corps()).toContain("IF p_id IS NULL OR p_acteur IS NULL THEN RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023'; END IF;")
+  })
+
+  it('la fiche verrouillée d’abord ; active → a_reverifier (le départ d’abord) ; déjà effacée → rien (relance)', () => {
+    expect(corps()).toContain('SELECT * INTO v_g FROM signalements_qr_gestionnaires g WHERE g.id = p_id FOR UPDATE;')
+    expect(corps()).toContain("IF NOT FOUND OR v_g.actif THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'; END IF;")
+    expect(corps()).toContain("IF v_g.pseudonymise_le IS NOT NULL THEN RETURN jsonb_build_object('pseudonymisee', false, 'adressesRetirees', 0); END IF;")
+  })
+
+  it('domaines du cabinet de la fiche, copropriétés verrouillées par identifiant, saisies retirées par la règle, PUIS adresse effacée', () => {
+    const c = corps()
+    const domaines = c.indexOf('v_domaines := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_g.cabinet_id ORDER BY d.domaine);')
+    const verrou = c.indexOf(`PERFORM 1 FROM signalements_qr_coproprietes c WHERE ${variante('v_g.email')} ORDER BY c.id FOR NO KEY UPDATE;`)
+    const retrait = c.indexOf(RETRAIT)
+    const effacement = c.indexOf(EFFACEMENT)
+    expect(c.indexOf('FOR UPDATE;')).toBeLessThan(domaines)
+    expect(domaines).toBeGreaterThan(0)
+    expect(verrou).toBeGreaterThan(domaines)
+    expect(retrait).toBeGreaterThan(verrou)
+    expect(effacement).toBeGreaterThan(retrait)
+    expect(c.split(EFFACEMENT).length - 1).toBe(1)
+  })
+
+  it('journal comme au départ : copropriete.modifiee (motif depart) par copropriété retouchée ; bilan rendu', () => {
+    expect(corps()).toContain(JOURNAL_DEPART)
+    expect(corps()).toContain("RETURN jsonb_build_object('pseudonymisee', true, 'adressesRetirees', v_retirees);")
+  })
+
+  it('ni envois ni ligne gestionnaire.pseudonymise ici : la route les écrit, comme en PR 1', () => {
+    expect(corps()).not.toMatch(/signalements_qr_invitations/)
+    expect(corps()).not.toMatch(/gestionnaire\.pseudonymise/)
   })
 })

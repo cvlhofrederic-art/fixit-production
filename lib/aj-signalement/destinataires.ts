@@ -7,13 +7,14 @@
 //   dédoublonnés sur l'adresse canonique ; une adresse des deux côtés garde le type « gestionnaire » ; ADMIN_EMAIL /
 //   ADMIN_EMAIL_2 seulement si l'union est vide (règle actuelle, Q3) ; plafond de 100 (un lot Resend), le reste compté
 //   sans adresse.
-// Une adresse est celle d'une fiche (adresseDeFicheQr, même règle en SQL dans la 20261112) quand elle a la même BOÎTE
-// (boiteEmailQr : « prenom+etiquette@ » est « prenom@ », relecture 2 du lot 6), ou, corrections du tour 2, la même partie
-// locale de boîte sur un domaine DÉCLARÉ par le cabinet de la fiche : un cabinet qui a deux domaines (ancien et nouveau
-// nom, domaine secondaire) les fait livrer par sa messagerie aux mêmes boîtes.
+// Une adresse est celle d'une fiche (adresseDeFicheQr, sur LA règle estAdresseDeFicheQr, jumelle de la fonction SQL
+// signalements_qr_adresse_de_fiche de la 20261112) quand elle a la même BOÎTE (boiteEmailQr : « prenom+etiquette@ » est
+// « prenom@ », relecture 2 du lot 6), ou, corrections du tour 2, la même partie locale de boîte sur un domaine DÉCLARÉ
+// par le cabinet de la fiche : un cabinet qui a deux domaines (ancien et nouveau nom, domaine secondaire) les fait livrer
+// par sa messagerie aux mêmes boîtes.
 // Un e-mail par destinataire (lot 3) : personne ne voit les autres adresses.
 
-import { boiteEmailQr, emailCanoniqueQr, partiesBoiteQr } from '@/lib/aj-signalement/gestionnaires'
+import { boiteEmailQr, boitesDeFicheQr, emailCanoniqueQr } from '@/lib/aj-signalement/gestionnaires'
 import type {
   CabinetsDesDomainesQr, CalculDestinatairesQr, DestinataireQr, FicheAdresseQr, LigneEmailGestionnaireQr, SaisiesVisiblesQr,
 } from '@/lib/aj-signalement/types'
@@ -34,30 +35,25 @@ const boites = (valeurs: readonly unknown[]): Set<string> =>
 /** L'adresse (canonique) est-elle dans l'une des boîtes ? */
 const dansBoites = (email: string, ensemble: ReadonlySet<string>): boolean => ensemble.has(boiteEmailQr(email) ?? email)
 
-/** Clé « cabinet + partie locale » (JSON : aucune collision entre un identifiant et une partie locale). */
-const cleLocale = (cabinetId: string, locale: string): string => JSON.stringify([cabinetId, locale])
-
 /**
- * Reconnaît les adresses des `fiches` : même boîte (tout cabinet), ou même partie locale de boîte sur un domaine que
- * `cabinets` attribue au cabinet de la fiche (domaine de la fiche indifférent : une fiche forcée hors des domaines garde sa
- * partie locale sur ceux de son cabinet). Même règle que la jointure de signalements_qr_emails_gestionnaires (20261112).
+ * Reconnaît les adresses des `fiches` par LA règle (estAdresseDeFicheQr, jumelle de signalements_qr_adresse_de_fiche) :
+ * même boîte (tout cabinet), ou même partie locale de boîte sur un domaine que `cabinets` attribue au cabinet de la fiche
+ * (domaine de la fiche indifférent). Index des boîtes de chaque fiche (boitesDeFicheQr, domaines de SON cabinet) : une
+ * adresse est reconnue si sa boîte y est, ce qui est la définition de estAdresseDeFicheQr.
  */
 export function adresseDeFicheQr(
   fiches: ReadonlyArray<FicheAdresseQr>, cabinets: CabinetsDesDomainesQr = AUCUN_DOMAINE_QR,
 ): (email: string) => boolean {
-  const boitesFiches = boites(fiches.map((f) => f.email))
-  const locales = new Set<string>()
+  const domainesParCabinet = new Map<string, string[]>()
+  for (const [domaine, cabinet] of cabinets) domainesParCabinet.set(cabinet, [...(domainesParCabinet.get(cabinet) ?? []), domaine])
+  const boitesFiches = new Set<string>()
   for (const f of fiches) {
-    if (!f.cabinetId) continue
-    const parties = partiesBoiteQr(f.email)
-    if (parties) locales.add(cleLocale(f.cabinetId, parties.locale))
+    const domaines = f.cabinetId ? domainesParCabinet.get(f.cabinetId) ?? [] : []
+    for (const boite of boitesDeFicheQr(f.email, domaines)) boitesFiches.add(boite)
   }
   return (email) => {
-    if (dansBoites(email, boitesFiches)) return true
-    const parties = partiesBoiteQr(email)
-    if (!parties) return false
-    const cabinet = cabinets.get(parties.domaine)
-    return cabinet !== undefined && locales.has(cleLocale(cabinet, parties.locale))
+    const boite = boiteEmailQr(email)
+    return boite !== null && boitesFiches.has(boite)
   }
 }
 
