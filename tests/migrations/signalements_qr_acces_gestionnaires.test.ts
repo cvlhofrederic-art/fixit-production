@@ -74,6 +74,16 @@ describe(`Migration ${FICHIER} : fichier et ordre`, () => {
     expect(sql).toMatch(/APRÈS 20261111_signalements_qr_gestionnaires\.sql/)
   })
 
+  // Essai PGlite du 11/11 (contre.mjs, rejeu de la 20261111 seule après la 20261112) : CREATE OR REPLACE remet les deux
+  // corps de la 20261111 (acces_ouvert faux, contestation d'un lien d'accès refusée). L'en-tête le dit à qui applique.
+  it('l’en-tête prévient : la 20261111 rejouée après celle-ci remet ses deux corps, rejouer alors celle-ci', () => {
+    const entete = sql.slice(0, sql.indexOf('-- ── 1.'))
+    expect(entete).toMatch(/rejouée APRÈS celle-ci/)
+    expect(entete).toContain('signalements_qr_emails_gestionnaires')
+    expect(entete).toContain('signalements_qr_contester_adresse')
+    expect(entete).toMatch(/rejouer ensuite celle-ci/)
+  })
+
   it('se termine par la relecture du schéma par PostgREST', () => {
     expect(code).toMatch(/NOTIFY pgrst, 'reload schema';\s*$/)
   })

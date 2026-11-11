@@ -22,6 +22,10 @@
 -- nouvelle, aucune valeur de client (dépôt public). La PR peut être fusionnée AVANT : d'ici là, les routes de la PR 2
 -- répondent 503 base_absente (« migration à appliquer ») et rien d'existant ne change (espace du super admin, dépôt
 -- public, e-mails, connexion).
+-- Ordre des rejeux : cette migration redéfinit deux fonctions de la 20261111 (signalements_qr_emails_gestionnaires,
+-- signalements_qr_contester_adresse ; corps repris de sa version corrigée). Si la 20261111 est rejouée APRÈS celle-ci,
+-- elle remet ses deux corps (acces_ouvert faux, « Ce n'est pas moi » refusé depuis un lien d'accès) :
+-- rejouer ensuite celle-ci (essai PGlite du 11/11).
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ── 1. Colonnes de la fiche ──
