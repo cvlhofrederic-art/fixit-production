@@ -13,8 +13,8 @@ import { signalementsCoproQrQuerySchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { STATUTS_OUVERTS_QR, type SuitePageQr } from '@/lib/aj-signalement/types'
 import {
-  COLONNES_SIGNALEMENT_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid, lireLigneCoproprieteQr, parametresQr, reponseErreur,
-  reponseErreurSqlQr, reponseInvalide, reponsePriveeQr, signalementDepuisLigne, type LigneSignalementQr,
+  COLONNES_SIGNALEMENT_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid, journaliserRepliColonnesSignalementQr, lireLigneCoproprieteQr,
+  parametresQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, reponsePriveeQr, signalementDepuisLigne, type LigneSignalementQr,
 } from '@/lib/aj-signalement/serveur'
 
 const STATUTS_CLOS = ['terminee', 'annulee']
@@ -48,7 +48,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(f.limite + 1)
     }
     let r = await lire(COLONNES_SIGNALEMENT_QR)
-    if (colonneInconnue(r.error)) r = await lire('*')
+    // Colonnes du 06/11/2026 absentes : relecture complète, repli journalisé une fois (comme le tableau).
+    if (colonneInconnue(r.error)) {
+      journaliserRepliColonnesSignalementQr('signalements d’une copropriété', r.error)
+      r = await lire('*')
+    }
     if (r.error) return reponseErreurSqlQr(r.error, 'lecture des signalements', { copropriete: id })
     const lignes = (r.data ?? []) as unknown as LigneSignalementQr[]
     const page = lignes.slice(0, f.limite)

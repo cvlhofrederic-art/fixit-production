@@ -101,6 +101,14 @@ function journaliserRepliUneFois(operation: string, erreur: ErreurBase | null, m
   })
 }
 
+/**
+ * Lecture de signalements relue sans les colonnes du 06/11/2026 (tableau, signalements d'une copropriété) : un
+ * avertissement par opération et par isolat, comme les autres replis de ces migrations.
+ */
+export function journaliserRepliColonnesSignalementQr(operation: string, erreur: ErreurBase | null): void {
+  journaliserRepliUneFois(operation, erreur, `${MIGRATION_CONFIRMATION_QR} puis ${MIGRATION_GEOLOC_QUALITE_QR}`)
+}
+
 /** Même règle pour la migration du 11/11/2026 : le code seul (le message d'une erreur de structure suffit au code). */
 export function journaliserRepliGestionQr(operation: string, erreur: ErreurBase | null | undefined): void {
   const cle = `gestion:${operation}`
@@ -780,7 +788,7 @@ export async function lireTableauQr(options: { cabinet?: string; gestionnaire?: 
   if (!filtre || filtre.length > 0) {
     let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_QR, filtre, limite)
     if (colonneInconnue(signalements.error)) {
-      journaliserRepliUneFois('lecture du tableau', signalements.error, `${MIGRATION_CONFIRMATION_QR} puis ${MIGRATION_GEOLOC_QUALITE_QR}`)
+      journaliserRepliColonnesSignalementQr('lecture du tableau', signalements.error)
       signalements = await lireSignalementsTableau('*', filtre, limite)
     }
     if (signalements.error) {
@@ -943,11 +951,15 @@ export async function lireCoproprietesDoublonsQr(
   }
 }
 
-/** Cabinet d'une copropriété (journal) ; null si elle n'en a pas ou si la colonne manque. Ne lève pas. */
+/**
+ * Cabinet d'une copropriété (journal) ; null si elle n'en a pas ou si la colonne manque (migration du 11/11/2026 non
+ * appliquée : repli journalisé une fois). Ne lève pas.
+ */
 export async function cabinetDeCoproprieteQr(coproprieteId: string): Promise<string | null> {
   const { data, error } = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('cabinet_id').eq('id', coproprieteId).maybeSingle()
   if (error) {
-    if (!structureAbsenteQr(error)) logger.warn(`${CONTEXTE} cabinet de la copropriété non lu`, { code: error.code, copropriete: coproprieteId })
+    if (structureAbsenteQr(error)) journaliserRepliGestionQr('cabinet de la copropriété', error)
+    else logger.warn(`${CONTEXTE} cabinet de la copropriété non lu`, { code: error.code, copropriete: coproprieteId })
     return null
   }
   const id = (data as { cabinet_id?: unknown } | null)?.cabinet_id

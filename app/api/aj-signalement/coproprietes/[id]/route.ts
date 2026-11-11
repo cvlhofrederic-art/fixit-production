@@ -125,7 +125,10 @@ async function mettreAJour(id: string, valeurs: Record<string, unknown>): Promis
   let r = await ecrire(valeurs)
   if (colonneInconnue(r.error)) {
     const nouvelles = Object.keys(valeurs).filter((c) => !COLONNES_ORIGINE.includes(c) && c !== 'cle_nom')
-    if (nouvelles.length > 0) return reponseErreur('base_absente', 503)
+    if (nouvelles.length > 0) {
+      journaliserRepliGestionQr('modification de copropriété refusée, 503', r.error)
+      return reponseErreur('base_absente', 503)
+    }
     journaliserRepliGestionQr('modification de copropriété', r.error)
     r = await ecrire(Object.fromEntries(Object.entries(valeurs).filter(([c]) => COLONNES_ORIGINE.includes(c))))
   }

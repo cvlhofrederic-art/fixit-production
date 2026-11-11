@@ -132,7 +132,10 @@ async function creationDOrigine(
 ): Promise<NextResponse> {
   const nouveaux = Boolean(s.cabinetId) || s.gestionnaireIds.length > 0 || s.attribueeATous
     || [s.codePostal, s.ville, s.immatriculation, s.referenceCabinet].some(Boolean) || s.batiments.length > 0
-  if (nouveaux) return reponseErreur('base_absente', 503)
+  if (nouveaux) {
+    journaliserRepliGestionQr('création de copropriété refusée, 503', erreur)
+    return reponseErreur('base_absente', 503)
+  }
   journaliserRepliGestionQr('création de copropriété', erreur)
   const { data, error } = await supabaseAdmin
     .from(TABLE_COPROPRIETES_QR)

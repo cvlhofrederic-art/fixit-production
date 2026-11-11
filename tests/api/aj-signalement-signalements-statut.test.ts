@@ -92,6 +92,7 @@ describe('PATCH signalements/[id] (P1-R7)', () => {
       const replis = simulQr.logger.warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('migration du 11/11/2026 absente'))
       expect(replis).toEqual([
         '[AJ SIGNALEMENT] migration du 11/11/2026 absente : repli (trace du statut)',
+        '[AJ SIGNALEMENT] migration du 11/11/2026 absente : repli (cabinet de la copropriété)',
         '[AJ SIGNALEMENT] migration du 11/11/2026 absente : repli (journal)',
       ])
     },
