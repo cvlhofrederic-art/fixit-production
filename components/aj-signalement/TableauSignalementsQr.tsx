@@ -205,14 +205,13 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
 const ID_TITRE_LISTE_TDB = 'qr-tdb-liste'
 
 /**
- * Tableau de bord : présentation, quatre carrés, puis (demande de Hugo du 11/11/2026) la liste de tous les signalements
- * reçus avec le filtre par copropriété. Les carrés comptent TOUS les signalements (« Reçus au total ») : le filtre,
- * placé sous le titre de la liste, ne vaut que pour la liste ; chaque carte de copropriété a déjà ses propres compteurs.
- * Avec « Toutes les copropriétés », la liste a autant de lignes que « Reçus au total ».
+ * Tableau de bord : présentation, quatre carrés, puis (demande de Hugo du 11/11/2026) la liste des signalements reçus
+ * avec le filtre par copropriété. Les carrés suivent le filtre (choix de Hugo du 11/11/2026) : une copropriété choisie,
+ * et les quatre carrés ne comptent qu'elle. La liste a donc toujours autant de lignes que « Reçus ».
  */
 function VueTableauDeBordQr({ liste }: Readonly<{ liste: PropsListeSignalementsQr }>) {
-  const { signalements } = liste
-  const compteurs = useMemo(() => compteursTableauQr(signalements), [signalements])
+  const { signalements, filtre } = liste
+  const compteurs = useMemo(() => compteursTableauQr(filtrerSignalementsQr(signalements, filtre)), [signalements, filtre])
   return (
     <>
       <Carte ton="or">

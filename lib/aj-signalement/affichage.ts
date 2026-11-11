@@ -181,7 +181,7 @@ export const TEXTES_TABLEAU_QR = {
   reessayer: 'Réessayer',
   mettreAJour: 'Mettre à jour',
   derniereMiseAJour: 'Dernière mise à jour à {heure}',
-  kpis: { recus: 'Reçus au total', aTraiter: 'À traiter', enCours: 'En cours', resolus: 'Résolus' },
+  kpis: { recus: 'Reçus', aTraiter: 'À traiter', enCours: 'En cours', resolus: 'Résolus' },
   coproprietes: 'Copropriétés et QR codes',
   ajouterCopro: 'Ajouter une copropriété',
   aucuneCopro: 'Aucune copropriété pour le moment : ajoutez-en une pour obtenir son QR code.',

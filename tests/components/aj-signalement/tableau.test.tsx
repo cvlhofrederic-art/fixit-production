@@ -239,14 +239,15 @@ describe('tableau de bord : liste de tous les signalements reçus sous les indic
     expect(screen.queryAllByRole('heading', { level: 1 })).toHaveLength(0)
   })
 
-  it('filtre : seules les lignes de la copropriété ; les carrés restent ceux de tous les signalements (« Reçus au total »)', async () => {
+  it('filtre : les lignes ET les carrés ne comptent que la copropriété choisie (demande de Hugo du 11/11/2026)', async () => {
     await rendrePret('tableau-de-bord')
+    expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['2', '1', '0', '1'])
     fireEvent.change(filtre(), { target: { value: ID_COPRO_2 } })
     expect(lignes()).toHaveLength(1)
     expect(lignes()[0]).toHaveTextContent('Paul Martin')
-    expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['2', '1', '0', '1'])
-    // « Toutes les copropriétés » : autant de lignes que « Reçus au total ».
+    expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['1', '0', '0', '1'])
     fireEvent.change(filtre(), { target: { value: '' } })
+    expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['2', '1', '0', '1'])
     expect(lignes()).toHaveLength(Number(valeur(T.kpis.recus)))
   })
 

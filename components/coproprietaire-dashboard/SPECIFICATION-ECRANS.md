@@ -282,8 +282,9 @@ un lien au pied de la barre latérale (`components/common/LienAjSignalement.tsx`
   aucun lien avec les tables `syndic_*` ni avec le sélecteur de copropriété de l'AJ ou du portail.
 - Contenu de l'espace : `components/aj-signalement/TableauSignalementsQr.tsx` (une instance gardée montée, prop `vue`, un seul
   chargement), cartes `CarteCoproprieteQr`, fenêtres `ModaleCoproprieteQr` et `DetailSignalementQr` ; filtre par copropriété
-  toujours visible dans la vue Signalements. Tableau de bord (11/11/2026) : sous les quatre carrés, la liste de tous les
-  signalements reçus avec le même filtre (partagé avec la vue Signalements) ; les carrés comptent tous les signalements.
+  toujours visible dans la vue Signalements. Tableau de bord (11/11/2026) : sous les quatre carrés, la liste des
+  signalements reçus avec le même filtre (partagé avec la vue Signalements) ; les carrés suivent ce filtre (choix de Hugo
+  du 11/11/2026), donc la liste a toujours autant de lignes que « Reçus ».
 - Parcours public, inchangé : `app/(commun)/signalement/[jeton]/page.tsx` → `components/aj-signalement/AppSignalementQr.tsx`.
 
 ## Décisions juridiques à respecter (relecture droit du 17/10/2026)
