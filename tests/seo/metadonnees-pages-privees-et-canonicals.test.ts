@@ -99,6 +99,21 @@ describe('pages privées : noindex, nofollow', () => {
     expect(fr.robots).toEqual(NOINDEX)
     expect(pt.robots).toEqual(NOINDEX)
   })
+
+  it('/fr|pt/aj-signalement/ (espace du super admin) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Cas à part : l'espace a son propre titre d'onglet (« AJ Signalement »), contrairement aux layouts ci-dessus.
+    const segment = await import('@/app/(commun)/aj-signalement/layout')
+    const metadata = await metadataDe(Promise.resolve(segment))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('AJ Signalement')
+  })
+
+  it('/fr|pt/aj-signalement/connexion/ (connexion professionnelle de l’espace) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Robots redits par la page (sous le layout de l'espace) : un changement du layout ne la rendrait pas indexable.
+    const metadata = await metadataDe(import('@/app/(commun)/aj-signalement/connexion/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — AJ Signalement')
+  })
 })
 
 describe('sitemaps : aucune page privée soumise', () => {

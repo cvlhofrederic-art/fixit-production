@@ -7,6 +7,9 @@
 //   PATCH /api/aj-signalement/signalements/[id] — statut.
 // Droits : jeton Bearer (getAuthUser) puis cookies (createServerSupabaseClient) ; 401 sans session, 403 sans
 // être super admin. estSuperAdmin est simulé (allowlist d'e-mails du déploiement).
+// Colonnes du 06/11/2026 (confirmation, qualité, adresse proposée, lien) : tant que leurs migrations ne sont pas
+// appliquées, la base répond 42703 ; le tableau est alors relu par select('*') (liste blanche), journalisé une fois.
+// Dernière adresse proposée : calculée pour une copropriété sans adresse seulement.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -22,13 +25,21 @@ const h = vi.hoisted(() => {
     ligneMaj: null as null | Record<string, unknown>,
     insertions: [] as Array<Record<string, unknown>>,
     misesAJour: [] as Array<{ table: string; valeurs: Record<string, unknown>; filtres: Array<[string, unknown]> }>,
+    colonnesLues: [] as Array<{ table: string; colonnes: string }>,
+    colonnesAbsentes: [] as string[],
+    erreurSignalements: null as null | { code: string; message: string },
   }
   const from = (table: string) => {
     const q: Record<string, unknown> = {}
     const maj = { table, valeurs: {} as Record<string, unknown>, filtres: [] as Array<[string, unknown]> }
     let enMaj = false
     let insertion: Record<string, unknown> | null = null
-    for (const m of ['select', 'order', 'limit']) q[m] = () => q
+    let colonnesSelect = ''
+    for (const m of ['order', 'limit']) q[m] = () => q
+    q.select = (colonnes?: string) => {
+      if (typeof colonnes === 'string') { etat.colonnesLues.push({ table, colonnes }); colonnesSelect = colonnes }
+      return q
+    }
     q.eq = (col: string, val: unknown) => { if (enMaj) maj.filtres.push([col, val]); return q }
     q.insert = (ligne: Record<string, unknown>) => { insertion = ligne; etat.insertions.push({ table, ...ligne }); return q }
     q.update = (ligne: Record<string, unknown>) => { enMaj = true; maj.valeurs = ligne; etat.misesAJour.push(maj); return q }
@@ -37,16 +48,24 @@ const h = vi.hoisted(() => {
       : { data: { id: 'c0000000-0000-4000-8000-000000000009', created_at: '2026-11-04T10:00:00.000Z', actif: true, adresse: '', emails_destinataires: [], ...insertion }, error: null })
     q.maybeSingle = async () => (etat.erreur ? { data: null, error: etat.erreur } : { data: etat.ligneMaj, error: null })
     q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => {
+      if (table === 'signalements_qr' && etat.erreurSignalements) return Promise.resolve({ data: null, error: etat.erreurSignalements }).then(ok, ko)
+      if (table === 'signalements_qr' && !etat.erreur) {
+        // Comme PostgREST : une colonne nommée qui n'existe pas → 42703 ; select('*') rend les colonnes présentes.
+        const absente = etat.colonnesAbsentes.find((c) => colonnesSelect.split(/,\s*/).includes(c))
+        if (absente) return Promise.resolve({ data: null, error: { code: '42703', message: `column signalements_qr.${absente} does not exist` } }).then(ok, ko)
+        const lignes = etat.signalements.map((l) => Object.fromEntries(Object.entries(l).filter(([c]) => !etat.colonnesAbsentes.includes(c))))
+        return Promise.resolve({ data: lignes, error: null }).then(ok, ko)
+      }
       const data = etat.erreur ? null : table === 'signalements_qr_coproprietes' ? etat.coproprietes : etat.signalements
       return Promise.resolve({ data, error: etat.erreur }).then(ok, ko)
     }
     return q
   }
-  return { etat, from }
+  return { etat, from, warn: vi.fn(), error: vi.fn() }
 })
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
-vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() } }))
+vi.mock('@/lib/logger', () => ({ logger: { error: h.error, warn: h.warn, info: vi.fn(), debug: vi.fn() } }))
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn(async () => true),
   getClientIP: vi.fn(() => '127.0.0.1'),
@@ -64,6 +83,7 @@ const { GET } = await import('@/app/api/aj-signalement/tableau/route')
 const { POST } = await import('@/app/api/aj-signalement/coproprietes/route')
 const { PATCH: PATCH_COPRO } = await import('@/app/api/aj-signalement/coproprietes/[id]/route')
 const { PATCH: PATCH_SIGNALEMENT } = await import('@/app/api/aj-signalement/signalements/[id]/route')
+const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 
 const ADMIN = { id: '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4', email: 'admin@vitfix.io', app_metadata: { role: 'super_admin' } }
 const ID_COPRO = 'c0000000-0000-4000-8000-000000000001'
@@ -82,6 +102,12 @@ beforeEach(() => {
   h.etat.ligneMaj = null
   h.etat.insertions = []
   h.etat.misesAJour = []
+  h.etat.colonnesLues = []
+  h.etat.colonnesAbsentes = []
+  h.etat.erreurSignalements = null
+  reinitialiserReplisQr()
+  h.warn.mockClear()
+  h.error.mockClear()
   h.etat.coproprietes = [
     { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' },
     { id: 'c0000000-0000-4000-8000-000000000002', nom: 'Les Oliviers', adresse: 'Aubagne', jeton: 'f'.repeat(32), emails_destinataires: ['o@example.com'], actif: false, created_at: '2026-11-04T11:00:00.000Z' },
@@ -90,15 +116,23 @@ beforeEach(() => {
     {
       id: ID_SIGNALEMENT, copropriete_id: ID_COPRO, prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie@example.com',
       batiment: '', etage: '4', num_lot: '12', est_partie_commune: false, zone_signalee: '', type_intervention: 'Plomberie', description: 'Fuite sous l’évier',
-      priorite: 'urgente', statut: 'en_attente', langue: 'fr', email_envoye_le: null, email_erreur: 'boom', created_at: '2026-11-04T14:05:00.000Z', updated_at: null,
+      priorite: 'urgente', statut: 'en_attente', langue: 'fr', email_envoye_le: null, email_erreur: 'boom',
+      // Dépôt antérieur à la confirmation au déclarant et à la qualité : ces colonnes sont nulles.
+      confirmation_envoyee_le: null, confirmation_erreur: null, qualite_declarant: null, adresse_proposee: null, signalement_lie_id: null,
+      created_at: '2026-11-04T14:05:00.000Z', updated_at: null,
     },
     {
       id: '6a000000-0000-4000-8000-000000000002', copropriete_id: ID_COPRO, prenom: 'Paul', nom: 'Martin', telephone: '0491000000', email: 'paul@example.com',
       batiment: 'A', etage: '1', num_lot: '3', est_partie_commune: true, zone_signalee: 'Hall d’entrée', type_intervention: 'Ascenseur', description: 'Ascenseur bloqué au rez-de-chaussée',
-      priorite: 'normale', statut: 'terminee', langue: 'fr', email_envoye_le: '2026-11-03T09:00:00.000Z', email_erreur: null, created_at: '2026-11-03T08:59:00.000Z', updated_at: '2026-11-03T12:00:00.000Z',
+      priorite: 'normale', statut: 'terminee', langue: 'fr', email_envoye_le: '2026-11-03T09:00:00.000Z', email_erreur: null,
+      confirmation_envoyee_le: '2026-11-03T09:00:01.000Z', confirmation_erreur: null,
+      qualite_declarant: 'locataire', adresse_proposee: '1 Quai du Port 13002 Marseille', signalement_lie_id: ID_SIGNALEMENT,
+      created_at: '2026-11-03T08:59:00.000Z', updated_at: '2026-11-03T12:00:00.000Z',
     },
   ]
 })
+
+const COLONNES_NOUVELLES = ['confirmation_envoyee_le', 'confirmation_erreur', 'qualite_declarant', 'adresse_proposee', 'signalement_lie_id']
 
 describe('droits', () => {
   it('401 sans session (ni jeton, ni cookies)', async () => {
@@ -114,7 +148,20 @@ describe('droits', () => {
     expect((await POST(requete('/api/aj-signalement/coproprietes', json({ nom: 'X' })))).status).toBe(403)
   })
 
-  it('la session par cookies (Administrateur judiciaire) suffit', async () => {
+  it('403 aussi sur les modifications (copropriété, statut d’un signalement), sans rien écrire', async () => {
+    // Espace AJ Signalement (10/11/2026) : la garde de la page ne donne aucun droit, chaque route revérifie.
+    h.etat.superAdmin = false
+    const contexte = (id: string) => ({ params: Promise.resolve({ id }) })
+    const copro = await PATCH_COPRO(requete(`/api/aj-signalement/coproprietes/${ID_COPRO}`, json({ adresse: '1 Quai du Port' }, 'PATCH')), contexte(ID_COPRO))
+    const statut = await PATCH_SIGNALEMENT(requete(`/api/aj-signalement/signalements/${ID_SIGNALEMENT}`, json({ statut: 'terminee' }, 'PATCH')), contexte(ID_SIGNALEMENT))
+    expect(copro.status).toBe(403)
+    expect(statut.status).toBe(403)
+    expect(await copro.json()).toEqual({ error: 'interdit' })
+    expect(h.etat.misesAJour).toEqual([])
+    expect(h.etat.insertions).toEqual([])
+  })
+
+  it('la session par cookies (espace AJ Signalement, sans jeton Bearer) suffit', async () => {
     h.etat.userBearer = null
     h.etat.userCookie = ADMIN
     expect((await GET(requete('/api/aj-signalement/tableau'))).status).toBe(200)
@@ -128,17 +175,41 @@ describe('GET tableau', () => {
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
     const { tableau } = await res.json()
     expect(tableau.coproprietes).toEqual([
-      { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 2, nbEnAttente: 1 },
-      expect.objectContaining({ nom: 'Les Oliviers', actif: false, emailsDestinataires: ['o@example.com'], nbSignalements: 0, nbEnAttente: 0 }),
+      {
+        id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 2, nbEnAttente: 1,
+        // Copropriété sans adresse : le signalement le plus récent qui porte une adresse proposée.
+        derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-03T08:59:00.000Z' },
+      },
+      expect.objectContaining({ nom: 'Les Oliviers', actif: false, emailsDestinataires: ['o@example.com'], nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null }),
     ])
     expect(tableau.signalements).toHaveLength(2)
     expect(tableau.signalements[0]).toEqual({
       id: ID_SIGNALEMENT, coproprieteId: ID_COPRO, coproprieteNom: 'Parc Belle Ombre', prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78',
       email: 'marie@example.com', batiment: '', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '', typeIntervention: 'Plomberie',
       description: 'Fuite sous l’évier', priorite: 'urgente', statut: 'en_attente', langue: 'fr', emailEnvoyeLe: null, emailErreur: 'boom',
+      confirmationEnvoyeeLe: null, confirmationErreur: null, qualiteDeclarant: null, adresseProposee: '', signalementLieId: null,
       creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
     })
-    expect(tableau.signalements[1]).toMatchObject({ estPartieCommune: true, zoneSignalee: 'Hall d’entrée', statut: 'terminee', misAJourLe: '2026-11-03T12:00:00.000Z' })
+    expect(tableau.signalements[1]).toMatchObject({
+      estPartieCommune: true, zoneSignalee: 'Hall d’entrée', statut: 'terminee', misAJourLe: '2026-11-03T12:00:00.000Z',
+      confirmationEnvoyeeLe: '2026-11-03T09:00:01.000Z', confirmationErreur: null,
+      qualiteDeclarant: 'locataire', adresseProposee: '1 Quai du Port 13002 Marseille', signalementLieId: ID_SIGNALEMENT,
+    })
+    // L'état de la confirmation, la qualité, l'adresse proposée et le lien sont lus avec le reste du signalement.
+    const lecture = h.etat.colonnesLues.find((l) => l.table === 'signalements_qr' && l.colonnes.includes('email_erreur'))
+    for (const colonne of COLONNES_NOUVELLES) expect(lecture?.colonnes).toContain(colonne)
+    expect(h.warn).not.toHaveBeenCalled()
+  })
+
+  it('dernière adresse proposée : jamais pour une copropriété dont l’adresse est renseignée ; qualité inconnue en base → null', async () => {
+    // En tête : la base rend les signalements du plus récent au plus ancien.
+    h.etat.signalements.unshift({
+      ...h.etat.signalements[1], id: '7b000000-0000-4000-8000-000000000003', copropriete_id: 'c0000000-0000-4000-8000-000000000002',
+      adresse_proposee: '2 Quai du Port 13002 Marseille', qualite_declarant: 'syndic', created_at: '2026-11-05T08:00:00.000Z',
+    })
+    const { tableau } = await (await GET(requete('/api/aj-signalement/tableau'))).json()
+    expect(tableau.coproprietes[1]).toMatchObject({ nom: 'Les Oliviers', adresse: 'Aubagne', nbSignalements: 1, derniereAdresseProposee: null })
+    expect(tableau.signalements[0]).toMatchObject({ id: '7b000000-0000-4000-8000-000000000003', qualiteDeclarant: null })
   })
 
   it('503 base_absente quand les tables manquent', async () => {
@@ -146,6 +217,48 @@ describe('GET tableau', () => {
     const res = await GET(requete('/api/aj-signalement/tableau'))
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({ error: 'base_absente' })
+  })
+})
+
+describe('GET tableau : repli tant que les migrations du 06/11/2026 ne sont pas appliquées', () => {
+  const avertissementsRepli = () => h.warn.mock.calls.filter((c) => String(c[0]).includes('repli'))
+
+  it.each(COLONNES_NOUVELLES)('colonne %s absente (42703) : relu par select(*), 200, champ à sa valeur vide, journalisé une fois', async (colonne) => {
+    h.etat.colonnesAbsentes = [colonne]
+    const res = await GET(requete('/api/aj-signalement/tableau'))
+    expect(res.status).toBe(200)
+    const lues = h.etat.colonnesLues.filter((l) => l.table === 'signalements_qr').map((l) => l.colonnes)
+    expect(lues).toHaveLength(2)
+    expect(lues[0]).toContain(colonne)
+    expect(lues[1]).toBe('*')
+    const { tableau } = await res.json()
+    expect(tableau.signalements).toHaveLength(2)
+    const champ: Record<string, [string, unknown]> = {
+      confirmation_envoyee_le: ['confirmationEnvoyeeLe', null], confirmation_erreur: ['confirmationErreur', null],
+      qualite_declarant: ['qualiteDeclarant', null], adresse_proposee: ['adresseProposee', ''], signalement_lie_id: ['signalementLieId', null],
+    }
+    expect(tableau.signalements[1][champ[colonne][0]]).toEqual(champ[colonne][1])
+    // Les autres champs restent lus.
+    expect(tableau.signalements[1]).toMatchObject({ prenom: 'Paul', statut: 'terminee', emailEnvoyeLe: '2026-11-03T09:00:00.000Z' })
+    expect(avertissementsRepli()).toHaveLength(1)
+    await GET(requete('/api/aj-signalement/tableau'))
+    expect(avertissementsRepli()).toHaveLength(1)
+  })
+
+  it('production actuelle (aucune des cinq colonnes) : 200 et aucune adresse proposée', async () => {
+    h.etat.colonnesAbsentes = [...COLONNES_NOUVELLES]
+    const res = await GET(requete('/api/aj-signalement/tableau'))
+    expect(res.status).toBe(200)
+    const { tableau } = await res.json()
+    expect(tableau.coproprietes[0].derniereAdresseProposee).toBeNull()
+    expect(tableau.signalements[0]).toMatchObject({ confirmationEnvoyeeLe: null, qualiteDeclarant: null, adresseProposee: '', signalementLieId: null })
+  })
+
+  it('autre erreur de lecture des signalements : 500, sans relecture', async () => {
+    h.etat.erreurSignalements = { code: 'XX000', message: 'panne' }
+    expect((await GET(requete('/api/aj-signalement/tableau'))).status).toBe(500)
+    expect(h.etat.colonnesLues.filter((l) => l.table === 'signalements_qr')).toHaveLength(1)
+    expect(avertissementsRepli()).toHaveLength(0)
   })
 })
 
@@ -177,6 +290,14 @@ describe('PATCH coproprietes/[id]', () => {
     expect(h.etat.misesAJour[0].valeurs.jeton).toBeUndefined()
     const { copropriete } = await res.json()
     expect(copropriete).toMatchObject({ nom: 'Parc Belle Ombre (B)', actif: false, nbSignalements: 2, nbEnAttente: 1 })
+  })
+
+  it('« Utiliser cette adresse » : PATCH { adresse } seul, la fiche renvoyée n’a plus d’adresse proposée', async () => {
+    h.etat.ligneMaj = { id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '1 Quai du Port 13002 Marseille', jeton: JETON, emails_destinataires: [], actif: true, created_at: '2026-11-04T10:00:00.000Z' }
+    const res = await PATCH_COPRO(requete(`/api/aj-signalement/coproprietes/${ID_COPRO}`, json({ adresse: '1 Quai du Port 13002 Marseille' }, 'PATCH')), contexte(ID_COPRO))
+    expect(res.status).toBe(200)
+    expect(h.etat.misesAJour[0].valeurs).toEqual({ adresse: '1 Quai du Port 13002 Marseille' })
+    expect((await res.json()).copropriete).toMatchObject({ adresse: '1 Quai du Port 13002 Marseille', derniereAdresseProposee: null })
   })
 
   it('regenererJeton tire un nouveau jeton ; sans modification → 400 ; identifiant inconnu → 404', async () => {

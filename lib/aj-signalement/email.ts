@@ -1,12 +1,22 @@
-// ── E-mail reçu par l'administrateur pour chaque signalement QR ───────────────
+// ── E-mails d'un signalement QR : à l'administrateur, puis confirmation au déclarant ──
 //
-// Envoyé par Resend (lib/email.ts) aux destinataires de la copropriété (sinon ADMIN_EMAIL) ; « répondre »
-// écrit directement au déclarant (replyTo). Tout ce que le déclarant a saisi est échappé avant d'entrer
-// dans le HTML. Module serveur (il importe Resend) : les libellés partagés sont dans affichage.ts.
+// Envoyés par Resend (lib/email.ts). Module serveur (il importe Resend) : les libellés partagés sont dans
+// affichage.ts. Tout ce que le déclarant a saisi est échappé avant d'entrer dans le HTML.
+//   - administrateur : destinataires de la copropriété (sinon ADMIN_EMAIL), en français ; « répondre » écrit
+//     directement au déclarant (replyTo) ;
+//   - déclarant : récapitulatif dans la langue de la page (FR / PT), envoyé à sa seule adresse, sans adresse de
+//     réponse ni copie (l'adresse de l'administrateur et celle des destinataires n'y figurent jamais), sans
+//     promesse d'intervention ni de délai. Limité par boîte de destination (formulaire public).
 
 import { sendEmail, type EmailResult } from '@/lib/email'
-import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
-import { LIBELLE_PRIORITE_QR, dateHeureParis, lieuSignalementQr } from '@/lib/aj-signalement/affichage'
+import {
+  CHEMIN_TABLEAU_QR, numeroSignalementQr, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr,
+} from '@/lib/aj-signalement/types'
+import {
+  LIBELLE_PRIORITE_QR, TEXTES_TABLEAU_QR, dateHeureParis, libelleQualiteQr, lieuSignalementQr, texteSignalementLieQr,
+} from '@/lib/aj-signalement/affichage'
+import { parLangue } from '@/lib/aj-signalement/bilingue'
+import { remplir } from '@/lib/coproprietaire/textes'
 
 const ECHAPPEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -38,13 +48,18 @@ export function templateSignalementQr({ copropriete, signalement: s, origine = '
   const telephoneLien = s.telephone.replace(/[\s.()-]/g, '')
   const description = e(s.description).replace(/\r?\n/g, '<br/>')
   const urgent = s.priorite === 'urgente'
+  const d = TEXTES_TABLEAU_QR.detail
   const lignes = [
     ligne('Copropriété', `<strong>${e(copropriete.nom)}</strong>${copropriete.adresse ? `<br/><span style="color:#4A5E78;">${e(copropriete.adresse)}</span>` : ''}`),
+    // Copropriété sans adresse : celle que la position du déclarant a permis de proposer (texte saisi par le public, échappé).
+    s.adresseProposee ? ligne(d.adresseProposee, e(s.adresseProposee)) : '',
     ligne('Déclarant', `<strong>${e(s.prenom)} ${e(s.nom)}</strong>`),
+    s.qualiteDeclarant ? ligne(d.qualite, e(libelleQualiteQr(s.qualiteDeclarant))) : '',
     ligne('Téléphone', `<a href="tel:${e(telephoneLien)}" style="color:#0D1B2E;">${e(s.telephone)}</a>`),
     ligne('E-mail', `<a href="mailto:${e(s.email)}" style="color:#0D1B2E;">${e(s.email)}</a>`),
     ligne('Lot', `${s.batiment ? `bât. ${e(s.batiment)} · ` : ''}étage ${e(s.etage)} · lot ${e(s.numLot)}`),
     ligne('Lieu du problème', e(lieuSignalementQr(s))),
+    s.signalementLieId ? ligne(d.signalementLie, `<strong>${e(texteSignalementLieQr(s.signalementLieId))}</strong>`) : '',
     ligne('Type', e(s.typeIntervention)),
     ligne('Urgence', urgent ? '<strong style="color:#9B2C20;">Urgent</strong>' : e(LIBELLE_PRIORITE_QR[s.priorite])),
     ligne('Déposé le', e(dateHeureParis(s.creeLe))),
@@ -52,8 +67,32 @@ export function templateSignalementQr({ copropriete, signalement: s, origine = '
   ].join('')
   const urlTableau = `${origine.replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
 
-  const html = `<!DOCTYPE html>
-<html lang="fr">
+  const corps = `${urgent ? '<p style="margin:0 0 16px;padding:10px 14px;background:#FBE4E1;border-radius:10px;color:#6E1C13;font-size:14px;font-weight:600;">Le déclarant indique une urgence (fuite importante, panne d’ascenseur, danger).</p>' : ''}
+          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${lignes}</table>
+          ${blocDescription('Description', description)}
+          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">Répondre à cet e-mail écrit directement au déclarant.</p>
+          <p style="margin:16px 0 0;">
+            <a href="${e(urlTableau)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir le tableau des signalements</a>
+          </p>`
+  const html = cadreEmailQr({
+    langue: 'fr',
+    titreHtml: `${urgent ? 'Signalement urgent' : 'Nouveau signalement'} — ${e(copropriete.nom)}`,
+    corpsHtml: corps,
+    piedHtml: 'Signalement déposé par QR code sur AJ Signalement — VITFIX. Cet e-mail a été envoyé automatiquement.',
+  })
+  return { subject: sujetSignalementQr(s, copropriete.nom), html }
+}
+
+/** Libellé puis description (déjà échappée, retours à la ligne en <br/>). */
+function blocDescription(libelle: string, descriptionHtml: string): string {
+  return `<p style="margin:20px 0 6px;font-size:13px;color:#4A5E78;">${libelle}</p>
+          <div style="padding:14px 16px;background:#F7F4EE;border-radius:12px;font-size:15px;line-height:1.55;color:#0D1B2E;">${descriptionHtml}</div>`
+}
+
+/** Cadre commun aux deux e-mails : bandeau « AJ SIGNALEMENT » et titre, contenu, pied de page. Contenus déjà échappés. */
+function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corpsHtml: string; piedHtml: string }): string {
+  return `<!DOCTYPE html>
+<html lang="${p.langue}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#F7F4EE;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F4EE;padding:32px 16px;">
@@ -61,27 +100,19 @@ export function templateSignalementQr({ copropriete, signalement: s, origine = '
       <table width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
         <tr><td style="background:#0D1B2E;padding:24px 32px;">
           <span style="color:#C9A84C;font-size:13px;font-weight:700;letter-spacing:1.5px;">AJ SIGNALEMENT</span><br/>
-          <span style="color:#FFFFFF;font-size:22px;font-weight:700;">${urgent ? 'Signalement urgent' : 'Nouveau signalement'} — ${e(copropriete.nom)}</span>
+          <span style="color:#FFFFFF;font-size:22px;font-weight:700;">${p.titreHtml}</span>
         </td></tr>
         <tr><td style="padding:28px 32px;">
-          ${urgent ? '<p style="margin:0 0 16px;padding:10px 14px;background:#FBE4E1;border-radius:10px;color:#6E1C13;font-size:14px;font-weight:600;">Le déclarant indique une urgence (fuite importante, panne d’ascenseur, danger).</p>' : ''}
-          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${lignes}</table>
-          <p style="margin:20px 0 6px;font-size:13px;color:#4A5E78;">Description</p>
-          <div style="padding:14px 16px;background:#F7F4EE;border-radius:12px;font-size:15px;line-height:1.55;color:#0D1B2E;">${description}</div>
-          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">Répondre à cet e-mail écrit directement au déclarant.</p>
-          <p style="margin:16px 0 0;">
-            <a href="${e(urlTableau)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir le tableau des signalements</a>
-          </p>
+          ${p.corpsHtml}
         </td></tr>
         <tr><td style="background:#F7F4EE;padding:18px 32px;border-top:1px solid #E4DDD0;">
-          <p style="margin:0;font-size:12px;color:#8A9BB0;text-align:center;">Signalement déposé par QR code sur AJ Signalement — VITFIX. Cet e-mail a été envoyé automatiquement.</p>
+          <p style="margin:0;font-size:12px;color:#8A9BB0;text-align:center;">${p.piedHtml}</p>
         </td></tr>
       </table>
     </td></tr>
   </table>
 </body>
 </html>`
-  return { subject: sujetSignalementQr(s, copropriete.nom), html }
 }
 
 /** Envoie l'e-mail du signalement aux destinataires ; ne lève jamais (le résultat porte success / error). */
@@ -93,5 +124,235 @@ export async function envoyerEmailSignalementQr(p: ParametresEmailQr & { destina
     html,
     replyTo: p.signalement.email,
     tags: [{ name: 'type', value: 'aj-signalement' }],
+  })
+}
+
+// ── Confirmation au déclarant ────────────────────────────────────────────────
+
+/**
+ * Règle de gestion (06/11/2026) : au plus 3 confirmations par heure vers une même boîte. Le formulaire est
+ * public : sans cette limite, il servirait à faire envoyer des courriels VITFIX à une adresse tierce (les
+ * limites par IP et par copropriété de la route s'ajoutent). Au-delà, le dépôt est enregistré sans confirmation.
+ */
+export const LIMITE_CONFIRMATIONS_PAR_ADRESSE = 3
+export const FENETRE_CONFIRMATIONS_MS = 60 * 60 * 1000
+
+/** Domaines Gmail : les points de la partie locale y sont ignorés et googlemail.com est la même boîte que gmail.com. */
+const DOMAINES_GMAIL = new Set(['gmail.com', 'googlemail.com'])
+
+/**
+ * Boîte canonique, pour la seule clé du limiteur (la confirmation part toujours à l'adresse saisie) : minuscules,
+ * partie locale coupée au premier « + » quel que soit le domaine (sous-adresses de Gmail, Outlook…, limiter un peu
+ * trop ne fait aucun tort), et pour Gmail points retirés et domaine ramené à gmail.com. Sans cela, victime+1@…,
+ * victime+2@… ou v.ictime@gmail.com auraient chacune leur compteur et arriveraient dans la même boîte.
+ */
+export function boiteCanoniqueConfirmationQr(email: string): string {
+  const adresse = email.trim().toLowerCase()
+  const arobase = adresse.lastIndexOf('@')
+  if (arobase < 0) return adresse
+  let locale = adresse.slice(0, arobase).split('+')[0]
+  let domaine = adresse.slice(arobase + 1)
+  if (DOMAINES_GMAIL.has(domaine)) {
+    locale = locale.replaceAll('.', '')
+    domaine = 'gmail.com'
+  }
+  return `${locale}@${domaine}`
+}
+
+/** Clé du limiteur : empreinte SHA-256 de la boîte canonique ; l'adresse n'est jamais écrite en clair dans Redis. */
+export async function cleLimiteConfirmationQr(email: string): Promise<string> {
+  const octets = new TextEncoder().encode(boiteCanoniqueConfirmationQr(email))
+  const empreinte = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', octets))
+  return `qr_confirmation_${Array.from(empreinte, (o) => o.toString(16).padStart(2, '0')).join('')}`
+}
+
+/** Caractères qui bornent une adresse dans un message : espaces, chevrons, guillemets, accent grave (et « @ », à part). */
+const BORNE_ADRESSE = /([\s<>"'`])/
+
+/**
+ * Remplace par « [e-mail] » toute adresse (« partie@domaine ») d'un message que la route écrit au logger. Mêmes
+ * remplacements que /[^\s@<>"'`]+@[^\s@<>"'`]+/g, mais en temps linéaire : cette expression, réessayée à chaque
+ * position, revenait en arrière sur toute la suite de caractères (temps quadratique sur un long message sans « @ »).
+ * Le message est découpé aux bornes, puis chaque mot à ses « @ » : deux parties non vides de part et d'autre d'un
+ * « @ » forment une adresse, lue de gauche à droite comme le faisait l'expression.
+ */
+export function masquerEmailsQr(texte: string): string {
+  return texte.split(BORNE_ADRESSE).map((morceau, i) => (i % 2 === 1 ? morceau : masquerAdressesDuMot(morceau))).join('')
+}
+
+/** Mot sans borne : « a@b » devient « [e-mail] », « a@b@c » devient « [e-mail]@c », « a@@b » reste tel quel. */
+function masquerAdressesDuMot(mot: string): string {
+  const parties = mot.split('@')
+  const sortie: string[] = []
+  let i = 0
+  while (i < parties.length) {
+    const adresse = parties[i] !== '' && (parties[i + 1] ?? '') !== ''
+    sortie.push(adresse ? '[e-mail]' : parties[i])
+    i += adresse ? 2 : 1
+  }
+  return sortie.join('@')
+}
+
+export interface TextesConfirmationQr {
+  sujet: string
+  titre: string
+  bonjour: string
+  introduction: string
+  recapitulatif: string
+  numero: string
+  copropriete: string
+  deposeLe: string
+  heureParis: string
+  qualite: string
+  qualites: Record<QualiteDeclarantQr, string>
+  lieu: string
+  zone: string
+  signalementLie: string
+  memeProbleme: string
+  type: string
+  urgence: string
+  description: string
+  partiesCommunes: string
+  votreLogement: string
+  batiment: string
+  etage: string
+  lot: string
+  priorites: Record<PrioriteSignalementQr, string>
+  suiteTitre: string
+  suite: string
+  conserverNumero: string
+  pasDeReponse: string
+  pasVous: string
+  piedDePage: string
+}
+
+/** Textes de la confirmation, dans la langue de la page publique. Aucune promesse d'intervention ni de délai. */
+export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmationQr> = parLangue<TextesConfirmationQr>({
+  sujet: {
+    fr: 'Votre signalement n° {numero} a bien été enregistré — {copropriete}',
+    pt: 'A sua ocorrência n.º {numero} foi registada — {copropriete}',
+  },
+  titre: { fr: 'Votre signalement est enregistré', pt: 'A sua ocorrência foi registada' },
+  bonjour: { fr: 'Bonjour,', pt: 'Olá,' },
+  introduction: {
+    fr: 'Votre signalement pour la copropriété {copropriete} a bien été enregistré sous le numéro {numero}.',
+    pt: 'A sua ocorrência relativa ao condomínio {copropriete} foi registada com o número {numero}.',
+  },
+  recapitulatif: { fr: 'Ce que vous avez déclaré', pt: 'O que declarou' },
+  numero: { fr: 'Numéro', pt: 'Número' },
+  copropriete: { fr: 'Copropriété', pt: 'Condomínio' },
+  deposeLe: { fr: 'Déposé le', pt: 'Registada em' },
+  heureParis: { fr: '(heure de Paris)', pt: '(hora de Paris)' },
+  qualite: { fr: 'Vous êtes', pt: 'Na qualidade de' },
+  qualites: parLangue({
+    proprietaire: { fr: 'Propriétaire', pt: 'Proprietário' },
+    locataire: { fr: 'Locataire', pt: 'Inquilino' },
+  }),
+  lieu: { fr: 'Lieu du problème', pt: 'Local do problema' },
+  zone: { fr: 'Zone', pt: 'Zona' },
+  signalementLie: { fr: 'Signalement lié', pt: 'Ocorrência associada' },
+  memeProbleme: { fr: 'Même problème que le signalement n° {numero}', pt: 'Mesmo problema que a ocorrência n.º {numero}' },
+  type: { fr: 'Type de problème', pt: 'Tipo de problema' },
+  urgence: { fr: 'Urgence', pt: 'Urgência' },
+  description: { fr: 'Description', pt: 'Descrição' },
+  partiesCommunes: { fr: 'Parties communes', pt: 'Partes comuns' },
+  votreLogement: { fr: 'Votre logement', pt: 'A sua habitação' },
+  batiment: { fr: 'bât.', pt: 'bloco' },
+  etage: { fr: 'étage', pt: 'piso' },
+  lot: { fr: 'lot', pt: 'fração' },
+  priorites: parLangue({
+    urgente: { fr: 'Urgent', pt: 'Urgente' },
+    normale: { fr: 'Normal', pt: 'Normal' },
+    planifiee: { fr: 'À planifier', pt: 'A planear' },
+  }),
+  suiteTitre: { fr: 'Et maintenant ?', pt: 'E agora?' },
+  suite: {
+    fr: 'Votre signalement a été transmis à l’administrateur de la copropriété, qui pourra vous recontacter au téléphone ou à l’adresse e-mail que vous avez indiqués.',
+    pt: 'A sua ocorrência foi transmitida ao administrador do condomínio, que poderá contactá-lo pelo telefone ou pelo endereço de e-mail que indicou.',
+  },
+  conserverNumero: {
+    fr: 'Gardez ce numéro : il permet de retrouver votre signalement si vous en reparlez avec l’administrateur.',
+    pt: 'Guarde este número: permite identificar a sua ocorrência se voltar a falar dela com o administrador.',
+  },
+  pasDeReponse: { fr: 'Message automatique : ne répondez pas à cet e-mail.', pt: 'Mensagem automática: não responda a este e-mail.' },
+  pasVous: {
+    fr: 'Si vous n’êtes pas à l’origine de ce signalement, ignorez ce message.',
+    pt: 'Se não foi o autor desta ocorrência, ignore esta mensagem.',
+  },
+  piedDePage: {
+    fr: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+    pt: 'AJ Signalement — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
+  },
+})
+
+/** Objet : « Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Belle Ombre » (texte brut, pas de HTML). */
+export function sujetConfirmationQr(numero: string, nomCopropriete: string, langue: LangueSignalementQr): string {
+  return remplir(TEXTES_CONFIRMATION_QR[langue].sujet, { numero, copropriete: nomCopropriete })
+}
+
+export interface ParametresConfirmationQr {
+  copropriete: { nom: string }
+  /** Le signalement enregistré ; sa langue est celle de la page publique. */
+  signalement: SignalementQr
+}
+
+/** « Parties communes » ou « Votre logement (bât. B · étage 4 · lot 12) », valeurs échappées. */
+function lieuConfirmationHtml(s: SignalementQr, t: TextesConfirmationQr): string {
+  if (s.estPartieCommune) return t.partiesCommunes
+  const e = echapperHtml
+  const situation = [
+    s.batiment ? `${t.batiment} ${e(s.batiment)}` : '',
+    s.etage ? `${t.etage} ${e(s.etage)}` : '',
+    s.numLot ? `${t.lot} ${e(s.numLot)}` : '',
+  ].filter(Boolean).join(' · ')
+  return situation ? `${t.votreLogement} (${situation})` : t.votreLogement
+}
+
+/**
+ * E-mail de confirmation : numéro, copropriété, date et heure de Paris, récapitulatif de la déclaration, suite.
+ * Ni nom, ni téléphone, ni adresse e-mail (de personne), ni lien vers le tableau de bord.
+ */
+export function templateConfirmationQr({ copropriete, signalement: s }: ParametresConfirmationQr): { subject: string; html: string } {
+  const e = echapperHtml
+  const t = TEXTES_CONFIRMATION_QR[s.langue]
+  const numero = numeroSignalementQr(s.id)
+  const lignes = [
+    ligne(t.numero, `<strong>${e(numero)}</strong>`),
+    ligne(t.copropriete, e(copropriete.nom)),
+    ligne(t.deposeLe, `${e(dateHeureParis(s.creeLe, s.langue))} ${t.heureParis}`),
+    s.qualiteDeclarant ? ligne(t.qualite, e(t.qualites[s.qualiteDeclarant])) : '',
+    ligne(t.lieu, lieuConfirmationHtml(s, t)),
+    s.estPartieCommune && s.zoneSignalee ? ligne(t.zone, e(s.zoneSignalee)) : '',
+    s.signalementLieId ? ligne(t.signalementLie, e(remplir(t.memeProbleme, { numero: numeroSignalementQr(s.signalementLieId) }))) : '',
+    ligne(t.type, e(s.typeIntervention)),
+    ligne(t.urgence, e(t.priorites[s.priorite])),
+  ].join('')
+  const paragraphe = (texte: string, marge = '0 0 14px') => `<p style="margin:${marge};font-size:15px;line-height:1.55;color:#0D1B2E;">${texte}</p>`
+  const intertitre = (texte: string) => `<p style="margin:24px 0 6px;font-size:13px;font-weight:700;color:#4A5E78;">${texte}</p>`
+
+  const corps = `${paragraphe(t.bonjour)}
+          ${paragraphe(remplir(t.introduction, { copropriete: `<strong>${e(copropriete.nom)}</strong>`, numero: `<strong>${e(numero)}</strong>` }), '0 0 4px')}
+          ${intertitre(t.recapitulatif)}
+          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${lignes}</table>
+          ${blocDescription(t.description, e(s.description).replace(/\r?\n/g, '<br/>'))}
+          ${intertitre(t.suiteTitre)}
+          ${paragraphe(t.suite, '0')}
+          ${paragraphe(t.conserverNumero, '12px 0 0')}
+          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">${t.pasDeReponse}<br/>${t.pasVous}</p>`
+  const html = cadreEmailQr({ langue: s.langue, titreHtml: t.titre, corpsHtml: corps, piedHtml: t.piedDePage })
+  return { subject: sujetConfirmationQr(numero, copropriete.nom, s.langue), html }
+}
+
+/**
+ * Envoie la confirmation à la seule adresse du déclarant : ni adresse de réponse, ni copie (une réponse irait à
+ * l'expéditeur, VITFIX <noreply@vitfix.io> par défaut). Ne lève jamais en temps normal (sendEmail rend success / error).
+ */
+export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promise<EmailResult> {
+  const { subject, html } = templateConfirmationQr(p)
+  return sendEmail({
+    to: [p.signalement.email],
+    subject,
+    html,
+    tags: [{ name: 'type', value: 'aj-signalement-confirmation' }],
   })
 }

@@ -1,12 +1,14 @@
 // tests/components/coproprietaire/shell-signalements-qr.test.tsx
 //
-// Portail copropriétaire : l'écran « AJ Signalement » (signalements reçus par QR code) n'est proposé qu'au
-// super admin, dans la barre latérale et le menu « Plus » du téléphone ; il reçoit le jeton du compte même
-// quand l'espace affiché est celui de l'Administrateur judiciaire ; un copropriétaire ne le voit pas et
-// l'ancre #signalementsQr le ramène à l'accueil.
+// « AJ Signalement » sort du portail copropriétaire (demande de Hugo du 10/11/2026) : l'écran des signalements reçus
+// par QR code vit désormais dans son espace indépendant (/fr/aj-signalement/). Le portail n'en garde qu'un lien,
+// pour le seul super admin (ou sa « vue en tant que »), dans la barre latérale et le menu « Plus » du téléphone.
+// Même pour un super admin : aucun écran « AJ Signalement », huit écrans comme pour tous, l'ancre #signalementsQr
+// ramène à l'accueil. Un copropriétaire (huit écrans) ou un vrai locataire (six écrans, sans Charges ni Assemblées)
+// ne voit pas le lien.
 
 import React from 'react'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { espaceDemo } from '@/lib/coproprietaire/demo'
 import type { EtatEspace } from '@/lib/coproprietaire/etat'
@@ -27,73 +29,97 @@ vi.mock('@/lib/coproprietaire/etat', () => ({
 }))
 vi.mock('@/lib/dashboard-section-loader', () => ({
   createDynamicSection: () => {
-    const Temoin = (props: PropsEcran) => (
-      <div data-testid="ecran">
-        <span data-testid="jeton">{String(props.jeton)}</span>
-        <span data-testid="source">{props.espace.source}</span>
-      </div>
-    )
+    const Temoin = (props: PropsEcran) => <div data-testid="ecran"><span data-testid="jeton">{String(props.jeton)}</span></div>
     return Temoin
   },
 }))
 
 const { default: Page } = await import('@/app/(commun)/coproprietaire/dashboard/page')
 
-const syndic = (): EtatEspace => ({
-  statut: 'pret', espace: { ...espaceDemo(), source: 'reel', vueSuperAdmin: true }, jeton: 'jeton',
+const espaceReel = (vueSuperAdmin: boolean): EtatEspace => ({
+  statut: 'pret', espace: { ...espaceDemo(), source: 'reel', vueSuperAdmin }, jeton: 'jeton',
   miseAJourLe: new Date('2026-11-04T14:05:00'), miseAJourImpossible: false,
 })
 
+/** Espace d'un vrai locataire : la page lit le rôle dans espace.profil.role (pas dans app_metadata). */
+const espaceLocataire = (): EtatEspace => {
+  const espace = espaceDemo()
+  return {
+    statut: 'pret', espace: { ...espace, source: 'reel', vueSuperAdmin: false, profil: { ...espace.profil, role: 'locataire' } }, jeton: 'jeton',
+    miseAJourLe: new Date('2026-11-04T14:05:00'), miseAJourImpossible: false,
+  }
+}
+
+const ESPACE_QR = '/fr/aj-signalement/'
 const menuLateral = () => screen.getAllByRole('navigation', { name: 'Menu' })[0]
+const barreLaterale = () => screen.getByRole('complementary', { name: 'Menu' })
+const boutonsMenu = () => within(menuLateral()).getAllByRole('button').map((b) => b.textContent)
+const ouvrirPlus = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Plus' }))
+  return screen.getByRole('dialog')
+}
 
 beforeEach(() => {
   localStorage.clear()
-  h.etat = syndic()
+  h.etat = espaceReel(true)
   h.metadonnees = { role: 'super_admin' }
   window.history.replaceState(null, '', '/coproprietaire/dashboard')
   window.location.hash = ''
 })
 
-describe('écran « AJ Signalement » du portail', () => {
-  it('super admin : entrée dans le menu, ancre #signalementsQr, écran servi avec le jeton du compte', () => {
+describe('AJ Signalement hors du portail copropriétaire', () => {
+  it('super admin : aucun écran « AJ Signalement », les huit écrans de tous ; lien vers l’espace dans la barre latérale', () => {
     render(<Page />)
-    const libelles = within(menuLateral()).getAllByRole('button').map((b) => b.textContent)
-    expect(libelles).toContain('AJ Signalement')
-    fireEvent.click(within(menuLateral()).getByRole('button', { name: 'AJ Signalement' }))
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('AJ Signalement')
-    expect(screen.getByText('Signalements reçus par QR code : copropriétés, affiches, coordonnées des déclarants')).toBeInTheDocument()
-    expect(window.location.hash).toBe('#signalementsQr')
-    expect(screen.getByTestId('jeton')).toHaveTextContent('jeton')
+    expect(boutonsMenu()).not.toContain('AJ Signalement')
+    expect(boutonsMenu()).toHaveLength(8)
+    expect(within(barreLaterale()).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
+    // Le lien s'ajoute à « Panneau admin », qui ne change pas.
+    expect(within(barreLaterale()).getByRole('link', { name: 'Panneau admin' })).toHaveAttribute('href', '/admin/dashboard')
   })
 
-  it('avec l’AJ comme source, l’écran garde le jeton du compte alors que les autres écrans n’en ont pas', async () => {
-    render(<Page />)
-    fireEvent.click(screen.getByRole('button', { name: 'Administrateur judiciaire' }))
-    await waitFor(() => expect(screen.getByTestId('source')).toHaveTextContent('aj'), { timeout: 20000 })
-    expect(screen.getByTestId('jeton')).toHaveTextContent('null')
-    fireEvent.click(within(menuLateral()).getByRole('button', { name: 'AJ Signalement' }))
-    expect(screen.getByTestId('jeton')).toHaveTextContent('jeton')
-    fireEvent.click(within(menuLateral()).getByRole('button', { name: 'Accueil' }))
-    expect(screen.getByTestId('jeton')).toHaveTextContent('null')
-  })
-
-  it('le menu « Plus » du téléphone propose aussi l’écran au super admin', () => {
-    render(<Page />)
-    fireEvent.click(screen.getByRole('button', { name: 'Plus' }))
-    const dialogue = screen.getByRole('dialog')
-    fireEvent.click(within(dialogue).getByRole('button', { name: 'AJ Signalement' }))
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('AJ Signalement')
-  })
-
-  it('copropriétaire : ni entrée de menu, ni écran ; l’ancre #signalementsQr ramène à l’accueil', () => {
-    h.metadonnees = { role: 'coproprio' }
+  it('super admin : l’ancre #signalementsQr (anciens e-mails) ramène à l’accueil', () => {
     window.location.hash = '#signalementsQr'
     render(<Page />)
-    const libelles = within(menuLateral()).getAllByRole('button').map((b) => b.textContent)
-    expect(libelles).not.toContain('AJ Signalement')
-    expect(libelles).toHaveLength(8)
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Accueil')
-    fireEvent.click(screen.getByRole('button', { name: 'Plus' }))
-    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'AJ Signalement' })).toBeNull()
+    expect(screen.queryByText('Signalements reçus par QR code : copropriétés, affiches, coordonnées des déclarants')).toBeNull()
+  })
+
+  it('menu « Plus » du téléphone : le lien vers l’espace, et aucun bouton d’écran « AJ Signalement »', () => {
+    render(<Page />)
+    const dialogue = ouvrirPlus()
+    expect(within(dialogue).queryByRole('button', { name: 'AJ Signalement' })).toBeNull()
+    expect(within(dialogue).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
+  })
+
+  it('« vue en tant que » ouverte par un super admin : lien présent', () => {
+    h.metadonnees = { role: 'coproprio', _original_role: 'super_admin' }
+    render(<Page />)
+    expect(within(barreLaterale()).getByRole('link', { name: 'AJ Signalement' })).toHaveAttribute('href', ESPACE_QR)
+  })
+
+  it('copropriétaire : ni lien, ni écran ; ses huit écrans ; l’ancre #signalementsQr ramène à l’accueil', () => {
+    h.metadonnees = { role: 'coproprio' }
+    h.etat = espaceReel(false)
+    window.location.hash = '#signalementsQr'
+    render(<Page />)
+    expect(screen.queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    expect(boutonsMenu()).not.toContain('AJ Signalement')
+    expect(boutonsMenu()).toHaveLength(8)
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Accueil')
+    expect(within(ouvrirPlus()).queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+  })
+
+  it('locataire (espace de locataire) : ni lien, ni écran ; ses six écrans, sans Charges ni Assemblées ; #signalementsQr ramène à l’accueil', () => {
+    h.metadonnees = { role: 'locataire' }
+    h.etat = espaceLocataire()
+    window.location.hash = '#signalementsQr'
+    render(<Page />)
+    expect(screen.queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
+    expect(boutonsMenu()).toHaveLength(6)
+    expect(boutonsMenu()).not.toContain('AJ Signalement')
+    expect(boutonsMenu()).not.toContain('Charges & paiements')
+    expect(boutonsMenu()).not.toContain('Assemblées & votes')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Accueil')
+    expect(within(ouvrirPlus()).queryByRole('link', { name: 'AJ Signalement' })).toBeNull()
   })
 })

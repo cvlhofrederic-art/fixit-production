@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
+import { lienEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import { createDynamicSection as d } from '@/lib/dashboard-section-loader'
 import { seDeconnecter, useEspaceCopro, type EtatEspace } from '@/lib/coproprietaire/etat'
 import { estSuperAdmin, useSourceAj } from '@/lib/coproprietaire/liaison-aj'
@@ -29,13 +30,12 @@ const ECRANS = {
   annonces: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranAnnonces')),
   informations: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranInformations')),
   question: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranQuestion')),
-  signalementsQr: d(() => import('@/components/coproprietaire-dashboard/ecrans/EcranSignalementsQr')),
 } satisfies Record<EcranCopro, unknown>
 
-const ORDRE_ECRANS: EcranCopro[] = ['accueil', 'demandes', 'charges', 'documents', 'assemblees', 'annonces', 'informations', 'question', 'signalementsQr']
+const ORDRE_ECRANS: EcranCopro[] = ['accueil', 'demandes', 'charges', 'documents', 'assemblees', 'annonces', 'informations', 'question']
 const ICONES: Record<EcranCopro, NomIcone> = {
   accueil: 'accueil', demandes: 'demandes', charges: 'charges', documents: 'documents',
-  assemblees: 'assemblees', annonces: 'annonces', informations: 'informations', question: 'question', signalementsQr: 'qr',
+  assemblees: 'assemblees', annonces: 'annonces', informations: 'informations', question: 'question',
 }
 /** Écrans réservés au propriétaire (un locataire n'est pas membre du syndicat). */
 const ECRANS_PROPRIETAIRE: ReadonlySet<EcranCopro> = new Set(['charges', 'assemblees'])
@@ -118,8 +118,8 @@ function PageAcces({ etat, t, langue }: { etat: Exclude<EtatEspace, { statut: 'c
 // ── Navigation ───────────────────────────────────────────────────────────────
 
 function BarreLaterale({
-  t, espace, ecran, visibles, allerA, lienAdmin, onDeconnexion,
-}: { t: TextesCopro; espace: EspaceCopro; ecran: EcranCopro; visibles: EcranCopro[]; allerA: (e: EcranCopro) => void; lienAdmin: string | null; onDeconnexion: () => void }) {
+  t, espace, ecran, visibles, allerA, lienAdmin, lienQr, onDeconnexion,
+}: { t: TextesCopro; espace: EspaceCopro; ecran: EcranCopro; visibles: EcranCopro[]; allerA: (e: EcranCopro) => void; lienAdmin: string | null; lienQr: string | null; onDeconnexion: () => void }) {
   const initiales = `${espace.profil.prenom.charAt(0)}${espace.profil.nom.charAt(0)}`.toUpperCase() || '·'
   return (
     <aside className="hidden md:flex w-[260px] shrink-0 flex-col bg-[#0D1B2E] text-white" aria-label={t.menu.menu}>
@@ -163,6 +163,11 @@ function BarreLaterale({
         {lienAdmin && (
           <a href={lienAdmin} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-white/10 hover:text-white">
             <Icone nom="cadenas" taille={18} /><span>{t.menu.panneauAdmin}</span>
+          </a>
+        )}
+        {lienQr && (
+          <a href={lienQr} className="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-white/10 hover:text-white">
+            <Icone nom="qr" taille={18} /><span>{t.menu.ajSignalement}</span>
           </a>
         )}
         <button type="button" onClick={onDeconnexion} className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 text-sm text-white/80 hover:bg-[#C0392B]/30 hover:text-white">
@@ -260,11 +265,13 @@ export default function CoproprietaireDashboard() {
 
   const { espace } = etat
   const locataire = espace.profil.role === 'locataire'
-  // « AJ Signalement » (signalements reçus par QR code) : outil du super admin, jamais proposé à un copropriétaire.
-  const visibles = ORDRE_ECRANS.filter(e => (!locataire || !ECRANS_PROPRIETAIRE.has(e)) && (e !== 'signalementsQr' || superAdmin))
+  const visibles = ORDRE_ECRANS.filter(e => !locataire || !ECRANS_PROPRIETAIRE.has(e))
   const ecran: EcranCopro = visibles.includes(navigation.ecran) ? navigation.ecran : 'accueil'
   const Ecran = ECRANS[ecran]
   const lienAdmin = lienPanneauAdmin(metadonnees ?? undefined)
+  // « AJ Signalement » : espace indépendant du super admin (/fr/aj-signalement/, 10/11/2026) ; ici un simple lien,
+  // jamais proposé à un copropriétaire ni à un locataire (app_metadata seulement).
+  const lienQr = lienEspaceQr(metadonnees)
   const heure = heureCourte(etat.miseAJourLe, langue)
 
   const propsEcran: PropsEcran = {
@@ -272,8 +279,6 @@ export default function CoproprietaireDashboard() {
     aujourdhui: avecAj ? aj.aujourdhui ?? undefined : undefined,
     liaisonAj: avecAj ? aj.actions ?? undefined : undefined,
   }
-  // AJ Signalement : son tableau appelle l'API avec le jeton du compte, même quand l'espace affiché est celui de l'AJ (jeton null).
-  const propsRendus: PropsEcran = ecran === 'signalementsQr' ? { ...propsEcran, jeton: jetonSyndic } : propsEcran
 
   const nomAffiche = `${espace.profil.prenom} ${espace.profil.nom}`.trim()
   let bandeauDemo: string | null = null
@@ -287,7 +292,7 @@ export default function CoproprietaireDashboard() {
 
   return (
     <div id="copro-dashboard" className="flex min-h-screen bg-[#F7F4EE]">
-      <BarreLaterale t={t} espace={espace} ecran={ecran} visibles={visibles} allerA={allerA} lienAdmin={lienAdmin} onDeconnexion={() => setConfirmerDeconnexion(true)} />
+      <BarreLaterale t={t} espace={espace} ecran={ecran} visibles={visibles} allerA={allerA} lienAdmin={lienAdmin} lienQr={lienQr} onDeconnexion={() => setConfirmerDeconnexion(true)} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         {bandeauDemo && (
@@ -331,7 +336,7 @@ export default function CoproprietaireDashboard() {
           {etat.miseAJourImpossible && (
             <Encadre ton="avertissement" className="mb-4">{remplir(t.commun.miseAJourImpossible, { heure })}</Encadre>
           )}
-          <Ecran key={`${ecran}-${cleNavigation}-${espace.source}-${espace.profil.id}`} {...propsRendus} />
+          <Ecran key={`${ecran}-${cleNavigation}-${espace.source}-${espace.profil.id}`} {...propsEcran} />
           <p className="mt-8 flex flex-wrap items-center justify-between gap-3 text-sm text-[#4A5E78]">
             <span>{remplir(t.commun.derniereMiseAJour, { heure })}</span>
             <Bouton variante="discret" petit icone="actualiser" onClick={() => { void rafraichir() }}>{t.commun.mettreAJour}</Bouton>
@@ -385,6 +390,9 @@ export default function CoproprietaireDashboard() {
             )}
             {lienAdmin && (
               <li><a href={lienAdmin} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="cadenas" taille={22} /><span>{t.menu.panneauAdmin}</span></a></li>
+            )}
+            {lienQr && (
+              <li><a href={lienQr} className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#E4DDD0] px-4 text-base font-medium text-[#0D1B2E]"><Icone nom="qr" taille={22} /><span>{t.menu.ajSignalement}</span></a></li>
             )}
             <li>
               <button type="button" onClick={() => { setMenuPlus(false); setConfirmerDeconnexion(true) }} className="flex min-h-[48px] w-full items-center gap-3 rounded-xl border border-[#D98B82] px-4 text-base font-medium text-[#9B2C20]">

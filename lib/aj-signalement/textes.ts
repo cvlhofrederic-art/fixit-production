@@ -2,10 +2,12 @@
 //
 // Le parcours reprend celui de « Signaler un problème » du portail copropriétaire (bloc `demandes` de
 // lib/coproprietaire/textes.ts : où, quel type, description, urgence). Ne figurent ici que les libellés
-// propres au dépôt par QR code : coordonnées obligatoires, confirmation, erreurs. Les textes du
-// tableau de bord (vue super admin) sont en français seulement, dans le composant.
+// propres au dépôt par QR code : coordonnées obligatoires (bâtiment et qualité compris), adresse proposée d'après
+// la position, signalements déjà faits au même endroit, confirmation, erreurs. Les textes du tableau de bord (vue
+// super admin) sont en français seulement (lib/aj-signalement/affichage.ts).
 
-import type { LangueSignalementQr } from '@/lib/aj-signalement/types'
+import { parLangue } from '@/lib/aj-signalement/bilingue'
+import type { LangueSignalementQr, QualiteDeclarantQr, StatutOuvertQr } from '@/lib/aj-signalement/types'
 
 export interface TextesSignalementQr {
   application: string
@@ -18,9 +20,29 @@ export interface TextesSignalementQr {
   telephone: string
   email: string
   batiment: string
+  batimentAide: string
   etage: string
   numLot: string
+  qualite: string
+  qualites: Record<QualiteDeclarantQr, string>
   votreLogement: string
+  copropriete: string
+  geolocalisationExplication: string
+  adresseRecherche: string
+  adresseProposee: string
+  positionRefusee: string
+  adresseIntrouvable: string
+  semblablesTitre: string
+  semblablesAide: string
+  /** Annonce aux lecteurs d'écran de l'apparition de la liste : un signalement, ou {n} signalements. */
+  semblablesAnnonceUn: string
+  semblablesAnnonce: string
+  semblableNumero: string
+  statutsSemblables: Record<StatutOuvertQr, string>
+  memeProbleme: string
+  autreProbleme: string
+  rattacheA: string
+  nouveauProbleme: string
   envoyer: string
   envoiEnCours: string
   transmis: string
@@ -42,73 +64,121 @@ export interface TextesSignalementQr {
   piedDePage: string
 }
 
-export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalementQr> = {
-  fr: {
-    application: 'AJ Signalement',
-    titre: 'Signaler un problème',
-    accroche: 'Vous avez constaté un problème dans la copropriété {copropriete} ? Décrivez-le ici : l’administrateur le reçoit immédiatement.',
-    coordonnees: 'Vos coordonnées',
-    coordonneesAide: 'Tous les champs sont obligatoires, sauf le bâtiment : l’administrateur doit pouvoir vous rappeler.',
-    prenom: 'Prénom',
-    nom: 'Nom',
-    telephone: 'Numéro de téléphone',
-    email: 'Adresse e-mail',
-    batiment: 'Bâtiment (facultatif)',
-    etage: 'Étage',
-    numLot: 'Numéro de lot',
-    votreLogement: 'votre logement',
-    envoyer: 'Envoyer le signalement',
-    envoiEnCours: 'Envoi en cours…',
-    transmis: 'Votre signalement est transmis à l’administrateur de la copropriété, pas directement à un artisan.',
-    confirmationTitre: 'Votre signalement a bien été envoyé le {date}.',
-    confirmationNumero: 'Numéro : {numero}',
-    confirmationSuite: 'L’administrateur vous recontactera au {telephone} ou à l’adresse {email}.',
-    autreSignalement: 'Faire un autre signalement',
-    champObligatoire: 'Ce champ est obligatoire.',
-    emailInvalide: 'Indiquez une adresse e-mail valide (ex. nom@domaine.fr).',
-    telephoneInvalide: 'Indiquez un numéro de téléphone valide.',
-    erreurs: {
-      invalide: 'Le signalement n’a pas pu être enregistré : vérifiez vos coordonnées et la description, puis réessayez.',
-      trop_de_demandes: 'Trop d’envois en peu de temps : réessayez dans une minute.',
-      serveur: 'Le signalement n’a pas pu être envoyé. Réessayez dans un instant.',
-      reseau: 'Connexion impossible : vérifiez votre réseau puis réessayez.',
-      introuvable: 'Ce QR code n’est plus valable. Rapprochez-vous de l’administrateur de la copropriété.',
-      base_absente: 'Le service de signalement n’est pas encore activé. Réessayez plus tard.',
-    },
-    piedDePage: 'AJ Signalement — un service VITFIX',
+/** Textes de la page publique, FR et PT côte à côte pour chaque clé (lib/aj-signalement/bilingue.ts). */
+export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalementQr> = parLangue<TextesSignalementQr>({
+  application: { fr: 'AJ Signalement', pt: 'AJ Signalement' },
+  titre: { fr: 'Signaler un problème', pt: 'Reportar um problema' },
+  accroche: {
+    fr: 'Vous avez constaté un problème dans la copropriété {copropriete} ? Décrivez-le ici : l’administrateur le reçoit immédiatement.',
+    pt: 'Detetou um problema no condomínio {copropriete}? Descreva-o aqui: o administrador recebe-o imediatamente.',
   },
-  pt: {
-    application: 'AJ Signalement',
-    titre: 'Reportar um problema',
-    accroche: 'Detetou um problema no condomínio {copropriete}? Descreva-o aqui: o administrador recebe-o imediatamente.',
-    coordonnees: 'Os seus contactos',
-    coordonneesAide: 'Todos os campos são obrigatórios, exceto o bloco: o administrador tem de poder contactá-lo.',
-    prenom: 'Nome próprio',
-    nom: 'Apelido',
-    telephone: 'Número de telefone',
-    email: 'Endereço de e-mail',
-    batiment: 'Bloco (facultativo)',
-    etage: 'Piso',
-    numLot: 'Número da fração',
-    votreLogement: 'a sua habitação',
-    envoyer: 'Enviar a ocorrência',
-    envoiEnCours: 'A enviar…',
-    transmis: 'A sua ocorrência é transmitida ao administrador do condomínio, não diretamente a um profissional.',
-    confirmationTitre: 'A sua ocorrência foi enviada em {date}.',
-    confirmationNumero: 'Número: {numero}',
-    confirmationSuite: 'O administrador contactá-lo-á pelo {telephone} ou pelo e-mail {email}.',
-    autreSignalement: 'Reportar outro problema',
-    champObligatoire: 'Este campo é obrigatório.',
-    emailInvalide: 'Indique um endereço de e-mail válido (ex. nome@dominio.pt).',
-    telephoneInvalide: 'Indique um número de telefone válido.',
-    erreurs: {
-      invalide: 'A ocorrência não pôde ser registada: verifique os seus contactos e a descrição e tente novamente.',
-      trop_de_demandes: 'Demasiados envios em pouco tempo: tente novamente dentro de um minuto.',
-      serveur: 'A ocorrência não pôde ser enviada. Tente novamente dentro de instantes.',
-      reseau: 'Ligação impossível: verifique a sua rede e tente novamente.',
-      introuvable: 'Este código QR já não é válido. Contacte o administrador do condomínio.',
-      base_absente: 'O serviço de ocorrências ainda não está ativo. Tente mais tarde.',
-    },
-    piedDePage: 'AJ Signalement — um serviço VITFIX',
+  coordonnees: { fr: 'Vos coordonnées', pt: 'Os seus contactos' },
+  coordonneesAide: {
+    fr: 'Tous les champs sont obligatoires : l’administrateur doit pouvoir vous rappeler.',
+    pt: 'Todos os campos são obrigatórios: o administrador tem de poder contactá-lo.',
   },
-}
+  prenom: { fr: 'Prénom', pt: 'Nome próprio' },
+  nom: { fr: 'Nom', pt: 'Apelido' },
+  telephone: { fr: 'Numéro de téléphone', pt: 'Número de telefone' },
+  email: { fr: 'Adresse e-mail', pt: 'Endereço de e-mail' },
+  batiment: { fr: 'Bâtiment', pt: 'Bloco' },
+  batimentAide: {
+    fr: 'Lettre, numéro ou nom du bâtiment (ex. A, 2, Les Pins).',
+    pt: 'Letra, número ou nome do bloco (ex. A, 2, Os Pinheiros).',
+  },
+  etage: { fr: 'Étage', pt: 'Piso' },
+  numLot: { fr: 'Numéro de lot', pt: 'Número da fração' },
+  qualite: { fr: 'Vous êtes :', pt: 'Na qualidade de:' },
+  qualites: parLangue({
+    proprietaire: { fr: 'Propriétaire', pt: 'Proprietário' },
+    locataire: { fr: 'Locataire', pt: 'Inquilino' },
+  }),
+  votreLogement: { fr: 'votre logement', pt: 'a sua habitação' },
+  copropriete: { fr: 'Copropriété', pt: 'Condomínio' },
+  geolocalisationExplication: {
+    fr: 'Votre position sert seulement à proposer l’adresse de la copropriété, jointe à votre signalement ; elle n’est pas conservée.',
+    pt: 'A sua localização serve apenas para propor o endereço do condomínio, anexado à sua ocorrência; não é guardada.',
+  },
+  adresseRecherche: { fr: 'Recherche de l’adresse…', pt: 'A procurar o endereço…' },
+  adresseProposee: { fr: 'Adresse d’après votre position : {adresse}', pt: 'Endereço segundo a sua localização: {adresse}' },
+  positionRefusee: {
+    fr: 'Position non partagée : vous pouvez envoyer votre signalement normalement.',
+    pt: 'Localização não partilhada: pode enviar a sua ocorrência normalmente.',
+  },
+  adresseIntrouvable: {
+    fr: 'Adresse non trouvée : vous pouvez envoyer votre signalement normalement.',
+    pt: 'Endereço não encontrado: pode enviar a sua ocorrência normalmente.',
+  },
+  semblablesTitre: { fr: 'Signalements déjà faits à cet endroit', pt: 'Ocorrências já reportadas neste local' },
+  semblablesAide: {
+    fr: 'D’autres personnes ont déjà signalé un problème ici. Est-ce le même ? Votre choix n’empêche pas l’envoi.',
+    pt: 'Outras pessoas já reportaram um problema aqui. É o mesmo? A sua escolha não impede o envio.',
+  },
+  semblablesAnnonceUn: {
+    fr: '1 signalement a déjà été fait à cet endroit ; il est listé sous la zone. Est-ce le même problème ?',
+    pt: 'Já foi reportada 1 ocorrência neste local; está listada abaixo da zona. É o mesmo problema?',
+  },
+  semblablesAnnonce: {
+    fr: '{n} signalements ont déjà été faits à cet endroit ; ils sont listés sous la zone. Est-ce le même problème ?',
+    pt: 'Já foram reportadas {n} ocorrências neste local; estão listadas abaixo da zona. É o mesmo problema?',
+  },
+  semblableNumero: { fr: 'N° {numero}', pt: 'N.º {numero}' },
+  statutsSemblables: parLangue({
+    en_attente: { fr: 'Reçu', pt: 'Recebida' },
+    acceptee: { fr: 'Pris en charge', pt: 'Em tratamento' },
+    en_cours: { fr: 'En cours', pt: 'Em curso' },
+  }),
+  memeProbleme: { fr: 'C’est le même problème', pt: 'É o mesmo problema' },
+  autreProbleme: { fr: 'C’est un autre problème', pt: 'É outro problema' },
+  rattacheA: { fr: 'Votre signalement sera rattaché au n° {numero}.', pt: 'A sua ocorrência ficará associada à n.º {numero}.' },
+  nouveauProbleme: {
+    fr: 'Votre signalement sera enregistré comme un nouveau problème.',
+    pt: 'A sua ocorrência será registada como um novo problema.',
+  },
+  envoyer: { fr: 'Envoyer le signalement', pt: 'Enviar a ocorrência' },
+  envoiEnCours: { fr: 'Envoi en cours…', pt: 'A enviar…' },
+  transmis: {
+    fr: 'Votre signalement est transmis à l’administrateur de la copropriété, pas directement à un artisan.',
+    pt: 'A sua ocorrência é transmitida ao administrador do condomínio, não diretamente a um profissional.',
+  },
+  confirmationTitre: { fr: 'Votre signalement a bien été envoyé le {date}.', pt: 'A sua ocorrência foi enviada em {date}.' },
+  confirmationNumero: { fr: 'Numéro : {numero}', pt: 'Número: {numero}' },
+  confirmationSuite: {
+    fr: 'L’administrateur vous recontactera au {telephone} ou à l’adresse {email}.',
+    pt: 'O administrador contactá-lo-á pelo {telephone} ou pelo e-mail {email}.',
+  },
+  autreSignalement: { fr: 'Faire un autre signalement', pt: 'Reportar outro problema' },
+  champObligatoire: { fr: 'Ce champ est obligatoire.', pt: 'Este campo é obrigatório.' },
+  emailInvalide: {
+    fr: 'Indiquez une adresse e-mail valide (ex. nom@domaine.fr).',
+    pt: 'Indique um endereço de e-mail válido (ex. nome@dominio.pt).',
+  },
+  telephoneInvalide: { fr: 'Indiquez un numéro de téléphone valide.', pt: 'Indique um número de telefone válido.' },
+  erreurs: parLangue({
+    invalide: {
+      fr: 'Le signalement n’a pas pu être enregistré : vérifiez vos coordonnées et la description, puis réessayez.',
+      pt: 'A ocorrência não pôde ser registada: verifique os seus contactos e a descrição e tente novamente.',
+    },
+    trop_de_demandes: {
+      fr: 'Trop d’envois en peu de temps : réessayez dans une minute.',
+      pt: 'Demasiados envios em pouco tempo: tente novamente dentro de um minuto.',
+    },
+    serveur: {
+      fr: 'Le signalement n’a pas pu être envoyé. Réessayez dans un instant.',
+      pt: 'A ocorrência não pôde ser enviada. Tente novamente dentro de instantes.',
+    },
+    reseau: {
+      fr: 'Connexion impossible : vérifiez votre réseau puis réessayez.',
+      pt: 'Ligação impossível: verifique a sua rede e tente novamente.',
+    },
+    introuvable: {
+      fr: 'Ce QR code n’est plus valable. Rapprochez-vous de l’administrateur de la copropriété.',
+      pt: 'Este código QR já não é válido. Contacte o administrador do condomínio.',
+    },
+    base_absente: {
+      fr: 'Le service de signalement n’est pas encore activé. Réessayez plus tard.',
+      pt: 'O serviço de ocorrências ainda não está ativo. Tente mais tarde.',
+    },
+  }),
+  piedDePage: { fr: 'AJ Signalement — un service VITFIX', pt: 'AJ Signalement — um serviço VITFIX' },
+})

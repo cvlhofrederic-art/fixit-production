@@ -15,7 +15,8 @@ export const CONFIGS_MODULES_GENERIQUES: Record<string, ConfigModuleGenerique> =
 
 /**
  * Les 76 écrans, dans l'ordre de la maquette. Toutes les routes de SECTIONS_NAVIGATION y figurent, sauf la
- * pseudo-route « logout ».
+ * pseudo-route « logout ». « Signalements QR » est sorti de l'AJ le 10/11/2026 : espace indépendant /fr/aj-signalement/,
+ * avec un lien au pied de la barre latérale pour le seul super admin (components/common/LienAjSignalement.tsx).
  */
 export const ECRANS_PAR_ROUTE: Record<string, ComponentType> = {
   fiche360: dynamic(() => import('@/components/administrateur-judiciaire/modules/pilotage/Fiche360CoproprieteModule').then((mod) => mod.Fiche360CoproprieteModule)),
@@ -59,7 +60,6 @@ export const ECRANS_PAR_ROUTE: Record<string, ComponentType> = {
   affichage: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/TableauAffichageModule').then((mod) => mod.TableauAffichageModule)),
   sondages: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/SondagesModule').then((mod) => mod.SondagesModule)),
   doleances: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/DoleancesModule').then((mod) => mod.DoleancesModule)),
-  signalementsQr: dynamic(() => import('@/components/administrateur-judiciaire/modules/extranet/SignalementsQrModule').then((mod) => mod.SignalementsQrModule)),
   rgpd: dynamic(() => import('@/components/administrateur-judiciaire/modules/conformite/CentreRgpdModule').then((mod) => mod.CentreRgpdModule)),
   accessibilite: dynamic(() => import('@/components/administrateur-judiciaire/modules/conformite/AccessibiliteModule').then((mod) => mod.AccessibiliteModule)),
   procurations: dynamic(() => import('@/components/administrateur-judiciaire/modules/conformite/ProcurationsModule').then((mod) => mod.ProcurationsModule)),
@@ -114,7 +114,7 @@ export const REGISTRE_ECRANS: Record<string, ComponentType> = {
  * (cockpit, retiré du menu le 29/10/2026 : son ancre est redirigée vers le tableau de bord).
  */
 export const STATUTS_ECRANS = {
-  reel: ['copros', 'prestataires', 'tresorerie', 'reprise', 'fiche360', 'personne360', 'dossierJuge', 'fixy', 'signalementsQr'],
+  reel: ['copros', 'prestataires', 'tresorerie', 'reprise', 'fiche360', 'personne360', 'dossierJuge', 'fixy'],
   partiel: [
     'cockpit',
     'dashboard',

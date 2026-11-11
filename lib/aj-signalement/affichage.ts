@@ -1,11 +1,15 @@
 // ── Libellés et calculs d'affichage du tableau de bord « AJ Signalement » ─────
 //
-// Fonctions pures, sans React, partagées par le tableau de bord du portail copropriétaire (vue super
-// admin), l'écran miroir de l'Administrateur judiciaire et l'e-mail envoyé à l'administrateur. Textes
-// en français : l'administrateur est un outil français ; la page publique, elle, est FR / PT (textes.ts).
+// Fonctions pures, sans React, partagées par l'espace « AJ Signalement » du super admin (/fr/aj-signalement/)
+// et l'e-mail envoyé à l'administrateur. Textes en français : l'administrateur est un outil français ; la
+// page publique, elle, est FR / PT (textes.ts).
 
-import type { CoproprieteQr, PrioriteSignalementQr, SignalementQr, StatutSignalementQr } from '@/lib/aj-signalement/types'
+import {
+  numeroSignalementQr, type CoproprieteQr, type LangueSignalementQr, type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr,
+  type StatutSignalementQr,
+} from '@/lib/aj-signalement/types'
 import type { CodeErreurQr } from '@/lib/aj-signalement/api'
+import { remplir } from '@/lib/coproprietaire/textes'
 
 /** Migration à appliquer en production pour que les tables existent (message d'erreur « base_absente »). */
 export const MIGRATION_QR = 'supabase/migrations/20261104_signalements_qr.sql'
@@ -68,6 +72,18 @@ export function lieuSignalementQr(s: Pick<SignalementQr, 'estPartieCommune' | 'z
 /** « Prénom Nom ». */
 export const nomDeclarantQr = (s: Pick<SignalementQr, 'prenom' | 'nom'>): string => `${s.prenom} ${s.nom}`.trim()
 
+export const LIBELLE_QUALITE_QR: Record<QualiteDeclarantQr, string> = {
+  proprietaire: 'Propriétaire',
+  locataire: 'Locataire',
+}
+
+/** Qualité du déclarant ; « Non indiquée » pour les signalements déposés avant le 06/11/2026. */
+export const libelleQualiteQr = (qualite: QualiteDeclarantQr | null): string => (qualite ? LIBELLE_QUALITE_QR[qualite] : 'Non indiquée')
+
+/** « Même problème que le signalement n° 1A2B3C4D » ; '' sans signalement lié. */
+export const texteSignalementLieQr = (id: string | null): string =>
+  (id ? remplir(TEXTES_TABLEAU_QR.memeProbleme, { numero: numeroSignalementQr(id) }) : '')
+
 /** « bât. B · étage 4 · lot 12 », sans les parties vides. */
 export function situationLotQr(s: Pick<SignalementQr, 'batiment' | 'etage' | 'numLot'>): string {
   return [
@@ -77,11 +93,25 @@ export function situationLotQr(s: Pick<SignalementQr, 'batiment' | 'etage' | 'nu
   ].filter(Boolean).join(' · ')
 }
 
-/** « 4 novembre 2026 à 14:05 » (heure de Paris) ; la chaîne brute si la date est illisible. */
-export function dateHeureParis(iso: string): string {
+const LOCALE_DATE_QR: Record<LangueSignalementQr, string> = { fr: 'fr-FR', pt: 'pt-PT' }
+
+/**
+ * « 4 novembre 2026 à 14:05 » / « 4 de novembro de 2026 às 14:05 », toujours à l'heure de Paris (le serveur
+ * Cloudflare est en UTC) ; la chaîne brute si la date est illisible.
+ */
+export function dateHeureParis(iso: string, langue: LangueSignalementQr = 'fr'): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', dateStyle: 'long', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(LOCALE_DATE_QR[langue], { timeZone: 'Europe/Paris', dateStyle: 'long', timeStyle: 'short' }).format(date)
+}
+
+/** Détail du tableau : « Confirmation envoyée au déclarant le … » ou « Confirmation non envoyée au déclarant : … ». */
+export function etatConfirmationQr(s: Pick<SignalementQr, 'confirmationEnvoyeeLe' | 'confirmationErreur'>): string {
+  const d = TEXTES_TABLEAU_QR.detail
+  if (s.confirmationEnvoyeeLe) return remplir(d.confirmationEnvoyee, { date: dateHeureParis(s.confirmationEnvoyeeLe) })
+  if (s.confirmationErreur) return remplir(d.confirmationNonEnvoyee, { erreur: s.confirmationErreur })
+  // Dépôts antérieurs à la confirmation (colonnes nulles), ou état non enregistré.
+  return d.confirmationAbsente
 }
 
 export interface CompteursTableauQr {
@@ -151,7 +181,7 @@ export const TEXTES_TABLEAU_QR = {
   reessayer: 'Réessayer',
   mettreAJour: 'Mettre à jour',
   derniereMiseAJour: 'Dernière mise à jour à {heure}',
-  kpis: { recus: 'Reçus au total', aTraiter: 'À traiter', enCours: 'En cours', resolus: 'Résolus' },
+  kpis: { recus: 'Reçus', aTraiter: 'À traiter', enCours: 'En cours', resolus: 'Résolus' },
   coproprietes: 'Copropriétés et QR codes',
   ajouterCopro: 'Ajouter une copropriété',
   aucuneCopro: 'Aucune copropriété pour le moment : ajoutez-en une pour obtenir son QR code.',
@@ -168,6 +198,12 @@ export const TEXTES_TABLEAU_QR = {
   libelleQr: 'QR code de la copropriété {nom}',
   qrDesactive: 'QR code désactivé',
   sansAdresse: 'Adresse non renseignée',
+  derniereAdresseProposee: 'Dernière adresse proposée d’après la position d’un déclarant ({date}) : {adresse}',
+  utiliserAdresse: 'Utiliser cette adresse',
+  enregistrementAdresse: 'Enregistrement…',
+  adresseEnregistree: 'Adresse enregistrée.',
+  erreurAdresse: 'L’adresse n’a pas pu être enregistrée. Réessayez.',
+  memeProbleme: 'Même problème que le signalement n° {numero}',
   signalements: 'Signalements reçus',
   aucunSignalement: 'Aucun signalement reçu pour le moment.',
   aucunSignalementFiltre: 'Aucun signalement pour cette copropriété.',
@@ -179,6 +215,9 @@ export const TEXTES_TABLEAU_QR = {
   detail: {
     titre: 'Signalement {numero}',
     declarant: 'Déclarant',
+    qualite: 'Qualité',
+    signalementLie: 'Signalement lié',
+    adresseProposee: 'Adresse proposée (position du déclarant)',
     telephone: 'Téléphone',
     email: 'E-mail',
     lot: 'Lot',
@@ -190,6 +229,9 @@ export const TEXTES_TABLEAU_QR = {
     description: 'Description',
     emailEnvoye: 'E-mail reçu le {date}.',
     emailNonEnvoye: 'E-mail non envoyé : {erreur}.',
+    confirmationEnvoyee: 'Confirmation envoyée au déclarant le {date}.',
+    confirmationNonEnvoyee: 'Confirmation non envoyée au déclarant : {erreur}.',
+    confirmationAbsente: 'Confirmation non envoyée au déclarant.',
     statut: 'Statut',
     fermer: 'Fermer',
     erreurStatut: 'Le statut n’a pas pu être modifié. Réessayez.',

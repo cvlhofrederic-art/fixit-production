@@ -41,6 +41,8 @@ const DASHBOARD_PATH_PREFIXES = [
   '/syndic/v54',
   // Succursale Administrateur Judiciaire (son propre shell, flag ADMINISTRATEUR_JUDICIAIRE_LIVE)
   '/administrateur-judiciaire',
+  // Espace AJ Signalement du super admin (son propre shell) ; la page publique du QR code est /signalement/<jeton>/.
+  '/aj-signalement',
   // Copropriétaire (dormant)
   '/coproprietaire/',
   // Admin

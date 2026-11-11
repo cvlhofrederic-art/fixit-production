@@ -380,8 +380,9 @@ export const coproSignalementSchema = z.object({
 })
 
 // ── AJ Signalement (signalements déposés par QR code) ───────────────────────
-// Dépôt public : la copropriété est désignée par le jeton du QR code ; les coordonnées du déclarant
-// sont obligatoires (bâtiment facultatif). Mêmes bornes que lib/aj-signalement/formulaire.ts.
+// Dépôt public : la copropriété est désignée par le jeton du QR code ; tous les champs du déclarant sont
+// obligatoires, bâtiment et qualité (propriétaire / locataire) compris depuis le 06/11/2026 ; pour les parties
+// communes, la zone l'est aussi. Mêmes bornes et mêmes règles que lib/aj-signalement/formulaire.ts.
 export const jetonQrSchema = z.string().regex(/^[0-9a-f]{32}$/, 'Jeton de QR code invalide')
 
 export const signalementQrSchema = z.object({
@@ -392,14 +393,34 @@ export const signalementQrSchema = z.object({
     .regex(/^\+?[0-9 .()\-]+$/, 'Téléphone invalide')
     .refine((v) => (v.match(/\d/g) ?? []).length >= 6, 'Téléphone invalide'),
   email: strictEmail,
-  batiment: z.string().trim().max(50).optional().default(''),
+  batiment: z.string().trim().min(1, 'Bâtiment requis').max(50),
   etage: z.string().trim().min(1, 'Étage requis').max(20),
   numLot: z.string().trim().min(1, 'Numéro de lot requis').max(20),
+  qualiteDeclarant: z.enum(['proprietaire', 'locataire'], 'Qualité requise (propriétaire ou locataire)'),
   estPartieCommune: z.boolean(),
   zoneSignalee: z.string().trim().max(200).optional().default(''),
   typeIntervention: z.string().trim().min(1, 'Type de problème requis').max(100),
   description: z.string().trim().min(10, 'Description requise (minimum 10 caractères)').max(5000),
   priorite: z.enum(['urgente', 'normale', 'planifiee']),
+  langue: z.enum(['fr', 'pt']).optional().default('fr'),
+  // Adresse proposée d'après la position (texte seul, jamais les coordonnées) ; ignorée si la copropriété a une adresse.
+  adresseProposee: z.string().trim().max(300).optional().default(''),
+  // Numéro du signalement désigné comme « le même problème » ; le serveur le cherche parmi les semblables de la copropriété.
+  signalementLieNumero: z.union([z.literal(''), z.string().regex(/^[0-9A-F]{8}$/, 'Numéro de signalement invalide')]).optional().default(''),
+}).refine((d) => !d.estPartieCommune || d.zoneSignalee !== '', { path: ['zoneSignalee'], message: 'Zone requise pour les parties communes' })
+
+// Adresse proposée d'après la position du navigateur (copropriété sans adresse). Zod 4 refuse NaN et l'infini.
+export const adresseQrSchema = z.object({
+  jeton: jetonQrSchema,
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+})
+
+// Signalements déjà faits au même endroit (paramètres de GET /api/aj-signalement/similaires).
+export const semblablesQrQuerySchema = z.object({
+  jeton: jetonQrSchema,
+  batiment: z.string().trim().min(1, 'Bâtiment requis').max(50),
+  zone: z.string().trim().min(1, 'Zone requise').max(200),
   langue: z.enum(['fr', 'pt']).optional().default('fr'),
 })
 

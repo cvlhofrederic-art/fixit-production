@@ -4,8 +4,12 @@
 // par un composant client. Accès aux tables signalements_qr_* avec la clé service (supabaseAdmin) :
 // la RLS n'a aucune politique, donc tout contrôle d'accès est ici.
 //   - dépôt public : la copropriété est trouvée par son jeton (QR code) ; rien d'autre n'est exigé ;
-//   - tableau de bord : super admin seulement, par jeton Bearer (portail copropriétaire) ou par les
-//     cookies de session (Administrateur judiciaire). Les copropriétés QR n'appartiennent à aucun cabinet.
+//   - tableau de bord : super admin seulement ; espace AJ Signalement (/fr/aj-signalement/, cookies de session ;
+//     jeton Bearer accepté quand l'appelant en donne un). Les copropriétés QR n'appartiennent à aucun cabinet.
+// Colonnes ajoutées le 06/11/2026 (confirmation au déclarant, qualité, adresse proposée, signalement lié) : tant
+// que leurs migrations ne sont pas appliquées en production, PostgREST refuse toute requête qui les nomme (42703 en
+// lecture, PGRST204 en écriture). Chaque lecture ou écriture qui les nomme prévoit donc un repli sans elles,
+// journalisé une fois par isolat et par opération (règle de CLAUDE.md).
 
 import { NextResponse, type NextRequest } from 'next/server'
 import type { User } from '@supabase/supabase-js'
@@ -15,21 +19,52 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { estSuperAdmin } from '@/lib/coproprietaire/acces'
 import { logger } from '@/lib/logger'
 import {
-  JETON_QR, PRIORITES_SIGNALEMENT_QR, STATUTS_SIGNALEMENT_QR,
-  type CoproprieteQr, type LangueSignalementQr, type PrioriteSignalementQr, type SignalementQr, type StatutSignalementQr, type TableauQr,
+  JETON_QR, PRIORITES_SIGNALEMENT_QR, STATUTS_OUVERTS_QR, STATUTS_SIGNALEMENT_QR, estQualiteDeclarantQr,
+  type AdresseProposeeQr, type CoproprieteQr, type LangueSignalementQr, type PrioriteSignalementQr, type SignalementQr,
+  type StatutSignalementQr, type TableauQr,
 } from '@/lib/aj-signalement/types'
+import {
+  COLONNES_SEMBLABLES_QR, SEMBLABLES_LUS_MAX, dateLimiteSemblablesQr, selectionnerSemblablesQr, variantesZoneQr,
+  type LigneSemblableQr, type RechercheSemblablesQr,
+} from '@/lib/aj-signalement/semblables'
 
 export const TABLE_COPROPRIETES_QR = 'signalements_qr_coproprietes'
 export const TABLE_SIGNALEMENTS_QR = 'signalements_qr'
 /** Migration à appliquer en production pour que les tables existent. */
 export const MIGRATION_QR = 'supabase/migrations/20261104_signalements_qr.sql'
+/** Migrations du 06/11/2026, à appliquer dans cet ordre (avant la fusion) ; d'ici là, repli sans leurs colonnes. */
+export const MIGRATION_CONFIRMATION_QR = 'supabase/migrations/20261106_signalements_qr_confirmation.sql'
+export const MIGRATION_GEOLOC_QUALITE_QR = 'supabase/migrations/20261106_signalements_qr_geoloc_qualite.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
+type ErreurBase = { code?: string; message?: string }
+
 /** Erreur PostgREST « relation does not exist » : la migration n'est pas appliquée. */
 export const baseAbsente = (erreur: { code?: string } | null | undefined): boolean => erreur?.code === '42P01'
+
+/**
+ * Colonne inconnue de la base : 42703 (« column … does not exist ») en lecture, PGRST204 (« Could not find the '…'
+ * column … in the schema cache ») en insertion ou en mise à jour. La requête entière est alors refusée : la rejouer
+ * sans les nouvelles colonnes ne crée aucun doublon.
+ */
+export const colonneInconnue = (erreur: ErreurBase | null | undefined): boolean => erreur?.code === '42703' || erreur?.code === 'PGRST204'
+
+const replisJournalises = new Set<string>()
+
+/** Un avertissement par opération et par isolat (Worker) : la production n'est pas noyée tant que la migration manque. */
+function journaliserRepliUneFois(operation: string, erreur: ErreurBase | null, migration: string): void {
+  if (replisJournalises.has(operation)) return
+  replisJournalises.add(operation)
+  logger.warn(`${CONTEXTE} colonnes absentes : repli sans les colonnes du 06/11/2026 (${operation})`, {
+    migration, code: erreur?.code, message: erreur?.message,
+  })
+}
+
+/** Tests : chaque cas repart d'un isolat « neuf ». */
+export const reinitialiserReplisQr = (): void => replisJournalises.clear()
 
 export const reponseErreur = (code: string, status: number): NextResponse => NextResponse.json({ error: code }, { status })
 
@@ -38,9 +73,14 @@ export const reponseErreurBase = (erreur: { code?: string } | null | undefined):
   (baseAbsente(erreur) ? reponseErreur('base_absente', 503) : reponseErreur('serveur', 500))
 
 export const COLONNES_COPROPRIETE_QR = 'id, nom, adresse, jeton, emails_destinataires, actif, created_at'
+/** Colonnes des migrations du 06/11/2026 : peut-être absentes en production (repli). */
+export const COLONNES_NOUVELLES_SIGNALEMENT_QR: readonly string[] = [
+  'confirmation_envoyee_le', 'confirmation_erreur', 'qualite_declarant', 'adresse_proposee', 'signalement_lie_id',
+]
 export const COLONNES_SIGNALEMENT_QR =
   'id, copropriete_id, prenom, nom, telephone, email, batiment, etage, num_lot, est_partie_commune, zone_signalee, ' +
-  'type_intervention, description, priorite, statut, langue, email_envoye_le, email_erreur, created_at, updated_at'
+  'type_intervention, description, priorite, statut, langue, email_envoye_le, email_erreur, ' +
+  `${COLONNES_NOUVELLES_SIGNALEMENT_QR.join(', ')}, created_at, updated_at`
 
 export interface LigneCoproprieteQr {
   id: string
@@ -71,6 +111,13 @@ export interface LigneSignalementQr {
   langue: string | null
   email_envoye_le: string | null
   email_erreur: string | null
+  /** Migration 20261106_signalements_qr_confirmation : e-mail de confirmation au déclarant (absente avant). */
+  confirmation_envoyee_le?: string | null
+  confirmation_erreur?: string | null
+  /** Migration 20261106_signalements_qr_geoloc_qualite (absentes avant). */
+  qualite_declarant?: string | null
+  adresse_proposee?: string | null
+  signalement_lie_id?: string | null
   created_at: string | null
   updated_at: string | null
 }
@@ -90,17 +137,25 @@ export interface CompteursCoproprieteQr {
   enAttente: number
 }
 
-export function coproprieteDepuisLigne(ligne: LigneCoproprieteQr, compteurs: CompteursCoproprieteQr = { total: 0, enAttente: 0 }): CoproprieteQr {
+/** Copropriété sans signalement (compteurs absents). */
+const COMPTEURS_VIDES: Readonly<CompteursCoproprieteQr> = Object.freeze({ total: 0, enAttente: 0 })
+
+export function coproprieteDepuisLigne(
+  ligne: LigneCoproprieteQr, compteurs: Readonly<CompteursCoproprieteQr> = COMPTEURS_VIDES, derniereAdresseProposee: AdresseProposeeQr | null = null,
+): CoproprieteQr {
+  const adresse = chaine(ligne.adresse)
   return {
     id: ligne.id,
     nom: chaine(ligne.nom),
-    adresse: chaine(ligne.adresse),
+    adresse,
     jeton: ligne.jeton,
     emailsDestinataires: Array.isArray(ligne.emails_destinataires) ? ligne.emails_destinataires.filter((e): e is string => typeof e === 'string') : [],
     actif: ligne.actif !== false,
     creeLe: chaine(ligne.created_at),
     nbSignalements: compteurs.total,
     nbEnAttente: compteurs.enAttente,
+    // Une copropriété dont l'adresse est renseignée n'a rien à proposer.
+    derniereAdresseProposee: adresse.trim() ? null : derniereAdresseProposee,
   }
 }
 
@@ -125,6 +180,11 @@ export function signalementDepuisLigne(ligne: LigneSignalementQr, coproprieteNom
     langue: langueValide(ligne.langue),
     emailEnvoyeLe: ligne.email_envoye_le ?? null,
     emailErreur: ligne.email_erreur ?? null,
+    confirmationEnvoyeeLe: ligne.confirmation_envoyee_le ?? null,
+    confirmationErreur: ligne.confirmation_erreur ?? null,
+    qualiteDeclarant: estQualiteDeclarantQr(ligne.qualite_declarant) ? ligne.qualite_declarant : null,
+    adresseProposee: chaine(ligne.adresse_proposee),
+    signalementLieId: chaine(ligne.signalement_lie_id) || null,
     creeLe: chaine(ligne.created_at),
     misAJourLe: chaine(ligne.updated_at) || chaine(ligne.created_at),
   }
@@ -135,8 +195,8 @@ export function signalementDepuisLigne(ligne: LigneSignalementQr, coproprieteNom
 export type ControleSuperAdmin = { ok: true; user: User } | { ok: false; reponse: NextResponse }
 
 /**
- * Utilisateur du tableau de bord : jeton Bearer (portail copropriétaire), sinon cookies de session
- * (Administrateur judiciaire). 401 sans session, 403 pour un compte qui n'est pas super admin.
+ * Utilisateur de l'espace AJ Signalement : jeton Bearer quand l'appelant en donne un, sinon cookies de session (ce que
+ * fait l'espace /fr/aj-signalement/). 401 sans session, 403 pour un compte qui n'est pas super admin.
  */
 export async function controlerSuperAdmin(request: NextRequest): Promise<ControleSuperAdmin> {
   let user: User | null = await getAuthUser(request)
@@ -176,20 +236,53 @@ export async function lireCoproprieteParJeton(jeton: string): Promise<LectureCop
   return { ok: true, copropriete: (data as LigneCoproprieteQr | null) ?? null }
 }
 
+export type CoproprieteActiveQr = { ok: true; copropriete: LigneCoproprieteQr } | { ok: false; reponse: NextResponse }
+
+/**
+ * Routes publiques (dépôt, adresse proposée, signalements semblables) : la copropriété active du jeton, sinon la
+ * réponse à rendre (404 jeton inconnu, mal formé ou QR code désactivé ; 503 base_absente ; 500).
+ */
+export async function coproprieteActiveQr(jeton: string): Promise<CoproprieteActiveQr> {
+  const lecture = await lireCoproprieteParJeton(jeton)
+  if (!lecture.ok) return { ok: false, reponse: reponseErreur(lecture.code, lecture.code === 'base_absente' ? 503 : 500) }
+  if (!lecture.copropriete) return { ok: false, reponse: reponseErreur('introuvable', 404) }
+  return { ok: true, copropriete: lecture.copropriete }
+}
+
 export type LectureTableauQr = { ok: true; tableau: TableauQr } | { ok: false; code: 'base_absente' | 'serveur' }
 
-/** Tableau de bord : toutes les copropriétés (avec leurs compteurs) et les signalements les plus récents. */
+const lireSignalementsTableau = (colonnes: string) => supabaseAdmin
+  .from(TABLE_SIGNALEMENTS_QR)
+  .select(colonnes)
+  .order('created_at', { ascending: false })
+  .limit(SIGNALEMENTS_MAX)
+
+/** Copropriété → adresse proposée la plus récente (les signalements arrivent du plus récent au plus ancien). */
+function dernieresAdressesProposees(lignes: readonly LigneSignalementQr[]): Map<string, AdresseProposeeQr> {
+  const dernieres = new Map<string, AdresseProposeeQr>()
+  for (const s of lignes) {
+    const adresse = chaine(s.adresse_proposee).trim()
+    if (adresse && !dernieres.has(s.copropriete_id)) dernieres.set(s.copropriete_id, { adresse, le: chaine(s.created_at) })
+  }
+  return dernieres
+}
+
+/**
+ * Tableau de bord : toutes les copropriétés (avec leurs compteurs et, sans adresse, la dernière adresse proposée) et
+ * les signalements les plus récents. Colonne inconnue (migration du 06/11/2026 non appliquée) : relecture par
+ * select('*'), la liste blanche de signalementDepuisLigne ne garde que les champs connus.
+ */
 export async function lireTableauQr(): Promise<LectureTableauQr> {
   const copros = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select(COLONNES_COPROPRIETE_QR).order('created_at', { ascending: true })
   if (copros.error) {
     logger.error(`${CONTEXTE} lecture des copropriétés`, { code: copros.error.code, message: copros.error.message })
     return { ok: false, code: baseAbsente(copros.error) ? 'base_absente' : 'serveur' }
   }
-  const signalements = await supabaseAdmin
-    .from(TABLE_SIGNALEMENTS_QR)
-    .select(COLONNES_SIGNALEMENT_QR)
-    .order('created_at', { ascending: false })
-    .limit(SIGNALEMENTS_MAX)
+  let signalements = await lireSignalementsTableau(COLONNES_SIGNALEMENT_QR)
+  if (colonneInconnue(signalements.error)) {
+    journaliserRepliUneFois('lecture du tableau', signalements.error, `${MIGRATION_CONFIRMATION_QR} puis ${MIGRATION_GEOLOC_QUALITE_QR}`)
+    signalements = await lireSignalementsTableau('*')
+  }
   if (signalements.error) {
     logger.error(`${CONTEXTE} lecture des signalements`, { code: signalements.error.code, message: signalements.error.message })
     return { ok: false, code: baseAbsente(signalements.error) ? 'base_absente' : 'serveur' }
@@ -204,13 +297,88 @@ export async function lireTableauQr(): Promise<LectureTableauQr> {
     if (statutValide(s.statut) === 'en_attente') compte.enAttente += 1
     compteurs.set(s.copropriete_id, compte)
   }
+  const dernieres = dernieresAdressesProposees(lignesSignalements)
   return {
     ok: true,
     tableau: {
-      coproprietes: lignesCopros.map((c) => coproprieteDepuisLigne(c, compteurs.get(c.id))),
+      coproprietes: lignesCopros.map((c) => coproprieteDepuisLigne(c, compteurs.get(c.id), dernieres.get(c.id) ?? null)),
       signalements: lignesSignalements.map((s) => signalementDepuisLigne(s, noms.get(s.copropriete_id) ?? '')),
     },
   }
+}
+
+export type LectureSemblablesQr = { ok: true; lignes: LigneSemblableQr[] } | { ok: false; code: 'base_absente' | 'serveur' }
+
+/**
+ * Signalements déjà faits au même endroit dans une copropriété : parties communes, statuts ouverts, moins de 60
+ * jours, même zone (FR ou PT) filtrés par la base ; même bâtiment normalisé, tri et limite à 5 ici. Seules des
+ * colonnes de la migration 20261104 sont lues : aucun repli n'est nécessaire.
+ */
+export async function lireSemblablesQr(coproprieteId: string, recherche: RechercheSemblablesQr, maintenant = new Date()): Promise<LectureSemblablesQr> {
+  const { data, error } = await supabaseAdmin
+    .from(TABLE_SIGNALEMENTS_QR)
+    .select(COLONNES_SEMBLABLES_QR)
+    .eq('copropriete_id', coproprieteId)
+    .eq('est_partie_commune', true)
+    .in('statut', [...STATUTS_OUVERTS_QR])
+    .gte('created_at', dateLimiteSemblablesQr(maintenant))
+    .in('zone_signalee', variantesZoneQr(recherche.zone))
+    .order('created_at', { ascending: false })
+    .limit(SEMBLABLES_LUS_MAX)
+  if (error) {
+    logger.error(`${CONTEXTE} lecture des signalements semblables`, { code: error.code, message: error.message, copropriete: coproprieteId })
+    return { ok: false, code: baseAbsente(error) ? 'base_absente' : 'serveur' }
+  }
+  return { ok: true, lignes: selectionnerSemblablesQr((data ?? []) as unknown as LigneSemblableQr[], recherche, maintenant) }
+}
+
+// ── Écritures d'un dépôt (avec repli tant que les migrations du 06/11/2026 manquent) ──
+
+const sansColonnesNouvelles = (ligne: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(ligne).filter(([colonne]) => !COLONNES_NOUVELLES_SIGNALEMENT_QR.includes(colonne)))
+
+export interface SignalementInsere {
+  id: string
+  created_at: string
+  updated_at: string | null
+}
+
+/**
+ * Insère un signalement. Colonne inconnue (qualité, adresse proposée, lien : migration geoloc_qualite non appliquée) :
+ * seconde insertion avec les seules colonnes d'origine, journalisée une fois. Le dépôt n'est jamais perdu pour autant :
+ * la qualité et l'adresse proposée restent dans les e-mails (en mémoire).
+ */
+export async function insererSignalementQr(ligne: Record<string, unknown>): Promise<{ data: SignalementInsere | null; error: ErreurBase | null }> {
+  const inserer = async (valeurs: Record<string, unknown>) => {
+    const { data, error } = await supabaseAdmin.from(TABLE_SIGNALEMENTS_QR).insert(valeurs).select('id, created_at, updated_at').single()
+    return { data: (data as SignalementInsere | null) ?? null, error: (error as ErreurBase | null) ?? null }
+  }
+  const premiere = await inserer(ligne)
+  if (!colonneInconnue(premiere.error)) return premiere
+  journaliserRepliUneFois('insertion d’un signalement', premiere.error, MIGRATION_GEOLOC_QUALITE_QR)
+  return inserer(sansColonnesNouvelles(ligne))
+}
+
+export interface EtatEmailsQr {
+  email_envoye_le: string | null
+  email_erreur: string | null
+  confirmation_envoyee_le: string | null
+  confirmation_erreur: string | null
+}
+
+/**
+ * État des deux e-mails, en une seule mise à jour. Colonnes de la confirmation inconnues (migration confirmation non
+ * appliquée) : mise à jour réduite à email_envoye_le et email_erreur, journalisée une fois. Ne lève pas.
+ */
+export async function enregistrerEtatEmailsQr(id: string, etat: EtatEmailsQr): Promise<void> {
+  const mettreAJour = async (valeurs: Record<string, unknown>) =>
+    (await supabaseAdmin.from(TABLE_SIGNALEMENTS_QR).update(valeurs).eq('id', id)).error as ErreurBase | null
+  let erreur = await mettreAJour({ ...etat })
+  if (colonneInconnue(erreur)) {
+    journaliserRepliUneFois('état des e-mails', erreur, MIGRATION_CONFIRMATION_QR)
+    erreur = await mettreAJour({ email_envoye_le: etat.email_envoye_le, email_erreur: etat.email_erreur })
+  }
+  if (erreur) logger.warn(`${CONTEXTE} état des e-mails non enregistré`, { code: erreur.code, message: erreur.message })
 }
 
 /** Compteurs d'une copropriété (après une modification, pour renvoyer une fiche complète). */
