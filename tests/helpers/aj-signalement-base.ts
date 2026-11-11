@@ -216,13 +216,11 @@ export function creerBaseQr() {
       range(de: number, a: number) { debut = de; limite = a - de + 1; return q },
       single() { unique = 'single'; return Promise.resolve(executer()) },
       maybeSingle() { unique = 'maybe'; return Promise.resolve(executer()) },
+      // NOSONAR typescript:S7739 - « thenable » VOULU : le constructeur de requête de Supabase s'attend sans être une
+      // promesse (`await supabase.from(…).select(…)`) ; le simulacre doit l'imiter, sinon le code testé ne peut pas
+      // s'exécuter. La requête ne part qu'à l'attente, comme chez Supabase.
+      then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { return Promise.resolve(executer()).then(ok, ko) },
     }
-    // Le constructeur de requête de Supabase s'attend (`await supabase.from(…).select(…)`) sans être une promesse : le
-    // simulacre doit l'imiter. `then` est posé hors du littéral, qu'un littéral portant `then` soit signalé (S7739).
-    Object.defineProperty(q, 'then', {
-      enumerable: true,
-      value: (ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(executer()).then(ok, ko),
-    })
     return q
   }
 
