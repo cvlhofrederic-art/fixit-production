@@ -27,7 +27,11 @@ beforeEach(() => {
 })
 
 describe('ConditionalLayout — espace AJ Signalement', () => {
-  it.each(['/fr/aj-signalement/', '/fr/aj-signalement', '/pt/aj-signalement/'])('%s : contenu seul, sans habillage marketing', (chemin) => {
+  it.each([
+    '/fr/aj-signalement/', '/fr/aj-signalement', '/pt/aj-signalement/',
+    // Page de connexion professionnelle de l'espace (11/11/2026) : sans en-tête ni pied marketing.
+    '/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/',
+  ])('%s : contenu seul, sans habillage marketing', (chemin) => {
     const { container } = rendre(chemin)
     expect(screen.getByText('contenu')).toBeInTheDocument()
     expect(screen.queryByTestId('entete-marketing')).toBeNull()

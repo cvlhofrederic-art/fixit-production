@@ -6,7 +6,7 @@
 // toute migration. middleware.ts en edge est le seul état fonctionnel.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { SEGMENT_ESPACE_QR, cheminEspaceQr, decisionAccesEspaceQr, pageRefusEspaceQr, viseEspaceQr } from '@/lib/aj-signalement/acces-espace'
+import { redirectionEspaceQr, viseEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
@@ -119,38 +119,14 @@ const CHEMINS_SUPPRIMES_PT = new Set([
 
 // ── Espaces privés (succursale Administrateur Judiciaire, espace AJ Signalement) : outils métier, jamais indexables ──
 // next.config.ts headers() pose X-Robots-Tag sur leurs pages rendues, mais OpenNext renvoie les réponses 3xx du middleware
-// sans y ajouter les en-têtes de la config (@opennextjs/aws core/routingHandler.js). Les redirections (et le refus de
-// l'espace AJ Signalement) qui en partent le portent donc ici. Même critère que le contrôle d'accès plus bas (chemin sans
-// préfixe de langue) ; l'espace AJ Signalement est comparé au segment exact (jamais la page publique /signalement/<jeton>/).
+// sans y ajouter les en-têtes de la config (@opennextjs/aws core/routingHandler.js). Les redirections qui en partent le
+// portent donc ici (page de connexion de l'espace AJ Signalement comprise). Même critère que le contrôle d'accès plus bas
+// (chemin sans préfixe de langue) ; l'espace AJ Signalement est comparé au segment exact (jamais la page publique
+// /signalement/<jeton>/).
 const X_ROBOTS_ESPACE_PRIVE = 'noindex, nofollow, noarchive'
 
 function viseEspacePrive(cheminSansLangue: string): boolean {
   return cheminSansLangue.startsWith('/administrateur-judiciaire') || viseEspaceQr(cheminSansLangue)
-}
-
-/** Cookies Supabase rafraîchis par getUser() recopiés sur une réponse rendue par le middleware lui-même. */
-function recopierCookiesSession(source: NextResponse, cible: NextResponse): void {
-  source.cookies.getAll().forEach((cookie) => {
-    cible.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
-  })
-}
-
-/**
- * Refus de l'espace AJ Signalement pour un compte connecté sans accès : page neutre rendue ici (rediriger vers
- * /auth/login renverrait vers l'espace du compte), sans donnée, non indexable, jamais en cache.
- */
-function reponseRefusEspaceQr(csp: string, session: NextResponse): NextResponse {
-  const reponse = new NextResponse(pageRefusEspaceQr(), {
-    status: 403,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Content-Security-Policy': csp,
-      'Cache-Control': CACHE_CONTROL_PRIVE,
-      'X-Robots-Tag': X_ROBOTS_ESPACE_PRIVE,
-    },
-  })
-  recopierCookiesSession(session, reponse)
-  return reponse
 }
 
 export async function middleware(request: NextRequest) {
@@ -355,18 +331,20 @@ export async function middleware(request: NextRequest) {
   // Helper: create a redirect with locale prefix — ALWAYS copies refreshed auth cookies
   // Depuis /en/, /nl/ ou /es/ (compte connecté sur l'accueil, espace d'un autre rôle, page protégée sans session), la
   // page visée est sous /pt/, comme « My space » (lib/i18n/liens-entete-pied.ts) : /en/artisan/dashboard/… répondait 404.
-  // `parametres` remplace la requête d'origine (sinon gardée telle quelle) : ?retour=… de l'espace AJ Signalement.
-  const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
-  const localeRedirect = (path: string, parametres?: Record<string, string>) => {
+  // `viderRequete` : la requête d'origine n'est pas reprise (espace AJ Signalement) ; sinon gardée telle quelle.
+  const localeRedirect = (path: string, viderRequete = false) => {
     const url = request.nextUrl.clone()
+    const langueCible = LANGUES_PAGES_COMMUNES.includes(locale) ? locale : 'pt'
     url.pathname = isInternalRoute ? path : `/${langueCible}${path}`
-    if (parametres) url.search = new URLSearchParams(parametres).toString()
+    if (viderRequete) url.search = ''
     const resp = NextResponse.redirect(url)
     if (!isInternalRoute) {
       poserCookieLangue(request, resp, locale)
     }
     // Propager les cookies Supabase rafraîchis vers le browser
-    recopierCookiesSession(supabaseResponse, resp)
+    supabaseResponse.cookies.getAll().forEach(cookie => {
+      resp.cookies.set(cookie.name, cookie.value, { path: '/', sameSite: 'lax', secure: process.env.NODE_ENV === 'production' })
+    })
     resp.headers.set('Content-Security-Policy', cspHeader)
     if (viseEspacePrive(strippedPathname)) resp.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
     return resp
@@ -374,13 +352,11 @@ export async function middleware(request: NextRequest) {
 
   // Espace AJ Signalement : la fonction pure (lib/aj-signalement/acces-espace.ts) est seule juge, avant la sortie du
   // super_admin ci-dessous, pour que la « vue en tant que » (_original_role) suive la même règle que l'API et le client.
-  // Sans compte → connexion avec retour vers l'espace ; compte sans accès → refus neutre ; accès → suite du parcours,
-  // sauf depuis /en/, /nl/ ou /es/ (aucune page dans ces langues) : renvoi vers l'espace de langueCible (/pt/), la même
-  // destination qu'après la connexion d'un visiteur sans session.
-  const accesEspaceQr = viseEspaceQr(strippedPathname) ? decisionAccesEspaceQr(user).acces : null
-  if (accesEspaceQr === 'connexion') return localeRedirect('/auth/login/', { retour: cheminEspaceQr(langueCible) })
-  if (accesEspaceQr === 'refuse') return reponseRefusEspaceQr(cspHeader, supabaseResponse)
-  if (accesEspaceQr === 'autorise' && langueCible !== locale) return localeRedirect(`${SEGMENT_ESPACE_QR}/`, {})
+  // Sans compte ou sans accès → page de connexion professionnelle de l'espace (message neutre pour un compte sans accès ;
+  // elle-même servie, jamais redirigée vers elle-même) ; compte admis sur cette page → l'espace ; depuis /en/, /nl/ ou
+  // /es/ (aucune page dans ces langues) → même destination sous /pt/. Requête d'origine vidée.
+  const versEspaceQr = redirectionEspaceQr(strippedPathname, locale, user)
+  if (versEspaceQr) return localeRedirect(versEspaceQr, true)
 
   // Super admin : accès libre à toutes les routes (pas de redirection forcée)
   if (role === 'super_admin') {

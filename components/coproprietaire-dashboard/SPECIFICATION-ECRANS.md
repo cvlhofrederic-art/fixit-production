@@ -254,9 +254,12 @@ Jamais de montant inventé : si l'espace n'a pas la donnée, dire qu'elle n'est 
 Le tableau de bord des signalements déposés par QR code n'est plus un écran du portail (ancien `EcranSignalementsQr`, du
 04/11 au 10/11/2026) : il vit dans son espace indépendant **/fr/aj-signalement/** (`app/(commun)/aj-signalement/`,
 `components/aj-signalement/espace/EspaceAjSignalement.tsx`), avec son menu (Tableau de bord, Copropriétés, Signalements) et sa
-connexion (`/fr/auth/login/?retour=/fr/aj-signalement/`). Accès : `lib/aj-signalement/acces-espace.ts` (super admin
-aujourd'hui, « vue en tant que » comprise ; le rôle gestionnaire s'y ajoutera), contrôlé par le middleware puis par la garde du
-navigateur ; les routes `/api/aj-signalement/*` restent réservées au super admin.
+page de connexion professionnelle **/fr/aj-signalement/connexion/** (11/11/2026 : e-mail et mot de passe, sans choix
+Particulier / Artisan / Pro ni Google ; `components/aj-signalement/espace/ConnexionEspaceQr.tsx`). La page de connexion
+générale (`/fr/auth/login/`) n'est pas concernée. Accès : `lib/aj-signalement/acces-espace.ts` (super admin aujourd'hui,
+« vue en tant que » comprise ; le rôle gestionnaire s'y ajoutera), contrôlé par le middleware puis par la garde du navigateur
+(sans session ou sans accès : page de connexion de l'espace, message neutre pour un compte sans accès) ; les routes
+`/api/aj-signalement/*` restent réservées au super admin.
 
 Le portail n'en garde qu'un **lien « AJ Signalement »** (icône `qr`, `t.menu.ajSignalement`), pour le seul super admin
 (`lienEspaceQr(metadonnees)`), au pied de la barre latérale (à côté de « Panneau admin ») et dans le menu « Plus » du téléphone ;
@@ -269,7 +272,8 @@ un lien au pied de la barre latérale (`components/common/LienAjSignalement.tsx`
   aucun lien avec les tables `syndic_*` ni avec le sélecteur de copropriété de l'AJ ou du portail.
 - Contenu de l'espace : `components/aj-signalement/TableauSignalementsQr.tsx` (une instance gardée montée, prop `vue`, un seul
   chargement), cartes `CarteCoproprieteQr`, fenêtres `ModaleCoproprieteQr` et `DetailSignalementQr` ; filtre par copropriété
-  toujours visible dans la vue Signalements.
+  toujours visible dans la vue Signalements. Tableau de bord (11/11/2026) : sous les quatre carrés, la liste de tous les
+  signalements reçus avec le même filtre (partagé avec la vue Signalements) ; les carrés comptent tous les signalements.
 - Parcours public, inchangé : `app/(commun)/signalement/[jeton]/page.tsx` → `components/aj-signalement/AppSignalementQr.tsx`.
 
 ## Décisions juridiques à respecter (relecture droit du 17/10/2026)

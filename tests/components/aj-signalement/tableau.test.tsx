@@ -4,8 +4,11 @@
 // gardée montée par l'espace, qui affiche la vue choisie dans son menu (Tableau de bord, Copropriétés, Signalements) :
 // - un seul chargement (GET tableau, avec le jeton quand il est donné) pour les trois vues ;
 // - changement de vue (menu ou bouton Retour du navigateur) : la fenêtre ouverte se ferme, le message de succès s'efface ;
-// - tableau de bord : présentation et indicateurs ; copropriétés : cartes (lien, QR code dessiné, destinataires),
-//   ajout, modification ; signalements : liste du plus récent au plus ancien, filtre par copropriété toujours visible ;
+// - tableau de bord : présentation, indicateurs, puis sous les quatre carrés la liste de tous les signalements reçus
+//   avec le filtre par copropriété (demande de Hugo du 11/11/2026 : mêmes lignes, même détail, même filtre que la vue
+//   Signalements, aucun second chargement ; les carrés restent ceux de tous les signalements) ;
+//   copropriétés : cartes (lien, QR code dessiné, destinataires), ajout, modification ;
+//   signalements : liste du plus récent au plus ancien, filtre par copropriété toujours visible ;
 // - détail : coordonnées cliquables, changement de statut (PATCH) répercuté sur la liste et les indicateurs ;
 // - nouvelle copropriété (POST) : carte ajoutée ; e-mails invalides refusés avant tout appel ;
 // - base non initialisée : message avec la migration et bouton Réessayer ;
@@ -98,13 +101,13 @@ describe('chargement et vues', () => {
     expect(appels[0].url).toBe('/api/aj-signalement/tableau')
     expect((appels[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer jeton')
 
-    // Tableau de bord : présentation et indicateurs.
+    // Tableau de bord : présentation, indicateurs, puis la liste de tous les signalements reçus (11/11/2026).
     expect(screen.getByText(T.intro)).toBeInTheDocument()
     expect(within(indicateurs()).getByText(T.kpis.recus).parentElement).toHaveTextContent('2')
     expect(within(indicateurs()).getByText(T.kpis.aTraiter).parentElement).toHaveTextContent('1')
     expect(within(indicateurs()).getByText(T.kpis.resolus).parentElement).toHaveTextContent('1')
     expect(screen.queryByRole('heading', { name: 'Parc Belle Ombre' })).toBeNull()
-    expect(screen.queryByRole('list')).toBeNull()
+    expect(lignes()).toHaveLength(2)
 
     // Copropriétés : cartes (lien, QR code, destinataires, compteurs).
     afficher('coproprietes')
@@ -209,6 +212,84 @@ describe('chargement et vues', () => {
     render(<TableauSignalementsQr jeton={null} vue="signalements" />)
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(T.erreurs.interdit))
     expect(screen.queryByRole('list')).toBeNull()
+  })
+})
+
+describe('tableau de bord : liste de tous les signalements reçus sous les indicateurs (Hugo, 11/11/2026)', () => {
+  const regionListe = () => screen.getByRole('region', { name: T.signalements })
+  const valeur = (libelle: string) => within(indicateurs()).getByText(libelle).previousElementSibling?.textContent
+  const filtre = () => within(regionListe()).getByLabelText(T.filtrerCopro)
+
+  it('sous les quatre carrés : section « Signalements reçus » (h2), toutes les lignes du plus récent au plus ancien, filtre par copropriété', async () => {
+    await rendrePret('tableau-de-bord')
+    const region = regionListe()
+    expect(region.tagName).toBe('SECTION')
+    expect(within(region).getByRole('heading', { level: 2, name: T.signalements })).toBeInTheDocument()
+    // Placée après les quatre carrés dans l'ordre du document (lecteur d'écran, téléphone).
+    expect(indicateurs().compareDocumentPosition(region) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(region).getByRole('list', { name: T.signalements })).toBeInTheDocument()
+    expect(lignes()).toHaveLength(2)
+    expect(lignes()[0]).toHaveTextContent('Marie Durand')
+    expect(lignes()[0]).toHaveTextContent('Urgent')
+    expect(lignes()[0]).toHaveTextContent('Même problème que le signalement n° 1A2B3C4D')
+    expect(lignes()[1]).toHaveTextContent('Paul Martin')
+    expect(lignes()[1]).toHaveTextContent('Résolu')
+    expect(within(filtre()).getAllByRole('option').map((o) => o.textContent)).toEqual([T.toutesCopros, 'Parc Belle Ombre', 'Les Oliviers'])
+    // Aucun h1 dans le contenu : le seul h1 est dans l'en-tête de l'espace.
+    expect(screen.queryAllByRole('heading', { level: 1 })).toHaveLength(0)
+  })
+
+  it('filtre : seules les lignes de la copropriété ; les carrés restent ceux de tous les signalements (« Reçus au total »)', async () => {
+    await rendrePret('tableau-de-bord')
+    fireEvent.change(filtre(), { target: { value: ID_COPRO_2 } })
+    expect(lignes()).toHaveLength(1)
+    expect(lignes()[0]).toHaveTextContent('Paul Martin')
+    expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['2', '1', '0', '1'])
+    // « Toutes les copropriétés » : autant de lignes que « Reçus au total ».
+    fireEvent.change(filtre(), { target: { value: '' } })
+    expect(lignes()).toHaveLength(Number(valeur(T.kpis.recus)))
+  })
+
+  it('« Voir le détail » depuis le tableau de bord : même fenêtre ; un statut changé met à jour carrés et ligne ensemble', async () => {
+    await rendrePret('tableau-de-bord', (appel) => (appel.init?.method === 'PATCH'
+      ? json({ signalement: { id: marie.id, statut: 'acceptee', misAJourLe: '2026-11-04T15:00:00.000Z' } })
+      : json({ tableau: tableau() })))
+    fireEvent.click(within(lignes()[0]).getByRole('button', { name: T.voirDetail }))
+    const dialogue = screen.getByRole('dialog')
+    expect(dialogue).toHaveTextContent('Fuite sous l’évier')
+    expect(within(dialogue).getByRole('link', { name: '06 12 34 56 78' })).toHaveAttribute('href', 'tel:0612345678')
+    fireEvent.click(within(dialogue).getByRole('button', { name: 'Prendre en charge' }))
+    await waitFor(() => expect(within(dialogue).getByRole('button', { name: 'Intervention en cours' })).toBeInTheDocument())
+    fireEvent.click(within(dialogue).getByRole('button', { name: T.detail.fermer }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(lignes()[0]).toHaveTextContent('Pris en charge')
+    expect([valeur(T.kpis.recus), valeur(T.kpis.aTraiter), valeur(T.kpis.enCours), valeur(T.kpis.resolus)]).toEqual(['2', '0', '1', '1'])
+    expect(appelsTableau()).toHaveLength(1)
+  })
+
+  it('filtre partagé avec la vue Signalements (dans les deux sens), toujours un seul chargement', async () => {
+    const { afficher } = await rendrePret('tableau-de-bord')
+    fireEvent.change(filtre(), { target: { value: ID_COPRO_2 } })
+    afficher('signalements')
+    expect(screen.getByLabelText(T.filtrerCopro)).toHaveValue(ID_COPRO_2)
+    expect(lignes()).toHaveLength(1)
+    fireEvent.change(screen.getByLabelText(T.filtrerCopro), { target: { value: ID_COPRO } })
+    afficher('tableau-de-bord')
+    expect(filtre()).toHaveValue(ID_COPRO)
+    expect(lignes()).toHaveLength(1)
+    expect(lignes()[0]).toHaveTextContent('Marie Durand')
+    afficher('coproprietes')
+    afficher('tableau-de-bord')
+    expect(appelsTableau()).toHaveLength(1)
+  })
+
+  it('aucun signalement : « Aucun signalement reçu pour le moment. » sous les carrés ; copropriété sans signalement : message du filtre', async () => {
+    const vide: TableauQr = { coproprietes: tableau().coproprietes, signalements: [] }
+    await rendrePret('tableau-de-bord', () => json({ tableau: vide }))
+    expect(within(regionListe()).getByText(T.aucunSignalement)).toBeInTheDocument()
+    expect(screen.queryByRole('list')).toBeNull()
+    fireEvent.change(filtre(), { target: { value: ID_COPRO } })
+    expect(within(regionListe()).getByText(T.aucunSignalementFiltre)).toBeInTheDocument()
   })
 })
 

@@ -107,6 +107,13 @@ describe('pages privées : noindex, nofollow', () => {
     expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
     expect(metadata.title).toBe('AJ Signalement')
   })
+
+  it('/fr|pt/aj-signalement/connexion/ (connexion professionnelle de l’espace) : noindex, nofollow, noarchive, titre propre', async () => {
+    // Robots redits par la page (sous le layout de l'espace) : un changement du layout ne la rendrait pas indexable.
+    const metadata = await metadataDe(import('@/app/(commun)/aj-signalement/connexion/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — AJ Signalement')
+  })
 })
 
 describe('sitemaps : aucune page privée soumise', () => {

@@ -7,8 +7,9 @@
 // verifierSessionNavigateur), jamais sur la seule session locale, puis decisionAccesEspaceQr(app_metadata) :
 // - « chargement » : rien n'est affiché ni chargé ;
 // - « autorise » : l'espace peut charger ses données ;
-// - « connexion » (aucune session, ou session refusée) : renvoi vers la page de connexion avec retour vers l'espace ;
-// - « refuse » : message neutre, aucune donnée ;
+// - « connexion » (aucune session, session refusée, ou compte sans accès) : renvoi vers la page de connexion
+//   professionnelle de l'espace (/fr/aj-signalement/connexion/, ancre comprise), qui affiche le message neutre à un
+//   compte sans accès ; aucune donnée ;
 // - « indisponible » (réseau, verrou d'auth, serveur lent) : message et « Réessayer », sans redirection ni rechargement
 //   (boucles du lot 1 Sentry du 28/10/2026).
 // Une déconnexion (SIGNED_OUT, depuis un autre onglet compris) ramène à « connexion ». Les droits restent vérifiés par
@@ -27,15 +28,17 @@ export type EtatAccesQr =
   | { statut: 'chargement' }
   | { statut: 'autorise'; role: RoleEspaceQr; lienAdmin: string | null }
   | { statut: 'connexion' }
-  | { statut: 'refuse' }
   | { statut: 'indisponible' }
 
-/** État de l'espace d'après la vérification de la session (pur). */
+/**
+ * État de l'espace d'après la vérification de la session (pur). Compte sans accès : « connexion », comme sans session
+ * (une seule sortie ; la page de connexion de l'espace ne renvoie jamais un compte sans accès ailleurs : pas de boucle).
+ */
 export function etatAccesDepuisVerdict(verdict: VerificationSession): EtatAccesQr {
   if (verdict.statut === 'indisponible') return { statut: 'indisponible' }
   if (verdict.statut === 'refusee') return { statut: 'connexion' }
   const decision = decisionAccesEspaceQr(verdict.user)
-  if (decision.acces !== 'autorise') return { statut: 'refuse' }
+  if (decision.acces !== 'autorise') return { statut: 'connexion' }
   return { statut: 'autorise', role: decision.role, lienAdmin: lienPanneauAdmin(verdict.user.app_metadata) }
 }
 
@@ -44,7 +47,7 @@ export const langueDeLaPage = (): LangueEspaceQr => (window.location.pathname.st
 
 export interface AccesEspaceQr {
   etat: EtatAccesQr
-  /** Page de connexion avec retour vers l'espace (lien de secours pendant la redirection). */
+  /** Page de connexion professionnelle de l'espace (lien de secours pendant la redirection). */
   connexion: string
   reessayer: () => void
   seDeconnecter: () => Promise<void>
@@ -72,7 +75,8 @@ export function useAccesEspaceQr(): AccesEspaceQr {
     }
   }, [essai])
 
-  // Sans session : page de connexion (remplace l'entrée d'historique : « retour » ne ramène pas sur la garde).
+  // Sans session ou sans accès : page de connexion de l'espace (remplace l'entrée d'historique : « retour » ne ramène
+  // pas sur la garde). L'ancre (#signalements du lien de l'e-mail) suit : la page de connexion la reprend à l'arrivée.
   useEffect(() => {
     if (etat.statut === 'connexion') window.location.replace(`${connexion}${window.location.hash}`)
   }, [etat.statut, connexion])
@@ -96,9 +100,10 @@ export function useAccesEspaceQr(): AccesEspaceQr {
       toast.error(TEXTES_ESPACE_QR.deconnexionImpossible)
       return
     }
-    // Remplace l'entrée d'historique : « retour » ne rouvre pas l'espace d'une session fermée.
-    window.location.replace(`/${langueDeLaPage()}/auth/login/`)
-  }, [])
+    // Page de connexion de l'espace (pas la page générale) ; remplace l'entrée d'historique : « retour » ne rouvre pas
+    // l'espace d'une session fermée.
+    window.location.replace(connexion)
+  }, [connexion])
 
   return { etat, connexion, reessayer, seDeconnecter }
 }

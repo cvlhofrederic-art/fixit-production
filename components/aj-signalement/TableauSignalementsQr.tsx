@@ -4,11 +4,14 @@
 //
 // Une seule instance, gardée montée par l'espace (components/aj-signalement/espace/EspaceAjSignalement.tsx) : un seul
 // chargement (GET /api/aj-signalement/tableau) pour les trois vues de son menu :
-//   - tableau de bord : présentation et indicateurs ;
+//   - tableau de bord : présentation, indicateurs (tous les signalements), puis sous les quatre carrés la liste de tous
+//     les signalements reçus avec le filtre par copropriété (demande de Hugo du 11/11/2026) ;
 //   - copropriétés : cartes avec leur QR code (affiche PDF, QR PNG, lien, destinataires, modification, nouvelle
 //     copropriété, adresse proposée d'après la position d'un déclarant quand elle manque) ;
 //   - signalements : filtre par copropriété toujours visible, « même problème que le signalement n° X », détail avec
 //     coordonnées et changement de statut.
+// Tableau de bord et Signalements partagent la même liste (ListeSignalementsQr), le même filtre (choisi dans l'une, il
+// reste choisi dans l'autre) et la même fenêtre de détail.
 // Aucun lien avec le sélecteur de copropriété de l'AJ ni avec celui du portail. Rien n'est écrit dans le navigateur :
 // les données servies restent en mémoire. Textes en français (outil de l'administrateur).
 
@@ -151,9 +154,17 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
   const { coproprietes, signalements } = etat.tableau
   const detail = fenetre?.type === 'detail' ? signalements.find((s) => s.id === fenetre.id) ?? null : null
 
+  const liste: PropsListeSignalementsQr = {
+    coproprietes,
+    signalements,
+    filtre: filtreCopro,
+    onFiltre: setFiltreCopro,
+    onOuvrir: (id) => ouvrir({ type: 'detail', id }),
+  }
+
   return (
     <div className="space-y-6">
-      {vue === 'tableau-de-bord' && <VueTableauDeBordQr signalements={signalements} />}
+      {vue === 'tableau-de-bord' && <VueTableauDeBordQr liste={liste} />}
       {vue === 'coproprietes' && (
         <VueCoproprietesQr
           coproprietes={coproprietes}
@@ -163,15 +174,7 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
           onUtiliserAdresse={utiliserAdresse}
         />
       )}
-      {vue === 'signalements' && (
-        <VueSignalementsQr
-          coproprietes={coproprietes}
-          signalements={signalements}
-          filtre={filtreCopro}
-          onFiltre={setFiltreCopro}
-          onOuvrir={(id) => ouvrir({ type: 'detail', id })}
-        />
-      )}
+      {vue === 'signalements' && <ListeSignalementsQr {...liste} />}
 
       <p className="flex flex-wrap items-center justify-between gap-3 text-sm text-[#4A5E78]">
         <span>{remplir(T.derniereMiseAJour, { heure: heureCourte(etat.miseAJourLe, 'fr') })}</span>
@@ -199,7 +202,16 @@ export default function TableauSignalementsQr({ jeton, vue }: Readonly<PropsTabl
 
 // ── Vues ─────────────────────────────────────────────────────────────────────
 
-function VueTableauDeBordQr({ signalements }: Readonly<{ signalements: readonly SignalementQr[] }>) {
+const ID_TITRE_LISTE_TDB = 'qr-tdb-liste'
+
+/**
+ * Tableau de bord : présentation, quatre carrés, puis (demande de Hugo du 11/11/2026) la liste de tous les signalements
+ * reçus avec le filtre par copropriété. Les carrés comptent TOUS les signalements (« Reçus au total ») : le filtre,
+ * placé sous le titre de la liste, ne vaut que pour la liste ; chaque carte de copropriété a déjà ses propres compteurs.
+ * Avec « Toutes les copropriétés », la liste a autant de lignes que « Reçus au total ».
+ */
+function VueTableauDeBordQr({ liste }: Readonly<{ liste: PropsListeSignalementsQr }>) {
+  const { signalements } = liste
   const compteurs = useMemo(() => compteursTableauQr(signalements), [signalements])
   return (
     <>
@@ -218,6 +230,9 @@ function VueTableauDeBordQr({ signalements }: Readonly<{ signalements: readonly 
             <p className="mt-1 text-sm text-[#4A5E78]">{libelle}</p>
           </Carte>
         ))}
+      </section>
+      <section aria-labelledby={ID_TITRE_LISTE_TDB} className="space-y-4">
+        <ListeSignalementsQr {...liste} titre={{ id: ID_TITRE_LISTE_TDB, texte: T.signalements }} />
       </section>
     </>
   )
@@ -260,23 +275,31 @@ function VueCoproprietesQr({ coproprietes, message, onAjouter, onModifier, onUti
   )
 }
 
-interface PropsVueSignalementsQr {
+interface PropsListeSignalementsQr {
   coproprietes: readonly CoproprieteQr[]
   signalements: readonly SignalementQr[]
   filtre: string
   onFiltre: (coproprieteId: string) => void
   onOuvrir: (id: string) => void
+  /** Titre (h2) posé à gauche du filtre : tableau de bord ; sans titre, le filtre seul à droite (vue Signalements). */
+  titre?: { id: string; texte: string }
 }
 
-function VueSignalementsQr({ coproprietes, signalements, filtre, onFiltre, onOuvrir }: Readonly<PropsVueSignalementsQr>) {
+/**
+ * Liste des signalements reçus, du plus récent au plus ancien, et son filtre par copropriété : la même dans la vue
+ * Signalements et sous les carrés du tableau de bord (mêmes lignes, même « Voir le détail », même filtre).
+ */
+function ListeSignalementsQr({ coproprietes, signalements, filtre, onFiltre, onOuvrir, titre }: Readonly<PropsListeSignalementsQr>) {
   const visibles = useMemo(() => filtrerSignalementsQr(signalements, filtre), [signalements, filtre])
   return (
     <>
-      {/* Filtre propre à l'espace, toujours visible (même avec une seule copropriété) ; aucun sélecteur extérieur. */}
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <label className="flex items-center gap-2 text-sm text-[#4A5E78]">
+      {/* Filtre propre à l'espace, toujours visible (même avec une seule copropriété) ; aucun sélecteur extérieur.
+          min-w-0 et max-w-full : un nom de copropriété très long n'élargit pas la page au-delà de l'écran. */}
+      <div className={`flex flex-wrap items-center gap-3 ${titre ? 'justify-between' : 'justify-end'}`}>
+        {titre && <h2 id={titre.id} className="text-lg font-bold leading-snug text-[#0D1B2E]">{titre.texte}</h2>}
+        <label className="flex min-w-0 max-w-full items-center gap-2 text-sm text-[#4A5E78]">
           <span>{T.filtrerCopro}</span>
-          <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
+          <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] min-w-0 max-w-full rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
             <option value="">{T.toutesCopros}</option>
             {coproprietes.map((c) => <option key={c.id} value={c.id}>{c.nom}</option>)}
           </select>

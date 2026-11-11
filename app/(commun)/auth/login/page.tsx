@@ -5,21 +5,10 @@ import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
-import { PARAMETRE_RETOUR_QR, retourApresConnexionQr } from '@/lib/aj-signalement/acces-espace'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
 type Espace = 'particulier' | 'artisan' | 'syndic'
-
-/**
- * Destination après connexion : l'adresse de retour demandée (?retour=…), suivie seulement pour l'espace AJ Signalement
- * (liste blanche exacte et rôle admis, lib/aj-signalement/acces-espace.ts) ; sinon l'espace du rôle, inchangé.
- * Le rôle vient de app_metadata (posé côté serveur), jamais de user_metadata.
- */
-function destinationFinale(appMetadata: Record<string, unknown> | undefined, locale: string): string {
-  const retour = new URLSearchParams(window.location.search).get(PARAMETRE_RETOUR_QR)
-  return retourApresConnexionQr(retour, window.location.hash, appMetadata) ?? destinationApresConnexion(appMetadata?.role, locale)
-}
 
 const SPACES = [
   { id: 'particulier' as Espace, emoji: '🏠', labelKey: 'auth.espaceParticulier', descKey: 'auth.espaceParticulierDesc', registerHref: '/auth/register' },
@@ -51,7 +40,7 @@ export default function LoginPage() {
       const verdict = await verifierSessionNavigateur(supabase.auth)
       if (annule || connexionEnCours.current) return
       if (verdict.statut === 'valide') {
-        window.location.href = destinationFinale(verdict.user.app_metadata, locale)
+        window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale)
       } else if (verdict.statut === 'refusee' && verdict.motif === 'authentification') {
         // Cookies d'une session que Supabase refuse : on les retire pour que le formulaire reparte sainement.
         try {
@@ -87,7 +76,7 @@ export default function LoginPage() {
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); connexionEnCours.current = false; return }
-      window.location.href = destinationFinale(data.user?.app_metadata, locale)
+      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale)
     } catch {
       // Anti-phishing : toute erreur de login affiche le même message
       // (évite de divulguer si l'email existe ou si c'est une erreur réseau).

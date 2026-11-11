@@ -1,11 +1,11 @@
 // tests/components/aj-signalement/espace.test.tsx
 //
-// Espace indépendant « AJ Signalement » (/fr/aj-signalement/, demande de Hugo du 10/11/2026), côté navigateur :
+// Espace indépendant « AJ Signalement » (/fr/aj-signalement/, demandes de Hugo du 10 et du 11/11/2026), côté navigateur :
 // - garde : session validée auprès de Supabase (getUser) puis decisionAccesEspaceQr(app_metadata) ; aucune donnée
 //   chargée avant (fetch jamais appelé en chargement, sans session, en refus ni en session indisponible) ;
-// - sans session : renvoi vers la page de connexion avec retour vers l'espace (ancre comprise) ;
-// - autre compte : message neutre, sans menu ni donnée ; session indisponible : message et Réessayer, sans
-//   redirection ni rechargement ;
+// - sans session ou autre compte : renvoi vers la page de connexion professionnelle de l'espace
+//   (/fr/aj-signalement/connexion/, ancre comprise ; message neutre là-bas), sans menu ni donnée, jamais la page de
+//   connexion générale ; session indisponible : message et Réessayer, sans redirection ni rechargement ;
 // - super admin : en-tête « AJ Signalement », menu Tableau de bord / Copropriétés / Signalements (aria-current, ancres,
 //   un h1 par vue, focus sur le titre, titre d'onglet), un seul chargement du tableau malgré les changements de vue ;
 // - retour du navigateur : la vue suit l'ancre (sans ancre : Tableau de bord) ; une ancre qui ne désigne aucune vue
@@ -129,38 +129,40 @@ describe('garde de l’espace : aucune donnée avant le contrôle de rôle', () 
     expect(appelsFetch).toEqual([])
   })
 
-  it('sans session : renvoi vers la connexion avec retour vers l’espace (ancre comprise), aucun appel', async () => {
+  it('sans session : renvoi vers la connexion professionnelle de l’espace (ancre comprise), aucun appel', async () => {
     simulerLocation('/fr/aj-signalement/', '#signalements')
     simul.getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() })
     render(<EspaceAjSignalement />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/auth/login/?retour=%2Ffr%2Faj-signalement%2F#signalements']))
+    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/#signalements']))
     expect(screen.getByRole('status')).toHaveTextContent('Redirection vers la page de connexion…')
-    expect(screen.getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', '/fr/auth/login/?retour=%2Ffr%2Faj-signalement%2F')
+    expect(screen.getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', '/fr/aj-signalement/connexion/')
     expect(appelsFetch).toEqual([])
   })
 
-  it('sans session, en portugais : page de connexion /pt/ et retour vers /pt/aj-signalement/', async () => {
+  it('sans session, en portugais : connexion de l’espace sous /pt/', async () => {
     simulerLocation('/pt/aj-signalement/')
     simul.getUser.mockResolvedValue({ data: { user: null }, error: null })
     render(<EspaceAjSignalement />)
-    await waitFor(() => expect(navigations).toEqual(['/pt/auth/login/?retour=%2Fpt%2Faj-signalement%2F']))
+    await waitFor(() => expect(navigations).toEqual(['/pt/aj-signalement/connexion/']))
   })
 
   it.each([
     ['syndic', { role: 'syndic' }, {}],
     ['copropriétaire', { role: 'coproprio' }, {}],
     ['copropriétaire au user_metadata trafiqué', { role: 'coproprio' }, { role: 'super_admin', _original_role: 'super_admin' }],
-  ])('compte %s : message neutre, sans menu ni donnée ni redirection', async (_cas, app, user) => {
-    simulerLocation('/fr/aj-signalement/')
+  ])('compte %s : renvoi vers la connexion de l’espace (message neutre là-bas), sans menu ni donnée', async (_cas, app, user) => {
+    simulerLocation('/fr/aj-signalement/', '#signalements')
     simul.getUser.mockResolvedValue(utilisateur(app, user))
     render(<EspaceAjSignalement />)
-    expect(await screen.findByRole('heading', { level: 1, name: 'Accès réservé' })).toBeInTheDocument()
-    expect(screen.getByText('Cet espace n’est pas accessible avec votre compte.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Retour à l’accueil' })).toHaveAttribute('href', '/')
+    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/#signalements']))
+    expect(screen.getByRole('status')).toHaveTextContent('Redirection vers la page de connexion…')
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    expect(screen.queryByText('Accès réservé')).toBeNull()
     expect(screen.queryByRole('navigation')).toBeNull()
     expect(document.body.textContent?.toLowerCase()).not.toContain('super')
     expect(appelsFetch).toEqual([])
-    expect(navigations).toEqual([])
+    // La session n'est pas fermée ici : la page de connexion affiche le message neutre et propose un autre compte.
+    expect(simul.signOut).not.toHaveBeenCalled()
   })
 
   it('session indisponible (réseau) : message et Réessayer, ni redirection ni rechargement ; Réessayer relance la vérification', async () => {
@@ -273,13 +275,21 @@ describe('super admin : coquille de l’espace', () => {
 })
 
 describe('déconnexion', () => {
-  it('« Se déconnecter » : fermeture de la session puis page de connexion', async () => {
+  it('« Se déconnecter » : fermeture de la session puis page de connexion de l’espace', async () => {
     simulerLocation('/fr/aj-signalement/')
     simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
     render(<EspaceAjSignalement />)
     fireEvent.click(await screen.findByRole('button', { name: 'Se déconnecter' }))
-    await waitFor(() => expect(navigations).toEqual(['/fr/auth/login/']))
+    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/']))
     expect(simul.signOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('« Se déconnecter » en portugais : connexion de l’espace sous /pt/', async () => {
+    simulerLocation('/pt/aj-signalement/')
+    simul.getUser.mockResolvedValue(utilisateur({ role: 'super_admin' }))
+    render(<EspaceAjSignalement />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Se déconnecter' }))
+    await waitFor(() => expect(navigations).toEqual(['/pt/aj-signalement/connexion/']))
   })
 
   it('échec de la déconnexion : message (toast), on reste dans l’espace', async () => {
@@ -298,7 +308,7 @@ describe('déconnexion', () => {
     render(<EspaceAjSignalement />)
     await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
     await act(async () => { simul.rappels.forEach((rappel) => rappel('SIGNED_OUT', null)) })
-    await waitFor(() => expect(navigations).toEqual(['/fr/auth/login/?retour=%2Ffr%2Faj-signalement%2F']))
+    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/connexion/']))
     expect(screen.queryByRole('navigation')).toBeNull()
   })
 })

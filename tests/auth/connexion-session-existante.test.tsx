@@ -9,12 +9,10 @@
  * - refusée pour authentification (401/403/404) → fermeture de la session locale, formulaire affiché ;
  * - absente ou indisponible (réseau, AbortError du verrou) → ni redirection ni déconnexion ;
  * - une connexion lancée par l'utilisateur prime sur une vérification encore en cours.
- * Retour après connexion (espace AJ Signalement, 10/11/2026) : ?retour=/fr/aj-signalement/ n'est suivi que s'il est dans
- * la liste blanche de lib/aj-signalement/acces-espace.ts ET que le rôle a accès à l'espace ; sinon destination habituelle.
  */
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AuthApiError, AuthSessionMissingError } from '@supabase/supabase-js'
 
 const simul = vi.hoisted(() => ({
@@ -51,7 +49,7 @@ import LoginPage from '@/app/(commun)/auth/login/page'
 let navigations: string[] = []
 let descripteurLocation: PropertyDescriptor | undefined
 
-function installerLocation(search = '', hash = '') {
+function installerLocation() {
   navigations = []
   descripteurLocation = Object.getOwnPropertyDescriptor(window, 'location')
   Object.defineProperty(window, 'location', {
@@ -59,8 +57,7 @@ function installerLocation(search = '', hash = '') {
     value: {
       origin: 'https://vitfix.io',
       pathname: '/fr/auth/login/',
-      search,
-      hash,
+      search: '',
       get href() { return 'https://vitfix.io/fr/auth/login/' },
       set href(destination: string) { navigations.push(destination) },
       assign: (destination: string) => { navigations.push(destination) },
@@ -69,23 +66,9 @@ function installerLocation(search = '', hash = '') {
   })
 }
 
-const utilisateur = (role: string, metadonnees: Record<string, unknown> = {}, user_metadata: Record<string, unknown> = {}) =>
-  ({ id: 'u1', app_metadata: { role, ...metadonnees }, user_metadata })
+const utilisateur = (role: string) => ({ id: 'u1', app_metadata: { role }, user_metadata: {} })
 const abortError = () => new DOMException('signal is aborted without reason', 'AbortError')
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-/** Choisit l'espace, attend le formulaire de connexion, le remplit avec cette adresse et l'envoie. */
-async function envoyerFormulaire(espace: string, email: string) {
-  fireEvent.click(screen.getByText(espace))
-  const formulaire = await waitFor(() => {
-    const f = document.querySelector('form')
-    if (!f) throw new Error('formulaire absent')
-    return f
-  })
-  fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: email } })
-  fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'secret-de-test' } })
-  fireEvent.submit(formulaire)
-}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -137,7 +120,15 @@ describe('page de connexion — session déjà présente', () => {
     simul.signInWithPassword.mockResolvedValue({ data: { user: utilisateur('client') }, error: null })
     render(<LoginPage />)
 
-    await envoyerFormulaire('auth.espaceParticulier', 'camille@example.com')
+    fireEvent.click(screen.getByText('auth.espaceParticulier'))
+    const formulaire = await waitFor(() => {
+      const f = document.querySelector('form')
+      if (!f) throw new Error('formulaire absent')
+      return f
+    })
+    fireEvent.change(document.querySelector('input[type="email"]')!, { target: { value: 'camille@example.com' } })
+    fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: 'secret-de-test' } })
+    fireEvent.submit(formulaire)
     await waitFor(() => expect(navigations).toEqual(['/fr/client/dashboard']))
 
     await act(async () => {
@@ -145,65 +136,5 @@ describe('page de connexion — session déjà présente', () => {
       await attendre(20)
     })
     expect(navigations).toEqual(['/fr/client/dashboard'])
-  })
-})
-
-describe('page de connexion — retour vers l’espace AJ Signalement', () => {
-  const RETOUR = '?retour=%2Ffr%2Faj-signalement%2F'
-
-  async function seConnecter(role: string) {
-    simul.getUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() })
-    simul.signInWithPassword.mockResolvedValue({ data: { user: utilisateur(role) }, error: null })
-    render(<LoginPage />)
-    await envoyerFormulaire('auth.espacePro', 'admin@example.com')
-  }
-
-  it('session déjà validée d’un super admin : arrivée sur l’espace, ancre connue comprise', async () => {
-    installerLocation(RETOUR, '#signalements')
-    simul.getUser.mockResolvedValue({ data: { user: utilisateur('super_admin') }, error: null })
-    render(<LoginPage />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/#signalements']))
-  })
-
-  it('« vue en tant que » d’un super admin : arrivée sur l’espace', async () => {
-    installerLocation(RETOUR)
-    simul.getUser.mockResolvedValue({ data: { user: utilisateur('coproprio', { _original_role: 'super_admin' }) }, error: null })
-    render(<LoginPage />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/']))
-  })
-
-  it('connexion réussie d’un super admin : arrivée sur l’espace', async () => {
-    installerLocation(RETOUR, '#coproprietes')
-    await seConnecter('super_admin')
-    await waitFor(() => expect(navigations).toEqual(['/fr/aj-signalement/#coproprietes']))
-  })
-
-  it('compte sans accès (copropriétaire, même avec un user_metadata trafiqué ; syndic) : retour ignoré, espace de son rôle', async () => {
-    installerLocation(RETOUR)
-    simul.getUser.mockResolvedValue({ data: { user: utilisateur('coproprio', {}, { role: 'super_admin' }) }, error: null })
-    render(<LoginPage />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/client/dashboard']))
-    cleanup()
-    installerLocation(RETOUR)
-    await seConnecter('syndic')
-    await waitFor(() => expect(navigations).toEqual(['/fr/syndic/dashboard']))
-  })
-
-  it.each([
-    '?retour=%2F%2Fevil.example',
-    '?retour=https%3A%2F%2Fevil.example%2Ffr%2Faj-signalement%2F',
-    '?retour=%2Ffr%2Fadmin%2Fdashboard%2F',
-    '?retour=javascript%3Aalert(1)',
-  ])('retour hostile (%s) : ignoré, destination habituelle', async (search) => {
-    installerLocation(search)
-    simul.getUser.mockResolvedValue({ data: { user: utilisateur('super_admin') }, error: null })
-    render(<LoginPage />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/client/dashboard']))
-  })
-
-  it('sans retour : destinations inchangées (super admin vers /fr/client/dashboard)', async () => {
-    simul.getUser.mockResolvedValue({ data: { user: utilisateur('super_admin') }, error: null })
-    render(<LoginPage />)
-    await waitFor(() => expect(navigations).toEqual(['/fr/client/dashboard']))
   })
 })

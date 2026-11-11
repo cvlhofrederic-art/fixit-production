@@ -1,18 +1,27 @@
-// ── Espace « AJ Signalement » : adresse, droits d'accès, menu, retour après connexion ─────────────
+// ── Espace « AJ Signalement » : adresse, droits d'accès, menu, page de connexion de l'espace ──────
 //
 // Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) :
-// une adresse à lui (/fr/aj-signalement/), son menu, sa connexion. Aujourd'hui seul le super admin y entre (y compris
-// en « vue en tant que », _original_role) ; chaque gestionnaire y aura plus tard sa page : il suffira d'ajouter son
-// rôle à RoleEspaceQr, une branche à roleEspaceQr et ses entrées de menu (« Gestionnaires » pour le super admin).
+// une adresse à lui (/fr/aj-signalement/), son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/,
+// demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Aujourd'hui seul le
+// super admin y entre (y compris en « vue en tant que », _original_role) ; chaque gestionnaire y aura plus tard sa
+// page : il suffira d'ajouter son rôle à RoleEspaceQr, une branche à roleEspaceQr et ses entrées de menu
+// (« Gestionnaires » pour le super admin).
 //
-// Module pur, sans aucune dépendance : importé par le middleware (edge), la page de connexion, l'espace lui-même et les
-// liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces décisions ne
-// donnent aucun droit : les routes /api/aj-signalement/* revérifient le super admin côté serveur (controlerSuperAdmin).
+// Module pur, sans aucune dépendance : importé par le middleware (edge), la page de connexion de l'espace, l'espace
+// lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces
+// décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient le super admin côté serveur
+// (controlerSuperAdmin). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas.
 
 /** Segment de l'espace, sans préfixe de langue (servi par réécriture depuis /fr/ et /pt/, next.config.ts). */
 export const SEGMENT_ESPACE_QR = '/aj-signalement'
 
+/** Page de connexion professionnelle de l'espace, sans préfixe de langue (réécritures exactes, next.config.ts). */
+const SEGMENT_CONNEXION_QR = `${SEGMENT_ESPACE_QR}/connexion`
+
 export type LangueEspaceQr = 'fr' | 'pt'
+
+/** Langues qui ont une page de l'espace (réécritures de next.config.ts) ; en, nl, es n'en ont pas. */
+const LANGUES_ESPACE_QR: readonly string[] = ['fr', 'pt'] satisfies readonly LangueEspaceQr[]
 
 const langueEspace = (langue: string): LangueEspaceQr => (langue === 'pt' ? 'pt' : 'fr')
 
@@ -28,6 +37,15 @@ export const CHEMIN_ESPACE_QR = cheminEspaceQr('fr')
  */
 export function viseEspaceQr(cheminSansLangue: string): boolean {
   return cheminSansLangue === SEGMENT_ESPACE_QR || cheminSansLangue.startsWith(`${SEGMENT_ESPACE_QR}/`)
+}
+
+/**
+ * Le chemin, SANS préfixe de langue, est-il la page de connexion de l'espace ? Segment exact, avec ou sans barre
+ * finale (jamais /aj-signalement/connexionx/ ni un sous-chemin). Elle fait partie de l'espace (viseEspaceQr) mais n'en
+ * redirige jamais un visiteur sans accès vers elle-même (pas de boucle, redirectionEspaceQr).
+ */
+export function estConnexionEspaceQr(cheminSansLangue: string): boolean {
+  return cheminSansLangue === SEGMENT_CONNEXION_QR || cheminSansLangue === `${SEGMENT_CONNEXION_QR}/`
 }
 
 // ── Droits ───────────────────────────────────────────────────────────────────
@@ -54,9 +72,10 @@ function roleEspaceQr(metadonnees: MetadonneesApp): RoleEspaceQr | null {
 
 /**
  * Décision d'accès pour un utilisateur Supabase (ou null sans session). Seul `app_metadata` est lu.
- * - pas de compte → « connexion » (page de connexion avec retour vers l'espace) ;
+ * - pas de compte → « connexion » (page de connexion de l'espace) ;
  * - rôle admis → « autorise » ;
- * - tout autre compte, app_metadata absent ou illisible compris → « refuse » (message neutre, aucune donnée).
+ * - tout autre compte, app_metadata absent ou illisible compris → « refuse » (page de connexion de l'espace, avec un
+ *   message neutre : aucune donnée, aucun rôle nommé).
  */
 export function decisionAccesEspaceQr(utilisateur: { app_metadata?: unknown } | null | undefined): DecisionAccesEspaceQr {
   if (!utilisateur) return { acces: 'connexion' }
@@ -101,7 +120,7 @@ export function vueDepuisAncreQr(ancre: string, role: RoleEspaceQr): VueEspaceQr
   return entreesMenuQr(role).find((entree) => entree.vue === nom)?.vue ?? VUE_PAR_DEFAUT_QR
 }
 
-/** Vue exactement désignée par l'ancre, sans repli (retour après connexion) ; null si l'ancre n'en désigne aucune. */
+/** Vue exactement désignée par l'ancre, sans repli (arrivée après connexion) ; null si l'ancre n'en désigne aucune. */
 function vueExacteQr(ancre: string | null | undefined, role: RoleEspaceQr): VueEspaceQr | null {
   const nom = (ancre ?? '').replace(/^#/, '')
   return entreesMenuQr(role).find((entree) => entree.vue === nom)?.vue ?? null
@@ -116,36 +135,45 @@ export function vueApresRetourQr(ancre: string, role: RoleEspaceQr): VueEspaceQr
   return vueExacteQr(ancre, role)
 }
 
-// ── Connexion ────────────────────────────────────────────────────────────────
+// ── Connexion professionnelle de l'espace ────────────────────────────────────
 
-/** Paramètre de la page de connexion qui porte l'adresse de retour. */
-export const PARAMETRE_RETOUR_QR = 'retour'
+/** Page de connexion de l'espace dans une langue (/fr/aj-signalement/connexion/), sans paramètre. */
+export const cheminConnexionEspaceQr = (langue: string): string => `/${langueEspace(langue)}${SEGMENT_CONNEXION_QR}/`
 
-/** Retours acceptés, tels qu'ils arrivent, et leur adresse normalisée (liste blanche exacte : rien d'autre). */
-const RETOURS_ACCEPTES_QR: ReadonlyMap<string, string> = new Map(
-  (['fr', 'pt'] as const).flatMap((langue) => {
-    const chemin = cheminEspaceQr(langue)
-    return [[chemin, chemin], [chemin.slice(0, -1), chemin]] as const
-  }),
-)
-
-/** Page de connexion de la langue avec retour vers l'espace de la même langue. */
-export function cheminConnexionEspaceQr(langue: string): string {
-  const l = langueEspace(langue)
-  return `/${l}/auth/login/?${new URLSearchParams({ [PARAMETRE_RETOUR_QR]: cheminEspaceQr(l) }).toString()}`
+/**
+ * Redirection du middleware pour un chemin SANS préfixe de langue (null : la requête suit son cours). Le chemin
+ * renvoyé est lui aussi sans langue : le middleware le place sous /fr/ ou /pt/ (en, nl, es → /pt/).
+ * - page de connexion de l'espace : servie sans session et à un compte sans accès (message neutre, aucune boucle) ;
+ *   un compte admis est envoyé dans l'espace ;
+ * - reste de l'espace : sans session ou sans accès → page de connexion de l'espace ; accès → la page.
+ * Depuis en, nl ou es (aucune page dans ces langues), toujours un renvoi vers la même destination.
+ */
+export function redirectionEspaceQr(
+  cheminSansLangue: string,
+  langue: string,
+  utilisateur: { app_metadata?: unknown } | null | undefined,
+): string | null {
+  if (!viseEspaceQr(cheminSansLangue)) return null
+  const admis = decisionAccesEspaceQr(utilisateur).acces === 'autorise'
+  const pageDeLaLangue = LANGUES_ESPACE_QR.includes(langue)
+  if (estConnexionEspaceQr(cheminSansLangue)) {
+    if (admis) return `${SEGMENT_ESPACE_QR}/`
+    return pageDeLaLangue ? null : `${SEGMENT_CONNEXION_QR}/`
+  }
+  if (!admis) return `${SEGMENT_CONNEXION_QR}/`
+  return pageDeLaLangue ? null : `${SEGMENT_ESPACE_QR}/`
 }
 
 /**
- * Adresse où envoyer un compte qui vient de se connecter avec ?retour=… : l'espace (fr ou pt), plus l'ancre si elle
- * désigne une vue de son rôle ; null si le retour n'est pas exactement l'adresse de l'espace (redirection ouverte) ou
- * si le rôle n'y a pas accès (la page de connexion garde alors la destination habituelle du rôle).
+ * Adresse d'arrivée après la connexion professionnelle : l'espace donné par la page (jamais lu dans l'URL : aucune
+ * redirection ouverte possible), plus l'ancre si elle désigne exactement une vue du rôle (#signalements du lien de
+ * l'e-mail) ; null si le compte n'a pas accès (la page affiche alors le message neutre).
  */
-export function retourApresConnexionQr(brut: string | null | undefined, ancre: string | null | undefined, appMetadata: MetadonneesApp): string | null {
-  const chemin = brut ? RETOURS_ACCEPTES_QR.get(brut) : undefined
+export function destinationConnexionEspaceQr(espace: string, ancre: string | null | undefined, appMetadata: MetadonneesApp): string | null {
   const role = roleEspaceQr(appMetadata)
-  if (!chemin || !role) return null
+  if (!role) return null
   const vue = vueExacteQr(ancre, role)
-  return vue ? `${chemin}#${vue}` : chemin
+  return vue ? `${espace}#${vue}` : espace
 }
 
 // ── Textes ───────────────────────────────────────────────────────────────────
@@ -163,28 +191,6 @@ export const TEXTES_ESPACE_QR = {
   seDeconnecter: 'Se déconnecter',
   deconnexionImpossible: 'La déconnexion a échoué. Réessayez.',
   panneauAdmin: 'Panneau admin',
-  refus: {
-    titre: 'Accès réservé',
-    texte: 'Cet espace n’est pas accessible avec votre compte.',
-    retour: 'Retour à l’accueil',
-  },
+  /** Compte connecté sans accès (page de connexion de l'espace) : ne nomme aucun rôle, n'affiche aucune donnée. */
+  sansAcces: 'Cet espace n’est pas accessible avec votre compte.',
 } as const
-
-/**
- * Page du refus (403) rendue par le middleware pour un compte sans accès : HTML minimal, en français, sans script ni
- * donnée, sans dire quel rôle est requis.
- */
-export function pageRefusEspaceQr(): string {
-  const r = TEXTES_ESPACE_QR.refus
-  return [
-    '<!doctype html>',
-    '<html lang="fr">',
-    '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<meta name="robots" content="noindex, nofollow, noarchive">',
-    `<title>${r.titre}</title>`,
-    '<style>body{margin:0;font-family:system-ui,sans-serif;background:#F7F4EE;color:#0D1B2E}main{max-width:32rem;margin:15vh auto;padding:0 1rem}a{color:#0D1B2E}</style>',
-    '</head>',
-    `<body><main><h1>${r.titre}</h1><p>${r.texte}</p><p><a href="/">${r.retour}</a></p></main></body>`,
-    '</html>',
-  ].join('\n')
-}

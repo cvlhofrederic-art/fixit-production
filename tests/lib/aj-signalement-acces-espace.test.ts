@@ -1,14 +1,17 @@
 // tests/lib/aj-signalement-acces-espace.test.ts
 //
-// Espace indépendant « AJ Signalement » (demande de Hugo du 10/11/2026) : adresse, contrôle d'accès, menu et retour
-// après connexion, dans un module pur (lib/aj-signalement/acces-espace.ts) partagé par le middleware, la page de
-// connexion, l'espace lui-même et les liens du portail copropriétaire et de l'AJ. Aujourd'hui seul le super admin entre
-// (y compris en « vue en tant que ») ; la décision ne lit que app_metadata, jamais user_metadata.
+// Espace indépendant « AJ Signalement » (demande de Hugo du 10/11/2026) : adresse, contrôle d'accès, menu, page de
+// connexion professionnelle de l'espace (demande de Hugo du 11/11/2026) et arrivée après connexion, dans un module pur
+// (lib/aj-signalement/acces-espace.ts) partagé par le middleware, la page de connexion de l'espace, l'espace lui-même et
+// les liens du portail copropriétaire et de l'AJ. Aujourd'hui seul le super admin entre (y compris en « vue en tant
+// que ») ; la décision ne lit que app_metadata, jamais user_metadata. La page de connexion générale de VitFix n'est
+// plus concernée : aucun paramètre « retour ».
 
 import { describe, expect, it } from 'vitest'
+import * as accesEspace from '@/lib/aj-signalement/acces-espace'
 import {
-  CHEMIN_ESPACE_QR, ENTREES_MENU_QR, cheminConnexionEspaceQr, cheminEspaceQr, decisionAccesEspaceQr, entreesMenuQr,
-  lienEspaceQr, pageRefusEspaceQr, retourApresConnexionQr, viseEspaceQr, vueApresRetourQr, vueDepuisAncreQr,
+  CHEMIN_ESPACE_QR, ENTREES_MENU_QR, cheminConnexionEspaceQr, cheminEspaceQr, decisionAccesEspaceQr, destinationConnexionEspaceQr,
+  entreesMenuQr, estConnexionEspaceQr, lienEspaceQr, redirectionEspaceQr, viseEspaceQr, vueApresRetourQr, vueDepuisAncreQr,
 } from '@/lib/aj-signalement/acces-espace'
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -123,79 +126,109 @@ describe('menu de l’espace', () => {
   })
 })
 
-describe('retour après connexion (liste blanche)', () => {
-  it('super admin : l’espace, avec l’ancre connue', () => {
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '#signalements', superAdmin)).toBe('/fr/aj-signalement/#signalements')
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '', superAdmin)).toBe('/fr/aj-signalement/')
+describe('page de connexion professionnelle de l’espace', () => {
+  it('cheminConnexionEspaceQr : /fr/aj-signalement/connexion/, /pt/… en portugais ; aucune page sous en, nl, es (→ /fr/)', () => {
+    expect(cheminConnexionEspaceQr('fr')).toBe('/fr/aj-signalement/connexion/')
+    expect(cheminConnexionEspaceQr('pt')).toBe('/pt/aj-signalement/connexion/')
+    expect(cheminConnexionEspaceQr('es')).toBe('/fr/aj-signalement/connexion/')
   })
 
-  it('sans barre finale ou en portugais : adresse normalisée', () => {
-    expect(retourApresConnexionQr('/fr/aj-signalement', '', superAdmin)).toBe('/fr/aj-signalement/')
-    expect(retourApresConnexionQr('/pt/aj-signalement/', '#coproprietes', superAdmin)).toBe('/pt/aj-signalement/#coproprietes')
-    expect(retourApresConnexionQr('/pt/aj-signalement', undefined, superAdmin)).toBe('/pt/aj-signalement/')
+  it('estConnexionEspaceQr : segment exact, avec ou sans barre finale', () => {
+    expect(estConnexionEspaceQr('/aj-signalement/connexion')).toBe(true)
+    expect(estConnexionEspaceQr('/aj-signalement/connexion/')).toBe(true)
+    for (const chemin of [
+      '/aj-signalement', '/aj-signalement/', '/aj-signalement/connexionx/', '/aj-signalement/connexion/autre/',
+      '/signalement/connexion/', '/api/aj-signalement/connexion', '/fr/aj-signalement/connexion/', '/auth/login/',
+    ]) expect(estConnexionEspaceQr(chemin)).toBe(false)
+    // La page de connexion fait partie de l'espace : getUser (cookies rafraîchis) et X-Robots-Tag sur les 3xx.
+    expect(viseEspaceQr('/aj-signalement/connexion/')).toBe(true)
   })
 
-  it('ancre inconnue : ignorée', () => {
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '#admin', superAdmin)).toBe('/fr/aj-signalement/')
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '#signalements/../../admin', superAdmin)).toBe('/fr/aj-signalement/')
-  })
-
-  it.each([
-    '//evil.example',
-    '//evil.example/fr/aj-signalement/',
-    'https://evil.example/fr/aj-signalement/',
-    'https:evil.example',
-    'javascript:alert(1)',
-    '/\\evil.example',
-    '/fr/aj-signalement/../admin/dashboard/',
-    '/fr/aj-signalement/%2e%2e/admin/',
-    '/fr/aj-signalement/?x=1',
-    '/fr/aj-signalement/#signalements',
-    '/en/aj-signalement/',
-    '/fr/admin/dashboard/',
-    '/fr/coproprietaire/dashboard/',
-    ' /fr/aj-signalement/',
-    '',
-  ])('retour refusé : « %s »', (brut) => {
-    expect(retourApresConnexionQr(brut, '#signalements', superAdmin)).toBeNull()
-  })
-
-  it('retour absent : rien', () => {
-    expect(retourApresConnexionQr(null, '', superAdmin)).toBeNull()
-    expect(retourApresConnexionQr(undefined, '', superAdmin)).toBeNull()
-  })
-
-  it('compte sans accès à l’espace : rien (destination habituelle de son rôle)', () => {
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '#signalements', { role: 'coproprio' })).toBeNull()
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '', { role: 'syndic' })).toBeNull()
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '', null)).toBeNull()
-    expect(retourApresConnexionQr('/fr/aj-signalement/', '', undefined)).toBeNull()
+  it('plus aucun paramètre « retour » ni page de refus (403) : la page de connexion générale n’est plus concernée', () => {
+    const exports = Object.keys(accesEspace)
+    expect(exports).not.toContain('PARAMETRE_RETOUR_QR')
+    expect(exports).not.toContain('retourApresConnexionQr')
+    expect(exports).not.toContain('pageRefusEspaceQr')
+    expect(cheminConnexionEspaceQr('fr')).not.toContain('?')
   })
 })
 
-describe('page de connexion avec retour', () => {
-  it('page de connexion de la langue, retour vers l’espace de la même langue', () => {
-    expect(cheminConnexionEspaceQr('fr')).toBe('/fr/auth/login/?retour=%2Ffr%2Faj-signalement%2F')
-    expect(cheminConnexionEspaceQr('pt')).toBe('/pt/auth/login/?retour=%2Fpt%2Faj-signalement%2F')
-    expect(cheminConnexionEspaceQr('es')).toBe('/fr/auth/login/?retour=%2Ffr%2Faj-signalement%2F')
+describe('redirectionEspaceQr (middleware) : chemin sans langue vers lequel rediriger, ou null', () => {
+  const coproprio = { app_metadata: { role: 'coproprio' } }
+  const syndic = { app_metadata: { role: 'syndic' } }
+  const trafique = { app_metadata: { role: 'coproprio' }, user_metadata: { role: 'super_admin', _original_role: 'super_admin' } }
+  const admin = { app_metadata: superAdmin }
+  const vueEnTantQue = { app_metadata: { role: 'coproprio', _original_role: 'super_admin' } }
+
+  it.each(['fr', 'pt'])('espace (/%s/) : sans session ou sans accès → connexion de l’espace ; accès → la page', (langue) => {
+    for (const chemin of ['/aj-signalement', '/aj-signalement/', '/aj-signalement/gestionnaires/']) {
+      expect(redirectionEspaceQr(chemin, langue, null)).toBe('/aj-signalement/connexion/')
+      expect(redirectionEspaceQr(chemin, langue, undefined)).toBe('/aj-signalement/connexion/')
+      expect(redirectionEspaceQr(chemin, langue, coproprio)).toBe('/aj-signalement/connexion/')
+      expect(redirectionEspaceQr(chemin, langue, syndic)).toBe('/aj-signalement/connexion/')
+      expect(redirectionEspaceQr(chemin, langue, trafique)).toBe('/aj-signalement/connexion/')
+      expect(redirectionEspaceQr(chemin, langue, { app_metadata: {} })).toBe('/aj-signalement/connexion/')
+      expect(redirectionEspaceQr(chemin, langue, admin)).toBeNull()
+      expect(redirectionEspaceQr(chemin, langue, vueEnTantQue)).toBeNull()
+    }
   })
 
-  it('le retour posé est accepté par la liste blanche', () => {
-    const retour = new URL(cheminConnexionEspaceQr('pt'), 'https://vitfix.io').searchParams.get('retour')
-    expect(retourApresConnexionQr(retour, '', superAdmin)).toBe('/pt/aj-signalement/')
+  it.each(['fr', 'pt'])('page de connexion (/%s/) : servie sans session et à un compte sans accès (aucune boucle) ; accès → l’espace', (langue) => {
+    for (const chemin of ['/aj-signalement/connexion', '/aj-signalement/connexion/']) {
+      expect(redirectionEspaceQr(chemin, langue, null)).toBeNull()
+      expect(redirectionEspaceQr(chemin, langue, coproprio)).toBeNull()
+      expect(redirectionEspaceQr(chemin, langue, syndic)).toBeNull()
+      expect(redirectionEspaceQr(chemin, langue, trafique)).toBeNull()
+      expect(redirectionEspaceQr(chemin, langue, admin)).toBe('/aj-signalement/')
+      expect(redirectionEspaceQr(chemin, langue, vueEnTantQue)).toBe('/aj-signalement/')
+    }
+  })
+
+  it.each(['en', 'nl', 'es'])('/%s/ (aucune page dans cette langue) : toujours un renvoi (le middleware le place sous /pt/)', (langue) => {
+    expect(redirectionEspaceQr('/aj-signalement/', langue, null)).toBe('/aj-signalement/connexion/')
+    expect(redirectionEspaceQr('/aj-signalement/', langue, syndic)).toBe('/aj-signalement/connexion/')
+    expect(redirectionEspaceQr('/aj-signalement/', langue, admin)).toBe('/aj-signalement/')
+    expect(redirectionEspaceQr('/aj-signalement/connexion/', langue, null)).toBe('/aj-signalement/connexion/')
+    expect(redirectionEspaceQr('/aj-signalement/connexion/', langue, coproprio)).toBe('/aj-signalement/connexion/')
+    expect(redirectionEspaceQr('/aj-signalement/connexion/', langue, admin)).toBe('/aj-signalement/')
+  })
+
+  it('hors de l’espace : null (page publique du QR code, segment voisin, API, connexion générale)', () => {
+    for (const chemin of [`/signalement/${JETON}/`, '/aj-signalements/', '/api/aj-signalement/tableau', '/auth/login/', '/', '']) {
+      expect(redirectionEspaceQr(chemin, 'fr', null)).toBeNull()
+      expect(redirectionEspaceQr(chemin, 'fr', syndic)).toBeNull()
+      expect(redirectionEspaceQr(chemin, 'en', admin)).toBeNull()
+    }
   })
 })
 
-describe('page de refus (403 du middleware)', () => {
-  it('HTML minimal en français, titré, non indexable, sans aucune donnée ni mention du rôle requis', () => {
-    const html = pageRefusEspaceQr()
-    expect(html.startsWith('<!doctype html>')).toBe(true)
-    expect(html).toContain('<html lang="fr">')
-    expect(html).toContain('<title>Accès réservé</title>')
-    expect(html).toContain('<meta name="robots" content="noindex, nofollow, noarchive">')
-    expect(html).toContain('<h1>Accès réservé</h1>')
-    expect(html).toContain('href="/"')
-    expect(html.toLowerCase()).not.toContain('super')
-    expect(html).not.toContain('<script')
+describe('destinationConnexionEspaceQr : arrivée après la connexion professionnelle', () => {
+  const espace = '/fr/aj-signalement/'
+
+  it('super admin : l’espace, plus l’ancre si elle désigne exactement une vue de son rôle', () => {
+    expect(destinationConnexionEspaceQr(espace, '#signalements', superAdmin)).toBe('/fr/aj-signalement/#signalements')
+    expect(destinationConnexionEspaceQr('/pt/aj-signalement/', '#coproprietes', superAdmin)).toBe('/pt/aj-signalement/#coproprietes')
+    expect(destinationConnexionEspaceQr(espace, 'signalements', superAdmin)).toBe('/fr/aj-signalement/#signalements')
+  })
+
+  it('ancre vide, inconnue ou détournée : l’espace seul', () => {
+    for (const ancre of ['', '#', '#admin', '#signalements/../../admin', '#gestionnaires', null, undefined]) {
+      expect(destinationConnexionEspaceQr(espace, ancre, superAdmin)).toBe('/fr/aj-signalement/')
+    }
+  })
+
+  it('« vue en tant que » ouverte par un super admin : l’espace', () => {
+    expect(destinationConnexionEspaceQr(espace, '', { role: 'coproprio', _original_role: 'super_admin' })).toBe('/fr/aj-signalement/')
+  })
+
+  it('compte sans accès, métadonnées absentes ou illisibles : null (la page affiche le message neutre)', () => {
+    for (const metadonnees of [{ role: 'coproprio' }, { role: 'syndic' }, {}, null, undefined]) {
+      expect(destinationConnexionEspaceQr(espace, '#signalements', metadonnees)).toBeNull()
+    }
+  })
+
+  it('l’adresse vient du contexte de la page, jamais de l’URL : espace d’un cabinet (PR 2) pris tel quel', () => {
+    expect(destinationConnexionEspaceQr('/cabinet-exemple/', '#signalements', superAdmin)).toBe('/cabinet-exemple/#signalements')
+    expect(destinationConnexionEspaceQr('/cabinet-exemple/', '', superAdmin)).toBe('/cabinet-exemple/')
   })
 })

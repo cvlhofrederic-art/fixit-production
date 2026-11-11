@@ -3,17 +3,20 @@
 // ── Espace « AJ Signalement » (/fr/aj-signalement/) ───────────────────────────
 //
 // Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) : son
-// adresse, son menu, sa connexion. La garde (useAccesEspaceQr) passe avant tout : aucune donnée n'est chargée tant que
-// le rôle n'est pas vérifié. Puis la coquille : en-tête « AJ Signalement », menu (barre latérale sur ordinateur,
+// adresse, son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/, 11/11/2026). La garde
+// (useAccesEspaceQr) passe avant tout : aucune donnée n'est chargée tant que le rôle n'est pas vérifié ; sans session
+// ou sans accès, renvoi vers la page de connexion de l'espace (message neutre là-bas pour un compte sans accès).
+// Puis la coquille : en-tête « AJ Signalement », menu (barre latérale sur ordinateur,
 // barre du bas sur téléphone) construit depuis entreesMenuQr(role), une vue par ancre (#signalements : le bouton
 // « retour » du navigateur fonctionne), un h1 par vue qui reçoit le focus à chaque changement, le titre d'onglet.
 // Le contenu (TableauSignalementsQr) reste monté d'une vue à l'autre : un seul chargement. Socle visuel du portail
 // copropriétaire (components/coproprietaire-dashboard/ui), comme les composants de components/aj-signalement/.
 // Pas de <main> ici : la coquille racine en pose déjà un (#main-content).
 
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
+import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
 import { useAccesEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
 import {
   TEXTES_ESPACE_QR as E, entreesMenuQr, vueApresRetourQr, vueDepuisAncreQr, type EntreeMenuQr, type RoleEspaceQr, type VueEspaceQr,
@@ -25,40 +28,22 @@ const ICONES_VUES: Record<VueEspaceQr, NomIcone> = {
   signalements: 'demandes',
 }
 
-/** Page pleine des états hors espace (vérification, connexion, refus, session indisponible). */
-function PagePleine({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F7F4EE] px-4 py-10" lang="fr">
-      <div className="w-full max-w-lg rounded-2xl border border-[#E4DDD0] bg-white p-6 shadow-sm md:p-8">{children}</div>
-    </div>
-  )
-}
-
 export default function EspaceAjSignalement() {
   const { etat, connexion, reessayer, seDeconnecter } = useAccesEspaceQr()
 
   if (etat.statut === 'autorise') {
     return <CoquilleEspaceQr role={etat.role} lienAdmin={etat.lienAdmin} onDeconnexion={() => { void seDeconnecter() }} />
   }
-  if (etat.statut === 'refuse') {
-    return (
-      <PagePleine>
-        <h1 className="text-2xl font-bold text-[#0D1B2E]">{E.refus.titre}</h1>
-        <p className="mt-3 text-base text-[#4A5E78]">{E.refus.texte}</p>
-        <div className="mt-6"><Bouton variante="secondaire" href="/" icone="retour" pleineLargeur>{E.refus.retour}</Bouton></div>
-      </PagePleine>
-    )
-  }
   if (etat.statut === 'indisponible') {
     return (
-      <PagePleine>
+      <PagePleineQr>
         <Encadre ton="avertissement">{E.indisponible}</Encadre>
         <div className="mt-6"><Bouton variante="principal" icone="actualiser" pleineLargeur onClick={reessayer}>{E.reessayer}</Bouton></div>
-      </PagePleine>
+      </PagePleineQr>
     )
   }
   return (
-    <PagePleine>
+    <PagePleineQr>
       {/* Zone d'état native (rôle status) ; <output> n'admet que du contenu phrasé : span en block, même rendu que div et p. */}
       <output className="block text-center">
         <span className="mx-auto mb-4 block h-12 w-12 animate-spin rounded-full border-4 border-[#C9A84C] border-t-transparent" />
@@ -67,7 +52,7 @@ export default function EspaceAjSignalement() {
       {etat.statut === 'connexion' && (
         <div className="mt-6"><Bouton variante="principal" href={connexion} icone="utilisateur" pleineLargeur>{E.seConnecter}</Bouton></div>
       )}
-    </PagePleine>
+    </PagePleineQr>
   )
 }
 
