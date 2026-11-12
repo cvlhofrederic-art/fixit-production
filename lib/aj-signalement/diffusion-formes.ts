@@ -7,6 +7,7 @@
 //     texte (controlerTexteDiffusionQr), comme tout libellé retenu, d'où qu'il vienne (fiche comprise) ;
 //   - aucune réponse d'aperçu, de valeurs ou d'historique ne contient de « @ » : variantes brutes qui en portent retirées,
 //     libellés contrôlés, auteur réduit à une énumération (jamais un nom, un identifiant de compte ni une adresse) ;
+//     pour un gestionnaire (partie H11, RG-23), « vous » / « collegue » / « cabinet » et aucune instruction écrite ;
 //   - réglages de diffusion d'un cabinet et ce qui manque à son activation (D-R8).
 
 import { controlerTexteDiffusionQr, type ConseilTexteDiffusionQr, type MotifRefusTexteDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
@@ -15,7 +16,7 @@ import {
   type BatimentCiblableQr, type CoupleValeursQr, type EtageCiblableQr, type PorteeDiffusionQr, type ValeursCiblablesQr,
 } from '@/lib/aj-signalement/diffusion-valeurs'
 import type { ModeleDiffusionQr } from '@/lib/aj-signalement/affichage-diffusion'
-import { LANGUES_DIFFUSION_OUVERTES_QR, type LangueCabinetQr, type LangueSignalementQr } from '@/lib/aj-signalement/types'
+import { LANGUES_DIFFUSION_OUVERTES_QR, type AuteurStatutQr, type LangueCabinetQr, type LangueSignalementQr } from '@/lib/aj-signalement/types'
 
 // ── Périmètre ──
 
@@ -146,6 +147,12 @@ export function resoudrePerimetreDiffusionQr(p: {
 /** Auteur d'une diffusion vu par le super admin : une énumération, jamais un nom ni un identifiant (PR 3). */
 export type AuteurDiffusionQr = 'administrateur' | 'gestionnaire'
 
+/**
+ * Lecteur de l'historique ou du détail quand c'est un GESTIONNAIRE (partie H11, RG-23 de la PR 2) : sa fiche. Absent :
+ * le super admin.
+ */
+export interface VueGestionnaireDiffusionQr { gestionnaireId: string }
+
 /** Nombres d'une diffusion par état (agrégés en SQL depuis les destinataires). */
 export interface NombresDiffusionQr {
   envoyes: number
@@ -162,7 +169,8 @@ export interface NombresDiffusionQr {
 export interface ResumeDiffusionQr {
   id: string
   creeLe: string
-  auteur: AuteurDiffusionQr
+  /** Super admin : « administrateur » / « gestionnaire » ; gestionnaire : « vous » / « collegue » / « cabinet ». */
+  auteur: AuteurDiffusionQr | AuteurStatutQr
   modele: ModeleDiffusionQr | string
   objet: string
   portee: PorteeDiffusionQr | string
@@ -184,7 +192,10 @@ export interface DetailDiffusionQr extends Omit<ResumeDiffusionQr, 'nombres'> {
   texte: string
   nbDestinataires: number
   nbExclusOpposition: number
-  /** Super admin : instruction écrite du cabinet (référence sans « @ », par la base). */
+  /**
+   * Super admin : instruction écrite du cabinet (référence sans « @ », par la base). Jamais rendue à un gestionnaire :
+   * texte libre saisi par le super admin, qui peut nommer une personne du cabinet (RG-23).
+   */
   instruction: { reference: string; recueLe: string } | null
   copieCabinetLe: string | null
   nombres: NombresDiffusionQr
@@ -198,12 +209,30 @@ const nombre = (v: unknown): number => {
 
 export const auteurDiffusionQr = (profil: unknown): AuteurDiffusionQr => (profil === 'gestionnaire' ? 'gestionnaire' : 'administrateur')
 
-/** Ligne de signalements_qr_diffusions_liste → forme de l'historique (aucune adresse, aucun identifiant de compte). */
-export function resumeDiffusionDepuisLigneQr(l: Record<string, unknown>): ResumeDiffusionQr {
+/**
+ * Auteur d'une diffusion vu par un gestionnaire (même règle que le statut, auteurStatutQr) : « vous » (sa fiche),
+ * « collegue » (une autre fiche, même sans identifiant lisible), « cabinet » (le super admin, sur instruction du
+ * cabinet) ; jamais un nom ni un identifiant.
+ */
+export function auteurDiffusionVuGestionnaireQr(
+  l: { acteur_profil?: unknown; acteur_gestionnaire_id?: unknown }, gestionnaireId: string,
+): AuteurStatutQr {
+  if (l.acteur_profil !== 'gestionnaire') return 'cabinet'
+  return l.acteur_gestionnaire_id === gestionnaireId ? 'vous' : 'collegue'
+}
+
+const auteurVu = (l: Record<string, unknown>, vue?: VueGestionnaireDiffusionQr): AuteurDiffusionQr | AuteurStatutQr =>
+  (vue ? auteurDiffusionVuGestionnaireQr(l, vue.gestionnaireId) : auteurDiffusionQr(l.acteur_profil))
+
+/**
+ * Ligne de signalements_qr_diffusions_liste → forme de l'historique (aucune adresse, aucun identifiant de compte ni de
+ * fiche) ; `vue` : lecteur gestionnaire (auteur minimisé).
+ */
+export function resumeDiffusionDepuisLigneQr(l: Record<string, unknown>, vue?: VueGestionnaireDiffusionQr): ResumeDiffusionQr {
   return {
     id: texte(l.id),
     creeLe: texte(l.cree_le),
-    auteur: auteurDiffusionQr(l.acteur_profil),
+    auteur: auteurVu(l, vue),
     modele: texte(l.modele),
     objet: texte(l.objet),
     portee: texte(l.portee),
@@ -232,15 +261,18 @@ export function nombresDiffusionDepuisLigneQr(l: Record<string, unknown> | null 
 /**
  * Ligne de signalements_qr_diffusions → détail (D-R6) : texte compris ; ni l'adresse de contact, ni l'expéditeur, ni
  * l'adresse de la politique (les valeurs figées qui portent une adresse ne sortent pas), ni l'auteur nominatif.
+ * `vue` : lecteur gestionnaire (auteur minimisé, instruction écrite non rendue).
  */
-export function detailDiffusionDepuisLigneQr(l: Record<string, unknown>, nombres: NombresDiffusionQr): DetailDiffusionQr {
-  const reference = texte(l.instruction_reference)
+export function detailDiffusionDepuisLigneQr(
+  l: Record<string, unknown>, nombres: NombresDiffusionQr, vue?: VueGestionnaireDiffusionQr,
+): DetailDiffusionQr {
+  const reference = vue ? '' : texte(l.instruction_reference)
   const recueLe = texte(l.instruction_recue_le)
   return {
     id: texte(l.id),
     coproprieteId: texte(l.copropriete_id),
     creeLe: texte(l.created_at),
-    auteur: auteurDiffusionQr(l.acteur_profil),
+    auteur: auteurVu(l, vue),
     modele: texte(l.modele),
     langue: l.langue === 'pt' ? 'pt' : 'fr',
     objet: texte(l.objet),

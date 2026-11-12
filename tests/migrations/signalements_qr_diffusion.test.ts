@@ -444,6 +444,17 @@ describe(`Migration ${FICHIER} : règles portées par les fonctions`, () => {
     expect(creer).toMatch(/'diffusion\.envoyee'/)
   })
 
+  it('H11 : gestionnaire = fiche active, reliée au compte, non bloquée, du cabinet de la copropriété, attribution NOMMÉE, jamais « à tous »', () => {
+    const regle = fonction('signalements_qr_diffusion_gestionnaire_autorise').corps
+    expect(regle).toMatch(/c\.cabinet_id = g\.cabinet_id/)
+    expect(regle).toMatch(/a\.gestionnaire_id = g\.id AND a\.copropriete_id = c\.id/)
+    expect(regle).toMatch(/g\.actif AND g\.user_id = p_acteur AND g\.connexion_bloquee_le IS NULL/)
+    expect(regle).toMatch(/NOT c\.attribuee_a_tous/)
+    for (const nom of ['signalements_qr_diffusion_creer', 'signalements_qr_diffusion_opposer_signalement']) {
+      expect(fonction(nom).corps, nom).toMatch(/p_profil = 'gestionnaire'\s+AND NOT signalements_qr_diffusion_gestionnaire_autorise\(p_gestionnaire, p_acteur, p_copropriete\)/)
+    }
+  })
+
   it('lot : verrou SKIP LOCKED, revérification à la reprise d’un lot interrompu, 24 h au plus', () => {
     const lot = fonction('signalements_qr_diffusion_lot').corps
     expect(lot).toMatch(/FOR UPDATE SKIP LOCKED/)

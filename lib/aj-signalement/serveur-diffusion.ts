@@ -6,31 +6,87 @@
 // Migration 20261113 absente : chaque lecture nomme au moins une colonne ou une fonction qu'elle crée — l'erreur de
 // structure est rendue à la route, qui répond 503 base_absente (reponseErreurDiffusionQr, journalisé une fois).
 //
-// Profils (cahier § 4.3) : en PR 3, le super admin seul, sur instruction écrite du cabinet (HF4). La partie gestionnaire
-// (H11 : copropriété attribuée NOMMÉMENT, jamais « à tous ») viendra ensuite : PROFILS_DIFFUSION_QR recevra
-// 'gestionnaire', chaque route vérifiera la portée nommée AVANT toute lecture (hors portée → 404, « à tous » → 403
-// lecture_seule), parametresAuteurDiffusionQr passe déjà le profil et la fiche à la base, qui revérifie H11
-// (signalements_qr_diffusion_gestionnaire_autorise).
+// Profils (cahier § 4.3) : le super admin, sur instruction écrite du cabinet (HF4) ; le gestionnaire (décision H11 de
+// Hugo du 11/11/2026), sur les seules copropriétés de SON cabinet qui lui sont attribuées NOMMÉMENT, jamais sur une
+// copropriété « attribuée à tous » (la copropriété de test ne diffuse que par le super admin), sans instruction écrite
+// (c'est le cabinet qui diffuse). Chaque route D-R1 à D-R7 applique controlerDroitDiffuserQr AVANT toute autre lecture
+// (hors portée → 404, « à tous » → 403 lecture_seule ; reprise et détail : par la copropriété de LA diffusion,
+// controlerDroitSurDiffusionQr) ; parametresAuteurDiffusionQr passe le profil, le compte et la fiche de la SESSION à la
+// base, qui revérifie H11 (signalements_qr_diffusion_gestionnaire_autorise : 42501 → 403). Les réglages et l'activation
+// du cabinet (D-R8) et le filet de reprise (D-C1) restent fermés au gestionnaire.
 
+import type { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import type { CoupleValeursQr } from '@/lib/aj-signalement/diffusion-valeurs'
 import { diffusionFigeeDepuisLigneQr, type DiffusionFigeeQr } from '@/lib/aj-signalement/email'
-import { nombresDiffusionDepuisLigneQr, type NombresDiffusionQr } from '@/lib/aj-signalement/diffusion-formes'
+import {
+  nombresDiffusionDepuisLigneQr, type NombresDiffusionQr, type VueGestionnaireDiffusionQr,
+} from '@/lib/aj-signalement/diffusion-formes'
 import { envoyerDiffusionQr, type ArretEnvoiDiffusionQr } from '@/lib/aj-signalement/diffusion-envoi'
+import { droitDiffuserQr } from '@/lib/aj-signalement/droits-diffusion'
 import type { LangueCabinetQr, ProfilQr, TypeProfilQr } from '@/lib/aj-signalement/types'
 import {
-  TABLE_CABINETS_QR, TABLE_COPROPRIETES_QR, TABLE_SIGNALEMENTS_QR, journaliserRepliDiffusionQr, langueCabinetQr, structureAbsenteQr,
-  type ErreurBase, type LectureQr,
+  TABLE_CABINETS_QR, TABLE_COPROPRIETES_QR, TABLE_SIGNALEMENTS_QR, journaliserRepliDiffusionQr, langueCabinetQr, porteeDuProfilQr,
+  reponseErreur, reponseLectureGestionnaireQr, structureAbsenteQr, type ErreurBase, type LectureQr,
 } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
 export const TABLE_DIFFUSIONS_QR = 'signalements_qr_diffusions'
 
-/** Profils admis par les routes de diffusion (PR 3 : super admin seul ; partie gestionnaire H11 ensuite). */
-export const PROFILS_DIFFUSION_QR: readonly TypeProfilQr[] = ['super_admin']
+/** Profils admis par les routes de diffusion D-R1 à D-R7 (le gestionnaire : copropriétés attribuées nommément, H11). */
+export const PROFILS_DIFFUSION_QR: readonly TypeProfilQr[] = ['super_admin', 'gestionnaire']
+
+/** Contrôle d'un droit : la route continue, ou répond tout de suite. */
+export type ControleDroitDiffusionQr = { ok: true } | { ok: false; reponse: NextResponse }
+
+const AUTORISE: ControleDroitDiffusionQr = { ok: true }
+const refus = (code: string, status: number): ControleDroitDiffusionQr => ({ ok: false, reponse: reponseErreur(code, status) })
+
+interface LigneDroitsCoproQr { id: string; cabinet_id: string | null; attribuee_a_tous: boolean | null }
+
+/**
+ * Droit « diffuser » du profil sur une copropriété (H11), contrôlé AVANT toute autre lecture de la copropriété, de ses
+ * signalements ou de ses diffusions, et avant tout appel SQL : super admin, toujours ; gestionnaire (fiche active,
+ * reliée au compte, non bloquée : déjà relue par controlerAccesQr) — la copropriété est lue par ses seules colonnes de
+ * droits ET filtrée par le cabinet DE LA FICHE (une copropriété d'un autre cabinet, sans cabinet ou inconnue n'est
+ * jamais lue), puis la portée est relue (attributions de sa fiche) et droitDiffuserQr décide : hors portée → 404
+ * introuvable (comme une copropriété inconnue), « attribuée à tous » → 403 lecture_seule. Lecture refusée : structure
+ * absente → 503 base_absente (journalisé une fois), sinon la traduction commune (500 journalisé avec son seul code).
+ */
+export async function controlerDroitDiffuserQr(profil: ProfilQr, coproprieteId: string): Promise<ControleDroitDiffusionQr> {
+  if (profil.type === 'super_admin') return AUTORISE
+  const ids = { gestionnaire: profil.gestionnaireId, copropriete: coproprieteId }
+  const lue = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('id, cabinet_id, attribuee_a_tous')
+    .eq('id', coproprieteId).eq('cabinet_id', profil.cabinetId).maybeSingle()
+  if (lue.error) return { ok: false, reponse: reponseLectureGestionnaireQr(lue.error, 'droit de diffuser : copropriété', ids) }
+  const ligne = (lue.data as LigneDroitsCoproQr | null) ?? null
+  if (!ligne) return refus('introuvable', 404)
+  const portee = await porteeDuProfilQr(profil, [ligne])
+  if (!portee.ok) return { ok: false, reponse: reponseLectureGestionnaireQr(portee.erreur, 'droit de diffuser : portée', ids) }
+  const copro = { id: ligne.id, cabinetId: ligne.cabinet_id ?? null, attribueeATous: ligne.attribuee_a_tous === true }
+  const droit = droitDiffuserQr('gestionnaire', copro, portee.valeur)
+  if (droit === 'hors_portee') return refus('introuvable', 404)
+  if (droit === 'lecture_seule') return refus('lecture_seule', 403)
+  return AUTORISE
+}
+
+/**
+ * Même droit pour une diffusion déjà lue (reprise D-R4, détail D-R6) : par la copropriété DE LA DIFFUSION. Gestionnaire :
+ * diffusion d'un autre cabinet que celui de sa fiche → 404 sans autre lecture ; sinon controlerDroitDiffuserQr.
+ */
+export async function controlerDroitSurDiffusionQr(profil: ProfilQr, ligne: Record<string, unknown>): Promise<ControleDroitDiffusionQr> {
+  if (profil.type === 'super_admin') return AUTORISE
+  const coproprieteId = chaine(ligne.copropriete_id)
+  if (!coproprieteId || chaine(ligne.cabinet_id) !== profil.cabinetId) return refus('introuvable', 404)
+  return controlerDroitDiffuserQr(profil, coproprieteId)
+}
+
+/** Lecteur gestionnaire de l'historique et du détail (auteur minimisé, aucune instruction écrite) ; super admin : aucun. */
+export const vueDiffusionDuProfilQr = (profil: ProfilQr): VueGestionnaireDiffusionQr | undefined =>
+  (profil.type === 'gestionnaire' ? { gestionnaireId: profil.gestionnaireId } : undefined)
 
 /** Copropriété lue pour une diffusion (fin de mission : colonne de la 20261113). */
 export interface CoproprieteDiffusionQr {

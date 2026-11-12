@@ -5,8 +5,9 @@
 // l'e-mail ou à saisir, variantes), déclarants sans bâtiment, portée présélectionnée (« Un bâtiment » dès deux groupes),
 // diffusion possible ou raison, compteur du mois (décision de Hugo : aucun plafond, le compteur est affiché), nombre de
 // déclarants jamais annoncés (bouton « Annoncer la diffusion », H1 = option C). Aucune adresse dans la réponse (les
-// variantes brutes qui portent un « @ » sont retirées). Super admin seul en PR 3 (partie gestionnaire H11 ensuite).
-// Migration 20261113 absente → 503 base_absente. Jamais en cache.
+// variantes brutes qui portent un « @ » sont retirées). Super admin, et gestionnaire sur une copropriété de SON cabinet
+// qui lui est attribuée NOMMÉMENT (H11, contrôlé avant toute lecture : hors portée → 404, « à tous » → 403
+// lecture_seule). Migration 20261113 absente → 503 base_absente. Jamais en cache.
 
 import { type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -18,7 +19,7 @@ import {
   controlerAccesQr, estUuid, parametresQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, couplesDiffusionQr, lireContexteDiffusionQr, moisDiffusionQr, raisonInactiveDiffusionQr,
+  PROFILS_DIFFUSION_QR, controlerDroitDiffuserQr, couplesDiffusionQr, lireContexteDiffusionQr, moisDiffusionQr, raisonInactiveDiffusionQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +34,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!estUuid(id)) return reponseErreur('introuvable', 404)
     const validation = validateBody(corpsVideQrSchema, parametresQr(request))
     if (!validation.success) return reponseInvalide(validation.error)
+    const droit = await controlerDroitDiffuserQr(controle.profil, id)
+    if (!droit.ok) return droit.reponse
 
     const contexte = await lireContexteDiffusionQr(id)
     if (!contexte.ok) return reponseErreurDiffusionQr(contexte.erreur, 'valeurs de diffusion', { copropriete: id })

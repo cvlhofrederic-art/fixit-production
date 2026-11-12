@@ -245,12 +245,14 @@ async function diffusionCreee(): Promise<string> {
 
 const ecrituresJournal = () => baseQr.ecrituresDe('signalements_qr_journal', 'insert')
 
-describe('droits (PR 3 : super admin seul)', () => {
-  const routes = (): Array<[string, () => Promise<Response>]> => [
+describe('droits (super admin ; gestionnaire sur D-R1 à D-R7, H11 : tests/api/aj-signalement-diffusions-gestionnaire.test.ts)', () => {
+  const routesDiffusion = (): Array<[string, () => Promise<Response>]> => [
     ['D-R1', () => valeurs()], ['D-R2', () => apercu({ perimetre: { portee: 'copropriete' } })], ['D-R3', () => diffuser()],
     ['D-R5', () => historique()], ['D-R6', () => detail('df000000-0000-4000-8000-000000000001')],
     ['D-R4', () => reprendre('df000000-0000-4000-8000-000000000001')], ['D-R7', () => opposer(COPRO, SIG, { demandeRecueLe: '2026-11-10' })],
-    ['D-R8', () => modifierCabinet(CAB, { diffusionActivee: true })],
+  ]
+  const routes = (): Array<[string, () => Promise<Response>]> => [
+    ...routesDiffusion(), ['D-R8', () => modifierCabinet(CAB, { diffusionActivee: true })],
   ]
 
   it('401 sans session, sur chaque route ; aucune fonction appelée', async () => {
@@ -259,13 +261,25 @@ describe('droits (PR 3 : super admin seul)', () => {
     expect(baseQr.etat.appelsRpc).toEqual([])
   })
 
-  it('403 pour un compte super_admin hors de la liste d’e-mails, et pour un gestionnaire (aucune lecture de sa fiche)', async () => {
-    for (const user of [{ ...ADMIN_QR, email: 'autre@exemple.test' }, GESTIONNAIRE]) {
-      simulQr.user = user
-      for (const [nom, appel] of routes()) expect((await appel()).status, nom).toBe(403)
-    }
+  it('403 pour un compte super_admin hors de la liste d’e-mails, sur chaque route ; aucune lecture de fiche', async () => {
+    simulQr.user = { ...ADMIN_QR, email: 'autre@exemple.test' }
+    for (const [nom, appel] of routes()) expect((await appel()).status, nom).toBe(403)
     expect(baseQr.etat.appelsRpc).toEqual([])
     expect(baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires')).toEqual([])
+  })
+
+  it('gestionnaire : D-R8 → 403 interdit SANS lire sa fiche ; D-R1 à D-R7 → fiche relue, absente → 403 acces_retire ; aucune fonction appelée', async () => {
+    simulQr.user = GESTIONNAIRE
+    const d8 = await modifierCabinet(CAB, { diffusionActivee: true })
+    expect(d8.status).toBe(403)
+    expect(await d8.json()).toEqual({ error: 'interdit' })
+    expect(baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_gestionnaires')).toEqual([])
+    for (const [nom, appel] of routesDiffusion()) {
+      const res = await appel()
+      expect(res.status, nom).toBe(403)
+      expect(await res.json(), nom).toEqual({ error: 'acces_retire' })
+    }
+    expect(baseQr.etat.appelsRpc).toEqual([])
   })
 
   it('identifiant hors format → 404 sans aucune lecture', async () => {

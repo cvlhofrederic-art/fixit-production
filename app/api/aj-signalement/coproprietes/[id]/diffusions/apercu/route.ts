@@ -6,7 +6,9 @@
 // et contrôlé), diffusion possible ou raison, et l'instant de l'aperçu, que l'envoi repasse (les signalements déposés
 // ensuite n'entrent pas dans le périmètre affiché). Clé inconnue → 409 perimetre_change ; signalement d'une autre
 // copropriété → 404 ; libellé saisi refusé → 400 texte_refuse { champ, motif }. Aucune adresse dans la réponse.
-// Super admin seul en PR 3. Migration 20261113 absente → 503 base_absente. Jamais en cache.
+// Super admin, et gestionnaire sur une copropriété de SON cabinet qui lui est attribuée NOMMÉMENT (H11, contrôlé avant
+// toute lecture : hors portée → 404, « à tous » → 403 lecture_seule). Migration 20261113 absente → 503 base_absente.
+// Jamais en cache.
 
 import { type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -19,7 +21,7 @@ import {
   controlerAccesQr, estUuid, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, couplesDiffusionQr, lireContexteDiffusionQr, signalementDeLaCoproprieteQr,
+  PROFILS_DIFFUSION_QR, controlerDroitDiffuserQr, couplesDiffusionQr, lireContexteDiffusionQr, signalementDeLaCoproprieteQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +38,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const validation = validateBody(apercuDiffusionQrSchema, body)
     if (!validation.success) return reponseInvalide(validation.error)
     const a = validation.data
+    const droit = await controlerDroitDiffuserQr(controle.profil, id)
+    if (!droit.ok) return droit.reponse
 
     const contexte = await lireContexteDiffusionQr(id)
     if (!contexte.ok) return reponseErreurDiffusionQr(contexte.erreur, 'aperçu de diffusion', { copropriete: id })

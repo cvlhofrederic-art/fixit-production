@@ -556,25 +556,68 @@ describe('aperçu et création : destinataires calculés en SQL', () => {
     expect((await apercu(cop, { portee: 'batiment', batiments: null })).erreur?.code).toBe('22023')
   })
 
-  it('H11 : un gestionnaire diffuse sur une copropriété qui lui est attribuée NOMMÉMENT, jamais par « attribuée à tous »', async () => {
-    const { cab, cop } = await immeuble(1)
+  /** Fiche gestionnaire reliée à un compte, dans un cabinet. */
+  async function gestionnaireDe(cab: string, email = 'gestion@exemple.test'): Promise<{ compte: string; id: string }> {
     const compte = randomUUID()
     await q('INSERT INTO auth.users (id) VALUES ($1)', [compte])
     const [g] = await q<{ id: string }>(
       `INSERT INTO signalements_qr_gestionnaires (id, cabinet_id, nom, email, cree_par, adresse_confirmee_le, user_id)
-       VALUES (gen_random_uuid(), $1, 'Gestionnaire exemple', 'gestion@exemple.test', $2, now(), $3) RETURNING id`, [cab, SUPER_ADMIN, compte])
-    const commeGestionnaire = { profil: 'gestionnaire' as const, acteur: compte, gestionnaire: g.id }
+       VALUES (gen_random_uuid(), $1, 'Gestionnaire exemple', $2, $3, now(), $4) RETURNING id`, [cab, email, SUPER_ADMIN, compte])
+    return { compte, id: g.id }
+  }
+  const attribuer = (cop: string, gestionnaire: string) =>
+    q(`INSERT INTO signalements_qr_attributions (copropriete_id, gestionnaire_id, origine, attribue_par) VALUES ($1, $2, 'super_admin', $3)`,
+      [cop, gestionnaire, SUPER_ADMIN])
+
+  it('H11 : un gestionnaire diffuse sur une copropriété qui lui est attribuée NOMMÉMENT, jamais sur une « attribuée à tous »', async () => {
+    const { cab, cop } = await immeuble(1)
+    const g = await gestionnaireDe(cab)
+    const commeGestionnaire = { profil: 'gestionnaire' as const, acteur: g.compte, gestionnaire: g.id }
+    // « À tous » sans attribution nommée : refus.
     await q('UPDATE signalements_qr_coproprietes SET attribuee_a_tous = true WHERE id = $1', [cop])
     expect((await creer(cop, commeGestionnaire)).erreur).toMatchObject({ code: '42501', message: 'interdit' })
-    await q(`INSERT INTO signalements_qr_attributions (copropriete_id, gestionnaire_id, origine, attribue_par) VALUES ($1, $2, 'super_admin', $3)`,
-      [cop, g.id, SUPER_ADMIN])
+    // « À tous » ET attribuée nommément : refus encore (la copropriété de test ne diffuse que par le super admin).
+    await attribuer(cop, g.id)
+    expect((await creer(cop, commeGestionnaire)).erreur).toMatchObject({ code: '42501', message: 'interdit' })
+    await q('UPDATE signalements_qr_coproprietes SET attribuee_a_tous = false WHERE id = $1', [cop])
+    // Fiche d'un autre compte : refus.
     expect((await creer(cop, { ...commeGestionnaire, acteur: randomUUID() })).erreur?.code).toBe('42501')
     const d = await creerOk(cop, commeGestionnaire)
     const [ligne] = await q<{ acteur_profil: string; acteur_gestionnaire_id: string; instruction_reference: string | null }>(
       'SELECT acteur_profil, acteur_gestionnaire_id, instruction_reference FROM signalements_qr_diffusions WHERE id = $1', [d.diffusion_id])
     expect(ligne).toEqual({ acteur_profil: 'gestionnaire', acteur_gestionnaire_id: g.id, instruction_reference: null })
-    await q('UPDATE signalements_qr_gestionnaires SET actif = false WHERE id = $1', [g.id])
+    // Connexion bloquée, puis départ (fiche désactivée) : refus.
+    await q('UPDATE signalements_qr_gestionnaires SET connexion_bloquee_le = now() WHERE id = $1', [g.id])
     expect((await creer(cop, commeGestionnaire)).erreur?.code).toBe('42501')
+    await q('UPDATE signalements_qr_gestionnaires SET connexion_bloquee_le = NULL, actif = false WHERE id = $1', [g.id])
+    expect((await creer(cop, commeGestionnaire)).erreur?.code).toBe('42501')
+  })
+
+  it('H11 : fiche d’un autre cabinet, même avec une attribution vers la copropriété (base incohérente) → 42501, rien n’est créé', async () => {
+    const { cop } = await immeuble(1)
+    const ailleurs = await gestionnaireDe(await cabinet(), 'ailleurs@exemple.test')
+    await attribuer(cop, ailleurs.id)
+    expect((await creer(cop, { profil: 'gestionnaire', acteur: ailleurs.compte, gestionnaire: ailleurs.id })).erreur?.code).toBe('42501')
+    expect((await q<{ n: number }>('SELECT count(*)::int AS n FROM signalements_qr_diffusions WHERE copropriete_id = $1', [cop]))[0].n).toBe(0)
+  })
+
+  it('H11 : opposition à la demande écrite par un gestionnaire — attribuée nommément seulement, jamais « à tous »', async () => {
+    const { cab, cop, depots } = await immeuble(1)
+    const g = await gestionnaireDe(cab)
+    const opposerSignalement = () => service<{ r: boolean }>(
+      `SELECT signalements_qr_diffusion_opposer_signalement($1::uuid, $2::uuid, $3::uuid, 'gestionnaire', $4::uuid, current_date) AS r`,
+      [depots[0], cop, g.compte, g.id])
+    expect((await opposerSignalement()).erreur?.code).toBe('42501')
+    await attribuer(cop, g.id)
+    await q('UPDATE signalements_qr_coproprietes SET attribuee_a_tous = true WHERE id = $1', [cop])
+    expect((await opposerSignalement()).erreur?.code).toBe('42501')
+    expect(await nbOppositions(cop)).toBe(0)
+    await q('UPDATE signalements_qr_coproprietes SET attribuee_a_tous = false WHERE id = $1', [cop])
+    expect((await opposerSignalement()).lignes[0].r).toBe(true)
+    expect(await nbOppositions(cop)).toBe(1)
+    const [journal] = await q<{ acteur_profil: string; acteur_gestionnaire_id: string }>(
+      "SELECT acteur_profil, acteur_gestionnaire_id FROM signalements_qr_journal WHERE copropriete_id = $1 AND action = 'diffusion.opposition'", [cop])
+    expect(journal).toEqual({ acteur_profil: 'gestionnaire', acteur_gestionnaire_id: g.id })
   })
 
   it('valeurs figées dans la diffusion (un lot rejoué est identique même si la fiche change) ; journal sans texte', async () => {

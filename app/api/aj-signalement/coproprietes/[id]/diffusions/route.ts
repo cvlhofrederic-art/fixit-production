@@ -5,7 +5,8 @@
 //     le texte et le libellé saisi d'un bâtiment ou d'un étage → 400 texte_refuse { champ, motif } ; message d'annonce
 //     (H1 = C) : objet et texte EXACTEMENT ceux du texte figé, sinon 400 ;
 //   - super admin : instruction écrite du cabinet exigée (référence et date de réception, non future) → 400 sinon
-//     (HF4, J29) ; gardée dans la diffusion ;
+//     (HF4, J29) ; gardée dans la diffusion ; gestionnaire (H11) : aucune instruction (c'est le cabinet qui diffuse),
+//     une instruction envoyée → 400 ;
 //   - clé de signature des liens de désinscription absente → 503 configuration_incomplete (aucun lien ne peut être émis) ;
 //   - création atomique en base (signalements_qr_diffusion_creer : verrou de la copropriété, rejeu d'un double clic,
 //     destinataires calculés à l'instant de l'aperçu, nombre réel jamais au-dessus de l'annoncé, valeurs figées, journal
@@ -14,9 +15,11 @@
 //   201 { diffusionId, nbDestinataires, envoyes, refuses, reste, arret } ; 200 (même corps, rejeu: true) pour un double
 //   clic : la diffusion déjà créée, sans nouvel envoi (l'écran reprend tant que reste > 0).
 // GET (D-R5) — historique d'une copropriété (20 par page, curseur BRUT de PostgREST) et compteur du mois ; nombres par
-// état agrégés en base ; auteur réduit à « administrateur » / « gestionnaire » ; aucune adresse. Purge de conservation
-// (H10) lancée au plus une fois par jour.
-// Super admin seul en PR 3 (partie gestionnaire H11 ensuite). Migration 20261113 absente → 503 base_absente. Jamais en cache.
+// état agrégés en base ; auteur réduit à « administrateur » / « gestionnaire » (super admin), « vous » / « collegue » /
+// « cabinet » (gestionnaire, RG-23) ; aucune adresse. Purge de conservation (H10) lancée au plus une fois par jour.
+// Super admin, et gestionnaire sur une copropriété de SON cabinet qui lui est attribuée NOMMÉMENT (H11, contrôlé avant
+// toute lecture : hors portée → 404, « à tous » → 403 lecture_seule) ; auteur, compte et fiche passés à la base viennent
+// de la session. Migration 20261113 absente → 503 base_absente. Jamais en cache.
 
 import { type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -33,9 +36,9 @@ import {
   controlerAccesQr, estUuid, parametresQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, TABLE_DIFFUSIONS_QR, aujourdhuiParisQr, couplesDiffusionQr, diffusionFigeeQr, envoyerEtCompterDiffusionQr,
-  lireContexteDiffusionQr, lireDiffusionQr, moisDiffusionQr, nombresDiffusionQr, parametresAuteurDiffusionQr,
-  purgerDiffusionsSiBesoinQr, signalementDeLaCoproprieteQr,
+  PROFILS_DIFFUSION_QR, TABLE_DIFFUSIONS_QR, aujourdhuiParisQr, controlerDroitDiffuserQr, couplesDiffusionQr, diffusionFigeeQr,
+  envoyerEtCompterDiffusionQr, lireContexteDiffusionQr, lireDiffusionQr, moisDiffusionQr, nombresDiffusionQr, parametresAuteurDiffusionQr,
+  purgerDiffusionsSiBesoinQr, signalementDeLaCoproprieteQr, vueDiffusionDuProfilQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -61,11 +64,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const d = validation.data
     const profil = controle.profil
 
-    // Super admin : le cabinet décide d'envoyer ; son instruction écrite est exigée et gardée (HF4).
+    // Super admin : le cabinet décide d'envoyer ; son instruction écrite est exigée et gardée (HF4). Gestionnaire : c'est
+    // le cabinet qui diffuse, aucune instruction n'est attendue (ni gardée).
     if (profil.type === 'super_admin') {
       if (!d.instruction) return reponseInvalide('instruction: référence et date de l’instruction écrite du cabinet requises')
       if (d.instruction.recueLe > aujourdhuiParisQr()) return reponseInvalide('instruction.recueLe: date future')
+    } else if (d.instruction) {
+      return reponseInvalide('instruction: champ non admis pour ce profil')
     }
+    const droit = await controlerDroitDiffuserQr(profil, id)
+    if (!droit.ok) return droit.reponse
     if (!cleLiensDiffusionConfigureeQr()) {
       logger.error(`${CONTEXTE} diffusion : clé de signature des liens absente (AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION)`, { copropriete: id })
       return reponseErreur('configuration_incomplete', 503)
@@ -169,6 +177,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (!estUuid(id)) return reponseErreur('introuvable', 404)
     const validation = validateBody(diffusionsQrQuerySchema, parametresQr(request))
     if (!validation.success) return reponseInvalide(validation.error)
+    const droit = await controlerDroitDiffuserQr(controle.profil, id)
+    if (!droit.ok) return droit.reponse
 
     const contexte = await lireContexteDiffusionQr(id)
     if (!contexte.ok) return reponseErreurDiffusionQr(contexte.erreur, 'historique des diffusions', { copropriete: id })
@@ -182,7 +192,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     if (liste.error) return reponseErreurDiffusionQr(liste.error, 'historique des diffusions', { copropriete: id })
     if (!mois.ok) return reponseErreurDiffusionQr(mois.erreur, 'compteur du mois', { copropriete: id })
     const lignes = (Array.isArray(liste.data) ? liste.data : []) as Array<Record<string, unknown>>
-    const page = lignes.slice(0, PAGE_HISTORIQUE).map(resumeDiffusionDepuisLigneQr)
+    const vue = vueDiffusionDuProfilQr(controle.profil)
+    const page = lignes.slice(0, PAGE_HISTORIQUE).map((l) => resumeDiffusionDepuisLigneQr(l, vue))
     const suivant = lignes.length > PAGE_HISTORIQUE ? page.at(-1)?.creeLe ?? null : null
     return reponsePriveeQr({ diffusions: page, ceMois: mois.valeur, suivant })
   } catch (e: unknown) {

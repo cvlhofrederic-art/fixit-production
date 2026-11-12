@@ -6,8 +6,9 @@
 //     (ou tout paramètre de la fonction SQL) → 400, sans aucun appel ni écriture ;
 //   - p_acteur, p_gestionnaire et p_cabinet viennent de la session (fiche relue), jamais du corps ni du repère ;
 //   - ?gestionnaire= et ?cabinet= du tableau : réservés au super admin → 403 interdit (même vers son propre cabinet) ;
-//   - routes réservées au super admin (gestionnaires/*, cabinets/*, coproprietes/[id]/gestionnaires, DELETE, import,
-//     journal) → 403 interdit, SANS que la fiche du compte soit lue (aucune colonne de la 20261112 nommée) ;
+//   - routes réservées au super admin (gestionnaires/*, cabinets/* — réglages et activation de la diffusion compris,
+//     PR 3 D-R8 —, coproprietes/[id]/gestionnaires, DELETE, import, journal) → 403 interdit, SANS que la fiche du compte
+//     soit lue (aucune colonne de la 20261112 nommée) ;
 //   - statut sans statutAttendu → 400 avant toute lecture ;
 //   - user_metadata.role seul → aucun droit ; rôle sans fiche → 403 acces_retire ; un compte gestionnaire n'est jamais
 //     super admin.
@@ -106,6 +107,12 @@ describe('routes réservées au super admin : 403 interdit pour un gestionnaire,
     ['GET cabinets', CABINETS.GET, '/api/aj-signalement/cabinets', 'GET', ''],
     ['POST cabinets', CABINETS.POST, '/api/aj-signalement/cabinets', 'POST', '', { nom: 'Cabinet', identifiant: 'cabinet-nouveau', langue: 'fr', domaines: [] }],
     ['PATCH cabinets/[id]', CABINET.PATCH, `/api/aj-signalement/cabinets/${A.CAB}`, 'PATCH', A.CAB, { nom: 'Autre nom' }],
+    // PR 3 (D-R8) : lecture des réglages de diffusion, réglages et activation du cabinet, jamais par un gestionnaire,
+    // même pour SON cabinet (la diffusion d'un gestionnaire, D-R1 à D-R7, est éprouvée par
+    // tests/api/aj-signalement-diffusions-gestionnaire.test.ts).
+    ['GET cabinets/[id] (réglages de diffusion)', CABINET.GET, `/api/aj-signalement/cabinets/${A.CAB}`, 'GET', A.CAB],
+    ['PATCH cabinets/[id] (activation de la diffusion)', CABINET.PATCH, `/api/aj-signalement/cabinets/${A.CAB}`, 'PATCH', A.CAB, { diffusionActivee: true }],
+    ['PATCH cabinets/[id] (téléphones autorisés)', CABINET.PATCH, `/api/aj-signalement/cabinets/${A.CAB}`, 'PATCH', A.CAB, { telephonesAutorises: ['0611111111'] }],
     ['POST cabinets/[id]/rattachement', RATTACHEMENT.POST, `/api/aj-signalement/cabinets/${A.CAB}/rattachement`, 'POST', A.CAB, { coproprieteIds: [A.C_SANS] }],
   ]
 

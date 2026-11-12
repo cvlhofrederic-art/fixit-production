@@ -12,8 +12,9 @@
 --        déclarants, à qui l'accusé de réception annonce la diffusion, y entrent aussitôt (art. 13.4) ;
 --   H7 = date facultative de fin de mission sur la copropriété : à cette date, plus aucune diffusion (aperçu, création,
 --        lots), sans geste humain ; désactiver la copropriété la coupe aussi ;
---   H11 = un gestionnaire ne diffuse que sur une copropriété qui lui est attribuée NOMMÉMENT (jamais par « attribuée à
---        tous ») : contrôlé aussi par la base (signalements_qr_diffusion_gestionnaire_autorise) ;
+--   H11 = un gestionnaire ne diffuse que sur une copropriété qui lui est attribuée NOMMÉMENT, jamais sur une copropriété
+--        « attribuée à tous » (la copropriété de test ne diffuse que par le super admin) : contrôlé par les routes
+--        avant tout appel, et aussi par la base (signalements_qr_diffusion_gestionnaire_autorise) ;
 --   H9 (appliquée par défaut) = aucun cabinet de langue « pt » ne diffuse tant que le droit portugais n'est pas vérifié,
 --        même activé puis passé en « pt » : règle d'inactivité (raison langue_non_ouverte).
 --
@@ -302,14 +303,16 @@ BEGIN
 END $fn$;
 
 -- H11 : la fiche est active, reliée à ce compte, non bloquée, du cabinet de la copropriété, et la copropriété lui est
--- attribuée NOMMÉMENT (« attribuée à tous » ne suffit pas).
+-- attribuée NOMMÉMENT ; jamais une copropriété « attribuée à tous », même attribuée aussi nommément (la copropriété de
+-- test ne diffuse que par le super admin). Même règle que droitDiffuserQr (lib/aj-signalement/droits-diffusion.ts), que
+-- les routes appliquent AVANT tout appel.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_gestionnaire_autorise(
   p_gestionnaire uuid, p_acteur uuid, p_copropriete uuid
 ) RETURNS boolean
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   SELECT EXISTS (
     SELECT 1 FROM signalements_qr_gestionnaires g
-      JOIN signalements_qr_coproprietes c ON c.id = p_copropriete AND c.cabinet_id = g.cabinet_id
+      JOIN signalements_qr_coproprietes c ON c.id = p_copropriete AND c.cabinet_id = g.cabinet_id AND NOT c.attribuee_a_tous
       JOIN signalements_qr_attributions a ON a.gestionnaire_id = g.id AND a.copropriete_id = c.id
      WHERE g.id = p_gestionnaire AND g.actif AND g.user_id = p_acteur AND g.connexion_bloquee_le IS NULL)
 $fn$;

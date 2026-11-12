@@ -5,8 +5,10 @@
 // demande_cabinet, date de réception gardée, non future → 400 sinon). Le signalement doit appartenir à la copropriété
 // du chemin (lu ici, puis revérifié par signalements_qr_diffusion_opposer_signalement), sinon 404 ; les lignes en
 // attente de cette adresse sont annulées dans la même transaction ; idempotente. Aucune adresse ni empreinte dans la
-// réponse ou le journal. Super admin seul en PR 3 (partie gestionnaire H11 ensuite : copropriété attribuée nommément).
-// 200 { enregistree: true }. Migration 20261113 absente → 503 base_absente.
+// réponse ou le journal. Super admin, et gestionnaire sur une copropriété de SON cabinet qui lui est attribuée NOMMÉMENT
+// (H11, contrôlé avant toute lecture de la copropriété et du signalement : hors portée → 404, « à tous » → 403
+// lecture_seule ; la base le revérifie : 42501 → 403). 200 { enregistree: true }. Migration 20261113 absente → 503
+// base_absente.
 
 import { type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -18,7 +20,7 @@ import {
   reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, aujourdhuiParisQr, parametresAuteurDiffusionQr, signalementDeLaCoproprieteQr,
+  PROFILS_DIFFUSION_QR, aujourdhuiParisQr, controlerDroitDiffuserQr, parametresAuteurDiffusionQr, signalementDeLaCoproprieteQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string; sid: string }> }) {
@@ -36,6 +38,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!validation.success) return reponseInvalide(validation.error)
     const { demandeRecueLe } = validation.data
     if (demandeRecueLe > aujourdhuiParisQr()) return reponseInvalide('demandeRecueLe: date future')
+    const droit = await controlerDroitDiffuserQr(controle.profil, id)
+    if (!droit.ok) return droit.reponse
 
     const copro = await lireLigneCoproprieteQr(id)
     if (!copro.ok) return reponseErreurSqlQr(copro.erreur, 'lecture de la copropriété', { copropriete: id })
