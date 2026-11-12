@@ -8,7 +8,9 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { effacerJetonsUnClicQr, effacerJetonsUnClicSentryQr } from '@/lib/aj-signalement/sentry-desinscription'
+import {
+  effacerJetonsDesinscriptionQr, effacerJetonsDesinscriptionSentryQr, effacerJetonsUnClicQr, effacerJetonsUnClicSentryQr,
+} from '@/lib/aj-signalement/sentry-desinscription'
 
 const JETON = `${'a1'.repeat(16)}.${'b2'.repeat(32)}`
 const CHEMIN = `/api/aj-signalement/desinscription/un-clic/${JETON}`
@@ -69,5 +71,37 @@ describe('effacement du jeton un clic', () => {
     expect(texte).toContain("from './lib/aj-signalement/sentry-desinscription'")
     expect(texte).toMatch(/beforeSend\s*\([\s\S]*?effacerJetonsUnClicSentryQr\(/)
     expect(texte).toMatch(/beforeSendTransaction\s*\([\s\S]*?effacerJetonsUnClicSentryQr\(/)
+  })
+})
+
+// Relecture 2 de la PR 3 : le Sentry du NAVIGATEUR voyait le jeton du fragment de la page de désinscription (fil d'Ariane
+// de l'effacement par history.replaceState, request.url d'une erreur levée avant). Éprouvé de bout en bout, avec le vrai
+// SDK et le vrai composant : tests/securite/sentry-navigateur-desinscription.test.tsx.
+describe('effacement de tout jeton de lien de diffusion (navigateur : fragment de la page)', () => {
+  const PAGE = `/cabinet-exemple/desinscription/#${JETON}`
+
+  it('fragment de la page, adresse complète, majuscules, texte libre : le jeton devient [jeton], le chemin reste', () => {
+    expect(effacerJetonsDesinscriptionQr(PAGE)).toBe('/cabinet-exemple/desinscription/#[jeton]')
+    expect(effacerJetonsDesinscriptionQr(`https://vitfix.io${PAGE}`)).toBe('https://vitfix.io/cabinet-exemple/desinscription/#[jeton]')
+    expect(effacerJetonsDesinscriptionQr(`lien ${JETON.toUpperCase()} fin`)).toBe('lien [jeton] fin')
+    expect(effacerJetonsDesinscriptionQr(CHEMIN)).toBe('/api/aj-signalement/desinscription/un-clic/[jeton]')
+    for (const texte of ['/cabinet-exemple/desinscription/', `${'a'.repeat(32)}.${'b'.repeat(63)}`, 'rien à voir', '']) {
+      expect(effacerJetonsDesinscriptionQr(texte)).toBe(texte)
+    }
+  })
+
+  it('fil d’Ariane « navigation » de l’effacement du fragment : from et to sans jeton, catégorie gardée', () => {
+    const fil = { category: 'navigation', data: { from: PAGE, to: '/cabinet-exemple/desinscription/' } }
+    expect(effacerJetonsDesinscriptionSentryQr(fil)).toEqual({
+      category: 'navigation', data: { from: '/cabinet-exemple/desinscription/#[jeton]', to: '/cabinet-exemple/desinscription/' },
+    })
+  })
+
+  it('instrumentation-client.ts : fils d’Ariane, erreurs (avant le caviardage des téléphones) et transactions passent par l’effacement', () => {
+    const texte = readFileSync(join(process.cwd(), 'instrumentation-client.ts'), 'utf-8')
+    expect(texte).toContain('from "@/lib/aj-signalement/sentry-desinscription"')
+    expect(texte).toMatch(/beforeBreadcrumb\s*\([\s\S]*?effacerJetonsDesinscriptionSentryQr\(/)
+    expect(texte).toMatch(/beforeSendTransaction\s*\([\s\S]*?effacerJetonsDesinscriptionSentryQr\(/)
+    expect(texte).toMatch(/beforeSend\s*\(event\)\s*\{[\s\S]*?effacerJetonsDesinscriptionSentryQr\(event\);[\s\S]*?redactPII/)
   })
 })
