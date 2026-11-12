@@ -1,40 +1,68 @@
 // tests/lib/aj-signalement-types-journal.test.ts
 //
 // Les listes fermées de lib/aj-signalement/types.ts (actions du journal, origines d'une attribution, profils d'acteur,
-// langues d'un cabinet, erreurs métier levées par les fonctions SQL) sont celles de la migration
-// 20261111_signalements_qr_gestionnaires.sql : une action ajoutée d'un seul côté ferait échouer l'écriture du journal
-// (CHECK) ou laisserait une erreur SQL sans code public. Lues dans le texte SQL, ordre indifférent.
+// langues d'un cabinet, erreurs métier levées par les fonctions SQL) sont celles des migrations : une action ajoutée d'un
+// seul côté ferait échouer l'écriture du journal (CHECK) ou laisserait une erreur SQL sans code public. Lues dans le
+// texte SQL, ordre indifférent.
 // PR 2 : la migration 20261112_signalements_qr_acces_gestionnaires.sql lève ses propres erreurs métier (deja_ouvert,
-// adresse_contestee) et écrit une action par trigger (gestionnaire.acces_ouvert) : les deux fichiers sont lus.
+// adresse_contestee) et écrit une action par trigger (gestionnaire.acces_ouvert).
+// PR 3 : la migration 20261113_signalements_qr_diffusion.sql REMPLACE la liste des actions du journal (la 20261111 est
+// appliquée) et lève ses erreurs métier (diffusion_inactive, aucun_destinataire, perimetre_change) : la liste des actions
+// est lue dans la DERNIÈRE définition de la contrainte (ordre des fichiers = ordre d'application), les erreurs et les
+// actions écrites dans l'union des fichiers.
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import {
   ACTIONS_JOURNAL_QR, CLE_REPERE_CABINET_QR, ERREURS_METIER_SQL_QR, ETATS_GESTIONNAIRE_QR, LANGUES_CABINET_QR, ORIGINES_ATTRIBUTION_QR,
   PROFILS_ACTEUR_QR, ROLE_GESTIONNAIRE_QR, gestionCoproprieteQrVide,
 } from '@/lib/aj-signalement/types'
 
-const lireSql = (fichier: string) => readFileSync(join(process.cwd(), 'supabase/migrations', fichier), 'utf-8').replace(/--[^\n]*/g, '')
+const DOSSIER = join(process.cwd(), 'supabase/migrations')
+const lireSql = (fichier: string) => readFileSync(join(DOSSIER, fichier), 'utf-8').replace(/--[^\n]*/g, '')
 const code = lireSql('20261111_signalements_qr_gestionnaires.sql')
 const code1112 = lireSql('20261112_signalements_qr_acces_gestionnaires.sql')
+const FICHIER_DIFFUSION = '20261113_signalements_qr_diffusion.sql'
+const code1113 = existsSync(join(DOSSIER, FICHIER_DIFFUSION)) ? lireSql(FICHIER_DIFFUSION) : ''
+/** Migrations d'AJ Signalement dans l'ordre d'application (nom de fichier, comme la CLI Supabase). */
+const MIGRATIONS_QR = readdirSync(DOSSIER).filter((f) => f.includes('signalements_qr') && f.endsWith('.sql')).sort((a, b) => a.localeCompare(b))
+const codeTout = MIGRATIONS_QR.map(lireSql).join('\n')
 const trie = (valeurs: Iterable<string>) => [...valeurs].sort((a, b) => a.localeCompare(b))
 
-/** Valeurs littérales d'un CHECK (colonne IN (…)) nommé ou repéré par son début. */
-function valeursCheck(debut: RegExp): string[] {
-  const m = new RegExp(`${debut.source}\\s*\\(([^)]*)\\)`).exec(code)
+/** Valeurs littérales d'un CHECK (colonne IN (…)) nommé ou repéré par son début, dans un texte SQL (la 20261111 par défaut). */
+function valeursCheck(debut: RegExp, texte = code): string[] {
+  const m = new RegExp(`${debut.source}\\s*\\(([^)]*)\\)`).exec(texte)
   if (!m) throw new Error(`CHECK introuvable : ${debut.source}`)
   return [...m[1].matchAll(/'([^']*)'/g)].map((v) => v[1])
 }
 
-const corpsFonctions = [...`${code}\n${code1112}`.matchAll(/\$fn\$([\s\S]*?)\$fn\$/g)].map((m) => m[1]).join('\n')
+/** Dernière définition de la liste des actions du journal : celle du dernier fichier qui la pose (ou la remplace). */
+const MOTIF_ACTIONS = /CONSTRAINT signalements_qr_journal_action_valeurs CHECK \(action IN/
+const FICHIER_DERNIERE_LISTE = [...MIGRATIONS_QR].reverse().find((f) => MOTIF_ACTIONS.test(lireSql(f))) ?? ''
+
+const corpsFonctions = [...codeTout.matchAll(/\$fn\$([\s\S]*?)\$fn\$/g)].map((m) => m[1]).join('\n')
 
 describe('actions du journal', () => {
-  const actionsSql = valeursCheck(/CONSTRAINT signalements_qr_journal_action_valeurs CHECK \(action IN/)
+  const actionsSql = valeursCheck(MOTIF_ACTIONS, lireSql(FICHIER_DERNIERE_LISTE))
+
+  it('la dernière définition de la liste est celle de la 20261113 (diffusion), qui reprend les 34 actions de la 20261111', () => {
+    expect(FICHIER_DERNIERE_LISTE).toBe(FICHIER_DIFFUSION)
+    const actions1111 = valeursCheck(MOTIF_ACTIONS)
+    expect(actions1111).toHaveLength(34)
+    for (const action of actions1111) expect(actionsSql, action).toContain(action)
+  })
 
   it('ACTIONS_JOURNAL_QR = liste du CHECK du journal (mêmes éléments, sans doublon)', () => {
     expect(trie(ACTIONS_JOURNAL_QR)).toEqual(trie(actionsSql))
     expect(new Set(ACTIONS_JOURNAL_QR).size).toBe(ACTIONS_JOURNAL_QR.length)
+  })
+
+  it('les 7 actions de la diffusion (PR 3) sont dans la liste', () => {
+    for (const action of ['cabinet.diffusion_activee', 'cabinet.diffusion_suspendue', 'diffusion.envoyee', 'diffusion.reprise',
+      'diffusion.opposition', 'diffusion.opposition_levee', 'diffusion.purge']) {
+      expect(ACTIONS_JOURNAL_QR).toContain(action)
+    }
   })
 
   it('les actions des cabinets clients et du rattachement sont dans la liste, celles de la PR 2 aussi (posée une fois)', () => {
@@ -67,11 +95,17 @@ describe('autres listes fermées', () => {
     expect(LANGUES_CABINET_QR[0]).toBe('fr')
   })
 
-  it('ERREURS_METIER_SQL_QR = messages levés en P0001 par les fonctions des DEUX migrations (chacun traduit en 409)', () => {
-    const levees = new Set([...`${code}\n${code1112}`.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
+  it('ERREURS_METIER_SQL_QR = messages levés en P0001 par les fonctions des TROIS migrations (chacun traduit en 409)', () => {
+    const levees = new Set([...`${code}\n${code1112}\n${code1113}`.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
     expect(trie(levees)).toEqual(trie(ERREURS_METIER_SQL_QR))
     expect(ERREURS_METIER_SQL_QR).toContain('deja_ouvert')
     expect(ERREURS_METIER_SQL_QR).toContain('adresse_contestee')
+    for (const erreur of ['diffusion_inactive', 'aucun_destinataire', 'perimetre_change']) expect(ERREURS_METIER_SQL_QR).toContain(erreur)
+  })
+
+  it('les erreurs métier de toutes les migrations d’AJ Signalement sont celles des trois fichiers ci-dessus', () => {
+    const levees = new Set([...codeTout.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
+    expect(trie(levees)).toEqual(trie(ERREURS_METIER_SQL_QR))
   })
 
   it('aucune autre erreur levée que P0001 (métier), 42501 (interdit) et 22023 (paramètre invalide)', () => {

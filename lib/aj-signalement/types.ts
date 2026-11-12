@@ -271,8 +271,8 @@ export const PROFILS_ACTEUR_QR = ['super_admin', 'gestionnaire', 'systeme'] as c
 export type ProfilActeurQr = (typeof PROFILS_ACTEUR_QR)[number]
 
 /**
- * Actions du journal (CHECK signalements_qr_journal_action_valeurs) : liste fermée posée une seule fois, actions de la
- * PR 2 comprises (accès des gestionnaires).
+ * Actions du journal (CHECK signalements_qr_journal_action_valeurs) : liste fermée posée par la 20261111 (actions de la
+ * PR 2 comprises), remplacée par la 20261113 qui y ajoute les 7 actions de la diffusion (PR 3).
  */
 export const ACTIONS_JOURNAL_QR = [
   'cabinet.cree', 'cabinet.modifie', 'cabinet.domaines_modifies',
@@ -286,6 +286,9 @@ export const ACTIONS_JOURNAL_QR = [
   'gestionnaire.acces_envoye', 'gestionnaire.acces_ouvert', 'gestionnaire.refus_autre_espace',
   'gestionnaire.connexion_bloquee', 'gestionnaire.effacement_demande',
   'signalement.statut', 'doublon.refuse', 'doublon.force', 'import.realise', 'journal.purge',
+  // Migration 20261113 (PR 3) : diffusion de messages d'exploitation aux déclarants.
+  'cabinet.diffusion_activee', 'cabinet.diffusion_suspendue',
+  'diffusion.envoyee', 'diffusion.reprise', 'diffusion.opposition', 'diffusion.opposition_levee', 'diffusion.purge',
 ] as const
 export type ActionJournalQr = (typeof ACTIONS_JOURNAL_QR)[number]
 
@@ -329,6 +332,9 @@ export const ERREURS_METIER_SQL_QR = [
   // Migration 20261112 (contre-vérification du 12/11) : création d'une fiche sur une boîte déjà portée par une fiche
   // (signalements_qr_inviter_gestionnaire ; identifiant de cette fiche en DETAIL, rendu par la route).
   'existe_deja',
+  // Migration 20261113 (PR 3, diffusion) : copropriété qui ne peut pas diffuser (inactive, sans cabinet, cabinet non
+  // activé, fin de mission atteinte), personne dans le périmètre, nombre réel au-dessus de l'aperçu ou aperçu périmé.
+  'diffusion_inactive', 'aucun_destinataire', 'perimetre_change',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
