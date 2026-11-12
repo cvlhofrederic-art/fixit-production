@@ -693,19 +693,21 @@ BEGIN
     RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
   END IF;
 
-  -- Boîte déjà portée par une fiche, active ou non, de tout cabinet (contre-vérification du 12/11) : la nouvelle adresse,
-  -- ou sa partie locale sur un domaine de SON cabinet, est l'adresse de cette fiche par la règle de la section 4 (domaines
-  -- du cabinet de la fiche) ; une boîte, une fiche (sinon le départ de l'une emporterait l'adresse de l'autre). Refus
-  -- existe_deja, avec l'identifiant de la fiche en DETAIL (la route le rend : « voir la fiche »). Une fiche effacée n'a
-  -- plus d'adresse : sa boîte se libère.
+  -- Boîte déjà portée par une fiche, active ou non, de tout cabinet (contre-vérification du 12/11) : la nouvelle adresse
+  -- est une adresse de cette fiche, ou l'adresse de cette fiche est une adresse de la nouvelle, par la règle de la section
+  -- 4 (domaines du cabinet de chacune) ; une boîte, une fiche (sinon le départ de l'une emporterait l'adresse de l'autre).
+  -- Deux fiches forcées d'un même cabinet sur deux boîtes distinctes de même partie locale (luc@<messagerie 1>,
+  -- luc@<messagerie 2>) ne se croisent que par une variante virtuelle sur le domaine du cabinet : acceptées (reprise de la
+  -- garde, constat 6 ; une fiche forcée ne garde que sa boîte, section 4). Refus existe_deja, avec l'identifiant de la
+  -- fiche en DETAIL (la route le rend : « voir la fiche ») : celle de même boîte d'abord, puis la plus petite par
+  -- identifiant. Une fiche effacée n'a plus d'adresse : sa boîte se libère.
   SELECT o.id INTO v_existante FROM signalements_qr_gestionnaires o
    WHERE o.email IS NOT NULL
      AND (signalements_qr_adresse_de_fiche(v_email, o.email,
             ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = o.cabinet_id))
-          OR EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises k WHERE k.cabinet_id = v_cab
-                      AND signalements_qr_adresse_de_fiche(split_part(v_email, '@', 1) || '@' || k.domaine, o.email,
-                            ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = o.cabinet_id))))
-   ORDER BY o.id LIMIT 1;
+          OR signalements_qr_adresse_de_fiche(o.email, v_email,
+            ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab)))
+   ORDER BY signalements_qr_adresse_de_fiche(v_email, o.email, '{}'::text[]) DESC, o.id LIMIT 1;
   IF FOUND THEN
     RAISE EXCEPTION 'existe_deja' USING ERRCODE = 'P0001', DETAIL = v_existante::text;
   END IF;

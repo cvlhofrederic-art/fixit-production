@@ -653,11 +653,15 @@ describe(`Migration ${FICHIER} : retrait d’attribution (signalements_qr_attrib
 const VERROU_DOMAINE = (valeur: string) => `PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_domaine:' || ${valeur}));`
 const VERROU_BOITE = "PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_boite:' || split_part(split_part(v_email, '@', 1), '+', 1)));"
 const DOMAINES_FICHE_O = 'ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = o.cabinet_id)'
+const DOMAINES_NOUVELLE = 'ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab)'
+// Reprise de la garde, constat 6 : refus seulement si l'adresse de l'une est une adresse de l'autre fiche (la règle dans
+// les deux sens, domaines du cabinet de chacune) ; deux fiches forcées d'un cabinet, sur deux boîtes distinctes de même
+// partie locale, ne sont plus refusées. DETAIL : la fiche de même boîte d'abord, puis la plus petite par identifiant.
 const MEME_BOITE = 'SELECT o.id INTO v_existante FROM signalements_qr_gestionnaires o WHERE o.email IS NOT NULL'
   + ` AND (signalements_qr_adresse_de_fiche(v_email, o.email, ${DOMAINES_FICHE_O})`
-  + ' OR EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises k WHERE k.cabinet_id = v_cab'
-  + ` AND signalements_qr_adresse_de_fiche(split_part(v_email, '@', 1) || '@' || k.domaine, o.email, ${DOMAINES_FICHE_O})))`
-  + " ORDER BY o.id LIMIT 1; IF FOUND THEN RAISE EXCEPTION 'existe_deja' USING ERRCODE = 'P0001', DETAIL = v_existante::text; END IF;"
+  + ` OR signalements_qr_adresse_de_fiche(o.email, v_email, ${DOMAINES_NOUVELLE}))`
+  + " ORDER BY signalements_qr_adresse_de_fiche(v_email, o.email, '{}'::text[]) DESC, o.id LIMIT 1;"
+  + " IF FOUND THEN RAISE EXCEPTION 'existe_deja' USING ERRCODE = 'P0001', DETAIL = v_existante::text; END IF;"
 
 describe(`Migration ${FICHIER} : création d’une fiche (signalements_qr_inviter_gestionnaire, corps de la 20261111 corrigée)`, () => {
   const nouvelle = () => fonction('signalements_qr_inviter_gestionnaire')
