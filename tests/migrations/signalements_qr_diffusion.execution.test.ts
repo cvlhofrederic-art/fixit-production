@@ -400,6 +400,19 @@ describe('réglages du cabinet (contraintes)', () => {
     }
     await db.exec(`UPDATE signalements_qr_cabinets SET diffusion_telephones = ARRAY['0612345678', '351912345678'] WHERE id = '${cab}'`)
   })
+
+  it.each([
+    "ARRAY['0612345678', NULL]", 'ARRAY[NULL]::text[]', "ARRAY[['0612345678'], ['0712345678']]",
+  ])('téléphones autorisés : %s refusé (23514) — aucun élément NULL, une seule dimension', async (valeur) => {
+    const cab = await cabinet()
+    await db.exec('SAVEPOINT s')
+    let erreur: ErreurPg | null = null
+    try {
+      await db.exec(`UPDATE signalements_qr_cabinets SET diffusion_telephones = ${valeur} WHERE id = '${cab}'`)
+    } catch (e) { erreur = erreurPg(e) }
+    await db.exec('ROLLBACK TO SAVEPOINT s')
+    expect(erreur?.code).toBe('23514')
+  })
 })
 
 describe('aperçu et création : destinataires calculés en SQL', () => {

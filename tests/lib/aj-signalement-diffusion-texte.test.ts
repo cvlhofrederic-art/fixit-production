@@ -137,6 +137,12 @@ describe('normaliserTelephoneDeclareQr : forme gardée sur le cabinet (chiffres 
     const declare = normaliserTelephoneDeclareQr('+33 6 12 34 56 78') ?? ''
     expect(motif('Astreinte : 06 12 34 56 78.', [declare])).toBe('ok')
   })
+  it('liste lue en base avec un élément qui n’est pas une chaîne (NULL) : élément ignoré, jamais d’exception', () => {
+    const lue = ['0612345678', null, 42] as unknown as readonly string[]
+    expect(() => controlerTexteDiffusionQr('Appelez le 06 98 76 54 32.', { telephonesAutorises: lue })).not.toThrow()
+    expect(motif('Appelez le 06 98 76 54 32.', lue)).toBe('telephone')
+    expect(motif('Astreinte : 06 12 34 56 78.', lue)).toBe('ok')
+  })
 })
 
 describe('bornes et forme', () => {

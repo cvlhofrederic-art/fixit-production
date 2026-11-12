@@ -261,14 +261,19 @@ describe(`Migration ${FICHIER} : réglages du cabinet, annonce (H1) et fin de mi
     }
   })
 
-  it('téléphones autorisés (H2) : chiffres seuls, 10 au plus', () => {
+  it('téléphones autorisés (H2) : chiffres seuls, 10 au plus, une seule dimension, aucun élément NULL', () => {
     expect(code).toMatch(/cardinality\(diffusion_telephones\) <= 10/)
-    const m = /array_to_string\(diffusion_telephones, ','\) ~ '([^']+)'/.exec(code)
+    expect(code).toMatch(/coalesce\(array_ndims\(diffusion_telephones\), 1\) = 1/)
+    // Un élément NULL devient « * » (troisième argument d'array_to_string), que l'expression refuse ; sans lui, il serait
+    // ignoré et la contrainte passerait.
+    const m = /array_to_string\(diffusion_telephones, ',', '\*'\) ~ '([^']+)'/.exec(code)
     const motif = new RegExp(m?.[1] ?? '$^')
     expect(motif.test('')).toBe(true)
     expect(motif.test('0612345678,351912345678')).toBe(true)
     expect(motif.test('06 12 34 56 78')).toBe(false)
     expect(motif.test('+33612345678')).toBe(false)
+    expect(motif.test('0612345678,*')).toBe(false)
+    expect(motif.test('*')).toBe(false)
   })
 
   it('H1 = option C : date et origine de l’annonce par signalement (accusé ou message d’annonce), cohérentes', () => {

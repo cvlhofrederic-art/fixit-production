@@ -89,9 +89,11 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'signalements_qr_cabinets_diffusion_telephones_format'
                  AND conrelid = 'signalements_qr_cabinets'::regclass) THEN
     -- Numéros autorisés dans les messages (astreinte, gardiens ; H2) : chiffres seuls, forme normalisée par la route.
+    -- Une seule dimension (cardinality compte tous les éléments d'un tableau à deux dimensions, array_to_string les met à
+    -- plat) ; un élément NULL devient « * », que l'expression refuse (array_to_string l'ignorerait sinon).
     ALTER TABLE signalements_qr_cabinets ADD CONSTRAINT signalements_qr_cabinets_diffusion_telephones_format
-      CHECK (cardinality(diffusion_telephones) <= 10
-             AND array_to_string(diffusion_telephones, ',') ~ '^([0-9]{6,15}(,[0-9]{6,15})*)?$') NOT VALID;
+      CHECK (cardinality(diffusion_telephones) <= 10 AND coalesce(array_ndims(diffusion_telephones), 1) = 1
+             AND array_to_string(diffusion_telephones, ',', '*') ~ '^([0-9]{6,15}(,[0-9]{6,15})*)?$') NOT VALID;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'signalements_qr_diffusion_annonce_origine_valeurs'
                  AND conrelid = 'signalements_qr'::regclass) THEN

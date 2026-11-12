@@ -226,7 +226,10 @@ function contientNumeroNonDeclare(candidat: string, declares: ReadonlySet<string
 }
 
 function contientTelephoneNonDeclare(detection: string, autorises: readonly string[]): boolean {
-  const declares = new Set(autorises.map((t) => formeComparableTelephone(t.replace(/\D/g, ''))))
+  // Liste relue en base : un élément qui ne serait pas une chaîne (NULL) est ignoré, jamais une exception (la contrainte
+  // signalements_qr_cabinets_diffusion_telephones_format le refuse aussi).
+  const declares = new Set(autorises.filter((t): t is string => typeof t === 'string')
+    .map((t) => formeComparableTelephone(t.replace(/\D/g, ''))))
   const candidats = detection.replace(ZERO_ENTRE_PARENTHESES, ' ').match(CANDIDAT_TELEPHONE) ?? []
   return candidats.some((candidat) => contientNumeroNonDeclare(candidat, declares))
 }
