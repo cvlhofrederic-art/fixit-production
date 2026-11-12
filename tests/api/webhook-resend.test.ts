@@ -256,3 +256,43 @@ describe('rebond (email.bounced)', () => {
     expect(h.rpc).not.toHaveBeenCalled()
   })
 })
+
+// Relecture 3 de la PR 3 (cahier § 8.2, « Journalisation » : Sentry ne reçoit « jamais d'adresse, d'objet, de texte,
+// de jeton ») : l'objet d'un e-mail d'AJ Signalement porte la copropriété et l'objet saisi par le cabinet ; le texte d'un
+// rebond cite souvent l'adresse du destinataire (« 550 5.1.1 <…> ») ; le beforeSend du serveur ne caviarde pas extra.
+describe('e-mails d’AJ Signalement : ni objet ni texte du rebond dans Sentry', () => {
+  const OBJET_AJ = 'Résidence Exemple — Coupure d’eau au bâtiment B demain de 9 h à 10 h'
+  const ADRESSE = 'jean.declarant@exemple.test'
+  const REBOND = { type: 'Permanent', subType: 'General', message: `550 5.1.1 <${ADRESSE}>: Recipient address rejected: user unknown` }
+  const ETIQUETTES_AJ: Array<[string, Record<string, unknown> | Array<{ name: string; value: string }>]> = [
+    ['diffusion', TAGS_DIFFUSION],
+    ['diffusion (forme de l’envoi)', Object.entries(TAGS_DIFFUSION).map(([name, value]) => ({ name, value }))],
+    ['copie au cabinet', { type: 'aj-diffusion-copie', diffusion: DIFFUSION }],
+    ['accusé de réception', { type: 'aj-signalement-confirmation' }],
+    ['e-mail d’un signalement', { type: 'aj-signalement' }],
+    ['alerte', { type: 'aj-signalement-alerte' }],
+  ]
+  const cas = ETIQUETTES_AJ.flatMap(([nom, tags]) => [
+    ['email.bounced', nom, tags, { bounce: REBOND }],
+    ['email.complained', nom, tags, { complaint: { type: 'abuse' } }],
+    ['email.delivery_delayed', nom, tags, {}],
+  ] as const)
+
+  it.each(cas)('%s, %s : extra sans objet ni texte du rebond ; identifiant, domaines et type de rebond gardés', async (type, _nom, tags, data) => {
+    expect((await poster(evenement(type, { to: [ADRESSE], subject: OBJET_AJ, tags, ...data }))).status).toBe(200)
+    expect(h.captureMessage).toHaveBeenCalledTimes(1)
+    const [titre, options] = h.captureMessage.mock.calls[0] as [string, { extra: Record<string, unknown>; tags: Record<string, string> }]
+    const tout = JSON.stringify([titre, options])
+    expect(tout).not.toContain('Coupure d’eau')
+    expect(tout).not.toContain(ADRESSE)
+    expect(options.extra).not.toHaveProperty('subject')
+    expect(options.extra).not.toHaveProperty('message')
+    expect(options.extra).toMatchObject({ emailId: '56761188-7520-42d8-8898-ff6fc54ce618', recipientDomains: ['exemple.test'] })
+    if (type === 'email.bounced') expect(options.tags).toMatchObject({ bounce_type: 'Permanent', bounce_sub_type: 'General' })
+  })
+
+  it('autre e-mail de VitFix (sans étiquette AJ Signalement) : inchangé, objet et texte du rebond gardés', async () => {
+    await poster(evenement('email.bounced', { subject: 'Votre devis', tags: { category: 'devis' }, bounce: { type: 'Permanent', subType: 'General', message: 'Adresse inconnue' } }))
+    expect(h.captureMessage.mock.calls[0][1]).toMatchObject({ extra: { subject: 'Votre devis', message: 'Adresse inconnue' } })
+  })
+})

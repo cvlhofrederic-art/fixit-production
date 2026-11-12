@@ -44,6 +44,18 @@ export function etiquettesResendQr(tags: unknown): ReadonlyMap<string, string> {
   return etiquettes
 }
 
+/** Étiquette « type » des e-mails d'AJ Signalement (lib/aj-signalement/email.ts) : aj-signalement…, aj-diffusion…. */
+const TYPE_EMAIL_AJ_SIGNALEMENT_QR = /^aj-(?:signalement|diffusion)(?:-|$)/
+
+/**
+ * L'événement porte-t-il sur un e-mail d'AJ Signalement (signalement, alerte, accusé, adresse, accès, diffusion, copie au
+ * cabinet) ? Le webhook n'en transmet alors à Sentry ni l'objet (copropriété, objet saisi par le cabinet) ni le texte
+ * d'un rebond, qui cite souvent l'adresse du destinataire (cahier PR 3 § 8.2, « Journalisation » ; relecture 3).
+ */
+export function emailAjSignalementQr(tags: unknown): boolean {
+  return TYPE_EMAIL_AJ_SIGNALEMENT_QR.test(etiquettesResendQr(tags).get('type') ?? '')
+}
+
 /**
  * Issue du traitement d'une plainte :
  *   - hors_diffusion : le message n'est pas une diffusion (inchangé) ;
