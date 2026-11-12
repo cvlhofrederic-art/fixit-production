@@ -83,7 +83,9 @@ test.describe('AJ Signalement — ouverture de l’accès d’un gestionnaire (/
     await page.getByRole('button', { name: 'Ouvrir mon accès' }).click()
 
     await expect(page.getByText('Accès ouvert. Connectez-vous.')).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', `/${IDENTIFIANT}/connexion/`)
+    // Lien du contenu de la page (#main-content) : l'en-tête et le pied du site, gardés sur cette page, ont aussi le leur
+    // (« Se connecter », vers /fr/auth/login/), et le mode strict de Playwright refuse un sélecteur qui en trouve trois.
+    await expect(page.locator('#main-content').getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', `/${IDENTIFIANT}/connexion/`)
     expect(api.recues.filter((r) => r.chemin === ACCEPTATION)).toEqual([
       { chemin: ACCEPTATION, corps: { token: JETON, cabinet: IDENTIFIANT, password: MOT_DE_PASSE, politiqueLue: true } },
     ])
