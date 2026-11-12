@@ -161,6 +161,10 @@ function cheminsCaptes(premier: string): SegmentCapte[][] {
   if (!cheminPublicCabinetQr(`/${id}/confirmation-adresse/`)) return []
   // Un préfixe réservé ne masque rien : aucun cabinet ne peut porter ce nom (validerIdentifiantCabinetQr le refuse).
   // Ex. /aj-signalement/connexion/ (page de connexion de l'espace, #669) : « aj-signalement » est un préfixe réservé.
+  // Vrai pour le motif du MIDDLEWARE, qui ne voit que le chemin d'origine. Le chemin INTERNE /aj-signalement/connexion
+  // que produit la réécriture de /fr/aj-signalement/connexion/ ne passe pas par lui : il n'échappe aux règles de cabinet
+  // de next.config.ts que parce qu'elles sont en tête de beforeFiles (next start les enchaîne). Garde distincte :
+  // tests/next-config-reecritures-enchainees.test.ts.
   if (PREFIXES_RESERVES_QR.some((prefixe) => id.startsWith(prefixe))) return []
   const valeur = (texte: string): SegmentCapte => ({ texte, mot: false })
   const mot = (texte: string): SegmentCapte => ({ texte, mot: true })
@@ -186,7 +190,8 @@ describe('aucune page de app/ n’est masquée par le motif du chemin d’un cab
     expect(masquees(fautives)).toEqual(fautives.map((r) => `/${r.join('/')}`))
     const saines = [['fr', 'signalement', '[jeton]'], ['signalement', '[jeton]'], ['api', 'signalement', '[id]'],
       ['tracking', '[token]'], ['blog', '[slug]', '[page]'], ['blog', 'signalement'], ['blog', 'signalement', '[id]', 'detail'],
-      // Nom réservé : son segment seul n'est jamais pris pour un cabinet.
+      // Nom réservé : son segment seul n'est jamais pris pour un cabinet. Ici, motif du middleware seulement : le chemin
+      // interne d'une réécriture de langue est gardé par tests/next-config-reecritures-enchainees.test.ts.
       ['blog'], ['aj-signalement', 'connexion']]
     expect(masquees(saines)).toEqual([])
   })

@@ -32,6 +32,32 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
+        // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/aj-signalement/chemin-cabinet.ts) ──
+        // EN TÊTE de beforeFiles, avant toute règle de langue. `next start` et `next dev` (CI E2E, poste) appliquent TOUTES
+        // les règles beforeFiles à la suite, chacune sur le chemin déjà réécrit par les précédentes ; OpenNext (production)
+        // n'applique que la première qui correspond. Placées après les règles de langue, ces règles captaient sous next start
+        // le chemin interne produit par l'une d'elles (/fr/aj-signalement/connexion/ → /aj-signalement/connexion →
+        // /cabinet/aj-signalement/connexion, 404). En tête, elles ne voient que le chemin d'origine, celui que le middleware a
+        // reconnu, et leur destination /cabinet/<id>/… ne correspond à aucune règle suivante. Les deux familles sont
+        // disjointes (toute autre source commence par une langue de 2 lettres, l'identifiant en compte 3 à 40) : en
+        // production, la première règle qui correspond reste la même pour tout chemin. Garde :
+        // tests/next-config-reecritures-enchainees.test.ts (les deux moteurs rejoués sur chaque page de app/).
+        // Laissé sans langue par le middleware (même motif). Deux paramètres capturés : la destination est toujours compilée
+        // par OpenNext (jamais littérale). Pages internes app/(commun)/cabinet/[identifiant]/…, joignables seulement ainsi.
+        // Paire avec et sans barre finale pour la confirmation et l'ouverture de l'accès d'un gestionnaire (PR 2), comme
+        // les règles exactes de langue plus bas ; jamais « :path* ».
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`, destination: '/cabinet/:identifiant/signalement/:jeton' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`, destination: '/cabinet/:identifiant/confirmation-adresse' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`, destination: '/cabinet/:identifiant/confirmation-adresse/' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`, destination: '/cabinet/:identifiant/invitation' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`, destination: '/cabinet/:identifiant/invitation/' },
+        // Espace du cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire, mêmes paires exactes. Sur le
+        // chemin d'origine, le middleware ne laisse arriver ici que les identifiants valables (jamais un nom réservé : la
+        // connexion de l'espace global /aj-signalement/connexion/ part en 302 de langue) et redirige lui-même /<id>/.
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion`, destination: '/cabinet/:identifiant/connexion' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`, destination: '/cabinet/:identifiant/connexion/' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`, destination: '/cabinet/:identifiant/suivi' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`, destination: '/cabinet/:identifiant/suivi/' },
         // ── Shared root pages accessible via /fr/ prefix ──
         { source: '/fr/auth/:path*', destination: '/auth/:path*' },
         { source: '/fr/pro/:path*', destination: '/pro/:path*' },
@@ -115,23 +141,6 @@ const nextConfig: NextConfig = {
         // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
         { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
         { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
-        // AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/aj-signalement/chemin-cabinet.ts),
-        // laissé sans langue par le middleware (même motif). Deux paramètres capturés : la destination est toujours compilée
-        // par OpenNext (jamais littérale). Pages internes app/(commun)/cabinet/[identifiant]/…, joignables seulement ainsi.
-        // Paire avec et sans barre finale pour la confirmation et l'ouverture de l'accès d'un gestionnaire (PR 2), comme
-        // les règles exactes ci-dessus ; jamais « :path* ».
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`, destination: '/cabinet/:identifiant/signalement/:jeton' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`, destination: '/cabinet/:identifiant/confirmation-adresse' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`, destination: '/cabinet/:identifiant/confirmation-adresse/' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`, destination: '/cabinet/:identifiant/invitation' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`, destination: '/cabinet/:identifiant/invitation/' },
-        // Espace du cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire, mêmes paires exactes. Le
-        // middleware, qui passe avant, ne laisse arriver ici que les identifiants valables (jamais un nom réservé : la
-        // connexion de l'espace global /aj-signalement/connexion/ part en 302 de langue) et redirige lui-même /<id>/.
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion`, destination: '/cabinet/:identifiant/connexion' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`, destination: '/cabinet/:identifiant/connexion/' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`, destination: '/cabinet/:identifiant/suivi' },
-        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`, destination: '/cabinet/:identifiant/suivi/' },
       ],
       afterFiles: [],
       fallback: [],

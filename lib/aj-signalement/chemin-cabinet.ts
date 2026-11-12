@@ -44,7 +44,8 @@ export const FORMAT_IDENTIFIANT_CABINET_QR = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
  * Identifiant tel que le routage le reconnaît (3 à 40 caractères ; jamais « api/ » ni « admin/ », que le middleware
  * laisse passer sans langue ; « _next » est exclu par la première lettre ; les langues, de 2 lettres, par la
  * longueur). Plus large que le format (« a--b » passe) : la saisie, plus stricte, refuse avant la base. Même texte
- * pour le middleware et, au lot 4, pour les réécritures de next.config.ts.
+ * pour le middleware et, au lot 4, pour les réécritures de next.config.ts, placées en tête de beforeFiles : cette
+ * exclusion des langues par la longueur les rend disjointes des règles de langue (tests/next-config-reecritures-enchainees.test.ts).
  */
 export const SOURCE_IDENTIFIANT_CABINET_QR = '(?!(?:api|admin)/)[a-z][a-z0-9-]{1,38}[a-z0-9]'
 

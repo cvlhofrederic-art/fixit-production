@@ -573,8 +573,12 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     }
   })
 
-  it('neuf règles (QR code, puis paires exactes de la confirmation, de l’invitation, de la connexion et du suivi) : jamais de destination littérale', async () => {
+  it('neuf règles en tête de beforeFiles (QR code, puis paires exactes de la confirmation, de l’invitation, de la connexion et du suivi) : jamais de destination littérale', async () => {
     const regles = await reglesCabinet()
+    // En tête : next start enchaîne les règles beforeFiles ; après une règle de langue, une règle de cabinet captait le
+    // chemin interne produit (/fr/aj-signalement/connexion/ → /cabinet/aj-signalement/connexion). Les deux moteurs sont
+    // rejoués par tests/next-config-reecritures-enchainees.test.ts.
+    expect((await reecritures())[0].slice(0, regles.length)).toEqual(regles)
     expect(regles.map(({ source }) => source)).toEqual([
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`,
