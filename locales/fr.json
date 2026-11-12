@@ -2670,10 +2670,24 @@
       "archiveFactures": "Factures",
       "filtresDevis": {
         "tous": "Tous",
+        "horsBrouillons": "Hors brouillons",
         "brouillons": "Brouillons",
         "envoyes": "Envoyés",
         "acceptes": "Acceptés",
         "refuses": "Refusés"
+      },
+      "filtresFactures": {
+        "toutes": "Toutes",
+        "horsBrouillons": "Hors brouillons",
+        "emises": "Émises",
+        "payees": "Payées",
+        "brouillons": "Brouillons"
+      },
+      "filtresTypeFactures": {
+        "tous": "Tous",
+        "factures": "Factures",
+        "acomptes": "Acomptes",
+        "avoirs": "Avoirs"
       },
       "champs": {
         "numero": "N°",

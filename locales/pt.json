@@ -2673,10 +2673,24 @@
       "archiveFactures": "Faturas",
       "filtresDevis": {
         "tous": "Todos",
+        "horsBrouillons": "Sem rascunhos",
         "brouillons": "Rascunhos",
         "envoyes": "Enviados",
         "acceptes": "Aceites",
         "refuses": "Recusados"
+      },
+      "filtresFactures": {
+        "toutes": "Todas",
+        "horsBrouillons": "Sem rascunhos",
+        "emises": "Emitidas",
+        "payees": "Pagas",
+        "brouillons": "Rascunhos"
+      },
+      "filtresTypeFactures": {
+        "tous": "Todos",
+        "factures": "Faturas",
+        "acomptes": "Adiantamentos",
+        "avoirs": "Notas de crédito"
       },
       "champs": {
         "numero": "N.º",

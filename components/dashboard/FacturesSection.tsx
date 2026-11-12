@@ -412,7 +412,14 @@ export default function FacturesSection({
    V5 sub-component — Factures for pro_societe
    ═══════════════════════════════════════════════════════ */
 type DocTypeFilter = 'all' | 'facture' | 'acompte' | 'avoir'
-type DocStatusFilter = 'all' | 'sent' | 'paid' | 'draft'
+type DocStatusFilter = 'all' | 'horsBrouillons' | 'sent' | 'paid' | 'draft'
+// Puces des filtres, libellés traduits (proDash.documentsListe) : français et portugais.
+const FILTRES_TYPE_FACTURES: ReadonlyArray<[DocTypeFilter, string]> = [
+  ['all', 'tous'], ['facture', 'factures'], ['acompte', 'acomptes'], ['avoir', 'avoirs'],
+]
+const FILTRES_STATUT_FACTURES: ReadonlyArray<[DocStatusFilter, string]> = [
+  ['all', 'toutes'], ['horsBrouillons', 'horsBrouillons'], ['sent', 'emises'], ['paid', 'payees'], ['draft', 'brouillons'],
+]
 
 /**
  * Montant TTC de la colonne « Montant TTC » de la liste V5 (aussi cherchable dans la recherche).
@@ -493,17 +500,21 @@ function FacturesSectionV5({
     if (f === 'acompte') return sub === 'acompte'
     return sub !== 'acompte' && !isAvoir // 'facture' = ni acompte ni avoir
   }
-  // Filtre par statut (Toutes / Émises / Payées / Brouillons). Statuts FR
+  // Filtre par statut (Toutes / Hors brouillons / Émises / Payées / Brouillons). Statuts FR
   // (localStorage) ET EN (DB) acceptés — cf. getV5Badge.
   const [statusFilter, setStatusFilter] = useState<DocStatusFilter>('all')
   const docMatchesStatus = (d: PersistedDocument, f: DocStatusFilter): boolean => {
     if (f === 'all') return true
     const s = d.status || ''
+    // Brouillons = STRICTEMENT brouillon : ni payée/émise/en retard/remboursée/annulée.
+    const brouillon = s === '' || s === 'draft' || s === 'brouillon'
+    // Hors brouillons = tout document émis, payé ou non : le lot du comptable (le mois se choisit par la recherche).
+    // Émis = numéro définitif : un brouillon passé « envoyé » depuis la liste, sans numéro, n'en fait pas partie.
+    if (f === 'horsBrouillons') return !brouillon && aNumeroDefinitif({ docNumber: d.docNumber })
     if (f === 'paid') return s === 'paid' || s === 'payee'
     // Émises = émises + en retard (overdue) : une facture en retard reste émise.
     if (f === 'sent') return s === 'envoye' || s === 'pending' || s === 'overdue' || s === 'en_retard'
-    // Brouillons = STRICTEMENT brouillon : ni payée/émise/en retard/remboursée/annulée.
-    return s === '' || s === 'draft' || s === 'brouillon'
+    return brouillon
   }
 
   // « Marquer payée » : passe la facture en statut payé (localStorage + state +
@@ -718,7 +729,8 @@ function FacturesSectionV5({
 
       {/* Filtre par type (méthode pro 2026) : afficher Tous / Factures / Acomptes / Avoirs. */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {([['all', 'Tous'], ['facture', 'Factures'], ['acompte', 'Acomptes'], ['avoir', 'Avoirs']] as Array<[DocTypeFilter, string]>).map(([key, label]) => {
+        {FILTRES_TYPE_FACTURES.map(([key, nom]) => {
+          const label = t(`proDash.documentsListe.filtresTypeFactures.${nom}`)
           const active = typeFilter === key
           const count = factureDocs.filter(d => docMatchesType(d, key)).length
           return (
@@ -740,10 +752,13 @@ function FacturesSectionV5({
         })}
       </div>
 
-      {/* Filtre par statut : Toutes / Émises / Payées / Brouillons (puces partagées avec la liste des devis). */}
+      {/* Filtre par statut : Toutes / Hors brouillons / Émises / Payées / Brouillons (puces partagées avec les devis). */}
       <FiltreStatut
-        options={([['all', 'Toutes'], ['sent', 'Émises'], ['paid', 'Payées'], ['draft', 'Brouillons']] as Array<[DocStatusFilter, string]>)
-          .map(([cle, libelle]) => ({ cle, libelle, nombre: factureDocs.filter(d => docMatchesStatus(d, cle)).length }))}
+        options={FILTRES_STATUT_FACTURES.map(([cle, nom]) => ({
+          cle,
+          libelle: t(`proDash.documentsListe.filtresFactures.${nom}`),
+          nombre: factureDocs.filter(d => docMatchesStatus(d, cle)).length,
+        }))}
         actif={statusFilter}
         onChoisir={setStatusFilter}
       />
@@ -907,7 +922,9 @@ function FacturesSectionV5({
             }) : (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
-                  {search ? t('proDash.factures.aucuneRecherche') : t('proDash.factures.aucune')}
+                  {search || typeFilter !== 'all' || statusFilter !== 'all'
+                    ? t('proDash.factures.aucuneRecherche')
+                    : t('proDash.factures.aucune')}
                 </td>
               </tr>
             )}

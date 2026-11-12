@@ -74,7 +74,8 @@ describe('FacturesSection V5 — tri par récence + filtres', () => {
   it('filtre « Acomptes » → n\'affiche que l\'acompte', async () => {
     render(<FacturesSection {...props()} />)
     await waitFor(() => expect(screen.getByText('FACT-2026-017')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: /^Acomptes/ }))
+    // Libellé traduit (proDash.documentsListe.filtresTypeFactures.acomptes = « Acomptes » en français)
+    fireEvent.click(screen.getByRole('button', { name: /^proDash\.documentsListe\.filtresTypeFactures\.acomptes / }))
     expect(screen.getByText('AC-2026-002')).toBeInTheDocument()
     expect(screen.queryByText('FACT-2026-017')).not.toBeInTheDocument()
   })
@@ -82,7 +83,7 @@ describe('FacturesSection V5 — tri par récence + filtres', () => {
   it('filtre « Factures » → n\'affiche que la facture standard', async () => {
     render(<FacturesSection {...props()} />)
     await waitFor(() => expect(screen.getByText('AC-2026-002')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: /^Factures/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^proDash\.documentsListe\.filtresTypeFactures\.factures / }))
     expect(screen.getByText('FACT-2026-017')).toBeInTheDocument()
     expect(screen.queryByText('AC-2026-002')).not.toBeInTheDocument()
   })

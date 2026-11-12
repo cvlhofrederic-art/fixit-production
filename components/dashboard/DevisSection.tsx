@@ -18,7 +18,7 @@ import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill, formaterMontantCents } from '@/lib/acompte-par-taux'
-import { acomptesDejaFacturesPourDevis, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
+import { acomptesDejaFacturesPourDevis, aNumeroDefinitif, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
@@ -34,15 +34,26 @@ import {
 const CHAMPS_VISIBLES_DEVIS: ReadonlySet<ChampRecherche> = new Set<ChampRecherche>(['numero', 'client', 'intitule', 'date', 'montant'])
 
 // Filtre par statut de la liste V5 des devis (« Tout télécharger » suit le filtre, ex. seulement les acceptés).
-type FiltreStatutDevis = 'tous' | 'brouillons' | 'envoyes' | 'acceptes' | 'refuses'
-const FILTRES_STATUT_DEVIS: readonly FiltreStatutDevis[] = ['tous', 'brouillons', 'envoyes', 'acceptes', 'refuses']
+type FiltreStatutDevis = 'tous' | 'horsBrouillons' | 'brouillons' | 'envoyes' | 'acceptes' | 'refuses'
+const FILTRES_STATUT_DEVIS: readonly FiltreStatutDevis[] = ['tous', 'horsBrouillons', 'brouillons', 'envoyes', 'acceptes', 'refuses']
 
 /** Statut d'un devis pour ce filtre, aligné sur son badge (statuts FR du navigateur et EN de la base). */
-function filtreDuDevis(status: string | undefined): Exclude<FiltreStatutDevis, 'tous'> {
+function filtreDuDevis(status: string | undefined): Exclude<FiltreStatutDevis, 'tous' | 'horsBrouillons'> {
   if (status === 'accepte' || status === 'accepted' || status === 'signe' || status === 'signed') return 'acceptes'
   if (status === 'refuse' || status === 'rejected') return 'refuses'
   if (status === 'envoye' || status === 'sent') return 'envoyes'
   return 'brouillons'
+}
+
+/**
+ * Le devis entre-t-il dans le filtre ? « Hors brouillons » = tout devis émis (envoyé, accepté ou refusé) avec un
+ * numéro définitif : un brouillon passé « envoyé » depuis la liste, sans numéro, n'en fait pas partie.
+ */
+function devisDansFiltre(doc: { status?: string; docNumber?: string }, filtre: FiltreStatutDevis): boolean {
+  if (filtre === 'tous') return true
+  const statut = filtreDuDevis(doc.status)
+  if (filtre === 'horsBrouillons') return statut !== 'brouillons' && aNumeroDefinitif(doc)
+  return statut === filtre
 }
 
 interface DevisLine {
@@ -545,7 +556,7 @@ function DevisSectionV5({
   // Recherche dans tout ce qui est relié au devis : client, objet, chantier, adresses, lignes, notes, date, montant HT…
   const recherche = useRechercheDocuments(devisDocs, search, locale, CHAMPS_VISIBLES_DEVIS, computeDevisTotalHT)
   const filtered = recherche.documents
-    .filter(d => filtreStatut === 'tous' || filtreDuDevis(d.status) === filtreStatut)
+    .filter(d => devisDansFiltre(d, filtreStatut))
     .sort((a, b) => getDocSeq(b) - getDocSeq(a))
   // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP.
   const selection = useSelectionDocuments(filtered)
@@ -646,12 +657,12 @@ function DevisSectionV5({
         </button>
       </div>
 
-      {/* Filtre par statut : Tous / Brouillons / Envoyés / Acceptés / Refusés. */}
+      {/* Filtre par statut : Tous / Hors brouillons / Brouillons / Envoyés / Acceptés / Refusés. */}
       <FiltreStatut
         options={FILTRES_STATUT_DEVIS.map(cle => ({
           cle,
           libelle: t(`proDash.documentsListe.filtresDevis.${cle}`),
-          nombre: cle === 'tous' ? devisDocs.length : devisDocs.filter(d => filtreDuDevis(d.status) === cle).length,
+          nombre: devisDocs.filter(d => devisDansFiltre(d, cle)).length,
         }))}
         actif={filtreStatut}
         onChoisir={setFiltreStatut}
