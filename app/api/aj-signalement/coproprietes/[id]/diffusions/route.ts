@@ -10,7 +10,9 @@
 //   - clé de signature des liens de désinscription absente → 503 configuration_incomplete (aucun lien ne peut être émis) ;
 //   - création atomique en base (signalements_qr_diffusion_creer : verrou de la copropriété, rejeu d'un double clic,
 //     destinataires calculés à l'instant de l'aperçu, nombre réel jamais au-dessus de l'annoncé, valeurs figées, journal
-//     diffusion.envoyee) → 409 diffusion_inactive / aucun_destinataire / perimetre_change ;
+//     diffusion.envoyee) → 409 diffusion_inactive / aucun_destinataire / perimetre_change ; libellé du périmètre recalculé
+//     différent du libellé CONFIRMÉ (libellePerimetre, rendu par D-R2 et renvoyé par l'écran) → 409 perimetre_change,
+//     sauf rejeu de la même opération ;
 //   - copie au contact du cabinet (§ 5.6 ; échec journalisé, l'envoi continue ; DUE tant qu'elle n'est pas datée : une
 //     création arrêtée avant elle la laisse à la reprise D-R4 ou au filet D-C1), puis jusqu'à 5 lots (§ 5.5).
 //   201 { diffusionId, nbDestinataires, envoyes, refuses, reste, arret } ; 200 (même corps, rejeu: true) pour un double
@@ -37,7 +39,7 @@ import {
   controlerAccesQr, estUuid, parametresQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, aujourdhuiParisQr, controlerDroitDiffuserQr, couplesDiffusionQr, envoyerCopieCabinetSiDueQr,
+  PROFILS_DIFFUSION_QR, aujourdhuiParisQr, controlerDroitDiffuserQr, couplesDiffusionQr, diffusionDeLOperationQr, envoyerCopieCabinetSiDueQr,
   envoyerEtCompterDiffusionQr, lireContexteDiffusionQr, lireDiffusionQr, moisDiffusionQr, nombresDiffusionQr, parametresAuteurDiffusionQr,
   purgerDiffusionsSiBesoinQr, signalementDeLaCoproprieteQr, vueDiffusionDuProfilQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
@@ -118,6 +120,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return refusTexte(perimetre.champ, perimetre.motif, perimetre.conseil)
     }
     if (perimetre.libelle === null) return reponseInvalide('libelleBatimentSaisi: nom du bâtiment ou de l’étage à écrire dans le message requis')
+    // Libellé écrit dans l'e-mail = libellé montré dans la confirmation (§ 3.6, § 7.2 point 9) : recalculé sur les couples
+    // relus, il a pu changer (dépôt arrivé après l'aperçu, fiche modifiée) → 409 perimetre_change (nouvel aperçu, nouvelle
+    // confirmation). Sauf rejeu (même opération, même auteur, même copropriété) : la diffusion déjà créée est rendue.
+    if (perimetre.libelle !== d.libellePerimetre) {
+      const deja = await diffusionDeLOperationQr(d.operationId, id, profil.userId)
+      if (!deja.ok) return reponseErreurDiffusionQr(deja.erreur, 'création d’une diffusion', { copropriete: id })
+      if (!deja.valeur) return reponseErreur('perimetre_change', 409)
+    }
 
     const { data, error } = await supabaseAdmin.rpc('signalements_qr_diffusion_creer', {
       p_operation: d.operationId, p_copropriete: id, ...parametresAuteurDiffusionQr(profil),

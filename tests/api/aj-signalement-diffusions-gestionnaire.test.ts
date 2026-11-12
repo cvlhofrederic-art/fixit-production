@@ -202,6 +202,7 @@ const DIFFUSION_GESTIONNAIRE = {
   objet: 'Coupure d’eau demain matin',
   texte: 'L’eau sera coupée demain de 9 h à 10 h pour une réparation. Astreinte : 06 12 34 56 78.',
   perimetre: { portee: 'copropriete' },
+  libellePerimetre: 'Toute la copropriété',
   perimetreJusquAu: new Date(Date.now() - 60_000).toISOString(),
   nbDestinatairesAttendu: 2,
 }

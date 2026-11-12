@@ -748,6 +748,9 @@ export const diffusionQrSchema = z.strictObject({
   perimetre: perimetreDiffusionQrSchema,
   libelleBatimentSaisi: libelleSaisiDiffusionQr.optional(),
   libelleEtageSaisi: libelleSaisiDiffusionQr.optional(),
+  // `libellePerimetre` rendu par l'aperçu et montré dans la confirmation, renvoyé tel quel : la route le compare au
+  // libellé recalculé (différent → 409 perimetre_change ; relecture 2 de la PR 3, cahier § 3.6, § 7.2 point 9).
+  libellePerimetre: z.string().min(1).max(200),
   perimetreJusquAu: z.iso.datetime({ offset: true }),       // `instant` rendu par l'aperçu, passé tel quel à la base
   nbDestinatairesAttendu: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),   // aucun plafond (décision de Hugo)
   instruction: z.strictObject({

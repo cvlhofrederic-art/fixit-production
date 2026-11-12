@@ -158,6 +158,18 @@ export async function lireDiffusionQr(id: string): Promise<LectureQr<Record<stri
   return { ok: true, valeur: (data as Record<string, unknown> | null) ?? null }
 }
 
+/**
+ * La diffusion déjà créée par CETTE opération (même identifiant d'opération, même copropriété, même auteur : les
+ * conditions du rejeu de signalements_qr_diffusion_creer) existe-t-elle ? D-R3 la lit avant de refuser un libellé changé,
+ * pour qu'un double clic ou un nouvel essai rende toujours la diffusion déjà partie, jamais un 409.
+ */
+export async function diffusionDeLOperationQr(operationId: string, coproprieteId: string, acteurId: string): Promise<LectureQr<boolean>> {
+  const { data, error } = await supabaseAdmin.from(TABLE_DIFFUSIONS_QR).select('id')
+    .eq('operation_id', operationId).eq('copropriete_id', coproprieteId).eq('acteur_id', acteurId).maybeSingle()
+  if (error) return { ok: false, erreur: error }
+  return { ok: true, valeur: data !== null }
+}
+
 /** Valeurs figées d'une diffusion lue (null : ligne hors forme, journalisée sans valeur). */
 export function diffusionFigeeQr(ligne: Record<string, unknown>): DiffusionFigeeQr | null {
   const figee = diffusionFigeeDepuisLigneQr(ligne)

@@ -240,6 +240,7 @@ const DIFFUSION_VALIDE = {
   objet: 'Coupure d’eau demain matin',
   texte: 'L’eau sera coupée demain de 9 h à 10 h pour une réparation. Astreinte : 06 12 34 56 78.',
   perimetre: { portee: 'copropriete' },
+  libellePerimetre: 'Toute la copropriété',
   perimetreJusquAu: new Date(Date.now() - 60_000).toISOString(),
   nbDestinatairesAttendu: 23,
   instruction: { reference: 'Courriel de la gestionnaire du 12/11/2026 10:02', recueLe: '2026-11-12' },
@@ -507,6 +508,67 @@ describe('D-R3 envoi', () => {
   it('libellé à saisir non fourni → 400 ; clé inconnue → 409 perimetre_change', async () => {
     expect((await diffuser({ ...DIFFUSION_VALIDE, perimetre: { portee: 'batiment', batiment: 'bmoiexempletest' } })).status).toBe(400)
     expect((await diffuser({ ...DIFFUSION_VALIDE, perimetre: { portee: 'batiment', batiment: 'zz' } })).status).toBe(409)
+  })
+
+  // Relecture 2 de la PR 3 (constat 6) : cahier § 3.6 (« le libellé est calculé par le serveur et montré tel quel dans la
+  // confirmation ») et § 7.2, point 9 (« périmètre tel qu'il sera écrit dans l'e-mail »). D-R3 recalcule le libellé sur
+  // les couples relus : un dépôt arrivé après l'aperçu (non destinataire) ou une fiche modifiée peut le changer ; la
+  // route compare alors au libellé CONFIRMÉ (rendu par D-R2, renvoyé par l'écran) et refuse s'il diffère.
+  it('libellé confirmé exigé (400 sans lui) et passé tel quel à la base', async () => {
+    const { libellePerimetre: _l, ...sansLibelle } = DIFFUSION_VALIDE
+    expect((await diffuser(sansLibelle)).status).toBe(400)
+    expect((await diffuser({ ...DIFFUSION_VALIDE, libellePerimetre: '' })).status).toBe(400)
+    expect((await diffuser({ ...DIFFUSION_VALIDE, libellePerimetre: 'x'.repeat(201) })).status).toBe(400)
+    expect(baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_diffusion_creer')).toEqual([])
+    expect((await diffuser()).status).toBe(201)
+    expect(baseQr.etat.appelsRpc.find((a) => a.nom === 'signalements_qr_diffusion_creer')?.args.p_libelle).toBe('Toute la copropriété')
+  })
+
+  it('un dépôt arrivé entre l’aperçu et l’envoi change le libellé recalculé (« Bât C » passe devant « Bloc C ») → 409 perimetre_change, rien n’est créé', async () => {
+    let couples = [{ batiment: 'Bloc C', etage: '1', nb_adresses: 2 }, { batiment: 'Bât C', etage: '1', nb_adresses: 1 }]
+    baseQr.etat.fonctions.signalements_qr_diffusion_valeurs = () => ({ data: couples })
+    const vu = await (await apercu({ perimetre: { portee: 'batiment', batiment: 'c' } })).json()
+    expect(vu.libellePerimetre).toContain('Bloc C')
+    const corps = { ...DIFFUSION_VALIDE, perimetre: { portee: 'batiment', batiment: 'c' }, libellePerimetre: vu.libellePerimetre, nbDestinatairesAttendu: 3 }
+
+    couples = [{ batiment: 'Bloc C', etage: '1', nb_adresses: 2 }, { batiment: 'Bât C', etage: '1', nb_adresses: 3 }]
+    const refus = await diffuser(corps)
+    expect(refus.status).toBe(409)
+    expect(await refus.json()).toEqual({ error: 'perimetre_change' })
+    expect(baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_diffusion_creer')).toEqual([])
+
+    // Nouvel aperçu, nouvelle confirmation : le libellé montré est celui que la base reçoit.
+    const revu = await (await apercu({ perimetre: { portee: 'batiment', batiment: 'c' } })).json()
+    expect(revu.libellePerimetre).toContain('Bât C')
+    expect((await diffuser({ ...corps, libellePerimetre: revu.libellePerimetre })).status).toBe(201)
+    expect(baseQr.etat.appelsRpc.find((a) => a.nom === 'signalements_qr_diffusion_creer')?.args.p_libelle).toBe(revu.libellePerimetre)
+  })
+
+  it('nouvel essai de la MÊME opération après un dépôt qui change le libellé : 200 rejeu (la diffusion déjà créée), jamais 409', async () => {
+    let couples = [{ batiment: 'Bloc C', etage: '1', nb_adresses: 2 }, { batiment: 'Bât C', etage: '1', nb_adresses: 1 }]
+    baseQr.etat.fonctions.signalements_qr_diffusion_valeurs = () => ({ data: couples })
+    const vu = await (await apercu({ perimetre: { portee: 'batiment', batiment: 'c' } })).json()
+    const corps = { ...DIFFUSION_VALIDE, perimetre: { portee: 'batiment', batiment: 'c' }, libellePerimetre: vu.libellePerimetre, nbDestinatairesAttendu: 3 }
+    const premier = await diffuser(corps)
+    expect(premier.status).toBe(201)
+    couples = [{ batiment: 'Bloc C', etage: '1', nb_adresses: 2 }, { batiment: 'Bât C', etage: '1', nb_adresses: 3 }]
+    const second = await diffuser(corps)
+    expect(second.status).toBe(200)
+    expect(await second.json()).toMatchObject({ diffusionId: (await premier.json()).diffusionId, rejeu: true })
+    expect(baseQr.table('signalements_qr_diffusions')).toHaveLength(1)
+    // Un autre auteur avec la même opération n'est pas un rejeu : refusé, comme un libellé changé.
+    simulQr.user = { ...ADMIN_QR, id: '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd5' }
+    expect((await diffuser(corps)).status).toBe(409)
+  })
+
+  it('fiche modifiée entre l’aperçu et l’envoi (nom de bâtiment de la fiche) → 409 perimetre_change', async () => {
+    const vu = await (await apercu({ perimetre: { portee: 'batiment', batiment: 'a' } })).json()
+    expect(vu.libellePerimetre).toContain('Bâtiment A')
+    baseQr.table('signalements_qr_coproprietes')[0].batiments = ['Bloc A']
+    const res = await diffuser({ ...DIFFUSION_VALIDE, perimetre: { portee: 'batiment', batiment: 'a' }, libellePerimetre: vu.libellePerimetre, nbDestinatairesAttendu: 4 })
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'perimetre_change' })
+    expect((await (await apercu({ perimetre: { portee: 'batiment', batiment: 'a' } })).json()).libellePerimetre).toContain('Bloc A')
   })
 
   it('message d’annonce (H1 = C) : texte figé exigé (400 sinon) ; figé → créé au modèle annonce', async () => {
