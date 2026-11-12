@@ -214,8 +214,9 @@ export interface PdfV3Input {
   svgToImageDataUrl: (svgString: string, width: number, height: number) => Promise<string>
   fetchFreshLogo: () => Promise<string | null>
 
-  // Output mode: 'download' saves file, 'preview' opens in new tab
-  action?: 'download' | 'preview'
+  // Output mode: 'download' saves file, 'preview' opens in new tab, 'fichier' neither: the final file is returned
+  // (téléchargement groupé des listes Devis et Factures, cf. lib/pdf/telechargement-groupe.ts)
+  action?: 'download' | 'preview' | 'fichier'
 
   /** Modèle propre à une société (lib/pdf/modele-provence-pro.ts). Absent : modèle BTP par défaut. */
   modele?: ModeleDocument
@@ -269,7 +270,9 @@ function splitAddress(addr: string): { street: string; city: string | null } {
 
 // ─── Main generator ──────────────────────────────────────
 
-export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename: string; pdfArrayBuffer: ArrayBuffer }> {
+export async function generateDevisPdfV3(
+  input: PdfV3Input,
+): Promise<{ filename: string; pdfArrayBuffer: ArrayBuffer; fichier: Uint8Array }> {
   // FR-V8 audit fix : garde stricte sur ptFiscalData. Vitfix n'est PAS certifié
   // AT (Decreto-Lei 28/2019). Émettre un PDF avec un certNumber arbitraire =
   // délit fiscal PT (1500-150 000€). Tant que la certification n'est pas
@@ -2218,7 +2221,9 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     }
   }
 
-  if (input.action === 'preview') {
+  if (input.action === 'fichier') {
+    // Téléchargement groupé : rien n'est ouvert ni téléchargé ici, l'appelant reçoit le fichier final (retour).
+  } else if (input.action === 'preview') {
     // Use a named blob so the browser's PDF viewer shows the real filename
     // (not a UUID) when the user downloads from preview
     const blob = outputBytes
@@ -2238,5 +2243,7 @@ export async function generateDevisPdfV3(input: PdfV3Input): Promise<{ filename:
     pdf.save(filename)
   }
 
-  return { filename, pdfArrayBuffer: pdf.output('arraybuffer') as ArrayBuffer }
+  const pdfArrayBuffer = pdf.output('arraybuffer') as ArrayBuffer
+  // `fichier` : le fichier tel qu'il est téléchargé — PDF/A-3 Factur-X quand le XML est embarqué, sinon le PDF jsPDF.
+  return { filename, pdfArrayBuffer, fichier: outputBytes ?? new Uint8Array(pdfArrayBuffer) }
 }

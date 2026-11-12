@@ -6,6 +6,9 @@
  *  - BTP pro (orgRole === 'pro_societe' → useBtpDesign: true) → generateDevisPdfV3 (design BTP)
  *
  * Reconstruit les paramètres attendus par chaque générateur à partir du document en localStorage.
+ *
+ * `produireFichierDocument` rend le même fichier sans le télécharger : le téléchargement groupé des listes
+ * Devis et Factures (lib/pdf/telechargement-groupe.ts) les rassemble dans une archive ZIP.
  */
 
 import type { Locale } from '@/lib/i18n/config'
@@ -22,7 +25,7 @@ import { buildDocumentLines } from '@/lib/devis-totals'
 import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
 
-interface SavedDevis {
+export interface SavedDevis {
   id?: string
   docType?: 'devis' | 'facture'
   docNumber?: string
@@ -112,12 +115,18 @@ interface SavedDevis {
   notes?: string
 }
 
-interface DownloadContext {
+export interface DownloadContext {
   locale: Locale
   t: (k: string) => string
   artisan: { id?: string; company_name?: string | null; logo_url?: string | null; rm?: string | null; rc_pro?: string | null } | null
   /** Force le rendu BTP (V3). Par défaut, utilise V2 (design Vitfix Pro compact, identique à l'Aperçu). */
   useBtpDesign?: boolean
+}
+
+/** PDF d'un document enregistré, tel que le bouton « Télécharger » de la liste le produit. */
+export interface FichierDocument {
+  nom: string
+  octets: Uint8Array
 }
 
 // svgToImageDataUrl : extrait dans lib/signature-canvas.ts (3e copie identique
@@ -173,7 +182,12 @@ async function fetchFreshArtisanData(
 }
 
 // ─── V2 path — design compact Vitfix Pro (identique à l'Aperçu) ────────────
-async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+// `enregistrerBrut` : présent quand l'habillage PDF/A-3 a échoué ; le bouton de la ligne enregistre alors le PDF
+// brut par jsPDF (pdf.save), comme avant le téléchargement groupé.
+async function produireFichierV2(
+  doc: SavedDevis,
+  ctx: DownloadContext,
+): Promise<FichierDocument & { enregistrerBrut?: () => void }> {
   const { artisan } = ctx
   const lines: ProductLine[] = (doc.lines as ProductLine[]) || []
   const materialLines = (doc.materialLines as ProductLine[]) || []
@@ -271,6 +285,7 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
   const { generateDevisPdfV2 } = await import('@/lib/pdf/devis-generator-v2')
   const pdf = await generateDevisPdfV2(input)
+  const nom = `${doc.docNumber || 'devis'}.pdf`
 
   // FR-V2 : wrap as PDF/A-3B for archivage probant (arrêté 22 mars 2017).
   // Sans ça, l'archive numérique peut être requalifiée en non-probante par
@@ -288,26 +303,45 @@ async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<vo
       title: docTitle.trim(),
       author: input.artisan.nom,
     })
-    // Trigger download via Blob (jsPDF.save équivalent)
-    const blob = new Blob([new Uint8Array(wrapped).buffer as ArrayBuffer], { type: 'application/pdf' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${doc.docNumber || 'devis'}.pdf`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    return { nom, octets: wrapped }
   } catch (e) {
     // Fallback : si le wrapping échoue, on garde au moins le PDF non-PDF/A
     // pour que le user ait son téléchargement.
     console.warn('[download-saved-devis] PDF/A-3 wrap failed, falling back to plain PDF:', e)
-    pdf.save(`${doc.docNumber || 'devis'}.pdf`)
+    return {
+      nom,
+      octets: new Uint8Array(pdf.output('arraybuffer') as ArrayBuffer),
+      enregistrerBrut: () => { pdf.save(nom) },
+    }
   }
 }
 
+async function downloadWithV2(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+  const { nom, octets, enregistrerBrut } = await produireFichierV2(doc, ctx)
+  if (enregistrerBrut) {
+    enregistrerBrut()
+    return
+  }
+  // Trigger download via Blob (jsPDF.save équivalent)
+  const blob = new Blob([new Uint8Array(octets).buffer as ArrayBuffer], { type: 'application/pdf' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nom
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // ─── V3 path — design BTP (inchangé, utilisé uniquement par pro_societe) ───
-async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
+// `action` : 'download' (bouton de la liste) ou 'fichier' (téléchargement groupé : rien n'est téléchargé ici,
+// le fichier final — Factur-X compris — est rendu à l'appelant).
+async function genererAvecV3(
+  doc: SavedDevis,
+  ctx: DownloadContext,
+  action: 'download' | 'fichier',
+): Promise<Awaited<ReturnType<typeof generateDevisPdfV3>>> {
   const { locale, t, artisan } = ctx
   // Pas de re-construction locale des collections sommées : la source
   // unique de vérité est `buildDocumentLines` (lib/devis-totals.ts). Elle
@@ -395,8 +429,8 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
     }
   }
 
-  await generateDevisPdfV3({
-    action: 'download',
+  return generateDevisPdfV3({
+    action,
     locale,
     localeFormats: {
       currencyFormat: (n: number) => currencyFormat(n, locale),
@@ -533,7 +567,18 @@ async function downloadWithV3(doc: SavedDevis, ctx: DownloadContext): Promise<vo
 
 export async function downloadSavedDevis(doc: SavedDevis, ctx: DownloadContext): Promise<void> {
   if (ctx.useBtpDesign) {
-    return downloadWithV3(doc, ctx)
+    await genererAvecV3(doc, ctx, 'download')
+    return
   }
   return downloadWithV2(doc, ctx)
+}
+
+/** Même PDF que `downloadSavedDevis`, rendu à l'appelant au lieu d'être téléchargé. */
+export async function produireFichierDocument(doc: SavedDevis, ctx: DownloadContext): Promise<FichierDocument> {
+  if (ctx.useBtpDesign) {
+    const { filename, fichier } = await genererAvecV3(doc, ctx, 'fichier')
+    return { nom: filename, octets: fichier }
+  }
+  const { nom, octets } = await produireFichierV2(doc, ctx)
+  return { nom, octets }
 }
