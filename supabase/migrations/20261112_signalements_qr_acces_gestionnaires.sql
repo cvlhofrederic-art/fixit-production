@@ -175,7 +175,9 @@ $fn$;
 -- personne (reprise de la garde, constats 1 et 5 : sinon l'adresse exacte d'une fiche partie, effacée ou contestée
 -- restait servie). Une autre fiche jamais confirmée (adresse_confirmee_le NULL) ne garde rien : personne n'a prouvé sa
 -- boîte, et elle n'est pas destinataire (section 5) ; sinon l'adresse exacte d'une fiche partie restait servie par un
--- doublon non confirmé (constat 2). Jumelle des tests : saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts), mêmes réponses sur
+-- doublon non confirmé (constat 2). Préfiltre (constat 7) : la règle n'est appelée que pour une autre fiche de même
+-- partie locale (minuscules, espaces de bord retirés, sans étiquette « + ») ; c'est une condition NÉCESSAIRE de la règle
+-- (même boîte, ou même partie locale de boîte), qui n'en change aucune réponse. Jumelle des tests : saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts), mêmes réponses sur
 -- la table commune (gardes) et dans l'essai PGlite. Lit les fiches, les attributions et les domaines : STABLE.
 CREATE OR REPLACE FUNCTION signalements_qr_saisie_de_la_fiche(
   p_adresse text, p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid
@@ -188,6 +190,7 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
           AND o.actif AND o.adresse_confirmee_le IS NOT NULL AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
           AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
                                                  WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
+          AND split_part(split_part(lower(btrim(o.email)), '@', 1), '+', 1) = split_part(split_part(lower(btrim(p_adresse)), '@', 1), '+', 1)
           AND signalements_qr_adresse_de_fiche(p_adresse, o.email,
                 CASE WHEN EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
                                    WHERE d.cabinet_id = p_cabinet AND d.domaine = split_part(o.email, '@', 2))
@@ -215,7 +218,10 @@ $fn$;
 -- d'adresse et n'exclut plus rien : ses saisies sont retirées AVANT (section 8). Par la garde (contre-vérification du
 -- 12/11) : une saisie que la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet
 -- de la copropriété n'est pas exclue (la garde ne dépend que de la boîte de la saisie : l'exclusion de
--- destinatairesSignalementQr, par boîte, reste la même).
+-- destinatairesSignalementQr, par boîte, reste la même). Préfiltre (reprise de la garde, constat 7 ; ce chemin est celui
+-- de CHAQUE dépôt public) : la garde n'est appelée que pour une fiche avec adresse et de même partie locale que la
+-- saisie (condition nécessaire de la règle, section 4) ; les fiches effacées et toutes les autres fiches parties ou
+-- contestées, de tous les cabinets, ne coûtent plus un appel par saisie. Mêmes lignes rendues.
 CREATE OR REPLACE FUNCTION signalements_qr_emails_gestionnaires(p_copropriete uuid)
 RETURNS TABLE(gestionnaire_id uuid, email text, acces_ouvert boolean, exclu boolean)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
@@ -232,7 +238,8 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
       FROM signalements_qr_coproprietes c
       CROSS JOIN LATERAL unnest(c.emails_destinataires) AS u(e)
       JOIN signalements_qr_gestionnaires g
-        ON signalements_qr_saisie_de_la_fiche(u.e, g.id, g.email,
+        ON g.email IS NOT NULL AND split_part(split_part(lower(btrim(g.email)), '@', 1), '+', 1) = split_part(split_part(lower(btrim(u.e)), '@', 1), '+', 1)
+       AND signalements_qr_saisie_de_la_fiche(u.e, g.id, g.email,
              ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id),
              c.cabinet_id, NULL)
      WHERE c.id = p_copropriete

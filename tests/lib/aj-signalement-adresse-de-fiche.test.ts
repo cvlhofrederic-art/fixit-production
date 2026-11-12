@@ -194,6 +194,7 @@ describe('signalements_qr_saisie_de_la_fiche (20261112) : texte figé, la règle
           AND o.actif AND o.adresse_confirmee_le IS NOT NULL AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
           AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
                                                  WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
+          AND split_part(split_part(lower(btrim(o.email)), '@', 1), '+', 1) = split_part(split_part(lower(btrim(p_adresse)), '@', 1), '+', 1)
           AND signalements_qr_adresse_de_fiche(p_adresse, o.email,
                 CASE WHEN EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
                                    WHERE d.cabinet_id = p_cabinet AND d.domaine = split_part(o.email, '@', 2))
@@ -205,6 +206,28 @@ describe('signalements_qr_saisie_de_la_fiche (20261112) : texte figé, la règle
       '(p_adresse text, p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp',
     ))
     expect(compacter(corpsSql('signalements_qr_saisie_de_la_fiche'))).toBe(compacter(CORPS))
+  })
+
+  // Reprise de la garde, constat 7 : la garde et les exclusions de l'envoi (chemin de CHAQUE dépôt public) n'appellent la
+  // règle que pour deux adresses de même partie locale (minuscules, espaces de bord retirés, sans étiquette « + ») :
+  // condition NÉCESSAIRE de la règle (même boîte ou même partie locale de boîte), qui ne change aucune réponse.
+  const prefiltre = (x: string | null) => (x === null ? null : x.replace(/^ +| +$/g, '').toLowerCase().split('@')[0].split('+')[0])
+  it('préfiltre (partie locale sans étiquette) : vrai pour chaque cas où la règle répond vrai (table commune, cas et gardes)', () => {
+    const vrais = CAS.filter((c) => c.attendu)
+    expect(vrais.length).toBeGreaterThan(10)
+    for (const c of vrais) expect(prefiltre(c.adresse), libelle(c)).toBe(prefiltre(c.ficheEmail))
+    let paires = 0
+    for (const g of GARDES) {
+      for (const s of g.saisies) {
+        for (const [nom, f] of Object.entries(g.fiches)) {
+          if (f.email !== null && estAdresseDeFicheQr(s.adresse, f.email, g.domaines[f.cabinet] ?? [])) {
+            paires += 1
+            expect(prefiltre(s.adresse), `${g.note} — ${nom}`).toBe(prefiltre(f.email))
+          }
+        }
+      }
+    }
+    expect(paires).toBeGreaterThan(20)
   })
 
   it('définie après la règle et avant les saisies sans la fiche (fonctions SQL : corps contrôlés à la création)', () => {

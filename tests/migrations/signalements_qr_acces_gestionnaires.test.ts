@@ -321,18 +321,24 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
   // une saisie que la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la
   // copropriété n'est pas exclue pour la fiche partie ou contestée (même boîte dans deux cabinets, domaine d'une fiche
   // forcée déclaré par un autre cabinet, deux domaines d'un cabinet).
+  // Reprise de la garde, constat 7 : préfiltre bon marché (même partie locale sans étiquette « + », condition nécessaire de
+  // la règle) AVANT la garde, sur ce chemin de chaque dépôt public : la garde n'est plus appelée pour chaque paire
+  // (saisie × fiche partie, contestée ou effacée de tous les cabinets).
+  const PREFILTRE = "g.email IS NOT NULL AND split_part(split_part(lower(btrim(g.email)), '@', 1), '+', 1) = split_part(split_part(lower(btrim(u.e)), '@', 1), '+', 1)"
   const EXCLUSION = `SELECT g.id, u.e, false, true
       FROM signalements_qr_coproprietes c
       CROSS JOIN LATERAL unnest(c.emails_destinataires) AS u(e)
       JOIN signalements_qr_gestionnaires g
-        ON signalements_qr_saisie_de_la_fiche(u.e, g.id, g.email,
+        ON ${PREFILTRE}
+       AND signalements_qr_saisie_de_la_fiche(u.e, g.id, g.email,
              ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id),
              c.cabinet_id, NULL)`
   const EXCLUSION_1111 = 'SELECT g.id, g.email, false, true FROM signalements_qr_coproprietes c JOIN signalements_qr_gestionnaires g ON g.email = ANY (c.emails_destinataires)'
 
   it('exclusions : la garde (règle pour la fiche, domaines de SON cabinet ; autres fiches du cabinet de la copropriété) ; la saisie reconnue est rendue', () => {
     expect(compacter(nouvelle().corps)).toContain(compacter(EXCLUSION))
-    expect(nouvelle().corps).not.toMatch(/regexp_replace|split_part/)
+    expect(nouvelle().corps).not.toMatch(/regexp_replace/)
+    expect(compacter(nouvelle().corps).replace(PREFILTRE, '')).not.toMatch(/split_part/)
     expect(nouvelle().corps).not.toMatch(/g\.email = ANY \(c\.emails_destinataires\)/)
     expect(nouvelle().corps).not.toMatch(/signalements_qr_adresse_de_fiche\(/)
   })
