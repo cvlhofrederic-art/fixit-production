@@ -1684,3 +1684,38 @@ describe('relecture 3 — erreurs reliées à leur champ (§ 7.6 : Encadre role=
     expect(screen.getByLabelText(etiquette)).not.toHaveAttribute('aria-invalid')
   })
 })
+
+describe('relecture 3 — § 7.2 point 5 : « au-delà de 8, recherche », aussi dans la liste des étages', () => {
+  const etagesD = (n: number) => Array.from({ length: n }, (_, i) => ({
+    cle: String(i + 1), libelle: `${i + 1}e étage`, libelleASaisir: false, variantes: [String(i + 1)],
+  }))
+  const valeursEtagesD = (n: number) => valeursD({
+    batiments: [
+      { cle: 'a', libelle: 'Bâtiment A', libelleASaisir: false, variantes: ['A'], sansEtage: 0, etages: etagesD(n) },
+      { cle: 'b', libelle: 'Bâtiment B', libelleASaisir: false, variantes: ['B'], sansEtage: 0, etages: [] },
+    ],
+  })
+
+  it('12 étages : champ « Rechercher un étage » ; la recherche filtre la liste', async () => {
+    simulerEspace(routeurD({ valeurs: valeursEtagesD(12) }))
+    ouvrirDiffusion()
+    await fenetrePrete()
+    choisir(TD.portee.etage)
+    choisir('Bâtiment A')
+    const groupe = await screen.findByRole('radiogroup', { name: TD.portee.etageLegende })
+    expect(within(groupe).getAllByRole('radio')).toHaveLength(12)
+    const recherche = within(groupe).getByRole('searchbox', { name: TD.portee.rechercherEtage })
+    fireEvent.change(recherche, { target: { value: '11' } })
+    expect(within(groupe).getAllByRole('radio').map((r) => r.getAttribute('value'))).toEqual(['11'])
+  })
+
+  it('8 étages : aucune recherche (seuil du cahier)', async () => {
+    simulerEspace(routeurD({ valeurs: valeursEtagesD(8) }))
+    ouvrirDiffusion()
+    await fenetrePrete()
+    choisir(TD.portee.etage)
+    choisir('Bâtiment A')
+    const groupe = await screen.findByRole('radiogroup', { name: TD.portee.etageLegende })
+    expect(within(groupe).queryByRole('searchbox')).toBeNull()
+  })
+})

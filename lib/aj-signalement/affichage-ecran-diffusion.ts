@@ -75,6 +75,7 @@ export const TEXTES_ECRAN_DIFFUSION_QR = {
     batimentLegende: 'Bâtiment',
     etageLegende: 'Étage',
     rechercher: 'Rechercher un bâtiment',
+    rechercherEtage: 'Rechercher un étage',
     regroupe: 'regroupe : {variantes}',
     sansNom: 'Bâtiment sans nom affichable ({n})',
     sansNomEtage: 'Étage sans nom affichable ({n})',

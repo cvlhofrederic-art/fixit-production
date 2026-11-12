@@ -613,7 +613,7 @@ export default function FormulaireDiffusionQr({
                   {optionsEtages.length === 0 ? <p className="text-sm text-[#4A5E78]">{TD.portee.aucunEtage}</p> : (
                     <ChoixValeurQr
                       id={ids.etage} nom={`${idBase}-etages`} legende={TD.portee.etageLegende} options={optionsEtages}
-                      valeur={choix.etage} onChange={choisirEtage}
+                      valeur={choix.etage} onChange={choisirEtage} rechercher={TD.portee.rechercherEtage}
                       erreurId={erreurs.etage ? `${ids.etage}-erreur` : undefined}
                     />
                   )}
