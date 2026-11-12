@@ -12,11 +12,13 @@
 // PR 2, lot 6 : le compte VitFix relié suit la fiche ; quand l'authentification n'a pas suivi (réponse 207), la reprise
 // est proposée ici : « Connexion à bloquer » et « Bloquer la connexion » (départ), « Débloquer la connexion »
 // (réactivation), « Supprimer son compte » (effacement). Sans les champs d'accès (migration 20261112 absente) : rien.
+// PR 3, relecture 3 : « Informer les déclarants de ce signalement » du suivi est transmis à l'espace (onInformer), qui
+// porte la fenêtre de diffusion : cette page est démontée à chaque changement de vue.
 
 import { useCallback, useEffect, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, Modale } from '@/components/coproprietaire-dashboard/ui'
-import SuiviGestionnaireQr from '@/components/aj-signalement/SuiviGestionnaireQr'
+import SuiviGestionnaireQr, { type PropsSuiviGestionnaireQr } from '@/components/aj-signalement/SuiviGestionnaireQr'
 import FenetreDepartGestionnaireQr from '@/components/aj-signalement/FenetreDepartGestionnaireQr'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
@@ -42,6 +44,8 @@ export interface PropsFicheGestionnaireQr {
   onRetour: () => void
   /** La fiche ou ses attributions ont changé : l'espace recharge les fiches et le tableau. */
   onModifie: () => void
+  /** PR 3 : « Informer les déclarants de ce signalement » depuis le suivi (fenêtre portée par l'espace). */
+  onInformer?: PropsSuiviGestionnaireQr['onInformer']
 }
 
 type Etat = { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; fiche: FicheGestionnaireDetailQr }
@@ -58,7 +62,7 @@ function texteEnvoi(e: EnvoiGestionnaireQr): string {
   return parties.join(' · ')
 }
 
-export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, onRetour, onModifie }: Readonly<PropsFicheGestionnaireQr>) {
+export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, onRetour, onModifie, onInformer }: Readonly<PropsFicheGestionnaireQr>) {
   const idBase = useId()
   const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
   const [essai, setEssai] = useState(0)
@@ -261,7 +265,7 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
       </Carte>
 
       <Carte titre={G.fiche.suivi} sousTitre={G.fiche.suiviAide}>
-        <SuiviGestionnaireQr gestionnaireId={g.id} />
+        <SuiviGestionnaireQr gestionnaireId={g.id} onInformer={onInformer} />
       </Carte>
 
       <Carte titre={remplir(G.fiche.attribuees, { n: attributions.length })}>

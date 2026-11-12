@@ -11,13 +11,17 @@
 // présentation que l'espace global : TableauSignalementsQr, réponse minimisée). Rien n'est gardé dans le navigateur.
 // PR 3, lot 8 (cahier § 7.1, BROUILLON pour Frédéric) : le détail porte aussi « Informer les déclarants de ce
 // signalement » et l'opposition à la demande écrite (le super admin a le droit « diffuser » partout).
+// Relecture 3 : la fenêtre de diffusion n'est plus rendue ici. Cette page vit dans la page profil, démontée à chaque
+// changement de vue de l'espace : elle emportait la fenêtre (saisie perdue sans question, envoi abandonné). « Informer »
+// la demande à l'espace (onInformer), qui la porte et la protège au changement de vue (§ 7.1) ; sans onInformer, le
+// bouton n'est pas proposé.
 
 import { useCallback, useEffect, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import DetailSignalementQr from '@/components/aj-signalement/DetailSignalementQr'
-import FenetreDiffusionQr from '@/components/aj-signalement/FenetreDiffusionQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import type { CoproprieteEcranDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import { chargerSignalementsCoproprieteQr, chargerTableauQr } from '@/lib/aj-signalement/api'
 import {
   LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR as T, TON_STATUT_QR, dateHeureParis, lieuSignalementQr,
@@ -27,7 +31,19 @@ import type { CoproprieteQr, SignalementQr, StatutSignalementQr, SuitePageQr } f
 
 type Etat = { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; coproprietes: CoproprieteQr[] }
 
-export default function SuiviGestionnaireQr({ gestionnaireId }: Readonly<{ gestionnaireId: string }>) {
+/** « Informer les déclarants de ce signalement » demandé depuis le suivi : la fenêtre est portée par l'espace. */
+export interface DemandeDiffusionSuiviQr {
+  copropriete: CoproprieteEcranDiffusionQr
+  signalementId: string
+}
+
+export interface PropsSuiviGestionnaireQr {
+  gestionnaireId: string
+  /** Ouvre la fenêtre de diffusion (portée « signalement ») au niveau de l'espace ; absent : bouton non proposé. */
+  onInformer?: (demande: DemandeDiffusionSuiviQr) => void
+}
+
+export default function SuiviGestionnaireQr({ gestionnaireId, onInformer }: Readonly<PropsSuiviGestionnaireQr>) {
   const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
   const [essai, setEssai] = useState(0)
 
@@ -52,20 +68,18 @@ export default function SuiviGestionnaireQr({ gestionnaireId }: Readonly<{ gesti
   if (etat.coproprietes.length === 0) return <EtatVide texte={G.suivi.aucune} icone="immeuble" />
   return (
     <ul className="space-y-3">
-      {etat.coproprietes.map((c) => <CoproprieteSuivieQr key={c.id} copropriete={c} />)}
+      {etat.coproprietes.map((c) => <CoproprieteSuivieQr key={c.id} copropriete={c} onInformer={onInformer} />)}
     </ul>
   )
 }
 
 type Liste = { statut: 'ferme' } | { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; signalements: SignalementQr[]; suite: SuitePageQr }
 
-function CoproprieteSuivieQr({ copropriete: c }: Readonly<{ copropriete: CoproprieteQr }>) {
+function CoproprieteSuivieQr({ copropriete: c, onInformer }: Readonly<{ copropriete: CoproprieteQr; onInformer?: PropsSuiviGestionnaireQr['onInformer'] }>) {
   const [liste, setListe] = useState<Liste>({ statut: 'ferme' })
   const [filtre, setFiltre] = useState<'ouverts' | 'tous'>('ouverts')
   const [suiteEnCours, setSuiteEnCours] = useState(false)
   const [detail, setDetail] = useState<string | null>(null)
-  // PR 3 : signalement dont les déclarants sont informés (fenêtre de diffusion, portée « signalement »).
-  const [diffusion, setDiffusion] = useState<string | null>(null)
 
   const charger = useCallback(async (statut: 'ouverts' | 'tous') => {
     setListe({ statut: 'chargement' })
@@ -161,15 +175,13 @@ function CoproprieteSuivieQr({ copropriete: c }: Readonly<{ copropriete: Copropr
         <Modale titre={`${signalementDetail.typeIntervention} — ${signalementDetail.coproprieteNom}`} onFermer={() => setDetail(null)} labelFermer={T.fermerFenetre}>
           <DetailSignalementQr
             signalement={signalementDetail} jeton={null} onFermer={() => setDetail(null)} onStatut={surStatut} onConflit={() => { void recharger() }}
-            onInformer={() => { setDetail(null); setDiffusion(signalementDetail.id) }} oppositionDiffusion
+            onInformer={onInformer ? () => {
+              setDetail(null)
+              onInformer({ copropriete: { id: c.id, nom: c.nom, cabinetNom: c.cabinet?.nom ?? null }, signalementId: signalementDetail.id })
+            } : undefined}
+            oppositionDiffusion
           />
         </Modale>
-      )}
-      {diffusion && (
-        <FenetreDiffusionQr
-          copropriete={{ id: c.id, nom: c.nom, cabinetNom: c.cabinet?.nom ?? null }} profil="super_admin" contenu="message"
-          signalementId={diffusion} onFermer={() => setDiffusion(null)}
-        />
       )}
     </li>
   )

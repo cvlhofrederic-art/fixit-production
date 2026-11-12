@@ -22,12 +22,19 @@
 // retiré par le cabinet. » et « Se déconnecter » ; fiche d'un autre cabinet → message neutre ; migration, serveur ou
 // réseau → message et « Réessayer ». Puis la coquille, avec le nom du cabinet sous « AJ Signalement » et ses écrans
 // (TableauSignalementsQr en vue gestionnaire : cartes, fenêtre de copropriété, détail).
+// PR 3, relecture 3 (cahier § 7.1) : la fenêtre de diffusion ouverte depuis le suivi d'un gestionnaire (page profil,
+// démontée à chaque changement de vue) est portée ici, par la coquille, qui reste montée. Un changement de vue lui
+// demande de fermer, avec sa protection (saisie : « Abandonner ce message ? » ; envoi : aucune fermeture, la reprise
+// automatique continue), comme TableauSignalementsQr pour les fenêtres de ses cartes ; rien à protéger : fermée.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
 import ListeGestionnairesQr from '@/components/aj-signalement/ListeGestionnairesQr'
 import FicheGestionnaireQr from '@/components/aj-signalement/FicheGestionnaireQr'
+import FenetreDiffusionQr from '@/components/aj-signalement/FenetreDiffusionQr'
+import type { DemandeDiffusionSuiviQr } from '@/components/aj-signalement/SuiviGestionnaireQr'
+import type { GardeDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
 import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
 import JournalQr from '@/components/aj-signalement/JournalQr'
@@ -165,6 +172,20 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
   const referentiels = useReferentielsQr(superAdmin && VUES_REFERENTIELS_QR.includes(vue))
   const { recharger } = referentiels
 
+  // Fenêtre de diffusion du suivi d'un gestionnaire (voir l'en-tête) et sa protection, remontée par elle.
+  const [diffusionSuivi, setDiffusionSuivi] = useState<DemandeDiffusionSuiviQr | null>(null)
+  const [gardeSuivi, setGardeSuivi] = useState<GardeDiffusionQr>('libre')
+  const [demandeFermetureSuivi, setDemandeFermetureSuivi] = useState(0)
+  const fermerDiffusionSuivi = useCallback(() => setDiffusionSuivi(null), [])
+  // Changement de vue (menu, Retour du navigateur, autre page profil) : état ajusté au rendu, sans effet.
+  const texteAncre = texteAncreQr(ancre)
+  const [ancreDiffusion, setAncreDiffusion] = useState(texteAncre)
+  if (texteAncre !== ancreDiffusion) {
+    setAncreDiffusion(texteAncre)
+    if (diffusionSuivi && gardeSuivi !== 'libre') setDemandeFermetureSuivi((n) => n + 1)
+    else if (diffusionSuivi) setDiffusionSuivi(null)
+  }
+
   // Retour du navigateur (ou ancre modifiée à la main) : la vue suit l'ancre ; une ancre qui ne désigne aucune vue
   // (lien d'évitement « Aller au contenu principal », #main-content) laisse la vue en cours.
   useEffect(() => {
@@ -207,7 +228,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
       return (
         <FicheGestionnaireQr
           key={ancre.gestionnaireId} id={ancre.gestionnaireId} coproprietes={coproprietes} gestionnaires={referentiels.gestionnaires}
-          onRetour={() => allerA({ vue: 'gestionnaires', gestionnaireId: null })} onModifie={rafraichir}
+          onRetour={() => allerA({ vue: 'gestionnaires', gestionnaireId: null })} onModifie={rafraichir} onInformer={setDiffusionSuivi}
         />
       )
     }
@@ -275,6 +296,12 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
 
         <MenuEspaceQr entrees={entreesBarreDuBasQr(role)} vue={vue} allerA={allerAVue} disposition="bas" />
       </div>
+      {diffusionSuivi && (
+        <FenetreDiffusionQr
+          copropriete={diffusionSuivi.copropriete} profil="super_admin" contenu="message" signalementId={diffusionSuivi.signalementId}
+          onFermer={fermerDiffusionSuivi} demandeFermeture={demandeFermetureSuivi} onGarde={setGardeSuivi}
+        />
+      )}
     </div>
   )
 }
