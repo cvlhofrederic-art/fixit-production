@@ -301,8 +301,17 @@ export function redirectionEspaceCabinetQr(
   return duCabinet ? null : cheminConnexionCabinetQr(identifiant)
 }
 
-/** Chemin sans langue et sans barre finale (« / » pour l'accueil). */
-const sansBarreFinaleQr = (chemin: string): string => (chemin.length > 1 ? chemin.replace(/\/+$/, '') : chemin)
+/**
+ * Chemin sans langue et sans barre finale (« / » pour l'accueil) : toutes les « / » finales retirées, sauf pour un chemin
+ * d'un caractère. Sans expression régulière : `/\/+$/` revenait en arrière à chaque « / » d'une longue suite non finale
+ * du chemin de la requête, en temps quadratique (SonarCloud S8786). Exporté pour sa table de cas.
+ */
+export function sansBarreFinaleQr(chemin: string): string {
+  if (chemin.length <= 1) return chemin
+  let fin = chemin.length
+  while (fin > 0 && chemin[fin - 1] === '/') fin -= 1
+  return chemin.slice(0, fin)
+}
 
 /** Accueil d'une langue (« », « / ») ou connexion générale (/auth/login), avec ou sans barre finale. */
 const estAccueilOuConnexionGeneraleQr = (chemin: string): boolean => chemin === '' || chemin === '/' || chemin === '/auth/login'

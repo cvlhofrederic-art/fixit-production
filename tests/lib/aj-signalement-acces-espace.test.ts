@@ -421,6 +421,27 @@ describe('aiguillageGestionnaireQr (middleware) : un gestionnaire est envoyé ve
   })
 })
 
+describe('barre finale du chemin de la requête (retour SonarCloud S8786) : même résultat, temps linéaire', () => {
+  // Résultats de l'expression d'origine, `chemin.length > 1 ? chemin.replace(/\/+$/, '') : chemin`.
+  it.each([
+    ['', ''], ['/', '/'], ['//', ''], ['///', ''], ['a', 'a'], ['/a', '/a'], ['/a/', '/a'], ['/a///', '/a'], ['a/', 'a'],
+    ['/a//b', '/a//b'], ['/a//b//', '/a//b'], ['//a', '//a'], ['/a/\n', '/a/\n'], ['/a\n/', '/a\n'], ['/a/ ', '/a/ '],
+    ['/auth/login//', '/auth/login'],
+  ])('%j → %j', (chemin, attendu) => {
+    expect(accesEspace.sansBarreFinaleQr(chemin)).toBe(attendu)
+  })
+
+  it('une longue suite de « / » non finale (chemin choisi par le visiteur) : réponse en temps linéaire', () => {
+    // L'expression d'origine revenait en arrière à chaque « / » de la suite : temps quadratique (3,5 s pour ces deux appels
+    // sur un poste de développement, contre moins d'une milliseconde après la réécriture).
+    const chemin = `/${'/'.repeat(40_000)}a`
+    const debut = performance.now()
+    expect(accesEspace.aiguillageGestionnaireQr(chemin, { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' })).toBeNull()
+    expect(accesEspace.aiguillageGestionnaireQr(chemin, { role: 'gestionnaire_signalement' })).toBeNull()
+    expect(performance.now() - debut).toBeLessThan(100)
+  })
+})
+
 describe('destinationConnexionEspaceQr avec le cabinet de la page (PR 2)', () => {
   const espace = '/cabinet-exemple/suivi/'
   const g = (repere: string) => ({ role: 'gestionnaire_signalement', aj_signalement_cabinet: repere })
