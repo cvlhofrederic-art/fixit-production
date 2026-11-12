@@ -8,6 +8,10 @@
 //   - diffusions de MOINS d'une heure ayant des lignes à envoyer ou un lot interrompu (signalements_qr_diffusions_a_reprendre,
 //     10 au plus ; l'âge est revérifié ici) : au-delà, seule une reprise manuelle confirmée part, et plus rien après 24 h ;
 //   - 5 lots au plus par diffusion, 20 par appel (durée d'une requête du Worker) ; chaque lot revérifié par la base ;
+//   - diffusion devenue impossible (copropriété désactivée, cabinet suspendu, fin de mission passée : raison d'inactivité
+//     relue AVANT la copie, comme la reprise D-R4 ; relecture 3) : aucune copie au cabinet, un lot demandé pour que la base
+//     annule les lignes restantes (diffusion_inactive), aucun journal de reprise ; raison illisible : diffusion laissée au
+//     passage suivant ;
 //   - copie au cabinet encore due (création arrêtée avant elle, ou refusée par le service) : envoyée avant les lots, datée
 //     au succès (relecture 2 ; clé d'idempotence propre, un envoi concurrent de la reprise n'en fait qu'un) ;
 //   - purge de conservation (H10), au plus une fois par jour ; journal diffusion.reprise (mode filet, nombre de lots).
@@ -23,7 +27,7 @@ import { cleLiensDiffusionConfigureeQr } from '@/lib/aj-signalement/diffusion-li
 import { LOTS_PAR_APPEL_DIFFUSION_QR, envoyerDiffusionQr } from '@/lib/aj-signalement/diffusion-envoi'
 import { journaliserQr, reponseErreur, reponseErreurDiffusionQr } from '@/lib/aj-signalement/serveur'
 import {
-  diffusionFigeeQr, envoyerCopieCabinetSiDueQr, lireDiffusionQr, purgerDiffusionsSiBesoinQr,
+  diffusionFigeeQr, envoyerCopieCabinetSiDueQr, lireDiffusionQr, purgerDiffusionsSiBesoinQr, raisonInactiveDiffusionQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
 
 export const maxDuration = 60
@@ -83,6 +87,19 @@ export async function POST(request: NextRequest) {
       }
       const figee = diffusionFigeeQr(ligne)
       if (!figee) continue
+      // Même ordre que D-R4 : la copie au cabinet ne part que si la diffusion peut encore partir (voir l'en-tête).
+      const raison = await raisonInactiveDiffusionQr(typeof ligne.copropriete_id === 'string' ? ligne.copropriete_id : '')
+      if (!raison.ok) {
+        logger.warn(`${CONTEXTE} filet de reprise : diffusion possible non relue`, { diffusionId: id, code: raison.erreur.code })
+        continue
+      }
+      if (raison.valeur !== null) {
+        // Un lot demandé : la base annule les lignes restantes (diffusion_inactive) et ne réserve rien ; rien ne part.
+        const annulation = await envoyerDiffusionQr(figee, { lotsMax: 1 })
+        lots += annulation.lots
+        logger.info(`${CONTEXTE} filet de reprise : diffusion devenue impossible, lignes annulées`, { diffusionId: id, raison: raison.valeur })
+        continue
+      }
       await envoyerCopieCabinetSiDueQr(ligne)
       const bilan = await envoyerDiffusionQr(figee, { lotsMax: Math.min(LOTS_PAR_APPEL_DIFFUSION_QR, budget) })
       diffusions += 1

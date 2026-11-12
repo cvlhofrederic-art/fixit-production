@@ -19,6 +19,8 @@ import { join } from 'path'
 const envoi = vi.hoisted(() => ({
   appels: [] as Array<{ id: string; lotsMax: number | undefined }>,
   lotsParAppel: 5,
+  /** Diffusions dont la base refuse tout lot (diffusion_inactive : lignes annulées, rien de réservé). */
+  refusees: new Set<string>(),
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
@@ -30,6 +32,7 @@ vi.mock('@/lib/aj-signalement/diffusion-envoi', () => ({
   LOTS_PAR_APPEL_DIFFUSION_QR: 5,
   envoyerDiffusionQr: vi.fn(async (d: { id: string }, o: { lotsMax?: number } = {}) => {
     envoi.appels.push({ id: d.id, lotsMax: o.lotsMax })
+    if (envoi.refusees.has(d.id)) return { lots: 0, envoyes: 0, refuses: 0, reste: null, arret: null }
     const lots = Math.min(o.lotsMax ?? 5, envoi.lotsParAppel)
     return { lots, envoyes: lots * 100, refuses: 0, reste: 0, arret: null }
   }),
@@ -158,6 +161,7 @@ beforeEach(() => {
   baseQr.reinitialiser()
   envoi.appels = []
   envoi.lotsParAppel = 5
+  envoi.refusees = new Set()
   process.env.INTERNAL_API_SECRET = SECRET
   process.env.AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION = CLE
   baseQr.etat.tables.signalements_qr_diffusions = [ligneDiffusion(1), ligneDiffusion(2)]
@@ -165,6 +169,8 @@ beforeEach(() => {
     data: baseQr.table('signalements_qr_diffusions').slice(0, Number(a.p_limite)).map((d) => ({ diffusion_id: d.id })),
   })
   baseQr.etat.fonctions.signalements_qr_diffusion_purger = () => ({ data: [{ diffusions: 0, oppositions: 0, perimees: 0 }] })
+  // Diffusion encore possible (copropriété active, cabinet activé, mission en cours) ; voir la relecture 3 plus bas.
+  baseQr.etat.fonctions.signalements_qr_diffusion_raison_inactive = () => ({ data: null })
 })
 
 describe('route D-C1 : secret', () => {
@@ -288,5 +294,41 @@ describe('route D-C1 : reprise', () => {
     const res = await appeler()
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({ error: 'base_absente' })
+  })
+})
+
+// Relecture 3 de la PR 3 : la copie au cabinet (« message envoyé … à n personnes ») ne part que si la diffusion peut
+// encore partir, comme dans la reprise D-R4 : copropriété désactivée, cabinet suspendu, fin de mission passée → aucune
+// copie ; un lot est demandé pour que la base annule les lignes restantes (diffusion_inactive), sans journal de reprise.
+describe('route D-C1 : diffusion devenue impossible (relecture 3)', () => {
+  const COPRO_INACTIVE = 'c0000000-0000-4000-8000-000000000009'
+  beforeEach(() => {
+    baseQr.etat.tables.signalements_qr_diffusions = [
+      { ...ligneDiffusion(1, 10 * 60_000, null), copropriete_id: COPRO_INACTIVE },
+      ligneDiffusion(2, 10 * 60_000, null),
+    ]
+    baseQr.etat.fonctions.signalements_qr_diffusion_raison_inactive = (a) => ({ data: a.p_copropriete === COPRO_INACTIVE ? 'diffusion_non_activee' : null })
+    envoi.refusees = new Set([idDiffusion(1)])
+  })
+
+  it('copie encore due : AUCUNE copie au cabinet ; un lot demandé (lignes annulées par la base) ; la diffusion suivante part normalement', async () => {
+    expect(await (await appeler()).json()).toEqual({ diffusions: 1, lots: 5 })
+    expect(copiesCabinetQr().map((c) => c.idempotencyKey)).toEqual([`aj-diffusion-${idDiffusion(2)}-copie`])
+    expect(envoi.appels).toEqual([{ id: idDiffusion(1), lotsMax: 1 }, { id: idDiffusion(2), lotsMax: 5 }])
+    expect(baseQr.table('signalements_qr_diffusions')[0].copie_cabinet_le).toBeNull()
+    expect(baseQr.etat.appelsRpc.filter((a) => a.nom === 'signalements_qr_diffusion_raison_inactive').map((a) => a.args))
+      .toEqual([{ p_copropriete: COPRO_INACTIVE }, { p_copropriete: 'c0000000-0000-4000-8000-000000000001' }])
+    const journal = baseQr.ecrituresDe('signalements_qr_journal', 'insert').map((e) => (e.valeurs as { details?: { diffusion?: string } }).details?.diffusion)
+    expect(journal).toEqual([idDiffusion(2)])
+  })
+
+  it('raison illisible (erreur de la base) : diffusion laissée au passage suivant, ni copie ni lot ; avertissement (identifiant et code)', async () => {
+    baseQr.etat.fonctions.signalements_qr_diffusion_raison_inactive = (a) => (a.p_copropriete === COPRO_INACTIVE
+      ? { error: { code: '40001', message: 'could not serialize' } }
+      : { data: null })
+    expect(await (await appeler()).json()).toEqual({ diffusions: 1, lots: 5 })
+    expect(envoi.appels.map((a) => a.id)).toEqual([idDiffusion(2)])
+    expect(copiesCabinetQr().map((c) => c.idempotencyKey)).toEqual([`aj-diffusion-${idDiffusion(2)}-copie`])
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('filet de reprise'), { diffusionId: idDiffusion(1), code: '40001' })
   })
 })
