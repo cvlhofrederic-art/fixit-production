@@ -348,7 +348,8 @@ describe('langue, erreurs de lecture', () => {
     expect(screen.getByText(QUITTER_PT)).toBeInTheDocument()
     expect(screen.getByText(GARDER_PT)).toBeInTheDocument()
     expect(container.querySelector('[lang="pt"]')).not.toBeNull()
-    expect(document.documentElement.lang).toBe('pt')
+    // Posés par un effet après l'affichage : attendus (le bouton peut paraître avant que l'effet ne s'exécute).
+    await waitFor(() => expect(document.documentElement.lang).toBe('pt'))
     expect(document.title).toBe(TP.titre)
   })
 
