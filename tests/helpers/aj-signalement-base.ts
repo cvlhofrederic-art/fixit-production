@@ -127,7 +127,12 @@ export function creerBaseQr() {
     return etat.tables[nom]
   }
 
-  function from(nomTable: string) {
+  /**
+   * `rappel` (aide qui rejoue un trigger, ex. aj-signalement-invitation.ts) : joué après une requête ATTENDUE (await ou
+   * then), une fois la requête exécutée et avant que la réponse ne soit rendue ; pas après single() ni maybeSingle(), qui
+   * rendent une promesse. L'aide n'a ainsi aucune propriété `then` à poser elle-même (S7739).
+   */
+  function from(nomTable: string, rappel?: () => void) {
     let op: 'select' | 'insert' | 'update' | 'delete' = 'select'
     let selection: string | null = null
     let options: { count?: string; head?: boolean } = {}
@@ -235,8 +240,13 @@ export function creerBaseQr() {
       // « thenable » VOULU (règle S7739 neutralisée sur la ligne suivante, NOSONAR ne vaut que pour sa propre ligne) :
       // le constructeur de requête de Supabase s'attend sans être une promesse (`await supabase.from(…).select(…)`) ;
       // le simulacre doit l'imiter, sinon le code testé ne peut pas s'exécuter. La requête ne part qu'à l'attente.
-      then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { // NOSONAR typescript:S7739
-        return Promise.resolve(executer()).then(ok, ko)
+      then(ok?: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { // NOSONAR typescript:S7739
+        const reponse = Promise.resolve(executer())
+        if (!rappel) return reponse.then(ok, ko)
+        return reponse.then((r) => {
+          rappel()
+          return ok ? ok(r) : r
+        }, ko)
       },
     }
     return q

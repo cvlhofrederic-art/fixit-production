@@ -156,20 +156,12 @@ function lierComptesQr(): void {
   }
 }
 
-type Requete = Record<string, unknown> & { then: (ok?: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise<unknown> }
-
-/** Client de la base simulée avec auth.admin ; la liaison est rejouée après chaque requête sur les envois. */
+/**
+ * Client de la base simulée avec auth.admin ; la liaison est rejouée après chaque requête attendue sur les envois (rappel
+ * de la base simulée : joué avant que la réponse ne soit rendue, pas après single() ni maybeSingle()).
+ */
 export const clientInvitationQr = {
-  from(table: string) {
-    const q = baseQr.client.from(table) as Requete
-    if (table !== 'signalements_qr_invitations') return q
-    const then = q.then
-    q.then = (ok, ko) => then((r) => {
-      lierComptesQr()
-      return ok ? ok(r) : r
-    }, ko)
-    return q
-  },
+  from: (table: string) => (table === 'signalements_qr_invitations' ? baseQr.client.from(table, lierComptesQr) : baseQr.client.from(table)),
   rpc: (nom: string, args: Record<string, unknown> = {}) => baseQr.client.rpc(nom, args),
   auth: { admin: adminAuthQr },
 }
