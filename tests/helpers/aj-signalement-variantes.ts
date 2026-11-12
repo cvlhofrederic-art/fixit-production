@@ -35,7 +35,9 @@ export interface MondeGardeQr {
  * Jumelle de signalements_qr_saisie_de_la_fiche (20261112) : la saisie est celle de la fiche SEULE quand la règle la
  * reconnaît comme l'adresse de la fiche (domaines de SON cabinet) et comme celle d'aucune AUTRE fiche active et non
  * contestée du cabinet de la copropriété (domaines de ce cabinet) ; au retrait d'une attribution (`retrait`), une autre
- * fiche ne compte que si elle est attribuée à la copropriété. Copropriété sans cabinet : aucune autre fiche.
+ * fiche ne compte que si elle est attribuée à la copropriété. Copropriété sans cabinet : aucune autre fiche. Une autre
+ * fiche dont le domaine n'est pas déclaré par ce cabinet (fiche forcée) ne garde que sa propre boîte (reprise de la
+ * garde, constats 1 et 5 : split_part(o.email, '@', 2), adresse de fiche déjà canonique).
  */
 export function saisieDeLaFicheQr(
   adresse: unknown,
@@ -47,8 +49,9 @@ export function saisieDeLaFicheQr(
   if (!estAdresseDeFicheQr(adresse, fiche.email, fiche.domaines)) return false
   if (copropriete.cabinetId === null) return true
   const domaines = monde.domainesDuCabinet(copropriete.cabinetId)
+  const domainesDe = (email: string) => (domaines.includes(email.split('@')[1] ?? '') ? domaines : [])
   return !monde.fiches.some((o) => o.cabinetId === copropriete.cabinetId && o.id !== fiche.id && o.actif && !o.contestee
-    && o.email !== null && (!retrait || monde.attribuee(o.id, copropriete.id)) && estAdresseDeFicheQr(adresse, o.email, domaines))
+    && o.email !== null && (!retrait || monde.attribuee(o.id, copropriete.id)) && estAdresseDeFicheQr(adresse, o.email, domainesDe(o.email)))
 }
 
 /** Le monde de la garde lu dans la base simulée. */

@@ -34,7 +34,7 @@
     { "adresse": "a@b@exemple.test", "ficheEmail": "a@b@exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": true, "note": "même texte à deux « @ » : même boîte" },
     { "adresse": "marie.exemple@exemple-bis.test", "ficheEmail": "Marie.Exemple@Exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": true, "note": "e-mail de fiche hors forme canonique (la base n'en a pas)" }
   ],
-  "descriptionGardes": "Garde (contre-vérification du 12/11/2026) : table COMMUNE à la fonction SQL signalements_qr_saisie_de_la_fiche (migration 20261112, essai PGlite) et à sa jumelle saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts). Une saisie d'une copropriété est celle de la fiche SEULE (retirée au départ, à l'effacement ou au retrait d'attribution, exclue de l'envoi) quand la règle la reconnaît comme l'adresse de la fiche, et comme celle d'aucune AUTRE fiche active et non contestée du cabinet de la copropriété (au retrait d'attribution, « retrait » : attribuée à cette copropriété). Chaque cas décrit un petit monde : domaines par cabinet, fiches (cabinet, adresse, actif, contestee), la copropriété (cabinet, attributions), la fiche concernée ; attendu = réponse de la garde pour chaque saisie. Données fictives : domaines .test, gmail.com (messagerie publique).",
+  "descriptionGardes": "Garde (contre-vérification du 12/11/2026) : table COMMUNE à la fonction SQL signalements_qr_saisie_de_la_fiche (migration 20261112, essai PGlite) et à sa jumelle saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts). Une saisie d'une copropriété est celle de la fiche SEULE (retirée au départ, à l'effacement ou au retrait d'attribution, exclue de l'envoi) quand la règle la reconnaît comme l'adresse de la fiche, et comme celle d'aucune AUTRE fiche active et non contestée du cabinet de la copropriété (au retrait d'attribution, « retrait » : attribuée à cette copropriété). Une autre fiche dont le domaine n'est pas déclaré par ce cabinet (fiche forcée) ne garde que sa propre boîte (reprise de la garde, constats 1 et 5). Chaque cas décrit un petit monde : domaines par cabinet, fiches (cabinet, adresse, actif, contestee), la copropriété (cabinet, attributions), la fiche concernée ; attendu = réponse de la garde pour chaque saisie. Données fictives : domaines .test, gmail.com (messagerie publique).",
   "gardes": [
     {
       "note": "même boîte publique dans deux cabinets (preuve contre-pr2-boite) : copropriété du cabinet de la fiche ACTIVE, rien de sa boîte n'est retiré pour la fiche partie",
@@ -162,6 +162,50 @@
       "saisies": [
         { "adresse": "marie@exemple.test", "attendu": true, "note": "adresse exacte de la fiche qui perd la copropriété" },
         { "adresse": "marie+suivi@exemple.test", "attendu": true, "note": "adresse exacte de l'autre fiche, non attribuée" }
+      ]
+    },
+    {
+      "note": "reprise de la garde, constats 1 et 5 : départ ou effacement de la fiche du domaine du cabinet ; l'autre fiche active est FORCÉE (domaine non déclaré par le cabinet), même partie locale : elle ne garde que SA boîte",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "X": { "cabinet": "A", "email": "jean@exemple.test", "actif": false }, "Y": { "cabinet": "A", "email": "jean@gmail.com" } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "X", "retrait": false,
+      "saisies": [
+        { "adresse": "jean@exemple.test", "attendu": true, "note": "adresse exacte de la fiche partie : pour la fiche forcée, ce n'est qu'une variante virtuelle" },
+        { "adresse": "jean+cs@exemple.test", "attendu": true, "note": "sous-adresse de la fiche partie" },
+        { "adresse": "jean@gmail.com", "attendu": false, "note": "boîte de la fiche forcée : pas une adresse de la fiche partie" },
+        { "adresse": "cs@externe.test", "attendu": false, "note": "adresse extérieure" }
+      ]
+    },
+    {
+      "note": "reprise de la garde, constats 1 et 5 : adresse contestée (« Ce n'est pas moi ») ; l'autre fiche active, FORCÉE, de même partie locale ne la garde pas (exclue de l'envoi)",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "X": { "cabinet": "A", "email": "marie@exemple.test", "contestee": true }, "Y": { "cabinet": "A", "email": "marie@gmail.com" } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "X", "retrait": false,
+      "saisies": [
+        { "adresse": "marie@exemple.test", "attendu": true, "note": "adresse exacte de la fiche contestée" },
+        { "adresse": "marie+x@exemple.test", "attendu": true, "note": "sous-adresse de la fiche contestée" }
+      ]
+    },
+    {
+      "note": "reprise de la garde, constat 1 (C7) : retrait d'attribution ; l'autre fiche FORCÉE, attribuée à la copropriété, ne garde que SA boîte",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "B": { "cabinet": "A", "email": "lea@exemple.test" }, "S": { "cabinet": "A", "email": "lea@prestataire.test" } },
+      "copropriete": { "cabinet": "A", "attributions": ["S"] }, "fiche": "B", "retrait": true,
+      "saisies": [
+        { "adresse": "lea+cs@exemple.test", "attendu": true, "note": "sous-adresse de la fiche qui perd la copropriété" },
+        { "adresse": "lea@exemple.test", "attendu": true, "note": "adresse exacte de la fiche qui perd la copropriété" },
+        { "adresse": "lea@prestataire.test", "attendu": false, "note": "boîte de la fiche forcée : pas une adresse de la fiche qui perd la copropriété" }
+      ]
+    },
+    {
+      "note": "reprise de la garde, constats 1 et 5 : une fiche FORCÉE active garde toujours sa propre boîte, jamais la partie locale de la fiche partie sur le domaine du cabinet",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "X": { "cabinet": "A", "email": "jules+ancien@gmail.com", "actif": false }, "Y": { "cabinet": "A", "email": "jules@gmail.com" } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "X", "retrait": false,
+      "saisies": [
+        { "adresse": "jules@gmail.com", "attendu": false, "note": "boîte commune : la fiche forcée active la garde" },
+        { "adresse": "jules+ancien@gmail.com", "attendu": false, "note": "adresse exacte de la fiche partie, même boîte que la fiche forcée active" },
+        { "adresse": "jules@exemple.test", "attendu": true, "note": "partie locale de la fiche partie sur le domaine du cabinet : la fiche forcée active ne la garde pas" }
       ]
     },
     {

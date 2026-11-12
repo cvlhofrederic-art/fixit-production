@@ -180,6 +180,9 @@ describe('signalements_qr_adresse_de_fiche (20261112) : texte figé, traduit mot
 // Le départ, l'effacement, le retrait d'attribution et l'exclusion à l'envoi appliquaient la règle à la seule fiche
 // concernée : la saisie qui est AUSSI l'adresse d'une autre fiche active (même boîte dans deux cabinets, domaine d'une
 // fiche forcée déclaré par un autre cabinet, deux domaines d'un cabinet) était retirée ou exclue avec elle.
+// Reprise de la garde (constats 1 et 5) : la règle n'est pas symétrique ; une autre fiche FORCÉE (son domaine n'est pas
+// déclaré par le cabinet) « possédait » ainsi la boîte d'une autre personne (même partie locale sur le domaine du
+// cabinet), et la garde gardait l'adresse exacte d'une fiche partie, effacée ou contestée. Elle ne garde plus que sa boîte.
 
 describe('signalements_qr_saisie_de_la_fiche (20261112) : texte figé, la règle pour la fiche puis pour chaque autre fiche', () => {
   const CORPS = `SELECT signalements_qr_adresse_de_fiche(p_adresse, p_fiche_email, p_domaines)
@@ -190,7 +193,10 @@ describe('signalements_qr_saisie_de_la_fiche (20261112) : texte figé, la règle
           AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
                                                  WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
           AND signalements_qr_adresse_de_fiche(p_adresse, o.email,
-                ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = p_cabinet)))`
+                CASE WHEN EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+                                   WHERE d.cabinet_id = p_cabinet AND d.domaine = split_part(o.email, '@', 2))
+                     THEN ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = p_cabinet)
+                     ELSE '{}'::text[] END))`
 
   it('signature (adresse, fiche, son adresse, ses domaines, cabinet de la copropriété, copropriété au retrait) → boolean, STABLE ; corps figé', () => {
     expect(enteteSql('signalements_qr_saisie_de_la_fiche')).toBe(compacter(
@@ -217,6 +223,15 @@ describe('garde : table commune (gardes) — jumelle saisieDeLaFicheQr', () => {
     expect(GARDES.some((g) => g.retrait && g.copropriete.attributions.length === 0)).toBe(true)
     expect(GARDES.some((g) => Object.values(g.fiches).some((f) => f.contestee))).toBe(true)
     expect(GARDES.some((g) => Object.values(g.fiches).some((f) => f.email === null))).toBe(true)
+    // Reprise de la garde (constats 1 et 5) : une autre fiche FORCÉE (domaine non déclaré par son cabinet), active, de même
+    // partie locale qu'une saisie de la fiche, dans un cas au moins où elle ne garde pas cette saisie.
+    const forcee = (g: CasGarde, nom: string) => {
+      const f = g.fiches[nom]
+      return nom !== g.fiche && f.actif !== false && f.email !== null && !(g.domaines[f.cabinet] ?? []).includes(f.email.split('@')[1] ?? '')
+    }
+    expect(GARDES.some((g) => Object.keys(g.fiches).some((nom) => forcee(g, nom)) && g.saisies.some((s) => s.attendu
+      && Object.entries(g.fiches).some(([nom, f]) => forcee(g, nom) && f.email !== null
+        && s.adresse?.split('@')[0].split('+')[0] === f.email.split('@')[0].split('+')[0])))).toBe(true)
     const permis = /(?:\.test|^gmail\.com)$/
     for (const g of GARDES) {
       const adresses = [...Object.values(g.fiches).map((f) => f.email), ...g.saisies.map((s) => s.adresse)]
@@ -237,5 +252,12 @@ describe('garde : table commune (gardes) — jumelle saisieDeLaFicheQr', () => {
     const f = g.fiches[g.fiche]
     expect(estAdresseDeFicheQr('jeanne+beta@gmail.com', f.email, g.domaines[f.cabinet])).toBe(true)
     expect(repondGarde(g, 'jeanne+beta@gmail.com')).toBe(false)
+  })
+
+  it('preuve de la reprise (constats 1 et 5) : la règle rattache l’adresse exacte de la fiche partie à la fiche FORCÉE ; la garde ne l’en protège plus', () => {
+    const g = GARDES.find((x) => x.note.startsWith('reprise de la garde, constats 1 et 5 : départ ou effacement'))!
+    expect(estAdresseDeFicheQr('jean@exemple.test', g.fiches.Y.email, g.domaines.A)).toBe(true)
+    expect(estAdresseDeFicheQr('jean@gmail.com', g.fiches.X.email, g.domaines.A)).toBe(false)
+    expect(repondGarde(g, 'jean@exemple.test')).toBe(true)
   })
 })
