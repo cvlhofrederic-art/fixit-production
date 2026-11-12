@@ -130,13 +130,19 @@ const indicateurs = () => screen.getByRole('region', { name: T.indicateurs })
 const valeurCarre = (libelle: string) => within(indicateurs()).getByText(libelle).parentElement?.textContent?.replace(libelle, '')
 const carte = (nom: string) => screen.getByRole('heading', { level: 2, name: nom }).closest('section') as HTMLElement
 
+// Dernière passe du 12/11/2026 : le premier rendu du fichier (React, jsdom et les requêtes par rôle, à froid) prend déjà
+// environ 1,2 s seul, et davantage quand la suite tourne en parallèle. Avec le délai par défaut de waitFor (1 s), le
+// premier test échouait sous charge (8 sur 8 lancés ensemble). Le premier affichage de l'espace a donc 5 s, comme dans
+// tests/components/admin-dashboard-cartes-copro.test.tsx ; les attentes suivantes gardent le délai par défaut.
+const PREMIER_RENDU = { timeout: 5000 }
+
 async function ouvrir(vue: 'Tableau de bord' | 'Copropriétés' | 'Signalements' = 'Tableau de bord') {
   render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
-  await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
-  await waitFor(() => expect(indicateurs()).toBeInTheDocument())
+  await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'), PREMIER_RENDU)
+  await waitFor(() => expect(indicateurs()).toBeInTheDocument(), PREMIER_RENDU)
   if (vue !== 'Tableau de bord') {
     fireEvent.click(within(menuLateral()).getByRole('link', { name: vue }))
-    await waitFor(() => expect(titre()).toHaveTextContent(vue))
+    await waitFor(() => expect(titre()).toHaveTextContent(vue), PREMIER_RENDU)
   }
 }
 
@@ -152,7 +158,7 @@ describe('chargement et coquille', () => {
   it('403 acces_retire (fiche désactivée ou bloquée) : message, « Se déconnecter », aucun tableau', async () => {
     routeur = (a) => (a.url === '/api/aj-signalement/moi' ? json({ error: 'acces_retire' }, 403) : undefined)
     render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
-    expect(await screen.findByText('Votre accès a été retiré par le cabinet.')).toBeInTheDocument()
+    expect(await screen.findByText('Votre accès a été retiré par le cabinet.', undefined, PREMIER_RENDU)).toBeInTheDocument()
     // Relecture du lot 6 (accessibilité) : un titre de page, même sur un état pleine page (lu, non affiché).
     expect(titre()).toHaveTextContent('AJ Signalement')
     expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument()
@@ -163,11 +169,11 @@ describe('chargement et coquille', () => {
   it('503 base_absente : « Fonction pas encore activée. » et Réessayer, qui relit /moi', async () => {
     routeur = (a) => (a.url === '/api/aj-signalement/moi' ? json({ error: 'base_absente' }, 503) : undefined)
     render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
-    expect(await screen.findByText('Fonction pas encore activée.')).toBeInTheDocument()
+    expect(await screen.findByText('Fonction pas encore activée.', undefined, PREMIER_RENDU)).toBeInTheDocument()
     expect(titre()).toHaveTextContent('AJ Signalement')
     routeur = () => undefined
     fireEvent.click(screen.getByRole('button', { name: T.reessayer }))
-    await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'))
+    await waitFor(() => expect(titre()).toHaveTextContent('Tableau de bord'), PREMIER_RENDU)
     expect(appelsVers('/api/aj-signalement/moi')).toHaveLength(2)
   })
 
@@ -178,14 +184,14 @@ describe('chargement et coquille', () => {
       return undefined
     }
     render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
-    expect(await screen.findByText('Connexion impossible, réessayez.')).toBeInTheDocument()
+    expect(await screen.findByText('Connexion impossible, réessayez.', undefined, PREMIER_RENDU)).toBeInTheDocument()
     expect(simul.toastErreur).toHaveBeenCalledWith('Connexion impossible, réessayez.')
   })
 
   it('accès retiré en cours de route (tableau 403 acces_retire) : le même message', async () => {
     routeur = (a) => (a.url === '/api/aj-signalement/tableau' ? json({ error: 'acces_retire' }, 403) : undefined)
     render(<EspaceAjSignalement cabinet={CABINET_PAGE} />)
-    expect(await screen.findByText('Votre accès a été retiré par le cabinet.')).toBeInTheDocument()
+    expect(await screen.findByText('Votre accès a été retiré par le cabinet.', undefined, PREMIER_RENDU)).toBeInTheDocument()
   })
 })
 
