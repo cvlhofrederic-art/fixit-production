@@ -143,7 +143,7 @@ vi.mock('@/lib/email', () => ({
 
 const { POST } = await import('@/app/api/aj-signalement/signalements/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
-const { informationFormulaireQr, reinitialiserReplisInformationQr } = await import('@/lib/aj-signalement/serveur-information')
+const { informationFormulaireQr } = await import('@/lib/aj-signalement/serveur-information')
 const { templateConfirmationQr } = await import('@/lib/aj-signalement/email')
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -183,7 +183,6 @@ beforeEach(() => {
   h.etat.fonctions = {}
   h.rpc.mockClear()
   reinitialiserReplisQr()
-  reinitialiserReplisInformationQr()
   h.loggerWarn.mockClear()
   h.loggerInfo.mockClear()
   h.sendEmail.mockClear()
@@ -639,7 +638,7 @@ describe('accusé de réception : annonce de la diffusion et politique du cabine
     expect(accuses).toHaveLength(2)
     for (const envoi of accuses) expect(envoi.html).not.toContain('Vous recevrez aussi')
     expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toHaveLength(0)
-    const replis = h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('20261113'))
+    const replis = h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('13/11/2026'))
     expect(replis).toHaveLength(1)
     expect(h.loggerError).not.toHaveBeenCalled()
   })
@@ -729,7 +728,7 @@ describe('accusé de réception : annonce de la diffusion et politique du cabine
     for (let i = 0; i < 2; i += 1) expect((await poster(CORPS)).status).toBe(200)
     expect(accuse()?.html).not.toContain('Vos coordonnées sont traitées')
     // Deux opérations en repli (annonce, politique), chacune journalisée une seule fois malgré les deux dépôts.
-    expect(h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('20261113'))).toHaveLength(2)
+    expect(h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('13/11/2026'))).toHaveLength(2)
     expect(h.loggerError).not.toHaveBeenCalled()
   })
 

@@ -11,35 +11,19 @@
 //   - formulaire : partie « diffusion » de la mention seulement quand signalements_qr_diffusion_raison_inactive rend
 //     NULL (même règle que l'aperçu, la création et chaque lot).
 // Rien ne lève : migration 20261113 non appliquée (fonction ou colonne absente) → sans annonce ni information, repli
-// journalisé une fois par isolat et par opération ; toute autre erreur → avertissement avec son code seul (jamais le
+// journalisé une fois par isolat et par opération (journaliserRepliDiffusionQr de serveur.ts, commun à toute la diffusion) ; toute autre erreur → avertissement avec son code seul (jamais le
 // message de la base, qui peut citer une valeur) ; le dépôt et l'accusé restent acquis (modèle SPEC PR 1 § 1.11).
 
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
-import { TABLE_CABINETS_QR, TABLE_COPROPRIETES_QR, structureAbsenteQr, type ErreurBase } from '@/lib/aj-signalement/serveur'
+import {
+  TABLE_CABINETS_QR, TABLE_COPROPRIETES_QR, journaliserRepliDiffusionQr, structureAbsenteQr, type ErreurBase,
+} from '@/lib/aj-signalement/serveur'
 import { politiqueConfidentialiteValideQr, type PolitiqueCabinetQr } from '@/lib/aj-signalement/email'
 import { nettoyerLigneDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
 import type { InformationFormulaireQr } from '@/lib/aj-signalement/textes'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
-
-/** Migration de la diffusion (PR 3) : ses fonctions et colonnes manquent tant qu'elle n'est pas appliquée. */
-export const MIGRATION_DIFFUSION_QR = 'supabase/migrations/20261113_signalements_qr_diffusion.sql'
-
-const replisJournalises = new Set<string>()
-
-/**
- * Structure de la migration 20261113 absente (fonction PGRST202, colonne 42703 / PGRST204, table) : un avertissement par
- * opération et par isolat (Worker), avec le code seul.
- */
-export function journaliserRepliDiffusionQr(operation: string, erreur: ErreurBase | null | undefined): void {
-  if (replisJournalises.has(operation)) return
-  replisJournalises.add(operation)
-  logger.warn(`${CONTEXTE} migration 20261113 absente : repli (${operation})`, { migration: MIGRATION_DIFFUSION_QR, code: erreur?.code })
-}
-
-/** Tests : chaque cas repart d'un isolat « neuf ». */
-export const reinitialiserReplisInformationQr = (): void => replisJournalises.clear()
 
 /** Erreur d'une lecture ou d'un appel : repli journalisé (structure absente) ou avertissement avec le code seul. */
 function signalerErreurQr(operation: string, erreur: ErreurBase, ids: Record<string, string>): void {

@@ -127,7 +127,9 @@ describe('destinataires automatiques', () => {
     expect((await deposer()).status).toBe(200)
     expect(versAdministrateur().map((m) => m.to)).toEqual(['cs@externe.test', 'luc.parti@exemple.test'])
     expect((await deposer()).status).toBe(200)
-    expect(simulQr.logger.warn.mock.calls.filter((c) => String(c[0]).includes('repli'))).toHaveLength(2)
+    // Replis de la migration du 11/11/2026 (gestionnaires) : une fois chacun. Ceux de la 20261113 (information de
+    // l'accusé) sont journalisés à part, une fois aussi (serveur.ts : un seul ensemble de replis par isolat).
+    expect(simulQr.logger.warn.mock.calls.filter((c) => String(c[0]).includes('repli') && !String(c[0]).includes('13/11/2026'))).toHaveLength(2)
   })
 })
 

@@ -38,7 +38,7 @@ vi.mock('@/lib/logger', () => ({
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { rpc: h.rpc, from: () => { throw new Error('aucune table lue par le webhook') } } }))
 
 const { POST } = await import('@/app/api/webhooks/resend/route')
-const { reinitialiserReplisInformationQr } = await import('@/lib/aj-signalement/serveur-information')
+const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
 
 const CLE = Buffer.from('cle-de-test-du-webhook-resend-32o').toString('base64')
 const SECRET = `whsec_${CLE}`
@@ -89,7 +89,7 @@ beforeEach(() => {
   h.error.mockClear()
   h.rpc.mockReset()
   h.rpc.mockResolvedValue({ data: true, error: null })
-  reinitialiserReplisInformationQr()
+  reinitialiserReplisQr()
 })
 
 describe('non-régression : signature et forme de la requête (inchangées)', () => {
@@ -205,7 +205,7 @@ describe('plainte (email.complained)', () => {
   it('migration 20261113 absente (PGRST202) : 200 (aucune diffusion n’a pu partir), repli journalisé une fois', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'Could not find the function public.signalements_qr_diffusion_opposer' } })
     for (let i = 0; i < 2; i += 1) expect((await poster(evenement('email.complained', { tags: TAGS_DIFFUSION }))).status).toBe(200)
-    expect(h.warn.mock.calls.filter((c) => String(c[0]).includes('20261113'))).toHaveLength(1)
+    expect(h.warn.mock.calls.filter((c) => String(c[0]).includes('13/11/2026'))).toHaveLength(1)
   })
 
   it('autre erreur de la base : 503 (Resend réessaie : une plainte n’est jamais perdue), sans le message de la base', async () => {

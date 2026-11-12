@@ -16,8 +16,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
-import { structureAbsenteQr } from '@/lib/aj-signalement/serveur'
-import { journaliserRepliDiffusionQr } from '@/lib/aj-signalement/serveur-information'
+import { journaliserRepliDiffusionQr, structureAbsenteQr } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
