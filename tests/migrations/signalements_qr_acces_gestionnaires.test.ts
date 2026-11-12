@@ -225,7 +225,7 @@ describe(`Migration ${FICHIER} : fonctions et droits (clé service seulement)`, 
   it('aucune autre erreur levée que P0001 (métier) et 22023 (paramètre invalide)', () => {
     const codes = new Set([...code.matchAll(/RAISE EXCEPTION '[a-z_]+' USING ERRCODE = '([0-9A-Z]{5})'/g)].map((m) => m[1]))
     expect(trie(codes)).toEqual(['22023', 'P0001'])
-    expect([...code.matchAll(/RAISE EXCEPTION/g)].length).toBe([...code.matchAll(/RAISE EXCEPTION '[a-z_]+' USING ERRCODE = '[0-9A-Z]{5}'/g)].length)
+    expect([...code.matchAll(/RAISE EXCEPTION/g)]).toHaveLength([...code.matchAll(/RAISE EXCEPTION '[a-z_]+' USING ERRCODE = '[0-9A-Z]{5}'/g)].length)
   })
 })
 
@@ -455,7 +455,7 @@ describe(`Migration ${FICHIER} : une seule règle « adresse d’une fiche » (s
     const regle = fonction('signalements_qr_adresse_de_fiche').corps
     const total = [...code.matchAll(/regexp_replace\(lower\(btrim\(/g)].length
     expect(total).toBe(2)
-    expect([...regle.matchAll(/regexp_replace\(lower\(btrim\(/g)].length).toBe(total)
+    expect([...regle.matchAll(/regexp_replace\(lower\(btrim\(/g)]).toHaveLength(total)
     expect(code).not.toMatch(/array_remove\s*\(/)
     expect(code).not.toMatch(/=\s*ANY\s*\(\s*(?:c\.)?emails_destinataires\s*\)/)
   })

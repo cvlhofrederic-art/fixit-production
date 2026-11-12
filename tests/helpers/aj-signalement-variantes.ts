@@ -112,7 +112,7 @@ export function simulerPseudonymisationQr(): void {
 export function simulerDepartQr(regle: 'variantes' | 'exacte'): void {
   baseQr.etat.fonctions.signalements_qr_desactiver_gestionnaire = (a) => {
     const fiche = baseQr.table('signalements_qr_gestionnaires').find((g) => g.id === a.p_id)
-    if (!fiche || fiche.actif !== true) return { error: { code: 'P0001', message: 'a_reverifier' } }
+    if (fiche?.actif !== true) return { error: { code: 'P0001', message: 'a_reverifier' } }
     const attributions = baseQr.table('signalements_qr_attributions')
     const sans = attributions.filter((x) => x.gestionnaire_id === a.p_id).length
     baseQr.etat.tables.signalements_qr_attributions = attributions.filter((x) => x.gestionnaire_id !== a.p_id)

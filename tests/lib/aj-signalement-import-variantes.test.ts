@@ -102,7 +102,7 @@ describe('C2 — import : une variante de l’adresse d’une fiche du cabinet n
     const gardees = diagnostiquerImportQr([ligne(2, proposees)], contexte).diagnostics[0].emailsDestinataires
     const canoniques = proposees.map((e) => e.trim().toLowerCase())
     expect(gardees).toEqual(canoniques.filter((e) => !reconnues.includes(e)))
-    expect(reconnues.length).toBe(6)
+    expect(reconnues).toHaveLength(6)
   })
 })
 

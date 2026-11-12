@@ -62,52 +62,69 @@ const copie = (c: CompteSimule) => ({ ...c, app_metadata: { ...c.app_metadata },
 const refusPolitique = (password: string | undefined) =>
   (password !== undefined && authQr.refusMotDePasse ? { ...authQr.refusMotDePasse, status: 422 } : null)
 
+/**
+ * Réponse d'une méthode de l'auth simulée, en promesse, comme une méthode async sans attente : le corps s'exécute à
+ * l'appel, et un rappel `avant` qui lève donne une promesse REJETÉE (le constructeur de Promise rejette ce que lève
+ * son exécuteur), jamais une exception levée à l'appel.
+ */
+const repondre = <T>(corps: () => T): Promise<T> => new Promise<T>((resoudre) => { resoudre(corps()) })
+
 export const adminAuthQr = {
-  async createUser(p: { email: string; password: string; email_confirm?: boolean; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }) {
-    const echec = noter('createUser', [p])
-    if (echec) return { data: { user: null }, error: echec }
-    if (authQr.comptes.some((c) => c.email === p.email)) {
-      return { data: { user: null }, error: { message: 'A user with this email address has already been registered', status: 422 } }
-    }
-    const refus = refusPolitique(p.password)
-    if (refus) return { data: { user: null }, error: refus }
-    authQr.compteur += 1
-    const compte: CompteSimule = {
-      id: `0e000000-0000-4000-8000-${String(authQr.compteur).padStart(12, '0')}`, email: p.email,
-      app_metadata: { ...(p.app_metadata ?? {}) }, user_metadata: { ...(p.user_metadata ?? {}) }, password: p.password,
-    }
-    authQr.comptes.push(compte)
-    return { data: { user: copie(compte) }, error: null }
+  createUser(p: { email: string; password: string; email_confirm?: boolean; app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> }) {
+    return repondre(() => {
+      const echec = noter('createUser', [p])
+      if (echec) return { data: { user: null }, error: echec }
+      if (authQr.comptes.some((c) => c.email === p.email)) {
+        return { data: { user: null }, error: { message: 'A user with this email address has already been registered', status: 422 } }
+      }
+      const refus = refusPolitique(p.password)
+      if (refus) return { data: { user: null }, error: refus }
+      authQr.compteur += 1
+      const compte: CompteSimule = {
+        id: `0e000000-0000-4000-8000-${String(authQr.compteur).padStart(12, '0')}`, email: p.email,
+        app_metadata: { ...p.app_metadata }, user_metadata: { ...p.user_metadata }, password: p.password,
+      }
+      authQr.comptes.push(compte)
+      return { data: { user: copie(compte) }, error: null }
+    })
   },
-  async listUsers(p: { page?: number; perPage?: number } = {}) {
-    const echec = noter('listUsers', [p])
-    if (echec) return { data: { users: [] }, error: echec }
-    const parPage = p.perPage ?? 50
-    const debut = ((p.page ?? 1) - 1) * parPage
-    return { data: { users: authQr.comptes.slice(debut, debut + parPage).map(copie) }, error: null }
+  listUsers(p: { page?: number; perPage?: number } = {}) {
+    return repondre(() => {
+      const echec = noter('listUsers', [p])
+      if (echec) return { data: { users: [] }, error: echec }
+      const parPage = p.perPage ?? 50
+      const debut = ((p.page ?? 1) - 1) * parPage
+      return { data: { users: authQr.comptes.slice(debut, debut + parPage).map(copie) }, error: null }
+    })
   },
-  async getUserById(id: string) {
-    const echec = noter('getUserById', [id])
-    const compte = authQr.comptes.find((c) => c.id === id)
-    if (echec || !compte) return { data: { user: null }, error: echec ?? { message: 'User not found', status: 404 } }
-    return { data: { user: copie(compte) }, error: null }
+  getUserById(id: string) {
+    return repondre(() => {
+      const echec = noter('getUserById', [id])
+      const compte = authQr.comptes.find((c) => c.id === id)
+      if (echec || !compte) return { data: { user: null }, error: echec ?? { message: 'User not found', status: 404 } }
+      return { data: { user: copie(compte) }, error: null }
+    })
   },
-  async updateUserById(id: string, attributs: { app_metadata?: Record<string, unknown>; ban_duration?: string; password?: string }) {
-    const echec = noter('updateUserById', [id, attributs])
-    const compte = authQr.comptes.find((c) => c.id === id)
-    if (echec || !compte) return { data: { user: null }, error: echec ?? { message: 'User not found', status: 404 } }
-    const refus = refusPolitique(attributs.password)
-    if (refus) return { data: { user: null }, error: refus }
-    if (attributs.app_metadata) compte.app_metadata = { ...attributs.app_metadata }
-    if (attributs.ban_duration !== undefined) compte.ban_duration = attributs.ban_duration
-    if (attributs.password !== undefined) compte.password = attributs.password
-    return { data: { user: copie(compte) }, error: null }
+  updateUserById(id: string, attributs: { app_metadata?: Record<string, unknown>; ban_duration?: string; password?: string }) {
+    return repondre(() => {
+      const echec = noter('updateUserById', [id, attributs])
+      const compte = authQr.comptes.find((c) => c.id === id)
+      if (echec || !compte) return { data: { user: null }, error: echec ?? { message: 'User not found', status: 404 } }
+      const refus = refusPolitique(attributs.password)
+      if (refus) return { data: { user: null }, error: refus }
+      if (attributs.app_metadata) compte.app_metadata = { ...attributs.app_metadata }
+      if (attributs.ban_duration !== undefined) compte.ban_duration = attributs.ban_duration
+      if (attributs.password !== undefined) compte.password = attributs.password
+      return { data: { user: copie(compte) }, error: null }
+    })
   },
-  async deleteUser(id: string) {
-    const echec = noter('deleteUser', [id])
-    if (echec) return { data: null, error: echec }
-    authQr.comptes = authQr.comptes.filter((c) => c.id !== id)
-    return { data: null, error: null }
+  deleteUser(id: string) {
+    return repondre(() => {
+      const echec = noter('deleteUser', [id])
+      if (echec) return { data: null, error: echec }
+      authQr.comptes = authQr.comptes.filter((c) => c.id !== id)
+      return { data: null, error: null }
+    })
   },
 }
 
@@ -176,7 +193,7 @@ export function simulerEnvoiAccesQr(): void {
     const inv = (a.p_invitation ?? {}) as Ligne
     if (!a.p_gestionnaire || !inv.id || !a.p_acteur || !inv.invite_token) return { error: { code: '22023', message: 'parametre_invalide' } }
     const g = baseQr.table('signalements_qr_gestionnaires').find((f) => f.id === a.p_gestionnaire)
-    if (!g || g.actif !== true || g.pseudonymise_le || !g.email || inv.email !== g.email) return erreurMetier('a_reverifier')
+    if (g?.actif !== true || g.pseudonymise_le || !g.email || inv.email !== g.email) return erreurMetier('a_reverifier')
     if (g.adresse_contestee_le) return erreurMetier('adresse_contestee')
     if (g.user_id) return erreurMetier('deja_ouvert')
     const envois = baseQr.table('signalements_qr_invitations')
