@@ -150,15 +150,21 @@ function adressesDeLaPage(route: readonly string[]): string[] {
  * (/pt/contacto/ → /contact).
  */
 function adressesDesSources(regles: readonly Regle[]): string[] {
-  const valeursDuSegment = (segment: string): string[] => {
-    const alternatives = /^:\w+\(([a-z|]+)\)$/.exec(segment)
-    if (alternatives) return alternatives[1].split('|')
-    if (/^:\w+\*$/.test(segment)) return ['', ...VALEURS_DYNAMIQUES]
-    return segment.startsWith(':') ? VALEURS_DYNAMIQUES : [segment]
-  }
-  return regles.filter((regle) => !estRegleDeCabinet(regle)).flatMap(({ source }) => source.split('/').filter(Boolean)
-    .reduce<string[][]>((chemins, segment) => chemins.flatMap((debut) => valeursDuSegment(segment).map((v) => [...debut, v])), [[]])
-    .map((segments) => enChemin(segments.filter(Boolean))))
+  return regles.filter((regle) => !estRegleDeCabinet(regle)).flatMap(({ source }) => adressesDeLaSource(source))
+}
+
+/** Valeurs d'un segment de source : littéral tel quel, alternatives, valeurs dynamiques (et vide pour « :x* »). */
+function valeursDuSegment(segment: string): string[] {
+  const alternatives = /^:\w+\(([a-z|]+)\)$/.exec(segment)
+  if (alternatives) return alternatives[1].split('|')
+  if (/^:\w+\*$/.test(segment)) return ['', ...VALEURS_DYNAMIQUES]
+  return segment.startsWith(':') ? VALEURS_DYNAMIQUES : [segment]
+}
+
+function adressesDeLaSource(source: string): string[] {
+  const prolonger = (chemins: string[][], segment: string): string[][] =>
+    chemins.flatMap((debut) => valeursDuSegment(segment).map((valeur) => [...debut, valeur]))
+  return source.split('/').filter(Boolean).reduce(prolonger, [[]]).map((segments) => enChemin(segments.filter(Boolean)))
 }
 
 /** Premiers segments littéraux : dossiers de app/ (groupes traversés) et de chaque langue, noms réservés, destinations. */
@@ -222,7 +228,7 @@ const ecarts = (lignes: string[]): string[] => (lignes.length > 40 ? [...lignes.
 describe('réécritures beforeFiles : next start (CI E2E) et OpenNext (production) servent la même page', () => {
   it('le rejeu couvre les pages de app/ et la grille des mots de cabinet (sinon il ne garderait rien)', async () => {
     const { regles, chemins, pages } = await rejeu()
-    expect(regles.filter(estRegleDeCabinet).length).toBe(9)
+    expect(regles.filter(estRegleDeCabinet)).toHaveLength(9)
     expect(pages.length).toBeGreaterThan(300)
     for (const attendu of [
       '/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/', '/fr/tracking/connexion/', '/es/signalement/invitation/',
@@ -277,12 +283,13 @@ describe('réécritures beforeFiles : next start (CI E2E) et OpenNext (productio
 
   it('identifiant réservé : jamais l’espace d’un cabinet, ni sans langue (le middleware le renvoie vers sa langue) ni sous une langue', async () => {
     const { next, openNext } = await rejeu()
-    const fautives = IDENTIFIANTS_RESERVES_QR.flatMap((identifiant) => ['connexion', 'suivi'].flatMap((mot) => [
-      ...(cheminEspaceCabinetQr(`/${identifiant}/${mot}/`) ? [`middleware : /${identifiant}/${mot}/ pris pour l’espace d’un cabinet`] : []),
-      ...LANGUES.map((langue) => `/${langue}/${identifiant}/${mot}/`)
-        .filter((chemin) => next(chemin).startsWith('/cabinet/') || openNext(chemin).startsWith('/cabinet/'))
-        .map((chemin) => `${chemin} → next start ${next(chemin)}, OpenNext ${openNext(chemin)}`),
-    ]))
+    const espace = IDENTIFIANTS_RESERVES_QR.flatMap((identifiant) => ['connexion', 'suivi'].map((mot) => `/${identifiant}/${mot}/`))
+    const fautives = espace.flatMap((chemin) => [
+      ...(cheminEspaceCabinetQr(chemin) ? [`middleware : ${chemin} pris pour l’espace d’un cabinet`] : []),
+      ...LANGUES.map((langue) => `/${langue}${chemin}`)
+        .filter((avecLangue) => next(avecLangue).startsWith('/cabinet/') || openNext(avecLangue).startsWith('/cabinet/'))
+        .map((avecLangue) => `${avecLangue} → next start ${next(avecLangue)}, OpenNext ${openNext(avecLangue)}`),
+    ])
     expect(ecarts(fautives)).toEqual([])
   })
 
