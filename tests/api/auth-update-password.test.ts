@@ -225,3 +225,49 @@ describe('POST /api/auth/update-password — réponses de Supabase', () => {
     sansSecretAuJournal()
   })
 })
+
+// PR 2 AJ Signalement, lot 6 (plan § 2.5, point 7.9) : un gestionnaire d'un cabinet client qui a choisi son nouveau mot
+// de passe est renvoyé vers la connexion professionnelle de SON cabinet (vitfix.io/<identifiant>/connexion/), jamais vers
+// la connexion générale (choix Particulier / Artisan / Pro, que Hugo refuse pour un professionnel). La destination se lit
+// dans app_metadata du compte vérifié (posé par le serveur) ; tout autre compte : réponse inchangée ({ ok: true }).
+describe('POST /api/auth/update-password — retour d’un gestionnaire AJ Signalement', () => {
+  const sessionAvec = (appMetadata: Record<string, unknown>) => () => json({
+    access_token: JETON_ACCES, token_type: 'bearer', expires_in: 3600, expires_at: MAINTENANT_S + 3600,
+    refresh_token: 'jeton-rafraichissement-de-recuperation',
+    user: { id: '7d0c3b6e-1a2b-4c5d-8e9f-0a1b2c3d4e5f', aud: 'authenticated', role: 'authenticated', email: 'titulaire@example.fr', app_metadata: appMetadata, user_metadata: {} },
+  })
+
+  it('gestionnaire avec le repère de son cabinet : connexion de son cabinet', async () => {
+    reponses.verify = sessionAvec({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' })
+    const reponse = await POST(requete({ password: MOT_DE_PASSE }))
+    expect(reponse.status).toBe(200)
+    expect(await reponse.json()).toEqual({ ok: true, connexion: '/cabinet-exemple/connexion/' })
+    sansSecretAuJournal()
+  })
+
+  it('gestionnaire sans repère valable : connexion professionnelle de l’espace (jamais la connexion générale)', async () => {
+    for (const meta of [{ role: 'gestionnaire_signalement' }, { role: 'gestionnaire_signalement', aj_signalement_cabinet: 'API' }]) {
+      reponses.verify = sessionAvec(meta)
+      const reponse = await POST(requete({ password: MOT_DE_PASSE }))
+      expect(await reponse.json()).toEqual({ ok: true, connexion: '/fr/aj-signalement/connexion/' })
+    }
+  })
+
+  it.each([
+    ['client', { role: 'client' }],
+    ['super admin', { role: 'super_admin' }],
+    ['repère sans le rôle', { aj_signalement_cabinet: 'cabinet-exemple' }],
+    ['rôle dans user_metadata seulement', {}],
+  ])('%s : réponse inchangée', async (_cas, meta) => {
+    reponses.verify = sessionAvec(meta)
+    const reponse = await POST(requete({ password: MOT_DE_PASSE }))
+    expect(await reponse.json()).toEqual({ ok: true })
+  })
+
+  it('mot de passe refusé après vérification : aucune destination rendue', async () => {
+    reponses.verify = sessionAvec({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' })
+    reponses.user = erreurGoTrue(422, 'same_password', 'New password should be different from the old password.')
+    const reponse = await POST(requete({ password: MOT_DE_PASSE }))
+    expect(await reponse.json()).toEqual({ erreur: 'meme-mot-de-passe' })
+  })
+})

@@ -119,6 +119,85 @@ describe('adressesDeFichesQr (RG-06 bis-1 : une adresse de gestionnaire n’est 
   })
 })
 
+describe('sous-adresses « + » : la boîte d’une fiche sous une étiquette est l’adresse de la fiche (relecture 2 du lot 6)', () => {
+  const fiches = [{ id: 'g1', email: 'marie.martin@exemple.test' }, { id: 'g2', email: 'paul.durand@exemple.test' }]
+
+  it('adressesDeFichesQr : « prenom+etiquette@ » est repérée (rendue telle que proposée, canonique)', () => {
+    expect(adressesDeFichesQr(['cs+copro@exemple.test', ' Marie.Martin+Suivi@exemple.test'], fiches)).toEqual(['marie.martin+suivi@exemple.test'])
+  })
+
+  it('fiche dont l’adresse porte elle-même une étiquette : sa boîte et ses autres étiquettes sont repérées', () => {
+    expect(adressesDeFichesQr(['marie@exemple.test', 'marie+autre@exemple.test', 'mariette@exemple.test'], [{ email: 'marie+aj@exemple.test' }]))
+      .toEqual(['marie@exemple.test', 'marie+autre@exemple.test'])
+  })
+
+  it('saisiesVisiblesQr : la sous-adresse d’un collègue est masquée, la sienne reste visible', () => {
+    expect(saisiesVisiblesQr(['paul.durand+x@exemple.test', 'marie.martin+y@exemple.test', 'cs+z@exemple.test'], fiches, 'g1'))
+      .toEqual({ emails: ['marie.martin+y@exemple.test', 'cs+z@exemple.test'], adressesMasquees: 1 })
+  })
+
+  it('destinatairesSignalementQr : la sous-adresse d’une fiche exclue (partie, contestée) quitte l’envoi ; une autre adresse reste', () => {
+    const r = destinatairesSignalementQr(
+      { emails_destinataires: ['marie.martin+suivi@exemple.test', 'cs+copro@exemple.test'] },
+      [g('g1', 'marie.martin@exemple.test', { exclu: true })],
+      ENV,
+    )
+    expect(adresses(r)).toEqual(['cs+copro@exemple.test'])
+  })
+})
+
+// Corrections, tour 2 : un cabinet qui déclare deux domaines (ancien et nouveau nom, domaine secondaire) les fait livrer
+// par sa messagerie aux mêmes boîtes. Même partie locale (sans étiquette « + ») sur un domaine DÉCLARÉ par le cabinet de
+// la fiche : c'est l'adresse de la fiche. Un domaine n'appartient qu'à un cabinet (contrainte unique de la 20261111).
+describe('même partie locale sur un autre domaine du cabinet de la fiche : l’adresse de la fiche (corrections, tour 2)', () => {
+  const CAB = 'ca000000-0000-4000-8000-000000000001'
+  const CAB_AUTRE = 'ca000000-0000-4000-8000-000000000002'
+  const fiches = [
+    { id: 'g1', email: 'marie.martin@exemple.test', cabinetId: CAB },
+    { id: 'g2', email: 'paul.durand@exemple.test', cabinetId: CAB },
+    { id: 'g3', email: 'luc.ailleurs@autre-exemple.test', cabinetId: CAB_AUTRE },
+  ]
+  const cabinets = new Map([['exemple.test', CAB], ['exemple-bis.test', CAB], ['autre-exemple.test', CAB_AUTRE]])
+
+  it('adressesDeFichesQr : partie locale d’une fiche sur un autre domaine de SON cabinet (étiquette « + » comprise), repérée', () => {
+    expect(adressesDeFichesQr(
+      ['marie.martin@exemple-bis.test', ' Paul.Durand+Copro@Exemple-Bis.test', 'accueil@exemple-bis.test', 'marie.martin@externe.test'],
+      fiches, cabinets,
+    )).toEqual(['marie.martin@exemple-bis.test', 'paul.durand+copro@exemple-bis.test'])
+  })
+
+  it('partie locale d’une fiche sur le domaine d’un AUTRE cabinet, ou sur un domaine non déclaré : pas son adresse', () => {
+    expect(adressesDeFichesQr(['luc.ailleurs@exemple.test', 'marie.martin@autre-exemple.test', 'marie.martin@exemple-ter.test'], fiches, cabinets))
+      .toEqual([])
+  })
+
+  it('fiche forcée hors des domaines (messagerie publique) : sa partie locale sur un domaine de son cabinet est son adresse', () => {
+    const forcee = [{ id: 'g4', email: 'jeanne.exemple@gmail.com', cabinetId: CAB }]
+    expect(adressesDeFichesQr(['jeanne.exemple@exemple-bis.test', 'jeanne.exemple@outlook.fr'], forcee, cabinets)).toEqual(['jeanne.exemple@exemple-bis.test'])
+  })
+
+  it('sans les domaines (ou fiche sans cabinet) : seule la boîte compte, comme avant', () => {
+    expect(adressesDeFichesQr(['marie.martin@exemple-bis.test'], fiches)).toEqual([])
+    expect(adressesDeFichesQr(['marie.martin@exemple-bis.test'], [{ id: 'g1', email: 'marie.martin@exemple.test' }], cabinets)).toEqual([])
+  })
+
+  it('saisiesVisiblesQr : l’adresse d’un collègue sur l’autre domaine est masquée ; la sienne et celle d’un autre cabinet restent', () => {
+    expect(saisiesVisiblesQr(
+      ['paul.durand@exemple-bis.test', 'marie.martin@exemple-bis.test', 'luc.ailleurs@exemple-bis.test', 'cs@externe.test'],
+      fiches, 'g1', cabinets,
+    )).toEqual({ emails: ['marie.martin@exemple-bis.test', 'luc.ailleurs@exemple-bis.test', 'cs@externe.test'], adressesMasquees: 1 })
+  })
+
+  it('destinatairesSignalementQr : la ligne exclue porte la SAISIE reconnue par la 20261112 (autre domaine du cabinet) : retirée de l’envoi', () => {
+    const r = destinatairesSignalementQr(
+      { emails_destinataires: ['marie.martin@exemple-bis.test', 'cs@externe.test'] },
+      [g('g1', 'marie.martin@exemple-bis.test', { exclu: true })],
+      ENV,
+    )
+    expect(adresses(r)).toEqual(['cs@externe.test'])
+  })
+})
+
 describe('saisiesVisiblesQr (PR 2, RG-06 bis-4 : un gestionnaire ne voit pas l’adresse d’un collègue)', () => {
   const fiches = [{ id: 'g1', email: 'marie.martin@exemple.test' }, { id: 'g2', email: 'paul.durand@exemple.test' }]
 

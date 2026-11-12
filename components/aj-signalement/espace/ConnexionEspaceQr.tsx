@@ -19,9 +19,10 @@
 //   cette page qui l'a ouverte).
 // - « Mot de passe oublié ? » : étape de la page (MotDePasseOublieQr, relecture du 11/11/2026), et non plus un lien vers
 //   la page commune /auth/reset-password/, qui ramenait vers la connexion générale.
-// - Réutilisable : le contexte (nom affiché, adresse de l'espace) vient de la page ; l'espace de chaque cabinet
-//   (vitfix.io/<client>/connexion, PR 2) passera le sien. Limite : la décision d'accès ne lit que le rôle (seul le super
-//   admin entre, dans tout espace) ; la PR 2 devra lui passer le cabinet avant d'admettre un rôle gestionnaire.
+// - Réutilisable : le contexte (nom affiché, adresse de l'espace) vient de la page. Depuis la PR 2 (lot 4), la page de
+//   chaque cabinet (vitfix.io/<identifiant>/connexion/) passe le sien avec l'identifiant du cabinet, transmis à la
+//   décision d'accès : seul un gestionnaire de CE cabinet y entre, le super admin va dans son espace global, tout autre
+//   compte reçoit le même message neutre. Sur la page globale, un gestionnaire est envoyé vers l'espace de SON cabinet.
 // Styles de l'espace (PagePleineQr, Champ, CLASSES_SAISIE, Bouton, Encadre) : aucun nouveau système visuel.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -61,6 +62,7 @@ export interface PropsConnexionEspaceQr {
 export default function ConnexionEspaceQr({ contexte }: Readonly<PropsConnexionEspaceQr>) {
   const [langue] = useState(langueDeLaPage)
   const espace = contexte.espace[langue]
+  const cabinet = contexte.cabinet?.identifiant ?? null
   const [etape, setEtape] = useState<'connexion' | 'oubli'>('connexion')
   const [email, setEmail] = useState('')
   const [motDePasse, setMotDePasse] = useState('')
@@ -84,12 +86,12 @@ export default function ConnexionEspaceQr({ contexte }: Readonly<PropsConnexionE
     let actif = true
     void verifierSessionNavigateur(supabase.auth).then((verdict) => {
       if (!actif || connexionLancee.current || verdict.statut !== 'valide') return
-      const destination = destinationConnexionEspaceQr(espace, window.location.hash, verdict.user.app_metadata)
+      const destination = destinationConnexionEspaceQr(espace, window.location.hash, verdict.user.app_metadata, cabinet)
       if (destination) window.location.replace(destination)
       else setSansAcces('chargement')
     })
     return () => { actif = false }
-  }, [espace])
+  }, [espace, cabinet])
 
   useEffect(() => {
     if (sansAcces === 'envoi') refSansAcces.current?.focus()
@@ -150,7 +152,7 @@ export default function ConnexionEspaceQr({ contexte }: Readonly<PropsConnexionE
         echouer(error)
         return
       }
-      const destination = destinationConnexionEspaceQr(espace, window.location.hash, data.user?.app_metadata)
+      const destination = destinationConnexionEspaceQr(espace, window.location.hash, data.user?.app_metadata, cabinet)
       if (destination) {
         // Remplace l'entrée d'historique : « retour » ne ramène pas au formulaire. Bouton désactivé jusqu'au départ.
         window.location.replace(destination)

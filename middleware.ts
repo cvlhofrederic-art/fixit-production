@@ -6,8 +6,10 @@
 // toute migration. middleware.ts en edge est le seul état fonctionnel.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { redirectionEspaceQr, viseEspaceQr } from '@/lib/aj-signalement/acces-espace'
-import { cheminPublicCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+import {
+  aiguillageGestionnaireQr, redirectionEspaceCabinetQr, redirectionEspaceQr, viseEspaceQr,
+} from '@/lib/aj-signalement/acces-espace'
+import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
@@ -123,11 +125,78 @@ const CHEMINS_SUPPRIMES_PT = new Set([
 // sans y ajouter les en-têtes de la config (@opennextjs/aws core/routingHandler.js). Les redirections qui en partent le
 // portent donc ici (page de connexion de l'espace AJ Signalement comprise). Même critère que le contrôle d'accès plus bas
 // (chemin sans préfixe de langue) ; l'espace AJ Signalement est comparé au segment exact (jamais la page publique
-// /signalement/<jeton>/).
+// /signalement/<jeton>/). Les chemins d'un cabinet client (pages publiques et espace du cabinet, PR 2) sont traités avant
+// la langue et portent l'en-tête eux-mêmes (enTetesEspacePrive) ; ils sont nommés ici aussi, par prudence.
 const X_ROBOTS_ESPACE_PRIVE = 'noindex, nofollow, noarchive'
 
 function viseEspacePrive(cheminSansLangue: string): boolean {
   return cheminSansLangue.startsWith('/administrateur-judiciaire') || viseEspaceQr(cheminSansLangue)
+    || cheminPublicCabinetQr(cheminSansLangue) !== null || cheminEspaceCabinetQr(cheminSansLangue) !== null
+}
+
+/** En-têtes d'une réponse d'un espace privé servie ou redirigée par le middleware : CSP, cache privé, jamais indexée. */
+function enTetesEspacePrive(reponse: NextResponse): NextResponse {
+  reponse.headers.set('Content-Security-Policy', POLITIQUE_CSP)
+  reponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
+  reponse.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
+  return reponse
+}
+
+/**
+ * Client Supabase du middleware (patron officiel @supabase/ssr) : cookies lus sur la requête, cookies rafraîchis écrits
+ * UNIQUEMENT sur la réponse donnée. L'appelant appelle getUser() juste après, sans aucun code entre les deux.
+ */
+function clientSupabaseMiddleware(request: NextRequest, reponse: NextResponse) {
+  return createServerClient(
+    // Fallback placeholder (cohérent avec lib/supabase.ts + lib/supabase-server-component.ts) :
+    // sans env (ex. CI E2E où le secret est absent), createServerClient throw « URL and Key
+    // required » à CHAQUE requête → tout le SSR casse. En prod l'env est défini → aucun effet.
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-for-build',
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          // ✅ Pattern officiel Supabase : écrire UNIQUEMENT sur la réponse existante
+          // ❌ NE PAS recréer NextResponse.next() ici (détruit les cookies précédents)
+          // ❌ NE PAS écrire sur request.cookies (cause des bugs avec Next.js)
+          cookiesToSet.forEach(({ name, value, options }) => {
+            reponse.cookies.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+}
+
+/**
+ * Compte de la session pour l'espace d'un cabinet (getUser : jeton vérifié et rafraîchi) ; Supabase injoignable : traité
+ * comme sans session (la page de connexion du cabinet est servie, rien n'est ouvert), avec un avertissement sans donnée.
+ * Le journal du serveur (lib/logger) n'est pas importé ici : il charge Sentry, absent du bundle edge du middleware.
+ */
+async function compteDeLaSessionQr(supabase: ReturnType<typeof clientSupabaseMiddleware>) {
+  try {
+    const { data } = await supabase.auth.getUser()
+    return data.user
+  } catch (erreur) {
+    console.warn('[middleware] AJ Signalement : session non vérifiée (Supabase injoignable)', erreur instanceof Error ? erreur.name : 'erreur inconnue')
+    return null
+  }
+}
+
+/**
+ * Redirection temporaire (307) vers une adresse SANS préfixe de langue (espace d'un cabinet, aiguillage d'un
+ * gestionnaire) : requête d'origine vidée, cookies de session rafraîchis recopiés avec leurs options, en-têtes d'un
+ * espace privé (OpenNext n'ajoute pas les headers() de next.config.ts aux 3xx du middleware).
+ */
+function redirectionSansLangue(request: NextRequest, chemin: string, reponseSupabase: NextResponse | null): NextResponse {
+  const reponse = NextResponse.redirect(new URL(chemin, request.url), 307)
+  reponseSupabase?.cookies.getAll().forEach((cookie) => {
+    reponse.cookies.set(cookie)
+  })
+  return enTetesEspacePrive(reponse)
 }
 
 export async function middleware(request: NextRequest) {
@@ -156,18 +225,35 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
-  // /<identifiant>/confirmation-adresse/ ; choix de Hugo du 10/11/2026). Reconnu AVANT la langue (sinon 302 vers
+  // /<identifiant>/confirmation-adresse/, et /<identifiant>/invitation/ depuis la PR 2 ; choix de Hugo du 10/11/2026).
+  // Reconnu AVANT la langue (sinon 302 vers
   // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/aj-signalement/chemin-cabinet.ts) ; la
   // réécriture de next.config.ts mène ensuite à la page interne, qui vérifie que le jeton appartient au cabinet du chemin.
   // Ni Supabase, ni cookie de langue, ni redirection ; jamais indexé ni mis en cache partagé.
   if (cheminPublicCabinetQr(pathname)) {
     const entetesCabinet = new Headers(request.headers)
     entetesCabinet.set('x-locale', DEFAULT_LOCALE)
-    const reponse = NextResponse.next({ request: { headers: entetesCabinet } })
-    reponse.headers.set('Content-Security-Policy', cspHeader)
-    reponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
-    reponse.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
-    return reponse
+    return enTetesEspacePrive(NextResponse.next({ request: { headers: entetesCabinet } }))
+  }
+
+  // ── AJ Signalement : espace d'un cabinet client (vitfix.io/<identifiant>/, /connexion/, /suivi/ ; PR 2, lot 4) ──
+  // Reconnu AVANT la langue, seulement pour un identifiant valable (jamais un nom réservé : /aj-signalement/connexion/ et
+  // les pages du site suivent leur parcours). Adresses sans langue, espace en français (x-locale: fr).
+  // - /<identifiant>/ : 307 vers /<identifiant>/suivi/, sans Supabase ;
+  // - connexion et suivi : session lue (patron officiel, rien entre createServerClient et getUser), puis décision pure
+  //   (redirectionEspaceCabinetQr, plan § 1.5) ; chaque réponse, servie ou redirigée, recopie les cookies rafraîchis et
+  //   porte noindex, CSP et cache privé. Ni cookie de langue ni requête reprise. Le middleware aiguille seulement : chaque
+  //   route /api/aj-signalement/* relit la fiche du gestionnaire.
+  const espaceCabinet = cheminEspaceCabinetQr(pathname)
+  if (espaceCabinet) {
+    if (espaceCabinet.page === 'accueil') return redirectionSansLangue(request, cheminSuiviCabinetQr(espaceCabinet.identifiant), null)
+    const entetesEspace = new Headers(request.headers)
+    entetesEspace.set('x-locale', DEFAULT_LOCALE)
+    const reponseEspace = NextResponse.next({ request: { headers: entetesEspace } })
+    const compte = await compteDeLaSessionQr(clientSupabaseMiddleware(request, reponseEspace))
+    const decision = redirectionEspaceCabinetQr(espaceCabinet, compte)
+    if (decision) return redirectionSansLangue(request, decision, reponseEspace)
+    return enTetesEspacePrive(reponseEspace)
   }
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──
@@ -303,29 +389,8 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll) ──
-  const supabase = createServerClient(
-    // Fallback placeholder (cohérent avec lib/supabase.ts + lib/supabase-server-component.ts) :
-    // sans env (ex. CI E2E où le secret est absent), createServerClient throw « URL and Key
-    // required » à CHAQUE requête → tout le SSR casse. En prod l'env est défini → aucun effet.
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-for-build',
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          // ✅ Pattern officiel Supabase : écrire UNIQUEMENT sur la réponse existante
-          // ❌ NE PAS recréer NextResponse.next() ici (détruit les cookies précédents)
-          // ❌ NE PAS écrire sur request.cookies (cause des bugs avec Next.js)
-          cookiesToSet.forEach(({ name, value, options }) => {
-            supabaseResponse.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
+  // ── SUPABASE AUTH (pattern officiel @supabase/ssr — NE PAS recréer NextResponse dans setAll, clientSupabaseMiddleware) ──
+  const supabase = clientSupabaseMiddleware(request, supabaseResponse)
 
   // IMPORTANT: DO NOT remove this line — it refreshes the auth token
   // DO NOT add any code between createServerClient and getUser()
@@ -365,6 +430,14 @@ export async function middleware(request: NextRequest) {
     if (viseEspacePrive(strippedPathname)) resp.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
     return resp
   }
+
+  // AJ Signalement (PR 2, lot 4) : un gestionnaire d'un cabinet client n'a qu'un espace, celui de SON cabinet (repère de
+  // routage app_metadata.aj_signalement_cabinet, posé par le serveur à l'acceptation, sans aucun droit). Il y est aiguillé
+  // depuis l'accueil, la connexion générale, les tableaux de bord et l'espace global (connexion comprise), AVANT la
+  // décision de l'espace global, la sortie du super admin et les redirections par rôle ; adresse sans langue (jamais
+  // /pt/<identifiant>/). Sans repère : accueil et connexion générale → connexion de l'espace global (message neutre).
+  const versEspaceCabinet = aiguillageGestionnaireQr(strippedPathname, user?.app_metadata)
+  if (versEspaceCabinet) return redirectionSansLangue(request, versEspaceCabinet, supabaseResponse)
 
   // Espace AJ Signalement : la fonction pure (lib/aj-signalement/acces-espace.ts) est seule juge, avant la sortie du
   // super_admin ci-dessous, pour que la « vue en tant que » (_original_role) suive la même règle que l'API et le client.

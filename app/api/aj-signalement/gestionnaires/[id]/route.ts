@@ -5,7 +5,14 @@
 //   extrait du journal (50 dernières lignes où il est concerné ou auteur). Jamais en cache.
 // PATCH (P1-R11) — une seule action : `nom` · `actif: true` (réactivation, même fiche ; fiche pseudonymisée → 409
 //   fiche_effacee) · `pseudonymiser: true` (RGPD : fiche DÉSACTIVÉE seulement, sinon 409 fiche_active — faire d'abord le
-//   départ ; nom et e-mail effacés, envois supprimés, journal). La désactivation passe par POST …/depart.
+//   départ ; nom et e-mail effacés, envois supprimés, journal ; avec la 20261112, les saisies reconnues comme son adresse
+//   sont retirées AVANT, dans la même transaction, signalements_qr_pseudonymiser_gestionnaire). La désactivation passe
+//   par POST …/depart.
+//   PR 2, lot 6 (SPEC § 2.6) : la réactivation débloque le compte VitFix relié (ban_duration none, date de blocage
+//   effacée, journal gestionnaire.modifie [connexion_bloquee_le]) ; l'effacement supprime ce compte (deleteUser). L'action
+//   de la PR 1 est toujours faite d'abord ; si celle du compte échoue : 207 { gestionnaire, error:
+//   'connexion_non_debloquee' | 'compte_non_supprime' }, et le même bouton la relance. Migration 20261112 absente ou
+//   fiche sans compte : la réponse de la PR 1, sans appel à l'authentification.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -15,17 +22,88 @@ import { logger } from '@/lib/logger'
 import type { AttributionVueQr, FicheGestionnaireDetailQr } from '@/lib/aj-signalement/types'
 import {
   TABLE_ATTRIBUTIONS_QR, TABLE_COPROPRIETES_QR, TABLE_GESTIONNAIRES_QR, TABLE_INVITATIONS_QR, TABLE_JOURNAL_QR, controlerAccesQr, estUuid,
-  journaliserQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, reponsePriveeQr,
+  fonctionAbsenteQr, journaliserQr, journaliserRepliAccesQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
   COLONNES_JOURNAL_QR, envoiDepuisLigneQr, evenementsDepuisLignesQr, gestionnairesDepuisFichesQr, lireEnvoisQr, lireFicheQr, origineAttributionQr,
   type LigneFicheQr, type LigneJournalQr,
 } from '@/lib/aj-signalement/serveur-gestion'
+import { debloquerConnexionQr, lireCompteFicheQr, supprimerCompteFicheQr } from '@/lib/aj-signalement/serveur-compte'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 const EXTRAIT_JOURNAL = 50
 
 type Contexte = { params: Promise<{ id: string }> }
+
+/** Suite d'une action sur le compte relié (PR 2) : null si faite ou sans objet, sinon le code de la réponse 207. */
+type Suite = { incomplet: 'connexion_non_debloquee' | 'compte_non_supprime' | null }
+
+/**
+ * Réactivation (même fiche ; pseudonymisée → 409 fiche_effacee), puis, PR 2, déblocage du compte relié : juste après la
+ * réactivation, ou à la relance d'un déblocage qui avait échoué (date de blocage encore posée). Migration 20261112
+ * absente ou fiche sans compte : la PR 1, sans appel à l'authentification.
+ */
+async function reactiver(fiche: LigneFicheQr, acteurId: string): Promise<NextResponse | Suite> {
+  if (fiche.pseudonymise_le) return reponseErreur('fiche_effacee', 409)
+  const reactivee = fiche.actif !== true
+  if (reactivee) {
+    const { data, error } = await supabaseAdmin.rpc('signalements_qr_reactiver_gestionnaire', { p_id: fiche.id, p_acteur: acteurId })
+    if (error) return reponseErreurSqlQr(error, 'réactivation d’un gestionnaire', { gestionnaire: fiche.id })
+    if (data !== true) return reponseErreur('a_reverifier', 409)
+  }
+  const compte = await lireCompteFicheQr(fiche.id, 'réactivation : compte de la fiche')
+  if (compte.etat === 'migration_absente') return { incomplet: null }
+  if (compte.etat === 'erreur') return { incomplet: 'connexion_non_debloquee' }
+  if (!compte.userId || (!reactivee && !compte.connexionBloqueeLe)) return { incomplet: null }
+  const debloquee = await debloquerConnexionQr({
+    gestionnaireId: fiche.id, cabinetId: fiche.cabinet_id, userId: compte.userId, connexionBloqueeLe: compte.connexionBloqueeLe, acteurId,
+  })
+  return { incomplet: debloquee ? null : 'connexion_non_debloquee' }
+}
+
+/**
+ * Nom et e-mail de la fiche effacés. Avec la 20261112 : signalements_qr_pseudonymiser_gestionnaire retire d'abord, dans
+ * la même transaction, les saisies de TOUTES les copropriétés reconnues comme son adresse (règle commune : même boîte,
+ * ou même partie locale sur un domaine de son cabinet ; contrôle 2, C1) : après l'effacement, plus rien ne les exclurait
+ * de l'envoi ; elle supprime aussi ses envois (adresse et nom) dans cette transaction (reprise de la garde, constat 4 :
+ * la suppression faite ensuite par effacer ne sert plus qu'au repli). Toute erreur : rien n'est effacé (jamais l'adresse
+ * sans la purge). Fonction absente (20261112 non appliquée) : la mise à jour de la PR 1, et l'effacement sans purge des
+ * variantes est journalisé (repli). `faite` faux : déjà faite par un appel concurrent (ni envois ni journal à refaire).
+ */
+async function pseudonymiserFiche(ficheId: string, acteurId: string): Promise<NextResponse | { faite: boolean }> {
+  const operation = 'pseudonymisation d’un gestionnaire'
+  const { data, error } = await supabaseAdmin.rpc('signalements_qr_pseudonymiser_gestionnaire', { p_id: ficheId, p_acteur: acteurId })
+  if (!error) return { faite: (data as { pseudonymisee?: unknown } | null)?.pseudonymisee !== false }
+  if (!fonctionAbsenteQr(error)) return reponseErreurSqlQr(error, operation, { gestionnaire: ficheId })
+  journaliserRepliAccesQr(`${operation} : variantes de son adresse non retirées des saisies`, error)
+  const pr1 = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR)
+    .update({ nom: null, email: null, pseudonymise_le: new Date().toISOString() }).eq('id', ficheId).eq('actif', false)
+  if (pr1.error) return reponseErreurSqlQr(pr1.error, operation, { gestionnaire: ficheId })
+  return { faite: true }
+}
+
+/**
+ * Effacement RGPD (fiche DÉSACTIVÉE seulement ; saisies de la fiche retirées puis nom et e-mail effacés, envois
+ * supprimés, journal), puis, PR 2, suppression du compte relié ; la relance (même bouton, fiche déjà pseudonymisée) ne
+ * rejoue que la suppression du compte.
+ */
+async function effacer(fiche: LigneFicheQr, journal: { cabinetId: string; acteurId: string; gestionnaireId: string }): Promise<NextResponse | Suite> {
+  if (fiche.actif === true) return reponseErreur('fiche_active', 409)
+  if (!fiche.pseudonymise_le) {
+    const pseudonymisee = await pseudonymiserFiche(fiche.id, journal.acteurId)
+    if (pseudonymisee instanceof NextResponse) return pseudonymisee
+    if (pseudonymisee.faite) {
+      const envois = await supabaseAdmin.from(TABLE_INVITATIONS_QR).delete().eq('gestionnaire_id', fiche.id)
+      if (envois.error) logger.warn(`${CONTEXTE} envois d’une fiche pseudonymisée non supprimés`, { code: envois.error.code, gestionnaire: fiche.id })
+      await journaliserQr({ ...journal, action: 'gestionnaire.pseudonymise' })
+    }
+  }
+  const compte = await lireCompteFicheQr(fiche.id, 'effacement : compte de la fiche')
+  if (compte.etat === 'migration_absente') return { incomplet: null }
+  if (compte.etat === 'erreur') return { incomplet: 'compte_non_supprime' }
+  if (!compte.userId) return { incomplet: null }
+  return { incomplet: (await supprimerCompteFicheQr(fiche.id, compte.userId)) ? null : 'compte_non_supprime' }
+}
 
 async function formePublique(fiche: LigneFicheQr): Promise<NextResponse | { gestionnaire: FicheGestionnaireDetailQr['gestionnaire'] }> {
   const forme = await gestionnairesDepuisFichesQr([fiche])
@@ -104,34 +182,28 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     if (!fiche) return reponseErreur('introuvable', 404)
     const journal = { cabinetId: fiche.cabinet_id, acteurId: controle.user.id, gestionnaireId: id }
 
+    let suite: Suite = { incomplet: null }
     if ('nom' in action) {
       if (fiche.pseudonymise_le) return reponseErreur('fiche_effacee', 409)
       const { error } = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).update({ nom: action.nom }).eq('id', id).is('pseudonymise_le', null)
       if (error) return reponseErreurSqlQr(error, 'modification d’un gestionnaire', { gestionnaire: id })
       await journaliserQr({ ...journal, action: 'gestionnaire.modifie', champs: ['nom'] })
     } else if ('actif' in action) {
-      if (fiche.pseudonymise_le) return reponseErreur('fiche_effacee', 409)
-      if (fiche.actif !== true) {
-        const { data, error } = await supabaseAdmin.rpc('signalements_qr_reactiver_gestionnaire', { p_id: id, p_acteur: controle.user.id })
-        if (error) return reponseErreurSqlQr(error, 'réactivation d’un gestionnaire', { gestionnaire: id })
-        if (data !== true) return reponseErreur('a_reverifier', 409)
-      }
+      const r = await reactiver(fiche, controle.user.id)
+      if (r instanceof NextResponse) return r
+      suite = r
     } else {
-      if (fiche.actif === true) return reponseErreur('fiche_active', 409)
-      if (!fiche.pseudonymise_le) {
-        const { error } = await supabaseAdmin.from(TABLE_GESTIONNAIRES_QR)
-          .update({ nom: null, email: null, pseudonymise_le: new Date().toISOString() }).eq('id', id).eq('actif', false)
-        if (error) return reponseErreurSqlQr(error, 'pseudonymisation d’un gestionnaire', { gestionnaire: id })
-        const envois = await supabaseAdmin.from(TABLE_INVITATIONS_QR).delete().eq('gestionnaire_id', id)
-        if (envois.error) logger.warn(`${CONTEXTE} envois d’une fiche pseudonymisée non supprimés`, { code: envois.error.code, gestionnaire: id })
-        await journaliserQr({ ...journal, action: 'gestionnaire.pseudonymise' })
-      }
+      const r = await effacer(fiche, journal)
+      if (r instanceof NextResponse) return r
+      suite = r
     }
 
     const relue = await lireFicheQr(id)
     if (!relue.ok || !relue.valeur) return reponseErreur('a_reverifier', 409)
     const forme = await formePublique(relue.valeur)
-    return forme instanceof NextResponse ? forme : NextResponse.json(forme)
+    if (forme instanceof NextResponse) return forme
+    // PR 2 : l'action de la PR 1 est faite, mais pas celle du compte relié (207, même bouton pour la relancer).
+    return suite.incomplet ? NextResponse.json({ ...forme, error: suite.incomplet }, { status: 207 }) : NextResponse.json(forme)
   } catch (e: unknown) {
     logger.error(`${CONTEXTE} modification d’un gestionnaire`, { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)

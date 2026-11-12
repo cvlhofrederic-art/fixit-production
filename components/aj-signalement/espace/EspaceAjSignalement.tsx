@@ -15,6 +15,13 @@
 // Depuis le 11/11/2026 (demandes de Hugo du 10/11) : vues Gestionnaires (liste, puis page profil à l'ancre
 // #gestionnaire/<uuid>), Cabinets et Journal. Le tableau, chargé une fois par TableauSignalementsQr (caché hors de ses
 // trois vues), leur est partagé ; cabinets et fiches sont chargés une fois, à la première vue qui en a besoin.
+// PR 2, lot 4 : la même coquille sert l'espace de chaque cabinet (vitfix.io/<identifiant>/suivi/), avec le cabinet de la
+// page passé à la garde. Le gestionnaire y a ses trois vues (Tableau de bord, Copropriétés, Signalements) ; cabinets et
+// fiches (routes du super admin) ne sont jamais chargés pour lui.
+// PR 2, lot 5 : après la garde, GET /moi relit sa fiche (nom, cabinet, domaines) : accès retiré → « Votre accès a été
+// retiré par le cabinet. » et « Se déconnecter » ; fiche d'un autre cabinet → message neutre ; migration, serveur ou
+// réseau → message et « Réessayer ». Puis la coquille, avec le nom du cabinet sous « AJ Signalement » et ses écrans
+// (TableauSignalementsQr en vue gestionnaire : cartes, fenêtre de copropriété, détail).
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
@@ -24,8 +31,11 @@ import FicheGestionnaireQr from '@/components/aj-signalement/FicheGestionnaireQr
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
 import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
 import JournalQr from '@/components/aj-signalement/JournalQr'
-import { useAccesEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
+import { useAccesEspaceQr, type CabinetEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
 import { useReferentielsQr } from '@/components/aj-signalement/espace/useReferentielsQr'
+import { useProfilCabinetQr } from '@/components/aj-signalement/espace/useProfilCabinetQr'
+import type { VueGestionnaireTableauQr } from '@/components/aj-signalement/TableauSignalementsQr'
+import { TEXTES_ESPACE_CABINET_QR as EC, messageErreurGestionnaireQr } from '@/lib/aj-signalement/affichage-gestionnaire'
 import {
   TEXTES_ESPACE_QR as E, VUES_TABLEAU_QR, VUE_PAR_DEFAUT_QR, ancreEspaceQr, entreesBarreDuBasQr, entreesMenuQr, texteAncreQr,
   type AncreEspaceQr, type EntreeMenuQr, type RoleEspaceQr, type VueEspaceQr,
@@ -46,9 +56,17 @@ const VUES_REFERENTIELS_QR: readonly VueEspaceQr[] = ['coproprietes', 'gestionna
 
 const ANCRE_PAR_DEFAUT_QR: AncreEspaceQr = { vue: VUE_PAR_DEFAUT_QR, gestionnaireId: null }
 
-export default function EspaceAjSignalement() {
-  const { etat, connexion, reessayer, seDeconnecter } = useAccesEspaceQr()
+export interface PropsEspaceAjSignalement {
+  /** Cabinet de la page (espace d'un cabinet, PR 2) ; absent : espace global du super admin. */
+  cabinet?: CabinetEspaceQr
+}
 
+export default function EspaceAjSignalement({ cabinet }: Readonly<PropsEspaceAjSignalement> = {}) {
+  const { etat, connexion, reessayer, seDeconnecter } = useAccesEspaceQr(cabinet?.identifiant)
+
+  if (etat.statut === 'autorise' && etat.role === 'gestionnaire') {
+    return <EspaceGestionnaireQr identifiantCabinet={cabinet?.identifiant ?? null} onDeconnexion={() => { void seDeconnecter() }} />
+  }
   if (etat.statut === 'autorise') {
     return <CoquilleEspaceQr role={etat.role} lienAdmin={etat.lienAdmin} onDeconnexion={() => { void seDeconnecter() }} />
   }
@@ -74,15 +92,62 @@ export default function EspaceAjSignalement() {
   )
 }
 
+// ── Gestionnaire : sa fiche relue (GET /moi), puis la coquille (PR 2, lot 5) ──
+
+function EspaceGestionnaireQr({ identifiantCabinet, onDeconnexion }: Readonly<{ identifiantCabinet: string | null; onDeconnexion: () => void }>) {
+  const { etat, reessayer } = useProfilCabinetQr(identifiantCabinet, true)
+
+  if (etat.statut === 'pret') {
+    return (
+      <CoquilleEspaceQr
+        role="gestionnaire" lienAdmin={null} onDeconnexion={onDeconnexion}
+        cabinetNom={etat.profil.cabinet.nom} vueGestionnaire={{ domaines: etat.profil.cabinet.domaines }}
+      />
+    )
+  }
+  if (etat.statut === 'chargement') {
+    return (
+      <PagePleineQr titre={E.nom}>
+        <output className="block text-center">
+          <span className="mx-auto mb-4 block h-12 w-12 animate-spin rounded-full border-4 border-[#C9A84C] border-t-transparent" />
+          <span className="block text-base font-medium text-[#4A5E78]">{EC.chargement}</span>
+        </output>
+      </PagePleineQr>
+    )
+  }
+  const sortie = <Bouton variante="secondaire" icone="deconnexion" pleineLargeur onClick={onDeconnexion}>{E.seDeconnecter}</Bouton>
+  if (etat.statut === 'retire' || etat.statut === 'autre_espace') {
+    return (
+      <PagePleineQr titre={E.nom}>
+        <Encadre ton="avertissement">{etat.statut === 'retire' ? EC.accesRetire : E.sansAcces}</Encadre>
+        <div className="mt-6">{sortie}</div>
+      </PagePleineQr>
+    )
+  }
+  return (
+    <PagePleineQr titre={E.nom}>
+      <Encadre ton={etat.code === 'base_absente' ? 'avertissement' : 'erreur'}>{messageErreurGestionnaireQr(etat.code)}</Encadre>
+      <div className="mt-6 space-y-3">
+        <Bouton variante="principal" icone="actualiser" pleineLargeur onClick={reessayer}>{E.reessayer}</Bouton>
+        {sortie}
+      </div>
+    </PagePleineQr>
+  )
+}
+
 // ── Coquille (rôle vérifié) ──────────────────────────────────────────────────
 
 interface PropsCoquille {
   role: RoleEspaceQr
   lienAdmin: string | null
   onDeconnexion: () => void
+  /** PR 2 : nom du cabinet (espace d'un cabinet), sous « AJ Signalement ». */
+  cabinetNom?: string
+  /** PR 2 : vue d'un gestionnaire connecté (domaines de son cabinet). */
+  vueGestionnaire?: VueGestionnaireTableauQr
 }
 
-function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoquille>) {
+function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGestionnaire }: Readonly<PropsCoquille>) {
   const entrees = entreesMenuQr(role)
   const [ancre, setAncre] = useState<AncreEspaceQr>(() => ancreEspaceQr(window.location.hash, role) ?? ANCRE_PAR_DEFAUT_QR)
   const vue = ancre.vue
@@ -90,10 +155,14 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
   // Le focus ne va au titre qu'après une navigation de l'utilisateur, jamais à l'ouverture.
   const focusAPoser = useRef(false)
   const entree = entrees.find((e) => e.vue === vue) ?? entrees[0]
+  // Gestionnaire : sous-titres de ses vues (il ne voit ni les gestionnaires ni les cabinets).
+  const sousTitre = (vueGestionnaire ? EC.sousTitres[entree.vue] : undefined) ?? entree.sousTitre
   // Tableau chargé par TableauSignalementsQr, partagé avec les autres vues ; actualisation : rechargement demandé.
   const [tableau, setTableau] = useState<TableauQr | null>(null)
   const [actualisation, setActualisation] = useState(0)
-  const referentiels = useReferentielsQr(VUES_REFERENTIELS_QR.includes(vue))
+  // Cabinets et fiches : routes du super admin seulement (un gestionnaire y recevrait 403).
+  const superAdmin = role === 'super_admin'
+  const referentiels = useReferentielsQr(superAdmin && VUES_REFERENTIELS_QR.includes(vue))
   const { recharger } = referentiels
 
   // Retour du navigateur (ou ancre modifiée à la main) : la vue suit l'ancre ; une ancre qui ne désigne aucune vue
@@ -172,7 +241,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
           </div>
           <div className="min-w-0">
             <div className="font-serif text-lg leading-tight">{E.nom}</div>
-            <div className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">{E.marque}</div>
+            <div className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">{cabinetNom || E.marque}</div>
           </div>
         </div>
         <MenuEspaceQr entrees={entrees} vue={vue} allerA={allerAVue} disposition="lateral" />
@@ -182,9 +251,9 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
         <header className="sticky top-0 z-30 border-b border-[#E4DDD0] bg-white px-4 py-3 md:px-9">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{E.nom}</p>
+              <p className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{cabinetNom ? `${E.nom} · ${cabinetNom}` : E.nom}</p>
               <h1 ref={titre} tabIndex={-1} className="truncate font-serif text-xl text-[#0D1B2E] outline-none md:text-2xl">{entree.libelle}</h1>
-              <p className="truncate text-sm text-[#4A5E78]">{entree.sousTitre}</p>
+              <p className="truncate text-sm text-[#4A5E78]">{sousTitre}</p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {lienAdmin && <Bouton variante="discret" petit href={lienAdmin} icone="cadenas">{E.panneauAdmin}</Bouton>}
@@ -197,7 +266,8 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion }: Readonly<PropsCoqu
           <div hidden={!VUES_TABLEAU_QR.includes(vue)}>
             <TableauSignalementsQr
               jeton={null} vue={vue} onTableau={setTableau} actualisation={actualisation}
-              gestion={{ cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires }}
+              gestion={superAdmin ? { cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires } : undefined}
+              gestionnaire={vueGestionnaire}
             />
           </div>
           {contenu}

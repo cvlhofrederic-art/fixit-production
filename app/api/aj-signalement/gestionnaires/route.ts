@@ -14,6 +14,11 @@
 //   l'identifiant de la fiche est tiré ICI et signé dans le lien (nouvelleInvitation) AVANT toute écriture ; la
 //   fonction SQL insère la fiche avec cet id, l'envoi, les attributions et le journal en une transaction ; enfin
 //   l'e-mail part (lien /<identifiant>/confirmation-adresse/#<jeton>). Ni le lien ni le jeton ne sont renvoyés.
+//   Contre-vérification du 12/11 (migration 20261112) : la fonction SQL refuse aussi une adresse qui partage une BOÎTE
+//   avec une fiche existante, active ou non (même boîte sous une autre étiquette « + », ou même partie locale sur un
+//   domaine de l'un des deux cabinets : la règle « adresse d'une fiche ») → 409 existe_deja { id }, l'identifiant de
+//   cette fiche lu dans le DETAIL de l'erreur (rendu seulement s'il a la forme d'un uuid). Avant la 20261112 : l'adresse
+//   exacte seule, comme en PR 1.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
@@ -29,6 +34,8 @@ import {
 import { envoyerLienConfirmationQr, gestionnairesDepuisFichesQr, lireFicheQr, lireFichesQr } from '@/lib/aj-signalement/serveur-gestion'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
+/** Identifiant d'une fiche (uuid) : seule forme rendue depuis le DETAIL d'une erreur existe_deja. */
+const FORME_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,6 +105,11 @@ export async function POST(request: NextRequest) {
       p_coproprietes: s.coproprieteIds,
       p_acteur: controle.user.id,
     })
+    if (error?.code === 'P0001' && error.message === 'existe_deja') {
+      // Boîte déjà portée par une fiche (20261112) : son identifiant est en DETAIL ; rien d'autre n'est rendu.
+      const id = typeof error.details === 'string' && FORME_UUID.test(error.details) ? error.details : null
+      return NextResponse.json(id ? { error: 'existe_deja', id } : { error: 'existe_deja' }, { status: 409 })
+    }
     if (error) return reponseErreurSqlQr(error, 'création d’un gestionnaire')
 
     const cab = { id: s.cabinetId, nom: cabinet.cabinet.nom ?? '', identifiant: cabinet.cabinet.identifiant ?? '' }

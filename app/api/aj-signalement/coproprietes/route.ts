@@ -11,19 +11,32 @@
 // La fiche renvoyée porte le jeton : l'écran en dessine le QR code. Migration du 11/11/2026 absente (fonction
 // PGRST202) : insertion d'origine pour le corps actuel de l'écran { nom, adresse, emailsDestinataires } ; 503
 // base_absente si le corps demande un cabinet, des gestionnaires ou des champs nouveaux. p_acteur = la session.
+//
+// Gestionnaire connecté (PR 2, SPEC § 2.5, RG-20) : corps strict coproprieteGestionnaireQrSchema (ni cabinet, ni
+// gestionnaires, ni « à tous », ni forçage : 400) ; limites 5 / 10 min et 20 / 24 h par compte ; création dans le cabinet
+// de SA FICHE, attribuée d'office (origine « creation », fonction SQL p_profil 'gestionnaire'), QR code immédiat ;
+// destinataires dans les domaines de son cabinet, jamais l'adresse d'une fiche (400) ; doublons comparés à TOUT le
+// cabinet, jamais forçables, la copropriété existante nommée seulement si elle est dans sa portée (doublon.refuse
+// journalisé), probable à confirmer (confirmation journalisée) ; réponse minimisée. Aucune insertion d'origine : toute
+// structure absente répond 503 base_absente.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { coproprieteQrSchema, validateBody } from '@/lib/validation'
+import { coproprieteGestionnaireQrSchema, coproprieteQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
 import { cleNomCoproQr, decisionDoublonsQr, doublonsCoproprieteQr } from '@/lib/aj-signalement/doublons'
 import { emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
+import type { ProfilGestionnaireQr } from '@/lib/aj-signalement/types'
+import {
+  adressesEcritesGestionnaireQr, journaliserProbableConfirmeQr, lireCoproprieteGestionnaireQr, refusDoublonGestionnaireQr,
+} from '@/lib/aj-signalement/serveur-gestionnaire'
 import {
   COLONNES_COPROPRIETE_QR, TABLE_COPROPRIETES_QR, contexteGestionVideQr, controlerAccesQr, coproprieteDepuisLigne, fonctionAbsenteQr,
   genererJetonQr, journaliserRepliGestionQr, lireCabinetQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireFichesParEmailsQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, type LigneCoproprieteQr,
+  lireFichesDesAdressesQr, porteeDuProfilQr, reponseErreur, reponseErreurBase, reponseErreurSqlQr, reponseInvalide, reponseLectureGestionnaireQr,
+  reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -38,8 +51,9 @@ export async function POST(request: NextRequest) {
   try {
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`qr_copropriete_post_${ip}`, 20, 60_000))) return rateLimitResponse()
-    const controle = await controlerAccesQr(request, { profils: ['super_admin'] })
+    const controle = await controlerAccesQr(request, { profils: ['super_admin', 'gestionnaire'] })
     if (!controle.ok) return controle.reponse
+    if (controle.profil.type === 'gestionnaire') return await creationParGestionnaire(request, controle.profil)
     if (!(await checkRateLimit(`qr_copropriete_post_${controle.user.id}`, 60, 3_600_000))) return rateLimitResponse()
 
     const body: unknown = await request.json().catch(() => null)
@@ -61,9 +75,10 @@ export async function POST(request: NextRequest) {
     }
 
     const emails = canoniques(s.emailsDestinataires)
-    const fiches = await lireFichesParEmailsQr(emails)
+    // RG-06 bis-1 : même boîte, ou même partie locale sur un autre domaine du cabinet de la fiche (corrections, tour 2).
+    const fiches = await lireFichesDesAdressesQr(emails)
     if (!fiches.ok) return reponseErreurSqlQr(fiches.erreur, 'lecture des fiches (destinataires)')
-    if (adressesDeFichesQr(emails, fiches.valeur).length > 0) {
+    if (adressesDeFichesQr(emails, fiches.valeur.fiches, fiches.valeur.cabinetsDesDomaines).length > 0) {
       return reponseInvalide('emailsDestinataires: adresse d’un gestionnaire : attribuez-lui la copropriété')
     }
     if (domaines.length > 0 && !s.confirmerHorsDomaine && emails.some((e) => !emailDansDomainesQr(e, domaines))) {
@@ -120,6 +135,65 @@ export async function POST(request: NextRequest) {
     logger.error(`${CONTEXTE} création de copropriété`, { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)
   }
+}
+
+/**
+ * Création par un gestionnaire connecté (RG-20) : tout vient de sa fiche (cabinet, identifiant) et de sa portée, relues
+ * par le contrôle d'accès et ici ; aucun repli silencieux (structure absente → 503 base_absente).
+ */
+async function creationParGestionnaire(request: NextRequest, profil: ProfilGestionnaireQr): Promise<Response> {
+  if (!(await checkRateLimit(`qr_copropriete_post_${profil.userId}`, 5, 600_000))) return rateLimitResponse()
+  if (!(await checkRateLimit(`qr_copropriete_post_jour_${profil.userId}`, 20, 86_400_000))) return rateLimitResponse()
+  const ids = { gestionnaire: profil.gestionnaireId }
+
+  const body: unknown = await request.json().catch(() => null)
+  const validation = validateBody(coproprieteGestionnaireQrSchema, body)
+  if (!validation.success) return reponseInvalide(validation.error)
+  const s = validation.data
+
+  const adresses = await adressesEcritesGestionnaireQr(profil, [], s.emailsDestinataires)
+  if (!adresses.ok) return adresses.reponse
+
+  const portee = await porteeDuProfilQr(profil)
+  if (!portee.ok) return reponseLectureGestionnaireQr(portee.erreur, 'portée d’un gestionnaire', ids)
+  // Tout le cabinet, copropriétés désactivées et hors de sa portée comprises (SPEC § 1.6).
+  const existantes = await lireCoproprietesDoublonsQr(profil.cabinetId, { ignorerOperation: s.operationId, strict: true })
+  if (!existantes.ok) return reponseStructureGestionnaireQr(existantes.erreur, 'lecture des doublons (gestionnaire)', ids)
+  const doublons = doublonsCoproprieteQr(
+    { nom: s.nom, adresse: s.adresse, codePostal: s.codePostal, immatriculation: s.immatriculation || null, referenceCabinet: s.referenceCabinet || null },
+    existantes.coproprietes,
+  )
+  const decision = decisionDoublonsQr(doublons, { profil: 'gestionnaire', forcerDoublon: false, confirmerDoublonProbable: s.confirmerDoublonProbable })
+  if (!decision.ok) return refusDoublonGestionnaireQr(decision.doublon, profil, portee.valeur, { operation: 'creation' })
+
+  const { data, error } = await supabaseAdmin.rpc('signalements_qr_creer_coproprietes', {
+    p_operation: s.operationId,
+    p_acteur: profil.userId,
+    p_profil: 'gestionnaire',
+    p_gestionnaire: profil.gestionnaireId,
+    p_cabinet: profil.cabinetId,
+    p_lignes: [{
+      numeroLigne: 1, action: 'creer', nom: s.nom, cleNom: cleNomCoproQr(s.nom), adresse: s.adresse, codePostal: s.codePostal, ville: s.ville,
+      immatriculation: s.immatriculation, referenceCabinet: s.referenceCabinet, batiments: s.batiments, emails: adresses.ecrites,
+      gestionnaireIds: [], forcerDoublon: false,
+    }],
+  })
+  if (error) return reponseStructureGestionnaireQr(error, 'création de copropriété (gestionnaire)', ids)
+
+  const resultat = (data ?? {}) as ResultatCreationSqlQr
+  const id = typeof resultat.creees?.[0]?.id === 'string' ? (resultat.creees[0].id as string) : null
+  if (!id) return reponseErreur('a_reverifier', 409)
+  const rejeu = resultat.rejeu === true
+  if (decision.probableConfirme && !rejeu) await journaliserProbableConfirmeQr(profil, id, doublons)
+
+  const lecture = await lireCoproprieteGestionnaireQr(id, profil, { nouvelle: !rejeu })
+  if (!lecture.ok) return reponseStructureGestionnaireQr(lecture.erreur, 'relecture de la copropriété créée (gestionnaire)', { ...ids, copropriete: id })
+  if (!lecture.copropriete) {
+    // Attribution « creation » absente (base incohérente) ou retirée avant un rejeu : rien n'est rendu, c'est signalé.
+    logger.error(`${CONTEXTE} copropriété créée hors de la portée de son auteur`, { ...ids, copropriete: id })
+    return reponseErreur('a_reverifier', 409)
+  }
+  return reponsePriveeQr({ copropriete: lecture.copropriete }, rejeu ? 200 : 201)
 }
 
 /**

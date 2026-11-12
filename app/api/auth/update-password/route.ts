@@ -7,6 +7,9 @@
 // ne quitte pas le serveur, aucun cookie de session n'est posé, l'utilisateur se connecte ensuite avec son nouveau mot
 // de passe. Le mot de passe est contrôlé AVANT verifyOtp, qui consomme le jeton : une règle non respectée ne grille
 // pas le lien. Jamais le jeton ni le mot de passe au journal.
+// AJ Signalement (PR 2, lot 6, point 7.9 du plan) : pour un gestionnaire d'un cabinet client (app_metadata du compte
+// vérifié, posé par le serveur), la réponse porte aussi `connexion`, la connexion professionnelle de SON cabinet
+// (vitfix.io/<identifiant>/connexion/), où la page renvoie au lieu de la connexion générale. Tout autre compte : { ok: true }.
 import { createClient, type AuthError, type SupabaseClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { z } from 'zod'
@@ -19,10 +22,11 @@ import {
 } from '@/lib/auth/lien-email'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit'
+import { connexionApresMotDePasseQr } from '@/lib/aj-signalement/acces-espace'
 
 const CorpsRequete = z.object({ password: z.string().max(200) })
 
-function reponse(corps: { ok: true } | { erreur: ErreurNouveauMotDePasse }, statut: number, effacerCookie: boolean) {
+function reponse(corps: { ok: true; connexion?: string } | { erreur: ErreurNouveauMotDePasse }, statut: number, effacerCookie: boolean) {
   const resultat = NextResponse.json(corps, { status: statut, headers: { 'Cache-Control': 'private, no-store' } })
   if (effacerCookie) {
     resultat.cookies.set(COOKIE_LIEN_MDP, '', {
@@ -102,10 +106,12 @@ export async function POST(request: NextRequest) {
 
   let resultat: NextResponse
   try {
-    const { error: erreurVerification } = await supabase.auth.verifyOtp({ type: 'recovery', token_hash: jeton })
+    const { data: verifie, error: erreurVerification } = await supabase.auth.verifyOtp({ type: 'recovery', token_hash: jeton })
     if (erreurVerification) return refusVerification(erreurVerification)
     const { error: erreurMiseAJour } = await supabase.auth.updateUser({ password: motDePasse })
-    resultat = erreurMiseAJour ? refusMiseAJour(erreurMiseAJour) : reponse({ ok: true }, 200, true)
+    // AJ Signalement : connexion du cabinet d'un gestionnaire (null pour tout autre compte : réponse inchangée).
+    const connexion = connexionApresMotDePasseQr(verifie.user?.app_metadata)
+    resultat = erreurMiseAJour ? refusMiseAJour(erreurMiseAJour) : reponse(connexion ? { ok: true, connexion } : { ok: true }, 200, true)
   } catch (erreur) {
     logger.error('[auth/update-password] échange avec Supabase interrompu', {}, erreur)
     return echec('reessayer', 503)

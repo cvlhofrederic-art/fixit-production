@@ -311,7 +311,8 @@ describe('détail d’un signalement', () => {
     await waitFor(() => expect(within(dialogue).getByRole('button', { name: 'Intervention en cours' })).toBeInTheDocument())
     const patch = appels.find((a) => a.init?.method === 'PATCH')
     expect(patch?.url).toBe(`/api/aj-signalement/signalements/${marie.id}`)
-    expect(JSON.parse(String(patch?.init?.body))).toEqual({ statut: 'acceptee' })
+    // PR 2 (point 7.17 du plan) : le statut affiché part aussi depuis l'écran du super admin (409 si changé entre-temps).
+    expect(JSON.parse(String(patch?.init?.body))).toEqual({ statut: 'acceptee', statutAttendu: 'en_attente' })
 
     fireEvent.click(within(dialogue).getByRole('button', { name: T.detail.fermer }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -329,6 +330,16 @@ describe('détail d’un signalement', () => {
     fireEvent.click(within(lignes()[1]).getByRole('button', { name: T.voirDetail }))
     expect(screen.getByRole('dialog')).toHaveTextContent('E-mail non envoyé : RESEND_API_KEY not configured')
     expect(screen.getByRole('dialog')).toHaveTextContent('Confirmation non envoyée au déclarant : limite atteinte pour cette adresse.')
+  })
+
+  it('PR 2 : statut changé entre-temps (409 conflit_statut) : message dans la fiche, tableau rechargé, fiche gardée ouverte', async () => {
+    await rendrePret('signalements', (appel) => (appel.init?.method === 'PATCH' ? json({ error: 'conflit_statut' }, 409) : json({ tableau: tableau() })))
+    fireEvent.click(within(lignes()[0]).getByRole('button', { name: T.voirDetail }))
+    const dialogue = screen.getByRole('dialog')
+    fireEvent.click(within(dialogue).getByRole('button', { name: 'Prendre en charge' }))
+    expect(await within(screen.getByRole('dialog')).findByText(T.detail.conflitStatut)).toBeInTheDocument()
+    await waitFor(() => expect(appelsTableau()).toHaveLength(2))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })
 

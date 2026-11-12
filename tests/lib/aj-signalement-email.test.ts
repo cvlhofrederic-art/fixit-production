@@ -25,10 +25,11 @@ const h = vi.hoisted(() => ({
 vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail, sendBatchEmails: h.sendBatchEmails }))
 
 import {
-  ALERTE_ADRESSE_CONTESTEE_QR, FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, REPLIS_UN_PAR_UN_MAX_QR, boiteCanoniqueConfirmationQr,
-  cleLimiteConfirmationQr, envoyerAlerteAdministrateurQr, envoyerConfirmationAdresseQr, envoyerConfirmationQr, envoyerEmailsSignalementQr,
-  echapperHtml, masquerEmailsQr, resumeErreurEnvoiQr, sujetConfirmationQr, sujetSignalementQr, templateAlerteAdministrateurQr,
-  templateConfirmationAdresseQr, templateConfirmationQr, templateSignalementQr,
+  ALERTE_ADRESSE_CONTESTEE_QR, ALERTE_LIAISON_INCOMPLETE_QR, ALERTE_REFUS_AUTRE_ESPACE_QR, FENETRE_CONFIRMATIONS_MS,
+  LIMITE_CONFIRMATIONS_PAR_ADRESSE, REPLIS_UN_PAR_UN_MAX_QR, boiteCanoniqueConfirmationQr,
+  cleLimiteConfirmationQr, envoyerAccesGestionnaireQr, envoyerAlerteAdministrateurQr, envoyerConfirmationAdresseQr, envoyerConfirmationQr,
+  envoyerEmailsSignalementQr, echapperHtml, masquerEmailsQr, resumeErreurEnvoiQr, sujetConfirmationQr, sujetSignalementQr,
+  templateAccesGestionnaireQr, templateAlerteAdministrateurQr, templateConfirmationAdresseQr, templateConfirmationQr, templateSignalementQr,
 } from '@/lib/aj-signalement/email'
 import type { DestinataireQr, SignalementQr } from '@/lib/aj-signalement/types'
 
@@ -418,5 +419,94 @@ describe('adresses masquées dans le journal de la route (masquerEmailsQr, retou
     }
     const adresses = Array.from({ length: 20_000 }, (_, i) => `u${i}@exemple.fr`).join(' ')
     expect(masquerEmailsQr(adresses)).toBe(Array.from({ length: 20_000 }, () => '[e-mail]').join(' '))
+  })
+})
+
+describe('ouverture de l’accès d’un gestionnaire (PR 2, lot 3 ; SPEC § 2.3.2)', () => {
+  const LIEN = 'https://vitfix.io/cabinet-exemple/invitation/#jeton'
+
+  it('objet et corps nomment la personne et le cabinet ; compte professionnel ; 7 jours et usage unique ; « Ce n’est pas moi » ; mention RGPD', () => {
+    const { subject, html } = templateAccesGestionnaireQr({ nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })
+    expect(subject).toBe('AJ Signalement — Cabinet Exemple : ouvrez votre accès')
+    expect(html).toContain('Bonjour Marie E.,')
+    expect(html).toContain('Cabinet Exemple vous ouvre un accès à son espace AJ Signalement')
+    expect(html).toContain('compte professionnel')
+    expect(html).toContain('Ce lien est valable 7 jours et ne sert qu’une fois.')
+    expect(html).toContain('Vous n’êtes pas Marie E., gestionnaire chez Cabinet Exemple ?')
+    expect(html).toContain('Ce n’est pas moi')
+    expect(html).toContain('(VitFix, sous-traitant)')
+    expect(html).toContain('https://vitfix.io/fr/confidentialite/')
+    expect(html).toContain(`href="${LIEN}"`)
+    expect(html).toContain('Ouvrir mon accès')
+  })
+
+  it('aucune donnée de copropriété ni de signalement, aucun mot de passe ; tout est échappé', () => {
+    const { subject, html } = templateAccesGestionnaireQr({ nomCourt: '<script>x</script>', cabinet: 'A & B "Cabinet"', lien: LIEN })
+    expect(html).not.toContain('<script>x</script>')
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).toContain('A &amp; B &quot;Cabinet&quot;')
+    expect(subject).toBe('AJ Signalement — A & B "Cabinet" : ouvrez votre accès')
+    expect(html).not.toMatch(/copropriété [A-Z]|lot \d|mot de passe :/i)
+  })
+
+  it('envoi par sendBatchEmails à la seule adresse de la fiche, étiquette propre ; vrai si parti, faux sinon (sans lever)', async () => {
+    expect(await envoyerAccesGestionnaireQr({ email: 'marie.exemple@exemple.test', nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })).toBe(true)
+    expect(h.sendBatchEmails.mock.calls[0][0]).toEqual([expect.objectContaining({ to: 'marie.exemple@exemple.test', tags: [{ name: 'type', value: 'aj-signalement-acces' }] })])
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    h.sendBatchEmails.mockResolvedValueOnce({ sent: 0, failed: 1, errors: ['refus'] })
+    expect(await envoyerAccesGestionnaireQr({ email: 'marie.exemple@exemple.test', nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })).toBe(false)
+    h.sendBatchEmails.mockRejectedValueOnce(new Error('panne marie.exemple@exemple.test'))
+    expect(await envoyerAccesGestionnaireQr({ email: 'marie.exemple@exemple.test', nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })).toBe(false)
+  })
+
+  it.each([
+    ['refus : adresse d’un autre espace', ALERTE_REFUS_AUTRE_ESPACE_QR],
+    ['liaison incomplète', ALERTE_LIAISON_INCOMPLETE_QR],
+  ])('alerte au super admin « %s » : objet et texte sans nom ni adresse de personne', (_cas, alerte) => {
+    expect(alerte.objet).toMatch(/^AJ Signalement — /)
+    expect(`${alerte.objet} ${alerte.texte}`).not.toMatch(/@|marie/i)
+    const { html } = templateAlerteAdministrateurQr({ ...alerte, lien: 'https://vitfix.io/fr/aj-signalement/#gestionnaire/x' })
+    expect(html).toContain(echapperHtml(alerte.texte))
+  })
+})
+
+// ── PR 2, lot 5 : bouton « Ouvrir le suivi » (RG-25) ──────────────────────────────────────────────────────────────
+// Seul un GESTIONNAIRE dont l'accès est ouvert (compte relié, connexion non bloquée : acces_ouvert de
+// signalements_qr_emails_gestionnaires) reçoit le bouton vers l'espace de son cabinet (/<identifiant>/suivi/#signalements),
+// SANS jeton. Gestionnaire sans accès (ou bloqué : acces_ouvert faux), adresse saisie : la phrase de la PR 1, sans bouton ;
+// administrateur : le bouton de l'espace global, inchangé. Sans lien de suivi (cabinet non lu) : aucun bouton de suivi.
+describe('bouton « Ouvrir le suivi » des e-mails d’un signalement (PR 2, RG-25)', () => {
+  const LIEN = 'https://vitfix.io/cabinet-exemple/suivi/#signalements'
+  const dest = (email: string, type: DestinataireQr['type'], accesOuvert = false): DestinataireQr => ({ email, type, accesOuvert })
+
+  it('gestionnaire à l’accès ouvert : bouton vers le suivi de son cabinet, sans jeton ; les autres messages inchangés', async () => {
+    const destinataires = [
+      dest('admin@vitfix.io', 'administrateur'), dest('cs@exemple.test', 'saisi'),
+      dest('marie.exemple@exemple.test', 'gestionnaire', true), dest('paul.exemple@exemple.test', 'gestionnaire', false),
+    ]
+    await envoyerEmailsSignalementQr({ destinataires, copropriete, signalement: signalement(), origine: 'https://vitfix.io', lienSuivi: LIEN })
+    const [admin, saisi, ouvert, ferme] = h.sendBatchEmails.mock.calls[0][0]
+    expect(ouvert.html).toContain(`href="${LIEN}"`)
+    expect(ouvert.html).toContain('Ouvrir le suivi')
+    expect(ouvert.html).not.toContain('Le cabinet suit ce signalement dans AJ Signalement.')
+    expect(ouvert.html).not.toMatch(/#[0-9a-f]{48}|token|jeton/i)
+    for (const autre of [admin, saisi, ferme]) {
+      expect(autre.html).not.toContain(LIEN)
+      expect(autre.html).not.toContain('Ouvrir le suivi')
+    }
+    expect(admin.html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+    expect(ferme.html).toContain('Le cabinet suit ce signalement dans AJ Signalement.')
+  })
+
+  it('sans lien de suivi (cabinet non lu) : un gestionnaire à l’accès ouvert reçoit la phrase de la PR 1', async () => {
+    await envoyerEmailsSignalementQr({ destinataires: [dest('marie.exemple@exemple.test', 'gestionnaire', true)], copropriete, signalement: signalement() })
+    const [message] = h.sendBatchEmails.mock.calls[0][0]
+    expect(message.html).not.toContain('Ouvrir le suivi')
+    expect(message.html).toContain('Le cabinet suit ce signalement dans AJ Signalement.')
+  })
+
+  it('le lien est échappé dans le gabarit', () => {
+    const { html } = templateSignalementQr({ copropriete, signalement: signalement(), destinataire: 'gestionnaire', lienSuivi: 'https://vitfix.io/a"b/suivi/#signalements' })
+    expect(html).toContain('href="https://vitfix.io/a&quot;b/suivi/#signalements"')
   })
 })

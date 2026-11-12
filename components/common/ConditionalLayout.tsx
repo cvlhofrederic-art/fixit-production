@@ -5,6 +5,7 @@ import Header from '@/components/common/Header'
 import Footer from '@/components/common/Footer'
 import SiteProtection from '@/components/common/SiteProtection'
 import WhatsAppFloatingButton from '@/components/common/WhatsAppFloatingButton'
+import { estEspaceCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 /**
  * Routes qui rendent leur propre shell (header/footer custom ou aucun) et
@@ -51,7 +52,9 @@ const DASHBOARD_PATH_PREFIXES = [
 
 function isDashboardRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false
-  return DASHBOARD_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  // Espace d'un cabinet client AJ Signalement (vitfix.io/<identifiant>/connexion/ et /suivi/, son propre shell, comme
+  // l'espace global) : prédicat pur, l'identifiant étant variable (lib/aj-signalement/chemin-cabinet.ts).
+  return DASHBOARD_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix)) || estEspaceCabinetQr(pathname)
 }
 
 /**

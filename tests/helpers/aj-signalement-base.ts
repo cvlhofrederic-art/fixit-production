@@ -127,7 +127,12 @@ export function creerBaseQr() {
     return etat.tables[nom]
   }
 
-  function from(nomTable: string) {
+  /**
+   * `rappel` (aide qui rejoue un trigger, ex. aj-signalement-invitation.ts) : joué après une requête ATTENDUE (await ou
+   * then), une fois la requête exécutée et avant que la réponse ne soit rendue ; pas après single() ni maybeSingle(), qui
+   * rendent une promesse. L'aide n'a ainsi aucune propriété `then` à poser elle-même (S7739).
+   */
+  function from(nomTable: string, rappel?: () => void) {
     let op: 'select' | 'insert' | 'update' | 'delete' = 'select'
     let selection: string | null = null
     let options: { count?: string; head?: boolean } = {}
@@ -235,8 +240,13 @@ export function creerBaseQr() {
       // « thenable » VOULU (règle S7739 neutralisée sur la ligne suivante, NOSONAR ne vaut que pour sa propre ligne) :
       // le constructeur de requête de Supabase s'attend sans être une promesse (`await supabase.from(…).select(…)`) ;
       // le simulacre doit l'imiter, sinon le code testé ne peut pas s'exécuter. La requête ne part qu'à l'attente.
-      then(ok: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { // NOSONAR typescript:S7739
-        return Promise.resolve(executer()).then(ok, ko)
+      then(ok?: (v: ReponseSimulee) => unknown, ko?: (e: unknown) => unknown) { // NOSONAR typescript:S7739
+        const reponse = Promise.resolve(executer())
+        if (!rappel) return reponse.then(ok, ko)
+        return reponse.then((r) => {
+          rappel()
+          return ok ? ok(r) : r
+        }, ko)
       },
     }
     return q
@@ -310,4 +320,25 @@ export function simulerProductionAvant1111Qr(base: ReturnType<typeof creerBaseQr
     base.etat.colonnesAbsentes[table] = [...new Set([...(base.etat.colonnesAbsentes[table] ?? []), ...colonnes])]
   }
   for (const fonction of FONCTIONS_MIGRATION_1111_QR) delete base.etat.fonctions[fonction]
+}
+
+// ── La production avant la migration du 12/11/2026 (accès des gestionnaires, PR 2) ──
+// Structure de supabase/migrations/20261112_signalements_qr_acces_gestionnaires.sql : 4 colonnes sur la fiche, les
+// fonctions nouvelles appelées par les routes (les corps remplacés gardent leur signature : ils répondent comme en PR 1).
+// Tant qu'elle n'est pas appliquée, la production répond 42703 / PGRST204 (colonnes) et PGRST202 (fonctions).
+
+export const COLONNES_MIGRATION_1112_QR: Readonly<Record<string, readonly string[]>> = {
+  signalements_qr_gestionnaires: ['user_id', 'acces_ouvert_le', 'connexion_bloquee_le', 'effacement_demande_le'],
+}
+export const FONCTIONS_MIGRATION_1112_QR: readonly string[] = ['signalements_qr_envoyer_acces', 'signalements_qr_pseudonymiser_gestionnaire']
+
+/**
+ * Met la base simulée dans l'état de la production avant la migration du 12/11/2026 (la 20261111 appliquée) : colonnes
+ * de la fiche absentes, fonction retirée. Combinable avec simulerProductionAvant1111Qr (aucune des deux migrations).
+ */
+export function simulerProductionAvant1112Qr(base: ReturnType<typeof creerBaseQr> = baseQr): void {
+  for (const [table, colonnes] of Object.entries(COLONNES_MIGRATION_1112_QR)) {
+    base.etat.colonnesAbsentes[table] = [...new Set([...(base.etat.colonnesAbsentes[table] ?? []), ...colonnes])]
+  }
+  for (const fonction of FONCTIONS_MIGRATION_1112_QR) delete base.etat.fonctions[fonction]
 }
