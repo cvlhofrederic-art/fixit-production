@@ -14,6 +14,11 @@
 // transaction (signalements_qr_pseudonymiser_gestionnaire : variantes retirées AVANT que l'adresse ne disparaisse),
 // retraits d'attribution (signalements_qr_remplacer_attributions, signalements_qr_attribuer_au_gestionnaire, corps de
 // la 20261111 corrigée) par la même règle (C3).
+// Contre-vérification du 12/11 : chaque retrait et chaque exclusion passe par la garde signalements_qr_saisie_de_la_fiche
+// (saisie de la fiche SEULE : une saisie que la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non
+// contestée du cabinet de la copropriété reste) ; création d'une fiche (signalements_qr_inviter_gestionnaire, corps de la
+// 20261111 corrigée) refusée si elle partage une boîte avec une fiche existante ; enregistrement d'un cabinet
+// (signalements_qr_enregistrer_cabinet, idem) refusé pour un domaine porté par une fiche d'un autre cabinet.
 // Aucune table nouvelle (les domaines sont en PR 1), aucune donnée, aucune valeur de client (dépôt public). Le texte
 // SQL est contrôlé ici ; l'essai PGlite (aj-pr2/pglite-essai, hors CI) le rejoue sur PostgreSQL 18.
 
@@ -66,15 +71,20 @@ const RPC: Record<string, string> = {
   signalements_qr_pseudonymiser_gestionnaire: 'uuid, uuid',
   signalements_qr_remplacer_attributions: 'uuid, uuid[], boolean, uuid',
   signalements_qr_attribuer_au_gestionnaire: 'uuid, uuid[], uuid',
-  // La règle, appelée par les fonctions ci-dessus (SECURITY INVOKER : avec le droit de l'appelant, service_role).
+  // Contre-vérification du 12/11 : création d'une fiche et enregistrement d'un cabinet (corps de la 20261111 corrigée).
+  signalements_qr_inviter_gestionnaire: 'jsonb, jsonb, uuid[], uuid',
+  signalements_qr_enregistrer_cabinet: 'uuid, text, text, text, text[], uuid',
+  // La règle et la garde, appelées par les fonctions ci-dessus (SECURITY INVOKER : avec le droit de l'appelant, service_role).
   signalements_qr_adresse_de_fiche: 'text, text, text[]',
-  signalements_qr_saisies_sans_fiche: 'text[], text, text[]',
+  signalements_qr_saisie_de_la_fiche: 'text, uuid, text, text[], uuid, uuid',
+  signalements_qr_saisies_sans_fiche: 'text[], uuid, text, text[], uuid, uuid',
 }
 const FONCTIONS_TRIGGER = ['signalements_qr_lier_gestionnaire']
 /** Fonctions de la 20261111 dont celle-ci remplace le corps (même signature), à partir de sa version corrigée. */
 const REDEFINIES_1111 = [
   'signalements_qr_emails_gestionnaires', 'signalements_qr_contester_adresse', 'signalements_qr_desactiver_gestionnaire',
   'signalements_qr_remplacer_attributions', 'signalements_qr_attribuer_au_gestionnaire',
+  'signalements_qr_inviter_gestionnaire', 'signalements_qr_enregistrer_cabinet',
 ]
 const COLONNES = [
   ['user_id', 'UUID'], ['acces_ouvert_le', 'TIMESTAMPTZ'], ['connexion_bloquee_le', 'TIMESTAMPTZ'], ['effacement_demande_le', 'TIMESTAMPTZ'],
@@ -307,24 +317,30 @@ describe(`Migration ${FICHIER} : destinataires (signalements_qr_emails_gestionna
   // Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée selon la règle commune
   // signalements_qr_adresse_de_fiche (même BOÎTE, sous-adresse « + » comprise, ou même partie locale de boîte sur un
   // domaine DÉCLARÉ par le cabinet de la fiche), domaines du cabinet de la fiche. La ligne exclue porte la SAISIE
-  // reconnue (retirée telle quelle de l'envoi).
+  // reconnue (retirée telle quelle de l'envoi). Contre-vérification du 12/11 : par la garde (saisie de la fiche SEULE) —
+  // une saisie que la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la
+  // copropriété n'est pas exclue pour la fiche partie ou contestée (même boîte dans deux cabinets, domaine d'une fiche
+  // forcée déclaré par un autre cabinet, deux domaines d'un cabinet).
   const EXCLUSION = `SELECT g.id, u.e, false, true
       FROM signalements_qr_coproprietes c
       CROSS JOIN LATERAL unnest(c.emails_destinataires) AS u(e)
       JOIN signalements_qr_gestionnaires g
-        ON signalements_qr_adresse_de_fiche(u.e, g.email,
-             ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id))`
+        ON signalements_qr_saisie_de_la_fiche(u.e, g.id, g.email,
+             ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id),
+             c.cabinet_id, NULL)`
   const EXCLUSION_1111 = 'SELECT g.id, g.email, false, true FROM signalements_qr_coproprietes c JOIN signalements_qr_gestionnaires g ON g.email = ANY (c.emails_destinataires)'
 
-  it('exclusions : la règle commune (domaines du cabinet de la fiche) ; la saisie reconnue est rendue', () => {
+  it('exclusions : la garde (règle pour la fiche, domaines de SON cabinet ; autres fiches du cabinet de la copropriété) ; la saisie reconnue est rendue', () => {
     expect(compacter(nouvelle().corps)).toContain(compacter(EXCLUSION))
     expect(nouvelle().corps).not.toMatch(/regexp_replace|split_part/)
     expect(nouvelle().corps).not.toMatch(/g\.email = ANY \(c\.emails_destinataires\)/)
+    expect(nouvelle().corps).not.toMatch(/signalements_qr_adresse_de_fiche\(/)
   })
 
-  it('définie APRÈS la règle qu’elle appelle (fonction SQL : corps contrôlé à la création)', () => {
-    expect(code.indexOf('FUNCTION signalements_qr_emails_gestionnaires')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_adresse_de_fiche'))
-    expect(code.indexOf('FUNCTION signalements_qr_saisies_sans_fiche')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_adresse_de_fiche'))
+  it('définie APRÈS la règle et la garde qu’elle appelle (fonction SQL : corps contrôlé à la création)', () => {
+    expect(code.indexOf('FUNCTION signalements_qr_emails_gestionnaires')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_saisie_de_la_fiche'))
+    expect(code.indexOf('FUNCTION signalements_qr_saisie_de_la_fiche')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_adresse_de_fiche'))
+    expect(code.indexOf('FUNCTION signalements_qr_saisies_sans_fiche')).toBeGreaterThan(code.indexOf('FUNCTION signalements_qr_saisie_de_la_fiche'))
   })
 
   it('le reste du corps est celui de la 20261111 : même cabinet, adresse confirmée non contestée, exclusions, limite', () => {
@@ -444,21 +460,47 @@ describe(`Migration ${FICHIER} : une seule règle « adresse d’une fiche » (s
     expect(code).not.toMatch(/=\s*ANY\s*\(\s*(?:c\.)?emails_destinataires\s*\)/)
   })
 
-  it('chaque écriture des saisies passe par signalements_qr_saisies_sans_fiche, chaque recherche par la règle', () => {
+  // Contre-vérification du 12/11 : chaque écriture passe par la garde (signalements_qr_saisies_sans_fiche, qui retire les
+  // saisies de la fiche SEULE), et la copropriété n'est retouchée (journal, bilan) que si la garde y trouve une saisie, avec
+  // les MÊMES arguments ; les verrous, eux, cherchent par la règle (plus large : verrouiller plus ne retire rien).
+  it('chaque écriture des saisies passe par la garde, et la copropriété n’est retouchée que si la garde y retire une saisie (mêmes arguments)', () => {
+    let ecrituresVues = 0
     for (const f of FONCTIONS) {
       const corps = compacter(f.corps)
-      const ecritures = [...corps.matchAll(/SET emails_destinataires = ([^;]*?) WHERE/g)].map((m) => m[1])
-      for (const e of ecritures) expect(e, f.nom).toMatch(/^signalements_qr_saisies_sans_fiche\(c\.emails_destinataires, [a-z_.]+, v_domaines\)$/)
-      for (const m of corps.matchAll(/unnest\(c\.emails_destinataires\) AS u\(e\) WHERE (signalements_qr_[a-z_]+)\(/g)) {
+      for (const m of corps.matchAll(/SET emails_destinataires = ([^;]*?) WHERE ([^;]*?)(?: RETURNING [^;]*?)?(?:;| LOOP)/g)) {
+        ecrituresVues += 1
+        const appel = /^signalements_qr_saisies_sans_fiche\(c\.emails_destinataires, ([a-z_.]+, [a-z_.]+, v_domaines, c\.cabinet_id, (?:NULL|c\.id))\)$/.exec(m[1])
+        expect(appel, `${f.nom} : ${m[1]}`).not.toBeNull()
+        expect(m[2], f.nom).toContain(`EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e) WHERE signalements_qr_saisie_de_la_fiche(u.e, ${appel?.[1]}))`)
+      }
+      for (const m of corps.matchAll(/PERFORM 1 FROM signalements_qr_coproprietes c[^;]*?unnest\(c\.emails_destinataires\) AS u\(e\) WHERE (signalements_qr_[a-z_]+)\(/g)) {
         expect(m[1], f.nom).toBe('signalements_qr_adresse_de_fiche')
       }
     }
+    expect(ecrituresVues).toBe(4)
   })
 
-  it('immuables, sans accès aux tables (les domaines leur sont passés par l’appelant)', () => {
-    for (const nom of ['signalements_qr_adresse_de_fiche', 'signalements_qr_saisies_sans_fiche']) {
-      expect(fonction(nom).entete, nom).toMatch(/LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER/)
-      expect(fonction(nom).corps, nom).not.toMatch(/\bsignalements_qr_(?!adresse_de_fiche\b)[a-z_]+/)
+  it('départ, effacement et exclusion : toute autre fiche active du cabinet de la copropriété garde (NULL) ; retraits d’attribution : seulement si elle y est attribuée (c.id)', () => {
+    for (const nom of ['signalements_qr_desactiver_gestionnaire', 'signalements_qr_pseudonymiser_gestionnaire']) {
+      expect(compacter(fonction(nom).corps), nom).toMatch(/signalements_qr_saisies_sans_fiche\(c\.emails_destinataires, p_id, [a-z_.]+, v_domaines, c\.cabinet_id, NULL\)/)
+    }
+    expect(compacter(fonction('signalements_qr_remplacer_attributions').corps))
+      .toContain('signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_perdu, v_email, v_domaines, c.cabinet_id, c.id)')
+    expect(compacter(fonction('signalements_qr_attribuer_au_gestionnaire').corps))
+      .toContain('signalements_qr_saisies_sans_fiche(c.emails_destinataires, p_gestionnaire, v_email, v_domaines, c.cabinet_id, c.id)')
+  })
+
+  it('la règle : immuable, sans accès aux tables (les domaines lui sont passés) ; la garde et les saisies sans la fiche : STABLE, ne lisent que fiches, attributions et domaines', () => {
+    expect(fonction('signalements_qr_adresse_de_fiche').entete).toMatch(/LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER/)
+    expect(fonction('signalements_qr_adresse_de_fiche').corps).not.toMatch(/\bsignalements_qr_[a-z_]+/)
+    for (const nom of ['signalements_qr_saisie_de_la_fiche', 'signalements_qr_saisies_sans_fiche']) {
+      expect(fonction(nom).entete, nom).toMatch(/LANGUAGE sql STABLE SECURITY INVOKER/)
+      const lus = new Set([...fonction(nom).corps.matchAll(/\bsignalements_qr_[a-z_]+/g)].map((m) => m[0]))
+      for (const l of lus) {
+        expect(['signalements_qr_adresse_de_fiche', 'signalements_qr_saisie_de_la_fiche', 'signalements_qr_gestionnaires',
+          'signalements_qr_attributions', 'signalements_qr_domaines_autorises'], `${nom} : ${l}`).toContain(l)
+      }
+      expect(fonction(nom).corps, nom).not.toMatch(/\b(?:INSERT|UPDATE|DELETE)\b/)
     }
   })
 })
@@ -474,8 +516,15 @@ function corpsAttendu(nom: string, remplacements: ReadonlyArray<readonly [string
 }
 
 const DOMAINES_CABINET = 'v_domaines := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab ORDER BY d.domaine);'
+/** Recherche par la règle (verrous) : toute saisie que la règle rattache à la fiche. */
 const variante = (email: string) =>
   `EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e) WHERE signalements_qr_adresse_de_fiche(u.e, ${email}, v_domaines))`
+/** Écriture par la garde (contre-vérification du 12/11) : les saisies de la fiche SEULE, et la recherche qui l'accompagne. */
+const garde = (fiche: string, email: string, copropriete: 'NULL' | 'c.id') => `${fiche}, ${email}, v_domaines, c.cabinet_id, ${copropriete}`
+const sansFiche = (fiche: string, email: string, copropriete: 'NULL' | 'c.id') =>
+  `signalements_qr_saisies_sans_fiche(c.emails_destinataires, ${garde(fiche, email, copropriete)})`
+const deLaFicheSeule = (fiche: string, email: string, copropriete: 'NULL' | 'c.id') =>
+  `EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e) WHERE signalements_qr_saisie_de_la_fiche(u.e, ${garde(fiche, email, copropriete)}))`
 const JOURNAL_DEPART = "VALUES (v_ccab, p_acteur, 'super_admin', 'copropriete.modifiee', v_c, p_id, ARRAY['emails_destinataires'], '{\"motif\": \"depart\"}'::jsonb);"
 
 describe(`Migration ${FICHIER} : départ (signalements_qr_desactiver_gestionnaire, corps de la 20261111 corrigée)`, () => {
@@ -494,7 +543,7 @@ describe(`Migration ${FICHIER} : départ (signalements_qr_desactiver_gestionnair
         `IF NOT v_trouvee OR NOT v_actif THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'; END IF; ${DOMAINES_CABINET}`],
       ['OR (v_email IS NOT NULL AND v_email = ANY (c.emails_destinataires))', `OR (v_email IS NOT NULL AND ${variante('v_email')})`],
       ['UPDATE signalements_qr_coproprietes SET emails_destinataires = array_remove(emails_destinataires, v_email) WHERE v_email = ANY(emails_destinataires) RETURNING id, cabinet_id',
-        `UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines) WHERE ${variante('v_email')} RETURNING c.id, c.cabinet_id`],
+        `UPDATE signalements_qr_coproprietes c SET emails_destinataires = ${sansFiche('p_id', 'v_email', 'NULL')} WHERE ${deLaFicheSeule('p_id', 'v_email', 'NULL')} RETURNING c.id, c.cabinet_id`],
     ])
     expect(compacter(nouvelle().corps)).toBe(attendu)
   })
@@ -514,7 +563,7 @@ describe(`Migration ${FICHIER} : départ (signalements_qr_desactiver_gestionnair
 
 describe(`Migration ${FICHIER} : effacement RGPD (signalements_qr_pseudonymiser_gestionnaire)`, () => {
   const corps = () => compacter(fonction('signalements_qr_pseudonymiser_gestionnaire').corps)
-  const RETRAIT = `UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_g.email, v_domaines) WHERE ${variante('v_g.email')} RETURNING c.id, c.cabinet_id`
+  const RETRAIT = `UPDATE signalements_qr_coproprietes c SET emails_destinataires = ${sansFiche('p_id', 'v_g.email', 'NULL')} WHERE ${deLaFicheSeule('p_id', 'v_g.email', 'NULL')} RETURNING c.id, c.cabinet_id`
   const EFFACEMENT = 'UPDATE signalements_qr_gestionnaires SET nom = NULL, email = NULL, pseudonymise_le = now() WHERE id = p_id;'
 
   it('fonction appelée par la route (clé service), plpgsql, rendue en jsonb', () => {
@@ -569,9 +618,9 @@ describe(`Migration ${FICHIER} : retrait d’attribution (signalements_qr_rempla
 
   it('corps de la 20261111 corrigée (verrous, borne de 1 000, journal) ; seul change le retrait des saisies d’une fiche qui perd la copropriété', () => {
     const attendu = corpsAttendu('signalements_qr_remplacer_attributions', [
-      ['v_retirees int := 0; BEGIN', 'v_retirees int := 0; v_domaines text[]; BEGIN'],
+      ['v_retirees int := 0; BEGIN', 'v_retirees int := 0; v_domaines text[]; v_perdu uuid; BEGIN'],
       ['FOR v_email IN SELECT g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP UPDATE signalements_qr_coproprietes SET emails_destinataires = array_remove(emails_destinataires, v_email) WHERE id = p_copropriete AND v_email = ANY (emails_destinataires);',
-        `${DOMAINES_CABINET_C3} FOR v_email IN SELECT g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines) WHERE c.id = p_copropriete AND ${variante('v_email')};`],
+        `${DOMAINES_CABINET_C3} FOR v_perdu, v_email IN SELECT g.id, g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP UPDATE signalements_qr_coproprietes c SET emails_destinataires = ${sansFiche('v_perdu', 'v_email', 'c.id')} WHERE c.id = p_copropriete AND ${deLaFicheSeule('v_perdu', 'v_email', 'c.id')};`],
     ])
     expect(compacter(nouvelle().corps)).toBe(attendu)
   })
@@ -590,8 +639,79 @@ describe(`Migration ${FICHIER} : retrait d’attribution (signalements_qr_attrib
     const attendu = corpsAttendu('signalements_qr_attribuer_au_gestionnaire', [
       ['v_retirees int := 0; BEGIN', 'v_retirees int := 0; v_domaines text[]; BEGIN'],
       ['IF v_email IS NOT NULL AND cardinality(v_perdues) > 0 THEN FOR v_c IN UPDATE signalements_qr_coproprietes SET emails_destinataires = array_remove(emails_destinataires, v_email) WHERE id = ANY (v_perdues) AND NOT attribuee_a_tous AND v_email = ANY (emails_destinataires) RETURNING id LOOP',
-        `IF v_email IS NOT NULL AND cardinality(v_perdues) > 0 THEN ${DOMAINES_CABINET_C3} FOR v_c IN UPDATE signalements_qr_coproprietes c SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines) WHERE c.id = ANY (v_perdues) AND NOT c.attribuee_a_tous AND ${variante('v_email')} RETURNING c.id LOOP`],
+        `IF v_email IS NOT NULL AND cardinality(v_perdues) > 0 THEN ${DOMAINES_CABINET_C3} FOR v_c IN UPDATE signalements_qr_coproprietes c SET emails_destinataires = ${sansFiche('p_gestionnaire', 'v_email', 'c.id')} WHERE c.id = ANY (v_perdues) AND NOT c.attribuee_a_tous AND ${deLaFicheSeule('p_gestionnaire', 'v_email', 'c.id')} RETURNING c.id LOOP`],
     ])
     expect(compacter(nouvelle().corps)).toBe(attendu)
+  })
+})
+
+// ── Contre-vérification du 12/11 : en amont, aucune boîte partagée entre deux fiches ──
+// La création ne vérifiait que l'égalité exacte (index unique) et l'enregistrement d'un cabinet acceptait un domaine porté
+// par une fiche d'un autre cabinet : deux fiches pouvaient partager une boîte selon la règle.
+
+/** Verrou d'un domaine : même clé à la création d'une fiche et à l'enregistrement des domaines d'un cabinet. */
+const VERROU_DOMAINE = (valeur: string) => `PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_domaine:' || ${valeur}));`
+const VERROU_BOITE = "PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_boite:' || split_part(split_part(v_email, '@', 1), '+', 1)));"
+const DOMAINES_FICHE_O = 'ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = o.cabinet_id)'
+const MEME_BOITE = 'SELECT o.id INTO v_existante FROM signalements_qr_gestionnaires o WHERE o.email IS NOT NULL'
+  + ` AND (signalements_qr_adresse_de_fiche(v_email, o.email, ${DOMAINES_FICHE_O})`
+  + ' OR EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises k WHERE k.cabinet_id = v_cab'
+  + ` AND signalements_qr_adresse_de_fiche(split_part(v_email, '@', 1) || '@' || k.domaine, o.email, ${DOMAINES_FICHE_O})))`
+  + " ORDER BY o.id LIMIT 1; IF FOUND THEN RAISE EXCEPTION 'existe_deja' USING ERRCODE = 'P0001', DETAIL = v_existante::text; END IF;"
+
+describe(`Migration ${FICHIER} : création d’une fiche (signalements_qr_inviter_gestionnaire, corps de la 20261111 corrigée)`, () => {
+  const nouvelle = () => fonction('signalements_qr_inviter_gestionnaire')
+  const ancienne = () => fonction('signalements_qr_inviter_gestionnaire', fonctionsDefinies(code1111))
+
+  it('même signature et même en-tête que la 20261111', () => {
+    expect(nouvelle().types).toBe(ancienne().types)
+    expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
+  })
+
+  it('corps de la 20261111 corrigée ; seuls s’ajoutent les verrous (domaine, puis boîte) et le refus d’une boîte déjà portée par une fiche', () => {
+    const attendu = corpsAttendu('signalements_qr_inviter_gestionnaire', [
+      ['WHERE t.x IS NOT NULL); BEGIN', 'WHERE t.x IS NOT NULL); v_existante uuid; BEGIN'],
+      ["OR NOT EXISTS (SELECT 1 FROM signalements_qr_cabinets k WHERE k.id = v_cab) THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'; END IF;",
+        `OR NOT EXISTS (SELECT 1 FROM signalements_qr_cabinets k WHERE k.id = v_cab) THEN RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001'; END IF; ${VERROU_DOMAINE("split_part(v_email, '@', 2)")} ${VERROU_BOITE}`],
+      ['INSERT INTO signalements_qr_gestionnaires (id, cabinet_id, nom, email, domaine_force, cree_par)',
+        `${MEME_BOITE} INSERT INTO signalements_qr_gestionnaires (id, cabinet_id, nom, email, domaine_force, cree_par)`],
+    ])
+    expect(compacter(nouvelle().corps)).toBe(attendu)
+  })
+
+  it('les verrous AVANT le contrôle du domaine d’un autre cabinet et la recherche de la boîte ; le refus AVANT toute écriture', () => {
+    const corps = compacter(nouvelle().corps)
+    const domaine = corps.indexOf(VERROU_DOMAINE("split_part(v_email, '@', 2)"))
+    expect(domaine).toBeGreaterThan(0)
+    expect(corps.indexOf(VERROU_BOITE)).toBeGreaterThan(domaine)
+    expect(corps.indexOf("'domaine_autre_cabinet'")).toBeGreaterThan(corps.indexOf(VERROU_BOITE))
+    expect(corps.indexOf(MEME_BOITE)).toBeGreaterThan(corps.indexOf(VERROU_BOITE))
+    expect(corps.indexOf('INSERT INTO')).toBeGreaterThan(corps.indexOf(MEME_BOITE))
+  })
+})
+
+describe(`Migration ${FICHIER} : domaines d’un cabinet (signalements_qr_enregistrer_cabinet, corps de la 20261111 corrigée)`, () => {
+  const nouvelle = () => fonction('signalements_qr_enregistrer_cabinet')
+  const ancienne = () => fonction('signalements_qr_enregistrer_cabinet', fonctionsDefinies(code1111))
+  const DOMAINE_D_UNE_FICHE = `IF v_domaines IS NOT NULL THEN FOREACH v_d IN ARRAY v_domaines LOOP ${VERROU_DOMAINE('v_d')} END LOOP;`
+    + ' IF EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g WHERE g.email IS NOT NULL AND g.cabinet_id IS DISTINCT FROM p_id'
+    + " AND split_part(g.email, '@', 2) = ANY (v_domaines)"
+    + " AND NOT EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = p_id AND d.domaine = split_part(g.email, '@', 2)))"
+    + " THEN RAISE EXCEPTION 'domaine_pris' USING ERRCODE = 'P0001'; END IF; END IF;"
+
+  it('même signature et même en-tête que la 20261111', () => {
+    expect(nouvelle().types).toBe(ancienne().types)
+    expect(compacter(nouvelle().entete)).toBe(compacter(ancienne().entete))
+  })
+
+  it('corps de la 20261111 corrigée ; seul s’ajoute le refus d’un NOUVEAU domaine porté par une fiche d’un autre cabinet (verrous par domaine, triés)', () => {
+    const attendu = corpsAttendu('signalements_qr_enregistrer_cabinet', [
+      ["v_avant text[] := '{}'; BEGIN", "v_avant text[] := '{}'; v_d text; BEGIN"],
+      ["d.cabinet_id IS DISTINCT FROM p_id) THEN RAISE EXCEPTION 'domaine_pris' USING ERRCODE = 'P0001'; END IF;",
+        `d.cabinet_id IS DISTINCT FROM p_id) THEN RAISE EXCEPTION 'domaine_pris' USING ERRCODE = 'P0001'; END IF; ${DOMAINE_D_UNE_FICHE}`],
+    ])
+    expect(compacter(nouvelle().corps)).toBe(attendu)
+    // Domaines triés (ORDER BY 1) : les verrous se prennent toujours dans le même ordre.
+    expect(compacter(nouvelle().corps)).toContain("WHERE nullif(btrim(t.x), '') IS NOT NULL ORDER BY 1);")
   })
 })

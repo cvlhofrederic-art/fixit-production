@@ -18,7 +18,12 @@
 -- de signalements_qr_desactiver_gestionnaire (départ), de signalements_qr_remplacer_attributions et de
 -- signalements_qr_attribuer_au_gestionnaire (retraits d'attribution) qui retirent des saisies l'adresse ET ses
 -- variantes par la règle ; effacement RGPD en une transaction (signalements_qr_pseudonymiser_gestionnaire : variantes
--- retirées avant que l'adresse ne disparaisse). Les actions du journal et les valeurs des envois (objet 'acces', refus
+-- retirées avant que l'adresse ne disparaisse). Contre-vérification du 12/11 : chaque retrait et chaque exclusion passe
+-- par la garde signalements_qr_saisie_de_la_fiche (saisie de la fiche SEULE : une saisie que la règle reconnaît aussi
+-- comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la copropriété reste, comme avec l'égalité
+-- exacte de la PR 1) ; en amont, corps de signalements_qr_inviter_gestionnaire (création refusée, existe_deja, sur une
+-- boîte déjà portée par une fiche) et de signalements_qr_enregistrer_cabinet (domaine porté par une fiche d'un autre
+-- cabinet refusé, domaine_pris). Les actions du journal et les valeurs des envois (objet 'acces', refus
 -- 'compte_autre_espace') sont déjà dans les CHECK de la 20261111 : aucune contrainte n'est remplacée.
 --
 -- À appliquer par Frédéric (Supabase > SQL Editor) APRÈS 20261111_signalements_qr_gestionnaires.sql. Additive et
@@ -27,11 +32,13 @@
 -- nouvelle, aucune valeur de client (dépôt public). La PR peut être fusionnée AVANT : d'ici là, les routes de la PR 2
 -- répondent 503 base_absente (« migration à appliquer ») et rien d'existant ne change (espace du super admin, dépôt
 -- public, e-mails, connexion ; l'effacement RGPD reste celui de la PR 1, repli journalisé).
--- Ordre des rejeux : cette migration redéfinit cinq fonctions de la 20261111 (signalements_qr_emails_gestionnaires,
+-- Ordre des rejeux : cette migration redéfinit sept fonctions de la 20261111 (signalements_qr_emails_gestionnaires,
 -- signalements_qr_contester_adresse, signalements_qr_desactiver_gestionnaire, signalements_qr_remplacer_attributions,
--- signalements_qr_attribuer_au_gestionnaire ; corps repris de sa version corrigée). Si la 20261111 est
+-- signalements_qr_attribuer_au_gestionnaire, signalements_qr_inviter_gestionnaire,
+-- signalements_qr_enregistrer_cabinet ; corps repris de sa version corrigée). Si la 20261111 est
 -- rejouée APRÈS celle-ci, elle remet ses corps (acces_ouvert faux, « Ce n'est pas moi » refusé depuis un lien d'accès,
--- variantes laissées au départ et aux retraits d'attribution) : rejouer ensuite celle-ci (essai PGlite du 11/11).
+-- variantes laissées au départ et aux retraits d'attribution, boîte partagée et domaine d'une fiche d'un autre cabinet
+-- acceptés) : rejouer ensuite celle-ci (essai PGlite du 11/11).
 -- ══════════════════════════════════════════════════════════════════════════════
 
 -- ── 1. Colonnes de la fiche ──
@@ -137,8 +144,9 @@ CREATE OR REPLACE TRIGGER trg_signalements_qr_invitations_liaison
 -- garde sa partie locale sur les domaines de son cabinet). Jumelle TypeScript : estAdresseDeFicheQr
 -- (lib/aj-signalement/gestionnaires.ts), mêmes réponses sur la table de cas commune
 -- (tests/helpers/aj-signalement-adresse-de-fiche.cas.json : test de parité, essai PGlite). Immuable : les domaines lui
--- sont passés, elle ne lit aucune table. Seule utilisée par les exclusions de l'envoi (section 5) et par chaque retrait
--- des saisies (départ, effacement, retrait d'attribution).
+-- sont passés, elle ne lit aucune table. Seule utilisée, par la garde ci-dessous, pour les exclusions de l'envoi
+-- (section 5) et pour chaque retrait des saisies (départ, effacement, retrait d'attribution) ; et par la création d'une
+-- fiche (section 10 : boîte déjà portée).
 CREATE OR REPLACE FUNCTION signalements_qr_adresse_de_fiche(p_adresse text, p_fiche_email text, p_domaines text[])
 RETURNS boolean
 LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
@@ -153,12 +161,40 @@ LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = public, 
          (SELECT regexp_replace(lower(btrim(p_fiche_email)), '^([^@+]+)\+[^@]*@', '\1@') AS boite) AS f
 $fn$;
 
--- Saisies d'une copropriété SANS celles de la fiche (même règle) : ordre gardé, NULL gardés (comme array_remove).
-CREATE OR REPLACE FUNCTION signalements_qr_saisies_sans_fiche(p_saisies text[], p_fiche_email text, p_domaines text[])
-RETURNS text[]
-LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+-- La garde (contre-vérification du 12/11) : saisie de la fiche SEULE. La règle la reconnaît comme l'adresse de la fiche
+-- (p_fiche_email ; p_domaines : domaines de SON cabinet), et comme celle d'aucune AUTRE fiche active et non contestée
+-- du cabinet de la copropriété (p_cabinet ; domaines de ce cabinet) ; au retrait d'une attribution (p_copropriete), une
+-- autre fiche ne compte que si elle est attribuée à cette copropriété (sinon la boîte la perd aussi). Seules ces saisies
+-- quittent une copropriété (départ, effacement, retrait d'attribution) ou sont exclues de l'envoi : l'adresse d'une
+-- gestionnaire encore active dans le cabinet de la copropriété (même boîte, ou même partie locale sur un domaine de ce
+-- cabinet) n'est jamais retirée ni exclue pour une autre fiche, comme avec l'égalité exacte de la PR 1. Une fiche d'un
+-- AUTRE cabinet ne garde rien : partie d'un cabinet, une personne n'en reçoit plus les copropriétés parce qu'elle
+-- travaille ailleurs. Copropriété sans cabinet (p_cabinet NULL) : aucune autre fiche. Jumelle des tests :
+-- saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts), mêmes réponses sur la table commune (gardes) et dans
+-- l'essai PGlite. Lit les fiches, les attributions et les domaines : STABLE.
+CREATE OR REPLACE FUNCTION signalements_qr_saisie_de_la_fiche(
+  p_adresse text, p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid
+) RETURNS boolean
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+  SELECT signalements_qr_adresse_de_fiche(p_adresse, p_fiche_email, p_domaines)
+     AND NOT EXISTS (
+       SELECT 1 FROM signalements_qr_gestionnaires o
+        WHERE o.cabinet_id = p_cabinet AND o.id IS DISTINCT FROM p_fiche
+          AND o.actif AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
+          AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
+                                                 WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
+          AND signalements_qr_adresse_de_fiche(p_adresse, o.email,
+                ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = p_cabinet)))
+$fn$;
+
+-- Saisies d'une copropriété SANS celles de la fiche seule (garde ci-dessus) : ordre gardé, NULL gardés (comme
+-- array_remove).
+CREATE OR REPLACE FUNCTION signalements_qr_saisies_sans_fiche(
+  p_saisies text[], p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid
+) RETURNS text[]
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   SELECT coalesce(array_agg(u.e ORDER BY u.n)
-                    FILTER (WHERE NOT signalements_qr_adresse_de_fiche(u.e, p_fiche_email, p_domaines)), '{}')
+                    FILTER (WHERE NOT signalements_qr_saisie_de_la_fiche(u.e, p_fiche, p_fiche_email, p_domaines, p_cabinet, p_copropriete)), '{}')
     FROM unnest(p_saisies) WITH ORDINALITY AS u(e, n)
 $fn$;
 
@@ -168,7 +204,10 @@ $fn$;
 -- Exclusions (RG-06 bis-3) : une saisie est celle d'une fiche partie ou contestée selon la règle de la section 4
 -- (domaines du cabinet de la fiche) ; elle ne reçoit donc rien. La ligne exclue porte cette SAISIE (retirée telle quelle
 -- de l'envoi par destinatairesSignalementQr, lib/aj-signalement/destinataires.ts). Une fiche pseudonymisée n'a plus
--- d'adresse et n'exclut plus rien : ses saisies sont retirées AVANT (section 8).
+-- d'adresse et n'exclut plus rien : ses saisies sont retirées AVANT (section 8). Par la garde (contre-vérification du
+-- 12/11) : une saisie que la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet
+-- de la copropriété n'est pas exclue (la garde ne dépend que de la boîte de la saisie : l'exclusion de
+-- destinatairesSignalementQr, par boîte, reste la même).
 CREATE OR REPLACE FUNCTION signalements_qr_emails_gestionnaires(p_copropriete uuid)
 RETURNS TABLE(gestionnaire_id uuid, email text, acces_ouvert boolean, exclu boolean)
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
@@ -185,8 +224,9 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
       FROM signalements_qr_coproprietes c
       CROSS JOIN LATERAL unnest(c.emails_destinataires) AS u(e)
       JOIN signalements_qr_gestionnaires g
-        ON signalements_qr_adresse_de_fiche(u.e, g.email,
-             ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id))
+        ON signalements_qr_saisie_de_la_fiche(u.e, g.id, g.email,
+             ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = g.cabinet_id),
+             c.cabinet_id, NULL)
      WHERE c.id = p_copropriete
        AND (NOT g.actif OR g.adresse_contestee_le IS NOT NULL)
   ) AS t
@@ -236,7 +276,9 @@ END $fn$;
 -- copropriétés ; au plus 1 000 attributions par fiche ; jetons de TOUS ses envois effacés), sauf ses saisies : son
 -- adresse ET ses variantes (règle de la section 4, domaines de son cabinet) quittent les adresses saisies de toutes les
 -- copropriétés, au lieu de la seule égalité exacte (array_remove) ; ces copropriétés sont verrouillées avec les autres,
--- avant tout retrait. Journal inchangé (copropriete.modifiee, motif depart, une ligne par copropriété retouchée).
+-- avant tout retrait. Seules celles de la fiche SEULE (garde de la section 4) : une saisie qui est aussi l'adresse d'une
+-- autre fiche active du cabinet de la copropriété reste. Journal inchangé (copropriete.modifiee, motif depart, une ligne
+-- par copropriété retouchée).
 -- Une succession (un successeur actif du même cabinet, ou NULL) pour CHACUNE de ses attributions.
 -- p_successions = [{ coproprieteId, versGestionnaireId | null }].
 CREATE OR REPLACE FUNCTION signalements_qr_desactiver_gestionnaire(
@@ -337,13 +379,14 @@ BEGIN
    WHERE gestionnaire_id = p_id AND invite_token IS NOT NULL;
 
   -- Son adresse ET ses variantes (règle de la section 4 : même boîte, ou même partie locale sur un domaine de son
-  -- cabinet) quittent les adresses saisies de TOUTES les copropriétés qui les contiennent (quel que soit leur cabinet).
+  -- cabinet) quittent les adresses saisies de TOUTES les copropriétés qui les contiennent (quel que soit leur cabinet),
+  -- sauf celles qu'une autre fiche active du cabinet de la copropriété reconnaît aussi (garde de la section 4).
   IF v_email IS NOT NULL THEN
     FOR v_c, v_ccab IN
       UPDATE signalements_qr_coproprietes c
-         SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines)
+         SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, p_id, v_email, v_domaines, c.cabinet_id, NULL)
        WHERE EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e)
-                      WHERE signalements_qr_adresse_de_fiche(u.e, v_email, v_domaines))
+                      WHERE signalements_qr_saisie_de_la_fiche(u.e, p_id, v_email, v_domaines, c.cabinet_id, NULL))
       RETURNING c.id, c.cabinet_id
     LOOP
       v_retirees := v_retirees + 1;
@@ -366,8 +409,9 @@ END $fn$;
 -- quittent TOUTES les copropriétés AVANT que l'adresse ne soit effacée ; sinon plus rien ne les exclurait de l'envoi
 -- (l'exclusion de la section 5 porte sur l'adresse de la fiche) et une variante restée (import, saisie antérieure,
 -- départ fait avant cette migration) recevrait les coordonnées des déclarants dans la boîte de la personne partie.
--- Puis nom et e-mail mis à NULL. Fiche désactivée seulement (le départ d'abord) ; déjà pseudonymisée : rien (relance du
--- même bouton). Ordre des verrous : la fiche, puis les copropriétés par identifiant (comme le départ). Journal comme au
+-- Seules celles de la fiche SEULE (garde de la section 4) : une saisie qui est aussi l'adresse d'une autre fiche active
+-- du cabinet de la copropriété reste. Puis nom et e-mail mis à NULL. Fiche désactivée seulement (le départ d'abord) ;
+-- déjà pseudonymisée : rien (relance du même bouton). Ordre des verrous : la fiche, puis les copropriétés par identifiant (comme le départ). Journal comme au
 -- départ ; les envois et la ligne gestionnaire.pseudonymise restent écrits par la route (PR 1). Fonction absente (cette
 -- migration non appliquée) : la route fait la pseudonymisation de la PR 1 et journalise le repli.
 CREATE OR REPLACE FUNCTION signalements_qr_pseudonymiser_gestionnaire(p_id uuid, p_acteur uuid) RETURNS jsonb
@@ -397,9 +441,9 @@ BEGIN
      ORDER BY c.id FOR NO KEY UPDATE;
     FOR v_c, v_ccab IN
       UPDATE signalements_qr_coproprietes c
-         SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_g.email, v_domaines)
+         SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, p_id, v_g.email, v_domaines, c.cabinet_id, NULL)
        WHERE EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e)
-                      WHERE signalements_qr_adresse_de_fiche(u.e, v_g.email, v_domaines))
+                      WHERE signalements_qr_saisie_de_la_fiche(u.e, p_id, v_g.email, v_domaines, c.cabinet_id, NULL))
       RETURNING c.id, c.cabinet_id
     LOOP
       v_retirees := v_retirees + 1;
@@ -417,8 +461,10 @@ END $fn$;
 -- ── 9. Retraits d'attribution (fiche de la copropriété, page profil du gestionnaire) ──
 -- Mêmes signatures et mêmes corps que la 20261111 (version corrigée de la PR 1 : ordre unique des verrous, au plus
 -- 1 000 attributions par fiche), sauf les saisies : une fiche qui perd une copropriété en perd aussi son adresse ET ses
--- variantes (règle de la section 4, domaines du cabinet), au lieu de la seule égalité exacte (array_remove). Journal
--- inchangé (copropriete.modifiee, motif retrait ou tous_retire).
+-- variantes (règle de la section 4, domaines du cabinet), au lieu de la seule égalité exacte (array_remove) ; seules
+-- celles de la fiche SEULE (garde de la section 4, p_copropriete donné) : une saisie qui est aussi l'adresse d'une autre
+-- fiche active attribuée à la copropriété reste (la boîte la reçoit encore). Journal inchangé (copropriete.modifiee,
+-- motif retrait ou tous_retire).
 -- Gestionnaires d'une copropriété (fiche de la copropriété) : ensemble complet, « à tous » si p_tous n'est pas NULL.
 CREATE OR REPLACE FUNCTION signalements_qr_remplacer_attributions(
   p_copropriete uuid, p_gestionnaires uuid[], p_tous boolean, p_acteur uuid
@@ -434,6 +480,7 @@ DECLARE
   v_email       text;
   v_retirees    int := 0;
   v_domaines    text[];
+  v_perdu       uuid;
 BEGIN
   IF p_copropriete IS NULL OR p_acteur IS NULL OR cardinality(v_nouveaux) > 100 THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
@@ -497,11 +544,12 @@ BEGIN
        AND NOT (v_tous_apres OR g.id = ANY (v_nouveaux)));
   -- Domaines du cabinet : les saisies d'une fiche (adresse et variantes) se reconnaissent par la règle de la section 4.
   v_domaines := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab ORDER BY d.domaine);
-  FOR v_email IN SELECT g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP
+  -- Garde : une autre fiche ne garde une saisie que si elle a encore la copropriété (attribuée après ce changement).
+  FOR v_perdu, v_email IN SELECT g.id, g.email FROM signalements_qr_gestionnaires g WHERE g.id = ANY (v_perdus) AND g.email IS NOT NULL LOOP
     UPDATE signalements_qr_coproprietes c
-       SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines)
+       SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_perdu, v_email, v_domaines, c.cabinet_id, c.id)
      WHERE c.id = p_copropriete AND EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e)
-                                             WHERE signalements_qr_adresse_de_fiche(u.e, v_email, v_domaines));
+                                             WHERE signalements_qr_saisie_de_la_fiche(u.e, v_perdu, v_email, v_domaines, c.cabinet_id, c.id));
     IF FOUND THEN
       v_retirees := v_retirees + 1;
     END IF;
@@ -567,15 +615,16 @@ BEGIN
   SELECT v_cab, p_acteur, 'super_admin', 'attribution.retiree', t.x, p_gestionnaire FROM unnest(v_perdues) AS t(x);
 
   -- Son adresse ET ses variantes (règle de la section 4) quittent les adresses saisies des copropriétés qu'il perd (sauf
-  -- « à tous » : il les voit encore).
+  -- « à tous » : il les voit encore ; et sauf, par la garde, celles qu'une autre fiche active attribuée à la copropriété
+  -- reconnaît aussi).
   IF v_email IS NOT NULL AND cardinality(v_perdues) > 0 THEN
     -- Domaines du cabinet : les saisies d'une fiche (adresse et variantes) se reconnaissent par la règle de la section 4.
     v_domaines := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_cab ORDER BY d.domaine);
     FOR v_c IN
       UPDATE signalements_qr_coproprietes c
-         SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, v_email, v_domaines)
+         SET emails_destinataires = signalements_qr_saisies_sans_fiche(c.emails_destinataires, p_gestionnaire, v_email, v_domaines, c.cabinet_id, c.id)
        WHERE c.id = ANY (v_perdues) AND NOT c.attribuee_a_tous
-         AND EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e) WHERE signalements_qr_adresse_de_fiche(u.e, v_email, v_domaines))
+         AND EXISTS (SELECT 1 FROM unnest(c.emails_destinataires) AS u(e) WHERE signalements_qr_saisie_de_la_fiche(u.e, p_gestionnaire, v_email, v_domaines, c.cabinet_id, c.id))
       RETURNING c.id
     LOOP
       v_retirees := v_retirees + 1;
@@ -588,7 +637,190 @@ BEGIN
   RETURN jsonb_build_object('coproprietes', to_jsonb(v_cibles), 'adressesRetirees', v_retirees);
 END $fn$;
 
--- ── 10. Droits ──
+-- ── 10. Création d'une fiche (route POST /api/aj-signalement/gestionnaires) ──
+-- Même signature et même corps que la 20261111 (version corrigée de la PR 1), avec, contre-vérification du 12/11 : les
+-- verrous du domaine et de la boîte, et le refus d'une boîte déjà portée par une fiche (existe_deja, identifiant en
+-- DETAIL). Avant cette migration, seule l'adresse exacte était refusée (index unique) : deux fiches pouvaient partager
+-- une boîte selon la règle, et le départ de l'une retirer l'adresse de l'autre.
+CREATE OR REPLACE FUNCTION signalements_qr_inviter_gestionnaire(
+  p_gestionnaire jsonb, p_invitation jsonb, p_coproprietes uuid[], p_acteur uuid
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+DECLARE
+  v_id      uuid := nullif(p_gestionnaire->>'id', '')::uuid;
+  v_cab     uuid := nullif(p_gestionnaire->>'cabinetId', '')::uuid;
+  v_nom     text := btrim(p_gestionnaire->>'nom');
+  v_email   text := p_gestionnaire->>'email';
+  v_force   boolean := coalesce((p_gestionnaire->>'domaineForce')::boolean, false);
+  v_inv     uuid := nullif(p_invitation->>'id', '')::uuid;
+  v_copros  uuid[] := ARRAY(SELECT DISTINCT t.x FROM unnest(coalesce(p_coproprietes, '{}'::uuid[])) AS t(x) WHERE t.x IS NOT NULL);
+  v_existante uuid;
+BEGIN
+  IF v_id IS NULL OR v_inv IS NULL OR p_acteur IS NULL OR v_email IS NULL OR v_nom IS NULL
+     OR p_invitation->>'invite_token' IS NULL OR cardinality(v_copros) > 500 THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
+  -- L'adresse signée est celle de la fiche, à l'identique ; le cabinet existe.
+  IF p_invitation->>'email' IS DISTINCT FROM v_email OR v_cab IS NULL
+     OR NOT EXISTS (SELECT 1 FROM signalements_qr_cabinets k WHERE k.id = v_cab) THEN
+    RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
+  END IF;
+  -- Verrous de la transaction (contre-vérification du 12/11) : le domaine de l'adresse (même clé que l'ajout d'un domaine
+  -- à un cabinet, section 11), puis sa partie locale sans étiquette « + » (deux fiches de même boîte ont toujours la même :
+  -- leurs créations simultanées passent l'une après l'autre ; l'index unique ne voit que l'adresse exacte).
+  PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_domaine:' || split_part(v_email, '@', 2)));
+  PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_boite:' || split_part(split_part(v_email, '@', 1), '+', 1)));
+  -- Domaine déclaré par un AUTRE cabinet client : refusé, forçage compris (son titulaire est salarié d'un autre client).
+  IF EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+              WHERE d.cabinet_id <> v_cab AND d.domaine = split_part(v_email, '@', 2)) THEN
+    RAISE EXCEPTION 'domaine_autre_cabinet' USING ERRCODE = 'P0001';
+  END IF;
+  -- Une fiche n'est créée que dans les domaines de SON cabinet, sauf forçage du super admin (journalisé).
+  IF NOT v_force AND NOT EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+                                  WHERE d.cabinet_id = v_cab AND d.domaine = split_part(v_email, '@', 2)) THEN
+    RAISE EXCEPTION 'hors_domaine' USING ERRCODE = 'P0001';
+  END IF;
+  IF EXISTS (SELECT 1 FROM unnest(v_copros) AS t(x)
+              WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_coproprietes c WHERE c.id = t.x AND c.cabinet_id = v_cab)) THEN
+    RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
+  END IF;
+
+  -- Boîte déjà portée par une fiche, active ou non, de tout cabinet (contre-vérification du 12/11) : la nouvelle adresse,
+  -- ou sa partie locale sur un domaine de SON cabinet, est l'adresse de cette fiche par la règle de la section 4 (domaines
+  -- du cabinet de la fiche) ; une boîte, une fiche (sinon le départ de l'une emporterait l'adresse de l'autre). Refus
+  -- existe_deja, avec l'identifiant de la fiche en DETAIL (la route le rend : « voir la fiche »). Une fiche effacée n'a
+  -- plus d'adresse : sa boîte se libère.
+  SELECT o.id INTO v_existante FROM signalements_qr_gestionnaires o
+   WHERE o.email IS NOT NULL
+     AND (signalements_qr_adresse_de_fiche(v_email, o.email,
+            ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = o.cabinet_id))
+          OR EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises k WHERE k.cabinet_id = v_cab
+                      AND signalements_qr_adresse_de_fiche(split_part(v_email, '@', 1) || '@' || k.domaine, o.email,
+                            ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = o.cabinet_id))))
+   ORDER BY o.id LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'existe_deja' USING ERRCODE = 'P0001', DETAIL = v_existante::text;
+  END IF;
+  INSERT INTO signalements_qr_gestionnaires (id, cabinet_id, nom, email, domaine_force, cree_par)
+  VALUES (v_id, v_cab, v_nom, v_email, v_force, p_acteur);      -- 23505 : adresse déjà en table (existe_deja)
+  INSERT INTO signalements_qr_invitations (id, gestionnaire_id, objet, email, full_name, invite_token, envoye_par)
+  VALUES (v_inv, v_id, 'confirmation_adresse', v_email, v_nom, p_invitation->>'invite_token', p_acteur);
+  INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, gestionnaire_id)
+  VALUES (v_cab, p_acteur, 'super_admin', 'gestionnaire.cree', v_id);
+  IF v_force THEN
+    INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, gestionnaire_id)
+    VALUES (v_cab, p_acteur, 'super_admin', 'gestionnaire.domaine_force', v_id);
+  END IF;
+
+  WITH ajoutees AS (
+    INSERT INTO signalements_qr_attributions (copropriete_id, gestionnaire_id, origine, attribue_par)
+    SELECT t.x, v_id, 'super_admin', p_acteur FROM unnest(v_copros) AS t(x)
+    ON CONFLICT DO NOTHING
+    RETURNING copropriete_id
+  )
+  INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, copropriete_id, gestionnaire_id, details)
+  SELECT v_cab, p_acteur, 'super_admin', 'attribution.ajoutee', a.copropriete_id, v_id, '{"origine": "super_admin"}'::jsonb
+    FROM ajoutees a;
+  RETURN v_id;
+END $fn$;
+
+-- ── 11. Domaines d'un cabinet (routes POST et PATCH /api/aj-signalement/cabinets) ──
+-- Même signature et même corps que la 20261111 (version corrigée de la PR 1), avec, contre-vérification du 12/11 : le
+-- refus d'un NOUVEAU domaine porté par l'adresse d'une fiche d'un autre cabinet (domaine_pris), sous le verrou de chaque
+-- domaine.
+CREATE OR REPLACE FUNCTION signalements_qr_enregistrer_cabinet(
+  p_id uuid, p_nom text, p_identifiant text, p_langue text, p_domaines text[], p_acteur uuid
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+DECLARE
+  v_id        uuid := p_id;
+  v_ancien    signalements_qr_cabinets%ROWTYPE;
+  v_nom       text := nullif(btrim(p_nom), '');
+  v_champs    text[] := '{}';
+  v_domaines  text[];
+  v_avant     text[] := '{}';
+  v_d         text;
+BEGIN
+  IF p_acteur IS NULL THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
+  IF p_domaines IS NOT NULL THEN
+    v_domaines := ARRAY(SELECT DISTINCT lower(btrim(t.x)) FROM unnest(p_domaines) AS t(x)
+                         WHERE nullif(btrim(t.x), '') IS NOT NULL ORDER BY 1);
+    IF cardinality(v_domaines) > 20 THEN
+      RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+    END IF;
+  END IF;
+  IF p_identifiant IS NOT NULL AND EXISTS (SELECT 1 FROM signalements_qr_cabinets k
+                                            WHERE k.identifiant = p_identifiant AND k.id IS DISTINCT FROM p_id) THEN
+    RAISE EXCEPTION 'identifiant_pris' USING ERRCODE = 'P0001';
+  END IF;
+  IF v_domaines IS NOT NULL AND EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+                                         WHERE d.domaine = ANY (v_domaines) AND d.cabinet_id IS DISTINCT FROM p_id) THEN
+    RAISE EXCEPTION 'domaine_pris' USING ERRCODE = 'P0001';
+  END IF;
+  -- Domaine porté par l'adresse d'une fiche d'un AUTRE cabinet (fiche forcée ; contre-vérification du 12/11) : refusé
+  -- comme celui d'un autre cabinet, s'il n'est pas déjà l'un des domaines de ce cabinet ; sinon la règle de la section 4
+  -- rattacherait l'adresse de cette fiche aux fiches de ce cabinet (même partie locale sur l'un de ses domaines). Verrou
+  -- de chaque domaine, dans l'ordre de v_domaines (trié), même clé que la création d'une fiche (section 10).
+  IF v_domaines IS NOT NULL THEN
+    FOREACH v_d IN ARRAY v_domaines LOOP
+      PERFORM pg_advisory_xact_lock(hashtext('signalements_qr_domaine:' || v_d));
+    END LOOP;
+    IF EXISTS (SELECT 1 FROM signalements_qr_gestionnaires g
+                WHERE g.email IS NOT NULL AND g.cabinet_id IS DISTINCT FROM p_id
+                  AND split_part(g.email, '@', 2) = ANY (v_domaines)
+                  AND NOT EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d
+                                   WHERE d.cabinet_id = p_id AND d.domaine = split_part(g.email, '@', 2))) THEN
+      RAISE EXCEPTION 'domaine_pris' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
+  IF p_id IS NULL THEN
+    IF v_nom IS NULL OR p_identifiant IS NULL THEN
+      RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+    END IF;
+    INSERT INTO signalements_qr_cabinets (nom, identifiant, langue, cree_par)
+    VALUES (v_nom, p_identifiant, coalesce(p_langue, 'fr'), p_acteur)
+    RETURNING id INTO v_id;                        -- 23505 si un autre appel a pris l'identifiant entre-temps
+    INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action)
+    VALUES (v_id, p_acteur, 'super_admin', 'cabinet.cree');
+  ELSE
+    SELECT * INTO v_ancien FROM signalements_qr_cabinets k WHERE k.id = p_id FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
+    END IF;
+    IF v_nom IS NOT NULL AND v_nom IS DISTINCT FROM v_ancien.nom THEN
+      v_champs := array_append(v_champs, 'nom');
+    END IF;
+    IF p_identifiant IS NOT NULL AND p_identifiant IS DISTINCT FROM v_ancien.identifiant THEN
+      v_champs := array_append(v_champs, 'identifiant');
+    END IF;
+    IF p_langue IS NOT NULL AND p_langue IS DISTINCT FROM v_ancien.langue THEN
+      v_champs := array_append(v_champs, 'langue');
+    END IF;
+    IF cardinality(v_champs) > 0 THEN
+      UPDATE signalements_qr_cabinets
+         SET nom = coalesce(v_nom, nom), identifiant = coalesce(p_identifiant, identifiant), langue = coalesce(p_langue, langue)
+       WHERE id = p_id;                            -- identifiant_fige (trigger) si le cabinet est déjà utilisé
+      INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, champs)
+      VALUES (p_id, p_acteur, 'super_admin', 'cabinet.modifie', v_champs);
+    END IF;
+    v_avant := ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = p_id ORDER BY 1);
+  END IF;
+
+  IF v_domaines IS NOT NULL AND v_domaines IS DISTINCT FROM v_avant THEN
+    DELETE FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_id AND NOT (d.domaine = ANY (v_domaines));
+    INSERT INTO signalements_qr_domaines_autorises (cabinet_id, domaine, ajoute_par)
+    SELECT v_id, t.x, p_acteur FROM unnest(v_domaines) AS t(x)
+     WHERE NOT EXISTS (SELECT 1 FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = v_id AND d.domaine = t.x);
+    INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, details)
+    VALUES (v_id, p_acteur, 'super_admin', 'cabinet.domaines_modifies', jsonb_build_object('nombre', cardinality(v_domaines)));
+  END IF;
+  RETURN jsonb_build_object('id', v_id, 'cree', p_id IS NULL, 'champs', to_jsonb(v_champs));
+END $fn$;
+
+-- ── 12. Droits ──
 REVOKE EXECUTE ON FUNCTION signalements_qr_envoyer_acces(uuid, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_envoyer_acces(uuid, jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_emails_gestionnaires(uuid) FROM PUBLIC, anon, authenticated;
@@ -598,8 +830,10 @@ GRANT  EXECUTE ON FUNCTION signalements_qr_contester_adresse(uuid) TO service_ro
 REVOKE EXECUTE ON FUNCTION signalements_qr_lier_gestionnaire() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION signalements_qr_adresse_de_fiche(text, text, text[]) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_adresse_de_fiche(text, text, text[]) TO service_role;
-REVOKE EXECUTE ON FUNCTION signalements_qr_saisies_sans_fiche(text[], text, text[]) FROM PUBLIC, anon, authenticated;
-GRANT  EXECUTE ON FUNCTION signalements_qr_saisies_sans_fiche(text[], text, text[]) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_saisie_de_la_fiche(text, uuid, text, text[], uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_saisie_de_la_fiche(text, uuid, text, text[], uuid, uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_saisies_sans_fiche(text[], uuid, text, text[], uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_saisies_sans_fiche(text[], uuid, text, text[], uuid, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_desactiver_gestionnaire(uuid, jsonb, uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_desactiver_gestionnaire(uuid, jsonb, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_pseudonymiser_gestionnaire(uuid, uuid) FROM PUBLIC, anon, authenticated;
@@ -608,5 +842,9 @@ REVOKE EXECUTE ON FUNCTION signalements_qr_remplacer_attributions(uuid, uuid[], 
 GRANT  EXECUTE ON FUNCTION signalements_qr_remplacer_attributions(uuid, uuid[], boolean, uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_attribuer_au_gestionnaire(uuid, uuid[], uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_attribuer_au_gestionnaire(uuid, uuid[], uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_inviter_gestionnaire(jsonb, jsonb, uuid[], uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_inviter_gestionnaire(jsonb, jsonb, uuid[], uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_enregistrer_cabinet(uuid, text, text, text, text[], uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_enregistrer_cabinet(uuid, text, text, text, text[], uuid) TO service_role;
 
 NOTIFY pgrst, 'reload schema';

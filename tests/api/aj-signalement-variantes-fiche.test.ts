@@ -175,3 +175,41 @@ describe('C1 — départ (corps de la 20261112) : variantes retirées dès le d�
     expect(destinatairesDuDepot()).toEqual([CS, AUTRE_CABINET])
   })
 })
+
+// Contre-vérification du 12/11 : le départ et l'effacement appliquaient la règle à la SEULE fiche partie. Une saisie que
+// la règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la copropriété (ici :
+// même boîte, fiche de l'autre cabinet) était retirée, et exclue des dépôts ; le journal de l'autre cabinet nommait la
+// fiche partie. La garde (signalements_qr_saisie_de_la_fiche, simulée par saisieDeLaFicheQr) la laisse ; hors du cabinet
+// de cette autre fiche, la boîte de la personne partie quitte toujours les saisies.
+describe('contre-vérification du 12/11 — garde : la boîte d’une fiche ACTIVE du cabinet de la copropriété reste', () => {
+  const G4 = 'a0000000-0000-4000-8000-000000000004'
+  /** Fiche active de l'AUTRE cabinet, même boîte que G1 (données antérieures : la création la refuse désormais). */
+  const EMAIL_G4 = 'marie.exemple+autre@exemple.test'
+
+  beforeEach(() => {
+    baseQr.table('signalements_qr_gestionnaires').push({ ...A.ficheSimuleeQr(A.G3), id: G4, nom: 'Marie Autre', email: EMAIL_G4, user_id: null })
+    copro(A.C1).emails_destinataires = [CS, EMAIL_G4]
+    copro(A.C3).emails_destinataires = [EMAIL_G4, A.EMAIL_G1]
+    V.simulerDepartQr('variantes')
+  })
+
+  it('départ puis effacement de G1 : la copropriété de l’autre cabinet n’est pas retouchée (ni saisie retirée, ni ligne de journal) ; celle de G1 perd la boîte', async () => {
+    const res = await partir()
+    expect(res.status).toBe(200)
+    expect((await res.json()).adressesRetirees).toBe(1)
+    expect(copro(A.C1).emails_destinataires).toEqual([CS])
+    expect(copro(A.C3).emails_destinataires).toEqual([EMAIL_G4, A.EMAIL_G1])
+    expect((await effacer()).status).toBe(200)
+    expect(copro(A.C3).emails_destinataires).toEqual([EMAIL_G4, A.EMAIL_G1])
+    expect(journal('copropriete.modifiee').map((l) => [l.copropriete_id, l.cabinet_id])).toEqual([[A.C1, A.CAB]])
+  })
+
+  it('dépôts ensuite : la boîte de la fiche active reçoit dans SON cabinet (non exclue), plus jamais dans celui de la personne partie', async () => {
+    expect((await partir()).status).toBe(200)
+    expect((await deposer(String(copro(A.C3).jeton))).status).toBe(200)
+    expect(destinatairesDuDepot()).toEqual([EMAIL_G4, A.EMAIL_G1, A.EMAIL_G3])
+    simulQr.lots.length = 0
+    expect((await deposer(String(copro(A.C1).jeton))).status).toBe(200)
+    expect(destinatairesDuDepot()).toEqual([CS])
+  })
+})

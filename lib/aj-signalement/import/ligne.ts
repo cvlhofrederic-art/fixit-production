@@ -392,16 +392,23 @@ function diagnostiquerSurExistantesQr(lignes: readonly LigneImportQr[], contexte
   // Contrôle 2 de la PR 2 (C2) : une adresse est celle d'une fiche DU cabinet par LA règle du formulaire
   // (boitesDeFicheQr, définition de estAdresseDeFicheQr : même boîte, étiquette « + » comprise, ou même partie locale sur
   // un domaine du cabinet). L'adresse exacte d'abord ; sinon toutes les fiches dont elle est une variante.
+  // Contre-vérification du 12/11 (même garde que la base, signalements_qr_saisie_de_la_fiche) : une adresse que la règle
+  // reconnaît AUSSI comme celle d'une fiche utilisable (active, non contestée) du cabinet n'est jamais traitée comme celle
+  // d'une fiche partie ou contestée, même exacte : elle désigne la ou les fiches utilisables.
   const fichesParBoite = new Map<string, FicheImportQr[]>()
   for (const f of contexte.fiches) {
     for (const boite of boitesDeFicheQr(f.email, contexte.domaines)) fichesParBoite.set(boite, [...(fichesParBoite.get(boite) ?? []), f])
   }
+  const utilisable = (f: FicheImportQr) => f.actif && !f.contestee
   const fichesDeLAdresse = (email: string): FicheImportQr[] => {
     const exacte = fichesParEmail.get(email)
-    return exacte ? [exacte] : fichesParBoite.get(boiteEmailQr(email) ?? '') ?? []
+    if (exacte && utilisable(exacte)) return [exacte]
+    const parBoite = fichesParBoite.get(boiteEmailQr(email) ?? '') ?? []
+    const utilisables = parBoite.filter(utilisable)
+    if (utilisables.length > 0) return utilisables
+    return exacte ? [exacte] : parBoite
   }
   const autresCabinets = new Set(contexte.emailsAutresCabinets.map(emailCanoniqueQr).filter((e): e is string => e !== null))
-  const utilisable = (f: FicheImportQr) => f.actif && !f.contestee
   const inconnus = new Map<string, GestionnaireInconnuImportQr>()
   const precedentes: CoproprieteDoublonQr[] = []
 

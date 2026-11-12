@@ -105,3 +105,55 @@ describe('C2 — import : une variante de l’adresse d’une fiche du cabinet n
     expect(reconnues.length).toBe(6)
   })
 })
+
+// Contre-vérification du 12/11 : la garde de la base (signalements_qr_saisie_de_la_fiche) ne traite pas comme celle d'une
+// fiche partie ou contestée une adresse que la règle reconnaît AUSSI comme celle d'une autre fiche active et non contestée
+// du cabinet. L'import fait de même : une telle adresse désigne la fiche utilisable (mise dans Gestionnaire(s)), jamais
+// la fiche partie (retirée, ou erreur « désactivée »). Deux fiches de même boîte : données antérieures, ou course entre
+// deux créations (la création les refuse désormais).
+describe('contre-vérification du 12/11 — adresse d’une fiche partie ou contestée ET d’une fiche utilisable du cabinet', () => {
+  const G4 = '44444444-4444-4444-8444-444444444444'
+  const G5 = '55555555-5555-4555-8555-555555555555'
+  const memeBoite: ContexteImportQr = {
+    ...contexte,
+    fiches: [
+      { id: G1, nom: 'Marie Exemple', email: 'marie.exemple@exemple.test', actif: true, contestee: false },
+      { id: G2, nom: 'Marie Ancienne', email: 'marie.exemple+ancien@exemple.test', actif: false, contestee: false },
+      { id: G3, nom: 'Léa Exemple', email: 'lea.exemple@exemple.test', actif: true, contestee: true },
+      { id: G4, nom: 'Léa Active', email: 'lea.exemple@exemple-bis.test', actif: true, contestee: false },
+      { id: G5, nom: 'Paul Exemple', email: 'paul.exemple@exemple.test', actif: false, contestee: false },
+    ],
+  }
+
+  it('destinataire = adresse EXACTE d’une fiche partie (ou contestée), variante d’une fiche active : mis dans Gestionnaire(s) pour la fiche active', () => {
+    const v = diagnostiquerImportQr([ligne(2, ['marie.exemple+ancien@exemple.test', 'lea.exemple@exemple.test', 'cs@externe.test'])], memeBoite)
+    const d = v.diagnostics[0]
+    expect(d.gestionnaires).toEqual([{ id: G1, nom: 'Marie Exemple' }, { id: G4, nom: 'Léa Active' }])
+    expect(d.emailsDestinataires).toEqual(['cs@externe.test'])
+    expect(d.messages.map((m) => m.texte)).toEqual([
+      M.destinataireGestionnaire('marie.exemple+ancien@exemple.test'), M.destinataireGestionnaire('lea.exemple@exemple.test'), M.horsDomaine('cs@externe.test'),
+    ])
+  })
+
+  it('colonne Gestionnaire(s) : l’adresse exacte d’une fiche partie, variante d’une fiche active, désigne la fiche active (aucune erreur)', () => {
+    const v = diagnostiquerImportQr([
+      ligne(2, [], { gestionnaires: ['marie.exemple+ancien@exemple.test'] }),
+      ligne(3, [], { gestionnaires: ['lea.exemple@exemple.test'] }),
+    ], memeBoite)
+    expect(v.diagnostics[0]).toMatchObject({ etat: 'a_creer', gestionnaires: [{ id: G1, nom: 'Marie Exemple' }], messages: [] })
+    expect(v.diagnostics[1]).toMatchObject({ etat: 'a_creer', gestionnaires: [{ id: G4, nom: 'Léa Active' }], messages: [] })
+  })
+
+  it('inchangé : l’adresse exacte d’une fiche utilisable la désigne seule ; une fiche partie sans fiche utilisable de même boîte → retirée, ou erreur', () => {
+    const v = diagnostiquerImportQr([
+      ligne(2, ['marie.exemple@exemple.test', 'paul.exemple+x@exemple.test']),
+      ligne(3, [], { gestionnaires: ['paul.exemple@exemple.test'] }),
+    ], memeBoite)
+    expect(v.diagnostics[0].gestionnaires).toEqual([{ id: G1, nom: 'Marie Exemple' }])
+    expect(v.diagnostics[0].emailsDestinataires).toEqual([])
+    expect(v.diagnostics[0].messages.map((m) => m.texte)).toEqual([
+      M.destinataireGestionnaire('marie.exemple@exemple.test'), M.destinataireRetire('paul.exemple+x@exemple.test'),
+    ])
+    expect(v.diagnostics[1].messages.map((m) => m.texte)).toEqual([M.gestionnaireDesactive('paul.exemple@exemple.test')])
+  })
+})

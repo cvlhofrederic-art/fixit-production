@@ -10,12 +10,26 @@
 // Table de cas COMMUNE : tests/helpers/aj-signalement-adresse-de-fiche.cas.json. L'essai PGlite (aj-pr2/pglite-essai,
 // essais-variantes.mjs) appelle la fonction SQL installée sur chacun de ces cas ; ici, la jumelle, ses usages, et le
 // texte SQL figé puis traduit mot pour mot (aucune base PostgreSQL en CI).
+// Contre-vérification du 12/11 : la garde « saisie de la fiche SEULE » (signalements_qr_saisie_de_la_fiche, jumelle des
+// tests saisieDeLaFicheQr) a sa table dans le même fichier (gardes) ; l'essai PGlite essais-garde.mjs la rejoue en SQL.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { ETIQUETTE_EMAIL_QR, boitesDeFicheQr, estAdresseDeFicheQr } from '@/lib/aj-signalement/gestionnaires'
 import { adressesDeFichesQr } from '@/lib/aj-signalement/destinataires'
+import { saisieDeLaFicheQr, type MondeGardeQr } from '../helpers/aj-signalement-variantes'
+
+/** Garde (contre-vérification du 12/11) : un petit monde, la fiche concernée, la réponse attendue pour chaque saisie. */
+interface CasGarde {
+  note: string
+  domaines: Record<string, string[]>
+  fiches: Record<string, { cabinet: string; email: string | null; actif?: boolean; contestee?: boolean }>
+  copropriete: { cabinet: string | null; attributions: string[] }
+  fiche: string
+  retrait: boolean
+  saisies: Array<{ adresse: string | null; attendu: boolean; note: string }>
+}
 
 interface CasAdresseDeFiche {
   adresse: string | null
@@ -28,8 +42,25 @@ interface CasAdresseDeFiche {
 const TABLE = JSON.parse(readFileSync(join(process.cwd(), 'tests/helpers/aj-signalement-adresse-de-fiche.cas.json'), 'utf-8')) as {
   description: string
   cas: CasAdresseDeFiche[]
+  descriptionGardes: string
+  gardes: CasGarde[]
 }
 const CAS = TABLE.cas
+const GARDES = TABLE.gardes
+
+/** Le monde d'un cas de garde, lu comme la fonction SQL le lit en base. */
+function mondeDuCas(g: CasGarde): MondeGardeQr {
+  return {
+    fiches: Object.entries(g.fiches).map(([id, f]) => ({ id, cabinetId: f.cabinet, email: f.email, actif: f.actif !== false, contestee: f.contestee === true })),
+    domainesDuCabinet: (cabinet) => (cabinet === null ? [] : g.domaines[cabinet] ?? []),
+    attribuee: (ficheId) => g.copropriete.attributions.includes(ficheId),
+  }
+}
+const repondGarde = (g: CasGarde, adresse: string | null): boolean => {
+  const f = g.fiches[g.fiche]
+  return saisieDeLaFicheQr(adresse, { id: g.fiche, email: f.email, domaines: g.domaines[f.cabinet] ?? [] },
+    { id: 'copropriete-du-cas', cabinetId: g.copropriete.cabinet }, g.retrait, mondeDuCas(g))
+}
 const libelle = (c: CasAdresseDeFiche) => `${c.note} : ${JSON.stringify(c.adresse)} / ${JSON.stringify(c.ficheEmail)} / ${JSON.stringify(c.domaines)}`
 const domainesTexte = (c: CasAdresseDeFiche): string[] => c.domaines.filter((d): d is string => typeof d === 'string')
 
@@ -44,7 +75,7 @@ function corpsSql(nom: string): string {
 function enteteSql(nom: string): string {
   const m = new RegExp(`CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+${nom}\\s*\\(([^)]*)\\)([\\s\\S]*?)\\bAS\\s+\\$fn\\$`).exec(SQL_1112)
   if (!m) throw new Error(`fonction ${nom} absente de la 20261112`)
-  return compacter(`(${m[1]})${m[2]}`)
+  return compacter(`(${compacter(m[1])})${m[2]}`)
 }
 
 describe('table de cas commune (SQL et TypeScript)', () => {
@@ -135,12 +166,76 @@ describe('signalements_qr_adresse_de_fiche (20261112) : texte figé, traduit mot
     expect(adresseDeFicheSql(c.adresse, c.ficheEmail, c.domaines)).toBe(c.attendu)
   })
 
-  it('signalements_qr_saisies_sans_fiche : les saisies qui ne sont PAS de la fiche, dans leur ordre (NULL gardés, comme array_remove)', () => {
+  it('signalements_qr_saisies_sans_fiche : les saisies qui ne sont PAS de la fiche seule (garde), dans leur ordre (NULL gardés, comme array_remove)', () => {
     expect(enteteSql('signalements_qr_saisies_sans_fiche')).toBe(compacter(
-      '(p_saisies text[], p_fiche_email text, p_domaines text[]) RETURNS text[] LANGUAGE sql IMMUTABLE PARALLEL SAFE SECURITY INVOKER SET search_path = public, pg_temp',
+      '(p_saisies text[], p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid) RETURNS text[] LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp',
     ))
     expect(compacter(corpsSql('signalements_qr_saisies_sans_fiche'))).toBe(compacter(`SELECT coalesce(array_agg(u.e ORDER BY u.n)
-             FILTER (WHERE NOT signalements_qr_adresse_de_fiche(u.e, p_fiche_email, p_domaines)), '{}')
+             FILTER (WHERE NOT signalements_qr_saisie_de_la_fiche(u.e, p_fiche, p_fiche_email, p_domaines, p_cabinet, p_copropriete)), '{}')
     FROM unnest(p_saisies) WITH ORDINALITY AS u(e, n)`))
+  })
+})
+
+// ── Contre-vérification du 12/11 : la garde « saisie de la fiche SEULE » ──
+// Le départ, l'effacement, le retrait d'attribution et l'exclusion à l'envoi appliquaient la règle à la seule fiche
+// concernée : la saisie qui est AUSSI l'adresse d'une autre fiche active (même boîte dans deux cabinets, domaine d'une
+// fiche forcée déclaré par un autre cabinet, deux domaines d'un cabinet) était retirée ou exclue avec elle.
+
+describe('signalements_qr_saisie_de_la_fiche (20261112) : texte figé, la règle pour la fiche puis pour chaque autre fiche', () => {
+  const CORPS = `SELECT signalements_qr_adresse_de_fiche(p_adresse, p_fiche_email, p_domaines)
+     AND NOT EXISTS (
+       SELECT 1 FROM signalements_qr_gestionnaires o
+        WHERE o.cabinet_id = p_cabinet AND o.id IS DISTINCT FROM p_fiche
+          AND o.actif AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
+          AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
+                                                 WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
+          AND signalements_qr_adresse_de_fiche(p_adresse, o.email,
+                ARRAY(SELECT d.domaine FROM signalements_qr_domaines_autorises d WHERE d.cabinet_id = p_cabinet)))`
+
+  it('signature (adresse, fiche, son adresse, ses domaines, cabinet de la copropriété, copropriété au retrait) → boolean, STABLE ; corps figé', () => {
+    expect(enteteSql('signalements_qr_saisie_de_la_fiche')).toBe(compacter(
+      '(p_adresse text, p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid) RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp',
+    ))
+    expect(compacter(corpsSql('signalements_qr_saisie_de_la_fiche'))).toBe(compacter(CORPS))
+  })
+
+  it('définie après la règle et avant les saisies sans la fiche (fonctions SQL : corps contrôlés à la création)', () => {
+    const position = (nom: string) => SQL_1112.search(new RegExp(`CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+${nom}\\s*\\(`))
+    expect(position('signalements_qr_saisie_de_la_fiche')).toBeGreaterThan(position('signalements_qr_adresse_de_fiche'))
+    expect(position('signalements_qr_saisies_sans_fiche')).toBeGreaterThan(position('signalements_qr_saisie_de_la_fiche'))
+  })
+})
+
+describe('garde : table commune (gardes) — jumelle saisieDeLaFicheQr', () => {
+  it('assez de cas, des deux réponses ; chaque branche (autre cabinet, sans cabinet, contestée, partie, effacée, retrait) ; domaines fictifs', () => {
+    const saisies = GARDES.flatMap((g) => g.saisies)
+    expect(GARDES.length).toBeGreaterThanOrEqual(12)
+    expect(saisies.some((s) => s.attendu)).toBe(true)
+    expect(saisies.some((s) => !s.attendu)).toBe(true)
+    expect(GARDES.some((g) => g.copropriete.cabinet === null)).toBe(true)
+    expect(GARDES.some((g) => g.retrait && g.copropriete.attributions.length > 0)).toBe(true)
+    expect(GARDES.some((g) => g.retrait && g.copropriete.attributions.length === 0)).toBe(true)
+    expect(GARDES.some((g) => Object.values(g.fiches).some((f) => f.contestee))).toBe(true)
+    expect(GARDES.some((g) => Object.values(g.fiches).some((f) => f.email === null))).toBe(true)
+    const permis = /(?:\.test|^gmail\.com)$/
+    for (const g of GARDES) {
+      const adresses = [...Object.values(g.fiches).map((f) => f.email), ...g.saisies.map((s) => s.adresse)]
+        .filter((v): v is string => typeof v === 'string')
+      const domaines = [...adresses.map((a) => a.slice(a.lastIndexOf('@') + 1)), ...Object.values(g.domaines).flat()]
+      for (const d of domaines.map((x) => x.trim().toLowerCase())) expect(d, g.note).toMatch(permis)
+      for (const nom of g.copropriete.attributions) expect(Object.keys(g.fiches), g.note).toContain(nom)
+      expect(Object.keys(g.fiches), g.note).toContain(g.fiche)
+    }
+  })
+
+  it.each(GARDES.flatMap((g) => g.saisies.map((s) => [`${g.note} — ${s.note} : ${JSON.stringify(s.adresse)}`, g, s] as const)))('%s', (_l, g, s) => {
+    expect(repondGarde(g, s.adresse)).toBe(s.attendu)
+  })
+
+  it('preuve de la contre-vérification : avec la règle SEULE (sans la garde), la fiche partie emportait l’adresse de la fiche active d’un autre cabinet', () => {
+    const g = GARDES[0]
+    const f = g.fiches[g.fiche]
+    expect(estAdresseDeFicheQr('jeanne+beta@gmail.com', f.email, g.domaines[f.cabinet])).toBe(true)
+    expect(repondGarde(g, 'jeanne+beta@gmail.com')).toBe(false)
   })
 })

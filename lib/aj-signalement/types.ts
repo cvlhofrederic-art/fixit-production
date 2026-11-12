@@ -326,6 +326,9 @@ export const ERREURS_METIER_SQL_QR = [
   'hors_domaine', 'domaine_autre_cabinet',
   // Migration 20261112 (PR 2) : envoi d'un accès (signalements_qr_envoyer_acces).
   'deja_ouvert', 'adresse_contestee',
+  // Migration 20261112 (contre-vérification du 12/11) : création d'une fiche sur une boîte déjà portée par une fiche
+  // (signalements_qr_inviter_gestionnaire ; identifiant de cette fiche en DETAIL, rendu par la route).
+  'existe_deja',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 

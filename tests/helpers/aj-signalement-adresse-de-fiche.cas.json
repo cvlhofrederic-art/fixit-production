@@ -33,5 +33,148 @@
     { "adresse": "a@exemple-bis.test", "ficheEmail": "a@b@exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": false, "note": "e-mail de fiche à deux « @ » : aucune partie locale" },
     { "adresse": "a@b@exemple.test", "ficheEmail": "a@b@exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": true, "note": "même texte à deux « @ » : même boîte" },
     { "adresse": "marie.exemple@exemple-bis.test", "ficheEmail": "Marie.Exemple@Exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": true, "note": "e-mail de fiche hors forme canonique (la base n'en a pas)" }
+  ],
+  "descriptionGardes": "Garde (contre-vérification du 12/11/2026) : table COMMUNE à la fonction SQL signalements_qr_saisie_de_la_fiche (migration 20261112, essai PGlite) et à sa jumelle saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts). Une saisie d'une copropriété est celle de la fiche SEULE (retirée au départ, à l'effacement ou au retrait d'attribution, exclue de l'envoi) quand la règle la reconnaît comme l'adresse de la fiche, et comme celle d'aucune AUTRE fiche active et non contestée du cabinet de la copropriété (au retrait d'attribution, « retrait » : attribuée à cette copropriété). Chaque cas décrit un petit monde : domaines par cabinet, fiches (cabinet, adresse, actif, contestee), la copropriété (cabinet, attributions), la fiche concernée ; attendu = réponse de la garde pour chaque saisie. Données fictives : domaines .test, gmail.com (messagerie publique).",
+  "gardes": [
+    {
+      "note": "même boîte publique dans deux cabinets (preuve contre-pr2-boite) : copropriété du cabinet de la fiche ACTIVE, rien de sa boîte n'est retiré pour la fiche partie",
+      "domaines": { "A": ["exemple.test"], "B": ["autre-exemple.test"] },
+      "fiches": { "FA": { "cabinet": "A", "email": "jeanne+alpha@gmail.com", "actif": false }, "FB": { "cabinet": "B", "email": "jeanne+beta@gmail.com" } },
+      "copropriete": { "cabinet": "B", "attributions": [] }, "fiche": "FA", "retrait": false,
+      "saisies": [
+        { "adresse": "jeanne+beta@gmail.com", "attendu": false, "note": "adresse exacte de la fiche active" },
+        { "adresse": "jeanne@gmail.com", "attendu": false, "note": "la boîte commune" },
+        { "adresse": " JEANNE+Alpha@Gmail.com ", "attendu": false, "note": "adresse exacte de la fiche partie : même boîte que la fiche active" },
+        { "adresse": "jeanne@exemple.test", "attendu": true, "note": "partie locale de la fiche partie sur un domaine de SON cabinet : la fiche active ne la reconnaît pas" },
+        { "adresse": "jeanne@autre-exemple.test", "attendu": false, "note": "domaine de l'autre cabinet : pas une adresse de la fiche partie" },
+        { "adresse": "cs@externe.test", "attendu": false, "note": "adresse extérieure" }
+      ]
+    },
+    {
+      "note": "même monde, copropriété du cabinet de la fiche PARTIE : la fiche active d'un autre cabinet ne garde rien",
+      "domaines": { "A": ["exemple.test"], "B": ["autre-exemple.test"] },
+      "fiches": { "FA": { "cabinet": "A", "email": "jeanne+alpha@gmail.com", "actif": false }, "FB": { "cabinet": "B", "email": "jeanne+beta@gmail.com" } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "FA", "retrait": false,
+      "saisies": [
+        { "adresse": "jeanne+alpha@gmail.com", "attendu": true, "note": "adresse exacte de la fiche partie" },
+        { "adresse": "jeanne+beta@gmail.com", "attendu": true, "note": "adresse de la fiche active d'un AUTRE cabinet, même boîte" },
+        { "adresse": "jeanne@gmail.com", "attendu": true, "note": "la boîte commune" },
+        { "adresse": "jeanne@exemple.test", "attendu": true, "note": "partie locale sur un domaine du cabinet" },
+        { "adresse": "cs@externe.test", "attendu": false, "note": "adresse extérieure" }
+      ]
+    },
+    {
+      "note": "même monde, copropriété d'un troisième cabinet ou sans cabinet : la fiche active ne garde rien hors de son cabinet",
+      "domaines": { "A": ["exemple.test"], "B": ["autre-exemple.test"], "C": ["troisieme.test"] },
+      "fiches": { "FA": { "cabinet": "A", "email": "jeanne+alpha@gmail.com", "actif": false }, "FB": { "cabinet": "B", "email": "jeanne+beta@gmail.com" } },
+      "copropriete": { "cabinet": "C", "attributions": [] }, "fiche": "FA", "retrait": false,
+      "saisies": [
+        { "adresse": "jeanne+beta@gmail.com", "attendu": true, "note": "copropriété d'un troisième cabinet" }
+      ]
+    },
+    {
+      "note": "copropriété sans cabinet : aucune autre fiche ne garde",
+      "domaines": { "A": ["exemple.test"], "B": ["autre-exemple.test"] },
+      "fiches": { "FA": { "cabinet": "A", "email": "jeanne+alpha@gmail.com", "actif": false }, "FB": { "cabinet": "B", "email": "jeanne+beta@gmail.com" } },
+      "copropriete": { "cabinet": null, "attributions": [] }, "fiche": "FA", "retrait": false,
+      "saisies": [
+        { "adresse": "jeanne+beta@gmail.com", "attendu": true, "note": "copropriété sans cabinet" }
+      ]
+    },
+    {
+      "note": "domaine d'une fiche forcée de A déclaré ensuite par B (contre-pr2 § 2) : dans une copropriété de A, l'adresse de la fiche active de A reste au départ de la fiche de B",
+      "domaines": { "A": ["exemple.test"], "B": ["autre-exemple.test", "prestataire.test"] },
+      "fiches": { "A1": { "cabinet": "A", "email": "jean@prestataire.test" }, "B1": { "cabinet": "B", "email": "jean@autre-exemple.test", "actif": false } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "B1", "retrait": false,
+      "saisies": [
+        { "adresse": "jean@prestataire.test", "attendu": false, "note": "adresse exacte de la fiche active de A" },
+        { "adresse": "jean+cs@prestataire.test", "attendu": false, "note": "sous-adresse de la fiche active de A" },
+        { "adresse": "jean@autre-exemple.test", "attendu": true, "note": "adresse exacte de la fiche partie" },
+        { "adresse": "jean@exemple.test", "attendu": false, "note": "domaine de A : pas une adresse de la fiche de B" }
+      ]
+    },
+    {
+      "note": "même monde, copropriété de B : la fiche active de A (autre cabinet) ne garde rien",
+      "domaines": { "A": ["exemple.test"], "B": ["autre-exemple.test", "prestataire.test"] },
+      "fiches": { "A1": { "cabinet": "A", "email": "jean@prestataire.test" }, "B1": { "cabinet": "B", "email": "jean@autre-exemple.test", "actif": false } },
+      "copropriete": { "cabinet": "B", "attributions": [] }, "fiche": "B1", "retrait": false,
+      "saisies": [
+        { "adresse": "jean@prestataire.test", "attendu": true, "note": "domaine déclaré par B : partie locale de la fiche partie" }
+      ]
+    },
+    {
+      "note": "même cabinet, deux domaines, deux fiches de même partie locale (contre-pr2 § 3) : au départ de l'une, rien de l'autre n'est retiré",
+      "domaines": { "A": ["exemple.test", "exemple-bis.test"] },
+      "fiches": { "J1": { "cabinet": "A", "email": "jean@exemple.test", "actif": false }, "J2": { "cabinet": "A", "email": "jean@exemple-bis.test" } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "J1", "retrait": false,
+      "saisies": [
+        { "adresse": "jean@exemple-bis.test", "attendu": false, "note": "adresse exacte de l'autre fiche" },
+        { "adresse": "jean+cs@exemple-bis.test", "attendu": false, "note": "sous-adresse de l'autre fiche" },
+        { "adresse": "jean@exemple.test", "attendu": false, "note": "adresse exacte de la fiche partie : même partie locale sur un domaine du cabinet" },
+        { "adresse": "cs@externe.test", "attendu": false, "note": "adresse extérieure" }
+      ]
+    },
+    {
+      "note": "l'autre fiche de même boîte est contestée : elle ne garde rien",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "F": { "cabinet": "A", "email": "marie@exemple.test", "actif": false }, "O": { "cabinet": "A", "email": "marie+cs@exemple.test", "contestee": true } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "F", "retrait": false,
+      "saisies": [
+        { "adresse": "marie+cs@exemple.test", "attendu": true, "note": "adresse exacte de la fiche contestée" },
+        { "adresse": "marie@exemple.test", "attendu": true, "note": "adresse exacte de la fiche partie" }
+      ]
+    },
+    {
+      "note": "exclusion pour une fiche contestée : une fiche ACTIVE de même boîte du cabinet garde la saisie",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "F": { "cabinet": "A", "email": "marie@exemple.test" }, "O": { "cabinet": "A", "email": "marie+cs@exemple.test", "contestee": true } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "O", "retrait": false,
+      "saisies": [
+        { "adresse": "marie+cs@exemple.test", "attendu": false, "note": "adresse exacte de la fiche contestée, même boîte que la fiche active" },
+        { "adresse": "marie@exemple.test", "attendu": false, "note": "adresse exacte de la fiche active" }
+      ]
+    },
+    {
+      "note": "l'autre fiche est partie, ou effacée (sans adresse) : elle ne garde rien",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "F": { "cabinet": "A", "email": "marie@exemple.test", "actif": false }, "P": { "cabinet": "A", "email": "marie+ancien@exemple.test", "actif": false }, "Z": { "cabinet": "A", "email": null, "actif": false } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "F", "retrait": false,
+      "saisies": [
+        { "adresse": "marie+ancien@exemple.test", "attendu": true, "note": "adresse exacte d'une autre fiche partie" },
+        { "adresse": "marie@exemple.test", "attendu": true, "note": "adresse exacte de la fiche" }
+      ]
+    },
+    {
+      "note": "retrait d'attribution : l'autre fiche active de même boîte, attribuée à la copropriété, garde la saisie",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "F": { "cabinet": "A", "email": "marie@exemple.test" }, "O": { "cabinet": "A", "email": "marie+suivi@exemple.test" } },
+      "copropriete": { "cabinet": "A", "attributions": ["O"] }, "fiche": "F", "retrait": true,
+      "saisies": [
+        { "adresse": "marie@exemple.test", "attendu": false, "note": "adresse exacte de la fiche qui perd la copropriété" },
+        { "adresse": "marie+x@exemple.test", "attendu": false, "note": "sous-adresse de la boîte commune" }
+      ]
+    },
+    {
+      "note": "retrait d'attribution : l'autre fiche active de même boîte, NON attribuée à la copropriété, ne garde rien (la boîte perd la copropriété)",
+      "domaines": { "A": ["exemple.test"] },
+      "fiches": { "F": { "cabinet": "A", "email": "marie@exemple.test" }, "O": { "cabinet": "A", "email": "marie+suivi@exemple.test" } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "F", "retrait": true,
+      "saisies": [
+        { "adresse": "marie@exemple.test", "attendu": true, "note": "adresse exacte de la fiche qui perd la copropriété" },
+        { "adresse": "marie+suivi@exemple.test", "attendu": true, "note": "adresse exacte de l'autre fiche, non attribuée" }
+      ]
+    },
+    {
+      "note": "la fiche seule : son adresse et ses variantes, jamais une saisie que la règle ne lui rattache pas, jamais NULL ; elle ne se garde pas elle-même",
+      "domaines": { "A": ["exemple.test", "exemple-bis.test"] },
+      "fiches": { "F": { "cabinet": "A", "email": "marie@exemple.test" } },
+      "copropriete": { "cabinet": "A", "attributions": ["F"] }, "fiche": "F", "retrait": false,
+      "saisies": [
+        { "adresse": "marie@exemple.test", "attendu": true, "note": "adresse exacte" },
+        { "adresse": "Marie+X@Exemple-Bis.test", "attendu": true, "note": "autre domaine du cabinet et étiquette" },
+        { "adresse": "marie@autre-exemple.test", "attendu": false, "note": "domaine non déclaré par le cabinet" },
+        { "adresse": null, "attendu": false, "note": "saisie NULL" }
+      ]
+    }
   ]
 }

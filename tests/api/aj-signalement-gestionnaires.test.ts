@@ -247,6 +247,28 @@ describe('POST gestionnaires (P1-R9)', () => {
     expect((await res.json()).error).toBe('existe_deja')
   })
 
+  // Contre-vérification du 12/11 : la 20261112 refuse une fiche qui partage une BOÎTE avec une fiche existante (même boîte
+  // sous une autre étiquette « + », ou même partie locale sur un domaine de l'un des deux cabinets), et en donne
+  // l'identifiant (DETAIL) : même réponse que l'adresse exacte, pour « voir la fiche ».
+  it('boîte déjà portée par une fiche (20261112 : P0001 existe_deja, DETAIL = son id) → 409 existe_deja { id }, aucun e-mail', async () => {
+    baseQr.etat.fonctions.signalements_qr_inviter_gestionnaire = () => ({
+      error: { code: 'P0001', message: 'existe_deja', details: G_MARIE, hint: null },
+    })
+    const res = await creer(NOUVELLE)
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'existe_deja', id: G_MARIE })
+    expect(messagesEnvoyesQr()).toEqual([])
+  })
+
+  it('existe_deja sans identifiant lisible (DETAIL absent ou autre chose qu’un uuid) : 409 existe_deja, jamais le DETAIL rendu', async () => {
+    for (const details of [undefined, '', 'pas un identifiant', `${G_MARIE}; autre`]) {
+      baseQr.etat.fonctions.signalements_qr_inviter_gestionnaire = () => ({ error: { code: 'P0001', message: 'existe_deja', details, hint: null } })
+      const res = await creer(NOUVELLE)
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'existe_deja' })
+    }
+  })
+
   it('limite : 20 créations par heure et par compte', async () => {
     simulQr.refuser = [`qr_gestionnaire_post_${ADMIN_QR.id}`]
     expect((await creer(NOUVELLE)).status).toBe(429)
