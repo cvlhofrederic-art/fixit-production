@@ -272,9 +272,10 @@ describe('Liste Devis V5 — sélection et téléchargement groupé (BTP)', () =
 describe('Liste Devis V5 — filtre par statut, montant, annulation', () => {
   const puce = (cle: string, nombre: number) => screen.getByRole('button', { name: `${T}.filtresDevis.${cle} (${nombre})` })
 
-  it('puces Tous / Brouillons / Envoyés / Acceptés / Refusés, comptées sur toute la liste', () => {
+  it('puces Tous / Hors brouillons / Brouillons / Envoyés / Acceptés / Refusés, comptées sur toute la liste', () => {
     render(<DevisSection {...propsDevis()} />)
     expect(puce('tous', 3)).toHaveAttribute('aria-pressed', 'true')
+    expect(puce('horsBrouillons', 2)).toHaveAttribute('aria-pressed', 'false')
     expect(puce('brouillons', 1)).toHaveAttribute('aria-pressed', 'false')
     expect(puce('envoyes', 2)).toBeInTheDocument()
     expect(puce('acceptes', 0)).toBeInTheDocument()
@@ -288,6 +289,17 @@ describe('Liste Devis V5 — filtre par statut, montant, annulation', () => {
     fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (2)` }))
     await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
     expect(telechargementAppele()[0][0]).toEqual([DEVIS_2, DEVIS_1])
+  })
+
+  it('« Hors brouillons » : tous les devis émis (envoyés, acceptés, refusés), sans les brouillons', async () => {
+    const accepte = { ...DEVIS_1, id: 'd4', docNumber: 'DEV-2026-004', status: 'accepted' }
+    const refuse = { ...DEVIS_1, id: 'd5', docNumber: 'DEV-2026-005', status: 'rejected' }
+    render(<DevisSection {...propsDevis([...TOUS_DEVIS, accepte, refuse])} />)
+    fireEvent.click(puce('horsBrouillons', 4))
+    expect(numerosAffiches()).toEqual(['DEV-2026-005', 'DEV-2026-004', 'DEV-2026-002', 'DEV-2026-001'])
+    fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (4)` }))
+    await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
+    expect(telechargementAppele()[0][0]).not.toContain(DEVIS_3)
   })
 
   it('un devis signé compte comme accepté ; filtre sans résultat : « aucun devis trouvé »', () => {
@@ -392,14 +404,28 @@ describe('Liste Factures V5', () => {
     expect(numerosAffiches()).toEqual(['FACT-2026-077'])
   })
 
-  it('le filtre par statut garde son rendu (puces « Toutes », « Émises »…) et filtre toujours', () => {
+  it('le filtre par statut filtre toujours (puces « Toutes », « Émises », « Brouillons »…)', () => {
     render(<FacturesSection {...propsFactures([FACTURE, ACOMPTE, { ...FACTURE, id: 'f2', docNumber: '', status: 'brouillon' }])} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Brouillons (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: `${T}.filtresFactures.brouillons (1)` }))
     expect(numerosAffiches()).toEqual(['SCI Martin']) // brouillon sans numéro : case nommée par le client
-    expect(screen.getByRole('button', { name: 'Brouillons (1)' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: `${T}.filtresFactures.brouillons (1)` })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: `${T}.toutTelecharger (1)` })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Émises (2)' }))
+    fireEvent.click(screen.getByRole('button', { name: `${T}.filtresFactures.emises (2)` }))
     expect(numerosAffiches()).toEqual(['AC-2026-007', 'FACT-2026-040'])
+  })
+
+  it('« Hors brouillons » : toutes les factures émises, payées comprises, sans les brouillons — et « Tout télécharger » suit', async () => {
+    const payee = { ...FACTURE, id: 'f4', docNumber: 'FACT-2026-039', status: 'paid', sentAt: '2026-10-10T09:00:00.000Z' }
+    const brouillon = { ...FACTURE, id: 'f2', docNumber: '', status: 'brouillon' }
+    render(<FacturesSection {...propsFactures([FACTURE, ACOMPTE, payee, brouillon])} />)
+    // « Émises » exclut les payées : « Hors brouillons » est le lot complet du comptable.
+    expect(screen.getByRole('button', { name: `${T}.filtresFactures.emises (2)` })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: `${T}.filtresFactures.horsBrouillons (3)` }))
+    expect(numerosAffiches()).toEqual(['AC-2026-007', 'FACT-2026-040', 'FACT-2026-039'])
+    fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (3)` }))
+    await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
+    expect(telechargementAppele()[0][0]).toHaveLength(3)
+    expect(telechargementAppele()[0][0]).not.toContain(brouillon)
   })
 
   it('cocher une facture n\'ouvre pas le formulaire ; cliquer la ligne l\'ouvre toujours', () => {
@@ -416,7 +442,7 @@ describe('Liste Factures V5', () => {
   it('« Tout télécharger » suit les filtres (Acomptes) — artisan : modèle V2', async () => {
     role.orgRole = 'artisan'
     render(<FacturesSection {...propsFactures()} />)
-    fireEvent.click(screen.getByRole('button', { name: /^Acomptes/ }))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${T_REGEX}\\.filtresTypeFactures\\.acomptes `) }))
     fireEvent.click(screen.getByRole('button', { name: `${T}.toutTelecharger (1)` }))
     await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
     expect(telechargementAppele()[0][0]).toEqual([ACOMPTE])
