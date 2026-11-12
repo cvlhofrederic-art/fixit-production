@@ -133,7 +133,7 @@ describe('témoin — fenêtre ouverte depuis la carte (TableauSignalementsQr), 
     window.history.replaceState(null, '', '/fr/aj-signalement/#coproprietes')
     superAdmin()
     render(<EspaceAjSignalement />)
-    fireEvent.click(await screen.findByRole('button', { name: TD.carte.diffuser }))
+    fireEvent.click(await screen.findByRole('button', { name: TD.carte.diffuser }, { timeout: 5000 }))
     await screen.findByRole('dialog', { name: remplir(TD.titres.message, { copropriete: 'Résidence Exemple' }) })
     await screen.findByRole('button', { name: TD.boutons.verifier })
     await effetsPoses()

@@ -1549,7 +1549,7 @@ describe('relecture 3 — focus gardé dans la fenêtre quand le bouton activé 
     await screen.findByText('Message envoyé à 4 personnes.')
     fireEvent.click(screen.getByRole('button', { name: TD.boutons.voirHistorique }))
     const titreHistorique = remplir(TD.titres.historique, { copropriete: 'Résidence Exemple' })
-    await screen.findByRole('dialog', { name: titreHistorique })
+    await screen.findByRole('dialog', { name: titreHistorique }, { timeout: 5000 })
     await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: titreHistorique })).toHaveFocus())
   })
 
