@@ -37,6 +37,10 @@ export const CODES_METIER_QR = [
   'signalements_presents', 'conflit_statut', 'expire', 'domaine_autre_cabinet',
   // PR 2 (accès des gestionnaires) : accès déjà ouvert, adresse d'un compte d'un autre espace (jamais converti).
   'deja_ouvert', 'compte_autre_espace',
+  // PR 3 (diffusion aux déclarants) : copropriété qui ne peut pas diffuser, personne dans le périmètre, nombre changé
+  // depuis l'aperçu, reprise d'un message de plus d'une heure à confirmer (409), message non parti en 24 h (410) ;
+  // activation du cabinet refusée (réglage manquant, langue non ouverte).
+  'diffusion_inactive', 'aucun_destinataire', 'perimetre_change', 'a_confirmer', 'perime', 'cabinet_incomplet', 'langue_non_ouverte',
 ] as const
 export type CodeMetierQr = (typeof CODES_METIER_QR)[number]
 
@@ -50,10 +54,13 @@ export type CodeRefusQr = (typeof CODES_REFUS_QR)[number]
 /**
  * Codes d'échec : invalide (4xx), introuvable (404 : QR code inconnu ou désactivé), trop_de_demandes (429),
  * non_authentifie (401), interdit (403 : pas super admin), base_absente (503 : migration non appliquée),
- * serveur (5xx), reseau ; et les codes métier des 409 / 410 (CODES_METIER_QR).
+ * serveur (5xx), reseau ; et les codes métier des 409 / 410 (CODES_METIER_QR). PR 3 : texte_refuse (400 : texte d'une
+ * diffusion refusé par le contrôle, motif dans le corps), configuration_incomplete (503 : clé de signature des liens de
+ * désinscription absente).
  */
 export type CodeErreurQr =
   | 'invalide' | 'introuvable' | 'trop_de_demandes' | 'non_authentifie' | 'interdit' | 'base_absente' | 'serveur' | 'reseau'
+  | 'texte_refuse' | 'configuration_incomplete'
   | CodeMetierQr | CodeRefusQr
 
 /** Échec d'un appel : le code, et pour certains refus ce que l'écran en montre. */
@@ -92,6 +99,8 @@ const estCodeRefus = (v: unknown): v is CodeRefusQr => typeof v === 'string' && 
 export function codeDepuisReponseQr(status: number, corps: unknown): CodeErreurQr {
   const erreur = corps && typeof corps === 'object' ? (corps as { error?: unknown }).error : undefined
   if (erreur === 'base_absente') return 'base_absente'
+  if (status === 503 && erreur === 'configuration_incomplete') return 'configuration_incomplete'
+  if (status === 400 && erreur === 'texte_refuse') return 'texte_refuse'
   if ((status === 409 || status === 410) && estCodeMetier(erreur)) return erreur
   if (status === 410) return 'expire'
   if (status === 401) return 'non_authentifie'

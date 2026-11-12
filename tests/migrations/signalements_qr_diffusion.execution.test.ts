@@ -265,7 +265,7 @@ describe('chaîne des migrations signalements_qr jouée deux fois', () => {
                 AND relname IN ('signalements_qr_diffusions', 'signalements_qr_diffusion_destinataires', 'signalements_qr_diffusion_oppositions')) AS tables,
              (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'public'::regnamespace
                 AND (proname LIKE 'signalements\\_qr\\_diffusion%' OR proname = 'signalements_qr_empreinte_email')) AS fonctions`)
-    expect(r).toEqual({ non_validees: 0, tables: 3, fonctions: 22 })
+    expect(r).toEqual({ non_validees: 0, tables: 3, fonctions: 25 })
   })
 
   it('liste du journal : les 34 actions de la 20261111 et les 7 de la diffusion, une seule contrainte', async () => {
@@ -327,7 +327,7 @@ describe('droits : clé service seulement', () => {
              has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_peut
         FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
          AND (p.proname LIKE 'signalements\\_qr\\_diffusion%' OR p.proname = 'signalements_qr_empreinte_email')`, [role])
-    expect(fonctions).toHaveLength(22)
+    expect(fonctions).toHaveLength(25)
     for (const f of fonctions) {
       expect(f.role_peut, f.sig).toBe(false)
       expect(f.service_peut, f.sig).toBe(true)
@@ -1239,5 +1239,166 @@ describe('plpgsql à RETURNS TABLE : aucune référence ambiguë (42702) à l’
     expect(erreurs).toEqual([null, null, null, null, null, null])
     expect(identique.lignes.map((l) => [l.lot, l.reprise])).toEqual([[1, true], [1, true]])
     expect(renumerote.lignes.map((l) => [l.destinataire_id, l.lot, l.reprise])).toEqual([[nouveau.lignes[1].destinataire_id, 2, false]])
+  })
+})
+
+// ── Lot 5 (routes) : réglages et activation du cabinet (D-R8), nombres d'une diffusion ──────────────────────────────
+
+interface Reglage {
+  contact?: string | null
+  politique?: string | null
+  declaree?: boolean | null
+  reference?: string | null
+  signeLe?: string | null
+  telephones?: string[] | null
+  activer?: boolean | null
+  acteur?: string
+}
+
+interface ReglageRendu { active: boolean; champs: string[]; etat: 'activee' | 'suspendue' | null }
+
+async function regler(cab: string, r: Reglage = {}): Promise<Appel<{ r: ReglageRendu }>> {
+  return service<{ r: ReglageRendu }>(
+    `SELECT signalements_qr_diffusion_regler_cabinet(
+       p_cabinet => $1::uuid, p_acteur => $2::uuid, p_contact => $3::text, p_politique => $4::text,
+       p_politique_declaree => $5::boolean, p_contrat_reference => $6::text, p_contrat_signe_le => $7::date,
+       p_telephones => $8::text[], p_activer => $9::boolean) AS r`,
+    [cab, r.acteur ?? SUPER_ADMIN, r.contact ?? null, r.politique ?? null, r.declaree ?? null, r.reference ?? null,
+      r.signeLe ?? null, r.telephones ?? null, r.activer ?? null])
+}
+
+/** Cabinet sans aucun réglage de diffusion (comme à la création par la PR 1). */
+async function cabinetNu(langue: 'fr' | 'pt' = 'fr'): Promise<string> {
+  compteur += 1
+  const [r] = await q<{ id: string }>(
+    'INSERT INTO signalements_qr_cabinets (nom, identifiant, langue) VALUES ($1, $2, $3) RETURNING id',
+    [`Cabinet nu ${compteur}`, `cabinet-nu-${compteur}`, langue])
+  return r.id
+}
+
+const REGLAGES_COMPLETS: Reglage = {
+  contact: ' Contact@Cabinet-Exemple.test ', politique: 'https://cabinet-exemple.test/confidentialite', declaree: true,
+  reference: 'Contrat exemple v1', signeLe: '2026-11-01', telephones: ['0612345678'],
+}
+
+const ligneCabinet = async (cab: string) => (await q<Record<string, unknown>>(
+  `SELECT diffusion_contact_email, diffusion_politique_url, diffusion_politique_verifiee_le, diffusion_contrat_reference,
+          diffusion_contrat_signe_le::text AS signe, diffusion_telephones, diffusion_activee_le, diffusion_activee_par
+     FROM signalements_qr_cabinets WHERE id = $1`, [cab]))[0]
+
+const journalCabinet = (cab: string) => q<{ action: string; champs: string[]; details: Record<string, unknown>; acteur_id: string }>(
+  'SELECT action, champs, details, acteur_id FROM signalements_qr_journal WHERE cabinet_id = $1 ORDER BY id', [cab])
+
+const raisonInactive = async (cop: string) =>
+  (await ok<{ r: string | null }>('SELECT signalements_qr_diffusion_raison_inactive($1::uuid) AS r', [cop]))[0].r
+
+describe('D-R8 : réglages et activation du cabinet (signalements_qr_diffusion_regler_cabinet)', () => {
+  it('activation sans réglage → cabinet_incomplet, rien d’écrit ; réglages complets puis activation → activée, journal sans valeur saisie', async () => {
+    const cab = await cabinetNu()
+    const refus = await regler(cab, { activer: true })
+    expect(refus.erreur).toMatchObject({ code: 'P0001', message: 'cabinet_incomplet' })
+    expect(await journalCabinet(cab)).toEqual([])
+
+    const reglage = await regler(cab, REGLAGES_COMPLETS)
+    expect(reglage.erreur).toBeNull()
+    expect(reglage.lignes[0].r).toEqual({
+      active: false, etat: null,
+      champs: ['diffusion_contact_email', 'diffusion_politique_url', 'diffusion_politique_verifiee_le', 'diffusion_contrat_reference',
+        'diffusion_contrat_signe_le', 'diffusion_telephones'],
+    })
+    const activation = await regler(cab, { activer: true })
+    expect(activation.lignes[0].r).toEqual({ active: true, etat: 'activee', champs: [] })
+    const ligne = await ligneCabinet(cab)
+    expect(ligne).toMatchObject({ diffusion_contact_email: 'contact@cabinet-exemple.test', signe: '2026-11-01', diffusion_activee_par: SUPER_ADMIN })
+    expect(ligne.diffusion_activee_le).not.toBeNull()
+    const journal = await journalCabinet(cab)
+    expect(journal.map((j) => j.action)).toEqual(['cabinet.modifie', 'cabinet.diffusion_activee'])
+    expect(journal.every((j) => j.acteur_id === SUPER_ADMIN)).toBe(true)
+    const texte = JSON.stringify(journal)
+    for (const valeur of ['contact@', 'https://', 'Contrat exemple', '0612345678', '2026-11-01']) expect(texte, valeur).not.toContain(valeur)
+    // Réactiver un cabinet déjà activé : rien ne change, rien n'est journalisé.
+    expect((await regler(cab, { activer: true })).lignes[0].r).toEqual({ active: true, etat: null, champs: [] })
+    expect(await journalCabinet(cab)).toHaveLength(2)
+  })
+
+  it.each([
+    ['contact', { contact: null }], ['politique', { politique: null, declaree: null }], ['déclaration de la politique', { declaree: null }],
+    ['référence du contrat', { reference: null }], ['date du contrat', { signeLe: null }],
+  ] as Array<[string, Reglage]>)('activation sans %s → cabinet_incomplet, rien d’écrit', async (_manque, retrait) => {
+    const cab = await cabinetNu()
+    const r = await regler(cab, { ...REGLAGES_COMPLETS, ...retrait, activer: true })
+    expect(r.erreur).toMatchObject({ code: 'P0001', message: 'cabinet_incomplet' })
+    expect(await ligneCabinet(cab)).toMatchObject({ diffusion_activee_le: null, diffusion_contact_email: null })
+    expect(await journalCabinet(cab)).toEqual([])
+  })
+
+  it('H9 : cabinet « pt » → langue_non_ouverte, même complet ; rien d’écrit', async () => {
+    const cab = await cabinetNu('pt')
+    const r = await regler(cab, { ...REGLAGES_COMPLETS, activer: true })
+    expect(r.erreur).toMatchObject({ code: 'P0001', message: 'langue_non_ouverte' })
+    expect((await ligneCabinet(cab)).diffusion_contact_email).toBeNull()
+    expect(await journalCabinet(cab)).toEqual([])
+  })
+
+  it('cabinet activé : politique changée SANS nouvelle déclaration → cabinet_incomplet ; avec la déclaration → acceptée et redatée', async () => {
+    const cab = await cabinetNu()
+    await regler(cab, { ...REGLAGES_COMPLETS, activer: true })
+    // Déclaration d'hier : now() est figé dans la transaction du test, la redatation doit se voir.
+    await q("UPDATE signalements_qr_cabinets SET diffusion_politique_verifiee_le = now() - interval '1 day' WHERE id = $1", [cab])
+    const avant = await ligneCabinet(cab)
+    const refus = await regler(cab, { politique: 'https://cabinet-exemple.test/nouvelle-politique' })
+    expect(refus.erreur).toMatchObject({ code: 'P0001', message: 'cabinet_incomplet' })
+    expect((await ligneCabinet(cab)).diffusion_politique_url).toBe(avant.diffusion_politique_url)
+    const accepte = await regler(cab, { politique: 'https://cabinet-exemple.test/nouvelle-politique', declaree: true })
+    expect(accepte.erreur).toBeNull()
+    expect(accepte.lignes[0].r.champs).toEqual(['diffusion_politique_url', 'diffusion_politique_verifiee_le'])
+    expect((await ligneCabinet(cab)).diffusion_politique_url).toBe('https://cabinet-exemple.test/nouvelle-politique')
+  })
+
+  it('suspension : plus aucune diffusion (diffusion_non_activee), journal cabinet.diffusion_suspendue ; les réglages restent', async () => {
+    const cab = await cabinetNu()
+    await regler(cab, { ...REGLAGES_COMPLETS, activer: true })
+    const cop = await copro(cab)
+    expect(await raisonInactive(cop)).toBeNull()
+    const r = await regler(cab, { activer: false })
+    expect(r.lignes[0].r).toEqual({ active: false, etat: 'suspendue', champs: [] })
+    expect(await raisonInactive(cop)).toBe('diffusion_non_activee')
+    expect(await ligneCabinet(cab)).toMatchObject({ diffusion_activee_le: null, diffusion_activee_par: null, diffusion_contrat_reference: 'Contrat exemple v1' })
+    expect((await journalCabinet(cab)).map((j) => j.action)).toEqual(['cabinet.modifie', 'cabinet.diffusion_activee', 'cabinet.diffusion_suspendue'])
+  })
+
+  it('paramètres invalides → 22023 (date du contrat future, déclaration à faux, téléphone NULL) ; téléphone hors forme → 23514 ; cabinet inconnu → a_reverifier', async () => {
+    const cab = await cabinetNu()
+    expect((await regler(cab, { signeLe: '2999-01-01' })).erreur?.code).toBe('22023')
+    expect((await regler(cab, { declaree: false })).erreur?.code).toBe('22023')
+    expect((await regler(cab, { telephones: ['0612345678', null as unknown as string] })).erreur?.code).toBe('22023')
+    expect((await regler(cab, { telephones: ['06 12 34 56 78'] })).erreur?.code).toBe('23514')
+    expect((await regler(randomUUID(), { contact: 'contact@exemple.test' })).erreur).toMatchObject({ code: 'P0001', message: 'a_reverifier' })
+    expect(await journalCabinet(cab)).toEqual([])
+  })
+
+  it('téléphones : liste remplacée en entier (vide permis) ; un champ n’est journalisé que s’il change', async () => {
+    const cab = await cabinetNu()
+    await regler(cab, { telephones: ['0612345678', '351912345678'] })
+    expect((await ligneCabinet(cab)).diffusion_telephones).toEqual(['0612345678', '351912345678'])
+    expect((await regler(cab, { telephones: ['0612345678', '351912345678'] })).lignes[0].r.champs).toEqual([])
+    expect((await regler(cab, { telephones: [] })).lignes[0].r.champs).toEqual(['diffusion_telephones'])
+    expect((await ligneCabinet(cab)).diffusion_telephones).toEqual([])
+    expect((await journalCabinet(cab)).map((j) => j.champs)).toEqual([['diffusion_telephones'], ['diffusion_telephones']])
+  })
+})
+
+describe('nombres d’une diffusion (signalements_qr_diffusion_nombres)', () => {
+  it('par état, agrégés depuis les destinataires ; opposés et périmés comptés à part parmi les annulés ; diffusion inconnue → zéros', async () => {
+    const { cop } = await immeuble(5)
+    const d = await creerOk(cop)
+    const lignes = await lot(d.diffusion_id, 3)
+    await resultats(d.diffusion_id, lignes[0].lot, { envoyes: [lignes[0].destinataire_id], refuses: [lignes[1].destinataire_id] })
+    const restants = (await etats(d.diffusion_id)).filter((e) => e.etat === 'en_attente')
+    await opposer(restants[0].id)
+    const [n] = await ok<Record<string, number>>('SELECT * FROM signalements_qr_diffusion_nombres($1::uuid)', [d.diffusion_id])
+    expect(n).toEqual({ nb_envoyes: 1, nb_refuses: 1, nb_attente: 2, nb_annules: 1, nb_incertains: 0, nb_opposes: 1, nb_perimes: 0 })
+    const [vide] = await ok<Record<string, number>>('SELECT * FROM signalements_qr_diffusion_nombres($1::uuid)', [randomUUID()])
+    expect(vide).toEqual({ nb_envoyes: 0, nb_refuses: 0, nb_attente: 0, nb_annules: 0, nb_incertains: 0, nb_opposes: 0, nb_perimes: 0 })
   })
 })

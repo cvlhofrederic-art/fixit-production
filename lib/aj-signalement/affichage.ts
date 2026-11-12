@@ -292,5 +292,16 @@ export const TEXTES_TABLEAU_QR = {
     // Refus 403 d'un gestionnaire connecté (PR 2, lot 5) ; ses écrans ont leurs propres textes (affichage-gestionnaire.ts).
     acces_retire: 'Accès retiré : la fiche de ce compte est désactivée.',
     lecture_seule: 'Cette fiche est en lecture seule pour ce compte.',
+    // Diffusion aux déclarants (PR 3) : le message seul, jamais le texte du serveur ; aucun ne nomme un profil (l'écran
+    // d'un gestionnaire reprend ces textes).
+    diffusion_inactive: 'Diffusion impossible pour cette copropriété : copropriété désactivée, sans cabinet, mission terminée, ou diffusion non activée pour son cabinet.',
+    aucun_destinataire: 'Personne à informer dans ce périmètre.',
+    perimetre_change: 'Le nombre de destinataires a changé : vérifiez le nouveau nombre, puis confirmez.',
+    a_confirmer: 'Ce message a été écrit il y a plus d’une heure : confirmez que son contenu est toujours exact avant de reprendre l’envoi.',
+    perime: 'Ce message n’est pas parti dans les 24 heures qui ont suivi son écriture : il ne sera plus envoyé.',
+    cabinet_incomplet: 'Activation impossible : renseignez le contact, la politique de confidentialité et sa déclaration, la référence et la date du contrat de sous-traitance.',
+    langue_non_ouverte: 'La diffusion n’est pas encore ouverte dans la langue de ce cabinet.',
+    texte_refuse: 'Le message n’est pas accepté : corrigez-le selon l’indication sous le champ.',
+    configuration_incomplete: 'Fonction pas encore activée.',
   } satisfies Record<CodeErreurQr, string>,
 } as const

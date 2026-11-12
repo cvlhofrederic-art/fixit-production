@@ -21,12 +21,14 @@
 -- datée, contrat de sous-traitance référencé et daté, téléphones autorisés, activation), 2 colonnes sur le signalement
 -- (date et origine de l'annonce), 1 sur la copropriété (fin de mission) ; 3 tables (diffusions, destinataires par
 -- diffusion, oppositions par empreinte SHA-256 de l'adresse normalisée et par copropriété, SANS clé étrangère : la preuve
--- de l'opposition survit au signalement) ; 22 fonctions SECURITY INVOKER (search_path figé, EXECUTE à service_role seul) ;
--- liste fermée des actions du journal REMPLACÉE (34 actions de la 20261111 + 7 de la diffusion).
+-- de l'opposition survit au signalement) ; 25 fonctions SECURITY INVOKER (search_path figé, EXECUTE à service_role seul),
+-- dont les réglages et l'activation du cabinet en une transaction (route D-R8) ; liste fermée des actions du journal
+-- REMPLACÉE (34 actions de la 20261111 + 7 de la diffusion).
 -- Aucune adresse en clair hors de signalements_qr : l'envoi relit l'adresse du signalement source et la compare à
 -- l'empreinte. Aucune colonne ni paramètre de passe-droit à une opposition.
--- Erreurs levées par les fonctions : P0001 (a_reverifier, diffusion_inactive, aucun_destinataire, perimetre_change : codes
--- publics 409 des routes), 42501 (interdit), 22023 (paramètre invalide) ; jamais renvoyées telles quelles au navigateur.
+-- Erreurs levées par les fonctions : P0001 (a_reverifier, diffusion_inactive, aucun_destinataire, perimetre_change ;
+-- activation du cabinet : cabinet_incomplet, langue_non_ouverte — codes publics 409 des routes), 42501 (interdit), 22023
+-- (paramètre invalide) ; jamais renvoyées telles quelles au navigateur.
 -- Le remplacement de la liste du journal s'arrête (55000, journal_action_perdue) plutôt que de retirer une action que
 -- la contrainte en place connaîtrait et que la nouvelle liste n'aurait pas.
 --
@@ -248,12 +250,19 @@ COMMENT ON TABLE signalements_qr_diffusion_oppositions IS 'AJ Signalement : oppo
 
 -- ── 7. Règles communes ──
 
+-- Langues des cabinets qui peuvent diffuser (H9, H4) : le français, tant que le droit portugais n'est pas vérifié ni les
+-- textes portugais relus. SEULE liste, lue par la règle d'inactivité et par l'activation du cabinet
+-- (signalements_qr_diffusion_regler_cabinet) ; même liste que LANGUES_DIFFUSION_OUVERTES_QR (lib/aj-signalement/types.ts,
+-- test d'accord) ; ouvrir le portugais = une migration qui remplace cette fonction.
+CREATE OR REPLACE FUNCTION signalements_qr_diffusion_langue_ouverte(p_langue text) RETURNS boolean
+LANGUAGE sql IMMUTABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+  SELECT coalesce(p_langue = ANY (ARRAY['fr']::text[]), false)
+$fn$;
+
 -- Pourquoi la copropriété ne peut pas (ou plus) diffuser ; NULL : elle le peut. Seule définition, lue par l'aperçu, la
 -- création, chaque lot et l'annonce de l'accusé. Fin de mission (H7) : à partir de la date, heure de Paris.
--- Langue (H9, H4) : seuls les cabinets d'une langue ouverte diffusent — le français, tant que le droit portugais n'est pas
--- vérifié ni les textes portugais relus — même activés puis passés dans une autre langue par la modification du cabinet
--- (signalements_qr_enregistrer_cabinet, PR 1). Même liste que LANGUES_DIFFUSION_OUVERTES_QR (lib/aj-signalement/types.ts,
--- test d'accord) ; ouvrir le portugais = une migration qui remplace cette fonction.
+-- Langue (H9, H4) : seuls les cabinets d'une langue ouverte diffusent (signalements_qr_diffusion_langue_ouverte), même
+-- activés puis passés dans une autre langue par la modification du cabinet (signalements_qr_enregistrer_cabinet, PR 1).
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_raison_inactive(p_copropriete uuid) RETURNS text
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   SELECT CASE
@@ -261,7 +270,7 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
            WHEN NOT c.actif THEN 'copropriete_inactive'
            WHEN c.cabinet_id IS NULL OR k.id IS NULL THEN 'sans_cabinet'
            WHEN k.diffusion_activee_le IS NULL THEN 'diffusion_non_activee'
-           WHEN NOT (k.langue = ANY (ARRAY['fr']::text[])) THEN 'langue_non_ouverte'
+           WHEN NOT signalements_qr_diffusion_langue_ouverte(k.langue) THEN 'langue_non_ouverte'
            WHEN c.diffusion_fin_gestion_le IS NOT NULL
                 AND (now() AT TIME ZONE 'Europe/Paris')::date >= c.diffusion_fin_gestion_le THEN 'fin_gestion'
          END
@@ -735,6 +744,24 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
    LIMIT least(greatest(coalesce(p_limite, 20), 1), 100)
 $fn$;
 
+-- Nombres d'UNE diffusion par état (réponses de l'envoi, de la reprise et du détail) : agrégés depuis les destinataires,
+-- jamais des compteurs dupliqués. Opposés (annulés par une opposition) et périmés (non partis en 24 h) sont comptés à part
+-- parmi les annulés. Une ligne toujours (zéros pour une diffusion inconnue : la route l'a lue avant).
+CREATE OR REPLACE FUNCTION signalements_qr_diffusion_nombres(p_diffusion uuid)
+RETURNS TABLE(nb_envoyes integer, nb_refuses integer, nb_attente integer, nb_annules integer, nb_incertains integer,
+              nb_opposes integer, nb_perimes integer)
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+  SELECT (count(*) FILTER (WHERE x.etat = 'envoye'))::integer,
+         (count(*) FILTER (WHERE x.etat = 'refuse'))::integer,
+         (count(*) FILTER (WHERE x.etat IN ('en_attente', 'en_cours')))::integer,
+         (count(*) FILTER (WHERE x.etat = 'annule'))::integer,
+         (count(*) FILTER (WHERE x.etat = 'incertain'))::integer,
+         (count(*) FILTER (WHERE x.etat = 'annule' AND x.code = 'opposition'))::integer,
+         (count(*) FILTER (WHERE x.etat = 'annule' AND x.code = 'perime'))::integer
+    FROM signalements_qr_diffusion_destinataires x
+   WHERE x.diffusion_id = p_diffusion
+$fn$;
+
 -- ── 11. Désinscription (la route a vérifié la signature du lien) ──
 
 -- Lecture d'un lien, sans effet : noms figés du message, contact et politique du cabinet, adresse (seulement si elle
@@ -926,6 +953,111 @@ BEGIN
   RETURN v_n;
 END $fn$;
 
+-- ── 12 bis. Réglages et activation de la diffusion d'un cabinet (super admin, route D-R8) ──
+-- En UNE transaction avec leur journal : adresse de contact, politique de confidentialité et déclaration datée qu'elle
+-- décrit la diffusion, contrat de sous-traitance (référence et date de signature, non future), téléphones autorisés dans
+-- les messages (H2 ; liste remplacée en entier, forme normalisée par la route) ; activation (p_activer = true) ou
+-- suspension (false : les lots suivants s'arrêtent, règle d'inactivité). Paramètre NULL = inchangé. Une politique changée
+-- sans nouvelle déclaration perd la déclaration (elle vaut pour CETTE adresse). Refus : langue du cabinet non ouverte à
+-- l'activation (H9, langue_non_ouverte) ; cabinet activé (ou à activer) auquel il manquerait un réglage
+-- (cabinet_incomplet ; la contrainte signalements_qr_cabinets_diffusion_complete reste le dernier rempart) ; cabinet
+-- inconnu (a_reverifier, comme signalements_qr_enregistrer_cabinet). Journal : cabinet.modifie avec les NOMS des champs
+-- changés (jamais leurs valeurs), cabinet.diffusion_activee / cabinet.diffusion_suspendue au changement d'état.
+-- Rend { active, champs, etat } (etat : activee, suspendue ou null).
+CREATE OR REPLACE FUNCTION signalements_qr_diffusion_regler_cabinet(
+  p_cabinet uuid, p_acteur uuid, p_contact text, p_politique text, p_politique_declaree boolean,
+  p_contrat_reference text, p_contrat_signe_le date, p_telephones text[], p_activer boolean
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
+DECLARE
+  v_ancien    signalements_qr_cabinets%ROWTYPE;
+  v_contact   text;
+  v_politique text;
+  v_verifiee  timestamptz;
+  v_reference text;
+  v_signe     date;
+  v_tel       text[];
+  v_activee   timestamptz;
+  v_par       uuid;
+  v_champs    text[] := '{}';
+  v_etat      text;
+BEGIN
+  IF p_cabinet IS NULL OR p_acteur IS NULL OR p_politique_declaree IS FALSE
+     OR p_contrat_signe_le > (now() AT TIME ZONE 'Europe/Paris')::date
+     OR array_position(p_telephones, NULL) IS NOT NULL THEN
+    RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
+  END IF;
+  SELECT * INTO v_ancien FROM signalements_qr_cabinets k WHERE k.id = p_cabinet FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'a_reverifier' USING ERRCODE = 'P0001';
+  END IF;
+
+  v_contact   := coalesce(lower(nullif(btrim(p_contact), '')), v_ancien.diffusion_contact_email);
+  v_politique := coalesce(nullif(btrim(p_politique), ''), v_ancien.diffusion_politique_url);
+  v_verifiee  := CASE WHEN p_politique_declaree THEN now()
+                      WHEN v_politique IS DISTINCT FROM v_ancien.diffusion_politique_url THEN NULL
+                      ELSE v_ancien.diffusion_politique_verifiee_le END;
+  v_reference := coalesce(nullif(btrim(p_contrat_reference), ''), v_ancien.diffusion_contrat_reference);
+  v_signe     := coalesce(p_contrat_signe_le, v_ancien.diffusion_contrat_signe_le);
+  v_tel       := coalesce(p_telephones, v_ancien.diffusion_telephones);
+  v_activee   := CASE WHEN p_activer IS TRUE THEN coalesce(v_ancien.diffusion_activee_le, now())
+                      WHEN p_activer IS FALSE THEN NULL
+                      ELSE v_ancien.diffusion_activee_le END;
+  v_par       := CASE WHEN v_activee IS NULL THEN NULL
+                      WHEN v_ancien.diffusion_activee_le IS NULL THEN p_acteur
+                      ELSE v_ancien.diffusion_activee_par END;
+
+  IF p_activer IS TRUE AND NOT signalements_qr_diffusion_langue_ouverte(v_ancien.langue) THEN
+    RAISE EXCEPTION 'langue_non_ouverte' USING ERRCODE = 'P0001';
+  END IF;
+  IF v_activee IS NOT NULL AND (v_contact IS NULL OR v_politique IS NULL OR v_verifiee IS NULL
+                                OR v_reference IS NULL OR v_signe IS NULL) THEN
+    RAISE EXCEPTION 'cabinet_incomplet' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF v_contact IS DISTINCT FROM v_ancien.diffusion_contact_email THEN
+    v_champs := array_append(v_champs, 'diffusion_contact_email');
+  END IF;
+  IF v_politique IS DISTINCT FROM v_ancien.diffusion_politique_url THEN
+    v_champs := array_append(v_champs, 'diffusion_politique_url');
+  END IF;
+  IF v_verifiee IS DISTINCT FROM v_ancien.diffusion_politique_verifiee_le THEN
+    v_champs := array_append(v_champs, 'diffusion_politique_verifiee_le');
+  END IF;
+  IF v_reference IS DISTINCT FROM v_ancien.diffusion_contrat_reference THEN
+    v_champs := array_append(v_champs, 'diffusion_contrat_reference');
+  END IF;
+  IF v_signe IS DISTINCT FROM v_ancien.diffusion_contrat_signe_le THEN
+    v_champs := array_append(v_champs, 'diffusion_contrat_signe_le');
+  END IF;
+  IF v_tel IS DISTINCT FROM v_ancien.diffusion_telephones THEN
+    v_champs := array_append(v_champs, 'diffusion_telephones');
+  END IF;
+  v_etat := CASE WHEN v_activee IS NOT NULL AND v_ancien.diffusion_activee_le IS NULL THEN 'activee'
+                 WHEN v_activee IS NULL AND v_ancien.diffusion_activee_le IS NOT NULL THEN 'suspendue' END;
+
+  IF cardinality(v_champs) > 0 OR v_etat IS NOT NULL THEN
+    UPDATE signalements_qr_cabinets k
+       SET diffusion_contact_email = v_contact, diffusion_politique_url = v_politique,
+           diffusion_politique_verifiee_le = v_verifiee, diffusion_contrat_reference = v_reference,
+           diffusion_contrat_signe_le = v_signe, diffusion_telephones = v_tel,
+           diffusion_activee_le = v_activee, diffusion_activee_par = v_par
+     WHERE k.id = p_cabinet;
+  END IF;
+  IF cardinality(v_champs) > 0 THEN
+    INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action, champs)
+    VALUES (p_cabinet, p_acteur, 'super_admin', 'cabinet.modifie', v_champs);
+  END IF;
+  IF v_etat = 'activee' THEN
+    INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action)
+    VALUES (p_cabinet, p_acteur, 'super_admin', 'cabinet.diffusion_activee');
+  ELSIF v_etat = 'suspendue' THEN
+    INSERT INTO signalements_qr_journal (cabinet_id, acteur_id, acteur_profil, action)
+    VALUES (p_cabinet, p_acteur, 'super_admin', 'cabinet.diffusion_suspendue');
+  END IF;
+  RETURN jsonb_build_object('active', v_activee IS NOT NULL, 'champs', to_jsonb(v_champs), 'etat', v_etat);
+END $fn$;
+
 -- ── 13. Conservation (H10) ──
 -- Diffusions et destinataires : 3 ans. Oppositions levées : 3 ans après la levée. Oppositions actives : 3 ans au moins,
 -- puis tant qu'un signalement de cette adresse existe dans la copropriété. Lignes non parties 24 h après la création :
@@ -1014,6 +1146,8 @@ ALTER TABLE signalements_qr_journal VALIDATE CONSTRAINT signalements_qr_journal_
 -- ── 15. Droits : EXECUTE réservé à service_role (signatures complètes) ──
 REVOKE EXECUTE ON FUNCTION signalements_qr_empreinte_email(text) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_empreinte_email(text) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_langue_ouverte(text) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_langue_ouverte(text) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_raison_inactive(uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_raison_inactive(uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_controler_portee(text, text[], text[], uuid, boolean) FROM PUBLIC, anon, authenticated;
@@ -1056,6 +1190,10 @@ REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_envoyee(uuid, integ
 GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_envoyee(uuid, integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_purger() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_purger() TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_nombres(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_nombres(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_regler_cabinet(uuid, uuid, text, text, boolean, text, date, text[], boolean) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_regler_cabinet(uuid, uuid, text, text, boolean, text, date, text[], boolean) TO service_role;
 
 -- ── 16. RLS sans politique et retrait des droits par défaut de Supabase, sur les 3 tables nouvelles ──
 ALTER TABLE signalements_qr_diffusions              ENABLE ROW LEVEL SECURITY;

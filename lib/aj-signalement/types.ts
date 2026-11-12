@@ -344,6 +344,8 @@ export const ERREURS_METIER_SQL_QR = [
   // Migration 20261113 (PR 3, diffusion) : copropriété qui ne peut pas diffuser (inactive, sans cabinet, cabinet non
   // activé, fin de mission atteinte), personne dans le périmètre, nombre réel au-dessus de l'aperçu ou aperçu périmé.
   'diffusion_inactive', 'aucun_destinataire', 'perimetre_change',
+  // Migration 20261113, réglages du cabinet (route D-R8) : activation refusée, réglage manquant ou langue non ouverte (H9).
+  'cabinet_incomplet', 'langue_non_ouverte',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 

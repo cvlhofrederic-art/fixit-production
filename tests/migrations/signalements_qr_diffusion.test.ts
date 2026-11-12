@@ -31,6 +31,7 @@ const TABLES_NOUVELLES = [
 /** Fonctions de la migration, avec la signature exacte de leurs arguments (REVOKE / GRANT). */
 const FONCTIONS_ATTENDUES: Record<string, string> = {
   signalements_qr_empreinte_email: 'text',
+  signalements_qr_diffusion_langue_ouverte: 'text',
   signalements_qr_diffusion_raison_inactive: 'uuid',
   signalements_qr_diffusion_controler_portee: 'text, text[], text[], uuid, boolean',
   signalements_qr_diffusion_gestionnaire_autorise: 'uuid, uuid, uuid',
@@ -53,6 +54,9 @@ const FONCTIONS_ATTENDUES: Record<string, string> = {
   signalements_qr_diffusion_annonce_envoyee: 'uuid, integer',
   signalements_qr_diffusions_a_reprendre: 'integer',
   signalements_qr_diffusion_purger: '',
+  // Lot 5 (routes) : nombres d'une diffusion par état ; réglages et activation du cabinet en une transaction (D-R8).
+  signalements_qr_diffusion_nombres: 'uuid',
+  signalements_qr_diffusion_regler_cabinet: 'uuid, uuid, text, text, boolean, text, date, text[], boolean',
 }
 
 /** Les 34 actions de la 20261111 (aucune migration postérieure ne les a changées) et les 7 de la diffusion (§ 2.4). */
@@ -111,7 +115,11 @@ describe(`Migration ${FICHIER} : fichier et ordre`, () => {
     const entete = sql.slice(0, sql.indexOf('-- ── 1.'))
     expect(entete.length).toBeGreaterThan(0)
     const leves = new Set([...code.matchAll(/RAISE EXCEPTION '([a-z_]+)' USING ERRCODE = 'P0001'/g)].map((m) => m[1]))
-    expect(trie(leves)).toEqual(trie(['a_reverifier', 'aucun_destinataire', 'diffusion_inactive', 'perimetre_change']))
+    expect(trie(leves)).toEqual(trie([
+      'a_reverifier', 'aucun_destinataire', 'diffusion_inactive', 'perimetre_change',
+      // Lot 5 : activation du cabinet refusée (réglage manquant ; langue non ouverte, H9).
+      'cabinet_incomplet', 'langue_non_ouverte',
+    ]))
     expect([...leves].filter((m) => !new RegExp(`\\b${m}\\b`).test(entete))).toEqual([])
   })
 
@@ -302,13 +310,45 @@ describe(`Migration ${FICHIER} : réglages du cabinet, annonce (H1) et fin de mi
     }
   })
 
-  it('H9 : langues ouvertes à la diffusion, mêmes en TypeScript (LANGUES_DIFFUSION_OUVERTES_QR) et dans la règle d’inactivité', () => {
-    const regle = fonction('signalements_qr_diffusion_raison_inactive').corps
-    const m = /WHEN NOT \(k\.langue = ANY \(ARRAY\[([^\]]*)\]::text\[\]\)\) THEN 'langue_non_ouverte'/.exec(regle)
+  it('H9 : langues ouvertes à la diffusion, mêmes en TypeScript (LANGUES_DIFFUSION_OUVERTES_QR) et dans la SEULE fonction qui les liste', () => {
+    const liste = fonction('signalements_qr_diffusion_langue_ouverte')
+    expect(liste.entete).toMatch(/LANGUAGE sql IMMUTABLE/)
+    const m = /p_langue = ANY \(ARRAY\[([^\]]*)\]::text\[\]\)/.exec(liste.corps)
     expect(m).not.toBeNull()
     const sql = [...(m?.[1] ?? '').matchAll(/'([^']+)'/g)].map((v) => v[1])
     expect(trie(sql)).toEqual(trie(LANGUES_DIFFUSION_OUVERTES_QR))
     expect(LANGUES_DIFFUSION_OUVERTES_QR).toEqual(['fr'])
+    // Lue par la règle d'inactivité (aperçu, création, lots, annonce) et par l'activation du cabinet ; aucune autre liste.
+    expect(fonction('signalements_qr_diffusion_raison_inactive').corps)
+      .toMatch(/WHEN NOT signalements_qr_diffusion_langue_ouverte\(k\.langue\) THEN 'langue_non_ouverte'/)
+    expect(fonction('signalements_qr_diffusion_regler_cabinet').corps).toMatch(/NOT signalements_qr_diffusion_langue_ouverte\(v_ancien\.langue\)/)
+    expect([...code.matchAll(/ARRAY\['fr'/g)]).toHaveLength(1)
+  })
+
+  it('D-R8 : réglages et activation du cabinet en UNE fonction, cabinet verrouillé, refus nommés, journal sans valeur saisie', () => {
+    const regler = fonction('signalements_qr_diffusion_regler_cabinet')
+    expect(regler.entete).toMatch(/RETURNS jsonb\s+LANGUAGE plpgsql/)
+    expect(regler.corps).toMatch(/FROM signalements_qr_cabinets k WHERE k\.id = p_cabinet FOR UPDATE/)
+    expect(regler.corps).toMatch(/RAISE EXCEPTION 'langue_non_ouverte' USING ERRCODE = 'P0001'/)
+    expect(regler.corps).toMatch(/RAISE EXCEPTION 'cabinet_incomplet' USING ERRCODE = 'P0001'/)
+    // Une politique changée sans nouvelle déclaration perd la déclaration (la déclaration vaut pour CETTE adresse).
+    expect(regler.corps).toMatch(/WHEN v_politique IS DISTINCT FROM v_ancien\.diffusion_politique_url THEN NULL/)
+    for (const action of ['cabinet.modifie', 'cabinet.diffusion_activee', 'cabinet.diffusion_suspendue']) {
+      expect(regler.corps, action).toContain(`'${action}'`)
+    }
+    // Journal : noms des champs (champs) seulement ; ni adresse, ni politique, ni référence, ni numéro.
+    const journal = [...regler.corps.matchAll(/INSERT INTO signalements_qr_journal[\s\S]*?;/g)].map((m) => m[0])
+    expect(journal.length).toBe(3)
+    for (const insertion of journal) {
+      expect(insertion).not.toMatch(/p_contact|p_politique|p_contrat|p_telephones|v_contact|v_politique|v_reference|v_signe|v_tel\b|details/)
+    }
+  })
+
+  it('nombres d’une diffusion : agrégés depuis les destinataires, par état (aucun compteur dupliqué)', () => {
+    const nombres = fonction('signalements_qr_diffusion_nombres')
+    expect(nombres.entete).toMatch(/LANGUAGE sql STABLE/)
+    expect(nombres.corps).toMatch(/FROM signalements_qr_diffusion_destinataires x\s+WHERE x\.diffusion_id = p_diffusion/)
+    for (const etat of ['envoye', 'refuse', 'en_attente', 'en_cours', 'annule', 'incertain']) expect(nombres.corps, etat).toContain(`'${etat}'`)
   })
 })
 
