@@ -1,79 +1,26 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────
-# Fixit Pro — Script de build pour l'application mobile (Capacitor)
-# Usage:
-#   chmod +x scripts/build-mobile.sh
-#   ./scripts/build-mobile.sh [ios|android|both]
+# Vitfix Pro — mise à jour des projets natifs Android et iOS (Capacitor)
+# L'appli affiche l'espace mobile du site (server.url de capacitor.config.ts) : plus d'export Next.js. Seule la page
+# locale « hors connexion » (mobile/www) est copiée dans les projets natifs, avec la configuration et les plugins.
+# Usage : bash scripts/build-mobile.sh [ios|android|both]
+# APK de test sans Android Studio : workflow GitHub « App Android — APK de test » (voir MOBILE_GUIDE.md).
 # ─────────────────────────────────────────────────────────────────
 
-set -e
+set -euo pipefail
 
 PLATFORM="${1:-both}"
-echo "🏗️  Build Fixit Pro Mobile — Plateforme: $PLATFORM"
 
-# 0. Pré-flight : valider la compatibilité mobile (SSR-only imports interdits)
-echo ""
-echo "🧪 Étape 0 : Vérification compatibilité mobile..."
-bash "$(dirname "$0")/check-mobile-compat.sh"
-
-# 1. Build Next.js en mode export statique
-echo ""
-echo "📦 Étape 1/4 : Build Next.js (export statique)..."
-cp next.config.ts next.config.backup.ts 2>/dev/null || true
-cat > next.config.ts << 'EOF'
-import type { NextConfig } from "next";
-const nextConfig: NextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  images: { unoptimized: true },
-  // 404 des URL sans route (app/global-not-found.tsx) : un layout racine par section, aucun pour /_not-found.
-  experimental: { globalNotFound: true },
-};
-export default nextConfig;
-EOF
-
-# MOBILE_BUILD=true : signale aux guards applicatifs (app/(commun)/layout.tsx, etc.) de
-# skipper les appels SSR-only (cookies(), headers()) qui crashent en export.
-# NEXT_PUBLIC_API_URL : embed dans le bundle JS pour absolutiser les fetch
-# vers l'API depuis l'app Capacitor (origine capacitor://localhost ne peut
-# pas résoudre les paths /api/ relatifs).
-export MOBILE_BUILD=true
-export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-https://vitfix.io}"
-
-npm run build
-
-# Restore original config
-cp next.config.backup.ts next.config.ts 2>/dev/null || true
-
-echo "✅ Build Next.js terminé — dossier 'out/' créé"
-
-# 2. Sync avec Capacitor
-echo ""
-echo "🔄 Étape 2/4 : Synchronisation Capacitor..."
-npx cap sync
-
-echo "✅ Synchronisation terminée"
-
-# 3. Ouvrir les projets natifs
-echo ""
-echo "📱 Étape 3/4 : Ouverture des projets natifs..."
-
-if [ "$PLATFORM" = "ios" ] || [ "$PLATFORM" = "both" ]; then
-  echo "🍎 Ouverture Xcode (iOS)..."
-  npx cap open ios
-fi
-
-if [ "$PLATFORM" = "android" ] || [ "$PLATFORM" = "both" ]; then
-  echo "🤖 Ouverture Android Studio..."
-  npx cap open android
-fi
+case "$PLATFORM" in
+  ios|android) npx cap sync "$PLATFORM" ;;
+  both) npx cap sync ;;
+  *)
+    echo "Usage : bash scripts/build-mobile.sh [ios|android|both]" >&2
+    exit 2
+    ;;
+esac
 
 echo ""
-echo "✅ ─────────────────────────────────────────────────"
-echo "   Build terminé ! Fixit Pro est prêt."
-echo ""
-echo "   📋 Prochaines étapes :"
-echo "   1. Dans Xcode/Android Studio → Configurer les identifiants de signature"
-echo "   2. Changer l'ID d'app si nécessaire (actuellement : com.fixit.artisan)"
-echo "   3. Uploader sur App Store Connect / Google Play Console"
-echo "   ─────────────────────────────────────────────────"
+echo "Projets natifs à jour ($PLATFORM)."
+echo "Suite : npm run mobile:open:android (Android Studio) ou npm run mobile:open:ios (Xcode, sur Mac)."
+echo "Signature et publication sur les stores : MOBILE_GUIDE.md."

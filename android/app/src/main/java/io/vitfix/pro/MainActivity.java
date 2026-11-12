@@ -1,4 +1,4 @@
-package com.fixit.artisan;
+package io.vitfix.pro;
 
 import com.getcapacitor.BridgeActivity;
 

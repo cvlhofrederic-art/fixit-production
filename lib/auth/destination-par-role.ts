@@ -10,13 +10,22 @@
 //   tout rôle commençant par « syndic »               → /{locale}/syndic/dashboard
 //   tout autre rôle, absent ou inconnu                → /{locale}/client/dashboard
 //     (y compris super_admin, coproprio, locataire, client, particulier)
+//
+// Seule exception, dans l'appli Vitfix Pro (option appMobile, voir lib/app-mobile.ts) : l'artisan retrouve l'espace
+// mobile /{locale}/pro/mobile. Les autres rôles gardent leur destination : l'espace mobile ne lit que la fiche
+// profiles_artisan (séparation artisan / BTP, .claude/rules/artisan-vs-btp.md).
 
 const ROLES_PRO: readonly string[] = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
-export function destinationApresConnexion(role: unknown, locale: string): string {
+export interface OptionsDestination {
+  /** Connexion faite dans l'appli Vitfix Pro (et non dans un navigateur). */
+  appMobile?: boolean
+}
+
+export function destinationApresConnexion(role: unknown, locale: string, options: OptionsDestination = {}): string {
   // Garde de type : app_metadata.role est typé `any` côté Supabase ; une valeur non textuelle suit le cas par défaut.
   const roleTexte = typeof role === 'string' ? role : undefined
-  if (roleTexte === 'artisan') return `/${locale}/artisan/dashboard`
+  if (roleTexte === 'artisan') return options.appMobile ? `/${locale}/pro/mobile` : `/${locale}/artisan/dashboard`
   if (roleTexte !== undefined && ROLES_PRO.includes(roleTexte)) return `/${locale}/pro/dashboard`
   if (roleTexte !== undefined && roleTexte.startsWith('syndic')) return `/${locale}/syndic/dashboard`
   return `/${locale}/client/dashboard`

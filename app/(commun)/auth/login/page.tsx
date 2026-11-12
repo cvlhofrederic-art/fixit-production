@@ -5,6 +5,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
+import { estAppMobile } from '@/lib/app-mobile'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
@@ -40,7 +41,7 @@ export default function LoginPage() {
       const verdict = await verifierSessionNavigateur(supabase.auth)
       if (annule || connexionEnCours.current) return
       if (verdict.statut === 'valide') {
-        window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale)
+        window.location.href = destinationApresConnexion(verdict.user.app_metadata?.role, locale, { appMobile: estAppMobile() })
       } else if (verdict.statut === 'refusee' && verdict.motif === 'authentification') {
         // Cookies d'une session que Supabase refuse : on les retire pour que le formulaire reparte sainement.
         try {
@@ -76,7 +77,7 @@ export default function LoginPage() {
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
       if (signInError) { setError(t('auth.emailOrPasswordIncorrect')); setLoading(false); connexionEnCours.current = false; return }
-      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale)
+      window.location.href = destinationApresConnexion(data.user?.app_metadata?.role, locale, { appMobile: estAppMobile() })
     } catch {
       // Anti-phishing : toute erreur de login affiche le même message
       // (évite de divulguer si l'email existe ou si c'est une erreur réseau).

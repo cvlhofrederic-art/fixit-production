@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Fixit Pro</string>
+        <string>Vitfix Pro</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -48,10 +48,15 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSUserNotificationsUsageDescription</key>
-	<string>Fixit Pro envoie des rappels pour vos interventions du lendemain afin que vous ne manquiez aucun rendez-vous.</string>
+	<string>Vitfix Pro envoie des rappels pour vos interventions du lendemain afin que vous ne manquiez aucun rendez-vous.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Fixit Pro utilise votre position GPS pour horodater et géolocaliser vos interventions (Proof of Work).</string>
+	<string>Vitfix Pro utilise votre position GPS pour horodater et géolocaliser vos interventions (Proof of Work).</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Fixit Pro utilise la caméra pour photographier l&apos;état avant et après intervention (Proof of Work anti-fraude).</string>
+	<string>Vitfix Pro utilise la caméra pour photographier l&apos;état avant et après intervention (Proof of Work anti-fraude).</string>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>vitfix.io</string>
+		<string>localhost</string>
+	</array>
 </dict>
 </plist>

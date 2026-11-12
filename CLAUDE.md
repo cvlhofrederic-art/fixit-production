@@ -6,7 +6,8 @@ judiciaire, portail copropriétaire. Production : https://vitfix.io, servie par 
 Stack : Next.js 16.4 (App Router) · React 19.2 · TS 5 · Tailwind 4 · Zod 4 · Supabase (SSR + Realtime + Storage) ·
 `@opennextjs/cloudflare` 1.20 · wrangler 4.149. IA : Claude Sonnet 5.5 (Syndic, Administrateur judiciaire,
 Copropriétaire) et Groq (artisan / BTP) — voir `.claude/rules/ai-agents.md`.
-Mobile : Capacitor 8.5 (`com.fixit.artisan`, périmètre de l'export à décider). Observabilité : Sentry 10 · Langfuse 3.
+Mobile : Capacitor 8.5, appli Vitfix Pro (`io.vitfix.pro`) qui affiche l'espace mobile du site (`server.url`, voir
+`MOBILE_GUIDE.md`). Observabilité : Sentry 10 · Langfuse 3.
 
 ## Règles dures
 - **IMPORTANT** : aucune modification de design/UX sans permission explicite de Frédéric.
@@ -37,7 +38,8 @@ Lire le fichier concerné AVANT toute modification de son domaine. Non optionnel
 - Tests : `npm run test` · E2E : `npm run test:e2e` — détails et parcours critiques dans `.claude/rules/testing.md`.
 - SEO PT : `node scripts/seo/pt-tests.mjs --mode controle [--base http://localhost:3000]` (T1 à T12) ;
   `node scripts/seo/verifier-prerendu.mjs` après un build.
-- Mobile : `npm run mobile:build` (bascule `output:'export'` + `cap sync`) — export complet en échec, décision ouverte.
+- Mobile : `npm run mobile:build` (`cap sync` seul, sans export Next) ; APK de test Android construit par le workflow
+  `mobile-android.yml` ; invariants dans `tests/mobile/capacitor-config.test.ts`.
 - Deploy : fusion dans `main` → GitHub Actions → Cloudflare (`deploy-cloudflare.yml` : build OpenNext,
   `wrangler deploy`, smoke test, IndexNow). Aucun deploy local. `**.md`, `.github/**` et `.claude/**` ne déploient pas.
 
