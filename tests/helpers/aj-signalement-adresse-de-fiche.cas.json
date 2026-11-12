@@ -34,7 +34,7 @@
     { "adresse": "a@b@exemple.test", "ficheEmail": "a@b@exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": true, "note": "même texte à deux « @ » : même boîte" },
     { "adresse": "marie.exemple@exemple-bis.test", "ficheEmail": "Marie.Exemple@Exemple.test", "domaines": ["exemple.test", "exemple-bis.test"], "attendu": true, "note": "e-mail de fiche hors forme canonique (la base n'en a pas)" }
   ],
-  "descriptionGardes": "Garde (contre-vérification du 12/11/2026) : table COMMUNE à la fonction SQL signalements_qr_saisie_de_la_fiche (migration 20261112, essai PGlite) et à sa jumelle saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts). Une saisie d'une copropriété est celle de la fiche SEULE (retirée au départ, à l'effacement ou au retrait d'attribution, exclue de l'envoi) quand la règle la reconnaît comme l'adresse de la fiche, et comme celle d'aucune AUTRE fiche active et non contestée du cabinet de la copropriété (au retrait d'attribution, « retrait » : attribuée à cette copropriété). Une autre fiche dont le domaine n'est pas déclaré par ce cabinet (fiche forcée) ne garde que sa propre boîte (reprise de la garde, constats 1 et 5). Chaque cas décrit un petit monde : domaines par cabinet, fiches (cabinet, adresse, actif, contestee), la copropriété (cabinet, attributions), la fiche concernée ; attendu = réponse de la garde pour chaque saisie. Données fictives : domaines .test, gmail.com (messagerie publique).",
+  "descriptionGardes": "Garde (contre-vérification du 12/11/2026) : table COMMUNE à la fonction SQL signalements_qr_saisie_de_la_fiche (migration 20261112, essai PGlite) et à sa jumelle saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts). Une saisie d'une copropriété est celle de la fiche SEULE (retirée au départ, à l'effacement ou au retrait d'attribution, exclue de l'envoi) quand la règle la reconnaît comme l'adresse de la fiche, et comme celle d'aucune AUTRE fiche active et non contestée du cabinet de la copropriété (au retrait d'attribution, « retrait » : attribuée à cette copropriété). Une autre fiche dont le domaine n'est pas déclaré par ce cabinet (fiche forcée) ne garde que sa propre boîte (reprise de la garde, constats 1 et 5) ; une autre fiche jamais confirmée ne garde rien (constat 2). Chaque cas décrit un petit monde : domaines par cabinet, fiches (cabinet, adresse, actif, contestee, confirmee : vrai par défaut), la copropriété (cabinet, attributions), la fiche concernée ; attendu = réponse de la garde pour chaque saisie. Données fictives : domaines .test, gmail.com (messagerie publique).",
   "gardes": [
     {
       "note": "même boîte publique dans deux cabinets (preuve contre-pr2-boite) : copropriété du cabinet de la fiche ACTIVE, rien de sa boîte n'est retiré pour la fiche partie",
@@ -206,6 +206,25 @@
         { "adresse": "jules@gmail.com", "attendu": false, "note": "boîte commune : la fiche forcée active la garde" },
         { "adresse": "jules+ancien@gmail.com", "attendu": false, "note": "adresse exacte de la fiche partie, même boîte que la fiche forcée active" },
         { "adresse": "jules@exemple.test", "attendu": true, "note": "partie locale de la fiche partie sur le domaine du cabinet : la fiche forcée active ne la garde pas" }
+      ]
+    },
+    {
+      "note": "reprise de la garde, constat 2 : l'autre fiche active de même boîte n'a jamais confirmé son adresse : elle ne garde rien (elle ne reçoit pas non plus)",
+      "domaines": { "A": ["quatre.test"] },
+      "fiches": { "A4": { "cabinet": "A", "email": "alice@quatre.test", "actif": false }, "B4": { "cabinet": "A", "email": "alice+bis@quatre.test", "confirmee": false } },
+      "copropriete": { "cabinet": "A", "attributions": [] }, "fiche": "A4", "retrait": false,
+      "saisies": [
+        { "adresse": "alice@quatre.test", "attendu": true, "note": "adresse exacte de la fiche partie" },
+        { "adresse": "alice+bis@quatre.test", "attendu": true, "note": "adresse exacte de la fiche jamais confirmée, même boîte" }
+      ]
+    },
+    {
+      "note": "reprise de la garde, constat 2 : retrait d'attribution ; l'autre fiche de même boîte, attribuée mais jamais confirmée, ne garde rien",
+      "domaines": { "A": ["quatre.test"] },
+      "fiches": { "A4": { "cabinet": "A", "email": "alice@quatre.test" }, "B4": { "cabinet": "A", "email": "alice+bis@quatre.test", "confirmee": false } },
+      "copropriete": { "cabinet": "A", "attributions": ["B4"] }, "fiche": "A4", "retrait": true,
+      "saisies": [
+        { "adresse": "alice@quatre.test", "attendu": true, "note": "adresse exacte de la fiche qui perd la copropriété" }
       ]
     },
     {

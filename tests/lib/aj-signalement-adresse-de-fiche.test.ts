@@ -24,7 +24,7 @@ import { saisieDeLaFicheQr, type MondeGardeQr } from '../helpers/aj-signalement-
 interface CasGarde {
   note: string
   domaines: Record<string, string[]>
-  fiches: Record<string, { cabinet: string; email: string | null; actif?: boolean; contestee?: boolean }>
+  fiches: Record<string, { cabinet: string; email: string | null; actif?: boolean; contestee?: boolean; confirmee?: boolean }>
   copropriete: { cabinet: string | null; attributions: string[] }
   fiche: string
   retrait: boolean
@@ -51,7 +51,9 @@ const GARDES = TABLE.gardes
 /** Le monde d'un cas de garde, lu comme la fonction SQL le lit en base. */
 function mondeDuCas(g: CasGarde): MondeGardeQr {
   return {
-    fiches: Object.entries(g.fiches).map(([id, f]) => ({ id, cabinetId: f.cabinet, email: f.email, actif: f.actif !== false, contestee: f.contestee === true })),
+    fiches: Object.entries(g.fiches).map(([id, f]) => ({
+      id, cabinetId: f.cabinet, email: f.email, actif: f.actif !== false, contestee: f.contestee === true, confirmee: f.confirmee !== false,
+    })),
     domainesDuCabinet: (cabinet) => (cabinet === null ? [] : g.domaines[cabinet] ?? []),
     attribuee: (ficheId) => g.copropriete.attributions.includes(ficheId),
   }
@@ -189,7 +191,7 @@ describe('signalements_qr_saisie_de_la_fiche (20261112) : texte figé, la règle
      AND NOT EXISTS (
        SELECT 1 FROM signalements_qr_gestionnaires o
         WHERE o.cabinet_id = p_cabinet AND o.id IS DISTINCT FROM p_fiche
-          AND o.actif AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
+          AND o.actif AND o.adresse_confirmee_le IS NOT NULL AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
           AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
                                                  WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
           AND signalements_qr_adresse_de_fiche(p_adresse, o.email,
@@ -223,6 +225,10 @@ describe('garde : table commune (gardes) — jumelle saisieDeLaFicheQr', () => {
     expect(GARDES.some((g) => g.retrait && g.copropriete.attributions.length === 0)).toBe(true)
     expect(GARDES.some((g) => Object.values(g.fiches).some((f) => f.contestee))).toBe(true)
     expect(GARDES.some((g) => Object.values(g.fiches).some((f) => f.email === null))).toBe(true)
+    // Reprise de la garde (constat 2) : une autre fiche jamais confirmée, au départ et au retrait d'attribution.
+    for (const retrait of [false, true]) {
+      expect(GARDES.some((g) => g.retrait === retrait && Object.entries(g.fiches).some(([nom, f]) => nom !== g.fiche && f.confirmee === false))).toBe(true)
+    }
     // Reprise de la garde (constats 1 et 5) : une autre fiche FORCÉE (domaine non déclaré par son cabinet), active, de même
     // partie locale qu'une saisie de la fiche, dans un cas au moins où elle ne garde pas cette saisie.
     const forcee = (g: CasGarde, nom: string) => {

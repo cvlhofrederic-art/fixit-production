@@ -21,7 +21,7 @@
 -- retirées avant que l'adresse ne disparaisse). Contre-vérification du 12/11 : chaque retrait et chaque exclusion passe
 -- par la garde signalements_qr_saisie_de_la_fiche (saisie de la fiche SEULE : une saisie que la règle reconnaît aussi
 -- comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la copropriété reste, comme avec l'égalité
--- exacte de la PR 1 ; une fiche forcée n'y garde que sa propre boîte) ; en amont, corps de signalements_qr_inviter_gestionnaire (création refusée, existe_deja, sur une
+-- exacte de la PR 1 ; une fiche forcée n'y garde que sa propre boîte, une fiche jamais confirmée rien) ; en amont, corps de signalements_qr_inviter_gestionnaire (création refusée, existe_deja, sur une
 -- boîte déjà portée par une fiche) et de signalements_qr_enregistrer_cabinet (domaine porté par une fiche d'un autre
 -- cabinet refusé, domaine_pris). Les actions du journal et les valeurs des envois (objet 'acces', refus
 -- 'compte_autre_espace') sont déjà dans les CHECK de la 20261111 : aucune contrainte n'est remplacée.
@@ -173,7 +173,9 @@ $fn$;
 -- n'est PAS déclaré par ce cabinet (fiche forcée) ne garde que SA boîte (domaines passés à la règle : aucun) : la même
 -- partie locale sur un domaine du cabinet n'est pour elle qu'une variante virtuelle, souvent la boîte réelle d'une autre
 -- personne (reprise de la garde, constats 1 et 5 : sinon l'adresse exacte d'une fiche partie, effacée ou contestée
--- restait servie). Jumelle des tests : saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts), mêmes réponses sur
+-- restait servie). Une autre fiche jamais confirmée (adresse_confirmee_le NULL) ne garde rien : personne n'a prouvé sa
+-- boîte, et elle n'est pas destinataire (section 5) ; sinon l'adresse exacte d'une fiche partie restait servie par un
+-- doublon non confirmé (constat 2). Jumelle des tests : saisieDeLaFicheQr (tests/helpers/aj-signalement-variantes.ts), mêmes réponses sur
 -- la table commune (gardes) et dans l'essai PGlite. Lit les fiches, les attributions et les domaines : STABLE.
 CREATE OR REPLACE FUNCTION signalements_qr_saisie_de_la_fiche(
   p_adresse text, p_fiche uuid, p_fiche_email text, p_domaines text[], p_cabinet uuid, p_copropriete uuid
@@ -183,7 +185,7 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
      AND NOT EXISTS (
        SELECT 1 FROM signalements_qr_gestionnaires o
         WHERE o.cabinet_id = p_cabinet AND o.id IS DISTINCT FROM p_fiche
-          AND o.actif AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
+          AND o.actif AND o.adresse_confirmee_le IS NOT NULL AND o.adresse_contestee_le IS NULL AND o.email IS NOT NULL
           AND (p_copropriete IS NULL OR EXISTS (SELECT 1 FROM signalements_qr_attributions a
                                                  WHERE a.copropriete_id = p_copropriete AND a.gestionnaire_id = o.id))
           AND signalements_qr_adresse_de_fiche(p_adresse, o.email,

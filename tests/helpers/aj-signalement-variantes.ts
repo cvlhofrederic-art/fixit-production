@@ -21,8 +21,8 @@ export const domainesDuCabinetQr = (cabinetId: unknown): string[] =>
 
 const saisies = (c: Ligne): string[] => (Array.isArray(c.emails_destinataires) ? (c.emails_destinataires as string[]) : [])
 
-/** Fiche vue par la garde : identifiant, cabinet, adresse (NULL : effacée), active, contestée. */
-export interface FicheGardeQr { id: string; cabinetId: string | null; email: string | null; actif: boolean; contestee: boolean }
+/** Fiche vue par la garde : identifiant, cabinet, adresse (NULL : effacée), active, contestée, adresse confirmée. */
+export interface FicheGardeQr { id: string; cabinetId: string | null; email: string | null; actif: boolean; contestee: boolean; confirmee: boolean }
 
 /** Ce que la garde lit en base : les fiches, les domaines d'un cabinet, les attributions. */
 export interface MondeGardeQr {
@@ -37,7 +37,8 @@ export interface MondeGardeQr {
  * contestée du cabinet de la copropriété (domaines de ce cabinet) ; au retrait d'une attribution (`retrait`), une autre
  * fiche ne compte que si elle est attribuée à la copropriété. Copropriété sans cabinet : aucune autre fiche. Une autre
  * fiche dont le domaine n'est pas déclaré par ce cabinet (fiche forcée) ne garde que sa propre boîte (reprise de la
- * garde, constats 1 et 5 : split_part(o.email, '@', 2), adresse de fiche déjà canonique).
+ * garde, constats 1 et 5 : split_part(o.email, '@', 2), adresse de fiche déjà canonique) ; une autre fiche jamais
+ * confirmée ne garde rien (constat 2).
  */
 export function saisieDeLaFicheQr(
   adresse: unknown,
@@ -50,7 +51,7 @@ export function saisieDeLaFicheQr(
   if (copropriete.cabinetId === null) return true
   const domaines = monde.domainesDuCabinet(copropriete.cabinetId)
   const domainesDe = (email: string) => (domaines.includes(email.split('@')[1] ?? '') ? domaines : [])
-  return !monde.fiches.some((o) => o.cabinetId === copropriete.cabinetId && o.id !== fiche.id && o.actif && !o.contestee
+  return !monde.fiches.some((o) => o.cabinetId === copropriete.cabinetId && o.id !== fiche.id && o.actif && o.confirmee && !o.contestee
     && o.email !== null && (!retrait || monde.attribuee(o.id, copropriete.id)) && estAdresseDeFicheQr(adresse, o.email, domainesDe(o.email)))
 }
 
@@ -60,6 +61,7 @@ export function mondeSimuleQr(): MondeGardeQr {
     fiches: baseQr.table('signalements_qr_gestionnaires').map((g) => ({
       id: String(g.id), cabinetId: typeof g.cabinet_id === 'string' ? g.cabinet_id : null,
       email: typeof g.email === 'string' ? g.email : null, actif: g.actif === true, contestee: Boolean(g.adresse_contestee_le),
+      confirmee: Boolean(g.adresse_confirmee_le),
     })),
     domainesDuCabinet: (cabinetId) => domainesDuCabinetQr(cabinetId),
     attribuee: (ficheId, coproprieteId) =>
