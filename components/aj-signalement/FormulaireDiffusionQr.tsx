@@ -103,7 +103,7 @@ export default function FormulaireDiffusionQr({
     objet: `${idBase}-objet`, texte: `${idBase}-texte`, batiment: `${idBase}-batiment`, etage: `${idBase}-etage`,
     nomBatiment: `${idBase}-nom-batiment`, nomEtage: `${idBase}-nom-etage`, reference: `${idBase}-reference`, date: `${idBase}-date`,
     phrase: `${idBase}-phrase`, phraseConfirmation: `${idBase}-phrase-confirmation`, aideInstruction: `${idBase}-instruction-aide`,
-    nombre: `${idBase}-nombre`, verifier: `${idBase}-verifier`,
+    nombre: `${idBase}-nombre`, verifier: `${idBase}-verifier`, erreurGlobale: `${idBase}-erreur-globale`,
   }
   const [chargement, setChargement] = useState<Chargement>({ etat: 'chargement' })
   // Tirée à l'ouverture : un double clic ou un nouvel essai (409, réseau) rend la diffusion déjà créée, jamais deux.
@@ -343,6 +343,18 @@ export default function FormulaireDiffusionQr({
     setEtape({ nom: 'saisie' })
   }
 
+  /**
+   * Le serveur vient de déclarer faux le nombre de la confirmation (plus personne, diffusion devenue impossible, nombre
+   * changé sans nouvel aperçu lisible) : aucun envoi n'est plus proposé à ce nombre (relecture 3). Retour au formulaire,
+   * saisie gardée, message (focus), nombre recalculé ; « Vérifier et envoyer » refait un aperçu frais.
+   */
+  const revenirSansNombre = (p: PerimetreSaisiDiffusionQr, message: string) => {
+    setErreur(message)
+    focusApres.current = ids.erreurGlobale
+    setEtape({ nom: 'saisie' })
+    void calculer(p)
+  }
+
   // ── Envoi (D-R3), puis reprise automatique (D-R4) ──
   const envoyer = async () => {
     if (etape.nom !== 'confirmation' || !perimetre || !etape.apercu.libellePerimetre) return
@@ -367,7 +379,8 @@ export default function FormulaireDiffusionQr({
         // Le nombre a augmenté depuis l'aperçu : nouvel aperçu, nouveau nombre, nouvelle confirmation (même opération).
         const nouveau = await apercuDiffusionQr(copropriete.id, demandeApercu(perimetre))
         if (!monte.current) return
-        if (!nouveau.ok) return setEtape({ nom: 'confirmation', apercu: a, avis: null, erreur: messageEchecDiffusionQr(nouveau.code, profil) })
+        // Nouvel aperçu illisible : le nombre recalculé au formulaire dit la raison (toast si le réseau est coupé).
+        if (!nouveau.ok) return revenirSansNombre(perimetre, messageEchecDiffusionQr('perimetre_change', profil))
         const n = nouveau.apercu
         setApercu({ etat: 'pret', apercu: n })
         const avis = n.nbDestinataires > 0 && n.possible && n.libellePerimetre
@@ -381,6 +394,8 @@ export default function FormulaireDiffusionQr({
         focusApres.current = ids[champ]
         return setEtape({ nom: 'saisie' })
       }
+      if (r.code === 'aucun_destinataire' || r.code === 'diffusion_inactive') return revenirSansNombre(perimetre, messageEchecDiffusionQr(r.code, profil))
+      // Autres échecs (réseau, service, limite) : le nombre reste juste ; même opération au nouvel essai.
       return setEtape({ nom: 'confirmation', apercu: a, avis: null, erreur: messageEchecDiffusionQr(r.code, profil) })
     }
     setEtape({ nom: 'envoi', total: r.nbDestinataires, envoyes: r.envoyes, repondu: true })
@@ -665,7 +680,7 @@ export default function FormulaireDiffusionQr({
         </fieldset>
       )}
 
-      {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
+      {erreur && <div id={ids.erreurGlobale} tabIndex={-1} className="outline-none"><Encadre ton="erreur">{erreur}</Encadre></div>}
 
       {/* Droit § 5.6 : la phrase, À LA LETTRE, juste au-dessus du bouton, reliée à lui. */}
       <div className="space-y-3 border-t border-[#E4DDD0] pt-4">

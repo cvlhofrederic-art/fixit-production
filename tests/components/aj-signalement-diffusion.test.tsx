@@ -1569,3 +1569,53 @@ describe('relecture 3 — focus gardé dans la fenêtre quand le bouton activé 
     await waitFor(() => expect(bilan.closest('[tabindex="-1"]')).toHaveFocus())
   })
 })
+
+describe('relecture 3 — aucun envoi proposé à un nombre que le serveur vient de déclarer faux (§ 7.2 points 6 et 10)', () => {
+  it.each([
+    ['409 aucun_destinataire', json({ error: 'aucun_destinataire' }, 409), TT.erreurs.aucun_destinataire],
+    ['409 diffusion_inactive', json({ error: 'diffusion_inactive' }, 409), TT.erreurs.diffusion_inactive],
+  ])('%s : retour au formulaire avec le message, nombre recalculé, plus de « Envoyer à 23 personnes »', async (_cas, refus, message) => {
+    let apercus = 0
+    simulerEspace(routeurD({
+      apercu: () => {
+        apercus += 1
+        return apercus <= 2 ? apercuD(23) : apercuD(0)
+      },
+      envoi: () => refus,
+    }))
+    ouvrirDiffusion()
+    await fenetrePrete()
+    fireEvent.click(await jusquALaConfirmation())
+    const erreur = await screen.findByText(message, { selector: '[role="alert"] *' })
+    expect(screen.queryByRole('button', { name: 'Envoyer à 23 personnes' })).toBeNull()
+    await waitFor(() => expect(appelsVers(`${BASE_D}/apercu`)).toHaveLength(3))
+    expect(await screen.findByText(TD.nombre.personne, { selector: '[role="status"] *' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: TD.boutons.verifier })).toBeDisabled()
+    expect(screen.getByLabelText(TD.formulaire.objet)).toHaveValue(OBJET_D)
+    await waitFor(() => expect(erreur.closest('[tabindex="-1"]')).toHaveFocus())
+  })
+
+  it('409 perimetre_change et nouvel aperçu en échec : retour au formulaire ; « Vérifier et envoyer » refait un aperçu frais', async () => {
+    let apercus = 0
+    let envois = 0
+    simulerEspace(routeurD({
+      apercu: () => {
+        apercus += 1
+        return apercus === 3 ? json({ error: 'serveur' }, 500) : apercuD(apercus >= 4 ? 32 : 23)
+      },
+      envoi: () => {
+        envois += 1
+        return envois === 1 ? json({ error: 'perimetre_change' }, 409) : envoiD({ nbDestinataires: 32, envoyes: 32, refuses: 0 })
+      },
+    }))
+    ouvrirDiffusion()
+    await fenetrePrete()
+    fireEvent.click(await jusquALaConfirmation())
+    expect(await screen.findByText(TT.erreurs.perimetre_change)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Envoyer à 23 personnes' })).toBeNull()
+    await waitFor(() => expect(screen.getByText(/Ce message partira à 32 personnes/)).toBeInTheDocument())
+    fireEvent.click(await verifier('Envoyer à 32 personnes'))
+    expect(await screen.findByText('Message envoyé à 32 personnes.')).toBeInTheDocument()
+    expect(appelsVers(BASE_D, 'POST').map((a) => (a.corps as Record<string, unknown>).nbDestinatairesAttendu)).toEqual([23, 32])
+  })
+})
