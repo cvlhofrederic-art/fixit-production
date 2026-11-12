@@ -22,7 +22,7 @@
 
 import { z } from 'zod'
 import { NOREPLY_EMAIL } from '@/lib/constants'
-import { sendBatchEmails, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
+import { sendBatchEmails, sendBatchEmailsDetaille, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { MODELES_DIFFUSION_QR, type ModeleDiffusionQr } from '@/lib/aj-signalement/affichage-diffusion'
 import {
@@ -1121,10 +1121,15 @@ export function messageCopieCabinetDiffusionQr(d: DiffusionFigeeQr): EmailPayloa
   }
 }
 
+/** Clé d'idempotence de la copie au cabinet : la même à chaque essai (D-R3, reprise D-R4, filet D-C1). */
+export const cleCopieCabinetDiffusionQr = (diffusionId: string): string => `aj-diffusion-${diffusionId}-copie`
+
 /**
- * Envoie la copie au cabinet (sendBatchEmails, un message) ; vrai si le service l'a acceptée (la route date alors
- * copie_cabinet_le). Échec : logger.warn avec l'identifiant de la diffusion seulement ; l'envoi aux déclarants
- * continue. Ne lève jamais.
+ * Envoie la copie au cabinet : un lot détaillé d'un message (sendBatchEmailsDetaille, délai borné), à clé d'idempotence
+ * propre (cleCopieCabinetDiffusionQr). La copie reste due tant qu'elle n'est pas datée (relecture 2 de la PR 3) : deux
+ * envois concurrents (reprise et filet) n'en font qu'un chez Resend (24 h, la durée d'une reprise). Vrai si le service
+ * l'a acceptée (l'appelant date alors copie_cabinet_le). Échec : logger.warn avec l'identifiant de la diffusion et un
+ * code seulement ; l'envoi aux déclarants continue. Ne lève jamais.
  */
 export async function envoyerCopieCabinetDiffusionQr(d: DiffusionFigeeQr): Promise<boolean> {
   let message: EmailPayload
@@ -1135,7 +1140,15 @@ export async function envoyerCopieCabinetDiffusionQr(d: DiffusionFigeeQr): Promi
     logger.warn('[AJ SIGNALEMENT] copie de la diffusion au cabinet non envoyée (valeur hors format)', { diffusionId: d.id, champ })
     return false
   }
-  const acceptee = await envoyerUnQr(message)
-  if (!acceptee) logger.warn('[AJ SIGNALEMENT] copie de la diffusion au cabinet non partie', { diffusionId: d.id })
-  return acceptee
+  let code: string
+  try {
+    const r = await sendBatchEmailsDetaille([message], { idempotencyKey: cleCopieCabinetDiffusionQr(d.id) })
+    if (r.ok && r.acceptes.length === 1) return true
+    code = r.ok ? 'message_refuse' : r.code
+  } catch {
+    // Le texte de l'exception (adresse comprise, parfois) n'est jamais journalisé.
+    code = 'exception'
+  }
+  logger.warn('[AJ SIGNALEMENT] copie de la diffusion au cabinet non partie', { diffusionId: d.id, code })
+  return false
 }

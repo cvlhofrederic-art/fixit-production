@@ -8,6 +8,8 @@
 //   - diffusions de MOINS d'une heure ayant des lignes à envoyer ou un lot interrompu (signalements_qr_diffusions_a_reprendre,
 //     10 au plus ; l'âge est revérifié ici) : au-delà, seule une reprise manuelle confirmée part, et plus rien après 24 h ;
 //   - 5 lots au plus par diffusion, 20 par appel (durée d'une requête du Worker) ; chaque lot revérifié par la base ;
+//   - copie au cabinet encore due (création arrêtée avant elle, ou refusée par le service) : envoyée avant les lots, datée
+//     au succès (relecture 2 ; clé d'idempotence propre, un envoi concurrent de la reprise n'en fait qu'un) ;
 //   - purge de conservation (H10), au plus une fois par jour ; journal diffusion.reprise (mode filet, nombre de lots).
 // 200 { diffusions, lots } ; clé de signature des liens absente → 503 configuration_incomplete ; migration absente → 503
 // base_absente. Journal serveur : identifiants, nombres et codes seulement.
@@ -20,7 +22,9 @@ import { logger } from '@/lib/logger'
 import { cleLiensDiffusionConfigureeQr } from '@/lib/aj-signalement/diffusion-lien'
 import { LOTS_PAR_APPEL_DIFFUSION_QR, envoyerDiffusionQr } from '@/lib/aj-signalement/diffusion-envoi'
 import { journaliserQr, reponseErreur, reponseErreurDiffusionQr } from '@/lib/aj-signalement/serveur'
-import { diffusionFigeeQr, lireDiffusionQr, purgerDiffusionsSiBesoinQr } from '@/lib/aj-signalement/serveur-diffusion'
+import {
+  diffusionFigeeQr, envoyerCopieCabinetSiDueQr, lireDiffusionQr, purgerDiffusionsSiBesoinQr,
+} from '@/lib/aj-signalement/serveur-diffusion'
 
 export const maxDuration = 60
 
@@ -79,6 +83,7 @@ export async function POST(request: NextRequest) {
       }
       const figee = diffusionFigeeQr(ligne)
       if (!figee) continue
+      await envoyerCopieCabinetSiDueQr(ligne)
       const bilan = await envoyerDiffusionQr(figee, { lotsMax: Math.min(LOTS_PAR_APPEL_DIFFUSION_QR, budget) })
       diffusions += 1
       lots += bilan.lots

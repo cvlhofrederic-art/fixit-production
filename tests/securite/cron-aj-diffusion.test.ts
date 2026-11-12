@@ -104,7 +104,7 @@ describe('workflow aj-diffusion-reprise.yml (modèle run-automations.yml)', () =
 // ── Route D-C1 ──
 
 const { baseQr } = await import('../helpers/aj-signalement-base')
-const { reinitialiserSimulQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
+const { copiesCabinetQr, reinitialiserSimulQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
 const { NextRequest } = await import('next/server')
 const routeExiste = existsSync(CHEMIN_ROUTE)
 const { POST } = routeExiste ? await import('@/app/api/cron/aj-diffusion-reprise/route') : { POST: null }
@@ -113,7 +113,8 @@ const SECRET = 'secret-interne-de-test-0123456789abcdef'
 const CLE = 'cle-de-test-des-liens-de-diffusion-0123456789'
 const idDiffusion = (i: number) => `df000000-0000-4000-8000-${String(i).padStart(12, '0')}`
 
-const ligneDiffusion = (i: number, creeIlYaMs = 10 * 60_000): Record<string, unknown> => ({
+/** Une diffusion à reprendre ; sa copie au cabinet est déjà partie (D-R3 l'envoie avant le premier lot), sauf `copie: null`. */
+const ligneDiffusion = (i: number, creeIlYaMs = 10 * 60_000, copie: string | null = new Date(Date.now() - creeIlYaMs + 1000).toISOString()): Record<string, unknown> => ({
   id: idDiffusion(i), copropriete_id: 'c0000000-0000-4000-8000-000000000001', cabinet_id: 'ca000000-0000-4000-8000-000000000001',
   operation_id: `0e000000-0000-4000-8000-${String(i).padStart(12, '0')}`, acteur_profil: 'super_admin', acteur_id: '389c1c99-49f3-41d9-8bb3-e19ecbfb3dd4',
   acteur_gestionnaire_id: null, instruction_reference: 'Courriel du cabinet du 12/11/2026', instruction_recue_le: '2026-11-12',
@@ -121,7 +122,7 @@ const ligneDiffusion = (i: number, creeIlYaMs = 10 * 60_000): Record<string, unk
   fige_copropriete_nom: 'Résidence Exemple', fige_contact_email: 'contact@cabinet-exemple.test',
   fige_politique_url: 'https://cabinet-exemple.test/confidentialite', fige_expediteur: '"Cabinet Exemple" <diffusion@exemple.test>',
   objet: 'Coupure d’eau demain', texte: 'L’eau sera coupée demain de 9 h à 10 h.', portee: 'copropriete',
-  libelle_perimetre: 'Toute la copropriété', nb_destinataires: 600, nb_exclus_opposition: 0, copie_cabinet_le: null,
+  libelle_perimetre: 'Toute la copropriété', nb_destinataires: 600, nb_exclus_opposition: 0, copie_cabinet_le: copie,
   created_at: new Date(Date.now() - creeIlYaMs).toISOString(),
 })
 
@@ -234,6 +235,28 @@ describe('route D-C1 : reprise', () => {
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({ error: 'configuration_incomplete' })
     expect(envoi.appels).toEqual([])
+  })
+
+  // Relecture 2 de la PR 3 (constat 5) : D-R3 arrêté entre la création et la copie (Worker coupé, relecture échouée) →
+  // le filet envoie la copie au cabinet avant les lots, la date au succès ; déjà datée, il ne la renvoie jamais.
+  it('copie au cabinet pas encore partie : envoyée avant les lots (clé aj-diffusion-<id>-copie), datée ; déjà datée : jamais renvoyée', async () => {
+    baseQr.etat.tables.signalements_qr_diffusions = [ligneDiffusion(1, 10 * 60_000, null), ligneDiffusion(2)]
+    expect(await (await appeler()).json()).toEqual({ diffusions: 2, lots: 10 })
+    expect(copiesCabinetQr().map((c) => c.idempotencyKey)).toEqual([`aj-diffusion-${idDiffusion(1)}-copie`])
+    expect(copiesCabinetQr()[0].messages.map((m) => m.to)).toEqual(['contact@cabinet-exemple.test'])
+    expect(copiesCabinetQr()[0].messages[0].html).not.toMatch(/desinscription|href=/)
+    expect(baseQr.table('signalements_qr_diffusions')[0].copie_cabinet_le).toEqual(expect.any(String))
+    await appeler()
+    expect(copiesCabinetQr()).toHaveLength(1)
+  })
+
+  it('copie refusée par le service : logger.warn (identifiant et code), les lots partent quand même, copie_cabinet_le reste NULL', async () => {
+    baseQr.etat.tables.signalements_qr_diffusions = [ligneDiffusion(1, 10 * 60_000, null)]
+    simulQr.resultatsLotsDetailles = [{ ok: false, code: 'limite', statutHttp: 429, motif: 'rate_limit_exceeded' }]
+    expect(await (await appeler()).json()).toEqual({ diffusions: 1, lots: 5 })
+    expect(envoi.appels.map((a) => a.id)).toEqual([idDiffusion(1)])
+    expect(baseQr.table('signalements_qr_diffusions')[0].copie_cabinet_le).toBeNull()
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('copie'), { diffusionId: idDiffusion(1), code: 'limite' })
   })
 
   it('migration absente (fonction de reprise inconnue) → 503 base_absente', async () => {

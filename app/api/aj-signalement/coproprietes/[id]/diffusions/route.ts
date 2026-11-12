@@ -11,7 +11,8 @@
 //   - création atomique en base (signalements_qr_diffusion_creer : verrou de la copropriété, rejeu d'un double clic,
 //     destinataires calculés à l'instant de l'aperçu, nombre réel jamais au-dessus de l'annoncé, valeurs figées, journal
 //     diffusion.envoyee) → 409 diffusion_inactive / aucun_destinataire / perimetre_change ;
-//   - copie au contact du cabinet (§ 5.6 ; échec journalisé, l'envoi continue), puis jusqu'à 5 lots (§ 5.5).
+//   - copie au contact du cabinet (§ 5.6 ; échec journalisé, l'envoi continue ; DUE tant qu'elle n'est pas datée : une
+//     création arrêtée avant elle la laisse à la reprise D-R4 ou au filet D-C1), puis jusqu'à 5 lots (§ 5.5).
 //   201 { diffusionId, nbDestinataires, envoyes, refuses, reste, arret } ; 200 (même corps, rejeu: true) pour un double
 //   clic : la diffusion déjà créée, sans nouvel envoi (l'écran reprend tant que reste > 0).
 // GET (D-R5) — historique d'une copropriété (20 par page, curseur BRUT de PostgREST) et compteur du mois ; nombres par
@@ -31,12 +32,12 @@ import { cleLiensDiffusionConfigureeQr } from '@/lib/aj-signalement/diffusion-li
 import { controlerTexteDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
 import type { CoupleValeursQr } from '@/lib/aj-signalement/diffusion-valeurs'
 import { resoudrePerimetreDiffusionQr, resumeDiffusionDepuisLigneQr } from '@/lib/aj-signalement/diffusion-formes'
-import { envoyerCopieCabinetDiffusionQr, expediteurDiffusionQr } from '@/lib/aj-signalement/email'
+import { expediteurDiffusionQr } from '@/lib/aj-signalement/email'
 import {
   controlerAccesQr, estUuid, parametresQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, TABLE_DIFFUSIONS_QR, aujourdhuiParisQr, controlerDroitDiffuserQr, couplesDiffusionQr, diffusionFigeeQr,
+  PROFILS_DIFFUSION_QR, aujourdhuiParisQr, controlerDroitDiffuserQr, couplesDiffusionQr, envoyerCopieCabinetSiDueQr,
   envoyerEtCompterDiffusionQr, lireContexteDiffusionQr, lireDiffusionQr, moisDiffusionQr, nombresDiffusionQr, parametresAuteurDiffusionQr,
   purgerDiffusionsSiBesoinQr, signalementDeLaCoproprieteQr, vueDiffusionDuProfilQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
@@ -151,11 +152,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return reponseErreur('serveur', 500)
     }
     // Copie au cabinet (responsable du traitement) : documente chaque envoi ; son échec n'arrête pas l'envoi.
-    const figee = diffusionFigeeQr(lecture.valeur)
-    if (figee && (await envoyerCopieCabinetDiffusionQr(figee))) {
-      const copie = await supabaseAdmin.from(TABLE_DIFFUSIONS_QR).update({ copie_cabinet_le: new Date().toISOString() }).eq('id', diffusionId)
-      if (copie.error) logger.warn(`${CONTEXTE} date de la copie au cabinet non écrite`, { diffusion: diffusionId, code: copie.error.code })
-    }
+    await envoyerCopieCabinetSiDueQr(lecture.valeur)
     const envoi = await envoyerEtCompterDiffusionQr(lecture.valeur)
     if (!envoi) return reponseErreur('serveur', 500)
     return reponsePriveeQr({ diffusionId, nbDestinataires, ...envoi, rejeu: false }, 201)

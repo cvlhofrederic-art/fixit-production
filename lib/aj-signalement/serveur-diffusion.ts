@@ -20,7 +20,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import type { CoupleValeursQr } from '@/lib/aj-signalement/diffusion-valeurs'
-import { diffusionFigeeDepuisLigneQr, type DiffusionFigeeQr } from '@/lib/aj-signalement/email'
+import { diffusionFigeeDepuisLigneQr, envoyerCopieCabinetDiffusionQr, type DiffusionFigeeQr } from '@/lib/aj-signalement/email'
 import {
   nombresDiffusionDepuisLigneQr, type NombresDiffusionQr, type VueGestionnaireDiffusionQr,
 } from '@/lib/aj-signalement/diffusion-formes'
@@ -206,6 +206,24 @@ export function parametresAuteurDiffusionQr(profil: ProfilQr): { p_acteur: strin
   return profil.type === 'gestionnaire'
     ? { p_acteur: profil.userId, p_profil: 'gestionnaire', p_gestionnaire: profil.gestionnaireId }
     : { p_acteur: profil.userId, p_profil: 'super_admin', p_gestionnaire: null }
+}
+
+/**
+ * Copie au cabinet (cahier § 5.6, J29, HF4 : « une copie de chaque diffusion »), DUE tant que copie_cabinet_le est NULL
+ * (relecture 2 de la PR 3 : un D-R3 arrêté entre la création et la copie laissait la reprise et le filet envoyer aux
+ * déclarants sans elle). Appelée par D-R3, la reprise D-R4 et le filet D-C1 juste avant les lots, quand la diffusion
+ * peut encore partir. Déjà datée → rien ; sinon envoi (clé d'idempotence propre : deux envois concurrents n'en font
+ * qu'un chez Resend), puis date au succès, seulement si personne ne l'a datée entre-temps. Échec : journalisé, l'envoi
+ * aux déclarants continue (rend faux). Ne lève jamais.
+ */
+export async function envoyerCopieCabinetSiDueQr(ligne: Record<string, unknown>): Promise<boolean> {
+  if (chaine(ligne.copie_cabinet_le) !== '') return false
+  const figee = diffusionFigeeQr(ligne)
+  if (!figee || !(await envoyerCopieCabinetDiffusionQr(figee))) return false
+  const copie = await supabaseAdmin.from(TABLE_DIFFUSIONS_QR).update({ copie_cabinet_le: new Date().toISOString() })
+    .eq('id', figee.id).is('copie_cabinet_le', null)
+  if (copie.error) logger.warn(`${CONTEXTE} date de la copie au cabinet non écrite`, { diffusion: figee.id, code: copie.error.code })
+  return true
 }
 
 /** Réponse des routes qui envoient (D-R3, D-R4) : totaux de la diffusion, et l'arrêt de cet appel s'il y en a eu un. */

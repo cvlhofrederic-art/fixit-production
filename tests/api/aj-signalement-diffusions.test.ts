@@ -13,9 +13,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+type AppelDetaille = { messages: Array<{ to: string | string[]; subject: string; html: string; headers?: Record<string, string> }>; options: { idempotencyKey: string } }
+// Lots aux déclarants (appels) et copies au cabinet (copies, clé aj-diffusion-<id>-copie) : résultats simulés séparés.
 const detaille = vi.hoisted(() => ({
-  appels: [] as Array<{ messages: Array<{ to: string | string[]; subject: string; html: string; headers?: Record<string, string> }>; options: { idempotencyKey: string } }>,
+  appels: [] as AppelDetaille[],
   resultats: [] as unknown[],
+  copies: [] as AppelDetaille[],
+  resultatsCopies: [] as unknown[],
+  /** Clés d'idempotence dans l'ordre des appels (lots et copies). */
+  cles: [] as string[],
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), withScope: vi.fn() }))
@@ -26,8 +32,10 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement
 vi.mock('@/lib/email', async () => ({
   ...(await import('../helpers/aj-signalement-routes')).mockEmail(),
   sendBatchEmailsDetaille: vi.fn(async (messages: Array<{ to: string }>, options: { idempotencyKey: string }) => {
-    detaille.appels.push({ messages: [...messages] as never, options })
-    return detaille.resultats.shift() ?? { ok: true, acceptes: messages.map((_, i) => i), refuses: [] }
+    const copie = options.idempotencyKey.endsWith('-copie')
+    detaille.cles.push(options.idempotencyKey)
+    ;(copie ? detaille.copies : detaille.appels).push({ messages: [...messages] as never, options })
+    return (copie ? detaille.resultatsCopies : detaille.resultats).shift() ?? { ok: true, acceptes: messages.map((_, i) => i), refuses: [] }
   }),
 }))
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
@@ -182,6 +190,9 @@ beforeEach(() => {
   baseQr.reinitialiser()
   detaille.appels = []
   detaille.resultats = []
+  detaille.copies = []
+  detaille.resultatsCopies = []
+  detaille.cles = []
   destinataires = []
   dernierLot = 0
   process.env.AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION = CLE
@@ -414,9 +425,12 @@ describe('D-R3 envoi', () => {
       p_modele: 'coupure_eau', p_portee: 'copropriete', p_libelle: 'Toute la copropriété', p_attendu: 23,
       p_jusqu_au: DIFFUSION_VALIDE.perimetreJusquAu, p_expediteur: expect.stringMatching(/^"Cabinet Exemple" </),
     })
-    // Copie au contact du cabinet (sans lien ni jeton), datée au succès.
-    const copie = simulQr.lots.flat().find((m) => m.to === 'contact@cabinet-exemple.test')
-    expect(copie?.html).not.toMatch(/desinscription|href=/)
+    // Copie au contact du cabinet (sans lien ni jeton), un lot détaillé à clé d'idempotence propre, datée au succès.
+    expect(detaille.copies).toHaveLength(1)
+    expect(detaille.copies[0].options.idempotencyKey).toBe('aj-diffusion-df000000-0000-4000-8000-000000000001-copie')
+    expect(detaille.copies[0].messages.map((m) => m.to)).toEqual(['contact@cabinet-exemple.test'])
+    expect(detaille.copies[0].messages[0].html).not.toMatch(/desinscription|href=/)
+    expect(simulQr.lots).toEqual([])
     expect(baseQr.table('signalements_qr_diffusions')[0].copie_cabinet_le).toEqual(expect.any(String))
     // Un lot, un message par déclarant, en-tête un clic.
     expect(detaille.appels).toHaveLength(1)
@@ -434,6 +448,7 @@ describe('D-R3 envoi', () => {
     expect(await res.json()).toEqual({ ...premier, arret: null, rejeu: true })
     expect(simulQr.lots).toHaveLength(lots)
     expect(detaille.appels).toHaveLength(appels)
+    expect(detaille.copies).toHaveLength(1)
   })
 
   it('super admin : instruction écrite absente → 400 ; date de l’instruction future → 400 ; référence avec « @ » → 400 ; rien n’est créé', async () => {
@@ -568,21 +583,22 @@ describe('D-R5 historique et D-R6 détail', () => {
   })
 })
 
-describe('D-R4 reprise', () => {
-  async function diffusionEnAttente(age: number): Promise<string> {
-    detaille.resultats = [{ ok: false, code: 'limite', statutHttp: 429, motif: 'rate_limit_exceeded' }]
-    baseQr.etat.fonctions.signalements_qr_diffusion_resultats = (a) => {
-      for (const l of destinataires.filter((x) => x.lot === a.p_lot && x.etat === 'en_cours')) Object.assign(l, { etat: 'en_attente', lot: null })
-      return { data: { envoyes: 0, refuses: 0, nonPartis: 3, reste: 3 } }
-    }
-    const res = await diffuser()
-    expect(await res.json()).toMatchObject({ reste: 3, arret: 'limite_service' })
-    poserFonctions()
-    const id = baseQr.table('signalements_qr_diffusions')[0].id as string
-    baseQr.table('signalements_qr_diffusions')[0].created_at = ilYa(age)
-    return id
+/** Une diffusion créée par D-R3 dont le premier lot a été refusé (limite du service) : 3 lignes en attente, âge choisi. */
+async function diffusionEnAttente(age: number): Promise<string> {
+  detaille.resultats = [{ ok: false, code: 'limite', statutHttp: 429, motif: 'rate_limit_exceeded' }]
+  baseQr.etat.fonctions.signalements_qr_diffusion_resultats = (a) => {
+    for (const l of destinataires.filter((x) => x.lot === a.p_lot && x.etat === 'en_cours')) Object.assign(l, { etat: 'en_attente', lot: null })
+    return { data: { envoyes: 0, refuses: 0, nonPartis: 3, reste: 3 } }
   }
+  const res = await diffuser()
+  expect(await res.json()).toMatchObject({ reste: 3, arret: 'limite_service' })
+  poserFonctions()
+  const id = baseQr.table('signalements_qr_diffusions')[0].id as string
+  baseQr.table('signalements_qr_diffusions')[0].created_at = ilYa(age)
+  return id
+}
 
+describe('D-R4 reprise', () => {
   it('moins d’une heure : jusqu’à 5 lots, journal diffusion.reprise (identifiants et énumérations seulement) ; totaux', async () => {
     const id = await diffusionEnAttente(5 * 60_000)
     const res = await reprendre(id)
@@ -626,6 +642,66 @@ describe('D-R4 reprise', () => {
     const id = await diffusionEnAttente(5 * 60_000)
     delete process.env.AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION
     expect((await reprendre(id)).status).toBe(503)
+  })
+})
+
+// Relecture 2 de la PR 3 (constat 5) : cahier § 5.6, J29, HF4 — « une copie de chaque diffusion » au contact du cabinet
+// (elle documente l'envoi et fait voir vite un envoi inattendu). Elle reste DUE tant que copie_cabinet_le est NULL : D-R3,
+// la reprise D-R4 et le filet D-C1 (tests/securite/cron-aj-diffusion.test.ts) l'envoient avant les lots, avec une clé
+// d'idempotence propre (aj-diffusion-<id>-copie : deux envois concurrents n'en font qu'un chez Resend, 24 h, la durée
+// d'une reprise), et la datent au succès. Son échec n'arrête jamais l'envoi aux déclarants (logger.warn).
+describe('copie au cabinet : due tant qu’elle n’est pas partie (D-R3, reprise D-R4)', () => {
+  const ID1 = 'df000000-0000-4000-8000-000000000001'
+  const copieDatee = () => baseQr.table('signalements_qr_diffusions')[0].copie_cabinet_le
+  const messagesDesLots = () => detaille.appels.flatMap((a) => a.messages)
+
+  it('D-R3 arrêté après la création, avant la copie (relecture échouée) : la reprise envoie la copie (datée), puis les lots', async () => {
+    baseQr.etat.erreursPonctuelles.signalements_qr_diffusions = { code: '08006', message: 'connexion perdue' }
+    expect((await diffuser()).status).toBe(500)
+    expect(baseQr.table('signalements_qr_diffusions')).toHaveLength(1)
+    expect(detaille.copies).toEqual([])
+    const rep = await reprendre(ID1)
+    expect(rep.status).toBe(200)
+    expect(await rep.json()).toMatchObject({ envoyes: 3, reste: 0 })
+    expect(detaille.copies.map((c) => c.options.idempotencyKey)).toEqual([`aj-diffusion-${ID1}-copie`])
+    expect(detaille.copies[0].messages.map((m) => m.to)).toEqual(['contact@cabinet-exemple.test'])
+    expect(copieDatee()).toEqual(expect.any(String))
+    expect(messagesDesLots()).toHaveLength(3)
+    // Copie avant le premier lot (le cabinet voit l'envoi avant les déclarants).
+    expect(detaille.cles).toEqual([`aj-diffusion-${ID1}-copie`, `aj-diffusion-${ID1}-1`])
+  })
+
+  it('copie déjà partie (datée par D-R3) : ni la reprise ni le rejeu ne la renvoient', async () => {
+    const id = await diffusionEnAttente(5 * 60_000)
+    expect(detaille.copies).toHaveLength(1)
+    const datee = copieDatee()
+    expect((await reprendre(id)).status).toBe(200)
+    expect((await diffuser()).status).toBe(200)
+    expect(detaille.copies).toHaveLength(1)
+    expect(copieDatee()).toBe(datee)
+  })
+
+  it('copie refusée par le service : logger.warn (identifiant et code seuls), les déclarants reçoivent ; la reprise suivante la retente, même clé', async () => {
+    detaille.resultatsCopies = [{ ok: false, code: 'reseau', statutHttp: null, motif: 'delai_depasse' }]
+    const res = await diffuser()
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ envoyes: 3, reste: 0 })
+    expect(copieDatee()).toBeNull()
+    expect(simulQr.logger.warn).toHaveBeenCalledWith(expect.stringContaining('copie'), { diffusionId: ID1, code: 'reseau' })
+    expect((await reprendre(ID1)).status).toBe(200)
+    expect(detaille.copies.map((c) => c.options.idempotencyKey)).toEqual([`aj-diffusion-${ID1}-copie`, `aj-diffusion-${ID1}-copie`])
+    expect(copieDatee()).toEqual(expect.any(String))
+    expect(texteJournalServeurQr()).not.toContain('@')
+  })
+
+  it('reprise sur une copropriété devenue inactive : aucune copie (rien ne part), 409 diffusion_inactive', async () => {
+    detaille.resultatsCopies = [{ ok: false, code: 'reseau', statutHttp: null, motif: 'delai_depasse' }]
+    const id = await diffusionEnAttente(5 * 60_000)
+    expect(detaille.copies).toHaveLength(1)
+    baseQr.table('signalements_qr_coproprietes')[0].actif = false
+    expect((await reprendre(id)).status).toBe(409)
+    expect(detaille.copies).toHaveLength(1)
+    expect(copieDatee()).toBeNull()
   })
 })
 

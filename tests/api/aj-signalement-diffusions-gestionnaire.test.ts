@@ -28,14 +28,11 @@ vi.mock('@/lib/supabase-server', async () => ({ supabaseAdmin: (await import('..
 vi.mock('@/lib/supabase-server-component', async () => (await import('../helpers/aj-signalement-routes')).mockCookies())
 vi.mock('@/lib/auth-helpers', async () => (await import('../helpers/aj-signalement-routes')).mockAuth())
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/aj-signalement-routes')).mockLimites())
-vi.mock('@/lib/email', async () => ({
-  ...(await import('../helpers/aj-signalement-routes')).mockEmail(),
-  sendBatchEmailsDetaille: vi.fn(async (messages: unknown[]) => ({ ok: true, acceptes: messages.map((_, i) => i), refuses: [] })),
-}))
+vi.mock('@/lib/email', async () => (await import('../helpers/aj-signalement-routes')).mockEmail())
 vi.mock('@/lib/logger', async () => (await import('../helpers/aj-signalement-routes')).mockLogger())
 
 const { baseQr } = await import('../helpers/aj-signalement-base')
-const { ADMIN_QR, contexteQr, reinitialiserSimulQr, requeteQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
+const { ADMIN_QR, contexteQr, copiesCabinetQr, reinitialiserSimulQr, requeteQr, simulQr, texteJournalServeurQr } = await import('../helpers/aj-signalement-routes')
 const A = await import('../helpers/aj-signalement-acces')
 const { GET: VALEURS } = await import('@/app/api/aj-signalement/coproprietes/[id]/diffusions/valeurs/route')
 const { POST: APERCU } = await import('@/app/api/aj-signalement/coproprietes/[id]/diffusions/apercu/route')
@@ -271,7 +268,8 @@ describe('gestionnaire sur une copropriété attribuée nommément (G1, C1)', ()
       p_copropriete: A.C1, p_acteur: A.U1, p_profil: 'gestionnaire', p_gestionnaire: A.G1, p_instruction_reference: null, p_instruction_recue_le: null,
     })
     // Copie au contact du cabinet : « par un gestionnaire », jamais son nom ni son adresse, aucune instruction écrite.
-    const copies = simulQr.lots.flat().filter((m) => m.to === 'contact@cabinet-exemple.test')
+    const copies = copiesCabinetQr().flatMap((c) => c.messages)
+    expect(copies.map((m) => m.to)).toEqual(['contact@cabinet-exemple.test'])
     expect(copies).toHaveLength(1)
     expect(copies[0].html).toContain('par un gestionnaire')
     expect(JSON.stringify(copies)).not.toMatch(/Marie|marie\.exemple|instruction/i)

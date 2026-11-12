@@ -6,7 +6,8 @@
 // trop tard : plus de 24 h après sa création → 410 perime ; plus d'une heure → 409 a_confirmer { creeLe } tant que
 // confirmeContenuAJour n'est pas envoyé (l'écran montre l'heure d'écriture). Copropriété ou cabinet qui ne permet plus
 // la diffusion → lignes restantes annulées par la base, 409 diffusion_inactive. Journal diffusion.reprise (identifiant
-// et énumérations seulement). Clé de signature absente → 503 configuration_incomplete. Diffusion inconnue → 404.
+// et énumérations seulement). Copie au cabinet encore due (création arrêtée avant elle, ou refusée par le service) :
+// envoyée avant les lots (relecture 2). Clé de signature absente → 503 configuration_incomplete. Diffusion inconnue → 404.
 // Super admin, et gestionnaire (H11) sur une diffusion d'une copropriété de SON cabinet qui lui est attribuée NOMMÉMENT
 // (celle d'un collègue comprise : c'est le cabinet qui diffuse), contrôlé par la copropriété DE LA DIFFUSION juste après
 // sa lecture, avant l'âge et tout envoi : hors portée → 404 (comme une diffusion inconnue), « à tous » → 403
@@ -22,7 +23,8 @@ import {
   controlerAccesQr, estUuid, journaliserQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
-  PROFILS_DIFFUSION_QR, controlerDroitSurDiffusionQr, envoyerEtCompterDiffusionQr, lireDiffusionQr, raisonInactiveDiffusionQr,
+  PROFILS_DIFFUSION_QR, controlerDroitSurDiffusionQr, envoyerCopieCabinetSiDueQr, envoyerEtCompterDiffusionQr, lireDiffusionQr,
+  raisonInactiveDiffusionQr,
 } from '@/lib/aj-signalement/serveur-diffusion'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       cabinetId: typeof ligne.cabinet_id === 'string' ? ligne.cabinet_id : null, coproprieteId,
       details: { diffusion: id, mode: 'manuelle', confirmee },
     })
+    await envoyerCopieCabinetSiDueQr(ligne)
     const envoi = await envoyerEtCompterDiffusionQr(ligne)
     if (!envoi) return reponseErreur('serveur', 500)
     return reponsePriveeQr(envoi)

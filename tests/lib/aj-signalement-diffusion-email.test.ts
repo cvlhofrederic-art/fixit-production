@@ -19,10 +19,11 @@ type Lot = Array<{ to: string | string[]; subject: string; html: string; text?: 
 const h = vi.hoisted(() => ({
   sendEmail: vi.fn(async () => ({ success: true })),
   sendBatchEmails: vi.fn<(lot: Lot) => Promise<{ sent: number; failed: number; errors: string[] }>>(async (lot) => ({ sent: lot.length, failed: 0, errors: [] })),
+  sendBatchEmailsDetaille: vi.fn<(lot: Lot, options: { idempotencyKey: string }) => Promise<unknown>>(async (lot) => ({ ok: true, acceptes: lot.map((_, i) => i), refuses: [] })),
   warn: vi.fn(),
   error: vi.fn(),
 }))
-vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail, sendBatchEmails: h.sendBatchEmails }))
+vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail, sendBatchEmails: h.sendBatchEmails, sendBatchEmailsDetaille: h.sendBatchEmailsDetaille }))
 vi.mock('@/lib/logger', () => ({ logger: { warn: h.warn, error: h.error, info: vi.fn(), debug: vi.fn() } }))
 
 import {
@@ -77,6 +78,8 @@ const sansAdresses = (texte: string) => texte.replace(/https:\/\/\S+/g, '')
 beforeEach(() => {
   h.sendBatchEmails.mockClear()
   h.sendBatchEmails.mockImplementation(async (lot) => ({ sent: lot.length, failed: 0, errors: [] }))
+  h.sendBatchEmailsDetaille.mockClear()
+  h.sendBatchEmailsDetaille.mockImplementation(async (lot) => ({ ok: true, acceptes: lot.map((_, i) => i), refuses: [] }))
   h.sendEmail.mockClear()
   h.warn.mockClear()
   h.error.mockClear()
@@ -472,28 +475,39 @@ describe('copie au cabinet (§ 5.6)', () => {
     expect(m.tags).toEqual([{ name: 'type', value: 'aj-diffusion-copie' }, { name: 'diffusion', value: ID_DIFFUSION }])
   })
 
-  it('envoi : un message par lot ; vrai si accepté', async () => {
+  // Relecture 2 de la PR 3 : la copie reste due tant qu'elle n'est pas partie (D-R3, reprise D-R4, filet D-C1) ; un lot
+  // détaillé à clé d'idempotence propre (aj-diffusion-<id>-copie) fait de deux envois concurrents un seul chez Resend
+  // (24 h, la durée d'une reprise), avec le délai borné de sendBatchEmailsDetaille (15 s).
+  it('envoi : un lot détaillé d’un message, clé aj-diffusion-<id>-copie, même clé à chaque essai ; vrai si accepté', async () => {
     expect(await envoyerCopieCabinetDiffusionQr(diffusion())).toBe(true)
-    expect(h.sendBatchEmails).toHaveBeenCalledTimes(1)
-    const lot = h.sendBatchEmails.mock.calls[0][0]
+    expect(await envoyerCopieCabinetDiffusionQr(diffusion())).toBe(true)
+    expect(h.sendBatchEmails).not.toHaveBeenCalled()
+    expect(h.sendBatchEmailsDetaille).toHaveBeenCalledTimes(2)
+    const [lot, options] = h.sendBatchEmailsDetaille.mock.calls[0]
     expect(lot).toHaveLength(1)
     expect(lot[0].to).toBe('contact@cabinet-exemple.test')
+    expect(options).toEqual({ idempotencyKey: `aj-diffusion-${ID_DIFFUSION}-copie` })
+    expect(h.sendBatchEmailsDetaille.mock.calls[1][1]).toEqual(options)
     expect(h.warn).not.toHaveBeenCalled()
   })
 
-  it('échec (refus ou exception) : faux, logger.warn avec l’identifiant de la diffusion seulement, jamais une exception', async () => {
-    h.sendBatchEmails.mockImplementationOnce(async () => ({ sent: 0, failed: 1, errors: ['refus de contact@cabinet-exemple.test'] }))
+  it('échec (lot refusé, message refusé, exception) : faux, logger.warn avec l’identifiant et un code seulement, jamais une exception', async () => {
+    h.sendBatchEmailsDetaille.mockImplementationOnce(async () => ({ ok: false, code: 'refus', statutHttp: 422, motif: 'validation_error' }))
     expect(await envoyerCopieCabinetDiffusionQr(diffusion())).toBe(false)
-    h.sendBatchEmails.mockImplementationOnce(async () => { throw new Error('panne pour contact@cabinet-exemple.test') })
+    h.sendBatchEmailsDetaille.mockImplementationOnce(async () => ({ ok: true, acceptes: [], refuses: [0] }))
     expect(await envoyerCopieCabinetDiffusionQr(diffusion())).toBe(false)
-    expect(h.warn).toHaveBeenCalled()
+    h.sendBatchEmailsDetaille.mockImplementationOnce(async () => { throw new Error('panne pour contact@cabinet-exemple.test') })
+    expect(await envoyerCopieCabinetDiffusionQr(diffusion())).toBe(false)
     for (const appel of h.warn.mock.calls) expect(JSON.stringify(appel)).not.toContain('@')
-    expect(h.warn).toHaveBeenCalledWith(expect.stringContaining('copie'), { diffusionId: ID_DIFFUSION })
+    expect(h.warn.mock.calls.map((c) => c[1])).toEqual([
+      { diffusionId: ID_DIFFUSION, code: 'refus' }, { diffusionId: ID_DIFFUSION, code: 'message_refuse' }, { diffusionId: ID_DIFFUSION, code: 'exception' },
+    ])
   })
 
   it('contact du cabinet invalide : aucun envoi, faux', async () => {
     expect(await envoyerCopieCabinetDiffusionQr(diffusion({ contactEmail: 'a@exemple.test, b@exemple.test' }))).toBe(false)
     expect(h.sendBatchEmails).not.toHaveBeenCalled()
+    expect(h.sendBatchEmailsDetaille).not.toHaveBeenCalled()
   })
 })
 
