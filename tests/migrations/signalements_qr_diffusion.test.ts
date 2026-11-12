@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import { join } from 'path'
 import { DELAI_ANNONCE_DIFFUSION_JOURS, MODELES_DIFFUSION_QR } from '@/lib/aj-signalement/affichage-diffusion'
+import { LANGUES_DIFFUSION_OUVERTES_QR } from '@/lib/aj-signalement/types'
 
 const DOSSIER = join(process.cwd(), 'supabase/migrations')
 const FICHIER = '20261113_signalements_qr_diffusion.sql'
@@ -293,12 +294,21 @@ describe(`Migration ${FICHIER} : réglages du cabinet, annonce (H1) et fin de mi
     expect(code).toMatch(/ALTER TABLE signalements_qr_coproprietes ADD COLUMN IF NOT EXISTS diffusion_fin_gestion_le\s+DATE;/)
     const regle = fonction('signalements_qr_diffusion_raison_inactive').corps
     expect(regle).toMatch(/diffusion_fin_gestion_le/)
-    for (const raison of ['introuvable', 'copropriete_inactive', 'sans_cabinet', 'diffusion_non_activee', 'fin_gestion']) {
+    for (const raison of ['introuvable', 'copropriete_inactive', 'sans_cabinet', 'diffusion_non_activee', 'langue_non_ouverte', 'fin_gestion']) {
       expect(regle).toContain(`'${raison}'`)
     }
     for (const nom of ['signalements_qr_diffusion_apercu', 'signalements_qr_diffusion_creer', 'signalements_qr_diffusion_lot', 'signalements_qr_diffusion_annonce']) {
       expect(fonction(nom).corps, nom).toMatch(/signalements_qr_diffusion_raison_inactive\(/)
     }
+  })
+
+  it('H9 : langues ouvertes à la diffusion, mêmes en TypeScript (LANGUES_DIFFUSION_OUVERTES_QR) et dans la règle d’inactivité', () => {
+    const regle = fonction('signalements_qr_diffusion_raison_inactive').corps
+    const m = /WHEN NOT \(k\.langue = ANY \(ARRAY\[([^\]]*)\]::text\[\]\)\) THEN 'langue_non_ouverte'/.exec(regle)
+    expect(m).not.toBeNull()
+    const sql = [...(m?.[1] ?? '').matchAll(/'([^']+)'/g)].map((v) => v[1])
+    expect(trie(sql)).toEqual(trie(LANGUES_DIFFUSION_OUVERTES_QR))
+    expect(LANGUES_DIFFUSION_OUVERTES_QR).toEqual(['fr'])
   })
 })
 

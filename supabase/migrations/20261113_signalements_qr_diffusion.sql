@@ -13,7 +13,9 @@
 --   H7 = date facultative de fin de mission sur la copropriété : à cette date, plus aucune diffusion (aperçu, création,
 --        lots), sans geste humain ; désactiver la copropriété la coupe aussi ;
 --   H11 = un gestionnaire ne diffuse que sur une copropriété qui lui est attribuée NOMMÉMENT (jamais par « attribuée à
---        tous ») : contrôlé aussi par la base (signalements_qr_diffusion_gestionnaire_autorise).
+--        tous ») : contrôlé aussi par la base (signalements_qr_diffusion_gestionnaire_autorise) ;
+--   H9 (appliquée par défaut) = aucun cabinet de langue « pt » ne diffuse tant que le droit portugais n'est pas vérifié,
+--        même activé puis passé en « pt » : règle d'inactivité (raison langue_non_ouverte).
 --
 -- Contenu : 8 colonnes de réglages de diffusion sur le cabinet (contact, politique de confidentialité et sa déclaration
 -- datée, contrat de sous-traitance référencé et daté, téléphones autorisés, activation), 2 colonnes sur le signalement
@@ -248,6 +250,10 @@ COMMENT ON TABLE signalements_qr_diffusion_oppositions IS 'AJ Signalement : oppo
 
 -- Pourquoi la copropriété ne peut pas (ou plus) diffuser ; NULL : elle le peut. Seule définition, lue par l'aperçu, la
 -- création, chaque lot et l'annonce de l'accusé. Fin de mission (H7) : à partir de la date, heure de Paris.
+-- Langue (H9, H4) : seuls les cabinets d'une langue ouverte diffusent — le français, tant que le droit portugais n'est pas
+-- vérifié ni les textes portugais relus — même activés puis passés dans une autre langue par la modification du cabinet
+-- (signalements_qr_enregistrer_cabinet, PR 1). Même liste que LANGUES_DIFFUSION_OUVERTES_QR (lib/aj-signalement/types.ts,
+-- test d'accord) ; ouvrir le portugais = une migration qui remplace cette fonction.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_raison_inactive(p_copropriete uuid) RETURNS text
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   SELECT CASE
@@ -255,6 +261,7 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
            WHEN NOT c.actif THEN 'copropriete_inactive'
            WHEN c.cabinet_id IS NULL OR k.id IS NULL THEN 'sans_cabinet'
            WHEN k.diffusion_activee_le IS NULL THEN 'diffusion_non_activee'
+           WHEN NOT (k.langue = ANY (ARRAY['fr']::text[])) THEN 'langue_non_ouverte'
            WHEN c.diffusion_fin_gestion_le IS NOT NULL
                 AND (now() AT TIME ZONE 'Europe/Paris')::date >= c.diffusion_fin_gestion_le THEN 'fin_gestion'
          END

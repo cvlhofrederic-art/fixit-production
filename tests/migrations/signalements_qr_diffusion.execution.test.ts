@@ -525,6 +525,26 @@ describe('aperçu et création : destinataires calculés en SQL', () => {
     expect((await creer(encore)).erreur).toBeNull()
   })
 
+  it('H9 / H4 : cabinet activé en « fr » puis passé en « pt » par la modification du cabinet (PR 1) : plus aucune diffusion ni annonce (langue_non_ouverte)', async () => {
+    const { cab, cop } = await immeuble(2)
+    const d = await creerOk(cop)
+    const nouveau = await depot(cop, { email: 'nouveau@exemple.test', annonce: null, ilYa: '0' })
+    expect((await service(`SELECT signalements_qr_enregistrer_cabinet($1::uuid, NULL, NULL, 'pt', NULL, $2::uuid)`, [cab, SUPER_ADMIN])).erreur).toBeNull()
+    const [k] = await q<{ langue: string; activee: boolean }>(
+      'SELECT langue, diffusion_activee_le IS NOT NULL AS activee FROM signalements_qr_cabinets WHERE id = $1', [cab])
+    expect(k).toEqual({ langue: 'pt', activee: true })
+    expect((await apercu(cop)).lignes[0]).toMatchObject({ possible: false, raison: 'langue_non_ouverte' })
+    expect((await apercu(cop, { annonce: true })).lignes[0]).toMatchObject({ possible: false, raison: 'langue_non_ouverte' })
+    expect((await creer(cop)).erreur).toMatchObject({ code: 'P0001', message: 'diffusion_inactive' })
+    expect(await lot(d.diffusion_id)).toEqual([])
+    expect((await etats(d.diffusion_id)).map((e) => `${e.etat}:${e.code}`)).toEqual(['annule:diffusion_inactive', 'annule:diffusion_inactive'])
+    // L'accusé d'un nouveau dépôt n'annonce pas une diffusion que la langue du cabinet ne permet pas.
+    expect((await ok<{ r: boolean }>('SELECT signalements_qr_diffusion_annonce($1::uuid) AS r', [nouveau]))[0].r).toBe(false)
+    // Retour en « fr » : la diffusion reprend sans autre geste.
+    expect((await service(`SELECT signalements_qr_enregistrer_cabinet($1::uuid, NULL, NULL, 'fr', NULL, $2::uuid)`, [cab, SUPER_ADMIN])).erreur).toBeNull()
+    expect((await apercu(cop)).lignes[0]).toMatchObject({ possible: true, raison: null })
+  })
+
   it('super admin : instruction écrite exigée et non future (22023) ; paramètres incohérents → 22023', async () => {
     const { cop } = await immeuble(1)
     expect((await creer(cop, { instruction: null })).erreur?.code).toBe('22023')

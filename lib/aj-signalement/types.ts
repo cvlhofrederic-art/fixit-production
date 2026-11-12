@@ -206,6 +206,15 @@ export const CHEMIN_TABLEAU_QR = `${CHEMIN_ESPACE_QR}#${ANCRE_TABLEAU_QR}`
 export type LangueCabinetQr = 'fr' | 'pt'
 export const LANGUES_CABINET_QR: readonly LangueCabinetQr[] = ['fr', 'pt']
 
+/**
+ * Langues des cabinets qui peuvent diffuser (PR 3, décision H9 : ouverture au Portugal après vérification du droit
+ * portugais ; H4 : textes portugais à relire). Même liste que la règle d'inactivité de la migration 20261113
+ * (signalements_qr_diffusion_raison_inactive, raison langue_non_ouverte ; test d'accord dans
+ * tests/migrations/signalements_qr_diffusion.test.ts) : un cabinet d'une autre langue ne diffuse pas, même activé puis
+ * passé dans cette langue. L'activation (D-R8) s'y réfère aussi.
+ */
+export const LANGUES_DIFFUSION_OUVERTES_QR: readonly LangueCabinetQr[] = ['fr']
+
 /** Ce qu'une copropriété ou une fiche porte de son cabinet. */
 export interface CabinetResumeQr {
   id: string
