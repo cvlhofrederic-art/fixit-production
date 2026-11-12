@@ -146,6 +146,19 @@ describe('C1 — effacement RGPD : les variantes quittent les saisies AVANT que 
     expect((await effacer()).status).toBe(409)
     expect(A.ficheSimuleeQr(A.G1).email).toBe(A.EMAIL_G1)
   })
+
+  // Reprise de la garde, constat 4 : les envois (adresse, nom) n'étaient supprimés que par la route, hors de la
+  // transaction ; sur un échec passager de cette suppression, la relance (fiche déjà pseudonymisée) ne la retentait pas.
+  it('suppression des envois par la route en échec (57014) : ils sont déjà supprimés par la fonction, dans sa transaction ; la relance n’y change rien', async () => {
+    await partir()
+    baseQr.etat.erreursPonctuelles.signalements_qr_invitations = { code: '57014', message: 'canceling statement due to statement timeout' }
+    expect((await effacer()).status).toBe(200)
+    expect(A.ficheSimuleeQr(A.G1)).toMatchObject({ nom: null, email: null, pseudonymise_le: expect.any(String) })
+    expect(baseQr.table('signalements_qr_invitations').filter((i) => i.gestionnaire_id === A.G1)).toEqual([])
+    expect((await effacer()).status).toBe(200)
+    expect(baseQr.table('signalements_qr_invitations').filter((i) => i.gestionnaire_id === A.G1)).toEqual([])
+    expect(journal('gestionnaire.pseudonymise')).toHaveLength(1)
+  })
 })
 
 describe('C1 — fonction absente (20261112 non appliquée) : pseudonymisation de la PR 1, repli journalisé', () => {

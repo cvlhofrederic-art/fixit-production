@@ -18,12 +18,13 @@
 -- de signalements_qr_desactiver_gestionnaire (départ), de signalements_qr_remplacer_attributions et de
 -- signalements_qr_attribuer_au_gestionnaire (retraits d'attribution) qui retirent des saisies l'adresse ET ses
 -- variantes par la règle ; effacement RGPD en une transaction (signalements_qr_pseudonymiser_gestionnaire : variantes
--- retirées avant que l'adresse ne disparaisse). Contre-vérification du 12/11 : chaque retrait et chaque exclusion passe
--- par la garde signalements_qr_saisie_de_la_fiche (saisie de la fiche SEULE : une saisie que la règle reconnaît aussi
--- comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la copropriété reste, comme avec l'égalité
--- exacte de la PR 1 ; une fiche forcée n'y garde que sa propre boîte, une fiche jamais confirmée rien) ; en amont, corps de signalements_qr_inviter_gestionnaire (création refusée, existe_deja, sur une
--- boîte déjà portée par une fiche) et de signalements_qr_enregistrer_cabinet (domaine porté par une fiche d'un autre
--- cabinet refusé, domaine_pris). Les actions du journal et les valeurs des envois (objet 'acces', refus
+-- retirées avant que l'adresse ne disparaisse, envois supprimés). Contre-vérification du 12/11 : chaque retrait et
+-- chaque exclusion passe par la garde signalements_qr_saisie_de_la_fiche (saisie de la fiche SEULE : une saisie que la
+-- règle reconnaît aussi comme l'adresse d'une AUTRE fiche active et non contestée du cabinet de la copropriété reste,
+-- comme avec l'égalité exacte de la PR 1 ; une fiche forcée n'y garde que sa propre boîte, une fiche jamais confirmée
+-- rien) ; en amont, corps de signalements_qr_inviter_gestionnaire (création refusée, existe_deja, sur une boîte déjà
+-- portée par une fiche) et de signalements_qr_enregistrer_cabinet (domaine porté par une fiche d'un autre cabinet
+-- refusé, domaine_pris). Les actions du journal et les valeurs des envois (objet 'acces', refus
 -- 'compte_autre_espace') sont déjà dans les CHECK de la 20261111 : aucune contrainte n'est remplacée.
 --
 -- À appliquer par Frédéric (Supabase > SQL Editor) APRÈS 20261111_signalements_qr_gestionnaires.sql. Additive et
@@ -427,8 +428,10 @@ END $fn$;
 -- Seules celles de la fiche SEULE (garde de la section 4) : une saisie qui est aussi l'adresse d'une autre fiche active
 -- du cabinet de la copropriété reste. Puis nom et e-mail mis à NULL. Fiche désactivée seulement (le départ d'abord) ;
 -- déjà pseudonymisée : rien (relance du même bouton). Ordre des verrous : la fiche, puis les copropriétés par identifiant (comme le départ). Journal comme au
--- départ ; les envois et la ligne gestionnaire.pseudonymise restent écrits par la route (PR 1). Fonction absente (cette
--- migration non appliquée) : la route fait la pseudonymisation de la PR 1 et journalise le repli.
+-- départ. Ses envois (adresse et nom) sont supprimés ici, dans la même transaction (reprise de la garde, constat 4 : la
+-- suppression par la route, seule, pouvait échouer après l'effacement et n'était jamais relancée) ; la ligne
+-- gestionnaire.pseudonymise reste écrite par la route (PR 1), dont la suppression des envois ne sert plus qu'au repli.
+-- Fonction absente (cette migration non appliquée) : la route fait la pseudonymisation de la PR 1 et journalise le repli.
 CREATE OR REPLACE FUNCTION signalements_qr_pseudonymiser_gestionnaire(p_id uuid, p_acteur uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
@@ -468,6 +471,8 @@ BEGIN
               '{"motif": "depart"}'::jsonb);
     END LOOP;
   END IF;
+  -- Ses envois (adresse et nom de la personne) supprimés dans la même transaction (reprise de la garde, constat 4).
+  DELETE FROM signalements_qr_invitations WHERE gestionnaire_id = p_id;
   -- L'adresse disparaît APRÈS le retrait de ses saisies (même transaction : tout ou rien).
   UPDATE signalements_qr_gestionnaires SET nom = NULL, email = NULL, pseudonymise_le = now() WHERE id = p_id;
   RETURN jsonb_build_object('pseudonymisee', true, 'adressesRetirees', v_retirees);

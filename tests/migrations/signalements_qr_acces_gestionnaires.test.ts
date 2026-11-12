@@ -602,8 +602,18 @@ describe(`Migration ${FICHIER} : effacement RGPD (signalements_qr_pseudonymiser_
     expect(corps()).toContain("RETURN jsonb_build_object('pseudonymisee', true, 'adressesRetirees', v_retirees);")
   })
 
-  it('ni envois ni ligne gestionnaire.pseudonymise ici : la route les écrit, comme en PR 1', () => {
-    expect(corps()).not.toMatch(/signalements_qr_invitations/)
+  // Reprise de la garde, constat 4 : les envois (adresse et nom de la personne effacée) étaient supprimés par la route,
+  // hors de la transaction, et jamais relancés après un échec (la relance voit la fiche déjà pseudonymisée). Ils le sont
+  // ici, dans la même transaction, après le retrait des saisies et avant l'effacement de l'adresse ; la ligne
+  // gestionnaire.pseudonymise reste écrite par la route, comme en PR 1.
+  const ENVOIS = 'DELETE FROM signalements_qr_invitations WHERE gestionnaire_id = p_id;'
+  it('envois supprimés ici (même transaction), une fois, après le retrait des saisies et avant l’effacement ; ligne gestionnaire.pseudonymise par la route', () => {
+    const c = corps()
+    expect(c.split(ENVOIS).length - 1).toBe(1)
+    expect(c.indexOf(ENVOIS)).toBeGreaterThan(c.indexOf(RETRAIT))
+    expect(c.indexOf(EFFACEMENT)).toBeGreaterThan(c.indexOf(ENVOIS))
+    expect(c.indexOf(ENVOIS)).toBeGreaterThan(c.indexOf("IF v_g.pseudonymise_le IS NOT NULL THEN RETURN"))
+    expect([...c.matchAll(/signalements_qr_invitations/g)]).toHaveLength(1)
     expect(corps()).not.toMatch(/gestionnaire\.pseudonymise/)
   })
 })

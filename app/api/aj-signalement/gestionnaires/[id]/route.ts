@@ -65,9 +65,10 @@ async function reactiver(fiche: LigneFicheQr, acteurId: string): Promise<NextRes
  * Nom et e-mail de la fiche effacés. Avec la 20261112 : signalements_qr_pseudonymiser_gestionnaire retire d'abord, dans
  * la même transaction, les saisies de TOUTES les copropriétés reconnues comme son adresse (règle commune : même boîte,
  * ou même partie locale sur un domaine de son cabinet ; contrôle 2, C1) : après l'effacement, plus rien ne les exclurait
- * de l'envoi. Toute erreur : rien n'est effacé (jamais l'adresse sans la purge). Fonction absente (20261112 non
- * appliquée) : la mise à jour de la PR 1, et l'effacement sans purge des variantes est journalisé (repli). `faite` faux :
- * déjà faite par un appel concurrent (ni envois ni journal à refaire).
+ * de l'envoi ; elle supprime aussi ses envois (adresse et nom) dans cette transaction (reprise de la garde, constat 4 :
+ * la suppression faite ensuite par effacer ne sert plus qu'au repli). Toute erreur : rien n'est effacé (jamais l'adresse
+ * sans la purge). Fonction absente (20261112 non appliquée) : la mise à jour de la PR 1, et l'effacement sans purge des
+ * variantes est journalisé (repli). `faite` faux : déjà faite par un appel concurrent (ni envois ni journal à refaire).
  */
 async function pseudonymiserFiche(ficheId: string, acteurId: string): Promise<NextResponse | { faite: boolean }> {
   const operation = 'pseudonymisation d’un gestionnaire'

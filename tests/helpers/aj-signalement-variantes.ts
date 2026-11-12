@@ -1,7 +1,7 @@
 // tests/helpers/aj-signalement-variantes.ts — fonctions SQL de la 20261112 qui appliquent la règle « adresse d'une
 // fiche » (contrôle 2 de la PR 2, constats C1 à C3), simulées au plus près de leur corps pour les tests de routes :
-//   - signalements_qr_pseudonymiser_gestionnaire (effacement RGPD : saisies de la fiche retirées, PUIS nom et e-mail
-//     effacés, dans une transaction) ;
+//   - signalements_qr_pseudonymiser_gestionnaire (effacement RGPD : saisies de la fiche retirées, envois supprimés, PUIS
+//     nom et e-mail effacés, dans une transaction) ;
 //   - signalements_qr_desactiver_gestionnaire, partie « saisies » (règle de la 20261112, ou égalité exacte de la
 //     20261111 : un départ fait AVANT la 20261112 laisse les variantes) ;
 //   - signalements_qr_emails_gestionnaires (destinataires confirmés ; exclusions par la règle, saisie rendue telle quelle).
@@ -105,6 +105,8 @@ export function simulerPseudonymisationQr(): void {
     if (!fiche || fiche.actif === true) return { error: { code: 'P0001', message: 'a_reverifier' } }
     if (fiche.pseudonymise_le) return { data: { pseudonymisee: false, adressesRetirees: 0 } }
     const adressesRetirees = retirerSaisiesDeFicheQr(fiche, a.p_acteur, 'variantes')
+    // Ses envois supprimés dans la même transaction (reprise de la garde, constat 4).
+    baseQr.etat.tables.signalements_qr_invitations = baseQr.table('signalements_qr_invitations').filter((e) => e.gestionnaire_id !== fiche.id)
     Object.assign(fiche, { nom: null, email: null, pseudonymise_le: NOW })
     return { data: { pseudonymisee: true, adressesRetirees } }
   }
