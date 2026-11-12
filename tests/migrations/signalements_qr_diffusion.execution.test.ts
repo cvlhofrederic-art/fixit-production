@@ -1073,18 +1073,18 @@ describe('H1 = option C, condition 5 : une seule annonce par adresse, jamais deu
     const a = await creerOk(cop, { modele: 'annonce' })
     // Nouveau dépôt de la même personne : son accusé lui a annoncé la diffusion (art. 13.4), l'annonce ne repart pas.
     await depot(cop, { email: 'Ancien@exemple.test', annonce: 'accuse', ilYa: '0' })
-    const attendu = await emailDuPremierEnAttente(a.diffusion_id, ['ancien@exemple.test'])
-    const premier = await lot(a.diffusion_id, 1)
-    expect(premier.map((l) => l.email)).toEqual([attendu])
+    const premier = await lot(a.diffusion_id)
+    expect(premier.map((l) => l.email).sort()).toEqual(['autre@exemple.test', 'troisieme@exemple.test'])
     const ancien = await destinataireDe(a.diffusion_id, 'ancien@exemple.test')
-    // Lot interrompu : l'adresse servie entre-temps par un accusé est écartée, le reste repart sous un nouveau numéro.
+    const autre = await destinataireDe(a.diffusion_id, 'autre@exemple.test')
+    // Lot interrompu : l'adresse servie entre-temps par un accusé est écartée, le reste repart sous un NOUVEAU numéro.
     await q("UPDATE signalements_qr_diffusion_destinataires SET tente_le = now() - interval '11 minutes' WHERE diffusion_id = $1 AND etat = 'en_cours'", [a.diffusion_id])
-    await depot(cop, { email: premier[0].email, annonce: 'accuse', ilYa: '0' })
-    expect(await lot(a.diffusion_id, 1)).toHaveLength(1)
+    await depot(cop, { email: 'autre@exemple.test', annonce: 'accuse', ilYa: '0' })
+    const reprise = await lot(a.diffusion_id)
+    expect(reprise.map((l) => [l.email, l.lot, l.reprise])).toEqual([['troisieme@exemple.test', premier[0].lot + 1, false]])
     const e = new Map((await etats(a.diffusion_id)).map((x) => [x.id, `${x.etat}:${x.code}`]))
     expect(e.get(ancien)).toBe('annule:deja_annoncee')
-    expect(e.get(premier[0].destinataire_id)).toBe('annule:deja_annoncee')
-    expect([...e.values()].filter((v) => v === 'en_cours:null')).toHaveLength(1)
+    expect(e.get(autre)).toBe('annule:deja_annoncee')
   })
 
   it('deux annonces visent la même adresse (état simulé) : la première partie, le lot de la seconde ne la sert pas', async () => {
@@ -1117,16 +1117,6 @@ describe('H1 = option C, condition 5 : une seule annonce par adresse, jamais deu
     expect(await envoyerLot(d.diffusion_id)).toHaveLength(2)
   })
 })
-
-/** Adresse de la première ligne en attente (ordre du lot : identifiant) hors des adresses écartées. */
-async function emailDuPremierEnAttente(diffusion: string, ecartees: string[]): Promise<string> {
-  const lignes = await q<{ email: string }>(
-    `SELECT lower(btrim(s.email)) AS email FROM signalements_qr_diffusion_destinataires x
-       JOIN signalements_qr s ON s.id = x.signalement_source_id
-      WHERE x.diffusion_id = $1 AND x.etat = 'en_attente' AND NOT (lower(btrim(s.email)) = ANY ($2::text[]))
-      ORDER BY x.id LIMIT 1`, [diffusion, ecartees])
-  return lignes[0]?.email ?? ''
-}
 
 describe('conservation et purge (§ 2.5, H10)', () => {
   it('opposition active de plus de 3 ans : supprimée sans signalement restant de l’adresse, gardée sinon ; levée : 3 ans après la levée', async () => {
