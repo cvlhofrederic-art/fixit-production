@@ -26,9 +26,15 @@ import {
 /** Pause entre deux reprises automatiques (cahier § 5.5 : 1 s entre deux lots). */
 export const DELAI_REPRISE_DIFFUSION_MS = 1000
 
-/** Message d'un échec d'appel, selon le profil ; toast quand le réseau est coupé. */
+/**
+ * Message d'un échec d'appel des écrans de la diffusion (D-R1 à D-R8), selon le profil ; toast quand le réseau est
+ * coupé. 503 base_absente : la migration de la diffusion (20261113) n'est pas appliquée → « Fonction pas encore
+ * activée. » pour les deux profils (cahier § 9 ; relecture 3), jamais le message du tableau, qui demande d'exécuter la
+ * migration de la PR 1, déjà appliquée.
+ */
 export function messageEchecDiffusionQr(code: CodeErreurQr, profil: ProfilDiffusionQr): string {
-  const message = profil === 'gestionnaire' ? messageErreurGestionnaireQr(code) : messageErreurTableauQr(code)
+  const vu: CodeErreurQr = code === 'base_absente' ? 'configuration_incomplete' : code
+  const message = profil === 'gestionnaire' ? messageErreurGestionnaireQr(vu) : messageErreurTableauQr(vu)
   if (code === 'reseau') toast.error(message)
   return message
 }

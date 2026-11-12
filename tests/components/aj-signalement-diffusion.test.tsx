@@ -469,8 +469,10 @@ interface ScenarioD {
   apercu?: (corps: Record<string, unknown>) => Record<string, unknown> | Response
   envoi?: (corps: Record<string, unknown>) => Response | Promise<Response>
   reprises?: Array<Record<string, unknown> | Response | Promise<Response>>
-  historique?: (url: string) => Record<string, unknown>
+  historique?: (url: string) => Record<string, unknown> | Response
   details?: Record<string, Record<string, unknown>>
+  /** Réponse de D-R7 (opposition à la demande écrite) ; défaut : enregistrée. */
+  opposition?: () => Response
 }
 
 /** Routes de la diffusion simulées (D-R1 à D-R7) ; toute autre adresse : 404. */
@@ -485,7 +487,8 @@ function routeurD(s: ScenarioD = {}) {
     }
     if (a.url === BASE_D && a.methode === 'POST') return s.envoi ? s.envoi(a.corps ?? {}) : envoiD()
     if (a.url.startsWith(BASE_D) && a.methode === 'GET') {
-      return json(s.historique ? s.historique(a.url) : { diffusions: [], ceMois: { nb: 0, dernierLe: null }, suivant: null })
+      const r = s.historique ? s.historique(a.url) : { diffusions: [], ceMois: { nb: 0, dernierLe: null }, suivant: null }
+      return r instanceof Response ? r : json(r)
     }
     if (/^\/api\/aj-signalement\/diffusions\/[^/]+\/reprendre$/.test(a.url)) {
       const r = await (suite.shift() ?? { envoyes: 0, refuses: 0, reste: 0, arret: null })
@@ -493,7 +496,7 @@ function routeurD(s: ScenarioD = {}) {
     }
     const detail = /^\/api\/aj-signalement\/diffusions\/([^/]+)$/.exec(a.url)
     if (detail) return json({ diffusion: s.details?.[detail[1]] ?? {} })
-    if (a.url.endsWith('/opposition') && a.methode === 'POST') return json({ enregistree: true })
+    if (a.url.endsWith('/opposition') && a.methode === 'POST') return s.opposition ? s.opposition() : json({ enregistree: true })
     return json({ error: 'introuvable' }, 404)
   }
 }
@@ -653,10 +656,11 @@ describe('lot 8 — « Diffuser un message » : ouverture, rappel du mois, modè
     expect(screen.getByText(remplir(TD.finMission.info, { date: '31/12/2026' }))).toBeInTheDocument()
   })
 
-  it('fonction pas encore activée (D-R1 503) : message, aucun formulaire', async () => {
+  it('fonction pas encore activée (D-R1 503) : « Fonction pas encore activée. » (§ 9), jamais une migration à exécuter ; aucun formulaire', async () => {
     simulerEspace(routeurD({ valeurs: json({ error: 'base_absente' }, 503) }))
     ouvrirDiffusion()
-    expect(await screen.findByText(TT.erreurs.base_absente)).toBeInTheDocument()
+    expect(await screen.findByText(TT.erreurs.configuration_incomplete)).toBeInTheDocument()
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/migration|\.sql/)
     expect(screen.queryByLabelText(TD.formulaire.objet)).toBeNull()
   })
 })
@@ -1466,5 +1470,49 @@ describe('relecture 3 — rien ne quitte l’envoi, aucune saisie jetée sans qu
     fireEvent.click(screen.getByRole('button', { name: BOUTON_ANNONCE_D }))
     await fenetrePrete(remplir(TD.titres.annonce, { copropriete: 'Résidence Exemple' }))
     expect(screen.queryByText(TD.fermeture.question)).toBeNull()
+  })
+})
+
+describe('relecture 3 — migration de la diffusion absente (503 base_absente) : « Fonction pas encore activée. » (§ 9)', () => {
+  const FONCTION_INACTIVE = TT.erreurs.configuration_incomplete
+  const sansMigration = (texte: string | null | undefined) => expect(texte ?? '').not.toMatch(/migration|\.sql/)
+
+  it.each(['super_admin', 'gestionnaire'] as const)('« Diffuser un message » (D-R1), profil %s', async (profil) => {
+    simulerEspace(routeurD({ valeurs: json({ error: 'base_absente' }, 503) }))
+    ouvrirDiffusion({ profil })
+    expect(await screen.findByText(FONCTION_INACTIVE)).toBeInTheDocument()
+    sansMigration(screen.getByRole('dialog').textContent)
+  })
+
+  it('« Messages envoyés » (D-R5), super admin', async () => {
+    simulerEspace(routeurD({ historique: () => json({ error: 'base_absente' }, 503) }))
+    ouvrirDiffusion({ contenu: 'historique' })
+    expect(await screen.findByText(FONCTION_INACTIVE)).toBeInTheDocument()
+    sansMigration(screen.getByRole('dialog').textContent)
+  })
+
+  it('« Ne plus envoyer d’informations à ce déclarant » (D-R7), super admin', async () => {
+    await rendreTableauD('signalements', [coproD()], { opposition: () => json({ error: 'base_absente' }, 503) })
+    fireEvent.click(screen.getByRole('button', { name: TT.voirDetail }))
+    fireEvent.click(await screen.findByRole('button', { name: TD.opposition.bouton }))
+    saisir(TD.opposition.date, '2026-11-10')
+    fireEvent.click(screen.getByRole('button', { name: TD.opposition.confirmer }))
+    expect(await screen.findByText(FONCTION_INACTIVE)).toBeInTheDocument()
+    sansMigration(screen.getByRole('dialog').textContent)
+  })
+
+  it('réglages du cabinet (D-R8) : enregistrement refusé en 503 base_absente', async () => {
+    await ouvrirReglages(reglagesComplets(), () => json({ error: 'base_absente' }, 503))
+    fireEvent.click(await screen.findByRole('button', { name: TD.reglages.activer }))
+    expect(await screen.findByText(FONCTION_INACTIVE)).toBeInTheDocument()
+    sansMigration(screen.getByRole('dialog').textContent)
+  })
+
+  it('réglages du cabinet : lecture refusée en 503 base_absente', async () => {
+    simulerEspace((a) => (a.url === URL_CAB_D ? json({ error: 'base_absente' }, 503) : json({ error: 'introuvable' }, 404)))
+    render(<CabinetsQr cabinets={[cabinetD()]} erreur={null} coproprietes={[]} onModifie={vi.fn()} onReessayer={vi.fn()} onJournal={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: TD.reglages.bouton }))
+    expect(await screen.findByText(FONCTION_INACTIVE)).toBeInTheDocument()
+    sansMigration(screen.getByRole('dialog').textContent)
   })
 })

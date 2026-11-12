@@ -14,7 +14,7 @@
 import { useEffect, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Champ, CLASSES_SAISIE, Encadre } from '@/components/coproprietaire-dashboard/ui'
-import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import { messageEchecDiffusionQr } from '@/components/aj-signalement/envoiDiffusionQr'
 import {
   chargerReglagesDiffusionCabinetQr, reglerDiffusionCabinetQr, type ReglagesSaisisDiffusionQr,
 } from '@/lib/aj-signalement/api'
@@ -59,7 +59,7 @@ export default function ReglagesDiffusionCabinetQr({ cabinet, onFermer }: Readon
     let actif = true
     void chargerReglagesDiffusionCabinetQr(cabinet.id).then((r) => {
       if (!actif) return
-      if (!r.ok) return setLecture({ etat: 'erreur', message: messageEchecQr(r.code) })
+      if (!r.ok) return setLecture({ etat: 'erreur', message: messageEchecDiffusionQr(r.code, 'super_admin') })
       if (!r.reglages) return setLecture({ etat: 'indisponible' })
       setLecture({ etat: 'pret', reglages: r.reglages })
       setSaisie(saisieDepuis(r.reglages))
@@ -149,7 +149,7 @@ export default function ReglagesDiffusionCabinetQr({ cabinet, onFermer }: Readon
         return setErreur(remplir(t.manque, { liste: listeManquesActivationQr(resultat.manque && resultat.manque.length > 0 ? resultat.manque : manqueApres()) }))
       }
       if (resultat.code === 'langue_non_ouverte') return setErreur(t.langueNonOuverte)
-      return setErreur(messageEchecQr(resultat.code))
+      return setErreur(messageEchecDiffusionQr(resultat.code, 'super_admin'))
     }
     if (resultat.reglages) {
       setLecture({ etat: 'pret', reglages: resultat.reglages })
