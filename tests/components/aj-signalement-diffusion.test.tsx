@@ -1402,3 +1402,69 @@ describe('lot 8 — fin de mission prévue sur la fiche de la copropriété (H7,
     expect(appelsVers(`${BASE_D}/valeurs`)).toEqual([])
   })
 })
+
+// ── Relecture 3 de la PR 3 : corrections des écrans (tests écrits d'abord, rouges sur 3c6e6580) ──
+
+const BOUTON_ANNONCE_D = remplir(TD.annonce.bouton, { n: 4 })
+/** Copropriété entière présélectionnée, 4 déclarants jamais annoncés, 523 destinataires (4 pour l'annonce). */
+const routeurAnnonceD = (s: ScenarioD = {}) => routeurD({
+  valeurs: valeursD({ porteeParDefaut: 'copropriete', nbNonAnnonces: 4 }),
+  apercu: (c) => apercuD(c.annonce ? 4 : 523, { libellePerimetre: 'Toute la copropriété', nbExclusOpposition: 0 }),
+  ...s,
+})
+
+describe('relecture 3 — rien ne quitte l’envoi, aucune saisie jetée sans question (§ 7.1, § 7.2 point 10)', () => {
+  it('confirmation puis envoi : « Annoncer… » n’est plus proposé ; la reprise automatique va au bout, Échap ne ferme pas', async () => {
+    const reprise = differe<Response>()
+    simulerEspace(routeurAnnonceD({
+      envoi: () => envoiD({ nbDestinataires: 523, envoyes: 200, refuses: 0, reste: 323 }),
+      reprises: [reprise.promesse, { envoyes: 523, refuses: 0, reste: 0, arret: null }],
+    }))
+    ouvrirDiffusion()
+    await fenetrePrete()
+    expect(screen.getByRole('button', { name: BOUTON_ANNONCE_D })).toBeInTheDocument()
+    saisirMessage()
+    const envoyer = await verifier('Envoyer à 523 personnes')
+    expect(screen.queryByRole('button', { name: BOUTON_ANNONCE_D })).toBeNull()
+    fireEvent.click(envoyer)
+    await screen.findByText('200 / 523 envoyés')
+    await waitFor(() => expect(rappelsD.onGarde).toHaveBeenLastCalledWith('envoi'))
+    expect(screen.queryByRole('button', { name: BOUTON_ANNONCE_D })).toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByText(TD.fermeture.envoiContinue)).toBeInTheDocument()
+    await act(async () => { reprise.resoudre(json({ envoyes: 423, refuses: 0, reste: 100, arret: null })) })
+    expect(await screen.findByText('Message envoyé à 523 personnes.')).toBeInTheDocument()
+    expect(reprises()).toHaveLength(2)
+    expect(rappelsD.onFermer).not.toHaveBeenCalled()
+  })
+
+  it('saisie en cours, « Annoncer… » : « Abandonner ce message ? » ; « Continuer la saisie » garde le texte ; « Abandonner » ouvre l’annonce', async () => {
+    simulerEspace(routeurAnnonceD())
+    ouvrirDiffusion()
+    await fenetrePrete()
+    saisir(TD.formulaire.objet, OBJET_D)
+    saisir(TD.formulaire.texte, TEXTE_D)
+    await waitFor(() => expect(rappelsD.onGarde).toHaveBeenLastCalledWith('saisie'))
+    fireEvent.click(screen.getByRole('button', { name: BOUTON_ANNONCE_D }))
+    expect(screen.getByText(TD.fermeture.question)).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: titreMessage() })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: TD.fermeture.continuer }))
+    expect(screen.queryByText(TD.fermeture.question)).toBeNull()
+    expect(screen.getByLabelText(TD.formulaire.objet)).toHaveValue(OBJET_D)
+    expect(screen.getByLabelText(TD.formulaire.texte)).toHaveValue(TEXTE_D)
+    fireEvent.click(screen.getByRole('button', { name: BOUTON_ANNONCE_D }))
+    fireEvent.click(screen.getByRole('button', { name: TD.fermeture.abandonner }))
+    await fenetrePrete(remplir(TD.titres.annonce, { copropriete: 'Résidence Exemple' }))
+    expect(screen.queryByText(TD.fermeture.question)).toBeNull()
+    expect(rappelsD.onFermer).not.toHaveBeenCalled()
+  })
+
+  it('sans saisie : « Annoncer… » ouvre l’annonce sans question', async () => {
+    simulerEspace(routeurAnnonceD())
+    ouvrirDiffusion()
+    await fenetrePrete()
+    fireEvent.click(screen.getByRole('button', { name: BOUTON_ANNONCE_D }))
+    await fenetrePrete(remplir(TD.titres.annonce, { copropriete: 'Résidence Exemple' }))
+    expect(screen.queryByText(TD.fermeture.question)).toBeNull()
+  })
+})

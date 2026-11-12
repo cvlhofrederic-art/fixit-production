@@ -390,10 +390,12 @@ export default function FormulaireDiffusionQr({
   }
 
   // ── Rendu ──
-  const enTete = (
+  // L'annonce n'est proposée qu'à la saisie (relecture 3) : à la confirmation et pendant l'envoi, passer à une autre vue
+  // jetterait le message confirmé ou arrêterait la reprise automatique de l'envoi.
+  const enTete = (avecAnnonce: boolean) => (
     <>
       {rappel}
-      {mode === 'message' && !signalementId && v.nbNonAnnonces > 0 && (
+      {avecAnnonce && mode === 'message' && !signalementId && v.nbNonAnnonces > 0 && (
         <Encadre ton="info">
           <p>{remplir(TD.annonce.encadre, { n: v.nbNonAnnonces })}</p>
           <div className="mt-2">
@@ -408,7 +410,7 @@ export default function FormulaireDiffusionQr({
   if (etape.nom === 'envoi') {
     return (
       <div className="space-y-4" aria-busy="true">
-        {enTete}
+        {enTete(false)}
         <p role="status" aria-live="polite" className="rounded-xl bg-[#F7F4EE] px-4 py-3 text-base font-semibold text-[#0D1B2E]">
           {etape.repondu ? remplir(TD.envoi.progression, { envoyes: etape.envoyes, total: etape.total }) : TD.envoi.enCours}
         </p>
@@ -435,7 +437,7 @@ export default function FormulaireDiffusionQr({
     const possible = a.possible && a.nbDestinataires > 0 && a.libellePerimetre !== null
     return (
       <section className="space-y-4" aria-labelledby={`${idBase}-confirmation`}>
-        {enTete}
+        {enTete(false)}
         <h3 id={`${idBase}-confirmation`} ref={titreConfirmation} tabIndex={-1} className="text-lg font-bold text-[#0D1B2E] outline-none">{TD.confirmation.titre}</h3>
         {etape.avis && <Encadre ton="avertissement" role="alert">{etape.avis}</Encadre>}
         <dl>
@@ -507,7 +509,7 @@ export default function FormulaireDiffusionQr({
 
   return (
     <form className="space-y-5" aria-busy={occupe} noValidate onSubmit={(e) => { e.preventDefault(); void verifier() }}>
-      {enTete}
+      {enTete(true)}
 
       {annonce ? (
         <>

@@ -11,6 +11,9 @@
 //   - rien à perdre : la fenêtre se ferme ;
 //   - saisie en cours : « Abandonner ce message ? » (Abandonner / Continuer la saisie) ;
 //   - envoi en cours : la fenêtre ne se ferme pas (« L'envoi continue ; vous pourrez fermer à la fin »).
+// Le passage à une autre vue de la fenêtre (« Annoncer la diffusion… », « Voir les messages envoyés ») suit la même
+// règle (relecture 3 de la PR 3) : il remplace le formulaire, donc il jetterait la saisie ou arrêterait la reprise
+// automatique de l'envoi ; « Abandonner » mène alors à la vue demandée au lieu de fermer.
 // La Modale réenregistre ses écouteurs à chaque nouvelle fonction onFermer (et remet le focus sur son titre) : la
 // fonction passée ici est stable (useCallback sans dépendance, état lu dans des références).
 // La fenêtre est rendue dans document.body (portail) : quand l'espace passe à une vue hors du tableau, la partie qui la
@@ -45,12 +48,15 @@ export interface PropsFenetreDiffusionQr {
 }
 
 type VueFenetre = 'message' | 'annonce' | 'historique'
+/** Ce que fait « Abandonner » : fermer la fenêtre, ou passer à une autre de ses vues. */
+type SuiteAbandon = 'fermer' | VueFenetre
 
 export default function FenetreDiffusionQr({
   copropriete, profil, contenu, signalementId, onFermer, demandeFermeture = 0, onGarde, delaiRepriseMs = DELAI_REPRISE_DIFFUSION_MS,
 }: Readonly<PropsFenetreDiffusionQr>) {
   const [vue, setVue] = useState<VueFenetre>(contenu)
   const [avis, setAvis] = useState<'abandon' | 'envoi' | null>(null)
+  const [suiteAbandon, setSuiteAbandon] = useState<SuiteAbandon>('fermer')
   // Protection : en référence (lue par la fonction de fermeture, stable) et en état (lue au rendu).
   const garde = useRef<GardeDiffusionQr>('libre')
   const [gardeAffichee, setGardeAffichee] = useState<GardeDiffusionQr>('libre')
@@ -69,12 +75,23 @@ export default function FenetreDiffusionQr({
     rappels.current.onGarde?.(g)
   }, [])
 
-  /** Fermeture demandée (Échap, clic dehors, Fermer, Annuler, changement de vue) : voir l'en-tête. */
-  const demanderFermeture = useCallback(() => {
-    if (garde.current === 'envoi') return setAvis('envoi')
-    if (garde.current === 'saisie') return setAvis('abandon')
-    rappels.current.onFermer()
+  /** Fermeture ou autre vue, sans question : rien n'est plus à protéger. */
+  const executer = useCallback((suite: SuiteAbandon) => {
+    if (suite === 'fermer') rappels.current.onFermer()
+    else setVue(suite)
   }, [])
+
+  /** Fermeture ou autre vue demandée (Échap, clic dehors, Fermer, Annuler, annonce, historique) : voir l'en-tête. */
+  const demander = useCallback((suite: SuiteAbandon) => {
+    if (garde.current === 'envoi') return setAvis('envoi')
+    if (garde.current === 'saisie') {
+      setSuiteAbandon(suite)
+      return setAvis('abandon')
+    }
+    executer(suite)
+  }, [executer])
+  // Stable : la Modale réenregistre ses écouteurs à chaque nouvelle fonction onFermer (voir l'en-tête).
+  const demanderFermeture = useCallback(() => demander('fermer'), [demander])
 
   // Changement de vue de l'espace (état ajusté au rendu) : même règle qu'Échap ; la valeur reçue à l'ouverture ne compte
   // pas (une fenêtre neuve ne se ferme pas seule). Rien à protéger : la fermeture est demandée à l'appelant après le rendu.
@@ -83,8 +100,10 @@ export default function FenetreDiffusionQr({
   if (demandeFermeture !== demandeVue) {
     setDemandeVue(demandeFermeture)
     if (gardeAffichee === 'envoi') setAvis('envoi')
-    else if (gardeAffichee === 'saisie') setAvis('abandon')
-    else setFermetureDemandee(true)
+    else if (gardeAffichee === 'saisie') {
+      setSuiteAbandon('fermer')
+      setAvis('abandon')
+    } else setFermetureDemandee(true)
   }
   useEffect(() => {
     if (fermetureDemandee) rappels.current.onFermer()
@@ -114,7 +133,7 @@ export default function FenetreDiffusionQr({
               <p className="font-semibold">{TD.fermeture.question}</p>
               <p className="mt-1">{TD.fermeture.aide}</p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <Bouton variante="danger" petit onClick={() => rappels.current.onFermer()}>{TD.fermeture.abandonner}</Bouton>
+                <Bouton variante="danger" petit onClick={() => { setAvis(null); executer(suiteAbandon) }}>{TD.fermeture.abandonner}</Bouton>
                 <Bouton variante="secondaire" petit data-continuer="" onClick={() => setAvis(null)}>{TD.fermeture.continuer}</Bouton>
               </div>
             </Encadre>
@@ -127,7 +146,7 @@ export default function FenetreDiffusionQr({
               key={vue}
               copropriete={copropriete} profil={profil} mode={vue} signalementId={vue === 'message' ? signalementId : undefined}
               delaiRepriseMs={delaiRepriseMs} onGarde={signalerGarde} onFermer={demanderFermeture}
-              onAnnoncer={() => setVue('annonce')} onHistorique={() => setVue('historique')}
+              onAnnoncer={() => demander('annonce')} onHistorique={() => demander('historique')}
             />
           )}
         </div>
