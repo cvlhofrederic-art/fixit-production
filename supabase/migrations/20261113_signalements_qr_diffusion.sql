@@ -186,6 +186,10 @@ CREATE TABLE IF NOT EXISTS signalements_qr_diffusions (
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusions_copro   ON signalements_qr_diffusions (copropriete_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusions_cabinet ON signalements_qr_diffusions (cabinet_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusions_date    ON signalements_qr_diffusions (created_at);
+-- Clé étrangère signalement_id (ON DELETE SET NULL) : sans index, chaque effacement d'un signalement (RGPD, suppression
+-- d'une copropriété) parcourait toute la table (lint Supabase 0001 ; relecture du 12/11 : 5,6 s contre 0,6 s).
+CREATE INDEX IF NOT EXISTS idx_signalements_qr_diffusions_signalement
+  ON signalements_qr_diffusions (signalement_id) WHERE signalement_id IS NOT NULL;
 COMMENT ON TABLE signalements_qr_diffusions IS 'AJ Signalement : messages d''exploitation diffusés aux déclarants d''une copropriété (auteur, périmètre, valeurs figées) ; 3 ans.';
 
 -- ── 5. Destinataires d'une diffusion (un par adresse normalisée), état d'envoi ──

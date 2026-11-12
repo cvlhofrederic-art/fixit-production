@@ -348,6 +348,30 @@ describe('droits : clé service seulement', () => {
   })
 })
 
+describe('index des clés étrangères (lint Supabase 0001 unindexed_foreign_keys)', () => {
+  it('chaque clé étrangère des tables de la diffusion est la première colonne d’un index', async () => {
+    const sansIndex = await q<{ fk: string }>(`
+      SELECT c.conrelid::regclass::text || '.' || a.attname AS fk
+        FROM pg_constraint c JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+       WHERE c.contype = 'f' AND c.conrelid::regclass::text LIKE 'signalements\\_qr\\_diffusion%'
+         AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1])
+       ORDER BY 1`)
+    expect(sansIndex.map((r) => r.fk)).toEqual([])
+  })
+
+  it('effacer un signalement visé par une diffusion de portée signalement : la diffusion garde sa trace (signalement_id à NULL), par l’index', async () => {
+    const { cop, depots } = await immeuble(2)
+    const d = await creerOk(cop, { portee: 'signalement', signalement: depots[0] })
+    await q('DELETE FROM signalements_qr WHERE id = $1', [depots[0]])
+    const [r] = await q<{ signalement_id: string | null }>('SELECT signalement_id FROM signalements_qr_diffusions WHERE id = $1', [d.diffusion_id])
+    expect(r.signalement_id).toBeNull()
+    await q('SET LOCAL enable_seqscan = off')
+    const plan = (await q<{ 'QUERY PLAN': string }>(
+      'EXPLAIN (COSTS OFF) SELECT 1 FROM signalements_qr_diffusions WHERE signalement_id = $1', [depots[1]])).map((l) => l['QUERY PLAN'])
+    expect(plan.join('\n')).toMatch(/idx_signalements_qr_diffusions_signalement/)
+  })
+})
+
 describe('réglages du cabinet (contraintes)', () => {
   it('activation sans contrat référencé : refusée par la base (23514)', async () => {
     const cab = await cabinet({ active: false })
