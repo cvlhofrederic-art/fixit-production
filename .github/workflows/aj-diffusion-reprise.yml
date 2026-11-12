@@ -9,6 +9,13 @@ name: AJ Signalement — filet de reprise de la diffusion
 # Secret requis (GitHub > Settings > Secrets > Actions) : INTERNAL_API_SECRET, identique au secret du Worker (déjà
 # utilisé par run-automations.yml). Pas de relance HTTP : un lot réservé puis interrompu est revérifié par la base au
 # passage suivant (rejoué à l'identique, ou renuméroté s'il contient une adresse opposée depuis).
+#
+# INACTIF PAR DÉFAUT (PR 3, lot 10) : tant que la migration supabase/migrations/20261113_signalements_qr_diffusion.sql
+# n'est pas appliquée et que la clé des liens AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION n'est pas posée côté Worker
+# (wrangler secret put), la route répond 503 et ce workflow échouerait toutes les 5 minutes. Le job ne tourne donc que si
+# la variable de dépôt AJ_DIFFUSION_REPRISE_ACTIVE vaut « true » (GitHub > Settings > Secrets and variables > Actions >
+# Variables), à poser APRÈS la migration et les secrets ; absente ou autre valeur, le job est sauté (ni appel, ni échec),
+# lancement manuel compris. Ce n'est pas un secret : la condition ne lit ni secret ni donnée de l'événement.
 
 on:
   schedule:
@@ -25,6 +32,7 @@ concurrency:
 
 jobs:
   reprendre:
+    if: vars.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

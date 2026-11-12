@@ -2,7 +2,9 @@
 //
 // AJ Signalement, PR 3, lot 5 bis — filet de reprise de la diffusion (cahier § 5.5, § 2.5, décision F10) :
 //   - workflow .github/workflows/aj-diffusion-reprise.yml : toutes les 5 minutes, AUCUNE permission (permissions: {}),
-//     secret lu depuis l'environnement du pas, jamais interpolé dans run: (modèle run-automations.yml) ;
+//     secret lu depuis l'environnement du pas, jamais interpolé dans run: (modèle run-automations.yml) ; INACTIF par
+//     défaut (lot 10) : le job ne tourne que si la variable de dépôt AJ_DIFFUSION_REPRISE_ACTIVE vaut « true », posée
+//     après l'application de la migration 20261113 et des secrets (sinon un échec 503 toutes les 5 minutes) ;
 //   - route D-C1 POST /api/cron/aj-diffusion-reprise : en-tête x-cron-secret comparé À TEMPS CONSTANT à
 //     INTERNAL_API_SECRET (401 au corps neutre sinon, jamais d'égalité vide = vide), limite par adresse IP, diffusions de
 //     moins d'une heure seulement (la base les choisit, la route le revérifie), 5 lots au plus par diffusion et 20 par
@@ -87,6 +89,28 @@ describe('workflow aj-diffusion-reprise.yml (modèle run-automations.yml)', () =
     expect(run).toMatch(/--max-time \d+/)
     // Pas de relance HTTP : une reprise réservée puis interrompue est revérifiée par la base au passage suivant.
     expect(run).not.toMatch(/--retry/)
+  })
+
+  // Lot 10 : tant que la migration 20261113 n'est pas appliquée et que les secrets ne sont pas posés, la route répond
+  // 503 (base_absente, configuration_incomplete) et le workflow échouerait toutes les 5 minutes. Il reste donc inactif
+  // tant qu'une personne n'a pas posé la variable de dépôt AJ_DIFFUSION_REPRISE_ACTIVE à « true » (GitHub > Settings >
+  // Secrets and variables > Actions > Variables) ; une variable absente vaut la chaîne vide, donc un job sauté.
+  it('inactif par défaut : condition de job sur la variable de dépôt AJ_DIFFUSION_REPRISE_ACTIVE == \'true\'', () => {
+    expect(yaml).toMatch(/^jobs:\n {2}reprendre:\n {4}if: vars\.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'\n {4}runs-on: ubuntu-latest$/m)
+    // Une seule condition, au niveau du job (aucune condition de pas qui laisserait le job démarrer) ; elle ne lit qu'une
+    // variable de dépôt, jamais un secret ni une donnée de l'événement.
+    const conditions = [...yaml.matchAll(/^(\s*)(?:- )?if:\s*(.*)$/gm)]
+    expect(conditions.map((c) => [c[1].length, c[2]])).toEqual([[4, "vars.AJ_DIFFUSION_REPRISE_ACTIVE == 'true'"]])
+    expect(yaml).not.toMatch(/if:.*(secrets\.|github\.event)/)
+    // Comparaison stricte à « true » : ni `!= 'false'` (une variable absente l'activerait), ni la variable seule.
+    expect(yaml).not.toMatch(/AJ_DIFFUSION_REPRISE_ACTIVE\s*!=/)
+  })
+
+  it('la condition d’activation est documentée dans l’en-tête (migration, secrets, variable)', () => {
+    const entete = yaml.split('\non:')[0]
+    expect(entete).toContain('AJ_DIFFUSION_REPRISE_ACTIVE')
+    expect(entete).toContain('20261113')
+    expect(entete).toContain('AJ_SIGNALEMENT_CLE_LIENS_DIFFUSION')
   })
 
   it('un seul passage à la fois (concurrence), délai du job borné', () => {
