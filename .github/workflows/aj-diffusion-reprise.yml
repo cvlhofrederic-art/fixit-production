@@ -1,0 +1,39 @@
+name: AJ Signalement — filet de reprise de la diffusion
+
+# Filet de reprise de la diffusion d'AJ Signalement (PR 3, cahier § 5.5 et § 2.5, décision F10). Le Worker généré par
+# OpenNext n'exporte pas de handler `scheduled` : comme run-automations.yml, ce workflow appelle la route de production
+# toutes les 5 minutes. La route reprend les diffusions de MOINS d'une heure dont l'envoi a été interrompu (fenêtre
+# fermée, Worker coupé, limite du service d'e-mail), chaque lot revérifié par la base (oppositions, copropriété,
+# cabinet), et lance la purge de conservation une fois par jour.
+#
+# Secret requis (GitHub > Settings > Secrets > Actions) : INTERNAL_API_SECRET, identique au secret du Worker (déjà
+# utilisé par run-automations.yml). Pas de relance HTTP : un lot réservé puis interrompu est revérifié par la base au
+# passage suivant (rejoué à l'identique, ou renuméroté s'il contient une adresse opposée depuis).
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # toutes les 5 min
+  workflow_dispatch: {}
+
+# Aucune permission : le job n'utilise pas le jeton GitHub (appel curl vers la production uniquement).
+permissions: {}
+
+# Un passage à la fois : un passage lent n'en chevauche pas un autre.
+concurrency:
+  group: aj-diffusion-reprise
+  cancel-in-progress: false
+
+jobs:
+  reprendre:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Appeler le filet de reprise de la diffusion
+        env:
+          # Secret lu depuis l'environnement, jamais interpolé dans run:.
+          INTERNAL_API_SECRET: ${{ secrets.INTERNAL_API_SECRET }}
+        run: |
+          curl -s -X POST https://vitfix.io/api/cron/aj-diffusion-reprise \
+            -H "x-cron-secret: ${INTERNAL_API_SECRET}" \
+            --max-time 120 \
+            --fail-with-body
