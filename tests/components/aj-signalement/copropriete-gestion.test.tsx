@@ -159,9 +159,15 @@ describe('modification', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Marie Exemple/ }))
     fireEvent.click(screen.getByRole('button', { name: T.formulaire.enregistrer }))
     await waitFor(() => expect(rappels.onEnregistre).toHaveBeenCalled())
-    expect(appels.map((a) => `${a.methode} ${a.url}`)).toEqual([`PATCH /api/aj-signalement/coproprietes/${C1}`, `PUT /api/aj-signalement/coproprietes/${C1}/gestionnaires`])
-    expect(appels[0].corps).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', emailsDestinataires: [], actif: true })
-    expect(appels[1].corps).toEqual({ gestionnaireIds: [G1], attribueeATous: false })
+    // PR 3, lot 8 : la fiche d'une copropriété rattachée relit d'abord sa fin de mission prévue (D-R1, lecture seule) ;
+    // réponse illisible ici : aucun champ, corps d'avant.
+    expect(appels.map((a) => `${a.methode} ${a.url}`)).toEqual([
+      `GET /api/aj-signalement/coproprietes/${C1}/diffusions/valeurs`,
+      `PATCH /api/aj-signalement/coproprietes/${C1}`, `PUT /api/aj-signalement/coproprietes/${C1}/gestionnaires`,
+    ])
+    const ecritures = appels.filter((a) => a.methode !== 'GET')
+    expect(ecritures[0].corps).toEqual({ nom: 'Résidence Exemple', adresse: '1 rue Exemple', emailsDestinataires: [], actif: true })
+    expect(ecritures[1].corps).toEqual({ gestionnaireIds: [G1], attribueeATous: false })
     expect(rappels.onEnregistre.mock.calls[0][0].gestionnaires).toEqual([{ id: G1, nom: 'Marie Exemple' }])
     // Avec des signalements, pas de suppression.
     expect(screen.queryByRole('button', { name: G.copropriete.supprimer })).toBeNull()

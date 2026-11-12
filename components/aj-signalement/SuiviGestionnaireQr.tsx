@@ -9,11 +9,14 @@
 // entre-temps, 409 conflit_statut : liste rechargée, fiche gardée ouverte). Vue du SUPER ADMIN seulement : le
 // gestionnaire connecté suit ses copropriétés dans l'espace de son cabinet (vitfix.io/<identifiant>/suivi/, même
 // présentation que l'espace global : TableauSignalementsQr, réponse minimisée). Rien n'est gardé dans le navigateur.
+// PR 3, lot 8 (cahier § 7.1, BROUILLON pour Frédéric) : le détail porte aussi « Informer les déclarants de ce
+// signalement » et l'opposition à la demande écrite (le super admin a le droit « diffuser » partout).
 
 import { useCallback, useEffect, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import DetailSignalementQr from '@/components/aj-signalement/DetailSignalementQr'
+import FenetreDiffusionQr from '@/components/aj-signalement/FenetreDiffusionQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import { chargerSignalementsCoproprieteQr, chargerTableauQr } from '@/lib/aj-signalement/api'
 import {
@@ -61,6 +64,8 @@ function CoproprieteSuivieQr({ copropriete: c }: Readonly<{ copropriete: Copropr
   const [filtre, setFiltre] = useState<'ouverts' | 'tous'>('ouverts')
   const [suiteEnCours, setSuiteEnCours] = useState(false)
   const [detail, setDetail] = useState<string | null>(null)
+  // PR 3 : signalement dont les déclarants sont informés (fenêtre de diffusion, portée « signalement »).
+  const [diffusion, setDiffusion] = useState<string | null>(null)
 
   const charger = useCallback(async (statut: 'ouverts' | 'tous') => {
     setListe({ statut: 'chargement' })
@@ -156,8 +161,15 @@ function CoproprieteSuivieQr({ copropriete: c }: Readonly<{ copropriete: Copropr
         <Modale titre={`${signalementDetail.typeIntervention} — ${signalementDetail.coproprieteNom}`} onFermer={() => setDetail(null)} labelFermer={T.fermerFenetre}>
           <DetailSignalementQr
             signalement={signalementDetail} jeton={null} onFermer={() => setDetail(null)} onStatut={surStatut} onConflit={() => { void recharger() }}
+            onInformer={() => { setDetail(null); setDiffusion(signalementDetail.id) }} oppositionDiffusion
           />
         </Modale>
+      )}
+      {diffusion && (
+        <FenetreDiffusionQr
+          copropriete={{ id: c.id, nom: c.nom, cabinetNom: c.cabinet?.nom ?? null }} profil="super_admin" contenu="message"
+          signalementId={diffusion} onFermer={() => setDiffusion(null)}
+        />
       )}
     </li>
   )

@@ -12,18 +12,24 @@
 // (confirmation), adresse d'un gestionnaire refusée ; suppression d'une copropriété sans signalement (nom ressaisi).
 // Les champs nouveaux ne partent que remplis ou changés : sans eux, le corps est celui d'avant (la route répond 503 à un
 // champ nouveau tant que la migration du 11/11/2026 manque).
+// PR 3, lot 8 (décision H7 de Hugo, cahier § 7.4 ; BROUILLON pour Frédéric) : en modification d'une copropriété rattachée
+// à un cabinet, date facultative « Fin de mission prévue » (à partir de ce jour, plus aucune diffusion), RELUE par la
+// route des valeurs de diffusion (D-R1, finMissionLe) ; le champ n'apparaît que si elle a répondu (migration du
+// 13/11/2026 appliquée) et ne part que changé (diffusionFinGestionLe, null pour l'effacer).
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Bouton, Champ, CLASSES_SAISIE, Encadre } from '@/components/coproprietaire-dashboard/ui'
 import { ChoixGestionnairesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import type { CabinetQr, CoproprieteQr, DoublonRenduQr, GestionnaireQr, GestionnaireResumeQr, SaisieGestionCoproprieteQr } from '@/lib/aj-signalement/types'
 import {
-  attribuerGestionnairesCoproprieteQr, creerCoproprieteQr, modifierCoproprieteQr, supprimerCoproprieteQr, type ModificationCoproprieteQr,
+  attribuerGestionnairesCoproprieteQr, chargerValeursDiffusionQr, creerCoproprieteQr, modifierCoproprieteQr, supprimerCoproprieteQr,
+  type ModificationCoproprieteQr,
 } from '@/lib/aj-signalement/api'
 import { TEXTES_TABLEAU_QR as T, analyserEmailsQr, messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 import { TEXTES_GESTION_QR as G, gestionnairesAttribuablesQr } from '@/lib/aj-signalement/affichage-gestion'
+import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 
 export interface PropsModaleCoproprieteQr {
   /** null : création. */
@@ -71,10 +77,29 @@ export default function ModaleCoproprieteQr({
   const [confirmerRemplacement, setConfirmerRemplacement] = useState(false)
   const [suppression, setSuppression] = useState(false)
   const [nomSuppression, setNomSuppression] = useState('')
+  // PR 3 (H7) : fin de mission prévue, relue par D-R1 ; null : champ absent (sans cabinet, migration absente, échec).
+  const [finMissionLue, setFinMissionLue] = useState<{ initiale: string | null } | null>(null)
+  const [finMission, setFinMission] = useState('')
   const f = T.formulaire
   const g = G.copropriete
 
   const gestionAffichee = cabinets !== undefined
+  const coproprieteRattacheeId = gestionAffichee && copropriete?.cabinet ? copropriete.id : null
+  useEffect(() => {
+    if (!coproprieteRattacheeId) return
+    let actif = true
+    void chargerValeursDiffusionQr(coproprieteRattacheeId).then((r) => {
+      if (!actif) return
+      // Fonction pas encore activée ou refus : la fiche reste celle d'avant, sans le champ.
+      if (!r.ok) {
+        console.warn('[aj-signalement] fin de mission non relue', r.code)
+        return
+      }
+      setFinMissionLue({ initiale: r.valeurs.finMissionLe })
+      setFinMission(r.valeurs.finMissionLe ?? '')
+    })
+    return () => { actif = false }
+  }, [coproprieteRattacheeId])
   const cabinet = copropriete ? copropriete.cabinet : (cabinets ?? []).find((c) => c.id === cabinetId) ?? null
   // Gestionnaires proposés : ceux du cabinet à qui l'on peut confier la copropriété, et ceux qui l'ont déjà.
   const attribuables: Array<GestionnaireResumeQr & { email?: string | null }> = gestionnairesAttribuablesQr(gestionnaires ?? [], cabinet?.id)
@@ -123,6 +148,7 @@ export default function ModaleCoproprieteQr({
       if (fiche.immatriculation !== (copropriete.immatriculation ?? '')) modification.immatriculation = fiche.immatriculation
       if (fiche.referenceCabinet !== (copropriete.referenceCabinet ?? '')) modification.referenceCabinet = fiche.referenceCabinet
       if (!memesListes(listeBat, copropriete.batiments)) modification.batiments = listeBat
+      if (finMissionLue && finMission !== (finMissionLue.initiale ?? '')) modification.diffusionFinGestionLe = finMission || null
       resultat = await modifierCoproprieteQr(copropriete.id, { ...modification, ...options }, jeton)
     }
     if (!resultat.ok) {
@@ -242,6 +268,14 @@ export default function ModaleCoproprieteQr({
           <input type="checkbox" checked={actif} onChange={(e) => setActif(e.target.checked)} className="h-5 w-5 accent-[#C9A84C]" />
           <span>{f.actif}</span>
         </label>
+      )}
+      {copropriete && finMissionLue && (
+        <Champ id={`${idBase}-fin-mission`} etiquette={TD.finMission.champ} aide={TD.finMission.aide}>
+          <input
+            id={`${idBase}-fin-mission`} type="date" value={finMission} onChange={(e) => setFinMission(e.target.value)}
+            aria-describedby={`${idBase}-fin-mission-aide`} className={CLASSES_SAISIE}
+          />
+        </Champ>
       )}
 
       {doublon && (

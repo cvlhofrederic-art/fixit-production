@@ -11,11 +11,15 @@
 // (409 conflit_statut) : « Le statut a été changé entre-temps » et la liste est rechargée (onConflit). Vue d'un
 // gestionnaire (vueGestionnaire) : auteur du dernier changement sans nom (vous, un collègue, le cabinet), aucune erreur
 // technique d'envoi (« E-mail non envoyé. »), messages propres (accès retiré…), toast si le réseau est coupé.
+// PR 3, lot 8 (cahier § 7.1, BROUILLON pour Frédéric) : « Informer les déclarants de ce signalement » (portée
+// « signalement ») et « Ne plus envoyer d'informations à ce déclarant (à sa demande) » (D-R7), seulement quand
+// l'appelant les donne : le profil a le droit « diffuser » sur la copropriété (H11 pour un gestionnaire).
 
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Encadre, Ligne } from '@/components/coproprietaire-dashboard/ui'
+import OppositionDiffusionQr from '@/components/aj-signalement/OppositionDiffusionQr'
 import { numeroSignalementQr, type SignalementQr, type StatutSignalementQr } from '@/lib/aj-signalement/types'
 import { changerStatutSignalementQr } from '@/lib/aj-signalement/api'
 import {
@@ -23,6 +27,7 @@ import {
   etatConfirmationQr, libelleQualiteQr, lieuSignalementQr, nomDeclarantQr, situationLotQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
 import { TEXTES_ESPACE_CABINET_QR as EC, messageErreurGestionnaireQr, texteAuteurStatutQr } from '@/lib/aj-signalement/affichage-gestionnaire'
+import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 
 export interface PropsDetailSignalementQr {
   signalement: SignalementQr
@@ -33,13 +38,17 @@ export interface PropsDetailSignalementQr {
   onConflit?: () => void
   /** PR 2 : vue d'un gestionnaire connecté (espace de son cabinet). */
   vueGestionnaire?: boolean
+  /** PR 3 : « Informer les déclarants de ce signalement » (absent : pas le droit « diffuser » sur la copropriété). */
+  onInformer?: () => void
+  /** PR 3 : « Ne plus envoyer d'informations à ce déclarant (à sa demande) », même droit. */
+  oppositionDiffusion?: boolean
 }
 
 /** Lien tel: sans espaces ni ponctuation. */
 const lienTelephone = (telephone: string): string => `tel:${telephone.replace(/[\s.()-]/g, '')}`
 
 export default function DetailSignalementQr({
-  signalement: s, jeton, onFermer, onStatut, onConflit, vueGestionnaire = false,
+  signalement: s, jeton, onFermer, onStatut, onConflit, vueGestionnaire = false, onInformer, oppositionDiffusion = false,
 }: Readonly<PropsDetailSignalementQr>) {
   const [occupe, setOccupe] = useState<StatutSignalementQr | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
@@ -104,6 +113,15 @@ export default function DetailSignalementQr({
         <Encadre ton="avertissement">{texteEmailNonEnvoye}</Encadre>
       )}
       <p className="text-sm text-[#4A5E78]">{etatConfirmationQr(s)}</p>
+
+      {(onInformer || oppositionDiffusion) && (
+        <div className="space-y-3 border-t border-[#E4DDD0] pt-4">
+          {onInformer && <Bouton variante="secondaire" petit icone="annonces" onClick={onInformer}>{TD.detail.informer}</Bouton>}
+          {oppositionDiffusion && (
+            <OppositionDiffusionQr coproprieteId={s.coproprieteId} signalementId={s.id} profil={vueGestionnaire ? 'gestionnaire' : 'super_admin'} />
+          )}
+        </div>
+      )}
 
       {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
 

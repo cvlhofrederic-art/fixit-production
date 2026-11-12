@@ -13,10 +13,24 @@
 //   - les autres : espace AJ Signalement (/fr/aj-signalement/, super admin). Le jeton Bearer est ajouté quand il est
 //     connu ; sinon les cookies de session suffisent (credentials same-origin), ce que fait l'espace. Dont
 //     verifierImportQr / creerImportQr (import d'un fichier, lot 5) : seules les lignes normalisées partent, jamais le
-//     fichier ; un 409 a_reverifier porte les diagnostics à jour.
+//     fichier ; un 409 a_reverifier porte les diagnostics à jour ;
+//   - PR 3, lot 8 (diffusion de messages d'exploitation aux déclarants, cahier § 4.1) : chargerValeursDiffusionQr (D-R1),
+//     apercuDiffusionQr (D-R2), diffuserMessageQr (D-R3, avec le libellé du périmètre CONFIRMÉ), reprendreDiffusionQr
+//     (D-R4), chargerDiffusionsQr (D-R5), chargerDiffusionQr (D-R6), opposerDeclarantDiffusionQr (D-R7),
+//     chargerReglagesDiffusionCabinetQr et reglerDiffusionCabinetQr (D-R8) ; super admin, et gestionnaire sur une
+//     copropriété qui lui est attribuée nommément (D-R1 à D-R7, H11). Aucune adresse de déclarant ne passe par ces appels.
 // Les codes 409 / 410 des routes (doublon, hors_domaine, identifiant_fige…) sont rendus tels quels (CODES_METIER_QR),
-// avec leurs compléments utiles à l'écran (doublon, id de la fiche existante) ; jamais un texte du serveur.
+// avec leurs compléments utiles à l'écran (doublon, id de la fiche existante ; diffusion : motif d'un texte refusé, ce
+// qui manque à l'activation, heure d'écriture d'un message à reprendre) ; jamais un texte du serveur.
 
+import type { ModeleDiffusionQr } from '@/lib/aj-signalement/affichage-diffusion'
+import type { ArretEnvoiDiffusionQr } from '@/lib/aj-signalement/diffusion-envoi'
+import type {
+  DetailDiffusionQr, ManqueActivationDiffusionQr, NombresDiffusionQr, PerimetreSaisiDiffusionQr, ReglagesDiffusionCabinetQr,
+  ResumeDiffusionQr,
+} from '@/lib/aj-signalement/diffusion-formes'
+import type { ConseilTexteDiffusionQr, MotifRefusTexteDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
+import type { BatimentCiblableQr, EtageCiblableQr } from '@/lib/aj-signalement/diffusion-valeurs'
 import {
   NUMERO_QR, estStatutOuvertQr, gestionCoproprieteQrVide,
   type ActionImportQr, type CabinetQr, type CabinetResumeQr, type ChampImportQr, type CoproprieteQr, type DiagnosticLigneImportQr,
@@ -78,6 +92,20 @@ export interface EchecQr {
   id?: string
   /** 409 a_reverifier d'un import : les diagnostics à jour (l'existant a changé depuis la vérification). */
   verification?: VerificationImportQr
+  /** PR 3 — 400 texte_refuse d'une diffusion : le champ refusé, le motif et, pour un nom de domaine, le conseil. */
+  refusTexte?: RefusTexteDiffusionQr
+  /** PR 3 — 409 cabinet_incomplet : ce qui manque à l'activation de la diffusion. */
+  manque?: ManqueActivationDiffusionQr[]
+  /** PR 3 — 409 a_confirmer : heure d'écriture du message dont l'envoi est à reprendre. */
+  creeLe?: string
+}
+
+/** Champ d'une diffusion refusé par le contrôle du texte (route D-R2 ou D-R3). */
+export type ChampRefusDiffusionQr = 'objet' | 'texte' | 'libelleBatimentSaisi' | 'libelleEtageSaisi'
+export interface RefusTexteDiffusionQr {
+  champ: ChampRefusDiffusionQr
+  motif: MotifRefusTexteDiffusionQr
+  conseil?: ConseilTexteDiffusionQr
 }
 
 export type ResultatEnvoiQr =
@@ -155,7 +183,32 @@ function echecDepuisReponse(status: number, corps: unknown): EchecQr {
     const verification = verificationDepuisCorps(corps)
     if (verification) echec.verification = verification
   }
+  if (code === 'texte_refuse') {
+    const refus = refusTexteDepuisCorps(corps)
+    if (refus) echec.refusTexte = refus
+  }
+  if (code === 'cabinet_incomplet' && estObjet(corps) && Array.isArray(corps.manque)) {
+    echec.manque = corps.manque.filter((m): m is ManqueActivationDiffusionQr => (MANQUES_ACTIVATION_QR as readonly unknown[]).includes(m))
+  }
+  if (code === 'a_confirmer' && estObjet(corps) && typeof corps.creeLe === 'string') echec.creeLe = corps.creeLe
   return echec
+}
+
+const CHAMPS_REFUS_DIFFUSION_QR: readonly ChampRefusDiffusionQr[] = ['objet', 'texte', 'libelleBatimentSaisi', 'libelleEtageSaisi']
+const MOTIFS_REFUS_DIFFUSION_QR: readonly MotifRefusTexteDiffusionQr[] = [
+  'lien', 'adresse_email', 'caractere', 'a_completer', 'telephone', 'terme_commercial', 'longueur', 'lignes',
+]
+const MANQUES_ACTIVATION_QR: readonly ManqueActivationDiffusionQr[] = ['contact', 'politique', 'declaration_politique', 'contrat_reference', 'contrat_date']
+
+/** Refus du texte d'une diffusion (400 texte_refuse) : gardé seulement si le champ et le motif sont connus. */
+function refusTexteDepuisCorps(corps: unknown): RefusTexteDiffusionQr | null {
+  if (!estObjet(corps)) return null
+  const { champ, motif, conseil } = corps
+  if (!(CHAMPS_REFUS_DIFFUSION_QR as readonly unknown[]).includes(champ) || !(MOTIFS_REFUS_DIFFUSION_QR as readonly unknown[]).includes(motif)) return null
+  return {
+    champ: champ as ChampRefusDiffusionQr, motif: motif as MotifRefusTexteDiffusionQr,
+    ...(conseil === 'espace_apres_point' ? { conseil } : {}),
+  }
 }
 
 async function appeler(fetchImpl: Fetch, url: string, init: RequestInit): Promise<{ ok: true; corps: unknown } | EchecQr> {
@@ -314,6 +367,11 @@ export interface ModificationCoproprieteQr extends Partial<SaisieCoproprieteQr>,
   actif?: boolean
   /** Tire un nouveau jeton : l'ancien QR code ne répond plus (404). */
   regenererJeton?: boolean
+  /**
+   * PR 3 (décision H7) : fin de mission prévue (AAAA-MM-JJ) ; à partir de ce jour, plus aucune diffusion ; null l'efface.
+   * Super admin seulement ; n'est envoyée que changée (migration 20261113 absente : 503).
+   */
+  diffusionFinGestionLe?: string | null
 }
 
 export async function modifierCoproprieteQr(
@@ -721,6 +779,304 @@ export async function chargerJournalQr(filtre: FiltreJournalQr = {}, fetchImpl: 
   if (!r.ok) return r
   const c = estObjet(r.corps) ? r.corps : {}
   return { ok: true, evenements: Array.isArray(c.evenements) ? (c.evenements as EvenementJournalQr[]) : [], suite: suiteDepuisCorps(c.suite) }
+}
+
+// ── Diffusion de messages d'exploitation aux déclarants (PR 3, lot 8) ────────
+// Routes D-R1 à D-R8 (cahier § 4.1). Session de l'espace (cookies) : super admin, ou gestionnaire sur une copropriété
+// qui lui est attribuée nommément (H11 ; hors portée 404, « à tous » 403 lecture_seule, rendus tels quels).
+
+/** Raison pour laquelle une copropriété ne peut pas diffuser (signalements_qr_diffusion_raison_inactive). */
+export const RAISONS_DIFFUSION_IMPOSSIBLE_QR = [
+  'copropriete_inactive', 'sans_cabinet', 'diffusion_non_activee', 'langue_non_ouverte', 'fin_gestion', 'introuvable',
+] as const
+export type RaisonDiffusionImpossibleQr = (typeof RAISONS_DIFFUSION_IMPOSSIBLE_QR)[number]
+
+/** Raison reçue : connue telle quelle ; toute autre chaîne non vide → « introuvable » (message générique) ; sinon null. */
+const raisonDiffusion = (v: unknown): RaisonDiffusionImpossibleQr | null => {
+  if ((RAISONS_DIFFUSION_IMPOSSIBLE_QR as readonly unknown[]).includes(v)) return v as RaisonDiffusionImpossibleQr
+  return typeof v === 'string' && v !== '' ? 'introuvable' : null
+}
+
+/** Diffusions du mois civil sur la copropriété (une diffusion compte dès qu'une personne l'a reçue ; l'annonce non). */
+export interface MoisDiffusionQr {
+  nb: number
+  dernierLe: string | null
+}
+
+/** D-R1 : ce que le formulaire propose pour une copropriété. */
+export interface ValeursDiffusionQr {
+  possible: boolean
+  raison: RaisonDiffusionImpossibleQr | null
+  /** Langue du cabinet : celle des modèles et du message. */
+  langue: LangueSignalementQr
+  batiments: BatimentCiblableQr[]
+  /** Déclarants sans bâtiment lisible (indicatif) : atteints seulement par toute la copropriété ou un signalement. */
+  sansBatiment: number
+  porteeParDefaut: 'batiment' | 'copropriete'
+  ceMois: MoisDiffusionQr
+  /** Déclarants à qui la diffusion n'a jamais été annoncée (bouton du message d'annonce, H1 = C). */
+  nbNonAnnonces: number
+  /** Fin de mission prévue (H7), AAAA-MM-JJ ; null : aucune. */
+  finMissionLe: string | null
+}
+
+const JOUR_ISO_QR = /^\d{4}-\d{2}-\d{2}$/
+
+const moisDepuisCorps = (v: unknown): MoisDiffusionQr =>
+  (estObjet(v) ? { nb: entier(v.nb), dernierLe: typeof v.dernierLe === 'string' && v.dernierLe ? v.dernierLe : null } : { nb: 0, dernierLe: null })
+
+function etageCiblable(v: unknown): EtageCiblableQr | null {
+  if (!estObjet(v) || typeof v.cle !== 'string' || v.cle === '') return null
+  return { cle: v.cle, libelle: typeof v.libelle === 'string' && v.libelle ? v.libelle : null, libelleASaisir: v.libelleASaisir === true, variantes: chaines(v.variantes) }
+}
+
+function batimentCiblable(v: unknown): BatimentCiblableQr | null {
+  const base = etageCiblable(v)
+  if (!base || !estObjet(v)) return null
+  const etages = Array.isArray(v.etages) ? v.etages.map(etageCiblable).filter((e): e is EtageCiblableQr => e !== null) : []
+  return { ...base, etages, sansEtage: entier(v.sansEtage) }
+}
+
+/** D-R1 : bâtiments et étages présents, compteur du mois, diffusion possible ou raison, fin de mission. */
+export async function chargerValeursDiffusionQr(coproprieteId: string, fetchImpl: Fetch = fetch): Promise<{ ok: true; valeurs: ValeursDiffusionQr } | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/${segment(coproprieteId)}/diffusions/valeurs`, 'GET')
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : null
+  if (!c || typeof c.possible !== 'boolean') return { ok: false, code: 'serveur' }
+  return {
+    ok: true,
+    valeurs: {
+      possible: c.possible,
+      raison: c.possible ? null : raisonDiffusion(c.raison) ?? 'introuvable',
+      langue: c.langue === 'pt' ? 'pt' : 'fr',
+      batiments: Array.isArray(c.batiments) ? c.batiments.map(batimentCiblable).filter((b): b is BatimentCiblableQr => b !== null) : [],
+      sansBatiment: entier(c.sansBatiment),
+      porteeParDefaut: c.porteeParDefaut === 'batiment' ? 'batiment' : 'copropriete',
+      ceMois: moisDepuisCorps(c.ceMois),
+      nbNonAnnonces: entier(c.nbNonAnnonces),
+      finMissionLe: typeof c.finMissionLe === 'string' && JOUR_ISO_QR.test(c.finMissionLe) ? c.finMissionLe : null,
+    },
+  }
+}
+
+/** D-R2 : demande d'aperçu (des CLÉS, jamais des valeurs brutes ; le serveur les reconvertit). */
+export interface DemandeApercuDiffusionQr {
+  perimetre: PerimetreSaisiDiffusionQr
+  /** Message d'annonce (H1 = C) : copropriété entière seulement. */
+  annonce?: true
+  libelleBatimentSaisi?: string
+  libelleEtageSaisi?: string
+}
+
+/** D-R2 : nombre exact (même fonction SQL que l'envoi), libellé ÉCRIT dans l'e-mail, instant repassé à l'envoi. */
+export interface ApercuDiffusionQr {
+  nbDestinataires: number
+  nbExclusOpposition: number
+  /** null : le nom du bâtiment ou de l'étage est à écrire par l'auteur (libelleASaisir). */
+  libellePerimetre: string | null
+  libelleASaisir: boolean
+  instant: string
+  possible: boolean
+  raison: RaisonDiffusionImpossibleQr | null
+}
+
+/** D-R2 : aperçu, aucune écriture. 409 perimetre_change : clé inconnue ; 400 texte_refuse : libellé saisi refusé. */
+export async function apercuDiffusionQr(
+  coproprieteId: string, demande: DemandeApercuDiffusionQr, fetchImpl: Fetch = fetch,
+): Promise<{ ok: true; apercu: ApercuDiffusionQr } | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/${segment(coproprieteId)}/diffusions/apercu`, 'POST', demande)
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : null
+  if (!c || typeof c.instant !== 'string' || c.instant === '') return { ok: false, code: 'serveur' }
+  const possible = c.possible === true
+  return {
+    ok: true,
+    apercu: {
+      nbDestinataires: entier(c.nbDestinataires),
+      nbExclusOpposition: entier(c.nbExclusOpposition),
+      libellePerimetre: typeof c.libellePerimetre === 'string' && c.libellePerimetre ? c.libellePerimetre : null,
+      libelleASaisir: c.libelleASaisir === true,
+      instant: c.instant,
+      possible,
+      raison: possible ? null : raisonDiffusion(c.raison) ?? 'introuvable',
+    },
+  }
+}
+
+/** D-R3 : message à diffuser (schéma diffusionQrSchema). */
+export interface SaisieDiffusionQr {
+  /** Tiré à l'ouverture du formulaire : un double clic ou un nouvel essai rend la diffusion déjà créée. */
+  operationId: string
+  modele: ModeleDiffusionQr
+  objet: string
+  texte: string
+  perimetre: PerimetreSaisiDiffusionQr
+  libelleBatimentSaisi?: string
+  libelleEtageSaisi?: string
+  /** Libellé rendu par l'aperçu et montré dans la confirmation (changé depuis → 409 perimetre_change). */
+  libellePerimetre: string
+  /** `instant` de l'aperçu confirmé. */
+  perimetreJusquAu: string
+  nbDestinatairesAttendu: number
+  /** Super admin seulement : instruction écrite du cabinet (HF4). */
+  instruction?: { reference: string; recueLe: string }
+}
+
+/** Totaux d'une diffusion après un appel qui envoie (D-R3, D-R4) ; l'écran reprend tant que reste > 0. */
+export interface EtatEnvoiDiffusionQr {
+  envoyes: number
+  refuses: number
+  reste: number
+  arret: ArretEnvoiDiffusionQr | null
+}
+
+const ARRETS_ENVOI_QR: readonly ArretEnvoiDiffusionQr[] = [
+  'limite_service', 'quota_service', 'rejeu_concurrent', 'issue_inconnue', 'reseau', 'configuration_incomplete', 'base',
+]
+const etatEnvoiDepuisCorps = (c: Record<string, unknown>): EtatEnvoiDiffusionQr => ({
+  envoyes: entier(c.envoyes),
+  refuses: entier(c.refuses),
+  reste: entier(c.reste),
+  arret: (ARRETS_ENVOI_QR as readonly unknown[]).includes(c.arret) ? (c.arret as ArretEnvoiDiffusionQr) : null,
+})
+
+export type ResultatDiffusionQr = ({ ok: true; diffusionId: string; nbDestinataires: number; rejeu: boolean } & EtatEnvoiDiffusionQr) | EchecQr
+
+/**
+ * D-R3 : création de la diffusion, copie au cabinet, premiers lots. 201 (ou 200 rejeu : la diffusion de cette opération
+ * existait déjà). Échecs : texte_refuse { refusTexte }, perimetre_change, aucun_destinataire, diffusion_inactive,
+ * configuration_incomplete, base_absente.
+ */
+export async function diffuserMessageQr(coproprieteId: string, saisie: SaisieDiffusionQr, fetchImpl: Fetch = fetch): Promise<ResultatDiffusionQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/${segment(coproprieteId)}/diffusions`, 'POST', saisie)
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : null
+  if (!c || typeof c.diffusionId !== 'string') return { ok: false, code: 'serveur' }
+  return { ok: true, diffusionId: c.diffusionId, nbDestinataires: entier(c.nbDestinataires), rejeu: c.rejeu === true, ...etatEnvoiDepuisCorps(c) }
+}
+
+/**
+ * D-R4 : lots suivants d'une diffusion. Plus d'une heure après l'écriture : 409 a_confirmer { creeLe } tant que
+ * confirmeContenuAJour n'est pas envoyé ; plus de 24 h : 410 perime ; copropriété ou cabinet devenu inactif : 409.
+ */
+export async function reprendreDiffusionQr(
+  diffusionId: string, options: { confirmeContenuAJour?: true } = {}, fetchImpl: Fetch = fetch,
+): Promise<({ ok: true } & EtatEnvoiDiffusionQr) | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/diffusions/${segment(diffusionId)}/reprendre`, 'POST', options)
+  if (!r.ok) return r
+  return { ok: true, ...etatEnvoiDepuisCorps(estObjet(r.corps) ? r.corps : {}) }
+}
+
+function resumeDiffusion(v: unknown): ResumeDiffusionQr | null {
+  if (!estObjet(v) || typeof v.id !== 'string') return null
+  const n = estObjet(v.nombres) ? v.nombres : {}
+  return {
+    id: v.id, creeLe: chaine(v.creeLe), auteur: chaine(v.auteur) as ResumeDiffusionQr['auteur'], modele: chaine(v.modele),
+    objet: chaine(v.objet), portee: chaine(v.portee), libellePerimetre: chaine(v.libellePerimetre),
+    nombres: {
+      destinataires: entier(n.destinataires), exclusOpposition: entier(n.exclusOpposition), envoyes: entier(n.envoyes),
+      refuses: entier(n.refuses), attente: entier(n.attente), annules: entier(n.annules), incertains: entier(n.incertains),
+    },
+  }
+}
+
+export type ResultatDiffusionsQr = { ok: true; diffusions: ResumeDiffusionQr[]; ceMois: MoisDiffusionQr; suivant: string | null } | EchecQr
+
+/** D-R5 : historique d'une copropriété (20 par page ; `avant` : curseur rendu par la page précédente, passé tel quel). */
+export async function chargerDiffusionsQr(coproprieteId: string, options: { avant?: string } = {}, fetchImpl: Fetch = fetch): Promise<ResultatDiffusionsQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/coproprietes/${segment(coproprieteId)}/diffusions${requete({ avant: options.avant })}`, 'GET')
+  if (!r.ok) return r
+  const c = estObjet(r.corps) ? r.corps : {}
+  const diffusions = Array.isArray(c.diffusions) ? c.diffusions.map(resumeDiffusion).filter((d): d is ResumeDiffusionQr => d !== null) : []
+  return { ok: true, diffusions, ceMois: moisDepuisCorps(c.ceMois), suivant: typeof c.suivant === 'string' && c.suivant ? c.suivant : null }
+}
+
+function nombresDiffusion(v: unknown): NombresDiffusionQr {
+  const n = estObjet(v) ? v : {}
+  return {
+    envoyes: entier(n.envoyes), refuses: entier(n.refuses), attente: entier(n.attente), annules: entier(n.annules),
+    incertains: entier(n.incertains), opposes: entier(n.opposes), perimes: entier(n.perimes),
+  }
+}
+
+/** D-R6 : détail d'une diffusion (texte complet, nombres par état ; jamais une adresse). */
+export async function chargerDiffusionQr(diffusionId: string, fetchImpl: Fetch = fetch): Promise<{ ok: true; diffusion: DetailDiffusionQr } | EchecQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/diffusions/${segment(diffusionId)}`, 'GET')
+  if (!r.ok) return r
+  const d = estObjet(r.corps) && estObjet(r.corps.diffusion) ? r.corps.diffusion : null
+  if (!d || typeof d.id !== 'string') return { ok: false, code: 'serveur' }
+  const instruction = estObjet(d.instruction) && typeof d.instruction.reference === 'string' && typeof d.instruction.recueLe === 'string'
+    ? { reference: d.instruction.reference, recueLe: d.instruction.recueLe }
+    : null
+  return {
+    ok: true,
+    diffusion: {
+      id: d.id, coproprieteId: chaine(d.coproprieteId), creeLe: chaine(d.creeLe), auteur: chaine(d.auteur) as DetailDiffusionQr['auteur'],
+      modele: chaine(d.modele), langue: d.langue === 'pt' ? 'pt' : 'fr', objet: chaine(d.objet), texte: chaine(d.texte),
+      portee: chaine(d.portee), libellePerimetre: chaine(d.libellePerimetre), nbDestinataires: entier(d.nbDestinataires),
+      nbExclusOpposition: entier(d.nbExclusOpposition), instruction,
+      copieCabinetLe: typeof d.copieCabinetLe === 'string' && d.copieCabinetLe ? d.copieCabinetLe : null,
+      nombres: nombresDiffusion(d.nombres),
+    },
+  }
+}
+
+/**
+ * D-R7 : « Ne plus envoyer d'informations à ce déclarant (à sa demande) » — opposition enregistrée à la demande écrite
+ * de la personne (date de réception, AAAA-MM-JJ, non future), pour cette copropriété seulement.
+ */
+export async function opposerDeclarantDiffusionQr(
+  coproprieteId: string, signalementId: string, demandeRecueLe: string, fetchImpl: Fetch = fetch,
+): Promise<ResultatSimpleQr> {
+  const url = `${URL_API_QR}/coproprietes/${segment(coproprieteId)}/signalements/${segment(signalementId)}/opposition`
+  const r = await appelerEspace(fetchImpl, url, 'POST', { demandeRecueLe })
+  if (!r.ok) return r
+  return estObjet(r.corps) && r.corps.enregistree === true ? { ok: true } : { ok: false, code: 'serveur' }
+}
+
+/** D-R8 : réglages de diffusion d'un cabinet à enregistrer (les seuls champs changés ; envoyés SEULS). */
+export interface ReglagesSaisisDiffusionQr {
+  diffusionContactEmail?: string
+  diffusionPolitiqueUrl?: string
+  /** Déclaration datée par la base : la politique décrit la diffusion (finalité, base légale, durée, opposition). */
+  politiqueDecritDiffusion?: true
+  contratReference?: string
+  contratSigneLe?: string
+  telephonesAutorises?: string[]
+  diffusionActivee?: boolean
+}
+
+function reglagesDiffusion(v: unknown): ReglagesDiffusionCabinetQr | null {
+  if (!estObjet(v)) return null
+  const texteOuNul = (x: unknown): string | null => (typeof x === 'string' && x ? x : null)
+  return {
+    contactEmail: texteOuNul(v.contactEmail), politiqueUrl: texteOuNul(v.politiqueUrl), politiqueDeclareeLe: texteOuNul(v.politiqueDeclareeLe),
+    contratReference: texteOuNul(v.contratReference), contratSigneLe: texteOuNul(v.contratSigneLe), telephones: chaines(v.telephones),
+    activeeLe: texteOuNul(v.activeeLe), active: v.active === true, langueOuverte: v.langueOuverte !== false,
+    manque: Array.isArray(v.manque) ? v.manque.filter((m): m is ManqueActivationDiffusionQr => (MANQUES_ACTIVATION_QR as readonly unknown[]).includes(m)) : [],
+  }
+}
+
+/** Réglages lus ; null : la migration 20261113 manque (la fiche du cabinet reste lisible). */
+export type ResultatReglagesDiffusionQr = { ok: true; reglages: ReglagesDiffusionCabinetQr | null } | EchecQr
+
+/** D-R8 (GET /cabinets/[id]) : réglages de diffusion du cabinet. */
+export async function chargerReglagesDiffusionCabinetQr(cabinetId: string, fetchImpl: Fetch = fetch): Promise<ResultatReglagesDiffusionQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}`, 'GET')
+  if (!r.ok) return r
+  return { ok: true, reglages: reglagesDiffusion(estObjet(r.corps) ? r.corps.diffusion : null) }
+}
+
+/**
+ * D-R8 (PATCH /cabinets/[id]) : réglages, activation ou suspension. Refus : 409 cabinet_incomplet { manque },
+ * 409 langue_non_ouverte (H9), 400 invalide.
+ */
+export async function reglerDiffusionCabinetQr(
+  cabinetId: string, reglages: ReglagesSaisisDiffusionQr, fetchImpl: Fetch = fetch,
+): Promise<ResultatReglagesDiffusionQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}`, 'PATCH', reglages)
+  if (!r.ok) return r
+  return { ok: true, reglages: reglagesDiffusion(estObjet(r.corps) ? r.corps.diffusion : null) }
 }
 
 // ── Page publique de confirmation d'adresse (sans session) ───────────────────

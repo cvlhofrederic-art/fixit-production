@@ -24,6 +24,11 @@
 // copropriétés : cartes du gestionnaire, désactivées en bas, ni filtre du super admin ni import, « Ajouter une
 // copropriété » par la fenêtre du gestionnaire (domaines de SON cabinet) ; statut changé entre-temps (409) : liste
 // rechargée ; messages d'échec du gestionnaire (accès retiré, fonction pas encore activée, toast si le réseau est coupé).
+// PR 3, lot 8 (cahier § 7.1, BROUILLON pour Frédéric) : « Diffuser un message » et « Messages envoyés » sur la carte,
+// « Informer les déclarants de ce signalement » et l'opposition à la demande écrite dans le détail — pour le super admin,
+// et pour un gestionnaire sur une copropriété qui lui est attribuée nommément, jamais « à tous » (H11) ; la fenêtre de
+// diffusion (FenetreDiffusionQr) protège sa saisie et son envoi : un changement de vue ne la ferme pas d'office, il lui
+// demande de fermer (confirmation pendant la saisie, aucune fermeture pendant l'envoi).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -34,6 +39,8 @@ import ModaleCoproprieteQr from '@/components/aj-signalement/ModaleCoproprieteQr
 import ModaleCoproprieteGestionnaireQr from '@/components/aj-signalement/ModaleCoproprieteGestionnaireQr'
 import DetailSignalementQr from '@/components/aj-signalement/DetailSignalementQr'
 import AssistantImportQr from '@/components/aj-signalement/AssistantImportQr'
+import FenetreDiffusionQr from '@/components/aj-signalement/FenetreDiffusionQr'
+import { peutDiffuserCoproprieteQr, type GardeDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import type { VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import type { CabinetQr, CoproprieteQr, GestionnaireQr, SignalementQr, StatutSignalementQr, TableauQr } from '@/lib/aj-signalement/types'
 import { chargerTableauQr, modifierCoproprieteQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
@@ -79,7 +86,10 @@ type Etat =
   | { statut: 'erreur'; code: CodeErreurQr }
 
 type Fenetre =
-  | { type: 'creation' } | { type: 'import' } | { type: 'modification'; copropriete: CoproprieteQr } | { type: 'detail'; id: string } | null
+  | { type: 'creation' } | { type: 'import' } | { type: 'modification'; copropriete: CoproprieteQr } | { type: 'detail'; id: string }
+  // PR 3 : diffusion (message, ou historique de la copropriété ; portée « signalement » depuis le détail).
+  | { type: 'diffusion'; coproprieteId: string; contenu: 'message' | 'historique'; signalementId?: string }
+  | null
 
 /**
  * Copropriété enregistrée par le serveur, fusionnée dans la liste : compteurs connus conservés ; la dernière adresse
@@ -106,13 +116,18 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
   const [filtreCopro, setFiltreCopro] = useState('')
   const [filtreListe, setFiltreListe] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  // PR 3 : protection de la fenêtre de diffusion (saisie, envoi), remontée par elle ; demande de fermeture à lui passer.
+  const [gardeDiffusion, setGardeDiffusion] = useState<GardeDiffusionQr>('libre')
+  const [demandeFermetureDiffusion, setDemandeFermetureDiffusion] = useState(0)
 
   // Changement de vue (menu, ou bouton Retour du navigateur) : la fenêtre ouverte et le message de succès appartiennent
-  // à la vue quittée, ils disparaissent avec elle (état ajusté au rendu, sans effet).
+  // à la vue quittée, ils disparaissent avec elle (état ajusté au rendu, sans effet). Sauf une fenêtre de diffusion en
+  // cours de saisie ou d'envoi (cahier § 7.1) : elle reçoit une demande de fermeture et applique sa protection.
   const [vueAffichee, setVueAffichee] = useState(vue)
   if (vue !== vueAffichee) {
     setVueAffichee(vue)
-    setFenetre(null)
+    if (fenetre?.type === 'diffusion' && gardeDiffusion !== 'libre') setDemandeFermetureDiffusion((n) => n + 1)
+    else setFenetre(null)
     setMessage(null)
   }
 
@@ -241,6 +256,10 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
 
   const { coproprietes, signalements } = etat.tableau
   const detail = fenetre?.type === 'detail' ? signalements.find((s) => s.id === fenetre.id) ?? null : null
+  // PR 3 : droit « diffuser » sur la copropriété du détail (H11) ; copropriété de la fenêtre de diffusion.
+  const coproDetail = detail ? coproprietes.find((c) => c.id === detail.coproprieteId) : undefined
+  const diffusionDetail = coproDetail !== undefined && peutDiffuserCoproprieteQr(coproDetail, vueGestionnaire)
+  const coproDiffusion = fenetre?.type === 'diffusion' ? coproprietes.find((c) => c.id === fenetre.coproprieteId) ?? null : null
 
   const liste: PropsListeSignalementsQr = {
     coproprietes,
@@ -264,6 +283,7 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
           onModifier={(c) => ouvrir({ type: 'modification', copropriete: c })}
           onUtiliserAdresse={utiliserAdresse}
           vueGestionnaire={vueGestionnaire}
+          onDiffusion={(c, contenu) => ouvrir({ type: 'diffusion', coproprieteId: c.id, contenu })}
         />
       )}
       {vue === 'signalements' && <ListeSignalementsQr {...liste} />}
@@ -309,8 +329,20 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
           <DetailSignalementQr
             signalement={detail} jeton={jeton} onFermer={fermer} onStatut={changerStatut} onConflit={() => { void charger() }}
             vueGestionnaire={vueGestionnaire}
+            onInformer={diffusionDetail
+              ? () => ouvrir({ type: 'diffusion', coproprieteId: detail.coproprieteId, contenu: 'message', signalementId: detail.id })
+              : undefined}
+            oppositionDiffusion={diffusionDetail}
           />
         </Modale>
+      )}
+      {fenetre?.type === 'diffusion' && coproDiffusion && (
+        <FenetreDiffusionQr
+          key={`${fenetre.coproprieteId}-${fenetre.contenu}-${fenetre.signalementId ?? ''}`}
+          copropriete={{ id: coproDiffusion.id, nom: coproDiffusion.nom, cabinetNom: coproDiffusion.cabinet?.nom ?? null }}
+          profil={vueGestionnaire ? 'gestionnaire' : 'super_admin'} contenu={fenetre.contenu} signalementId={fenetre.signalementId}
+          onFermer={fermer} demandeFermeture={demandeFermetureDiffusion} onGarde={setGardeDiffusion}
+        />
       )}
     </div>
   )
@@ -366,10 +398,12 @@ interface PropsVueCoproprietesQr {
   onUtiliserAdresse: (copropriete: CoproprieteQr, adresse: string) => Promise<boolean>
   /** PR 2 : gestionnaire connecté : ni filtre du super admin, désactivées en bas, cartes du gestionnaire. */
   vueGestionnaire?: boolean
+  /** PR 3 : « Diffuser un message » / « Messages envoyés » d'une carte (proposés selon le droit « diffuser », H11). */
+  onDiffusion?: (copropriete: CoproprieteQr, contenu: 'message' | 'historique') => void
 }
 
 function VueCoproprietesQr({
-  coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse, vueGestionnaire = false,
+  coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse, vueGestionnaire = false, onDiffusion,
 }: Readonly<PropsVueCoproprietesQr>) {
   const origine = origineCourante()
   const visibles = useMemo(
@@ -409,16 +443,21 @@ function VueCoproprietesQr({
         // Groupe nommé natif (rôle group) ; min-w-0 annule le min-inline-size: min-content que le navigateur donne à un
         // fieldset (bordure, marge et retrait sont déjà remis à zéro par Tailwind) : même rendu que l'ancien div.
         <fieldset className="grid min-w-0 gap-4" aria-label={T.coproprietes}>
-          {visibles.map((c) => (
-            <CarteCoproprieteQr
-              key={c.id}
-              copropriete={c}
-              origine={origine}
-              onModifier={() => onModifier(c)}
-              onUtiliserAdresse={vueGestionnaire ? undefined : (adresse) => onUtiliserAdresse(c, adresse)}
-              vueGestionnaire={vueGestionnaire}
-            />
-          ))}
+          {visibles.map((c) => {
+            const diffuser = onDiffusion !== undefined && peutDiffuserCoproprieteQr(c, vueGestionnaire)
+            return (
+              <CarteCoproprieteQr
+                key={c.id}
+                copropriete={c}
+                origine={origine}
+                onModifier={() => onModifier(c)}
+                onUtiliserAdresse={vueGestionnaire ? undefined : (adresse) => onUtiliserAdresse(c, adresse)}
+                vueGestionnaire={vueGestionnaire}
+                onDiffuser={diffuser ? () => onDiffusion?.(c, 'message') : undefined}
+                onHistoriqueDiffusion={diffuser ? () => onDiffusion?.(c, 'historique') : undefined}
+              />
+            )
+          })}
         </fieldset>
       )}
     </>

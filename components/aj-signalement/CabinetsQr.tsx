@@ -9,12 +9,16 @@
 // publiques refusées). Rattachement DÉFINITIF des copropriétés sans cabinet (avertissement d'abord ; doublon avec le
 // cabinet : la copropriété semblable, puis « Ce n'est pas un doublon » ou « Rattacher quand même »). Lien vers le Journal,
 // absent de la barre du bas du téléphone.
+// PR 3, lot 8 (cahier § 7.4, BROUILLON pour Frédéric) : « Diffusion d'informations » sur chaque cabinet ouvre ses
+// réglages de diffusion et l'activation (ReglagesDiffusionCabinetQr, route D-R8).
 
 import { useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale } from '@/components/coproprietaire-dashboard/ui'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import ReglagesDiffusionCabinetQr from '@/components/aj-signalement/ReglagesDiffusionCabinetQr'
+import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import { creerCabinetQr, modifierCabinetQr, rattacherCoproprietesQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import { TEXTES_GESTION_QR as G, analyserDomainesQr, apercuCheminCabinetQr } from '@/lib/aj-signalement/affichage-gestion'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
@@ -36,7 +40,7 @@ export interface PropsCabinetsQr {
   onJournal: () => void
 }
 
-type Fenetre = { type: 'creation' } | { type: 'modification'; cabinet: CabinetQr } | null
+type Fenetre = { type: 'creation' } | { type: 'modification'; cabinet: CabinetQr } | { type: 'diffusion'; cabinet: CabinetQr } | null
 
 export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, onReessayer, onJournal }: Readonly<PropsCabinetsQr>) {
   const [fenetre, setFenetre] = useState<Fenetre>(null)
@@ -78,6 +82,7 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
                 <>
                   {c.identifiantFige && <Badge ton="gris">{G.cabinets.fige}</Badge>}
                   <Bouton variante="secondaire" petit icone="outil" onClick={() => ouvrir({ type: 'modification', cabinet: c })}>{G.cabinets.modifier}</Bouton>
+                  <Bouton variante="secondaire" petit icone="annonces" onClick={() => ouvrir({ type: 'diffusion', cabinet: c })}>{TD.reglages.bouton}</Bouton>
                 </>
               )}
             >
@@ -102,7 +107,12 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
         />
       )}
 
-      {fenetre && (
+      {fenetre?.type === 'diffusion' && (
+        <Modale titre={remplir(TD.reglages.titre, { cabinet: fenetre.cabinet.nom })} onFermer={fermer} labelFermer={G.fermer}>
+          <ReglagesDiffusionCabinetQr key={fenetre.cabinet.id} cabinet={fenetre.cabinet} onFermer={fermer} />
+        </Modale>
+      )}
+      {fenetre && fenetre.type !== 'diffusion' && (
         <Modale titre={fenetre.type === 'creation' ? G.cabinets.titreCreation : G.cabinets.titreModification} onFermer={fermer} labelFermer={G.fermer}>
           <FormulaireCabinetQr
             cabinet={fenetre.type === 'modification' ? fenetre.cabinet : null}
