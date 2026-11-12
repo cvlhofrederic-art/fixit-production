@@ -412,13 +412,13 @@ export default function FacturesSection({
    V5 sub-component — Factures for pro_societe
    ═══════════════════════════════════════════════════════ */
 type DocTypeFilter = 'all' | 'facture' | 'acompte' | 'avoir'
-type DocStatusFilter = 'all' | 'issued' | 'sent' | 'paid' | 'draft'
+type DocStatusFilter = 'all' | 'horsBrouillons' | 'sent' | 'paid' | 'draft'
 // Puces des filtres, libellés traduits (proDash.documentsListe) : français et portugais.
 const FILTRES_TYPE_FACTURES: ReadonlyArray<[DocTypeFilter, string]> = [
   ['all', 'tous'], ['facture', 'factures'], ['acompte', 'acomptes'], ['avoir', 'avoirs'],
 ]
 const FILTRES_STATUT_FACTURES: ReadonlyArray<[DocStatusFilter, string]> = [
-  ['all', 'toutes'], ['issued', 'horsBrouillons'], ['sent', 'emises'], ['paid', 'payees'], ['draft', 'brouillons'],
+  ['all', 'toutes'], ['horsBrouillons', 'horsBrouillons'], ['sent', 'emises'], ['paid', 'payees'], ['draft', 'brouillons'],
 ]
 
 /**
@@ -508,8 +508,9 @@ function FacturesSectionV5({
     const s = d.status || ''
     // Brouillons = STRICTEMENT brouillon : ni payée/émise/en retard/remboursée/annulée.
     const brouillon = s === '' || s === 'draft' || s === 'brouillon'
-    // Hors brouillons = tout document émis, payé ou non (le lot du mois pour le comptable, en un téléchargement).
-    if (f === 'issued') return !brouillon
+    // Hors brouillons = tout document émis, payé ou non : le lot du comptable (le mois se choisit par la recherche).
+    // Émis = numéro définitif : un brouillon passé « envoyé » depuis la liste, sans numéro, n'en fait pas partie.
+    if (f === 'horsBrouillons') return !brouillon && aNumeroDefinitif({ docNumber: d.docNumber })
     if (f === 'paid') return s === 'paid' || s === 'payee'
     // Émises = émises + en retard (overdue) : une facture en retard reste émise.
     if (f === 'sent') return s === 'envoye' || s === 'pending' || s === 'overdue' || s === 'en_retard'
@@ -921,7 +922,9 @@ function FacturesSectionV5({
             }) : (
               <tr>
                 <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: tv.textMid }}>
-                  {search ? t('proDash.factures.aucuneRecherche') : t('proDash.factures.aucune')}
+                  {search || typeFilter !== 'all' || statusFilter !== 'all'
+                    ? t('proDash.factures.aucuneRecherche')
+                    : t('proDash.factures.aucune')}
                 </td>
               </tr>
             )}

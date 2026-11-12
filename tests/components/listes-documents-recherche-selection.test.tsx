@@ -302,6 +302,18 @@ describe('Liste Devis V5 — filtre par statut, montant, annulation', () => {
     expect(telechargementAppele()[0][0]).not.toContain(DEVIS_3)
   })
 
+  it('« Hors brouillons » : statuts FR et EN (signé, envoyé, accepté, refusé), jamais un devis sans numéro définitif', () => {
+    const devis = (id: string, docNumber: string, status: string) => ({ ...DEVIS_1, id, docNumber, status })
+    const emis = [
+      devis('a', 'DEV-2026-101', 'signe'), devis('b', 'DEV-2026-102', 'signed'), devis('c', 'DEV-2026-103', 'sent'),
+      devis('d', 'DEV-2026-104', 'accepte'), devis('e', 'DEV-2026-105', 'refuse'),
+    ]
+    const exclus = [devis('f', 'DEV-2026-106', 'draft'), devis('g', '', 'envoye'), devis('h', 'BR-2026-002', 'sent')]
+    render(<DevisSection {...propsDevis([...emis, ...exclus])} />)
+    fireEvent.click(puce('horsBrouillons', 5))
+    expect([...numerosAffiches()].sort((a, b) => a.localeCompare(b))).toEqual(emis.map(d => d.docNumber))
+  })
+
   it('un devis signé compte comme accepté ; filtre sans résultat : « aucun devis trouvé »', () => {
     render(<DevisSection {...propsDevis([...TOUS_DEVIS, { ...DEVIS_1, id: 'd4', docNumber: 'DEV-2026-004', status: 'signed' }])} />)
     fireEvent.click(puce('acceptes', 1))
@@ -426,6 +438,31 @@ describe('Liste Factures V5', () => {
     await waitFor(() => expect(telechargementAppele()).toHaveLength(1))
     expect(telechargementAppele()[0][0]).toHaveLength(3)
     expect(telechargementAppele()[0][0]).not.toContain(brouillon)
+  })
+
+  it('« Hors brouillons » : tous les statuts émis (FR et EN de la base), jamais un document sans numéro définitif', () => {
+    const facture = (id: string, docNumber: string, status?: string) => ({ ...FACTURE, id, docNumber, status, sourceDevisNumber: undefined })
+    const emises = [
+      facture('e1', 'FACT-2026-101', 'overdue'), facture('e2', 'FACT-2026-102', 'en_retard'),
+      facture('e3', 'FACT-2026-103', 'refunded'), facture('e4', 'FACT-2026-104', 'rembourse'),
+      facture('e5', 'FACT-2026-105', 'payee'), facture('e6', 'FACT-2026-106', 'envoye'),
+    ]
+    const exclues = [
+      facture('x1', 'FACT-2026-201', 'draft'), facture('x2', 'FACT-2026-202', 'brouillon'),
+      facture('x3', 'FACT-2026-203', ''), facture('x4', 'FACT-2026-204', undefined),
+      facture('x5', '', 'envoye'), // brouillon passé « envoyé » depuis la liste, sans numéro
+      facture('x6', 'BR-2026-007', 'envoye'), // numéro provisoire de brouillon
+    ]
+    render(<FacturesSection {...propsFactures([...emises, ...exclues])} />)
+    fireEvent.click(screen.getByRole('button', { name: `${T}.filtresFactures.horsBrouillons (6)` }))
+    expect([...numerosAffiches()].sort((a, b) => a.localeCompare(b))).toEqual(emises.map(f => f.docNumber))
+  })
+
+  it('filtre sans résultat : « aucune facture trouvée », pas l\'invitation à créer une première facture', () => {
+    render(<FacturesSection {...propsFactures([{ ...FACTURE, id: 'f2', docNumber: '', status: 'brouillon' }])} />)
+    fireEvent.click(screen.getByRole('button', { name: `${T}.filtresFactures.horsBrouillons (0)` }))
+    expect(screen.getByText('proDash.factures.aucuneRecherche')).toBeInTheDocument()
+    expect(screen.queryByText('proDash.factures.aucune')).not.toBeInTheDocument()
   })
 
   it('cocher une facture n\'ouvre pas le formulaire ; cliquer la ligne l\'ouvre toujours', () => {

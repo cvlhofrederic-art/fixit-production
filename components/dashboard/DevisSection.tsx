@@ -18,7 +18,7 @@ import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill, formaterMontantCents } from '@/lib/acompte-par-taux'
-import { acomptesDejaFacturesPourDevis, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
+import { acomptesDejaFacturesPourDevis, aNumeroDefinitif, buildFactureDepuisDevis, controlerAcompteSurDevis } from '@/lib/facture-depuis-devis'
 import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
@@ -45,11 +45,15 @@ function filtreDuDevis(status: string | undefined): Exclude<FiltreStatutDevis, '
   return 'brouillons'
 }
 
-/** Le devis entre-t-il dans le filtre ? « Hors brouillons » = tout devis émis (envoyé, accepté ou refusé). */
-function devisDansFiltre(status: string | undefined, filtre: FiltreStatutDevis): boolean {
+/**
+ * Le devis entre-t-il dans le filtre ? « Hors brouillons » = tout devis émis (envoyé, accepté ou refusé) avec un
+ * numéro définitif : un brouillon passé « envoyé » depuis la liste, sans numéro, n'en fait pas partie.
+ */
+function devisDansFiltre(doc: { status?: string; docNumber?: string }, filtre: FiltreStatutDevis): boolean {
   if (filtre === 'tous') return true
-  const statut = filtreDuDevis(status)
-  return filtre === 'horsBrouillons' ? statut !== 'brouillons' : statut === filtre
+  const statut = filtreDuDevis(doc.status)
+  if (filtre === 'horsBrouillons') return statut !== 'brouillons' && aNumeroDefinitif(doc)
+  return statut === filtre
 }
 
 interface DevisLine {
@@ -552,7 +556,7 @@ function DevisSectionV5({
   // Recherche dans tout ce qui est relié au devis : client, objet, chantier, adresses, lignes, notes, date, montant HT…
   const recherche = useRechercheDocuments(devisDocs, search, locale, CHAMPS_VISIBLES_DEVIS, computeDevisTotalHT)
   const filtered = recherche.documents
-    .filter(d => devisDansFiltre(d.status, filtreStatut))
+    .filter(d => devisDansFiltre(d, filtreStatut))
     .sort((a, b) => getDocSeq(b) - getDocSeq(a))
   // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP.
   const selection = useSelectionDocuments(filtered)
@@ -658,7 +662,7 @@ function DevisSectionV5({
         options={FILTRES_STATUT_DEVIS.map(cle => ({
           cle,
           libelle: t(`proDash.documentsListe.filtresDevis.${cle}`),
-          nombre: devisDocs.filter(d => devisDansFiltre(d.status, cle)).length,
+          nombre: devisDocs.filter(d => devisDansFiltre(d, cle)).length,
         }))}
         actif={filtreStatut}
         onChoisir={setFiltreStatut}
