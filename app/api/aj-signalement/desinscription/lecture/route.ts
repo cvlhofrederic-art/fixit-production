@@ -3,8 +3,9 @@
 // POST (D-P1, PUBLIQUE, cahier PR 3 § 4.1, § 7.5, § 8.1) — lecture d'un lien de désinscription, SANS AUCUN EFFET (un
 // antivirus ou une messagerie qui ouvre le lien ne désinscrit personne). La page vitfix.io/<identifiant>/desinscription/
 // envoie { jeton, identifiant } (jeton lu dans le fragment puis effacé de l'adresse) et affiche l'état :
-//   - valide  : copropriété, cabinet, état de l'opposition ; jeton de PAGE : adresse masquée et « levable » (le lien qui
-//               a servi, dans les 24 h) ; jeton un clic : ni l'un ni l'autre (il ne permet que de s'opposer) ;
+//   - valide  : copropriété, cabinet ; jeton de PAGE : adresse masquée, état de l'opposition et « levable » (le lien qui
+//               a servi, dans les 24 h) ; jeton un clic : rien de cela (il ne permet que de s'opposer, et l'état de
+//               l'opposition, relu après un repli par l'adresse, aurait confirmé une adresse devinée : relecture 2) ;
 //   - expire  : plus d'un an, ou clé précédente → repli par la saisie de l'adresse (D-P4) ;
 //   - ancien  : signature bonne, diffusion purgée (3 ans) → contact et politique du cabinet du chemin ;
 //   - inconnu : signature fausse, clé absente, autre cabinet, migration absente → contact du cabinet du chemin s'il en a un.

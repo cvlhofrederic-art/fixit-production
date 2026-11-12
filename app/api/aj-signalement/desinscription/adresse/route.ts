@@ -2,11 +2,15 @@
 //
 // POST (D-P4, PUBLIQUE, cahier PR 3 § 4.1, § 7.5, § 8.1, § 8.2) — repli d'un lien expiré : « indiquez l'adresse e-mail à
 // laquelle vous receviez ces informations ». Signature valable EXIGÉE (clé courante ou précédente, jeton de page ou un
-// clic), lien expiré ou non ; jamais une adresse seule (aucune énumération). Puis signalements_qr_diffusion_opposer(…,
-// 'lien_expire', adresse saisie) : la MÊME requête s'exécute que l'adresse soit juste ou fausse, la base seule normalise
-// et compare à l'empreinte (une adresse fausse n'écrit rien). Réponse TOUJOURS { ok: true }, après la même durée
-// minimale (400 ms) : adresse juste, fausse, lien purgé, autre cabinet ou signature fausse (sans aucun appel à la base)
-// ne se distinguent ni par le corps ni par le temps. Limite atteinte → 429 traduit par la page, jamais un faux 200 ;
+// clic) ; jamais une adresse seule (aucune énumération). Lien EXPIRÉ seulement (plus d'un an, ou signé par la clé
+// précédente) : signalements_qr_diffusion_opposer(…, 'lien_expire', adresse saisie) ; la MÊME requête s'exécute que
+// l'adresse soit juste ou fausse, la base seule normalise et compare à l'empreinte (une adresse fausse n'écrit rien).
+// Lien encore valable : aucun appel (relecture 2 de la PR 3 : la page ne propose le repli qu'à un lien expiré ; sur un
+// lien valable, l'opposition « lien_expire », jamais levable, puis la lecture D-P1 auraient dit au détenteur du seul
+// jeton un clic si l'adresse devinée était la bonne, contre le § 8.2 ; le cahier D-P4 disait « expiré ou non »).
+// Réponse TOUJOURS { ok: true }, après la même durée minimale (400 ms) : adresse juste, fausse, lien valable, lien
+// purgé, autre cabinet ou signature fausse (sans aucun appel à la base) ne se distinguent ni par le corps ni par le
+// temps. Limite atteinte → 429 traduit par la page, jamais un faux 200 ;
 // erreur de la base → 503. 5 par 10 minutes et par IP, 5 par 24 h et par lien. L'adresse n'entre ni dans une clé de
 // limite ni dans le journal du serveur. Jamais en cache.
 
@@ -39,6 +43,8 @@ async function traiter(request: NextRequest): Promise<NextResponse> {
   // Signature fausse (aucun appel à la base), autre cabinet, diffusion purgée : même réponse qu'une adresse fausse.
   if (lien.etat === 'inconnu' || lien.etat === 'ancien') return corpsTraite()
   if (!(await checkRateLimit(`qr_desinscription_adresse_${lien.destinataireId}`, 5, UN_JOUR_MS))) return limiteDesinscriptionQr()
+  // Lien encore valable : la page ne propose pas le repli ; rien n'est écrit, même réponse (aucun indice sur l'adresse).
+  if (lien.etat !== 'expire') return corpsTraite()
 
   const { error } = await supabaseAdmin.rpc('signalements_qr_diffusion_opposer', {
     p_destinataire: lien.destinataireId, p_origine: 'lien_expire', p_email_saisi: email,

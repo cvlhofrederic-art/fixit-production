@@ -170,14 +170,18 @@ describe('D-P1 lecture du lien : aucun effet, aucune date, adresse masquée seul
     expect(JSON.parse(texte)).toMatchObject({ etat: 'valide', oppose: true, levable: true })
   })
 
-  it('jeton un clic (page ouverte depuis l’adresse de l’en-tête) : ni adresse masquée ni « levable », même si la base dit levable', async () => {
+  it('jeton un clic (page ouverte depuis l’adresse de l’en-tête) : ni adresse masquée, ni « levable », ni état d’opposition', async () => {
+    // Relecture 2 : le jeton un clic se lit dans les journaux du Worker, chez Resend, dans la source d'un message
+    // transféré ; il ne sert qu'à s'opposer (§ 8.1) et ne dit donc pas si la personne est déjà opposée (sinon, avec le
+    // repli par l'adresse, il confirmerait une adresse devinée). La page affiche toujours le bouton (D-P2 idempotente).
     const { unClic: jeton } = await jetons()
-    oppositions[DEST] = { origine: 'un_clic', levable: true }
-    const corps = await (await lire(jeton)).json()
-    expect(corps).toEqual({
-      etat: 'valide', type: 'un_clic', langue: 'fr', cabinet: 'Cabinet Exemple', copropriete: 'Résidence Exemple', oppose: true,
+    const attendu = {
+      etat: 'valide', type: 'un_clic', langue: 'fr', cabinet: 'Cabinet Exemple', copropriete: 'Résidence Exemple',
       politiqueUrl: 'https://cabinet-exemple.test/confidentialite',
-    })
+    }
+    expect(await (await lire(jeton)).json()).toEqual(attendu)
+    oppositions[DEST] = { origine: 'un_clic', levable: true }
+    expect(await (await lire(jeton)).json()).toEqual(attendu)
   })
 
   it('adresse illisible (signalement source supprimé ou adresse changée) : aucune adresse masquée, le reste inchangé', async () => {
@@ -464,11 +468,44 @@ describe('D-P4 repli d’un lien expiré : même corps, même durée minimale, m
     expect(oppositions[DEST]).toMatchObject({ origine: 'lien_expire', levable: false })
   })
 
-  it('lien encore valable : accepté aussi (même opposition lien_expire) ; jeton un clic accepté', async () => {
+  // Relecture 2 : le repli n'agit que pour un lien EXPIRÉ (la page ne le propose qu'à lui, ou au lien devenu expiré au
+  // clic). Sur un lien encore valable, il aurait créé une opposition « lien_expire », jamais levable, et la lecture D-P1
+  // suivante aurait dit si l'adresse devinée était la bonne (cahier § 8.2 : « aucun indice sur l'adresse »).
+  it('lien encore valable (page ou un clic) : même { ok: true } après la même durée, AUCUNE opposition', async () => {
     const { page, unClic: jeton } = await jetons()
-    await parAdresse(page, 'x@exemple.test')
-    await parAdresse(jeton, 'y@exemple.test')
-    expect(appelsDe('signalements_qr_diffusion_opposer')).toHaveLength(2)
+    for (const j of [page, jeton]) {
+      for (const email of [EMAIL, 'autre.personne@exemple.test']) {
+        const c = await chronometrer(() => parAdresse(j, email))
+        expect(c).toMatchObject({ statut: 200, corps: '{"ok":true}', cache: 'private, no-store' })
+        expect(c.duree).toBeGreaterThanOrEqual(DUREE_MIN_ADRESSE_DESINSCRIPTION_MS - 5)
+      }
+    }
+    expect(appelsDe('signalements_qr_diffusion_opposer')).toEqual([])
+    expect(oppositions).toEqual({})
+  })
+
+  it('jeton un clic d’un lien valable (lu dans un journal ou un message transféré) : la lecture D-P1 ne trahit jamais l’adresse devinée', async () => {
+    const { unClic: jeton } = await jetons()
+    const avant = await (await lire(jeton)).json()
+    await parAdresse(jeton, 'jean.martin@exemple.test')
+    const apresFausse = await (await lire(jeton)).json()
+    await parAdresse(jeton, EMAIL)
+    const apresJuste = await (await lire(jeton)).json()
+    expect(apresFausse).toEqual(avant)
+    expect(apresJuste).toEqual(apresFausse)
+    // La personne garde « Recevoir à nouveau » avec SON lien de page : aucune opposition non levable n'est née du repli.
+    expect(await (await lire((await jetons()).page)).json()).toMatchObject({ etat: 'valide', type: 'page', oppose: false })
+  })
+
+  it('jeton un clic d’un lien EXPIRÉ (ou signé par la clé précédente) : repli accepté (opposition lien_expire)', async () => {
+    liens[DEST] = ligneLien({ diffusion_cree_le: ilYa(400 * JOUR) })
+    await parAdresse((await jetons()).unClic, EMAIL)
+    liens[DEST] = ligneLien()
+    await parAdresse((await jetons(DEST, ENV_PRECEDENTE)).page, EMAIL)
+    expect(appelsDe('signalements_qr_diffusion_opposer').map((a) => a.args)).toEqual([
+      { p_destinataire: DEST, p_origine: 'lien_expire', p_email_saisi: EMAIL },
+      { p_destinataire: DEST, p_origine: 'lien_expire', p_email_saisi: EMAIL },
+    ])
   })
 
   it('signature fausse : AUCUN appel SQL ni lecture de table, même 200 après la même durée', async () => {
@@ -493,6 +530,7 @@ describe('D-P4 repli d’un lien expiré : même corps, même durée minimale, m
 
   it('l’adresse saisie n’apparaît ni dans une clé de limite ni dans le journal du serveur, même en cas d’erreur', async () => {
     const { page } = await jetons()
+    liens[DEST] = ligneLien({ diffusion_cree_le: ilYa(400 * JOUR) })
     baseQr.etat.fonctions.signalements_qr_diffusion_opposer = () => ({ error: { code: '57014', message: 'annulé' } })
     const r = await parAdresse(page, EMAIL)
     expect(r.status).toBe(503)

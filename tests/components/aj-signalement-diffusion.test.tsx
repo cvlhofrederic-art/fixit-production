@@ -241,9 +241,9 @@ describe('déjà désinscrit, mode réduit (jeton un clic)', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('jeton un clic : sans l’adresse masquée ; après le clic, jamais « Recevoir à nouveau » (même si une réponse le disait)', async () => {
+  it('jeton un clic : sans l’adresse masquée ni état d’opposition (le bouton est toujours là) ; après le clic, jamais « Recevoir à nouveau » (même si une réponse le disait)', async () => {
     simulerFetch((url) => (url.endsWith('/lecture')
-      ? json(valide({ type: 'un_clic', emailMasque: undefined, levable: undefined }))
+      ? json(valide({ type: 'un_clic', emailMasque: undefined, oppose: undefined, levable: undefined }))
       : json({ oppose: true, levable: true })))
     ouvrir()
     expect(await screen.findByText('Résidence Exemple — informations envoyées par Cabinet Exemple')).toBeInTheDocument()

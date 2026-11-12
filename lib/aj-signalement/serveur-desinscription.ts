@@ -252,16 +252,18 @@ export function masquerEmailDesinscriptionQr(email: string | null): string | nul
 export type CorpsLectureDesinscriptionQr =
   | {
     etat: 'valide'; type: UsageLienDiffusionQr; langue: LangueSignalementQr; cabinet: string; copropriete: string
-    emailMasque?: string; oppose: boolean; levable?: boolean; politiqueUrl?: string
+    emailMasque?: string; oppose?: boolean; levable?: boolean; politiqueUrl?: string
   }
   | { etat: 'expire'; type: UsageLienDiffusionQr; langue: LangueSignalementQr; cabinet: string; copropriete: string; politiqueUrl?: string }
   | { etat: 'ancien'; langue: LangueSignalementQr; cabinet?: string; contactCabinet?: string; politiqueUrl?: string }
   | { etat: 'inconnu'; langue: LangueSignalementQr; contactCabinet?: string }
 
 /**
- * Corps de D-P1 (fonction pure). Jeton un clic : ni adresse masquée ni « levable » (§ 8.1 : il ne permet que de
- * s'opposer). Expiré : ni adresse, ni état d'opposition (repli par l'adresse). Ancien et inconnu : cabinet du chemin.
- * Aucune date, jamais.
+ * Corps de D-P1 (fonction pure). Jeton un clic : ni adresse masquée, ni « levable », ni état d'opposition (§ 8.1 : il ne
+ * permet que de s'opposer ; il se lit dans les journaux du Worker, chez Resend ou dans la source d'un message transféré,
+ * et ne doit rien dire de la personne — relecture 2 de la PR 3 : avec le repli par l'adresse, l'état d'opposition aurait
+ * confirmé une adresse devinée ; la page affiche toujours le bouton, D-P2 est idempotente). Expiré : ni adresse, ni état
+ * d'opposition (repli par l'adresse). Ancien et inconnu : cabinet du chemin. Aucune date, jamais.
  */
 export function corpsLectureDesinscriptionQr(
   lien: Exclude<LienDesinscriptionLuQr, { etat: 'erreur' }>,
@@ -294,8 +296,7 @@ export function corpsLectureDesinscriptionQr(
     etat: 'valide',
     ...commun,
     ...(masque ? { emailMasque: masque } : {}),
-    oppose: ligne.oppose,
-    ...(usage === 'page' ? { levable: ligne.oppose && ligne.levable } : {}),
+    ...(usage === 'page' ? { oppose: ligne.oppose, levable: ligne.oppose && ligne.levable } : {}),
     ...(politique ? { politiqueUrl: politique } : {}),
   }
 }
