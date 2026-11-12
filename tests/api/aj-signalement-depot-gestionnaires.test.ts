@@ -88,8 +88,11 @@ describe('destinataires automatiques', () => {
     expect(gestionnaire).toContain('Le cabinet suit ce signalement dans AJ Signalement.')
     expect(gestionnaire).not.toContain('/aj-signalement/#')
     expect(messages[0].html).not.toContain('/aj-signalement/#')
-    // Réservation du budget avant l'envoi, pour 3 messages.
-    expect(baseQr.etat.appelsRpc.map((a) => a.nom)).toEqual(['signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails'])
+    // Réservation du budget avant l'envoi, pour 3 messages ; puis, pour l'accusé, l'annonce de la diffusion (PR 3,
+    // lot 7 : fonction absente de cette base, accusé sans les phrases).
+    expect(baseQr.etat.appelsRpc.map((a) => a.nom)).toEqual([
+      'signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails', 'signalements_qr_diffusion_annonce',
+    ])
     expect(baseQr.etat.appelsRpc[1].args).toEqual({ p_signalement: expect.any(String), p_nombre: 3, p_max_copro: 60, p_max_cabinet: 300 })
     expect(etatFinal()).toMatchObject({ email_envoye_le: expect.any(String), email_erreur: null })
   })
@@ -210,7 +213,8 @@ describe('bouton « Ouvrir le suivi » (PR 2)', () => {
   })
 
   const message = (to: string) => versAdministrateur().find((m) => m.to === to)
-  const lecturesCabinets = () => baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_cabinets')
+  // Lectures du cabinet pour le lien de suivi (identifiant) ; l'accusé lit aussi sa politique (PR 3, lot 7), à part.
+  const lecturesCabinets = () => baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_cabinets' && l.colonnes.includes('identifiant'))
 
   it('accès ouvert : bouton vers le suivi de SON cabinet pour lui seul, sans jeton ; les autres messages comme avant', async () => {
     expect((await deposer()).status).toBe(200)

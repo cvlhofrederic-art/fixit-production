@@ -32,6 +32,11 @@
 //   - migration du 11/11/2026 absente : envoi aux adresses saisies, sans budget, comme avant (journalisé une fois).
 // PR 2, lot 5 (RG-25) : un gestionnaire à l'accès ouvert reçoit le bouton « Ouvrir le suivi » (/<identifiant>/suivi/,
 // aucun jeton) ; l'identifiant du cabinet n'est lu que dans ce cas, et son absence ne change rien au dépôt.
+// PR 3, lot 7 (cahier § 6, droit § 5.4) : l'accusé porte les deux phrases du droit § 5.4 seulement si
+// signalements_qr_diffusion_annonce le dit (copropriété qui peut diffuser, adresse sans opposition), et la ligne vers la
+// politique de confidentialité du cabinet quand il en a une ; l'annonce n'est datée (…_annonce_faite) qu'APRÈS
+// l'acceptation de l'accusé par le service d'e-mail. Lu seulement quand un accusé part (limite par adresse non
+// atteinte). Migration 20261113 absente ou erreur : accusé d'avant, dépôt acquis.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -52,6 +57,7 @@ import {
   FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, cleLimiteConfirmationQr, envoyerAlerteAdministrateurQr, envoyerConfirmationQr,
   envoyerEmailsSignalementQr, masquerEmailsQr, resumeErreurEnvoiQr,
 } from '@/lib/aj-signalement/email'
+import { annonceDiffusionFaiteQr, annonceDiffusionQr, politiqueCabinetDeCoproprieteQr } from '@/lib/aj-signalement/serveur-information'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
@@ -65,16 +71,24 @@ const ERREUR_LIMITE_CONFIRMATION = `limite atteinte : ${LIMITE_CONFIRMATIONS_PAR
  * la route la masque dans ce qu'elle écrit au logger, si le message d'erreur de Resend la cite ; la ligne garde
  * l'erreur brute. Limite connue : en cas d'échec, sendEmail (lib/email.ts, commun à tous les e-mails) écrit lui-même
  * l'erreur brute de Resend dans la console, donc dans les journaux Workers, adresse comprise si Resend la cite.
+ * PR 3, lot 7 : annonce de la diffusion et politique du cabinet lues avant l'envoi (jamais d'exception : faux et null
+ * en repli) ; annonce datée seulement après l'acceptation d'un accusé qui la portait.
  */
-async function confirmerAuDeclarant(signalement: SignalementQr, nomCopropriete: string): Promise<{ envoyeeLe: string | null; erreur: string | null }> {
+async function confirmerAuDeclarant(signalement: SignalementQr, copropriete: LigneCoproprieteQr): Promise<{ envoyeeLe: string | null; erreur: string | null }> {
   try {
     const cle = await cleLimiteConfirmationQr(signalement.email)
     if (!(await checkRateLimit(cle, LIMITE_CONFIRMATIONS_PAR_ADRESSE, FENETRE_CONFIRMATIONS_MS))) {
       logger.warn(`${CONTEXTE} confirmation non envoyée : limite par adresse atteinte`, { signalement: signalement.id })
       return { envoyeeLe: null, erreur: ERREUR_LIMITE_CONFIRMATION }
     }
-    const envoi = await envoyerConfirmationQr({ signalement, copropriete: { nom: nomCopropriete } })
-    if (envoi.success) return { envoyeeLe: new Date().toISOString(), erreur: null }
+    const [annoncerDiffusion, politique] = await Promise.all([
+      annonceDiffusionQr(signalement.id), politiqueCabinetDeCoproprieteQr(copropriete.id),
+    ])
+    const envoi = await envoyerConfirmationQr({ signalement, copropriete: { nom: copropriete.nom ?? '' }, annoncerDiffusion, politique })
+    if (envoi.success) {
+      if (annoncerDiffusion) await annonceDiffusionFaiteQr(signalement.id)
+      return { envoyeeLe: new Date().toISOString(), erreur: null }
+    }
     const erreur = (envoi.error || 'envoi impossible').slice(0, 500)
     logger.error(`${CONTEXTE} confirmation au déclarant non envoyée`, { erreur: masquerEmailsQr(erreur), signalement: signalement.id })
     return { envoyeeLe: null, erreur }
@@ -193,7 +207,7 @@ export async function POST(request: NextRequest) {
     // E-mails aux destinataires : l'échec n'annule pas le dépôt (le tableau de bord le montre, email_erreur le garde).
     const { emailEnvoyeLe, emailErreur } = await envoyerAuxDestinataires(copropriete, signalement)
     // Récapitulatif au déclarant, après l'e-mail de l'administrateur ; même règle : le dépôt reste acquis.
-    const confirmation = await confirmerAuDeclarant(signalement, copropriete.nom ?? '')
+    const confirmation = await confirmerAuDeclarant(signalement, copropriete)
 
     // Un seul update final des quatre états (réduit à email_* tant que la migration de la confirmation manque).
     await enregistrerEtatEmailsQr(data.id, {

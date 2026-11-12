@@ -455,6 +455,12 @@ export interface TextesConfirmationQr {
   pasDeReponse: string
   pasVous: string
   piedDePage: string
+  /** PR 3, lot 7 : les deux phrases du droit § 5.4 (FR exact ; PT proposé, H4), seulement si la diffusion est annoncée. */
+  confirmationChaqueDepot: string
+  annonceDiffusion: string
+  /** PR 3, lot 7 : ligne d'information (art. 13 du RGPD, droit § 4.5) quand le cabinet a une politique. */
+  traitesPar: string
+  politique: string
 }
 
 /** Textes de la confirmation, dans la langue de la page publique. Aucune promesse d'intervention ni de délai. */
@@ -514,6 +520,18 @@ export const TEXTES_CONFIRMATION_QR: Record<LangueSignalementQr, TextesConfirmat
     fr: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
     pt: 'AJ Signalement — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
   },
+  // Droit § 5.4, « Dans l'accusé de réception (a) — pas de bouton, mais ces deux phrases » : texte exact, à ne changer
+  // qu'après relecture de la note (structure figée par tests/api/aj-signalement-signalements.test.ts).
+  confirmationChaqueDepot: {
+    fr: 'Ce message confirme votre signalement. Vous le recevrez à chaque fois que vous en déposez un.',
+    pt: 'Esta mensagem confirma a sua ocorrência. Receberá uma confirmação como esta sempre que registar uma.',
+  },
+  annonceDiffusion: {
+    fr: 'Vous recevrez aussi les informations sur votre immeuble (fuite, coupure, intervention) ; chacune de ces informations comporte un bouton pour ne plus les recevoir.',
+    pt: 'Receberá também as informações sobre o seu prédio (fuga, corte, intervenção); cada uma destas informações inclui um botão para deixar de as receber.',
+  },
+  traitesPar: { fr: 'Vos coordonnées sont traitées par {cabinet} :', pt: 'Os seus dados são tratados por {cabinet}:' },
+  politique: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
 })
 
 /** Objet : « Votre signalement n° 5F2C9A1E a bien été enregistré — Parc Belle Ombre » (texte brut, pas de HTML). */
@@ -521,10 +539,23 @@ export function sujetConfirmationQr(numero: string, nomCopropriete: string, lang
   return remplir(TEXTES_CONFIRMATION_QR[langue].sujet, { numero, copropriete: nomCopropriete })
 }
 
+/** Politique de confidentialité du cabinet de la copropriété (serveur-information.ts) : nom affiché et adresse https. */
+export interface PolitiqueCabinetQr {
+  cabinet: string
+  url: string
+}
+
 export interface ParametresConfirmationQr {
   copropriete: { nom: string }
   /** Le signalement enregistré ; sa langue est celle de la page publique. */
   signalement: SignalementQr
+  /**
+   * PR 3, lot 7 : signalements_qr_diffusion_annonce(signalement) — copropriété qui peut diffuser et adresse sans
+   * opposition. Vrai : les deux phrases du droit § 5.4. Absent ou faux : accusé sans elles.
+   */
+  annoncerDiffusion?: boolean
+  /** PR 3, lot 7 : politique du cabinet ; présente et bien formée : la ligne d'information et son lien (seul lien). */
+  politique?: PolitiqueCabinetQr | null
 }
 
 /** « Parties communes » ou « Votre logement (bât. B · étage 4 · lot 12) », valeurs échappées. */
@@ -540,10 +571,33 @@ function lieuConfirmationHtml(s: SignalementQr, t: TextesConfirmationQr): string
 }
 
 /**
+ * Ligne d'information de l'accusé (cahier § 6 ; relecture droit B1) : « Vos coordonnées sont traitées par {cabinet} :
+ * Politique de confidentialité » (lien). Information due à la collecte (art. 13 du RGPD, droit § 4.5), pas une
+ * information sur l'immeuble : elle ne fait pas de l'accusé une diffusion (droit § 5.4, condition 1). Seul lien
+ * possible de l'accusé ; '' si la politique manque ou sort de la forme de la contrainte de la base, ou sans nom.
+ */
+function ligneInformationConfirmationQr(t: TextesConfirmationQr, politique: PolitiqueCabinetQr | null | undefined): string {
+  if (!politique || !politiqueConfidentialiteValideQr(politique.url)) return ''
+  const cabinet = nettoyerLigneDiffusionQr(politique.cabinet)
+  if (!cabinet) return ''
+  const e = echapperHtml
+  return `
+          <p style="margin:16px 0 0;font-size:13px;line-height:1.5;color:#4A5E78;">${e(remplir(t.traitesPar, { cabinet }))} <a href="${e(politique.url)}" style="color:#4A5E78;">${e(t.politique)}</a></p>`
+}
+
+/**
  * E-mail de confirmation : numéro, copropriété, date et heure de Paris, récapitulatif de la déclaration, suite.
  * Ni nom, ni téléphone, ni adresse e-mail (de personne), ni lien vers le tableau de bord.
+ * PR 3, lot 7 (cahier § 6, droit § 5.4) : l'accusé reste un accusé. Seuls ajouts possibles, tous deux facultatifs :
+ *   - après « Gardez ce numéro », les deux phrases EXACTES du droit § 5.4 quand la diffusion est annoncée
+ *     (annoncerDiffusion) ;
+ *   - avant le pied, la ligne vers la politique de confidentialité du cabinet quand il en a une (seul href).
+ * Ni bouton, ni autre texte, ni en-tête de désinscription ; structure figée par un test (liste exacte des blocs). Sans
+ * ces deux options, la sortie est identique à celle d'avant la PR 3.
  */
-export function templateConfirmationQr({ copropriete, signalement: s }: ParametresConfirmationQr): { subject: string; html: string } {
+export function templateConfirmationQr({
+  copropriete, signalement: s, annoncerDiffusion = false, politique = null,
+}: ParametresConfirmationQr): { subject: string; html: string } {
   const e = echapperHtml
   const t = TEXTES_CONFIRMATION_QR[s.langue]
   const numero = numeroSignalementQr(s.id)
@@ -560,6 +614,11 @@ export function templateConfirmationQr({ copropriete, signalement: s }: Parametr
   ].join('')
   const paragraphe = (texte: string, marge = '0 0 14px') => `<p style="margin:${marge};font-size:15px;line-height:1.55;color:#0D1B2E;">${texte}</p>`
   const intertitre = (texte: string) => `<p style="margin:24px 0 6px;font-size:13px;font-weight:700;color:#4A5E78;">${texte}</p>`
+  // Ajouts de la PR 3, collés aux blocs qui les précèdent : absents, le HTML est octet pour octet celui d'avant.
+  const annonce = annoncerDiffusion
+    ? `
+          ${paragraphe(`${e(t.confirmationChaqueDepot)}<br/>${e(t.annonceDiffusion)}`, '12px 0 0')}`
+    : ''
 
   const corps = `${paragraphe(t.bonjour)}
           ${paragraphe(remplir(t.introduction, { copropriete: `<strong>${e(copropriete.nom)}</strong>`, numero: `<strong>${e(numero)}</strong>` }), '0 0 4px')}
@@ -568,8 +627,8 @@ export function templateConfirmationQr({ copropriete, signalement: s }: Parametr
           ${blocDescription(t.description, e(s.description).replace(/\r?\n/g, '<br/>'))}
           ${intertitre(t.suiteTitre)}
           ${paragraphe(t.suite, '0')}
-          ${paragraphe(t.conserverNumero, '12px 0 0')}
-          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">${t.pasDeReponse}<br/>${t.pasVous}</p>`
+          ${paragraphe(t.conserverNumero, '12px 0 0')}${annonce}
+          <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">${t.pasDeReponse}<br/>${t.pasVous}</p>${ligneInformationConfirmationQr(t, politique)}`
   const html = cadreEmailQr({ langue: s.langue, titreHtml: t.titre, corpsHtml: corps, piedHtml: t.piedDePage })
   return { subject: sujetConfirmationQr(numero, copropriete.nom, s.langue), html }
 }
@@ -784,6 +843,14 @@ const FORMAT_POLITIQUE_QR = /^https:\/\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
 
 const adresseValideQr = (adresse: string) => adresse.length <= 254 && FORMAT_ADRESSE_QR.test(adresse)
 const politiqueValideQr = (url: string) => url.length >= 12 && url.length <= 508 && FORMAT_POLITIQUE_QR.test(url)
+
+/**
+ * Adresse de politique de confidentialité recopiable dans un href (même langage que la contrainte de la base) : accusé
+ * de réception et formulaire public (PR 3, lot 7), en plus de la diffusion.
+ */
+export function politiqueConfidentialiteValideQr(url: unknown): url is string {
+  return typeof url === 'string' && politiqueValideQr(url)
+}
 
 /** L'adresse peut-elle être le seul `to` d'un message (une adresse, sans séparateur) ? Pour filtrer avant l'envoi. */
 export function adresseDestinataireDiffusionValideQr(email: string): boolean {

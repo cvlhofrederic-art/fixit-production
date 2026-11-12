@@ -117,7 +117,10 @@ describe('dépôt public, vrai lib/email.ts, SDK Resend simulé', () => {
     // Le dépôt ne nomme aucune table du 11/11 : destinataires et budget passent par des fonctions (PGRST202), repli
     // journalisé une fois chacun.
     expect(baseQr.etat.tablesAbsentesLues).toEqual([])
-    expect(baseQr.etat.appelsRpc.map((a) => a.nom)).toEqual(['signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails'])
+    // PR 3, lot 7 : l'accusé interroge aussi l'annonce de la diffusion (fonction de la 20261113, absente : sans phrases).
+    expect(baseQr.etat.appelsRpc.map((a) => a.nom)).toEqual([
+      'signalements_qr_emails_gestionnaires', 'signalements_qr_reserver_emails', 'signalements_qr_diffusion_annonce',
+    ])
     expect(simulQr.logger.warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('migration du 11/11/2026 absente'))).toHaveLength(2)
   })
 

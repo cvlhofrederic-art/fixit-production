@@ -5,9 +5,24 @@
 // propres au dépôt par QR code : coordonnées obligatoires (bâtiment et qualité compris), adresse proposée d'après
 // la position, signalements déjà faits au même endroit, confirmation, erreurs. Les textes du tableau de bord (vue
 // super admin) sont en français seulement (lib/aj-signalement/affichage.ts).
+// PR 3, lot 7 (cahier § 6, droit § 4.5 et art. 13 du RGPD ; décision HF3) : information à la collecte sous le bouton
+// d'envoi — qui traite les coordonnées, pourquoi, et le lien vers la politique de confidentialité du cabinet ; la partie
+// « diffusion » seulement quand la copropriété peut diffuser. TEXTE PROPOSÉ, à valider par Frédéric et Hugo (HF3 ;
+// portugais : H4) ; brouillon. Copropriété sans cabinet ou cabinet sans politique : rien ne s'affiche.
 
 import { parLangue } from '@/lib/aj-signalement/bilingue'
 import type { LangueSignalementQr, QualiteDeclarantQr, StatutOuvertQr } from '@/lib/aj-signalement/types'
+
+/**
+ * Information à la collecte lue par le serveur (lib/aj-signalement/serveur-information.ts) pour la page publique :
+ * nom du cabinet (nettoyé), politique de confidentialité (https, même forme que la contrainte de la base), diffusion
+ * possible pour cette copropriété (règle SQL signalements_qr_diffusion_raison_inactive).
+ */
+export interface InformationFormulaireQr {
+  cabinet: string
+  politiqueUrl: string
+  diffusion: boolean
+}
 
 export interface TextesSignalementQr {
   application: string
@@ -62,6 +77,10 @@ export interface TextesSignalementQr {
     base_absente: string
   }
   piedDePage: string
+  /** PR 3, lot 7 : information à la collecte (texte proposé, HF3). */
+  informationTraitement: string
+  informationTraitementDiffusion: string
+  politiqueConfidentialite: string
 }
 
 /** Textes de la page publique, FR et PT côte à côte pour chaque clé (lib/aj-signalement/bilingue.ts). */
@@ -181,4 +200,20 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
     },
   }),
   piedDePage: { fr: 'AJ Signalement — un service VITFIX', pt: 'AJ Signalement — um serviço VITFIX' },
+  informationTraitement: {
+    fr: 'Vos coordonnées sont traitées par {cabinet} pour traiter votre signalement.',
+    pt: 'Os seus dados são tratados por {cabinet} para tratar a sua ocorrência.',
+  },
+  informationTraitementDiffusion: {
+    fr: 'Vos coordonnées sont traitées par {cabinet} pour traiter votre signalement et vous informer des incidents de votre immeuble ; vous pourrez vous y opposer à tout moment.',
+    pt: 'Os seus dados são tratados por {cabinet} para tratar a sua ocorrência e informá-lo dos incidentes do seu prédio; pode opor-se a qualquer momento.',
+  },
+  politiqueConfidentialite: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
 })
+
+/** Mention courte sous le bouton d'envoi : avec la partie « diffusion » seulement quand la copropriété peut diffuser. */
+export function mentionInformationQr(tq: TextesSignalementQr, information: InformationFormulaireQr): string {
+  const texte = information.diffusion ? tq.informationTraitementDiffusion : tq.informationTraitement
+  // Remplacement par une fonction : un « $& » dans le nom du cabinet reste du texte.
+  return texte.replace('{cabinet}', () => information.cabinet)
+}
