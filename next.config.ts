@@ -58,6 +58,11 @@ const nextConfig: NextConfig = {
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`, destination: '/cabinet/:identifiant/connexion/' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`, destination: '/cabinet/:identifiant/suivi' },
         { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`, destination: '/cabinet/:identifiant/suivi/' },
+        // Désinscription des messages de diffusion (PR 3, lot 6) : page publique, SANS session, reconnue par le motif figé du
+        // middleware ; même paire exacte. Sa page interne est rangée dans app/(sans-coquille)/cabinet/[identifiant]/… : même
+        // adresse interne /cabinet/<id>/…, mais une mise en page racine propre, sans la coquille de VitFix (cahier § 7.5, F3).
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription`, destination: '/cabinet/:identifiant/desinscription' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription/`, destination: '/cabinet/:identifiant/desinscription/' },
         // ── Shared root pages accessible via /fr/ prefix ──
         { source: '/fr/auth/:path*', destination: '/auth/:path*' },
         { source: '/fr/pro/:path*', destination: '/pro/:path*' },
@@ -356,6 +361,8 @@ const nextConfig: NextConfig = {
         // Espace du cabinet (PR 2, lot 4).
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/:path*`,
         `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/:path*`,
+        // Désinscription des messages de diffusion (PR 3, lot 6).
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription/:path*`,
         '/cabinet/:path*',
       ].map((source) => ({
         source,

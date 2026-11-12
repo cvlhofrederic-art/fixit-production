@@ -783,6 +783,23 @@ export const reglagesDiffusionCabinetQrSchema = z.strictObject({
   diffusionActivee: z.boolean().optional(),
 }).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
 
+// D-P1 à D-P4 (publiques, PR 3 lot 6) : désinscription des messages de diffusion. Jeton du lien : identifiant du
+// destinataire (32 hex) et signature (64 hex), page ou un clic (lib/aj-signalement/diffusion-lien.ts) ; identifiant du
+// chemin : format seul, comme les liens de confirmation (un nom réservé après coup ne rend pas invalides les liens déjà
+// envoyés ; le cabinet de la diffusion est comparé en base, autre cabinet → « inconnu »).
+export const jetonDesinscriptionQrSchema = z.string().regex(/^[a-f0-9]{32}\.[a-f0-9]{64}$/, 'Lien invalide')
+export const lienDesinscriptionQrSchema = z.strictObject({
+  jeton: jetonDesinscriptionQrSchema,
+  identifiant: identifiantCheminQrSchema,
+})
+// D-P4 : repli d'un lien expiré. L'adresse saisie est passée telle quelle (rognée) à la fonction SQL, seule à la
+// normaliser et à la comparer à l'empreinte (cahier § 2.2) : jamais mise en minuscules ni comparée ici.
+export const adresseDesinscriptionQrSchema = z.strictObject({
+  jeton: jetonDesinscriptionQrSchema,
+  identifiant: identifiantCheminQrSchema,
+  email: z.string().trim().max(254).pipe(strictEmail),
+})
+
 // ── Devis Sign schema ────────────────────────────────────────────────────────
 export const devisSignSchema = z.object({
   booking_id: z.string().uuid('booking_id doit \u00eatre un UUID valide'),
