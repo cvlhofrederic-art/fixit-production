@@ -117,6 +117,18 @@ export default function FenetreDiffusionQr({
     if (avis === 'abandon') zoneAvis.current?.querySelector<HTMLButtonElement>('[data-continuer]')?.focus()
   }, [avis])
 
+  // Autre vue de la fenêtre (annonce, historique) : le bouton activé disparaît avec l'ancienne vue ; le focus va au titre
+  // de la fenêtre, qui annonce la nouvelle (relecture 3 : il tombait hors de la fenêtre). À l'ouverture, la Modale le
+  // pose elle-même.
+  const vueOuverte = useRef(vue)
+  useEffect(() => {
+    if (vue === vueOuverte.current) return
+    vueOuverte.current = vue
+    const dialogue = zoneAvis.current?.closest('[role="dialog"]')
+    const idTitre = dialogue?.getAttribute('aria-labelledby')
+    if (idTitre) document.getElementById(idTitre)?.focus()
+  }, [vue])
+
   const titre = vue === 'historique'
     ? remplir(TD.titres.historique, { copropriete: copropriete.nom })
     : vue === 'annonce'

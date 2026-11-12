@@ -125,6 +125,8 @@ export default function FormulaireDiffusionQr({
   const monte = useRef(true)
   const sequence = useRef(0)
   const titreConfirmation = useRef<HTMLHeadingElement>(null)
+  const zoneEnvoi = useRef<HTMLParagraphElement>(null)
+  const zoneBilan = useRef<HTMLDivElement>(null)
   const focusApres = useRef<string | null>(null)
 
   useEffect(() => {
@@ -171,9 +173,13 @@ export default function FormulaireDiffusionQr({
     : etape.nom === 'fin' || chargement.etat !== 'pret' || !saisieEnCours ? 'libre' : 'saisie'
   useEffect(() => { onGarde(garde) }, [garde, onGarde])
 
-  // Focus : titre de la confirmation à l'arrivée ; champ refusé ou bouton « Vérifier et envoyer » au retour.
+  // Focus : titre de la confirmation à l'arrivée ; champ refusé ou bouton « Vérifier et envoyer » au retour. Envoi puis
+  // bilan : le bouton qui envoie disparaît, le focus va à la zone d'état puis au bilan (relecture 3 : il tombait hors de
+  // la fenêtre, et Tab menait derrière son fond).
   useEffect(() => {
     if (etape.nom === 'confirmation') titreConfirmation.current?.focus()
+    if (etape.nom === 'envoi') zoneEnvoi.current?.focus()
+    if (etape.nom === 'fin') zoneBilan.current?.focus()
     if (etape.nom === 'saisie' && focusApres.current) {
       document.getElementById(focusApres.current)?.focus()
       focusApres.current = null
@@ -411,7 +417,7 @@ export default function FormulaireDiffusionQr({
     return (
       <div className="space-y-4" aria-busy="true">
         {enTete(false)}
-        <p role="status" aria-live="polite" className="rounded-xl bg-[#F7F4EE] px-4 py-3 text-base font-semibold text-[#0D1B2E]">
+        <p ref={zoneEnvoi} tabIndex={-1} role="status" aria-live="polite" className="rounded-xl bg-[#F7F4EE] px-4 py-3 text-base font-semibold text-[#0D1B2E] outline-none">
           {etape.repondu ? remplir(TD.envoi.progression, { envoyes: etape.envoyes, total: etape.total }) : TD.envoi.enCours}
         </p>
       </div>
@@ -421,9 +427,11 @@ export default function FormulaireDiffusionQr({
   if (etape.nom === 'fin') {
     return (
       <div className="space-y-4">
-        <Encadre ton={etape.termine ? 'succes' : 'avertissement'} role="status">
-          {etape.lignes.map((l) => <p key={l}>{l}</p>)}
-        </Encadre>
+        <div ref={zoneBilan} tabIndex={-1} className="outline-none">
+          <Encadre ton={etape.termine ? 'succes' : 'avertissement'} role="status">
+            {etape.lignes.map((l) => <p key={l}>{l}</p>)}
+          </Encadre>
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <Bouton variante="secondaire" icone="horloge" onClick={onHistorique}>{TD.boutons.voirHistorique}</Bouton>
           <Bouton variante="principal" onClick={onFermer}>{TD.boutons.fermer}</Bouton>

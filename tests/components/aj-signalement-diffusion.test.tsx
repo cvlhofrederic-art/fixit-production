@@ -1516,3 +1516,56 @@ describe('relecture 3 — migration de la diffusion absente (503 base_absente) :
     sansMigration(screen.getByRole('dialog').textContent)
   })
 })
+
+describe('relecture 3 — focus gardé dans la fenêtre quand le bouton activé disparaît (§ 7.6 « Tab piégé »)', () => {
+  it('« Envoyer à n personnes » : pendant l’envoi, la zone d’état ; au bilan, le bilan (toujours dans la fenêtre)', async () => {
+    const envoi = differe<Response>()
+    simulerEspace(routeurD({ envoi: () => envoi.promesse }))
+    ouvrirDiffusion()
+    const dialogue = await fenetrePrete()
+    const envoyer = await jusquALaConfirmation()
+    envoyer.focus()
+    fireEvent.click(envoyer)
+    const enCours = await screen.findByText(TD.envoi.enCours)
+    await waitFor(() => expect(enCours).toHaveFocus())
+    await act(async () => { envoi.resoudre(envoiD()) })
+    const bilan = await screen.findByText(/Message envoyé à 21 personnes/)
+    await waitFor(() => expect(bilan.closest('[tabindex="-1"]')).toHaveFocus())
+    expect(dialogue.contains(document.activeElement)).toBe(true)
+  })
+
+  it('autre vue de la fenêtre (annonce, puis « Voir les messages envoyés » au bilan) : le focus va au titre de la fenêtre', async () => {
+    simulerEspace(routeurAnnonceD({ envoi: () => envoiD({ nbDestinataires: 4, envoyes: 4, refuses: 0 }) }))
+    ouvrirDiffusion()
+    await fenetrePrete()
+    fireEvent.click(screen.getByRole('button', { name: BOUTON_ANNONCE_D }))
+    const titreAnnonce = remplir(TD.titres.annonce, { copropriete: 'Résidence Exemple' })
+    await fenetrePrete(titreAnnonce)
+    expect(screen.getByRole('heading', { level: 2, name: titreAnnonce })).toHaveFocus()
+    saisir(TD.instruction.reference, REFERENCE_D)
+    saisir(TD.instruction.date, '2026-11-01')
+    fireEvent.click(await verifier('Envoyer à 4 personnes'))
+    await screen.findByText('Message envoyé à 4 personnes.')
+    fireEvent.click(screen.getByRole('button', { name: TD.boutons.voirHistorique }))
+    const titreHistorique = remplir(TD.titres.historique, { copropriete: 'Résidence Exemple' })
+    await screen.findByRole('dialog', { name: titreHistorique })
+    await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: titreHistorique })).toHaveFocus())
+  })
+
+  it('historique, « Reprendre l’envoi » : la zone d’état pendant la reprise, puis le bilan', async () => {
+    const reprise = differe<Response>()
+    simulerEspace(routeurD({
+      historique: historiqueH([ligneH(DIFF_D3, { nombres: nombresH({ destinataires: 300, envoyes: 0, attente: 300 }) })]),
+      reprises: [reprise.promesse],
+    }))
+    ouvrirDiffusion({ contenu: 'historique' })
+    const bouton = await screen.findByRole('button', { name: TD.historique.reprendre })
+    bouton.focus()
+    fireEvent.click(bouton)
+    const enCours = await screen.findByText(TD.envoi.enCours)
+    await waitFor(() => expect(enCours).toHaveFocus())
+    await act(async () => { reprise.resoudre(json({ envoyes: 300, refuses: 0, reste: 0, arret: null })) })
+    const bilan = await screen.findByText('Message envoyé à 300 personnes.')
+    await waitFor(() => expect(bilan.closest('[tabindex="-1"]')).toHaveFocus())
+  })
+})

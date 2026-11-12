@@ -160,6 +160,14 @@ function LigneHistoriqueQr({
 }: Readonly<PropsLigneHistoriqueQr>) {
   const h = TD.historique
   const ouvert = detail !== undefined
+  // Reprise : « Reprendre l'envoi » se désactive puis peut disparaître ; le focus va à la question, à la zone d'état puis
+  // au bilan, toujours dans la fenêtre (relecture 3, cahier § 7.6 « Tab piégé »).
+  const zoneReprise = useRef<HTMLElement | null>(null)
+  const etapeReprise = reprise?.etape ?? null
+  useEffect(() => {
+    if (etapeReprise !== null) zoneReprise.current?.focus()
+  }, [etapeReprise])
+  const poserZone = (el: HTMLElement | null) => { zoneReprise.current = el }
   return (
     <li className="rounded-2xl border border-[#E4DDD0] bg-white px-5 py-4 shadow-sm">
       <div className="space-y-1">
@@ -179,23 +187,27 @@ function LigneHistoriqueQr({
       </div>
 
       {reprise?.etape === 'confirmer' && (
-        <Encadre ton="avertissement" className="mt-3">
-          <p>{remplir(h.aConfirmer, { date: dateHeureParis(reprise.creeLe) })}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Bouton variante="principal" petit onClick={onConfirmer}>{h.confirmerReprise}</Bouton>
-            <Bouton variante="secondaire" petit onClick={onAnnulerReprise}>{TD.boutons.annuler}</Bouton>
-          </div>
-        </Encadre>
+        <div ref={poserZone} tabIndex={-1} className="mt-3 outline-none">
+          <Encadre ton="avertissement">
+            <p>{remplir(h.aConfirmer, { date: dateHeureParis(reprise.creeLe) })}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Bouton variante="principal" petit onClick={onConfirmer}>{h.confirmerReprise}</Bouton>
+              <Bouton variante="secondaire" petit onClick={onAnnulerReprise}>{TD.boutons.annuler}</Bouton>
+            </div>
+          </Encadre>
+        </div>
       )}
       {(reprise?.etape === 'appel' || reprise?.etape === 'envoi') && (
-        <p role="status" aria-live="polite" aria-busy="true" className="mt-3 rounded-xl bg-[#F7F4EE] px-4 py-3 text-base font-semibold text-[#0D1B2E]">
+        <p ref={poserZone} tabIndex={-1} role="status" aria-live="polite" aria-busy="true" className="mt-3 rounded-xl bg-[#F7F4EE] px-4 py-3 text-base font-semibold text-[#0D1B2E] outline-none">
           {reprise.etape === 'envoi' ? remplir(TD.envoi.progression, { envoyes: reprise.envoyes, total: reprise.total }) : TD.envoi.enCours}
         </p>
       )}
       {reprise?.etape === 'fin' && (
-        <Encadre ton={reprise.termine ? 'succes' : 'avertissement'} role="status" className="mt-3">
-          {reprise.lignes.map((l) => <p key={l}>{l}</p>)}
-        </Encadre>
+        <div ref={poserZone} tabIndex={-1} className="mt-3 outline-none">
+          <Encadre ton={reprise.termine ? 'succes' : 'avertissement'} role="status">
+            {reprise.lignes.map((l) => <p key={l}>{l}</p>)}
+          </Encadre>
+        </div>
       )}
 
       {detail?.etat === 'chargement' && <p role="status" className="mt-3 text-sm text-[#4A5E78]">{TD.chargement}</p>}
