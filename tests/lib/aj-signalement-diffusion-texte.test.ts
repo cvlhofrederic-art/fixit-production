@@ -120,6 +120,37 @@ describe('numéros de téléphone : seulement ceux déclarés par le cabinet (H2
   ])('dates, heures et petits nombres acceptés : « %s »', (texte) => {
     expect(motif(texte)).toBe('ok')
   })
+
+  // Relecture du 12/11 : seul un séparateur d'un caractère (espace, point, tiret) liait les groupes de chiffres ; le même
+  // numéro écrit autrement passait (« séparateurs permis », cahier § 5.3 ; « tout autre numéro est refusé », H2).
+  it.each([
+    '06/12/34/56/78', '06  12  34  56  78', '06 - 12 - 34 - 56 - 78', '06,12,34,56,78', '06_12_34_56_78', '06·12·34·56·78',
+    '06/12 34/56 78', '06 . 12 . 34 . 56 . 78', '06    12    34    56    78', '06 / 12 / 34 / 56 / 78', '06+12+34+56+78',
+    '06, 12, 34, 56, 78', '912/345/678', '912 - 345 - 678',
+  ])('« Pour un plombier, appelez Dupont au %s sans tarder. » → telephone', (numero) => {
+    expect(motif(`Pour un plombier, appelez Dupont au ${numero} sans tarder.`, ['0611223344'])).toBe('telephone')
+  })
+  it.each([
+    'Plombier Dupont, appelez le\n06\n12\n34\n56\n78', 'Plombier Dupont :\n06 12\n34 56\n78', 'Appelez le 06/12/34/56/78 demain.',
+    'Appelez le 06 12 34 56 78h.', 'Appelez le 06 12 34 56 08 h.', 'Appelez le 0612 345678 merci.', 'Appelez le 06/12/34/05/06 demain.',
+  ])('numéro non déclaré refusé, lignes, unité ou mot qui suit : %j', (texte) => {
+    expect(motif(texte)).toBe('telephone')
+  })
+  it.each([
+    'Astreinte : 06/12/34/56/78.', 'Astreinte : 06 - 12 - 34 - 56 - 78.', 'Astreinte : 06,12,34,56,78.', 'Astreinte :\n06 12 34 56 78',
+    'Linha de piquete: 912/345/678',
+  ])('numéro déclaré accepté sous ces écritures aussi : %j', (texte) => {
+    expect(motif(texte, DECLARES)).toBe('ok')
+  })
+  it.each([
+    'L’eau sera coupée le 12/11/2026 de 9 h à 10 h.', 'Coupure le 12/11/2026 de 9:00 à 12:00.', 'Coupure le 12/11/2026, 9:00-12:00.',
+    'Coupure le 12/11/26 de 9 h à 10 h.', 'Du 12/11 au 14/11.', 'Les 12/11-14/11, travaux dans le hall.', 'Le 12/11/2026 9h30, dans le hall.',
+    'Le 12/11/2026 à 9h30.', 'Le 12/11/2026 - 14:30.', 'Mardi 12/11/2026 9 h - 12 h.', 'Saison de chauffe 2026/2027.',
+    'De 14:30 à 16:00, puis 17:00-18:00.', 'Le 12.11.2026, 10.30.', 'Reprise le 12/11/2026 15 jours après la coupure.',
+    'Consommation relevée : 1 234,56 m3.', 'Température relevée : 19,5 °C.', 'Bâtiments 1, 2 et 3.',
+  ])('dates, heures et nombres d’exploitation acceptés (séparateurs élargis) : %j', (texte) => {
+    expect(motif(texte)).toBe('ok')
+  })
 })
 
 describe('normaliserTelephoneDeclareQr : forme gardée sur le cabinet (chiffres seuls, 6 à 15)', () => {

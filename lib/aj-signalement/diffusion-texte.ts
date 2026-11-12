@@ -12,8 +12,9 @@
 //     autres points de code « ignorables par défaut » (remplissages invisibles) ; le texte garde seulement « \n » ;
 //     un libellé de bâtiment ou d'étage n'a que lettres, chiffres et ponctuation simple ;
 //   - a_completer : un champ de modèle « […] » non rempli ;
-//   - telephone : un numéro (6 chiffres ou plus, séparateurs permis) qui n'est pas un des numéros déclarés par le
-//     cabinet (H2) ; dates et heures ne sont pas des numéros ;
+//   - telephone : un numéro (6 chiffres ou plus, groupes liés par 1 à 3 caractères qui ne sont ni lettres ni chiffres,
+//     ou par des espaces et retours à la ligne) qui n'est pas un des numéros déclarés par le cabinet (H2) ; dates et
+//     heures ne sont pas des numéros ;
 //   - terme_commercial : liste fermée H2, mots entiers, sans casse ni accents (dont « VitFix », « offre », « devis ») ;
 //   - longueur, lignes : objet 3 à 120 caractères, texte 10 à 2 000 caractères et 30 lignes, libellé 1 à 50.
 // La détection se fait sur une forme NFKC, en minuscules, sans accents ni invisibles, chiffres ramenés à 0-9. La liste
@@ -168,18 +169,26 @@ export function normaliserTelephoneDeclareQr(saisie: string): string | null {
   return /^\d{6,15}$/.test(numero) ? numero : null
 }
 
-// Suites de chiffres séparées par une espace, un point ou un tiret (un seul séparateur entre deux groupes).
-const CANDIDAT_TELEPHONE = /\+?\d+(?:[ .-]\d+)*/g
-// Dates (12.11.2026, 12-11-26, 2026-11-12), heures (10.30) et années (2026-2027) ne sont pas des numéros, seules
-// ou enchaînées par une espace ou un tiret (« 12.11.2026 10.30 »).
+// Suites de groupes de chiffres liés par 1 à 3 séparateurs (relecture du 12/11 : « 06/12/34/56/78 », « 06  12 »,
+// « 06 - 12 », « 06,12 », « 06_12 », « 06·12 », un groupe par ligne passaient). Un séparateur est un caractère qui
+// n'est ni une lettre ni un chiffre (« / », « , », « _ », « · », « + », parenthèses…) ou une suite d'espaces et de
+// retours à la ligne, prise entière (aucun retour arrière : coût linéaire). Une lettre coupe toujours (« 06 et 12 »).
+const SEPARATEUR_TELEPHONE = String.raw`(?:\s+(?!\s)|[^\p{L}\p{N}\s])`
+const CANDIDAT_TELEPHONE = new RegExp(String.raw`\+?\d+(?:${SEPARATEUR_TELEPHONE}{1,3}\d+)*`, 'gu')
+// Dates (12.11.2026, 12-11-26, 12/11/2026, 12/11, 2026-11-12), heures (10.30, 14:30) et années (2026-2027,
+// 2026/2027) ne sont pas des numéros, seules ou enchaînées par des espaces, un tiret ou une virgule
+// (« 12/11/2026, 9:00-12:00 ») ; jamais par « / » ni « . », qui fabriqueraient une date avec les groupes d'un numéro.
 const JOUR = String.raw`(?:0?[1-9]|[12]\d|3[01])`
 const MOIS = String.raw`(?:0?[1-9]|1[0-2])`
 const ANNEE = String.raw`(?:20\d{2}|\d{2})`
 const ELEMENT_DATE = [
-  String.raw`${JOUR}\.${MOIS}\.${ANNEE}`, `${JOUR}-${MOIS}-${ANNEE}`, String.raw`20\d{2}-${MOIS}-${JOUR}`,
-  String.raw`(?:[01]?\d|2[0-3])\.[0-5]\d`, String.raw`(?:19|20)\d{2}-(?:19|20)\d{2}`,
+  String.raw`${JOUR}\.${MOIS}\.${ANNEE}`, `${JOUR}-${MOIS}-${ANNEE}`, `${JOUR}/${MOIS}/${ANNEE}`, `${JOUR}/${MOIS}`,
+  String.raw`20\d{2}-${MOIS}-${JOUR}`, String.raw`(?:[01]?\d|2[0-3])[.:][0-5]\d`, String.raw`(?:19|20)\d{2}[-/](?:19|20)\d{2}`,
 ].join('|')
-const DATES_ET_HEURES = new RegExp(`^(?:${ELEMENT_DATE})(?:[ -](?:${ELEMENT_DATE}))*$`)
+const JOINT_DATES = String.raw`(?:\s*[-,]\s*|\s+)`
+const DATES_ET_HEURES = new RegExp(`^(?:${ELEMENT_DATE})(?:${JOINT_DATES}(?:${ELEMENT_DATE}))*$`)
+// Ce qui suit une suite de chiffres : une lettre, après une espace au plus (« 9 h », « 15 jours », « 9h30 »).
+const SUIVI_D_UNE_LETTRE = /^ ?\p{L}/u
 
 interface GroupeChiffres {
   chiffres: string
@@ -200,16 +209,25 @@ function groupesDeclares(groupes: readonly GroupeChiffres[], declares: ReadonlyS
   return couverts
 }
 
+/** Les groupes i à k du candidat forment-ils un numéro (6 chiffres ou plus, ni date ni heure) ? */
+function groupesFormentUnNumero(candidat: string, groupes: readonly GroupeChiffres[], i: number, k: number): boolean {
+  const reste = candidat.slice(groupes[i].debut, groupes[k].fin)
+  return reste.replace(/\D/g, '').length >= 6 && !DATES_ET_HEURES.test(reste)
+}
+
 /**
  * Une suite de chiffres contient-elle un numéro non déclaré ? Les groupes couverts par un numéro déclaré sont mis à
- * part ; chaque reste de 6 chiffres ou plus qui n'est pas une date ou une heure est un numéro non déclaré.
+ * part ; chaque reste de 6 chiffres ou plus qui n'est pas une date ou une heure est un numéro non déclaré. Quand la
+ * suite est suivie d'une lettre, son dernier groupe de 1 ou 2 chiffres est une quantité (« le 12/11/2026 9 h »,
+ * « 12/11/2026 15 jours ») : il est jugé seul. L'écarter laisse au moins 8 chiffres d'un numéro de 10 : il reste refusé.
  */
-function contientNumeroNonDeclare(candidat: string, declares: ReadonlySet<string>): boolean {
+function contientNumeroNonDeclare(candidat: string, declares: ReadonlySet<string>, suiviDUneLettre: boolean): boolean {
   const groupes: GroupeChiffres[] = Array.from(candidat.matchAll(/\d+/g), (m) => {
     const debut = m.index ?? 0
     return { chiffres: m[0], debut, fin: debut + m[0].length }
   })
   const couverts = groupesDeclares(groupes, declares)
+  const dernier = groupes.length - 1
   let i = 0
   while (i < groupes.length) {
     if (couverts[i]) {
@@ -218,8 +236,10 @@ function contientNumeroNonDeclare(candidat: string, declares: ReadonlySet<string
     }
     let j = i
     while (j + 1 < groupes.length && !couverts[j + 1]) j += 1
-    const reste = candidat.slice(groupes[i].debut, groupes[j].fin)
-    if (reste.replace(/\D/g, '').length >= 6 && !DATES_ET_HEURES.test(reste)) return true
+    const quantiteFinale = suiviDUneLettre && j === dernier && j > i && groupes[j].chiffres.length <= 2
+    if (groupesFormentUnNumero(candidat, groupes, i, j) && !(quantiteFinale && !groupesFormentUnNumero(candidat, groupes, i, j - 1))) {
+      return true
+    }
     i = j + 1
   }
   return false
@@ -230,8 +250,12 @@ function contientTelephoneNonDeclare(detection: string, autorises: readonly stri
   // signalements_qr_cabinets_diffusion_telephones_format le refuse aussi).
   const declares = new Set(autorises.filter((t): t is string => typeof t === 'string')
     .map((t) => formeComparableTelephone(t.replace(/\D/g, ''))))
-  const candidats = detection.replace(ZERO_ENTRE_PARENTHESES, ' ').match(CANDIDAT_TELEPHONE) ?? []
-  return candidats.some((candidat) => contientNumeroNonDeclare(candidat, declares))
+  const texte = detection.replace(ZERO_ENTRE_PARENTHESES, ' ')
+  for (const m of texte.matchAll(CANDIDAT_TELEPHONE)) {
+    const fin = (m.index ?? 0) + m[0].length
+    if (contientNumeroNonDeclare(m[0], declares, SUIVI_D_UNE_LETTRE.test(texte.slice(fin, fin + 2)))) return true
+  }
+  return false
 }
 
 // ── Termes commerciaux (liste fermée H2, sans accents) ──
