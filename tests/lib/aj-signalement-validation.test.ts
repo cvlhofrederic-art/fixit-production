@@ -83,6 +83,14 @@ describe('règles des corps', () => {
     expect(modificationCoproprieteQrSchema.safeParse({ attribueeATous: true }).success).toBe(true)
   })
 
+  it('fin de mission prévue (H7) : date AAAA-MM-JJ ou null, super admin seulement (comme l’activation : elle coupe la diffusion)', () => {
+    expect(modificationCoproprieteQrSchema.safeParse({ diffusionFinGestionLe: '2026-12-31' }).success).toBe(true)
+    expect(modificationCoproprieteQrSchema.safeParse({ diffusionFinGestionLe: null }).success).toBe(true)
+    expect(modificationCoproprieteQrSchema.safeParse({ diffusionFinGestionLe: '31/12/2026' }).success).toBe(false)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ diffusionFinGestionLe: '2026-12-31' }).success).toBe(false)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ nom: 'Résidence Exemple', diffusionFinGestionLe: null }).success).toBe(false)
+  })
+
   it('code postal (5 chiffres ou format portugais), immatriculation normalisée', () => {
     expect(coproprieteQrSchema.safeParse({ nom: 'X', codePostal: '13001' }).success).toBe(true)
     expect(coproprieteQrSchema.safeParse({ nom: 'X', codePostal: '4000-123' }).success).toBe(true)

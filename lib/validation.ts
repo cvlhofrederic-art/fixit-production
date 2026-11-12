@@ -519,6 +519,9 @@ export const modificationCoproprieteQrSchema = z.strictObject({
   // Tire un nouveau jeton : l'ancien QR code ne répond plus.
   regenererJeton: z.literal(true).optional(),
   attribueeATous: z.boolean().optional(),
+  // Décision H7 de Hugo (PR 3) : fin de mission prévue (AAAA-MM-JJ, heure de Paris) ; à partir de ce jour, plus aucune
+  // diffusion ; null l'efface. Super admin seulement (comme l'activation, elle coupe la diffusion).
+  diffusionFinGestionLe: z.iso.date().nullable().optional(),
   forcerDoublon: z.boolean().optional(),
   confirmerDoublonProbable: z.boolean().optional(),
   confirmerHorsDomaine: z.boolean().optional(),

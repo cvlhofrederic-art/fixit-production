@@ -379,6 +379,57 @@ describe('PATCH coproprietes/[id] (P1-R4)', () => {
     expect((await modifier('c0000000-0000-4000-8000-00000000dead', { nom: 'X' })).status).toBe(404)
     expect((await modifier('pas-un-uuid', { nom: 'X' })).status).toBe(404)
   })
+
+  // Décision H7 de Hugo (cahier § 14) : « copropriété active + date facultative « fin de mission » sur la fiche ; la
+  // diffusion s'arrête seule à cette date ». La règle SQL (signalements_qr_diffusion_raison_inactive → fin_gestion, dès le
+  // jour même, heure de Paris) est exécutée sur PGlite (tests/migrations/signalements_qr_diffusion.execution.test.ts) ;
+  // ici, la route qui écrit la date (relecture 2 de la PR 3 : aucune route ne l'écrivait).
+  describe('fin de mission prévue (H7, colonne diffusion_fin_gestion_le de la migration 20261113)', () => {
+    const majs = () => baseQr.ecrituresDe('signalements_qr_coproprietes', 'update')
+
+    it('écrite, puis effacée par null ; journal : le NOM du champ, jamais la date ; même date renvoyée : aucun journal', async () => {
+      expect((await modifier(COPRO, { diffusionFinGestionLe: '2026-12-31' })).status).toBe(200)
+      expect(majs().at(-1)?.valeurs).toEqual({ diffusion_fin_gestion_le: '2026-12-31' })
+      expect(baseQr.table('signalements_qr_coproprietes')[0].diffusion_fin_gestion_le).toBe('2026-12-31')
+      const journal = baseQr.table('signalements_qr_journal')
+      expect(journal.map((j) => [j.action, j.champs])).toEqual([['copropriete.modifiee', ['diffusionFinGestionLe']]])
+      expect(JSON.stringify(journal)).not.toContain('2026-12-31')
+
+      expect((await modifier(COPRO, { diffusionFinGestionLe: '2026-12-31' })).status).toBe(200)
+      expect(baseQr.table('signalements_qr_journal')).toHaveLength(1)
+
+      expect((await modifier(COPRO, { diffusionFinGestionLe: null })).status).toBe(200)
+      expect(majs().at(-1)?.valeurs).toEqual({ diffusion_fin_gestion_le: null })
+      expect(baseQr.table('signalements_qr_journal').map((j) => j.champs)).toEqual([['diffusionFinGestionLe'], ['diffusionFinGestionLe']])
+    })
+
+    it('avec d’autres champs de la fiche : une seule écriture, un seul journal (noms des champs changés)', async () => {
+      expect((await modifier(COPRO, { adresse: '9 rue Exemple', diffusionFinGestionLe: '2027-01-15' })).status).toBe(200)
+      expect(majs()).toHaveLength(1)
+      expect(majs()[0].valeurs).toEqual({ adresse: '9 rue Exemple', diffusion_fin_gestion_le: '2027-01-15' })
+      expect(baseQr.table('signalements_qr_journal').map((j) => j.champs)).toEqual([['adresse', 'diffusionFinGestionLe']])
+    })
+
+    it.each([['31/12/2026'], ['2026-13-01'], ['2026-12-31T00:00:00Z'], [''], [20261231]])('date hors format (%s) : 400, rien n’est écrit', async (date) => {
+      expect((await modifier(COPRO, { diffusionFinGestionLe: date })).status).toBe(400)
+      expect(majs()).toEqual([])
+    })
+
+    it('migration 20261113 absente (colonne inconnue) : 503 base_absente, rien n’est écrit ni journalisé ; journal du serveur une fois', async () => {
+      baseQr.etat.colonnesAbsentes = { signalements_qr_coproprietes: ['diffusion_fin_gestion_le'] }
+      for (let i = 0; i < 2; i++) {
+        const res = await modifier(COPRO, { adresse: '9 rue Exemple', diffusionFinGestionLe: '2026-12-31' })
+        expect(res.status).toBe(503)
+        expect(await res.json()).toEqual({ error: 'base_absente' })
+      }
+      expect(majs()).toEqual([])
+      expect(baseQr.table('signalements_qr_journal')).toEqual([])
+      expect(simulQr.logger.warn).toHaveBeenCalledTimes(1)
+      expect(simulQr.logger.error).not.toHaveBeenCalled()
+      // Sans la date, la fiche se modifie comme avant.
+      expect((await modifier(COPRO, { adresse: '9 rue Exemple' })).status).toBe(200)
+    })
+  })
 })
 
 describe('DELETE coproprietes/[id] (P1-R5)', () => {
