@@ -128,7 +128,8 @@ describe('Sentry du navigateur : jamais un jeton de désinscription dans un envo
 
   it('réglages du projet inchangés (échantillonnage, Replay coupé) et caviardage des adresses e-mail toujours actif', async () => {
     const Sentry = await sentry()
-    const options = Sentry.getClient()?.getOptions()
+    // Options telles que passées par instrumentation-client.ts (les clés de Replay ne sont pas dans le type du client).
+    const options = Sentry.getClient()?.getOptions() as Record<string, unknown> | undefined
     expect(options?.tracesSampleRate).toBe(0.05)
     expect(options?.replaysSessionSampleRate).toBe(0)
     expect(options?.replaysOnErrorSampleRate).toBe(0)
