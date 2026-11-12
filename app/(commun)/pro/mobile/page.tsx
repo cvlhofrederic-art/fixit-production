@@ -9,6 +9,7 @@ import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { subscribeWithReconnect } from '@/lib/realtime-reconnect'
 import { formatPrice } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/context'
+import { estAppMobile } from '@/lib/app-mobile'
 import dynamic from 'next/dynamic'
 import type { User } from '@supabase/supabase-js'
 import type { Artisan, Booking, Service, Availability, ChatMessage } from '@/lib/types'
@@ -22,10 +23,9 @@ const MobileDocumentsSection = dyn(() => import('@/components/pro-mobile/pages/M
 const MobileSettingsSection = dyn(() => import('@/components/pro-mobile/pages/MobileSettingsSection'))
 
 // ─── API base ─────────────────────────────────────────────────────────────────
-// Vide en web (Workers SSR) — fetch reste relatif et marche normalement.
-// Hardcoded à 'https://vitfix.io' au build mobile (export Capacitor) via
-// NEXT_PUBLIC_API_URL embed à la compilation (cf. scripts/build-mobile.sh).
-// Le runtime capacitor://localhost ne peut pas résoudre les paths relatifs.
+// Vide en web (Workers SSR) — fetch reste relatif et marche normalement, y compris dans
+// l'appli Vitfix Pro, qui affiche cette page depuis https://vitfix.io (capacitor.config.ts).
+// NEXT_PUBLIC_API_URL ne servait qu'à l'ancien export statique Capacitor (abandonné le 12/11/2026).
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ function ProofOfWork({ booking, artisan, onClose, onComplete }: {
   }
 
   // Garde mobile uniquement : bloquer l'accès depuis desktop
-  const isNativePlatform = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform?.() === true
+  const isNativePlatform = estAppMobile()
   const isMobileContext = typeof window !== 'undefined' &&
     (window.innerWidth <= 900 || 'ontouchstart' in window || isNativePlatform)
 
@@ -1367,7 +1367,8 @@ export default function MobileDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = `/${locale}/`
+    // Dans l'appli Vitfix Pro, retour à la page de connexion plutôt qu'à l'accueil public du site.
+    window.location.href = estAppMobile() ? `/${locale}/auth/login` : `/${locale}/`
   }
 
   // ── Messagerie artisan ──

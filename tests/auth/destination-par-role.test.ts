@@ -42,4 +42,27 @@ describe('destinationApresConnexion', () => {
     expect(destinationApresConnexion('gestionnaire_signalement_x', 'fr')).toBe('/fr/client/dashboard')
     expect(destinationApresConnexion('Gestionnaire_Signalement', 'fr')).toBe('/fr/client/dashboard')
   })
+
+  describe('dans l’appli Vitfix Pro', () => {
+    it('artisan → espace mobile, dans sa langue', () => {
+      expect(destinationApresConnexion('artisan', 'fr', { appMobile: true })).toBe('/fr/pro/mobile')
+      expect(destinationApresConnexion('artisan', 'pt', { appMobile: true })).toBe('/pt/pro/mobile')
+    })
+
+    it('les autres rôles gardent leur destination (l’espace mobile est réservé aux artisans)', () => {
+      for (const role of ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']) {
+        expect(destinationApresConnexion(role, 'pt', { appMobile: true })).toBe('/pt/pro/dashboard')
+      }
+      expect(destinationApresConnexion('syndic', 'fr', { appMobile: true })).toBe('/fr/syndic/dashboard')
+      expect(destinationApresConnexion('gestionnaire_signalement', 'pt', { appMobile: true })).toBe('/fr/aj-signalement/')
+      expect(destinationApresConnexion('client', 'fr', { appMobile: true })).toBe('/fr/client/dashboard')
+      expect(destinationApresConnexion(undefined, 'fr', { appMobile: true })).toBe('/fr/client/dashboard')
+      expect(destinationApresConnexion({ role: 'artisan' }, 'fr', { appMobile: true })).toBe('/fr/client/dashboard')
+    })
+
+    it('hors de l’appli, rien ne change', () => {
+      expect(destinationApresConnexion('artisan', 'fr', { appMobile: false })).toBe('/fr/artisan/dashboard')
+      expect(destinationApresConnexion('artisan', 'fr', {})).toBe('/fr/artisan/dashboard')
+    })
+  })
 })

@@ -1,4 +1,4 @@
-# GitHub Actions — Workflows installés (17)
+# GitHub Actions — Workflows installés (18)
 
 ## Règles communes (lot 6 Aikido, 28/10/2026 — `zizmor .github/workflows` à 0 finding High/Medium)
 - `permissions: {}` au niveau du workflow (ou `contents: read` seul) ; les droits d'écriture sont déclarés par job, jamais `write-all` ni `read-all`.
@@ -25,6 +25,7 @@
 - `i18n.yml` — Comparaison clés FR/PT (warning si manquantes).
 - `langfuse-eval.yml` — Éval nocturne qualité IA (crée issue si qualité < 0.7).
 - `release.yml` — Release Please (changelog auto, préfixes : `feat` / `fix` / `ai` / `voice` / `perf`) ; `contents: write` et `pull-requests: write` sur le seul job `release`.
+- `mobile-android.yml` — APK de test (debug) de l'appli Vitfix Pro : sur les PR qui touchent `android/**`, `mobile/**`, `capacitor.config.ts`, `package.json` ou le lockfile, et à la demande (`workflow_dispatch`). Artefact `vitfix-pro-apk-test` (14 jours), signé avec la clé de debug du runner : jamais publiable sur Google Play. JDK 21 du runner (`JAVA_HOME_21_X64`), `cap` lancé depuis `node_modules/.bin` (pas de `npx`).
 
 ## Automatisations (cron, manuel)
 - `crons.yml` — Crons quotidiens (ex-wrangler.toml).

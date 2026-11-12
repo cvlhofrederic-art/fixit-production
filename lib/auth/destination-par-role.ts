@@ -17,16 +17,25 @@
 // cabinet (vitfix.io/<identifiant>/suivi/, repère de routage), ou vers la connexion de l'espace (message neutre) sans
 // repère. Valeurs écrites ici pour garder le module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie
 // qu'elles sont celles de lib/aj-signalement/acces-espace.ts (ROLE_GESTIONNAIRE_QR, CHEMIN_ESPACE_QR).
+//
+// Dans l'appli Vitfix Pro (option appMobile, voir lib/app-mobile.ts), seul l'artisan change de destination : il
+// retrouve l'espace mobile /{locale}/pro/mobile. Les autres rôles gardent la leur : l'espace mobile ne lit que la fiche
+// profiles_artisan (séparation artisan / BTP, .claude/rules/artisan-vs-btp.md).
 
 const ROLES_PRO: readonly string[] = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
 
 const ROLE_GESTIONNAIRE_SIGNALEMENT = 'gestionnaire_signalement'
 const ESPACE_AJ_SIGNALEMENT = '/fr/aj-signalement/'
 
-export function destinationApresConnexion(role: unknown, locale: string): string {
+export interface OptionsDestination {
+  /** Connexion faite dans l'appli Vitfix Pro (et non dans un navigateur). */
+  appMobile?: boolean
+}
+
+export function destinationApresConnexion(role: unknown, locale: string, options: OptionsDestination = {}): string {
   // Garde de type : app_metadata.role est typé `any` côté Supabase ; une valeur non textuelle suit le cas par défaut.
   const roleTexte = typeof role === 'string' ? role : undefined
-  if (roleTexte === 'artisan') return `/${locale}/artisan/dashboard`
+  if (roleTexte === 'artisan') return options.appMobile ? `/${locale}/pro/mobile` : `/${locale}/artisan/dashboard`
   if (roleTexte !== undefined && ROLES_PRO.includes(roleTexte)) return `/${locale}/pro/dashboard`
   if (roleTexte !== undefined && roleTexte.startsWith('syndic')) return `/${locale}/syndic/dashboard`
   if (roleTexte === ROLE_GESTIONNAIRE_SIGNALEMENT) return ESPACE_AJ_SIGNALEMENT

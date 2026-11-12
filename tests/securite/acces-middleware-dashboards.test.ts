@@ -165,6 +165,42 @@ describe('/pro/dashboard (inchangé)', () => {
   })
 })
 
+// Départ de l'appli Vitfix Pro (capacitor.config.ts : server.url + appStartPath '/pro/mobile/').
+describe('/{locale}/pro/mobile — espace mobile des artisans', () => {
+  it('départ sans langue : redirige vers la langue du pays', async () => {
+    for (const [pays, attendu] of [['FR', '/fr/pro/mobile/'], ['PT', '/pt/pro/mobile/']]) {
+      const reponse = await middleware(new NextRequest('https://vitfix.io/pro/mobile/', { headers: { 'cf-ipcountry': pays } }))
+      expect(reponse.status).toBe(302)
+      expect(new URL(reponse.headers.get('location') ?? '').pathname).toBe(attendu)
+    }
+  })
+
+  it('redirige un visiteur non connecté vers la connexion', async () => {
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/auth/login' })
+  })
+
+  it('laisse passer un artisan', async () => {
+    connecte('artisan')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  // Règle n° 1 artisan / BTP : une société BTP a aussi une fiche profiles_artisan, seule vérification de la page.
+  it.each(['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'])('renvoie un compte %s vers /pro/dashboard', async (role) => {
+    connecte(role)
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ statut: 307, vers: '/fr/pro/dashboard' })
+    expect(await visiter('/pt/pro/mobile')).toMatchObject({ statut: 307, vers: '/pt/pro/dashboard' })
+  })
+
+  it('renvoie client, syndic et copropriétaire vers leur espace', async () => {
+    connecte('client')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/client/dashboard' })
+    connecte('syndic')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/syndic/dashboard' })
+    connecte('coproprio')
+    expect(await visiter('/fr/pro/mobile/')).toMatchObject({ vers: '/fr/coproprietaire/dashboard' })
+  })
+})
+
 describe('/admin/dashboard', () => {
   it('redirige un visiteur non connecté vers /admin/login, sans préfixe de langue', async () => {
     expect(await visiter('/admin/dashboard/')).toMatchObject({ statut: 307, vers: '/admin/login' })

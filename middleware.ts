@@ -529,7 +529,10 @@ export async function middleware(request: NextRequest) {
       if (strippedPathname.startsWith('/client/dashboard') || strippedPathname.startsWith('/syndic/dashboard')) {
         return localeRedirect('/pro/dashboard')
       }
-      if (strippedPathname.startsWith('/artisan/dashboard')) {
+      // /pro/mobile : espace mobile des seuls artisans (règle n° 1 artisan / BTP). Une société BTP a aussi une fiche
+      // profiles_artisan, la seule chose que la page vérifie : elle y verrait et modifierait l'espace artisan.
+      // L'appli Vitfix Pro démarre sur /pro/mobile/ : sans cette garde, chaque ouverture d'un compte BTP y menait.
+      if (strippedPathname.startsWith('/artisan/dashboard') || strippedPathname.startsWith('/pro/mobile')) {
         return localeRedirect('/pro/dashboard')
       }
     }

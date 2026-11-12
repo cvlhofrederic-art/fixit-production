@@ -8,9 +8,9 @@ import { formatPrice } from '@/lib/utils'
 import { COMPLIANCE_TYPES, getComplianceStatus, type ComplianceDoc, type InterventionProof } from '@/components/pro-mobile/conformite'
 import RapportIABandeau from '@/components/pro-mobile/RapportIABandeau'
 
-// API base : '' en web (Workers SSR), 'https://vitfix.io' au build mobile
-// Capacitor (export statique) via NEXT_PUBLIC_API_URL. Le runtime
-// capacitor://localhost ne peut pas résoudre les paths /api/ relatifs.
+// API base : '' en web (Workers SSR) comme dans l'appli Vitfix Pro, qui affiche le site
+// (capacitor.config.ts) : fetch relatif. NEXT_PUBLIC_API_URL ne servait qu'à l'ancien
+// export statique Capacitor (abandonné le 12/11/2026).
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
 
 // ─── Props ────────────────────────────────────────────────────────────────────
