@@ -197,9 +197,10 @@ CREATE TABLE IF NOT EXISTS signalements_qr_diffusion_destinataires (
   signalement_source_id UUID REFERENCES signalements_qr(id) ON DELETE SET NULL,  -- adresse relue ici au moment d'envoyer
   etat                  TEXT NOT NULL DEFAULT 'en_attente'
                         CHECK (etat IN ('en_attente', 'en_cours', 'envoye', 'refuse', 'annule', 'incertain')),
+  -- deja_annoncee : message d'annonce (H1) écarté, l'adresse ayant été annoncée depuis sa création (une seule annonce).
   code                  TEXT CHECK (code IS NULL OR code IN ('adresse_refusee', 'adresse_absente', 'adresse_changee',
                                                              'opposition', 'diffusion_inactive', 'limite_service',
-                                                             'quota_service', 'perime', 'issue_inconnue')),
+                                                             'quota_service', 'perime', 'issue_inconnue', 'deja_annoncee')),
   lot                   INTEGER,
   tentatives            SMALLINT NOT NULL DEFAULT 0,
   tente_le              TIMESTAMPTZ,
@@ -296,7 +297,10 @@ $fn$;
 -- ignorée ; une ligne par adresse normalisée (celle du signalement le plus récent du périmètre) ; oppositions actives de
 -- CETTE copropriété signalées (oppose), jamais levées par un nouveau dépôt.
 -- Annonce (H1 = option C) : message ordinaire → adresses incluses (accusé, ou message d'annonce parti depuis 15 jours) ;
--- message d'annonce (p_annonce) → adresses jamais annoncées, une seule fois.
+-- message d'annonce (p_annonce) → adresses jamais annoncées, une seule fois (condition 5 de la note : « une seule
+-- annonce, sans relance ») : ni datées, ni visées par une autre annonce de la copropriété encore en attente, en cours,
+-- envoyée ou incertaine (peut-être partie). Seule une annonce qui n'a pas pu partir (refusée ou annulée : périmée,
+-- copropriété inactive, opposition) laisse l'adresse à annoncer.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_cible(
   p_copropriete uuid, p_portee text, p_batiments text[], p_etages text[], p_signalement uuid,
   p_jusqu_au timestamptz, p_annonce boolean
@@ -331,7 +335,12 @@ LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
                   WHERE o.copropriete_id = p_copropriete AND o.email_empreinte = c.empreinte AND o.levee_le IS NULL)
     FROM choisis c
     LEFT JOIN annonces a ON a.empreinte = c.empreinte
-   WHERE CASE WHEN p_annonce THEN a.empreinte IS NULL ELSE coalesce(a.incluse, false) END
+   WHERE CASE WHEN p_annonce THEN a.empreinte IS NULL
+                AND NOT EXISTS (SELECT 1 FROM signalements_qr_diffusion_destinataires y
+                                  JOIN signalements_qr_diffusions e ON e.id = y.diffusion_id
+                                 WHERE y.copropriete_id = p_copropriete AND y.email_empreinte = c.empreinte
+                                   AND e.modele = 'annonce' AND y.etat IN ('en_attente', 'en_cours', 'envoye', 'incertain'))
+              ELSE coalesce(a.incluse, false) END
    ORDER BY c.empreinte, c.created_at DESC, c.id
 $fn$;
 
@@ -488,12 +497,16 @@ END $fn$;
 -- ── 10. Envoi par lots ──
 
 -- Lignes d'un lot qui ne peuvent plus partir : opposition active (annule, opposition) ; signalement source supprimé ou
--- adresse dont l'empreinte a changé (refuse, adresse_absente / adresse_changee). Rend le nombre de lignes écartées.
+-- adresse dont l'empreinte a changé (refuse, adresse_absente / adresse_changee) ; message d'annonce dont l'adresse a été
+-- annoncée depuis sa création (annule, deja_annoncee : condition 5 de la note, une seule annonce) — un signalement de
+-- l'adresse est daté (accusé d'un nouveau dépôt, autre annonce partie), ou une autre annonce de la copropriété l'a en
+-- cours, envoyée ou incertaine. Rend le nombre de lignes écartées.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_ecarter(p_ids uuid[]) RETURNS integer
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
   v_opposees integer;
   v_adresses integer;
+  v_annoncees integer;
 BEGIN
   UPDATE signalements_qr_diffusion_destinataires x SET etat = 'annule', code = 'opposition'
    WHERE x.id = ANY (p_ids) AND x.etat IN ('en_attente', 'en_cours')
@@ -509,7 +522,21 @@ BEGIN
    WHERE q.id = x.id AND x.etat IN ('en_attente', 'en_cours')
      AND (q.source_id IS NULL OR signalements_qr_empreinte_email(q.email) <> x.email_empreinte);
   GET DIAGNOSTICS v_adresses = ROW_COUNT;
-  RETURN v_opposees + v_adresses;
+  -- Adresse cherchée par idx_signalements_qr_copro_empreinte et idx_signalements_qr_diffusion_dest_boite.
+  UPDATE signalements_qr_diffusion_destinataires x SET etat = 'annule', code = 'deja_annoncee'
+    FROM signalements_qr_diffusions d
+   WHERE d.id = x.diffusion_id AND d.modele = 'annonce'
+     AND x.id = ANY (p_ids) AND x.etat IN ('en_attente', 'en_cours')
+     AND (EXISTS (SELECT 1 FROM signalements_qr s
+                   WHERE s.copropriete_id = x.copropriete_id AND s.diffusion_annoncee_le IS NOT NULL
+                     AND signalements_qr_empreinte_email(s.email) = x.email_empreinte)
+          OR EXISTS (SELECT 1 FROM signalements_qr_diffusion_destinataires y
+                       JOIN signalements_qr_diffusions e ON e.id = y.diffusion_id
+                      WHERE y.copropriete_id = x.copropriete_id AND y.email_empreinte = x.email_empreinte
+                        AND y.diffusion_id <> x.diffusion_id AND e.modele = 'annonce'
+                        AND y.etat IN ('en_cours', 'envoye', 'incertain')));
+  GET DIAGNOSTICS v_annoncees = ROW_COUNT;
+  RETURN v_opposees + v_adresses + v_annoncees;
 END $fn$;
 
 -- Réserve le lot suivant d'une diffusion (au plus p_taille lignes) et rend l'adresse relue de chaque ligne :
@@ -519,7 +546,8 @@ END $fn$;
 --   - lot interrompu (en cours depuis plus de 10 minutes) : chaque ligne revérifiée ; toutes éligibles → rejoué à
 --     l'identique (même numéro, reprise = true) ; sinon les inéligibles sont écartées et les autres partent sous un
 --     NOUVEAU numéro (nouvelle clé : jamais un message après une opposition) ;
---   - sinon, lignes en attente : oppositions et adresses revérifiées, le reste en cours sous un nouveau numéro.
+--   - sinon, lignes en attente : oppositions, adresses et (message d'annonce) annonce déjà faite revérifiées
+--     (signalements_qr_diffusion_ecarter), le reste en cours sous un nouveau numéro.
 -- La ligne de la diffusion est le verrou : un seul appel à la fois par diffusion (lots et résultats).
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_lot(p_diffusion uuid, p_taille integer)
 RETURNS TABLE(destinataire_id uuid, email text, lot integer, reprise boolean)

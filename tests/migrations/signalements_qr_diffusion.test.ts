@@ -343,7 +343,7 @@ describe(`Migration ${FICHIER} : tables de la diffusion`, () => {
     expect(trie(valeursListe(bloc, /CHECK \(etat IN/))).toEqual(trie(['en_attente', 'en_cours', 'envoye', 'refuse', 'annule', 'incertain']))
     expect(trie(valeursListe(bloc, /code IS NULL OR code IN/))).toEqual(trie([
       'adresse_refusee', 'adresse_absente', 'adresse_changee', 'opposition', 'diffusion_inactive', 'limite_service',
-      'quota_service', 'perime', 'issue_inconnue',
+      'quota_service', 'perime', 'issue_inconnue', 'deja_annoncee',
     ]))
     expect(bloc).not.toMatch(/\bemail\s+TEXT/i)
   })

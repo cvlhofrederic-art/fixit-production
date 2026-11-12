@@ -1032,6 +1032,102 @@ describe('H1 : coût du message d’annonce (base dédiée, statistiques réelle
   }, 300_000)
 })
 
+// Condition 5 de la note (droit.md, option C) : « une seule annonce, sans relance ».
+describe('H1 = option C, condition 5 : une seule annonce par adresse, jamais deux', () => {
+  /** Annonce de la copropriété : nombre d'adresses de l'aperçu. */
+  const apercuAnnonce = async (cop: string) => (await apercu(cop, { annonce: true })).lignes[0].nb_destinataires
+
+  it('annonce créée, pas encore partie : une nouvelle annonce ne compte plus ces adresses (aperçu 0, création aucun_destinataire)', async () => {
+    const { cop } = await immeuble(0)
+    await depot(cop, { email: 'ancien1@exemple.test', annonce: null, ilYa: '30 days' })
+    await depot(cop, { email: 'ancien2@exemple.test', annonce: null, ilYa: '30 days' })
+    const a = await creerOk(cop, { modele: 'annonce' })
+    expect(a.nb_destinataires).toBe(2)
+    expect(await apercuAnnonce(cop)).toBe(0)
+    expect((await creer(cop, { modele: 'annonce' })).erreur?.message).toBe('aucun_destinataire')
+    await lot(a.diffusion_id)                                               // lot réservé, résultat pas encore reçu
+    expect(await apercuAnnonce(cop)).toBe(0)
+    // Une adresse que l'annonce A ne visait pas reste à annoncer.
+    await depot(cop, { email: 'ancien3@exemple.test', annonce: null, ilYa: '2 days' })
+    expect(await apercuAnnonce(cop)).toBe(1)
+  })
+
+  it.each([
+    ['en_attente', null, 0], ['en_cours', null, 0], ['envoye', null, 0], ['incertain', 'issue_inconnue', 0],
+    ['refuse', 'adresse_refusee', 1], ['annule', 'perime', 1], ['annule', 'diffusion_inactive', 1],
+  ] as const)('ligne d’annonce « %s » (%s) : l’adresse compte %i fois dans une nouvelle annonce', async (etat, code, attendu) => {
+    const { cop } = await immeuble(0)
+    await depot(cop, { email: 'ancien@exemple.test', annonce: null, ilYa: '30 days' })
+    const a = await creerOk(cop, { modele: 'annonce' })
+    // État posé directement (sans datation) : seule la ligne de l'annonce A décide.
+    await q(`UPDATE signalements_qr_diffusion_destinataires SET etat = $2, code = $3, lot = 1, tente_le = now(),
+               envoye_le = CASE WHEN $2 = 'envoye' THEN now() END WHERE diffusion_id = $1`, [a.diffusion_id, etat, code])
+    expect(await apercuAnnonce(cop)).toBe(attendu)
+  })
+
+  it('adresse annoncée par un accusé après la création de l’annonce : le lot ne la sert pas (annule, deja_annoncee), ni à la reprise', async () => {
+    const { cop } = await immeuble(0)
+    for (const email of ['ancien@exemple.test', 'autre@exemple.test', 'troisieme@exemple.test']) {
+      await depot(cop, { email, annonce: null, ilYa: '30 days' })
+    }
+    const a = await creerOk(cop, { modele: 'annonce' })
+    // Nouveau dépôt de la même personne : son accusé lui a annoncé la diffusion (art. 13.4), l'annonce ne repart pas.
+    await depot(cop, { email: 'Ancien@exemple.test', annonce: 'accuse', ilYa: '0' })
+    const attendu = await emailDuPremierEnAttente(a.diffusion_id, ['ancien@exemple.test'])
+    const premier = await lot(a.diffusion_id, 1)
+    expect(premier.map((l) => l.email)).toEqual([attendu])
+    const ancien = await destinataireDe(a.diffusion_id, 'ancien@exemple.test')
+    // Lot interrompu : l'adresse servie entre-temps par un accusé est écartée, le reste repart sous un nouveau numéro.
+    await q("UPDATE signalements_qr_diffusion_destinataires SET tente_le = now() - interval '11 minutes' WHERE diffusion_id = $1 AND etat = 'en_cours'", [a.diffusion_id])
+    await depot(cop, { email: premier[0].email, annonce: 'accuse', ilYa: '0' })
+    expect(await lot(a.diffusion_id, 1)).toHaveLength(1)
+    const e = new Map((await etats(a.diffusion_id)).map((x) => [x.id, `${x.etat}:${x.code}`]))
+    expect(e.get(ancien)).toBe('annule:deja_annoncee')
+    expect(e.get(premier[0].destinataire_id)).toBe('annule:deja_annoncee')
+    expect([...e.values()].filter((v) => v === 'en_cours:null')).toHaveLength(1)
+  })
+
+  it('deux annonces visent la même adresse (état simulé) : la première partie, le lot de la seconde ne la sert pas', async () => {
+    const { cop } = await immeuble(0)
+    await depot(cop, { email: 'ancien@exemple.test', annonce: null, ilYa: '30 days' })
+    const a = await creerOk(cop, { modele: 'annonce' })
+    const [b] = await q<{ id: string }>(
+      `INSERT INTO signalements_qr_diffusions (copropriete_id, cabinet_id, operation_id, acteur_id, acteur_profil,
+         instruction_reference, instruction_recue_le, modele, langue, fige_cabinet_nom, fige_cabinet_identifiant,
+         fige_copropriete_nom, fige_contact_email, fige_politique_url, fige_expediteur, perimetre_jusqu_au, objet, texte,
+         portee, libelle_perimetre, nb_destinataires)
+       SELECT copropriete_id, cabinet_id, gen_random_uuid(), acteur_id, acteur_profil, instruction_reference,
+              instruction_recue_le, modele, langue, fige_cabinet_nom, fige_cabinet_identifiant, fige_copropriete_nom,
+              fige_contact_email, fige_politique_url, fige_expediteur, perimetre_jusqu_au, objet, texte, portee,
+              libelle_perimetre, nb_destinataires
+         FROM signalements_qr_diffusions WHERE id = $1 RETURNING id`, [a.diffusion_id])
+    await q(`INSERT INTO signalements_qr_diffusion_destinataires (diffusion_id, copropriete_id, email_empreinte, signalement_source_id)
+             SELECT $2, copropriete_id, email_empreinte, signalement_source_id FROM signalements_qr_diffusion_destinataires
+              WHERE diffusion_id = $1`, [a.diffusion_id, b.id])
+    expect((await envoyerLot(a.diffusion_id)).map((l) => l.email)).toEqual(['ancien@exemple.test'])
+    // Même si la datation des signalements manquait, la ligne envoyée de A suffit à ne pas réannoncer.
+    await q("UPDATE signalements_qr SET diffusion_annoncee_le = NULL, diffusion_annonce_origine = NULL WHERE copropriete_id = $1", [cop])
+    expect(await lot(b.id)).toEqual([])
+    expect((await etats(b.id)).map((x) => `${x.etat}:${x.code}`)).toEqual(['annule:deja_annoncee'])
+  })
+
+  it('message ordinaire : une adresse déjà annoncée part normalement (la règle ne vaut que pour l’annonce)', async () => {
+    const { cop } = await immeuble(2)
+    const d = await creerOk(cop)
+    expect(await envoyerLot(d.diffusion_id)).toHaveLength(2)
+  })
+})
+
+/** Adresse de la première ligne en attente (ordre du lot : identifiant) hors des adresses écartées. */
+async function emailDuPremierEnAttente(diffusion: string, ecartees: string[]): Promise<string> {
+  const lignes = await q<{ email: string }>(
+    `SELECT lower(btrim(s.email)) AS email FROM signalements_qr_diffusion_destinataires x
+       JOIN signalements_qr s ON s.id = x.signalement_source_id
+      WHERE x.diffusion_id = $1 AND x.etat = 'en_attente' AND NOT (lower(btrim(s.email)) = ANY ($2::text[]))
+      ORDER BY x.id LIMIT 1`, [diffusion, ecartees])
+  return lignes[0]?.email ?? ''
+}
+
 describe('conservation et purge (§ 2.5, H10)', () => {
   it('opposition active de plus de 3 ans : supprimée sans signalement restant de l’adresse, gardée sinon ; levée : 3 ans après la levée', async () => {
     const { cop } = await immeuble(2)
