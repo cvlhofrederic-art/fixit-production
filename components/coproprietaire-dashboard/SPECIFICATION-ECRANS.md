@@ -257,7 +257,8 @@ Le tableau de bord des signalements déposés par QR code n'est plus un écran d
 page de connexion professionnelle **/fr/aj-signalement/connexion/** (11/11/2026 : e-mail et mot de passe, sans choix
 Particulier / Artisan / Pro ni Google ; `components/aj-signalement/espace/ConnexionEspaceQr.tsx`). La page de connexion
 générale (`/fr/auth/login/`) n'est pas concernée. Accès : `lib/aj-signalement/acces-espace.ts` (super admin aujourd'hui,
-« vue en tant que » comprise ; le rôle gestionnaire s'y ajoutera), contrôlé par le middleware puis par la garde du navigateur
+SAUF en « vue en tant que » depuis le 11/11/2026, comme les routes de l'API ; le rôle gestionnaire s'y ajoutera),
+contrôlé par le middleware puis par la garde du navigateur
 (sans session ou sans accès : page de connexion de l'espace, message neutre pour un compte sans accès) ; les routes
 `/api/aj-signalement/*` restent réservées au super admin.
 

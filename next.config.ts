@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 // Chemin dédié à la configuration : l'import depuis « @sentry/nextjs » est déprécié depuis Sentry 10.73 et disparaît en v11.
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { EXTENSIONS_HORS_MIDDLEWARE, POLITIQUE_CSP } from "./lib/securite/csp";
+import { SOURCE_IDENTIFIANT_CABINET_QR } from "./lib/aj-signalement/chemin-cabinet";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const withBundleAnalyzer = require("@next/bundle-analyzer")({
   enabled: process.env.ANALYZE === "true",
@@ -114,6 +115,13 @@ const nextConfig: NextConfig = {
         // qui renvoie elle-même vers /pt/ les visiteurs en/nl/es (docs/auth-liens-email.md).
         { source: '/:locale(en|nl|es)/auth/confirm', destination: '/auth/confirm' },
         { source: '/:locale(en|nl|es)/auth/confirm/', destination: '/auth/confirm/' },
+        // AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/…, lib/aj-signalement/chemin-cabinet.ts),
+        // laissé sans langue par le middleware (même motif). Deux paramètres capturés : la destination est toujours compilée
+        // par OpenNext (jamais littérale). Pages internes app/(commun)/cabinet/[identifiant]/…, joignables seulement ainsi.
+        // Paire avec et sans barre finale pour la confirmation, comme les règles exactes ci-dessus.
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`, destination: '/cabinet/:identifiant/signalement/:jeton' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`, destination: '/cabinet/:identifiant/confirmation-adresse' },
+        { source: `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`, destination: '/cabinet/:identifiant/confirmation-adresse/' },
       ],
       afterFiles: [],
       fallback: [],
@@ -317,6 +325,16 @@ const nextConfig: NextConfig = {
       // Espace AJ Signalement (super admin), page de connexion comprise : jamais indexable. Les redirections du middleware
       // portent le même en-tête (middleware.ts, viseEspacePrive).
       ...['/:locale(fr|pt)/aj-signalement/:path*', '/aj-signalement/:path*'].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      })),
+      // Chemin public d'un cabinet client et ses pages internes : le jeton est l'adresse du formulaire, jamais indexée
+      // (le middleware pose le même en-tête sur sa réponse).
+      ...[
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:path*`,
+        `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/:path*`,
+        '/cabinet/:path*',
+      ].map((source) => ({
         source,
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
       })),

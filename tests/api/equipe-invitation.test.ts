@@ -71,7 +71,8 @@ const routes = {
 }
 
 interface CasEspace {
-  espace: EspaceEquipe
+  // Espaces à routes d'équipe (pro, syndic) ; aj_signalement (11/11/2026) n'a ni route /team ni /invite en PR 1.
+  espace: Exclude<EspaceEquipe, 'aj_signalement'>
   table: string
   colonneEquipe: string
   role: string

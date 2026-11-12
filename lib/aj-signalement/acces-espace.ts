@@ -3,14 +3,22 @@
 // Espace indépendant du portail copropriétaire et de l'Administrateur judiciaire (demande de Hugo du 10/11/2026) :
 // une adresse à lui (/fr/aj-signalement/), son menu, sa page de connexion professionnelle (/fr/aj-signalement/connexion/,
 // demande de Hugo du 11/11/2026 : e-mail et mot de passe, sans choix Particulier / Artisan / Pro). Aujourd'hui seul le
-// super admin y entre (y compris en « vue en tant que », _original_role) ; chaque gestionnaire y aura plus tard sa
-// page : il suffira d'ajouter son rôle à RoleEspaceQr, une branche à roleEspaceQr et ses entrées de menu
-// (« Gestionnaires » pour le super admin).
+// super admin y entre, PAS en « vue en tant que » (_original_role) depuis le 11/11/2026 : même règle que les routes
+// (isSuperAdmin, #650) ; chaque gestionnaire y aura plus tard sa page : il suffira d'ajouter son rôle à RoleEspaceQr,
+// une branche à roleEspaceQr et ses entrées de menu. Le super admin a, depuis le 11/11/2026, les vues Gestionnaires
+// (page profil à l'ancre #gestionnaire/<uuid>), Cabinets et Journal.
 //
 // Module pur, sans aucune dépendance : importé par le middleware (edge), la page de connexion de l'espace, l'espace
 // lui-même et les liens du portail et de l'AJ. Seul app_metadata est lu (posé côté serveur), jamais user_metadata. Ces
 // décisions ne donnent aucun droit : les routes /api/aj-signalement/* revérifient le super admin côté serveur
-// (controlerSuperAdmin). La page de connexion générale de VitFix (/fr/auth/login/) n'en dépend pas.
+// (controlerAccesQr, rôle ET liste d'e-mails ADMIN_EMAIL, que le navigateur ne connaît pas). La page de connexion
+// générale de VitFix (/fr/auth/login/) n'en dépend pas.
+// La portée d'un gestionnaire et ses droits sur une copropriété (fin du fichier) sont calculés ici aussi, sur des
+// données relues en base par le serveur à chaque appel : c'est la seule fonction d'accès d'AJ Signalement.
+
+import type {
+  CoproDroitsQr, DroitsCoproprieteQr, FicheDroitsQr, PorteeQr, ProfilDroitsQr,
+} from '@/lib/aj-signalement/types'
 
 /** Segment de l'espace, sans préfixe de langue (servi par réécriture depuis /fr/ et /pt/, next.config.ts). */
 export const SEGMENT_ESPACE_QR = '/aj-signalement'
@@ -66,7 +74,9 @@ const estObjet = (valeur: unknown): valeur is Record<string, unknown> =>
 /** Rôle de l'espace d'après app_metadata ; null : aucun accès. */
 function roleEspaceQr(metadonnees: MetadonneesApp): RoleEspaceQr | null {
   if (!estObjet(metadonnees)) return null
-  if (metadonnees.role === 'super_admin' || metadonnees._original_role === 'super_admin') return 'super_admin'
+  // La « vue en tant que » (_original_role) n'entre pas : sinon un super admin en vue d'emprunt verrait la coquille de
+  // l'espace et un 403 à chaque appel des routes.
+  if (metadonnees.role === 'super_admin') return 'super_admin'
   return null
 }
 
@@ -91,10 +101,16 @@ export function lienEspaceQr(appMetadata: MetadonneesApp): string | null {
 
 // ── Menu ─────────────────────────────────────────────────────────────────────
 
-/** Vues de l'espace, chacune à son ancre (#signalements…). Plus tard : 'gestionnaires' (super admin). */
-export type VueEspaceQr = 'tableau-de-bord' | 'coproprietes' | 'signalements'
+/**
+ * Vues de l'espace, chacune à son ancre (#signalements…). Depuis le 11/11/2026 (demandes de Hugo du 10/11) : les fiches
+ * des gestionnaires (page profil à l'ancre #gestionnaire/<uuid>), les cabinets clients et le journal (super admin).
+ */
+export type VueEspaceQr = 'tableau-de-bord' | 'coproprietes' | 'signalements' | 'gestionnaires' | 'cabinets' | 'journal'
 
 export const VUE_PAR_DEFAUT_QR: VueEspaceQr = 'tableau-de-bord'
+
+/** Vues servies par l'instance unique de TableauSignalementsQr (un seul chargement du tableau). */
+export const VUES_TABLEAU_QR: readonly VueEspaceQr[] = ['tableau-de-bord', 'coproprietes', 'signalements']
 
 export interface EntreeMenuQr {
   vue: VueEspaceQr
@@ -102,28 +118,54 @@ export interface EntreeMenuQr {
   sousTitre: string
   /** Rôles qui voient l'entrée. */
   roles: readonly RoleEspaceQr[]
+  /** Présente dans la barre du bas du téléphone (5 places au plus). */
+  barreDuBas: boolean
 }
 
 export const ENTREES_MENU_QR: readonly EntreeMenuQr[] = [
-  { vue: 'tableau-de-bord', libelle: 'Tableau de bord', sousTitre: 'Vue d’ensemble des signalements reçus par QR code', roles: ['super_admin'] },
-  { vue: 'coproprietes', libelle: 'Copropriétés', sousTitre: 'QR codes, affiches et destinataires des e-mails', roles: ['super_admin'] },
-  { vue: 'signalements', libelle: 'Signalements', sousTitre: 'Signalements reçus, détail et suivi', roles: ['super_admin'] },
-  // Place réservée : « Gestionnaires » (super admin), quand le rôle gestionnaire existera.
+  { vue: 'tableau-de-bord', libelle: 'Tableau de bord', sousTitre: 'Vue d’ensemble des signalements reçus par QR code', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'coproprietes', libelle: 'Copropriétés', sousTitre: 'QR codes, affiches, gestionnaires et destinataires des e-mails', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'signalements', libelle: 'Signalements', sousTitre: 'Signalements reçus, détail et suivi', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'gestionnaires', libelle: 'Gestionnaires', sousTitre: 'Fiches, adresses confirmées, copropriétés attribuées et page de suivi', roles: ['super_admin'], barreDuBas: true },
+  { vue: 'cabinets', libelle: 'Cabinets', sousTitre: 'Cabinets clients : adresse vitfix.io/<identifiant>/ et domaines e-mail', roles: ['super_admin'], barreDuBas: true },
+  // Journal : barre latérale seulement (barre du bas pleine), joignable depuis la vue Cabinets.
+  { vue: 'journal', libelle: 'Journal', sousTitre: 'Actions du super admin et des gestionnaires (12 mois)', roles: ['super_admin'], barreDuBas: false },
 ]
 
 /** Entrées du menu visibles pour un rôle, dans l'ordre. */
 export const entreesMenuQr = (role: RoleEspaceQr): EntreeMenuQr[] => ENTREES_MENU_QR.filter((entree) => entree.roles.includes(role))
 
-/** Vue d'une ancre (« #signalements » ou « signalements ») pour un rôle ; vide, inconnue ou non permise : la vue par défaut. */
-export function vueDepuisAncreQr(ancre: string, role: RoleEspaceQr): VueEspaceQr {
-  const nom = ancre.replace(/^#/, '')
-  return entreesMenuQr(role).find((entree) => entree.vue === nom)?.vue ?? VUE_PAR_DEFAUT_QR
+/** Entrées de la barre du bas du téléphone pour un rôle. */
+export const entreesBarreDuBasQr = (role: RoleEspaceQr): EntreeMenuQr[] => entreesMenuQr(role).filter((entree) => entree.barreDuBas)
+
+/** Vue désignée par une ancre, et la fiche ouverte pour la page profil d'un gestionnaire. */
+export interface AncreEspaceQr {
+  vue: VueEspaceQr
+  gestionnaireId: string | null
 }
 
-/** Vue exactement désignée par l'ancre, sans repli (arrivée après connexion) ; null si l'ancre n'en désigne aucune. */
-function vueExacteQr(ancre: string | null | undefined, role: RoleEspaceQr): VueEspaceQr | null {
+/** Page profil : « gestionnaire/<uuid> » en minuscules, rien d'autre (jamais de chemin ni de suite). */
+const ANCRE_GESTIONNAIRE_QR = /^gestionnaire\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/
+
+/**
+ * Ancre exactement reconnue pour un rôle (« #cabinets », « cabinets », « #gestionnaire/<uuid> ») ; null si elle ne
+ * désigne aucune vue de ce rôle (lien d'évitement #main-content, ancre inconnue ou avec une suite).
+ */
+export function ancreEspaceQr(ancre: string | null | undefined, role: RoleEspaceQr): AncreEspaceQr | null {
   const nom = (ancre ?? '').replace(/^#/, '')
-  return entreesMenuQr(role).find((entree) => entree.vue === nom)?.vue ?? null
+  const vues = entreesMenuQr(role).map((entree) => entree.vue)
+  const profil = ANCRE_GESTIONNAIRE_QR.exec(nom)
+  if (profil) return vues.includes('gestionnaires') ? { vue: 'gestionnaires', gestionnaireId: profil[1] } : null
+  const vue = vues.find((v) => v === nom)
+  return vue ? { vue, gestionnaireId: null } : null
+}
+
+/** Ancre à poser dans l'adresse, sans « # » : la vue, ou « gestionnaire/<uuid> » pour une page profil. */
+export const texteAncreQr = (a: AncreEspaceQr): string => (a.gestionnaireId ? `gestionnaire/${a.gestionnaireId}` : a.vue)
+
+/** Vue d'une ancre (« #signalements » ou « signalements ») pour un rôle ; vide, inconnue ou non permise : la vue par défaut. */
+export function vueDepuisAncreQr(ancre: string, role: RoleEspaceQr): VueEspaceQr {
+  return ancreEspaceQr(ancre, role)?.vue ?? VUE_PAR_DEFAUT_QR
 }
 
 /**
@@ -132,7 +174,7 @@ function vueExacteQr(ancre: string | null | undefined, role: RoleEspaceQr): VueE
  */
 export function vueApresRetourQr(ancre: string, role: RoleEspaceQr): VueEspaceQr | null {
   if (ancre.replace(/^#/, '') === '') return VUE_PAR_DEFAUT_QR
-  return vueExacteQr(ancre, role)
+  return ancreEspaceQr(ancre, role)?.vue ?? null
 }
 
 // ── Connexion professionnelle de l'espace ────────────────────────────────────
@@ -175,8 +217,8 @@ export function redirectionEspaceQr(
 export function destinationConnexionEspaceQr(espace: string, ancre: string | null | undefined, appMetadata: MetadonneesApp): string | null {
   const role = roleEspaceQr(appMetadata)
   if (!role) return null
-  const vue = vueExacteQr(ancre, role)
-  return vue ? `${espace}#${vue}` : espace
+  const a = ancreEspaceQr(ancre, role)
+  return a ? `${espace}#${texteAncreQr(a)}` : espace
 }
 
 // ── Textes ───────────────────────────────────────────────────────────────────
@@ -197,3 +239,48 @@ export const TEXTES_ESPACE_QR = {
   /** Compte connecté sans accès (page de connexion de l'espace) : ne nomme aucun rôle, n'affiche aucune donnée. */
   sansAcces: 'Cet espace n’est pas accessible avec votre compte.',
 } as const
+
+// ── Portée d'un gestionnaire et droits sur une copropriété (SPEC § 1.5, RG-05) ──────────────────────────────────
+//
+// Q1 (Hugo, 10/11/2026) : les droits suivent l'attribution, même pour le créateur d'une copropriété. Q2 : « attribuée à
+// tous » (copropriété de test) donne la lecture, le statut et les e-mails à tous les gestionnaires actifs de SON
+// cabinet, jamais la modification de la fiche. En PR 1, seul le super admin se connecte : la page de suivi qu'il voit
+// pour un gestionnaire est calculée par porteeGestionnaireQr ; les droits d'un gestionnaire connecté viennent en PR 2.
+
+/** Portée vide (aucune copropriété) : ensembles neufs à chaque appel. */
+export const porteeVideQr = (): PorteeQr => ({ visibles: new Set<string>(), modifiables: new Set<string>() })
+
+/**
+ * Portée d'une fiche relue en base : fiche inactive → rien ; sinon, parmi les copropriétés de SON cabinet seulement,
+ * visibles = attributions explicites ∪ « à tous », modifiables = attributions explicites (origine « creation »
+ * comprise). Une attribution vers une copropriété d'un autre cabinet, sans cabinet ou inconnue ne donne rien.
+ */
+export function porteeGestionnaireQr(
+  fiche: FicheDroitsQr, copros: readonly CoproDroitsQr[], attributions: ReadonlySet<string>,
+): PorteeQr {
+  const portee = { visibles: new Set<string>(), modifiables: new Set<string>() }
+  if (!fiche.actif) return portee
+  for (const copro of copros) {
+    if (copro.cabinetId === null || copro.cabinetId !== fiche.cabinetId) continue
+    if (attributions.has(copro.id)) {
+      portee.visibles.add(copro.id)
+      portee.modifiables.add(copro.id)
+    } else if (copro.attribueeATous) {
+      portee.visibles.add(copro.id)
+    }
+  }
+  return portee
+}
+
+const AUCUN_DROIT_QR: DroitsCoproprieteQr = { voir: false, changerStatut: false, modifierFiche: false, administrer: false }
+
+/**
+ * Droits d'un profil sur une copropriété (matrice SPEC § 1.5) : super admin, tout ; gestionnaire, voir et changer le
+ * statut dans sa portée, modifier la fiche si elle lui est attribuée explicitement, jamais administrer ; aucun, rien.
+ * L'existence de la copropriété (404) est vérifiée par la route.
+ */
+export function droitsSurCoproprieteQr(profil: ProfilDroitsQr, coproId: string, portee: PorteeQr): DroitsCoproprieteQr {
+  if (profil === 'super_admin') return { voir: true, changerStatut: true, modifierFiche: true, administrer: true }
+  if (profil !== 'gestionnaire' || !portee.visibles.has(coproId)) return { ...AUCUN_DROIT_QR }
+  return { voir: true, changerStatut: true, modifierFiche: portee.modifiables.has(coproId), administrer: false }
+}

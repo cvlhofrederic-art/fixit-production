@@ -14,7 +14,7 @@ interface LienAjSignalementProps {
 
 /**
  * Lien vers l'espace indépendant « AJ Signalement » (/fr/aj-signalement/), rendu SEULEMENT pour un compte qui y a accès
- * (aujourd'hui le super admin, y compris en « vue en tant que » : lienEspaceQr, app_metadata seulement) ; rien tant
+ * (aujourd'hui le super admin, pas sa « vue en tant que », refusée par l'espace : lienEspaceQr, app_metadata seulement) ; rien tant
  * que la session n'est pas lue, rien pour les autres comptes. Aucune donnée chargée : l'espace et ses routes
  * revérifient l'accès.
  */

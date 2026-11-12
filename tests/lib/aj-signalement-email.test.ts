@@ -9,21 +9,28 @@
 // canonique (sans sous-adresse « + » ; sans points et en gmail.com pour Gmail).
 // Adresses masquées dans ce que la route écrit au logger : mêmes remplacements que l'ancienne expression régulière,
 // en temps linéaire (retour SonarCloud S8786 de la PR 669).
+// Depuis le 11/11/2026 (gestionnaires, SPEC § 1.7) : UN message par destinataire par sendBatchEmails (personne ne voit
+// les autres adresses), contenu selon le type (administrateur : bouton de l'espace ; gestionnaire sans accès et adresse
+// saisie : pas de bouton), repli un par un (20 au plus) si le lot est refusé, résumé d'erreur sans adresse ni texte du
+// service ; e-mail de confirmation d'adresse d'un gestionnaire et alertes au super admin, tout échappé.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHash } from 'node:crypto'
 
+type Lot = Array<{ to: string | string[]; subject: string; html: string; replyTo?: string; tags?: Array<{ name: string; value: string }> }>
 const h = vi.hoisted(() => ({
   sendEmail: vi.fn<(charge: unknown) => Promise<{ success: boolean; id?: string; error?: string }>>(async () => ({ success: true, id: 'mail-1' })),
+  sendBatchEmails: vi.fn<(lot: Lot) => Promise<{ sent: number; failed: number; errors: string[] }>>(async (lot) => ({ sent: lot.length, failed: 0, errors: [] })),
 }))
-vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail }))
+vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail, sendBatchEmails: h.sendBatchEmails }))
 
 import {
-  FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, boiteCanoniqueConfirmationQr, cleLimiteConfirmationQr, envoyerConfirmationQr,
-  envoyerEmailSignalementQr, echapperHtml, masquerEmailsQr, sujetConfirmationQr, sujetSignalementQr, templateConfirmationQr,
-  templateSignalementQr,
+  ALERTE_ADRESSE_CONTESTEE_QR, FENETRE_CONFIRMATIONS_MS, LIMITE_CONFIRMATIONS_PAR_ADRESSE, REPLIS_UN_PAR_UN_MAX_QR, boiteCanoniqueConfirmationQr,
+  cleLimiteConfirmationQr, envoyerAlerteAdministrateurQr, envoyerConfirmationAdresseQr, envoyerConfirmationQr, envoyerEmailsSignalementQr,
+  echapperHtml, masquerEmailsQr, resumeErreurEnvoiQr, sujetConfirmationQr, sujetSignalementQr, templateAlerteAdministrateurQr,
+  templateConfirmationAdresseQr, templateConfirmationQr, templateSignalementQr,
 } from '@/lib/aj-signalement/email'
-import type { SignalementQr } from '@/lib/aj-signalement/types'
+import type { DestinataireQr, SignalementQr } from '@/lib/aj-signalement/types'
 
 function signalement(sur: Partial<SignalementQr> = {}): SignalementQr {
   return {
@@ -42,7 +49,11 @@ function signalement(sur: Partial<SignalementQr> = {}): SignalementQr {
 
 const copropriete = { nom: 'Parc Belle Ombre', adresse: '12 allée des Pins, 13009 Marseille' }
 
-beforeEach(() => h.sendEmail.mockClear())
+beforeEach(() => {
+  h.sendEmail.mockClear()
+  h.sendBatchEmails.mockClear()
+  h.sendBatchEmails.mockImplementation(async (lot) => ({ sent: lot.length, failed: 0, errors: [] }))
+})
 
 describe('objet et contenu', () => {
   it('objet : URGENT en tête quand le déclarant indique une urgence, puis type, copropriété, lot', () => {
@@ -72,16 +83,124 @@ describe('objet et contenu', () => {
   })
 })
 
-describe('envoi', () => {
-  it('sendEmail reçoit les destinataires, l’objet, le HTML et la réponse directe au déclarant', async () => {
-    const resultat = await envoyerEmailSignalementQr({ destinataires: ['admin@vitfix.io', 'cabinet@example.com'], copropriete, signalement: signalement() })
-    expect(resultat).toEqual({ success: true, id: 'mail-1' })
-    expect(h.sendEmail).toHaveBeenCalledTimes(1)
-    const appel = h.sendEmail.mock.calls[0][0] as { to: string[]; subject: string; html: string; replyTo: string; tags: Array<{ name: string; value: string }> }
-    expect(appel.to).toEqual(['admin@vitfix.io', 'cabinet@example.com'])
-    expect(appel.subject).toContain('URGENT')
-    expect(appel.replyTo).toBe('marie.durand@example.com')
-    expect(appel.tags).toEqual([{ name: 'type', value: 'aj-signalement' }])
+describe('envoi : un message par destinataire', () => {
+  const dest = (email: string, type: DestinataireQr['type']): DestinataireQr => ({ email, type, accesOuvert: false })
+  const DESTINATAIRES = [dest('admin@vitfix.io', 'administrateur'), dest('cs@exemple.test', 'saisi'), dest('marie.exemple@exemple.test', 'gestionnaire')]
+
+  it('un seul appel de sendBatchEmails, un `to` par message, même objet, réponse directe au déclarant ; jamais sendEmail', async () => {
+    const bilan = await envoyerEmailsSignalementQr({ destinataires: DESTINATAIRES, copropriete, signalement: signalement() })
+    expect(bilan).toEqual({ envoyes: 3, refuses: 0, total: 3 })
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    expect(h.sendBatchEmails).toHaveBeenCalledTimes(1)
+    const lot = h.sendBatchEmails.mock.calls[0][0]
+    expect(lot.map((m) => m.to)).toEqual(['admin@vitfix.io', 'cs@exemple.test', 'marie.exemple@exemple.test'])
+    for (const m of lot) {
+      expect(m.subject).toContain('URGENT')
+      expect(m.replyTo).toBe('marie.durand@example.com')
+      expect(m.tags).toEqual([{ name: 'type', value: 'aj-signalement' }])
+      for (const autre of lot.filter((x) => x !== m)) expect(m.html).not.toContain(String(autre.to))
+    }
+  })
+
+  it('contenu selon le destinataire : bouton de l’espace pour l’administrateur seul ; gestionnaire : « Le cabinet suit… »', async () => {
+    await envoyerEmailsSignalementQr({ destinataires: DESTINATAIRES, copropriete, signalement: signalement(), origine: 'https://vitfix.io' })
+    const [admin, saisi, gestionnaire] = h.sendBatchEmails.mock.calls[0][0]
+    expect(admin.html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
+    expect(saisi.html).not.toContain('aj-signalement/#')
+    expect(saisi.html).toContain('Répondre à cet e-mail écrit directement au déclarant.')
+    expect(gestionnaire.html).not.toContain('aj-signalement/#')
+    expect(gestionnaire.html).toContain('Le cabinet suit ce signalement dans AJ Signalement.')
+  })
+
+  it('mention des signalements retenus pendant la limite d’envoi, sans leur contenu', async () => {
+    await envoyerEmailsSignalementQr({ destinataires: DESTINATAIRES.slice(0, 1), copropriete, signalement: signalement(), mention: '2 autres signalements reçus pendant la limite d’envoi : à consulter dans AJ Signalement.' })
+    expect(h.sendBatchEmails.mock.calls[0][0][0].html).toContain('2 autres signalements reçus pendant la limite d’envoi')
+  })
+
+  it('lot refusé : renvoi un par un, chaque refus compté ; aucune exception', async () => {
+    h.sendBatchEmails
+      .mockResolvedValueOnce({ sent: 0, failed: 3, errors: ['Invalid `to`: cs@exemple.test'] })
+      .mockResolvedValueOnce({ sent: 1, failed: 0, errors: [] })
+      .mockResolvedValueOnce({ sent: 0, failed: 1, errors: ['Invalid `to`: cs@exemple.test'] })
+      .mockRejectedValueOnce(new Error('réseau'))
+    const bilan = await envoyerEmailsSignalementQr({ destinataires: DESTINATAIRES, copropriete, signalement: signalement() })
+    expect(bilan).toEqual({ envoyes: 1, refuses: 2, total: 3 })
+    expect(h.sendBatchEmails.mock.calls.map((c) => c[0].length)).toEqual([3, 1, 1, 1])
+  })
+
+  it('repli un par un borné à 20 messages : au-delà, comptés refusés sans nouvel appel', async () => {
+    expect(REPLIS_UN_PAR_UN_MAX_QR).toBe(20)
+    const nombreux = Array.from({ length: 25 }, (_, i) => dest(`g${i}@exemple.test`, 'gestionnaire'))
+    h.sendBatchEmails.mockResolvedValueOnce({ sent: 0, failed: 25, errors: ['refus'] })
+    const bilan = await envoyerEmailsSignalementQr({ destinataires: nombreux, copropriete, signalement: signalement() })
+    expect(h.sendBatchEmails).toHaveBeenCalledTimes(21)
+    expect(bilan).toEqual({ envoyes: 20, refuses: 5, total: 25 })
+  })
+
+  it('aucun destinataire : aucun appel', async () => {
+    expect(await envoyerEmailsSignalementQr({ destinataires: [], copropriete, signalement: signalement() })).toEqual({ envoyes: 0, refuses: 0, total: 0 })
+    expect(h.sendBatchEmails).not.toHaveBeenCalled()
+  })
+
+  it('résumé d’erreur : sans adresse ni texte du service ; null si tout est parti', () => {
+    expect(resumeErreurEnvoiQr({ envoyes: 5, refuses: 2, total: 7 })).toBe('2 envoi(s) sur 7 refusé(s) par le service d’e-mail')
+    expect(resumeErreurEnvoiQr({ envoyes: 3, refuses: 0, total: 3 })).toBeNull()
+  })
+})
+
+describe('confirmation d’adresse d’un gestionnaire (SPEC § 1.7.3)', () => {
+  const LIEN = 'https://vitfix.io/cabinet-exemple/confirmation-adresse/#jeton'
+
+  it('objet et corps nomment la personne et le cabinet ; « Ce n’est pas moi » ; 7 jours ; mention RGPD ; aucune donnée de signalement', () => {
+    const { subject, html } = templateConfirmationAdresseQr({ nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })
+    expect(subject).toBe('AJ Signalement — Cabinet Exemple : confirmez votre adresse')
+    expect(html).toContain('Bonjour Marie E.,')
+    expect(html).toContain('Cabinet Exemple vous a désigné(e) comme gestionnaire dans AJ Signalement.')
+    expect(html).toContain('Ce lien est valable 7 jours.')
+    expect(html).toContain('Vous n’êtes pas Marie E., gestionnaire chez Cabinet Exemple ?')
+    expect(html).toContain('Ce n’est pas moi')
+    expect(html).toContain('(VitFix, sous-traitant)')
+    expect(html).toContain('https://vitfix.io/fr/confidentialite/')
+    expect(html).toContain(`href="${LIEN}"`)
+  })
+
+  it('tout est échappé (nom ou cabinet contenant du HTML)', () => {
+    const { subject, html } = templateConfirmationAdresseQr({ nomCourt: '<script>x</script>', cabinet: 'A & B "Cabinet"', lien: LIEN })
+    expect(html).not.toContain('<script>x</script>')
+    expect(html).toContain('&lt;script&gt;')
+    expect(html).toContain('A &amp; B &quot;Cabinet&quot;')
+    expect(subject).toBe('AJ Signalement — A & B "Cabinet" : confirmez votre adresse')
+  })
+
+  it('envoi par sendBatchEmails à la seule adresse de la fiche ; vrai si parti, faux sinon (sans lever)', async () => {
+    expect(await envoyerConfirmationAdresseQr({ email: 'marie.exemple@exemple.test', nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })).toBe(true)
+    expect(h.sendBatchEmails.mock.calls[0][0]).toEqual([expect.objectContaining({ to: 'marie.exemple@exemple.test', tags: [{ name: 'type', value: 'aj-signalement-adresse' }] })])
+    expect(h.sendEmail).not.toHaveBeenCalled()
+    h.sendBatchEmails.mockResolvedValueOnce({ sent: 0, failed: 1, errors: ['refus'] })
+    expect(await envoyerConfirmationAdresseQr({ email: 'marie.exemple@exemple.test', nomCourt: 'Marie E.', cabinet: 'Cabinet Exemple', lien: LIEN })).toBe(false)
+  })
+})
+
+describe('alertes au super admin', () => {
+  it('un message par adresse ADMIN_EMAIL(_2), sans nom ni adresse de personne ; lien vers l’espace', async () => {
+    const env = { ADMIN_EMAIL: 'Admin@Exemple.test', ADMIN_EMAIL_2: 'second@exemple.test' }
+    const bilan = await envoyerAlerteAdministrateurQr({ ...ALERTE_ADRESSE_CONTESTEE_QR, lien: 'https://vitfix.io/fr/aj-signalement/#gestionnaires' }, env)
+    expect(bilan).toEqual({ envoyes: 2, refuses: 0, total: 2 })
+    const lot = h.sendBatchEmails.mock.calls[0][0]
+    expect(lot.map((m) => m.to)).toEqual(['admin@exemple.test', 'second@exemple.test'])
+    expect(lot[0].subject).toBe('AJ Signalement — adresse de gestionnaire contestée')
+    expect(lot[0].html).toContain('Une adresse de gestionnaire a été contestée par son destinataire')
+  })
+
+  it('aucune adresse d’administrateur : aucun appel', async () => {
+    expect(await envoyerAlerteAdministrateurQr({ ...ALERTE_ADRESSE_CONTESTEE_QR, lien: 'https://vitfix.io/fr/aj-signalement/' }, {})).toEqual({ envoyes: 0, refuses: 0, total: 0 })
+    expect(h.sendBatchEmails).not.toHaveBeenCalled()
+  })
+
+  it('gabarit échappé', () => {
+    const { html } = templateAlerteAdministrateurQr({ objet: 'o', texte: '<b>x</b>', lien: 'https://vitfix.io/?a=1&b=2' })
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;')
+    expect(html).toContain('href="https://vitfix.io/?a=1&amp;b=2"')
   })
 })
 

@@ -224,7 +224,6 @@ describe('compte admis : arrivée dans l’espace', () => {
     ['super admin arrivé par le lien de l’e-mail', '/fr/aj-signalement/connexion/', '#signalements', { role: 'super_admin' }, '/fr/aj-signalement/#signalements'],
     ['super admin, ancre qui ne désigne aucune vue', '/fr/aj-signalement/connexion/', '#admin', { role: 'super_admin' }, '/fr/aj-signalement/'],
     ['super admin en portugais', '/pt/aj-signalement/connexion/', '', { role: 'super_admin' }, '/pt/aj-signalement/'],
-    ['« vue en tant que »', '/fr/aj-signalement/connexion/', '', { role: 'coproprio', _original_role: 'super_admin' }, '/fr/aj-signalement/'],
   ])('%s : remplacement de l’adresse (« retour » ne ramène pas au formulaire)', async (_cas, chemin, ancre, app, destination) => {
     simulerLocation(chemin, ancre)
     simul.signInWithPassword.mockResolvedValue(connexionReussie(app))
@@ -255,6 +254,7 @@ describe('compte sans accès : message neutre, session fermée (portée locale),
     ['copropriétaire', { role: 'coproprio' }, {}],
     ['syndic', { role: 'syndic' }, {}],
     ['copropriétaire au user_metadata trafiqué', { role: 'coproprio' }, { role: 'super_admin', _original_role: 'super_admin' }],
+    ['« vue en tant que » ouverte par un super admin', { role: 'coproprio', _original_role: 'super_admin' }, {}],
   ])('compte %s', async (_cas, app, user) => {
     simul.signInWithPassword.mockResolvedValue(connexionReussie(app, user))
     await rendre()

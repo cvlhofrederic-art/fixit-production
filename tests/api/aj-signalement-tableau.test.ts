@@ -6,7 +6,10 @@
 //   PATCH /api/aj-signalement/coproprietes/[id] — modification, nouveau jeton ;
 //   PATCH /api/aj-signalement/signalements/[id] — statut.
 // Droits : jeton Bearer (getAuthUser) puis cookies (createServerSupabaseClient) ; 401 sans session, 403 sans
-// être super admin. estSuperAdmin est simulé (allowlist d'e-mails du déploiement).
+// être super admin. isSuperAdmin est simulé (rôle et allowlist d'e-mails du déploiement, lib/auth-helpers.ts).
+// Ce fichier simule la production AVANT la migration du 11/11/2026 (gestionnaires) : ses tables répondent 42P01 et
+// ses fonctions PGRST202 ; les routes gardent alors leur contrat (tests/api/aj-signalement-tableau-gestion.test.ts
+// couvre la base migrée).
 // Colonnes du 06/11/2026 (confirmation, qualité, adresse proposée, lien) : tant que leurs migrations ne sont pas
 // appliquées, la base répond 42703 ; le tableau est alors relu par select('*') (liste blanche), journalisé une fois.
 // Dernière adresse proposée : calculée pour une copropriété sans adresse seulement.
@@ -35,19 +38,30 @@ const h = vi.hoisted(() => {
     let enMaj = false
     let insertion: Record<string, unknown> | null = null
     let colonnesSelect = ''
-    for (const m of ['order', 'limit']) q[m] = () => q
+    // Tables de la migration du 11/11/2026 (cabinets, gestionnaires, attributions, journal…) : absentes ici.
+    const connue = table === 'signalements_qr' || table === 'signalements_qr_coproprietes'
+    const absente = { data: null, error: { code: '42P01', message: `relation "${table}" does not exist` } }
+    for (const m of ['order', 'limit', 'range', 'is', 'in', 'not', 'neq', 'lt', 'gte', 'or', 'contains']) q[m] = () => q
     q.select = (colonnes?: string) => {
       if (typeof colonnes === 'string') { etat.colonnesLues.push({ table, colonnes }); colonnesSelect = colonnes }
       return q
     }
     q.eq = (col: string, val: unknown) => { if (enMaj) maj.filtres.push([col, val]); return q }
-    q.insert = (ligne: Record<string, unknown>) => { insertion = ligne; etat.insertions.push({ table, ...ligne }); return q }
-    q.update = (ligne: Record<string, unknown>) => { enMaj = true; maj.valeurs = ligne; etat.misesAJour.push(maj); return q }
-    q.single = async () => (etat.erreur
-      ? { data: null, error: etat.erreur }
-      : { data: { id: 'c0000000-0000-4000-8000-000000000009', created_at: '2026-11-04T10:00:00.000Z', actif: true, adresse: '', emails_destinataires: [], ...insertion }, error: null })
-    q.maybeSingle = async () => (etat.erreur ? { data: null, error: etat.erreur } : { data: etat.ligneMaj, error: null })
+    q.insert = (ligne: Record<string, unknown>) => { insertion = ligne; if (connue) etat.insertions.push({ table, ...ligne }); return q }
+    q.update = (ligne: Record<string, unknown>) => { enMaj = true; maj.valeurs = ligne; if (connue) etat.misesAJour.push(maj); return q }
+    q.delete = () => q
+    q.single = async () => {
+      if (!connue) return absente
+      return etat.erreur
+        ? { data: null, error: etat.erreur }
+        : { data: { id: 'c0000000-0000-4000-8000-000000000009', created_at: '2026-11-04T10:00:00.000Z', actif: true, adresse: '', emails_destinataires: [], ...insertion }, error: null }
+    }
+    q.maybeSingle = async () => {
+      if (!connue) return absente
+      return etat.erreur ? { data: null, error: etat.erreur } : { data: etat.ligneMaj, error: null }
+    }
     q.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => {
+      if (!connue) return Promise.resolve(absente).then(ok, ko)
       if (table === 'signalements_qr' && etat.erreurSignalements) return Promise.resolve({ data: null, error: etat.erreurSignalements }).then(ok, ko)
       if (table === 'signalements_qr' && !etat.erreur) {
         // Comme PostgREST : une colonne nommée qui n'existe pas → 42703 ; select('*') rend les colonnes présentes.
@@ -71,13 +85,18 @@ vi.mock('@/lib/rate-limit', () => ({
   getClientIP: vi.fn(() => '127.0.0.1'),
   rateLimitResponse: vi.fn(() => Response.json({ error: 'rate' }, { status: 429 })),
 }))
-vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (table: string) => h.from(table) } }))
+vi.mock('@/lib/supabase-server', () => ({
+  supabaseAdmin: {
+    from: (table: string) => h.from(table),
+    // Fonctions de la migration du 11/11/2026 : absentes (PGRST202).
+    rpc: async (nom: string) => ({ data: null, error: { code: 'PGRST202', message: `Could not find the function public.${nom}` } }),
+  },
+}))
 vi.mock('@/lib/supabase-server-component', () => ({
   createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: h.etat.userCookie } }) } })),
 }))
-vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.userBearer) }))
-vi.mock('@/lib/coproprietaire/acces', () => ({ estSuperAdmin: vi.fn(() => h.etat.superAdmin) }))
-vi.mock('@/lib/email', () => ({ sendEmail: vi.fn() }))
+vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.userBearer), isSuperAdmin: vi.fn(() => h.etat.superAdmin) }))
+vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(), sendBatchEmails: vi.fn() }))
 
 const { GET } = await import('@/app/api/aj-signalement/tableau/route')
 const { POST } = await import('@/app/api/aj-signalement/coproprietes/route')
@@ -179,6 +198,10 @@ describe('GET tableau', () => {
         id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 2, nbEnAttente: 1,
         // Copropriété sans adresse : le signalement le plus récent qui porte une adresse proposée.
         derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-03T08:59:00.000Z' },
+        // Champs ajoutés le 11/11/2026 (migration absente ici : valeurs par défaut, compteurs calculés sur les signalements lus).
+        cabinet: null, codePostal: '', ville: '', immatriculation: null, referenceCabinet: null, batiments: [], attribueeATous: false,
+        gestionnaires: [], creePar: 'administrateur', ouverts: 1, urgentsOuverts: 1, attente48h: expect.any(Number),
+        dernier: '2026-11-04T14:05:00.000Z', adressesDeGestionnaires: 0,
       },
       expect.objectContaining({ nom: 'Les Oliviers', actif: false, emailsDestinataires: ['o@example.com'], nbSignalements: 0, nbEnAttente: 0, derniereAdresseProposee: null }),
     ])
@@ -198,7 +221,8 @@ describe('GET tableau', () => {
     // L'état de la confirmation, la qualité, l'adresse proposée et le lien sont lus avec le reste du signalement.
     const lecture = h.etat.colonnesLues.find((l) => l.table === 'signalements_qr' && l.colonnes.includes('email_erreur'))
     for (const colonne of COLONNES_NOUVELLES) expect(lecture?.colonnes).toContain(colonne)
-    expect(h.warn).not.toHaveBeenCalled()
+    // Aucun repli des colonnes du 06/11/2026 (ceux de la migration du 11/11/2026, absente ici, sont attendus).
+    expect(h.warn.mock.calls.filter((c) => String(c[0]).includes('06/11/2026'))).toEqual([])
   })
 
   it('dernière adresse proposée : jamais pour une copropriété dont l’adresse est renseignée ; qualité inconnue en base → null', async () => {
@@ -221,7 +245,8 @@ describe('GET tableau', () => {
 })
 
 describe('GET tableau : repli tant que les migrations du 06/11/2026 ne sont pas appliquées', () => {
-  const avertissementsRepli = () => h.warn.mock.calls.filter((c) => String(c[0]).includes('repli'))
+  // Replis des migrations du 06/11/2026 seulement (ceux de la migration du 11/11/2026 sont comptés à part).
+  const avertissementsRepli = () => h.warn.mock.calls.filter((c) => String(c[0]).includes('repli') && String(c[0]).includes('06/11/2026'))
 
   it.each(COLONNES_NOUVELLES)('colonne %s absente (42703) : relu par select(*), 200, champ à sa valeur vide, journalisé une fois', async (colonne) => {
     h.etat.colonnesAbsentes = [colonne]
@@ -263,14 +288,16 @@ describe('GET tableau : repli tant que les migrations du 06/11/2026 ne sont pas 
 })
 
 describe('POST coproprietes', () => {
+  // Fonction de création absente (migration du 11/11/2026 non appliquée) : insertion d'origine. Nom distinct des
+  // copropriétés existantes : une homonyme serait désormais un doublon probable (SPEC § 1.6).
   it('crée la copropriété avec un jeton de 32 hexadécimaux, l’auteur et les e-mails en minuscules', async () => {
-    const res = await POST(requete('/api/aj-signalement/coproprietes', json({ nom: 'Parc Belle Ombre', adresse: 'Marseille', emailsDestinataires: ['Cabinet@Example.com'] })))
+    const res = await POST(requete('/api/aj-signalement/coproprietes', json({ nom: 'Villa Exemple', adresse: 'Marseille', emailsDestinataires: ['Cabinet@Example.com'] })))
     expect(res.status).toBe(201)
     expect(h.etat.insertions).toHaveLength(1)
-    expect(h.etat.insertions[0]).toMatchObject({ table: 'signalements_qr_coproprietes', nom: 'Parc Belle Ombre', adresse: 'Marseille', emails_destinataires: ['cabinet@example.com'], cree_par: ADMIN.id })
+    expect(h.etat.insertions[0]).toMatchObject({ table: 'signalements_qr_coproprietes', nom: 'Villa Exemple', adresse: 'Marseille', emails_destinataires: ['cabinet@example.com'], cree_par: ADMIN.id })
     expect(h.etat.insertions[0].jeton).toMatch(/^[0-9a-f]{32}$/)
     const { copropriete } = await res.json()
-    expect(copropriete).toMatchObject({ nom: 'Parc Belle Ombre', jeton: h.etat.insertions[0].jeton, nbSignalements: 0 })
+    expect(copropriete).toMatchObject({ nom: 'Villa Exemple', jeton: h.etat.insertions[0].jeton, nbSignalements: 0 })
   })
 
   it('400 sans nom', async () => {
@@ -317,11 +344,12 @@ describe('PATCH signalements/[id]', () => {
   const contexte = (id: string) => ({ params: Promise.resolve({ id }) })
 
   it('change le statut et renvoie la date de mise à jour', async () => {
-    h.etat.ligneMaj = { id: ID_SIGNALEMENT, statut: 'acceptee', updated_at: '2026-11-04T15:00:00.000Z' }
+    // P1-R7 (11/11/2026) : la copropriété du signalement est lue avant, l'écriture est conditionnée par elle.
+    h.etat.ligneMaj = { id: ID_SIGNALEMENT, copropriete_id: ID_COPRO, statut: 'acceptee', updated_at: '2026-11-04T15:00:00.000Z' }
     const res = await PATCH_SIGNALEMENT(requete(`/api/aj-signalement/signalements/${ID_SIGNALEMENT}`, json({ statut: 'acceptee' }, 'PATCH')), contexte(ID_SIGNALEMENT))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ signalement: { id: ID_SIGNALEMENT, statut: 'acceptee', misAJourLe: '2026-11-04T15:00:00.000Z' } })
-    expect(h.etat.misesAJour[0]).toMatchObject({ table: 'signalements_qr', valeurs: { statut: 'acceptee' }, filtres: [['id', ID_SIGNALEMENT]] })
+    expect(await res.json()).toEqual({ signalement: { id: ID_SIGNALEMENT, statut: 'acceptee', misAJourLe: '2026-11-04T15:00:00.000Z', statutModifieLe: null } })
+    expect(h.etat.misesAJour[0]).toMatchObject({ table: 'signalements_qr', valeurs: { statut: 'acceptee' }, filtres: [['id', ID_SIGNALEMENT], ['copropriete_id', ID_COPRO]] })
   })
 
   it('statut inconnu → 400 ; signalement inconnu → 404 ; sans session → 401', async () => {
