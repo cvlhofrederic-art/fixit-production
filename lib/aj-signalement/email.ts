@@ -17,9 +17,19 @@
 //     sendEmail écrit l'erreur brute du service dans la console (lib/email.ts).
 // PR 2, lot 5 (RG-25) : un gestionnaire à l'accès ouvert reçoit le bouton « Ouvrir le suivi » (espace de son cabinet,
 // /<identifiant>/suivi/#signalements, aucun jeton) au lieu de la phrase « Le cabinet suit ce signalement… ».
+// PR 3, lot 4 (diffusion aux déclarants) : message d'information sur l'immeuble AU NOM DU CABINET, avec ses en-têtes de
+// désinscription, et copie au cabinet (section « Diffusion aux déclarants », en fin de fichier).
 
+import { z } from 'zod'
+import { NOREPLY_EMAIL } from '@/lib/constants'
 import { sendBatchEmails, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { MODELES_DIFFUSION_QR, type ModeleDiffusionQr } from '@/lib/aj-signalement/affichage-diffusion'
+import {
+  FORMAT_JETON_DIFFUSION_QR, identifiantCabinetLienValideQr, urlPageDesinscriptionQr, urlUnClicDesinscriptionQr,
+} from '@/lib/aj-signalement/diffusion-lien'
+import { nettoyerLigneDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
+import type { PorteeDiffusionQr } from '@/lib/aj-signalement/diffusion-valeurs'
 import {
   CHEMIN_TABLEAU_QR, numeroSignalementQr, type BilanEnvoiQr, type DestinataireQr, type LangueSignalementQr, type PrioriteSignalementQr,
   type QualiteDeclarantQr, type SignalementQr, type TypeDestinataireQr,
@@ -129,8 +139,11 @@ function blocDescription(libelle: string, descriptionHtml: string): string {
           <div style="padding:14px 16px;background:#F7F4EE;border-radius:12px;font-size:15px;line-height:1.55;color:#0D1B2E;">${descriptionHtml}</div>`
 }
 
-/** Cadre commun aux deux e-mails : bandeau « AJ SIGNALEMENT » et titre, contenu, pied de page. Contenus déjà échappés. */
-function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corpsHtml: string; piedHtml: string }): string {
+/**
+ * Cadre commun des e-mails : bandeau (« AJ SIGNALEMENT » par défaut ; nom du cabinet pour une diffusion, PR 3) et
+ * titre, contenu, pied de page. Contenus déjà échappés.
+ */
+function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corpsHtml: string; piedHtml: string; bandeauHtml?: string }): string {
   return `<!DOCTYPE html>
 <html lang="${p.langue}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -139,7 +152,7 @@ function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corps
     <tr><td align="center">
       <table width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
         <tr><td style="background:#0D1B2E;padding:24px 32px;">
-          <span style="color:#C9A84C;font-size:13px;font-weight:700;letter-spacing:1.5px;">AJ SIGNALEMENT</span><br/>
+          <span style="color:#C9A84C;font-size:13px;font-weight:700;letter-spacing:1.5px;">${p.bandeauHtml ?? 'AJ SIGNALEMENT'}</span><br/>
           <span style="color:#FFFFFF;font-size:22px;font-weight:700;">${p.titreHtml}</span>
         </td></tr>
         <tr><td style="padding:28px 32px;">
@@ -573,4 +586,489 @@ export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promis
     html,
     tags: [{ name: 'type', value: 'aj-signalement-confirmation' }],
   })
+}
+
+// ── Diffusion aux déclarants (PR 3, lot 4) ───────────────────────────────────
+//
+// Cahier PR 3 § 5.1 (enveloppe), § 5.2 (gabarit), § 5.6 (copie au cabinet), § 3.8 et décision H1 (message d'annonce
+// unique, même gabarit). Le message est écrit AU NOM DU CABINET : bandeau, signature, pied, nom d'affichage et Reply-To
+// sont ceux du cabinet. VitFix et « AJ Signalement » n'y sont nommés nulle part (droit § 4.1 : ni auteur apparent, ni
+// promotion d'un prestataire ; VitFix est nommé dans la politique du cabinet, comme sous-traitant). Le domaine
+// technique vitfix.io n'apparaît que dans l'adresse du lien de désinscription et, tant que le cabinet ne donne pas ses
+// DNS, dans l'adresse d'expédition (F6).
+// Sortie DÉTERMINISTE : seules les valeurs figées de la diffusion (fige_*, objet, texte, libellé du périmètre) et les
+// jetons signés, recalculés à l'identique (diffusion-lien.ts), y entrent ; aucune date de génération. Un lot rejoué
+// produit donc le même contenu, condition de l'idempotence du service d'e-mail (§ 5.5).
+// Exactement deux liens : le bouton de désinscription (jeton de PAGE, dans le fragment) et la politique de
+// confidentialité du cabinet ; le jeton UN CLIC n'est que dans l'en-tête List-Unsubscribe (RFC 8058). Aucune image,
+// aucun pixel. Toute valeur est échappée ; le texte est échappé PUIS ses retours deviennent <br/>.
+// Textes portugais proposés, à relire par Hugo (H4) ; tant que H9 est ouverte, seul le français est activé (D-R8).
+// Brouillon : gabarit et copie soumis à l'accord de Frédéric (F1).
+
+/** Portées d'une diffusion (colonne signalements_qr_diffusions.portee). */
+const PORTEES_DIFFUSION_QR = ['copropriete', 'batiment', 'etage', 'signalement'] as const satisfies readonly PorteeDiffusionQr[]
+
+/** Valeurs figées d'une diffusion (signalements_qr_diffusions), seules sources du message. */
+export interface DiffusionFigeeQr {
+  /** signalements_qr_diffusions.id (étiquette « diffusion »). */
+  id: string
+  /** Langue du cabinet, figée à la création. */
+  langue: LangueSignalementQr
+  modele: ModeleDiffusionQr
+  /** fige_cabinet_nom : bandeau, signature, pied. */
+  cabinetNom: string
+  /** fige_cabinet_identifiant : chemin de la page de désinscription. */
+  cabinetIdentifiant: string
+  coproprieteNom: string
+  /** fige_contact_email : Reply-To et contact affiché. */
+  contactEmail: string
+  /** fige_politique_url : politique de confidentialité du cabinet (https). */
+  politiqueUrl: string
+  /** fige_expediteur : « "Nom du cabinet" <adresse> » (expediteurDiffusionQr, à la création). */
+  expediteur: string
+  objet: string
+  texte: string
+  portee: PorteeDiffusionQr
+  /** Libellé du périmètre gardé à la création (libellePerimetreDiffusionQr) : « Bâtiment B · 3e étage ». */
+  libellePerimetre: string
+  /** created_at : date d'envoi écrite dans la copie au cabinet. */
+  creeLe: string
+  nbDestinataires: number
+  acteurProfil: 'super_admin' | 'gestionnaire'
+  /** Super admin : référence et date (AAAA-MM-JJ) de l'instruction écrite du cabinet. */
+  instructionReference: string | null
+  instructionRecueLe: string | null
+}
+
+const FORMAT_UUID_DIFFUSION_QR = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const FORMAT_JOUR_QR = /^\d{4}-\d{2}-\d{2}$/
+
+const ligneDiffusionQrSchema = z.object({
+  id: z.string().regex(FORMAT_UUID_DIFFUSION_QR),
+  langue: z.enum(['fr', 'pt']),
+  modele: z.enum(MODELES_DIFFUSION_QR),
+  fige_cabinet_nom: z.string(),
+  fige_cabinet_identifiant: z.string(),
+  fige_copropriete_nom: z.string(),
+  fige_contact_email: z.string(),
+  fige_politique_url: z.string(),
+  fige_expediteur: z.string(),
+  objet: z.string(),
+  texte: z.string(),
+  portee: z.enum(PORTEES_DIFFUSION_QR),
+  libelle_perimetre: z.string(),
+  created_at: z.string().refine((v) => !Number.isNaN(Date.parse(v))),
+  nb_destinataires: z.number().int().min(1),
+  acteur_profil: z.enum(['super_admin', 'gestionnaire']),
+  instruction_reference: z.string().nullish(),
+  instruction_recue_le: z.string().regex(FORMAT_JOUR_QR).nullish(),
+}).refine((l) => l.acteur_profil !== 'super_admin' || (!!l.instruction_reference && !!l.instruction_recue_le))
+
+/**
+ * Ligne de signalements_qr_diffusions (colonnes ci-dessus ; les autres sont ignorées) → valeurs figées du message.
+ * null si une colonne manque ou sort de ses valeurs (la route journalise et n'envoie rien).
+ */
+export function diffusionFigeeDepuisLigneQr(ligne: unknown): DiffusionFigeeQr | null {
+  const lu = ligneDiffusionQrSchema.safeParse(ligne)
+  if (!lu.success) return null
+  const l = lu.data
+  return {
+    id: l.id.toLowerCase(),
+    langue: l.langue,
+    modele: l.modele,
+    cabinetNom: l.fige_cabinet_nom,
+    cabinetIdentifiant: l.fige_cabinet_identifiant,
+    coproprieteNom: l.fige_copropriete_nom,
+    contactEmail: l.fige_contact_email,
+    politiqueUrl: l.fige_politique_url,
+    expediteur: l.fige_expediteur,
+    objet: l.objet,
+    texte: l.texte,
+    portee: l.portee,
+    libellePerimetre: l.libelle_perimetre,
+    creeLe: l.created_at,
+    nbDestinataires: l.nb_destinataires,
+    acteurProfil: l.acteur_profil,
+    instructionReference: l.instruction_reference ?? null,
+    instructionRecueLe: l.instruction_recue_le ?? null,
+  }
+}
+
+// ── Textes du message (cahier § 5.2 ; FR exact, PT proposé, H4) ──
+
+export interface TextesDiffusionQr {
+  titre: string
+  /** Début de la ligne du périmètre : « Copropriété {copropriete} ». */
+  copropriete: string
+  /** Fin de la ligne du périmètre pour la portée « signalement ». */
+  auSujetDuSignalement: string
+  bonjour: string
+  /** Raison de la réception (droit § 4.3). */
+  raison: string
+  /** Encadré séparé (RGPD art. 21.4), au-dessus du bouton. */
+  encadre: string
+  bouton: string
+  envoyePar: string
+  traitesPar: string
+  politique: string
+  contact: string
+  repondre: string
+  /** Séparateur avant une adresse dans la version texte (« : » précédé d'une espace en français). */
+  deuxPoints: string
+}
+
+export const TEXTES_DIFFUSION_QR: Record<LangueSignalementQr, TextesDiffusionQr> = parLangue<TextesDiffusionQr>({
+  titre: { fr: 'Information sur votre immeuble', pt: 'Informação sobre o seu prédio' },
+  copropriete: { fr: 'Copropriété {copropriete}', pt: 'Condomínio {copropriete}' },
+  auSujetDuSignalement: { fr: 'au sujet du problème que vous avez signalé', pt: 'sobre o problema que comunicou' },
+  bonjour: { fr: 'Bonjour,', pt: 'Olá,' },
+  raison: {
+    fr: 'Vous recevez ce message parce que vous avez signalé un problème dans cette copropriété.',
+    pt: 'Recebe esta mensagem porque comunicou um problema neste condomínio.',
+  },
+  encadre: {
+    fr: 'Vous pouvez ne plus recevoir ces informations à tout moment, sans justification.',
+    pt: 'Pode deixar de receber estas informações a qualquer momento, sem justificação.',
+  },
+  bouton: { fr: 'Ne plus recevoir les informations sur cet immeuble', pt: 'Deixar de receber as informações sobre este prédio' },
+  envoyePar: { fr: 'Message envoyé par {cabinet}, qui gère cette copropriété.', pt: 'Mensagem enviada por {cabinet}, que administra este condomínio.' },
+  traitesPar: { fr: 'Vos coordonnées sont traitées par {cabinet} :', pt: 'Os seus dados são tratados por {cabinet}:' },
+  politique: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
+  contact: { fr: 'Contact : {contact}.', pt: 'Contacto: {contact}.' },
+  repondre: { fr: 'Pour écrire au cabinet, répondez à ce message.', pt: 'Para escrever ao administrador, responda a esta mensagem.' },
+  deuxPoints: { fr: ' : ', pt: ': ' },
+})
+
+/** Désignation de repli si le nom du cabinet est vide une fois nettoyé (garde : le nom est obligatoire en base). */
+const CABINET_PAR_DEFAUT_DIFFUSION_QR: Record<LangueSignalementQr, string> = {
+  fr: 'le cabinet de la copropriété',
+  pt: 'a administração do condomínio',
+}
+
+/** Longueurs du cahier § 5.1 : nom de la copropriété dans l'objet, objet, nom d'affichage de l'expéditeur. */
+const MAX_NOM_COPROPRIETE_OBJET_QR = 80
+const MAX_OBJET_DIFFUSION_QR = 120
+const MAX_NOM_AFFICHAGE_QR = 70
+
+// ── Gardes (défense en profondeur : chaque valeur est déjà contrôlée par la base ou le serveur) ──
+
+/** Valeur figée hors de sa forme : rien n'est construit. Le message ne recopie aucune valeur (adresse, texte). */
+export type ChampDiffusionInvalideQr = 'identifiant' | 'destinataire' | 'expediteur' | 'contact' | 'politique' | 'jeton'
+
+export class DiffusionInvalideQr extends Error {
+  readonly champ: ChampDiffusionInvalideQr
+
+  constructor(champ: ChampDiffusionInvalideQr) {
+    super(`[AJ SIGNALEMENT] diffusion : valeur hors format (${champ})`)
+    this.name = 'DiffusionInvalideQr'
+    this.champ = champ
+  }
+}
+
+function exigerQr(condition: boolean, champ: ChampDiffusionInvalideQr): void {
+  if (!condition) throw new DiffusionInvalideQr(champ)
+}
+
+// Même langage que le CHECK signalements_qr_cabinets_diffusion_contact_format (casse admise ici).
+const SOURCE_ADRESSE_QR = String.raw`[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+`
+const FORMAT_ADRESSE_QR = new RegExp(`^${SOURCE_ADRESSE_QR}$`, 'i')
+/** « "Nom" <adresse> » (nom nettoyé, 70 caractères au plus) ou l'adresse seule : forme produite par expediteurDiffusionQr. */
+const FORMAT_EXPEDITEUR_QR = new RegExp(String.raw`^(?:"[^"\\<>,;\p{Cc}\p{Cf}]{1,${MAX_NOM_AFFICHAGE_QR}}" <${SOURCE_ADRESSE_QR}>|${SOURCE_ADRESSE_QR})$`, 'iu')
+/**
+ * Une seule adresse de destinataire : ni espace, ni séparateur de liste, ni chevron, ni guillemet double, ni contrôle.
+ * L'apostrophe reste permise (o'brien@…) : l'adresse du dépôt (strictEmail, Zod) l'admet.
+ */
+const FORMAT_DESTINATAIRE_QR = /^[^\s@,;:<>"()[\]\\\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+@[^\s@,;:<>"()[\]\\\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+$/u
+/** Même langage que le CHECK signalements_qr_cabinets_diffusion_politique_format (recopiée dans un href). */
+const FORMAT_POLITIQUE_QR = /^https:\/\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
+
+const adresseValideQr = (adresse: string) => adresse.length <= 254 && FORMAT_ADRESSE_QR.test(adresse)
+const politiqueValideQr = (url: string) => url.length >= 12 && url.length <= 508 && FORMAT_POLITIQUE_QR.test(url)
+
+/** L'adresse peut-elle être le seul `to` d'un message (une adresse, sans séparateur) ? Pour filtrer avant l'envoi. */
+export function adresseDestinataireDiffusionValideQr(email: string): boolean {
+  return email.length <= 254 && FORMAT_DESTINATAIRE_QR.test(email)
+}
+
+// ── Enveloppe (cahier § 5.1) ──
+
+/** Partie adresse de « Nom <adresse> » ou de « adresse », en minuscules ; null si elle n'est pas une adresse simple. */
+function adresseExpediteurQr(valeur: string | undefined): string | null {
+  const brute = (valeur ?? '').trim()
+  const entreChevrons = /<([^<>]*)>\s*$/.exec(brute)
+  const adresse = (entreChevrons ? entreChevrons[1] : brute).trim().toLowerCase()
+  return adresseValideQr(adresse) ? adresse : null
+}
+
+/**
+ * Expéditeur d'une diffusion, figé à la création (fige_expediteur) : « "Nom du cabinet nettoyé" <adresse> ». Adresse :
+ * secret AJ_SIGNALEMENT_EXPEDITEUR_DIFFUSION (wrangler secret put), à défaut la partie adresse de RESEND_FROM_EMAIL, à
+ * défaut l'adresse sans réponse du service (lib/email.ts). Nom d'affichage : nom du cabinet sans « " », « \ », « < »,
+ * « > », « , », « ; », retours ni caractères de contrôle ou invisibles, 70 caractères au plus ; vide une fois nettoyé :
+ * l'adresse seule.
+ */
+export function expediteurDiffusionQr(nomCabinet: string, env: Record<string, string | undefined> = process.env): string {
+  const adresse = adresseExpediteurQr(env.AJ_SIGNALEMENT_EXPEDITEUR_DIFFUSION) ?? adresseExpediteurQr(env.RESEND_FROM_EMAIL) ?? NOREPLY_EMAIL
+  const nom = nettoyerLigneDiffusionQr(nettoyerLigneDiffusionQr(nomCabinet).replace(/["\\<>,;]/g, ' '), MAX_NOM_AFFICHAGE_QR)
+  return nom ? `"${nom}" <${adresse}>` : adresse
+}
+
+/**
+ * Objet : « <nom de la copropriété> — <objet> », sur une ligne (retours, contrôles et invisibles remplacés ou retirés,
+ * espaces réduites) ; nom de la copropriété coupé à 80 caractères, objet à 120.
+ */
+export function sujetDiffusionQr(nomCopropriete: string, objet: string): string {
+  const copropriete = nettoyerLigneDiffusionQr(nomCopropriete, MAX_NOM_COPROPRIETE_OBJET_QR)
+  const sujet = nettoyerLigneDiffusionQr(objet, MAX_OBJET_DIFFUSION_QR)
+  return copropriete ? `${copropriete} — ${sujet}` : sujet
+}
+
+// ── Gabarit (cahier § 5.2) ──
+
+/** « Copropriété X », puis « · Bâtiment B · 3e étage » (bâtiment, étage) ou « · au sujet du problème… » (signalement). */
+function lignePerimetreDiffusionQr(t: TextesDiffusionQr, copropriete: string, portee: PorteeDiffusionQr, libelle: string): string {
+  const debut = remplir(t.copropriete, { copropriete }).trim()
+  if ((portee === 'batiment' || portee === 'etage') && libelle) return `${debut} · ${libelle}`
+  if (portee === 'signalement') return `${debut} · ${t.auSujetDuSignalement}`
+  return debut
+}
+
+const STYLE_BOUTON_QR = 'display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;'
+
+/**
+ * Message de diffusion (et d'annonce, H1) d'une diffusion figée, pour le lien de page d'un destinataire : objet, HTML et
+ * version texte. Lève DiffusionInvalideQr si l'identifiant du cabinet, la politique ou le jeton sont hors format.
+ */
+export function templateDiffusionQr(diffusion: DiffusionFigeeQr, jetonPage: string): { subject: string; html: string; text: string } {
+  exigerQr(identifiantCabinetLienValideQr(diffusion.cabinetIdentifiant), 'identifiant')
+  exigerQr(FORMAT_JETON_DIFFUSION_QR.test(jetonPage), 'jeton')
+  exigerQr(politiqueValideQr(diffusion.politiqueUrl), 'politique')
+  const e = echapperHtml
+  const t = TEXTES_DIFFUSION_QR[diffusion.langue]
+  const urlPage = urlPageDesinscriptionQr(diffusion.cabinetIdentifiant, jetonPage)
+  const cabinet = nettoyerLigneDiffusionQr(diffusion.cabinetNom) || CABINET_PAR_DEFAUT_DIFFUSION_QR[diffusion.langue]
+  const copropriete = nettoyerLigneDiffusionQr(diffusion.coproprieteNom, MAX_NOM_COPROPRIETE_OBJET_QR)
+  const perimetre = lignePerimetreDiffusionQr(t, copropriete, diffusion.portee, nettoyerLigneDiffusionQr(diffusion.libellePerimetre))
+  const texte = diffusion.texte.replace(/\r\n?/g, '\n').trim()
+  const envoyePar = remplir(t.envoyePar, { cabinet })
+  const traitesPar = remplir(t.traitesPar, { cabinet })
+  const contact = remplir(t.contact, { contact: diffusion.contactEmail })
+
+  const paragraphe = (html: string, marge = '0 0 14px') => `<p style="margin:${marge};font-size:15px;line-height:1.55;color:#0D1B2E;">${html}</p>`
+  const corps = `<p style="margin:0 0 18px;font-size:13px;line-height:1.5;color:#4A5E78;">${e(perimetre)}</p>
+          ${paragraphe(e(t.bonjour))}
+          <div style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#0D1B2E;">${e(texte).replace(/\n/g, '<br/>')}</div>
+          ${paragraphe(e(cabinet), '0 0 22px')}
+          <p style="margin:0;font-size:13px;line-height:1.5;color:#4A5E78;">${e(t.raison)}</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0 0;border:1px solid #E4DDD0;border-radius:12px;border-collapse:separate;">
+            <tr><td style="padding:16px 18px;">
+              <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#0D1B2E;">${e(t.encadre)}</p>
+              <a href="${e(urlPage)}" style="${STYLE_BOUTON_QR}">${e(t.bouton)}</a>
+            </td></tr>
+          </table>`
+  const piedHtml = `${e(envoyePar)} ${e(traitesPar)} <a href="${e(diffusion.politiqueUrl)}" style="color:#4A5E78;">${e(t.politique)}</a> · ${e(contact)} ${e(t.repondre)}`
+  const html = cadreEmailQr({ langue: diffusion.langue, bandeauHtml: e(cabinet), titreHtml: e(t.titre), corpsHtml: corps, piedHtml })
+
+  const text = [
+    cabinet,
+    t.titre,
+    perimetre,
+    '',
+    t.bonjour,
+    '',
+    texte,
+    '',
+    cabinet,
+    '',
+    t.raison,
+    '',
+    t.encadre,
+    `${t.bouton}${t.deuxPoints}${urlPage}`,
+    '',
+    `${envoyePar} ${traitesPar} ${t.politique} (${diffusion.politiqueUrl}) · ${contact} ${t.repondre}`,
+    '',
+  ].join('\n')
+  return { subject: sujetDiffusionQr(diffusion.coproprieteNom, diffusion.objet), html, text }
+}
+
+/**
+ * Message d'un destinataire (ligne rendue par signalements_qr_diffusion_lot) : un seul `to`, ni cc ni bcc ; expéditeur
+ * figé ; Reply-To = contact du cabinet ; en-têtes List-Unsubscribe et List-Unsubscribe-Post (RFC 8058) avec le jeton UN
+ * CLIC ; bouton du corps avec le jeton de PAGE ; étiquettes lues par le webhook (type, diffusion, destinataire).
+ * Jetons : signerLiensDiffusionQr(destinataire.id). Lève DiffusionInvalideQr si une valeur sort de sa forme (filtrer
+ * d'abord l'adresse avec adresseDestinataireDiffusionValideQr) ; ne lit rien d'autre que ses paramètres.
+ */
+export function messageDiffusionQr(
+  diffusion: DiffusionFigeeQr,
+  destinataire: { id: string; email: string },
+  jetons: { page: string; unClic: string },
+): EmailPayload {
+  exigerQr(FORMAT_UUID_DIFFUSION_QR.test(diffusion.id) && FORMAT_UUID_DIFFUSION_QR.test(destinataire.id), 'identifiant')
+  exigerQr(identifiantCabinetLienValideQr(diffusion.cabinetIdentifiant), 'identifiant')
+  const prefixe = `${destinataire.id.toLowerCase().replaceAll('-', '')}.`
+  exigerQr([jetons.page, jetons.unClic].every((j) => FORMAT_JETON_DIFFUSION_QR.test(j) && j.startsWith(prefixe)), 'jeton')
+  exigerQr(adresseDestinataireDiffusionValideQr(destinataire.email), 'destinataire')
+  exigerQr(diffusion.expediteur.length <= 400 && FORMAT_EXPEDITEUR_QR.test(diffusion.expediteur), 'expediteur')
+  exigerQr(adresseValideQr(diffusion.contactEmail), 'contact')
+  const { subject, html, text } = templateDiffusionQr(diffusion, jetons.page)
+  return {
+    from: diffusion.expediteur,
+    to: destinataire.email,
+    replyTo: diffusion.contactEmail,
+    subject,
+    html,
+    text,
+    headers: {
+      'List-Unsubscribe': `<${urlUnClicDesinscriptionQr(jetons.unClic)}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
+    tags: [
+      { name: 'type', value: 'aj-diffusion' },
+      { name: 'diffusion', value: diffusion.id.toLowerCase() },
+      { name: 'destinataire', value: destinataire.id.toLowerCase() },
+    ],
+  }
+}
+
+// ── Copie au cabinet (cahier § 5.6) ──
+
+export interface TextesCopieDiffusionQr {
+  sujet: string
+  titre: string
+  envoi: string
+  parSuperAdmin: string
+  parSuperAdminSansInstruction: string
+  parGestionnaire: string
+  personne: string
+  personnes: string
+  copropriete: string
+  objet: string
+  message: string
+  raison: string
+  piedDePage: string
+  deuxPoints: string
+}
+
+export const TEXTES_COPIE_DIFFUSION_QR: Record<LangueSignalementQr, TextesCopieDiffusionQr> = parLangue<TextesCopieDiffusionQr>({
+  sujet: { fr: 'Copie — {copropriete} — {objet}', pt: 'Cópia — {copropriete} — {objet}' },
+  titre: { fr: 'Copie d’un message diffusé', pt: 'Cópia de uma mensagem enviada' },
+  envoi: {
+    fr: 'Copie — message envoyé {auteur} le {date} à {destinataires} ({perimetre}).',
+    pt: 'Cópia — mensagem enviada {auteur} em {date} a {destinataires} ({perimetre}).',
+  },
+  parSuperAdmin: {
+    fr: 'par l’administrateur VitFix, sur votre instruction du {date} (référence : {reference})',
+    pt: 'pelo administrador VitFix, conforme a vossa instrução de {date} (referência: {reference})',
+  },
+  parSuperAdminSansInstruction: { fr: 'par l’administrateur VitFix', pt: 'pelo administrador VitFix' },
+  parGestionnaire: { fr: 'par un gestionnaire', pt: 'por um gestor' },
+  personne: { fr: '{n} personne', pt: '{n} pessoa' },
+  personnes: { fr: '{n} personnes', pt: '{n} pessoas' },
+  copropriete: { fr: 'Copropriété', pt: 'Condomínio' },
+  objet: { fr: 'Objet', pt: 'Assunto' },
+  message: { fr: 'Message', pt: 'Mensagem' },
+  raison: {
+    fr: 'Vous recevez cette copie parce que la diffusion d’informations aux déclarants est activée pour votre cabinet. Elle ne contient pas l’adresse des personnes destinataires.',
+    pt: 'Recebe esta cópia porque o envio de informações a quem comunicou ocorrências está ativado para a sua administração. Não contém o endereço das pessoas destinatárias.',
+  },
+  piedDePage: {
+    fr: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+    pt: 'AJ Signalement — um serviço VITFIX. Este e-mail foi enviado automaticamente.',
+  },
+  deuxPoints: { fr: ' : ', pt: ': ' },
+})
+
+const LOCALE_JOUR_QR: Record<LangueSignalementQr, string> = { fr: 'fr-FR', pt: 'pt-PT' }
+
+/** « 12 novembre 2026 » / « 12 de novembro de 2026 » pour une date AAAA-MM-JJ (sans heure) ; la chaîne brute sinon. */
+function jourQr(jour: string, langue: LangueSignalementQr): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(jour)
+  if (!m) return jour
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+  if (Number.isNaN(date.getTime())) return jour
+  return new Intl.DateTimeFormat(LOCALE_JOUR_QR[langue], { timeZone: 'UTC', dateStyle: 'long' }).format(date)
+}
+
+/** « par l’administrateur VitFix, sur votre instruction du … (référence : …) » ou « par un gestionnaire ». */
+function auteurCopieQr(d: DiffusionFigeeQr, t: TextesCopieDiffusionQr): string {
+  if (d.acteurProfil === 'gestionnaire') return t.parGestionnaire
+  const reference = d.instructionReference ? nettoyerLigneDiffusionQr(d.instructionReference) : ''
+  if (!reference || !d.instructionRecueLe) return t.parSuperAdminSansInstruction
+  return remplir(t.parSuperAdmin, { date: jourQr(d.instructionRecueLe, d.langue), reference })
+}
+
+/**
+ * Copie d'une diffusion au contact du cabinet (responsable du traitement) : auteur (super admin et son instruction
+ * écrite, ou « un gestionnaire »), date, nombre de personnes, périmètre, puis l'objet et le texte. AUCUN lien, aucun
+ * jeton, aucune adresse de déclarant. Elle documente chaque envoi et fait voir vite un envoi inattendu. Dans la langue
+ * de la diffusion ; même entrée → même sortie.
+ */
+export function templateCopieCabinetDiffusionQr(d: DiffusionFigeeQr): { subject: string; html: string; text: string } {
+  const e = echapperHtml
+  const t = TEXTES_COPIE_DIFFUSION_QR[d.langue]
+  const copropriete = nettoyerLigneDiffusionQr(d.coproprieteNom, MAX_NOM_COPROPRIETE_OBJET_QR)
+  const objet = nettoyerLigneDiffusionQr(d.objet, MAX_OBJET_DIFFUSION_QR)
+  const texte = d.texte.replace(/\r\n?/g, '\n').trim()
+  const envoi = remplir(t.envoi, {
+    auteur: auteurCopieQr(d, t),
+    date: dateHeureParis(d.creeLe, d.langue),
+    destinataires: remplir(d.nbDestinataires === 1 ? t.personne : t.personnes, { n: d.nbDestinataires }),
+    perimetre: nettoyerLigneDiffusionQr(d.libellePerimetre),
+  })
+  const corps = `<p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#0D1B2E;">${e(envoi)}</p>
+          <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${ligne(e(t.copropriete), e(copropriete))}${ligne(e(t.objet), `<strong>${e(objet)}</strong>`)}</table>
+          ${blocDescription(e(t.message), e(texte).replace(/\n/g, '<br/>'))}
+          <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#4A5E78;">${e(t.raison)}</p>`
+  const html = cadreEmailQr({ langue: d.langue, titreHtml: e(t.titre), corpsHtml: corps, piedHtml: e(t.piedDePage) })
+  const text = [
+    t.titre,
+    '',
+    envoi,
+    '',
+    `${t.copropriete}${t.deuxPoints}${copropriete}`,
+    `${t.objet}${t.deuxPoints}${objet}`,
+    '',
+    `${t.message}${t.deuxPoints.trimEnd()}`,
+    texte,
+    '',
+    t.raison,
+    '',
+    t.piedDePage,
+    '',
+  ].join('\n')
+  const subject = nettoyerLigneDiffusionQr(remplir(t.sujet, { copropriete, objet }))
+  return { subject, html, text }
+}
+
+/** Message de la copie : au seul contact du cabinet, expéditeur du service (pas de Reply-To, pas d'en-tête). */
+export function messageCopieCabinetDiffusionQr(d: DiffusionFigeeQr): EmailPayload {
+  exigerQr(FORMAT_UUID_DIFFUSION_QR.test(d.id), 'identifiant')
+  exigerQr(adresseValideQr(d.contactEmail), 'contact')
+  const { subject, html, text } = templateCopieCabinetDiffusionQr(d)
+  return {
+    to: d.contactEmail,
+    subject,
+    html,
+    text,
+    tags: [{ name: 'type', value: 'aj-diffusion-copie' }, { name: 'diffusion', value: d.id.toLowerCase() }],
+  }
+}
+
+/**
+ * Envoie la copie au cabinet (sendBatchEmails, un message) ; vrai si le service l'a acceptée (la route date alors
+ * copie_cabinet_le). Échec : logger.warn avec l'identifiant de la diffusion seulement ; l'envoi aux déclarants
+ * continue. Ne lève jamais.
+ */
+export async function envoyerCopieCabinetDiffusionQr(d: DiffusionFigeeQr): Promise<boolean> {
+  let message: EmailPayload
+  try {
+    message = messageCopieCabinetDiffusionQr(d)
+  } catch (erreur) {
+    const champ = erreur instanceof DiffusionInvalideQr ? erreur.champ : 'inconnu'
+    logger.warn('[AJ SIGNALEMENT] copie de la diffusion au cabinet non envoyée (valeur hors format)', { diffusionId: d.id, champ })
+    return false
+  }
+  const acceptee = await envoyerUnQr(message)
+  if (!acceptee) logger.warn('[AJ SIGNALEMENT] copie de la diffusion au cabinet non partie', { diffusionId: d.id })
+  return acceptee
 }
