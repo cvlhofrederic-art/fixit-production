@@ -154,6 +154,40 @@ describe('compteRattachable', () => {
   it('sans app_metadata : rattachable', () => {
     expect(compteRattachable('pro', undefined)).toBe(true)
   })
+
+  // AJ Signalement (11/11/2026) : un compte n'est rattaché que s'il porte DÉJÀ le rôle des gestionnaires ; jamais un
+  // compte sans rôle (la branche passe avant « sans rôle → rattachable »), jamais un compte d'un autre espace.
+  it.each([
+    [{}, false],
+    [{ role: '' }, false],
+    [undefined, false],
+    [{ role: 'gestionnaire_signalement' }, true],
+    [{ role: 'super_admin' }, false],
+    [{ role: 'syndic_gestionnaire' }, false],
+    [{ role: 'client' }, false],
+    [{ role: 'artisan' }, false],
+    [{ role: 'pro_societe', pro_team_role: 'OUVRIER' }, false],
+  ])('aj_signalement : %o → %s', (meta, attendu) => {
+    expect(compteRattachable('aj_signalement', meta)).toBe(attendu)
+  })
+})
+
+describe('espace aj_signalement', () => {
+  it('un lien AJ Signalement ne vaut pas pour le syndic ni le pro, et inversement', async () => {
+    const aj = await signatureDe(await jetonDuLien('aj_signalement', invitation))
+    expect(await signatureValide('aj_signalement', aj, invitation)).toBe(true)
+    expect(await signatureValide('syndic', aj, invitation)).toBe(false)
+    expect(await signatureValide('pro', aj, invitation)).toBe(false)
+    const syndic = await signatureDe(await jetonDuLien('syndic', invitation))
+    expect(await signatureValide('aj_signalement', syndic, invitation)).toBe(false)
+  })
+
+  it('nouvelleInvitation signe l’identifiant de fiche reçu', async () => {
+    const inv = await nouvelleInvitation('aj_signalement', 'claire@exemple.fr', invitation.equipe_id)
+    const lu = lireJetonDuLien(inv.jetonLien)
+    expect(lu?.jeton).toBe(inv.invite_token)
+    expect(await signatureValide('aj_signalement', lu?.signature ?? '', { id: inv.id, email: 'claire@exemple.fr', invite_token: inv.invite_token, equipe_id: invitation.equipe_id })).toBe(true)
+  })
 })
 
 describe('sansJetonInvitation', () => {

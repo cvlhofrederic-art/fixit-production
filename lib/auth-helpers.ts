@@ -81,18 +81,22 @@ export function isSyndicRole(user: User): boolean {
 // ── Liste des emails admin autorisés (defense-in-depth) ─────────────────────
 // Même si app_metadata.role === 'super_admin', l'email doit être dans la liste.
 // Cela empêche un admin Supabase compromis d'élever un compte arbitraire.
+// Valeurs rognées et en minuscules, vides (ou faites d'espaces) écartées : même lecture que
+// l'espace copropriétaire (estSuperAdmin, lib/coproprietaire/acces.ts). Un secret saisi avec un
+// espace ou un retour à la ligne final ne retire donc pas l'accès au super admin.
 const SUPER_ADMIN_EMAILS = [
   process.env.ADMIN_EMAIL,
   process.env.ADMIN_EMAIL_2,
-].filter(Boolean).map(e => (e as string).toLowerCase())
+].filter((e): e is string => typeof e === 'string' && e.trim() !== '').map(e => e.trim().toLowerCase())
 
 // ── L'e-mail du compte est-il dans la liste des super_admin ? ────────────────
-// Liste vide (variables absentes) ou compte sans e-mail → false.
+// Liste vide (variables absentes) ou compte sans e-mail → false. E-mail du compte comparé
+// rogné et en minuscules, comme la liste.
 // Seul, ce test ne suffit pas : il complète la vérification du rôle (isSuperAdmin,
 // ou _original_role pendant une « vue en tant que » de /api/admin/impersonate).
 export function hasSuperAdminEmail(user: User): boolean {
   if (SUPER_ADMIN_EMAILS.length === 0 || !user.email) return false
-  return SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase())
+  return SUPER_ADMIN_EMAILS.includes(user.email.trim().toLowerCase())
 }
 
 // ── Vérifie si l'utilisateur est super_admin ─────────────────────────────────

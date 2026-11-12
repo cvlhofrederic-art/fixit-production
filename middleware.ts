@@ -7,6 +7,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { redirectionEspaceQr, viseEspaceQr } from '@/lib/aj-signalement/acces-espace'
+import { cheminPublicCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
@@ -152,6 +153,21 @@ export async function middleware(request: NextRequest) {
     const response = NextResponse.redirect(new URL(consolidado + request.nextUrl.search, request.url), 301)
     response.headers.set('Content-Security-Policy', cspHeader)
     return response
+  }
+
+  // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
+  // /<identifiant>/confirmation-adresse/ ; choix de Hugo du 10/11/2026). Reconnu AVANT la langue (sinon 302 vers
+  // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/aj-signalement/chemin-cabinet.ts) ; la
+  // réécriture de next.config.ts mène ensuite à la page interne, qui vérifie que le jeton appartient au cabinet du chemin.
+  // Ni Supabase, ni cookie de langue, ni redirection ; jamais indexé ni mis en cache partagé.
+  if (cheminPublicCabinetQr(pathname)) {
+    const entetesCabinet = new Headers(request.headers)
+    entetesCabinet.set('x-locale', DEFAULT_LOCALE)
+    const reponse = NextResponse.next({ request: { headers: entetesCabinet } })
+    reponse.headers.set('Content-Security-Policy', cspHeader)
+    reponse.headers.set('Cache-Control', CACHE_CONTROL_PRIVE)
+    reponse.headers.set('X-Robots-Tag', X_ROBOTS_ESPACE_PRIVE)
+    return reponse
   }
 
   // ── Skip locale logic for API routes, internal Next.js routes, and admin routes ──

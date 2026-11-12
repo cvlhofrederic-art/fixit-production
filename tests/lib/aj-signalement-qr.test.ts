@@ -5,8 +5,24 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { cheminSvgQr, coteSvgQr, matriceQr, nomFichierQr, pngQr, telechargerFichier } from '@/lib/aj-signalement/qr'
+import { urlSignalementQr } from '@/lib/aj-signalement/types'
 
 const URL_TEST = 'https://vitfix.io/fr/signalement/0123456789abcdef0123456789abcdef/'
+const JETON = '0123456789abcdef0123456789abcdef'
+
+describe('adresse encodée dans le QR code (chemin par client, choix de Hugo du 10/11/2026)', () => {
+  it('copropriété rattachée à un cabinet : vitfix.io/<identifiant>/signalement/<jeton>/', () => {
+    expect(urlSignalementQr(JETON, 'https://vitfix.io', 'cabinet-exemple')).toBe(`https://vitfix.io/cabinet-exemple/signalement/${JETON}/`)
+    expect(urlSignalementQr(JETON, 'https://vitfix.io/', 'cabinet-exemple')).toBe(`https://vitfix.io/cabinet-exemple/signalement/${JETON}/`)
+  })
+
+  it('sans cabinet : l’ancienne adresse /fr/signalement/<jeton>/ (affiches déjà imprimées)', () => {
+    expect(urlSignalementQr(JETON, 'https://vitfix.io')).toBe(URL_TEST)
+    expect(urlSignalementQr(JETON, 'https://vitfix.io', null)).toBe(URL_TEST)
+    expect(urlSignalementQr(JETON, 'https://vitfix.io', '')).toBe(URL_TEST)
+    expect(urlSignalementQr(JETON)).toBe(URL_TEST)
+  })
+})
 
 afterEach(() => {
   vi.restoreAllMocks()

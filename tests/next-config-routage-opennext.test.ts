@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest'
 import configurationNext from '@/next.config'
 import { getAllFrPageCombos, getAllFrUrgencyCombos } from '@/lib/data/fr-seo-pages-data'
 import { getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
+import { SOURCE_IDENTIFIANT_CABINET_QR, cheminPublicCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 // Même bibliothèque (et même version) que le routeur d'OpenNext : résolue depuis son fichier de routage.
 const requireOpenNext = createRequire(createRequire(import.meta.url).resolve('@opennextjs/aws/core/routing/matcher.js'))
@@ -389,7 +390,8 @@ describe('pages partagées servies sous /fr et /pt', () => {
     '/': "app/(commun)/page.tsx sert de composant aux pages d'accueil de locale ; « / » est redirigé par le middleware",
     '/simulateur': 'remplacée par /fr/simulateur-devis/ ; ouverture ou suppression à décider',
   }
-  const HORS_PERIMETRE = /^\/(fr|pt|en|es|nl|api|admin|coproprietaire|syndic)(\/|$)/ // locales, API, admin sans locale, zones dormantes
+  // cabinet : pages internes du chemin d'un cabinet client, servies depuis /<identifiant>/…, jamais sous /fr/.
+  const HORS_PERIMETRE = /^\/(fr|pt|en|es|nl|api|admin|coproprietaire|syndic|cabinet)(\/|$)/ // locales, API, admin sans locale, zones dormantes
 
   it('toute page racine de app/ est servie sous /fr/', async () => {
     const [avantFichiers] = await reecritures()
@@ -496,5 +498,71 @@ describe('pages partagées servies sous /fr et /pt', () => {
 
   it('le lien « Avis » du Footer FR mène à une page', () => {
     expect(routeExiste('/fr/avis')).toBe(true)
+  })
+})
+
+describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ Signalement)', () => {
+  // Le middleware laisse passer ces chemins sans langue (motif figé de lib/aj-signalement/chemin-cabinet.ts) ; les
+  // réécritures beforeFiles les servent depuis les pages internes app/(commun)/cabinet/[identifiant]/…
+  const jeton = '0123456789abcdef0123456789abcdef'
+  const reglesCabinet = async () => (await reecritures())[0].filter(({ destination }) => destination.startsWith('/cabinet/'))
+
+  it.each([
+    [`/cabinet-exemple/signalement/${jeton}/`, `/cabinet/cabinet-exemple/signalement/${jeton}`],
+    [`/cabinet-exemple/signalement/${jeton}`, `/cabinet/cabinet-exemple/signalement/${jeton}`],
+    ['/cabinet-exemple/confirmation-adresse/', '/cabinet/cabinet-exemple/confirmation-adresse'],
+    ['/cabinet-exemple/confirmation-adresse', '/cabinet/cabinet-exemple/confirmation-adresse'],
+    [`/abc/signalement/${jeton}/`, `/cabinet/abc/signalement/${jeton}`],
+  ])('%s est servi par %s', async (chemin, page) => {
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe(page)
+    expect(routeExiste(page)).toBe(true)
+    // Même reconnaissance que le middleware (qui passe avant).
+    expect(cheminPublicCabinetQr(chemin)).not.toBeNull()
+  })
+
+  it.each([
+    `/api/signalement/${jeton}/`,
+    `/admin/signalement/${jeton}/`,
+    `/ab/signalement/${jeton}/`,
+    `/cabinet-exemple/signalement/${jeton.toUpperCase()}/`,
+    `/Cabinet-Exemple/signalement/${jeton}/`,
+    `/cabinet-exemple/signalement/${jeton}/autre/`,
+    '/cabinet-exemple/suivi/',
+    '/cabinet-exemple/',
+  ])('%s : aucune réécriture du chemin client', async (chemin) => {
+    expect((await reglesCabinet()).map((regle) => resoudre([regle], chemin)).filter(Boolean)).toEqual([])
+  })
+
+  it('les anciens QR codes restent servis par l’ancienne page', async () => {
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, `/fr/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
+    expect(sansBarreFinale(resoudre(avantFichiers, `/pt/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
+  })
+
+  it('trois règles, chacune à deux paramètres capturés ou plus : jamais de destination littérale', async () => {
+    const regles = await reglesCabinet()
+    expect(regles.map(({ source }) => source)).toEqual([
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`,
+    ])
+    for (const regle of regles) {
+      const exemple = regle.source.includes(':jeton') ? `/cabinet-exemple/signalement/${jeton}/` : '/cabinet-exemple/confirmation-adresse/'
+      expect(resoudre([regle], exemple) ?? '').not.toContain(':')
+    }
+  })
+
+  it('aucune redirection ne capte un chemin client (les redirections passent avant le middleware)', async () => {
+    const regles = await redirections()
+    for (const chemin of [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/']) {
+      expect(resoudre(regles, chemin)).toBeNull()
+    }
+  })
+
+  it('les pages internes ne sont joignables par aucune autre adresse', async () => {
+    const [avantFichiers] = await reecritures()
+    expect(resoudre(avantFichiers, `/fr/cabinet/cabinet-exemple/signalement/${jeton}/`)).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/confirmation-adresse/')).toBeNull()
   })
 })

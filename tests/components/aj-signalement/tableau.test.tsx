@@ -22,7 +22,7 @@ import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalemen
 import { TEXTES_TABLEAU_QR as T, dateHeureParis } from '@/lib/aj-signalement/affichage'
 import type { VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import { remplir } from '@/lib/coproprietaire/textes'
-import type { SignalementQr, TableauQr } from '@/lib/aj-signalement/types'
+import { gestionCoproprieteQrVide, type SignalementQr, type TableauQr } from '@/lib/aj-signalement/types'
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const ID_COPRO = 'c0000000-0000-4000-8000-000000000001'
@@ -52,11 +52,11 @@ function tableau(): TableauQr {
     coproprietes: [
       {
         id: ID_COPRO, nom: 'Parc Belle Ombre', adresse: '', jeton: JETON, emailsDestinataires: [], actif: true, creeLe: '2026-11-04T10:00:00.000Z', nbSignalements: 1, nbEnAttente: 1,
-        derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-04T14:05:00.000Z' },
+        derniereAdresseProposee: { adresse: '1 Quai du Port 13002 Marseille', le: '2026-11-04T14:05:00.000Z' }, ...gestionCoproprieteQrVide(),
       },
       {
         id: ID_COPRO_2, nom: 'Les Oliviers', adresse: 'Aubagne', jeton: 'f'.repeat(32), emailsDestinataires: ['o@example.com'], actif: true, creeLe: '2026-11-04T11:00:00.000Z', nbSignalements: 1, nbEnAttente: 0,
-        derniereAdresseProposee: null,
+        derniereAdresseProposee: null, ...gestionCoproprieteQrVide(),
       },
     ],
     signalements: [paul, marie],
