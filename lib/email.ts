@@ -1,5 +1,7 @@
 import { Resend } from 'resend'
+import { z } from 'zod'
 import { NOREPLY_EMAIL } from '@/lib/constants'
+import { logger } from '@/lib/logger'
 
 // ── Lazy singleton Resend client (avoid crash if RESEND_API_KEY not set at build time) ──
 let _resend: Resend | null = null
@@ -24,6 +26,10 @@ export interface EmailPayload {
   replyTo?: string
   tags?: { name: string; value: string }[]
   attachments?: EmailAttachment[]
+  /** En-têtes ajoutés au message (ex. List-Unsubscribe, RFC 8058) ; absents : rien n'est transmis. */
+  headers?: Record<string, string>
+  /** Version texte du même contenu (délivrabilité) ; absente : rien n'est transmis. */
+  text?: string
 }
 
 export interface EmailResult {
@@ -34,6 +40,27 @@ export interface EmailResult {
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const DEFAULT_FROM = process.env.RESEND_FROM_EMAIL || `VITFIX <${NOREPLY_EMAIL}>`
+
+/** En-têtes et version texte, seulement quand l'appelant les fournit : les messages d'avant restent identiques. */
+function enTetesEtTexte(payload: EmailPayload): { headers?: Record<string, string>; text?: string } {
+  return {
+    ...(payload.headers === undefined ? {} : { headers: { ...payload.headers } }),
+    ...(payload.text === undefined ? {} : { text: payload.text }),
+  }
+}
+
+/** Un message du lot de Resend (le lot n'accepte pas de pièces jointes : elles ne sont pas transmises). */
+function messageDeLot(e: EmailPayload) {
+  return {
+    from: e.from || DEFAULT_FROM,
+    to: Array.isArray(e.to) ? e.to : [e.to],
+    subject: e.subject,
+    html: e.html,
+    replyTo: e.replyTo,
+    tags: e.tags,
+    ...enTetesEtTexte(e),
+  }
+}
 
 // ── Send single email ────────────────────────────────────────────────────────
 export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
@@ -50,6 +77,7 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
       html: payload.html,
       replyTo: payload.replyTo,
       tags: payload.tags,
+      ...enTetesEtTexte(payload),
       ...(payload.attachments && payload.attachments.length > 0 ? {
         attachments: payload.attachments.map(a => ({ filename: a.filename, content: a.content })),
       } : {}),
@@ -83,16 +111,7 @@ export async function sendBatchEmails(emails: EmailPayload[]): Promise<{ sent: n
 
   for (const chunk of chunks) {
     try {
-      const { data, error } = await getResend().batch.send(
-        chunk.map(e => ({
-          from: e.from || DEFAULT_FROM,
-          to: Array.isArray(e.to) ? e.to : [e.to],
-          subject: e.subject,
-          html: e.html,
-          replyTo: e.replyTo,
-          tags: e.tags,
-        }))
-      )
+      const { data, error } = await getResend().batch.send(chunk.map(messageDeLot))
 
       if (error) {
         results.failed += chunk.length
@@ -107,6 +126,151 @@ export async function sendBatchEmails(emails: EmailPayload[]): Promise<{ sent: n
   }
 
   return results
+}
+
+// ── Envoi d'UN lot détaillé (diffusion AJ Signalement, SPEC diffusion § 5.1, § 5.5) ──
+// Différences avec sendBatchEmails (inchangé) : un seul appel (100 messages au plus, une clé d'idempotence pour le
+// lot), mode de validation choisi (« permissive » par défaut : un message refusé n'empêche pas les autres), délai
+// borné, et un résultat fait seulement d'indices et de codes. Le texte des erreurs de Resend n'est jamais rendu ni
+// journalisé : il peut citer une adresse.
+
+/** Délai d'attente de la réponse de Resend pour un lot (le SDK n'en a aucun). */
+export const DELAI_LOT_EMAIL_MS = 15_000
+
+/** Taille maximale d'un lot chez Resend (resend.com/docs/api-reference/emails/send-batch-emails). */
+const TAILLE_LOT_EMAIL_MAX = 100
+
+/**
+ * Code d'un échec global du lot :
+ * - `reseau` : issue inconnue (aucune réponse, délai dépassé, exception, statut 5xx, réponse 2xx illisible ou
+ *   incohérente) ; le rejeu avec la même clé est sûr (Resend rend la réponse d'origine sans renvoyer) ;
+ * - `limite` : limite de débit (`rate_limit_exceeded`, 429) ;
+ * - `quota` : quota journalier ou mensuel atteint (`daily_quota_exceeded`, `monthly_quota_exceeded`) ;
+ * - `rejeu_refuse` : clé déjà employée avec un autre contenu (`invalid_idempotent_request`, 409) ;
+ * - `rejeu_concurrent` : la même clé est en cours de traitement (`concurrent_idempotent_requests`, 409) ;
+ * - `refus` : tout autre refus du lot (4xx), ou refus local avant tout appel.
+ */
+export type CodeEchecLotEmail = 'reseau' | 'limite' | 'quota' | 'rejeu_refuse' | 'rejeu_concurrent' | 'refus'
+
+export interface OptionsLotEmailDetaille {
+  /** Clé d'idempotence du lot (en-tête Idempotency-Key) : 1 à 256 caractères ASCII visibles ; valable 24 h chez Resend. */
+  idempotencyKey: string
+  /** En-tête x-batch-validation ; « permissive » par défaut. */
+  validation?: 'permissive' | 'strict'
+  /** Délai d'attente en millisecondes ; absent ou invalide : DELAI_LOT_EMAIL_MS. */
+  delaiMs?: number
+}
+
+export type ResultatLotEmailDetaille =
+  /** Lot traité : indices (dans `messages`, croissants) des messages acceptés et de ceux refusés à l'unité. */
+  | { ok: true; acceptes: number[]; refuses: number[] }
+  | {
+      ok: false
+      code: CodeEchecLotEmail
+      /** Statut HTTP de la réponse ; null sans réponse ou pour un refus local. */
+      statutHttp: number | null
+      /**
+       * Un code, jamais un texte : nom d'erreur de Resend (« rate_limit_exceeded »…, « inconnu » s'il n'a pas la forme
+       * d'un code) ou motif local : « delai_depasse », « exception », « reponse_inattendue », « lot_trop_grand »,
+       * « cle_idempotence_invalide », « cle_api_absente ».
+       */
+      motif: string
+    }
+
+type EchecLotEmailDetaille = Extract<ResultatLotEmailDetaille, { ok: false }>
+
+/** Clé d'idempotence acceptée : ASCII visible (valeur d'en-tête HTTP sûre), 1 à 256 caractères. */
+const CLE_IDEMPOTENCE = /^[\x21-\x7E]{1,256}$/
+
+/** Forme d'un code d'erreur de Resend ; tout autre nom (texte libre, adresse…) devient « inconnu ». */
+const NOM_ERREUR_RESEND = /^[a-z_]{1,64}$/
+
+/** Corps d'une réponse 2xx du lot ; les `message` des refus à l'unité ne sont pas lus. */
+const reponseLotSchema = z.object({
+  data: z.array(z.object({ id: z.string() })),
+  errors: z.array(z.object({ index: z.number().int() })).optional(),
+})
+
+const echecLot = (code: CodeEchecLotEmail, statutHttp: number | null, motif: string): EchecLotEmailDetaille =>
+  ({ ok: false, code, statutHttp, motif })
+
+/** Code d'un échec global depuis l'erreur rendue par le SDK (nom et statut seulement ; le message est ignoré). */
+function echecDepuisErreurResend(erreur: { name?: unknown; statusCode?: unknown }): EchecLotEmailDetaille {
+  const statut = typeof erreur.statusCode === 'number' ? erreur.statusCode : null
+  const nom = typeof erreur.name === 'string' && NOM_ERREUR_RESEND.test(erreur.name) ? erreur.name : 'inconnu'
+  if (nom === 'rate_limit_exceeded') return echecLot('limite', statut, nom)
+  if (nom === 'daily_quota_exceeded' || nom === 'monthly_quota_exceeded') return echecLot('quota', statut, nom)
+  if (nom === 'invalid_idempotent_request') return echecLot('rejeu_refuse', statut, nom)
+  if (nom === 'concurrent_idempotent_requests') return echecLot('rejeu_concurrent', statut, nom)
+  // Sans réponse (le SDK rend alors statusCode null) ou erreur du service : Resend a pu traiter le lot.
+  if (statut === null || statut >= 500) return echecLot('reseau', statut, nom)
+  if (statut === 429) return echecLot('limite', statut, nom)
+  return echecLot('refus', statut, nom)
+}
+
+/** Indices acceptés et refusés d'une réponse 2xx ; null si elle est illisible ou incohérente avec le lot. */
+function indicesDuLot(data: unknown, taille: number): { acceptes: number[]; refuses: number[] } | null {
+  const lu = reponseLotSchema.safeParse(data)
+  if (!lu.success) return null
+  const refuses = new Set<number>()
+  for (const { index } of lu.data.errors ?? []) {
+    if (index < 0 || index >= taille || refuses.has(index)) return null
+    refuses.add(index)
+  }
+  if (lu.data.data.length !== taille - refuses.size) return null
+  const acceptes: number[] = []
+  for (let i = 0; i < taille; i += 1) if (!refuses.has(i)) acceptes.push(i)
+  return { acceptes, refuses: [...refuses].sort((a, b) => a - b) }
+}
+
+/** Appel du lot ; ne lève jamais (une exception devient `reseau`). */
+async function appelerLotDetaille(
+  messages: readonly EmailPayload[],
+  idempotencyKey: string,
+  validation: 'permissive' | 'strict',
+): Promise<ResultatLotEmailDetaille> {
+  try {
+    const { data, error } = await getResend().batch.send(messages.map(messageDeLot), { batchValidation: validation, idempotencyKey })
+    if (error) return echecDepuisErreurResend(error)
+    const indices = indicesDuLot(data, messages.length)
+    return indices ? { ok: true, ...indices } : echecLot('reseau', null, 'reponse_inattendue')
+  } catch (err) {
+    // Seul le type de l'exception est journalisé : son texte peut contenir une adresse ou un en-tête du message.
+    logger.warn('[email] lot détaillé : exception pendant l’envoi, issue inconnue', {
+      messages: messages.length,
+      exception: err instanceof Error ? err.name : typeof err,
+    })
+    return echecLot('reseau', null, 'exception')
+  }
+}
+
+/**
+ * Envoie UN lot (1 à 100 messages) en une requête, sans nouvelle tentative, et rend ce que Resend en a fait.
+ * Ne lève jamais. Le délai dépassé rend `reseau` (motif « delai_depasse ») : Resend a pu recevoir le lot, que le rejeu
+ * avec la même clé ne renverra pas.
+ */
+export async function sendBatchEmailsDetaille(
+  messages: readonly EmailPayload[],
+  options: OptionsLotEmailDetaille,
+): Promise<ResultatLotEmailDetaille> {
+  if (messages.length === 0) return { ok: true, acceptes: [], refuses: [] }
+  if (messages.length > TAILLE_LOT_EMAIL_MAX) return echecLot('refus', null, 'lot_trop_grand')
+  if (!CLE_IDEMPOTENCE.test(options.idempotencyKey)) return echecLot('refus', null, 'cle_idempotence_invalide')
+  if (!process.env.RESEND_API_KEY) return echecLot('refus', null, 'cle_api_absente')
+
+  const delaiMs = options.delaiMs !== undefined && Number.isFinite(options.delaiMs) && options.delaiMs > 0
+    ? options.delaiMs
+    : DELAI_LOT_EMAIL_MS
+  // Promise.race : le SDK n'a aucun délai et ses options typées n'acceptent pas de signal d'annulation.
+  let minuteur: ReturnType<typeof setTimeout> | undefined
+  const delaiDepasse = new Promise<ResultatLotEmailDetaille>((resoudre) => {
+    minuteur = setTimeout(() => resoudre(echecLot('reseau', null, 'delai_depasse')), delaiMs)
+  })
+  try {
+    return await Promise.race([appelerLotDetaille(messages, options.idempotencyKey, options.validation ?? 'permissive'), delaiDepasse])
+  } finally {
+    clearTimeout(minuteur)
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
