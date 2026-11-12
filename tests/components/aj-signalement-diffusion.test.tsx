@@ -1619,3 +1619,68 @@ describe('relecture 3 — aucun envoi proposé à un nombre que le serveur vient
     expect(appelsVers(BASE_D, 'POST').map((a) => (a.corps as Record<string, unknown>).nbDestinatairesAttendu)).toEqual([23, 32])
   })
 })
+
+describe('relecture 3 — erreurs reliées à leur champ (§ 7.6 : Encadre role="alert", aria-invalid, aria-describedby)', () => {
+  /** L'erreur (role="alert") est-elle décrite par l'élément, qui est marqué invalide ? */
+  const relieeA = (erreur: HTMLElement, ...elements: Element[]) => {
+    const conteneur = erreur.closest('[id]') as HTMLElement
+    return {
+      alerte: erreur.closest('[role="alert"]') !== null,
+      decrit: elements.some((el) => (el.getAttribute('aria-describedby') ?? '').split(' ').includes(conteneur.id)),
+    }
+  }
+
+  it('« Un bâtiment » sans bâtiment choisi : erreur reliée au groupe de boutons radio (aria-describedby), groupe invalide, focus sur lui', async () => {
+    simulerEspace(routeurD())
+    ouvrirDiffusion()
+    await fenetrePrete()
+    saisirMessage()
+    fireEvent.click(screen.getByRole('button', { name: TD.boutons.verifier }))
+    const erreur = await screen.findByText(TD.portee.choisirBatiment, { selector: '[role="alert"] *' })
+    const groupe = screen.getByRole('radiogroup', { name: TD.portee.batimentLegende })
+    expect(relieeA(erreur, groupe)).toEqual({ alerte: true, decrit: true })
+    expect(groupe).toHaveAttribute('aria-invalid', 'true')
+    expect(within(groupe).getAllByRole('radio')).toHaveLength(2)
+    expect(groupe).toHaveFocus()
+    choisir('Bâtiment B')
+    expect(groupe).not.toHaveAttribute('aria-invalid')
+    expect(groupe).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('« Un étage » sans étage choisi : erreur reliée au groupe des étages', async () => {
+    simulerEspace(routeurD())
+    ouvrirDiffusion()
+    await fenetrePrete()
+    choisir(TD.portee.etage)
+    choisir('Bâtiment B')
+    saisirMessage()
+    fireEvent.click(screen.getByRole('button', { name: TD.boutons.verifier }))
+    const erreur = await screen.findByText(TD.portee.choisirEtage, { selector: '[role="alert"] *' })
+    const groupe = screen.getByRole('radiogroup', { name: TD.portee.etageLegende })
+    expect(relieeA(erreur, groupe)).toEqual({ alerte: true, decrit: true })
+    expect(groupe).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it.each([
+    ['adresse de contact', TD.reglages.contact, 'pas-une-adresse', TD.reglages.contactInvalide],
+    ['politique', TD.reglages.politique, 'http://cabinet-exemple.test/confidentialite', TD.reglages.politiqueInvalide],
+    ['référence du contrat', TD.reglages.contratReference, 'ab', TD.reglages.contratInvalide],
+    ['date du contrat', TD.reglages.contratDate, '2999-01-01', TD.reglages.dateInvalide],
+    ['téléphones', TD.reglages.telephones, '12', TD.reglages.telephonesInvalides],
+  ])('réglages du cabinet, %s non valable : erreur sous le champ (alert), champ invalide et décrit par elle, focus sur le champ', async (_cas, etiquette, valeur, message) => {
+    await ouvrirReglages(reglagesD())
+    await screen.findByLabelText(TD.reglages.contact)
+    saisir(etiquette, valeur)
+    fireEvent.click(screen.getByRole('button', { name: TD.reglages.enregistrer }))
+    const erreur = await screen.findByText(message)
+    const champ = screen.getByLabelText(etiquette)
+    expect(relieeA(erreur, champ)).toEqual({ alerte: true, decrit: true })
+    expect(champ).toHaveAttribute('aria-invalid', 'true')
+    await waitFor(() => expect(champ).toHaveFocus())
+    expect(appelsVers(URL_CAB_D, 'PATCH')).toEqual([])
+    // Corrigé : l'erreur disparaît, le champ n'est plus invalide.
+    saisir(etiquette, '')
+    expect(screen.queryByText(message)).toBeNull()
+    expect(screen.getByLabelText(etiquette)).not.toHaveAttribute('aria-invalid')
+  })
+})

@@ -41,6 +41,8 @@ interface Saisie {
   contratDate: string
   telephones: string
 }
+/** Champs de saisie (la case de déclaration n'est jamais refusée). */
+type ChampSaisi = Exclude<keyof Saisie, 'declarer'>
 
 const saisieDepuis = (r: ReglagesDiffusionCabinetQr): Saisie => ({
   contact: r.contactEmail ?? '', politique: r.politiqueUrl ?? '', declarer: false, contratReference: r.contratReference ?? '',
@@ -52,8 +54,16 @@ export default function ReglagesDiffusionCabinetQr({ cabinet, onFermer }: Readon
   const [lecture, setLecture] = useState<Lecture>({ etat: 'chargement' })
   const [saisie, setSaisie] = useState<Saisie>({ contact: '', politique: '', declarer: false, contratReference: '', contratDate: '', telephones: '' })
   const [erreur, setErreur] = useState<string | null>(null)
+  // Réglage refusé à l'écran : son message sous le champ, relié à lui (cahier § 7.6, relecture 3).
+  const [erreurChamp, setErreurChamp] = useState<{ champ: ChampSaisi; message: string } | null>(null)
   const [succes, setSucces] = useState<string | null>(null)
   const [occupe, setOccupe] = useState(false)
+  const id = (cle: string) => `${idBase}-${cle}`
+
+  // Le focus va au champ refusé, une fois son message rendu (le lecteur d'écran lit le champ et son erreur).
+  useEffect(() => {
+    if (erreurChamp) document.getElementById(`${idBase}-${erreurChamp.champ}`)?.focus()
+  }, [erreurChamp, idBase])
 
   useEffect(() => {
     let actif = true
@@ -84,35 +94,38 @@ export default function ReglagesDiffusionCabinetQr({ cabinet, onFermer }: Readon
   const changer = (champ: keyof Saisie, valeur: string | boolean) => {
     setSaisie((s) => ({ ...s, [champ]: valeur }))
     setErreur(null)
+    setErreurChamp(null)
     setSucces(null)
   }
 
-  /** Réglages changés, contrôlés comme par la route ; un message si l'un d'eux est refusé. */
-  const changements = (): { ok: true; reglages: ReglagesSaisisDiffusionQr } | { ok: false; message: string } => {
+  /** Réglages changés, contrôlés comme par la route ; le premier réglage refusé et son message. */
+  const changements = (): { ok: true; reglages: ReglagesSaisisDiffusionQr } | { ok: false; champ: ChampSaisi; message: string } => {
     const c: ReglagesSaisisDiffusionQr = {}
     const contact = saisie.contact.trim().toLowerCase()
     if (contact !== (r.contactEmail ?? '')) {
-      if (contact.length > 254 || !FORMAT_CONTACT.test(contact)) return { ok: false, message: t.contactInvalide }
+      if (contact.length > 254 || !FORMAT_CONTACT.test(contact)) return { ok: false, champ: 'contact', message: t.contactInvalide }
       c.diffusionContactEmail = contact
     }
     const politique = saisie.politique.trim()
     if (politique !== (r.politiqueUrl ?? '')) {
-      if (politique.length < 12 || !FORMAT_POLITIQUE.test(politique)) return { ok: false, message: t.politiqueInvalide }
+      if (politique.length < 12 || !FORMAT_POLITIQUE.test(politique)) return { ok: false, champ: 'politique', message: t.politiqueInvalide }
       c.diffusionPolitiqueUrl = politique
     }
     if (!declaree && saisie.declarer) c.politiqueDecritDiffusion = true
     const reference = saisie.contratReference.trim()
     if (reference !== (r.contratReference ?? '')) {
-      if (Array.from(reference).length < 3 || Array.from(reference).length > 100) return { ok: false, message: t.contratInvalide }
+      if (Array.from(reference).length < 3 || Array.from(reference).length > 100) return { ok: false, champ: 'contratReference', message: t.contratInvalide }
       c.contratReference = reference
     }
     if (saisie.contratDate !== (r.contratSigneLe ?? '')) {
-      if (!dateNonFutureQr(saisie.contratDate)) return { ok: false, message: t.dateInvalide }
+      if (!dateNonFutureQr(saisie.contratDate)) return { ok: false, champ: 'contratDate', message: t.dateInvalide }
       c.contratSigneLe = saisie.contratDate
     }
     const telephones = telephonesDepuisSaisieQr(saisie.telephones)
     if (!memesListes(telephones, r.telephones)) {
-      if (telephones.length > 10 || telephones.some((n) => n.length > 40 || chiffres(n) < 6 || chiffres(n) > 15)) return { ok: false, message: t.telephonesInvalides }
+      if (telephones.length > 10 || telephones.some((n) => n.length > 40 || chiffres(n) < 6 || chiffres(n) > 15)) {
+        return { ok: false, champ: 'telephones', message: t.telephonesInvalides }
+      }
       c.telephonesAutorises = telephones
     }
     return { ok: true, reglages: c }
@@ -132,13 +145,14 @@ export default function ReglagesDiffusionCabinetQr({ cabinet, onFermer }: Readon
   const enregistrer = async (activation?: boolean) => {
     if (occupe) return
     setErreur(null)
+    setErreurChamp(null)
     setSucces(null)
     if (activation === true) {
       const manque = manqueApres()
       if (manque.length > 0) return setErreur(remplir(t.manque, { liste: listeManquesActivationQr(manque) }))
     }
     const c = changements()
-    if (!c.ok) return setErreur(c.message)
+    if (!c.ok) return setErreurChamp({ champ: c.champ, message: c.message })
     const corps: ReglagesSaisisDiffusionQr = { ...c.reglages, ...(activation === undefined ? {} : { diffusionActivee: activation }) }
     if (Object.keys(corps).length === 0) return setSucces(t.rien)
     setOccupe(true)
@@ -158,16 +172,22 @@ export default function ReglagesDiffusionCabinetQr({ cabinet, onFermer }: Readon
     setSucces(activation === true ? t.activee : activation === false ? t.suspendue : t.enregistre)
   }
 
-  const id = (cle: string) => `${idBase}-${cle}`
-  const champ = (cle: keyof Saisie, etiquette: string, type: 'email' | 'url' | 'text' | 'date', aide?: string) => (
-    <Champ id={id(cle)} etiquette={etiquette} aide={aide}>
-      <input
-        id={id(cle)} type={type} value={String(saisie[cle])} autoComplete="off" spellCheck={false} className={CLASSES_SAISIE}
-        max={type === 'date' ? aujourdhuiParisEcranQr() : undefined} aria-describedby={aide ? `${id(cle)}-aide` : undefined}
-        onChange={(e) => changer(cle, e.target.value)}
-      />
-    </Champ>
-  )
+  const champ = (cle: ChampSaisi, etiquette: string, type: 'email' | 'url' | 'text' | 'date', aide?: string) => {
+    const refus = erreurChamp?.champ === cle ? erreurChamp.message : null
+    const decrit = [aide ? `${id(cle)}-aide` : null, refus ? `${id(cle)}-erreur` : null].filter((x): x is string => x !== null).join(' ')
+    return (
+      <div>
+        <Champ id={id(cle)} etiquette={etiquette} aide={aide}>
+          <input
+            id={id(cle)} type={type} value={saisie[cle]} autoComplete="off" spellCheck={false} className={CLASSES_SAISIE}
+            max={type === 'date' ? aujourdhuiParisEcranQr() : undefined} aria-describedby={decrit || undefined}
+            aria-invalid={refus ? true : undefined} onChange={(e) => changer(cle, e.target.value)}
+          />
+        </Champ>
+        {refus && <div id={`${id(cle)}-erreur`} className="mt-2"><Encadre ton="erreur" role="alert">{refus}</Encadre></div>}
+      </div>
+    )
+  }
 
   return (
     <form className="max-h-[70vh] space-y-4 overflow-y-auto pr-1" aria-busy={occupe} noValidate onSubmit={(e) => { e.preventDefault(); void enregistrer() }}>

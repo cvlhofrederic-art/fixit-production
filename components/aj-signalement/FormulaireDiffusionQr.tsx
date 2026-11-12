@@ -602,6 +602,7 @@ export default function FormulaireDiffusionQr({
                   <ChoixValeurQr
                     id={ids.batiment} nom={`${idBase}-batiments`} legende={TD.portee.batimentLegende} options={optionsBatiments}
                     valeur={choix.batiment} onChange={choisirBatiment} rechercher={TD.portee.rechercher}
+                    erreurId={erreurs.batiment ? `${ids.batiment}-erreur` : undefined}
                   />
                   {v.sansBatiment > 0 && <p className="mt-2 text-sm text-[#4A5E78]">{remplir(TD.portee.sansBatiment, { n: v.sansBatiment })}</p>}
                   {erreurChamp('batiment')}
@@ -613,6 +614,7 @@ export default function FormulaireDiffusionQr({
                     <ChoixValeurQr
                       id={ids.etage} nom={`${idBase}-etages`} legende={TD.portee.etageLegende} options={optionsEtages}
                       valeur={choix.etage} onChange={choisirEtage}
+                      erreurId={erreurs.etage ? `${ids.etage}-erreur` : undefined}
                     />
                   )}
                   {batimentChoisi.sansEtage > 0 && <p className="mt-2 text-sm text-[#4A5E78]">{remplir(TD.portee.sansEtage, { n: batimentChoisi.sansEtage })}</p>}
@@ -697,6 +699,9 @@ export default function FormulaireDiffusionQr({
 }
 
 // ── Choix d'un bâtiment ou d'un étage (valeurs présentes, variantes en description, recherche au-delà de 8) ──
+// Erreur (aucune valeur choisie) : le groupe, de rôle radiogroup (permis sur un fieldset, et qui admet aria-invalid,
+// contrairement à un bouton radio), est marqué invalide et décrit par elle (cahier § 7.6, relecture 3), comme les champs
+// de saisie ; son nom reste sa légende (aria-labelledby).
 
 interface OptionValeurQr {
   cle: string
@@ -704,15 +709,28 @@ interface OptionValeurQr {
   description?: string
 }
 
-function ChoixValeurQr({
-  id, nom, legende, options, valeur, onChange, rechercher,
-}: Readonly<{ id: string; nom: string; legende: string; options: readonly OptionValeurQr[]; valeur: string; onChange: (cle: string) => void; rechercher?: string }>) {
+interface PropsChoixValeurQr {
+  id: string
+  nom: string
+  legende: string
+  options: readonly OptionValeurQr[]
+  valeur: string
+  onChange: (cle: string) => void
+  rechercher?: string
+  /** Identifiant de l'erreur affichée sous le groupe ; absent : aucune erreur. */
+  erreurId?: string
+}
+
+function ChoixValeurQr({ id, nom, legende, options, valeur, onChange, rechercher, erreurId }: Readonly<PropsChoixValeurQr>) {
   const [recherche, setRecherche] = useState('')
   const motif = cleRecherche(recherche.trim())
   const visibles = motif ? options.filter((o) => o.cle === valeur || cleRecherche(`${o.libelle} ${o.description ?? ''}`).includes(motif)) : options
   return (
-    <fieldset id={id} tabIndex={-1} className="space-y-2 outline-none">
-      <legend className="mb-1 text-base font-semibold text-[#0D1B2E]">{legende}</legend>
+    <fieldset
+      id={id} tabIndex={-1} role="radiogroup" aria-labelledby={`${id}-legende`} aria-invalid={erreurId ? true : undefined}
+      aria-describedby={erreurId} className="space-y-2 outline-none"
+    >
+      <legend id={`${id}-legende`} className="mb-1 text-base font-semibold text-[#0D1B2E]">{legende}</legend>
       {rechercher && options.length > SEUIL_RECHERCHE && (
         <input type="search" value={recherche} onChange={(e) => setRecherche(e.target.value)} aria-label={rechercher} placeholder={rechercher} className={CLASSES_SAISIE} />
       )}
