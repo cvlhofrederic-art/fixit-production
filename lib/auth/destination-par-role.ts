@@ -8,14 +8,24 @@
 //   artisan                                           → /{locale}/artisan/dashboard
 //   pro_societe | pro_conciergerie | pro_gestionnaire → /{locale}/pro/dashboard
 //   tout rôle commençant par « syndic »               → /{locale}/syndic/dashboard
+//   gestionnaire_signalement                          → /fr/aj-signalement/ (toute langue)
 //   tout autre rôle, absent ou inconnu                → /{locale}/client/dashboard
 //     (y compris super_admin, coproprio, locataire, client, particulier)
 //
-// Seule exception, dans l'appli Vitfix Pro (option appMobile, voir lib/app-mobile.ts) : l'artisan retrouve l'espace
-// mobile /{locale}/pro/mobile. Les autres rôles gardent leur destination : l'espace mobile ne lit que la fiche
+// gestionnaire_signalement (AJ Signalement, PR 2) : gestionnaire d'un cabinet client, sans tableau de bord VitFix.
+// L'espace AJ Signalement est en français pour tout cabinet ; le middleware y aiguille le compte vers l'espace de SON
+// cabinet (vitfix.io/<identifiant>/suivi/, repère de routage), ou vers la connexion de l'espace (message neutre) sans
+// repère. Valeurs écrites ici pour garder le module sans dépendance ; tests/auth/destination-par-role.test.ts vérifie
+// qu'elles sont celles de lib/aj-signalement/acces-espace.ts (ROLE_GESTIONNAIRE_QR, CHEMIN_ESPACE_QR).
+//
+// Dans l'appli Vitfix Pro (option appMobile, voir lib/app-mobile.ts), seul l'artisan change de destination : il
+// retrouve l'espace mobile /{locale}/pro/mobile. Les autres rôles gardent la leur : l'espace mobile ne lit que la fiche
 // profiles_artisan (séparation artisan / BTP, .claude/rules/artisan-vs-btp.md).
 
 const ROLES_PRO: readonly string[] = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire']
+
+const ROLE_GESTIONNAIRE_SIGNALEMENT = 'gestionnaire_signalement'
+const ESPACE_AJ_SIGNALEMENT = '/fr/aj-signalement/'
 
 export interface OptionsDestination {
   /** Connexion faite dans l'appli Vitfix Pro (et non dans un navigateur). */
@@ -28,5 +38,6 @@ export function destinationApresConnexion(role: unknown, locale: string, options
   if (roleTexte === 'artisan') return options.appMobile ? `/${locale}/pro/mobile` : `/${locale}/artisan/dashboard`
   if (roleTexte !== undefined && ROLES_PRO.includes(roleTexte)) return `/${locale}/pro/dashboard`
   if (roleTexte !== undefined && roleTexte.startsWith('syndic')) return `/${locale}/syndic/dashboard`
+  if (roleTexte === ROLE_GESTIONNAIRE_SIGNALEMENT) return ESPACE_AJ_SIGNALEMENT
   return `/${locale}/client/dashboard`
 }

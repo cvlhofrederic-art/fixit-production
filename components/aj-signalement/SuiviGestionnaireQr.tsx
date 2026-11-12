@@ -5,8 +5,10 @@
 // Demande de Hugo du 10/11/2026 : « chaque gestionnaire doit avoir sa page de suivi des signalements par copropriété ».
 // En PR 1, le super admin la voit sur la page profil : ses copropriétés (attributions et « à tous » de son cabinet,
 // GET tableau?gestionnaire=<id>) avec leurs compteurs, puis, au clic, leurs signalements (GET
-// coproprietes/[id]/signalements, par pages, curseur du serveur passé tel quel) et le changement de statut. C'est le
-// composant que reprendra la page du gestionnaire connecté (PR 2). Rien n'est gardé dans le navigateur.
+// coproprietes/[id]/signalements, par pages, curseur du serveur passé tel quel) et le changement de statut (statut changé
+// entre-temps, 409 conflit_statut : liste rechargée, fiche gardée ouverte). Vue du SUPER ADMIN seulement : le
+// gestionnaire connecté suit ses copropriétés dans l'espace de son cabinet (vitfix.io/<identifiant>/suivi/, même
+// présentation que l'espace global : TableauSignalementsQr, réponse minimisée). Rien n'est gardé dans le navigateur.
 
 import { useCallback, useEffect, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -65,6 +67,12 @@ function CoproprieteSuivieQr({ copropriete: c }: Readonly<{ copropriete: Copropr
     const r = await chargerSignalementsCoproprieteQr(c.id, { statut })
     setListe(r.ok ? { statut: 'pret', signalements: r.signalements, suite: r.suite } : { statut: 'erreur', message: messageEchecQr(r.code) })
   }, [c.id])
+
+  /** Après un 409 conflit_statut : la liste du filtre courant relue sans la refermer (la fiche ouverte garde son message). */
+  const recharger = async () => {
+    const r = await chargerSignalementsCoproprieteQr(c.id, { statut: filtre })
+    setListe(r.ok ? { statut: 'pret', signalements: r.signalements, suite: r.suite } : { statut: 'erreur', message: messageEchecQr(r.code) })
+  }
 
   const suivante = async () => {
     if (liste.statut !== 'pret' || !liste.suite || suiteEnCours) return
@@ -146,7 +154,9 @@ function CoproprieteSuivieQr({ copropriete: c }: Readonly<{ copropriete: Copropr
 
       {signalementDetail && (
         <Modale titre={`${signalementDetail.typeIntervention} — ${signalementDetail.coproprieteNom}`} onFermer={() => setDetail(null)} labelFermer={T.fermerFenetre}>
-          <DetailSignalementQr signalement={signalementDetail} jeton={null} onFermer={() => setDetail(null)} onStatut={surStatut} />
+          <DetailSignalementQr
+            signalement={signalementDetail} jeton={null} onFermer={() => setDetail(null)} onStatut={surStatut} onConflit={() => { void recharger() }}
+          />
         </Modale>
       )}
     </li>

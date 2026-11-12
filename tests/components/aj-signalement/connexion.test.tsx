@@ -18,7 +18,7 @@ import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { AuthApiError, AuthRetryableFetchError, AuthSessionMissingError } from '@supabase/supabase-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CONTEXTE_CONNEXION_GLOBAL_QR, type ContexteConnexionQr } from '@/lib/aj-signalement/connexion-espace'
+import { CONTEXTE_CONNEXION_GLOBAL_QR, contexteConnexionCabinetQr, type ContexteConnexionQr } from '@/lib/aj-signalement/connexion-espace'
 
 const simul = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -541,19 +541,106 @@ describe('mot de passe oublié : demande du lien dans la page, sans passer par l
   })
 })
 
-// Le contexte porte le nom affiché et l'adresse d'arrivée. La décision d'accès ne lit aujourd'hui que le rôle (seul le
-// super admin entre, dans tout espace) : la PR 2 devra lui passer le cabinet de l'espace avant d'admettre un gestionnaire.
-describe('réutilisable pour l’espace d’un cabinet (PR 2) : contexte en paramètre', () => {
-  const cabinet: ContexteConnexionQr = { nom: 'Cabinet Exemple', espace: { fr: '/cabinet-exemple/', pt: '/cabinet-exemple/' } }
+// Connexion professionnelle d'un cabinet (vitfix.io/<identifiant>/connexion/, PR 2 lot 4) : le contexte porte le nom du
+// cabinet, son espace (/<identifiant>/suivi/) ET son identifiant, passé à la décision d'accès. Seul un gestionnaire de
+// CE cabinet (rôle serveur + repère de routage) y entre ; le super admin est renvoyé vers son espace global ; tout autre
+// compte, gestionnaire d'un autre cabinet compris, reçoit le message neutre (rien ne dit que l'autre cabinet existe).
+describe('connexion d’un cabinet (PR 2) : contexte avec le cabinet', () => {
+  const cabinet = contexteConnexionCabinetQr({ identifiant: 'cabinet-exemple', nom: 'Cabinet Exemple' })
+  const gestionnaire = (repere: string) => ({ role: 'gestionnaire_signalement', aj_signalement_cabinet: repere })
 
-  it('nom du cabinet affiché, même titre, arrivée dans l’espace du cabinet', async () => {
-    simul.signInWithPassword.mockResolvedValue(connexionReussie({ role: 'super_admin' }))
+  it('contexte : nom du cabinet, espace /<id>/suivi/ en fr comme en pt, identifiant ; sérialisable', () => {
+    expect(cabinet).toEqual({
+      nom: 'Cabinet Exemple', espace: { fr: '/cabinet-exemple/suivi/', pt: '/cabinet-exemple/suivi/' }, cabinet: { identifiant: 'cabinet-exemple' },
+    })
+    expect(JSON.parse(JSON.stringify(cabinet))).toEqual(cabinet)
+  })
+
+  it('nom du cabinet affiché, même titre, même formulaire (ni Google ni choix Particulier / Artisan / Pro)', async () => {
+    simulerLocation('/cabinet-exemple/connexion/')
     await rendre(cabinet)
     expect(screen.getByText('Cabinet Exemple')).toBeInTheDocument()
     expect(screen.queryByText('AJ Signalement')).toBeNull()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Connexion professionnelle')
+    expect(screen.queryByText(/Google/)).toBeNull()
+    expect(screen.queryByText(/Particulier/)).toBeNull()
+    expect(liensVersPagesCommunes()).toEqual([])
+  })
+
+  it.each([
+    ['sans ancre', '', '/cabinet-exemple/suivi/'],
+    ['lien de l’e-mail (#signalements)', '#signalements', '/cabinet-exemple/suivi/#signalements'],
+    ['ancre d’une vue du super admin', '#journal', '/cabinet-exemple/suivi/'],
+  ])('gestionnaire de CE cabinet, %s : arrivée dans l’espace du cabinet, adresse remplacée', async (_cas, ancre, destination) => {
+    simulerLocation('/cabinet-exemple/connexion/', ancre)
+    simul.signInWithPassword.mockResolvedValue(connexionReussie(gestionnaire('cabinet-exemple')))
+    await rendre(cabinet)
     saisir(EMAIL, MOT_DE_PASSE)
     envoyer()
-    await waitFor(() => expect(navigations).toEqual([remplacement('/cabinet-exemple/')]))
+    await waitFor(() => expect(navigations).toEqual([remplacement(destination)]))
+    expect(simul.signOut).not.toHaveBeenCalled()
+  })
+
+  it('super admin : renvoyé vers son espace global, jamais l’espace du cabinet', async () => {
+    simulerLocation('/cabinet-exemple/connexion/', '#signalements')
+    simul.signInWithPassword.mockResolvedValue(connexionReussie({ role: 'super_admin' }))
+    await rendre(cabinet)
+    saisir(EMAIL, MOT_DE_PASSE)
+    envoyer()
+    await waitFor(() => expect(navigations).toEqual([remplacement('/fr/aj-signalement/#signalements')]))
+  })
+
+  it.each([
+    ['gestionnaire d’un autre cabinet', gestionnaire('autre-cabinet'), {}],
+    ['gestionnaire sans repère', { role: 'gestionnaire_signalement' }, {}],
+    ['client', { role: 'client' }, {}],
+    ['repère dans user_metadata seulement', { role: 'client' }, gestionnaire('cabinet-exemple')],
+  ])('%s : message neutre (role=alert), session fermée en portée locale, aucune navigation', async (_cas, app, user) => {
+    simulerLocation('/cabinet-exemple/connexion/')
+    simul.signInWithPassword.mockResolvedValue(connexionReussie(app, user))
+    await rendre(cabinet)
+    saisir(EMAIL, MOT_DE_PASSE)
+    envoyer()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cet espace n’est pas accessible avec votre compte.')
+    expect(screen.queryByText(/autre-cabinet/)).toBeNull()
+    await waitFor(() => expect(simul.signOut).toHaveBeenCalledWith({ scope: 'local' }))
+    expect(navigations).toEqual([])
+  })
+
+  it('au chargement : session du gestionnaire de CE cabinet → l’espace (ancre comprise), sans saisie', async () => {
+    simulerLocation('/cabinet-exemple/connexion/', '#coproprietes')
+    simul.getUser.mockResolvedValue({ data: { user: compte(gestionnaire('cabinet-exemple')) }, error: null })
+    render(<ConnexionEspaceQr contexte={cabinet} />)
+    await waitFor(() => expect(navigations).toEqual([remplacement('/cabinet-exemple/suivi/#coproprietes')]))
+    expect(simul.signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('au chargement : session d’un gestionnaire d’un autre cabinet → message neutre (status), session laissée', async () => {
+    simulerLocation('/cabinet-exemple/connexion/')
+    simul.getUser.mockResolvedValue({ data: { user: compte(gestionnaire('autre-cabinet')) }, error: null })
+    await rendre(cabinet)
+    expect(await screen.findByRole('status')).toHaveTextContent('Cet espace n’est pas accessible avec votre compte.')
+    expect(simul.signOut).not.toHaveBeenCalled()
+    expect(navigations).toEqual([])
+  })
+
+  it('page globale (/fr/aj-signalement/connexion/) : un gestionnaire avec repère est envoyé vers l’espace de SON cabinet', async () => {
+    simulerLocation('/fr/aj-signalement/connexion/', '#signalements')
+    simul.signInWithPassword.mockResolvedValue(connexionReussie(gestionnaire('cabinet-exemple')))
+    await rendre(CONTEXTE_CONNEXION_GLOBAL_QR)
+    saisir(EMAIL, MOT_DE_PASSE)
+    envoyer()
+    await waitFor(() => expect(navigations).toEqual([remplacement('/cabinet-exemple/suivi/#signalements')]))
+    expect(simul.signOut).not.toHaveBeenCalled()
+  })
+
+  it('« Mot de passe oublié ? » : même étape dans la page du cabinet (route commune, aucun lien vers les pages communes)', async () => {
+    simulerLocation('/cabinet-exemple/connexion/')
+    await rendre(cabinet)
+    fireEvent.click(boutonOubli())
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Connexion professionnelle')
+    expect(screen.getByText('Cabinet Exemple')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Envoyer le lien' })).toBeInTheDocument()
+    expect(liensVersPagesCommunes()).toEqual([])
   })
 })

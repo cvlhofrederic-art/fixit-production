@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest'
 import configurationNext from '@/next.config'
 import { getAllFrPageCombos, getAllFrUrgencyCombos } from '@/lib/data/fr-seo-pages-data'
 import { getAllPtSitemapUrls } from '@/lib/sitemap-pt-pages'
-import { SOURCE_IDENTIFIANT_CABINET_QR, cheminPublicCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+import { SOURCE_IDENTIFIANT_CABINET_QR, cheminEspaceCabinetQr, cheminPublicCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 // Même bibliothèque (et même version) que le routeur d'OpenNext : résolue depuis son fichier de routage.
 const requireOpenNext = createRequire(createRequire(import.meta.url).resolve('@opennextjs/aws/core/routing/matcher.js'))
@@ -512,6 +512,9 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     [`/cabinet-exemple/signalement/${jeton}`, `/cabinet/cabinet-exemple/signalement/${jeton}`],
     ['/cabinet-exemple/confirmation-adresse/', '/cabinet/cabinet-exemple/confirmation-adresse'],
     ['/cabinet-exemple/confirmation-adresse', '/cabinet/cabinet-exemple/confirmation-adresse'],
+    // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : paire exacte, comme la confirmation.
+    ['/cabinet-exemple/invitation/', '/cabinet/cabinet-exemple/invitation'],
+    ['/cabinet-exemple/invitation', '/cabinet/cabinet-exemple/invitation'],
     [`/abc/signalement/${jeton}/`, `/cabinet/abc/signalement/${jeton}`],
   ])('%s est servi par %s', async (chemin, page) => {
     const [avantFichiers] = await reecritures()
@@ -521,6 +524,20 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     expect(cheminPublicCabinetQr(chemin)).not.toBeNull()
   })
 
+  // Espace du cabinet (PR 2, lot 4) : connexion et suivi, paires exactes ; reconnus par le middleware (famille avec
+  // session, identifiant valable seulement), qui passe avant. /<id>/ seul n'a pas de page : le middleware le redirige.
+  it.each([
+    ['/cabinet-exemple/connexion/', '/cabinet/cabinet-exemple/connexion'],
+    ['/cabinet-exemple/connexion', '/cabinet/cabinet-exemple/connexion'],
+    ['/cabinet-exemple/suivi/', '/cabinet/cabinet-exemple/suivi'],
+    ['/cabinet-exemple/suivi', '/cabinet/cabinet-exemple/suivi'],
+  ])('espace du cabinet : %s est servi par %s', async (chemin, page) => {
+    const [avantFichiers] = await reecritures()
+    expect(sansBarreFinale(resoudre(avantFichiers, chemin))).toBe(page)
+    expect(routeExiste(page)).toBe(true)
+    expect(cheminEspaceCabinetQr(chemin)).not.toBeNull()
+  })
+
   it.each([
     `/api/signalement/${jeton}/`,
     `/admin/signalement/${jeton}/`,
@@ -528,8 +545,16 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     `/cabinet-exemple/signalement/${jeton.toUpperCase()}/`,
     `/Cabinet-Exemple/signalement/${jeton}/`,
     `/cabinet-exemple/signalement/${jeton}/autre/`,
-    '/cabinet-exemple/suivi/',
+    '/cabinet-exemple/suivi/autre/',
+    '/cabinet-exemple/connexion/autre/',
+    '/Cabinet-Exemple/suivi/',
+    '/api/connexion/',
+    '/admin/suivi/',
+    '/cabinet-exemple/invitation/autre/',
+    '/Cabinet-Exemple/invitation/',
+    '/api/invitation/',
     '/cabinet-exemple/',
+    '/cabinet-exemple',
   ])('%s : aucune réécriture du chemin client', async (chemin) => {
     expect((await reglesCabinet()).map((regle) => resoudre([regle], chemin)).filter(Boolean)).toEqual([])
   })
@@ -540,23 +565,46 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     expect(sansBarreFinale(resoudre(avantFichiers, `/pt/signalement/${jeton}/`))).toBe(`/signalement/${jeton}`)
   })
 
-  it('trois règles, chacune à deux paramètres capturés ou plus : jamais de destination littérale', async () => {
+  it('la connexion de l’espace global reste servie par sa page (#669), jamais par celle d’un cabinet', async () => {
+    const [avantFichiers] = await reecritures()
+    for (const langue of ['fr', 'pt']) {
+      expect(sansBarreFinale(resoudre(avantFichiers, `/${langue}/aj-signalement/connexion/`))).toBe('/aj-signalement/connexion')
+      expect(sansBarreFinale(resoudre(avantFichiers, `/${langue}/aj-signalement/`))).toBe('/aj-signalement')
+    }
+  })
+
+  it('neuf règles en tête de beforeFiles (QR code, puis paires exactes de la confirmation, de l’invitation, de la connexion et du suivi) : jamais de destination littérale', async () => {
     const regles = await reglesCabinet()
+    // En tête : next start enchaîne les règles beforeFiles ; après une règle de langue, une règle de cabinet captait le
+    // chemin interne produit (/fr/aj-signalement/connexion/ → /cabinet/aj-signalement/connexion). Les deux moteurs sont
+    // rejoués par tests/next-config-reecritures-enchainees.test.ts.
+    expect((await reecritures())[0].slice(0, regles.length)).toEqual(regles)
     expect(regles.map(({ source }) => source)).toEqual([
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/signalement/:jeton([0-9a-f]{32})`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/confirmation-adresse/`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/invitation/`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`,
     ])
+    const exemples = [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/', '/cabinet-exemple/confirmation-adresse',
+      '/cabinet-exemple/invitation/', '/cabinet-exemple/invitation', '/cabinet-exemple/connexion/', '/cabinet-exemple/connexion',
+      '/cabinet-exemple/suivi/', '/cabinet-exemple/suivi']
     for (const regle of regles) {
-      const exemple = regle.source.includes(':jeton') ? `/cabinet-exemple/signalement/${jeton}/` : '/cabinet-exemple/confirmation-adresse/'
-      expect(resoudre([regle], exemple) ?? '').not.toContain(':')
+      for (const exemple of exemples) expect(resoudre([regle], exemple) ?? '').not.toContain(':')
     }
   })
 
   it('aucune redirection ne capte un chemin client (les redirections passent avant le middleware)', async () => {
     const regles = await redirections()
-    for (const chemin of [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/']) {
-      expect(resoudre(regles, chemin)).toBeNull()
+    for (const chemin of [
+      `/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/', '/cabinet-exemple/invitation/', '/cabinet-exemple/invitation',
+      '/cabinet-exemple/', '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/',
+    ]) {
+      expect(resoudre(regles, chemin), chemin).toBeNull()
     }
   })
 
@@ -564,5 +612,10 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     const [avantFichiers] = await reecritures()
     expect(resoudre(avantFichiers, `/fr/cabinet/cabinet-exemple/signalement/${jeton}/`)).toBeNull()
     expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/confirmation-adresse/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/invitation/')).toBeNull()
+    expect(resoudre(avantFichiers, '/pt/cabinet-exemple/invitation/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/suivi/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet-exemple/connexion/')).toBeNull()
+    expect(resoudre(avantFichiers, '/pt/cabinet-exemple/suivi/')).toBeNull()
   })
 })

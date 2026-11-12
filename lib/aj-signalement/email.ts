@@ -15,6 +15,8 @@
 //   - confirmation d'adresse d'un gestionnaire (nom court, nom du cabinet, lien du chemin client) et alertes au super
 //     admin (adresse contestée, limite d'envoi), sans nom ni adresse de personne. Tout passe par sendBatchEmails :
 //     sendEmail écrit l'erreur brute du service dans la console (lib/email.ts).
+// PR 2, lot 5 (RG-25) : un gestionnaire à l'accès ouvert reçoit le bouton « Ouvrir le suivi » (espace de son cabinet,
+// /<identifiant>/suivi/#signalements, aucun jeton) au lieu de la phrase « Le cabinet suit ce signalement… ».
 
 import { sendBatchEmails, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
 import { logger } from '@/lib/logger'
@@ -48,9 +50,15 @@ export interface ParametresEmailQr {
   destinataire?: TypeDestinataireQr
   /** Signalements retenus pendant la limite d'envoi (budget d'e-mails), sans leur contenu ; null : aucun. */
   mention?: string | null
+  /**
+   * PR 2, lot 5 (RG-25) : espace du cabinet de la copropriété (urlSuiviCabinetQr, aucun jeton), bouton « Ouvrir le
+   * suivi » d'un GESTIONNAIRE à l'accès ouvert. envoyerEmailsSignalementQr ne le passe qu'à ceux-là ; absent : la phrase
+   * de la PR 1.
+   */
+  lienSuivi?: string | null
 }
 
-/** Phrase de pied du message selon le destinataire (PR 1 : un gestionnaire n'a pas encore accès à l'espace). */
+/** Phrase de pied du message d'un gestionnaire sans accès ouvert à l'espace de son cabinet (PR 1). */
 const SUIVI_PAR_CABINET_QR = 'Le cabinet suit ce signalement dans AJ Signalement.'
 
 function ligne(libelle: string, valeurHtml: string): string {
@@ -61,7 +69,7 @@ function ligne(libelle: string, valeurHtml: string): string {
 }
 
 export function templateSignalementQr({
-  copropriete, signalement: s, origine = 'https://vitfix.io', destinataire = 'administrateur', mention = null,
+  copropriete, signalement: s, origine = 'https://vitfix.io', destinataire = 'administrateur', mention = null, lienSuivi = null,
 }: ParametresEmailQr): { subject: string; html: string } {
   const e = echapperHtml
   const telephoneLien = s.telephone.replace(/[\s.()-]/g, '')
@@ -85,13 +93,18 @@ export function templateSignalementQr({
     ligne('Numéro', e(numeroSignalementQr(s.id))),
   ].join('')
   const urlTableau = `${origine.replace(/\/+$/, '')}${CHEMIN_TABLEAU_QR}`
-  // Bouton de l'espace : l'administrateur seul (un gestionnaire n'y a pas encore accès, une adresse saisie jamais).
-  const bouton = destinataire === 'administrateur'
-    ? `<p style="margin:16px 0 0;">
-            <a href="${e(urlTableau)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir le tableau des signalements</a>
+  const boutonVers = (url: string, libelle: string) => `<p style="margin:16px 0 0;">
+            <a href="${e(url)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">${libelle}</a>
           </p>`
+  // Bouton de l'espace global : l'administrateur seul. Gestionnaire à l'accès ouvert (PR 2) : l'espace de son cabinet,
+  // sans jeton ; gestionnaire sans accès : la phrase de la PR 1 ; adresse saisie : rien.
+  const suiviGestionnaire = destinataire === 'gestionnaire' && lienSuivi ? lienSuivi : null
+  let bouton = ''
+  if (destinataire === 'administrateur') bouton = boutonVers(urlTableau, 'Ouvrir le tableau des signalements')
+  else if (suiviGestionnaire) bouton = boutonVers(suiviGestionnaire, 'Ouvrir le suivi')
+  const suivi = destinataire === 'gestionnaire' && !suiviGestionnaire
+    ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${SUIVI_PAR_CABINET_QR}</p>`
     : ''
-  const suivi = destinataire === 'gestionnaire' ? `<p style="margin:8px 0 0;font-size:13px;color:#4A5E78;">${SUIVI_PAR_CABINET_QR}</p>` : ''
   const rappel = mention
     ? `<p style="margin:0 0 16px;padding:10px 14px;background:#F7F4EE;border-radius:10px;color:#0D1B2E;font-size:14px;">${e(mention)}</p>`
     : ''
@@ -197,7 +210,9 @@ export async function envoyerEmailsSignalementQr(
   p: Omit<ParametresEmailQr, 'destinataire'> & { destinataires: readonly DestinataireQr[] },
 ): Promise<BilanEnvoiQr> {
   const messages: EmailPayload[] = p.destinataires.map((d) => {
-    const { subject, html } = templateSignalementQr({ ...p, destinataire: d.type })
+    // RG-25 : le lien de suivi n'est donné qu'à un gestionnaire dont l'accès est ouvert (compte relié, non bloqué).
+    const lienSuivi = d.type === 'gestionnaire' && d.accesOuvert ? p.lienSuivi ?? null : null
+    const { subject, html } = templateSignalementQr({ ...p, destinataire: d.type, lienSuivi })
     return { to: d.email, subject, html, replyTo: p.signalement.email, tags: [{ name: 'type', value: 'aj-signalement' }] }
   })
   return envoyerParLotQr(messages)
@@ -243,12 +258,69 @@ export async function envoyerConfirmationAdresseQr(p: ParametresConfirmationAdre
   return envoyerUnQr({ to: p.email, subject, html, tags: [{ name: 'type', value: 'aj-signalement-adresse' }] })
 }
 
+// ── Ouverture de l'accès d'un gestionnaire à l'espace de son cabinet (PR 2, SPEC § 2.3.2) ──
+
+/** Mêmes paramètres que la confirmation d'adresse ; lien /<identifiant>/invitation/#<jeton> (jeton après le « # »). */
+export type ParametresAccesGestionnaireQr = ParametresConfirmationAdresseQr
+
+/**
+ * Accès au suivi des signalements de ses copropriétés (compte professionnel VitFix, mot de passe choisi sur la page du
+ * lien). Comme la confirmation, l'e-mail nomme la personne et le cabinet pour qu'un mauvais destinataire réponde « Ce
+ * n'est pas moi ». Aucune donnée de copropriété ni de signalement, aucun mot de passe. FR seul (tout l'espace est en
+ * français).
+ */
+export function templateAccesGestionnaireQr({ nomCourt, cabinet, lien }: ParametresAccesGestionnaireQr): { subject: string; html: string } {
+  const e = echapperHtml
+  const paragraphe = (texte: string, marge = '0 0 14px') => `<p style="margin:${marge};font-size:15px;line-height:1.55;color:#0D1B2E;">${texte}</p>`
+  const corps = `${paragraphe(`Bonjour ${e(nomCourt)},`)}
+          ${paragraphe(`${e(cabinet)} vous ouvre un accès à son espace AJ Signalement : vous y suivrez les signalements de vos copropriétés et pourrez changer leur statut. Choisissez votre mot de passe pour créer votre compte professionnel. Ce lien est valable 7 jours et ne sert qu’une fois.`)}
+          <p style="margin:20px 0;">
+            <a href="${e(lien)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:600;font-size:14px;">Ouvrir mon accès</a>
+          </p>
+          ${paragraphe(`<strong>Vous n’êtes pas ${e(nomCourt)}, gestionnaire chez ${e(cabinet)} ?</strong> Ouvrez le lien et cliquez « Ce n’est pas moi » : le cabinet sera prévenu et aucun compte ne sera créé.`)}
+          <p style="margin:24px 0 0;font-size:12px;line-height:1.5;color:#4A5E78;">Vos nom et adresse professionnelle sont traités par votre employeur pour le suivi des signalements (VitFix, sous-traitant). Durée : le temps de votre mission, puis 12 mois. Contact : votre employeur. <a href="https://vitfix.io/fr/confidentialite/" style="color:#4A5E78;">Politique de confidentialité</a></p>`
+  const html = cadreEmailQr({
+    langue: 'fr',
+    titreHtml: 'Votre accès à AJ Signalement',
+    corpsHtml: corps,
+    piedHtml: 'AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.',
+  })
+  return { subject: `AJ Signalement — ${cabinet} : ouvrez votre accès`, html }
+}
+
+/** Envoie l'accès à la seule adresse de la fiche (sendBatchEmails) ; vrai si parti. Ne lève jamais. */
+export async function envoyerAccesGestionnaireQr(p: ParametresAccesGestionnaireQr & { email: string }): Promise<boolean> {
+  const { subject, html } = templateAccesGestionnaireQr(p)
+  return envoyerUnQr({ to: p.email, subject, html, tags: [{ name: 'type', value: 'aj-signalement-acces' }] })
+}
+
 // ── Alertes au super admin (sans nom ni adresse de personne) ─────────────────
 
-/** « Ce n'est pas moi » (P1-R17b). */
+/** « Ce n'est pas moi » (P1-R17b ; aussi depuis un lien d'accès, P2-R3b). */
 export const ALERTE_ADRESSE_CONTESTEE_QR = {
   objet: 'AJ Signalement — adresse de gestionnaire contestée',
   texte: 'Une adresse de gestionnaire a été contestée par son destinataire : aucun e-mail ne lui sera envoyé. Créez une fiche avec la bonne adresse, puis faites le départ de la fiche contestée.',
+} as const
+
+/** Acceptation d'un accès refusée : l'adresse est celle d'un compte VitFix d'un autre espace (P2-R3, jamais converti). */
+export const ALERTE_REFUS_AUTRE_ESPACE_QR = {
+  objet: 'AJ Signalement — accès d’un gestionnaire refusé (adresse d’un autre espace)',
+  texte: 'L’adresse d’un gestionnaire est déjà celle d’un compte VitFix d’un autre espace : son accès n’a pas été ouvert (un compte existant n’est jamais converti). Créez une fiche avec une autre adresse, puis faites le départ de celle-ci.',
+} as const
+
+/** Accès accepté, mais le compte n'a pas pu être relié à la fiche (contrôle après coup de P2-R3). */
+export const ALERTE_LIAISON_INCOMPLETE_QR = {
+  objet: 'AJ Signalement — accès d’un gestionnaire à vérifier',
+  texte: 'Un gestionnaire a accepté son accès, mais son compte n’a pas pu être relié à sa fiche. Ouvrez la fiche, puis renvoyez l’accès : le compte existant sera rattaché.',
+} as const
+
+/**
+ * Un gestionnaire a demandé, depuis son compte, la suppression de ses données (RGPD, delete-account refusé : son compte
+ * est géré par le cabinet, responsable de traitement). PR 2, lot 6.
+ */
+export const ALERTE_EFFACEMENT_DEMANDE_QR = {
+  objet: 'AJ Signalement — demande d’effacement d’un gestionnaire',
+  texte: 'Un gestionnaire a demandé la suppression de ses données depuis son compte. Rien n’a été supprimé : transmettez la demande au cabinet ; s’il l’accepte, faites le départ de la fiche, puis « Effacer ses données ».',
 } as const
 
 export function templateAlerteAdministrateurQr(p: { objet: string; texte: string; lien: string }): { subject: string; html: string } {

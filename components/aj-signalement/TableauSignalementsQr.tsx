@@ -19,12 +19,19 @@
 // partagé avec les vues Gestionnaires, Cabinets et Journal de l'espace (onTableau ; rechargé sur « actualisation »).
 // Lot 5 : « Importer un fichier » (Excel ou CSV, espace seulement) ouvre l'assistant d'import ; la liste est rechargée
 // après l'import.
+// PR 2, lot 5 (vueGestionnaire : espace d'un cabinet, gestionnaire connecté, SPEC § 2.8) : mêmes trois vues, sur ce que
+// le serveur lui rend (sa portée, minimisée) ; tableau de bord inchangé (4 carrés qui suivent le filtre, puis la liste) ;
+// copropriétés : cartes du gestionnaire, désactivées en bas, ni filtre du super admin ni import, « Ajouter une
+// copropriété » par la fenêtre du gestionnaire (domaines de SON cabinet) ; statut changé entre-temps (409) : liste
+// rechargée ; messages d'échec du gestionnaire (accès retiré, fonction pas encore activée, toast si le réseau est coupé).
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { heureCourte, remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Encadre, EtatVide, Modale, Montant } from '@/components/coproprietaire-dashboard/ui'
 import CarteCoproprieteQr from '@/components/aj-signalement/CarteCoproprieteQr'
 import ModaleCoproprieteQr from '@/components/aj-signalement/ModaleCoproprieteQr'
+import ModaleCoproprieteGestionnaireQr from '@/components/aj-signalement/ModaleCoproprieteGestionnaireQr'
 import DetailSignalementQr from '@/components/aj-signalement/DetailSignalementQr'
 import AssistantImportQr from '@/components/aj-signalement/AssistantImportQr'
 import type { VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
@@ -36,6 +43,7 @@ import {
 } from '@/lib/aj-signalement/affichage'
 import { TEXTES_GESTION_QR as G, filtrerCoproprietesQr } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_IMPORT_QR as I } from '@/lib/aj-signalement/import/textes'
+import { coproprietesGestionnaireOrdonneesQr, idCarteCoproprieteQr, messageErreurGestionnaireQr } from '@/lib/aj-signalement/affichage-gestionnaire'
 
 /** Cabinets et fiches de l'espace (fenêtre de copropriété) ; null : pas encore chargés. */
 export interface GestionTableauQr {
@@ -54,6 +62,15 @@ export interface PropsTableauSignalementsQr {
   onTableau?: (tableau: TableauQr) => void
   /** Change quand l'espace demande un rechargement (cabinet, rattachement, attributions modifiés ailleurs). */
   actualisation?: number
+  /**
+   * PR 2 : vue d'un gestionnaire connecté (espace de son cabinet) ; domaines e-mail de SON cabinet (GET /moi), seules
+   * adresses qu'il peut ajouter aux destinataires. Absent : vue du super admin, inchangée.
+   */
+  gestionnaire?: VueGestionnaireTableauQr
+}
+
+export interface VueGestionnaireTableauQr {
+  domaines: readonly string[]
 }
 
 type Etat =
@@ -83,7 +100,7 @@ function origineCourante(): string {
   return typeof window === 'undefined' ? 'https://vitfix.io' : window.location.origin
 }
 
-export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, actualisation = 0 }: Readonly<PropsTableauSignalementsQr>) {
+export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, actualisation = 0, gestionnaire }: Readonly<PropsTableauSignalementsQr>) {
   const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
   const [fenetre, setFenetre] = useState<Fenetre>(null)
   const [filtreCopro, setFiltreCopro] = useState('')
@@ -99,14 +116,17 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
     setMessage(null)
   }
 
+  const vueGestionnaire = gestionnaire !== undefined
   const charger = useCallback(async () => {
     const resultat = await chargerTableauQr(jeton)
     if (!resultat.ok) {
+      // Gestionnaire : réseau coupé signalé aussi par un toast (SPEC § 2.8) ; le message reste à l'écran.
+      if (vueGestionnaire && resultat.code === 'reseau') toast.error(messageErreurGestionnaireQr('reseau'))
       setEtat({ statut: 'erreur', code: resultat.code })
       return
     }
     setEtat({ statut: 'pret', tableau: resultat.tableau, miseAJourLe: new Date() })
-  }, [jeton])
+  }, [jeton, vueGestionnaire])
 
   // Chargement initial depuis le serveur, puis à chaque demande de l'espace (actualisation) : l'état n'est posé qu'à la
   // réponse (asynchrone), pas dans le corps de l'effet.
@@ -154,6 +174,27 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
     if (autre) ouvrir({ type: 'modification', copropriete: autre })
   }
 
+  /**
+   * Gestionnaire : « Voir cette copropriété » (doublon déjà dans ses copropriétés) ferme la fenêtre et mène à sa carte :
+   * défilement ET focus, posés APRÈS la fermeture (la fenêtre rend d'abord le focus au bouton qui l'a ouverte), pour que
+   * le clavier et le lecteur d'écran arrivent sur la carte (relecture du lot 6).
+   */
+  const carteAMontrer = useRef<string | null>(null)
+  const montrerCopro = (id: string) => {
+    carteAMontrer.current = id
+    setFenetre(null)
+  }
+  useEffect(() => {
+    const id = carteAMontrer.current
+    if (fenetre !== null || !id) return
+    carteAMontrer.current = null
+    const carte = document.getElementById(idCarteCoproprieteQr(id))
+    if (!carte) return
+    if (!carte.hasAttribute('tabindex')) carte.setAttribute('tabindex', '-1')
+    carte.focus({ preventScroll: true })
+    carte.scrollIntoView?.({ block: 'start' })
+  }, [fenetre])
+
   /** « Utiliser cette adresse » : PATCH { adresse } (route existante, super admin) ; false si refusé. */
   const utiliserAdresse = async (copropriete: CoproprieteQr, adresse: string): Promise<boolean> => {
     setMessage(null)
@@ -166,7 +207,10 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
   const changerStatut = (id: string, statut: StatutSignalementQr, misAJourLe: string) => {
     setEtat((e) => {
       if (e.statut !== 'pret') return e
-      const signalements = e.tableau.signalements.map((s) => (s.id === id ? { ...s, statut, misAJourLe } : s))
+      // Gestionnaire : il vient de changer ce statut lui-même (« Statut modifié par vous »).
+      const signalements = e.tableau.signalements.map((s) => (s.id === id
+        ? { ...s, statut, misAJourLe, ...(vueGestionnaire ? { statutModifiePar: 'vous' as const } : {}) }
+        : s))
       const coproprietes = e.tableau.coproprietes.map((c) => ({
         ...c,
         nbEnAttente: signalements.filter((s) => s.coproprieteId === c.id && s.statut === 'en_attente').length,
@@ -187,7 +231,9 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
   if (etat.statut === 'erreur') {
     return (
       <div className="space-y-4">
-        <Encadre ton={etat.code === 'base_absente' ? 'avertissement' : 'erreur'}>{messageErreurTableauQr(etat.code)}</Encadre>
+        <Encadre ton={etat.code === 'base_absente' ? 'avertissement' : 'erreur'}>
+          {vueGestionnaire ? messageErreurGestionnaireQr(etat.code) : messageErreurTableauQr(etat.code)}
+        </Encadre>
         <Bouton variante="principal" icone="actualiser" onClick={() => { setEtat({ statut: 'chargement' }); void charger() }}>{T.reessayer}</Bouton>
       </div>
     )
@@ -214,9 +260,10 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
           filtre={filtreListe}
           onFiltre={setFiltreListe}
           onAjouter={() => ouvrir({ type: 'creation' })}
-          onImporter={gestion ? () => ouvrir({ type: 'import' }) : undefined}
+          onImporter={gestion && !vueGestionnaire ? () => ouvrir({ type: 'import' }) : undefined}
           onModifier={(c) => ouvrir({ type: 'modification', copropriete: c })}
           onUtiliserAdresse={utiliserAdresse}
+          vueGestionnaire={vueGestionnaire}
         />
       )}
       {vue === 'signalements' && <ListeSignalementsQr {...liste} />}
@@ -226,7 +273,16 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
         <Bouton variante="discret" petit icone="actualiser" onClick={() => { void charger() }}>{T.mettreAJour}</Bouton>
       </p>
 
-      {fenetre?.type === 'creation' && (
+      {gestionnaire && (fenetre?.type === 'creation' || fenetre?.type === 'modification') && (
+        <Modale titre={fenetre.type === 'creation' ? T.formulaire.creer : T.formulaire.modifier} onFermer={fermer} labelFermer={T.fermerFenetre}>
+          <ModaleCoproprieteGestionnaireQr
+            key={fenetre.type === 'modification' ? fenetre.copropriete.id : 'creation'}
+            copropriete={fenetre.type === 'modification' ? fenetre.copropriete : null} domaines={gestionnaire.domaines}
+            onFermer={fermer} onEnregistre={mettreAJourCopro} onOuvrir={montrerCopro}
+          />
+        </Modale>
+      )}
+      {!gestionnaire && fenetre?.type === 'creation' && (
         <Modale titre={T.formulaire.creer} onFermer={fermer} labelFermer={T.fermerFenetre}>
           <ModaleCoproprieteQr
             copropriete={null} jeton={jeton} onFermer={fermer} onEnregistre={mettreAJourCopro}
@@ -234,12 +290,12 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
           />
         </Modale>
       )}
-      {fenetre?.type === 'import' && (
+      {!gestionnaire && fenetre?.type === 'import' && (
         <Modale titre={I.titre} onFermer={fermer} labelFermer={T.fermerFenetre}>
           <AssistantImportQr cabinets={gestion?.cabinets ?? null} origine={origineCourante()} onFermer={fermer} onImporte={() => { void charger() }} />
         </Modale>
       )}
-      {fenetre?.type === 'modification' && (
+      {!gestionnaire && fenetre?.type === 'modification' && (
         <Modale titre={T.formulaire.modifier} onFermer={fermer} labelFermer={T.fermerFenetre}>
           <ModaleCoproprieteQr
             key={fenetre.copropriete.id}
@@ -250,7 +306,10 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
       )}
       {detail && (
         <Modale titre={`${detail.typeIntervention} — ${detail.coproprieteNom}`} onFermer={fermer} labelFermer={T.fermerFenetre}>
-          <DetailSignalementQr signalement={detail} jeton={jeton} onFermer={fermer} onStatut={changerStatut} />
+          <DetailSignalementQr
+            signalement={detail} jeton={jeton} onFermer={fermer} onStatut={changerStatut} onConflit={() => { void charger() }}
+            vueGestionnaire={vueGestionnaire}
+          />
         </Modale>
       )}
     </div>
@@ -305,11 +364,18 @@ interface PropsVueCoproprietesQr {
   onImporter?: () => void
   onModifier: (copropriete: CoproprieteQr) => void
   onUtiliserAdresse: (copropriete: CoproprieteQr, adresse: string) => Promise<boolean>
+  /** PR 2 : gestionnaire connecté : ni filtre du super admin, désactivées en bas, cartes du gestionnaire. */
+  vueGestionnaire?: boolean
 }
 
-function VueCoproprietesQr({ coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse }: Readonly<PropsVueCoproprietesQr>) {
+function VueCoproprietesQr({
+  coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse, vueGestionnaire = false,
+}: Readonly<PropsVueCoproprietesQr>) {
   const origine = origineCourante()
-  const visibles = useMemo(() => filtrerCoproprietesQr(coproprietes, filtre), [coproprietes, filtre])
+  const visibles = useMemo(
+    () => (vueGestionnaire ? coproprietesGestionnaireOrdonneesQr(coproprietes) : filtrerCoproprietesQr(coproprietes, filtre)),
+    [coproprietes, filtre, vueGestionnaire],
+  )
   // Gestionnaires cités par les copropriétés : un filtre chacun (SPEC § 1.8).
   const gestionnaires = useMemo(() => {
     const noms = new Map<string, string>()
@@ -320,7 +386,7 @@ function VueCoproprietesQr({ coproprietes, message, filtre, onFiltre, onAjouter,
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {coproprietes.length > 0 ? (
+        {coproprietes.length > 0 && !vueGestionnaire ? (
           <label className="flex items-center gap-2 text-sm text-[#4A5E78]">
             <span>{G.copropriete.filtre}</span>
             <select value={filtre} onChange={(e) => onFiltre(e.target.value)} className="min-h-[44px] rounded-xl border-2 border-[#E4DDD0] bg-white px-3 text-base text-[#0D1B2E]">
@@ -349,7 +415,8 @@ function VueCoproprietesQr({ coproprietes, message, filtre, onFiltre, onAjouter,
               copropriete={c}
               origine={origine}
               onModifier={() => onModifier(c)}
-              onUtiliserAdresse={(adresse) => onUtiliserAdresse(c, adresse)}
+              onUtiliserAdresse={vueGestionnaire ? undefined : (adresse) => onUtiliserAdresse(c, adresse)}
+              vueGestionnaire={vueGestionnaire}
             />
           ))}
         </fieldset>

@@ -334,3 +334,39 @@ describe('mode « creer »', () => {
     expect(texteJournalServeurQr()).not.toMatch(/Unique|@exemple|rue Exemple/)
   })
 })
+
+// Contrôle 2 de la PR 2, constat C2 : la route refait la vérification avec les fiches et les domaines DU cabinet ; une
+// variante de l'adresse d'une fiche (étiquette « + », même partie locale sur un autre domaine du cabinet) reçoit le
+// traitement de l'adresse exacte, et n'arrive jamais dans les saisies passées à la fonction SQL (dont le filet ne
+// retire que l'adresse exacte).
+describe('C2 : variante de l’adresse d’une fiche du cabinet (même règle que le formulaire)', () => {
+  beforeEach(() => {
+    baseQr.table('signalements_qr_domaines_autorises').push({ cabinet_id: CAB, domaine: 'exemple-bis.test' })
+    const paul = baseQr.table('signalements_qr_gestionnaires').find((g) => g.id === G2)
+    Object.assign(paul ?? {}, { actif: false, desactive_le: '2026-11-10T09:00:00+00:00' })
+  })
+
+  it('« creer » : variante d’une fiche active → attribuée ; d’une fiche partie → retirée ; aucune dans les saisies envoyées', async () => {
+    const res = await importer(corps('creer', [ligne(2, {
+      emailsDestinataires: ['marie.exemple+cs@exemple.test', 'Marie.Exemple@Exemple-Bis.test', 'paul.exemple+x@exemple-bis.test', 'cs@externe.test'],
+    })], { confirmerHorsDomaine: true }))
+    expect(res.status).toBe(200)
+    const [appel] = appelsCreation()
+    const [envoyee] = appel.args.p_lignes as Array<Record<string, unknown>>
+    expect(envoyee.emails).toEqual(['cs@externe.test'])
+    expect(envoyee.gestionnaireIds).toEqual([G1])
+    expect(texteJournalServeurQr()).not.toMatch(/marie\.exemple|paul\.exemple/)
+  })
+
+  it('« verifier » : avertissements « adresse d’un gestionnaire » et « fiche désactivée » ; rien n’est écrit', async () => {
+    const res = await importer(corps('verifier', [ligne(2, { emailsDestinataires: ['marie.exemple@exemple-bis.test', 'paul.exemple+x@exemple.test'] })]))
+    const { diagnostics } = await res.json()
+    expect(diagnostics[0].emailsDestinataires).toEqual([])
+    expect(diagnostics[0].gestionnaires).toEqual([{ id: G1, nom: 'Marie Exemple' }])
+    expect(diagnostics[0].messages.map((m: { texte: string }) => m.texte)).toEqual([
+      '« marie.exemple@exemple-bis.test » est l’adresse d’un gestionnaire : mise dans Gestionnaire(s)',
+      '« paul.exemple+x@exemple.test » est l’adresse d’une fiche désactivée ou contestée : retirée',
+    ])
+    expect(baseQr.etat.ecritures).toEqual([])
+  })
+})

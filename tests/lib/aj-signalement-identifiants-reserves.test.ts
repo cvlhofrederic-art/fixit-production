@@ -10,9 +10,13 @@
 //    dans PREFIXES_RESERVES_QR. Le test n'importe pas next.config.ts (il tourne sans le Sentry local).
 //    Limite : il ne voit pas la base. Avant d'ajouter une redirection racine « /<x>/:path* », vérifier en base
 //    qu'aucun cabinet ne porte déjà l'identifiant <x> (sinon ses QR codes imprimés seraient captés).
-// 2. Masquage : le middleware reconnaît « /<x>/signalement/<32 hex>/ » et « /<x>/confirmation-adresse/ » pour tout
-//    <x> du motif, avant la langue. Aucune page de app/ ne doit donc avoir l'une de ces formes (ni « suivi » ou
-//    « invitation », réservés à la PR 2), sinon elle deviendrait injoignable.
+// 2. Masquage : le middleware reconnaît « /<x>/signalement/<32 hex>/ », « /<x>/confirmation-adresse/ » et
+//    « /<x>/invitation/ » (PR 2, lot 3) pour tout <x> du motif, avant la langue, et, depuis le lot 4, « /<x>/ »,
+//    « /<x>/connexion/ » et « /<x>/suivi/ » (espace du cabinet) pour tout <x> qui passe validerIdentifiantCabinetQr.
+//    Aucune page de app/ ne doit donc avoir l'une de ces formes, sinon elle deviendrait injoignable.
+// 2 bis. Segment seul (lot 4) : aujourd'hui « /<x>/ » sans langue part en 302 vers « /<langue>/<x>/ ». Les valeurs des
+//    routes dynamiques de premier niveau des langues (app/en/[slug], app/es/[slug], app/nl/[slug]) sont donc réservées
+//    elles aussi, lues dans leurs modules de données ; app/fr et app/pt n'ont aucune route dynamique de premier niveau.
 // 3. Aucun identifiant ni domaine réel d'un client en dur : il se saisit dans l'espace par le super admin. Le mot
 //    cherché est construit par concaténation (il n'apparaît pas dans ce fichier).
 
@@ -20,8 +24,10 @@ import { describe, expect, it } from 'vitest'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative, sep } from 'path'
 import {
-  PREFIXES_RESERVES_QR, SEGMENTS_CABINET_QR, cheminPublicCabinetQr, validerIdentifiantCabinetQr,
+  PREFIXES_RESERVES_QR, SEGMENTS_CABINET_QR, cheminEspaceCabinetQr, cheminPublicCabinetQr, validerIdentifiantCabinetQr,
 } from '@/lib/aj-signalement/chemin-cabinet'
+import { getAllEnServiceSlugs } from '@/lib/data/en-services-data'
+import { ES_INVESTOR_PAGES, NL_INVESTOR_PAGES } from '@/lib/data/investor-pages-data'
 
 const RACINE = process.cwd()
 const APP = join(RACINE, 'app')
@@ -155,12 +161,19 @@ function cheminsCaptes(premier: string): SegmentCapte[][] {
   if (!cheminPublicCabinetQr(`/${id}/confirmation-adresse/`)) return []
   // Un préfixe réservé ne masque rien : aucun cabinet ne peut porter ce nom (validerIdentifiantCabinetQr le refuse).
   // Ex. /aj-signalement/connexion/ (page de connexion de l'espace, #669) : « aj-signalement » est un préfixe réservé.
+  // Vrai pour le motif du MIDDLEWARE, qui ne voit que le chemin d'origine. Le chemin INTERNE /aj-signalement/connexion
+  // que produit la réécriture de /fr/aj-signalement/connexion/ ne passe pas par lui : il n'échappe aux règles de cabinet
+  // de next.config.ts que parce qu'elles sont en tête de beforeFiles (next start les enchaîne). Garde distincte :
+  // tests/next-config-reecritures-enchainees.test.ts.
   if (PREFIXES_RESERVES_QR.some((prefixe) => id.startsWith(prefixe))) return []
   const valeur = (texte: string): SegmentCapte => ({ texte, mot: false })
   const mot = (texte: string): SegmentCapte => ({ texte, mot: true })
+  // Espace du cabinet (lot 4) : le segment seul « /<x>/ » est capté pour un identifiant valable (jamais un nom réservé).
+  const accueil = cheminEspaceCabinetQr(`/${id}/`) ? [[valeur(id)]] : []
   return [
     [valeur(id), mot('signalement'), valeur(JETON)],
     ...SEGMENTS_CABINET_QR.filter((s) => s !== 'signalement').map((s) => [valeur(id), mot(s)]),
+    ...accueil,
   ]
 }
 
@@ -171,17 +184,50 @@ const masquees = (routes: readonly string[][]): string[] => routes
 describe('aucune page de app/ n’est masquée par le motif du chemin d’un cabinet', () => {
   it('la garde détecte une page qui serait masquée (contrôle de la garde elle-même)', () => {
     const fautives = [['blog', 'signalement', '[id]'], ['blog', 'confirmation-adresse'], ['blog', 'suivi'],
-      ['blog', 'invitation', '[[...reste]]'], ['blog', '[...reste]'], ['[x]', '[...reste]'], ['[[...tout]]']]
+      ['blog', 'invitation', '[[...reste]]'], ['blog', '[...reste]'], ['[x]', '[...reste]'], ['[[...tout]]'],
+      // Lot 4 : une route dynamique de premier niveau serait captée par l'accueil de l'espace du cabinet.
+      ['[x]'], ['blog', 'connexion']]
     expect(masquees(fautives)).toEqual(fautives.map((r) => `/${r.join('/')}`))
     const saines = [['fr', 'signalement', '[jeton]'], ['signalement', '[jeton]'], ['api', 'signalement', '[id]'],
-      ['tracking', '[token]'], ['blog', '[slug]', '[page]'], ['blog', 'signalement'], ['blog', 'signalement', '[id]', 'detail']]
+      ['tracking', '[token]'], ['blog', '[slug]', '[page]'], ['blog', 'signalement'], ['blog', 'signalement', '[id]', 'detail'],
+      // Nom réservé : son segment seul n'est jamais pris pour un cabinet. Ici, motif du middleware seulement : le chemin
+      // interne d'une réécriture de langue est gardé par tests/next-config-reecritures-enchainees.test.ts.
+      ['blog'], ['aj-signalement', 'connexion']]
     expect(masquees(saines)).toEqual([])
   })
 
-  it('aucune route réelle n’a « signalement/<segment> », « confirmation-adresse », « suivi » ni « invitation » en 2e segment', () => {
+  it('aucune route réelle n’a « signalement/<segment> », « confirmation-adresse », « suivi », « invitation » ni « connexion » en 2e segment, ni de segment seul capté', () => {
     const routes = routesDeApp()
     expect(routes.length).toBeGreaterThan(50)
     expect(masquees(routes)).toEqual([])
+  })
+})
+
+// ── Segment seul (lot 4) : valeurs des routes dynamiques de premier niveau des langues ──
+
+/** Routes dynamiques de premier niveau d'une langue (app/<langue>/[x], groupes traversés). */
+const dynamiquesDePremierNiveau = (langue: string): string[] => avecGroupes(join(APP, langue))
+  .flatMap((d) => readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory() && estDynamique(e.name)).map((e) => e.name))
+
+describe('segment seul « /<x>/ » : les pages dynamiques EN, ES et NL gardent leur adresse sans langue', () => {
+  it('seules app/en, app/es et app/nl ont une route dynamique de premier niveau ([slug]) ; app/fr, app/pt et app/ aucune', () => {
+    expect(Object.fromEntries(LANGUES.map((l) => [l, dynamiquesDePremierNiveau(l)]))).toEqual({
+      fr: [], pt: [], en: ['[slug]'], es: ['[slug]'], nl: ['[slug]'],
+    })
+    // Racine de app/ (groupes compris) : aucune route dynamique, sinon tout « /<x>/ » lui appartiendrait.
+    const racine = avecGroupes(APP).flatMap((d) => readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory() && estDynamique(e.name)))
+    expect(racine.map((e) => e.name)).toEqual([])
+  })
+
+  it.each([
+    ['en', getAllEnServiceSlugs()],
+    ['es', ES_INVESTOR_PAGES.map((p) => p.slug)],
+    ['nl', NL_INVESTOR_PAGES.map((p) => p.slug)],
+  ])('chaque slug de app/%s/[slug] est refusé comme identifiant (jamais capté par l’espace d’un cabinet)', (_langue, slugs) => {
+    expect(slugs.length).toBeGreaterThan(0)
+    const admis = slugs.filter((slug) => validerIdentifiantCabinetQr(slug).ok)
+    expect(admis, `à ajouter à IDENTIFIANTS_RESERVES_QR (lib/aj-signalement/chemin-cabinet.ts) : ${admis.join(', ')}`).toEqual([])
+    for (const slug of slugs) expect(cheminEspaceCabinetQr(`/${slug}/`), slug).toBeNull()
   })
 })
 

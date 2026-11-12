@@ -2,8 +2,9 @@
 //
 // Chemin public par cabinet client (choix de Hugo du 10/11/2026) : vitfix.io/<identifiant>/signalement/<jeton>/ pour la
 // page ouverte par le QR code, vitfix.io/<identifiant>/confirmation-adresse/#<jeton> pour la confirmation d'adresse d'un
-// gestionnaire. Module pur lib/aj-signalement/chemin-cabinet.ts, lu par le middleware (edge) avant la détection de
-// langue : son motif est FIGÉ (aucune liste lue au routage), la liste des identifiants réservés ne sert qu'à la saisie.
+// gestionnaire, vitfix.io/<identifiant>/invitation/#<jeton> pour l'ouverture de son accès (PR 2, lot 3). Module pur
+// lib/aj-signalement/chemin-cabinet.ts, lu par le middleware (edge) avant la détection de langue : son motif est FIGÉ
+// (aucune liste lue au routage), la liste des identifiants réservés ne sert qu'à la saisie.
 // Exemples fictifs seulement (« cabinet-exemple »).
 
 import { describe, expect, it } from 'vitest'
@@ -12,8 +13,9 @@ import { join } from 'path'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, IDENTIFIANTS_RESERVES_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR,
   LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, MOTIF_CHEMIN_CABINET_QR, PREFIXES_RESERVES_QR, SEGMENTS_CABINET_QR,
-  SOURCE_IDENTIFIANT_CABINET_QR, cheminPublicCabinetQr, proposerIdentifiantCabinetQr, urlConfirmationAdresseQr,
-  urlSignalementCabinetQr, validerIdentifiantCabinetQr,
+  SOURCE_IDENTIFIANT_CABINET_QR, cheminConnexionCabinetQr, cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr,
+  estEspaceCabinetQr, proposerIdentifiantCabinetQr, urlConfirmationAdresseQr, urlInvitationAccesQr, urlSignalementCabinetQr,
+  validerIdentifiantCabinetQr,
 } from '@/lib/aj-signalement/chemin-cabinet'
 
 const JETON = '0123456789abcdef0123456789abcdef'
@@ -101,6 +103,11 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(cheminPublicCabinetQr('/cabinet-exemple/confirmation-adresse')).toEqual({ page: 'confirmation-adresse', identifiant: 'cabinet-exemple' })
   })
 
+  it('/cabinet-exemple/invitation/, avec ou sans barre finale → ouverture de l’accès (lien de l’e-mail, publique comme la confirmation)', () => {
+    expect(cheminPublicCabinetQr('/cabinet-exemple/invitation/')).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
+    expect(cheminPublicCabinetQr('/cabinet-exemple/invitation')).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
+  })
+
   it('jamais une langue, l’API, l’admin, _next, un jeton mal formé, une majuscule ni un autre chemin du cabinet', () => {
     const ignores = [
       `/fr/signalement/${JETON}/`, `/pt/signalement/${JETON}/`, `/en/signalement/${JETON}/`,
@@ -109,7 +116,8 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
       `/cabinet-exemple/signalement/${JETON.slice(1)}/`, `/cabinet-exemple/signalement/${JETON}0/`,
       `/cabinet-exemple/signalement/${JETON.toUpperCase()}/`, `/Cabinet-Exemple/signalement/${JETON}/`,
       '/cabinet-exemple/', '/cabinet-exemple', `/cabinet-exemple/signalement/${JETON}/autre/`,
-      '/cabinet-exemple/suivi/', '/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/autre/',
+      '/cabinet-exemple/suivi/', '/cabinet-exemple/connexion/', '/cabinet-exemple/confirmation-adresse/autre/',
+      '/cabinet-exemple/invitation/autre/', '/Cabinet-Exemple/invitation/', '/api/invitation/', '/admin/invitation/',
       `/ab/signalement/${JETON}/`, `/${'a'.repeat(41)}/signalement/${JETON}/`, `/-ab/signalement/${JETON}/`,
       `//signalement/${JETON}/`, `/cabinet-exemple//signalement/${JETON}/`, '/', '',
     ]
@@ -133,7 +141,7 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
   it('le motif est construit sur SOURCE_IDENTIFIANT_CABINET_QR (le même texte servira aux réécritures de next.config.ts)', () => {
     // RegExp.source réécrit « / » en « \/ » : on compare à la même regex reconstruite depuis la source.
     expect(MOTIF_CHEMIN_CABINET_QR.source).toBe(
-      new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse))\\/?$`).source,
+      new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation))\\/?$`).source,
     )
     expect(SOURCE_IDENTIFIANT_CABINET_QR).toBe('(?!(?:api|admin)/)[a-z][a-z0-9-]{1,38}[a-z0-9]')
     expect(MOTIF_CHEMIN_CABINET_QR.flags).toBe('')
@@ -144,8 +152,77 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(segment.test('/cabinet-exemple/')).toBe(true)
   })
 
-  it('segments du chemin d’un cabinet : signalement et confirmation-adresse servis ; suivi, invitation et connexion (espace du cabinet, § 6) réservés à la PR 2', () => {
+  it('segments du chemin d’un cabinet : signalement, confirmation-adresse, invitation (pages publiques), suivi et connexion (espace du cabinet, lot 4)', () => {
     expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'])
+  })
+})
+
+// ── PR 2, lot 4 : espace du cabinet (vitfix.io/<identifiant>/, /connexion/, /suivi/), avec session ──────────────────
+// Deuxième famille de chemins, reconnue elle aussi AVANT la langue, mais SEULEMENT pour un identifiant qui passe
+// validerIdentifiantCabinetQr (format ET noms réservés) : sinon /aj-signalement/connexion/ (page de la #669, atteinte sans
+// langue par 302) serait prise pour le cabinet « aj-signalement », et le segment seul /<x>/ capterait toute page du site.
+describe('espace d’un cabinet : reconnaissance par le middleware (avec la liste des réservés)', () => {
+  it('/<id>/ (accueil), /<id>/connexion/ et /<id>/suivi/, avec ou sans barre finale', () => {
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/')).toEqual({ page: 'accueil', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple')).toEqual({ page: 'accueil', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/connexion/')).toEqual({ page: 'connexion', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/connexion')).toEqual({ page: 'connexion', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/suivi/')).toEqual({ page: 'suivi', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/suivi')).toEqual({ page: 'suivi', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/apis/suivi/')).toEqual({ page: 'suivi', identifiant: 'apis' })
+  })
+
+  it('jamais un nom réservé (page de connexion de la #669, routes du site, API, admin), une langue ni un préfixe réservé', () => {
+    for (const chemin of [
+      '/aj-signalement/connexion/', '/aj-signalement/connexion', '/aj-signalement/', '/aj-signalement-exemple/suivi/',
+      '/api/', '/api/connexion/', '/admin/', '/admin/connexion/', '/blog/', '/syndic/connexion/', '/auth/', '/cabinet/',
+      '/cabinet/cabinet-exemple/suivi/', '/signalement/', '/servicos/', '/confirmation-x/', '/suivi/', '/connexion/',
+      '/fr/', '/pt/', '/en/', '/fr/cabinet-exemple/suivi/', '/plumber-porto/', '/loodgieter-porto/', '/fontanero-oporto/',
+    ]) {
+      expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('jamais une casse différente, un hors format, un autre segment ni un sous-chemin', () => {
+    for (const chemin of [
+      '/Cabinet-Exemple/', '/Cabinet-Exemple/suivi/', '/cabinet-exemple/Suivi/', '/ab/', '/a--b/suivi/', '/-ab/', '/cabinet_exemple/',
+      `/${'a'.repeat(41)}/`, '/cabinet-exemple/suivi/autre/', '/cabinet-exemple/connexion/autre/', '/cabinet-exemple/suivix/',
+      '/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', `/cabinet-exemple/signalement/${JETON}/`,
+      '/cabinet-exemple//', '//cabinet-exemple/', '/_next/', '/', '',
+    ]) {
+      expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('les deux familles ne se recouvrent pas (pages publiques sans session d’un côté, espace avec session de l’autre)', () => {
+    for (const chemin of ['/cabinet-exemple/', '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/']) {
+      expect(cheminPublicCabinetQr(chemin), chemin).toBeNull()
+    }
+    for (const chemin of ['/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', `/cabinet-exemple/signalement/${JETON}/`]) {
+      expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('adresses de l’espace : /<id>/suivi/ et /<id>/connexion/ (barre finale), reconnues par le motif', () => {
+    expect(cheminSuiviCabinetQr('cabinet-exemple')).toBe('/cabinet-exemple/suivi/')
+    expect(cheminConnexionCabinetQr('cabinet-exemple')).toBe('/cabinet-exemple/connexion/')
+    expect(cheminEspaceCabinetQr(cheminSuiviCabinetQr('cabinet-exemple'))?.page).toBe('suivi')
+    expect(cheminEspaceCabinetQr(cheminConnexionCabinetQr('cabinet-exemple'))?.page).toBe('connexion')
+  })
+
+  it('estEspaceCabinetQr (ConditionalLayout) : connexion et suivi, sous l’adresse affichée comme sous la page interne', () => {
+    for (const chemin of [
+      '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/', '/cabinet-exemple/suivi',
+      '/cabinet/cabinet-exemple/connexion/', '/cabinet/cabinet-exemple/suivi/', '/cabinet/cabinet-exemple/suivi',
+    ]) {
+      expect(estEspaceCabinetQr(chemin), chemin).toBe(true)
+    }
+    for (const chemin of [
+      '/cabinet-exemple/', '/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', '/cabinet/cabinet-exemple/invitation/',
+      '/aj-signalement/connexion/', '/blog/suivi/', '/cabinet/', '/cabinet/suivi/', '/', '', null, undefined,
+    ]) {
+      expect(estEspaceCabinetQr(chemin), String(chemin)).toBe(false)
+    }
   })
 })
 
@@ -164,5 +241,24 @@ describe('adresses produites', () => {
     expect(lu.search).toBe('')
     expect(lu.hash).toBe(`#${JETON_LIEN}`)
     expect(cheminPublicCabinetQr(lu.pathname)).toEqual({ page: 'confirmation-adresse', identifiant: 'cabinet-exemple' })
+  })
+
+  it('ouverture de l’accès d’un gestionnaire : <origine>/<identifiant>/invitation/#<jeton> (jeton APRÈS le « # »)', () => {
+    const url = urlInvitationAccesQr('cabinet-exemple', JETON_LIEN, 'https://vitfix.io/')
+    expect(url).toBe(`https://vitfix.io/cabinet-exemple/invitation/#${JETON_LIEN}`)
+    const lu = new URL(url)
+    expect(lu.pathname).toBe('/cabinet-exemple/invitation/')
+    expect(lu.search).toBe('')
+    expect(lu.hash).toBe(`#${JETON_LIEN}`)
+    expect(cheminPublicCabinetQr(lu.pathname)).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
+  })
+})
+
+// ── PR 2, lot 5 : lien « Ouvrir le suivi » des e-mails (RG-25 : aucun jeton) ────────────────────────────────────────
+describe('urlSuiviCabinetQr', () => {
+  it('origine sans barre finale, chemin de l’espace du cabinet, vue Signalements ; aucun jeton', async () => {
+    const { urlSuiviCabinetQr } = await import('@/lib/aj-signalement/chemin-cabinet')
+    expect(urlSuiviCabinetQr('cabinet-exemple', 'https://vitfix.io/')).toBe('https://vitfix.io/cabinet-exemple/suivi/#signalements')
+    expect(urlSuiviCabinetQr('cabinet-exemple', 'https://apercu.exemple.test')).toBe('https://apercu.exemple.test/cabinet-exemple/suivi/#signalements')
   })
 })

@@ -30,6 +30,8 @@
 //     reste ENREGISTRÉ (réponse inchangée), l'e-mail est retenu, le super admin alerté une fois ; le prochain e-mail
 //     parti mentionne les signalements retenus. Les limites du dépôt ne changent pas ;
 //   - migration du 11/11/2026 absente : envoi aux adresses saisies, sans budget, comme avant (journalisé une fois).
+// PR 2, lot 5 (RG-25) : un gestionnaire à l'accès ouvert reçoit le bouton « Ouvrir le suivi » (/<identifiant>/suivi/,
+// aucun jeton) ; l'identifiant du cabinet n'est lu que dans ce cas, et son absence ne change rien au dépôt.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -37,10 +39,12 @@ import { signalementQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { CHEMIN_TABLEAU_QR, numeroSignalementQr, type SignalementQr } from '@/lib/aj-signalement/types'
 import {
-  coproprieteActiveQr, corrigerEmailsEnvoyesQr, enregistrerEtatEmailsQr, insererSignalementQr, lireGestionnairesDestinatairesQr, lireSemblablesQr,
-  reponseErreurBase, reponseErreur, reserverEmailsQr, signalementDepuisLigne, type LigneCoproprieteQr,
+  coproprieteActiveQr, corrigerEmailsEnvoyesQr, enregistrerEtatEmailsQr, identifiantCabinetDuSuiviQr, insererSignalementQr,
+  lireGestionnairesDestinatairesQr, lireSemblablesQr, reponseErreurBase, reponseErreur, reserverEmailsQr, signalementDepuisLigne,
+  type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 import { destinatairesSignalementQr } from '@/lib/aj-signalement/destinataires'
+import { urlSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import {
   ALERTE_LIMITE_ENVOI_QR, ERREUR_LIMITE_ENVOI_QR, alerteBudgetEmailsQr, mentionSignalementsRetenusQr,
 } from '@/lib/aj-signalement/budget-emails'
@@ -122,9 +126,13 @@ async function envoyerAuxDestinataires(
     }
     return { emailEnvoyeLe: null, emailErreur: ERREUR_LIMITE_ENVOI_QR }
   }
+  // PR 2, lot 5 (RG-25) : bouton « Ouvrir le suivi » des gestionnaires à l'accès ouvert ; le cabinet n'est lu que pour
+  // eux, et son absence (migration, erreur) laisse partir l'e-mail avec la phrase de la PR 1.
+  const identifiant = destinataires.some((d) => d.type === 'gestionnaire' && d.accesOuvert) ? await identifiantCabinetDuSuiviQr(copropriete.id) : null
   const bilan = await envoyerEmailsSignalementQr({
     destinataires, signalement, copropriete: { nom: copropriete.nom ?? '', adresse: copropriete.adresse ?? '' },
     origine, mention: reservation ? mentionSignalementsRetenusQr(reservation.retenus) : null,
+    lienSuivi: identifiant ? urlSuiviCabinetQr(identifiant, origine ?? 'https://vitfix.io') : null,
   })
   if (reservation && bilan.envoyes < destinataires.length) await corrigerEmailsEnvoyesQr(signalement.id, bilan.envoyes)
   const emailErreur = resumeErreurEnvoiQr(bilan)

@@ -127,6 +127,36 @@ describe('pages privées : noindex, nofollow', () => {
     expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
     expect(metadata.referrer).toBe('no-referrer')
   })
+
+  it('/<identifiant>/invitation/ (ouverture de l’accès d’un gestionnaire) : noindex, aucun Referer, titre propre', async () => {
+    vi.doMock('@/components/aj-signalement/InvitationAccesQr', () => ({ default: () => null }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/invitation/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.referrer).toBe('no-referrer')
+    expect(metadata.title).toBe('AJ Signalement — Ouverture de votre accès')
+  })
+
+  // Espace du cabinet (PR 2, lot 4) : connexion professionnelle du cabinet et suivi du gestionnaire.
+  it('/<identifiant>/connexion/ (connexion professionnelle du cabinet) : noindex, nofollow, noarchive, titre au nom du cabinet', async () => {
+    vi.doMock('@/components/aj-signalement/espace/ChargeurConnexionEspaceQr', () => ({ default: () => null }))
+    vi.doMock('@/lib/aj-signalement/serveur', () => ({
+      lireCabinetDuCheminQr: async (identifiant: string) => ({ ok: true, cabinet: { identifiant, nom: 'Cabinet Exemple' } }),
+    }))
+    const { generateMetadata } = await import('@/app/(commun)/cabinet/[identifiant]/connexion/page')
+    const metadata = await generateMetadata({ params: Promise.resolve({ identifiant: 'cabinet-exemple' }) })
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('Connexion professionnelle — Cabinet Exemple')
+  })
+
+  it('/<identifiant>/suivi/ (espace du gestionnaire) : noindex, nofollow, noarchive, titre de l’espace', async () => {
+    vi.doMock('@/components/aj-signalement/espace/ChargeurEspaceQr', () => ({ default: () => null }))
+    vi.doMock('@/lib/aj-signalement/serveur', () => ({
+      lireCabinetDuCheminQr: async (identifiant: string) => ({ ok: true, cabinet: { identifiant, nom: 'Cabinet Exemple' } }),
+    }))
+    const metadata = await metadataDe(import('@/app/(commun)/cabinet/[identifiant]/suivi/page'))
+    expect(metadata.robots).toEqual({ ...NOINDEX, noarchive: true })
+    expect(metadata.title).toBe('AJ Signalement')
+  })
 })
 
 describe('sitemaps : aucune page privée soumise', () => {

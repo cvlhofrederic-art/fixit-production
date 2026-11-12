@@ -308,6 +308,23 @@ describe('page profil d’un gestionnaire', () => {
     expect(within(une).queryByRole('button', { name: G.suivi.voirPlus })).toBeNull()
   })
 
+  it('relecture du lot 6 : statut changé entre-temps (409 conflit_statut) dans « Sa page de suivi » : la liste est rechargée, la fiche reste ouverte', async () => {
+    const f = detail()
+    const base = routeurFiche({ fiche: f })
+    simulerFetch((a) => (a.methode === 'PATCH' && a.url.startsWith('/api/aj-signalement/signalements/') ? json({ error: 'conflit_statut' }, 409) : base(a)))
+    render(<FicheGestionnaireQr id={f.gestionnaire.id} coproprietes={coproprietes} gestionnaires={[marie, paul, lea]} {...rappelsFiche} />)
+    const suivi = (await screen.findByRole('heading', { name: G.fiche.suivi })).closest('section') as HTMLElement
+    const une = (await within(suivi).findByText('Résidence Une')).closest('li') as HTMLElement
+    fireEvent.click(within(une).getByRole('button', { name: G.suivi.voir }))
+    fireEvent.click(await within(une).findByRole('button', { name: G.suivi.voirDetail }))
+    const listes = () => appels.filter((a) => a.url === `/api/aj-signalement/coproprietes/${C1}/signalements?statut=ouverts`)
+    expect(listes()).toHaveLength(1)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Prendre en charge' }))
+    expect(await within(screen.getByRole('dialog')).findByText(T.detail.conflitStatut)).toBeInTheDocument()
+    await waitFor(() => expect(listes()).toHaveLength(2))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
   it('retirer une attribution : PUT des copropriétés restantes, puis rechargement', async () => {
     await rendreFiche()
     const attribuees = screen.getByRole('heading', { name: remplir(G.fiche.attribuees, { n: 2 }) }).closest('section') as HTMLElement
@@ -402,5 +419,203 @@ describe('fiche désactivée', () => {
     fireEvent.click(screen.getByRole('button', { name: G.fiche.confirmerEffacer }))
     await waitFor(() => expect(appels.some((a) => a.methode === 'PATCH')).toBe(true))
     expect(appels.find((a) => a.methode === 'PATCH')?.corps).toEqual({ pseudonymiser: true })
+  })
+})
+
+// ── PR 2, lot 5 : accès de chaque gestionnaire à l'espace de son cabinet (boutons et états du super admin) ─────────────
+// « Ouvrir l'accès à son suivi » (POST …/gestionnaires/<id>/acces) sur une fiche active, non contestée, sans compte ;
+// « Renvoyer l'accès » si un accès est en attente ; aucun bouton sans les champs d'accès (migration 20261112 absente : la
+// route répondrait 503), ni pour un accès ouvert. Action groupée « Ouvrir l'accès aux gestionnaires (n) », confirmée,
+// pour les seules fiches à ouvrir (POST …/gestionnaires/acces). Page profil : accès ouvert le …, demande d'effacement,
+// envoi refusé pour une adresse d'un autre espace.
+describe('accès des gestionnaires à leur suivi (PR 2)', () => {
+  const ACCES = { accesOuvertLe: null, connexionBloquee: false, effacementDemandeLe: null, compteRelie: false }
+  const marieSansCompte = { ...marie, ...ACCES }
+  const leaEnvoyee = { ...lea, ...ACCES, etat: 'acces_envoye' as const }
+  const paulOuvert = { ...fiche(G2, 'Paul Exemple', 'acces_ouvert'), ...ACCES, compteRelie: true, accesOuvertLe: '2026-11-03T09:00:00.000Z' }
+
+  it('liste : « Ouvrir l’accès à son suivi » (fiche sans compte), « Renvoyer l’accès » (en attente), rien pour un accès ouvert', async () => {
+    simulerFetch(() => json({ emailEnvoye: true }))
+    rendreListe([paulOuvert, marieSansCompte, leaEnvoyee])
+    expect(within(ligne('Paul Exemple')).queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+    expect(within(ligne('Paul Exemple')).queryByRole('button', { name: G.acces.renvoyer })).toBeNull()
+    expect(within(ligne('Paul Exemple')).getByText(ETAT.acces_ouvert)).toBeInTheDocument()
+    expect(within(ligne('Léa Exemple')).getByRole('button', { name: G.acces.renvoyer })).toBeInTheDocument()
+    fireEvent.click(within(ligne('Marie Exemple')).getByRole('button', { name: G.acces.ouvrir }))
+    await waitFor(() => expect(appels).toEqual([{ url: `/api/aj-signalement/gestionnaires/${G1}/acces`, methode: 'POST', corps: null }]))
+    expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+    expect(rappelsListe.onModifie).toHaveBeenCalled()
+  })
+
+  it('sans les champs d’accès (migration 20261112 absente) : aucun bouton d’accès, aucune action groupée', () => {
+    rendreListe([marie, lea])
+    expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Ouvrir l’accès aux gestionnaires/ })).toBeNull()
+  })
+
+  it('refus du serveur (409 deja_ouvert) : message, sans rechargement', async () => {
+    simulerFetch(() => json({ error: 'deja_ouvert' }, 409))
+    rendreListe([marieSansCompte])
+    fireEvent.click(within(ligne('Marie Exemple')).getByRole('button', { name: G.acces.ouvrir }))
+    expect(await screen.findByText(messageErreurTableauQr('deja_ouvert'))).toBeInTheDocument()
+    expect(rappelsListe.onModifie).not.toHaveBeenCalled()
+  })
+
+  it('action groupée : les fiches à ouvrir seulement, après confirmation ; bilan des envois et des échecs nommés', async () => {
+    const jean = { ...fiche('44444444-4444-4444-8444-444444444444', 'Jean Exemple', 'confirmation_envoyee'), ...ACCES }
+    simulerFetch(() => json({ envoyes: 1, echecs: [{ id: jean.id, code: 'adresse_contestee' }] }))
+    rendreListe([paulOuvert, marieSansCompte, leaEnvoyee, jean])
+    fireEvent.click(screen.getByRole('button', { name: remplir(G.acces.groupe, { n: 2 }) }))
+    expect(appels).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: remplir(G.acces.confirmerGroupe, { n: 2 }) }))
+    await waitFor(() => expect(appels).toEqual([{ url: '/api/aj-signalement/gestionnaires/acces', methode: 'POST', corps: { gestionnaireIds: [G1, jean.id] } }]))
+    expect(await screen.findByText(remplir(G.acces.groupeEnvoye, { n: 1 }))).toBeInTheDocument()
+    expect(screen.getByText(remplir(G.acces.groupeEchecs, { noms: 'Jean Exemple' }))).toBeInTheDocument()
+    expect(rappelsListe.onModifie).toHaveBeenCalled()
+  })
+
+  it('demande d’effacement : badge daté, dans la liste comme sur la page profil', async () => {
+    const demande = { ...marieSansCompte, etat: 'effacement_demande' as const, compteRelie: true, effacementDemandeLe: '2026-11-09T09:00:00.000Z' }
+    rendreListe([demande])
+    expect(within(ligne('Marie Exemple')).getByText(remplir(G.acces.effacementDemandeLe, { date: '9 novembre 2026' }))).toBeInTheDocument()
+    expect(within(ligne('Marie Exemple')).queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+  })
+
+  it('page profil : accès ouvert le …, aucun bouton ; envoi refusé pour une adresse d’un autre espace', async () => {
+    const f = detail({ ...paulOuvert })
+    f.envois = [...f.envois, { objet: 'acces', creeLe: '2026-11-02T09:00:00.000Z', envoyeLe: '2026-11-02T09:00:05.000Z', accepteLe: null, refus: 'compte_autre_espace' }]
+    await rendreFiche(f)
+    expect(screen.getByText(remplir(G.acces.ouvertLe, { date: '3 novembre 2026' }))).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+    expect(screen.queryByRole('button', { name: G.acces.renvoyer })).toBeNull()
+    const envois = screen.getByRole('heading', { name: G.fiche.envois }).closest('section') as HTMLElement
+    expect(within(envois).getByText(G.fiche.objets.acces)).toBeInTheDocument()
+    expect(envois).toHaveTextContent(G.acces.envoiRefuseAutreEspace)
+  })
+
+  it('page profil : « Ouvrir l’accès à son suivi », puis « Renvoyer l’accès » une fois un envoi fait', async () => {
+    await rendreFiche(detail({ ...marieSansCompte }))
+    const routeur = routeurFiche({ fiche: detail({ ...marieSansCompte }) })
+    simulerFetch((a) => (a.url.endsWith('/acces') ? json({ emailEnvoye: true }) : routeur(a)))
+    fireEvent.click(screen.getByRole('button', { name: G.acces.ouvrir }))
+    await waitFor(() => expect(appels.some((a) => a.url === `/api/aj-signalement/gestionnaires/${G1}/acces` && a.methode === 'POST')).toBe(true))
+    expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+    expect(rappelsFiche.onModifie).toHaveBeenCalled()
+  })
+
+  it('page profil : un envoi « acces » expiré déjà fait → « Renvoyer l’accès »', async () => {
+    const avecEnvoi = detail({ ...marieSansCompte })
+    avecEnvoi.envois = [...avecEnvoi.envois, { objet: 'acces', creeLe: '2026-10-01T09:00:00.000Z', envoyeLe: '2026-10-01T09:00:05.000Z', accepteLe: null, refus: null }]
+    await rendreFiche(avecEnvoi)
+    expect(screen.getByRole('button', { name: G.acces.renvoyer })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: G.acces.ouvrir })).toBeNull()
+  })
+})
+
+// ── PR 2, lot 6 : le compte suit la fiche (départ, blocage, réactivation, effacement) ─────────────────────────────────
+// Départ d'une fiche au compte relié : le serveur bannit le compte ; s'il n'y parvient pas (207 connexion_non_bloquee),
+// la fiche désactivée porte « Connexion à bloquer » et le bouton « Bloquer la connexion » (POST …/bloquer, idempotent).
+// Réactivation dont le déblocage échoue (207 connexion_non_debloquee) : « Débloquer la connexion » (même PATCH) ;
+// effacement dont la suppression du compte échoue (207 compte_non_supprime) : « Supprimer son compte » (même PATCH).
+// Sans les champs d'accès (migration 20261112 absente) : rien de tout cela.
+describe('compte d’un gestionnaire : blocage, déblocage, suppression (PR 2, lot 6)', () => {
+  const ACCES = { accesOuvertLe: '2026-11-03T09:00:00.000Z', connexionBloquee: false, effacementDemandeLe: null, compteRelie: true }
+  const partie = { ...fiche(G1, 'Marie Exemple', 'desactive'), ...ACCES }
+  const partieBloquee = { ...partie, connexionBloquee: true }
+
+  const avecReponse = (f: FicheGestionnaireDetailQr, predicat: (a: Appel) => boolean, reponse: () => Response) => {
+    const routeur = routeurFiche({ fiche: f })
+    simulerFetch((a) => (predicat(a) ? reponse() : routeur(a)))
+  }
+
+  it('liste : « Connexion à bloquer » pour une fiche désactivée au compte non bloqué, seulement', () => {
+    rendreListe([partie, { ...partieBloquee, id: G2, nom: 'Paul Exemple' }, fiche(G3, 'Léa Exemple', 'desactive')])
+    expect(within(ligne('Marie Exemple')).getByText(G.compte.aBloquer)).toBeInTheDocument()
+    expect(within(ligne('Paul Exemple')).queryByText(G.compte.aBloquer)).toBeNull()
+    expect(within(ligne('Léa Exemple')).queryByText(G.compte.aBloquer)).toBeNull()
+  })
+
+  it('liste : réactivation dont le déblocage échoue (207) → message à reprendre depuis la page profil', async () => {
+    simulerFetch(() => json({ gestionnaire: { ...partieBloquee, etat: 'adresse_confirmee' }, error: 'connexion_non_debloquee' }, 207))
+    rendreListe([partieBloquee])
+    fireEvent.click(within(ligne('Marie Exemple')).getByRole('button', { name: G.gestionnaires.reactiver }))
+    expect(await screen.findByText(G.compte.nonDebloquee)).toBeInTheDocument()
+    expect(rappelsListe.onModifie).toHaveBeenCalled()
+  })
+
+  it('page profil : « Bloquer la connexion » → POST …/bloquer sans corps, puis rechargement', async () => {
+    const f = detail({ ...partie })
+    await rendreFiche(f)
+    expect(screen.getByText(G.compte.aBloquer)).toBeInTheDocument()
+    avecReponse(f, (a) => a.url.endsWith('/bloquer'), () => json({ connexionBloquee: true }))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.bloquer }))
+    await waitFor(() => expect(appels.some((a) => a.url === `/api/aj-signalement/gestionnaires/${G1}/bloquer` && a.methode === 'POST' && a.corps === null)).toBe(true))
+    expect(await screen.findByText(G.compte.bloquee)).toBeInTheDocument()
+    expect(rappelsFiche.onModifie).toHaveBeenCalled()
+  })
+
+  it('page profil : blocage encore impossible (207) → message d’échec, bouton toujours là', async () => {
+    const f = detail({ ...partie })
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.url.endsWith('/bloquer'), () => json({ error: 'connexion_non_bloquee' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.bloquer }))
+    expect(await screen.findByText(G.compte.bloquerEchec)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: G.compte.bloquer })).toBeInTheDocument()
+  })
+
+  it('départ dont le bannissement échoue (207) : départ annoncé, puis « connexion non bloquée »', async () => {
+    const active = detail({ ...marie, ...ACCES })
+    await rendreFiche(active)
+    avecReponse(active, (a) => a.url.endsWith('/depart'), () => json({ deplacees: 0, laisseesSansGestionnaire: 2, adressesRetirees: 0, error: 'connexion_non_bloquee' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.depart }))
+    const fenetre = screen.getByRole('dialog')
+    fireEvent.change(within(fenetre).getByLabelText(remplir(G.depart.successeur, { nom: 'Résidence Une' })), { target: { value: 'sans' } })
+    fireEvent.click(within(fenetre).getByRole('button', { name: G.depart.confirmer }))
+    expect(await screen.findByText(remplir(G.depart.fait, { deplacees: 0, sans: 2 }))).toBeInTheDocument()
+    expect(screen.getByText(G.compte.nonBloquee)).toBeInTheDocument()
+  })
+
+  it('réactivation dont le déblocage échoue (207) : message « connexion non débloquée »', async () => {
+    const f = detail({ ...partieBloquee })
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: partieBloquee, error: 'connexion_non_debloquee' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.gestionnaires.reactiver }))
+    expect(await screen.findByText(G.compte.nonDebloquee)).toBeInTheDocument()
+  })
+
+  it('fiche active au compte bloqué : « Connexion bloquée » et « Débloquer la connexion » (PATCH { actif: true })', async () => {
+    const bloquee = { ...marie, ...ACCES, connexionBloquee: true }
+    const f = detail(bloquee)
+    await rendreFiche(f)
+    expect(screen.getByText(G.compte.bloqueeBadge)).toBeInTheDocument()
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: { ...bloquee, connexionBloquee: false } }))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.debloquer }))
+    await waitFor(() => expect(appels.find((a) => a.methode === 'PATCH')?.corps).toEqual({ actif: true }))
+    expect(await screen.findByText(G.compte.debloquee)).toBeInTheDocument()
+  })
+
+  it('effacement dont la suppression du compte échoue (207) : message « compte non supprimé »', async () => {
+    const f = detail({ ...partie })
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: { ...partie, nom: null, email: null }, error: 'compte_non_supprime' }, 207))
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.effacer }))
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.confirmerEffacer }))
+    expect(await screen.findByText(G.compte.nonSupprime)).toBeInTheDocument()
+  })
+
+  it('fiche effacée dont le compte reste : « Supprimer son compte » (PATCH { pseudonymiser: true })', async () => {
+    const effacee = { ...partie, nom: null, email: null }
+    const f = detail(effacee)
+    await rendreFiche(f)
+    avecReponse(f, (a) => a.methode === 'PATCH', () => json({ gestionnaire: { ...effacee, compteRelie: false } }))
+    fireEvent.click(screen.getByRole('button', { name: G.compte.supprimerCompte }))
+    await waitFor(() => expect(appels.find((a) => a.methode === 'PATCH')?.corps).toEqual({ pseudonymiser: true }))
+    expect(await screen.findByText(G.compte.compteSupprime)).toBeInTheDocument()
+  })
+
+  it('sans les champs d’accès (migration 20261112 absente) : aucun de ces états ni boutons', async () => {
+    await rendreFiche(detail(fiche(G1, 'Marie Exemple', 'desactive')))
+    for (const texte of [G.compte.aBloquer, G.compte.bloqueeBadge]) expect(screen.queryByText(texte)).toBeNull()
+    for (const nom of [G.compte.bloquer, G.compte.debloquer, G.compte.supprimerCompte]) expect(screen.queryByRole('button', { name: nom })).toBeNull()
   })
 })

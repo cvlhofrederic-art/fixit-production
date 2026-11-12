@@ -12,7 +12,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-type Utilisateur = { app_metadata: { role?: string; _original_role?: string } }
+type Utilisateur = { app_metadata: { role?: string; _original_role?: string; aj_signalement_cabinet?: unknown } }
 
 let utilisateurCourant: Utilisateur | null = null
 let appelsGetUser = 0
@@ -248,5 +248,68 @@ describe('routes non concernées', () => {
     expect(await visiter('/fr/artisan/dashboard-plomberie/')).toMatchObject({ statut: 200, vers: null })
     expect(await visiter('/fr/artisan/dashboard-plomberie')).toMatchObject({ statut: 200, vers: null })
     expect(appelsGetUser).toBe(0)
+  })
+})
+
+// ── AJ Signalement, PR 2 lot 4 : un compte gestionnaire (rôle gestionnaire_signalement) n'a qu'un espace, celui de SON
+// cabinet (vitfix.io/<identifiant>/suivi/), désigné par le repère de routage app_metadata.aj_signalement_cabinet. Il y
+// est aiguillé depuis l'accueil, la connexion générale et tous les tableaux de bord, dans toute langue, jamais vers
+// /pt/<identifiant>/. Sans repère : accueil et connexion générale → connexion de l'espace (message neutre).
+describe('gestionnaire AJ Signalement : aiguillé vers l’espace de son cabinet', () => {
+  const gestionnaire = (repere?: unknown) => connecte('gestionnaire_signalement', repere === undefined ? {} : { aj_signalement_cabinet: repere })
+
+  it.each([
+    '/fr/', '/pt/', '/en/', '/nl/', '/es/', '/fr/auth/login', '/pt/auth/login', '/en/auth/login',
+    '/fr/client/dashboard/', '/pt/client/dashboard/', '/fr/pro/dashboard/', '/fr/pro/mobile/', '/fr/artisan/dashboard/',
+    '/pt/artisan/dashboard/', '/fr/syndic/dashboard/', '/fr/syndic/login/', '/fr/coproprietaire/dashboard/',
+    '/fr/administrateur-judiciaire/', '/pt/administrateur-judiciaire/',
+  ])('%s → /cabinet-exemple/suivi/', async (chemin) => {
+    gestionnaire('cabinet-exemple')
+    const r = await visiter(chemin)
+    expect(r).toMatchObject({ statut: 307, vers: '/cabinet-exemple/suivi' })
+    expect(r.csp).toContain("default-src 'self'")
+    expect(r.cookieLocale).toBeNull()
+  })
+
+  it.each(['/fr/', '/pt/', '/en/', '/fr/auth/login', '/pt/auth/login'])(
+    'sans repère (ou repère mal formé), %s → connexion de l’espace AJ Signalement (message neutre)',
+    async (chemin) => {
+      for (const repere of [undefined, 'Cabinet-Exemple', 42]) {
+        gestionnaire(repere)
+        expect(await visiter(chemin)).toMatchObject({ statut: 307, vers: '/fr/aj-signalement/connexion' })
+      }
+    },
+  )
+
+  // La connexion générale avec sa barre finale (/fr/auth/login/, adresse servie en trailingSlash) n'est pas lue par le
+  // middleware avec la session, pour aucun rôle : inchangé. La page elle-même envoie un compte connecté vers
+  // destinationApresConnexion, qui mène un gestionnaire à /fr/aj-signalement/, d'où il est aiguillé (ci-dessus).
+  it('/fr/auth/login/ (barre finale) : servie comme aujourd’hui, sans lecture de session', async () => {
+    gestionnaire('cabinet-exemple')
+    expect(await visiter('/fr/auth/login/')).toMatchObject({ statut: 200, vers: null })
+    expect(appelsGetUser).toBe(0)
+  })
+
+  it('sans repère, tableaux de bord : comme aujourd’hui (aucun espace propre)', async () => {
+    gestionnaire()
+    expect(await visiter('/fr/client/dashboard/')).toMatchObject({ statut: 200, vers: null })
+    expect(await visiter('/fr/pro/dashboard/')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+  })
+
+  it('pages publiques : aucun aiguillage (fiche artisan, blog)', async () => {
+    gestionnaire('cabinet-exemple')
+    expect(await visiter('/fr/artisan/abc123/')).toMatchObject({ statut: 200, vers: null })
+    expect(await visiter('/fr/blog/')).toMatchObject({ statut: 200, vers: null })
+  })
+
+  it('les autres rôles gardent leurs destinations (repère ignoré sans le rôle)', async () => {
+    connecte('artisan', { aj_signalement_cabinet: 'cabinet-exemple' })
+    expect(await visiter('/fr/')).toMatchObject({ statut: 307, vers: '/fr/artisan/dashboard' })
+    connecte('client', { aj_signalement_cabinet: 'cabinet-exemple' })
+    expect(await visiter('/fr/auth/login')).toMatchObject({ statut: 307, vers: '/fr/client/dashboard' })
+    connecte('syndic')
+    expect(await visiter('/fr/client/dashboard/')).toMatchObject({ statut: 307, vers: '/fr/syndic/dashboard' })
+    connecte('super_admin')
+    expect(await visiter('/fr/syndic/dashboard/')).toMatchObject({ statut: 200, vers: null })
   })
 })

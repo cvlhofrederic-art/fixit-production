@@ -1,20 +1,25 @@
 // app/api/aj-signalement/coproprietes/[id]/signalements/route.ts
 //
 // GET — signalements d'une copropriété, page par page (P1-R2 ; page de suivi d'un gestionnaire vue par le super admin,
-// puis du gestionnaire lui-même en PR 2). Filtres : statut (ouverts par défaut, tous, clos), priorité. Curseur
-// (created_at, id) : `avant` est le created_at BRUT de PostgREST (« …123456+00:00 », microsecondes comprises), jamais
-// repassé par new Date() (qui tronque aux millisecondes et ferait sauter les lignes du même instant) ; le client le code
-// par URLSearchParams. 50 par page, 100 au plus. Super admin seul en PR 1 ; jamais en cache.
+// et, depuis la PR 2, le gestionnaire connecté lui-même). Filtres : statut (ouverts par défaut, tous, clos), priorité.
+// Curseur (created_at, id) : `avant` est le created_at BRUT de PostgREST (« …123456+00:00 », microsecondes comprises),
+// jamais repassé par new Date() (qui tronque aux millisecondes et ferait sauter les lignes du même instant) ; le client le
+// code par URLSearchParams. 50 par page, 100 au plus ; jamais en cache.
+// Gestionnaire (SPEC § 2.4) : la copropriété doit être dans SA portée, relue à chaque appel (attributions ∪ « à tous »
+// de son cabinet), sinon 404 sans rien lire d'autre (hors portée = 404, jamais 403) ; lignes minimisées
+// (lib/aj-signalement/minimisation.ts : ni erreur d'envoi, ni adresse proposée, auteur du statut sans nom).
 
 import { type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { signalementsCoproQrQuerySchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
+import { signalementVuGestionnaireQr } from '@/lib/aj-signalement/minimisation'
 import { STATUTS_OUVERTS_QR, type SuitePageQr } from '@/lib/aj-signalement/types'
 import {
-  COLONNES_SIGNALEMENT_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid, journaliserRepliColonnesSignalementQr, lireLigneCoproprieteQr,
-  parametresQr, reponseErreur, reponseErreurSqlQr, reponseInvalide, reponsePriveeQr, signalementDepuisLigne, type LigneSignalementQr,
+  COLONNES_SIGNALEMENT_GESTIONNAIRE_QR, COLONNES_SIGNALEMENT_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid,
+  journaliserRepliColonnesSignalementQr, lireLigneCoproprieteQr, parametresQr, porteeDuProfilQr, reponseErreur, reponseErreurSqlQr,
+  reponseInvalide, reponseLectureGestionnaireQr, reponsePriveeQr, signalementDepuisLigne, traceStatutDepuisLigneQr, type LigneSignalementQr,
 } from '@/lib/aj-signalement/serveur'
 
 const STATUTS_CLOS = ['terminee', 'annulee']
@@ -23,7 +28,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const ip = getClientIP(request)
     if (!(await checkRateLimit(`qr_signalements_copro_${ip}`, 120, 60_000))) return rateLimitResponse()
-    const controle = await controlerAccesQr(request, { profils: ['super_admin'] })
+    const controle = await controlerAccesQr(request, { profils: ['super_admin', 'gestionnaire'] })
     if (!controle.ok) return controle.reponse
     if (!(await checkRateLimit(`qr_signalements_copro_${controle.user.id}`, 120, 60_000))) return rateLimitResponse()
 
@@ -32,6 +37,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const validation = validateBody(signalementsCoproQrQuerySchema, parametresQr(request))
     if (!validation.success) return reponseInvalide(validation.error)
     const f = validation.data
+    const profil = controle.profil
+
+    if (profil.type === 'gestionnaire') {
+      const portee = await porteeDuProfilQr(profil)
+      if (!portee.ok) return reponseLectureGestionnaireQr(portee.erreur, 'portée d’un gestionnaire', { gestionnaire: profil.gestionnaireId })
+      if (!portee.valeur.visibles.has(id)) return reponseErreur('introuvable', 404)
+    }
 
     const copro = await lireLigneCoproprieteQr(id)
     if (!copro.ok) return reponseErreurSqlQr(copro.erreur, 'lecture de la copropriété', { copropriete: id })
@@ -47,8 +59,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       // Une ligne de plus que la page : il y a une suite.
       return q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(f.limite + 1)
     }
-    let r = await lire(COLONNES_SIGNALEMENT_QR)
-    // Colonnes du 06/11/2026 absentes : relecture complète, repli journalisé une fois (comme le tableau).
+    let r = await lire(profil.type === 'gestionnaire' ? COLONNES_SIGNALEMENT_GESTIONNAIRE_QR : COLONNES_SIGNALEMENT_QR)
+    // Colonnes du 06/11/2026 (ou trace du statut du 11/11/2026) absentes : relecture complète, repli journalisé une fois.
     if (colonneInconnue(r.error)) {
       journaliserRepliColonnesSignalementQr('signalements d’une copropriété', r.error)
       r = await lire('*')
@@ -59,7 +71,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const derniere = page.at(-1)
     const suite: SuitePageQr = lignes.length > f.limite && derniere?.created_at ? { avant: derniere.created_at, avantId: derniere.id } : null
     const nom = typeof copro.ligne.nom === 'string' ? copro.ligne.nom : ''
-    return reponsePriveeQr({ signalements: page.map((s) => signalementDepuisLigne(s, nom)), suite })
+    const signalements = page.map((s) => {
+      const forme = signalementDepuisLigne(s, nom)
+      return profil.type === 'gestionnaire' ? signalementVuGestionnaireQr(forme, traceStatutDepuisLigneQr(s), profil) : forme
+    })
+    return reponsePriveeQr({ signalements, suite })
   } catch (e: unknown) {
     logger.error('[AJ SIGNALEMENT] signalements d’une copropriété', { message: e instanceof Error ? e.name : 'inconnue' }, e)
     return reponseErreur('serveur', 500)

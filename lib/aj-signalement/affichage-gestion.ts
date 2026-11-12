@@ -6,8 +6,8 @@
 // (vitfix.io/<identifiant>/confirmation-adresse/) a ses textes ici aussi (FR seulement, SPEC § 1.7.4).
 
 import {
-  type ActionJournalQr, type AnalyseDomainesQr, type AttributionVueQr, type CoproprieteQr, type DecisionDepartQr, type EtatGestionnaireQr,
-  type EvenementJournalQr, type FiltreCoproprietesQr, type GestionnaireQr, type GroupesDepartQr, type OrigineAttributionQr,
+  type ActionJournalQr, type AnalyseDomainesQr, type AttributionVueQr, type CoproprieteQr, type DecisionDepartQr, type EnvoiGestionnaireQr,
+  type EtatGestionnaireQr, type EvenementJournalQr, type FiltreCoproprietesQr, type GestionnaireQr, type GroupesDepartQr, type OrigineAttributionQr,
 } from '@/lib/aj-signalement/types'
 import { validerDomaineCabinetQr } from '@/lib/aj-signalement/gestionnaires'
 
@@ -171,6 +171,47 @@ export function analyserDomainesQr(texte: string): AnalyseDomainesQr {
 /** Aperçu de l'adresse des QR codes d'un cabinet. */
 export const apercuCheminCabinetQr = (identifiant: string): string => `vitfix.io/${identifiant || '<identifiant>'}/signalement/…`
 
+// ── Accès d'un gestionnaire à l'espace de son cabinet (PR 2, lot 5) ──────────
+
+/** États où aucun accès ne s'ouvre ni ne se renvoie (départ, adresse contestée ou d'un autre espace, effacement, déjà ouvert). */
+const ETATS_SANS_ACTION_ACCES_QR: ReadonlySet<EtatGestionnaireQr> = new Set<EtatGestionnaireQr>([
+  'desactive', 'adresse_contestee', 'refus_autre_espace', 'effacement_demande', 'acces_ouvert',
+])
+
+/**
+ * Bouton d'accès d'une fiche (super admin) : « ouvrir » (fiche active, non contestée, sans compte relié, adresse connue),
+ * « renvoyer » (un accès est en attente, ou un envoi « acces » existe déjà : page profil), null sinon. Champs d'accès
+ * absents (migration 20261112 non appliquée : la route répondrait 503) → null.
+ */
+export function actionAccesGestionnaireQr(
+  g: Pick<GestionnaireQr, 'etat' | 'email' | 'compteRelie'>, envois?: readonly EnvoiGestionnaireQr[],
+): 'ouvrir' | 'renvoyer' | null {
+  if (g.compteRelie === undefined || g.compteRelie || !g.email || ETATS_SANS_ACTION_ACCES_QR.has(g.etat)) return null
+  if (g.etat === 'acces_envoye' || (envois ?? []).some((e) => e.objet === 'acces')) return 'renvoyer'
+  return 'ouvrir'
+}
+
+/** Fiches de l'action groupée « Ouvrir l'accès aux gestionnaires (n) » : les seules à OUVRIR, dans l'ordre de la liste. */
+export const fichesAccesOuvrablesQr = <T extends Pick<GestionnaireQr, 'etat' | 'email' | 'compteRelie'>>(gestionnaires: readonly T[]): T[] =>
+  gestionnaires.filter((g) => actionAccesGestionnaireQr(g) === 'ouvrir')
+
+// ── Compte relié d'une fiche (PR 2, lot 6) : reprises après un échec côté authentification ────────────────────────
+// Champs d'accès absents (migration 20261112 non appliquée) : compteRelie et connexionBloquee sont undefined, rien ne
+// s'affiche.
+
+type ChampsCompteFicheQr = Pick<GestionnaireQr, 'etat' | 'nom' | 'compteRelie' | 'connexionBloquee'>
+
+/** « Connexion à bloquer » : fiche désactivée dont le compte relié n'a pas été banni (départ en 207). */
+export const connexionABloquerQr = (g: ChampsCompteFicheQr): boolean =>
+  g.etat === 'desactive' && g.compteRelie === true && g.connexionBloquee === false
+
+/** Fiche active (réactivée) dont le compte relié est encore bloqué (déblocage en 207) : « Débloquer la connexion ». */
+export const connexionADebloquerQr = (g: ChampsCompteFicheQr): boolean =>
+  g.etat !== 'desactive' && g.compteRelie === true && g.connexionBloquee === true
+
+/** Fiche effacée (nom effacé) dont le compte relié n'a pas été supprimé (effacement en 207) : « Supprimer son compte ». */
+export const compteASupprimerQr = (g: ChampsCompteFicheQr): boolean => g.nom === null && g.compteRelie === true
+
 // ── Textes ───────────────────────────────────────────────────────────────────
 
 export const TEXTES_GESTION_QR = {
@@ -278,7 +319,8 @@ export const TEXTES_GESTION_QR = {
     envoiConfirme: 'confirmé le {date}',
     envoiRefuse: 'réponse : « Ce n’est pas moi »',
     suivi: 'Sa page de suivi',
-    suiviAide: 'Ses copropriétés et leurs signalements, tels qu’il les verra.',
+    // Relecture du lot 6 (texte à valider par Frédéric) : le gestionnaire voit, lui, l'espace de son cabinet.
+    suiviAide: 'Ses copropriétés et leurs signalements, vus par le cabinet ; il les suit dans l’espace de son cabinet.',
     attribuees: 'Copropriétés attribuées ({n})',
     aucuneAttribuee: 'Aucune copropriété attribuée.',
     attribueeLe: '{origine} le {date}',
@@ -300,6 +342,36 @@ export const TEXTES_GESTION_QR = {
     effacerAvertissement: 'Le nom et l’adresse seront effacés définitivement ; l’historique reste, sans nom.',
     confirmerEffacer: 'Oui, effacer définitivement',
     efface: 'Données effacées.',
+  },
+  // PR 2, lot 5 : accès de chaque gestionnaire à l'espace de son cabinet (vitfix.io/<identifiant>/suivi/).
+  acces: {
+    ouvrir: 'Ouvrir l’accès à son suivi',
+    renvoyer: 'Renvoyer l’accès',
+    envoye: 'Accès envoyé à {email} : il choisit son mot de passe depuis le lien reçu (valable 7 jours).',
+    nonParti: 'L’e-mail d’accès n’est pas parti. Réessayez plus tard.',
+    groupe: 'Ouvrir l’accès aux gestionnaires ({n})',
+    groupeAide: 'Chaque gestionnaire actif, sans compte, reçoit un lien pour choisir son mot de passe et suivre ses copropriétés.',
+    confirmerGroupe: 'Oui, envoyer l’accès à {n} gestionnaire(s)',
+    groupeEnvoye: 'Accès envoyé à {n} gestionnaire(s).',
+    groupeEchecs: 'Non envoyé pour : {noms}.',
+    ouvertLe: 'Accès ouvert le {date}',
+    effacementDemandeLe: 'Demande d’effacement le {date}',
+    envoiRefuseAutreEspace: 'refusé : adresse déjà utilisée par un compte d’un autre espace',
+  },
+  // PR 2, lot 6 : le compte VitFix relié suit la fiche (départ, réactivation, effacement).
+  compte: {
+    aBloquer: 'Connexion à bloquer',
+    bloquer: 'Bloquer la connexion',
+    bloquee: 'Connexion bloquée : son compte ne peut plus se connecter.',
+    bloquerEchec: 'La connexion n’a pas pu être bloquée. Réessayez dans un instant.',
+    nonBloquee: 'Départ enregistré, connexion non bloquée : utilisez « Bloquer la connexion ».',
+    bloqueeBadge: 'Connexion bloquée',
+    debloquer: 'Débloquer la connexion',
+    debloquee: 'Connexion débloquée : il se reconnecte avec son mot de passe (ou « Mot de passe oublié »).',
+    nonDebloquee: 'Fiche réactivée, connexion non débloquée : utilisez « Débloquer la connexion » sur sa page profil.',
+    supprimerCompte: 'Supprimer son compte',
+    compteSupprime: 'Compte VitFix supprimé.',
+    nonSupprime: 'Données effacées, compte VitFix non supprimé : utilisez « Supprimer son compte ».',
   },
   suivi: {
     aucune: 'Aucune copropriété dans sa portée.',
@@ -415,6 +487,50 @@ export const TEXTES_CONFIRMATION_QR = {
   contestee: 'C’est noté : vous ne recevrez rien, le cabinet est prévenu.',
   invalide: 'Ce lien n’est pas valable.',
   dejaConfirmee: 'Adresse déjà confirmée.',
+  expire: 'Ce lien a expiré. Demandez un nouvel envoi au cabinet.',
+  reseau: 'Connexion impossible : vérifiez votre réseau puis réessayez.',
+  indisponible: 'Le service ne répond pas pour le moment. Réessayez dans un instant.',
+  reessayer: 'Réessayer',
+} as const
+
+/**
+ * Page publique d'ouverture de l'accès d'un gestionnaire (vitfix.io/<identifiant>/invitation/, PR 2 ; français
+ * seulement, comme tout l'espace). Règle du mot de passe : celle de « mot de passe oublié » (motDePasseConforme).
+ */
+export const TEXTES_INVITATION_ACCES_QR = {
+  titre: 'Ouverture de votre accès',
+  verification: 'Vérification du lien…',
+  presentation: '{nomCourt}, gestionnaire chez {cabinet} — adresse {email}',
+  explication: 'Choisissez votre mot de passe : il ouvre votre compte professionnel VitFix et l’espace AJ Signalement de votre cabinet, où vous suivez les signalements de vos copropriétés.',
+  motDePasse: 'Mot de passe',
+  confirmation: 'Confirmez le mot de passe',
+  regle: '8 caractères au moins, dont une majuscule, une minuscule et un chiffre.',
+  afficher: 'Afficher les mots de passe',
+  masquer: 'Masquer les mots de passe',
+  politique: 'J’ai pris connaissance de la',
+  politiqueLien: 'politique de confidentialité',
+  ouvrir: 'Ouvrir mon accès',
+  ouvertureEnCours: 'Ouverture en cours…',
+  erreurs: {
+    regle: 'Le mot de passe doit compter 8 caractères au moins, dont une majuscule, une minuscule et un chiffre.',
+    differents: 'Les deux mots de passe ne sont pas identiques.',
+    politique: 'Cochez la case pour continuer.',
+    refuse: 'Ce mot de passe n’est pas accepté : choisissez-en un autre.',
+    tropDeDemandes: 'Trop d’essais en peu de temps : patientez quelques minutes, puis réessayez.',
+  },
+  pasMoi: 'Ce n’est pas moi',
+  pasMoiAvertissement: 'Aucun compte ne sera créé et le cabinet sera prévenu.',
+  confirmerPasMoi: 'Confirmer : ce n’est pas moi',
+  annuler: 'Annuler',
+  ouvert: 'Accès ouvert. Connectez-vous.',
+  // Relecture 5 du lot 6 (texte à valider par Frédéric) : compte rattaché dont le mot de passe n'a pas pu être remplacé.
+  ouvertCompteExistant: 'Accès ouvert. Votre compte VitFix existait déjà et garde son mot de passe : connectez-vous avec celui-ci, ou utilisez « Mot de passe oublié ».',
+  seConnecter: 'Se connecter',
+  liaisonIncomplete: 'Votre compte existe mais l’accès n’a pas pu être relié. Le cabinet a été prévenu.',
+  dejaOuvert: 'Votre accès est déjà ouvert. Connectez-vous ; si vous avez perdu votre mot de passe, utilisez « Mot de passe oublié ».',
+  autreEspace: 'Cette adresse est déjà celle d’un compte VitFix d’un autre espace : elle ne peut pas servir à cet accès. Le cabinet a été prévenu.',
+  contestee: 'C’est noté : aucun compte n’a été créé, le cabinet est prévenu.',
+  invalide: 'Ce lien n’est pas valable.',
   expire: 'Ce lien a expiré. Demandez un nouvel envoi au cabinet.',
   reseau: 'Connexion impossible : vérifiez votre réseau puis réessayez.',
   indisponible: 'Le service ne répond pas pour le moment. Réessayez dans un instant.',

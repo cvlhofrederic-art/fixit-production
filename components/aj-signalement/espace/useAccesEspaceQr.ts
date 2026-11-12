@@ -13,7 +13,10 @@
 // - « indisponible » (réseau, verrou d'auth, serveur lent) : message et « Réessayer », sans redirection ni rechargement
 //   (boucles du lot 1 Sentry du 28/10/2026).
 // Une déconnexion (SIGNED_OUT, depuis un autre onglet compris) ramène à « connexion ». Les droits restent vérifiés par
-// le serveur : les routes /api/aj-signalement/* exigent le super admin.
+// le serveur : les routes /api/aj-signalement/* exigent le super admin, ou la fiche active d'un gestionnaire.
+// Espace d'un cabinet (PR 2, lot 4, vitfix.io/<identifiant>/suivi/) : la garde reçoit le cabinet de la page ; seul un
+// gestionnaire de CE cabinet entre, et le renvoi vise la connexion DU cabinet (/<identifiant>/connexion/), jamais celle
+// de l'espace global (le middleware y aiguillerait le gestionnaire vers son espace : boucle).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -23,6 +26,7 @@ import { lienPanneauAdmin } from '@/lib/auth/panneau-admin'
 import {
   TEXTES_ESPACE_QR, cheminConnexionEspaceQr, decisionAccesEspaceQr, type LangueEspaceQr, type RoleEspaceQr,
 } from '@/lib/aj-signalement/acces-espace'
+import { cheminConnexionCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 
 export type EtatAccesQr =
   | { statut: 'chargement' }
@@ -30,14 +34,21 @@ export type EtatAccesQr =
   | { statut: 'connexion' }
   | { statut: 'indisponible' }
 
+/** Cabinet de la page de l'espace d'un cabinet (passé par la page serveur) ; absent : espace global. */
+export interface CabinetEspaceQr {
+  identifiant: string
+  nom: string
+}
+
 /**
  * État de l'espace d'après la vérification de la session (pur). Compte sans accès : « connexion », comme sans session
  * (une seule sortie ; la page de connexion de l'espace ne renvoie jamais un compte sans accès ailleurs : pas de boucle).
+ * `cabinet` : identifiant du cabinet de la page (espace d'un cabinet), sinon l'espace global.
  */
-export function etatAccesDepuisVerdict(verdict: VerificationSession): EtatAccesQr {
+export function etatAccesDepuisVerdict(verdict: VerificationSession, cabinet?: string | null): EtatAccesQr {
   if (verdict.statut === 'indisponible') return { statut: 'indisponible' }
   if (verdict.statut === 'refusee') return { statut: 'connexion' }
-  const decision = decisionAccesEspaceQr(verdict.user)
+  const decision = decisionAccesEspaceQr(verdict.user, cabinet)
   if (decision.acces !== 'autorise') return { statut: 'connexion' }
   return { statut: 'autorise', role: decision.role, lienAdmin: lienPanneauAdmin(verdict.user.app_metadata) }
 }
@@ -53,17 +64,20 @@ export interface AccesEspaceQr {
   seDeconnecter: () => Promise<void>
 }
 
-export function useAccesEspaceQr(): AccesEspaceQr {
+/** `identifiantCabinet` : cabinet de la page (espace d'un cabinet) ; absent ou null : espace global. */
+export function useAccesEspaceQr(identifiantCabinet?: string | null): AccesEspaceQr {
   const [etat, setEtat] = useState<EtatAccesQr>({ statut: 'chargement' })
   const [essai, setEssai] = useState(0)
-  const [connexion] = useState(() => cheminConnexionEspaceQr(langueDeLaPage()))
+  const [connexion] = useState(() => (identifiantCabinet
+    ? cheminConnexionCabinetQr(identifiantCabinet)
+    : cheminConnexionEspaceQr(langueDeLaPage())))
   // Déconnexion demandée ici : la page de connexion est ouverte par seDeconnecter, pas par l'événement SIGNED_OUT.
   const sortieVolontaire = useRef(false)
 
   useEffect(() => {
     let actif = true
     void verifierSessionNavigateur(supabase.auth).then((verdict) => {
-      if (actif) setEtat(etatAccesDepuisVerdict(verdict))
+      if (actif) setEtat(etatAccesDepuisVerdict(verdict, identifiantCabinet))
     })
     // Rappel synchrone, sans appel à Supabase (interblocage documenté par Supabase).
     const { data } = supabase.auth.onAuthStateChange((evenement) => {
@@ -73,7 +87,7 @@ export function useAccesEspaceQr(): AccesEspaceQr {
       actif = false
       data.subscription.unsubscribe()
     }
-  }, [essai])
+  }, [essai, identifiantCabinet])
 
   // Sans session ou sans accès : page de connexion de l'espace (remplace l'entrée d'historique : « retour » ne ramène
   // pas sur la garde). L'ancre (#signalements du lien de l'e-mail) suit : la page de connexion la reprend à l'arrivée.

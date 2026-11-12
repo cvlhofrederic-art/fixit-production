@@ -11,6 +11,11 @@
 // Depuis le 11/11/2026 : copropriété rattachée à un cabinet client → le QR code, le lien et l'affiche portent le chemin
 // du cabinet (vitfix.io/<identifiant>/signalement/<jeton>/) ; cabinet, gestionnaires ou « Tous les gestionnaires »,
 // créateur, CP, ville, immatriculation, et rappel des adresses de gestionnaires restées dans les destinataires.
+// PR 2, lot 5 (vueGestionnaire : espace d'un cabinet, gestionnaire connecté, SPEC § 2.8) : copropriété telle que le
+// serveur la lui rend (minimisée) ; « Créée par vous », « Commune à tous les gestionnaires » ; « Modifier » seulement si
+// la fiche lui est attribuée nommément (modifiable), sinon « fiche modifiable par le cabinet seulement » ; désactivée :
+// « QR code désactivé par le cabinet », sans QR code, lien ni affiche (le serveur ne rend pas son jeton) ; ni cabinet,
+// ni gestionnaires, ni créateur nommé ; adresses d'autres fiches comptées, jamais montrées.
 
 import { useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -19,6 +24,7 @@ import QrCodeSvg from '@/components/aj-signalement/QrCodeSvg'
 import { urlSignalementQr, type CoproprieteQr } from '@/lib/aj-signalement/types'
 import { TEXTES_TABLEAU_QR as T, dateHeureParis, destinatairesAffichesQr, resumeCompteursQr } from '@/lib/aj-signalement/affichage'
 import { TEXTES_GESTION_QR as G, dateParisQr } from '@/lib/aj-signalement/affichage-gestion'
+import { TEXTES_ESPACE_CABINET_QR as EC, idCarteCoproprieteQr } from '@/lib/aj-signalement/affichage-gestionnaire'
 import { affichePdfQr, nomFichierQr, pngQr, telechargerFichier, type MatriceQr } from '@/lib/aj-signalement/qr'
 
 export interface PropsCarteCoproprieteQr {
@@ -28,29 +34,19 @@ export interface PropsCarteCoproprieteQr {
   onModifier: () => void
   /** Enregistre l'adresse proposée comme adresse de la copropriété ; false si le serveur l'a refusée. */
   onUtiliserAdresse?: (adresse: string) => Promise<boolean>
+  /** PR 2 : vue d'un gestionnaire connecté (espace de son cabinet) ; absent : vue du super admin, inchangée. */
+  vueGestionnaire?: boolean
 }
 
-export default function CarteCoproprieteQr({ copropriete, origine, onModifier, onUtiliserAdresse }: Readonly<PropsCarteCoproprieteQr>) {
+export default function CarteCoproprieteQr({ copropriete, origine, onModifier, onUtiliserAdresse, vueGestionnaire = false }: Readonly<PropsCarteCoproprieteQr>) {
+  if (vueGestionnaire) return <CarteGestionnaireQr copropriete={copropriete} origine={origine} onModifier={onModifier} />
+  return <CarteSuperAdminQr copropriete={copropriete} origine={origine} onModifier={onModifier} onUtiliserAdresse={onUtiliserAdresse} />
+}
+
+/** QR code, lien public, affiche PDF et QR PNG d'une copropriété : communs aux deux vues. */
+function useFichiersQr(copropriete: CoproprieteQr, url: string, setErreur: (erreur: string | null) => void) {
   const [matrice, setMatrice] = useState<MatriceQr | null>(null)
   const [preparation, setPreparation] = useState(false)
-  const [enregistrement, setEnregistrement] = useState(false)
-  const [erreur, setErreur] = useState<string | null>(null)
-  const url = urlSignalementQr(copropriete.jeton, origine, copropriete.cabinet?.identifiant)
-  const g = G.copropriete
-  const createur = copropriete.creePar === 'administrateur'
-    ? g.creeeParAdmin
-    : remplir(g.creeePar, { nom: copropriete.creePar.nom ?? G.fiche.ancien })
-  const localisation = `${copropriete.codePostal} ${copropriete.ville}`.trim()
-  const proposee = copropriete.adresse.trim() ? null : copropriete.derniereAdresseProposee
-
-  const utiliserAdresse = async () => {
-    if (!proposee || !onUtiliserAdresse || enregistrement) return
-    setEnregistrement(true)
-    setErreur(null)
-    const enregistree = await onUtiliserAdresse(proposee.adresse)
-    setEnregistrement(false)
-    if (!enregistree) setErreur(T.erreurAdresse)
-  }
 
   const telechargerPng = () => {
     if (!matrice) return
@@ -75,6 +71,107 @@ export default function CarteCoproprieteQr({ copropriete, origine, onModifier, o
     } finally {
       setPreparation(false)
     }
+  }
+
+  return { matrice, setMatrice, preparation, telechargerPng, telechargerPdf }
+}
+
+/** Carte vue par un gestionnaire connecté (PR 2, lot 5). */
+function CarteGestionnaireQr({ copropriete, origine, onModifier }: Readonly<Pick<PropsCarteCoproprieteQr, 'copropriete' | 'origine' | 'onModifier'>>) {
+  const [erreur, setErreur] = useState<string | null>(null)
+  // Désactivée par le cabinet : aucun jeton rendu, donc aucun QR code, lien ni affiche.
+  const avecQr = copropriete.actif && copropriete.jeton !== ''
+  const url = avecQr ? urlSignalementQr(copropriete.jeton, origine, copropriete.cabinet?.identifiant) : ''
+  const { matrice, setMatrice, preparation, telechargerPng, telechargerPdf } = useFichiersQr(copropriete, url, setErreur)
+  const g = G.copropriete
+  const localisation = `${copropriete.codePostal} ${copropriete.ville}`.trim()
+  const masquees = copropriete.adressesMasquees ?? 0
+  const modifiable = copropriete.actif && copropriete.modifiable === true
+
+  return (
+    <Carte
+      id={idCarteCoproprieteQr(copropriete.id)}
+      titre={copropriete.nom}
+      sousTitre={copropriete.adresse || T.sansAdresse}
+      actions={copropriete.actif ? undefined : <Badge ton="gris">{EC.copropriete.desactivee}</Badge>}
+      ton={copropriete.actif ? 'neutre' : 'gris'}
+    >
+      <div className="flex flex-col gap-5 sm:flex-row">
+        {avecQr && (
+          <div className="shrink-0 self-center rounded-xl border border-[#E4DDD0] bg-white p-2 sm:self-start">
+            <QrCodeSvg texte={url} libelle={remplir(T.libelleQr, { nom: copropriete.nom })} taille={176} onMatrice={setMatrice} />
+          </div>
+        )}
+        <div className="min-w-0 flex-1 space-y-3">
+          {(copropriete.creeeParVous || copropriete.attribueeATous) && (
+            <div className="flex flex-wrap gap-2">
+              {copropriete.creeeParVous && <Badge ton="vert">{EC.copropriete.creeeParVous}</Badge>}
+              {copropriete.attribueeATous && <Badge ton="or">{EC.copropriete.commune}</Badge>}
+            </div>
+          )}
+          {avecQr && (
+            <div>
+              <p className="text-sm font-semibold text-[#4A5E78]">{T.lien}</p>
+              <p className="break-all text-base text-[#0D1B2E]">{url}</p>
+              <div className="mt-2">
+                <BoutonCopier texte={url} libelle={T.copierLien} libelleCopie={T.lienCopie} />
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-[#4A5E78]">
+            <span className="font-semibold">{EC.copropriete.destinataires}</span>{' '}
+            {copropriete.emailsDestinataires.length > 0 ? copropriete.emailsDestinataires.join(', ') : EC.copropriete.aucunDestinataire}
+          </p>
+          {masquees > 0 && <p className="text-sm text-[#4A5E78]">{remplir(EC.copropriete.adressesMasquees, { n: masquees })}</p>}
+          <p className="text-sm text-[#4A5E78]">{resumeCompteursQr(copropriete)}</p>
+          {(localisation || copropriete.immatriculation) && (
+            <p className="text-sm text-[#4A5E78]">
+              {[localisation, copropriete.immatriculation ? remplir(g.immatriculationLigne, { numero: copropriete.immatriculation }) : ''].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          {copropriete.actif && !modifiable && (
+            <Encadre ton="info">{copropriete.attribueeATous ? EC.copropriete.communeLectureSeule : EC.copropriete.lectureSeule}</Encadre>
+          )}
+          {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
+          {(avecQr || modifiable) && (
+            <div className="flex flex-wrap gap-2">
+              {avecQr && (
+                <>
+                  <Bouton variante="principal" icone="documents" petit disabled={!matrice || preparation} onClick={() => { void telechargerPdf() }}>
+                    {preparation ? T.preparation : T.affichePdf}
+                  </Bouton>
+                  <Bouton variante="secondaire" icone="qr" petit disabled={!matrice} onClick={telechargerPng}>{T.qrPng}</Bouton>
+                </>
+              )}
+              {modifiable && <Bouton variante="secondaire" icone="outil" petit onClick={onModifier}>{T.modifier}</Bouton>}
+            </div>
+          )}
+        </div>
+      </div>
+    </Carte>
+  )
+}
+
+/** Carte vue par le super admin (espace global) : inchangée. */
+function CarteSuperAdminQr({ copropriete, origine, onModifier, onUtiliserAdresse }: Readonly<Omit<PropsCarteCoproprieteQr, 'vueGestionnaire'>>) {
+  const [enregistrement, setEnregistrement] = useState(false)
+  const [erreur, setErreur] = useState<string | null>(null)
+  const url = urlSignalementQr(copropriete.jeton, origine, copropriete.cabinet?.identifiant)
+  const { matrice, setMatrice, preparation, telechargerPng, telechargerPdf } = useFichiersQr(copropriete, url, setErreur)
+  const g = G.copropriete
+  const createur = copropriete.creePar === 'administrateur'
+    ? g.creeeParAdmin
+    : remplir(g.creeePar, { nom: copropriete.creePar.nom ?? G.fiche.ancien })
+  const localisation = `${copropriete.codePostal} ${copropriete.ville}`.trim()
+  const proposee = copropriete.adresse.trim() ? null : copropriete.derniereAdresseProposee
+
+  const utiliserAdresse = async () => {
+    if (!proposee || !onUtiliserAdresse || enregistrement) return
+    setEnregistrement(true)
+    setErreur(null)
+    const enregistree = await onUtiliserAdresse(proposee.adresse)
+    setEnregistrement(false)
+    if (!enregistree) setErreur(T.erreurAdresse)
   }
 
   return (

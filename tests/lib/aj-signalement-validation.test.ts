@@ -10,9 +10,10 @@
 
 import { describe, it, expect } from 'vitest'
 import {
-  attributionsCoproprieteQrSchema, attributionsGestionnaireQrSchema, cabinetQrSchema, coproprieteQrSchema, departGestionnaireQrSchema,
-  domaineQrSchema, gestionnaireQrSchema, identifiantCabinetQrSchema, jetonLienQrSchema, journalQrQuerySchema, langueCabinetQrSchema,
-  listeGestionnairesQrQuerySchema, modificationCabinetQrSchema, modificationCoproprieteQrSchema, modificationGestionnaireQrSchema,
+  attributionsCoproprieteQrSchema, attributionsGestionnaireQrSchema, cabinetQrSchema, coproprieteGestionnaireQrSchema, coproprieteQrSchema,
+  departGestionnaireQrSchema, domaineQrSchema, gestionnaireQrSchema, identifiantCabinetQrSchema, jetonLienQrSchema, journalQrQuerySchema,
+  langueCabinetQrSchema, listeGestionnairesQrQuerySchema, modificationCabinetQrSchema, modificationCoproprieteGestionnaireQrSchema,
+  modificationCoproprieteQrSchema, modificationGestionnaireQrSchema,
   rattachementQrSchema, semblablesQrQuerySchema, signalementQrSchema, signalementsCoproQrQuerySchema, statutSignalementQrSchema,
   suppressionCoproprieteQrSchema, tableauQrQuerySchema,
 } from '@/lib/validation'
@@ -161,6 +162,53 @@ describe('cabinets : identifiant, langue, domaines', () => {
   })
 })
 
+describe('corps d’un gestionnaire connecté (PR 2, lot 2 ; RG-20, RG-21)', () => {
+  const OPERATION = 'f0000000-0000-4000-8000-000000000001'
+  const SAISIE = { operationId: OPERATION, nom: ' Résidence Neuve ', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille' }
+
+  it('création : operationId, nom, adresse, code postal et ville obligatoires ; le reste par défaut', () => {
+    const r = coproprieteGestionnaireQrSchema.safeParse(SAISIE)
+    expect(r.success && r.data).toEqual({
+      operationId: OPERATION, nom: 'Résidence Neuve', adresse: '8 avenue Neuve', codePostal: '13002', ville: 'Marseille',
+      immatriculation: '', referenceCabinet: '', batiments: [], emailsDestinataires: [], confirmerDoublonProbable: false,
+    })
+    for (const champ of ['operationId', 'nom', 'adresse', 'codePostal', 'ville'] as const) {
+      const { [champ]: _retire, ...sans } = SAISIE
+      expect(coproprieteGestionnaireQrSchema.safeParse(sans).success, champ).toBe(false)
+    }
+    for (const vide of [{ nom: ' ' }, { adresse: '  ' }, { codePostal: '' }, { ville: '' }, { codePostal: '1300' }]) {
+      expect(coproprieteGestionnaireQrSchema.safeParse({ ...SAISIE, ...vide }).success, JSON.stringify(vide)).toBe(false)
+    }
+    expect(coproprieteGestionnaireQrSchema.safeParse({ ...SAISIE, codePostal: '1000-001' }).success).toBe(true)
+  })
+
+  it.each([
+    ['cabinetId', { cabinetId: UUID }], ['gestionnaireIds', { gestionnaireIds: [UUID] }], ['attribueeATous', { attribueeATous: true }],
+    ['forcerDoublon', { forcerDoublon: true }], ['confirmerHorsDomaine', { confirmerHorsDomaine: true }], ['actif', { actif: true }],
+    ['regenererJeton', { regenererJeton: true }], ['jeton', { jeton: '0'.repeat(32) }], ['creeParGestionnaireId', { creeParGestionnaireId: UUID }],
+  ])('création : %s refusé (clé inconnue → 400 ; cabinet, fiche et auteur viennent de la session)', (_cle, intrus) => {
+    expect(coproprieteGestionnaireQrSchema.safeParse({ ...SAISIE, ...intrus }).success).toBe(false)
+  })
+
+  it('modification : tout facultatif, au moins un champ autre que la confirmation ; champs obligatoires jamais vidés', () => {
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ ville: 'Aix' }).success).toBe(true)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ immatriculation: '', referenceCabinet: '', emailsDestinataires: [] }).success).toBe(true)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({}).success).toBe(false)
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ confirmerDoublonProbable: true }).success).toBe(false)
+    for (const vide of [{ nom: '' }, { adresse: ' ' }, { codePostal: '' }, { ville: '' }]) {
+      expect(modificationCoproprieteGestionnaireQrSchema.safeParse(vide).success, JSON.stringify(vide)).toBe(false)
+    }
+  })
+
+  it.each([
+    ['actif', { actif: false }], ['regenererJeton', { regenererJeton: true }], ['attribueeATous', { attribueeATous: true }],
+    ['gestionnaireIds', { gestionnaireIds: [UUID] }], ['cabinetId', { cabinetId: UUID }], ['forcerDoublon', { forcerDoublon: true }],
+    ['confirmerHorsDomaine', { confirmerHorsDomaine: true }], ['operationId', { operationId: UUID }],
+  ])('modification : %s refusé', (_cle, intrus) => {
+    expect(modificationCoproprieteGestionnaireQrSchema.safeParse({ ville: 'Aix', ...intrus }).success).toBe(false)
+  })
+})
+
 describe('schémas publics inchangés', () => {
   it('dépôt et signalements semblables : clé inconnue ignorée (pas de rupture pour la page publique)', () => {
     const depot = {
@@ -170,5 +218,52 @@ describe('schémas publics inchangés', () => {
     }
     expect(signalementQrSchema.safeParse(depot).success).toBe(true)
     expect(semblablesQrQuerySchema.safeParse({ jeton: '0'.repeat(32), batiment: 'A', zone: 'Hall', autre: '1' }).success).toBe(true)
+  })
+})
+
+describe('accès d’un gestionnaire (PR 2, lot 3)', () => {
+  const ACCEPTATION = { token: JETON_LIEN, cabinet: 'cabinet-exemple', password: 'Bonjour2026', politiqueLue: true }
+
+  it('acceptation : jeton signé, identifiant du chemin, mot de passe conforme (règle de « mot de passe oublié »), case cochée', async () => {
+    const { invitationGestionnaireQrSchema } = await import('@/lib/validation')
+    expect(invitationGestionnaireQrSchema.safeParse(ACCEPTATION).success).toBe(true)
+    const r = invitationGestionnaireQrSchema.safeParse({ ...ACCEPTATION, cabinet: ' Cabinet-Exemple ' })
+    expect(r.success && r.data.cabinet).toBe('cabinet-exemple')
+    // Le mot de passe n'est jamais rogné ni transformé.
+    const espaces = invitationGestionnaireQrSchema.safeParse({ ...ACCEPTATION, password: ' Bonjour2026 ' })
+    expect(espaces.success && espaces.data.password).toBe(' Bonjour2026 ')
+  })
+
+  it.each([
+    ['trop court', { password: 'Abc123' }],
+    ['sans majuscule', { password: 'bonjour2026' }],
+    ['sans minuscule', { password: 'BONJOUR2026' }],
+    ['sans chiffre', { password: 'BonjourBonjour' }],
+    ['plus de 72 octets', { password: `Aa1${'é'.repeat(40)}` }],
+    ['plus de 200 caractères', { password: `Aa1${'b'.repeat(200)}` }],
+    ['case non cochée', { politiqueLue: false }],
+    ['case absente', { politiqueLue: undefined }],
+    ['jeton mal formé', { token: 'a'.repeat(48) }],
+    ['identifiant hors format', { cabinet: 'Cabinet Exemple' }],
+    ['rôle fourni', { role: 'super_admin' }],
+    ['repère fourni', { aj_signalement_cabinet: 'autre-cabinet' }],
+  ])('acceptation refusée : %s', async (_cas, sur) => {
+    const { invitationGestionnaireQrSchema } = await import('@/lib/validation')
+    expect(invitationGestionnaireQrSchema.safeParse({ ...ACCEPTATION, ...sur }).success).toBe(false)
+  })
+
+  it('envoi groupé : 1 à 50 fiches (uuid), strict', async () => {
+    const { accesGroupeQrSchema } = await import('@/lib/validation')
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: [UUID] }).success).toBe(true)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: [] }).success).toBe(false)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: Array.from({ length: 51 }, () => UUID) }).success).toBe(false)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: ['x'] }).success).toBe(false)
+    expect(accesGroupeQrSchema.safeParse({ gestionnaireIds: [UUID], cabinetId: UUID }).success).toBe(false)
+  })
+
+  it('envoi d’un accès : corps vide seulement', async () => {
+    const { corpsVideQrSchema } = await import('@/lib/validation')
+    expect(corpsVideQrSchema.safeParse({}).success).toBe(true)
+    expect(corpsVideQrSchema.safeParse({ email: 'x@exemple.test' }).success).toBe(false)
   })
 })

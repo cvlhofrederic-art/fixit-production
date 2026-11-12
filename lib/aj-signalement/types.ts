@@ -105,7 +105,15 @@ export interface SignalementQr {
   signalementLieId: string | null
   creeLe: string
   misAJourLe: string
+  /**
+   * Vue d'un gestionnaire seulement (PR 2, lib/aj-signalement/minimisation.ts) : qui a changé le statut en dernier, sans
+   * nom ni compte (vous, un collègue, le cabinet) ; null : jamais changé. Absent pour le super admin.
+   */
+  statutModifiePar?: AuteurStatutQr | null
 }
+
+/** Auteur d'un changement de statut tel qu'un gestionnaire le voit (jamais un nom ni un identifiant). */
+export type AuteurStatutQr = 'vous' | 'collegue' | 'cabinet'
 
 /** Corps du POST public /api/aj-signalement/signalements (validé par signalementQrSchema, lib/validation.ts). */
 export interface SaisieSignalementQr {
@@ -244,6 +252,14 @@ export interface GestionnaireQr extends GestionnaireResumeQr {
   urgents: number
   creeLe: string
   confirmeeLe: string | null
+  /**
+   * Accès à l'espace du cabinet (PR 2, colonnes de la migration 20261112, lues à part) : ABSENTS tant que la migration
+   * manque (réponse identique à la PR 1). Jamais l'identifiant du compte relié.
+   */
+  accesOuvertLe?: string | null
+  connexionBloquee?: boolean
+  effacementDemandeLe?: string | null
+  compteRelie?: boolean
 }
 
 /** D'où vient une attribution (CHECK de signalements_qr_attributions.origine). */
@@ -308,6 +324,11 @@ export interface ResultatCreationQr {
 export const ERREURS_METIER_SQL_QR = [
   'doublon', 'a_reverifier', 'sans_cabinet', 'identifiant_pris', 'identifiant_fige', 'domaine_pris', 'cabinet_fige',
   'hors_domaine', 'domaine_autre_cabinet',
+  // Migration 20261112 (PR 2) : envoi d'un accès (signalements_qr_envoyer_acces).
+  'deja_ouvert', 'adresse_contestee',
+  // Migration 20261112 (contre-vérification du 12/11) : création d'une fiche sur une boîte déjà portée par une fiche
+  // (signalements_qr_inviter_gestionnaire ; identifiant de cette fiche en DETAIL, rendu par la route).
+  'existe_deja',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
@@ -345,6 +366,13 @@ export interface GestionCoproprieteQr {
   dernier: string | null
   /** Adresses saisies qui sont celles d'une fiche gestionnaire (données antérieures, à nettoyer par le super admin). */
   adressesDeGestionnaires: number
+  /**
+   * Vue d'un gestionnaire seulement (PR 2, lib/aj-signalement/minimisation.ts), absents pour le super admin :
+   * fiche modifiable par lui (attribuée nommément), saisies masquées (adresse d'une autre fiche), créée par lui.
+   */
+  modifiable?: boolean
+  adressesMasquees?: number
+  creeeParVous?: boolean
 }
 
 /** Valeurs par défaut des champs de gestion : tableaux neufs à chaque appel. */
@@ -362,6 +390,17 @@ export function gestionCoproprieteQrVide(): GestionCoproprieteQr {
 export type CheminCabinetQr =
   | { page: 'signalement'; identifiant: string; jeton: string }
   | { page: 'confirmation-adresse'; identifiant: string }
+  // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : lien de l'e-mail, page publique.
+  | { page: 'invitation'; identifiant: string }
+
+/**
+ * Espace d'un cabinet reconnu par cheminEspaceCabinetQr (PR 2, lot 4) : /<id>/ (accueil, redirigé vers le suivi),
+ * /<id>/connexion/, /<id>/suivi/ ; identifiant valable (jamais un nom réservé). Aucun droit n'en découle.
+ */
+export interface EspaceCabinetQr {
+  page: 'accueil' | 'connexion' | 'suivi'
+  identifiant: string
+}
 
 /** Refus d'un identifiant de chemin : hors format (3 à 40 caractères…) ou réservé (route du site, mot gardé). */
 export type ValidationIdentifiantCabinetQr = { ok: true } | { ok: false; raison: 'format' | 'reserve' }
@@ -444,7 +483,11 @@ export type DecisionDoublonsQr =
 
 export type TypeDestinataireQr = 'gestionnaire' | 'saisi' | 'administrateur'
 
-/** Ligne de signalements_qr_emails_gestionnaires : exclu = false → destinataire ; exclu = true → à retirer des saisies. */
+/**
+ * Ligne de signalements_qr_emails_gestionnaires : exclu = false → destinataire (adresse de la fiche) ; exclu = true → à
+ * retirer des saisies (20261111 : l'adresse de la fiche partie ou contestée ; 20261112 : la SAISIE reconnue comme la
+ * sienne, même boîte ou même partie locale sur un autre domaine de son cabinet).
+ */
 export interface LigneEmailGestionnaireQr {
   gestionnaireId: string
   email: string
@@ -472,6 +515,23 @@ export interface SaisiesVisiblesQr {
   adressesMasquees: number
 }
 
+/**
+ * Une fiche telle que la règle « adresse d'une fiche » la lit (RG-06 bis) : son adresse et son cabinet. Sans cabinet,
+ * seule la boîte compte (pas de rapprochement par la partie locale).
+ */
+export interface FicheAdresseQr {
+  id?: string
+  email: string | null
+  cabinetId?: string | null
+}
+
+/**
+ * Domaines déclarés (minuscules) → leur cabinet. Un domaine n'appartient qu'à un cabinet (contrainte
+ * signalements_qr_domaines_domaine_unique de la 20261111). Corrections, tour 2 : même partie locale de boîte sur un domaine
+ * du cabinet de la fiche = adresse de la fiche (un cabinet à deux domaines les livre aux mêmes boîtes).
+ */
+export type CabinetsDesDomainesQr = ReadonlyMap<string, string>
+
 /** Objet d'un envoi à un gestionnaire (CHECK de signalements_qr_invitations.objet) ; 'acces' : PR 2. */
 export const OBJETS_ENVOI_QR = ['confirmation_adresse', 'acces'] as const
 export type ObjetEnvoiQr = (typeof OBJETS_ENVOI_QR)[number]
@@ -480,11 +540,20 @@ export type ObjetEnvoiQr = (typeof OBJETS_ENVOI_QR)[number]
 export const REFUS_ENVOI_QR = ['compte_autre_espace', 'pas_moi'] as const
 export type RefusEnvoiQr = (typeof REFUS_ENVOI_QR)[number]
 
+/** Champs d'accès d'une fiche (migration 20261112, PR 2) que son état lit : dates et drapeau, jamais le compte. */
+export interface AccesFicheEtatQr {
+  accesOuvertLe: string | null
+  compteRelie: boolean
+  effacementDemandeLe: string | null
+}
+
 /** Ce que l'état d'une fiche lit de la fiche elle-même. */
 export interface FicheEtatGestionnaireQr {
   actif: boolean
   adresseConfirmeeLe: string | null
   adresseContesteeLe: string | null
+  /** PR 2, lot 5 : absent tant que la migration 20261112 manque (l'état est alors celui de la PR 1, envois « acces » ignorés). */
+  acces?: AccesFicheEtatQr
 }
 
 /** Un envoi (ligne de signalements_qr_invitations), sans son jeton. */
@@ -498,7 +567,7 @@ export interface EnvoiGestionnaireQr {
   refus: RefusEnvoiQr | null
 }
 
-/** États d'une fiche calculés en PR 1 (les 4 autres d'ETATS_GESTIONNAIRE_QR viennent avec la PR 2). */
+/** États d'une fiche calculés en PR 1 (les 4 autres d'ETATS_GESTIONNAIRE_QR viennent avec la PR 2, lot 5). */
 export type EtatGestionnairePr1Qr = Extract<
   EtatGestionnaireQr,
   'confirmation_envoyee' | 'confirmation_expiree' | 'adresse_confirmee' | 'adresse_contestee' | 'desactive'
@@ -507,12 +576,23 @@ export type EtatGestionnairePr1Qr = Extract<
 // ── Routes du lot 3 (contrôle d'accès, réponses, envois) ────────────────────────────────────────────────────────
 
 /**
- * Profil d'un appel authentifié, rendu par controlerAccesQr (lib/aj-signalement/serveur.ts) après isSuperAdmin. En
- * PR 1, le super admin seul ; la PR 2 ajoutera { type: 'gestionnaire'; userId; gestionnaireId; cabinetId } et
- * { type: 'acces_retire' } (fiche relue en base par user_id, jamais app_metadata).
+ * Rôle serveur (app_metadata.role) d'un compte gestionnaire d'un cabinet client, posé à l'acceptation de son accès, et
+ * repère de routage posé avec lui (identifiant du chemin de SON cabinet : il aiguille vers vitfix.io/<identifiant>/suivi/
+ * et ne donne AUCUN droit, les routes ne lisent que la fiche). Définis dans acces-espace.ts (module pur lu par le
+ * middleware, lot 4), repris ici pour les routes.
  */
-export type ProfilQr = { type: 'super_admin'; userId: string }
+export { CLE_REPERE_CABINET_QR, ROLE_GESTIONNAIRE_QR } from '@/lib/aj-signalement/acces-espace'
+
+/**
+ * Profil d'un appel authentifié, rendu par controlerAccesQr (lib/aj-signalement/serveur.ts) : le super admin
+ * (isSuperAdmin), ou un gestionnaire (rôle app_metadata gestionnaire_signalement ET fiche ACTIVE relue en base par
+ * user_id à chaque appel ; cabinet et nom viennent de la fiche, jamais du compte).
+ */
+export type ProfilQr =
+  | { type: 'super_admin'; userId: string }
+  | { type: 'gestionnaire'; userId: string; gestionnaireId: string; cabinetId: string; nom: string | null }
 export type TypeProfilQr = ProfilQr['type']
+export type ProfilGestionnaireQr = Extract<ProfilQr, { type: 'gestionnaire' }>
 
 /** Curseur de page (created_at BRUT de PostgREST, microsecondes comprises, et id de la dernière ligne) ; null : fin. */
 export type SuitePageQr = { avant: string; avantId: string } | null
@@ -546,6 +626,12 @@ export interface BilanEnvoiQr {
 
 /** Doublon rendu par POST / PATCH /coproprietes (409 doublon), tel que l'écran le montre. */
 export type DoublonRenduQr = Pick<DoublonQr, 'certitude' | 'critere' | 'copropriete'>
+
+/**
+ * Doublon rendu à un GESTIONNAIRE (PR 2, SPEC § 1.6) : la copropriété n'est nommée que si elle est dans sa portée
+ * (« elle est déjà dans vos copropriétés ») ; hors portée, ni nom, ni identifiant, ni ville.
+ */
+export type DoublonRenduGestionnaireQr = Pick<DoublonQr, 'certitude' | 'critere'> & { copropriete?: DoublonQr['copropriete'] }
 
 /**
  * Champs de gestion d'une copropriété saisis à l'écran (création, modification) : facultatifs, envoyés seulement s'ils

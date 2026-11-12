@@ -7,7 +7,8 @@
 //   - normalisation d'une ligne (mêmes bornes que importCoproprietesQrSchema) : une erreur de format garde la ligne dans
 //     le navigateur, jamais envoyée ;
 //   - diagnostics, refaits par la route (P1-R19) sur la base : gestionnaires du cabinet (adresse ou nom), destinataires
-//     (RG-06 bis : une adresse de fiche n'est jamais une adresse saisie ; RG-02 : hors domaines à confirmer), doublons dans
+//     (RG-06 bis : une adresse de fiche, ou une variante par la règle du formulaire, estAdresseDeFicheQr, n'est jamais une
+//     adresse saisie ; RG-02 : hors domaines à confirmer), doublons dans
 //     le fichier et avec les copropriétés du cabinet (mêmes clés que la saisie, doublons.ts) ;
 //   - lignes passées à signalements_qr_creer_coproprietes (un seul appel, tout ou rien).
 // Isolation entre cabinets : seules les fiches et les copropriétés DU cabinet sont comparées ; une adresse d'une fiche
@@ -15,7 +16,7 @@
 
 import { normaliserNomPersonne, sansAccentsMinuscules } from '@/lib/administrateur-judiciaire/domain/texte'
 import { cleNomCoproQr, doublonsCoproprieteQr } from '@/lib/aj-signalement/doublons'
-import { emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
+import { boiteEmailQr, boitesDeFicheQr, emailCanoniqueQr, emailDansDomainesQr } from '@/lib/aj-signalement/gestionnaires'
 import { LIBELLE_CHAMP_IMPORT_QR as L, MESSAGES_IMPORT_QR as M } from '@/lib/aj-signalement/import/textes'
 import type {
   ChampImportQr, ChoixLigneImportQr, ColonneModeleImportQr, ContexteImportQr, CoproprieteDoublonQr, CorrespondanceImportQr,
@@ -388,8 +389,26 @@ function diagnostiquerSurExistantesQr(lignes: readonly LigneImportQr[], contexte
     const email = emailCanoniqueQr(f.email)
     if (email) fichesParEmail.set(email, f)
   }
-  const autresCabinets = new Set(contexte.emailsAutresCabinets.map(emailCanoniqueQr).filter((e): e is string => e !== null))
+  // Contrôle 2 de la PR 2 (C2) : une adresse est celle d'une fiche DU cabinet par LA règle du formulaire
+  // (boitesDeFicheQr, définition de estAdresseDeFicheQr : même boîte, étiquette « + » comprise, ou même partie locale sur
+  // un domaine du cabinet). L'adresse exacte d'abord ; sinon toutes les fiches dont elle est une variante.
+  // Contre-vérification du 12/11 (même garde que la base, signalements_qr_saisie_de_la_fiche) : une adresse que la règle
+  // reconnaît AUSSI comme celle d'une fiche utilisable (active, non contestée) du cabinet n'est jamais traitée comme celle
+  // d'une fiche partie ou contestée, même exacte : elle désigne la ou les fiches utilisables.
+  const fichesParBoite = new Map<string, FicheImportQr[]>()
+  for (const f of contexte.fiches) {
+    for (const boite of boitesDeFicheQr(f.email, contexte.domaines)) fichesParBoite.set(boite, [...(fichesParBoite.get(boite) ?? []), f])
+  }
   const utilisable = (f: FicheImportQr) => f.actif && !f.contestee
+  const fichesDeLAdresse = (email: string): FicheImportQr[] => {
+    const exacte = fichesParEmail.get(email)
+    if (exacte && utilisable(exacte)) return [exacte]
+    const parBoite = fichesParBoite.get(boiteEmailQr(email) ?? '') ?? []
+    const utilisables = parBoite.filter(utilisable)
+    if (utilisables.length > 0) return utilisables
+    return exacte ? [exacte] : parBoite
+  }
+  const autresCabinets = new Set(contexte.emailsAutresCabinets.map(emailCanoniqueQr).filter((e): e is string => e !== null))
   const inconnus = new Map<string, GestionnaireInconnuImportQr>()
   const precedentes: CoproprieteDoublonQr[] = []
 
@@ -400,13 +419,14 @@ function diagnostiquerSurExistantesQr(lignes: readonly LigneImportQr[], contexte
     const gestionnaires = new Map<string, GestionnaireResumeQr>()
     const attribuer = (f: FicheImportQr) => gestionnaires.set(f.id, { id: f.id, nom: f.nom })
 
-    // 1. Gestionnaires cités par adresse : fiche active (non contestée) DU cabinet seulement.
+    // 1. Gestionnaires cités par adresse (ou une variante) : fiche active (non contestée) DU cabinet seulement.
     for (const email of l.gestionnaires.map(emailCanoniqueQr).filter((e): e is string => e !== null)) {
-      const fiche = fichesParEmail.get(email)
-      if (fiche) {
-        if (!fiche.actif) erreur('gestionnaires', M.gestionnaireDesactive(email))
-        else if (fiche.contestee) erreur('gestionnaires', M.gestionnaireConteste(email))
-        else attribuer(fiche)
+      const fiches = fichesDeLAdresse(email)
+      if (fiches.length > 0) {
+        const utilisables = fiches.filter(utilisable)
+        if (utilisables.length > 0) for (const f of utilisables) attribuer(f)
+        else if (fiches.some((f) => !f.actif)) erreur('gestionnaires', M.gestionnaireDesactive(email))
+        else erreur('gestionnaires', M.gestionnaireConteste(email))
       } else if (autresCabinets.has(email)) {
         erreur('gestionnaires', M.gestionnaireAutreCabinet(email))
       } else if (emailDansDomainesQr(email, contexte.domainesAutresCabinets)) {
@@ -432,15 +452,17 @@ function diagnostiquerSurExistantesQr(lignes: readonly LigneImportQr[], contexte
       else erreur('gestionnaires', M.gestionnaireInconnu(nom))
     }
 
-    // 3. Destinataires : une adresse de fiche n'y reste jamais (RG-06 bis) ; hors domaines du cabinet, à confirmer (RG-02).
+    // 3. Destinataires : une adresse de fiche (ou une variante, même règle que le formulaire) n'y reste jamais (RG-06
+    //    bis) ; fiche utilisable : mise dans Gestionnaire(s), sinon retirée ; hors domaines du cabinet, à confirmer (RG-02).
     const emailsDestinataires: string[] = []
     const emailsHorsDomaine: string[] = []
     const avisDomaines: string[] = []
     for (const email of [...new Set(l.emailsDestinataires.map(emailCanoniqueQr).filter((e): e is string => e !== null))]) {
-      const fiche = fichesParEmail.get(email)
-      if (fiche) {
-        if (utilisable(fiche)) { attribuer(fiche); avertir('emailsDestinataires', M.destinataireGestionnaire(email)) }
-        else avertir('emailsDestinataires', M.destinataireRetire(email))
+      const fiches = fichesDeLAdresse(email)
+      if (fiches.length > 0) {
+        const utilisables = fiches.filter(utilisable)
+        for (const f of utilisables) attribuer(f)
+        avertir('emailsDestinataires', utilisables.length > 0 ? M.destinataireGestionnaire(email) : M.destinataireRetire(email))
         continue
       }
       if (autresCabinets.has(email)) { avertir('emailsDestinataires', M.destinataireAutreCabinet(email)); continue }

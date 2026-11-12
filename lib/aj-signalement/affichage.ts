@@ -235,6 +235,8 @@ export const TEXTES_TABLEAU_QR = {
     statut: 'Statut',
     fermer: 'Fermer',
     erreurStatut: 'Le statut n’a pas pu être modifié. Réessayez.',
+    // PR 2, lot 5 : le statut affiché part avec la demande ; changé entre-temps (409), la liste est rechargée.
+    conflitStatut: 'Le statut a été changé entre-temps : la liste a été mise à jour, vérifiez-le avant de recommencer.',
   },
   formulaire: {
     creer: 'Nouvelle copropriété',
@@ -284,5 +286,11 @@ export const TEXTES_TABLEAU_QR = {
     fiche_effacee: 'Cette fiche a été effacée : elle ne peut plus être modifiée.',
     signalements_presents: 'Cette copropriété a des signalements : désactivez son QR code au lieu de la supprimer.',
     conflit_statut: 'Le statut a changé entre-temps : mettez à jour la page.',
+    // Accès des gestionnaires (PR 2).
+    deja_ouvert: 'L’accès de ce gestionnaire est déjà ouvert : il se connecte, ou utilise « Mot de passe oublié ».',
+    compte_autre_espace: 'Cette adresse est déjà celle d’un compte VitFix d’un autre espace : créez une fiche avec une autre adresse.',
+    // Refus 403 d'un gestionnaire connecté (PR 2, lot 5) ; ses écrans ont leurs propres textes (affichage-gestionnaire.ts).
+    acces_retire: 'Accès retiré : la fiche de ce compte est désactivée.',
+    lecture_seule: 'Cette fiche est en lecture seule pour ce compte.',
   } satisfies Record<CodeErreurQr, string>,
 } as const

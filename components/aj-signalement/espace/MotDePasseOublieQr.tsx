@@ -11,8 +11,9 @@
 //   montré ; journal : statut seulement, jamais l'e-mail.
 // - Focus : le titre de l'étape à l'ouverture, le message une fois le lien demandé (le formulaire disparaît), le champ
 //   en erreur sinon. « Retour à la connexion professionnelle » ramène au formulaire de connexion.
-// - Limite (PR 2) : le lien de l'e-mail ouvre la page commune /auth/update-password/, qui renvoie ensuite vers la
-//   connexion générale.
+// - Le lien de l'e-mail ouvre la page commune /auth/update-password/ ; depuis la PR 2 (lot 6), un gestionnaire en
+//   revient vers la connexion de SON cabinet (connexionApresMotDePasseQr) ; tout autre compte, vers la connexion
+//   générale, comme avant.
 // Styles de l'espace (Champ, CLASSES_SAISIE, Bouton, Encadre) : aucun nouveau système visuel.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'

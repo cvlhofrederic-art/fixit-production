@@ -103,6 +103,21 @@ describe('destinataires automatiques', () => {
     expect(messages[0].html).toContain('https://vitfix.io/fr/aj-signalement/#signalements')
   })
 
+  // Corrections, tour 2 : la 20261112 rend la SAISIE reconnue (ici la partie locale de la fiche partie sur l'autre domaine
+  // de son cabinet) ; elle quitte l'envoi comme l'adresse de la fiche.
+  it('ligne exclue portant une saisie sur l’autre domaine du cabinet de la fiche partie : aucun message vers elle', async () => {
+    baseQr.etat.tables.signalements_qr_coproprietes[0].emails_destinataires = ['cs@externe.test', 'luc.parti@exemple-bis.test']
+    baseQr.etat.fonctions.signalements_qr_emails_gestionnaires = () => ({
+      data: [
+        { gestionnaire_id: G_PARTI, email: 'luc.parti@exemple-bis.test', acces_ouvert: false, exclu: true },
+        { gestionnaire_id: G1, email: 'marie.exemple@exemple.test', acces_ouvert: false, exclu: false },
+      ],
+    })
+    expect((await deposer()).status).toBe(200)
+    expect(versAdministrateur().map((m) => m.to)).toEqual(['cs@externe.test', 'marie.exemple@exemple.test'])
+    expect(JSON.stringify(messagesEnvoyesQr())).not.toContain('luc.parti')
+  })
+
   it('fonction des gestionnaires absente (PGRST202) : envoi aux saisies, dépôt 200, journalisé une fois', async () => {
     delete baseQr.etat.fonctions.signalements_qr_emails_gestionnaires
     delete baseQr.etat.fonctions.signalements_qr_reserver_emails
@@ -171,5 +186,74 @@ describe('budget d’e-mails', () => {
     expect((await deposer()).status).toBe(429)
     expect(simulQr.limites).toContain('qr_signalement_post_203.0.113.7')
     expect(simulQr.limites).toContain(`qr_signalement_copro_${COPRO}`)
+  })
+})
+
+// ── PR 2, lot 5 : bouton « Ouvrir le suivi » (RG-25) ──────────────────────────────────────────────────────────────
+// Un gestionnaire dont l'accès est ouvert (acces_ouvert de signalements_qr_emails_gestionnaires, corps de la 20261112)
+// reçoit le bouton vers /<identifiant>/suivi/#signalements, sans jeton. L'identifiant du cabinet n'est lu QUE si un
+// destinataire a l'accès ouvert ; s'il ne peut pas l'être (colonne cabinet_id 42703, table des cabinets PGRST205 ou
+// 42P01, autre erreur), l'e-mail part quand même, avec la phrase de la PR 1 ; le dépôt reste 200.
+describe('bouton « Ouvrir le suivi » (PR 2)', () => {
+  const CAB = 'ca000000-0000-4000-8000-000000000001'
+  const LIEN = 'https://vitfix.io/cabinet-exemple/suivi/#signalements'
+
+  beforeEach(() => {
+    baseQr.etat.tables.signalements_qr_coproprietes[0].cabinet_id = CAB
+    baseQr.etat.tables.signalements_qr_cabinets = [{ id: CAB, nom: 'Cabinet Exemple', identifiant: 'cabinet-exemple', langue: 'fr' }]
+    baseQr.etat.fonctions.signalements_qr_emails_gestionnaires = () => ({
+      data: [
+        { gestionnaire_id: G1, email: 'marie.exemple@exemple.test', acces_ouvert: true, exclu: false },
+        { gestionnaire_id: G2, email: 'paul.exemple@exemple.test', acces_ouvert: false, exclu: false },
+      ],
+    })
+  })
+
+  const message = (to: string) => versAdministrateur().find((m) => m.to === to)
+  const lecturesCabinets = () => baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_cabinets')
+
+  it('accès ouvert : bouton vers le suivi de SON cabinet pour lui seul, sans jeton ; les autres messages comme avant', async () => {
+    expect((await deposer()).status).toBe(200)
+    expect(message('marie.exemple@exemple.test')?.html).toContain(`href="${LIEN}"`)
+    expect(message('marie.exemple@exemple.test')?.html).not.toContain(JETON)
+    expect(message('paul.exemple@exemple.test')?.html).not.toContain(LIEN)
+    expect(message('paul.exemple@exemple.test')?.html).toContain('Le cabinet suit ce signalement dans AJ Signalement.')
+    expect(message('cs@externe.test')?.html).not.toContain(LIEN)
+    expect(lecturesCabinets()).toHaveLength(1)
+  })
+
+  it('aucun accès ouvert (ou connexion bloquée, acces_ouvert faux) : le cabinet n’est pas lu, aucun bouton', async () => {
+    baseQr.etat.fonctions.signalements_qr_emails_gestionnaires = () => ({
+      data: [{ gestionnaire_id: G1, email: 'marie.exemple@exemple.test', acces_ouvert: false, exclu: false }],
+    })
+    expect((await deposer()).status).toBe(200)
+    expect(lecturesCabinets()).toEqual([])
+    expect(JSON.stringify(versAdministrateur())).not.toContain('/suivi/')
+  })
+
+  it.each([
+    ['colonne cabinet_id absente (42703)', () => { baseQr.etat.colonnesAbsentes.signalements_qr_coproprietes = ['cabinet_id'] }],
+    ['table des cabinets absente (PGRST205)', () => { baseQr.etat.codeTableAbsente = 'PGRST205'; baseQr.etat.tablesAbsentes = ['signalements_qr_cabinets'] }],
+    ['table des cabinets absente (42P01)', () => { baseQr.etat.tablesAbsentes = ['signalements_qr_cabinets'] }],
+  ])('%s : e-mail parti sans bouton de suivi, dépôt 200, repli journalisé une fois', async (_cas, simuler) => {
+    simuler()
+    expect((await deposer()).status).toBe(200)
+    expect(message('marie.exemple@exemple.test')?.html).not.toContain('/suivi/')
+    expect(message('marie.exemple@exemple.test')?.html).toContain('Le cabinet suit ce signalement dans AJ Signalement.')
+    expect((await deposer()).status).toBe(200)
+    expect(simulQr.logger.warn.mock.calls.filter((c) => String(c[0]).includes('repli (cabinet du lien de suivi)'))).toHaveLength(1)
+  })
+
+  it('autre erreur de lecture : e-mail parti sans bouton, dépôt 200, avertissement sans détail', async () => {
+    baseQr.etat.erreursPonctuelles.signalements_qr_cabinets = { code: '57014', message: 'canceling statement due to statement timeout' }
+    expect((await deposer()).status).toBe(200)
+    expect(message('marie.exemple@exemple.test')?.html).not.toContain('/suivi/')
+    expect(texteJournalServeurQr()).not.toContain('statement timeout')
+  })
+
+  it('copropriété sans cabinet : aucun bouton', async () => {
+    baseQr.etat.tables.signalements_qr_coproprietes[0].cabinet_id = null
+    expect((await deposer()).status).toBe(200)
+    expect(message('marie.exemple@exemple.test')?.html).not.toContain('/suivi/')
   })
 })
