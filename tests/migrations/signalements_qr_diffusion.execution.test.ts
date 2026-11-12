@@ -933,6 +933,103 @@ describe('H1 = option C : message d’annonce unique, inclusion 15 jours après 
     await db.exec('ROLLBACK TO SAVEPOINT s')
     expect(erreur?.code).toBe('23514')
   })
+
+  it('les résultats d’un lot ne datent que les adresses servies par CE lot (coût borné par le lot)', async () => {
+    const { cop } = await immeuble(0)
+    await depot(cop, { email: 'ancien1@exemple.test', annonce: null, ilYa: '30 days' })
+    await depot(cop, { email: 'ancien2@exemple.test', annonce: null, ilYa: '30 days' })
+    const a = await creerOk(cop, { modele: 'annonce' })
+    const [premier] = await lot(a.diffusion_id, 1)
+    // État posé directement : la ligne du lot 1 est envoyée, ses signalements ne sont pas datés.
+    await q("UPDATE signalements_qr_diffusion_destinataires SET etat = 'envoye', envoye_le = now() WHERE id = $1", [premier.destinataire_id])
+    const [second] = await lot(a.diffusion_id, 1)
+    await resultats(a.diffusion_id, second.lot, { envoyes: [second.destinataire_id] })
+    const datees = await q<{ email: string }>(
+      'SELECT lower(email) AS email FROM signalements_qr WHERE copropriete_id = $1 AND diffusion_annoncee_le IS NOT NULL', [cop])
+    expect(datees.map((d) => d.email)).toEqual([second.email])
+  })
+})
+
+// Relecture du 12/11 : la datation relisait toutes les lignes envoyées de la diffusion et recalculait l'empreinte de chaque
+// signalement de la copropriété, en (lignes envoyées × signalements). Base dédiée : ANALYZE y change les statistiques.
+describe('H1 : coût du message d’annonce (base dédiée, statistiques réelles)', () => {
+  let base: PGlite
+  const EMPREINTE = 'signalements_qr_empreinte_email(text)'
+  beforeAll(async () => { base = await creerBaseSignalementsQr() }, 120_000)
+  afterAll(async () => { await base?.close() })
+
+  it('index (copropriété, empreinte de l’adresse) sur signalements_qr ; service_role y écrit (droit EXECUTE sur l’empreinte)', async () => {
+    const [i] = (await base.query<{ def: string | null }>(
+      "SELECT pg_get_indexdef(to_regclass('idx_signalements_qr_copro_empreinte')) AS def")).rows
+    expect(i.def ?? 'index absent').toMatch(/ON public\.signalements_qr USING btree \(copropriete_id, signalements_qr_empreinte_email\(email\)\)/)
+    await base.exec('BEGIN')
+    try {
+      await base.exec(`INSERT INTO signalements_qr_coproprietes (id, nom, jeton) VALUES ('44444444-4444-4444-4444-444444444444', 'Résidence exemple', replace(gen_random_uuid()::text, '-', ''));
+        SET LOCAL ROLE service_role;
+        INSERT INTO signalements_qr (copropriete_id, prenom, nom, telephone, email, batiment, etage, num_lot, type_intervention, description)
+        VALUES ('44444444-4444-4444-4444-444444444444', 'P', 'N', '0600000000', 'droit@exemple.test', 'A', '1', '1', 'plomberie', 'Description d’exemple');`)
+    } finally {
+      await base.exec('ROLLBACK')
+    }
+  })
+
+  it('2 000 déclarants jamais annoncés, 20 autres copropriétés : chaque résultat de lot calcule au plus 2 empreintes par ligne du lot, quel que soit son rang', async () => {
+    const CAB = '55555555-5555-5555-5555-555555555555'
+    const COP = '66666666-6666-6666-6666-666666666666'
+    await base.exec(`
+      INSERT INTO signalements_qr_cabinets (id, nom, identifiant, langue, diffusion_contact_email, diffusion_politique_url,
+        diffusion_politique_verifiee_le, diffusion_contrat_reference, diffusion_contrat_signe_le, diffusion_activee_le, diffusion_activee_par)
+      VALUES ('${CAB}', 'Cabinet exemple', 'cabinet-exemple-cout', 'fr', 'contact@cabinet-exemple.test',
+        'https://cabinet-exemple.test/confidentialite', now(), 'Contrat exemple v1', current_date - 10, now(), gen_random_uuid());
+      INSERT INTO signalements_qr_coproprietes (id, nom, jeton, cabinet_id) VALUES ('${COP}', 'Résidence exemple', replace(gen_random_uuid()::text, '-', ''), '${CAB}');
+      INSERT INTO signalements_qr_coproprietes (nom, jeton, cabinet_id)
+        SELECT 'Autre exemple ' || g, replace(gen_random_uuid()::text, '-', ''), '${CAB}' FROM generate_series(1, 20) g;
+      INSERT INTO signalements_qr (copropriete_id, prenom, nom, telephone, email, batiment, etage, num_lot, type_intervention, description, created_at)
+        SELECT '${COP}', 'P', 'N', '0600000000', 'ancien' || g || '@exemple.test', 'B' || (g % 20), (g % 10)::text, '1', 'plomberie',
+               'Description d’exemple', now() - interval '30 days' FROM generate_series(1, 2000) g;
+      INSERT INTO signalements_qr (copropriete_id, prenom, nom, telephone, email, batiment, etage, num_lot, type_intervention, description, created_at,
+                                   diffusion_annoncee_le, diffusion_annonce_origine)
+        SELECT c.id, 'P', 'N', '0600000000', 'autre' || g || '@exemple.test', 'A', '1', '1', 'plomberie', 'Description d’exemple',
+               now() - interval '30 days', now() - interval '30 days', 'accuse'
+          FROM (SELECT id FROM signalements_qr_coproprietes WHERE nom LIKE 'Autre exemple %') c, generate_series(1, 400) g;
+      ANALYZE;`)
+    const sousService = async <T>(sql: string, params: unknown[] = []): Promise<T[]> => {
+      await base.exec('SET LOCAL ROLE service_role')
+      try { return (await base.query<T>(sql, params)).rows } finally { await base.exec('RESET ROLE') }
+    }
+    const appels = async () => (await base.query<{ n: number }>(
+      `SELECT coalesce(pg_stat_get_xact_function_calls('${EMPREINTE}'::regprocedure), 0)::int AS n`)).rows[0].n
+    await base.exec('BEGIN')
+    const [ap] = await sousService<{ instant: Date; nb_destinataires: number }>(
+      "SELECT * FROM signalements_qr_diffusion_apercu($1, 'copropriete', NULL, NULL, NULL, true)", [COP])
+    const [cree] = await sousService<{ diffusion_id: string }>(
+      `SELECT * FROM signalements_qr_diffusion_creer(gen_random_uuid(), $1, gen_random_uuid(), 'super_admin', NULL,
+         'Courriel du cabinet du 12/11/2026', current_date, 'annonce', 'Objet d’exemple', 'Texte d’exemple du message.',
+         'copropriete', NULL, NULL, NULL, NULL, NULL, 'Toute la copropriété', $2, $3, '"Cabinet exemple" <diffusion@exemple.test>')`,
+      [COP, new Date(ap.instant.getTime() - 1000), ap.nb_destinataires])
+    await base.exec('COMMIT')
+    await base.exec('ANALYZE')
+    expect(ap.nb_destinataires).toBe(2000)
+    const parLot: Array<{ appels: number; ms: number }> = []
+    for (let i = 0; i < 3; i++) {
+      await base.exec('BEGIN')
+      await base.exec("SET LOCAL track_functions = 'all'")
+      const lignes = await sousService<{ destinataire_id: string; lot: number }>(
+        'SELECT * FROM signalements_qr_diffusion_lot($1, 100)', [cree.diffusion_id])
+      const avant = await appels()
+      const t = performance.now()
+      await sousService("SELECT signalements_qr_diffusion_resultats($1, $2, $3::uuid[], '{}', '{}', NULL)",
+        [cree.diffusion_id, lignes[0].lot, lignes.map((l) => l.destinataire_id)])
+      parLot.push({ appels: (await appels()) - avant, ms: Math.round(performance.now() - t) })
+      await base.exec('COMMIT')
+    }
+    console.info(`résultats d’annonce, lots 1 à 3 : ${parLot.map((p) => `${p.appels} empreintes en ${p.ms} ms`).join(' ; ')}`)
+    const [datees] = (await base.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM signalements_qr WHERE copropriete_id = $1 AND diffusion_annonce_origine = 'message'", [COP])).rows
+    expect(datees.n).toBe(300)
+    // Avant la correction : 2 100, 2 000 puis 1 900 (toute la copropriété à chaque lot). Après : l'index de la ligne datée.
+    for (const p of parLot) expect(p.appels).toBeLessThanOrEqual(200)
+  }, 300_000)
 })
 
 describe('conservation et purge (§ 2.5, H10)', () => {

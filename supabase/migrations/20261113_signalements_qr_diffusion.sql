@@ -127,6 +127,15 @@ CREATE OR REPLACE FUNCTION signalements_qr_empreinte_email(p_email text) RETURNS
 LANGUAGE sql IMMUTABLE STRICT SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
   SELECT sha256(convert_to(lower(btrim(p_email, E' \t\r\n')), 'UTF8'))
 $fn$;
+-- Recherche d'une adresse dans une copropriété par son empreinte (datation du message d'annonce, adresse déjà annoncée,
+-- purge des oppositions) : index d'expression, sans quoi chaque recherche recalcule l'empreinte de tous les signalements
+-- de la copropriété (relecture du 12/11 : 10 s, puis 20 s, puis 30 s par lot d'annonce pour 10 000 signalements).
+-- La fonction est IMMUTABLE et jamais « inlinée » (SET search_path) : les requêtes portent la même expression que
+-- l'index. Changer un jour la normalisation de l'adresse exigera un REINDEX de cet index. Écrire dans signalements_qr
+-- exige désormais le droit EXECUTE sur la fonction (calcul de l'index) : service_role et le propriétaire l'ont ; anon et
+-- authenticated n'écrivent pas cette table (RLS sans politique).
+CREATE INDEX IF NOT EXISTS idx_signalements_qr_copro_empreinte
+  ON signalements_qr (copropriete_id, signalements_qr_empreinte_email(email));
 
 -- ── 4. Diffusions (un message composé) ──
 CREATE TABLE IF NOT EXISTS signalements_qr_diffusions (
@@ -608,8 +617,8 @@ END $fn$;
 
 -- Issue d'un lot, seulement sur les lignes EN COURS de ce lot : acceptées → envoye ; refusées à l'unité → refuse
 -- (adresse_refusee) ; non parties : limite_service ou quota_service → en attente (relance par le filet de reprise),
--- issue_inconnue (contenu refusé au rejeu) → incertain. Message d'annonce : les signalements de chaque adresse servie sont
--- datés dans la même transaction (H1). Rend { envoyes, refuses, nonPartis, reste }.
+-- issue_inconnue (contenu refusé au rejeu) → incertain. Message d'annonce : les signalements de chaque adresse servie par
+-- CE lot sont datés dans la même transaction (H1). Rend { envoyes, refuses, nonPartis, reste }.
 CREATE OR REPLACE FUNCTION signalements_qr_diffusion_resultats(
   p_diffusion uuid, p_lot integer, p_envoyes uuid[], p_refuses uuid[], p_non_partis uuid[], p_code text
 ) RETURNS jsonb
@@ -643,7 +652,7 @@ BEGIN
    WHERE x.diffusion_id = p_diffusion AND x.lot = p_lot AND x.etat = 'en_cours' AND x.id = ANY (coalesce(p_non_partis, '{}'));
   GET DIAGNOSTICS v_non_partis = ROW_COUNT;
   IF v_modele = 'annonce' AND v_envoyes > 0 THEN
-    PERFORM signalements_qr_diffusion_annonce_envoyee(p_diffusion);
+    PERFORM signalements_qr_diffusion_annonce_envoyee(p_diffusion, p_lot);
   END IF;
   SELECT count(*) INTO v_reste FROM signalements_qr_diffusion_destinataires x
    WHERE x.diffusion_id = p_diffusion AND x.etat IN ('en_attente', 'en_cours');
@@ -852,21 +861,24 @@ BEGIN
   RETURN FOUND;
 END $fn$;
 
--- Message d'annonce parti : chaque signalement (déposé avant l'envoi, pas encore annoncé) d'une adresse servie est daté
--- de l'envoi, origine message (preuve de l'information préalable ; inclusion 15 jours après). Appelée par les résultats
--- d'un lot ; rejouable. Rend le nombre de signalements datés.
-CREATE OR REPLACE FUNCTION signalements_qr_diffusion_annonce_envoyee(p_diffusion uuid) RETURNS integer
+-- Message d'annonce parti : chaque signalement (déposé avant l'envoi, pas encore annoncé) d'une adresse servie par le
+-- lot p_lot est daté de l'envoi, origine message (preuve de l'information préalable ; inclusion 15 jours après). Appelée
+-- par les résultats de ce lot ; rejouable. Coût borné par le lot (100 lignes au plus), chaque adresse cherchée par
+-- idx_signalements_qr_copro_empreinte : jamais (lignes envoyées de la diffusion × signalements de la copropriété).
+-- Rend le nombre de signalements datés.
+CREATE OR REPLACE FUNCTION signalements_qr_diffusion_annonce_envoyee(p_diffusion uuid, p_lot integer) RETURNS integer
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $fn$
 DECLARE
   v_n integer;
 BEGIN
-  IF p_diffusion IS NULL THEN
+  IF p_diffusion IS NULL OR p_lot IS NULL THEN
     RAISE EXCEPTION 'parametre_invalide' USING ERRCODE = '22023';
   END IF;
   UPDATE signalements_qr s SET diffusion_annoncee_le = x.envoye_le, diffusion_annonce_origine = 'message'
     FROM signalements_qr_diffusion_destinataires x
     JOIN signalements_qr_diffusions d ON d.id = x.diffusion_id
-   WHERE x.diffusion_id = p_diffusion AND d.modele = 'annonce' AND x.etat = 'envoye' AND x.envoye_le IS NOT NULL
+   WHERE x.diffusion_id = p_diffusion AND x.lot = p_lot AND d.modele = 'annonce' AND x.etat = 'envoye'
+     AND x.envoye_le IS NOT NULL
      AND s.copropriete_id = d.copropriete_id AND s.diffusion_annoncee_le IS NULL AND s.created_at <= x.envoye_le
      AND signalements_qr_empreinte_email(s.email) = x.email_empreinte;
   GET DIAGNOSTICS v_n = ROW_COUNT;
@@ -999,8 +1011,8 @@ REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_annonce(uuid) FROM PUBLIC, 
 GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_annonce(uuid) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_faite(uuid) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_faite(uuid) TO service_role;
-REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_envoyee(uuid) FROM PUBLIC, anon, authenticated;
-GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_envoyee(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_envoyee(uuid, integer) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_annonce_envoyee(uuid, integer) TO service_role;
 REVOKE EXECUTE ON FUNCTION signalements_qr_diffusion_purger() FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION signalements_qr_diffusion_purger() TO service_role;
 

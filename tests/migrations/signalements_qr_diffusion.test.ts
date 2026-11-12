@@ -49,7 +49,7 @@ const FONCTIONS_ATTENDUES: Record<string, string> = {
   signalements_qr_diffusion_opposer_signalement: 'uuid, uuid, uuid, text, uuid, date',
   signalements_qr_diffusion_annonce: 'uuid',
   signalements_qr_diffusion_annonce_faite: 'uuid',
-  signalements_qr_diffusion_annonce_envoyee: 'uuid',
+  signalements_qr_diffusion_annonce_envoyee: 'uuid, integer',
   signalements_qr_diffusions_a_reprendre: 'integer',
   signalements_qr_diffusion_purger: '',
 }
