@@ -132,8 +132,9 @@ const carte = (nom: string) => screen.getByRole('heading', { level: 2, name: nom
 
 // Dernière passe du 12/11/2026 : le premier rendu du fichier (React, jsdom et les requêtes par rôle, à froid) prend déjà
 // environ 1,2 s seul, et davantage quand la suite tourne en parallèle. Avec le délai par défaut de waitFor (1 s), le
-// premier test échouait sous charge (8 sur 8 lancés ensemble). Le premier affichage de l'espace a donc 5 s, comme dans
-// tests/components/admin-dashboard-cartes-copro.test.tsx ; les attentes suivantes gardent le délai par défaut.
+// premier test échouait sous charge (8 sur 8 lancés ensemble). Le premier affichage de l'espace (tableau de bord, vue
+// choisie, ou premier message après un rendu) a donc 5 s, comme dans tests/components/admin-dashboard-cartes-copro.test.tsx ;
+// les autres attentes gardent le délai par défaut.
 const PREMIER_RENDU = { timeout: 5000 }
 
 async function ouvrir(vue: 'Tableau de bord' | 'Copropriétés' | 'Signalements' = 'Tableau de bord') {
