@@ -89,3 +89,14 @@ describe('D-R1 relit la fin de mission prévue (H7)', () => {
     expect(await res.json()).toEqual({ error: 'base_absente' })
   })
 })
+
+// Relecture 3 (demande du lot 8) : la lecture du contexte de la diffusion (lireContexteDiffusionQr) sélectionnait déjà
+// la fin de mission sans la rendre ; D-R1 la relisait par une seconde requête. Elle la rend désormais : une seule lecture.
+describe('D-R1 : la fin de mission vient de la lecture du contexte (une seule requête sur la copropriété)', () => {
+  it('une seule lecture de la colonne diffusion_fin_gestion_le, date rendue', async () => {
+    baseQr.table('signalements_qr_coproprietes')[0].diffusion_fin_gestion_le = '2026-12-31'
+    expect((await (await valeurs()).json()).finMissionLe).toBe('2026-12-31')
+    const lectures = baseQr.etat.lectures.filter((l) => l.table === 'signalements_qr_coproprietes' && l.colonnes.includes('diffusion_fin_gestion_le'))
+    expect(lectures).toHaveLength(1)
+  })
+})

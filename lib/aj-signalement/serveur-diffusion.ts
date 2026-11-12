@@ -95,6 +95,8 @@ export interface CoproprieteDiffusionQr {
   actif: boolean
   cabinetId: string | null
   batiments: string[]
+  /** Fin de mission prévue (H7), valeur brute de la colonne DATE ; null : aucune (relue par D-R1, relecture 3). */
+  finGestionLe: string | null
 }
 
 /** Cabinet lu pour une diffusion (colonnes de réglage de la 20261113). */
@@ -132,6 +134,7 @@ export async function lireContexteDiffusionQr(
   if (!l) return { ok: true, valeur: null }
   const copropriete: CoproprieteDiffusionQr = {
     id: chaine(l.id), nom: chaine(l.nom), actif: l.actif === true, cabinetId: chaine(l.cabinet_id) || null, batiments: textes(l.batiments),
+    finGestionLe: chaine(l.diffusion_fin_gestion_le) || null,
   }
   if (!copropriete.cabinetId) return { ok: true, valeur: { copropriete, cabinet: null } }
   const k = await lireCabinetDiffusionQr(copropriete.cabinetId)

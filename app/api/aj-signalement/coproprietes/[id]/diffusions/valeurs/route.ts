@@ -6,7 +6,8 @@
 // diffusion possible ou raison, compteur du mois (décision de Hugo : aucun plafond, le compteur est affiché), nombre de
 // déclarants jamais annoncés (bouton « Annoncer la diffusion », H1 = option C), fin de mission prévue (décision H7 :
 // finMissionLe, AAAA-MM-JJ ou null ; PR 3, lot 8 : la date écrite par la fiche de la copropriété n'était relue par
-// aucune route, la fiche la lit ici pour l'afficher). Aucune adresse dans la réponse (les variantes brutes qui portent un
+// aucune route, la fiche la lit ici pour l'afficher ; relecture 3 : prise dans la lecture du contexte, sans seconde
+// requête). Aucune adresse dans la réponse (les variantes brutes qui portent un
 // « @ » sont retirées). Super admin, et gestionnaire sur une copropriété de SON cabinet qui lui est attribuée NOMMÉMENT
 // (H11, contrôlé avant toute lecture : hors portée → 404, « à tous » → 403 lecture_seule). Migration 20261113 absente →
 // 503 base_absente. Jamais en cache.
@@ -18,7 +19,7 @@ import { corpsVideQrSchema, validateBody } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { valeursPourEcranDiffusionQr } from '@/lib/aj-signalement/diffusion-formes'
 import {
-  TABLE_COPROPRIETES_QR, controlerAccesQr, estUuid, parametresQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
+  controlerAccesQr, estUuid, parametresQr, reponseErreur, reponseErreurDiffusionQr, reponseInvalide, reponsePriveeQr,
 } from '@/lib/aj-signalement/serveur'
 import {
   PROFILS_DIFFUSION_QR, controlerDroitDiffuserQr, couplesDiffusionQr, lireContexteDiffusionQr, moisDiffusionQr, raisonInactiveDiffusionQr,
@@ -49,21 +50,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { copropriete, cabinet } = contexte.valeur
     const langue = cabinet?.langue ?? 'fr'
 
-    const [couples, mois, raison, annonce, fin] = await Promise.all([
+    const [couples, mois, raison, annonce] = await Promise.all([
       couplesDiffusionQr(id),
       moisDiffusionQr(id),
       raisonInactiveDiffusionQr(id),
       supabaseAdmin.rpc('signalements_qr_diffusion_apercu', {
         p_copropriete: id, p_portee: 'copropriete', p_batiments: null, p_etages: null, p_signalement: null, p_annonce: true,
       }),
-      // Fin de mission prévue (H7) : relue pour la fiche de la copropriété et pour la fenêtre de diffusion.
-      supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('diffusion_fin_gestion_le').eq('id', id).maybeSingle(),
     ])
     if (!couples.ok) return reponseErreurDiffusionQr(couples.erreur, 'valeurs de diffusion', { copropriete: id })
     if (!mois.ok) return reponseErreurDiffusionQr(mois.erreur, 'compteur du mois', { copropriete: id })
     if (!raison.ok) return reponseErreurDiffusionQr(raison.erreur, 'diffusion possible', { copropriete: id })
     if (annonce.error) return reponseErreurDiffusionQr(annonce.error, 'déclarants à annoncer', { copropriete: id })
-    if (fin.error) return reponseErreurDiffusionQr(fin.error, 'fin de mission prévue', { copropriete: id })
     const ligneAnnonce = (Array.isArray(annonce.data) ? annonce.data[0] : null) as { nb_destinataires?: unknown } | null
 
     const valeurs = valeursPourEcranDiffusionQr(couples.valeur, copropriete.batiments, langue, cabinet?.telephones ?? [])
@@ -76,7 +74,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       porteeParDefaut: valeurs.porteeParDefaut,
       ceMois: mois.valeur,
       nbNonAnnonces: typeof ligneAnnonce?.nb_destinataires === 'number' ? ligneAnnonce.nb_destinataires : 0,
-      finMissionLe: jourOuNul((fin.data as { diffusion_fin_gestion_le?: unknown } | null)?.diffusion_fin_gestion_le),
+      // Fin de mission prévue (H7) : pour la fiche de la copropriété et pour la fenêtre de diffusion.
+      finMissionLe: jourOuNul(copropriete.finGestionLe),
     })
   } catch (e: unknown) {
     logger.error('[AJ SIGNALEMENT] valeurs de diffusion', { message: e instanceof Error ? e.name : 'inconnue' }, e)
