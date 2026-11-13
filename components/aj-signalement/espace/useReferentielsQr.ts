@@ -17,8 +17,11 @@ export interface ReferentielsQr {
   cabinets: CabinetQr[] | null
   gestionnaires: GestionnaireQr[] | null
   erreur: CodeErreurQr | null
-  /** Tenue une fois cabinets et fiches posés, ou l'échec affiché (encadré, toast si le réseau est coupé) ; jamais rejetée. */
-  recharger: () => Promise<void>
+  /**
+   * Tenue une fois cabinets et fiches posés, ou l'échec affiché (encadré, toast si le réseau est coupé), avec cet échec
+   * (null : relus) ; jamais rejetée.
+   */
+  recharger: () => Promise<CodeErreurQr | null>
 }
 
 export function useReferentielsQr(actif: boolean): ReferentielsQr {
@@ -27,13 +30,14 @@ export function useReferentielsQr(actif: boolean): ReferentielsQr {
   const [erreur, setErreur] = useState<CodeErreurQr | null>(null)
   const demande = useRef(false)
 
-  const recharger = useCallback(async () => {
+  const recharger = useCallback(async (): Promise<CodeErreurQr | null> => {
     const [c, g] = await Promise.all([chargerCabinetsQr(), chargerGestionnairesQr({ etat: 'tous' })])
     if (c.ok) setCabinets(c.cabinets)
     if (g.ok) setGestionnaires(g.gestionnaires)
     const echec = !c.ok ? c.code : !g.ok ? g.code : null
     setErreur(echec)
     if (echec === 'reseau') toast.error(messageErreurTableauQr(echec))
+    return echec
   }, [])
 
   // Premier chargement à la première vue qui en a besoin : l'état n'est posé qu'à la réponse (asynchrone).

@@ -13,7 +13,9 @@
 // (retrait et ajout d'attributions, nom, renvoi de la confirmation, accès, réactivation, effacement, blocage, déblocage,
 // suppression du compte, départ).
 // Relecture du correctif : la fenêtre de départ confirmée ne change plus pendant l'attente (section 5) ; une lecture qui
-// ne répond pas n'est attendue qu'au plus DELAI_MAX_LISTES_QR_MS (fin de la section 1, section 6).
+// ne répond pas n'est attendue qu'au plus DELAI_MAX_LISTES_QR_MS (fin de la section 1, section 6) ; un tableau relu en
+// échec est montré hors des vues du tableau (section 1 : encadré des vues Cabinets et Gestionnaires, toast sur la page
+// profil).
 
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -133,6 +135,8 @@ describe('espace du super admin : la liste à jour avant le message', () => {
   /** Lecture des cabinets en échec (après l'action). */
   let panneCabinets: 'serveur' | 'reseau' | null = null
   let panneGestionnaires: 'serveur' | null = null
+  /** Lecture du tableau de l'espace en échec (pas celle du suivi d'un gestionnaire). */
+  let panneTableau: 'serveur' | 'reseau' | null = null
 
   const estTableau = (url: string) => url.startsWith('/api/aj-signalement/tableau')
   const estCabinets = (url: string) => url === '/api/aj-signalement/cabinets'
@@ -146,7 +150,10 @@ describe('espace du super admin : la liste à jour avant le message', () => {
   async function routeur(a: Appel): Promise<Response> {
     if (a.methode === 'GET') {
       if (barriere?.retient(a.url)) await barriere.ouverte
+      if (a.url === '/api/aj-signalement/tableau' && panneTableau === 'reseau') throw new TypeError('Failed to fetch')
+      if (a.url === '/api/aj-signalement/tableau' && panneTableau === 'serveur') return json({ error: 'serveur' }, 500)
       if (estTableau(a.url)) return json({ tableau: { coproprietes: serveur.coproprietes, signalements: [] } })
+      if (a.url === `/api/aj-signalement/gestionnaires/${G1}`) return json(detail(serveur.gestionnaires[0]))
       if (estCabinets(a.url)) {
         if (panneCabinets === 'reseau') throw new TypeError('Failed to fetch')
         if (panneCabinets === 'serveur') return json({ error: 'serveur' }, 500)
@@ -172,13 +179,16 @@ describe('espace du super admin : la liste à jour avant le message', () => {
     return json({ error: 'introuvable' }, 404)
   }
 
-  async function ouvrirEspace(ancre: 'cabinets' | 'gestionnaires') {
+  async function ouvrirEspace(ancre: 'cabinets' | 'gestionnaires' | `gestionnaire/${string}`) {
     window.history.replaceState(null, '', `/fr/aj-signalement/#${ancre}`)
     simul.getUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'admin@example.com', app_metadata: { role: 'super_admin' }, user_metadata: {} } }, error: null })
     render(<EspaceAjSignalement />)
     // Garde, puis cabinets, fiches et tableau affichés (lents sous la charge de la suite complète).
     const prets = ancre === 'cabinets' ? ['Cabinet Exemple', remplir(G.cabinets.sansCabinet, { n: 1 })] : ['Marie Exemple']
-    await waitFor(() => { for (const nom of prets) expect(screen.getByRole('heading', { name: nom })).toBeInTheDocument() }, { timeout: 10_000 })
+    await waitFor(() => { for (const nom of prets) expect(screen.getAllByRole('heading', { name: nom }).length).toBeGreaterThan(0) }, { timeout: 10_000 })
+    // Premiers chargements finis (cabinets, fiches, tableau) avant toute panne simulée.
+    await waitFor(() => expect(lectures('/api/aj-signalement/gestionnaires?etat=tous')).toHaveLength(1))
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
   }
 
   beforeEach(() => {
@@ -190,6 +200,7 @@ describe('espace du super admin : la liste à jour avant le message', () => {
     barriere = null
     panneCabinets = null
     panneGestionnaires = null
+    panneTableau = null
     simulerFetch(routeur)
   })
   afterEach(() => window.history.replaceState(null, '', '/fr/aj-signalement/'))
@@ -292,6 +303,68 @@ describe('espace du super admin : la liste à jour avant le message', () => {
     fireEvent.click(within(ligne).getByRole('button', { name: G.acces.ouvrir }))
     expect(await screen.findByText(messageErreurTableauQr('serveur'))).toBeInTheDocument()
     expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+  })
+
+  // Relecture : tableau relu en échec hors des vues du tableau (son encadré d'erreur y est caché) : l'échec est montré
+  // là où l'on est (encadré des vues Cabinets et Gestionnaires, toast sur la page profil), jamais une liste périmée muette.
+  describe('tableau relu en échec hors des vues du tableau', () => {
+    const erreursVisibles = (code: 'serveur' | 'reseau') =>
+      screen.queryAllByText(messageErreurTableauQr(code)).filter((el) => el.closest('[hidden]') === null)
+
+    async function rattacher() {
+      const bloc = screen.getByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) }).closest('section') as HTMLElement
+      fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+      fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
+      fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
+      fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
+    }
+
+    it('rattachement : le succès au-dessus de l’erreur de chargement, visible ; plus de « sans cabinet » périmé ; « Réessayer » relit tout', async () => {
+      await ouvrirEspace('cabinets')
+      panneTableau = 'serveur'
+      await rattacher()
+      expect(await screen.findByText(remplir(G.cabinets.rattachees, { n: 1 }))).toBeInTheDocument()
+      await waitFor(() => expect(erreursVisibles('serveur')).toHaveLength(1))
+      expect(screen.queryByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) })).toBeNull()
+      expect(envois()).toHaveLength(1)
+
+      panneTableau = null
+      fireEvent.click(screen.getByRole('button', { name: G.reessayer }))
+      expect(await screen.findByRole('heading', { name: 'Cabinet Exemple' })).toBeInTheDocument()
+      expect(erreursVisibles('serveur')).toHaveLength(0)
+      expect(screen.queryByRole('heading', { name: remplir(G.cabinets.sansCabinet, { n: 1 }) })).toBeNull()
+      expect(envois()).toHaveLength(1)
+    })
+
+    it('accès (liste des gestionnaires), réseau coupé à la lecture du tableau : « Accès envoyé… » au-dessus de l’erreur visible', async () => {
+      await ouvrirEspace('gestionnaires')
+      panneTableau = 'reseau'
+      fireEvent.click(within(screen.getByText('Marie Exemple', { selector: 'h3' }).closest('li') as HTMLElement).getByRole('button', { name: G.acces.ouvrir }))
+      expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+      await waitFor(() => expect(erreursVisibles('reseau')).toHaveLength(1))
+    })
+
+    it.each([
+      ['tableau relu', () => { panneTableau = 'serveur' }],
+      ['fiches relues', () => { panneGestionnaires = 'serveur' }],
+    ] as const)('page profil, %s en échec : « Accès envoyé… » annoncé, l’échec signalé par un toast', async (_cas, panne) => {
+      await ouvrirEspace(`gestionnaire/${G1}`)
+      panne()
+      fireEvent.click(screen.getByRole('button', { name: G.acces.ouvrir }))
+      expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+      expect(simul.toastErreur).toHaveBeenCalledTimes(1)
+      expect(simul.toastErreur).toHaveBeenCalledWith(messageErreurTableauQr('serveur'))
+    })
+
+    it('page profil, réseau coupé partout : un seul toast (celui des cabinets et fiches)', async () => {
+      await ouvrirEspace(`gestionnaire/${G1}`)
+      panneCabinets = 'reseau'
+      panneTableau = 'reseau'
+      fireEvent.click(screen.getByRole('button', { name: G.acces.ouvrir }))
+      expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+      expect(simul.toastErreur).toHaveBeenCalledTimes(1)
+      expect(simul.toastErreur).toHaveBeenCalledWith(messageErreurTableauQr('reseau'))
+    })
   })
 
   // Relecture : une lecture qui ne répond pas (réseau mobile figé, requête suspendue) n'est attendue qu'un temps.
