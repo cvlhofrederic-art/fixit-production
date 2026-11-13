@@ -254,3 +254,49 @@ describe('fenêtre du logo : le focus reste dans la fenêtre quand le bouton act
     expect(document.activeElement).not.toBe(within(fenetre()).getByRole('button', { name: L.retirer }))
   })
 })
+
+// Correctif #683 (13/11/2026, « les listes ne se rafraîchissent pas ») appliqué à la fenêtre du logo : l'envoi et le
+// retrait attendent la liste des cabinets rechargée (onModifie, promesse) avant de fermer la fenêtre et d'annoncer leur
+// succès ; la fenêtre reste occupée jusque-là (aucun second envoi).
+describe('fenêtre du logo : succès annoncé avec la liste à jour', () => {
+  const differe = () => {
+    let tenir: () => void = () => {}
+    const promesse = new Promise<void>((r) => { tenir = r })
+    return { promesse, tenir }
+  }
+
+  it('envoi : la fenêtre reste ouverte et occupée tant que la liste n’est pas relue ; un second clic n’envoie rien', async () => {
+    const rechargement = differe()
+    rappels.onModifie.mockImplementationOnce(() => rechargement.promesse)
+    simulerFetch(() => json({ logo: { version: 'fedcba9876543210', largeur: 800, hauteur: 296 }, modifie: true }))
+    rendre()
+    ouvrir('Autre Exemple')
+    choisirFichier()
+    await within(fenetre()).findByRole('img', { name: remplir(L.altApercu, { cabinet: 'Autre Exemple' }) })
+    fireEvent.click(within(fenetre()).getByRole('button', { name: L.envoyer }))
+    await waitFor(() => expect(rappels.onModifie).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByText(L.enregistre)).toBeNull()
+    fireEvent.click(within(fenetre()).getByRole('button', { name: L.envoi }))
+    expect(appels.filter((a) => a.methode === 'PUT')).toHaveLength(1)
+    rechargement.tenir()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByText(L.enregistre)).toBeInTheDocument()
+  })
+
+  it('retrait : le message n’arrive qu’avec la liste relue', async () => {
+    const rechargement = differe()
+    rappels.onModifie.mockImplementationOnce(() => rechargement.promesse)
+    simulerFetch(() => json({ logo: null, modifie: true }))
+    rendre()
+    ouvrir('Cabinet Exemple')
+    fireEvent.click(within(fenetre()).getByRole('button', { name: L.retirer }))
+    fireEvent.click(within(fenetre()).getByRole('button', { name: L.confirmerRetraitBouton }))
+    await waitFor(() => expect(rappels.onModifie).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.queryByText(L.retire)).toBeNull()
+    rechargement.tenir()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByText(L.retire)).toBeInTheDocument()
+  })
+})

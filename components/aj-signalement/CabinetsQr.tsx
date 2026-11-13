@@ -134,10 +134,10 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
         <Modale titre={remplir(G.cabinets.logo.titre, { cabinet: fenetre.cabinet.nom })} onFermer={fermer} labelFermer={G.fermer}>
           <LogoCabinetQr
             key={fenetre.cabinet.id} cabinet={fenetre.cabinet} onFermer={fermer}
-            onEnregistre={(message) => {
+            onEnregistre={async (message) => {
+              await onModifie()
               setFenetre(null)
               setMessages([message])
-              onModifie()
             }}
           />
         </Modale>

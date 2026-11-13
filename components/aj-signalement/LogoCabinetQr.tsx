@@ -28,8 +28,11 @@ import type { CabinetQr } from '@/lib/aj-signalement/types'
 export interface PropsLogoCabinetQr {
   cabinet: CabinetQr
   onFermer: () => void
-  /** Logo enregistré ou retiré : message à montrer ; l'espace recharge les cabinets. */
-  onEnregistre: (message: string) => void
+  /**
+   * Logo enregistré ou retiré : message à montrer, tenue une fois la liste des cabinets rechargée (correctif #683) ;
+   * la fenêtre reste occupée jusque-là (aucun second envoi).
+   */
+  onEnregistre: (message: string) => Promise<void> | void
 }
 
 interface LogoConverti {
@@ -95,9 +98,12 @@ export default function LogoCabinetQr({ cabinet, onFermer, onEnregistre }: Reado
     setOccupe('envoi')
     setErreur(null)
     const r = await envoyerLogoCabinetQr(cabinet.id, converti.png)
-    setOccupe(null)
-    if (!r.ok) return setErreur(messageEchecQr(r.code))
-    onEnregistre(r.modifie ? L.enregistre : L.inchange)
+    if (!r.ok) {
+      setOccupe(null)
+      return setErreur(messageEchecQr(r.code))
+    }
+    // Occupée jusqu'à la liste relue : la fenêtre est fermée par l'espace à ce moment-là.
+    await onEnregistre(r.modifie ? L.enregistre : L.inchange)
   }
 
   const retirer = async () => {
@@ -105,11 +111,14 @@ export default function LogoCabinetQr({ cabinet, onFermer, onEnregistre }: Reado
     setOccupe('retrait')
     setErreur(null)
     const r = await retirerLogoCabinetQr(cabinet.id)
-    setOccupe(null)
-    if (!r.ok) focusApres.current = 'erreur'
-    setConfirmerRetrait(false)
-    if (!r.ok) return setErreur(messageEchecQr(r.code))
-    onEnregistre(L.retire)
+    if (!r.ok) {
+      setOccupe(null)
+      focusApres.current = 'erreur'
+      setConfirmerRetrait(false)
+      return setErreur(messageEchecQr(r.code))
+    }
+    // Occupée jusqu'à la liste relue : la fenêtre est fermée par l'espace à ce moment-là.
+    await onEnregistre(L.retire)
   }
 
   const libre = occupe === null
