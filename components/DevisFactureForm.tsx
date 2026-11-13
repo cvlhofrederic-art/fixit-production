@@ -42,6 +42,7 @@ import {
   isSocieteStatus,
   isSmallBusinessStatus,
   stableDocId,
+  isStableDocId,
 } from '@/lib/devis-utils'
 import { toast } from 'sonner'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
@@ -1434,7 +1435,13 @@ export default function DevisFactureForm({
     if (existingIdx >= 0) drafts[existingIdx] = draftEntry
     else drafts.push(draftEntry)
     localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(drafts))
-    if (artisan?.id) syncDocumentSafe(draftEntry as Record<string, unknown>, artisan.id)
+    // Brouillon à identifiant horodaté et sans numéro (duplicata, ancienne conversion devis → facture) :
+    // la synchronisation exige un UUID ou un numéro et répond 400, avec une erreur Sentry à chaque
+    // sauvegarde (désormais automatique à chaque saisie). Il reste local jusqu'à sa validation, qui lui
+    // attribue un numéro — comme dans le formulaire BTP.
+    if (artisan?.id && (isStableDocId(draftEntry.id) || draftEntry.docNumber)) {
+      syncDocumentSafe(draftEntry as Record<string, unknown>, artisan.id)
+    }
     if (opts?.silent) {
       setLastAutosaveAt(Date.now())
     } else {

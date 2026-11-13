@@ -4,7 +4,8 @@
 //   - frais annexe d'un document au rendu complet arrondi au centime (calcul d'origine sinon) ;
 //   - sauvegarde automatique déclenchée par toute saisie enregistrée : tables personnalisées, frais
 //     annexes, adresse (avant : client, lignes, matériaux, titre et remise seulement) ; le lien vers le
-//     devis d'origine survit à la remise à null d'`initialData` par la section parente ;
+//     devis d'origine survit à la remise à null d'`initialData` par la section parente ; un brouillon
+//     à identifiant horodaté et sans numéro n'est pas envoyé à une synchro qui le refuserait ;
 //   - échéance « fin de mois » d'un document au rendu complet au bon jour en heure de Paris ;
 //   - « Télécharger » du formulaire et téléchargement depuis la liste : mêmes lignes, même TVA.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -23,6 +24,7 @@ vi.mock('@/lib/pdf/pdfa3-wrap', async () => (await import('../helpers/mocks-form
 
 import DevisFactureForm from '@/components/DevisFactureForm'
 import { produireFichierDocument } from '@/lib/pdf/download-saved-devis'
+import { syncDocumentSafe } from '@/lib/document-sync'
 
 const ARTISAN = { id: 'art-artisan-rendu', company_name: 'Plomberie Test EI', email: 'contact@plomberie.test' } as unknown as ArtisanBasic
 const CLE_BROUILLONS = `fixit_drafts_${ARTISAN.id}`
@@ -152,6 +154,19 @@ describe('formulaire artisan — sauvegarde automatique', () => {
     await attendre(2500)
     expect(sauvegardes).toHaveLength(1)
     expect(brouillons()[0]).toMatchObject({ sourceDevisNumber: 'DEV-2026-010', sourceDevisId: ANCIEN.id })
+  })
+
+  it('brouillon à identifiant horodaté et sans numéro : enregistré localement, aucune synchro vouée au refus', async () => {
+    const synchro = vi.mocked(syncDocumentSafe)
+    synchro.mockClear()
+    monter({ ...ANCIEN, id: '1779539827817', isDuplicate: true, savedAt: undefined })
+    await enregistre()
+    expect(synchro).not.toHaveBeenCalled()
+    cleanup()
+    localStorage.clear()
+    monter(ANCIEN)
+    await enregistre()
+    expect(synchro).toHaveBeenCalledTimes(1)
   })
 
   it('formulaire sans contenu : rien n est enregistré', async () => {
