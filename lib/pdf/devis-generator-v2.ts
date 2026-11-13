@@ -13,6 +13,7 @@
 import { sumMoney, round2 } from '@/lib/money'
 import { computeEcheanceDate } from '@/lib/pdf/payment-due'
 import { buildSubTypeLabel } from '@/lib/pdf/subtype-label'
+import { VERSION_RENDU_COMPLET } from '@/lib/version-rendu'
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -351,7 +352,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // Aligné sur lib/pdf/devis-pdf-v3.ts (mêmes libellés PT, parité visuelle).
   const isPt = input.locale === 'pt'
   // Document au rendu complet (lib/version-rendu.ts) : en-têtes HT, lignes TVA lisibles, virgules.
-  const renduComplet = (input.versionRendu ?? 0) >= 2
+  const renduComplet = (input.versionRendu ?? 0) >= VERSION_RENDU_COMPLET
   const T = {
     emitter:        isPt ? 'EMITENTE'              : 'ÉMETTEUR',
     recipient:      isPt ? 'DESTINATÁRIO'          : 'DESTINATAIRE',
@@ -857,8 +858,15 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text(T.qty, COL.qty, hTextY, { align: 'center' })
     pdf.text(T.unit, COL.unit, hTextY, { align: 'center' })
     // Document au rendu complet : les montants du tableau sont hors taxe, l'en-tête le dit.
-    const priceHdr = isPt ? T.priceUTtc : (isFranchise293B ? T.priceU : (renduComplet ? T.priceUHt : T.priceUTtc))
-    const totalHdr = isPt ? T.totalTtc  : (isFranchise293B ? T.total  : (renduComplet ? T.totalHt : T.totalTtc))
+    let priceHdr = T.priceUTtc
+    let totalHdr = T.totalTtc
+    if (!isPt && isFranchise293B) {
+      priceHdr = T.priceU
+      totalHdr = T.total
+    } else if (!isPt && renduComplet) {
+      priceHdr = T.priceUHt
+      totalHdr = T.totalHt
+    }
     pdf.text(priceHdr, COL.price, hTextY, { align: 'right' })
     if (avecColonneRemise) pdf.text(T.remise, COL.remise, hTextY, { align: 'right' })
     pdf.text(totalHdr, COL.total, hTextY, { align: 'right' })

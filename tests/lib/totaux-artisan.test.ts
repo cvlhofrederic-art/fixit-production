@@ -4,8 +4,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   lignesTvaCompletes, regimeTvaDocument, totauxDocumentComplet, ventilationTvaArtisan, ventilationTvaDocumentArtisan,
-  lignesRemisablesArtisan, lignesDocumentArtisan,
+  lignesRemisablesArtisan, lignesDocumentArtisan, type LignesArtisan, type LigneVentilationTva,
 } from '@/lib/totaux-artisan'
+import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
+import { generateDevisPdfV2, type DevisGeneratorInput } from '@/lib/pdf/devis-generator-v2'
 import { appliquerRemiseGlobale } from '@/lib/remise-commerciale'
 import { mulMoney, round2, sumMoney } from '@/lib/money'
 import { montantTtcDocumentEnregistre } from '@/components/dashboard/messagerie/documents-enregistres'
@@ -89,10 +91,14 @@ describe('messagerie (montantTtcDocumentEnregistre)', () => {
     expect(montantTtcDocumentEnregistre(ancien as never, 'artisan')).toBe(1311)
   })
 
-  it('BTP : calcul inchangé, marque ou non', () => {
-    const btp = { ...DOC, materialLines: [ligne(2, 300, 20)], fraisAnnexes: undefined }
+  it('BTP : calcul inchangé, marque ou non (un frais annexe artisan n y est pas lu)', () => {
+    // Le calcul BTP ne lit ni `total_ht` ni `tva_applicable` (un document BTP n'a pas de frais annexes
+    // artisan) : 1 500 € HT + 171 € de TVA. Le calcul complet compte le frais à 10 % : 1 720,50 €.
+    const btp = { ...DOC, fraisAnnexes: [frais(3, 45, 10)] }
     const { versionRendu: _v, ...sansMarque } = btp
-    expect(montantTtcDocumentEnregistre(btp as never, 'pro_societe')).toBe(montantTtcDocumentEnregistre(sansMarque as never, 'pro_societe'))
+    expect(montantTtcDocumentEnregistre(btp as never, 'pro_societe')).toBe(1671)
+    expect(montantTtcDocumentEnregistre(sansMarque as never, 'pro_societe')).toBe(1671)
+    expect(montantTtcDocumentEnregistre(btp as never, 'artisan')).toBe(1720.5)
   })
 })
 
@@ -108,21 +114,54 @@ function hasard(graine: number): () => number {
   }
 }
 
+// Paramètres du PDF artisan tels que le formulaire les passe (getV2InputParams) ; seuls les champs qui
+// comptent pour les totaux varient.
+const parametresPdf = (doc: Record<string, unknown>, lignes: LignesArtisan, ventilation: LigneVentilationTva[]): BuildV2InputParams => ({
+  logoUrl: null, companyName: 'Test EI', companySiret: '12345678901234', companyAddress: '1 rue test',
+  companyPhone: '0600000000', companyEmail: 'test@example.com', insuranceName: 'AXA', insuranceNumber: 'RC-1',
+  insuranceCoverage: 'France', insuranceType: 'rc_pro', tvaEnabled: doc.tvaEnabled as boolean, paymentMode: 'Virement',
+  paymentCondition: '', clientName: 'Client', clientSiret: null, clientAddress: null, clientPhone: null, clientEmail: null,
+  interventionAddress: null, interventionBatiment: null, interventionEtage: null, interventionEspacesCommuns: null,
+  interventionExterieur: null, docType: 'devis', docNumber: 'DEV-2026-001', docTitle: 'Test', docDate: '2026-11-13',
+  docValidity: 30, executionDelay: '', prestationDate: '', ...lignes,
+  tvaBreakdown: doc.tvaEnabled ? ventilation : undefined, remiseGlobale: doc.remiseGlobale, versionRendu: 2,
+  acomptesEnabled: false, acomptes: [], notes: '', mediatorName: '', mediatorUrl: '', isHorsEtablissement: false,
+})
+// Totaux du PDF V2 (lib/pdf/devis-generator-v2.ts) : HT = somme des lignes imprimées, remise déduite,
+// TVA de la ventilation reçue.
+const totauxPdf = (entree: DevisGeneratorInput) => {
+  const brut = sumMoney(entree.lignes.map((l) => l.total))
+  const remiseHT = entree.remiseGlobale?.montantHT || 0
+  const ht = remiseHT ? round2(brut - remiseHT) : brut
+  return { ht, ttc: round2(ht + (entree.tvaBreakdown ? sumMoney(entree.tvaBreakdown.map((t) => t.amount)) : 0)) }
+}
+// Montant du cadre « TOTAL TTC » / « TOTAL NET » imprimé dans le PDF (texte non compressé par jsPDF).
+const montantFinalImprime = (octets: ArrayBuffer): string | undefined => {
+  const contenu = Buffer.from(octets).toString('latin1')
+  return Array.from(contenu.matchAll(/\(TOTAL (?:TTC|NET)\) Tj[^(]*\(([-\d ]+,\d{2})/g)).at(-1)?.[1]
+}
+const commeLePdf = (n: number): string => {
+  const [entier, decimales] = n.toFixed(2).split('.')
+  return `${entier.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')},${decimales}`
+}
+
 describe('formulaire, PDF, liste et base trouvent les mêmes montants (5 000 documents)', () => {
-  it('HT, TVA et TTC identiques au centime, avec ou sans remise globale', () => {
+  it('HT, TVA et TTC identiques au centime, avec ou sans remise globale ni désignation', async () => {
     const r = hasard(20261113)
     const taux = [0, 2.1, 5.5, 10, 20]
     const prix = () => round2(r() * 4000 - (r() < 0.05 ? 2000 : 0))
     const qte = () => [1, 2, 3, 0.5, 1.5, 2.25, 7][Math.floor(r() * 7)]
+    // Une ligne sur dix sans désignation : chiffrée, elle est comptée partout et imprimée sous un repli.
+    const designation = (id: number) => (r() < 0.1 ? '' : `L${id}`)
     for (let n = 0; n < 5000; n++) {
       const produit = (id: number): ProductLine => {
         const q = qte(); const pu = prix()
-        return { id, description: `L${id}`, qty: q, unit: 'u', priceHT: pu, tvaRate: taux[Math.floor(r() * 5)], totalHT: mulMoney(q, pu) }
+        return { id, description: designation(id), qty: q, unit: 'u', priceHT: pu, tvaRate: taux[Math.floor(r() * 5)], totalHT: mulMoney(q, pu) }
       }
       const fraisAleatoire = (id: number): FraisAnnexeItem => {
         const q = qte(); const pu = prix()
         // Document au rendu complet : montant d'un frais arrondi au centime (formulaire).
-        return { ...frais(id, mulMoney(q, pu), taux[Math.floor(r() * 5)]), quantite: q, prix_unitaire_ht: pu }
+        return { ...frais(id, mulMoney(q, pu), taux[Math.floor(r() * 5)]), designation: designation(id), quantite: q, prix_unitaire_ht: pu }
       }
       const doc: Record<string, unknown> = {
         tvaEnabled: r() < 0.8, versionRendu: 2,
@@ -144,14 +183,21 @@ describe('formulaire, PDF, liste et base trouvent les mêmes montants (5 000 doc
       const ventilation = ventilationTvaArtisan({ ...lignes, tvaEnabled: doc.tvaEnabled as boolean, remise })
       const tvaFormulaire = sumMoney(ventilation.map((v) => v.amount))
       const ttcFormulaire = round2(htFormulaire + tvaFormulaire)
-      // PDF V2 : sous-total = somme des lignes imprimées, remise déduite, TVA de la ventilation.
-      const htPdf = remise.remiseHT !== 0 ? round2(sumMoney(lignesTvaCompletes(doc).map((l) => l.totalHT)) - remise.remiseHT) : sumMoney(lignesTvaCompletes(doc).map((l) => l.totalHT))
+      // PDF V2 : lignes et remise construites par buildV2Input, comme le bouton « Télécharger ».
+      const entree = buildV2Input(parametresPdf(doc, lignes, ventilation))
+      const pdf = totauxPdf(entree)
       // Liste, messagerie et base : totauxDocumentComplet.
       const base = totauxDocumentComplet(doc)
       expect(base.totalHT, `HT doc ${n}`).toBe(htFormulaire)
-      expect(htPdf, `HT PDF doc ${n}`).toBe(htFormulaire)
+      expect(pdf.ht, `HT PDF doc ${n}`).toBe(htFormulaire)
       expect(base.totalTVA, `TVA doc ${n}`).toBe(tvaFormulaire)
       expect(base.totalTTC, `TTC doc ${n}`).toBe(ttcFormulaire)
+      expect(pdf.ttc, `TTC PDF doc ${n}`).toBe(ttcFormulaire)
+      // 150 premiers documents : vrai PDF, montant final imprimé lu dans le fichier.
+      if (n < 150) {
+        const octets = (await generateDevisPdfV2(entree)).output('arraybuffer') as ArrayBuffer
+        expect(montantFinalImprime(octets), `montant imprimé doc ${n}`).toBe(commeLePdf(base.totalTTC))
+      }
     }
   })
 })

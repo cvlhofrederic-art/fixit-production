@@ -205,16 +205,17 @@ async function produireFichierV2(
   // Legacy sans flag : inférence franchise 293 B depuis companyStatus
   // (EI/auto FR, ENI PT) — cf. resolveTvaEnabledV2 (audit 2026-06-10).
   const tvaEnabled = resolveTvaEnabledV2(doc)
-  // Document au rendu complet (lib/version-rendu.ts) : mêmes paramètres que le formulaire (prestations,
-  // matériaux, frais annexes, tables personnalisées, détail de la TVA, échéance saisie). Document d'avant
-  // la correction : paramètres d'origine, PDF identique.
+  // Document au rendu complet (lib/version-rendu.ts) : mêmes lignes et même TVA que le formulaire
+  // (prestations, matériaux, frais annexes, tables personnalisées, détail de la TVA). L'échéance reste
+  // calculée ici depuis la date d'émission du PDF et la condition de paiement, comme avant : la date
+  // enregistrée peut être celle du document d'origine (acompte émis en un clic) ou d'un autre jour
+  // (brouillon de facture). Document d'avant la correction : paramètres d'origine, PDF identique.
   const parametresComplets = renduComplet(doc)
     ? (() => {
         const lignes = lignesDocumentArtisan(doc as unknown as Record<string, unknown>)
         return {
           ...lignes,
           tvaBreakdown: tvaEnabled ? ventilationTvaDocumentArtisan(doc as unknown as Record<string, unknown>, true) : undefined,
-          paymentDue: doc.paymentDue || null,
           versionRendu: doc.versionRendu,
         }
       })()
@@ -337,7 +338,6 @@ async function produireFichierV2(
       fraisAnnexes: parametresComplets.fraisAnnexes,
       customTables: parametresComplets.customTables,
       tvaBreakdown: parametresComplets.tvaBreakdown,
-      paymentDue: parametresComplets.paymentDue,
       versionRendu: parametresComplets.versionRendu,
     } : donneesRemise),
     // Remise commerciale (lib/remise-commerciale.ts) et escompte saisi : l'escompte n'est imprimé

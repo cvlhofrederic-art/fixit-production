@@ -3,42 +3,23 @@
 //     jamais sur un document d'avant la correction ni sur un document tiré d'un document d'avant ;
 //   - frais annexe d'un document au rendu complet arrondi au centime (calcul d'origine sinon) ;
 //   - sauvegarde automatique déclenchée par toute saisie enregistrée : tables personnalisées, frais
-//     annexes, adresse (avant : client, lignes, matériaux, titre et remise seulement) ;
-//   - « Télécharger » du formulaire et téléchargement depuis la liste : même PDF (mêmes lignes, même TVA).
+//     annexes, adresse (avant : client, lignes, matériaux, titre et remise seulement) ; le lien vers le
+//     devis d'origine survit à la remise à null d'`initialData` par la section parente ;
+//   - échéance « fin de mois » d'un document au rendu complet au bon jour en heure de Paris ;
+//   - « Télécharger » du formulaire et téléchargement depuis la liste : mêmes lignes, même TVA.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
+import { entreesPdfV2 } from '../helpers/mocks-formulaires-devis'
 
-const recu = vi.hoisted(() => ({ v2: [] as Array<Record<string, unknown>> }))
-
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (key: string) => key, locale: 'fr' }),
-  useLocale: () => 'fr',
-}))
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) },
-    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-    from: () => {
-      const chaine: Record<string, unknown> = {}
-      for (const m of ['select', 'eq', 'order', 'limit', 'in']) chaine[m] = () => chaine
-      chaine.single = async () => ({ data: null, error: null })
-      chaine.maybeSingle = async () => ({ data: null, error: null })
-      chaine.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok)
-      return chaine
-    },
-  },
-}))
-vi.mock('@/lib/fetch-authentifie', () => ({ fetchAuthentifie: vi.fn().mockResolvedValue(new Response('[]', { status: 200 })) }))
-vi.mock('sonner', () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn(), loading: vi.fn(() => 'tid'), dismiss: vi.fn() }) }))
-vi.mock('@/lib/document-sync', () => ({ syncDocumentSafe: vi.fn() }))
-vi.mock('@/lib/pdf/devis-generator-v2', () => ({
-  generateDevisPdfV2: vi.fn(async (entree: Record<string, unknown>) => {
-    recu.v2.push(entree)
-    return { output: () => new TextEncoder().encode('%PDF-v2').buffer, save: () => undefined }
-  }),
-}))
-vi.mock('@/lib/pdf/pdfa3-wrap', () => ({ wrapAsPdfA3: vi.fn(async () => new TextEncoder().encode('%PDF-a3')) }))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/mocks-formulaires-devis')).traductions())
+vi.mock('@/lib/supabase', async () => (await import('../helpers/mocks-formulaires-devis')).supabaseNavigateur())
+vi.mock('@/lib/fetch-authentifie', async () => (await import('../helpers/mocks-formulaires-devis')).fetchAuthentifieVide())
+vi.mock('sonner', async () => (await import('../helpers/mocks-formulaires-devis')).notifications())
+vi.mock('@/lib/document-sync', async () => (await import('../helpers/mocks-formulaires-devis')).synchroMuette())
+vi.mock('@/lib/pdf/devis-generator-v2', async () => (await import('../helpers/mocks-formulaires-devis')).generateurPdfV2Espion())
+vi.mock('@/lib/pdf/pdfa3-wrap', async () => (await import('../helpers/mocks-formulaires-devis')).habillagePdfA3Neutre())
 
 import DevisFactureForm from '@/components/DevisFactureForm'
 import { produireFichierDocument } from '@/lib/pdf/download-saved-devis'
@@ -70,10 +51,21 @@ const enregistre = async () => {
   await waitFor(() => expect(brouillons()).toHaveLength(1), { timeout: 5000 })
   return brouillons()[0]
 }
+const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// Section parente comme DevisSection / FacturesSection : `initialData` remis à null après chaque
+// enregistrement, sans démonter le formulaire.
+function SectionParente({ document, sauvegardes }: { document: unknown; sauvegardes: unknown[] }) {
+  const [initial, setInitial] = useState<unknown>(document)
+  return (
+    <DevisFactureForm artisan={ARTISAN} services={[]} bookings={[]} onBack={vi.fn()} initialData={initial as never}
+      onSave={(d) => { sauvegardes.push(d); setInitial(null) }} />
+  )
+}
 
 beforeEach(() => {
   localStorage.clear()
-  recu.v2.length = 0
+  entreesPdfV2.length = 0
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ number: 'DEV-2026-001' }), { status: 200 }))
@@ -152,10 +144,37 @@ describe('formulaire artisan — sauvegarde automatique', () => {
     }, { timeout: 5000 })
   })
 
+  it('facture tirée d un devis : le lien survit à la remise à null d initialData, aucun réenregistrement de plus', async () => {
+    const sauvegardes: unknown[] = []
+    const { id: _i, savedAt: _s, status: _st, ...reste } = ANCIEN
+    render(<SectionParente document={{ ...reste, docType: 'facture', sourceDevisNumber: 'DEV-2026-010', sourceDevisId: ANCIEN.id, versionRendu: 2 }} sauvegardes={sauvegardes} />)
+    await enregistre()
+    await attendre(2500)
+    expect(sauvegardes).toHaveLength(1)
+    expect(brouillons()[0]).toMatchObject({ sourceDevisNumber: 'DEV-2026-010', sourceDevisId: ANCIEN.id })
+  })
+
   it('formulaire sans contenu : rien n est enregistré', async () => {
     monter({ docType: 'devis' })
-    await new Promise((r) => setTimeout(r, 2000))
+    await attendre(2000)
     expect(brouillons()).toHaveLength(0)
+  })
+})
+
+describe('formulaire artisan — échéance « 30 jours fin de mois » en heure de Paris', () => {
+  const fuseauInitial = process.env.TZ
+  beforeEach(() => { process.env.TZ = 'Europe/Paris' })
+  afterEach(() => { process.env.TZ = fuseauInitial })
+  const facture = { docType: 'facture', docDate: '2026-11-13', sentAt: '2026-11-13T09:00:00.000Z', paymentCondition: '30 jours fin de mois' }
+
+  it('document au rendu complet : 31/12, dernier jour du mois', async () => {
+    monter({ ...NOUVEAU, ...facture, paymentDue: '' })
+    expect((await enregistre()).paymentDue).toBe('2026-12-31')
+  })
+
+  it('document d avant la correction : échéance d origine inchangée (30/12)', async () => {
+    monter({ ...ANCIEN, ...facture, paymentDue: '2026-12-30' })
+    expect((await enregistre()).paymentDue).toBe('2026-12-30')
   })
 })
 
@@ -164,10 +183,10 @@ describe('« Télécharger » du formulaire et téléchargement depuis la liste 
     monter(NOUVEAU)
     const brouillon = await enregistre()
     fireEvent.click(screen.getByText('devis.downloadPdf'))
-    await waitFor(() => expect(recu.v2).toHaveLength(1), { timeout: 5000 })
+    await waitFor(() => expect(entreesPdfV2).toHaveLength(1), { timeout: 5000 })
     await produireFichierDocument(brouillon as never, { locale: 'fr', t: (k: string) => k, artisan: ARTISAN as never })
-    expect(recu.v2).toHaveLength(2)
-    const [formulaire, liste] = recu.v2
+    expect(entreesPdfV2).toHaveLength(2)
+    const [formulaire, liste] = entreesPdfV2
     for (const cle of ['lignes', 'mode_affichage', 'tvaBreakdown', 'remiseGlobale', 'acomptes', 'customSectionLabels', 'versionRendu']) {
       expect(liste[cle], cle).toEqual(formulaire[cle])
     }

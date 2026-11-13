@@ -2,20 +2,16 @@
 // enregistrée la déclenche — tables personnalisées et notes comprises (avant : client, lignes,
 // matériaux, frais, titre, sous-type et remise seulement ; le reste était perdu si l'utilisateur
 // quittait sans « Enregistrer »). Un document émis n'est jamais réenregistré automatiquement.
+// Colonne TVA des tableaux de lignes à 12 % (accord de Frédéric du 13/11/2026).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
 
-vi.mock('@/lib/i18n/context', () => ({
-  useTranslation: () => ({ t: (key: string) => key, locale: 'fr' }),
-  useLocale: () => 'fr',
-}))
-vi.mock('@/lib/supabase', () => ({
-  supabase: { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } },
-}))
-vi.mock('@/lib/fetch-authentifie', () => ({ fetchAuthentifie: vi.fn().mockResolvedValue(new Response('[]', { status: 200 })) }))
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn(() => 'tid'), dismiss: vi.fn() } }))
-vi.mock('@/lib/document-sync', () => ({ syncDocumentSafe: vi.fn() }))
+vi.mock('@/lib/i18n/context', async () => (await import('../helpers/mocks-formulaires-devis')).traductions())
+vi.mock('@/lib/supabase', async () => (await import('../helpers/mocks-formulaires-devis')).supabaseNavigateur())
+vi.mock('@/lib/fetch-authentifie', async () => (await import('../helpers/mocks-formulaires-devis')).fetchAuthentifieVide())
+vi.mock('sonner', async () => (await import('../helpers/mocks-formulaires-devis')).notifications())
+vi.mock('@/lib/document-sync', async () => (await import('../helpers/mocks-formulaires-devis')).synchroMuette())
 vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: () => null }))
 
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
@@ -71,7 +67,7 @@ describe('formulaire BTP — sauvegarde automatique', () => {
     const tables = Array.from(container.querySelectorAll('table.dv-presta-table'))
     // Tableaux fixes (main-d'œuvre, matériaux, frais) puis table personnalisée.
     expect(largeurs(tables[0])).toEqual(['20%', '7%', '9%', '11%', '11%', '12%', '13%', '13%', '4%'])
-    expect(largeurs(tables[tables.length - 1])).toEqual(['18%', '7%', '9%', '11%', '11%', '12%', '13%', '13%', '6%'])
+    expect(largeurs(tables.at(-1)!)).toEqual(['18%', '7%', '9%', '11%', '11%', '12%', '13%', '13%', '6%'])
   })
 
   it('document émis : jamais réenregistré automatiquement', async () => {

@@ -9,7 +9,7 @@
  */
 
 import type { DevisGeneratorInput, LigneDevis } from './devis-generator-v2'
-import type { ProductLine, DevisAcompte, FraisAnnexeItem, CustomTable } from '@/lib/devis-types'
+import { FRAIS_ANNEXES_CATEGORIES, type ProductLine, type DevisAcompte, type FraisAnnexeItem, type CustomTable } from '@/lib/devis-types'
 import { sumMoney, computeAcomptesAmounts, mulMoney } from '@/lib/money'
 import { appliquerRemiseGlobale, libelleRemiseGlobale, texteRemiseLigne } from '@/lib/remise-commerciale'
 import { VERSION_RENDU_COMPLET } from '@/lib/version-rendu'
@@ -143,13 +143,18 @@ export function buildV2Input(
   // Total HT global incluant labor + materials + frais annexes — utilisé
   // pour calculer les acomptes correctement. La V2 d'origine excluait
   // matériaux/frais, ce qui sous-calculait les acomptes (cf. audit MOY-9).
-  const validLabor = lines.filter(l => l.description.trim())
-  const validMaterials = (materialLines || []).filter(l => l.description.trim())
-  const validFrais = (fraisAnnexes || []).filter(f => (f.designation || '').trim())
+  // Ligne imprimée : désignation saisie. Au rendu complet, aussi une ligne chiffrée sans désignation :
+  // le formulaire, la liste et la base la comptent, le PDF l'imprime donc sous un libellé de repli
+  // (sinon sa TVA apparaissait sans elle et le total différait de celui de la liste).
+  const imprimee = (designation: string | undefined, montant: number | undefined): boolean =>
+    (designation || '').trim() !== '' || (renduComplet && (montant || 0) !== 0)
+  const validLabor = lines.filter(l => imprimee(l.description, l.totalHT))
+  const validMaterials = (materialLines || []).filter(l => imprimee(l.description, l.totalHT))
+  const validFrais = (fraisAnnexes || []).filter(f => imprimee(f.designation, f.total_ht))
   // Lignes des tables custom (flattenées avec un marker section pour le PDF)
   const validCustomTables = (customTables || []).map(t => ({
     ...t,
-    lines: t.lines.filter(l => l.description.trim()),
+    lines: t.lines.filter(l => imprimee(l.description, l.totalHT)),
   })).filter(t => t.lines.length > 0)
   const validCustomLines = validCustomTables.flatMap(t => t.lines)
   const totalNet = sumMoney([
@@ -179,9 +184,10 @@ export function buildV2Input(
   // Sections du PDF : tables personnalisées ; au rendu complet, aussi les matériaux et les frais annexes.
   const avecSections = validCustomTables.length > 0
     || (renduComplet && (validMaterials.length > 0 || validFrais.length > 0))
-  // Ligne de prestation, de matériau ou de table personnalisée telle que le PDF l'imprime.
-  const lignePdf = (l: ProductLine, section: string | null): LigneDevis => ({
-    designation: l.description,
+  // Ligne de prestation, de matériau ou de table personnalisée telle que le PDF l'imprime. `repli` :
+  // libellé d'une ligne chiffrée sans désignation (rendu complet seulement, cf. `imprimee`).
+  const lignePdf = (l: ProductLine, section: string | null, repli = 'Prestation'): LigneDevis => ({
+    designation: (l.description || '').trim() ? l.description : repli,
     lineDetail: l.lineDetail || undefined,
     quantite: l.qty,
     unite: l.unit || 'u',
@@ -196,7 +202,9 @@ export function buildV2Input(
   })
   // Frais annexe (déplacement, location, péage…) : montant `total_ht`, prix unitaire `prix_unitaire_ht`.
   const lignePdfFrais = (f: FraisAnnexeItem): LigneDevis => ({
-    designation: f.designation,
+    designation: (f.designation || '').trim()
+      ? f.designation
+      : (FRAIS_ANNEXES_CATEGORIES.find(c => c.value === f.categorie)?.label || 'Frais annexe'),
     quantite: f.quantite,
     unite: UNITE_FRAIS_PDF[f.unite] || f.unite || 'u',
     prix_unitaire: f.prix_unitaire_ht,
@@ -264,9 +272,9 @@ export function buildV2Input(
     mode_affichage: avecSections ? ('sections' as const) : ('bloc' as const),
     lignes: [
       // Lignes principales (labor) — section null/'labor' selon mode
-      ...lines.filter(l => l.description.trim()).map(l => lignePdf(l, avecSections ? 'labor' : null)),
+      ...validLabor.map(l => lignePdf(l, avecSections ? 'labor' : null)),
       // Document au rendu complet : matériaux puis frais annexes, dans l'ordre du formulaire.
-      ...(renduComplet ? validMaterials.map(l => lignePdf(l, 'materiaux')) : []),
+      ...(renduComplet ? validMaterials.map(l => lignePdf(l, 'materiaux', 'Matériau')) : []),
       ...(renduComplet ? validFrais.map(lignePdfFrais) : []),
       // Lignes des tables custom — flattenées avec marker section `custom_<id>`.
       // Le generator V2 lit ce marker dans SECTION_LABELS pour afficher le nom

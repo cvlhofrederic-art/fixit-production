@@ -7,6 +7,7 @@ import { jsPDF } from 'jspdf'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { generateDevisPdfV2 } from '@/lib/pdf/devis-generator-v2'
 import { buildSubTypeLabel } from '@/lib/pdf/subtype-label'
+import { dateIsoLocale } from '@/lib/pdf/payment-due'
 import { ventilationTvaDocumentArtisan } from '@/lib/totaux-artisan'
 import type { FraisAnnexeItem, ProductLine } from '@/lib/devis-types'
 
@@ -57,6 +58,22 @@ describe('buildV2Input — document au rendu complet', () => {
     const entree = buildV2Input(parametres({ versionRendu: 2, materialLines: [], fraisAnnexes: [] }))
     expect(entree.mode_affichage).toBe('bloc')
     expect(entree.lignes.map((l) => l.section)).toEqual([null])
+  })
+
+  it('ligne chiffrée sans désignation : imprimée sous un libellé de repli (comptée partout ailleurs)', () => {
+    const entree = buildV2Input(parametres({
+      versionRendu: 2,
+      lines: [{ ...PRESTATION, description: '' }, { id: 9, description: '', qty: 1, unit: 'u', priceHT: 0, tvaRate: 10, totalHT: 0 }],
+      materialLines: [{ ...MATERIAU, description: '  ' }],
+      fraisAnnexes: [{ ...DEPLACEMENT, designation: '', categorie: 'peage' }],
+    }))
+    // La ligne vide à 0 € (ligne de saisie restée vierge) n'est pas imprimée.
+    expect(entree.lignes.map((l) => [l.designation, l.total])).toEqual([['Prestation', 600], ['Matériau', 300], ['Péage', 45]])
+  })
+
+  it('document d avant : ligne sans désignation omise, comme avant', () => {
+    const entree = buildV2Input(parametres({ lines: [{ ...PRESTATION, description: '' }, { ...ISOLATION }] }))
+    expect(entree.lignes.map((l) => l.designation)).toEqual(['Isolant'])
   })
 
   it('document d avant la correction : ni matériaux ni frais, aucun champ ajouté (PDF d origine)', () => {
@@ -114,7 +131,7 @@ describe('PDF V2 — document au rendu complet', () => {
     const contenu = texte((await generateDevisPdfV2(buildV2Input(parametres({
       lines: lignes, materialLines: [], fraisAnnexes: [], tvaBreakdown: tva,
     })))).output('arraybuffer'))
-    const position = /([\d.]+) [\d.]+ Td\s*\(TVA 5.5% sur 600,00/.exec(contenu)
+    const position = /([\d.]+) [\d.]+ Td\s*\(TVA 5\.5% sur 600,00/.exec(contenu)
     expect(position).not.toBeNull()
     expect(Number(position![1])).toBeCloseTo(mmEnPt(148.15), 1)
     expect(contenu).toContain('(1.5)')
@@ -132,6 +149,21 @@ describe('PDF V2 — document au rendu complet', () => {
     const ancien = pdf.getTextWidth('TVA 20% sur 1 000,00 €')
     pdf.setFont('helvetica', 'bold')
     expect(148.15 + ancien).toBeGreaterThan(188.71 - pdf.getTextWidth('200,00 €'))
+  })
+})
+
+describe('échéance « fin de mois » : date du calendrier local (dateIsoLocale)', () => {
+  it('en heure de Paris, le 31/12 reste le 31/12 (toISOString donnait la veille)', () => {
+    const fuseau = process.env.TZ
+    process.env.TZ = 'Europe/Paris'
+    try {
+      const finDeMois = new Date(2026, 11, 31)
+      expect(finDeMois.toISOString().slice(0, 10)).toBe('2026-12-30')
+      expect(dateIsoLocale(finDeMois)).toBe('2026-12-31')
+      expect(dateIsoLocale(new Date(2026, 0, 5))).toBe('2026-01-05')
+    } finally {
+      process.env.TZ = fuseau
+    }
   })
 })
 

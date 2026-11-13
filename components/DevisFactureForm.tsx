@@ -56,7 +56,7 @@ import {
   type LigneRemisable, type Remise,
 } from '@/lib/remise-commerciale'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
-import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
+import { computeEcheanceDate, dateIsoLocale, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3PtFiscalData } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
@@ -403,9 +403,12 @@ export default function DevisFactureForm({
     const emission = new Date(docDate)
     if (isNaN(emission.getTime())) return
     const newDue = computeEcheanceDate(emission, paymentCondition, { fallbackDays: 30 })
-    const newDueIso = newDue.toISOString().split('T')[0]
+    // Document au rendu complet (lib/version-rendu.ts) : date du calendrier local. En France, l'ancien
+    // passage par l'heure UTC avançait d'un jour une échéance « fin de mois » (30/12 au lieu du 31/12).
+    // Document d'avant la correction : calcul d'origine, échéance inchangée.
+    const newDueIso = versionRendu >= VERSION_RENDU_COMPLET ? dateIsoLocale(newDue) : newDue.toISOString().split('T')[0]
     if (newDueIso !== paymentDue) setPaymentDue(newDueIso)
-  }, [paymentCondition, docDate, docType, paymentDue])
+  }, [paymentCondition, docDate, docType, paymentDue, versionRendu])
 
   // Load available photos from API
   useEffect(() => {
@@ -503,6 +506,11 @@ export default function DevisFactureForm({
   // Stable id across all saves of this form session : garantit que brouillon et
   // document final partagent le même id (évite les doublons en liste). UUID via
   // stableDocId car le schéma serveur (devisSyncSchema) valide l'id en uuid.
+  // Document ouvert, figé au montage. Après un enregistrement, DevisSection et FacturesSection remettent
+  // `initialData` à null sans démonter le formulaire : ce qui doit suivre le document (lien vers le devis
+  // d'origine, marques, statut) se lit ici, sinon l'enregistrement suivant le perdrait — et la sauvegarde
+  // automatique, déclenchée par le contenu, le referait d'elle-même.
+  const documentOuvert = useRef(initialData).current
   const docIdRef = useRef<string>((initialData as { id?: string })?.id || stableDocId())
   // Autosave : timestamp du dernier enregistrement automatique du brouillon.
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
@@ -765,7 +773,7 @@ export default function DevisFactureForm({
   const remiseDisponible = locale !== 'pt'
   // Escompte imprimé : règle de lib/escompte-pdf.ts en France ; en portugais, la marque du document
   // est gardée telle quelle (ni posée, ni retirée).
-  const escompteActif = remiseDisponible ? escompteSurPdf : initialData?.escompteSurPdf === true
+  const escompteActif = remiseDisponible ? escompteSurPdf : documentOuvert?.escompteSurPdf === true
   const libellesNet = locale === 'pt'
     ? { ht: 'Total s/IVA líquido', net: 'Total líquido' }
     : { ht: 'Total HT net', net: 'Total net' }
@@ -2008,8 +2016,8 @@ export default function DevisFactureForm({
     docNumber: docNumberRef.current || docNumber,
     docTitle,
     // Lien devis → facture conservé à travers l'édition (aligné sur le form BTP).
-    sourceDevisNumber: (initialData as { sourceDevisNumber?: string } | undefined)?.sourceDevisNumber,
-    sourceDevisId: (initialData as { sourceDevisId?: string } | undefined)?.sourceDevisId,
+    sourceDevisNumber: (documentOuvert as { sourceDevisNumber?: string } | undefined)?.sourceDevisNumber,
+    sourceDevisId: (documentOuvert as { sourceDevisId?: string } | undefined)?.sourceDevisId,
     companyStatus,
     companyName,
     companySiret,
@@ -2056,7 +2064,7 @@ export default function DevisFactureForm({
     // sur un document antérieur que l'artisan rouvre sans toucher à l'escompte.
     escompteSurPdf: escompteActif ? true : undefined,
     // Rendu et totaux corrigés (lib/version-rendu.ts) : absent sur un document d'avant la correction.
-    versionRendu: champVersionRendu(initialData, versionRendu),
+    versionRendu: champVersionRendu(documentOuvert, versionRendu),
     remiseGlobale,
     iban,
     bic,
@@ -2077,12 +2085,12 @@ export default function DevisFactureForm({
   // Déclencheur : le contenu que le brouillon enregistre (buildData), et non une liste de champs tenue
   // à la main — elle oubliait les tables personnalisées, les frais annexes, l'adresse, les notes, les
   // acomptes… (saisie perdue si l'artisan quittait sans « Enregistrer »). Le numéro réservé par un
-  // aperçu n'est pas une saisie : il ne déclenche rien.
+  // aperçu n'est pas une saisie : il ne déclenche rien. Statut lu sur le document ouvert (figé).
   const contenuBrouillon = JSON.stringify({ ...buildData(), docNumber: undefined })
   const saveDraftRef = useRef(handleSaveDraft)
   saveDraftRef.current = handleSaveDraft
   useEffect(() => {
-    const st = (initialData as { status?: string })?.status
+    const st = (documentOuvert as { status?: string } | undefined)?.status
     const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
     if (isEmitted || !artisan?.id) return
     const hasContent = clientName.trim().length > 0 ||

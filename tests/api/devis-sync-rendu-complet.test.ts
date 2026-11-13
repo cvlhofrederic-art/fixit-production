@@ -24,9 +24,9 @@ const mockFrom = vi.fn().mockImplementation((table: string) => {
 
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: mockFrom } }))
 vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: async () => ({ id: ARTISAN_USER_ID }) }))
-vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: async () => true, rateLimitResponse: () => new Response('{}', { status: 429 }) }))
+vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn() }))
-vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() } }))
+vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
 
 const ARTISAN_USER_ID = '00000000-0000-4000-8000-000000000011'
 const ARTISAN_ID = '00000000-0000-4000-8000-000000000012'
