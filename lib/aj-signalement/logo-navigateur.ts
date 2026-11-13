@@ -8,16 +8,16 @@
 // Relecture de sécurité du 13/11/2026 : un SVG qui contient un <foreignObject> (texte HTML) rend le canvas « tainted »
 // dans Chrome et Safari (toBlob lève SecurityError) : il est refusé d'emblée (svg_html, message « exportez en PNG »),
 // quel que soit le navigateur ; toute autre erreur du dessin devient un refus « navigateur », jamais une exception.
+// Alerte CodeQL du 13/11/2026 (js/xss-through-dom) : le SVG n'est plus relu par DOMParser ; il est lu comme TEXTE
+// (preparerSvgQr : aucune DTD, racine seule réécrite, temps linéaire), puis chargé comme image.
 // Règles pures : lib/aj-signalement/logo-conversion.ts. Les outils du navigateur (adresses blob, chargement, dessin) sont
 // injectables : le canvas de jsdom ne dessine pas (tests/lib/aj-signalement-logo-conversion.test.ts).
 
 import { LOGO_OCTETS_MAX_QR, analyserPngQr, nettoyerPngQr } from '@/lib/aj-signalement/logo'
 import {
-  LOGO_FICHIER_MAX_QR, TYPES_MIME_LOGO_QR, dimensionsCibleLogoQr, dimensionsSvgQr, reductionLogoQr, typeImageLogoQr,
+  LOGO_FICHIER_MAX_QR, TYPES_MIME_LOGO_QR, dimensionsCibleLogoQr, preparerSvgQr, reductionLogoQr, typeImageLogoQr,
   type DimensionsQr,
 } from '@/lib/aj-signalement/logo-conversion'
-
-const ESPACE_SVG = 'http://www.w3.org/2000/svg'
 
 export type RaisonEchecConversionLogoQr = 'fichier_trop_lourd' | 'format' | 'illisible' | 'svg_html' | 'trop_lourd' | 'navigateur'
 
@@ -61,23 +61,13 @@ export const OUTILS_NAVIGATEUR_LOGO_QR: OutilsConversionLogoQr = {
 }
 
 /**
- * SVG prêt à charger comme image : racine <svg> relue (XML bien formé), taille posée en px (celle du dessin), viewBox
- * posée d'après la taille d'origine si elle manque (le dessin est mis à l'échelle, jamais rogné). 'illisible' : XML mal
- * formé, autre racine, taille introuvable ; 'svg_html' : un élément foreignObject de l'espace SVG (contenu HTML, que
- * Chrome et Safari refusent d'exporter d'un canvas).
+ * SVG prêt à charger comme image, lu comme TEXTE (preparerSvgQr, aucun analyseur DOM ni XML) : racine réécrite avec la
+ * taille du dessin. Un SVG mal formé ailleurs que dans sa racine ne se charge pas : refus « illisible » au chargement.
  */
 function preparerSvg(octets: Uint8Array): { source: Blob; cible: DimensionsQr } | 'illisible' | 'svg_html' {
-  const document = new DOMParser().parseFromString(new TextDecoder('utf-8').decode(octets), 'image/svg+xml')
-  const racine = document.documentElement
-  if (racine.localName !== 'svg' || racine.namespaceURI !== ESPACE_SVG || document.getElementsByTagName('parsererror').length > 0) return 'illisible'
-  if (document.getElementsByTagNameNS(ESPACE_SVG, 'foreignObject').length > 0) return 'svg_html'
-  const origine = dimensionsSvgQr({ width: racine.getAttribute('width'), height: racine.getAttribute('height'), viewBox: racine.getAttribute('viewBox') })
-  if (!origine) return 'illisible'
-  const cible = dimensionsCibleLogoQr(origine, true)
-  if (!racine.getAttribute('viewBox')) racine.setAttribute('viewBox', `0 0 ${origine.largeur} ${origine.hauteur}`)
-  racine.setAttribute('width', String(cible.largeur))
-  racine.setAttribute('height', String(cible.hauteur))
-  return { source: new Blob([new XMLSerializer().serializeToString(document)], { type: TYPES_MIME_LOGO_QR.svg }), cible }
+  const prepare = preparerSvgQr(new TextDecoder('utf-8').decode(octets))
+  if (typeof prepare === 'string') return prepare
+  return { source: new Blob([prepare.svg], { type: TYPES_MIME_LOGO_QR.svg }), cible: prepare.cible }
 }
 
 /** Dessins successifs, plus petits tant que le PNG dépasse 200 Kio ; PNG nettoyé et revérifié. */
