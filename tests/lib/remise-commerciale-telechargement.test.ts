@@ -100,7 +100,47 @@ describe('PDF artisan téléchargé depuis la liste', () => {
     await produireFichierDocument(DEVIS_ARTISAN, ctx(false))
     const e = recu.v2[0] as { lignes: Array<{ remise?: string; total: number }>; remiseGlobale?: unknown }
     expect(e.lignes[0]).toMatchObject({ remise: '-10 %', total: 900 })
-    expect(e.remiseGlobale).toEqual({ montantHT: 50, libelle: 'Remise commerciale' })
+    expect(e.remiseGlobale).toEqual({ montantHT: 50, libelle: 'Remise commerciale', totalBrutHT: 900, totalHT: 850 })
+  })
+
+  // Facture à TVA : 1 000 € à 10 % et un tableau personnalisé de 500 € à 20 %, remise globale de 10 %.
+  const AVEC_TABLEAU = {
+    ...DEVIS_ARTISAN, tvaEnabled: true,
+    lines: [{ id: 1, description: 'Remplacement chauffe-eau', qty: 1, unit: 'f', priceHT: 1000, tvaRate: 10, totalHT: 1000 }],
+    customTables: [{ id: 't1', name: 'Salle de bain', lines: [{ id: 2, description: 'Faïence', qty: 1, unit: 'f', priceHT: 500, tvaRate: 20, totalHT: 500 }] }],
+    remiseGlobale: { type: 'pourcentage', valeur: 10 },
+  }
+
+  it('document remisé : mêmes données que le formulaire, remise sur tout le document', async () => {
+    await produireFichierDocument(AVEC_TABLEAU, ctx(false))
+    const e = recu.v2[0] as { lignes: Array<{ total: number }>; remiseGlobale?: unknown; tvaBreakdown?: unknown }
+    expect(e.lignes.map((l) => l.total)).toEqual([1000, 500])
+    expect(e.remiseGlobale).toEqual({ montantHT: 150, libelle: 'Remise commerciale (10 %)', totalBrutHT: 1500, totalHT: 1350 })
+    expect(e.tvaBreakdown).toEqual([{ rate: 20, base: 450, amount: 90 }, { rate: 10, base: 900, amount: 90 }])
+  })
+
+  it('document sans remise aux données incomplètes : téléchargé comme avant, sans erreur', async () => {
+    const { remiseGlobale: _r, ...sansRemise } = AVEC_TABLEAU
+    for (const abime of [
+      { ...sansRemise, customTables: [null, { id: 't2', name: 'Sans lignes' }] },
+      { ...sansRemise, customTables: 'illisible' },
+      { ...sansRemise, materialLines: 'illisible', fraisAnnexes: [null] },
+    ]) {
+      recu.v2.length = 0
+      await produireFichierDocument(abime as never, ctx(false))
+      const e = recu.v2[0] as { lignes: Array<{ total: number }>; tvaBreakdown?: unknown }
+      expect(e.lignes.map((l) => l.total)).toEqual([1000])
+      expect(e.tvaBreakdown).toBeUndefined()
+    }
+  })
+
+  it('document sans remise : paramètres d origine (tableau et détail de TVA non transmis, comme avant)', async () => {
+    const { remiseGlobale: _r, ...sansRemise } = AVEC_TABLEAU
+    await produireFichierDocument(sansRemise, ctx(false))
+    const e = recu.v2[0] as { lignes: Array<{ total: number }>; remiseGlobale?: unknown; tvaBreakdown?: unknown }
+    expect(e.lignes.map((l) => l.total)).toEqual([1000])
+    expect(e.tvaBreakdown).toBeUndefined()
+    expect('remiseGlobale' in e).toBe(false)
   })
 
   it('escompte : imprimé seulement pour un document marqué, l ancien garde « Aucun escompte »', async () => {

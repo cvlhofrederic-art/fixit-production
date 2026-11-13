@@ -111,7 +111,15 @@ export const ID_TABLE_ACOMPTES_DEDUITS = 'acomptes-deduits'
  */
 const remiseGlobaleActive = (doc: DocumentWithLines): boolean => lireRemise(doc.remiseGlobale) !== null
 
-export function buildDocumentLines(doc: DocumentWithLines | null | undefined): ProductLineLike[] {
+export function buildDocumentLines(
+  doc: DocumentWithLines | null | undefined,
+  /**
+   * `deductionsHorsRemise` : lignes de déduction marquées hors remise même sans remise posée. Sert
+   * au champ de la remise globale, qui calcule sur la base qu'aura une remise active (sans quoi cette
+   * base changerait à la première frappe). Par défaut, rendu inchangé.
+   */
+  options: { deductionsHorsRemise?: boolean } = {},
+): ProductLineLike[] {
   if (!doc || typeof doc !== 'object') return []
   const laborRaw = safeLines(doc.laborLines)
   const lines = safeLines(doc.lines)
@@ -121,7 +129,7 @@ export function buildDocumentLines(doc: DocumentWithLines | null | undefined): P
   const customTablesRaw = Array.isArray(doc.customTables) ? doc.customTables : []
   const customLines = customTablesRaw
     .filter((t): t is { id?: unknown; lines?: ProductLineLike[] } => t !== null && typeof t === 'object')
-    .flatMap(t => (t.id === ID_TABLE_ACOMPTES_DEDUITS && remiseGlobaleActive(doc)
+    .flatMap(t => (t.id === ID_TABLE_ACOMPTES_DEDUITS && (options?.deductionsHorsRemise === true || remiseGlobaleActive(doc))
       ? safeLines(t.lines).map(l => (l.horsRemise === true ? l : { ...l, horsRemise: true }))
       : safeLines(t.lines)))
   const labor = laborRaw.length > 0 ? laborRaw : lines

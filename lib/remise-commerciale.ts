@@ -250,16 +250,23 @@ export function remiseEnPourcentageExact(remise: unknown, base: number): Remise 
 }
 
 /**
- * Lignes ramenées au prix réellement facturé après la remise globale (même proportion pour
- * chaque ligne) : pour les calculs qui partent des lignes, comme la rentabilité du devis.
- * Sans remise, lignes rendues telles quelles.
+ * Lignes ramenées au prix réellement facturé, pour les calculs qui partent des lignes (rentabilité
+ * du devis) : total et prix unitaire après la remise globale (même proportion pour chaque ligne) ;
+ * une ligne remisée prend pour prix unitaire son total net divisé par sa quantité, son prix saisi
+ * étant celui d'avant sa remise. Sans aucune remise, lignes rendues telles quelles.
  */
-export function lignesApresRemiseGlobale<T extends { totalHT: number; priceHT: number }>(
+export function lignesApresRemiseGlobale<T extends { totalHT: number; priceHT: number; qty?: number; remise?: unknown }>(
   lignes: T[], remiseHT: number, baseRemiseHT: number,
 ): T[] {
-  if (!remiseHT || !baseRemiseHT) return lignes
-  const ratio = 1 - remiseHT / baseRemiseHT
-  return lignes.map((l) => ({ ...l, totalHT: round2(l.totalHT * ratio), priceHT: Math.round(l.priceHT * ratio * 10_000) / 10_000 }))
+  const ratio = remiseHT && baseRemiseHT ? 1 - remiseHT / baseRemiseHT : 1
+  if (ratio === 1 && !aUneRemiseDeLigne(lignes)) return lignes
+  return lignes.map((l) => {
+    const totalHT = ratio === 1 ? l.totalHT : round2(l.totalHT * ratio)
+    let priceHT = l.priceHT
+    if (lireRemise(l.remise) && l.qty) priceHT = Math.round((totalHT / l.qty) * 10_000) / 10_000
+    else if (ratio !== 1) priceHT = Math.round(l.priceHT * ratio * 10_000) / 10_000
+    return { ...l, totalHT, priceHT }
+  })
 }
 
 /** Remise mise à l'échelle d'un document : une remise en euros suit le ratio, une remise en % ne bouge pas. */

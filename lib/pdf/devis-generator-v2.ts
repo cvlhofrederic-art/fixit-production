@@ -107,9 +107,10 @@ export interface DevisGeneratorInput {
   /**
    * Remise commerciale sur le total (lib/remise-commerciale.ts) : montant HT déduit du
    * sous-total et libellé (« Remise commerciale (5 %) »). `tvaBreakdown` porte alors les bases
-   * remisées. Absente : bloc des totaux inchangé.
+   * remisées ; `totalBrutHT` et `totalHT`, HT avant et après remise du calcul commun (centimes
+   * ligne par ligne), donnent le sous-total et le Total HT net. Absente : bloc des totaux inchangé.
    */
-  remiseGlobale?: { montantHT: number; libelle: string }
+  remiseGlobale?: { montantHT: number; libelle: string; totalBrutHT?: number; totalHT?: number }
   /**
    * Escompte pour paiement anticipé saisi sur le document (documents enregistrés depuis la
    * correction du 13/11/2026). Absent : mention « Aucun escompte accordé » comme avant.
@@ -974,12 +975,17 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // SOUS-TOTAL + TVA — FIX #6 (bordure FD) + multi-taux
   // ═══════════════════════════════════════════════════════════
 
-  // Total HT via centimes entiers (sumMoney) — zéro drift IEEE 754.
-  const totalNet = sumMoney(input.lignes.map(l => l.total))
   // Remise commerciale globale : déduite du sous-total, TVA sur les bases remisées (fournies par
-  // l'appelant dans tvaBreakdown). Sans remise : totaux d'origine.
+  // l'appelant dans tvaBreakdown). Document remisé : HT brut et net du calcul commun (centimes ligne
+  // par ligne), comme le formulaire, la liste et la synchro. Sans remise : totaux d'origine.
   const remiseGlobaleHT = input.remiseGlobale?.montantHT || 0
-  const totalNetApresRemise = remiseGlobaleHT ? round2(totalNet - remiseGlobaleHT) : totalNet
+  // Total HT via centimes entiers (sumMoney) — zéro drift IEEE 754.
+  const totalNet = remiseGlobaleHT && input.remiseGlobale?.totalBrutHT !== undefined
+    ? input.remiseGlobale.totalBrutHT
+    : sumMoney(input.lignes.map(l => l.total))
+  const totalNetApresRemise = remiseGlobaleHT
+    ? (input.remiseGlobale?.totalHT ?? round2(totalNet - remiseGlobaleHT))
+    : totalNet
   // Détection : auto-entrepreneur en TVA (a passé le seuil 293 B) → afficher
   // ventilation TVA multi-taux. Sinon mode legacy single-rate (mention 293 B).
   const tvaBreakdown = input.tvaBreakdown && input.tvaBreakdown.length > 0

@@ -961,8 +961,14 @@ export default function DevisFactureFormBTP({
       } catch { /* Sentry indisponible — pas bloquant */ }
     }
 
-    // Lignes vues par la saisie « en € TTC » de la remise globale (montants nets des remises de ligne).
-    const lignesRemise = allLines.map(l => ({ totalHT: montantLigne(l), tvaRate: l.tvaRate || 0, horsRemise: l.horsRemise === true }))
+    // Lignes vues par le champ de la remise globale (conversions, saisie « en € TTC »), montants nets des
+    // remises de ligne : la base d'une remise active, donc les déductions d'acompte d'une facture de solde
+    // hors remise même avant qu'une remise soit posée (sinon la base changerait à la première frappe).
+    const lignesRemise = (buildDocumentLines({
+      lines, materialLines, fraisLines, customTables,
+      materialLinesEnabled, fraisLinesEnabled, remiseGlobale,
+    }, { deductionsHorsRemise: true }) as typeof lines)
+      .map(l => ({ totalHT: montantLigne(l), tvaRate: l.tvaRate || 0, horsRemise: l.horsRemise === true }))
     // Base de la remise globale : les travaux, sans les déductions d'acompte d'une facture de solde.
     const baseRemise = tva.baseRemiseHT
     return { subTotalBrut, remise, totalHT, tvaEntries, tvaBreakdown, totalTva, totalTTC, totalLabel: tva.totalLabel, lignesRemise, baseRemise }

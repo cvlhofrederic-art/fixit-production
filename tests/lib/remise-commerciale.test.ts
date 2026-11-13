@@ -274,6 +274,18 @@ describe('conversions', () => {
     ])
     expect(lignesApresRemiseGlobale(lignes, 0, 1400)).toBe(lignes)
   })
+
+  it('lignesApresRemiseGlobale : une ligne remisée prend son prix réellement facturé', () => {
+    // 100 m² à 30 € remisés de 40 % : 1 800 €, soit 18 €/m² facturés (le prix saisi reste 30 €).
+    const peinture = { qty: 100, priceHT: 30, totalHT: 1800, remise: { type: 'pourcentage' as const, valeur: 40 } }
+    const pose = { qty: 2, priceHT: 100, totalHT: 200 }
+    expect(lignesApresRemiseGlobale([peinture, pose], 0, 2000)).toEqual([{ ...peinture, priceHT: 18 }, pose])
+    // Plus une remise globale de 10 % : 1 620 € soit 16,20 €/m², la ligne sans remise suit la proportion.
+    expect(lignesApresRemiseGlobale([peinture, pose], 200, 2000)).toEqual([
+      { ...peinture, totalHT: 1620, priceHT: 16.2 },
+      { ...pose, totalHT: 180, priceHT: 90 },
+    ])
+  })
 })
 
 describe('escompteImprimeAuDepart (escompte du PDF artisan)', () => {

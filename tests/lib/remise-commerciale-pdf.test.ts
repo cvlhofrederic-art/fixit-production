@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
 import { generateDevisPdfV2 } from '@/lib/pdf/devis-generator-v2'
 import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
+import { computeTva } from '@/lib/tva-calculator'
 import fr from '@/locales/fr.json'
 import { embedFacturX } from '@/lib/facturx'
 
@@ -38,7 +39,16 @@ describe('buildV2Input — remise commerciale', () => {
   it('texte de la colonne Remise, montant et libellé de la remise globale', () => {
     const entree = buildV2Input(parametresV2({ remiseGlobale: { type: 'pourcentage', valeur: 10 } }))
     expect(entree.lignes.map((l) => l.remise)).toEqual(['-10 %', undefined])
-    expect(entree.remiseGlobale).toEqual({ montantHT: 95, libelle: 'Remise commerciale (10 %)' })
+    expect(entree.remiseGlobale).toEqual({ montantHT: 95, libelle: 'Remise commerciale (10 %)', totalBrutHT: 950, totalHT: 855 })
+  })
+
+  it('remise sur toutes les lignes chiffrées, même un frais annexe sans désignation (comme le formulaire)', () => {
+    const entree = buildV2Input(parametresV2({
+      lines: [{ id: 1, description: 'Pose', qty: 1, unit: 'u', priceHT: 1000, tvaRate: 20, totalHT: 1000 }],
+      fraisAnnexes: [{ id: 1, designation: '', categorie: 'deplacement', quantite: 1, unite: 'forfait', prix_unitaire_ht: 100, tva_applicable: 20, total_ht: 100 }],
+      remiseGlobale: { type: 'pourcentage', valeur: 10 },
+    }))
+    expect(entree.remiseGlobale).toEqual({ montantHT: 110, libelle: 'Remise commerciale (10 %)', totalBrutHT: 1100, totalHT: 990 })
   })
 
   it('acomptes calculés sur le total remisé', () => {
@@ -77,6 +87,19 @@ describe('PDF artisan (V2)', () => {
     expect(contenu).not.toContain('(REMISE)')
     expect(contenu).not.toContain('Remise commerciale')
     expect(contenu).toContain('Aucun escompte accord')
+  })
+
+  it('totaux du calcul commun, même sur d anciennes lignes non arrondies au centime', async () => {
+    // Ancien « 1 × prix » non arrondi : 12,3456 € par ligne. Formulaire, liste et synchro comptent
+    // les lignes au centime (24,70 €) ; le PDF imprime les mêmes totaux.
+    const lignes = [1, 2].map((id) => ({ id, description: `Intervention ${id}`, qty: 1, unit: 'h', priceHT: 12.3456, tvaRate: 20, totalHT: 12.3456 }))
+    const remiseGlobale = { type: 'pourcentage', valeur: 10 }
+    const tva = computeTva({ regime: 'classique', lines: lignes, remiseGlobale })
+    expect([tva.totalHTBrut, tva.remiseHT, tva.totalHT, tva.totalTTC]).toEqual([24.7, 2.47, 22.23, 26.68])
+    const entree = buildV2Input(parametresV2({ lines: lignes, remiseGlobale, tvaBreakdown: tva.breakdown }))
+    const contenu = texte((await generateDevisPdfV2(entree)).output('arraybuffer'))
+    for (const montant of ['24,70', '22,23', '26,68']) expect(contenu).toContain(montant)
+    for (const montant of ['24,69', '22,22', '26,67']) expect(contenu).not.toContain(montant)
   })
 
   it('escompte saisi : imprimé à la place de « Aucun escompte accordé »', async () => {

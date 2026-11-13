@@ -10,7 +10,8 @@
  *   - ChampRemiseGlobale : remise sur le total, en %, en € HT ou en € TTC. Une saisie en TTC est
  *     convertie en HT (c'est le HT qui est enregistré) et suit les lignes tant qu'on reste dans
  *     ce mode ; une remise changée hors du champ (mode « Acompte », document rechargé) fait
- *     quitter ce mode pour ne pas écraser la nouvelle valeur.
+ *     quitter ce mode pour ne pas écraser la nouvelle valeur. Changer seulement l'unité affichée
+ *     ne modifie jamais la remise enregistrée.
  */
 
 import { useEffect, useState, type CSSProperties } from 'react'
@@ -86,6 +87,22 @@ const remiseDepuisTTC = (lignes: LigneRemisable[], montantTTC: number, avecTva: 
   return ht ? { type: 'montant', valeur: ht } : undefined
 }
 
+/**
+ * Remise à enregistrer pour un montant tapé en € TTC : la remise en euros en cours si elle donne déjà
+ * cette baisse TTC (plusieurs montants HT peuvent la donner, la TVA étant arrondie taux par taux), sinon
+ * le HT tiré de la saisie. Une remise en % est convertie : celle qui suit une saisie TTC est toujours un
+ * montant, que la mise à l'échelle du mode « Acompte » modifie, et que le champ reconnaît donc.
+ */
+const remisePourSaisieTTC = (
+  lignes: LigneRemisable[], montantTTC: number, avecTva: boolean, actuelle: Remise | null,
+): Remise | undefined => {
+  if (actuelle?.type === 'montant' && montantTTC
+    && Math.round(baisseTTCRemise(lignes, actuelle, avecTva) * 100) === Math.round(montantTTC * 100)) {
+    return actuelle
+  }
+  return remiseDepuisTTC(lignes, montantTTC, avecTva)
+}
+
 export function ChampRemiseGlobale({ remise, onChange, lignes, avecTva, formaterMontant, classeChamp, classeListe, disabled }: {
   remise: unknown
   onChange: (remise: Remise | undefined) => void
@@ -100,61 +117,82 @@ export function ChampRemiseGlobale({ remise, onChange, lignes, avecTva, formater
 }) {
   const actuelle = lireRemise(remise)
   const [mode, setMode] = useState<ModeGlobal>(modeDe(actuelle))
-  const [saisieTTC, setSaisieTTC] = useState(0)
+  // Montant tapé en € TTC. Tant que rien n'est tapé, l'unité « € TTC » n'est qu'un affichage de la
+  // remise enregistrée : elle ne la modifie jamais, même quand les lignes changent.
+  const [saisieTTC, setSaisieTTC] = useState<number | null>(null)
+  // Remise en vigueur quand la saisie en € TTC a commencé : retaper la valeur affichée la redonne
+  // telle quelle (plusieurs montants HT donnent la même baisse TTC).
+  const [remiseAvantSaisie, setRemiseAvantSaisie] = useState<Remise | null>(null)
+  // Clé de la dernière remise émise par une frappe en € TTC, reconnue comme venant du champ même si
+  // les lignes ont changé depuis.
+  const [emiseParSaisie, setEmiseParSaisie] = useState<string | null>(null)
 
   // Remise changée depuis le rendu précédent (modèle React « ajuster l'état quand une prop
-  // change ») : si ce n'est pas la valeur que la saisie TTC produit sur les lignes actuelles, elle
-  // vient d'ailleurs (mode « Acompte », document rechargé) et le mode TTC est abandonné.
+  // change ») : si le champ ne l'a pas produite, elle vient d'ailleurs (mode « Acompte », document
+  // rechargé) et la saisie TTC est abandonnée.
   const cleRemise = cle(remise)
   const [cleVue, setCleVue] = useState(cleRemise)
   if (cleRemise !== cleVue) {
     setCleVue(cleRemise)
-    if (mode === 'ttc' && cleRemise !== cle(remiseDepuisTTC(lignes, saisieTTC, avecTva))) {
+    if (mode === 'ttc' && saisieTTC !== null && cleRemise !== emiseParSaisie
+      && cleRemise !== cle(remiseDepuisTTC(lignes, saisieTTC, avecTva))) {
       setMode(modeDe(actuelle))
-      setSaisieTTC(0)
+      setSaisieTTC(null)
     }
   }
 
-  // Unité affichée : celle de la saisie TTC en cours, sinon celle de la remise enregistrée (elle peut
-  // changer hors du champ : retour du mode « Acompte », document rechargé), sinon le choix courant.
+  // Unité affichée : « € TTC » si elle est choisie et que la TVA est facturée ; sinon celle de la
+  // remise enregistrée (elle peut changer hors du champ : retour du mode « Acompte », document
+  // rechargé), sinon le choix courant.
   let modeEffectif: ModeGlobal = actuelle ? modeDe(actuelle) : mode
-  if (mode === 'ttc') modeEffectif = avecTva ? 'ttc' : 'ht'
-  const valeur = modeEffectif === 'ttc' ? saisieTTC : (actuelle?.valeur ?? 0)
-  const valeurEnregistree = actuelle?.type === 'montant' ? actuelle.valeur : null
+  if (mode === 'ttc') {
+    if (avecTva) modeEffectif = 'ttc'
+    else if (!actuelle) modeEffectif = 'ht'
+  }
+  let valeur = actuelle?.valeur ?? 0
+  if (modeEffectif === 'ttc') valeur = saisieTTC ?? (actuelle ? baisseTTCRemise(lignes, actuelle, avecTva) : 0)
   const emettre = onChange
 
   const appliquer = (v: number, m: ModeGlobal) => {
     // Saisie en HT pendant que le mode TTC attend le retour de la TVA : l'intention TTC est abandonnée.
     if (m !== mode) setMode(m)
     if (m === 'ttc') {
+      const depart = saisieTTC === null ? actuelle : remiseAvantSaisie
+      if (saisieTTC === null) setRemiseAvantSaisie(actuelle)
       setSaisieTTC(v)
-      emettre(remiseDepuisTTC(lignes, v, avecTva))
+      // La remise d'avant la saisie si elle donne cette baisse TTC, sinon la remise en cours, sinon le HT
+      // tiré de la saisie.
+      let suivante = remisePourSaisieTTC(lignes, v, avecTva, depart)
+      if (cle(suivante) !== cle(depart)) suivante = remisePourSaisieTTC(lignes, v, avecTva, actuelle)
+      if (cle(suivante) !== cle(actuelle)) {
+        setEmiseParSaisie(cle(suivante))
+        emettre(suivante)
+      }
       return
     }
-    setSaisieTTC(0)
+    setSaisieTTC(null)
     emettre(lireRemise({ type: m === 'pourcentage' ? 'pourcentage' : 'montant', valeur: v }) ?? undefined)
   }
 
-  // Changement d'unité : même remise, exprimée dans la nouvelle unité.
+  // Changement d'unité : même remise, exprimée dans la nouvelle unité ; « € TTC » n'en est qu'un
+  // affichage, la remise enregistrée ne change pas.
   const changerMode = (m: ModeGlobal) => {
     setMode(m)
-    if (!actuelle) { setSaisieTTC(0); return }
-    if (m === 'ttc') {
-      setSaisieTTC(baisseTTCRemise(lignes, actuelle, avecTva))
-      return
-    }
-    setSaisieTTC(0)
+    setSaisieTTC(null)
+    if (!actuelle || m === 'ttc') return
     const base = appliquerRemiseGlobale(lignes, null).baseRemiseHT
     const convertie = convertirRemise(actuelle, m === 'pourcentage' ? 'pourcentage' : 'montant', base)
     if (cle(convertie) !== cle(actuelle)) emettre(convertie ?? undefined)
   }
 
-  // Saisie en TTC : la remise HT suit les lignes (ajout, prix, TVA) tant que ce mode est actif.
-  // L'effet ne touche à aucun état du champ : il prévient seulement le formulaire.
+  // Montant tapé en € TTC : la remise HT suit les lignes (ajout, prix, TVA) pour garder cette baisse
+  // TTC, et ne change que si elle ne la donne plus. L'effet ne touche à aucun état du champ : il
+  // prévient seulement le formulaire.
   const cleLignes = JSON.stringify(lignes)
   useEffect(() => {
     if (modeEffectif !== 'ttc' || !saisieTTC) return
-    const suivante = remiseDepuisTTC(JSON.parse(cleLignes) as LigneRemisable[], saisieTTC, avecTva)
+    const enCours = JSON.parse(cleRemise) as Remise | null
+    const suivante = remisePourSaisieTTC(JSON.parse(cleLignes) as LigneRemisable[], saisieTTC, avecTva, enCours)
     if (cle(suivante) !== cleRemise) emettre(suivante)
   }, [cleRemise, cleLignes, avecTva, modeEffectif, saisieTTC, emettre])
 
@@ -185,8 +223,10 @@ export function ChampRemiseGlobale({ remise, onChange, lignes, avecTva, formater
           {avecTva && <option value="ttc">€ TTC</option>}
         </select>
       </div>
-      {modeEffectif === 'ttc' && valeurEnregistree !== null && (
-        <div style={{ fontSize: 11, color: '#777', marginTop: 3 }}>soit {formaterMontant(valeurEnregistree)} HT</div>
+      {modeEffectif === 'ttc' && actuelle && (
+        <div style={{ fontSize: 11, color: '#777', marginTop: 3 }}>
+          soit {formaterMontant(Math.abs(appliquerRemiseGlobale(lignes, actuelle).remiseHT))} HT
+        </div>
       )}
     </div>
   )

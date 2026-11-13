@@ -146,12 +146,14 @@ export function buildV2Input(
     ...validFrais.map(f => f.total_ht || 0),
     ...validCustomLines.map(l => l.totalHT || 0),
   ])
-  // Remise commerciale globale : même périmètre que le formulaire (toutes les lignes saisies).
+  // Remise commerciale globale : même périmètre que le formulaire, la liste et la synchro, soit toutes
+  // les lignes chiffrées, même sans désignation (elles ne sont pas imprimées mais comptent dans la TVA).
+  // Sans remise, ce calcul n'est pas utilisé : documents sans remise inchangés.
   const remise = appliquerRemiseGlobale([
-    ...validLabor.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
-    ...validMaterials.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
-    ...validFrais.map(f => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
-    ...validCustomLines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    ...[...lines, ...(materialLines || []), ...(customTables || []).flatMap(t => t.lines || [])]
+      .filter(Boolean)
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    ...(fraisAnnexes || []).filter(Boolean).map(f => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
   ], remiseGlobale)
   // Acomptes répartis avec le dernier qui rattrape le résidu d'arrondi
   // (convention comptable Henrri/EBP/Sage). Évite que la somme des acomptes
@@ -271,8 +273,10 @@ export function buildV2Input(
     isHorsEtablissement,
     tvaBreakdown: tvaBreakdown && tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
     // Absents sans remise ni escompte saisi : PDF identique à celui d'avant.
+    // HT brut et net du calcul commun (centimes ligne par ligne, toutes les lignes du document) : le
+    // PDF les reprend tels quels, comme le formulaire, la liste et la synchro.
     ...(remise.remiseHT !== 0
-      ? { remiseGlobale: { montantHT: remise.remiseHT, libelle: libelleRemiseGlobale(remiseGlobale) } }
+      ? { remiseGlobale: { montantHT: remise.remiseHT, libelle: libelleRemiseGlobale(remiseGlobale), totalBrutHT: remise.totalBrutHT, totalHT: remise.totalHT } }
       : {}),
     ...(escompte && escompte.trim() ? { escompte: escompte.trim() } : {}),
   }
