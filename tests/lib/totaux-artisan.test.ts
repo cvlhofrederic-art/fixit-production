@@ -127,13 +127,15 @@ const parametresPdf = (doc: Record<string, unknown>, lignes: LignesArtisan, vent
   tvaBreakdown: doc.tvaEnabled ? ventilation : undefined, remiseGlobale: doc.remiseGlobale, versionRendu: 2,
   acomptesEnabled: false, acomptes: [], notes: '', mediatorName: '', mediatorUrl: '', isHorsEtablissement: false,
 })
-// Totaux du PDF V2 (lib/pdf/devis-generator-v2.ts) : HT = somme des lignes imprimées, remise déduite,
-// TVA de la ventilation reçue.
+// Totaux du PDF V2 (lib/pdf/devis-generator-v2.ts) : sous-total = somme des lignes imprimées (document
+// remisé : HT brut du calcul commun), remise déduite, TVA de la ventilation reçue. `imprime` : somme des
+// lignes réellement imprimées, qui doit retomber sur le sous-total.
 const totauxPdf = (entree: DevisGeneratorInput) => {
-  const brut = sumMoney(entree.lignes.map((l) => l.total))
+  const imprime = sumMoney(entree.lignes.map((l) => l.total))
   const remiseHT = entree.remiseGlobale?.montantHT || 0
-  const ht = remiseHT ? round2(brut - remiseHT) : brut
-  return { ht, ttc: round2(ht + (entree.tvaBreakdown ? sumMoney(entree.tvaBreakdown.map((t) => t.amount)) : 0)) }
+  const brut = remiseHT && entree.remiseGlobale?.totalBrutHT !== undefined ? entree.remiseGlobale.totalBrutHT : imprime
+  const ht = remiseHT ? (entree.remiseGlobale?.totalHT ?? round2(brut - remiseHT)) : brut
+  return { imprime, brut, ht, ttc: round2(ht + (entree.tvaBreakdown ? sumMoney(entree.tvaBreakdown.map((t) => t.amount)) : 0)) }
 }
 // Montant du cadre « TOTAL TTC » / « TOTAL NET » imprimé dans le PDF (texte non compressé par jsPDF).
 const montantFinalImprime = (octets: ArrayBuffer): string | undefined => {
@@ -189,6 +191,7 @@ describe('formulaire, PDF, liste et base trouvent les mêmes montants (5 000 doc
       // Liste, messagerie et base : totauxDocumentComplet.
       const base = totauxDocumentComplet(doc)
       expect(base.totalHT, `HT doc ${n}`).toBe(htFormulaire)
+      expect(pdf.imprime, `lignes imprimées doc ${n}`).toBe(pdf.brut)
       expect(pdf.ht, `HT PDF doc ${n}`).toBe(htFormulaire)
       expect(base.totalTVA, `TVA doc ${n}`).toBe(tvaFormulaire)
       expect(base.totalTTC, `TTC doc ${n}`).toBe(ttcFormulaire)

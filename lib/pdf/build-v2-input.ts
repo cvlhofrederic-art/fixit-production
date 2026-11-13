@@ -164,7 +164,8 @@ export function buildV2Input(
     ...validCustomLines.map(l => l.totalHT || 0),
   ])
   // Remise commerciale globale : même périmètre que le formulaire, la liste et la synchro, soit toutes
-  // les lignes chiffrées, même sans désignation (elles ne sont pas imprimées mais comptent dans la TVA).
+  // les lignes chiffrées, même sans désignation (elles comptent dans la TVA ; seul un document au rendu
+  // complet les imprime, cf. `imprimee`).
   // Sans remise, ce calcul n'est pas utilisé : documents sans remise inchangés.
   const remise = appliquerRemiseGlobale([
     ...[...lines, ...(materialLines || []), ...(customTables || []).flatMap(t => t.lines || [])]
