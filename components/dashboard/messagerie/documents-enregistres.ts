@@ -22,6 +22,8 @@ export interface DocumentEnregistre {
   regime_tva?: TvaRegime
   autoliquidationBTP?: boolean
   tvaEnabled?: boolean
+  /** Remise globale (lib/remise-commerciale.ts). */
+  remiseGlobale?: unknown
 }
 
 export interface PreRemplissageDocument {
@@ -35,7 +37,7 @@ export interface PreRemplissageDocument {
 
 const STATUTS_ANNULES = new Set(['cancelled', 'annule'])
 
-type LigneTva = { totalHT?: unknown; tvaRate?: unknown }
+type LigneTva = { totalHT?: unknown; tvaRate?: unknown; horsRemise?: unknown }
 
 const estObjet = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object'
 
@@ -64,7 +66,10 @@ export function montantTtcDocumentEnregistre(doc: DocumentEnregistre, orgRole?: 
       .map(l => ({
         totalHT: Number(l.totalHT) || 0,
         tvaRate: typeof l.tvaRate === 'number' ? l.tvaRate : 20,
+        horsRemise: l.horsRemise === true,
       })),
+    // Remise globale (lib/remise-commerciale.ts) : absente → total inchangé.
+    remiseGlobale: doc.remiseGlobale,
   }).totalTTC
 }
 

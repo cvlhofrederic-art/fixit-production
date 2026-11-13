@@ -11,7 +11,8 @@ import { formatUnitForPdf, titleCaseAddress, getStatusLabel } from '@/lib/devis-
 import type { Locale } from '@/lib/i18n/config'
 import { getMentionLegale } from '@/lib/tva-calculator'
 import { computeFrTvaIntra } from '@/lib/tva-intra'
-import { computeAcomptesAmounts } from '@/lib/money'
+import { computeAcomptesAmounts, mulMoney } from '@/lib/money'
+import { aUneRemiseDeLigne, texteRemiseLigne } from '@/lib/remise-commerciale'
 import { formatPaymentDueDate as sharedFormatPaymentDueDate } from '@/lib/pdf/payment-due'
 import { DELAI_REVOCATION_TELECHARGEMENT_MS, ouvrirApercuOuTelecharger, telechargerParLien } from '@/lib/pdf/apercu-pdf'
 import {
@@ -171,8 +172,15 @@ export interface PdfV3Input {
   materialLinesEnabled?: boolean
   fraisLinesEnabled?: boolean
   customTables?: { id: string; name: string; category?: 'labor' | 'material' | 'frais'; lines: ProductLine[] }[]
+  /** HT net (remise globale déduite) : base de la TVA et du TOTAL. */
   subtotalHT: number
   totalTTC: number
+  /**
+   * Remise commerciale sur le total (lib/remise-commerciale.ts) : HT avant remise, montant et
+   * libellé (« Remise commerciale (5 %) »). Absente : bloc des totaux inchangé.
+   */
+  totalHTBrut?: number
+  remiseGlobale?: { montantHT: number; libelle: string; base?: number }
   // Ventilation TVA pré-calculée par le form (single source of truth) — élimine
   // le drift form ↔ PDF. Fallback sur recompute si non fourni (legacy).
   tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
@@ -385,6 +393,7 @@ export async function generateDevisPdfV3(
     companyAPE,
     paymentMode, paymentDue, paymentCondition, discount, penaltyRate, recoveryFee, iban, bic,
     lines, laborLines, materialLines, fraisLines, subtotalHT, totalTTC, tvaBreakdown: tvaBreakdownInput, autoliquidationBTP, regimeTva,
+    totalHTBrut, remiseGlobale,
     linesName, materialLinesName, fraisLinesName, materialLinesEnabled, fraisLinesEnabled, customTables,
     acomptesEnabled, acomptes,
     notes, sourceDevisRef,
@@ -891,9 +900,19 @@ export async function generateDevisPdfV3(
   // colonne masquée — la mention textuelle « TVA non applicable, art. 293 B »
   // suffit (BOFiP BOI-TVA-DECLA-30-20 §50).
   const priceLabel = tvaEnabled ? t('devis.ht') : t('devis.ttc')
+  // Colonne Remise : seulement si une ligne affichée porte une remise (lib/remise-commerciale.ts) ;
+  // sinon tableau d'origine (documents sans remise rendus à l'identique).
+  const showRemiseColumn = aUneRemiseDeLigne([
+    ...(lines || []), ...(laborLines || []),
+    ...(materialLinesEnabled === false ? [] : (materialLines || [])),
+    ...(fraisLinesEnabled === false ? [] : (fraisLines || [])),
+    ...(customTables || []).flatMap(tb => tb.lines || []),
+  ].filter(l => l && (l.description || '').trim()))
+  const libelleColonneRemise = locale === 'pt' ? 'Desconto' : 'Remise'
+  const remiseHead = showRemiseColumn ? [libelleColonneRemise] : []
   const tableHead = showTvaColumn
-    ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
-    : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, `${t('devis.total')} ${priceLabel}`]]
+    ? [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, ...remiseHead, `${localeFormats.taxLabel} %`, `${t('devis.total')} ${priceLabel}`]]
+    : [[t('devis.designation'), t('devis.qty'), t('devis.unit'), `${t('devis.unitPrice')} ${priceLabel}`, ...remiseHead, `${t('devis.total')} ${priceLabel}`]]
 
   // ═══ Méthode 100% pro 2026 : étapes en sub-rows distincts ═══
   // Pattern Codial / Mediabat / Onaya (BTP français premium) : au lieu d'agréger
@@ -908,7 +927,7 @@ export async function generateDevisPdfV3(
   // vide en bas de page. rowPageBreak:'avoid' continue à protéger chaque sub-row
   // individuelle (étape jamais coupée au milieu de son texte).
   type RowKind = 'parent' | 'desc' | 'etape'
-  const colCount = showTvaColumn ? 6 : 5
+  const colCount = (showTvaColumn ? 6 : 5) + (showRemiseColumn ? 1 : 0)
   const emptyCols = (text: string): string[] => {
     const r = Array(colCount).fill('')
     r[0] = text
@@ -939,6 +958,8 @@ export async function generateDevisPdfV3(
 
       // 1. Row parent (motif + colonnes prix complètes)
       const parentRow: any[] = [title, String(l.qty), unitStr, localeFormats.currencyFormat(l.priceHT)]
+      // Remise de la ligne (« -10 % », « -150,00 € ») : le total de la ligne est déjà net.
+      if (showRemiseColumn) parentRow.push(texteRemiseLigne(l.remise, localeFormats.currencyFormat, mulMoney(l.qty || 0, l.priceHT || 0)))
       // Autoliquidation : TVA forcée à 0 % sur toutes les lignes (le donneur
       // d'ordre l'autoliquide). Le tvaRate state-side peut rester à 20/10 si
       // l'artisan a basculé en autoliq après saisie — on n'affiche jamais sa
@@ -986,7 +1007,8 @@ export async function generateDevisPdfV3(
   // beaucoup plus petite (juste le motif sur 1-2 lignes) → moins d'espace requis →
   // plus de chance de remplir la fin de page courante avec au moins le début de la
   // nouvelle section.
-  const descColW = contentW * 0.35 - 6 // largeur utile colonne Désignation
+  const partDesignation = showRemiseColumn ? 0.30 : 0.35
+  const descColW = contentW * partDesignation - 6 // largeur utile colonne Désignation
   const measureRowHeight = (l: ProductLine): number => {
     const cleanDesc = sanitizeForHelvetica(l.description.replace(/\s*\[[^\]]*\]/g, '').trim())
     const title = cleanDesc.split('\n')[0]
@@ -996,30 +1018,37 @@ export async function generateDevisPdfV3(
     return Math.max(minBody, dims.h + 5)
   }
 
-  const colStyles: Record<number, { cellWidth: number; halign: string }> = {
-    0: { cellWidth: contentW * 0.35, halign: 'left' },
-    1: { cellWidth: contentW * 0.07, halign: 'center' },
-    2: { cellWidth: contentW * 0.08, halign: 'center' },
-    3: { cellWidth: contentW * 0.19, halign: 'center' },
-  }
-  if (showTvaColumn) {
-    colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
-    colStyles[5] = { cellWidth: contentW * 0.21, halign: 'right' }
+  const colStyles: Record<number, { cellWidth: number; halign: string }> = {}
+  const headColStyles: Record<number, { halign: string }> = {}
+  if (!showRemiseColumn) {
+    // Disposition d'origine (documents sans remise de ligne).
+    colStyles[0] = { cellWidth: contentW * 0.35, halign: 'left' }
+    colStyles[1] = { cellWidth: contentW * 0.07, halign: 'center' }
+    colStyles[2] = { cellWidth: contentW * 0.08, halign: 'center' }
+    colStyles[3] = { cellWidth: contentW * 0.19, halign: 'center' }
+    if (showTvaColumn) {
+      colStyles[4] = { cellWidth: contentW * 0.10, halign: 'center' }
+      colStyles[5] = { cellWidth: contentW * 0.21, halign: 'right' }
+    } else {
+      colStyles[4] = { cellWidth: contentW * 0.31, halign: 'right' }
+    }
   } else {
-    colStyles[4] = { cellWidth: contentW * 0.31, halign: 'right' }
+    // Colonne Remise après le prix unitaire : 14 % (24,4 mm), corps en 8,5 pt (didParseCell) pour qu'une
+    // remise « -123 456,78 € » tienne sur une ligne (sinon autoTable la coupe à l'espace des milliers).
+    colStyles[0] = { cellWidth: contentW * 0.30, halign: 'left' }
+    colStyles[1] = { cellWidth: contentW * 0.07, halign: 'center' }
+    colStyles[2] = { cellWidth: contentW * 0.08, halign: 'center' }
+    colStyles[3] = { cellWidth: contentW * 0.15, halign: 'center' }
+    colStyles[4] = { cellWidth: contentW * 0.14, halign: 'center' }
+    if (showTvaColumn) {
+      colStyles[5] = { cellWidth: contentW * 0.09, halign: 'center' }
+      colStyles[6] = { cellWidth: contentW * 0.17, halign: 'right' }
+    } else {
+      colStyles[5] = { cellWidth: contentW * 0.26, halign: 'right' }
+    }
   }
-
-  const headColStyles: Record<number, { halign: string }> = {
-    0: { halign: 'left' },
-    1: { halign: 'center' },
-    2: { halign: 'center' },
-    3: { halign: 'center' },
-  }
-  if (showTvaColumn) {
-    headColStyles[4] = { halign: 'center' }
-    headColStyles[5] = { halign: 'right' }
-  } else {
-    headColStyles[4] = { halign: 'right' }
+  for (const [index, style] of Object.entries(colStyles)) {
+    headColStyles[Number(index)] = { halign: Number(index) === 0 ? 'left' : style.halign }
   }
 
   const renderTable = (
@@ -1090,7 +1119,7 @@ export async function generateDevisPdfV3(
           data.cell.styles.halign = headColStyles[data.column.index].halign
         }
         if (data.section === 'body') {
-          const lastCol = showTvaColumn ? 5 : 4
+          const lastCol = colCount - 1
           const kind: RowKind | undefined = rowKinds?.[data.row.index]
           // Style des sub-rows (description et étapes) : police plus petite,
           // padding compact, indentation à gauche pour bien distinguer la
@@ -1117,6 +1146,10 @@ export async function generateDevisPdfV3(
             // Total HT en gras (dernière colonne) — uniquement sur les rows parent
             if (data.column.index === lastCol) {
               data.cell.styles.fontStyle = 'bold'
+            }
+            // Colonne Remise : 8,5 pt pour tenir sur une ligne (voir colStyles).
+            if (showRemiseColumn && data.column.index === 4) {
+              data.cell.styles.fontSize = 8.5
             }
           }
         }
@@ -1217,8 +1250,21 @@ export async function generateDevisPdfV3(
     : new Set<number>()
   const stH = ptToMm(27)
   const totH = ptToMm(27)
+  // Remise commerciale globale : « Remise commerciale (5 %) » puis « Total HT net ».
+  const avecRemiseGlobale = !!remiseGlobale && remiseGlobale.montantHT !== 0
+  // Base de la remise différente du sous-total (facture de solde : acomptes déduits) : on l'indique.
+  let mentionBaseRemise = ''
+  if (avecRemiseGlobale && remiseGlobale?.base !== undefined && remiseGlobale.base !== (totalHTBrut ?? subtotalHT)) {
+    // Valeur absolue : sur l'avoir d'une facture de solde, la base est négative.
+    const base = localeFormats.currencyFormat(Math.abs(remiseGlobale.base))
+    mentionBaseRemise = locale === 'pt'
+      ? `sobre ${base} de trabalhos, antes dos adiantamentos`
+      : `sur ${base} de travaux, avant acomptes déduits`
+  }
   const totalsBlockH =
     stH +                                // Sous-total HT
+    (avecRemiseGlobale ? 12 : 0) +       // Remise commerciale + Total HT net
+    (mentionBaseRemise ? 4 : 0) +        // Base de la remise (facture de solde)
     tvaRatesPreview.size * 6 +           // 1 ligne par taux TVA (>0%)
     (discount ? 6 : 0) +                 // Remise (si présente)
     4 +                                  // Gap entre sous-total et TOTAL
@@ -1242,9 +1288,46 @@ export async function generateDevisPdfV3(
   const stLabel = showTva ? (locale === 'pt' ? 'Subtotal s/IVA' : 'Sous-total HT') : (locale === 'pt' ? 'Subtotal' : 'Sous-total')
   pdf.text(stLabel, xRight - 60, y + stH / 2 + 1)
   pdf.setFontSize(10); pdf.setFont('helvetica', 'bold'); pdf.setTextColor(COLOR_TEXT)
-  pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
+  // Document remisé : la barre porte le HT avant remise, le HT net suit la ligne de remise.
+  const sousTotalAffiche = avecRemiseGlobale ? (totalHTBrut ?? subtotalHT) : subtotalHT
+  pdf.text(localeFormats.currencyFormat(sousTotalAffiche), xRight - boxPadX, y + stH / 2 + 1, { align: 'right' })
 
   y += stH
+
+  if (avecRemiseGlobale && remiseGlobale) {
+    // Libellés 15 mm plus à gauche que les lignes TVA : « Remise commerciale (x %) » est trop long
+    // pour tenir avant un montant à cinq chiffres.
+    const xLibelleRemise = xRight - 75
+    pdf.setFillColor(COLOR_WHITE)
+    pdf.rect(mL + contentW / 2, y, contentW / 2, 12, 'F')
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(COLOR_TEXT)
+    pdf.text(sanitizeForHelvetica(remiseGlobale.libelle), xLibelleRemise, y + 4)
+    pdf.text(localeFormats.currencyFormat(-remiseGlobale.montantHT), xRight - boxPadX, y + 4, { align: 'right' })
+    y += 6
+    // Facture de solde : la remise porte sur les travaux, les acomptes déduits viennent après.
+    if (mentionBaseRemise) {
+      pdf.setFillColor(COLOR_WHITE)
+      pdf.rect(mL + contentW / 2, y, contentW / 2, 4, 'F')
+      pdf.setTextColor(COLOR_TEXT_LIGHT)
+      // Police réduite au besoin pour tenir entre le libellé et la marge droite.
+      const texteBase = sanitizeForHelvetica(mentionBaseRemise)
+      let taille = 7.5
+      pdf.setFontSize(taille)
+      while (taille > 5.5 && pdf.getTextWidth(texteBase) > xRight - xLibelleRemise) {
+        taille -= 0.5
+        pdf.setFontSize(taille)
+      }
+      pdf.text(texteBase, xLibelleRemise, y + 2.5)
+      pdf.setFontSize(9); pdf.setTextColor(COLOR_TEXT)
+      y += 4
+    }
+    pdf.setFont('helvetica', 'bold')
+    const libellesNet = locale === 'pt' ? { ht: 'Total s/IVA líquido', net: 'Total líquido' } : { ht: 'Total HT net', net: 'Total net' }
+    const netLabel = showTva ? libellesNet.ht : libellesNet.net
+    pdf.text(netLabel, xLibelleRemise, y + 4)
+    pdf.text(localeFormats.currencyFormat(subtotalHT), xRight - boxPadX, y + 4, { align: 'right' })
+    y += 6
+  }
 
   // Détail TVA par taux — single source of truth : on utilise tvaBreakdown
   // calculé par le form (avec arrondi BOFiP par taux après agrégation des
@@ -2151,6 +2234,9 @@ export async function generateDevisPdfV3(
     && tvaEnabled
     && effectiveRegime === 'classique'  // CII reverse-charge mapping non implémenté V1 — skip XML en autoliquidation
     && clientType === 'professionnel'
+    // Remise commerciale : remises EN 16931 (pied et lignes) pas encore écrites dans le XML — plutôt
+    // un PDF simple qu'une facture électronique aux montants faux.
+    && !avecRemiseGlobale && !showRemiseColumn
 
   let outputBytes: Uint8Array | null = null
   if (shouldEmbedFacturX) {

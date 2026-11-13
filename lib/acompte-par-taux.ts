@@ -13,7 +13,8 @@
 
 import { buildAcomptePrefill, type AcompteParams } from '@/lib/acompte-prefill'
 import { buildDocumentLines } from '@/lib/devis-totals'
-import { mulMoney, toCents } from '@/lib/money'
+import { toCents } from '@/lib/money'
+import { appliquerRemiseGlobale, lireRemise, montantNetLigne, type LigneRemisable } from '@/lib/remise-commerciale'
 import { getMentionLegale, type TvaLocale, type TvaRegime } from '@/lib/tva-calculator'
 
 type DocumentLike = Record<string, unknown>
@@ -77,7 +78,8 @@ const nombreFini = (valeur: unknown): valeur is number => typeof valeur === 'num
  * sans relecture doivent porter le montant que l'utilisateur a vu sur son devis.
  */
 export function recalculerTotauxLignes<T extends DocumentLike>(doc: T): T {
-  return transformerLignes(doc, (l) => (nombreFini(l.qty) && nombreFini(l.priceHT) ? { ...l, totalHT: mulMoney(l.qty, l.priceHT) } : l))
+  // Remise de ligne déduite (lib/remise-commerciale.ts) ; sans remise : quantité × prix, inchangé.
+  return transformerLignes(doc, (l) => (nombreFini(l.qty) && nombreFini(l.priceHT) ? { ...l, totalHT: montantNetLigne(l.qty, l.priceHT, l.remise) } : l))
 }
 
 /**
@@ -112,11 +114,19 @@ export function basesHtParTaux(doc: DocumentLike): BaseParTaux[] {
   const classique = regimeTvaEffectif(doc) === 'classique'
   const source = doc.docType === 'devis' ? recalculerTotauxLignes(doc) : doc
   const parTaux = new Map<number, number>()
+  const lignes: LigneRemisable[] = []
   for (const ligne of buildDocumentLines(source as Parameters<typeof buildDocumentLines>[0])) {
     const ht = ligne.totalHT ?? ligne.total_ht ?? ligne.total ?? 0
     const tauxBrut = Number(ligne.tvaRate ?? ligne.tva_rate ?? 0)
     const taux = classique && Number.isFinite(tauxBrut) && tauxBrut > 0 ? tauxBrut : 0
     parTaux.set(taux, (parTaux.get(taux) || 0) + toCents(Number(ht)))
+    lignes.push({ totalHT: Number(ht) || 0, tvaRate: taux, horsRemise: ligne.horsRemise === true })
+  }
+  // Remise globale : bases par taux après répartition de la remise (l'acompte et la facture de
+  // solde portent sur le montant remisé). Sans remise : bases inchangées.
+  if (lireRemise(doc.remiseGlobale)) {
+    const { bases } = appliquerRemiseGlobale(lignes, doc.remiseGlobale)
+    return ordonnerBases(new Map(bases.map((b) => [b.taux, toCents(b.base)])))
   }
   return ordonnerBases(parTaux)
 }
@@ -325,6 +335,9 @@ export function buildAcompteParTauxPrefill(
     linesName: locale === 'pt' ? 'Adiantamento' : 'Acompte',
     // Une remise héritée serait déduite en entier du total de l'acompte par le PDF.
     discount: '',
+    // Les lignes par taux portent déjà les bases remisées du parent : la remise globale ne
+    // doit pas s'appliquer une seconde fois sur l'acompte.
+    remiseGlobale: undefined,
     regimeTva: regime,
     docTitle,
     notes: mention ? `${notes} ${mention}` : notes,

@@ -10,7 +10,12 @@
 
 import type { DevisGeneratorInput } from './devis-generator-v2'
 import type { ProductLine, DevisAcompte, FraisAnnexeItem, CustomTable } from '@/lib/devis-types'
-import { sumMoney, computeAcomptesAmounts } from '@/lib/money'
+import { sumMoney, computeAcomptesAmounts, mulMoney } from '@/lib/money'
+import { appliquerRemiseGlobale, libelleRemiseGlobale, texteRemiseLigne } from '@/lib/remise-commerciale'
+
+/** Même rendu que formatPrice du PDF V2 (« 1 234,56 € », espaces simples lisibles en Helvetica). */
+const eurosPdf = (n: number): string =>
+  `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\s/g, ' ')} €`
 
 export interface BuildV2InputParams {
   // Artisan
@@ -81,6 +86,14 @@ export interface BuildV2InputParams {
   // l'utilisera pour afficher le détail TVA multi-taux quand auto-entrepreneur
   // bascule en TVA après dépassement du seuil 293 B.
   tvaBreakdown?: Array<{ rate: number; base: number; amount: number }>
+  /**
+   * Remise commerciale du document (`remiseGlobale` : en %, ou en € HT). Son montant est calculé
+   * ici sur toutes les lignes (prestations, matériaux, frais annexes, tables), comme le
+   * formulaire ; `tvaBreakdown` doit alors porter les bases remisées.
+   */
+  remiseGlobale?: unknown
+  /** Escompte pour paiement anticipé à imprimer (documents enregistrés depuis la correction). */
+  escompte?: string | null
 
   // Acomptes
   acomptesEnabled: boolean
@@ -110,6 +123,7 @@ export function buildV2Input(
     factureSubType, situationNumber, situationAvancement,
     acompteOrdre, acompteTotal, acomptePourcentage, parentInvoiceNumber, avoirMotif,
     lines, materialLines, fraisAnnexes, customTables, tvaBreakdown,
+    remiseGlobale, escompte,
     acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     isHorsEtablissement,
   } = params
@@ -132,11 +146,22 @@ export function buildV2Input(
     ...validFrais.map(f => f.total_ht || 0),
     ...validCustomLines.map(l => l.totalHT || 0),
   ])
+  // Remise commerciale globale : même périmètre que le formulaire, la liste et la synchro, soit toutes
+  // les lignes chiffrées, même sans désignation (elles ne sont pas imprimées mais comptent dans la TVA).
+  // Sans remise, ce calcul n'est pas utilisé : documents sans remise inchangés.
+  const remise = appliquerRemiseGlobale([
+    ...[...lines, ...(materialLines || []), ...(customTables || []).flatMap(t => t.lines || [])]
+      .filter(Boolean)
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    ...(fraisAnnexes || []).filter(Boolean).map(f => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
+  ], remiseGlobale)
   // Acomptes répartis avec le dernier qui rattrape le résidu d'arrondi
   // (convention comptable Henrri/EBP/Sage). Évite que la somme des acomptes
-  // diffère du TOTAL TTC à 1-2 cents près.
+  // diffère du TOTAL TTC à 1-2 cents près. Document remisé : sur le net remisé.
+  // Document remisé : HT net du calcul commun (centimes ligne par ligne), comme le formulaire et la base.
+  const totalAcomptes = remise.remiseHT ? remise.totalHT : totalNet
   const acomptesAmounts = acomptesEnabled
-    ? computeAcomptesAmounts(totalNet, acomptes)
+    ? computeAcomptesAmounts(totalAcomptes, acomptes)
     : []
 
   return {
@@ -205,6 +230,7 @@ export function buildV2Input(
         unite: l.unit || 'u',
         prix_unitaire: l.priceHT,
         total: l.totalHT,
+        remise: texteRemiseLigne(l.remise, eurosPdf, mulMoney(l.qty || 0, l.priceHT || 0)) || undefined,
         section: validCustomTables.length > 0 ? 'labor' : null,
         etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
           ordre: e.ordre,
@@ -221,6 +247,7 @@ export function buildV2Input(
         unite: l.unit || 'u',
         prix_unitaire: l.priceHT,
         total: l.totalHT,
+        remise: texteRemiseLigne(l.remise, eurosPdf, mulMoney(l.qty || 0, l.priceHT || 0)) || undefined,
         section: `custom_${tbl.id}`,
         etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
           ordre: e.ordre,
@@ -245,5 +272,12 @@ export function buildV2Input(
     mediateur_url: mediatorUrl || undefined,
     isHorsEtablissement,
     tvaBreakdown: tvaBreakdown && tvaBreakdown.length > 0 ? tvaBreakdown : undefined,
+    // Absents sans remise ni escompte saisi : PDF identique à celui d'avant.
+    // HT brut et net du calcul commun (centimes ligne par ligne, toutes les lignes du document) : le
+    // PDF les reprend tels quels, comme le formulaire, la liste et la synchro.
+    ...(remise.remiseHT !== 0
+      ? { remiseGlobale: { montantHT: remise.remiseHT, libelle: libelleRemiseGlobale(remiseGlobale), totalBrutHT: remise.totalBrutHT, totalHT: remise.totalHT } }
+      : {}),
+    ...(escompte && escompte.trim() ? { escompte: escompte.trim() } : {}),
   }
 }
