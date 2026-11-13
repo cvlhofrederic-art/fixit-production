@@ -35,6 +35,8 @@ export const MIGRATIONS_SIGNALEMENTS_QR = [
   '20261111_signalements_qr_gestionnaires.sql',
   '20261112_signalements_qr_acces_gestionnaires.sql',
   '20261113_signalements_qr_diffusion.sql',
+  // Logo d'un cabinet client (13/11/2026) : indépendante de la 20261113, jouable avant ou après elle.
+  '20261114_signalements_qr_logo_cabinet.sql',
 ] as const
 
 const DOSSIER_MIGRATIONS = join(process.cwd(), 'supabase/migrations')
@@ -74,6 +76,11 @@ export class ErreurMigrationQr extends Error {
 export interface OptionsBaseQr {
   /** Nombre de passes de la chaîne entière (2 = rejouabilité). */
   passes?: number
+  /**
+   * Chaîne jouée à chaque passe, dans cet ordre (défaut : MIGRATIONS_SIGNALEMENTS_QR) : par exemple sans la 20261113, ou
+   * la 20261114 avant elle (ordres d'application possibles en production).
+   */
+  migrations?: readonly string[]
   /** Appelé entre la première passe et la suivante (empreinte du schéma, par exemple). */
   apresPremierePasse?: (db: PGlite) => Promise<void>
 }
@@ -81,7 +88,7 @@ export interface OptionsBaseQr {
 /** Base PGlite neuve : échafaudage, puis la chaîne des migrations, `passes` fois de suite. */
 export async function creerBaseSignalementsQr(options: OptionsBaseQr = {}): Promise<PGlite> {
   const passes = options.passes ?? 1
-  const migrations = MIGRATIONS_SIGNALEMENTS_QR.map((fichier) => ({ fichier, sql: lireMigrationQr(fichier) }))
+  const migrations = (options.migrations ?? MIGRATIONS_SIGNALEMENTS_QR).map((fichier) => ({ fichier, sql: lireMigrationQr(fichier) }))
   const db = await PGlite.create()
   try {
     await db.exec(ECHAFAUDAGE_SUPABASE_SQL)

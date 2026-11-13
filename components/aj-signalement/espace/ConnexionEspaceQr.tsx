@@ -24,6 +24,8 @@
 //   décision d'accès : seul un gestionnaire de CE cabinet y entre, le super admin va dans son espace global, tout autre
 //   compte reçoit le même message neutre. Sur la page globale, un gestionnaire est envoyé vers l'espace de SON cabinet.
 // Styles de l'espace (PagePleineQr, Champ, CLASSES_SAISIE, Bouton, Encadre) : aucun nouveau système visuel.
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : quand le contexte en porte un, il prend
+// la place de l'icône dorée en haut de la carte blanche ; sans logo, la carte est celle d'avant.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
@@ -32,6 +34,7 @@ import { supabase } from '@/lib/supabase'
 import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 import { Bouton, CLASSES_SAISIE, Champ, Encadre, Icone } from '@/components/coproprietaire-dashboard/ui'
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
+import ImageLogoCabinetQr, { BOITE_LOGO_CARTE_QR } from '@/components/aj-signalement/ImageLogoCabinetQr'
 import MotDePasseOublieQr, { CLASSES_LIEN_CONNEXION_QR } from '@/components/aj-signalement/espace/MotDePasseOublieQr'
 import { langueDeLaPage } from '@/components/aj-signalement/espace/useAccesEspaceQr'
 import { TEXTES_ESPACE_QR, destinationConnexionEspaceQr } from '@/lib/aj-signalement/acces-espace'
@@ -181,9 +184,13 @@ export default function ConnexionEspaceQr({ contexte }: Readonly<PropsConnexionE
 
   return (
     <PagePleineQr>
-      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-[#C9A84C] to-[#A8842A] text-[#0D1B2E]">
-        <Icone nom="qr" taille={24} />
-      </div>
+      {contexte.logo ? (
+        <ImageLogoCabinetQr logo={contexte.logo} boite={BOITE_LOGO_CARTE_QR} className="block max-w-full" />
+      ) : (
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gradient-to-br from-[#C9A84C] to-[#A8842A] text-[#0D1B2E]">
+          <Icone nom="qr" taille={24} />
+        </div>
+      )}
       <p className="mt-5 text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{contexte.nom}</p>
       <h1 className="font-serif text-2xl text-[#0D1B2E] md:text-3xl">{T.titre}</h1>
 

@@ -8,6 +8,8 @@
 // fait qu'une lecture sans effet (un antivirus qui ouvre le lien ne confirme rien) ; « C'est moi » confirme ;
 // « Ce n'est pas moi » demande une confirmation, puis conteste (la fiche est figée, le cabinet prévenu). Page publique,
 // en français, au socle visuel de l'espace ; aucune ressource tierce.
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé en haut de
+// la carte, au-dessus du titre, dès l'ouverture ; sans logo, la carte est celle d'avant.
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -15,6 +17,8 @@ import { remplir } from '@/lib/coproprietaire/textes'
 import { Bouton, Encadre } from '@/components/coproprietaire-dashboard/ui'
 import { confirmerAdresseQr, contesterAdresseQr, lireLienConfirmationQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import { TEXTES_CONFIRMATION_QR as C } from '@/lib/aj-signalement/affichage-gestion'
+import type { LogoPageQr } from '@/lib/aj-signalement/logo'
+import ImageLogoCabinetQr, { BOITE_LOGO_CARTE_QR } from '@/components/aj-signalement/ImageLogoCabinetQr'
 
 /** Jeton signé du lien (lib/equipe) : 48 hexadécimaux, un point, 64 hexadécimaux. */
 const FORMAT_JETON_LIEN_QR = /^[a-f0-9]{48}\.[a-f0-9]{64}$/
@@ -44,7 +48,13 @@ function jetonDeLAncre(): string | null {
   return FORMAT_JETON_LIEN_QR.test(brut) ? brut : null
 }
 
-export default function ConfirmationAdresseQr({ identifiant }: Readonly<{ identifiant: string }>) {
+export interface PropsConfirmationAdresseQr {
+  identifiant: string
+  /** Logo du cabinet du chemin ; absent ou null : aucun logo (carte d'avant). */
+  logo?: LogoPageQr | null
+}
+
+export default function ConfirmationAdresseQr({ identifiant, logo = null }: Readonly<PropsConfirmationAdresseQr>) {
   // undefined : ancre pas encore lue. Le rendu du serveur (l'ancre ne lui parvient jamais) et la première passe du
   // navigateur (hydratation) montrent donc le même « Vérification du lien… », jamais « Ce lien n'est pas valable »
   // (relecture 5 et 6 : plus d'erreur d'hydratation). null : ancre absente ou hors format.
@@ -113,6 +123,7 @@ export default function ConfirmationAdresseQr({ identifiant }: Readonly<{ identi
   return (
     <div className="flex min-h-[70vh] items-center justify-center bg-[#F7F4EE] px-4 py-10" lang="fr">
       <div className="w-full max-w-lg rounded-2xl border border-[#E4DDD0] bg-white p-6 shadow-sm md:p-8">
+        {logo && <ImageLogoCabinetQr logo={logo} boite={BOITE_LOGO_CARTE_QR} className="mb-5 block max-w-full" />}
         <h1 className="font-serif text-2xl text-[#0D1B2E]">{C.titre}</h1>
         <div className="mt-5 space-y-4">
           {etat.statut === 'lecture' && <p role="status" className="text-base text-[#4A5E78]">{C.verification}</p>}

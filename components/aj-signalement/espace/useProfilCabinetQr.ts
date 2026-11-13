@@ -13,10 +13,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { chargerMoiQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import { messageErreurGestionnaireQr } from '@/lib/aj-signalement/affichage-gestionnaire'
+import type { LogoCabinetQr } from '@/lib/aj-signalement/types'
 
 export interface ProfilCabinetQr {
   nom: string | null
-  cabinet: { identifiant: string; nom: string; domaines: string[] }
+  /** logo (13/11/2026) : métadonnées du logo de son cabinet, absentes s'il n'en a pas. */
+  cabinet: { identifiant: string; nom: string; domaines: string[]; logo?: LogoCabinetQr }
 }
 
 export type EtatProfilCabinetQr =

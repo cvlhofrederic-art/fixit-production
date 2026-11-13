@@ -15,6 +15,9 @@
 // la liste rechargée (onModifie) avant de fermer la fenêtre et d'annoncer leur succès, occupés jusque-là ; rechargement
 // en échec : le succès reste annoncé au-dessus de l'erreur de chargement. Les réglages de diffusion n'en ont pas besoin :
 // leur fenêtre affiche les réglages rendus par le serveur, que la liste des cabinets ne montre pas.
+// Logo du cabinet (demande de Hugo du 13/11/2026, BROUILLON pour Frédéric) : « Logo » sur chaque cabinet ouvre sa
+// fenêtre (LogoCabinetQr : logo actuel, nouveau fichier converti en PNG sur l'appareil, retrait) ; une ligne de la carte
+// dit s'il en a un.
 
 import { useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -22,6 +25,7 @@ import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, EtatVide, Modale 
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
 import ReglagesDiffusionCabinetQr from '@/components/aj-signalement/ReglagesDiffusionCabinetQr'
+import LogoCabinetQr from '@/components/aj-signalement/LogoCabinetQr'
 import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import { creerCabinetQr, modifierCabinetQr, rattacherCoproprietesQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import { TEXTES_GESTION_QR as G, analyserDomainesQr, apercuCheminCabinetQr } from '@/lib/aj-signalement/affichage-gestion'
@@ -47,7 +51,9 @@ export interface PropsCabinetsQr {
   onJournal: () => void
 }
 
-type Fenetre = { type: 'creation' } | { type: 'modification'; cabinet: CabinetQr } | { type: 'diffusion'; cabinet: CabinetQr } | null
+type Fenetre =
+  | { type: 'creation' } | { type: 'modification'; cabinet: CabinetQr } | { type: 'diffusion'; cabinet: CabinetQr }
+  | { type: 'logo'; cabinet: CabinetQr } | null
 
 export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, onReessayer, onJournal }: Readonly<PropsCabinetsQr>) {
   const [fenetre, setFenetre] = useState<Fenetre>(null)
@@ -93,6 +99,7 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
                   {c.identifiantFige && <Badge ton="gris">{G.cabinets.fige}</Badge>}
                   <Bouton variante="secondaire" petit icone="outil" onClick={() => ouvrir({ type: 'modification', cabinet: c })}>{G.cabinets.modifier}</Bouton>
                   <Bouton variante="secondaire" petit icone="annonces" onClick={() => ouvrir({ type: 'diffusion', cabinet: c })}>{TD.reglages.bouton}</Bouton>
+                  <Bouton variante="secondaire" petit onClick={() => ouvrir({ type: 'logo', cabinet: c })}>{G.cabinets.logo.bouton}</Bouton>
                 </>
               )}
             >
@@ -100,6 +107,7 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
                 <p>{remplir(G.cabinets.langueLigne, { langue: G.cabinets.langues[c.langue] ?? c.langue })}</p>
                 <p>{remplir(G.cabinets.domainesLigne, { domaines: c.domaines.length > 0 ? c.domaines.join(', ') : G.cabinets.aucunDomaine })}</p>
                 <p>{remplir(G.cabinets.compteurs, { copros: c.nbCoproprietes, gestionnaires: c.nbGestionnaires })}</p>
+                <p>{c.logo ? remplir(G.cabinets.logo.ligneAvec, { largeur: c.logo.largeur, hauteur: c.logo.hauteur }) : G.cabinets.logo.ligneSans}</p>
               </div>
             </Carte>
           ))}
@@ -122,7 +130,19 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
           <ReglagesDiffusionCabinetQr key={fenetre.cabinet.id} cabinet={fenetre.cabinet} onFermer={fermer} />
         </Modale>
       )}
-      {fenetre && fenetre.type !== 'diffusion' && (
+      {fenetre?.type === 'logo' && (
+        <Modale titre={remplir(G.cabinets.logo.titre, { cabinet: fenetre.cabinet.nom })} onFermer={fermer} labelFermer={G.fermer}>
+          <LogoCabinetQr
+            key={fenetre.cabinet.id} cabinet={fenetre.cabinet} onFermer={fermer}
+            onEnregistre={(message) => {
+              setFenetre(null)
+              setMessages([message])
+              onModifie()
+            }}
+          />
+        </Modale>
+      )}
+      {(fenetre?.type === 'creation' || fenetre?.type === 'modification') && (
         <Modale titre={fenetre.type === 'creation' ? G.cabinets.titreCreation : G.cabinets.titreModification} onFermer={fermer} labelFermer={G.fermer}>
           <FormulaireCabinetQr
             cabinet={fenetre.type === 'modification' ? fenetre.cabinet : null}

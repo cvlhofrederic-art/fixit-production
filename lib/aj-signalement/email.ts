@@ -19,10 +19,17 @@
 // /<identifiant>/suivi/#signalements, aucun jeton) au lieu de la phrase « Le cabinet suit ce signalement… ».
 // PR 3, lot 4 (diffusion aux déclarants) : message d'information sur l'immeuble AU NOM DU CABINET, avec ses en-têtes de
 // désinscription, et copie au cabinet (section « Diffusion aux déclarants », en fin de fichier).
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : dans l'ACCUSÉ DE RÉCEPTION seulement,
+// en pièce jointe EN LIGNE (cid, envoi unitaire sendEmail), dans une rangée blanche au-dessus du bandeau bleu nuit ;
+// jamais une image distante (aucun suivi d'ouverture possible). Les e-mails de signalement aux destinataires partent en
+// lot (sendBatchEmails), que Resend ne laisse porter aucune pièce jointe : ils restent SANS logo. Les messages de
+// diffusion et leur copie restent sans aucune image (garantie « pas de promotion », droit § 4.1).
 
 import { z } from 'zod'
 import { NOREPLY_EMAIL } from '@/lib/constants'
-import { sendBatchEmails, sendBatchEmailsDetaille, sendEmail, type EmailPayload, type EmailResult } from '@/lib/email'
+import {
+  sendBatchEmails, sendBatchEmailsDetaille, sendEmail, type EmailAttachment, type EmailPayload, type EmailResult,
+} from '@/lib/email'
 import { logger } from '@/lib/logger'
 import { MODELES_DIFFUSION_QR, type ModeleDiffusionQr } from '@/lib/aj-signalement/affichage-diffusion'
 import {
@@ -31,9 +38,10 @@ import {
 import { nettoyerLigneDiffusionQr } from '@/lib/aj-signalement/diffusion-texte'
 import type { PorteeDiffusionQr } from '@/lib/aj-signalement/diffusion-valeurs'
 import {
-  CHEMIN_TABLEAU_QR, numeroSignalementQr, type BilanEnvoiQr, type DestinataireQr, type LangueSignalementQr, type PrioriteSignalementQr,
-  type QualiteDeclarantQr, type SignalementQr, type TypeDestinataireQr,
+  CHEMIN_TABLEAU_QR, numeroSignalementQr, type BilanEnvoiQr, type DestinataireQr, type LangueSignalementQr, type LogoEmailCabinetQr,
+  type PrioriteSignalementQr, type QualiteDeclarantQr, type SignalementQr, type TypeDestinataireQr,
 } from '@/lib/aj-signalement/types'
+import { base64DepuisOctetsQr, dimensionsLogoQr, type BoiteLogoQr } from '@/lib/aj-signalement/logo'
 import {
   LIBELLE_PRIORITE_QR, TEXTES_TABLEAU_QR, dateHeureParis, libelleQualiteQr, lieuSignalementQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
@@ -141,16 +149,20 @@ function blocDescription(libelle: string, descriptionHtml: string): string {
 
 /**
  * Cadre commun des e-mails : bandeau (« AJ SIGNALEMENT » par défaut ; nom du cabinet pour une diffusion, PR 3) et
- * titre, contenu, pied de page. Contenus déjà échappés.
+ * titre, contenu, pied de page. Contenus déjà échappés. `logoHtml` (accusé de réception seulement, 13/11/2026) : rangée
+ * blanche du logo du cabinet, au-dessus du bandeau ; absente, le HTML est octet pour octet celui d'avant.
  */
-function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corpsHtml: string; piedHtml: string; bandeauHtml?: string }): string {
+function cadreEmailQr(p: {
+  langue: LangueSignalementQr; titreHtml: string; corpsHtml: string; piedHtml: string; bandeauHtml?: string; logoHtml?: string
+}): string {
   return `<!DOCTYPE html>
 <html lang="${p.langue}">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#F7F4EE;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F7F4EE;padding:32px 16px;">
     <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">${p.logoHtml ? `
+        ${p.logoHtml}` : ''}
         <tr><td style="background:#0D1B2E;padding:24px 32px;">
           <span style="color:#C9A84C;font-size:13px;font-weight:700;letter-spacing:1.5px;">${p.bandeauHtml ?? 'AJ SIGNALEMENT'}</span><br/>
           <span style="color:#FFFFFF;font-size:22px;font-weight:700;">${p.titreHtml}</span>
@@ -166,6 +178,28 @@ function cadreEmailQr(p: { langue: LangueSignalementQr; titreHtml: string; corps
   </table>
 </body>
 </html>`
+}
+
+// ── Logo du cabinet dans l'accusé de réception (pièce jointe en ligne) ───────
+
+/** Identifiant de la pièce jointe en ligne du logo, appelé dans le HTML par « cid: » (aucune donnée personnelle). */
+export const CID_LOGO_CABINET_QR = 'logo-cabinet'
+/** Cadre du logo dans l'e-mail (pixels CSS) : carte de 600 px, rangée blanche au-dessus du bandeau. */
+export const BOITE_LOGO_EMAIL_QR: BoiteLogoQr = { largeur: 240, hauteur: 64 }
+
+/**
+ * Rangée du logo : fond blanc (un logo sombre serait illisible sur le bandeau bleu nuit), image appelée par cid (jamais
+ * une adresse distante), texte alternatif = nom du cabinet (échappé), dimensions en attributs ET en style (Outlook
+ * ignore max-height ; proportions gardées, jamais agrandie).
+ */
+function rangeeLogoEmailQr(logo: LogoEmailCabinetQr): string {
+  const { largeur, hauteur } = dimensionsLogoQr(logo.largeur, logo.hauteur, BOITE_LOGO_EMAIL_QR)
+  return `<tr><td style="background:#FFFFFF;padding:24px 32px 20px;"><img src="cid:${CID_LOGO_CABINET_QR}" alt="${echapperHtml(logo.nom)}" width="${largeur}" height="${hauteur}" style="display:block;border:0;outline:none;text-decoration:none;width:${largeur}px;height:${hauteur}px;"></td></tr>`
+}
+
+/** Pièce jointe en ligne du logo (envoi unitaire seulement : le lot de Resend refuse les pièces jointes). */
+export function pieceJointeLogoQr(logo: LogoEmailCabinetQr): EmailAttachment {
+  return { filename: 'logo.png', content: base64DepuisOctetsQr(logo.png), contentType: 'image/png', contentId: CID_LOGO_CABINET_QR }
 }
 
 // ── Envoi par lot, un message par destinataire ───────────────────────────────
@@ -556,6 +590,11 @@ export interface ParametresConfirmationQr {
   annoncerDiffusion?: boolean
   /** PR 3, lot 7 : politique du cabinet ; présente et bien formée : la ligne d'information et son lien (seul lien). */
   politique?: PolitiqueCabinetQr | null
+  /**
+   * Logo du cabinet de la copropriété (13/11/2026, lireLogoEmailDeCoproprieteQr) : image revérifiée, envoyée en pièce
+   * jointe en ligne ; absent ou null : accusé d'avant.
+   */
+  logo?: LogoEmailCabinetQr | null
 }
 
 /** « Parties communes » ou « Votre logement (bât. B · étage 4 · lot 12) », valeurs échappées. */
@@ -594,9 +633,11 @@ function ligneInformationConfirmationQr(t: TextesConfirmationQr, politique: Poli
  *   - avant le pied, la ligne vers la politique de confidentialité du cabinet quand il en a une (seul href).
  * Ni bouton, ni autre texte, ni en-tête de désinscription ; structure figée par un test (liste exacte des blocs). Sans
  * ces deux options, la sortie est identique à celle d'avant la PR 3.
+ * Logo du cabinet (13/11/2026) : rangée blanche au-dessus du bandeau, image appelée par cid (pièce jointe en ligne
+ * d'envoyerConfirmationQr) ; sans logo, sortie identique à celle d'avant ; avec, rien d'autre ne change.
  */
 export function templateConfirmationQr({
-  copropriete, signalement: s, annoncerDiffusion = false, politique = null,
+  copropriete, signalement: s, annoncerDiffusion = false, politique = null, logo = null,
 }: ParametresConfirmationQr): { subject: string; html: string } {
   const e = echapperHtml
   const t = TEXTES_CONFIRMATION_QR[s.langue]
@@ -629,13 +670,16 @@ export function templateConfirmationQr({
           ${paragraphe(t.suite, '0')}
           ${paragraphe(t.conserverNumero, '12px 0 0')}${annonce}
           <p style="margin:24px 0 0;font-size:13px;color:#4A5E78;">${t.pasDeReponse}<br/>${t.pasVous}</p>${ligneInformationConfirmationQr(t, politique)}`
-  const html = cadreEmailQr({ langue: s.langue, titreHtml: t.titre, corpsHtml: corps, piedHtml: t.piedDePage })
+  const html = cadreEmailQr({
+    langue: s.langue, titreHtml: t.titre, corpsHtml: corps, piedHtml: t.piedDePage, ...(logo ? { logoHtml: rangeeLogoEmailQr(logo) } : {}),
+  })
   return { subject: sujetConfirmationQr(numero, copropriete.nom, s.langue), html }
 }
 
 /**
  * Envoie la confirmation à la seule adresse du déclarant : ni adresse de réponse, ni copie (une réponse irait à
  * l'expéditeur, VITFIX <noreply@vitfix.io> par défaut). Ne lève jamais en temps normal (sendEmail rend success / error).
+ * Logo du cabinet (13/11/2026) : en pièce jointe EN LIGNE (envoi unitaire) ; sans logo, message d'avant.
  */
 export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promise<EmailResult> {
   const { subject, html } = templateConfirmationQr(p)
@@ -644,6 +688,7 @@ export async function envoyerConfirmationQr(p: ParametresConfirmationQr): Promis
     subject,
     html,
     tags: [{ name: 'type', value: 'aj-signalement-confirmation' }],
+    ...(p.logo ? { attachments: [pieceJointeLogoQr(p.logo)] } : {}),
   })
 }
 

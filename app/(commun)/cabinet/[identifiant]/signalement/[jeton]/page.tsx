@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import AppSignalementQr from '@/components/aj-signalement/AppSignalementQr'
 import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/aj-signalement/serveur'
 import { informationFormulaireQr } from '@/lib/aj-signalement/serveur-information'
+import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
 } from '@/lib/aj-signalement/chemin-cabinet'
@@ -18,6 +19,9 @@ import { estJetonQr } from '@/lib/aj-signalement/types'
 // PR 3, lot 7 (cahier § 6, HF3) : information à la collecte sous le bouton d'envoi (politique du cabinet, partie
 // « diffusion » si la copropriété peut diffuser), lue après les contrôles du chemin, jamais pour une page refusée ;
 // aucune information (cabinet sans politique, migration 20261113 absente, erreur) : formulaire inchangé.
+// Logo du cabinet (demande de Hugo du 13/11/2026) : lu par l'id du cabinet de la copropriété, en même temps que
+// l'information et comme elle APRÈS les contrôles du chemin ; aucun logo (cabinet sans logo, migration 20261114 absente,
+// erreur) : page inchangée.
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +40,10 @@ export default async function PageSignalementCabinetQr({ params }: { params: Pro
   const lecture = await lireCoproprieteEtCabinetParJetonQr(jeton)
   if (!lecture.ok || !lecture.copropriete || !lecture.cabinet || lecture.cabinet.identifiant !== identifiant) notFound()
   const langue = lecture.cabinet.langue === 'pt' ? 'pt' : 'fr'
-  const information = await informationFormulaireQr(lecture.copropriete.id, lecture.cabinet.id)
+  const [information, logo] = await Promise.all([
+    informationFormulaireQr(lecture.copropriete.id, lecture.cabinet.id),
+    lireLogoPageCabinetQr({ id: lecture.cabinet.id }),
+  ])
   return (
     <div lang={langue}>
       <AppSignalementQr
@@ -44,6 +51,7 @@ export default async function PageSignalementCabinetQr({ params }: { params: Pro
         copropriete={{ nom: lecture.copropriete.nom ?? '', adresse: lecture.copropriete.adresse ?? '' }}
         langue={langue}
         information={information}
+        {...(logo ? { logo } : {})}
       />
     </div>
   )

@@ -223,6 +223,29 @@ export interface CabinetResumeQr {
   identifiant: string
 }
 
+/**
+ * Logo d'un cabinet client (migration 20261114_signalements_qr_logo_cabinet.sql, demande de Hugo du 13/11/2026) :
+ * métadonnées seulement ; l'image (PNG) est lue par sa route publique, à l'adresse cheminLogoCabinetQr
+ * (lib/aj-signalement/logo.ts), jamais dans une réponse JSON.
+ */
+export interface LogoCabinetQr {
+  /** 16 caractères hexadécimaux : empreinte de l'image (adresse de lecture, mise en cache sans fin). */
+  version: string
+  /** Pixels (800 au plus). */
+  largeur: number
+  /** Pixels (400 au plus). */
+  hauteur: number
+}
+
+/**
+ * Logo d'un cabinet pour un e-mail (accusé de réception au déclarant) : l'image PNG revérifiée, envoyée en pièce jointe
+ * EN LIGNE (jamais une image distante), ses métadonnées, et le nom du cabinet (texte alternatif). Serveur seulement.
+ */
+export interface LogoEmailCabinetQr extends LogoCabinetQr {
+  nom: string
+  png: Uint8Array
+}
+
 /** Cabinet client tel que l'espace du super admin le voit. */
 export interface CabinetQr extends CabinetResumeQr {
   langue: LangueCabinetQr
@@ -232,6 +255,8 @@ export interface CabinetQr extends CabinetResumeQr {
   identifiantFige: boolean
   nbCoproprietes: number
   nbGestionnaires: number
+  /** Logo du cabinet ; ABSENT : aucun logo, ou migration 20261114 non appliquée (réponse identique à avant). */
+  logo?: LogoCabinetQr
 }
 
 /** États d'une fiche gestionnaire : les 5 premiers en PR 1 ; les 4 suivants réservés à la PR 2 (accès à sa page). */

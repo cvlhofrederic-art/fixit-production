@@ -6,6 +6,7 @@ import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, validerIdentifiantCabinetQr,
 } from './aj-signalement/chemin-cabinet'
 import { validerDomaineCabinetQr } from './aj-signalement/gestionnaires'
+import { LOGO_BASE64_MAX_QR, LOGO_OCTETS_MIN_QR } from './aj-signalement/logo'
 import { ACTIONS_JOURNAL_QR, ATTRIBUTIONS_MAX_PAR_GESTIONNAIRE_QR } from './aj-signalement/types'
 import { motDePasseConforme } from './auth/lien-email'
 
@@ -636,6 +637,15 @@ export const modificationCabinetQrSchema = z.strictObject({
   langue: langueCabinetQrSchema.optional(),
   domaines: z.array(domaineQrSchema).max(20).optional(),
 }).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
+
+// Logo d'un cabinet (demande de Hugo du 13/11/2026), super admin : le PNG produit par le navigateur (canvas), en base64
+// strict ; la route revérifie l'image elle-même (signature, morceaux, en-tête, poids : lib/aj-signalement/logo.ts).
+export const logoCabinetQrSchema = z.strictObject({
+  png: z.string()
+    .min(Math.ceil(LOGO_OCTETS_MIN_QR / 3) * 4, 'PNG trop court')
+    .max(LOGO_BASE64_MAX_QR, 'PNG trop lourd (200 Kio au plus)')
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/, 'PNG en base64 attendu'),
+})
 
 // P1-R23 : rattachement définitif ; doublon avec le cabinet (RG-08) refusé sauf confirmation (probable) ou « Ce n'est
 // pas un doublon » (nom + code postal, super admin, journalisé doublon.force).

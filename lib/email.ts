@@ -16,7 +16,24 @@ function getResend(): Resend {
 export interface EmailAttachment {
   filename: string
   content: string // base64-encoded
+  /** Type MIME (ex. « image/png ») ; absent : Resend le déduit du nom du fichier, et rien n'est transmis. */
+  contentType?: string
+  /**
+   * Pièce jointe EN LIGNE (logo d'un cabinet dans l'accusé d'AJ Signalement, 13/11/2026) : identifiant appelé dans le
+   * HTML par <img src="cid:…"> (champ contentId du SDK, content_id de l'API ; resend.com/docs/dashboard/emails/
+   * embed-inline-images). Envoi unitaire (sendEmail) seulement : le lot de Resend n'accepte aucune pièce jointe.
+   * Absent : rien n'est transmis (pièce jointe ordinaire, comme avant).
+   */
+  contentId?: string
 }
+
+/** Pièce jointe telle que le SDK l'attend : contentType et contentId seulement quand l'appelant les donne. */
+const pieceJointeResend = (a: EmailAttachment) => ({
+  filename: a.filename,
+  content: a.content,
+  ...(a.contentType === undefined ? {} : { contentType: a.contentType }),
+  ...(a.contentId === undefined ? {} : { contentId: a.contentId }),
+})
 
 export interface EmailPayload {
   to: string | string[]
@@ -49,7 +66,10 @@ function enTetesEtTexte(payload: EmailPayload): { headers?: Record<string, strin
   }
 }
 
-/** Un message du lot de Resend (le lot n'accepte pas de pièces jointes : elles ne sont pas transmises). */
+/**
+ * Un message du lot de Resend (le lot n'accepte pas de pièces jointes, images en ligne comprises : elles ne sont pas
+ * transmises ; resend.com/docs/api-reference/emails/send-batch-emails, « Limitations »).
+ */
 function messageDeLot(e: EmailPayload) {
   return {
     from: e.from || DEFAULT_FROM,
@@ -79,7 +99,7 @@ export async function sendEmail(payload: EmailPayload): Promise<EmailResult> {
       tags: payload.tags,
       ...enTetesEtTexte(payload),
       ...(payload.attachments && payload.attachments.length > 0 ? {
-        attachments: payload.attachments.map(a => ({ filename: a.filename, content: a.content })),
+        attachments: payload.attachments.map(pieceJointeResend),
       } : {}),
     })
 

@@ -16,6 +16,8 @@
 //      confirmation avant l'import ;
 //   4. import (tout ou rien) ; puis toutes les affiches en un PDF et l'export CSV (générés sur l'appareil).
 // Le lecteur .xlsx et le modèle (fflate) sont chargés au clic : jamais dans le premier chargement de l'espace.
+// Logo du cabinet (demande de Hugo du 13/11/2026) : les affiches du lot portent le logo du cabinet choisi s'il en a un
+// (métadonnées de la liste des cabinets, image lue une fois au clic) ; logo illisible : affiches sans logo, avertissement.
 
 import { useId, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -31,6 +33,8 @@ import {
 } from '@/lib/aj-signalement/import/ligne'
 import { MESSAGES_IMPORT_QR as M, TEXTES_IMPORT_QR as I } from '@/lib/aj-signalement/import/textes'
 import { affichesPdfQr, nomFichierQr, telechargerFichier } from '@/lib/aj-signalement/qr'
+import { affichesAvecRepliQr, logoPourAfficheQr } from '@/components/aj-signalement/logoAfficheQr'
+import { TEXTES_GESTION_QR as G } from '@/lib/aj-signalement/affichage-gestion'
 import {
   urlSignalementQr,
   type ActionImportQr, type CabinetQr, type ChampImportQr, type ChoixLigneImportQr, type CorrespondanceImportQr, type DiagnosticLigneImportQr,
@@ -413,7 +417,10 @@ export default function AssistantImportQr({ cabinets, origine, onFermer, onImpor
     setOccupe('affiches')
     try {
       const liste = resultat.exports.map((e) => ({ nom: e.nom, adresse: adresseAffiche(e), url: urlSignalementQr(e.jeton, origine, e.identifiantCabinet) }))
-      const pdf = await affichesPdfQr(liste, (fait, total) => setAvancement({ fait, total }))
+      const avancer = (fait: number, total: number) => setAvancement({ fait, total })
+      const sansLogo = G.cabinets.logo.affichesSansLogo
+      const logo = await logoPourAfficheQr(cabinet?.identifiant, cabinet?.logo, sansLogo)
+      const pdf = await affichesAvecRepliQr(logo, (l) => (l ? affichesPdfQr(liste, avancer, { logo: l }) : affichesPdfQr(liste, avancer)), sansLogo)
       telechargerFichier(`affiches-qr-${nomFichierQr(cabinet?.identifiant ?? 'coproprietes')}.pdf`, pdf)
     } catch (e) {
       console.warn('[aj-signalement] affiches non préparées', e instanceof Error ? e.name : 'inconnue')

@@ -23,6 +23,9 @@ const simul = vi.hoisted(() => ({
 
 vi.mock('@/lib/aj-signalement/serveur', () => ({ lireCoproprieteEtCabinetParJetonQr: simul.lire }))
 vi.mock('@/lib/aj-signalement/serveur-information', () => ({ informationFormulaireQr: simul.information }))
+// Logo du cabinet (13/11/2026) : aucun ici (cabinet sans logo), la page rend ce qu'elle rendait avant ; le logo est testé
+// dans tests/components/aj-signalement/logo-page-publique.test.tsx.
+vi.mock('@/lib/aj-signalement/serveur-logo', () => ({ lireLogoPageCabinetQr: async () => null }))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(simul.locale ? { 'x-locale': simul.locale } : {}),
 }))

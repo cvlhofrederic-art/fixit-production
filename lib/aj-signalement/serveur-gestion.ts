@@ -14,6 +14,7 @@ import { porteeGestionnaireQr } from '@/lib/aj-signalement/acces-espace'
 import { urlConfirmationAdresseQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { envoyerConfirmationAdresseQr } from '@/lib/aj-signalement/email'
 import { etatGestionnaireQr, nomCourtQr } from '@/lib/aj-signalement/gestionnaires'
+import { lireMetaLogosQr } from '@/lib/aj-signalement/serveur-logo'
 import {
   ACTIONS_JOURNAL_QR, OBJETS_ENVOI_QR, ORIGINES_ATTRIBUTION_QR, PROFILS_ACTEUR_QR, REFUS_ENVOI_QR,
   type ActionJournalQr, type CabinetQr, type CabinetResumeQr, type EnvoiGestionnaireQr, type EvenementJournalQr, type GestionnaireQr,
@@ -42,7 +43,9 @@ interface LigneCabinetCompleteQr { id: string; nom: string | null; identifiant: 
 
 /**
  * Cabinets avec domaines et compteurs ; identifiant figé dès une copropriété ou un gestionnaire (même règle que le
- * trigger de la migration). `ids` : ces cabinets seulement. Triés par nom.
+ * trigger de la migration). `ids` : ces cabinets seulement. Triés par nom. Logo (migration 20261114) : ses métadonnées
+ * seulement, posées sur le cabinet qui en a un (clé absente sinon, et tant que la migration manque : réponse identique à
+ * avant) ; jamais l'image.
  */
 export async function lireCabinetsCompletsQr(ids?: readonly string[]): Promise<Lecture<CabinetQr[]>> {
   const liste = ids ? [...ids] : null
@@ -53,10 +56,11 @@ export async function lireCabinetsCompletsQr(ids?: readonly string[]): Promise<L
   const qDomaines = supabaseAdmin.from(TABLE_DOMAINES_QR).select('cabinet_id, domaine')
   const qCopros = supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('cabinet_id').not('cabinet_id', 'is', null)
   const qFiches = supabaseAdmin.from(TABLE_GESTIONNAIRES_QR).select('cabinet_id')
-  const [domaines, copros, fiches] = await Promise.all([
+  const [domaines, copros, fiches, logos] = await Promise.all([
     lire<{ cabinet_id: string; domaine: string }>(liste ? qDomaines.in('cabinet_id', liste) : qDomaines),
     lire<{ cabinet_id: string | null }>(liste ? qCopros.in('cabinet_id', liste) : qCopros),
     lire<{ cabinet_id: string }>(liste ? qFiches.in('cabinet_id', liste) : qFiches),
+    lireMetaLogosQr(liste),
   ])
   for (const r of [domaines, copros, fiches]) if (!r.ok) return r
   const compter = (lignes: ReadonlyArray<{ cabinet_id: string | null }>) => {
@@ -71,10 +75,12 @@ export async function lireCabinetsCompletsQr(ids?: readonly string[]): Promise<L
   const resultat = cabinets.valeur.map((c): CabinetQr => {
     const nbCoproprietes = nbCopros.get(c.id) ?? 0
     const nbGestionnaires = nbFiches.get(c.id) ?? 0
+    const logo = logos.get(c.id)
     return {
       id: c.id, nom: chaine(c.nom), identifiant: chaine(c.identifiant), langue: langueCabinetQr(c.langue),
       domaines: [...(domainesPar.get(c.id) ?? [])].sort((a, b) => a.localeCompare(b)),
       identifiantFige: nbCoproprietes > 0 || nbGestionnaires > 0, nbCoproprietes, nbGestionnaires,
+      ...(logo ? { logo } : {}),
     }
   })
   return { ok: true, valeur: resultat.sort((a, b) => a.nom.localeCompare(b.nom, 'fr')) }

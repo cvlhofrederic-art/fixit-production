@@ -73,6 +73,11 @@ export const MIGRATION_ACCES_QR = 'supabase/migrations/20261112_signalements_qr_
  * d'autre ne change.
  */
 export const MIGRATION_DIFFUSION_QR = 'supabase/migrations/20261113_signalements_qr_diffusion.sql'
+/**
+ * Migration du logo d'un cabinet (13/11/2026), indépendante de la 20261113 ; d'ici là, aucun logo nulle part (listes,
+ * pages, affiches, e-mails comme avant), envoi et retrait 503 base_absente (journalisé une fois par isolat).
+ */
+export const MIGRATION_LOGO_QR = 'supabase/migrations/20261114_signalements_qr_logo_cabinet.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 /** Signalements renvoyés pour la page de suivi d'un gestionnaire (P1-R1 ?gestionnaire=). */
@@ -154,6 +159,14 @@ export function journaliserRepliDiffusionQr(operation: string, erreur: ErreurBas
   if (replisJournalises.has(cle)) return
   replisJournalises.add(cle)
   logger.warn(`${CONTEXTE} migration du 13/11/2026 absente : repli (${operation})`, { migration: MIGRATION_DIFFUSION_QR, code: erreur?.code })
+}
+
+/** Même règle pour la migration du 14/11/2026 (logo d'un cabinet) : le code seul. */
+export function journaliserRepliLogoQr(operation: string, erreur: ErreurBase | null | undefined): void {
+  const cle = `logo:${operation}`
+  if (replisJournalises.has(cle)) return
+  replisJournalises.add(cle)
+  logger.warn(`${CONTEXTE} migration du 14/11/2026 absente : repli (${operation})`, { migration: MIGRATION_LOGO_QR, code: erreur?.code })
 }
 
 /**
