@@ -136,7 +136,7 @@ const { NextRequest } = await import('next/server')
 const routeExiste = existsSync(CHEMIN_ROUTE)
 const { POST } = routeExiste ? await import('@/app/api/cron/aj-diffusion-reprise/route') : { POST: null }
 
-const SECRET = 'secret-interne-de-test-0123456789abcdef'
+const SECRET = 'secret-interne-de-test-0123456789abcdef' // gitleaks:allow — secret factice (fixture de test, pas un secret)
 const CLE = 'cle-de-test-des-liens-de-diffusion-0123456789'
 const idDiffusion = (i: number) => `df000000-0000-4000-8000-${String(i).padStart(12, '0')}`
 
