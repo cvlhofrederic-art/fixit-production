@@ -49,6 +49,8 @@ import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { DecimalInput } from '@/components/common/DecimalInput'
 import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseCommerciale'
 import { escompteImprimeAuDepart } from '@/lib/escompte-pdf'
+import { champVersionRendu, versionRenduAuDepart, VERSION_RENDU_COMPLET, VERSION_RENDU_ORIGINE } from '@/lib/version-rendu'
+import { lignesRemisablesArtisan, ventilationTvaArtisan } from '@/lib/totaux-artisan'
 import {
   appliquerRemiseGlobale, libelleRemiseGlobale, lignesApresRemiseGlobale, lireRemise, montantNetLigne, aUneRemiseDeLigne,
   type LigneRemisable, type Remise,
@@ -272,6 +274,13 @@ export default function DevisFactureForm({
   // l'artisan modifie le champ. Un document antérieur simplement rouvert garde le PDF qu'il avait
   // (« Aucun escompte accordé »), même après la sauvegarde automatique.
   const [escompteSurPdf, setEscompteSurPdf] = useState<boolean>(() => escompteImprimeAuDepart(initialData))
+  // Rendu et totaux corrigés (lib/version-rendu.ts) : matériaux et frais annexes imprimés et comptés,
+  // en-têtes HT, TVA lisible. Document nouveau : oui ; document d'avant la correction, ou tiré d'un
+  // document d'avant : PDF d'origine, même rouvert. Portugal (hors champ) : la marque du document est
+  // gardée telle quelle, jamais posée.
+  const [versionRendu] = useState<number>(() => (locale === 'pt'
+    ? (typeof initialData?.versionRendu === 'number' ? initialData.versionRendu : VERSION_RENDU_ORIGINE)
+    : versionRenduAuDepart(initialData)))
   // Remise commerciale sur le total (lib/remise-commerciale.ts) — France seulement (le
   // Portugal relève d'un autre droit, hors de ce lot).
   const [remiseGlobale, setRemiseGlobale] = useState<Remise | undefined>(() => lireRemise(initialData?.remiseGlobale) ?? undefined)
@@ -811,7 +820,11 @@ export default function DevisFactureForm({
       if (item.id !== id) return item
       const updated = { ...item, [field]: value }
       if (field === 'quantite' || field === 'prix_unitaire_ht') {
-        updated.total_ht = updated.quantite * updated.prix_unitaire_ht
+        // Document au rendu complet : montant arrondi au centime, comme les autres lignes, pour que le
+        // PDF, la liste et la base retrouvent le total du formulaire. Document d'avant : calcul d'origine.
+        updated.total_ht = versionRendu >= VERSION_RENDU_COMPLET
+          ? mulMoney(updated.quantite, updated.prix_unitaire_ht)
+          : updated.quantite * updated.prix_unitaire_ht
       }
       return updated
     }))
@@ -1192,12 +1205,10 @@ export default function DevisFactureForm({
   // Remise commerciale globale (lib/remise-commerciale.ts) : sur toutes les lignes du document,
   // répartie entre les taux de TVA au prorata. `subtotalHT` est le HT net : TVA, TTC, acomptes et
   // montants envoyés partent de lui. Sans remise, il vaut la somme des lignes comme avant.
-  const lignesPourRemise = useMemo<LigneRemisable[]>(() => [
-    ...lines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
-    ...materialLines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
-    ...fraisAnnexes.map(f => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
-    ...customTables.flatMap(t => t.lines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 }))),
-  ], [lines, materialLines, fraisAnnexes, customTables])
+  const lignesPourRemise = useMemo<LigneRemisable[]>(
+    () => lignesRemisablesArtisan({ lines, materialLines, fraisAnnexes, customTables }),
+    [lines, materialLines, fraisAnnexes, customTables],
+  )
   // La remise du document compte toujours : en portugais (hors lot), seule la saisie est masquée ;
   // une remise posée en français reste appliquée, affichée et enregistrée telle quelle.
   const remiseCalculee = useMemo(
@@ -1210,30 +1221,12 @@ export default function DevisFactureForm({
   const sousTotalAffiche = remiseGlobaleHT !== 0 ? remiseCalculee.totalBrutHT : subtotalBrutHT
   const subtotalHT = remiseGlobaleHT !== 0 ? remiseCalculee.totalHT : subtotalBrutHT
   // Ventilation TVA par taux (arrondie par taux après agrégation des bases —
-  // garantit l'invariant subtotalHT + Σ TVA = totalTTC à 0,01 € près).
-  const tvaBreakdown = useMemo(() => {
-    if (!tvaEnabled) return [] as Array<{ rate: number; base: number; amount: number }>
-    // Document remisé : bases par taux après répartition de la remise globale.
-    if (remiseCalculee.remiseHT !== 0) {
-      return remiseCalculee.bases
-        .map(b => ({ rate: b.taux, base: b.base, amount: mulMoney(b.base, b.taux / 100) }))
-        .sort((a, b) => b.rate - a.rate)
-    }
-    const map = new Map<number, { base: number; amount: number }>()
-    const acc = (ht: number, taux: number) => {
-      const cur = map.get(taux) || { base: 0, amount: 0 }
-      cur.base = round2(cur.base + ht)
-      map.set(taux, cur)
-    }
-    lines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0))
-    materialLines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0))
-    fraisAnnexes.forEach(f => acc(f.total_ht || 0, f.tva_applicable || 0))
-    customTables.forEach(t => t.lines.forEach(l => acc(l.totalHT || 0, l.tvaRate || 0)))
-    map.forEach((v, taux) => { v.amount = mulMoney(v.base, taux / 100) })
-    return Array.from(map.entries())
-      .map(([rate, { base, amount }]) => ({ rate, base, amount }))
-      .sort((a, b) => b.rate - a.rate)
-  }, [lines, materialLines, fraisAnnexes, customTables, tvaEnabled, remiseCalculee])
+  // garantit l'invariant subtotalHT + Σ TVA = totalTTC à 0,01 € près). Source unique
+  // (lib/totaux-artisan.ts), reprise par le téléchargement depuis la liste.
+  const tvaBreakdown = useMemo(
+    () => ventilationTvaArtisan({ tvaEnabled, lines, materialLines, fraisAnnexes, customTables, remise: remiseCalculee }),
+    [lines, materialLines, fraisAnnexes, customTables, tvaEnabled, remiseCalculee],
+  )
   const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
   const totalTTC = round2(subtotalHT + totalTVA)
   // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
@@ -1443,23 +1436,6 @@ export default function DevisFactureForm({
     onSave?.(draftEntry as DevisFactureData)
   }
 
-  // ── Autosave (méthode pro) ── enregistre le brouillon 1,5 s après la dernière
-  // modification, en silence. Jamais de saisie perdue. Ignore les docs déjà émis
-  // et les formulaires vides.
-  const saveDraftRef = useRef(handleSaveDraft)
-  saveDraftRef.current = handleSaveDraft
-  useEffect(() => {
-    const st = (initialData as { status?: string })?.status
-    const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
-    if (isEmitted || !artisan?.id) return
-    const hasContent = clientName.trim().length > 0 ||
-      [...lines, ...materialLines].some((l) => (l.description || '').trim().length > 0)
-    if (!hasContent) return
-    const tmr = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
-    return () => clearTimeout(tmr)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, lines, materialLines, docTitle, remiseGlobale])
-
   const handleConvertToFacture = async () => {
     if (!onConvertToFacture) return
     const data = buildData()
@@ -1524,6 +1500,8 @@ export default function DevisFactureForm({
       // antérieur rouvert garde son PDF, quel que soit le bouton — Aperçu, Télécharger ou liste).
       remiseGlobale,
       escompte: escompteActif ? discount : undefined,
+      // Rendu complet (lib/version-rendu.ts) : matériaux et frais imprimés, en-têtes HT, TVA lisible.
+      versionRendu,
       acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
       isHorsEtablissement,
     })
@@ -2077,6 +2055,8 @@ export default function DevisFactureForm({
     // Le PDF imprime l'escompte saisi (France ; le Portugal reste hors de ce lot). Jamais posé
     // sur un document antérieur que l'artisan rouvre sans toucher à l'escompte.
     escompteSurPdf: escompteActif ? true : undefined,
+    // Rendu et totaux corrigés (lib/version-rendu.ts) : absent sur un document d'avant la correction.
+    versionRendu: champVersionRendu(initialData, versionRendu),
     remiseGlobale,
     iban,
     bic,
@@ -2090,6 +2070,30 @@ export default function DevisFactureForm({
     acomptesEnabled,
     acomptes: acomptesEnabled && acomptes.length > 0 ? acomptes : undefined,
   })
+
+  // ── Autosave (méthode pro) ── enregistre le brouillon 1,5 s après la dernière
+  // modification, en silence. Jamais de saisie perdue. Ignore les docs déjà émis
+  // et les formulaires vides.
+  // Déclencheur : le contenu que le brouillon enregistre (buildData), et non une liste de champs tenue
+  // à la main — elle oubliait les tables personnalisées, les frais annexes, l'adresse, les notes, les
+  // acomptes… (saisie perdue si l'artisan quittait sans « Enregistrer »). Le numéro réservé par un
+  // aperçu n'est pas une saisie : il ne déclenche rien.
+  const contenuBrouillon = JSON.stringify({ ...buildData(), docNumber: undefined })
+  const saveDraftRef = useRef(handleSaveDraft)
+  saveDraftRef.current = handleSaveDraft
+  useEffect(() => {
+    const st = (initialData as { status?: string })?.status
+    const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
+    if (isEmitted || !artisan?.id) return
+    const hasContent = clientName.trim().length > 0 ||
+      [...lines, ...materialLines, ...customTables.flatMap((tbl) => tbl.lines)]
+        .some((l) => (l.description || '').trim().length > 0) ||
+      fraisAnnexes.some((f) => (f.designation || '').trim().length > 0)
+    if (!hasContent) return
+    const tmr = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
+    return () => clearTimeout(tmr)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contenuBrouillon])
 
   // ─── Recent interventions for quick import ───
   const recentBookings = bookings

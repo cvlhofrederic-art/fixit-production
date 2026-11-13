@@ -25,6 +25,8 @@ import { buildDocumentLines } from '@/lib/devis-totals'
 import { aUneRemiseDeLigne, appliquerRemiseGlobale, libelleRemiseGlobale, lireRemise } from '@/lib/remise-commerciale'
 import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
+import { renduComplet } from '@/lib/version-rendu'
+import { lignesDocumentArtisan, ventilationTvaDocumentArtisan } from '@/lib/totaux-artisan'
 
 export interface SavedDevis {
   id?: string
@@ -110,6 +112,8 @@ export interface SavedDevis {
   escompteSurPdf?: boolean
   /** Remise commerciale sur le total (lib/remise-commerciale.ts). */
   remiseGlobale?: unknown
+  /** Version du rendu d'un document artisan (lib/version-rendu.ts) : 2 = PDF identique à celui du formulaire. */
+  versionRendu?: number
   iban?: string
   bic?: string
   lines?: ProductLine[]
@@ -198,6 +202,23 @@ async function produireFichierV2(
   const materialLines = (doc.materialLines as ProductLine[]) || []
   const laborLines = (doc.laborLines as ProductLine[]) || []
   const mergedLines = lines.length > 0 ? lines : [...laborLines, ...materialLines]
+  // Legacy sans flag : inférence franchise 293 B depuis companyStatus
+  // (EI/auto FR, ENI PT) — cf. resolveTvaEnabledV2 (audit 2026-06-10).
+  const tvaEnabled = resolveTvaEnabledV2(doc)
+  // Document au rendu complet (lib/version-rendu.ts) : mêmes paramètres que le formulaire (prestations,
+  // matériaux, frais annexes, tables personnalisées, détail de la TVA, échéance saisie). Document d'avant
+  // la correction : paramètres d'origine, PDF identique.
+  const parametresComplets = renduComplet(doc)
+    ? (() => {
+        const lignes = lignesDocumentArtisan(doc as unknown as Record<string, unknown>)
+        return {
+          ...lignes,
+          tvaBreakdown: tvaEnabled ? ventilationTvaDocumentArtisan(doc as unknown as Record<string, unknown>, true) : undefined,
+          paymentDue: doc.paymentDue || null,
+          versionRendu: doc.versionRendu,
+        }
+      })()
+    : null
 
   const fresh = await fetchFreshArtisanData(artisan?.id, doc, artisan?.logo_url ?? null)
 
@@ -211,7 +232,9 @@ async function produireFichierV2(
   // personnalisés, détail de TVA remisé), pour que la remise porte sur tout le document et que le PDF
   // téléchargé depuis la liste soit celui du formulaire. Les autres documents gardent leur PDF d'origine.
   // Lectures protégées (stockage local parfois incomplet) : un document sans remise ne doit jamais
-  // échouer ici, puisqu'il ne lisait pas ces champs avant.
+  // échouer ici, puisqu'il ne lisait pas ces champs avant. Un document au rendu complet (marqué
+  // `versionRendu`) prend `parametresComplets` ci-dessus, qui couvrent aussi sa remise : ce bloc ne sert
+  // qu'aux documents remisés enregistrés entre la remise et cette marque.
   const docBrut = doc as Record<string, unknown>
   const tablesDoc = (Array.isArray(docBrut.customTables) ? docBrut.customTables as unknown[] : [])
     .filter((t): t is CustomTable => !!t && typeof t === 'object' && Array.isArray((t as CustomTable).lines))
@@ -221,7 +244,7 @@ async function produireFichierV2(
   const avecRemise = lireRemise(doc.remiseGlobale) !== null
     || aUneRemiseDeLigne([...mergedLines, ...materiauxDoc, ...tablesDoc.flatMap((t) => t.lines)])
   let donneesRemise: Pick<BuildV2InputParams, 'materialLines' | 'fraisAnnexes' | 'customTables' | 'tvaBreakdown'> = {}
-  if (avecRemise) {
+  if (avecRemise && !parametresComplets) {
     const calcul = appliquerRemiseGlobale([
       ...[...mergedLines, ...materiauxDoc, ...tablesDoc.flatMap((t) => t.lines)]
         .filter(Boolean)
@@ -255,9 +278,7 @@ async function produireFichierV2(
     insuranceNumber: fresh.insuranceNumber,
     insuranceCoverage: fresh.insuranceCoverage,
     insuranceType: fresh.insuranceType,
-    // Legacy sans flag : inférence franchise 293 B depuis companyStatus
-    // (EI/auto FR, ENI PT) — cf. resolveTvaEnabledV2 (audit 2026-06-10).
-    tvaEnabled: resolveTvaEnabledV2(doc),
+    tvaEnabled,
     paymentMode: doc.paymentMode || 'Virement bancaire',
     paymentCondition: doc.paymentCondition || doc.escompte || '',
 
@@ -307,8 +328,18 @@ async function produireFichierV2(
     avoirMotif: doc.avoirMotif,
 
     // Lines
-    lines: mergedLines,
-    ...donneesRemise,
+    // Document au rendu complet : paramètres du formulaire (ils couvrent aussi sa remise). Sinon,
+    // document remisé enregistré depuis la remise : données de la remise (`donneesRemise`), inchangées.
+    // Sinon : paramètres d'origine.
+    lines: parametresComplets ? parametresComplets.lines : mergedLines,
+    ...(parametresComplets ? {
+      materialLines: parametresComplets.materialLines,
+      fraisAnnexes: parametresComplets.fraisAnnexes,
+      customTables: parametresComplets.customTables,
+      tvaBreakdown: parametresComplets.tvaBreakdown,
+      paymentDue: parametresComplets.paymentDue,
+      versionRendu: parametresComplets.versionRendu,
+    } : donneesRemise),
     // Remise commerciale (lib/remise-commerciale.ts) et escompte saisi : l'escompte n'est imprimé
     // que pour un document enregistré depuis la correction (escompteSurPdf), les autres gardent
     // la mention « Aucun escompte accordé » de leur PDF d'origine.
