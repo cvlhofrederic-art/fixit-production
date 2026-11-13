@@ -19,6 +19,8 @@ est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`
   téléphone, avec un bouton « Réessayer ». Sous Android, elle s'affiche aussi pour toute erreur HTTP d'une page
   entière (404, 500, page de défi Cloudflare 403/503 comprises).
 - **Liens vers un autre site** (PDF stockés chez Supabase, cartes, e-mail, SMS) : ouverts par les applis du téléphone.
+- **« Continuer avec Google »** : voir plus bas — Google refuse de s'authentifier dans une WebView, l'appli ouvre
+  donc une fenêtre du navigateur du système et reprend la main par un lien profond.
 - `mobile/www/pro/mobile/index.html` n'est jamais affichée : iOS exige un fichier local au chemin de départ, sinon
   l'appli quitte au lancement.
 
@@ -30,11 +32,14 @@ est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`
 - Sans réseau, seule la page « hors connexion » s'affiche.
 - Téléchargements (rapport PDF, export FEC de l'onglet Documents) : sans effet dans l'appli Android pour l'instant
   (aucun gestionnaire de téléchargement dans Capacitor ; à brancher plus tard sur les plugins Filesystem et Share).
-- « Continuer avec Google » ouvre le navigateur du téléphone et la session s'y crée, pas dans l'appli : se connecter
-  par e-mail et mot de passe.
 - Une page de défi Cloudflare (mode « Under Attack », Bot Fight Mode, règle WAF) ne peut pas être résolue dans
   l'appli Android : la page hors connexion la remplace.
 - Les photos du Proof of Work sont gardées dans le stockage local de la page (comme sur le web) : volume à surveiller.
+- Règle 4.8 de l'App Store : proposer « Continuer avec Google » dans l'appli iPhone peut obliger à offrir aussi
+  « Se connecter avec Apple ». À trancher avant le dépôt sur l'App Store ; sans effet sur Android, qui part le premier.
+- Une autre application du téléphone peut déclarer le même schéma `io.vitfix.pro://` et intercepter le retour, ou
+  ouvrir l'appli sur un faux lien : gêne, jamais vol de session (le code ne vaut rien sans le vérificateur). La parade
+  est un lien `https://vitfix.io/…` vérifié par `assetlinks.json`, possible une fois l'appli signée pour les stores.
 - Icône et écran de démarrage : encore ceux par défaut de Capacitor (logo bleu), à remplacer par ceux de Vitfix.
 
 ## Architecture
@@ -43,6 +48,8 @@ est injecté dans les pages de vitfix.io ; `estAppMobile()` (`lib/app-mobile.ts`
 capacitor.config.ts                    ← identité (io.vitfix.pro, « Vitfix Pro »), server.url, page hors connexion
 mobile/www/index.html                  ← page « hors connexion », seul contenu affiché depuis l'appli elle-même
 mobile/www/pro/mobile/index.html       ← jamais affichée : fichier de départ exigé par iOS
+lib/auth/google-app-mobile.ts          ← « Continuer avec Google » : fenêtre du système + retour par lien profond
+app/(commun)/auth/callback/route.ts    ← échange du code contre la session, puis aiguillage selon le rôle
 app/(commun)/pro/mobile/page.tsx       ← espace mobile artisan (page du site)
 lib/app-mobile.ts                      ← estAppMobile()
 android/                               ← projet Android (Android Studio)
@@ -61,6 +68,34 @@ tests/mobile/capacitor-config.test.ts  ← invariants : origine, départ, page h
 - **Proof of Work** : photos avant / pendant / après avec GPS et horodatage, puis signature du client à l'écran.
 - **Documents** : preuves d'intervention archivées, photos, motifs.
 - **Paramètres** : informations de l'entreprise, jours travaillés, acceptation automatique, déconnexion.
+
+## « Continuer avec Google » dans l'appli
+
+Google refuse l'authentification dans une WebView intégrée (politique « Use secure browsers », erreur 403
+`disallowed_useragent`) : une appli doit passer par une fenêtre du navigateur du système. C'est la méthode de
+toutes les applis qui proposent ce bouton — onglet personnalisé Chrome sur Android, SFSafariViewController sur
+iPhone — et c'est ce que fait `lib/auth/google-app-mobile.ts` :
+
+1. l'appli demande à Supabase l'URL d'autorisation sans la suivre (`skipBrowserRedirect`), ce qui écrit au passage
+   le vérificateur PKCE dans les cookies de vitfix.io **côté WebView** ;
+2. elle ouvre cette URL dans la fenêtre du système (plugin `@capacitor/browser`) ;
+3. Supabase renvoie vers `io.vitfix.pro://auth/callback?code=…` ; Android (intent-filter de `AndroidManifest.xml`)
+   et iPhone (`CFBundleURLTypes` d'`Info.plist`) rendent la main à l'appli, jamais au navigateur ;
+4. l'appli referme la fenêtre et va sur `/{langue}/auth/callback?code=…&app=1` : la route serveur échange le code
+   contre la session — le vérificateur est dans ses cookies — et aiguille selon le rôle (artisan → espace mobile).
+
+Le lien profond ne porte qu'un code d'autorisation, inutilisable sans le vérificateur de cette WebView : une autre
+application du téléphone qui l'imiterait n'ouvrirait aucune session.
+
+**Réglage obligatoire côté Supabase** (une fois, par Frédéric) : tableau de bord du projet →
+**Authentication** → **URL Configuration** → **Redirect URLs** → **Add URL** → `io.vitfix.pro://auth/callback`
+→ **Save**. Sans cette ligne, Supabase ignore l'adresse de retour, renvoie vers la Site URL, et l'appli ne reçoit
+jamais la main : l'utilisateur reste sur le formulaire. Rien à changer dans la console Google : elle ne connaît que
+l'adresse de retour de Supabase, inchangée.
+
+Plus tard, pour l'écran de choix du compte Google sans navigateur du tout (`signInWithIdToken` et le SDK natif
+Google), il faudra un identifiant OAuth par plateforme dans la console Google, lié à l'empreinte de la clé de
+signature de l'appli : à voir quand l'appli sera signée pour les stores.
 
 ## Tester sur un téléphone Android (sans Android Studio)
 

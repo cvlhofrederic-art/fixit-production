@@ -53,6 +53,17 @@
 	<string>Vitfix Pro utilise votre position GPS pour horodater et géolocaliser vos interventions (Proof of Work).</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Vitfix Pro utilise la caméra pour photographier l&apos;état avant et après intervention (Proof of Work anti-fraude).</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.vitfix.pro</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.vitfix.pro</string>
+			</array>
+		</dict>
+	</array>
 	<key>WKAppBoundDomains</key>
 	<array>
 		<string>vitfix.io</string>

@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import config from '@/capacitor.config'
+import { RETOUR_GOOGLE_APP_MOBILE, SCHEMA_APP_MOBILE } from '@/lib/auth/google-app-mobile'
 
 const lire = (chemin: string) => readFileSync(join(process.cwd(), chemin), 'utf8')
 
@@ -96,6 +97,55 @@ describe('identité de l’appli identique dans les projets natifs', () => {
     expect(tableauPlist(plist, 'WKAppBoundDomains')).toContain(`<string>${urlDepart.hostname}</string>`)
     // La page hors connexion iOS est servie depuis capacitor://localhost : localhost (ou server.hostname) aussi.
     expect(tableauPlist(plist, 'WKAppBoundDomains')).toContain(`<string>${server.hostname ?? 'localhost'}</string>`)
+  })
+
+  // Retour de « Continuer avec Google » : sans ces déclarations, le lien profond part au navigateur et
+  // l'appli ne reçoit jamais la main — panne invisible tant qu'on n'ouvre pas Google sur un téléphone.
+  it('le schéma de lien profond est l’identifiant de l’appli, déclaré sur les deux plateformes', () => {
+    expect(SCHEMA_APP_MOBILE).toBe(appId)
+    expect(RETOUR_GOOGLE_APP_MOBILE).toBe(`${appId}://auth/callback`)
+
+    const manifeste = lire('android/app/src/main/AndroidManifest.xml')
+    // Un seul et même intent-filter doit porter les quatre éléments : dispersés dans des filtres différents,
+    // Android n'ouvrirait pas l'appli sur le lien, et des assertions mot à mot ne le verraient pas.
+    const filtres = manifeste.split('<intent-filter>').slice(1).map((bloc) => bloc.split('</intent-filter>')[0])
+    const filtreLien = filtres.find((bloc) => bloc.includes(`android:scheme="${appId}"`))
+    expect(filtreLien, 'aucun intent-filter ne déclare le schéma de l’appli').toBeDefined()
+    expect(filtreLien).toContain('android.intent.action.VIEW')
+    expect(filtreLien).toContain('android.intent.category.DEFAULT')
+    expect(filtreLien).toContain('android.intent.category.BROWSABLE')
+    expect(filtreLien).toContain(`android:host="${new URL(RETOUR_GOOGLE_APP_MOBILE).host}"`)
+    // singleTask : le lien profond revient dans l'instance ouverte (onNewIntent), sans seconde fenêtre.
+    expect(manifeste).toContain('android:launchMode="singleTask"')
+
+    const plist = lire('ios/App/App/Info.plist')
+    expect(tableauPlist(plist, 'CFBundleURLSchemes')).toContain(`<string>${appId}</string>`)
+  })
+
+  // Le 13/11/2026, @capacitor/browser avait été ajouté côté Android seulement : sur iPhone le plugin n'aurait
+  // pas été compilé et « Continuer avec Google » aurait levé. Les trois fichiers sont générés par cap sync et
+  // suivis par git : un oubli de synchronisation ne se voit qu'au lancement sur un téléphone.
+  it('les projets natifs déclarent tous les plugins Capacitor du package.json', () => {
+    const paquets = Object.keys(JSON.parse(lire('package.json')).dependencies ?? {})
+      .filter((nom) => nom.startsWith('@capacitor/'))
+      .filter((nom) => !['@capacitor/core', '@capacitor/cli', '@capacitor/android', '@capacitor/ios'].includes(nom))
+    expect(paquets.length).toBeGreaterThan(0)
+
+    const settings = lire('android/capacitor.settings.gradle')
+    const build = lire('android/app/capacitor.build.gradle')
+    const spm = lire('ios/App/CapApp-SPM/Package.swift')
+
+    for (const paquet of paquets) {
+      const court = paquet.slice('@capacitor/'.length)
+      const projet = `capacitor-${court}`
+      const spmNom = 'Capacitor' + court.split('-').map((m) => m[0].toUpperCase() + m.slice(1)).join('')
+
+      expect(settings, `${paquet} absent de capacitor.settings.gradle`).toContain(`include ':${projet}'`)
+      expect(settings, `${paquet} : chemin inattendu`).toContain(`'../node_modules/${paquet}/android'`)
+      expect(build, `${paquet} absent de capacitor.build.gradle`).toContain(`implementation project(':${projet}')`)
+      expect(spm, `${paquet} absent du Package.swift iOS`).toContain(`.package(name: "${spmNom}"`)
+      expect(spm, `${paquet} : produit absent de la cible iOS`).toContain(`.product(name: "${spmNom}"`)
+    }
   })
 
   it('plus aucune trace de l’ancien nom « Fixit » dans les fichiers d’identité', () => {
