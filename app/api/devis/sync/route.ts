@@ -174,8 +174,10 @@ export async function POST(request: NextRequest) {
     .map(l => ({
       totalHT: Number(l.totalHT ?? l.total_ht ?? l.total ?? 0),
       tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0),
+      horsRemise: l.horsRemise === true,
     }))
-  const tva = computeTva({ regime: regimeTva, lines: tvaLines })
+  // Remise globale du document (lib/remise-commerciale.ts) : même total que computeDocumentTotalHtCents.
+  const tva = computeTva({ regime: regimeTva, lines: tvaLines, remiseGlobale: docRec.remiseGlobale })
   const totalTaxCents = toCents(tva.totalTVA)
   const totalTtcCents = toCents(tva.totalTTC)
 

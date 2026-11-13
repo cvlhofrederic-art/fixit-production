@@ -12,16 +12,17 @@
  */
 
 import type { Locale } from '@/lib/i18n/config'
-import type { ProductLine, DevisAcompte } from '@/lib/devis-types'
+import type { ProductLine, DevisAcompte, CustomTable, FraisAnnexeItem } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
-import { buildV2Input } from '@/lib/pdf/build-v2-input'
-import { sumMoney, round2 } from '@/lib/money'
+import { buildV2Input, type BuildV2InputParams } from '@/lib/pdf/build-v2-input'
+import { sumMoney, round2, mulMoney } from '@/lib/money'
 import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
+import { aUneRemiseDeLigne, appliquerRemiseGlobale, libelleRemiseGlobale, lireRemise } from '@/lib/remise-commerciale'
 import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
 
@@ -105,6 +106,10 @@ export interface SavedDevis {
   recoveryFee?: string
   escompte?: string
   discount?: string
+  /** Document artisan enregistré depuis la correction de l'escompte : le PDF l'imprime. */
+  escompteSurPdf?: boolean
+  /** Remise commerciale sur le total (lib/remise-commerciale.ts). */
+  remiseGlobale?: unknown
   iban?: string
   bic?: string
   lines?: ProductLine[]
@@ -201,6 +206,40 @@ async function produireFichierV2(
       ? `${doc.executionDelayDays} ${doc.executionDelayType === 'calendaires' ? 'jours calendaires' : 'jours ouvrés'}`
       : 'À convenir')
 
+  // Document qui porte une remise commerciale (enregistré depuis la remise, donc jamais un document
+  // antérieur) : mêmes données que le formulaire artisan (matériaux, frais annexes, tableaux
+  // personnalisés, détail de TVA remisé), pour que la remise porte sur tout le document et que le PDF
+  // téléchargé depuis la liste soit celui du formulaire. Les autres documents gardent leur PDF d'origine.
+  // Lectures protégées (stockage local parfois incomplet) : un document sans remise ne doit jamais
+  // échouer ici, puisqu'il ne lisait pas ces champs avant.
+  const docBrut = doc as Record<string, unknown>
+  const tablesDoc = (Array.isArray(docBrut.customTables) ? docBrut.customTables as unknown[] : [])
+    .filter((t): t is CustomTable => !!t && typeof t === 'object' && Array.isArray((t as CustomTable).lines))
+  const fraisDoc = (Array.isArray(docBrut.fraisAnnexes) ? docBrut.fraisAnnexes as unknown[] : [])
+    .filter((f): f is FraisAnnexeItem => !!f && typeof f === 'object')
+  const materiauxDoc = lines.length > 0 && Array.isArray(materialLines) ? materialLines : []
+  const avecRemise = lireRemise(doc.remiseGlobale) !== null
+    || aUneRemiseDeLigne([...mergedLines, ...materiauxDoc, ...tablesDoc.flatMap((t) => t.lines)])
+  let donneesRemise: Pick<BuildV2InputParams, 'materialLines' | 'fraisAnnexes' | 'customTables' | 'tvaBreakdown'> = {}
+  if (avecRemise) {
+    const calcul = appliquerRemiseGlobale([
+      ...[...mergedLines, ...materiauxDoc, ...tablesDoc.flatMap((t) => t.lines)]
+        .filter(Boolean)
+        .map((l) => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+      ...fraisDoc.map((f) => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
+    ], doc.remiseGlobale)
+    donneesRemise = {
+      materialLines: materiauxDoc,
+      fraisAnnexes: fraisDoc,
+      customTables: tablesDoc,
+      tvaBreakdown: resolveTvaEnabledV2(doc)
+        ? calcul.bases
+          .map((b) => ({ rate: b.taux, base: b.base, amount: mulMoney(b.base, b.taux / 100) }))
+          .sort((a, b) => b.rate - a.rate)
+        : undefined,
+    }
+  }
+
   const input = buildV2Input({
     // Artisan
     logoUrl: fresh.logoUrl,
@@ -269,6 +308,12 @@ async function produireFichierV2(
 
     // Lines
     lines: mergedLines,
+    ...donneesRemise,
+    // Remise commerciale (lib/remise-commerciale.ts) et escompte saisi : l'escompte n'est imprimé
+    // que pour un document enregistré depuis la correction (escompteSurPdf), les autres gardent
+    // la mention « Aucun escompte accordé » de leur PDF d'origine.
+    remiseGlobale: doc.remiseGlobale,
+    escompte: doc.escompteSurPdf === true ? (doc.discount || '') : undefined,
 
     // Acomptes
     acomptesEnabled: doc.acomptesEnabled || false,
@@ -377,11 +422,17 @@ async function genererAvecV3(
     regime: effectiveRegime,
     lines: sourceLines
       .filter(l => (l.description || '').trim())
-      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0, horsRemise: l.horsRemise === true })),
     locale: locale === 'pt' ? 'pt' : 'fr',
+    // Remise commerciale (lib/remise-commerciale.ts) : absente → totaux inchangés.
+    remiseGlobale: (doc as Record<string, unknown>).remiseGlobale,
   })
   const tvaBreakdown = tva.breakdown
   const totalTTC = tva.totalTTC
+  const langueLibelle = locale === 'pt' ? 'pt' : 'fr'
+  const remiseGlobaleV3 = tva.remiseHT !== 0
+    ? { montantHT: tva.remiseHT, libelle: libelleRemiseGlobale((doc as Record<string, unknown>).remiseGlobale, langueLibelle), base: tva.baseRemiseHT }
+    : undefined
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
@@ -521,8 +572,11 @@ async function genererAvecV3(
     materialLinesEnabled: ((doc as Record<string, unknown>).materialLinesEnabled as boolean) ?? undefined,
     fraisLinesEnabled: ((doc as Record<string, unknown>).fraisLinesEnabled as boolean) ?? undefined,
     customTables: customTables.length > 0 ? customTables : undefined,
-    subtotalHT,
+    // Document remisé : HT net (base de la TVA) + HT brut et remise pour le bloc des totaux.
+    // Sans remise : sous-total d'origine, inchangé.
+    subtotalHT: remiseGlobaleV3 ? tva.totalHT : subtotalHT,
     totalTTC,
+    ...(remiseGlobaleV3 ? { totalHTBrut: tva.totalHTBrut, remiseGlobale: remiseGlobaleV3 } : {}),
     // Breakdown vide en franchise/autoliquidation (computeTva force []),
     // donc undefined dans le PDF (pas de ligne TVA détail).
     tvaBreakdown: tvaBreakdown.length > 0 ? tvaBreakdown : undefined,

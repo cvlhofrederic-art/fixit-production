@@ -10,7 +10,7 @@ import ConfirmDraftDeleteDialog from '@/components/ConfirmDraftDeleteDialog'
 import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
-import { buildDocumentLines, computeDocumentTotalHT, negateDocumentLines } from '@/lib/devis-totals'
+import { buildDocumentLines, computeDocumentTotalHT, negateDocumentLines, remisesEnPourcentage } from '@/lib/devis-totals'
 import { getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId } from '@/lib/devis-utils'
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
@@ -461,11 +461,14 @@ function totalTtcListe(doc: PersistedDocument, orgRole: OrgRole | undefined): nu
   const tva = computeTva({
     regime: effectiveRegime,
     lines: allLines
-      .filter((l): l is { totalHT?: number; tvaRate?: number } => l !== null && typeof l === 'object')
+      .filter((l): l is { totalHT?: number; tvaRate?: number; horsRemise?: boolean } => l !== null && typeof l === 'object')
       .map(l => ({
         totalHT: (l.totalHT as number) || 0,
         tvaRate: ((l as { tvaRate?: number }).tvaRate as number) ?? 20,
+        horsRemise: l.horsRemise === true,
       })),
+    // Remise globale (lib/remise-commerciale.ts) : absente → total inchangé.
+    remiseGlobale: (doc as unknown as Record<string, unknown>).remiseGlobale,
   })
   return tva.totalTTC
 }
@@ -671,7 +674,9 @@ function FacturesSectionV5({
     // customTables (corps d'état) et fraisLines restaient positifs → l'avoir
     // ne soldait pas la facture BTP (total faux, voire positif). Même faille
     // que l'acompte, même remède (cf. scaleDocumentLines, PR #396).
-    const negated = negateDocumentLines(parent as unknown as Parameters<typeof negateDocumentLines>[0])
+    // Remises en euros passées en pourcentages équivalents : un avoir partiel (lignes retirées,
+    // quantités réduites) reste juste ; l'avoir total reste l'opposé exact (lib/devis-totals.ts).
+    const negated = remisesEnPourcentage(negateDocumentLines(parent as unknown as Parameters<typeof negateDocumentLines>[0]))
     const parentAny = parent as unknown as Record<string, unknown>
     return {
       ...negated,
@@ -692,6 +697,8 @@ function FacturesSectionV5({
       parentInvoiceNumber: parent.docNumber,
       avoirDeFactureId: (parentAny.id as string | undefined) ?? parent.docNumber,
       avoirMotif: p.motif,
+      // Escompte du PDF artisan (lib/escompte-pdf.ts) : l'avoir imprime ce que sa facture imprimait.
+      escompteSurPdf: parentAny.escompteSurPdf === true,
       acomptesEnabled: false,
       acomptes: [],
       notes: `Avoir (note de crédit) émis en annulation ${p.type} de la facture ${parent.docNumber}. ` +
