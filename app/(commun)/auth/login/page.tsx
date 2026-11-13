@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { verifierSessionNavigateur } from '@/lib/auth/session-navigateur'
 import { destinationApresConnexion } from '@/lib/auth/destination-par-role'
 import { estAppMobile } from '@/lib/app-mobile'
+import { ouvrirConnexionGoogleAppMobile } from '@/lib/auth/google-app-mobile'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import LocaleLink from '@/components/common/LocaleLink'
 
@@ -31,6 +32,9 @@ export default function LoginPage() {
   const emailRef = useRef<HTMLInputElement>(null)
   // Une connexion lancée par l'utilisateur prime sur la vérification de session encore en cours.
   const connexionEnCours = useRef(false)
+  // Garde de double appui sur « Continuer avec Google », distincte de la précédente : la fenêtre du
+  // navigateur se rouvre après un abandon, alors que la vérification de session, elle, reste écartée.
+  const ouvertureGoogleEnCours = useRef(false)
 
   useEffect(() => {
     let annule = false
@@ -88,8 +92,20 @@ export default function LoginPage() {
   }
 
   const handleGoogleLogin = async () => {
+    // Deuxième appui pendant l'ouverture : chaque signInWithOAuth réécrit le vérificateur PKCE, si bien
+    // que terminer la première fenêtre échouerait à l'échange et ramènerait au formulaire sans explication.
+    if (ouvertureGoogleEnCours.current) return
+    ouvertureGoogleEnCours.current = true
+    // La vérification de session du montage ne doit plus décider à la place de l'utilisateur : une session
+    // qu'elle jugerait refusée serait fermée, emportant le vérificateur PKCE que le retour de Google attend.
     connexionEnCours.current = true
     try {
+      // Dans l'appli Vitfix Pro : fenêtre du navigateur du système puis retour par lien profond, que Google
+      // impose (il refuse l'authentification dans une WebView). Le retour est traité par Providers.
+      if (estAppMobile()) {
+        await ouvrirConnexionGoogleAppMobile(supabase.auth)
+        return
+      }
       await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -98,6 +114,12 @@ export default function LoginPage() {
       })
     } catch {
       setError(t('auth.genericError'))
+      // Sans cette remise à zéro, un échec laissait la page persuadée qu'une connexion était en cours :
+      // la vérification de session n'aiguillait plus un compte déjà connecté.
+      connexionEnCours.current = false
+    } finally {
+      // Fenêtre ouverte, ou échec : qui revient sans s'identifier doit pouvoir réessayer.
+      ouvertureGoogleEnCours.current = false
     }
   }
 

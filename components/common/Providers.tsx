@@ -7,6 +7,7 @@ import { Toaster } from 'sonner'
 import { hydrateStorageFromServer, installStorageSync, pushAllLocalToServer } from '@/lib/storage-sync'
 import { importLocalStorageDocsToSupabase } from '@/lib/document-sync'
 import { supabase } from '@/lib/supabase'
+import { installerRetourGoogleAppMobile } from '@/lib/auth/google-app-mobile'
 import type { Session } from '@supabase/supabase-js'
 
 interface ProvidersProps {
@@ -113,10 +114,40 @@ function StorageSyncBoot() {
   return null
 }
 
+// Retour de « Continuer avec Google » dans l'appli Vitfix Pro (lib/auth/google-app-mobile.ts). Monté sur
+// tout le site par CoquilleRacine : hors de l'appli, l'installation sort aussitôt et ne charge aucun plugin
+// Capacitor. Ici plutôt que sur la page de connexion, pour que le lien profond retrouve un écouteur même si
+// la WebView a changé de page pendant que l'utilisateur s'identifiait chez Google.
+function RetourGoogleAppMobile({ locale }: { locale: Locale }) {
+  useEffect(() => {
+    let annule = false
+    let desinstaller: (() => void) | undefined
+
+    void installerRetourGoogleAppMobile(locale, (chemin) => { window.location.href = chemin })
+      .then((retrait) => {
+        if (annule) retrait()
+        else desinstaller = retrait
+      })
+      .catch((erreur) => {
+        // Plugin injoignable (chunk non chargé) : « Continuer avec Google » redevient une impasse dans
+        // l'appli, sans que rien ne le dise. La connexion par e-mail et mot de passe, elle, reste entière.
+        console.warn('[Providers] retour Google de l’appli non installé :', erreur)
+      })
+
+    return () => {
+      annule = true
+      desinstaller?.()
+    }
+  }, [locale])
+
+  return null
+}
+
 export default function Providers({ children, locale }: ProvidersProps) {
   return (
     <LanguageProvider initialLocale={locale}>
       <StorageSyncBoot />
+      <RetourGoogleAppMobile locale={locale} />
       {children}
       <Toaster position="top-right" richColors closeButton duration={5000} />
     </LanguageProvider>

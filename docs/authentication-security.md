@@ -74,24 +74,34 @@ sequenceDiagram
 
 ### 2.3 Google OAuth
 
+Deux circuits, selon l'endroit d'où part la connexion.
+
+**Sur le web** : `app/(commun)/auth/login/page.tsx` appelle `signInWithOAuth` avec `redirectTo` vers `/{locale}/client/dashboard`. Supabase y renvoie le navigateur avec `?code=…`, mais aucune session n'existe encore : le middleware redirige vers `/{locale}/auth/login` en conservant la requête (`localeRedirect` clone `nextUrl`), et c'est le client Supabase de la page de connexion qui échange le code (`detectSessionInUrl`), puis aiguille selon le rôle. La route `/auth/callback` n'est pas sur ce chemin.
+
+**Dans l'appli Vitfix Pro** (Capacitor) : Google refuse de s'authentifier dans une WebView intégrée (politique « Use secure browsers », 403 `disallowed_useragent`), donc l'appli ouvre une fenêtre du navigateur du système et reprend la main par un lien profond — `lib/auth/google-app-mobile.ts`, détail dans [MOBILE_GUIDE.md](../MOBILE_GUIDE.md).
+
 ```mermaid
 sequenceDiagram
-    participant C as Client
+    participant A as Appli (WebView)
+    participant N as Fenetre du systeme
     participant G as Google
     participant S as Supabase Auth
     participant CB as /auth/callback
 
-    C->>S: signInWithOAuth({ provider: 'google', redirectTo })
-    S-->>C: Redirect vers Google consent screen
-    C->>G: Autorisation
+    A->>S: signInWithOAuth({ redirectTo: io.vitfix.pro://auth/callback, skipBrowserRedirect })
+    S-->>A: URL d'autorisation (vérificateur PKCE écrit dans les cookies de la WebView)
+    A->>N: Browser.open(URL)
+    N->>G: Autorisation
     G-->>S: Authorization code
-    S-->>CB: Redirect avec ?code=xxx
-    CB->>S: exchangeCodeForSession(code)
-    S-->>CB: Session (JWT)
-    CB->>CB: Redirection selon user_metadata.role
+    S-->>N: Redirect vers io.vitfix.pro://auth/callback?code=xxx
+    N-->>A: Lien profond (intent-filter Android / CFBundleURLTypes iOS)
+    A->>CB: /{fr|pt}/auth/callback/?code=xxx&app=1
+    CB->>S: exchangeCodeForSession(code) (vérificateur lu dans les cookies de la requête)
+    S-->>CB: Session (JWT) posée en cookies
+    CB-->>A: Redirection selon app_metadata.role
 ```
 
-Le callback (`app/(commun)/auth/callback/route.ts`) inspecte `user_metadata.role` pour router vers `/pro/dashboard` (artisan, pro_societe, pro_conciergerie, pro_gestionnaire) ou `/client/dashboard`.
+Le callback (`app/(commun)/auth/callback/route.ts`) lit `app_metadata.role` — jamais `user_metadata`, que l'utilisateur peut modifier — et suit la table commune `lib/auth/destination-par-role.ts`, la même qu'à la connexion par mot de passe. `app=1` signale un retour de l'appli : l'artisan y retrouve son espace mobile au lieu du tableau de bord d'ordinateur ; aucun autre rôle n'est affecté. Un code sans le vérificateur de la WebView qui a lancé la connexion n'ouvre aucune session : un lien profond forgé par une autre application du téléphone échoue et ramène au formulaire. Les trois échecs possibles (cookies de session non posés, échange refusé, échange impossible) passent par `logger` sans jamais écrire le code.
 
 ### 2.4 Reset de mot de passe
 
