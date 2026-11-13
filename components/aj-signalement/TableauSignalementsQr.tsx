@@ -32,6 +32,9 @@
 // Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : la fin d'un rechargement demandé par l'espace
 // lui est signalée (onActualise), pour qu'une action attende la liste à jour avant d'annoncer son succès ; relecture du
 // correctif : avec son échec, que l'espace montre dans les vues où ce bloc est caché.
+// Logo du cabinet (demande de Hugo du 13/11/2026) : chaque carte reçoit les métadonnées du logo du cabinet de sa
+// copropriété, prises dans les données déjà chargées (liste des cabinets du super admin ; profil du gestionnaire), sans
+// requête par copropriété ; l'image n'est lue qu'au clic sur « Affiche PDF ».
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -45,7 +48,7 @@ import AssistantImportQr from '@/components/aj-signalement/AssistantImportQr'
 import FenetreDiffusionQr from '@/components/aj-signalement/FenetreDiffusionQr'
 import { peutDiffuserCoproprieteQr, type GardeDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import type { VueEspaceQr } from '@/lib/aj-signalement/acces-espace'
-import type { CabinetQr, CoproprieteQr, GestionnaireQr, SignalementQr, StatutSignalementQr, TableauQr } from '@/lib/aj-signalement/types'
+import type { CabinetQr, CoproprieteQr, GestionnaireQr, LogoCabinetQr, SignalementQr, StatutSignalementQr, TableauQr } from '@/lib/aj-signalement/types'
 import { chargerTableauQr, modifierCoproprieteQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import {
   LIBELLE_STATUT_QR, TEXTES_TABLEAU_QR as T, TON_STATUT_QR, compteursTableauQr, dateHeureParis, filtrerSignalementsQr,
@@ -88,6 +91,8 @@ export interface PropsTableauSignalementsQr {
 
 export interface VueGestionnaireTableauQr {
   domaines: readonly string[]
+  /** Logo de SON cabinet (GET /moi) ; absent : aucun logo (affiches comme avant). */
+  logo?: LogoCabinetQr
 }
 
 type Etat =
@@ -144,6 +149,13 @@ export default function TableauSignalementsQr({
   }
 
   const vueGestionnaire = gestionnaire !== undefined
+  // Logo du cabinet d'une copropriété : celui du profil (gestionnaire, toujours son cabinet), sinon celui de la liste
+  // des cabinets déjà chargée (super admin) ; copropriété sans cabinet : aucun.
+  const logoCabinet = useCallback((c: CoproprieteQr): LogoCabinetQr | null => {
+    if (!c.cabinet) return null
+    if (gestionnaire) return gestionnaire.logo ?? null
+    return gestion?.cabinets?.find((k) => k.id === c.cabinet?.id)?.logo ?? null
+  }, [gestion, gestionnaire])
   /** Chargement du tableau : son échec (affiché ici), ou null. */
   const charger = useCallback(async (): Promise<CodeErreurQr | null> => {
     const resultat = await chargerTableauQr(jeton)
@@ -305,6 +317,7 @@ export default function TableauSignalementsQr({
           onUtiliserAdresse={utiliserAdresse}
           vueGestionnaire={vueGestionnaire}
           onDiffusion={(c, contenu) => ouvrir({ type: 'diffusion', coproprieteId: c.id, contenu })}
+          logoCabinet={logoCabinet}
         />
       )}
       {vue === 'signalements' && <ListeSignalementsQr {...liste} />}
@@ -421,10 +434,12 @@ interface PropsVueCoproprietesQr {
   vueGestionnaire?: boolean
   /** PR 3 : « Diffuser un message » / « Messages envoyés » d'une carte (proposés selon le droit « diffuser », H11). */
   onDiffusion?: (copropriete: CoproprieteQr, contenu: 'message' | 'historique') => void
+  /** Logo du cabinet d'une copropriété (métadonnées déjà chargées) ; null : aucun. */
+  logoCabinet: (copropriete: CoproprieteQr) => LogoCabinetQr | null
 }
 
 function VueCoproprietesQr({
-  coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse, vueGestionnaire = false, onDiffusion,
+  coproprietes, message, filtre, onFiltre, onAjouter, onImporter, onModifier, onUtiliserAdresse, vueGestionnaire = false, onDiffusion, logoCabinet,
 }: Readonly<PropsVueCoproprietesQr>) {
   const origine = origineCourante()
   const visibles = useMemo(
@@ -476,6 +491,7 @@ function VueCoproprietesQr({
                 vueGestionnaire={vueGestionnaire}
                 onDiffuser={diffuser ? () => onDiffusion?.(c, 'message') : undefined}
                 onHistoriqueDiffusion={diffuser ? () => onDiffusion?.(c, 'historique') : undefined}
+                logoCabinet={logoCabinet(c)}
               />
             )
           })}

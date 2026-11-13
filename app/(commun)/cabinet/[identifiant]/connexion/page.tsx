@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import ChargeurConnexionEspaceQr from '@/components/aj-signalement/espace/ChargeurConnexionEspaceQr'
 import { cabinetDeLaPageQr } from '@/lib/aj-signalement/cabinet-du-chemin'
 import { contexteConnexionCabinetQr, titreOngletConnexionQr } from '@/lib/aj-signalement/connexion-espace'
+import { lireLogoPageCabinetQr } from '@/lib/aj-signalement/serveur-logo'
 
 // ── AJ Signalement : connexion professionnelle d'un cabinet client (vitfix.io/<identifiant>/connexion/, PR 2) ─────────
 //
@@ -12,6 +13,8 @@ import { contexteConnexionCabinetQr, titreOngletConnexionQr } from '@/lib/aj-sig
 // tout autre compte : message neutre). Servie par réécriture (next.config.ts) après le middleware, qui envoie déjà le
 // gestionnaire connecté de ce cabinet vers son suivi. Cabinet lu par son identifiant (clé service) : inconnu → 404.
 // Jamais indexée (robots redits ici, X-Robots-Tag posé en plus par le middleware et next.config.ts).
+// Logo du cabinet (demande de Hugo du 13/11/2026) : lu APRÈS le cabinet (inconnu → 404 sans autre lecture), à la place
+// de l'icône ; aucun logo (cabinet sans logo, migration 20261114 absente, erreur) → contexte d'avant.
 
 export const dynamic = 'force-dynamic'
 
@@ -26,5 +29,6 @@ export async function generateMetadata({ params }: { params: Promise<{ identifia
 export default async function PageConnexionCabinetQr({ params }: { params: Promise<{ identifiant: string }> }) {
   const { identifiant } = await params
   const cabinet = await cabinetDeLaPageQr(identifiant)
-  return <ChargeurConnexionEspaceQr contexte={contexteConnexionCabinetQr(cabinet)} />
+  const logo = await lireLogoPageCabinetQr({ identifiant })
+  return <ChargeurConnexionEspaceQr contexte={contexteConnexionCabinetQr(cabinet, logo)} />
 }

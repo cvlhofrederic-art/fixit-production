@@ -19,6 +19,7 @@ import { isAuthError } from '@supabase/supabase-js'
 import { TEXTES_ESPACE_QR, cheminEspaceQr, type LangueEspaceQr } from '@/lib/aj-signalement/acces-espace'
 import { cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
 import { EMAIL_VALIDE_QR } from '@/lib/aj-signalement/formulaire'
+import type { LogoPageQr } from '@/lib/aj-signalement/logo'
 
 export interface ContexteConnexionQr {
   /** Nom affiché au-dessus du titre : « AJ Signalement », ou le nom du cabinet (PR 2). */
@@ -27,6 +28,11 @@ export interface ContexteConnexionQr {
   espace: Readonly<Record<LangueEspaceQr, string>>
   /** Cabinet de la page (PR 2, lot 4) : sa présence change la décision d'accès (gestionnaire de CE cabinet seul). */
   cabinet?: Readonly<{ identifiant: string }>
+  /**
+   * Logo du cabinet (demande de Hugo du 13/11/2026), affiché à la place de l'icône ; ABSENT : cabinet sans logo,
+   * migration 20261114 non appliquée, erreur de lecture (page identique à avant).
+   */
+  logo?: LogoPageQr
 }
 
 /** Espace global du super admin (/fr/aj-signalement/, /pt/aj-signalement/). */
@@ -37,11 +43,14 @@ export const CONTEXTE_CONNEXION_GLOBAL_QR: ContexteConnexionQr = {
 
 /**
  * Page de connexion d'un cabinet (vitfix.io/<identifiant>/connexion/, PR 2) : nom du cabinet, son espace de suivi (sans
- * langue : l'espace est en français pour tout cabinet) et son identifiant pour la décision d'accès.
+ * langue : l'espace est en français pour tout cabinet) et son identifiant pour la décision d'accès ; son logo quand il en
+ * a un (clé absente sinon : contexte d'avant le logo).
  */
-export function contexteConnexionCabinetQr(cabinet: Readonly<{ identifiant: string; nom: string }>): ContexteConnexionQr {
+export function contexteConnexionCabinetQr(
+  cabinet: Readonly<{ identifiant: string; nom: string }>, logo: LogoPageQr | null = null,
+): ContexteConnexionQr {
   const suivi = cheminSuiviCabinetQr(cabinet.identifiant)
-  return { nom: cabinet.nom, espace: { fr: suivi, pt: suivi }, cabinet: { identifiant: cabinet.identifiant } }
+  return { nom: cabinet.nom, espace: { fr: suivi, pt: suivi }, cabinet: { identifiant: cabinet.identifiant }, ...(logo ? { logo } : {}) }
 }
 
 /** Titre d'onglet de la page de connexion : « Connexion professionnelle — <nom de l'espace ou du cabinet> ». */

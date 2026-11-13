@@ -10,6 +10,8 @@
 // confidentialité », contrôlés AVANT tout envoi ; « Ce n'est pas moi » demande une confirmation, puis conteste (aucun
 // compte créé, le cabinet est prévenu). Succès : « Accès ouvert. Connectez-vous. » et le lien vers la connexion du
 // cabinet ; aucune session n'est ouverte ici. Page publique, en français, styles de l'espace ; aucune ressource tierce.
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé en haut de
+// la carte, au-dessus du titre, dès l'ouverture ; sans logo, la carte est celle d'avant.
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
@@ -19,6 +21,8 @@ import { motDePasseConforme } from '@/lib/auth/lien-email'
 import { Bouton, CLASSES_SAISIE, Champ, Encadre } from '@/components/coproprietaire-dashboard/ui'
 import { accepterAccesQr, contesterAccesQr, lireLienAccesQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import { TEXTES_INVITATION_ACCES_QR as T } from '@/lib/aj-signalement/affichage-gestion'
+import type { LogoPageQr } from '@/lib/aj-signalement/logo'
+import ImageLogoCabinetQr, { BOITE_LOGO_CARTE_QR } from '@/components/aj-signalement/ImageLogoCabinetQr'
 
 /** Jeton signé du lien (lib/equipe) : 48 hexadécimaux, un point, 64 hexadécimaux. */
 const FORMAT_JETON_LIEN_QR = /^[a-f0-9]{48}\.[a-f0-9]{64}$/
@@ -59,7 +63,13 @@ function jetonDeLAncre(): string | null {
 /** Attributs d'accessibilité d'un champ en erreur (message posé par Champ sous l'id « <champ>-aide »). */
 const attributsErreur = (id: string, erreur: string | undefined) => (erreur ? { 'aria-invalid': true, 'aria-describedby': `${id}-aide` } : {})
 
-export default function InvitationAccesQr({ identifiant }: Readonly<{ identifiant: string }>) {
+export interface PropsInvitationAccesQr {
+  identifiant: string
+  /** Logo du cabinet du chemin ; absent ou null : aucun logo (carte d'avant). */
+  logo?: LogoPageQr | null
+}
+
+export default function InvitationAccesQr({ identifiant, logo = null }: Readonly<PropsInvitationAccesQr>) {
   // undefined : ancre pas encore lue (rendu du serveur et hydratation identiques : « Vérification du lien… »).
   const [jeton, setJeton] = useState<string | null | undefined>(undefined)
   const lu = useRef<string | null | undefined>(undefined)
@@ -182,6 +192,7 @@ export default function InvitationAccesQr({ identifiant }: Readonly<{ identifian
   return (
     <div className="flex min-h-[70vh] items-center justify-center bg-[#F7F4EE] px-4 py-10" lang="fr">
       <div className="w-full max-w-lg rounded-2xl border border-[#E4DDD0] bg-white p-6 shadow-sm md:p-8">
+        {logo && <ImageLogoCabinetQr logo={logo} boite={BOITE_LOGO_CARTE_QR} className="mb-5 block max-w-full" />}
         <h1 className="font-serif text-2xl text-[#0D1B2E]">{T.titre}</h1>
         <div className="mt-5 space-y-4">
           {etat.statut === 'lecture' && <p role="status" className="text-base text-[#4A5E78]">{T.verification}</p>}

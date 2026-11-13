@@ -16,6 +16,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const simul = vi.hoisted(() => ({ lire: vi.fn() }))
 
 vi.mock('@/lib/aj-signalement/serveur', () => ({ lireCabinetDuCheminQr: simul.lire }))
+// Logo du cabinet (13/11/2026) : aucun ici (cabinet sans logo), les pages rendent ce qu'elles rendaient avant ; le logo
+// est testé dans tests/components/aj-signalement/logo-pages-espace-cabinet.test.tsx.
+vi.mock('@/lib/aj-signalement/serveur-logo', () => ({ lireLogoPageCabinetQr: async () => null }))
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('NEXT_NOT_FOUND') },
 }))

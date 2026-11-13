@@ -32,6 +32,11 @@
 // correctif : cette attente est bornée (attenteListesQr) ; une lecture sans réponse ne bloque plus l'action. Et un
 // tableau relu en échec est montré hors des vues du tableau (son encadré y est caché) : encadré d'erreur des vues
 // Cabinets et Gestionnaires, toast sur la page profil.
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : dans l'espace d'un cabinet, le logo
+// de SON cabinet (GET /moi) est posé dans l'en-tête blanc de la page, à gauche du nom de la vue, à partir de 640 px de
+// large ; jamais sur la barre latérale bleu nuit (un logo sombre y serait illisible), ni sur téléphone (le titre de la
+// vue y serait tronqué : essai à 375 px ; le nom du cabinet reste dans l'en-tête). Sans logo, l'en-tête est celui
+// d'avant ; espace global du super admin : aucun logo.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { toast } from 'sonner'
@@ -43,6 +48,7 @@ import FenetreDiffusionQr from '@/components/aj-signalement/FenetreDiffusionQr'
 import type { DemandeDiffusionSuiviQr } from '@/components/aj-signalement/SuiviGestionnaireQr'
 import type { GardeDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
+import ImageLogoCabinetQr, { BOITE_LOGO_ENTETE_QR } from '@/components/aj-signalement/ImageLogoCabinetQr'
 import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
 import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
 import JournalQr from '@/components/aj-signalement/JournalQr'
@@ -58,6 +64,7 @@ import {
 import type { TableauQr } from '@/lib/aj-signalement/types'
 import type { CodeErreurQr } from '@/lib/aj-signalement/api'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
+import { logoPageQr, type LogoPageQr } from '@/lib/aj-signalement/logo'
 
 const ICONES_VUES: Record<VueEspaceQr, NomIcone> = {
   'tableau-de-bord': 'accueil',
@@ -130,10 +137,13 @@ function EspaceGestionnaireQr({ identifiantCabinet, onDeconnexion }: Readonly<{ 
   const { etat, reessayer } = useProfilCabinetQr(identifiantCabinet, true)
 
   if (etat.statut === 'pret') {
+    const { cabinet } = etat.profil
     return (
       <CoquilleEspaceQr
         role="gestionnaire" lienAdmin={null} onDeconnexion={onDeconnexion}
-        cabinetNom={etat.profil.cabinet.nom} vueGestionnaire={{ domaines: etat.profil.cabinet.domaines }}
+        cabinetNom={cabinet.nom}
+        vueGestionnaire={{ domaines: cabinet.domaines, ...(cabinet.logo ? { logo: cabinet.logo } : {}) }}
+        logo={logoPageQr(cabinet.identifiant, cabinet.nom, cabinet.logo)}
       />
     )
   }
@@ -177,9 +187,11 @@ interface PropsCoquille {
   cabinetNom?: string
   /** PR 2 : vue d'un gestionnaire connecté (domaines de son cabinet). */
   vueGestionnaire?: VueGestionnaireTableauQr
+  /** Logo du cabinet (13/11/2026), dans l'en-tête de la page ; absent ou null : en-tête d'avant. */
+  logo?: LogoPageQr | null
 }
 
-function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGestionnaire }: Readonly<PropsCoquille>) {
+function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGestionnaire, logo = null }: Readonly<PropsCoquille>) {
   const entrees = entreesMenuQr(role)
   const [ancre, setAncre] = useState<AncreEspaceQr>(() => ancreEspaceQr(window.location.hash, role) ?? ANCRE_PAR_DEFAUT_QR)
   const vue = ancre.vue
@@ -189,6 +201,14 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
   const entree = entrees.find((e) => e.vue === vue) ?? entrees[0]
   // Gestionnaire : sous-titres de ses vues (il ne voit ni les gestionnaires ni les cabinets).
   const sousTitre = (vueGestionnaire ? EC.sousTitres[entree.vue] : undefined) ?? entree.sousTitre
+  // Textes de l'en-tête de la page ; avec un logo, ils passent à sa droite (même bloc, mêmes classes).
+  const textesEntete = (
+    <div className="min-w-0">
+      <p className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{cabinetNom ? `${E.nom} · ${cabinetNom}` : E.nom}</p>
+      <h1 ref={titre} tabIndex={-1} className="truncate font-serif text-xl text-[#0D1B2E] outline-none md:text-2xl">{entree.libelle}</h1>
+      <p className="truncate text-sm text-[#4A5E78]">{sousTitre}</p>
+    </div>
+  )
   // Tableau chargé par TableauSignalementsQr, partagé avec les autres vues ; actualisation : rechargement demandé.
   const [tableau, setTableau] = useState<TableauQr | null>(null)
   const [actualisation, setActualisation] = useState(0)
@@ -345,11 +365,12 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 border-b border-[#E4DDD0] bg-white px-4 py-3 md:px-9">
           <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold uppercase tracking-[1.5px] text-[#6F5313]">{cabinetNom ? `${E.nom} · ${cabinetNom}` : E.nom}</p>
-              <h1 ref={titre} tabIndex={-1} className="truncate font-serif text-xl text-[#0D1B2E] outline-none md:text-2xl">{entree.libelle}</h1>
-              <p className="truncate text-sm text-[#4A5E78]">{sousTitre}</p>
-            </div>
+            {logo ? (
+              <div className="flex min-w-0 items-center gap-3">
+                <ImageLogoCabinetQr logo={logo} boite={BOITE_LOGO_ENTETE_QR} className="hidden shrink-0 sm:block" />
+                {textesEntete}
+              </div>
+            ) : textesEntete}
             <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
               {lienAdmin && <Bouton variante="discret" petit href={lienAdmin} icone="cadenas">{E.panneauAdmin}</Bouton>}
               <Bouton variante="secondaire" petit icone="deconnexion" onClick={onDeconnexion}>{E.seDeconnecter}</Bouton>

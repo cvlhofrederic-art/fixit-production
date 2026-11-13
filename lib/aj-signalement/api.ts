@@ -18,7 +18,10 @@
 //     apercuDiffusionQr (D-R2), diffuserMessageQr (D-R3, avec le libellé du périmètre CONFIRMÉ), reprendreDiffusionQr
 //     (D-R4), chargerDiffusionsQr (D-R5), chargerDiffusionQr (D-R6), opposerDeclarantDiffusionQr (D-R7),
 //     chargerReglagesDiffusionCabinetQr et reglerDiffusionCabinetQr (D-R8) ; super admin, et gestionnaire sur une
-//     copropriété qui lui est attribuée nommément (D-R1 à D-R7, H11). Aucune adresse de déclarant ne passe par ces appels.
+//     copropriété qui lui est attribuée nommément (D-R1 à D-R7, H11). Aucune adresse de déclarant ne passe par ces appels ;
+//   - logo d'un cabinet (demande de Hugo du 13/11/2026) : envoyerLogoCabinetQr, retirerLogoCabinetQr (super admin ; le
+//     PNG part déjà converti par le navigateur, jamais le fichier choisi) ; chargerLogoAfficheQr (image lue par la route
+//     publique pour une affiche PDF, super admin et gestionnaire).
 // Les codes 409 / 410 des routes (doublon, hors_domaine, identifiant_fige…) sont rendus tels quels (CODES_METIER_QR),
 // avec leurs compléments utiles à l'écran (doublon, id de la fiche existante ; diffusion : motif d'un texte refusé, ce
 // qui manque à l'activation, heure d'écriture d'un message à reprendre) ; jamais un texte du serveur.
@@ -36,11 +39,13 @@ import {
   type ActionImportQr, type CabinetQr, type CabinetResumeQr, type ChampImportQr, type CoproprieteQr, type DiagnosticLigneImportQr,
   type DoublonRenduGestionnaireQr, type DoublonRenduQr, type EtatLigneImportQr, type EvenementJournalQr, type FicheGestionnaireDetailQr,
   type FiltreJournalQr, type GestionnaireInconnuImportQr, type GestionnaireQr, type GestionnaireResumeQr, type LangueSignalementQr,
-  type MessageImportQr, type ResultatImportQr, type SaisieCabinetQr, type SaisieImportQr,
+  type LogoCabinetQr, type MessageImportQr, type ResultatImportQr, type SaisieCabinetQr, type SaisieImportQr,
   type SaisieCoproprieteQr, type SaisieGestionCoproprieteQr, type SaisieGestionnaireQr, type SaisieSignalementQr, type SignalementQr,
   type SignalementSemblableQr,
   type StatutSignalementQr, type SuccessionDepartQr, type SuitePageQr, type TableauQr, type VerificationImportQr,
 } from '@/lib/aj-signalement/types'
+import { analyserPngQr, base64DepuisOctetsQr, cheminLogoCabinetQr, metaLogoDepuisLigneQr } from '@/lib/aj-signalement/logo'
+import type { LogoAfficheQr } from '@/lib/aj-signalement/qr'
 
 export const URL_API_QR = '/api/aj-signalement'
 
@@ -437,10 +442,13 @@ export async function changerStatutSignalementQr(
 
 // ── Espace d'un cabinet : gestionnaire connecté (PR 2, lot 5) ─────────────────
 
-/** Profil de la session (GET /moi) : jamais d'identifiant ; le cabinet et ses domaines viennent de la FICHE. */
+/**
+ * Profil de la session (GET /moi) : jamais d'identifiant ; le cabinet et ses domaines viennent de la FICHE. logo
+ * (13/11/2026) : métadonnées du logo de son cabinet, absentes s'il n'en a pas (affiches préparées dans son espace).
+ */
 export type MoiQr =
   | { profil: 'super_admin' }
-  | { profil: 'gestionnaire'; nom: string | null; cabinet: { identifiant: string; nom: string; domaines: string[] } }
+  | { profil: 'gestionnaire'; nom: string | null; cabinet: { identifiant: string; nom: string; domaines: string[]; logo?: LogoCabinetQr } }
 export type ResultatMoiQr = { ok: true; moi: MoiQr } | EchecQr
 
 /** Profil de la session et cabinet de sa fiche (domaines des adresses qu'il peut ajouter aux destinataires). */
@@ -451,9 +459,13 @@ export async function chargerMoiQr(fetchImpl: Fetch = fetch): Promise<ResultatMo
   if (c.profil === 'super_admin') return { ok: true, moi: { profil: 'super_admin' } }
   if (c.profil !== 'gestionnaire' || !estObjet(c.cabinet) || typeof c.cabinet.identifiant !== 'string') return { ok: false, code: 'serveur' }
   const domaines = Array.isArray(c.cabinet.domaines) ? c.cabinet.domaines.filter((d): d is string => typeof d === 'string') : []
+  const logo = logoDepuisCorpsQr(c.cabinet.logo)
   return {
     ok: true,
-    moi: { profil: 'gestionnaire', nom: typeof c.nom === 'string' ? c.nom : null, cabinet: { identifiant: c.cabinet.identifiant, nom: chaine(c.cabinet.nom), domaines } },
+    moi: {
+      profil: 'gestionnaire', nom: typeof c.nom === 'string' ? c.nom : null,
+      cabinet: { identifiant: c.cabinet.identifiant, nom: chaine(c.cabinet.nom), domaines, ...(logo ? { logo } : {}) },
+    },
   }
 }
 
@@ -693,6 +705,59 @@ export async function rattacherCoproprietesQr(
   const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/rattachement`, 'POST', { coproprieteIds, ...drapeaux })
   if (!r.ok) return r
   return { ok: true, rattachees: estObjet(r.corps) ? entier(r.corps.rattachees) : 0 }
+}
+
+// ── Logo d'un cabinet (demande de Hugo du 13/11/2026, migration 20261114) ───
+
+/**
+ * Résultat de l'envoi ou du retrait du logo : ses métadonnées (null après un retrait) ; modifie false : même image que
+ * celle en place, ou retrait d'un cabinet sans logo (rien n'a changé). 503 base_absente tant que la migration manque.
+ */
+export type ResultatLogoCabinetQr = { ok: true; logo: LogoCabinetQr | null; modifie: boolean } | EchecQr
+
+/** Métadonnées d'un logo dans un corps de réponse ({ version, largeur, hauteur }), gardées si leur forme est juste. */
+export const logoDepuisCorpsQr = (v: unknown): LogoCabinetQr | null => (estObjet(v)
+  ? metaLogoDepuisLigneQr({ logo_version: v.version, logo_largeur: v.largeur, logo_hauteur: v.hauteur })
+  : null)
+
+const resultatLogo = (corps: unknown): ResultatLogoCabinetQr => {
+  const c = estObjet(corps) ? corps : {}
+  return { ok: true, logo: logoDepuisCorpsQr(c.logo), modifie: c.modifie === true }
+}
+
+/** Envoi du logo (super admin) : le PNG déjà converti par le navigateur (convertirLogoQr), en base64. */
+export async function envoyerLogoCabinetQr(cabinetId: string, png: Uint8Array, fetchImpl: Fetch = fetch): Promise<ResultatLogoCabinetQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/logo`, 'PUT', { png: base64DepuisOctetsQr(png) })
+  return r.ok ? resultatLogo(r.corps) : r
+}
+
+/** Retrait du logo (super admin). */
+export async function retirerLogoCabinetQr(cabinetId: string, fetchImpl: Fetch = fetch): Promise<ResultatLogoCabinetQr> {
+  const r = await appelerEspace(fetchImpl, `${URL_API_QR}/cabinets/${segment(cabinetId)}/logo`, 'DELETE')
+  return r.ok ? resultatLogo(r.corps) : r
+}
+
+export type ResultatLogoAfficheQr = { ok: true; logo: LogoAfficheQr } | EchecQr
+
+/**
+ * Image du logo d'un cabinet pour une affiche PDF : lue au clic par la route PUBLIQUE versionnée (cheminLogoCabinetQr ;
+ * aucun cookie envoyé, mise en cache par le navigateur), revérifiée (PNG conforme, dimensions lues dans l'en-tête). Les
+ * métadonnées viennent des données déjà chargées (liste des cabinets, profil du gestionnaire) : aucune requête par
+ * copropriété pour les trouver. Échec : un code ; l'écran prépare alors l'affiche sans logo.
+ */
+export async function chargerLogoAfficheQr(identifiantCabinet: string, logo: LogoCabinetQr, fetchImpl: Fetch = fetch): Promise<ResultatLogoAfficheQr> {
+  let octets: Uint8Array<ArrayBuffer>
+  try {
+    const res = await fetchImpl(cheminLogoCabinetQr(identifiantCabinet, logo.version), { method: 'GET', credentials: 'omit' })
+    if (!res.ok) return { ok: false, code: codeDepuisReponseQr(res.status, null) }
+    octets = new Uint8Array(await res.arrayBuffer())
+  } catch (e) {
+    console.warn('[aj-signalement] logo du cabinet non lu', e instanceof Error ? e.name : 'inconnue')
+    return { ok: false, code: 'reseau' }
+  }
+  const analyse = analyserPngQr(octets)
+  if (!analyse.ok) return { ok: false, code: 'serveur' }
+  return { ok: true, logo: { png: octets, largeur: analyse.largeur, hauteur: analyse.hauteur } }
 }
 
 // ── Import des copropriétés (lot 5, P1-R19) ──────────────────────────────────

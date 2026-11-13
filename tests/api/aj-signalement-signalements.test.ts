@@ -17,7 +17,9 @@
 //     absente → sans phrases, dépôt 200) ; la ligne vers la politique du cabinet quand il en a une (seul href) ; aucun
 //     bouton, aucun en-tête List-Unsubscribe ; structure figée (liste exacte des blocs visibles) ; information du
 //     formulaire public (informationFormulaireQr) : politique du cabinet, partie « diffusion » seulement si elle est
-//     possible.
+//     possible ;
+//   - logo du cabinet (13/11/2026) : l'accusé le porte en pièce jointe en ligne (cid) ; les e-mails aux destinataires
+//     (lot) ni image ni pièce jointe ; sans logo ou migration 20261114 absente : accusé d'avant.
 // Seuls Supabase (petit moteur qui applique les filtres eq / in / gte et refuse les colonnes « absentes » ; lignes et
 // erreurs par table pour maybeSingle ; fonctions SQL simulées par nom, PGRST202 sinon), le limiteur (un compteur par
 // clé, remis à zéro avant chaque test), le logger et sendEmail sont simulés.
@@ -25,6 +27,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHash } from 'node:crypto'
 import { NextRequest } from 'next/server'
+import { hexBytea, pngSynthetique } from '../helpers/png-synthetique'
 
 const h = vi.hoisted(() => {
   type Ligne = Record<string, unknown>
@@ -867,5 +870,56 @@ describe('formulaire public : information à la collecte (cahier § 6, HF3)', ()
     expect((await informationFormulaireQr(COPRO_ID, CABINET_ID))?.cabinet).toBe('Cabinet Exemple')
     cabinet({ nom: '  ' })
     expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toBeNull()
+  })
+})
+
+describe('logo du cabinet : accusé en pièce jointe en ligne, e-mails de signalement sans image (13/11/2026)', () => {
+  // Demande de Hugo du 13/11/2026. L'accusé part seul (sendEmail) : le logo y est une pièce jointe EN LIGNE (cid). Les
+  // e-mails aux destinataires partent en lot (sendBatchEmails), qui n'accepte aucune pièce jointe chez Resend : sans
+  // logo, jamais d'image distante. Image synthétique.
+  type Envoi = { html: string; tags?: Array<{ name: string; value: string }>; attachments?: Array<Record<string, unknown>> }
+  const CABINET_ID = 'a0000000-0000-4000-8000-00000000000a'
+  const estAccuse = (c: unknown) => (c as Envoi).tags?.[0]?.value === 'aj-signalement-confirmation'
+  const envois = () => h.sendEmail.mock.calls.map((c) => c[0] as Envoi)
+  const png = pngSynthetique(320, 120, { couleur: [13, 27, 46, 255] })
+  const version = createHash('sha256').update(png).digest('hex').slice(0, 16)
+  const preparer = (sur: Record<string, unknown> = {}) => {
+    h.etat.copropriete = { ...COPRO, cabinet_id: CABINET_ID }
+    h.etat.lignesTables.signalements_qr_cabinets = {
+      id: CABINET_ID, nom: 'Cabinet Exemple', diffusion_politique_url: null,
+      logo_png: hexBytea(png), logo_version: version, logo_largeur: 320, logo_hauteur: 120, ...sur,
+    }
+  }
+
+  it('cabinet avec logo : l’accusé porte la pièce jointe en ligne ; les e-mails de signalement, ni image ni pièce jointe', async () => {
+    preparer()
+    const res = await poster(CORPS)
+    expect(res.status).toBe(200)
+    expect((await res.json()).signalement).toMatchObject({ emailEnvoye: true, confirmationEnvoyee: true })
+    const accuse = envois().find(estAccuse)
+    expect(accuse?.attachments).toEqual([{ filename: 'logo.png', content: Buffer.from(png).toString('base64'), contentType: 'image/png', contentId: 'logo-cabinet' }])
+    expect(accuse?.html).toContain('src="cid:logo-cabinet"')
+    expect(accuse?.html).toContain('alt="Cabinet Exemple"')
+    const signalements = envois().filter((e) => !estAccuse(e))
+    expect(signalements.length).toBeGreaterThan(0)
+    for (const e of signalements) {
+      expect(e).not.toHaveProperty('attachments')
+      expect(e.html).not.toMatch(/<img|cid:/i)
+    }
+  })
+
+  it('cabinet sans logo, ou migration 20261114 absente : accusé d’avant, sans pièce jointe ; dépôt et envois inchangés', async () => {
+    preparer({ logo_png: null, logo_version: null, logo_largeur: null, logo_hauteur: null })
+    expect((await poster(CORPS)).status).toBe(200)
+    h.etat.erreursTables.signalements_qr_cabinets = { code: '42703', message: 'column signalements_qr_cabinets.logo_png does not exist' }
+    const res = await poster(CORPS)
+    expect(res.status).toBe(200)
+    expect((await res.json()).signalement).toMatchObject({ emailEnvoye: true, confirmationEnvoyee: true })
+    const accuses = envois().filter(estAccuse)
+    expect(accuses).toHaveLength(2)
+    for (const accuse of accuses) {
+      expect(accuse).not.toHaveProperty('attachments')
+      expect(accuse.html).not.toMatch(/<img|cid:/i)
+    }
   })
 })

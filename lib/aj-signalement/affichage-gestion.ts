@@ -272,6 +272,48 @@ export const TEXTES_GESTION_QR = {
     choisirAuMoinsUne: 'Choisissez au moins une copropriété et le cabinet.',
     rattachees: '{n} copropriété(s) rattachée(s).',
     voirJournal: 'Voir le journal',
+    // Logo du cabinet (demande de Hugo du 13/11/2026, BROUILLON pour Frédéric) : fenêtre LogoCabinetQr.
+    logo: {
+      bouton: 'Logo',
+      titre: 'Logo du cabinet {cabinet}',
+      // Relecture de conformité du 13/11/2026 : les e-mails de signalement aux gestionnaires partent en lot (aucune pièce
+      // jointe possible) et ne portent pas le logo ; à revoir si Hugo retient l'envoi unitaire pour eux.
+      intro: 'Le logo paraît sur les affiches à imprimer, sur les pages publiques et l’espace du cabinet, et dans l’accusé de réception envoyé au déclarant ; ni dans les e-mails de signalement envoyés aux gestionnaires, ni dans les messages diffusés aux déclarants.',
+      actuel: 'Logo actuel',
+      altActuel: 'Logo actuel du cabinet {cabinet}',
+      dimensions: '{largeur} × {hauteur} px',
+      aucun: 'Aucun logo : les affiches, les pages et les e-mails du cabinet n’en portent pas.',
+      fichier: 'Nouveau logo (SVG, PNG, JPEG ou WebP)',
+      fichierAide: 'L’image est convertie en PNG sur cet appareil (800 × 400 px et 200 Ko au plus, fond transparent conservé) : seul ce PNG est envoyé.',
+      conversion: 'Préparation de l’image…',
+      apercu: 'Aperçu du nouveau logo',
+      altApercu: 'Aperçu du nouveau logo du cabinet {cabinet}',
+      apercuDetail: 'PNG de {largeur} × {hauteur} px, {poids} Ko',
+      envoyer: 'Enregistrer ce logo',
+      envoi: 'Enregistrement…',
+      retirer: 'Retirer le logo',
+      confirmerRetrait: 'Retirer le logo ? Les prochaines affiches, les pages et les accusés de réception n’en porteront plus ; les affiches déjà imprimées ne changent pas.',
+      confirmerRetraitBouton: 'Oui, retirer le logo',
+      retrait: 'Retrait…',
+      enregistre: 'Logo du cabinet enregistré.',
+      inchange: 'Ce logo était déjà celui du cabinet.',
+      retire: 'Logo du cabinet retiré.',
+      ligneAvec: 'Logo : {largeur} × {hauteur} px',
+      ligneSans: 'Logo : aucun',
+      // Affiches PDF : logo du cabinet non lu (réseau, logo retiré entre-temps) : l'affiche est préparée sans lui.
+      afficheSansLogo: 'Le logo du cabinet n’a pas pu être chargé : l’affiche a été préparée sans logo.',
+      affichesSansLogo: 'Le logo du cabinet n’a pas pu être chargé : les affiches ont été préparées sans logo.',
+      erreurs: {
+        fichier_trop_lourd: 'Fichier trop lourd : 5 Mo au plus.',
+        format: 'Format non reconnu : choisissez un fichier SVG, PNG, JPEG ou WebP.',
+        illisible: 'Image illisible : vérifiez le fichier, ou exportez-le de nouveau (un SVG doit avoir une largeur et une hauteur, ou une viewBox).',
+        // Relecture de sécurité du 13/11/2026 : SVG avec un élément foreignObject (texte HTML), que Chrome et Safari
+        // refusent de convertir ; refusé d'emblée dans tous les navigateurs.
+        svg_html: 'Ce SVG contient du texte HTML (élément foreignObject) que le navigateur ne sait pas convertir : exportez le logo en PNG, ou en SVG sans texte HTML.',
+        trop_lourd: 'Image trop chargée : même réduite, elle dépasse 200 Ko en PNG. Choisissez un logo plus simple.',
+        navigateur: 'Ce navigateur n’a pas pu préparer l’image : essayez avec un autre navigateur.',
+      },
+    },
   },
   gestionnaires: {
     liste: 'Gestionnaires',

@@ -10,6 +10,9 @@
 // quoi sert la position, puis montre l'adresse proposée d'après elle (copropriété « à moitié identifiée ») ; refus
 // ou échec n'empêchent rien. Adresse connue : elle est affichée et aucune position n'est demandée.
 // PR 3, lot 7 : l'information à la collecte (politique du cabinet), lue par la page serveur, est passée au formulaire.
+// Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé dans un
+// bandeau BLANC au-dessus de l'en-tête bleu nuit (un logo sombre y reste lisible), aligné sur la colonne de la page ;
+// sans logo, la page est celle d'avant.
 
 import { useState } from 'react'
 import { dateLongue, remplir, textesCopro } from '@/lib/coproprietaire/textes'
@@ -18,6 +21,8 @@ import { TEXTES_SIGNALEMENT_QR, type InformationFormulaireQr, type TextesSignale
 import { Bouton, Carte, Icone } from '@/components/coproprietaire-dashboard/ui'
 import FormulaireSignalementQr, { type ConfirmationSignalementQr } from '@/components/aj-signalement/FormulaireSignalementQr'
 import { useAdresseProposeeQr, type AdresseProposeeEtat } from '@/components/aj-signalement/useAdresseProposeeQr'
+import ImageLogoCabinetQr, { BOITE_LOGO_CARTE_QR } from '@/components/aj-signalement/ImageLogoCabinetQr'
+import type { LogoPageQr } from '@/lib/aj-signalement/logo'
 
 /** Message de la carte « Copropriété » selon l'état de la géolocalisation ; '' pendant la demande au navigateur. */
 function messageAdresse(a: AdresseProposeeEtat, tq: TextesSignalementQr): string {
@@ -41,9 +46,11 @@ export interface PropsAppSignalementQr {
   langue: LangueSignalementQr
   /** PR 3, lot 7 : information à la collecte ; absente (copropriété sans cabinet, cabinet sans politique) : rien. */
   information?: InformationFormulaireQr | null
+  /** Logo du cabinet de la copropriété ; absent ou null (sans cabinet, sans logo) : page d'avant. */
+  logo?: LogoPageQr | null
 }
 
-export default function AppSignalementQr({ jeton, copropriete, langue, information = null }: Readonly<PropsAppSignalementQr>) {
+export default function AppSignalementQr({ jeton, copropriete, langue, information = null, logo = null }: Readonly<PropsAppSignalementQr>) {
   const t = textesCopro(langue)
   const tq = TEXTES_SIGNALEMENT_QR[langue]
   const [confirmation, setConfirmation] = useState<ConfirmationSignalementQr | null>(null)
@@ -63,6 +70,13 @@ export default function AppSignalementQr({ jeton, copropriete, langue, informati
 
   return (
     <div id="aj-signalement" className="flex min-h-screen flex-col bg-[#F7F4EE] text-[#1F2D3D]">
+      {logo && (
+        <div className="border-b border-[#E4DDD0] bg-white px-4 py-3">
+          <div className="mx-auto w-full max-w-2xl">
+            <ImageLogoCabinetQr logo={logo} boite={BOITE_LOGO_CARTE_QR} className="block max-w-full" />
+          </div>
+        </div>
+      )}
       <header className="bg-[#0D1B2E] px-4 py-5 text-white md:py-7">
         <div className="mx-auto w-full max-w-2xl">
           <p className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[1.5px] text-[#C9A84C]">

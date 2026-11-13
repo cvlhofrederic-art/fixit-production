@@ -4,6 +4,11 @@
 // fait en React (un seul <path>), sans HTML injecté. Le PNG et l'affiche A4 (jsPDF) ne tournent que
 // dans le navigateur (canvas) et ne sont chargés qu'au clic. Depuis le 11/11/2026 : toutes les affiches d'un import en
 // un seul PDF (affichesPdfQr, une page par copropriété, même mise en page).
+// Depuis le 13/11/2026 (demande de Hugo) : logo du cabinet de la copropriété, quand il en a un (OptionsAfficheQr.logo, PNG
+// lu par la route publique du logo) : posé dans une zone BLANCHE sous le bandeau bleu nuit (un logo sombre y reste
+// lisible), au-dessus du nom de la copropriété, centré, proportions gardées, dans un cadre de 80 × 20 mm ; le reste de la
+// page descend de la hauteur du logo (+ 2 mm), l'adresse du lien et le pied de page restent en place. Sans logo, la page
+// est identique à celle d'avant (même suite d'appels jsPDF : tests/lib/aj-signalement-affiches-logo.test.ts).
 
 export interface MatriceQr {
   /** Nombre de modules par côté. */
@@ -86,16 +91,42 @@ export interface AfficheQr {
 /** Une copropriété dont on veut l'affiche ; la matrice du QR code est calculée au moment de l'impression. */
 export type ElementAfficheQr = Omit<AfficheQr, 'matrice'>
 
+/** Logo du cabinet pour l'affiche : le PNG (revérifié, lu par la route publique du logo) et sa taille en pixels. */
+export interface LogoAfficheQr {
+  png: Uint8Array
+  largeur: number
+  hauteur: number
+}
+
+export interface OptionsAfficheQr {
+  /** Logo du cabinet de la copropriété ; absent ou null : l'affiche d'avant, à l'identique. */
+  logo?: LogoAfficheQr | null
+}
+
+/**
+ * Cadre du logo sur l'affiche (mm) : largeur et hauteur maximales, haut du logo (6 mm sous le bandeau de 42 mm), espace
+ * ajouté sous le logo au décalage du reste de la page.
+ */
+export const CADRE_LOGO_AFFICHE_QR = { largeur: 80, hauteur: 20, haut: 48, espace: 2 } as const
+/** Alias jsPDF du logo : sur toutes les pages d'un même PDF, l'image n'est incorporée qu'une fois. */
+const ALIAS_LOGO_AFFICHE_QR = 'logo-cabinet'
+
+/** Taille du logo sur l'affiche (mm) : la plus grande qui tient dans le cadre, proportions gardées. */
+export function tailleLogoAfficheQr(logo: Pick<LogoAfficheQr, 'largeur' | 'hauteur'>): { largeur: number; hauteur: number } {
+  const echelle = Math.min(CADRE_LOGO_AFFICHE_QR.largeur / logo.largeur, CADRE_LOGO_AFFICHE_QR.hauteur / logo.hauteur)
+  return { largeur: logo.largeur * echelle, hauteur: logo.hauteur * echelle }
+}
+
 type DocumentPdf = InstanceType<typeof import('jspdf').jsPDF>
 
 /**
  * Affiche A4 à imprimer et poser dans la copropriété : bandeau, nom de la copropriété, consigne, QR code,
  * adresse du lien. Police Helvetica (caractères latins, apostrophes droites).
  */
-export async function affichePdfQr(affiche: AfficheQr): Promise<Blob> {
+export async function affichePdfQr(affiche: AfficheQr, options: OptionsAfficheQr = {}): Promise<Blob> {
   const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
-  dessinerAfficheQr(pdf, affiche)
+  dessinerAfficheQr(pdf, affiche, options.logo ?? null)
   return pdf.output('blob')
 }
 
@@ -103,20 +134,22 @@ export async function affichePdfQr(affiche: AfficheQr): Promise<Blob> {
  * Toutes les affiches d'une liste (après un import) : UN PDF, une page par copropriété, même mise en page que
  * affichePdfQr. jsPDF et qrcode chargés à l'appel (clic) ; pages produites l'une après l'autre, avancement à chacune.
  */
-export async function affichesPdfQr(liste: readonly ElementAfficheQr[], onAvancement?: (fait: number, total: number) => void): Promise<Blob> {
+export async function affichesPdfQr(
+  liste: readonly ElementAfficheQr[], onAvancement?: (fait: number, total: number) => void, options: OptionsAfficheQr = {},
+): Promise<Blob> {
   if (liste.length === 0) throw new RangeError('aucune affiche à préparer')
   const { jsPDF } = await import('jspdf')
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
   for (const [i, element] of liste.entries()) {
     if (i > 0) pdf.addPage()
-    dessinerAfficheQr(pdf, { ...element, matrice: await matriceQr(element.url) })
+    dessinerAfficheQr(pdf, { ...element, matrice: await matriceQr(element.url) }, options.logo ?? null)
     onAvancement?.(i + 1, liste.length)
   }
   return pdf.output('blob')
 }
 
-/** Une affiche sur la page courante du document. */
-function dessinerAfficheQr(pdf: DocumentPdf, affiche: AfficheQr): void {
+/** Une affiche sur la page courante du document ; le logo du cabinet, s'il y en a un, sous le bandeau. */
+function dessinerAfficheQr(pdf: DocumentPdf, affiche: AfficheQr, logo: LogoAfficheQr | null): void {
   const largeur = 210
   const centre = largeur / 2
 
@@ -130,18 +163,26 @@ function dessinerAfficheQr(pdf: DocumentPdf, affiche: AfficheQr): void {
   pdf.setFontSize(24)
   pdf.text('Un problème dans la copropriété ?', centre, 30, { align: 'center' })
 
+  // Zone blanche du logo : tout ce qui suit descend d'autant ; sans logo, rien ne change (décalage nul, aucun appel).
+  let decalage = 0
+  if (logo) {
+    const taille = tailleLogoAfficheQr(logo)
+    pdf.addImage(logo.png, 'PNG', centre - taille.largeur / 2, CADRE_LOGO_AFFICHE_QR.haut, taille.largeur, taille.hauteur, ALIAS_LOGO_AFFICHE_QR, 'FAST')
+    decalage = taille.hauteur + CADRE_LOGO_AFFICHE_QR.espace
+  }
+
   pdf.setTextColor(13, 27, 46)
   pdf.setFontSize(22)
-  pdf.text(affiche.nom, centre, 60, { align: 'center', maxWidth: 180 })
+  pdf.text(affiche.nom, centre, 60 + decalage, { align: 'center', maxWidth: 180 })
   if (affiche.adresse) {
     pdf.setFont('helvetica', 'normal')
     pdf.setFontSize(13)
     pdf.setTextColor(74, 94, 120)
-    pdf.text(affiche.adresse, centre, 70, { align: 'center', maxWidth: 180 })
+    pdf.text(affiche.adresse, centre, 70 + decalage, { align: 'center', maxWidth: 180 })
   }
 
   const coteQr = 105
-  const yQr = 80
+  const yQr = 80 + decalage
   const png = pngQr(affiche.matrice, 16, 2)
   if (png) pdf.addImage(png, 'PNG', centre - coteQr / 2, yQr, coteQr, coteQr)
 

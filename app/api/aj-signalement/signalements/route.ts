@@ -37,6 +37,9 @@
 // politique de confidentialité du cabinet quand il en a une ; l'annonce n'est datée (…_annonce_faite) qu'APRÈS
 // l'acceptation de l'accusé par le service d'e-mail. Lu seulement quand un accusé part (limite par adresse non
 // atteinte). Migration 20261113 absente ou erreur : accusé d'avant, dépôt acquis.
+// Logo du cabinet (demande de Hugo du 13/11/2026) : l'accusé (envoi unitaire) le porte en pièce jointe EN LIGNE ; les
+// e-mails aux destinataires (un lot, que Resend ne laisse porter aucune pièce jointe) restent sans logo, jamais avec une
+// image distante. Copropriété sans cabinet, cabinet sans logo, migration 20261114 absente ou erreur : accusé d'avant.
 
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
@@ -58,6 +61,7 @@ import {
   envoyerEmailsSignalementQr, masquerEmailsQr, resumeErreurEnvoiQr,
 } from '@/lib/aj-signalement/email'
 import { annonceDiffusionFaiteQr, annonceDiffusionQr, politiqueCabinetDeCoproprieteQr } from '@/lib/aj-signalement/serveur-information'
+import { lireLogoEmailDeCoproprieteQr } from '@/lib/aj-signalement/serveur-logo'
 
 const CONTEXTE = '[AJ SIGNALEMENT]'
 
@@ -73,6 +77,7 @@ const ERREUR_LIMITE_CONFIRMATION = `limite atteinte : ${LIMITE_CONFIRMATIONS_PAR
  * l'erreur brute de Resend dans la console, donc dans les journaux Workers, adresse comprise si Resend la cite.
  * PR 3, lot 7 : annonce de la diffusion et politique du cabinet lues avant l'envoi (jamais d'exception : faux et null
  * en repli) ; annonce datée seulement après l'acceptation d'un accusé qui la portait.
+ * Logo du cabinet (13/11/2026) : lu en même temps (jamais d'exception : null en repli), envoyé en pièce jointe en ligne.
  */
 async function confirmerAuDeclarant(signalement: SignalementQr, copropriete: LigneCoproprieteQr): Promise<{ envoyeeLe: string | null; erreur: string | null }> {
   try {
@@ -81,10 +86,10 @@ async function confirmerAuDeclarant(signalement: SignalementQr, copropriete: Lig
       logger.warn(`${CONTEXTE} confirmation non envoyée : limite par adresse atteinte`, { signalement: signalement.id })
       return { envoyeeLe: null, erreur: ERREUR_LIMITE_CONFIRMATION }
     }
-    const [annoncerDiffusion, politique] = await Promise.all([
-      annonceDiffusionQr(signalement.id), politiqueCabinetDeCoproprieteQr(copropriete.id),
+    const [annoncerDiffusion, politique, logo] = await Promise.all([
+      annonceDiffusionQr(signalement.id), politiqueCabinetDeCoproprieteQr(copropriete.id), lireLogoEmailDeCoproprieteQr(copropriete.id),
     ])
-    const envoi = await envoyerConfirmationQr({ signalement, copropriete: { nom: copropriete.nom ?? '' }, annoncerDiffusion, politique })
+    const envoi = await envoyerConfirmationQr({ signalement, copropriete: { nom: copropriete.nom ?? '' }, annoncerDiffusion, politique, logo })
     if (envoi.success) {
       if (annoncerDiffusion) await annonceDiffusionFaiteQr(signalement.id)
       return { envoyeeLe: new Date().toISOString(), erreur: null }
