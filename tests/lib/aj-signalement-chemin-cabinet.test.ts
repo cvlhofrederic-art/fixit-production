@@ -13,7 +13,7 @@ import { join } from 'path'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, IDENTIFIANTS_RESERVES_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR,
   LONGUEUR_MIN_IDENTIFIANT_CABINET_QR, MOTIF_CHEMIN_CABINET_QR, PREFIXES_RESERVES_QR, SEGMENTS_CABINET_QR,
-  SOURCE_IDENTIFIANT_CABINET_QR, cheminConnexionCabinetQr, cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr,
+  SOURCE_IDENTIFIANT_CABINET_QR, cheminConnexionCabinetQr, cheminDesinscriptionCabinetQr, cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr,
   estEspaceCabinetQr, proposerIdentifiantCabinetQr, urlConfirmationAdresseQr, urlInvitationAccesQr, urlSignalementCabinetQr,
   validerIdentifiantCabinetQr,
 } from '@/lib/aj-signalement/chemin-cabinet'
@@ -45,7 +45,7 @@ describe('format d’un identifiant (saisie du super admin)', () => {
   })
 
   it('refuse les identifiants réservés (routes du site, mots gardés) et ceux qui commencent par un préfixe réservé', () => {
-    for (const id of ['api', 'admin', 'signalement', 'aj-signalement', 'syndic', 'blog', 'servicos', 'cabinet', 'suivi', 'invitation']) {
+    for (const id of ['api', 'admin', 'signalement', 'aj-signalement', 'syndic', 'blog', 'servicos', 'cabinet', 'suivi', 'invitation', 'desinscription']) {
       expect(validerIdentifiantCabinetQr(id), id).toEqual({ ok: false, raison: 'reserve' })
     }
     for (const id of ['aj-signalement-exemple', 'administrateur-judiciaire2', 'confirmation-adresse', 'reserver-exemple']) {
@@ -108,6 +108,26 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(cheminPublicCabinetQr('/cabinet-exemple/invitation')).toEqual({ page: 'invitation', identifiant: 'cabinet-exemple' })
   })
 
+  // PR 3, lot 6 : page publique de désinscription des messages de diffusion (lien de l'e-mail, jeton après le « # ») :
+  // publique, SANS session, même si l'espace du cabinet est sous session (PR 2).
+  it('/cabinet-exemple/desinscription/, avec ou sans barre finale → désinscription des messages de diffusion (publique)', () => {
+    expect(cheminPublicCabinetQr('/cabinet-exemple/desinscription/')).toEqual({ page: 'desinscription', identifiant: 'cabinet-exemple' })
+    expect(cheminPublicCabinetQr('/cabinet-exemple/desinscription')).toEqual({ page: 'desinscription', identifiant: 'cabinet-exemple' })
+    expect(cheminEspaceCabinetQr('/cabinet-exemple/desinscription/')).toBeNull()
+    for (const chemin of [
+      '/cabinet-exemple/desinscription/autre/', '/Cabinet-Exemple/desinscription/', '/cabinet-exemple/Desinscription/',
+      '/cabinet-exemple/desinscriptions/', '/api/desinscription/', '/admin/desinscription/', '/fr/cabinet-exemple/desinscription/',
+      '/cabinet/cabinet-exemple/desinscription/',
+    ]) {
+      expect(cheminPublicCabinetQr(chemin), chemin).toBeNull()
+    }
+  })
+
+  it('adresse de la page de désinscription : /<identifiant>/desinscription/ (barre finale), reconnue par le motif', () => {
+    expect(cheminDesinscriptionCabinetQr('cabinet-exemple')).toBe('/cabinet-exemple/desinscription/')
+    expect(cheminPublicCabinetQr(cheminDesinscriptionCabinetQr('cabinet-exemple'))).toEqual({ page: 'desinscription', identifiant: 'cabinet-exemple' })
+  })
+
   it('jamais une langue, l’API, l’admin, _next, un jeton mal formé, une majuscule ni un autre chemin du cabinet', () => {
     const ignores = [
       `/fr/signalement/${JETON}/`, `/pt/signalement/${JETON}/`, `/en/signalement/${JETON}/`,
@@ -141,7 +161,7 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
   it('le motif est construit sur SOURCE_IDENTIFIANT_CABINET_QR (le même texte servira aux réécritures de next.config.ts)', () => {
     // RegExp.source réécrit « / » en « \/ » : on compare à la même regex reconstruite depuis la source.
     expect(MOTIF_CHEMIN_CABINET_QR.source).toBe(
-      new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation))\\/?$`).source,
+      new RegExp(`^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation|desinscription))\\/?$`).source,
     )
     expect(SOURCE_IDENTIFIANT_CABINET_QR).toBe('(?!(?:api|admin)/)[a-z][a-z0-9-]{1,38}[a-z0-9]')
     expect(MOTIF_CHEMIN_CABINET_QR.flags).toBe('')
@@ -152,8 +172,8 @@ describe('reconnaissance d’un chemin public par le middleware (motif figé, sa
     expect(segment.test('/cabinet-exemple/')).toBe(true)
   })
 
-  it('segments du chemin d’un cabinet : signalement, confirmation-adresse, invitation (pages publiques), suivi et connexion (espace du cabinet, lot 4)', () => {
-    expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'])
+  it('segments du chemin d’un cabinet : signalement, confirmation-adresse, invitation, desinscription (pages publiques), suivi et connexion (espace du cabinet, lot 4)', () => {
+    expect([...SEGMENTS_CABINET_QR]).toEqual(['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion', 'desinscription'])
   })
 })
 
@@ -198,7 +218,7 @@ describe('espace d’un cabinet : reconnaissance par le middleware (avec la list
     for (const chemin of ['/cabinet-exemple/', '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/']) {
       expect(cheminPublicCabinetQr(chemin), chemin).toBeNull()
     }
-    for (const chemin of ['/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', `/cabinet-exemple/signalement/${JETON}/`]) {
+    for (const chemin of ['/cabinet-exemple/invitation/', '/cabinet-exemple/confirmation-adresse/', `/cabinet-exemple/signalement/${JETON}/`, '/cabinet-exemple/desinscription/']) {
       expect(cheminEspaceCabinetQr(chemin), chemin).toBeNull()
     }
   })

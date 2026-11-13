@@ -473,3 +473,61 @@ describe('signalements déjà faits au même endroit', () => {
     expect(corpsDepot()).toMatchObject({ signalementLieNumero: '' })
   })
 })
+
+// ── PR 3, lot 7 (cahier § 6, HF3) : information à la collecte sous le bouton d'envoi (texte proposé, à valider) ──
+
+describe('information à la collecte : mention courte et politique du cabinet sous le bouton', () => {
+  const POLITIQUE = 'https://cabinet-exemple.test/confidentialite'
+  const MENTION = 'Vos coordonnées sont traitées par Cabinet Exemple pour traiter votre signalement.'
+  const MENTION_DIFFUSION = 'Vos coordonnées sont traitées par Cabinet Exemple pour traiter votre signalement et vous informer des incidents de votre immeuble ; vous pourrez vous y opposer à tout moment.'
+  const rendreAvec = (information: { cabinet: string; politiqueUrl: string; diffusion: boolean } | null, langue: 'fr' | 'pt' = 'fr') => render(
+    <AppSignalementQr jeton={JETON} copropriete={{ nom: 'Parc Belle Ombre', adresse: '12 allée des Pins' }} langue={langue} information={information} />,
+  )
+  const lien = () => screen.getByRole('link', { name: tq.politiqueConfidentialite })
+
+  it('cabinet avec politique, diffusion possible : mention avec la partie « diffusion », lien vers la politique (nouvel onglet, sans Referer)', () => {
+    simulerFetch(routeur())
+    rendreAvec({ cabinet: 'Cabinet Exemple', politiqueUrl: POLITIQUE, diffusion: true })
+    expect(screen.getByText(MENTION_DIFFUSION, { exact: false })).toBeInTheDocument()
+    expect(lien()).toHaveAttribute('href', POLITIQUE)
+    expect(lien()).toHaveAttribute('target', '_blank')
+    // Le chemin de la page porte le jeton du QR code : jamais transmis au site du cabinet.
+    expect(lien().getAttribute('rel')?.split(' ').sort((a, b) => a.localeCompare(b))).toEqual(['noopener', 'noreferrer'])
+    // Sous le bouton d'envoi, comme la phrase « transmis à l'administrateur ».
+    expect(bouton().compareDocumentPosition(lien()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(tq.politiqueConfidentialite).toBe('Politique de confidentialité')
+  })
+
+  it('cabinet avec politique, diffusion non activée : mention SANS la partie « diffusion », même lien', () => {
+    simulerFetch(routeur())
+    rendreAvec({ cabinet: 'Cabinet Exemple', politiqueUrl: POLITIQUE, diffusion: false })
+    const mention = screen.getByText(MENTION, { exact: false })
+    expect(mention.textContent).not.toContain('incidents de votre immeuble')
+    expect(lien()).toHaveAttribute('href', POLITIQUE)
+  })
+
+  it('aucune information (copropriété sans cabinet, cabinet sans politique) : formulaire inchangé', () => {
+    simulerFetch(routeur())
+    rendreAvec(null)
+    expect(screen.queryByText(/Vos coordonnées sont traitées/)).toBeNull()
+    expect(screen.queryByRole('link', { name: tq.politiqueConfidentialite })).toBeNull()
+  })
+
+  it('portugais : mention proposée (H4) dans la langue de la page', () => {
+    simulerFetch(routeur())
+    rendreAvec({ cabinet: 'Cabinet Exemple', politiqueUrl: POLITIQUE, diffusion: true }, 'pt')
+    const tqPt = TEXTES_SIGNALEMENT_QR.pt
+    expect(screen.getByText('Os seus dados são tratados por Cabinet Exemple para tratar a sua ocorrência e informá-lo dos incidentes do seu prédio; pode opor-se a qualquer momento.', { exact: false })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: tqPt.politiqueConfidentialite })).toHaveAttribute('href', POLITIQUE)
+  })
+
+  it('« Faire un autre signalement » : la mention reste sous le nouveau formulaire', async () => {
+    simulerFetch(routeur())
+    rendreAvec({ cabinet: 'Cabinet Exemple', politiqueUrl: POLITIQUE, diffusion: false })
+    remplirCoordonnees()
+    remplirParcours()
+    fireEvent.click(bouton())
+    fireEvent.click(await screen.findByRole('button', { name: tq.autreSignalement }))
+    expect(lien()).toHaveAttribute('href', POLITIQUE)
+  })
+})

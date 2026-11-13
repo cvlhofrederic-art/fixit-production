@@ -3,8 +3,10 @@
 // PATCH — modification d'une copropriété QR (espace AJ Signalement, super admin), P1-R4 : nom, adresse, code postal,
 // ville, immatriculation, référence, bâtiments, e-mails destinataires, activation (un QR code désactivé répond 404 à qui
 // le scanne, l'historique reste), nouveau jeton (regenererJeton : l'ancien QR code imprimé ne répond plus),
-// « attribuée à tous » (par la fonction d'attribution). Corps actuels de l'écran acceptés tels quels. Le cabinet ne se
-// change pas ici (rattachement par POST /cabinets/[id]/rattachement, définitif).
+// « attribuée à tous » (par la fonction d'attribution), fin de mission prévue (diffusionFinGestionLe, décision H7 de Hugo,
+// PR 3 : à partir de ce jour, plus aucune diffusion ; null l'efface ; colonne de la migration 20261113, absente → 503
+// base_absente avant toute écriture). Corps actuels de l'écran acceptés tels quels. Le cabinet ne se change pas ici
+// (rattachement par POST /cabinets/[id]/rattachement, définitif).
 //   - doublons revérifiés si nom, code postal, immatriculation ou référence changent (forçage du super admin) ;
 //   - une adresse AJOUTÉE aux destinataires est refusée si c'est celle d'une fiche gestionnaire (400), et soumise à
 //     confirmerHorsDomaine si elle est hors des domaines du cabinet (409) ; une adresse déjà présente ne bloque rien ;
@@ -38,7 +40,7 @@ import {
 import {
   COLONNES_COPROPRIETE_QR, TABLE_ATTRIBUTIONS_QR, TABLE_COPROPRIETES_QR, TABLE_SIGNALEMENTS_QR, colonneInconnue, controlerAccesQr, estUuid,
   genererJetonQr, journaliserQr, journaliserRepliGestionQr, lireCoproprieteCompleteQr, lireCoproprietesDoublonsQr, lireDomainesCabinetQr,
-  lireFichesDesAdressesQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseErreur, reponseErreurSqlQr, reponseInvalide,
+  lireFichesDesAdressesQr, lireLigneCoproprieteQr, porteeDuProfilQr, reponseErreur, reponseErreurDiffusionQr, reponseErreurSqlQr, reponseInvalide,
   reponseLectureGestionnaireQr, reponsePriveeQr, reponseStructureGestionnaireQr, type LigneCoproprieteQr,
 } from '@/lib/aj-signalement/serveur'
 
@@ -56,11 +58,25 @@ const COLONNES_ORIGINE: readonly string[] = ['nom', 'adresse', 'emails_destinata
 type Modification = {
   nom?: string; adresse?: string; codePostal?: string; ville?: string; immatriculation?: string; referenceCabinet?: string
   batiments?: string[]; emailsDestinataires?: string[]; actif?: boolean; regenererJeton?: true; attribueeATous?: boolean
+  diffusionFinGestionLe?: string | null
   forcerDoublon?: boolean; confirmerDoublonProbable?: boolean; confirmerHorsDomaine?: boolean
 }
 
+/**
+ * Fin de mission prévue enregistrée (H7, colonne de la migration 20261113), lue seulement quand le corps la change :
+ * migration absente → 503 base_absente (journalisé une fois), avant toute écriture ; sinon la traduction commune.
+ */
+async function lireFinMission(id: string): Promise<{ ok: true; valeur: string | null } | { ok: false; reponse: NextResponse }> {
+  const r = await supabaseAdmin.from(TABLE_COPROPRIETES_QR).select('diffusion_fin_gestion_le').eq('id', id).maybeSingle()
+  if (r.error) return { ok: false, reponse: reponseErreurDiffusionQr(r.error, 'fin de mission d’une copropriété', { copropriete: id }) }
+  const valeur = (r.data as { diffusion_fin_gestion_le?: unknown } | null)?.diffusion_fin_gestion_le
+  return { ok: true, valeur: typeof valeur === 'string' ? valeur : null }
+}
+
 /** Valeurs à écrire (colonnes de la base) et NOMS des champs réellement changés (journal). */
-function ecritures(m: Modification, avant: LigneCoproprieteQr): { valeurs: Record<string, unknown>; champs: string[] } {
+function ecritures(
+  m: Modification, avant: LigneCoproprieteQr, finMissionAvant: string | null = null,
+): { valeurs: Record<string, unknown>; champs: string[] } {
   const valeurs: Record<string, unknown> = {}
   const champs: string[] = []
   const poser = (champ: string, colonne: string, valeur: unknown, ancienne: unknown) => {
@@ -80,6 +96,7 @@ function ecritures(m: Modification, avant: LigneCoproprieteQr): { valeurs: Recor
   if (m.emailsDestinataires !== undefined) {
     poser('emailsDestinataires', 'emails_destinataires', canoniques(m.emailsDestinataires), canoniques(avant.emails_destinataires ?? []))
   }
+  if (m.diffusionFinGestionLe !== undefined) poser('diffusionFinGestionLe', 'diffusion_fin_gestion_le', m.diffusionFinGestionLe, finMissionAvant)
   if (m.actif !== undefined) valeurs.actif = m.actif
   if (m.regenererJeton) valeurs.jeton = genererJetonQr()
   return { valeurs, champs }
@@ -202,6 +219,12 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     if (!avant) return reponseErreur('introuvable', 404)
     const cabinetId = avant.cabinet_id ?? null
     if (m.attribueeATous !== undefined && !cabinetId) return reponseErreur('sans_cabinet', 409)
+    let finMissionAvant: string | null = null
+    if (m.diffusionFinGestionLe !== undefined) {
+      const fin = await lireFinMission(id)
+      if (!fin.ok) return fin.reponse
+      finMissionAvant = fin.valeur
+    }
 
     const doublons = await controlerDoublons(id, m, avant, 'super_admin')
     if ('erreur' in doublons) return doublons.erreur
@@ -213,7 +236,7 @@ export async function PATCH(request: NextRequest, { params }: Contexte) {
     const refusAdresses = await controlerAdressesAjoutees(m, avant)
     if (refusAdresses) return refusAdresses
 
-    const { valeurs, champs } = ecritures(m, avant)
+    const { valeurs, champs } = ecritures(m, avant, finMissionAvant)
     const refusEcriture = await mettreAJour(id, valeurs)
     if (refusEcriture) return refusEcriture
     if (m.attribueeATous !== undefined) {

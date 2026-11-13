@@ -186,17 +186,21 @@ describe('aucune page de app/ n’est masquée par le motif du chemin d’un cab
     const fautives = [['blog', 'signalement', '[id]'], ['blog', 'confirmation-adresse'], ['blog', 'suivi'],
       ['blog', 'invitation', '[[...reste]]'], ['blog', '[...reste]'], ['[x]', '[...reste]'], ['[[...tout]]'],
       // Lot 4 : une route dynamique de premier niveau serait captée par l'accueil de l'espace du cabinet.
-      ['[x]'], ['blog', 'connexion']]
+      ['[x]'], ['blog', 'connexion'],
+      // PR 3, lot 6 : désinscription des messages de diffusion (page publique).
+      ['blog', 'desinscription']]
     expect(masquees(fautives)).toEqual(fautives.map((r) => `/${r.join('/')}`))
     const saines = [['fr', 'signalement', '[jeton]'], ['signalement', '[jeton]'], ['api', 'signalement', '[id]'],
       ['tracking', '[token]'], ['blog', '[slug]', '[page]'], ['blog', 'signalement'], ['blog', 'signalement', '[id]', 'detail'],
       // Nom réservé : son segment seul n'est jamais pris pour un cabinet. Ici, motif du middleware seulement : le chemin
       // interne d'une réécriture de langue est gardé par tests/next-config-reecritures-enchainees.test.ts.
-      ['blog'], ['aj-signalement', 'connexion']]
+      ['blog'], ['aj-signalement', 'connexion'],
+      // Pages internes (app/(commun)/cabinet/… et app/(sans-coquille)/cabinet/…) : segment dynamique en 2e position.
+      ['cabinet', '[identifiant]', 'desinscription'], ['api', 'aj-signalement', 'desinscription', 'un-clic', '[jeton]']]
     expect(masquees(saines)).toEqual([])
   })
 
-  it('aucune route réelle n’a « signalement/<segment> », « confirmation-adresse », « suivi », « invitation » ni « connexion » en 2e segment, ni de segment seul capté', () => {
+  it('aucune route réelle n’a « signalement/<segment> », « confirmation-adresse », « suivi », « invitation », « connexion » ni « desinscription » en 2e segment, ni de segment seul capté', () => {
     const routes = routesDeApp()
     expect(routes.length).toBeGreaterThan(50)
     expect(masquees(routes)).toEqual([])
@@ -253,7 +257,7 @@ function perimetreAjSignalement(): string[] {
     .map((nom) => join('supabase/migrations', nom))
   return [
     'lib/aj-signalement', 'app/api/aj-signalement', 'app/(commun)/aj-signalement', 'app/(commun)/signalement',
-    'app/(commun)/cabinet', 'components/aj-signalement', 'middleware.ts', 'next.config.ts', 'lib/validation.ts',
+    'app/(commun)/cabinet', 'app/(sans-coquille)', 'components/aj-signalement', 'middleware.ts', 'next.config.ts', 'lib/validation.ts',
     ...migrations, ...testsAj,
   ].flatMap((chemin) => fichiers(join(RACINE, chemin)))
 }

@@ -6,6 +6,9 @@
 //   sinon la page publique, dans la langue du cabinet (attribut lang et textes) ;
 // - ancienne page /fr|pt/signalement/<jeton>/ (QR codes déjà imprimés) : copropriété rattachée → redirection
 //   permanente (308) vers le chemin de son cabinet ; sans cabinet → servie comme aujourd'hui (langue du chemin).
+// - PR 3, lot 7 (cahier § 6, HF3) : la page du chemin client lit l'information à la collecte (politique du cabinet,
+//   diffusion possible) et la passe au formulaire ; aucune information → formulaire inchangé ; l'ancienne page
+//   (copropriété sans cabinet) ne la lit jamais.
 // La lecture (serveur) est simulée : seules les décisions des pages sont testées.
 
 import React from 'react'
@@ -14,10 +17,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const simul = vi.hoisted(() => ({
   lire: vi.fn(),
+  information: vi.fn(),
   locale: 'fr' as string | null,
 }))
 
 vi.mock('@/lib/aj-signalement/serveur', () => ({ lireCoproprieteEtCabinetParJetonQr: simul.lire }))
+vi.mock('@/lib/aj-signalement/serveur-information', () => ({ informationFormulaireQr: simul.information }))
 vi.mock('next/headers', () => ({
   headers: async () => new Headers(simul.locale ? { 'x-locale': simul.locale } : {}),
 }))
@@ -26,8 +31,12 @@ vi.mock('next/navigation', () => ({
   permanentRedirect: (url: string) => { throw new Error(`NEXT_REDIRECT_308:${url}`) },
 }))
 vi.mock('@/components/aj-signalement/AppSignalementQr', () => ({
-  default: ({ jeton, copropriete, langue }: { jeton: string; copropriete: { nom: string; adresse: string }; langue: string }) => (
-    <p data-testid="app" data-jeton={jeton} data-langue={langue}>{copropriete.nom} — {copropriete.adresse}</p>
+  default: ({ jeton, copropriete, langue, information }: {
+    jeton: string; copropriete: { nom: string; adresse: string }; langue: string; information?: unknown
+  }) => (
+    <p data-testid="app" data-jeton={jeton} data-langue={langue} data-information={JSON.stringify(information ?? null)}>
+      {copropriete.nom} — {copropriete.adresse}
+    </p>
   ),
 }))
 
@@ -43,6 +52,8 @@ const ouvrirAncienne = (jeton = JETON) => PageAncienne({ params: Promise.resolve
 
 beforeEach(() => {
   simul.lire.mockReset()
+  simul.information.mockReset()
+  simul.information.mockResolvedValue(null)
   simul.locale = 'fr'
 })
 
@@ -113,5 +124,32 @@ describe('ancienne page /fr|pt/signalement/<jeton>/ (QR codes déjà imprimés)'
     await expect(ouvrirAncienne()).rejects.toThrow('NEXT_NOT_FOUND')
     simul.lire.mockResolvedValue({ ok: false, code: 'serveur' })
     await expect(ouvrirAncienne()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+describe('information à la collecte sur le formulaire (PR 3, lot 7 ; cahier § 6, HF3)', () => {
+  const INFORMATION = { cabinet: 'Cabinet Exemple', politiqueUrl: 'https://cabinet-exemple.test/confidentialite', diffusion: true }
+
+  it('page du chemin client : information lue pour CETTE copropriété et CE cabinet, passée au formulaire', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple') })
+    simul.information.mockResolvedValue(INFORMATION)
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(simul.information).toHaveBeenCalledWith('c1', 'k1')
+    expect(JSON.parse(screen.getByTestId('app').getAttribute('data-information') ?? 'null')).toEqual(INFORMATION)
+  })
+
+  it('aucune information (cabinet sans politique, migration absente) : formulaire inchangé', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('cabinet-exemple') })
+    render(await ouvrirCabinet('cabinet-exemple'))
+    expect(screen.getByTestId('app')).toHaveAttribute('data-information', 'null')
+  })
+
+  it('page refusée (404) ou ancienne page sans cabinet : l’information n’est jamais lue', async () => {
+    simul.lire.mockResolvedValue({ ok: true, copropriete: copro, cabinet: cabinet('autre-cabinet') })
+    await expect(ouvrirCabinet('cabinet-exemple')).rejects.toThrow('NEXT_NOT_FOUND')
+    simul.lire.mockResolvedValue({ ok: true, copropriete: { ...copro, cabinet_id: null }, cabinet: null })
+    render(await ouvrirAncienne())
+    expect(screen.getByTestId('app')).toHaveAttribute('data-information', 'null')
+    expect(simul.information).not.toHaveBeenCalled()
   })
 })

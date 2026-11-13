@@ -40,6 +40,8 @@ describe('next.config.ts : espaces jamais indexables', () => {
     // Espace du cabinet (PR 2, lot 4) : connexion professionnelle et suivi du gestionnaire.
     `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/:path*`,
     `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/:path*`,
+    // Désinscription des messages de diffusion (PR 3, lot 6) : page publique, jamais indexée.
+    `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription/:path*`,
     '/cabinet/:path*',
   ])('chemin public d’un cabinet (%s) : noindex', async (source) => {
     expect(await robotsDe(source)).toBe('noindex, nofollow, noarchive')

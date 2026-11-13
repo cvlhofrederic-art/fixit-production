@@ -302,6 +302,10 @@ describe('chemin public d’un cabinet client', () => {
     // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : lien de l'e-mail, publique comme la confirmation.
     '/cabinet-exemple/invitation/',
     '/cabinet-exemple/invitation',
+    // Désinscription des messages de diffusion (PR 3, lot 6) : lien de l'e-mail, publique SANS session même si l'espace du
+    // cabinet est sous session (PR 2).
+    '/cabinet-exemple/desinscription/',
+    '/cabinet-exemple/desinscription',
   ])('%s : servie telle quelle (réécriture ensuite), sans Supabase ni cookie de langue, non indexable, privée', async (chemin) => {
     const r = await document(chemin)
     expect(r.statut).toBe(200)
@@ -324,6 +328,11 @@ describe('chemin public d’un cabinet client', () => {
     expect((await document('/cabinet-exemple/confirmation-adresse/')).statut).toBe(200)
     connecte({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'autre-cabinet' })
     expect((await document('/cabinet-exemple/invitation/')).statut).toBe(200)
+    // Désinscription (lot 6) : ni la session du gestionnaire de CE cabinet ni celle d'un autre ne change rien.
+    connecte({ role: 'gestionnaire_signalement', aj_signalement_cabinet: 'cabinet-exemple' })
+    expect((await document('/cabinet-exemple/desinscription/')).statut).toBe(200)
+    connecte({ role: 'super_admin' })
+    expect((await document('/cabinet-exemple/desinscription/')).statut).toBe(200)
     expect(appelsGetUser).toBe(0)
   })
 
@@ -345,6 +354,10 @@ describe('chemin public d’un cabinet client', () => {
     '/cabinet/cabinet-exemple/invitation/',
     '/cabinet/cabinet-exemple/suivi/',
     `/cabinet/cabinet-exemple/signalement/${JETON}/`,
+    // Désinscription (lot 6) : sous-chemin, casse, page interne jamais servie directement.
+    '/cabinet-exemple/desinscription/autre/',
+    '/Cabinet-Exemple/desinscription/',
+    '/cabinet/cabinet-exemple/desinscription/',
   ])('%s : hors du motif, 302 de langue comme avant (puis 404 s’il n’y a pas de page)', async (chemin) => {
     const r = await document(chemin)
     expect(r.statut).toBe(302)
@@ -545,5 +558,64 @@ describe('aiguillage d’un gestionnaire vers l’espace de SON cabinet (plan §
     const reponse = await middleware(new NextRequest('https://vitfix.io/fr/aj-signalement/'))
     expect(reponse.status).toBe(307)
     expect(reponse.cookies.get('sb-projet-auth-token')).toMatchObject({ value: 'jeton-rafraichi', maxAge: 3600 })
+  })
+})
+
+// ── PR 3, lot 6 : contrôle d'Origin des requêtes mutantes sur /api/ (CSRF), cahier § 8.2, décision F3 ──────────────
+// Le POST « un clic » de désinscription (RFC 8058, en-tête List-Unsubscribe-Post) vient de la messagerie de la personne :
+// un service qui l'envoie depuis une page web porte un Origin étranger (ou « null »). Ce seul chemin, en POST seulement et
+// pour un jeton au format exact, est exempté : son effet est borné par le jeton signé (une opposition, idempotente) et la
+// route vérifie la signature avant tout. Tout autre POST, PATCH, PUT ou DELETE sur /api/ avec un Origin étranger : 403.
+describe('contrôle d’Origin des requêtes mutantes sur /api/ : seule exception, le POST « un clic » de désinscription', () => {
+  const JETON_UN_CLIC = `${'a'.repeat(32)}.${'b'.repeat(64)}`
+  const UN_CLIC = `/api/aj-signalement/desinscription/un-clic/${JETON_UN_CLIC}`
+
+  async function envoyer(chemin: string, methode: string, origine?: string) {
+    const headers: Record<string, string> = origine === undefined ? {} : { origin: origine }
+    const reponse = await middleware(new NextRequest(`https://vitfix.io${chemin}`, { method: methode, headers }))
+    return { statut: reponse.status, suite: reponse.headers.get('x-middleware-next'), corps: reponse.status === 403 ? await reponse.text() : '' }
+  }
+
+  it.each(['https://mail.exemple.test', 'https://webmail.exemple.test:8443', 'null'])(
+    'POST un clic avec l’Origin %s : laissé à la route (qui vérifie la signature), jamais 403',
+    async (origine) => {
+      const r = await envoyer(UN_CLIC, 'POST', origine)
+      expect(r.statut).toBe(200)
+      expect(r.suite).toBe('1')
+      expect(appelsGetUser).toBe(0)
+    },
+  )
+
+  it('POST un clic sans Origin (serveur de la messagerie) ou depuis le site : laissé à la route, comme avant', async () => {
+    expect((await envoyer(UN_CLIC, 'POST')).suite).toBe('1')
+    expect((await envoyer(UN_CLIC, 'POST', 'https://vitfix.io')).suite).toBe('1')
+  })
+
+  it.each([
+    '/api/aj-signalement/desinscription',
+    '/api/aj-signalement/desinscription/lecture',
+    '/api/aj-signalement/desinscription/reprendre',
+    '/api/aj-signalement/desinscription/adresse',
+    `${UN_CLIC}/autre`,
+    `/api/aj-signalement/desinscription/un-clic/${JETON_UN_CLIC.toUpperCase()}`,
+    `/api/aj-signalement/desinscription/un-clic/${'a'.repeat(32)}`,
+    '/api/aj-signalement/desinscription/un-clic/pas-un-jeton',
+    `/api/aj-signalement/desinscription/un-clic/${JETON_UN_CLIC}x`,
+    `/api/aj-signalement/autre/un-clic/${JETON_UN_CLIC}`,
+    `/api/x/api/aj-signalement/desinscription/un-clic/${JETON_UN_CLIC}`,
+    '/api/aj-signalement/signalements',
+    '/api/cron/aj-diffusion-reprise',
+  ])('POST %s avec un Origin étranger : toujours 403', async (chemin) => {
+    const r = await envoyer(chemin, 'POST', 'https://mail.exemple.test')
+    expect(r.statut).toBe(403)
+    expect(r.corps).toContain('CSRF')
+  })
+
+  it.each(['PATCH', 'PUT', 'DELETE'])('%s sur le chemin un clic avec un Origin étranger : 403 (seul le POST est exempté)', async (methode) => {
+    expect((await envoyer(UN_CLIC, methode, 'https://mail.exemple.test')).statut).toBe(403)
+  })
+
+  it('GET du lien un clic ouvert dans le navigateur (D-P5b) : aucun contrôle d’Origin, comme tout GET', async () => {
+    expect((await envoyer(UN_CLIC, 'GET', 'https://mail.exemple.test')).suite).toBe('1')
   })
 })

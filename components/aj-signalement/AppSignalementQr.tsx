@@ -9,11 +9,12 @@
 // Copropriété sans adresse (demande de Hugo du 06/11/2026) : une carte « Copropriété » explique en une phrase à
 // quoi sert la position, puis montre l'adresse proposée d'après elle (copropriété « à moitié identifiée ») ; refus
 // ou échec n'empêchent rien. Adresse connue : elle est affichée et aucune position n'est demandée.
+// PR 3, lot 7 : l'information à la collecte (politique du cabinet), lue par la page serveur, est passée au formulaire.
 
 import { useState } from 'react'
 import { dateLongue, remplir, textesCopro } from '@/lib/coproprietaire/textes'
 import type { CoproprieteQrPublique, LangueSignalementQr } from '@/lib/aj-signalement/types'
-import { TEXTES_SIGNALEMENT_QR, type TextesSignalementQr } from '@/lib/aj-signalement/textes'
+import { TEXTES_SIGNALEMENT_QR, type InformationFormulaireQr, type TextesSignalementQr } from '@/lib/aj-signalement/textes'
 import { Bouton, Carte, Icone } from '@/components/coproprietaire-dashboard/ui'
 import FormulaireSignalementQr, { type ConfirmationSignalementQr } from '@/components/aj-signalement/FormulaireSignalementQr'
 import { useAdresseProposeeQr, type AdresseProposeeEtat } from '@/components/aj-signalement/useAdresseProposeeQr'
@@ -38,9 +39,11 @@ export interface PropsAppSignalementQr {
   jeton: string
   copropriete: CoproprieteQrPublique
   langue: LangueSignalementQr
+  /** PR 3, lot 7 : information à la collecte ; absente (copropriété sans cabinet, cabinet sans politique) : rien. */
+  information?: InformationFormulaireQr | null
 }
 
-export default function AppSignalementQr({ jeton, copropriete, langue }: Readonly<PropsAppSignalementQr>) {
+export default function AppSignalementQr({ jeton, copropriete, langue, information = null }: Readonly<PropsAppSignalementQr>) {
   const t = textesCopro(langue)
   const tq = TEXTES_SIGNALEMENT_QR[langue]
   const [confirmation, setConfirmation] = useState<ConfirmationSignalementQr | null>(null)
@@ -102,6 +105,7 @@ export default function AppSignalementQr({ jeton, copropriete, langue }: Readonl
               t={t}
               tq={tq}
               adresseProposee={adresse.etat === 'proposee' ? adresse.adresse : ''}
+              information={information}
               onEnvoye={(c) => { setConfirmation(c); enHaut() }}
             />
           </>

@@ -12,11 +12,15 @@
 // zone ; la personne peut dire « c'est le même problème » ou « c'est un autre problème », sans que cela bloque l'envoi.
 // L'adresse proposée d'après la position (copropriété sans adresse) est lue au moment de l'envoi : rien n'attend la
 // géolocalisation.
+// PR 3, lot 7 (cahier § 6, HF3 ; brouillon, texte à valider par Frédéric et Hugo) : sous le bouton d'envoi, une mention
+// courte (qui traite les coordonnées, pourquoi) et le lien vers la politique de confidentialité du cabinet, quand le
+// serveur en donne une ; sans information, le formulaire est inchangé. Lien ouvert dans un nouvel onglet (la saisie
+// reste) et sans Referer : le chemin de la page porte le jeton du QR code.
 
 import { useId, useRef, useState, type InputHTMLAttributes } from 'react'
 import { TYPES_PROBLEME, ZONES_COMMUNES, remplir, type TextesCopro } from '@/lib/coproprietaire/textes'
 import type { LangueSignalementQr, QualiteDeclarantQr, SignalementSemblableQr } from '@/lib/aj-signalement/types'
-import type { TextesSignalementQr } from '@/lib/aj-signalement/textes'
+import { mentionInformationQr, type InformationFormulaireQr, type TextesSignalementQr } from '@/lib/aj-signalement/textes'
 import { envoyerSignalementQr, type CodeErreurQr } from '@/lib/aj-signalement/api'
 import {
   CHAMPS_COORDONNEES, DESCRIPTION_MIN_QR, VALEURS_INITIALES_QR, construireSaisieQr, erreursCoordonnees, formulaireComplet,
@@ -42,6 +46,8 @@ export interface PropsFormulaireSignalementQr {
   tq: TextesSignalementQr
   /** Adresse proposée d'après la position (copropriété sans adresse) ; '' tant qu'il n'y en a pas. */
   adresseProposee?: string
+  /** PR 3, lot 7 : information à la collecte (politique du cabinet) ; absente : rien ne s'affiche. */
+  information?: InformationFormulaireQr | null
   onEnvoye: (confirmation: ConfirmationSignalementQr) => void
 }
 
@@ -91,7 +97,9 @@ function messageErreurEnvoi(code: CodeErreurQr, tq: TextesSignalementQr): string
   }
 }
 
-export default function FormulaireSignalementQr({ jeton, langue, t, tq, adresseProposee = '', onEnvoye }: Readonly<PropsFormulaireSignalementQr>) {
+export default function FormulaireSignalementQr({
+  jeton, langue, t, tq, adresseProposee = '', information = null, onEnvoye,
+}: Readonly<PropsFormulaireSignalementQr>) {
   const idBase = useId()
   const idZone = `${idBase}-zone`
   const idType = `${idBase}-type`
@@ -283,6 +291,14 @@ export default function FormulaireSignalementQr({ jeton, langue, t, tq, adresseP
               {envoi ? tq.envoiEnCours : tq.envoyer}
             </Bouton>
             <p className="text-center text-sm text-[#4A5E78]">{tq.transmis}</p>
+            {information && (
+              <p className="text-center text-sm text-[#4A5E78]">
+                {mentionInformationQr(tq, information)}{' '}
+                <a href={information.politiqueUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                  {tq.politiqueConfidentialite}
+                </a>
+              </p>
+            )}
           </div>
         </div>
       </Carte>

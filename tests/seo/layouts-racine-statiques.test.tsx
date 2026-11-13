@@ -129,12 +129,27 @@ describe('un layout racine par langue, sans API dynamique', () => {
     }
   })
 
-  it('toute page est rangée dans une section : app/{pt,fr,en,nl,es}/ ou app/(commun)/', () => {
+  it('toute page est rangée dans une section : app/{pt,fr,en,nl,es}/, app/(commun)/ ou app/(sans-coquille)/', () => {
     // Hors section, une page n'a aucun layout racine : next build échoue (« doesn't have a root layout ») et next dev crée
     // à côté d'elle un layout minimal, sans la coquille ni Providers.
     const pages = ARBRE_APP.filter((f) => /\/(page|default)\.(tsx|ts|jsx|js|mdx)$/.test(f))
     expect(pages.length).toBeGreaterThan(100)
-    expect(pages.filter((f) => !/^app\/(pt|fr|en|nl|es|\(commun\))\//.test(f))).toEqual([])
+    expect(pages.filter((f) => !/^app\/(pt|fr|en|nl|es|\(commun\)|\(sans-coquille\))\//.test(f))).toEqual([])
+  })
+
+  // AJ Signalement, PR 3, lot 6 (cahier § 7.5, décision F3) : la page publique de désinscription est servie SANS la
+  // coquille de VitFix (ni en-tête, ni pied, ni bandeau de consentement, ni mesure d'audience, ni données structurées) :
+  // VitFix n'en est pas l'auteur (droit § 4.1) et aucun script tiers ne doit lire le jeton du fragment avant son
+  // effacement. Section à part, avec sa propre mise en page racine (<html>, <body>), réservée à cette page.
+  it('app/(sans-coquille) : layout racine propre, sans la coquille ni ses scripts, une seule page (la désinscription)', () => {
+    const source = sansCommentaires(lire('app', '(sans-coquille)', 'layout.tsx'))
+    expect(source).toMatch(/<html\b/)
+    expect(source).toMatch(/<body\b/)
+    for (const interdit of ['CoquilleRacine', 'ConditionalLayout', 'CookieConsent', 'ConsentAnalytics', 'WebVitalsReporter', 'Providers', 'ld+json', '<script']) {
+      expect(source, interdit).not.toContain(interdit)
+    }
+    expect(ARBRE_APP.filter((f) => f.startsWith('app/(sans-coquille)/') && /\/(page|default)\.(tsx|ts|jsx|js|mdx)$/.test(f)))
+      .toEqual(['app/(sans-coquille)/cabinet/[identifiant]/desinscription/page.tsx'])
   })
 
   it('aucune route fourre-tout ([...x] ou [[...x]]) hors de app/api', () => {

@@ -11,9 +11,16 @@
 //     ou la limite par adresse (clé hachée) n'annulent pas le dépôt ; un seul update final des quatre états ;
 //     les variantes d'une même boîte (« + », points Gmail, googlemail.com) partagent la limite ;
 //   - repli tant que les migrations du 06/11/2026 ne sont pas appliquées : insertion sans les nouvelles colonnes,
-//     état des e-mails réduit à email_*, journalisé une fois.
-// Seuls Supabase (petit moteur qui applique les filtres eq / in / gte et refuse les colonnes « absentes »), le
-// limiteur (un compteur par clé, remis à zéro avant chaque test), le logger et sendEmail sont simulés.
+//     état des e-mails réduit à email_*, journalisé une fois ;
+//   - PR 3, lot 7 (cahier § 6, droit § 5.4) : l'accusé porte les deux phrases EXACTES du droit § 5.4 seulement quand
+//     signalements_qr_diffusion_annonce est vraie (annonce_faite appelée seulement après l'envoi accepté ; fonction
+//     absente → sans phrases, dépôt 200) ; la ligne vers la politique du cabinet quand il en a une (seul href) ; aucun
+//     bouton, aucun en-tête List-Unsubscribe ; structure figée (liste exacte des blocs visibles) ; information du
+//     formulaire public (informationFormulaireQr) : politique du cabinet, partie « diffusion » seulement si elle est
+//     possible.
+// Seuls Supabase (petit moteur qui applique les filtres eq / in / gte et refuse les colonnes « absentes » ; lignes et
+// erreurs par table pour maybeSingle ; fonctions SQL simulées par nom, PGRST202 sinon), le limiteur (un compteur par
+// clé, remis à zéro avant chaque test), le logger et sendEmail sont simulés.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHash } from 'node:crypto'
@@ -37,6 +44,11 @@ const h = vi.hoisted(() => {
     lecturesSignalements: [] as string[],
     colonnesAbsentes: [] as string[],
     codeColonneAbsente: 'PGRST204',
+    // PR 3, lot 7 : ligne ou erreur rendue par maybeSingle sur une table donnée (sinon la copropriété, comme avant) ;
+    // fonctions SQL simulées (une fonction absente répond PGRST202, comme la production avant la migration 20261113).
+    lignesTables: {} as Record<string, Ligne | null>,
+    erreursTables: {} as Record<string, Erreur>,
+    fonctions: {} as Record<string, (args: Record<string, unknown>) => { data?: unknown; error?: Erreur | null }>,
   }
   const erreurColonne = (ligne: Ligne): Erreur | null => {
     const absente = Object.keys(ligne).find((c) => etat.colonnesAbsentes.includes(c))
@@ -56,7 +68,12 @@ const h = vi.hoisted(() => {
     q.gte = (col: string, val: unknown) => { filtres.push(['gte', col, val]); return q }
     q.insert = (ligne: Ligne) => { etat.insertions.push({ table, ...ligne }); ecriture = { erreur: erreurColonne(ligne) }; return q }
     q.update = (ligne: Ligne) => { etat.misesAJour.push({ table, ...ligne }); ecriture = { erreur: erreurColonne(ligne) }; return q }
-    q.maybeSingle = async () => (etat.erreurLecture ? { data: null, error: etat.erreurLecture } : { data: etat.copropriete, error: null })
+    q.maybeSingle = async () => {
+      if (etat.erreurLecture) return { data: null, error: etat.erreurLecture }
+      if (table in etat.erreursTables) return { data: null, error: etat.erreursTables[table] }
+      if (table in etat.lignesTables) return { data: etat.lignesTables[table], error: null }
+      return { data: etat.copropriete, error: null }
+    }
     q.single = async () => {
       if (ecriture?.erreur) return { data: null, error: ecriture.erreur }
       return etat.erreurInsertion
@@ -75,8 +92,14 @@ const h = vi.hoisted(() => {
     return q
   }
   type ResultatEnvoi = { success: boolean; id?: string; error?: string }
+  const rpc = vi.fn(async (nom: string, args: Record<string, unknown> = {}) => {
+    const fonction = etat.fonctions[nom]
+    if (!fonction) return { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${nom}` } }
+    const r = fonction(args)
+    return { data: r.data ?? null, error: r.error ?? null }
+  })
   return {
-    etat, from, sendEmail: vi.fn<(charge: unknown) => Promise<ResultatEnvoi>>(async () => ({ success: true, id: 'mail-1' })),
+    etat, from, rpc, sendEmail: vi.fn<(charge: unknown) => Promise<ResultatEnvoi>>(async () => ({ success: true, id: 'mail-1' })),
     loggerError: vi.fn(), loggerWarn: vi.fn(), loggerInfo: vi.fn(),
   }
 })
@@ -102,7 +125,7 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('@/lib/supabase-server', () => ({
   supabaseAdmin: {
     from: (table: string) => h.from(table),
-    rpc: async (nom: string) => ({ data: null, error: { code: 'PGRST202', message: `Could not find the function public.${nom}` } }),
+    rpc: h.rpc,
   },
 }))
 vi.mock('@/lib/supabase-server-component', () => ({ createServerSupabaseClient: vi.fn(async () => ({ auth: { getUser: async () => ({ data: { user: null } }) } })) }))
@@ -120,6 +143,8 @@ vi.mock('@/lib/email', () => ({
 
 const { POST } = await import('@/app/api/aj-signalement/signalements/route')
 const { reinitialiserReplisQr } = await import('@/lib/aj-signalement/serveur')
+const { informationFormulaireQr } = await import('@/lib/aj-signalement/serveur-information')
+const { templateConfirmationQr } = await import('@/lib/aj-signalement/email')
 
 const JETON = '0123456789abcdef0123456789abcdef'
 const COPRO = {
@@ -153,6 +178,10 @@ beforeEach(() => {
   h.etat.lecturesSignalements = []
   h.etat.colonnesAbsentes = []
   h.etat.codeColonneAbsente = 'PGRST204'
+  h.etat.lignesTables = {}
+  h.etat.erreursTables = {}
+  h.etat.fonctions = {}
+  h.rpc.mockClear()
   reinitialiserReplisQr()
   h.loggerWarn.mockClear()
   h.loggerInfo.mockClear()
@@ -544,5 +573,299 @@ describe('repli tant que les migrations du 06/11/2026 ne sont pas appliquées en
     h.etat.erreurInsertion = { code: '23514', message: 'check violation' }
     expect((await poster(CORPS)).status).toBe(500)
     expect(h.etat.insertions).toHaveLength(1)
+  })
+})
+
+// ── PR 3, lot 7 : accusé de réception (cahier § 6, droit § 5.4) et information du formulaire public ──
+
+describe('accusé de réception : annonce de la diffusion et politique du cabinet (PR 3, lot 7)', () => {
+  type Envoi = { to: string[] | string; subject: string; html: string; headers?: Record<string, string>; tags?: Array<{ name: string; value: string }> }
+  const ID = 'b1c2d3e4-0000-4000-8000-000000000000'
+  const CABINET_ID = 'a0000000-0000-4000-8000-00000000000a'
+  const POLITIQUE = 'https://cabinet-exemple.test/confidentialite?v=1&l=fr'
+  // Les deux phrases EXACTES du droit § 5.4 (note juridique, « Dans l'accusé de réception (a) — pas de bouton »).
+  const PHRASE_CHAQUE_DEPOT = 'Ce message confirme votre signalement. Vous le recevrez à chaque fois que vous en déposez un.'
+  const PHRASE_ANNONCE = 'Vous recevrez aussi les informations sur votre immeuble (fuite, coupure, intervention) ; chacune de ces informations comporte un bouton pour ne plus les recevoir.'
+  const estAccuse = (c: unknown) => (c as Envoi).tags?.[0]?.value === 'aj-signalement-confirmation'
+  const accuse = () => h.sendEmail.mock.calls.map((c) => c[0] as Envoi).find(estAccuse)
+  const appelsRpc = (nom: string) => h.rpc.mock.calls.filter((c) => c[0] === nom)
+  /** Copropriété rattachée au cabinet, qui a (ou non) une politique ; annonce SQL rendue telle quelle. */
+  const preparer = (o: { annonce?: boolean | 'absente'; politique?: string | null } = {}) => {
+    h.etat.copropriete = { ...COPRO, cabinet_id: CABINET_ID }
+    h.etat.lignesTables.signalements_qr_cabinets = { id: CABINET_ID, nom: 'Cabinet Exemple', diffusion_politique_url: o.politique === undefined ? POLITIQUE : o.politique }
+    if (o.annonce !== 'absente') {
+      const annonce = o.annonce ?? true
+      h.etat.fonctions.signalements_qr_diffusion_annonce = () => ({ data: annonce })
+      h.etat.fonctions.signalements_qr_diffusion_annonce_faite = () => ({ data: true })
+    }
+  }
+
+  it('diffusion annoncée : les deux phrases exactes du droit § 5.4, après « Gardez ce numéro », puis annonce_faite APRÈS l’envoi accepté', async () => {
+    preparer()
+    const res = await poster(CORPS)
+    expect(res.status).toBe(200)
+    const html = accuse()?.html ?? ''
+    expect(html).toContain(PHRASE_CHAQUE_DEPOT)
+    expect(html).toContain(PHRASE_ANNONCE)
+    expect(html.indexOf(PHRASE_CHAQUE_DEPOT)).toBeGreaterThan(html.indexOf('Gardez ce numéro'))
+    expect(html.indexOf(PHRASE_ANNONCE)).toBeGreaterThan(html.indexOf(PHRASE_CHAQUE_DEPOT))
+    expect(appelsRpc('signalements_qr_diffusion_annonce')).toEqual([['signalements_qr_diffusion_annonce', { p_signalement: ID }]])
+    expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toEqual([['signalements_qr_diffusion_annonce_faite', { p_signalement: ID }]])
+    // Ordre : la date de l'annonce n'est posée qu'une fois l'accusé accepté par le service d'e-mail.
+    const ordreEnvoi = h.sendEmail.mock.invocationCallOrder[h.sendEmail.mock.calls.findIndex((c) => estAccuse(c[0]))]
+    const ordreFaite = h.rpc.mock.invocationCallOrder[h.rpc.mock.calls.findIndex((c) => c[0] === 'signalements_qr_diffusion_annonce_faite')]
+    expect(ordreFaite).toBeGreaterThan(ordreEnvoi)
+  })
+
+  it('diffusion non annoncée (cabinet non activé, opposition, langue…) : aucune des deux phrases, annonce_faite jamais appelée', async () => {
+    preparer({ annonce: false })
+    expect((await poster(CORPS)).status).toBe(200)
+    const html = accuse()?.html ?? ''
+    expect(html).not.toContain('Ce message confirme votre signalement')
+    expect(html).not.toContain('Vous recevrez aussi')
+    expect(appelsRpc('signalements_qr_diffusion_annonce')).toHaveLength(1)
+    expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toHaveLength(0)
+  })
+
+  it('fonction absente (migration 20261113 non appliquée, PGRST202) : accusé sans les phrases, dépôt 200, repli journalisé une fois par isolat', async () => {
+    preparer({ annonce: 'absente' })
+    for (let i = 0; i < 2; i += 1) {
+      const res = await poster(CORPS)
+      expect(res.status).toBe(200)
+      expect((await res.json()).signalement).toMatchObject({ emailEnvoye: true, confirmationEnvoyee: true })
+    }
+    const accuses = h.sendEmail.mock.calls.map((c) => c[0] as Envoi).filter(estAccuse)
+    expect(accuses).toHaveLength(2)
+    for (const envoi of accuses) expect(envoi.html).not.toContain('Vous recevrez aussi')
+    expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toHaveLength(0)
+    const replis = h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('13/11/2026'))
+    expect(replis).toHaveLength(1)
+    expect(h.loggerError).not.toHaveBeenCalled()
+  })
+
+  it('erreur de la base sur l’annonce (autre que l’absence) : sans les phrases, dépôt 200, avertissement sans message de la base', async () => {
+    preparer()
+    h.etat.fonctions.signalements_qr_diffusion_annonce = () => ({ error: { code: 'XX000', message: 'erreur interne marie.durand@example.com' } })
+    expect((await poster(CORPS)).status).toBe(200)
+    expect(accuse()?.html).not.toContain('Vous recevrez aussi')
+    expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toHaveLength(0)
+    expect(JSON.stringify(h.loggerWarn.mock.calls)).toContain('XX000')
+    expect(JSON.stringify([...h.loggerWarn.mock.calls, ...h.loggerError.mock.calls])).not.toContain('marie.durand')
+  })
+
+  it('accusé refusé par le service d’e-mail : annonce_faite jamais appelée (la date n’annonce pas un message non parti)', async () => {
+    preparer()
+    h.sendEmail.mockImplementation(async (c: unknown) => (estAccuse(c) ? { success: false, error: 'refus' } : { success: true, id: 'mail-admin' }))
+    expect((await poster(CORPS)).status).toBe(200)
+    expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toHaveLength(0)
+  })
+
+  it('limite par adresse atteinte : aucun accusé, ni lecture de l’annonce ni annonce_faite', async () => {
+    preparer()
+    h.etat.refuser = ['qr_confirmation_']
+    expect((await poster(CORPS)).status).toBe(200)
+    expect(appelsRpc('signalements_qr_diffusion_annonce')).toHaveLength(0)
+    expect(appelsRpc('signalements_qr_diffusion_annonce_faite')).toHaveLength(0)
+  })
+
+  it('annonce_faite en erreur : le dépôt et l’accusé restent acquis (200, confirmation datée), avertissement', async () => {
+    preparer()
+    h.etat.fonctions.signalements_qr_diffusion_annonce_faite = () => ({ error: { code: '40001', message: 'serialization' } })
+    const res = await poster(CORPS)
+    expect(res.status).toBe(200)
+    expect((await res.json()).signalement).toMatchObject({ confirmationEnvoyee: true })
+    expect(h.etat.misesAJour[0].confirmation_envoyee_le).toEqual(expect.any(String))
+    expect(JSON.stringify(h.loggerWarn.mock.calls)).toContain('40001')
+  })
+
+  it('cabinet avec politique : la ligne « Vos coordonnées sont traitées par … » et son lien, SEUL href de l’accusé ; aucun bouton, aucun en-tête de désinscription', async () => {
+    preparer({ annonce: false })
+    await poster(CORPS)
+    const envoi = accuse() as Envoi
+    expect(envoi.html).toContain('Vos coordonnées sont traitées par Cabinet Exemple : <a href="https://cabinet-exemple.test/confidentialite?v=1&amp;l=fr"')
+    expect(envoi.html).toContain('>Politique de confidentialité</a>')
+    expect(envoi.html.match(/href=/g)).toHaveLength(1)
+    expect(envoi.html.match(/<a\b/g)).toHaveLength(1)
+    expect(envoi.html).not.toMatch(/<button|display:inline-block|Ne plus recevoir/i)
+    expect(envoi).not.toHaveProperty('headers')
+    expect(JSON.stringify(envoi)).not.toMatch(/List-Unsubscribe/i)
+  })
+
+  it('les deux phrases ET la politique : toujours un seul href, aucun bouton, aucun en-tête de désinscription', async () => {
+    preparer()
+    await poster(CORPS)
+    const envoi = accuse() as Envoi
+    expect(envoi.html).toContain(PHRASE_ANNONCE)
+    expect(envoi.html.match(/href=/g)).toHaveLength(1)
+    expect(envoi.html).not.toMatch(/<button|display:inline-block|Ne plus recevoir/i)
+    expect(JSON.stringify(envoi)).not.toMatch(/List-Unsubscribe/i)
+  })
+
+  it.each([
+    ['cabinet sans politique', { politique: null }],
+    ['politique hors format (défense en profondeur : jamais recopiée dans un href)', { politique: 'javascript:alert(1)' }],
+  ])('%s : aucune ligne d’information, aucun href', async (_cas, o) => {
+    preparer({ annonce: false, ...o })
+    await poster(CORPS)
+    const html = accuse()?.html ?? ''
+    expect(html).not.toContain('Vos coordonnées sont traitées')
+    expect(html).not.toContain('href=')
+    expect(html).not.toContain('javascript:')
+  })
+
+  it('copropriété sans cabinet : accusé d’origine (ni phrases, ni ligne), dépôt 200', async () => {
+    h.etat.fonctions.signalements_qr_diffusion_annonce = () => ({ data: false })
+    expect((await poster(CORPS)).status).toBe(200)
+    const html = accuse()?.html ?? ''
+    expect(html).not.toContain('Vos coordonnées sont traitées')
+    expect(html).not.toContain('Vous recevrez aussi')
+    expect(html).not.toContain('href=')
+  })
+
+  it('colonne de la politique absente (migration 20261113, 42703) : aucune ligne, dépôt 200, replis journalisés une fois chacun', async () => {
+    preparer({ annonce: 'absente' })
+    h.etat.erreursTables.signalements_qr_cabinets = { code: '42703', message: 'column signalements_qr_cabinets.diffusion_politique_url does not exist' }
+    for (let i = 0; i < 2; i += 1) expect((await poster(CORPS)).status).toBe(200)
+    expect(accuse()?.html).not.toContain('Vos coordonnées sont traitées')
+    // Deux opérations en repli (annonce, politique), chacune journalisée une seule fois malgré les deux dépôts.
+    expect(h.loggerWarn.mock.calls.filter((c) => String(c[0]).includes('13/11/2026'))).toHaveLength(2)
+    expect(h.loggerError).not.toHaveBeenCalled()
+  })
+
+  it('PT : les deux phrases proposées (H4) et la ligne d’information en portugais', async () => {
+    preparer()
+    await poster({ ...CORPS, langue: 'pt', typeIntervention: 'Canalização (fuga, coluna, torneiras)' })
+    const html = accuse()?.html ?? ''
+    expect(html).toContain('Esta mensagem confirma a sua ocorrência. Receberá uma confirmação como esta sempre que registar uma.')
+    expect(html).toContain('Receberá também as informações sobre o seu prédio (fuga, corte, intervenção); cada uma destas informações inclui um botão para deixar de as receber.')
+    expect(html).toContain('Os seus dados são tratados por Cabinet Exemple: <a href=')
+    expect(html).toContain('>Política de privacidade</a>')
+  })
+
+  it('le nom du cabinet est échappé dans la ligne d’information', async () => {
+    preparer({ annonce: false })
+    h.etat.lignesTables.signalements_qr_cabinets = { id: CABINET_ID, nom: 'Cabinet <b>Exemple</b> & fils', diffusion_politique_url: POLITIQUE }
+    await poster(CORPS)
+    const html = accuse()?.html ?? ''
+    expect(html).toContain('Cabinet &lt;b&gt;Exemple&lt;/b&gt; &amp; fils')
+    expect(html).not.toContain('<b>Exemple')
+  })
+})
+
+describe('accusé de réception : structure figée (droit § 5.4, « à verrouiller dans le code »)', () => {
+  // Toute modification de l'accusé (bloc ajouté, texte changé, lien) fait échouer ce test : relire alors la note
+  // juridique (droit § 5.4, conditions 1 à 3 : l'accusé reste un accusé, un par dépôt, la diffusion y est annoncée).
+  const ENTITES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" }
+  /** Blocs visibles, dans l'ordre : balises de mise en ligne retirées, toute autre balise sépare deux blocs. */
+  const blocs = (html: string): string[] => html
+    .replace(/<\/?(?:strong|a|b|em)(?:\s[^>]*)?>/g, '')
+    .replace(/<[^>]+>/g, '\n')
+    .replace(/&(?:amp|lt|gt|quot|#39);/g, (e) => ENTITES[e] ?? e)
+    .split('\n')
+    .map((l) => l.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+
+  const s: Parameters<typeof templateConfirmationQr>[0]['signalement'] = {
+    id: 'b1c2d3e4-0000-4000-8000-000000000000', coproprieteId: COPRO.id, coproprieteNom: 'Parc Belle Ombre',
+    prenom: 'Marie', nom: 'Durand', telephone: '06 12 34 56 78', email: 'marie.durand@example.com',
+    batiment: 'B', etage: '4', numLot: '12', estPartieCommune: false, zoneSignalee: '',
+    typeIntervention: 'Plomberie (fuite, colonne, robinetterie)', description: 'Fuite sous l’évier de la cuisine', priorite: 'urgente',
+    statut: 'en_attente', langue: 'fr', emailEnvoyeLe: null, emailErreur: null, confirmationEnvoyeeLe: null, confirmationErreur: null,
+    qualiteDeclarant: 'proprietaire', adresseProposee: '', signalementLieId: null,
+    creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
+  }
+
+  const DEBUT = [
+    'AJ SIGNALEMENT',
+    'Votre signalement est enregistré',
+    'Bonjour,',
+    'Votre signalement pour la copropriété Parc Belle Ombre a bien été enregistré sous le numéro B1C2D3E4.',
+    'Ce que vous avez déclaré',
+    'Numéro', 'B1C2D3E4',
+    'Copropriété', 'Parc Belle Ombre',
+    'Déposé le', '4 novembre 2026 à 15:05 (heure de Paris)',
+    'Vous êtes', 'Propriétaire',
+    'Lieu du problème', 'Votre logement (bât. B · étage 4 · lot 12)',
+    'Type de problème', 'Plomberie (fuite, colonne, robinetterie)',
+    'Urgence', 'Urgent',
+    'Description', 'Fuite sous l’évier de la cuisine',
+    'Et maintenant ?',
+    'Votre signalement a été transmis à l’administrateur de la copropriété, qui pourra vous recontacter au téléphone ou à l’adresse e-mail que vous avez indiqués.',
+    'Gardez ce numéro : il permet de retrouver votre signalement si vous en reparlez avec l’administrateur.',
+  ]
+  const ANNONCE = [
+    'Ce message confirme votre signalement. Vous le recevrez à chaque fois que vous en déposez un.',
+    'Vous recevrez aussi les informations sur votre immeuble (fuite, coupure, intervention) ; chacune de ces informations comporte un bouton pour ne plus les recevoir.',
+  ]
+  const AUTOMATIQUE = ['Message automatique : ne répondez pas à cet e-mail.', 'Si vous n’êtes pas à l’origine de ce signalement, ignorez ce message.']
+  const INFORMATION = ['Vos coordonnées sont traitées par Cabinet Exemple : Politique de confidentialité']
+  const PIED = ['AJ Signalement — un service VITFIX. Cet e-mail a été envoyé automatiquement.']
+  const POLITIQUE = { cabinet: 'Cabinet Exemple', url: 'https://cabinet-exemple.test/confidentialite' }
+
+  it.each([
+    ['accusé d’origine (ni annonce, ni politique)', {}, [...DEBUT, ...AUTOMATIQUE, ...PIED]],
+    ['annonce seule', { annoncerDiffusion: true }, [...DEBUT, ...ANNONCE, ...AUTOMATIQUE, ...PIED]],
+    ['politique seule', { politique: POLITIQUE }, [...DEBUT, ...AUTOMATIQUE, ...INFORMATION, ...PIED]],
+    ['annonce et politique', { annoncerDiffusion: true, politique: POLITIQUE }, [...DEBUT, ...ANNONCE, ...AUTOMATIQUE, ...INFORMATION, ...PIED]],
+  ])('%s : liste exacte des blocs', (_cas, options, attendu) => {
+    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: s, ...options })
+    expect(blocs(html)).toEqual(attendu)
+    // Au plus un lien (la politique), jamais de bouton ni d'image.
+    expect((html.match(/href=/g) ?? []).length).toBe('politique' in options ? 1 : 0)
+    if ('politique' in options) expect(html).toContain('href="https://cabinet-exemple.test/confidentialite"')
+    expect(html).not.toMatch(/<button|<img|display:inline-block/i)
+  })
+})
+
+describe('formulaire public : information à la collecte (cahier § 6, HF3)', () => {
+  const COPRO_ID = COPRO.id
+  const CABINET_ID = 'a0000000-0000-4000-8000-00000000000a'
+  const POLITIQUE = 'https://cabinet-exemple.test/confidentialite'
+  const cabinet = (sur: Record<string, unknown> = {}) => {
+    h.etat.lignesTables.signalements_qr_cabinets = { id: CABINET_ID, nom: 'Cabinet Exemple', diffusion_politique_url: POLITIQUE, ...sur }
+  }
+
+  it('cabinet avec politique, diffusion possible (raison d’inactivité NULL) : mention avec la partie « diffusion »', async () => {
+    cabinet()
+    h.etat.fonctions.signalements_qr_diffusion_raison_inactive = () => ({ data: null })
+    expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toEqual({ cabinet: 'Cabinet Exemple', politiqueUrl: POLITIQUE, diffusion: true })
+    expect(h.rpc).toHaveBeenCalledWith('signalements_qr_diffusion_raison_inactive', { p_copropriete: COPRO_ID })
+  })
+
+  it.each(['diffusion_non_activee', 'langue_non_ouverte', 'fin_gestion', 'copropriete_inactive'])(
+    'diffusion impossible (%s) : mention sans la partie « diffusion »', async (raison) => {
+      cabinet()
+      h.etat.fonctions.signalements_qr_diffusion_raison_inactive = () => ({ data: raison })
+      expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toEqual({ cabinet: 'Cabinet Exemple', politiqueUrl: POLITIQUE, diffusion: false })
+    },
+  )
+
+  it('fonction de la règle absente ou en erreur : jamais de promesse de diffusion (diffusion false), mention gardée', async () => {
+    cabinet()
+    expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toMatchObject({ diffusion: false })
+    h.etat.fonctions.signalements_qr_diffusion_raison_inactive = () => ({ error: { code: 'XX000', message: 'boom' } })
+    expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toMatchObject({ diffusion: false })
+  })
+
+  it.each([
+    ['cabinet sans politique', () => cabinet({ diffusion_politique_url: null })],
+    ['politique hors format', () => cabinet({ diffusion_politique_url: 'http://exemple.test/p' })],
+    ['cabinet introuvable', () => { h.etat.lignesTables.signalements_qr_cabinets = null }],
+    ['colonne absente (migration 20261113 non appliquée)', () => {
+      h.etat.erreursTables.signalements_qr_cabinets = { code: '42703', message: 'column signalements_qr_cabinets.diffusion_politique_url does not exist' }
+    }],
+    ['erreur de lecture', () => { h.etat.erreursTables.signalements_qr_cabinets = { code: 'XX000', message: 'boom' } }],
+  ])('%s : aucune information (formulaire inchangé), jamais d’exception', async (_cas, poser) => {
+    poser()
+    h.etat.fonctions.signalements_qr_diffusion_raison_inactive = () => ({ data: null })
+    expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toBeNull()
+  })
+
+  it('nom du cabinet nettoyé (retours, contrôles) ; nom vide : aucune information', async () => {
+    cabinet({ nom: ' Cabinet\nExemple\u0007 ' })
+    h.etat.fonctions.signalements_qr_diffusion_raison_inactive = () => ({ data: null })
+    expect((await informationFormulaireQr(COPRO_ID, CABINET_ID))?.cabinet).toBe('Cabinet Exemple')
+    cabinet({ nom: '  ' })
+    expect(await informationFormulaireQr(COPRO_ID, CABINET_ID)).toBeNull()
   })
 })

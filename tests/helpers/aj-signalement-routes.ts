@@ -32,6 +32,10 @@ export const simulQr = {
   emailsSimples: [] as MessageSimule[],
   /** Résultat de chaque appel de sendBatchEmails (dans l'ordre) ; vide : tout est accepté. */
   resultatsLots: [] as Array<{ sent: number; failed: number; errors: string[] }>,
+  /** Lots détaillés (sendBatchEmailsDetaille : diffusion, copie au cabinet), avec leur clé d'idempotence. */
+  lotsDetailles: [] as Array<{ messages: MessageSimule[]; idempotencyKey: string }>,
+  /** Résultat de chaque appel de sendBatchEmailsDetaille (dans l'ordre) ; vide : tout est accepté. */
+  resultatsLotsDetailles: [] as unknown[],
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }
 
@@ -43,6 +47,8 @@ export function reinitialiserSimulQr(): void {
   simulQr.lots = []
   simulQr.emailsSimples = []
   simulQr.resultatsLots = []
+  simulQr.lotsDetailles = []
+  simulQr.resultatsLotsDetailles = []
   for (const f of Object.values(simulQr.logger)) f.mockClear()
 }
 
@@ -71,7 +77,15 @@ export const mockEmail = () => ({
     simulQr.lots.push(messages)
     return simulQr.resultatsLots.shift() ?? { sent: messages.length, failed: 0, errors: [] }
   }),
+  sendBatchEmailsDetaille: vi.fn(async (messages: MessageSimule[], options: { idempotencyKey: string }) => {
+    simulQr.lotsDetailles.push({ messages: [...messages], idempotencyKey: options.idempotencyKey })
+    return simulQr.resultatsLotsDetailles.shift() ?? { ok: true, acceptes: messages.map((_, i) => i), refuses: [] }
+  }),
 })
+
+/** Copies de diffusion au cabinet passées au service d'e-mail (lot détaillé de clé aj-diffusion-<id>-copie). */
+export const copiesCabinetQr = (): Array<{ messages: MessageSimule[]; idempotencyKey: string }> =>
+  simulQr.lotsDetailles.filter((l) => l.idempotencyKey.endsWith('-copie'))
 
 export const mockLogger = () => ({ logger: simulQr.logger })
 

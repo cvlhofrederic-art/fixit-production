@@ -67,6 +67,12 @@ export const MIGRATION_GESTIONNAIRES_QR = 'supabase/migrations/20261111_signalem
  * précédente ; d'ici là, les routes du gestionnaire répondent 503 base_absente et le super admin est servi comme en PR 1.
  */
 export const MIGRATION_ACCES_QR = 'supabase/migrations/20261112_signalements_qr_acces_gestionnaires.sql'
+/**
+ * Migration de la diffusion aux déclarants (PR 3), à appliquer après la précédente ; d'ici là, les routes de diffusion
+ * et la route des réglages de diffusion d'un cabinet répondent 503 base_absente (journalisé une fois par isolat) ; rien
+ * d'autre ne change.
+ */
+export const MIGRATION_DIFFUSION_QR = 'supabase/migrations/20261113_signalements_qr_diffusion.sql'
 /** Signalements renvoyés au tableau de bord (les plus récents). */
 export const SIGNALEMENTS_MAX = 500
 /** Signalements renvoyés pour la page de suivi d'un gestionnaire (P1-R1 ?gestionnaire=). */
@@ -140,6 +146,26 @@ export function journaliserRepliAccesQr(operation: string, erreur: ErreurBase | 
   if (replisJournalises.has(cle)) return
   replisJournalises.add(cle)
   logger.warn(`${CONTEXTE} migration du 12/11/2026 absente : repli (${operation})`, { migration: MIGRATION_ACCES_QR, code: erreur?.code })
+}
+
+/** Même règle pour la migration du 13/11/2026 (diffusion) : le code seul. */
+export function journaliserRepliDiffusionQr(operation: string, erreur: ErreurBase | null | undefined): void {
+  const cle = `diffusion:${operation}`
+  if (replisJournalises.has(cle)) return
+  replisJournalises.add(cle)
+  logger.warn(`${CONTEXTE} migration du 13/11/2026 absente : repli (${operation})`, { migration: MIGRATION_DIFFUSION_QR, code: erreur?.code })
+}
+
+/**
+ * Réponse d'une erreur de la base sur une route de diffusion : structure absente (table, colonne, fonction de la
+ * migration du 13/11/2026) → 503 base_absente, journalisé une fois ; sinon comme reponseErreurSqlQr (code seul).
+ */
+export function reponseErreurDiffusionQr(erreur: ErreurBase | null | undefined, operation: string, ids: Record<string, string> = {}): NextResponse {
+  if (structureAbsenteQr(erreur)) {
+    journaliserRepliDiffusionQr(operation, erreur)
+    return reponseErreur('base_absente', 503)
+  }
+  return reponseErreurSqlQr(erreur, operation, ids)
 }
 
 /** Tests : chaque cas repart d'un isolat « neuf ». */

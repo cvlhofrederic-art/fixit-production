@@ -228,11 +228,15 @@ const ecarts = (lignes: string[]): string[] => (lignes.length > 40 ? [...lignes.
 describe('réécritures beforeFiles : next start (CI E2E) et OpenNext (production) servent la même page', () => {
   it('le rejeu couvre les pages de app/ et la grille des mots de cabinet (sinon il ne garderait rien)', async () => {
     const { regles, chemins, pages } = await rejeu()
-    expect(regles.filter(estRegleDeCabinet)).toHaveLength(9)
+    // 11 depuis la PR 3, lot 6 : paire exacte de la désinscription (/<id>/desinscription/), page interne rangée dans
+    // app/(sans-coquille)/cabinet/[identifiant]/desinscription/ (mise en page racine propre, même adresse interne).
+    expect(regles.filter(estRegleDeCabinet)).toHaveLength(11)
     expect(pages.length).toBeGreaterThan(300)
     for (const attendu of [
       '/fr/aj-signalement/connexion/', '/pt/aj-signalement/connexion/', '/fr/tracking/connexion/', '/es/signalement/invitation/',
       '/fr/auth/login/', '/fr/contact/', '/pt/contacto/', '/fr/blog/exemple/', '/admin/login/',
+      // Nouveau segment (lot 6) : chemins internes d'une règle de langue, page interne sous chaque langue.
+      '/fr/tracking/desinscription/', '/pt/auth/desinscription/', '/fr/cabinet/exemple/desinscription/',
     ]) expect(chemins, attendu).toContain(attendu)
     for (const attendu of ['/fr/auth/suivi/', '/pt/coproprietaire/confirmation-adresse/', `/nl/tracking/signalement/${JETON}/`]) {
       expect(chemins, attendu).toContain(attendu)
@@ -302,6 +306,8 @@ describe('réécritures beforeFiles : next start (CI E2E) et OpenNext (productio
       .filter(estAdresseDeCabinet)
     expect(adresses).toContain('/cabinet-exemple/connexion/')
     expect(adresses).toContain(`/cabinet-exemple/signalement/${JETON}/`)
+    expect(adresses).toContain('/cabinet-exemple/desinscription/')
+    expect(adresses).toContain('/cabinet-exemple/desinscription')
     const fautives = adresses.flatMap((chemin) => {
       const attendu = `/cabinet${sansBarreFinale(chemin)}`
       return [next(chemin), openNext(chemin)].some((servi) => servi !== attendu)

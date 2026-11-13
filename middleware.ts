@@ -10,6 +10,7 @@ import {
   aiguillageGestionnaireQr, redirectionEspaceCabinetQr, redirectionEspaceQr, viseEspaceQr,
 } from '@/lib/aj-signalement/acces-espace'
 import { cheminEspaceCabinetQr, cheminPublicCabinetQr, cheminSuiviCabinetQr } from '@/lib/aj-signalement/chemin-cabinet'
+import { estPostUnClicDesinscriptionQr } from '@/lib/aj-signalement/chemin-desinscription'
 import { POLITIQUE_CSP } from '@/lib/securite/csp'
 import { destinoConsolidado } from '@/lib/seo/pt-consolidacao'
 import { isSeoPublicRoute } from '@/lib/seo/routes-publiques'
@@ -225,7 +226,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── AJ Signalement : chemin public d'un cabinet client (vitfix.io/<identifiant>/signalement/<jeton>/,
-  // /<identifiant>/confirmation-adresse/, et /<identifiant>/invitation/ depuis la PR 2 ; choix de Hugo du 10/11/2026).
+  // /<identifiant>/confirmation-adresse/, /<identifiant>/invitation/ depuis la PR 2, et /<identifiant>/desinscription/
+  // depuis la PR 3 : publique SANS session, même si l'espace du cabinet est sous session ; choix de Hugo du 10/11/2026).
   // Reconnu AVANT la langue (sinon 302 vers
   // /fr/<identifiant>/… puis 404) par un motif FIGÉ, sans liste ni base (lib/aj-signalement/chemin-cabinet.ts) ; la
   // réécriture de next.config.ts mène ensuite à la page interne, qui vérifie que le jeton appartient au cabinet du chemin.
@@ -260,7 +262,11 @@ export async function middleware(request: NextRequest) {
   const isInternalRoute = pathname.startsWith('/api/') || pathname.startsWith('/_next/') || pathname.startsWith('/admin/')
 
   // ── CSRF Protection : vérifier Origin pour les requêtes mutantes sur /api/ ──
-  if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)) {
+  // Seule exception (AJ Signalement, PR 3, décision F3) : le POST « un clic » de désinscription (RFC 8058), envoyé par la
+  // messagerie de la personne, qui peut porter un Origin étranger ou « null ». Effet borné par le jeton signé (une
+  // opposition, idempotente), signature vérifiée par la route avant tout (lib/aj-signalement/chemin-desinscription.ts).
+  if (pathname.startsWith('/api/') && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method)
+    && !estPostUnClicDesinscriptionQr(request.method, pathname)) {
     const origin = request.headers.get('origin')
     const allowedOrigins = [
       process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',

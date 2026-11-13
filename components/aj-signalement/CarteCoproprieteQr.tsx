@@ -16,6 +16,9 @@
 // la fiche lui est attribuée nommément (modifiable), sinon « fiche modifiable par le cabinet seulement » ; désactivée :
 // « QR code désactivé par le cabinet », sans QR code, lien ni affiche (le serveur ne rend pas son jeton) ; ni cabinet,
 // ni gestionnaires, ni créateur nommé ; adresses d'autres fiches comptées, jamais montrées.
+// PR 3, lot 8 (cahier § 7.1, BROUILLON pour Frédéric) : « Diffuser un message » et « Messages envoyés », seulement quand
+// l'appelant les donne (super admin ; gestionnaire sur une copropriété qui lui est attribuée nommément, jamais « à
+// tous », décision H11). Le nombre de messages n'est pas sur la carte : il est dans la fenêtre (rappel du mois).
 
 import { useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -25,6 +28,7 @@ import { urlSignalementQr, type CoproprieteQr } from '@/lib/aj-signalement/types
 import { TEXTES_TABLEAU_QR as T, dateHeureParis, destinatairesAffichesQr, resumeCompteursQr } from '@/lib/aj-signalement/affichage'
 import { TEXTES_GESTION_QR as G, dateParisQr } from '@/lib/aj-signalement/affichage-gestion'
 import { TEXTES_ESPACE_CABINET_QR as EC, idCarteCoproprieteQr } from '@/lib/aj-signalement/affichage-gestionnaire'
+import { TEXTES_ECRAN_DIFFUSION_QR as TD } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import { affichePdfQr, nomFichierQr, pngQr, telechargerFichier, type MatriceQr } from '@/lib/aj-signalement/qr'
 
 export interface PropsCarteCoproprieteQr {
@@ -36,11 +40,30 @@ export interface PropsCarteCoproprieteQr {
   onUtiliserAdresse?: (adresse: string) => Promise<boolean>
   /** PR 2 : vue d'un gestionnaire connecté (espace de son cabinet) ; absent : vue du super admin, inchangée. */
   vueGestionnaire?: boolean
+  /** PR 3 : « Diffuser un message » (absent : le profil n'a pas le droit « diffuser » sur cette copropriété). */
+  onDiffuser?: () => void
+  /** PR 3 : « Messages envoyés » (historique de la copropriété), même droit. */
+  onHistoriqueDiffusion?: () => void
 }
 
-export default function CarteCoproprieteQr({ copropriete, origine, onModifier, onUtiliserAdresse, vueGestionnaire = false }: Readonly<PropsCarteCoproprieteQr>) {
-  if (vueGestionnaire) return <CarteGestionnaireQr copropriete={copropriete} origine={origine} onModifier={onModifier} />
-  return <CarteSuperAdminQr copropriete={copropriete} origine={origine} onModifier={onModifier} onUtiliserAdresse={onUtiliserAdresse} />
+type PropsDiffusion = Pick<PropsCarteCoproprieteQr, 'onDiffuser' | 'onHistoriqueDiffusion'>
+
+export default function CarteCoproprieteQr({
+  copropriete, origine, onModifier, onUtiliserAdresse, vueGestionnaire = false, onDiffuser, onHistoriqueDiffusion,
+}: Readonly<PropsCarteCoproprieteQr>) {
+  const diffusion: PropsDiffusion = { onDiffuser, onHistoriqueDiffusion }
+  if (vueGestionnaire) return <CarteGestionnaireQr copropriete={copropriete} origine={origine} onModifier={onModifier} {...diffusion} />
+  return <CarteSuperAdminQr copropriete={copropriete} origine={origine} onModifier={onModifier} onUtiliserAdresse={onUtiliserAdresse} {...diffusion} />
+}
+
+/** Boutons de la diffusion (PR 3), rangés avec les actions de la carte. */
+function ActionsDiffusionQr({ onDiffuser, onHistoriqueDiffusion }: Readonly<PropsDiffusion>) {
+  return (
+    <>
+      {onDiffuser && <Bouton variante="secondaire" icone="annonces" petit onClick={onDiffuser}>{TD.carte.diffuser}</Bouton>}
+      {onHistoriqueDiffusion && <Bouton variante="discret" icone="horloge" petit onClick={onHistoriqueDiffusion}>{TD.carte.historique}</Bouton>}
+    </>
+  )
 }
 
 /** QR code, lien public, affiche PDF et QR PNG d'une copropriété : communs aux deux vues. */
@@ -77,7 +100,9 @@ function useFichiersQr(copropriete: CoproprieteQr, url: string, setErreur: (erre
 }
 
 /** Carte vue par un gestionnaire connecté (PR 2, lot 5). */
-function CarteGestionnaireQr({ copropriete, origine, onModifier }: Readonly<Pick<PropsCarteCoproprieteQr, 'copropriete' | 'origine' | 'onModifier'>>) {
+function CarteGestionnaireQr({
+  copropriete, origine, onModifier, onDiffuser, onHistoriqueDiffusion,
+}: Readonly<Pick<PropsCarteCoproprieteQr, 'copropriete' | 'origine' | 'onModifier' | 'onDiffuser' | 'onHistoriqueDiffusion'>>) {
   const [erreur, setErreur] = useState<string | null>(null)
   // Désactivée par le cabinet : aucun jeton rendu, donc aucun QR code, lien ni affiche.
   const avecQr = copropriete.actif && copropriete.jeton !== ''
@@ -133,7 +158,7 @@ function CarteGestionnaireQr({ copropriete, origine, onModifier }: Readonly<Pick
             <Encadre ton="info">{copropriete.attribueeATous ? EC.copropriete.communeLectureSeule : EC.copropriete.lectureSeule}</Encadre>
           )}
           {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
-          {(avecQr || modifiable) && (
+          {(avecQr || modifiable || onDiffuser || onHistoriqueDiffusion) && (
             <div className="flex flex-wrap gap-2">
               {avecQr && (
                 <>
@@ -144,6 +169,7 @@ function CarteGestionnaireQr({ copropriete, origine, onModifier }: Readonly<Pick
                 </>
               )}
               {modifiable && <Bouton variante="secondaire" icone="outil" petit onClick={onModifier}>{T.modifier}</Bouton>}
+              <ActionsDiffusionQr onDiffuser={onDiffuser} onHistoriqueDiffusion={onHistoriqueDiffusion} />
             </div>
           )}
         </div>
@@ -152,8 +178,10 @@ function CarteGestionnaireQr({ copropriete, origine, onModifier }: Readonly<Pick
   )
 }
 
-/** Carte vue par le super admin (espace global) : inchangée. */
-function CarteSuperAdminQr({ copropriete, origine, onModifier, onUtiliserAdresse }: Readonly<Omit<PropsCarteCoproprieteQr, 'vueGestionnaire'>>) {
+/** Carte vue par le super admin (espace global) : inchangée, sauf les actions de la diffusion (PR 3). */
+function CarteSuperAdminQr({
+  copropriete, origine, onModifier, onUtiliserAdresse, onDiffuser, onHistoriqueDiffusion,
+}: Readonly<Omit<PropsCarteCoproprieteQr, 'vueGestionnaire'>>) {
   const [enregistrement, setEnregistrement] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
   const url = urlSignalementQr(copropriete.jeton, origine, copropriete.cabinet?.identifiant)
@@ -237,6 +265,7 @@ function CarteSuperAdminQr({ copropriete, origine, onModifier, onUtiliserAdresse
             </Bouton>
             <Bouton variante="secondaire" icone="qr" petit disabled={!matrice} onClick={telechargerPng}>{T.qrPng}</Bouton>
             <Bouton variante="secondaire" icone="outil" petit onClick={onModifier}>{T.modifier}</Bouton>
+            <ActionsDiffusionQr onDiffuser={onDiffuser} onHistoriqueDiffusion={onHistoriqueDiffusion} />
           </div>
         </div>
       </div>

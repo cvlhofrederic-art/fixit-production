@@ -5,6 +5,9 @@
 //   - /<identifiant>/confirmation-adresse/#<jeton>   confirmation d'adresse d'un gestionnaire (jeton après le « # ») ;
 //   - /<identifiant>/invitation/#<jeton>             ouverture de l'accès d'un gestionnaire à l'espace de son cabinet
 //     (PR 2, lot 3 ; lien de l'e-mail, publique comme la confirmation, jeton après le « # ») ;
+//   - /<identifiant>/desinscription/#<jeton>         désinscription des messages de diffusion d'une copropriété (PR 3,
+//     lot 6 ; bouton de l'e-mail, publique SANS session même si l'espace du cabinet est sous session, jeton après le
+//     « # » ; page interne rangée à part, sans la coquille de VitFix : app/(sans-coquille)/cabinet/[identifiant]/…) ;
 //   - /<identifiant>/ (redirigé vers /suivi/), /<identifiant>/connexion/, /<identifiant>/suivi/   espace du cabinet
 //     (PR 2, lot 4 ; Hugo, 11/11/2026, SPEC § 6) : connexion professionnelle DU cabinet et espace de suivi de ses
 //     gestionnaires, avec session.
@@ -18,8 +21,9 @@
 // Trois règles distinctes, à ne pas confondre :
 //   1. le MOTIF des pages publiques (MOTIF_CHEMIN_CABINET_QR) est FIGÉ : il ne lit aucune liste. Si une route ajoutée
 //      plus tard entrait dans une liste lue au routage, les QR codes déjà imprimés d'un cabinet de ce nom cesseraient de
-//      marcher. Il ne masque une page que si elle a exactement « signalement/<32 hex> », « confirmation-adresse » ou
-//      « invitation » en 2ᵉ segment, ce que tests/lib/aj-signalement-identifiants-reserves.test.ts interdit ;
+//      marcher. Il ne masque une page que si elle a exactement « signalement/<32 hex> », « confirmation-adresse »,
+//      « invitation » ou « desinscription » en 2ᵉ segment, ce que tests/lib/aj-signalement-identifiants-reserves.test.ts
+//      interdit ;
 //   2. l'ESPACE du cabinet (cheminEspaceCabinetQr, lot 4) lit, lui, la liste des réservés : le risque est inverse. Sans
 //      ce filtre, /aj-signalement/connexion/ (page de la #669, atteinte sans langue par 302) serait prise pour le
 //      cabinet « aj-signalement », et le segment seul /<x>/ capterait toute page du site. Une route ajoutée plus tard au
@@ -30,6 +34,13 @@
 //      réservée.
 
 import type { CheminCabinetQr, EspaceCabinetQr, ValidationIdentifiantCabinetQr } from '@/lib/aj-signalement/types'
+
+/**
+ * Chemin public d'un cabinet reconnu par cheminPublicCabinetQr : ceux des PR 1 et 2 (CheminCabinetQr), plus la
+ * désinscription des messages de diffusion (PR 3, lot 6 : bouton de l'e-mail, page publique sans session). Aucun droit
+ * n'en découle.
+ */
+export type CheminPublicCabinetQr = CheminCabinetQr | { page: 'desinscription'; identifiant: string }
 
 export const LONGUEUR_MIN_IDENTIFIANT_CABINET_QR = 3
 export const LONGUEUR_MAX_IDENTIFIANT_CABINET_QR = 40
@@ -51,25 +62,31 @@ export const SOURCE_IDENTIFIANT_CABINET_QR = '(?!(?:api|admin)/)[a-z][a-z0-9-]{1
 
 /**
  * Motif FIGÉ des chemins publics d'un cabinet, barre finale facultative. Sensible à la casse. Pages publiques, sans
- * session : le QR code, la confirmation d'adresse et l'ouverture de l'accès (liens des e-mails, jeton après le « # »).
+ * session : le QR code, la confirmation d'adresse, l'ouverture de l'accès et, depuis la PR 3 (lot 6), la désinscription
+ * des messages de diffusion (liens des e-mails, jeton après le « # »).
  */
 export const MOTIF_CHEMIN_CABINET_QR = new RegExp(
-  `^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation))\\/?$`,
+  `^\\/(${SOURCE_IDENTIFIANT_CABINET_QR})\\/(?:signalement\\/([0-9a-f]{32})|(confirmation-adresse|invitation|desinscription))\\/?$`,
 )
 
 /**
  * 2ᵉ segment des chemins d'un cabinet : signalement et confirmation-adresse (PR 1), invitation (PR 2, lot 3), suivi et
- * connexion (espace du cabinet, PR 2, lot 4). Aucune route du site ne doit les avoir en 2ᵉ segment (garde :
- * identifiants réservés).
+ * connexion (espace du cabinet, PR 2, lot 4), desinscription (PR 3, lot 6). Aucune route du site ne doit les avoir en
+ * 2ᵉ segment (garde : identifiants réservés).
  */
-export const SEGMENTS_CABINET_QR = ['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion'] as const
+export const SEGMENTS_CABINET_QR = ['signalement', 'confirmation-adresse', 'suivi', 'invitation', 'connexion', 'desinscription'] as const
 
-/** Chemin public d'un cabinet (signalement, confirmation d'adresse, ouverture de l'accès), ou null. Aucune lecture de base. */
-export function cheminPublicCabinetQr(pathname: string): CheminCabinetQr | null {
+/**
+ * Chemin public d'un cabinet (signalement, confirmation d'adresse, ouverture de l'accès, désinscription), ou null.
+ * Aucune lecture de base.
+ */
+export function cheminPublicCabinetQr(pathname: string): CheminPublicCabinetQr | null {
   const m = MOTIF_CHEMIN_CABINET_QR.exec(pathname)
   if (!m) return null
   if (m[2]) return { page: 'signalement', identifiant: m[1], jeton: m[2] }
-  return m[3] === 'invitation' ? { page: 'invitation', identifiant: m[1] } : { page: 'confirmation-adresse', identifiant: m[1] }
+  if (m[3] === 'invitation') return { page: 'invitation', identifiant: m[1] }
+  if (m[3] === 'desinscription') return { page: 'desinscription', identifiant: m[1] }
+  return { page: 'confirmation-adresse', identifiant: m[1] }
 }
 
 // ── Identifiants réservés (saisie seulement, jamais le routage) ──────────────
@@ -113,6 +130,8 @@ export const IDENTIFIANTS_RESERVES_QR: readonly string[] = [
   'www', 'app', 'static', 'assets', 'cdn', 'mail', 'email', 'support', 'aide', 'help', 'status', 'docs', 'legal',
   'vitfix', 'fixit', 'cabinets', 'clients', 'gestionnaire', 'gestionnaires', 'signalements', 'suivi', 'invitation',
   'connexion', 'login', 'logout', 'inscription', 'register', 'compte', 'account', 'dashboard', 'test', 'demo',
+  // 2ᵉ segment de la désinscription des messages de diffusion (PR 3, lot 6).
+  'desinscription',
 ]
 
 /**
@@ -195,6 +214,13 @@ export const cheminSuiviCabinetQr = (identifiant: string): string => `/${identif
 
 /** Connexion professionnelle d'un cabinet, sans langue. */
 export const cheminConnexionCabinetQr = (identifiant: string): string => `/${identifiant}/connexion/`
+
+/**
+ * Page publique de désinscription des messages de diffusion d'un cabinet (PR 3, lot 6), sans langue ni jeton : le jeton
+ * se met APRÈS le « # » (lib/aj-signalement/diffusion-lien.ts, urlPageDesinscriptionQr ; route un clic ouverte dans un
+ * navigateur, D-P5b).
+ */
+export const cheminDesinscriptionCabinetQr = (identifiant: string): string => `/${identifiant}/desinscription/`
 
 // ── Adresses ─────────────────────────────────────────────────────────────────
 

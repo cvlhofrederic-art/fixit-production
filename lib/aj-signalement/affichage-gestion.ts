@@ -83,6 +83,14 @@ export const LIBELLE_ACTION_JOURNAL_QR: Record<ActionJournalQr, string> = {
   'doublon.force': 'Doublon forcé (« Ce n’est pas un doublon »)',
   'import.realise': 'Import réalisé',
   'journal.purge': 'Purge du journal (plus de 12 mois)',
+  // Diffusion (PR 3, migration 20261113).
+  'cabinet.diffusion_activee': 'Diffusion d’informations activée',
+  'cabinet.diffusion_suspendue': 'Diffusion d’informations suspendue',
+  'diffusion.envoyee': 'Message diffusé aux déclarants',
+  'diffusion.reprise': 'Envoi d’un message repris',
+  'diffusion.opposition': 'Demande de ne plus recevoir les informations',
+  'diffusion.opposition_levee': 'Informations de nouveau reçues',
+  'diffusion.purge': 'Purge des messages diffusés',
 }
 
 /** Auteur d'une ligne du journal : « Administrateur », le nom du gestionnaire (« Ancien gestionnaire » s'il est effacé), « Système ». */

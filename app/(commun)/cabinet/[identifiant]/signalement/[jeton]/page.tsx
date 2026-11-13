@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import AppSignalementQr from '@/components/aj-signalement/AppSignalementQr'
 import { lireCoproprieteEtCabinetParJetonQr } from '@/lib/aj-signalement/serveur'
+import { informationFormulaireQr } from '@/lib/aj-signalement/serveur-information'
 import {
   FORMAT_IDENTIFIANT_CABINET_QR, LONGUEUR_MAX_IDENTIFIANT_CABINET_QR, LONGUEUR_MIN_IDENTIFIANT_CABINET_QR,
 } from '@/lib/aj-signalement/chemin-cabinet'
@@ -14,6 +15,9 @@ import { estJetonQr } from '@/lib/aj-signalement/types'
 // du chemin : identifiant ou jeton mal formé → 404 sans lecture ; copropriété inconnue, désactivée, sans cabinet ou
 // d'un AUTRE cabinet → le même 404, sans indice. La page est dans la langue du cabinet (colonne langue, FR par défaut) ;
 // la coquille du site reste en français (x-locale posé par le middleware).
+// PR 3, lot 7 (cahier § 6, HF3) : information à la collecte sous le bouton d'envoi (politique du cabinet, partie
+// « diffusion » si la copropriété peut diffuser), lue après les contrôles du chemin, jamais pour une page refusée ;
+// aucune information (cabinet sans politique, migration 20261113 absente, erreur) : formulaire inchangé.
 
 export const dynamic = 'force-dynamic'
 
@@ -32,12 +36,14 @@ export default async function PageSignalementCabinetQr({ params }: { params: Pro
   const lecture = await lireCoproprieteEtCabinetParJetonQr(jeton)
   if (!lecture.ok || !lecture.copropriete || !lecture.cabinet || lecture.cabinet.identifiant !== identifiant) notFound()
   const langue = lecture.cabinet.langue === 'pt' ? 'pt' : 'fr'
+  const information = await informationFormulaireQr(lecture.copropriete.id, lecture.cabinet.id)
   return (
     <div lang={langue}>
       <AppSignalementQr
         jeton={jeton}
         copropriete={{ nom: lecture.copropriete.nom ?? '', adresse: lecture.copropriete.adresse ?? '' }}
         langue={langue}
+        information={information}
       />
     </div>
   )

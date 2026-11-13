@@ -3,6 +3,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 
 import * as Sentry from "@sentry/nextjs";
+import { effacerJetonsUnClicSentryQr } from './lib/aj-signalement/sentry-desinscription'
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -57,6 +58,12 @@ Sentry.init({
       }
     }
 
-    return event;
+    // AJ Signalement : jeton de l'adresse un clic de désinscription (List-Unsubscribe) effacé de tout l'événement.
+    return effacerJetonsUnClicSentryQr(event);
+  },
+
+  // Transactions : même effacement (adresse de la requête, nom, spans).
+  beforeSendTransaction(event) {
+    return effacerJetonsUnClicSentryQr(event);
   },
 });

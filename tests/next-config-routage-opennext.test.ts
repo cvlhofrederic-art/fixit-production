@@ -515,6 +515,10 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     // Ouverture de l'accès d'un gestionnaire (PR 2, lot 3) : paire exacte, comme la confirmation.
     ['/cabinet-exemple/invitation/', '/cabinet/cabinet-exemple/invitation'],
     ['/cabinet-exemple/invitation', '/cabinet/cabinet-exemple/invitation'],
+    // Désinscription des messages de diffusion (PR 3, lot 6) : paire exacte ; page interne rangée dans app/(sans-coquille)/
+    // (mise en page racine propre, sans la coquille de VitFix), même adresse interne /cabinet/<id>/….
+    ['/cabinet-exemple/desinscription/', '/cabinet/cabinet-exemple/desinscription'],
+    ['/cabinet-exemple/desinscription', '/cabinet/cabinet-exemple/desinscription'],
     [`/abc/signalement/${jeton}/`, `/cabinet/abc/signalement/${jeton}`],
   ])('%s est servi par %s', async (chemin, page) => {
     const [avantFichiers] = await reecritures()
@@ -553,6 +557,9 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     '/cabinet-exemple/invitation/autre/',
     '/Cabinet-Exemple/invitation/',
     '/api/invitation/',
+    '/cabinet-exemple/desinscription/autre/',
+    '/Cabinet-Exemple/desinscription/',
+    '/api/desinscription/',
     '/cabinet-exemple/',
     '/cabinet-exemple',
   ])('%s : aucune réécriture du chemin client', async (chemin) => {
@@ -573,7 +580,7 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     }
   })
 
-  it('neuf règles en tête de beforeFiles (QR code, puis paires exactes de la confirmation, de l’invitation, de la connexion et du suivi) : jamais de destination littérale', async () => {
+  it('onze règles en tête de beforeFiles (QR code, puis paires exactes de la confirmation, de l’invitation, de la connexion, du suivi et de la désinscription) : jamais de destination littérale', async () => {
     const regles = await reglesCabinet()
     // En tête : next start enchaîne les règles beforeFiles ; après une règle de langue, une règle de cabinet captait le
     // chemin interne produit (/fr/aj-signalement/connexion/ → /cabinet/aj-signalement/connexion). Les deux moteurs sont
@@ -589,10 +596,12 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/connexion/`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi`,
       `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/suivi/`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription`,
+      `/:identifiant(${SOURCE_IDENTIFIANT_CABINET_QR})/desinscription/`,
     ])
     const exemples = [`/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/', '/cabinet-exemple/confirmation-adresse',
       '/cabinet-exemple/invitation/', '/cabinet-exemple/invitation', '/cabinet-exemple/connexion/', '/cabinet-exemple/connexion',
-      '/cabinet-exemple/suivi/', '/cabinet-exemple/suivi']
+      '/cabinet-exemple/suivi/', '/cabinet-exemple/suivi', '/cabinet-exemple/desinscription/', '/cabinet-exemple/desinscription']
     for (const regle of regles) {
       for (const exemple of exemples) expect(resoudre([regle], exemple) ?? '').not.toContain(':')
     }
@@ -602,7 +611,8 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     const regles = await redirections()
     for (const chemin of [
       `/cabinet-exemple/signalement/${jeton}/`, '/cabinet-exemple/confirmation-adresse/', '/cabinet-exemple/invitation/', '/cabinet-exemple/invitation',
-      '/cabinet-exemple/', '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/',
+      '/cabinet-exemple/', '/cabinet-exemple/connexion/', '/cabinet-exemple/suivi/', '/cabinet-exemple/desinscription/',
+      '/cabinet-exemple/desinscription',
     ]) {
       expect(resoudre(regles, chemin), chemin).toBeNull()
     }
@@ -617,5 +627,32 @@ describe('chemin public d’un cabinet client (vitfix.io/<identifiant>/…, AJ S
     expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/suivi/')).toBeNull()
     expect(resoudre(avantFichiers, '/fr/cabinet-exemple/connexion/')).toBeNull()
     expect(resoudre(avantFichiers, '/pt/cabinet-exemple/suivi/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet/cabinet-exemple/desinscription/')).toBeNull()
+    expect(resoudre(avantFichiers, '/fr/cabinet-exemple/desinscription/')).toBeNull()
+    expect(resoudre(avantFichiers, '/pt/cabinet-exemple/desinscription/')).toBeNull()
+  })
+})
+
+// ── PR 3, lot 6 : adresse un clic de l'en-tête List-Unsubscribe (RFC 8058), jamais redirigée ──────────────────────
+// Le site est en trailingSlash : Next ajoute des redirections internes 308 (« /:notfile » → « /:notfile/ », « /:file/ » →
+// « /:file »), sous next start comme sous OpenNext (routes-manifest). Une messagerie n'est pas tenue de suivre un 308 sur
+// son POST un clic : l'opposition serait perdue. L'adresse produite (lib/aj-signalement/diffusion-lien.ts) finit par le
+// jeton, dont le point fait un « fichier » pour Next : aucune de ces redirections ne doit la capter.
+describe('adresse un clic de désinscription : aucune redirection de barre finale (POST de la messagerie servi tel quel)', () => {
+  it('l’adresse List-Unsubscribe n’est captée par aucune redirection, ni interne (barre finale) ni de next.config.ts', async () => {
+    const requireDepot = createRequire(import.meta.url)
+    const { default: chargerRegles } = requireDepot('next/dist/lib/load-custom-routes') as {
+      default: (config: typeof configurationNext) => Promise<{ redirects: Array<Regle & { internal?: boolean }> }>
+    }
+    const { urlUnClicDesinscriptionQr } = await import('@/lib/aj-signalement/diffusion-lien')
+    const { redirects } = await chargerRegles(configurationNext)
+    const internes = redirects.filter((r) => r.internal)
+    // Les deux redirections de barre finale sont bien là (sinon la garde ne garderait rien).
+    expect(internes.map((r) => r.source)).toEqual(expect.arrayContaining([expect.stringContaining(':notfile'), expect.stringContaining(':file')]))
+    const regex = (r: Regle) => new RegExp(buildCustomRoute('redirect', r, ['/_next']).regex)
+    const chemin = new URL(urlUnClicDesinscriptionQr(`${'a'.repeat(32)}.${'b'.repeat(64)}`)).pathname
+    expect(redirects.filter((r) => regex(r).test(chemin)).map((r) => r.source)).toEqual([])
+    // Contrôle de la garde : une route API sans point reçoit bien la barre finale (308), comme toute l'API.
+    expect(internes.some((r) => regex(r).test('/api/aj-signalement/desinscription/lecture'))).toBe(true)
   })
 })

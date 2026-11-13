@@ -519,6 +519,9 @@ export const modificationCoproprieteQrSchema = z.strictObject({
   // Tire un nouveau jeton : l'ancien QR code ne répond plus.
   regenererJeton: z.literal(true).optional(),
   attribueeATous: z.boolean().optional(),
+  // Décision H7 de Hugo (PR 3) : fin de mission prévue (AAAA-MM-JJ, heure de Paris) ; à partir de ce jour, plus aucune
+  // diffusion ; null l'efface. Super admin seulement (comme l'activation, elle coupe la diffusion).
+  diffusionFinGestionLe: z.iso.date().nullable().optional(),
   forcerDoublon: z.boolean().optional(),
   confirmerDoublonProbable: z.boolean().optional(),
   confirmerHorsDomaine: z.boolean().optional(),
@@ -690,6 +693,117 @@ export const journalQrQuerySchema = z.strictObject({
   // Identifiant BIGINT de la ligne (départage les lignes du même instant).
   avantId: z.string().regex(/^\d{1,19}$/).optional(),
   limite: z.coerce.number().int().min(1).max(100).default(100),
+})
+
+// ── AJ Signalement : diffusion de messages d'exploitation aux déclarants (PR 3, cahier § 4.2) ──
+// Le contenu (objet, texte, libellés saisis) passe ENSUITE par controlerTexteDiffusionQr dans la route (liens, adresses,
+// téléphones non déclarés, termes commerciaux) : ce fichier est aussi lu par des écrans, il n'importe donc ni la liste
+// des domaines de l'IANA ni les modèles (liste ci-dessous, test d'accord avec MODELES_DIFFUSION_QR).
+// Refus par catégorie Unicode, AVANT tout rognage (trim() retirerait sans bruit U+FEFF ou U+2028 en tête ou en fin) :
+// Cc (contrôles C0 et C1), Cf (invisibles, sens d'écriture), Zl et Zp ; le texte garde seulement « \n ».
+const INTERDITS_LIGNE_DIFFUSION_QR = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+const INTERDITS_TEXTE_DIFFUSION_QR = /(?!\n)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u
+/** Longueur en caractères (points de code), comme char_length en base et le contrôle du texte. */
+const caracteresQr = (t: string): number => Array.from(t).length
+
+export const MODELES_DIFFUSION_SCHEMA_QR = [
+  'libre', 'fuite', 'coupure_eau', 'coupure_electricite', 'intervention', 'fin_incident', 'ascenseur_arret', 'annonce',
+] as const
+
+/** Ligne de diffusion (objet, référence d'instruction) : caractères interdits refusés, puis rognée, bornée en caractères. */
+const ligneDiffusionQr = (min: number, max: number) => z.string()
+  .refine((t) => !INTERDITS_LIGNE_DIFFUSION_QR.test(t), 'Caractère non autorisé')
+  .transform((t) => t.normalize('NFC').trim())
+  .pipe(z.string().refine((t) => caracteresQr(t) >= min && caracteresQr(t) <= max, `De ${min} à ${max} caractères`))
+
+/** Clé de bâtiment ou d'étage proposée par D-R1 (le serveur la reconvertit en valeurs brutes). */
+const cleValeurDiffusionQr = z.string().trim().min(1).max(60)
+export const perimetreDiffusionQrSchema = z.discriminatedUnion('portee', [
+  z.strictObject({ portee: z.literal('copropriete') }),
+  z.strictObject({ portee: z.literal('batiment'), batiment: cleValeurDiffusionQr }),
+  z.strictObject({ portee: z.literal('etage'), batiment: cleValeurDiffusionQr, etage: cleValeurDiffusionQr }),
+  z.strictObject({ portee: z.literal('signalement'), signalementId: z.uuid() }),
+])
+/** Nom du bâtiment ou de l'étage écrit dans l'e-mail, seulement quand D-R1 rend libelleASaisir (même contrôle que le texte). */
+const libelleSaisiDiffusionQr = ligneDiffusionQr(1, 50)
+
+// D-R2 : aperçu (aucune écriture). `annonce` : message d'annonce (H1 = C), copropriété entière seulement.
+export const apercuDiffusionQrSchema = z.strictObject({
+  perimetre: perimetreDiffusionQrSchema,
+  annonce: z.literal(true).optional(),
+  libelleBatimentSaisi: libelleSaisiDiffusionQr.optional(),
+  libelleEtageSaisi: libelleSaisiDiffusionQr.optional(),
+}).refine((a) => !a.annonce || a.perimetre.portee === 'copropriete', { path: ['annonce'], message: 'Annonce : toute la copropriété' })
+
+// D-R3 : envoi. Instruction écrite du cabinet exigée du super admin par la route (400 sinon), date non future.
+export const diffusionQrSchema = z.strictObject({
+  operationId: z.uuid(),
+  modele: z.enum(MODELES_DIFFUSION_SCHEMA_QR),
+  objet: ligneDiffusionQr(3, 120),
+  texte: z.string()
+    .transform((t) => t.replace(/\r\n?/g, '\n'))
+    .refine((t) => !INTERDITS_TEXTE_DIFFUSION_QR.test(t), 'Caractère non autorisé')
+    .transform((t) => t.normalize('NFC').trim())
+    .pipe(z.string().refine((t) => caracteresQr(t) >= 10 && caracteresQr(t) <= 2000, 'De 10 à 2000 caractères')),
+  perimetre: perimetreDiffusionQrSchema,
+  libelleBatimentSaisi: libelleSaisiDiffusionQr.optional(),
+  libelleEtageSaisi: libelleSaisiDiffusionQr.optional(),
+  // `libellePerimetre` rendu par l'aperçu et montré dans la confirmation, renvoyé tel quel : la route le compare au
+  // libellé recalculé (différent → 409 perimetre_change ; relecture 2 de la PR 3, cahier § 3.6, § 7.2 point 9).
+  libellePerimetre: z.string().min(1).max(200),
+  perimetreJusquAu: z.iso.datetime({ offset: true }),       // `instant` rendu par l'aperçu, passé tel quel à la base
+  nbDestinatairesAttendu: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),   // aucun plafond (décision de Hugo)
+  instruction: z.strictObject({
+    reference: ligneDiffusionQr(5, 200).refine((t) => !t.includes('@'), 'Référence sans adresse e-mail'),
+    recueLe: z.iso.date(),
+  }).optional(),
+}).refine((d) => d.modele !== 'annonce' || d.perimetre.portee === 'copropriete', { path: ['modele'], message: 'Annonce : toute la copropriété' })
+
+// D-R4 : reprise d'un envoi interrompu ; plus d'une heure après la création, le contenu doit être confirmé à jour.
+export const repriseDiffusionQrSchema = z.strictObject({ confirmeContenuAJour: z.literal(true).optional() })
+
+// D-R5 : historique d'une copropriété (curseur BRUT de PostgREST, comme les autres listes).
+export const diffusionsQrQuerySchema = z.strictObject({ avant: curseurDateQr.optional() })
+
+// D-R7 : opposition enregistrée à la demande écrite de la personne (date de réception, non future : vérifiée par la route).
+export const oppositionSignalementQrSchema = z.strictObject({ demandeRecueLe: z.iso.date() })
+
+// D-R8 : réglages de diffusion d'un cabinet (super admin), seuls dans la requête (jamais mêlés au nom, à l'identifiant…).
+// Contact : même langage que le CHECK signalements_qr_cabinets_diffusion_contact_format ; politique : https, recopiée
+// dans un href (même langage que le CHECK) ; téléphones : normalisés par la route (normaliserTelephoneDeclareQr).
+const FORMAT_CONTACT_DIFFUSION_QR = /^[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const FORMAT_POLITIQUE_DIFFUSION_QR = /^https:\/\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+$/
+export const CHAMPS_REGLAGES_DIFFUSION_QR = [
+  'diffusionContactEmail', 'diffusionPolitiqueUrl', 'politiqueDecritDiffusion', 'contratReference', 'contratSigneLe',
+  'telephonesAutorises', 'diffusionActivee',
+] as const
+export const reglagesDiffusionCabinetQrSchema = z.strictObject({
+  diffusionContactEmail: z.string().trim().toLowerCase().max(254).pipe(strictEmail)
+    .refine((e) => FORMAT_CONTACT_DIFFUSION_QR.test(e), 'Adresse de contact : lettres, chiffres et . _ % + - seulement').optional(),
+  diffusionPolitiqueUrl: z.string().trim().max(500).pipe(z.url({ protocol: /^https$/, hostname: z.regexes.domain }))
+    .refine((u) => u.length >= 12 && FORMAT_POLITIQUE_DIFFUSION_QR.test(u), 'Adresse https sans espace, guillemet ni chevron').optional(),
+  politiqueDecritDiffusion: z.literal(true).optional(),
+  contratReference: ligneDiffusionQr(3, 100).optional(),
+  contratSigneLe: z.iso.date().optional(),
+  telephonesAutorises: z.array(z.string().trim().min(6).max(40)).max(10).optional(),
+  diffusionActivee: z.boolean().optional(),
+}).refine((m) => Object.keys(m).length > 0, 'Rien à modifier')
+
+// D-P1 à D-P4 (publiques, PR 3 lot 6) : désinscription des messages de diffusion. Jeton du lien : identifiant du
+// destinataire (32 hex) et signature (64 hex), page ou un clic (lib/aj-signalement/diffusion-lien.ts) ; identifiant du
+// chemin : format seul, comme les liens de confirmation (un nom réservé après coup ne rend pas invalides les liens déjà
+// envoyés ; le cabinet de la diffusion est comparé en base, autre cabinet → « inconnu »).
+export const jetonDesinscriptionQrSchema = z.string().regex(/^[a-f0-9]{32}\.[a-f0-9]{64}$/, 'Lien invalide')
+export const lienDesinscriptionQrSchema = z.strictObject({
+  jeton: jetonDesinscriptionQrSchema,
+  identifiant: identifiantCheminQrSchema,
+})
+// D-P4 : repli d'un lien expiré. L'adresse saisie est passée telle quelle (rognée) à la fonction SQL, seule à la
+// normaliser et à la comparer à l'empreinte (cahier § 2.2) : jamais mise en minuscules ni comparée ici.
+export const adresseDesinscriptionQrSchema = z.strictObject({
+  jeton: jetonDesinscriptionQrSchema,
+  identifiant: identifiantCheminQrSchema,
+  email: z.string().trim().max(254).pipe(strictEmail),
 })
 
 // ── Devis Sign schema ────────────────────────────────────────────────────────

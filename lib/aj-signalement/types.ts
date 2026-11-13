@@ -206,6 +206,15 @@ export const CHEMIN_TABLEAU_QR = `${CHEMIN_ESPACE_QR}#${ANCRE_TABLEAU_QR}`
 export type LangueCabinetQr = 'fr' | 'pt'
 export const LANGUES_CABINET_QR: readonly LangueCabinetQr[] = ['fr', 'pt']
 
+/**
+ * Langues des cabinets qui peuvent diffuser (PR 3, décision H9 : ouverture au Portugal après vérification du droit
+ * portugais ; H4 : textes portugais à relire). Même liste que la règle d'inactivité de la migration 20261113
+ * (signalements_qr_diffusion_raison_inactive, raison langue_non_ouverte ; test d'accord dans
+ * tests/migrations/signalements_qr_diffusion.test.ts) : un cabinet d'une autre langue ne diffuse pas, même activé puis
+ * passé dans cette langue. L'activation (D-R8) s'y réfère aussi.
+ */
+export const LANGUES_DIFFUSION_OUVERTES_QR: readonly LangueCabinetQr[] = ['fr']
+
 /** Ce qu'une copropriété ou une fiche porte de son cabinet. */
 export interface CabinetResumeQr {
   id: string
@@ -271,8 +280,8 @@ export const PROFILS_ACTEUR_QR = ['super_admin', 'gestionnaire', 'systeme'] as c
 export type ProfilActeurQr = (typeof PROFILS_ACTEUR_QR)[number]
 
 /**
- * Actions du journal (CHECK signalements_qr_journal_action_valeurs) : liste fermée posée une seule fois, actions de la
- * PR 2 comprises (accès des gestionnaires).
+ * Actions du journal (CHECK signalements_qr_journal_action_valeurs) : liste fermée posée par la 20261111 (actions de la
+ * PR 2 comprises), remplacée par la 20261113 qui y ajoute les 7 actions de la diffusion (PR 3).
  */
 export const ACTIONS_JOURNAL_QR = [
   'cabinet.cree', 'cabinet.modifie', 'cabinet.domaines_modifies',
@@ -286,6 +295,9 @@ export const ACTIONS_JOURNAL_QR = [
   'gestionnaire.acces_envoye', 'gestionnaire.acces_ouvert', 'gestionnaire.refus_autre_espace',
   'gestionnaire.connexion_bloquee', 'gestionnaire.effacement_demande',
   'signalement.statut', 'doublon.refuse', 'doublon.force', 'import.realise', 'journal.purge',
+  // Migration 20261113 (PR 3) : diffusion de messages d'exploitation aux déclarants.
+  'cabinet.diffusion_activee', 'cabinet.diffusion_suspendue',
+  'diffusion.envoyee', 'diffusion.reprise', 'diffusion.opposition', 'diffusion.opposition_levee', 'diffusion.purge',
 ] as const
 export type ActionJournalQr = (typeof ACTIONS_JOURNAL_QR)[number]
 
@@ -329,6 +341,11 @@ export const ERREURS_METIER_SQL_QR = [
   // Migration 20261112 (contre-vérification du 12/11) : création d'une fiche sur une boîte déjà portée par une fiche
   // (signalements_qr_inviter_gestionnaire ; identifiant de cette fiche en DETAIL, rendu par la route).
   'existe_deja',
+  // Migration 20261113 (PR 3, diffusion) : copropriété qui ne peut pas diffuser (inactive, sans cabinet, cabinet non
+  // activé, fin de mission atteinte), personne dans le périmètre, nombre réel au-dessus de l'aperçu ou aperçu périmé.
+  'diffusion_inactive', 'aucun_destinataire', 'perimetre_change',
+  // Migration 20261113, réglages du cabinet (route D-R8) : activation refusée, réglage manquant ou langue non ouverte (H9).
+  'cabinet_incomplet', 'langue_non_ouverte',
 ] as const
 export type ErreurMetierSqlQr = (typeof ERREURS_METIER_SQL_QR)[number]
 
