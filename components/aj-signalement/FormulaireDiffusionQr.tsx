@@ -20,7 +20,7 @@
 //     chacun (aria-describedby) ;
 //   - envoi : reprise automatique tant que des messages attendent (envoiDiffusionQr.ts), progression, bilan.
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Bouton, Champ, ChoixCartes, CLASSES_SAISIE, Encadre, Ligne } from '@/components/coproprietaire-dashboard/ui'
 import {
@@ -171,7 +171,9 @@ export default function FormulaireDiffusionQr({
     || reference.trim() !== '' || dateInstruction !== '' || nomBatiment.trim() !== '' || nomEtage.trim() !== ''
   const garde: GardeDiffusionQr = etape.nom === 'envoi' ? 'envoi'
     : etape.nom === 'fin' || chargement.etat !== 'pret' || !saisieEnCours ? 'libre' : 'saisie'
-  useEffect(() => { onGarde(garde) }, [garde, onGarde])
+  // Avant l'affichage (useLayoutEffect) : un clic qui suit le bilan trouve la protection déjà levée ; avec un effet
+  // passif, un clic arrivé entre l'affichage et l'effet était perdu sans message (test instable relevé le 13/11/2026).
+  useLayoutEffect(() => { onGarde(garde) }, [garde, onGarde])
 
   // Focus : titre de la confirmation à l'arrivée ; champ refusé ou bouton « Vérifier et envoyer » au retour. Envoi puis
   // bilan : le bouton qui envoie disparaît, le focus va à la zone d'état puis au bilan (relecture 3 : il tombait hors de

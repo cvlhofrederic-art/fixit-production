@@ -10,7 +10,7 @@
 // est toujours exact ; la reprise s'enchaîne ensuite tant que des messages attendent ; la liste est relue à la fin.
 // Écran en BROUILLON, soumis à Frédéric (F1).
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Bouton, Encadre, Ligne } from '@/components/coproprietaire-dashboard/ui'
 import {
@@ -68,7 +68,8 @@ export default function HistoriqueDiffusionsQr({ copropriete, profil, delaiRepri
   }, [charger])
 
   const garde: GardeDiffusionQr = reprise && (reprise.etape === 'appel' || reprise.etape === 'envoi') ? 'envoi' : 'libre'
-  useEffect(() => { onGarde(garde) }, [garde, onGarde])
+  // Avant l'affichage, comme dans FormulaireDiffusionQr : un clic qui suit l'état affiché n'est jamais perdu.
+  useLayoutEffect(() => { onGarde(garde) }, [garde, onGarde])
 
   const voirPlus = async () => {
     if (liste.etat !== 'pret' || !liste.suivant || suiteEnCours) return
