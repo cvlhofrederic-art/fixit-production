@@ -324,7 +324,10 @@ export function Modale({ titre, onFermer, children, labelFermer }: { titre: Reac
       <div
         ref={refDialogue}
         role="dialog" aria-modal="true" aria-labelledby={idTitre}
-        className="w-full max-w-lg rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6"
+        // Hauteur bornée à l'écran, défilement DANS la fenêtre : le fond est figé (overflow hidden), une fenêtre plus
+        // haute que l'écran était sinon centrée hors de portée (titre et boutons du bas injoignables). La barre de
+        // défilement appartient à la fenêtre : un clic dessus n'est pas un « clic dehors ».
+        className="max-h-[100dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh_-_2rem)] sm:rounded-2xl sm:p-6"
       >
         <div className="flex items-start justify-between gap-3">
           <h2 id={idTitre} ref={refTitre} tabIndex={-1} className="text-xl font-bold text-[#0D1B2E] outline-none">{titre}</h2>
