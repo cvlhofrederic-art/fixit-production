@@ -597,3 +597,108 @@ describe('page profil d’un gestionnaire : chaque action attend la fiche relue 
     expect(screen.getByRole('button', { name: G.reessayer })).toBeInTheDocument()
   })
 })
+
+// ── 5. Relecture : la fenêtre de départ confirmée ne change plus pendant l'attente ──────────────────────────────
+//
+// Départ fait, la fenêtre reste ouverte et occupée jusqu'à la fiche ET aux listes relues. Ce qui arrive d'abord (fiche
+// désactivée sans attribution, ou tableau où la copropriété a déjà son successeur) ne doit pas réécrire la fenêtre
+// confirmée (« Aucune copropriété attribuée : la fiche sera désactivée. », succession qui disparaît) : tout change
+// d'un coup, à la fermeture.
+
+describe('départ : la fenêtre confirmée ne change pas pendant l’attente de la fiche et des listes', () => {
+  const marie = fiche(G1, 'Marie Exemple', 'adresse_confirmee')
+  const lea = fiche(G3, 'Léa Exemple', 'adresse_confirmee')
+  const avant = detail(marie)
+  /** Fiche rendue par le serveur après le départ : désactivée, sans attribution. */
+  const apres: FicheGestionnaireDetailQr = { ...avant, gestionnaire: { ...marie, etat: 'desactive' }, attributions: [] }
+  let parti = false
+  let relecture: Differe
+  let listes: Differe
+  const bilanDepart = { deplacees: 0, laisseesSansGestionnaire: 1, adressesRetirees: 0 }
+
+  beforeEach(() => {
+    parti = false
+    relecture = differe()
+    listes = differe()
+    simulerFetch(async (a) => {
+      if (a.methode === 'GET' && a.url === `/api/aj-signalement/gestionnaires/${G1}`) {
+        if (!parti) return json(avant)
+        await relecture.promesse
+        return json(apres)
+      }
+      if (a.url.startsWith('/api/aj-signalement/tableau?gestionnaire=')) {
+        return json({ tableau: { coproprietes: [], signalements: [], gestionnaire: { id: G1, nom: 'Marie Exemple', actif: true, cabinet: RESUME } } })
+      }
+      if (a.url.endsWith('/depart')) {
+        parti = true
+        return json(bilanDepart)
+      }
+      return json({ error: 'introuvable' }, 404)
+    })
+  })
+
+  const proprietes = (coproprietes: readonly CoproprieteQr[], gestionnaires: readonly GestionnaireQr[]) => ({
+    id: G1, coproprietes, gestionnaires, onRetour: vi.fn(), onModifie: () => listes.promesse,
+  })
+  const etiquetteUne = remplir(G.depart.successeur, { nom: 'Résidence Une' })
+
+  async function confirmerDepart(successeur: string) {
+    const rendu = render(<FicheGestionnaireQr {...proprietes(coproprietesFiche, [marie, lea])} />)
+    await screen.findByRole('heading', { name: 'Marie Exemple', level: 2 })
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.depart }))
+    const fenetre = screen.getByRole('dialog')
+    fireEvent.change(within(fenetre).getByLabelText(etiquetteUne), { target: { value: successeur } })
+    fireEvent.click(within(fenetre).getByRole('button', { name: G.depart.confirmer }))
+    // Départ fait, fiche en cours de relecture : la fenêtre attend la fiche et les listes.
+    await waitFor(() => expect(lectures(`/api/aj-signalement/gestionnaires/${G1}`)).toHaveLength(2))
+    return { ...rendu, fenetre }
+  }
+
+  /** La fenêtre telle qu'elle a été confirmée : succession de « Résidence Une », « Résidence Deux » partagée. */
+  function fenetreConfirmee(fenetre: HTMLElement, successeur: string) {
+    expect(screen.getByRole('dialog')).toBe(fenetre)
+    expect(within(fenetre).queryByText(G.depart.aucune)).toBeNull()
+    expect(within(fenetre).getByLabelText(etiquetteUne)).toHaveValue(successeur)
+    expect(within(fenetre).getByRole('heading', { name: remplir(G.depart.seul, { n: 1 }) })).toBeInTheDocument()
+    expect(within(fenetre).getByRole('heading', { name: remplir(G.depart.partages, { n: 1 }) })).toBeInTheDocument()
+    expect(within(fenetre).getByRole('button', { name: G.depart.confirmer })).toBeDisabled()
+  }
+
+  it('fiche relue AVANT les listes : la fenêtre ne passe pas à « Aucune copropriété attribuée… » ; tout change à la fermeture', async () => {
+    const { fenetre } = await confirmerDepart('sans')
+    await act(async () => { relecture.resoudre() })
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    fenetreConfirmee(fenetre, 'sans')
+    // La fiche derrière la fenêtre n'a pas encore changé non plus (« Départ… » toujours proposé).
+    expect(screen.getByRole('button', { name: G.fiche.depart })).toBeInTheDocument()
+    expect(screen.queryByText(remplir(G.depart.fait, { deplacees: 0, sans: 1 }))).toBeNull()
+
+    await act(async () => { listes.resoudre() })
+    expect(await screen.findByText(remplir(G.depart.fait, { deplacees: 0, sans: 1 }))).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByText(ETAT.desactive)).toBeInTheDocument()
+    expect(screen.getByText(G.fiche.aucuneAttribuee)).toBeInTheDocument()
+    expect(envois()).toHaveLength(1)
+  })
+
+  it('listes relues AVANT la fiche (le successeur gère déjà la copropriété) : la succession confirmée reste affichée', async () => {
+    bilanDepart.deplacees = 1
+    bilanDepart.laisseesSansGestionnaire = 0
+    const { fenetre, rerender } = await confirmerDepart(G3)
+    // L'espace a déjà relu le tableau : « Résidence Une » est à Léa, Marie n'est plus nulle part.
+    const coproprietesApres = [
+      copro(C1, 'Résidence Une', { gestionnaires: [{ id: G3, nom: 'Léa Exemple' }] }),
+      copro(C2, 'Résidence Deux', { gestionnaires: [{ id: G3, nom: 'Léa Exemple' }] }),
+      copro(C3, 'Parc Belle Ombre'),
+    ]
+    rerender(<FicheGestionnaireQr {...proprietes(coproprietesApres, [{ ...marie, etat: 'desactive' }, lea])} />)
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+    fenetreConfirmee(fenetre, G3)
+
+    await act(async () => { listes.resoudre() })
+    await act(async () => { relecture.resoudre() })
+    expect(await screen.findByText(remplir(G.depart.fait, { deplacees: 1, sans: 0 }))).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(envois()).toHaveLength(1)
+  })
+})

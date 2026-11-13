@@ -17,6 +17,8 @@
 // Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : chaque action qui modifie la fiche attend la fiche
 // relue ET les listes de l'espace (onModifie) avant de fermer son panneau ou sa fenêtre et d'annoncer son succès, boutons
 // désactivés jusque-là ; fiche relue en échec : le succès reste annoncé au-dessus de l'erreur de chargement.
+// Relecture du correctif : rien ne change avant la fin de l'attente ; la fiche relue est posée en même temps que la
+// fermeture et le message (une fiche relue avant les listes réécrivait la fenêtre de départ encore ouverte).
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -52,6 +54,8 @@ export interface PropsFicheGestionnaireQr {
 }
 
 type Etat = { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; fiche: FicheGestionnaireDetailQr }
+/** Fiche relue : prête, ou son échec. */
+type EtatLu = Exclude<Etat, { statut: 'chargement' }>
 type Panneau = 'nom' | 'ajout' | 'effacer' | 'depart' | null
 /** Résultat d'une action : textes de succès (et, PR 2, ce qui reste à reprendre : montré comme une erreur), ou l'échec. */
 type ResultatAction = { ok: true; textes: string[]; avertissement?: string } | { ok: false; message: string }
@@ -77,14 +81,19 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
 
   // Numéro de la dernière lecture de la fiche : une réponse dépassée (fiche relue entre-temps, page quittée) est ignorée.
   const derniereLecture = useRef(0)
-  /** Lecture de la fiche ; tenue une fois la fiche posée (ou son échec affiché), jamais rejetée. */
-  const relire = useCallback(async (): Promise<void> => {
+  /** Lecture de la fiche, sans la poser : la fiche prête ou son échec ; null si la réponse est dépassée. Jamais rejetée. */
+  const lire = useCallback(async (): Promise<EtatLu | null> => {
     derniereLecture.current += 1
     const lecture = derniereLecture.current
     const r = await chargerFicheGestionnaireQr(id)
-    if (lecture !== derniereLecture.current) return
-    setEtat(r.ok ? { statut: 'pret', fiche: r.fiche } : { statut: 'erreur', message: messageEchecQr(r.code) })
+    if (lecture !== derniereLecture.current) return null
+    return r.ok ? { statut: 'pret', fiche: r.fiche } : { statut: 'erreur', message: messageEchecQr(r.code) }
   }, [id])
+  /** Chargement et « Réessayer » : la fiche posée dès sa réponse (ou son échec affiché) ; jamais rejetée. */
+  const relire = useCallback(async (): Promise<void> => {
+    const lue = await lire()
+    if (lue) setEtat(lue)
+  }, [lire])
 
   // Premier chargement : l'état n'est posé qu'à la réponse (asynchrone). Page quittée : la réponse en cours est ignorée.
   useEffect(() => {
@@ -123,10 +132,14 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
   const ajoutables = coprosCabinet.filter((c) => !attribuees.has(c.id))
   const actionAcces = actionAccesGestionnaireQr(g, envois)
 
-  /** Fait : fiche relue et listes de l'espace à jour (boutons désactivés jusque-là), puis panneau fermé et message. */
+  /**
+   * Fait : fiche relue et listes de l'espace attendues ensemble (boutons désactivés, panneau ou fenêtre ouverts
+   * jusque-là), puis tout d'un coup : la fiche relue posée, le panneau fermé et le message.
+   */
   const conclure = async (textes: string[], avertissement: string | null) => {
     setOccupe(true)
-    await Promise.all([relire(), onModifie()])
+    const [lue] = await Promise.all([lire(), onModifie()])
+    if (lue) setEtat(lue)
     setOccupe(false)
     setPanneau(null)
     setMessages(textes)
