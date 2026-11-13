@@ -44,7 +44,10 @@ export interface PropsListeGestionnairesQr {
   erreur: CodeErreurQr | null
   coproprietes: readonly CoproprieteQr[]
   onOuvrir: (id: string) => void
-  /** Une fiche a changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour (ou leur échec affiché). */
+  /**
+   * Une fiche a changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour (ou leur échec
+   * affiché), au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr).
+   */
   onModifie: () => Promise<void>
   onReessayer: () => void
   /** Vers la vue Cabinets (domaines à renseigner). */

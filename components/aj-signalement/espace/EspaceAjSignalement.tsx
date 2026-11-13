@@ -28,7 +28,8 @@
 // automatique continue), comme TableauSignalementsQr pour les fenêtres de ses cartes ; rien à protéger : fermée.
 // Correctif du 13/11/2026 (Hugo : « les listes ne se rafraîchissent pas » ; ≈ 2,4 s par appel en production) : le
 // rechargement demandé après une modification rend une promesse, tenue quand cabinets, fiches ET tableau sont à jour
-// (ou leur échec affiché) ; chaque action l'attend avant de fermer sa fenêtre et d'annoncer son succès.
+// (ou leur échec affiché) ; chaque action l'attend avant de fermer sa fenêtre et d'annoncer son succès. Relecture du
+// correctif : cette attente est bornée (attenteListesQr) ; une lecture sans réponse ne bloque plus l'action.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
@@ -40,6 +41,7 @@ import type { DemandeDiffusionSuiviQr } from '@/components/aj-signalement/SuiviG
 import type { GardeDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
 import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
+import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
 import JournalQr from '@/components/aj-signalement/JournalQr'
 import { useAccesEspaceQr, type CabinetEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
 import { useReferentielsQr } from '@/components/aj-signalement/espace/useReferentielsQr'
@@ -233,7 +235,8 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
 
   /**
    * Une fiche, un cabinet ou des attributions ont changé : cabinets, fiches et tableau rechargés ensemble. La promesse
-   * est tenue quand les trois sont à jour (ou leur échec affiché : encadré, toast) ; jamais rejetée (les chargements
+   * est tenue quand les trois sont à jour (ou leur échec affiché : encadré, toast), au plus tard après
+   * DELAI_MAX_LISTES_QR_MS (une lecture sans réponse : la liste suit à son arrivée) ; jamais rejetée (les chargements
    * rendent leurs échecs). L'action l'attend avant d'annoncer son succès.
    */
   const rafraichir = useCallback(async (): Promise<void> => {
@@ -241,7 +244,8 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
     const numero = derniereActualisation.current
     const tableauRecharge = new Promise<void>((finir) => { attentesTableau.current.set(numero, finir) })
     setActualisation(numero)
-    await Promise.all([recharger(), tableauRecharge])
+    const aJour = await attendreAuPlusQr(Promise.all([recharger(), tableauRecharge]))
+    if (!aJour) attentesTableau.current.delete(numero)
   }, [recharger])
   /** « Réessayer » d'une vue en erreur : le même rechargement, sans rien à attendre. */
   const reessayerReferentiels = useCallback(() => { void rafraichir() }, [rafraichir])

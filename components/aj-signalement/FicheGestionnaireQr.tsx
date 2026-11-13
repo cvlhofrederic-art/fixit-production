@@ -18,7 +18,8 @@
 // relue ET les listes de l'espace (onModifie) avant de fermer son panneau ou sa fenêtre et d'annoncer son succès, boutons
 // désactivés jusque-là ; fiche relue en échec : le succès reste annoncé au-dessus de l'erreur de chargement.
 // Relecture du correctif : rien ne change avant la fin de l'attente ; la fiche relue est posée en même temps que la
-// fermeture et le message (une fiche relue avant les listes réécrivait la fenêtre de départ encore ouverte).
+// fermeture et le message (une fiche relue avant les listes réécrivait la fenêtre de départ encore ouverte) ; l'attente
+// est bornée (attenteListesQr) : une lecture sans réponse ne bloque plus l'action.
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -27,6 +28,7 @@ import SuiviGestionnaireQr, { type PropsSuiviGestionnaireQr } from '@/components
 import FenetreDepartGestionnaireQr from '@/components/aj-signalement/FenetreDepartGestionnaireQr'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
 import {
   attribuerCoproprietesGestionnaireQr, bloquerConnexionGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr,
   ouvrirAccesGestionnaireQr, renvoyerConfirmationQr,
@@ -47,7 +49,10 @@ export interface PropsFicheGestionnaireQr {
   /** Fiches de l'espace (successeurs au départ) ; null tant qu'elles ne sont pas chargées. */
   gestionnaires: readonly GestionnaireQr[] | null
   onRetour: () => void
-  /** La fiche ou ses attributions ont changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour. */
+  /**
+   * La fiche ou ses attributions ont changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour,
+   * au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr).
+   */
   onModifie: () => Promise<void>
   /** PR 3 : « Informer les déclarants de ce signalement » depuis le suivi (fenêtre portée par l'espace). */
   onInformer?: PropsSuiviGestionnaireQr['onInformer']
@@ -134,12 +139,19 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
 
   /**
    * Fait : fiche relue et listes de l'espace attendues ensemble (boutons désactivés, panneau ou fenêtre ouverts
-   * jusque-là), puis tout d'un coup : la fiche relue posée, le panneau fermé et le message.
+   * jusque-là), au plus DELAI_MAX_LISTES_QR_MS ; puis tout d'un coup : la fiche relue posée, le panneau fermé et le
+   * message. Fiche relue après ce délai : posée à son arrivée.
    */
   const conclure = async (textes: string[], avertissement: string | null) => {
     setOccupe(true)
-    const [lue] = await Promise.all([lire(), onModifie()])
-    if (lue) setEtat(lue)
+    const attente: { finie: boolean; lue: EtatLu | null } = { finie: false, lue: null }
+    const lecture = lire().then((lue) => {
+      if (!attente.finie) attente.lue = lue
+      else if (lue) setEtat(lue)
+    })
+    await attendreAuPlusQr(Promise.all([lecture, onModifie()]))
+    attente.finie = true
+    if (attente.lue) setEtat(attente.lue)
     setOccupe(false)
     setPanneau(null)
     setMessages(textes)

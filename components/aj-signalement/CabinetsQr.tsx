@@ -40,7 +40,7 @@ export interface PropsCabinetsQr {
   coproprietes: readonly CoproprieteQr[]
   /**
    * Un cabinet ou un rattachement a changé : l'espace recharge cabinets, fiches et tableau ; tenue quand ils sont à jour
-   * (ou leur échec affiché), jamais rejetée.
+   * (ou leur échec affiché), au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr), jamais rejetée.
    */
   onModifie: () => Promise<void>
   onReessayer: () => void

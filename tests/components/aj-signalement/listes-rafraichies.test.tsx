@@ -12,12 +12,15 @@
 // (création, renvoi de la confirmation, réactivation, ouverture et renvoi de l'accès, accès groupé) ; page profil
 // (retrait et ajout d'attributions, nom, renvoi de la confirmation, accès, réactivation, effacement, blocage, déblocage,
 // suppression du compte, départ).
+// Relecture du correctif : la fenêtre de départ confirmée ne change plus pendant l'attente (section 5) ; une lecture qui
+// ne répond pas n'est attendue qu'au plus DELAI_MAX_LISTES_QR_MS (fin de la section 1, section 6).
 
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LIBELLE_ETAT_GESTIONNAIRE_QR as ETAT, TEXTES_GESTION_QR as G } from '@/lib/aj-signalement/affichage-gestion'
 import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
+import { DELAI_MAX_LISTES_QR_MS } from '@/components/aj-signalement/attenteListesQr'
 import { remplir } from '@/lib/coproprietaire/textes'
 import {
   gestionCoproprieteQrVide, type CabinetQr, type CoproprieteQr, type FicheGestionnaireDetailQr, type GestionnaireQr,
@@ -289,6 +292,67 @@ describe('espace du super admin : la liste à jour avant le message', () => {
     fireEvent.click(within(ligne).getByRole('button', { name: G.acces.ouvrir }))
     expect(await screen.findByText(messageErreurTableauQr('serveur'))).toBeInTheDocument()
     expect(await screen.findByText(remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' }))).toBeInTheDocument()
+  })
+
+  // Relecture : une lecture qui ne répond pas (réseau mobile figé, requête suspendue) n'est attendue qu'un temps.
+  // Horloge simulée pour setTimeout seulement, qui suit aussi le temps réel (les attentes de Testing Library en ont besoin).
+  describe('lecture qui ne répond pas : attente bornée', () => {
+    afterEach(() => vi.useRealTimers())
+    const horlogeSimulee = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true })
+    const avancer = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+
+    it('rattachement, tableau relu sans réponse : occupé pendant la moitié du délai ; au délai, le succès et la confirmation rendue ; la liste suit', async () => {
+      await ouvrirEspace('cabinets')
+      const titre = remplir(G.cabinets.sansCabinet, { n: 1 })
+      const bloc = screen.getByRole('heading', { name: titre }).closest('section') as HTMLElement
+      fireEvent.click(within(bloc).getByRole('checkbox', { name: /Parc Belle Ombre/ }))
+      fireEvent.change(within(bloc).getByLabelText(G.cabinets.rattacherA), { target: { value: K1 } })
+      fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.rattacher }))
+      const relacher = retenir(estTableau)
+      horlogeSimulee()
+      fireEvent.click(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement }))
+      await waitFor(() => expect(appels.filter((a) => estTableau(a.url))).toHaveLength(2))
+      await waitFor(() => expect(lectures('/api/aj-signalement/cabinets')).toHaveLength(2))
+      const message = remplir(G.cabinets.rattachees, { n: 1 })
+
+      await avancer(DELAI_MAX_LISTES_QR_MS / 2)
+      expect(screen.queryByText(message)).toBeNull()
+      expect(within(bloc).getByRole('button', { name: G.cabinets.confirmerRattachement })).toBeDisabled()
+
+      await avancer(DELAI_MAX_LISTES_QR_MS / 2)
+      expect(screen.getByText(message)).toBeInTheDocument()
+      expect(within(bloc).queryByRole('button', { name: G.cabinets.confirmerRattachement })).toBeNull()
+      expect(within(bloc).getByRole('button', { name: G.cabinets.rattacher })).toBeEnabled()
+      expect(envois()).toHaveLength(1)
+
+      // Le tableau répond enfin : la copropriété quitte « sans cabinet », le message reste.
+      await relacher()
+      await waitFor(() => expect(screen.queryByRole('heading', { name: titre })).toBeNull())
+      expect(screen.getByText(message)).toBeInTheDocument()
+    })
+
+    it('accès, fiches relues sans réponse : au délai, « Accès envoyé… » et les boutons rendus ; la ligne suit', async () => {
+      await ouvrirEspace('gestionnaires')
+      const ligne = () => screen.getByText('Marie Exemple', { selector: 'h3' }).closest('li') as HTMLElement
+      const relacher = retenir(estFiches)
+      horlogeSimulee()
+      fireEvent.click(within(ligne()).getByRole('button', { name: G.acces.ouvrir }))
+      await waitFor(() => expect(lectures('/api/aj-signalement/gestionnaires?etat=tous')).toHaveLength(2))
+      const message = remplir(G.acces.envoye, { email: 'marie.exemple@exemple.test' })
+
+      await avancer(DELAI_MAX_LISTES_QR_MS / 2)
+      expect(screen.queryByText(message)).toBeNull()
+      expect(within(ligne()).getByRole('button', { name: G.acces.ouvrir })).toBeDisabled()
+
+      await avancer(DELAI_MAX_LISTES_QR_MS / 2)
+      expect(screen.getByText(message)).toBeInTheDocument()
+      expect(within(ligne()).getByRole('button', { name: G.acces.ouvrir })).toBeEnabled()
+      expect(envois()).toHaveLength(1)
+
+      await relacher()
+      await waitFor(() => expect(within(ligne()).getByText(ETAT.acces_envoye)).toBeInTheDocument())
+      expect(within(ligne()).getByRole('button', { name: G.acces.renvoyer })).toBeInTheDocument()
+    })
   })
 })
 
@@ -700,5 +764,58 @@ describe('départ : la fenêtre confirmée ne change pas pendant l’attente de 
     expect(await screen.findByText(remplir(G.depart.fait, { deplacees: 1, sans: 0 }))).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(envois()).toHaveLength(1)
+  })
+})
+
+// ── 6. Relecture : page profil, fiche et listes sans réponse : attente bornée ──────────────────────────────────
+
+describe('page profil : ni la fiche ni les listes ne répondent', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('« Enregistrer » le nom : occupé pendant la moitié du délai ; au délai, le panneau fermé et le message ; la fiche suit', async () => {
+    const marie = fiche(G1, 'Marie Exemple', 'adresse_confirmee')
+    const renommee = detail({ ...marie, nom: 'Marie Exemple-Martin' })
+    let renomme = false
+    const relecture = differe()
+    simulerFetch(async (a) => {
+      if (a.methode === 'GET' && a.url === `/api/aj-signalement/gestionnaires/${G1}`) {
+        if (!renomme) return json(detail(marie))
+        await relecture.promesse
+        return json(renommee)
+      }
+      if (a.url.startsWith('/api/aj-signalement/tableau?gestionnaire=')) {
+        return json({ tableau: { coproprietes: [], signalements: [], gestionnaire: { id: G1, nom: 'Marie Exemple', actif: true, cabinet: RESUME } } })
+      }
+      if (a.methode === 'PATCH') {
+        renomme = true
+        return json({ gestionnaire: renommee.gestionnaire })
+      }
+      return json({ error: 'introuvable' }, 404)
+    })
+    // Listes de l'espace qui ne répondent jamais.
+    const onModifie = vi.fn(() => new Promise<void>(() => undefined))
+    render(<FicheGestionnaireQr id={G1} coproprietes={coproprietesFiche} gestionnaires={[marie]} onRetour={vi.fn()} onModifie={onModifie} />)
+    await screen.findByRole('heading', { name: 'Marie Exemple', level: 2 })
+    fireEvent.click(screen.getByRole('button', { name: G.fiche.modifierNom }))
+    fireEvent.change(screen.getByLabelText(G.fiche.nouveauNom), { target: { value: 'Marie Exemple-Martin' } })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true })
+    fireEvent.click(screen.getByRole('button', { name: G.enregistrer }))
+    await waitFor(() => expect(lectures(`/api/aj-signalement/gestionnaires/${G1}`)).toHaveLength(2))
+    expect(onModifie).toHaveBeenCalledTimes(1)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(DELAI_MAX_LISTES_QR_MS / 2) })
+    expect(screen.queryByText(G.fiche.nomEnregistre)).toBeNull()
+    expect(screen.getByRole('button', { name: G.enregistrer })).toBeDisabled()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(DELAI_MAX_LISTES_QR_MS / 2) })
+    expect(screen.getByText(G.fiche.nomEnregistre)).toBeInTheDocument()
+    expect(screen.queryByLabelText(G.fiche.nouveauNom)).toBeNull()
+    expect(screen.getByRole('button', { name: G.fiche.modifierNom })).toBeEnabled()
+    expect(envois()).toHaveLength(1)
+
+    // La fiche relue arrive après le délai : posée à son arrivée, le message reste.
+    await act(async () => { relecture.resoudre() })
+    expect(await screen.findByRole('heading', { name: 'Marie Exemple-Martin', level: 2 })).toBeInTheDocument()
+    expect(screen.getByText(G.fiche.nomEnregistre)).toBeInTheDocument()
   })
 })
