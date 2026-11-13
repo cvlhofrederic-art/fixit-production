@@ -19,7 +19,8 @@
 //   Fix : si une section non vide existe, on ignore `lines` (qui est l'union)
 //   et on somme uniquement les sections séparées. Mirror logique V3.
 
-import { sumMoney, toCents, round2 } from '@/lib/money'
+import { sumMoney, toCents, round2, mulMoney } from '@/lib/money'
+import { appliquerRemiseGlobale, lireRemise, remiseEnPourcentageExact } from '@/lib/remise-commerciale'
 
 interface ProductLineLike {
   totalHT?: number
@@ -32,6 +33,10 @@ interface ProductLineLike {
   priceHT?: number
   unit?: string
   id?: string | number
+  /** Remise de la ligne (lib/remise-commerciale.ts) — déjà déduite de totalHT. */
+  remise?: unknown
+  /** Ligne exclue de la base de la remise globale (déduction d'acompte). */
+  horsRemise?: boolean
 }
 
 interface DocumentWithLines {
@@ -93,6 +98,19 @@ const safeLines = (arr: unknown): ProductLineLike[] => {
  * un patch sur un seul des chemins (form, dashboard, API, PDF download)
  * laisserait les autres divergents — régression DEV-2026-005, +2 800 €.
  */
+/**
+ * Table des acomptes déjà facturés d'une facture de solde (lib/facture-depuis-devis.ts). Ses lignes
+ * sont toutes hors de la base de la remise globale : la remise porte sur les travaux, l'acompte se
+ * déduit ensuite — y compris pour une déduction ajoutée à la main dans le formulaire.
+ */
+export const ID_TABLE_ACOMPTES_DEDUITS = 'acomptes-deduits'
+
+/**
+ * Le document porte une remise globale : seules ses lignes de déduction sont alors marquées hors
+ * remise. Sans remise, les lignes rendues sont exactement celles d'avant (aucune donnée changée).
+ */
+const remiseGlobaleActive = (doc: DocumentWithLines): boolean => lireRemise(doc.remiseGlobale) !== null
+
 export function buildDocumentLines(doc: DocumentWithLines | null | undefined): ProductLineLike[] {
   if (!doc || typeof doc !== 'object') return []
   const laborRaw = safeLines(doc.laborLines)
@@ -102,14 +120,29 @@ export function buildDocumentLines(doc: DocumentWithLines | null | undefined): P
   const fraisAnnexes = safeLines(doc.fraisAnnexes)
   const customTablesRaw = Array.isArray(doc.customTables) ? doc.customTables : []
   const customLines = customTablesRaw
-    .filter((t): t is { lines?: ProductLineLike[] } => t !== null && typeof t === 'object')
-    .flatMap(t => safeLines(t.lines))
+    .filter((t): t is { id?: unknown; lines?: ProductLineLike[] } => t !== null && typeof t === 'object')
+    .flatMap(t => (t.id === ID_TABLE_ACOMPTES_DEDUITS && remiseGlobaleActive(doc)
+      ? safeLines(t.lines).map(l => (l.horsRemise === true ? l : { ...l, horsRemise: true }))
+      : safeLines(t.lines)))
   const labor = laborRaw.length > 0 ? laborRaw : lines
   return [...labor, ...material, ...frais, ...fraisAnnexes, ...customLines]
 }
 
+/**
+ * Total HT du document, remise globale (`remiseGlobale`) déduite : c'est le HT facturé, celui des
+ * listes, des statistiques et de `total_ht_cents`. Sans remise globale : somme des lignes, inchangée.
+ */
 export function computeDocumentTotalHT(doc: DocumentWithLines | null | undefined): number {
-  return sumMoney(buildDocumentLines(doc).map(lineHT))
+  const lignes = buildDocumentLines(doc)
+  const brut = sumMoney(lignes.map(lineHT))
+  if (!lireRemise(doc?.remiseGlobale)) return brut
+  // Document remisé : même calcul que computeTva (centimes ligne par ligne), pour que
+  // total_ht_cents + total_tax_cents = total_ttc_cents même avec des totaux de ligne non arrondis.
+  const remise = appliquerRemiseGlobale(
+    lignes.map(l => ({ totalHT: Number(lineHT(l)) || 0, tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0) || 0, horsRemise: l.horsRemise === true })),
+    doc?.remiseGlobale,
+  )
+  return remise.remiseHT !== 0 ? remise.totalHT : brut
 }
 
 /**
@@ -142,6 +175,12 @@ const MONEY_LINE_KEYS = ['priceHT', 'totalHT', 'total_ht', 'prix_unitaire_ht', '
  */
 export function scaleDocumentLines<T extends DocumentWithLines>(doc: T, ratio: number): T {
   if (!doc || typeof doc !== 'object') return doc
+  // Remise en euros (ligne ou globale) : mise à la même échelle, en valeur absolue (le signe
+  // d'une remise suit celui de sa base, cf. lib/remise-commerciale.ts). Une remise en % ne bouge pas.
+  const scaleRemise = (remise: unknown): unknown => {
+    const r = lireRemise(remise)
+    return r && r.type === 'montant' ? { ...(remise as object), valeur: Math.abs(round2(r.valeur * ratio)) } : remise
+  }
   const scaleLine = (l: ProductLineLike | null | undefined): ProductLineLike | null | undefined => {
     if (!l || typeof l !== 'object') return l
     const out = { ...l } as Record<string, unknown>
@@ -149,6 +188,7 @@ export function scaleDocumentLines<T extends DocumentWithLines>(doc: T, ratio: n
       const v = out[k]
       if (typeof v === 'number' && Number.isFinite(v)) out[k] = round2(v * ratio)
     }
+    if (out.remise !== undefined) out.remise = scaleRemise(out.remise)
     return out as ProductLineLike
   }
   const scaleArr = (arr: unknown): ProductLineLike[] | undefined =>
@@ -156,6 +196,7 @@ export function scaleDocumentLines<T extends DocumentWithLines>(doc: T, ratio: n
 
   const out: T = { ...doc }
   const o = out as DocumentWithLines
+  if (doc.remiseGlobale !== undefined) o.remiseGlobale = scaleRemise(doc.remiseGlobale)
   if (Array.isArray(doc.lines)) o.lines = scaleArr(doc.lines)
   if (Array.isArray(doc.laborLines)) o.laborLines = scaleArr(doc.laborLines)
   if (Array.isArray(doc.materialLines)) o.materialLines = scaleArr(doc.materialLines)
@@ -180,4 +221,40 @@ export function scaleDocumentLines<T extends DocumentWithLines>(doc: T, ratio: n
  */
 export function negateDocumentLines<T extends DocumentWithLines>(doc: T): T {
   return scaleDocumentLines(doc, -1)
+}
+
+/**
+ * Remises en euros d'un document (lignes et remise globale) converties en pourcentages exacts
+ * équivalents. Pour un AVOIR : l'utilisateur y retire des lignes ou réduit des quantités (avoir
+ * partiel) ; une remise en euros resterait entière et fausserait l'avoir (jusqu'à zéro), alors
+ * qu'un pourcentage suit les montants. Montants inchangés au centime : l'avoir total reste
+ * l'opposé exact de la facture. Sans remise en euros, document rendu tel quel.
+ */
+export function remisesEnPourcentage<T extends DocumentWithLines>(doc: T): T {
+  if (!doc || typeof doc !== 'object') return doc
+  const convertirLigne = (l: ProductLineLike | null | undefined): ProductLineLike | null | undefined => {
+    if (!l || typeof l !== 'object' || lireRemise(l.remise)?.type !== 'montant') return l
+    const brut = mulMoney(Number(l.qty) || 0, Number(l.priceHT) || 0)
+    return { ...l, remise: remiseEnPourcentageExact(l.remise, brut) ?? undefined }
+  }
+  const convertirListe = (arr: unknown): ProductLineLike[] | undefined =>
+    Array.isArray(arr) ? arr.map(convertirLigne).filter((l): l is ProductLineLike => l != null) : undefined
+  const out: T = { ...doc }
+  const o = out as DocumentWithLines
+  for (const cle of ['lines', 'laborLines', 'materialLines', 'fraisLines', 'fraisAnnexes'] as const) {
+    if (Array.isArray(doc[cle])) o[cle] = convertirListe(doc[cle])
+  }
+  if (Array.isArray(doc.customTables)) {
+    o.customTables = doc.customTables.map(t =>
+      t && typeof t === 'object' && Array.isArray(t.lines) ? { ...t, lines: convertirListe(t.lines) } : t,
+    )
+  }
+  if (lireRemise(doc.remiseGlobale)?.type === 'montant') {
+    const { baseRemiseHT } = appliquerRemiseGlobale(
+      buildDocumentLines(o).map(l => ({ totalHT: Number(lineHT(l)) || 0, tvaRate: Number(l.tvaRate ?? l.tva_rate ?? 0) || 0, horsRemise: l.horsRemise === true })),
+      null,
+    )
+    o.remiseGlobale = remiseEnPourcentageExact(doc.remiseGlobale, baseRemiseHT) ?? undefined
+  }
+  return out
 }

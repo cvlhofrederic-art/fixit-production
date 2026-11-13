@@ -22,6 +22,7 @@ import { mapLegalFormToCode, resolveTvaEnabledV2 } from '@/lib/devis-utils'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
+import { libelleRemiseGlobale } from '@/lib/remise-commerciale'
 import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
 import { champsDocumentBtp } from '@/lib/devis-btp-libelles'
 
@@ -105,6 +106,10 @@ export interface SavedDevis {
   recoveryFee?: string
   escompte?: string
   discount?: string
+  /** Document artisan enregistré depuis la correction de l'escompte : le PDF l'imprime. */
+  escompteSurPdf?: boolean
+  /** Remise commerciale sur le total (lib/remise-commerciale.ts). */
+  remiseGlobale?: unknown
   iban?: string
   bic?: string
   lines?: ProductLine[]
@@ -269,6 +274,11 @@ async function produireFichierV2(
 
     // Lines
     lines: mergedLines,
+    // Remise commerciale (lib/remise-commerciale.ts) et escompte saisi : l'escompte n'est imprimé
+    // que pour un document enregistré depuis la correction (escompteSurPdf), les autres gardent
+    // la mention « Aucun escompte accordé » de leur PDF d'origine.
+    remiseGlobale: doc.remiseGlobale,
+    escompte: doc.escompteSurPdf === true ? (doc.discount || '') : undefined,
 
     // Acomptes
     acomptesEnabled: doc.acomptesEnabled || false,
@@ -377,11 +387,17 @@ async function genererAvecV3(
     regime: effectiveRegime,
     lines: sourceLines
       .filter(l => (l.description || '').trim())
-      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+      .map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0, horsRemise: l.horsRemise === true })),
     locale: locale === 'pt' ? 'pt' : 'fr',
+    // Remise commerciale (lib/remise-commerciale.ts) : absente → totaux inchangés.
+    remiseGlobale: (doc as Record<string, unknown>).remiseGlobale,
   })
   const tvaBreakdown = tva.breakdown
   const totalTTC = tva.totalTTC
+  const langueLibelle = locale === 'pt' ? 'pt' : 'fr'
+  const remiseGlobaleV3 = tva.remiseHT !== 0
+    ? { montantHT: tva.remiseHT, libelle: libelleRemiseGlobale((doc as Record<string, unknown>).remiseGlobale, langueLibelle), base: tva.baseRemiseHT }
+    : undefined
 
   const statusCode = mapLegalFormToCode(doc.companyStatus || '')
 
@@ -521,8 +537,11 @@ async function genererAvecV3(
     materialLinesEnabled: ((doc as Record<string, unknown>).materialLinesEnabled as boolean) ?? undefined,
     fraisLinesEnabled: ((doc as Record<string, unknown>).fraisLinesEnabled as boolean) ?? undefined,
     customTables: customTables.length > 0 ? customTables : undefined,
-    subtotalHT,
+    // Document remisé : HT net (base de la TVA) + HT brut et remise pour le bloc des totaux.
+    // Sans remise : sous-total d'origine, inchangé.
+    subtotalHT: remiseGlobaleV3 ? tva.totalHT : subtotalHT,
     totalTTC,
+    ...(remiseGlobaleV3 ? { totalHTBrut: tva.totalHTBrut, remiseGlobale: remiseGlobaleV3 } : {}),
     // Breakdown vide en franchise/autoliquidation (computeTva force []),
     // donc undefined dans le PDF (pas de ligne TVA détail).
     tvaBreakdown: tvaBreakdown.length > 0 ? tvaBreakdown : undefined,

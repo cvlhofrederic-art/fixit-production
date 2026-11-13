@@ -28,6 +28,7 @@ import {
   type BaseParTaux,
 } from '@/lib/acompte-par-taux'
 import { devisLinkFields } from '@/lib/devis-utils'
+import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/devis-totals'
 import { REGIME_ERROR_MESSAGES, validateRegime, type TvaLocale } from '@/lib/tva-calculator'
 
 type DocumentLike = Record<string, unknown>
@@ -68,8 +69,11 @@ export interface OptionsFactureDepuisDevis {
   aujourdHui?: string
 }
 
-/** Identifiant de la table des déductions (stable : une seule par facture). */
-export const ID_TABLE_ACOMPTES_DEDUITS = 'acomptes-deduits'
+/**
+ * Identifiant de la table des déductions (stable : une seule par facture). Défini dans
+ * lib/devis-totals.ts, qui en exclut les lignes de la base de la remise globale.
+ */
+export { ID_TABLE_ACOMPTES_DEDUITS }
 
 const sousType = (doc: DocumentLike): string => String(doc.factureSubType || 'standard')
 
@@ -167,7 +171,9 @@ function lignesDeductionAcompte(acompte: DocumentLike, factures: DocumentLike[],
       ? `Adiantamento já faturado — fatura n.º ${numero}${date ? ` de ${date}` : ''}${net}${taux}`
       : `Acompte déjà facturé — facture n° ${numero}${date ? ` du ${date}` : ''}${net}${taux}`
     const montant = -base.baseCents / 100
-    return { id: premierId + index, description, qty: 1, unit: 'f', priceHT: montant, tvaRate: base.taux, totalHT: montant, source: 'manual' as const }
+    // horsRemise : l'acompte se déduit APRÈS la remise globale du devis (ses bases sont déjà
+    // remisées) ; il n'entre pas dans la base de la remise (lib/remise-commerciale.ts).
+    return { id: premierId + index, description, qty: 1, unit: 'f', priceHT: montant, tvaRate: base.taux, totalHT: montant, horsRemise: true, source: 'manual' as const }
   })
 }
 

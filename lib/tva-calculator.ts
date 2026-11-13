@@ -23,6 +23,7 @@
  */
 
 import { mulMoney, round2, sumMoney, assertInvoiceInvariant } from '@/lib/money'
+import { appliquerRemiseGlobale } from '@/lib/remise-commerciale'
 
 export const TVA_REGIMES = ['classique', 'franchise_293b', 'autoliquidation_btp'] as const
 
@@ -77,6 +78,8 @@ export const MENTIONS_LEGALES: Record<TvaRegime, string | null> = MENTIONS_BY_LO
 export interface TvaLineInput {
   totalHT: number
   tvaRate: number
+  /** Ligne exclue de la base de la remise globale (déduction d'acompte d'une facture de solde). */
+  horsRemise?: boolean
 }
 
 export interface TvaBreakdownEntry {
@@ -88,7 +91,14 @@ export interface TvaBreakdownEntry {
 export interface TvaComputation {
   regime: TvaRegime
   breakdown: TvaBreakdownEntry[]
+  /** Total HT après la remise globale (base de la TVA). */
   totalHT: number
+  /** Total HT avant la remise globale (égal à totalHT sans remise). */
+  totalHTBrut: number
+  /** Remise globale HT (0 sans remise) — lib/remise-commerciale.ts. */
+  remiseHT: number
+  /** Base de la remise globale : total HT des lignes qui y sont soumises (hors déductions d'acompte). */
+  baseRemiseHT: number
   totalTVA: number
   totalTTC: number
   totalLabel: 'TOTAL TTC' | 'TOTAL NET'
@@ -104,12 +114,20 @@ export interface ComputeTvaOptions {
   lines: TvaLineInput[]
   /** Locale pour les mentions légales — 'fr' (défaut) ou 'pt'. */
   locale?: TvaLocale
+  /**
+   * Remise globale du document (`remiseGlobale` : en %, ou en € HT), répartie entre les taux au
+   * prorata avant le calcul de la TVA. Absente ou nulle : calcul strictement inchangé.
+   */
+  remiseGlobale?: unknown
 }
 
-export function computeTva({ regime, lines, locale = 'fr' }: ComputeTvaOptions): TvaComputation {
+export function computeTva({ regime, lines, locale = 'fr', remiseGlobale }: ComputeTvaOptions): TvaComputation {
   const safeLines: TvaLineInput[] = (lines || [])
     .filter(l => l && Number.isFinite(l.totalHT))
-    .map(l => ({ totalHT: l.totalHT, tvaRate: Number.isFinite(l.tvaRate) ? l.tvaRate : 0 }))
+    .map(l => ({ totalHT: l.totalHT, tvaRate: Number.isFinite(l.tvaRate) ? l.tvaRate : 0, horsRemise: l.horsRemise === true }))
+
+  const remise = appliquerRemiseGlobale(safeLines, remiseGlobale)
+  if (remise.remiseHT !== 0) return computeTvaApresRemise(regime, locale, remise)
 
   const totalHT = sumMoney(safeLines.map(l => l.totalHT))
 
@@ -118,6 +136,9 @@ export function computeTva({ regime, lines, locale = 'fr' }: ComputeTvaOptions):
       regime,
       breakdown: [],
       totalHT,
+      totalHTBrut: totalHT,
+      remiseHT: 0,
+      baseRemiseHT: remise.baseRemiseHT,
       totalTVA: 0,
       totalTTC: totalHT,
       totalLabel: 'TOTAL NET',
@@ -151,12 +172,66 @@ export function computeTva({ regime, lines, locale = 'fr' }: ComputeTvaOptions):
     regime: 'classique',
     breakdown,
     totalHT,
+    totalHTBrut: totalHT,
+    remiseHT: 0,
+    baseRemiseHT: remise.baseRemiseHT,
     totalTVA,
     totalTTC,
     totalLabel: 'TOTAL TTC',
     mention: null,
     showsTvaBreakdown: true,
     invariantOk: invariant.ok,
+    requiresClientSiren: false,
+    requiresEmitterTvaIntra: false,
+  }
+}
+
+/**
+ * Totaux d'un document remisé : la TVA de chaque taux porte sur sa base après remise (CGI,
+ * art. 267, II-1°). Mêmes règles d'arrondi que sans remise (TVA arrondie une fois par taux).
+ */
+function computeTvaApresRemise(
+  regime: TvaRegime,
+  locale: TvaLocale,
+  remise: ReturnType<typeof appliquerRemiseGlobale>,
+): TvaComputation {
+  const { totalHT, totalBrutHT, remiseHT, baseRemiseHT } = remise
+  if (regime === 'franchise_293b' || regime === 'autoliquidation_btp') {
+    return {
+      regime,
+      breakdown: [],
+      totalHT,
+      totalHTBrut: totalBrutHT,
+      remiseHT,
+      baseRemiseHT,
+      totalTVA: 0,
+      totalTTC: totalHT,
+      totalLabel: 'TOTAL NET',
+      mention: getMentionLegale(regime, locale),
+      showsTvaBreakdown: false,
+      invariantOk: true,
+      requiresClientSiren: regime === 'autoliquidation_btp',
+      requiresEmitterTvaIntra: regime === 'autoliquidation_btp',
+    }
+  }
+  const breakdown: TvaBreakdownEntry[] = remise.bases
+    .filter(b => b.taux > 0)
+    .map(b => ({ rate: b.taux, base: b.base, amount: mulMoney(b.base, b.taux / 100) }))
+  const totalTVA = sumMoney(breakdown.map(b => b.amount))
+  const totalTTC = round2(totalHT + totalTVA)
+  return {
+    regime: 'classique',
+    breakdown,
+    totalHT,
+    totalHTBrut: totalBrutHT,
+    remiseHT,
+    baseRemiseHT,
+    totalTVA,
+    totalTTC,
+    totalLabel: 'TOTAL TTC',
+    mention: null,
+    showsTvaBreakdown: true,
+    invariantOk: assertInvoiceInvariant(totalHT, totalTVA, totalTTC).ok,
     requiresClientSiren: false,
     requiresEmitterTvaIntra: false,
   }

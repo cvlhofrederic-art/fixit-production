@@ -47,6 +47,12 @@ import { toast } from 'sonner'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import { DecimalInput } from '@/components/common/DecimalInput'
+import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseCommerciale'
+import { escompteImprimeAuDepart } from '@/lib/escompte-pdf'
+import {
+  appliquerRemiseGlobale, libelleRemiseGlobale, lignesApresRemiseGlobale, lireRemise, montantNetLigne, aUneRemiseDeLigne,
+  type LigneRemisable, type Remise,
+} from '@/lib/remise-commerciale'
 import { buildV2Input } from '@/lib/pdf/build-v2-input'
 import { computeEcheanceDate, parsePaymentDelayDays } from '@/lib/pdf/payment-due'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
@@ -262,6 +268,13 @@ export default function DevisFactureForm({
   const [paymentMode, setPaymentMode] = useState(initialData?.paymentMode || t('devis.paymentModeOptions.transfer'))
   const [paymentDue, setPaymentDue] = useState(initialData?.paymentDue || dueDateStr)
   const [discount, setDiscount] = useState(initialData?.discount || '')
+  // Escompte imprimé sur le PDF (lib/escompte-pdf.ts) : document nouveau ou déjà marqué, ou dès que
+  // l'artisan modifie le champ. Un document antérieur simplement rouvert garde le PDF qu'il avait
+  // (« Aucun escompte accordé »), même après la sauvegarde automatique.
+  const [escompteSurPdf, setEscompteSurPdf] = useState<boolean>(() => escompteImprimeAuDepart(initialData))
+  // Remise commerciale sur le total (lib/remise-commerciale.ts) — France seulement (le
+  // Portugal relève d'un autre droit, hors de ce lot).
+  const [remiseGlobale, setRemiseGlobale] = useState<Remise | undefined>(() => lireRemise(initialData?.remiseGlobale) ?? undefined)
   const [iban, setIban] = useState(initialData?.iban || tpl('iban') || '')
   const [bic, setBic] = useState(initialData?.bic || tpl('bic') || '')
   const [paymentCondition, setPaymentCondition] = useState(initialData?.paymentCondition || t('devis.paymentCondValues.immediate'))
@@ -724,10 +737,29 @@ export default function DevisFactureForm({
     setLines(prev => prev.map(line => {
       if (line.id !== id) return line
       const updated = { ...line, [field]: value }
-      updated.totalHT = mulMoney(updated.qty || 0, updated.priceHT || 0)
+      updated.totalHT = montantNetLigne(updated.qty || 0, updated.priceHT || 0, updated.remise)
       return updated
     }))
   }
+
+  // Remise d'une ligne (prestations ou table personnalisée) : total de la ligne recalculé net.
+  const avecRemiseLigne = (line: ProductLine, remise: Remise | undefined): ProductLine => {
+    const updated: ProductLine = { ...line, remise }
+    if (!remise) delete updated.remise
+    updated.totalHT = montantNetLigne(updated.qty || 0, updated.priceHT || 0, updated.remise)
+    return updated
+  }
+  const setRemiseLigne = (id: number, remise: Remise | undefined) => {
+    setLines(prev => prev.map(line => (line.id === id ? avecRemiseLigne(line, remise) : line)))
+  }
+  // Saisie de la remise : France seulement (le Portugal relève d'un autre droit, hors de ce lot).
+  const remiseDisponible = locale !== 'pt'
+  // Escompte imprimé : règle de lib/escompte-pdf.ts en France ; en portugais, la marque du document
+  // est gardée telle quelle (ni posée, ni retirée).
+  const escompteActif = remiseDisponible ? escompteSurPdf : initialData?.escompteSurPdf === true
+  const libellesNet = locale === 'pt'
+    ? { ht: 'Total s/IVA líquido', net: 'Total líquido' }
+    : { ht: 'Total HT net', net: 'Total net' }
 
   const removeLine = (id: number) => {
     setLines(prev => prev.filter(l => l.id !== id))
@@ -750,7 +782,7 @@ export default function DevisFactureForm({
     setMaterialLines(prev => prev.map(line => {
       if (line.id !== id) return line
       const updated = { ...line, [field]: value }
-      updated.totalHT = mulMoney(updated.qty || 0, updated.priceHT || 0)
+      updated.totalHT = montantNetLigne(updated.qty || 0, updated.priceHT || 0, updated.remise)
       return updated
     }))
   }
@@ -845,11 +877,17 @@ export default function DevisFactureForm({
         lines: t.lines.map(line => {
           if (line.id !== lineId) return line
           const updated = { ...line, [field]: value }
-          updated.totalHT = mulMoney(updated.qty || 0, updated.priceHT || 0)
+          updated.totalHT = montantNetLigne(updated.qty || 0, updated.priceHT || 0, updated.remise)
           return updated
         }),
       }
     }))
+  }
+  const setRemiseLigneCustom = (tableId: string, lineId: number, remise: Remise | undefined) => {
+    setCustomTables(prev => prev.map(t => (t.id !== tableId ? t : {
+      ...t,
+      lines: t.lines.map(line => (line.id === lineId ? avecRemiseLigne(line, remise) : line)),
+    })))
   }
   const removeCustomLine = (tableId: string, lineId: number) => {
     setCustomTables(prev => prev.map(t => {
@@ -959,7 +997,9 @@ export default function DevisFactureForm({
           unit: serviceUnit,
           priceHT: price,
           tvaRate: defaultTvaRate,
-          totalHT: 1 * price,
+          // Quantité déjà saisie × prix, remise de la ligne déduite (avant : 1 × prix, qui ignorait
+          // la quantité et la remise, d'où un total de ligne faux dans la liste, la base et le PDF).
+          totalHT: montantNetLigne(line.qty || 0, price, line.remise),
           etapes: copiedEtapes.length > 0 ? copiedEtapes : undefined,
         }
       }))
@@ -1145,13 +1185,40 @@ export default function DevisFactureForm({
   // puis somme via centimes entiers (sumMoney). Élimine le drift IEEE 754
   // observé sur 30+ lignes (cf. audit 03/05/2026).
   const totalMaterialsHT = sumMoney(materialLines.map(l => l.totalHT || 0))
-  const subtotalHT = round2(
+  // Total des lignes (remises de ligne déduites), avant la remise commerciale globale.
+  const subtotalBrutHT = round2(
     sumMoney(lines.map(l => l.totalHT || 0)) + totalMaterialsHT + totalFraisAnnexesHT + totalCustomTablesHT,
   )
+  // Remise commerciale globale (lib/remise-commerciale.ts) : sur toutes les lignes du document,
+  // répartie entre les taux de TVA au prorata. `subtotalHT` est le HT net : TVA, TTC, acomptes et
+  // montants envoyés partent de lui. Sans remise, il vaut la somme des lignes comme avant.
+  const lignesPourRemise = useMemo<LigneRemisable[]>(() => [
+    ...lines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    ...materialLines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 })),
+    ...fraisAnnexes.map(f => ({ totalHT: f.total_ht || 0, tvaRate: f.tva_applicable || 0 })),
+    ...customTables.flatMap(t => t.lines.map(l => ({ totalHT: l.totalHT || 0, tvaRate: l.tvaRate || 0 }))),
+  ], [lines, materialLines, fraisAnnexes, customTables])
+  // La remise du document compte toujours : en portugais (hors lot), seule la saisie est masquée ;
+  // une remise posée en français reste appliquée, affichée et enregistrée telle quelle.
+  const remiseCalculee = useMemo(
+    () => appliquerRemiseGlobale(lignesPourRemise, remiseGlobale),
+    [lignesPourRemise, remiseGlobale],
+  )
+  const remiseGlobaleHT = remiseCalculee.remiseHT
+  // Document remisé : HT brut et net du calcul commun (centimes ligne par ligne), comme la base,
+  // les listes et le PDF. Sans remise : somme des lignes, inchangée.
+  const sousTotalAffiche = remiseGlobaleHT !== 0 ? remiseCalculee.totalBrutHT : subtotalBrutHT
+  const subtotalHT = remiseGlobaleHT !== 0 ? remiseCalculee.totalHT : subtotalBrutHT
   // Ventilation TVA par taux (arrondie par taux après agrégation des bases —
   // garantit l'invariant subtotalHT + Σ TVA = totalTTC à 0,01 € près).
   const tvaBreakdown = useMemo(() => {
     if (!tvaEnabled) return [] as Array<{ rate: number; base: number; amount: number }>
+    // Document remisé : bases par taux après répartition de la remise globale.
+    if (remiseCalculee.remiseHT !== 0) {
+      return remiseCalculee.bases
+        .map(b => ({ rate: b.taux, base: b.base, amount: mulMoney(b.base, b.taux / 100) }))
+        .sort((a, b) => b.rate - a.rate)
+    }
     const map = new Map<number, { base: number; amount: number }>()
     const acc = (ht: number, taux: number) => {
       const cur = map.get(taux) || { base: 0, amount: 0 }
@@ -1166,7 +1233,7 @@ export default function DevisFactureForm({
     return Array.from(map.entries())
       .map(([rate, { base, amount }]) => ({ rate, base, amount }))
       .sort((a, b) => b.rate - a.rate)
-  }, [lines, materialLines, fraisAnnexes, customTables, tvaEnabled])
+  }, [lines, materialLines, fraisAnnexes, customTables, tvaEnabled, remiseCalculee])
   const totalTVA = sumMoney(tvaBreakdown.map(b => b.amount))
   const totalTTC = round2(subtotalHT + totalTVA)
   // Invariant fiscal en prod — log Sentry si drift > 0,01 €.
@@ -1391,7 +1458,7 @@ export default function DevisFactureForm({
     const tmr = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
     return () => clearTimeout(tmr)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, lines, materialLines, docTitle])
+  }, [clientName, lines, materialLines, docTitle, remiseGlobale])
 
   const handleConvertToFacture = async () => {
     if (!onConvertToFacture) return
@@ -1453,6 +1520,10 @@ export default function DevisFactureForm({
       // Ventilation TVA pré-calculée (single source of truth) — V2 affichera
       // le détail multi-taux quand auto-entrepreneur en TVA.
       tvaBreakdown: tvaEnabled ? tvaBreakdown : undefined,
+      // Remise commerciale et escompte saisi (France ; même règle que buildData : un document
+      // antérieur rouvert garde son PDF, quel que soit le bouton — Aperçu, Télécharger ou liste).
+      remiseGlobale,
+      escompte: escompteActif ? discount : undefined,
       acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
       isHorsEtablissement,
     })
@@ -1584,6 +1655,12 @@ export default function DevisFactureForm({
   // ─── FACTUR-X EXPORT (facturation électronique 2026) ───
   const handleExportFacturX = async () => {
     if (docType !== 'facture' || locale !== 'fr') return
+    // Remise commerciale : pas encore écrite dans le XML Factur-X (remises EN 16931 de pied et de
+    // ligne) — refuser plutôt que produire une facture électronique aux montants faux.
+    if (remiseGlobaleHT !== 0 || aUneRemiseDeLigne([...lines, ...materialLines, ...customTables.flatMap(t => t.lines)])) {
+      toast.error('La remise commerciale n\'est pas encore prise en charge par l\'export Factur-X : téléchargez le PDF.')
+      return
+    }
     // Soft warning si assurance RC Pro manquante (cf. handleTestPdfV2).
     if (!insuranceName.trim() && !insuranceNumber.trim() && !artisan?.rc_pro) {
       toast.warning('Assurance RC Pro absente — Factur-X généré sans cette mention (à régulariser via Mon profil pour conformité art. L243-2 C. assurances).',
@@ -1997,6 +2074,10 @@ export default function DevisFactureForm({
     paymentDue,
     paymentCondition,
     discount,
+    // Le PDF imprime l'escompte saisi (France ; le Portugal reste hors de ce lot). Jamais posé
+    // sur un document antérieur que l'artisan rouvre sans toucher à l'escompte.
+    escompteSurPdf: escompteActif ? true : undefined,
+    remiseGlobale,
     iban,
     bic,
     lines,
@@ -2787,13 +2868,14 @@ export default function DevisFactureForm({
                   <table className="v22-devis-table" style={{ minWidth: 600, tableLayout: 'fixed', width: '100%' }}>
                     <thead>
                       <tr>
-                        <th style={{ width: '30%', overflow: 'hidden' }}>{t('devis.designation')}</th>
-                        <th style={{ width: '8%' }}>{t('devis.qty')}</th>
+                        <th style={{ width: remiseDisponible ? '25%' : '30%', overflow: 'hidden' }}>{t('devis.designation')}</th>
+                        <th style={{ width: remiseDisponible ? '7%' : '8%' }}>{t('devis.qty')}</th>
                         <th style={{ width: '10%' }}>{t('devis.unit')}</th>
-                        <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
-                        <th style={{ width: '10%' }}>{localeFormats.taxLabel} %</th>
-                        <th style={{ width: '14%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
-                        <th style={{ width: '8%' }}></th>
+                        <th style={{ width: remiseDisponible ? '13%' : '14%' }}>{tvaEnabled ? `${t('devis.unitPrice')} ${t('devis.ht')}` : `${t('devis.unitPrice')} ${t('devis.ttc')}`}</th>
+                        {remiseDisponible && <th style={{ width: '12%' }} title="Remise sur la ligne, en % ou en €">Remise</th>}
+                        <th style={{ width: remiseDisponible ? '8%' : '10%' }}>{localeFormats.taxLabel} %</th>
+                        <th style={{ width: remiseDisponible ? '13%' : '14%' }}>{tvaEnabled ? `${t('devis.total')} ${t('devis.ht')}` : `${t('devis.total')} ${t('devis.ttc')}`}</th>
+                        <th style={{ width: remiseDisponible ? '6%' : '8%' }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3019,6 +3101,16 @@ export default function DevisFactureForm({
                               title="Prix unitaire HT — jusqu'à 4 décimales (norme étude de prix)"
                             />
                           </td>
+                          {remiseDisponible && (
+                            <td style={{ verticalAlign: 'top' }}>
+                              <ChampRemiseLigne
+                                remise={line.remise}
+                                onChange={(r) => setRemiseLigne(line.id, r)}
+                                base={mulMoney(line.qty || 0, line.priceHT || 0)}
+                                className="v22-form-input"
+                              />
+                            </td>
+                          )}
                           <td style={{ verticalAlign: 'top' }}>
                             <select
                               value={line.tvaRate}
@@ -3045,17 +3137,28 @@ export default function DevisFactureForm({
                             </select>
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
-                            <DecimalInput
-                              value={line.totalHT || 0}
-                              onChangeNumber={(newTotal) => {
-                                const qty = line.qty > 0 ? line.qty : 1
-                                const newPrice = newTotal / qty
-                                setLines(prev => prev.map(l => l.id !== line.id ? l : { ...l, priceHT: newPrice, totalHT: newTotal }))
-                              }}
-                              format={fmtN}
-                              parse={parseDecimalInput}
-                              className="v22-form-input"
-                            />
+                            {lireRemise(line.remise) ? (
+                              // Ligne remisée : total calculé (prix × quantité − remise), non saisissable.
+                              <div
+                                className="v22-form-input"
+                                title="Total après remise — modifiez le prix, la quantité ou la remise"
+                                style={{ textAlign: 'right', background: 'var(--v22-bg, #FAFAFA)', fontWeight: 600 }}
+                              >
+                                {fmtN(line.totalHT || 0)}
+                              </div>
+                            ) : (
+                              <DecimalInput
+                                value={line.totalHT || 0}
+                                onChangeNumber={(newTotal) => {
+                                  const qty = line.qty > 0 ? line.qty : 1
+                                  const newPrice = newTotal / qty
+                                  setLines(prev => prev.map(l => l.id !== line.id ? l : { ...l, priceHT: newPrice, totalHT: newTotal }))
+                                }}
+                                format={fmtN}
+                                parse={parseDecimalInput}
+                                className="v22-form-input"
+                              />
+                            )}
                           </td>
                           <td style={{ verticalAlign: 'top' }}>
                             <button
@@ -3338,6 +3441,7 @@ export default function DevisFactureForm({
                           <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 60 }}>Qté</th>
                           <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 80 }}>Unité</th>
                           <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 90 }}>Prix HT</th>
+                          {remiseDisponible && <th title="Remise sur la ligne, en % ou en €" style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 100 }}>Remise</th>}
                           {tvaEnabled && <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 60 }}>TVA %</th>}
                           <th style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#999', borderBottom: '2px solid #E8E8E8', width: 100 }}>Total HT</th>
                           <th style={{ width: 40, borderBottom: '2px solid #E8E8E8' }}></th>
@@ -3388,6 +3492,16 @@ export default function DevisFactureForm({
                                 style={{ fontSize: 12, textAlign: 'right' }}
                               />
                             </td>
+                            {remiseDisponible && (
+                              <td style={{ padding: '6px 4px' }}>
+                                <ChampRemiseLigne
+                                  remise={line.remise}
+                                  onChange={(r) => setRemiseLigneCustom(tbl.id, line.id, r)}
+                                  base={mulMoney(line.qty || 0, line.priceHT || 0)}
+                                  className="v22-form-input"
+                                />
+                              </td>
+                            )}
                             {tvaEnabled && (
                               <td style={{ padding: '6px 4px' }}>
                                 <select
@@ -3416,7 +3530,7 @@ export default function DevisFactureForm({
                       </tbody>
                       <tfoot>
                         <tr>
-                          <td colSpan={tvaEnabled ? 5 : 4} style={{ textAlign: 'right', fontWeight: 600, fontSize: 12, padding: '8px', color: 'var(--v22-text-mid)' }}>
+                          <td colSpan={(tvaEnabled ? 5 : 4) + (remiseDisponible ? 1 : 0)} style={{ textAlign: 'right', fontWeight: 600, fontSize: 12, padding: '8px', color: 'var(--v22-text-mid)' }}>
                             Sous-total HT
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, padding: '8px' }}>
@@ -3718,7 +3832,7 @@ export default function DevisFactureForm({
                   </div>
                   <div className="v22-form-group" style={{ marginBottom: 0 }}>
                     <label className="v22-form-label">{t('devis.discountLabel')}</label>
-                    <input type="text" value={discount} onChange={(e) => setDiscount(e.target.value)}
+                    <input type="text" value={discount} onChange={(e) => { setDiscount(e.target.value); setEscompteSurPdf(true) }}
                       placeholder={t('devis.discountPlaceholder')}
                       className={normalFieldClass} />
                   </div>
@@ -3914,13 +4028,39 @@ export default function DevisFactureForm({
               <div className="v22-card-body">
                 <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
                   <span>{tvaEnabled ? t('devis.subtotalHT') : t('devis.subtotal')}</span>
-                  <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(subtotalHT)}</span>
+                  <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(sousTotalAffiche)}</span>
                 </div>
                 {totalFraisAnnexesHT > 0 && (
                   <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
                     <span>dont frais annexes HT</span>
                     <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(totalFraisAnnexesHT)}</span>
                   </div>
+                )}
+                {remiseDisponible && (
+                  <div style={{ padding: '.45rem 0', borderTop: '1px dashed var(--v22-border, #E8E8E8)', marginTop: '.25rem' }}>
+                    <div style={{ fontSize: 12, color: '#555', marginBottom: 4 }}>Remise commerciale</div>
+                    <ChampRemiseGlobale
+                      remise={remiseGlobale}
+                      onChange={setRemiseGlobale}
+                      lignes={lignesPourRemise}
+                      avecTva={tvaEnabled}
+                      formaterMontant={localeFormats.currencyFormat}
+                      classeChamp="v22-form-input"
+                      classeListe="v22-form-input"
+                    />
+                  </div>
+                )}
+                {remiseGlobaleHT !== 0 && (
+                  <>
+                    <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
+                      <span>{libelleRemiseGlobale(remiseGlobale, locale === 'pt' ? 'pt' : 'fr')}</span>
+                      <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(-remiseGlobaleHT)}</span>
+                    </div>
+                    <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
+                      <span>{tvaEnabled ? libellesNet.ht : libellesNet.net}</span>
+                      <span style={{ fontWeight: 600 }}>{localeFormats.currencyFormat(subtotalHT)}</span>
+                    </div>
+                  </>
                 )}
                 {tvaEnabled && (
                   <div style={{ padding: '.35rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#555' }}>
@@ -4016,7 +4156,8 @@ export default function DevisFactureForm({
 
             {showRentaModal && (
               <RentabiliteDevisModal
-                items={lines.filter(l => l.priceHT > 0 && l.qty > 0)}
+                // Marge sur le prix réellement facturé : remise globale répartie sur les lignes.
+                items={lignesApresRemiseGlobale(lines.filter(l => l.priceHT > 0 && l.qty > 0), remiseGlobaleHT, remiseCalculee.baseRemiseHT)}
                 totalHT={subtotalHT}
                 totalTTC={totalTTC}
                 onClose={() => setShowRentaModal(false)}
