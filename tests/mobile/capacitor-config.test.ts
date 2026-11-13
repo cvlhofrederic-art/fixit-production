@@ -148,6 +148,32 @@ describe('identité de l’appli identique dans les projets natifs', () => {
     }
   })
 
+  // L'icône de l'App Store ne doit pas avoir de couche de transparence : Apple rejette l'envoi, et le
+  // message arrive après coup, une fois l'archive déposée. Lecture de l'en-tête IHDR du PNG, sans dépendance.
+  it('icônes : l’icône App Store est opaque, l’avant-plan Android garde sa transparence', () => {
+    const entete = (chemin: string) => {
+      const b = readFileSync(join(process.cwd(), chemin))
+      return { largeur: b.readUInt32BE(16), hauteur: b.readUInt32BE(20), typeCouleur: b[25] }
+    }
+    const AVEC_ALPHA = [4, 6] // 4 = gris + alpha, 6 = RVB + alpha
+
+    const appStore = entete('ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png')
+    expect(appStore).toMatchObject({ largeur: 1024, hauteur: 1024 })
+    expect(AVEC_ALPHA, 'transparence interdite sur l’icône App Store').not.toContain(appStore.typeCouleur)
+
+    for (const densite of ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+      const carre = entete(`android/app/src/main/res/mipmap-${densite}/ic_launcher.png`)
+      expect(AVEC_ALPHA, `mipmap-${densite}/ic_launcher.png`).not.toContain(carre.typeCouleur)
+      // L'icône adaptative découpe l'avant-plan : sans transparence, le lanceur affiche un carré plein.
+      const avant = entete(`android/app/src/main/res/mipmap-${densite}/ic_launcher_foreground.png`)
+      expect(AVEC_ALPHA, `mipmap-${densite}/ic_launcher_foreground.png`).toContain(avant.typeCouleur)
+    }
+
+    // Le fond de l'icône adaptative doit être celui du monogramme, sinon un liseré apparaît au découpage.
+    const fond = lire('android/app/src/main/res/values/ic_launcher_background.xml')
+    expect(premiereCapture(fond, /<color name="ic_launcher_background">([^<]+)<\/color>/)?.toUpperCase()).toBe('#FFFFFF')
+  })
+
   it('plus aucune trace de l’ancien nom « Fixit » dans les fichiers d’identité', () => {
     for (const chemin of [
       'capacitor.config.ts',
