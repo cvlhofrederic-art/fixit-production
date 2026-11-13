@@ -29,6 +29,9 @@
 // et pour un gestionnaire sur une copropriété qui lui est attribuée nommément, jamais « à tous » (H11) ; la fenêtre de
 // diffusion (FenetreDiffusionQr) protège sa saisie et son envoi : un changement de vue ne la ferme pas d'office, il lui
 // demande de fermer (confirmation pendant la saisie, aucune fermeture pendant l'envoi).
+// Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : la fin d'un rechargement demandé par l'espace
+// lui est signalée (onActualise), pour qu'une action attende la liste à jour avant d'annoncer son succès ; relecture du
+// correctif : avec son échec, que l'espace montre dans les vues où ce bloc est caché.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -70,6 +73,13 @@ export interface PropsTableauSignalementsQr {
   /** Change quand l'espace demande un rechargement (cabinet, rattachement, attributions modifiés ailleurs). */
   actualisation?: number
   /**
+   * Correctif du 13/11/2026 : appelé, avec sa valeur, quand le rechargement demandé par `actualisation` est fini (tableau
+   * rendu et partagé par onTableau, ou son échec affiché) : l'espace attend la liste à jour avant d'annoncer le succès
+   * d'une action. Relecture : avec son échec (null : tableau relu), que l'espace montre hors des vues du tableau (où
+   * l'encadré d'erreur ci-dessous est caché).
+   */
+  onActualise?: (actualisation: number, echec: CodeErreurQr | null) => void
+  /**
    * PR 2 : vue d'un gestionnaire connecté (espace de son cabinet) ; domaines e-mail de SON cabinet (GET /moi), seules
    * adresses qu'il peut ajouter aux destinataires. Absent : vue du super admin, inchangée.
    */
@@ -110,7 +120,9 @@ function origineCourante(): string {
   return typeof window === 'undefined' ? 'https://vitfix.io' : window.location.origin
 }
 
-export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, actualisation = 0, gestionnaire }: Readonly<PropsTableauSignalementsQr>) {
+export default function TableauSignalementsQr({
+  jeton, vue, gestion, onTableau, actualisation = 0, onActualise, gestionnaire,
+}: Readonly<PropsTableauSignalementsQr>) {
   const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
   const [fenetre, setFenetre] = useState<Fenetre>(null)
   const [filtreCopro, setFiltreCopro] = useState('')
@@ -132,22 +144,25 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
   }
 
   const vueGestionnaire = gestionnaire !== undefined
-  const charger = useCallback(async () => {
+  /** Chargement du tableau : son échec (affiché ici), ou null. */
+  const charger = useCallback(async (): Promise<CodeErreurQr | null> => {
     const resultat = await chargerTableauQr(jeton)
     if (!resultat.ok) {
       // Gestionnaire : réseau coupé signalé aussi par un toast (SPEC § 2.8) ; le message reste à l'écran.
       if (vueGestionnaire && resultat.code === 'reseau') toast.error(messageErreurGestionnaireQr('reseau'))
       setEtat({ statut: 'erreur', code: resultat.code })
-      return
+      return resultat.code
     }
     setEtat({ statut: 'pret', tableau: resultat.tableau, miseAJourLe: new Date() })
+    return null
   }, [jeton, vueGestionnaire])
 
   // Chargement initial depuis le serveur, puis à chaque demande de l'espace (actualisation) : l'état n'est posé qu'à la
-  // réponse (asynchrone), pas dans le corps de l'effet.
+  // réponse (asynchrone), pas dans le corps de l'effet. Sa fin (réussie ou non) est notée avec le numéro demandé.
+  const [actualisationFinie, setActualisationFinie] = useState<{ numero: number; echec: CodeErreurQr | null } | null>(null)
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void charger()
+    void charger().then((echec) => setActualisationFinie({ numero: actualisation, echec }))
   }, [charger, actualisation])
 
   // Le tableau chargé ou modifié ici sert aussi les vues Gestionnaires, Cabinets et Journal (un seul chargement).
@@ -155,6 +170,12 @@ export default function TableauSignalementsQr({ jeton, vue, gestion, onTableau, 
   useEffect(() => {
     if (tableauPret && onTableau) onTableau(tableauPret)
   }, [tableauPret, onTableau])
+
+  // Fin d'un rechargement demandé : l'espace est prévenu APRÈS le rendu du tableau et son partage (effet précédent),
+  // pour que la liste à jour et le message de l'action arrivent ensemble.
+  useEffect(() => {
+    if (actualisationFinie !== null) onActualise?.(actualisationFinie.numero, actualisationFinie.echec)
+  }, [actualisationFinie, onActualise])
 
   const fermer = useCallback(() => setFenetre(null), [])
   const ouvrir = (nouvelle: Exclude<Fenetre, null>) => {

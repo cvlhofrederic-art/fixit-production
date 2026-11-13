@@ -11,6 +11,10 @@
 // absent de la barre du bas du téléphone.
 // PR 3, lot 8 (cahier § 7.4, BROUILLON pour Frédéric) : « Diffusion d'informations » sur chaque cabinet ouvre ses
 // réglages de diffusion et l'activation (ReglagesDiffusionCabinetQr, route D-R8).
+// Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : création, modification et rattachement attendent
+// la liste rechargée (onModifie) avant de fermer la fenêtre et d'annoncer leur succès, occupés jusque-là ; rechargement
+// en échec : le succès reste annoncé au-dessus de l'erreur de chargement. Les réglages de diffusion n'en ont pas besoin :
+// leur fenêtre affiche les réglages rendus par le serveur, que la liste des cabinets ne montre pas.
 
 import { useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -34,8 +38,11 @@ export interface PropsCabinetsQr {
   cabinets: readonly CabinetQr[] | null
   erreur: CodeErreurQr | null
   coproprietes: readonly CoproprieteQr[]
-  /** Un cabinet ou un rattachement a changé : l'espace recharge cabinets, fiches et tableau. */
-  onModifie: () => void
+  /**
+   * Un cabinet ou un rattachement a changé : l'espace recharge cabinets, fiches et tableau ; tenue quand ils sont à jour
+   * (ou leur échec affiché), au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr), jamais rejetée.
+   */
+  onModifie: () => Promise<void>
   onReessayer: () => void
   onJournal: () => void
 }
@@ -51,9 +58,12 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
     setFenetre(f)
   }
 
+  const succes = messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>
+  // Liste relue en échec après une action réussie : l'action reste annoncée au-dessus de l'erreur de chargement.
   if (erreur) {
     return (
       <div className="space-y-4">
+        {succes}
         <Encadre ton="erreur">{messageErreurTableauQr(erreur)}</Encadre>
         <Bouton variante="principal" icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton>
       </div>
@@ -69,7 +79,7 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
         <Bouton variante="discret" icone="horloge" onClick={onJournal}>{G.cabinets.voirJournal}</Bouton>
         <Bouton variante="or" icone="plus" onClick={() => ouvrir({ type: 'creation' })}>{G.cabinets.nouveau}</Bouton>
       </div>
-      {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
+      {succes}
 
       {cabinets.length === 0 ? <EtatVide texte={G.cabinets.aucun} icone="documents" /> : (
         <div className="grid gap-4">
@@ -100,9 +110,9 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
         <RattachementQr
           cabinets={cabinets}
           coproprietes={sansCabinet}
-          onFait={(n) => {
+          onFait={async (n) => {
+            await onModifie()
             setMessages([remplir(G.cabinets.rattachees, { n })])
-            onModifie()
           }}
         />
       )}
@@ -117,10 +127,10 @@ export default function CabinetsQr({ cabinets, erreur, coproprietes, onModifie, 
           <FormulaireCabinetQr
             cabinet={fenetre.type === 'modification' ? fenetre.cabinet : null}
             onFermer={fermer}
-            onEnregistre={(textes) => {
+            onEnregistre={async (textes) => {
+              await onModifie()
               setFenetre(null)
               setMessages(textes)
-              onModifie()
             }}
           />
         </Modale>
@@ -135,7 +145,8 @@ interface PropsFormulaire {
   /** null : création. */
   cabinet: CabinetQr | null
   onFermer: () => void
-  onEnregistre: (messages: string[]) => void
+  /** Enregistré : tenue une fois la liste à jour (la fenêtre reste occupée jusque-là). */
+  onEnregistre: (messages: string[]) => Promise<void>
 }
 
 const memesDomaines = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((d, i) => d === b[i])
@@ -185,13 +196,17 @@ function FormulaireCabinetQr({ cabinet, onFermer, onEnregistre }: Readonly<Props
     const r = cabinet && modification
       ? await modifierCabinetQr(cabinet.id, modification)
       : await creerCabinetQr({ nom: nomPropre, identifiant: identifiantPropre, langue, domaines: analyse.domaines })
-    setOccupe(false)
-    if (!r.ok) return setErreur(messageEchecQr(r.code))
+    if (!r.ok) {
+      setOccupe(false)
+      return setErreur(messageEchecQr(r.code))
+    }
     const horsDomaines = r.fichesHorsDomaines.map((f) => f.nom ?? G.fiche.ancien)
-    onEnregistre([
+    // Enregistré : la fenêtre reste occupée (aucun nouvel envoi) jusqu'à la liste à jour, puis elle se ferme.
+    await onEnregistre([
       cabinet ? G.cabinets.modifie : G.cabinets.cree,
       ...(horsDomaines.length > 0 ? [remplir(G.cabinets.fichesHorsDomaines, { noms: horsDomaines.join(', ') })] : []),
     ])
+    setOccupe(false)
   }
 
   return (
@@ -238,7 +253,8 @@ function FormulaireCabinetQr({ cabinet, onFermer, onEnregistre }: Readonly<Props
 interface PropsRattachement {
   cabinets: readonly CabinetQr[]
   coproprietes: readonly CoproprieteQr[]
-  onFait: (rattachees: number) => void
+  /** Rattachement fait : tenue une fois la liste à jour (la confirmation reste occupée jusque-là). */
+  onFait: (rattachees: number) => Promise<void>
 }
 
 function RattachementQr({ cabinets, coproprietes, onFait }: Readonly<PropsRattachement>) {
@@ -263,9 +279,9 @@ function RattachementQr({ cabinets, coproprietes, onFait }: Readonly<PropsRattac
     if (!cible || occupe) return
     setOccupe(true)
     const r = await rattacherCoproprietesQr(cible.id, selection, fetch, drapeaux)
-    setOccupe(false)
-    setConfirmer(false)
     if (!r.ok) {
+      setOccupe(false)
+      setConfirmer(false)
       // Doublon avec une copropriété du cabinet (RG-08) : la montrer, et le choix possible (relecture 9).
       if (r.code === 'doublon' && r.doublon) {
         setErreur(null)
@@ -274,9 +290,12 @@ function RattachementQr({ cabinets, coproprietes, onFait }: Readonly<PropsRattac
       setDoublon(null)
       return setErreur(messageEchecQr(r.code))
     }
+    // Rattaché : la confirmation reste occupée (aucun nouvel envoi) jusqu'à la liste à jour.
+    await onFait(r.rattachees)
+    setOccupe(false)
+    setConfirmer(false)
     setSelection([])
     setDoublon(null)
-    onFait(r.rattachees)
   }
 
   return (

@@ -6,6 +6,11 @@
 // active du même cabinet, adresse non contestée), « le même pour toutes », ou « Laisser sans gestionnaire » — et celles
 // où d'autres gestionnaires restent (simplement retirées). Une succession manquante bloque l'envoi ; le serveur
 // revérifie tout (409 a_reverifier). Après le départ, la fiche est désactivée et son adresse retirée des saisies.
+// Correctif du 13/11/2026 : départ fait, la fenêtre reste occupée (aucun nouvel envoi) jusqu'à la fiche et aux listes
+// relues (onFait), qui la ferment.
+// Relecture du correctif : son contenu est figé dès l'envoi (copropriétés, groupes, successeurs) ; la fiche et les listes
+// relues pendant l'attente ne réécrivent pas la fenêtre confirmée (succession qui disparaît parce que le successeur gère
+// déjà la copropriété, « Aucune copropriété attribuée… ») ; un refus du serveur la libère.
 
 import { useId, useMemo, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -15,7 +20,14 @@ import { departGestionnaireQr, type ResultatDepartQr } from '@/lib/aj-signalemen
 import {
   SANS_GESTIONNAIRE_QR, TEXTES_GESTION_QR as G, gestionnairesAttribuablesQr, groupesDepartQr, successionsDepartQr,
 } from '@/lib/aj-signalement/affichage-gestion'
-import type { AttributionVueQr, CoproprieteQr, GestionnaireQr } from '@/lib/aj-signalement/types'
+import type { AttributionVueQr, CoproprieteQr, GestionnaireQr, GroupesDepartQr } from '@/lib/aj-signalement/types'
+
+/** Ce que montre la fenêtre : d'après la fiche et les listes, ou tel que confirmé (figé à l'envoi). */
+interface ContenuDepartQr {
+  attributions: readonly AttributionVueQr[]
+  groupes: GroupesDepartQr
+  successeurs: readonly GestionnaireQr[]
+}
 
 export interface PropsFenetreDepartGestionnaireQr {
   fiche: GestionnaireQr
@@ -24,15 +36,20 @@ export interface PropsFenetreDepartGestionnaireQr {
   coproprietes: readonly CoproprieteQr[]
   gestionnaires: readonly GestionnaireQr[]
   onFermer: () => void
-  onFait: (bilan: Extract<ResultatDepartQr, { ok: true }>) => void
+  /** Départ fait : tenue une fois la fiche et les listes relues (la fenêtre reste occupée jusque-là). */
+  onFait: (bilan: Extract<ResultatDepartQr, { ok: true }>) => Promise<void>
 }
 
 export default function FenetreDepartGestionnaireQr({
   fiche, attributions, coproprietes, gestionnaires, onFermer, onFait,
 }: Readonly<PropsFenetreDepartGestionnaireQr>) {
   const idBase = useId()
-  const groupes = useMemo(() => groupesDepartQr(fiche.id, attributions, coproprietes), [fiche.id, attributions, coproprietes])
-  const successeurs = gestionnairesAttribuablesQr(gestionnaires, fiche.cabinet.id, fiche.id)
+  const groupesActuels = useMemo(() => groupesDepartQr(fiche.id, attributions, coproprietes), [fiche.id, attributions, coproprietes])
+  const [figee, setFigee] = useState<ContenuDepartQr | null>(null)
+  const contenu: ContenuDepartQr = figee ?? {
+    attributions, groupes: groupesActuels, successeurs: gestionnairesAttribuablesQr(gestionnaires, fiche.cabinet.id, fiche.id),
+  }
+  const { groupes, successeurs } = contenu
   const [choix, setChoix] = useState<Record<string, string>>({})
   const [meme, setMeme] = useState('')
   const [erreur, setErreur] = useState<string | null>(null)
@@ -55,15 +72,20 @@ export default function FenetreDepartGestionnaireQr({
     }
     setErreur(null)
     setOccupe(true)
+    setFigee(contenu)
     const r = await departGestionnaireQr(fiche.id, decision.successions)
+    if (!r.ok) {
+      setOccupe(false)
+      setFigee(null)
+      return setErreur(messageEchecQr(r.code))
+    }
+    await onFait(r)
     setOccupe(false)
-    if (!r.ok) return setErreur(messageEchecQr(r.code))
-    onFait(r)
   }
 
   return (
     <div className="space-y-5">
-      {attributions.length === 0 && <p className="text-base text-[#1F2D3D]">{G.depart.aucune}</p>}
+      {contenu.attributions.length === 0 && <p className="text-base text-[#1F2D3D]">{G.depart.aucune}</p>}
 
       {groupes.seul.length > 0 && (
         <section className="space-y-3">

@@ -26,8 +26,15 @@
 // démontée à chaque changement de vue) est portée ici, par la coquille, qui reste montée. Un changement de vue lui
 // demande de fermer, avec sa protection (saisie : « Abandonner ce message ? » ; envoi : aucune fermeture, la reprise
 // automatique continue), comme TableauSignalementsQr pour les fenêtres de ses cartes ; rien à protéger : fermée.
+// Correctif du 13/11/2026 (Hugo : « les listes ne se rafraîchissent pas » ; ≈ 2,4 s par appel en production) : le
+// rechargement demandé après une modification rend une promesse, tenue quand cabinets, fiches ET tableau sont à jour
+// (ou leur échec affiché) ; chaque action l'attend avant de fermer sa fenêtre et d'annoncer son succès. Relecture du
+// correctif : cette attente est bornée (attenteListesQr) ; une lecture sans réponse ne bloque plus l'action. Et un
+// tableau relu en échec est montré hors des vues du tableau (son encadré y est caché) : encadré d'erreur des vues
+// Cabinets et Gestionnaires, toast sur la page profil.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
+import { toast } from 'sonner'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
 import TableauSignalementsQr from '@/components/aj-signalement/TableauSignalementsQr'
 import ListeGestionnairesQr from '@/components/aj-signalement/ListeGestionnairesQr'
@@ -37,6 +44,7 @@ import type { DemandeDiffusionSuiviQr } from '@/components/aj-signalement/SuiviG
 import type { GardeDiffusionQr } from '@/lib/aj-signalement/affichage-ecran-diffusion'
 import PagePleineQr from '@/components/aj-signalement/espace/PagePleineQr'
 import CabinetsQr from '@/components/aj-signalement/CabinetsQr'
+import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
 import JournalQr from '@/components/aj-signalement/JournalQr'
 import { useAccesEspaceQr, type CabinetEspaceQr } from '@/components/aj-signalement/espace/useAccesEspaceQr'
 import { useReferentielsQr } from '@/components/aj-signalement/espace/useReferentielsQr'
@@ -48,6 +56,8 @@ import {
   type AncreEspaceQr, type EntreeMenuQr, type RoleEspaceQr, type VueEspaceQr,
 } from '@/lib/aj-signalement/acces-espace'
 import type { TableauQr } from '@/lib/aj-signalement/types'
+import type { CodeErreurQr } from '@/lib/aj-signalement/api'
+import { messageErreurTableauQr } from '@/lib/aj-signalement/affichage'
 
 const ICONES_VUES: Record<VueEspaceQr, NomIcone> = {
   'tableau-de-bord': 'accueil',
@@ -62,6 +72,21 @@ const ICONES_VUES: Record<VueEspaceQr, NomIcone> = {
 const VUES_REFERENTIELS_QR: readonly VueEspaceQr[] = ['coproprietes', 'gestionnaires', 'cabinets', 'journal']
 
 const ANCRE_PAR_DEFAUT_QR: AncreEspaceQr = { vue: VUE_PAR_DEFAUT_QR, gestionnaireId: null }
+
+/** Échecs d'un rechargement demandé (null : relu, ou sans réponse au bout du délai). */
+interface BilanRechargementQr {
+  referentiels: CodeErreurQr | null
+  tableau: CodeErreurQr | null
+}
+
+/**
+ * Échec à signaler sur la page profil (elle n'affiche pas l'erreur des listes) : le premier, sauf le réseau coupé déjà
+ * signalé par le toast des cabinets et fiches (useReferentielsQr) ; un seul toast.
+ */
+function echecASignalerQr({ referentiels, tableau }: BilanRechargementQr): CodeErreurQr | null {
+  const dejaSignale = (code: CodeErreurQr) => code === 'reseau' && referentiels === 'reseau'
+  return [referentiels, tableau].find((code): code is CodeErreurQr => code !== null && !dejaSignale(code)) ?? null
+}
 
 export interface PropsEspaceAjSignalement {
   /** Cabinet de la page (espace d'un cabinet, PR 2) ; absent : espace global du super admin. */
@@ -216,27 +241,76 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
   /** Entrée du menu : la vue elle-même (la liste des gestionnaires, jamais une page profil). */
   const allerAVue = (cible: VueEspaceQr) => allerA({ vue: cible, gestionnaireId: null })
 
-  /** Une fiche, un cabinet ou des attributions ont changé : cabinets, fiches et tableau rechargés. */
-  const rafraichir = useCallback(() => {
-    void recharger()
-    setActualisation((n) => n + 1)
+  // Rechargements du tableau demandés et pas encore finis : numéro d'actualisation → fin de leur attente, avec l'échec.
+  const derniereActualisation = useRef(0)
+  const attentesTableau = useRef(new Map<number, (echec: CodeErreurQr | null) => void>())
+  // Échec du dernier rechargement demandé du tableau : son encadré est caché hors de ses vues, les vues Cabinets et
+  // Gestionnaires le montrent dans le leur (avec « Réessayer ») ; effacé dès qu'un tableau est relu.
+  const [erreurTableau, setErreurTableau] = useState<CodeErreurQr | null>(null)
+  const surTableau = useCallback((relu: TableauQr) => {
+    setTableau(relu)
+    setErreurTableau(null)
+  }, [])
+  /** Rechargement du tableau fini : il sert toutes les demandes faites jusqu'à lui (numéros croissants). */
+  const surTableauActualise = useCallback((numero: number, echec: CodeErreurQr | null) => {
+    for (const [demande, finir] of attentesTableau.current) {
+      if (demande > numero) continue
+      attentesTableau.current.delete(demande)
+      finir(echec)
+    }
+    // Premier chargement (0) : inchangé, son échec n'est montré que dans les vues du tableau.
+    if (numero > 0) setErreurTableau(echec)
+  }, [])
+
+  /**
+   * Une fiche, un cabinet ou des attributions ont changé : cabinets, fiches et tableau rechargés ensemble. La promesse
+   * est tenue quand les trois sont à jour (ou leur échec affiché : encadré, toast), au plus tard après
+   * DELAI_MAX_LISTES_QR_MS (une lecture sans réponse : la liste suit à son arrivée), avec les échecs connus à ce moment ;
+   * jamais rejetée (les chargements rendent leurs échecs). L'action l'attend avant d'annoncer son succès.
+   */
+  const rechargerListes = useCallback(async (): Promise<BilanRechargementQr> => {
+    derniereActualisation.current += 1
+    const numero = derniereActualisation.current
+    const bilan: BilanRechargementQr = { referentiels: null, tableau: null }
+    const tableauRecharge = new Promise<void>((finir) => {
+      attentesTableau.current.set(numero, (echec) => {
+        bilan.tableau = echec
+        finir()
+      })
+    })
+    setActualisation(numero)
+    const referentielsRecharges = recharger().then((echec) => { bilan.referentiels = echec })
+    const aJour = await attendreAuPlusQr(Promise.all([referentielsRecharges, tableauRecharge]))
+    if (!aJour) attentesTableau.current.delete(numero)
+    return bilan
   }, [recharger])
+  /** Vues Cabinets et Gestionnaires : leur encadré montre l'échec (cabinets, fiches ou tableau). */
+  const rafraichir = useCallback(async (): Promise<void> => { await rechargerListes() }, [rechargerListes])
+  /** Page profil : elle n'affiche pas l'échec des listes ; il y est signalé par un toast. */
+  const rafraichirProfil = useCallback(async (): Promise<void> => {
+    const echec = echecASignalerQr(await rechargerListes())
+    if (echec) toast.error(messageErreurTableauQr(echec))
+  }, [rechargerListes])
+  /** « Réessayer » d'une vue en erreur : le même rechargement, sans rien à attendre. */
+  const reessayerReferentiels = useCallback(() => { void rafraichir() }, [rafraichir])
 
   const coproprietes = tableau?.coproprietes ?? []
+  /** Échec de chargement montré par les vues Cabinets et Gestionnaires : cabinets ou fiches, sinon tableau relu. */
+  const erreurListes = referentiels.erreur ?? erreurTableau
   const contenu = (() => {
     if (vue === 'gestionnaires' && ancre.gestionnaireId) {
       return (
         <FicheGestionnaireQr
           key={ancre.gestionnaireId} id={ancre.gestionnaireId} coproprietes={coproprietes} gestionnaires={referentiels.gestionnaires}
-          onRetour={() => allerA({ vue: 'gestionnaires', gestionnaireId: null })} onModifie={rafraichir} onInformer={setDiffusionSuivi}
+          onRetour={() => allerA({ vue: 'gestionnaires', gestionnaireId: null })} onModifie={rafraichirProfil} onInformer={setDiffusionSuivi}
         />
       )
     }
     if (vue === 'gestionnaires') {
       return (
         <ListeGestionnairesQr
-          gestionnaires={referentiels.gestionnaires} cabinets={referentiels.cabinets} erreur={referentiels.erreur} coproprietes={coproprietes}
-          onOuvrir={(id) => allerA({ vue: 'gestionnaires', gestionnaireId: id })} onModifie={rafraichir} onReessayer={rafraichir}
+          gestionnaires={referentiels.gestionnaires} cabinets={referentiels.cabinets} erreur={erreurListes} coproprietes={coproprietes}
+          onOuvrir={(id) => allerA({ vue: 'gestionnaires', gestionnaireId: id })} onModifie={rafraichir} onReessayer={reessayerReferentiels}
           onCabinets={() => allerA({ vue: 'cabinets', gestionnaireId: null })}
         />
       )
@@ -244,8 +318,8 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
     if (vue === 'cabinets') {
       return (
         <CabinetsQr
-          cabinets={referentiels.cabinets} erreur={referentiels.erreur} coproprietes={coproprietes} onModifie={rafraichir}
-          onReessayer={rafraichir} onJournal={() => allerA({ vue: 'journal', gestionnaireId: null })}
+          cabinets={referentiels.cabinets} erreur={erreurListes} coproprietes={coproprietes} onModifie={rafraichir}
+          onReessayer={reessayerReferentiels} onJournal={() => allerA({ vue: 'journal', gestionnaireId: null })}
         />
       )
     }
@@ -286,7 +360,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
         <div className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-9 md:pb-12">
           <div hidden={!VUES_TABLEAU_QR.includes(vue)}>
             <TableauSignalementsQr
-              jeton={null} vue={vue} onTableau={setTableau} actualisation={actualisation}
+              jeton={null} vue={vue} onTableau={surTableau} actualisation={actualisation} onActualise={surTableauActualise}
               gestion={superAdmin ? { cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires } : undefined}
               gestionnaire={vueGestionnaire}
             />

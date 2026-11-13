@@ -15,6 +15,10 @@
 // états d'accès et « Demande d'effacement le … ».
 // PR 2, lot 6 : « Connexion à bloquer » (départ dont le bannissement du compte a échoué ; le bouton est sur la page
 // profil) ; une réactivation dont le déblocage du compte échoue (207) le dit, à reprendre depuis la page profil.
+// Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : chaque action (création, renvoi de la
+// confirmation, réactivation, accès, accès groupé) attend la liste rechargée (onModifie) avant de fermer sa fenêtre et
+// d'annoncer son succès, boutons désactivés jusque-là ; rechargement en échec : le succès reste annoncé au-dessus de
+// l'erreur de chargement.
 
 import { useId, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -40,8 +44,11 @@ export interface PropsListeGestionnairesQr {
   erreur: CodeErreurQr | null
   coproprietes: readonly CoproprieteQr[]
   onOuvrir: (id: string) => void
-  /** Une fiche a changé : l'espace recharge les fiches et le tableau. */
-  onModifie: () => void
+  /**
+   * Une fiche a changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour (ou leur échec
+   * affiché), au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr).
+   */
+  onModifie: () => Promise<void>
   onReessayer: () => void
   /** Vers la vue Cabinets (domaines à renseigner). */
   onCabinets: () => void
@@ -52,6 +59,27 @@ const confirmationEnAttente = (g: GestionnaireQr): boolean => g.etat === 'confir
 
 /** Fiches par appel de l'action groupée (accesGroupeQrSchema : 50 au plus). */
 const LOT_ACCES_QR = 50
+
+type ActionLigneQr = 'renvoyer' | 'reactiver' | 'acces'
+/** Résultat d'une action de ligne : textes du succès (et ce qui reste à reprendre, montré comme une erreur), ou l'échec. */
+type ResultatActionLigneQr = { ok: true; textes: string[]; avertissement?: string } | { ok: false; message: string }
+
+/** Appel d'une action de ligne (renvoi de la confirmation, réactivation, accès) et ses textes. */
+async function appelerActionLigneQr(g: GestionnaireQr, action: ActionLigneQr): Promise<ResultatActionLigneQr> {
+  if (action === 'acces') {
+    const r = await ouvrirAccesGestionnaireQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [r.emailEnvoye ? remplir(G.acces.envoye, { email: g.email ?? '' }) : G.acces.nonParti] }
+  }
+  if (action === 'renvoyer') {
+    const r = await renvoyerConfirmationQr(g.id)
+    if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+    return { ok: true, textes: [r.emailEnvoye ? remplir(G.gestionnaires.renvoye, { email: g.email ?? '' }) : G.gestionnaires.renvoiSansEmail] }
+  }
+  const r = await modifierGestionnaireQr(g.id, { actif: true })
+  if (!r.ok) return { ok: false, message: messageEchecQr(r.code) }
+  return { ok: true, textes: [G.gestionnaires.reactive], ...(r.incomplet ? { avertissement: G.compte.nonDebloquee } : {}) }
+}
 
 export default function ListeGestionnairesQr({
   gestionnaires, cabinets, erreur, coproprietes, onOuvrir, onModifie, onReessayer, onCabinets,
@@ -64,9 +92,17 @@ export default function ListeGestionnairesQr({
   const [occupe, setOccupe] = useState<string | null>(null)
   const [confirmerGroupe, setConfirmerGroupe] = useState(false)
 
+  const annonces = (
+    <>
+      {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
+      {erreurAction && <Encadre ton="erreur">{erreurAction}</Encadre>}
+    </>
+  )
+  // Liste relue en échec après une action réussie : l'action reste annoncée au-dessus de l'erreur de chargement.
   if (erreur) {
     return (
       <div className="space-y-4">
+        {annonces}
         <Encadre ton="erreur">{messageErreurTableauQr(erreur)}</Encadre>
         <Bouton variante="principal" icone="actualiser" onClick={onReessayer}>{G.reessayer}</Bouton>
       </div>
@@ -77,29 +113,21 @@ export default function ListeGestionnairesQr({
   const visibles = filtreCabinet ? gestionnaires.filter((g) => g.cabinet.id === filtreCabinet) : gestionnaires
   const ouvrables = fichesAccesOuvrablesQr(visibles)
 
-  const agir = async (g: GestionnaireQr, action: 'renvoyer' | 'reactiver' | 'acces') => {
+  const agir = async (g: GestionnaireQr, action: ActionLigneQr) => {
     if (occupe) return
     setMessages([])
     setErreurAction(null)
     setOccupe(g.id)
-    if (action === 'acces') {
-      const r = await ouvrirAccesGestionnaireQr(g.id)
+    const r = await appelerActionLigneQr(g, action)
+    if (!r.ok) {
       setOccupe(null)
-      if (!r.ok) return setErreurAction(messageEchecQr(r.code))
-      setMessages([r.emailEnvoye ? remplir(G.acces.envoye, { email: g.email ?? '' }) : G.acces.nonParti])
-    } else if (action === 'renvoyer') {
-      const r = await renvoyerConfirmationQr(g.id)
-      setOccupe(null)
-      if (!r.ok) return setErreurAction(messageEchecQr(r.code))
-      setMessages([r.emailEnvoye ? remplir(G.gestionnaires.renvoye, { email: g.email ?? '' }) : G.gestionnaires.renvoiSansEmail])
-    } else {
-      const r = await modifierGestionnaireQr(g.id, { actif: true })
-      setOccupe(null)
-      if (!r.ok) return setErreurAction(messageEchecQr(r.code))
-      setMessages([G.gestionnaires.reactive])
-      if (r.incomplet) setErreurAction(G.compte.nonDebloquee)
+      return setErreurAction(r.message)
     }
-    onModifie()
+    // Fait : boutons désactivés (aucun nouvel envoi) jusqu'à la liste à jour, puis le message.
+    await onModifie()
+    setOccupe(null)
+    setMessages(r.textes)
+    if (r.avertissement) setErreurAction(r.avertissement)
   }
 
   /** Action groupée (P2-R1b) : les fiches à ouvrir, par lots de 50 ; bilan des envois et des échecs (noms seulement). */
@@ -114,27 +142,29 @@ export default function ListeGestionnairesQr({
     for (let i = 0; i < ouvrables.length; i += LOT_ACCES_QR) {
       const r = await ouvrirAccesGroupeQr(ouvrables.slice(i, i + LOT_ACCES_QR).map((g) => g.id))
       if (!r.ok) {
+        // Lots déjà partis : la liste les montre avant l'échec du suivant.
+        if (envoyes > 0) await onModifie()
         setOccupe(null)
         setErreurAction(messageEchecQr(r.code))
-        if (envoyes > 0) onModifie()
         return
       }
       envoyes += r.envoyes
       echecs.push(...r.echecs.map((e) => e.id))
     }
-    setOccupe(null)
     const noms = echecs.map((id) => gestionnaires.find((g) => g.id === id)?.nom ?? G.fiche.ancien)
+    await onModifie()
+    setOccupe(null)
     setMessages([remplir(G.acces.groupeEnvoye, { n: envoyes }), ...(noms.length > 0 ? [remplir(G.acces.groupeEchecs, { noms: noms.join(', ') })] : [])])
-    onModifie()
   }
 
-  const creee = (r: Extract<ResultatCreationGestionnaireQr, { ok: true }>) => {
+  /** Fiche créée : la fenêtre reste ouverte et occupée jusqu'à la liste à jour, puis elle se ferme sur le message. */
+  const creee = async (r: Extract<ResultatCreationGestionnaireQr, { ok: true }>) => {
+    await onModifie()
     setCreation(false)
     setMessages([
       r.emailEnvoye ? remplir(G.gestionnaires.cree, { email: r.gestionnaire.email ?? '' }) : G.gestionnaires.creeSansEmail,
       ...(r.coproprietesAvecAdresseSaisie > 0 ? [remplir(G.gestionnaires.dejaDestinataire, { n: r.coproprietesAvecAdresseSaisie })] : []),
     ])
-    onModifie()
   }
 
   return (
@@ -173,8 +203,7 @@ export default function ListeGestionnairesQr({
           </div>
         </Encadre>
       )}
-      {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
-      {erreurAction && <Encadre ton="erreur">{erreurAction}</Encadre>}
+      {annonces}
 
       {visibles.length === 0 ? <EtatVide texte={G.gestionnaires.aucun} icone="assemblees" /> : (
         <ul className="space-y-3" aria-label={G.gestionnaires.liste}>
@@ -234,7 +263,8 @@ interface PropsFormulaire {
   cabinets: readonly CabinetQr[]
   coproprietes: readonly CoproprieteQr[]
   onFermer: () => void
-  onCree: (resultat: Extract<ResultatCreationGestionnaireQr, { ok: true }>) => void
+  /** Fiche créée : tenue une fois la liste à jour (la fenêtre reste occupée jusque-là). */
+  onCree: (resultat: Extract<ResultatCreationGestionnaireQr, { ok: true }>) => Promise<void>
   onOuvrir: (id: string) => void
   onCabinets: () => void
 }
@@ -277,8 +307,12 @@ function FormulaireGestionnaireQr({ cabinets, coproprietes, onFermer, onCree, on
     const r = await creerGestionnaireQr({
       nom: nomPropre, email: emailPropre, cabinetId: cabinet.id, coproprieteIds: selection.filter((id) => ids.has(id)), forcerDomaine,
     })
+    if (r.ok) {
+      // Créée : la fenêtre reste occupée (aucun nouvel envoi) jusqu'à la liste à jour, puis elle se ferme.
+      await onCree(r)
+      return setOccupe(false)
+    }
     setOccupe(false)
-    if (r.ok) return onCree(r)
     if (r.code === 'hors_domaine') return setHorsDomaine(true)
     if (r.code === 'domaine_autre_cabinet') setHorsDomaine(false)
     if (r.code === 'existe_deja' && r.id) setFicheExistante(r.id)

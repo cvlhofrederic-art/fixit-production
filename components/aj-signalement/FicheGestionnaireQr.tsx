@@ -14,14 +14,21 @@
 // (réactivation), « Supprimer son compte » (effacement). Sans les champs d'accès (migration 20261112 absente) : rien.
 // PR 3, relecture 3 : « Informer les déclarants de ce signalement » du suivi est transmis à l'espace (onInformer), qui
 // porte la fenêtre de diffusion : cette page est démontée à chaque changement de vue.
+// Correctif du 13/11/2026 (« les listes ne se rafraîchissent pas ») : chaque action qui modifie la fiche attend la fiche
+// relue ET les listes de l'espace (onModifie) avant de fermer son panneau ou sa fenêtre et d'annoncer son succès, boutons
+// désactivés jusque-là ; fiche relue en échec : le succès reste annoncé au-dessus de l'erreur de chargement.
+// Relecture du correctif : rien ne change avant la fin de l'attente ; la fiche relue est posée en même temps que la
+// fermeture et le message (une fiche relue avant les listes réécrivait la fenêtre de départ encore ouverte) ; l'attente
+// est bornée (attenteListesQr) : une lecture sans réponse ne bloque plus l'action.
 
-import { useCallback, useEffect, useId, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
 import { Badge, Bouton, Carte, Champ, CLASSES_SAISIE, Encadre, Modale } from '@/components/coproprietaire-dashboard/ui'
 import SuiviGestionnaireQr, { type PropsSuiviGestionnaireQr } from '@/components/aj-signalement/SuiviGestionnaireQr'
 import FenetreDepartGestionnaireQr from '@/components/aj-signalement/FenetreDepartGestionnaireQr'
 import { ChoixCoproprietesQr } from '@/components/aj-signalement/ChoixMultipleQr'
 import { messageEchecQr } from '@/components/aj-signalement/messageEchecQr'
+import { attendreAuPlusQr } from '@/components/aj-signalement/attenteListesQr'
 import {
   attribuerCoproprietesGestionnaireQr, bloquerConnexionGestionnaireQr, chargerFicheGestionnaireQr, exporterGestionnaireQr, modifierGestionnaireQr,
   ouvrirAccesGestionnaireQr, renvoyerConfirmationQr,
@@ -42,13 +49,18 @@ export interface PropsFicheGestionnaireQr {
   /** Fiches de l'espace (successeurs au départ) ; null tant qu'elles ne sont pas chargées. */
   gestionnaires: readonly GestionnaireQr[] | null
   onRetour: () => void
-  /** La fiche ou ses attributions ont changé : l'espace recharge les fiches et le tableau. */
-  onModifie: () => void
+  /**
+   * La fiche ou ses attributions ont changé : l'espace recharge les fiches et le tableau ; tenue quand ils sont à jour,
+   * au plus tard après DELAI_MAX_LISTES_QR_MS (attenteListesQr).
+   */
+  onModifie: () => Promise<void>
   /** PR 3 : « Informer les déclarants de ce signalement » depuis le suivi (fenêtre portée par l'espace). */
   onInformer?: PropsSuiviGestionnaireQr['onInformer']
 }
 
 type Etat = { statut: 'chargement' } | { statut: 'erreur'; message: string } | { statut: 'pret'; fiche: FicheGestionnaireDetailQr }
+/** Fiche relue : prête, ou son échec. */
+type EtatLu = Exclude<Etat, { statut: 'chargement' }>
 type Panneau = 'nom' | 'ajout' | 'effacer' | 'depart' | null
 /** Résultat d'une action : textes de succès (et, PR 2, ce qui reste à reprendre : montré comme une erreur), ou l'échec. */
 type ResultatAction = { ok: true; textes: string[]; avertissement?: string } | { ok: false; message: string }
@@ -65,7 +77,6 @@ function texteEnvoi(e: EnvoiGestionnaireQr): string {
 export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, onRetour, onModifie, onInformer }: Readonly<PropsFicheGestionnaireQr>) {
   const idBase = useId()
   const [etat, setEtat] = useState<Etat>({ statut: 'chargement' })
-  const [essai, setEssai] = useState(0)
   const [panneau, setPanneau] = useState<Panneau>(null)
   const [messages, setMessages] = useState<string[]>([])
   const [erreur, setErreur] = useState<string | null>(null)
@@ -73,24 +84,46 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
   const [nouveauNom, setNouveauNom] = useState('')
   const [ajout, setAjout] = useState<string[]>([])
 
-  const recharger = useCallback(() => setEssai((n) => n + 1), [])
+  // Numéro de la dernière lecture de la fiche : une réponse dépassée (fiche relue entre-temps, page quittée) est ignorée.
+  const derniereLecture = useRef(0)
+  /** Lecture de la fiche, sans la poser : la fiche prête ou son échec ; null si la réponse est dépassée. Jamais rejetée. */
+  const lire = useCallback(async (): Promise<EtatLu | null> => {
+    derniereLecture.current += 1
+    const lecture = derniereLecture.current
+    const r = await chargerFicheGestionnaireQr(id)
+    if (lecture !== derniereLecture.current) return null
+    return r.ok ? { statut: 'pret', fiche: r.fiche } : { statut: 'erreur', message: messageEchecQr(r.code) }
+  }, [id])
+  /** Chargement et « Réessayer » : la fiche posée dès sa réponse (ou son échec affiché) ; jamais rejetée. */
+  const relire = useCallback(async (): Promise<void> => {
+    const lue = await lire()
+    if (lue) setEtat(lue)
+  }, [lire])
 
+  // Premier chargement : l'état n'est posé qu'à la réponse (asynchrone). Page quittée : la réponse en cours est ignorée.
   useEffect(() => {
-    let actif = true
-    void chargerFicheGestionnaireQr(id).then((r) => {
-      if (!actif) return
-      setEtat(r.ok ? { statut: 'pret', fiche: r.fiche } : { statut: 'erreur', message: messageEchecQr(r.code) })
-    })
-    return () => { actif = false }
-  }, [id, essai])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void relire()
+    const lectures = derniereLecture
+    return () => { lectures.current += 1 }
+  }, [relire])
+
+  // Succès d'une action (et ce qui reste à reprendre) : gardés au-dessus de l'erreur si la fiche relue échoue.
+  const annonces = (
+    <>
+      {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
+      {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
+    </>
+  )
 
   if (etat.statut === 'chargement') return <p role="status" className="py-10 text-center text-base text-[#4A5E78]">{G.chargement}</p>
   if (etat.statut === 'erreur') {
     return (
       <div className="space-y-4">
         <Bouton variante="discret" icone="retour" onClick={onRetour}>{G.fiche.retour}</Bouton>
+        {annonces}
         <Encadre ton="erreur">{etat.message}</Encadre>
-        <Bouton variante="principal" icone="actualiser" onClick={() => { setEtat({ statut: 'chargement' }); recharger() }}>{G.reessayer}</Bouton>
+        <Bouton variante="principal" icone="actualiser" onClick={() => { setEtat({ statut: 'chargement' }); void relire() }}>{G.reessayer}</Bouton>
       </div>
     )
   }
@@ -104,20 +137,39 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
   const ajoutables = coprosCabinet.filter((c) => !attribuees.has(c.id))
   const actionAcces = actionAccesGestionnaireQr(g, envois)
 
-  /** Action qui modifie la fiche : messages en cas de succès, fiche rechargée, espace prévenu. */
+  /**
+   * Fait : fiche relue et listes de l'espace attendues ensemble (boutons désactivés, panneau ou fenêtre ouverts
+   * jusque-là), au plus DELAI_MAX_LISTES_QR_MS ; puis tout d'un coup : la fiche relue posée, le panneau fermé et le
+   * message. Fiche relue après ce délai : posée à son arrivée.
+   */
+  const conclure = async (textes: string[], avertissement: string | null) => {
+    setOccupe(true)
+    const attente: { finie: boolean; lue: EtatLu | null } = { finie: false, lue: null }
+    const lecture = lire().then((lue) => {
+      if (!attente.finie) attente.lue = lue
+      else if (lue) setEtat(lue)
+    })
+    await attendreAuPlusQr(Promise.all([lecture, onModifie()]))
+    attente.finie = true
+    if (attente.lue) setEtat(attente.lue)
+    setOccupe(false)
+    setPanneau(null)
+    setMessages(textes)
+    setErreur(avertissement)
+  }
+
+  /** Action qui modifie la fiche : échec affiché tout de suite ; succès annoncé une fois la fiche et les listes relues. */
   const executer = async (action: () => Promise<ResultatAction>) => {
     if (occupe) return
     setOccupe(true)
     setMessages([])
     setErreur(null)
     const r = await action()
-    setOccupe(false)
-    if (!r.ok) return setErreur(r.message)
-    setPanneau(null)
-    setMessages(r.textes)
-    if (r.avertissement) setErreur(r.avertissement)
-    recharger()
-    onModifie()
+    if (!r.ok) {
+      setOccupe(false)
+      return setErreur(r.message)
+    }
+    await conclure(r.textes, r.avertissement ?? null)
   }
 
   const attribuer = (ids: string[]) => executer(async () => {
@@ -192,8 +244,7 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
   return (
     <div className="space-y-6">
       <Bouton variante="discret" icone="retour" onClick={onRetour}>{G.fiche.retour}</Bouton>
-      {messages.length > 0 && <Encadre ton="succes">{messages.map((m) => <p key={m}>{m}</p>)}</Encadre>}
-      {erreur && <Encadre ton="erreur">{erreur}</Encadre>}
+      {annonces}
 
       <Carte
         titre={g.nom ?? G.fiche.ancien}
@@ -334,13 +385,10 @@ export default function FicheGestionnaireQr({ id, coproprietes, gestionnaires, o
           <FenetreDepartGestionnaireQr
             fiche={g} attributions={attributions} coproprietes={coproprietes} gestionnaires={gestionnaires ?? []}
             onFermer={() => setPanneau(null)}
-            onFait={(bilan) => {
-              setPanneau(null)
-              setMessages([remplir(G.depart.fait, { deplacees: bilan.deplacees, sans: bilan.laisseesSansGestionnaire })])
-              setErreur(bilan.connexionNonBloquee ? G.compte.nonBloquee : null)
-              recharger()
-              onModifie()
-            }}
+            onFait={(bilan) => conclure(
+              [remplir(G.depart.fait, { deplacees: bilan.deplacees, sans: bilan.laisseesSansGestionnaire })],
+              bilan.connexionNonBloquee ? G.compte.nonBloquee : null,
+            )}
           />
         </Modale>
       )}
