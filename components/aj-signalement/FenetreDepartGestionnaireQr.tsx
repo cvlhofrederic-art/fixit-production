@@ -6,6 +6,8 @@
 // active du même cabinet, adresse non contestée), « le même pour toutes », ou « Laisser sans gestionnaire » — et celles
 // où d'autres gestionnaires restent (simplement retirées). Une succession manquante bloque l'envoi ; le serveur
 // revérifie tout (409 a_reverifier). Après le départ, la fiche est désactivée et son adresse retirée des saisies.
+// Correctif du 13/11/2026 : départ fait, la fenêtre reste occupée (aucun nouvel envoi) jusqu'à la fiche et aux listes
+// relues (onFait), qui la ferment.
 
 import { useId, useMemo, useState } from 'react'
 import { remplir } from '@/lib/coproprietaire/textes'
@@ -24,7 +26,8 @@ export interface PropsFenetreDepartGestionnaireQr {
   coproprietes: readonly CoproprieteQr[]
   gestionnaires: readonly GestionnaireQr[]
   onFermer: () => void
-  onFait: (bilan: Extract<ResultatDepartQr, { ok: true }>) => void
+  /** Départ fait : tenue une fois la fiche et les listes relues (la fenêtre reste occupée jusque-là). */
+  onFait: (bilan: Extract<ResultatDepartQr, { ok: true }>) => Promise<void>
 }
 
 export default function FenetreDepartGestionnaireQr({
@@ -56,9 +59,12 @@ export default function FenetreDepartGestionnaireQr({
     setErreur(null)
     setOccupe(true)
     const r = await departGestionnaireQr(fiche.id, decision.successions)
+    if (!r.ok) {
+      setOccupe(false)
+      return setErreur(messageEchecQr(r.code))
+    }
+    await onFait(r)
     setOccupe(false)
-    if (!r.ok) return setErreur(messageEchecQr(r.code))
-    onFait(r)
   }
 
   return (

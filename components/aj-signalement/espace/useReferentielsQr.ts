@@ -17,6 +17,7 @@ export interface ReferentielsQr {
   cabinets: CabinetQr[] | null
   gestionnaires: GestionnaireQr[] | null
   erreur: CodeErreurQr | null
+  /** Tenue une fois cabinets et fiches posés, ou l'échec affiché (encadré, toast si le réseau est coupé) ; jamais rejetée. */
   recharger: () => Promise<void>
 }
 

@@ -26,6 +26,9 @@
 // démontée à chaque changement de vue) est portée ici, par la coquille, qui reste montée. Un changement de vue lui
 // demande de fermer, avec sa protection (saisie : « Abandonner ce message ? » ; envoi : aucune fermeture, la reprise
 // automatique continue), comme TableauSignalementsQr pour les fenêtres de ses cartes ; rien à protéger : fermée.
+// Correctif du 13/11/2026 (Hugo : « les listes ne se rafraîchissent pas » ; ≈ 2,4 s par appel en production) : le
+// rechargement demandé après une modification rend une promesse, tenue quand cabinets, fiches ET tableau sont à jour
+// (ou leur échec affiché) ; chaque action l'attend avant de fermer sa fenêtre et d'annoncer son succès.
 
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Bouton, Encadre, Icone, type NomIcone } from '@/components/coproprietaire-dashboard/ui'
@@ -216,11 +219,32 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
   /** Entrée du menu : la vue elle-même (la liste des gestionnaires, jamais une page profil). */
   const allerAVue = (cible: VueEspaceQr) => allerA({ vue: cible, gestionnaireId: null })
 
-  /** Une fiche, un cabinet ou des attributions ont changé : cabinets, fiches et tableau rechargés. */
-  const rafraichir = useCallback(() => {
-    void recharger()
-    setActualisation((n) => n + 1)
+  // Rechargements du tableau demandés et pas encore finis : numéro d'actualisation → fin de leur attente.
+  const derniereActualisation = useRef(0)
+  const attentesTableau = useRef(new Map<number, () => void>())
+  /** Rechargement du tableau fini : il sert toutes les demandes faites jusqu'à lui (numéros croissants). */
+  const surTableauActualise = useCallback((numero: number) => {
+    for (const [demande, finir] of attentesTableau.current) {
+      if (demande > numero) continue
+      attentesTableau.current.delete(demande)
+      finir()
+    }
+  }, [])
+
+  /**
+   * Une fiche, un cabinet ou des attributions ont changé : cabinets, fiches et tableau rechargés ensemble. La promesse
+   * est tenue quand les trois sont à jour (ou leur échec affiché : encadré, toast) ; jamais rejetée (les chargements
+   * rendent leurs échecs). L'action l'attend avant d'annoncer son succès.
+   */
+  const rafraichir = useCallback(async (): Promise<void> => {
+    derniereActualisation.current += 1
+    const numero = derniereActualisation.current
+    const tableauRecharge = new Promise<void>((finir) => { attentesTableau.current.set(numero, finir) })
+    setActualisation(numero)
+    await Promise.all([recharger(), tableauRecharge])
   }, [recharger])
+  /** « Réessayer » d'une vue en erreur : le même rechargement, sans rien à attendre. */
+  const reessayerReferentiels = useCallback(() => { void rafraichir() }, [rafraichir])
 
   const coproprietes = tableau?.coproprietes ?? []
   const contenu = (() => {
@@ -236,7 +260,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
       return (
         <ListeGestionnairesQr
           gestionnaires={referentiels.gestionnaires} cabinets={referentiels.cabinets} erreur={referentiels.erreur} coproprietes={coproprietes}
-          onOuvrir={(id) => allerA({ vue: 'gestionnaires', gestionnaireId: id })} onModifie={rafraichir} onReessayer={rafraichir}
+          onOuvrir={(id) => allerA({ vue: 'gestionnaires', gestionnaireId: id })} onModifie={rafraichir} onReessayer={reessayerReferentiels}
           onCabinets={() => allerA({ vue: 'cabinets', gestionnaireId: null })}
         />
       )
@@ -245,7 +269,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
       return (
         <CabinetsQr
           cabinets={referentiels.cabinets} erreur={referentiels.erreur} coproprietes={coproprietes} onModifie={rafraichir}
-          onReessayer={rafraichir} onJournal={() => allerA({ vue: 'journal', gestionnaireId: null })}
+          onReessayer={reessayerReferentiels} onJournal={() => allerA({ vue: 'journal', gestionnaireId: null })}
         />
       )
     }
@@ -286,7 +310,7 @@ function CoquilleEspaceQr({ role, lienAdmin, onDeconnexion, cabinetNom, vueGesti
         <div className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-9 md:pb-12">
           <div hidden={!VUES_TABLEAU_QR.includes(vue)}>
             <TableauSignalementsQr
-              jeton={null} vue={vue} onTableau={setTableau} actualisation={actualisation}
+              jeton={null} vue={vue} onTableau={setTableau} actualisation={actualisation} onActualise={surTableauActualise}
               gestion={superAdmin ? { cabinets: referentiels.cabinets, gestionnaires: referentiels.gestionnaires } : undefined}
               gestionnaire={vueGestionnaire}
             />
