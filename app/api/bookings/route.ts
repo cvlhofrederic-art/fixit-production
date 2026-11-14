@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
       }
       // La prestation doit être celle du professionnel réservé : ses réglages (validation automatique,
       // délai minimum, nom repris dans la notification) ne valent que pour sa fiche.
-      if (!svc || svc.artisan_id !== artisan_id) {
+      // Comparaison sans tenir compte de la casse : la base rend les identifiants en minuscules.
+      if (!svc || String(svc.artisan_id).toLowerCase() !== artisan_id.toLowerCase()) {
         return NextResponse.json({ error: 'Cette prestation n’est pas proposée par ce professionnel.' }, { status: 400 })
       }
       isAutoAccept = svc.validation_auto === true

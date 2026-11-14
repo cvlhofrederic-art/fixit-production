@@ -151,6 +151,14 @@ describe('POST /api/bookings — parcours de réservation inchangé', () => {
     expect(h.sendEmail).toHaveBeenCalledTimes(1)
   })
 
+  it('identifiant de fiche reçu en majuscules : la prestation de la fiche est reconnue', async () => {
+    // La base compare les identifiants sans tenir compte de la casse : le faux Supabase d'ici, non.
+    h.base.lignes.profiles_artisan[0].id = FICHE_A.toUpperCase()
+    const res = await poster(demandeDeLaFiche({ artisan_id: FICHE_A.toUpperCase() }))
+    expect(res.status).toBe(200)
+    expect(reservationCreee()).toMatchObject({ status: 'pending', service_id: PRESTATION_A })
+  })
+
   it('prestation de la fiche en validation automatique : « confirmed » avec sa date de confirmation', async () => {
     const res = await poster(demandeDeLaFiche({ service_id: PRESTATION_A_AUTO }))
     expect(res.status).toBe(200)
