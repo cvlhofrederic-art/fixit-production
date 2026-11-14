@@ -16,6 +16,7 @@ import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/form
 import { MAJORITES_AG, type TypeMajorite } from '@/lib/administrateur-judiciaire/domain/majorites-ag'
 import { ROLES_CABINET, type RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
 import type { ElementAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
+import type { CauseDelaiNonCalcule, ResultatDelaiContestationAg } from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
 import { normaliserTexte } from '@/lib/administrateur-judiciaire/domain/texte'
 import {
   SEUIL_VIGILANCE_HT_CENTIMES,
@@ -73,7 +74,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   et 26 de la présente loi est suspendue jusqu'à l'expiration du délai de deux mois mentionné au deuxième alinéa du
  *   présent article. » (le délai de contestation ; le syndic : ici l'administrateur provisoire qui reçoit ses pouvoirs,
  *   L. 1965 art. 29-1, I) : BLOQUANT quand l'envoi de l'OS ou l'intervention prévue tombe dans ce délai (décision 7,
- *   précisée par J48), alerte quand la majorité ou la fin du délai manquent (décision 7) ;
+ *   précisée par J48), et quand la fin du délai est inconnue (J51, décisions du 11/11/2026, ci-dessous), alerte quand la
+ *   majorité manque (décision 7) ;
  * - déclencheurs légaux du visa (MotifVisa ; intervention seulement : une demande de devis ne conclut aucun marché) :
  *   seuil de consultation du conseil syndical et seuil de mise en concurrence fixés par l'assemblée, obligatoires « à
  *   partir » de ces montants (L. 1965 art. 21, al. 2 ; sans conditions fixées par l'assemblée, la mise en concurrence
@@ -205,8 +207,8 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   28/01/2015, n° 13-23.552). 🔵 Interprétation protectrice, confiance moyenne : le texte ne règle pas ce cas, la
  *   lecture littérale (laisser partir l'OS) reste défendable ; à confirmer par Hugo (aConfirmer). Inchangés : intervention
  *   prévue au plus tard le dernier jour du délai (bloquant, même quand l'OS est envoyé après lui), unanimité et art. 24
- *   non suspendus, demande de devis non contrôlée (elle ne conclut aucun marché), majorité ou fin du délai inconnues
- *   (alertes) ;
+ *   non suspendus, demande de devis non contrôlée (elle ne conclut aucun marché), majorité inconnue (alerte) ; la fin du
+ *   délai inconnue, alors en alerte, est bloquante depuis J51 (11/11/2026, ci-dessous) ;
  * - J49 (suite de J47 ; à la question « un devis daté d'un an pile est-il encore valable le jour anniversaire ? »,
  *   réponse « oui mais peut-être une revalorisation est à demander à l'entreprise ») : le devis daté d'un an pile (même
  *   quantième) reste ACCEPTÉ le jour anniversaire (devis_trop_ancien seulement au-delà), alors que
@@ -216,6 +218,47 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   texte : l'alerte vaut dès que le devis a ce nombre de mois à l'envoi, tant que J47 ne le refuse pas ; à 12, seul le
  *   jour anniversaire la déclenche, et le cabinet peut l'avancer en baissant ce seuil. Le cas du 29 février reste une
  *   lecture du code (🔵, J47) : le devis du 29 février a l'alerte le 28 février suivant.
+ *
+ * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50 et J51, suites de J1 et de J48 ; notes
+ * decisions-1111 : questions-hugo.md, recommandations et contre-vérification, j50-textes.md, j50-j51-jurisprudence.md,
+ * code-actuel.md ; textes et arrêts lus sur Légifrance le 11/11/2026) :
+ * - J50 (« Oui, calcul électronique ») : la fin du délai de contestation se calcule aussi pour une notification
+ *   électronique (lendemain de la transmission de l'avis par le prestataire, D. 1967 art. 64, dernier al.), pour chaque
+ *   opposant ou défaillant, la plus tardive (D. 1967 art. 18) : finDelaiContestationAgParDestinataire
+ *   (statut-assemblee.ts), dont le contrôle de l'OS lit le résultat (delaiContestationAg) ;
+ * - J51 (à la question « quand l'outil ne connaît pas la fin du délai de contestation, doit-il bloquer l'OS des travaux
+ *   votés aux art. 25 ou 26 au lieu d'une simple alerte ? », réponse « Oui, bloquer ») : fin du délai inconnue → OS
+ *   BLOQUÉ (delai_contestation_inconnu, BLOQUANT au lieu d'une alerte, à confirmer, fondement L. 1965 art. 42, al. 3),
+ *   sauf urgence constatée (décision 6, date du constat : J46) ; le message dit pourquoi la fin manque (motif du calcul :
+ *   PV non notifié, preuve
+ *   à saisir, envoi non qualifié, voie postale demandée, accord exprès absent, statuts d'AG incomplets (dont le statut
+ *   « Notifiée » non enregistré), nombre d'opposants non saisi, destinataire du courrier non renseigné, courrier antérieur
+ *   à la signature du PV ou à la ligne qui précède « Notifiée » (relecture du 14/11/2026, tour 2 : sinon une fin fausse
+ *   mais « connue » levait le blocage), fin non fournie)
+ *   et comment lever le blocage (notifier, saisir la notification ou sa preuve, compléter l'historique, attendre le
+ *   lendemain de la fin du délai, ou faire constater l'urgence) ; quand il n'y a ni opposant ni défaillant
+ *   (nombre saisi : 0), pas de blocage, une alerte à confirmer (aucune_contestation_ouverte : seuls les opposants et les défaillants
+ *   peuvent contester et reçoivent la notification, L. 1965 art. 42, al. 2 ; D. 1967 art. 18 ; même motif que
+ *   l'attestation de non-recours) ; la date comparée est la fin la plus tardive, report au jour ouvrable compris
+ *   (echeanceLaPlusTardive, comme l'attestation de non-recours : la date prudente pour celui qui attend), l'affichage de
+ *   J1 est inchangé. Relecture du 14/11/2026 : la date seule (finDelaiContestationAg) n'est plus admise (erreur) : elle
+ *   pouvait être une fin minimale, tirée d'une seule notification, ou sans report, et laissait partir l'OS pendant le
+ *   délai d'un autre opposant (troisième contournement, fermé ; seul delaiContestationAg est lu) ; une fin calculée et
+ *   passée qui porte une marque « à confirmer » (variante électronique, LRAR sans demande, LRE sans consentement, demande
+ *   reçue juste avant le 25/12/2025) laisse partir l'OS avec une alerte qui reprend ces points
+ *   (delai_contestation_a_confirmer, à confirmer, L. 1965 art. 42, al. 2 ; D. 1967 art. 64, dernier al., 64-1 ; pas de
+ *   blocage : réponse de Hugo, « calcul électronique » avec avertissement). Le droit : L. 1965 art. 42, al. 3 (version en vigueur depuis le 01/06/2020, citée plus haut),
+ *   l'exécution des travaux « est suspendue jusqu'à l'expiration du délai de deux mois » : si l'on ne peut pas montrer que
+ *   le délai a commencé, on ne peut pas montrer qu'il a expiré ; la preuve de la régularité de la notification est à la charge du
+ *   syndicat (Cass. 3e civ., 17/12/2015, n° 14-24.630, Bull.), dont l'administrateur provisoire a les pouvoirs (L. 1965
+ *   art. 29-1, I) ; une notification irrégulière ne fait pas courir le délai (Cass. 3e civ., 28/01/2015, n° 13-23.552,
+ *   Bull.) ; l'exécution n'empêche pas l'annulation (Cass. 3e civ., 24/11/2021, n° 20-22.487) ; risque inverse noté : le
+ *   syndic qui n'exécute pas des travaux votés commet une faute envers les copropriétaires (Cass. 3e civ., 02/07/2026,
+ *   n° 24-20.650), d'où un blocage qui se lève par un acte que l'administrateur maîtrise. 🔵 Interprétation protectrice,
+ *   confiance moyenne : aucun arrêt ni aucune recommandation professionnelle (FNAIM, UNIS, ANGC, CNAJMJ) ne traite ce cas.
+ *   Inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée, majorité de la résolution non saisie
+ *   (alerte) et fondement non saisi (alerte, art. 42 non contrôlé) : ces deux contournements restent ouverts (question à
+ *   Hugo, ci-dessous) ; assignation reçue et aide juridictionnelle, proposées dans les notes, ne sont pas codées.
  *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué une fois puis figé ; un N° hors du format, ou d'un autre segment
@@ -380,13 +423,27 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   accepté, avec l'alerte devis_revalorisation_a_demander, et il est refusé dès le 1er mars) ?
  * - vigilance du code du travail (relevée au point 43, non relue le 30/10/2026) : bloquante avant l'envoi par le contrôle
  *   déclaratif, y compris quand les pièces ne sont pas fournies, à confirmer.
+ * - Hugo (suite de J51) : deux contournements du blocage restent ouverts, laissés tels quels : une majorité de la
+ *   résolution non saisie ne donne qu'une alerte (majorite_resolution_non_renseignee) et la fin du délai n'est alors pas
+ *   regardée ; un fondement non saisi ne donne qu'une alerte (fondement_non_renseigne) et l'art. 42 n'est pas contrôlé.
+ *   Faut-il bloquer aussi l'OS qui exécute une résolution d'AG sans majorité saisie (proposé par les notes) ? Et l'OS
+ *   sans fondement (proposé : garder l'alerte, car bloquer irait au-delà de l'art. 42 : entretien courant) ? Faut-il
+ *   une alerte quand une assignation en contestation est reçue, et une information sur l'aide juridictionnelle (D.
+ *   n° 2020-1717 art. 43), proposées par les notes et non codées ? Une saisie motivée de la fin du délai établie hors de
+ *   l'outil (AG ancienne) est-elle voulue ? (Un troisième contournement, la date seule finDelaiContestationAg, qui
+ *   pouvait être une fin minimale ou sans report, est fermé depuis la relecture du 14/11/2026 : seule une AG dont les
+ *   notifications sont saisies laisse partir l'OS, ce qui rend la saisie motivée plus utile pour les AG anciennes.) La
+ *   fin calculée mais à confirmer ne donne qu'une alerte (delai_contestation_a_confirmer) : faut-il bloquer quand la
+ *   marque vient d'une LRE sans consentement (CPCE art. L. 100) ou d'une demande reçue juste avant le 25/12/2025 ?
  *
  * Branché au point 46 : suivi-a-faire.ts, famille « demandes » et nature « relance_os » (relancesOsDues, lu par
  * depuisDemandes ; attendus et relanceAFixer en plus des champs d'ElementAFaire, dont aConfirmer, toujours faux, garde
  * son sens). Branchements à faire plus tard (fichiers non modifiés) :
  * route /api/administrateur-judiciaire/ordres-prestataire : controlerAvantEnvoiOs avant l'envoi (avec segmentMandat,
- * numerosDuMandat, decisionsAgEnVigueur et finDelaiContestationAg, échéance retenue par finDelaiContestationAg de
- * statut-assemblee.ts, et dateDevis, date du devis associé : J47, sans quoi l'alerte date_devis_inconnue accompagne tout
+ * numerosDuMandat, decisionsAgEnVigueur et delaiContestationAg, résultat de finDelaiContestationAgParDestinataire de
+ * statut-assemblee.ts (J50 et J51 : un délai par opposant ou défaillant, avec les demandes de voie postale et les
+ * consentements ; sans lui, tout OS qui exécute une résolution votée aux art. 25 ou 26 est bloqué, sauf urgence
+ * constatée), et dateDevis, date du devis associé : J47, sans quoi l'alerte date_devis_inconnue accompagne tout
  * OS qui accepte un devis), corps par demandeEnvoiDepuisOs, puis envoyerOs avec le missionId créé ; enregistrerReception
  * avec l'AR et le courrier AR lié (CourrierSuivi de courriers.ts) quand l'avis de réception revient (décision 9 :
  * référence ; courrier de l'envoi ou de la rediffusion qui a porté l'OS, aussi pour une réception par courrier AR sans
@@ -1410,6 +1467,8 @@ export type CodeAnomalieEnvoiOs =
   | 'delegation_cs_absente'
   | 'majorite_resolution_non_renseignee'
   | 'delai_contestation_inconnu'
+  | 'aucune_contestation_ouverte'
+  | 'delai_contestation_a_confirmer'
   | 'execution_suspendue_art42'
   | 'devis_caduc'
   | 'devis_trop_ancien'
@@ -1468,10 +1527,14 @@ export interface ContexteEnvoiOs extends OptionsVisa {
   /** N° des autres demandes du mandat (doublons) ; absent : non contrôlé. */
   numerosDuMandat?: readonly Pick<Demande, 'id' | 'numero'>[]
   /**
-   * Fin du délai de contestation de l'assemblée dont la résolution est exécutée (échéance retenue par finDelaiContestationAg,
-   * statut-assemblee.ts) ; null ou absent : non calculée.
+   * Fin du délai de contestation calculée pour chaque opposant ou défaillant (finDelaiContestationAgParDestinataire,
+   * statut-assemblee.ts ; J50) : la date comparée est la plus tardive, report au jour ouvrable compris
+   * (echeanceLaPlusTardive) ; non calculée, le motif et la cause disent comment lever le blocage (J51) ; sans opposant ni
+   * défaillant, pas de blocage ; calculée mais à confirmer, une alerte (delai_contestation_a_confirmer). Absent : fin
+   * inconnue, OS bloqué (J51). C'est la SEULE entrée : la date seule (ancienne clé finDelaiContestationAg, qui pouvait être
+   * une fin minimale ou sans report) est refusée depuis la relecture du 14/11/2026.
    */
-  finDelaiContestationAg?: string | null
+  delaiContestationAg?: ResultatDelaiContestationAg
 }
 
 type Gravite = AnomalieEnvoiOs['gravite']
@@ -1943,10 +2006,70 @@ function envoiPendantLeDelai(date: string, prevuLe: string | null, fin: string):
   }
 }
 
+/** Preuve d'une notification du procès-verbal, selon le mode (D. 1967 art. 64, 64-1 ; J1, J50). */
+const PREUVE_NOTIFICATION_PV =
+  "(date de première présentation de la LRAR, D. 1967 art. 64-1 ; date de transmission de l'avis électronique, art. 64)"
+
+/** Ce qui lève le blocage d'une fin du délai inconnue, selon la cause (J51 : « saisir la notification ou sa preuve »). */
+const ACTION_FIN_DELAI_INCONNUE: Readonly<Record<CauseDelaiNonCalcule | 'pv_non_notifie' | 'fin_non_fournie', string>> = {
+  fin_non_fournie: `saisir la notification du procès-verbal à chaque opposant ou défaillant et sa preuve ${PREUVE_NOTIFICATION_PV}, pour que la fin du délai soit calculée`,
+  pv_non_notifie: `notifier le procès-verbal à chaque opposant ou défaillant (L. 1965 art. 42, al. 2 ; D. 1967 art. 18), puis saisir sa preuve ${PREUVE_NOTIFICATION_PV}`,
+  statuts_incomplets:
+    "compléter l'historique des statuts de l'assemblée (statut « Notifiée » à enregistrer à la date de la notification s'il manque ; étape sautée : motif obligatoire, décision J2)",
+  notification_absente: 'rattacher à chaque opposant ou défaillant le courrier qui lui notifie le procès-verbal (D. 1967 art. 18), ou le lui notifier',
+  courrier_introuvable: 'rattacher le bon courrier de notification',
+  destinataire_different: 'rattacher le courrier adressé à ce copropriétaire',
+  destinataire_non_renseigne:
+    'renseigner le destinataire du courrier de notification, ou rattacher à chaque opposant ou défaillant le courrier qui lui est adressé (D. 1967 art. 18)',
+  // relecture du 14/11/2026 (tour 2, sonde N1-OS) : courrier d'une autre assemblée, ou envoyé avant la signature du PV
+  courrier_anterieur_au_pv:
+    'rattacher à ce copropriétaire le courrier qui lui notifie le procès-verbal de cette assemblée, envoyé une fois ce procès-verbal signé (L. 1965 art. 42, al. 2 ; D. 1967 art. 17, al. 1), ou le lui notifier',
+  envoi_non_qualifie:
+    "notifier de nouveau par lettre recommandée électronique ou procédé d'un prestataire qualifié (D. 1967 art. 64), ou par lettre recommandée avec avis de réception sur demande de voie postale (art. 64-1)",
+  // relecture du 14/11/2026 : les art. 64-5 à 64-9 ne visent que le prestataire qualifié ; pour la LRE, CPCE art. R. 53-3, I
+  preuve_a_saisir:
+    "saisir la preuve de la notification : date de première présentation de la LRAR (D. 1967 art. 64-1, al. 2), ou date de transmission de l'avis électronique (art. 64, dernier al.), lue sur le justificatif de transmission du prestataire qualifié (art. 64-5) ou, pour une LRE, sur l'information du destinataire (CPCE art. R. 53-3, I ; lecture à confirmer), jamais antérieure au dépôt",
+  voie_postale_demandee:
+    'notifier de nouveau par lettre recommandée avec avis de réception le copropriétaire qui a demandé la voie postale (D. 1967 art. 64-1, 64-4)',
+  accord_electronique_absent: "saisir l'accord exprès du copropriétaire à la voie électronique s'il existe, sinon le notifier de nouveau (D. 1967 art. 64)",
+  opposants_non_saisis: "saisir le nombre d'opposants et de défaillants de la résolution (D. 1967 art. 18)",
+}
+
+type FinDelaiLue =
+  | { etat: 'connue'; fin: string; aConfirmer: string | null; avertissements: readonly string[] }
+  | { etat: 'sans_contestation' }
+  | { etat: 'inconnue'; motif: string; action: string }
+
+/**
+ * Fin du délai de contestation telle que le contrôle la lit (J51) : le résultat du calcul par opposant ou défaillant
+ * (fin la plus tardive, report compris, avec ses marques « à confirmer » et ses avertissements) ; inconnue, avec son motif
+ * et ce qui lève le blocage.
+ */
+function lireFinDelaiContestation(contexte: ContexteEnvoiOs): FinDelaiLue {
+  const calcul = contexte.delaiContestationAg
+  if (calcul === undefined)
+    return { etat: 'inconnue', motif: "Aucune fin du délai fournie au contrôle de l'envoi.", action: ACTION_FIN_DELAI_INCONNUE.fin_non_fournie }
+  if (calcul.etat === 'calcule')
+    return { etat: 'connue', fin: calcul.echeanceLaPlusTardive, aConfirmer: calcul.aConfirmer, avertissements: calcul.avertissements }
+  if (calcul.etat === 'sans_contestation') return { etat: 'sans_contestation' }
+  if (calcul.etat === 'non_notifiee')
+    return {
+      etat: 'inconnue',
+      motif: "Procès-verbal non notifié aux opposants et défaillants : le délai de l'art. 42, al. 2 n'a pas couru.",
+      action: ACTION_FIN_DELAI_INCONNUE.pv_non_notifie,
+    }
+  return { etat: 'inconnue', motif: calcul.motif, action: ACTION_FIN_DELAI_INCONNUE[calcul.cause] }
+}
+
+const phrase = (texte: string): string => (/[.!?]$/.test(texte.trim()) ? texte.trim() : `${texte.trim()}.`)
+
+/** Fondement de l'alerte « fin calculée, à confirmer » : point de départ électronique ou postal du délai (J50). */
+const FONDEMENT_FIN_A_CONFIRMER = 'L. 1965 art. 42, al. 2 ; D. 1967 art. 64, dernier al., 64-1'
+
 /**
  * Suspension de l'exécution des travaux votés aux art. 25 et 26 pendant le délai de contestation, sauf urgence (J17) :
  * l'envoi de l'OS pendant le délai est bloqué, même pour une intervention prévue après lui (J48, 🔵 interprétation
- * protectrice, à confirmer : aConfirmer).
+ * protectrice, à confirmer : aConfirmer) ; fin du délai inconnue : bloqué aussi (J51), sauf sans opposant ni défaillant.
  */
 function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: ContexteEnvoiOs): AnomalieEnvoiOs[] {
   if (s.majoriteResolution === null)
@@ -1961,19 +2084,43 @@ function anomaliesSuspensionArt42(d: Demande, s: SortieOrdreService, contexte: C
     ]
   const article = MAJORITES_SUSPENSIVES.get(s.majoriteResolution)
   if (article === undefined || urgenceConstatee(s)) return []
-  const fin = contexte.finDelaiContestationAg ?? null
-  if (fin === null)
+  const lue = lireFinDelaiContestation(contexte)
+  if (lue.etat === 'sans_contestation')
+    return [
+      anomalie(
+        'aucune_contestation_ouverte',
+        'alerte',
+        `Résolution votée à la majorité de l'${article} : aucun opposant ni défaillant (nombre saisi), aucune contestation n'est ouverte : pas de délai de contestation à attendre avant l'OS (L. 1965 art. 42, al. 2 et 3 ; D. 1967 art. 18 ; interprétation à confirmer).`,
+        'L. 1965 art. 42, al. 2 ; D. 1967 art. 18',
+        true,
+      ),
+    ]
+  if (lue.etat === 'inconnue')
     return [
       anomalie(
         'delai_contestation_inconnu',
-        'alerte',
-        `Résolution votée à la majorité de l'${article} : fin du délai de contestation non calculée. Vérifier que l'envoi de l'OS et l'intervention prévue tombent tous deux après la fin du délai : sauf urgence constatée par l'administrateur provisoire, l'OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.`,
+        'bloquant',
+        `Résolution votée à la majorité de l'${article} : fin du délai de contestation inconnue, l'OS ne part pas. ${phrase(lue.motif)} Sauf urgence, l'exécution des travaux reste suspendue jusqu'à l'expiration du délai (${FONDEMENT_SUSPENSION}) : tant que sa fin n'est pas établie, rien ne montre qu'il a expiré. Pour lever le blocage : ${lue.action}, puis envoyer l'OS à partir du lendemain de la fin du délai ; ou faire constater l'urgence par l'administrateur provisoire.`,
         FONDEMENT_SUSPENSION,
         true,
       ),
     ]
+  const fin = lue.fin
   const fait = faitPendantLeDelai(d, contexte.date, fin)
-  if (fait === null) return []
+  if (fait === null) {
+    // relecture du 14/11/2026 : la fin passée laisse partir l'OS, mais ses marques « à confirmer » restent visibles (J50)
+    const points = [...(lue.aConfirmer === null ? [] : [lue.aConfirmer]), ...lue.avertissements]
+    if (points.length === 0) return []
+    return [
+      anomalie(
+        'delai_contestation_a_confirmer',
+        'alerte',
+        `Résolution votée à la majorité de l'${article} : fin du délai de contestation calculée (${fr(fin)} inclus) et passée, l'OS peut partir, mais ce calcul reste à confirmer : ${points.map(phrase).join(' ')}`,
+        FONDEMENT_FIN_A_CONFIRMER,
+        true,
+      ),
+    ]
+  }
   return [
     anomalie(
       'execution_suspendue_art42',
@@ -2135,7 +2282,13 @@ export function controlerAvantEnvoiOs(d: Demande, s: SortieOrdreService, context
   if (!estDateIsoValide(contexte.date)) throw new Error(`Date de l'envoi invalide (${contexte.date}) : AAAA-MM-JJ attendu.`)
   verifierDate('Fin de validité du devis associé', contexte.validiteDevisAu)
   verifierDate('Date du devis associé', contexte.dateDevis)
-  verifierDate('Fin du délai de contestation', contexte.finDelaiContestationAg)
+  // relecture du 14/11/2026 : la date seule laissait partir l'OS pendant le délai (fin minimale ou sans report) ; refusée
+  if ('finDelaiContestationAg' in contexte)
+    throw new Error(
+      "Fin du délai de contestation : la date seule (finDelaiContestationAg) n'est plus admise, elle pouvait être une fin minimale ou sans report (relecture du 14/11/2026) ; fournir delaiContestationAg, résultat de finDelaiContestationAgParDestinataire (un délai par opposant ou défaillant, D. 1967 art. 18).",
+    )
+  if (contexte.delaiContestationAg?.etat === 'calcule')
+    verifierDate('Fin du délai de contestation (la plus tardive)', contexte.delaiContestationAg.echeanceLaPlusTardive)
   const motifs = motifsVisa(d, s, contexte)
   return [
     ...anomaliesDemande(d, s.canal, contexte),

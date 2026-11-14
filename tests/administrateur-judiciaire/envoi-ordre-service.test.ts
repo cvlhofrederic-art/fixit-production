@@ -74,6 +74,13 @@ import {
 } from '@/lib/administrateur-judiciaire/domain/envoi-ordre-service'
 import { creerRattachement } from '@/lib/administrateur-judiciaire/domain/fiches-liees'
 import type { RoleCabinet } from '@/lib/administrateur-judiciaire/domain/roles-cabinet'
+import {
+  finDelaiContestationAgParDestinataire,
+  type CourrierNotification,
+  type LigneHistoriqueComplete,
+  type ResultatDelaiContestationAg,
+} from '@/lib/administrateur-judiciaire/domain/statut-assemblee'
+import { creerDemandeVoiePostale } from '@/lib/administrateur-judiciaire/domain/voie-notification'
 import type { PiecesEntreprise } from '@/lib/administrateur-judiciaire/domain/vigilance-entreprises'
 import { FORME_ENVOI_COURRIER } from '@/lib/data/referentiels-gesteam-judiciaire'
 import { ajOrdrePrestataireSchema } from '@/lib/validation'
@@ -141,6 +148,22 @@ const CONTEXTE: ContexteEnvoiOs = {
 
 /** Contexte d'un OS qui accepte un devis associé daté de moins d'un an (décision J47 : date du devis connue). */
 const CONTEXTE_DEVIS: ContexteEnvoiOs = { ...CONTEXTE, dateDevis: '2026-09-15' }
+
+/**
+ * Fin du délai de contestation connue (J17 à J51) : résultat « calcule » de finDelaiContestationAgParDestinataire, sans
+ * marque à confirmer. La date seule (ancienne entrée finDelaiContestationAg) n'est plus admise depuis la relecture du
+ * 14/11/2026.
+ */
+const finConnue = (fin: string): ResultatDelaiContestationAg => ({
+  etat: 'calcule',
+  echeanceRetenue: fin,
+  echeanceLaPlusTardive: fin,
+  dernierDestinataire: 'id-1',
+  destinataires: [],
+  justification: `Fin du délai du seul opposant ou défaillant : le ${fin}.`,
+  avertissements: [],
+  aConfirmer: null,
+})
 
 const evenement = (collaborateurId: string, role: RoleCabinet, heure: string, motif?: string): SaisieEvenementVisa => ({
   date: '2026-10-02',
@@ -721,7 +744,7 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     const d = demande()
     const resolution = (saisie: SaisieSortieOs = {}) =>
       sortie(d, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25', ...saisie })
-    const pendant = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+    const pendant = { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) }
     const suspendu = controlerAvantEnvoiOs(d, resolution(), pendant)
     expect(bloquants(suspendu)).toEqual(['execution_suspendue_art42'])
     expect(suspendu[0].fondement).toMatch(/L\. 1965 art\. 42, al\. 3/)
@@ -730,8 +753,8 @@ describe('retours de relecture du point 44 (tour 1)', () => {
     const sansDate = demande({ prevuLe: null })
     expect(bloquants(controlerAvantEnvoiOs(sansDate, creerSortieOs(sansDate, { ...PRETE, fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', majoriteResolution: 'art25' }), pendant))).toEqual(['execution_suspendue_art42'])
     // délai expiré avant l'envoi du 03/10 (intervention prévue le 15/10) : rien (J48 : l'envoi pendant le délai est bloqué)
-    expect(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: composerDateIso(2026, 10, 2) })).toEqual([])
-    expect(bloquants(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, finDelaiContestationAg: composerDateIso(2026, 10, 14) }))).toEqual(['execution_suspendue_art42'])
+    expect(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 10, 2)) })).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(d, resolution(), { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 10, 14)) }))).toEqual(['execution_suspendue_art42'])
     expect(controlerAvantEnvoiOs(d, resolution({ majoriteResolution: 'art24' }), pendant)).toEqual([])
     expect(bloquants(controlerAvantEnvoiOs(d, resolution({ delai: 'urgence', constatUrgence: { ...CONSTAT, motif: 'Infiltrations actives' } }), pendant))).toEqual([])
     expect(codes(controlerAvantEnvoiOs(d, resolution(), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
@@ -1333,7 +1356,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', (
 
   it('exécution d’une résolution (L. 1965 art. 42, al. 3 ; J46 : seule la borne de l’envoi vaut) et autres fondements : la date du constat n’est pas comparée à la décision', () => {
     const d = demande()
-    const pendant = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+    const pendant = { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) }
     // constat du jour de l'envoi, trois semaines après la résolution du 12/09/2026 (tour 2 : un constat postérieur à l'envoi
     // est, lui, bloquant pour tous les fondements)
     const resolution = sortie(d, {
@@ -1365,7 +1388,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 1)', (
     expect(avis).not.toMatch(/art\. 42/)
     // résolution votée à l'art. 25 : la suspension ; à l'art. 24 : rien
     const resolution: SaisieSortieOs = { fondement: 'execution_resolution_ag', fondementReference: 'résolution 7', delai: 'urgence', majoriteResolution: 'art25' }
-    const suspension = message(d, resolution, 'urgence_non_constatee', { ...CONTEXTE, finDelaiContestationAg: '2026-10-01' })
+    const suspension = message(d, resolution, 'urgence_non_constatee', { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 10, 1)) })
     expect(suspension).toMatch(/majorité de l'art\. 25 reste suspendue pendant le délai de contestation \(L\. 1965 art\. 42, al\. 3\)/)
     expect(suspension).not.toMatch(/conseil syndical/)
     expect(message(d, { ...resolution, majoriteResolution: 'art24' }, 'urgence_non_constatee')).toMatch(/n'est pas retenue\.$/)
@@ -1443,7 +1466,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', (
   const le = (constateLe: string): ConstatUrgence => ({ ...CONSTAT, constateLe })
   const resume = (liste: readonly { code: string; gravite: string }[]) => liste.map((a) => [a.code, a.gravite])
   const dues = (d: Demande, s: SortieOrdreService) => relancesOsDues([{ demande: d, sortie: s }])
-  const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+  const pendant: ContexteEnvoiOs = { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) }
   /** Exécution d'une résolution votée à l'art. 25, intervention le 15/10/2026 pendant le délai de contestation. */
   const resolution = (constatUrgence: ConstatUrgence | null): SaisieSortieOs => ({
     fondement: 'execution_resolution_ag',
@@ -1550,7 +1573,7 @@ describe('retours de relecture des décisions de Hugo du 03/11/2026 (tour 2)', (
 })
 
 describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19)', () => {
-  const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: '2026-11-20' }
+  const pendant: ContexteEnvoiOs = { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) }
 
   it('7 (J17). L. 1965 art. 42, al. 3, « oui » compris comme la confirmation des trois choix : envoi bloqué pendant le délai, intervention = travaux, unanimité non suspendue (précisé par J48 : l’envoi pendant le délai suffit à bloquer)', () => {
     const d = demande()
@@ -1570,7 +1593,7 @@ describe('décisions de Hugo du 03/11/2026 (suite : questions 7 à 9, J17 à J19
     const diagnostic = demande({ objet: 'Diagnostic amiante avant travaux' })
     expect(bloquants(controlerAvantEnvoiOs(diagnostic, resolution('art25', diagnostic), pendant))).toEqual(['execution_suspendue_art42'])
     const devis = demande({ numero: '12.3.9' }, DEVIS)
-    expect(controlerAvantEnvoiOs(devis, resolution('art25', devis), { date: '2026-10-03', prestataireAvecCompteVitfix: true, finDelaiContestationAg: '2026-11-20' })).toEqual([])
+    expect(controlerAvantEnvoiOs(devis, resolution('art25', devis), { date: composerDateIso(2026, 10, 3), prestataireAvecCompteVitfix: true, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) })).toEqual([])
     // (c) unanimité (et art. 24) : pas de suspension
     expect(controlerAvantEnvoiOs(d, resolution('unanimite'), pendant)).toEqual([])
     expect(controlerAvantEnvoiOs(d, resolution('art24'), pendant)).toEqual([])
@@ -1794,7 +1817,7 @@ describe('retours de relecture des décisions 7 à 9 (J17 à J19)', () => {
   })
 
   it('7 (J17), (a), précisée par J48 : un envoi pendant le délai de contestation pour une intervention prévue après le délai est bloqué', () => {
-    const pendant: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: composerDateIso(2026, 11, 20) }
+    const pendant: ContexteEnvoiOs = { ...CONTEXTE, delaiContestationAg: finConnue(composerDateIso(2026, 11, 20)) }
     const apres = demande({ prevuLe: composerDateIso(2026, 11, 25) })
     const resolution = sortie(apres, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25' })
     expect(bloquants(controlerAvantEnvoiOs(apres, resolution, pendant))).toEqual(['execution_suspendue_art42'])
@@ -1817,7 +1840,7 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
   /** Fin du délai de contestation : le 20/11/2026 ; intervention prévue après lui, le 25/11/2026. */
   const FIN = composerDateIso(2026, 11, 20)
   const APRES_FIN = composerDateIso(2026, 11, 25)
-  const avecFin: ContexteEnvoiOs = { ...CONTEXTE, finDelaiContestationAg: FIN }
+  const avecFin: ContexteEnvoiOs = { ...CONTEXTE, delaiContestationAg: finConnue(FIN) }
   const resolution = (d: Demande, saisie: SaisieSortieOs = {}) =>
     sortie(d, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25', ...saisie })
   const envoiLe = (date: string): ContexteEnvoiOs => ({ ...avecFin, date })
@@ -1890,13 +1913,12 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
     expect(suspendu.message).toMatch(/sauf urgence constatée par l'administrateur provisoire ; intervention prévue le 15\/11\/2026, pendant le délai\.$/)
   })
 
-  it('alertes (fin du délai ou majorité inconnues) : elles disent que l’envoi de l’OS lui-même ne part pas pendant le délai, même pour une intervention prévue après lui', () => {
+  it('majorité inconnue : alerte qui dit que l’envoi de l’OS lui-même ne part pas pendant le délai ; fin du délai inconnue : bloquant depuis J51 (11/11/2026, ci-dessous)', () => {
+    // J51 remplace l'alerte « fin du délai non calculée » de J48 par un blocage (décision de Hugo du 11/11/2026, « Oui, bloquer »)
     const [inconnu, ...autres] = controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE)
     expect(autres).toEqual([])
-    expect([inconnu.code, inconnu.gravite, inconnu.fondement, inconnu.aConfirmer]).toEqual(['delai_contestation_inconnu', 'alerte', 'L. 1965 art. 42, al. 3', true])
-    expect(inconnu.message).toBe(
-      "Résolution votée à la majorité de l'art. 25 : fin du délai de contestation non calculée. Vérifier que l'envoi de l'OS et l'intervention prévue tombent tous deux après la fin du délai : sauf urgence constatée par l'administrateur provisoire, l'OS ne part qu'à partir du lendemain de cette fin, même pour une intervention prévue après le délai.",
-    )
+    expect([inconnu.code, inconnu.gravite, inconnu.fondement, inconnu.aConfirmer]).toEqual(['delai_contestation_inconnu', 'bloquant', 'L. 1965 art. 42, al. 3', true])
+    expect(inconnu.message).toMatch(/^Résolution votée à la majorité de l'art\. 25 : fin du délai de contestation inconnue, l'OS ne part pas\./)
     const [majorite] = controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), avecFin)
     expect([majorite.code, majorite.gravite]).toEqual(['majorite_resolution_non_renseignee', 'alerte'])
     expect(majorite.message).toBe(
@@ -1910,13 +1932,237 @@ describe('décision J48 de Hugo du 10/11/2026 : l’envoi de l’OS pendant le d
     expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { delai: 'urgence' }), avecFin))).toContain('execution_suspendue_art42')
   })
 
-  it('inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée, majorité ou fin du délai inconnues en alerte', () => {
+  it('inchangés : unanimité et art. 24 non suspendus, demande de devis non contrôlée, majorité inconnue en alerte ; fin du délai inconnue : même code, bloquant depuis J51', () => {
     expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'unanimite' }), avecFin)).toEqual([])
     expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art24' }), avecFin)).toEqual([])
     const devis = demande({ numero: '12.3.9', prevuLe: APRES_FIN }, DEVIS)
-    expect(controlerAvantEnvoiOs(devis, resolution(devis), { date: CONTEXTE.date, prestataireAvecCompteVitfix: true, finDelaiContestationAg: FIN })).toEqual([])
+    expect(controlerAvantEnvoiOs(devis, resolution(devis), { date: CONTEXTE.date, prestataireAvecCompteVitfix: true, delaiContestationAg: finConnue(FIN) })).toEqual([])
     expect(codes(controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
     expect(codes(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), avecFin))).toEqual(['majorite_resolution_non_renseignee'])
+  })
+})
+
+/**
+ * Décision J51 de Hugo du 11/11/2026 (« Oui, bloquer », suite de J48) : fin du délai de contestation inconnue → OS BLOQUÉ
+ * (delai_contestation_inconnu, bloquant, à confirmer) au lieu d'une alerte, sauf urgence constatée (décision 6, J46) ; pas
+ * de blocage sans opposant ni défaillant ; le message dit pourquoi la fin manque et comment lever le blocage. La date
+ * comparée est la fin la plus tardive, report au jour ouvrable compris (finDelaiContestationAgParDestinataire, J50). Les
+ * deux contournements relevés (majorité vide, fondement vide) restent en alerte : question ouverte à Hugo.
+ */
+describe('décision J51 de Hugo du 11/11/2026 : fin du délai de contestation inconnue, OS bloqué sauf urgence constatée', () => {
+  const APRES_FIN = composerDateIso(2026, 11, 25)
+  const resolution = (dm: Demande, saisie: SaisieSortieOs = {}) =>
+    sortie(dm, { fondement: 'execution_resolution_ag', fondementReference: 'AG du 12/09/2026, résolution 7', majoriteResolution: 'art25', ...saisie })
+  const apres = demande({ prevuLe: APRES_FIN })
+  const avec = (delaiContestationAg: ResultatDelaiContestationAg, date = CONTEXTE.date): ContexteEnvoiOs => ({ ...CONTEXTE, date, delaiContestationAg })
+  const SUSPENSION =
+    "Sauf urgence, l'exécution des travaux reste suspendue jusqu'à l'expiration du délai (L. 1965 art. 42, al. 3) : tant que sa fin n'est pas établie, rien ne montre qu'il a expiré."
+  const SUITE = ", puis envoyer l'OS à partir du lendemain de la fin du délai ; ou faire constater l'urgence par l'administrateur provisoire."
+
+  it('aucune fin fournie : bloquant, à confirmer, fondé sur L. 1965 art. 42, al. 3 ; le message dit quoi saisir ; l’OS n’est pas envoyé', () => {
+    const [inconnu, ...autres] = controlerAvantEnvoiOs(apres, resolution(apres), CONTEXTE)
+    expect(autres).toEqual([])
+    expect([inconnu.code, inconnu.gravite, inconnu.fondement, inconnu.aConfirmer]).toEqual(['delai_contestation_inconnu', 'bloquant', 'L. 1965 art. 42, al. 3', true])
+    expect(inconnu.message).toBe(
+      `Résolution votée à la majorité de l'art. 25 : fin du délai de contestation inconnue, l'OS ne part pas. Aucune fin du délai fournie au contrôle de l'envoi. ${SUSPENSION} Pour lever le blocage : saisir la notification du procès-verbal à chaque opposant ou défaillant et sa preuve (date de première présentation de la LRAR, D. 1967 art. 64-1 ; date de transmission de l'avis électronique, art. 64), pour que la fin du délai soit calculée${SUITE}`,
+    )
+    expect(() => envoyerOs(apres, resolution(apres), ENVOI, CONTEXTE)).toThrow(/non envoyé : Résolution votée à la majorité de l'art\. 25 : fin du délai de contestation inconnue/)
+    expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art26' }), CONTEXTE))).toEqual(['delai_contestation_inconnu'])
+  })
+
+  it('le message dit pourquoi la fin manque (motif du calcul) et comment lever le blocage, selon la cause', () => {
+    const message = (r: ResultatDelaiContestationAg) => {
+      const [inconnu] = controlerAvantEnvoiOs(apres, resolution(apres), avec(r))
+      expect([inconnu.code, inconnu.gravite]).toEqual(['delai_contestation_inconnu', 'bloquant'])
+      return inconnu.message
+    }
+    expect(message({ etat: 'non_notifiee' })).toBe(
+      `Résolution votée à la majorité de l'art. 25 : fin du délai de contestation inconnue, l'OS ne part pas. Procès-verbal non notifié aux opposants et défaillants : le délai de l'art. 42, al. 2 n'a pas couru. ${SUSPENSION} Pour lever le blocage : notifier le procès-verbal à chaque opposant ou défaillant (L. 1965 art. 42, al. 2 ; D. 1967 art. 18), puis saisir sa preuve (date de première présentation de la LRAR, D. 1967 art. 64-1 ; date de transmission de l'avis électronique, art. 64)${SUITE}`,
+    )
+    const refus = (cause: Extract<ResultatDelaiContestationAg, { etat: 'refuse' }>['cause']) =>
+      message({ etat: 'refuse', cause, motif: 'Délai non calculé. Motif du calcul.', destinataires: [] })
+    expect(refus('preuve_a_saisir')).toContain(
+      "l'OS ne part pas. Délai non calculé. Motif du calcul. Sauf urgence, l'exécution des travaux reste suspendue",
+    )
+    // relecture du 14/11/2026 : un fondement par mode (art. 64-5 pour le seul prestataire qualifié ; CPCE art. R. 53-3, I pour la LRE)
+    expect(refus('preuve_a_saisir')).toContain(
+      "Pour lever le blocage : saisir la preuve de la notification : date de première présentation de la LRAR (D. 1967 art. 64-1, al. 2), ou date de transmission de l'avis électronique (art. 64, dernier al.), lue sur le justificatif de transmission du prestataire qualifié (art. 64-5) ou, pour une LRE, sur l'information du destinataire (CPCE art. R. 53-3, I ; lecture à confirmer), jamais antérieure au dépôt, puis envoyer l'OS",
+    )
+    expect(refus('voie_postale_demandee')).toContain(
+      'Pour lever le blocage : notifier de nouveau par lettre recommandée avec avis de réception le copropriétaire qui a demandé la voie postale (D. 1967 art. 64-1, 64-4), puis',
+    )
+    expect(refus('opposants_non_saisis')).toContain("Pour lever le blocage : saisir le nombre d'opposants et de défaillants de la résolution (D. 1967 art. 18), puis")
+    // relecture du 14/11/2026 (sonde S4) : le statut « Notifiée » manquant se complète, sans notifier de nouveau
+    expect(refus('statuts_incomplets')).toContain(
+      "Pour lever le blocage : compléter l'historique des statuts de l'assemblée (statut « Notifiée » à enregistrer à la date de la notification s'il manque ; étape sautée : motif obligatoire, décision J2), puis",
+    )
+    expect(refus('destinataire_non_renseigne')).toContain(
+      'Pour lever le blocage : renseigner le destinataire du courrier de notification, ou rattacher à chaque opposant ou défaillant le courrier qui lui est adressé (D. 1967 art. 18), puis',
+    )
+    expect(refus('envoi_non_qualifie')).toContain("lettre recommandée électronique ou procédé d'un prestataire qualifié (D. 1967 art. 64)")
+    expect(refus('accord_electronique_absent')).toContain("saisir l'accord exprès du copropriétaire à la voie électronique s'il existe")
+    expect(refus('notification_absente')).toContain('rattacher à chaque opposant ou défaillant le courrier qui lui notifie le procès-verbal (D. 1967 art. 18)')
+    expect(refus('courrier_introuvable')).toContain('rattacher le bon courrier de notification')
+    expect(refus('destinataire_different')).toContain('rattacher le courrier adressé à ce copropriétaire')
+    // relecture du 14/11/2026 (tour 2) : courrier antérieur au procès-verbal
+    expect(refus('courrier_anterieur_au_pv')).toContain(
+      'Pour lever le blocage : rattacher à ce copropriétaire le courrier qui lui notifie le procès-verbal de cette assemblée, envoyé une fois ce procès-verbal signé (L. 1965 art. 42, al. 2 ; D. 1967 art. 17, al. 1), ou le lui notifier, puis',
+    )
+  })
+
+  it('relecture du 14/11/2026 (tour 2, sonde N1-OS) : un courrier antérieur à la signature du PV ne fait pas courir le délai : l’OS reste bloqué', () => {
+    // AG du 12/09/2026 (PV signé le 12/09, notifiée le 20/09) ; l'opposant id-1 est rattaché à la LRAR de l'AG 2025
+    const historique: LigneHistoriqueComplete[] = [
+      { entiteType: 'ag', entiteId: 'ag-1', statutAncien: 'Projet', statutNouveau: 'Convoquée', dateEffet: composerDateIso(2026, 8, 20), courrierId: null },
+      { entiteType: 'ag', entiteId: 'ag-1', statutAncien: 'Convoquée', statutNouveau: 'PV signé', dateEffet: composerDateIso(2026, 9, 12), courrierId: null },
+      { entiteType: 'ag', entiteId: 'ag-1', statutAncien: 'PV signé', statutNouveau: 'Notifiée', dateEffet: composerDateIso(2026, 9, 20), courrierId: 'k-old' },
+    ]
+    const ancienne: CourrierNotification = {
+      id: 'k-old',
+      formeEnvoi: 'AR',
+      modeNotification: 'lrar',
+      personneId: 'id-1',
+      dateDepot: composerDateIso(2025, 9, 15),
+      datePremierePresentation: composerDateIso(2025, 9, 17),
+      dateAccuseReception: null,
+    }
+    const delai = finDelaiContestationAgParDestinataire(historique, [ancienne], 'ag-1', {
+      opposantsOuDefaillants: 1,
+      notifications: [{ identiteId: 'id-1', courrierId: 'k-old' }],
+      voie: { demandesVoiePostale: [creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: composerDateIso(2024, 1, 10), origine: 'courrier' })] },
+    })
+    expect(delai).toMatchObject({ etat: 'refuse', cause: 'courrier_anterieur_au_pv' })
+    // OS du 03/10/2026 : bloqué (avant : aucune anomalie, fin « connue » le 18/11/2025)
+    const [inconnu, ...autres] = controlerAvantEnvoiOs(apres, resolution(apres), avec(delai))
+    expect(autres).toEqual([])
+    expect([inconnu.code, inconnu.gravite]).toEqual(['delai_contestation_inconnu', 'bloquant'])
+    expect(inconnu.message).toContain('Identité id-1 : Le courrier rattaché (id=k-old) date du 15/09/2025 (dépôt), avant la signature du procès-verbal (12/09/2026)')
+    expect(inconnu.message).toContain('Pour lever le blocage : rattacher à ce copropriétaire le courrier qui lui notifie le procès-verbal de cette assemblée')
+    expect(() => envoyerOs(apres, resolution(apres), ENVOI, avec(delai))).toThrow(/fin du délai de contestation inconnue/)
+  })
+
+  /**
+   * Délai de deux opposants ou défaillants (J50) :
+   * id-1 : LRAR présentée le dimanche 02/08/2026 → échéance le samedi 03/10/2026, lundi 05/10/2026 avec le report ;
+   * id-2 : prestataire qualifié, avis le samedi 01/08/2026 → échéance le vendredi 02/10/2026 (variante électronique à confirmer).
+   * `demandeId1` : id-1 a demandé la voie postale (sinon, avertissement « LRAR sans demande »).
+   */
+  const delaiDeuxOpposants = (demandeId1 = true): ResultatDelaiContestationAg => {
+    const historique: LigneHistoriqueComplete[] = [
+      { entiteType: 'ag', entiteId: 'ag-1', statutAncien: 'Projet', statutNouveau: 'Convoquée', dateEffet: composerDateIso(2026, 7, 1), courrierId: null },
+      { entiteType: 'ag', entiteId: 'ag-1', statutAncien: 'Convoquée', statutNouveau: 'PV signé', dateEffet: composerDateIso(2026, 7, 20), courrierId: null },
+      { entiteType: 'ag', entiteId: 'ag-1', statutAncien: 'PV signé', statutNouveau: 'Notifiée', dateEffet: composerDateIso(2026, 8, 2), courrierId: 'k-1' },
+    ]
+    const courriers: CourrierNotification[] = [
+      { id: 'k-1', formeEnvoi: 'AR', personneId: 'id-1', dateDepot: composerDateIso(2026, 7, 31), datePremierePresentation: composerDateIso(2026, 8, 2), dateAccuseReception: null },
+      {
+        id: 'k-2',
+        formeEnvoi: 'Fichier',
+        modeNotification: 'prestataire_qualifie',
+        personneId: 'id-2',
+        dateDepot: composerDateIso(2026, 8, 1),
+        dateAvisElectronique: composerDateIso(2026, 8, 1),
+        dateAccuseReception: null,
+      },
+    ]
+    return finDelaiContestationAgParDestinataire(historique, courriers, 'ag-1', {
+      opposantsOuDefaillants: 2,
+      notifications: [
+        { identiteId: 'id-1', courrierId: 'k-1' },
+        { identiteId: 'id-2', courrierId: 'k-2' },
+      ],
+      voie: demandeId1
+        ? { demandesVoiePostale: [creerDemandeVoiePostale({ identiteId: 'id-1', recueLe: composerDateIso(2026, 6, 1), origine: 'courrier' })] }
+        : {},
+    })
+  }
+
+  it('fin calculée par opposant ou défaillant : la date comparée est la plus tardive, report au jour ouvrable compris (J50)', () => {
+    const delai = delaiDeuxOpposants()
+    expect(delai).toMatchObject({ etat: 'calcule', echeanceRetenue: composerDateIso(2026, 10, 3), echeanceLaPlusTardive: composerDateIso(2026, 10, 5) })
+    // envoi le dimanche 04/10 : passé la fin retenue (03/10), mais pas la plus tardive (05/10) → bloqué
+    const dimanche = composerDateIso(2026, 10, 4)
+    const [suspendu, ...autres] = controlerAvantEnvoiOs(demande(), resolution(demande()), avec(delai, dimanche))
+    expect([suspendu.code, suspendu.gravite]).toEqual(['execution_suspendue_art42', 'bloquant'])
+    expect(suspendu.message).toContain("jusqu'à la fin du délai de contestation (05/10/2026 inclus)")
+    // pendant le délai, le blocage seul : pas d'alerte « à confirmer » en plus
+    expect(autres).toEqual([])
+    // le lendemain de la fin la plus tardive, l'OS part (avec l'alerte « à confirmer » : relecture du 14/11/2026, ci-dessous)
+    expect(bloquants(controlerAvantEnvoiOs(demande(), resolution(demande()), avec(delai, composerDateIso(2026, 10, 6))))).toEqual([])
+  })
+
+  it('relecture du 14/11/2026 : la date seule (finDelaiContestationAg) n’est plus admise, elle laissait partir l’OS pendant le délai (fin minimale, sans report)', () => {
+    // avec la seule date retenue (03/10), l'OS du dimanche 04/10 serait parti, alors que la fin la plus tardive est le 05/10
+    const dateSeule = { ...CONTEXTE, date: composerDateIso(2026, 10, 4), finDelaiContestationAg: composerDateIso(2026, 10, 3) } as unknown as ContexteEnvoiOs
+    expect(() => controlerAvantEnvoiOs(demande(), resolution(demande()), dateSeule)).toThrow(
+      "Fin du délai de contestation : la date seule (finDelaiContestationAg) n'est plus admise, elle pouvait être une fin minimale ou sans report (relecture du 14/11/2026) ; fournir delaiContestationAg, résultat de finDelaiContestationAgParDestinataire (un délai par opposant ou défaillant, D. 1967 art. 18).",
+    )
+    expect(() => envoyerOs(demande(), resolution(demande()), ENVOI, dateSeule)).toThrow(/n'est plus admise/)
+    // même vide, la clé est refusée : la route doit passer au résultat du calcul
+    expect(() => controlerAvantEnvoiOs(apres, resolution(apres), { ...CONTEXTE, finDelaiContestationAg: null } as unknown as ContexteEnvoiOs)).toThrow(/n'est plus admise/)
+  })
+
+  it('relecture du 14/11/2026 : fin calculée et passée, mais à confirmer (variante électronique, avertissements) : l’OS part, avec une alerte qui reprend ces points', () => {
+    const lendemain = avec(delaiDeuxOpposants(), composerDateIso(2026, 10, 6))
+    const [alerte, ...autres] = controlerAvantEnvoiOs(demande(), resolution(demande()), lendemain)
+    expect(autres).toEqual([])
+    expect([alerte.code, alerte.gravite, alerte.fondement, alerte.aConfirmer]).toEqual([
+      'delai_contestation_a_confirmer',
+      'alerte',
+      'L. 1965 art. 42, al. 2 ; D. 1967 art. 64, dernier al., 64-1',
+      true,
+    ])
+    expect(alerte.message).toBe(
+      "Résolution votée à la majorité de l'art. 25 : fin du délai de contestation calculée (05/10/2026 inclus) et passée, l'OS peut partir, mais ce calcul reste à confirmer : Variante électronique (J50) à confirmer : aucune jurisprudence sur la notification électronique du procès-verbal.",
+    )
+    expect(envoyerOs(demande(), resolution(demande()), { ...ENVOI, date: composerDateIso(2026, 10, 6) }, lendemain).journal).toHaveLength(1)
+    // avertissements du calcul repris, préfixés par l'identité (LRAR de id-1 sans demande de voie postale)
+    const [sansDemande] = controlerAvantEnvoiOs(demande(), resolution(demande()), avec(delaiDeuxOpposants(false), composerDateIso(2026, 10, 6)))
+    expect(sansDemande.code).toBe('delai_contestation_a_confirmer')
+    expect(sansDemande.message).toContain(
+      ' Identité id-1 : LRAR sans demande de voie postale enregistrée : délai calculé, validité à confirmer (L. 1965 art. 42-1 ; D. 1967 art. 64-1 ; lecture du GRECCO, préconisation n° 19, source secondaire).',
+    )
+    // fin calculée sans marque : rien
+    expect(controlerAvantEnvoiOs(apres, resolution(apres), avec(finConnue(composerDateIso(2026, 10, 2))))).toEqual([])
+  })
+
+  it('aucun opposant ni défaillant (nombre saisi) : pas de blocage, une alerte à confirmer qui en donne la raison', () => {
+    const sansContestation = finDelaiContestationAgParDestinataire([], [], 'ag-1', { opposantsOuDefaillants: 0, notifications: [] })
+    const anomalies = controlerAvantEnvoiOs(apres, resolution(apres), avec(sansContestation))
+    expect(anomalies.map((a) => [a.code, a.gravite, a.fondement, a.aConfirmer])).toEqual([
+      ['aucune_contestation_ouverte', 'alerte', 'L. 1965 art. 42, al. 2 ; D. 1967 art. 18', true],
+    ])
+    expect(anomalies[0].message).toBe(
+      "Résolution votée à la majorité de l'art. 25 : aucun opposant ni défaillant (nombre saisi), aucune contestation n'est ouverte : pas de délai de contestation à attendre avant l'OS (L. 1965 art. 42, al. 2 et 3 ; D. 1967 art. 18 ; interprétation à confirmer).",
+    )
+    expect(envoyerOs(apres, resolution(apres), ENVOI, avec(sansContestation)).journal).toHaveLength(1)
+  })
+
+  it('l’urgence constatée (décision 6, J46) lève toujours le blocage ; un délai « urgence » sans constat ne le lève pas', () => {
+    const urgente = resolution(apres, { delai: 'urgence', constatUrgence: { ...CONSTAT, motif: 'Infiltrations actives' } })
+    expect(bloquants(controlerAvantEnvoiOs(apres, urgente, CONTEXTE))).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(apres, urgente, avec({ etat: 'non_notifiee' })))).toEqual([])
+    expect(bloquants(controlerAvantEnvoiOs(apres, resolution(apres, { delai: 'urgence' }), CONTEXTE))).toContain('delai_contestation_inconnu')
+  })
+
+  it('inchangés : unanimité, art. 24 et demande de devis non contrôlés ; contournements laissés en alerte (majorité vide, fondement vide : question ouverte à Hugo)', () => {
+    expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'unanimite' }), CONTEXTE)).toEqual([])
+    expect(controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: 'art24' }), CONTEXTE)).toEqual([])
+    const devis = demande({ numero: '12.3.9', prevuLe: APRES_FIN }, DEVIS)
+    expect(controlerAvantEnvoiOs(devis, resolution(devis), { date: CONTEXTE.date, prestataireAvecCompteVitfix: true })).toEqual([])
+    const majoriteVide = controlerAvantEnvoiOs(apres, resolution(apres, { majoriteResolution: null }), CONTEXTE)
+    expect(majoriteVide.map((a) => [a.code, a.gravite])).toEqual([['majorite_resolution_non_renseignee', 'alerte']])
+    const fondementVide = controlerAvantEnvoiOs(apres, sortie(apres, { fondement: null, majoriteResolution: 'art25' }), CONTEXTE)
+    expect(fondementVide.map((a) => [a.code, a.gravite])).toEqual([['fondement_non_renseigne', 'alerte']])
+  })
+
+  it('la fin du délai s’entre d’une seule façon : le résultat du calcul ; la date seule, même avec lui, est refusée ; résultat illisible refusé', () => {
+    const delai: ResultatDelaiContestationAg = { etat: 'non_notifiee' }
+    expect(() =>
+      controlerAvantEnvoiOs(apres, resolution(apres), { ...avec(delai), finDelaiContestationAg: composerDateIso(2026, 11, 20) } as unknown as ContexteEnvoiOs),
+    ).toThrow(/n'est plus admise/)
+    const illisible = { etat: 'calcule', echeanceLaPlusTardive: '20/11/2026' } as unknown as ResultatDelaiContestationAg
+    expect(() => controlerAvantEnvoiOs(apres, resolution(apres), avec(illisible))).toThrow(/AAAA-MM-JJ/)
   })
 })
 
@@ -2536,5 +2782,43 @@ describe('en-tête du module', () => {
     expect(enTete).not.toContain("BLOQUANT quand l'intervention prévue (à défaut, l'envoi) tombe dans ce délai")
     expect(enTete).toContain("BLOQUANT quand l'envoi de l'OS ou l'intervention prévue tombe dans ce délai")
     expect(enTete).not.toContain("le cas d'une intervention prévue après la fin du délai reste une question")
+  })
+
+  it('rubrique « Décisions de Hugo du 11/11/2026 » : J51 (blocage) inscrite avec ses sources ; l’alerte de J48 remplacée ; contournements posés en question', () => {
+    const decisions1111 = enTete.slice(enTete.indexOf('Décisions de Hugo du 11/11/2026'), enTete.indexOf('🔵 Déduit'))
+    expect(decisions1111.length).toBeGreaterThan(0)
+    for (const attendu of [
+      'J50 et J51',
+      '« Oui, bloquer »',
+      'delai_contestation_inconnu',
+      'BLOQUANT',
+      'J46',
+      'aucune_contestation_ouverte',
+      'ni opposant ni défaillant',
+      'la plus tardive, report au jour ouvrable compris',
+      'delaiContestationAg',
+      'finDelaiContestationAgParDestinataire',
+      '« est suspendue jusqu\'à l\'expiration du délai de deux mois »',
+      'Cass. 3e civ., 17/12/2015, n° 14-24.630',
+      'Cass. 3e civ., 28/01/2015, n° 13-23.552',
+      'Cass. 3e civ., 24/11/2021, n° 20-22.487',
+      'Cass. 3e civ., 02/07/2026, n° 24-20.650',
+      '🔵 Interprétation protectrice, confiance moyenne',
+      // relecture du 14/11/2026 : alerte « à confirmer » et date seule retirée (troisième contournement, fermé)
+      'delai_contestation_a_confirmer',
+      "la date seule (finDelaiContestationAg) n'est plus admise",
+    ])
+      expect(decisions1111, attendu).toContain(attendu)
+    expect(decisions1111).not.toContain('reste lue comme fin connue')
+    // l'alerte « fin du délai inconnue » de la décision 7 et de J48 est remplacée par J51
+    expect(enTete).not.toContain('alerte quand la majorité ou la fin du délai manquent')
+    expect(enTete).not.toContain('majorité ou fin du délai inconnues (alertes)')
+    // les deux contournements restent : question ouverte à Hugo
+    const questions = enTete.slice(enTete.indexOf('🔴 Non établi'), enTete.indexOf('Branchements à faire plus tard'))
+    expect(questions).toContain('Hugo (suite de J51)')
+    expect(questions).toContain('majorité de la résolution non saisie')
+    expect(questions).toContain('fondement non saisi')
+    const branchements = enTete.slice(enTete.indexOf('Branchements à faire plus tard'))
+    expect(branchements).toContain('delaiContestationAg, résultat de finDelaiContestationAgParDestinataire')
   })
 })

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import type { SuiviEcheancier } from '@/lib/administrateur-judiciaire/domain/decompte-contentieux'
 import {
   CLES_GABARITS_COURRIER,
@@ -241,8 +242,13 @@ describe('opposition de l’art. 20 I', () => {
 })
 
 describe('attestation de non-recours', () => {
+  // J50 (11/11/2026) : le résultat porte aussi le mode, l'événement de départ, la marque « fin minimale » et « à confirmer »
   const calcule = (echeanceSansReport: string, echeanceAvecReport = echeanceSansReport): ResultatDelaiContestation => ({
     etat: 'calcule',
+    mode: 'lrar',
+    dateEvenement: composerDateIso(2026, 8, 3),
+    finMinimale: false,
+    aConfirmer: null,
     datePremierePresentation: '2026-08-03',
     pointDeDepart: '2026-08-04',
     echeanceSansReport,
@@ -268,7 +274,9 @@ describe('attestation de non-recours', () => {
   it('refus : délai manquant pour un opposant, notification non prouvée, délai non calculé, assignation reçue', () => {
     expect(controlerAttestationNonRecours([calcule('2026-10-04')], '2026-12-01', options(2)).motif).toMatch(/sans délai calculé/)
     expect(controlerAttestationNonRecours([{ etat: 'non_notifiee' }], '2026-12-01', options(1)).delivrable).toBe(false)
-    expect(controlerAttestationNonRecours([{ etat: 'refuse', motif: 'Courrier introuvable.' }], '2026-12-01', options(1)).motif).toMatch(/Courrier introuvable/)
+    expect(controlerAttestationNonRecours([{ etat: 'refuse', cause: 'courrier_introuvable', motif: 'Courrier introuvable.' }], composerDateIso(2026, 12, 1), options(1)).motif).toMatch(
+      /Courrier introuvable/,
+    )
     expect(controlerAttestationNonRecours([calcule('2026-10-04')], '2026-12-01', options(1, 1)).motif).toMatch(/assignation/i)
   })
 
