@@ -669,6 +669,7 @@ function DashboardPage() {
           isProGerant={isProGerant} proCanAccess={proCanAccess} isModuleEnabled={isModuleEnabled}
           isPt={isPt} pendingBookings={pendingBookings} unreadMsgCount={unreadMsgCount}
           dynamicCategories={moduleCategories}
+          definitionsModules={ALL_MODULES}
         />
       )}
       {isV5 && orgRole === 'artisan' && (
