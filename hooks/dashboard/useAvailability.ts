@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
+import { lireAbsencesArtisan } from '@/lib/absences-artisan'
 
 type SlotType = 'rdv' | 'visite'
 
@@ -183,7 +184,8 @@ export function useAvailability(
     calendarDataLoadedRef.current = true
     const [availRes, absRes, dsRes] = await Promise.all([
       fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      fetch(`/api/artisan-absences?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
+      // Avec la session : le motif et le libellé des absences ne sont rendus qu'au propriétaire de la fiche.
+      lireAbsencesArtisan(aid).then(r => r.json()).catch(() => ({ data: [] })),
       fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
     let availData = availRes.data || []
