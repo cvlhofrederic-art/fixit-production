@@ -46,7 +46,9 @@ beforeEach(() => {
   }
 })
 
-afterEach(() => {
+afterEach(async () => {
+  // Débranche le miroir du module chargé par le test : minuteurs arrêtés, plus aucune écriture interceptée.
+  ;(await import('@/lib/storage-sync')).reinitialiserMiroirPourTests()
   // vitest.config a `isolate: false` (pool forks) : le patch posé par
   // installStorageSync() sur window.localStorage fuite vers les autres fichiers
   // du même fork (module non ré-isolé), et sa closure capture ce mock
@@ -152,8 +154,10 @@ describe('storage-sync — push initial', () => {
 
 describe('storage-sync — interception localStorage', () => {
   it("installStorageSync mirror chaque setItem fixit_* vers l'API", async () => {
-    const { installStorageSync } = await import('@/lib/storage-sync')
+    const { installStorageSync, hydrateStorageFromServer } = await import('@/lib/storage-sync')
     installStorageSync()
+    // Comme Providers : la restauration d'abord. Rien ne part tant qu'elle n'a pas réussi (audit du 11/11/2026).
+    await hydrateStorageFromServer()
 
     window.localStorage.setItem('fixit_test_key', JSON.stringify({ foo: 'bar' }))
 
@@ -168,8 +172,9 @@ describe('storage-sync — interception localStorage', () => {
   })
 
   it("installStorageSync n'envoie pas les cles non-fixit", async () => {
-    const { installStorageSync } = await import('@/lib/storage-sync')
+    const { installStorageSync, hydrateStorageFromServer } = await import('@/lib/storage-sync')
     installStorageSync()
+    await hydrateStorageFromServer()
 
     window.localStorage.setItem('autre_app', 'value')
     window.localStorage.setItem('sb-auth-token', 'token-secret')

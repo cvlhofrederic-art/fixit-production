@@ -6,8 +6,10 @@
 //   - une écriture faite avant la réponse de l'hydratation ne part pas écraser la valeur du serveur ;
 //   - rien n'est posté pendant l'hydratation (flush, envoi keepalive), même quand elle échoue ou se chevauche ;
 //   - un aller-retour A → B → A n'envoie jamais B, y compris pendant le POST de B (réussi ou en échec).
-// jsdom ne permet pas de remplacer localStorage.setItem (propriété nommée du Storage) : le cœur du miroir
-// (enregistrerEcritureMiroir, appelé par le setItem intercepté dans les navigateurs) est appelé directement.
+// Audit des fondations du 11/11/2026 : rien ne part avant une restauration réussie (les tests « amorcent » donc le
+// miroir comme le fait Providers), une restauration en échec est retentée seule, un envoi en échec aussi.
+// Le cœur du miroir (enregistrerEcritureMiroir, appelé par le setItem intercepté) est appelé directement, avec la
+// valeur d'avant l'écriture ; l'interception elle-même est couverte par tests/storage-sync-garanties.test.ts.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -27,7 +29,9 @@ beforeEach(() => {
   window.localStorage.clear()
 })
 
-afterEach(() => {
+afterEach(async () => {
+  // Débranche le miroir du module chargé par le test : minuteurs arrêtés, plus aucune écriture interceptée.
+  ;(await import('@/lib/storage-sync')).reinitialiserMiroirPourTests()
   mockGetSession.mockResolvedValue({ data: { session: null } })
   ;(globalThis as unknown as { fetch: typeof fetch }).fetch = originalFetch
 })
@@ -41,10 +45,16 @@ const estUnGet = (init?: RequestInit) => !init?.method || init.method === 'GET'
 
 type ModuleSync = typeof import('@/lib/storage-sync')
 
-/** Ce que fait le setItem intercepté d'un navigateur : écriture locale, puis miroir. */
+/** Ce que fait le setItem intercepté d'un navigateur : valeur d'avant, écriture locale, puis miroir. */
 function ecrire(sync: ModuleSync, cle: string, valeur: string): void {
+  const avant = window.localStorage.getItem(cle)
   window.localStorage.setItem(cle, valeur)
-  sync.enregistrerEcritureMiroir(cle, valeur)
+  sync.enregistrerEcritureMiroir(cle, valeur, avant)
+}
+
+/** Restauration réussie (le serveur ne détient rien, sauf réponse simulée par le test) : les envois sont permis. */
+async function amorcer(sync: ModuleSync): Promise<void> {
+  expect((await sync.hydrateStorageFromServer()).ok).toBe(true)
 }
 
 /** Réponse du serveur retenue jusqu'à ce que le test la donne (ou la fasse échouer). */
@@ -98,7 +108,9 @@ describe('storage-sync — hydratation sans renvoi', () => {
 
 describe('storage-sync — un seul POST par enchaînement', () => {
   it('25 clés écrites au montage partent dans un seul POST, avec le Bearer', async () => {
-    const { enregistrerEcritureMiroir } = await import('@/lib/storage-sync')
+    const sync = await import('@/lib/storage-sync')
+    const { enregistrerEcritureMiroir } = sync
+    await amorcer(sync)
     for (let i = 0; i < 25; i++) enregistrerEcritureMiroir(`fixit_cle_${i}`, JSON.stringify({ i }))
     await attendreFlush()
     expect(appelsPost()).toHaveLength(1)
@@ -107,7 +119,9 @@ describe('storage-sync — un seul POST par enchaînement', () => {
   })
 
   it('au-delà de 50 clés, ou de 4 Mo, le flush se découpe en plusieurs POST', async () => {
-    const { enregistrerEcritureMiroir } = await import('@/lib/storage-sync')
+    const sync = await import('@/lib/storage-sync')
+    const { enregistrerEcritureMiroir } = sync
+    await amorcer(sync)
     for (let i = 0; i < 60; i++) enregistrerEcritureMiroir(`fixit_cle_${i}`, String(i))
     await attendreFlush()
     expect(appelsPost().map((a) => corps(a).entries.length)).toEqual([50, 10])
@@ -120,7 +134,9 @@ describe('storage-sync — un seul POST par enchaînement', () => {
   })
 
   it('une valeur envoyée avec succès puis réécrite à l’identique n’est pas renvoyée ; après suppression, si', async () => {
-    const { enregistrerEcritureMiroir, enregistrerSuppressionMiroir } = await import('@/lib/storage-sync')
+    const sync = await import('@/lib/storage-sync')
+    const { enregistrerEcritureMiroir, enregistrerSuppressionMiroir } = sync
+    await amorcer(sync)
     enregistrerEcritureMiroir('fixit_a', '1')
     await attendreFlush()
     expect(appelsPost()).toHaveLength(1)
@@ -135,7 +151,9 @@ describe('storage-sync — un seul POST par enchaînement', () => {
   })
 
   it('les clés hors fixit_ et les drapeaux transitoires ne sont jamais envoyés', async () => {
-    const { enregistrerEcritureMiroir } = await import('@/lib/storage-sync')
+    const sync = await import('@/lib/storage-sync')
+    const { enregistrerEcritureMiroir } = sync
+    await amorcer(sync)
     enregistrerEcritureMiroir('sb-auth-token', 'secret')
     enregistrerEcritureMiroir('fixit_clean_v6_x', '1')
     enregistrerEcritureMiroir('fixit_user_storage_migrated_v1', '1')
@@ -195,13 +213,20 @@ describe('storage-sync — envois retenus pendant l’hydratation', () => {
     expect(valeursPostees('fixit_nouvelle_cle')).toEqual(['locale'])
   })
 
+  // Avant le 11/11/2026, une restauration en échec levait la retenue : les écritures du montage (jeux par défaut
+  // compris) partaient alors par-dessus les données du serveur, qu'on n'avait pas pu lire.
   it.each([
     ['réseau coupé', () => Promise.reject(new TypeError('Failed to fetch'))],
     ['401', () => Promise.resolve(reponse({ error: 'Non autorisé' }, 401))],
-  ])('une hydratation en échec (%s) lève la retenue : l’écriture en attente part ensuite', async (_cas, echec) => {
+    ['429', () => Promise.resolve(reponse({ error: 'Trop de requêtes' }, 429))],
+    ['500', () => Promise.resolve(reponse({ error: 'Erreur lors du chargement' }, 500))],
+  ])('une restauration en échec (%s) ne lève pas la retenue : rien ne part, elle est retentée, puis l’écriture part', async (_cas, echec) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
     const get = differee<void>()
+    let numeroGet = 0
     mockFetch.mockImplementation(async (_url: unknown, init?: RequestInit) => {
       if (!estUnGet(init)) return reponse({ success: true })
+      if (++numeroGet > 1) return reponse({ entries: {} })
       await get.promesse
       return echec()
     })
@@ -212,9 +237,17 @@ describe('storage-sync — envois retenus pendant l’hydratation', () => {
     expect(appelsPost()).toHaveLength(0)
 
     get.resoudre()
-    expect((await hydratation).count).toBe(0)
+    expect(await hydratation).toMatchObject({ count: 0, ok: false })
+    await ecoulerDebounce()
+    await ecoulerDebounce()
+    expect(appelsPost()).toHaveLength(0) // l'échec n'a rien libéré
+    expect(numeroGet).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(2000) // 5 s après l'échec : nouvel essai de restauration, réussi
+    expect(numeroGet).toBe(2)
     await ecoulerDebounce()
     expect(valeursPostees('fixit_nouvelle_cle')).toEqual(['locale'])
+    vi.mocked(console.warn).mockRestore()
   })
 })
 
@@ -228,6 +261,7 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
 
   it('après la synchronisation de A, un aller-retour B puis A avant le flush n’envoie jamais B', async () => {
     const sync = await import('@/lib/storage-sync')
+    await amorcer(sync)
     ecrire(sync, 'fixit_modules_x', 'A')
     await ecoulerDebounce()
     expect(valeursPostees('fixit_modules_x')).toEqual(['A'])
@@ -247,6 +281,7 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
       init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponse({ success: true })))
     const sync = await import('@/lib/storage-sync')
+    await amorcer(sync)
     ecrire(sync, 'fixit_dispo_x', 'A')
     await ecoulerDebounce()
     ecrire(sync, 'fixit_dispo_x', 'B')
@@ -259,12 +294,13 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B', 'A'])
   })
 
-  it('POST de B en échec (réseau) pendant le retour à A : A part, B n’est pas remise en attente', async () => {
+  it('POST de B en échec (réseau) pendant le retour à A : A part au nouvel essai, B n’est pas remise en attente', async () => {
     const postB = differee<Response>()
     let numeroPost = 0
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
       init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponse({ success: true })))
     const sync = await import('@/lib/storage-sync')
+    await amorcer(sync)
     ecrire(sync, 'fixit_dispo_x', 'A')
     await ecoulerDebounce()
     ecrire(sync, 'fixit_dispo_x', 'B')
@@ -272,6 +308,9 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     ecrire(sync, 'fixit_dispo_x', 'A')
     postB.rejeter(new TypeError('Failed to fetch'))
     await ecoulerDebounce()
+    // Après un échec, le miroir attend 5 s avant le nouvel essai : pas d'envoi à chaque frappe pendant une panne.
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B'])
+    await vi.advanceTimersByTimeAsync(5000)
     expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B', 'A'])
 
     // Le flush suivant ne renvoie pas B.
@@ -281,15 +320,29 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     expect(valeursPostees('fixit_autre')).toEqual([1])
   })
 
-  it('POST en échec sans réécriture : la valeur repart au flush suivant (comportement inchangé)', async () => {
+  it('POST en échec sans réécriture : la valeur repart seule 5 s plus tard, sans attendre une autre écriture', async () => {
     let numeroPost = 0
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
       init?.method === 'POST' && ++numeroPost === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(reponse({ success: true })))
     const sync = await import('@/lib/storage-sync')
+    await amorcer(sync)
     ecrire(sync, 'fixit_dispo_x', 'B')
-    await ecoulerDebounce() // premier POST en échec : B remise en attente
-    ecrire(sync, 'fixit_autre', '1') // l'écriture suivante relance le flush
-    await ecoulerDebounce()
+    await ecoulerDebounce() // premier POST en échec : B remise en attente, nouvel essai programmé
+    expect(valeursPostees('fixit_dispo_x')).toEqual(['B'])
+    await vi.advanceTimersByTimeAsync(5000)
     expect(valeursPostees('fixit_dispo_x')).toEqual(['B', 'B'])
+  })
+
+  it.each([429, 500, 401])('POST refusé par une réponse %i : la valeur est remise en attente et repart (avant : perdue en silence)', async (statut) => {
+    let numeroPost = 0
+    mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
+      init?.method === 'POST' && ++numeroPost === 1 ? Promise.resolve(reponse({ error: 'indisponible' }, statut)) : Promise.resolve(reponse({ success: true })))
+    const sync = await import('@/lib/storage-sync')
+    await amorcer(sync)
+    ecrire(sync, 'fixit_clients_x', JSON.stringify([{ id: 1 }]))
+    await ecoulerDebounce()
+    expect(valeursPostees('fixit_clients_x')).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(valeursPostees('fixit_clients_x')).toEqual([[{ id: 1 }], [{ id: 1 }]])
   })
 })

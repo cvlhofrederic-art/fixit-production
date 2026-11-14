@@ -125,8 +125,10 @@ describe('stockage du navigateur plein (QuotaExceededError dès qu’une écritu
   it('le miroir réplique une suppression et une réécriture plus courte, et rien pour une écriture refusée', async () => {
     const clients = [{ id: 1, nom: 'Dupont' }, { id: 2, nom: 'Martin' }]
     installerStockagePlein({ fixit_clients_abc: JSON.stringify(clients), fixit_piece_kbis_abc: PIECE_KBIS })
-    const { installStorageSync } = await import('@/lib/storage-sync')
+    const { installStorageSync, hydrateStorageFromServer } = await import('@/lib/storage-sync')
     installStorageSync()
+    // Comme Providers : la restauration d'abord (le serveur ne détient rien ici). Rien ne part avant qu'elle ait réussi.
+    await hydrateStorageFromServer()
 
     // Une écriture qui agrandirait le stockage lève comme sans miroir et n'est pas mise en file.
     expect(() => window.localStorage.setItem('fixit_nouvelle_cle_abc', 'x')).toThrow('quota')
@@ -161,7 +163,7 @@ describe('stockage du navigateur plein (QuotaExceededError dès qu’une écritu
     const { hydrateStorageFromServer } = await import('@/lib/storage-sync')
 
     // count > 0 : Providers ne relance pas la migration, qui écraserait sur le serveur les données des autres appareils.
-    await expect(hydrateStorageFromServer()).resolves.toEqual({ count: 1 })
+    await expect(hydrateStorageFromServer()).resolves.toMatchObject({ count: 1, ok: true, vide: false })
     expect(appels('GET')).toHaveLength(1)
     expect(appels('GET')[0][1]?.headers).toMatchObject({ Authorization: `Bearer ${JETON}` })
     expect(window.localStorage.getItem('fixit_absences_abc')).toBe(JSON.stringify([{ date: '2026-10-02' }]))

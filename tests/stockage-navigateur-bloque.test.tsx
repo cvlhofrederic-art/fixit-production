@@ -82,7 +82,7 @@ describe('stockage du navigateur bloqué', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     const { hydrateStorageFromServer, pushAllLocalToServer } = await import('@/lib/storage-sync')
-    await expect(hydrateStorageFromServer()).resolves.toEqual({ count: 0 })
+    await expect(hydrateStorageFromServer()).resolves.toMatchObject({ count: 0, ok: false })
     await expect(pushAllLocalToServer()).resolves.toEqual({ count: 0 })
     expect(fetchMock).not.toHaveBeenCalled()
     vi.unstubAllGlobals()
