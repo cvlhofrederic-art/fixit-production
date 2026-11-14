@@ -35,9 +35,11 @@
 -- Contrôle sur une vraie base : supabase/tests/syndic_equipe_ecritures_serveur.sql.
 -- Retour arrière : docs/rollback-procedures.md, section « Migration 20261114 — Équipe syndic ».
 --
--- À appliquer seule (éditeur SQL). DROP POLICY prend un verrou exclusif sur la table le temps de
--- l'instruction : lock_timeout évite d'attendre derrière une transaction longue ; en cas
--- d'expiration, rien n'est appliqué, relancer.
+-- À appliquer seule (éditeur SQL), par un rôle propriétaire de la table. DROP POLICY prend un verrou
+-- exclusif sur la table, gardé jusqu'à la fin du script (une seule transaction) : lock_timeout évite
+-- d'attendre derrière une transaction longue ; en cas d'expiration, rien n'est appliqué, relancer.
+-- Le bloc final vérifie le résultat : si un droit d'écriture reste à anon ou authenticated (rôle
+-- exécutant non propriétaire, par exemple), il lève une erreur et rien n'est appliqué.
 -- ══════════════════════════════════════════════════════════════════════════════
 
 set local lock_timeout = '5s';
@@ -57,6 +59,16 @@ BEGIN
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
     REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members FROM authenticated;
+  END IF;
+
+  -- Contrôle du résultat, sur les seuls rôles qui existent.
+  IF EXISTS (
+    SELECT 1
+    FROM (SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')) AS r
+    CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')) AS d(droit)
+    WHERE has_table_privilege(r.rolname, 'public.syndic_team_members', d.droit)
+  ) THEN
+    RAISE EXCEPTION 'T20 : un droit d''écriture reste à anon ou authenticated sur syndic_team_members, rien n''est appliqué (lancer la migration avec le rôle propriétaire de la table)';
   END IF;
 END
 $$;

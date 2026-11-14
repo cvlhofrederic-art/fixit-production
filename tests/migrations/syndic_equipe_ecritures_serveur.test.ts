@@ -87,8 +87,12 @@ describe(`Migration ${FICHIER}`, () => {
   it('ne touche ni aux données, ni aux tables, ni aux déclencheurs, ni à l’activation de la RLS', () => {
     const liste = instructions(sql)
     expect(liste.filter((i) => /^(INSERT|UPDATE|DELETE|TRUNCATE|MERGE|COPY)\b/i.test(i))).toEqual([])
+    // Aussi dans le bloc DO (ses morceaux commencent par « DO $$ » ou « END IF ») : aucun motif ne touche
+    // « REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON … ».
     expect(sql).not.toMatch(/\bINSERT\s+INTO\b/i)
+    expect(sql).not.toMatch(/\bUPDATE\s+[\w."]+\s+SET\b/i)
     expect(sql).not.toMatch(/\bDELETE\s+FROM\b/i)
+    expect(sql).not.toMatch(/\bTRUNCATE\s+(TABLE\s+)?(ONLY\s+)?[\w."]+\s*(,|;|\bCASCADE\b|\bRESTRICT\b)/i)
     expect(sql).not.toMatch(/\b(ALTER|DROP|CREATE)\s+TABLE\b/i)
     expect(sql).not.toMatch(/\bTRIGGER\b/i)
     expect(sql).not.toMatch(/ROW\s+LEVEL\s+SECURITY/i)
@@ -100,9 +104,12 @@ describe(`Migration ${FICHIER}`, () => {
   })
 })
 
+/** Ordre des unités de code (celui de la CLI Supabase), avec un comparateur explicite. */
+const parNom = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
 describe('Base reconstruite depuis le dépôt', () => {
   // Ordre d'application : nom de fichier, comme la CLI Supabase.
-  const fichiers = readdirSync(DOSSIER).filter((f) => f.endsWith('.sql')).sort()
+  const fichiers = readdirSync(DOSSIER).filter((f) => f.endsWith('.sql')).sort(parNom)
 
   it.each(POLICIES_ECRITURE)('%s : la dernière instruction qui la vise est le DROP de cette migration', (policy) => {
     const motif = new RegExp(`\\b(CREATE|ALTER|DROP)\\s+POLICY\\s+(?:IF\\s+EXISTS\\s+)?"?${echapper(policy)}"?(?![\\w])`, 'gi')
@@ -117,15 +124,21 @@ describe('Base reconstruite depuis le dépôt', () => {
 
   it('aucune migration postérieure ne rouvre une écriture des clients sur syndic_team_members', () => {
     const suivantes = fichiers.filter((f) => f > FICHIER)
+    // Tests simples par instruction (aucune expression à quantificateurs enchaînés) ; le nom de la table compte
+    // aussi entre guillemets, et un GRANT sur toutes les tables du schéma la vise aussi.
+    const visent = (i: string) => /\bsyndic_team_members\b/i.test(i)
     for (const fichier of suivantes) {
       for (const i of instructions(lire(fichier))) {
         // Une policy sans FOR vaut FOR ALL : seule une policy FOR SELECT reste admise sur cette table.
-        if (/\bCREATE\s+POLICY\b[\s\S]*\bON\s+(public\.)?syndic_team_members\b/i.test(i)) {
+        if (/\bCREATE\s+POLICY\b/i.test(i) && visent(i)) {
           expect(i, fichier).toMatch(/\bFOR\s+SELECT\b/i)
         }
-        expect(i, fichier).not.toMatch(
-          /\bGRANT\b[\s\S]*\b(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b[\s\S]*\bON\s+(TABLE\s+)?(public\.)?syndic_team_members\b[\s\S]*\bTO\b[\s\S]*\b(anon|authenticated|PUBLIC)\b/i,
-        )
+        const grantEcriture =
+          /\bGRANT\b/i.test(i) &&
+          /\b(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(i) &&
+          /\b(anon|authenticated|PUBLIC)\b/i.test(i) &&
+          (visent(i) || /\bALL\s+TABLES\s+IN\s+SCHEMA\b/i.test(i))
+        expect(grantEcriture, `${fichier} : ${i.slice(0, 120)}`).toBe(false)
       }
     }
   })

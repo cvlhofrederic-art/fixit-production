@@ -16,6 +16,10 @@
 -- Après la migration, attendu : policies_ecriture = 0, seule syndic_team_select reste (production) ;
 --   rls_active = true ; anon et authenticated : select = true, insert, update, delete et
 --   truncate = false ; service_role : tout à true (routes serveur).
+-- Avant comme après : fonctions_ecrivant_la_table = null (aucune fonction SQL n'écrit la table ; si
+--   une fonction apparaît avec security_definer = false, NE PAS appliquer la migration : elle
+--   casserait cette fonction pour un client) ; declencheurs : relevé ; proprietaire : le rôle qui doit
+--   lancer la migration (celui de l'éditeur SQL, postgres, s'il est propriétaire).
 
 -- 1. État
 select json_build_object(
@@ -30,6 +34,19 @@ select json_build_object(
     where schemaname = 'public' and tablename = 'syndic_team_members' and cmd <> 'SELECT'),
   'rls_active', (
     select relrowsecurity from pg_class where oid = 'public.syndic_team_members'::regclass),
+  'proprietaire', (
+    select relowner::regrole::text from pg_class where oid = 'public.syndic_team_members'::regclass),
+  'fonctions_ecrivant_la_table', (
+    select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef)
+                    order by p.oid::regprocedure::text)
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname not in ('pg_catalog', 'information_schema')
+      and p.prosrc ~* '(insert\s+into|update|delete\s+from|truncate)\s+(only\s+)?(public\.)?"?syndic_team_members\M'),
+  'declencheurs', (
+    select json_agg(json_build_object('nom', t.tgname, 'definition', pg_get_triggerdef(t.oid)) order by t.tgname)
+    from pg_trigger t
+    where t.tgrelid = 'public.syndic_team_members'::regclass and not t.tgisinternal),
   'droits', (
     select json_agg(json_build_object(
              'role', r.role,
