@@ -5,6 +5,9 @@
 // de signalement aux destinataires sont OCTET POUR OCTET ceux d'avant le logo, et leur envoi est le même (mêmes champs,
 // aucune pièce jointe). Les empreintes SHA-256 et les instantanés ci-dessous ont été écrits sur le code d'avant le logo
 // (commit 055e7f24) : ils ne doivent plus bouger. Le service d'e-mail est simulé ; données fictives.
+// R70 du dossier téléphonie (14/11/2026, brouillon) : l'accusé d'un signalement URGENT porte en plus, en tête, la consigne
+// d'appel aux secours (blocConsigneSecoursQr). Elle est vérifiée puis retirée avant le calcul des empreintes, qui restent
+// celles d'avant : rien d'autre n'a changé dans l'accusé.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createHash } from 'node:crypto'
@@ -15,10 +18,19 @@ const h = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/email', () => ({ sendEmail: h.sendEmail, sendBatchEmails: h.sendBatchEmails }))
 
-const { envoyerConfirmationQr, envoyerEmailsSignalementQr, templateConfirmationQr, templateSignalementQr } = await import('@/lib/aj-signalement/email')
+const {
+  blocConsigneSecoursQr, envoyerConfirmationQr, envoyerEmailsSignalementQr, templateConfirmationQr, templateSignalementQr,
+} = await import('@/lib/aj-signalement/email')
 import type { DestinataireQr, SignalementQr } from '@/lib/aj-signalement/types'
 
 const empreinte = (texte: string): string => createHash('sha256').update(texte).digest('hex')
+
+/** Accusé sans la consigne d'appel aux secours (R70), après avoir vérifié qu'elle y est une fois si et seulement si urgent. */
+function sansConsigne(html: string, s: Pick<SignalementQr, 'priorite' | 'langue'>): string {
+  const bloc = blocConsigneSecoursQr(s.langue)
+  expect(html.split(bloc).length - 1).toBe(s.priorite === 'urgente' ? 1 : 0)
+  return html.replace(bloc, '')
+}
 
 const signalement = (sur: Partial<SignalementQr> = {}): SignalementQr => ({
   id: '5f2c9a1e-1111-4222-8333-444444444444',
@@ -48,7 +60,8 @@ describe('accusé de réception sans logo : HTML d’avant le logo', () => {
       { s: signalement({ langue: 'pt', estPartieCommune: true, zoneSignalee: 'Escada', priorite: 'normale' }), options: { politique: POLITIQUE } },
     ]
     const sorties = cas.map(({ s, options }) => {
-      const { subject, html } = templateConfirmationQr({ copropriete: { nom: 'Résidence Exemple' }, signalement: s, ...options })
+      const { subject, html: complet } = templateConfirmationQr({ copropriete: { nom: 'Résidence Exemple' }, signalement: s, ...options })
+      const html = sansConsigne(complet, s)
       return { subject, html: empreinte(html), longueur: html.length }
     })
     expect(sorties).toMatchInlineSnapshot(`
@@ -77,7 +90,7 @@ describe('accusé de réception sans logo : HTML d’avant le logo', () => {
     expect(h.sendEmail).toHaveBeenCalledTimes(1)
     const charge = h.sendEmail.mock.calls[0][0] as Record<string, unknown>
     expect(Object.keys(charge).sort()).toEqual(['html', 'subject', 'tags', 'to'])
-    expect({ ...charge, html: empreinte(String(charge.html)) }).toMatchInlineSnapshot(`
+    expect({ ...charge, html: empreinte(sansConsigne(String(charge.html), signalement())) }).toMatchInlineSnapshot(`
       {
         "html": "e3067958079bd8b235085bb9b5189df9fcb92a5f80a84cbb25f0595a71ae2bc5",
         "subject": "Votre signalement n° 5F2C9A1E a bien été enregistré — Résidence Exemple",

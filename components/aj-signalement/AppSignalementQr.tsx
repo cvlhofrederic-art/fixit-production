@@ -13,6 +13,8 @@
 // Logo du cabinet (demande de Hugo du 13/11/2026, brouillon soumis à Frédéric) : lu par la page serveur, posé dans un
 // bandeau BLANC au-dessus de l'en-tête bleu nuit (un logo sombre y reste lisible), aligné sur la colonne de la page ;
 // sans logo, la page est celle d'avant.
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : la confirmation
+// d'un signalement envoyé comme urgent répète la consigne renforcée d'appel aux secours (ConsigneSecoursQr.tsx).
 
 import { useState } from 'react'
 import { dateLongue, remplir, textesCopro } from '@/lib/coproprietaire/textes'
@@ -22,6 +24,7 @@ import { Bouton, Carte, Icone } from '@/components/coproprietaire-dashboard/ui'
 import FormulaireSignalementQr, { type ConfirmationSignalementQr } from '@/components/aj-signalement/FormulaireSignalementQr'
 import { useAdresseProposeeQr, type AdresseProposeeEtat } from '@/components/aj-signalement/useAdresseProposeeQr'
 import ImageLogoCabinetQr, { BOITE_LOGO_CARTE_QR } from '@/components/aj-signalement/ImageLogoCabinetQr'
+import { ConsigneSecoursUrgenteQr } from '@/components/aj-signalement/ConsigneSecoursQr'
 import type { LogoPageQr } from '@/lib/aj-signalement/logo'
 
 /** Message de la carte « Copropriété » selon l'état de la géolocalisation ; '' pendant la demande au navigateur. */
@@ -97,6 +100,7 @@ export default function AppSignalementQr({ jeton, copropriete, langue, informati
                 {remplir(tq.confirmationSuite, { telephone: confirmation.telephone, email: confirmation.email })}
               </p>
             </div>
+            {confirmation.priorite === 'urgente' && <ConsigneSecoursUrgenteQr tq={tq} className="mt-4" />}
             <div className="mt-5">
               <Bouton variante="secondaire" icone="demandes" onClick={recommencer}>{tq.autreSignalement}</Bouton>
             </div>
