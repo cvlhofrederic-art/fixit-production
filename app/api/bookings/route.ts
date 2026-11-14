@@ -52,7 +52,9 @@ export async function POST(request: NextRequest) {
     if (!validation.success) {
       return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    const { artisan_id, service_id, booking_date, booking_time, duration_minutes, address, notes, price_ht, price_ttc, status } = validation.data
+    // Le statut reçu n'est pas lu : il est décidé plus bas (« pending », ou « confirmed » si la prestation
+    // de la fiche est en validation automatique). Les écrans de réservation envoient toujours « pending ».
+    const { artisan_id, service_id, booking_date, booking_time, duration_minutes, address, notes, price_ht, price_ttc } = validation.data
     const dur = duration_minutes
 
     // ── Fetch artisan profile + ensure client profile (parallel) ──────
@@ -75,16 +77,25 @@ export async function POST(request: NextRequest) {
     let isAutoAccept = false
     let serviceName = 'Intervention'
     if (service_id) {
-      const { data: svc } = await supabaseAdmin
+      const { data: svc, error: svcError } = await supabaseAdmin
         .from('services')
-        .select('validation_auto, delai_minimum_heures, name')
+        .select('artisan_id, validation_auto, delai_minimum_heures, name')
         .eq('id', service_id)
-        .single()
-      isAutoAccept = svc?.validation_auto === true
-      if (svc?.name) serviceName = svc.name
+        .maybeSingle()
+      if (svcError) {
+        logger.error('[bookings] lecture de la prestation impossible', { message: svcError.message })
+        return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 })
+      }
+      // La prestation doit être celle du professionnel réservé : ses réglages (validation automatique,
+      // délai minimum, nom repris dans la notification) ne valent que pour sa fiche.
+      if (!svc || svc.artisan_id !== artisan_id) {
+        return NextResponse.json({ error: 'Cette prestation n’est pas proposée par ce professionnel.' }, { status: 400 })
+      }
+      isAutoAccept = svc.validation_auto === true
+      if (svc.name) serviceName = svc.name
 
       // Enforce minimum delay
-      const delai = svc?.delai_minimum_heures || 0
+      const delai = svc.delai_minimum_heures || 0
       if (delai > 0) {
         const slotTs = new Date(`${booking_date}T${booking_time}:00`).getTime()
         const minTs = Date.now() + delai * 60 * 60 * 1000
@@ -106,9 +117,11 @@ export async function POST(request: NextRequest) {
       duration_minutes: dur,
       address: address ? String(address).substring(0, 500) : 'A definir',
       notes: notes ? String(notes).substring(0, 1000) : '',
-      price_ht: price_ht || 0,
-      price_ttc: price_ttc || 0,
-      status: isAutoAccept ? 'confirmed' : (status || 'pending'),
+      // Avec une prestation : estimation calculée par l'écran de réservation (quantités saisies par le client).
+      // Sans prestation (motif libre), l'écran n'envoie aucun prix : aucun n'est enregistré.
+      price_ht: service_id ? (price_ht || 0) : 0,
+      price_ttc: service_id ? (price_ttc || 0) : 0,
+      status: isAutoAccept ? 'confirmed' : 'pending',
     }
 
     if (isAutoAccept) {
