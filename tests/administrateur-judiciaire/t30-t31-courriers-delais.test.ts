@@ -131,9 +131,11 @@ describe('T31 — délai accroché à la notification (R9)', () => {
       code: 'notification_non_prouvee',
       motif: 'Aucun courrier rattaché à la notification.',
     })
+    // J50 (11/11/2026) : une notification électronique (LRE ou prestataire qualifié) prouve aussi ; le motif le dit
     expect(controlerPreuveNotificationAg([ligne({ courrierId: 'k1' })], [courrier({ formeEnvoi: 'Normal' })], 'ag-1')).toEqual({
       code: 'notification_non_prouvee',
-      motif: "Le courrier rattaché n'est pas un envoi en AR.",
+      motif:
+        "Le courrier rattaché n'est ni un envoi en AR ni une notification électronique (LRE ou prestataire qualifié) : il ne vaut pas notification du procès-verbal (D. 1967 art. 64, 64-1 et 64-3).",
     })
     expect(
       controlerPreuveNotificationAg([ligne({ courrierId: 'k1' })], [courrier({ datePremierePresentation: null })], 'ag-1'),

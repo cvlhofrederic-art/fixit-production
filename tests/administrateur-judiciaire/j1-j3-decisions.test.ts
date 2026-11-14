@@ -12,6 +12,7 @@ import { viderBaseLocale } from '@/lib/administrateur-judiciaire/db/reset'
 import { ajDb, type ChangementStatut, type Courrier } from '@/lib/administrateur-judiciaire/db/schema'
 import { changerStatutAg, historiqueStatutAg } from '@/lib/administrateur-judiciaire/db/statut-assemblee'
 import { etatNotificationCourrier } from '@/lib/administrateur-judiciaire/domain/courriers'
+import { composerDateIso } from '@/lib/administrateur-judiciaire/domain/dates'
 import {
   AVERTISSEMENTS_PROCEDURE_19_2,
   avertissementsProcedure,
@@ -118,8 +119,13 @@ describe('J1 — point de départ : la première présentation du pli', () => {
 
   it('échéance au même quantième que le lendemain, deux mois plus tard, sans report par défaut ; les deux dates si elles divergent', () => {
     // Présentation le lundi 02/03/2026 → départ le 03/03 → dimanche 03/05/2026 ; avec report : lundi 04/05.
+    // J50 (11/11/2026) : le résultat nomme le mode et l'événement qui fait courir le délai ; sans demande de voie postale
+    // enregistrée, la LRAR reste calculée avec un avertissement ; nombre d'opposants et de défaillants non saisi : la fin
+    // tirée de cette seule notification est marquée minimale. Le calcul de J1 est inchangé.
     expect(finDelaiContestationAg(chaineComplete(), [courrier({})], 'ag-1')).toEqual({
       etat: 'calcule',
+      mode: 'lrar',
+      dateEvenement: composerDateIso(2026, 3, 2),
       datePremierePresentation: '2026-03-02',
       pointDeDepart: '2026-03-03',
       echeanceSansReport: '2026-05-03',
@@ -129,7 +135,12 @@ describe('J1 — point de départ : la première présentation du pli', () => {
       divergence: true,
       justification:
         'Deux mois à compter du lendemain de la première présentation du 02/03/2026 (départ le 03/03/2026) : échéance le 03/05/2026 à minuit — L. 1965 art. 42, al. 2. Report au jour ouvrable débattu : le 04/05/2026 si on l’applique.',
-      avertissements: [],
+      avertissements: [
+        'LRAR sans demande de voie postale enregistrée : délai calculé, validité à confirmer (L. 1965 art. 42-1 ; D. 1967 art. 64-1 ; lecture du GRECCO, préconisation n° 19, source secondaire).',
+        "Fin minimale : tirée d'une seule notification, nombre d'opposants et de défaillants non saisi ; un autre a pu être notifié plus tard (D. 1967 art. 18 : un délai par opposant ou défaillant). Calculer le délai de chacun.",
+      ],
+      finMinimale: true,
+      aConfirmer: null,
     })
     expect(
       finDelaiContestationAg(chaineComplete(), [courrier({})], 'ag-1', { reporterAuJourOuvrable: true }),
@@ -160,7 +171,8 @@ describe('J1 — point de départ : la première présentation du pli', () => {
     expect(DELAI_CONTESTATION_AG_ART42.certitude).toBe('A_CONFIRMER')
     expect(DELAI_CONTESTATION_AG_ART42.reportAuJourOuvrableParDefaut).toBe(false)
     expect(DELAI_CONTESTATION_AG_ART42.jurisprudence.map((j) => [j.citation.match(/n° [\d.-]+\d/)?.[0], j.verification])).toEqual([
-      ['n° 24-18.842', 'SOURCE_SECONDAIRE'],
+      // texte de l'arrêt du 16/04/2026 lu sur Légifrance le 11/11/2026 (J50) : il n'est plus une source secondaire
+      ['n° 24-18.842', 'TEXTE_LU'],
       ['n° 94-21.498', 'SOURCE_SECONDAIRE'],
       ['n° 02-11.134', 'SOURCE_SECONDAIRE'],
     ])
@@ -210,8 +222,10 @@ describe('J2 — séquence des statuts d’AG', () => {
 
   it('le moteur de délais refuse une chaîne incomplète, avec un message explicite', () => {
     const sansDebut = [ligne({})]
+    // J51 (11/11/2026) : le refus porte sa cause, pour dire comment lever le blocage de l'OS
     expect(finDelaiContestationAg(sansDebut, [courrier({})], 'ag-1')).toEqual({
       etat: 'refuse',
+      cause: 'statuts_incomplets',
       motif: expect.stringMatching(/chaîne.*incomplète/i),
     })
     const sautNonJustifie = [

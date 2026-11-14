@@ -26,18 +26,48 @@ import type { Identite } from '@/lib/administrateur-judiciaire/domain/identites-
  * Gestéam — fiche client, critère LRE : modes d'acquisition du consentement (prestataire de LRE, extranet, saisie,
  * résolution d'AG), refus, anomalies « LRE sans prénom » et « PM sans représentant » (tranche 43 § 5) ; extranet :
  * activer / désactiver les AR électroniques, « Valider l'email des AR électroniques » (§ 4). Ces modes relèvent de
- * l'ancien régime de l'accord ; à l'import, ils ne deviennent pas des demandes de voie postale.
+ * l'ancien régime de l'accord : VitFix les garde comme ConsentementVoieElectronique (accord, refus, retrait), lus par le
+ * calcul du délai de contestation (J50, ci-dessous).
+ *
+ * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50 ; notes decisions-1111/questions-hugo.md,
+ * j50-textes.md, j50-j51-jurisprudence.md ; textes lus sur Légifrance le 11/11/2026) :
+ * - un refus de la voie électronique ou un retrait d'accord enregistré avant le 25/12/2025 vaut DEMANDE DE VOIE POSTALE,
+ *   à sa date de réception (demandesDepuisConsentements : origine « autre », effet de l'art. 64-4) : la loi permet de la
+ *   faire « à tout moment et par tout moyen » (L. 1965 art. 42-1, al. 2, version de la loi n° 2024-322 du 9 avril 2024,
+ *   art. 38) ; qu'un refus ancien vaille demande n'est dit par aucune source (interprétation prudente, 🔵) ; relecture du
+ *   14/11/2026 : seulement s'il est le dernier état des consentements de cette identité à la date de l'envoi (un accord
+ *   reçu ensuite le remplace : sondes P1, P2, S3) ;
+ * - l'accord exprès venait de la loi jusqu'au 10/04/2024 (L. 1965 art. 42-1, version de la loi n° 2014-366, en vigueur du
+ *   27/03/2014 au 10/04/2024 : « sous réserve de l'accord exprès des copropriétaires ») ; du 11/04/2024 au 24/12/2025, il
+ *   ne venait plus que du décret (art. 64-3 de la rédaction du D. 1967 en vigueur du 04/07/2020 au 24/12/2025, décret
+ *   n° 2020-834), alors que l'art. 42-1 disait déjà « valablement faites par voie électronique » : portée débattue (deux
+ *   lectures, GRECCO, préconisation n° 19, source secondaire), le code prend la prudente (accord exigé) ; avant le
+ *   04/07/2020, rédaction antérieure du décret (art. 64 à 64-4) ; le retrait de l'accord était à l'art. 64-4 de la
+ *   rédaction 2020 ; l'ancien art. 64-2 donnait les moyens et le point de départ (lendemain de la transmission de l'avis),
+ *   pas l'accord ; accordElectroniqueEnVigueur lit le dernier accord reçu au plus tard à la date, sans refus ni retrait
+ *   reçu entre les deux ; une demande de voie postale reçue avant le 25/12/2025 exclut aussi l'envoi électronique, effet
+ *   retenu à sa réception (relecture du 14/11/2026, sonde P6 ; statut-assemblee.ts).
  *
  * 🔵 Déduit : « le lendemain du huitième jour suivant la réception » = réception + 9 jours ; plusieurs demandes : la plus
  * ancienne en vigueur fait foi ; une adresse électronique vaut dès sa réception, la dernière reçue l'emporte (à même date,
  * la dernière enregistrée) ; représentant de la personne morale exigé avant un envoi électronique (bloquant) ; à défaut
  * d'adresse électronique communiquée, la lettre recommandée avec avis de réception (l'art. 65 al. 1 fait notifier
- * l'adresse par le copropriétaire) ; texte de la mention de l'art. 64-2 (le décret n'impose pas de formule).
- * 🔴 Non établi : voie à une date antérieure au 25/12/2025 (accord exprès de l'ancien art. 64-2 ; portée immédiate de
- * l'art. 42-1 entre le 11/04/2024 et le 24/12/2025 débattue) : non calculée ; retour à la voie électronique après une
- * demande de voie postale ; le canal LRE n'est pas encore une forme d'envoi des courriers (courriers.ts ne connaît que
- * l'AR comme notification, et le référentiel des formes d'envoi, généré depuis Gestéam, n'a pas de LRE) ; le libellé
- * « Voie électronique (accord exprès) » de l'écran d'AG (AgElectiveModule.tsx) est à revoir avec Frédéric.
+ * l'adresse par le copropriétaire) ; texte de la mention de l'art. 64-2 (le décret n'impose pas de formule) ; un refus
+ * ou un retrait reçu à partir du 25/12/2025 est aussi une demande de voie postale (la demande se fait « par tout moyen »),
+ * tant qu'un accord reçu ensuite ne le remplace pas ; un refus d'avant le 25/12/2025 suivi d'un accord reçu depuis : l'accord,
+ * dernier état, l'emporte (lecture du code, question à Hugo).
+ * 🔴 Non établi : voie à une date antérieure au 25/12/2025 (accord exprès de l'art. 64-3 de la rédaction de 2020 ;
+ * portée immédiate de l'art. 42-1 entre le 11/04/2024 et le 24/12/2025 débattue) : non calculée par voieDeNotification ;
+ * retour à la voie électronique après une DemandeVoiePostale (un accord reçu ensuite ne la lève pas) ; demande, refus ou
+ * retrait reçu du 16 au 24/12/2025 : son effet selon la règle actuelle (réception + 9 jours) tombe après le 25/12/2025,
+ * délai calculé avec un avertissement « à confirmer » (statut-assemblee.ts ; variante plus prudente : refus, effet à la
+ * réception) ; l'accord du critère LRE de Gestéam vaut-il aussi consentement du destinataire non professionnel aux
+ * envois recommandés électroniques (CPCE art. L. 100) ? Le code le lit ainsi (lecture du code, question ouverte à Hugo) :
+ * sans lui, une LRE envoyée depuis le 25/12/2025 reste calculée, avec un avertissement « à confirmer »
+ * (statut-assemblee.ts) ; le libellé « Voie électronique (accord exprès) » de l'écran d'AG (AgElectiveModule.tsx) est à
+ * revoir avec Frédéric. Le mode de notification des courriers (LRAR, LRE, prestataire
+ * qualifié) est un champ propre à VitFix (courriers.ts, J50) : le référentiel des formes d'envoi, généré depuis Gestéam,
+ * n'a pas de LRE et ne change pas.
  */
 
 export const ORIGINES_DEMANDE_VOIE_POSTALE = ['courrier', 'extranet', 'ag', 'autre'] as const
@@ -48,6 +78,16 @@ export const JOURS_AVANT_EFFET_VOIE_POSTALE = 9
 
 /** Entrée en vigueur du décret n° 2025-1292 (voie électronique de principe). */
 export const ENTREE_EN_VIGUEUR_VOIE_ELECTRONIQUE = composerDateIso(2025, 12, 25)
+
+/**
+ * Entrée en vigueur de L. 1965 art. 42-1 dans la version de la loi n° 2024-322 du 9 avril 2024 (art. 38) : « valablement
+ * faites par voie électronique », demande de voie postale « à tout moment et par tout moyen ». Version précédente (loi
+ * n° 2014-366), du 27/03/2014 au 10/04/2024 : « sous réserve de l'accord exprès des copropriétaires ».
+ */
+export const ENTREE_EN_VIGUEUR_ART_42_1_LOI_2024 = composerDateIso(2024, 4, 11)
+
+/** Entrée en vigueur du décret n° 2020-834 (D. 1967 art. 64 à 64-9, rédaction en vigueur du 04/07/2020 au 24/12/2025). */
+export const ENTREE_EN_VIGUEUR_DECRET_2020 = composerDateIso(2020, 7, 4)
 
 const FONDEMENT_VOIE_POSTALE = 'L. 1965 art. 42-1 ; D. 1967 art. 64-1, 64-4'
 const FONDEMENT_VOIE_ELECTRONIQUE = 'L. 1965 art. 42-1 ; D. 1967 art. 64'
@@ -121,6 +161,75 @@ export function voieDeNotification({
   return effets.length > 0
     ? { voie: 'postale', depuis: effets[0], fondement: FONDEMENT_VOIE_POSTALE, aConfirmer: null }
     : { voie: 'electronique', depuis: null, fondement: FONDEMENT_VOIE_ELECTRONIQUE, aConfirmer: null }
+}
+
+// ── Consentement à la voie électronique (ancien régime, critère LRE de Gestéam ; J50) ───────────────────────────────
+
+export const SENS_CONSENTEMENT_VOIE_ELECTRONIQUE = ['accord', 'refus', 'retrait'] as const
+export type SensConsentementVoieElectronique = (typeof SENS_CONSENTEMENT_VOIE_ELECTRONIQUE)[number]
+
+/**
+ * Accord exprès à la voie électronique, refus, ou retrait de l'accord, avec sa date de réception (L. 1965 art. 42-1,
+ * version de la loi n° 2014-366, jusqu'au 10/04/2024 ; D. 1967 art. 64-3 et 64-4 de la rédaction en vigueur du 04/07/2020
+ * au 24/12/2025).
+ */
+export interface ConsentementVoieElectronique {
+  identiteId: string
+  sens: SensConsentementVoieElectronique
+  recuLe: string
+}
+
+export function creerConsentementVoieElectronique(saisie: ConsentementVoieElectronique): ConsentementVoieElectronique {
+  const identiteId = saisie.identiteId.trim()
+  if (!identiteId) throw new Error('Consentement à la voie électronique : identité attendue.')
+  if (!(SENS_CONSENTEMENT_VOIE_ELECTRONIQUE as readonly string[]).includes(saisie.sens))
+    throw new Error(`Sens du consentement inconnu : « ${saisie.sens} » (accord, refus ou retrait attendu).`)
+  if (!estDateIsoValide(saisie.recuLe)) throw new Error(`Date de réception invalide (${saisie.recuLe}) : AAAA-MM-JJ attendu.`)
+  return { identiteId, sens: saisie.sens, recuLe: saisie.recuLe }
+}
+
+/**
+ * J50 : un refus de la voie électronique ou un retrait d'accord vaut demande de voie postale, à sa date de réception
+ * (L. 1965 art. 42-1, al. 2 : « à tout moment et par tout moyen » ; effet : D. 1967 art. 64-4), tant qu'il est le DERNIER
+ * ÉTAT des consentements de cette identité à la date (relecture du 14/11/2026) : un accord reçu ensuite, au plus tard ce
+ * jour-là, le remplace. Renvoie, par identité, les refus et retraits reçus depuis son dernier accord (à même date, le
+ * dernier enregistré l'emporte, comme dans accordElectroniqueEnVigueur). 🔵 Interprétation prudente, aucune source.
+ */
+export function demandesDepuisConsentements(consentements: readonly ConsentementVoieElectronique[], date: string): DemandeVoiePostale[] {
+  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  const parIdentite = new Map<string, ConsentementVoieElectronique[]>()
+  for (const c of consentements)
+    if (c.recuLe <= date) parIdentite.set(c.identiteId, [...(parIdentite.get(c.identiteId) ?? []), c])
+  const demandes: DemandeVoiePostale[] = []
+  for (const liste of parIdentite.values()) {
+    const triee = liste
+      .map((c, rang) => ({ c, rang }))
+      .sort((a, b) => a.c.recuLe.localeCompare(b.c.recuLe) || a.rang - b.rang)
+      .map(({ c }) => c)
+    const dernierAccord = triee.findLastIndex((c) => c.sens === 'accord')
+    for (const c of triee.slice(dernierAccord + 1)) demandes.push({ identiteId: c.identiteId, recueLe: c.recuLe, origine: 'autre', agId: null })
+  }
+  return demandes
+}
+
+/**
+ * Accord à la voie électronique en vigueur à la date : le dernier accord reçu au plus tard ce jour-là, sans refus ni
+ * retrait reçu depuis (au plus tard ce jour-là) ; null sinon.
+ */
+export function accordElectroniqueEnVigueur({
+  identiteId,
+  consentements,
+  date,
+}: {
+  identiteId: string
+  consentements: readonly ConsentementVoieElectronique[]
+  date: string
+}): ConsentementVoieElectronique | null {
+  if (!estDateIsoValide(date)) throw new Error(`Date invalide (${date}) : AAAA-MM-JJ attendu.`)
+  let dernier: ConsentementVoieElectronique | null = null
+  for (const c of consentements)
+    if (c.identiteId === identiteId && c.recuLe <= date && (dernier === null || c.recuLe >= dernier.recuLe)) dernier = c
+  return dernier?.sens === 'accord' ? dernier : null
 }
 
 /** Adresse électronique communiquée par le copropriétaire à cet effet (D. 1967 art. 65), avec sa date de réception. */
