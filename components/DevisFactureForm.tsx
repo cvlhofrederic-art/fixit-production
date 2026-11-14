@@ -1440,7 +1440,8 @@ export default function DevisFactureForm({
     // sauvegarde (désormais automatique à chaque saisie). Il reste local jusqu'à sa validation, qui lui
     // attribue un numéro — comme dans le formulaire BTP.
     if (artisan?.id && (isStableDocId(draftEntry.id) || draftEntry.docNumber)) {
-      syncDocumentSafe(draftEntry as Record<string, unknown>, artisan.id)
+      // Envoi en arrière-plan, non attendu : syncDocumentSafe attrape et remonte ses propres erreurs.
+      void syncDocumentSafe(draftEntry as Record<string, unknown>, artisan.id)
     }
     if (opts?.silent) {
       setLastAutosaveAt(Date.now())
