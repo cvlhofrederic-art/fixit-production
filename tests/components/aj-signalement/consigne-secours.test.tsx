@@ -4,8 +4,9 @@
 // une urgence déclarée par QR code n'alerte aucun secours. La page publique le dit :
 //   - consigne permanente en tête du formulaire, avant les coordonnées (FR, PT) ;
 //   - consigne renforcée sous le choix d'urgence, seulement quand « urgent » est choisi (absente avant le choix, avec
-//     « non » et avec « gênant ») ; elle ne prend pas le focus, elle est portée par une seule région polie (rôle
-//     « status » de l'Encadre, jamais une alerte) ;
+//     « non » et avec « gênant ») ; elle ne prend pas le focus, elle n'est jamais une alerte ni répétée par une autre
+//     région vivante ; une région créée avec son texte n'étant pas lue à coup sûr, elle décrit le bouton d'envoi
+//     (aria-describedby) tant que « urgent » est choisi, et lui seul : elle est lue quand la personne atteint le bouton ;
 //   - même consigne renforcée sur l'écran de confirmation d'un signalement envoyé comme urgent, et là seulement.
 // Textes : lib/aj-signalement/textes.ts (consigneSecours, consigneSecoursUrgente). Données fictives.
 
@@ -150,7 +151,7 @@ describe('formulaire public : consigne renforcée sous le choix d’urgence', ()
     expect(renforcee()).toBeNull()
   })
 
-  it('ne vole pas le focus ; portée par une seule région, polie (jamais une alerte ni « assertive »)', () => {
+  it('ne vole pas le focus ; jamais une alerte ni « assertive », aucune autre région vivante ne la répète', () => {
     rendre()
     const radio = choisirUrgence('urgent')
     expect(document.activeElement).toBe(radio)
@@ -171,6 +172,48 @@ describe('formulaire public : consigne renforcée sous le choix d’urgence', ()
     expect(screen.getByText(tqPt.consigneSecoursUrgente.titre)).toBeInTheDocument()
     expect(renforcee('pt')).toBeInTheDocument()
     expect(renforcee('fr')).toBeNull()
+  })
+})
+
+// Relecture : la région « status » est créée avec son texte, donc pas annoncée à coup sûr (règle du dépôt,
+// SignalementsSemblablesQr.tsx) ; la consigne renforcée décrit le bouton d'envoi tant que « urgent » est choisi.
+describe('formulaire public : la consigne renforcée décrit le bouton d’envoi', () => {
+  const boutonEnvoyer = (langue: LangueSignalementQr = 'fr') => screen.getByRole('button', { name: TEXTES_SIGNALEMENT_QR[langue].envoyer })
+
+  it.each(['fr', 'pt'] as const)('%s : avec « urgent », formulaire complet, le bouton (actif) est décrit par le titre et le texte', (langue) => {
+    const { titre, texte } = TEXTES_SIGNALEMENT_QR[langue].consigneSecoursUrgente
+    rendre(langue)
+    remplirSaufUrgence(langue)
+    expect(boutonEnvoyer(langue)).not.toHaveAccessibleDescription()
+    choisirUrgence('urgent', langue)
+    const bouton = boutonEnvoyer(langue)
+    expect(bouton).toBeEnabled()
+    expect(bouton).toHaveAccessibleDescription(expect.stringContaining(titre))
+    expect(bouton).toHaveAccessibleDescription(expect.stringContaining(texte))
+  })
+
+  it.each(['non', 'genant'] as const)('avec « %s » : aucune description, y compris après un passage par « urgent »', (urgence) => {
+    rendre()
+    remplirSaufUrgence()
+    choisirUrgence(urgence)
+    expect(boutonEnvoyer()).not.toHaveAccessibleDescription()
+    choisirUrgence('urgent')
+    expect(boutonEnvoyer()).toHaveAccessibleDescription(expect.stringContaining(TEXTES_SIGNALEMENT_QR.fr.consigneSecoursUrgente.texte))
+    choisirUrgence(urgence)
+    expect(boutonEnvoyer()).not.toHaveAccessibleDescription()
+    expect(boutonEnvoyer()).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('le bouton d’envoi est le seul élément décrit par la consigne ; elle ne vise pas un élément absent', () => {
+    rendre()
+    remplirSaufUrgence()
+    choisirUrgence('urgent')
+    const decrits = Array.from(document.querySelectorAll('[aria-describedby]'))
+    const parConsigne = decrits.filter((el) => (el.getAttribute('aria-describedby') ?? '').split(/\s+/).some((id) => {
+      const cible = id ? document.getElementById(id) : null
+      return (cible?.textContent ?? '').includes(TEXTES_SIGNALEMENT_QR.fr.consigneSecoursUrgente.texte)
+    }))
+    expect(parConsigne).toEqual([boutonEnvoyer()])
   })
 })
 

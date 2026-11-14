@@ -18,8 +18,10 @@
 // reste) et sans Referer : le chemin de la page porte le jeton du QR code.
 // R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : consigne d'appel
 // au 112 en tête du formulaire, avant les coordonnées ; consigne renforcée sous le choix d'urgence tant que « urgent » est
-// choisi (ConsigneSecoursQr.tsx). La priorité envoyée est rendue avec la confirmation : l'écran de confirmation d'un
-// signalement urgent répète la consigne renforcée. Rien ne change côté serveur.
+// choisi (ConsigneSecoursQr.tsx), qui décrit alors aussi le bouton d'envoi (aria-describedby). La priorité envoyée est
+// rendue avec la confirmation : l'écran de confirmation d'un signalement urgent répète la consigne renforcée. Ni la route
+// ni le schéma ne changent ; l'accusé de réception d'un signalement urgent, lui, porte la consigne
+// (lib/aj-signalement/email.ts).
 
 import { useId, useRef, useState, type InputHTMLAttributes } from 'react'
 import { TYPES_PROBLEME, ZONES_COMMUNES, remplir, type TextesCopro } from '@/lib/coproprietaire/textes'
@@ -111,6 +113,7 @@ export default function FormulaireSignalementQr({
   const idZone = `${idBase}-zone`
   const idType = `${idBase}-type`
   const idDescription = `${idBase}-description`
+  const idConsigneUrgente = `${idBase}-consigne-urgente`
 
   const [valeurs, setValeurs] = useState<ValeursFormulaireQr>(VALEURS_INITIALES_QR)
   const [quittes, setQuittes] = useState<ReadonlySet<ChampCoordonnees>>(() => new Set())
@@ -150,6 +153,7 @@ export default function FormulaireSignalementQr({
   const complet = formulaireComplet(valeurs)
   const longueur = valeurs.description.trim().length
   const manque = DESCRIPTION_MIN_QR - longueur
+  const urgent = valeurs.urgence === 'urgent'
 
   const optionsLieu: OptionChoix<Exclude<LieuQr, ''>>[] = [
     { valeur: 'logement', libelle: remplir(t.demandes.dansMonLogement, { lieu: lieuLogementQr(valeurs, langue, t, tq) }) },
@@ -294,13 +298,21 @@ export default function FormulaireSignalementQr({
             onChange={(v) => changer('urgence', v)}
           />
 
-          {/* R70 : sous le choix, sans prendre le focus ; annonce polie (rôle « status » de l'Encadre), une seule région. */}
-          {valeurs.urgence === 'urgent' && <ConsigneSecoursUrgenteQr tq={tq} />}
+          {/* R70 : sous le choix, sans prendre le focus. Créée avec son texte, la région « status » de l'Encadre n'est pas
+              lue à coup sûr : la consigne décrit le bouton d'envoi (aria-describedby), lue quand la personne l'atteint. */}
+          {urgent && <ConsigneSecoursUrgenteQr tq={tq} id={idConsigneUrgente} />}
 
           {erreur && <Encadre ton="erreur">{messageErreurEnvoi(erreur, tq)}</Encadre>}
 
           <div className="space-y-2">
-            <Bouton variante="principal" icone="envoyer" pleineLargeur disabled={!complet || envoi} onClick={() => { void envoyer() }}>
+            <Bouton
+              variante="principal"
+              icone="envoyer"
+              pleineLargeur
+              disabled={!complet || envoi}
+              aria-describedby={urgent ? idConsigneUrgente : undefined}
+              onClick={() => { void envoyer() }}
+            >
               {envoi ? tq.envoiEnCours : tq.envoyer}
             </Bouton>
             <p className="text-center text-sm text-[#4A5E78]">{tq.transmis}</p>
