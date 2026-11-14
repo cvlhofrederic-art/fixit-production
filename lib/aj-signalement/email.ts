@@ -24,6 +24,9 @@
 // jamais une image distante (aucun suivi d'ouverture possible). Les e-mails de signalement aux destinataires partent en
 // lot (sendBatchEmails), que Resend ne laisse porter aucune pièce jointe : ils restent SANS logo. Les messages de
 // diffusion et leur copie restent sans aucune image (garantie « pas de promotion », droit § 4.1).
+// R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric, portugais H4) : l'accusé de
+// réception d'un signalement URGENT commence par la consigne renforcée d'appel aux secours (blocConsigneSecoursQr), dans
+// la langue du signalement ; autres priorités : accusé octet pour octet celui d'avant.
 
 import { z } from 'zod'
 import { NOREPLY_EMAIL } from '@/lib/constants'
@@ -46,6 +49,7 @@ import {
   LIBELLE_PRIORITE_QR, TEXTES_TABLEAU_QR, dateHeureParis, libelleQualiteQr, lieuSignalementQr, texteSignalementLieQr,
 } from '@/lib/aj-signalement/affichage'
 import { parLangue } from '@/lib/aj-signalement/bilingue'
+import { TEXTES_SIGNALEMENT_QR } from '@/lib/aj-signalement/textes'
 import { remplir } from '@/lib/coproprietaire/textes'
 
 const ECHAPPEMENTS: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
@@ -625,6 +629,20 @@ function ligneInformationConfirmationQr(t: TextesConfirmationQr, politique: Poli
 }
 
 /**
+ * R70 du dossier téléphonie (14/11/2026 ; brouillon, textes à valider par Hugo, présentation par Frédéric, portugais H4) :
+ * consigne renforcée d'appel aux secours en tête de l'accusé d'un signalement URGENT, dans la langue du signalement.
+ * Mêmes textes que la page publique (TEXTES_SIGNALEMENT_QR.consigneSecoursUrgente), échappés ; même style que le bandeau
+ * « urgence » de l'e-mail aux destinataires. Ni lien, ni numéro cliquable, ni bouton : l'accusé garde au plus un href
+ * (la politique du cabinet). Exporté pour les tests de non-régression (empreintes de l'accusé d'avant).
+ */
+export function blocConsigneSecoursQr(langue: LangueSignalementQr): string {
+  const e = echapperHtml
+  const { titre, texte } = TEXTES_SIGNALEMENT_QR[langue].consigneSecoursUrgente
+  return `<p style="margin:0 0 16px;padding:10px 14px;background:#FBE4E1;border-radius:10px;color:#6E1C13;font-size:14px;line-height:1.5;"><strong>${e(titre)}</strong><br/>${e(texte)}</p>
+          `
+}
+
+/**
  * E-mail de confirmation : numéro, copropriété, date et heure de Paris, récapitulatif de la déclaration, suite.
  * Ni nom, ni téléphone, ni adresse e-mail (de personne), ni lien vers le tableau de bord.
  * PR 3, lot 7 (cahier § 6, droit § 5.4) : l'accusé reste un accusé. Seuls ajouts possibles, tous deux facultatifs :
@@ -633,6 +651,9 @@ function ligneInformationConfirmationQr(t: TextesConfirmationQr, politique: Poli
  *   - avant le pied, la ligne vers la politique de confidentialité du cabinet quand il en a une (seul href).
  * Ni bouton, ni autre texte, ni en-tête de désinscription ; structure figée par un test (liste exacte des blocs). Sans
  * ces deux options, la sortie est identique à celle d'avant la PR 3.
+ * R70 (14/11/2026, brouillon) : signalement de priorité « urgente » seulement, la consigne d'appel aux secours en tête du
+ * corps (blocConsigneSecoursQr ; ni lien, ni bouton, aucune information sur l'immeuble ; relecture du droit § 5.4 par
+ * Hugo). Autres priorités : sortie identique à celle d'avant.
  * Logo du cabinet (13/11/2026) : rangée blanche au-dessus du bandeau, image appelée par cid (pièce jointe en ligne
  * d'envoyerConfirmationQr) ; sans logo, sortie identique à celle d'avant ; avec, rien d'autre ne change.
  */
@@ -660,8 +681,10 @@ export function templateConfirmationQr({
     ? `
           ${paragraphe(`${e(t.confirmationChaqueDepot)}<br/>${e(t.annonceDiffusion)}`, '12px 0 0')}`
     : ''
+  // R70 : vide hors priorité « urgente » (HTML d'avant).
+  const consigne = s.priorite === 'urgente' ? blocConsigneSecoursQr(s.langue) : ''
 
-  const corps = `${paragraphe(t.bonjour)}
+  const corps = `${consigne}${paragraphe(t.bonjour)}
           ${paragraphe(remplir(t.introduction, { copropriete: `<strong>${e(copropriete.nom)}</strong>`, numero: `<strong>${e(numero)}</strong>` }), '0 0 4px')}
           ${intertitre(t.recapitulatif)}
           <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${lignes}</table>

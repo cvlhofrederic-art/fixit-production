@@ -19,7 +19,9 @@
 //     formulaire public (informationFormulaireQr) : politique du cabinet, partie « diffusion » seulement si elle est
 //     possible ;
 //   - logo du cabinet (13/11/2026) : l'accusé le porte en pièce jointe en ligne (cid) ; les e-mails aux destinataires
-//     (lot) ni image ni pièce jointe ; sans logo ou migration 20261114 absente : accusé d'avant.
+//     (lot) ni image ni pièce jointe ; sans logo ou migration 20261114 absente : accusé d'avant ;
+//   - R70 du dossier téléphonie (14/11/2026, brouillon) : l'accusé d'un signalement URGENT porte en tête la consigne
+//     d'appel aux secours ; les autres priorités, l'accusé d'avant (structure figée, les deux cas).
 // Seuls Supabase (petit moteur qui applique les filtres eq / in / gte et refuse les colonnes « absentes » ; lignes et
 // erreurs par table pour maybeSingle ; fonctions SQL simulées par nom, PGRST202 sinon), le limiteur (un compteur par
 // clé, remis à zéro avant chaque test), le logger et sendEmail sont simulés.
@@ -778,9 +780,15 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
     creeLe: '2026-11-04T14:05:00.000Z', misAJourLe: '2026-11-04T14:05:00.000Z',
   }
 
-  const DEBUT = [
-    'AJ SIGNALEMENT',
-    'Votre signalement est enregistré',
+  const ENTETE = ['AJ SIGNALEMENT', 'Votre signalement est enregistré']
+  // R70 du dossier téléphonie (14/11/2026, brouillon : textes Hugo, présentation Frédéric) : un signalement URGENT porte
+  // en tête la consigne d'appel aux secours (ni lien, ni bouton, aucune information sur l'immeuble) ; les autres
+  // priorités gardent l'accusé d'avant. Bloc ajouté : note juridique (droit § 5.4) à relire par Hugo.
+  const CONSIGNE_112 = [
+    'Danger immédiat ?',
+    'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis à l’administrateur de la copropriété.',
+  ]
+  const recapitulatif = (urgence: string) => [
     'Bonjour,',
     'Votre signalement pour la copropriété Parc Belle Ombre a bien été enregistré sous le numéro B1C2D3E4.',
     'Ce que vous avez déclaré',
@@ -790,12 +798,14 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
     'Vous êtes', 'Propriétaire',
     'Lieu du problème', 'Votre logement (bât. B · étage 4 · lot 12)',
     'Type de problème', 'Plomberie (fuite, colonne, robinetterie)',
-    'Urgence', 'Urgent',
+    'Urgence', urgence,
     'Description', 'Fuite sous l’évier de la cuisine',
     'Et maintenant ?',
     'Votre signalement a été transmis à l’administrateur de la copropriété, qui pourra vous recontacter au téléphone ou à l’adresse e-mail que vous avez indiqués.',
     'Gardez ce numéro : il permet de retrouver votre signalement si vous en reparlez avec l’administrateur.',
   ]
+  const DEBUT = [...ENTETE, ...CONSIGNE_112, ...recapitulatif('Urgent')]
+  const DEBUT_NON_URGENT = [...ENTETE, ...recapitulatif('Normal')]
   const ANNONCE = [
     'Ce message confirme votre signalement. Vous le recevrez à chaque fois que vous en déposez un.',
     'Vous recevrez aussi les informations sur votre immeuble (fuite, coupure, intervention) ; chacune de ces informations comporte un bouton pour ne plus les recevoir.',
@@ -817,6 +827,15 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
     expect((html.match(/href=/g) ?? []).length).toBe('politique' in options ? 1 : 0)
     if ('politique' in options) expect(html).toContain('href="https://cabinet-exemple.test/confidentialite"')
     expect(html).not.toMatch(/<button|<img|display:inline-block/i)
+  })
+
+  it.each([
+    ['accusé d’origine (ni annonce, ni politique)', {}, [...DEBUT_NON_URGENT, ...AUTOMATIQUE, ...PIED]],
+    ['annonce et politique', { annoncerDiffusion: true, politique: POLITIQUE }, [...DEBUT_NON_URGENT, ...ANNONCE, ...AUTOMATIQUE, ...INFORMATION, ...PIED]],
+  ])('signalement non urgent, %s : liste exacte des blocs, sans la consigne du 112 (R70)', (_cas, options, attendu) => {
+    const { html } = templateConfirmationQr({ copropriete: { nom: 'Parc Belle Ombre' }, signalement: { ...s, priorite: 'normale' }, ...options })
+    expect(blocs(html)).toEqual(attendu)
+    expect(html).not.toContain('112')
   })
 })
 
