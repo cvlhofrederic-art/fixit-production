@@ -9,6 +9,7 @@ import { generateFacturXML } from '@/lib/facturx-mapper'
 import { embedFacturX } from '@/lib/facturx'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // ── Validation Zod (facture FR uniquement) ──
 const facturxRequestSchema = z.object({
@@ -211,9 +212,10 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (err) {
-    console.error('[facturx/generate] Error:', err)
+    // Le détail de l'erreur reste dans le journal : le navigateur reçoit un message générique.
+    logger.error('[facturx/generate] Error:', err)
     return NextResponse.json(
-      { error: 'Erreur lors de la génération Factur-X', details: String(err) },
+      { error: 'Erreur lors de la génération Factur-X' },
       { status: 500 }
     )
   }

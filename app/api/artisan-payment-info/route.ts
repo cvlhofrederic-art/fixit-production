@@ -66,8 +66,9 @@ export async function POST(request: NextRequest) {
       .eq('id', artisan.id)
 
     if (updateError) {
+      // Le détail (message de la base) reste dans le journal : le navigateur reçoit un message générique.
       logger.error('savePaymentInfo error:', updateError)
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return NextResponse.json({ error: 'Enregistrement impossible pour le moment. Réessayez dans quelques instants.' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true })
