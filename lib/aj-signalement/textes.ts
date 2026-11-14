@@ -99,8 +99,8 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
   application: { fr: 'AJ Signalement', pt: 'AJ Signalement' },
   titre: { fr: 'Signaler un problème', pt: 'Reportar um problema' },
   accroche: {
-    fr: 'Vous avez constaté un problème dans la copropriété {copropriete} ? Décrivez-le ici : l’administrateur le reçoit immédiatement.',
-    pt: 'Detetou um problema no condomínio {copropriete}? Descreva-o aqui: o administrador recebe-o imediatamente.',
+    fr: 'Vous avez constaté un problème dans la copropriété {copropriete} ? Décrivez-le ici : il sera transmis à l’administrateur.',
+    pt: 'Detetou um problema no condomínio {copropriete}? Descreva-o aqui: será transmitido ao administrador.',
   },
   coordonnees: { fr: 'Vos coordonnées', pt: 'Os seus contactos' },
   coordonneesAide: {
@@ -174,8 +174,8 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
   confirmationTitre: { fr: 'Votre signalement a bien été envoyé le {date}.', pt: 'A sua ocorrência foi enviada em {date}.' },
   confirmationNumero: { fr: 'Numéro : {numero}', pt: 'Número: {numero}' },
   confirmationSuite: {
-    fr: 'L’administrateur vous recontactera au {telephone} ou à l’adresse {email}.',
-    pt: 'O administrador contactá-lo-á pelo {telephone} ou pelo e-mail {email}.',
+    fr: 'L’administrateur pourra vous recontacter au {telephone} ou à l’adresse {email}.',
+    pt: 'O administrador poderá contactá-lo pelo {telephone} ou pelo e-mail {email}.',
   },
   autreSignalement: { fr: 'Faire un autre signalement', pt: 'Reportar outro problema' },
   champObligatoire: { fr: 'Ce champ est obligatoire.', pt: 'Este campo é obrigatório.' },
@@ -221,15 +221,17 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
   },
   politiqueConfidentialite: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
   // R70 (dossier téléphonie) : TEXTES PROPOSÉS, brouillon (textes : Hugo ; présentation : Frédéric ; portugais : H4).
+  // Décisions de Hugo du 14/11/2026 : vocabulaire de la page (« administrateur de la copropriété » ; PT « ocorrência »,
+  // « administrador do condomínio ») ; l'accroche et la confirmation ne promettent plus ni réception immédiate ni rappel.
   consigneSecours: {
-    fr: 'En cas de danger immédiat (incendie, odeur de gaz, fumée, personne blessée ou en danger), appelez d’abord le 112. Ce signalement est transmis au gestionnaire de l’immeuble ; il n’alerte pas les secours.',
-    pt: 'Em caso de perigo imediato (incêndio, cheiro a gás, fumo, pessoa ferida ou em perigo), ligue primeiro para o 112. Esta comunicação é enviada ao gestor do prédio; não alerta os serviços de emergência.',
+    fr: 'En cas de danger immédiat (incendie, odeur de gaz, fumée, personne blessée ou en danger), appelez d’abord le 112. Ce signalement est transmis à l’administrateur de la copropriété ; il n’alerte pas les secours.',
+    pt: 'Em caso de perigo imediato (incêndio, cheiro a gás, fumo, pessoa ferida ou em perigo), ligue primeiro para o 112. Esta ocorrência é enviada ao administrador do condomínio; não alerta os serviços de emergência.',
   },
   consigneSecoursUrgente: parLangue({
     titre: { fr: 'Danger immédiat ?', pt: 'Perigo imediato?' },
     texte: {
-      fr: 'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis au gestionnaire de l’immeuble.',
-      pt: 'Ligue de imediato para o 112. Esta comunicação não alerta os serviços de emergência: é enviada ao gestor do prédio.',
+      fr: 'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis à l’administrateur de la copropriété.',
+      pt: 'Ligue de imediato para o 112. Esta ocorrência não alerta os serviços de emergência: é enviada ao administrador do condomínio.',
     },
   }),
 })

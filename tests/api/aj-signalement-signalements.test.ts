@@ -786,7 +786,7 @@ describe('accusé de réception : structure figée (droit § 5.4, « à verrouil
   // priorités gardent l'accusé d'avant. Bloc ajouté : note juridique (droit § 5.4) à relire par Hugo.
   const CONSIGNE_112 = [
     'Danger immédiat ?',
-    'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis au gestionnaire de l’immeuble.',
+    'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis à l’administrateur de la copropriété.',
   ]
   const recapitulatif = (urgence: string) => [
     'Bonjour,',

@@ -254,3 +254,44 @@ describe('écran de confirmation', () => {
     expect(renforcee('pt')).toBeInTheDocument()
   })
 })
+
+// Décisions de Hugo du 14/11/2026 (relecture du brouillon) : vocabulaire de la page aligné (« administrateur de la
+// copropriété », comme le reste de la page ; PT « ocorrência », « administrador do condomínio ») ; textes voisins sans
+// promesse (ni réception « immédiate », ni rappel certain).
+describe('vocabulaire et promesses de la page publique (décisions de Hugo du 14/11/2026)', () => {
+  const fr = TEXTES_SIGNALEMENT_QR.fr
+  const pt = TEXTES_SIGNALEMENT_QR.pt
+
+  it('FR : les consignes nomment l’administrateur de la copropriété, jamais un « gestionnaire »', () => {
+    for (const texte of [fr.consigneSecours, fr.consigneSecoursUrgente.texte]) {
+      expect(texte).toContain('l’administrateur de la copropriété')
+      expect(texte).not.toMatch(/gestionnaire/i)
+    }
+  })
+
+  it('PT : les consignes parlent de l’« ocorrência » et de l’administrador do condomínio, comme le reste de la page', () => {
+    for (const texte of [pt.consigneSecours, pt.consigneSecoursUrgente.texte]) {
+      expect(texte).toContain('ocorrência')
+      expect(texte).toContain('administrador do condomínio')
+      expect(texte).not.toMatch(/gestor|comunicação/i)
+    }
+  })
+
+  it('l’accroche ne promet pas une réception immédiate (FR et PT)', () => {
+    expect(fr.accroche).not.toMatch(/immédiat/i)
+    expect(pt.accroche).not.toMatch(/imediat/i)
+    expect(fr.accroche).toContain('{copropriete}')
+    expect(pt.accroche).toContain('{copropriete}')
+  })
+
+  it('la confirmation ne promet pas de rappel : « pourra vous recontacter » (FR et PT), comme l’accusé de réception', () => {
+    expect(fr.confirmationSuite).toContain('pourra vous recontacter')
+    expect(fr.confirmationSuite).not.toMatch(/recontactera/)
+    expect(pt.confirmationSuite).toContain('poderá contactá-lo')
+    expect(pt.confirmationSuite).not.toMatch(/contactá-lo-á/)
+    for (const t of [fr.confirmationSuite, pt.confirmationSuite]) {
+      expect(t).toContain('{telephone}')
+      expect(t).toContain('{email}')
+    }
+  })
+})
