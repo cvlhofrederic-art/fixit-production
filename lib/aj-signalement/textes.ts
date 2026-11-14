@@ -9,6 +9,13 @@
 // d'envoi — qui traite les coordonnées, pourquoi, et le lien vers la politique de confidentialité du cabinet ; la partie
 // « diffusion » seulement quand la copropriété peut diffuser. TEXTE PROPOSÉ, à valider par Frédéric et Hugo (HF3 ;
 // portugais : H4) ; brouillon. Copropriété sans cabinet ou cabinet sans politique : rien ne s'affiche.
+// R70 du dossier téléphonie (14/11/2026) : une urgence déclarée par QR code n'alerte aucun secours. Consigne d'appel au 112
+// (consigneSecours, en tête du formulaire) et consigne renforcée (consigneSecoursUrgente : sous le choix « urgent », sur
+// la confirmation d'un signalement urgent et dans son accusé de réception, lib/aj-signalement/email.ts). TEXTES PROPOSÉS,
+// brouillon : textes à valider par Hugo, présentation par Frédéric, portugais à relire (H4). Fondement (note juridique du
+// dossier) : numéros d'urgence français fixés par l'annexe de la décision ARCEP n° 2022-2372 (112, 15, 17, 18, 114…) ;
+// 114 pour les personnes sourdes, malentendantes, sourdaveugles et aphasiques (CPCE, art. D. 98-8-1) ; au Portugal, le 112
+// seul. Aucun texte n'impose cet affichage sur un formulaire privé : mesure de prudence. Ni délai ni intervention promis.
 
 import { parLangue } from '@/lib/aj-signalement/bilingue'
 import type { LangueSignalementQr, QualiteDeclarantQr, StatutOuvertQr } from '@/lib/aj-signalement/types'
@@ -81,6 +88,10 @@ export interface TextesSignalementQr {
   informationTraitement: string
   informationTraitementDiffusion: string
   politiqueConfidentialite: string
+  /** R70 : consigne permanente d'appel au 112, en tête du formulaire (texte proposé, brouillon). */
+  consigneSecours: string
+  /** R70 : consigne renforcée, signalement urgent (choix, confirmation, accusé de réception ; texte proposé, brouillon). */
+  consigneSecoursUrgente: { titre: string; texte: string }
 }
 
 /** Textes de la page publique, FR et PT côte à côte pour chaque clé (lib/aj-signalement/bilingue.ts). */
@@ -209,6 +220,18 @@ export const TEXTES_SIGNALEMENT_QR: Record<LangueSignalementQr, TextesSignalemen
     pt: 'Os seus dados são tratados por {cabinet} para tratar a sua ocorrência e informá-lo dos incidentes do seu prédio; pode opor-se a qualquer momento.',
   },
   politiqueConfidentialite: { fr: 'Politique de confidentialité', pt: 'Política de privacidade' },
+  // R70 (dossier téléphonie) : TEXTES PROPOSÉS, brouillon (textes : Hugo ; présentation : Frédéric ; portugais : H4).
+  consigneSecours: {
+    fr: 'En cas de danger immédiat (incendie, odeur de gaz, fumée, personne blessée ou en danger), appelez d’abord le 112. Ce signalement est transmis au gestionnaire de l’immeuble ; il n’alerte pas les secours.',
+    pt: 'Em caso de perigo imediato (incêndio, cheiro a gás, fumo, pessoa ferida ou em perigo), ligue primeiro para o 112. Esta comunicação é enviada ao gestor do prédio; não alerta os serviços de emergência.',
+  },
+  consigneSecoursUrgente: parLangue({
+    titre: { fr: 'Danger immédiat ?', pt: 'Perigo imediato?' },
+    texte: {
+      fr: 'Appelez tout de suite le 112 (ou le 18, le 15, le 17). Personnes sourdes ou malentendantes : le 114, par SMS, application ou visio. Ce signalement n’alerte pas les secours : il est transmis au gestionnaire de l’immeuble.',
+      pt: 'Ligue de imediato para o 112. Esta comunicação não alerta os serviços de emergência: é enviada ao gestor do prédio.',
+    },
+  }),
 })
 
 /** Mention courte sous le bouton d'envoi : avec la partie « diffusion » seulement quand la copropriété peut diffuser. */
