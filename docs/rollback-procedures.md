@@ -114,6 +114,23 @@ DROP TABLE IF EXISTS data_requests;
 SELECT cron.unschedule('cleanup-idempotency');
 ```
 
+## Migration 20261114 — Équipe syndic : écritures réservées au serveur (T20)
+
+Recrée les trois policies d'écriture de la production telles que constatées le 14/11/2026 et rend aux rôles
+`anon` et `authenticated` les droits retirés. À n'employer que si une écriture légitime depuis le navigateur était
+découverte (aucune au 14/11/2026 : le code passe par les routes serveur en service role). Sur un projet de test
+construit depuis le dépôt, les policies portaient les noms du dépôt (`syndic_team_members_cabinet_full_access`,
+`syndic_team_cabinet_write`) : les recréer d'après `20260527_syndic_team_members.sql` et `041_rls_complete_audit.sql`.
+Après le retour arrière, relancer la partie 1 de `supabase/tests/syndic_equipe_ecritures_serveur.sql`.
+
+```sql
+-- Rollback (production)
+CREATE POLICY "syndic_team_insert" ON public.syndic_team_members FOR INSERT WITH CHECK (cabinet_id = auth.uid());
+CREATE POLICY "syndic_team_update" ON public.syndic_team_members FOR UPDATE USING (cabinet_id = auth.uid());
+CREATE POLICY "syndic_team_delete" ON public.syndic_team_members FOR DELETE USING (cabinet_id = auth.uid());
+GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members TO anon, authenticated;
+```
+
 ---
 
 ## Procedure de restore complete (PITR)
