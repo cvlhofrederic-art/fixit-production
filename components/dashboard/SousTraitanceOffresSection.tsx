@@ -152,10 +152,11 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState('')
 
-  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+  // Stable d'un rendu à l'autre : le chargement des offres peut l'appeler sans se recréer.
+  const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
-  }
+  }, [])
 
   // ── Load offers ───────────────────────────────────────────────────────────
   const loadOffers = useCallback(async () => {
@@ -169,10 +170,13 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
       setOffers(data.offers || [])
     } catch {
       setOffers([])
+      // Société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit, sinon rien ne le
+      // distingue de « Aucune annonce publiée ».
+      if (orgRole === 'pro_societe') showToast('Impossible de charger vos annonces', 'err')
     } finally {
       setLoading(false)
     }
-  }, [artisan?.id])
+  }, [artisan?.id, orgRole, showToast])
 
   useEffect(() => {
     loadOffers()

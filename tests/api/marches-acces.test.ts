@@ -11,6 +11,7 @@
 // Ces modes exigent le jeton de la session (ou la clé de gestion, pour les évaluations) et ne répondent qu'au
 // compte concerné.
 // La liste publique et la fiche publique d'un marché restent ouvertes, réduites à une liste blanche de colonnes.
+// Sur les routes voisines (candidatures, messages), une réponse propre à un compte n'est gardée par aucun cache.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -49,12 +50,20 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-a
 vi.mock('@/lib/cache', () => ({ cacheable: vi.fn((_cle: string, lire: () => Promise<unknown>) => lire()) }))
 vi.mock('@/lib/auth-helpers', () => ({ getAuthUser: vi.fn(async () => h.etat.user) }))
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.from(t) } }))
+// Journal d'erreurs observable (une panne de la base doit y laisser une trace) ; le reste du module est le vrai.
+vi.mock('@/lib/logger', async importOriginal => {
+  const reel = await importOriginal<typeof import('@/lib/logger')>()
+  return { ...reel, logger: { ...reel.logger, error: vi.fn() } }
+})
 
 const { GET } = await import('@/app/api/marches/route')
 const { GET: GET_FICHE } = await import('@/app/api/marches/[id]/route')
 const { GET: GET_SOUS_TRAITANCE } = await import('@/app/api/marches/sous-traitance/route')
 const { GET: GET_EVALUATIONS } = await import('@/app/api/marches/[id]/evaluation/route')
+const { GET: GET_CANDIDATURES } = await import('@/app/api/marches/[id]/candidature/route')
+const { GET: GET_MESSAGES } = await import('@/app/api/marches/[id]/messages/route')
 const { getAuthUser } = await import('@/lib/auth-helpers')
+const { logger } = await import('@/lib/logger')
 const { cacheable } = await import('@/lib/cache')
 const { COLONNES_PUBLIQUES_MARCHE } = await import('@/lib/marches-public')
 
@@ -82,6 +91,7 @@ beforeEach(() => {
   h.etat.repondre = () => ({ data: [], error: null })
   vi.mocked(getAuthUser).mockClear()
   vi.mocked(cacheable).mockClear()
+  vi.mocked(logger.error).mockClear()
 })
 
 describe('GET /api/marches?publisher_user_id — offres d’un compte, avec leurs clés de gestion', () => {
@@ -130,14 +140,19 @@ describe('GET /api/marches?my_bids=true&artisan_id — candidatures d’une entr
     // L'appartenance est demandée à la base : cette fiche, pour ce compte.
     expect([filtre(fiche, 'id'), filtre(fiche, 'user_id')]).toEqual([MA_FICHE, AUTRE])
     expect(appelsSur('marches_candidatures')).toHaveLength(0)
+    // Un refus ordinaire n'est pas une erreur : rien au journal.
+    expect(logger.error).not.toHaveBeenCalled()
   })
 
-  it('panne de la base pendant le contrôle de la fiche : refus, pas d’accord par défaut', async () => {
+  it('panne de la base pendant le contrôle de la fiche : refus, pas d’accord par défaut, et la panne est journalisée', async () => {
     h.etat.user = { id: MOI }
     h.etat.repondre = appel => (appel.table === 'profiles_artisan' ? { data: null, error: { message: 'timeout' } } : { data: [{ id: 'c1' }], error: null })
     const res = await lire(`my_bids=true&artisan_id=${MA_FICHE}`)
     expect(res.status).toBe(403)
     expect(appelsSur('marches_candidatures')).toHaveLength(0)
+    // Le refus ne cache pas la panne : sans trace, elle passerait pour un simple « accès refusé ».
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(logger.error).mock.calls[0][1]).toEqual({ error: 'timeout' })
   })
 
   it('le titulaire de la fiche : ses candidatures, jamais gardées par un cache', async () => {
@@ -326,5 +341,89 @@ describe('GET /api/marches/[id]/evaluation — évaluations d’un marché', () 
     expect(res.status).toBe(200)
     expect((await res.json()).evaluations).toEqual([])
     expect(appelsSur('marches_evaluations')).toHaveLength(0)
+  })
+
+  it('clé présentée pour un marché introuvable : refus, les évaluations ne sont pas lues', async () => {
+    h.etat.repondre = appel => (appel.table === 'marches' ? { data: null, error: null } : base(appel))
+    expect((await evaluations('?token=cle-de-gestion')).status).toBe(403)
+    expect(appelsSur('marches_evaluations')).toHaveLength(0)
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('panne de la base pendant le contrôle de la clé : refus, pas d’accord par défaut, et la panne est journalisée', async () => {
+    h.etat.repondre = appel => (appel.table === 'marches' ? { data: null, error: { message: 'timeout' } } : base(appel))
+    expect((await evaluations('?token=cle-de-gestion')).status).toBe(403)
+    expect(appelsSur('marches_evaluations')).toHaveLength(0)
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(logger.error).mock.calls[0][1]).toEqual({ error: 'timeout', marcheId: MARCHE })
+  })
+
+  it('panne de la base pendant la lecture des candidatures de l’appelant : erreur dite et journalisée, pas une liste vide', async () => {
+    h.etat.user = { id: MOI }
+    h.etat.repondre = appel => (appel.table === 'marches_candidatures' ? { data: null, error: { message: 'timeout' } } : base(appel))
+    const res = await evaluations()
+    expect(res.status).toBe(500)
+    expect(await res.json()).toEqual({ error: 'Une erreur interne est survenue' })
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(logger.error).mock.calls[0][1]).toEqual({ error: 'timeout', marcheId: MARCHE })
+    expect(appelsSur('marches_evaluations')).toHaveLength(0)
+  })
+})
+
+describe('Routes voisines — une réponse propre à un compte n’est gardée par aucun cache', () => {
+  const contexte = () => ({ params: Promise.resolve({ id: MARCHE }) })
+  const candidatures = (suffixe = '') =>
+    GET_CANDIDATURES(new NextRequest(`https://vitfix.io/api/marches/${MARCHE}/candidature${suffixe}`), contexte())
+  const messages = (suffixe = '') =>
+    GET_MESSAGES(new NextRequest(`https://vitfix.io/api/marches/${MARCHE}/messages${suffixe}`), contexte())
+  /** MOI tient la fiche MA_FICHE, a publié MARCHE (clé « cle-de-gestion ») et y porte la candidature c1. */
+  const base = (appel: Appel): Reponse => {
+    if (appel.table === 'profiles_artisan') return { data: { id: MA_FICHE, company_name: 'Bâtiment du Banc SARL' }, error: null }
+    if (appel.table === 'marches') return { data: { id: MARCHE, access_token: 'cle-de-gestion', publisher_user_id: MOI }, error: null }
+    if (appel.table === 'marches_candidatures') return { data: [{ id: 'c1', artisan_id: MA_FICHE, price: 12000 }], error: null }
+    return { data: [{ id: 'm1', candidature_id: 'c1', content: 'Bonjour' }], error: null }
+  }
+
+  it('GET /api/marches/[id]/candidature : mes candidatures, la vue du publieur et ma candidature sur ce marché', async () => {
+    h.etat.user = { id: MOI }
+    h.etat.repondre = base
+    for (const suffixe of ['?my=true', '?token=cle-de-gestion', '']) {
+      const res = await candidatures(suffixe)
+      expect(res.status, suffixe).toBe(200)
+      expect(cache(res), suffixe).toBe(PERSONNEL)
+      expect((await res.json()).candidatures, suffixe).toHaveLength(1)
+    }
+  })
+
+  it('GET /api/marches/[id]/messages : fil du publieur (clé de gestion)', async () => {
+    h.etat.repondre = base
+    const res = await messages('?token=cle-de-gestion')
+    expect(res.status).toBe(200)
+    expect(cache(res)).toBe(PERSONNEL)
+    expect((await res.json()).messages).toHaveLength(1)
+  })
+
+  it('GET /api/marches/[id]/messages : fil de l’entreprise connectée, avec ou sans candidature sur ce marché', async () => {
+    h.etat.user = { id: MOI }
+    h.etat.repondre = base
+    const avec = await messages()
+    expect(avec.status).toBe(200)
+    expect(cache(avec)).toBe(PERSONNEL)
+    expect((await avec.json()).messages).toHaveLength(1)
+
+    h.etat.repondre = appel => (appel.table === 'marches_candidatures' ? { data: [], error: null } : base(appel))
+    const sans = await messages()
+    expect(sans.status).toBe(200)
+    expect(cache(sans)).toBe(PERSONNEL)
+    expect((await sans.json()).messages).toEqual([])
+  })
+
+  it('GET /api/marches/sous-traitance?offer_id : candidatures reçues sur une offre de la société', async () => {
+    h.etat.user = { id: MOI }
+    h.etat.repondre = base
+    const res = await lireSousTraitance(`btp_company_id=${MA_FICHE}&offer_id=${MARCHE}`)
+    expect(res.status).toBe(200)
+    expect(cache(res)).toBe(PERSONNEL)
+    expect((await res.json()).candidatures).toHaveLength(1)
   })
 })

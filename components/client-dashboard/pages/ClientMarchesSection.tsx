@@ -20,7 +20,8 @@ export default function ClientMarchesSection({ userId, locale }: ClientMarchesSe
     try {
       // Route réservée au compte lui-même (la réponse contient les clés de gestion de ses offres) : jeton requis.
       const res = await fetchAuthentifie(`/api/marches?publisher_user_id=${uid}`)
-      // Un refus (session expirée, limite de débit, panne) est dit à l'utilisateur, pas affiché comme « aucune offre ».
+      // Un refus (session expirée, limite de débit, panne) est dit à l'utilisateur par un message. La liste reste
+      // vide en dessous, avec son texte « pas encore publié » : aucun état d'erreur n'a été ajouté à l'écran.
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setMyMarches(data.marches || [])

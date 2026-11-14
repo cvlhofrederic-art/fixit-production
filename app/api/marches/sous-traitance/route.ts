@@ -5,6 +5,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 
 /**
  * Déduit le pays (FR/PT) depuis le format du code postal.
@@ -114,7 +115,8 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    return NextResponse.json({ candidatures: enriched })
+    // Prix et textes des candidats, réservés au publieur de l'offre : jamais gardés par un cache.
+    return NextResponse.json({ candidatures: enriched }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Mode: list offers published by a BTP company ──────────────────────────
@@ -134,7 +136,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    return NextResponse.json({ offers: offers || [] }, { headers: { 'Cache-Control': 'private, no-store' } })
+    return NextResponse.json({ offers: offers || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Mode: browse all open BTP offers (artisan side) ───────────────────────
@@ -184,7 +186,7 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.json({ offers })
   // Avec artisan_user_id, la réponse porte des distances propres à un compte : jamais dans un cache partagé.
-  response.headers.set('Cache-Control', artisanUserId ? 'private, no-store' : 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
+  response.headers.set('Cache-Control', artisanUserId ? CACHE_PERSONNEL : 'public, max-age=0, s-maxage=60, stale-while-revalidate=120')
   return response
 }
 

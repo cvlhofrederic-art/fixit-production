@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
-import { SELECT_PUBLIC_MARCHE } from '@/lib/marches-public'
+import { CACHE_PERSONNEL, SELECT_PUBLIC_MARCHE } from '@/lib/marches-public'
 import { cacheable } from '@/lib/cache'
 import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
@@ -9,10 +9,6 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { haversineDistance } from '@/lib/geo'
 import { METIER_CPV_MAP, resolveMetierKeys } from '@/lib/marches-cpv-mapping'
 // crypto.randomUUID() is available globally (Web Crypto API)
-
-// Une réponse propre à un compte (ses offres et leurs clés de gestion, ses candidatures, ses marchés proposés)
-// ne doit être gardée par aucun cache, ni navigateur ni mandataire.
-const CACHE_PERSONNEL = 'private, no-store'
 
 /**
  * Déduit le pays (FR/PT) depuis le format du code postal.
@@ -126,12 +122,15 @@ export async function GET(request: NextRequest) {
     if (myBids === 'true' && artisanId) {
       // La fiche dont on demande les candidatures doit appartenir au compte appelant (contrôlé même quand un
       // autre mode personnel est demandé en même temps : la garde ne dépend pas de l'ordre des blocs plus bas).
-      const { data: fiche } = await supabaseAdmin
+      const { data: fiche, error: erreurFiche } = await supabaseAdmin
         .from('profiles_artisan')
         .select('id')
         .eq('id', artisanId)
         .eq('user_id', user.id)
         .maybeSingle()
+      // Une panne pendant ce contrôle refuse l'accès (jamais d'accord par défaut), mais elle laisse une trace :
+      // sans elle, rien ne la distinguerait d'un simple refus.
+      if (erreurFiche) logger.error('[marches] GET my_bids : contrôle de la fiche impossible', { error: erreurFiche.message })
       if (!fiche) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
   }

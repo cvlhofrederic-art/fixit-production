@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { validateBody, VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 import { z } from 'zod'
 
 // ── Validation schema ────────────────────────────────────────────────────────
@@ -32,25 +33,33 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const token = new URL(request.url).searchParams.get('token')
   let candidaturesDeLAppelant: string[] | null = null
   if (token) {
-    const { data: marche } = await supabaseAdmin
+    // maybeSingle : un marché introuvable n'est pas une erreur, une panne de la base en est une.
+    const { data: marche, error: erreurMarche } = await supabaseAdmin
       .from('marches')
       .select('access_token')
       .eq('id', marcheId)
-      .single()
+      .maybeSingle()
+    // Marché introuvable ou panne pendant le contrôle : refus dans les deux cas, et la panne laisse une trace.
+    if (erreurMarche) logger.error('[marches/evaluation] GET : contrôle de la clé impossible', { error: erreurMarche.message, marcheId })
     if (!marche || token !== marche.access_token) {
       return NextResponse.json({ error: 'Token invalide' }, { status: 403 })
     }
   } else {
     const user = await getAuthUser(request)
     if (!user) return NextResponse.json({ error: 'Authentification ou token requis' }, { status: 401 })
-    const { data: candidatures } = await supabaseAdmin
+    const { data: candidatures, error: erreurCandidatures } = await supabaseAdmin
       .from('marches_candidatures')
       .select('id')
       .eq('marche_id', marcheId)
       .eq('artisan_user_id', user.id)
+    if (erreurCandidatures) {
+      // Une panne n'est pas « aucune candidature » : elle est journalisée et dite, au lieu d'une liste vide.
+      logger.error('[marches/evaluation] GET candidatures error', { error: erreurCandidatures.message, marcheId })
+      return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+    }
     candidaturesDeLAppelant = (candidatures || []).map((c: { id: string }) => c.id)
     if (candidaturesDeLAppelant.length === 0) {
-      return NextResponse.json({ evaluations: [] }, { headers: { 'Cache-Control': 'private, no-store' } })
+      return NextResponse.json({ evaluations: [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
     }
   }
 
@@ -68,7 +77,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  return NextResponse.json({ evaluations: evaluations || [] }, { headers: { 'Cache-Control': 'private, no-store' } })
+  return NextResponse.json({ evaluations: evaluations || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
 }
 
 // POST /api/marches/[id]/evaluation — soumettre une evaluation

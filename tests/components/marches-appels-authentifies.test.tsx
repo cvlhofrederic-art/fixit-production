@@ -6,12 +6,15 @@
 //   - tableau de bord artisan / BTP, « Bourse aux Marchés » : ses candidatures (?my_bids=true&artisan_id=…) ;
 //   - tableau de bord BTP, « Recruter sous-traitants » : ses offres (sous-traitance?btp_company_id=…).
 // Sans l'en-tête, ces listes resteraient vides en silence.
+// Un refus du serveur (session expirée, limite de débit, panne) est dit par un message dans l'espace client et,
+// côté société BTP, dans les deux écrans du tableau de bord ; côté artisan, le comportement n'est pas modifié.
 
 import React from 'react'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 
-const h = vi.hoisted(() => ({ jeton: 'jeton-de-session' as string | null, statut: 200 }))
+// `refuser` : fragment d'adresse auquel le faux serveur répond 401, les autres appels gardant `statut`.
+const h = vi.hoisted(() => ({ jeton: 'jeton-de-session' as string | null, statut: 200, refuser: null as string | null }))
 
 vi.mock('@/lib/supabase', () => {
   const canal = { on: () => canal, subscribe: () => canal, unsubscribe: () => {} }
@@ -45,11 +48,13 @@ beforeEach(() => {
   appels = []
   h.jeton = 'jeton-de-session'
   h.statut = 200
+  h.refuser = null
   vi.mocked(toast.error).mockClear()
   vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, options?: RequestInit) => {
     const entetes = (options?.headers ?? {}) as Record<string, string>
     appels.push({ url: String(url), autorisation: entetes.Authorization })
-    return new Response(JSON.stringify({ marches: [], candidatures: [], offers: [] }), { status: h.statut, headers: { 'Content-Type': 'application/json' } })
+    const statut = h.refuser !== null && String(url).includes(h.refuser) ? 401 : h.statut
+    return new Response(JSON.stringify({ marches: [], candidatures: [], offers: [] }), { status: statut, headers: { 'Content-Type': 'application/json' } })
   }))
 })
 afterEach(() => { vi.unstubAllGlobals() })
@@ -113,8 +118,27 @@ describe('Tableau de bord artisan / BTP — mes candidatures', () => {
       const listePublique = appels.filter(a => a.url.startsWith('/api/marches?') && a.url.includes('pays=FR') && !a.url.includes('my_bids'))
       expect(listePublique.length).toBeGreaterThan(0)
       expect(listePublique.every(a => a.autorisation === undefined)).toBe(true)
+      expect(toast.error).not.toHaveBeenCalled()
     })
   }
+
+  it('pro_societe : un refus du serveur est dit, pas montré comme « aucune candidature »', async () => {
+    h.refuser = 'my_bids=true'
+    await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole="pro_societe" navigateTo={vi.fn()} />) })
+    // Identifiant fixe : une relance (changement de filtre, notification) remplace le message au lieu de l'empiler.
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Impossible de charger vos candidatures', { id: 'marches-mes-candidatures' }))
+    // La liste publique, elle, s'est chargée : aucun autre message.
+    await laisserPasser()
+    expect(vi.mocked(toast.error).mock.calls.every(([message]) => message === 'Impossible de charger vos candidatures')).toBe(true)
+  })
+
+  it('artisan : comportement inchangé, le refus reste sans message', async () => {
+    h.refuser = 'my_bids=true'
+    await act(async () => { render(<BourseAuxMarchesSection artisan={SOCIETE} orgRole="artisan" navigateTo={vi.fn()} />) })
+    await vi.waitFor(() => expect(appelsVers('my_bids=true')).not.toHaveLength(0))
+    await laisserPasser()
+    expect(toast.error).not.toHaveBeenCalled()
+  })
 })
 
 describe('Tableau de bord BTP — mes offres de sous-traitance', () => {
@@ -126,5 +150,21 @@ describe('Tableau de bord BTP — mes offres de sous-traitance', () => {
       autorisation: 'Bearer jeton-de-session',
     })
     expect(screen.queryByText('Session expirée')).toBeNull()
+    await laisserPasser()
+    expect(screen.queryByText('Impossible de charger vos annonces')).toBeNull()
+  })
+
+  it('un refus du serveur est dit, pas montré seulement comme « aucune annonce »', async () => {
+    h.refuser = 'sous-traitance?btp_company_id='
+    await act(async () => { render(<SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="pro_societe" />) })
+    expect(await screen.findByText('Impossible de charger vos annonces')).toBeInTheDocument()
+  })
+
+  it('hors société BTP : comportement inchangé, le refus reste sans message', async () => {
+    h.refuser = 'sous-traitance?btp_company_id='
+    await act(async () => { render(<SousTraitanceOffresSection artisan={SOCIETE as never} orgRole="artisan" />) })
+    await vi.waitFor(() => expect(appelsVers('sous-traitance?btp_company_id=')).not.toHaveLength(0))
+    await laisserPasser()
+    expect(screen.queryByText('Impossible de charger vos annonces')).toBeNull()
   })
 })

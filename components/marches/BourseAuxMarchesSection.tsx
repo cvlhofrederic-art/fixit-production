@@ -320,8 +320,12 @@ export default function BourseAuxMarchesSection({ artisan, orgRole = 'artisan', 
       }))
     } catch {
       setMyBids([])
+      // Société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit, sinon il s'affiche
+      // comme « aucune candidature ». Identifiant fixe : une relance remplace le message au lieu de l'empiler.
+      // Côté artisan, le comportement n'est pas modifié (règle artisan / BTP).
+      if (isSociete) toast.error('Impossible de charger vos candidatures', { id: 'marches-mes-candidatures' })
     }
-  }, [isPro, artisan?.id])
+  }, [isPro, artisan?.id, isSociete])
 
   // Fetch marches preferences
   const fetchMarchesPrefs = useCallback(async () => {

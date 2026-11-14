@@ -23,3 +23,10 @@ export const SELECT_PUBLIC_MARCHE = COLONNES_PUBLIQUES_MARCHE.join(', ')
 export function vuePubliqueMarche(marche: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(COLONNES_PUBLIQUES_MARCHE.filter(colonne => colonne in marche).map(colonne => [colonne, marche[colonne]]))
 }
+
+/**
+ * À l'inverse, l'en-tête `Cache-Control` de toute réponse propre à un compte sur `/api/marches` et ses sous-routes
+ * (ses offres et leurs clés de gestion, ses candidatures, ses messages, ses évaluations) : elle n'est gardée par
+ * aucun cache, ni navigateur ni mandataire.
+ */
+export const CACHE_PERSONNEL = 'private, no-store'

@@ -5,7 +5,7 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { validateBody, VALID_UUID } from '@/lib/validation'
-import { vuePubliqueMarche } from '@/lib/marches-public'
+import { CACHE_PERSONNEL, vuePubliqueMarche } from '@/lib/marches-public'
 
 const marchesPatchSchema = z.object({
   access_token: z.string().max(200).optional(),
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       marche: { ...marche },
       candidatures: candidatures || [],
       is_publisher: true,
-    }, { headers: { 'Cache-Control': 'private, no-store' } })
+    }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // Vue publique : liste blanche des colonnes (lib/marches-public.ts), la même que celle de la liste publique.
