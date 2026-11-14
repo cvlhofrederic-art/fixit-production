@@ -6,7 +6,9 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
-import { alertesChantiers, chiffresChantiers, clientsAvecDevis, type DocumentAccueil } from '@/lib/btp/accueil'
+import {
+  alertesChantiers, chiffresChantiers, clientsAvecDevis, finDepassee, libelleDevisBrouillon, type DocumentAccueil,
+} from '@/lib/btp/accueil'
 
 interface HomeSectionProps {
   artisan: Artisan
@@ -228,22 +230,22 @@ export default function HomeSection({
     // l'ancienne clé `fixit_docs_<id>` du navigateur n'est plus écrite par aucun écran.
     const now = Date.now()
     const documents = documentsEnregistres ?? []
-    const alertesBtp = alertesChantiers(btpChantiers, documents, new Date(now))
-    alertesBtp.enRetard.slice(0, 2).forEach(c => {
-      collected.push({
-        level: 'warn',
-        icon: '🏁',
-        text: isPt
-          ? `${c.titre} — prazo excedido, validar como "Terminado"`
-          : `${c.titre} — deadline dépassée, à valider "Terminé"`,
-        page: 'chantiers',
-      })
-    })
-
-    // 2b. Chantiers terminés mais aucune facture émise pour ce client
-    // 2c. Devis en brouillon (faits mais pas envoyés)
-    // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
     try {
+      const alertesBtp = alertesChantiers(btpChantiers, documents, new Date(now))
+      alertesBtp.enRetard.slice(0, 2).forEach(c => {
+        collected.push({
+          level: 'warn',
+          icon: '🏁',
+          text: isPt
+            ? `${c.titre} — prazo excedido, validar como "Terminado"`
+            : `${c.titre} — deadline dépassée, à valider "Terminé"`,
+          page: 'chantiers',
+        })
+      })
+
+      // 2b. Chantiers terminés mais aucune facture émise pour ce client
+      // 2c. Devis en brouillon (faits mais pas envoyés)
+      // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
       alertesBtp.terminesSansFacture.slice(0, 2).forEach(c => {
         collected.push({
           level: 'err',
@@ -255,18 +257,9 @@ export default function HomeSection({
         })
       })
 
-      // 2c. Devis en statut brouillon (faits mais pas encore envoyés)
+      // 2c. Devis en statut brouillon (faits mais pas encore envoyés) ; sans numéro, aucune référence affichée
       alertesBtp.devisBrouillon.slice(0, 2).forEach(d => {
-        const ref = d.docNumber || d.ref || d.number || (d.id ?? '').slice(-6)
-        const client = d.clientName || d.client || d.client_name || 'client'
-        collected.push({
-          level: 'warn',
-          icon: '📝',
-          text: isPt
-            ? `Orçamento ${ref} em rascunho — a enviar (${client})`
-            : `Devis ${ref} en brouillon — à envoyer (${client})`,
-          page: 'devis',
-        })
+        collected.push({ level: 'warn', icon: '📝', text: libelleDevisBrouillon(d, isPt), page: 'devis' })
       })
 
       // 2d. Demandes client en attente sans aucun devis associé (par nom client)
@@ -287,7 +280,11 @@ export default function HomeSection({
           page: 'devis',
         })
       })
-    } catch { /* ignore */ }
+    } catch (erreur) {
+      // Plus aucune lecture du navigateur ici : une erreur serait un défaut de calcul. Elle est journalisée, et les
+      // autres alertes (messages, conformité) restent affichées au lieu de faire tomber tout l'accueil.
+      console.error('[accueil BTP] alertes chantiers et documents non calculées', erreur)
+    }
 
     // 3. Documents conformité qui expirent (< 60 jours) ou déjà expirés
     try {
@@ -433,7 +430,8 @@ export default function HomeSection({
                     {chantiersActifs.slice(0, 5).map(c => {
                       const color = colorForChantierId(c.id)
                       const avc = computeAvancement(c.dateDebut, c.dateFin)
-                      const isRetard = c.dateFin && new Date(c.dateFin) < new Date()
+                      // Même règle que l'alerte « deadline dépassée » : le dernier jour n'est pas un retard.
+                      const isRetard = finDepassee(c.dateFin, now)
                       const deadlineLabel = c.dateFin ? new Date(c.dateFin).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) : '—'
                       return (
                         <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
