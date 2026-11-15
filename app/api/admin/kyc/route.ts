@@ -28,6 +28,33 @@ interface KycRow {
   created_at: string | null
 }
 
+/**
+ * Dossier d'une société BTP française : marché KYC fr_btp (inscription société) et fiche en français. Une société
+ * inscrite en portugais reçoit aussi fr_btp : elle garde le chemin d'avant (Portugal hors de ce correctif).
+ */
+function estSocieteBtpFrancaise(fiche: Record<string, unknown>): boolean {
+  return fiche.kyc_market === 'fr_btp' && fiche.language !== 'pt'
+}
+
+/** E-mail de décision envoyé et attendu (un envoi lancé sans attente pouvait être coupé à la fin de la requête). */
+async function envoyerEmailDecision(corps: Record<string, unknown>): Promise<boolean> {
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/send-kyc-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': process.env.INTERNAL_API_SECRET ?? '',
+      },
+      body: JSON.stringify(corps),
+    })
+    if (!res.ok) logger.warn('[admin/kyc] e-mail de décision refusé', { status: res.status })
+    return res.ok
+  } catch (err: unknown) {
+    logger.warn('[admin/kyc] e-mail de décision non envoyé', { erreur: err instanceof Error ? err.message : String(err) })
+    return false
+  }
+}
+
 // GET /api/admin/kyc — List artisans by KYC status (paginated)
 export async function GET(request: NextRequest) {
   const user = await getAuthUser(request)
@@ -106,6 +133,37 @@ export async function PATCH(request: NextRequest) {
   }
 
   logger.info('[admin/kyc] PATCH', { artisan_id, action, reviewedBy })
+
+  // Société BTP française : la décision est écrite sans relire first_name ni last_name, colonnes absentes de la
+  // production (la requête entière échouait, le statut ne changeait pas) ; l'e-mail part au nom de la société, qui
+  // n'a pas de nom de dirigeant dans sa fiche, et son envoi est attendu. Les autres dossiers : chemin d'avant.
+  const { data: fiche } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('*')
+    .eq('id', artisan_id)
+    .single()
+  if (fiche && estSocieteBtpFrancaise(fiche)) {
+    const { data: ecrite, error: ecritureError } = await supabaseAdmin
+      .from('profiles_artisan')
+      .update(updatePayload)
+      .eq('id', artisan_id)
+      .select('id')
+      .single()
+    if (ecritureError || !ecrite) {
+      logger.error('[admin/kyc] PATCH update failed', { error: ecritureError?.message, artisan_id })
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
+    const societe = typeof fiche.company_name === 'string' ? fiche.company_name.trim() : ''
+    const emailEnvoye = await envoyerEmailDecision({
+      to: fiche.email,
+      name: societe,
+      company: societe,
+      action,
+      rejection_reason,
+      market: fiche.kyc_market,
+    })
+    return NextResponse.json({ success: true, status: newStatus, email_envoye: emailEnvoye })
+  }
 
   const { data: updatedRows, error } = await supabaseAdmin
     .from('profiles_artisan')
