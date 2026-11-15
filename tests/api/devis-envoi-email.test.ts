@@ -341,6 +341,45 @@ describe('pièce jointe : un PDF de taille bornée', () => {
   })
 })
 
+describe('taille du corps annoncée par l\'en-tête Content-Length', () => {
+  // Le navigateur annonce la taille du corps dans l'en-tête Content-Length ; la route refuse d'emblée un corps trop gros
+  // pour ne porter qu'un PDF de 10 Mo et les autres champs. Une requête construite dans un test ne porte pas cet
+  // en-tête (sa valeur y est nulle) : il est posé ici à la main.
+  /** Borne de la route : le PDF de 10 Mo en base64, plus 64 Kio pour les autres champs. */
+  const TAILLE_MAX_CORPS = Math.ceil(DIX_MO / 3) * 4 + 64 * 1024
+
+  const envoyerAvecTaille = async (corps: string, tailleAnnoncee: number) => {
+    const requete = new NextRequest('https://vitfix.io/api/devis/send-email', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json', 'Content-Length': String(tailleAnnoncee) },
+      body: corps,
+    })
+    const res = await POST(requete)
+    return { status: res.status, json: await res.json() as Record<string, unknown>, corpsLu: requete.bodyUsed }
+  }
+
+  it('corps annoncé au-delà de la borne : 413 avec un message en français, corps jamais lu, aucun e-mail', async () => {
+    const res = await envoyerAvecTaille(JSON.stringify(corpsFormulaire()), TAILLE_MAX_CORPS + 1)
+    expect(res.status).toBe(413)
+    expect(res.json.error).toMatch(/10 Mo/)
+    expect(res.corpsLu).toBe(false)
+    expect(h.envois).toHaveLength(0)
+  })
+
+  it('PDF de 10 Mo et champs à leur longueur maximale, annoncés à leur taille réelle comme par le navigateur : 200', async () => {
+    const enTete = Buffer.from('%PDF-1.3\n', 'latin1')
+    const pdfBase64 = Buffer.concat([enTete, Buffer.alloc(DIX_MO - enTete.length)]).toString('base64')
+    const corps = JSON.stringify(corpsFormulaire({
+      pdfBase64, docNumber: 'N'.repeat(100), docTitle: 'É'.repeat(500), totalStr: '9'.repeat(60), clientName: 'É'.repeat(500),
+      companyName: 'É'.repeat(300), companyPhone: '0'.repeat(60),
+    }))
+    const res = await envoyerAvecTaille(corps, Buffer.byteLength(corps, 'utf8'))
+    expect(res.status).toBe(200)
+    expect(h.envois).toHaveLength(1)
+    expect(envoi().attachments).toEqual([{ filename: `${'N'.repeat(100)}.pdf`, content: pdfBase64 }])
+  })
+})
+
 describe('volume : limite par minute conservée, plafond par compte et par 24 heures ajouté', () => {
   const MINUTE = 60_000
   const JOUR = 24 * 60 * 60 * 1000

@@ -115,9 +115,9 @@ export function escapeHTML(str: string): string {
 
 /**
  * Texte sûr dans le HTML d'un e-mail (contenu, ou attribut entre guillemets) : fonction commune des gabarits
- * (lib/email.ts, lib/email-rfq.ts, app/api/devis/send-email). Toute valeur saisie par un compte ou lue en base y
- * passe avant d'entrer dans un gabarit. Même conversion en texte qu'un gabarit littéral (une valeur absente devient
- * une chaîne vide), puis échappement de & < > " '.
+ * (lib/email.ts, lib/email-rfq.ts, lib/email-referral.ts, app/api/devis/send-email). Toute valeur saisie par un
+ * compte ou lue en base y passe avant d'entrer dans un gabarit. Même conversion en texte qu'un gabarit littéral (une
+ * valeur absente devient une chaîne vide), puis échappement de & < > " '.
  */
 export function echapperHtmlEmail(valeur: unknown): string {
   return escapeHTML(valeur === null || valeur === undefined ? '' : String(valeur))
