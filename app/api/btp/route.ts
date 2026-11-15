@@ -6,7 +6,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
-import { MESSAGE_FICHE_INTROUVABLE, traduireErreurBase } from '@/lib/btp/erreurs-base-btp'
+import { MESSAGE_FICHE_INTROUVABLE, traduireErreurBase, type ErreurBase } from '@/lib/btp/erreurs-base-btp'
 import {
   BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, memeValeur, referencesDeLigne, valeursHorsBornes, verifierLigne,
   type HorsBornes, type Reference, type TableCible, type TableEcrivable,
@@ -193,7 +193,7 @@ const MESSAGE_LISTE_MEMBRES_INVALIDE = 'Enregistrement refusé : la liste des me
 
 /** La base a répondu en erreur pendant une écriture ; `messageUtilisateur` remplace alors « Erreur serveur ». */
 class ErreurEcriture extends Error {
-  constructor(readonly erreurBase: { code?: string; message?: string }, readonly messageUtilisateur?: string) {
+  constructor(readonly erreurBase: ErreurBase, readonly messageUtilisateur?: string) {
     super('écriture en erreur')
   }
 }
