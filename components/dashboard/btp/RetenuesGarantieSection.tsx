@@ -26,7 +26,9 @@ export function RetenuesGarantieSection({ userId, orgRole }: { userId: string; o
   const [form, setForm] = useState({ chantier_id: '', chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
 
   const addRetenue = async () => {
-    await add({ ...form, chantier_id: form.chantier_id || undefined, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
+    const cree = await add({ ...form, chantier_id: form.chantier_id || undefined, montantRetenu: form.montantMarche * form.tauxRetenue / 100, statut: 'active' })
+    // Formulaire et saisie gardés si l'enregistrement échoue (le hook en affiche la raison).
+    if (!cree) return
     setShowForm(false); setForm({ chantier_id: '', chantier: '', client: '', montantMarche: 0, tauxRetenue: 5, dateFinTravaux: '', caution: false })
   }
   const changeStatut = async (id: string, statut: Retenue['statut']) => {

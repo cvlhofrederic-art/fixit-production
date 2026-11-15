@@ -129,7 +129,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
     const now = new Date()
     const heure = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`
 
-    await add({
+    const cree = await add({
       employe: artisan?.company_name || 'Moi',
       poste: 'patron',
       chantier: chantier.titre,
@@ -146,6 +146,8 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
       arriveeLng: geo.position?.lng,
       distanceM: chantier.distance,
     })
+    // « Pointé » seulement si le pointage est enregistré ; sinon le hook affiche la raison et le bouton reste.
+    if (!cree) return
 
     setGeoStatus('pointed')
     await refresh()
@@ -154,11 +156,13 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
   // ── Pointage manuel ───────────────────────────────────────────────────────
   const addPointage = async () => {
     if (!form.employe) return
-    await add({
+    const cree = await add({
       ...form,
       heuresTravaillees: Math.round(calcH(form.heureArrivee, form.heureDepart, form.pauseMinutes) * 100) / 100,
       mode: 'manuel',
     })
+    // Formulaire et saisie gardés si l'enregistrement échoue (le hook en affiche la raison).
+    if (!cree) return
     setShowForm(false)
     setForm({ employe: '', membreId: '', poste: '', chantier: '', chantierId: '', date: new Date().toISOString().split('T')[0], heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, notes: '' })
   }

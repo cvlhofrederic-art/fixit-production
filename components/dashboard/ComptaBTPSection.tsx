@@ -5,7 +5,7 @@ import { Loader, Brain, BarChart3, User, HardHat, Building2, Coins, Lightbulb, C
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { toast } from 'sonner'
-import { signalerEcritureRefusee, signalerPlafondsAtteints, useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
+import { signalerChargementImpossible, signalerEcritureRefusee, signalerPlafondsAtteints, useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
 import { formatPrice } from '@/lib/utils'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
@@ -46,6 +46,7 @@ const TVA_LABELS: Record<string, string> = {
 }
 
 const ECHEC_FRAIS_FIXE = 'Le frais fixe n\'a pas été enregistré. Réessayez dans un instant.'
+const SUPPRESSION_FRAIS_FIXE_IMPOSSIBLE = 'Le frais fixe n\'a pas été supprimé. Réessayez dans un instant.'
 
 export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const isV5 = orgRole === 'pro_societe'
@@ -97,7 +98,12 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
           const j = await chargesRes.json()
           setChargesFixes(j.charges_fixes || [])
         }
-      } catch { /* silent */ }
+        // Une liste non chargée s'afficherait vide comme si elle l'était : on le dit.
+        if (!rentaRes.ok || !membresRes.ok || !chargesRes.ok) signalerChargementImpossible()
+      } catch (err) {
+        console.warn('[btp] compta BTP non chargée :', err)
+        signalerChargementImpossible()
+      }
       setLoading(false)
     }
     load()
@@ -248,8 +254,13 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
       if (res.ok) {
         const j = await res.json()
         setChargesFixes(j.charges_fixes || [])
+      } else {
+        signalerChargementImpossible()
       }
-    } catch { /* silent */ }
+    } catch (err) {
+      console.warn('[btp] frais fixes non rechargés :', err)
+      signalerChargementImpossible()
+    }
   }, [])
 
   const addChargeFix = async (label: string, montant: number, frequence: string, categorie: string) => {
@@ -277,13 +288,21 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-      await fetch('/api/btp', {
+      const res = await fetch('/api/btp', {
         method: 'POST',
         headers,
         body: JSON.stringify({ table: 'charges_fixes', action: 'delete', id }),
       })
+      // Suppression refusée : le frais reste affiché (il est toujours en base) et la raison s'affiche.
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, SUPPRESSION_FRAIS_FIXE_IMPOSSIBLE, 'btp-ecriture-charges_fixes')
+        return
+      }
       setChargesFixes(prev => prev.filter(c => c.id !== id))
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('[btp] frais fixe non supprimé :', err)
+      toast.error(SUPPRESSION_FRAIS_FIXE_IMPOSSIBLE, { id: 'btp-ecriture-charges_fixes' })
+    }
   }
 
   if (loading || loadingS) return (

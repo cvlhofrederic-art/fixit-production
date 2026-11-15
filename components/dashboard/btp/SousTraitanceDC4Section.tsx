@@ -49,7 +49,9 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
 
   // ── Sous-traitants logic ──
   const addST = async () => {
-    await addDC4({ ...form, chantier_id: form.chantier_id || undefined, statut: 'en_attente', dc4Genere: false })
+    const cree = await addDC4({ ...form, chantier_id: form.chantier_id || undefined, statut: 'en_attente', dc4Genere: false })
+    // Formulaire et saisie gardés si l'enregistrement échoue (le hook en affiche la raison).
+    if (!cree) return
     setShowForm(false); setForm({ chantier_id: '', entreprise: '', siret: '', responsable: '', email: '', telephone: '', adresse: '', chantier: '', lot: '', montantMarche: 0, tauxTVA: 20 })
   }
   const agreer = async (id: string) => { await updateDC4(id, { statut: 'agréé', dateAgrement: new Date().toISOString().split('T')[0] }) }

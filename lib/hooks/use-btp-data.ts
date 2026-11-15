@@ -576,6 +576,24 @@ export async function signalerEcritureRefusee(res: Response, parDefaut: string, 
   toast.error(message, id ? { id } : undefined)
 }
 
+/** Refus du serveur déjà annoncé à l'utilisateur : le catch des écritures n'en ajoute pas un second message. */
+class EcritureRefusee extends Error {}
+
+// ── Échecs annoncés (constat donnees-btp-2) : une coupure réseau pendant un enregistrement, un chargement en échec ou un
+// réglage refusé ne restaient que dans la console ; un chargement raté laissait une liste vide (« Aucun chantier,
+// créez votre premier chantier »), comme si les données avaient disparu.
+const MESSAGE_CHARGEMENT_IMPOSSIBLE = 'Les données n\'ont pas pu être chargées : la liste affichée peut être vide ou incomplète. Réessayez dans un instant.'
+const MESSAGE_REGLAGES_NON_CHARGES = 'Vos réglages n\'ont pas pu être chargés : les valeurs affichées sont celles par défaut. Réessayez dans un instant.'
+const MESSAGE_REGLAGES_NON_ENREGISTRES = 'Vos réglages n\'ont pas été enregistrés. Réessayez dans un instant.'
+
+/**
+ * Prévient qu'une liste n'a pas pu être chargée (un seul message à la fois, quelle que soit la liste). Sert aussi aux
+ * écrans BTP qui lisent /api/btp sans ce hook.
+ */
+export function signalerChargementImpossible(): void {
+  toast.error(MESSAGE_CHARGEMENT_IMPOSSIBLE, { id: 'btp-chargement' })
+}
+
 /** GET d'une table : lignes brutes et plafond atteint (null : liste complète) ; null si la réponse n'est pas ok. */
 async function lireTable(table: ShortName): Promise<{ lignes: unknown[]; plafond: number | null } | null> {
   const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
@@ -634,13 +652,20 @@ interface UseBTPDataOptions {
   artisanId: string  // for localStorage import key
   userId: string     // Supabase auth user id
   autoImport?: boolean // import localStorage data on first load (default: true)
+  /**
+   * Rôle du compte, pour l'accueil partagé avec l'artisan, qui le passe : le message d'un chargement en échec ne vaut
+   * que pour le BTP pro (orgRole === 'pro_societe'). Les écrans réservés au BTP pro l'omettent.
+   */
+  orgRole?: string
 }
 
-export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true }: UseBTPDataOptions) {
+export function useBTPData<T = any>({ table, artisanId, userId, autoImport = true, orgRole }: UseBTPDataOptions) {
   const cacheKey = `${table}_${userId}`
   const cached = _dataCache[cacheKey]
   const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
   const hasAnyCache = !!cached?.data
+  // Écran du BTP pro (ou réservé à lui) : les échecs de chargement y sont annoncés. L'artisan garde l'accueil d'avant.
+  const ecranBTP = orgRole === undefined || orgRole === 'pro_societe'
 
   // Use stale cache as initial data — user sees content instantly, refresh runs in background
   const [items, setItems] = useState<T[]>(hasAnyCache ? cached.data : [])
@@ -663,11 +688,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.warn(`[btp] refresh ${table} failed:`, err)
       setError('Erreur de chargement')
+      if (ecranBTP) signalerChargementImpossible()
       return null // null = erreur réseau (distinct de [] = table vide)
     } finally {
       setLoading(false)
     }
-  }, [table, cacheKey])
+  }, [table, cacheKey, ecranBTP])
 
   // ── Auto-import from localStorage on first load ─────────────────────────
   useEffect(() => {
@@ -739,7 +765,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       })
       if (!res.ok) {
         await signalerEcritureRefusee(res, ECHEC_ECRITURE.creation, `btp-ecriture-${tableName}`)
-        throw new Error(`Insert ${tableName} failed: ${res.status}`)
+        throw new EcritureRefusee(`Insert ${tableName} failed: ${res.status}`)
       }
       // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
       marquerEcriture(cacheKey)
@@ -749,6 +775,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.error(`[btp] add ${tableName}:`, err)
       setError('Erreur lors de la création')
+      // Coupure réseau, réponse illisible : annoncée aussi (un refus du serveur l'est déjà, avec sa raison).
+      if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.creation, { id: `btp-ecriture-${tableName}` })
       return null
     }
   }, [table, tableName, cacheKey, refresh])
@@ -770,7 +798,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       })
       if (!res.ok) {
         await signalerEcritureRefusee(res, ECHEC_ECRITURE.modification, `btp-ecriture-${tableName}`)
-        throw new Error(`Update ${tableName} failed: ${res.status}`)
+        throw new EcritureRefusee(`Update ${tableName} failed: ${res.status}`)
       }
       marquerEcriture(cacheKey)
       await refresh()
@@ -778,6 +806,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.error(`[btp] update ${tableName}:`, err)
       setError('Erreur lors de la mise à jour')
+      if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.modification, { id: `btp-ecriture-${tableName}` })
       return false
     }
   }, [table, tableName, cacheKey, refresh])
@@ -791,7 +820,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       })
       if (!res.ok) {
         await signalerEcritureRefusee(res, ECHEC_ECRITURE.suppression, `btp-ecriture-${tableName}`)
-        throw new Error(`Delete ${tableName} failed: ${res.status}`)
+        throw new EcritureRefusee(`Delete ${tableName} failed: ${res.status}`)
       }
       marquerEcriture(cacheKey)
       await refresh()
@@ -799,6 +828,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     } catch (err) {
       console.error(`[btp] remove ${tableName}:`, err)
       setError('Erreur lors de la suppression')
+      if (!(err instanceof EcritureRefusee)) toast.error(ECHEC_ECRITURE.suppression, { id: `btp-ecriture-${tableName}` })
       return false
     }
   }, [tableName, cacheKey, refresh])
@@ -946,9 +976,16 @@ export function useBTPSettings() {
               taux_is: Math.round(config.default_taux_is * 100),
             }))
           }
-        } catch { /* fallback to defaults */ }
+        } catch (err) {
+          // Session illisible : les valeurs par défaut restent, comme pour un compte sans forme juridique connue.
+          console.warn('[btp] forme juridique du compte non lue, réglages par défaut :', err)
+        }
       }
-    } catch { /* use defaults */ }
+    } catch (err) {
+      // Les valeurs par défaut restent affichées : l'utilisateur doit savoir que ce ne sont pas les siennes.
+      console.warn('[btp] réglages non chargés :', err)
+      toast.error(MESSAGE_REGLAGES_NON_CHARGES, { id: 'btp-reglages-chargement' })
+    }
     finally { setLoading(false) }
   }, [])
 
@@ -971,9 +1008,14 @@ export function useBTPSettings() {
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: 'settings_btp', action: 'upsert_settings', data: changes }),
       })
-      if (!res.ok) throw new Error(`Settings save failed: ${res.status}`)
+      if (!res.ok) {
+        // Réglage refusé (taux hors bornes…) : la raison du serveur s'affiche, puis la valeur d'avant revient.
+        await signalerEcritureRefusee(res, MESSAGE_REGLAGES_NON_ENREGISTRES, 'btp-reglages')
+        throw new EcritureRefusee(`Settings save failed: ${res.status}`)
+      }
     } catch (err) {
       console.error('[btp] settings save failed, rolling back:', err)
+      if (!(err instanceof EcritureRefusee)) toast.error(MESSAGE_REGLAGES_NON_ENREGISTRES, { id: 'btp-reglages' })
       setSettings(prev)
       _settingsCache = { data: prev, at: Date.now() }
     }
