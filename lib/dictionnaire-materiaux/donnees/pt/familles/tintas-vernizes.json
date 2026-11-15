@@ -1,0 +1,958 @@
+{
+  "famille": {
+    "id": "tintas-vernizes",
+    "nom": "Tintas, esmaltes e vernizes",
+    "description": "Tintas de parede e fachada, tintas de pavimento, esmaltes para ferro e madeira, tintas de renovação (azulejos, louça sanitária, radiadores), sprays, vernizes, velaturas, óleos e os diluentes que as acompanham.",
+    "icone": "🎨",
+    "sousFamilles": [
+      {
+        "id": "paredes-interiores-tetos",
+        "nom": "Paredes interiores e tetos",
+        "description": "Tintas de água para paredes e tetos de interior, incluindo as de zonas húmidas, anticondensação e isolantes de manchas."
+      },
+      {
+        "id": "fachadas-coberturas",
+        "nom": "Fachadas",
+        "description": "Tintas de exterior para fachadas, muros e telhas."
+      },
+      {
+        "id": "pavimentos-piscinas",
+        "nom": "Pavimentos e piscinas",
+        "description": "Tintas para chão de garagem, betão, marcação e piscinas."
+      },
+      {
+        "id": "esmaltes-ferro-madeira",
+        "nom": "Esmaltes para ferro e madeira",
+        "description": "Esmaltes sintéticos, aquosos e antiferrugem (lisos, forja ou martelados) para portões, grades, portas e aros."
+      },
+      {
+        "id": "tintas-renovacao-especiais",
+        "nom": "Tintas de renovação e especiais",
+        "description": "Tintas para renovar sem substituir: azulejos, banheiras e louça sanitária, radiadores, peças sujeitas a calor e móveis."
+      },
+      {
+        "id": "tintas-spray",
+        "nom": "Tintas em spray",
+        "description": "Aerossóis de retoque, antiferrugem, zinco e marcação de obra."
+      },
+      {
+        "id": "vernizes-madeira",
+        "nom": "Vernizes para madeira",
+        "description": "Vernizes de interior, exterior e soalho, e tapa-poros."
+      },
+      {
+        "id": "velaturas-oleos-tratamentos",
+        "nom": "Velaturas, óleos e ceras para madeira",
+        "description": "Proteção de madeira sem película (velatura, óleo), ceras e tratamento anticaruncho."
+      },
+      {
+        "id": "diluentes-solventes",
+        "nom": "Diluentes e solventes",
+        "description": "Produtos para diluir tintas e lavar ferramentas."
+      },
+      {
+        "id": "corantes-aditivos",
+        "nom": "Corantes e aditivos",
+        "description": "Corantes para afinar a cor e aditivos que se juntam à tinta."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "tinta-plastica-interior-mate",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta plástica de interior mate",
+      "aussiAppele": [
+        "tinta de água mate",
+        "tinta de parede",
+        "tinta plástica branca",
+        "tinta de interior"
+      ],
+      "usage": "Pintura corrente de paredes e tetos de interior em salas, quartos e corredores. O acabamento mate disfarça pequenas imperfeições do reboco ou do estuque.",
+      "aSavoir": "Em reboco novo, massa de reparação ou gesso cartonado, aplicar primeiro um primário/selante. É menos lavável do que uma tinta acetinada.",
+      "conditionnement": "Lata ou balde de 1 L, 4-5 L e 15 L",
+      "recherche": "tinta interior mate",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-interior-acetinada",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta de interior acetinada",
+      "aussiAppele": [
+        "tinta acetinada",
+        "tinta lavável",
+        "tinta semi-brilho",
+        "tinta plástica acetinada"
+      ],
+      "usage": "Paredes de interior que precisam de ser lavadas com frequência: corredores, quartos de criança, zonas de passagem.",
+      "aSavoir": "O brilho realça as imperfeições da parede: barrar e lixar bem antes de pintar.",
+      "conditionnement": "Lata ou balde de 1 L, 4-5 L e 15 L",
+      "recherche": "tinta acetinada interior",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-tetos",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta para tetos",
+      "aussiAppele": [
+        "tinta de teto",
+        "tinta branca para tetos",
+        "tinta teto mate"
+      ],
+      "usage": "Pintura de tetos de interior com acabamento branco mate.",
+      "aSavoir": "Em tetos com manchas de humidade ou fumo, isolar a mancha antes (tinta isolante anti-manchas), senão volta a aparecer através da tinta.",
+      "conditionnement": "Lata de 4-5 L",
+      "recherche": "tinta tetos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-cozinha-casa-de-banho",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta para cozinhas e casas de banho (anti-fungos)",
+      "aussiAppele": [
+        "tinta WC e cozinha",
+        "tinta anti-bolor",
+        "tinta anti-fungos",
+        "tinta anti-mofo",
+        "tinta para casa de banho"
+      ],
+      "usage": "Paredes e tetos de cozinhas, casas de banho e lavandarias, onde há vapor e condensação.",
+      "aSavoir": "Não resolve infiltrações. Limpar e desinfetar o bolor existente antes de pintar, senão ele reaparece.",
+      "conditionnement": "Lata de 0,75 L, 4-5 L e 15 L",
+      "recherche": "tinta anti fungos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-anti-humidade-interior",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta anti-humidade",
+      "aussiAppele": [
+        "tinta antihumidade",
+        "tinta para manchas de humidade",
+        "tinta isolante de humidade",
+        "revestimento anti-humidade para paredes interiores",
+        "membrana anti-humidade",
+        "anti-humidade para paredes",
+        "bloqueador de humidade"
+      ],
+      "usage": "Paredes e tetos de interior com manchas de humidade, em alvenaria, estuque, cimento ou betão.",
+      "aSavoir": "Tapa a mancha mas não elimina a causa (infiltração, capilaridade, condensação): resolver primeiro a origem. Seguir a lata quanto ao estado da parede e à repintura.",
+      "conditionnement": "Lata de 0,75 L e 4 L",
+      "recherche": "tinta anti humidade",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-anticondensacao",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta anticondensação",
+      "aussiAppele": [
+        "tinta anti-condensação",
+        "tinta térmica",
+        "tinta para paredes frias"
+      ],
+      "usage": "Paredes e tetos frios onde o vapor condensa em gotas (casas de banho, cozinhas, lavandarias, arrecadações), para reduzir a condensação e o bolor que vem atrás dela.",
+      "aSavoir": "Não substitui a ventilação nem o isolamento da parede e não trata infiltrações nem humidade que sobe do chão.",
+      "conditionnement": "Lata de 0,75 L e 2,5 L",
+      "recherche": "tinta anti condensação",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-isolante-anti-manchas",
+      "famille": "tintas-vernizes",
+      "sousFamille": "paredes-interiores-tetos",
+      "nom": "Tinta isolante anti-manchas",
+      "aussiAppele": [
+        "tinta isoladora",
+        "tinta tapa-manchas",
+        "isolante de manchas",
+        "tinta para manchas de fumo"
+      ],
+      "usage": "Isolar manchas de fumo, nicotina, fuligem e de humidade já seca em paredes e tetos antes de repintar, para não voltarem a aparecer através da tinta nova.",
+      "aSavoir": "A mancha de humidade tem de estar seca e a causa resolvida antes de isolar.",
+      "conditionnement": "Lata de 4 L",
+      "recherche": "tinta anti manchas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "tinta-fachadas-acrilica-lisa",
+      "famille": "tintas-vernizes",
+      "sousFamille": "fachadas-coberturas",
+      "nom": "Tinta de fachadas acrílica lisa",
+      "aussiAppele": [
+        "tinta de exterior",
+        "tinta 100% acrílica",
+        "tinta para muros",
+        "tinta de fachada mate"
+      ],
+      "usage": "Pintura de fachadas, muros e empenas em reboco ou betão, com acabamento liso mate.",
+      "aSavoir": "Não pintar com chuva, parede húmida ou sol forte direto. Fachadas com fungos e verdete devem ser lavadas e tratadas antes.",
+      "conditionnement": "Lata ou balde de 4-5 L e 15 L",
+      "recherche": "tinta fachadas acrílica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-fachadas-texturada",
+      "famille": "tintas-vernizes",
+      "sousFamille": "fachadas-coberturas",
+      "nom": "Tinta texturada de exterior",
+      "aussiAppele": [
+        "tinta areada",
+        "tinta rugosa",
+        "tinta texturada"
+      ],
+      "usage": "Fachadas e muros onde se quer um acabamento rugoso que disfarça irregularidades do reboco.",
+      "aSavoir": "Gasta mais tinta por m² do que a lisa e aplica-se com rolo próprio para texturados.",
+      "conditionnement": "Balde de 4-5 L e 15 L",
+      "recherche": "tinta texturada exterior",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-membrana-elastica-fachadas",
+      "famille": "tintas-vernizes",
+      "sousFamille": "fachadas-coberturas",
+      "nom": "Tinta membrana elástica (anti-fissuras)",
+      "aussiAppele": [
+        "membrana elástica",
+        "tinta elástica",
+        "tinta anti-fissuras"
+      ],
+      "usage": "Fachadas e empenas com microfissuras e entrada de água da chuva: forma uma película elástica que acompanha os movimentos do reboco.",
+      "aSavoir": "Só cobre microfissuras; fissuras abertas têm de ser tratadas antes com massa ou mástique. Respeitar o número de demãos indicado para garantir a espessura.",
+      "conditionnement": "Balde de 5 L e 15 L",
+      "recherche": "tinta membrana elástica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-pavimentos-acrilica",
+      "famille": "tintas-vernizes",
+      "sousFamille": "pavimentos-piscinas",
+      "nom": "Tinta para pavimentos",
+      "aussiAppele": [
+        "tinta de chão",
+        "tinta para chão",
+        "tinta para garagem",
+        "tinta para betão",
+        "tinta de pavimento acrílica"
+      ],
+      "usage": "Chão de garagens, arrecadações, varandas e pátios em betão ou cimento.",
+      "aSavoir": "Betão novo tem de estar curado e seco; desengordurar e aspirar o pó antes. Pode ficar escorregadia quando molhada.",
+      "conditionnement": "Lata de 0,5-1 L, 4-5 L e 15 L",
+      "recherche": "tinta pavimentos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-marcacao-pavimentos",
+      "famille": "tintas-vernizes",
+      "sousFamille": "pavimentos-piscinas",
+      "nom": "Tinta de marcação de pavimentos",
+      "aussiAppele": [
+        "tinta de tráfego",
+        "tinta de sinalização",
+        "tinta amarela para linhas",
+        "tinta de estacionamento"
+      ],
+      "usage": "Linhas de estacionamento, setas e sinalização em pavimentos de betão ou asfalto.",
+      "aSavoir": "Usar o diluente indicado na lata; pavimento seco e sem pó nem óleo.",
+      "conditionnement": "Lata de 0,75 L",
+      "recherche": "tinta marcação pavimento",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-piscinas",
+      "famille": "tintas-vernizes",
+      "sousFamille": "pavimentos-piscinas",
+      "nom": "Tinta para piscinas",
+      "aussiAppele": [
+        "tinta de piscina azul",
+        "tinta para tanques"
+      ],
+      "usage": "Pintura de piscinas e tanques em betão ou reboco.",
+      "aSavoir": "Confirmar a compatibilidade com a tinta antiga antes de repintar e respeitar o tempo de cura indicado antes de encher.",
+      "conditionnement": "Lata de 1 L, 4-5 L e 15 L",
+      "recherche": "tinta piscinas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esmalte-sintetico",
+      "famille": "tintas-vernizes",
+      "sousFamille": "esmaltes-ferro-madeira",
+      "nom": "Esmalte sintético",
+      "aussiAppele": [
+        "tinta de esmalte",
+        "esmalte brilhante",
+        "tinta de óleo",
+        "esmalte de solvente"
+      ],
+      "usage": "Pintura de portas, aros, portadas, grades e portões em madeira ou ferro, interior e exterior.",
+      "aSavoir": "Dilui-se e lava-se com diluente sintético ou aguarrás. Seca devagar e tem cheiro forte; os brancos tendem a amarelecer em interior.",
+      "conditionnement": "Lata de 0,375 L, 0,75 L e 2,5 L",
+      "recherche": "esmalte sintético",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esmalte-aquoso",
+      "famille": "tintas-vernizes",
+      "sousFamille": "esmaltes-ferro-madeira",
+      "nom": "Esmalte aquoso",
+      "aussiAppele": [
+        "esmalte de água",
+        "esmalte acrílico",
+        "esmalte sem cheiro"
+      ],
+      "usage": "Portas, rodapés, aros e móveis, sobretudo em interior, quando se quer secagem rápida e pouco cheiro.",
+      "aSavoir": "Lava-se com água. Sobre esmalte sintético antigo, lixar para criar aderência. Não aplicar com tempo frio e húmido.",
+      "conditionnement": "Lata de 0,375 L e 0,75 L",
+      "recherche": "esmalte aquoso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esmalte-antiferrugem-direto",
+      "famille": "tintas-vernizes",
+      "sousFamille": "esmaltes-ferro-madeira",
+      "nom": "Esmalte antiferrugem direto sobre ferrugem",
+      "aussiAppele": [
+        "esmalte antioxidante",
+        "tinta para ferro",
+        "tinta anti-ferrugem",
+        "esmalte direto ao metal"
+      ],
+      "usage": "Portões, grades, corrimãos e estruturas de ferro, aplicado diretamente sobre metal com ferrugem aderente, sem primário.",
+      "aSavoir": "Retirar antes a ferrugem solta e a gordura com escova de arame e lixa. Usar o diluente próprio indicado pelo fabricante.",
+      "conditionnement": "Lata de 0,25 L, 0,75 L e 2,5 L",
+      "recherche": "esmalte antioxidante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esmalte-antiferrugem-forja-martelado",
+      "famille": "tintas-vernizes",
+      "sousFamille": "esmaltes-ferro-madeira",
+      "nom": "Esmalte antiferrugem efeito forja ou martelado",
+      "aussiAppele": [
+        "tinta forja",
+        "esmalte ferro forjado",
+        "tinta efeito ferro",
+        "esmalte martelado",
+        "tinta martelada",
+        "esmalte martelé"
+      ],
+      "usage": "Acabamento texturado tipo ferro forjado ou martelado em portões, gradeamentos, corrimãos e candeeiros de exterior; disfarça pequenas irregularidades do metal.",
+      "aSavoir": "Mexer bem antes e durante a aplicação. O efeito martelado só se forma com demão generosa: demão muito esticada fica lisa.",
+      "conditionnement": "Lata de 0,25 L a 2 L",
+      "recherche": "esmalte forja",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-azulejos",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-renovacao-especiais",
+      "nom": "Tinta para azulejos",
+      "aussiAppele": [
+        "esmalte para azulejos",
+        "tinta de renovação de azulejos",
+        "tinta para azulejo de cozinha",
+        "tinta para azulejo de casa de banho"
+      ],
+      "usage": "Renovar a cor de azulejos de parede em cozinhas e casas de banho sem os arrancar.",
+      "aSavoir": "Desengordurar a fundo (gordura e calcário impedem a aderência) e respeitar o tempo de cura indicado antes de molhar ou lavar. Confirmar na lata se serve para zonas com água direta (duche) e para pavimento.",
+      "conditionnement": "Lata de 0,75 L e 2 L",
+      "recherche": "tinta azulejos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esmalte-loica-sanitaria",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-renovacao-especiais",
+      "nom": "Esmalte para banheiras e louça sanitária",
+      "aussiAppele": [
+        "tinta para banheiras",
+        "esmalte para sanitários",
+        "renovador de banheiras",
+        "tinta para lavatório"
+      ],
+      "usage": "Renovar o branco de banheiras, bases de duche, lavatórios e bidés gastos ou manchados, em louça, ferro esmaltado ou acrílico.",
+      "aSavoir": "Lixar e desengordurar bem a superfície; respeitar o tempo de cura indicado antes de voltar a usar ou encher a banheira.",
+      "conditionnement": "Lata de 1 L",
+      "recherche": "esmalte sanitário",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "tinta-radiadores",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-renovacao-especiais",
+      "nom": "Tinta para radiadores (lata ou spray)",
+      "aussiAppele": [
+        "spray para radiadores",
+        "esmalte para radiadores",
+        "spray radiador branco",
+        "tinta para aquecedores"
+      ],
+      "usage": "Repintura de radiadores e tubagens de aquecimento central.",
+      "aSavoir": "Pintar com o radiador frio e desligado e deixar secar bem antes de voltar a ligar o aquecimento.",
+      "conditionnement": "Aerossol de 400 ml ou lata de 0,5 L",
+      "recherche": "tinta radiador",
+      "rechercheEnseigne": {
+        "maxmat": "spray radiador branco"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-alta-temperatura",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-renovacao-especiais",
+      "nom": "Tinta de alta temperatura (spray ou lata)",
+      "aussiAppele": [
+        "tinta anticalórica",
+        "esmalte anti-calor",
+        "spray para salamandra",
+        "spray para escapes",
+        "tinta para churrasqueira"
+      ],
+      "usage": "Tubos de fumo, salamandras, recuperadores, churrasqueiras e escapes.",
+      "aSavoir": "Confirmar a temperatura máxima indicada na lata; seguir as instruções de cura, que em regra pedem um primeiro aquecimento.",
+      "conditionnement": "Aerossol de 400 ml ou lata de 250-375 ml",
+      "recherche": "tinta alta temperatura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-giz-moveis",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-renovacao-especiais",
+      "nom": "Tinta de giz para móveis",
+      "aussiAppele": [
+        "chalk paint",
+        "tinta efeito giz",
+        "tinta para renovar móveis"
+      ],
+      "usage": "Renovação decorativa de móveis e objetos de madeira com acabamento mate aveludado.",
+      "aSavoir": "Precisa de cera ou verniz de acabamento para resistir ao uso e às manchas.",
+      "conditionnement": "Frasco de 125 ml ou lata de 0,75 L",
+      "recherche": "tinta giz",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "spray-tinta-universal",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-spray",
+      "nom": "Tinta em spray universal (cores RAL)",
+      "aussiAppele": [
+        "spray de tinta",
+        "lata de spray",
+        "tinta aerossol",
+        "spray RAL",
+        "spray multisuperfícies"
+      ],
+      "usage": "Retoques e pintura de peças pequenas em metal, madeira ou plástico rígido.",
+      "aSavoir": "Agitar bem e dar demãos finas; proteger a zona em volta da névoa de tinta.",
+      "conditionnement": "Aerossol de 400 ml",
+      "recherche": "tinta spray",
+      "rechercheEnseigne": {
+        "maxmat": "spray RAL"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "spray-antiferrugem",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-spray",
+      "nom": "Spray antiferrugem",
+      "aussiAppele": [
+        "spray antioxidante",
+        "spray para ferro",
+        "spray anti-ferrugem"
+      ],
+      "usage": "Retoque e pintura de ferragens, grades e peças de ferro com proteção contra a ferrugem.",
+      "aSavoir": "Escovar antes a ferrugem solta; demãos finas.",
+      "conditionnement": "Aerossol de 400 ml",
+      "recherche": "spray antioxidante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "spray-marcador-obra",
+      "famille": "tintas-vernizes",
+      "sousFamille": "tintas-spray",
+      "nom": "Spray marcador de obra",
+      "aussiAppele": [
+        "spray de marcação",
+        "spray fluorescente",
+        "spray néon",
+        "tinta de marcar"
+      ],
+      "usage": "Marcação de implantações, roços, cortes e redes no chão e nas paredes da obra.",
+      "conditionnement": "Aerossol de 500 ml",
+      "recherche": "spray marcador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "verniz-interior-aquoso",
+      "famille": "tintas-vernizes",
+      "sousFamille": "vernizes-madeira",
+      "nom": "Verniz aquoso para madeira de interior",
+      "aussiAppele": [
+        "verniz de água",
+        "verniz incolor",
+        "verniz para móveis",
+        "verniz acrílico"
+      ],
+      "usage": "Portas, móveis, rodapés e lambris de madeira em interior, incolor ou com cor.",
+      "aSavoir": "Lixar levemente entre demãos. Não aplicar sobre madeira encerada ou oleada sem a limpar/decapar.",
+      "conditionnement": "Lata de 250 ml e 0,75 L",
+      "recherche": "verniz interior",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "verniz-sintetico",
+      "famille": "tintas-vernizes",
+      "sousFamille": "vernizes-madeira",
+      "nom": "Verniz sintético",
+      "aussiAppele": [
+        "verniz de solvente",
+        "verniz brilhante",
+        "verniz incolor sintético"
+      ],
+      "usage": "Envernizamento tradicional de portas, janelas e mobiliário de madeira.",
+      "aSavoir": "Dilui-se com aguarrás ou diluente sintético; dá um tom ligeiramente amarelado à madeira.",
+      "conditionnement": "Lata de 0,25 L e 0,75 L",
+      "recherche": "verniz sintético",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "verniz-exterior-madeira",
+      "famille": "tintas-vernizes",
+      "sousFamille": "vernizes-madeira",
+      "nom": "Verniz de exterior para madeira",
+      "aussiAppele": [
+        "verniz intempérie",
+        "verniz para portadas",
+        "verniz exterior com cor"
+      ],
+      "usage": "Portas de entrada, portadas, janelas e madeiras expostas ao sol e à chuva.",
+      "aSavoir": "Dar todas as demãos indicadas: película fina estala com o sol. Renovar antes de começar a descascar.",
+      "conditionnement": "Lata de 0,25 L, 0,75 L e 2,5 L",
+      "recherche": "verniz exterior madeira",
+      "rechercheEnseigne": {
+        "maxmat": "verniz exterior"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "verniz-maritimo",
+      "famille": "tintas-vernizes",
+      "sousFamille": "vernizes-madeira",
+      "nom": "Verniz marítimo",
+      "aussiAppele": [
+        "verniz de barco",
+        "verniz náutico",
+        "verniz marítimo brilhante"
+      ],
+      "usage": "Madeiras de exterior muito expostas à humidade e à maresia: portas, janelas, corrimãos.",
+      "aSavoir": "Como qualquer verniz de exterior, precisa de todas as demãos indicadas e de ser renovado antes de começar a estalar.",
+      "conditionnement": "Lata de 0,25 L, 0,75 L e 2,5 L",
+      "recherche": "verniz marítimo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "verniz-soalho-parquet",
+      "famille": "tintas-vernizes",
+      "sousFamille": "vernizes-madeira",
+      "nom": "Verniz para soalho e parquet",
+      "aussiAppele": [
+        "verniz de pavimento",
+        "verniz para chão de madeira",
+        "verniz taco",
+        "verniz de soalho"
+      ],
+      "usage": "Envernizamento de soalho, tacos, parquet e degraus de escada em madeira.",
+      "aSavoir": "Respeitar o tempo de secagem antes de pisar e, sobretudo, antes de voltar a pôr móveis e tapetes.",
+      "conditionnement": "Lata de 750 ml",
+      "recherche": "verniz parquet",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tapa-poros",
+      "famille": "tintas-vernizes",
+      "sousFamille": "vernizes-madeira",
+      "nom": "Tapa-poros para madeira",
+      "aussiAppele": [
+        "tapa poros",
+        "selante de madeira",
+        "fundo para verniz"
+      ],
+      "usage": "Primeira demão em madeira nova para fechar o poro e poupar verniz de acabamento.",
+      "aSavoir": "Lixar depois de seco, antes de envernizar.",
+      "conditionnement": "Lata de 750 ml",
+      "recherche": "tapa poros",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "velatura-madeira",
+      "famille": "tintas-vernizes",
+      "sousFamille": "velaturas-oleos-tratamentos",
+      "nom": "Velatura para madeira (lasur)",
+      "aussiAppele": [
+        "lasur",
+        "velatura",
+        "protetor de madeira",
+        "impregnante"
+      ],
+      "usage": "Proteção e cor de madeiras de exterior (pérgolas, vedações, portadas, beirados) sem formar película grossa.",
+      "aSavoir": "Não descasca como o verniz e renova-se sem decapar. Sobre madeira já envernizada é preciso remover primeiro o verniz. Para deck e madeira pisada, o óleo é mais indicado.",
+      "conditionnement": "Lata de 0,75 L e 2,5 L",
+      "recherche": "velatura",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "oleo-teca",
+      "famille": "tintas-vernizes",
+      "sousFamille": "velaturas-oleos-tratamentos",
+      "nom": "Óleo de teca",
+      "aussiAppele": [
+        "óleo para madeira",
+        "óleo para deck",
+        "óleo para móveis de jardim",
+        "óleo de teca para madeiras exteriores",
+        "óleo para mobiliário de jardim",
+        "óleo de madeira exterior",
+        "óleo para madeiras exóticas"
+      ],
+      "usage": "Nutrição e proteção de madeiras exóticas, deck e mobiliário de jardim.",
+      "aSavoir": "Retirar o excesso com pano. Panos embebidos em óleo podem inflamar-se sozinhos: estender a secar ou molhar antes de deitar fora.",
+      "conditionnement": "Lata de 0,75 L e 2,5 L",
+      "recherche": "óleo teca",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "oleo-linhaca",
+      "famille": "tintas-vernizes",
+      "sousFamille": "velaturas-oleos-tratamentos",
+      "nom": "Óleo de linhaça",
+      "aussiAppele": [
+        "óleo de linho",
+        "óleo de linhaça cru",
+        "óleo de linhaça cozido",
+        "óleo para madeira"
+      ],
+      "usage": "Tratamento tradicional de madeira, cabos de ferramentas e tijoleira de barro.",
+      "aSavoir": "O cru seca muito devagar; o cozido seca mais depressa. Panos embebidos podem inflamar-se sozinhos: estender a secar ou molhar antes de deitar fora.",
+      "conditionnement": "Garrafa de 0,5 L, 0,75 L ou 1 L",
+      "recherche": "óleo de linhaça",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cera-madeira",
+      "famille": "tintas-vernizes",
+      "sousFamille": "velaturas-oleos-tratamentos",
+      "nom": "Cera para madeira",
+      "aussiAppele": [
+        "cera sólida",
+        "cera de soalho",
+        "cera para móveis"
+      ],
+      "usage": "Acabamento e manutenção de móveis e soalhos de madeira encerados.",
+      "aSavoir": "Não se pode envernizar nem pintar por cima de cera sem a remover por completo.",
+      "conditionnement": "Lata de 250 g (sólida) ou 0,5-1 L (líquida)",
+      "recherche": "cera madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "aguarras",
+      "famille": "tintas-vernizes",
+      "sousFamille": "diluentes-solventes",
+      "nom": "Aguarrás (white spirit)",
+      "aussiAppele": [
+        "white spirit",
+        "aguarrás mineral",
+        "aguarrás de limpeza",
+        "água-rás"
+      ],
+      "usage": "Diluição de esmaltes e vernizes sintéticos e lavagem de trinchas e rolos.",
+      "aSavoir": "Inflamável. Não serve para tintas de água nem para produtos celulosos.",
+      "conditionnement": "Garrafa de 0,5 L ou 1 L, lata de 5 L",
+      "recherche": "aguarrás",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "essencia-terebintina",
+      "famille": "tintas-vernizes",
+      "sousFamille": "diluentes-solventes",
+      "nom": "Essência de terebintina",
+      "aussiAppele": [
+        "aguarrás pura",
+        "aguarrás vegetal",
+        "terebentina"
+      ],
+      "usage": "Diluição de óleo de linhaça, ceras e tintas de óleo tradicionais.",
+      "aSavoir": "Inflamável e de cheiro forte; não confundir com a aguarrás mineral de limpeza.",
+      "conditionnement": "Garrafa ou lata de 0,25 L e 1 L",
+      "recherche": "terebintina",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "diluente-sintetico",
+      "famille": "tintas-vernizes",
+      "sousFamille": "diluentes-solventes",
+      "nom": "Diluente sintético",
+      "aussiAppele": [
+        "diluente para esmalte",
+        "diluente de limpeza",
+        "solvente sintético"
+      ],
+      "usage": "Diluição de esmaltes, primários e vernizes sintéticos e limpeza das ferramentas.",
+      "aSavoir": "Só para produtos sintéticos; não usar em tintas de água. Inflamável.",
+      "conditionnement": "Garrafa de 0,5 L ou 1 L, lata de 5 L",
+      "recherche": "diluente sintético",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "diluente-celuloso",
+      "famille": "tintas-vernizes",
+      "sousFamille": "diluentes-solventes",
+      "nom": "Diluente celuloso",
+      "aussiAppele": [
+        "diluente de celulose",
+        "diluente nitro",
+        "diluente de limpeza forte"
+      ],
+      "usage": "Diluição de tintas e vernizes celulosos e limpeza forte de ferramentas e pistolas de pintura.",
+      "aSavoir": "Muito agressivo: ataca plásticos, esferovite e tintas já secas. Muito inflamável; usar com ventilação.",
+      "conditionnement": "Garrafa de 0,25 L a 1 L, lata de 5 L",
+      "recherche": "diluente celuloso",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "acetona",
+      "famille": "tintas-vernizes",
+      "sousFamille": "diluentes-solventes",
+      "nom": "Acetona",
+      "aussiAppele": [
+        "acetona pura",
+        "acetona de limpeza"
+      ],
+      "usage": "Limpeza de restos de cola, resina e espuma fresca e desengorduramento rápido de metais antes de colar ou pintar.",
+      "aSavoir": "Ataca muitos plásticos, vernizes e tintas; testar antes. Muito inflamável.",
+      "conditionnement": "Garrafa de 0,5 L ou 1 L, lata de 5 L",
+      "recherche": "acetona",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "corante-universal",
+      "famille": "tintas-vernizes",
+      "sousFamille": "corantes-aditivos",
+      "nom": "Corante universal para tintas",
+      "aussiAppele": [
+        "corante líquido",
+        "pigmento para tinta",
+        "bisnaga de corante",
+        "tinta de cor para misturar"
+      ],
+      "usage": "Afinar ou dar cor a tintas plásticas brancas e esmaltes.",
+      "aSavoir": "Preparar de uma só vez toda a quantidade necessária para a cor não variar de balde para balde; respeitar a dose máxima indicada.",
+      "conditionnement": "Frasco de 25-50 ml",
+      "recherche": "corante universal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "aditivo-antifungos-tinta",
+      "famille": "tintas-vernizes",
+      "sousFamille": "corantes-aditivos",
+      "nom": "Aditivo anti-fungos e anti-algas para tinta",
+      "aussiAppele": [
+        "aditivo anti-bolor",
+        "antifungos para tinta",
+        "aditivo fungicida",
+        "aditivo anti-algas e fungos para tintas",
+        "aditivo antifungos",
+        "fungicida para tinta"
+      ],
+      "usage": "Junta-se à tinta de parede ou de fachada para reforçar a resistência ao bolor e às algas.",
+      "aSavoir": "Respeitar a dose indicada. Não dispensa a lavagem e desinfeção do bolor que já existe na parede.",
+      "conditionnement": "Frasco de 0,25 L a 1 L",
+      "recherche": "aditivo anti fungos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tinta-epoxi-pavimentos",
+      "famille": "tintas-vernizes",
+      "sousFamille": "pavimentos-piscinas",
+      "nom": "Tinta epóxi para pavimentos (dois componentes)",
+      "aussiAppele": [
+        "epóxi para garagem",
+        "tinta epoxi para chão",
+        "revestimento epóxi de pavimento"
+      ],
+      "usage": "Pintura resistente para pavimentos de betão em garagens, oficinas e armazéns, com passagem de automóveis, óleo e lavagens frequentes.",
+      "aSavoir": "Misturar os dois componentes por inteiro e aplicar dentro do tempo de utilização indicado na lata. Betão curado, seco e sem humidade a subir; usar o primário indicado pelo fabricante. Fica escorregadia molhada: em rampas usar aditivo antiderrapante, se a lata o previr.",
+      "conditionnement": "Kit de dois componentes (base e endurecedor)",
+      "recherche": "tinta epoxi pavimento",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "oleo-deck",
+      "famille": "tintas-vernizes",
+      "sousFamille": "velaturas-oleos-tratamentos",
+      "nom": "Óleo para deck (madeira de exterior pisada)",
+      "aussiAppele": [
+        "óleo protetor de deck",
+        "óleo para terraços de madeira",
+        "óleo para decks"
+      ],
+      "usage": "Proteger e nutrir decks, terraços e passadiços de madeira, onde se pisa.",
+      "aSavoir": "Não forma película, por isso não estala nem descasca: renova-se com limpeza e nova demão. Retirar o excesso que não penetrou, para não ficar pegajoso. Panos embebidos podem inflamar-se sozinhos.",
+      "conditionnement": "Lata",
+      "recherche": "óleo deck",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "primario-subcapa-madeira",
+      "famille": "tintas-vernizes",
+      "sousFamille": "esmaltes-ferro-madeira",
+      "nom": "Primário (subcapa) para madeira",
+      "aussiAppele": [
+        "subcapa para madeira",
+        "primário aquoso para madeira",
+        "aparelho para madeira"
+      ],
+      "usage": "Primeira demão em madeira nua e em reparações com massa, antes do esmalte, para a tinta agarrar e cobrir por igual.",
+      "aSavoir": "Lixar levemente depois de seco. Em madeiras resinosas ou com nós, confirmar na lata se isola os nós. Confirmar a compatibilidade com o esmalte (aquoso ou sintético).",
+      "conditionnement": "Lata",
+      "recherche": "primário madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}
