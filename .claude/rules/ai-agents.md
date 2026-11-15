@@ -5,8 +5,19 @@
   `CLAUDE_MODEL_AGENTS`) via `lib/claude.ts` — API REST Anthropic en fetch direct, mêmes formes d'entrée
   et de sortie que `lib/groq.ts` (`callClaudeWithRetry`, `callClaudeStreaming`). Secret `ANTHROPIC_API_KEY`
   (`wrangler secret put`). Sans clé, ou si Claude échoue avant la première réponse : bascule sur Groq.
-- **Artisan / BTP** : Groq (Llama 3.3 70B) via API REST directe (`lib/groq.ts`).
-- Fallback Groq : Llama 3.1 8B (auto) + Cerebras + OpenRouter (matériaux)
+- **Artisan / BTP** : Groq via API REST directe (`lib/groq.ts`) ; modèle par défaut `GROQ_MODEL_PRIMARY`
+  (`lib/constants.ts`), encore Llama 3.3 70B, retiré (ci-dessous). L'Estimation matériaux a son propre modèle.
+  **Modèles retirés par Groq** de ses offres gratuite et développeur (console.groq.com/docs/deprecations) :
+  `llama-3.3-70b-versatile` et `llama-3.1-8b-instant` le 16/08/2026, `meta-llama/llama-4-scout-17b-16e-instruct`
+  (vision) le 17/07/2026 ; remplaçants indiqués : `openai/gpt-oss-120b`, `openai/gpt-oss-20b`. Constaté en
+  production le 14/11/2026 sur l'extraction d'Estimation matériaux (« Cerebras 404: Model does not exist ») :
+  elle appelle désormais `openai/gpt-oss-120b`, sans le secours Cerebras (son modèle `llama-3.3-70b` n'existe
+  plus), avec relais par Claude si Groq échoue ou rend une réponse inutilisable ; les échecs durables de Groq
+  (4xx hors 429, clé absente, réponse inutilisable) partent dans Sentry (`lib/estimation-materiaux/ai/groq-extractor.ts`).
+  Les autres agents qui nomment encore ces modèles (`lib/constants.ts` et les routes qui les écrivent en dur)
+  restent à migrer.
+- Fallback Groq des autres agents : Llama 3.1 8B (auto) + Cerebras + OpenRouter (matériaux) ; Llama 3.1 8B et
+  le modèle Cerebras ont disparu eux aussi (ci-dessus).
 - Pas de SDK tiers — tout via fetch + circuit breaker (lib/circuit-breaker.ts). Chaque dépendance alourdit
   le Worker Cloudflare (limite : 64 Mio non compressés, ligne « Total Upload » du déploiement ; plus de limite
   gzip depuis le 04/09/2026) : ne pas ajouter `@anthropic-ai/sdk`.

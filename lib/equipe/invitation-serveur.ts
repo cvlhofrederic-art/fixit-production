@@ -84,7 +84,7 @@ export async function envoyerEmailInvitation(
 
 /**
  * Invitation désignée par un lien signé, encore valable. 404 générique si le lien est mal formé, inconnu
- * ou ne correspond plus à la ligne (e-mail, jeton ou équipe modifiés après l'envoi) : le jeton seul, tel
+ * ou ne correspond plus à la ligne (e-mail, jeton, équipe ou rôle modifiés après l'envoi) : le jeton seul, tel
  * qu'il est enregistré en base, ne suffit pas. 409 si déjà acceptée, 410 si expirée.
  */
 export async function lireInvitationValide(espace: EspaceEquipe, token: string): Promise<LectureInvitation> {
