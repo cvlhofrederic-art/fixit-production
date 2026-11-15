@@ -68,7 +68,11 @@ describe('Panneau admin — décision KYC qui échoue', () => {
     fireEvent.click(screen.getByRole('button', { name: /Approuver/ }))
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledTimes(1))
-    expect(String(h.toastError.mock.calls[0][0])).toMatch(/n’a pas été enregistrée|n'a pas été enregistrée/)
+    const message = String(h.toastError.mock.calls[0][0])
+    expect(message).toMatch(/n’a pas été enregistrée|n'a pas été enregistrée/)
+    // Certains dossiers échouent à chaque essai : le message ne promet pas qu'un nouvel essai réussira
+    expect(message).not.toMatch(/Réessayez/)
+    expect(message).toMatch(/Si l’erreur persiste|Si l'erreur persiste/)
   })
 
   it('rejet refusé : message d’erreur, fenêtre du motif gardée ouverte avec le motif saisi', async () => {

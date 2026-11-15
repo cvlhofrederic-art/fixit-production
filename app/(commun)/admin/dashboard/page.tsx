@@ -310,10 +310,11 @@ export default function AdminDashboardPage() {
 
   // Une décision qui échoue le dit (avant : aucun message, dossier resté en attente) ; la fenêtre du motif de rejet
   // reste alors ouverte, motif compris. Décision enregistrée sans e-mail parti : avertissement pour prévenir le dossier.
+  // Le message ne promet pas qu'un nouvel essai réussira : certains dossiers échouent encore à chaque essai.
   const handleKycAction = async (artisanId: string, action: 'approve' | 'reject', reason?: string) => {
     const echec = action === 'approve'
-      ? "L'approbation n'a pas été enregistrée : le dossier reste en attente. Réessayez dans un instant."
-      : "Le rejet n'a pas été enregistré : le dossier reste en attente. Réessayez dans un instant."
+      ? "L'approbation n'a pas été enregistrée : le dossier reste en attente. Si l'erreur persiste, signalez-la."
+      : "Le rejet n'a pas été enregistré : le dossier reste en attente. Si l'erreur persiste, signalez-la."
     try {
       const token = await getToken()
       const res = await fetch('/api/admin/kyc', {
