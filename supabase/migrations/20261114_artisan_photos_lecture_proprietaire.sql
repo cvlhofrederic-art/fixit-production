@@ -26,8 +26,10 @@
 -- d'expiration, rien n'est appliqué, relancer.
 --
 -- Contrôle après exécution (lecture seule) : il doit rester quatre politiques
--- artisan_photos_owner_*, et aucune dont la condition est « true ».
---   select policyname, cmd, qual from pg_policies
+-- artisan_photos_owner_*, et aucune dont une condition (qual ou with_check) est « true ».
+-- Si une condition « true » apparaît encore (politique d'écriture ou « ALL », que cette
+-- migration ne retire pas) ou si une cinquième politique subsiste, ne rien forcer : le signaler.
+--   select policyname, cmd, qual, with_check from pg_policies
 --    where schemaname = 'public' and tablename = 'artisan_photos' order by policyname;
 -- ══════════════════════════════════════════════════════════════════════════════
 
