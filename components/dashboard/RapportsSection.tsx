@@ -130,6 +130,20 @@ const MESSAGE_RAPPORT_NON_SUPPRIME = 'Le rapport n\'a pas été supprimé. Rées
 const estEnBase = (id: string | undefined) => !!id && FORMAT_UUID.test(id)
 
 /**
+ * Issue de la création en base d'un rapport du BTP pro : son identifiant en base, ou null. `peutEtreEnBase` : la réponse
+ * s'est perdue (coupure réseau, réponse illisible), la base a pu l'enregistrer sans qu'on connaisse son identifiant.
+ */
+type IssueCreation = { idBase: string | null; peutEtreEnBase: boolean }
+
+/**
+ * Créations du BTP pro de cette session, par clé du stockage et identifiant local (relecture adverse du 15/11/2026).
+ * Un rapport supprimé ou modifié avant la réponse de sa création garde son identifiant local : la suppression ne visait
+ * que l'appareil, sa ligne restait en base et revenait au chargement suivant ; la modification ne partait pas. Ils
+ * attendent désormais l'issue de la création. Gardé au niveau du module : la page a pu être quittée entre-temps.
+ */
+const _creationsRapports = new Map<string, Promise<IssueCreation>>()
+
+/**
  * Rapports de l'appareil complétés par la base : un rapport de l'appareil n'est jamais remplacé ; un rapport créé ici
  * dont la réponse du serveur s'est perdue (la base garde son identifiant local dans `idLocal`) prend l'identifiant de
  * la base au lieu d'apparaître deux fois ; les rapports absents de l'appareil sont ajoutés. null : rien ne change.
@@ -438,30 +452,26 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     }
   }
 
-  /**
-   * BTP pro : enregistre en base un rapport qu'on vient de créer (identifiant local) ou de modifier (déjà en base).
-   * Un rapport créé avant cette correction (identifiant local, jamais en base) n'est pas envoyé.
-   */
-  const enregistrerRapportBTP = async (r: RapportIntervention, creation: boolean) => {
-    if (!creation && !estEnBase(r.id)) return
+  const cleCreation = (idLocal: string) => `${storageKey}/${idLocal}`
+
+  /** BTP pro : crée en base un rapport qu'on vient de créer ; son identifiant en base remplace l'identifiant local. */
+  const creerRapportBTP = async (r: RapportIntervention): Promise<IssueCreation> => {
     const ligne = ligneRapport(r)
     // L'identifiant local, gardé en base, évite un doublon si la réponse du serveur se perd (completerParLaBase).
-    const res = creation
-      ? await ecrireRapportBTP({ action: 'insert', data: { ...ligne, contenu: { ...(ligne.contenu as Record<string, unknown>), idLocal: r.id } } })
-      : await ecrireRapportBTP({ action: 'update', id: r.id, data: ligne })
+    const res = await ecrireRapportBTP({ action: 'insert', data: { ...ligne, contenu: { ...(ligne.contenu as Record<string, unknown>), idLocal: r.id } } })
     if (!res?.ok) {
       if (res) console.error(`[btp] rapport refusé (${res.status})`)
-      toast.error(creation ? MESSAGE_RAPPORT_NON_ENREGISTRE : MESSAGE_RAPPORT_NON_MIS_A_JOUR, { id: 'btp-ecriture-rapports' })
-      return
+      toast.error(MESSAGE_RAPPORT_NON_ENREGISTRE, { id: 'btp-ecriture-rapports' })
+      // Sans réponse du serveur, la base a pu l'enregistrer ; un refus ne crée rien.
+      return { idBase: null, peutEtreEnBase: res === null }
     }
-    if (!creation) return
     let idBase: unknown = null
     try {
       idBase = ((await res.json()) as { row?: { id?: unknown } }).row?.id
     } catch (err) {
       console.warn('[btp] rapport enregistré, réponse illisible : identifiant repris au prochain chargement', err)
     }
-    if (typeof idBase !== 'string' || !estEnBase(idBase)) return
+    if (typeof idBase !== 'string' || !estEnBase(idBase)) return { idBase: null, peutEtreEnBase: true }
     const idEnregistre = idBase
     setRapports(prev => {
       const suivants = prev.map(x => (x.id === r.id ? { ...x, id: idEnregistre } : x))
@@ -469,6 +479,50 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       return suivants
     })
     setEditingId(courant => (courant === r.id ? idEnregistre : courant))
+    return { idBase: idEnregistre, peutEtreEnBase: false }
+  }
+
+  /**
+   * BTP pro : enregistre en base un rapport qu'on vient de créer (identifiant local) ou de modifier (déjà en base, ou
+   * créé pendant cette session : sa création est attendue). Un rapport créé avant cette correction (identifiant local,
+   * jamais en base) n'est pas envoyé.
+   */
+  const enregistrerRapportBTP = async (r: RapportIntervention, creation: boolean) => {
+    if (creation) {
+      _creationsRapports.set(cleCreation(r.id), creerRapportBTP(r))
+      return
+    }
+    let id: string | null = r.id
+    if (!estEnBase(r.id)) {
+      const enCours = _creationsRapports.get(cleCreation(r.id))
+      id = enCours ? (await enCours).idBase : null
+      if (!id) return
+    }
+    const res = await ecrireRapportBTP({ action: 'update', id, data: ligneRapport(r) })
+    if (!res?.ok) {
+      if (res) console.error(`[btp] rapport refusé (${res.status})`)
+      toast.error(MESSAGE_RAPPORT_NON_MIS_A_JOUR, { id: 'btp-ecriture-rapports' })
+    }
+  }
+
+  /**
+   * Ligne en base d'un rapport créé sur cet appareil, retrouvée par l'identifiant local gardé dans son contenu : son
+   * identifiant, null si elle n'existe pas, undefined si la base n'a pas pu être lue.
+   */
+  const retrouverRapportEnBase = async (idLocal: string): Promise<string | null | undefined> => {
+    try {
+      const res = await fetch('/api/btp?table=rapports', { headers: await getAuthHeaders() })
+      if (!res.ok) {
+        console.error(`[btp] rapports : lecture en ligne refusée (${res.status})`)
+        return undefined
+      }
+      const lignes = ((await res.json()) as { rapports?: Array<{ id?: unknown; contenu?: unknown }> }).rapports ?? []
+      const ligne = lignes.find(l => typeof l.contenu === 'object' && l.contenu !== null && (l.contenu as { idLocal?: unknown }).idLocal === idLocal)
+      return typeof ligne?.id === 'string' ? ligne.id : null
+    } catch (err) {
+      console.error('[btp] rapports : lecture en ligne impossible :', err)
+      return undefined
+    }
   }
 
   const nextNumber = () => {
@@ -641,16 +695,46 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   }
 
   // BTP pro : un rapport en base n'est retiré de l'appareil qu'une fois supprimé en base (sinon il y resterait et
-  // reviendrait au chargement suivant) ; un refus est annoncé et le rapport reste affiché.
-  const supprimerRapportBTP = async (id: string) => {
+  // reviendrait au chargement suivant) ; un refus est annoncé et le rapport reste affiché. `idLocal` : identifiant local
+  // d'un rapport créé pendant cette session, qui peut encore figurer sous cet identifiant sur l'appareil.
+  const supprimerRapportBTP = async (id: string, idLocal?: string) => {
     const res = await ecrireRapportBTP({ action: 'delete', id })
     if (!res?.ok) {
       if (res) console.error(`[btp] suppression du rapport refusée (${res.status})`)
       toast.error(MESSAGE_RAPPORT_NON_SUPPRIME, { id: 'btp-ecriture-rapports' })
       return
     }
+    if (idLocal) _creationsRapports.delete(cleCreation(idLocal))
     setRapports(prev => {
-      const suivants = prev.filter(r => r.id !== id)
+      const suivants = prev.filter(r => r.id !== id && r.id !== idLocal)
+      ecrireRapportsLocaux(suivants)
+      return suivants
+    })
+  }
+
+  /**
+   * BTP pro : rapport créé pendant cette session, encore sous son identifiant local. L'issue de sa création est attendue ;
+   * s'il est en base (identifiant renvoyé, ou retrouvé par son identifiant local après une réponse perdue), il y est
+   * supprimé avant d'être retiré de l'appareil.
+   */
+  const supprimerRapportCree = async (idLocal: string, creation: Promise<IssueCreation>) => {
+    const issue = await creation
+    let idBase = issue.idBase
+    if (!idBase && issue.peutEtreEnBase) {
+      const retrouve = await retrouverRapportEnBase(idLocal)
+      if (retrouve === undefined) {
+        toast.error(MESSAGE_RAPPORT_NON_SUPPRIME, { id: 'btp-ecriture-rapports' })
+        return
+      }
+      idBase = retrouve
+    }
+    if (idBase) {
+      await supprimerRapportBTP(idBase, idLocal)
+      return
+    }
+    _creationsRapports.delete(cleCreation(idLocal))
+    setRapports(prev => {
+      const suivants = prev.filter(r => r.id !== idLocal)
       ecrireRapportsLocaux(suivants)
       return suivants
     })
@@ -660,6 +744,11 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     if (!confirm('Supprimer ce rapport ?')) return
     if (enregistrementBTP && estEnBase(id)) {
       void supprimerRapportBTP(id)
+      return
+    }
+    const creation = enregistrementBTP ? _creationsRapports.get(cleCreation(id)) : undefined
+    if (creation) {
+      void supprimerRapportCree(id, creation)
       return
     }
     saveRapports(rapports.filter(r => r.id !== id))

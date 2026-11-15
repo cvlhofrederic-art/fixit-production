@@ -9,7 +9,7 @@
 // L'artisan garde le comportement d'avant.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
 const ecrituresDirectes = vi.hoisted(() => [] as Array<{ action: string; ligne?: unknown }>)
@@ -41,13 +41,22 @@ const json = (corps: unknown, status = 200) => new Response(JSON.stringify(corps
 let envois: Array<{ table: string; action: string; id?: string; data?: Record<string, unknown> }>
 let enBase: Array<Record<string, unknown>>
 let ecritureRefusee: boolean
+/** Durée de chaque écriture côté serveur (réseau lent), en millisecondes. */
+let delaiEcriture: number
+/** La création est enregistrée en base, mais sa réponse n'arrive jamais (coupure réseau). */
+let reponsePerdue: boolean
 
 beforeEach(() => {
+  // Horloge figée : le numéro d'un nouveau rapport (RAP-<année>-…) dépend de l'année en cours.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-11-15T10:00:00Z'))
   localStorage.clear()
   ecrituresDirectes.length = 0
   envois = []
   enBase = []
   ecritureRefusee = false
+  delaiEcriture = 0
+  reponsePerdue = false
   vi.mocked(toast.error).mockClear()
   vi.spyOn(window, 'confirm').mockReturnValue(true)
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
@@ -55,10 +64,12 @@ beforeEach(() => {
     if (init?.method === 'POST' && adresse.startsWith('/api/btp')) {
       const corps = JSON.parse(String(init.body))
       envois.push(corps)
+      if (delaiEcriture > 0) await new Promise(resolve => setTimeout(resolve, delaiEcriture))
       if (ecritureRefusee) return json({ error: 'Les données n\'ont pas pu être enregistrées.' }, 500)
       if (corps.action === 'insert') {
         const ligne = { id: UUID_BASE, ...corps.data }
         enBase.push(ligne)
+        if (reponsePerdue) throw new TypeError('Failed to fetch')
         return json({ row: ligne }, 201)
       }
       if (corps.action === 'delete') {
@@ -76,6 +87,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.useRealTimers()
 })
 
 const artisan = { id: 'fiche-rapports', user_id: 'compte-rapports', company_name: 'Société d’essai' } as unknown as Artisan
@@ -153,6 +165,59 @@ describe('Rapports du BTP pro — enregistrement en base', () => {
     await waitFor(() => expect(rapportsLocaux().map(r => r.id)).toEqual([UUID_BASE]))
     expect(rapportsLocaux()[0]).toMatchObject({ rapportNumber: 'RAP-2026-003', clientName: 'M. Ancien' })
     expect(screen.getAllByText('RAP-2026-003')).toHaveLength(1)
+  })
+
+  // Relecture adverse du 15/11/2026 : un rapport supprimé avant la réponse de sa création (ou après une réponse perdue)
+  // gardait son identifiant local ; seule la copie de l'appareil était supprimée, la ligne restait en base et revenait
+  // au chargement suivant.
+  async function rechargerLaPage() {
+    cleanup()
+    render(<RapportsSection artisan={artisan} bookings={[]} services={[]} orgRole="pro_societe" />)
+    await new Promise(resolve => setTimeout(resolve, 300))
+  }
+
+  it('supprimé avant la réponse de sa création : supprimé en base aussi, il ne revient pas au chargement suivant', async () => {
+    delaiEcriture = 300
+    await creerRapport('pro_societe')
+    fireEvent.click(await screen.findByRole('button', { name: '🗑️' }))
+
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['insert', 'delete']), { timeout: 3000 })
+    expect(envois[1]).toEqual({ table: 'rapports_btp', action: 'delete', id: UUID_BASE })
+    await waitFor(() => expect(rapportsLocaux()).toEqual([]), { timeout: 3000 })
+    expect(enBase).toEqual([])
+
+    await rechargerLaPage()
+    expect(rapportsLocaux()).toEqual([])
+    expect(screen.queryByText('RAP-2026-001')).toBeNull()
+  })
+
+  it('réponse de création perdue, puis suppression : la ligne enregistrée est retrouvée et supprimée en base', async () => {
+    reponsePerdue = true
+    await creerRapport('pro_societe')
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
+    expect(enBase).toHaveLength(1)
+    expect(String(rapportsLocaux()[0].id)).toMatch(/^rap_/)
+
+    reponsePerdue = false
+    fireEvent.click(screen.getByRole('button', { name: '🗑️' }))
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['insert', 'delete']), { timeout: 3000 })
+    expect(envois[1]).toEqual({ table: 'rapports_btp', action: 'delete', id: UUID_BASE })
+    await waitFor(() => expect(rapportsLocaux()).toEqual([]), { timeout: 3000 })
+    expect(enBase).toEqual([])
+
+    await rechargerLaPage()
+    expect(rapportsLocaux()).toEqual([])
+  })
+
+  it('modifié avant la réponse de sa création : la modification part vers sa ligne en base', async () => {
+    delaiEcriture = 300
+    await creerRapport('pro_societe')
+    fireEvent.click(await screen.findByRole('button', { name: 'Marquer envoyé' }))
+
+    await waitFor(() => expect(envois.map(e => e.action)).toEqual(['insert', 'update']), { timeout: 3000 })
+    expect(envois[1]).toMatchObject({ table: 'rapports_btp', action: 'update', id: UUID_BASE })
+    expect(envois[1].data?.contenu).toMatchObject({ sentStatus: 'envoye', clientName: 'Mme Dupré' })
+    await waitFor(() => expect(rapportsLocaux()[0]).toMatchObject({ id: UUID_BASE, sentStatus: 'envoye' }), { timeout: 3000 })
   })
 })
 
