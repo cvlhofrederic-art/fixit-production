@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Loader, Brain, BarChart3, User, HardHat, Building2, Coins, Lightbulb, CircleAlert, AlertTriangle, Landmark, PlusCircle, Calendar, SlidersHorizontal, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
-import { signalerPlafondsAtteints, useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
+import { toast } from 'sonner'
+import { signalerEcritureRefusee, signalerPlafondsAtteints, useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
 import { formatPrice } from '@/lib/utils'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
@@ -43,6 +44,8 @@ function fmtDec(n: number, l: string) { return n.toLocaleString(l, { minimumFrac
 const TVA_LABELS: Record<string, string> = {
   reel_normal: 'Réel normal', reel_simplifie: 'Réel simplifié', franchise: 'Franchise de TVA', mini_reel: 'Mini-réel',
 }
+
+const ECHEC_FRAIS_FIXE = 'Le frais fixe n\'a pas été enregistré. Réessayez dans un instant.'
 
 export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/types').Artisan; orgRole?: string }) {
   const isV5 = orgRole === 'pro_societe'
@@ -255,13 +258,18 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
       const { data: sess } = await supabase.auth.getSession()
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (sess?.session?.access_token) headers.Authorization = `Bearer ${sess.session.access_token}`
-      await fetch('/api/btp', {
+      const res = await fetch('/api/btp', {
         method: 'POST',
         headers,
         body: JSON.stringify({ table: 'charges_fixes', action: 'insert', data: { label, montant, frequence, categorie } }),
       })
+      // Frais refusé par le serveur (montant négatif…) : la raison s'affiche au lieu d'un échec silencieux.
+      if (!res.ok) await signalerEcritureRefusee(res, ECHEC_FRAIS_FIXE, 'btp-ecriture-charges_fixes')
       await fetchChargesFixes()
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error('[btp] frais fixe non enregistré :', err)
+      toast.error(ECHEC_FRAIS_FIXE, { id: 'btp-ecriture-charges_fixes' })
+    }
   }
 
   const removeChargeFix = async (id: string) => {

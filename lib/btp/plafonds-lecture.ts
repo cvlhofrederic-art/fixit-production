@@ -40,11 +40,11 @@ const CONTENU: Record<Exclude<ListePlafonnee, 'rentabilite'>, { nom: string; fem
 /** Message affiché quand une liste est coupée à `plafond` lignes. */
 export function messagePlafondAtteint(liste: string, plafond: number): string {
   if (liste === 'rentabilite') {
-    return `Rentabilité incomplète : seuls ${plafond} chantiers sont pris en compte. Les autres n'apparaissent pas ici ni dans les totaux.`
+    return `Rentabilité incomplète : seuls ${plafond} chantiers sont pris en compte. Les autres n'apparaissent ni ici ni dans les totaux.`
   }
   const contenu = CONTENU[liste as keyof typeof CONTENU]
   if (!contenu) {
-    return `Liste incomplète : seules les ${plafond} premières lignes sont affichées. Les autres n'apparaissent pas ici ni dans les totaux.`
+    return `Liste incomplète : seules les ${plafond} premières lignes sont affichées. Les autres n'apparaissent ni ici ni dans les totaux.`
   }
   const [seuls, affiches, comptes] = contenu.feminin ? ['seules', 'affichées', 'comptées'] : ['seuls', 'affichés', 'comptés']
   return `Liste incomplète : ${seuls} les ${plafond} ${contenu.nom} sont ${affiches}. Les autres n'apparaissent pas ici et ne sont pas ${comptes} dans les totaux.`

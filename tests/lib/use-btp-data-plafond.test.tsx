@@ -39,7 +39,7 @@ const avertissements = () => vi.mocked(toast.warning).mock.calls.map(([message])
 describe('useBTPData — liste incomplète', () => {
   it('pointages coupés à 500 : un avertissement clair, une seule fois même si une autre section les affiche', async () => {
     reponses.pointages = { lignes: [{ id: 'p-1' }], plafond: 500 }
-    const userId = `u-${Date.now()}`
+    const userId = 'u-plafond-pointages'
 
     const a = renderHook(() => useBTPData({ table: 'pointages', artisanId: 'a1', userId, autoImport: false }))
     await waitFor(() => expect(a.result.current.loading).toBe(false))
@@ -54,7 +54,7 @@ describe('useBTPData — liste incomplète', () => {
 
   it('liste chargée d’avance par le tableau de bord : prévenu à l’affichage de la section, pas avant', async () => {
     reponses.situations = { lignes: [{ id: 's-1' }], plafond: 200 }
-    const userId = `v-${Date.now()}`
+    const userId = 'u-plafond-situations'
 
     await prefetchBTPTables(['situations'], userId)
     expect(avertissements()).toHaveLength(0)
@@ -66,7 +66,7 @@ describe('useBTPData — liste incomplète', () => {
 
   it('liste complète : aucun avertissement', async () => {
     reponses.chantiers = { lignes: [{ id: 'c-1' }] }
-    const userId = `w-${Date.now()}`
+    const userId = 'u-plafond-complet'
 
     const { result } = renderHook(() => useBTPData({ table: 'chantiers', artisanId: 'a1', userId, autoImport: false }))
     await waitFor(() => expect(result.current.loading).toBe(false))

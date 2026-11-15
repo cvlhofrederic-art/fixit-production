@@ -486,6 +486,40 @@ export function signalerPlafondsAtteints(reponse: unknown): void {
   }
 }
 
+// ── Écriture refusée par le serveur (relecture adverse du 15/11/2026) : la raison donnée par POST /api/btp s'affiche
+// (valeur hors bornes, champ refusé, suppression retenue par une fiche rattachée, fiche disparue…) au lieu d'un échec
+// silencieux. Les fonctions d'écriture renvoient toujours null ou false : les écrans gardent leur comportement.
+const ECHEC_ECRITURE = {
+  creation: 'L\'enregistrement n\'a pas abouti. Réessayez dans un instant.',
+  modification: 'La modification n\'a pas été enregistrée. Réessayez dans un instant.',
+  suppression: 'La suppression n\'a pas abouti. Réessayez dans un instant.',
+} as const
+
+// La limite de débit répond en anglais (lib/rate-limit.ts) : l'écran affiche ce message à la place.
+const MESSAGE_TROP_D_ECRITURES = 'Trop d\'enregistrements en peu de temps : patientez une minute, puis réessayez.'
+
+/** Raison d'une écriture refusée : le message du serveur s'il en donne un, sinon `parDefaut`. */
+async function raisonDuRefus(res: Response, parDefaut: string): Promise<string> {
+  if (res.status === 429) return MESSAGE_TROP_D_ECRITURES
+  try {
+    const corps: unknown = await res.json()
+    const message = typeof corps === 'object' && corps !== null ? (corps as { error?: unknown }).error : undefined
+    return typeof message === 'string' && message.trim() !== '' ? message : parDefaut
+  } catch (err) {
+    console.warn(`[btp] réponse ${res.status} illisible :`, err)
+    return parDefaut
+  }
+}
+
+/**
+ * Prévient que le serveur a refusé une écriture, avec la raison qu'il donne (sinon `parDefaut`). Sert aussi aux écrans
+ * BTP qui écrivent sans ce hook. `id` regroupe des refus identiques en un seul message.
+ */
+export async function signalerEcritureRefusee(res: Response, parDefaut: string, id?: string): Promise<void> {
+  const message = await raisonDuRefus(res, parDefaut)
+  toast.error(message, id ? { id } : undefined)
+}
+
 /** GET d'une table : lignes brutes et plafond atteint (null : liste complète) ; null si la réponse n'est pas ok. */
 async function lireTable(table: ShortName): Promise<{ lignes: unknown[]; plafond: number | null } | null> {
   const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
@@ -647,7 +681,10 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'insert', data: mapped }),
       })
-      if (!res.ok) throw new Error(`Insert ${tableName} failed: ${res.status}`)
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, ECHEC_ECRITURE.creation, `btp-ecriture-${tableName}`)
+        throw new Error(`Insert ${tableName} failed: ${res.status}`)
+      }
       // Écriture confirmée : refresh ne réutilise pas un GET parti avant elle.
       marquerEcriture(cacheKey)
       const json = await res.json()
@@ -675,7 +712,10 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })
-      if (!res.ok) throw new Error(`Update ${tableName} failed: ${res.status}`)
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, ECHEC_ECRITURE.modification, `btp-ecriture-${tableName}`)
+        throw new Error(`Update ${tableName} failed: ${res.status}`)
+      }
       marquerEcriture(cacheKey)
       await refresh()
       return true
@@ -693,7 +733,10 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'delete', id }),
       })
-      if (!res.ok) throw new Error(`Delete ${tableName} failed: ${res.status}`)
+      if (!res.ok) {
+        await signalerEcritureRefusee(res, ECHEC_ECRITURE.suppression, `btp-ecriture-${tableName}`)
+        throw new Error(`Delete ${tableName} failed: ${res.status}`)
+      }
       marquerEcriture(cacheKey)
       await refresh()
       return true
