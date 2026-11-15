@@ -3,6 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
 import { logger } from '@/lib/logger'
 import { adminInitTeamTableSchema, validateBody } from '@/lib/validation'
+import { estRoleEquipeSyndic } from '@/lib/syndic/equipe-contraintes'
+
+/** Colonnes de l'unicité (cabinet_id, email) de la table (UNICITE_EMAIL_PAR_CABINET, migration 20261115) : cible de l'upsert. */
+const CIBLE_UPSERT = 'cabinet_id,email'
 
 /**
  * Route d'initialisation de la table syndic_team_members
@@ -30,19 +34,26 @@ export async function POST(request: NextRequest) {
     const v = validateBody(adminInitTeamTableSchema, rawBody)
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
 
-    const { cabinet_id, user_id, email, full_name, role: memberRole } = v.data
+    const { cabinet_id, user_id, email, full_name, role } = v.data
+    const memberRole = role || 'syndic_tech'
+    if (!estRoleEquipeSyndic(memberRole)) {
+      return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
+    }
 
+    // Une adresse par cabinet (unicité (cabinet_id, email), migration 20261115) : l'upsert vise ce couple, l'e-mail
+    // en minuscules comme dans POST /api/syndic/team. L'ancienne cible, l'e-mail seul, ne correspondait à aucune
+    // unicité de la production : l'upsert échouait toujours (42P10).
     const { data: insertData, error: insertError } = await supabaseAdmin
       .from('syndic_team_members')
       .upsert({
         cabinet_id,
         user_id: user_id || null,
-        email,
+        email: email.toLowerCase(),
         full_name: full_name || '',
-        role: memberRole || 'syndic_tech',
+        role: memberRole,
         accepted_at: new Date().toISOString(),
         is_active: true,
-      }, { onConflict: 'email' })
+      }, { onConflict: CIBLE_UPSERT })
       .select()
 
     if (insertError) {
