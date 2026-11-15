@@ -786,11 +786,17 @@ function FormulaireArtisan() {
 
 // Inscription d'une société française arrêtée à mi-chemin (fiche ou pièces non enregistrées). « Patientez une
 // minute » : un nouvel essai refait l'inscription du compte, que le service d'authentification n'accepte qu'une
-// fois par minute pour une même adresse e-mail (il renvoie alors l'e-mail de confirmation).
+// fois par minute pour une même adresse e-mail. Il renvoie alors l'e-mail de confirmation avec un nouveau lien, qui
+// remplace celui de l'e-mail précédent.
 const INSCRIPTION_SOCIETE_REESSAYER =
-  'Patientez une minute, puis cliquez de nouveau sur « Créer mon compte » pour terminer votre inscription. Si le message revient, contactez le support Vitfix.'
+  'Patientez une minute, puis cliquez de nouveau sur « Créer mon compte » pour terminer votre inscription. Un nouvel e-mail de confirmation vous sera envoyé : utilisez le lien du dernier e-mail reçu. Si le message revient, contactez le support Vitfix.'
 const INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE =
   `Votre compte a été créé, mais la fiche de votre société n'a pas pu être enregistrée. ${INSCRIPTION_SOCIETE_REESSAYER}`
+// Compte créé plus de 10 minutes avant cet essai (adresse déjà inscrite, pas encore confirmée) : /api/auth/create-profile
+// refuse alors la fiche (réponse 403, message ci-dessous), à chaque essai. Un nouveau clic n'y changerait rien.
+const CREATION_FICHE_DELAI_DEPASSE = 'Profile creation window expired'
+const INSCRIPTION_SOCIETE_COMPTE_EXISTANT =
+  'Un compte existe déjà avec cette adresse e-mail. Confirmez-la avec le lien du dernier e-mail de confirmation reçu, puis connectez-vous. Si la fiche de votre société est incomplète, contactez le support Vitfix.'
 
 function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const { t } = useTranslation()
@@ -958,7 +964,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           })
           const profileResult = await profileRes.json()
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
-          if (!btpProfile?.id) inscriptionInachevee = INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE
+          if (!btpProfile?.id) {
+            inscriptionInachevee = profileRes.status === 403 && profileResult?.error === CREATION_FICHE_DELAI_DEPASSE
+              ? INSCRIPTION_SOCIETE_COMPTE_EXISTANT
+              : INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE
+          }
 
           if (btpProfile?.id) {
             // ── Kbis, pièce d'identité et KYC anti-fraude, côté serveur ──

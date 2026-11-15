@@ -294,9 +294,34 @@ describe('Inscription société BTP : échec de la fiche ou des pièces', () => 
 
     await sInscrireCommeSocieteBtp()
 
-    expect(await screen.findByText(MESSAGE_FICHE)).toBeTruthy()
+    const message = await screen.findByText(MESSAGE_FICHE)
+    // Un nouvel essai renvoie l'e-mail de confirmation : seul le lien du dernier reçu reste valable
+    expect(message.textContent).toMatch(/lien du dernier e-mail/)
     expect(screen.queryByText('register.accountCreated')).toBeNull()
     expect(urls()).not.toContain('/api/pro/register/finalize')
+  })
+
+  it('compte créé plus de 10 minutes avant cet essai : un message qui n’invite pas à recliquer', async () => {
+    // Adresse déjà inscrite, pas encore confirmée : la route refuse de créer la fiche passé ce délai
+    remplacerReponses({ '/api/auth/create-profile': async () => reponse({ error: 'Profile creation window expired' }, 403) })
+
+    await sInscrireCommeSocieteBtp()
+
+    const message = await screen.findByText(/Un compte existe déjà avec cette adresse e-mail/)
+    expect(message.textContent).toMatch(/dernier e-mail de confirmation/)
+    expect(message.textContent).not.toMatch(/cliquez de nouveau/)
+    expect(screen.queryByText(MESSAGE_FICHE)).toBeNull()
+    expect(screen.queryByText('register.accountCreated')).toBeNull()
+    expect(urls()).not.toContain('/api/pro/register/finalize')
+  })
+
+  it('autre refus 403 (hors délai de création) : message général de la fiche non enregistrée', async () => {
+    remplacerReponses({ '/api/auth/create-profile': async () => reponse({ error: 'Accès refusé' }, 403) })
+
+    await sInscrireCommeSocieteBtp()
+
+    expect(await screen.findByText(MESSAGE_FICHE)).toBeTruthy()
+    expect(screen.queryByText(/Un compte existe déjà avec cette adresse e-mail/)).toBeNull()
   })
 
   it("appel de la fiche coupé (réseau) : pas de « Compte créé ! », un message", async () => {

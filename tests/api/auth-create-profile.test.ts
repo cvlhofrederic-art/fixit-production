@@ -258,3 +258,16 @@ describe('POST /api/auth/create-profile — champs fixés par le serveur', () =>
     expect(mocks.profileInsert).toHaveBeenCalledWith({ user_id: USER_ID, company_name: 'X', verified: false, kyc_status: 'pending' })
   })
 })
+
+describe('POST /api/auth/create-profile — compte créé il y a plus de 10 minutes', () => {
+  it('refus 403 avec le message que reconnaît l’inscription d’une société (app/(commun)/pro/register)', async () => {
+    mocks.authUser = { created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString() }
+    mocks.existingProfile = { id: 'profil-existant' }
+    const { POST } = await import('@/app/api/auth/create-profile/route')
+    const res = await POST(requete({ user_id: USER_ID, company_name: 'X' }) as never)
+
+    expect(res.status).toBe(403)
+    expect(await res.json()).toEqual({ error: 'Profile creation window expired' })
+    expect(mocks.profileInsert).not.toHaveBeenCalled()
+  })
+})
