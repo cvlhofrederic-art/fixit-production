@@ -732,18 +732,24 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     let cancelled = false
 
     async function init() {
-      // Skip fetch if cache is fresh — data was already set in useState
+      let data: unknown[] | null
       if (hasFreshCache) {
+        // Skip fetch if cache is fresh — data was already set in useState
         setLoading(false)
-        return
-      }
+        // BTP pro : une liste fraîche et vide (préchargée par le tableau de bord sous la même clé) n'est pas relue, mais
+        // la reprise des anciennes données du navigateur reste tentée. Sinon elle n'avait plus lieu dans les 5 minutes
+        // suivant le chargement du tableau de bord, et une fiche créée entre-temps l'empêchait pour toujours (relecture
+        // adverse du 15/11/2026). L'accueil de l'artisan garde le comportement d'avant.
+        if (!ecranBTP) return
+        data = cached.data
+      } else {
+        // Stale cache: show cached data immediately, refresh in background (no loading spinner)
+        if (hasAnyCache) {
+          setLoading(false)
+        }
 
-      // Stale cache: show cached data immediately, refresh in background (no loading spinner)
-      if (hasAnyCache) {
-        setLoading(false)
+        data = await refresh()
       }
-
-      const data = await refresh()
 
       // If Supabase is empty and localStorage has data → import (skip if refresh failed)
       if (autoImport && !imported.current && data !== null && data.length === 0 && artisanId) {

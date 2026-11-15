@@ -13,14 +13,17 @@ vi.mock('@/lib/supabase', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { warning: vi.fn(), error: vi.fn(), success: vi.fn(), info: vi.fn() } }))
 
-import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { prefetchBTPTables, useBTPData } from '@/lib/hooks/use-btp-data'
 
 const json = (corps: unknown, status = 200) => new Response(JSON.stringify(corps), { status, headers: { 'Content-Type': 'application/json' } })
 
 let reprises: Array<{ table: string; action: string; data: Array<Record<string, unknown>> }>
+/** Tables lues (GET /api/btp), dans l'ordre. */
+let lectures: string[]
 
 beforeEach(() => {
   reprises = []
+  lectures = []
   localStorage.clear()
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
     if (init?.method === 'POST') {
@@ -28,6 +31,7 @@ beforeEach(() => {
       return json({ imported: 1 })
     }
     const table = new URL(String(url), 'https://vitfix.io').searchParams.get('table') ?? ''
+    lectures.push(table)
     return json({ [table]: [] })
   })
 })
@@ -95,6 +99,57 @@ describe('reprise des anciennes données du navigateur — une seule fois', () =
     renderHook(() => useBTPData({ table: 'depenses', artisanId: 'compte-u4', userId: 'compte-u4', orgRole: 'artisan' }))
 
     await waitFor(() => expect(reprises).toHaveLength(1))
+  })
+})
+
+// Relecture adverse du 15/11/2026 : depuis que Situations, Retenues, Sous-traitance et DPGF rangent leurs listes sous
+// l'identifiant du compte, elles partagent la liste préchargée par le tableau de bord. Un écran qui trouvait sa liste
+// fraîche en mémoire s'arrêtait là : dans les 5 minutes suivant le chargement du tableau de bord, la reprise n'était plus
+// tentée, et une fiche créée entre-temps l'empêchait pour toujours (la table n'est plus vide).
+describe('reprise des anciennes données du navigateur — liste déjà préchargée', () => {
+  const SITUATIONS_LOCALES = JSON.stringify([{ id: 's-local', chantier: 'Villa', client: 'Mme Dupré', numero: 1, montantMarche: 1000, travaux: [], statut: 'brouillon' }])
+
+  it('liste vide déjà préchargée : la reprise est tentée à l’ouverture de l’écran, sans relire la table avant', async () => {
+    localStorage.setItem('situations_fiche-p1', SITUATIONS_LOCALES)
+    await prefetchBTPTables(['situations'], 'compte-p1')
+    expect(lectures).toEqual(['situations'])
+    renderHook(() => useBTPData({ table: 'situations', artisanId: 'fiche-p1', userId: 'compte-p1' }))
+
+    await waitFor(() => expect(reprises).toHaveLength(1))
+    expect(reprises[0]).toMatchObject({ table: 'situations_btp', action: 'import' })
+    expect(reprises[0].data[0]).toMatchObject({ chantier: 'Villa', client: 'Mme Dupré', montant_marche: 1000 })
+    // Relecture après la reprise seulement.
+    await waitFor(() => expect(lectures).toEqual(['situations', 'situations']))
+    expect(localStorage.getItem('situations_fiche-p1')).toBe(SITUATIONS_LOCALES)
+  })
+
+  it('liste préchargée non vide : ni reprise ni relecture, comme avant', async () => {
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (init?.method === 'POST') {
+        reprises.push(JSON.parse(String(init.body)))
+        return json({ imported: 1 })
+      }
+      const table = new URL(String(url), 'https://vitfix.io').searchParams.get('table') ?? ''
+      lectures.push(table)
+      return json({ [table]: [{ id: 's-1', chantier: 'École', numero: 1, statut: 'brouillon' }] })
+    })
+    localStorage.setItem('situations_fiche-p2', SITUATIONS_LOCALES)
+    await prefetchBTPTables(['situations'], 'compte-p2')
+    const { result } = renderHook(() => useBTPData({ table: 'situations', artisanId: 'fiche-p2', userId: 'compte-p2' }))
+
+    expect(result.current.items).toHaveLength(1)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(reprises).toEqual([])
+    expect(lectures).toEqual(['situations'])
+  })
+
+  it('témoin, accueil de l’artisan : liste vide déjà préchargée, pas de reprise (comportement d’avant)', async () => {
+    localStorage.setItem('fixit_expenses_compte-p3', JSON.stringify([{ id: 'd-local', label: 'Ciment', amount: 120, date: '2026-03-02' }]))
+    await prefetchBTPTables(['depenses'], 'compte-p3')
+    renderHook(() => useBTPData({ table: 'depenses', artisanId: 'compte-p3', userId: 'compte-p3', orgRole: 'artisan' }))
+
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(reprises).toEqual([])
   })
 })
 
