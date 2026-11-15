@@ -16,9 +16,79 @@ const btpBodySchema = z.object({
   id: z.string().optional(),
 })
 
-// ── GET /api/btp — Fetch all BTP data for the authenticated user ─────────────
-// Returns: chantiers, membres, equipes, pointages, depenses, settings
-// Query params: ?table=chantiers|membres|equipes|pointages|depenses|settings|all
+// ── GET /api/btp — données BTP du compte connecté ───────────────────────────
+// ?table=<clé de LECTURES>|settings|all (all : chantiers, membres, equipes, pointages, depenses, settings).
+// ?chantier_id=<uuid> filtre aussi les pointages et les dépenses.
+
+/** Une liste lue par la route : source en base, tri et nombre maximal de lignes renvoyées. */
+interface LectureListe {
+  /** Table ou vue lue en base. */
+  source: string
+  colonnes?: string
+  /** Tri appliqué, dans l'ordre : [colonne, croissant]. */
+  tri: Array<[string, boolean]>
+  /** Nombre maximal de lignes renvoyées ; absent : la route ne pose pas de limite. */
+  plafond?: number
+  /** false pour une table de référence commune à tous les comptes (pas de filtre sur owner_id). */
+  parProprietaire?: boolean
+  /** Le paramètre chantier_id filtre aussi cette liste. */
+  parChantier?: boolean
+}
+
+const LECTURES: Record<string, LectureListe> = {
+  chantiers: { source: 'chantiers_btp', tri: [['created_at', false]], plafond: 200 },
+  membres: { source: 'membres_btp', tri: [['nom', true]], plafond: 500 },
+  equipes: { source: 'equipes_btp', colonnes: '*, equipe_membres_btp(membre_id)', tri: [['created_at', false]] },
+  pointages: { source: 'pointages_btp', tri: [['date', false]], plafond: 500, parChantier: true },
+  depenses: { source: 'depenses_btp', tri: [['date', false]], plafond: 500, parChantier: true },
+  situations: { source: 'situations_btp', tri: [['created_at', false]], plafond: 200 },
+  retenues: { source: 'retenues_btp', tri: [['created_at', false]], plafond: 200 },
+  dc4: { source: 'dc4_btp', tri: [['created_at', false]], plafond: 200 },
+  dce_analyses: { source: 'dce_analyses_btp', tri: [['created_at', false]], plafond: 100 },
+  dpgf: { source: 'dpgf_btp', tri: [['created_at', false]], plafond: 200 },
+  ref_taux: { source: 'ref_taux', tri: [['juridiction', true], ['regime', true], ['type_charge', true]], parProprietaire: false },
+  charges_fixes: { source: 'charges_fixes', tri: [['categorie', true], ['label', true]] },
+  rapports: { source: 'rapports_btp', tri: [['created_at', false]], plafond: 500 },
+  rentabilite: { source: 'v_rentabilite_chantier', tri: [], plafond: 100 },
+}
+
+const MESSAGE_LECTURE_IMPOSSIBLE = 'Les données n\'ont pas pu être chargées. Réessayez dans un instant.'
+const FORMAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** La base a répondu en erreur : la route le dit (500) au lieu de renvoyer une liste vide. */
+class ErreurLecture extends Error {
+  constructor(readonly source: string, readonly erreurBase: { code?: string; message?: string }) {
+    super(`lecture de ${source} en erreur`)
+  }
+}
+
+async function lireListe(cle: string, userId: string, chantierId: string | null): Promise<Record<string, unknown>[]> {
+  const lecture = LECTURES[cle]
+  let requete = supabaseAdmin.from(lecture.source).select(lecture.colonnes ?? '*')
+  if (lecture.parProprietaire !== false) requete = requete.eq('owner_id', userId)
+  if (lecture.parChantier && chantierId) requete = requete.eq('chantier_id', chantierId)
+  for (const [colonne, croissant] of lecture.tri) requete = requete.order(colonne, { ascending: croissant })
+  if (lecture.plafond) requete = requete.limit(lecture.plafond)
+  const { data, error } = await requete
+  if (error) throw new ErreurLecture(lecture.source, error)
+  return (data ?? []) as unknown as Record<string, unknown>[]
+}
+
+/** Réglages du compte ; null s'ils n'ont jamais été enregistrés (ce n'est pas une erreur). */
+async function lireReglages(userId: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabaseAdmin.from('settings_btp').select('*').eq('owner_id', userId).maybeSingle()
+  if (error) throw new ErreurLecture('settings_btp', error)
+  return (data ?? null) as Record<string, unknown> | null
+}
+
+/** Équipes avec la liste de leurs membres (`membreIds`), lue dans equipe_membres_btp. */
+function avecMembreIds(equipes: Record<string, unknown>[]): Record<string, unknown>[] {
+  return equipes.map(e => ({
+    ...e,
+    membreIds: ((e.equipe_membres_btp as { membre_id: string }[] | undefined) || []).map(m => m.membre_id),
+  }))
+}
+
 export async function GET(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`btp_get_${ip}`, 60, 60_000))) return rateLimitResponse()
@@ -29,101 +99,38 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url)
   const table = url.searchParams.get('table') || 'all'
   const chantierId = url.searchParams.get('chantier_id')
-
-  const result: Record<string, unknown> = {}
+  if (chantierId && !FORMAT_UUID.test(chantierId)) {
+    return NextResponse.json({ error: 'Identifiant de chantier invalide' }, { status: 400 })
+  }
 
   try {
-    // Single table request — no parallelism needed
-    if (table === 'rentabilite') {
-      const { data } = await supabaseAdmin
-        .from('v_rentabilite_chantier')
-        .select('*')
-        .eq('owner_id', user.id)
-        .limit(100)
-      result.rentabilite = data || []
-      return NextResponse.json(result)
+    if (table === 'all') {
+      const [chantiers, membres, equipes, pointages, depenses, settings] = await Promise.all([
+        lireListe('chantiers', user.id, chantierId),
+        lireListe('membres', user.id, chantierId),
+        lireListe('equipes', user.id, chantierId),
+        lireListe('pointages', user.id, chantierId),
+        lireListe('depenses', user.id, chantierId),
+        lireReglages(user.id),
+      ])
+      return NextResponse.json({ chantiers, membres, equipes: avecMembreIds(equipes), pointages, depenses, settings })
     }
 
-    if (table !== 'all') {
-      // Single table fetch
-      if (table === 'chantiers') {
-        const { data } = await supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
-        result.chantiers = data || []
-      } else if (table === 'membres') {
-        const { data } = await supabaseAdmin.from('membres_btp').select('*').eq('owner_id', user.id).order('nom', { ascending: true }).limit(500)
-        result.membres = data || []
-      } else if (table === 'equipes') {
-        const { data } = await supabaseAdmin.from('equipes_btp').select('*, equipe_membres_btp(membre_id)').eq('owner_id', user.id).order('created_at', { ascending: false })
-        result.equipes = (data || []).map((e: { equipe_membres_btp?: { membre_id: string }[]; [key: string]: unknown }) => ({ ...e, membreIds: (e.equipe_membres_btp || []).map((m) => m.membre_id) }))
-      } else if (table === 'pointages') {
-        let q = supabaseAdmin.from('pointages_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
-        if (chantierId) q = q.eq('chantier_id', chantierId)
-        const { data } = await q
-        result.pointages = data || []
-      } else if (table === 'depenses') {
-        let q = supabaseAdmin.from('depenses_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
-        if (chantierId) q = q.eq('chantier_id', chantierId)
-        const { data } = await q
-        result.depenses = data || []
-      } else if (table === 'settings') {
-        const { data } = await supabaseAdmin.from('settings_btp').select('*').eq('owner_id', user.id).single()
-        result.settings = data || null
-      } else if (table === 'situations') {
-        const { data } = await supabaseAdmin.from('situations_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
-        result.situations = data || []
-      } else if (table === 'retenues') {
-        const { data } = await supabaseAdmin.from('retenues_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
-        result.retenues = data || []
-      } else if (table === 'dc4') {
-        const { data } = await supabaseAdmin.from('dc4_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
-        result.dc4 = data || []
-      } else if (table === 'dce_analyses') {
-        const { data } = await supabaseAdmin.from('dce_analyses_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(100)
-        result.dce_analyses = data || []
-      } else if (table === 'dpgf') {
-        const { data } = await supabaseAdmin.from('dpgf_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200)
-        result.dpgf = data || []
-      } else if (table === 'ref_taux') {
-        const { data } = await supabaseAdmin.from('ref_taux').select('*').order('juridiction', { ascending: true }).order('regime', { ascending: true }).order('type_charge', { ascending: true })
-        result.ref_taux = data || []
-      } else if (table === 'charges_fixes') {
-        const { data } = await supabaseAdmin.from('charges_fixes').select('*').eq('owner_id', user.id).order('categorie', { ascending: true }).order('label', { ascending: true })
-        result.charges_fixes = data || []
-      } else if (table === 'rapports') {
-        const { data } = await supabaseAdmin.from('rapports_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(500)
-        result.rapports = data || []
-      } else {
-        return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
-      }
-      return NextResponse.json(result)
+    if (table === 'settings') return NextResponse.json({ settings: await lireReglages(user.id) })
+
+    if (!Object.prototype.hasOwnProperty.call(LECTURES, table)) {
+      return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
     }
-
-    // table=all — run ALL 6 queries in parallel
-    let pointagesQ = supabaseAdmin.from('pointages_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
-    if (chantierId) pointagesQ = pointagesQ.eq('chantier_id', chantierId)
-    let depensesQ = supabaseAdmin.from('depenses_btp').select('*').eq('owner_id', user.id).order('date', { ascending: false }).limit(500)
-    if (chantierId) depensesQ = depensesQ.eq('chantier_id', chantierId)
-
-    const [chantiersRes, membresRes, equipesRes, pointagesRes, depensesRes, settingsRes] = await Promise.all([
-      supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', user.id).order('created_at', { ascending: false }).limit(200),
-      supabaseAdmin.from('membres_btp').select('*').eq('owner_id', user.id).order('nom', { ascending: true }).limit(500),
-      supabaseAdmin.from('equipes_btp').select('*, equipe_membres_btp(membre_id)').eq('owner_id', user.id).order('created_at', { ascending: false }),
-      pointagesQ,
-      depensesQ,
-      supabaseAdmin.from('settings_btp').select('*').eq('owner_id', user.id).single(),
-    ])
-
-    result.chantiers = chantiersRes.data || []
-    result.membres = membresRes.data || []
-    result.equipes = (equipesRes.data || []).map((e: { equipe_membres_btp?: { membre_id: string }[]; [key: string]: unknown }) => ({ ...e, membreIds: (e.equipe_membres_btp || []).map((m) => m.membre_id) }))
-    result.pointages = pointagesRes.data || []
-    result.depenses = depensesRes.data || []
-    result.settings = settingsRes.data || null
-
-    return NextResponse.json(result)
+    const lignes = await lireListe(table, user.id, chantierId)
+    return NextResponse.json({ [table]: table === 'equipes' ? avecMembreIds(lignes) : lignes })
   } catch (err) {
-    logger.error('[btp] GET error', { error: err instanceof Error ? err.message : err })
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    // Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6).
+    if (err instanceof ErreurLecture) {
+      logger.error('[btp] GET : la base a répondu en erreur', { source: err.source, code: err.erreurBase.code, error: err.erreurBase.message })
+    } else {
+      logger.error('[btp] GET error', { error: err instanceof Error ? err.message : err })
+    }
+    return NextResponse.json({ error: MESSAGE_LECTURE_IMPOSSIBLE }, { status: 500 })
   }
 }
 
