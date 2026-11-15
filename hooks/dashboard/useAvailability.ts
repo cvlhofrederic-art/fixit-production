@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
-import { lireAbsencesArtisan } from '@/lib/absences-artisan'
+import { absencesDetaillees, lireAbsencesArtisan } from '@/lib/absences-artisan'
 
 type SlotType = 'rdv' | 'visite'
 
@@ -182,10 +182,12 @@ export function useAvailability(
   const loadCalendarData = useCallback(async (aid: string) => {
     if (calendarDataLoadedRef.current) return
     calendarDataLoadedRef.current = true
-    const [availRes, absRes, dsRes] = await Promise.all([
+    // Avec la session : le motif et le libellé des absences ne sont rendus qu'au propriétaire de la fiche.
+    // Cette lecture attend le jeton du compte : elle part en même temps que les deux autres mais ne les retient pas
+    // (session lente à lire → les disponibilités s'affichent quand même).
+    const absencesEnCours = lireAbsencesArtisan(aid).then(r => r.json()).catch(() => ({ data: [] }))
+    const [availRes, dsRes] = await Promise.all([
       fetch(`/api/availability?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: [] })),
-      // Avec la session : le motif et le libellé des absences ne sont rendus qu'au propriétaire de la fiche.
-      lireAbsencesArtisan(aid).then(r => r.json()).catch(() => ({ data: [] })),
       fetch(`/api/availability-services?artisan_id=${aid}`).then(r => r.json()).catch(() => ({ data: null })),
     ])
     let availData = availRes.data || []
@@ -231,8 +233,11 @@ export function useAvailability(
     }
 
     setAvailability(availData)
-    const apiAbsences = absRes.data || []
     if (dsRes.data) setDayServices(dsRes.data)
+    // Une réponse « dates seules » (session illisible ou non reconnue) n'est pas reportée : l'agenda garde les
+    // absences détaillées qu'il affiche déjà.
+    const absRes = await absencesEnCours
+    const apiAbsences = absencesDetaillees(absRes?.data) || []
     return apiAbsences // Return absences so caller can update absences hook
   }, [])
 

@@ -40,9 +40,10 @@ const h = vi.hoisted(() => {
   return { etat, from }
 })
 
+// Comme la vraie lecture de session : sans en-tête Authorization, personne n'est reconnu.
 vi.mock('@/lib/auth-helpers', async (original) => ({
   ...(await original<typeof import('@/lib/auth-helpers')>()),
-  getAuthUser: vi.fn(async () => h.etat.user),
+  getAuthUser: vi.fn(async (requete: NextRequest) => (requete.headers.get('Authorization') ? h.etat.user : null)),
 }))
 vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-api')).rateLimitPermissif())
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
@@ -50,10 +51,14 @@ vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => 
 
 const { GET } = await import('@/app/api/artisan-absences/route')
 
-const lire = async (requete = `?artisan_id=${FICHE}`) => {
-  const res = await GET(new NextRequest(`https://vitfix.io/api/artisan-absences${requete}`))
+/** `avecJeton` : la requête porte un en-tête Authorization (reconnu ou non selon `h.etat.user`). */
+const lire = async ({ requete = `?artisan_id=${FICHE}`, avecJeton = false }: { requete?: string; avecJeton?: boolean } = {}) => {
+  const res = await GET(new NextRequest(`https://vitfix.io/api/artisan-absences${requete}`, avecJeton ? { headers: { Authorization: 'Bearer jeton' } } : undefined))
   return { status: res.status, entetes: res.headers, json: await res.json() as { data?: Ligne[]; error?: string } }
 }
+
+const PUBLIC_EN_CACHE = 'public, s-maxage=300, stale-while-revalidate=600'
+const JAMAIS_EN_CACHE = 'private, no-store'
 
 const DATES_SEULES = [
   { id: 'abs-1', artisan_id: FICHE, start_date: '2026-12-01', end_date: '2026-12-05' },
@@ -70,38 +75,48 @@ beforeEach(() => {
 })
 
 describe('GET /api/artisan-absences — le public ne reçoit que les dates', () => {
-  it('visiteur sans session : dates des absences, ni motif ni libellé', async () => {
+  it('visiteur sans session : dates des absences, ni motif ni libellé, réponse publique mise en cache comme avant', async () => {
     const res = await lire()
     expect(res.status).toBe(200)
     expect(res.json.data).toEqual(DATES_SEULES)
     expect(JSON.stringify(res.json)).not.toMatch(/Maladie|Marie Exemple|reason|label/)
-    expect(res.entetes.get('Cache-Control')).toBe('public, s-maxage=300, stale-while-revalidate=600')
+    expect(res.entetes.get('Cache-Control')).toBe(PUBLIC_EN_CACHE)
   })
 
-  it('compte connecté qui n’est pas le propriétaire de la fiche : dates seules aussi', async () => {
+  it('compte connecté qui n’est pas le propriétaire de la fiche : dates seules aussi, réponse jamais mise en cache', async () => {
     h.etat.user = { id: AUTRE_COMPTE }
-    const res = await lire()
+    const res = await lire({ avecJeton: true })
     expect(res.status).toBe(200)
     expect(res.json.data).toEqual(DATES_SEULES)
+    expect(res.entetes.get('Cache-Control')).toBe(JAMAIS_EN_CACHE)
+  })
+
+  it('jeton présenté mais non reconnu (session expirée) : dates seules, réponse jamais mise en cache', async () => {
+    // Sans cela, la réponse « dates seules » pourrait être resservie au propriétaire une fois sa session relue.
+    h.etat.user = null
+    const res = await lire({ avecJeton: true })
+    expect(res.status).toBe(200)
+    expect(res.json.data).toEqual(DATES_SEULES)
+    expect(res.entetes.get('Cache-Control')).toBe(JAMAIS_EN_CACHE)
   })
 
   it('400 sans artisan_id', async () => {
-    expect((await lire('')).status).toBe(400)
+    expect((await lire({ requete: '' })).status).toBe(400)
   })
 })
 
 describe('GET /api/artisan-absences — le propriétaire garde le détail de son agenda', () => {
   it('avec sa session : motif et libellé renvoyés, réponse jamais mise en cache', async () => {
     h.etat.user = { id: PROPRIETAIRE }
-    const res = await lire()
+    const res = await lire({ avecJeton: true })
     expect(res.status).toBe(200)
     expect(res.json.data).toEqual(h.etat.absences)
-    expect(res.entetes.get('Cache-Control')).toBe('private, no-store')
+    expect(res.entetes.get('Cache-Control')).toBe(JAMAIS_EN_CACHE)
   })
 
-  it('les deux réponses dépendent de la session : Vary: Authorization', async () => {
+  it('les réponses dépendent de la session : Vary: Authorization', async () => {
     expect((await lire()).entetes.get('Vary')).toBe('Authorization')
     h.etat.user = { id: PROPRIETAIRE }
-    expect((await lire()).entetes.get('Vary')).toBe('Authorization')
+    expect((await lire({ avecJeton: true })).entetes.get('Vary')).toBe('Authorization')
   })
 })

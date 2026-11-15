@@ -39,8 +39,11 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ data })
-  // La réponse du propriétaire n'est jamais gardée par un cache ; la réponse publique reste mise en cache comme avant.
-  response.headers.set('Cache-Control', estProprietaire ? 'private, no-store' : 'public, s-maxage=300, stale-while-revalidate=600')
+  // Une réponse à une requête qui présente un jeton (propriétaire reconnu ou non) n'est jamais gardée par un cache :
+  // une réponse « dates seules » ne doit pas être resservie au propriétaire une fois sa session reconnue.
+  // Sans jeton, la réponse publique reste mise en cache comme avant.
+  const avecJeton = request.headers.has('Authorization')
+  response.headers.set('Cache-Control', avecJeton ? 'private, no-store' : 'public, s-maxage=300, stale-while-revalidate=600')
   response.headers.set('Vary', 'Authorization')
   return response
 }

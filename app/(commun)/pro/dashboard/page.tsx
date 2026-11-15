@@ -8,7 +8,7 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import { supabase } from '@/lib/supabase'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
-import { lireAbsencesArtisan } from '@/lib/absences-artisan'
+import { absencesDetaillees, lireAbsencesArtisan } from '@/lib/absences-artisan'
 import { fetchAllBookings } from '@/lib/bookings-fetch'
 import { useTranslation } from '@/lib/i18n/context'
 import { SectionErrorBoundary } from '@/components/common/SectionErrorBoundary'
@@ -1560,7 +1560,9 @@ function DashboardPage() {
             } catch { toast.error('Erreur lors du chargement des disponibilités') }
             try {
               const absJson = await absRes.json()
-              if (absJson.data) setAbsences(absJson.data)
+              // Une réponse « dates seules » (session illisible ou non reconnue) ne remplace pas les absences affichées.
+              const absencesLues = absencesDetaillees(absJson.data)
+              if (absencesLues) setAbsences(absencesLues)
             } catch { toast.error('Erreur lors du chargement des absences') }
           }}
         />
