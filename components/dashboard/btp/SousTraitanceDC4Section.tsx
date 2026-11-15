@@ -28,7 +28,8 @@ interface DCEAnalysis {
   result?: DCEResult; status: 'pending' | 'done' | 'error'
 }
 
-export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; orgRole?: string }) {
+// userId : fiche société (clés du navigateur) ; authUserId : compte, clé de cache commune aux écrans BTP (donnees-btp-15).
+export function SousTraitanceDC4Section({ userId, authUserId, orgRole }: { userId: string; authUserId?: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isFR = locale !== 'pt'
@@ -36,8 +37,8 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
   const tv = useThemeVars(isV5)
   const dateLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
 
-  const { items: soustraitants, add: addDC4, update: updateDC4 } = useBTPData<SousTraitant>({ table: 'dc4', artisanId: userId, userId })
-  const { items: analyses, add: addDCE, update: updateDCE } = useBTPData<DCEAnalysis>({ table: 'dce_analyses', artisanId: userId, userId })
+  const { items: soustraitants, add: addDC4, update: updateDC4 } = useBTPData<SousTraitant>({ table: 'dc4', artisanId: userId, userId: authUserId || userId })
+  const { items: analyses, add: addDCE, update: updateDCE } = useBTPData<DCEAnalysis>({ table: 'dce_analyses', artisanId: userId, userId: authUserId || userId })
 
   // ── State ──
   const [tab, setTab] = useState<'sous_traitants' | 'analyse_dce' | 'memoire' | 'checklist'>('sous_traitants')
@@ -248,6 +249,7 @@ export function SousTraitanceDC4Section({ userId, orgRole }: { userId: string; o
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isFR ? 'Chantier' : 'Obra'}</label>
                   <ChantierSelect
                     userId={userId}
+                    authUserId={authUserId}
                     orgRole={orgRole}
                     value={form.chantier_id}
                     onChange={(id, titre) => setForm({ ...form, chantier_id: id, chantier: titre })}

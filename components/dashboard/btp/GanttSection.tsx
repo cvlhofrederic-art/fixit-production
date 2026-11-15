@@ -50,7 +50,9 @@ function getSegment(rowStart: number, rowEnd: number, mStart: number, mEnd: numb
   return { left: ((segStart - mStart) / span) * 100, right: ((mEnd - segEnd) / span) * 100 }
 }
 
-export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: string }) {
+// userId : fiche société (clés du navigateur, dont gantt_subtasks_) ; authUserId : compte, clé de cache commune aux
+// écrans BTP (constat donnees-btp-15).
+export function GanttSection({ userId, authUserId, orgRole }: { userId: string; authUserId?: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   void orgRole
@@ -59,7 +61,7 @@ export function GanttSection({ userId, orgRole }: { userId: string; orgRole?: st
   const isPt = locale === 'pt'
 
   const SUBTASKS_KEY = `gantt_subtasks_${userId}`
-  const { items: chantiers, loading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId })
+  const { items: chantiers, loading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId: authUserId || userId })
 
   const [sousTaches, setSousTaches] = useState<SousTache[]>(() => {
     try { return JSON.parse(localStorage.getItem(SUBTASKS_KEY) || '[]') } catch { return [] }

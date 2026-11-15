@@ -13,7 +13,8 @@ interface Situation {
   montantMarche: number; travaux: Poste[]; statut: 'brouillon' | 'envoyée' | 'validée' | 'payée'
 }
 
-export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole?: string }) {
+// userId : fiche société (clés du navigateur) ; authUserId : compte, clé de cache commune aux écrans BTP (donnees-btp-15).
+export function SituationsTravaux({ userId, authUserId, orgRole }: { userId: string; authUserId?: string; orgRole?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -21,7 +22,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
   const isPt = locale === 'pt'
   const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
-  const { items: situations, loading, add, update } = useBTPData<Situation>({ table: 'situations', artisanId: userId, userId })
+  const { items: situations, loading, add, update } = useBTPData<Situation>({ table: 'situations', artisanId: userId, userId: authUserId || userId })
   const [selected, setSelected] = useState<Situation | null>(null)
   // Synchroniser selected avec les items frais apres chaque refresh
   useEffect(() => {
@@ -91,6 +92,7 @@ export function SituationsTravaux({ userId, orgRole }: { userId: string; orgRole
               <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.situations.chantier')}</label>
               <ChantierSelect
                 userId={userId}
+                authUserId={authUserId}
                 orgRole={orgRole}
                 value={form.chantier_id}
                 onChange={(id, titre, client) => setForm({ ...form, chantier_id: id, chantier: titre, client })}

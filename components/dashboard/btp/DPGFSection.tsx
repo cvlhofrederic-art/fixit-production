@@ -9,7 +9,8 @@ import { useBTPData } from '@/lib/hooks/use-btp-data'
 interface Lot { numero: string; designation: string; montantHT: number }
 interface AppelOffre { id: string; titre: string; client: string; dateRemise: string; montantEstime: number; statut: 'en_cours' | 'soumis' | 'gagné' | 'perdu'; lots: Lot[] }
 
-export function DPGFSection({ userId, orgRole, country }: { userId: string; orgRole?: string; country?: string }) {
+// userId : fiche société (clés du navigateur) ; authUserId : compte, clé de cache commune aux écrans BTP (donnees-btp-15).
+export function DPGFSection({ userId, authUserId, orgRole, country }: { userId: string; authUserId?: string; orgRole?: string; country?: string }) {
   const { t } = useTranslation()
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -17,7 +18,7 @@ export function DPGFSection({ userId, orgRole, country }: { userId: string; orgR
   const isPt = locale === 'pt'
   const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
 
-  const { items: appels, loading, add, update } = useBTPData<AppelOffre>({ table: 'dpgf', artisanId: userId, userId })
+  const { items: appels, loading, add, update } = useBTPData<AppelOffre>({ table: 'dpgf', artisanId: userId, userId: authUserId || userId })
   const [selected, setSelected] = useState<AppelOffre | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ titre: '', client: '', dateRemise: '', montantEstime: 0 })
