@@ -102,6 +102,19 @@
 | Durée de conservation | Prompts non stockés long-terme par Vitfix ; conservation Groq selon leur politique (typiquement 30 jours) |
 | Mesures de sécurité | Anonymisation par prompt template (pas d'envoi automatique de NIF/IBAN), rate limiting |
 
+## Traitement #8 — Dictionnaire matériaux (description et photos de chantier analysées par IA)
+
+| Item | Valeur |
+|---|---|
+| Finalité | Indiquer à l'artisan les matériaux à utiliser dans une situation de chantier qu'il décrit (texte, photos facultatives) |
+| Base légale | Art. 6.1.b RGPD (contrat) |
+| Catégories de personnes | Artisans et sociétés du bâtiment (comptes pro) ; indirectement leurs clients si la description ou une photo les montre |
+| Catégories de données | Description libre du chantier ; photos du chantier (un logement, exceptionnellement une personne) |
+| Destinataires | Anthropic (Claude : analyse du texte et des photos) ; Groq (secours pour le texte seul quand Claude est indisponible, jamais les photos) ; Langfuse (trace sans description ni photo : leur taille seulement) |
+| Transferts hors UE | Anthropic (USA), Groq (USA) — garanties à vérifier |
+| Durée de conservation | Aucune chez Vitfix : description et photos ne sont ni enregistrées ni journalisées ; conservation chez Anthropic selon sa politique |
+| Mesures de sécurité | Compte pro connecté obligatoire, limite de débit par adresse et par compte, e-mails / téléphones / IBAN de la description masqués avant l'envoi, photos réduites dans le navigateur (1 568 px, JPEG), 4 photos au plus par message |
+
 ## Sous-traitants — registre des DPA signés
 
 | Sous-traitant | Localisation | DPA | Certification |
@@ -112,11 +125,12 @@
 | Stripe | USA + EU subsidiaries | ✅ signé | PCI-DSS Level 1, EU-US DPF |
 | Resend | USA | ✅ signé | EU-US DPF |
 | Groq | USA | ⚠️ à vérifier | — |
+| Anthropic | USA | ⚠️ à vérifier | — |
 | Tavily | USA | ⚠️ à vérifier | — |
 | Langfuse | USA / self-hosted | ⚠️ à vérifier | — |
 
 **Action plan court terme** :
-- Vérifier les DPA Groq, Tavily, Langfuse
+- Vérifier les DPA Groq, Anthropic, Tavily, Langfuse
 - Documenter dans `docs/conformite/dpa/` chaque DPA signé avec date
 
 ---

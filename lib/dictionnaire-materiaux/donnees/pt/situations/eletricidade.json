@@ -1,0 +1,889 @@
+{
+  "domaine": {
+    "id": "eletricidade",
+    "nom": "Eletricidade (pequenas intervenções)",
+    "icone": "⚡"
+  },
+  "situations": [
+    {
+      "id": "substituir-tomada-interruptor",
+      "domaine": "eletricidade",
+      "titre": "Substituir tomada ou interruptor",
+      "motsCles": [
+        "trocar tomada",
+        "tomada partida",
+        "tomada solta da parede",
+        "interruptor avariado",
+        "interruptor não acende a luz",
+        "espelho da tomada partido",
+        "tomada queimada",
+        "mudar interruptor",
+        "tomada sem corrente",
+        "trocar interruptor duplo"
+      ],
+      "description": "Tomada ou interruptor partido, solto, queimado ou que deixou de funcionar, a trocar por um aparelho equivalente na mesma caixa.",
+      "aVerifier": [
+        "Tipo de aparelho: tomada, interruptor simples, duplo (de lustre) ou comutador de escada; contar os fios ligados.",
+        "Marca, série e medidas do espelho, sobretudo se for de vários lugares.",
+        "Se há condutor de terra (verde/amarelo) e se a caixa está inteira, bem presa, em alvenaria ou em gesso cartonado.",
+        "Estado dos fios: pontas negras, isolamento derretido ou ressequido indicam aquecimento."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detetor-tensao",
+              "note": "Testá-lo antes numa tomada com corrente; depois confirmar todos os fios do aparelho."
+            },
+            {
+              "id": "caixa-aparelhagem",
+              "note": "Só se a caixa na alvenaria estiver partida ou já não prender as garras; chumbar a nova.",
+              "optionnel": true
+            },
+            {
+              "id": "caixa-aparelhagem-placa-gesso",
+              "note": "Se a parede for de gesso cartonado: caixa presa por garras, sem gesso.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "tomada-schuko-encastrar",
+              "note": "Se for tomada: mecanismo e espelho da mesma série; ligar sempre a terra.",
+              "optionnel": true
+            },
+            {
+              "id": "interruptor-unipolar",
+              "note": "Se for interruptor simples: a fase entra num borne e o retorno para a lâmpada sai no outro.",
+              "optionnel": true
+            },
+            {
+              "id": "comutador-lustre",
+              "note": "Se comanda dois grupos de lâmpadas: fase comum e dois retornos, um por tecla.",
+              "optionnel": true
+            },
+            {
+              "id": "comutador-escada",
+              "note": "Se a luz se comanda de dois sítios: marcar o fio do borne comum antes de desligar o antigo.",
+              "optionnel": true
+            },
+            {
+              "id": "aparelhagem-estanque",
+              "note": "No exterior ou junto a água, em vez da aparelhagem comum.",
+              "optionnel": true
+            },
+            {
+              "id": "ligador-rapido",
+              "note": "Se o fio ficou curto ou com a ponta queimada: emendar dentro da caixa.",
+              "optionnel": true
+            },
+            {
+              "id": "fio-rigido-h07v-u",
+              "note": "Bocado para a emenda, da mesma secção e cor do fio existente.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "espelho-aparelhagem",
+              "note": "Se não vier com o mecanismo: da mesma marca e série, senão não encaixa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-isoladas-1000v",
+              "note": "Ponta de fendas à medida dos bornes; reapertar bem cada borne."
+            },
+            {
+              "id": "alicate-descarnador",
+              "note": "Para refazer uma ponta danificada ao comprimento do borne, sem ferir o cobre.",
+              "optionnel": true
+            },
+            {
+              "id": "alicate-universal",
+              "note": "Para moldar os fios e arrumá-los no fundo da caixa."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o disjuntor do circuito (ou o geral) no quadro e confirmar a ausência de tensão antes de tocar nos fios.",
+        "A instalação elétrica fixa é trabalho de técnico habilitado; esta intervenção limita-se a trocar um aparelho igual por igual.",
+        "Fios queimados, isolamento derretido ou cheiro a queimado: não voltar a ligar e chamar um técnico.",
+        "Nunca deixar a terra por ligar nem ligá-la ao neutro; o interruptor corta sempre a fase.",
+        "Caixa sem condutor de terra: não montar tomada com terra sem ela estar ligada; chamar um técnico."
+      ]
+    },
+    {
+      "id": "circuito-a-vista-calha-tecnica",
+      "domaine": "eletricidade",
+      "titre": "Circuito à vista em calha técnica",
+      "motsCles": [
+        "passar fio por fora da parede",
+        "calha para fios",
+        "instalação à vista",
+        "nova tomada sem abrir parede",
+        "fios à vista na parede",
+        "esconder fios em calha",
+        "calha elétrica",
+        "acrescentar tomada sem roço",
+        "calha de PVC para cabos"
+      ],
+      "description": "Levar fios até uma nova tomada, interruptor ou ponto de luz por fora da parede, dentro de calha técnica, sem abrir roços.",
+      "aVerifier": [
+        "Tipo de parede (betão, tijolo maciço ou furado, gesso cartonado): decide as buchas e a broca.",
+        "De onde parte o circuito: caixa ou tomada existente, ou disjuntor livre no quadro.",
+        "O que vai alimentar (iluminação ou tomadas) e a secção do fio do circuito de onde se parte.",
+        "Se o local é seco: em zona húmida ou no exterior a calha comum não serve, é preciso material estanque."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detetor-materiais-parede",
+              "note": "Passar no percurso da calha antes de furar, para não acertar em cabos ou tubos embutidos."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Calha nivelada e a prumo: qualquer desvio fica à vista."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Do diâmetro da bucha; em tijolo furado furar sem percussão."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "calha-tecnica",
+              "note": "Fixar também com parafusos (o adesivo descola); ângulos, topos e derivações da mesma série."
+            },
+            {
+              "id": "bucha-nylon-expansao",
+              "note": "Em betão ou tijolo maciço.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-tijolo-furado",
+              "note": "Em tijolo furado, onde a bucha comum roda em falso.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-nylon-gesso-cartonado",
+              "note": "Em paredes de gesso cartonado.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-madeira-aglomerado",
+              "note": "Cabeça de embeber, para não fazer saliência no fundo da calha."
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "detetor-tensao",
+              "note": "Confirmar a ausência de tensão na caixa de onde se parte, depois de desligar no quadro."
+            },
+            {
+              "id": "fio-rigido-h07v-u",
+              "note": "Nunca mais fino do que o circuito de onde parte; azul neutro, verde/amarelo terra."
+            },
+            {
+              "id": "ligador-rapido",
+              "note": "Para ligar ao circuito existente dentro de uma caixa ou da caixa do aparelho."
+            },
+            {
+              "id": "aparelhagem-saliente",
+              "note": "Tomadas e interruptores salientes; confirmar que a entrada condiz com a calha escolhida."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "serra-de-arco",
+              "note": "Cortar calha e tampa à medida, com corte direito e sem rebarbas."
+            },
+            {
+              "id": "chaves-isoladas-1000v"
+            },
+            {
+              "id": "alicate-descarnador",
+              "note": "Descarnar ao comprimento marcado no ligador e no borne do aparelho."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar a parede, sobretudo acima da cabeça."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o circuito no quadro e confirmar a ausência de tensão antes de ligar ao existente.",
+        "A instalação fixa, e sobretudo um circuito novo a partir do quadro, é trabalho de técnico habilitado.",
+        "Não ligar aparelhos de grande consumo (aquecedores, máquinas) num circuito de iluminação ou já carregado.",
+        "Antes de furar, confirmar que não passam tubos de água, gás ou cabos embutidos no sítio."
+      ]
+    },
+    {
+      "id": "embutir-caixa-aparelhagem-roco",
+      "domaine": "eletricidade",
+      "titre": "Abrir roço e embutir caixa",
+      "motsCles": [
+        "abrir roço",
+        "embutir tomada",
+        "meter caixa na parede",
+        "roçar parede para fios",
+        "tapar roço",
+        "chumbar caixa de tomada",
+        "tomada nova embutida",
+        "embutir tubo na parede",
+        "caixa de aparelhagem"
+      ],
+      "description": "Abrir na parede o buraco da caixa e o roço para o tubo, chumbar a caixa e o tubo e tapar o roço à face da parede.",
+      "aVerifier": [
+        "Tipo de parede: tijolo, betão ou pedra pedem roço; em gesso cartonado não se abre roço, usa-se a caixa própria com garras.",
+        "Percurso de cabos, tubos de água ou de gás já embutidos na zona do roço.",
+        "Espessura do acabamento final (reboco, azulejo), para a caixa ficar à face.",
+        "Número de ligações na caixa: decide caixa normal ou funda."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detetor-materiais-parede",
+              "note": "Passar no percurso do roço antes de cortar; ver também por onde vêm os tubos de água."
+            },
+            {
+              "id": "nivel-de-bolha",
+              "note": "Marcar a caixa nivelada e o roço a direito, na vertical ou na horizontal a partir dela."
+            },
+            {
+              "id": "disco-diamantado",
+              "note": "Segmentado para alvenaria, na rebarbadora: dois cortes paralelos para abrir o roço."
+            },
+            {
+              "id": "escopro",
+              "note": "Tirar o miolo entre os cortes e abrir o buraco da caixa."
+            },
+            {
+              "id": "maceta",
+              "note": "Para bater no escopro, sem forçar a parede."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "caixa-aparelhagem",
+              "note": "Funda se houver ligações atrás do aparelho; chumbar à face do acabamento e nivelada."
+            },
+            {
+              "id": "tubo-anelado",
+              "note": "Modelo com guia; sem curvas apertadas nem troços esmagados."
+            },
+            {
+              "id": "gesso-estuque",
+              "note": "Chumbar a caixa e prender o tubo no roço; amassar pouco de cada vez. Só em interior."
+            },
+            {
+              "id": "colher-estucador",
+              "note": "Encher o roço e apertar a massa à volta da caixa."
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "fio-rigido-h07v-u",
+              "note": "Enfiado no tubo depois de chumbado, com a secção do circuito e as cores normalizadas."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "massa-enchimento-po-interior",
+              "note": "Tapar o roço por camadas até à face da parede; lixar antes de pintar."
+            },
+            {
+              "id": "espatula-pintor-media-50-63mm",
+              "note": "Afagar a massa à face da parede."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "O corte projeta lascas e pó."
+            },
+            {
+              "id": "mascara-ffp3",
+              "note": "Cortar tijolo e betão levanta pó fino."
+            },
+            {
+              "id": "protetores-auriculares",
+              "note": "A rebarbadora a cortar alvenaria é muito ruidosa."
+            },
+            {
+              "id": "luvas-obra-nitrilo",
+              "note": "No corte e ao chumbar com gesso."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "A ligação ao circuito existente faz-se numa caixa de derivação acessível, com o circuito desligado e a ausência de tensão confirmada.",
+        "A instalação elétrica fixa é trabalho de técnico habilitado.",
+        "Não abrir roços em pilares, vigas ou paredes de betão armado, nem roços horizontais longos em paredes resistentes, sem parecer técnico.",
+        "Confirmar antes de cortar que não passam tubos de água, de gás ou cabos no percurso: o detetor ajuda mas não dá certeza."
+      ]
+    },
+    {
+      "id": "fixar-ligar-luminaria-teto",
+      "domaine": "eletricidade",
+      "titre": "Fixar e ligar luminária de teto",
+      "motsCles": [
+        "pôr candeeiro no teto",
+        "montar lustre",
+        "ligar plafon",
+        "trocar candeeiro do teto",
+        "fios pendurados no teto",
+        "pendurar luminária",
+        "ponto de luz no teto",
+        "pendente com casquilho"
+      ],
+      "description": "Fixar ao teto uma luminária, plafon ou candeeiro suspenso e ligá-lo aos fios do ponto de luz.",
+      "aVerifier": [
+        "Tipo de teto: laje de betão, abobadilha (tijolo furado), gesso cartonado ou madeira.",
+        "Peso da luminária e forma de fixação (placa, gancho, florão).",
+        "Fios no ponto de luz: fase, neutro e se há terra; luminária metálica (classe I) precisa de terra.",
+        "Se a luminária traz casquilho próprio ou é só um pendente simples."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escadote-aluminio",
+              "note": "Totalmente aberto, os quatro pés em piso firme; não subir aos últimos degraus."
+            },
+            {
+              "id": "detetor-tensao",
+              "note": "Confirmar que os fios do teto estão sem tensão, com o circuito desligado no quadro."
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Do diâmetro da bucha; na abobadilha furar sem percussão."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "bucha-nylon-expansao",
+              "note": "Em laje maciça de betão, para luminárias leves e médias.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-tijolo-furado",
+              "note": "Em teto de abobadilha, onde a bucha comum roda em falso.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-metalica-expansao-gesso-cartonado",
+              "note": "Em teto de gesso cartonado; comprimento conforme placa simples ou dupla.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-metalica-com-gancho",
+              "note": "Lustres suspensos por gancho, só em betão maciço.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-madeira-aglomerado",
+              "note": "Com as buchas de nylon; em teto de madeira aparafusa-se diretamente."
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "ligador-rapido",
+              "note": "De patilha para os fios flexíveis da luminária; a ligação fica dentro do corpo ou da caixa."
+            },
+            {
+              "id": "suporte-lampada-e27-e14",
+              "note": "Só para um pendente simples: fase no contacto central, neutro na rosca.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-isoladas-1000v"
+            },
+            {
+              "id": "alicate-descarnador",
+              "note": "Descarnar os fios ao comprimento marcado no ligador."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar o teto, o pó e as lascas caem para a cara."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o circuito no quadro, não só no interruptor, e confirmar a ausência de tensão nos fios do teto.",
+        "A instalação elétrica fixa é trabalho de técnico habilitado.",
+        "Trabalho em altura: escadote estável e ninguém por baixo.",
+        "Luminárias pesadas e ventoinhas de teto precisam de fixação dimensionada para o peso e o movimento.",
+        "Luminária metálica sem terra no ponto de luz: não a montar assim; chamar um técnico."
+      ]
+    },
+    {
+      "id": "derivacao-caixa-ligadores",
+      "domaine": "eletricidade",
+      "titre": "Fazer derivação em caixa",
+      "motsCles": [
+        "juntar fios",
+        "emendar cabos",
+        "emenda de fios",
+        "puxar luz de outro sítio",
+        "derivar tomada",
+        "caixa de derivação",
+        "fios ligados com fita",
+        "fios torcidos na caixa",
+        "ligar fios na caixa"
+      ],
+      "description": "Ligar fios novos a um circuito existente dentro de uma caixa de derivação, com ligadores em vez de fios torcidos e fita.",
+      "aVerifier": [
+        "Se já existe caixa com espaço e tampa acessível, ou se é preciso caixa nova.",
+        "Fio rígido ou flexível e secção dos fios a ligar: decide o tipo de ligador.",
+        "Local seco, húmido ou exterior: decide caixa comum ou estanque.",
+        "De que circuito sai a derivação e o que se vai ligar, para não o sobrecarregar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detetor-tensao",
+              "note": "Confirmar a ausência de tensão em todos os fios da caixa antes de lhes mexer."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "caixa-derivacao-encastrar",
+              "note": "Em parede rebocada, chumbada como uma caixa de aparelhagem; a tampa fica sempre acessível.",
+              "optionnel": true
+            },
+            {
+              "id": "caixa-derivacao-saliente-bornes",
+              "note": "À vista, em interior seco, quando não se pode embutir.",
+              "optionnel": true
+            },
+            {
+              "id": "caixa-estanque",
+              "note": "No exterior ou em zona húmida; entrar com os cabos por baixo.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-anelado",
+              "note": "Para levar a derivação embutida até ao novo ponto.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-vd",
+              "note": "Para levar a derivação à vista ao longo da parede.",
+              "optionnel": true
+            },
+            {
+              "id": "acessorios-tubo-vd",
+              "note": "Boquilhas, curvas e abraçadeiras do mesmo diâmetro do tubo VD.",
+              "optionnel": true
+            },
+            {
+              "id": "guia-passa-cabos",
+              "note": "Para enfiar os fios no tubo VD já montado ou em tubo anelado sem guia.",
+              "optionnel": true
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Para as buchas da caixa saliente e das abraçadeiras.",
+              "optionnel": true
+            },
+            {
+              "id": "bucha-nylon-expansao",
+              "note": "Para fixar caixa saliente ou estanque e as abraçadeiras.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-madeira-aglomerado",
+              "note": "Com as buchas, para caixa saliente ou estanque.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "ligador-rapido",
+              "note": "Um ligador por condutor (fase, neutro, terra); de patilha se houver fio flexível."
+            },
+            {
+              "id": "fio-rigido-h07v-u",
+              "note": "Mesma secção do circuito de onde se deriva e cores normalizadas."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-isoladas-1000v"
+            },
+            {
+              "id": "alicate-descarnador",
+              "note": "Descarnar ao comprimento marcado no ligador: cobre à vista fora do ligador é um risco."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o circuito no quadro e confirmar a ausência de tensão antes de abrir a caixa.",
+        "A instalação elétrica fixa é trabalho de técnico habilitado.",
+        "Fios torcidos e enrolados em fita não são uma ligação segura: refazer com ligadores.",
+        "Nunca derivar fio mais fino do que o do circuito: o disjuntor deixa de o proteger."
+      ]
+    },
+    {
+      "id": "substituir-disjuntor-diferencial",
+      "domaine": "eletricidade",
+      "titre": "Substituir disjuntor ou diferencial",
+      "motsCles": [
+        "disjuntor avariado",
+        "diferencial a disparar",
+        "disjuntor sempre a saltar",
+        "a luz vai abaixo",
+        "o quadro vai abaixo",
+        "trocar disjuntor",
+        "trocar diferencial",
+        "diferencial não arma",
+        "disjuntor não liga"
+      ],
+      "description": "Trocar no quadro elétrico um disjuntor ou interruptor diferencial avariado por um aparelho equivalente.",
+      "aVerifier": [
+        "Dados impressos no aparelho antigo: calibre, curva (B, C ou D), número de polos e, no diferencial, sensibilidade e tipo (AC ou A).",
+        "Secção do fio do circuito: o calibre do disjuntor tem de lhe corresponder.",
+        "Porque se troca: aparelho avariado ou disparos repetidos, que podem vir de defeito no circuito ou num aparelho.",
+        "Marca e sistema do quadro (calha DIN, pente) e espaço livre."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "detetor-tensao",
+              "note": "Depois de desligar o geral, confirmar a ausência de tensão nos bornes a mexer."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "disjuntor",
+              "note": "Mesmo calibre, curva e polos do antigo, adequados à secção do fio. Nunca subir o calibre.",
+              "optionnel": true
+            },
+            {
+              "id": "interruptor-diferencial",
+              "note": "Mesma sensibilidade, tipo, calibre e polos do antigo; o de proteção de pessoas é de 30 mA.",
+              "optionnel": true
+            },
+            {
+              "id": "pente-ligacao-disjuntores",
+              "note": "Só se o pente antigo estiver danificado ou não servir; proteger as pontas cortadas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "fio-rigido-h07v-u",
+              "note": "Só para refazer uma ponte curta danificada, da mesma secção do circuito.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-isoladas-1000v",
+              "note": "Ponta certa para os bornes; reapertar bem todos os bornes mexidos."
+            },
+            {
+              "id": "alicate-universal"
+            },
+            {
+              "id": "alicate-descarnador",
+              "note": "Só para refazer pontes ou pontas danificadas.",
+              "optionnel": true
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o interruptor geral do quadro e confirmar a ausência de tensão em todos os bornes antes de mexer.",
+        "Os bornes de entrada do interruptor geral continuam em tensão com o geral desligado: não lhes tocar.",
+        "Trabalho no quadro elétrico é para técnico habilitado; nunca aumentar o calibre para o disjuntor deixar de disparar.",
+        "Disparos repetidos indicam sobrecarga, fuga ou defeito: encontrar a causa antes de voltar a ligar.",
+        "Quadro antigo com fusíveis, sem calha DIN ou sem lugar: a substituição do quadro é trabalho de técnico.",
+        "Depois de montar o diferencial, carregar no botão de teste para confirmar que dispara."
+      ]
+    },
+    {
+      "id": "substituir-ficha-cabo",
+      "domaine": "eletricidade",
+      "titre": "Substituir ficha de cabo",
+      "motsCles": [
+        "ficha partida",
+        "ficha da extensão estragada",
+        "trocar ficha",
+        "ficha queimada",
+        "cabo solto da ficha",
+        "ficha a aquecer",
+        "tomada da extensão partida",
+        "extensão estragada",
+        "ficha macho partida"
+      ],
+      "description": "Ficha macho ou fêmea de uma extensão ou de um aparelho partida, solta ou aquecida, a trocar por uma ficha de montar.",
+      "aVerifier": [
+        "Se o aparelho tem terra (cabo de três condutores) ou é de duplo isolamento.",
+        "Estado do cabo: bainha cortada, esmagada ou derretida obriga a trocar o cabo.",
+        "Uso no interior ou no exterior, jardim ou obra."
+      ],
+      "etapes": [
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "cabo-flexivel-h05vv-f",
+              "note": "Se o cabo estiver danificado: 3G se o aparelho tiver terra, com a secção do cabo original.",
+              "optionnel": true
+            },
+            {
+              "id": "cabo-borracha-h05rr-f",
+              "note": "Em vez do cabo de PVC, para extensões usadas no exterior ou no jardim.",
+              "optionnel": true
+            },
+            {
+              "id": "ficha-schuko",
+              "note": "Terra ao borne com o símbolo de terra e cerra-cabos apertado sobre a bainha, não sobre os fios."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar a bainha à volta, sem ferir o isolamento dos condutores."
+            },
+            {
+              "id": "alicate-descarnador",
+              "note": "Descarnar só o comprimento que o borne da ficha pede."
+            },
+            {
+              "id": "chaves-de-fendas"
+            },
+            {
+              "id": "alicate-universal"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Trabalhar sempre com a ficha desligada da tomada; se o defeito estiver na tomada fixa, cortar o circuito no quadro.",
+        "A instalação fixa (tomadas, circuitos, quadro) é trabalho de técnico habilitado.",
+        "Cabo danificado troca-se inteiro: emendas com fita isoladora não são seguras.",
+        "Ficha que aqueceu ou derreteu: verificar também a tomada onde estava ligada."
+      ]
+    },
+    {
+      "id": "tomada-luz-exterior-estanque",
+      "domaine": "eletricidade",
+      "titre": "Tomada ou luz no exterior",
+      "motsCles": [
+        "tomada no quintal",
+        "tomada estanque",
+        "luz no jardim",
+        "candeeiro na fachada",
+        "tomada na varanda",
+        "luz com sensor à entrada",
+        "ponto de luz exterior",
+        "tomada para o jardim",
+        "candeeiro de parede exterior"
+      ],
+      "description": "Montar à vista, numa parede exterior, uma tomada ou um ponto de luz estanque alimentado a partir do interior.",
+      "aVerifier": [
+        "Exposição: abrigado (varanda coberta) ou à chuva direta, para escolher o grau IP.",
+        "De onde sai a alimentação e se o circuito está protegido por diferencial de 30 mA.",
+        "Tipo de parede e percurso do cabo (à vista ou atravessando a parede)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "broca-betao-pedra",
+              "note": "Do diâmetro das buchas; a passagem do cabo pela parede a descer para fora."
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Para pontos de luz em altura.",
+              "optionnel": true
+            },
+            {
+              "id": "detetor-tensao",
+              "note": "Confirmar a ausência de tensão na caixa interior de onde se parte."
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "caixa-estanque",
+              "note": "Só se houver emenda ou derivação do lado de fora; entrar com os cabos por baixo.",
+              "optionnel": true
+            },
+            {
+              "id": "tubo-vd",
+              "note": "Protege o cabo à vista ao longo da parede, sobretudo onde se lhe chega com a mão."
+            },
+            {
+              "id": "acessorios-tubo-vd",
+              "note": "Abraçadeiras, curvas e boquilhas do mesmo diâmetro do tubo."
+            },
+            {
+              "id": "bucha-nylon-expansao",
+              "note": "Para as abraçadeiras e o aparelho; em tijolo furado usar bucha própria."
+            },
+            {
+              "id": "parafuso-inox-madeira",
+              "note": "Inox, para não enferrujar à chuva."
+            }
+          ]
+        },
+        {
+          "titre": "Ligação",
+          "materiaux": [
+            {
+              "id": "cabo-rigido-exterior-r2v",
+              "note": "Cabo de dupla bainha próprio para exterior; pede-se normalmente como XV."
+            },
+            {
+              "id": "ligador-rapido",
+              "note": "Ligações sempre dentro de caixa, nunca ao ar livre."
+            },
+            {
+              "id": "aparelhagem-estanque",
+              "note": "Grau IP conforme a exposição; cabo pelo bucim e tampa fechada."
+            },
+            {
+              "id": "sensor-movimento",
+              "note": "Para luz de entrada: confirmar a carga máxima admitida com lâmpadas LED.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-neutro-construcao",
+              "note": "Vedar a passagem do cabo pela parede; neutro, não acético, em reboco e pedra."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-isoladas-1000v"
+            },
+            {
+              "id": "alicate-descarnador"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar a parede."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Desligar o circuito no quadro e confirmar a ausência de tensão antes de ligar à instalação existente.",
+        "A instalação elétrica fixa é trabalho de técnico habilitado.",
+        "Circuito exterior sem diferencial de 30 mA não pode ser usado: pedir a um técnico que o proteja.",
+        "Nunca usar aparelhagem ou caixas de interior no exterior.",
+        "Trabalho em altura: escadote estável e ninguém por baixo."
+      ]
+    }
+  ]
+}

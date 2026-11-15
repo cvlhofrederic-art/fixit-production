@@ -53,6 +53,7 @@ const MODULES_COMPTE: ReadonlyArray<{ id: string; icon: string; fr: string; pt: 
 // Mots que l'on tape pour un module dont ni le nom ni la description ne les contiennent (lus avec la description).
 const MOTS_CLES: Record<string, { fr: string; pt: string }> = {
   home: { fr: 'accueil', pt: 'início' },
+  dictionnaire_materiaux: { fr: 'silicone mastic spatule produits fournitures quoi utiliser', pt: 'silicone mástique espátula produtos que usar lista de compras' },
 }
 
 // ─── Routing alias: motifs → prestations (URL key) ───
@@ -73,6 +74,7 @@ const PREFETCH_MAP: Record<string, () => void> = {
   comptabilite: () => import('@/components/dashboard/ComptabiliteSection'),
   materiaux: () => import('@/components/dashboard/MateriauxSection'),
   estimation_materiaux: () => import('@/components/dashboard/EstimationMateriauxSection'),
+  dictionnaire_materiaux: () => import('@/components/dashboard/DictionnaireMateriauxSection'),
   rapports: () => import('@/components/dashboard/RapportsSection'),
   stats: () => import('@/components/dashboard/StatsRevenusSection'),
   settings: () => import('@/components/dashboard/SettingsSection'),
