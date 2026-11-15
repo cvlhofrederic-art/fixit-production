@@ -36,6 +36,7 @@ const h = vi.hoisted(() => ({
   utilisateur: null as Record<string, unknown> | null,
   getSecret: vi.fn(async (_cle: string): Promise<string> => ''),
   claude: vi.fn(async (_opts: unknown, _config?: unknown): Promise<unknown> => ({})),
+  groq: vi.fn(async (_opts: unknown, _config?: unknown): Promise<unknown> => ({})),
   limite: vi.fn(async (_cle: string, _max?: number, _fenetre?: number) => true),
   trace: vi.fn(),
   avertissement: vi.fn(),
@@ -53,6 +54,10 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('@/lib/auth-helpers', async (orig) => ({
   ...(await orig<typeof import('@/lib/auth-helpers')>()),
   getAuthUser: vi.fn(async () => h.utilisateur),
+}))
+vi.mock('@/lib/groq', async (orig) => ({
+  ...(await orig<typeof import('@/lib/groq')>()),
+  callGroqWithRetry: h.groq,
 }))
 vi.mock('@/lib/claude', async (orig) => ({
   ...(await orig<typeof import('@/lib/claude')>()),
@@ -212,17 +217,9 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
       expect(opts.messages[0].content).toContain('infiltracao-fachada | Infiltração em fachada')
       expect(opts.messages[opts.messages.length - 1]).toEqual({ role: 'user', content: DEMANDE.description })
       expect(opts.response_format).toEqual({ type: 'json_object' })
-      // Secours texte sur un modèle Groq en service (les Llama par défaut de lib/constants ont été retirés en 2026),
-      // sans le détour par Cerebras, dont le modèle a disparu aussi (« Cerebras 404 » vu en production le 14/11/2026).
-      expect(opts.model).toBe('openai/gpt-oss-120b')
-      expect(config).toEqual({
-        effort: 'medium',
-        cacheSysteme: true,
-        disableGroqFallback: false,
-        fallbackModel: 'openai/gpt-oss-120b',
-        disableCerebrasFallback: true,
-      })
-      expect(opts.model).not.toMatch(/llama/i)
+      // Pas de secours générique de lib/claude : il renverrait le catalogue entier à Groq (voir « secours » plus bas).
+      expect(config).toEqual({ effort: 'medium', cacheSysteme: true, disableGroqFallback: true })
+      expect(h.groq).not.toHaveBeenCalled()
     })
 
     it('joint les photos et interdit alors le secours, qui ne sait pas les lire', async () => {
@@ -232,6 +229,114 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
       expect(parties.map((p) => p.type)).toEqual(['image_url', 'image_url', 'text'])
       expect(parties[0].image_url?.url).toBe(JPEG)
       expect(config.disableGroqFallback).toBe(true)
+    })
+
+    describe('secours quand Claude échoue', () => {
+      beforeEach(() => {
+        h.getSecret.mockImplementation(async (cle: string) => ({ ANTHROPIC_API_KEY: 'cle-factice', GROQ_API_KEY: 'cle-secours' })[cle] ?? '')
+        h.groq.mockReset()
+      })
+
+      it('passe à Groq sur un catalogue réduit, relu avec ses propres numéros, et signale la clé refusée à Sentry', async () => {
+        const refus = new ErreurClaude(401, '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}')
+        h.claude.mockRejectedValueOnce(refus)
+        // Groq répond avec le n° 1 de SES consignes et un nom ABRÉGÉ : seul le numéro départage alors, et il n'a de sens
+        // que dans le catalogue réduit (le nom exact, lui, se retrouverait dans n'importe quel catalogue).
+        h.groq.mockImplementationOnce(async (opts: unknown) => {
+          const consignes = String((opts as Options).messages[0].content)
+          const premier = /\n1 \| ([^\n]+)\n/.exec(consignes)?.[1] ?? 'absent'
+          return reponseModele({ ...REPONSE, etapes: [{ titre: 'Reparação', materiaux: [{ n: 1, nom: premier.slice(0, -3), raison: 'r' }] }] })
+        })
+        const description = 'Fachada com fissuras no reboco e infiltração de água no interior.'
+        const reponse = await POST(requete({ pays: 'PT', description }))
+        expect(reponse.status).toBe(200)
+
+        const [optsGroq, configGroq] = h.groq.mock.calls[0] as [Options, Record<string, unknown>]
+        expect(optsGroq.model).toBe('openai/gpt-oss-120b')
+        expect(configGroq).toEqual({ apiKey: 'cle-secours', fallbackModel: 'openai/gpt-oss-120b', disableCerebrasFallback: true })
+        // Consignes réduites : moins de matériaux que le catalogue entier envoyé à Claude.
+        const [optsClaude] = h.claude.mock.calls[0] as [Options]
+        const lignes = (texte: unknown) => String(texte).split('\n').filter((l) => /^\d+ \| /.test(l)).length
+        expect(lignes(optsGroq.messages[0].content)).toBeLessThan(lignes(optsClaude.messages[0].content))
+        expect(optsGroq.messages[optsGroq.messages.length - 1]).toEqual({ role: 'user', content: description })
+
+        // Le n° 1 du catalogue réduit est relu avec ce catalogue : le bon produit, pas le n° 1 du catalogue entier.
+        const { analyse } = (await reponse.json()) as { analyse: typeof ANALYSE }
+        const premierReduit = /\n1 \| ([^\n]+)\n/.exec(String(optsGroq.messages[0].content))?.[1]
+        const attendu = DICO_ESSAI.materiaux.find((m) => m.nom === premierReduit)?.id
+        expect(attendu).toBeDefined()
+        // Le n° 1 du catalogue entier est un autre produit : relue avec lui, la ligne aurait été écartée.
+        expect(DICO_ESSAI.materiaux[0].id).not.toBe(attendu)
+        expect(analyse.etapes[0].materiaux.map((m) => m.id)).toEqual([attendu])
+
+        // La clé refusée part dans Sentry (l'erreur en troisième argument), même si le secours a répondu.
+        expect(h.erreur).toHaveBeenCalledWith(expect.stringContaining('Claude refuse la demande'), { module: 'dictionnaire-materiaux', statut: 401 }, refus)
+      })
+
+      it('n’envoie au secours que le dernier échange de la conversation', async () => {
+        h.claude.mockRejectedValueOnce(new ErreurClaude(401, 'invalid x-api-key'))
+        h.groq.mockResolvedValueOnce(reponseModele(REPONSE))
+        const historique = Array.from({ length: 6 }, (_, i) => ({ role: i % 2 === 0 ? 'user' : 'assistant', texte: `Tour ${i + 1}.` }))
+        expect((await POST(requete({ ...DEMANDE, historique }))).status).toBe(200)
+        const [optsGroq] = h.groq.mock.calls[0] as [Options]
+        expect(optsGroq.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user'])
+        expect(optsGroq.messages[1].content).toBe('Tour 5.')
+        // Claude, lui, avait reçu toute la conversation.
+        const [optsClaude] = h.claude.mock.calls[0] as [Options]
+        expect(optsClaude.messages).toHaveLength(8)
+      })
+
+      it('garde la situation du premier tour et les matériaux déjà proposés quand l’artisan relance', async () => {
+        h.claude.mockRejectedValueOnce(new ErreurClaude(401, 'invalid x-api-key'))
+        h.groq.mockResolvedValueOnce(reponseModele(REPONSE))
+        const historique = [
+          { role: 'user', texte: 'Fachada com fissuras e infiltração de água no interior.' },
+          { role: 'assistant', texte: 'Infiltração provável pelas fissuras.\nMateriais propostos: Espátula dentada.' },
+        ]
+        expect((await POST(requete({ pays: 'PT', description: 'É rebocada e pintada.', historique }))).status).toBe(200)
+        const consignes = String((h.groq.mock.calls[0] as [Options])[0].messages[0].content)
+        expect(consignes).toContain('infiltracao-fachada | Infiltração em fachada')
+        // Proposé au tour précédent, sans rapport avec la façade : gardé pour que la suite puisse le reprendre.
+        expect(consignes).toMatch(/\n\d+ \| Espátula dentada\n/)
+      })
+
+      it('journalise l’usage du secours, et en avertissement une réponse coupée par le budget', async () => {
+        h.claude.mockRejectedValueOnce(new ErreurClaude(401, 'invalid x-api-key'))
+        h.groq.mockResolvedValueOnce({ ...reponseModele(REPONSE), choices: [{ message: { content: '' }, finish_reason: 'length' }], usage: { prompt_tokens: 5200, completion_tokens: 4000, total_tokens: 9200 } })
+        const reponse = await POST(requete(DEMANDE))
+        expect(reponse.status).toBe(502)
+        expect(await erreurDe(reponse)).toBe('reponse_vide')
+        expect(h.avertissement).toHaveBeenCalledWith(
+          expect.stringContaining('réponse coupée'),
+          expect.objectContaining({ finish_reason: 'length', prompt_tokens: 5200, completion_tokens: 4000 }),
+        )
+      })
+
+      it('reste un avertissement quand Claude est seulement surchargé', async () => {
+        h.claude.mockRejectedValueOnce(new ErreurClaude(529, 'overloaded'))
+        h.groq.mockResolvedValueOnce(reponseModele(REPONSE))
+        expect((await POST(requete(DEMANDE))).status).toBe(200)
+        expect(h.erreur).not.toHaveBeenCalled()
+        expect(h.avertissement).toHaveBeenCalledWith(expect.stringContaining('Claude indisponible'), expect.anything())
+      })
+
+      it('n’essaie pas Groq avec des photos, qu’il ne sait pas lire', async () => {
+        h.claude.mockRejectedValueOnce(new ErreurClaude(401, 'invalid x-api-key'))
+        const reponse = await POST(requete({ ...DEMANDE, photos: [JPEG] }))
+        expect(reponse.status).toBe(502)
+        expect(h.groq).not.toHaveBeenCalled()
+      })
+
+      it('rend « IA indisponible » si le secours échoue aussi, et signale les deux pannes', async () => {
+        h.claude.mockRejectedValueOnce(new ErreurClaude(401, 'invalid x-api-key'))
+        const refusGroq = new Error('Groq 413: Request too large')
+        h.groq.mockRejectedValueOnce(refusGroq)
+        const reponse = await POST(requete(DEMANDE))
+        expect(reponse.status).toBe(502)
+        expect(await erreurDe(reponse)).toBe('ia_indisponible')
+        expect(h.erreur).toHaveBeenCalledTimes(2)
+        expect(h.erreur.mock.calls[1][2]).toBe(refusGroq)
+      })
     })
 
     it('transmet les tours précédents de la conversation', async () => {
@@ -381,7 +486,24 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
       h.getSecret.mockImplementation(async (cle: string) => (cle === 'GROQ_API_KEY' ? 'cle-secours' : ''))
       expect((await POST(requete({ ...DEMANDE, photos: [JPEG] }))).status).toBe(503)
       expect(h.claude).not.toHaveBeenCalled()
+      // Texte seul : Claude n'est pas appelé, le secours Groq répond sur un catalogue réduit.
+      h.groq.mockReset()
+      h.groq.mockResolvedValue(reponseModele(REPONSE))
       expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(h.claude).not.toHaveBeenCalled()
+      expect(h.groq).toHaveBeenCalledTimes(1)
+    })
+
+    it('ne signale l’absence de clé Claude qu’une fois par instance, pas à chaque demande', async () => {
+      vi.resetModules()
+      const { POST: POSTneuf } = await import('@/app/api/dictionnaire-materiaux/analyse/route')
+      h.getSecret.mockImplementation(async (cle: string) => (cle === 'GROQ_API_KEY' ? 'cle-secours' : ''))
+      h.groq.mockReset()
+      h.groq.mockResolvedValue(reponseModele(REPONSE))
+      for (let i = 0; i < 3; i++) expect((await POSTneuf(requete(DEMANDE))).status).toBe(200)
+      const signalements = h.erreur.mock.calls.filter((appel) => String(appel[0]).includes('ANTHROPIC_API_KEY absente'))
+      expect(signalements).toHaveLength(1)
+      expect(signalements[0][2]).toBeInstanceOf(Error)
     })
   })
 })

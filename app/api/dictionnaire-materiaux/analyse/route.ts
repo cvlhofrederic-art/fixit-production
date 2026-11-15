@@ -4,8 +4,10 @@
 // situation de chantier, avec des photos s'il veut ; le modèle répond par des matériaux du catalogue de
 // son pays. Tout identifiant hors catalogue est écarté avant la réponse (lib/dictionnaire-materiaux/ia).
 //
-// Modèle : Claude (lib/claude.ts), seul à lire les photos. Sans photo, le secours texte de lib/claude
-// reste possible. Les photos ne sont ni enregistrées ni journalisées ; e-mails, téléphones (dont l'écriture
+// Modèle : Claude (lib/claude.ts), avec le catalogue entier, seul à lire les photos. Sans photo, s'il échoue ou s'il
+// n'a pas de clé, secours Groq sur un catalogue réduit aux fiches et matériaux proches du message (le catalogue
+// entier dépasse la limite par minute de l'offre Groq du compte). Les photos ne sont ni enregistrées ni
+// journalisées ; e-mails, téléphones (dont l'écriture
 // portugaise à neuf chiffres, sans +351) et IBAN de la description sont masqués avant le modèle et rétablis
 // dans la réponse.
 import { NextResponse, type NextRequest } from 'next/server'
@@ -15,6 +17,7 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { getSecret } from '@/lib/env'
 import { callClaudeWithRetry, ErreurClaude, hasAnthropicKey } from '@/lib/claude'
+import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
 import { traceAgent } from '@/lib/langfuse'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
 import { dictionnairePour, type Dictionnaire } from '@/lib/dictionnaire-materiaux'
@@ -24,6 +27,7 @@ import {
   TOURS_HISTORIQUE_MAX,
   analyseVide,
   construireMessages,
+  dictionnaireReduit,
   lireAnalyse,
   type AnalyseIA,
   type TourHistorique,
@@ -45,6 +49,12 @@ const MAX_TOKENS = 4000
  * Llama retirés en 2026. Sans lui, lib/groq prendrait ses modèles par défaut, retirés, puis Cerebras, disparu aussi.
  */
 const MODELE_SECOURS_TEXTE = 'openai/gpt-oss-120b'
+
+/** Tours précédents envoyés au secours Groq : le dernier échange (question de l'artisan, réponse résumée). */
+const TOURS_SECOURS = 2
+
+/** Erreurs passagères de Claude (surcharge, limite de débit) : simple avertissement ; les autres partent dans Sentry. */
+const STATUTS_PASSAGERS: ReadonlySet<number> = new Set([429, 500, 502, 503, 529])
 
 const BodySchema = z.object({
   pays: z.enum(['PT', 'FR']),
@@ -197,6 +207,93 @@ function reponseDeLAnalyse(contenu: string, dico: Dictionnaire, pays: string, to
   return NextResponse.json({ analyse: retablirTextes(lecture.analyse, tokenMap) })
 }
 
+/**
+ * Claude refuse ou ne répond pas : une clé refusée, un compte sans crédit ou un paramètre rejeté part dans Sentry (le
+ * secours ne doit pas masquer une panne de configuration, comme la clé refusée du 15/11/2026) ; une surcharge reste
+ * un avertissement.
+ */
+function signalerSecours(err: unknown) {
+  if (err instanceof ErreurClaude && !STATUTS_PASSAGERS.has(err.statut)) {
+    logger.error('[dictionnaire-materiaux/analyse] Claude refuse la demande, secours Groq', { module: 'dictionnaire-materiaux', statut: err.statut }, err)
+  } else {
+    logger.warn('[dictionnaire-materiaux/analyse] Claude indisponible, secours Groq', { erreur: (err instanceof Error ? err.message : String(err)).slice(0, 200) })
+  }
+}
+
+let cleAbsenteSignalee = false
+
+/** Clé Claude absente : tout part sur le secours. Signalé une fois par instance du Worker (Sentry), pas à chaque demande. */
+function signalerCleAbsente() {
+  if (cleAbsenteSignalee) return
+  cleAbsenteSignalee = true
+  logger.error('[dictionnaire-materiaux/analyse] ANTHROPIC_API_KEY absente : analyses sur le secours Groq', { module: 'dictionnaire-materiaux' }, new Error('ANTHROPIC_API_KEY absente'))
+}
+
+interface Demande {
+  dico: Dictionnaire
+  description: string
+  photos: string[]
+  historique: TourHistorique[]
+}
+
+type ReponseModele = { reponse: GroqResponse; dico: Dictionnaire }
+
+/** Claude, catalogue entier mis en cache, photos comprises ; sans le secours générique de lib/claude (catalogue entier). */
+async function appelerClaude({ dico, description, photos, historique }: Demande): Promise<ReponseModele> {
+  const reponse = await callClaudeWithRetry(
+    { messages: construireMessages(dico, { description, photos, historique }), max_tokens: MAX_TOKENS, response_format: { type: 'json_object' } },
+    { effort: 'medium', cacheSysteme: true, disableGroqFallback: true },
+  )
+  return { reponse, dico }
+}
+
+/**
+ * Groq sur un catalogue réduit (sans photo) : cherché sur le message et les questions précédentes de l'artisan, avec
+ * les matériaux de la réponse précédente ; le dernier échange seulement, pour rester sous la limite par minute.
+ * L'usage est journalisé (marge réelle face à la limite) ; une réponse coupée par le budget l'est en avertissement.
+ */
+async function appelerGroq({ dico, description, historique }: Demande, cleGroq: string): Promise<ReponseModele> {
+  const questions = historique.filter((tour) => tour.role === 'user').map((tour) => tour.texte)
+  const reponsePrecedente = historique.filter((tour) => tour.role === 'assistant').at(-1)?.texte ?? ''
+  const reduit = dictionnaireReduit(dico, [description, ...questions].join('\n'), reponsePrecedente)
+  const reponse = await callGroqWithRetry(
+    {
+      messages: construireMessages(reduit, { description, photos: [], historique: historique.slice(-TOURS_SECOURS) }),
+      max_tokens: MAX_TOKENS,
+      response_format: { type: 'json_object' },
+      model: MODELE_SECOURS_TEXTE,
+    },
+    { apiKey: cleGroq, fallbackModel: MODELE_SECOURS_TEXTE, disableCerebrasFallback: true },
+  )
+  const fin = reponse.choices?.[0]?.finish_reason
+  const usage = { finish_reason: fin, prompt_tokens: reponse.usage?.prompt_tokens, completion_tokens: reponse.usage?.completion_tokens, materiaux: reduit.materiaux.length }
+  if (fin === 'length') logger.warn('[dictionnaire-materiaux/analyse] secours Groq : réponse coupée par le budget de jetons', usage)
+  else logger.info('[dictionnaire-materiaux/analyse] secours Groq', usage)
+  return { reponse, dico: reduit }
+}
+
+/**
+ * Appel du modèle. Claude d'abord, avec le catalogue entier (mis en cache) : lui seul lit les photos. S'il échoue sur
+ * une demande sans photo, ou s'il n'a pas de clé, Groq prend le relais sur un catalogue réduit : le catalogue entier,
+ * environ 19 000 jetons, dépasse les 8 000 par minute de l'offre Groq du compte (refus 413 constaté le 15/11/2026).
+ * Rend aussi le dictionnaire des consignes : la réponse se relit avec lui.
+ */
+async function appelerModele(demande: Demande): Promise<ReponseModele> {
+  if (!(await hasAnthropicKey())) {
+    // La route a déjà refusé (503) les photos et l'absence de clé Groq.
+    signalerCleAbsente()
+    return appelerGroq(demande, (await getSecret('GROQ_API_KEY')) ?? '')
+  }
+  try {
+    return await appelerClaude(demande)
+  } catch (err) {
+    const cleGroq = demande.photos.length > 0 ? '' : await getSecret('GROQ_API_KEY')
+    if (!cleGroq) throw err
+    signalerSecours(err)
+    return appelerGroq(demande, cleGroq)
+  }
+}
+
 /** Échec de l'appel : photo refusée par le modèle (l'artisan peut y remédier), sinon panne signalée à Sentry. */
 function reponseDEchec(err: unknown, pays: string, nombrePhotos: number) {
   if (photoRefusee(err, nombrePhotos)) {
@@ -220,7 +317,7 @@ export async function POST(request: NextRequest) {
 
   const { description, historique, tokenMap } = masquerCoordonnees(demande)
   try {
-    const reponse = await traceAgent(
+    const { reponse, dico: dicoConsignes } = await traceAgent(
       {
         agent_id: 'dictionnaire-materiaux',
         user_id: appelant.id,
@@ -228,26 +325,9 @@ export async function POST(request: NextRequest) {
         prompt: `Dictionnaire matériaux ${pays} : ${demande.description.length} caractères, ${photos.length} photo(s), ${demande.historique.length} tour(s) précédent(s)`,
         metadata: { module: 'dictionnaire-materiaux', pays, photos: photos.length },
       },
-      () =>
-        callClaudeWithRetry(
-          {
-            messages: construireMessages(dico, { description, photos, historique }),
-            max_tokens: MAX_TOKENS,
-            response_format: { type: 'json_object' },
-            // Lu seulement par le secours Groq : Claude garde son modèle (lib/claude).
-            model: MODELE_SECOURS_TEXTE,
-          },
-          {
-            effort: 'medium',
-            // Consignes et catalogue identiques d'un appel à l'autre : mis en cache côté modèle.
-            cacheSysteme: true,
-            disableGroqFallback: photos.length > 0,
-            fallbackModel: MODELE_SECOURS_TEXTE,
-            disableCerebrasFallback: true,
-          },
-        ),
+      () => appelerModele({ dico, description, photos, historique }),
     )
-    return reponseDeLAnalyse(reponse.choices?.[0]?.message?.content?.trim() ?? '', dico, pays, tokenMap)
+    return reponseDeLAnalyse(reponse.choices?.[0]?.message?.content?.trim() ?? '', dicoConsignes, pays, tokenMap)
   } catch (err) {
     return reponseDEchec(err, pays, photos.length)
   }
