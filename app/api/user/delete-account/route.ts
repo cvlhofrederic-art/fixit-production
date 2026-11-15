@@ -37,26 +37,28 @@ type VerificationDocuments = { ok: true; documents: boolean } | { ok: false }
  * Le compte détient-il au moins un devis ou une facture ? En base : devis et factures de son compte ou de sa fiche
  * (ceux d'un sous-compte d'une société portent la fiche de la société), factures reçues, documents fiscaux portugais,
  * quel que soit leur statut (brouillon, annulé, masqué compris) ; ou dans la sauvegarde du stockage du navigateur.
- * Lecture seule. Une table absente ne contient rien ; toute autre erreur de lecture rend { ok: false } : la
- * suppression est alors refusée et rien n'est effacé.
+ * Lecture seule, par des lectures bornées à une ligne (GET) et non par des comptages (HEAD) : la réponse à une requête
+ * HEAD n'a pas de corps, et le client Supabase y rend une table absente sans erreur ni nombre. Une table absente
+ * (PGRST205 ou 42P01) ne contient rien ; toute autre erreur de lecture rend { ok: false } : la suppression est alors
+ * refusée et rien n'est effacé.
  */
 async function compteDetientDesDocuments(userId: string, ficheId: string | null): Promise<VerificationDocuments> {
   const proprietaire = ficheId ? `artisan_user_id.eq.${userId},artisan_id.eq.${ficheId}` : `artisan_user_id.eq.${userId}`
-  const tete = { count: 'exact', head: true } as const
-  const comptages = await Promise.all([
-    supabaseAdmin.from('devis').select('id', tete).or(proprietaire).then((r) => ({ table: 'devis', ...r })),
-    supabaseAdmin.from('factures').select('id', tete).or(proprietaire).then((r) => ({ table: 'factures', ...r })),
-    supabaseAdmin.from('factures_recues').select('id', tete).eq('artisan_user_id', userId).then((r) => ({ table: 'factures_recues', ...r })),
-    supabaseAdmin.from('pt_fiscal_documents').select('id', tete).in('artisan_id', ficheId ? [userId, ficheId] : [userId])
+  const lectures = await Promise.all([
+    supabaseAdmin.from('devis').select('id').or(proprietaire).limit(1).then((r) => ({ table: 'devis', ...r })),
+    supabaseAdmin.from('factures').select('id').or(proprietaire).limit(1).then((r) => ({ table: 'factures', ...r })),
+    supabaseAdmin.from('factures_recues').select('id').eq('artisan_user_id', userId).limit(1)
+      .then((r) => ({ table: 'factures_recues', ...r })),
+    supabaseAdmin.from('pt_fiscal_documents').select('id').in('artisan_id', ficheId ? [userId, ficheId] : [userId]).limit(1)
       .then((r) => ({ table: 'pt_fiscal_documents', ...r })),
   ])
-  for (const { table, count, error } of comptages) {
+  for (const { table, data, error } of lectures) {
     if (error && tableAbsenteQr(error)) continue
-    if (error || typeof count !== 'number') {
+    if (error || !Array.isArray(data)) {
       log.warn('Documents du compte non vérifiés : suppression refusée, rien n’est effacé', { table, code: error?.code })
       return { ok: false }
     }
-    if (count > 0) return { ok: true, documents: true }
+    if (data.length > 0) return { ok: true, documents: true }
   }
 
   const cles = await lirePagesQr<{ key: string }>(() =>
@@ -83,7 +85,8 @@ async function compteDetientDesDocuments(userId: string, ficheId: string | null)
 // compte qui détient au moins un devis ou une facture est refusé AVANT toute suppression (409), et la route n'efface
 // jamais un devis ni une facture. Le compte (auth) est supprimé EN PREMIER, en une seule opération de la base : si une
 // référence restante l'en empêche, rien n'est effacé (jamais un compte à moitié vidé) ; ses données sans lien de
-// cascade (fiche, réservations, tables syndic, équipe d'une société BTP…) sont effacées ensuite.
+// cascade (fiche, réservations, tables syndic, équipe d'une société BTP…) sont effacées ensuite, et un échec à ce stade
+// rend 207 avec une alerte au journal d'erreur (Sentry).
 export async function DELETE(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) {
@@ -108,14 +111,15 @@ export async function DELETE(request: NextRequest) {
   const errors: string[] = []
   const deleted: string[] = []
 
-  // Helper : supprime de manière sécurisée et log le résultat
+  // Helper : supprime de manière sécurisée et log le résultat. Une table absente de la base (migration non appliquée)
+  // ne contient rien : ce n'est pas un échec (sinon chaque suppression finirait en 207 et l'alerte perdrait son sens).
   const safeDelete = async (table: string, column: string, id: string) => {
     try {
       const { error } = await supabaseAdmin.from(table).delete().eq(column, id)
-      if (error) {
-        errors.push(`${table}: ${error.message}`)
-      } else {
+      if (!error) {
         deleted.push(table)
+      } else if (!tableAbsenteQr(error)) {
+        errors.push(`${table}: ${error.message}`)
       }
     } catch (e: unknown) {
       errors.push(`${table}: ${e instanceof Error ? e.message : String(e)}`)
@@ -176,9 +180,6 @@ export async function DELETE(request: NextRequest) {
     if (artisanId) {
       await safeDelete('pt_fiscal_series', 'artisan_id', artisanId)
 
-      // Services (avant profil à cause des FK)
-      await safeDelete('services', 'artisan_id', artisanId)
-
       // Photos artisan
       await safeDelete('artisan_photos', 'artisan_id', artisanId)
 
@@ -187,8 +188,11 @@ export async function DELETE(request: NextRequest) {
       await safeDelete('artisan_absences', 'artisan_id', artisanId)
       await safeDelete('artisan_notifications', 'artisan_id', artisanId)
 
-      // Bookings (en tant qu'artisan)
+      // Bookings (en tant qu'artisan), avant les services : une réservation pointe son service
       await safeDelete('bookings', 'artisan_id', artisanId)
+
+      // Services, après les réservations et avant la fiche
+      await safeDelete('services', 'artisan_id', artisanId)
 
       // Profil artisan, par son identifiant (lu en phase 1 : retrouvé même si son lien au compte a été vidé)
       await safeDelete('profiles_artisan', 'id', artisanId)
@@ -230,11 +234,12 @@ export async function DELETE(request: NextRequest) {
     })
 
     if (errors.length > 0) {
-      // Le compte est supprimé ; les tables restées en échec sont à effacer par le support (noms seuls au journal).
+      // Le compte est supprimé ; les tables restées en échec sont à effacer par le support. L'objet Error (sans donnée
+      // personnelle) fait partir l'alerte Sentry de lib/logger.ts ; seuls les noms des tables vont au contexte.
       log.error('Compte supprimé, données restantes non effacées', {
         userId: userId.substring(0, 8),
         tables: errors.map((e) => e.split(':')[0]),
-      })
+      }, new Error('Suppression de compte RGPD incomplète'))
       return NextResponse.json({
         success: false,
         message: 'Compte supprimé ; certaines données n’ont pas pu être effacées (suppression partielle)',
