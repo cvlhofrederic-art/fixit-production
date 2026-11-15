@@ -26,9 +26,9 @@
 --    retirée, et son test exige que ce retrait reste la dernière instruction qui la nomme.
 -- 2. Droits INSERT, UPDATE, DELETE et TRUNCATE retirés aux rôles anon et authenticated sur cette
 --    table : une policy d'écriture recréée à la main ne rouvrirait rien (TRUNCATE n'est jamais
---    soumis à la RLS). Garde d'existence des rôles, pour que la migration passe aussi dans le job
---    CI, où ils n'existent pas. Lecture (SELECT) inchangée. service_role (routes serveur) garde
---    tous ses droits et contourne la RLS.
+--    soumis à la RLS). Garde d'existence de la table et des rôles, pour que la migration passe aussi
+--    dans le job CI, où les rôles n'existent pas, et sur une base sans cette table. Lecture (SELECT)
+--    inchangée. service_role (routes serveur) garde tous ses droits et contourne la RLS.
 --
 -- Rien d'autre : aucune ligne insérée, modifiée ou supprimée ; aucune colonne, contrainte, index
 -- ni déclencheur touché ; pro_team_members hors du lot (même motif, correctif distinct).
@@ -54,6 +54,12 @@ DROP POLICY IF EXISTS "syndic_team_delete" ON public.syndic_team_members;
 -- 2. Droits d'écriture des rôles des clients (lecture inchangée)
 DO $$
 BEGIN
+  -- Base où la table n'existe pas (REVOKE y échouerait, 42P01) : rien à retirer.
+  IF to_regclass('public.syndic_team_members') IS NULL THEN
+    RAISE NOTICE 'T20 : table public.syndic_team_members absente, rien à retirer';
+    RETURN;
+  END IF;
+
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
     REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members FROM anon;
   END IF;

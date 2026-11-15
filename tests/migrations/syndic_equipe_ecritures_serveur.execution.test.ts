@@ -32,6 +32,7 @@ interface EtatTable {
   policies_ecriture: number
   rls_active: boolean
   proprietaire: string
+  fonctions_citant_la_table: Array<{ fonction: string; security_definer: boolean }> | null
   fonctions_ecrivant_la_table: Array<{ fonction: string; security_definer: boolean }> | null
   declencheurs: Array<{ nom: string }> | null
   droits: Array<{ role: string; select: boolean; insert: boolean; update: boolean; delete: boolean; truncate: boolean }>
@@ -237,6 +238,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
         AS $$ INSERT INTO public.syndic_team_members (cabinet_id) VALUES (c) $$`)
       const etat = await etatScenario()
       expect(etat.fonctions_ecrivant_la_table).toEqual([{ fonction: 'essai_ecrit_equipe(uuid)', security_definer: false }])
+      expect(etat.fonctions_citant_la_table).toEqual([{ fonction: 'essai_ecrit_equipe(uuid)', security_definer: false }])
     })
 
     it('le scénario de contrôle le voit : partie 1 compte les policies d’écriture, partie 2 signale la faille', async () => {
@@ -244,6 +246,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(Number(etat.policies_ecriture)).toBe(ecritureAvant)
       expect(etat.droits.find((d) => d.role === 'authenticated')).toMatchObject({ insert: true, update: true, delete: true })
       expect(etat.fonctions_ecrivant_la_table).toBeNull()
+      expect(etat.fonctions_citant_la_table).toBeNull()
       expect((etat.declencheurs ?? []).map((d) => d.nom)).toEqual(declencheurs)
       expect(etat.proprietaire).toBe('postgres')
       expect(await bilanScenario()).toMatch(scenarioAvant)
@@ -385,4 +388,19 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(retire.nb).toBe(1)
     })
   })
+})
+
+describe('base sans la table syndic_team_members (rôles présents)', () => {
+  it('T20 passe sans erreur, deux fois, et ne crée rien (REVOKE seul y échouerait en 42P01)', async () => {
+    const db = await PGlite.create()
+    try {
+      await db.exec(ECHAFAUDAGE_SUPABASE_SQL)
+      await db.exec(lireMigrationQr(T20))
+      await db.exec(lireMigrationQr(T20))
+      const { rows } = await db.query<{ absente: boolean }>(`SELECT to_regclass('public.syndic_team_members') IS NULL AS absente`)
+      expect(rows[0].absente).toBe(true)
+    } finally {
+      await db.close()
+    }
+  }, 60_000)
 })

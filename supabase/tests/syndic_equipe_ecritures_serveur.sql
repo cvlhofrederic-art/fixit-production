@@ -18,8 +18,10 @@
 --   truncate = false ; service_role : tout à true (routes serveur).
 -- Avant comme après : fonctions_ecrivant_la_table = null (aucune fonction SQL n'écrit la table ; si
 --   une fonction apparaît avec security_definer = false, NE PAS appliquer la migration : elle
---   casserait cette fonction pour un client) ; declencheurs : relevé ; proprietaire : le rôle qui doit
---   lancer la migration (celui de l'éditeur SQL, postgres, s'il est propriétaire).
+--   casserait cette fonction pour un client) ; fonctions_citant_la_table : toute fonction qui nomme la
+--   table, à relire une à une avant d'appliquer (une écriture par EXECUTE dynamique n'apparaît que
+--   là) ; declencheurs : relevé ; proprietaire : le rôle qui doit lancer la migration (celui de
+--   l'éditeur SQL, postgres, s'il est propriétaire).
 
 -- 1. État
 select json_build_object(
@@ -36,6 +38,13 @@ select json_build_object(
     select relrowsecurity from pg_class where oid = 'public.syndic_team_members'::regclass),
   'proprietaire', (
     select relowner::regrole::text from pg_class where oid = 'public.syndic_team_members'::regclass),
+  'fonctions_citant_la_table', (
+    select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef)
+                    order by p.oid::regprocedure::text)
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname not in ('pg_catalog', 'information_schema')
+      and p.prosrc ilike '%syndic_team_members%'),
   'fonctions_ecrivant_la_table', (
     select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef)
                     order by p.oid::regprocedure::text)
