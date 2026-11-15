@@ -7,7 +7,7 @@
 // Côté artisan, rien ne change (règle artisan / BTP) : même défaut, signalé à Frédéric.
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
 const PROJET = 'https://projet-test.supabase.co'
@@ -33,11 +33,22 @@ vi.mock('next/image', () => ({
 
 import WalletConformiteSection from '@/components/dashboard/WalletConformiteSection'
 import CarnetDeVisiteSection from '@/components/dashboard/CarnetDeVisiteSection'
+import { supabase } from '@/lib/supabase'
 
 const artisan = { id: FICHE_ID, company_name: 'BATIMENT SUD EXEMPLE', categories: [] } as unknown as Artisan
 const appelsLiens = () => (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) => url === '/api/stockage/liens')
+const lectureSession = supabase.auth.getSession as unknown as ReturnType<typeof vi.fn>
+
+/**
+ * Laisse aboutir toute demande de liens en attente (session, appel de la route, réponse, nouvel affichage) : un
+ * contrôle « aucun lien demandé » fait juste après l'affichage passerait même si une demande était en route.
+ */
+const laisserAboutirLesDemandes = () => act(async () => {
+  await new Promise((fin) => setTimeout(fin, 0))
+})
 
 beforeEach(() => {
+  lectureSession.mockClear()
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', PROJET)
   // Stockage simulé de jsdom, propre à ce test : chaque cas pose ses propres clés.
   localStorage.removeItem(`fixit_wallet_${FICHE_ID}`)
@@ -97,8 +108,11 @@ describe('Conformité — société BTP', () => {
 
   it('artisan : inchangé, « Voir » ouvre la valeur enregistrée, aucun lien demandé', async () => {
     render(<WalletConformiteSection artisan={artisan} orgRole="artisan" />)
+    await laisserAboutirLesDemandes()
+
     fireEvent.click(screen.getByTitle('Voir'))
     expect(window.open).toHaveBeenLastCalledWith(ancienLien(RC_PRO), '_blank', 'noopener,noreferrer')
+    expect(lectureSession).not.toHaveBeenCalled()
     expect(appelsLiens()).toHaveLength(0)
   })
 })
@@ -122,7 +136,12 @@ describe('Références chantiers — société BTP', () => {
 
   it('artisan : inchangé, la miniature garde la valeur enregistrée, aucun lien demandé', async () => {
     const { container } = render(<CarnetDeVisiteSection artisan={artisan} orgRole="artisan" />)
+    await laisserAboutirLesDemandes()
+
     expect((container.querySelector('.v5-gal-thumb') as HTMLElement).style.backgroundImage).toContain(ancienLien(REFERENCE))
+    fireEvent.click(screen.getByText('Immeuble R+3'))
+    expect((screen.getByAltText('Immeuble R+3') as HTMLImageElement).getAttribute('src')).toBe(ancienLien(REFERENCE))
+    expect(lectureSession).not.toHaveBeenCalled()
     expect(appelsLiens()).toHaveLength(0)
   })
 })

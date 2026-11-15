@@ -1,6 +1,6 @@
-// Colonnes de public.profiles_artisan en production (relevé du 31/10/2026, le même que celui de
-// tests/seo/sitemap-fiches-artisans.test.ts ; aucune migration n'en a ajouté depuis). Le schéma de production diffère
-// des migrations du dépôt : c'est cette liste qui dit si une colonne existe.
+// Colonnes de public.profiles_artisan en production (relevé du 31/10/2026 ; aucune migration n'en a ajouté depuis).
+// Le schéma de production diffère des migrations du dépôt : c'est cette liste qui dit si une colonne existe. Seule
+// liste du dépôt : tests/seo/sitemap-fiches-artisans.test.ts la lit aussi ; au prochain relevé, ne mettre à jour qu'elle.
 export const COLONNES_PROFILES_ARTISAN_PRODUCTION: readonly string[] = [
   'acre_actif', 'acre_date_fin', 'active', 'ape_code', 'auto_accept', 'auto_block_duration_minutes', 'auto_reply_message',
   'bio', 'categories', 'certidao_extracted', 'company_address', 'company_city', 'company_name', 'company_postal_code',

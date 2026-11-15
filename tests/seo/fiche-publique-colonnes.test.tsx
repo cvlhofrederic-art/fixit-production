@@ -104,7 +104,7 @@ const lireSource = (chemin: string) => readFileSync(join(process.cwd(), chemin),
 
 /** Arguments des `.select(...)` qui suivent un `.from('profiles_artisan')` dans un fichier source. */
 function selectionsProfiles(source: string): string[] {
-  return [...source.matchAll(/\.from\(\s*['"]profiles_artisan['"]\s*\)\s*\.select\(\s*([^)]*)\)/g)].map((m) => m[1].trim())
+  return [...source.matchAll(/\.from\(\s*['"]profiles_artisan['"]\s*\)\s*\.select\(([^)]*)\)/g)].map((m) => m[1].trim())
 }
 
 beforeEach(() => {

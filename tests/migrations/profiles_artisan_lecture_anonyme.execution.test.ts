@@ -5,7 +5,7 @@
 // Frédéric qui la lance, après le déploiement du code) sur un vrai PostgreSQL (PGlite, en mémoire, aucune base distante).
 // Table reconstruite avec les 90 colonnes de production et la politique de lecture des fiches actives, rôles et droits
 // par défaut de Supabase. Vérifié :
-//   - avant : un visiteur sans compte (anon) lit toutes les colonnes, comme relevé en production ;
+//   - avant : droits par défaut de Supabase, toutes les colonnes lisibles par un visiteur sans compte (anon) ;
 //   - après, en deux passes (rejouable) : anon ne lit que les colonnes des pages publiques (lib/fiche-publique.ts),
 //     une lecture de toutes les colonnes est refusée, les comptes connectés lisent comme avant, la politique des lignes
 //     tient toujours (fiche inactive invisible) ;
@@ -98,7 +98,7 @@ describe('exécution sur une table reconstruite comme en production', () => {
     await db.close()
   })
 
-  it('avant : anon lit toutes les colonnes (état relevé en production)', async () => {
+  it('avant : droits par défaut de Supabase, anon lit toutes les colonnes', async () => {
     expect(await colonnesLisibles(db, 'anon')).toHaveLength(COLONNES_PROFILES_ARTISAN_PRODUCTION.length)
     const { rows } = await lireEnTantQue(db, 'anon', 'SELECT kbis_url FROM public.profiles_artisan')
     expect(rows).toEqual([{ kbis_url: 'exemple/kbis/exemple.pdf' }])

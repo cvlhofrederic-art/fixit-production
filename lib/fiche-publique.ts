@@ -45,11 +45,14 @@ export const COLONNES_LECTURES_SERVEUR_PUBLIQUES: readonly string[] = [
   'rating_count', 'profile_photo_url', 'latitude', 'longitude', 'phone', 'verified', 'active',
 ]
 
-/** Union des colonnes ci-dessus, triée : ce que le rôle anon peut lire une fois la migration appliquée. */
+/**
+ * Union des colonnes ci-dessus, triée : ce que le rôle anon peut lire une fois la migration appliquée.
+ * Tri par ordre des caractères, identique au tri par défaut (comparateur explicite, SonarCloud S2871).
+ */
 export const COLONNES_LECTURE_ANONYME: readonly string[] = [...new Set([
   ...COLONNES_FICHE_PUBLIQUE,
   ...COLONNES_RECHERCHE_PUBLIQUE,
   ...COLONNES_RESERVATION_PUBLIQUE,
   ...COLONNES_CONFIRMATION_PUBLIQUE,
   ...COLONNES_LECTURES_SERVEUR_PUBLIQUES,
-])].sort()
+])].sort((a, b) => { if (a === b) return 0; return a < b ? -1 : 1 })
