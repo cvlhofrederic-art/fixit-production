@@ -59,7 +59,9 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
 }
 
 // Map localStorage fields → Supabase columns
-function mapToSupabase(table: ShortName, item: any): any {
+// Sert aux CRÉATIONS : tout champ absent reçoit une valeur par défaut. Pour une modification, passer par
+// colonnesModifiees() plus bas, qui n'envoie que les champs réellement fournis.
+export function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers': {
       const mapped: Record<string, unknown> = {
@@ -204,6 +206,74 @@ function mapToSupabase(table: ShortName, item: any): any {
     default:
       return item
   }
+}
+
+// Champs du formulaire qui alimentent chaque colonne — mêmes correspondances que mapToSupabase ci-dessus
+// (tests/lib/use-btp-data-modification-partielle.test.tsx vérifie que les deux restent alignés).
+// Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par
+// une modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
+export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, readonly string[]>>> = {
+  chantiers: {
+    titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
+    latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
+    statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
+  },
+  membres: {
+    prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
+    role_perso: ['rolePerso'], cout_horaire: ['coutHoraire'], charges_pct: ['chargesPct'],
+    salaire_brut_mensuel: ['salaire_brut_mensuel'], salaire_net_mensuel: ['salaire_net_mensuel'],
+    charges_salariales_pct: ['charges_salariales_pct'], charges_patronales_pct: ['charges_patronales_pct'],
+    type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
+    indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
+  },
+  equipes: { nom: ['nom'], metier: ['metier'], membreIds: ['membreIds'] },
+  pointages: {
+    employe: ['employe'], poste: ['poste'], chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
+    heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
+  },
+  depenses: { label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
+  situations: {
+    chantier_id: ['chantier_id'], chantier: ['chantier'], client: ['client'], numero: ['numero'], date: ['date'],
+    montant_marche: ['montantMarche', 'montant_marche'], travaux: ['travaux'], statut: ['statut'],
+  },
+  retenues: {
+    chantier_id: ['chantier_id'], chantier: ['chantier'], client: ['client'], montant_marche: ['montantMarche', 'montant_marche'],
+    taux_retenue: ['tauxRetenue', 'taux_retenue'], montant_retenu: ['montantRetenu', 'montant_retenu'],
+    date_fin_travaux: ['dateFinTravaux', 'date_fin_travaux'], date_liberation: ['dateLiberation', 'date_liberation'],
+    statut: ['statut'], caution: ['caution'],
+  },
+  dc4: {
+    chantier_id: ['chantier_id'], entreprise: ['entreprise'], siret: ['siret'], responsable: ['responsable'], email: ['email'],
+    telephone: ['telephone'], adresse: ['adresse'], chantier: ['chantier'], lot: ['lot'],
+    montant_marche: ['montantMarche', 'montant_marche'], taux_tva: ['tauxTVA', 'taux_tva'], statut: ['statut'],
+    date_agrement: ['dateAgrement', 'date_agrement'], dc4_genere: ['dc4Genere', 'dc4_genere'],
+  },
+  dce_analyses: {
+    titre: ['titre'], country: ['country'], project_type: ['projectType', 'project_type'], status: ['status'], result: ['result'],
+  },
+  dpgf: {
+    titre: ['titre'], client: ['client'], date_remise: ['dateRemise', 'date_remise'],
+    montant_estime: ['montantEstime', 'montant_estime'], statut: ['statut'], lots: ['lots'],
+  },
+}
+
+/**
+ * Colonnes à écrire pour une MODIFICATION : seulement celles dont le formulaire a fourni un champ.
+ *
+ * mapToSupabase donne une valeur par défaut à tout champ absent (titre '', client null, statut « En attente »…),
+ * ce qui est juste pour une création et destructeur pour une modification partielle : changer le statut d'un
+ * chantier, le prolonger, ajouter un poste à une situation ou enregistrer des coordonnées (page Météo) réécrivait
+ * à vide tous les autres champs de la fiche (audit des fondations BTP du 11/11/2026).
+ * Un champ présent dans `changes`, même vide ou undefined, est écrit : un formulaire complet vide ainsi un champ
+ * comme avant.
+ */
+export function colonnesModifiees(table: ShortName, changes: Record<string, unknown>): Record<string, unknown> {
+  const complet = mapToSupabase(table, changes) as Record<string, unknown>
+  const sources = SOURCES_DES_COLONNES[table]
+  if (!sources) return complet
+  return Object.fromEntries(
+    Object.entries(complet).filter(([colonne]) => (sources[colonne] ?? []).some(champ => champ in changes)),
+  )
 }
 
 // Map Supabase columns → component-friendly format (keeps both formats for compat)
@@ -559,7 +629,14 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
 
   const update = useCallback(async (id: string, changes: Partial<T>): Promise<boolean> => {
     try {
-      const mapped = mapToSupabase(table, changes)
+      // Seuls les champs fournis partent : une modification partielle ne réécrit pas le reste de la fiche.
+      const mapped = colonnesModifiees(table, changes as Record<string, unknown>)
+      if (Object.keys(mapped).length === 0) {
+        // Rien d'enregistrable : rien ne part et rien n'est écrasé. La trace aide à repérer un champ de formulaire
+        // qui n'a pas (encore) de colonne dans mapToSupabase.
+        console.warn(`[btp] update ${tableName} : aucun champ enregistrable parmi`, Object.keys(changes))
+        return true
+      }
       const res = await fetch('/api/btp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
