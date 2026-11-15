@@ -11,7 +11,7 @@
 // une prestation de la fiche et l'estimation calculée par la page : ces demandes passent comme avant.
 // Aucune donnée réelle : comptes, fiches et prestations d'exemple.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { appelsDe, clientMemoire, nouvelleBase, type BaseMemoire } from './syndic-supabase-memoire'
 
@@ -88,6 +88,11 @@ beforeEach(() => {
   ]
 })
 
+afterEach(() => {
+  // Rend l'horloge réelle aux tests qui l'ont figée.
+  vi.useRealTimers()
+})
+
 describe('POST /api/bookings — ce que le serveur décide seul', () => {
   it.each(['completed', 'confirmed', 'cancelled'])('statut « %s » reçu : la demande est créée « pending », sans date de confirmation', async (statut) => {
     const res = await poster(demandeDeLaFiche({ status: statut }))
@@ -111,10 +116,12 @@ describe('POST /api/bookings — ce que le serveur décide seul', () => {
     expect(appelsDe(h.base, 'bookings', 'insert')).toHaveLength(0)
   })
 
-  it('lecture de la prestation en erreur : 500, rien n’est créé (la prestation n’a pas pu être vérifiée)', async () => {
+  it('lecture de la prestation en erreur : 500 avec un message en français, rien n’est créé (la prestation n’a pas pu être vérifiée)', async () => {
     h.base.erreurs['services.select'] = { message: 'panne' }
     const res = await poster(demandeDeLaFiche())
     expect(res.status).toBe(500)
+    // Les deux écrans de réservation affichent ce message tel quel au client.
+    expect(res.json.error).toBe('Réservation impossible pour le moment. Réessayez dans quelques instants.')
     expect(appelsDe(h.base, 'bookings', 'insert')).toHaveLength(0)
   })
 
@@ -185,12 +192,33 @@ describe('POST /api/bookings — parcours de réservation inchangé', () => {
   })
 
   it('délai minimum de la prestation toujours appliqué', async () => {
+    // Horloge figée et dates fixes : le lendemain 09:00 est à moins de 48 h et le créneau du 15 à plus de 48 h,
+    // quel que soit le fuseau de la machine.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-03-10T08:00:00Z'))
     h.base.lignes.services[0].delai_minimum_heures = 48
-    const demain = new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0]
-    const res = await poster(demandeDeLaFiche({ booking_date: demain }))
-    expect(res.status).toBe(400)
-    expect(res.json.error).toContain('délai minimum de 48h')
+
+    const tropTot = await poster(demandeDeLaFiche({ booking_date: '2027-03-11' }))
+    expect(tropTot.status).toBe(400)
+    expect(tropTot.json.error).toContain('délai minimum de 48h')
     expect(appelsDe(h.base, 'bookings', 'insert')).toHaveLength(0)
+
+    const dansLesDelais = await poster(demandeDeLaFiche({ booking_date: '2027-03-15' }))
+    expect(dansLesDelais.status).toBe(200)
+    expect(reservationCreee()).toMatchObject({ booking_date: '2027-03-15', status: 'pending' })
+  })
+
+  it('réglages de la prestation absents de la base (validation automatique, délai minimum) : la demande est créée « pending »', async () => {
+    // Le schéma réel peut différer des migrations : une colonne de réglage manquante vaut « non réglé »,
+    // elle ne doit pas faire échouer toutes les réservations avec prestation.
+    h.base.colonnesAbsentes = { services: ['validation_auto', 'delai_minimum_heures'] }
+    h.base.lignes.services = [{ id: PRESTATION_A, artisan_id: FICHE_A, name: 'Pose de carrelage' }]
+    const res = await poster(demandeDeLaFiche())
+    expect(res.status).toBe(200)
+    expect(reservationCreee()).toMatchObject({ artisan_id: FICHE_A, status: 'pending', service_id: PRESTATION_A, price_ht: 400, price_ttc: 600 })
+    expect(reservationCreee()).not.toHaveProperty('confirmed_at')
+    const notification = appelsDe(h.base, 'artisan_notifications', 'insert')[0].donnees as Record<string, unknown>
+    expect(String(notification.body)).toContain('Pose de carrelage')
   })
 
   it('401 sans session', async () => {

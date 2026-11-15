@@ -77,26 +77,31 @@ export async function POST(request: NextRequest) {
     let isAutoAccept = false
     let serviceName = 'Intervention'
     if (service_id) {
+      // Toutes les colonnes présentes, pas une liste nommée : le schéma réel peut différer des migrations, et un
+      // réglage absent (validation automatique, délai minimum) vaut « non réglé » au lieu de faire échouer la
+      // lecture, donc toutes les réservations avec prestation.
       const { data: svc, error: svcError } = await supabaseAdmin
         .from('services')
-        .select('artisan_id, validation_auto, delai_minimum_heures, name')
+        .select('*')
         .eq('id', service_id)
         .maybeSingle()
       if (svcError) {
         logger.error('[bookings] lecture de la prestation impossible', { message: svcError.message })
-        return NextResponse.json({ error: 'Failed to create booking' }, { status: 500 })
+        // Message affiché tel quel au client par les deux écrans de réservation.
+        return NextResponse.json({ error: 'Réservation impossible pour le moment. Réessayez dans quelques instants.' }, { status: 500 })
       }
+      const prestation = svc as { artisan_id?: unknown; validation_auto?: unknown; delai_minimum_heures?: unknown; name?: unknown } | null
       // La prestation doit être celle du professionnel réservé : ses réglages (validation automatique,
       // délai minimum, nom repris dans la notification) ne valent que pour sa fiche.
       // Comparaison sans tenir compte de la casse : la base rend les identifiants en minuscules.
-      if (!svc || String(svc.artisan_id).toLowerCase() !== artisan_id.toLowerCase()) {
+      if (!prestation || String(prestation.artisan_id).toLowerCase() !== artisan_id.toLowerCase()) {
         return NextResponse.json({ error: 'Cette prestation n’est pas proposée par ce professionnel.' }, { status: 400 })
       }
-      isAutoAccept = svc.validation_auto === true
-      if (svc.name) serviceName = svc.name
+      isAutoAccept = prestation.validation_auto === true
+      if (typeof prestation.name === 'string' && prestation.name) serviceName = prestation.name
 
       // Enforce minimum delay
-      const delai = svc.delai_minimum_heures || 0
+      const delai = Number(prestation.delai_minimum_heures) || 0
       if (delai > 0) {
         const slotTs = new Date(`${booking_date}T${booking_time}:00`).getTime()
         const minTs = Date.now() + delai * 60 * 60 * 1000
