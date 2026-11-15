@@ -5,6 +5,10 @@
 // (`data: { membreIds }`) : il ne reste alors aucune colonne à écrire, et PostgREST ne renvoie aucune ligne pour un
 // UPDATE vide. La route lit la ligne à la place — ce qui garde le contrôle d'appartenance avant de toucher aux
 // membres. Un renommage sans `membreIds` ne détache plus personne.
+//
+// 15/11/2026 (constat api-coeur-9) : la route vérifie désormais que chaque membre cité appartient au compte. Les
+// données du test ont suivi, pas ses attentes : identifiants de membres au format réel (M1, M2 au lieu de « m1 »,
+// « m2 », que la base refuserait), membres présents dans membres_btp, et filtre `in` dans le faux client.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -16,16 +20,20 @@ const h = vi.hoisted(() => {
   const etat = {
     user: null as null | { id: string },
     equipes: [] as Array<Record<string, unknown>>,
+    membres: [] as Array<Record<string, unknown>>,
     operations: [] as Array<{ table: string; operation: string; valeur?: unknown; filtres: Record<string, unknown> }>,
   }
   const from = (table: string) => {
     const op = { table, operation: 'select', valeur: undefined as unknown, filtres: {} as Record<string, unknown> }
     etat.operations.push(op)
-    const trouvees = () => (table === 'equipes_btp' ? etat.equipes : [])
-      .filter(ligne => Object.entries(op.filtres).every(([colonne, valeur]) => ligne[colonne] === valeur))
+    const correspond = (valeur: unknown, filtre: unknown) =>
+      filtre && typeof filtre === 'object' && 'in' in filtre ? (filtre as { in: unknown[] }).in.includes(valeur) : valeur === filtre
+    const trouvees = () => (table === 'equipes_btp' ? etat.equipes : table === 'membres_btp' ? etat.membres : [])
+      .filter(ligne => Object.entries(op.filtres).every(([colonne, filtre]) => correspond(ligne[colonne], filtre)))
     const b: Record<string, unknown> = {}
     b.select = () => b
     b.eq = (colonne: string, valeur: unknown) => { op.filtres[colonne] = valeur; return b }
+    b.in = (colonne: string, valeurs: unknown[]) => { op.filtres[colonne] = { in: valeurs }; return b }
     b.insert = (valeur: unknown) => { op.operation = 'insert'; op.valeur = valeur; return b }
     b.update = (valeur: unknown) => { op.operation = 'update'; op.valeur = valeur; return b }
     b.delete = () => { op.operation = 'delete'; return b }
@@ -53,6 +61,8 @@ const { POST } = await import('@/app/api/btp/route')
 
 const SOCIETE_A = '550e8400-e29b-41d4-a716-446655440000'
 const SOCIETE_B = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+const M1 = 'd4d4d4d4-0000-4000-8000-000000000001'
+const M2 = 'd4d4d4d4-0000-4000-8000-000000000002'
 
 const modifier = async (id: string, data: Ligne) => {
   const res = await POST(new NextRequest('https://vitfix.io/api/btp', {
@@ -72,11 +82,15 @@ beforeEach(() => {
     { id: 'equipe-a', owner_id: SOCIETE_A, nom: 'Maçons', metier: 'Maçonnerie' },
     { id: 'equipe-b', owner_id: SOCIETE_B, nom: 'Couvreurs', metier: 'Couverture' },
   ]
+  h.etat.membres = [
+    { id: M1, owner_id: SOCIETE_A, prenom: 'Paul', nom: 'Durand' },
+    { id: M2, owner_id: SOCIETE_A, prenom: 'Léa', nom: 'Martin' },
+  ]
 })
 
 describe('POST /api/btp — modifier une équipe', () => {
   it('seuls les membres changent : aucun UPDATE vide, la ligne est lue, les membres sont remplacés', async () => {
-    const res = await modifier('equipe-a', { membreIds: ['m1', 'm2'] })
+    const res = await modifier('equipe-a', { membreIds: [M1, M2] })
 
     expect(res.status).toBe(200)
     expect(res.json.row).toMatchObject({ id: 'equipe-a', nom: 'Maçons' })
@@ -85,12 +99,12 @@ describe('POST /api/btp — modifier une équipe', () => {
     ])
     expect(operations('equipe_membres_btp')).toEqual([
       { table: 'equipe_membres_btp', operation: 'delete', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
-      { table: 'equipe_membres_btp', operation: 'insert', valeur: [{ equipe_id: 'equipe-a', membre_id: 'm1' }, { equipe_id: 'equipe-a', membre_id: 'm2' }], filtres: {} },
+      { table: 'equipe_membres_btp', operation: 'insert', valeur: [{ equipe_id: 'equipe-a', membre_id: M1 }, { equipe_id: 'equipe-a', membre_id: M2 }], filtres: {} },
     ])
   })
 
   it('équipe d’une autre société : refus, ses membres ne sont pas touchés', async () => {
-    const res = await modifier('equipe-b', { membreIds: ['m1'] })
+    const res = await modifier('equipe-b', { membreIds: [M1] })
 
     expect(res.status).toBe(500)
     expect(res.json).toEqual({ error: 'Erreur serveur' })

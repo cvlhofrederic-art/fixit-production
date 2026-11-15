@@ -7,8 +7,8 @@ import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit
 import { logger } from '@/lib/logger'
 import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
 import {
-  BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, memeValeur, valeursHorsBornes, verifierLigne,
-  type HorsBornes, type TableEcrivable,
+  BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, memeValeur, referencesDeLigne, valeursHorsBornes, verifierLigne,
+  type HorsBornes, type Reference, type TableCible, type TableEcrivable,
 } from '@/lib/btp/schema-tables-btp'
 
 const btpBodySchema = z.object({
@@ -189,12 +189,64 @@ const CONTRATS_PAR_ROLE: Record<string, string[]> = {
 }
 
 const MESSAGE_FICHE_INTROUVABLE = 'Fiche introuvable : elle a peut-être été supprimée entre-temps.'
+const MESSAGE_LISTE_MEMBRES_INVALIDE = 'Enregistrement refusé : la liste des membres de l\'équipe est invalide.'
 
-/** La base a répondu en erreur pendant une écriture. */
+/** La base a répondu en erreur pendant une écriture ; `messageUtilisateur` remplace alors « Erreur serveur ». */
 class ErreurEcriture extends Error {
-  constructor(readonly erreurBase: { code?: string; message?: string }) {
+  constructor(readonly erreurBase: { code?: string; message?: string }, readonly messageUtilisateur?: string) {
     super('écriture en erreur')
   }
+}
+
+// ── Rattachements (constat api-coeur-9) : chantier_id, membre_id, equipe_id et les membres d'une équipe doivent
+// désigner des fiches du compte. Sans ce contrôle, l'identifiant d'un chantier ou d'un salarié d'une autre société
+// rattachait chez elle des pointages ou des dépenses, ou faisait lire le coût horaire de son salarié.
+const INTROUVABLE: Record<TableCible, string> = {
+  chantiers_btp: 'chantier introuvable dans votre compte',
+  membres_btp: 'membre de l\'équipe introuvable dans votre compte',
+  equipes_btp: 'équipe introuvable dans votre compte',
+}
+
+const messageReferences = (references: Reference[]) => [...new Set(references.map(r => INTROUVABLE[r.cible]))].join(', ')
+
+/** Membres d'une équipe, sans doublon ; undefined si la requête n'en parle pas, null si la liste est invalide. */
+function membresDeLEquipe(membreIds: unknown): string[] | null | undefined {
+  if (membreIds === undefined || membreIds === null) return undefined
+  if (!Array.isArray(membreIds) || !membreIds.every(m => typeof m === 'string' && FORMAT_UUID.test(m))) return null
+  return [...new Set(membreIds.map(m => String(m).toLowerCase()))]
+}
+
+const versReferences = (membres: string[] | undefined): Reference[] =>
+  (membres ?? []).map(id => ({ colonne: 'membreIds', cible: 'membres_btp' as const, id }))
+
+/** Fiches désignées qui n'appartiennent pas au compte (autre société, ou fiche supprimée). Une requête par table. */
+async function referencesEtrangeres(userId: string, references: Reference[]): Promise<Reference[]> {
+  const parCible = new Map<TableCible, Set<string>>()
+  for (const r of references) parCible.set(r.cible, (parCible.get(r.cible) ?? new Set<string>()).add(r.id.toLowerCase()))
+  const etrangeres: Reference[] = []
+  for (const [cible, ids] of parCible) {
+    const { data, error } = await supabaseAdmin.from(cible).select('id').eq('owner_id', userId).in('id', [...ids])
+    if (error) throw new ErreurEcriture(error)
+    const duCompte = new Set(((data ?? []) as { id: unknown }[]).map(l => String(l.id).toLowerCase()))
+    etrangeres.push(...references.filter(r => r.cible === cible && !duCompte.has(r.id.toLowerCase())))
+  }
+  return etrangeres
+}
+
+async function lireMembresLies(equipeId: string): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin.from('equipe_membres_btp').select('membre_id').eq('equipe_id', equipeId)
+  if (error) throw new ErreurEcriture(error)
+  return new Set(((data ?? []) as { membre_id: unknown }[]).map(l => String(l.membre_id).toLowerCase()))
+}
+
+/**
+ * Rattachements hors du compte que la modification CHANGE. Ceux déjà enregistrés sur la fiche (ou déjà liés à
+ * l'équipe), renvoyés tels quels par un formulaire complet, restent acceptés : refuser bloquerait la fiche existante.
+ */
+async function rattachementsNouveaux(etrangeres: Reference[], enBase: Ligne, equipeId: string): Promise<Reference[]> {
+  if (etrangeres.length === 0) return []
+  const lies = etrangeres.some(r => r.colonne === 'membreIds') ? await lireMembresLies(equipeId) : new Set<string>()
+  return etrangeres.filter(r => (r.colonne === 'membreIds' ? !lies.has(r.id.toLowerCase()) : !memeValeur(r.id, enBase[r.colonne])))
 }
 
 const refus = (message: string, status = 400) => NextResponse.json({ error: message }, { status })
@@ -246,13 +298,25 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
   const hors = valeursHorsBornes(table, ligne)
   if (hors.length > 0) return refus(hors.map(h => h.message).join(' '))
 
+  const membres = table === 'equipes_btp' ? membresDeLEquipe(membreIds) : undefined
+  if (membres === null) return refus(MESSAGE_LISTE_MEMBRES_INVALIDE)
+  const references = [...referencesDeLigne(table, ligne), ...versReferences(membres)]
+  const etrangeres = references.length > 0 ? await referencesEtrangeres(userId, references) : []
+  if (etrangeres.length > 0) return refus(`Enregistrement refusé : ${messageReferences(etrangeres)}.`)
+
   const { data: inseree, error } = await supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
   if (error) throw new ErreurEcriture(error)
 
-  if (table === 'equipes_btp' && Array.isArray(membreIds) && membreIds.length > 0) {
-    await supabaseAdmin.from('equipe_membres_btp').insert(
-      membreIds.map((mid: unknown) => ({ equipe_id: inseree.id, membre_id: mid })),
-    )
+  if (membres && membres.length > 0) {
+    const { error: erreurLiens } = await supabaseAdmin
+      .from('equipe_membres_btp')
+      .insert(membres.map(membre => ({ equipe_id: inseree.id, membre_id: membre })))
+    if (erreurLiens) {
+      // L'équipe vient d'être créée par cette requête : la retirer, pour que l'écran puisse réessayer sans doublon.
+      const { error: erreurRetrait } = await supabaseAdmin.from('equipes_btp').delete().eq('id', inseree.id).eq('owner_id', userId)
+      if (erreurRetrait) logger.error('[btp] équipe créée sans ses membres, retrait impossible', { id: inseree.id, code: erreurRetrait.code })
+      throw new ErreurEcriture(erreurLiens, 'L\'équipe n\'a pas été créée : ses membres n\'ont pas pu être enregistrés. Réessayez dans un instant.')
+    }
   }
   return NextResponse.json({ row: inseree }, { status: 201 })
 }
@@ -265,13 +329,26 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   const raison = verifierLigne(table, ligne, 'modification')
   if (raison) return refus(`Enregistrement refusé : ${raison}.`)
 
+  const membres = table === 'equipes_btp' ? membresDeLEquipe(membreIds) : undefined
+  if (membres === null) return refus(MESSAGE_LISTE_MEMBRES_INVALIDE)
+  const references = [...referencesDeLigne(table, ligne), ...versReferences(membres)]
+  const etrangeres = references.length > 0 ? await referencesEtrangeres(userId, references) : []
   const hors = valeursHorsBornes(table, ligne)
-  if (hors.length > 0) {
+
+  // Valeur hors bornes ou rattachement hors du compte : acceptés seulement s'ils sont déjà ceux de la fiche.
+  if (hors.length > 0 || etrangeres.length > 0) {
     const enBase = await lireFiche(table, id, userId)
     if (!enBase) return refus(MESSAGE_FICHE_INTROUVABLE, 404)
     const message = refusBornes(hors, ligne, enBase)
     if (message) return refus(message)
-    logger.warn('[btp] valeur hors bornes déjà en base, renvoyée telle quelle : acceptée', { table, id, colonnes: hors.map(h => h.colonne) })
+    const nouveaux = await rattachementsNouveaux(etrangeres, enBase, id)
+    if (nouveaux.length > 0) return refus(`Enregistrement refusé : ${messageReferences(nouveaux)}.`)
+    if (hors.length > 0) {
+      logger.warn('[btp] valeur hors bornes déjà en base, renvoyée telle quelle : acceptée', { table, id, colonnes: hors.map(h => h.colonne) })
+    }
+    if (etrangeres.length > 0) {
+      logger.warn('[btp] rattachement déjà en base hors du compte, renvoyé tel quel : accepté', { table, id, colonnes: [...new Set(etrangeres.map(r => r.colonne))] })
+    }
   }
 
   if (table === 'chantiers_btp') ligne.updated_at = new Date().toISOString()
@@ -285,12 +362,17 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   const { data: modifiee, error } = await cible
   if (error) throw new ErreurEcriture(error)
 
-  if (table === 'equipes_btp' && Array.isArray(membreIds)) {
-    await supabaseAdmin.from('equipe_membres_btp').delete().eq('equipe_id', id)
-    if (membreIds.length > 0) {
-      await supabaseAdmin.from('equipe_membres_btp').insert(
-        membreIds.map((mid: unknown) => ({ equipe_id: id, membre_id: mid })),
-      )
+  // Membres de l'équipe remplacés par la liste reçue. Sans transaction possible ici : une erreur est dite (500) au
+  // lieu d'un succès, et l'écran peut renvoyer la liste.
+  if (membres !== undefined) {
+    const echec = 'L\'équipe est enregistrée, mais la liste de ses membres n\'a pas pu être mise à jour. Réessayez dans un instant.'
+    const { error: erreurRetrait } = await supabaseAdmin.from('equipe_membres_btp').delete().eq('equipe_id', id)
+    if (erreurRetrait) throw new ErreurEcriture(erreurRetrait, echec)
+    if (membres.length > 0) {
+      const { error: erreurLiens } = await supabaseAdmin
+        .from('equipe_membres_btp')
+        .insert(membres.map(membre => ({ equipe_id: id, membre_id: membre })))
+      if (erreurLiens) throw new ErreurEcriture(erreurLiens, echec)
     }
   }
   return NextResponse.json({ row: modifiee })
@@ -363,6 +445,12 @@ async function reprendre(userId: string, table: TableEcrivable, donnees: unknown
     lignes.push({ ...ligne, owner_id: userId })
   }
 
+  const references = lignes.flatMap(ligne => referencesDeLigne(table, ligne))
+  if (references.length > 0) {
+    const etrangeres = await referencesEtrangeres(userId, references)
+    if (etrangeres.length > 0) return refus(`Import refusé : ${messageReferences(etrangeres)}. Rien n'a été ajouté.`)
+  }
+
   const { data: inserees, error } = await supabaseAdmin.from(table).insert(lignes).select()
   if (error) throw new ErreurEcriture(error)
   logger.info(`[btp] Import ${table}`, { count: lignes.length, userId })
@@ -406,6 +494,7 @@ export async function POST(request: NextRequest) {
       code: erreurBase?.code,
       error: erreurBase ? erreurBase.message : err instanceof Error ? err.message : err,
     })
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    const message = err instanceof ErreurEcriture && err.messageUtilisateur ? err.messageUtilisateur : 'Erreur serveur'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

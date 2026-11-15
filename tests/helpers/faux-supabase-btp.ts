@@ -49,6 +49,8 @@ export function nouvelId(): string {
 
 interface Resultat { data: unknown; error: ErreurFaux | null; count?: number | null }
 
+const TABLES_SANS_ID = new Set(['equipe_membres_btp', 'settings_btp'])
+
 function constructeur(base: FauxBase, table: string) {
   const entree: EntreeJournal = { table, operation: 'select', filtres: {}, dans: {} }
   base.journal.push(entree)
@@ -76,7 +78,8 @@ function constructeur(base: FauxBase, table: string) {
       }
       case 'insert': {
         const valeurs = (Array.isArray(entree.valeur) ? entree.valeur : [entree.valeur]) as Ligne[]
-        const inserees = valeurs.map(v => ({ id: nouvelId(), ...v }))
+        // Tables sans colonne id (table de liens, réglages par compte) : rien n'est ajouté à la ligne.
+        const inserees = valeurs.map(v => (TABLES_SANS_ID.has(table) ? { ...v } : { id: nouvelId(), ...v }))
         lignes.push(...inserees)
         return { data: inserees.map(l => ({ ...l })), error: null }
       }
