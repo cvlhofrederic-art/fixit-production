@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import Image from 'next/image'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
 import { normalizeForSearch, fuzzyFind } from '@/lib/fuzzy-match'
@@ -100,6 +101,53 @@ const RAPPORT_STATUS_MAP = {
   sous_garantie: { label: '🛡️ Sous garantie', tagClass: 'v22-tag v22-tag-gray' },
 }
 
+/** Ligne de rapports_btp d'un rapport : titre, date, contenu (le reste du rapport), photos liées, statut. */
+function ligneRapport(r: RapportIntervention): Record<string, unknown> {
+  const { id: _id, rapportNumber, interventionDate, linkedPhotoIds, status, ...rest } = r
+  return {
+    titre: rapportNumber || '',
+    date: interventionDate || '',
+    contenu: rest,
+    photos: linkedPhotoIds || [],
+    status: status || 'brouillon',
+  }
+}
+
+// ── Rapports du BTP pro enregistrés dans rapports_btp (constats donnees-btp-13, stockage-local-miroir-14 et
+// base-de-donnees-7 de l'audit du 11/11/2026) ──
+// L'écriture directe de la base, sans propriétaire, était refusée en silence (owner_id obligatoire sans valeur par
+// défaut en production) : la table restait vide. Pour le BTP pro, un NOUVEAU rapport part désormais par /api/btp, qui
+// pose le propriétaire ; l'identifiant renvoyé par la base remplace l'identifiant local, et ses modifications et sa
+// suppression suivent. Les rapports déjà présents dans le navigateur (identifiant local) n'y sont ni envoyés ni
+// modifiés. Le navigateur et son miroir restent la référence : au chargement, la copie en base ne remplace jamais un
+// rapport présent sur l'appareil, elle n'ajoute que ceux qui y manquent.
+const FORMAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MESSAGE_RAPPORT_NON_ENREGISTRE = 'Rapport gardé sur cet appareil : sa copie en ligne n\'a pas pu être enregistrée.'
+const MESSAGE_RAPPORT_NON_MIS_A_JOUR = 'Modification gardée sur cet appareil : la copie en ligne du rapport n\'a pas pu être mise à jour.'
+const MESSAGE_RAPPORT_NON_SUPPRIME = 'Le rapport n\'a pas été supprimé. Réessayez dans un instant.'
+
+/** Rapport présent en base : son identifiant est celui de la base (les identifiants locaux ne sont pas des UUID). */
+const estEnBase = (id: string | undefined) => !!id && FORMAT_UUID.test(id)
+
+/**
+ * Rapports de l'appareil complétés par la base : un rapport de l'appareil n'est jamais remplacé ; un rapport créé ici
+ * dont la réponse du serveur s'est perdue (la base garde son identifiant local dans `idLocal`) prend l'identifiant de
+ * la base au lieu d'apparaître deux fois ; les rapports absents de l'appareil sont ajoutés. null : rien ne change.
+ */
+function completerParLaBase(locaux: RapportIntervention[], enBase: RapportIntervention[]): RapportIntervention[] | null {
+  const idsLocaux = new Set(locaux.map(r => r.id))
+  const idDeLaBase = new Map<string, string>()
+  const ajoutes: RapportIntervention[] = []
+  for (const r of enBase) {
+    if (idsLocaux.has(r.id)) continue
+    const { idLocal, ...rapport } = r as RapportIntervention & { idLocal?: unknown }
+    if (typeof idLocal === 'string' && idsLocaux.has(idLocal)) idDeLaBase.set(idLocal, r.id)
+    else ajoutes.push(rapport)
+  }
+  if (idDeLaBase.size === 0 && ajoutes.length === 0) return null
+  return [...locaux.map(r => (idDeLaBase.has(r.id) ? { ...r, id: idDeLaBase.get(r.id) ?? r.id } : r)), ...ajoutes]
+}
+
 export default function RapportsSection({ artisan, bookings, services, onNavigate, orgRole }: { artisan: Artisan | null; bookings: Booking[]; services: Service[]; onNavigate?: (page: string) => void; orgRole?: string }) {
   const locale = useLocale()
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
@@ -107,6 +155,9 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
   const dateFmtLocale = locale === 'pt' ? 'pt-PT' : 'fr-FR'
   const storageKey = `fixit_rapports_${artisan?.id}`
   const pdfRef = useRef<HTMLDivElement>(null)
+  // BTP pro : nouveaux rapports enregistrés dans rapports_btp par /api/btp (voir ligneRapport plus haut). L'artisan garde
+  // l'écriture d'avant.
+  const enregistrementBTP = orgRole === 'pro_societe'
 
   const [rapports, setRapports] = useState<RapportIntervention[]>([])
 
@@ -140,7 +191,14 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
             status: r.status || contenu.status || 'brouillon',
           } as RapportIntervention
         })
-        if (fromSupabase.length > 0) {
+        if (fromSupabase.length > 0 && enregistrementBTP) {
+          setRapports(prev => {
+            const completes = completerParLaBase(prev, fromSupabase)
+            if (!completes) return prev
+            try { localStorage.setItem(lsKey, JSON.stringify(completes)) } catch (e) { console.warn('[storage] rapports complétés par la base', e) }
+            return completes
+          })
+        } else if (fromSupabase.length > 0) {
           setRapports(prev => {
             // Supabase rows override local rows with same id; local-only rows are kept
             const sbIds = new Set(fromSupabase.map(r => r.id))
@@ -152,7 +210,7 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
         }
       } catch { /* network error — localStorage data already shown */ }
     })()
-  }, [artisan?.id])
+  }, [artisan?.id, enregistrementBTP])
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pdfLoading, setPdfLoading] = useState<string | null>(null)
@@ -337,34 +395,80 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     })()
   }, [artisan?.id])
 
+  const ecrireRapportsLocaux = (liste: RapportIntervention[]) => {
+    try { localStorage.setItem(storageKey, JSON.stringify(liste)) } catch (e) { console.warn('[storage] saveRapports', e) }
+  }
+
   const saveRapports = (updated: RapportIntervention[]) => {
     setRapports(updated)
-    try { localStorage.setItem(storageKey, JSON.stringify(updated)) } catch (e) { console.warn('[storage] saveRapports', e) }
+    ecrireRapportsLocaux(updated)
+    // BTP pro : seul le rapport créé, modifié ou supprimé s'enregistre en base (enregistrerRapportBTP plus bas).
+    if (enregistrementBTP) return
     // Fire-and-forget Supabase sync for each rapport
     ;(async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session?.access_token) return
         for (const r of updated) {
-          const { id, rapportNumber, interventionDate, linkedPhotoIds, status, ...rest } = r
-          const isLocalId = !id || id.startsWith('rap_')
-          const row: Record<string, unknown> = {
-            titre: rapportNumber || '',
-            date: interventionDate || '',
-            contenu: rest,
-            photos: linkedPhotoIds || [],
-            status: status || 'brouillon',
-          }
+          const isLocalId = !r.id || r.id.startsWith('rap_')
+          const row = ligneRapport(r)
           if (isLocalId) {
             // New rapport: insert without id so Supabase generates a UUID
             supabase.from('rapports_btp').insert(row).then(() => {})
           } else {
             // Existing rapport with Supabase UUID: upsert
-            supabase.from('rapports_btp').upsert({ id, ...row }).then(() => {})
+            supabase.from('rapports_btp').upsert({ id: r.id, ...row }).then(() => {})
           }
         }
       } catch { /* fire-and-forget — localStorage remains source of truth on failure */ }
     })()
+  }
+
+  /** POST /api/btp sur rapports_btp (le serveur pose le propriétaire) ; null si la requête n'a pas pu partir. */
+  const ecrireRapportBTP = async (corps: Record<string, unknown>): Promise<Response | null> => {
+    try {
+      return await fetch('/api/btp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+        body: JSON.stringify({ table: 'rapports_btp', ...corps }),
+      })
+    } catch (err) {
+      console.error('[btp] rapport : écriture en ligne impossible :', err)
+      return null
+    }
+  }
+
+  /**
+   * BTP pro : enregistre en base un rapport qu'on vient de créer (identifiant local) ou de modifier (déjà en base).
+   * Un rapport créé avant cette correction (identifiant local, jamais en base) n'est pas envoyé.
+   */
+  const enregistrerRapportBTP = async (r: RapportIntervention, creation: boolean) => {
+    if (!creation && !estEnBase(r.id)) return
+    const ligne = ligneRapport(r)
+    // L'identifiant local, gardé en base, évite un doublon si la réponse du serveur se perd (completerParLaBase).
+    const res = creation
+      ? await ecrireRapportBTP({ action: 'insert', data: { ...ligne, contenu: { ...(ligne.contenu as Record<string, unknown>), idLocal: r.id } } })
+      : await ecrireRapportBTP({ action: 'update', id: r.id, data: ligne })
+    if (!res?.ok) {
+      if (res) console.error(`[btp] rapport refusé (${res.status})`)
+      toast.error(creation ? MESSAGE_RAPPORT_NON_ENREGISTRE : MESSAGE_RAPPORT_NON_MIS_A_JOUR, { id: 'btp-ecriture-rapports' })
+      return
+    }
+    if (!creation) return
+    let idBase: unknown = null
+    try {
+      idBase = ((await res.json()) as { row?: { id?: unknown } }).row?.id
+    } catch (err) {
+      console.warn('[btp] rapport enregistré, réponse illisible : identifiant repris au prochain chargement', err)
+    }
+    if (typeof idBase !== 'string' || !estEnBase(idBase)) return
+    const idEnregistre = idBase
+    setRapports(prev => {
+      const suivants = prev.map(x => (x.id === r.id ? { ...x, id: idEnregistre } : x))
+      ecrireRapportsLocaux(suivants)
+      return suivants
+    })
+    setEditingId(courant => (courant === r.id ? idEnregistre : courant))
   }
 
   const nextNumber = () => {
@@ -516,9 +620,13 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
       linkedPhotoIds: linkedPhotos,
     }
     if (editingId) {
-      saveRapports(rapports.map(r => r.id === editingId ? { ...rapport, id: editingId } : r))
+      const modifie = { ...rapport, id: editingId }
+      saveRapports(rapports.map(r => r.id === editingId ? modifie : r))
+      if (enregistrementBTP) void enregistrerRapportBTP(modifie, false)
     } else {
-      saveRapports([{ ...rapport, id: `rap_${Date.now()}` }, ...rapports])
+      const nouveau = { ...rapport, id: `rap_${Date.now()}` }
+      saveRapports([nouveau, ...rapports])
+      if (enregistrementBTP) void enregistrerRapportBTP(nouveau, true)
     }
     setShowForm(false)
   }
@@ -532,11 +640,31 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
     )
   }
 
+  // BTP pro : un rapport en base n'est retiré de l'appareil qu'une fois supprimé en base (sinon il y resterait et
+  // reviendrait au chargement suivant) ; un refus est annoncé et le rapport reste affiché.
+  const supprimerRapportBTP = async (id: string) => {
+    const res = await ecrireRapportBTP({ action: 'delete', id })
+    if (!res?.ok) {
+      if (res) console.error(`[btp] suppression du rapport refusée (${res.status})`)
+      toast.error(MESSAGE_RAPPORT_NON_SUPPRIME, { id: 'btp-ecriture-rapports' })
+      return
+    }
+    setRapports(prev => {
+      const suivants = prev.filter(r => r.id !== id)
+      ecrireRapportsLocaux(suivants)
+      return suivants
+    })
+  }
+
   const deleteRapport = (id: string) => {
     if (!confirm('Supprimer ce rapport ?')) return
+    if (enregistrementBTP && estEnBase(id)) {
+      void supprimerRapportBTP(id)
+      return
+    }
     saveRapports(rapports.filter(r => r.id !== id))
-    // Fire-and-forget Supabase delete for UUID rows
-    if (id && !id.startsWith('rap_')) {
+    // Fire-and-forget Supabase delete for UUID rows (artisan ; au BTP pro, un rapport sans UUID n'est pas en base)
+    if (!enregistrementBTP && id && !id.startsWith('rap_')) {
       supabase.from('rapports_btp').delete().eq('id', id).then(() => {})
     }
   }
@@ -559,7 +687,10 @@ export default function RapportsSection({ artisan, bookings, services, onNavigat
 
   const markRapportSent = (id: string) => {
     const now = new Date().toISOString()
-    saveRapports(rapports.map(x => x.id === id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x))
+    const suivants = rapports.map(x => x.id === id ? { ...x, sentStatus: 'envoye' as const, sentAt: now } : x)
+    saveRapports(suivants)
+    const envoye = suivants.find(x => x.id === id)
+    if (enregistrementBTP && envoye) void enregistrerRapportBTP(envoye, false)
   }
 
   const fv = (v: string | undefined) => v || ''
