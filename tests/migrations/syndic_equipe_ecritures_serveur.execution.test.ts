@@ -241,6 +241,17 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(etat.fonctions_citant_la_table).toEqual([{ fonction: 'essai_ecrit_equipe(uuid)', security_definer: false }])
     })
 
+    it('la partie 1 voit aussi une écriture par EXECUTE dynamique (seulement parmi les fonctions qui citent la table) et un corps SQL standard (BEGIN ATOMIC)', async () => {
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_dynamique(c uuid) RETURNS void LANGUAGE plpgsql
+        AS $$ BEGIN EXECUTE format('INSERT INTO public.%I (cabinet_id) VALUES ($1)', 'syndic_team_members') USING c; END $$`)
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_atomique(c uuid) RETURNS void LANGUAGE sql
+        BEGIN ATOMIC INSERT INTO public.syndic_team_members (cabinet_id) VALUES (c); END`)
+      const etat = await etatScenario()
+      const noms = (liste: EtatTable['fonctions_citant_la_table']) => (liste ?? []).map((f) => f.fonction).sort(parTexte)
+      expect(noms(etat.fonctions_citant_la_table)).toEqual(['essai_ecrit_atomique(uuid)', 'essai_ecrit_dynamique(uuid)'])
+      expect(noms(etat.fonctions_ecrivant_la_table)).toEqual(['essai_ecrit_atomique(uuid)'])
+    })
+
     it('le scénario de contrôle le voit : partie 1 compte les policies d’écriture, partie 2 signale la faille', async () => {
       const etat = await etatScenario()
       expect(Number(etat.policies_ecriture)).toBe(ecritureAvant)

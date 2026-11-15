@@ -18,10 +18,15 @@
 --   truncate = false ; service_role : tout à true (routes serveur).
 -- Avant comme après : fonctions_ecrivant_la_table = null (aucune fonction SQL n'écrit la table ; si
 --   une fonction apparaît avec security_definer = false, NE PAS appliquer la migration : elle
---   casserait cette fonction pour un client) ; fonctions_citant_la_table : toute fonction qui nomme la
---   table, à relire une à une avant d'appliquer (une écriture par EXECUTE dynamique n'apparaît que
---   là) ; declencheurs : relevé ; proprietaire : le rôle qui doit lancer la migration (celui de
---   l'éditeur SQL, postgres, s'il est propriétaire).
+--   casserait cette fonction pour un client) ; fonctions_citant_la_table : toute fonction dont le corps
+--   nomme la table (corps entre $$ ou corps SQL standard BEGIN ATOMIC), à relire une à une avant
+--   d'appliquer par select pg_get_functiondef('<signature>'::regprocedure); (une requête à la fois :
+--   l'éditeur n'affiche que le dernier résultat ; ne rien recopier d'un corps, qui peut contenir une
+--   clé). Une écriture par EXECUTE dynamique peut n'apparaître que là ; un nom de table construit ou
+--   passé en paramètre échappe aux deux listes. Règle : ne pas appliquer si une fonction écrit la
+--   table, même par EXECUTE, sans être SECURITY DEFINER. declencheurs : relevé ; proprietaire : le rôle
+--   qui doit lancer la migration (celui de l'éditeur SQL, postgres, s'il est propriétaire). Ces champs
+--   ne sortent que des signatures, jamais de corps.
 
 -- 1. État
 select json_build_object(
@@ -44,14 +49,15 @@ select json_build_object(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname not in ('pg_catalog', 'information_schema')
-      and p.prosrc ilike '%syndic_team_members%'),
+      and coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid)) ilike '%syndic_team_members%'),
   'fonctions_ecrivant_la_table', (
     select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef)
                     order by p.oid::regprocedure::text)
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname not in ('pg_catalog', 'information_schema')
-      and p.prosrc ~* '(insert\s+into|update|delete\s+from|truncate)\s+(only\s+)?(public\.)?"?syndic_team_members\M'),
+      and coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid))
+          ~* '(insert\s+into|update|delete\s+from|truncate)\s+(only\s+)?(public\.)?"?syndic_team_members\M'),
   'declencheurs', (
     select json_agg(json_build_object('nom', t.tgname, 'definition', pg_get_triggerdef(t.oid)) order by t.tgname)
     from pg_trigger t
