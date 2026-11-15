@@ -98,7 +98,9 @@ describe('stockage du navigateur plein (QuotaExceededError dès qu’une écritu
     const { isStorageAvailable } = await import('@/lib/safe-storage')
     expect(isStorageAvailable('local')).toBe(false)
 
-    const { pushAllLocalToServer } = await import('@/lib/storage-sync')
+    const { hydrateStorageFromServer, pushAllLocalToServer } = await import('@/lib/storage-sync')
+    // Comme Providers : « tout envoyer » ne part qu'après une restauration qui a trouvé le serveur vide.
+    await expect(hydrateStorageFromServer()).resolves.toMatchObject({ ok: true, vide: true })
     await expect(pushAllLocalToServer()).resolves.toEqual({ count: 2 })
 
     expect(appels('POST')).toHaveLength(1)

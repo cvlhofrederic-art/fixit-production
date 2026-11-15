@@ -10,6 +10,9 @@
 //   4. rien ne part avec le jeton d'un autre compte.
 // Et l'interception elle-même : sur un Storage conforme à la norme (Firefox, jsdom), `localStorage.setItem = …`
 // n'installait rien et déposait une entrée « setItem » ; le remplacement se fait maintenant sur Storage.prototype.
+// Relecture adverse du 14/11/2026 : le nouvel essai d'un envoi en échec relit d'abord le serveur (garantie 2) ; une
+// valeur que le serveur ne parvient pas à enregistrer est mise à part sans bloquer les autres (garantie 3) ; « tout
+// envoyer » ne recopie que les clés du compte et porte lui-même ses conditions (garanties 1 et 4).
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -34,6 +37,9 @@ interface Appel { methode: Methode; compte: string | null; cles: string[] }
 
 const COMPTE_A = '550e8400-e29b-41d4-a716-446655440000'
 const COMPTE_B = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
+/** Fiches des deux comptes : c'est sous l'identifiant de sa fiche que le tableau de bord pro range ses clés. */
+const FICHE_A = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
+const FICHE_B = '9b2d7c1a-5e6f-4a3b-8c9d-1e2f3a4b5c6d'
 const CLE_ETAT = 'vitfix_miroir_etat_v1'
 
 const b64 = (objet: unknown) => btoa(JSON.stringify(objet)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '')
@@ -63,8 +69,14 @@ const serveur = {
   espaces: new Map<string, Record<string, unknown>>(),
   appels: [] as Appel[],
   panne: { GET: null, POST: null, DELETE: null } as Record<Methode, null | number | 'reseau'>,
-  /** Clés que le serveur refuse (400), comme une valeur invalide : tout l'envoi qui en contient une est refusé. */
-  refusees: new Set<string>(),
+  /** Clés que le serveur refuse, avec le statut rendu (400, 413 ou 422) : tout l'envoi qui en contient une est refusé. */
+  refusees: new Map<string, number>(),
+  /** Clés que le serveur ne parvient pas à enregistrer : tout envoi qui en contient une reçoit ce statut (500). */
+  enErreur: new Map<string, number>(),
+  /** Fiches de chaque compte : un espace vide les donne avec l'identifiant du compte, comme la route. */
+  fiches: new Map<string, string[]>(),
+  /** Corps imposé à la réponse des GET (réponse inattendue du serveur), sinon null. */
+  corpsGet: null as unknown,
   /** Permet à un test de retenir une réponse. */
   avantReponse: null as null | ((appel: Appel) => Promise<void> | void),
   espace(compte: string | null): Record<string, unknown> {
@@ -88,9 +100,16 @@ const fauxFetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
   if (panne === 'reseau') throw new TypeError('Failed to fetch')
   if (typeof panne === 'number') return reponse({ error: 'indisponible' }, panne)
   const espace = serveur.espace(compte)
-  if (methode === 'GET') return reponse({ entries: commeLaBase(espace) })
+  if (methode === 'GET') {
+    if (serveur.corpsGet !== null) return reponse(serveur.corpsGet)
+    const identifiants = Object.keys(espace).length === 0 ? { identifiants: [compte, ...(serveur.fiches.get(compte ?? '') ?? [])] } : {}
+    return reponse({ entries: commeLaBase(espace), ...identifiants })
+  }
   if (methode === 'POST') {
-    if (corps.entries!.some(e => serveur.refusees.has(e.key))) return reponse({ error: 'Données invalides' }, 400)
+    const statut = corps.entries!.map(e => serveur.enErreur.get(e.key)).find(s => s !== undefined)
+    if (statut !== undefined) return reponse({ error: 'Erreur lors de la sauvegarde' }, statut)
+    const refus = corps.entries!.map(e => serveur.refusees.get(e.key)).find(s => s !== undefined)
+    if (refus !== undefined) return reponse({ error: 'Données invalides' }, refus)
     for (const e of corps.entries!) espace[e.key] = commeLaBase(e.value)
     return reponse({ success: true })
   }
@@ -123,6 +142,17 @@ async function rechargerLaPage(): Promise<ModuleSync> {
 }
 
 const ecoulerDebounce = () => vi.advanceTimersByTimeAsync(1600)
+/** Nouvel essai programmé après un envoi en échec : le délai, la relecture du serveur, puis l'envoi. */
+async function nouvelEssai(delai = 5000): Promise<void> {
+  await vi.advanceTimersByTimeAsync(delai)
+  await ecoulerDebounce()
+}
+/** L'onglet passe en arrière-plan (sur mobile, il n'y a pas forcément de beforeunload). */
+function cacherLOnglet(): void {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+  document.dispatchEvent(new Event('visibilitychange'))
+  delete (document as unknown as Record<string, unknown>).visibilityState
+}
 const lire = (cle: string) => window.localStorage.getItem(cle)
 const etat = () => JSON.parse(lire(CLE_ETAT) ?? 'null') as { compte: string; comptes: string[]; attente: Record<string, string> } | null
 const originalFetch = globalThis.fetch
@@ -137,6 +167,9 @@ beforeEach(() => {
   serveur.appels = []
   serveur.panne = { GET: null, POST: null, DELETE: null }
   serveur.refusees.clear()
+  serveur.enErreur.clear()
+  serveur.fiches.clear()
+  serveur.corpsGet = null
   serveur.avantReponse = null
   fauxFetch.mockClear()
   ;(globalThis as unknown as { fetch: typeof fetch }).fetch = fauxFetch as unknown as typeof fetch
@@ -301,6 +334,29 @@ describe('garantie 1 — une restauration en échec ne laisse rien partir', () =
     await vi.advanceTimersByTimeAsync(400_000)
     expect(serveur.appels).toEqual([])
   })
+
+  // Relecture du 14/11/2026 : une réponse 200 sans la liste des valeurs était tenue pour « le serveur ne détient
+  // rien », ce qui autorisait « tout envoyer ».
+  it.each([
+    ['sans le champ entries', { success: true }],
+    ['avec entries nul', { entries: null }],
+    ['avec une liste à la place de l’objet', { entries: [] }],
+  ])('une réponse 200 %s n’est pas un serveur vide : restauration en échec, rien ne part', async (_cas, corps) => {
+    serveur.corpsGet = corps
+    window.localStorage.setItem('fixit_clients_a', '[{"id":"local"}]')
+    const sync = await ouvrirLaPage()
+    window.localStorage.setItem('fixit_catalogue_a', '[{"id":"defaut"}]')
+
+    expect(await sync.hydrateStorageFromServer()).toEqual({ count: 0, ok: false, vide: false, autreCompte: false })
+    await ecoulerDebounce()
+    expect(await sync.pushAllLocalToServer()).toEqual({ count: 0 })
+    expect(serveur.de('POST')).toEqual([])
+
+    // Le serveur répond de nouveau normalement : le nouvel essai de restauration (5 s) libère l'envoi.
+    serveur.corpsGet = null
+    await nouvelEssai()
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_catalogue_a: [{ id: 'defaut' }] })
+  })
 })
 
 describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par la restauration suivante', () => {
@@ -328,6 +384,10 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
     serveur.panne.POST = null
     await ecoulerDebounce()
     expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+    // Le nouvel essai qui était programmé n'a plus lieu d'être : le serveur n'est pas relu une fois de plus.
+    const appels = serveur.appels.length
+    await vi.advanceTimersByTimeAsync(400_000)
+    expect(serveur.appels).toHaveLength(appels)
   })
 
   it('un autre appareil a écrit entre-temps : le serveur gagne, la saisie locale n’est pas renvoyée par-dessus', async () => {
@@ -341,6 +401,112 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
     await vi.advanceTimersByTimeAsync(10_000)
     expect(serveur.de('POST')).toHaveLength(1)
     expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 9 }])
+  })
+
+  // Relecture du 14/11/2026 : le nouvel essai d'un envoi en échec repartait sans relire le serveur. Il tombe 5 s après
+  // l'échec, donc avant tout retour sur l'onglet : il écrasait ce qu'un autre appareil venait d'écrire.
+  it('un autre appareil a écrit, puis le nouvel essai d’envoi tombe avant toute restauration : le serveur est relu, il gagne', async () => {
+    await saisirSansReseau()
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }, { id: 9 }]
+    serveur.panne.POST = null
+
+    await nouvelEssai()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 9 }])
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 9 }])
+    expect(serveur.de('POST')).toHaveLength(1)
+    // Plus rien n'attend : aucun autre essai.
+    await vi.advanceTimersByTimeAsync(400_000)
+    expect(serveur.de('POST')).toHaveLength(1)
+
+    // La série d'échecs est close : une nouvelle panne repart du premier délai (5 s).
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 9 }, { id: 3 }]))
+    await ecoulerDebounce()
+    serveur.panne.POST = null
+    await nouvelEssai()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 9 }, { id: 3 }])
+  })
+
+  it('nouvel essai d’envoi, serveur inchangé : il est relu, puis la saisie arrive', async () => {
+    await saisirSansReseau()
+    serveur.panne.POST = null
+    const lectures = serveur.de('GET').length
+
+    await nouvelEssai()
+    expect(serveur.de('GET')).toHaveLength(lectures + 1)
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+
+    // L'envoi a réussi : la série d'échecs est close, une nouvelle panne repart du premier délai (5 s).
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }]))
+    await ecoulerDebounce()
+    serveur.panne.POST = null
+    await nouvelEssai()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+  })
+
+  it('saisie faite juste avant de quitter l’onglet (moins de 3 s) : notée aussitôt, protégée à la visite suivante', async () => {
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    expect(etat()!.attente).toEqual({})
+
+    cacherLOnglet() // sans attendre les 3 s de la note différée
+    await vi.advanceTimersByTimeAsync(0)
+    expect(Object.keys(etat()!.attente)).toEqual([CLIENTS])
+
+    const page = await rechargerLaPage()
+    serveur.panne.POST = null
+    await page.hydrateStorageFromServer()
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }])
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('saisie faite avant une première restauration en échec : notée quand même, protégée après rechargement', async () => {
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    window.localStorage.setItem(CLIENTS, '[{"id":1}]') // à jour depuis une visite précédente
+    serveur.panne.GET = 503
+    const sync = await ouvrirLaPage()
+    // La saisie précède la restauration : à cet instant le miroir ne connaît pas encore le compte.
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    await sync.hydrateStorageFromServer()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(Object.keys(etat()!.attente)).toEqual([CLIENTS])
+
+    const page = await rechargerLaPage()
+    serveur.panne.GET = null
+    await page.hydrateStorageFromServer()
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }])
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('clé supprimée (suppression confirmée) puis recréée ici sans réseau, et recréée entre-temps sur un autre appareil : le serveur gagne', async () => {
+    const NOTE = 'fixit_note_a'
+    serveur.espace(COMPTE_A)[NOTE] = 'x'
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    let liberer: () => void = () => {}
+    serveur.avantReponse = (appel) => (appel.methode === 'DELETE' ? new Promise<void>((ok) => { liberer = ok }) : undefined)
+
+    window.localStorage.removeItem(NOTE)
+    await ecoulerDebounce() // suppression partie, réponse pas encore arrivée
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem(NOTE, 'y') // recréée ici pendant l'appel
+    liberer() // la suppression est confirmée : le serveur ne détient plus rien pour cette clé
+    await ecoulerDebounce() // l'envoi de la nouvelle valeur échoue
+    expect(serveur.espace(COMPTE_A)).toEqual({})
+
+    // Un autre appareil recrée la clé, avec la valeur d'avant la suppression.
+    serveur.espace(COMPTE_A)[NOTE] = 'x'
+    serveur.panne.POST = null
+    await nouvelEssai()
+    // Ce que cet appareil savait du serveur, c'est « plus rien » : il détient maintenant autre chose, il gagne.
+    expect(lire(NOTE)).toBe('x')
+    expect(serveur.espace(COMPTE_A)[NOTE]).toBe('x')
   })
 
   it('après un rechargement de la page : la note gardée dans le navigateur protège la saisie, puis s’efface', async () => {
@@ -498,8 +664,9 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
 })
 
 describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne bloque pas les autres', () => {
-  it('une valeur refusée (400) dans un envoi groupé : les autres arrivent quand même, et rien ne boucle', async () => {
-    serveur.refusees.add('fixit_piece_invalide_a')
+  // 422 : c'est ce que répond la route quand la base refuse le contenu d'une valeur (relecture du 14/11/2026).
+  it.each([400, 413, 422])('une valeur refusée (%i) dans un envoi groupé : les autres arrivent quand même, et rien ne boucle', async (statut) => {
+    serveur.refusees.set('fixit_piece_invalide_a', statut)
     const sync = await ouvrirLaPage()
     await sync.hydrateStorageFromServer()
 
@@ -508,7 +675,7 @@ describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne
     window.localStorage.setItem('fixit_depenses_a', '[2]')
     await ecoulerDebounce()
 
-    // Avant : le 400 faisait perdre en silence les trois valeurs.
+    // Avant : le refus faisait perdre en silence les trois valeurs.
     expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_depenses_a: [2] })
     expect(serveur.de('POST').map(a => a.cles)).toEqual([
       ['fixit_clients_a', 'fixit_piece_invalide_a', 'fixit_depenses_a'],
@@ -522,6 +689,18 @@ describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne
     expect(serveur.de('POST')).toHaveLength(4) // la valeur refusée n'est pas renvoyée en boucle
   })
 
+  it('valeur trop volumineuse pour le serveur : jamais envoyée, signalée, et les autres partent', async () => {
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    // Au-delà de ce que le stockage de test accepte : le cœur du miroir est appelé comme le ferait l'interception.
+    sync.enregistrerEcritureMiroir('fixit_piece_enorme_a', JSON.stringify({ d: 'x'.repeat(5_000_001) }), null)
+    window.localStorage.setItem('fixit_clients_a', '[1]')
+    await ecoulerDebounce()
+
+    expect(serveur.de('POST').map(a => a.cles)).toEqual([['fixit_clients_a']])
+    expect(vi.mocked(console.warn).mock.calls.flat().join(' ')).toContain('fixit_piece_enorme_a')
+  })
+
   it('une suppression en échec (500) est retentée seule', async () => {
     serveur.espace(COMPTE_A).fixit_note_a = 'x'
     const sync = await ouvrirLaPage()
@@ -532,8 +711,34 @@ describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne
     expect(serveur.espace(COMPTE_A)).toEqual({ fixit_note_a: 'x' })
 
     serveur.panne.DELETE = null
-    await vi.advanceTimersByTimeAsync(5000)
+    await nouvelEssai()
     expect(serveur.espace(COMPTE_A)).toEqual({})
+  })
+
+  // Relecture du 14/11/2026 : la suppression en échec était remise en attente même si la clé avait été recréée et
+  // enregistrée entre-temps ; son nouvel essai effaçait alors du serveur une valeur présente dans le navigateur.
+  it('suppression en échec alors que la clé a été recréée et enregistrée entre-temps : elle n’est pas retentée', async () => {
+    serveur.espace(COMPTE_A).fixit_note_a = 'x'
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    let liberer: () => void = () => {}
+    serveur.avantReponse = (appel) => (appel.methode === 'DELETE' ? new Promise<void>((ok) => { liberer = ok }) : undefined)
+
+    window.localStorage.removeItem('fixit_note_a')
+    await ecoulerDebounce() // suppression partie, réponse retenue
+    window.localStorage.setItem('fixit_note_a', '"recréée"')
+    await ecoulerDebounce() // la nouvelle valeur est enregistrée
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_note_a: 'recréée' })
+    serveur.panne.DELETE = 503
+    liberer() // la suppression revient en erreur
+    await vi.advanceTimersByTimeAsync(0)
+    serveur.panne.DELETE = null
+    const appels = serveur.appels.length
+
+    await vi.advanceTimersByTimeAsync(400_000)
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_note_a: 'recréée' })
+    expect(lire('fixit_note_a')).toBe('"recréée"')
+    expect(serveur.appels).toHaveLength(appels) // plus rien à retenter : ni suppression, ni relecture du serveur
   })
 
   it('plus de 50 suppressions : découpées comme le serveur l’exige', async () => {
@@ -560,6 +765,294 @@ describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne
     await vi.advanceTimersByTimeAsync(5000)
     expect(serveur.de('POST')).toHaveLength(2)
     expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1, 2, 3] })
+  })
+
+  it('le retour du réseau n’attend pas le nouvel essai programmé : le serveur est relu aussitôt, puis l’envoi repart', async () => {
+    serveur.espace(COMPTE_A).fixit_clients_a = [1]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem('fixit_clients_a', '[1,2]')
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await nouvelEssai(15_000) // trois échecs : le prochain essai est dans une minute
+    expect(serveur.de('POST')).toHaveLength(3)
+
+    serveur.panne.POST = null
+    window.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(0)
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1, 2] })
+    // L'essai programmé n'a plus lieu d'être.
+    const appels = serveur.appels.length
+    await vi.advanceTimersByTimeAsync(400_000)
+    expect(serveur.appels).toHaveLength(appels)
+  })
+
+  it('onglet fermé avant le délai d’envoi : ce qui attend part aussitôt, par un envoi qui survit à la fermeture', async () => {
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    window.localStorage.setItem('fixit_clients_a', '[1]')
+    window.dispatchEvent(new Event('beforeunload'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+    expect(fauxFetch.mock.calls[fauxFetch.mock.calls.length - 1][1]).toMatchObject({ method: 'POST', keepalive: true })
+  })
+
+  it('onglet fermé pendant une panne d’envoi : rien ne repart sans relecture du serveur, et ce qui attend est noté', async () => {
+    serveur.espace(COMPTE_A).fixit_clients_a = [1]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.panne.POST = 'reseau'
+    window.localStorage.setItem('fixit_clients_a', '[1,2]')
+    await ecoulerDebounce() // envoi en échec, nouvel essai programmé
+    expect(etat()!.attente).toEqual({})
+
+    serveur.panne.POST = null
+    window.dispatchEvent(new Event('beforeunload'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(serveur.de('POST')).toHaveLength(1)
+    expect(Object.keys(etat()!.attente)).toEqual(['fixit_clients_a'])
+
+    // Visite suivante : le serveur est relu, il détient toujours la valeur d'avant, la saisie part.
+    const page = await rechargerLaPage()
+    await page.hydrateStorageFromServer()
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1, 2] })
+  })
+
+  it('serveur en panne pour tout (500) : rien n’est mis à part, pas de martèlement, tout arrive à son retour', async () => {
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.panne.POST = 500
+    for (let i = 1; i <= 6; i++) window.localStorage.setItem(`fixit_liste_${i}`, `[${i}]`)
+    await ecoulerDebounce() // envoi groupé : 500
+    await nouvelEssai() // encore 500 ; un par un, trois échecs sans un seul succès : c'est le serveur, la série s'arrête
+    expect(serveur.de('POST').map(a => a.cles.length)).toEqual([6, 6, 1, 1, 1])
+
+    serveur.panne.POST = null
+    await nouvelEssai(15_000)
+    expect(Object.keys(serveur.espace(COMPTE_A))).toHaveLength(6)
+    // Rien n'a été mis à part : plus aucun envoi ensuite.
+    const envois = serveur.de('POST').length
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(serveur.de('POST')).toHaveLength(envois)
+
+    // Tout est arrivé : plus aucune clé n'est tenue pour en échec. Une nouvelle panne repart d'un seul envoi groupé.
+    serveur.panne.POST = 500
+    window.localStorage.setItem('fixit_liste_1', '[10]')
+    window.localStorage.setItem('fixit_liste_4', '[40]')
+    await ecoulerDebounce()
+    expect(serveur.de('POST').slice(envois).map(a => a.cles.length)).toEqual([2])
+  })
+
+  it.each([429, 401])('envois refusés par une réponse %i (limite de débit, jeton) : jamais d’envois un par un, rien n’est mis à part', async (statut) => {
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.panne.POST = statut
+    for (let i = 1; i <= 6; i++) window.localStorage.setItem(`fixit_liste_${i}`, `[${i}]`)
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await nouvelEssai(15_000)
+    expect(serveur.de('POST').map(a => a.cles.length)).toEqual([6, 6, 6])
+
+    serveur.panne.POST = null
+    await nouvelEssai(60_000)
+    expect(serveur.de('POST').map(a => a.cles.length)).toEqual([6, 6, 6, 6])
+    expect(Object.keys(serveur.espace(COMPTE_A))).toHaveLength(6)
+  })
+
+  it('un envoi en échec n’empêche pas le suivant de partir : une valeur qui ne passe pas ne retient pas les autres lots', async () => {
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    // 60 clés : deux envois (50 puis 10). Le premier, qui contient la première clé, n'aboutit jamais.
+    serveur.avantReponse = (appel) => {
+      if (appel.methode === 'POST' && appel.cles.includes('fixit_cle_0')) throw new TypeError('Failed to fetch')
+    }
+    for (let i = 0; i < 60; i++) window.localStorage.setItem(`fixit_cle_${i}`, String(i))
+    await ecoulerDebounce()
+
+    expect(serveur.de('POST').map(a => a.cles.length)).toEqual([50, 10])
+    expect(Object.keys(serveur.espace(COMPTE_A))).toHaveLength(10)
+  })
+
+  it('le retour du réseau envoie aussitôt ce qui attendait sans avoir échoué', async () => {
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    connecter(null) // session momentanément illisible : l'envoi ne peut pas partir
+    window.localStorage.setItem('fixit_clients_a', '[1]')
+    await ecoulerDebounce()
+    expect(serveur.de('POST')).toEqual([])
+
+    connecter(COMPTE_A)
+    window.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+  })
+
+  // Relecture du 14/11/2026 : une valeur que la base ne parvient pas à enregistrer (réponse 500, pas 400) faisait
+  // échouer sans fin tout l'envoi groupé, et les saisies suivantes rejoignaient le même envoi : plus rien n'était
+  // sauvegardé pour ce compte sur ce navigateur, rechargement compris.
+  describe('valeur que le serveur ne parvient pas à enregistrer (500 à chaque envoi qui la contient)', () => {
+    const EN_CAUSE = 'fixit_piece_illisible_a'
+    const envoisDeLaValeurEnCause = () => serveur.de('POST').filter(a => a.cles.includes(EN_CAUSE))
+
+    /** Une valeur en cause et une saisie légitime dans le même envoi ; la première est mise à part au second échec. */
+    async function mettreAPart(): Promise<ModuleSync> {
+      serveur.enErreur.set(EN_CAUSE, 500)
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+      window.localStorage.setItem(EN_CAUSE, '"x"')
+      window.localStorage.setItem('fixit_clients_a', '[1]')
+      await ecoulerDebounce() // envoi groupé : 500
+      expect(serveur.espace(COMPTE_A)).toEqual({})
+      await nouvelEssai() // encore 500 : les valeurs repartent une par une
+      return sync
+    }
+
+    it('les autres valeurs du même envoi arrivent, et les saisies suivantes partent normalement', async () => {
+      await mettreAPart()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+      expect(lire(EN_CAUSE)).toBe('"x"') // elle reste dans le navigateur
+      expect(vi.mocked(console.warn).mock.calls.flat().join(' ')).toContain(EN_CAUSE)
+
+      await vi.advanceTimersByTimeAsync(600_000)
+      const envoisDeLaValeur = envoisDeLaValeurEnCause().length
+      window.localStorage.setItem('fixit_depenses_a', '[9]')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_depenses_a: [9] })
+      expect(envoisDeLaValeurEnCause()).toHaveLength(envoisDeLaValeur) // une sauvegarde ordinaire ne la renvoie pas
+    })
+
+    it('elle n’est retentée que seule et de loin en loin : pas de boucle d’envois', async () => {
+      await mettreAPart()
+      expect(envoisDeLaValeurEnCause()).toHaveLength(3) // deux envois groupés, puis un envoi seule
+      const appels = serveur.appels.length
+
+      await vi.advanceTimersByTimeAsync(3_600_000)
+      // En une heure : un essai au bout de 5 min, un autre 30 min plus tard. Chacun relit le serveur puis l'envoie
+      // seule ; son échec ne déclenche ni nouvel essai rapproché ni autre relecture.
+      const depuis = serveur.appels.slice(appels)
+      expect(depuis.map(a => a.methode)).toEqual(['GET', 'POST', 'GET', 'POST'])
+      expect(depuis.filter(a => a.methode === 'POST').map(a => a.cles)).toEqual([[EN_CAUSE], [EN_CAUSE]])
+    })
+
+    it('si le serveur finit par l’accepter, elle arrive à son essai suivant', async () => {
+      await mettreAPart()
+      serveur.enErreur.clear()
+      await nouvelEssai(300_000)
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], [EN_CAUSE]: 'x' })
+      // Plus rien n'est à part : aucun autre envoi.
+      const envois = serveur.de('POST').length
+      await vi.advanceTimersByTimeAsync(3_600_000)
+      expect(serveur.de('POST')).toHaveLength(envois)
+    })
+
+    it('à son essai le serveur est relu d’abord : écrite entre-temps sur un autre appareil, elle n’est pas renvoyée par-dessus', async () => {
+      await mettreAPart()
+      serveur.espace(COMPTE_A)[EN_CAUSE] = 'écrite ailleurs'
+      serveur.enErreur.clear()
+      const envois = serveur.de('POST').length
+
+      await nouvelEssai(300_000)
+      expect(lire(EN_CAUSE)).toBe('écrite ailleurs')
+      expect(serveur.espace(COMPTE_A)[EN_CAUSE]).toBe('écrite ailleurs')
+      expect(serveur.de('POST')).toHaveLength(envois)
+    })
+
+    it('reprise du serveur à un retour sur l’onglet, elle redevient une clé ordinaire : sa saisie suivante part sans délai', async () => {
+      const sync = await mettreAPart()
+      serveur.espace(COMPTE_A)[EN_CAUSE] = 'écrite ailleurs'
+      serveur.enErreur.clear()
+      await sync.hydrateStorageFromServer() // retour sur l'onglet : le serveur gagne
+      expect(lire(EN_CAUSE)).toBe('écrite ailleurs')
+
+      window.localStorage.setItem(EN_CAUSE, '"y"')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)[EN_CAUSE]).toBe('y')
+    })
+
+    it.each(['reseau', 429] as const)('son essai tombe pendant une panne (%s) : elle est reprise au nouvel essai, pas une demi-heure plus tard', async (panne) => {
+      await mettreAPart()
+      serveur.enErreur.clear()
+      serveur.panne.POST = panne
+      await nouvelEssai(300_000) // son essai : le serveur est relu, mais l'envoi ne passe pas
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+
+      serveur.panne.POST = null
+      await nouvelEssai()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], [EN_CAUSE]: 'x' })
+    })
+
+    it('après un rechargement de la page, elle ne bloque pas davantage la saisie suivante', async () => {
+      await mettreAPart()
+      await vi.advanceTimersByTimeAsync(3000) // la note de la valeur en attente est écrite
+      const page = await rechargerLaPage()
+      await page.hydrateStorageFromServer()
+      window.localStorage.setItem('fixit_autre_a', '"saisie après rechargement"')
+      await ecoulerDebounce()
+      await nouvelEssai()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_autre_a: 'saisie après rechargement' })
+    })
+
+    it('trois valeurs en cause et une saisie légitime : la saisie passe quand même, et elles sont mises à part', async () => {
+      const toutes = [EN_CAUSE, 'fixit_piece_illisible_b', 'fixit_piece_illisible_c']
+      for (const cle of toutes) serveur.enErreur.set(cle, 500)
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+      for (const cle of toutes) window.localStorage.setItem(cle, '"x"')
+      await ecoulerDebounce() // envoi groupé : 500
+      await nouvelEssai() // une par une : trois échecs, rien ne passe — le serveur est tenu pour en panne
+
+      window.localStorage.setItem('fixit_clients_a', '[1]')
+      await nouvelEssai(15_000) // la saisie, jamais en échec, part en tête : le serveur répond, ce sont les trois autres
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+      window.localStorage.setItem('fixit_depenses_a', '[9]')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_depenses_a: [9] })
+    })
+
+    it('volumineuse au point d’être seule dans son envoi : mise à part dès qu’une autre valeur passe pendant qu’elle échoue', async () => {
+      const PIECE = 'fixit_piece_lourde_a'
+      const envoisDeLaPiece = () => serveur.de('POST').filter(a => a.cles.includes(PIECE))
+      serveur.enErreur.set(PIECE, 500)
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+      window.localStorage.setItem(PIECE, JSON.stringify('p'.repeat(4_100_000))) // au-delà de 4 Mo : un envoi à elle seule
+      window.localStorage.setItem('fixit_clients_a', '[1]')
+      await ecoulerDebounce() // deux envois : la pièce (500), puis la liste, qui passe
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+      await nouvelEssai() // la pièce échoue de nouveau et rien d'autre ne part : rien ne dit que ce n'est pas le serveur
+
+      window.localStorage.setItem('fixit_depenses_a', '[9]')
+      await nouvelEssai(15_000) // la pièce échoue encore, la dépense passe dans le même envoi : c'est donc la pièce
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_depenses_a: [9] })
+      expect(envoisDeLaPiece()).toHaveLength(3)
+
+      // Mise à part : la saisie suivante part sans attendre, et la pièce n'est pas renvoyée avec elle.
+      window.localStorage.setItem('fixit_autre_a', '"suite"')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_depenses_a: [9], fixit_autre_a: 'suite' })
+      expect(envoisDeLaPiece()).toHaveLength(3)
+    })
+
+    it('seule dans son envoi : la première saisie qui la rejoint passe, et elle est mise à part', async () => {
+      serveur.enErreur.set(EN_CAUSE, 500)
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+      window.localStorage.setItem(EN_CAUSE, '"x"')
+      await ecoulerDebounce()
+      await nouvelEssai()
+      await nouvelEssai(15_000) // trois échecs, seule : rien ne dit encore si c'est elle ou le serveur
+
+      window.localStorage.setItem('fixit_clients_a', '[1]')
+      await nouvelEssai(60_000)
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+      // Mise à part : la saisie suivante n'attend plus aucun délai.
+      window.localStorage.setItem('fixit_depenses_a', '[9]')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], fixit_depenses_a: [9] })
+    })
   })
 })
 
@@ -601,6 +1094,57 @@ describe('garantie 4 — rien ne part avec le jeton d’un autre compte', () => 
     window.localStorage.setItem('fixit_theme_x', '"sombre"')
     await ecoulerDebounce()
     expect(serveur.espace(COMPTE_B)).toEqual({ fixit_theme_x: 'sombre' })
+  })
+
+  it('envois un par un du compte A interrompus par l’arrivée du compte B : la suite ne part pas, le suivi de B n’est pas faussé', async () => {
+    serveur.refusees.set('fixit_piece_invalide_a', 400)
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    let liberer: () => void = () => {}
+    // Le deuxième POST est le premier envoi « seul » : le premier, groupé, est refusé en bloc.
+    serveur.avantReponse = (appel) =>
+      (appel.methode === 'POST' && serveur.de('POST').length === 2 ? new Promise<void>((ok) => { liberer = ok }) : undefined)
+    window.localStorage.setItem('fixit_theme_x', '"sombre"')
+    window.localStorage.setItem('fixit_piece_invalide_a', '"x"')
+    window.localStorage.setItem('fixit_langue_x', '"fr"')
+    await ecoulerDebounce() // envoi groupé refusé, premier envoi seul en cours
+
+    connecter(COMPTE_B)
+    expect((await sync.hydrateStorageFromServer()).ok).toBe(true)
+    liberer()
+    await vi.advanceTimersByTimeAsync(0)
+    // Les deux valeurs suivantes ne partent pas : elles appartenaient à l'envoi du compte A.
+    expect(serveur.de('POST').map(a => [a.compte, a.cles])).toEqual([
+      [COMPTE_A, ['fixit_theme_x', 'fixit_piece_invalide_a', 'fixit_langue_x']],
+      [COMPTE_A, ['fixit_theme_x']],
+    ])
+
+    // B enregistre le même réglage : il doit partir dans SON espace, pas être tenu pour « déjà synchronisé ».
+    window.localStorage.setItem('fixit_theme_x', '"sombre"')
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_B)).toEqual({ fixit_theme_x: 'sombre' })
+  })
+
+  it('une valeur mise à part pour le compte A ne l’est pas pour le compte B, qui se connecte dans la même page', async () => {
+    serveur.enErreur.set('fixit_reglage_x', 500)
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    window.localStorage.setItem('fixit_reglage_x', '"a"')
+    window.localStorage.setItem('fixit_clients_a', '[1]')
+    await ecoulerDebounce()
+    await nouvelEssai() // chez A, le serveur n'enregistre pas ce réglage : il est mis à part
+    expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1] })
+
+    serveur.enErreur.clear()
+    connecter(COMPTE_B)
+    expect((await sync.hydrateStorageFromServer()).ok).toBe(true)
+    window.localStorage.setItem('fixit_reglage_x', '"b"')
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_B)).toEqual({ fixit_reglage_x: 'b' })
+    // Et l'essai différé qui attendait pour le compte A n'a plus lieu.
+    const appels = serveur.appels.length
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(serveur.appels).toHaveLength(appels)
   })
 
   it('le compte B enregistre une valeur que le compte A avait déjà synchronisée : elle part dans son espace', async () => {
@@ -675,5 +1219,126 @@ describe('garantie 4 — rien ne part avec le jeton d’un autre compte', () => 
     expect((await restaurationDeA).ok).toBe(false)
     expect(lire('fixit_secret_de_a')).toBeNull()
     expect(lire('fixit_donnee_de_b')).toBe('B')
+  })
+
+  // Relecture du 14/11/2026 : « ce navigateur a servi à un autre compte » n'était connu que par l'état du miroir, donc
+  // seulement après le passage de deux comptes ; et les conditions vivaient dans Providers, pas dans la fonction.
+  describe('« tout envoyer » (premier passage d’un compte dont le serveur ne détient rien)', () => {
+    const DOCUMENTS_DE_A = `fixit_documents_${FICHE_A}`
+    const DOCUMENTS_DE_B = `fixit_documents_${FICHE_B}`
+    const MENU = 'fixit_modules_categories_v3' // clé sans identifiant, commune au navigateur
+
+    it('navigateur sans état du miroir où un autre compte a travaillé : ses clés ne sont pas recopiées dans l’espace du nouveau', async () => {
+      // Ce que le compte A a laissé avant ce correctif : ni état du miroir, ni drapeau de migration.
+      window.localStorage.setItem(DOCUMENTS_DE_A, JSON.stringify([{ id: 'devis-de-A' }]))
+      window.localStorage.setItem(`fixit_manual_clients_${FICHE_A}`, JSON.stringify([{ nom: 'client de A' }]))
+      window.localStorage.setItem(`fixit_devis_synced_v1_${COMPTE_A}`, '2026-10-01T08:00:00.000Z')
+      window.localStorage.setItem(MENU, '{"ordre":["devis"]}')
+      // Et ce que le compte B y a déjà rangé lui-même, sous sa fiche.
+      window.localStorage.setItem(DOCUMENTS_DE_B, JSON.stringify([{ id: 'devis-de-B' }]))
+      serveur.fiches.set(COMPTE_B, [FICHE_B])
+      connecter(COMPTE_B)
+      const sync = await ouvrirLaPage()
+      // Tout ce que Providers vérifie est réuni : restauration réussie, serveur vide, aucun autre compte connu.
+      expect(await sync.hydrateStorageFromServer()).toEqual({ count: 0, ok: true, vide: true, autreCompte: false })
+
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 1 })
+      expect(serveur.espace(COMPTE_B)).toEqual({ [DOCUMENTS_DE_B]: [{ id: 'devis-de-B' }] })
+      // Rien n'est retiré du navigateur : les données de A y restent, pour A.
+      expect(JSON.parse(lire(DOCUMENTS_DE_A)!)).toEqual([{ id: 'devis-de-A' }])
+    })
+
+    it('compte seul sur son navigateur : ses clés et les clés sans identifiant partent, comme avant', async () => {
+      window.localStorage.setItem(DOCUMENTS_DE_A, JSON.stringify([{ id: 'devis-de-A' }]))
+      window.localStorage.setItem(`fixit_syndic_immeubles_${COMPTE_A}`, '[]')
+      window.localStorage.setItem(MENU, '{"ordre":["devis"]}')
+      serveur.fiches.set(COMPTE_A, [FICHE_A])
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 3 })
+      expect(serveur.espace(COMPTE_A)).toEqual({
+        [DOCUMENTS_DE_A]: [{ id: 'devis-de-A' }],
+        [`fixit_syndic_immeubles_${COMPTE_A}`]: [],
+        [MENU]: { ordre: ['devis'] },
+      })
+    })
+
+    it('le serveur ne donne aucun identifiant (réponse d’une version précédente) : seules les clés à l’identifiant du compte partent', async () => {
+      window.localStorage.setItem(DOCUMENTS_DE_A, JSON.stringify([{ id: 'devis-de-A' }]))
+      window.localStorage.setItem(`fixit_syndic_immeubles_${COMPTE_A}`, '[]')
+      window.localStorage.setItem(MENU, '{"ordre":["devis"]}')
+      // Aucune fiche annoncée : rien ne dit que DOCUMENTS_DE_A appartient à ce compte.
+      serveur.corpsGet = { entries: {} }
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 1 })
+      expect(serveur.espace(COMPTE_A)).toEqual({ [`fixit_syndic_immeubles_${COMPTE_A}`]: [] })
+    })
+
+    it('après un envoi en échec, « tout envoyer » attend lui aussi que le serveur ait été relu', async () => {
+      window.localStorage.setItem('fixit_depenses_a', '[{"id":"locale"}]')
+      const sync = await ouvrirLaPage()
+      expect((await sync.hydrateStorageFromServer()).vide).toBe(true)
+      serveur.panne.POST = 'reseau'
+      window.localStorage.setItem('fixit_clients_a', '[1]')
+      await ecoulerDebounce() // envoi en échec
+      serveur.panne.POST = null
+
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 0 })
+      expect(serveur.de('POST')).toHaveLength(1)
+    })
+
+    it('navigateur déjà utilisé par un autre compte d’après l’état du miroir : les clés sans identifiant ne partent pas non plus', async () => {
+      const pageDeA = await ouvrirLaPage()
+      await pageDeA.hydrateStorageFromServer() // le compte A est passé par ce navigateur : l'état du miroir s'en souvient
+      pageDeA.reinitialiserMiroirPourTests()
+      window.localStorage.setItem(MENU, '{"ordre":["factures"]}')
+      window.localStorage.setItem(`fixit_syndic_immeubles_${COMPTE_B}`, '[{"nom":"immeuble de B"}]')
+
+      connecter(COMPTE_B)
+      const page = await rechargerLaPage()
+      expect((await page.hydrateStorageFromServer()).autreCompte).toBe(true)
+      expect(await page.pushAllLocalToServer()).toEqual({ count: 1 })
+      expect(serveur.espace(COMPTE_B)).toEqual({ [`fixit_syndic_immeubles_${COMPTE_B}`]: [{ nom: 'immeuble de B' }] })
+    })
+
+    it('la garde est dans la fonction : rien ne part sans restauration réussie, ni quand le serveur détient déjà des valeurs', async () => {
+      window.localStorage.setItem('fixit_clients_a', '[{"id":"local"}]')
+      window.localStorage.setItem('fixit_depenses_a', '[{"id":"locale"}]')
+      const sync = await ouvrirLaPage()
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 0 }) // aucune restauration encore
+
+      serveur.panne.GET = 500
+      await sync.hydrateStorageFromServer()
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 0 }) // restauration en échec
+
+      serveur.panne.GET = null
+      serveur.espace(COMPTE_A).fixit_clients_a = [{ id: 'serveur' }]
+      expect((await sync.hydrateStorageFromServer()).vide).toBe(false)
+      expect(await sync.pushAllLocalToServer()).toEqual({ count: 0 }) // le serveur détient déjà des valeurs
+      expect(serveur.de('POST')).toEqual([])
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [{ id: 'serveur' }] })
+    })
+
+    it('un autre compte se connecte pendant l’envoi : la suite ne part pas', async () => {
+      for (let i = 0; i < 60; i++) window.localStorage.setItem(`fixit_cle_${i}`, String(i))
+      const sync = await ouvrirLaPage()
+      expect((await sync.hydrateStorageFromServer()).vide).toBe(true)
+      let liberer: () => void = () => {}
+      serveur.avantReponse = (appel) =>
+        (appel.methode === 'POST' && serveur.de('POST').length === 1 ? new Promise<void>((ok) => { liberer = ok }) : undefined)
+
+      const envoi = sync.pushAllLocalToServer()
+      await vi.advanceTimersByTimeAsync(0) // premier envoi (50 clés) parti, réponse retenue
+      connecter(COMPTE_B)
+      await sync.hydrateStorageFromServer() // le compte B arrive pendant l'envoi du compte A
+      liberer()
+
+      expect(await envoi).toEqual({ count: 0 })
+      // Les 10 clés restantes ne partent pas, ni pour A ni pour B.
+      expect(serveur.de('POST').map(a => [a.compte, a.cles.length])).toEqual([[COMPTE_A, 50]])
+    })
   })
 })

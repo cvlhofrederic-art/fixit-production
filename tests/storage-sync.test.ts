@@ -39,7 +39,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules() // reimport propre du module a chaque test (le singleton `installed`)
   mockGetSession.mockResolvedValue(validSession())
-  mockFetch.mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }))
+  // Par défaut le serveur ne détient rien (GET) et accepte tout (POST, DELETE). Une réponse neuve à chaque appel :
+  // le corps d'une Response ne se lit qu'une fois. Une réponse sans `entries` n'est plus tenue pour un serveur vide.
+  mockFetch.mockImplementation(async (_url: unknown, init?: RequestInit) =>
+    new Response(JSON.stringify(!init?.method || init.method === 'GET' ? { entries: {} } : { success: true }), { status: 200 }))
   ;(globalThis as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
   if (typeof window !== 'undefined') {
     window.localStorage.clear()
@@ -101,6 +104,8 @@ describe('storage-sync — hydratation', () => {
   })
 })
 
+// Relecture du 14/11/2026 : « tout envoyer » porte lui-même ses conditions. Il ne part qu'après une restauration qui a
+// trouvé le serveur vide : les tests la font d'abord, comme Providers.
 describe('storage-sync — push initial', () => {
   it('pushAllLocalToServer envoie toutes les cles fixit_* en batch', async () => {
     window.localStorage.setItem('fixit_absences_abc', JSON.stringify([{ date: '2026-01-15' }]))
@@ -109,7 +114,8 @@ describe('storage-sync — push initial', () => {
     // Flag de migration : ignore par shouldSync
     window.localStorage.setItem('fixit_user_storage_migrated_v1', 'flag')
 
-    const { pushAllLocalToServer } = await import('@/lib/storage-sync')
+    const { hydrateStorageFromServer, pushAllLocalToServer } = await import('@/lib/storage-sync')
+    await hydrateStorageFromServer()
     await pushAllLocalToServer()
 
     const postCall = mockFetch.mock.calls.find(c => c[1]?.method === 'POST')
@@ -140,7 +146,8 @@ describe('storage-sync — push initial', () => {
     }
     Object.defineProperty(window, 'localStorage', { value: proxy, configurable: true })
 
-    const { pushAllLocalToServer } = await import('@/lib/storage-sync')
+    const { hydrateStorageFromServer, pushAllLocalToServer } = await import('@/lib/storage-sync')
+    await hydrateStorageFromServer()
     await pushAllLocalToServer()
 
     const postCall = mockFetch.mock.calls.find(c => c[1]?.method === 'POST')
@@ -192,7 +199,8 @@ describe('storage-sync — authentification via cookies SSR (régression base cl
     // elle existe en prod. Le flush doit récupérer CE token, pas null.
     window.localStorage.setItem('fixit_clients_abc', JSON.stringify([{ id: 1, name: 'X' }]))
 
-    const { pushAllLocalToServer } = await import('@/lib/storage-sync')
+    const { hydrateStorageFromServer, pushAllLocalToServer } = await import('@/lib/storage-sync')
+    await hydrateStorageFromServer()
     await pushAllLocalToServer()
 
     const postCall = mockFetch.mock.calls.find(c => c[1]?.method === 'POST')

@@ -8,6 +8,8 @@
 //   - un aller-retour A → B → A n'envoie jamais B, y compris pendant le POST de B (réussi ou en échec).
 // Audit des fondations du 11/11/2026 : rien ne part avant une restauration réussie (les tests « amorcent » donc le
 // miroir comme le fait Providers), une restauration en échec est retentée seule, un envoi en échec aussi.
+// Relecture du 14/11/2026 : le nouvel essai d'un envoi relit d'abord le serveur (une lecture, puis l'envoi 1,5 s plus
+// tard), et une réponse sans la liste des valeurs n'est plus tenue pour un serveur vide.
 // Le cœur du miroir (enregistrerEcritureMiroir, appelé par le setItem intercepté) est appelé directement, avec la
 // valeur d'avant l'écriture ; l'interception elle-même est couverte par tests/storage-sync-garanties.test.ts.
 
@@ -19,12 +21,16 @@ vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: mockGetSessio
 const originalFetch = globalThis.fetch
 const mockFetch = vi.fn()
 const FAKE_TOKEN = 'jeton-de-test'
+const reponse = (contenu: unknown, status = 200) => new Response(JSON.stringify(contenu), { status })
+const estUnGet = (init?: RequestInit) => !init?.method || init.method === 'GET'
+/** Serveur par défaut : il ne détient rien (GET) et accepte tout (POST, DELETE). */
+const reponseParDefaut = (init?: RequestInit) => reponse(estUnGet(init) ? { entries: {} } : { success: true })
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
   mockGetSession.mockResolvedValue({ data: { session: { access_token: FAKE_TOKEN } } })
-  mockFetch.mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }))
+  mockFetch.mockImplementation(async (_url: unknown, init?: RequestInit) => reponseParDefaut(init))
   ;(globalThis as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
   window.localStorage.clear()
 })
@@ -40,8 +46,6 @@ const attendreFlush = () => new Promise((r) => setTimeout(r, 1700))
 const appelsPost = () => mockFetch.mock.calls.filter((c) => (c[1] as RequestInit | undefined)?.method === 'POST')
 const corps = (appel: unknown[]) => JSON.parse((appel[1] as RequestInit).body as string) as { entries: Array<{ key: string; value: unknown }> }
 const valeursPostees = (cle: string) => appelsPost().flatMap((a) => corps(a).entries.filter((e) => e.key === cle).map((e) => e.value))
-const reponse = (contenu: unknown, status = 200) => new Response(JSON.stringify(contenu), { status })
-const estUnGet = (init?: RequestInit) => !init?.method || init.method === 'GET'
 
 type ModuleSync = typeof import('@/lib/storage-sync')
 
@@ -71,6 +75,11 @@ function differee<T>() {
 // Nouveaux cas : minuteurs simulés (setTimeout seulement), le debounce de 1,5 s s'écoule sans attente réelle.
 const minuteursSimules = () => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 const ecoulerDebounce = () => vi.advanceTimersByTimeAsync(1600)
+/** Nouvel essai d'un envoi en échec : 5 s d'attente, relecture du serveur, puis l'envoi (debounce). */
+async function nouvelEssai(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(5000)
+  await ecoulerDebounce()
+}
 
 describe('storage-sync — hydratation sans renvoi', () => {
   it('les valeurs reçues du serveur ne repartent pas en POST ; une valeur identique non plus ; une autre, oui', async () => {
@@ -279,7 +288,7 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     const postB = differee<Response>()
     let numeroPost = 0
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
-      init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponse({ success: true })))
+      init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponseParDefaut(init)))
     const sync = await import('@/lib/storage-sync')
     await amorcer(sync)
     ecrire(sync, 'fixit_dispo_x', 'A')
@@ -298,7 +307,7 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     const postB = differee<Response>()
     let numeroPost = 0
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
-      init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponse({ success: true })))
+      init?.method === 'POST' && ++numeroPost === 2 ? postB.promesse : Promise.resolve(reponseParDefaut(init)))
     const sync = await import('@/lib/storage-sync')
     await amorcer(sync)
     ecrire(sync, 'fixit_dispo_x', 'A')
@@ -310,7 +319,7 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     await ecoulerDebounce()
     // Après un échec, le miroir attend 5 s avant le nouvel essai : pas d'envoi à chaque frappe pendant une panne.
     expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B'])
-    await vi.advanceTimersByTimeAsync(5000)
+    await nouvelEssai()
     expect(valeursPostees('fixit_dispo_x')).toEqual(['A', 'B', 'A'])
 
     // Le flush suivant ne renvoie pas B.
@@ -320,29 +329,31 @@ describe('storage-sync — aller-retour de valeur (A → B → A)', () => {
     expect(valeursPostees('fixit_autre')).toEqual([1])
   })
 
-  it('POST en échec sans réécriture : la valeur repart seule 5 s plus tard, sans attendre une autre écriture', async () => {
+  it('POST en échec sans réécriture : la valeur repart seule (5 s, relecture du serveur, envoi), sans attendre une autre écriture', async () => {
     let numeroPost = 0
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
-      init?.method === 'POST' && ++numeroPost === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(reponse({ success: true })))
+      init?.method === 'POST' && ++numeroPost === 1 ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(reponseParDefaut(init)))
     const sync = await import('@/lib/storage-sync')
     await amorcer(sync)
     ecrire(sync, 'fixit_dispo_x', 'B')
     await ecoulerDebounce() // premier POST en échec : B remise en attente, nouvel essai programmé
     expect(valeursPostees('fixit_dispo_x')).toEqual(['B'])
-    await vi.advanceTimersByTimeAsync(5000)
+    const lectures = mockFetch.mock.calls.filter((c) => estUnGet(c[1] as RequestInit | undefined)).length
+    await nouvelEssai()
+    expect(mockFetch.mock.calls.filter((c) => estUnGet(c[1] as RequestInit | undefined))).toHaveLength(lectures + 1)
     expect(valeursPostees('fixit_dispo_x')).toEqual(['B', 'B'])
   })
 
   it.each([429, 500, 401])('POST refusé par une réponse %i : la valeur est remise en attente et repart (avant : perdue en silence)', async (statut) => {
     let numeroPost = 0
     mockFetch.mockImplementation((_url: unknown, init?: RequestInit) =>
-      init?.method === 'POST' && ++numeroPost === 1 ? Promise.resolve(reponse({ error: 'indisponible' }, statut)) : Promise.resolve(reponse({ success: true })))
+      init?.method === 'POST' && ++numeroPost === 1 ? Promise.resolve(reponse({ error: 'indisponible' }, statut)) : Promise.resolve(reponseParDefaut(init)))
     const sync = await import('@/lib/storage-sync')
     await amorcer(sync)
     ecrire(sync, 'fixit_clients_x', JSON.stringify([{ id: 1 }]))
     await ecoulerDebounce()
     expect(valeursPostees('fixit_clients_x')).toHaveLength(1)
-    await vi.advanceTimersByTimeAsync(5000)
+    await nouvelEssai()
     expect(valeursPostees('fixit_clients_x')).toEqual([[{ id: 1 }], [{ id: 1 }]])
   })
 })
