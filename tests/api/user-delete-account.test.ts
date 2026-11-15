@@ -131,7 +131,7 @@ describe('autres comptes : parcours inchangé', () => {
     authQr.comptes = [{ id: CLIENT.id, email: CLIENT.email, app_metadata: { role: 'client' }, user_metadata: {} }]
   })
 
-  it('compte client sans fiche : suppression complète (tables puis compte), 200', async () => {
+  it('compte client sans fiche : suppression complète (compte, puis ses tables), 200', async () => {
     const res = await supprimer()
     expect(res.status).toBe(200)
     expect((await res.json()).success).toBe(true)
