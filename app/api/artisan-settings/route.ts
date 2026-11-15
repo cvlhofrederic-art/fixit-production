@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     const allowed = await checkRateLimit(`artisan_settings_${user.id}`, 15, 60_000)
     if (!allowed) return rateLimitResponse()
 
-    // Verify artisan ownership. Société BTP : la fiche entière (adresse publique, nom, ville) ; artisan : inchangé.
+    // Verify artisan ownership. Société BTP : la fiche entière (langue, adresse publique, nom, ville) ; artisan : inchangé.
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
     const { data: artisan, error: fetchError } = await supabaseAdmin
       .from('profiles_artisan')
@@ -90,6 +90,9 @@ export async function POST(request: NextRequest) {
     if (fetchError || !artisan) {
       return NextResponse.json({ error: 'Profil artisan introuvable' }, { status: 404 })
     }
+    // Société BTP française : fiche qui n'est pas en portugais. Société inscrite au Portugal : hors de ce correctif,
+    // calcul de l'adresse publique et enregistrement d'avant.
+    const estSocieteBtpFrancaise = estSocieteBtp && (artisan as Record<string, unknown>).language !== 'pt'
 
     const body = await request.json()
     const settingsValidation = validateBody(artisanSettingsPostSchema, body)
@@ -113,9 +116,11 @@ export async function POST(request: NextRequest) {
     const skippedFields: string[] = []
 
     let slug: string | undefined = undefined
-    if (estSocieteBtp) {
-      // Société BTP : l'adresse publique de la fiche est posée une seule fois (adresse indexée, liens partagés) et ne
-      // change plus, même avec le nom. Une fiche qui n'en a pas la reçoit, à partir du nom et de la ville de la fiche.
+    if (estSocieteBtpFrancaise) {
+      // Société BTP française : l'adresse publique de la fiche est posée une seule fois (adresse indexée, liens
+      // partagés) et ne change plus, même avec le nom. Une fiche qui n'en a pas la reçoit au premier enregistrement
+      // venu, quel que soit l'écran (« Mon profil » n'envoie plus le nom s'il n'a pas changé), à partir du nom et de la
+      // ville de la fiche.
       const fiche = artisan as Record<string, unknown>
       if (!fiche.slug) {
         slug = await adressePubliqueLibre(String(company_name || fiche.company_name || ''), String(fiche.company_city || ''), String(fiche.id))
@@ -164,9 +169,9 @@ export async function POST(request: NextRequest) {
       .update(updatePayload)
       .eq('id', artisan.id)
 
-    if (updateError && estSocieteBtp && 'slug' in updatePayload && updateError.code === '23505') {
-      // Société BTP : adresse publique prise entre-temps par une autre fiche. Les autres champs s'enregistrent sans
-      // elle ; la fiche la recevra à un prochain enregistrement.
+    if (updateError && estSocieteBtpFrancaise && 'slug' in updatePayload && updateError.code === '23505') {
+      // Société BTP française : adresse publique prise entre-temps par une autre fiche. Les autres champs s'enregistrent
+      // sans elle ; la fiche la recevra à un prochain enregistrement.
       logger.warn('[artisan-settings] adresse publique déjà prise, enregistrement sans elle', { ficheId: artisan.id })
       delete updatePayload.slug
       slug = undefined

@@ -58,10 +58,11 @@ export function useSettings(
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string>('')
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false)
   const [uploadMsg, setUploadMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  // Société BTP (pro_societe) : valeurs de la fiche au chargement, puis après chaque enregistrement. Seuls les champs
-  // changés depuis partent : un formulaire chargé une fois ne réécrit plus ce qui a été enregistré entre-temps
-  // (assurance d'une attestation déposée dans Conformité), ni l'e-mail des devis par celui de connexion.
-  // null (artisan) : les 18 champs partent à chaque enregistrement, comme avant.
+  // Société BTP française (pro_societe, fiche qui n'est pas en portugais) : valeurs de la fiche au chargement, puis
+  // après chaque enregistrement. Seuls les champs changés depuis partent : un formulaire chargé une fois ne réécrit plus
+  // ce qui a été enregistré entre-temps (assurance d'une attestation déposée dans Conformité), ni l'e-mail des devis par
+  // celui de connexion.
+  // null (artisan, société inscrite au Portugal) : les 18 champs partent à chaque enregistrement, comme avant.
   const valeursEnregistrees = useRef<SettingsForm | null>(null)
 
   const saveSettings = useCallback(async () => {
@@ -196,9 +197,10 @@ export function useSettings(
       mediator_name: artisanData.mediator_name || '',
       mediator_url: artisanData.mediator_url || '',
     }
-    if (orgRole === 'pro_societe') {
-      // Société BTP : e-mail de la fiche, celui des devis et factures ; celui de connexion seulement si la fiche n'en a
-      // pas (il est alors enregistré au premier clic, comme avant : la référence garde l'e-mail vide de la fiche).
+    if (orgRole === 'pro_societe' && artisanData.language !== 'pt') {
+      // Société BTP française : e-mail de la fiche, celui des devis et factures ; celui de connexion seulement si la
+      // fiche n'en a pas (il est alors enregistré au premier clic, comme avant : la référence garde l'e-mail vide de la
+      // fiche). Société inscrite au Portugal : hors de ce correctif, formulaire et envoi d'avant.
       if (artisanData.email) formulaire.email = artisanData.email
       valeursEnregistrees.current = { ...formulaire, email: artisanData.email || '' }
     } else {

@@ -7,9 +7,10 @@
  *   celui de la fiche ;
  * - l'assureur, le numéro de contrat et la couverture enregistrés entre-temps (dépôt d'une attestation dans
  *   Conformité), par les valeurs vides du chargement.
- * Contrat vérifié ici : pour une société, le champ e-mail montre celui de la fiche, et seuls les champs que la société
- * a changés depuis le chargement (ou depuis son dernier enregistrement) partent vers POST /api/artisan-settings.
- * L'artisan garde exactement l'envoi d'avant (les 18 champs).
+ * Contrat vérifié ici : pour une société française, le champ e-mail montre celui de la fiche, et seuls les champs que
+ * la société a changés depuis le chargement (ou depuis son dernier enregistrement) partent vers POST
+ * /api/artisan-settings. L'artisan et la société inscrite au Portugal (fiche en portugais, hors de ce correctif)
+ * gardent exactement l'envoi d'avant (les 18 champs).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
@@ -36,6 +37,7 @@ const CHAMPS_DU_FORMULAIRE = [
 
 const FICHE_SOCIETE: Profil = {
   id: 'fiche-de-test',
+  language: 'fr',
   company_name: 'Bâtiment Exemple',
   email: 'contact@exemple.fr',
   phone: '01 02 03 04 05',
@@ -132,7 +134,8 @@ describe('Mon profil d’un artisan : envoi inchangé', () => {
     await enregistrer(rendu)
 
     const [corps] = corpsEnvoyes()
-    expect(Object.keys(corps).sort()).toEqual([...CHAMPS_DU_FORMULAIRE].sort())
+    // Mêmes champs, dans le même ordre qu'avant le correctif
+    expect(Object.keys(corps)).toEqual(CHAMPS_DU_FORMULAIRE)
     expect(corps.email).toBe('connexion@exemple.fr')
   })
 
@@ -140,6 +143,19 @@ describe('Mon profil d’un artisan : envoi inchangé', () => {
     const rendu = monter(FICHE_SOCIETE)
     await enregistrer(rendu)
 
-    expect(Object.keys(corpsEnvoyes()[0]).sort()).toEqual([...CHAMPS_DU_FORMULAIRE].sort())
+    expect(Object.keys(corpsEnvoyes()[0])).toEqual(CHAMPS_DU_FORMULAIRE)
+  })
+})
+
+describe('Mon profil d’une société inscrite au Portugal : envoi inchangé (Portugal hors de ce correctif)', () => {
+  it('fiche en portugais : e-mail de connexion affiché, et les 18 champs partent comme avant', async () => {
+    const rendu = monter({ ...FICHE_SOCIETE, language: 'pt', email: 'contacto@exemplo.pt' }, 'pro_societe')
+    expect(rendu.result.current.settingsForm.email).toBe('connexion@exemple.fr')
+    modifier(rendu, { tva_intra: 'PT000000000' })
+    await enregistrer(rendu)
+
+    const [corps] = corpsEnvoyes()
+    expect(Object.keys(corps)).toEqual(CHAMPS_DU_FORMULAIRE)
+    expect(corps).toMatchObject({ email: 'connexion@exemple.fr', tva_intra: 'PT000000000' })
   })
 })

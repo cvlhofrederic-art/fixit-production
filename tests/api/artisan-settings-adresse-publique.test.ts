@@ -9,7 +9,9 @@
 // - une fiche qui a une adresse publique la garde, quel que soit le nom envoyé ;
 // - une fiche sans adresse la reçoit, à partir du nom et de la ville de la fiche, avec un suffixe si elle est prise ;
 // - un doublon découvert à l'écriture n'empêche pas d'enregistrer les autres champs.
-// L'artisan garde le calcul d'avant (témoin).
+// Une fiche sans adresse la reçoit au premier enregistrement venu, quel que soit l'écran (Mon profil, Zones
+// d'intervention) : « Mon profil » n'envoie plus le nom s'il n'a pas changé.
+// L'artisan et la société inscrite au Portugal (fiche en portugais) gardent le calcul d'avant (témoins).
 //
 // Faux client Supabase : `profiles_artisan` avec contrainte d'unicité sur `slug`, comme la colonne `slug TEXT UNIQUE`
 // des migrations (supabase/migrations/052_baseline_missing_tables.sql).
@@ -139,6 +141,18 @@ describe('Société BTP : l’adresse publique de la fiche ne change plus une fo
     expect(json.slug).toBe('batiment-exemple-exempleville')
   })
 
+  it('écran Zones d’intervention (zones seules) : la fiche sans adresse la reçoit une fois, puis la garde', async () => {
+    preparer('pro_societe', { company_name: 'Bâtiment Exemple', company_city: 'Exempleville', slug: null, language: 'fr' })
+    const zones = { intervention_zones: { regions: [], departments: ['13'], cities: [] } }
+
+    await enregistrer(zones)
+    await enregistrer({ ...zones, company_name: 'Exemple Construction' })
+
+    expect(h.etat.majs[0]).toMatchObject({ slug: 'batiment-exemple-exempleville' })
+    expect(h.etat.majs[1]).not.toHaveProperty('slug')
+    expect(ficheDuCompte().slug).toBe('batiment-exemple-exempleville')
+  })
+
   it('adresse déjà prise par une autre fiche : suffixe, et l’enregistrement réussit', async () => {
     preparer('pro_societe', { company_name: 'Bâtiment Exemple', company_city: 'Exempleville', slug: null }, [
       { id: 'autre-1', user_id: 'autre-compte', slug: 'batiment-exemple-exempleville' },
@@ -174,5 +188,27 @@ describe('Artisan : calcul de l’adresse inchangé (témoin)', () => {
     expect(status).toBe(200)
     expect(h.etat.majs).toEqual([{ company_name: 'Plomberie Exemple', bio: 'Dépannage', slug: 'plomberie-exemple' }])
     expect(json.slug).toBe('plomberie-exemple')
+  })
+})
+
+describe('Société inscrite au Portugal : calcul de l’adresse d’avant (Portugal hors de ce correctif, témoins)', () => {
+  it('le nom envoyé recalcule l’adresse comme avant, même quand la fiche en a une', async () => {
+    preparer('pro_societe', { company_name: 'Construções Exemplo', company_city: 'Porto', slug: 'construcoes-exemplo-porto', language: 'pt' })
+
+    const { status, json } = await enregistrer({ company_name: 'Construções Exemplo', bio: 'Remodelações' })
+
+    expect(status).toBe(200)
+    expect(h.etat.majs).toEqual([{ company_name: 'Construções Exemplo', bio: 'Remodelações', slug: 'construcoes-exemplo' }])
+    expect(json.slug).toBe('construcoes-exemplo')
+  })
+
+  it('sans nom envoyé, une fiche sans adresse n’en reçoit pas, comme avant', async () => {
+    preparer('pro_societe', { company_name: 'Construções Exemplo', company_city: 'Porto', slug: null, language: 'pt' })
+
+    const { status, json } = await enregistrer({ tva_intra: 'PT000000000' })
+
+    expect(status).toBe(200)
+    expect(h.etat.majs).toEqual([{ tva_intra: 'PT000000000' }])
+    expect(json.slug).toBeUndefined()
   })
 })
