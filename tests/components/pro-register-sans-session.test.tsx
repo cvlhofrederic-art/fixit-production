@@ -41,6 +41,9 @@ const h = vi.hoisted(() => ({
   warning: vi.fn(),
   initRoleOk: true,
   societe: {} as Record<string, unknown>,
+  // Réponses de /api/auth/create-profile et de /api/pro/register/finalize (pièces de la société BTP).
+  profil: { status: 200, corps: { id: 'profil-1' } as unknown },
+  finalize: { status: 200, corps: { ok: true } as unknown },
 }))
 
 vi.mock('@/lib/i18n/context', () => ({
@@ -72,9 +75,9 @@ function fauxFetch(url: string, init?: RequestInit): Promise<Response> {
   if (url.startsWith('/api/verify-siret')) return Promise.resolve(reponse({ verified: true, company: h.societe }))
   if (url === '/api/verify-id') return Promise.resolve(reponse({ status: 'verified', details: [], score: 90 }))
   if (url === '/api/auth/init-role') return Promise.resolve(h.initRoleOk ? reponse({ success: true }) : reponse({ error: 'Erreur serveur' }, 500))
-  if (url === '/api/auth/create-profile') return Promise.resolve(reponse({ id: 'profil-1' }))
+  if (url === '/api/auth/create-profile') return Promise.resolve(reponse(h.profil.corps, h.profil.status))
   if (url === '/api/pro/register/finalize-artisan') return Promise.resolve(reponse({ ok: true }))
-  if (url === '/api/pro/register/finalize') return Promise.resolve(reponse({ ok: true }))
+  if (url === '/api/pro/register/finalize') return Promise.resolve(reponse(h.finalize.corps, h.finalize.status))
   if (url === '/api/pro/team/auto-init-gerant') return Promise.resolve(reponse({ ok: true }))
   if (url === '/api/pro/register/motifs-artisan') return Promise.resolve(reponse({ success: true, count: 10 }))
   if (url === '/api/pro/register/parrainage-artisan') {
@@ -152,6 +155,8 @@ async function sInscrireCommeSocieteBtp(changerForme?: string) {
 beforeEach(() => {
   appels = []
   h.initRoleOk = true
+  h.profil = { status: 200, corps: { id: 'profil-1' } }
+  h.finalize = { status: 200, corps: { ok: true } }
   h.societe = SOCIETE_ARTISAN
   h.warning.mockReset()
   h.signUp.mockReset().mockResolvedValue({
@@ -265,5 +270,39 @@ describe('Inscription société BTP : forme juridique et identité légale dans 
     await screen.findByText('✅ CHANTIERS NORD')
 
     expect(selectForme.value).toBe('')
+  })
+})
+
+describe('Inscription société BTP : un échec d’envoi des pièces reste visible', () => {
+  // Le compte est créé, mais Kbis et pièce d'identité ne sont pas enregistrés : le message d'erreur était posé puis
+  // aussitôt caché par l'écran « Compte créé ! », et le gérant ne savait pas que ses pièces manquaient.
+  beforeEach(() => {
+    h.societe = SOCIETE_SAS
+  })
+
+  it('écran final : « Compte créé » et le message d’échec des pièces', async () => {
+    h.finalize = { status: 500, corps: { error: "Erreur lors de l'envoi des pièces" } }
+
+    await sInscrireCommeSocieteBtp()
+
+    expect(await screen.findByText('register.accountCreated')).toBeInTheDocument()
+    expect(screen.getByText("register.accountErrorUpload: Erreur lors de l'envoi des pièces")).toBeInTheDocument()
+  })
+
+  it('fiche non créée (les pièces ne partent pas) : l’écran final le dit aussi', async () => {
+    h.profil = { status: 500, corps: { error: 'Internal error' } }
+
+    await sInscrireCommeSocieteBtp()
+
+    expect(await screen.findByText('register.accountCreated')).toBeInTheDocument()
+    expect(screen.getByText('register.accountErrorUpload')).toBeInTheDocument()
+    expect(urls()).not.toContain('/api/pro/register/finalize')
+  })
+
+  it('pièces bien envoyées : écran final sans message d’erreur', async () => {
+    await sInscrireCommeSocieteBtp()
+
+    expect(await screen.findByText('register.accountCreated')).toBeInTheDocument()
+    expect(screen.queryByText(/register\.accountErrorUpload/)).toBeNull()
   })
 })

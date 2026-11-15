@@ -945,6 +945,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           })
           const profileResult = await profileRes.json()
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
+          if (!btpProfile?.id && (kbisFile || idFile || idFileVerso)) {
+            // Fiche non créée : les pièces ne peuvent pas partir, l'écran final le dit.
+            console.warn('[register] create-profile failed:', profileRes.status)
+            setError(t('register.accountErrorUpload'))
+          }
 
           if (btpProfile?.id) {
             // ── Kbis, pièce d'identité et KYC anti-fraude, côté serveur ──
@@ -969,7 +974,11 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
               }
             }
           }
-        } catch { /* Création profil BTP non-bloquante */ }
+        } catch (profileErr: unknown) {
+          // Création profil BTP non-bloquante, mais les pièces ne sont pas parties : l'écran final le dit.
+          console.warn('[register] create-profile failed:', profileErr)
+          if (kbisFile || idFile || idFileVerso) setError(t('register.accountErrorUpload'))
+        }
       }
 
       // ── Spécialités granulaires BTP (non-bloquant, uniquement pour societe_btp) ──
@@ -1027,6 +1036,8 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
     <div className="text-center py-8">
       <div className="text-6xl mb-4">🎉</div>
       <h2 className="text-2xl font-display font-black tracking-[-0.03em] mb-2">{t('register.accountCreated')}</h2>
+      {/* Compte créé mais pièces non enregistrées : le message reste visible sur l'écran final. */}
+      {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm border border-red-200 mb-4">{error}</div>}
       <p className="text-text-muted mb-2">{t('register.checkEmailConfirm')}</p>
       <p className="font-semibold mb-6 text-amber-600">{t('register.trialIncluded')} ✅</p>
       <LocaleLink href="/auth/login" className="inline-block bg-yellow hover:bg-yellow-light text-dark px-8 py-3 rounded-xl font-bold transition">{t('register.login')}</LocaleLink>
