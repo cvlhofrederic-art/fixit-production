@@ -23,6 +23,10 @@
 ## Agents actifs
 - Artisan / BTP (Groq) : Fixy AI artisan, Fixy Chat, Simulateur travaux, Matériaux AI, Email Agent,
   Analyse Devis client, Comptable AI.
+- Artisan / BTP (Claude, seul à lire les photos) : Dictionnaire matériaux — `app/api/dictionnaire-materiaux/analyse`,
+  consignes et relecture de la réponse dans `lib/dictionnaire-materiaux/ia/`. La réponse ne cite que des matériaux
+  du catalogue du pays : tout identifiant hors catalogue est écarté côté serveur. Secours sans photo : Groq
+  `openai/gpt-oss-120b` nommé dans la route (les modèles par défaut de `lib/constants.ts` sont retirés), sans Cerebras.
 - Syndic v54 (Claude) : Fixy Syndic (actions exécutées après confirmation), Max (juridique, RAG ; hors base :
   réponse générale « à vérifier »), Léa (comptable), Alfredo (e-mails), Tempo (automatisations), Analyse devis
   syndic, classification d'incidents, accessibilité / sécurité incendie.
