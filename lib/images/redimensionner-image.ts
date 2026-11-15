@@ -75,15 +75,27 @@ function canvasVersBlob(canvas: HTMLCanvasElement, type: string, qualite?: numbe
 }
 
 export interface ImageRedimensionnee {
-  /** data: URL (WebP ou PNG si redimensionnée, format d'origine sinon). */
+  /** data: URL (format demandé, ou PNG si le navigateur ne sait pas l'écrire ; format d'origine si non redimensionnée). */
   dataUrl: string
   redimensionnee: boolean
 }
+
+/**
+ * Format d'écriture. WebP par défaut (logos : transparence conservée). JPEG pour une photo : tous les navigateurs
+ * savent l'écrire, alors que Safari rend un PNG, plusieurs fois plus lourd, quand on lui demande du WebP.
+ */
+export interface EncodageImage {
+  type: 'image/webp' | 'image/jpeg'
+  qualite: number
+}
+
+const ENCODAGE_WEBP: EncodageImage = { type: 'image/webp', qualite: QUALITE_WEBP }
 
 export async function redimensionnerImage(
   fichier: Blob,
   coteMax: number = COTE_MAX_IMAGE_ARTISAN,
   delaiMs: number = DELAI_DECODAGE_MS,
+  encodage: EncodageImage = ENCODAGE_WEBP,
 ): Promise<ImageRedimensionnee> {
   try {
     const { source, largeur, hauteur, liberer } = await avecDelai(chargerSource(fichier), delaiMs)
@@ -95,10 +107,15 @@ export async function redimensionnerImage(
       canvas.height = cible.hauteur
       const contexte = canvas.getContext('2d')
       if (!contexte) throw new Error('canvas 2d indisponible')
+      // Le JPEG n'a pas de transparence : fond blanc plutôt que noir sous une image détourée.
+      if (encodage.type === 'image/jpeg') {
+        contexte.fillStyle = '#ffffff'
+        contexte.fillRect(0, 0, cible.largeur, cible.hauteur)
+      }
       contexte.drawImage(source, 0, 0, cible.largeur, cible.hauteur)
-      let blob = await canvasVersBlob(canvas, 'image/webp', QUALITE_WEBP)
-      // Navigateur sans encodeur WebP (Safari ancien) : il renvoie un PNG ou null.
-      if (!blob || blob.type !== 'image/webp') blob = await canvasVersBlob(canvas, 'image/png')
+      let blob = await canvasVersBlob(canvas, encodage.type, encodage.qualite)
+      // Navigateur sans encodeur pour ce format (WebP sous Safari) : il renvoie un PNG ou null.
+      if (blob?.type !== encodage.type) blob = await canvasVersBlob(canvas, 'image/png')
       if (!blob) throw new Error('encodage impossible')
       return { dataUrl: await lireEnDataUrl(blob), redimensionnee: true }
     } finally {

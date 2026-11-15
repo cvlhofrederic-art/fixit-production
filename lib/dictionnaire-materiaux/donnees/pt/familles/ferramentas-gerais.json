@@ -1,0 +1,1061 @@
+{
+  "famille": {
+    "id": "ferramentas-gerais",
+    "nom": "Ferramentas e consumíveis gerais de obra",
+    "description": "Ferramentas manuais e consumíveis de uso transversal em obra: pistolas de aplicação, mistura, medição e marcação, corte, martelos, alicates e chaves, brocas, discos e escadas.",
+    "icone": "🧰",
+    "sousFamilles": [
+      {
+        "id": "mistura-transporte",
+        "nom": "Mistura e transporte de massas",
+        "description": "Varetas misturadoras, baldes de pedreiro e gamelas."
+      },
+      {
+        "id": "medicao-marcacao",
+        "nom": "Medição, nivelamento e marcação",
+        "description": "Fitas métricas, níveis, esquadros, prumos, cordéis, réguas e lápis."
+      },
+      {
+        "id": "corte-manual",
+        "nom": "Corte manual",
+        "description": "X-atos e lâminas, serrotes, serras de arco e tesouras de chapa."
+      },
+      {
+        "id": "martelos-demolicao",
+        "nom": "Martelos e demolição",
+        "description": "Martelos, macetas, maços, escopros, ponteiros e pés de cabra."
+      },
+      {
+        "id": "alicates-chaves-aperto",
+        "nom": "Alicates, chaves e aperto",
+        "description": "Alicates, turqueses, chaves de fendas e grampos."
+      },
+      {
+        "id": "brocas",
+        "nom": "Brocas e serras cranianas",
+        "description": "Brocas para betão, madeira e metal, brocas SDS-Plus e serras cranianas."
+      },
+      {
+        "id": "discos-abrasivos",
+        "nom": "Discos, abrasivos e escovas de arame",
+        "description": "Discos de corte, diamantados e de lixa para rebarbadora, e escovas de arame."
+      },
+      {
+        "id": "escadas-escadotes",
+        "nom": "Escadas e escadotes",
+        "description": "Escadotes e escadas de alumínio para trabalhos em altura."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "misturador-para-berbequim",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "mistura-transporte",
+      "nom": "Misturador para berbequim (vareta misturadora)",
+      "aussiAppele": [
+        "batedor",
+        "vareta misturadora",
+        "pá misturadora",
+        "hélice misturadora",
+        "misturador de argamassa",
+        "batedor de cola",
+        "misturador de cimento-cola"
+      ],
+      "usage": "Montado no berbequim, mistura tintas, colas, massas e argamassas no balde.",
+      "aSavoir": "Para argamassas e cimento-cola em quantidade, um berbequim comum sobreaquece: usar um misturador elétrico próprio.",
+      "conditionnement": "Diâmetro 80-100 mm",
+      "recherche": "misturador berbequim",
+      "rechercheEnseigne": {
+        "maxmat": "misturador de argamassa"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "balde-de-pedreiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "mistura-transporte",
+      "nom": "Balde de pedreiro",
+      "aussiAppele": [
+        "balde de obra",
+        "balde de construção",
+        "balde preto",
+        "balde de massa"
+      ],
+      "usage": "Amassar pequenas quantidades e transportar argamassa, água e entulho.",
+      "conditionnement": "8-10 L e maiores",
+      "recherche": "balde pedreiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "gamela-masseira",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "mistura-transporte",
+      "nom": "Gamela de pedreiro (masseira)",
+      "aussiAppele": [
+        "masseira",
+        "gamela",
+        "tabuleiro de massa",
+        "caixa de massa"
+      ],
+      "usage": "Recipiente baixo e largo para amassar e ter à mão argamassa, estuque ou cimento-cola.",
+      "conditionnement": "7,5 a 35 L",
+      "recherche": "gamela construção",
+      "rechercheEnseigne": {
+        "leroy-merlin": "gamela de pedreiro"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fita-metrica",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Fita métrica",
+      "aussiAppele": [
+        "metro",
+        "metro de fita",
+        "fita de medir"
+      ],
+      "usage": "Medições correntes em obra.",
+      "aSavoir": "Para medir terrenos e fachadas existe a fita longa de fibra de vidro (30-50 m).",
+      "conditionnement": "3, 5 e 8 m; fita longa 30-50 m",
+      "recherche": "fita métrica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "nivel-de-bolha",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Nível de bolha",
+      "aussiAppele": [
+        "nível de pedreiro",
+        "nível de alumínio",
+        "nível torpedo",
+        "nível magnético"
+      ],
+      "usage": "Verifica a horizontal e o prumo de paredes, aros, azulejos, prateleiras e tubagens.",
+      "conditionnement": "40 a 120 cm; torpedo 23 cm",
+      "recherche": "nível alumínio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "nivel-laser",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Nível laser",
+      "aussiAppele": [
+        "laser de linhas",
+        "nível a laser",
+        "laser de cruz"
+      ],
+      "usage": "Projeta linhas de referência para alinhar azulejo, tetos falsos, armários e tomadas.",
+      "conditionnement": "Unidade",
+      "recherche": "nível laser",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "esquadro-carpinteiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Esquadro de carpinteiro",
+      "aussiAppele": [
+        "esquadro",
+        "esquadro metálico",
+        "esquadro de 90 graus"
+      ],
+      "usage": "Marcar e verificar ângulos de 90° em cortes, cantos e assentamentos.",
+      "conditionnement": "300 mm",
+      "recherche": "esquadro carpinteiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fio-de-prumo",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Fio de prumo",
+      "aussiAppele": [
+        "prumo",
+        "prumo de pedreiro",
+        "prumo de pião"
+      ],
+      "usage": "Verifica e transfere a vertical em paredes, pilares e aros.",
+      "conditionnement": "Unidade",
+      "recherche": "prumo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cordel-de-marcar",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Cordel de marcar (traçador) e pó marcador",
+      "aussiAppele": [
+        "bate-linhas",
+        "linha de marcação",
+        "cordel traçador",
+        "pó azul"
+      ],
+      "usage": "Marca linhas retas compridas em pavimentos, paredes e tetos: esticar e bater o fio.",
+      "conditionnement": "Kit com cordel e pó; recarga de pó 115 g",
+      "recherche": "cordel traçador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "fio-de-pedreiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Fio de pedreiro",
+      "aussiAppele": [
+        "corda de pedreiro",
+        "linha de pedreiro",
+        "fio de alinhamento"
+      ],
+      "usage": "Esticado entre dois pontos, serve de guia para alinhar fiadas de tijolo, bloco, lancis e pavimentos.",
+      "conditionnement": "Rolo 100 m",
+      "recherche": "corda pedreiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "lapis-de-carpinteiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Lápis de carpinteiro",
+      "aussiAppele": [
+        "lápis de obra",
+        "lápis de pedreiro",
+        "lápis chato"
+      ],
+      "usage": "Marcações em madeira, tijolo, betão e placas.",
+      "conditionnement": "Unidade",
+      "recherche": "lápis carpinteiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "x-ato",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "X-ato e lâminas de substituição",
+      "aussiAppele": [
+        "xato",
+        "cutter",
+        "faca x-ato",
+        "lâminas de x-ato",
+        "lâminas trapezoidais"
+      ],
+      "aussiCherche": [
+        "x-acto"
+      ],
+      "usage": "Corte de placas de gesso cartonado, isolamentos, alcatifa, vinílico, cartão e silicone velho.",
+      "aSavoir": "Lâmina romba rasga em vez de cortar e escorrega: partir o segmento com frequência. Ao comprar lâminas, confirmar a largura (9, 18 ou 25 mm) ou o tipo trapezoidal das facas de lâmina fixa ou retrátil.",
+      "conditionnement": "Lâmina de 9, 18 ou 25 mm; lâminas em caixa de 5 ou 10",
+      "recherche": "x-ato",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "serrote-de-madeira",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Serrote de madeira",
+      "aussiAppele": [
+        "serra de mão",
+        "serrote de carpinteiro",
+        "serrote"
+      ],
+      "usage": "Corte manual de madeira, aglomerado, rodapés e ripas.",
+      "aSavoir": "Para cortes de meia-esquadria em rodapés e sancas, usar serrote de costas com caixa de esquadrias.",
+      "conditionnement": "380 a 500 mm",
+      "recherche": "serrote madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "serra-de-arco",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Serra de arco para metal",
+      "aussiAppele": [
+        "serrote de ferro",
+        "serra de ferro",
+        "arco de serra"
+      ],
+      "usage": "Corte manual de tubos, perfis, varões roscados e parafusos.",
+      "conditionnement": "Folha de 300 mm",
+      "recherche": "serra de arco",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "tesoura-de-chapa",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Tesoura de chapa",
+      "aussiAppele": [
+        "tesoura de funileiro",
+        "tesoura de latoeiro",
+        "tesoura corta-chapa"
+      ],
+      "usage": "Corte de chapa fina, perfis de gesso cartonado, caleiras, rede e cantoneiras.",
+      "aSavoir": "Há modelos de corte reto, à esquerda e à direita.",
+      "conditionnement": "200-250 mm",
+      "recherche": "tesoura corte chapa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "martelo-de-orelhas",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Martelo de orelhas",
+      "aussiAppele": [
+        "martelo de unha",
+        "martelo de carpinteiro",
+        "martelo de arrancar pregos"
+      ],
+      "usage": "Pregar e arrancar pregos; o martelo de uso geral em carpintaria e cofragem.",
+      "conditionnement": "Cerca de 450 g",
+      "recherche": "martelo orelhas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "martelo-de-pedreiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Martelo de pedreiro",
+      "aussiAppele": [
+        "martelo de trolha",
+        "martelo de picar"
+      ],
+      "usage": "Cortar e acertar tijolo e bloco e picar reboco.",
+      "conditionnement": "600 g",
+      "recherche": "martelo pedreiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "maceta",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Maceta",
+      "aussiAppele": [
+        "marreta pequena",
+        "marreta de mão",
+        "maço de pedreiro"
+      ],
+      "usage": "Bater em escopros e ponteiros para abrir roços, picar e demolir.",
+      "aSavoir": "Usar óculos de proteção: saltam lascas.",
+      "conditionnement": "1 a 1,4 kg",
+      "recherche": "maceta",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "maco-de-borracha",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Maço de borracha",
+      "aussiAppele": [
+        "martelo de borracha",
+        "maço de ladrilhador",
+        "maço branco",
+        "maceta de borracha"
+      ],
+      "usage": "Assentar ladrilhos, pavê, lancis e blocos sem partir nem marcar.",
+      "aSavoir": "A borracha preta pode manchar materiais claros: para esses usar maço de borracha branca.",
+      "conditionnement": "225 a 680 g",
+      "recherche": "maço borracha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escopro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Escopro (cinzel) de pedreiro",
+      "aussiAppele": [
+        "cinzel",
+        "corta-frio",
+        "escopro de pedreiro"
+      ],
+      "usage": "Com a maceta, abre roços, corta tijolo, levanta azulejo e pica reboco.",
+      "aSavoir": "Os modelos com protetor poupam a mão das pancadas falhadas.",
+      "conditionnement": "150 a 300 mm; com ou sem protetor de mão",
+      "recherche": "cinzel",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ponteiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Ponteiro de pedreiro",
+      "aussiAppele": [
+        "ponteiro",
+        "ponteiro de aço",
+        "punção de pedreiro"
+      ],
+      "usage": "Com a maceta, parte betão e pedra e abre furos de arranque em alvenaria.",
+      "conditionnement": "250 mm",
+      "recherche": "ponteiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "pe-de-cabra",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "martelos-demolicao",
+      "nom": "Pé de cabra (arranca-pregos)",
+      "aussiAppele": [
+        "arranca-pregos",
+        "alavanca",
+        "barra de demolição"
+      ],
+      "usage": "Arrancar pregos, levantar soalho e rodapés, desmontar cofragens e aros.",
+      "conditionnement": "500-600 mm",
+      "recherche": "arranca pregos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "alicate-universal",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Alicate universal",
+      "aussiAppele": [
+        "alicate",
+        "alicate de eletricista",
+        "alicate combinado"
+      ],
+      "usage": "Segurar, dobrar e cortar arame e fios; o alicate de base da caixa de ferramentas.",
+      "conditionnement": "160-175 mm",
+      "recherche": "alicate universal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "alicate-de-pressao",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Alicate de pressão",
+      "aussiAppele": [
+        "alicate de grifos",
+        "alicate grifo",
+        "alicate de bloqueio"
+      ],
+      "usage": "Bloqueia sobre a peça: segurar, desapertar peças moídas, servir de terceira mão.",
+      "conditionnement": "13-18 cm",
+      "recherche": "alicate pressão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "turques",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Turquês",
+      "aussiAppele": [
+        "torquês",
+        "turquez",
+        "turquesa",
+        "torquesa",
+        "turquês russa"
+      ],
+      "usage": "Arrancar pregos e cortar arame; a turquês russa serve para atar armaduras de ferro.",
+      "conditionnement": "180 a 250 mm",
+      "recherche": "turquês",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chaves-de-fendas",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Chaves de fendas e de estrela",
+      "aussiAppele": [
+        "chave philips",
+        "chave de estrela",
+        "chave de parafusos",
+        "chave pozidriv",
+        "chave torx"
+      ],
+      "usage": "Apertar e desapertar parafusos de fenda, Phillips, Pozidriv e Torx.",
+      "aSavoir": "Usar a ponta do tipo e do tamanho certos (PH não é PZ), senão a cabeça do parafuso mói.",
+      "conditionnement": "Unidade ou jogo",
+      "recherche": "chave de fendas",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "grampo-de-aperto",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Grampo de aperto (sargento)",
+      "aussiAppele": [
+        "sargento",
+        "grampo de carpinteiro",
+        "grampo rápido",
+        "grampo de mola"
+      ],
+      "usage": "Mantém peças apertadas durante a colagem ou fixa guias e réguas.",
+      "conditionnement": "150 a 800 mm",
+      "recherche": "grampo",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "broca-betao-pedra",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "brocas",
+      "nom": "Broca para betão e pedra",
+      "aussiAppele": [
+        "broca de widia",
+        "broca de vídia",
+        "broca de pedra",
+        "broca de parede"
+      ],
+      "usage": "Furos para buchas em tijolo, bloco, betão e pedra com berbequim de percussão.",
+      "aSavoir": "Em betão duro o berbequim de percussão rende pouco: usar martelo com broca SDS-Plus.",
+      "conditionnement": "Ø 3 a 14 mm",
+      "recherche": "broca pedra betão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "broca-sds-plus",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "brocas",
+      "nom": "Broca SDS-Plus para betão",
+      "aussiAppele": [
+        "broca SDS",
+        "broca de martelo",
+        "broca de encaixe"
+      ],
+      "usage": "Furos em betão, pedra e alvenaria com martelo perfurador SDS-Plus.",
+      "aSavoir": "Só encaixa em martelos SDS-Plus, não em buchas de berbequim comuns.",
+      "conditionnement": "Ø 5 a 16 mm; 110 a 450 mm de comprimento",
+      "recherche": "broca SDS plus",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "broca-madeira",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "brocas",
+      "nom": "Broca para madeira",
+      "aussiAppele": [
+        "broca de três pontas",
+        "broca de pua",
+        "broca plana"
+      ],
+      "usage": "Furos limpos em madeira e derivados; para diâmetros grandes usa-se a broca de pua.",
+      "conditionnement": "Ø 3 a 16 mm; pua 16-35 mm",
+      "recherche": "broca madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "broca-metal-hss",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "brocas",
+      "nom": "Broca para metal (HSS)",
+      "aussiAppele": [
+        "broca de ferro",
+        "broca de aço rápido",
+        "broca de cobalto",
+        "broca HSS"
+      ],
+      "usage": "Furos em ferro, aço e alumínio; as de cobalto servem para aços duros e inox.",
+      "aSavoir": "Furar a baixa rotação e com óleo de corte.",
+      "conditionnement": "Ø 1 a 13 mm",
+      "recherche": "broca metal HSS",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "serra-craniana",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "brocas",
+      "nom": "Serra craniana",
+      "aussiAppele": [
+        "broca craniana",
+        "serra de copo",
+        "broca de coroa",
+        "coroa"
+      ],
+      "usage": "Abre furos largos para caixas de aparelhagem, tubos, focos embutidos e fechaduras.",
+      "aSavoir": "Cada tipo corta materiais diferentes (madeira e gesso cartonado, metal, alvenaria): escolher a adequada.",
+      "conditionnement": "Ø 25 a 83 mm",
+      "recherche": "serra craniana",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-corte-metal",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "discos-abrasivos",
+      "nom": "Disco de corte para metal e inox",
+      "aussiAppele": [
+        "disco de rebarbadora",
+        "disco de ferro",
+        "disco inox",
+        "disco fino"
+      ],
+      "usage": "Corte de varão, perfis, tubos e chapa com rebarbadora.",
+      "aSavoir": "Respeitar o diâmetro e a rotação máxima da rebarbadora. Os discos finos são só para cortar, nunca para desbastar de lado: para desbastar soldaduras e rebarbas existe o disco de rebarbar, mais espesso.",
+      "conditionnement": "Ø 115, 125, 180 e 230 mm",
+      "recherche": "disco corte metal",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-corte-pedra",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "discos-abrasivos",
+      "nom": "Disco de corte para pedra (abrasivo)",
+      "aussiAppele": [
+        "disco de pedra",
+        "disco de rebarbar pedra"
+      ],
+      "usage": "Corte e rebarbagem de pedra, tijolo e betão com rebarbadora, em trabalhos pontuais.",
+      "aSavoir": "Gasta-se depressa; para muitos cortes compensa o disco diamantado.",
+      "conditionnement": "Ø 115, 125 e 230 mm",
+      "recherche": "disco corte pedra",
+      "rechercheEnseigne": {
+        "maxmat": "disco de rebarbar pedra"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "disco-diamantado",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "discos-abrasivos",
+      "nom": "Disco diamantado",
+      "aussiAppele": [
+        "disco de diamante",
+        "disco turbo",
+        "disco segmentado",
+        "disco de cerâmica",
+        "disco de porcelânico",
+        "disco diamantado turbo ou segmentado",
+        "disco de diamante universal",
+        "disco de diamante para betão"
+      ],
+      "usage": "Corte de betão, tijolo, telha, pedra e cerâmica com rebarbadora.",
+      "aSavoir": "Segmentado ou turbo para betão e alvenaria; de coroa contínua para azulejo e porcelânico, que lascam com os outros.",
+      "conditionnement": "Ø 115, 125 e 230 mm",
+      "recherche": "disco diamante",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escadote-aluminio",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "escadas-escadotes",
+      "nom": "Escadote de alumínio",
+      "aussiAppele": [
+        "escada de abrir",
+        "escadote doméstico",
+        "banco escadote"
+      ],
+      "usage": "Trabalhos em altura no interior: pintura, tetos, iluminação e armários.",
+      "aSavoir": "Abrir completamente e apoiar os quatro pés em piso firme e nivelado.",
+      "conditionnement": "2 a 8 degraus",
+      "recherche": "escadote alumínio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "escada-aluminio-extensivel",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "escadas-escadotes",
+      "nom": "Escada de alumínio (dupla, tripla, multiusos ou telescópica)",
+      "aussiAppele": [
+        "escada extensível",
+        "escada de encostar",
+        "escada articulada",
+        "escada telescópica"
+      ],
+      "usage": "Acesso a fachadas, telhados e tetos altos.",
+      "aSavoir": "Apoiar em piso firme e prender no topo; para trabalhos demorados em altura usar andaime.",
+      "conditionnement": "Cerca de 2,6 a 6 m",
+      "recherche": "escada alumínio",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ponteira-sextavada-aparafusadora",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Ponteira sextavada magnética para aparafusadora (chave de caixa)",
+      "aussiAppele": [
+        "chave de caixa magnética",
+        "ponteira de caixa",
+        "ponta sextavada para parafusos de cobertura"
+      ],
+      "usage": "Apertar e desapertar com aparafusadora os parafusos autoperfurantes de cobertura de cabeça sextavada.",
+      "aSavoir": "Escolher pela medida da cabeça do parafuso. Apertar em velocidade baixa e parar quando a anilha encosta: aperto a mais esmaga a anilha e deforma a chapa.",
+      "conditionnement": "Unidade ou jogo de várias medidas.",
+      "recherche": "ponteira sextavada magnética",
+      "rechercheEnseigne": {
+        "leroy-merlin": "chave de caixa magnética"
+      },
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "medidor-humidade-paredes",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Medidor de humidade (humidímetro) para paredes e madeira",
+      "aussiAppele": [
+        "humidímetro",
+        "higrómetro de contacto",
+        "detetor de humidade"
+      ],
+      "usage": "Mede a humidade à superfície de reboco, estuque, betão e madeira, para confirmar que o suporte secou antes de primário, massa ou tinta.",
+      "aSavoir": "Dá uma leitura relativa e superficial: comparar com uma zona seca da mesma parede. Escolher o modo do material (alvenaria ou madeira) quando o aparelho o tiver.",
+      "conditionnement": "Unidade (aparelho a pilhas)",
+      "recherche": "medidor de humidade",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "chave-inglesa",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Chave inglesa (chave ajustável)",
+      "aussiAppele": [
+        "chave ajustável",
+        "chave de bocas ajustável"
+      ],
+      "usage": "Apertar e desapertar porcas e ligações de canalização: bichas, torneiras de esquadria, válvulas e fixações de louça.",
+      "aSavoir": "Ajustar bem os mordentes à porca para não a moer; nas porcas cromadas proteger com um pano. As porcas de plástico apertam-se à mão.",
+      "conditionnement": "Unidade (por comprimento)",
+      "recherche": "chave inglesa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "plaina-carpinteiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Plaina de carpinteiro (manual ou elétrica)",
+      "aussiAppele": [
+        "plaina elétrica",
+        "plaina manual",
+        "garlopa"
+      ],
+      "usage": "Desbastar e endireitar topos e cantos de portas, janelas e peças de madeira.",
+      "aSavoir": "Regular uma passagem fina e tirar pouco de cada vez; no topo da porta, plainar das pontas para o centro para não lascar as arestas. A plaina elétrica só se pousa com o motor parado; as lâminas gastas arrancam fibras.",
+      "conditionnement": "Unidade; lâminas de substituição vendidas à parte",
+      "recherche": "plaina",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "formao-carpinteiro",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Formão de carpinteiro",
+      "aussiAppele": [
+        "formão de madeira",
+        "formão de bisel"
+      ],
+      "usage": "Abrir e aprofundar encaixes em madeira: dobradiças, chapa-testa, fechaduras e remates.",
+      "aSavoir": "Marcar primeiro o contorno com x-ato ou com o próprio formão, para a madeira não lascar fora da zona. Manter a lâmina afiada e bater com maço, não com martelo de ferro, se o cabo não for próprio para pancada.",
+      "conditionnement": "Unidade ou jogo de várias larguras",
+      "recherche": "formão",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "caixa-meia-esquadria-serrote",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Caixa de meia-esquadria com serrote de costas",
+      "aussiAppele": [
+        "caixa de esquadrias",
+        "caixa de cortes a 45 graus",
+        "esquadria para rodapés"
+      ],
+      "usage": "Cortar rodapés, sancas, molduras e guarnições a 45° e a 90° com o ângulo certo.",
+      "aSavoir": "Prender a caixa à bancada e encostar a peça bem ao fundo. Cantos de parede fora de esquadria não fecham a 45°: acertar com massa acrílica ou ajustar o corte.",
+      "conditionnement": "Caixa de plástico ou madeira, com serrote de costas incluído ou vendido à parte",
+      "recherche": "caixa meia esquadria",
+      "rechercheEnseigne": {
+        "maxmat": "caixa de esquadrias"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "alicate-bomba-agua",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Alicate de bomba de água (alicate extensível)",
+      "aussiAppele": [
+        "alicate extensível",
+        "alicate de canalizador"
+      ],
+      "usage": "Agarrar e rodar porcas grandes, arejadores, válvulas e tubos de vários diâmetros; segurar a contra-peça enquanto se aperta.",
+      "aSavoir": "Os dentes marcam o cromado e esmagam porcas de plástico: proteger com um pano e não usar nas porcas de plástico, que se apertam à mão.",
+      "conditionnement": "À unidade, em vários comprimentos.",
+      "recherche": "alicate bomba de água",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "corta-tubos-multicamada",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Corta-tubos para multicamada e PEX (tesoura)",
+      "aussiAppele": [
+        "tesoura corta-tubos",
+        "corta-tubos de plástico"
+      ],
+      "usage": "Cortar tubo multicamada, PEX e outros tubos plásticos com corte direito, sem rebarba e sem esmagar.",
+      "aSavoir": "Confirmar o diâmetro máximo de corte. Cortar à esquadria; tubo ovalizado pelo corte tem de ser calibrado antes de montar o acessório.",
+      "conditionnement": "À unidade.",
+      "recherche": "corta tubos multicamada",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "serrote-gesso-cartonado",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "corte-manual",
+      "nom": "Serrote de ponta para gesso cartonado",
+      "aussiAppele": [
+        "serra de ponta",
+        "serrote de placa de gesso"
+      ],
+      "usage": "Recortar aberturas e remendos em placa de gesso cartonado já montada, em parede ou teto falso.",
+      "aSavoir": "A ponta afiada entra na placa sem pré-furo. Antes de cortar, confirmar que não passam cabos nem tubos por trás.",
+      "conditionnement": "À unidade.",
+      "recherche": "serrote gesso cartonado",
+      "rechercheEnseigne": {
+        "maxmat": "serra de ponta"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chaves-sextavadas-allen",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Jogo de chaves sextavadas interiores",
+      "aussiAppele": [
+        "chaves Allen",
+        "chaves hexagonais"
+      ],
+      "usage": "Desapertar o parafuso sem cabeça que prende o manípulo das torneiras monocomando e outros parafusos de sextavado interior.",
+      "aSavoir": "Usar a medida exata: chave folgada mói o sextavado. Algumas peças antigas são em polegadas.",
+      "conditionnement": "Jogo de várias medidas, em suporte ou estojo.",
+      "recherche": "jogo chaves allen",
+      "rechercheEnseigne": {
+        "maxmat": "chaves hexagonais"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chaves-bocas-luneta",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Chaves de bocas e de luneta (combinadas)",
+      "aussiAppele": [
+        "chave de boca",
+        "chave de luneta",
+        "chave combinada",
+        "jogo de chaves"
+      ],
+      "usage": "Apertar porcas e parafusos sextavados, por exemplo nas ancoragens com varão roscado.",
+      "aSavoir": "Usar a medida exata da porca: chave folgada arredonda as arestas. Onde o fabricante indica um binário de aperto, usar chave dinamométrica.",
+      "conditionnement": "Unidade ou jogo de várias medidas",
+      "recherche": "chave combinada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "detetor-tensao",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Detetor de tensão (verificador de ausência de tensão)",
+      "aussiAppele": [
+        "busca-polos",
+        "testador de tensão",
+        "caneta detetora de tensão",
+        "verificador de tensão de dois polos"
+      ],
+      "usage": "Confirmar que fios e bornes estão sem corrente depois de desligar o circuito no quadro, antes de lhes tocar.",
+      "aSavoir": "A caneta sem contacto só indica presença de tensão e pode falhar; para confirmar a ausência usar um verificador de dois polos. Testar sempre o aparelho numa tomada com corrente antes e depois.",
+      "conditionnement": "À unidade",
+      "recherche": "detetor de tensão",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "alicate-descarnador",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Alicate descarnador de fios",
+      "aussiAppele": [
+        "descarnador de cabos",
+        "alicate de descarnar",
+        "descarnador automático"
+      ],
+      "usage": "Tirar o isolamento da ponta dos fios ao comprimento certo, sem ferir o cobre, antes de os meter em bornes e ligadores.",
+      "aSavoir": "Escolher o entalhe ou regular pela secção do fio: um condutor com o cobre marcado acaba por partir no borne. Não serve para abrir a bainha exterior de um cabo.",
+      "conditionnement": "À unidade",
+      "recherche": "alicate descarnador",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "chaves-isoladas-1000v",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "alicates-chaves-aperto",
+      "nom": "Chaves de fendas e de estrela isoladas 1000 V",
+      "aussiAppele": [
+        "chaves de eletricista",
+        "chaves isoladas",
+        "jogo de chaves isoladas VDE"
+      ],
+      "usage": "Apertar bornes de tomadas, interruptores, disjuntores e ligadores com proteção contra um contacto acidental.",
+      "aSavoir": "O isolamento é uma proteção a mais, não autoriza trabalhar em tensão: desligar sempre no quadro. Deitar fora as que tenham o isolamento rachado ou cortado.",
+      "conditionnement": "À unidade ou em jogo",
+      "recherche": "chave isolada 1000V",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "detetor-materiais-parede",
+      "famille": "ferramentas-gerais",
+      "sousFamille": "medicao-marcacao",
+      "nom": "Detetor de metais, cabos e montantes",
+      "aussiAppele": [
+        "detetor de cabos elétricos",
+        "detetor de tubos",
+        "detetor de vigas e montantes",
+        "detetor de paredes"
+      ],
+      "usage": "Localizar cabos com corrente, tubos metálicos e montantes antes de furar ou abrir roços.",
+      "aSavoir": "Não deteta com certeza tubos de plástico nem cabos sem corrente e engana-se em paredes húmidas ou com rede metálica: confirmar também pelo percurso provável das tubagens a partir de caixas e torneiras.",
+      "conditionnement": "À unidade",
+      "recherche": "detetor de metais e cabos",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    }
+  ]
+}

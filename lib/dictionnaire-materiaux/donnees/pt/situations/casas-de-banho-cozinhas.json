@@ -1,0 +1,1188 @@
+{
+  "domaine": {
+    "id": "casas-de-banho-cozinhas",
+    "nom": "Casas de banho e cozinhas",
+    "icone": "🚿"
+  },
+  "situations": [
+    {
+      "id": "silicone-bolor-banheira-duche",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Silicone com bolor na banheira ou no duche",
+      "motsCles": [
+        "silicone preto na banheira",
+        "junta da banheira preta",
+        "refazer o silicone da banheira",
+        "trocar silicone do duche",
+        "manchas pretas no silicone",
+        "silicone a descolar da banheira",
+        "bolor à volta do polibã",
+        "silicone da base de duche com bolor"
+      ],
+      "description": "O cordão de silicone entre a banheira ou a base de duche e a parede ganha pintas pretas de bolor, descola ou racha. Quando o bolor está por dentro do silicone já não sai a limpar: tira-se o cordão todo e refaz-se.",
+      "aVerifier": [
+        "Material da banheira ou da base: acrílico, chapa esmaltada, resina ou pedra natural (define o silicone a usar).",
+        "Se o cordão está só manchado à superfície ou já descolado, rachado e com água por trás.",
+        "Largura e profundidade da junta, e se a banheira mexe ou baixa quando está cheia.",
+        "Estado das juntas de azulejo logo acima: se estiverem abertas, a água entra por aí."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o cordão antigo junto às duas arestas, sem riscar a banheira."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Arrancar o cordão e raspar a película que fica: o silicone novo não cola sobre o antigo."
+            },
+            {
+              "id": "removedor-silicone",
+              "note": "Só para os resíduos, depois de arrancado o cordão; em acrílico, testar primeiro num canto."
+            },
+            {
+              "id": "spray-anti-bolor",
+              "note": "Desinfetar a junta aberta e deixar secar bem; não misturar com outros produtos."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Tirar gordura e restos de sabão; a junta tem de estar limpa e seca antes do silicone."
+            },
+            {
+              "id": "pano-microfibra"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Junta larga ou funda entre a banheira e a parede: encher o fundo antes do silicone.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-precisao",
+              "note": "Delimitar o cordão dos dois lados e retirar logo depois de alisar."
+            },
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Serve em acrílico, chapa esmaltada, resina e cerâmica; escolher logo a cor certa."
+            },
+            {
+              "id": "silicone-neutro-pedra-natural",
+              "note": "Em vez do sanitário, quando a base ou o remate é em mármore ou outra pedra natural.",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone",
+              "note": "Alisar antes de o silicone formar pele, com a espátula humedecida em água e sabão."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao pulverizar o anti-bolor e ao usar o removedor de silicone."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Banheiras que cedem com o peso: encher de água antes de vedar e só esvaziar depois da cura, para o cordão não rasgar.",
+        "Não molhar antes do tempo de cura indicado: ver a embalagem.",
+        "Se o bolor volta depressa, falta ventilação na casa de banho ou há água parada por trás da junta.",
+        "Ventilar bem ao usar anti-bolor e removedor; nunca misturar anti-bolor com ácidos ou amoníaco."
+      ]
+    },
+    {
+      "id": "infiltracao-base-duche",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Infiltração na base de duche",
+      "motsCles": [
+        "fuga para o piso de baixo",
+        "mancha no teto do vizinho de baixo",
+        "base de duche a verter",
+        "polibã a meter água",
+        "água do duche passa para o andar de baixo",
+        "teto molhado por baixo do duche",
+        "ralo do duche a pingar",
+        "duche a infiltrar"
+      ],
+      "description": "A água do duche passa para o piso de baixo ou para a parede ao lado: mancha no teto do vizinho, rodapé húmido, tinta a empolar. A fuga vem quase sempre da válvula de escoamento, do silicone à volta da base ou das juntas das primeiras fiadas de azulejo.",
+      "aVerifier": [
+        "Origem da água, testando por partes: primeiro só o ralo (deitar água diretamente), depois o perímetro da base, depois as paredes.",
+        "Se a mancha aumenta mesmo sem ninguém usar o duche: nesse caso é canalização sob pressão, não a base.",
+        "Acesso à válvula por baixo ou pelo lado, medida do furo da base e altura livre por baixo.",
+        "Se a base mexe ao pisar, e o estado do silicone e das juntas junto à base."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar todo o silicone do perímetro da base."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar o cordão e a película que fica agarrada à base e ao azulejo."
+            },
+            {
+              "id": "removedor-silicone",
+              "note": "Para os resíduos; em base acrílica ou de resina, testar primeiro."
+            },
+            {
+              "id": "raspador-juntas",
+              "note": "Só se as juntas das primeiras fiadas estiverem abertas ou moles; sem tocar no vidrado.",
+              "optionnel": true
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Limpar e desengordurar; tudo tem de secar bem antes de vedar."
+            },
+            {
+              "id": "pano-microfibra"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas",
+              "note": "Só se for preciso desmontar a grelha e o parafuso central da válvula.",
+              "optionnel": true
+            },
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Quando a válvula está boa e só o vedante está ressequido ou mal assente.",
+              "optionnel": true
+            },
+            {
+              "id": "valvula-base-duche",
+              "note": "Se a fuga for na válvula ou no sifão: medir o furo da base e a altura livre por baixo.",
+              "optionnel": true
+            },
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Só se houve juntas raspadas junto à base: refazer na cor das existentes.",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-borracha-juntas",
+              "note": "Só para as juntas refeitas.",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Só para as juntas refeitas; bem espremida, para não lavar o betume.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Cordão contínuo em todo o perímetro, entre a base e o azulejo, e nos cantos das paredes."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Se a válvula e o silicone estão bons e a água continua a passar, a falha está na impermeabilização por baixo do azulejo: é preciso levantar e refazer.",
+        "Mancha que cresce sem o duche ser usado indica fuga na canalização: fechar a água e chamar um canalizador.",
+        "Base que mexe ao pisar volta a rasgar o silicone: tem de ser calçada ou assente de novo antes de vedar.",
+        "O teto do piso de baixo só se repara e pinta depois de a fuga estar resolvida e o suporte seco.",
+        "Não usar o duche antes do tempo de cura do silicone e do betume: ver a embalagem."
+      ]
+    },
+    {
+      "id": "rebetumar-juntas-azulejo",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Juntas de azulejo escurecidas ou a desfazer-se",
+      "motsCles": [
+        "rebetumar azulejos",
+        "juntas dos azulejos pretas",
+        "juntas dos azulejos sujas",
+        "betume das juntas a cair",
+        "refazer as juntas do azulejo",
+        "juntas a esfarelar",
+        "limpar juntas com bolor",
+        "juntas amareladas na cozinha"
+      ],
+      "description": "As juntas entre azulejos ficam escuras, com bolor ou gordura, ou começam a esfarelar e a abrir falhas. Se estão só sujas, limpam-se; se estão a desfazer-se, raspam-se e betuma-se de novo.",
+      "aVerifier": [
+        "Se as juntas estão só sujas à superfície ou já moles, ocas e com falhas.",
+        "Largura da junta, para escolher o betume (acabamento fino ou juntas largas).",
+        "Zona: parede seca, interior do duche, bancada de cozinha ou pavimento.",
+        "Se há azulejos a soar a oco ao lado das juntas abertas: tratam-se primeiro."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "limpa-juntas",
+              "note": "Juntas só escurecidas mas firmes: experimentar a limpeza antes de raspar.",
+              "optionnel": true
+            },
+            {
+              "id": "spray-anti-bolor",
+              "note": "Juntas com bolor: aplicar, enxaguar e deixar secar; não usar ao mesmo tempo que o limpa-juntas.",
+              "optionnel": true
+            },
+            {
+              "id": "escova-nylon-juntas",
+              "note": "Esfregar o limpa-juntas ou o anti-bolor; a escova de arame risca o vidrado.",
+              "optionnel": true
+            },
+            {
+              "id": "raspador-juntas",
+              "note": "Raspar em profundidade suficiente para o betume novo agarrar, sem lascar o vidrado."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Para as juntas finas correntes; confirmar na saca a largura de junta admitida."
+            },
+            {
+              "id": "betume-juntas-largas",
+              "note": "Só quando a junta é larga: ver na saca a partir de que largura se usa.",
+              "optionnel": true
+            },
+            {
+              "id": "betume-juntas-epoxi",
+              "note": "Interior do duche e bancadas, onde se quer junta que não absorve água nem mancha.",
+              "optionnel": true
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar pouco de cada vez, com a água indicada na saca."
+            },
+            {
+              "id": "talocha-borracha-betumar-juntas",
+              "note": "Passar na diagonal das juntas; o betume epóxi pede talocha de borracha dura."
+            },
+            {
+              "id": "esponja-ladrilhador",
+              "note": "Bem espremida e com água limpa, para não esvaziar nem manchar a junta."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Tirar o véu de betume do azulejo depois de seco."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Cantos e encontros com banheira, base e louças fecham-se com silicone, não com betume."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao raspar e ao usar produtos de limpeza."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "O pó do betume velho é fino: usar ao raspar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Betume novo não impermeabiliza: se a água passa para trás do azulejo, o problema está na impermeabilização.",
+        "Juntas que voltam a abrir sempre no mesmo sítio indicam movimento do suporte ou azulejo solto.",
+        "Nunca misturar limpa-juntas, anti-bolor e lixívia: enxaguar bem entre produtos e ventilar.",
+        "Em juntas de cor, testar primeiro os produtos de limpeza numa zona escondida.",
+        "Betume epóxi limpa-se logo a seguir à aplicação; depois de endurecido já não sai."
+      ]
+    },
+    {
+      "id": "azulejo-solto-oco-partido",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Azulejo solto, oco ou partido",
+      "motsCles": [
+        "substituir um azulejo",
+        "azulejo a cair",
+        "azulejo rachado",
+        "azulejo soa a oco",
+        "ladrilho partido",
+        "azulejo descolado da parede",
+        "mosaico solto no chão",
+        "azulejo levantado",
+        "azulejo estalado",
+        "azulejo partido na casa de banho"
+      ],
+      "description": "Um ou alguns azulejos soam a oco, estão descolados, rachados ou lascados, na parede ou no pavimento. Tira-se a peça sem estragar as vizinhas, limpa-se a cola velha e assenta-se uma nova.",
+      "aVerifier": [
+        "Quantos azulejos estão ocos (bater com o cabo de uma ferramenta): peças isoladas ou um pano inteiro.",
+        "Se existe azulejo igual de reserva: medida, espessura e tom.",
+        "Estado do suporte por trás: firme, húmido ou a esfarelar.",
+        "Se é zona de duche (impermeabilização por baixo) e se passam tubos ou cabos na parede."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-juntas",
+              "note": "Abrir primeiro as juntas à volta da peça, para não lascar os azulejos vizinhos."
+            },
+            {
+              "id": "escopro",
+              "note": "Partir do centro para as bordas e tirar toda a cola velha até suporte firme."
+            },
+            {
+              "id": "maceta",
+              "note": "Pancadas curtas e leves; azulejo só oco e inteiro pode sair sem partir."
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "Quando o suporte fica com pó ou muito absorvente depois de limpo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Serve em parede e pavimento, grés e zonas húmidas; barrar também o tardoz da peça."
+            },
+            {
+              "id": "balde-de-pedreiro",
+              "note": "Amassar só a quantidade necessária para as peças a colar."
+            },
+            {
+              "id": "espatula-dentada-cola",
+              "note": "Para poucas peças; dente conforme o formato, como indica a saca do cimento-cola."
+            },
+            {
+              "id": "cortador-manual-azulejo",
+              "note": "Só se a peça nova tiver de ser cortada à medida.",
+              "optionnel": true
+            },
+            {
+              "id": "cruzetas-azulejo",
+              "note": "Na largura das juntas existentes; retirar antes de betumar."
+            },
+            {
+              "id": "maco-de-borracha",
+              "note": "Assentar a peça ao nível das vizinhas; borracha branca em peças claras."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-juntas-tapa-juntas",
+              "note": "Na cor das juntas existentes, depois de a cola prender (ver a embalagem)."
+            },
+            {
+              "id": "espatula-borracha-juntas"
+            },
+            {
+              "id": "esponja-ladrilhador"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Saltam lascas de vidrado ao partir a peça."
+            },
+            {
+              "id": "luvas-anticorte",
+              "note": "As arestas do azulejo partido cortam."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó ao picar a cola velha."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Muitos azulejos ocos ou pavimento a levantar em tenda indicam suporte a mexer ou falta de juntas de dilatação: trocar uma peça não resolve.",
+        "No duche, ao picar pode ferir-se a impermeabilização por baixo: tem de ser refeita nesse ponto antes de colar.",
+        "Picar com cuidado onde possam passar tubos de água ou cabos elétricos embutidos.",
+        "Suporte húmido: encontrar e tratar a origem da água antes de voltar a colar.",
+        "Sem peça igual de reserva, a diferença de tom e de medida nota-se: avisar o cliente antes."
+      ]
+    },
+    {
+      "id": "impermeabilizar-duche-antes-azulejo",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Impermeabilizar o duche antes do azulejo",
+      "motsCles": [
+        "impermeabilizar base de duche",
+        "duche ao nível do chão",
+        "duche italiano",
+        "membrana por baixo do azulejo",
+        "impermeabilizar parede do duche",
+        "tela líquida no duche",
+        "impermeabilização da casa de banho",
+        "impermeabilizar gesso cartonado no duche"
+      ],
+      "description": "Antes de assentar azulejo num duche novo ou renovado, o chão e as paredes molhadas levam uma impermeabilização contínua por baixo da cerâmica. O azulejo e o betume, sozinhos, não impedem a água de chegar ao suporte.",
+      "aVerifier": [
+        "Tipo de suporte: reboco ou betonilha de cimento, placa de gesso cartonado hidrófuga ou azulejo antigo.",
+        "Se o suporte está seco, firme, sem fissuras e, no chão, com pendente para o ralo.",
+        "Tipo de ralo e forma de o ligar à impermeabilização.",
+        "Até onde molha: chão, altura das paredes, nichos e passagens de torneiras."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "betonilha-fina-reparacao",
+              "note": "Duche ao nível do chão sem pendente: fazer ou corrigir a pendente para o ralo antes.",
+              "optionnel": true
+            },
+            {
+              "id": "ralo-sifonado-pavimento",
+              "note": "Duche ao nível do chão: ralo com aba ou kit próprio para ligar à membrana.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aderencia-argamassas",
+              "note": "O indicado na embalagem da membrana; essencial em gesso cartonado e suportes absorventes."
+            },
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Fechar folgas à volta de tubos e torneiras que atravessam a parede, antes da membrana.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Marcar a altura até onde sobe a impermeabilização e proteger o ralo."
+            }
+          ]
+        },
+        {
+          "titre": "Impermeabilização",
+          "materiaux": [
+            {
+              "id": "membrana-liquida-zonas-humidas",
+              "note": "Em todo o chão e paredes do duche, em demãos cruzadas; demãos e secagem: ver a embalagem."
+            },
+            {
+              "id": "banda-impermeabilizante-cantos-juntas",
+              "note": "Embebida entre demãos: cantos, parede-chão, juntas de placas, ralo e passagens de tubos."
+            },
+            {
+              "id": "argamassa-impermeabilizante-flexivel-monocomponente",
+              "note": "Alternativa à membrana em suportes de cimento, com a mesma banda de reforço.",
+              "optionnel": true
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Cantos, ralo e para embeber a banda sem rugas nem bolhas."
+            },
+            {
+              "id": "rolo-pelo-medio-paredes-irregulares",
+              "note": "Carrega membrana suficiente nas superfícies planas."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "cimento-cola-flexivel",
+              "note": "Sobre a impermeabilização cola-se com cimento-cola flexível, depois da secagem indicada."
+            },
+            {
+              "id": "talocha-dentada-8mm",
+              "note": "Dente conforme o formato do azulejo: confirmar na saca do cimento-cola."
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Depois de betumar, cantos e encontro com o chão ou a base fecham-se com silicone."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Placa de gesso cartonado hidrófuga e reboco hidrofugado não são impermeáveis: sem membrana a água acaba por passar.",
+        "Os pontos fracos são os cantos, o ralo e as passagens de torneiras: nunca dispensar a banda de reforço.",
+        "Membranas de cobertura (acrílicas de terraço, de silicone) não servem por baixo de cerâmica.",
+        "Respeitar demãos, espessura e secagem antes de colar: ver a embalagem.",
+        "Ligar e testar o ralo antes de impermeabilizar; se possível, fazer um ensaio com água antes do azulejo.",
+        "Furos feitos depois (resguardo, acessórios) atravessam a impermeabilização: selar cada furo antes de apertar."
+      ]
+    },
+    {
+      "id": "vedar-bancada-cozinha-lava-loica",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Vedar a bancada de cozinha e o lava-loiça",
+      "motsCles": [
+        "silicone da bancada",
+        "água entra atrás da bancada",
+        "lava-loiça a meter água no móvel",
+        "junta entre a bancada e a parede",
+        "tampo da cozinha inchado",
+        "vedar a banca da cozinha",
+        "silicone preto na cozinha",
+        "móvel do lava-loiça molhado"
+      ],
+      "description": "A água escorre para trás da bancada ou para dentro do móvel, pelo encontro com a parede ou pelo rebordo do lava-loiça. O silicone antigo está preto, descolado ou em falta e o tampo começa a inchar.",
+      "aVerifier": [
+        "Material da bancada: pedra natural (granito, mármore), laminado sobre aglomerado, compacto ou inox.",
+        "Se a água vem do rebordo do lava-loiça ou de baixo (válvula, sifão, bichas): ver dentro do móvel com a torneira aberta.",
+        "Se o aglomerado do tampo já inchou junto ao recorte do lava-loiça.",
+        "Largura da folga entre a bancada e a parede."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o silicone antigo sem riscar a bancada nem o azulejo."
+            },
+            {
+              "id": "espatula-remover-silicone"
+            },
+            {
+              "id": "removedor-silicone",
+              "note": "Para os resíduos; testar primeiro em laminado e em pedra."
+            },
+            {
+              "id": "desengordurante",
+              "note": "A gordura de cozinha impede o silicone de agarrar: lavar, enxaguar e deixar secar."
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Última passagem antes de vedar: evapora sem deixar resíduo."
+            },
+            {
+              "id": "pano-microfibra"
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "juntas-borracha-planas-conicas",
+              "note": "Se o sifão pinga nas porcas: trocar os vedantes pela medida do tubo.",
+              "optionnel": true
+            },
+            {
+              "id": "valvula-lava-loica-cesto",
+              "note": "Se a fuga for na válvula da cuba: medir o furo antes de comprar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "fundo-de-junta-polietileno",
+              "note": "Folga larga entre a bancada e a parede: encher o fundo antes do silicone.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-precisao",
+              "note": "Delimitar o cordão na bancada e no azulejo; retirar logo depois de alisar."
+            },
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Bancadas em laminado, compacto e inox, rebordo do lava-loiça e encontro com o azulejo."
+            },
+            {
+              "id": "silicone-neutro-pedra-natural",
+              "note": "Bancada em granito ou mármore: o silicone corrente mancha a pedra.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-vedacao-banheira",
+              "note": "Remate rápido entre bancada e parede, só em superfícies lisas, limpas e secas.",
+              "optionnel": true
+            },
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Tampo de aglomerado já inchado não volta ao sítio: vedar trava a água, mas o dano só se resolve trocando o tampo.",
+        "A placa de cozinha veda-se com a junta fornecida pelo fabricante, não com silicone sanitário.",
+        "Não mexer em ligações de gás junto à bancada: são trabalho de técnico habilitado.",
+        "Não molhar a zona antes do tempo de cura do silicone: ver a embalagem."
+      ]
+    },
+    {
+      "id": "sanita-solta-verter-base",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Sanita solta ou a verter na base",
+      "motsCles": [
+        "sanita a abanar",
+        "sanita mexe",
+        "água no chão à volta da sanita",
+        "sanita a verter por baixo",
+        "cheiro a esgoto junto à sanita",
+        "fixar a sanita ao chão",
+        "sanita desapertada",
+        "fuga na ligação da sanita",
+        "manga da sanita rota",
+        "água atrás da sanita ao puxar o autoclismo"
+      ],
+      "description": "A sanita mexe quando alguém se senta, ou aparece água e mau cheiro junto à base. As fixações estão soltas ou a ligação ao esgoto deixou de vedar, muitas vezes as duas coisas ao mesmo tempo.",
+      "aVerifier": [
+        "De onde vem a água: ligação ao esgoto (só quando se descarrega), encontro autoclismo-sanita, bicha ou torneira de esquadria, ou condensação.",
+        "Saída da sanita para a parede ou para o chão, e diâmetro do tubo de esgoto.",
+        "Estado das fixações: parafusos soltos, buchas moídas ou sanita assente só com massa.",
+        "Se a louça está rachada na base e se o pavimento por baixo está partido ou desnivelado."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "x-ato",
+              "note": "Cortar o silicone antigo à volta da base antes de levantar a sanita."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Limpar os restos de silicone do pavimento e da louça."
+            },
+            {
+              "id": "pano-do-chao",
+              "note": "Apanhar a água que fica no sifão da sanita ao levantá-la."
+            },
+            {
+              "id": "lixivia",
+              "note": "Desinfetar depois de levantar a sanita; enxaguar e secar antes do silicone; nunca com ácidos."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "ligacao-sanita",
+              "note": "Trocar se o vedante está ressequido ou desalinhado; confirmar o diâmetro do tubo."
+            },
+            {
+              "id": "fixacao-sanita-bide",
+              "note": "Buchas e parafusos novos; apertar com moderação para não rachar a louça."
+            },
+            {
+              "id": "broca-vidro-ceramica",
+              "note": "Furos novos: atravessar o ladrilho sem percussão e a baixa rotação.",
+              "optionnel": true
+            },
+            {
+              "id": "broca-betao-pedra",
+              "note": "Continuar o furo no pavimento depois de atravessar o ladrilho.",
+              "optionnel": true
+            },
+            {
+              "id": "bicha-flexivel-inox",
+              "note": "Se a bicha do autoclismo tem ferrugem na malha ou pinga: confirmar roscas e comprimento.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Assentamento",
+          "materiaux": [
+            {
+              "id": "nivel-de-bolha",
+              "note": "Assentar a sanita nivelada e bem apoiada em toda a base antes de apertar."
+            },
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Cordão à volta da base, depois de confirmar que a ligação ao esgoto não verte."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            },
+            {
+              "id": "espatula-alisar-silicone"
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "chaves-de-fendas"
+            },
+            {
+              "id": "chave-inglesa",
+              "note": "Porcas da bicha e das fixações; as porcas de plástico apertam-se à mão."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "Trabalho com esgoto: usar sempre e trocar com frequência."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Ao furar a cerâmica do pavimento."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Fechar a torneira de esquadria e esvaziar o autoclismo antes de mexer na sanita.",
+        "Aperto a mais nas fixações racha a louça; sanita rachada na base não se repara, substitui-se.",
+        "Antes de furar o pavimento, confirmar que não passam tubos de água ou de aquecimento embutidos.",
+        "Vedar a base com silicone sem resolver a fuga só esconde a água, que passa para o piso de baixo.",
+        "Sanitas suspensas têm estrutura embutida na parede: é outro trabalho, com peças do fabricante."
+      ]
+    },
+    {
+      "id": "pintar-azulejo-renovar-sem-partir",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Pintar azulejos para renovar sem partir",
+      "motsCles": [
+        "pintar azulejos",
+        "mudar a cor dos azulejos",
+        "azulejos antigos feios",
+        "renovar a casa de banho sem obras",
+        "tinta para azulejo da cozinha",
+        "azulejos fora de moda",
+        "pintar azulejos da cozinha",
+        "renovar azulejos sem partir"
+      ],
+      "description": "Os azulejos estão firmes mas velhos ou fora de moda e o cliente quer mudar o aspeto sem os arrancar. Pinta-se por cima com tinta própria, depois de uma limpeza a fundo.",
+      "aVerifier": [
+        "Zona a pintar: parede com salpicos, interior do duche ou pavimento (confirmar na lata o que a tinta admite).",
+        "Se os azulejos estão bem agarrados, sem ocos, e as juntas firmes.",
+        "Onde há silicone: a tinta não agarra em silicone, tira-se antes e refaz-se no fim.",
+        "Se a tinta escolhida pede primário de aderência ou lixagem prévia (vem indicado na lata)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "desengordurante",
+              "note": "Lavar a fundo, enxaguar e deixar secar: gordura e sabão impedem a aderência."
+            },
+            {
+              "id": "desincrustante",
+              "note": "Zonas com calcário (duche, torneiras); enxaguar bem e não misturar com lixívia.",
+              "optionnel": true
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar todo o silicone das zonas a pintar."
+            },
+            {
+              "id": "lixa-agua",
+              "note": "Só se a lata da tinta pedir lixagem: matar o brilho do vidrado, a molhado para não fazer pó.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-renovar-juntas-azulejo",
+              "note": "Retocar juntas com falhas antes de pintar, e deixar secar.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-precisao",
+              "note": "Rematar louças, torneiras, aros e tomadas."
+            },
+            {
+              "id": "plastico-protecao-com-fita",
+              "note": "Cobrir banheira, bancada e móveis."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-aderencia-multissuperficies",
+              "note": "Só quando a tinta escolhida o pede na lata.",
+              "optionnel": true
+            },
+            {
+              "id": "tinta-azulejos",
+              "note": "Demãos finas; intervalo entre demãos e cura antes de molhar: ver a embalagem."
+            },
+            {
+              "id": "pincel-recorte",
+              "note": "Primeiro as juntas e os cantos, depois o rolo."
+            },
+            {
+              "id": "mini-rolo-esmalte",
+              "note": "Deixa acabamento liso; confirmar que resiste ao solvente da tinta."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Refazer os cordões só depois da cura completa da tinta."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos de desengordurante e desincrustante ao lavar as paredes."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "É uma renovação de aspeto: não segura azulejos soltos nem resolve infiltrações.",
+        "No interior do duche e em pavimentos, só se a lata o admitir, e o desgaste é mais rápido.",
+        "Não molhar nem lavar antes da cura indicada: ver a embalagem.",
+        "Depois de pintado, limpar sem esfregões abrasivos nem produtos ácidos.",
+        "Ventilar bem durante a aplicação e a secagem."
+      ]
+    },
+    {
+      "id": "bolor-teto-paredes-casa-de-banho",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Bolor no teto e nas paredes da casa de banho",
+      "motsCles": [
+        "teto da casa de banho preto",
+        "pintas pretas por cima do duche",
+        "mofo na casa de banho",
+        "teto do wc com bolor",
+        "tinta a descascar no teto da casa de banho",
+        "casa de banho sem janela",
+        "condensação na casa de banho",
+        "paredes da casa de banho com bolor",
+        "fungos no teto do duche",
+        "extrator da casa de banho"
+      ],
+      "description": "Pintas e manchas pretas no teto e no cimo das paredes da casa de banho, sobretudo por cima do duche e nos cantos, muitas vezes com a tinta a empolar. Na maior parte dos casos é o vapor dos banhos que condensa por falta de extração.",
+      "aVerifier": [
+        "Condensação (bolor espalhado, cantos, por cima do duche) ou infiltração (mancha localizada com auréola, por baixo de outra casa de banho ou da cobertura).",
+        "Ventilação: há janela ou extrator, funciona e é usado durante e depois do banho.",
+        "Estado da tinta: só suja de bolor ou já a descascar e a empolar.",
+        "Tipo de teto: estuque, reboco ou gesso cartonado (placa não hidrófuga inchada tem de ser substituída)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "plastico-protecao-fino",
+              "note": "Cobrir louças, móvel e chão antes de lavar o teto."
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Rematar azulejo, aros e focos de luz."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "solucao-limpeza-antifungos-paredes",
+              "note": "Lavar o bolor antes de raspar; deixar atuar e secar bem (ver a embalagem)."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar o bolor morto a húmido, sem o espalhar."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Só se a tinta estiver empolada ou a descascar: tirar tudo o que está solto.",
+              "optionnel": true
+            },
+            {
+              "id": "esponja-abrasiva",
+              "note": "Só para disfarçar o degrau entre a tinta raspada e a que ficou.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-antifungos",
+              "note": "Sobre o suporte já desinfetado e seco, antes da tinta."
+            },
+            {
+              "id": "tinta-cozinha-casa-de-banho",
+              "note": "Teto e cimo das paredes; demãos e secagem antes de voltar a usar o duche: ver a embalagem."
+            },
+            {
+              "id": "extrator-casa-de-banho",
+              "note": "Sem janela nem extrator a funcionar: instalar um; a ligação elétrica é para técnico habilitado.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "rolo-anti-gota",
+              "note": "Para pintar o teto sem pingar."
+            },
+            {
+              "id": "pincel-recorte",
+              "note": "Cantos e remates junto ao azulejo."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            },
+            {
+              "id": "escadote-aluminio",
+              "note": "Apoiar os quatro pés em piso seco e firme; nunca na banheira nem na base de duche."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Produto antifungos a escorrer do teto."
+            },
+            {
+              "id": "oculos-panoramicos",
+              "note": "O produto escorre do teto para a cara."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Esporos de bolor e pó ao raspar; em casa de banho sem janela, porta aberta e arejar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Sem extração de ar (extrator ou janela aberta depois do banho), o bolor volta mesmo com tinta anti-fungos.",
+        "Mancha localizada com auréola, por baixo da casa de banho de cima ou da cobertura, é infiltração: tratar primeiro a origem.",
+        "Nunca pintar por cima de bolor vivo nem de suporte húmido.",
+        "Não misturar produtos antifungos ou lixívia com desincrustantes, ácidos ou amoníaco: liberta gases tóxicos.",
+        "Instalar ou ligar um extrator mexe na instalação elétrica de uma zona húmida: trabalho para técnico habilitado."
+      ]
+    },
+    {
+      "id": "banheira-esmalte-gasto-lascado",
+      "domaine": "casas-de-banho-cozinhas",
+      "titre": "Banheira com esmalte gasto ou lascado",
+      "motsCles": [
+        "banheira lascada",
+        "esmalte da banheira a saltar",
+        "banheira amarelada",
+        "banheira áspera",
+        "pintar a banheira",
+        "lasca no lavatório",
+        "banheira com ferrugem",
+        "renovar a banheira sem trocar"
+      ],
+      "description": "A banheira ou outra louça sanitária está baça, áspera, amarelada ou tem lascas onde o esmalte saltou, por vezes já com ferrugem. Renova-se com esmalte próprio, sem substituir a peça.",
+      "aVerifier": [
+        "Material: chapa ou ferro fundido esmaltados, acrílico ou louça cerâmica (confirmar na lata os suportes admitidos).",
+        "Se é uma lasca pontual ou o esmalte todo gasto.",
+        "Se há ferrugem na lasca ou fissura que deixe passar água.",
+        "Torneiras a pingar e silicone à volta: resolvem-se antes de esmaltar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "desincrustante",
+              "note": "Tirar o calcário; enxaguar muito bem e nunca misturar com lixívia."
+            },
+            {
+              "id": "desengordurante",
+              "note": "Restos de sabão e gordura impedem o esmalte de agarrar."
+            },
+            {
+              "id": "espatula-remover-silicone",
+              "note": "Tirar o silicone do perímetro para o esmalte chegar à aresta."
+            },
+            {
+              "id": "lixa-agua",
+              "note": "Lixar toda a superfície para matar o brilho; usada molhada não faz pó."
+            },
+            {
+              "id": "fita-pintor-precisao",
+              "note": "Rematar válvula, torneiras e azulejo."
+            },
+            {
+              "id": "plastico-protecao-com-fita",
+              "note": "Proteger paredes e chão à volta."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-poliester-enchimento",
+              "note": "Encher a lasca ao nível do esmalte; com ferrugem, lixar antes até ao metal limpo.",
+              "optionnel": true
+            },
+            {
+              "id": "espatulas-plastico-massas",
+              "note": "Para aplicar a massa na lasca sem riscar o esmalte à volta.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esmalte-loica-sanitaria",
+              "note": "Demãos finas; intervalo entre demãos e cura antes de encher: ver a embalagem."
+            },
+            {
+              "id": "pincel-recorte",
+              "note": "Cantos, válvula e zona das torneiras."
+            },
+            {
+              "id": "mini-rolo-esmalte",
+              "note": "Confirmar na embalagem que o rolo resiste a solventes."
+            },
+            {
+              "id": "tabuleiro-pintura"
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "silicone-sanitario-neutro-antifungos",
+              "note": "Refazer o cordão à volta só depois da cura completa do esmalte."
+            },
+            {
+              "id": "pistola-silicone-manual"
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas"
+            },
+            {
+              "id": "semi-mascara-filtros",
+              "note": "Esmaltes com solvente em espaço fechado: filtro para vapores orgânicos."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "O esmalte de renovação é menos resistente do que o de fábrica: nada de esfregões abrasivos depois.",
+        "Não usar nem encher a banheira antes da cura indicada: ver a embalagem.",
+        "Banheira acrílica rachada ou que cede ao pisar não se resolve com esmalte: reforçar ou substituir.",
+        "Vapores inflamáveis: ventilar bem e afastar chamas e esquentador aceso.",
+        "Uma torneira a pingar sobre o esmalte fresco estraga o acabamento: reparar antes."
+      ]
+    }
+  ]
+}

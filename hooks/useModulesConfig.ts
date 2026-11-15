@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { ID_MODULE_DICTIONNAIRE, MODULES_SELON_LE_PAYS, dictionnaireDisponible } from '@/lib/dictionnaire-materiaux/disponibilite'
 
 export type ModuleConfig = { id: string; enabled: boolean; order: number }
 export type ModuleDef = { id: string; icon: string; label: string; description: string; category: string; locked?: boolean }
@@ -17,6 +18,19 @@ const CATEGORIES_DEFAULT: CategoryDef[] = [
   { id: 'vitrine', label: 'Vitrine', icon: '🖼️', order: 8 },
 ]
 
+/** Dictionnaire matériaux : son contenu dépend du pays, il n'existe que dans les langues dont le pays a un dictionnaire. */
+function modulesDictionnaire(isPt: boolean): ModuleDef[] {
+  const pays = isPt ? 'PT' : 'FR'
+  if (!dictionnaireDisponible(pays)) return []
+  return [{
+    id: ID_MODULE_DICTIONNAIRE,
+    icon: '📖',
+    label: isPt ? 'Dicionário de materiais' : 'Dictionnaire matériaux',
+    description: isPt ? 'Os materiais a usar em cada situação' : 'Les matériaux à utiliser selon la situation',
+    category: 'chantiers',
+  }]
+}
+
 export function useModulesConfig(artisanId: string | undefined, t: (key: string, fallback?: string) => string, isPt = false) {
   // ── ALL_MODULES — matches V5 BTP Pro sidebar order exactly ──
   const ALL_MODULES: ModuleDef[] = useMemo(() => [
@@ -31,6 +45,7 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
     { id: 'equipes', icon: '👷', label: isPt ? 'Equipas' : 'Équipes', description: isPt ? 'Gestão das equipas no terreno' : 'Gestion des équipes terrain', category: 'chantiers' },
     { id: 'pointage', icon: '⏱️', label: isPt ? 'Marcação de horas' : 'Pointage équipes', description: isPt ? 'Marcação GPS em tempo real' : 'Pointage GPS temps réel', category: 'chantiers' },
     { id: 'estimation_materiaux', icon: '📐', label: isPt ? 'Estimativa de materiais' : 'Estimation matériaux', description: isPt ? 'Quantitativos DTU e perdas calculadas' : 'Quantitatifs DTU et pertes calculées', category: 'chantiers' },
+    ...modulesDictionnaire(isPt),
     { id: 'calendar', icon: '📅', label: isPt ? 'Agenda' : 'Agenda / Planning', description: isPt ? 'Marcações e planeamento' : 'Rendez-vous et planning', category: 'chantiers' },
     { id: 'meteo', icon: '🌤️', label: isPt ? 'Meteorologia' : 'Météo chantiers', description: isPt ? 'Previsão meteorológica por obra' : 'Prévisions météo par chantier', category: 'chantiers' },
     { id: 'photos_chantier', icon: '📸', label: isPt ? 'Fotos de obra' : 'Photos Chantier', description: isPt ? 'Acompanhamento fotográfico das obras' : 'Suivi photo des chantiers', category: 'chantiers' },
@@ -76,12 +91,18 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
 
   const [modulesConfig, setModulesConfig] = useState<ModuleConfig[]>([])
   const [categoriesOrder, setCategoriesOrder] = useState<CategoryDef[]>(CATEGORIES_DEFAULT)
+  // Réglages enregistrés d'un module qui n'existe pas dans cette langue (le dictionnaire hors portugais) : gardés
+  // tels quels à chaque enregistrement, pour le retrouver éteint ou à sa place dans la langue où il existe.
+  const reglagesHorsLangue = useRef<ModuleConfig[]>([])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     // Load modules config
     try {
       const saved = JSON.parse(localStorage.getItem(MODULES_STORAGE_KEY) || '[]')
+      reglagesHorsLangue.current = Array.isArray(saved)
+        ? saved.filter((x: ModuleConfig) => MODULES_SELON_LE_PAYS.has(x?.id) && !ALL_MODULES.some(m => m.id === x.id))
+        : []
       if (saved.length > 0) {
         const merged = ALL_MODULES.map(m => {
           const s = saved.find((x: ModuleConfig) => x.id === m.id)
@@ -113,7 +134,12 @@ export function useModulesConfig(artisanId: string | undefined, t: (key: string,
 
   const saveModulesConfig = useCallback((config: ModuleConfig[]) => {
     setModulesConfig(config)
-    try { localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify(config)) } catch {}
+    const horsLangue = reglagesHorsLangue.current.filter(r => !config.some(c => c.id === r.id))
+    try {
+      localStorage.setItem(MODULES_STORAGE_KEY, JSON.stringify([...config, ...horsLangue]))
+    } catch (e) {
+      console.warn('[storage] modules config', e)
+    }
   }, [MODULES_STORAGE_KEY])
 
   const saveCategoriesOrder = useCallback((cats: CategoryDef[]) => {

@@ -1,0 +1,999 @@
+{
+  "famille": {
+    "id": "espatulas-talochas",
+    "nom": "Espátulas, talochas e colheres",
+    "description": "Ferramentas de mão para aplicar, espalhar, alisar e raspar massas, colas, argamassas e silicones: da espátula de pintor à talocha dentada do ladrilhador e à colher de pedreiro.",
+    "icone": "🪛",
+    "sousFamilles": [
+      {
+        "id": "espatulas-de-pintor",
+        "nom": "Espátulas de pintor (por largura)",
+        "description": "Lâmina de aço ou inox com cabo, para raspar, tapar furos e betumar. Escolhem-se pela largura da lâmina e pela flexibilidade."
+      },
+      {
+        "id": "betumadeiras-espatulas-largas",
+        "nom": "Betumadeiras e espátulas largas",
+        "description": "Lâminas largas para barrar massas de acabamento, tratar juntas de placas de gesso e acabar cantos."
+      },
+      {
+        "id": "espatulas-talochas-dentadas",
+        "nom": "Espátulas e talochas dentadas (por dente)",
+        "description": "Para espalhar colas e cimento-cola em camada regular. Escolhem-se pelo tamanho do dente, que a cola ou o formato do ladrilho determinam."
+      },
+      {
+        "id": "talochas-de-aco",
+        "nom": "Talochas de aço e liçosas",
+        "description": "Lâmina lisa de aço ou inox para apertar e alisar reboco fino, estuque, barramentos e betonilhas."
+      },
+      {
+        "id": "talochas-plastico-esponja-borracha",
+        "nom": "Talochas de plástico, esponja e borracha",
+        "description": "Para talochar reboco, dar o acabamento areado e betumar e limpar juntas de cerâmica."
+      },
+      {
+        "id": "colheres-pedreiro-estucador",
+        "nom": "Colheres de pedreiro e de estucador",
+        "description": "Para amassar, servir e aplicar argamassa, gesso e estuque, encher juntas e acabar cantos."
+      },
+      {
+        "id": "espatulas-silicone",
+        "nom": "Espátulas para silicone",
+        "description": "Para alisar o cordão de silicone acabado de aplicar e para tirar o silicone velho."
+      },
+      {
+        "id": "raspadores",
+        "nom": "Raspadores",
+        "description": "Para tirar tinta, cola, betume de juntas e restos de argamassa, do vidro ao pavimento."
+      },
+      {
+        "id": "espatulas-papel-parede-vinil",
+        "nom": "Espátulas para papel de parede e vinil",
+        "description": "Espátulas de plástico ou feltro para assentar papel de parede, vinil autocolante e películas sem bolhas."
+      },
+      {
+        "id": "reguas-rodos-nivelar",
+        "nom": "Réguas e rodos de nivelar",
+        "description": "Para sarrafar reboco e betonilha, desempenar estuque e espalhar massas autonivelantes."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "espatula-pintor-estreita-20-40mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-de-pintor",
+      "nom": "Espátula de pintor estreita (20–40 mm)",
+      "aussiAppele": [
+        "espátula de aço",
+        "espátula inox",
+        "espátula de betumar pequena",
+        "espátula 2 cm",
+        "espátula 4 cm"
+      ],
+      "usage": "Tapar furos de buchas e pequenas fissuras com massa e raspar tinta solta em cantos, caixilhos e molduras. É a espátula de bolso do pintor.",
+      "aSavoir": "As lâminas de aço carbono enferrujam se ficarem molhadas: com massas à base de água convém inox e limpar logo após o uso.",
+      "conditionnement": "Unidade; larguras de 20, 30 e 40 mm",
+      "recherche": "espátula pintor",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-pintor-media-50-63mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-de-pintor",
+      "nom": "Espátula de pintor média (50–63 mm)",
+      "aussiAppele": [
+        "espátula 5 cm",
+        "espátula 6 cm",
+        "espátula de raspar",
+        "espátula de pintor 60 mm"
+      ],
+      "usage": "Betumar pequenas reparações, aplicar massa de enchimento e raspar tinta descascada ou papel de parede antes de pintar.",
+      "aSavoir": "Para betumar quer-se lâmina flexível; para raspar, lâmina mais rígida.",
+      "conditionnement": "Unidade; larguras de 50, 60 e 63 mm",
+      "recherche": "espátula pintor 60mm",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-pintor-larga-75-125mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-de-pintor",
+      "nom": "Espátula de pintor larga (75–125 mm)",
+      "aussiAppele": [
+        "espátula de betumar larga",
+        "espátula 8 cm",
+        "espátula 10 cm",
+        "espátula 12 cm"
+      ],
+      "usage": "Betumar zonas maiores, alisar massa de reparação, carregar a betumadeira ou a talocha e raspar tinta e papel de parede em superfícies planas.",
+      "aSavoir": "Massa seca agarrada à aresta deixa riscos no barramento: limpar a lâmina a cada utilização.",
+      "conditionnement": "Unidade; larguras de 75, 80, 100, 120 e 125 mm",
+      "recherche": "espátula pintor 100mm",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-multiusos-pintor",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-de-pintor",
+      "nom": "Espátula multiusos de pintor",
+      "aussiAppele": [
+        "espátula multifunções",
+        "espátula 5 em 1",
+        "espátula de pintor multifunções"
+      ],
+      "usage": "Uma só ferramenta para raspar tinta e resíduos, abrir fissuras antes de betumar e aplicar massa em pequenas reparações.",
+      "aSavoir": "As funções variam com o modelo (ponta para abrir fissuras, recorte para escorrer o rolo, abre-latas): confirmar na embalagem.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula multiusos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatulas-japonesas-jogo",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-de-pintor",
+      "nom": "Espátulas japonesas (jogo de lâminas flexíveis)",
+      "aussiAppele": [
+        "espátulas de bate-chapas",
+        "espátulas de carroçaria",
+        "espátulas de carroceiro",
+        "espátulas de metal sem cabo",
+        "lâminas de betumar"
+      ],
+      "usage": "Lâminas finas e muito flexíveis, sem cabo, para aplicar betume de poliéster, massa de madeira e outras massas finas em aros, caixilhos e superfícies curvas.",
+      "aSavoir": "Não servem para raspar: a lâmina fina dobra e fica marcada. Limpar antes de a massa endurecer.",
+      "conditionnement": "Jogo de 3 ou 4 lâminas de larguras diferentes",
+      "recherche": "jogo espátulas metal",
+      "rechercheEnseigne": {
+        "leroy-merlin": "espátulas de carroceiro",
+        "maxmat": "espátulas metal"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatulas-plastico-massas",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-de-pintor",
+      "nom": "Espátulas de plástico para massas",
+      "aussiAppele": [
+        "espátula plástica",
+        "jogo de espátulas de plástico",
+        "espátula triangular flexível"
+      ],
+      "usage": "Aplicar e alisar massas e betumes em superfícies que o aço risca (madeira envernizada, alumínio, loiça sanitária) e espalhar pequenas quantidades de cola.",
+      "aSavoir": "Gastam-se depressa em suportes ásperos e não servem para raspar.",
+      "conditionnement": "Unidade ou conjunto de 4 larguras diferentes",
+      "recherche": "espátula plástico",
+      "rechercheEnseigne": {
+        "maxmat": "espátula plástica"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betumadeira-120-200mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "betumadeiras-espatulas-largas",
+      "nom": "Betumadeira (120–200 mm)",
+      "aussiAppele": [
+        "espátula de betumar",
+        "espátula de barrar",
+        "espátula larga",
+        "espátula de emassar",
+        "lâmina de betumar"
+      ],
+      "usage": "Barrar massa de acabamento em paredes e tetos, tapar roços e juntas e alisar reparações antes de lixar e pintar.",
+      "aSavoir": "Qualquer mossa na aresta fica desenhada no barramento: não usar para raspar e guardar com a lâmina protegida.",
+      "conditionnement": "Unidade; lâminas de 120, 160 e 200 mm, em aço ou inox",
+      "recherche": "espátula betumar",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betumadeira-extra-larga-250-500mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "betumadeiras-espatulas-largas",
+      "nom": "Betumadeira extra larga (250–500 mm)",
+      "aussiAppele": [
+        "espátula de barrar larga",
+        "espátula de alisar",
+        "espátula 30 cm",
+        "espátula de estuque 50 cm",
+        "lâmina de barramento",
+        "lâmina de alisar"
+      ],
+      "usage": "Barramentos gerais de paredes e tetos e últimas demãos de juntas de placas de gesso, onde uma lâmina larga deixa menos emendas. As de 500 mm puxam a massa de uma só passagem em grandes panos e cobrem paredes texturadas.",
+      "aSavoir": "Carrega-se com uma espátula mais estreita. Pede massa bem amassada e sem grumos: qualquer grão arrasta e risca a superfície. Em paredes muito irregulares regularizar primeiro com talocha.",
+      "conditionnement": "Unidade; lâminas de 250, 300, 350 e 500 mm",
+      "recherche": "espátula betumar 30cm",
+      "rechercheEnseigne": {
+        "maxmat": "espátula betumar"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-americana-placas-gesso",
+      "famille": "espatulas-talochas",
+      "sousFamille": "betumadeiras-espatulas-largas",
+      "nom": "Espátula americana para placas de gesso",
+      "aussiAppele": [
+        "espátula de pladur",
+        "espátula de juntas",
+        "espátula para gesso cartonado",
+        "espátula americana 15 cm"
+      ],
+      "usage": "Assentar a fita e barrar as juntas e as cabeças dos parafusos em placas de gesso cartonado; serve também para pequenos barramentos.",
+      "aSavoir": "Cada demão da junta faz-se com uma lâmina mais larga do que a anterior, para a emenda desaparecer.",
+      "conditionnement": "Unidade; lâminas de 150 a 200 mm",
+      "recherche": "espátula americana",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-cantos-placas-gesso",
+      "famille": "espatulas-talochas",
+      "sousFamille": "betumadeiras-espatulas-largas",
+      "nom": "Espátula de cantos (interior ou exterior)",
+      "aussiAppele": [
+        "espátula de canto",
+        "espátula de esquinas",
+        "espátula angular",
+        "espátula de canto inox"
+      ],
+      "usage": "Acabar a massa em cantos a 90° de placas de gesso e paredes estucadas, alisando os dois lados de uma só passagem.",
+      "aSavoir": "Há um modelo para cantos interiores e outro para cantos exteriores (esquinas): não se substituem.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula de canto",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-dentada-cola",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-talochas-dentadas",
+      "nom": "Espátula dentada para cola",
+      "aussiAppele": [
+        "espátula de colar",
+        "espátula de dentes",
+        "espalhador de cola",
+        "espátula dentada pequena",
+        "espátula dentada",
+        "espátula para cola",
+        "pente de cola pequeno"
+      ],
+      "usage": "Espalhar cola ou cimento-cola em pequenas áreas: azulejos soltos, rodapés, remates e reparações onde a talocha não entra.",
+      "aSavoir": "O tamanho do dente define a quantidade de cola: seguir o que a embalagem da cola indica.",
+      "conditionnement": "Unidade; várias larguras de lâmina, com dente fino, médio ou grosso",
+      "recherche": "espátula dentada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-dentada-fina-a2",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-talochas-dentadas",
+      "nom": "Espátula dentada fina para colas de pavimento (dente A2)",
+      "aussiAppele": [
+        "espátula A2",
+        "espátula de cola de vinílico",
+        "espátula de cola de alcatifa",
+        "pente de cola fino"
+      ],
+      "usage": "Espalhar em camada fina e regular colas de pavimentos vinílicos, alcatifa e linóleo.",
+      "aSavoir": "A ficha de cada cola indica o dente a usar (A1, A2, B1…); com os dentes gastos fica cola a menos no suporte.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula dentada A2",
+      "rechercheEnseigne": {
+        "maxmat": "espátula dentada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-dentada-6mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-talochas-dentadas",
+      "nom": "Talocha dentada de 6 mm",
+      "aussiAppele": [
+        "pente 6 mm",
+        "talocha de dentes 6x6",
+        "talocha de ladrilhador",
+        "pente de cimento-cola",
+        "talocha de dentes 6 mm",
+        "pente de cola 6 mm",
+        "liçosa dentada",
+        "talocha dentada fina"
+      ],
+      "usage": "Pentear cimento-cola para azulejo de parede e ladrilhos pequenos: o lado liso espalha, o lado dentado regula a espessura.",
+      "aSavoir": "Quanto maior o ladrilho, maior o dente: o 6 mm fica para os formatos pequenos. Confirmar sempre na saca do cimento-cola.",
+      "conditionnement": "Unidade; lâmina de cerca de 280 × 130 mm",
+      "recherche": "talocha dentada 6mm",
+      "rechercheEnseigne": {
+        "maxmat": "talocha de dentes 6x6"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-dentada-8mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-talochas-dentadas",
+      "nom": "Talocha dentada de 8 mm",
+      "aussiAppele": [
+        "pente 8 mm",
+        "talocha de dentes 8x8",
+        "talocha de ladrilhador",
+        "talocha de dentes 8 mm",
+        "pente de cola 8 mm",
+        "liçosa dentada",
+        "talocha dentada média"
+      ],
+      "usage": "Pentear cimento-cola para azulejo e mosaico de formato médio, em parede e em pavimento.",
+      "aSavoir": "É o dente intermédio, entre o de 6 mm dos formatos pequenos e o de 10 mm dos grandes: confirmar na saca do cimento-cola o dente indicado para o formato da peça.",
+      "conditionnement": "Unidade; lâmina de cerca de 280 × 130 mm",
+      "recherche": "talocha dentada 8mm",
+      "rechercheEnseigne": {
+        "maxmat": "talocha de dentes 8x8",
+        "leroy-merlin": "talocha de dentes 8 mm"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-dentada-10mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-talochas-dentadas",
+      "nom": "Talocha dentada de 10 mm",
+      "aussiAppele": [
+        "pente 10 mm",
+        "pente D10",
+        "talocha de dentes 10x10",
+        "talocha de ladrilhador",
+        "talocha de dentes 10 mm",
+        "pente de cola 10 mm",
+        "liçosa dentada",
+        "talocha de dente largo"
+      ],
+      "usage": "Pentear cimento-cola para ladrilhos de pavimento e formatos maiores, que precisam de mais cola por baixo da peça.",
+      "aSavoir": "Em peças de grande formato e em pavimentos exteriores, barrar também o tardoz do ladrilho (colagem dupla).",
+      "conditionnement": "Unidade; lâmina de cerca de 280 × 130 mm a 300 × 150 mm",
+      "recherche": "talocha dentada 10mm",
+      "rechercheEnseigne": {
+        "leroy-merlin": "pente D10",
+        "maxmat": "talocha de dentes 10x10"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-dentada-plastico",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-talochas-dentadas",
+      "nom": "Talocha dentada de plástico",
+      "aussiAppele": [
+        "talocha dentada PVC",
+        "espátula dentada de plástico",
+        "pente de plástico"
+      ],
+      "usage": "Espalhar cimento-cola e colas em trabalhos pequenos ou ocasionais; mais leve do que a de aço.",
+      "aSavoir": "Os dentes de plástico gastam-se depressa com cimento-cola: quando perdem altura, a camada de cola fica mais fina.",
+      "conditionnement": "Unidade; cerca de 280 × 140 mm",
+      "recherche": "talocha dentada PVC",
+      "rechercheEnseigne": {
+        "leroy-merlin": "talocha dentada"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-aco-lisa-licosa",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-de-aco",
+      "nom": "Talocha de aço lisa (liçosa)",
+      "aussiAppele": [
+        "liçosa",
+        "talocha inox",
+        "talocha de estucador",
+        "talocha lisa",
+        "talocha de barrar"
+      ],
+      "usage": "Apertar e alisar reboco fino, estuque e barramentos e espalhar massas em camada fina em paredes e tetos.",
+      "aSavoir": "O aço carbono enferruja e pode manchar gesso e massas brancas: para estuque e acabamentos claros escolher lâmina inox.",
+      "conditionnement": "Unidade; lâmina de cerca de 280 × 130 mm",
+      "recherche": "talocha lisa inox",
+      "rechercheEnseigne": {
+        "maxmat": "talocha 280x130mm"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-acabamento-comprida",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-de-aco",
+      "nom": "Talocha de acabamento comprida (480–500 mm)",
+      "aussiAppele": [
+        "talocha de acabamento",
+        "liçosa comprida",
+        "talocha 50 cm",
+        "talocha extra larga"
+      ],
+      "usage": "Alisar grandes superfícies de estuque, barramento ou reboco fino com menos marcas de emenda do que a talocha curta.",
+      "conditionnement": "Unidade; lâmina de cerca de 480 × 130 mm ou 500 × 130 mm",
+      "recherche": "talocha acabamento 500",
+      "rechercheEnseigne": {
+        "leroy-merlin": "talocha 500",
+        "maxmat": "talocha de acabamento"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-massas-finas-flexivel",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-de-aco",
+      "nom": "Talocha para massas finas (lâmina flexível)",
+      "aussiAppele": [
+        "talocha flexível",
+        "talocha de barramento",
+        "talocha para juntas de pladur",
+        "talocha inox flexível"
+      ],
+      "usage": "Barramentos finos e últimas demãos em paredes, tetos e juntas de placas de gesso: a lâmina fina e flexível deixa a massa lisa e sem rebarbas.",
+      "aSavoir": "Não é para reboco nem argamassas grossas: a lâmina fina empena e ganha vincos.",
+      "conditionnement": "Unidade; lâmina inox de cerca de 270 × 130 mm a 300 × 130 mm",
+      "recherche": "talocha massas finas",
+      "rechercheEnseigne": {
+        "maxmat": "talocha de pedreiro"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-alisar-betao",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-de-aco",
+      "nom": "Talocha de alisar betão",
+      "aussiAppele": [
+        "talocha de betão",
+        "talocha bicuda",
+        "talocha de afagar",
+        "talocha de betonilha",
+        "liçosa de bico"
+      ],
+      "usage": "Afagar e alisar betão fresco, betonilhas e massas de regularização de pavimento; os modelos em bico chegam aos cantos e remates.",
+      "aSavoir": "Afagar só depois de a água de exsudação desaparecer da superfície: trabalhar o betão ainda com água à vista enfraquece a camada de cima.",
+      "conditionnement": "Unidade; lâminas de cerca de 270 a 450 mm",
+      "recherche": "talocha betão",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "talocha-plastico",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-plastico-esponja-borracha",
+      "nom": "Talocha de plástico",
+      "aussiAppele": [
+        "talocha de pedreiro",
+        "talocha PVC",
+        "talocha ABS",
+        "desempenadeira",
+        "afagador de plástico"
+      ],
+      "usage": "Talochar e desempenar reboco e argamassas depois de sarrafar, apertando a massa e dando o acabamento talochado.",
+      "aSavoir": "Para acabamento areado fino termina-se com a talocha de esponja.",
+      "conditionnement": "Unidade; cerca de 280 × 140 mm a 300 × 140 mm",
+      "recherche": "talocha plástico",
+      "rechercheEnseigne": {
+        "maxmat": "talocha PVC"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-poliestireno",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-plastico-esponja-borracha",
+      "nom": "Talocha de poliestireno",
+      "aussiAppele": [
+        "talocha de esferovite",
+        "talocha branca",
+        "talocha leve"
+      ],
+      "usage": "Talochar reboco e acabamentos areados; muito leve, poupa o braço em tetos e fachadas.",
+      "aSavoir": "É uma ferramenta de desgaste: a base gasta-se depressa em argamassas ásperas.",
+      "conditionnement": "Unidade; cerca de 200 × 150 mm",
+      "recherche": "talocha poliestireno",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "talocha-esponja",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-plastico-esponja-borracha",
+      "nom": "Talocha de esponja",
+      "aussiAppele": [
+        "talocha com esponja",
+        "talocha de espuma",
+        "afagador de esponja",
+        "talocha de esponjar"
+      ],
+      "usage": "Esponjar reboco fino para acabamento areado e limpar o excesso de betume das juntas de azulejo e mosaico.",
+      "aSavoir": "Usar a esponja húmida e bem espremida: água a mais lava o cimento do reboco e esvazia as juntas acabadas de betumar.",
+      "conditionnement": "Unidade; cerca de 260 × 130 mm",
+      "recherche": "talocha esponja",
+      "rechercheEnseigne": {
+        "maxmat": "talocha de espuma"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "talocha-borracha-betumar-juntas",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-plastico-esponja-borracha",
+      "nom": "Talocha de borracha para betumar juntas",
+      "aussiAppele": [
+        "talocha de betumar",
+        "talocha para juntas",
+        "afagador de borracha",
+        "talocha de borracha celular"
+      ],
+      "usage": "Encher as juntas de azulejo e mosaico com betume, passando na diagonal das juntas e puxando o excesso.",
+      "aSavoir": "Os betumes epóxi pedem uma talocha de borracha dura própria: confirmar na ficha do betume.",
+      "conditionnement": "Unidade; cerca de 23 a 28 cm de comprimento",
+      "recherche": "talocha borracha juntas",
+      "rechercheEnseigne": {
+        "leroy-merlin": "talocha para juntas",
+        "maxmat": "afagador de borracha"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-borracha-juntas",
+      "famille": "espatulas-talochas",
+      "sousFamille": "talochas-plastico-esponja-borracha",
+      "nom": "Espátula de borracha para juntas",
+      "aussiAppele": [
+        "rodo de borracha para juntas",
+        "borracha de betumar",
+        "espátula de betumar juntas",
+        "espátula ou talocha de borracha para betumar juntas",
+        "talocha de borracha",
+        "espátula de borracha",
+        "afagador de borracha"
+      ],
+      "usage": "Betumar juntas em remates, cantos e pequenas áreas (as de 200 mm) ou puxar o betume em pavimentos (as largas, de 450 mm).",
+      "conditionnement": "Unidade; larguras de 200 a 450 mm",
+      "recherche": "espátula borracha",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "colher-pedreiro",
+      "famille": "espatulas-talochas",
+      "sousFamille": "colheres-pedreiro-estucador",
+      "nom": "Colher de pedreiro",
+      "aussiAppele": [
+        "colher de trolha",
+        "colher de massa",
+        "colher redonda",
+        "colher de bico redondo"
+      ],
+      "usage": "Amassar pequenas quantidades, servir e chapar argamassa, assentar tijolo e blocos e encher roços. A de bico redondo é a mais corrente.",
+      "aSavoir": "As de aço carbono enferrujam: lavar e secar no fim do dia.",
+      "conditionnement": "Unidade; lâminas de cerca de 140 a 240 mm",
+      "recherche": "colher de pedreiro",
+      "rechercheEnseigne": {
+        "maxmat": "colher de trolha"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "colher-pedreiro-reta",
+      "famille": "espatulas-talochas",
+      "sousFamille": "colheres-pedreiro-estucador",
+      "nom": "Colher de pedreiro reta (cantos direitos ou cortados)",
+      "aussiAppele": [
+        "colher quadrada",
+        "colher de trolha reta",
+        "colher de cantos direitos",
+        "colher de cantos cortados"
+      ],
+      "usage": "Assentar alvenaria e tirar a massa do fundo plano da masseira ou do balde; a ponta reta rapa bem junto a arestas e cantos.",
+      "conditionnement": "Unidade; lâminas de 140 a 200 mm",
+      "recherche": "colher pedreiro quadrada",
+      "rechercheEnseigne": {
+        "leroy-merlin": "colher quadrada",
+        "maxmat": "colher de trolha reta"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "colher-estucador",
+      "famille": "espatulas-talochas",
+      "sousFamille": "colheres-pedreiro-estucador",
+      "nom": "Colher de estucador",
+      "aussiAppele": [
+        "colher de gesso",
+        "colher de estuque",
+        "colher pequena de estucador"
+      ],
+      "usage": "Aplicar e moldar gesso e estuque em remates, reparações e pequenas áreas e amassar pequenas quantidades de massa.",
+      "aSavoir": "Para gesso e massas brancas preferir lâmina inox, que não mancha.",
+      "conditionnement": "Unidade; lâminas de cerca de 110 × 80 mm a 140 × 80 mm",
+      "recherche": "colher estucador",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "ferro-estucador",
+      "famille": "espatulas-talochas",
+      "sousFamille": "colheres-pedreiro-estucador",
+      "nom": "Ferro de estucador",
+      "aussiAppele": [
+        "espátula de estucador",
+        "ferro de estuque",
+        "ferro de moldar"
+      ],
+      "usage": "Moldar e retocar estuque e gesso em cantos, sancas e molduras e tapar pequenas falhas onde a colher não chega.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula estucador",
+      "rechercheEnseigne": {
+        "maxmat": "ferro de estucador"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "colher-juntas",
+      "famille": "espatulas-talochas",
+      "sousFamille": "colheres-pedreiro-estucador",
+      "nom": "Colher de juntas",
+      "aussiAppele": [
+        "ferro de juntas",
+        "colher de refechar",
+        "colher estreita",
+        "colher de pedreiro para juntas"
+      ],
+      "usage": "Encher e apertar as juntas de alvenaria de tijolo, pedra e blocos à vista (refechamento de juntas).",
+      "aSavoir": "Escolher a lâmina ligeiramente mais estreita do que a junta.",
+      "conditionnement": "Unidade; lâmina estreita (por exemplo 10 mm de largura)",
+      "recherche": "colher juntas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "colher-cantos",
+      "famille": "espatulas-talochas",
+      "sousFamille": "colheres-pedreiro-estucador",
+      "nom": "Colher de cantos (interior ou exterior)",
+      "aussiAppele": [
+        "colher de canto",
+        "colher de esquinas",
+        "colher de cantos interiores",
+        "colher angular"
+      ],
+      "usage": "Acabar reboco e estuque em cantos interiores ou em esquinas, deixando a aresta direita e os dois lados alisados.",
+      "aSavoir": "O modelo de canto interior não serve para esquinas (canto exterior), nem o contrário.",
+      "conditionnement": "Unidade",
+      "recherche": "colher cantos",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-alisar-silicone",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-silicone",
+      "nom": "Espátula de alisar silicone",
+      "aussiAppele": [
+        "alisador de silicone",
+        "alisa silicone",
+        "espátula de silicone",
+        "perfilador de juntas",
+        "alisador de juntas de silicone",
+        "espátula alisa silicone",
+        "espátula para juntas",
+        "kit de acabamento de silicone"
+      ],
+      "usage": "Alisar e dar perfil ao cordão de silicone ou mástique acabado de aplicar em banheiras, bases de duche, lava-loiças e caixilharia.",
+      "aSavoir": "Alisar logo a seguir à aplicação, antes de o silicone formar pele; a espátula humedecida com água e sabão desliza melhor.",
+      "conditionnement": "Unidade, com vários ângulos e raios na mesma peça",
+      "recherche": "alisador silicone",
+      "rechercheEnseigne": {
+        "maxmat": "espátula alisa silicone"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-remover-silicone",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-silicone",
+      "nom": "Espátula de remover silicone",
+      "aussiAppele": [
+        "removedor de silicone",
+        "raspador de silicone",
+        "elimina silicone",
+        "tira silicone",
+        "espátula raspadora de silicone",
+        "espátula elimina silicone",
+        "raspador de juntas",
+        "ferramenta para tirar silicone",
+        "extrator de silicone"
+      ],
+      "usage": "Cortar e arrancar cordões de silicone velho em banheiras, lavatórios e caixilhos sem riscar a loiça nem o azulejo.",
+      "aSavoir": "O silicone novo não adere sobre restos do antigo: a película que fica tem de sair toda antes de voltar a vedar.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula elimina silicone",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "raspador-tinta",
+      "famille": "espatulas-talochas",
+      "sousFamille": "raspadores",
+      "nom": "Raspador de tinta",
+      "aussiAppele": [
+        "raspador de pintor",
+        "raspadeira",
+        "raspador de verniz",
+        "raspador manual"
+      ],
+      "usage": "Raspar tinta velha, verniz e ferrugem solta em madeira e metal antes de lixar e repintar.",
+      "aSavoir": "Na madeira puxar no sentido do veio; uma lâmina romba arranca fibras em vez de cortar.",
+      "conditionnement": "Unidade; lâmina de cerca de 65 mm",
+      "recherche": "raspador de tinta",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "raspador-lamina-larga-100mm",
+      "famille": "espatulas-talochas",
+      "sousFamille": "raspadores",
+      "nom": "Raspador de lâmina larga (100 mm)",
+      "aussiAppele": [
+        "raspador metálico",
+        "raspador de parede",
+        "raspador 10 cm",
+        "raspador de cola",
+        "lâminas de raspador"
+      ],
+      "usage": "Rapar restos de cola, tinta, estuque, cimento-cola e papel de parede em paredes e pavimentos antes de novo revestimento.",
+      "aSavoir": "Em vinílico, madeira e outros pavimentos macios a lâmina marca com facilidade: trabalhar com ângulo baixo. As lâminas de substituição vendem-se à parte e não são universais: confirmar a largura e o encaixe.",
+      "conditionnement": "Unidade; lâmina substituível de cerca de 100 mm",
+      "recherche": "raspador metálico",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "raspador-pavimento-cabo-comprido",
+      "famille": "espatulas-talochas",
+      "sousFamille": "raspadores",
+      "nom": "Raspador de pavimento com cabo comprido",
+      "aussiAppele": [
+        "raspador de piso",
+        "raspador de chão",
+        "raspador com cabo"
+      ],
+      "usage": "Levantar cola velha, alcatifa colada, restos de argamassa e tinta do pavimento, trabalhando de pé.",
+      "conditionnement": "Unidade",
+      "recherche": "raspador de piso",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "raspador-vidro-vitroceramica",
+      "famille": "espatulas-talochas",
+      "sousFamille": "raspadores",
+      "nom": "Raspador de vidro e vitrocerâmica",
+      "aussiAppele": [
+        "raspador de vidros",
+        "raspador de placa",
+        "raspador de azulejo",
+        "raspador de lâmina"
+      ],
+      "usage": "Tirar pingos de tinta, autocolantes, restos de silicone e de cimento de vidros, azulejo vidrado e placas vitrocerâmicas.",
+      "aSavoir": "Trabalhar com a superfície molhada e a lâmina limpa: um grão de areia preso na lâmina risca o vidro.",
+      "conditionnement": "Unidade",
+      "recherche": "raspador vitrocerâmica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "raspador-juntas",
+      "famille": "espatulas-talochas",
+      "sousFamille": "raspadores",
+      "nom": "Raspador de juntas",
+      "aussiAppele": [
+        "raspador de betume",
+        "raspa-juntas",
+        "limpa-juntas",
+        "raspador de juntas de azulejo"
+      ],
+      "usage": "Retirar o betume velho, escurecido ou degradado das juntas de azulejo e mosaico antes de voltar a betumar.",
+      "aSavoir": "Raspar a junta em profundidade suficiente para o betume novo agarrar, sem tocar no vidrado do azulejo.",
+      "conditionnement": "Unidade",
+      "recherche": "raspador de juntas",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "raspador-argamassa-aluminio",
+      "famille": "espatulas-talochas",
+      "sousFamille": "raspadores",
+      "nom": "Raspador de argamassa em alumínio",
+      "aussiAppele": [
+        "raspador de reboco",
+        "raspador de gesso",
+        "talocha de raspar"
+      ],
+      "usage": "Raspar e desbastar reboco, monomassa e gesso ainda frescos, para regularizar a superfície ou dar acabamento raspado.",
+      "conditionnement": "Unidade",
+      "recherche": "raspador argamassa",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "espatula-alisar-papel-parede",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-papel-parede-vinil",
+      "nom": "Espátula de alisar papel de parede",
+      "aussiAppele": [
+        "espátula de papel de parede",
+        "alisador de papel de parede",
+        "espátula de plástico larga"
+      ],
+      "usage": "Alisar o papel contra a parede, expulsando bolhas e excesso de cola, e vincá-lo junto a tetos e rodapés para cortar a direito.",
+      "aSavoir": "Em papéis com relevo ou muito delicados alisar com escova macia, para não esmagar o relevo.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula papel de parede",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "espatula-vinil-autocolante-peliculas",
+      "famille": "espatulas-talochas",
+      "sousFamille": "espatulas-papel-parede-vinil",
+      "nom": "Espátula para vinil autocolante e películas",
+      "aussiAppele": [
+        "espátula de feltro",
+        "espátula de películas",
+        "espátula de rolos adesivos",
+        "rodo de vinil"
+      ],
+      "usage": "Aplicar vinil autocolante, rolos adesivos decorativos e películas de vidro sem bolhas nem rugas.",
+      "aSavoir": "Trabalhar do centro para as bordas e usar a face macia sobre o vinil, para não o riscar.",
+      "conditionnement": "Unidade",
+      "recherche": "espátula rolos adesivos",
+      "enseignes": [
+        "leroy-merlin"
+      ]
+    },
+    {
+      "id": "regua-pedreiro-aluminio",
+      "famille": "espatulas-talochas",
+      "sousFamille": "reguas-rodos-nivelar",
+      "nom": "Régua de pedreiro e de estucador em alumínio",
+      "aussiAppele": [
+        "régua de alumínio",
+        "régua de sarrafar",
+        "régua de nivelar",
+        "régua de 2 metros",
+        "régua de estucador",
+        "régua de estuque",
+        "régua de pedreiro em alumínio",
+        "sarrafo"
+      ],
+      "usage": "Sarrafar reboco e betonilha entre mestras, puxar e desempenar gesso projetado e estuque e verificar a planeza de paredes e pavimentos.",
+      "aSavoir": "Uma régua empenada ou com massa seca agarrada passa o defeito à parede: guardar deitada e limpa.",
+      "conditionnement": "Unidade; 2 m é o comprimento mais corrente",
+      "recherche": "régua de pedreiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rodo-massa-autonivelante",
+      "famille": "espatulas-talochas",
+      "sousFamille": "reguas-rodos-nivelar",
+      "nom": "Rodo para massa autonivelante",
+      "aussiAppele": [
+        "rodo de autonivelante",
+        "rodo de solos",
+        "rodo de nivelar",
+        "rodo de resina"
+      ],
+      "usage": "Espalhar massas autonivelantes e resinas de pavimento numa espessura regular, antes de passar o rolo de picos.",
+      "aSavoir": "O cabo vende-se à parte.",
+      "conditionnement": "Unidade; cerca de 70 cm de largura",
+      "recherche": "rodo autonivelante",
+      "rechercheEnseigne": {
+        "maxmat": "rodo de solos"
+      },
+      "enseignes": [
+        "maxmat"
+      ]
+    }
+  ]
+}
