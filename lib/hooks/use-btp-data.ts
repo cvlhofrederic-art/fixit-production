@@ -634,6 +634,22 @@ function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null>
   return promesse
 }
 
+// ── Reprise des anciennes données du navigateur, une seule fois (constat donnees-btp-14) ──
+// Elle partait dès que la table était vide en base, même déjà faite : le drapeau `<clé>_migrated` qu'elle écrit n'était
+// lu nulle part, et des pointages supprimés revenaient à la visite suivante. Une reprise refusée recommençait à chaque
+// ouverture de la page ; deux sections montées ensemble l'envoyaient chacune. Rien n'est jamais retiré du navigateur.
+const _reprisesTentees = new Set<string>()
+
+/** Le drapeau posé après une reprise réussie dans ce navigateur. */
+function repriseDejaFaite(cleLocale: string): boolean {
+  try {
+    return localStorage.getItem(`${cleLocale}_migrated`) === 'true'
+  } catch (err) {
+    console.warn('[btp] stockage du navigateur illisible, reprise non tentée :', err)
+    return true
+  }
+}
+
 // ── Prefetch multiple tables in parallel to fill cache before components mount ──
 export async function prefetchBTPTables(tables: ShortName[], userId: string) {
   await Promise.all(
@@ -653,8 +669,9 @@ interface UseBTPDataOptions {
   userId: string     // Supabase auth user id
   autoImport?: boolean // import localStorage data on first load (default: true)
   /**
-   * Rôle du compte, pour l'accueil partagé avec l'artisan, qui le passe : le message d'un chargement en échec ne vaut
-   * que pour le BTP pro (orgRole === 'pro_societe'). Les écrans réservés au BTP pro l'omettent.
+   * Rôle du compte, pour l'accueil partagé avec l'artisan, qui le passe : le message d'un chargement en échec et la
+   * reprise unique des anciennes données ne valent que pour le BTP pro (orgRole === 'pro_societe'). Les écrans réservés
+   * au BTP pro l'omettent.
    */
   orgRole?: string
 }
@@ -664,7 +681,8 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
   const cached = _dataCache[cacheKey]
   const hasFreshCache = cached && (Date.now() - cached.at < DATA_CACHE_TTL)
   const hasAnyCache = !!cached?.data
-  // Écran du BTP pro (ou réservé à lui) : les échecs de chargement y sont annoncés. L'artisan garde l'accueil d'avant.
+  // Écran du BTP pro (ou réservé à lui) : les échecs de chargement y sont annoncés et la reprise des anciennes données
+  // n'y part qu'une fois. L'artisan garde l'accueil d'avant.
   const ecranBTP = orgRole === undefined || orgRole === 'pro_societe'
 
   // Use stale cache as initial data — user sees content instantly, refresh runs in background
@@ -716,12 +734,15 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       // If Supabase is empty and localStorage has data → import (skip if refresh failed)
       if (autoImport && !imported.current && data !== null && data.length === 0 && artisanId) {
         const lsKey = LS_KEYS[table](artisanId)
+        // BTP pro : une reprise déjà faite dans ce navigateur, ou déjà tentée pendant cette session, ne repart pas.
+        if (ecranBTP && (_reprisesTentees.has(lsKey) || repriseDejaFaite(lsKey))) return
         try {
           const raw = localStorage.getItem(lsKey)
           if (raw) {
             const parsed = JSON.parse(raw)
             if (Array.isArray(parsed) && parsed.length > 0) {
               imported.current = true
+              if (ecranBTP) _reprisesTentees.add(lsKey)
               const mapped = parsed.map((item: unknown) => ligneDeReprise(table, item))
 
               const res = await fetch('/api/btp', {
@@ -735,10 +756,16 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
                 localStorage.setItem(`${lsKey}_migrated`, 'true')
                 marquerEcriture(cacheKey)
                 if (!cancelled) await refresh()
+              } else {
+                // Reprise refusée (le compte a déjà des données, anciennes fiches illisibles…) : rien n'est ajouté ni
+                // retiré ; l'opération est automatique, seule la console la garde.
+                console.warn(`[btp] reprise des anciennes données de ${table} refusée (${res.status})`)
               }
             }
           }
-        } catch { /* silent */ }
+        } catch (err) {
+          console.warn(`[btp] reprise des anciennes données de ${table} impossible :`, err)
+        }
       }
     }
 
