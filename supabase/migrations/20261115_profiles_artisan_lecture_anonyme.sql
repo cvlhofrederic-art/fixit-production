@@ -19,7 +19,10 @@
 -- Ordre de mise en production :
 --   1. fusionner et déployer le code (les pages publiques ne demandent plus que leurs colonnes) ;
 --   2. ouvrir une fiche publique et la recherche sans être connecté : elles doivent s'afficher ;
---   3. lancer ce script ; 4. lancer le contrôle ci-dessous ; 5. rouvrir une fiche publique sans être connecté.
+--   3. lancer ce script aussitôt après cette vérification, sans attendre ; 4. lancer le contrôle ci-dessous ;
+--   5. rouvrir une fiche publique sans être connecté.
+-- Un onglet resté ouvert depuis avant le déploiement garde l'ancien code : après le script, il peut afficher
+-- « Artisan non trouvé » ou « Impossible de charger les artisans inscrits » jusqu'au rechargement de la page.
 -- Lancé AVANT le déploiement, il casserait, pour les visiteurs sans compte, les lectures de l'ancien code qui
 -- demandent toutes les colonnes : la fiche publique (« Artisan non trouvé » sur /fr/artisan, /fr/societe,
 -- /pt/profissional, /pt/empresa), la recherche (message « Impossible de charger les artisans inscrits », plus
