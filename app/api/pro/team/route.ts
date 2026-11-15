@@ -9,6 +9,15 @@ import { ROLE_LABELS, isValidProTeamRole } from '@/lib/permissions'
 import type { ProTeamRole } from '@/lib/permissions'
 import { nouvelleInvitation, sansJetonInvitation } from '@/lib/equipe/lien-invitation'
 import { envoyerEmailInvitation } from '@/lib/equipe/invitation-serveur'
+import { texteSurUneLigne } from '@/lib/sanitize'
+
+// Chaque invitation fait partir un e-mail depuis l'adresse d'envoi de la plateforme : plafond par compte et par
+// 24 heures, en plus de la limite par minute (par adresse Internet). L'écran « Comptes utilisateurs » annonce
+// 20 comptes par société : 40 laisse inviter toute une équipe, puis inviter de nouveau chacun, dans la même journée.
+const INVITATIONS_MAX_PAR_JOUR = 40
+const JOUR_MS = 24 * 60 * 60 * 1000
+/** Longueur maximale du nom de société repris dans l'e-mail (celle du champ de la fiche, lib/validation.ts). */
+const LONGUEUR_MAX_NOM_SOCIETE = 200
 
 // ── GET /api/pro/team ────────────────────────────────────────────────────────
 // List team members for the authenticated company
@@ -135,6 +144,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Cet email est déjà membre de votre équipe' }, { status: 409 })
   }
 
+  // Compté après les refus ci-dessus (une demande refusée ne consomme rien) et avant toute écriture.
+  if (!(await checkRateLimit(`pro_team_invite_jour_${user.id}`, INVITATIONS_MAX_PAR_JOUR, JOUR_MS))) {
+    logger.warn('[PRO_TEAM] plafond d\'invitations des 24 heures atteint', { compte: user.id })
+    return NextResponse.json(
+      { error: `Limite de ${INVITATIONS_MAX_PAR_JOUR} invitations par 24 heures atteinte. Réessayez demain.` },
+      { status: 429 },
+    )
+  }
+
   // Invitation et lien signé, envoyé seulement par e-mail et jamais renvoyé à l'invitant
   // (lib/equipe/lien-invitation.ts). Signé avant l'insertion : sans clé de signature, rien n'est écrit.
   let invitation: Awaited<ReturnType<typeof nouvelleInvitation>>
@@ -193,7 +211,12 @@ export async function POST(request: NextRequest) {
   const inviteUrl = `${appUrl}/pro/invite?token=${invitation.jetonLien}`
 
   // Send invitation email
-  const companyName = user.user_metadata?.company_name || user.user_metadata?.full_name || 'Entreprise'
+  // Le nom de la société est renseigné par le compte lui-même : il est ramené à une ligne de longueur bornée avant
+  // d'entrer dans l'objet et le corps du message (le gabarit échappe ensuite chaque valeur dans le HTML).
+  const companyName = texteSurUneLigne(
+    user.user_metadata?.company_name || user.user_metadata?.full_name,
+    LONGUEUR_MAX_NOM_SOCIETE,
+  ) || 'Entreprise'
   const locale = user.user_metadata?.locale || 'fr'
   const isPt = locale === 'pt'
   const roleName = isPt ? ROLE_LABELS[memberRole as ProTeamRole].pt : ROLE_LABELS[memberRole as ProTeamRole].fr
