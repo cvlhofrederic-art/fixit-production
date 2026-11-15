@@ -11,7 +11,8 @@ const PROFIL_ID = 'profil-artisan-1'
 // nom généré côté serveur (lib/security/storage-path.ts), jamais le nom du fichier client.
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const cheminPiece = (dossier: string, ext: string) => new RegExp(`^${USER_ID}/${dossier}/${UUID}\\.${ext}$`)
-const urlSignee = (dossier: string) => new RegExp(`^https://signee/${USER_ID}/${dossier}/${UUID}\\.`)
+// Valeur enregistrée dans la fiche : le chemin du fichier, jamais un lien signé (lisible par tous, mort à 7 jours).
+const cheminEnregistre = (dossier: string) => new RegExp(`^${USER_ID}/${dossier}/${UUID}\\.`)
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x0a])
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
@@ -144,10 +145,10 @@ describe('POST /api/pro/register/finalize-artisan — pièces sans session', () 
     expect(mocks.upload.mock.calls[3][2]).toEqual({ contentType: 'image/jpeg', upsert: false })
 
     expect(mocks.update).toHaveBeenCalledWith({
-      kbis_url: `https://signee/${chemins[0]}`,
-      id_document_url: `https://signee/${chemins[1]}`,
-      id_document_verso_url: `https://signee/${chemins[2]}`,
-      insurance_url: `https://signee/${chemins[3]}`,
+      kbis_url: chemins[0],
+      id_document_url: chemins[1],
+      id_document_verso_url: chemins[2],
+      insurance_url: chemins[3],
     })
     expect(mocks.updateEq).toHaveBeenCalledWith('id', PROFIL_ID)
 
@@ -164,7 +165,7 @@ describe('POST /api/pro/register/finalize-artisan — pièces sans session', () 
     expect(await res.json()).toEqual({
       ok: true, documents: { kbis: false, identity: false, identity_verso: false, insurance: true },
     })
-    expect(mocks.update).toHaveBeenCalledWith({ insurance_url: expect.stringMatching(urlSignee('insurance')) })
+    expect(mocks.update).toHaveBeenCalledWith({ insurance_url: expect.stringMatching(cheminEnregistre('insurance')) })
   })
 
   it('lance le KYC même sans pièce jointe (contrôle du SIRET et du registre)', async () => {
@@ -188,7 +189,7 @@ describe('POST /api/pro/register/finalize-artisan — pièces sans session', () 
     })
     expect(mocks.upload).toHaveBeenCalledTimes(1)
     expect(mocks.upload.mock.calls[0][0]).toMatch(cheminPiece('identity', 'png'))
-    expect(mocks.update).toHaveBeenCalledWith({ id_document_url: expect.stringMatching(urlSignee('identity')) })
+    expect(mocks.update).toHaveBeenCalledWith({ id_document_url: expect.stringMatching(cheminEnregistre('identity')) })
   })
 
   it("ignore le verso tant que sa colonne n'existe pas en base, sans gêner les autres pièces", async () => {
@@ -205,9 +206,9 @@ describe('POST /api/pro/register/finalize-artisan — pièces sans session', () 
     })
     expect(mocks.upload).toHaveBeenCalledTimes(3) // aucun dépôt orphelin pour le verso
     expect(mocks.update).toHaveBeenCalledWith({
-      kbis_url: expect.stringMatching(urlSignee('kbis')),
-      id_document_url: expect.stringMatching(urlSignee('identity')),
-      insurance_url: expect.stringMatching(urlSignee('insurance')),
+      kbis_url: expect.stringMatching(cheminEnregistre('kbis')),
+      id_document_url: expect.stringMatching(cheminEnregistre('identity')),
+      insurance_url: expect.stringMatching(cheminEnregistre('insurance')),
     })
   })
 
@@ -223,7 +224,7 @@ describe('POST /api/pro/register/finalize-artisan — pièces sans session', () 
       error: "Erreur lors de l'envoi des pièces",
       documents: { kbis: true, identity: false, identity_verso: false, insurance: false },
     })
-    expect(mocks.update).toHaveBeenCalledWith({ kbis_url: expect.stringMatching(urlSignee('kbis')) })
+    expect(mocks.update).toHaveBeenCalledWith({ kbis_url: expect.stringMatching(cheminEnregistre('kbis')) })
     await terminerAfter()
     expect(mocks.runKycPipeline).toHaveBeenCalledWith(PROFIL_ID, USER_ID)
   })
@@ -238,6 +239,27 @@ describe('POST /api/pro/register/finalize-artisan — pièces sans session', () 
       error: "Erreur lors de l'envoi des pièces",
       documents: { kbis: false, identity: false, identity_verso: false, insurance: false },
     })
+  })
+})
+
+describe('POST /api/pro/register/finalize-artisan — chemin enregistré, jamais de lien signé', () => {
+  // Même défaut que pour les sociétés : un lien signé enregistré dans la fiche ouvrait les pièces sans contrôle de
+  // qui le lisait, puis mourait au bout de 7 jours. Le chemin seul n'ouvre rien (seau privé), le lien se crée à la
+  // lecture.
+  it('enregistre le chemin de chaque pièce et ne crée aucun lien signé', async () => {
+    const res = await appeler({
+      user_id: USER_ID, kbis: kbis(), identity: identite(), identity_verso: verso(), insurance: assurance(),
+    })
+
+    expect(res.status).toBe(200)
+    const chemins = mocks.upload.mock.calls.map((appel) => appel[0] as string)
+    expect(mocks.update).toHaveBeenCalledWith({
+      kbis_url: chemins[0],
+      id_document_url: chemins[1],
+      id_document_verso_url: chemins[2],
+      insurance_url: chemins[3],
+    })
+    expect(mocks.createSignedUrl).not.toHaveBeenCalled()
   })
 })
 
