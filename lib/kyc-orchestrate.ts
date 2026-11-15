@@ -52,7 +52,8 @@ function validateNifFormat(nif: string): boolean {
 
 async function downloadBuffer(url: string): Promise<Buffer | null> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    // 10 s : téléchargement et lecture doivent tenir dans les 30 s que Cloudflare laisse après la réponse.
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
     if (!res.ok) return null
     return Buffer.from(await res.arrayBuffer())
   } catch {
@@ -60,33 +61,43 @@ async function downloadBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+// Lecture du document par Workers AI (lib/ai/relais.ts) : le modèle de vision de Groq a été retiré le 17/07/2026.
+// Images seulement, 5 Mo au plus. Un PDF n'est pas lu, comme avant ce retrait (il partait déclaré en image et
+// échouait) : sa couche de texte se rédige à la main, et l'approuver sur cette seule preuve reste à décider.
 async function ocrBuffer(
   buffer: Buffer,
   lang: string,
 ): Promise<{ text: string; confidence: number }> {
   try {
-    const { callGroqWithRetry } = await import('@/lib/groq')
-    const base64 = buffer.toString('base64')
-    const imageUrl = `data:image/jpeg;base64,${base64}`
+    const { appelerVision, typeDocument } = await import('@/lib/ai/relais')
+    // Type réel du fichier, pas une image JPEG supposée : un modèle refuse une image dont le type déclaré ne
+    // correspond pas au contenu.
+    const type = typeDocument(buffer)
+    if (!type) {
+      logger.warn('[kyc-orchestrate] OCR : format de document non pris en charge')
+      return { text: '', confidence: 0 }
+    }
+    const documentUrl = `data:${type};base64,${buffer.toString('base64')}`
     const prompt = lang === 'por'
       ? 'Extrai todo o texto visível neste documento. Devolve o texto em bruto sem formatação JSON.'
       : 'Extrais tout le texte visible sur ce document. Retourne le texte brut sans formatage JSON.'
-    const groqData = await callGroqWithRetry({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    const ocrData = await appelerVision({
       messages: [{
         role: 'user',
         content: [
           { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageUrl } },
+          { type: 'image_url', image_url: { url: documentUrl } },
         ],
       }],
-      temperature: 0.1,
       max_tokens: 3000,
-    })
-    const text = groqData.choices?.[0]?.message?.content || ''
+      // 18 s au plus (téléchargement : 10 s) : tout doit tenir dans les 30 s que Cloudflare laisse après la réponse.
+    }, { contexte: 'kyc-orchestrate', budgetMs: 18_000 })
+    const text = ocrData.choices?.[0]?.message?.content || ''
     const confidence = text.length > 100 ? 75 : text.length > 30 ? 50 : 15
     return { text, confidence }
-  } catch {
+  } catch (err) {
+    // Non bloquant : le score KYC en tient compte (docOcrSuccess reste faux).
+    logger.warn('[kyc-orchestrate] OCR indisponible', err)
     return { text: '', confidence: 0 }
   }
 }
@@ -315,6 +326,20 @@ export async function runKycPipeline(
     return { ok: true, result: { score, decision: 'rejected', checks, details, market } }
   }
 
+  // Lectures du Kbis et de la pièce d'identité lancées tout de suite, en parallèle entre elles et avec la
+  // vérification au registre : deux lectures par un modèle à la suite (plusieurs secondes chacune) risquaient de
+  // dépasser les 30 s que Cloudflare laisse au travail lancé après la réponse (after() des routes d'inscription).
+  // Ni le téléchargement ni la lecture ne rejettent : un échec donne null ou un texte vide.
+  const lireDocument = async (url: string | null | undefined) => {
+    if (!url) return null
+    const buffer = await downloadBuffer(url)
+    return buffer ? ocrBuffer(buffer, ocrLang) : null
+  }
+  // La pièce d'identité ne sert qu'à retrouver le nom de l'artisan : sans nom à comparer, elle n'est pas envoyée.
+  const nomArtisan = [artisan.first_name, artisan.last_name].filter(Boolean).join(' ').trim()
+  const lectureKbis = lireDocument(artisan.kbis_url)
+  const lectureIdentite = nomArtisan ? lireDocument(artisan.id_document_url) : Promise.resolve(null)
+
   // Step 2 — registry check
   let registryDenomination: string | null = null
   try {
@@ -340,9 +365,8 @@ export async function runKycPipeline(
 
   if (artisan.kbis_url) {
     try {
-      const buffer = await downloadBuffer(artisan.kbis_url)
-      if (buffer) {
-        const ocr = await ocrBuffer(buffer, ocrLang)
+      const ocr = await lectureKbis
+      if (ocr) {
         if (ocr.confidence > 30 || ocr.text.length > 50) {
           checks.docOcrSuccess = true
 
@@ -389,9 +413,8 @@ export async function runKycPipeline(
   // Step 6 — ID document OCR
   if (artisan.id_document_url) {
     try {
-      const buffer = await downloadBuffer(artisan.id_document_url)
-      if (buffer) {
-        const ocr = await ocrBuffer(buffer, ocrLang)
+      const ocr = await lectureIdentite
+      if (ocr) {
         if (ocr.text.length > 20) {
           // Build full name to search in OCR text
           const fullName = [artisan.first_name, artisan.last_name]

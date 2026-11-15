@@ -1,8 +1,9 @@
 // P2 Léa Documents — OCR + extraction métadonnées
 // PDFs : unpdf (déjà utilisé pour extract-pdf, Cloudflare Workers compat).
 // Images : OCR différé en P2.1 (Tesseract trop lourd pour Workers, Workers AI vision = follow-up).
-// Métadonnées : Groq llama-3.3-70b-versatile avec JSON mode strict.
+// Métadonnées : Claude (lib/claude.ts), secours Groq (GROQ_MODEL_PRIMARY), JSON mode strict.
 import { callClaudeWithRetry } from '@/lib/claude'
+import { GROQ_MODEL_PRIMARY } from '@/lib/constants'
 import { logger } from '@/lib/logger'
 
 const MAX_TEXT_FOR_LLM = 8000
@@ -102,7 +103,7 @@ export async function extractMetadataFromText(
 
   try {
     const completion = await callClaudeWithRetry({
-      model: 'llama-3.3-70b-versatile',
+      model: GROQ_MODEL_PRIMARY, // modèle du secours Groq
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: truncated },

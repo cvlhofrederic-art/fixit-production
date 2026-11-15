@@ -1,11 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
+import { GROQ_MODEL_RAPIDE } from '@/lib/constants'
 import { getAuthUser, isSyndicRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentClassifySchema } from '@/lib/validation'
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 export interface EmailClassification {
   urgence: 'haute' | 'moyenne' | 'basse'
@@ -81,15 +80,15 @@ Objet : ${subject || '(sans objet)'}
 Corps du message :
 ${(emailBody || '').substring(0, 800)}`
 
-    if (!GROQ_API_KEY) {
+    if (!(await iaTexteDisponible())) {
       // Fallback heuristique sans IA
       return NextResponse.json({ classification: getFallbackClassification(subject || '', emailBody || '') })
     }
 
-    let groqData: Awaited<ReturnType<typeof callGroqWithRetry>>
+    let groqData: Awaited<ReturnType<typeof appelerIA>>
     try {
-      groqData = await callGroqWithRetry({
-        model: 'llama-3.1-8b-instant',
+      groqData = await appelerIA({
+        model: GROQ_MODEL_RAPIDE,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: `Analyse cet email et retourne uniquement le JSON :\n\n${emailContent}` },
@@ -97,8 +96,9 @@ ${(emailBody || '').substring(0, 800)}`
         temperature: 0.1,
         max_tokens: 500,
         response_format: { type: 'json_object' },
-      }, { fallbackModel: 'llama-3.1-8b-instant' })
-    } catch {
+      }, { contexte: 'email-agent/classify', fallbackModel: GROQ_MODEL_RAPIDE })
+    } catch (err) {
+      logger.warn('[email-agent/classify] AI error, classement heuristique', err)
       return NextResponse.json({ classification: getFallbackClassification(subject || '', emailBody || '') })
     }
     const rawContent = groqData.choices?.[0]?.message?.content || '{}'

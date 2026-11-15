@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerVision, MAX_OCTETS_DOCUMENT, typeDocument } from '@/lib/ai/relais'
+import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, verifyKbisFormSchema } from '@/lib/validation'
 import { buildExtracted } from '@/lib/kbis-extractors'
 
-// ─── Groq Vision OCR prompts ─────────────────────────────────────────────────
+// ─── OCR prompts (image lue par Workers AI, PDF par sa couche de texte : lib/ai/relais.ts) ──
 
 const KBIS_PROMPT_FR = `Tu es un système OCR spécialisé dans les documents d'entreprise français (KBIS, extrait RCS).
 Extrais TOUT le texte visible sur ce document : raison sociale, SIRET, SIREN, adresse du siège, gérant, date de constitution, forme juridique.
@@ -25,6 +26,12 @@ export async function POST(request: NextRequest) {
   const allowed = await checkRateLimit(`verify_kbis_${ip}`, 5, 60_000)
   if (!allowed) return rateLimitResponse()
 
+  // Session exigée : la lecture d'une image consomme le quota Workers AI du compte (payant au-delà), et l'application
+  // n'appelle plus cette route
+  // (l'inscription lit le Kbis dans lib/kyc-orchestrate.ts).
+  const user = await getAuthUser(request)
+  if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -33,8 +40,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Fichier requis' }, { status: 400 })
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Fichier trop volumineux (max 10 Mo)' }, { status: 400 })
+    // Poids maximal d'un document lu par un modèle (lib/ai/relais.ts)
+    if (file.size > MAX_OCTETS_DOCUMENT) {
+      return NextResponse.json({ error: 'Fichier trop volumineux (max 5 Mo)' }, { status: 400 })
     }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
@@ -52,10 +60,11 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const market = v.data.market
 
-    // Convertir en base64 pour Groq Vision
+    // Convertir en base64 (image lue par Workers AI, PDF par sa couche de texte)
     const arrayBuffer = await file.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
-    const mimeType = file.type || 'image/jpeg'
+    // Type réel d'après les premiers octets (un type déclaré faux fait refuser le document)
+    const mimeType = typeDocument(new Uint8Array(arrayBuffer)) ?? (file.type || 'image/jpeg')
     const imageUrl = `data:${mimeType};base64,${base64}`
 
     const prompt = market === 'pt_artisan' ? KBIS_PROMPT_PT : KBIS_PROMPT_FR
@@ -63,8 +72,7 @@ export async function POST(request: NextRequest) {
     let ocrText = ''
     let confidence = 0
     try {
-      const groqData = await callGroqWithRetry({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      const ocrData = await appelerVision({
         messages: [{
           role: 'user',
           content: [
@@ -72,14 +80,13 @@ export async function POST(request: NextRequest) {
             { type: 'image_url', image_url: { url: imageUrl } },
           ],
         }],
-        temperature: 0.1,
         max_tokens: 3000,
-      })
-      ocrText = groqData.choices?.[0]?.message?.content || ''
+      }, { contexte: 'verify-kbis', pdf: true, maxPagesPdf: 10 })
+      ocrText = ocrData.choices?.[0]?.message?.content || ''
       confidence = ocrText.length > 100 ? 75 : ocrText.length > 30 ? 50 : 15
       if (ocrText.trim() === 'ILLISIBLE' || ocrText.trim() === 'ILEGÍVEL') confidence = 5
     } catch (err) {
-      logger.warn('[verify-kbis] Groq Vision error', err)
+      logger.warn('[verify-kbis] OCR error', err)
       confidence = 0
     }
 

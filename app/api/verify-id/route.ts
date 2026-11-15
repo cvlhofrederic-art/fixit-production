@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerVision, MAX_OCTETS_DOCUMENT, typeDocument } from '@/lib/ai/relais'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { validateBody, verifyIdFormSchema } from '@/lib/validation'
 
 export const maxDuration = 30
+
+/** Vérifications de pièce d'identité par jour, toutes adresses confondues (voir le plafond plus bas). */
+const VERIFICATIONS_PAR_JOUR = 300
 
 // Normalise un texte pour comparaison (minuscules, sans accents, sans ponctuation)
 function normalize(text: string): string {
@@ -90,6 +93,9 @@ export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
   const allowed = await checkRateLimit(`verify_id_${ip}`, 5, 60_000)
   if (!allowed) return rateLimitResponse()
+  // Plafond quotidien, toutes adresses confondues : route publique dont la lecture consomme le quota Workers AI du
+  // compte (facturé au-delà). Large au regard des inscriptions réelles ; il borne le coût d'un abus.
+  if (!(await checkRateLimit('verify_id_jour', VERIFICATIONS_PAR_JOUR, 86_400_000))) return rateLimitResponse()
 
   try {
     const formData = await request.formData()
@@ -97,6 +103,11 @@ export async function POST(request: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: 'Fichier requis' }, { status: 400 })
+    }
+
+    // Poids contrôlé avant toute lecture du fichier (5 Mo, limite des documents lus par un modèle).
+    if (file.size > MAX_OCTETS_DOCUMENT) {
+      return NextResponse.json({ error: 'Fichier trop volumineux (5 Mo maximum)' }, { status: 400 })
     }
 
     const v = validateBody(verifyIdFormSchema, {
@@ -107,18 +118,20 @@ export async function POST(request: NextRequest) {
     const expectedNom = v.data.nom
     const expectedPrenom = v.data.prenom
 
-    // Convertir le fichier en base64 pour Groq Vision
+    // Convertir le fichier en base64. Type réel d'après les premiers octets : un type déclaré par le navigateur qui
+    // ne correspond pas au contenu (fichier renommé, par exemple) fait refuser l'image par le modèle.
     const arrayBuffer = await file.arrayBuffer()
     const base64 = Buffer.from(arrayBuffer).toString('base64')
-    const mimeType = file.type || 'image/jpeg'
+    const mimeType = typeDocument(new Uint8Array(arrayBuffer)) ?? (file.type || 'image/jpeg')
     const imageUrl = `data:${mimeType};base64,${base64}`
 
-    // OCR via Groq Vision API
+    // OCR : lecture de l'image par Workers AI (lib/ai/relais.ts). Route publique (inscription, avant la création du
+    // compte) : images de 5 Mo au plus ; un PDF n'est pas lu ici (il ne l'était pas non plus par Groq), le KYC le
+    // lit après l'inscription.
     let ocrText = ''
     let confidence = 0
     try {
-      const groqData = await callGroqWithRetry({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      const ocrData = await appelerVision({
         messages: [{
           role: 'user',
           content: [
@@ -126,15 +139,14 @@ export async function POST(request: NextRequest) {
             { type: 'image_url', image_url: { url: imageUrl } },
           ],
         }],
-        temperature: 0.1,
         max_tokens: 2000,
-      })
-      ocrText = groqData.choices?.[0]?.message?.content || ''
-      // Groq Vision n'a pas de score de confiance natif — on estime via la longueur du texte
+      }, { contexte: 'verify-id' })
+      ocrText = ocrData.choices?.[0]?.message?.content || ''
+      // Pas de score de confiance natif — on estime via la longueur du texte
       confidence = ocrText.length > 100 ? 75 : ocrText.length > 30 ? 50 : 15
       if (ocrText.trim() === 'ILLISIBLE') confidence = 5
     } catch (err) {
-      logger.warn('[verify-id] Groq Vision error, returning low confidence', err)
+      logger.warn('[verify-id] OCR error, returning low confidence', err)
       confidence = 0
     }
 

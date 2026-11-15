@@ -19,9 +19,9 @@
 // muet…), la requête repart telle quelle sur Groq (puis Cerebras, cf.
 // `lib/groq.ts`). Un appel non streamé bascule aussi si le flux casse en cours
 // de route (rien n'a encore été rendu à l'appelant).
-// Côté artisan / BTP, seule l'Estimation matériaux s'en sert : en relais quand Groq échoue ou rend une réponse
-// inutilisable, sans retour vers Groq (`lib/estimation-materiaux/ai/groq-extractor.ts`). Les autres agents
-// artisan / BTP restent sur Groq.
+// Côté artisan / BTP, seuls l'Estimation matériaux et le Dictionnaire matériaux s'en servent, en relais
+// (`lib/estimation-materiaux/ai/groq-extractor.ts`, `app/api/dictionnaire-materiaux/analyse`). Les autres
+// agents artisan / BTP passent par `lib/ai/relais.ts` (Groq, puis Workers AI), sans Claude.
 
 import { ANTHROPIC_API_URL, CLAUDE_MODEL_AGENTS } from '@/lib/constants'
 import { getSecret } from '@/lib/env'
@@ -377,7 +377,7 @@ function descriptionErreur(err: unknown): string {
 /**
  * Trace d'une bascule vers Groq. Les erreurs de configuration (clé refusée,
  * modèle inconnu, requête invalide) partent dans Sentry : sinon la démo
- * tournerait sur Llama sans que personne ne le voie. Surcharge et refus : avertissement.
+ * tournerait sur le secours Groq sans que personne ne le voie. Surcharge et refus : avertissement.
  */
 function signalerBascule(contexte: string, err: unknown) {
   const configuration = err instanceof ErreurClaude && !STATUTS_REESSAYABLES.has(err.statut)
@@ -398,7 +398,7 @@ function journaliser(ecrire: () => void) {
 
 let cleAbsenteSignalee = false
 
-/** Clé absente : les agents tournent sur Llama. Signalé une fois par instance du Worker (Sentry). */
+/** Clé absente : les agents tournent sur Groq. Signalé une fois par instance du Worker (Sentry). */
 function signalerCleAbsente() {
   if (cleAbsenteSignalee) return
   cleAbsenteSignalee = true
@@ -445,7 +445,7 @@ async function appelClaude(apiKey: string, opts: GroqCallOptions, config: Claude
 
 /**
  * Appel non streamé : même signature et même réponse que `callGroqWithRetry`
- * (`model` indique le modèle qui a réellement répondu : Claude ou Llama).
+ * (`model` indique le modèle qui a réellement répondu : Claude ou celui de Groq).
  * Claude Sonnet 5.5 si la clé est configurée, sinon (ou en cas d'échec) Groq.
  */
 export async function callClaudeWithRetry(

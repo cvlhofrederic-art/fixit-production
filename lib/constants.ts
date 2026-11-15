@@ -35,7 +35,6 @@ export const SITE_URL = 'https://vitfix.io'
 export const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 export const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions'
 export const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages'
-export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 export const TAVILY_API_URL = 'https://api.tavily.com/search'
 export const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org'
 export const GOUV_ADRESSE_API_URL = 'https://api-adresse.data.gouv.fr'
@@ -47,17 +46,41 @@ export const GMAIL_API_URL = 'https://gmail.googleapis.com/gmail/v1'
 export const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 
 // ── AI Models ────────────────────────────────────────────────────────────────
+//
+// Groq a retiré de ses offres gratuite et développeur (console.groq.com/docs/deprecations, relu le 15/11/2026)
+// `llama-3.3-70b-versatile` et `llama-3.1-8b-instant` le 16/08/2026, et son modèle de vision
+// `meta-llama/llama-4-scout-17b-16e-instruct` le 17/07/2026 : depuis, tous les agents qui les nommaient répondaient
+// en erreur (« Model does not exist »). Remplaçants indiqués par Groq ci-dessous ; ils ne lisent pas les images.
+// Les modèles nommés ici ne s'écrivent plus en dur dans les routes.
 
-/** Modèle Groq principal (rapide, performant) */
-export const GROQ_MODEL_PRIMARY = 'llama-3.3-70b-versatile'
-/** Modèle Groq fallback (plus rapide, moins précis) */
-export const GROQ_MODEL_FALLBACK = 'llama-3.1-8b-instant'
+/** Modèle Groq principal : `openai/gpt-oss-120b`, remplaçant indiqué par Groq de `llama-3.3-70b-versatile`. */
+export const GROQ_MODEL_PRIMARY = 'openai/gpt-oss-120b'
+/** Modèle Groq des petits appels (classement, listes courtes) : `openai/gpt-oss-20b`, remplaçant de `llama-3.1-8b-instant`. */
+export const GROQ_MODEL_RAPIDE = 'openai/gpt-oss-20b'
+/** Modèle Groq de repli, essayé quand le principal échoue : le petit modèle, qui a son propre quota. */
+export const GROQ_MODEL_FALLBACK = GROQ_MODEL_RAPIDE
 
-/** Modèle Cerebras équivalent au primary Groq (fallback inter-provider sur rate-limit) */
-export const CEREBRAS_MODEL_PRIMARY = 'llama-3.3-70b'
+/**
+ * Modèle Cerebras du secours inter-fournisseurs (lib/groq.ts). `llama-3.3-70b` a été retiré par Cerebras (annonce
+ * du 16/02/2026, inference-docs.cerebras.ai/support/deprecation) : c'est lui qui répondait « Cerebras 404 » en
+ * production. `gpt-oss-120b` est le remplaçant recommandé par Cerebras.
+ */
+export const CEREBRAS_MODEL_PRIMARY = 'gpt-oss-120b'
 
-/** Modèle Claude des agents Syndic, Administrateur judiciaire et Copropriétaire (lib/claude.ts) */
+/**
+ * Modèle Claude des agents Syndic, Administrateur judiciaire et Copropriétaire (lib/claude.ts), et du relais de
+ * l'Estimation et du Dictionnaire matériaux.
+ */
 export const CLAUDE_MODEL_AGENTS = 'claude-sonnet-5-5'
+
+/**
+ * Modèles de Workers AI (binding du Worker, lib/workers-ai.ts) qui relaient les agents artisan / BTP quand Groq
+ * échoue et lisent les images des documents (lib/ai/relais.ts), dans l'ordre d'essai : Gemma 4 26B (0,10 $ / 0,30 $
+ * le million de jetons) puis Qwen 3.8 27B (0,45 $ / 3,20 $), tous deux lisent les images (pages des modèles de
+ * Cloudflare, relues le 17/11/2026 ; mêmes choix que le Dictionnaire matériaux). Cloudflare retire souvent des
+ * modèles : le second relaie un retrait du premier.
+ */
+export const WORKERS_AI_MODELES = ['@cf/google/gemma-4-26b-a4b-it', '@cf/qwen/qwen3.8-27b'] as const
 
 // ── Misc ─────────────────────────────────────────────────────────────────────
 

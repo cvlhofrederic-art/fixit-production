@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { TOOLS, buildToolDescriptions, type ToolResult } from './tools'
-import { callGroqWithRetry, type GroqResponse } from '@/lib/groq'
+import { type GroqResponse } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 // crypto.randomUUID() is available globally (Web Crypto API)
 import { getAuthUser, unauthorizedResponse, verifyArtisanOwnership } from '@/lib/auth-helpers'
 import { checkRateLimit as checkRL } from '@/lib/rate-limit'
@@ -12,8 +13,7 @@ import { logger } from '@/lib/logger'
 export const maxDuration = 30
 
 // ── Fixy AI v2 — Assistant IA avec exécution d'actions serveur ────────────────
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
+// Groq d'abord, Workers AI en relais si Groq échoue (lib/ai/relais.ts).
 
 // ── Pending confirmations (Upstash Redis, TTL 5min) ─────────────────────────
 // Store distribué (lib/pending-confirmations) : sur Cloudflare Workers, un Map
@@ -367,7 +367,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, response: 'Tu vas trop vite ! Attends un peu avant de renvoyer un message.', actions_executed: [], client_actions: [] })
     }
 
-    if (!GROQ_API_KEY) {
+    if (!(await iaTexteDisponible())) {
       return NextResponse.json({ success: false, response: 'Service IA indisponible. Réessaie plus tard.', actions_executed: [], client_actions: [] })
     }
 
@@ -386,16 +386,17 @@ export async function POST(request: NextRequest) {
     }
     messages.push({ role: 'user', content: message })
 
-    // Call Groq API with retry
+    // Groq, puis relais par Workers AI
     let groqData: GroqResponse
     try {
-      groqData = await callGroqWithRetry({
+      groqData = await appelerIA({
         messages,
         temperature: 0.2,
         max_tokens: 3000,
         response_format: { type: 'json_object' },
-      })
-    } catch {
+      }, { contexte: 'fixy-ai' })
+    } catch (err) {
+      logger.error('[fixy-ai] AI call failed', { module: 'fixy-ai' }, err)
       return NextResponse.json({ success: false, response: 'Erreur IA temporaire. Réessaie dans quelques instants.', actions_executed: [], client_actions: [] })
     }
     const content = groqData.choices?.[0]?.message?.content || ''

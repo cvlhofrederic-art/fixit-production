@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 import { callCerebrasWithRetry, hasCerebrasKey } from '@/lib/cerebras'
 import { CEREBRAS_API_URL, CEREBRAS_MODEL_PRIMARY } from '@/lib/constants'
+import { MARGE_RAISONNEMENT } from '@/lib/ai/raisonnement'
 
 describe('lib/cerebras', () => {
   const originalKey = process.env.CEREBRAS_API_KEY
@@ -55,9 +56,13 @@ describe('lib/cerebras', () => {
       const headers = reqInit.headers as Record<string, string>
       expect(headers['Authorization']).toBe('Bearer csk-test-key')
       const body = JSON.parse(reqInit.body as string) as Record<string, unknown>
-      expect(body.model).toBe(CEREBRAS_MODEL_PRIMARY)
+      // llama-3.3-70b a été retiré par Cerebras : c'est lui qui répondait « Cerebras 404 » en production.
+      expect(body.model).toBe('gpt-oss-120b')
+      expect(CEREBRAS_MODEL_PRIMARY).toBe('gpt-oss-120b')
       expect(body.temperature).toBe(0.1)
-      expect(body.max_tokens).toBe(100)
+      // gpt-oss raisonne avant de répondre : budget majoré, effort bas.
+      expect(body.max_tokens).toBe(100 + MARGE_RAISONNEMENT)
+      expect(body.reasoning_effort).toBe('low')
       expect(body.response_format).toEqual({ type: 'json_object' })
     })
 

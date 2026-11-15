@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { scanMarches, type ScanOptions } from '@/lib/marches-scanner'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 
 export const maxDuration = 120
@@ -50,16 +50,15 @@ export async function POST(request: NextRequest) {
 
     const result = await scanMarches(options)
 
-    // Generate AI summaries for top 10 marches (if Groq key available)
-    const groqKey = process.env.GROQ_API_KEY
-    if (groqKey && result.marches.length > 0) {
+    // Generate AI summaries for top 10 marches (si une IA est configurée : Groq, ou Workers AI en relais)
+    if (result.marches.length > 0 && (await iaTexteDisponible())) {
       const top10 = result.marches.slice(0, 10)
       try {
         const summaryPrompt = top10.map((m, i) =>
           `${i + 1}. "${m.title}" — ${m.buyer} — ${m.location} — Budget: ${m.budgetMin ? `${m.budgetMin}€` : 'NC'}`
         ).join('\n')
 
-        const groqRes = await callGroqWithRetry({
+        const groqRes = await appelerIA({
           messages: [
             {
               role: 'system',
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
           temperature: 0.3,
           max_tokens: 1500,
           response_format: { type: 'json_object' },
-        }, { maxRetries: 1 })
+        }, { contexte: 'marches/scan', maxRetries: 1 })
 
         const parsed = JSON.parse(groqRes.choices[0]?.message?.content || '{}')
         if (Array.isArray(parsed.summaries)) {

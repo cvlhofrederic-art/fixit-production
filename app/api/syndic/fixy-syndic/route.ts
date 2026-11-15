@@ -479,7 +479,7 @@ export async function POST(request: NextRequest) {
     // Résoudre les tokens PII dans la réponse finale (au cas où Groq les répercuterait)
     response = resolveSanitizedToken(response, tokenMap) ?? response
 
-    // modele : modèle qui a réellement répondu (Claude, ou Llama en secours).
+    // modele : modèle qui a réellement répondu (Claude, ou celui de Groq en secours).
     return NextResponse.json({ response, action, role: userRole, modele: groqData.model ?? null })
 
   } catch (err: unknown) {

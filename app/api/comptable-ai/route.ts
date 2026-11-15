@@ -1,17 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerIA, iaTexteDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 import { validateBody, comptableAiRequestSchema } from '@/lib/validation'
 import { supabaseAdmin } from '@/lib/supabase-server'
 
 export const maxDuration = 30
 
-// Agent Comptable Léa — Powered by Groq (Llama 3.3-70B)
+// Agent Comptable Léa — Groq (modèle de lib/constants.ts), Workers AI en relais si Groq échoue (lib/ai/relais.ts)
 // Expert-comptable senior BTP & artisanat — tous statuts juridiques — législation française 2026
-
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
 
 const fmt = (v: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(v)
@@ -868,16 +866,20 @@ export async function POST(request: NextRequest) {
         ...(directMessages as Array<{ role: string; content: string }>).slice(-20).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content })),
       ]
 
-      if (!GROQ_API_KEY) {
-        return NextResponse.json({ reply: '⚠️ Clé API Groq non configurée. Contactez l\'administrateur.' })
+      if (!(await iaTexteDisponible())) {
+        return NextResponse.json({
+          reply: locale === 'pt'
+            ? '⚠️ O serviço de IA está indisponível de momento. Tente mais tarde.'
+            : '⚠️ Le service IA est indisponible pour le moment. Réessayez plus tard.',
+        })
       }
 
       try {
-        const groqData = await callGroqWithRetry({ messages, temperature: 0.15, max_tokens: 3500 })
+        const groqData = await appelerIA({ messages, temperature: 0.15, max_tokens: 3500 }, { contexte: 'comptable-ai' })
         const reply = groqData.choices?.[0]?.message?.content || 'Désolé, je n\'ai pas pu générer de réponse.'
         return NextResponse.json({ reply })
       } catch (err) {
-        logger.error('[comptable-ai] Groq API error (direct mode):', err)
+        logger.error('[comptable-ai] AI error (direct mode)', { module: 'comptable-ai' }, err)
         return NextResponse.json({ reply: 'Erreur IA temporaire. Réessayez dans quelques instants.' }, { status: 500 })
       }
     }
@@ -1109,7 +1111,7 @@ ${buildEnrichedSections(ctx)}`
       { role: 'user', content: message },
     ]
 
-    if (!GROQ_API_KEY) {
+    if (!(await iaTexteDisponible())) {
       return NextResponse.json({
         success: true,
         response: generateFallbackResponse(message, ctx, locale),
@@ -1118,7 +1120,7 @@ ${buildEnrichedSections(ctx)}`
     }
 
     try {
-      const groqData = await callGroqWithRetry({ messages, temperature: 0.2, max_tokens: 3000 })
+      const groqData = await appelerIA({ messages, temperature: 0.2, max_tokens: 3000 }, { contexte: 'comptable-ai' })
       let response = groqData.choices?.[0]?.message?.content || 'Je n\'ai pas pu générer une réponse. Réessayez.'
       // Ajouter disclaimer professionnel si conseil fiscal/financier
       const disclaimer = locale === 'pt'
@@ -1126,7 +1128,8 @@ ${buildEnrichedSections(ctx)}`
         : '\n\n---\n*⚠️ Information indicative générée par IA. Consultez un expert-comptable agréé pour toute décision fiscale ou comptable.*'
       response += disclaimer
       return NextResponse.json({ success: true, response })
-    } catch {
+    } catch (err) {
+      logger.warn('[comptable-ai] AI error, réponse de secours sans IA', err)
       return NextResponse.json({
         success: true,
         response: generateFallbackResponse(message, ctx, locale),
@@ -1142,7 +1145,7 @@ ${buildEnrichedSections(ctx)}`
   }
 }
 
-// ─── Fallback sans Groq ───────────────────────────────────────────────────────
+// ─── Réponse de secours sans IA ───────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Financial context from frontend with dynamic shape
 function generateFallbackResponse(message: string, ctx: Record<string, any>, locale: string = 'fr'): string {
   const msgLower = message.toLowerCase()

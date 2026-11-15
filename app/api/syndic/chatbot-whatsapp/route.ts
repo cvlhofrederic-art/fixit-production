@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { getSecret } from '@/lib/env'
+import { GROQ_API_URL, GROQ_MODEL_PRIMARY } from '@/lib/constants'
+import { parametresRaisonnement } from '@/lib/ai/raisonnement'
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const GROQ_URL = GROQ_API_URL
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,10 +70,11 @@ Respond in JSON format:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: GROQ_MODEL_PRIMARY,
         messages,
         temperature: 0.3,
-        max_tokens: 500,
+        // gpt-oss raisonne avant de répondre : budget majoré et effort `low` (lib/ai/raisonnement.ts)
+        ...parametresRaisonnement(GROQ_MODEL_PRIMARY, 500),
         response_format: { type: 'json_object' },
       }),
     })

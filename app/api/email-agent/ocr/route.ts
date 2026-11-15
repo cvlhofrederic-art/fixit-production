@@ -1,13 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
-import { callGroqWithRetry } from '@/lib/groq'
+import { appelerVision, dataUrlDocument, visionDisponible } from '@/lib/ai/relais'
 import { logger } from '@/lib/logger'
 import { validateBody, emailAgentOcrSchema } from '@/lib/validation'
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ''
-
-// ── OCR via Groq Llama 3.2 Vision ─────────────────────────────────────────────
+// ── OCR (lecture de l'image par Workers AI, lib/ai/relais.ts) ──────────────────
 // Extrait les métadonnées d'une facture/rapport/devis depuis une image
 
 export interface OCRResult {
@@ -64,19 +62,17 @@ export async function POST(request: NextRequest) {
 
     const { image_base64, mime_type } = v.data
 
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: 'Groq API non configurée' }, { status: 500 })
+    if (!(await visionDisponible())) {
+      return NextResponse.json({ error: 'Analyse indisponible pour le moment. Réessayez plus tard.' }, { status: 503 })
     }
 
     // Construire l'URL data ou utiliser directement le base64
-    const imageUrl = image_base64.startsWith('data:')
-      ? image_base64
-      : `data:${mime_type};base64,${image_base64}`
+    // Vrai type d'après les premiers octets : une image dont le type déclaré ne correspond pas serait refusée.
+    const imageUrl = dataUrlDocument(image_base64, mime_type)
 
-    let groqData
+    let ocrData
     try {
-      groqData = await callGroqWithRetry({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      ocrData = await appelerVision({
         messages: [
           {
             role: 'user',
@@ -92,19 +88,18 @@ export async function POST(request: NextRequest) {
             ],
           },
         ],
-        temperature: 0.1,
         max_tokens: 800,
         response_format: { type: 'json_object' },
-      }, { fallbackModel: 'meta-llama/llama-4-scout-17b-16e-instruct' })
-    } catch (groqErr: unknown) {
-      logger.error('Groq Vision error:', groqErr instanceof Error ? groqErr.message : groqErr)
+      }, { contexte: 'email-agent/ocr' })
+    } catch (ocrErr: unknown) {
+      logger.error('Email agent OCR vision error', { module: 'email-agent/ocr' }, ocrErr)
       return NextResponse.json({
         result: { confidence: 'basse' } as OCRResult,
         error: 'Analyse vision échouée',
       })
     }
 
-    const rawContent = groqData.choices?.[0]?.message?.content || '{}'
+    const rawContent = ocrData.choices?.[0]?.message?.content || '{}'
 
     let result: OCRResult
     try {
