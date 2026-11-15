@@ -37,7 +37,7 @@ beforeEach(() => {
     id: 'profil-1',
     user_id: USER_ID,
     siret: SIRET,
-    company_name: 'PROVENCE PRO',
+    company_name: 'BATIMENT SUD EXEMPLE',
     kyc_market: 'fr_btp',
     kbis_url: CHEMIN_KBIS,
   }
@@ -46,12 +46,12 @@ beforeEach(() => {
     error: null,
   }))
   mocks.ocr.mockReset().mockResolvedValue({
-    choices: [{ message: { content: `EXTRAIT KBIS\nSIRET : ${SIRET}\nDénomination : PROVENCE PRO\nGérant : Jean Martin\n${'texte '.repeat(30)}` } }],
+    choices: [{ message: { content: `EXTRAIT KBIS\nSIRET : ${SIRET}\nDénomination : BATIMENT SUD EXEMPLE\nGérant : Jean Exemple\n${'texte '.repeat(30)}` } }],
   })
   vi.stubGlobal('fetch', vi.fn(async (entree: string | URL) => {
     const url = String(entree)
     if (url.startsWith('https://recherche-entreprises.api.gouv.fr/')) {
-      return new Response(JSON.stringify({ results: [{ etat_administratif: 'A', nom_complet: 'PROVENCE PRO' }] }))
+      return new Response(JSON.stringify({ results: [{ etat_administratif: 'A', nom_complet: 'BATIMENT SUD EXEMPLE' }] }))
     }
     mocks.telecharges.push(url)
     // Le stockage n'ouvre que les liens portant un jeton valable.

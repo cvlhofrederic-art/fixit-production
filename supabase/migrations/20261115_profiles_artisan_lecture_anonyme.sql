@@ -22,9 +22,11 @@
 --   3. lancer ce script ; 4. lancer le contrôle ci-dessous ; 5. rouvrir une fiche publique sans être connecté.
 -- Lancé AVANT le déploiement, il casserait, pour les visiteurs sans compte, les lectures de l'ancien code qui
 -- demandent toutes les colonnes : la fiche publique (« Artisan non trouvé » sur /fr/artisan, /fr/societe,
--- /pt/profissional, /pt/empresa), la recherche (artisans inscrits absents, seul l'annuaire s'affiche), la page de
--- réservation (nom du professionnel absent) et la confirmation de réservation (encart du professionnel absent).
+-- /pt/profissional, /pt/empresa), la recherche (message « Impossible de charger les artisans inscrits », plus
+-- aucune fiche de profiles_artisan, seul le catalogue artisans_catalogue reste), la page de réservation (nom du
+-- professionnel absent) et la confirmation de réservation (encart du professionnel absent).
 -- Les métadonnées, le JSON-LD et le sitemap des fiches lisent déjà des colonnes de la liste : ils ne changent pas.
+-- Les comptes connectés (rôle authenticated) ne sont pas concernés, ni avant ni après le déploiement.
 --
 -- Retour arrière, si besoin : grant select on table public.profiles_artisan to anon;
 --
