@@ -16,13 +16,10 @@
 -- ║     avalait l'erreur. Aucun signal Sentry. Devis perdu en DB.        ║
 -- ║                                                                      ║
 -- ║ INCIDENT DOCUMENTÉ :                                                 ║
--- ║   - Carvalho Frédéric (cvlho.frederic@gmail.com) a perdu son devis   ║
--- ║     DEV-2026-004 « Nettoyage parc Corot CDC Habitat 6 415 € » le     ║
--- ║     22/04/2026. PDF généré localement, sync DB 500 silencieuse,      ║
--- ║     localStorage nettoyé depuis (changement device/cache) → perte    ║
--- ║     définitive. Investigation Supabase confirme ZÉRO devis pour      ║
--- ║     user_id 920b7d34-5d20-4fe4-b2c0-14eb0fe51ab9 alors qu'un autre   ║
--- ║     artisan (Ajassociés client) occupait déjà le numéro chrono.      ║
+-- ║   - 22/04/2026 : un devis émis a été perdu. PDF généré localement,   ║
+-- ║     synchronisation refusée en silence (numéro déjà pris par un      ║
+-- ║     autre compte), puis cache du navigateur vidé : perte définitive, ║
+-- ║     confirmée en base (aucune ligne pour ce compte).                 ║
 -- ║                                                                      ║
 -- ║ FIX :                                                                ║
 -- ║   - Drop UNIQUE (numero) simple.                                     ║
