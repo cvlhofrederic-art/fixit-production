@@ -1,0 +1,1157 @@
+{
+  "domaine": {
+    "id": "madeira-metal",
+    "nom": "Madeira e metal",
+    "icone": "🪵"
+  },
+  "situations": [
+    {
+      "id": "ferrugem-portao-gradeamento",
+      "domaine": "madeira-metal",
+      "titre": "Ferrugem em portão ou gradeamento",
+      "motsCles": [
+        "portão enferrujado",
+        "grades com ferrugem",
+        "ferro a descascar",
+        "tinta do portão a saltar",
+        "gradeamento da varanda enferrujado",
+        "pintar portão de ferro velho",
+        "ferrugem do portão a escorrer na parede",
+        "tratar ferrugem no ferro",
+        "corrimão enferrujado"
+      ],
+      "description": "Ferro pintado com manchas de ferrugem, tinta a empolar ou a saltar e, por vezes, escorrências castanhas no muro ou na parede. Trata-se retirando a ferrugem solta, neutralizando a que fica e repintando com esmalte próprio para ferro.",
+      "aVerifier": [
+        "Ferrugem só à superfície ou ferro já furado e a esfarelar (peças com perda de secção têm de ser substituídas ou soldadas).",
+        "Estado da tinta antiga: bem agarrada (basta lixar) ou a descascar por todo o lado (ir até ao ferro).",
+        "Exposição: junto ao mar ou muito exposto à chuva pede o esquema completo, com todas as demãos indicadas na lata.",
+        "Fixações à parede, dobradiças e fechos: ver se também estão enferrujados ou soltos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar a ferrugem solta e a tinta empolada, sobretudo em cantos e soldaduras."
+            },
+            {
+              "id": "escova-arame-rebarbadora",
+              "note": "Só em grandes superfícies muito enferrujadas; usar óculos ou viseira.",
+              "optionnel": true
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Levantar a tinta que já não está agarrada."
+            },
+            {
+              "id": "lixa-ferro-folha",
+              "note": "Despolir a tinta que fica e esbater as arestas entre tinta e ferro nu."
+            },
+            {
+              "id": "desengordurante",
+              "note": "Lavar gordura e pó antes de tratar; enxaguar e deixar secar bem."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "conversor-ferrugem",
+              "note": "Ferrugem funda e picada que a escova não tira; não aplicar sobre metal limpo nem tinta.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-anticorrosivo-ferro",
+              "note": "Zonas levadas ao ferro nu, sobretudo junto ao mar: antes do esmalte, compatível com ele.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esmalte-antiferrugem-direto",
+              "note": "Acabamento de exterior para ferro; dar todas as demãos indicadas na lata."
+            },
+            {
+              "id": "esmalte-antiferrugem-forja-martelado",
+              "note": "Em vez do liso, quando o ferro está picado: disfarça as irregularidades.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "trincha-cerda-natural",
+              "note": "Grades, varões e recantos; dá-se bem com esmaltes de solvente."
+            },
+            {
+              "id": "mini-rolo-esmalte",
+              "note": "Chapas e barras lisas de portões; confirmar que resiste a solventes.",
+              "optionnel": true
+            },
+            {
+              "id": "diluente-sintetico",
+              "note": "Limpeza das ferramentas; para diluir, usar o diluente indicado na lata do esmalte."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Escovar e raspar projeta arames, ferrugem e lascas de tinta."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó de ferrugem e de tinta velha ao escovar e lixar."
+            },
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Desengordurante, conversor, primário e diluente."
+            },
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Proteger pavimento, muro e soleiras do pó de ferrugem e dos pingos de esmalte."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Ferro furado, barras soltas ou soldaduras abertas numa guarda de varanda ou de escada são um problema de segurança: reparar por serralheiro antes de pintar.",
+        "Tintas muito antigas podem conter chumbo: não lixar a seco sem máscara, recolher os resíduos e afastar crianças.",
+        "Trabalho em altura (varandas, portões altos): usar escadote ou andaime estável, nunca debruçado sobre o gradeamento.",
+        "Não pintar com o ferro húmido, com orvalho ou sob sol forte; demãos e tempos de secagem: ver a embalagem.",
+        "Conversor e esmaltes de solvente: ventilar e manter longe de chamas.",
+        "Portões automáticos: desligar o motor antes de começar e não pintar cremalheira, fotocélulas nem rolamentos."
+      ]
+    },
+    {
+      "id": "pintar-ferro-novo-galvanizado",
+      "domaine": "madeira-metal",
+      "titre": "Pintar ferro novo ou galvanizado",
+      "motsCles": [
+        "pintar portão novo",
+        "pintar ferro cru",
+        "tinta não agarra no galvanizado",
+        "pintar chapa zincada",
+        "ferro com calamina",
+        "pintar gradeamento novo",
+        "primário para ferro",
+        "tinta a descascar do galvanizado",
+        "pintar tubo galvanizado"
+      ],
+      "description": "Ferro acabado de sair da serralharia (com calamina, óleo e pontos de soldadura) ou peças galvanizadas, onde a tinta comum não agarra. O resultado depende quase todo da limpeza e do primário certo.",
+      "aVerifier": [
+        "Que metal é: ferro preto (cru), ferro galvanizado/zincado ou alumínio — a preparação e o primário não são os mesmos.",
+        "Galvanizado novo e brilhante ou já baço pela intempérie (o novo é o que pior agarra).",
+        "Soldaduras, cortes e furos onde o zinco foi queimado e o ferro ficou à vista.",
+        "Interior ou exterior, junto ao mar ou não, e o acabamento pedido (liso, forja ou martelado)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "desengordurante",
+              "note": "Tirar o óleo de fábrica e as dedadas; enxaguar e secar bem."
+            },
+            {
+              "id": "lixa-ferro-folha",
+              "note": "Ferro novo: tirar a calamina e a ferrugem ligeira e dar aderência."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Escórias e ferrugem nas soldaduras do ferro; não usar no galvanizado."
+            },
+            {
+              "id": "esfregao-fibra-verde",
+              "note": "Só no galvanizado: despolir de leve, sem ferir a camada de zinco.",
+              "optionnel": true
+            },
+            {
+              "id": "alcool-isopropilico",
+              "note": "Passagem final antes do primário; não deixa resíduo."
+            },
+            {
+              "id": "pano-microfibra"
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "spray-zinco-galvanizacao-frio",
+              "note": "Retocar soldaduras, cortes e furos onde o zinco foi queimado ou o ferro ficou à vista.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-aderencia-multissuperficies",
+              "note": "Galvanizado e alumínio: indispensável; confirmar no rótulo que admite esse metal.",
+              "optionnel": true
+            },
+            {
+              "id": "primario-anticorrosivo-ferro",
+              "note": "Ferro cru junto ao mar ou muito exposto: primeira demão antes do esmalte.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esmalte-antiferrugem-direto",
+              "note": "Ferro cru: serve de primário e acabamento. No galvanizado, só por cima do primário de aderência."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "trincha-cerda-natural"
+            },
+            {
+              "id": "mini-rolo-esmalte",
+              "note": "Superfícies lisas; confirmar que resiste a solventes."
+            },
+            {
+              "id": "diluente-sintetico",
+              "note": "Limpeza das ferramentas; para diluir, seguir a lata do esmalte."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Desengordurante, álcool, primário e diluente."
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos de produto e arames da escova."
+            },
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Proteger o pavimento e o que estiver por perto."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Galvanizado novo sem desengordurar e sem primário de aderência: a tinta acaba por saltar em placas.",
+        "Não lixar o galvanizado até ao ferro: o zinco é a proteção. Só despolir.",
+        "Confirmar na lata que o esmalte é compatível com o primário aplicado.",
+        "Não pintar com o metal húmido, com orvalho ou sob sol forte; demãos e tempos de secagem: ver a embalagem.",
+        "Solventes e sprays são inflamáveis: trabalhar ao ar livre ou com boa ventilação, longe de chamas."
+      ]
+    },
+    {
+      "id": "madeira-exterior-ressequida",
+      "domaine": "madeira-metal",
+      "titre": "Madeira exterior ressequida",
+      "motsCles": [
+        "deck cinzento",
+        "madeira queimada do sol",
+        "portadas a descascar",
+        "pérgola ressequida",
+        "tábuas do deck a rachar",
+        "renovar deck",
+        "verniz a estalar no exterior",
+        "madeira de exterior sem cor",
+        "tratar madeira de jardim",
+        "mobília de jardim seca"
+      ],
+      "description": "Madeira de exterior (deck, portadas, pérgola, vedações, mobiliário) acinzentada, seca e com fendas, ou com o verniz antigo a estalar. Renova-se limpando, lixando até à madeira sã e voltando a proteger com velatura ou óleo.",
+      "aVerifier": [
+        "Acabamento antigo: velatura ou óleo (renova-se por cima depois de lixar) ou verniz a estalar (tem de sair todo).",
+        "Madeira pisada (deck) ou vertical (portadas, pérgola, vedação): no deck usa-se óleo de deck, não produtos que fazem película.",
+        "Madeira sã ou com zonas moles e escuras, sobretudo em topos e junto ao chão (testar com uma chave de fendas).",
+        "Verdete, musgo ou bolor a limpar antes; parafusos e ferragens enferrujados a substituir."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "removedor-musgo-algas-liquenes",
+              "note": "Só se houver verdete, musgo ou líquenes; aplicar com tempo seco e deixar atuar.",
+              "optionnel": true
+            },
+            {
+              "id": "escovao-de-obra",
+              "note": "Lavar e escovar o deck no sentido do veio; deixar a madeira secar bem."
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Verniz ou velatura a descascar; puxar no sentido do veio."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Tirar a camada cinzenta até aparecer madeira sã; acabar com grão mais fino."
+            },
+            {
+              "id": "disco-lixa-velcro",
+              "note": "Superfícies grandes com lixadeira; confirmar diâmetro e furos da máquina.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "parafuso-inox-madeira",
+              "note": "Substituir parafusos enferrujados e voltar a prender tábuas soltas.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "imunizador-madeira",
+              "note": "Na madeira nua e seca, antes do acabamento; escolher a versão de exterior."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "oleo-deck",
+              "note": "Deck e terraços pisados: penetra sem fazer película, não estala nem escorrega.",
+              "optionnel": true
+            },
+            {
+              "id": "velatura-madeira",
+              "note": "Portadas, pérgolas e vedações: não faz película que estale e renova-se sem decapar.",
+              "optionnel": true
+            },
+            {
+              "id": "oleo-teca",
+              "note": "Mobiliário de jardim em teca ou outras madeiras exóticas; retirar o excesso com pano.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "trincha-madeira-velaturas-vernizes",
+              "note": "Sempre no sentido do veio, tábua a tábua, para não ficarem emendas."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Limpar o pó da lixagem e retirar o excesso de óleo."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da lixagem."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Imunizador, óleos e removedor de musgo."
+            },
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Proteger paredes, pavimento e plantas dos pingos e escorrências."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Madeira mole ou apodrecida em pérgolas, guardas e estrutura de deck: substituir a peça, não é só questão de acabamento.",
+        "Panos com óleo podem inflamar-se sozinhos: estender a secar ao ar ou molhar antes de deitar fora.",
+        "Não envernizar um deck: a película estala com o sol e fica escorregadia.",
+        "Aplicar com a madeira bem seca, sem chuva prevista nem sol forte direto; demãos e tempos de secagem: ver a embalagem.",
+        "Pérgolas e portadas altas: trabalho em altura, com escada bem apoiada ou andaime.",
+        "Removedor de musgo e imunizador: evitar escorrências para plantas, relvados e linhas de água."
+      ]
+    },
+    {
+      "id": "caruncho-em-madeira",
+      "domaine": "madeira-metal",
+      "titre": "Caruncho em madeira",
+      "motsCles": [
+        "bicho da madeira",
+        "furinhos na madeira",
+        "pó de madeira no chão",
+        "serrim debaixo do móvel",
+        "vigas com caruncho",
+        "móvel antigo com bicho",
+        "ouve-se o bicho a roer",
+        "tratar caruncho",
+        "soalho com furinhos e pó"
+      ],
+      "description": "Pequenos furos redondos na madeira com pó fino (serrim) a cair, em móveis, vigas, soalhos ou aros. Indica larvas de caruncho ativas ou um ataque antigo; trata-se com produto anticaruncho na madeira nua e tapam-se depois os furos.",
+      "aVerifier": [
+        "Ataque ativo (pó claro e fresco a aparecer, furos de arestas limpas) ou antigo (furos escuros, sem pó).",
+        "Móvel ou peça de acabamento, ou madeira estrutural (vigas, barrotes, escadas): espetar uma chave de fendas para ver se ainda tem resistência.",
+        "Acabamento existente: verniz, cera ou tinta impedem o produto de penetrar e têm de sair.",
+        "Humidade no local ou na madeira, que favorece o ataque e pode esconder também fungos."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "decapante-tintas-vernizes",
+              "note": "Madeira envernizada ou pintada: o produto só penetra em madeira nua.",
+              "optionnel": true
+            },
+            {
+              "id": "aguarras",
+              "note": "Só em madeira encerada: retirar a cera antes de tratar. Inflamável.",
+              "optionnel": true
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Abrir o poro e tirar restos de acabamento; limpar bem o pó."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "tratamento-anticaruncho",
+              "note": "Aplicar farto em todas as faces, insistindo nos furos, topos e encaixes."
+            },
+            {
+              "id": "plastico-protecao-fino",
+              "note": "Móveis: embrulhar a peça depois de tratada para o produto atuar; tempo na embalagem.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "betume-madeira-pasta",
+              "note": "Tapar os furos depois de o tratamento secar; escolher o tom da madeira já acabada."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "cera-madeira",
+              "note": "Móveis que estavam encerados.",
+              "optionnel": true
+            },
+            {
+              "id": "verniz-interior-aquoso",
+              "note": "Peças que estavam envernizadas; confirmar na embalagem quando se pode envernizar.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "trincha-cerda-natural",
+              "note": "Aplicar o anticaruncho; reservar a trincha só para este produto."
+            },
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Betumar os furos."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas"
+            },
+            {
+              "id": "oculos-protecao",
+              "note": "Salpicos, sobretudo ao tratar vigas e tetos por cima da cabeça."
+            },
+            {
+              "id": "semi-mascara-filtros",
+              "note": "Vapores do produto em interior; a máscara de pó não protege de vapores."
+            },
+            {
+              "id": "filtros-mascara",
+              "note": "Filtro para vapores orgânicos (letra A), do mesmo sistema da máscara."
+            },
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Proteger o pavimento e os móveis por baixo da zona a tratar."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Vigas, barrotes, escadas ou soalho com madeira que se desfaz: pode haver perda de resistência; pedir avaliação antes de tratar por cima.",
+        "Galerias com terra ou madeira oca por dentro sem furos à vista podem ser térmitas: é trabalho para empresa especializada.",
+        "Ataque extenso em estrutura (vigamento, telhado) pede tratamento em profundidade, por injeção, feito por empresa especializada.",
+        "Produto tóxico e inflamável: ventilar durante e depois, sem chamas nem cigarros, e afastar crianças, animais e alimentos.",
+        "O tratamento não resolve a humidade: se a madeira está húmida, tratar primeiro a causa."
+      ]
+    },
+    {
+      "id": "envernizar-porta-movel-madeira",
+      "domaine": "madeira-metal",
+      "titre": "Envernizar porta ou móvel de madeira",
+      "motsCles": [
+        "verniz gasto",
+        "porta riscada",
+        "renovar verniz de móvel",
+        "verniz a descascar",
+        "porta de madeira baça",
+        "restaurar móvel antigo",
+        "dar verniz",
+        "envernizar porta de entrada",
+        "mesa riscada"
+      ],
+      "description": "Porta, móvel ou outra peça de madeira com o verniz gasto, riscado ou a estalar, ou madeira nova por acabar. Lixa-se ou decapa-se, fecham-se os poros e dão-se as demãos de verniz, com uma lixagem leve entre elas.",
+      "aVerifier": [
+        "Interior ou exterior: uma porta de entrada ao sol e à chuva pede verniz de exterior.",
+        "Acabamento atual: verniz em bom estado (basta despolir), verniz a estalar (remover todo) ou cera/óleo (o verniz não agarra por cima).",
+        "Madeira maciça ou folheada: a folha é muito fina e não aguenta lixagem forte.",
+        "Furos, mossas, nós ou sinais de caruncho a tratar antes de envernizar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "decapante-tintas-vernizes",
+              "note": "Só se o verniz antigo estiver a estalar ou tiver muitas camadas.",
+              "optionnel": true
+            },
+            {
+              "id": "raspador-tinta",
+              "note": "Raspar o verniz amolecido pelo decapante, no sentido do veio.",
+              "optionnel": true
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Grãos sucessivos, sempre no sentido do veio; grão fino entre demãos."
+            },
+            {
+              "id": "bloco-de-lixar",
+              "note": "Superfícies planas: mantém a lixa direita e não cava a madeira."
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Tirar todo o pó antes de cada demão."
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Proteger vidros e ferragens que não se desmontam."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "betume-madeira-pasta",
+              "note": "Furos e mossas; escolher o tom da madeira já envernizada e testar antes.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "tapa-poros",
+              "note": "Madeira nua: fecha o poro; confirmar que é compatível com o verniz e lixar depois de seco.",
+              "optionnel": true
+            },
+            {
+              "id": "verniz-interior-aquoso",
+              "note": "Portas interiores e móveis."
+            },
+            {
+              "id": "verniz-exterior-madeira",
+              "note": "Porta de entrada e peças ao tempo, em vez do verniz de interior.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "trincha-madeira-velaturas-vernizes",
+              "note": "Esticar no sentido do veio, sem voltar atrás no verniz que já começou a secar."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da lixagem; não protege dos vapores de decapante ou verniz de solvente."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Decapante e verniz."
+            },
+            {
+              "id": "plastico-protecao-grosso",
+              "note": "Proteger o chão; a porta trabalha-se melhor deitada, fora das dobradiças."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Sobre cera ou óleo o verniz não agarra: remover por completo ou manter o acabamento encerado ou oleado.",
+        "Folheados: lixar à mão e com grão fino; atravessar a folha não tem reparação.",
+        "Móveis antigos de valor: decapar e envernizar pode desvalorizar a peça; na dúvida, consultar um restaurador.",
+        "Decapante e vernizes de solvente: ventilar bem e manter longe de chamas.",
+        "Não envernizar com frio e humidade nem ao sol direto; número de demãos e tempos entre demãos: ver a embalagem."
+      ]
+    },
+    {
+      "id": "madeira-com-buracos-ou-apodrecida",
+      "domaine": "madeira-metal",
+      "titre": "Madeira com buracos ou apodrecida",
+      "motsCles": [
+        "madeira podre",
+        "aro da porta podre em baixo",
+        "janela de madeira apodrecida",
+        "buraco na madeira",
+        "madeira esfarelada",
+        "peitoril de madeira podre",
+        "tapar buracos na madeira",
+        "madeira mole e escura",
+        "fundo do aro desfeito",
+        "canto da portada partido"
+      ],
+      "description": "Madeira com furos, mossas, lascas ou zonas moles e escuras, apodrecidas pela água — típico no fundo de aros, em janelas, portadas e rodapés. Retira-se tudo o que está podre, trata-se a madeira sã e reconstrói-se com massa própria.",
+      "aVerifier": [
+        "Até onde vai a podridão: espetar uma chave de fendas até encontrar madeira dura.",
+        "De onde vem a água (pingadeira, junta com a parede, tinta aberta, contacto com o chão): sem a resolver, volta a apodrecer.",
+        "Peça de acabamento (aro, janela, rodapé) ou peça que suporta carga (viga, barrote, degrau).",
+        "Interior ou exterior, e acabamento final: pintado ou à vista (aí o betume tem de ser no tom da madeira)."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "formao-carpinteiro",
+              "note": "Retirar a madeira podre até encontrar madeira dura; trabalhar para longe da mão."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Escovar a madeira esfarelada até ficar só a que está sã."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Avivar a madeira à volta e, no fim, afagar a massa já dura."
+            }
+          ]
+        },
+        {
+          "titre": "Tratamento",
+          "materiaux": [
+            {
+              "id": "imunizador-madeira",
+              "note": "Na madeira sã à volta, nua; deixar secar por completo antes de encher (ver a embalagem)."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-reparacao-madeira-bicomponente",
+              "note": "Reconstruir cantos e faltas grandes; preparar pouco de cada vez."
+            },
+            {
+              "id": "betume-madeira-pasta",
+              "note": "Furos pequenos e mossas em madeira à vista, no tom do acabamento.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-madeira-d4-poliuretano",
+              "note": "Faltas grandes no exterior: colar um enxerto de madeira nova em vez de encher tudo.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Fechar a junta entre o aro e a parede por onde a água entrava; pintável, testar a tinta.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-subcapa-madeira",
+              "note": "Madeira pintada: sobre a massa e a madeira nua, antes do esmalte.",
+              "optionnel": true
+            },
+            {
+              "id": "esmalte-aquoso",
+              "note": "Madeira pintada: repintar a reparação e, de preferência, a peça toda.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Aplicar e moldar a massa; limpar antes de endurecer."
+            },
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "Para o cartucho de cola e veda, que é espesso.",
+              "optionnel": true
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "Imunizador, primário e esmalte aquoso."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Massa de dois componentes e imunizador."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó ao lixar a massa e a madeira."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Vigas, barrotes, degraus e outras peças que suportam carga não se reparam com massa: substituir ou reforçar, com avaliação de um técnico.",
+        "Sem eliminar a entrada de água, a reparação dura pouco.",
+        "A massa só agarra em madeira sã e seca: deixar secar bem depois de retirar o podre.",
+        "Podridão extensa, e não apenas localizada: substituir a peça.",
+        "Furos pequenos e redondos com pó fino são caruncho: tratar primeiro com anticaruncho.",
+        "Proporção do endurecedor e tempo de trabalho da massa: ver a embalagem."
+      ]
+    },
+    {
+      "id": "colar-madeira-interior-exterior",
+      "domaine": "madeira-metal",
+      "titre": "Colar madeira (interior e exterior)",
+      "motsCles": [
+        "cadeira a abanar",
+        "perna de mesa descolada",
+        "perna de cadeira solta",
+        "junta de madeira descolada",
+        "colar tábua partida",
+        "cola para madeira de exterior",
+        "móvel desconjuntado",
+        "gaveta descolada",
+        "ripa de madeira descolada"
+      ],
+      "description": "Peças de madeira descoladas, rachadas ou a montar de novo: cadeiras e móveis desconjuntados, tábuas partidas, ripas e remates. A cola escolhe-se pela humidade a que a peça vai estar sujeita, e a união tem de ficar apertada até secar.",
+      "aVerifier": [
+        "Onde fica a peça: interior seco, zona húmida (cozinha, casa de banho, exterior abrigado) ou exposta à chuva — define a classe da cola.",
+        "Se as peças encostam bem: a cola branca não enche folgas; com folga, usar poliuretano ou epóxi.",
+        "Restos de cola antiga, verniz ou gordura nas faces a colar: têm de sair até à madeira nua.",
+        "Se a união leva esforço (cadeira, degrau, corrimão): pode precisar de reforço mecânico além da cola."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar a cola velha e o verniz das faces a colar."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Avivar as faces até à madeira nua e limpar o pó."
+            },
+            {
+              "id": "acetona",
+              "note": "Madeiras oleosas (teca e outras exóticas): desengordurar as faces antes de colar.",
+              "optionnel": true
+            },
+            {
+              "id": "fita-pintor-interior",
+              "note": "Proteger a madeira junto à junta do excesso de cola e segurar peças pequenas."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "cola-branca-madeira-interior",
+              "note": "Interior seco: móveis, cadeiras, gavetas."
+            },
+            {
+              "id": "cola-madeira-d3",
+              "note": "Cozinha, casa de banho e exterior abrigado, em vez da cola de interior.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-madeira-d4-poliuretano",
+              "note": "Exterior exposto à chuva; expande ao curar, apertar bem as peças.",
+              "optionnel": true
+            },
+            {
+              "id": "cola-epoxi-bicomponente",
+              "note": "Uniões com folga ou madeira com metal.",
+              "optionnel": true
+            },
+            {
+              "id": "parafuso-madeira-aglomerado",
+              "note": "Reforço em uniões que levam esforço; no exterior usar parafuso inox.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "betume-madeira-pasta",
+              "note": "Fechar pequenas falhas ao longo da junta, no tom da madeira acabada.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "grampo-de-aperto",
+              "note": "Manter a união apertada até a cola secar; calçar para não marcar a madeira."
+            },
+            {
+              "id": "maco-de-borracha",
+              "note": "Encaixar as peças sem as marcar."
+            },
+            {
+              "id": "broca-madeira",
+              "note": "Pré-furar antes de aparafusar, para a madeira não rachar.",
+              "optionnel": true
+            },
+            {
+              "id": "pano-microfibra",
+              "note": "Húmido, para limpar a cola branca que sai da junta antes de secar."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "luvas-descartaveis",
+              "note": "A cola de poliuretano e a epóxi mancham e agarram-se à pele."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Cadeiras, degraus, corrimãos e outras peças que suportam pessoas: a cola sozinha pode não chegar; reforçar a união.",
+        "Cola nova por cima de cola velha não agarra: limpar até à madeira.",
+        "Cola seca à superfície impede o verniz e a velatura de entrar e deixa mancha: limpar o excesso ainda fresco.",
+        "A cola de poliuretano expande ao curar: não exagerar na quantidade e manter as peças bem apertadas.",
+        "Tempo de aperto e de cura completa: ver a embalagem; não forçar a peça antes."
+      ]
+    },
+    {
+      "id": "pintura-madeira-a-descascar",
+      "domaine": "madeira-metal",
+      "titre": "Pintura de madeira a descascar",
+      "motsCles": [
+        "janela de madeira a descascar",
+        "tinta da porta de madeira a saltar",
+        "repintar portadas",
+        "esmalte estalado",
+        "pintar aro de porta",
+        "pintar janelas de madeira",
+        "tinta velha na madeira",
+        "porta pintada amarelada",
+        "pintar rodapé de madeira"
+      ],
+      "description": "Portas, janelas, portadas ou aros de madeira com o esmalte estalado, a descascar ou amarelecido. Raspa-se o que está solto, repara-se a madeira e as juntas, dá-se primário nas zonas nuas e repinta-se com esmalte.",
+      "aVerifier": [
+        "Tinta antiga bem agarrada (lixar e repintar) ou a soltar-se em placas (raspar até à madeira).",
+        "Interior ou exterior, e se a madeira por baixo está sã ou mole e escura junto a pingadeiras e fundos de aro.",
+        "Tipo de tinta existente: sobre esmalte sintético antigo, o aquoso só agarra depois de bem lixado.",
+        "Estado da massa de vidraceiro e das juntas com a parede, por onde a água costuma entrar."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "raspador-tinta",
+              "note": "Tirar toda a tinta solta, puxando no sentido do veio."
+            },
+            {
+              "id": "lixa-madeira-folha",
+              "note": "Despolir a tinta que fica e esbater os degraus entre tinta e madeira nua."
+            },
+            {
+              "id": "desengordurante",
+              "note": "Portas e aros de interior: lavar gordura e dedadas; enxaguar e deixar secar."
+            },
+            {
+              "id": "fita-pintor-exterior",
+              "note": "Vidros e ferragens; ao sol, a fita de interior cola de vez."
+            }
+          ]
+        },
+        {
+          "titre": "Reparação",
+          "materiaux": [
+            {
+              "id": "massa-reparacao-madeira-bicomponente",
+              "note": "Furos, mossas e faltas; depois de dura lixa-se e leva primário.",
+              "optionnel": true
+            },
+            {
+              "id": "massa-vidraceiro",
+              "note": "Janelas antigas: refazer a massa solta dos vidros; pintar só depois de ganhar pele.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "massa-acrilica-pintavel",
+              "note": "Juntas entre aro e parede e fendas entre peças, antes de pintar."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "primario-subcapa-madeira",
+              "note": "Madeira nua e massas: uma demão antes do esmalte; lixar levemente depois de seco."
+            },
+            {
+              "id": "esmalte-aquoso",
+              "note": "Lixar bem o esmalte antigo para o novo agarrar."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "espatula-pintor-estreita-20-40mm",
+              "note": "Aplicar a massa de reparação e a de vidraceiro."
+            },
+            {
+              "id": "pistola-silicone-manual",
+              "note": "Para o cartucho de massa acrílica."
+            },
+            {
+              "id": "trincha-plana-sintetica",
+              "note": "As sintéticas aguentam melhor as tintas de água."
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó de tinta velha ao raspar e lixar."
+            },
+            {
+              "id": "oculos-protecao"
+            },
+            {
+              "id": "luvas-nitrilo-quimicas",
+              "note": "Massa de dois componentes, primário e esmalte."
+            },
+            {
+              "id": "plastico-protecao-com-fita",
+              "note": "Tapar vidros, soleiras e pavimento."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Tintas muito antigas podem conter chumbo: não lixar a seco nem queimar; raspar com máscara e recolher os resíduos.",
+        "Madeira mole ou podre por baixo da tinta: reparar ou substituir antes de pintar.",
+        "Madeira húmida faz a tinta nova empolar: deixar secar e resolver a entrada de água.",
+        "Janelas de andares altos: trabalhar por dentro com a folha desmontada ou com andaime; nunca debruçado no peitoril.",
+        "Não pintar com frio e humidade nem sob sol forte; demãos e tempos de secagem: ver a embalagem."
+      ]
+    },
+    {
+      "id": "gradeamento-corrimao-solto",
+      "domaine": "madeira-metal",
+      "titre": "Gradeamento ou corrimão solto",
+      "motsCles": [
+        "corrimão a abanar",
+        "grade da varanda solta",
+        "guarda solta",
+        "chumbadouro solto",
+        "fixar corrimão à parede",
+        "parafuso do corrimão a rodar em falso",
+        "ferro solto do muro",
+        "batente do portão solto",
+        "guarda da escada a abanar"
+      ],
+      "description": "Gradeamento, guarda de varanda, corrimão ou batente de portão que abana porque a fixação à parede, ao muro ou ao pavimento se soltou ou enferrujou. Refaz-se a ancoragem com fixação química adequada ao suporte.",
+      "aVerifier": [
+        "Suporte: betão ou pedra maciça, ou tijolo furado e bloco (em material oco, bucha química com casquilho de rede).",
+        "Como está fixo: prumo chumbado na argamassa ou chapa/patilha aparafusada.",
+        "Estado do ferro na base: se está comido pela ferrugem junto à fixação, a peça tem de ser reparada por serralheiro.",
+        "Estado do suporte à volta: betão rachado ou a soltar-se junto à fixação."
+      ],
+      "etapes": [
+        {
+          "titre": "Preparação",
+          "materiaux": [
+            {
+              "id": "broca-betao-pedra",
+              "note": "Furos novos com o diâmetro pedido pela resina; em tijolo furado, sem percussão."
+            },
+            {
+              "id": "escovilhao-bomba-limpeza-furos",
+              "note": "Alternar sopro e escova até o furo ficar sem pó, antes de injetar."
+            },
+            {
+              "id": "escova-arame-manual",
+              "note": "Tirar a ferrugem solta da base da peça antes de fixar e de pintar."
+            }
+          ]
+        },
+        {
+          "titre": "Fixação",
+          "materiaux": [
+            {
+              "id": "bucha-quimica-vinilester",
+              "note": "Injetar do fundo do furo para fora; não mexer nem carregar antes da cura."
+            },
+            {
+              "id": "casquilho-rede-bucha-quimica",
+              "note": "Indispensável em tijolo furado ou bloco, para a resina não se perder.",
+              "optionnel": true
+            },
+            {
+              "id": "varao-roscado",
+              "note": "Chapas e patilhas aparafusadas; inox no exterior, cortado à medida do furo e da chapa.",
+              "optionnel": true
+            },
+            {
+              "id": "porca-sextavada",
+              "note": "Com o varão roscado; apertar só depois da cura da resina.",
+              "optionnel": true
+            },
+            {
+              "id": "anilha-plana",
+              "note": "Com o varão roscado, entre a porca e a chapa.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Vedação",
+          "materiaux": [
+            {
+              "id": "cola-veda-ms-polimero",
+              "note": "Selar à volta da base para a água não entrar no furo; pintável."
+            }
+          ]
+        },
+        {
+          "titre": "Acabamento",
+          "materiaux": [
+            {
+              "id": "esmalte-antiferrugem-direto",
+              "note": "Retocar o ferro na zona mexida, depois de escovado."
+            }
+          ]
+        },
+        {
+          "titre": "Ferramentas",
+          "materiaux": [
+            {
+              "id": "pistola-silicone-reforcada",
+              "note": "O cartucho de bucha química é duro de extrair numa pistola simples."
+            },
+            {
+              "id": "chaves-bocas-luneta",
+              "note": "Com varão roscado: medida exata da porca, aperto da ficha técnica.",
+              "optionnel": true
+            }
+          ]
+        },
+        {
+          "titre": "Proteção",
+          "materiaux": [
+            {
+              "id": "oculos-protecao",
+              "note": "Furar projeta lascas."
+            },
+            {
+              "id": "mascara-ffp2",
+              "note": "Pó da furação."
+            },
+            {
+              "id": "luvas-descartaveis",
+              "note": "A resina irrita a pele."
+            }
+          ]
+        }
+      ],
+      "attention": [
+        "Guardas de varanda, de escada e de janela protegem contra quedas: na dúvida sobre o suporte ou o ferro, chamar serralheiro ou técnico.",
+        "Prumo chumbado com a argamassa solta: abrir e voltar a chumbar (ver a ficha « Chumbar aro, grade ou poste »).",
+        "Não fixar guardas com buchas de nylon nem com espuma.",
+        "Betão rachado ou a estalar à volta da fixação tem de ser reparado antes e pode pedir avaliação técnica.",
+        "Trabalho junto ao vazio: proteger-se contra a queda e balizar a zona até a guarda estar segura.",
+        "Antes de furar, atenção a tubos e cabos embebidos.",
+        "Tempo de cura da resina antes de apertar e de dar carga: ver a embalagem."
+      ]
+    }
+  ]
+}

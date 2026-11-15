@@ -242,6 +242,12 @@ export interface DevisFactureData {
    * imprime alors l'escompte saisi. Absent (documents antérieurs) : PDF inchangé.
    */
   escompteSurPdf?: boolean
+  /**
+   * Version du rendu et des totaux d'un document artisan (lib/version-rendu.ts) : 2 pour un document
+   * créé depuis la correction du 13/11/2026 (matériaux et frais annexes imprimés et comptés partout).
+   * Absente (documents antérieurs) : PDF et totaux inchangés.
+   */
+  versionRendu?: number
   /** Remise commerciale sur le total, en % ou en € HT (lib/remise-commerciale.ts). */
   remiseGlobale?: Remise
   iban: string
