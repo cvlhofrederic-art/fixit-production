@@ -516,8 +516,22 @@ function generationActuelle(cacheKey: string): number {
   return _generations[cacheKey] ?? 0
 }
 
-function marquerEcriture(cacheKey: string): void {
+/**
+ * Écriture confirmée. Avec `oublierCopie` (écrans du BTP pro), la copie en mémoire de la liste, qui date d'avant
+ * l'écriture, n'est plus servie aux écrans qui s'ouvrent ensuite, jusqu'à la relecture qui suit l'écriture. Si cette
+ * relecture échoue, ou n'a pas lieu (page quittée pendant une reprise), l'écran suivant relit la table au lieu
+ * d'afficher l'état d'avant : un retour sur le Gantt réaffichait l'ancien avancement, puis le réécrivait à la
+ * modification suivante (relecture adverse du 15/11/2026). La reprise de l'accueil de l'artisan garde la copie, comme
+ * avant.
+ */
+function marquerEcriture(cacheKey: string, oublierCopie = true): void {
   _generations[cacheKey] = generationActuelle(cacheKey) + 1
+  if (oublierCopie) delete _dataCache[cacheKey]
+}
+
+/** Options d'une modification : `keepalive` laisse la requête aboutir même si la page se ferme (onglet fermé, rechargement). */
+export interface OptionsModification {
+  keepalive?: boolean
 }
 
 // ── Listes coupées par la route (constat donnees-btp-10) : GET /api/btp ne renvoie que les N premières lignes d'une
@@ -754,7 +768,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
               if (res.ok) {
                 // Mark as imported in localStorage
                 localStorage.setItem(`${lsKey}_migrated`, 'true')
-                marquerEcriture(cacheKey)
+                marquerEcriture(cacheKey, ecranBTP)
                 if (!cancelled) await refresh()
               } else {
                 // Reprise refusée (le compte a déjà des données, anciennes fiches illisibles…) : rien n'est ajouté ni
@@ -808,7 +822,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     }
   }, [table, tableName, cacheKey, refresh])
 
-  const update = useCallback(async (id: string, changes: Partial<T>): Promise<boolean> => {
+  const update = useCallback(async (id: string, changes: Partial<T>, options?: OptionsModification): Promise<boolean> => {
     try {
       // Seuls les champs fournis partent : une modification partielle ne réécrit pas le reste de la fiche.
       const mapped = colonnesModifiees(table, changes as Record<string, unknown>)
@@ -820,6 +834,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
       }
       const res = await fetch('/api/btp', {
         method: 'POST',
+        ...(options?.keepalive ? { keepalive: true } : {}),
         headers: { 'Content-Type': 'application/json', ...await authHeaders() },
         body: JSON.stringify({ table: tableName, action: 'update', id, data: mapped }),
       })

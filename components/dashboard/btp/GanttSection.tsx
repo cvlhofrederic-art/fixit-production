@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
-import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { useBTPData, type OptionsModification } from '@/lib/hooks/use-btp-data'
 
 interface ChantierItem {
   id: string; titre: string; client: string; dateDebut: string
@@ -18,6 +18,13 @@ interface SousTache {
   id: string; nom: string; chantierId: string; responsable: string
   debut: string; fin: string; avancement: number; couleur: string
 }
+
+/**
+ * Listes de sous-tâches dont l'écriture n'est pas encore revenue (envoi puis relecture), par compte et par chantier
+ * (relecture adverse du 15/11/2026). Un retour sur le Gantt pendant ce temps reprend la copie en mémoire des chantiers,
+ * encore à l'état d'avant : l'ancien avancement s'affichait, puis était réécrit à la modification suivante.
+ */
+const _listesEnEnvoi = new Map<string, SousTache[]>()
 
 type GanttRow = {
   id: string; nom: string; chantierId?: string; responsable: string
@@ -64,7 +71,8 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
   const isPt = locale === 'pt'
 
   const SUBTASKS_KEY = `gantt_subtasks_${userId}`
-  const { items: chantiers, loading, update } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId: authUserId || userId })
+  const compte = authUserId || userId
+  const { items: chantiers, loading, update } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId: compte })
 
   const [sousTaches, setSousTaches] = useState<SousTache[]>(() => {
     try { return JSON.parse(localStorage.getItem(SUBTASKS_KEY) || '[]') } catch { return [] }
@@ -82,24 +90,44 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
   useEffect(() => { sousTachesRef.current = sousTaches }, [sousTaches])
   useEffect(() => { updateRef.current = update }, [update])
 
-  const enregistrerEnAttente = useCallback(() => {
+  const enregistrerEnAttente = useCallback((options?: OptionsModification) => {
     if (minuterie.current) clearTimeout(minuterie.current)
     minuterie.current = null
     const ids = [...aEnregistrer.current]
     aEnregistrer.current.clear()
     for (const cid of ids) {
-      void updateRef.current(cid, { sousTaches: sousTachesRef.current.filter(st => st.chantierId === cid) })
+      const liste = sousTachesRef.current.filter(st => st.chantierId === cid)
+      const cle = `${compte}/${cid}`
+      _listesEnEnvoi.set(cle, liste)
+      void updateRef.current(cid, { sousTaches: liste }, options).finally(() => {
+        if (_listesEnEnvoi.get(cle) === liste) _listesEnEnvoi.delete(cle)
+      })
     }
-  }, [])
+  }, [compte])
   useEffect(() => () => enregistrerEnAttente(), [enregistrerEnAttente])
+
+  // Rechargement, onglet fermé, passage à une autre application : la page ne se démonte pas. Les écritures en attente
+  // partent tout de suite, en keepalive (la requête aboutit même si la page se ferme) ; avant, la modification restait
+  // dans le navigateur et la base l'emportait au chargement suivant (relecture adverse du 15/11/2026).
+  useEffect(() => {
+    const envoyerAvantDePartir = () => { if (aEnregistrer.current.size > 0) enregistrerEnAttente({ keepalive: true }) }
+    const siPageCachee = () => { if (document.visibilityState === 'hidden') envoyerAvantDePartir() }
+    window.addEventListener('pagehide', envoyerAvantDePartir)
+    document.addEventListener('visibilitychange', siPageCachee)
+    return () => {
+      window.removeEventListener('pagehide', envoyerAvantDePartir)
+      document.removeEventListener('visibilitychange', siPageCachee)
+    }
+  }, [enregistrerEnAttente])
 
   // One-shot merge: once chantiers load from Supabase, pull their embedded sous_taches.
   // Supabase wins per chantier; localStorage items for unknown chantiers are kept.
+  // Une liste en cours d'envoi l'emporte sur la copie en mémoire, encore à l'état d'avant l'écriture.
   const sbMergedRef = useRef(false)
   useEffect(() => {
     if (sbMergedRef.current || chantiers.length === 0) return
     const sbItems: SousTache[] = chantiers.flatMap(
-      c => ((c as unknown as { sousTaches?: SousTache[] }).sousTaches || [])
+      c => _listesEnEnvoi.get(`${compte}/${c.id}`) ?? ((c as unknown as { sousTaches?: SousTache[] }).sousTaches || [])
     )
     if (sbItems.length === 0) return
     sbMergedRef.current = true
@@ -108,11 +136,14 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
       const lsOnly = prev.filter(st => !sbChantierIds.has(st.chantierId))
       return [...sbItems, ...lsOnly]
     })
-  }, [chantiers])
+  }, [chantiers, compte])
 
   // Persist sous-taches: localStorage (comme avant) + base, chantier par chantier, pour ceux dont la liste change
   const saveST = (d: SousTache[]) => {
-    const avant = sousTachesRef.current
+    // Liste du rendu dont part la modification (d en est tiré) : la copie de sousTachesRef n'est mise à jour qu'après
+    // l'affichage, et un changement fait juste après la fusion du montage la trouvait encore vide (tous les chantiers
+    // réécrits).
+    const avant = sousTaches
     setSousTaches(d)
     sousTachesRef.current = d
     localStorage.setItem(SUBTASKS_KEY, JSON.stringify(d))
@@ -123,7 +154,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
     }
     if (aEnregistrer.current.size === 0) return
     if (minuterie.current) clearTimeout(minuterie.current)
-    minuterie.current = setTimeout(enregistrerEnAttente, DELAI_ENREGISTREMENT_MS)
+    minuterie.current = setTimeout(() => enregistrerEnAttente(), DELAI_ENREGISTREMENT_MS)
   }
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })

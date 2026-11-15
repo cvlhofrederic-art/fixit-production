@@ -58,7 +58,7 @@ describe('use-btp-data — requêtes en vol partagées', () => {
 })
 
 describe('use-btp-data — écriture pendant un GET en vol', () => {
-  type GetRetenu = { repondre: (lignes: Array<Record<string, unknown>>) => void }
+  type GetRetenu = { repondre: (lignes: Array<Record<string, unknown>>) => void; echouer: () => void }
   let gets: GetRetenu[]
 
   beforeEach(() => {
@@ -68,7 +68,10 @@ describe('use-btp-data — écriture pendant un GET en vol', () => {
       if (init?.method === 'POST') return Promise.resolve(new Response(JSON.stringify({ success: true }), { status: 200 }))
       const table = new URL(String(url), 'https://vitfix.io').searchParams.get('table') ?? ''
       return new Promise((ok) => {
-        gets.push({ repondre: (lignes) => ok(new Response(JSON.stringify({ [table]: lignes }), { status: 200 })) })
+        gets.push({
+          repondre: (lignes) => ok(new Response(JSON.stringify({ [table]: lignes }), { status: 200 })),
+          echouer: () => ok(new Response(JSON.stringify({ error: 'panne' }), { status: 500 })),
+        })
       })
     })
   })
@@ -134,6 +137,29 @@ describe('use-btp-data — écriture pendant un GET en vol', () => {
     expect(gets).toHaveLength(3)
     const autre = renderHook(() => usePointages(userId))
     expect(ids(autre.result.current.items)).toEqual(['p-2'])
+  })
+
+  // Relecture adverse du 15/11/2026 : la copie en mémoire d'avant l'écriture restait servie (fraîche) quand la relecture
+  // qui suit l'écriture échouait ; un écran ouvert ensuite affichait l'état d'avant (Gantt : ancien avancement, réécrit
+  // à la modification suivante).
+  it('écriture confirmée dont la relecture échoue : une section qui s’ouvre ensuite relit la table au lieu de la copie d’avant', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const userId = `x-${Date.now()}`
+    const vue = renderHook(() => usePointages(userId))
+    await waitFor(() => expect(gets).toHaveLength(1))
+    gets[0].repondre([{ id: 'p-1' }, { id: 'p-2' }])
+    await waitFor(() => expect(ids(vue.result.current.items)).toEqual(['p-1', 'p-2']))
+
+    const suppression = vue.result.current.remove('p-1')
+    await waitFor(() => expect(gets).toHaveLength(2))
+    gets[1].echouer()
+    expect(await suppression).toBe(true)
+
+    const autre = renderHook(() => usePointages(userId))
+    expect(autre.result.current.items).toEqual([])
+    await waitFor(() => expect(gets).toHaveLength(3))
+    gets[2].repondre([{ id: 'p-2' }])
+    await waitFor(() => expect(ids(autre.result.current.items)).toEqual(['p-2']))
   })
 
   it('sans écriture entre eux, deux chargements concurrents partagent toujours un seul GET, avant comme après une écriture', async () => {

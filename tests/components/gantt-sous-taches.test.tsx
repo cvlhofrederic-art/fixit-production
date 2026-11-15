@@ -32,7 +32,11 @@ const sousTache = (id: string, chantierId: string, avancement: number) =>
 
 let base: Record<string, Array<Record<string, unknown>>>
 let envois: Array<{ table: string; action: string; id?: string; data?: Record<string, unknown> }>
+/** Pour chaque envoi : parti en keepalive (requête qui survit à la fermeture de la page). */
+let keepalives: boolean[]
 let ecritureRefusee: boolean
+/** Durée de l'écriture côté serveur (réseau de chantier lent), en millisecondes. */
+let delaiEcriture: number
 
 function ecrireSousTaches(id: string, sousTaches: unknown) {
   base.chantiers = base.chantiers.map(c => (c.id === id ? { ...c, sous_taches: sousTaches } : c))
@@ -41,7 +45,9 @@ function ecrireSousTaches(id: string, sousTaches: unknown) {
 beforeEach(() => {
   localStorage.clear()
   envois = []
+  keepalives = []
   ecritureRefusee = false
+  delaiEcriture = 0
   vi.mocked(toast.error).mockClear()
   base = {
     chantiers: [
@@ -53,6 +59,8 @@ beforeEach(() => {
     if (init?.method === 'POST') {
       const corps = JSON.parse(String(init.body))
       envois.push(corps)
+      keepalives.push(init.keepalive === true)
+      if (delaiEcriture > 0) await new Promise(resolve => setTimeout(resolve, delaiEcriture))
       if (ecritureRefusee) return json({ error: 'Les données n\'ont pas pu être enregistrées.' }, 500)
       ecrireSousTaches(corps.id, corps.data.sous_taches)
       return json({ row: base.chantiers.find(c => c.id === corps.id) })
@@ -70,6 +78,10 @@ afterEach(() => {
 let comptes = 0
 const nouveauCompte = () => { comptes += 1; return { userId: `fiche-gantt-${comptes}`, authUserId: `compte-gantt-${comptes}` } }
 const curseurs = () => screen.getAllByRole('slider') as HTMLInputElement[]
+/** Avancement de chaque sous-tâche d'un chantier, tel qu'enregistré en base. */
+const avancementsEnBase = (id: string) => Object.fromEntries(
+  ((base.chantiers.find(c => c.id === id)?.sous_taches ?? []) as Array<{ id: string; avancement: number }>).map(st => [st.id, st.avancement]),
+)
 
 describe('Gantt — avancement des sous-tâches', () => {
   it('un avancement saisi reste après un aller-retour sur une autre page', async () => {
@@ -99,6 +111,27 @@ describe('Gantt — avancement des sous-tâches', () => {
     expect(envois).toHaveLength(1)
   })
 
+  // Relecture adverse du 15/11/2026 : la liste de référence n'était mise à jour qu'après l'affichage ; un changement fait
+  // dès l'apparition des sous-tâches la trouvait encore vide, et tous les chantiers étaient réécrits (échec intermittent
+  // du test suivant).
+  it('un changement fait dès l’affichage des sous-tâches n’écrit que le chantier modifié', async () => {
+    const { container } = render(<GanttSection {...nouveauCompte()} orgRole="pro_societe" />)
+    await new Promise<void>(resolve => {
+      const observateur = new MutationObserver(() => {
+        const affiches = container.querySelectorAll('input[type="range"]')
+        if (affiches.length !== 2) return
+        observateur.disconnect()
+        fireEvent.change(affiches[1], { target: { value: '80' } })
+        resolve()
+      })
+      observateur.observe(container, { childList: true, subtree: true })
+    })
+
+    await waitFor(() => expect(envois).toHaveLength(1), { timeout: 3000 })
+    await new Promise(resolve => setTimeout(resolve, 900))
+    expect(envois).toEqual([{ table: 'chantiers_btp', action: 'update', id: ECOLE, data: { sous_taches: [sousTache('t2', ECOLE, 80)] } }])
+  })
+
   it('quitter la page juste après un changement l’enregistre quand même', async () => {
     const vue = render(<GanttSection {...nouveauCompte()} orgRole="pro_societe" />)
     await waitFor(() => expect(curseurs()).toHaveLength(2))
@@ -116,6 +149,55 @@ describe('Gantt — avancement des sous-tâches', () => {
     fireEvent.change(curseurs()[0], { target: { value: '70' } })
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled(), { timeout: 3000 })
+  })
+
+  // Relecture adverse du 15/11/2026 : l'écriture part quand on quitte la page. Revenir avant la fin de l'écriture et de
+  // sa relecture reprenait la copie en mémoire des chantiers, encore à l'état d'avant : l'ancien avancement s'affichait,
+  // puis était réécrit en base à la modification suivante d'une autre sous-tâche du même chantier.
+  it('retour sur le Gantt pendant l’écriture (réseau lent) : l’avancement saisi reste et n’est pas réécrit ensuite', async () => {
+    base.chantiers[0].sous_taches = [sousTache('t1', VILLA, 10), sousTache('t3', VILLA, 20)]
+    delaiEcriture = 300
+    const compte = nouveauCompte()
+    const premier = render(<GanttSection {...compte} orgRole="pro_societe" />)
+    await waitFor(() => expect(curseurs()).toHaveLength(3))
+    fireEvent.change(curseurs()[0], { target: { value: '50' } })
+    premier.unmount()
+
+    render(<GanttSection {...compte} orgRole="pro_societe" />)
+    await waitFor(() => expect(curseurs()).toHaveLength(3))
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(curseurs()[0].value).toBe('50')
+
+    fireEvent.change(curseurs()[1], { target: { value: '70' } })
+    await waitFor(() => expect(envois).toHaveLength(2), { timeout: 3000 })
+    await waitFor(() => expect(avancementsEnBase(VILLA)).toEqual({ t1: 50, t3: 70 }), { timeout: 3000 })
+  })
+
+  // Relecture adverse du 15/11/2026 : les écritures sont regroupées (0,6 s) et ne partaient en avance qu'au démontage de
+  // la page. Un rechargement, une fermeture d'onglet ou le passage à une autre application ne démonte rien : la
+  // modification restait dans le navigateur, et la base l'emportait au chargement suivant.
+  it.each([
+    ['rechargement ou fermeture de l’onglet', () => { window.dispatchEvent(new Event('pagehide')) }],
+    ['passage à une autre application', () => {
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+      document.dispatchEvent(new Event('visibilitychange'))
+    }],
+  ])('%s juste après un changement : l’écriture part tout de suite, en keepalive', async (_cas, quitter) => {
+    render(<GanttSection {...nouveauCompte()} orgRole="pro_societe" />)
+    await waitFor(() => expect(curseurs()).toHaveLength(2))
+    // Rien en attente : rien ne part.
+    quitter()
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(envois).toEqual([])
+
+    fireEvent.change(curseurs()[0], { target: { value: '45' } })
+    quitter()
+    // Bien avant la fin du délai de regroupement (0,6 s).
+    await waitFor(() => expect(envois).toHaveLength(1), { timeout: 300 })
+    expect(envois[0]).toMatchObject({ id: VILLA, data: { sous_taches: [sousTache('t1', VILLA, 45)] } })
+    expect(keepalives).toEqual([true])
+    await new Promise(resolve => setTimeout(resolve, 800))
+    expect(envois).toHaveLength(1)
   })
 })
 
