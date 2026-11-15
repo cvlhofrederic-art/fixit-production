@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
   // (lib/equipe/lien-invitation.ts). Signé avant l'insertion : sans clé de signature, rien n'est écrit.
   let invitation: Awaited<ReturnType<typeof nouvelleInvitation>>
   try {
-    invitation = await nouvelleInvitation('pro', emailInvite, companyId)
+    invitation = await nouvelleInvitation('pro', emailInvite, companyId, memberRole)
   } catch (err) {
     logger.error('[PRO_TEAM] POST signature error:', err)
     return NextResponse.json({ error: 'Erreur lors de la création du membre' }, { status: 500 })
@@ -266,13 +266,23 @@ export async function PATCH(request: NextRequest) {
   // Verify member belongs to this company
   const { data: existing } = await supabaseAdmin
     .from('pro_team_members')
-    .select('id, user_id, role')
+    .select('id, user_id, role, invite_token')
     .eq('id', member_id)
     .eq('company_id', companyId)
     .maybeSingle()
 
   if (!existing) {
     return NextResponse.json({ error: 'Membre introuvable' }, { status: 404 })
+  }
+
+  // Invitation en cours (lien envoyé, jeton encore en base) : son rôle est signé dans ce lien
+  // (lib/equipe/lien-invitation.ts), le changer le rendrait inutilisable. Pour un autre rôle : supprimer
+  // l'invitation puis inviter à nouveau. Les lignes sans invitation (gérant, ajout direct) ne sont pas concernées ; un
+  // rôle invalide reçoit plus bas son 400 habituel.
+  if (role !== undefined && isValidProTeamRole(role) && existing.invite_token) {
+    return NextResponse.json({
+      error: "Invitation en attente : son rôle ne peut plus être modifié. Supprimez l'invitation puis invitez à nouveau avec le bon rôle.",
+    }, { status: 409 })
   }
 
   // Cannot demote GERANT
