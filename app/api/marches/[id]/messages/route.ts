@@ -4,6 +4,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { validateBody, VALID_UUID } from '@/lib/validation'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { CACHE_PERSONNEL } from '@/lib/marches-public'
 import { z } from 'zod'
 
 // ── Validation schema ────────────────────────────────────────────────────────
@@ -16,6 +17,7 @@ const sendMessageSchema = z.object({
 })
 
 // GET /api/marches/[id]/messages — lister les messages d'un marche
+// Chaque réponse est propre à un compte (échanges entre publieur et entreprise) : aucune n'est gardée par un cache.
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`marches_messages_get_${ip}`, 30, 60_000))) return rateLimitResponse()
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    return NextResponse.json({ messages: messages || [] })
+    return NextResponse.json({ messages: messages || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── Artisan access via auth ───────────────────────────────────────────────
@@ -82,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .eq('artisan_id', artisan.id)
 
   if (!candidatures || candidatures.length === 0) {
-    return NextResponse.json({ messages: [] })
+    return NextResponse.json({ messages: [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   const candidatureIds = candidatures.map(c => c.id)
@@ -110,7 +112,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
   }
 
-  return NextResponse.json({ messages: messages || [] })
+  return NextResponse.json({ messages: messages || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
 }
 
 // POST /api/marches/[id]/messages — envoyer un message

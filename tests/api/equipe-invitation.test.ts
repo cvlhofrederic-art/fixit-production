@@ -4,13 +4,15 @@
 // Invitation d'un membre d'équipe, pro BTP (/api/pro/team, /api/pro/invite) et syndic (/api/syndic/team,
 // /api/syndic/invite) : le lien d'invitation part seulement par e-mail, signé côté serveur. L'API ne le
 // renvoie pas à l'invitant, et l'acceptation exige la signature : le jeton seul, tel qu'il est enregistré
-// en base, ne suffit pas. Un compte existant d'un autre espace n'est jamais converti.
+// en base, ne suffit pas. Un compte existant d'un autre espace n'est jamais converti. Le rôle est signé
+// (format v2, 15/11/2026, R36) ; les liens v1 envoyés avant restent acceptés jusqu'à FIN_FORMAT_V1.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { nouvelleBase, clientMemoire, appelsDe, type BaseMemoire } from './syndic-supabase-memoire'
-import { jetonDuLien, lireJetonDuLien, signatureValide, type EspaceEquipe } from '@/lib/equipe/lien-invitation'
+import { FIN_FORMAT_V1, jetonDuLien, lireJetonDuLien, signatureValide, type EspaceEquipe } from '@/lib/equipe/lien-invitation'
 import { masquerEmail } from '@/lib/equipe/invitation-serveur'
+import { signatureV1 } from '../helpers/lien-invitation-v1'
 
 const h = vi.hoisted(() => ({
   espace: 'pro' as 'pro' | 'syndic',
@@ -76,6 +78,10 @@ interface CasEspace {
   table: string
   colonneEquipe: string
   role: string
+  /** Rôle le plus élevé de l'espace : celui d'une ligne dont le rôle aurait changé après l'envoi. */
+  autreRole: string
+  /** Autre rôle ordinaire de l'espace, pour un changement de rôle sur une ligne. */
+  roleModifie: string
   motDePasse: string
   metadonneesEquipe: Record<string, unknown>
   echecEmail: RegExp
@@ -89,6 +95,8 @@ const CAS: CasEspace[] = [
     table: 'pro_team_members',
     colonneEquipe: 'company_id',
     role: 'OUVRIER',
+    autreRole: 'GERANT',
+    roleModifie: 'SECRETAIRE',
     motDePasse: 'MotDePasse1',
     metadonneesEquipe: { role: 'pro_societe', pro_team_role: 'OUVRIER', company_id: EQUIPE_ID },
     echecEmail: /renvoyez l'invitation/i,
@@ -107,6 +115,8 @@ const CAS: CasEspace[] = [
     table: 'syndic_team_members',
     colonneEquipe: 'cabinet_id',
     role: 'syndic_gestionnaire',
+    autreRole: 'syndic_admin',
+    roleModifie: 'syndic_comptable',
     motDePasse: 'motdepasse1',
     metadonneesEquipe: { role: 'syndic_gestionnaire', cabinet_id: EQUIPE_ID },
     echecEmail: /invitez à nouveau/i,
@@ -152,7 +162,10 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
     id: INVITE_ID, [cas.colonneEquipe]: EQUIPE_ID, email: EMAIL, full_name: 'Claire Martin', role: cas.role,
     invite_token: NONCE, accepted_at: null, created_at: new Date().toISOString(), ...modif,
   })
-  const jetonSigne = () => jetonDuLien(espace, { id: INVITE_ID, email: EMAIL, invite_token: NONCE, equipe_id: EQUIPE_ID })
+  const designation = { id: INVITE_ID, email: EMAIL, invite_token: NONCE, equipe_id: EQUIPE_ID }
+  const jetonSigne = () => jetonDuLien(espace, { ...designation, role: cas.role })
+  /** Lien envoyé avant le format v2 : même jeton de ligne, signature sans le rôle. */
+  const jetonV1 = async () => `${NONCE}.${await signatureV1(espace, designation)}`
   const inviter = () => equipe.POST(requete(`https://vitfix.io/api/${espace}/team`, {
     method: 'POST', body: { email: 'Claire@Exemple.fr', full_name: 'Claire Martin', memberRole: cas.role },
   }))
@@ -177,17 +190,18 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       expect(JSON.stringify(corps)).not.toContain(insere.invite_token)
     })
 
-    it('envoie un lien signé, lié à la ligne insérée', async () => {
+    it('envoie un lien signé, lié à la ligne insérée, rôle compris', async () => {
       await inviter()
       const insere = appelsDe(h.base, table, 'insert')[0].donnees as Record<string, string>
       expect(insere.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(insere.email).toBe(EMAIL)
+      expect(insere.role).toBe(cas.role)
       expect(h.urlsEmail).toHaveLength(1)
       const lu = lireJetonDuLien(new URL(h.urlsEmail[0], 'https://vitfix.io').searchParams.get('token') ?? '')
       expect(lu?.jeton).toBe(insere.invite_token)
-      expect(await signatureValide(espace, lu!.signature, {
-        id: insere.id, email: insere.email, invite_token: insere.invite_token, equipe_id: EQUIPE_ID,
-      })).toBe(true)
+      const ligneInseree = { id: insere.id, email: insere.email, invite_token: insere.invite_token, equipe_id: EQUIPE_ID }
+      expect(await signatureValide(espace, lu!.signature, { ...ligneInseree, role: insere.role })).toBe(true)
+      expect(await signatureValide(espace, lu!.signature, { ...ligneInseree, role: cas.autreRole })).toBe(false)
     })
 
     it('e-mail en échec : message sans lien', async () => {
@@ -217,6 +231,12 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
       expect((await lire(token)).status).toBe(404)
     })
 
+    it("rôle de la ligne modifié après l'envoi : 404", async () => {
+      const token = await jetonSigne()
+      h.base.lignes[table] = [ligne({ role: cas.autreRole })]
+      expect((await lire(token)).status).toBe(404)
+    })
+
     it('lien signé : 200, e-mail masqué', async () => {
       h.base.lignes[table] = [ligne()]
       const res = await lire(await jetonSigne())
@@ -242,11 +262,15 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
     it.each([
       ['e-mail', { email: 'autre@exemple.fr' }],
       ['équipe', { [cas.colonneEquipe]: AUTRE_EQUIPE }],
-    ])("%s de la ligne modifié après l'envoi : 404, aucun compte créé", async (_champ, modif) => {
+      // R36 : avant le format v2, ce lien restait valable et le compte recevait le rôle réécrit.
+      ['rôle', { role: cas.autreRole }],
+    ])("%s de la ligne modifié après l'envoi : 404, aucun compte créé ni modifié", async (_champ, modif) => {
       const token = await jetonSigne()
       h.base.lignes[table] = [ligne(modif)]
       expect((await accepter(token)).status).toBe(404)
       expect(h.admin.createUser).not.toHaveBeenCalled()
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+      expect(misesAJour()).toHaveLength(0)
     })
 
     it("lien signé, compte neuf : créé pour l'e-mail invité et invitation acceptée", async () => {
@@ -312,6 +336,66 @@ describe.each(CAS)('invitation d\'équipe $espace', (cas) => {
         expect((await accepter(await jetonSigne())).status).toBe(500)
         expect(misesAJour()).toHaveLength(0)
       })
+    })
+  })
+
+  // Invitations envoyées avant le format v2 : acceptées le temps qu'elles expirent, jamais à partir de FIN_FORMAT_V1.
+  describe('lien au format v1 (envoyé avant le rôle signé)', () => {
+    afterEach(() => { vi.useRealTimers() })
+
+    it('avant FIN_FORMAT_V1 : lu et accepté, avec le rôle de sa ligne', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(FIN_FORMAT_V1 - 24 * 3600 * 1000)
+      h.base.lignes[table] = [ligne()]
+      expect((await lire(await jetonV1())).status).toBe(200)
+      expect((await accepter(await jetonV1())).status).toBe(200)
+      expect(h.admin.createUser).toHaveBeenCalledWith(expect.objectContaining({ app_metadata: cas.metadonneesEquipe }))
+    })
+
+    it('à partir de FIN_FORMAT_V1 : 404, aucun compte créé', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(FIN_FORMAT_V1)
+      h.base.lignes[table] = [ligne()]
+      expect((await accepter(await jetonV1())).status).toBe(404)
+      expect(h.admin.createUser).not.toHaveBeenCalled()
+    })
+  })
+
+  // Le rôle d'une invitation en cours est signé dans le lien déjà envoyé : le changer rendrait ce lien inutilisable.
+  describe('PATCH team : invitation en cours', () => {
+    const modifier = (body: Record<string, unknown>) =>
+      equipe.PATCH(requete(`https://vitfix.io/api/${espace}/team`, { method: 'PATCH', body }))
+
+    it("changement de rôle : 409, rien n'est écrit", async () => {
+      h.base.lignes[table] = [ligne()]
+      const res = await modifier({ member_id: INVITE_ID, role: cas.autreRole })
+      expect(res.status).toBe(409)
+      expect((await res.json()).error).toMatch(/invitez à nouveau/)
+      expect(misesAJour()).toHaveLength(0)
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
+    })
+
+    it('rôle inconnu : 400 « Rôle invalide » (validé avant le 409), rien n’est écrit', async () => {
+      h.base.lignes[table] = [ligne()]
+      const res = await modifier({ member_id: INVITE_ID, role: 'role_inconnu' })
+      expect(res.status).toBe(400)
+      expect(misesAJour()).toHaveLength(0)
+    })
+
+    it('statut seul : accepté, la ligne change', async () => {
+      h.base.lignes[table] = [ligne()]
+      const res = await modifier({ member_id: INVITE_ID, is_active: false })
+      expect(res.status).toBe(200)
+      expect(misesAJour()[0].donnees).toEqual({ is_active: false })
+    })
+
+    it('ligne sans compte ni invitation (ajout direct, gérant ancien) : rôle changé sur la ligne seule', async () => {
+      h.base.lignes[table] = [ligne({ invite_token: null, accepted_at: '2026-04-01T10:00:00.000Z' })]
+      const res = await modifier({ member_id: INVITE_ID, role: cas.roleModifie })
+      expect(res.status).toBe(200)
+      expect(misesAJour()[0].donnees).toEqual({ role: cas.roleModifie })
+      expect(h.admin.getUserById).not.toHaveBeenCalled()
+      expect(h.admin.updateUserById).not.toHaveBeenCalled()
     })
   })
 })

@@ -50,6 +50,7 @@ const SettingsSection = dynamic(() => import('@/components/dashboard/SettingsSec
 const ComptabiliteSection = dynamic(() => import('@/components/dashboard/ComptabiliteSection'), { loading: SectionLoader })
 const MateriauxSection = dynamic(() => import('@/components/dashboard/MateriauxSection'), { loading: SectionLoader })
 const EstimationMateriauxSection = dynamic(() => import('@/components/dashboard/EstimationMateriauxSection'), { loading: SectionLoader })
+const DictionnaireMateriauxSection = dynamic(() => import('@/components/dashboard/DictionnaireMateriauxSection'), { loading: SectionLoader })
 const ClientsSection = dynamic(() => import(/* webpackPrefetch: true */ '@/components/dashboard/ClientsSection'), { loading: SectionLoader })
 const RapportsSection = dynamic(() => import('@/components/dashboard/RapportsSection'), { loading: SectionLoader })
 const RFQSection = dynamic(() => import('@/components/dashboard/RFQSection'), { loading: SectionLoader })
@@ -471,7 +472,7 @@ function DashboardPage() {
     const PAGE_TITLES_FR: Record<string, string> = {
       home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
       chantiers: 'Chantiers', gantt: 'Planning Gantt', equipes: 'Équipes', pointage: 'Pointage',
-      estimation_materiaux: 'Estimation matériaux', calendar: 'Agenda', meteo: 'Météo',
+      estimation_materiaux: 'Estimation matériaux', dictionnaire_materiaux: 'Dictionnaire matériaux', calendar: 'Agenda', meteo: 'Météo',
       photos_chantier: 'Photos chantier', rapports: 'Rapports', pipeline: 'Pipeline',
       devis: 'Devis', dpgf: 'Appels d\'offres', marches: 'Marchés', factures: 'Factures',
       situations: 'Situations', garanties: 'Retenues de garantie', sous_traitance: 'Sous-traitance',
@@ -486,7 +487,7 @@ function DashboardPage() {
     const PAGE_TITLES_PT: Record<string, string> = {
       home: 'Painel', revenus: 'Receitas', stats: 'Estatísticas', prestations: 'Prestações',
       chantiers: 'Obras', gantt: 'Planeamento Gantt', equipes: 'Equipas', pointage: 'Marcação de horas',
-      estimation_materiaux: 'Estimativa de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
+      estimation_materiaux: 'Estimativa de materiais', dictionnaire_materiaux: 'Dicionário de materiais', calendar: 'Agenda', meteo: 'Meteorologia',
       photos_chantier: 'Fotos de obra', rapports: 'Relatórios', pipeline: 'Pipeline',
       devis: 'Orçamentos', dpgf: 'Concursos', marches: 'Bolsa de Mercados', factures: 'Faturas',
       situations: 'Situações de obra', garanties: 'Retenções de garantia', sous_traitance: 'Subempreitada',
@@ -1183,6 +1184,13 @@ function DashboardPage() {
                 artisan={artisan}
                 isAdminOverride={showAdminBtn}
               />
+            </SectionErrorBoundary>
+          )}
+
+          {/* ────── DICTIONNAIRE MATÉRIAUX (matériaux à utiliser selon la situation) ────── */}
+          {activePage === 'dictionnaire_materiaux' && (
+            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no dicionário de materiais' : 'Erreur dans le dictionnaire matériaux'}>
+              <DictionnaireMateriauxSection />
             </SectionErrorBoundary>
           )}
 
