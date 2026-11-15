@@ -89,29 +89,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Contenu requis' }, { status: 400 })
     }
 
-    // Écriture vers un tiers : seulement vers un prestataire déjà enregistré par l'expéditeur, comme dans la
-    // messagerie Syndic ↔ prestataires qui partage cette table (/api/syndic/canal-pro).
-    const destinataire = contact_id || user.id
-    if (destinataire !== user.id) {
-      const { data: lien, error: lienErr } = await supabaseAdmin
-        .from('syndic_artisans')
-        .select('id')
-        .eq('cabinet_id', user.id)
-        .eq('artisan_user_id', destinataire)
-        .limit(1)
-        .maybeSingle()
-      if (lienErr) {
-        logger.error('[pro/channel/POST] lecture du lien avec le destinataire', { message: lienErr.message })
-        return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
-      }
-      if (!lien) {
-        return NextResponse.json({ error: 'Vous ne pouvez écrire qu’à un contact déjà lié à votre compte.' }, { status: 403 })
-      }
+    // Aucune écriture vers un autre compte : l'écran « Canal Pro » tient sa liste de contacts dans le navigateur,
+    // le serveur n'a donc aucune preuve d'un lien entre l'expéditeur et le destinataire. Seule l'écriture pour soi
+    // (sans destinataire, ou destinataire = l'expéditeur) reste possible, tant que le sort de cet écran n'est pas décidé.
+    if (contact_id && contact_id.toLowerCase() !== user.id.toLowerCase()) {
+      return NextResponse.json({ error: 'L’envoi d’un message à un autre compte n’est pas disponible par ce canal.' }, { status: 403 })
     }
 
     const msgData = {
       cabinet_id: user.id,
-      artisan_user_id: destinataire,
+      artisan_user_id: user.id,
       sender_id: user.id,
       sender_role: role,
       sender_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Pro',
