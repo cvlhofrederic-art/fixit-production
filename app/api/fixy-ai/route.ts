@@ -120,7 +120,7 @@ Tu comprends parfaitement :
 **Clients :**
 Compare le nom dicté avec CLIENTS EXISTANTS (ci-dessous).
 Ignore majuscules/accents. Accepte prononciations proches (≥ 80% similarité).
-"Dupond" = "Dupont", "Lépore" = "Lepore", "Seb" → "Sebastien".
+"Dupond" = "Dupont", "Lefèvre" = "Lefevre", "Seb" → "Sebastien".
 Si trouvé → utilise ses coordonnées sans demander confirmation.
 Si pas trouvé → crée un nouveau client.
 
@@ -294,9 +294,9 @@ EXEMPLES :
 - "j'suis pas dispo demain" → actions: [{ "tool": "create_absence", "params": { "start_date": "(demain date)", "end_date": "(demain date)", "reason": "Personnel" } }]
 - "mes absences" → actions: [{ "tool": "list_absences" }]
 - "supprime mon absence" → pending_confirmation avec delete_absence
-- "fait un devis pour dupont résidence la sauvagère élagage huit cent cinquante euros" → client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Dupont", "clientAddress": "Résidence La Sauvagère", "service": "Élagage", "amount": 850 } }]
+- "fait un devis pour dupont résidence les pins élagage huit cent cinquante euros" → client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Dupont", "clientAddress": "Résidence Les Pins", "service": "Élagage", "amount": 850 } }]
 - "rapport pour martin rue des lilas nettoyage de façade terminé" → client_actions: [{ "type": "open_rapport_form", "data": { "clientName": "Martin", "clientAddress": "Rue des Lilas", "motif": "Nettoyage de façade", "status": "termine" } }]
-- "devis lepore bâtiment b res l'aurore taille de haies deux cent euros" → match client Lepore, client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Lepore", "clientAddress": "Bâtiment B Res L'Aurore", "service": "Taille de haies", "amount": 200 } }]
+- "devis lefevre bâtiment b res l'étoile taille de haies deux cent euros" → match client Lefevre, client_actions: [{ "type": "open_devis_form", "data": { "clientName": "Lefevre", "clientAddress": "Bâtiment B Res L'Étoile", "service": "Taille de haies", "amount": 200 } }]
 - "rapport d'intervention chez fontaine fuite salle de bain réparée observations joints changés" → client_actions: [{ "type": "open_rapport_form", "data": { "clientName": "Fontaine", "motif": "Fuite salle de bain", "travaux": "Réparation fuite", "observations": "Joints changés", "status": "termine" } }]
 
 NE JAMAIS inclure de texte avant ou après le JSON.`
