@@ -9,7 +9,9 @@
 //   - « dépôt » : la migration 048 telle quelle (avec pro_role_permissions, dont la lecture s'appuie sur
 //     pro_team_members), puis les ALTER POLICY de 20260610 sur les policies de pro_team_members.
 // AVANT la migration, les écritures du gérant passent (la faille est reproduite) ; APRÈS, jouée deux fois, elles sont
-// refusées, la lecture reste, et les routes serveur (service_role) écrivent toujours.
+// refusées, la lecture reste, et les routes serveur (service_role) écrivent toujours. Les contournements qu'un
+// propriétaire de la base poserait à la main (vue, règle, déclencheur SECURITY DEFINER) rouvrent l'écriture : la
+// partie 1 du scénario de contrôle montre chacun.
 // Comptes fictifs (UUID aléatoires) ; aucune donnée réelle.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -31,14 +33,19 @@ const MIGRATION = '20261115_pro_equipe_ecritures_serveur.sql'
 const TABLE = 'public.pro_team_members'
 const SCENARIO = partiesDuScenario('supabase/tests/pro_equipe_ecritures_serveur.sql')
 
-interface FonctionCitee { fonction: string; security_definer: boolean; executable_par_les_clients: boolean }
+interface FonctionCitee {
+  fonction: string
+  security_definer: boolean
+  executable_par_les_clients: boolean
+  fonction_de_declencheur: boolean
+}
 interface EtatTable {
   policies_ecriture: number
   rls_active: boolean
   proprietaire: string
   fonctions_citant_la_table: FonctionCitee[] | null
   fonctions_ecrivant_la_table: FonctionCitee[] | null
-  vues: Array<{ vue: string; type: string; security_invoker: boolean }> | null
+  vues: Array<{ vue: string; type: string; security_invoker: boolean; regle_d_ecriture: boolean }> | null
   regles_sur_la_table: number
   declencheurs: Array<{ nom: string; fonction: string }> | null
   droits: Array<{ role: string; select: boolean; insert: boolean; update: boolean; delete: boolean; truncate: boolean }>
@@ -109,8 +116,9 @@ END;
 $$;
 `
 
-/** next_doc_number tel que la partie 1 le rend en production (SECURITY DEFINER, exécutable par les clients). */
-const NEXT_DOC_NUMBER = 'next_doc_number(uuid,text,integer) true true'
+/** next_doc_number tel que la partie 1 le rend en production (SECURITY DEFINER, exécutable par les clients, pas une
+ *  fonction de déclencheur). */
+const NEXT_DOC_NUMBER = 'next_doc_number(uuid,text,integer) true true false'
 
 /** Dépôt : 048 telle quelle, puis les quatre ALTER POLICY de 20260610 sur pro_team_members. */
 function depotSql(): string {
@@ -126,9 +134,11 @@ const ETATS = [
 ]
 const DECLENCHEURS = ['trg_pro_team_updated_at']
 
-/** Fonctions d'une liste de la partie 1, en « nom security_definer executable_par_les_clients », triées. */
-const resume = (liste: FonctionCitee[] | null) =>
-  (liste ?? []).map((f) => `${f.fonction} ${f.security_definer} ${f.executable_par_les_clients}`).sort(parTexte)
+/** Fonctions d'une liste de la partie 1, en « nom security_definer executable_par_les_clients fonction_de_declencheur »,
+ *  triées. */
+const resume = (liste: FonctionCitee[] | null) => (liste ?? [])
+  .map((f) => `${f.fonction} ${f.security_definer} ${f.executable_par_les_clients} ${f.fonction_de_declencheur}`)
+  .sort(parTexte)
 
 describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes }) => {
   let db: PGlite
@@ -228,7 +238,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       expect(await nombreDeLignes()).toBe(3)
     })
 
-    it('la partie 1 repère les fonctions qui écrivent la table (MERGE et schéma entre guillemets compris ; EXECUTE dynamique parmi celles qui la citent)', async () => {
+    it('la partie 1 repère les fonctions qui écrivent la table (MERGE, TRUNCATE TABLE et schéma entre guillemets compris ; EXECUTE dynamique parmi celles qui la citent)', async () => {
       await db.exec(`CREATE FUNCTION public.essai_ecrit_sql(c uuid) RETURNS void LANGUAGE sql
         AS $$ INSERT INTO public.pro_team_members (company_id, email, role) VALUES (c, 'x@exemple.test', 'OUVRIER') $$`)
       await db.exec(`CREATE FUNCTION public.essai_ecrit_dynamique(c uuid) RETURNS void LANGUAGE plpgsql
@@ -238,22 +248,22 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       await db.exec(`CREATE FUNCTION public.essai_ecrit_merge(c uuid) RETURNS void LANGUAGE plpgsql
         AS $$ BEGIN MERGE INTO "public"."pro_team_members" t USING (SELECT c AS id) s ON t.company_id = s.id
                     WHEN MATCHED THEN DELETE; END $$`)
-      // Exécutable par anon seulement : compte comme exécutable par les clients.
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_vidage() RETURNS void LANGUAGE sql AS $$ TRUNCATE TABLE ${TABLE} $$`)
+      // Aucun client ne l'exécute ; exécutable par anon seul, ou par authenticated seul : compte comme exécutable par les
+      // clients.
       await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_ecrit_atomique(uuid) FROM PUBLIC, anon, authenticated')
       await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_ecrit_merge(uuid) FROM PUBLIC, authenticated')
+      await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_ecrit_vidage() FROM PUBLIC, anon')
       const e = await etat()
-      expect(resume(e.fonctions_citant_la_table)).toEqual([
-        ...fonctionsCitantes,
-        'essai_ecrit_atomique(uuid) true false',
-        'essai_ecrit_dynamique(uuid) false true',
-        'essai_ecrit_merge(uuid) false true',
-        'essai_ecrit_sql(uuid) false true',
-      ].sort(parTexte))
-      expect(resume(e.fonctions_ecrivant_la_table)).toEqual([
-        'essai_ecrit_atomique(uuid) true false',
-        'essai_ecrit_merge(uuid) false true',
-        'essai_ecrit_sql(uuid) false true',
-      ])
+      const ecrivant = [
+        'essai_ecrit_atomique(uuid) true false false',
+        'essai_ecrit_merge(uuid) false true false',
+        'essai_ecrit_sql(uuid) false true false',
+        'essai_ecrit_vidage() false true false',
+      ]
+      expect(resume(e.fonctions_ecrivant_la_table)).toEqual(ecrivant)
+      expect(resume(e.fonctions_citant_la_table)).toEqual(
+        [...fonctionsCitantes, ...ecrivant, 'essai_ecrit_dynamique(uuid) false true false'].sort(parTexte))
     })
   })
 
@@ -318,7 +328,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
 
     it('le scénario de contrôle rend l’état et le BILAN attendus (parties 1 et 2, telles que Frédéric les lance)', async () => {
       const e = await etat()
-      expect(Number(e.policies_ecriture)).toBe(0)
+      expect([Number(e.policies_ecriture), Number(e.regles_sur_la_table)]).toEqual([0, 0])
       expect([e.fonctions_ecrivant_la_table, e.vues]).toEqual([null, null])
       expect(resume(e.fonctions_citant_la_table)).toEqual(fonctionsCitantes)
       expect((e.declencheurs ?? []).map((d) => d.nom)).toEqual(DECLENCHEURS)
@@ -336,13 +346,125 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       await rienNAChange()
     })
 
-    it('une vue posée à la main sur la table rouvrirait l’écriture : la partie 1 la montre (d’où « vues » attendu à null)', async () => {
-      await db.exec(`CREATE VIEW public.essai_vue_equipe AS SELECT * FROM ${TABLE}`)
+    /** Action d'un contournement : rattache en GERANT le compte de la ligne écrite (NEW), dans la société de ce compte. */
+    const rattacherEnGerant = (email: string) =>
+      `INSERT INTO ${TABLE} (company_id, user_id, email, role) VALUES (NEW.company_id, NEW.user_id, '${email}', 'GERANT')`
+    const RELAIS = 'CREATE TABLE public.essai_relais (company_id uuid, user_id uuid)'
+
+    /**
+     * Contournements qu'un propriétaire de la base poserait à la main après la migration : les actions d'une vue sans
+     * security_invoker, d'une règle (même sur une vue security_invoker) ou d'un déclencheur SECURITY DEFINER s'exécutent
+     * avec les droits de leur propriétaire, donc malgré les droits retirés aux clients. La partie 1 doit montrer chacun
+     * (d'où vues et fonctions_ecrivant_la_table attendues à null) : `vu` lit ce qu'elle en dit, `attendu` est ce qu'elle
+     * doit en dire.
+     */
+    const CONTOURNEMENTS: Array<{
+      cas: string
+      poser: string[]
+      ecrire: () => Promise<ResultatAppel>
+      ecrit: () => Promise<void>
+      vu: (e: EtatTable) => unknown
+      attendu: unknown
+    }> = [
+      {
+        cas: 'vue sans security_invoker',
+        poser: [`CREATE VIEW public.essai_vue_equipe AS SELECT * FROM ${TABLE}`],
+        ecrire: () => sousRole(db, 'authenticated', comptes.gerant,
+          `INSERT INTO public.essai_vue_equipe (company_id, user_id, email, role) VALUES ($1, $2, 'vue@exemple.test', 'OUVRIER')`,
+          [comptes.gerant, comptes.etranger]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_vue_equipe', type: 'v', security_invoker: false, regle_d_ecriture: false }],
+      },
+      {
+        // ON INSERT … DO INSTEAD, sur une table que les clients écrivent.
+        cas: 'règle INSERT d’une table relais',
+        poser: [RELAIS, `CREATE RULE essai_relais_ecrit AS ON INSERT TO public.essai_relais
+          DO INSTEAD ${rattacherEnGerant('relais@exemple.test')}`],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          'INSERT INTO public.essai_relais (company_id, user_id) VALUES ($1, $1)', [comptes.etranger]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_relais', type: 'r', security_invoker: false, regle_d_ecriture: true }],
+      },
+      {
+        // ON INSERT … DO INSTEAD, sur une vue security_invoker (sans effet sur les actions d'une règle).
+        cas: 'règle INSERT d’une vue security_invoker',
+        poser: [
+          RELAIS,
+          'CREATE VIEW public.essai_vue_relais WITH (security_invoker = true) AS SELECT company_id, user_id FROM public.essai_relais',
+          `CREATE RULE essai_vue_relais_ecrit AS ON INSERT TO public.essai_vue_relais
+            DO INSTEAD ${rattacherEnGerant('vue-relais@exemple.test')}`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.autreSociete,
+          'INSERT INTO public.essai_vue_relais (company_id, user_id) VALUES ($1, $1)', [comptes.autreSociete]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_vue_relais', type: 'v', security_invoker: true, regle_d_ecriture: true }],
+      },
+      {
+        // ON UPDATE … DO ALSO, sur une table relais : passe l'invitation en GERANT, ce que l'UPDATE direct ne peut plus.
+        cas: 'règle UPDATE d’une table relais',
+        poser: [
+          'CREATE TABLE public.essai_relais_maj (id uuid)',
+          `INSERT INTO public.essai_relais_maj (id) SELECT id FROM ${TABLE} WHERE invite_token IS NOT NULL`,
+          `CREATE RULE essai_relais_maj_ecrit AS ON UPDATE TO public.essai_relais_maj
+            DO ALSO UPDATE ${TABLE} SET role = 'GERANT' WHERE id = OLD.id`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.gerant, 'UPDATE public.essai_relais_maj SET id = id'),
+        ecrit: async () => { expect((await lireLigne(lignes.invitation)).role).toBe('GERANT') },
+        vu: (e) => e.vues,
+        attendu: [{ vue: 'essai_relais_maj', type: 'r', security_invoker: false, regle_d_ecriture: true }],
+      },
+      {
+        // Fonction que les clients n'exécutent pas : le droit EXECUTE n'est pas vérifié quand le déclencheur part.
+        cas: 'déclencheur SECURITY DEFINER',
+        poser: [
+          'CREATE TABLE public.essai_source (company_id uuid, user_id uuid)',
+          `CREATE FUNCTION public.essai_declencheur_ecrit() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+            AS $$ BEGIN ${rattacherEnGerant('declencheur@exemple.test')}; RETURN NEW; END $$`,
+          'REVOKE EXECUTE ON FUNCTION public.essai_declencheur_ecrit() FROM PUBLIC, anon, authenticated',
+          `CREATE TRIGGER essai_declencheur AFTER INSERT ON public.essai_source
+            FOR EACH ROW EXECUTE FUNCTION public.essai_declencheur_ecrit()`,
+        ],
+        ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
+          'INSERT INTO public.essai_source (company_id, user_id) VALUES ($1, $1)', [comptes.etranger]),
+        ecrit: async () => { expect(await nombreDeLignes()).toBe(4) },
+        vu: (e) => [resume(e.fonctions_ecrivant_la_table), resume(e.fonctions_citant_la_table), e.vues],
+        attendu: [
+          ['essai_declencheur_ecrit() true false true'],
+          [...fonctionsCitantes, 'essai_declencheur_ecrit() true false true'].sort(parTexte),
+          null,
+        ],
+      },
+    ]
+
+    it.each(CONTOURNEMENTS)('contournement posé à la main, $cas : le client écrit quand même, la partie 1 le montre',
+      async ({ poser, ecrire, ecrit, vu, attendu }) => {
+        for (const instruction of poser) await db.exec(instruction)
+        expect((await ecrire()).erreur).toBeNull()
+        await ecrit()
+        expect(vu(await etat())).toEqual(attendu)
+      })
+
+    it('security_invoker est lu à sa valeur : 1 le rend vrai (un client n’écrit pas par la vue, 42501), off le rend faux', async () => {
+      // PostgreSQL garde l'option telle qu'elle est écrite (security_invoker=1) : seule sa conversion en booléen la lit.
+      await db.exec(`CREATE VIEW public.essai_vue_un WITH (security_invoker = 1) AS SELECT * FROM ${TABLE}`)
+      await db.exec(`CREATE VIEW public.essai_vue_off WITH (security_invoker = off) AS SELECT * FROM ${TABLE}`)
       const parLaVue = await sousRole(db, 'authenticated', comptes.gerant,
-        `INSERT INTO public.essai_vue_equipe (company_id, user_id, email, role) VALUES ($1, $2, 'vue@exemple.test', 'OUVRIER')`,
-        [comptes.gerant, comptes.etranger])
-      expect(parLaVue.erreur).toBeNull()
-      expect((await etat()).vues).toEqual([{ vue: 'essai_vue_equipe', type: 'v', security_invoker: false }])
+        `INSERT INTO public.essai_vue_un (company_id, email, role) VALUES ($1, 'un@exemple.test', 'OUVRIER')`, [comptes.gerant])
+      expect(parLaVue.erreur?.code).toBe('42501')
+      await rienNAChange()
+      expect((await etat()).vues).toEqual([
+        { vue: 'essai_vue_off', type: 'v', security_invoker: false, regle_d_ecriture: false },
+        { vue: 'essai_vue_un', type: 'v', security_invoker: true, regle_d_ecriture: false },
+      ])
+    })
+
+    it('une règle posée sur la table elle-même est comptée à part (d’où « regles_sur_la_table » attendu à 0)', async () => {
+      await db.exec(`CREATE RULE essai_regle_equipe AS ON DELETE TO ${TABLE} DO INSTEAD NOTHING`)
+      const e = await etat()
+      expect([Number(e.regles_sur_la_table), e.vues]).toEqual([1, null])
     })
 
     it('rejouée par un rôle non propriétaire alors qu’un droit d’écriture a été rendu : erreur visible, rien n’est appliqué', async () => {

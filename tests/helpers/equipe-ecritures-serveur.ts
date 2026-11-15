@@ -51,27 +51,48 @@ export function historiquePolicy(policy: string): Array<{ fichier: string; verbe
 }
 
 /**
- * Instructions des migrations postérieures à `depuis` qui rouvriraient l'écriture de `table` aux clients : policy
- * autre que FOR SELECT posée sur la table (sans FOR, elle vaut FOR ALL), GRANT d'écriture à anon, authenticated ou
- * PUBLIC visant la table ou toutes les tables du schéma, vue qui lit la table sans security_invoker (elle écrirait
- * avec les droits de son propriétaire). Chaque test reste simple (aucune expression à quantificateurs enchaînés).
+ * Vrai si l'instruction `i` (SQL sans commentaires) rouvrirait l'écriture de `table` aux clients :
+ *   - policy autre que FOR SELECT posée sur la table (sans FOR, elle vaut FOR ALL), schéma entre guillemets compris
+ *     (forme qu'écrit l'éditeur de Supabase) ; une policy d'une autre table qui lit la table ne compte pas ;
+ *   - GRANT d'un privilège d'écriture (avant ON) dont un bénéficiaire (après TO) est anon, authenticated ou PUBLIC, sur
+ *     la table ou sur toutes les tables du schéma : le schéma « public » du nom de la table ne compte pas comme PUBLIC,
+ *     ni « ALL TABLES » comme privilège ;
+ *   - vue qui lit la table sans security_invoker vrai (option absente ou fausse) : elle écrirait avec les droits de son
+ *     propriétaire ; vue existante repassée aux droits de son propriétaire (ALTER VIEW, ou ALTER TABLE, admis sur une
+ *     vue, avec security_invoker faux ou RESET) : la table n'y est pas nommée, toute vue est donc visée ;
+ *   - règle qui nomme la table, posée sur elle ou sur une autre table ou vue : ses actions s'exécutent avec les droits
+ *     du propriétaire de la relation qui la porte, même sur une vue security_invoker.
+ * Hors de portée (le découpage aux points-virgules coupe les corps $$…$$ et les règles à plusieurs actions) : fonction
+ * SECURITY DEFINER, déclencheur, actions d'une règle après la première ; la partie 1 du scénario de contrôle les montre
+ * sur une vraie base. Chaque expression reste simple : jamais deux quantificateurs voisins qui puissent lire les mêmes
+ * caractères (aucun retour arrière super-linéaire).
  */
-export function reouverturesEcriture(table: string, depuis: string): string[] {
+export function rouvreLEcriture(table: string, i: string): boolean {
   const nommeLaTable = new RegExp(`\\b${litteralRegex(table)}\\b`, 'i')
-  const poseeSurLaTable = new RegExp(`\\bON\\s+(?:public\\.)?"?${litteralRegex(table)}\\b`, 'i')
-  const constats: string[] = []
-  for (const fichier of migrationsDansLOrdre().filter((f) => f > depuis)) {
-    for (const i of instructionsSql(migrationSansCommentaires(fichier))) {
-      const policyEcriture = /\bCREATE\s+POLICY\b/i.test(i) && poseeSurLaTable.test(i) && !/\bFOR\s+SELECT\b/i.test(i)
-      const grantEcriture = /\bGRANT\b/i.test(i)
-        && /\b(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(i)
-        && /\b(anon|authenticated|PUBLIC)\b/i.test(i)
-        && (nommeLaTable.test(i) || /\bALL\s+TABLES\s+IN\s+SCHEMA\b/i.test(i))
-      const vueDuProprietaire = /\bCREATE\s+(OR\s+REPLACE\s+)?VIEW\b/i.test(i) && nommeLaTable.test(i) && !/security_invoker/i.test(i)
-      if (policyEcriture || grantEcriture || vueDuProprietaire) constats.push(`${fichier} : ${i.slice(0, 120)}`)
-    }
-  }
-  return constats
+  const poseeSurLaTable = new RegExp(`\\bON\\s+(?:"?public"?\\.)?"?${litteralRegex(table)}\\b`, 'i')
+  const apresGrant = i.split(/\bGRANT\b/i).slice(1).join(' ')
+  const privileges = apresGrant.split(/\bON\b/i)[0]
+  const beneficiaires = apresGrant.split(/\bTO\b/i).slice(1).join(' ')
+  // security_invoker vrai : l'option seule, ou = true, on, yes, 1 ; toute autre valeur (false, off, no, 0) vaut faux.
+  const invokerVrai = /\bsecurity_invoker\s*(=\s*'?(true|on|yes|1)'?\s*)?[,)]/i.test(i)
+  const policyEcriture = /\bCREATE\s+POLICY\b/i.test(i) && poseeSurLaTable.test(i) && !/\bFOR\s+SELECT\b/i.test(i)
+  const grantEcriture = /\bGRANT\b/i.test(i)
+    && /\b(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(privileges)
+    && /\b(anon|authenticated|PUBLIC)\b/i.test(beneficiaires)
+    && (nommeLaTable.test(i) || /\bALL\s+TABLES\s+IN\s+SCHEMA\b/i.test(i))
+  const vueDuProprietaire = /\bCREATE\s+(OR\s+REPLACE\s+)?VIEW\b/i.test(i) && nommeLaTable.test(i) && !invokerVrai
+  const vueRepassee = /\bALTER\s+(VIEW|TABLE)\b/i.test(i) && /\bsecurity_invoker\b/i.test(i)
+    && (/\bRESET\b/i.test(i) || !invokerVrai)
+  const regle = /\bCREATE\s+(OR\s+REPLACE\s+)?RULE\b/i.test(i) && nommeLaTable.test(i)
+  return policyEcriture || grantEcriture || vueDuProprietaire || vueRepassee || regle
+}
+
+/** Instructions des migrations postérieures à `depuis` qui rouvriraient l'écriture de `table` (voir rouvreLEcriture). */
+export function reouverturesEcriture(table: string, depuis: string): string[] {
+  return migrationsDansLOrdre().filter((f) => f > depuis).flatMap((fichier) =>
+    instructionsSql(migrationSansCommentaires(fichier))
+      .filter((i) => rouvreLEcriture(table, i))
+      .map((i) => `${fichier} : ${i.slice(0, 120)}`))
 }
 
 // ── Base PGlite ───────────────────────────────────────────────────────────────────────────────────────────────────

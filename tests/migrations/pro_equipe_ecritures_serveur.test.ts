@@ -7,6 +7,8 @@ import {
   litteralRegex,
   migrationSansCommentaires,
   reouverturesEcriture,
+  rouvreLEcriture,
+  sqlSansCommentaires,
 } from '../helpers/equipe-ecritures-serveur'
 
 // Migration 20261115_pro_equipe_ecritures_serveur.sql (suite de R36, décision VF-A-02 ; modèle de T20) : les écritures
@@ -84,7 +86,45 @@ describe('Base reconstruite depuis le dépôt', () => {
     expect(historique.at(-1)).toEqual({ fichier: FICHIER, verbe: 'DROP' })
   })
 
-  it('aucune migration postérieure ne rouvre l’écriture des clients (policy, GRANT, vue du propriétaire)', () => {
+  it('aucune migration postérieure ne rouvre l’écriture des clients (policy, GRANT, vue du propriétaire, règle)', () => {
     expect(reouverturesEcriture('pro_team_members', FICHIER)).toEqual([])
+  })
+})
+
+/** Instructions types, une par cas que le contrôle des migrations postérieures doit trancher : [cas, SQL, rouvre ?]. */
+const INSTRUCTIONS_TYPES: Array<[string, string, boolean]> = [
+  ['policy INSERT', 'CREATE POLICY p ON public.pro_team_members FOR INSERT WITH CHECK (true)', true],
+  ['policy sans FOR (vaut FOR ALL), noms entre guillemets comme les écrit l’éditeur de Supabase',
+    'create policy "p" on "public"."pro_team_members" as permissive to authenticated using (true)', true],
+  ['policy de lecture', 'CREATE POLICY p ON public.pro_team_members FOR SELECT USING (true)', false],
+  ['policy d’écriture d’une autre table, qui lit la table',
+    'CREATE POLICY p ON public.pro_role_permissions FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.pro_team_members))', false],
+  ['GRANT INSERT à authenticated', 'GRANT INSERT ON public.pro_team_members TO authenticated', true],
+  ['GRANT UPDATE d’une colonne à PUBLIC, noms entre guillemets', 'GRANT UPDATE (role) ON TABLE "public"."pro_team_members" TO PUBLIC', true],
+  ['GRANT ALL sur toutes les tables du schéma, à anon', 'GRANT ALL ON ALL TABLES IN SCHEMA public TO anon', true],
+  ['GRANT dans un bloc conditionnel', `DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles r JOIN pg_namespace n ON true) THEN
+    GRANT DELETE ON public.pro_team_members TO authenticated`, true],
+  ['GRANT ALL à service_role (le schéma public du nom ne compte pas comme PUBLIC)', 'GRANT ALL ON public.pro_team_members TO service_role', false],
+  ['GRANT de lecture sur toutes les tables (ALL TABLES n’est pas un privilège)', 'GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon, authenticated', false],
+  ['droits par défaut des tables à venir', 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT INSERT ON TABLES TO authenticated', false],
+  ['vue sans security_invoker', 'CREATE VIEW public.v AS SELECT * FROM public.pro_team_members', true],
+  ['vue security_invoker = false, entre apostrophes', "CREATE OR REPLACE VIEW public.v WITH (security_invoker = 'false') AS SELECT * FROM public.pro_team_members", true],
+  ['vue security_invoker = off, suivie d’une autre option',
+    'CREATE VIEW public.v WITH (security_invoker = off, security_barrier) AS SELECT * FROM public.pro_team_members', true],
+  ['vue security_invoker (option seule, en dernier)', 'CREATE VIEW public.v WITH (security_barrier, security_invoker) AS SELECT * FROM public.pro_team_members', false],
+  ['vue security_invoker = 1', 'CREATE VIEW public.v WITH (security_invoker = 1) AS SELECT * FROM public.pro_team_members', false],
+  ['vue d’une autre table', 'CREATE VIEW public.v AS SELECT * FROM public.pro_role_permissions', false],
+  ['vue repassée par ALTER VIEW … SET (security_invoker = false)', 'ALTER VIEW public.v SET (security_invoker = false)', true],
+  ['vue repassée par ALTER TABLE … RESET (security_invoker)', 'ALTER TABLE public.v RESET (security_invoker)', true],
+  ['vue confirmée par ALTER VIEW … SET (security_invoker = on)', 'ALTER VIEW public.v SET (security_invoker = on)', false],
+  ['règle d’une table relais qui écrit la table',
+    'CREATE RULE r AS ON INSERT TO public.relais DO INSTEAD INSERT INTO public.pro_team_members (company_id) VALUES (NEW.id)', true],
+  ['règle posée sur la table', 'CREATE OR REPLACE RULE r AS ON DELETE TO public.pro_team_members DO INSTEAD NOTHING', true],
+  ['règle d’une autre table', 'CREATE RULE r AS ON DELETE TO public.relais DO INSTEAD NOTHING', false],
+]
+
+describe('Contrôle des migrations postérieures : instructions types', () => {
+  it.each(INSTRUCTIONS_TYPES)('%s', (_cas, instruction, rouvre) => {
+    expect(rouvreLEcriture('pro_team_members', sqlSansCommentaires(instruction))).toBe(rouvre)
   })
 })
