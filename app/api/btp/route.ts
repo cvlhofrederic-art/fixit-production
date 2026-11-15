@@ -1,14 +1,15 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { User } from '@supabase/supabase-js'
 import { z } from 'zod'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
-
-// Tables écrivables par le POST. `ref_taux` (taux de référence globaux, posés par migration) n'y figure pas :
-// la route le sert seulement en lecture (`GET /api/btp?table=ref_taux`).
-const BTP_TABLES_ECRIVABLES = ['chantiers_btp', 'membres_btp', 'equipes_btp', 'pointages_btp', 'depenses_btp', 'settings_btp', 'situations_btp', 'retenues_btp', 'dc4_btp', 'dce_analyses_btp', 'dpgf_btp', 'charges_fixes', 'rapports_btp'] as const
+import {
+  BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, memeValeur, valeursHorsBornes, verifierLigne,
+  type HorsBornes, type TableEcrivable,
+} from '@/lib/btp/schema-tables-btp'
 
 const btpBodySchema = z.object({
   table: z.enum(BTP_TABLES_ECRIVABLES),
@@ -55,7 +56,6 @@ const LECTURES: Record<string, LectureListe> = {
 }
 
 const MESSAGE_LECTURE_IMPOSSIBLE = 'Les données n\'ont pas pu être chargées. Réessayez dans un instant.'
-const FORMAT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** La base a répondu en erreur : la route le dit (500) au lieu de renvoyer une liste vide. */
 class ErreurLecture extends Error {
@@ -163,14 +163,219 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ── POST /api/btp — Create or update BTP data ───────────────────────────────
-// Body: { table: string, action: 'insert'|'update'|'delete'|'upsert_settings'|'import', data: unknown (varies per table), id?: string }
+// ── POST /api/btp — créer, modifier, supprimer, reprendre les anciennes données du navigateur ───────────────
+// Corps : { table, action: 'insert'|'update'|'delete'|'upsert_settings'|'import', data, id? }.
+// Ce que chaque table accepte (colonnes du relevé de production, types, bornes) : lib/btp/schema-tables-btp.ts.
+
+type Ligne = Record<string, unknown>
+
+// Comptes qui écrivent ici : ceux du tableau de bord professionnel. L'artisan aussi, parce que l'accueil partagé
+// reprend par cette route ses anciennes données du navigateur ; et le compte sans rôle, que le tableau de bord traite
+// en artisan (rôle pas encore attribué à l'inscription). Un client, un copropriétaire ou un syndic n'a rien à écrire
+// dans ces tables (constat donnees-btp-9). La lecture (GET) ne change pas : chacun ne lit que ses propres lignes.
+const ROLES_ECRITURE = new Set(['pro_societe', 'super_admin', 'artisan', 'pro_conciergerie', 'pro_gestionnaire'])
+
+function peutEcrire(user: User): boolean {
+  const role: unknown = user.app_metadata?.role
+  return role === undefined || role === null || role === '' || (typeof role === 'string' && ROLES_ECRITURE.has(role))
+}
+
+const CONTRATS_PAR_ROLE: Record<string, string[]> = {
+  gerant: ['independant'],
+  ouvrier: ['cdi', 'cdd', 'interim', 'apprenti'],
+  chef_chantier: ['cdi', 'cdd', 'interim'],
+  conducteur_travaux: ['cdi', 'cdd'],
+  secretaire: ['cdi', 'cdd', 'apprenti', 'stage'],
+}
+
+const MESSAGE_FICHE_INTROUVABLE = 'Fiche introuvable : elle a peut-être été supprimée entre-temps.'
+
+/** La base a répondu en erreur pendant une écriture. */
+class ErreurEcriture extends Error {
+  constructor(readonly erreurBase: { code?: string; message?: string }) {
+    super('écriture en erreur')
+  }
+}
+
+const refus = (message: string, status = 400) => NextResponse.json({ error: message }, { status })
+const estObjet = (valeur: unknown): valeur is Ligne => typeof valeur === 'object' && valeur !== null && !Array.isArray(valeur)
+
+/** Fiche envoyée par l'écran, sans les colonnes système ni les champs que la route traite à part. */
+function preparer(donnees: Ligne): { ligne: Ligne; membreIds: unknown } {
+  const ligne: Ligne = { ...donnees }
+  for (const colonne of COLONNES_SYSTEME) delete ligne[colonne]
+  // Relation lue par GET avec les équipes, renvoyée telle quelle par certains écrans : jamais une colonne.
+  delete ligne.equipe_membres_btp
+  const membreIds = ligne.membreIds
+  delete ligne.membreIds
+  return { ligne, membreIds }
+}
+
+/** Contrat incompatible avec le rôle d'un membre de l'équipe : le refus (400), sinon null. */
+function verifierContrat(table: TableEcrivable, donnees: Ligne): NextResponse | null {
+  if (table !== 'membres_btp') return null
+  const role = donnees.type_compte
+  const contrat = donnees.type_contrat
+  if (typeof role !== 'string' || typeof contrat !== 'string' || !Object.prototype.hasOwnProperty.call(CONTRATS_PAR_ROLE, role)) return null
+  if (CONTRATS_PAR_ROLE[role].includes(contrat)) return null
+  return refus(`Contrat "${contrat}" invalide pour le rôle "${role}". Contrats autorisés : ${CONTRATS_PAR_ROLE[role].join(', ')}`)
+}
+
+/**
+ * Bornes d'une modification : seules les valeurs qui CHANGENT la valeur enregistrée sont refusées. Une valeur déjà en
+ * base, renvoyée telle quelle par un formulaire complet, ne doit pas empêcher d'enregistrer la fiche.
+ */
+function refusBornes(hors: HorsBornes[], ligne: Ligne, enBase: Ligne | null): string | null {
+  const nouvelles = hors.filter(h => !enBase || !memeValeur(ligne[h.colonne], enBase[h.colonne]))
+  return nouvelles.length > 0 ? nouvelles.map(h => h.message).join(' ') : null
+}
+
+async function lireFiche(table: TableEcrivable, id: string, userId: string): Promise<Ligne | null> {
+  const { data, error } = await supabaseAdmin.from(table).select('*').eq('id', id).eq('owner_id', userId).maybeSingle()
+  if (error) throw new ErreurEcriture(error)
+  return (data ?? null) as Ligne | null
+}
+
+async function creer(userId: string, table: TableEcrivable, donnees: unknown): Promise<NextResponse> {
+  if (!estObjet(donnees)) return refus('Données invalides')
+  const contrat = verifierContrat(table, donnees)
+  if (contrat) return contrat
+  const { ligne, membreIds } = preparer(donnees)
+  const raison = verifierLigne(table, ligne, 'creation')
+  if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+  const hors = valeursHorsBornes(table, ligne)
+  if (hors.length > 0) return refus(hors.map(h => h.message).join(' '))
+
+  const { data: inseree, error } = await supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
+  if (error) throw new ErreurEcriture(error)
+
+  if (table === 'equipes_btp' && Array.isArray(membreIds) && membreIds.length > 0) {
+    await supabaseAdmin.from('equipe_membres_btp').insert(
+      membreIds.map((mid: unknown) => ({ equipe_id: inseree.id, membre_id: mid })),
+    )
+  }
+  return NextResponse.json({ row: inseree }, { status: 201 })
+}
+
+async function modifier(userId: string, table: TableEcrivable, id: string, donnees: unknown): Promise<NextResponse> {
+  if (!estObjet(donnees)) return refus('Données invalides')
+  const contrat = verifierContrat(table, donnees)
+  if (contrat) return contrat
+  const { ligne, membreIds } = preparer(donnees)
+  const raison = verifierLigne(table, ligne, 'modification')
+  if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+
+  const hors = valeursHorsBornes(table, ligne)
+  if (hors.length > 0) {
+    const enBase = await lireFiche(table, id, userId)
+    if (!enBase) return refus(MESSAGE_FICHE_INTROUVABLE, 404)
+    const message = refusBornes(hors, ligne, enBase)
+    if (message) return refus(message)
+    logger.warn('[btp] valeur hors bornes déjà en base, renvoyée telle quelle : acceptée', { table, id, colonnes: hors.map(h => h.colonne) })
+  }
+
+  if (table === 'chantiers_btp') ligne.updated_at = new Date().toISOString()
+
+  // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
+  // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient
+  // bien à l'appelant avant de toucher à ses membres.
+  const cible = Object.keys(ligne).length === 0
+    ? supabaseAdmin.from(table).select().eq('id', id).eq('owner_id', userId).single()
+    : supabaseAdmin.from(table).update(ligne).eq('id', id).eq('owner_id', userId).select().single()
+  const { data: modifiee, error } = await cible
+  if (error) throw new ErreurEcriture(error)
+
+  if (table === 'equipes_btp' && Array.isArray(membreIds)) {
+    await supabaseAdmin.from('equipe_membres_btp').delete().eq('equipe_id', id)
+    if (membreIds.length > 0) {
+      await supabaseAdmin.from('equipe_membres_btp').insert(
+        membreIds.map((mid: unknown) => ({ equipe_id: id, membre_id: mid })),
+      )
+    }
+  }
+  return NextResponse.json({ row: modifiee })
+}
+
+async function supprimer(userId: string, table: TableEcrivable, id: string): Promise<NextResponse> {
+  const { error } = await supabaseAdmin.from(table).delete().eq('id', id).eq('owner_id', userId)
+  if (error) throw new ErreurEcriture(error)
+  return NextResponse.json({ deleted: true })
+}
+
+async function enregistrerReglages(userId: string, donnees: unknown): Promise<NextResponse> {
+  if (donnees !== undefined && donnees !== null && !estObjet(donnees)) return refus('Données invalides')
+  const ligne: Ligne = estObjet(donnees) ? { ...donnees } : {}
+  for (const colonne of COLONNES_SYSTEME) delete ligne[colonne]
+  const raison = verifierLigne('settings_btp', ligne, 'modification')
+  if (raison) return refus(`Enregistrement refusé : ${raison}.`)
+
+  const hors = valeursHorsBornes('settings_btp', ligne)
+  if (hors.length > 0) {
+    const { data: enBase, error } = await supabaseAdmin.from('settings_btp').select('*').eq('owner_id', userId).maybeSingle()
+    if (error) throw new ErreurEcriture(error)
+    const message = refusBornes(hors, ligne, (enBase ?? null) as Ligne | null)
+    if (message) return refus(message)
+    logger.warn('[btp] valeur hors bornes déjà en base, renvoyée telle quelle : acceptée', { table: 'settings_btp', colonnes: hors.map(h => h.colonne) })
+  }
+
+  const { data: reglages, error } = await supabaseAdmin
+    .from('settings_btp')
+    .upsert({ ...ligne, updated_at: new Date().toISOString(), owner_id: userId })
+    .select()
+    .single()
+  if (error) throw new ErreurEcriture(error)
+  return NextResponse.json({ settings: reglages })
+}
+
+/**
+ * Reprise des anciennes données du navigateur (import automatique du tableau de bord, table vide en base).
+ * Refusée si le compte a déjà des lignes dans la table : deux onglets, ou une lecture en erreur prise pour une table
+ * vide, ajoutaient sinon les mêmes fiches une seconde fois. Colonnes et types contrôlés comme ailleurs ; les bornes
+ * seulement signalées au journal, car ce sont des données déjà saisies.
+ * `membreIds` n'est pas une colonne : la reprise d'anciennes équipes locales échoue comme avant (les identifiants de
+ * membres du navigateur ne désignent aucun membre en base) ; la faire aboutir reprendrait d'anciennes données.
+ */
+async function reprendre(userId: string, table: TableEcrivable, donnees: unknown): Promise<NextResponse> {
+  if (!Array.isArray(donnees)) return refus('Action invalide')
+  if (donnees.length > 500) return refus('Import limité à 500 lignes max')
+  if (donnees.length === 0) return NextResponse.json({ imported: 0 })
+
+  const { count, error: erreurCompte } = await supabaseAdmin
+    .from(table)
+    .select('id', { count: 'exact', head: true })
+    .eq('owner_id', userId)
+  if (erreurCompte) throw new ErreurEcriture(erreurCompte)
+  if ((count ?? 0) > 0) {
+    return refus('Import refusé : votre compte contient déjà des données dans cette liste. Rien n\'a été ajouté.', 409)
+  }
+
+  const lignes: Ligne[] = []
+  for (const [rang, brute] of donnees.entries()) {
+    if (!estObjet(brute)) return refus(`Import refusé, ligne ${rang + 1} : données invalides. Rien n'a été ajouté.`)
+    const ligne: Ligne = { ...brute }
+    for (const colonne of COLONNES_SYSTEME) delete ligne[colonne]
+    const raison = verifierLigne(table, ligne, 'reprise')
+    if (raison) return refus(`Import refusé, ligne ${rang + 1} : ${raison}. Rien n'a été ajouté.`)
+    const hors = valeursHorsBornes(table, ligne)
+    if (hors.length > 0) {
+      logger.warn('[btp] reprise : valeur hors bornes acceptée (anciennes données du navigateur)', { table, ligne: rang + 1, colonnes: hors.map(h => h.colonne) })
+    }
+    lignes.push({ ...ligne, owner_id: userId })
+  }
+
+  const { data: inserees, error } = await supabaseAdmin.from(table).insert(lignes).select()
+  if (error) throw new ErreurEcriture(error)
+  logger.info(`[btp] Import ${table}`, { count: lignes.length, userId })
+  return NextResponse.json({ imported: inserees?.length || 0 })
+}
+
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`btp_post_${ip}`, 30, 60_000))) return rateLimitResponse()
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  if (!peutEcrire(user)) return refus('Action réservée aux comptes professionnels.', 403)
 
   let rawBody: unknown
   try { rawBody = await request.json() } catch {
@@ -179,132 +384,28 @@ export async function POST(request: NextRequest) {
 
   const parsed = btpBodySchema.safeParse(rawBody)
   if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+  const { table, action, data, id } = parsed.data
 
-  const { table, action, data, id } = parsed.data as { table: typeof BTP_TABLES_ECRIVABLES[number]; action: string; data: any; id?: string } // eslint-disable-line @typescript-eslint/no-explicit-any -- BTP data varies per table
+  // Réglages : une seule ligne par compte, écrite seulement par upsert_settings.
+  if (table === 'settings_btp' && action !== 'upsert_settings') {
+    return refus('Les réglages s\'enregistrent avec l\'action upsert_settings.')
+  }
 
   try {
-    // ── Import from localStorage (batch insert) ──────────────────────────────
-    if (action === 'import' && Array.isArray(data)) {
-      if (data.length > 500) return NextResponse.json({ error: 'Import limité à 500 lignes max' }, { status: 400 })
-      const rows = data.map((d: Record<string, unknown>) => {
-        // F02: strip system/dangerous fields before spreading user data
-        const { created_at: _ca, updated_at: _ua, owner_id: _oid, id: _id, ...rest } = d
-        return { ...rest, owner_id: user.id }
-      })
-      const { data: inserted, error } = await supabaseAdmin
-        .from(table)
-        .insert(rows)
-        .select()
-      if (error) throw error
-      logger.info(`[btp] Import ${table}`, { count: rows.length, userId: user.id })
-      return NextResponse.json({ imported: inserted?.length || 0 })
+    switch (action) {
+      case 'import': return await reprendre(user.id, table, data)
+      case 'upsert_settings': return await enregistrerReglages(user.id, data)
+      case 'insert': return await creer(user.id, table, data)
+      case 'update': return id ? await modifier(user.id, table, id, data) : refus('Action invalide')
+      case 'delete': return id ? await supprimer(user.id, table, id) : refus('Action invalide')
+      default: return refus('Action invalide')
     }
-
-    // ── Upsert settings ──────────────────────────────────────────────────────
-    if (action === 'upsert_settings') {
-      // F02: strip blacklisted fields before spreading user data
-      const { owner_id: _oid, id: _id, created_at: _ca, ...safeData } = (data || {}) as Record<string, unknown>
-      const { data: result, error } = await supabaseAdmin
-        .from('settings_btp')
-        .upsert({ ...safeData, updated_at: new Date().toISOString(), owner_id: user.id })
-        .select()
-        .single()
-      if (error) throw error
-      return NextResponse.json({ settings: result })
-    }
-
-    // ── Validation rôle/contrat pour membres_btp ─────────────────────────────
-    if (table === 'membres_btp' && (action === 'insert' || action === 'update')) {
-      const CONTRATS_PAR_ROLE: Record<string, string[]> = {
-        gerant: ['independant'],
-        ouvrier: ['cdi', 'cdd', 'interim', 'apprenti'],
-        chef_chantier: ['cdi', 'cdd', 'interim'],
-        conducteur_travaux: ['cdi', 'cdd'],
-        secretaire: ['cdi', 'cdd', 'apprenti', 'stage'],
-      }
-      const role = data.type_compte
-      const contrat = data.type_contrat
-      if (role && contrat && CONTRATS_PAR_ROLE[role] && !CONTRATS_PAR_ROLE[role].includes(contrat)) {
-        return NextResponse.json(
-          { error: `Contrat "${contrat}" invalide pour le rôle "${role}". Contrats autorisés : ${CONTRATS_PAR_ROLE[role].join(', ')}` },
-          { status: 400 }
-        )
-      }
-    }
-
-    // ── Insert ───────────────────────────────────────────────────────────────
-    if (action === 'insert') {
-      const row = { ...data, owner_id: user.id }
-      // Strip dangerous/system keys
-      delete row.id; delete row.created_at
-      const membreIds = row.membreIds
-      delete row.membreIds
-      delete row.equipe_membres_btp
-
-      const { data: inserted, error } = await supabaseAdmin
-        .from(table)
-        .insert(row)
-        .select()
-        .single()
-      if (error) throw error
-
-      // Link membres to equipe if applicable
-      if (table === 'equipes_btp' && membreIds?.length > 0) {
-        await supabaseAdmin.from('equipe_membres_btp').insert(
-          membreIds.map((mid: string) => ({ equipe_id: inserted.id, membre_id: mid }))
-        )
-      }
-
-      return NextResponse.json({ row: inserted }, { status: 201 })
-    }
-
-    // ── Update ───────────────────────────────────────────────────────────────
-    if (action === 'update' && id) {
-      const row = { ...data }
-      delete row.id
-      delete row.owner_id
-      const membreIds = row.membreIds
-      delete row.membreIds
-      delete row.equipe_membres_btp
-
-      if (table === 'chantiers_btp') row.updated_at = new Date().toISOString()
-
-      // Aucune colonne à écrire (seuls les membres d'une équipe changent) : PostgREST ne renvoie aucune ligne pour
-      // un UPDATE vide, et la modification échouerait. On lit alors la ligne, ce qui vérifie qu'elle appartient
-      // bien à l'appelant avant de toucher à ses membres.
-      const cible = Object.keys(row).length === 0
-        ? supabaseAdmin.from(table).select().eq('id', id).eq('owner_id', user.id).single()
-        : supabaseAdmin.from(table).update(row).eq('id', id).eq('owner_id', user.id).select().single()
-      const { data: updated, error } = await cible
-      if (error) throw error
-
-      // Re-sync equipe membres
-      if (table === 'equipes_btp' && membreIds) {
-        await supabaseAdmin.from('equipe_membres_btp').delete().eq('equipe_id', id)
-        if (membreIds.length > 0) {
-          await supabaseAdmin.from('equipe_membres_btp').insert(
-            membreIds.map((mid: string) => ({ equipe_id: id, membre_id: mid }))
-          )
-        }
-      }
-
-      return NextResponse.json({ row: updated })
-    }
-
-    // ── Delete ───────────────────────────────────────────────────────────────
-    if (action === 'delete' && id) {
-      const { error } = await supabaseAdmin
-        .from(table)
-        .delete()
-        .eq('id', id)
-        .eq('owner_id', user.id)
-      if (error) throw error
-      return NextResponse.json({ deleted: true })
-    }
-
-    return NextResponse.json({ error: 'Action invalide' }, { status: 400 })
   } catch (err) {
-    logger.error(`[btp] POST ${table} ${action} error`, { error: err instanceof Error ? err.message : err })
+    const erreurBase = err instanceof ErreurEcriture ? err.erreurBase : null
+    logger.error(`[btp] POST ${table} ${action} error`, {
+      code: erreurBase?.code,
+      error: erreurBase ? erreurBase.message : err instanceof Error ? err.message : err,
+    })
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
