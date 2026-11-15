@@ -221,6 +221,25 @@ export async function POST(request: NextRequest) {
   })
 }
 
+/**
+ * Le compte visé a-t-il été rattaché à CETTE société par une invitation, et à aucune autre depuis ? Lu dans son
+ * app_metadata, que seul le serveur écrit : désormais à l'acceptation d'une invitation seulement
+ * (lib/equipe/invitation-serveur.ts, POST /api/pro/invite ; avant ce correctif, ce PATCH l'écrivait aussi) : rôle
+ * pro_societe, company_id égal à cette société, rôle d'équipe autre que GERANT. Un gérant (d'ici ou d'ailleurs), un
+ * sous-compte d'une autre société et les comptes des autres espaces ne le sont pas. Un ancien membre retiré de l'équipe
+ * (DELETE ne touche pas son compte) le reste, mais après la fermeture des écritures directes une nouvelle ligne pour
+ * lui ne naît que d'une invitation qu'il accepte. Une ligne de pro_team_members ne prouve rien : elle a pu être posée
+ * hors de l'application pour le compte d'un autre (R36).
+ */
+function compteMembreDeLaSociete(appMetadata: Record<string, unknown>, companyId: string | null): boolean {
+  const roleEquipe = appMetadata.pro_team_role
+  return !!companyId && appMetadata.role === 'pro_societe' && appMetadata.company_id === companyId
+    && typeof roleEquipe === 'string' && roleEquipe !== '' && roleEquipe !== 'GERANT'
+}
+
+const MESSAGE_COMPTE_HORS_SOCIETE =
+  "Ce compte n'est pas rattaché à votre société : son rôle ne peut pas être modifié ici."
+
 // ── PATCH /api/pro/team ──────────────────────────────────────────────────────
 // Update member role, status, chantiers, or permissions (gérant only)
 export async function PATCH(request: NextRequest) {
@@ -279,6 +298,28 @@ export async function PATCH(request: NextRequest) {
   if (is_active !== undefined) updates.is_active = Boolean(is_active)
   if (assigned_chantiers !== undefined) updates.assigned_chantiers = assigned_chantiers
 
+  // Rôle d'un compte déjà lié : il fixe aussi ses droits (app_metadata.pro_team_role, lu par isProGerant). Le compte
+  // visé est vérifié AVANT la moindre écriture (R36). La ligne du gérant lui-même (user_id = la société) ne garde que
+  // GERANT (contrôle ci-dessus) : rien n'est à écrire dans son compte.
+  let cible: { id: string; appMetadata: Record<string, unknown> } | null = null
+  if (updates.role !== undefined && existing.user_id && existing.user_id !== companyId) {
+    const { data: compte, error: lectureCompte } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
+    // Compte supprimé (la suppression de compte ne retire pas les lignes d'équipe BTP) : il n'est membre de rien,
+    // comme un compte hors de la société.
+    const compteSupprime = !compte?.user
+      && (!lectureCompte || lectureCompte.status === 404 || lectureCompte.code === 'user_not_found')
+    if (!compte?.user && !compteSupprime) {
+      logger.error('[PRO_TEAM] PATCH : lecture du compte visé impossible', { member_id }, lectureCompte)
+      return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
+    }
+    const appMetadata: Record<string, unknown> = compte?.user?.app_metadata ?? {}
+    if (compteSupprime || !compteMembreDeLaSociete(appMetadata, companyId)) {
+      logger.warn('[PRO_TEAM] PATCH : compte visé hors de cette société, rôle non modifié', { member_id })
+      return NextResponse.json({ error: MESSAGE_COMPTE_HORS_SOCIETE }, { status: 403 })
+    }
+    cible = { id: existing.user_id, appMetadata }
+  }
+
   if (Object.keys(updates).length > 0) {
     const { data, error } = await supabaseAdmin
       .from('pro_team_members')
@@ -291,23 +332,26 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur mise à jour' }, { status: 500 })
     }
 
-    // Sync app_metadata si le membre a accepté.
+    // Rôle modifié d'un sous-compte vérifié ci-dessus : app_metadata (server-only) reçoit le seul pro_team_role ;
+    // company_id reste le sien, cette société : le PATCH ne rattache jamais un compte à une société. Le statut
+    // (is_active) n'écrit plus app_metadata : pour un membre de la société, y reposer company_id ne changeait rien ;
+    // pour le compte d'un autre, c'était la faille (R36).
     // ⚠️ SÉCURITÉ : pro_team_role DOIT vivre dans app_metadata (non forgeable côté
     // client) car isProGerant() s'appuie dessus pour l'authz. Ne JAMAIS l'écrire dans
     // user_metadata (modifiable via supabase.auth.updateUser).
-    if ((role || is_active !== undefined) && existing.user_id) {
+    let roleNonApplique = false
+    if (cible) {
       try {
-        const { data: existingFull } = await supabaseAdmin.auth.admin.getUserById(existing.user_id)
-        const metaUpdates: Record<string, unknown> = {
-          ...(existingFull?.user?.app_metadata || {}),
-          company_id: companyId,
-        }
-        if (role) metaUpdates.pro_team_role = role
-        await supabaseAdmin.auth.admin.updateUserById(existing.user_id, {
-          app_metadata: metaUpdates,
+        const { error: ecriture } = await supabaseAdmin.auth.admin.updateUserById(cible.id, {
+          app_metadata: { ...cible.appMetadata, pro_team_role: updates.role },
         })
+        if (ecriture) {
+          roleNonApplique = true
+          logger.error('[PRO_TEAM] Failed to update app_metadata:', { member_id }, ecriture)
+        }
       } catch (e) {
-        logger.error('[PRO_TEAM] Failed to update app_metadata:', e)
+        roleNonApplique = true
+        logger.error('[PRO_TEAM] Failed to update app_metadata:', { member_id }, e)
       }
     }
 
@@ -341,6 +385,12 @@ export async function PATCH(request: NextRequest) {
         target_member_id: member_id,
         details: { permissions },
       })
+    }
+
+    // La ligne porte déjà le nouveau rôle (journalisé), pas le compte, dont app_metadata fixe les droits : le dire,
+    // plutôt que répondre 200 (un retrait de droits resterait sans effet). La même demande, relancée, aboutit.
+    if (roleNonApplique) {
+      return NextResponse.json({ error: "Le rôle n'a pas pu être appliqué au compte du membre. Réessayez." }, { status: 500 })
     }
 
     return NextResponse.json({ member: data })
