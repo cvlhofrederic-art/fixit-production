@@ -2,13 +2,11 @@
 // tests/api/btp-ecriture-rattachements.test.ts — POST /api/btp : une fiche ne se rattache qu'aux chantiers, membres
 // et équipes du compte (constats api-coeur-9 et donnees-btp-9, 15/11/2026).
 //
-// Avant : chantier_id, membre_id, equipe_id et la liste des membres d'une équipe partaient tels quels en base. Avec
-// l'identifiant d'un chantier d'une autre société, un compte y rattachait des pointages ou des dépenses (rentabilité
-// de l'autre société faussée, suppression du chantier bloquée) ; avec celui d'un salarié d'une autre société, il
-// lisait son coût horaire dans sa propre rentabilité. Les liens d'une équipe étaient écrits sans contrôle d'erreur :
-// une équipe pouvait être annoncée créée sans ses membres.
+// Avant : chantier_id, membre_id, equipe_id et la liste des membres d'une équipe n'étaient pas contrôlés, et les liens
+// d'une équipe étaient écrits sans contrôle d'erreur : une équipe pouvait être annoncée créée sans ses membres.
 // Maintenant : chaque identifiant désigné doit appartenir au compte (400 sinon) ; une valeur déjà enregistrée sur la
-// fiche et renvoyée telle quelle reste acceptée (signalée au journal) ; un échec d'écriture des membres est dit.
+// fiche et renvoyée telle quelle reste acceptée (signalée au journal) ; un échec d'écriture des membres est dit, et
+// la modification d'une équipe n'écrit que les liens ajoutés ou retirés.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -55,6 +53,10 @@ const poster = async (corps: Record<string, unknown>) => {
 }
 
 const pointage = { employe: 'Paul', date: '2026-11-15', heure_arrivee: '08:00', pause_minutes: 60, mode: 'manuel' }
+
+/** Membres liés à une équipe dans la base simulée. */
+const membresLies = (equipe: string) =>
+  (h.base.lignes.equipe_membres_btp ?? []).filter(l => l.equipe_id === equipe).map(l => String(l.membre_id))
 
 beforeEach(() => {
   h.user = { id: SOCIETE, app_metadata: { role: 'pro_societe' } }
@@ -163,23 +165,64 @@ describe('POST /api/btp — modification d’un rattachement', () => {
     expect(requetes(h.base, 'situations_btp', 'select')).toEqual([])
   })
 
-  it('équipe : membre d’une autre société déjà lié, liste renvoyée telle quelle, acceptée ; nouveau membre étranger, 400', async () => {
+  // Membres d'une équipe (relecture adverse du 15/11/2026) : la route n'écrit que la différence avec les liens
+  // enregistrés. Un lien inchangé n'est ni supprimé ni réinséré : la base refuse de réécrire un lien vers le membre
+  // d'une autre société (migration 20261115_btp_rattachements_meme_compte.sql), et supprimer tous les liens pour tout
+  // réinsérer aurait alors vidé l'équipe.
+  it('équipe : membre d’une autre société déjà lié, liste renvoyée avec un membre de plus : seul le nouveau lien est écrit', async () => {
     h.base.lignes.equipe_membres_btp = [{ equipe_id: EQ_A, membre_id: M_B }, { equipe_id: EQ_A, membre_id: M_A1 }]
 
-    const accepte = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { nom: 'Maçons', membreIds: [M_B, M_A1, M_A2] } })
-    expect(accepte.status).toBe(200)
-    expect(h.base.lignes.equipe_membres_btp.map(l => l.membre_id).sort()).toEqual([M_A1, M_A2, M_B].sort())
+    const res = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { nom: 'Maçons', membreIds: [M_B, M_A1, M_A2] } })
 
+    expect(res.status).toBe(200)
+    expect(new Set(membresLies(EQ_A))).toEqual(new Set([M_B, M_A1, M_A2]))
+    expect(requetes(h.base, 'equipe_membres_btp', 'delete')).toEqual([])
+    expect(requetes(h.base, 'equipe_membres_btp', 'insert').map(e => e.valeur)).toEqual([[{ equipe_id: EQ_A, membre_id: M_A2 }]])
+  })
+
+  it('équipe : nouveau membre d’une autre société, 400, les liens ne bougent pas', async () => {
     h.base.lignes.equipe_membres_btp = [{ equipe_id: EQ_A, membre_id: M_A1 }]
-    const refuse = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { membreIds: [M_A1, M_B] } })
-    expect(refuse.status).toBe(400)
+
+    const res = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { membreIds: [M_A1, M_B] } })
+
+    expect(res.status).toBe(400)
     expect(h.base.lignes.equipe_membres_btp).toEqual([{ equipe_id: EQ_A, membre_id: M_A1 }])
   })
 
-  it('équipe : les nouveaux liens ne s’écrivent pas, erreur dite au lieu d’un succès', async () => {
+  it('équipe : membre retiré, seul son lien est supprimé ; les autres, dont un lien ancien, ne sont pas réécrits', async () => {
+    h.base.lignes.equipe_membres_btp = [
+      { equipe_id: EQ_A, membre_id: M_B }, { equipe_id: EQ_A, membre_id: M_A1 }, { equipe_id: EQ_A, membre_id: M_A2 },
+    ]
+
+    const res = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { membreIds: [M_B, M_A1] } })
+
+    expect(res.status).toBe(200)
+    expect(requetes(h.base, 'equipe_membres_btp', 'delete')).toMatchObject([{ filtres: { equipe_id: EQ_A }, dans: { membre_id: [M_A2] } }])
+    expect(requetes(h.base, 'equipe_membres_btp', 'insert')).toEqual([])
+    expect(new Set(membresLies(EQ_A))).toEqual(new Set([M_B, M_A1]))
+  })
+
+  it('équipe : les nouveaux liens ne s’écrivent pas, erreur dite au lieu d’un succès ; les membres déjà liés restent', async () => {
+    h.base.lignes.equipe_membres_btp = [{ equipe_id: EQ_A, membre_id: M_A2 }]
     h.base.erreurs.push({ table: 'equipe_membres_btp', operation: 'insert', erreur: { code: '57014', message: 'canceling statement due to statement timeout' } })
-    const res = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { membreIds: [M_A1] } })
+
+    const res = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { membreIds: [M_A2, M_A1] } })
+
     expect(res.status).toBe(500)
+    expect(res.json.error).toMatch(/liste de ses membres n'a pas pu être mise à jour/)
+    expect(membresLies(EQ_A)).toEqual([M_A2])
+  })
+
+  it('équipe : liens enregistrés illisibles, erreur dite, aucun lien supprimé', async () => {
+    h.base.lignes.equipe_membres_btp = [{ equipe_id: EQ_A, membre_id: M_A2 }]
+    h.base.erreurs.push({ table: 'equipe_membres_btp', operation: 'select', erreur: { code: '57014', message: 'canceling statement due to statement timeout' } })
+
+    const res = await poster({ table: 'equipes_btp', action: 'update', id: EQ_A, data: { membreIds: [M_A1] } })
+
+    expect(res.status).toBe(500)
+    expect(res.json.error).toMatch(/liste de ses membres n'a pas pu être mise à jour/)
+    expect(requetes(h.base, 'equipe_membres_btp', 'delete')).toEqual([])
+    expect(membresLies(EQ_A)).toEqual([M_A2])
   })
 })
 

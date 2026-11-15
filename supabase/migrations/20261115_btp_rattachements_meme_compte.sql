@@ -2,10 +2,9 @@
 -- BTP : une fiche ne désigne qu'un chantier, un membre ou une équipe du MÊME compte (15/11/2026)
 --
 -- Constat api-coeur-9 de l'audit des fondations BTP du 11/11/2026. Depuis le 15/11/2026, la route /api/btp vérifie
--- que chantier_id, membre_id, equipe_id et les membres d'une équipe désignent des fiches du compte. Les politiques
--- d'accès des tables BTP ne contrôlent que owner_id : une écriture faite directement avec la session du navigateur,
--- sans passer par la route, pouvait encore rattacher une fiche au chantier ou au salarié d'une autre société (la clé
--- étrangère vérifie que la fiche existe, pas à qui elle appartient). Cette migration pose la même règle dans la base.
+-- que chantier_id, membre_id, equipe_id et les membres d'une équipe désignent des fiches du compte. Cette migration
+-- pose la même règle dans la base : une fiche ne désigne qu'un chantier, un membre ou une équipe du même compte,
+-- quelle que soit la voie d'écriture.
 --
 -- Contenu : deux fonctions de déclencheur (SECURITY INVOKER, search_path figé) et un déclencheur BEFORE INSERT OR
 -- UPDATE sur pointages_btp, depenses_btp, equipes_btp, membres_btp, situations_btp, retenues_btp, dc4_btp,
@@ -15,14 +14,14 @@
 --     enregistrée n'est jamais remise en cause ; une remise à vide (suppression d'un chantier, ON DELETE SET NULL)
 --     passe toujours.
 --   - Refus : SQLSTATE 23503, que la route traduit en « fiche liée introuvable » (400).
--- Avec la session du navigateur, la fonction lit chantiers_btp, membres_btp et equipes_btp sous leurs politiques
--- d'accès : la fiche d'un autre compte y est invisible, donc refusée ; avec le service role (la route), la condition
--- sur owner_id fait le même contrôle.
+-- Au nom d'un compte (rôle authenticated), la fonction lit chantiers_btp, membres_btp et equipes_btp sous leurs
+-- politiques d'accès : la fiche d'un autre compte y est invisible, donc refusée ; avec le service role (la route), la
+-- condition sur owner_id fait le même contrôle.
 --
 -- Aucune ligne existante n'est lue, modifiée ni supprimée par la migration. Rejouable : CREATE OR REPLACE FUNCTION et
 -- CREATE OR REPLACE TRIGGER (aucun DROP). Le code de l'application est correct avant comme après : la route refuse
--- déjà ces rattachements, avec un message clair.
--- Non couvert ici : devis.chantier_id et factures.chantier_id (documents ; écrits par une autre route).
+-- déjà ces rattachements, avec un message clair, et ne réécrit jamais un lien équipe-membre inchangé (une équipe qui
+-- porte un lien ancien hors du compte se modifie donc normalement).
 --
 -- À appliquer par Frédéric (Supabase > SQL Editor, un seul « Run »). CREATE TRIGGER prend un verrou sur chaque table
 -- le temps de sa création : lock_timeout évite d'attendre derrière une transaction longue ; en cas d'expiration,

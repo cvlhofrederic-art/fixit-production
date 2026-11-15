@@ -36,7 +36,7 @@ const SUJETS: Record<string, string> = {
   equipes_btp: 'Cette équipe ne peut pas être supprimée',
 }
 
-const aLaCle = (objet: Record<string, string>, cle: string) => Object.prototype.hasOwnProperty.call(objet, cle)
+const aLaCle = (objet: Record<string, unknown>, cle: string) => Object.prototype.hasOwnProperty.call(objet, cle)
 
 /** Table qui désigne encore la fiche, lue dans le message de PostgreSQL (« … on table "situations_btp" »). */
 function tableRattachee(erreur: ErreurBase): string | null {
@@ -52,35 +52,52 @@ function champDeContrainte(message: string, table: string): string | null {
   return contrainte.slice(table.length + 1, -'_check'.length) || null
 }
 
-const FORMATS_REFUSES = new Set(['22P02', '22007', '22008', '22003', '22023', '22001'])
+const ERREUR_SERVEUR: ReponseErreur = { status: 500, message: 'Erreur serveur' }
+
+const FORMAT_IMPOSSIBLE: ReponseErreur = {
+  status: 400,
+  message: 'Enregistrement refusé : une des valeurs saisies n\'a pas le bon format (nombre, date, heure ou identifiant).',
+}
+
+/** Refus dont la réponse ne dépend que du code de l'erreur. */
+const REPONSES_PAR_CODE: Record<string, ReponseErreur> = {
+  PGRST116: { status: 404, message: MESSAGE_FICHE_INTROUVABLE },
+  '23505': { status: 409, message: 'Enregistrement refusé : cette fiche existe déjà.' },
+  PGRST204: { status: 400, message: 'Enregistrement refusé : un des champs envoyés n\'existe pas.' },
+  // Nombre, date ou heure impossibles, identifiant mal formé, texte trop long.
+  ...Object.fromEntries(['22P02', '22007', '22008', '22003', '22023', '22001'].map(code => [code, FORMAT_IMPOSSIBLE])),
+}
+
+/** Clé étrangère : suppression retenue par une fiche rattachée (409), ou fiche liée introuvable à l'écriture (400). */
+function refusCleEtrangere(erreur: ErreurBase, action: string, table: string): ReponseErreur {
+  if (action !== 'delete') {
+    return { status: 400, message: 'Enregistrement refusé : la fiche liée (chantier, membre ou équipe) est introuvable.' }
+  }
+  const sujet = aLaCle(SUJETS, table) ? SUJETS[table] : 'Cette fiche ne peut pas être supprimée'
+  const rattachee = tableRattachee(erreur)
+  const raison = rattachee && aLaCle(RATTACHEMENTS, rattachee) ? RATTACHEMENTS[rattachee] : 'd\'autres données y sont rattachées'
+  return { status: 409, message: `${sujet} : ${raison}.` }
+}
+
+/** Contrainte CHECK : le champ est nommé quand la contrainte suit la convention de PostgreSQL. */
+function refusContrainte(message: string, table: string): ReponseErreur {
+  const champ = champDeContrainte(message, table)
+  return { status: 400, message: champ ? `Enregistrement refusé : valeur non autorisée pour ${champ}.` : 'Enregistrement refusé : une des valeurs saisies n\'est pas autorisée.' }
+}
+
+/** Champ obligatoire vide (NOT NULL) : le champ est nommé s'il se lit dans le message. */
+function refusChampManquant(message: string): ReponseErreur {
+  const champ = /null value in column "([^"]+)"/.exec(message)?.[1]
+  return { status: 400, message: champ ? `Enregistrement refusé : champ obligatoire manquant (${champ}).` : 'Enregistrement refusé : un champ obligatoire est manquant.' }
+}
 
 /** Réponse à renvoyer pour une erreur de la base pendant l'action `action` sur la table `table`. */
 export function traduireErreurBase(erreur: ErreurBase | null | undefined, action: string, table: string): ReponseErreur {
-  const code = erreur?.code ?? ''
-  const message = erreur?.message ?? ''
-
-  if (code === '23503' && erreur) {
-    if (action === 'delete') {
-      const sujet = aLaCle(SUJETS, table) ? SUJETS[table] : 'Cette fiche ne peut pas être supprimée'
-      const rattachee = tableRattachee(erreur)
-      const raison = rattachee && aLaCle(RATTACHEMENTS, rattachee) ? RATTACHEMENTS[rattachee] : 'd\'autres données y sont rattachées'
-      return { status: 409, message: `${sujet} : ${raison}.` }
-    }
-    return { status: 400, message: 'Enregistrement refusé : la fiche liée (chantier, membre ou équipe) est introuvable.' }
-  }
-  if (code === 'PGRST116') return { status: 404, message: MESSAGE_FICHE_INTROUVABLE }
-  if (code === '23505') return { status: 409, message: 'Enregistrement refusé : cette fiche existe déjà.' }
-  if (code === '23514') {
-    const champ = champDeContrainte(message, table)
-    return { status: 400, message: champ ? `Enregistrement refusé : valeur non autorisée pour ${champ}.` : 'Enregistrement refusé : une des valeurs saisies n\'est pas autorisée.' }
-  }
-  if (code === '23502') {
-    const champ = /null value in column "([^"]+)"/.exec(message)?.[1]
-    return { status: 400, message: champ ? `Enregistrement refusé : champ obligatoire manquant (${champ}).` : 'Enregistrement refusé : un champ obligatoire est manquant.' }
-  }
-  if (FORMATS_REFUSES.has(code)) {
-    return { status: 400, message: 'Enregistrement refusé : une des valeurs saisies n\'a pas le bon format (nombre, date, heure ou identifiant).' }
-  }
-  if (code === 'PGRST204') return { status: 400, message: 'Enregistrement refusé : un des champs envoyés n\'existe pas.' }
-  return { status: 500, message: 'Erreur serveur' }
+  if (!erreur) return ERREUR_SERVEUR
+  const code = erreur.code ?? ''
+  const message = erreur.message ?? ''
+  if (code === '23503') return refusCleEtrangere(erreur, action, table)
+  if (code === '23514') return refusContrainte(message, table)
+  if (code === '23502') return refusChampManquant(message)
+  return aLaCle(REPONSES_PAR_CODE, code) ? REPONSES_PAR_CODE[code] : ERREUR_SERVEUR
 }

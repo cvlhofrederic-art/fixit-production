@@ -9,6 +9,9 @@
 // 15/11/2026 (constat api-coeur-9) : la route vérifie désormais que chaque membre cité appartient au compte. Les
 // données du test ont suivi, pas ses attentes : identifiants de membres au format réel (M1, M2 au lieu de « m1 »,
 // « m2 », que la base refuserait), membres présents dans membres_btp, et filtre `in` dans le faux client.
+// 15/11/2026 (relecture adverse) : les membres ne sont plus « tout supprimés puis tout réinsérés ». La route lit les
+// liens enregistrés et n'écrit que la différence (liens retirés supprimés, nouveaux liens ajoutés) : les suites
+// d'opérations attendues ont suivi, les garanties du test sont les mêmes.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -21,6 +24,7 @@ const h = vi.hoisted(() => {
     user: null as null | { id: string },
     equipes: [] as Array<Record<string, unknown>>,
     membres: [] as Array<Record<string, unknown>>,
+    liens: [] as Array<Record<string, unknown>>,
     operations: [] as Array<{ table: string; operation: string; valeur?: unknown; filtres: Record<string, unknown> }>,
   }
   const from = (table: string) => {
@@ -28,7 +32,9 @@ const h = vi.hoisted(() => {
     etat.operations.push(op)
     const correspond = (valeur: unknown, filtre: unknown) =>
       filtre && typeof filtre === 'object' && 'in' in filtre ? (filtre as { in: unknown[] }).in.includes(valeur) : valeur === filtre
-    const trouvees = () => (table === 'equipes_btp' ? etat.equipes : table === 'membres_btp' ? etat.membres : [])
+    const lignesDeLaTable = (): Array<Record<string, unknown>> =>
+      ({ equipes_btp: etat.equipes, membres_btp: etat.membres, equipe_membres_btp: etat.liens } as Record<string, Array<Record<string, unknown>>>)[table] ?? []
+    const trouvees = () => lignesDeLaTable()
       .filter(ligne => Object.entries(op.filtres).every(([colonne, filtre]) => correspond(ligne[colonne], filtre)))
     const b: Record<string, unknown> = {}
     b.select = () => b
@@ -86,10 +92,11 @@ beforeEach(() => {
     { id: M1, owner_id: SOCIETE_A, prenom: 'Paul', nom: 'Durand' },
     { id: M2, owner_id: SOCIETE_A, prenom: 'Léa', nom: 'Martin' },
   ]
+  h.etat.liens = []
 })
 
 describe('POST /api/btp — modifier une équipe', () => {
-  it('seuls les membres changent : aucun UPDATE vide, la ligne est lue, les membres sont remplacés', async () => {
+  it('seuls les membres changent : aucun UPDATE vide, la ligne est lue, les membres sont mis à jour', async () => {
     const res = await modifier('equipe-a', { membreIds: [M1, M2] })
 
     expect(res.status).toBe(200)
@@ -97,8 +104,9 @@ describe('POST /api/btp — modifier une équipe', () => {
     expect(operations('equipes_btp')).toEqual([
       { table: 'equipes_btp', operation: 'select', valeur: undefined, filtres: { id: 'equipe-a', owner_id: SOCIETE_A } },
     ])
+    // Liens enregistrés lus (aucun ici), puis seuls les nouveaux liens ajoutés.
     expect(operations('equipe_membres_btp')).toEqual([
-      { table: 'equipe_membres_btp', operation: 'delete', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
+      { table: 'equipe_membres_btp', operation: 'select', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
       { table: 'equipe_membres_btp', operation: 'insert', valeur: [{ equipe_id: 'equipe-a', membre_id: M1 }, { equipe_id: 'equipe-a', membre_id: M2 }], filtres: {} },
     ])
   })
@@ -123,7 +131,9 @@ describe('POST /api/btp — modifier une équipe', () => {
     expect(operations('equipe_membres_btp')).toEqual([])
   })
 
-  it('formulaire complet : colonnes écrites sans `membreIds`, puis membres remplacés (vidés si la liste est vide)', async () => {
+  it('formulaire complet : colonnes écrites sans `membreIds`, puis membres mis à jour (vidés si la liste est vide)', async () => {
+    h.etat.liens = [{ equipe_id: 'equipe-a', membre_id: M1 }]
+
     const res = await modifier('equipe-a', { nom: 'Maçons', metier: 'Gros œuvre', membreIds: [], owner_id: SOCIETE_B, id: 'equipe-b' })
 
     expect(res.status).toBe(200)
@@ -131,7 +141,8 @@ describe('POST /api/btp — modifier une équipe', () => {
       { table: 'equipes_btp', operation: 'update', valeur: { nom: 'Maçons', metier: 'Gros œuvre' }, filtres: { id: 'equipe-a', owner_id: SOCIETE_A } },
     ])
     expect(operations('equipe_membres_btp')).toEqual([
-      { table: 'equipe_membres_btp', operation: 'delete', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
+      { table: 'equipe_membres_btp', operation: 'select', valeur: undefined, filtres: { equipe_id: 'equipe-a' } },
+      { table: 'equipe_membres_btp', operation: 'delete', valeur: undefined, filtres: { equipe_id: 'equipe-a', membre_id: { in: [M1] } } },
     ])
   })
 })

@@ -198,9 +198,8 @@ class ErreurEcriture extends Error {
   }
 }
 
-// ── Rattachements (constat api-coeur-9) : chantier_id, membre_id, equipe_id et les membres d'une équipe doivent
-// désigner des fiches du compte. Sans ce contrôle, l'identifiant d'un chantier ou d'un salarié d'une autre société
-// rattachait chez elle des pointages ou des dépenses, ou faisait lire le coût horaire de son salarié.
+// ── Rattachements (constat api-coeur-9) : chantier_id, membre_id, equipe_id et les membres d'une équipe ne désignent
+// que des fiches du compte. Une valeur déjà enregistrée sur la fiche, renvoyée telle quelle, reste acceptée.
 const INTROUVABLE: Record<TableCible, string> = {
   chantiers_btp: 'chantier introuvable dans votre compte',
   membres_btp: 'membre de l\'équipe introuvable dans votre compte',
@@ -233,10 +232,54 @@ async function referencesEtrangeres(userId: string, references: Reference[]): Pr
   return etrangeres
 }
 
-async function lireMembresLies(equipeId: string): Promise<Set<string>> {
+/** Rattachements de la ligne, et membres de l'équipe, qui ne désignent pas une fiche du compte. */
+async function rattachementsEtrangers(userId: string, table: TableEcrivable, ligne: Ligne, membres: string[] | undefined): Promise<Reference[]> {
+  const references = [...referencesDeLigne(table, ligne), ...versReferences(membres)]
+  return references.length > 0 ? referencesEtrangeres(userId, references) : []
+}
+
+/** Membres liés à l'équipe (identifiants en minuscules). `messageUtilisateur` : ce que l'écran lit si la lecture échoue. */
+async function lireMembresLies(equipeId: string, messageUtilisateur?: string): Promise<Set<string>> {
   const { data, error } = await supabaseAdmin.from('equipe_membres_btp').select('membre_id').eq('equipe_id', equipeId)
-  if (error) throw new ErreurEcriture(error)
+  if (error) throw new ErreurEcriture(error, messageUtilisateur)
   return new Set(((data ?? []) as { membre_id: unknown }[]).map(l => String(l.membre_id).toLowerCase()))
+}
+
+const MESSAGE_MEMBRES_NON_MIS_A_JOUR = 'L\'équipe est enregistrée, mais la liste de ses membres n\'a pas pu être mise à jour. Réessayez dans un instant.'
+
+/**
+ * Membres d'une équipe ramenés à la liste reçue, en n'écrivant que la différence avec les liens enregistrés : seuls les
+ * liens retirés sont supprimés, seuls les nouveaux sont ajoutés (relecture adverse du 15/11/2026). Un lien inchangé
+ * n'est jamais réécrit, même un lien ancien que la base refuserait aujourd'hui d'écrire, et un échec ne retire jamais
+ * un membre que la liste garde. Sans transaction possible ici : un échec est dit (500) au lieu d'un succès, et l'écran
+ * peut renvoyer la liste. Appelée une fois l'équipe reconnue comme appartenant au compte.
+ */
+async function mettreAJourMembres(equipeId: string, membres: string[]): Promise<void> {
+  const lies = await lireMembresLies(equipeId, MESSAGE_MEMBRES_NON_MIS_A_JOUR)
+  const gardes = new Set(membres)
+  const retires = [...lies].filter(membre => !gardes.has(membre))
+  const ajoutes = membres.filter(membre => !lies.has(membre))
+  if (retires.length > 0) {
+    const { error } = await supabaseAdmin.from('equipe_membres_btp').delete().eq('equipe_id', equipeId).in('membre_id', retires)
+    if (error) throw new ErreurEcriture(error, MESSAGE_MEMBRES_NON_MIS_A_JOUR)
+  }
+  if (ajoutes.length > 0) {
+    const { error } = await supabaseAdmin
+      .from('equipe_membres_btp')
+      .insert(ajoutes.map(membre => ({ equipe_id: equipeId, membre_id: membre })))
+    if (error) throw new ErreurEcriture(error, MESSAGE_MEMBRES_NON_MIS_A_JOUR)
+  }
+}
+
+/** Liens d'une équipe que la requête vient de créer ; s'ils ne s'écrivent pas, l'équipe est retirée (pas de doublon au nouvel essai). */
+async function lierMembresDeLaNouvelleEquipe(userId: string, equipeId: string, membres: string[]): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('equipe_membres_btp')
+    .insert(membres.map(membre => ({ equipe_id: equipeId, membre_id: membre })))
+  if (!error) return
+  const { error: erreurRetrait } = await supabaseAdmin.from('equipes_btp').delete().eq('id', equipeId).eq('owner_id', userId)
+  if (erreurRetrait) logger.error('[btp] équipe créée sans ses membres, retrait impossible', { id: equipeId, code: erreurRetrait.code })
+  throw new ErreurEcriture(error, 'L\'équipe n\'a pas été créée : ses membres n\'ont pas pu être enregistrés. Réessayez dans un instant.')
 }
 
 /**
@@ -300,25 +343,36 @@ async function creer(userId: string, table: TableEcrivable, donnees: unknown): P
 
   const membres = table === 'equipes_btp' ? membresDeLEquipe(membreIds) : undefined
   if (membres === null) return refus(MESSAGE_LISTE_MEMBRES_INVALIDE)
-  const references = [...referencesDeLigne(table, ligne), ...versReferences(membres)]
-  const etrangeres = references.length > 0 ? await referencesEtrangeres(userId, references) : []
+  const etrangeres = await rattachementsEtrangers(userId, table, ligne, membres)
   if (etrangeres.length > 0) return refus(`Enregistrement refusé : ${messageReferences(etrangeres)}.`)
 
   const { data: inseree, error } = await supabaseAdmin.from(table).insert({ ...ligne, owner_id: userId }).select().single()
   if (error) throw new ErreurEcriture(error)
-
-  if (membres && membres.length > 0) {
-    const { error: erreurLiens } = await supabaseAdmin
-      .from('equipe_membres_btp')
-      .insert(membres.map(membre => ({ equipe_id: inseree.id, membre_id: membre })))
-    if (erreurLiens) {
-      // L'équipe vient d'être créée par cette requête : la retirer, pour que l'écran puisse réessayer sans doublon.
-      const { error: erreurRetrait } = await supabaseAdmin.from('equipes_btp').delete().eq('id', inseree.id).eq('owner_id', userId)
-      if (erreurRetrait) logger.error('[btp] équipe créée sans ses membres, retrait impossible', { id: inseree.id, code: erreurRetrait.code })
-      throw new ErreurEcriture(erreurLiens, 'L\'équipe n\'a pas été créée : ses membres n\'ont pas pu être enregistrés. Réessayez dans un instant.')
-    }
-  }
+  if (membres && membres.length > 0) await lierMembresDeLaNouvelleEquipe(userId, inseree.id, membres)
   return NextResponse.json({ row: inseree }, { status: 201 })
+}
+
+/**
+ * Modification qui porte une valeur hors bornes ou un rattachement hors du compte : acceptée seulement si cette valeur
+ * est déjà celle de la fiche (ou si ce membre est déjà lié à l'équipe), et alors signalée au journal.
+ * Renvoie le refus à répondre, sinon null.
+ */
+async function refusFaceALaFiche(
+  userId: string, table: TableEcrivable, id: string, ligne: Ligne, hors: HorsBornes[], etrangeres: Reference[],
+): Promise<NextResponse | null> {
+  const enBase = await lireFiche(table, id, userId)
+  if (!enBase) return refus(MESSAGE_FICHE_INTROUVABLE, 404)
+  const message = refusBornes(hors, ligne, enBase)
+  if (message) return refus(message)
+  const nouveaux = await rattachementsNouveaux(etrangeres, enBase, id)
+  if (nouveaux.length > 0) return refus(`Enregistrement refusé : ${messageReferences(nouveaux)}.`)
+  if (hors.length > 0) {
+    logger.warn('[btp] valeur hors bornes déjà en base, renvoyée telle quelle : acceptée', { table, id, colonnes: hors.map(h => h.colonne) })
+  }
+  if (etrangeres.length > 0) {
+    logger.warn('[btp] rattachement déjà en base hors du compte, renvoyé tel quel : accepté', { table, id, colonnes: [...new Set(etrangeres.map(r => r.colonne))] })
+  }
+  return null
 }
 
 async function modifier(userId: string, table: TableEcrivable, id: string, donnees: unknown): Promise<NextResponse> {
@@ -331,24 +385,11 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
 
   const membres = table === 'equipes_btp' ? membresDeLEquipe(membreIds) : undefined
   if (membres === null) return refus(MESSAGE_LISTE_MEMBRES_INVALIDE)
-  const references = [...referencesDeLigne(table, ligne), ...versReferences(membres)]
-  const etrangeres = references.length > 0 ? await referencesEtrangeres(userId, references) : []
+  const etrangeres = await rattachementsEtrangers(userId, table, ligne, membres)
   const hors = valeursHorsBornes(table, ligne)
-
-  // Valeur hors bornes ou rattachement hors du compte : acceptés seulement s'ils sont déjà ceux de la fiche.
   if (hors.length > 0 || etrangeres.length > 0) {
-    const enBase = await lireFiche(table, id, userId)
-    if (!enBase) return refus(MESSAGE_FICHE_INTROUVABLE, 404)
-    const message = refusBornes(hors, ligne, enBase)
-    if (message) return refus(message)
-    const nouveaux = await rattachementsNouveaux(etrangeres, enBase, id)
-    if (nouveaux.length > 0) return refus(`Enregistrement refusé : ${messageReferences(nouveaux)}.`)
-    if (hors.length > 0) {
-      logger.warn('[btp] valeur hors bornes déjà en base, renvoyée telle quelle : acceptée', { table, id, colonnes: hors.map(h => h.colonne) })
-    }
-    if (etrangeres.length > 0) {
-      logger.warn('[btp] rattachement déjà en base hors du compte, renvoyé tel quel : accepté', { table, id, colonnes: [...new Set(etrangeres.map(r => r.colonne))] })
-    }
+    const refusEnBase = await refusFaceALaFiche(userId, table, id, ligne, hors, etrangeres)
+    if (refusEnBase) return refusEnBase
   }
 
   if (table === 'chantiers_btp') ligne.updated_at = new Date().toISOString()
@@ -362,19 +403,7 @@ async function modifier(userId: string, table: TableEcrivable, id: string, donne
   const { data: modifiee, error } = await cible
   if (error) throw new ErreurEcriture(error)
 
-  // Membres de l'équipe remplacés par la liste reçue. Sans transaction possible ici : une erreur est dite (500) au
-  // lieu d'un succès, et l'écran peut renvoyer la liste.
-  if (membres !== undefined) {
-    const echec = 'L\'équipe est enregistrée, mais la liste de ses membres n\'a pas pu être mise à jour. Réessayez dans un instant.'
-    const { error: erreurRetrait } = await supabaseAdmin.from('equipe_membres_btp').delete().eq('equipe_id', id)
-    if (erreurRetrait) throw new ErreurEcriture(erreurRetrait, echec)
-    if (membres.length > 0) {
-      const { error: erreurLiens } = await supabaseAdmin
-        .from('equipe_membres_btp')
-        .insert(membres.map(membre => ({ equipe_id: id, membre_id: membre })))
-      if (erreurLiens) throw new ErreurEcriture(erreurLiens, echec)
-    }
-  }
+  if (membres !== undefined) await mettreAJourMembres(id, membres)
   return NextResponse.json({ row: modifiee })
 }
 
@@ -409,6 +438,24 @@ async function enregistrerReglages(userId: string, donnees: unknown): Promise<Ne
   return NextResponse.json({ settings: reglages })
 }
 
+/** Lignes d'une reprise, prêtes à insérer au nom du compte ; sinon la raison du refus (rien n'est alors ajouté). */
+function preparerReprise(userId: string, table: TableEcrivable, donnees: unknown[]): { lignes: Ligne[] } | { refus: string } {
+  const lignes: Ligne[] = []
+  for (const [rang, brute] of donnees.entries()) {
+    if (!estObjet(brute)) return { refus: `Import refusé, ligne ${rang + 1} : données invalides. Rien n'a été ajouté.` }
+    const ligne: Ligne = { ...brute }
+    for (const colonne of COLONNES_SYSTEME) delete ligne[colonne]
+    const raison = verifierLigne(table, ligne, 'reprise')
+    if (raison) return { refus: `Import refusé, ligne ${rang + 1} : ${raison}. Rien n'a été ajouté.` }
+    const hors = valeursHorsBornes(table, ligne)
+    if (hors.length > 0) {
+      logger.warn('[btp] reprise : valeur hors bornes acceptée (anciennes données du navigateur)', { table, ligne: rang + 1, colonnes: hors.map(h => h.colonne) })
+    }
+    lignes.push({ ...ligne, owner_id: userId })
+  }
+  return { lignes }
+}
+
 /**
  * Reprise des anciennes données du navigateur (import automatique du tableau de bord, table vide en base).
  * Refusée si le compte a déjà des lignes dans la table : deux onglets, ou une lecture en erreur prise pour une table
@@ -431,19 +478,9 @@ async function reprendre(userId: string, table: TableEcrivable, donnees: unknown
     return refus('Import refusé : votre compte contient déjà des données dans cette liste. Rien n\'a été ajouté.', 409)
   }
 
-  const lignes: Ligne[] = []
-  for (const [rang, brute] of donnees.entries()) {
-    if (!estObjet(brute)) return refus(`Import refusé, ligne ${rang + 1} : données invalides. Rien n'a été ajouté.`)
-    const ligne: Ligne = { ...brute }
-    for (const colonne of COLONNES_SYSTEME) delete ligne[colonne]
-    const raison = verifierLigne(table, ligne, 'reprise')
-    if (raison) return refus(`Import refusé, ligne ${rang + 1} : ${raison}. Rien n'a été ajouté.`)
-    const hors = valeursHorsBornes(table, ligne)
-    if (hors.length > 0) {
-      logger.warn('[btp] reprise : valeur hors bornes acceptée (anciennes données du navigateur)', { table, ligne: rang + 1, colonnes: hors.map(h => h.colonne) })
-    }
-    lignes.push({ ...ligne, owner_id: userId })
-  }
+  const preparation = preparerReprise(userId, table, donnees)
+  if ('refus' in preparation) return refus(preparation.refus)
+  const { lignes } = preparation
 
   const references = lignes.flatMap(ligne => referencesDeLigne(table, ligne))
   if (references.length > 0) {
@@ -489,17 +526,27 @@ export async function POST(request: NextRequest) {
       default: return refus('Action invalide')
     }
   } catch (err) {
-    const erreurBase = err instanceof ErreurEcriture ? err.erreurBase : null
-    logger.error(`[btp] POST ${table} ${action} error`, {
-      code: erreurBase?.code,
-      error: erreurBase ? erreurBase.message : err instanceof Error ? err.message : err,
-    })
-    if (err instanceof ErreurEcriture && err.messageUtilisateur) {
-      return NextResponse.json({ error: err.messageUtilisateur }, { status: 500 })
-    }
-    // Refus connus de la base (fiche rattachée, fiche introuvable, contrainte, format) : message clair, jamais le
-    // détail brut de la base (constats donnees-btp-12, base-de-donnees-13, api-coeur-15).
-    const { status, message } = traduireErreurBase(erreurBase, action, table)
-    return NextResponse.json({ error: message }, { status })
+    return reponseEchecEcriture(err, table, action)
   }
+}
+
+/** Ce que le journal du serveur garde d'un échec d'écriture : le message de la base, sinon celui de l'erreur. */
+function detailPourLeJournal(err: unknown, erreurBase: ErreurBase | null): unknown {
+  if (erreurBase) return erreurBase.message
+  return err instanceof Error ? err.message : err
+}
+
+/**
+ * Réponse à une écriture qui a échoué : le message prévu par la route, sinon le refus de la base traduit en message
+ * clair (fiche rattachée, fiche introuvable, contrainte, format), jamais le détail brut de la base (constats
+ * donnees-btp-12, base-de-donnees-13, api-coeur-15).
+ */
+function reponseEchecEcriture(err: unknown, table: TableEcrivable, action: string): NextResponse {
+  const erreurBase = err instanceof ErreurEcriture ? err.erreurBase : null
+  logger.error(`[btp] POST ${table} ${action} error`, { code: erreurBase?.code, error: detailPourLeJournal(err, erreurBase) })
+  if (err instanceof ErreurEcriture && err.messageUtilisateur) {
+    return NextResponse.json({ error: err.messageUtilisateur }, { status: 500 })
+  }
+  const { status, message } = traduireErreurBase(erreurBase, action, table)
+  return NextResponse.json({ error: message }, { status })
 }

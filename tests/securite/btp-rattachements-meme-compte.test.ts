@@ -1,7 +1,7 @@
 // @vitest-environment node
 // tests/securite/btp-rattachements-meme-compte.test.ts — migration 20261115_btp_rattachements_meme_compte.sql, jouée
 // sur un vrai PostgreSQL (PGlite, en mémoire) : une fiche BTP ne désigne qu'un chantier, un membre ou une équipe du
-// même compte, y compris pour une écriture faite directement avec la session du navigateur (constat api-coeur-9).
+// même compte, quelle que soit la voie d'écriture (constat api-coeur-9).
 //
 // Tables réduites aux colonnes en cause (noms et types du relevé de production du 11/11/2026), politiques d'accès
 // « propriétaire seulement » comme en production. Des lignes « anciennes », mal rattachées, existent AVANT la
@@ -26,6 +26,7 @@ const M_A = 'd4d4d4d4-0000-4000-8000-000000000001'
 const M_B = 'e5e5e5e5-0000-4000-8000-000000000001'
 const EQ_A = 'f6f6f6f6-0000-4000-8000-000000000001'
 const EQ_B = 'f6f6f6f6-0000-4000-8000-000000000002'
+const EQ_A2 = 'f6f6f6f6-0000-4000-8000-000000000003'
 const ANCIEN = '17171717-0000-4000-8000-000000000001'
 
 const TABLES_SQL = `
@@ -62,9 +63,12 @@ const DONNEES_SQL = `
 INSERT INTO public.chantiers_btp VALUES ('${CH_A}', '${A}', 'Cuisine'), ('${CH_A2}', '${A}', 'Salle de bains'),
   ('${CH_B}', '${B}', 'Toiture'), ('${CH_B2}', '${B}', 'Façade');
 INSERT INTO public.membres_btp (id, owner_id, prenom) VALUES ('${M_A}', '${A}', 'Paul'), ('${M_B}', '${B}', 'Salarié B');
-INSERT INTO public.equipes_btp (id, owner_id, nom) VALUES ('${EQ_A}', '${A}', 'Maçons'), ('${EQ_B}', '${B}', 'Couvreurs');
--- Ligne ancienne, enregistrée avant la migration et mal rattachée (chantier de B dans une situation de A).
+INSERT INTO public.equipes_btp (id, owner_id, nom) VALUES ('${EQ_A}', '${A}', 'Maçons'), ('${EQ_B}', '${B}', 'Couvreurs'),
+  ('${EQ_A2}', '${A}', 'Plaquistes');
+-- Lignes anciennes, enregistrées avant la migration et mal rattachées : chantier de B dans une situation de A,
+-- salarié de B dans une équipe de A.
 INSERT INTO public.situations_btp (id, owner_id, chantier, chantier_id) VALUES ('${ANCIEN}', '${A}', 'Ancienne', '${CH_B}');
+INSERT INTO public.equipe_membres_btp VALUES ('${EQ_A2}', '${M_B}');
 `
 
 let db: PGlite
@@ -79,7 +83,7 @@ async function codeErreur(sql: string): Promise<string | null> {
   }
 }
 
-/** Même requête, avec la session du navigateur du compte `compte` (rôle authenticated, politiques d'accès actives). */
+/** Même requête, au nom du compte `compte` (rôle authenticated, politiques d'accès actives). */
 async function codeErreurNavigateur(compte: string, sql: string): Promise<string | null> {
   await db.exec(`SET ROLE authenticated; SET request.jwt.claim.sub = '${compte}';`)
   try {
@@ -154,6 +158,16 @@ describe('lignes déjà enregistrées', () => {
     expect(await codeErreur(`UPDATE public.situations_btp SET chantier_id = '${CH_A2}' WHERE id = '${ANCIEN}'`)).toBeNull()
   })
 
+  it('équipe avec un lien ancien vers le salarié d’une autre société : ce que la route écrit (la différence) passe, le lien reste', async () => {
+    // Modifier l'équipe comme le fait la route : ajouter puis retirer un membre du compte, sans toucher au lien ancien.
+    expect(await codeErreur(`INSERT INTO public.equipe_membres_btp VALUES ('${EQ_A2}', '${M_A}')`)).toBeNull()
+    expect(await codeErreur(`DELETE FROM public.equipe_membres_btp WHERE equipe_id = '${EQ_A2}' AND membre_id IN ('${M_A}')`)).toBeNull()
+    // Réinsérer le lien ancien est refusé : la route ne supprime donc plus tous les liens pour tout réinsérer.
+    expect(await codeErreur(`INSERT INTO public.equipe_membres_btp VALUES ('${EQ_A2}', '${M_B}')`)).toBe('23503')
+    const { rows } = await db.query<{ membre_id: string }>(`SELECT membre_id FROM public.equipe_membres_btp WHERE equipe_id = '${EQ_A2}'`)
+    expect(rows).toEqual([{ membre_id: M_B }])
+  })
+
   it('suppression d’un chantier : les pointages qui le citaient sont détachés comme avant (ON DELETE SET NULL)', async () => {
     await db.exec(`INSERT INTO public.chantiers_btp VALUES ('c3c3c3c3-0000-4000-8000-000000000001', '${A}', 'Éphémère');
       INSERT INTO public.pointages_btp (owner_id, chantier_id, notes) VALUES ('${A}', 'c3c3c3c3-0000-4000-8000-000000000001', 'détaché');`)
@@ -163,7 +177,7 @@ describe('lignes déjà enregistrées', () => {
   })
 })
 
-describe('écriture directe avec la session du navigateur (rôle authenticated, politiques d’accès actives)', () => {
+describe('écriture au nom d’un compte (rôle authenticated, politiques d’accès actives)', () => {
   it('pointage sur le chantier d’une autre société : refusé ; sur son propre chantier : accepté', async () => {
     expect(await codeErreurNavigateur(A, `INSERT INTO public.pointages_btp (owner_id, chantier_id) VALUES ('${A}', '${CH_B}')`)).toBe('23503')
     expect(await codeErreurNavigateur(A, `INSERT INTO public.pointages_btp (owner_id, chantier_id) VALUES ('${A}', '${CH_A}')`)).toBeNull()
