@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { formatPrice } from '@/lib/utils'
+import { SELECT_RESERVATION_PUBLIQUE } from '@/lib/fiche-publique'
 import { Calendar, Clock, MapPin, ArrowLeft, User, Phone, Mail } from 'lucide-react'
 import { useLocale } from '@/lib/i18n/context'
 
@@ -47,9 +48,9 @@ function ReserverContent() {
 
   const fetchData = async () => {
     try {
-      // Fetch artisan + service data
+      // Fetch artisan + service data (du pro, seulement ce que la page affiche : lib/fiche-publique.ts)
       const [artisanRes, serviceRes] = await Promise.all([
-        supabase.from('profiles_artisan').select('*').eq('id', artisanId).single(),
+        supabase.from('profiles_artisan').select(SELECT_RESERVATION_PUBLIQUE).eq('id', artisanId).single(),
         supabase.from('services').select('*').eq('id', serviceId).single(),
       ])
 

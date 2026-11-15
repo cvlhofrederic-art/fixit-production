@@ -41,6 +41,7 @@ import {
 } from '@/lib/recherche/creneaux-par-lots'
 import { ALL_COMMUNES, FR_DEPARTEMENTS } from '@/lib/geo/fr-geo-data'
 import { ALL_COMMUNES_PT, PT_DISTRITOS } from '@/lib/geo/pt-geo-data'
+import { SELECT_RECHERCHE_PUBLIQUE } from '@/lib/fiche-publique'
 
 
 // ------------------------------------------------------------------
@@ -214,9 +215,10 @@ function RechercheContent() {
       // detectedCountry = 'FR' | 'PT' - mappe vers la colonne `language` qui existe dans profiles_artisan
       const detectedLang = detectedCountry === 'PT' ? 'pt' : 'fr'
 
+      // Seules les colonnes que la recherche affiche ou filtre (lib/fiche-publique.ts), jamais la fiche entière.
       const query = supabase
         .from('profiles_artisan')
-        .select('*, services(*)')
+        .select(SELECT_RECHERCHE_PUBLIQUE)
         .eq('active', true)
         .eq('language', detectedLang)
 

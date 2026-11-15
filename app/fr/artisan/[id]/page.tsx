@@ -9,6 +9,7 @@ import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { useLocale } from '@/lib/i18n/context'
 import { titleCaseAddress } from '@/lib/devis-utils'
 import { getProfilePath } from '@/lib/utils'
+import { SELECT_FICHE_PUBLIQUE } from '@/lib/fiche-publique'
 import Link from 'next/link'
 import {
   Star,
@@ -257,15 +258,17 @@ export default function ArtisanProfilePage() {
     // UUID = format 8-4-4-4-12 hex, sinon c'est un slug
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paramId)
 
+    // Seules les colonnes affichées (lib/fiche-publique.ts) : la page est publique, la fiche entière ne doit pas
+    // arriver dans le navigateur du visiteur.
     let artisanData: any = null
     if (isUuid) {
       const { data } = await supabase
-        .from('profiles_artisan').select('*').eq('id', paramId).single()
+        .from('profiles_artisan').select(SELECT_FICHE_PUBLIQUE).eq('id', paramId).single()
       artisanData = data
     } else {
       // Chercher par slug
       const { data } = await supabase
-        .from('profiles_artisan').select('*').eq('slug', paramId).single()
+        .from('profiles_artisan').select(SELECT_FICHE_PUBLIQUE).eq('slug', paramId).single()
       artisanData = data
     }
 
