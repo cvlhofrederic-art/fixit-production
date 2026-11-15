@@ -239,7 +239,7 @@ function extractContractNumber(text: string): string | undefined {
 }
 
 // ── Extraction du nom de l'assureur ──────────────────────────────────────────
-// motsEntiers (société BTP) : un nom ne compte que s'il est un mot entier du texte. Sans cela, « MMA » est
+// motsEntiers (société BTP française) : un nom ne compte que s'il est un mot entier du texte. Sans cela, « MMA » est
 // reconnu dans « DOMMAGES », « GAN » dans « ORGANISME », « AXA » dans « TAXATION ».
 function extractInsurerName(text: string, motsEntiers = false): string | undefined {
   // Noms d'assureurs courants
@@ -441,8 +441,8 @@ export async function POST(request: NextRequest) {
     if (!v.success) return NextResponse.json({ error: v.error }, { status: 400 })
     const { fileBase64, fileName, docKey, artisanId } = v.data
 
-    // Vérifier que l'artisan appartient au user. Société BTP : fiche entière, pour savoir quels champs
-    // d'assurance sont déjà remplis ; artisan : lecture inchangée.
+    // Vérifier que l'artisan appartient au user. Société BTP : fiche entière, pour connaître sa langue et savoir quels
+    // champs d'assurance sont déjà remplis ; artisan : lecture inchangée.
     const estSocieteBtp = getUserRole(user) === 'pro_societe'
     const { data: artisan } = estSocieteBtp
       ? await supabaseAdmin.from('profiles_artisan').select('*').eq('id', artisanId).single()
@@ -455,6 +455,9 @@ export async function POST(request: NextRequest) {
     if (!artisan || artisan.user_id !== user.id) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
+    // Société BTP française : fiche qui n'est pas en portugais. Société inscrite au Portugal : hors de ce correctif,
+    // lecture et écriture d'avant.
+    const estSocieteBtpFrancaise = estSocieteBtp && (artisan as Record<string, unknown>).language !== 'pt'
 
     // ── Extraire le texte du document ──────────────────────────────────────
     let extractedText = ''
@@ -526,7 +529,7 @@ export async function POST(request: NextRequest) {
     const siret = extractSiret(extractedText)
     const siren = extractSiren(extractedText)
     const insurerName = (detectedType === 'rc_pro' || detectedType === 'decennale')
-      ? extractInsurerName(extractedText, estSocieteBtp) : undefined
+      ? extractInsurerName(extractedText, estSocieteBtpFrancaise) : undefined
     const contractNumber = (detectedType === 'rc_pro' || detectedType === 'decennale')
       ? extractContractNumber(extractedText) : undefined
 
@@ -647,16 +650,23 @@ export async function POST(request: NextRequest) {
         insurance_scan_data: scanResult,
         insurance_verified: !suspicious && nameMatch,
       }
-      if (estSocieteBtp) {
-        // Société BTP : ces champs sont repris sur ses devis et factures. La lecture automatique ne remplace jamais ce
-        // que la société a saisi : elle ne remplit que les champs vides de la fiche, et jamais le type d'assurance
-        // (une attestation décennale ramenait « RC Pro + Décennale » à « Décennale »).
+      if (estSocieteBtpFrancaise) {
+        // Société BTP française : ces champs sont repris sur ses devis et factures. La lecture automatique ne remplace
+        // jamais ce que la société a saisi : elle ne remplit que les champs vides de la fiche.
         const fiche = artisan as Record<string, unknown>
         const vide = (colonne: string) => String(fiche[colonne] ?? '').trim() === ''
+        // Fiche sans assurance (ni type, ni assureur, ni contrat) : l'assureur et le contrat lus ici sont alors ceux de
+        // la fiche, et le type de cette attestation les accompagne (sans lui, le devis les présentait comme une
+        // « RC Pro »). Jamais à côté d'un assureur ou d'un contrat saisis, ni à la place d'un type choisi (une
+        // attestation décennale ramenait « RC Pro + Décennale » à « Décennale »).
+        const ficheSansAssurance = vide('insurance_type') && vide('insurance_name') && vide('insurance_number')
         if (insurerName && vide('insurance_name')) updateData.insurance_name = insurerName
         if (contractNumber && vide('insurance_number')) updateData.insurance_number = contractNumber
         if (extractedData.coverage && vide('insurance_coverage')) updateData.insurance_coverage = extractedData.coverage
         if (dates.to && vide('insurance_expiry')) updateData.insurance_expiry = dates.to
+        if (ficheSansAssurance && (insurerName || contractNumber) && (detectedType === 'rc_pro' || detectedType === 'decennale')) {
+          updateData.insurance_type = detectedType
+        }
       } else {
         if (insurerName) updateData.insurance_name = insurerName
         if (contractNumber) updateData.insurance_number = contractNumber
