@@ -34,7 +34,7 @@ interface EtatTable {
   proprietaire: string
   fonctions_citant_la_table: Array<{ fonction: string; security_definer: boolean }> | null
   fonctions_ecrivant_la_table: Array<{ fonction: string; security_definer: boolean }> | null
-  declencheurs: Array<{ nom: string }> | null
+  declencheurs: Array<{ nom: string; fonction: string; definition?: never }> | null
   droits: Array<{ role: string; select: boolean; insert: boolean; update: boolean; delete: boolean; truncate: boolean }>
 }
 
@@ -259,6 +259,8 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(etat.fonctions_ecrivant_la_table).toBeNull()
       expect(etat.fonctions_citant_la_table).toBeNull()
       expect((etat.declencheurs ?? []).map((d) => d.nom)).toEqual(declencheurs)
+      // Ni définition ni arguments (un webhook Supabase y place ses en-têtes) : le nom et la fonction appelée seulement.
+      for (const d of etat.declencheurs ?? []) expect(Object.keys(d).sort(parTexte)).toEqual(['fonction', 'nom'])
       expect(etat.proprietaire).toBe('postgres')
       expect(await bilanScenario()).toMatch(scenarioAvant)
       expect(await nombreLignes()).toBe(2)

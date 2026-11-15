@@ -24,9 +24,10 @@
 --   l'éditeur n'affiche que le dernier résultat ; ne rien recopier d'un corps, qui peut contenir une
 --   clé). Une écriture par EXECUTE dynamique peut n'apparaître que là ; un nom de table construit ou
 --   passé en paramètre échappe aux deux listes. Règle : ne pas appliquer si une fonction écrit la
---   table, même par EXECUTE, sans être SECURITY DEFINER. declencheurs : relevé ; proprietaire : le rôle
+--   table, même par EXECUTE, sans être SECURITY DEFINER. declencheurs : nom et fonction appelée, sans
+--   les arguments (un webhook Supabase y place ses en-têtes, parfois une clé) ; proprietaire : le rôle
 --   qui doit lancer la migration (celui de l'éditeur SQL, postgres, s'il est propriétaire). Ces champs
---   ne sortent que des signatures, jamais de corps.
+--   ne sortent que des noms et des signatures, jamais de corps ni d'arguments.
 
 -- 1. État
 select json_build_object(
@@ -59,7 +60,7 @@ select json_build_object(
       and coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid))
           ~* '(insert\s+into|update|delete\s+from|truncate)\s+(only\s+)?(public\.)?"?syndic_team_members\M'),
   'declencheurs', (
-    select json_agg(json_build_object('nom', t.tgname, 'definition', pg_get_triggerdef(t.oid)) order by t.tgname)
+    select json_agg(json_build_object('nom', t.tgname, 'fonction', t.tgfoid::regprocedure::text) order by t.tgname)
     from pg_trigger t
     where t.tgrelid = 'public.syndic_team_members'::regclass and not t.tgisinternal),
   'droits', (
