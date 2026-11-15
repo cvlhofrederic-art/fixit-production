@@ -106,8 +106,10 @@ describe('POST /api/btp — modifier une équipe', () => {
   it('équipe d’une autre société : refus, ses membres ne sont pas touchés', async () => {
     const res = await modifier('equipe-b', { membreIds: [M1] })
 
-    expect(res.status).toBe(500)
-    expect(res.json).toEqual({ error: 'Erreur serveur' })
+    // Refus inchangé. Seul son message change (constat api-coeur-15, 15/11/2026) : 500 « Erreur serveur » présentait
+    // comme une panne une équipe qui n'existe tout simplement pas pour ce compte.
+    expect(res.status).toBe(404)
+    expect(res.json).toEqual({ error: 'Fiche introuvable : elle a peut-être été supprimée entre-temps.' })
     expect(operations('equipe_membres_btp')).toEqual([])
   })
 

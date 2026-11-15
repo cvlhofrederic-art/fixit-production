@@ -6,6 +6,7 @@ import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
+import { MESSAGE_FICHE_INTROUVABLE, traduireErreurBase } from '@/lib/btp/erreurs-base-btp'
 import {
   BTP_TABLES_ECRIVABLES, COLONNES_SYSTEME, FORMAT_UUID, memeValeur, referencesDeLigne, valeursHorsBornes, verifierLigne,
   type HorsBornes, type Reference, type TableCible, type TableEcrivable,
@@ -188,7 +189,6 @@ const CONTRATS_PAR_ROLE: Record<string, string[]> = {
   secretaire: ['cdi', 'cdd', 'apprenti', 'stage'],
 }
 
-const MESSAGE_FICHE_INTROUVABLE = 'Fiche introuvable : elle a peut-être été supprimée entre-temps.'
 const MESSAGE_LISTE_MEMBRES_INVALIDE = 'Enregistrement refusé : la liste des membres de l\'équipe est invalide.'
 
 /** La base a répondu en erreur pendant une écriture ; `messageUtilisateur` remplace alors « Erreur serveur ». */
@@ -494,7 +494,12 @@ export async function POST(request: NextRequest) {
       code: erreurBase?.code,
       error: erreurBase ? erreurBase.message : err instanceof Error ? err.message : err,
     })
-    const message = err instanceof ErreurEcriture && err.messageUtilisateur ? err.messageUtilisateur : 'Erreur serveur'
-    return NextResponse.json({ error: message }, { status: 500 })
+    if (err instanceof ErreurEcriture && err.messageUtilisateur) {
+      return NextResponse.json({ error: err.messageUtilisateur }, { status: 500 })
+    }
+    // Refus connus de la base (fiche rattachée, fiche introuvable, contrainte, format) : message clair, jamais le
+    // détail brut de la base (constats donnees-btp-12, base-de-donnees-13, api-coeur-15).
+    const { status, message } = traduireErreurBase(erreurBase, action, table)
+    return NextResponse.json({ error: message }, { status })
   }
 }
