@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
 import { generateSlug } from '@/lib/utils'
 import { artisanSettingsPostSchema, validateBody } from '@/lib/validation'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
@@ -42,6 +42,32 @@ async function getExistingColumns(supabaseAdmin: typeof import('@/lib/supabase-s
   return existing
 }
 
+/**
+ * Adresse publique (slug) libre pour la fiche d'une société BTP : nom et ville de la fiche, puis -2, -3… si une autre
+ * fiche l'a déjà. Indisponible (nom vide, lecture en échec) : undefined, la fiche reste sans adresse et les autres
+ * champs s'enregistrent.
+ */
+async function adressePubliqueLibre(nom: string, ville: string, idFiche: string): Promise<string | undefined> {
+  const base = generateSlug(nom, ville)
+  if (!base) return undefined
+  // generateSlug ne garde que [a-z0-9-] : aucun joker de LIKE dans la base
+  const { data, error } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('id, slug')
+    .like('slug', `${base}%`)
+  if (error) {
+    logger.warn('[artisan-settings] adresses publiques illisibles, fiche laissée sans adresse', { code: error.code })
+    return undefined
+  }
+  const prises = new Set((data ?? []).filter((ligne) => ligne.id !== idFiche).map((ligne) => ligne.slug))
+  if (!prises.has(base)) return base
+  // prises contient la base : parmi ces prises.size suffixes, au moins un est libre
+  for (let n = 2; n <= prises.size + 1; n++) {
+    if (!prises.has(`${base}-${n}`)) return `${base}-${n}`
+  }
+  return undefined
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getAuthUser(request)
@@ -53,10 +79,11 @@ export async function POST(request: NextRequest) {
     const allowed = await checkRateLimit(`artisan_settings_${user.id}`, 15, 60_000)
     if (!allowed) return rateLimitResponse()
 
-    // Verify artisan ownership
+    // Verify artisan ownership. Société BTP : la fiche entière (adresse publique, nom, ville) ; artisan : inchangé.
+    const estSocieteBtp = getUserRole(user) === 'pro_societe'
     const { data: artisan, error: fetchError } = await supabaseAdmin
       .from('profiles_artisan')
-      .select('id')
+      .select(estSocieteBtp ? '*' : 'id')
       .eq('user_id', user.id)
       .single()
 
@@ -85,9 +112,16 @@ export async function POST(request: NextRequest) {
     const updatePayload: Record<string, any> = {}
     const skippedFields: string[] = []
 
-    // Auto-générer le slug quand company_name ou city change
     let slug: string | undefined = undefined
-    if (company_name) {
+    if (estSocieteBtp) {
+      // Société BTP : l'adresse publique de la fiche est posée une seule fois (adresse indexée, liens partagés) et ne
+      // change plus, même avec le nom. Une fiche qui n'en a pas la reçoit, à partir du nom et de la ville de la fiche.
+      const fiche = artisan as Record<string, unknown>
+      if (!fiche.slug) {
+        slug = await adressePubliqueLibre(String(company_name || fiche.company_name || ''), String(fiche.company_city || ''), String(fiche.id))
+      }
+    } else if (company_name) {
+      // Auto-générer le slug quand company_name ou city change
       const city = body.company_city || body.city || ''
       slug = generateSlug(company_name, city)
     }
@@ -125,10 +159,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Exécuter l'update
-    const { error: updateError } = await supabaseAdmin
+    let { error: updateError } = await supabaseAdmin
       .from('profiles_artisan')
       .update(updatePayload)
       .eq('id', artisan.id)
+
+    if (updateError && estSocieteBtp && 'slug' in updatePayload && updateError.code === '23505') {
+      // Société BTP : adresse publique prise entre-temps par une autre fiche. Les autres champs s'enregistrent sans
+      // elle ; la fiche la recevra à un prochain enregistrement.
+      logger.warn('[artisan-settings] adresse publique déjà prise, enregistrement sans elle', { ficheId: artisan.id })
+      delete updatePayload.slug
+      slug = undefined
+      if (Object.keys(updatePayload).length === 0) {
+        updateError = null
+      } else {
+        ;({ error: updateError } = await supabaseAdmin
+          .from('profiles_artisan')
+          .update(updatePayload)
+          .eq('id', artisan.id))
+      }
+    }
 
     if (updateError) {
       logger.error('saveSettings error:', updateError)
