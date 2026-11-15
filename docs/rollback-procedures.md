@@ -133,6 +133,25 @@ GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members TO anon, au
 
 ---
 
+## Migration 20261115 — Équipe BTP : écritures réservées au serveur (suite de R36)
+
+Recrée les trois policies d'écriture de `pro_team_members` (mêmes noms en production, constatés le 14/11/2026, et dans
+`048_pro_team_rbac.sql` ; forme de `20260610_rls_initplan_wrap.sql`, où `(select auth.uid())` équivaut à `auth.uid()`)
+et rend aux rôles `anon` et `authenticated` les droits retirés. ATTENTION : ceci ROUVRE la faille R36 (lignes d'équipe
+posées pour le compte d'un autre, rôle d'une invitation réécrit hors de l'application). À n'employer que si une
+écriture légitime depuis le navigateur était découverte (aucune au 14/11/2026 : le code passe par les routes serveur en
+service role). Après le retour arrière, relancer la partie 1 de `supabase/tests/pro_equipe_ecritures_serveur.sql`.
+
+```sql
+-- Rollback (production et projet construit depuis le dépôt)
+CREATE POLICY "pro_team_insert" ON public.pro_team_members FOR INSERT WITH CHECK (company_id = (select auth.uid()));
+CREATE POLICY "pro_team_update" ON public.pro_team_members FOR UPDATE USING (company_id = (select auth.uid()));
+CREATE POLICY "pro_team_delete" ON public.pro_team_members FOR DELETE USING (company_id = (select auth.uid()));
+GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_team_members TO anon, authenticated;
+```
+
+---
+
 ## Procedure de restore complete (PITR)
 
 En cas de probleme majeur :
