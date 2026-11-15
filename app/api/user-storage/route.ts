@@ -3,6 +3,7 @@
 // appareils, navigateurs et apres nettoyage des donnees du site.
 //
 //   GET  /api/user-storage          -> { entries: { [key]: value } }, plus `identifiants` (compte, fiche) si l'espace est vide
+//                                      et la fiche lisible
 //   POST /api/user-storage          -> upsert { entries: [{key, value}, ...] } ; 422 si la base refuse une valeur
 //   DELETE /api/user-storage        -> body { keys: string[] }
 //
@@ -83,15 +84,16 @@ export async function GET(request: NextRequest) {
   // que celles-là : sur un poste partagé, ce qu'un autre compte a laissé dans le navigateur n'a pas à le suivre.
   let identifiants: string[] | undefined
   if (Object.keys(entries).length === 0) {
-    identifiants = [user.id]
     const { data: fiches, error: erreurFiches } = await supabaseAdmin
       .from('profiles_artisan')
       .select('id')
       .eq('user_id', user.id)
     if (erreurFiches) {
-      // Sans la fiche, le navigateur ne recopie que les clés à l'identifiant du compte : la restauration, elle, répond.
+      // Sans la fiche, la liste serait incomplète (une société range ses données sous l'identifiant de sa fiche) :
+      // aucune n'est donnée, et le navigateur ne recopie rien. La restauration, elle, répond (relecture du 15/11/2026).
       logger.warn('[user-storage/GET] fiche du compte illisible :', erreurFiches)
     } else {
+      identifiants = [user.id]
       for (const fiche of fiches || []) {
         if (typeof fiche.id === 'string' && fiche.id) identifiants.push(fiche.id)
       }

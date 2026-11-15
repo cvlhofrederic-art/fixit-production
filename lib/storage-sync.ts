@@ -25,20 +25,24 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     modification. S'il en détient une autre (écrite depuis un autre appareil), le serveur gagne, comme avant.
 //     Ces modifications en attente sont notées dans le navigateur (CLE_ETAT) pour survivre à un rechargement.
 //     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à
-//     l'aveugle — pas même à la fermeture de l'onglet.
+//     l'aveugle — pas même à la fermeture de l'onglet. Quand deux envois de la même clé se chevauchent, la
+//     confirmation du premier ne lève la note que si le navigateur détient encore la valeur confirmée.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
 //     la contient, alors que les autres passent) est mise à part : retentée seule au bout de 5 min, puis toutes les
-//     30 min. Tant que rien ne passe, c'est le serveur qui est tenu pour en panne, et rien n'est mis à part.
+//     30 min ; une autre valeur saisie pour la même clé repart avec les envois ordinaires. Tant que rien ne passe,
+//     c'est le serveur qui est tenu pour en panne, et rien n'est mis à part.
 //  4. Ce qui attend l'envoi ne part jamais avec le jeton d'un autre compte. « Tout envoyer » (premier passage d'un
 //     compte dont le serveur ne détient rien) ne recopie que les clés qui portent l'identifiant du compte ou de sa
-//     fiche ; jamais celles qui portent un autre identifiant, et les clés sans identifiant seulement si rien
-//     n'indique qu'un autre compte a utilisé ce navigateur.
+//     fiche, et seulement si le serveur en a donné la liste ; jamais celles qui portent un autre identifiant, et les
+//     clés sans identifiant seulement si rien n'indique qu'un autre compte a utilisé ce navigateur. Ce qu'il ne
+//     parvient pas à envoyer reste en attente dans le miroir, comme une saisie pas encore confirmée.
 // Limites connues : les clés du navigateur ne sont pas rangées par compte, deux comptes sur le même navigateur y
-// lisent les valeurs l'un de l'autre ; et une valeur dont l'envoi échoue sans aucune réponse du serveur (connexion qui
+// lisent les valeurs l'un de l'autre ; une valeur dont l'envoi échoue sans aucune réponse du serveur (connexion qui
 // ne laisse pas passer un envoi volumineux) retient encore les valeurs du même envoi, comme avant : sans réponse,
-// rien ne la distingue d'une coupure du réseau.
+// rien ne la distingue d'une coupure du réseau ; et « tout envoyer » ne part que tant que l'espace du compte est vide
+// sur le serveur : la première écriture qui y est sauvegardée lui retire toute nouvelle occasion.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -178,19 +182,21 @@ let minuteurEtat: Minuteur | null = null
 // avec l'une d'elles repart valeur par valeur : si c'est elle que le serveur ne parvient pas à enregistrer, elle ne
 // bloque pas les autres (garantie 3).
 const echecsServeur = new Map<string, number>()
-// Parmi elles, celles qui ont échoué seules alors que d'autres valeurs passaient : mises à part, elles ne partent
-// plus avec les envois ordinaires et sont retentées de loin en loin (planifierIsolees).
-const isolees = new Set<string>()
+// Parmi elles, celles qui ont échoué seules alors que d'autres valeurs passaient → la valeur en cause : mises à part,
+// elles ne partent plus avec les envois ordinaires et sont retentées de loin en loin (planifierIsolees). Une autre
+// valeur saisie pour la même clé n'est plus en cause : elle repart avec les envois ordinaires.
+const isolees = new Map<string, string>()
 // Le prochain envoi peut tenter les valeurs mises à part : leur délai est écoulé et le serveur va être relu.
 let isoleesPermises = false
 let essaisIsolees = 0
 let minuteurIsolees: Minuteur | null = null
 // Ce que la dernière restauration réussie a appris, pour « tout envoyer » (pushAllLocalToServer) : le serveur ne
 // détenait rien, un autre compte est déjà passé par ce navigateur, et les identifiants (compte, fiche) sous lesquels
-// ce compte range ses clés.
+// ce compte range ses clés — si le serveur en a donné la liste (identifiantsDonnes).
 let serveurVide = false
 let autreCompteVu = false
 const identifiantsDuCompte = new Set<string>()
+let identifiantsDonnes = false
 const avertissementsFaits = new Set<string>()
 
 function avertirUneFois(cle: string, message: string, detail?: unknown): void {
@@ -295,6 +301,7 @@ function adopterCompte(compte: string | null): boolean {
   serveurVide = false
   autreCompteVu = false
   identifiantsDuCompte.clear()
+  identifiantsDonnes = false
   echecsHydratation = 0
   echecsEnvoi = 0
   return remplacement
@@ -475,9 +482,15 @@ function compterUnEchec(key: string): void {
 function confirmerEcriture(e: EntreeAEnvoyer): void {
   oublierEchecs(e.key)
   derniereValeurSynchronisee.set(e.key, e.raw)
-  // Une valeur plus récente attend déjà : elle se mesurera à celle qui vient d'arriver au serveur.
-  if (pendingWrites.has(e.key) || pendingDeletes.has(e.key)) bases.set(e.key, { brut: e.raw })
-  else oublierBase(e.key)
+  // Le navigateur détient déjà une valeur plus récente — en attente, ou partie dans un autre envoi dont la réponse
+  // n'est pas arrivée : elle se mesurera à celle qui vient d'arriver au serveur. Lever la note ici la ferait perdre
+  // contre celle-ci à la relecture suivante du serveur (relecture du 15/11/2026).
+  if (pendingWrites.has(e.key) || pendingDeletes.has(e.key) || valeurLocale(e.key) !== e.raw) {
+    bases.set(e.key, { brut: e.raw })
+    planifierEtat()
+  } else {
+    oublierBase(e.key)
+  }
 }
 
 function refuserEcriture(e: EntreeAEnvoyer): void {
@@ -492,7 +505,11 @@ function refuserEcriture(e: EntreeAEnvoyer): void {
  * A → B → A pendant un POST de B en échec).
  */
 function remettreEnAttente(e: EntreeAEnvoyer): void {
-  if (valeurLocale(e.key) === e.raw) pendingWrites.set(e.key, e.raw)
+  if (valeurLocale(e.key) !== e.raw) return
+  pendingWrites.set(e.key, e.raw)
+  // Valeur sans note (envoyée par « tout envoyer ») : on note ce que le serveur en détenait, pour autant que cet
+  // appareil le sache. La note la protège à la relecture qui précède le nouvel essai, et après un rechargement.
+  noterBase(e.key, undefined)
 }
 
 /** Range l'issue d'un envoi pour une de ses valeurs. */
@@ -535,7 +552,9 @@ async function envoyerUneParUne(entrees: EntreeAEnvoyer[], envoi: Envoi, bilan: 
   let arret = false
   for (const e of ordre) {
     if (arret) {
+      // Le nouvel essai leur est dû même si un autre lot du même envoi passe ensuite (relecture du 15/11/2026).
       remettreEnAttente(e)
+      bilan.panne = true
       continue
     }
     marquerEnVol([e.key])
@@ -599,9 +618,26 @@ function trancher(bilan: Bilan): void {
     return
   }
   for (const e of bilan.seulesEnErreur) {
-    isolees.add(e.key)
+    isolees.set(e.key, e.raw)
     avertirUneFois(`isolee:${e.key}`, '[storage-sync] valeur que le serveur ne parvient pas à enregistrer, mise à part : elle reste dans ce navigateur et sera retentée seule :', e.key)
   }
+}
+
+/**
+ * Fin d'un envoi (flushNow, pushAllLocalToServer) : tranche le sort des valeurs en erreur, programme le nouvel essai
+ * de ce qui a été remis en attente, puis l'essai suivant des valeurs mises à part.
+ */
+function terminerEnvoi(bilan: Bilan): void {
+  trancher(bilan)
+  if (bilan.panne) {
+    echecsEnvoi++
+    // Garantie 2 : ce qui a été remis en attente ne repartira qu'après une nouvelle lecture du serveur.
+    amorce = false
+    planifierReessai()
+  } else if (amorce) {
+    echecsEnvoi = 0
+  }
+  planifierIsolees()
 }
 
 /** Envoie les suppressions en attente. */
@@ -645,7 +681,7 @@ function planifierReessai(): void {
 
 /** Reste-t-il des valeurs mises à part en attente ? Oublie celles qui n'attendent plus (reprises du serveur, modifiées dans un autre onglet). */
 function resteDesIsolees(): boolean {
-  for (const cle of Array.from(isolees)) {
+  for (const cle of Array.from(isolees.keys())) {
     if (!pendingWrites.has(cle) && !postsEnVol.has(cle)) oublierEchecs(cle)
   }
   return isolees.size > 0
@@ -711,6 +747,10 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   const groupees: EntreeAEnvoyer[] = []
   const aPart: EntreeAEnvoyer[] = []
   for (const [key, raw] of Array.from(pendingWrites)) {
+    // Une autre valeur que celle mise à part pour cette clé (saisie depuis, même pendant l'envoi qui l'a mise à part)
+    // n'est plus en cause : elle part avec les envois ordinaires. Réécrite à l'identique (montage du tableau de bord),
+    // la valeur en cause reste à part (relecture du 15/11/2026).
+    if (isolees.has(key) && isolees.get(key) !== raw) oublierEchecs(key)
     const isolee = isolees.has(key)
     // Valeur mise à part : elle reste en file jusqu'à son propre essai (planifierIsolees).
     if (isolee && !avecLesIsolees) continue
@@ -737,18 +777,9 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   await envoyerSuppressions(envoi, bilan)
   if (compteCourant !== compte) return
 
-  trancher(bilan)
   // Série interrompue (le serveur ne répondait plus) : l'essai des valeurs mises à part leur reste dû.
   if (avecLesIsolees && !isoleesTentees) isoleesPermises = true
-  if (bilan.panne) {
-    echecsEnvoi++
-    // Garantie 2 : ce qui a été remis en attente ne repartira qu'après une nouvelle lecture du serveur.
-    amorce = false
-    planifierReessai()
-  } else if (amorce) {
-    echecsEnvoi = 0
-  }
-  planifierIsolees()
+  terminerEnvoi(bilan)
 }
 
 function scheduleFlush() {
@@ -959,6 +990,9 @@ async function hydraterDepuisLeServeur(): Promise<ResultatHydratation> {
   serveurVide = Object.keys(entries).length === 0
   autreCompteVu = autreCompte
   identifiantsDuCompte.clear()
+  // Sans la liste du serveur (fiche du compte illisible), on ne sait pas sous quels identifiants ce compte range ses
+  // clés : « tout envoyer » attend une restauration qui la donne (relecture du 15/11/2026).
+  identifiantsDonnes = Array.isArray(identifiants)
   const donnes: unknown[] = Array.isArray(identifiants) ? identifiants : []
   for (const identifiant of [compte, ...donnes]) {
     if (typeof identifiant === 'string' && identifiant !== '') identifiantsDuCompte.add(identifiant.toLowerCase())
@@ -1152,8 +1186,12 @@ function clesDuCompte(cles: string[]): string[] {
  * « Tout envoyer » : recopie vers le serveur les clés `fixit_*` que ce navigateur détient pour le compte connecté
  * (une seule fois). Utile au premier passage d'un compte dont le serveur ne détient rien alors que le navigateur a
  * déjà des données (compte antérieur au miroir).
- * La fonction porte elle-même ses conditions : une restauration a réussi pour ce compte et le serveur a répondu
- * qu'il ne détenait rien (garantie 1), et seules les clés du compte partent (garantie 4, voir clesDuCompte).
+ * La fonction porte elle-même ses conditions : une restauration a réussi pour ce compte, le serveur a répondu qu'il
+ * ne détenait rien (garantie 1) et a donné la liste des identifiants du compte, et seules les clés du compte partent
+ * (garantie 4, voir clesDuCompte).
+ * Les valeurs partent comme un envoi ordinaire : un lot refusé en bloc repart valeur par valeur, et ce qui ne passe pas
+ * (réseau, panne) reste en attente dans le miroir, noté dans le navigateur, pour le nouvel essai qui suit une relecture
+ * du serveur. Renvoie le nombre de valeurs que le serveur a enregistrées.
  */
 export async function pushAllLocalToServer(): Promise<{ count: number }> {
   // Lecture seule : un stockage plein (QuotaExceededError à l'écriture) se lit encore et doit pouvoir migrer.
@@ -1162,8 +1200,9 @@ export async function pushAllLocalToServer(): Promise<{ count: number }> {
   if (!qui) return { count: 0 }
   adopterCompte(qui.compte)
   // Pas de restauration réussie pour ce compte (ou un envoi en échec depuis), ou serveur qui détient déjà des
-  // valeurs : on ne sait pas ce que cet envoi écraserait.
-  if (!amorce || !serveurVide) return { count: 0 }
+  // valeurs : on ne sait pas ce que cet envoi écraserait. Sans la liste des identifiants du compte, on ne sait pas
+  // lesquelles de ces clés sont les siennes.
+  if (!amorce || !serveurVide || !identifiantsDonnes) return { count: 0 }
   const compte = compteCourant
 
   const presentes: string[] = []
@@ -1181,15 +1220,17 @@ export async function pushAllLocalToServer(): Promise<{ count: number }> {
     try { return JSON.stringify(e.value).length <= MAX_VALUE_BYTES } catch { return false }
   })
 
-  let count = 0
+  // Relecture du 15/11/2026 : un lot refusé ou en échec était abandonné en entier, et une seule valeur que la base
+  // refuse privait toutes les autres du lot de leur copie en ligne.
+  const bilan: Bilan = { reussies: 0, panne: false, seulesEnErreur: [] }
+  const envoi: Envoi = { jeton: qui.jeton, keepalive: false, compte }
   for (const lot of grouperEnLots(entries)) {
-    const issue = await poster(lot, qui.jeton, false)
-    if (compteCourant !== compte) break
-    if (issue !== 'ok') continue
-    count += lot.length
-    for (const e of lot) confirmerEcriture(e)
+    await envoyerLot(lot, envoi, bilan)
+    // Un autre compte s'est connecté pendant l'envoi : la suite ne part pas, et rien de cet envoi ne le concerne.
+    if (compteCourant !== compte) return { count: bilan.reussies }
   }
-  return { count }
+  terminerEnvoi(bilan)
+  return { count: bilan.reussies }
 }
 
 /** Tests : remet le miroir à neuf (files, notes, minuteurs, compte) et débranche l'interception du prototype. */
@@ -1214,6 +1255,7 @@ export function reinitialiserMiroirPourTests(): void {
   amorce = false
   serveurVide = false
   autreCompteVu = false
+  identifiantsDonnes = false
   isoleesPermises = false
   essaisIsolees = 0
   echecsHydratation = 0

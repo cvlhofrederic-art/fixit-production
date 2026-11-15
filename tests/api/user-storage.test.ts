@@ -5,6 +5,8 @@
 //     détient déjà des valeurs ne les donne pas, et la fiche n'est alors pas lue ;
 //   - POST : quand la base refuse le contenu d'une valeur, 422 (le navigateur met alors cette valeur à part) ; toute
 //     autre erreur de la base reste un 500 (panne : l'envoi sera retenté).
+// Relecture du 15/11/2026 : fiche illisible, aucun identifiant n'est donné (la liste serait incomplète) ; et chaque
+// lecture ou suppression est limitée au compte connecté (filtre user_id vérifié, le double les enregistre).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -21,6 +23,8 @@ const h = vi.hoisted(() => {
     erreurUpsert: null as null | ErreurBase,
     tablesLues: [] as string[],
     upserts: [] as Ligne[][],
+    /** Filtres posés sur chaque requête : [table, colonne, valeur]. */
+    filtres: [] as Array<[string, string, unknown]>,
   }
   const from = (table: string) => {
     etat.tablesLues.push(table)
@@ -29,8 +33,14 @@ const h = vi.hoisted(() => {
       : { data: etat.stockage, error: null }
     const b: Record<string, unknown> = {}
     b.select = () => b
-    b.eq = () => b
-    b.in = () => b
+    b.eq = (colonne: string, valeur: unknown) => {
+      etat.filtres.push([table, colonne, valeur])
+      return b
+    }
+    b.in = (colonne: string, valeurs: unknown) => {
+      etat.filtres.push([table, colonne, valeurs])
+      return b
+    }
     b.limit = () => b
     b.delete = () => b
     b.upsert = (lignes: Ligne[]) => {
@@ -49,7 +59,7 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-a
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
 vi.mock('@/lib/supabase-server', () => ({ supabaseAdmin: { from: (t: string) => h.from(t) } }))
 
-const { GET, POST } = await import('@/app/api/user-storage/route')
+const { GET, POST, DELETE } = await import('@/app/api/user-storage/route')
 
 const COMPTE = '550e8400-e29b-41d4-a716-446655440000'
 const FICHE = '3f2504e0-4f89-41d3-9a0c-0305e82c3301'
@@ -77,6 +87,7 @@ beforeEach(() => {
   h.etat.erreurUpsert = null
   h.etat.tablesLues = []
   h.etat.upserts = []
+  h.etat.filtres = []
 })
 
 describe('GET /api/user-storage — identifiants du compte quand son espace est vide', () => {
@@ -85,6 +96,8 @@ describe('GET /api/user-storage — identifiants du compte quand son espace est 
     expect(res.status).toBe(200)
     expect(res.json.entries).toEqual({})
     expect(res.json.identifiants).toEqual([COMPTE, FICHE])
+    // Les deux lectures sont limitées au compte connecté : sans ce filtre, la route donnerait les fiches de tous.
+    expect(h.etat.filtres).toEqual([['user_storage', 'user_id', COMPTE], ['profiles_artisan', 'user_id', COMPTE]])
   })
 
   it('compte sans fiche (syndic, client) : seul son identifiant est donné', async () => {
@@ -93,12 +106,14 @@ describe('GET /api/user-storage — identifiants du compte quand son espace est 
     expect(res.json.identifiants).toEqual([COMPTE])
   })
 
-  it('fiche illisible : la restauration répond quand même, avec le seul identifiant du compte', async () => {
+  // Relecture du 15/11/2026 : la liste réduite au seul compte faisait recopier ses drapeaux sans les clés de sa fiche, et
+  // Providers tenait alors la migration pour faite.
+  it('fiche illisible : la restauration répond quand même, sans identifiants (la liste serait incomplète)', async () => {
     h.etat.erreurFiches = { message: 'délai dépassé' }
     const res = await lire()
     expect(res.status).toBe(200)
     expect(res.json.entries).toEqual({})
-    expect(res.json.identifiants).toEqual([COMPTE])
+    expect(res.json).not.toHaveProperty('identifiants')
   })
 
   it('espace qui détient déjà des valeurs : pas d’identifiants, et la fiche n’est pas lue', async () => {
@@ -108,6 +123,7 @@ describe('GET /api/user-storage — identifiants du compte quand son espace est 
     expect(res.json.entries).toEqual({ fixit_clients_a: [{ id: 1 }] })
     expect(res.json).not.toHaveProperty('identifiants')
     expect(h.etat.tablesLues).toEqual(['user_storage'])
+    expect(h.etat.filtres).toEqual([['user_storage', 'user_id', COMPTE]])
   })
 
   it('sans session : 401, rien n’est lu', async () => {
@@ -150,5 +166,17 @@ describe('POST /api/user-storage — valeur que la base refuse', () => {
     const res = await poster(ENTREES)
     expect(res.status).toBe(500)
     expect(res.json).toEqual({ error: 'Erreur lors de la sauvegarde' })
+  })
+})
+
+describe('DELETE /api/user-storage — suppression limitée au compte connecté', () => {
+  it('seules les clés demandées, et seulement dans l’espace du compte connecté', async () => {
+    const res = await DELETE(new NextRequest(URL_ROUTE, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: ['fixit_note_a'] }),
+    }))
+    expect(res.status).toBe(200)
+    expect(h.etat.filtres).toEqual([['user_storage', 'user_id', COMPTE], ['user_storage', 'key', ['fixit_note_a']]])
   })
 })

@@ -25,9 +25,12 @@ const JETON = 'jeton-test'
 const PIECE_KBIS = `data:application/pdf;base64,${'A'.repeat(2000)}`
 
 let entreesServeur: Record<string, unknown> = {}
+// Espace vide : comme la route, la réponse donne les identifiants du compte, sans lesquels « tout envoyer » ne recopie
+// rien (relecture du 15/11/2026).
+const identifiantsSiVide = () => (Object.keys(entreesServeur).length === 0 ? { identifiants: ['550e8400-e29b-41d4-a716-446655440000'] } : {})
 const fetchMock = vi.fn(async (_url: string, init?: RequestInit) =>
   (init?.method ?? 'GET') === 'GET'
-    ? new Response(JSON.stringify({ entries: entreesServeur }), { status: 200 })
+    ? new Response(JSON.stringify({ entries: entreesServeur, ...identifiantsSiVide() }), { status: 200 })
     : new Response(JSON.stringify({ success: true }), { status: 200 }),
 )
 

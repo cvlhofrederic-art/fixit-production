@@ -143,17 +143,20 @@ describe('storage-sync — un seul POST par enchaînement', () => {
   })
 
   it('une valeur envoyée avec succès puis réécrite à l’identique n’est pas renvoyée ; après suppression, si', async () => {
+    // Écritures faites dans le stockage, comme par le setItem intercepté : depuis le 15/11/2026, une confirmation ne
+    // lève la note de la clé que si le navigateur détient toujours la valeur confirmée.
     const sync = await import('@/lib/storage-sync')
-    const { enregistrerEcritureMiroir, enregistrerSuppressionMiroir } = sync
+    const { enregistrerSuppressionMiroir } = sync
     await amorcer(sync)
-    enregistrerEcritureMiroir('fixit_a', '1')
+    ecrire(sync, 'fixit_a', '1')
     await attendreFlush()
     expect(appelsPost()).toHaveLength(1)
-    enregistrerEcritureMiroir('fixit_a', '1')
+    ecrire(sync, 'fixit_a', '1')
     await attendreFlush()
     expect(appelsPost()).toHaveLength(1)
-    enregistrerSuppressionMiroir('fixit_a')
-    enregistrerEcritureMiroir('fixit_a', '1')
+    window.localStorage.removeItem('fixit_a')
+    enregistrerSuppressionMiroir('fixit_a', '1')
+    ecrire(sync, 'fixit_a', '1')
     await attendreFlush()
     expect(appelsPost()).toHaveLength(2)
     expect(corps(appelsPost()[1]).entries).toEqual([{ key: 'fixit_a', value: 1 }])

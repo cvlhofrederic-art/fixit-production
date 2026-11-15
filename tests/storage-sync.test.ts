@@ -33,6 +33,7 @@ const mockFetch = vi.fn()
 
 // Helpers
 const FAKE_TOKEN = 'fake-jwt-token-for-tests'
+const COMPTE_DE_TEST = '550e8400-e29b-41d4-a716-446655440000'
 const validSession = () => ({ data: { session: { access_token: FAKE_TOKEN } } })
 
 beforeEach(() => {
@@ -41,8 +42,10 @@ beforeEach(() => {
   mockGetSession.mockResolvedValue(validSession())
   // Par défaut le serveur ne détient rien (GET) et accepte tout (POST, DELETE). Une réponse neuve à chaque appel :
   // le corps d'une Response ne se lit qu'une fois. Une réponse sans `entries` n'est plus tenue pour un serveur vide.
+  // Espace vide : comme la route, la réponse donne les identifiants du compte, sans lesquels « tout envoyer » ne
+  // recopie rien (relecture du 15/11/2026).
   mockFetch.mockImplementation(async (_url: unknown, init?: RequestInit) =>
-    new Response(JSON.stringify(!init?.method || init.method === 'GET' ? { entries: {} } : { success: true }), { status: 200 }))
+    new Response(JSON.stringify(!init?.method || init.method === 'GET' ? { entries: {}, identifiants: [COMPTE_DE_TEST] } : { success: true }), { status: 200 }))
   ;(globalThis as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
   if (typeof window !== 'undefined') {
     window.localStorage.clear()
