@@ -180,6 +180,8 @@ const fmt = (n: number) =>
  * Largeurs des colonnes des tableaux de lignes (Désignation, Qté, Unité, Prix, [Remise], TVA,
  * Total HT, Total TTC, suppression). Sans colonne Remise (Portugal, hors de ce lot) : largeurs
  * d'origine. `derniere` : 4 % pour les tableaux fixes, 6 % pour les tables personnalisées.
+ * TVA à 12 % (accord de Frédéric du 13/11/2026) : à 8 %, le sélecteur ne montrait que sa flèche
+ * (taux illisible) ; 4 points pris sur la désignation. Taux lisible dès 1 280 px de large.
  */
 function largeursColonnes(avecRemise: boolean, derniere: string): Array<{ cle: string; largeur: string }> {
   const colonnes = (largeurs: string[], cles: string[]) => cles.map((cle, i) => ({ cle, largeur: largeurs[i] }))
@@ -187,7 +189,7 @@ function largeursColonnes(avecRemise: boolean, derniere: string): Array<{ cle: s
     return colonnes(['28%', '7%', '11%', '12%', '8%', '14%', '14%', derniere],
       ['designation', 'quantite', 'unite', 'prix', 'tva', 'total-ht', 'total-ttc', 'action'])
   }
-  return colonnes([derniere === '6%' ? '22%' : '24%', '7%', '9%', '11%', '11%', '8%', '13%', '13%', derniere],
+  return colonnes([derniere === '6%' ? '18%' : '20%', '7%', '9%', '11%', '11%', '12%', '13%', '13%', derniere],
     ['designation', 'quantite', 'unite', 'prix', 'remise', 'tva', 'total-ht', 'total-ttc', 'action'])
 }
 
@@ -1643,6 +1645,10 @@ export default function DevisFactureFormBTP({
   // (ni toast ni spinner). Jamais de saisie perdue, même sans clic « Enregistrer ».
   // Ne touche JAMAIS un document déjà émis (status ≠ brouillon/draft) ni un
   // formulaire vide. saveDraft écrit localStorage + sync cloud via l'id stable.
+  // Déclencheur : le contenu que le brouillon enregistre (buildPayload), et non une liste de champs
+  // tenue à la main — elle oubliait les tables personnalisées, l'adresse, les notes, les acomptes…
+  // (saisie perdue si l'utilisateur quittait sans « Enregistrer »). Le numéro n'est pas une saisie.
+  const contenuBrouillon = JSON.stringify({ ...buildPayload(), docNumber: undefined })
   const saveDraftRef = React.useRef(saveDraft)
   saveDraftRef.current = saveDraft
   useEffect(() => {
@@ -1650,12 +1656,13 @@ export default function DevisFactureFormBTP({
     const isEmitted = !!st && st !== 'brouillon' && st !== 'draft'
     if (isEmitted || !artisan?.id) return
     const hasContent = clientName.trim().length > 0 ||
-      [...lines, ...materialLines, ...fraisLines].some((l) => (l.description || '').trim().length > 0)
+      [...lines, ...materialLines, ...fraisLines, ...customTables.flatMap((tbl) => tbl.lines || [])]
+        .some((l) => (l.description || '').trim().length > 0)
     if (!hasContent) return
     const t = setTimeout(() => { saveDraftRef.current({ silent: true }) }, 1500)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientName, lines, materialLines, fraisLines, docTitle, factureSubType, acomptePourcentage, parentInvoiceNumber, avoirMotif, remiseGlobale])
+  }, [contenuBrouillon])
 
   const saveAndSend = async () => {
     if (!artisan?.id) return

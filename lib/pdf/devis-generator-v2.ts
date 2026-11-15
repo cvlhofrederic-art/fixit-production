@@ -13,6 +13,7 @@
 import { sumMoney, round2 } from '@/lib/money'
 import { computeEcheanceDate } from '@/lib/pdf/payment-due'
 import { buildSubTypeLabel } from '@/lib/pdf/subtype-label'
+import { VERSION_RENDU_COMPLET } from '@/lib/version-rendu'
 
 // ─── Interfaces ───────────────────────────────────────────────
 
@@ -116,6 +117,12 @@ export interface DevisGeneratorInput {
    * correction du 13/11/2026). Absent : mention « Aucun escompte accordé » comme avant.
    */
   escompte?: string | null
+  /**
+   * Version du rendu du document (lib/version-rendu.ts). 2 : en-têtes « PRIX U. HT / TOTAL HT » pour
+   * un artisan à TVA, lignes de TVA qui ne chevauchent plus leur montant, taux, quantités et
+   * pourcentages à virgule. Absente : rendu d'origine, à l'identique.
+   */
+  versionRendu?: number
 }
 
 export interface LigneDevis {
@@ -187,6 +194,11 @@ function formatPrice(n: number): string {
   const parts = n.toFixed(2).split('.')
   const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
   return intPart + ',' + parts[1] + ' \u20AC'
+}
+
+/** Nombre imprimé avec une virgule décimale (« 5,5 », « 1,25 ») : documents au rendu complet. */
+function formatNombre(n: number): string {
+  return String(n).replace('.', ',')
 }
 
 function formatDate(d: Date, locale: 'fr-FR' | 'pt-PT' = 'fr-FR'): string {
@@ -303,6 +315,8 @@ const SECTION_LABELS: Record<string, string> = {
   // Parité BTP V3 — label par défaut pour les lignes principales quand le mode
   // 'sections' est activé par la présence de customTables côté artisan V2.
   labor: "PRESTATIONS",
+  // Frais annexes du formulaire artisan (documents au rendu complet, lib/version-rendu.ts).
+  frais_annexes: 'FRAIS ANNEXES',
 }
 
 // ─── Main export ─────────────────────────────────────────────
@@ -337,6 +351,8 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // i18n — FR par défaut, PT activé via input.locale === 'pt'.
   // Aligné sur lib/pdf/devis-pdf-v3.ts (mêmes libellés PT, parité visuelle).
   const isPt = input.locale === 'pt'
+  // Document au rendu complet (lib/version-rendu.ts) : en-têtes HT, lignes TVA lisibles, virgules.
+  const renduComplet = (input.versionRendu ?? 0) >= VERSION_RENDU_COMPLET
   const T = {
     emitter:        isPt ? 'EMITENTE'              : 'ÉMETTEUR',
     recipient:      isPt ? 'DESTINATÁRIO'          : 'DESTINATAIRE',
@@ -369,8 +385,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     unit:           isPt ? 'UNID'                  : 'UNITÉ',
     priceU:         isPt ? 'PREÇO U.'              : 'PRIX U.',
     priceUTtc:      isPt ? 'PREÇO S/IVA'           : 'PRIX U. TTC',
+    priceUHt:       isPt ? 'PREÇO S/IVA'           : 'PRIX U. HT',
     total:          isPt ? 'TOTAL'                 : 'TOTAL',
     totalTtc:       isPt ? 'TOTAL S/IVA'           : 'TOTAL TTC',
+    totalHt:        isPt ? 'TOTAL S/IVA'           : 'TOTAL HT',
     subtotal:       isPt ? 'Subtotal'              : 'Sous-total',
     subtotalHt:     isPt ? 'Subtotal s/IVA'        : 'Sous-total HT',
     tva:            isPt ? 'IVA'                   : 'TVA',
@@ -439,7 +457,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     contractWord:   isPt ? 'apólice n.º'           : 'contrat n°',
     coverageWord:   isPt ? 'cobertura'             : 'couverture',
     sectionLabels:  isPt
-      ? { main_oeuvre: 'MÃO DE OBRA', materiaux: 'MATERIAIS', deplacement: 'DESLOCAÇÃO', location: 'ALUGUER', labor: 'PRESTAÇÕES' } as Record<string, string>
+      ? { main_oeuvre: 'MÃO DE OBRA', materiaux: 'MATERIAIS', deplacement: 'DESLOCAÇÃO', location: 'ALUGUER', labor: 'PRESTAÇÕES', frais_annexes: 'DESPESAS ADICIONAIS' } as Record<string, string>
       : SECTION_LABELS,
   }
   const dateLocale = isPt ? 'pt-PT' : 'fr-FR'
@@ -553,7 +571,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
   // acompte / situation / avoir (art. 289 CGI ; BOI-TVA-DECLA-30-20-20-30 §70).
   // Helper partagé (mirror V3) → label COMPLET au download depuis la liste :
   // « Acompte N°X sur Y — Z% (sur facture …) », « AVOIR sur facture … ».
-  const subTypeLabel = buildSubTypeLabel(input.devis, isPt)
+  const subTypeLabel = buildSubTypeLabel(input.devis, isPt, renduComplet ? formatNombre : undefined)
   if (subTypeLabel) {
     y += ptToMm(12)
     pdf.setFont(FONT, 'bold'); pdf.setFontSize(8); pdf.setTextColor(COLOR.TEXT)
@@ -839,8 +857,16 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     pdf.text(T.designation, ptToMm(62), hTextY)
     pdf.text(T.qty, COL.qty, hTextY, { align: 'center' })
     pdf.text(T.unit, COL.unit, hTextY, { align: 'center' })
-    const priceHdr = isPt ? T.priceUTtc : (isFranchise293B ? T.priceU : T.priceUTtc)
-    const totalHdr = isPt ? T.totalTtc  : (isFranchise293B ? T.total  : T.totalTtc)
+    // Document au rendu complet : les montants du tableau sont hors taxe, l'en-tête le dit.
+    let priceHdr = T.priceUTtc
+    let totalHdr = T.totalTtc
+    if (!isPt && isFranchise293B) {
+      priceHdr = T.priceU
+      totalHdr = T.total
+    } else if (!isPt && renduComplet) {
+      priceHdr = T.priceUHt
+      totalHdr = T.totalHt
+    }
     pdf.text(priceHdr, COL.price, hTextY, { align: 'right' })
     if (avecColonneRemise) pdf.text(T.remise, COL.remise, hTextY, { align: 'right' })
     pdf.text(totalHdr, COL.total, hTextY, { align: 'right' })
@@ -913,7 +939,7 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
     // Données numériques — alignées avec le TITRE (y + 5), pas centrées verticalement
     const numY = y + 5
     pdf.setFont(FONT, 'normal'); pdf.setFontSize(10); pdf.setTextColor(COLOR.TEXT)
-    pdf.text(String(line.quantite), COL.qty, numY, { align: 'center' })
+    pdf.text(renduComplet ? formatNombre(line.quantite) : String(line.quantite), COL.qty, numY, { align: 'center' })
     pdf.text(formatUnitForPdf(line.unite, input.locale || 'fr'), COL.unit, numY, { align: 'center' })
     pdf.text(formatPrice(line.prix_unitaire), COL.price, numY, { align: 'right' })
     if (avecColonneRemise && line.remise) {
@@ -1047,7 +1073,10 @@ export async function generateDevisPdfV2(input: DevisGeneratorInput) {
       pdf.setFillColor(COLOR.WHITE)
       pdf.rect(ML + contentW / 2, y, contentW / 2, tvaRowH, 'F')
       pdf.setFontSize(8); pdf.setFont(FONT, 'normal'); pdf.setTextColor(COLOR.TEXT_LIGHT)
-      pdf.text(`${T.tva} ${rate}% ${T.tvaOn} ${formatPrice(base)}`, 148.15, y + 4)
+      // Document au rendu complet : libellé à 118 mm, comme ceux de la remise (à 148 mm, « TVA 20% sur
+      // 1 000,00 € » mordait sur le montant), taux à virgule.
+      if (renduComplet) pdf.text(`${T.tva} ${formatNombre(rate)} % ${T.tvaOn} ${formatPrice(base)}`, 118, y + 4)
+      else pdf.text(`${T.tva} ${rate}% ${T.tvaOn} ${formatPrice(base)}`, 148.15, y + 4)
       pdf.setFont(FONT, 'bold'); pdf.setTextColor(COLOR.TEXT)
       pdf.text(formatPrice(amount), 188.71, y + 4, { align: 'right' })
       y += tvaRowH
