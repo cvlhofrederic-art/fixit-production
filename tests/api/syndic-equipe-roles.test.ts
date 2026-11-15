@@ -4,7 +4,8 @@
 // Rôles et unicité de l'équipe syndic côté routes : POST et PATCH /api/syndic/team et POST /api/admin/init-team-table
 // acceptent exactement les rôles de la liste unique (lib/syndic/equipe-contraintes.ts), la même que la contrainte de la
 // base (migration 20261115) ; une seconde invitation simultanée de la même adresse (23505 sur l'unicité
-// (cabinet_id, email)) répond 409 avec le message de la vérification préalable ; init-team-table vise cette unicité.
+// (cabinet_id, email)) répond 409 avec le message de la vérification préalable ; init-team-table n'ajoute qu'une adresse
+// nouvelle du cabinet (ON CONFLICT DO NOTHING sur cette unicité) et ne réécrit jamais une ligne existante.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -13,12 +14,15 @@ import { ROLES_EQUIPE_SYNDIC, UNICITE_EMAIL_PAR_CABINET } from '@/lib/syndic/equ
 
 const CABINET_ID = '0b9a8c7d-6e5f-4a3b-9c2d-1e0f9a8b7c6d'
 const MEMBRE_ID = '6f1c2b8e-3a4d-4e5f-8a9b-0c1d2e3f4a5b'
+const COMPTE_MEMBRE_ID = '7a2d3c9f-4b5e-4f60-9b1c-2d3e4f5a6b7c'
 
 const h = vi.hoisted(() => ({
   base: null as unknown as BaseMemoire,
   role: 'syndic',
   superAdmin: true,
   upserts: [] as Array<{ table: string; donnees: unknown; options: unknown }>,
+  /** ON CONFLICT DO NOTHING a écarté la ligne (adresse déjà dans le cabinet) : PostgREST ne renvoie aucune ligne. */
+  upsertDoublon: false,
   emails: 0,
   journal: [] as unknown[][],
 }))
@@ -54,15 +58,30 @@ vi.mock('@/lib/auth-helpers', () => ({
 vi.mock('@/lib/supabase-server', () => ({
   supabaseAdmin: {
     from: (table: string) => {
-      const q = clientMemoire(h.base).from(table) as unknown as Record<string, (...a: unknown[]) => unknown>
-      // Upsert de PostgREST : journalisé avec ses options, puis traité comme une insertion par le faux client.
+      const q = clientMemoire(h.base).from(table) as unknown as Record<string, unknown>
+      // Upsert de PostgREST : journalisé avec ses options ; rend la ligne envoyée, ou aucune si ON CONFLICT DO NOTHING
+      // l'a écartée.
       q.upsert = vi.fn((donnees: unknown, options: unknown) => {
         h.upserts.push({ table, donnees, options })
-        return q.insert(donnees)
+        const resultat = { data: h.upsertDoublon ? [] : [donnees], error: null }
+        const suite: Record<string, unknown> = {}
+        suite.select = vi.fn(() => suite)
+        suite.then = (ok: (v: unknown) => unknown, ko?: (e: unknown) => unknown) => Promise.resolve(resultat).then(ok, ko)
+        return suite
       })
       return q
     },
-    auth: { admin: { getUserById: vi.fn(async () => ({ data: { user: { app_metadata: {} } } })), updateUserById: vi.fn(async () => ({})) } },
+    // Compte du membre tel que l'acceptation d'une invitation l'a posé (rôle syndic_*, cabinet du titulaire) : PATCH le
+    // vérifie avant d'écrire depuis la branche R36 (fix/syndic-equipe-patch-compte-vise), et l'ignorait avant.
+    auth: {
+      admin: {
+        getUserById: vi.fn(async () => ({
+          data: { user: { id: COMPTE_MEMBRE_ID, app_metadata: { role: 'syndic_tech', cabinet_id: CABINET_ID } } },
+          error: null,
+        })),
+        updateUserById: vi.fn(async () => ({ data: {}, error: null })),
+      },
+    },
   },
 }))
 
@@ -98,6 +117,7 @@ beforeEach(() => {
   h.role = 'syndic'
   h.superAdmin = true
   h.upserts = []
+  h.upsertDoublon = false
   h.emails = 0
   h.journal = []
 })
@@ -157,7 +177,12 @@ describe('POST /api/syndic/team : unicité (cabinet_id, email)', () => {
 
 describe('PATCH /api/syndic/team : changement de rôle', () => {
   beforeEach(() => {
-    h.base.lignes.syndic_team_members = [{ id: MEMBRE_ID, cabinet_id: CABINET_ID, user_id: null }]
+    // Membre accepté, compte rattaché au cabinet : le cas légitime, avant comme après R36 (une invitation en attente y
+    // répond 409, un compte d'un autre cabinet 403).
+    h.base.lignes.syndic_team_members = [{
+      id: MEMBRE_ID, cabinet_id: CABINET_ID, user_id: COMPTE_MEMBRE_ID, email: 'membre@exemple.fr',
+      role: 'syndic_tech', accepted_at: '2026-11-01T10:00:00.000Z', is_active: true,
+    }]
   })
 
   it.each([...ROLES_EQUIPE_SYNDIC])('« %s » : accepté et écrit', async (role) => {
@@ -175,14 +200,22 @@ describe('PATCH /api/syndic/team : changement de rôle', () => {
 })
 
 describe('POST /api/admin/init-team-table', () => {
-  it('upsert sur l’unicité (cabinet_id, email), adresse en minuscules, rôle par défaut syndic_tech', async () => {
+  it('insertion seule sur l’unicité (cabinet_id, email) (DO NOTHING), adresse en minuscules, rôle par défaut syndic_tech', async () => {
     const res = await initialiser({})
     expect(res.status).toBe(200)
     expect(h.upserts).toHaveLength(1)
-    expect(h.upserts[0].options).toEqual({ onConflict: 'cabinet_id,email' })
+    expect(h.upserts[0].options).toEqual({ onConflict: 'cabinet_id,email', ignoreDuplicates: true })
     expect(h.upserts[0].donnees).toMatchObject({
       cabinet_id: CABINET_ID, email: 'paul.durand@exemple.fr', role: 'syndic_tech', is_active: true,
     })
+  })
+
+  it('adresse déjà dans l’équipe : 409, la ligne existante n’est pas réécrite (aucune ligne rendue par DO NOTHING)', async () => {
+    h.upsertDoublon = true
+    const res = await initialiser({ role: 'syndic_comptable' })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('Cet email est déjà membre de cette équipe')
+    expect(h.journal).toHaveLength(0)
   })
 
   it.each([...ROLES_EQUIPE_SYNDIC])('rôle « %s » : accepté', async (role) => {

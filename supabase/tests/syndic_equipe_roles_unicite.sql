@@ -21,8 +21,12 @@
 --     (adresses qui ne diffèrent que par la casse ; adresses présentes dans plusieurs cabinets, que
 --     la migration laisse possibles).
 -- Avant la migration, attendu en production (constat du 14/11/2026) : un contrôle du rôle à 5
---   valeurs, roles_refuses = ["syndic_juriste", "syndic_technicien"], unicite_email_par_cabinet =
---   false, lignes = 1, lignes_role_hors_liste = 0, doublons_email_par_cabinet = 0.
+--   valeurs, roles_refuses = ["syndic_juriste", "syndic_technicien"], unicites =
+--   syndic_team_members_invite_token_key et syndic_team_members_pkey seulement (le constat ne lisait
+--   que pg_constraint : un index unique sans contrainte apparaîtrait ici ; si l'un porte sur email,
+--   le signaler avant la migration, il changerait ce qui est dit des adresses dans plusieurs
+--   cabinets), unicite_email_par_cabinet = false, lignes = 1, lignes_role_hors_liste = 0,
+--   doublons_email_par_cabinet = 0.
 -- Après la migration, attendu : un seul contrôle du rôle (syndic_team_members_role_check, 7 valeurs,
 --   validee = true), roles_refuses = null, roles_en_trop = null, unicite_email_par_cabinet = true
 --   (syndic_team_members_cabinet_id_email_key) ; les comptages de lignes inchangés.

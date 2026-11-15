@@ -3,13 +3,15 @@
 //
 // EXÉCUTION RÉELLE de 20261115_syndic_equipe_roles_unicite.sql sur un vrai PostgreSQL (PGlite, WebAssembly, en
 // mémoire ; aucun service, aucune base distante), sur les deux états de départ possibles :
-//   - « production » : table, contrainte du rôle et unicités telles que constatées en lecture seule le 14/11/2026 ;
+//   - « production » : la table telle que constatée en lecture seule le 14/11/2026 (VT-A-01) et le 15/11/2026 (T20
+//     appliquée) ;
 //   - « dépôt » : la migration 20260527 du dépôt, telle quelle.
 // AVANT la migration, les deux défauts sont reproduits : « Technicien » (et « Juriste » en production) refusés par la
-// base, upsert de /api/admin/init-team-table impossible (42P10), aucune unicité de l'adresse par cabinet en production.
-// APRÈS, jouée deux fois : les 7 rôles de l'application passent, l'adresse est unique par cabinet (le nom de contrainte
-// que lit la route), les lignes existantes, policies, droits, colonnes et déclencheurs sont intacts. Et la migration
-// s'arrête sans rien appliquer quand une ligne ou une autre contrainte s'y oppose.
+// base, upsert de /api/admin/init-team-table impossible (42P10). APRÈS, jouée deux fois : les 7 rôles de l'application
+// passent, l'adresse est unique par cabinet (sous le nom de contrainte que lit la route), l'upsert d'init-team-table
+// n'ajoute qu'une adresse nouvelle sans réécrire une ligne existante, et les lignes, policies, droits, colonnes et
+// déclencheurs sont intacts. La migration s'arrête sans rien appliquer quand une ligne ou une autre contrainte s'y
+// oppose ; le retour arrière de docs/rollback-procedures.md est joué lui aussi.
 // Comptes fictifs (UUID aléatoires) ; aucune donnée réelle.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -23,9 +25,18 @@ import { ROLES_EQUIPE_SYNDIC, UNICITE_EMAIL_PAR_CABINET } from '@/lib/syndic/equ
 const MIGRATION = '20261115_syndic_equipe_roles_unicite.sql'
 const migration = () => lireMigrationQr(MIGRATION)
 
+const lireTexte = (chemin: string) => readFileSync(join(process.cwd(), chemin), 'utf-8').replace(/\r\n/g, '\n')
 /** La requête de contrôle que Frédéric lance dans l'éditeur SQL, avant puis après la migration. */
-const scenario = () =>
-  readFileSync(join(process.cwd(), 'supabase/tests/syndic_equipe_roles_unicite.sql'), 'utf-8').replace(/\r\n/g, '\n')
+const scenario = () => lireTexte('supabase/tests/syndic_equipe_roles_unicite.sql')
+
+/** Le bloc de retour arrière de docs/rollback-procedures.md, tel qu'on le collerait dans l'éditeur SQL. */
+function retourArriere(): string {
+  const doc = lireTexte('docs/rollback-procedures.md')
+  const section = doc.split('## Migration 20261115 — Équipe syndic : rôles et unicité')[1] ?? ''
+  const bloc = /```sql\n(-- Rollback \(production\)\n[\s\S]*?)\n```/.exec(section)
+  if (!bloc) throw new Error('Retour arrière de la migration 20261115 (équipe syndic) introuvable dans docs/rollback-procedures.md')
+  return bloc[1]
+}
 
 interface EtatScenario {
   controles_du_role: Array<{ nom: string; nb_valeurs: number; validee: boolean }> | null
@@ -40,8 +51,11 @@ interface EtatScenario {
   emails_dans_plusieurs_cabinets: number
 }
 
-/** Ordre des chaînes avec un comparateur explicite (ordre des codes, celui de PostgreSQL en collation C). */
-const parTexte = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+/** Ordre des codes (celui de PostgreSQL en collation C), avec un comparateur explicite. */
+function parTexte(a: string, b: string): number {
+  if (a === b) return 0
+  return a < b ? -1 : 1
+}
 const trie = (valeurs: readonly string[]) => [...valeurs].sort(parTexte)
 /** Unicités dans l'ordre de leur nom, celui du scénario (json_agg … order by nom). */
 const parNom = <T extends { nom: string }>(liste: readonly T[]) => [...liste].sort((a, b) => parTexte(a.nom, b.nom))
@@ -55,17 +69,21 @@ GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
 `
 
-// Production, constat en lecture seule du 14/11/2026 (VT-A-01) : 14 colonnes, contrainte du rôle à 5 valeurs, UNIQUE
-// (invite_token) et aucune autre unicité, pas de clé étrangère, RLS active, quatre policies permissives.
+// Production au 15/11/2026.
+// Constaté (lecture seule) : les 14 colonnes dans leur ordre ; dans pg_constraint, la clé primaire, UNIQUE
+// (invite_token) et le contrôle du rôle à 5 valeurs, sans clé étrangère (VT-A-01, 14/11) ; RLS active, une seule policy
+// (syndic_team_select), SELECT seul pour anon et authenticated, déclencheur trg_team_updated_at (constat T20, 15/11).
+// HYPOTHÈSE, non relevée par les constats : NOT NULL et valeurs par défaut du script d'origine supabase-team.sql (email
+// NOT NULL, full_name NOT NULL DEFAULT '', role NOT NULL sans valeur par défaut), types de phone et custom_modules.
 const PRODUCTION_SQL = `
 CREATE TABLE public.syndic_team_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   cabinet_id uuid NOT NULL,
   user_id uuid,
-  email text,
-  full_name text,
+  email text NOT NULL,
+  full_name text NOT NULL DEFAULT '',
   phone text,
-  role text NOT NULL DEFAULT 'syndic_gestionnaire'
+  role text NOT NULL
     CONSTRAINT syndic_team_members_role_check
     CHECK (role IN ('syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable')),
   invite_token text UNIQUE,
@@ -76,11 +94,17 @@ CREATE TABLE public.syndic_team_members (
   updated_at timestamptz NOT NULL DEFAULT now(),
   custom_modules jsonb
 );
+CREATE FUNCTION public.update_team_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_team_updated_at BEFORE UPDATE ON public.syndic_team_members
+  FOR EACH ROW EXECUTE FUNCTION public.update_team_updated_at();
 ALTER TABLE public.syndic_team_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY syndic_team_select ON public.syndic_team_members FOR SELECT USING (cabinet_id = auth.uid() OR user_id = auth.uid());
-CREATE POLICY syndic_team_insert ON public.syndic_team_members FOR INSERT WITH CHECK (cabinet_id = auth.uid());
-CREATE POLICY syndic_team_update ON public.syndic_team_members FOR UPDATE USING (cabinet_id = auth.uid());
-CREATE POLICY syndic_team_delete ON public.syndic_team_members FOR DELETE USING (cabinet_id = auth.uid());
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.syndic_team_members FROM anon, authenticated;
 `
 
 const UNICITE_ID = { nom: 'syndic_team_members_pkey', colonnes: ['id'], partiel: false, contrainte: true }
@@ -90,32 +114,39 @@ const UNICITE_PAR_CABINET = { nom: UNICITE_EMAIL_PAR_CABINET, colonnes: ['cabine
 
 const ETATS = [
   {
-    nom: 'production (constat du 14/11/2026)',
+    nom: 'production (constats du 14 et du 15/11/2026)',
     sql: () => PRODUCTION_SQL,
     rolesAvant: ['syndic_admin', 'syndic_comptable', 'syndic_gestionnaire', 'syndic_secretaire', 'syndic_tech'],
     unicitesAvant: [UNICITE_ID, UNICITE_JETON],
+    emailNullable: false,
     // Pas d'unicité de l'adresse sur tous les cabinets en production : la migration n'en pose pas.
     autreCabinetMemeAdresseApres: null as string | null,
+    // Le retour arrière documenté est celui de la production (5 rôles).
+    retourArriereDocumente: true,
   },
   {
     nom: 'dépôt (20260527)',
     sql: () => lireMigrationQr('20260527_syndic_team_members.sql'),
     rolesAvant: ['syndic_admin', 'syndic_comptable', 'syndic_gestionnaire', 'syndic_juriste', 'syndic_secretaire', 'syndic_tech'],
     unicitesAvant: [UNICITE_EMAIL_DEPOT, UNICITE_JETON, UNICITE_ID],
+    emailNullable: true,
     // L'index partiel du dépôt (adresse unique sur tous les cabinets) reste en place : la migration n'y touche pas.
     autreCabinetMemeAdresseApres: '23505',
+    retourArriereDocumente: false,
   },
 ]
 
 type Role = 'anon' | 'authenticated' | 'service_role'
 interface Appel { lignes: Record<string, unknown>[]; nb: number; erreur: ErreurPg | null }
 
-describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvant, autreCabinetMemeAdresseApres }) => {
+describe.each(ETATS)('état de départ : $nom', (etatDepart) => {
+  const { sql, rolesAvant, unicitesAvant, emailNullable, autreCabinetMemeAdresseApres, retourArriereDocumente } = etatDepart
   let db: PGlite
   const CABINET = randomUUID() // compte du cabinet (cabinet_id)
   const AUTRE_CABINET = randomUUID()
   const MEMBRE = randomUUID() // compte d'un membre accepté
   const rolesRefusesAvant = ROLES_EQUIPE_SYNDIC.filter((r) => !rolesAvant.includes(r))
+  let lignesDepart = 0
   let donneesAvant = ''
   let catalogueAvant: Catalogue
 
@@ -128,16 +159,19 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       await db.query('INSERT INTO auth.users (id, email) VALUES ($1, $2)', [id, `${id}@exemple.test`])
     }
     // Lignes d'exemple, posées en propriétaire (comme les routes, hors RLS) : un membre accepté (le rôle de la seule
-    // ligne de la production), une invitation en attente, un membre sans adresse.
+    // ligne de la production), une invitation en attente et, là où la colonne l'admet, un membre sans adresse.
     await db.query(
       `INSERT INTO public.syndic_team_members (cabinet_id, user_id, email, full_name, role, accepted_at, is_active)
        VALUES ($1, $2, 'membre@exemple.test', 'Membre Exemple', 'syndic_tech', now(), true)`, [CABINET, MEMBRE])
     await db.query(
       `INSERT INTO public.syndic_team_members (cabinet_id, email, full_name, role, invite_token, invite_sent_at, is_active)
        VALUES ($1, 'invite@exemple.test', 'Invité Exemple', 'syndic_comptable', 'jeton-exemple', now(), true)`, [CABINET])
-    await db.query(
-      `INSERT INTO public.syndic_team_members (cabinet_id, email, full_name, role, is_active)
-       VALUES ($1, NULL, 'Sans Adresse', 'syndic_gestionnaire', true)`, [CABINET])
+    if (emailNullable) {
+      await db.query(
+        `INSERT INTO public.syndic_team_members (cabinet_id, email, full_name, role, is_active)
+         VALUES ($1, NULL, 'Sans Adresse', 'syndic_gestionnaire', true)`, [CABINET])
+    }
+    lignesDepart = await nombreLignes()
     donneesAvant = await donnees()
     catalogueAvant = await catalogue()
   }, 120_000)
@@ -161,42 +195,52 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
     }
   }
 
-  /** La migration jouée comme dans l'éditeur SQL, dans un point de sauvegarde : rend son erreur, ou null. */
-  async function jouerMigration(role: 'postgres' | Role = 'postgres'): Promise<ErreurPg | null> {
-    await db.exec('SAVEPOINT migration')
+  /** Un script SQL joué comme dans l'éditeur, dans un point de sauvegarde : rend son erreur, ou null. */
+  async function jouer(texte: string, role: 'postgres' | Role = 'postgres'): Promise<ErreurPg | null> {
+    await db.exec('SAVEPOINT script')
     try {
       if (role !== 'postgres') await db.exec(`SET LOCAL ROLE ${role}`)
-      await db.exec(migration())
+      await db.exec(texte)
       await db.exec('RESET ROLE')
-      await db.exec('RELEASE SAVEPOINT migration')
+      await db.exec('RELEASE SAVEPOINT script')
       return null
     } catch (e) {
-      await db.exec('ROLLBACK TO SAVEPOINT migration')
-      await db.exec('RELEASE SAVEPOINT migration')
+      await db.exec('ROLLBACK TO SAVEPOINT script')
+      await db.exec('RELEASE SAVEPOINT script')
       return erreurPg(e)
     }
   }
+  const jouerMigration = (role: 'postgres' | Role = 'postgres') => jouer(migration(), role)
 
-  // Écritures des routes serveur (service_role) : invitation (POST /api/syndic/team) et upsert d'init-team-table, tel
-  // que PostgREST le traduit (ON CONFLICT sur la cible, mise à jour des colonnes envoyées).
+  // Écritures des routes serveur (service_role) : invitation (POST /api/syndic/team) et upsert d'init-team-table tel
+  // que PostgREST le traduit. Route avant correctif : ON CONFLICT (email) DO UPDATE des colonnes envoyées ; après :
+  // ignoreDuplicates, soit ON CONFLICT (cabinet_id, email) DO NOTHING.
   const inviter = (cabinet: string, email: string | null, role: string) => sous('service_role',
     `INSERT INTO public.syndic_team_members (cabinet_id, email, full_name, role, invite_token, invite_sent_at)
      VALUES ($1, $2, 'Nouvel Exemple', $3, $4, now()) RETURNING id`, [cabinet, email, role, randomUUID()])
-  const upsert = (cible: string, email: string, role: string) => sous('service_role',
-    `INSERT INTO public.syndic_team_members (cabinet_id, user_id, email, full_name, role, accepted_at, is_active)
-     VALUES ($1, NULL, $2, 'Ajout Admin', $3, now(), true)
-     ON CONFLICT (${cible}) DO UPDATE SET cabinet_id = EXCLUDED.cabinet_id, user_id = EXCLUDED.user_id,
+  const COLONNES_UPSERT = `INSERT INTO public.syndic_team_members (cabinet_id, user_id, email, full_name, role, accepted_at, is_active)
+     VALUES ($1, NULL, $2, 'Ajout Admin', $3, now(), true)`
+  const upsertAncien = (email: string, role: string) => sous('service_role',
+    `${COLONNES_UPSERT}
+     ON CONFLICT (email) DO UPDATE SET cabinet_id = EXCLUDED.cabinet_id, user_id = EXCLUDED.user_id,
        email = EXCLUDED.email, full_name = EXCLUDED.full_name, role = EXCLUDED.role,
        accepted_at = EXCLUDED.accepted_at, is_active = EXCLUDED.is_active
-     RETURNING id, role, accepted_at`, [CABINET, email, role])
+     RETURNING id`, [CABINET, email, role])
+  const upsertNouveau = (email: string, role: string) => sous('service_role',
+    `${COLONNES_UPSERT} ON CONFLICT (cabinet_id, email) DO NOTHING RETURNING id, role`, [CABINET, email, role])
 
   /** Toutes les lignes, colonne par colonne, dans un ordre stable. */
   async function donnees(): Promise<string> {
     const r = await db.query('SELECT * FROM public.syndic_team_members ORDER BY id')
     return JSON.stringify(r.rows)
   }
-  const nombreLignes = async () =>
-    Number((await db.query<{ n: number }>('SELECT count(*)::int AS n FROM public.syndic_team_members')).rows[0].n)
+  async function nombreLignes(): Promise<number> {
+    return Number((await db.query<{ n: number }>('SELECT count(*)::int AS n FROM public.syndic_team_members')).rows[0].n)
+  }
+  const ligneParAdresse = async (email: string) =>
+    (await db.query<Record<string, unknown>>(
+      'SELECT user_id, full_name, role, is_active, accepted_at, invite_token FROM public.syndic_team_members WHERE email = $1',
+      [email])).rows
 
   interface Catalogue { contraintes: string; index: string; policies: string; droits: string; colonnes: string; declencheurs: string }
   /** Ce que la migration pourrait toucher, par famille (définitions, sans les OID). */
@@ -250,11 +294,10 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       }
     })
 
-    it('l’upsert d’init-team-table échoue toujours : ni l’ancienne cible (email) ni la nouvelle n’ont d’unicité (42P10)', async () => {
-      for (const cible of ['email', 'cabinet_id, email']) {
-        const r = await upsert(cible, 'invite@exemple.test', 'syndic_tech')
-        expect(r.erreur?.code, cible).toBe('42P10')
-      }
+    it('l’upsert d’init-team-table échoue toujours (42P10), avec l’ancienne cible (email) comme avec la nouvelle', async () => {
+      expect((await upsertAncien('invite@exemple.test', 'syndic_tech')).erreur?.code).toBe('42P10')
+      expect((await upsertNouveau('nouveau@exemple.test', 'syndic_tech')).erreur?.code).toBe('42P10')
+      expect(await nombreLignes()).toBe(lignesDepart)
     })
 
     it('le scénario de contrôle rend l’état attendu', async () => {
@@ -264,7 +307,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       expect(etat.roles_en_trop).toBeNull()
       expect(etat.unicites).toEqual(parNom(unicitesAvant))
       expect(etat.unicite_email_par_cabinet).toBe(false)
-      expect(Number(etat.lignes)).toBe(3)
+      expect(Number(etat.lignes)).toBe(lignesDepart)
       expect(Number(etat.lignes_role_hors_liste)).toBe(0)
       expect(Number(etat.doublons_email_par_cabinet)).toBe(0)
       expect(Number(etat.doublons_email_casse_ignoree_par_cabinet)).toBe(0)
@@ -369,15 +412,8 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       'rôle « %s » toujours refusé (23514)', async (role) => {
         const r = await inviter(CABINET, 'refuse@exemple.test', role)
         expect(r.erreur?.code).toBe('23514')
-        expect(await nombreLignes()).toBe(3)
+        expect(await nombreLignes()).toBe(lignesDepart)
       })
-
-    it('sans rôle donné, la valeur par défaut reste syndic_gestionnaire', async () => {
-      const r = await sous('service_role',
-        `INSERT INTO public.syndic_team_members (cabinet_id, email) VALUES ($1, 'defaut@exemple.test') RETURNING role`, [CABINET])
-      expect(r.erreur).toBeNull()
-      expect(r.lignes[0].role).toBe('syndic_gestionnaire')
-    })
 
     it('la même adresse deux fois dans un cabinet : refusée (23505), sous le nom de contrainte que lit la route', async () => {
       const r = await inviter(CABINET, 'invite@exemple.test', 'syndic_tech')
@@ -388,7 +424,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       const seule = await inviter(CABINET, 'invite@exemple.test', 'syndic_tech')
       expect(seule.erreur?.code).toBe('23505')
       expect(seule.erreur?.message).toContain(UNICITE_EMAIL_PAR_CABINET)
-      expect(await nombreLignes()).toBe(3)
+      expect(await nombreLignes()).toBe(lignesDepart)
     })
 
     it('la même adresse dans un autre cabinet : inchangé (acceptée en production, refusée par l’index du dépôt)', async () => {
@@ -396,25 +432,35 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       expect(r.erreur?.code ?? null).toBe(autreCabinetMemeAdresseApres)
     })
 
-    it('plusieurs membres sans adresse dans un même cabinet : acceptés', async () => {
+    it.runIf(emailNullable)('plusieurs membres sans adresse dans un même cabinet : acceptés', async () => {
       expect((await inviter(CABINET, null, 'syndic_juriste')).erreur).toBeNull()
       expect((await inviter(CABINET, null, 'syndic_technicien')).erreur).toBeNull()
-      expect(await nombreLignes()).toBe(5)
+      expect(await nombreLignes()).toBe(lignesDepart + 2)
     })
 
-    it('upsert d’init-team-table sur (cabinet_id, email) : met à jour la ligne existante, sans en créer', async () => {
-      const r = await upsert('cabinet_id, email', 'invite@exemple.test', 'syndic_technicien')
-      expect(r.erreur).toBeNull()
-      expect(r.lignes).toHaveLength(1)
-      expect(r.lignes[0].role).toBe('syndic_technicien')
-      expect(r.lignes[0].accepted_at).not.toBeNull()
-      expect(await nombreLignes()).toBe(3)
+    it('upsert d’init-team-table : une ligne existante n’est jamais réécrite (DO NOTHING), aucune ligne rendue', async () => {
+      // Membre accepté puis désactivé par son cabinet : ni son compte, ni son nom, ni son rôle, ni son statut ne bougent.
+      await db.exec(`UPDATE public.syndic_team_members SET is_active = false WHERE email = 'membre@exemple.test'`)
+      const avant = await ligneParAdresse('membre@exemple.test')
+      const membre = await upsertNouveau('membre@exemple.test', 'syndic_technicien')
+      expect(membre.erreur).toBeNull()
+      expect(membre.lignes).toEqual([])
+      expect(await ligneParAdresse('membre@exemple.test')).toEqual(avant)
+      expect(avant[0]).toMatchObject({ user_id: MEMBRE, full_name: 'Membre Exemple', role: 'syndic_tech', is_active: false })
+      // Invitation en attente : ni acceptée, ni changée de rôle, jeton intact.
+      const invitation = await upsertNouveau('invite@exemple.test', 'syndic_admin')
+      expect(invitation.lignes).toEqual([])
+      expect(await ligneParAdresse('invite@exemple.test')).toEqual([
+        expect.objectContaining({ role: 'syndic_comptable', accepted_at: null, invite_token: 'jeton-exemple' }),
+      ])
+      expect(await nombreLignes()).toBe(lignesDepart)
     })
 
-    it('upsert d’init-team-table sur (cabinet_id, email) : crée la ligne d’une adresse nouvelle', async () => {
-      const r = await upsert('cabinet_id, email', 'ajout@exemple.test', 'syndic_juriste')
+    it('upsert d’init-team-table : une adresse nouvelle du cabinet est ajoutée', async () => {
+      const r = await upsertNouveau('ajout@exemple.test', 'syndic_juriste')
       expect(r.erreur).toBeNull()
-      expect(await nombreLignes()).toBe(4)
+      expect(r.lignes).toEqual([expect.objectContaining({ role: 'syndic_juriste' })])
+      expect(await nombreLignes()).toBe(lignesDepart + 1)
     })
 
     it('le scénario de contrôle rend l’état attendu après la migration', async () => {
@@ -424,7 +470,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       expect(etat.roles_en_trop).toBeNull()
       expect(etat.unicites).toEqual(parNom([...unicitesAvant, UNICITE_PAR_CABINET]))
       expect(etat.unicite_email_par_cabinet).toBe(true)
-      expect(Number(etat.lignes)).toBe(3)
+      expect(Number(etat.lignes)).toBe(lignesDepart)
       expect(Number(etat.lignes_role_hors_liste)).toBe(0)
       expect(Number(etat.doublons_email_par_cabinet)).toBe(0)
     })
@@ -434,6 +480,25 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, rolesAvant, unicitesAvan
       const etat = await etatScenario()
       expect(Number(etat.doublons_email_par_cabinet)).toBe(0)
       expect(Number(etat.doublons_email_casse_ignoree_par_cabinet)).toBe(1)
+    })
+
+    it.runIf(retourArriereDocumente)('retour arrière documenté (joué deux fois) : contraintes et index d’avant la migration, lignes intactes', async () => {
+      expect(await jouer(retourArriere())).toBeNull()
+      expect(await jouer(retourArriere())).toBeNull()
+      const apres = await catalogue()
+      expect(apres.contraintes).toBe(catalogueAvant.contraintes)
+      expect(apres.index).toBe(catalogueAvant.index)
+      expect(apres.policies).toBe(catalogueAvant.policies)
+      expect(await donnees()).toBe(donneesAvant)
+      expect((await etatScenario()).roles_refuses).toEqual(['syndic_juriste', 'syndic_technicien'])
+    })
+
+    it.runIf(retourArriereDocumente)('retour arrière refusé si une ligne porte un rôle nouveau : rien n’est appliqué', async () => {
+      expect((await inviter(CABINET, 'technicien@exemple.test', 'syndic_technicien')).erreur).toBeNull()
+      const avant = await catalogue()
+      const erreur = await jouer(retourArriere())
+      expect(erreur?.message).toMatch(/^Retour arrière impossible : 1 ligne\(s\) portent un rôle que l'ancienne contrainte refuse\. Rien n'est appliqué\.$/)
+      expect(await catalogue()).toEqual(avant)
     })
   })
 })

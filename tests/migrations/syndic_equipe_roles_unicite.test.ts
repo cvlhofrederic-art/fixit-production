@@ -27,7 +27,11 @@ const sqlMigration = lire(`supabase/migrations/${MIGRATION}`)
 /** Le SQL sans ses commentaires de ligne (le retour arrière documenté en tête n'est pas exécuté). */
 const sqlExecute = sqlMigration.replace(/--[^\n]*/g, '')
 
-const parTexte = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+/** Ordre des codes, avec un comparateur explicite. */
+function parTexte(a: string, b: string): number {
+  if (a === b) return 0
+  return a < b ? -1 : 1
+}
 const trie = (valeurs: readonly string[]) => [...valeurs].sort(parTexte)
 const litteraux = (liste: string) => [...liste.matchAll(/'([^']*)'/g)].map((m) => m[1])
 
@@ -110,6 +114,32 @@ describe(`migration ${MIGRATION}`, () => {
     expect(sqlExecute).not.toMatch(/\bUPDATE\s+\S+\s+SET\b/i)
     expect([...sqlExecute.matchAll(/\bDROP\s+(\w+)(?:\s+IF\s+EXISTS)?\s+(\w+)/gi)].map((m) => `${m[1]} ${m[2]}`))
       .toEqual(['CONSTRAINT syndic_team_members_role_check'])
+  })
+
+  it('aucun SQL laissé en commentaire (collé dans l’éditeur, il ne ferait rien) : le retour arrière est dans la documentation', () => {
+    expect(sqlMigration).not.toMatch(/^--\s+(ALTER|DROP|CREATE)\b/im)
+    expect(sqlMigration).toContain('docs/rollback-procedures.md')
+  })
+})
+
+describe('retour arrière de docs/rollback-procedures.md', () => {
+  const doc = lire('docs/rollback-procedures.md')
+  const section = doc.split('## Migration 20261115 — Équipe syndic : rôles et unicité de l\'adresse par cabinet')[1] ?? ''
+  const bloc = /```sql\n-- Rollback \(production\)\n([\s\S]*?)\n```/.exec(section)?.[1] ?? ''
+
+  it('un seul bloc DO exécutable, donc tout ou rien dans l’éditeur comme sous psql', () => {
+    expect(bloc.trim()).toMatch(/^DO \$\$[\s\S]*\n\$\$;$/)
+    expect(bloc.match(/\$\$/g)).toHaveLength(2)
+  })
+
+  it('revient aux 5 rôles de la production du 14/11/2026, après avoir vérifié qu’aucune ligne ne porte les 2 nouveaux', () => {
+    const rolesProduction = trie(ROLES_EQUIPE_SYNDIC.filter((r) => r !== 'syndic_technicien' && r !== 'syndic_juriste'))
+    const controle = /WHERE role NOT IN \(([^)]*)\)/.exec(bloc)
+    const pose = /ADD CONSTRAINT syndic_team_members_role_check\s+CHECK \(role IN \(([^)]*)\)\)/.exec(bloc)
+    expect(trie(litteraux(controle?.[1] ?? ''))).toEqual(rolesProduction)
+    expect(trie(litteraux(pose?.[1] ?? ''))).toEqual(rolesProduction)
+    expect(bloc.indexOf('WHERE role NOT IN')).toBeLessThan(bloc.indexOf('ALTER TABLE'))
+    expect(bloc).toContain(`DROP CONSTRAINT IF EXISTS ${UNICITE_EMAIL_PAR_CABINET}`)
   })
 })
 

@@ -11,18 +11,20 @@
 -- → La contrainte est reposée sous le même nom avec exactement les 7 rôles de l'application ; tout
 --   rôle accepté jusqu'ici le reste (les 5 de la production, les 6 du dépôt).
 --
--- Défaut 2, l'unicité de l'e-mail. Aucune en production, alors que POST /api/admin/init-team-table
--- écrivait par un upsert sur l'e-mail : ON CONFLICT exige une unicité qui corresponde à sa cible,
--- sinon l'upsert échoue toujours (42P10). L'index unique partiel du dépôt
--- (syndic_team_members_email_unique_idx, WHERE email IS NOT NULL) ne lui convenait pas non plus :
--- un index partiel n'est retenu par ON CONFLICT que si la requête répète son prédicat, ce que
--- PostgREST ne fait pas.
+-- Défaut 2, l'unicité de l'e-mail. Aucune contrainte d'unicité sur l'e-mail en production (constat
+-- du 14/11/2026, pg_constraint ; le contrôle ci-dessous liste aussi les index uniques), alors que
+-- POST /api/admin/init-team-table écrivait par un upsert sur l'e-mail : ON CONFLICT exige une
+-- unicité qui corresponde à sa cible, sinon l'upsert échoue toujours (42P10). L'index unique
+-- partiel du dépôt (syndic_team_members_email_unique_idx, WHERE email IS NOT NULL) ne lui
+-- convenait pas non plus : un index partiel n'est retenu par ON CONFLICT que si la requête répète
+-- son prédicat, ce que PostgREST ne fait pas.
 -- → Unicité (cabinet_id, email), contrainte syndic_team_members_cabinet_id_email_key : la règle que
 --   POST /api/syndic/team vérifie déjà avant d'inviter (« Cet email est déjà membre de votre
 --   équipe »), et celle de pro_team_members en production. init-team-table vise désormais ce
---   couple. Plusieurs lignes sans e-mail restent possibles (NULL distincts). Une même adresse reste
---   possible dans deux cabinets, comme aujourd'hui en production : l'interdire refuserait des
---   invitations que l'application accepte ; décision laissée à Frédéric.
+--   couple, sans jamais réécrire une ligne existante (ON CONFLICT DO NOTHING). Plusieurs lignes
+--   sans e-mail restent possibles (NULL distincts). Une même adresse reste possible dans deux
+--   cabinets, comme aujourd'hui en production : l'interdire refuserait des invitations que
+--   l'application accepte ; décision laissée à Frédéric.
 --
 -- Rien d'autre : aucune ligne insérée, modifiée ou supprimée ; aucune colonne, valeur par défaut,
 -- policy, droit ni déclencheur touché. Si une ligne porte un rôle hors des 7, ou si une adresse
@@ -34,16 +36,8 @@
 -- tout ou rien. Le verrou exclusif sur la table est attendu au plus 5 s (lock_timeout) ; en cas
 -- d'expiration, rien n'est appliqué : relancer. Rejouable : une seconde passe ne change rien.
 -- Contrôle avant et après : supabase/tests/syndic_equipe_roles_unicite.sql (lecture seule).
---
--- Retour arrière, seulement si un problème était constaté (il échoue si une ligne porte déjà
--- syndic_technicien ou syndic_juriste : l'examiner d'abord avec Frédéric) ; init-team-table
--- échouera de nouveau sans l'unicité :
---   ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_cabinet_id_email_key;
---   ALTER TABLE public.syndic_team_members DROP CONSTRAINT IF EXISTS syndic_team_members_role_check;
---   ALTER TABLE public.syndic_team_members ADD CONSTRAINT syndic_team_members_role_check CHECK (role IN (
---     'syndic_admin', 'syndic_tech', 'syndic_secretaire', 'syndic_gestionnaire', 'syndic_comptable'));
--- (les 5 rôles de la production au 14/11/2026 ; sur une base construite depuis le dépôt, ajouter
--- 'syndic_juriste').
+-- Retour arrière (un seul bloc exécutable, tout ou rien) : docs/rollback-procedures.md, section
+-- « Migration 20261115 — Équipe syndic : rôles et unicité de l'adresse par cabinet ».
 -- ══════════════════════════════════════════════════════════════════════════════
 
 DO $$
