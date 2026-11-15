@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const tvaSettingsSchema = z.object({
   tva_auto_activate: z.boolean(),
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     return NextResponse.json(data)
   } catch (e) {
-    console.error('[TVA SETTINGS GET]', e)
+    logger.error('[TVA SETTINGS GET]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -71,7 +72,7 @@ export async function PATCH(req: NextRequest) {
     if (error) throw error
     return NextResponse.json({ success: true, tva_auto_activate })
   } catch (e) {
-    console.error('[TVA SETTINGS PATCH]', e)
+    logger.error('[TVA SETTINGS PATCH]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

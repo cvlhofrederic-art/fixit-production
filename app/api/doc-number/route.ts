@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server-component'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { validateBody, docNumberSchema } from '@/lib/validation'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 // POST /api/doc-number — Génère le prochain numéro séquentiel (devis/facture/avoir)
 // Utilise la fonction DB next_doc_number() pour garantir l'atomicité (art. L441-3 C. com.)
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
   })
 
   if (error) {
-    console.error('[doc-number] RPC error:', error.message)
+    logger.error('[doc-number] RPC error:', { error: error.message })
     return NextResponse.json({ error: 'Erreur de génération du numéro' }, { status: 500 })
   }
 
