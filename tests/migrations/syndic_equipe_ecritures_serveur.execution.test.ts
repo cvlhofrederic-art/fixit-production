@@ -4,7 +4,8 @@
 // EXÉCUTION RÉELLE de 20261114_syndic_equipe_ecritures_serveur.sql (T20, DT9 élargie) sur un vrai PostgreSQL (PGlite,
 // WebAssembly, en mémoire ; aucun service, aucune base distante), avec le rôle authenticated et le jeton d'une session
 // de navigateur (request.jwt.claims, comme PostgREST), sur les deux états de départ possibles :
-//   - « production » : table, contrainte du rôle et policies telles que constatées en lecture seule le 14/11/2026 ;
+//   - « production » : table, contrainte du rôle et policies telles que constatées en lecture seule le 14/11/2026, et
+//     déclencheur de date relevé le 15/11/2026 ;
 //   - « dépôt » : la migration 20260527 du dépôt, la section 12 de la 041, puis le retrait de member_update_self (#649).
 // Scénario A23 du dossier M0 (D4) : AVANT T20, les écritures du titulaire passent (la faille est reproduite) ; APRÈS T20,
 // jouée deux fois, elles sont refusées, la lecture reste, et les routes serveur (service_role) écrivent toujours.
@@ -28,18 +29,31 @@ function scenario(): { etat: string; test: string } {
   return { etat: etat[1], test: test[1] }
 }
 
+interface FonctionCitee {
+  fonction: string
+  security_definer: boolean
+  executable_par_les_clients: boolean
+  fonction_de_declencheur: boolean
+}
+
 interface EtatTable {
   policies_ecriture: number
   rls_active: boolean
   proprietaire: string
-  fonctions_citant_la_table: Array<{ fonction: string; security_definer: boolean }> | null
-  fonctions_ecrivant_la_table: Array<{ fonction: string; security_definer: boolean }> | null
+  fonctions_citant_la_table: FonctionCitee[] | null
+  fonctions_ecrivant_la_table: FonctionCitee[] | null
+  vues: Array<{ vue: string; type: string; security_invoker: boolean; regle_d_ecriture: boolean }> | null
+  regles_sur_la_table: number
   declencheurs: Array<{ nom: string; fonction: string; definition?: never }> | null
   droits: Array<{ role: string; select: boolean; insert: boolean; update: boolean; delete: boolean; truncate: boolean }>
 }
 
 /** Ordre des unités de code, avec un comparateur explicite. */
 const parTexte = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
+
+/** Fonctions d'une liste de la partie 1, en « nom security_definer executable_par_les_clients », triées. */
+const resume = (liste: FonctionCitee[] | null) =>
+  (liste ?? []).map((f) => `${f.fonction} ${f.security_definer} ${f.executable_par_les_clients}`).sort(parTexte)
 
 const PREFIXE_BILAN = 'BILAN (tout est annulé) : '
 
@@ -53,7 +67,8 @@ GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
 `
 
 // Production, constat en lecture seule du 14/11/2026 (VT-A-01) : 14 colonnes, contrainte du rôle à 5 valeurs,
-// UNIQUE (invite_token), RLS active, quatre policies permissives pour le rôle public.
+// UNIQUE (invite_token), RLS active, quatre policies permissives pour le rôle public ; déclencheur de date
+// trg_team_updated_at relevé le 15/11/2026 (sa fonction ne nomme pas la table).
 const PRODUCTION_SQL = `
 CREATE TABLE public.syndic_team_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -73,6 +88,14 @@ CREATE TABLE public.syndic_team_members (
   updated_at timestamptz NOT NULL DEFAULT now(),
   custom_modules jsonb
 );
+CREATE FUNCTION public.update_team_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_team_updated_at BEFORE UPDATE ON public.syndic_team_members
+  FOR EACH ROW EXECUTE FUNCTION public.update_team_updated_at();
 ALTER TABLE public.syndic_team_members ENABLE ROW LEVEL SECURITY;
 CREATE POLICY syndic_team_select ON public.syndic_team_members FOR SELECT USING (cabinet_id = auth.uid() OR user_id = auth.uid());
 CREATE POLICY syndic_team_insert ON public.syndic_team_members FOR INSERT WITH CHECK (cabinet_id = auth.uid());
@@ -97,7 +120,7 @@ const ETATS = [
     sql: () => PRODUCTION_SQL,
     lecture: ['syndic_team_select'],
     ecritureAvant: 3,
-    declencheurs: [] as string[],
+    declencheurs: ['trg_team_updated_at'],
     // Sans clé étrangère en production : l'insertion pour soi passe, le scénario le signale.
     scenarioAvant: /^ÉCHEC 2 : ligne créée par une session navigateur$/,
   },
@@ -233,23 +256,45 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect((await ligne(ligneMembre)).cabinet_id).toBe(TITULAIRE)
     })
 
-    it('la partie 1 repère une fonction SQL qui écrirait la table, et dit si elle est SECURITY DEFINER', async () => {
+    it('la partie 1 repère une fonction SQL qui écrirait la table, dit si elle est SECURITY DEFINER et si les clients l’exécutent', async () => {
       await db.exec(`CREATE FUNCTION public.essai_ecrit_equipe(c uuid) RETURNS void LANGUAGE sql
         AS $$ INSERT INTO public.syndic_team_members (cabinet_id) VALUES (c) $$`)
       const etat = await etatScenario()
-      expect(etat.fonctions_ecrivant_la_table).toEqual([{ fonction: 'essai_ecrit_equipe(uuid)', security_definer: false }])
-      expect(etat.fonctions_citant_la_table).toEqual([{ fonction: 'essai_ecrit_equipe(uuid)', security_definer: false }])
+      // Droit d'exécution par défaut (PUBLIC, et les droits par défaut du schéma) : exécutable par les clients.
+      const attendu = [
+        { fonction: 'essai_ecrit_equipe(uuid)', security_definer: false, executable_par_les_clients: true, fonction_de_declencheur: false },
+      ]
+      expect(etat.fonctions_ecrivant_la_table).toEqual(attendu)
+      expect(etat.fonctions_citant_la_table).toEqual(attendu)
     })
 
-    it('la partie 1 voit aussi une écriture par EXECUTE dynamique (seulement parmi les fonctions qui citent la table) et un corps SQL standard (BEGIN ATOMIC)', async () => {
+    it('la partie 1 voit aussi une écriture par EXECUTE dynamique (seulement parmi les fonctions qui citent la table), un corps SQL standard (BEGIN ATOMIC) et MERGE sur le nom entre guillemets', async () => {
       await db.exec(`CREATE FUNCTION public.essai_ecrit_dynamique(c uuid) RETURNS void LANGUAGE plpgsql
         AS $$ BEGIN EXECUTE format('INSERT INTO public.%I (cabinet_id) VALUES ($1)', 'syndic_team_members') USING c; END $$`)
-      await db.exec(`CREATE FUNCTION public.essai_ecrit_atomique(c uuid) RETURNS void LANGUAGE sql
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_atomique(c uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
         BEGIN ATOMIC INSERT INTO public.syndic_team_members (cabinet_id) VALUES (c); END`)
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_merge(c uuid) RETURNS void LANGUAGE plpgsql
+        AS $$ BEGIN MERGE INTO "public"."syndic_team_members" t USING (SELECT c AS id) s ON t.cabinet_id = s.id
+                    WHEN MATCHED THEN DELETE; END $$`)
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_authentifie(c uuid) RETURNS void LANGUAGE sql
+        AS $$ TRUNCATE TABLE public.syndic_team_members $$`)
+      // Aucun client ne l'exécute ; exécutable par anon seul, ou par authenticated seul : compte comme exécutable
+      // par les clients.
+      await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_ecrit_atomique(uuid) FROM PUBLIC, anon, authenticated')
+      await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_ecrit_merge(uuid) FROM PUBLIC, authenticated')
+      await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_ecrit_authentifie(uuid) FROM PUBLIC, anon')
       const etat = await etatScenario()
-      const noms = (liste: EtatTable['fonctions_citant_la_table']) => (liste ?? []).map((f) => f.fonction).sort(parTexte)
-      expect(noms(etat.fonctions_citant_la_table)).toEqual(['essai_ecrit_atomique(uuid)', 'essai_ecrit_dynamique(uuid)'])
-      expect(noms(etat.fonctions_ecrivant_la_table)).toEqual(['essai_ecrit_atomique(uuid)'])
+      expect(resume(etat.fonctions_citant_la_table)).toEqual([
+        'essai_ecrit_atomique(uuid) true false',
+        'essai_ecrit_authentifie(uuid) false true',
+        'essai_ecrit_dynamique(uuid) false true',
+        'essai_ecrit_merge(uuid) false true',
+      ])
+      expect(resume(etat.fonctions_ecrivant_la_table)).toEqual([
+        'essai_ecrit_atomique(uuid) true false',
+        'essai_ecrit_authentifie(uuid) false true',
+        'essai_ecrit_merge(uuid) false true',
+      ])
     })
 
     it('le scénario de contrôle le voit : partie 1 compte les policies d’écriture, partie 2 signale la faille', async () => {
@@ -258,6 +303,8 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(etat.droits.find((d) => d.role === 'authenticated')).toMatchObject({ insert: true, update: true, delete: true })
       expect(etat.fonctions_ecrivant_la_table).toBeNull()
       expect(etat.fonctions_citant_la_table).toBeNull()
+      expect(etat.vues).toBeNull()
+      expect(Number(etat.regles_sur_la_table)).toBe(0)
       expect((etat.declencheurs ?? []).map((d) => d.nom)).toEqual(declencheurs)
       // Ni définition ni arguments (un webhook Supabase y place ses en-têtes) : le nom et la fonction appelée seulement.
       for (const d of etat.declencheurs ?? []) expect(Object.keys(d).sort(parTexte)).toEqual(['fonction', 'nom'])
@@ -345,6 +392,9 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       expect(Number(etat.policies_ecriture)).toBe(0)
       expect(etat.rls_active).toBe(true)
       expect(etat.fonctions_ecrivant_la_table).toBeNull()
+      expect(etat.fonctions_citant_la_table).toBeNull()
+      expect(etat.vues).toBeNull()
+      expect(Number(etat.regles_sur_la_table)).toBe(0)
       expect((etat.declencheurs ?? []).map((d) => d.nom)).toEqual(declencheurs)
       expect(etat.droits).toEqual([
         { role: 'anon', select: true, insert: false, update: false, delete: false, truncate: false },
@@ -358,6 +408,95 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, lecture, ecritureAvant, 
       for (const p of parties.slice(0, 5)) expect(p).toMatch(/ : permission denied for table syndic_team_members$/)
       expect(parties[5]).toBe('5 ok : lecture acceptée, 0 ligne')
       expect(await nombreLignes()).toBe(2)
+    })
+
+    it('une vue posée à la main sur la table rouvrirait l’écriture : la partie 1 la montre (d’où « vues » attendu à null)', async () => {
+      await db.exec('CREATE VIEW public.essai_vue_equipe AS SELECT * FROM public.syndic_team_members')
+      const parLaVue = await sous('authenticated', TITULAIRE,
+        `INSERT INTO public.essai_vue_equipe (cabinet_id, user_id, role, is_active) VALUES ($1, $2, 'syndic_admin', true)`,
+        [TITULAIRE, AUTRE])
+      expect(parLaVue.erreur).toBeNull()
+      expect(await nombreLignes()).toBe(3)
+      expect((await etatScenario()).vues).toEqual([
+        { vue: 'essai_vue_equipe', type: 'v', security_invoker: false, regle_d_ecriture: false },
+      ])
+    })
+
+    it('security_invoker est lu à sa valeur : une vue à 1 le rend vrai (un client n’écrit toujours pas par elle, 42501), une vue à off le rend faux', async () => {
+      // PostgreSQL garde l'option telle qu'elle est écrite (security_invoker=1) : seule sa conversion en booléen la lit.
+      await db.exec('CREATE VIEW public.essai_vue_invoker WITH (security_invoker = 1) AS SELECT * FROM public.syndic_team_members')
+      await db.exec('CREATE VIEW public.essai_vue_fausse WITH (security_invoker = off) AS SELECT * FROM public.syndic_team_members')
+      const parLaVue = await sous('authenticated', TITULAIRE,
+        `INSERT INTO public.essai_vue_invoker (cabinet_id, user_id, role, is_active) VALUES ($1, $2, 'syndic_admin', true)`,
+        [TITULAIRE, AUTRE])
+      expect(parLaVue.erreur?.code).toBe('42501')
+      expect(await nombreLignes()).toBe(2)
+      expect((await etatScenario()).vues).toEqual([
+        { vue: 'essai_vue_fausse', type: 'v', security_invoker: false, regle_d_ecriture: false },
+        { vue: 'essai_vue_invoker', type: 'v', security_invoker: true, regle_d_ecriture: false },
+      ])
+    })
+
+    it('une règle d’écriture posée ailleurs (table relais, ou vue même security_invoker) rouvrirait l’écriture : la partie 1 les montre', async () => {
+      // Les actions d'une règle s'exécutent avec les droits du propriétaire de la table ou de la vue qui la porte.
+      const insertion = `INSERT INTO public.syndic_team_members (cabinet_id, user_id, role, is_active)
+        VALUES (NEW.cabinet_id, NEW.user_id, 'syndic_admin', true)`
+      await db.exec('CREATE TABLE public.essai_relais (cabinet_id uuid, user_id uuid)')
+      await db.exec(`CREATE RULE essai_relais_ecrit AS ON INSERT TO public.essai_relais DO INSTEAD ${insertion}`)
+      await db.exec(`CREATE VIEW public.essai_vue_relais WITH (security_invoker = true)
+        AS SELECT cabinet_id, user_id FROM public.essai_relais`)
+      await db.exec(`CREATE RULE essai_vue_relais_ecrit AS ON INSERT TO public.essai_vue_relais DO INSTEAD ${insertion}`)
+      const parLaTable = await sous('authenticated', TITULAIRE,
+        'INSERT INTO public.essai_relais (cabinet_id, user_id) VALUES ($1, $2)', [TITULAIRE, AUTRE])
+      expect(parLaTable.erreur).toBeNull()
+      const parLaVue = await sous('authenticated', AUTRE_CABINET,
+        'INSERT INTO public.essai_vue_relais (cabinet_id, user_id) VALUES ($1, $2)', [AUTRE_CABINET, AUTRE])
+      expect(parLaVue.erreur).toBeNull()
+      expect(await nombreLignes()).toBe(4)
+      // Une règle ON UPDATE suffit aussi : elle change le rôle d'une invitation, que l'UPDATE direct ne peut plus toucher.
+      await db.exec('CREATE TABLE public.essai_relais_maj (id uuid)')
+      await db.query('INSERT INTO public.essai_relais_maj (id) VALUES ($1)', [ligneInvitation])
+      await db.exec(`CREATE RULE essai_relais_maj_ecrit AS ON UPDATE TO public.essai_relais_maj DO ALSO
+        UPDATE public.syndic_team_members SET role = 'syndic_admin' WHERE id = OLD.id`)
+      const parLaMaj = await sous('authenticated', TITULAIRE, 'UPDATE public.essai_relais_maj SET id = id')
+      expect(parLaMaj.erreur).toBeNull()
+      expect((await ligne(ligneInvitation)).role).toBe('syndic_admin')
+      expect((await etatScenario()).vues).toEqual([
+        { vue: 'essai_relais', type: 'r', security_invoker: false, regle_d_ecriture: true },
+        { vue: 'essai_relais_maj', type: 'r', security_invoker: false, regle_d_ecriture: true },
+        { vue: 'essai_vue_relais', type: 'v', security_invoker: true, regle_d_ecriture: true },
+      ])
+    })
+
+    it('un déclencheur SECURITY DEFINER que les clients n’exécutent pas écrit quand même la table : la partie 1 le montre', async () => {
+      await db.exec('CREATE TABLE public.essai_source (cabinet_id uuid, user_id uuid)')
+      await db.exec(`CREATE FUNCTION public.essai_declencheur_ecrit() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$
+        BEGIN
+          INSERT INTO public.syndic_team_members (cabinet_id, user_id, role, is_active)
+            VALUES (NEW.cabinet_id, NEW.user_id, 'syndic_admin', true);
+          RETURN NEW;
+        END $$`)
+      await db.exec('REVOKE EXECUTE ON FUNCTION public.essai_declencheur_ecrit() FROM PUBLIC, anon, authenticated')
+      await db.exec(`CREATE TRIGGER essai_declencheur AFTER INSERT ON public.essai_source
+        FOR EACH ROW EXECUTE FUNCTION public.essai_declencheur_ecrit()`)
+      // Le droit EXECUTE d'une fonction de déclencheur n'est pas vérifié quand le déclencheur part.
+      const r = await sous('authenticated', TITULAIRE,
+        'INSERT INTO public.essai_source (cabinet_id, user_id) VALUES ($1, $2)', [TITULAIRE, AUTRE])
+      expect(r.erreur).toBeNull()
+      expect(await nombreLignes()).toBe(3)
+      const etat = await etatScenario()
+      const attendu = [
+        { fonction: 'essai_declencheur_ecrit()', security_definer: true, executable_par_les_clients: false, fonction_de_declencheur: true },
+      ]
+      expect(etat.fonctions_ecrivant_la_table).toEqual(attendu)
+      expect(etat.fonctions_citant_la_table).toEqual(attendu)
+    })
+
+    it('une règle posée sur la table elle-même : la partie 1 la compte (d’où « regles_sur_la_table » attendu à 0)', async () => {
+      await db.exec('CREATE RULE essai_regle_equipe AS ON DELETE TO public.syndic_team_members DO INSTEAD NOTHING')
+      const etat = await etatScenario()
+      expect(Number(etat.regles_sur_la_table)).toBe(1)
+      expect(etat.vues).toBeNull()
     })
 
     it('rejouée par un rôle non propriétaire alors qu’un droit d’écriture a été rendu : erreur visible, rien n’est appliqué', async () => {

@@ -16,18 +16,45 @@
 -- Après la migration, attendu : policies_ecriture = 0, seule syndic_team_select reste (production) ;
 --   rls_active = true ; anon et authenticated : select = true, insert, update, delete et
 --   truncate = false ; service_role : tout à true (routes serveur).
--- Avant comme après : fonctions_ecrivant_la_table = null (aucune fonction SQL n'écrit la table ; si
---   une fonction apparaît avec security_definer = false, NE PAS appliquer la migration : elle
+-- Avant comme après : fonctions_ecrivant_la_table = null (aucune fonction SQL repérée qui écrit la
+--   table ; si une fonction apparaît avec security_definer = false, NE PAS appliquer la migration : elle
 --   casserait cette fonction pour un client) ; fonctions_citant_la_table : toute fonction dont le corps
---   nomme la table (corps entre $$ ou corps SQL standard BEGIN ATOMIC), à relire une à une avant
---   d'appliquer par select pg_get_functiondef('<signature>'::regprocedure); (une requête à la fois :
---   l'éditeur n'affiche que le dernier résultat ; ne rien recopier d'un corps, qui peut contenir une
---   clé). Une écriture par EXECUTE dynamique peut n'apparaître que là ; un nom de table construit ou
---   passé en paramètre échappe aux deux listes. Règle : ne pas appliquer si une fonction écrit la
---   table, même par EXECUTE, sans être SECURITY DEFINER. declencheurs : nom et fonction appelée, sans
---   les arguments (un webhook Supabase y place ses en-têtes, parfois une clé) ; proprietaire : le rôle
---   qui doit lancer la migration (celui de l'éditeur SQL, postgres, s'il est propriétaire). Ces champs
---   ne sortent que des noms et des signatures, jamais de corps ni d'arguments.
+--   nomme la table (corps entre $$ ou corps SQL standard BEGIN ATOMIC), attendu null en production
+--   (constats du 15/11/2026) ; toute fonction listée est à relire une à une avant d'appliquer, par
+--   select pg_get_functiondef('<signature>'::regprocedure); (une requête à la fois : l'éditeur n'affiche
+--   que le dernier résultat ; ne rien recopier d'un corps, qui peut contenir une clé). Une écriture par
+--   EXECUTE dynamique, un TRUNCATE de plusieurs tables, COPY … FROM ou un commentaire entre les mots peut
+--   n'apparaître que dans fonctions_citant_la_table ; un nom de table construit ou passé en paramètre
+--   échappe aux deux listes. Règle : ne pas appliquer si une fonction écrit la table, même par EXECUTE,
+--   sans être SECURITY DEFINER.
+-- Après la migration, toute entrée de fonctions_citant_la_table, de fonctions_ecrivant_la_table ou de vues
+--   est à relire et à signaler avant de conclure que l'écriture est fermée, quels que soient
+--   executable_par_les_clients et security_invoker :
+--   - une fonction SECURITY DEFINER exécutable par les clients écrit avec les droits de son propriétaire ;
+--   - une fonction de déclencheur (fonction_de_declencheur = true) s'exécute sans que le droit EXECUTE soit
+--     vérifié, dès qu'un client écrit la table ou la vue qui porte le déclencheur ; SECURITY DEFINER, elle
+--     écrit avec les droits de son propriétaire ;
+--   - une fonction que les clients n'exécutent pas peut être appelée par une fonction SECURITY DEFINER qui
+--     ne nomme pas la table, et qui n'apparaît donc dans aucune liste ;
+--   - une règle INSERT, UPDATE ou DELETE (regle_d_ecriture = true), posée sur une table ou sur une vue,
+--     même security_invoker, s'exécute avec les droits de son propriétaire ;
+--   - une vue sans security_invoker écrit avec les droits de son propriétaire ;
+--   - une vue matérialisée (type m) ne s'écrit pas, mais montre à qui peut la lire toutes les lignes de son
+--     dernier rafraîchissement, sans RLS.
+--   executable_par_les_clients : vrai si anon ou authenticated peut exécuter la fonction. vues : attendu
+--   null ; elle liste les vues, et les tables dont une règle, qui lisent ou écrivent la table.
+--   regles_sur_la_table (règles posées sur la table elle-même) : attendu 0. declencheurs : nom et fonction
+--   appelée, sans les arguments (un webhook Supabase y place ses en-têtes, parfois une clé) ;
+--   proprietaire : le rôle qui doit lancer la migration (celui de l'éditeur SQL, postgres, s'il est
+--   propriétaire). Ces champs ne sortent que des noms, des signatures et des booléens, jamais de corps,
+--   d'arguments ni de définitions, sauf policies : qual et with_check, nécessaires pour vérifier la
+--   lecture qui reste (une policy ne contient normalement aucune clé).
+-- Le constat du 14/11/2026 (droits, policies, contraintes) a été fait avec une autre requête, sans les
+--   fonctions, les vues ni les règles ; ceux du 15/11/2026 (vers 09:45 et 09:55 UTC, avant et après la
+--   migration), avec la version précédente de cette partie (commit 4eef6e0d) : sans vues,
+--   regles_sur_la_table, executable_par_les_clients ni fonction_de_declencheur, et sans MERGE, TRUNCATE
+--   TABLE ni schéma entre guillemets dans le motif d'écriture (sans effet : fonctions_citant_la_table y
+--   était null) ; les vues et les règles ont été relevées à part le 15/11/2026 vers 11:30 UTC (aucune).
 
 -- 1. État
 select json_build_object(
@@ -45,20 +72,44 @@ select json_build_object(
   'proprietaire', (
     select relowner::regrole::text from pg_class where oid = 'public.syndic_team_members'::regclass),
   'fonctions_citant_la_table', (
-    select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef)
+    select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef,
+                                      'executable_par_les_clients', has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                                                                    or has_function_privilege('anon', p.oid, 'EXECUTE'),
+                                      'fonction_de_declencheur', p.prorettype = 'trigger'::regtype)
                     order by p.oid::regprocedure::text)
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname not in ('pg_catalog', 'information_schema')
       and coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid)) ilike '%syndic_team_members%'),
   'fonctions_ecrivant_la_table', (
-    select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef)
+    select json_agg(json_build_object('fonction', p.oid::regprocedure::text, 'security_definer', p.prosecdef,
+                                      'executable_par_les_clients', has_function_privilege('authenticated', p.oid, 'EXECUTE')
+                                                                    or has_function_privilege('anon', p.oid, 'EXECUTE'),
+                                      'fonction_de_declencheur', p.prorettype = 'trigger'::regtype)
                     order by p.oid::regprocedure::text)
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname not in ('pg_catalog', 'information_schema')
       and coalesce(nullif(p.prosrc, ''), pg_get_function_sqlbody(p.oid))
-          ~* '(insert\s+into|update|delete\s+from|truncate)\s+(only\s+)?(public\.)?"?syndic_team_members\M'),
+          ~* '(insert\s+into|update|delete\s+from|truncate(\s+table)?|merge\s+into)\s+(only\s+)?("?public"?\.)?"?syndic_team_members\M'),
+  'vues', (
+    select json_agg(json_build_object('vue', c.oid::regclass::text, 'type', c.relkind::text,
+                                      'security_invoker', coalesce((select o.option_value::boolean
+                                                                    from pg_options_to_table(c.reloptions) o
+                                                                    where o.option_name = 'security_invoker'), false),
+                                      'regle_d_ecriture', exists (select 1 from pg_rewrite w
+                                                                  where w.ev_class = c.oid and w.ev_type <> '1'))
+                    order by c.oid::regclass::text)
+    from pg_class c
+    where c.oid <> 'public.syndic_team_members'::regclass
+      and c.oid in (select r.ev_class
+                    from pg_depend d
+                    join pg_rewrite r on r.oid = d.objid
+                    where d.classid = 'pg_rewrite'::regclass
+                      and d.refclassid = 'pg_class'::regclass
+                      and d.refobjid = 'public.syndic_team_members'::regclass)),
+  'regles_sur_la_table', (
+    select count(*) from pg_rewrite where ev_class = 'public.syndic_team_members'::regclass),
   'declencheurs', (
     select json_agg(json_build_object('nom', t.tgname, 'fonction', t.tgfoid::regprocedure::text) order by t.tgname)
     from pg_trigger t

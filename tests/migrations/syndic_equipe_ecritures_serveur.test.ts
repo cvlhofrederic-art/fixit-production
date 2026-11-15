@@ -122,10 +122,16 @@ describe('Base reconstruite depuis le dépôt', () => {
     expect(trouvees.at(-1)).toEqual({ fichier: FICHIER, verbe: 'DROP' })
   })
 
-  it('aucune migration postérieure ne rouvre une écriture des clients sur syndic_team_members', () => {
+  it('aucune migration postérieure ne rouvre l’écriture des clients sur syndic_team_members (policy, GRANT, vue du propriétaire, règle)', () => {
     const suivantes = fichiers.filter((f) => f > FICHIER)
-    // Tests simples par instruction (aucune expression à quantificateurs enchaînés) ; le nom de la table compte
-    // aussi entre guillemets, et un GRANT sur toutes les tables du schéma la vise aussi.
+    // Tests simples par instruction (jamais deux quantificateurs voisins qui puissent lire les mêmes caractères :
+    // aucun retour arrière super-linéaire) ; le nom de la table compte aussi entre guillemets, et un GRANT sur toutes
+    // les tables du schéma la vise aussi. Une vue qui lit la table sans security_invoker vrai (option absente ou
+    // fausse, ou retirée ensuite par ALTER … SET ou RESET) écrirait avec les droits de son propriétaire : elle
+    // rouvrirait l'écriture elle aussi, comme une règle qui nomme la table (ses actions s'exécutent avec les droits
+    // du propriétaire de la table ou de la vue qui la porte). Hors de portée de ce test : fonction SECURITY DEFINER
+    // et déclencheur (le découpage aux points-virgules coupe les corps $$…$$) ; la partie 1 du scénario de contrôle
+    // les montre sur une vraie base.
     const visent = (i: string) => /\bsyndic_team_members\b/i.test(i)
     for (const fichier of suivantes) {
       for (const i of instructions(lire(fichier))) {
@@ -133,12 +139,26 @@ describe('Base reconstruite depuis le dépôt', () => {
         if (/\bCREATE\s+POLICY\b/i.test(i) && visent(i)) {
           expect(i, fichier).toMatch(/\bFOR\s+SELECT\b/i)
         }
+        // Bénéficiaires seuls (après TO) : le schéma « public » du nom de la table ne compte pas comme PUBLIC.
+        const beneficiaires = i.split(/\bTO\b/i).slice(1).join(' ')
         const grantEcriture =
           /\bGRANT\b/i.test(i) &&
           /\b(ALL|INSERT|UPDATE|DELETE|TRUNCATE)\b/i.test(i) &&
-          /\b(anon|authenticated|PUBLIC)\b/i.test(i) &&
+          /\b(anon|authenticated|PUBLIC)\b/i.test(beneficiaires) &&
           (visent(i) || /\bALL\s+TABLES\s+IN\s+SCHEMA\b/i.test(i))
         expect(grantEcriture, `${fichier} : ${i.slice(0, 120)}`).toBe(false)
+        // security_invoker vrai : l'option seule, ou = true, on, yes, 1 ; toute autre valeur (false, off, 0, f…) vaut faux.
+        const invokerVrai = /\bsecurity_invoker\s*(=\s*'?(true|on|yes|1)'?\s*)?[,)]/i.test(i)
+        const vueDuProprietaire = /\bCREATE\s+(OR\s+REPLACE\s+)?VIEW\b/i.test(i) && visent(i) && !invokerVrai
+        expect(vueDuProprietaire, `${fichier} : ${i.slice(0, 120)}`).toBe(false)
+        // Vue existante repassée aux droits de son propriétaire (ALTER VIEW, ou ALTER TABLE, admis sur une vue) : la
+        // table n'y est pas nommée, toute vue est donc visée.
+        const vueRepassee =
+          /\bALTER\s+(VIEW|TABLE)\b/i.test(i) && /\bsecurity_invoker\b/i.test(i) && (/\bRESET\b/i.test(i) || !invokerVrai)
+        expect(vueRepassee, `${fichier} : ${i.slice(0, 120)}`).toBe(false)
+        // Règle qui nomme la table, posée sur elle ou sur une autre table ou vue : une seule instruction, sans corps $$.
+        const regleVisant = /\bCREATE\s+(OR\s+REPLACE\s+)?RULE\b/i.test(i) && visent(i)
+        expect(regleVisant, `${fichier} : ${i.slice(0, 120)}`).toBe(false)
       }
     }
   })
