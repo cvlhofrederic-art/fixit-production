@@ -5,7 +5,7 @@
 // et la description en langage naturel avec photos (route /api/dictionnaire-materiaux/analyse).
 // Les matériaux affichés viennent toujours du catalogue du pays : même la réponse de l'IA n'en sort pas.
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import Image from 'next/image'
 import { toast } from 'sonner'
 import { useLocale } from '@/lib/i18n/context'
@@ -66,12 +66,12 @@ async function copierListe(texte: string, libelles: LibellesDictionnaire) {
 }
 
 /* ── Liens vers la recherche des magasins ── */
-function LiensEnseignes({ dico, libelles, materiau, compact = false }: {
+function LiensEnseignes({ dico, libelles, materiau, compact = false }: Readonly<{
   dico: Dictionnaire
   libelles: LibellesDictionnaire
   materiau: Materiau
   compact?: boolean
-}) {
+}>) {
   const enseignes = dico.enseignes.filter((e) => materiau.enseignes.includes(e.id))
   if (enseignes.length === 0) return null
   return (
@@ -93,7 +93,7 @@ function LiensEnseignes({ dico, libelles, materiau, compact = false }: {
 }
 
 /* ── Matériaux rangés par étapes (fiche de situation et réponse de l'IA) ── */
-function ListeEtapes({ etapes, contexte }: { etapes: EtapeResolue[]; contexte: Contexte }) {
+function ListeEtapes({ etapes, contexte }: Readonly<{ etapes: EtapeResolue[]; contexte: Contexte }>) {
   const { dico, libelles, ouvrir } = contexte
   return (
     <div className="dico-etapes">
@@ -123,7 +123,7 @@ function ListeEtapes({ etapes, contexte }: { etapes: EtapeResolue[]; contexte: C
   )
 }
 
-function Puces({ titre, lignes, variante }: { titre: string; lignes: string[]; variante?: 'attention' | 'questions' }) {
+function Puces({ titre, lignes, variante }: Readonly<{ titre: string; lignes: string[]; variante?: 'attention' | 'questions' }>) {
   if (lignes.length === 0) return null
   return (
     <div className={variante ? `dico-bloc dico-bloc-${variante}` : 'dico-bloc'}>
@@ -136,7 +136,7 @@ function Puces({ titre, lignes, variante }: { titre: string; lignes: string[]; v
 }
 
 /* ── Fiche d'une situation ── */
-function FicheSituation({ situation, contexte, idTitre }: { situation: Situation; contexte: Contexte; idTitre: string }) {
+function FicheSituation({ situation, contexte, idTitre }: Readonly<{ situation: Situation; contexte: Contexte; idTitre: string }>) {
   const { dico, libelles } = contexte
   const etapes = useMemo(() => resoudreEtapes(dico, situation.etapes), [dico, situation])
   const domaine = dico.domaines.find((d) => d.id === situation.domaine)
@@ -166,7 +166,7 @@ function FicheSituation({ situation, contexte, idTitre }: { situation: Situation
 /** Situations montrées d'emblée sur la fiche d'un matériau : un matériau courant (lunettes, gants) sert dans des dizaines. */
 export const SITUATIONS_VISIBLES = 12
 
-function FicheMateriau({ materiau, contexte, idTitre }: { materiau: Materiau; contexte: Contexte; idTitre: string }) {
+function FicheMateriau({ materiau, contexte, idTitre }: Readonly<{ materiau: Materiau; contexte: Contexte; idTitre: string }>) {
   const { dico, libelles, ouvrir } = contexte
   const famille = dico.familles.find((f) => f.id === materiau.famille)
   const sousFamille = famille?.sousFamilles.find((sf) => sf.id === materiau.sousFamille)
@@ -231,49 +231,47 @@ function FicheMateriau({ materiau, contexte, idTitre }: { materiau: Materiau; co
 const FOCALISABLES = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 /** Tab et Maj+Tab tournent dans la fenêtre : le focus ne passe pas à la page restée derrière. */
-function garderLeFocus(e: KeyboardEvent, fenetre: HTMLElement) {
+function garderLeFocus(e: ReactKeyboardEvent, fenetre: HTMLElement) {
   const elements = Array.from(fenetre.querySelectorAll<HTMLElement>(FOCALISABLES))
   const premier = elements.at(0)
   const dernier = elements.at(-1)
   if (!premier || !dernier) return
   const actif = document.activeElement
-  if (!fenetre.contains(actif)) {
+  // Hors de la fenêtre, ou Tab sur le dernier élément : retour au premier. Maj+Tab sur le premier : au dernier.
+  if (!fenetre.contains(actif) || (!e.shiftKey && actif === dernier)) {
     e.preventDefault()
     premier.focus()
   } else if (e.shiftKey && actif === premier) {
     e.preventDefault()
     dernier.focus()
-  } else if (!e.shiftKey && actif === dernier) {
-    e.preventDefault()
-    premier.focus()
   }
 }
 
-function FenetreFiche({ pile, contexte, retour, fermer }: {
+function FenetreFiche({ pile, contexte, retour, fermer }: Readonly<{
   pile: Fiche[]
   contexte: Contexte
   retour: () => void
   fermer: () => void
-}) {
+}>) {
   const { dico, libelles } = contexte
   const idTitre = useId()
   const fenetre = useRef<HTMLDivElement>(null)
   const fiche = pile.at(-1)
   const cleFiche = fiche ? `${pile.length}:${fiche.type}:${fiche.id}` : ''
 
-  // Échap ferme, Tab reste dans la fenêtre ; une fois fermée, le focus revient à ce qui l'avait ouverte.
+  // Une fois fermée, la fenêtre rend le focus à ce qui l'avait ouverte.
   useEffect(() => {
     const ouvreur = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const surTouche = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') fermer()
-      else if (e.key === 'Tab' && fenetre.current) garderLeFocus(e, fenetre.current)
-    }
-    document.addEventListener('keydown', surTouche)
     return () => {
-      document.removeEventListener('keydown', surTouche)
       if (ouvreur?.isConnected) ouvreur.focus()
     }
-  }, [fermer])
+  }, [])
+
+  // Échap ferme, Tab reste dans la fenêtre : les touches remontent de la fiche, qui garde le focus, jusqu'au fond.
+  const surTouche = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') fermer()
+    else if (e.key === 'Tab' && fenetre.current) garderLeFocus(e, fenetre.current)
+  }
 
   // Chaque fiche s'ouvre en haut, le focus sur son titre (lu par les lecteurs d'écran), même quand on passe d'une
   // fiche à l'autre : le bouton qui a servi à y aller disparaît avec la fiche précédente.
@@ -288,15 +286,10 @@ function FenetreFiche({ pile, contexte, retour, fermer }: {
   if (!situation && !materiau) return null
 
   return (
-    <div className="v5-modal-ov show" onClick={fermer}>
-      <div
-        ref={fenetre}
-        className="v5-modal dico-fiche"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={idTitre}
-        onClick={(e) => e.stopPropagation()}
-      >
+    // Un clic ferme seulement s'il tombe sur le fond, pas dans la fiche. La fiche peut recevoir le focus (tabIndex -1) :
+    // un clic sur son texte le garde dedans, et Échap y est entendu.
+    <div className="v5-modal-ov show" onClick={(e) => { if (e.target === e.currentTarget) fermer() }} onKeyDown={surTouche}>
+      <div ref={fenetre} className="v5-modal dico-fiche" role="dialog" aria-modal="true" aria-labelledby={idTitre} tabIndex={-1}>
         <div className="v5-modal-h">
           {pile.length > 1
             ? <button type="button" className="v5-btn v5-btn-sm" onClick={retour}>← {libelles.retour}</button>
@@ -311,7 +304,7 @@ function FenetreFiche({ pile, contexte, retour, fermer }: {
 }
 
 /* ── Mode manuel : mot-clé, ou parcours par type de travaux et par catégorie ── */
-function LigneSituation({ situation, contexte }: { situation: Situation; contexte: Contexte }) {
+function LigneSituation({ situation, contexte }: Readonly<{ situation: Situation; contexte: Contexte }>) {
   return (
     <button type="button" className="dico-res" onClick={() => contexte.ouvrir({ type: 'situation', id: situation.id })}>
       <span className="dico-res-n">{situation.titre}</span>
@@ -320,7 +313,7 @@ function LigneSituation({ situation, contexte }: { situation: Situation; context
   )
 }
 
-function LigneMateriauCatalogue({ materiau, contexte }: { materiau: Materiau; contexte: Contexte }) {
+function LigneMateriauCatalogue({ materiau, contexte }: Readonly<{ materiau: Materiau; contexte: Contexte }>) {
   return (
     <button type="button" className="dico-res" onClick={() => contexte.ouvrir({ type: 'materiau', id: materiau.id })}>
       <span className="dico-res-n">{materiau.nom}</span>
@@ -329,14 +322,14 @@ function LigneMateriauCatalogue({ materiau, contexte }: { materiau: Materiau; co
   )
 }
 
-function Volet({ ouvert, basculer, icone, nom, compte, children }: {
+function Volet({ ouvert, basculer, icone, nom, compte, children }: Readonly<{
   ouvert: boolean
   basculer: () => void
   icone: string
   nom: string
   compte: string
   children: ReactNode
-}) {
+}>) {
   return (
     <div className={ouvert ? 'dico-volet ouvert' : 'dico-volet'}>
       <button type="button" className="dico-volet-t" aria-expanded={ouvert} onClick={basculer}>
@@ -349,7 +342,7 @@ function Volet({ ouvert, basculer, icone, nom, compte, children }: {
   )
 }
 
-function ModeManuel({ contexte }: { contexte: Contexte }) {
+function ModeManuel({ contexte }: Readonly<{ contexte: Contexte }>) {
   const { dico, libelles } = contexte
   const [saisie, setSaisie] = useState('')
   const [domaineOuvert, setDomaineOuvert] = useState<string | null>(null)
@@ -382,7 +375,7 @@ function ModeManuel({ contexte }: { contexte: Contexte }) {
         )}
       </div>
 
-      <p className="dico-sr" role="status">{annonce}</p>
+      <output className="dico-sr">{annonce}</output>
 
       {requete !== '' && (
         <div>
@@ -486,7 +479,7 @@ function analyseDe(corps: unknown): AnalyseIA | null {
   return typeof a.resume === 'string' && listes.every(Array.isArray) ? (analyse as AnalyseIA) : null
 }
 
-function ReponseIA({ analyse, contexte }: { analyse: AnalyseIA; contexte: Contexte }) {
+function ReponseIA({ analyse, contexte }: Readonly<{ analyse: AnalyseIA; contexte: Contexte }>) {
   const { dico, libelles, ouvrir } = contexte
   const etapes = useMemo(() => resoudreEtapes(dico, etapesPourAffichage(analyse)), [dico, analyse])
   const fiches = analyse.situations
@@ -531,7 +524,7 @@ function ReponseIA({ analyse, contexte }: { analyse: AnalyseIA; contexte: Contex
   )
 }
 
-function ModeIA({ contexte }: { contexte: Contexte }) {
+function ModeIA({ contexte }: Readonly<{ contexte: Contexte }>) {
   const { dico, libelles } = contexte
   const [tours, setTours] = useState<Tour[]>([])
   const [brouillon, setBrouillon] = useState('')
@@ -633,7 +626,7 @@ function ModeIA({ contexte }: { contexte: Contexte }) {
     <div className="v5-card dico-ia">
       <p className="dico-ia-intro">{libelles.iaIntro}</p>
       {/* Hors de la conversation marquée « occupée » : une zone d'annonce sous aria-busy peut rester muette. */}
-      <p className="dico-sr" role="status">{enPreparation > 0 ? libelles.photosEnPreparation : annonce}</p>
+      <output className="dico-sr">{enPreparation > 0 ? libelles.photosEnPreparation : annonce}</output>
 
       <div className="dico-conversation" aria-busy={enCours}>
         {tours.map((tour) => (

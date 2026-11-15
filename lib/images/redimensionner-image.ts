@@ -115,7 +115,7 @@ export async function redimensionnerImage(
       contexte.drawImage(source, 0, 0, cible.largeur, cible.hauteur)
       let blob = await canvasVersBlob(canvas, encodage.type, encodage.qualite)
       // Navigateur sans encodeur pour ce format (WebP sous Safari) : il renvoie un PNG ou null.
-      if (!blob || blob.type !== encodage.type) blob = await canvasVersBlob(canvas, 'image/png')
+      if (blob?.type !== encodage.type) blob = await canvasVersBlob(canvas, 'image/png')
       if (!blob) throw new Error('encodage impossible')
       return { dataUrl: await lireEnDataUrl(blob), redimensionnee: true }
     } finally {

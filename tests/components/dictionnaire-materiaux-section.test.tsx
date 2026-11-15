@@ -150,7 +150,7 @@ describe('Dictionnaire matériaux — écran', () => {
 
       fireEvent.click(within(materiau).getByRole('button', { name: /Voltar/ }))
       expect(screen.getByRole('dialog', { name: 'Infiltração em fachada' })).toBeInTheDocument()
-      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
       expect(screen.queryByRole('dialog')).toBeNull()
     })
 
@@ -180,7 +180,7 @@ describe('Dictionnaire matériaux — écran', () => {
       expect(document.activeElement).toBe(within(materiau).getByRole('heading', { level: 3, name: 'Mástique de poliuretano para fachadas' }))
 
       // Fermée, la fenêtre rend le focus au résultat qui l'avait ouverte.
-      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
       expect(screen.queryByRole('dialog')).toBeNull()
       expect(document.activeElement).toBe(resultat)
     })

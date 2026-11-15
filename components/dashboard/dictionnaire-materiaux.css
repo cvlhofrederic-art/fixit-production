@@ -54,6 +54,8 @@
 
 /* Fiches (fenêtre) */
 .dico-fiche { max-width: 680px; }
+/* La fiche reçoit le focus quand on clique dans son texte : pas de cadre autour de toute la fenêtre. */
+.dico-fiche:focus { outline: none; }
 .dico-fiche .v5-modal-h { margin-bottom: .5rem; }
 .dico-fiche .v5-modal-t { margin: 0 0 .5rem; }
 /* Le titre reçoit le focus à l'ouverture d'une fiche (pour la lecture) : il n'est pas un contrôle, pas de cadre. */
@@ -75,13 +77,13 @@
 .dico-etape { margin-top: .9rem; }
 .dico-etape:first-child { margin-top: .4rem; }
 .dico-etape-t { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; margin: 0 0 .1rem; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #8B7D00; border-bottom: 1px solid #F0D78C; }
-.dico-etape-n { margin-left: auto; background: #FFF8E1; color: #8B7D00; padding: 1px 8px; border-radius: 8px; font-size: 9px; }
+.dico-etape-n { margin-left: auto; background: #FFF8E1; color: #6B5F00; padding: 1px 8px; border-radius: 8px; font-size: 9px; }
 .dico-ligne { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; padding: .6rem 0; border-bottom: 1px solid #F0F0F0; }
 .dico-ligne:last-child { border-bottom: none; }
 .dico-ligne-g { flex: 1; min-width: 0; }
 .dico-lien { background: none; border: none; padding: 0; font-family: inherit; font-size: 13px; font-weight: 600; color: #1a1a1a; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: #F0D78C; text-underline-offset: 3px; }
 .dico-lien:hover, .dico-lien:focus-visible { color: #8B7D00; text-decoration-color: var(--v5-primary-yellow-dark); outline: none; }
-.dico-opt { display: inline-block; background: #FFF3E0; color: #EF6C00; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+.dico-opt { display: inline-block; background: #FFF3E0; color: #B54708; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
 .dico-note { font-size: 11px; color: #777; line-height: 1.45; margin: 2px 0 0; }
 
 /* Liens vers les magasins */
@@ -89,7 +91,7 @@
 .dico-magasins .v5-btn { text-decoration: none; }
 .dico-magasins-c { flex-shrink: 0; justify-content: flex-end; gap: .3rem; }
 .dico-magasin-c { font-size: 10px; font-weight: 600; color: #666; background: #F5F5F5; border-radius: 3px; padding: 3px 7px; text-decoration: none; white-space: nowrap; }
-.dico-magasin-c:hover, .dico-magasin-c:focus-visible { background: #FFF8E1; color: #8B7D00; outline: none; }
+.dico-magasin-c:hover, .dico-magasin-c:focus-visible { background: #FFF8E1; color: #6B5F00; outline: none; }
 
 /* Blocs : à vérifier, conseils, attention, questions */
 .dico-bloc { margin-top: 1rem; }

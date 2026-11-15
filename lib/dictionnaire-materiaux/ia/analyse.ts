@@ -256,52 +256,80 @@ function designation(ligne: Record<string, unknown>): string {
   return [n ? `#${n}` : '', nom].filter(Boolean).join(' ') || '(vide)'
 }
 
-/**
- * Réponse du modèle (JSON) → analyse sûre : textes bornés, matériaux et fiches limités à ceux du
- * dictionnaire, doublons retirés. `null` si la réponse n'est pas un objet JSON.
- */
-export function lireAnalyse(brut: string, dico: Dictionnaire): LectureAnalyse | null {
+/** Objet JSON de la réponse, ou null si elle n'en est pas un (texte, liste, JSON illisible). */
+function objetJson(brut: string): Record<string, unknown> | null {
   let objet: unknown
   try {
     objet = JSON.parse(brut)
   } catch {
     return null
   }
-  if (!objet || typeof objet !== 'object' || Array.isArray(objet)) return null
-  const reponse = objet as Record<string, unknown>
+  return objet && typeof objet === 'object' && !Array.isArray(objet) ? (objet as Record<string, unknown>) : null
+}
 
-  const parNom = new Map(dico.materiaux.map((m) => [normaliser(m.nom), m.id]))
-  const idsSituations = new Set(dico.situations.map((s) => s.id))
-  const idsInconnus: string[] = []
-  const dejaProposes = new Set<string>()
+/** Les `max` premiers éléments d'une liste de la réponse, objets seulement (une valeur d'un autre type est ignorée). */
+function objetsDe(valeur: unknown, max: number): Array<Record<string, unknown>> {
+  if (!Array.isArray(valeur)) return []
+  return valeur.slice(0, max).filter((v): v is Record<string, unknown> => Boolean(v) && typeof v === 'object')
+}
 
-  const etapes: EtapeProposee[] = []
-  for (const brute of Array.isArray(reponse.etapes) ? reponse.etapes.slice(0, ETAPES_MAX) : []) {
-    if (!brute || typeof brute !== 'object') continue
-    const etape = brute as Record<string, unknown>
-    const materiaux: MateriauPropose[] = []
-    for (const brutLigne of Array.isArray(etape.materiaux) ? etape.materiaux.slice(0, MATERIAUX_PAR_ETAPE_MAX) : []) {
-      if (!brutLigne || typeof brutLigne !== 'object') continue
-      const ligne = brutLigne as Record<string, unknown>
-      const id = resoudreMateriau(dico, parNom, ligne)
-      if (!id) {
-        idsInconnus.push(designation(ligne))
-        continue
-      }
-      if (dejaProposes.has(id)) continue
-      dejaProposes.add(id)
+/** État de la relecture d'une réponse : matériaux déjà proposés, propositions hors dictionnaire (pour les journaux). */
+interface Relecture {
+  dico: Dictionnaire
+  parNom: Map<string, string>
+  dejaProposes: Set<string>
+  idsInconnus: string[]
+}
+
+/** Matériaux d'une étape retrouvés au catalogue, sans ceux déjà proposés ; les autres sont notés hors dictionnaire. */
+function materiauxDeLEtape(etape: Record<string, unknown>, relecture: Relecture): MateriauPropose[] {
+  const materiaux: MateriauPropose[] = []
+  for (const ligne of objetsDe(etape.materiaux, MATERIAUX_PAR_ETAPE_MAX)) {
+    const id = resoudreMateriau(relecture.dico, relecture.parNom, ligne)
+    if (!id) {
+      relecture.idsInconnus.push(designation(ligne))
+    } else if (!relecture.dejaProposes.has(id)) {
+      relecture.dejaProposes.add(id)
       materiaux.push({ id, raison: texteBorne(ligne.raison, 300) })
     }
+  }
+  return materiaux
+}
+
+/** Fiches de situation citées qui existent au dictionnaire, sans doublon ; les autres sont notées hors dictionnaire. */
+function situationsConnues(valeur: unknown, relecture: Relecture): string[] {
+  const idsSituations = new Set(relecture.dico.situations.map((s) => s.id))
+  const situations: string[] = []
+  for (const id of listeBornee(valeur, 12, 120)) {
+    if (!idsSituations.has(id)) relecture.idsInconnus.push(id)
+    else if (!situations.includes(id) && situations.length < SITUATIONS_MAX) situations.push(id)
+  }
+  return situations
+}
+
+/**
+ * Réponse du modèle (JSON) → analyse sûre : textes bornés, matériaux et fiches limités à ceux du
+ * dictionnaire, doublons retirés. `null` si la réponse n'est pas un objet JSON.
+ */
+export function lireAnalyse(brut: string, dico: Dictionnaire): LectureAnalyse | null {
+  const reponse = objetJson(brut)
+  if (!reponse) return null
+  const relecture: Relecture = {
+    dico,
+    parNom: new Map(dico.materiaux.map((m) => [normaliser(m.nom), m.id])),
+    dejaProposes: new Set<string>(),
+    idsInconnus: [],
+  }
+
+  const etapes: EtapeProposee[] = []
+  for (const etape of objetsDe(reponse.etapes, ETAPES_MAX)) {
+    const materiaux = materiauxDeLEtape(etape, relecture)
     if (materiaux.length > 0) {
       etapes.push({ titre: texteBorne(etape.titre, 80) || TEXTES[dico.langue].etapeParDefaut, materiaux })
     }
   }
-
-  const situations: string[] = []
-  for (const id of listeBornee(reponse.situations, 12, 120)) {
-    if (!idsSituations.has(id)) idsInconnus.push(id)
-    else if (!situations.includes(id) && situations.length < SITUATIONS_MAX) situations.push(id)
-  }
+  // Après les étapes : les identifiants écartés se lisent dans l'ordre de la réponse.
+  const situations = situationsConnues(reponse.situations, relecture)
 
   return {
     analyse: {
@@ -313,7 +341,7 @@ export function lireAnalyse(brut: string, dico: Dictionnaire): LectureAnalyse | 
       questions: listeBornee(reponse.questions, 4, 300),
       horsCatalogue: listeBornee(reponse.horsCatalogue, 5, 160),
     },
-    idsInconnus,
+    idsInconnus: relecture.idsInconnus,
   }
 }
 

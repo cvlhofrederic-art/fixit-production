@@ -17,7 +17,7 @@ import { getSecret } from '@/lib/env'
 import { callClaudeWithRetry, ErreurClaude, hasAnthropicKey } from '@/lib/claude'
 import { traceAgent } from '@/lib/langfuse'
 import { sanitizeContextForLLM, resolveSanitizedToken } from '@/lib/ai/sanitize-context'
-import { dictionnairePour } from '@/lib/dictionnaire-materiaux'
+import { dictionnairePour, type Dictionnaire } from '@/lib/dictionnaire-materiaux'
 import {
   DESCRIPTION_MAX,
   DESCRIPTION_MIN,
@@ -26,6 +26,7 @@ import {
   construireMessages,
   lireAnalyse,
   type AnalyseIA,
+  type TourHistorique,
 } from '@/lib/dictionnaire-materiaux/ia/analyse'
 import { PHOTOS_MAX, TAILLE_MAX_PHOTO, verifierPhoto } from '@/lib/dictionnaire-materiaux/ia/photos'
 import { masquerTelephonesPortugais } from '@/lib/dictionnaire-materiaux/ia/telephones'
@@ -112,17 +113,31 @@ function retablirTextes(analyse: AnalyseIA, tokenMap: Map<string, string>): Anal
   }
 }
 
-export async function POST(request: NextRequest) {
+/** Compte pro connecté, sous ses limites de débit ; sinon la réponse de refus. */
+async function verifierAppelant(request: NextRequest) {
   const user = await getAuthUser(request)
   if (!user) return unauthorizedResponse()
   // Module du tableau de bord pro : artisans et sociétés (le super admin est couvert par isProSocieteRole).
   if (!isArtisanRole(user) && !isProSocieteRole(user)) return erreur('acces_reserve_aux_professionnels', 403)
-
   // Chaque appel déclenche un appel au modèle, parfois avec des photos : limite par adresse et par compte.
   const ip = getClientIP(request)
   if (!(await checkRateLimit(`dico_ia_${ip}`, 10, 60_000))) return rateLimitResponse()
   if (!(await checkRateLimit(`dico_ia_compte_${user.id}`, 40, 3_600_000))) return rateLimitResponse()
+  return user
+}
 
+/** Corps de requête en JSON, ou null (journalisé) s'il est illisible. */
+function lireJson(brut: string): unknown {
+  try {
+    return JSON.parse(brut)
+  } catch (err) {
+    logger.warn('[dictionnaire-materiaux/analyse] corps JSON illisible', { erreur: err instanceof Error ? err.message.slice(0, 120) : '' })
+    return null
+  }
+}
+
+/** Demande lue dans la limite de taille, validée, avec le dictionnaire du pays et ses photos contrôlées ; sinon le refus. */
+async function lireDemande(request: NextRequest) {
   if (Number(request.headers.get('content-length') ?? 0) > TAILLE_MAX_CORPS) return erreur('demande_trop_volumineuse', 413)
   let brut: string | null
   try {
@@ -132,47 +147,85 @@ export async function POST(request: NextRequest) {
     return erreur('requete_invalide', 400)
   }
   if (brut === null) return erreur('demande_trop_volumineuse', 413)
-  let json: unknown = null
-  try {
-    json = JSON.parse(brut)
-  } catch (err) {
-    logger.warn('[dictionnaire-materiaux/analyse] corps JSON illisible', { erreur: err instanceof Error ? err.message.slice(0, 120) : '' })
-  }
-  const parsed = BodySchema.safeParse(json)
+  const parsed = BodySchema.safeParse(lireJson(brut))
   if (!parsed.success) return erreur('requete_invalide', 400)
-  const { pays, photos } = parsed.data
-
-  const dico = dictionnairePour(pays)
+  const dico = dictionnairePour(parsed.data.pays)
   if (!dico) return erreur('pays_non_disponible', 400)
-
-  for (const photo of photos) {
+  for (const photo of parsed.data.photos) {
     const controle = verifierPhoto(photo)
     if (!controle.ok) {
       return controle.raison === 'taille' ? erreur('photo_trop_volumineuse', 413) : erreur('photo_format_non_pris_en_charge', 400)
     }
   }
+  return { ...parsed.data, dico }
+}
 
-  // Une photo n'a pas de secours possible : seul Claude la lit.
-  const claudeDisponible = await hasAnthropicKey()
-  if (!claudeDisponible && (photos.length > 0 || !(await getSecret('GROQ_API_KEY')))) return erreur('ia_indisponible', 503)
-
-  // Les coordonnées d'un client n'ont rien à faire dans un diagnostic : masquées avant le modèle.
+/**
+ * Description et tours précédents sans les coordonnées d'un client (e-mails, téléphones, IBAN), qui n'ont rien à faire
+ * dans un diagnostic, avec les jetons qui les rétablissent dans la réponse.
+ */
+function masquerCoordonnees(demande: { pays: string; description: string; historique: TourHistorique[] }) {
   const { sanitized, tokenMap } = sanitizeContextForLLM(
-    { description: parsed.data.description, historique: parsed.data.historique },
+    { description: demande.description, historique: demande.historique },
     { types: ['email', 'phone', 'iban'] },
   )
   // Au Portugal, un numéro s'écrit le plus souvent sans indicatif (« 912 345 678 ») : le masquage commun ne le voit pas.
-  const masquer = (texte: string) => (pays === 'PT' ? masquerTelephonesPortugais(texte, tokenMap) : texte)
-  const description = masquer(sanitized.description)
-  const historique = sanitized.historique.map((tour) => ({ role: tour.role, texte: masquer(tour.texte) }))
+  const masquer = (texte: string) => (demande.pays === 'PT' ? masquerTelephonesPortugais(texte, tokenMap) : texte)
+  return {
+    description: masquer(sanitized.description),
+    historique: sanitized.historique.map((tour) => ({ role: tour.role, texte: masquer(tour.texte) })),
+    tokenMap,
+  }
+}
 
+/** Réponse du modèle relue : analyse limitée au catalogue, textes rétablis ; sinon le refus. */
+function reponseDeLAnalyse(contenu: string, dico: Dictionnaire, pays: string, tokenMap: Map<string, string>) {
+  if (!contenu) return erreur('reponse_vide', 502)
+  const lecture = lireAnalyse(contenu, dico)
+  if (!lecture || analyseVide(lecture.analyse)) {
+    logger.warn('[dictionnaire-materiaux/analyse] réponse du modèle illisible', { longueur: contenu.length })
+    return erreur('reponse_invalide', 502)
+  }
+  if (lecture.idsInconnus.length > 0) {
+    logger.warn('[dictionnaire-materiaux/analyse] identifiants hors dictionnaire écartés', {
+      pays,
+      nombre: lecture.idsInconnus.length,
+      exemples: lecture.idsInconnus.slice(0, 5),
+    })
+  }
+  // Le modèle qui a répondu reste côté serveur (journaux, trace) : l'écran n'en a pas besoin.
+  return NextResponse.json({ analyse: retablirTextes(lecture.analyse, tokenMap) })
+}
+
+/** Échec de l'appel : photo refusée par le modèle (l'artisan peut y remédier), sinon panne signalée à Sentry. */
+function reponseDEchec(err: unknown, pays: string, nombrePhotos: number) {
+  if (photoRefusee(err, nombrePhotos)) {
+    logger.warn('[dictionnaire-materiaux/analyse] photo refusée par le modèle', { erreur: (err as Error).message.slice(0, 200) })
+    return erreur('photo_illisible', 422)
+  }
+  // L'erreur en troisième argument : c'est elle qui part dans Sentry.
+  logger.error('[dictionnaire-materiaux/analyse] échec de l’appel au modèle', { module: 'dictionnaire-materiaux', pays, photos: nombrePhotos }, err)
+  return erreur('ia_indisponible', 502)
+}
+
+export async function POST(request: NextRequest) {
+  const appelant = await verifierAppelant(request)
+  if (appelant instanceof Response) return appelant
+  const demande = await lireDemande(request)
+  if (demande instanceof Response) return demande
+  const { pays, photos, dico } = demande
+
+  // Une photo n'a pas de secours possible : seul Claude la lit.
+  if (!(await hasAnthropicKey()) && (photos.length > 0 || !(await getSecret('GROQ_API_KEY')))) return erreur('ia_indisponible', 503)
+
+  const { description, historique, tokenMap } = masquerCoordonnees(demande)
   try {
     const reponse = await traceAgent(
       {
         agent_id: 'dictionnaire-materiaux',
-        user_id: user.id,
+        user_id: appelant.id,
         // Ni la description ni les photos ne partent dans la trace : seulement leur taille.
-        prompt: `Dictionnaire matériaux ${pays} : ${parsed.data.description.length} caractères, ${photos.length} photo(s), ${parsed.data.historique.length} tour(s) précédent(s)`,
+        prompt: `Dictionnaire matériaux ${pays} : ${demande.description.length} caractères, ${photos.length} photo(s), ${demande.historique.length} tour(s) précédent(s)`,
         metadata: { module: 'dictionnaire-materiaux', pays, photos: photos.length },
       },
       () =>
@@ -194,30 +247,8 @@ export async function POST(request: NextRequest) {
           },
         ),
     )
-
-    const contenu = reponse.choices?.[0]?.message?.content?.trim() ?? ''
-    if (!contenu) return erreur('reponse_vide', 502)
-    const lecture = lireAnalyse(contenu, dico)
-    if (!lecture || analyseVide(lecture.analyse)) {
-      logger.warn('[dictionnaire-materiaux/analyse] réponse du modèle illisible', { longueur: contenu.length })
-      return erreur('reponse_invalide', 502)
-    }
-    if (lecture.idsInconnus.length > 0) {
-      logger.warn('[dictionnaire-materiaux/analyse] identifiants hors dictionnaire écartés', {
-        pays,
-        nombre: lecture.idsInconnus.length,
-        exemples: lecture.idsInconnus.slice(0, 5),
-      })
-    }
-    // Le modèle qui a répondu reste côté serveur (journaux, trace) : l'écran n'en a pas besoin.
-    return NextResponse.json({ analyse: retablirTextes(lecture.analyse, tokenMap) })
+    return reponseDeLAnalyse(reponse.choices?.[0]?.message?.content?.trim() ?? '', dico, pays, tokenMap)
   } catch (err) {
-    if (photoRefusee(err, photos.length)) {
-      logger.warn('[dictionnaire-materiaux/analyse] photo refusée par le modèle', { erreur: (err as Error).message.slice(0, 200) })
-      return erreur('photo_illisible', 422)
-    }
-    // L'erreur en troisième argument : c'est elle qui part dans Sentry.
-    logger.error('[dictionnaire-materiaux/analyse] échec de l’appel au modèle', { module: 'dictionnaire-materiaux', pays, photos: photos.length }, err)
-    return erreur('ia_indisponible', 502)
+    return reponseDEchec(err, pays, photos.length)
   }
 }

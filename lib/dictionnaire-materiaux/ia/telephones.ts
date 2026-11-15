@@ -6,7 +6,8 @@
 // Mobile : 91, 92, 93 ou 96, puis sept chiffres, groupés 3-3-3. Fixe : 2, puis huit chiffres, groupés 3-3-3 ou 2-3-4.
 // Bornés : pas de chiffre juste avant ni juste après (une suite plus longue n'est pas un numéro).
 const MOBILE_PT = /(?<!\d)(?:(?:\+|00)?351[\s.-]?)?9[1236]\d(?:[\s.-]?\d{3}){2}(?!\d)/g
-const FIXE_PT = /(?<!\d)(?:(?:\+|00)?351[\s.-]?)?2\d(?:\d(?:[\s.-]?\d{3}){2}|[\s.-]?\d{3}[\s.-]?\d{4})(?!\d)/g
+const FIXE_PT_3_3_3 = /(?<!\d)(?:(?:\+|00)?351[\s.-]?)?2\d{2}(?:[\s.-]?\d{3}){2}(?!\d)/g
+const FIXE_PT_2_3_4 = /(?<!\d)(?:(?:\+|00)?351[\s.-]?)?2\d[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/g
 
 // Une suite suivie d'une unité est une liste de mesures (« paredes de 250-300-280 cm »), pas un numéro : le modèle
 // en a besoin pour répondre.
@@ -27,5 +28,5 @@ export function masquerTelephonesPortugais(texte: string, tokenMap: Map<string, 
     jetonDe.set(numero, jeton)
     return jeton
   }
-  return texte.replace(MOBILE_PT, remplacer).replace(FIXE_PT, remplacer)
+  return texte.replace(MOBILE_PT, remplacer).replace(FIXE_PT_3_3_3, remplacer).replace(FIXE_PT_2_3_4, remplacer)
 }

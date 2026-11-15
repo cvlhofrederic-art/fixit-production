@@ -335,10 +335,8 @@ function classer<T>(index: Index, corpus: Corpus<T>, mots: string[], limite: num
   // Tous les mots exigés d'abord ; si aucune fiche ne les réunit, celles qui en contiennent le plus.
   const completes = notes.filter((n) => n.trouves === nombreExiges)
   const retenues = completes.length > 0 ? completes : notes
-  return retenues
-    .sort((a, b) => b.trouves - a.trouves || b.score - a.score || corpus.libelles[a.fiche].localeCompare(corpus.libelles[b.fiche]))
-    .slice(0, limite)
-    .map((n) => ({ element: corpus.elements[n.fiche], score: n.score }))
+  retenues.sort((a, b) => b.trouves - a.trouves || b.score - a.score || corpus.libelles[a.fiche].localeCompare(corpus.libelles[b.fiche]))
+  return retenues.slice(0, limite).map((n) => ({ element: corpus.elements[n.fiche], score: n.score }))
 }
 
 export interface ResultatsDictionnaire {
