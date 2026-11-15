@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Loader, Brain, BarChart3, User, HardHat, Building2, Coins, Lightbulb, CircleAlert, AlertTriangle, Landmark, PlusCircle, Calendar, SlidersHorizontal, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useLocale } from '@/lib/i18n/context'
-import { useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
+import { signalerPlafondsAtteints, useBTPSettings, type BTPSettings, type FraiFixe } from '@/lib/hooks/use-btp-data'
 import { formatPrice } from '@/lib/utils'
 import { calculateBossCost, calculateEmployeeCost } from '@/lib/payroll/engine'
 import { getCompanyTypesByCountry, resolveCompanyType } from '@/lib/config/companyTypes'
@@ -83,10 +83,12 @@ export function ComptaBTPSection({ artisan, orgRole }: { artisan: import('@/lib/
         if (rentaRes.ok) {
           const j = await rentaRes.json()
           setData(j.rentabilite || [])
+          signalerPlafondsAtteints(j) // au-delà de 100 chantiers, la rentabilité affichée est incomplète : on le dit
         }
         if (membresRes.ok) {
           const j = await membresRes.json()
           setMembres(j.membres || [])
+          signalerPlafondsAtteints(j)
         }
         if (chargesRes.ok) {
           const j = await chargesRes.json()

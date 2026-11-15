@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { jetonAcces } from '@/lib/auth/jeton-acces'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
+import { messagePlafondAtteint } from '@/lib/btp/plafonds-lecture'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
@@ -462,12 +464,35 @@ function marquerEcriture(cacheKey: string): void {
   _generations[cacheKey] = generationActuelle(cacheKey) + 1
 }
 
-/** GET d'une table : lignes brutes, null si la réponse n'est pas ok. */
-async function lireTable(table: ShortName): Promise<unknown[] | null> {
+// ── Listes coupées par la route (constat donnees-btp-10) : GET /api/btp ne renvoie que les N premières lignes d'une
+// liste trop longue et le dit dans `plafondsAtteints`. Plafond atteint par la dernière lecture de chaque clé de cache,
+// et listes déjà signalées pendant cette session (un seul avertissement par liste).
+const _plafonds: Record<string, number | undefined> = {}
+const _plafondsSignales = new Set<string>()
+
+/** Prévient une fois par session que la liste `liste` est coupée à `plafond` lignes (rien si elle est complète). */
+export function signalerPlafondAtteint(liste: string, plafond: number | null | undefined): void {
+  if (!plafond || _plafondsSignales.has(liste)) return
+  _plafondsSignales.add(liste)
+  toast.warning(messagePlafondAtteint(liste, plafond), { id: `btp-plafond-${liste}`, duration: 10_000 })
+}
+
+/** Pour un écran qui lit GET /api/btp sans ce hook : prévient pour chaque liste coupée de la réponse. */
+export function signalerPlafondsAtteints(reponse: unknown): void {
+  const plafonds = (reponse as { plafondsAtteints?: unknown } | null)?.plafondsAtteints
+  if (!plafonds || typeof plafonds !== 'object') return
+  for (const [liste, plafond] of Object.entries(plafonds as Record<string, unknown>)) {
+    if (typeof plafond === 'number') signalerPlafondAtteint(liste, plafond)
+  }
+}
+
+/** GET d'une table : lignes brutes et plafond atteint (null : liste complète) ; null si la réponse n'est pas ok. */
+async function lireTable(table: ShortName): Promise<{ lignes: unknown[]; plafond: number | null } | null> {
   const res = await fetch(`/api/btp?table=${table}`, { headers: await authHeaders() })
   if (!res.ok) return null
   const json = await res.json()
-  return json[table] || []
+  const plafond = json.plafondsAtteints?.[table]
+  return { lignes: json[table] || [], plafond: typeof plafond === 'number' ? plafond : null }
 }
 
 /**
@@ -481,9 +506,9 @@ function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null>
   const enCours = _enVol[cacheKey]
   if (enCours?.generation === generation) return enCours.promesse
   const promesse = (async (): Promise<any[] | null> => {
-    let raw: any[] | null = null
+    let lu: { lignes: any[]; plafond: number | null } | null = null
     try {
-      raw = await lireTable(table)
+      lu = await lireTable(table)
     } catch (err) {
       if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
       throw err
@@ -492,8 +517,10 @@ function chargerTable(table: ShortName, cacheKey: string): Promise<any[] | null>
       if (_enVol[cacheKey]?.generation === generation) delete _enVol[cacheKey]
     }
     if (generationActuelle(cacheKey) !== generation) return chargerTable(table, cacheKey)
-    if (raw !== null) _dataCache[cacheKey] = { data: raw.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
-    return raw
+    if (lu === null) return null
+    _dataCache[cacheKey] = { data: lu.lignes.map((r: any) => mapFromSupabase(table, r)), at: Date.now() }
+    _plafonds[cacheKey] = lu.plafond ?? undefined
+    return lu.lignes
   })()
   _enVol[cacheKey] = { generation, promesse }
   return promesse
@@ -603,6 +630,12 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, artisanId, autoImport, tableName])
+
+  // Liste coupée par la route : prévenir quand la section qui l'affiche est à l'écran, y compris si la liste a été
+  // chargée d'avance par le tableau de bord (une seule fois par liste et par session).
+  useEffect(() => {
+    signalerPlafondAtteint(table, _plafonds[cacheKey])
+  }, [items, table, cacheKey])
 
   // ── CRUD operations ─────────────────────────────────────────────────────
 

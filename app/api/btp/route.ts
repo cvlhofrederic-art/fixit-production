@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
+import { PLAFONDS_LECTURE_BTP } from '@/lib/btp/plafonds-lecture'
 
 // Tables écrivables par le POST. `ref_taux` (taux de référence globaux, posés par migration) n'y figure pas :
 // la route le sert seulement en lecture (`GET /api/btp?table=ref_taux`).
@@ -35,21 +36,22 @@ interface LectureListe {
   parChantier?: boolean
 }
 
+// Nombres maximaux de lignes : lib/btp/plafonds-lecture.ts (les écrans en tirent le message d'une liste coupée).
 const LECTURES: Record<string, LectureListe> = {
-  chantiers: { source: 'chantiers_btp', tri: [['created_at', false]], plafond: 200 },
-  membres: { source: 'membres_btp', tri: [['nom', true]], plafond: 500 },
+  chantiers: { source: 'chantiers_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.chantiers },
+  membres: { source: 'membres_btp', tri: [['nom', true]], plafond: PLAFONDS_LECTURE_BTP.membres },
   equipes: { source: 'equipes_btp', colonnes: '*, equipe_membres_btp(membre_id)', tri: [['created_at', false]] },
-  pointages: { source: 'pointages_btp', tri: [['date', false]], plafond: 500, parChantier: true },
-  depenses: { source: 'depenses_btp', tri: [['date', false]], plafond: 500, parChantier: true },
-  situations: { source: 'situations_btp', tri: [['created_at', false]], plafond: 200 },
-  retenues: { source: 'retenues_btp', tri: [['created_at', false]], plafond: 200 },
-  dc4: { source: 'dc4_btp', tri: [['created_at', false]], plafond: 200 },
-  dce_analyses: { source: 'dce_analyses_btp', tri: [['created_at', false]], plafond: 100 },
-  dpgf: { source: 'dpgf_btp', tri: [['created_at', false]], plafond: 200 },
+  pointages: { source: 'pointages_btp', tri: [['date', false]], plafond: PLAFONDS_LECTURE_BTP.pointages, parChantier: true },
+  depenses: { source: 'depenses_btp', tri: [['date', false]], plafond: PLAFONDS_LECTURE_BTP.depenses, parChantier: true },
+  situations: { source: 'situations_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.situations },
+  retenues: { source: 'retenues_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.retenues },
+  dc4: { source: 'dc4_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.dc4 },
+  dce_analyses: { source: 'dce_analyses_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.dce_analyses },
+  dpgf: { source: 'dpgf_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.dpgf },
   ref_taux: { source: 'ref_taux', tri: [['juridiction', true], ['regime', true], ['type_charge', true]], parProprietaire: false },
   charges_fixes: { source: 'charges_fixes', tri: [['categorie', true], ['label', true]] },
-  rapports: { source: 'rapports_btp', tri: [['created_at', false]], plafond: 500 },
-  rentabilite: { source: 'v_rentabilite_chantier', tri: [], plafond: 100 },
+  rapports: { source: 'rapports_btp', tri: [['created_at', false]], plafond: PLAFONDS_LECTURE_BTP.rapports },
+  rentabilite: { source: 'v_rentabilite_chantier', tri: [], plafond: PLAFONDS_LECTURE_BTP.rentabilite },
 }
 
 const MESSAGE_LECTURE_IMPOSSIBLE = 'Les données n\'ont pas pu être chargées. Réessayez dans un instant.'
@@ -62,16 +64,36 @@ class ErreurLecture extends Error {
   }
 }
 
-async function lireListe(cle: string, userId: string, chantierId: string | null): Promise<Record<string, unknown>[]> {
+interface ListeLue {
+  lignes: Record<string, unknown>[]
+  /** Nombre maximal de lignes atteint : d'autres lignes existent au-delà (null : liste complète). */
+  plafondAtteint: number | null
+}
+
+async function lireListe(cle: string, userId: string, chantierId: string | null): Promise<ListeLue> {
   const lecture = LECTURES[cle]
   let requete = supabaseAdmin.from(lecture.source).select(lecture.colonnes ?? '*')
   if (lecture.parProprietaire !== false) requete = requete.eq('owner_id', userId)
   if (lecture.parChantier && chantierId) requete = requete.eq('chantier_id', chantierId)
   for (const [colonne, croissant] of lecture.tri) requete = requete.order(colonne, { ascending: croissant })
-  if (lecture.plafond) requete = requete.limit(lecture.plafond)
+  // Une ligne de plus que le maximum : sa présence dit que la liste est coupée (constat donnees-btp-10). Les lignes
+  // renvoyées restent les mêmes qu'avant : les `plafond` premières dans le même ordre.
+  if (lecture.plafond) requete = requete.limit(lecture.plafond + 1)
   const { data, error } = await requete
   if (error) throw new ErreurLecture(lecture.source, error)
-  return (data ?? []) as unknown as Record<string, unknown>[]
+  const lignes = (data ?? []) as unknown as Record<string, unknown>[]
+  if (lecture.plafond && lignes.length > lecture.plafond) {
+    return { lignes: lignes.slice(0, lecture.plafond), plafondAtteint: lecture.plafond }
+  }
+  return { lignes, plafondAtteint: null }
+}
+
+/** `plafondsAtteints` de la réponse : seulement les listes coupées ; absent si toutes sont complètes. */
+function plafondsAtteints(listes: Record<string, ListeLue>): { plafondsAtteints?: Record<string, number> } {
+  const atteints = Object.fromEntries(
+    Object.entries(listes).flatMap(([cle, liste]) => (liste.plafondAtteint === null ? [] : [[cle, liste.plafondAtteint]])),
+  )
+  return Object.keys(atteints).length > 0 ? { plafondsAtteints: atteints } : {}
 }
 
 /** Réglages du compte ; null s'ils n'ont jamais été enregistrés (ce n'est pas une erreur). */
@@ -113,7 +135,11 @@ export async function GET(request: NextRequest) {
         lireListe('depenses', user.id, chantierId),
         lireReglages(user.id),
       ])
-      return NextResponse.json({ chantiers, membres, equipes: avecMembreIds(equipes), pointages, depenses, settings })
+      return NextResponse.json({
+        chantiers: chantiers.lignes, membres: membres.lignes, equipes: avecMembreIds(equipes.lignes),
+        pointages: pointages.lignes, depenses: depenses.lignes, settings,
+        ...plafondsAtteints({ chantiers, membres, equipes, pointages, depenses }),
+      })
     }
 
     if (table === 'settings') return NextResponse.json({ settings: await lireReglages(user.id) })
@@ -121,8 +147,11 @@ export async function GET(request: NextRequest) {
     if (!Object.prototype.hasOwnProperty.call(LECTURES, table)) {
       return NextResponse.json({ error: 'Table invalide' }, { status: 400 })
     }
-    const lignes = await lireListe(table, user.id, chantierId)
-    return NextResponse.json({ [table]: table === 'equipes' ? avecMembreIds(lignes) : lignes })
+    const liste = await lireListe(table, user.id, chantierId)
+    return NextResponse.json({
+      [table]: table === 'equipes' ? avecMembreIds(liste.lignes) : liste.lignes,
+      ...plafondsAtteints({ [table]: liste }),
+    })
   } catch (err) {
     // Panne, délai dépassé, table ou colonne absente : jamais une liste vide inventée (constat api-coeur-6).
     if (err instanceof ErreurLecture) {
