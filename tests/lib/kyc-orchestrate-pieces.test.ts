@@ -86,6 +86,28 @@ describe('runKycPipeline — pièces enregistrées par leur chemin', () => {
     expect(resultat.checks.docOcrSuccess).toBe(true)
   })
 
+  it('Kbis et pièce d’identité : liens frais créés en une seule requête, avant les lectures', async () => {
+    const cheminIdentite = `${USER_ID}/identity/1b4e28ba-2fa1-11d2-883f-0016d3cca427.png`
+    mocks.artisan = { ...mocks.artisan, id_document_url: cheminIdentite }
+
+    await lancer()
+
+    expect(mocks.createSignedUrls).toHaveBeenCalledTimes(1)
+    expect(mocks.createSignedUrls).toHaveBeenCalledWith([CHEMIN_KBIS, cheminIdentite], expect.any(Number))
+    expect(mocks.telecharges).toEqual([lienFrais(CHEMIN_KBIS), lienFrais(cheminIdentite)])
+  })
+
+  it('panne du stockage pendant la création des liens : le contrôle continue, pièces non lues', async () => {
+    mocks.createSignedUrls.mockRejectedValueOnce(new Error('stockage indisponible'))
+
+    const resultat = await lancer()
+
+    expect(mocks.telecharges).toEqual([])
+    expect(resultat.checks.identifiantFormatValid).toBe(true)
+    expect(resultat.checks.identifiantActiveInRegistry).toBe(true)
+    expect(resultat.checks.docOcrSuccess).toBe(false)
+  })
+
   it('ne signe pas une pièce rangée hors du dossier du titulaire', async () => {
     mocks.artisan = { ...mocks.artisan, kbis_url: `${AUTRE_ID}/kbis/x.pdf` }
 

@@ -54,18 +54,19 @@ function validateNifFormat(nif: string): boolean {
 const DUREE_LIEN_KYC_S = 5 * 60
 
 /**
- * Lien de téléchargement d'une pièce de la fiche. La fiche garde le chemin de la pièce dans le seau privé (ou,
- * pour une fiche ancienne, un lien signé peut-être expiré, ou dont le jeton a été retiré) : un lien frais est créé
- * à partir de ce chemin, s'il est rangé dans un dossier du titulaire. Toute autre adresse est lue comme avant.
+ * Liens de téléchargement des pièces de la fiche, dans l'ordre reçu (une seule requête au stockage). La fiche garde
+ * le chemin de chaque pièce dans le seau privé (ou, pour une fiche ancienne, un lien signé peut-être expiré, ou dont
+ * le jeton a été retiré) : un lien frais est créé à partir de ce chemin, s'il est rangé dans un dossier du
+ * titulaire. Toute autre adresse est lue comme avant ; une valeur sans lien possible devient null.
  */
-async function lienPiece(valeur: unknown, ownerUserId: string): Promise<string | null> {
-  const [lien] = await signerValeurs(SEAU_DOCUMENTS, [valeur], {
+async function liensPieces(valeurs: unknown[], ownerUserId: string): Promise<Array<string | null>> {
+  const liens = await signerValeurs(SEAU_DOCUMENTS, valeurs, {
     dossiers: [`${ownerUserId}/`, `kbis/${ownerUserId}/`, `insurance/${ownerUserId}/`, `misc/${ownerUserId}/`],
     dureeS: DUREE_LIEN_KYC_S,
     origine: '[kyc-orchestrate]',
   })
-  if (lien) return lien
-  return typeof valeur === 'string' && /^https?:\/\//i.test(valeur) ? valeur : null
+  return valeurs.map((valeur, i) =>
+    liens[i] ?? (typeof valeur === 'string' && /^https?:\/\//i.test(valeur) ? valeur : null))
 }
 
 async function downloadBuffer(url: string): Promise<Buffer | null> {
@@ -283,6 +284,19 @@ export async function runKycPipeline(
     return { ok: false, status: 403 }
   }
 
+  // Pièces à lire (Kbis ou Certidão, pièce d'identité) : la fiche garde leur chemin dans le seau privé, pas un lien
+  // signé. Les étapes suivantes les téléchargent par un lien frais de quelques minutes, posé ici sur la copie lue
+  // de la fiche (jamais réécrite en base : la mise à jour finale ne porte que les colonnes kyc_* et *_extracted).
+  let liens: Array<string | null> = [null, null]
+  try {
+    liens = await liensPieces([artisan.kbis_url, artisan.id_document_url], ownerUserId)
+  } catch (err) {
+    // Non bloquant, comme un téléchargement en échec : le score tient compte des pièces non lues.
+    logger.warn('[kyc-orchestrate] liens des pièces non créés', { artisan_id, erreur: err instanceof Error ? err.name : 'inconnue' })
+  }
+  artisan.kbis_url = liens[0]
+  artisan.id_document_url = liens[1]
+
   // Determine market
   const market = determineMarket(artisan)
 
@@ -358,8 +372,7 @@ export async function runKycPipeline(
 
   if (artisan.kbis_url) {
     try {
-      const lienKbis = await lienPiece(artisan.kbis_url, ownerUserId)
-      const buffer = lienKbis ? await downloadBuffer(lienKbis) : null
+      const buffer = await downloadBuffer(artisan.kbis_url)
       if (buffer) {
         const ocr = await ocrBuffer(buffer, ocrLang)
         if (ocr.confidence > 30 || ocr.text.length > 50) {
@@ -409,8 +422,7 @@ export async function runKycPipeline(
   // Step 6 — ID document OCR
   if (artisan.id_document_url) {
     try {
-      const lienPieceIdentite = await lienPiece(artisan.id_document_url, ownerUserId)
-      const buffer = lienPieceIdentite ? await downloadBuffer(lienPieceIdentite) : null
+      const buffer = await downloadBuffer(artisan.id_document_url)
       if (buffer) {
         const ocr = await ocrBuffer(buffer, ocrLang)
         if (ocr.text.length > 20) {
