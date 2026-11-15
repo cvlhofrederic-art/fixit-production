@@ -2,7 +2,7 @@
 // déconnexion (DELETE /api/email-agent/connect[?purger=1]) et état de la boîte pour l'écran
 // « E-mails Fixy » du Syndic v54 (GET /api/email-agent/status).
 // Démo du 12/10 : le super admin (cabinet = son propre compte) connecte Alfredo à la boîte
-// Microsoft 365 h.carvalho@ajassocies.fr ; le jeton de session ne passe pas dans l'URL.
+// Microsoft 365 gestion@exemple.fr ; le jeton de session ne passe pas dans l'URL.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -297,10 +297,10 @@ describe('GET /api/email-agent/status', () => {
   })
 
   it('boîte Microsoft 365 connectée : provider « microsoft »', async () => {
-    etat.ligneJeton = { provider: 'microsoft', email_compte: 'h.carvalho@ajassocies.fr', access_token: 'eyJ0eXAi', updated_at: '2026-10-11T20:00:00Z' }
+    etat.ligneJeton = { provider: 'microsoft', email_compte: 'gestion@exemple.fr', access_token: 'eyJ0eXAi', updated_at: '2026-10-11T20:00:00Z' }
     const { GET } = await import('@/app/api/email-agent/status/route')
     const j = await (await GET(requete('https://vitfix.io/api/email-agent/status'))).json()
-    expect(j).toMatchObject({ connecte: true, provider: 'microsoft', email: 'h.carvalho@ajassocies.fr' })
+    expect(j).toMatchObject({ connecte: true, provider: 'microsoft', email: 'gestion@exemple.fr' })
     expect(JSON.stringify(j)).not.toContain('eyJ0eXAi')
   })
 

@@ -9,18 +9,18 @@ describe('formatSiegeAddress', () => {
 
   it('adresse rue seule (sans CP) → concat normal "RUE, CP VILLE"', () => {
     expect(formatSiegeAddress({
-      adresse: 'ETG RDC ALLEE HIPPOLYTE GONDREXON',
+      adresse: 'ETG RDC ALLEE DES EXEMPLES',
       code_postal: '13830',
       libelle_commune: 'ROQUEFORT-LA-BEDOULE',
-    })).toBe('ETG RDC ALLEE HIPPOLYTE GONDREXON, 13830 ROQUEFORT-LA-BEDOULE')
+    })).toBe('ETG RDC ALLEE DES EXEMPLES, 13830 ROQUEFORT-LA-BEDOULE')
   })
 
   it('adresse déjà complète avec CP → renvoie telle quelle (évite duplication ville)', () => {
     expect(formatSiegeAddress({
-      adresse: 'ETG RDC ALLEE HIPPOLYTE GONDREXON 13830 ROQUEFORT-LA-BEDOULE',
+      adresse: 'ETG RDC ALLEE DES EXEMPLES 13830 ROQUEFORT-LA-BEDOULE',
       code_postal: '13830',
       libelle_commune: 'ROQUEFORT-LA-BEDOULE',
-    })).toBe('ETG RDC ALLEE HIPPOLYTE GONDREXON 13830 ROQUEFORT-LA-BEDOULE')
+    })).toBe('ETG RDC ALLEE DES EXEMPLES 13830 ROQUEFORT-LA-BEDOULE')
   })
 
   it('adresse vide mais CP+ville présents → "CP VILLE"', () => {
