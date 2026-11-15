@@ -1,0 +1,567 @@
+{
+  "famille": {
+    "id": "massas-reparacao",
+    "nom": "Massas e betumes de reparação",
+    "description": "Massas para tapar, encher, alisar e reparar paredes, tetos, madeira e outros suportes, mais as massas, fitas, redes e cantoneiras para juntas e reforços.",
+    "icone": "🪣",
+    "sousFamilles": [
+      {
+        "id": "enchimento-interior",
+        "nom": "Massas de enchimento para interior",
+        "description": "Massas em pó ou prontas para tapar buracos, roços e fendas em paredes e tetos interiores."
+      },
+      {
+        "id": "acabamento-alisamento",
+        "nom": "Massas de barramento, acabamento e alisamento",
+        "description": "Massas para barrar paredes degradadas e massas finas para deixar a parede lisa antes de pintar."
+      },
+      {
+        "id": "massas-exterior",
+        "nom": "Massas para exterior",
+        "description": "Massas resistentes à intempérie para fachadas, muros e betão."
+      },
+      {
+        "id": "massas-fissuras",
+        "nom": "Massas para fissuras",
+        "description": "Massas fibradas e elásticas para fissuras que voltam a abrir."
+      },
+      {
+        "id": "betumes-madeira",
+        "nom": "Betumes e massas para madeira",
+        "description": "Betumes de cor e massas reparadoras para tapar e reconstituir madeira."
+      },
+      {
+        "id": "massas-bicomponentes",
+        "nom": "Massas bicomponentes de poliéster",
+        "description": "Massas de dois componentes, muito duras, para metal, pedra e reparações resistentes."
+      },
+      {
+        "id": "vidraceiro-juntas",
+        "nom": "Massa de vidraceiro e retoque de juntas",
+        "description": "Massa para assentar vidros e massas em tubo para renovar juntas de azulejo."
+      },
+      {
+        "id": "fitas-redes",
+        "nom": "Redes de fibra de vidro para reboco",
+        "description": "Fitas de papel e de rede para juntas e redes para armar rebocos e revestimentos."
+      },
+      {
+        "id": "cantoneiras-perfis-reforco",
+        "nom": "Cantoneiras e perfis de reforço",
+        "description": "Perfis para proteger e alinhar esquinas e rematar vergas."
+      }
+    ]
+  },
+  "materiaux": [
+    {
+      "id": "massa-enchimento-po-interior",
+      "famille": "massas-reparacao",
+      "sousFamille": "enchimento-interior",
+      "nom": "Massa de enchimento em pó para interior",
+      "aussiAppele": [
+        "massa de reparação em pó",
+        "massa de tapar buracos",
+        "betume em pó"
+      ],
+      "aussiCherche": [
+        "aguaplast"
+      ],
+      "usage": "Para amassar com água e tapar buracos, roços e fendas em paredes e tetos interiores de reboco, estuque ou gesso.",
+      "aSavoir": "Só para interior. Em enchimentos fundos aplicar por camadas; lixar e dar primário antes de pintar.",
+      "conditionnement": "Embalagem 1 kg ou 5 kg; saco 25 kg",
+      "recherche": "massa enchimento pó",
+      "rechercheEnseigne": {
+        "maxmat": "massa pó"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-enchimento-pronta-pasta",
+      "famille": "massas-reparacao",
+      "sousFamille": "enchimento-interior",
+      "nom": "Massa de reparação pronta em pasta",
+      "aussiAppele": [
+        "massa pronta",
+        "massa em pasta",
+        "betume de parede",
+        "massa universal"
+      ],
+      "aussiCherche": [
+        "aguaplast"
+      ],
+      "usage": "Massa pronta a usar para tapar pequenos buracos, furos de buchas e fendas em paredes e tetos interiores.",
+      "aSavoir": "Retrai em enchimentos fundos: aplicar em camadas finas e deixar secar entre elas.",
+      "conditionnement": "Tubo 200 ml; embalagem 0,75-1 kg; balde 5 kg ou 15 kg",
+      "recherche": "massa reparação pasta",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-secagem-rapida-po",
+      "famille": "massas-reparacao",
+      "sousFamille": "enchimento-interior",
+      "nom": "Massa de reparação rápida em pó",
+      "aussiAppele": [
+        "massa rápida",
+        "massa de secagem rápida",
+        "massa de presa rápida"
+      ],
+      "usage": "Massa em pó de secagem rápida para reparar paredes e tetos interiores quando é preciso lixar e pintar mais cedo.",
+      "aSavoir": "Tempo de trabalho curto: amassar pouca quantidade de cada vez.",
+      "conditionnement": "Embalagem 1 kg ou 4 kg",
+      "recherche": "massa rápida pó",
+      "rechercheEnseigne": {
+        "maxmat": "massa pó",
+        "leroy-merlin": "massa de secagem rápida"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-leve-interior",
+      "famille": "massas-reparacao",
+      "sousFamille": "enchimento-interior",
+      "nom": "Massa leve (aligeirada) em pasta",
+      "aussiAppele": [
+        "massa leve",
+        "massa ultraleve",
+        "massa aligeirada",
+        "massa sem retração"
+      ],
+      "usage": "Massa muito leve, pronta a usar, para encher buracos e fissuras não estruturais mais fundos numa só passagem, incluindo em tetos, sem descair; adere a gesso, estuque, reboco de cimento, tinta e madeira.",
+      "aSavoir": "Mais macia do que as massas normais: evitar em esquinas e zonas sujeitas a pancadas. Para exterior, confirmar na embalagem que a massa é de interior e exterior.",
+      "conditionnement": "Embalagem 250 ml ou 750 ml; balde 4 L",
+      "recherche": "massa leve",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betume-renovacao-interior",
+      "famille": "massas-reparacao",
+      "sousFamille": "acabamento-alisamento",
+      "nom": "Betume de renovação de interiores (em pasta)",
+      "aussiAppele": [
+        "massa de renovação",
+        "massa de barramento",
+        "betume de barrar"
+      ],
+      "usage": "Massa em pasta para barrar e renovar paredes e tetos interiores degradados ou irregulares antes de pintar.",
+      "conditionnement": "Embalagem 1 kg; balde 6 kg",
+      "recherche": "betume renovação interior",
+      "rechercheEnseigne": {
+        "maxmat": "betume renovação",
+        "leroy-merlin": "massa de renovação"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-acabamento-pronta-pasta",
+      "famille": "massas-reparacao",
+      "sousFamille": "acabamento-alisamento",
+      "nom": "Massa de acabamento e alisamento em pasta",
+      "aussiAppele": [
+        "massa de alisar",
+        "massa fina",
+        "massa de barramento fino",
+        "betume de alisamento"
+      ],
+      "usage": "Massa fina pronta a usar para o barramento final e para tirar pequenas imperfeições e riscos antes de pintar.",
+      "aSavoir": "Aplica-se em camada fina: não serve para encher buracos fundos.",
+      "conditionnement": "Embalagem 0,5 kg, 1 kg ou 5 kg",
+      "recherche": "massa acabamento pasta",
+      "rechercheEnseigne": {
+        "maxmat": "massa pasta",
+        "leroy-merlin": "massa de alisar"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-acabamento-po",
+      "famille": "massas-reparacao",
+      "sousFamille": "acabamento-alisamento",
+      "nom": "Massa de acabamento em pó (estuque de acabamento)",
+      "aussiAppele": [
+        "massa de acabamento",
+        "estuque de acabamento",
+        "massa de estanhar",
+        "massa fina em pó"
+      ],
+      "usage": "Massa em pó para o barramento final liso de paredes e tetos interiores, por cima da massa de enchimento ou do estuque.",
+      "aSavoir": "Só para interior; aplicar em camada fina.",
+      "conditionnement": "Balde 1,1 kg; saco 5 kg ou 18 kg",
+      "recherche": "massa acabamento",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-exterior-po",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-exterior",
+      "nom": "Massa de reparação para exterior em pó",
+      "aussiAppele": [
+        "massa exterior",
+        "massa para fachadas",
+        "betume de exterior"
+      ],
+      "usage": "Para reparar buracos e fendas em fachadas, muros, reboco e betão no exterior.",
+      "aSavoir": "Não aplicar com chuva, geada ou sol forte; pintar só depois de seca.",
+      "conditionnement": "Embalagem 1,5 kg ou 6 kg",
+      "recherche": "massa exterior",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-fibroelastica-exterior",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-exterior",
+      "nom": "Massa fibroelástica para fissuras em fachadas e tetos",
+      "aussiAppele": [
+        "massa para fissuras de fachada",
+        "massa fibrada exterior",
+        "massa elástica exterior",
+        "massa fibroelástica"
+      ],
+      "usage": "Massa em pasta, com fibras e elasticidade, para encher e vedar fissuras e gretas sujeitas a movimento em fachadas, rebocos exteriores e tetos.",
+      "aSavoir": "Fissuras que continuam a abrir ou com desnível precisam de diagnóstico antes de tapar.",
+      "conditionnement": "Embalagem 1 kg ou 5 kg",
+      "recherche": "massa fissuras exterior",
+      "rechercheEnseigne": {
+        "maxmat": "massa fibroelástica"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-fibrada-fissuras",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-fissuras",
+      "nom": "Massa fibrada para fissuras (em pasta)",
+      "aussiAppele": [
+        "massa com fibras",
+        "massa armada",
+        "massa antifissuras",
+        "massa de fibra"
+      ],
+      "usage": "Massa reforçada com fibras para fissuras e uniões entre materiais diferentes que tendem a reabrir.",
+      "aSavoir": "Abrir e limpar a fissura antes de encher; fissuras estruturais precisam de diagnóstico, a massa só as disfarça.",
+      "conditionnement": "Tubo 200 ml; embalagem 900 g ou 4 kg",
+      "recherche": "massa fibra fissuras",
+      "rechercheEnseigne": {
+        "maxmat": "massa com fibras"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-elastica-fissuras",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-fissuras",
+      "nom": "Massa elástica para fissuras (em pasta)",
+      "aussiAppele": [
+        "massa flexível",
+        "massa para fissuras vivas",
+        "betume elástico"
+      ],
+      "usage": "Massa que se mantém flexível, para encher e vedar fendas e fissuras com movimento em paredes, tetos e fachadas.",
+      "aSavoir": "Deixar bem alisada enquanto está fresca: depois de seca, uma massa elástica lixa-se mal.",
+      "conditionnement": "Embalagem 1 kg ou 5 kg",
+      "recherche": "massa elástica",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "betume-madeira-pasta",
+      "famille": "massas-reparacao",
+      "sousFamille": "betumes-madeira",
+      "nom": "Betume de madeira em pasta (cores de madeira)",
+      "aussiAppele": [
+        "massa de madeira",
+        "betume para madeira",
+        "pasta de madeira",
+        "massa tapa-furos"
+      ],
+      "usage": "Para tapar furos de pregos e parafusos, fendas e pequenos defeitos em madeira, em tons de pinho, carvalho, nogueira, mogno, sapele, teca, branco ou neutro.",
+      "aSavoir": "Absorve o verniz e a velatura de forma diferente da madeira: escolher o tom já acabado e testar primeiro.",
+      "conditionnement": "Embalagem 125 ml; tubo 200 g; embalagem 1 kg",
+      "recherche": "betume madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-reparadora-madeira-po",
+      "famille": "massas-reparacao",
+      "sousFamille": "betumes-madeira",
+      "nom": "Massa reparadora de madeira em pó",
+      "aussiAppele": [
+        "reparador de madeira",
+        "massa para reconstruir madeira"
+      ],
+      "usage": "Massa em pó para amassar com água e reconstituir faltas maiores em madeira (cantos, arestas, zonas partidas).",
+      "conditionnement": "Embalagem 1 kg",
+      "recherche": "reparador madeira",
+      "enseignes": [
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-reparacao-madeira-bicomponente",
+      "famille": "massas-reparacao",
+      "sousFamille": "betumes-madeira",
+      "nom": "Massa de reparação de madeira de dois componentes",
+      "aussiAppele": [
+        "massa de madeira com endurecedor",
+        "massa de poliéster para madeira",
+        "massa dura para madeira"
+      ],
+      "usage": "Massa de dois componentes, clara ou escura, para reparações resistentes em aros, portas, caixilhos e móveis, que depois se lixa e pinta.",
+      "aSavoir": "Misturar com o endurecedor na proporção indicada; depois de misturada só há poucos minutos para trabalhar.",
+      "conditionnement": "Lata 250 g",
+      "recherche": "massa reparação madeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-poliester-enchimento",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-bicomponentes",
+      "nom": "Massa de poliéster de enchimento (dois componentes)",
+      "aussiAppele": [
+        "massa de ferro",
+        "massa de bate-chapa",
+        "betume de poliéster",
+        "massa com endurecedor",
+        "massa de metal"
+      ],
+      "usage": "Massa muito dura para encher amolgadelas, furos e defeitos em chapa e metal (portões, grades, peças metálicas), que se lixa e pinta.",
+      "aSavoir": "Misturar com o endurecedor na proporção indicada; depois de misturada só há poucos minutos para trabalhar.",
+      "conditionnement": "Lata 250 g ou 1 kg",
+      "recherche": "massa enchimento poliéster",
+      "rechercheEnseigne": {
+        "maxmat": "massa de metal"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-poliester-fibra-vidro",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-bicomponentes",
+      "nom": "Massa de poliéster com fibra de vidro",
+      "aussiAppele": [
+        "massa de fibra de vidro",
+        "massa de fibra",
+        "massa armada com fibra"
+      ],
+      "usage": "Massa de dois componentes com fibras, para tapar furos, zonas corroídas e fendas em chapa, metal e peças de fibra, fazendo ponte sobre o vazio.",
+      "aSavoir": "Misturar com o endurecedor na proporção indicada; acabar com massa fina por cima para ficar lisa.",
+      "conditionnement": "Lata 250 g ou 1 kg",
+      "recherche": "massa fibra vidro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-reparacao-pedra",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-bicomponentes",
+      "nom": "Massa de reparação para pedra",
+      "aussiAppele": [
+        "massa de pedra",
+        "betume de pedra",
+        "massa para mármore"
+      ],
+      "usage": "Massa de dois componentes para reparar lascas e faltas em pedra, peitoris, soleiras e degraus.",
+      "aSavoir": "Misturar com o endurecedor na proporção indicada; depois de misturada só há poucos minutos para trabalhar.",
+      "conditionnement": "Lata 250 g",
+      "recherche": "massa reparação pedra",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "resina-poliester-manta-fibra",
+      "famille": "massas-reparacao",
+      "sousFamille": "massas-bicomponentes",
+      "nom": "Resina de poliéster e manta de fibra de vidro",
+      "aussiAppele": [
+        "resina de poliéster",
+        "manta de fibra de vidro",
+        "esteira de fibra de vidro",
+        "kit de fibra"
+      ],
+      "usage": "Resina que se aplica com manta de fibra de vidro para laminar e reforçar reparações em peças de fibra de vidro e em chapa furada ou corroída.",
+      "aSavoir": "A resina leva endurecedor e só há poucos minutos para trabalhar; usar luvas e ventilar bem.",
+      "conditionnement": "Resina em lata 250 g ou 1 kg; manta 0,5 m²",
+      "recherche": "resina poliéster",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-vidraceiro",
+      "famille": "massas-reparacao",
+      "sousFamille": "vidraceiro-juntas",
+      "nom": "Massa de vidraceiro",
+      "aussiAppele": [
+        "betume de vidraceiro",
+        "massa de vidros",
+        "massa de óleo de linhaça",
+        "massa para vidros",
+        "betume para vidros"
+      ],
+      "usage": "Para assentar e vedar vidros em caixilhos de madeira ou de ferro e refazer cordões antigos; em branco ou castanho.",
+      "aSavoir": "Seca devagar: esperar que ganhe pele à superfície antes de pintar.",
+      "conditionnement": "Embalagem 0,5 kg ou 1 kg",
+      "recherche": "massa vidraceiro",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "massa-renovar-juntas-azulejo",
+      "famille": "massas-reparacao",
+      "sousFamille": "vidraceiro-juntas",
+      "nom": "Massa para renovar juntas de azulejo (em tubo)",
+      "aussiAppele": [
+        "massa de juntas em tubo",
+        "renova juntas",
+        "betume de juntas pronto"
+      ],
+      "usage": "Massa pronta para preencher e alisar juntas finas de azulejo, pastilha e mosaico em paredes.",
+      "aSavoir": "Só para retoques em paredes; para juntas novas ou pavimentos usar betume de juntas em pó.",
+      "conditionnement": "Tubo 200 ml / 200 g",
+      "recherche": "massa juntas tubo",
+      "rechercheEnseigne": {
+        "leroy-merlin": "betume de juntas pronto"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "rede-fibra-vidro-reboco",
+      "famille": "massas-reparacao",
+      "sousFamille": "fitas-redes",
+      "nom": "Rede de fibra de vidro para reboco (110-145 g/m²)",
+      "aussiAppele": [
+        "rede de reboco",
+        "malha de fibra de vidro",
+        "rede de capoto",
+        "rede antialcalina",
+        "tela de fibra"
+      ],
+      "usage": "Para armar rebocos, barramentos e sistemas de capoto e para fazer ponte entre materiais diferentes (pilar e tijolo, roços), evitando fissuras.",
+      "aSavoir": "Usar rede antialcalina, embebida a meio da espessura da argamassa, com sobreposição de cerca de 10 cm nas emendas.",
+      "conditionnement": "Rolo 1 x 10 m ou 25 m",
+      "recherche": "rede fibra vidro reboco",
+      "rechercheEnseigne": {
+        "maxmat": "malha de fibra de vidro"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cantoneira-perfurada-aluminio",
+      "famille": "massas-reparacao",
+      "sousFamille": "cantoneiras-perfis-reforco",
+      "nom": "Cantoneira perfurada de alumínio para esquinas (25x25 mm)",
+      "aussiAppele": [
+        "cantoneira de esquina",
+        "perfil de esquina",
+        "cantoneira de pladur",
+        "perfil de aresta",
+        "cantoneira de esquina para placas",
+        "guarda-vivos",
+        "perfil de canto",
+        "cantoneira perfurada",
+        "cantoneira de alumínio"
+      ],
+      "usage": "Para proteger e alinhar as esquinas salientes em gesso cartonado e estuque, ficando embebida na massa.",
+      "conditionnement": "Barra 3 m",
+      "recherche": "cantoneira perfurada",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "cantoneira-com-rede",
+      "famille": "massas-reparacao",
+      "sousFamille": "cantoneiras-perfis-reforco",
+      "nom": "Cantoneira com rede (PVC ou alumínio) para reboco e capoto",
+      "aussiAppele": [
+        "cantoneira com rede",
+        "perfil de canto com rede",
+        "cantoneira de capoto",
+        "perfil de esquina pvc"
+      ],
+      "usage": "Perfil de esquina com rede de fibra de vidro para reforçar e alinhar as arestas em rebocos armados e sistemas de capoto.",
+      "aSavoir": "A rede da cantoneira sobrepõe-se à rede da parede.",
+      "conditionnement": "Barra 2,5 m",
+      "recherche": "cantoneira com rede",
+      "rechercheEnseigne": {
+        "leroy-merlin": "perfil de canto com rede"
+      },
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    },
+    {
+      "id": "perfil-pingadeira-pvc-rede",
+      "famille": "massas-reparacao",
+      "sousFamille": "cantoneiras-perfis-reforco",
+      "nom": "Perfil de pingadeira em PVC com rede",
+      "aussiAppele": [
+        "pingadeira",
+        "perfil lacrimal",
+        "perfil de verga"
+      ],
+      "usage": "Perfil para rematar vergas de portas e janelas em fachadas rebocadas ou com capoto, que obriga a água a pingar em vez de escorrer para a parede.",
+      "conditionnement": "Barra 2,5 m",
+      "recherche": "perfil pingadeira",
+      "enseignes": [
+        "leroy-merlin",
+        "maxmat"
+      ]
+    }
+  ]
+}
