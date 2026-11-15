@@ -231,6 +231,23 @@ describe('accueil BTP (pro_societe) — liens', () => {
     }
   })
 
+  it('les trois tuiles dont le lien a été corrigé s’ouvrent aussi au clavier (Entrée, Espace), comme au clic', async () => {
+    const { container } = await afficher(proprietes('pro_societe', [documents[0]]))
+    const tuiles = [...container.querySelectorAll<HTMLElement>('[role="button"][tabindex="0"]')]
+    const destinationAuClavier = (texte: string, touche: string) => {
+      const tuile = tuiles.find(t => t.textContent?.includes(texte))
+      expect(tuile, texte).toBeDefined()
+      navigateTo.mockClear()
+      fireEvent.keyDown(tuile!, { key: touche })
+      return navigateTo.mock.calls.map(appel => String(appel[0]))
+    }
+    expect(destinationAuClavier('CA total chantiers', 'Enter')).toEqual(['compta_btp'])
+    expect(destinationAuClavier('Dépenses', ' ')).toEqual(['rentabilite'])
+    expect(destinationAuClavier('Clients', 'Enter')).toEqual(['portail_client'])
+    // Une autre touche ne déclenche rien.
+    expect(destinationAuClavier('Clients', 'a')).toEqual([])
+  })
+
   it('la page transmet à l’accueil les devis et factures qu’elle a chargés (source des alertes)', () => {
     const debut = sourcePage.indexOf('<HomeSection')
     expect(debut).toBeGreaterThan(0)

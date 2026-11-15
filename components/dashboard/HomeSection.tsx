@@ -6,6 +6,7 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import {
   alertesChantiers, chiffresChantiers, clientsAvecDevis, finDepassee, libelleDevisBrouillon, type DocumentAccueil,
 } from '@/lib/btp/accueil'
@@ -373,7 +374,7 @@ export default function HomeSection({
               <div className="v5-kpi-v">{chantiersActifs.length}</div>
               <div className="v5-kpi-s">{chantiersAttente.length > 0 ? `+ ${chantiersAttente.length} ${locale === 'pt' ? 'em espera' : 'en attente'}` : `${btpChantiers.length} total`}</div>
             </div>
-            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('compta_btp')}>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('compta_btp')} onKeyDown={surActivationClavier(() => navigateTo('compta_btp'))}>
               <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação total obras' : 'CA total chantiers'}</div>
               <div className="v5-kpi-v">{formatPrice(totalBudget)}</div>
               <div className="v5-kpi-s">{locale === 'pt' ? 'Adiantamentos' : 'Acomptes'} : {totalAcomptes === null ? '—' : formatPrice(totalAcomptes)}</div>
@@ -589,12 +590,12 @@ export default function HomeSection({
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpSituations.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{btpSituations.filter(s => s.statut === 'validée' || s.statut === 'payée').length} {locale === 'pt' ? 'validadas / pagas' : 'validées / payées'}</div>
             </div>
-            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('rentabilite')}>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('rentabilite')} onKeyDown={surActivationClavier(() => navigateTo('rentabilite'))}>
               <div className="v5-st">{locale === 'pt' ? 'Despesas' : 'Dépenses'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpDepenses.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{formatPrice(totalDepenses)} total</div>
             </div>
-            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('portail_client')}>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('portail_client')} onKeyDown={surActivationClavier(() => navigateTo('portail_client'))}>
               <div className="v5-st">{locale === 'pt' ? 'Clientes' : 'Clients'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{new Set(btpChantiers.map(c => c.client)).size}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{btpChantiers.length} {locale === 'pt' ? 'obras' : 'chantiers'}</div>
