@@ -60,9 +60,19 @@ const LS_KEYS: Record<ShortName, (id: string) => string> = {
   rapports: (id) => `fixit_rapports_${id}`,
 }
 
+/** Nombre entier (colonne integer de la base), ou null si la valeur est absente ou illisible. */
+function entierOuNull(valeur: unknown): number | null {
+  if (valeur === null || valeur === undefined || valeur === '') return null
+  const n = Number(valeur)
+  return Number.isFinite(n) ? Math.round(n) : null
+}
+
 // Map localStorage fields → Supabase columns
 // Sert aux CRÉATIONS : tout champ absent reçoit une valeur par défaut. Pour une modification, passer par
 // colonnesModifiees() plus bas, qui n'envoie que les champs réellement fournis.
+// Colonnes vérifiées dans le relevé de production du 11/11/2026 : geo_rayon_m (chantier), equipe_id (membre),
+// chantier_id (équipe, dépense), membre_id, chantier_id, mode, coordonnées et distance (pointage) existent ; les
+// formulaires les remplissaient sans qu'elles soient envoyées (constats donnees-btp-6 et donnees-btp-7).
 export function mapToSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers': {
@@ -84,6 +94,12 @@ export function mapToSupabase(table: ShortName, item: any): any {
       // sous_taches is a partial-update field — only include when explicitly provided
       if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
       else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      // Rayon de pointage GPS (colonne NOT NULL avec valeur par défaut) : envoyé seulement quand le formulaire en
+      // fournit un lisible ; sinon la base garde sa valeur (100 m par défaut à la création).
+      if ('geoRayonM' in item) {
+        const rayon = entierOuNull(item.geoRayonM)
+        if (rayon !== null && rayon >= 1) mapped.geo_rayon_m = rayon
+      }
       return mapped
     }
     case 'membres':
@@ -94,6 +110,7 @@ export function mapToSupabase(table: ShortName, item: any): any {
         email: item.email || null,
         type_compte: item.typeCompte || 'ouvrier',
         role_perso: item.rolePerso || null,
+        equipe_id: item.equipeId || null,
         cout_horaire: item.coutHoraire ?? null,
         charges_pct: item.chargesPct ?? null,
         salaire_brut_mensuel: item.salaire_brut_mensuel ?? null,
@@ -111,23 +128,34 @@ export function mapToSupabase(table: ShortName, item: any): any {
       return {
         nom: item.nom || '',
         metier: item.metier || null,
+        chantier_id: item.chantierId || null,
         membreIds: item.membreIds || [], // handled separately in API
       }
     case 'pointages':
+      // Un pointage GPS d'arrivée n'a ni heure de départ ni heures travaillées : la colonne reste vide (null) au lieu
+      // d'un départ à 17:00 et de 0 heure jamais saisis.
       return {
+        membre_id: item.membreId || null,
+        chantier_id: item.chantierId || null,
         employe: item.employe || '',
         poste: item.poste || null,
         chantier_nom: item.chantier || null,
         date: item.date || new Date().toISOString().split('T')[0],
         heure_arrivee: item.heureArrivee || '08:00',
-        heure_depart: item.heureDepart || '17:00',
+        heure_depart: item.heureDepart || null,
         pause_minutes: item.pauseMinutes ?? 60,
-        heures_travaillees: item.heuresTravaillees ?? 0,
+        heures_travaillees: item.heuresTravaillees ?? null,
         notes: item.notes || null,
-        mode: 'manuel',
+        mode: item.mode || 'manuel',
+        arrivee_lat: item.arriveeLat ?? null,
+        arrivee_lng: item.arriveeLng ?? null,
+        depart_lat: item.departLat ?? null,
+        depart_lng: item.departLng ?? null,
+        distance_m: entierOuNull(item.distanceM),
       }
     case 'depenses':
       return {
+        chantier_id: item.chantierId || null,
         label: item.label || '',
         amount: typeof item.amount === 'string' ? parseFloat(item.amount) || 0 : item.amount || 0,
         category: item.category || 'autre',
@@ -212,28 +240,32 @@ export function mapToSupabase(table: ShortName, item: any): any {
 
 // Champs du formulaire qui alimentent chaque colonne — mêmes correspondances que mapToSupabase ci-dessus
 // (tests/lib/use-btp-data-modification-partielle.test.tsx vérifie que les deux restent alignés).
-// Une colonne absente de cette table (pointages.mode, posé d'office à la création) n'est jamais réécrite par
-// une modification. `rapports` n'y figure pas : son contenu regroupe tous les champs restants.
+// Une colonne absente de cette table n'est jamais réécrite par une modification. `rapports` n'y figure pas : son
+// contenu regroupe tous les champs restants.
 export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, readonly string[]>>> = {
   chantiers: {
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
+    geo_rayon_m: ['geoRayonM'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
-    role_perso: ['rolePerso'], cout_horaire: ['coutHoraire'], charges_pct: ['chargesPct'],
+    role_perso: ['rolePerso'], equipe_id: ['equipeId'], cout_horaire: ['coutHoraire'], charges_pct: ['chargesPct'],
     salaire_brut_mensuel: ['salaire_brut_mensuel'], salaire_net_mensuel: ['salaire_net_mensuel'],
     charges_salariales_pct: ['charges_salariales_pct'], charges_patronales_pct: ['charges_patronales_pct'],
     type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
     indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
   },
-  equipes: { nom: ['nom'], metier: ['metier'], membreIds: ['membreIds'] },
+  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId'], membreIds: ['membreIds'] },
   pointages: {
+    membre_id: ['membreId'], chantier_id: ['chantierId'],
     employe: ['employe'], poste: ['poste'], chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
     heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
+    mode: ['mode'], arrivee_lat: ['arriveeLat'], arrivee_lng: ['arriveeLng'], depart_lat: ['departLat'], depart_lng: ['departLng'],
+    distance_m: ['distanceM'],
   },
-  depenses: { label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
+  depenses: { chantier_id: ['chantierId'], label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
   situations: {
     chantier_id: ['chantier_id'], chantier: ['chantier'], client: ['client'], numero: ['numero'], date: ['date'],
     montant_marche: ['montantMarche', 'montant_marche'], travaux: ['travaux'], statut: ['statut'],
@@ -260,6 +292,26 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
 }
 
 /**
+ * Rattachements que la reprise des anciennes données du navigateur n'envoie pas, comme avant le 15/11/2026 : dans ces
+ * fiches locales, l'équipe d'un membre, le chantier d'une équipe, d'une dépense ou d'un pointage et le salarié d'un
+ * pointage portent des identifiants propres au navigateur, qui ne désignent aucune fiche en base ; la route refuserait
+ * alors toute la reprise.
+ */
+const RATTACHEMENTS_NON_REPRIS: Partial<Record<ShortName, readonly string[]>> = {
+  membres: ['equipe_id'],
+  equipes: ['chantier_id'],
+  pointages: ['membre_id', 'chantier_id'],
+  depenses: ['chantier_id'],
+}
+
+/** Ligne d'une reprise des anciennes données du navigateur (voir RATTACHEMENTS_NON_REPRIS). */
+function ligneDeReprise(table: ShortName, item: unknown): Record<string, unknown> {
+  const ligne = { ...(mapToSupabase(table, item) as Record<string, unknown>) }
+  for (const colonne of RATTACHEMENTS_NON_REPRIS[table] ?? []) delete ligne[colonne]
+  return ligne
+}
+
+/**
  * Colonnes à écrire pour une MODIFICATION : seulement celles dont le formulaire a fourni un champ.
  *
  * mapToSupabase donne une valeur par défaut à tout champ absent (titre '', client null, statut « En attente »…),
@@ -279,7 +331,7 @@ export function colonnesModifiees(table: ShortName, changes: Record<string, unkn
 }
 
 // Map Supabase columns → component-friendly format (keeps both formats for compat)
-function mapFromSupabase(table: ShortName, item: any): any {
+export function mapFromSupabase(table: ShortName, item: any): any {
   switch (table) {
     case 'chantiers':
       return {
@@ -347,8 +399,12 @@ function mapFromSupabase(table: ShortName, item: any): any {
         heuresTravaillees: parseFloat(item.heures_travaillees) || 0,
         notes: item.notes || '',
         mode: item.mode || 'manuel',
+        membreId: item.membre_id || '',
+        chantierId: item.chantier_id || '',
         arriveeLat: item.arrivee_lat,
         arriveeLng: item.arrivee_lng,
+        departLat: item.depart_lat,
+        departLng: item.depart_lng,
         distanceM: item.distance_m,
       }
     case 'depenses':
@@ -640,7 +696,7 @@ export function useBTPData<T = any>({ table, artisanId, userId, autoImport = tru
             const parsed = JSON.parse(raw)
             if (Array.isArray(parsed) && parsed.length > 0) {
               imported.current = true
-              const mapped = parsed.map((item: any) => mapToSupabase(table, item))
+              const mapped = parsed.map((item: unknown) => ligneDeReprise(table, item))
 
               const res = await fetch('/api/btp', {
                 method: 'POST',

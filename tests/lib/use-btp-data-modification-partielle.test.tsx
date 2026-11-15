@@ -84,8 +84,10 @@ describe('colonnesModifiees — une modification partielle n’envoie que ce qui
 })
 
 describe('SOURCES_DES_COLONNES reste aligné sur mapToSupabase', () => {
-  // Colonnes posées d'office à la création, volontairement absentes des modifications.
-  const POSEES_A_LA_CREATION: Record<string, string[]> = { pointages: ['mode'] }
+  // Colonnes posées d'office à la création, volontairement absentes des modifications. Le mode d'un pointage n'en
+  // fait plus partie depuis le 15/11/2026 : il était forcé à « manuel », même pour un pointage GPS (constat
+  // donnees-btp-6) ; il vient maintenant du pointage lui-même, comme ses autres champs.
+  const POSEES_A_LA_CREATION: Record<string, string[]> = {}
   const trier = (liste: readonly string[]) => [...liste].sort((a, b) => a.localeCompare(b))
   const tries = (parColonne: Record<string, readonly string[]>) =>
     Object.fromEntries(Object.entries(parColonne).map(([colonne, champs]) => [colonne, trier(champs)]))

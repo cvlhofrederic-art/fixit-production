@@ -74,8 +74,9 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
   const [filterEmploye, setFilterEmploye] = useState('')
   const [geoStatus, setGeoStatus] = useState<'idle' | 'watching' | 'in_zone' | 'pointed'>('idle')
   const [nearestChantier, setNearestChantier] = useState<NearestChantier | null>(null)
+  // membreId : fiche du salarié choisi dans la liste, enregistrée avec le pointage (constat donnees-btp-6).
   const [form, setForm] = useState({
-    employe: '', poste: '', chantier: '', chantierId: '',
+    employe: '', membreId: '', poste: '', chantier: '', chantierId: '',
     date: new Date().toISOString().split('T')[0],
     heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, notes: '',
   })
@@ -87,15 +88,18 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
   }
 
   // ── Géo-détection : vérifier proximité chantiers ──────────────────────────
+  // Dépendances : la position et distanceTo (qui ne change qu'avec elle), jamais l'objet `geo`, recréé à chaque rendu :
+  // l'effet repartait alors après chaque rendu qu'il provoquait, sans fin, dès qu'une position était connue.
+  const { position: positionGps, distanceTo } = geo
   useEffect(() => {
-    if (!geo.position || !settings.geo_pointage_enabled) return
+    if (!positionGps || !settings.geo_pointage_enabled) return
 
     const activeChantiers = (chantiers as Chantier[]).filter(c => c.statut === 'En cours' && c.latitude && c.longitude)
     let nearest: NearestChantier | null = null
     let minDist = Infinity
 
     for (const c of activeChantiers) {
-      const dist = geo.distanceTo(c.latitude!, c.longitude!)
+      const dist = distanceTo(c.latitude!, c.longitude!)
       if (dist !== null && dist < minDist) {
         minDist = dist
         nearest = { ...c, distance: Math.round(dist) }
@@ -104,7 +108,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
 
     // Vérifier aussi le dépôt
     if (settings.depot_lat && settings.depot_lng) {
-      const depotDist = geo.distanceTo(settings.depot_lat, settings.depot_lng)
+      const depotDist = distanceTo(settings.depot_lat, settings.depot_lng)
       if (depotDist !== null && depotDist < minDist) {
         minDist = depotDist
         nearest = { id: 'depot', titre: isPt ? 'Depósito' : 'Dépôt', statut: 'En cours', distance: Math.round(depotDist), geoRayonM: settings.depot_rayon_m, latitude: settings.depot_lat, longitude: settings.depot_lng, isDepot: true }
@@ -118,7 +122,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
       setNearestChantier(nearest)
       setGeoStatus('watching')
     }
-  }, [geo.position, chantiers, settings, isPt, geo])
+  }, [positionGps, distanceTo, chantiers, settings, isPt])
 
   // ── Pointage auto/confirmé par GPS ────────────────────────────────────────
   const pointGeo = useCallback(async (chantier: NearestChantier) => {
@@ -132,9 +136,10 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
       chantierId: chantier.isDepot ? undefined : chantier.id,
       date: now.toISOString().split('T')[0],
       heureArrivee: heure,
+      // Pointage d'arrivée : départ et heures travaillées restent vides (rien n'est inventé).
       heureDepart: '',
       pauseMinutes: 0,
-      heuresTravaillees: 0,
+      heuresTravaillees: null,
       notes: `Pointage GPS (${chantier.distance}m)`,
       mode: 'geo_confirme',
       arriveeLat: geo.position?.lat,
@@ -155,7 +160,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
       mode: 'manuel',
     })
     setShowForm(false)
-    setForm({ employe: '', poste: '', chantier: '', chantierId: '', date: new Date().toISOString().split('T')[0], heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, notes: '' })
+    setForm({ employe: '', membreId: '', poste: '', chantier: '', chantierId: '', date: new Date().toISOString().split('T')[0], heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, notes: '' })
   }
 
   // ── Filtres et stats ──────────────────────────────────────────────────────
@@ -337,7 +342,7 @@ export function PointageGeoSection({ artisan, orgRole }: { artisan: Artisan; org
                   {membres.length > 0 ? (
                     <select className={isV5 ? "v5-fi" : "v22-input"} value={form.employe} onChange={e => {
                       const m = (membres as Membre[]).find(m => `${m.prenom} ${m.nom}` === e.target.value)
-                      setForm({ ...form, employe: e.target.value, poste: m?.typeCompte || form.poste })
+                      setForm({ ...form, employe: e.target.value, membreId: m?.id || '', poste: m?.typeCompte || form.poste })
                     }}>
                       <option value="">{t('proDash.pointage.selectionner')}</option>
                       {(membres as Membre[]).map(m => <option key={m.id} value={`${m.prenom} ${m.nom}`}>{m.prenom} {m.nom}</option>)}
