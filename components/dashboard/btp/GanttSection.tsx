@@ -1,15 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation, useLocale } from '@/lib/i18n/context'
 import { useThemeVars } from '../useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
-import { supabase } from '@/lib/supabase'
 
 interface ChantierItem {
   id: string; titre: string; client: string; dateDebut: string
   dateFin: string; statut: string; equipe: string
+  sousTaches?: SousTache[]
 }
+
+/** Délai de regroupement des écritures : un curseur qu'on fait glisser change de valeur à chaque pas. */
+const DELAI_ENREGISTREMENT_MS = 600
 
 interface SousTache {
   id: string; nom: string; chantierId: string; responsable: string
@@ -61,11 +64,34 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
   const isPt = locale === 'pt'
 
   const SUBTASKS_KEY = `gantt_subtasks_${userId}`
-  const { items: chantiers, loading } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId: authUserId || userId })
+  const { items: chantiers, loading, update } = useBTPData<ChantierItem>({ table: 'chantiers', artisanId: userId, userId: authUserId || userId })
 
   const [sousTaches, setSousTaches] = useState<SousTache[]>(() => {
     try { return JSON.parse(localStorage.getItem(SUBTASKS_KEY) || '[]') } catch { return [] }
   })
+
+  // ── Enregistrement en base (constat donnees-btp-8) ──
+  // Par le hook (modification partielle de sous_taches) : sa copie en mémoire des chantiers suit l'écriture, et un
+  // échec est annoncé. Avant, l'écriture directe laissait cette copie à l'ancien état, qui revenait au retour sur la
+  // page puis était réécrit. Écritures regroupées, pour les seuls chantiers dont la liste a changé (la route accepte
+  // 30 écritures par minute) ; celles en attente partent quand on quitte la page.
+  const sousTachesRef = useRef(sousTaches)
+  const updateRef = useRef(update)
+  const aEnregistrer = useRef(new Set<string>())
+  const minuterie = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => { sousTachesRef.current = sousTaches }, [sousTaches])
+  useEffect(() => { updateRef.current = update }, [update])
+
+  const enregistrerEnAttente = useCallback(() => {
+    if (minuterie.current) clearTimeout(minuterie.current)
+    minuterie.current = null
+    const ids = [...aEnregistrer.current]
+    aEnregistrer.current.clear()
+    for (const cid of ids) {
+      void updateRef.current(cid, { sousTaches: sousTachesRef.current.filter(st => st.chantierId === cid) })
+    }
+  }, [])
+  useEffect(() => () => enregistrerEnAttente(), [enregistrerEnAttente])
 
   // One-shot merge: once chantiers load from Supabase, pull their embedded sous_taches.
   // Supabase wins per chantier; localStorage items for unknown chantiers are kept.
@@ -84,30 +110,27 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
     })
   }, [chantiers])
 
-  // Persist sous-taches: localStorage + direct Supabase partial update (fire-and-forget)
+  // Persist sous-taches: localStorage (comme avant) + base, chantier par chantier, pour ceux dont la liste change
   const saveST = (d: SousTache[]) => {
+    const avant = sousTachesRef.current
     setSousTaches(d)
+    sousTachesRef.current = d
     localStorage.setItem(SUBTASKS_KEY, JSON.stringify(d))
-    // Group by chantierId
-    const byChantier = new Map<string, SousTache[]>()
-    for (const st of d) byChantier.set(st.chantierId, [...(byChantier.get(st.chantierId) || []), st])
-    // Chantiers that previously had sous-taches but now have none → write empty array
+    const listeDe = (liste: SousTache[], cid: string) => JSON.stringify(liste.filter(st => st.chantierId === cid))
     for (const c of chantiers) {
-      if (!byChantier.has(c.id)) {
-        const hadSub = (c as unknown as { sousTaches?: SousTache[] }).sousTaches?.length
-        if (hadSub) byChantier.set(c.id, [])
-      }
+      // Une liste vidée (dernière sous-tâche supprimée) est écrite elle aussi : [] en base.
+      if (listeDe(avant, c.id) !== listeDe(d, c.id)) aEnregistrer.current.add(c.id)
     }
-    // Direct Supabase update — bypasses mapToSupabase to avoid overwriting other fields
-    for (const [cid, sts] of byChantier) {
-      supabase.from('chantiers_btp').update({ sous_taches: sts, updated_at: new Date().toISOString() }).eq('id', cid).then(() => {})
-    }
+    if (aEnregistrer.current.size === 0) return
+    if (minuterie.current) clearTimeout(minuterie.current)
+    minuterie.current = setTimeout(enregistrerEnAttente, DELAI_ENREGISTREMENT_MS)
   }
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })
 
+  // Un chantier est exigé : sans lui, la sous-tâche n'apparaissait nulle part (ni dans le Gantt ni en base).
   const addSousTache = () => {
-    if (!form.nom || !form.debut || !form.fin) return
+    if (!form.nom || !form.chantierId || !form.debut || !form.fin) return
     saveST([...sousTaches, { ...form, id: Date.now().toString(), avancement: 0 }])
     setShowForm(false)
     setForm({ nom: '', chantierId: '', responsable: '', debut: '', fin: '', couleur: '#3B82F6' })
@@ -246,7 +269,7 @@ export function GanttSection({ userId, authUserId, orgRole }: { userId: string; 
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="v5-btn v5-btn-p" onClick={addSousTache} disabled={!form.nom || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
+            <button className="v5-btn v5-btn-p" onClick={addSousTache} disabled={!form.nom || !form.chantierId || !form.debut || !form.fin}>{isPt ? 'Adicionar' : 'Ajouter'}</button>
             <button className="v5-btn" style={{ background: 'none', border: '1px solid #E8E8E8' }} onClick={() => setShowForm(false)}>{isPt ? 'Cancelar' : 'Annuler'}</button>
           </div>
         </div>
