@@ -7,6 +7,8 @@
 
 import { computeTva, type TvaRegime } from '@/lib/tva-calculator'
 import { buildDocumentLines } from '@/lib/devis-totals'
+import { renduComplet } from '@/lib/version-rendu'
+import { totauxDocumentComplet } from '@/lib/totaux-artisan'
 import { isDocDraftStatus } from '../useDocumentCancel'
 
 export interface DocumentEnregistre {
@@ -24,6 +26,8 @@ export interface DocumentEnregistre {
   tvaEnabled?: boolean
   /** Remise globale (lib/remise-commerciale.ts). */
   remiseGlobale?: unknown
+  /** Version du rendu d'un document artisan (lib/version-rendu.ts). */
+  versionRendu?: unknown
 }
 
 export interface PreRemplissageDocument {
@@ -43,6 +47,11 @@ const estObjet = (v: unknown): v is Record<string, unknown> => v !== null && typ
 
 /** Montant TTC d'un devis ou d'une facture enregistré(e) — même calcul que la liste Factures V5. */
 export function montantTtcDocumentEnregistre(doc: DocumentEnregistre, orgRole?: string): number {
+  // Document artisan au rendu complet (lib/version-rendu.ts) : même total que la liste Factures V5,
+  // matériaux et frais annexes compris. Document d'avant la correction : calcul d'origine.
+  if (orgRole !== 'pro_societe' && renduComplet(doc)) {
+    return totauxDocumentComplet(doc as unknown as Record<string, unknown>).totalTTC
+  }
   const tvaEnabled = doc.tvaEnabled !== false
   const regime: TvaRegime = doc.regimeTva
     ?? doc.regime_tva

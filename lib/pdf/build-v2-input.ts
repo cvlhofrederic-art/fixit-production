@@ -8,10 +8,14 @@
  * Calculs : centralisés via lib/money.ts (BOFiP §50, ROUND_HALF_UP).
  */
 
-import type { DevisGeneratorInput } from './devis-generator-v2'
-import type { ProductLine, DevisAcompte, FraisAnnexeItem, CustomTable } from '@/lib/devis-types'
+import type { DevisGeneratorInput, LigneDevis } from './devis-generator-v2'
+import { FRAIS_ANNEXES_CATEGORIES, type ProductLine, type DevisAcompte, type FraisAnnexeItem, type CustomTable } from '@/lib/devis-types'
 import { sumMoney, computeAcomptesAmounts, mulMoney } from '@/lib/money'
 import { appliquerRemiseGlobale, libelleRemiseGlobale, texteRemiseLigne } from '@/lib/remise-commerciale'
+import { VERSION_RENDU_COMPLET } from '@/lib/version-rendu'
+
+/** Unité d'un frais annexe dans la colonne Unité du PDF : forfait, heure et jour comme les prestations. */
+const UNITE_FRAIS_PDF: Record<string, string> = { forfait: 'f', heure: 'h', jour: 'j' }
 
 /** Même rendu que formatPrice du PDF V2 (« 1 234,56 € », espaces simples lisibles en Helvetica). */
 const eurosPdf = (n: number): string =>
@@ -94,6 +98,12 @@ export interface BuildV2InputParams {
   remiseGlobale?: unknown
   /** Escompte pour paiement anticipé à imprimer (documents enregistrés depuis la correction). */
   escompte?: string | null
+  /**
+   * Version du rendu du document (lib/version-rendu.ts). 2 : matériaux et frais annexes imprimés et
+   * comptés dans les totaux, chacun dans sa section (comme les tables personnalisées), en-têtes HT et
+   * lignes de TVA lisibles. Absente : PDF d'origine, à l'identique (sans matériaux ni frais).
+   */
+  versionRendu?: number
 
   // Acomptes
   acomptesEnabled: boolean
@@ -123,21 +133,28 @@ export function buildV2Input(
     factureSubType, situationNumber, situationAvancement,
     acompteOrdre, acompteTotal, acomptePourcentage, parentInvoiceNumber, avoirMotif,
     lines, materialLines, fraisAnnexes, customTables, tvaBreakdown,
-    remiseGlobale, escompte,
+    remiseGlobale, escompte, versionRendu,
     acomptesEnabled, acomptes, notes, mediatorName, mediatorUrl,
     isHorsEtablissement,
   } = params
+  // Document au rendu complet : matériaux et frais annexes imprimés et comptés (sinon PDF d'origine).
+  const renduComplet = (versionRendu ?? 0) >= VERSION_RENDU_COMPLET
 
   // Total HT global incluant labor + materials + frais annexes — utilisé
   // pour calculer les acomptes correctement. La V2 d'origine excluait
   // matériaux/frais, ce qui sous-calculait les acomptes (cf. audit MOY-9).
-  const validLabor = lines.filter(l => l.description.trim())
-  const validMaterials = (materialLines || []).filter(l => l.description.trim())
-  const validFrais = (fraisAnnexes || []).filter(f => (f.designation || '').trim())
+  // Ligne imprimée : désignation saisie. Au rendu complet, aussi une ligne chiffrée sans désignation :
+  // le formulaire, la liste et la base la comptent, le PDF l'imprime donc sous un libellé de repli
+  // (sinon sa TVA apparaissait sans elle et le total différait de celui de la liste).
+  const imprimee = (designation: string | undefined, montant: number | undefined): boolean =>
+    (designation || '').trim() !== '' || (renduComplet && (montant || 0) !== 0)
+  const validLabor = lines.filter(l => imprimee(l.description, l.totalHT))
+  const validMaterials = (materialLines || []).filter(l => imprimee(l.description, l.totalHT))
+  const validFrais = (fraisAnnexes || []).filter(f => imprimee(f.designation, f.total_ht))
   // Lignes des tables custom (flattenées avec un marker section pour le PDF)
   const validCustomTables = (customTables || []).map(t => ({
     ...t,
-    lines: t.lines.filter(l => l.description.trim()),
+    lines: t.lines.filter(l => imprimee(l.description, l.totalHT)),
   })).filter(t => t.lines.length > 0)
   const validCustomLines = validCustomTables.flatMap(t => t.lines)
   const totalNet = sumMoney([
@@ -147,7 +164,8 @@ export function buildV2Input(
     ...validCustomLines.map(l => l.totalHT || 0),
   ])
   // Remise commerciale globale : même périmètre que le formulaire, la liste et la synchro, soit toutes
-  // les lignes chiffrées, même sans désignation (elles ne sont pas imprimées mais comptent dans la TVA).
+  // les lignes chiffrées, même sans désignation (elles comptent dans la TVA ; seul un document au rendu
+  // complet les imprime, cf. `imprimee`).
   // Sans remise, ce calcul n'est pas utilisé : documents sans remise inchangés.
   const remise = appliquerRemiseGlobale([
     ...[...lines, ...(materialLines || []), ...(customTables || []).flatMap(t => t.lines || [])]
@@ -163,6 +181,37 @@ export function buildV2Input(
   const acomptesAmounts = acomptesEnabled
     ? computeAcomptesAmounts(totalAcomptes, acomptes)
     : []
+
+  // Sections du PDF : tables personnalisées ; au rendu complet, aussi les matériaux et les frais annexes.
+  const avecSections = validCustomTables.length > 0
+    || (renduComplet && (validMaterials.length > 0 || validFrais.length > 0))
+  // Ligne de prestation, de matériau ou de table personnalisée telle que le PDF l'imprime. `repli` :
+  // libellé d'une ligne chiffrée sans désignation (rendu complet seulement, cf. `imprimee`).
+  const lignePdf = (l: ProductLine, section: string | null, repli = 'Prestation'): LigneDevis => ({
+    designation: (l.description || '').trim() ? l.description : repli,
+    lineDetail: l.lineDetail || undefined,
+    quantite: l.qty,
+    unite: l.unit || 'u',
+    prix_unitaire: l.priceHT,
+    total: l.totalHT,
+    remise: texteRemiseLigne(l.remise, eurosPdf, mulMoney(l.qty || 0, l.priceHT || 0)) || undefined,
+    section,
+    etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
+      ordre: e.ordre,
+      designation: e.designation,
+    })),
+  })
+  // Frais annexe (déplacement, location, péage…) : montant `total_ht`, prix unitaire `prix_unitaire_ht`.
+  const lignePdfFrais = (f: FraisAnnexeItem): LigneDevis => ({
+    designation: (f.designation || '').trim()
+      ? f.designation
+      : (FRAIS_ANNEXES_CATEGORIES.find(c => c.value === f.categorie)?.label || 'Frais annexe'),
+    quantite: f.quantite,
+    unite: UNITE_FRAIS_PDF[f.unite] || f.unite || 'u',
+    prix_unitaire: f.prix_unitaire_ht,
+    total: f.total_ht,
+    section: 'frais_annexes',
+  })
 
   return {
     artisan: {
@@ -220,40 +269,18 @@ export function buildV2Input(
     // mode_affichage : passe en 'sections' s'il y a des tables custom non vides
     // → le PDF V2 groupe les lignes par section (cf. devis-generator-v2.ts).
     // Sinon, comportement classique 'bloc' (toutes les lignes dans une seule table).
-    mode_affichage: validCustomTables.length > 0 ? ('sections' as const) : ('bloc' as const),
+    // Document au rendu complet : matériaux et frais annexes ont aussi leur section.
+    mode_affichage: avecSections ? ('sections' as const) : ('bloc' as const),
     lignes: [
       // Lignes principales (labor) — section null/'labor' selon mode
-      ...lines.filter(l => l.description.trim()).map(l => ({
-        designation: l.description,
-        lineDetail: l.lineDetail || undefined,
-        quantite: l.qty,
-        unite: l.unit || 'u',
-        prix_unitaire: l.priceHT,
-        total: l.totalHT,
-        remise: texteRemiseLigne(l.remise, eurosPdf, mulMoney(l.qty || 0, l.priceHT || 0)) || undefined,
-        section: validCustomTables.length > 0 ? 'labor' : null,
-        etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
-          ordre: e.ordre,
-          designation: e.designation,
-        })),
-      })),
+      ...validLabor.map(l => lignePdf(l, avecSections ? 'labor' : null)),
+      // Document au rendu complet : matériaux puis frais annexes, dans l'ordre du formulaire.
+      ...(renduComplet ? validMaterials.map(l => lignePdf(l, 'materiaux', 'Matériau')) : []),
+      ...(renduComplet ? validFrais.map(lignePdfFrais) : []),
       // Lignes des tables custom — flattenées avec marker section `custom_<id>`.
       // Le generator V2 lit ce marker dans SECTION_LABELS pour afficher le nom
       // personnalisé de la table comme titre de section.
-      ...validCustomTables.flatMap(tbl => tbl.lines.map(l => ({
-        designation: l.description,
-        lineDetail: l.lineDetail || undefined,
-        quantite: l.qty,
-        unite: l.unit || 'u',
-        prix_unitaire: l.priceHT,
-        total: l.totalHT,
-        remise: texteRemiseLigne(l.remise, eurosPdf, mulMoney(l.qty || 0, l.priceHT || 0)) || undefined,
-        section: `custom_${tbl.id}`,
-        etapes: (l.etapes || []).filter(e => e.designation.trim()).sort((a, b) => a.ordre - b.ordre).map(e => ({
-          ordre: e.ordre,
-          designation: e.designation,
-        })),
-      }))),
+      ...validCustomTables.flatMap(tbl => tbl.lines.map(l => lignePdf(l, `custom_${tbl.id}`))),
     ],
     // Custom section labels — utilisés par le PDF V2 pour libeller les sections
     // dynamiques (au-delà des labels figés labor/material/frais).
@@ -279,5 +306,7 @@ export function buildV2Input(
       ? { remiseGlobale: { montantHT: remise.remiseHT, libelle: libelleRemiseGlobale(remiseGlobale), totalBrutHT: remise.totalBrutHT, totalHT: remise.totalHT } }
       : {}),
     ...(escompte && escompte.trim() ? { escompte: escompte.trim() } : {}),
+    // Absente sur un document d'avant la correction : PDF identique à celui d'avant.
+    ...(renduComplet ? { versionRendu } : {}),
   }
 }
