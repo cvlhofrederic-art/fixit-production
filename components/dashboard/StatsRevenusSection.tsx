@@ -173,10 +173,10 @@ export default function StatsRevenusSection({
      V5 layout — pro_societe only
      ═══════════════════════════════════════════ */
   if (isV5 && activePage === 'stats') {
-    return <StatsV5 bookings={bookings} totalRevenue={totalRevenue} services={services} artisan={artisan} locale={locale} />
+    return <StatsV5 bookings={bookings} totalRevenue={totalRevenue} services={services} artisan={artisan} locale={locale} orgRole={orgRole} />
   }
   if (isV5 && activePage === 'revenus') {
-    return <RevenusV5 bookings={bookings} completedBookings={completedBookings} pendingBookings={pendingBookings} totalRevenue={totalRevenue} locale={locale} t={t} artisan={artisan} />
+    return <RevenusV5 bookings={bookings} completedBookings={completedBookings} pendingBookings={pendingBookings} totalRevenue={totalRevenue} locale={locale} t={t} artisan={artisan} orgRole={orgRole} />
   }
 
   /* ═══════════════════════════════════════════
@@ -430,6 +430,26 @@ function PageHeader({ title, subtitle, actionLabel, onAction }: { title: string;
 interface LocalDoc { docType: string; docDate?: string; status?: string; total_ht_cents?: number; total_ttc_cents?: number; docTitle?: string; clientName?: string }
 interface LocalExpense { amount?: string | number; date?: string; category?: string }
 
+/**
+ * Identifiant sous lequel le navigateur range les devis, factures et dépenses lus ici. Une société BTP les range
+ * sous l'identifiant de sa fiche (artisan.id), comme le tableau de bord, les écrans Devis, Factures et Comptabilité ;
+ * celui de son compte (user_id) n'y porte rien (constat stockage-local-miroir-8 de l'audit du 11/11/2026). Côté
+ * artisan, lecture inchangée.
+ */
+function idStockageLocal(artisan: import('@/lib/types').Artisan | undefined, orgRole?: OrgRole): string {
+  if (orgRole === 'pro_societe') return artisan?.id || ''
+  return artisan?.user_id || artisan?.id || ''
+}
+
+/**
+ * Facture émise et non payée. Le tableau de bord recopie dans le navigateur les factures relues depuis la base avec
+ * le statut de la base (lib/document-sync.ts) : « pending » y désigne la facture envoyée (« envoye »), comme dans la
+ * liste des factures. Pris en compte pour une société BTP ; côté artisan, inchangé.
+ */
+function estFactureEnvoyee(statut: string | undefined, orgRole?: OrgRole): boolean {
+  return statut === 'envoye' || (orgRole === 'pro_societe' && statut === 'pending')
+}
+
 function useLocalStats(artisanId: string) {
   const [docs, setDocs] = useState<LocalDoc[]>([])
   const [expenses, setExpenses] = useState<LocalExpense[]>([])
@@ -453,15 +473,16 @@ function useLocalStats(artisanId: string) {
   return { docs, expenses, chantierCount }
 }
 
-function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
+function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole }: {
   bookings: import('@/lib/types').Booking[]
   totalRevenue: number
   services: import('@/lib/types').Service[]
   artisan: import('@/lib/types').Artisan
   locale: string
+  orgRole?: OrgRole
 }) {
   const isPt = locale === 'pt'
-  const aid = artisan?.user_id || artisan?.id || ''
+  const aid = idStockageLocal(artisan, orgRole)
   const { docs, expenses, chantierCount } = useLocalStats(aid)
 
   // Merge data: prefer Supabase bookings, fall back to localStorage documents
@@ -549,7 +570,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
         <div className="v5-kpi hl">
           <div className="v5-kpi-l">{isPt ? 'Faturação total' : 'CA facturé'}</div>
           <div className="v5-kpi-v">{formatPrice(caTotal, locale)}</div>
-          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => f.status === 'envoye').length} {isPt ? 'faturas emitidas' : 'factures émises'}</div>
+          <div className="v5-kpi-s">{paidFactures.length + factures.filter(f => estFactureEnvoyee(f.status, orgRole)).length} {isPt ? 'faturas emitidas' : 'factures émises'}</div>
         </div>
         <div className="v5-kpi">
           <div className="v5-kpi-l">{isPt ? 'Obras ativas' : 'Chantiers actifs'}</div>
@@ -653,7 +674,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale }: {
 /* ═══════════════════════════════════════════════════════
    V5 sub-component — Revenus for pro_societe
    ═══════════════════════════════════════════════════════ */
-function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue, locale, t, artisan }: {
+function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue, locale, t, artisan, orgRole }: {
   bookings: import('@/lib/types').Booking[]
   completedBookings: import('@/lib/types').Booking[]
   pendingBookings: import('@/lib/types').Booking[]
@@ -661,14 +682,15 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
   locale: string
   t: (k: string) => string
   artisan: import('@/lib/types').Artisan
+  orgRole?: OrgRole
 }) {
-  const aid = artisan?.user_id || artisan?.id || ''
+  const aid = idStockageLocal(artisan, orgRole)
   const { docs } = useLocalStats(aid)
   const hasBookings = completedBookings.length > 0 || pendingBookings.length > 0
 
   const factures = docs.filter(d => d.docType === 'facture')
   const paidFactures = factures.filter(d => d.status === 'paid')
-  const pendingFactures = factures.filter(d => d.status === 'envoye')
+  const pendingFactures = factures.filter(d => estFactureEnvoyee(d.status, orgRole))
 
   const caYear = hasBookings ? totalRevenue : paidFactures.reduce((s, f) => s + docRevenueHT(f), 0)
   const pendingAmount = hasBookings
