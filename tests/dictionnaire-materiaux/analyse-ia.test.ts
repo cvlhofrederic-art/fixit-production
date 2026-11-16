@@ -64,6 +64,15 @@ describe('consignes du modèle', () => {
     expect(francais).not.toMatch(/português/)
   })
 
+  it('finit par un rappel du format, de la variété de langue et du catalogue, au plus près du message', () => {
+    expect(prompt.trimEnd().split('\n').at(-1)).toMatch(/^LEMBRETE FINAL: responde apenas com o objeto JSON/)
+    expect(prompt.trimEnd().split('\n').at(-1)).toContain('nunca em português do Brasil')
+    // Après les fiches : rien ne vient s'intercaler entre le rappel et le message de l'artisan.
+    expect(prompt.indexOf('LEMBRETE FINAL')).toBeGreaterThan(prompt.indexOf('junta-silicone-com-bolor'))
+    const francais = construirePromptSysteme(DICO_ESSAI_FR).trimEnd().split('\n').at(-1)
+    expect(francais).toMatch(/^RAPPEL FINAL : réponds uniquement par l’objet JSON/)
+  })
+
   it('est identique d’un appel à l’autre (mise en cache côté modèle)', () => {
     expect(construirePromptSysteme(DICO_ESSAI)).toBe(prompt)
   })

@@ -1,9 +1,10 @@
 // tests/api/dictionnaire-materiaux-analyse.test.ts
 //
 // Route du mode « langage naturel » du Dictionnaire matériaux : garde (compte pro connecté), limites de débit,
-// validation du corps et des photos, pays sans dictionnaire, appel au modèle (photos, cache, secours), réponse
-// limitée au catalogue, données personnelles masquées puis rétablies. Le modèle, l'auth et le dictionnaire sont
-// simulés ; aucun appel réseau.
+// validation du corps et des photos, pays sans dictionnaire, appel au modèle (Workers AI d'abord, puis Claude, puis
+// Groq ; photos, cache, relais), réponse limitée au catalogue, données personnelles masquées puis rétablies. Les
+// modèles, le binding Workers AI (par getCfEnv), l'auth et le dictionnaire sont simulés ; aucun appel réseau.
+// Sans binding (cas par défaut ici, comme hors Worker), Claude est le premier modèle essayé.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -37,6 +38,9 @@ const h = vi.hoisted(() => ({
   getSecret: vi.fn(async (_cle: string): Promise<string> => ''),
   claude: vi.fn(async (_opts: unknown, _config?: unknown): Promise<unknown> => ({})),
   groq: vi.fn(async (_opts: unknown, _config?: unknown): Promise<unknown> => ({})),
+  workersAI: vi.fn(async (_modele: string, _entrees: unknown, _options?: unknown): Promise<unknown> => ({})),
+  cfEnv: {} as Record<string, unknown>,
+  info: vi.fn(),
   limite: vi.fn(async (_cle: string, _max?: number, _fenetre?: number) => true),
   trace: vi.fn(),
   avertissement: vi.fn(),
@@ -44,8 +48,8 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('@sentry/nextjs', () => ({ captureException: vi.fn(), captureMessage: vi.fn(), addBreadcrumb: vi.fn(), withScope: vi.fn() }))
-vi.mock('@/lib/env', () => ({ getSecret: h.getSecret, getCfEnv: vi.fn(async () => ({})), validateEnv: vi.fn() }))
-vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: vi.fn(), warn: h.avertissement, error: h.erreur } }))
+vi.mock('@/lib/env', () => ({ getSecret: h.getSecret, getCfEnv: vi.fn(async () => h.cfEnv), validateEnv: vi.fn() }))
+vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), info: h.info, warn: h.avertissement, error: h.erreur } }))
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: h.limite,
   getClientIP: vi.fn(() => '127.0.0.1'),
@@ -92,6 +96,13 @@ const reponseModele = (objet: unknown): ReponseIA => ({
   model: 'claude-sonnet-5-5',
 })
 const dernierAppel = () => h.claude.mock.calls[h.claude.mock.calls.length - 1] as [Options, Config]
+/** Ce que rend le binding Workers AI pour Gemma 4 et Qwen 3.8 : un objet chat.completion. */
+const sortieWorkersAI = (objet: unknown) => ({
+  id: 'id-essai',
+  object: 'chat.completion',
+  choices: [{ index: 0, message: { role: 'assistant', content: typeof objet === 'string' ? objet : JSON.stringify(objet) }, finish_reason: 'stop' }],
+  usage: { prompt_tokens: 21000, completion_tokens: 900, total_tokens: 21900 },
+})
 const erreurDe = async (reponse: Response) => ((await reponse.json()) as { error?: string }).error
 
 describe('/api/dictionnaire-materiaux/analyse', () => {
@@ -105,6 +116,9 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
     h.trace.mockClear()
     h.avertissement.mockClear()
     h.erreur.mockClear()
+    h.info.mockClear()
+    h.cfEnv = {}
+    h.workersAI.mockReset()
   })
 
   describe('garde', () => {
@@ -270,7 +284,11 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
         expect(analyse.etapes[0].materiaux.map((m) => m.id)).toEqual([attendu])
 
         // La clé refusée part dans Sentry (l'erreur en troisième argument), même si le secours a répondu.
-        expect(h.erreur).toHaveBeenCalledWith(expect.stringContaining('Claude refuse la demande'), { module: 'dictionnaire-materiaux', statut: 401 }, refus)
+        expect(h.erreur).toHaveBeenCalledWith(
+          expect.stringContaining('modèle en échec'),
+          { module: 'dictionnaire-materiaux', fournisseur: 'claude', modele: 'claude-sonnet-5-5', statut: 401 },
+          refus,
+        )
       })
 
       it('n’envoie au secours que le dernier échange de la conversation', async () => {
@@ -317,7 +335,10 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
         h.groq.mockResolvedValueOnce(reponseModele(REPONSE))
         expect((await POST(requete(DEMANDE))).status).toBe(200)
         expect(h.erreur).not.toHaveBeenCalled()
-        expect(h.avertissement).toHaveBeenCalledWith(expect.stringContaining('Claude indisponible'), expect.anything())
+        expect(h.avertissement).toHaveBeenCalledWith(
+          expect.stringContaining('modèle indisponible'),
+          expect.objectContaining({ fournisseur: 'claude', erreur: expect.stringContaining('529') }),
+        )
       })
 
       it('n’essaie pas Groq avec des photos, qu’il ne sait pas lire', async () => {
@@ -411,6 +432,207 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
     })
   })
 
+  describe('Workers AI, modèle gratuit essayé en premier', () => {
+    const GEMMA = '@cf/google/gemma-4-26b-a4b-it'
+    const QWEN = '@cf/qwen/qwen3.8-27b'
+    const modelesAppeles = () => h.workersAI.mock.calls.map((appel) => appel[0])
+
+    beforeEach(() => {
+      h.cfEnv = { AI: { run: h.workersAI } }
+      h.getSecret.mockImplementation(async (cle: string) => ({ ANTHROPIC_API_KEY: 'cle-factice', GROQ_API_KEY: 'cle-secours' })[cle] ?? '')
+      h.groq.mockReset()
+    })
+
+    it('envoie à Gemma 4 le catalogue entier, les photos, en JSON et sans réflexion ; ni Claude ni Groq', async () => {
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      const reponse = await POST(requete({ ...DEMANDE, photos: [JPEG] }))
+      expect(reponse.status).toBe(200)
+      expect(await reponse.json()).toEqual({ analyse: ANALYSE })
+      expect(modelesAppeles()).toEqual([GEMMA])
+      const [, entrees, options] = h.workersAI.mock.calls[0] as [string, Record<string, unknown> & { messages: Message[] }, { signal?: unknown }]
+      expect(entrees).toMatchObject({
+        max_completion_tokens: 4000,
+        chat_template_kwargs: { enable_thinking: false },
+        response_format: { type: 'json_object' },
+      })
+      // Catalogue entier : chaque matériau du dictionnaire, numéroté.
+      const lignes = String(entrees.messages[0].content).split('\n').filter((l) => /^\d+ \| /.test(l))
+      expect(lignes).toHaveLength(DICO_ESSAI.materiaux.length)
+      const parties = entrees.messages[entrees.messages.length - 1].content as Partie[]
+      expect(parties.map((p) => p.type)).toEqual(['image_url', 'text'])
+      expect(parties[0].image_url?.url).toBe(JPEG)
+      expect(options.signal).toBeInstanceOf(AbortSignal)
+      expect(h.claude).not.toHaveBeenCalled()
+      expect(h.groq).not.toHaveBeenCalled()
+      // L'usage est journalisé : suivi du quota gratuit du compte Cloudflare.
+      expect(h.info).toHaveBeenCalledWith(
+        expect.stringContaining('usage du modèle'),
+        expect.objectContaining({ fournisseur: 'workers-ai', modele: GEMMA, prompt_tokens: 21000, completion_tokens: 900 }),
+      )
+    })
+
+    it('lit une réponse précédée d’une réflexion ou entourée d’un bloc de code', async () => {
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(`<think>Fissuras: argamassa.</think>\n\`\`\`json\n${JSON.stringify(REPONSE)}\n\`\`\``))
+      const reponse = await POST(requete(DEMANDE))
+      expect(await reponse.json()).toEqual({ analyse: ANALYSE })
+    })
+
+    it('passe à Qwen 3.8 quand Gemma est surchargé, sans alerter Sentry', async () => {
+      h.workersAI.mockRejectedValueOnce(new Error('3040: Capacity temporarily exceeded, please try again.'))
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(modelesAppeles()).toEqual([GEMMA, QWEN])
+      expect(h.claude).not.toHaveBeenCalled()
+      expect(h.erreur).not.toHaveBeenCalled()
+      expect(h.avertissement).toHaveBeenCalledWith(
+        expect.stringContaining('modèle indisponible'),
+        expect.objectContaining({ fournisseur: 'workers-ai', modele: GEMMA }),
+      )
+    })
+
+    it('passe au modèle suivant quand la réponse est illisible', async () => {
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI('Claro! Aqui está a lista de materiais.'))
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(modelesAppeles()).toEqual([GEMMA, QWEN])
+      expect(h.avertissement).toHaveBeenCalledWith(
+        expect.stringContaining('illisible'),
+        expect.objectContaining({ fournisseur: 'workers-ai', modele: GEMMA }),
+      )
+    })
+
+    it('signale à Sentry un modèle retiré, même quand le suivant répond', async () => {
+      h.workersAI.mockRejectedValueOnce(new Error('5028: This model has been deprecated.'))
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(h.erreur).toHaveBeenCalledTimes(1)
+      const [message, contexte, err] = h.erreur.mock.calls[0]
+      expect(message).toContain('modèle en échec')
+      expect(contexte).toEqual({ module: 'dictionnaire-materiaux', fournisseur: 'workers-ai', modele: GEMMA })
+      expect(err).toMatchObject({ name: 'ErreurWorkersAI', code: 5028 })
+    })
+
+    it('quota épuisé (offre Free) : saute l’autre modèle Workers AI et passe à Claude', async () => {
+      h.workersAI.mockRejectedValue(new Error('3036: You have used up your daily free allocation of 10,000 neurons.'))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(modelesAppeles()).toEqual([GEMMA])
+      expect(h.claude).toHaveBeenCalledTimes(1)
+      // Claude reçoit le même catalogue entier.
+      const [optsClaude] = dernierAppel()
+      expect(optsClaude.messages[0].content).toContain('infiltracao-fachada | Infiltração em fachada')
+      expect(h.erreur).not.toHaveBeenCalled()
+    })
+
+    it('va jusqu’à Groq, sur son catalogue réduit, quand Workers AI et Claude échouent', async () => {
+      h.workersAI.mockRejectedValue(new Error('3040: Capacity temporarily exceeded.'))
+      h.claude.mockRejectedValueOnce(new ErreurClaude(401, 'invalid x-api-key'))
+      h.groq.mockResolvedValueOnce(reponseModele(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(modelesAppeles()).toEqual([GEMMA, QWEN])
+      expect(h.claude).toHaveBeenCalledTimes(1)
+      expect(h.groq).toHaveBeenCalledTimes(1)
+      // La clé Claude refusée part dans Sentry ; la surcharge de Workers AI reste un avertissement.
+      expect(h.erreur).toHaveBeenCalledTimes(1)
+      expect(h.erreur.mock.calls[0][1]).toMatchObject({ fournisseur: 'claude', statut: 401 })
+    })
+
+    it('donne à Workers AI 70 s en tout : Gemma muet, Qwen n’est pas lancé et Claude prend la main', async () => {
+      vi.useFakeTimers()
+      try {
+        h.workersAI.mockImplementation(() => new Promise(() => {}))
+        const enCours = POST(requete(DEMANDE))
+        await vi.advanceTimersByTimeAsync(70_000)
+        const reponse = await enCours
+        expect(reponse.status).toBe(200)
+        expect(modelesAppeles()).toEqual([GEMMA])
+        expect((h.workersAI.mock.calls[0][2] as { signal: AbortSignal }).signal.aborted).toBe(true)
+        expect(h.claude).toHaveBeenCalledTimes(1)
+        // Délai dépassé : passager, en avertissement.
+        expect(h.erreur).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('ne lance Qwen que s’il reste au moins 20 s du budget', async () => {
+      vi.useFakeTimers()
+      try {
+        // Gemma répond au bout de 55 s, mais rien d'exploitable : il resterait 15 s pour Qwen.
+        h.workersAI.mockImplementationOnce(() => new Promise((resoudre) => setTimeout(() => resoudre(sortieWorkersAI('{}')), 55_000)))
+        const enCours = POST(requete(DEMANDE))
+        await vi.advanceTimersByTimeAsync(55_000)
+        expect((await enCours).status).toBe(200)
+        expect(modelesAppeles()).toEqual([GEMMA])
+        expect(h.claude).toHaveBeenCalledTimes(1)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('photo trop lourde pour Workers AI (3006) : 413 sans relais, ou Claude s’il a une clé', async () => {
+      h.workersAI.mockRejectedValue(new Error('3006: Request is too large'))
+      h.getSecret.mockImplementation(async () => '')
+      const sansRelais = await POST(requete({ ...DEMANDE, photos: [JPEG] }))
+      expect(sansRelais.status).toBe(413)
+      expect(await erreurDe(sansRelais)).toBe('photo_trop_volumineuse')
+      // Même corps pour Qwen : il n'est pas essayé. L'artisan peut y remédier : pas de Sentry.
+      expect(modelesAppeles()).toEqual([GEMMA])
+      expect(h.erreur).not.toHaveBeenCalled()
+
+      h.getSecret.mockImplementation(async (cle: string) => (cle === 'ANTHROPIC_API_KEY' ? 'cle-factice' : ''))
+      expect((await POST(requete({ ...DEMANDE, photos: [JPEG] }))).status).toBe(200)
+      expect(h.claude).toHaveBeenCalledTimes(1)
+      expect(h.erreur).not.toHaveBeenCalled()
+    })
+
+    it('coupure réseau : avertissement ; format JSON non tenu : réponse illisible ; le suivant répond', async () => {
+      h.workersAI.mockRejectedValueOnce(new Error('Network connection lost.'))
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      h.workersAI.mockRejectedValueOnce(new Error('JSON Mode couldn\'t be met'))
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(modelesAppeles()).toEqual([GEMMA, QWEN, GEMMA, QWEN])
+      expect(h.erreur).not.toHaveBeenCalled()
+      expect(h.avertissement).toHaveBeenCalledWith(expect.stringContaining('format JSON non tenu'), expect.objectContaining({ modele: GEMMA }))
+    })
+
+    it('signale à Sentry une sortie de forme inattendue au lieu de la lire comme vide', async () => {
+      h.workersAI.mockResolvedValueOnce({ result: { response: 'x' }, success: true })
+      h.workersAI.mockResolvedValueOnce(sortieWorkersAI(REPONSE))
+      expect((await POST(requete(DEMANDE))).status).toBe(200)
+      expect(h.erreur).toHaveBeenCalledTimes(1)
+      expect(String((h.erreur.mock.calls[0][2] as Error).message)).toContain('sortie inattendue')
+    })
+
+    it('masque e-mails et téléphones avant Workers AI et les rétablit dans la réponse', async () => {
+      h.workersAI.mockImplementationOnce(async (_modele: string, entrees: unknown) => {
+        const texte = String((entrees as { messages: Message[] }).messages[1].content)
+        const jeton = /<phone:[a-f0-9]{8}>/.exec(texte)?.[0] ?? 'jeton-absent'
+        return sortieWorkersAI({ ...REPONSE, resume: `Ligar ao cliente (${jeton}).` })
+      })
+      const reponse = await POST(requete({ pays: 'PT', description: 'Cliente 912 345 678, ana@exemplo.pt. Parede húmida.' }))
+      const envoye = JSON.stringify((h.workersAI.mock.calls[0][1] as { messages: Message[] }).messages.slice(1))
+      expect(envoye).not.toContain('912 345 678')
+      expect(envoye).not.toContain('ana@exemplo.pt')
+      const { analyse } = (await reponse.json()) as { analyse: { resume: string } }
+      expect(analyse.resume).toBe('Ligar ao cliente (912 345 678).')
+    })
+
+    it('avec photo et sans relais possible, rend « IA indisponible » et signale la dernière panne', async () => {
+      h.getSecret.mockImplementation(async () => '')
+      const panne = new Error('3040: Capacity temporarily exceeded.')
+      h.workersAI.mockRejectedValue(panne)
+      const reponse = await POST(requete({ ...DEMANDE, photos: [JPEG] }))
+      expect(reponse.status).toBe(502)
+      expect(await erreurDe(reponse)).toBe('ia_indisponible')
+      expect(modelesAppeles()).toEqual([GEMMA, QWEN])
+      expect(h.groq).not.toHaveBeenCalled()
+      expect(h.erreur).toHaveBeenCalledTimes(1)
+      expect(h.erreur.mock.calls[0][1]).toEqual({ module: 'dictionnaire-materiaux', pays: 'PT', photos: 1 })
+    })
+  })
+
   describe('réponse', () => {
     it('rend l’analyse, sans dire quel modèle a répondu (détail interne)', async () => {
       const reponse = await POST(requete(DEMANDE))
@@ -494,16 +716,25 @@ describe('/api/dictionnaire-materiaux/analyse', () => {
       expect(h.groq).toHaveBeenCalledTimes(1)
     })
 
-    it('ne signale l’absence de clé Claude qu’une fois par instance, pas à chaque demande', async () => {
+    it('signale une fois par instance un Worker privé de son binding Workers AI', async () => {
       vi.resetModules()
       const { POST: POSTneuf } = await import('@/app/api/dictionnaire-materiaux/analyse/route')
-      h.getSecret.mockImplementation(async (cle: string) => (cle === 'GROQ_API_KEY' ? 'cle-secours' : ''))
-      h.groq.mockReset()
-      h.groq.mockResolvedValue(reponseModele(REPONSE))
+      // Un environnement de Worker (des variables), sans AI.run.
+      h.cfEnv = { NEXT_PUBLIC_SUPABASE_URL: 'https://exemple.supabase.co' }
       for (let i = 0; i < 3; i++) expect((await POSTneuf(requete(DEMANDE))).status).toBe(200)
-      const signalements = h.erreur.mock.calls.filter((appel) => String(appel[0]).includes('ANTHROPIC_API_KEY absente'))
+      const signalements = h.erreur.mock.calls.filter((appel) => String(appel[0]).includes('binding Workers AI absent'))
       expect(signalements).toHaveLength(1)
       expect(signalements[0][2]).toBeInstanceOf(Error)
+      expect(h.claude).toHaveBeenCalledTimes(3)
+    })
+
+    it('avec Workers AI, répond sans aucune clé, photos comprises', async () => {
+      h.getSecret.mockImplementation(async () => '')
+      h.cfEnv = { AI: { run: h.workersAI } }
+      h.workersAI.mockResolvedValue(sortieWorkersAI(REPONSE))
+      expect((await POST(requete({ ...DEMANDE, photos: [JPEG] }))).status).toBe(200)
+      expect(h.claude).not.toHaveBeenCalled()
+      expect(h.erreur).not.toHaveBeenCalled()
     })
   })
 })

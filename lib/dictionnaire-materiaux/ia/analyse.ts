@@ -59,6 +59,11 @@ interface TextesPrompt {
   materiaux: string
   questions: string
   demandePhotos: (n: number) => string
+  /**
+   * Dernière ligne des consignes, après le catalogue : les modèles ouverts (Workers AI) suivent mieux une consigne
+   * rappelée au plus près du message (format JSON seul, variété de la langue, catalogue).
+   */
+  rappel: string
 }
 
 const FORMAT_JSON = `{
@@ -96,6 +101,9 @@ const TEXTES: Record<Dictionnaire['langue'], TextesPrompt> = {
     materiaux: 'Materiais propostos',
     questions: 'Perguntas feitas',
     demandePhotos: (n) => (n === 1 ? '(1 fotografia em anexo.)' : `(${n} fotografias em anexo.)`),
+    rappel:
+      'LEMBRETE FINAL: responde apenas com o objeto JSON, sem texto antes nem depois, em português europeu (de Portugal), ' +
+      'nunca em português do Brasil; propõe só materiais do CATÁLOGO, pelo número e pelo nome exatos.',
   },
   fr: {
     role:
@@ -121,6 +129,9 @@ const TEXTES: Record<Dictionnaire['langue'], TextesPrompt> = {
     materiaux: 'Matériaux proposés',
     questions: 'Questions posées',
     demandePhotos: (n) => (n === 1 ? '(1 photo jointe.)' : `(${n} photos jointes.)`),
+    rappel:
+      'RAPPEL FINAL : réponds uniquement par l’objet JSON, sans texte avant ni après, en français ; ' +
+      'ne propose que des matériaux du CATALOGUE, par leur numéro et leur nom exacts.',
   },
 }
 
@@ -177,6 +188,8 @@ export function construirePromptSysteme(dico: Dictionnaire): string {
     '',
     t.titreSituations,
     ...lignesSituations(dico, numero),
+    '',
+    t.rappel,
   ].join('\n')
 }
 
