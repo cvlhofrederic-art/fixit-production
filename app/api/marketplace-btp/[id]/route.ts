@@ -14,7 +14,8 @@ const marketplaceUpdateSchema = z.object({
   title: z.string().max(200).optional(),
   description: z.string().max(5000).optional(),
   categorie: z.string().max(100).optional(),
-  type_annonce: z.enum(['vente', 'location']).optional(),
+  // Mêmes valeurs que la base et que la création (migration 027_marketplace_btp.sql, POST /api/marketplace-btp).
+  type_annonce: z.enum(['vente', 'location', 'vente_location']).optional(),
   etat: z.string().max(50).optional(),
   prix_vente: z.number().nonnegative().optional(),
   prix_location_jour: z.number().nonnegative().optional(),
@@ -30,7 +31,8 @@ const marketplaceUpdateSchema = z.object({
   caracteristiques: z.string().max(2000).optional(),
   vendeur_nom: z.string().max(200).optional(),
   vendeur_phone: z.string().max(30).optional(),
-  status: z.enum(['active', 'vendu', 'suspendu', 'archive']).optional(),
+  // Statuts admis par la base, sauf « deleted », posé par DELETE (le bouton Pauser envoie « paused »).
+  status: z.enum(['active', 'paused', 'vendu', 'loue']).optional(),
 }).strict()
 
 function getAdmin() {

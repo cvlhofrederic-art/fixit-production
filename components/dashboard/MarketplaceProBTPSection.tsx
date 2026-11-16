@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 import {
   MARKETPLACE_CATEGORIES,
   type MarketplaceListing,
@@ -427,11 +428,14 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
   const loadMyListings = useCallback(async () => {
     if (!artisan?.user_id) return
     try {
-      const res = await fetch(`/api/marketplace-btp?user_id=${artisan.user_id}`)
+      // « Mes annonces » exige le jeton de la session : la société BTP l'envoie. Côté artisan, l'appel d'origine est
+      // conservé (règle artisan / BTP) ; le même défaut y reste, signalé.
+      const url = `/api/marketplace-btp?user_id=${artisan.user_id}`
+      const res = await (orgRole === 'pro_societe' ? fetchAuthentifie(url) : fetch(url))
       const data = await res.json()
       setMyListings(data.listings ?? [])
     } catch {}
-  }, [artisan])
+  }, [artisan, orgRole])
 
   const loadDemandes = useCallback(async () => {
     // Charger les demandes reçues sur mes annonces
