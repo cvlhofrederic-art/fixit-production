@@ -533,6 +533,47 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
     expect(etat()!.attente).toEqual({})
   })
 
+  // Relecture du 16/11/2026 : la note gardée dans le navigateur donne aussi l'empreinte de la modification, et seule
+  // celle-ci repart après un rechargement. L'état suit donc chaque nouvelle saisie de la clé, pas seulement la première.
+  it('nouvelle saisie sur une clé déjà notée, puis onglet tué sans événement de fermeture : la dernière saisie part à la visite suivante', async () => {
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    // Réseau très lent : aucun envoi n'aboutit avant que l'onglet ne soit tué.
+    serveur.avantReponse = (appel) => (appel.methode === 'POST' ? new Promise<void>(() => {}) : undefined)
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    await vi.advanceTimersByTimeAsync(3000) // envoi parti, note écrite
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }]))
+    await vi.advanceTimersByTimeAsync(3000) // second envoi parti, l'état suit la dernière saisie
+
+    serveur.avantReponse = null
+    const page = await rechargerLaPage()
+    await page.hydrateStorageFromServer()
+    await ecoulerDebounce()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+  })
+
+  // Un état écrit sans l'empreinte de la modification reste lisible (comptes, notes) : sa note ne fait alors rien
+  // repartir, le serveur gagne.
+  it('après un rechargement, un état sans l’empreinte de la modification reste lisible, et sa note ne fait rien repartir', async () => {
+    await saisirSansReseau()
+    await vi.advanceTimersByTimeAsync(3000) // la note est écrite, avec l'empreinte de la modification
+    const ecrit = JSON.parse(lire(CLE_ETAT)!) as Record<string, unknown>
+    expect(Object.keys(ecrit.valeurs as Record<string, string>)).toEqual([CLIENTS])
+    delete ecrit.valeurs
+    ecrit.comptes = [COMPTE_B, COMPTE_A]
+    ecritureDUnAutreOnglet(CLE_ETAT, JSON.stringify(ecrit))
+
+    const sync = await rechargerLaPage()
+    serveur.panne.POST = null
+    expect(await sync.hydrateStorageFromServer()).toMatchObject({ ok: true, autreCompte: true })
+    await ecoulerDebounce()
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }])
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }])
+    expect(serveur.de('POST')).toHaveLength(1)
+  })
+
   it('après un rechargement, si le serveur a changé entre-temps, il gagne et la note est retirée', async () => {
     await saisirSansReseau()
     await vi.advanceTimersByTimeAsync(3000)
@@ -754,9 +795,9 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
   // autre onglet du même compte (ouverture, jeton rafraîchi, fenêtre restée visible), lue avant l'arrivée de l'envoi, y
   // remet l'ancienne valeur du serveur : la relecture suivante la prenait pour une modification faite ici et la renvoyait
   // par-dessus la saisie que le serveur venait d'enregistrer, sans aucun message. Seule une valeur plus récente écrite
-  // dans cet onglet retient maintenant la note (les cas des deux envois qui se chevauchent, ci-dessus), ou la saisie
-  // d'un autre onglet qui l'a remplacée (tests/storage-sync-onglets.test.ts) — jamais une valeur que le serveur
-  // détenait avant.
+  // dans cet onglet retient maintenant la note (les cas des deux envois qui se chevauchent, ci-dessus), ou une valeur
+  // que cet onglet ne connaît pas, laissée en place une fois sans repartir d'ici (tests/storage-sync-onglets.test.ts) —
+  // jamais une valeur que le serveur détenait avant.
   describe('un autre onglet du même compte réécrit l’ancienne valeur du serveur pendant qu’une saisie part', () => {
     /** La saisie part et arrive au serveur ; l'autre onglet, qui l'a relu avant, réécrit l'ancienne valeur. */
     async function saisieRecouverteParUnAutreOnglet(moment: 'avant' | 'pendant'): Promise<ModuleSync> {
