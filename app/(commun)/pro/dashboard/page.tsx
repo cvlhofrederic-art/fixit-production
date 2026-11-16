@@ -27,6 +27,7 @@ import type { Artisan, Service, Booking, Notification, ChatMessage } from '@/lib
 import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
+import { FicheSocieteIndisponible, messageFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
 
 // Section loading spinner — shown while JS chunks load
 const SectionLoader = () => (
@@ -153,6 +154,8 @@ function DashboardPage() {
   // Always start as 'artisan' to match SSR — loadDashboardData sets the real role
   const [orgRole, setOrgRole] = useState<OrgRole>('artisan')
   const [loading, setLoading] = useState(true)
+  // Société BTP dont la fiche n'a pas pu être lue au chargement : écran « réessayer » au lieu d'une société de secours
+  const [ficheSocieteIllisible, setFicheSocieteIllisible] = useState(false)
   const [showAdminBtn, setShowAdminBtn] = useState(false)
   const [adminLoading, setAdminLoading] = useState(false)
   const [notifLoading, setNotifLoading] = useState(false)
@@ -338,13 +341,22 @@ function DashboardPage() {
       } catch { /* private browsing */ }
     }
 
-    const { data: artisanData } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
+    const { data: artisanData, error: erreurFiche } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
+    // Société BTP : une lecture en échec (réseau, serveur) n'ouvre plus le tableau de bord sur une société de secours.
+    // « Aucune ligne » (PGRST116) reste le cas de la fiche absente, traité plus bas.
+    if (role === 'pro_societe' && erreurFiche && erreurFiche.code !== 'PGRST116') {
+      console.warn('[pro/dashboard] fiche société illisible :', erreurFiche.message)
+      setFicheSocieteIllisible(true)
+      return
+    }
     if (user.app_metadata?.role === 'super_admin') setShowAdminBtn(true)
     const isProOrgRole = ['pro_societe', 'pro_conciergerie', 'pro_gestionnaire'].includes(role)
     const isSuperAdmin = user.app_metadata?.role === 'super_admin'
     if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
+      // Société BTP hors démonstration : la fiche de secours n'est plus ouverte en silence.
+      if (role === 'pro_societe' && user.app_metadata?._original_role !== 'super_admin') toast.error(messageFicheSocieteAbsente(isPt), { duration: Infinity })
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
       seedDemoLocalStorage(user.id, isSuperAdmin)
       // Charger les devis/factures du seed démo dans le state (bugfix : sans ça, UI affiche "Aucun devis")
@@ -644,6 +656,8 @@ function DashboardPage() {
 
   // V5 layout applies to pro_societe AND artisan
   const isV5 = orgRole === 'pro_societe' || orgRole === 'artisan'
+
+  if (ficheSocieteIllisible) return <FicheSocieteIndisponible isPt={isPt} onReessayer={() => window.location.reload()} />
 
   if (loading) {
     // Neutral loading screen — no V22 or V5 styling to prevent flash
