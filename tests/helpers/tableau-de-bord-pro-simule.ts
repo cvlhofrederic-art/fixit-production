@@ -6,6 +6,7 @@
  *   qui plante au rendu, pour éprouver les filets d'erreur (`sectionQuiPlante` : fragment de son chemin d'import).
  * À appeler depuis une fabrique de vi.mock, par import dynamique (comme tests/helpers/simulations-dashboard.ts).
  */
+import { createElement } from 'react'
 import { vi } from 'vitest'
 
 export interface EtatTableauDeBordSimule {
@@ -15,10 +16,8 @@ export interface EtatTableauDeBordSimule {
   sectionQuiPlante: string | null
   /** Paramètres d'adresse de la page (ex. `p=chantiers`). */
   recherche: string
-}
-
-export function etatInitial(): EtatTableauDeBordSimule {
-  return { fiche: { data: null, error: null }, sectionQuiPlante: null, recherche: '' }
+  /** Dernières propriétés reçues par chaque composant chargé par next/dynamic, rangées par son chargeur. */
+  proprietes?: Map<string, Record<string, unknown>>
 }
 
 type Resolveur = (valeur: unknown) => unknown
@@ -37,17 +36,27 @@ export function fromSimule(etat: EtatTableauDeBordSimule) {
   }))
 }
 
-/** Module next/dynamic simulé : composants vides, sauf celui dont le chemin d'import contient `sectionQuiPlante`. */
+/**
+ * Module next/dynamic simulé : chaque composant rend un repère vide `data-dynamique` portant le texte de son chargeur
+ * (chemin d'import, nom exporté), sauf celui dont le chargeur contient `sectionQuiPlante`, qui plante au rendu.
+ */
 export function moduleDynamicSimule(etat: EtatTableauDeBordSimule) {
   return {
     default: (chargeur: () => unknown) => {
       const source = String(chargeur)
-      return function ComposantDynamiqueSimule() {
+      return function ComposantDynamiqueSimule(props: Record<string, unknown>) {
+        etat.proprietes?.set(source, props)
         if (etat.sectionQuiPlante && source.includes(etat.sectionQuiPlante)) throw new Error('panne simulée de la section')
-        return null
+        return createElement('div', { 'data-dynamique': source })
       }
     },
   }
+}
+
+/** Dernières propriétés reçues par le composant dynamique dont le chargeur contient `fragment`. */
+export function proprietesRecues(etat: EtatTableauDeBordSimule, fragment: string): Record<string, unknown> | undefined {
+  for (const [source, props] of etat.proprietes ?? []) if (source.includes(fragment)) return props
+  return undefined
 }
 
 /** Module next/navigation simulé : adresse lue dans l'état, navigation du routeur enregistrée par `push`. */

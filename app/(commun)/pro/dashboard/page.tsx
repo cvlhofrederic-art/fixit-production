@@ -28,6 +28,7 @@ import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
 import { FicheSocieteIndisponible, messageFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
+import { SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
 
 // Section loading spinner — shown while JS chunks load
 const SectionLoader = () => (
@@ -468,7 +469,8 @@ function DashboardPage() {
   }, [activePage, artisan?.id, loadCalendarData, setAbsences])
 
   // ── Navigation — syncs state + URL (bookmarkable, back/forward works) ──
-  const navigateTo = useCallback((page: string) => {
+  // `remplacer` : l'adresse courante est remplacée au lieu d'ajouter une entrée d'historique.
+  const navigateTo = useCallback((page: string, options?: { remplacer?: boolean }) => {
     window.scrollTo(0, 0)
     setActivePage(page)
     setSidebarOpen(false)
@@ -479,7 +481,8 @@ function DashboardPage() {
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : ''
     const basePath = currentPath.includes('/artisan/dashboard') ? `/${locale}/artisan/dashboard` : `/${locale}/pro/dashboard`
     const url = page === 'home' ? basePath : `${basePath}?p=${page}`
-    window.history.pushState({}, '', url)
+    if (options?.remplacer) window.history.replaceState({}, '', url)
+    else window.history.pushState({}, '', url)
     // Update tab title with current section name
     const PAGE_TITLES_FR: Record<string, string> = {
       home: 'Accueil', revenus: 'Revenus', stats: 'Statistiques', prestations: 'Prestations',
@@ -518,6 +521,12 @@ function DashboardPage() {
 
   // Keep ref in sync for notification callbacks
   navigateRef.current = navigateTo
+
+  // Société BTP : une section inconnue ou d'un autre métier (?p=…, lien interne) ramène à l'accueil, l'adresse
+  // remplacée, au lieu d'une zone centrale vide ou d'un écran étranger au BTP.
+  useEffect(() => {
+    if (orgRole === 'pro_societe' && !SECTIONS_SOCIETE_BTP.has(activePage)) navigateTo('home', { remplacer: true })
+  }, [orgRole, activePage, navigateTo])
 
   // ── Wrap transformBookingToDevis to also navigate ──
   const handleTransformBookingToDevis = useCallback((booking: Booking) => {
