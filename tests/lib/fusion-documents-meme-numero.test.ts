@@ -15,8 +15,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { dedupeDocsByIdentity, optionsFusionPourRole } from '../../lib/devis-utils'
+import { dedupeDocsByIdentity, docIdentityKey, memeDocument, numeroPorteParUnAutreDocument, optionsFusionPourRole } from '../../lib/devis-utils'
 import { fusionnerDocumentsDeLaBase, persistEmittedDocsToCache } from '../../lib/document-sync'
+import { cleDocument, cleDocumentBtp } from '../../components/dashboard/documents/OutilsListeDocuments'
 
 const NUMERO = 'FACT-2026-012'
 const A = { id: '6f1c2a34-0000-4000-8000-0000000000a1', docNumber: NUMERO, docType: 'facture', status: 'envoye', clientName: 'Client A' }
@@ -95,5 +96,63 @@ describe('fusionnerDocumentsDeLaBase — fusion du tableau de bord', () => {
     const page = readFileSync(resolve(process.cwd(), 'app/(commun)/pro/dashboard/page.tsx'), 'utf8')
     expect(page.match(/fusionnerDocumentsDeLaBase\([^)]*optionsFusionPourRole\(role\)\)/g)).toHaveLength(2)
     expect(page).not.toMatch(/dedupeDocsByIdentity\(prev, sbDocs/)
+  })
+})
+
+// Actions des listes Devis et Factures sur un document dont le numéro est porté par un autre (relecture adverse du lot,
+// 16/11/2026) : même identité que la fusion BTP, et repérage du numéro en double avant une action que le serveur
+// rattache au seul numéro (annulation, devis accepté ou refusé).
+describe('memeDocument — même document pour une action de la liste', () => {
+  it('BTP : identifiants stables différents → deux documents, même au même numéro', () => {
+    expect(memeDocument(A, B, BTP)).toBe(false)
+    const Amaj = { ...A, clientName: 'Client A (modifié)' }
+    expect(memeDocument(A, Amaj, BTP)).toBe(true)
+  })
+
+  it('BTP : copie à identifiant historique (non UUID) au même numéro → même document, comme la fusion', () => {
+    expect(memeDocument({ ...B, id: '1779539827817' }, B, BTP)).toBe(true)
+  })
+
+  it('sans option (artisan) : identité d\'origine par numéro définitif, et jamais deux documents sans identité', () => {
+    expect(memeDocument(A, B)).toBe(true)
+    expect(memeDocument(A, B)).toBe(docIdentityKey(A) === docIdentityKey(B))
+    expect(memeDocument({ docNumber: '' }, { docNumber: '' })).toBe(false)
+  })
+})
+
+describe('numeroPorteParUnAutreDocument — numéro en double avant une action par numéro', () => {
+  it('un autre document non annulé porte le numéro → vrai, pour chacun des deux', () => {
+    expect(numeroPorteParUnAutreDocument(A, [A, B])).toBe(true)
+    expect(numeroPorteParUnAutreDocument(B, [A, B])).toBe(true)
+  })
+
+  it('le document seul, ou une autre copie de lui-même (même identifiant) → faux', () => {
+    expect(numeroPorteParUnAutreDocument(A, [A])).toBe(false)
+    const copieDeA = { ...A, clientName: 'Client A (copie)' }
+    expect(numeroPorteParUnAutreDocument(A, [copieDeA])).toBe(false)
+  })
+
+  it('l\'autre document est annulé (base ou navigateur) → faux : le serveur refuse déjà toute action sur lui', () => {
+    expect(numeroPorteParUnAutreDocument(A, [A, { ...B, status: 'cancelled' }])).toBe(false)
+    expect(numeroPorteParUnAutreDocument(A, [A, { ...B, status: 'annule' }])).toBe(false)
+  })
+
+  it('brouillon sans numéro définitif (vide ou BR-) → faux', () => {
+    const brouillon = { id: '6f1c2a34-0000-4000-8000-0000000000d1', docNumber: '', status: 'brouillon' }
+    expect(numeroPorteParUnAutreDocument(brouillon, [brouillon, { ...brouillon, id: '6f1c2a34-0000-4000-8000-0000000000d2' }])).toBe(false)
+    const provisoire = { ...brouillon, docNumber: 'BR-1779539827817' }
+    expect(numeroPorteParUnAutreDocument(provisoire, [provisoire, { ...provisoire, id: '6f1c2a34-0000-4000-8000-0000000000d2' }])).toBe(false)
+  })
+})
+
+describe('cleDocumentBtp — case à cocher d\'un document', () => {
+  it('BTP : une clé par identifiant stable, même au même numéro', () => {
+    expect(cleDocumentBtp(A)).not.toBe(cleDocumentBtp(B))
+  })
+
+  it('sans identifiant stable : la clé commune (cleDocument), inchangée', () => {
+    const historique = { id: '1779539827817', docNumber: NUMERO }
+    expect(cleDocumentBtp(historique)).toBe(cleDocument(historique))
+    expect(cleDocument(A)).toBe(cleDocument(B))
   })
 })

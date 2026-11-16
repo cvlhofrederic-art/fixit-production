@@ -11,7 +11,10 @@ import { Artisan, Service, Booking } from '@/lib/types'
 import { DevisFactureData, DevisAcompte } from '@/lib/devis-types'
 import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { buildDocumentLines, computeDocumentTotalHT, negateDocumentLines, remisesEnPourcentage } from '@/lib/devis-totals'
-import { getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId, optionsFusionPourRole } from '@/lib/devis-utils'
+import {
+  getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, isStableDocId, optionsFusionPourRole,
+  memeDocument, numeroPorteParUnAutreDocument,
+} from '@/lib/devis-utils'
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
@@ -31,7 +34,7 @@ import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
 import {
   BoutonsTelechargementGroupe, CelluleSelection, EnteteSelection, FiltreStatut, IndiceResultat,
-  useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
+  cleDocumentBtp, useRechercheDocuments, useSelectionDocuments, useTelechargementGroupe,
 } from '@/components/dashboard/documents/OutilsListeDocuments'
 
 // Colonnes de la liste V5 des factures : une recherche qui les touche n'a pas besoin d'indice « trouvé dans… ».
@@ -62,20 +65,13 @@ function estFactureBrouillon(doc: { status?: string; docNumber?: string }, orgRo
   return isDocDraftStatus(doc.status, 'facture')
 }
 
-/** Statuts d'une facture émise allée au-delà de « envoyée » (payée, en retard, remboursée). */
-const STATUTS_APRES_ENVOI = new Set(['paid', 'payee', 'paye', 'overdue', 'en_retard', 'refunded', 'rembourse'])
-
 /**
- * Société BTP, boutons « Marquer envoyée » et « Email » de la liste (audit du 11/11/2026, constat documents-cycle-9) :
- * pourquoi le statut de la facture ne doit pas devenir « envoyée ». « sans-numero » : brouillon sans numéro définitif,
- * qui ne s'émet que par « Valider et enregistrer » (numéro du serveur) ; « apres-envoi » : facture payée, en retard ou
- * remboursée, jamais ramenée à « envoyée ». null : statut modifiable comme avant.
+ * Société BTP : refus d'annuler une facture dont le numéro est porté par une autre facture de la liste. L'annulation
+ * est envoyée au serveur avec le seul numéro : c'est l'autre facture qui serait annulée en base (relecture adverse du
+ * lot numérotation, 16/11/2026).
  */
-function refusMarquageEnvoyeeBtp(doc: { status?: string; docNumber?: string }): 'sans-numero' | 'apres-envoi' | null {
-  if (!aNumeroDefinitif(doc)) return 'sans-numero'
-  if (STATUTS_APRES_ENVOI.has(doc.status || '')) return 'apres-envoi'
-  return null
-}
+const messageAnnulationNumeroEnDouble = (numero: string): string =>
+  `Deux factures portent le numéro ${numero} : l'annulation est bloquée tant que ce numéro est en double, pour ne pas annuler la mauvaise.`
 
 interface FacturesSectionProps {
   artisan: Artisan
@@ -117,10 +113,14 @@ export default function FacturesSection({
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<PersistedDocument | null>(null)
 
+  // Société BTP : deux factures distinctes peuvent porter le même numéro (optionsFusionPourRole) ; la suppression d'un
+  // brouillon et le marquage « annulée » ne touchent que la facture visée. Artisan : identité d'origine (numéro).
+  const optionsIdentite = optionsFusionPourRole(orgRole)
   const { cancellingDoc, setCancellingDoc, handleRemoveDoc: _handleRemoveDocRaw, handleCancelled } =
     useDocumentCancel<PersistedDocument>({
       artisanId: artisan?.id,
       docType: 'facture',
+      isSameDoc: optionsIdentite ? (a, b) => memeDocument(a, b, optionsIdentite) : undefined,
       setSavedDocuments,
       // Pré-validé : le modal stylé en amont fait office de confirm() humain.
       confirmDraftDelete: () => true,
@@ -131,6 +131,11 @@ export default function FacturesSection({
   const handleRemoveDoc = (doc: PersistedDocument) => {
     if (estFactureBrouillon(doc, orgRole)) {
       setPendingDraftDelete(doc)
+      return
+    }
+    // BTP : annulation refusée tant qu'une autre facture porte le même numéro (le serveur annule par numéro).
+    if (orgRole === 'pro_societe' && numeroPorteParUnAutreDocument(doc, savedDocuments)) {
+      toast.error(messageAnnulationNumeroEnDouble(doc.docNumber))
       return
     }
     // BTP : facture émise au statut local 'envoye' — le hook la supprimerait comme un brouillon.
@@ -545,6 +550,12 @@ function FacturesSectionV5({
     return brouillon
   }
 
+  // Même facture, pour les actions d'une ligne. Société BTP : identifiant stable d'abord (deux factures distinctes
+  // peuvent porter le même numéro, optionsFusionPourRole). Artisan : comparaison d'origine (docIdentityKey).
+  const optionsIdentite = optionsFusionPourRole(orgRole)
+  const estLeDocument = (d: PersistedDocument, cible: PersistedDocument): boolean =>
+    optionsIdentite ? memeDocument(d, cible, optionsIdentite) : docIdentityKey(d) === docIdentityKey(cible)
+
   // « Marquer payée » : passe la facture en statut payé (localStorage + state +
   // sync DB). RLS `factures_owner_update` autorise l'UPDATE ; le statut 'paid'
   // est valide (CHECK factures_status_check). Statut local 'paid' aligné sur la DB.
@@ -578,7 +589,7 @@ function FacturesSectionV5({
       }
     }
     const apply = (d: PersistedDocument): PersistedDocument =>
-      docIdentityKey(d) === key ? ({ ...d, status: 'paid' } as PersistedDocument) : d
+      estLeDocument(d, doc) ? ({ ...d, status: 'paid' } as PersistedDocument) : d
     if (artisan?.id) {
       try {
         const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan.id}`) || '[]') as PersistedDocument[]
@@ -610,7 +621,8 @@ function FacturesSectionV5({
 
   // Cases à cocher et téléchargement groupé (une archive ZIP) — artisan et BTP. « Tout télécharger » prend les
   // factures affichées, donc après recherche et filtres (ex. Factures + Émises pour le comptable).
-  const selection = useSelectionDocuments(filtered)
+  // Société BTP : une case par facture, même quand deux factures portent le même numéro (cleDocumentBtp).
+  const selection = useSelectionDocuments(filtered, orgRole === 'pro_societe' ? cleDocumentBtp : undefined)
   const facturesCochees = selection.selectionnes(factureDocs)
   const { progression, telecharger, annuler } = useTelechargementGroupe({
     artisan, locale, t, useBtpDesign, nomListe: t('proDash.documentsListe.archiveFactures'),
@@ -842,26 +854,21 @@ function FacturesSectionV5({
                       {doc.status !== 'envoye' && doc.status !== 'pending' && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
-                          // BTP : un brouillon sans numéro ne passe pas « envoyé » (il s'émet par « Valider et
-                          // enregistrer ») ; une facture payée, en retard ou remboursée garde son statut.
-                          const refus = orgRole === 'pro_societe' ? refusMarquageEnvoyeeBtp(doc) : null
-                          if (refus === 'sans-numero') {
+                          // BTP : un brouillon sans numéro ne passe pas « envoyé » : il s'émet par « Valider et
+                          // enregistrer », qui lui donne son numéro.
+                          if (orgRole === 'pro_societe' && !aNumeroDefinitif({ docNumber: doc.docNumber })) {
                             toast.error('Ce brouillon n\'a pas encore de numéro : ouvrez-le et cliquez sur « Valider et enregistrer » pour l\'émettre.')
-                            return
-                          }
-                          if (refus === 'apres-envoi') {
-                            toast.error('Cette facture est déjà payée, en retard ou remboursée : son statut ne change pas.')
                             return
                           }
                           const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
-                          const updDocs = (docs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
-                          const updDrafts = (drafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDocs = (docs as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const updDrafts = (drafts as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(updDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(updDrafts))
                           // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                          setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
+                          setSavedDocuments(prev => prev.map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.marquerEnvoyee')}
                         </button>
@@ -869,26 +876,20 @@ function FacturesSectionV5({
                       {doc.clientEmail && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
-                          // BTP : pas d'e-mail pour un brouillon sans numéro, et l'envoi d'une facture payée, en
-                          // retard ou remboursée ne change pas son statut.
-                          const refus = orgRole === 'pro_societe' ? refusMarquageEnvoyeeBtp(doc) : null
-                          if (refus === 'sans-numero') {
-                            toast.error('Ce brouillon n\'a pas encore de numéro : validez-le (« Valider et enregistrer ») avant de l\'envoyer au client.')
-                            return
-                          }
                           const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                           const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                           window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
-                          if (refus === 'apres-envoi') return
+                          // BTP : un brouillon sans numéro reste un brouillon (il s'émet par « Valider et enregistrer »).
+                          if (orgRole === 'pro_societe' && !aNumeroDefinitif({ docNumber: doc.docNumber })) return
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
-                          const uDocs = (allDocs as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
-                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDocs = (allDocs as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
+                          const uDrafts = (allDrafts as PersistedDocument[]).map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d)
                           localStorage.setItem(`fixit_documents_${artisan?.id}`, JSON.stringify(uDocs))
                           localStorage.setItem(`fixit_drafts_${artisan?.id}`, JSON.stringify(uDrafts))
                           // FR-V1.2 — functional update preserves DB-only entries (cf. incident Sud travaux 2026-05-26)
-                          setSavedDocuments(prev => prev.map(d => docIdentityKey(d) === docIdentityKey(doc) ? { ...d, status: 'envoye', sentAt: now } : d))
+                          setSavedDocuments(prev => prev.map(d => estLeDocument(d, doc) ? { ...d, status: 'envoye', sentAt: now } : d))
                         }}>
                           {t('proDash.factures.envoyerEmail')}
                         </button>

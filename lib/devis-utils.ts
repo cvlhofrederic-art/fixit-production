@@ -105,6 +105,46 @@ export function optionsFusionPourRole(role: string | null | undefined): OptionsF
   return role === 'pro_societe' ? { conserverIdsDistincts: true } : undefined
 }
 
+type DocumentIdentifiable = { id?: string | null; docNumber?: string | null; status?: string | null }
+
+/** Numéro définitif d'un document (tout sauf brouillon BR-), ou ''. */
+const numeroDefinitif = (d: DocumentIdentifiable | null | undefined): string => {
+  const n = (d?.docNumber as string) || ''
+  return n && !/^BR-/i.test(n) ? n : ''
+}
+
+/**
+ * Même document, pour les actions d'une liste (statut, case à cocher, suppression). Option conserverIdsDistincts
+ * (sociétés BTP) : deux identifiants stables (UUID) différents désignent deux documents, même au même numéro, comme
+ * dans la fusion. Sans l'option : identité d'origine (docIdentityKey : le numéro définitif fait l'identité).
+ */
+export function memeDocument(
+  a: DocumentIdentifiable | null | undefined,
+  b: DocumentIdentifiable | null | undefined,
+  options?: OptionsFusionDocuments,
+): boolean {
+  if (options?.conserverIdsDistincts === true && isStableDocId(a?.id) && isStableDocId(b?.id)) return a?.id === b?.id
+  const cle = docIdentityKey(a)
+  return Boolean(cle) && cle === docIdentityKey(b)
+}
+
+/**
+ * Sociétés BTP : un AUTRE document de `documents`, non annulé, porte-t-il le même numéro définitif que `doc` ? Après la
+ * fusion BTP, deux documents distincts peuvent porter le même numéro ; une action que le serveur rattache au seul numéro
+ * (annulation, devis accepté ou refusé) toucherait alors l'autre document en base (relecture adverse du lot
+ * numérotation, 16/11/2026). Un document annulé ne compte pas : le serveur refuse déjà toute action sur lui.
+ */
+export function numeroPorteParUnAutreDocument(doc: DocumentIdentifiable, documents: readonly DocumentIdentifiable[]): boolean {
+  const numero = numeroDefinitif(doc)
+  if (!numero) return false
+  return documents.some(d =>
+    d !== doc &&
+    numeroDefinitif(d) === numero &&
+    !(d.id && d.id === doc.id) &&
+    d.status !== 'cancelled' && d.status !== 'annule',
+  )
+}
+
 /**
  * Fusionne deux listes de documents par identité stable (docIdentityKey) :
  * `incoming` prime sur `existing` à clé égale, l'ordre de `existing` est
