@@ -260,6 +260,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Numéro déjà porté par un AUTRE document du compte (sociétés BTP, audit du 11/11/2026, constat api-coeur-11).
+  // Le document entrant est cherché par son identifiant : l'autre ligne au même numéro n'était jamais vue, et
+  // l'enregistrement échouait sur la contrainte UNIQUE (numero, artisan_user_id) (erreur 500). Désormais le document
+  // entrant est refusé avec un message clair ; celui qui porte déjà le numéro n'est ni écrasé ni renuméroté, et rien
+  // n'est écrit. Artisan : comportement inchangé.
+  if (user.app_metadata?.role === 'pro_societe' && docId && numeroIn) {
+    const { data: autres, error: autresErr } = await supabaseAdmin
+      .from(table)
+      .select('id')
+      .eq('numero', numeroIn)
+      .eq('artisan_user_id', user.id)
+      .neq('id', docId)
+      .limit(1)
+    if (autresErr) {
+      logger.error(`[devis-sync] numero lookup failed ${table}:`, autresErr.message)
+      Sentry.captureException(autresErr, {
+        tags: { agent_type: 'devis-sync', stage: 'numero-lookup', table },
+        extra: { artisan_id: artisanId },
+      })
+      return NextResponse.json({ error: 'Status lookup failed' }, { status: 500 })
+    }
+    if ((autres ?? []).length > 0) {
+      logger.warn(`[devis-sync] numero_collision refusée table=${table} docId=${docId}`)
+      return NextResponse.json({
+        error: 'numero_collision',
+        message: 'Ce numéro est déjà porté par un autre document de votre compte : ce document n\'a pas été enregistré sur le serveur. Le document qui porte déjà ce numéro n\'a pas été modifié.',
+      }, { status: 409 })
+    }
+  }
+
   const docTypeForGuard: 'devis' | 'facture' = docType
   if (currentStatus && !canTransition(currentStatus, incomingStatus, docTypeForGuard)) {
     // Discriminateur COLLISION DE NUMÉRO vs vraie transition.
@@ -268,8 +298,8 @@ export async function POST(request: NextRequest) {
     // même document : ce sont DEUX documents distincts qui se disputent le même
     // numéro légal (typiquement après un fallback de numérotation localStorage
     // sur un device neuf — cause racine du bug « doc qui disparaît »). On le
-    // signale par un corps distinct `numero_collision` pour que le client
-    // renumérote le doc entrant et resynchronise, AU LIEU de le perdre.
+    // signale par un corps distinct `numero_collision` : le client garde le doc
+    // entrant tel quel (jamais renuméroté) et affiche un message.
     // Le cas même-id (existingId === docId, ou pas d'id stable des deux côtés)
     // reste un vrai conflit de transition → réponse inchangée.
     // NB : on exige docId NON-NULL (id canonique entrant). Un doc LEGACY (docId
