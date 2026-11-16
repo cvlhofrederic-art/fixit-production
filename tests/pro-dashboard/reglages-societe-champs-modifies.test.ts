@@ -125,6 +125,19 @@ describe('Mon profil d’une société BTP : seuls les champs changés sont enre
 
     expect(corpsEnvoyes()).toEqual([{ email: 'connexion@exemple.fr', ape_code: '4399C' }])
   })
+
+  // Une fiche dont la langue n'est pas posée est celle d'une société française : seul le portugais en sort
+  it.each([
+    ['nulle', { ...FICHE_SOCIETE, language: null }],
+    ['absente', Object.fromEntries(Object.entries(FICHE_SOCIETE).filter(([cle]) => cle !== 'language'))],
+  ])('fiche sans langue posée (langue %s) : e-mail de la fiche, et seuls les champs changés partent', async (_cas, fiche) => {
+    const rendu = monter(fiche, 'pro_societe')
+    expect(rendu.result.current.settingsForm.email).toBe('contact@exemple.fr')
+    modifier(rendu, { tva_intra: 'FR00 000000000' })
+    await enregistrer(rendu)
+
+    expect(corpsEnvoyes()).toEqual([{ tva_intra: 'FR00 000000000' }])
+  })
 })
 
 describe('Mon profil d’un artisan : envoi inchangé', () => {

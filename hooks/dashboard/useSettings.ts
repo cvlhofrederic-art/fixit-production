@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { authFetch } from '@/lib/api-client'
+import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 
 interface SettingsForm {
   company_name: string
@@ -197,7 +198,7 @@ export function useSettings(
       mediator_name: artisanData.mediator_name || '',
       mediator_url: artisanData.mediator_url || '',
     }
-    if (orgRole === 'pro_societe' && artisanData.language !== 'pt') {
+    if (orgRole === 'pro_societe' && ficheSocieteFrancaise(artisanData)) {
       // Société BTP française : e-mail de la fiche, celui des devis et factures ; celui de connexion seulement si la
       // fiche n'en a pas (il est alors enregistré au premier clic, comme avant : la référence garde l'e-mail vide de la
       // fiche). Société inscrite au Portugal : hors de ce correctif, formulaire et envoi d'avant.

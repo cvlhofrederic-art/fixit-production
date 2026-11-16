@@ -136,6 +136,25 @@ describe('Société BTP : l’attestation déposée ne remplace pas l’assuranc
     }
     expect(h.etat.fiche).toMatchObject({ insurance_name: 'Assureur Saisi', insurance_number: 'CONTRAT-SAISI', insurance_type: null })
   })
+
+  // Une fiche dont la langue n'est pas posée est celle d'une société française : seul le portugais en sort
+  it.each([
+    ['nulle', (fiche: Ligne) => { fiche.language = null }],
+    ['absente', (fiche: Ligne) => { delete fiche.language }],
+  ])('fiche sans langue posée (langue %s) : assurance saisie gardée, champs vides remplis, assureur sur un mot entier', async (_cas, retirerLangue) => {
+    preparer('pro_societe', ASSURANCE_SAISIE)
+    retirerLangue(h.etat.fiche)
+
+    const { json } = await deposer()
+
+    expect(json.scan?.extractedData.insurerName).toBe('SMABTP')
+    expect(h.etat.majs).toHaveLength(1)
+    expect(h.etat.majs[0]).toMatchObject({ insurance_coverage: 'France métropolitaine', insurance_expiry: '2099-12-31' })
+    for (const colonne of ['insurance_name', 'insurance_number', 'insurance_type']) {
+      expect(h.etat.majs[0]).not.toHaveProperty(colonne)
+    }
+    expect(h.etat.fiche).toMatchObject({ insurance_name: 'Assureur Saisi', insurance_number: 'CONTRAT-SAISI', insurance_type: 'both' })
+  })
 })
 
 describe('Artisan : écriture d’avant, inchangée (témoin)', () => {

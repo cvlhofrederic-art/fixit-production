@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthUser, isSuperAdmin } from '@/lib/auth-helpers'
+import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { logger } from '@/lib/logger'
 import { adminKycQuerySchema, adminKycPatchSchema, validateBody } from '@/lib/validation'
@@ -29,11 +30,12 @@ interface KycRow {
 }
 
 /**
- * Dossier d'une société BTP française : marché KYC fr_btp (inscription société) et fiche en français. Une société
- * inscrite en portugais reçoit aussi fr_btp : elle garde le chemin d'avant (Portugal hors de ce correctif).
+ * Dossier d'une société BTP française : marché KYC fr_btp (inscription société) et fiche qui n'est pas en portugais
+ * (critère commun aux correctifs du BTP pro, lib/btp/fiche-societe-francaise.ts). Une société inscrite en portugais
+ * reçoit aussi fr_btp : elle garde le chemin d'avant (Portugal hors de ce correctif).
  */
 function estSocieteBtpFrancaise(fiche: Record<string, unknown>): boolean {
-  return fiche.kyc_market === 'fr_btp' && fiche.language !== 'pt'
+  return fiche.kyc_market === 'fr_btp' && ficheSocieteFrancaise(fiche)
 }
 
 /** E-mail de décision envoyé et attendu (un envoi lancé sans attente pouvait être coupé à la fin de la requête). */

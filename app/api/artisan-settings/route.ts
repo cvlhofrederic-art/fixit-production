@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
 import { generateSlug } from '@/lib/utils'
+import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 import { artisanSettingsPostSchema, validateBody } from '@/lib/validation'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
     }
     // Société BTP française : fiche qui n'est pas en portugais. Société inscrite au Portugal : hors de ce correctif,
     // calcul de l'adresse publique et enregistrement d'avant.
-    const estSocieteBtpFrancaise = estSocieteBtp && (artisan as Record<string, unknown>).language !== 'pt'
+    const estSocieteBtpFrancaise = estSocieteBtp && ficheSocieteFrancaise(artisan as Record<string, unknown>)
 
     const body = await request.json()
     const settingsValidation = validateBody(artisanSettingsPostSchema, body)

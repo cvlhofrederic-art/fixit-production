@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser, getUserRole } from '@/lib/auth-helpers'
+import { ficheSocieteFrancaise } from '@/lib/btp/fiche-societe-francaise'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { validateBody, walletScanSchema } from '@/lib/validation'
 
@@ -457,7 +458,7 @@ export async function POST(request: NextRequest) {
     }
     // Société BTP française : fiche qui n'est pas en portugais. Société inscrite au Portugal : hors de ce correctif,
     // lecture et écriture d'avant.
-    const estSocieteBtpFrancaise = estSocieteBtp && (artisan as Record<string, unknown>).language !== 'pt'
+    const estSocieteBtpFrancaise = estSocieteBtp && ficheSocieteFrancaise(artisan as Record<string, unknown>)
 
     // ── Extraire le texte du document ──────────────────────────────────────
     let extractedText = ''

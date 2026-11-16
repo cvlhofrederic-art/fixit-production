@@ -132,6 +132,21 @@ describe('Décision KYC sur le dossier d’une société BTP française', () => 
     expect(json.email_envoye).toBe(false)
     expect(fiche(ID_SOCIETE).kyc_status).toBe('approved')
   })
+
+  // Une fiche dont la langue n'est pas posée est celle d'une société française : seul le portugais en sort
+  it.each([
+    ['nulle', (ligne: Ligne) => { ligne.language = null }],
+    ['absente', (ligne: Ligne) => { delete ligne.language }],
+  ])('fiche sans langue posée (langue %s) : la décision est enregistrée et la société prévenue', async (_cas, retirerLangue) => {
+    retirerLangue(fiche(ID_SOCIETE))
+
+    const { status, json } = await decider({ artisan_id: ID_SOCIETE, action: 'approve' })
+
+    expect(status).toBe(200)
+    expect(json).toEqual({ success: true, status: 'approved', email_envoye: true })
+    expect(fiche(ID_SOCIETE).kyc_status).toBe('approved')
+    expect(corpsEmail()).toMatchObject({ to: 'contact@exemple.fr', name: 'BÂTIMENT EXEMPLE' })
+  })
 })
 
 describe('Autres dossiers : chemin d’avant, inchangé (témoins)', () => {
