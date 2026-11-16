@@ -231,7 +231,8 @@ function DashboardPage() {
   // ── Modules config ──
   const { ALL_MODULES, modulesConfig, setModulesConfig: saveModulesConfig, isModuleEnabled, moveModule, categoriesOrder, saveCategoriesOrder, moveCategory, reorderModuleTo, reorderCategoryTo, CATEGORIES_DEFAULT } = useModulesConfig(artisan?.id, t, isPt)
   // Shared sidebar/modules categories (single source of truth for V5Sidebar + ModulesSection)
-  const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES)
+  // Société BTP : organisation du menu propre au compte (clé commune inchangée pour les autres rôles)
+  const { categories: moduleCategories, setCategories: setModuleCategories } = useModuleCategories(ALL_MODULES, orgRole === 'pro_societe' ? artisan?.id : undefined)
 
   // ── Pro team permissions (RBAC for pro_societe sub-accounts) ──
   const { permissions: proPermissions, isGerant: isProGerant, canAccess: proCanAccess } = usePermissions(orgRole, artisan)
