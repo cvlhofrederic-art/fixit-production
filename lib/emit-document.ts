@@ -9,7 +9,7 @@
 // DEUX ALIGNÉS : mêmes clés localStorage, même statut, même sync.
 
 import { stableDocId } from '@/lib/devis-utils'
-import { NUMERO_GABARIT, placeSuffisante, StockageNavigateurPleinError } from '@/lib/emission-hors-serveur'
+import { placePourEmettre, StockageNavigateurPleinError } from '@/lib/emission-hors-serveur'
 
 export interface EmitDocumentOptions {
   /** Document prêt à émettre (brouillon scalé : acompte au %, TVA conservées). */
@@ -53,13 +53,10 @@ export async function emitDocument(opts: EmitDocumentOptions): Promise<Record<st
   const id = (payload.id as string) || stableDocId()
   const docsKey = `fixit_documents_${artisanId}`
 
-  // Société BTP : place vérifiée AVANT de consommer un numéro du serveur (le document final, numéro de gabarit au
-  // plus long). Avant, un stockage plein faisait échouer l'écriture après coup : numéro perdu, trou dans la série.
-  if (opts.verifierPlaceAvantNumero && numeroATirer) {
-    const horodatage = new Date().toISOString()
-    const essai = { ...payload, id, docNumber: NUMERO_GABARIT, status: 'envoye', savedAt: horodatage, sentAt: horodatage }
-    const docsActuels = safeArray(localStorage.getItem(docsKey)).filter(d => d.id !== id)
-    if (!placeSuffisante(docsKey, JSON.stringify([...docsActuels, essai]))) throw new StockageNavigateurPleinError()
+  // Société BTP : place vérifiée AVANT de consommer un numéro du serveur. Avant, un stockage plein faisait échouer
+  // l'écriture après coup : numéro perdu, trou dans la série.
+  if (opts.verifierPlaceAvantNumero && numeroATirer && !placePourEmettre(docsKey, { ...payload, id })) {
+    throw new StockageNavigateurPleinError()
   }
 
   const docNumber = numeroATirer ? await getNumber() : provisional

@@ -31,7 +31,7 @@ export class StockageNavigateurPleinError extends Error {
  * Numéro de gabarit, plus long que tout numéro réel (FACT-2026-012, AC-2026-0007…) : la place vérifiée avant de
  * demander le vrai numéro couvre donc le document tel qu'il sera écrit.
  */
-export const NUMERO_GABARIT = 'FACT-0000-0000000'
+const NUMERO_GABARIT = 'FACT-0000-0000000'
 
 /** Clé de la sonde : hors du préfixe fixit_, donc jamais recopiée dans le miroir serveur ; retirée aussitôt écrite. */
 const CLE_SONDE_PLACE = '__vitfix_sonde_place__'
@@ -57,6 +57,25 @@ export function placeSuffisante(cle: string, nouvelleValeur: string): boolean {
     console.warn('[émission] place insuffisante dans le stockage du navigateur :', erreur)
     return false
   }
+}
+
+/**
+ * Vrai si la liste des documents émis du navigateur (`cleDocs`) peut recevoir `document` une fois émis : numéro de
+ * gabarit, statut et horodatages d'émission, en remplacement d'une entrée de même identifiant. À appeler AVANT de
+ * demander le numéro au serveur. Ne lève jamais.
+ */
+export function placePourEmettre(cleDocs: string, document: Record<string, unknown>): boolean {
+  let actuels: Array<Record<string, unknown>> = []
+  try {
+    const lus: unknown = JSON.parse(localStorage.getItem(cleDocs) || '[]')
+    if (Array.isArray(lus)) actuels = lus.filter((d): d is Record<string, unknown> => d != null && typeof d === 'object')
+  } catch (erreur) {
+    // Liste illisible : la place est mesurée sur la seule valeur actuelle, comme une liste vide.
+    console.warn('[émission] liste des documents émis illisible :', erreur)
+  }
+  const horodatage = new Date().toISOString()
+  const essai = { ...document, docNumber: NUMERO_GABARIT, status: 'envoye', savedAt: horodatage, sentAt: horodatage }
+  return placeSuffisante(cleDocs, JSON.stringify([...actuels.filter((d) => d.id !== document.id), essai]))
 }
 
 /** Document dont l'émission est arrêtée. */

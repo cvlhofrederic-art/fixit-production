@@ -34,7 +34,7 @@ import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassiq
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
 import {
-  messageEmissionArretee, NUMERO_GABARIT, NumerotationIndisponibleError, placeSuffisante, StockageNavigateurPleinError,
+  messageEmissionArretee, NumerotationIndisponibleError, placePourEmettre, StockageNavigateurPleinError,
 } from '@/lib/emission-hors-serveur'
 import { DecimalInput } from '@/components/common/DecimalInput'
 import { ChampRemiseGlobale, ChampRemiseLigne } from '@/components/devis/RemiseCommerciale'
@@ -1712,11 +1712,7 @@ export default function DevisFactureFormBTP({
         const sujet = docType === 'facture' ? 'facture' : 'devis'
         // Place dans le navigateur vérifiée AVANT de consommer un numéro du serveur : un stockage plein faisait
         // échouer l'enregistrement après coup, et le numéro tiré était perdu (trou dans la série).
-        const cleDocs = `fixit_documents_${artisan.id}`
-        const horodatage = new Date().toISOString()
-        const essai = { ...buildPayload(), docNumber: NUMERO_GABARIT, status: 'envoye', savedAt: horodatage, sentAt: horodatage }
-        const docsActuels = (JSON.parse(localStorage.getItem(cleDocs) || '[]') as Array<{ id?: string }>).filter((d) => d.id !== essai.id)
-        if (!placeSuffisante(cleDocs, JSON.stringify([...docsActuels, essai]))) {
+        if (!placePourEmettre(`fixit_documents_${artisan.id}`, buildPayload())) {
           toast.error(messageEmissionArretee(new StockageNavigateurPleinError(), sujet, 'validation'))
           return
         }
