@@ -356,41 +356,12 @@ describe('POST /api/devis/sync', () => {
     expect(json.incoming).toBe('pending')
   })
 
-  // ── Filet de sécurité : collision de NUMÉRO entre deux documents DIFFÉRENTS ──
-  // Cause racine du bug « doc qui disparaît » : un device sans numérotation
-  // serveur retire un FACT-2026-001 déjà PAYÉ en base (autre id) → le sync voit
-  // un paid→pending interdit (409) → l'ancien comportement DROPPAIT le nouveau
-  // doc. Désormais on distingue : si la ligne existante porte un id DIFFÉRENT de
-  // l'id stable entrant, c'est une collision de numéro → body { numero_collision }.
-  it('returns 409 { numero_collision } when an existing row shares the numéro but has a DIFFERENT id', async () => {
-    mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })
-    mockCheckRateLimit.mockResolvedValue(true)
-    // Ligne existante en base : FACT-2026-001 déjà payée, appartenant au même
-    // artisan MAIS portant un id différent de celui du doc entrant.
-    mockStatusLookup.mockResolvedValue({
-      data: {
-        id: '99999999-9999-4999-8999-999999999999',
-        status: 'paid',
-        content_hash: null,
-        artisan_user_id: ARTISAN_USER_ID,
-      },
-      error: null,
-    })
-
-    const { POST } = await import('@/app/api/devis/sync/route')
-    const incoming = {
-      id: '11111111-1111-4111-8111-111111111111', // id stable DIFFÉRENT
-      docType: 'facture',
-      docNumber: 'FACT-2026-001',
-      clientName: 'x',
-      status: 'envoye', // → pending (transition arrière interdite vs paid)
-    }
-    const res = await POST(makeRequest({ docType: 'facture', artisanId: ARTISAN_ID, doc: incoming }) as never)
-    expect(res.status).toBe(409)
-    const json = await res.json()
-    expect(json.error).toBe('numero_collision')
-    expect(mockUpsert).not.toHaveBeenCalled()
-  })
+  // ── Collision de NUMÉRO entre deux documents DIFFÉRENTS ──
+  // Couverte par tests/api/devis-sync-numero-en-double.test.ts, sur une base simulée qui applique les filtres et la
+  // contrainte UNIQUE (numero, artisan_user_id) : société BTP, refus 409 numero_collision ; artisan, erreur 500
+  // « Sync failed » (inchangé). Le test qui se trouvait ici passait grâce à la recherche simulée de ce fichier, qui
+  // ignore les filtres : la vraie route cherche le document entrant par son identifiant et ne voit jamais l'autre ligne
+  // par ce chemin (la branche numero_collision de la garde de transition ne se déclenche pas).
 
   it('keeps the normal conflict body when the SAME id document hits an invalid transition', async () => {
     mockGetAuthUser.mockResolvedValue({ id: ARTISAN_USER_ID })

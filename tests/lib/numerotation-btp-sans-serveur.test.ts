@@ -25,17 +25,21 @@ import { supabase } from '@/lib/supabase'
 import { remplirLeStockage } from '../helpers/stockage-navigateur-plein'
 
 const ART = 'art-btp-1'
-const ANNEE = new Date().getFullYear()
+// Horloge figée : le repli local de l'artisan lit l'année au moment de l'appel (lib/doc-number.ts).
+const ANNEE = 2026
 const CLE_DOCS = `fixit_documents_${ART}`
 const CLE_BROUILLONS = `fixit_drafts_${ART}`
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-11-16T10:00:00Z'))
   localStorage.clear()
   vi.clearAllMocks()
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   ;(supabase.auth.getSession as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { session: { access_token: 'jeton', user: { id: 'uid-auth' } } } })
 })
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })

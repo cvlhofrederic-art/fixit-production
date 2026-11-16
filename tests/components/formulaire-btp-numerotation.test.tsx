@@ -34,7 +34,8 @@ import { toast } from 'sonner'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { remplirLeStockage } from '../helpers/stockage-navigateur-plein'
 
-const ANNEE = new Date().getFullYear()
+// Année des numéros rendus par le serveur simulé (le formulaire les reprend tels quels : aucune lecture de l'horloge).
+const ANNEE = 2026
 const ARTISAN: ArtisanBasic = { id: 'art-btp-numero', user_id: 'uid-societe', company_name: 'BATIR TEST SAS', email: 'contact@batir.test' }
 const CLE_DOCS = `fixit_documents_${ARTISAN.id}`
 const CLE_BROUILLONS = `fixit_drafts_${ARTISAN.id}`
