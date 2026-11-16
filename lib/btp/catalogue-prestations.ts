@@ -182,15 +182,22 @@ export interface LigneServicePublie {
   duration_minutes?: unknown
 }
 
-/** Balise de fourchette que le module écrit à la fin de la description d'une prestation publiée : [unit:…|min:…|max:…]. */
-const BALISE_FOURCHETTE_EN_FIN = /\[unit:[^|\]]*\|min:[^|\]]*\|max:[^|\]]*\]$/
+/**
+ * Balise de fourchette que le module écrit à la fin de la description d'une prestation publiée : [unit:…|min:…|max:…].
+ * Ses valeurs (unité, prix) ne contiennent ni crochet ni barre : les exclure garde une recherche proportionnelle à la
+ * longueur de la description, quelle qu'elle soit.
+ */
+const BALISE_FOURCHETTE_EN_FIN = /\[unit:[^[\]|]*\|min:[^[\]|]*\|max:[^[\]|]*\]$/
 
 /**
  * Service publié par le module Prestations : description terminée par sa balise de fourchette et durée vide, comme le
  * module les écrit depuis qu'il publie (components/dashboard/PrestationsBTPSection.tsx, prestationToServicePayload).
  * Un service créé ailleurs pour la fiche (assistant Fixy, application mobile, écran des motifs, motifs proposés à
- * l'inscription) a une durée, et pas cette balise en fin de description : il n'est jamais repris, sinon la prochaine
- * modification de la prestation dans le module le réécrirait.
+ * l'inscription) a une durée : il n'est jamais repris, sinon la prochaine modification de la prestation dans le module
+ * le réécrirait. L'écran des motifs ajoute en plus d'autres balises après celle-ci ; les motifs proposés à
+ * l'inscription finissent par la même balise, seule leur durée les distingue. Limite connue : un service du module dont
+ * l'assistant Fixy a changé la durée ou la description n'est plus reconnu ; une prestation sans identifiant de service
+ * est alors publiée une seconde fois, comme avant ce rattrapage.
  */
 export function estServicePublieParLeModule(ligne: LigneServicePublie): boolean {
   return typeof ligne.description === 'string'

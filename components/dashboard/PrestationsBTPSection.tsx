@@ -351,9 +351,11 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
 
   // Chargement / seed. `etatCatalogue` vaut « charge » quand la liste affichée est le catalogue de la société
   // (navigateur ou serveur), ou le jeu par défaut d'une société qui n'en a nulle part, et « echec » quand le serveur
-  // n'a pas pu dire ce qu'il détient (rien n'est relancé avant un rechargement de la page). Tant qu'il ne vaut pas
-  // « charge », rien n'est publié ni enregistré.
+  // n'a pas pu dire ce qu'il détient (une modification refusée dans cet état relance la lecture : catalogueModifiable).
+  // Tant qu'il ne vaut pas « charge », rien n'est publié ni enregistré.
   const [etatCatalogue, setEtatCatalogue] = useState<'chargement' | 'charge' | 'echec'>('chargement')
+  // Nombre de relectures demandées après un échec : chacune relance le chargement ci-dessous.
+  const [relectures, setRelectures] = useState(0)
   const catalogueCharge = etatCatalogue === 'charge'
   useEffect(() => {
     if (!artisan?.id) return
@@ -398,7 +400,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
         : 'Catalogue de prestations indisponible : impossible de vérifier celui enregistré pour votre compte. Rechargez la page ; rien n\'a été modifié.')
     })
     return () => { annule = true }
-  }, [artisan?.id, storageKey, isPt])
+  }, [artisan?.id, storageKey, isPt, relectures])
 
   /** Reporte des identifiants de services sur l'écran et dans le catalogue enregistré, relu au moment d'écrire. */
   function reporterLiens(liens: LienService[], affiche: Prestation[]) {
@@ -435,13 +437,19 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     })()
   }, [artisan?.id, items, storageKey, catalogueCharge])
 
-  /** Rien ne s'enregistre tant que le catalogue de la société n'est pas chargé : l'écran l'écraserait. */
+  /**
+   * Rien ne s'enregistre tant que le catalogue de la société n'est pas chargé : l'écran l'écraserait. Après un échec du
+   * chargement, la modification refusée relance la lecture (navigateur, puis serveur) : la restauration depuis le
+   * serveur a pu arriver, ou le réseau revenir, entre-temps. Elle reste refusée : la liste affichée n'est pas celle de
+   * la société, la modification est à refaire une fois son catalogue affiché.
+   */
   function catalogueModifiable(): boolean {
     if (catalogueCharge) return true
     if (etatCatalogue === 'echec') {
+      setRelectures((n) => n + 1)
       toast.error(isPt
-        ? 'Catálogo de prestações indisponível: recarregue a página antes de o alterar; nada foi alterado.'
-        : 'Catalogue de prestations indisponible : rechargez la page avant de le modifier ; rien n\'a été modifié.')
+        ? 'Catálogo de prestações indisponível: nova tentativa de carregamento em curso; nada foi alterado. Volte a tentar quando o catálogo aparecer.'
+        : 'Catalogue de prestations indisponible : nouvelle tentative de chargement en cours ; rien n\'a été modifié. Recommencez une fois le catalogue affiché.')
     } else {
       toast.error(isPt
         ? 'Catálogo ainda a carregar: aguarde um instante antes de o alterar.'

@@ -153,28 +153,30 @@ describe('Revenus BTP — factures lues sous l\'identifiant de la fiche', () => 
   })
 })
 
-describe('Artisan — lecture inchangée (même défaut signalé, hors de ce lot)', () => {
-  it('l\'artisan lit toujours sous l\'identifiant du compte', () => {
+// Côté artisan, rien ne change (règle n° 1) : ces tests figent le comportement d'avant, qui porte les mêmes défauts,
+// signalés et laissés hors de ce lot. Ils ne disent pas que ce comportement est le bon.
+describe('Artisan — comportement inchangé, mêmes défauts signalés hors de ce lot', () => {
+  it('lit toujours sous l\'identifiant du compte', () => {
     ranger(ARTISAN.user_id as string)
     const { container } = monter('stats', 'artisan')
     expect(indicateurs(container)[0]).toBe(formatPrice(1200, 'fr'))
   })
 
-  it('une facture au statut de la base « pending » n\'est pas comptée comme envoyée côté artisan', () => {
+  it('une facture au statut de la base « pending » n\'est toujours pas comptée comme envoyée', () => {
     ranger(ARTISAN.user_id as string)
     monter('stats', 'artisan')
     expect(screen.getByText('1 factures émises')).toBeInTheDocument()
   })
 
-  it('un devis accepté ne compte pas comme signé côté artisan', () => {
+  it('un devis marqué « Accepté » ne compte toujours pas comme signé', () => {
     ranger(ARTISAN.user_id as string, [FACTURE_PAYEE, DEVIS_ACCEPTE_BASE, DEVIS_ENVOYE])
     monter('stats', 'artisan')
     expect(screen.getByText('0/2 devis signés')).toBeInTheDocument()
   })
 
-  it('« Encaissements récents » de l\'artisan reprend toutes ses factures, comme avant', () => {
+  it('« Encaissements récents » reprend toujours toutes ses factures, payées ou non', () => {
     ranger(ARTISAN.user_id as string, [FACTURE_PAYEE, FACTURE_EMISE, FACTURE_ANNULEE])
     const { container } = monter('revenus', 'artisan')
-    expect(clientsEncaisses(container).sort()).toEqual(['EURL Martin', 'SARL Durand', 'SCI Les Tilleuls'])
+    expect(clientsEncaisses(container).sort((a, b) => a.localeCompare(b))).toEqual(['EURL Martin', 'SARL Durand', 'SCI Les Tilleuls'])
   })
 })

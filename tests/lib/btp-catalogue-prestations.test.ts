@@ -164,6 +164,10 @@ describe('reprise d\'un service déjà publié', () => {
   it('seulement un service publié par le module, jamais un service du même nom créé ailleurs', () => {
     expect(estServicePublieParLeModule({ description: '[unit:m²|min:65|max:85]', duration_minutes: null })).toBe(true)
     expect(estServicePublieParLeModule({ description: 'Dalle coulée sur place [unit:forfait|min:1200|max:1500]', duration_minutes: null })).toBe(true)
+    // Des crochets plus tôt dans la description n'empêchent pas de reconnaître la balise finale.
+    expect(estServicePublieParLeModule({ description: 'Pose [option] [unit:m²|min:30|max:40]', duration_minutes: null })).toBe(true)
+    // Balise suivie d'une autre balise : pas une description écrite par le module, même sans durée.
+    expect(estServicePublieParLeModule({ description: 'Pose [unit:m2|min:30|max:40] [scope:mo]', duration_minutes: null })).toBe(false)
     // Assistant Fixy ou application mobile : une durée, pas de balise.
     expect(estServicePublieParLeModule({ description: '', duration_minutes: 60 })).toBe(false)
     expect(estServicePublieParLeModule({ description: null, duration_minutes: 60 })).toBe(false)

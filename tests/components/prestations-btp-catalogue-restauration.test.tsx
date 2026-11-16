@@ -134,7 +134,7 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     await waitFor(() => expect(stocke()!.filter((p) => p.supabase_id)).toHaveLength(SEED_PREST.length))
   })
 
-  it('serveur injoignable : rien n\'est écrit ni publié, un message le dit, une création est refusée', async () => {
+  it('serveur injoignable : rien n\'est écrit ni publié, un message le dit ; une création refusée relance la lecture', async () => {
     serveur('panne')
     monter()
     await waitFor(() => expect(toast.error).toHaveBeenCalled())
@@ -142,13 +142,15 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     fireEvent.click(screen.getByText(/^\+ Ajouter$/))
     fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: 'Prestation saisie trop tôt' } })
     fireEvent.click(screen.getByText('Créer'))
+    // Le refus annonce une nouvelle lecture ; le serveur ne répond toujours pas : le message de l'échec revient.
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(3))
+    expect(messageErreur(1)).toMatch(/indisponible.*nouvelle tentative de chargement.*recommencez/i)
+    expect(messageErreur(2)).toMatch(/indisponible.*rechargez la page/i)
+    expect(fetch).toHaveBeenCalledTimes(2)
     await attendre(50)
     expect(stocke()).toBeNull()
     expect(base.insertions).toHaveLength(0)
-    expect(toast.error).toHaveBeenCalledTimes(2)
-    // Rien ne relance le chargement : le refus redit qu'il faut recharger la page, il n'invite pas à patienter.
-    expect(messageErreur(1)).toMatch(/indisponible.*rechargez la page/)
-    expect(messageErreur(1)).not.toMatch(/patientez/)
+    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
   })
 
   it('pendant le chargement : une création est refusée, le message invite à patienter, rien n\'est écrit ni publié', async () => {
@@ -193,6 +195,62 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     await waitFor(() => expect(base.insertions).toHaveLength(SEED_PREST.length))
     await attendre(50)
     expect(localStorage.getItem(CLE)).toBe(illisible)
+  })
+})
+
+describe('Prestations BTP — après un échec du chargement, une modification refusée relance la lecture', () => {
+  /** Ouvre la saisie d'une prestation et demande sa création. */
+  const creer = (nom: string) => {
+    fireEvent.click(screen.getByText(/^\+ Ajouter$/))
+    fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: nom } })
+    fireEvent.click(screen.getByText('Créer'))
+  }
+
+  it('catalogue recopié entre-temps par la restauration : il s\'affiche sans rien écrire, puis la création recommencée s\'y ajoute', async () => {
+    serveur('panne')
+    monter()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    // La restauration depuis le serveur recopie le catalogue dans ce navigateur après l'échec de l'écran.
+    localStorage.setItem(CLE, JSON.stringify(CATALOGUE_SERVEUR))
+    creer('Chape liquide')
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(messageErreur(1)).toMatch(/nouvelle tentative de chargement.*recommencez/i)
+    expect(stocke()).toEqual(CATALOGUE_SERVEUR)
+    expect(base.insertions).toHaveLength(0)
+    // La saisie est restée ouverte : recommencée, la création s'ajoute au catalogue restauré, sans rien en retirer.
+    fireEvent.click(screen.getByText('Créer'))
+    await waitFor(() => expect(base.insertions).toHaveLength(1))
+    await waitFor(() => expect(stocke()!.map((p) => p.name)).toEqual(['Dalle maison', 'Béton maison', 'Chape liquide']))
+    expect(stocke()!.slice(0, 2)).toEqual(CATALOGUE_SERVEUR)
+  })
+
+  it('serveur de nouveau joignable : son catalogue s\'affiche, rien n\'est écrit ni publié', async () => {
+    serveur('panne')
+    monter()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    serveur({ entries: { [CLE]: CATALOGUE_SERVEUR } })
+    creer('Chape liquide')
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+    await attendre(50)
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(stocke()).toBeNull()
+    expect(base.insertions).toHaveLength(0)
+  })
+
+  it('valeur illisible dans ce navigateur comme au serveur : la modification reste refusée, la valeur est conservée', async () => {
+    const illisible = '[{"id":1,"name":'
+    localStorage.setItem(CLE, illisible)
+    serveur({ entries: { [CLE]: illisible } })
+    monter()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    creer('Chape liquide')
+    // Refus, puis nouvel échec de la lecture : rien n'est affiché à la place du catalogue ni écrit par-dessus.
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(3))
+    await attendre(50)
+    expect(localStorage.getItem(CLE)).toBe(illisible)
+    expect(base.insertions).toHaveLength(0)
+    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
   })
 })
 
@@ -271,11 +329,12 @@ describe('Prestations BTP — aucune modification tant que le catalogue de la fi
     rerender(<PrestationsBTPSection artisan={AUTRE_FICHE} orgRole="pro_societe" />)
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
     fireEvent.click(within(screen.getByText('Dalle maison').closest('tr') as HTMLElement).getByText('✕'))
+    // Refusée ; la nouvelle lecture qu'elle relance échoue encore (serveur injoignable).
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(3))
+    expect(messageErreur(1)).toMatch(/indisponible.*nouvelle tentative de chargement/i)
     await attendre(50)
     expect(localStorage.getItem(CLE_AUTRE_FICHE)).toBeNull()
     expect(stocke()).toEqual(catalogue)
     expect(base.suppressions).toHaveLength(0)
-    expect(toast.error).toHaveBeenCalledTimes(2)
-    expect(messageErreur(1)).toMatch(/indisponible.*rechargez la page/)
   })
 })
