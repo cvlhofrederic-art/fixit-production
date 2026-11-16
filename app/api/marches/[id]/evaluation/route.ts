@@ -63,9 +63,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
   }
 
+  // Colonnes réelles de marches_candidatures : le nom de l'entreprise est artisan_company_name.
   let query = supabaseAdmin
     .from('marches_evaluations')
-    .select('*, marches_candidatures(id, artisan_name, artisan_city, price)')
+    .select('*, marches_candidatures(id, artisan_company_name, price)')
     .eq('marche_id', marcheId)
     .order('created_at', { ascending: false })
   if (candidaturesDeLAppelant) query = query.in('candidature_id', candidaturesDeLAppelant)
@@ -187,39 +188,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ? { publisher_evaluated: true }
     : { artisan_evaluated: true }
 
-  await supabaseAdmin
+  // Supabase rend un échec dans { error } (la promesse n'est pas rejetée) : il est lu et journalisé.
+  const { error: marqueurError } = await supabaseAdmin
     .from('marches_candidatures')
     .update(updateField)
     .eq('id', v.candidature_id)
-    .then(null, (err: unknown) => {
-      logger.warn('[marches/evaluation] Failed to update candidature flag', { error: String(err) })
-    })
-
-  // If publisher evaluates artisan, recalculate artisan's average rating
-  if (v.evaluator_type === 'publisher' && candidature.artisan_id) {
-    try {
-      const { data: allEvals } = await supabaseAdmin
-        .from('marches_evaluations')
-        .select('note_globale, marches_candidatures!inner(artisan_id)')
-        .eq('evaluator_type', 'publisher')
-        .eq('marches_candidatures.artisan_id', candidature.artisan_id)
-
-      if (allEvals && allEvals.length > 0) {
-        const avg = allEvals.reduce((sum, e) => sum + e.note_globale, 0) / allEvals.length
-        const roundedAvg = Math.round(avg * 10) / 10
-
-        await supabaseAdmin
-          .from('profiles_artisan')
-          .update({ rating_avg: roundedAvg, rating_count: allEvals.length })
-          .eq('id', candidature.artisan_id)
-      }
-    } catch (err) {
-      logger.warn('[marches/evaluation] Failed to recalculate artisan rating', {
-        artisan_id: candidature.artisan_id,
-        error: String(err),
-      })
-    }
+  if (marqueurError) {
+    logger.error('[marches/evaluation] marqueur « évalué » de la candidature non posé', { marcheId, error: marqueurError.message })
   }
+
+  // La note publique de la fiche de l'entreprise (rating_avg, rating_count) n'est pas modifiée ici : elle est tenue
+  // par les avis clients (/api/reviews), et la remplacer par la moyenne des seules évaluations de marchés écraserait
+  // celle d'une société déjà inscrite. La façon de compter ces évaluations dans la note publique reste à décider.
 
   return NextResponse.json({ evaluation }, { status: 201 })
 }

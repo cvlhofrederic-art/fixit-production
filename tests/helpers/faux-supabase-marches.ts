@@ -71,6 +71,8 @@ export function erreurDeSchema(appel: Appel): ErreurBase | null {
   if (!TABLES_REELLES.has(appel.table)) {
     return { code: 'PGRST205', message: `Could not find the table 'public.${appel.table}' in the schema cache` }
   }
+  const relation = erreurDeRelation(appel)
+  if (relation) return relation
   const colonnes = COLONNES_REELLES[appel.table]
   if (!colonnes) return null
   const lignes = Array.isArray(appel.donnees) ? appel.donnees : appel.donnees ? [appel.donnees] : []
@@ -88,6 +90,22 @@ export function erreurDeSchema(appel: Appel): ErreurBase | null {
   for (const [, colonne] of appel.filtres) {
     if (colonne.includes('.')) continue
     if (!colonnes.includes(colonne)) return { code: '42703', message: `column ${appel.table}.${colonne} does not exist` }
+  }
+  return null
+}
+
+/** Colonnes d'une relation embarquée (« table(col, …) » ou « table!inner(col, …) ») absentes de cette table. */
+function erreurDeRelation(appel: Appel): ErreurBase | null {
+  for (const colonne of appel.colonnes ? colonnesDeSelect(appel.colonnes) : []) {
+    const embarquee = /^([a-z_]+)(?:![a-z_]+)?\(([\s\S]*)\)$/.exec(colonne)
+    const colonnesRelation = embarquee ? COLONNES_REELLES[embarquee[1]] : undefined
+    if (!embarquee || !colonnesRelation) continue
+    for (const sousColonne of colonnesDeSelect(embarquee[2])) {
+      if (sousColonne === '*' || sousColonne.includes('(')) continue
+      if (!colonnesRelation.includes(sousColonne)) {
+        return { code: '42703', message: `column ${embarquee[1]}_1.${sousColonne} does not exist` }
+      }
+    }
   }
   return null
 }

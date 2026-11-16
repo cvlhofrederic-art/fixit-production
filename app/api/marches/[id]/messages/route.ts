@@ -198,20 +198,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // ── Notifications ─────────────────────────────────────────────────────────
   if (v.sender_type === 'publisher') {
-    // Notify the artisan
-    await supabaseAdmin
+    // Notify the artisan — sous l'identifiant de son compte (celui que lit sa cloche), avec les colonnes de la table
+    // (data_json ; il n'y a ni user_id ni metadata). Supabase rend un échec dans { error } : il est lu et journalisé.
+    const { error: notificationError } = await supabaseAdmin
       .from('artisan_notifications')
       .insert({
-        artisan_id: candidature.artisan_id,
-        user_id: candidature.artisan_user_id,
+        artisan_id: candidature.artisan_user_id,
         type: 'marche_message',
         title: 'Nouveau message sur votre candidature',
         body: v.content.substring(0, 200),
-        metadata: { marche_id: marcheId, candidature_id: v.candidature_id },
+        data_json: { marche_id: marcheId, candidature_id: v.candidature_id },
       })
-      .then(null, (err: unknown) => {
-        logger.warn('[marches/messages] Failed to create artisan notification', { error: String(err) })
-      })
+    if (notificationError) {
+      logger.error('[marches/messages] notification du candidat non enregistrée', { marcheId, error: notificationError.message })
+    }
   } else {
     // Artisan sends → increment unread count on marche
     await supabaseAdmin.rpc('increment_counter', {
