@@ -22,11 +22,6 @@ const rfqBodySchema = z.object({
   items: z.array(rfqItemSchema).min(1),
 })
 
-const decisionOffreSchema = z.object({
-  offer_id: z.string().uuid(),
-  status: z.enum(['accepted', 'rejected']),
-})
-
 // Lazy init — évite le crash au build CI quand SUPABASE_SERVICE_ROLE_KEY n'est pas défini
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -138,6 +133,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
+
+const decisionOffreSchema = z.object({
+  offer_id: z.string().uuid(),
+  status: z.enum(['accepted', 'rejected']),
+})
 
 // PATCH /api/rfq — la société accepte ou refuse l'offre d'un fournisseur. La table des offres n'accorde que la lecture
 // au compte (supabase/migrations/025_rfq_btp.sql) : la décision passe donc par le serveur, qui vérifie d'abord que la

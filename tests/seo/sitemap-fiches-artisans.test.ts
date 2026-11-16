@@ -17,10 +17,10 @@ type Resultat = { data: Ligne[] | null; error: { code: string; message: string }
 
 const supabase = await vi.hoisted(async () => {
   // Les 90 colonnes de public.profiles_artisan en production, relevées le 31/10/2026 (ni org_role, ni country, ni
-  // is_verified, ni nif), partagées avec les autres faux clients (tests/helpers/colonnes-production.ts). Une colonne
-  // hors liste est traitée comme absente.
-  const { COLONNES_PROFILES_ARTISAN } = await import('../helpers/colonnes-production')
-  const colonnesProduction = new Set(COLONNES_PROFILES_ARTISAN)
+  // is_verified, ni nif), tenues dans une seule liste partagée avec les autres tests. Une colonne hors liste est
+  // traitée comme absente.
+  const { COLONNES_PROFILES_ARTISAN_PRODUCTION } = await import('../helpers/colonnes-profiles-artisan')
+  const colonnesProduction = new Set(COLONNES_PROFILES_ARTISAN_PRODUCTION)
   const etat = {
     lignes: [] as Ligne[],
     panne: null as { code: string; message: string } | null,

@@ -13,7 +13,7 @@
 //     return { supabaseAdmin: h.base.client }
 //   })
 
-import { COLONNES_PROFILES_ARTISAN } from './colonnes-production'
+import { COLONNES_PROFILES_ARTISAN_PRODUCTION } from './colonnes-profiles-artisan'
 
 export type Operation = 'select' | 'insert' | 'update' | 'delete' | 'rpc'
 export type Filtre = [string, string, unknown]
@@ -34,11 +34,11 @@ export interface Reponse { data: unknown; error: ErreurBase | null }
  * - marches_candidatures : relevé de production du 11/11/2026 (information_schema.columns).
  * - artisan_notifications : script de création de la table en production (supabase/archive/supabase-notifications.sql),
  *   le seul jeu de colonnes qu'écrivent les routes qui fonctionnent (réservations, messagerie, devis signés).
- * - profiles_artisan : relevé de production du 31/10/2026, partagé avec le test du sitemap (colonnes-production.ts).
+ * - profiles_artisan : relevé de production du 31/10/2026, partagé avec le test du sitemap (colonnes-profiles-artisan.ts).
  * Les autres tables connues (TABLES_REELLES) n'ont pas de relevé : leurs colonnes ne sont pas contrôlées.
  */
 export const COLONNES_REELLES: Record<string, readonly string[]> = {
-  profiles_artisan: COLONNES_PROFILES_ARTISAN,
+  profiles_artisan: COLONNES_PROFILES_ARTISAN_PRODUCTION,
   marches_candidatures: [
     'id', 'marche_id', 'artisan_id', 'artisan_user_id', 'price', 'timeline', 'description', 'materials_included',
     'guarantee', 'status', 'created_at', 'updated_at', 'publisher_evaluated', 'artisan_evaluated',
