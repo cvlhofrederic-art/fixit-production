@@ -258,6 +258,8 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
         body: JSON.stringify({
           candidature_id: candidatureId,
           sender_type: 'publisher',
+          // Exigé par la route (sans lui, réponse 400 : le message n'était jamais enregistré).
+          sender_name: marche?.publisher_name,
           access_token: token,
           content: msgInput.trim(),
         }),
@@ -286,7 +288,8 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
           access_token: token,
           evaluator_type: 'publisher',
           note_globale: evalRating,
-          comment: evalComment.trim() || null,
+          // Nom lu par la route ; texte facultatif, omis s'il est vide (la route refuse null).
+          commentaire: evalComment.trim() || undefined,
         }),
       })
       if (res.ok) {
