@@ -226,20 +226,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
   }
 
-  // L'offre est publiée au nom de la fiche société du compte connecté (le gérant, ou la société d'un sous-compte) :
-  // l'identifiant et le nom envoyés par le navigateur ne prouvent rien, la fiche et son nom sont relus en base.
+  // L'offre est publiée au nom de la fiche société du compte connecté, relue en base : la sienne pour le gérant, celle
+  // de sa société pour un sous-compte (resolveCompanyId). Le nom envoyé par le navigateur ne prouve rien.
+  // L'identifiant envoyé n'est accepté que s'il désigne cette fiche ou le compte lui-même : un compte sans fiche à lui
+  // (un sous-compte, par exemple) est identifié par son propre identifiant dans le tableau de bord, et c'est par cet
+  // identifiant que l'écran retrouve ensuite ses offres (GET ?btp_company_id=…, filtré aussi sur publisher_user_id).
   const proprietaire = await resolveCompanyId(user, supabaseAdmin)
   const { data: fiche, error: ficheError } = await supabaseAdmin
     .from('profiles_artisan')
     .select('id, company_name')
-    .eq('id', v.btp_company_id)
     .eq('user_id', proprietaire)
     .maybeSingle()
-  if (ficheError) logger.error('[st] POST : contrôle de la fiche société impossible', { error: ficheError.message })
-  if (!fiche) {
+  if (ficheError) {
+    // Une panne n'est pas un refus : la société n'est pas accusée de viser la fiche d'une autre.
+    logger.error('[st] POST : contrôle de la fiche société impossible', { error: ficheError.message })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  }
+  if (v.btp_company_id !== fiche?.id && v.btp_company_id !== user.id) {
     return NextResponse.json({ error: 'Cette fiche société n\'est pas celle de votre compte' }, { status: 403 })
   }
-  const nomSociete = (fiche.company_name as string | null) || 'Entreprise BTP'
+  const nomSociete = (fiche?.company_name as string | null | undefined) || 'Entreprise BTP'
 
   const access_token = crypto.randomUUID()
 
@@ -254,7 +260,7 @@ export async function POST(request: NextRequest) {
       publisher_user_id: v.publisher_user_id,
       // BTP fields
       source_type: 'btp_sous_traitance',
-      btp_company_id: fiche.id,
+      btp_company_id: v.btp_company_id,
       btp_company_name: nomSociete,
       mission_type: v.mission_type,
       start_date: v.start_date || null,
@@ -338,7 +344,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  logger.info('[st] Offer created', { marcheId, btpCompanyId: fiche.id, category: v.category, city: v.location_city })
+  logger.info('[st] Offer created', { marcheId, btpCompanyId: v.btp_company_id, category: v.category, city: v.location_city })
 
   return NextResponse.json({ offer: data, access_token }, { status: 201 })
 }

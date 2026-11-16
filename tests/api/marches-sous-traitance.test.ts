@@ -10,7 +10,10 @@
 //     relue en base, et réservée aux sociétés BTP.
 // Relecture adverse du 16/11/2026 :
 //   - la fiche de chaque candidat était lue avec trois colonnes absentes de profiles_artisan (photo_url, city,
-//     services_offered) : photo, ville et pastilles d'assurance ne s'affichaient jamais.
+//     services_offered) : photo, ville et pastilles d'assurance ne s'affichaient jamais ;
+//   - un sous-compte (conducteur de travaux), qui n'a pas de fiche à lui, envoie comme identifiant de société celui de
+//     son propre compte (le tableau de bord l'identifie ainsi) : il était refusé ;
+//   - une panne de la lecture de la fiche répondait « Cette fiche société n'est pas celle de votre compte ».
 // Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches),
 // profiles_artisan comprise.
 
@@ -44,6 +47,8 @@ const FICHE_SOCIETE = '33333333-3333-4333-8333-333333333333'
 const COMPTE_CANDIDAT = '22222222-2222-4222-8222-222222222222'
 const FICHE_CANDIDAT = '55555555-5555-4555-8555-555555555555'
 const OFFRE = '44444444-4444-4444-8444-444444444444'
+// Conducteur de travaux de la société SOCIETE : un compte sans fiche à lui.
+const SOUS_COMPTE = '66666666-6666-4666-8666-666666666666'
 
 const base = () => h.base as FauxSupabase
 
@@ -121,17 +126,31 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
     category: 'pintura', mission_type: 'sous_traitance_complete', location_city: 'Marseille', location_postal: '13001',
     deadline: '2099-12-31', urgency: 'normal',
   }
+  /**
+   * Corps que construit l'écran « Recruter sous-traitants » pour un sous-compte : sans fiche à lui, le tableau de bord
+   * l'identifie par son propre compte (artisan.id = user.id), et le nom affiché est celui de son compte.
+   */
+  const OFFRE_DU_SOUS_COMPTE = {
+    ...OFFRE_PUBLIEE, btp_company_id: SOUS_COMPTE, btp_company_name: 'Conducteur de travaux', publisher_user_id: SOUS_COMPTE,
+    publisher_name: 'Conducteur de travaux', publisher_email: 'conducteur@exemple.fr',
+    require_rc_pro: false, require_decennale: false, require_qualibat: false, photos: [],
+  }
   const publier = (corps: Record<string, unknown> = OFFRE_PUBLIEE) => POST(new NextRequest('https://vitfix.io/api/marches/sous-traitance', {
     method: 'POST', body: JSON.stringify(corps), headers: { 'Content-Type': 'application/json' },
   }))
-  /** La fiche FICHE_SOCIETE appartient au compte SOCIETE ; toute autre combinaison est introuvable. */
+  /** Le compte SOCIETE possède la fiche FICHE_SOCIETE ; SOUS_COMPTE est membre actif de son équipe. */
   const fiches = (appel: Appel): Reponse | undefined => {
     if (appel.table === 'profiles_artisan') {
       const valeur = (colonne: string) => appel.filtres.find(([, c]) => c === colonne)?.[2]
-      return { data: valeur('id') === FICHE_SOCIETE && valeur('user_id') === SOCIETE ? { id: FICHE_SOCIETE, company_name: 'Bâtiment du Banc SARL' } : null, error: null }
+      const id = valeur('id')
+      const trouvee = valeur('user_id') === SOCIETE && (id === undefined || id === FICHE_SOCIETE)
+      return { data: trouvee ? { id: FICHE_SOCIETE, company_name: 'Bâtiment du Banc SARL' } : null, error: null }
     }
     if (appel.table === 'marches' && appel.operation === 'insert') return { data: { id: OFFRE, ...(appel.donnees as object) }, error: null }
-    if (appel.table === 'pro_team_members') return { data: { company_id: SOCIETE }, error: null }
+    if (appel.table === 'pro_team_members') {
+      const membre = appel.filtres.find(([, c]) => c === 'user_id')?.[2]
+      return { data: membre === SOUS_COMPTE ? { company_id: SOCIETE } : null, error: null }
+    }
     return undefined
   }
 
@@ -155,6 +174,7 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
   it('la fiche d’une autre société : 403, rien n’est publié', async () => {
     const res = await publier({ ...OFFRE_PUBLIEE, btp_company_id: FICHE_D_UNE_AUTRE })
     expect(res.status).toBe(403)
+    expect((await res.json()).error).toBe('Cette fiche société n\'est pas celle de votre compte')
     expect(base().sur('marches', 'insert')).toHaveLength(0)
   })
 
@@ -166,11 +186,39 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
     expect(base().sur('marches', 'insert')).toHaveLength(0)
   })
 
-  it('un sous-compte de la société publie au nom de sa société', async () => {
-    h.user = { id: COMPTE_CANDIDAT, app_metadata: { role: 'pro_societe', pro_team_role: 'CONDUCTEUR' } }
-    const res = await publier({ ...OFFRE_PUBLIEE, publisher_user_id: COMPTE_CANDIDAT })
+  it('un sous-compte (conducteur de travaux) publie avec le corps réel de son écran, au nom de sa société', async () => {
+    h.user = { id: SOUS_COMPTE, app_metadata: { role: 'pro_societe', pro_team_role: 'CONDUCTEUR_TRAVAUX', company_id: SOCIETE } }
+    const res = await publier(OFFRE_DU_SOUS_COMPTE)
     expect(res.status).toBe(201)
-    expect(base().sur('marches', 'insert')[0].donnees).toMatchObject({ btp_company_id: FICHE_SOCIETE, btp_company_name: 'Bâtiment du Banc SARL' })
+    // Le nom est celui de la fiche de sa société, relue en base ; l'identifiant reste celui par lequel son écran
+    // retrouve ses offres.
+    expect(base().sur('marches', 'insert')[0].donnees).toMatchObject({
+      btp_company_id: SOUS_COMPTE, btp_company_name: 'Bâtiment du Banc SARL', publisher_name: 'Bâtiment du Banc SARL',
+      publisher_user_id: SOUS_COMPTE,
+    })
+    // « Mes offres » du sous-compte : lue par ce même identifiant et par son compte, elle retrouve l'offre publiée.
+    base().vider()
+    base().repondre = enBase(fiches)
+    expect((await GET(new NextRequest(`https://vitfix.io/api/marches/sous-traitance?btp_company_id=${SOUS_COMPTE}`))).status).toBe(200)
+    expect(base().sur('marches', 'select')[0].filtres).toEqual(expect.arrayContaining([
+      ['eq', 'btp_company_id', SOUS_COMPTE], ['eq', 'publisher_user_id', SOUS_COMPTE],
+    ]))
+  })
+
+  it('un sous-compte ne publie pas au nom d’une autre société : 403, rien n’est publié', async () => {
+    h.user = { id: SOUS_COMPTE, app_metadata: { role: 'pro_societe', pro_team_role: 'CONDUCTEUR_TRAVAUX', company_id: SOCIETE } }
+    const res = await publier({ ...OFFRE_DU_SOUS_COMPTE, btp_company_id: FICHE_D_UNE_AUTRE })
+    expect(res.status).toBe(403)
+    expect(base().sur('marches', 'insert')).toHaveLength(0)
+  })
+
+  it('lecture de la fiche impossible (panne) : 500 et message d’erreur interne, pas un refus ; rien n’est publié', async () => {
+    base().repondre = enBase(appel => (appel.table === 'profiles_artisan' ? { data: null, error: { message: 'délai dépassé' } } : fiches(appel)))
+    const res = await publier()
+    expect(res.status).toBe(500)
+    expect((await res.json()).error).toBe('Une erreur interne est survenue')
+    expect(base().sur('marches', 'insert')).toHaveLength(0)
+    expect(logger.error).toHaveBeenCalledTimes(1)
   })
 
   it('sans connexion : 401 ; publieur différent du compte connecté : 403 (inchangés)', async () => {
