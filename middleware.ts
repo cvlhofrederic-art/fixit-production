@@ -271,6 +271,7 @@ export async function middleware(request: NextRequest) {
     const allowedOrigins = [
       process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       'https://vitfix.io',
+      'https://www.vitfix.io',     // le Worker sert aussi www.vitfix.io (wrangler.toml, [[routes]])
       'capacitor://localhost',     // iOS Capacitor
       'https://localhost',         // F13: Android Capacitor (androidScheme: https)
     ]
