@@ -16,7 +16,10 @@
 --    service_role et le propriétaire gardent tous leurs droits. Gardes d'existence de la table et des rôles, pour
 --    que la migration passe aussi dans le job CI (rôles absents) et sur une base sans cette table.
 -- 3. Contrôle final : s'il reste une policy autre que la lecture, ou un droit d'écriture à anon ou authenticated
---    (rôle exécutant non propriétaire, droit accordé à PUBLIC…), erreur : rien n'est appliqué.
+--    (rôle exécutant non propriétaire, droit accordé à PUBLIC…), erreur : rien n'est appliqué. Même arrêt si
+--    next_doc_number, seule à écrire dans la table, ne le pourrait plus après la fermeture de la policy : fonction non
+--    SECURITY DEFINER, ou propriétaire soumis à la RLS de la table (ni superutilisateur, ni BYPASSRLS, ni propriétaire
+--    de la table sans FORCE ROW LEVEL SECURITY). Sinon plus aucun numéro ne serait attribué.
 --
 -- Rien d'autre : aucune ligne insérée, modifiée ou supprimée, aucun compteur remis à zéro ; la fonction
 -- next_doc_number n'est pas touchée (son corps réel en production n'a pas été relevé). L'application ne lit ni
@@ -27,6 +30,7 @@
 -- À appliquer seule (éditeur SQL), par un rôle propriétaire de la table. DROP POLICY prend un verrou exclusif sur la
 -- table, gardé jusqu'à la fin du script (une seule transaction) : lock_timeout évite d'attendre derrière une
 -- transaction longue (une numérotation en cours, par exemple) ; en cas d'expiration, rien n'est appliqué, relancer.
+-- Juste après l'exécution : valider un devis de test, pour vérifier qu'un numéro est toujours attribué.
 -- Retour arrière, si nécessaire : recréer la policy d'origine (CREATE POLICY "doc_sequences_owner_access" ON
 -- public.doc_sequences USING (artisan_user_id = (select auth.uid())) WITH CHECK (artisan_user_id = (select
 -- auth.uid()))) et rendre les droits retirés (GRANT INSERT, UPDATE, DELETE, TRUNCATE … TO authenticated).
@@ -71,6 +75,18 @@ BEGIN
     WHERE has_table_privilege(r.rolname, 'public.doc_sequences', d.droit)
   ) THEN
     RAISE EXCEPTION 'Numérotation : un droit d''écriture reste à anon ou authenticated sur doc_sequences, rien n''est appliqué (lancer la migration avec le rôle propriétaire de la table)';
+  END IF;
+  -- next_doc_number doit toujours pouvoir écrire dans la table une fois la policy en lecture seule.
+  IF to_regprocedure('public.next_doc_number(uuid,text,integer)') IS NOT NULL AND NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_roles o ON o.oid = p.proowner
+    JOIN pg_class t ON t.oid = to_regclass('public.doc_sequences')
+    WHERE p.oid = to_regprocedure('public.next_doc_number(uuid,text,integer)')
+      AND p.prosecdef
+      AND (o.rolsuper OR o.rolbypassrls OR (o.oid = t.relowner AND NOT t.relforcerowsecurity))
+  ) THEN
+    RAISE EXCEPTION 'Numérotation : next_doc_number ne pourrait plus écrire dans doc_sequences (fonction non SECURITY DEFINER, ou propriétaire soumis à la RLS de la table), rien n''est appliqué';
   END IF;
 END
 $$;

@@ -28,6 +28,8 @@ import {
 
 const TABLE = 'public.doc_sequences'
 const DERNIERE_REPRISE = '20260610_rls_initplan_wrap.sql'
+const MIGRATION = '20261116_doc_sequences_lecture_seule.sql'
+const ARRET_ECRITURE_IMPOSSIBLE = /next_doc_number ne pourrait plus écrire/
 
 // auth.uid() de Supabase : le « sub » du jeton de la requête.
 const AUTH_UID_SQL = `
@@ -93,6 +95,46 @@ describe('compteurs de numérotation (doc_sequences)', () => {
     }, false)
     expect(valeur).toBe(1)
     expect(await compteur(comptes.societe)).toBe(37)
+  })
+
+  // Garde de la migration : une fois la policy en lecture seule, next_doc_number (SECURITY DEFINER) n'écrit plus dans
+  // la table que si son propriétaire échappe à la RLS. Banc exécuté en superutilisateur : les propriétaires sont
+  // changés dans la transaction de l'essai, annulée ensuite.
+  const policies = async () =>
+    (await db.query<{ policyname: string; cmd: string }>(
+      `SELECT policyname, cmd FROM pg_policies WHERE schemaname = 'public' AND tablename = 'doc_sequences'`,
+    )).rows
+
+  it('migration arrêtée sans rien appliquer quand le propriétaire de next_doc_number est soumis à la RLS', async () => {
+    await db.exec(`CREATE ROLE proprietaire_soumis_rls NOLOGIN;
+      ALTER FUNCTION public.next_doc_number(uuid, text, integer) OWNER TO proprietaire_soumis_rls`)
+    const { erreur } = await dansPointDeSauvegarde(db, () => db.exec(lireMigrationQr(MIGRATION)), false)
+    expect(erreur?.message).toMatch(ARRET_ECRITURE_IMPOSSIBLE)
+    expect(await policies()).toEqual([{ policyname: 'doc_sequences_owner_access', cmd: 'ALL' }])
+  })
+
+  it('même arrêt quand la table est en FORCE ROW LEVEL SECURITY pour son propriétaire', async () => {
+    await db.exec(`CREATE ROLE proprietaire_table_force NOLOGIN;
+      ALTER TABLE public.doc_sequences OWNER TO proprietaire_table_force;
+      ALTER FUNCTION public.next_doc_number(uuid, text, integer) OWNER TO proprietaire_table_force;
+      ALTER TABLE public.doc_sequences FORCE ROW LEVEL SECURITY`)
+    const { erreur } = await dansPointDeSauvegarde(db, () => db.exec(lireMigrationQr(MIGRATION)), false)
+    expect(erreur?.message).toMatch(ARRET_ECRITURE_IMPOSSIBLE)
+    expect(await policies()).toEqual([{ policyname: 'doc_sequences_owner_access', cmd: 'ALL' }])
+  })
+
+  it('propriétaire de la table et de la fonction, sans superutilisateur ni FORCE : migration appliquée, next_doc_number avance', async () => {
+    await db.exec(`CREATE ROLE proprietaire_table NOLOGIN;
+      GRANT USAGE ON SCHEMA auth TO proprietaire_table;
+      GRANT EXECUTE ON FUNCTION auth.uid() TO proprietaire_table;
+      ALTER TABLE public.doc_sequences OWNER TO proprietaire_table;
+      ALTER FUNCTION public.next_doc_number(uuid, text, integer) OWNER TO proprietaire_table`)
+    const { erreur } = await dansPointDeSauvegarde(db, () => db.exec(lireMigrationQr(MIGRATION)))
+    expect(erreur).toBeNull()
+    expect(await policies()).toEqual([{ policyname: 'doc_sequences_lecture_proprietaire', cmd: 'SELECT' }])
+    const appel = await sousRole(db, 'authenticated', comptes.societe, `SELECT public.next_doc_number($1, 'devis', 2026) AS n`, [comptes.societe])
+    expect(appel.erreur).toBeNull()
+    expect(appel.lignes).toEqual([{ n: 'DEV-2026-038' }])
   })
 
   describe('après les migrations du dépôt, jouées deux fois', () => {
