@@ -254,7 +254,7 @@ async function appelerClaude({ dico, description, photos, historique }: Demande)
  */
 async function appelerGroq({ dico, description, historique }: Demande, cleGroq: string): Promise<ReponseModele> {
   const questions = historique.filter((tour) => tour.role === 'user').map((tour) => tour.texte)
-  const reponsePrecedente = historique.filter((tour) => tour.role === 'assistant').at(-1)?.texte ?? ''
+  const reponsePrecedente = historique.findLast((tour) => tour.role === 'assistant')?.texte ?? ''
   const reduit = dictionnaireReduit(dico, [description, ...questions].join('\n'), reponsePrecedente)
   const reponse = await callGroqWithRetry(
     {
