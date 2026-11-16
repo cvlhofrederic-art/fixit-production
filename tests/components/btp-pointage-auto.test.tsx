@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import {
   BATTEMENT_MS,
+  CLE_DERNIERE_PRESENCE,
   CLE_PREFERENCE_AUTO,
   DELAI_NOUVEL_ESSAI_MS,
   usePointageAuto,
@@ -134,7 +135,7 @@ describe('usePointageAuto', () => {
     await lire(20)
     expect(result.current.etat.candidat).not.toBeNull()
     rerender(options({ chantierActifId: 'villa' }))
-    expect(result.current.etat).toEqual({ chantierActifId: 'villa', candidat: null, horsZoneDepuis: null })
+    expect(result.current.etat).toEqual({ chantierActifId: 'villa', candidat: null, horsZoneDepuis: null, derniereDansZone: null, sortieSansTrace: false })
   })
 
   it('refus de la localisation : surveillance coupée, préférence oubliée', async () => {
@@ -183,5 +184,63 @@ describe('usePointageAuto', () => {
     act(() => result.current.demarrer())
     unmount()
     expect(geo.clearWatch).toHaveBeenCalledTimes(2)
+  })
+  it('envoi lent : les battements suivants ne renvoient pas la même arrivée', async () => {
+    let finir: (ok: boolean) => void = () => {}
+    const pointerArrivee = vi.fn(() => new Promise<boolean>(resolve => { finir = resolve }))
+    const { result } = renderHook(() => usePointageAuto(options({ pointerArrivee })))
+    act(() => result.current.demarrer())
+    await lire(20)
+    await avancer(CONFIRMATION_ARRIVEE_MS)
+    expect(pointerArrivee).toHaveBeenCalledTimes(1)
+    await avancer(6 * BATTEMENT_MS)
+    expect(pointerArrivee).toHaveBeenCalledTimes(1)
+    await act(async () => { finir(true) })
+    expect(result.current.etat.chantierActifId).toBe('villa')
+  })
+
+  it('téléphone en veille puis réveillé loin du chantier : départ daté de la dernière présence, tout de suite', async () => {
+    const opts = options({ chantierActifId: 'villa' })
+    const { result } = renderHook(() => usePointageAuto(opts))
+    act(() => result.current.demarrer())
+    await lire(20)
+    await avancer(30_000) // suivi continu : la présence se prolonge
+    const derniereVue = result.current.etat.derniereDansZone
+    expect(derniereVue).toBe(Date.now())
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    try {
+      await avancer(3 * 3_600_000)
+    } finally {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    }
+    expect(result.current.etat.derniereDansZone).toBe(derniereVue)
+    await lire(5000)
+    expect(opts.pointerDepart).toHaveBeenCalledTimes(1)
+    expect(opts.pointerDepart).toHaveBeenCalledWith('villa', derniereVue)
+  })
+
+  it('dernière présence gardée sur le téléphone : la page rouverte sait dater le départ', async () => {
+    const opts = options({ pointerArrivee: vi.fn(async () => true) })
+    const premier = renderHook(() => usePointageAuto(opts))
+    act(() => premier.result.current.demarrer())
+    await lire(20)
+    await avancer(CONFIRMATION_ARRIVEE_MS + BATTEMENT_MS)
+    expect(premier.result.current.etat.chantierActifId).toBe('villa')
+    const memorisee = JSON.parse(localStorage.getItem(CLE_DERNIERE_PRESENCE) ?? 'null') as { chantierId: string; instant: number }
+    expect(memorisee).toEqual({ chantierId: 'villa', instant: expect.any(Number) })
+    premier.unmount()
+
+    const second = renderHook(() => usePointageAuto(options({ chantierActifId: 'villa' })))
+    expect(second.result.current.etat.derniereDansZone).toBe(memorisee.instant)
+  })
+
+  it('aucune présence connue sur ce téléphone : pas de départ automatique, l’écran le signale', async () => {
+    const opts = options({ chantierActifId: 'villa' })
+    const { result } = renderHook(() => usePointageAuto(opts))
+    act(() => result.current.demarrer())
+    await lire(800)
+    await avancer(5 * CONFIRMATION_DEPART_MS)
+    expect(opts.pointerDepart).not.toHaveBeenCalled()
+    expect(result.current.etat.sortieSansTrace).toBe(true)
   })
 })

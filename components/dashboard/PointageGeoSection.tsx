@@ -41,13 +41,11 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan; orgRole?: st
       </div>
     )
   } else if (!contexte) {
+    const reserve = isPt ? 'Módulo reservado às empresas de construção.' : 'Module réservé aux sociétés du BTP.'
+    const echec = isPt ? 'Não foi possível carregar a marcação de horas.' : 'Le pointage n’a pas pu être chargé.'
     contenu = (
       <div className="v5-al warn" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span>
-          {erreur === 'acces'
-            ? (isPt ? 'Módulo reservado às empresas de construção.' : 'Module réservé aux sociétés du BTP.')
-            : (isPt ? 'Não foi possível carregar a marcação de horas.' : 'Le pointage n’a pas pu être chargé.')}
-        </span>
+        <span>{erreur === 'acces' ? reserve : echec}</span>
         {erreur !== 'acces' && (
           <button type="button" className="v5-btn v5-btn-sm" onClick={() => { void recharger() }}>
             {isPt ? 'Tentar novamente' : 'Réessayer'}
@@ -84,6 +82,8 @@ export function PointageGeoSection({ artisan }: { artisan: Artisan; orgRole?: st
             comptes={contexte.comptes ?? {}}
             affectationIndividuelle={contexte.affectationIndividuelle !== false}
             pointageAutoActive={contexte.pointageAutoActive}
+            reglageDisponible={contexte.reglageDisponible}
+            envoyer={envoyer}
             onModifie={recharger}
           />
         )}

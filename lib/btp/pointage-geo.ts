@@ -51,8 +51,15 @@ export interface EtatDetection {
   chantierActifId: string | null
   /** Chantier dans la zone duquel le téléphone est entré, en attente de la confirmation d'arrivée. */
   candidat: { chantierId: string; depuis: number } | null
-  /** Première lecture hors de la zone élargie du chantier actif, en attente de la confirmation de départ. */
+  /** Instant retenu pour la sortie de la zone élargie du chantier actif, en attente de la confirmation de départ. */
   horsZoneDepuis: number | null
+  /**
+   * Dernière lecture (instant de la mesure) dans la zone élargie du chantier actif ; null si ce téléphone ne l'a pas vu
+   * sur place (pointage commencé ailleurs, page rouverte sans trace) : le départ n'est alors pas pointé tout seul.
+   */
+  derniereDansZone: number | null
+  /** Hors de la zone sans présence connue sur le chantier : l'écran demande de terminer le pointage à la main. */
+  sortieSansTrace: boolean
 }
 
 /** `depuis` : instant de l'entrée dans la zone (arrivée) ou de la sortie (départ), à enregistrer comme heure. */
@@ -64,9 +71,22 @@ export type DecisionPointage =
 export interface OptionsDetection {
   confirmationArriveeMs?: number
   confirmationDepartMs?: number
+  /**
+   * Vrai quand le téléphone est suivi sans coupure depuis la dernière position reçue (page visible, battements
+   * réguliers) : sans nouvelle position, il n'a pas bougé, et la présence sur le chantier se prolonge jusqu'à
+   * maintenant. Faux après une mise en veille : l'ancienne position ne prouve plus rien.
+   */
+  suiviContinu?: boolean
 }
 
-export const ETAT_DETECTION_INITIAL: EtatDetection = { chantierActifId: null, candidat: null, horsZoneDepuis: null }
+export const ETAT_DETECTION_INITIAL: EtatDetection = {
+  chantierActifId: null, candidat: null, horsZoneDepuis: null, derniereDansZone: null, sortieSansTrace: false,
+}
+
+/** État après un changement du pointage en cours (serveur, arrivée confirmée, départ) : plus de candidat ni de sortie. */
+export function etatPourPointage(chantierActifId: string | null, derniereDansZone: number | null = null): EtatDetection {
+  return { ...ETAT_DETECTION_INITIAL, chantierActifId, derniereDansZone: chantierActifId ? derniereDansZone : null }
+}
 
 const AUCUNE: DecisionPointage = { type: 'aucune' }
 
@@ -90,11 +110,15 @@ export function distanceAuChantierM(position: { lat: number; lng: number }, chan
   return Math.round(haversineDistance(position.lat, position.lng, chantier.latitude, chantier.longitude) * 1000)
 }
 
+/** Lecture précise, aux coordonnées et à l'horodatage valables (quel que soit son âge). */
+function lecturePrecise(lecture: LecturePosition | null): lecture is LecturePosition {
+  if (!lecture || !coordonneesValides(lecture.lat, lecture.lng) || !Number.isFinite(lecture.horodatage)) return false
+  return lecture.precisionM === null || (Number.isFinite(lecture.precisionM) && lecture.precisionM <= PRECISION_MAX_M)
+}
+
 /** Lecture récente, précise et aux coordonnées valables. */
 export function lectureExploitable(lecture: LecturePosition | null, maintenant: number): lecture is LecturePosition {
-  if (!lecture || !coordonneesValides(lecture.lat, lecture.lng)) return false
-  if (!Number.isFinite(lecture.horodatage) || maintenant - lecture.horodatage > AGE_MAX_LECTURE_MS) return false
-  return lecture.precisionM === null || (Number.isFinite(lecture.precisionM) && lecture.precisionM <= PRECISION_MAX_M)
+  return lecturePrecise(lecture) && maintenant - lecture.horodatage <= AGE_MAX_LECTURE_MS
 }
 
 /** Chantier le plus proche dont la position est dans le rayon, ou null. */
@@ -117,8 +141,11 @@ export function chantierDansLaZone(
  *
  * Sans pointage en cours : le chantier le plus proche dans la zone devient candidat ; l'arrivée est décidée quand il
  * l'est resté `confirmationArriveeMs`. Avec un pointage en cours : le départ est décidé quand le téléphone est resté
- * `confirmationDepartMs` au-delà du rayon + max(MARGE_SORTIE_M, précision). Un chantier actif absent de la liste
- * (sans position GPS, plus affecté) n'est jamais quitté automatiquement : l'employé termine à la main.
+ * `confirmationDepartMs` au-delà du rayon + max(MARGE_SORTIE_M, précision). Si le suivi s'est interrompu (téléphone en
+ * veille) plus de AGE_MAX_LECTURE_MS entre la dernière présence sur place et la première lecture dehors, le départ est
+ * daté de cette dernière présence : on ignore quand l'employé est parti, on ne lui compte pas le trou. Sans aucune
+ * présence connue sur place, ou pour un chantier actif absent de la liste (sans position GPS, plus affecté), le départ
+ * n'est jamais pointé automatiquement : l'employé termine à la main.
  * La décision se répète tant que l'appelant n'a pas mis à jour `chantierActifId` (après la réponse du serveur).
  */
 export function evaluerDetection(
@@ -130,24 +157,40 @@ export function evaluerDetection(
 ): { etat: EtatDetection; decision: DecisionPointage } {
   const confirmationArrivee = options.confirmationArriveeMs ?? CONFIRMATION_ARRIVEE_MS
   const confirmationDepart = options.confirmationDepartMs ?? CONFIRMATION_DEPART_MS
-  if (!lectureExploitable(lecture, maintenant)) return { etat, decision: AUCUNE }
 
   if (etat.chantierActifId !== null) {
+    // Pointage en cours : une position ancienne reste la dernière connue tant que le suivi n'a pas été coupé.
+    const utilisable = options.suiviContinu ? lecturePrecise(lecture) : lectureExploitable(lecture, maintenant)
+    if (!utilisable || lecture === null) return { etat, decision: AUCUNE }
     const actif = chantiers.find(c => c.id === etat.chantierActifId)
-    if (!actif) return { etat: { ...etat, candidat: null, horsZoneDepuis: null }, decision: AUCUNE }
+    if (!actif) return { etat: { ...etat, candidat: null, horsZoneDepuis: null, sortieSansTrace: false }, decision: AUCUNE }
     const distanceM = distanceAuChantierM(lecture, actif)
     const seuilSortie = actif.rayonM + Math.max(MARGE_SORTIE_M, lecture.precisionM ?? 0)
-    if (distanceM <= seuilSortie) return { etat: { ...etat, candidat: null, horsZoneDepuis: null }, decision: AUCUNE }
-    const horsZoneDepuis = etat.horsZoneDepuis ?? maintenant
-    const suivant: EtatDetection = { ...etat, candidat: null, horsZoneDepuis }
+    if (distanceM <= seuilSortie) {
+      // Jamais en arrière : une vieille position relue après une coupure ne raccourcit pas la présence déjà connue.
+      const vue = options.suiviContinu ? Math.max(maintenant, lecture.horodatage) : lecture.horodatage
+      const derniereDansZone = Math.max(etat.derniereDansZone ?? vue, vue)
+      return {
+        etat: { ...etat, candidat: null, horsZoneDepuis: null, derniereDansZone, sortieSansTrace: false },
+        decision: AUCUNE,
+      }
+    }
+    if (etat.derniereDansZone === null) {
+      return { etat: { ...etat, candidat: null, horsZoneDepuis: null, sortieSansTrace: true }, decision: AUCUNE }
+    }
+    const trou = lecture.horodatage - etat.derniereDansZone > AGE_MAX_LECTURE_MS
+    const horsZoneDepuis = etat.horsZoneDepuis ?? (trou ? etat.derniereDansZone : lecture.horodatage)
+    const suivant: EtatDetection = { ...etat, candidat: null, horsZoneDepuis, sortieSansTrace: false }
     if (maintenant - horsZoneDepuis >= confirmationDepart) {
       return { etat: suivant, decision: { type: 'depart', chantierId: actif.id, distanceM, depuis: horsZoneDepuis } }
     }
     return { etat: suivant, decision: AUCUNE }
   }
 
+  // Arrivée : seulement sur une position récente.
+  if (!lectureExploitable(lecture, maintenant)) return { etat, decision: AUCUNE }
   const proche = chantierDansLaZone(lecture, chantiers)
-  if (!proche) return { etat: { ...etat, candidat: null, horsZoneDepuis: null }, decision: AUCUNE }
+  if (!proche) return { etat: { ...etat, candidat: null, horsZoneDepuis: null, sortieSansTrace: false }, decision: AUCUNE }
   const candidat = etat.candidat?.chantierId === proche.chantier.id
     ? etat.candidat
     : { chantierId: proche.chantier.id, depuis: maintenant }

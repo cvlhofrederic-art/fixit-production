@@ -8,11 +8,15 @@ import type { ContextePointage, PointageEcran } from '@/lib/btp/pointage-regles'
 
 export type CorpsPointage =
   | { action: 'arrivee'; chantierId: string; mode: 'geo_auto' | 'manuel'; observeA?: number }
-  | { action: 'depart'; mode: 'geo_auto' | 'manuel'; observeA?: number }
+  | { action: 'depart'; chantierId?: string; mode: 'geo_auto' | 'manuel'; observeA?: number }
+  | { action: 'reglage_auto'; actif: boolean; confirmation?: boolean }
 
 export type ResultatEnvoi =
   | { ok: true; pointage: PointageEcran | null }
   | { ok: false; code: string; status: number }
+
+/** Envoi vers /api/btp/pointage, tel que les onglets le reçoivent. */
+export type EnvoyerPointage = (corps: CorpsPointage) => Promise<ResultatEnvoi>
 
 const URL_POINTAGE = '/api/btp/pointage'
 

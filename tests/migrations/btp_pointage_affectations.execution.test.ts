@@ -134,6 +134,7 @@ describe('migration 20261116 — pointage BTP', () => {
     await db.exec('ROLLBACK')
     const colonne = await db.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'chantiers_btp' AND column_name = 'membres_ids'`)
     expect(colonne.rows).toEqual([])
+    expect((await db.query("SELECT to_regclass('public.pointage_reglages_btp') AS t")).rows).toEqual([{ t: null }])
   })
 
   it('base sans les tables BTP (job CI) : passe sans erreur', async () => {
@@ -153,5 +154,32 @@ describe('migration 20261116 — pointage BTP', () => {
     await db.exec(MIGRATION)
     expect(await instantane(droits)).toBe(avant)
     expect(await instantane('SELECT * FROM pg_policies ORDER BY policyname')).toBe(policiesAvant)
+  })
+  it('pointage_reglages_btp : créée vide, RLS active sans policy, aucun droit pour anon ni authenticated, rejouable', async () => {
+    await db.exec(MIGRATION)
+    await db.exec(MIGRATION)
+    const colonnes = (await db.query<{ column_name: string; is_nullable: string }>(
+      `SELECT column_name, is_nullable FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'pointage_reglages_btp' ORDER BY ordinal_position`,
+    )).rows
+    expect(colonnes).toEqual([
+      { column_name: 'owner_id', is_nullable: 'NO' },
+      { column_name: 'auto_active', is_nullable: 'NO' },
+      { column_name: 'confirme_le', is_nullable: 'YES' },
+      { column_name: 'confirme_par', is_nullable: 'YES' },
+      { column_name: 'modifie_le', is_nullable: 'NO' },
+    ])
+    expect((await db.query('SELECT 1 FROM public.pointage_reglages_btp')).rows).toEqual([])
+    expect((await db.query(`SELECT relrowsecurity FROM pg_class WHERE oid = 'public.pointage_reglages_btp'::regclass`)).rows)
+      .toEqual([{ relrowsecurity: true }])
+    expect((await db.query(`SELECT 1 FROM pg_policies WHERE tablename = 'pointage_reglages_btp'`)).rows).toEqual([])
+    const droits = (await db.query<{ role: string; droit: string; accorde: boolean }>(`
+      SELECT r.role, d.droit, has_table_privilege(r.role, 'public.pointage_reglages_btp', d.droit) AS accorde
+      FROM (VALUES ('anon'), ('authenticated')) AS r(role)
+      CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')) AS d(droit)`)).rows
+    expect(droits.filter(d => d.accorde)).toEqual([])
+    expect(droits).toHaveLength(10)
+    // Le rôle du serveur (service_role, qui contourne la RLS) garde ses droits.
+    expect((await db.query(`SELECT has_table_privilege('service_role', 'public.pointage_reglages_btp', 'INSERT') AS ok`)).rows).toEqual([{ ok: true }])
   })
 })

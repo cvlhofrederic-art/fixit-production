@@ -1,6 +1,6 @@
 // tests/components/btp-pointage-ecran.test.tsx — écran Pointage BTP (components/dashboard/PointageGeoSection.tsx,
 // 16/11/2026) : ce que voient l'employé et le gérant, et ce qui part vers /api/btp/pointage et /api/btp.
-// Données fictives ; réseau et données BTP simulés.
+// Données fictives ; réseau, géocodage et données BTP simulés.
 
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -12,7 +12,7 @@ const etat = vi.hoisted(() => ({
   tables: {} as Record<string, unknown[]>,
   updates: [] as Array<{ table: string; id: string; changes: Record<string, unknown> }>,
   ajouts: [] as Array<{ table: string; item: Record<string, unknown> }>,
-  reglages: [] as Array<Record<string, unknown>>,
+  geocodage: null as null | { latitude: number; longitude: number; precise: boolean },
 }))
 
 vi.mock('@/lib/hooks/use-btp-data', () => {
@@ -25,13 +25,18 @@ vi.mock('@/lib/hooks/use-btp-data', () => {
       add: async (item: Record<string, unknown>) => { etat.ajouts.push({ table, item }); return { id: 'nouveau', ...item } },
       remove: async () => true,
     }),
-    useBTPSettings: () => ({ save: async (changes: Record<string, unknown>) => { etat.reglages.push(changes) } }),
   }
 })
+vi.mock('@/lib/btp/geocodage', async (original) => ({
+  ...(await original<typeof import('@/lib/btp/geocodage')>()),
+  geocoderAdresse: vi.fn(async () => etat.geocodage),
+}))
 vi.mock('@/lib/i18n/context', () => ({ useLocale: () => etat.locale, useTranslation: () => ({ t: (c: string) => c }) }))
 vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: async () => 'tok' }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 
+import { toast } from 'sonner'
+import { geocoderAdresse } from '@/lib/btp/geocodage'
 import { PointageGeoSection } from '@/components/dashboard/PointageGeoSection'
 
 const artisan = { id: 'art-1', user_id: 'soc-a', company_name: 'Société Essai' } as unknown as React.ComponentProps<typeof PointageGeoSection>['artisan']
@@ -45,8 +50,10 @@ const CONTEXTE_EMPLOYE: ContextePointage = {
     { id: 'c-garage', titre: 'Garage', adresse: '', latitude: null, longitude: null, rayonM: 100 },
   ],
   pointageEnCours: null,
+  pointagesOublies: [],
   historique: [],
   pointageAutoActive: false,
+  reglageDisponible: true,
 }
 
 let contexte: ContextePointage
@@ -58,10 +65,12 @@ beforeEach(() => {
   etat.tables = {}
   etat.updates = []
   etat.ajouts = []
-  etat.reglages = []
+  etat.geocodage = null
   contexte = structuredClone(CONTEXTE_EMPLOYE)
   envois = []
   lectures = 0
+  vi.mocked(toast.success).mockClear()
+  vi.mocked(toast.error).mockClear()
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
     if (String(url).startsWith('/api/btp/pointage') && init?.method === 'POST') {
       envois.push(JSON.parse(String(init.body)))
@@ -91,11 +100,10 @@ describe('employé', () => {
     expect(screen.getByText(/sans position GPS : pointage à la main/)).toBeTruthy()
   })
 
-  it('« Pointer ici » : arrivée à la main sur ce chantier, sans position ni distance, puis rechargement', async () => {
+  it('« Pointer ici » : bouton nommé d’après le chantier ; arrivée à la main sans position ni distance, puis rechargement', async () => {
     await afficher()
     const avant = lectures
-    const [, garage] = screen.getAllByRole('button', { name: 'Pointer ici' })
-    await act(async () => { fireEvent.click(garage) })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Pointer ici — Garage' })) })
     expect(envois).toEqual([{ action: 'arrivee', chantierId: 'c-garage', mode: 'manuel', fuseau: expect.any(String) }])
     expect(lectures).toBeGreaterThan(avant)
   })
@@ -111,6 +119,22 @@ describe('employé', () => {
     contexte.chantiers = contexte.chantiers.filter(c => c.latitude === null)
     await afficher()
     expect((screen.getByRole('button', { name: 'Activer le pointage automatique' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('pointage commencé à la main : le mode automatique attend qu’il soit terminé à la main', async () => {
+    contexte.pointageAutoActive = true
+    contexte.pointageEnCours = { id: 'p1', chantierId: 'c-villa', chantierNom: 'Villa', date: '2026-11-16', heureArrivee: '08:30:00', heureDepart: null, heuresTravaillees: 0, mode: 'manuel' }
+    await afficher()
+    expect(screen.getByText(/Pointage à la main en cours/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Activer le pointage automatique' }) as HTMLButtonElement).disabled).toBe(true)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Terminer le pointage' })) })
+    expect(envois).toEqual([{ action: 'depart', mode: 'manuel', fuseau: expect.any(String) }])
+  })
+
+  it('départ oublié un jour précédent : signalé, à régulariser par le responsable', async () => {
+    contexte.pointagesOublies = [{ id: 'p0', chantierId: 'c-villa', chantierNom: 'Villa', date: '2026-11-13', heureArrivee: '08:00:00', heureDepart: null, heuresTravaillees: 0, mode: 'geo_auto' }]
+    await afficher()
+    expect(screen.getByText(/Départ non pointé le .*Villa.*votre responsable les régularisera/)).toBeTruthy()
   })
 
   it('compte non relié à une fiche : explication, rien à pointer', async () => {
@@ -136,8 +160,8 @@ describe('gérant — affectations', () => {
     }
     etat.tables = {
       chantiers: [
-        { id: 'c-villa', titre: 'Villa', statut: 'En cours', adresse: '1 rue des Lilas', latitude: 43.25, longitude: 5.38, geoRayonM: 150, membres_ids: [] },
-        { id: 'c-immeuble', titre: 'Immeuble', statut: 'En cours', latitude: 43.3, longitude: 5.4, geoRayonM: 100, membres_ids: [] },
+        { id: 'c-villa', titre: 'Villa', statut: 'En cours', adresse: '1 rue des Lilas', codePostal: '13008', ville: 'Marseille', latitude: 43.25, longitude: 5.38, geoRayonM: 150, membres_ids: [] },
+        { id: 'c-immeuble', titre: 'Immeuble', statut: 'En cours', adresse: '5 avenue du Port', ville: 'Marseille', latitude: null, longitude: null, geoRayonM: 100, membres_ids: [] },
         { id: 'c-fini', titre: 'Fini', statut: 'Terminé', membres_ids: [] },
       ],
       membres: [
@@ -153,30 +177,56 @@ describe('gérant — affectations', () => {
     await afficher()
     fireEvent.click(screen.getByRole('button', { name: 'Affectations' }))
   }
+  const carte = (titre: string) => screen.getByText(titre).closest('.v5-card') as HTMLElement
 
-  it('activer le pointage automatique exige de confirmer l’information des salariés', async () => {
+  it('activer le pointage automatique exige de confirmer l’information des salariés, puis passe par la route', async () => {
     await ouvrirAffectations()
     expect(screen.getByText(/Consultez le CSE/)).toBeTruthy()
     const activer = screen.getByRole('button', { name: 'Activer pour ma société' }) as HTMLButtonElement
     expect(activer.disabled).toBe(true)
     fireEvent.click(screen.getByLabelText(/J’ai informé mes salariés/))
     await act(async () => { fireEvent.click(activer) })
-    expect(etat.reglages).toEqual([{ geo_pointage_enabled: true }])
+    expect(envois).toEqual([{ action: 'reglage_auto', actif: true, confirmation: true, fuseau: expect.any(String) }])
+    expect(toast.success).toHaveBeenCalledWith('Pointage automatique activé')
   })
 
-  it('chantiers en cours seulement, employés actifs avec l’état de leur compte', async () => {
+  it('activation refusée par le serveur : l’erreur est affichée', async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async (_url, init) => (init?.method === 'POST'
+      ? new Response(JSON.stringify({ error: 'migration_requise' }), { status: 409 })
+      : new Response(JSON.stringify(contexte), { status: 200 })))
+    await ouvrirAffectations()
+    fireEvent.click(screen.getByLabelText(/J’ai informé mes salariés/))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Activer pour ma société' })) })
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('mise à jour de la base'))
+  })
+
+  it('migration non appliquée : interrupteur indisponible, employés non affectables un par un, équipes toujours', async () => {
+    contexte.reglageDisponible = false
+    contexte.affectationIndividuelle = false
+    await ouvrirAffectations()
+    expect(screen.queryByRole('button', { name: 'Activer pour ma société' })).toBeNull()
+    // Interrupteur et affectation individuelle : les deux le disent.
+    expect(screen.getAllByText(/disponible après la mise à jour de la base/i)).toHaveLength(2)
+    expect((within(carte('Villa')).getByLabelText(/Paul Exemple/) as HTMLInputElement).disabled).toBe(true)
+    expect((within(carte('Villa')).getByLabelText(/Maçons/) as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('chantiers en cours seulement, employés actifs avec l’état de leur compte, position à vérifier sur la carte', async () => {
     await ouvrirAffectations()
     expect(screen.queryByText('Fini')).toBeNull()
     expect(screen.queryByText(/Ancien Salarié/)).toBeNull()
-    const villa = screen.getByText('Villa').closest('.v5-card') as HTMLElement
+    const villa = carte('Villa')
     expect(within(villa).getByText('Compte actif')).toBeTruthy()
     expect(within(villa).getByText('Invitation envoyée')).toBeTruthy()
     expect(within(villa).getByText(/actuellement sur « Immeuble »/)).toBeTruthy()
+    const lien = within(villa).getByRole('link', { name: /Voir la position de Villa sur la carte/ }) as HTMLAnchorElement
+    expect(lien.href).toContain('openstreetmap.org/?mlat=43.25&mlon=5.38')
+    expect(within(villa).getByRole('button', { name: 'Relocaliser l’adresse' })).toBeTruthy()
   })
 
   it('enregistrer : employés et rayon sur le chantier, équipe déplacée vers lui', async () => {
     await ouvrirAffectations()
-    const villa = screen.getByText('Villa').closest('.v5-card') as HTMLElement
+    const villa = carte('Villa')
     fireEvent.click(within(villa).getByLabelText(/Paul Exemple/))
     fireEvent.click(within(villa).getByLabelText(/Maçons/))
     fireEvent.change(within(villa).getByLabelText(/^Rayon/), { target: { value: '300' } })
@@ -187,19 +237,26 @@ describe('gérant — affectations', () => {
     ])
   })
 
-  it('migration non appliquée : employés non affectables un par un, équipes toujours', async () => {
-    contexte.affectationIndividuelle = false
+  it('localiser : adresse complète géocodée ; une position seulement approximative (centre de la commune) est refusée', async () => {
+    etat.geocodage = { latitude: 43.29, longitude: 5.37, precise: false }
     await ouvrirAffectations()
-    expect(screen.getByText(/disponible après la mise à jour de la base/)).toBeTruthy()
-    const villa = screen.getByText('Villa').closest('.v5-card') as HTMLElement
-    expect((within(villa).getByLabelText(/Paul Exemple/) as HTMLInputElement).disabled).toBe(true)
-    expect((within(villa).getByLabelText(/Maçons/) as HTMLInputElement).disabled).toBe(false)
+    await act(async () => { fireEvent.click(within(carte('Immeuble')).getByRole('button', { name: 'Localiser l’adresse' })) })
+    expect(geocoderAdresse).toHaveBeenLastCalledWith('5 avenue du Port Marseille', 'FR')
+    expect(etat.updates).toEqual([])
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('indiquez le numéro et la rue'))
+
+    etat.geocodage = { latitude: 43.301, longitude: 5.365, precise: true }
+    await act(async () => { fireEvent.click(within(carte('Immeuble')).getByRole('button', { name: 'Localiser l’adresse' })) })
+    expect(etat.updates).toEqual([{ table: 'chantiers', id: 'c-immeuble', changes: { latitude: 43.301, longitude: 5.365 } }])
   })
 })
 
 describe('gérant — historique', () => {
-  it('pointage saisi à la main : l’employé et le chantier choisis partent avec leurs identifiants', async () => {
+  beforeEach(() => {
     contexte = { ...structuredClone(CONTEXTE_EMPLOYE), gerant: true, rattachement: 'aucun', moi: null, chantiers: [] }
+  })
+
+  it('pointage saisi à la main : l’employé et le chantier choisis partent avec leurs identifiants', async () => {
     etat.tables = {
       pointages: [],
       chantiers: [{ id: 'c-villa', titre: 'Villa', statut: 'En cours' }],
@@ -215,5 +272,21 @@ describe('gérant — historique', () => {
       table: 'pointages',
       item: expect.objectContaining({ employe: 'Paul Exemple', membreId: 'm-paul', chantier: 'Villa', chantierId: 'c-villa', heuresTravaillees: 8 }),
     }])
+  })
+
+  it('départ non pointé un jour précédent et pointage refermé sans heures : signalés au gérant', async () => {
+    etat.tables = {
+      pointages: [
+        { id: 'p1', employe: 'Paul Exemple', chantier: 'Villa', date: '2026-01-05', heureArrivee: '08:00:00', heureDepart: '', heuresTravaillees: 0, mode: 'geo_auto' },
+        { id: 'p2', employe: 'Jean Test', chantier: 'Villa', date: '2026-01-05', heureArrivee: '08:00:00', heureDepart: '08:00:00', heuresTravaillees: 0, mode: 'geo_auto', notes: 'Départ non pointé : à régulariser.' },
+      ],
+      chantiers: [],
+      membres: [],
+    }
+    await afficher()
+    fireEvent.click(screen.getByRole('button', { name: 'Historique' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Voir tout' }))
+    expect(screen.getByText('Départ non pointé')).toBeTruthy()
+    expect(screen.getByText('À régulariser')).toBeTruthy()
   })
 })

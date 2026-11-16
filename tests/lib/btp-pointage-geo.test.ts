@@ -15,6 +15,7 @@ import {
   chantierDansLaZone,
   coordonneesValides,
   distanceAuChantierM,
+  etatPourPointage,
   evaluerDetection,
   lectureExploitable,
   rayonEffectifM,
@@ -122,7 +123,8 @@ describe('arrivée', () => {
 })
 
 describe('départ', () => {
-  const surPlace: EtatDetection = { chantierActifId: 'A', candidat: null, horsZoneDepuis: null }
+  // Vu sur place une seconde avant la première lecture de chaque scénario.
+  const surPlace: EtatDetection = etatPourPointage('A', T0 - 1000)
 
   it('pointé après CONFIRMATION_DEPART_MS au-delà du rayon + marge, à l’instant de la sortie', () => {
     const sortie = 100 + MARGE_SORTIE_M + 1
@@ -152,12 +154,68 @@ describe('départ', () => {
   })
 
   it('un chantier actif absent de la liste (sans GPS, plus affecté) n’est jamais quitté automatiquement', () => {
-    const ailleurs: EtatDetection = { chantierActifId: 'Z', candidat: null, horsZoneDepuis: null }
+    const ailleurs: EtatDetection = etatPourPointage('Z', T0)
     expect(rejouer([[5000, T0], [5000, T0 + 10 * CONFIRMATION_DEPART_MS]], ailleurs).decisions).toEqual([])
   })
 
   it('pendant un pointage en cours, un autre chantier proche ne déclenche pas d’arrivée', () => {
     const resultat = evaluerDetection(surPlace, lire(150, T0), [CHANTIER_A, CHANTIER_B], T0, { confirmationArriveeMs: 0 })
     expect(resultat.decision).toEqual({ type: 'aucune' })
+  })
+})
+
+describe('départ après une coupure du suivi (téléphone en veille, page rouverte)', () => {
+  it('trou de plus de deux minutes : le départ est daté de la dernière présence connue, sans attendre', () => {
+    const vuSurPlace = etatPourPointage('A', T0)
+    const reveil = T0 + 3 * 3_600_000
+    const resultat = evaluerDetection(vuSurPlace, lire(5000, reveil), [CHANTIER_A], reveil)
+    expect(resultat.decision).toEqual({ type: 'depart', chantierId: 'A', distanceM: 5000, depuis: T0 })
+  })
+
+  it('suivi sans trou : le départ est daté de la première lecture dehors', () => {
+    const vuSurPlace = etatPourPointage('A', T0)
+    const resultat = evaluerDetection(vuSurPlace, lire(600, T0 + 30_000), [CHANTIER_A], T0 + 30_000)
+    expect(resultat.etat.horsZoneDepuis).toBe(T0 + 30_000)
+    expect(resultat.decision).toEqual({ type: 'aucune' })
+  })
+
+  it('aucune présence connue sur place (pointage repris sur ce téléphone) : pas de départ automatique, signalé', () => {
+    const sansTrace = etatPourPointage('A')
+    const { decisions, etat } = rejouer([[600, T0], [600, T0 + 10 * CONFIRMATION_DEPART_MS]], sansTrace)
+    expect(decisions).toEqual([])
+    expect(etat.sortieSansTrace).toBe(true)
+    // De retour sur place, la présence redevient connue et le signal tombe.
+    const retour = evaluerDetection(etat, lire(20, T0 + 11 * CONFIRMATION_DEPART_MS), [CHANTIER_A], T0 + 11 * CONFIRMATION_DEPART_MS)
+    expect(retour.etat).toMatchObject({ sortieSansTrace: false, derniereDansZone: T0 + 11 * CONFIRMATION_DEPART_MS })
+  })
+
+  it('suivi continu sans nouvelle position : la présence se prolonge jusqu’à maintenant (téléphone immobile sur place)', () => {
+    const vuSurPlace = etatPourPointage('A', T0)
+    const dixMinutesPlusTard = T0 + 10 * 60_000
+    const continu = evaluerDetection(vuSurPlace, lire(20, T0), [CHANTIER_A], dixMinutesPlusTard, { suiviContinu: true })
+    expect(continu.etat.derniereDansZone).toBe(dixMinutesPlusTard)
+    // Sans continuité (veille), la vieille position ne prouve plus rien : rien ne change.
+    const coupe = evaluerDetection(vuSurPlace, lire(20, T0), [CHANTIER_A], dixMinutesPlusTard)
+    expect(coupe.etat).toBe(vuSurPlace)
+  })
+
+  it('une arrivée exige une position récente, même en suivi continu', () => {
+    const resultat = evaluerDetection(ETAT_DETECTION_INITIAL, lire(10, T0), [CHANTIER_A], T0 + AGE_MAX_LECTURE_MS + 1, {
+      confirmationArriveeMs: 0, suiviContinu: true,
+    })
+    expect(resultat.decision).toEqual({ type: 'aucune' })
+  })
+
+  it('etatPourPointage : sans chantier actif, aucune présence gardée', () => {
+    expect(etatPourPointage(null, T0)).toEqual(ETAT_DETECTION_INITIAL)
+    expect(etatPourPointage('A', T0)).toEqual({ ...ETAT_DETECTION_INITIAL, chantierActifId: 'A', derniereDansZone: T0 })
+  })
+})
+
+describe('dernière présence connue', () => {
+  it('ne recule jamais : une vieille position relue après une coupure ne raccourcit pas la présence', () => {
+    const vuJusqua = etatPourPointage('A', T0 + 30_000)
+    const resultat = evaluerDetection(vuJusqua, lire(20, T0), [CHANTIER_A], T0 + 60_000)
+    expect(resultat.etat.derniereDansZone).toBe(T0 + 30_000)
   })
 })

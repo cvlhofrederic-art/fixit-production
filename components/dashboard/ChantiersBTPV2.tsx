@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
-import { geocoderAdresse } from '@/lib/btp/geocodage'
+import { adresseComplete, geocoderAdresse } from '@/lib/btp/geocodage'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import { toast } from 'sonner'
@@ -166,7 +166,9 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     setGeocoding(true)
     try {
       const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
-      if (position) setForm(f => ({ ...f, latitude: position.latitude, longitude: position.longitude }))
+      if (position?.precise) setForm(f => ({ ...f, latitude: position.latitude, longitude: position.longitude }))
+      // Centre de la commune seulement : le pointage automatique se déclencherait au mauvais endroit.
+      else if (position) toast.warning(isPt ? 'Morada pouco precisa para o GPS: indique o número e a rua.' : 'Adresse trop vague pour le GPS : indiquez le numéro et la rue.')
     } finally { setGeocoding(false) }
   }, [isPt])
 
@@ -884,7 +886,7 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
                     <input className={isV5 ? "v5-fi" : "v22-input"} style={{ flex: 1 }} value={form.ville}
                       onChange={e => setForm({ ...form, ville: e.target.value })}
                       placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
-                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(form.ville || form.adresse)}
+                    <button className={isV5 ? "v5-btn v5-btn-sm" : "v22-btn v22-btn-sm"} onClick={() => geocodeAdresse(adresseComplete(form))}
                       disabled={geocoding || (!form.ville.trim() && !form.adresse.trim())}>
                       {geocoding ? <Loader2 size={12} className="animate-spin" /> : <MapPin size={12} />}
                       {form.latitude ? <CheckCircle2 size={12} style={{ color: '#2E7D32' }} /> : ' GPS'}

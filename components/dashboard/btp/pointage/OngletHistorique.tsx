@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
-import { pointagesEnCsv, STATUT_EN_COURS } from '@/lib/btp/pointage-regles'
+import { NOTE_A_REGULARISER, NOTE_DOUBLON, pointagesEnCsv, STATUT_EN_COURS } from '@/lib/btp/pointage-regles'
 import type { Artisan } from '@/lib/types'
 import { formatHeures } from './textes'
 
@@ -20,6 +20,7 @@ interface PointageLu {
   heureDepart?: string
   heuresTravaillees: number
   mode?: string
+  notes?: string
 }
 interface ChantierLu { id: string; titre: string; statut?: string }
 interface MembreLu { id: string; prenom?: string; nom?: string; actif?: boolean; typeCompte?: string }
@@ -54,6 +55,20 @@ const formulaireVide = () => ({
   date: aujourdhui(), heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, notes: '',
 })
 
+/** Départ : heure, « En cours » (aujourd'hui), « Départ non pointé » (jour précédent, encore ouvert). */
+function celluleDepart(p: PointageLu, jour: string, isPt: boolean) {
+  if (p.heureDepart) return p.heureDepart.slice(0, 5)
+  if (p.date < jour) return <span className="v5-badge v5-badge-orange">{isPt ? 'Saída não marcada' : 'Départ non pointé'}</span>
+  return <span className="v5-badge v5-badge-green">{isPt ? 'Em curso' : 'En cours'}</span>
+}
+
+/** Pointage refermé sans heures par le serveur (départ oublié, doublon) : à régulariser par le gérant. */
+function badgeARegulariser(p: PointageLu, isPt: boolean) {
+  const notes = p.notes ?? ''
+  if (!notes.includes(NOTE_A_REGULARISER) && !notes.includes(NOTE_DOUBLON)) return null
+  return <span className="v5-badge v5-badge-orange" title={notes}>{isPt ? 'A regularizar' : 'À régulariser'}</span>
+}
+
 function badgeMode(p: PointageLu, isPt: boolean) {
   if (p.mode === 'geo_auto') return <span className="v5-badge v5-badge-blue">Auto (GPS)</span>
   if (p.mode === 'geo_confirme') return <span className="v5-badge v5-badge-green">{isPt ? 'No local' : 'Sur site'}</span>
@@ -74,6 +89,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
   const [filtreMode, setFiltreMode] = useState<FiltreMode>('tous')
 
   const pointages = pointagesBtp.items
+  const jourCourant = aujourdhui()
   const chantiersEnCours = chantiersBtp.items.filter(c => c.statut === STATUT_EN_COURS)
   const membres = membresBtp.items.filter(m => m.actif !== false)
   const postes = isPt
@@ -265,9 +281,9 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
                 <td>{new Date(`${p.date}T12:00:00`).toLocaleDateString(langueDates, { day: '2-digit', month: 'short' })}</td>
                 <td>{p.chantier || '—'}</td>
                 <td>{(p.heureArrivee || '').slice(0, 5)}</td>
-                <td>{p.heureDepart ? p.heureDepart.slice(0, 5) : <span className="v5-badge v5-badge-green">{isPt ? 'Em curso' : 'En cours'}</span>}</td>
+                <td>{celluleDepart(p, jourCourant, isPt)}</td>
                 <td style={{ fontWeight: 600 }}>{p.heureDepart ? formatHeures(p.heuresTravaillees || 0) : '—'}</td>
-                <td>{badgeMode(p, isPt)}</td>
+                <td>{badgeMode(p, isPt)} {badgeARegulariser(p, isPt)}</td>
                 <td>
                   <button
                     type="button"

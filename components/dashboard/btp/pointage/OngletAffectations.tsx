@@ -3,16 +3,18 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { MapPin } from 'lucide-react'
-import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
-import { geocoderAdresse } from '@/lib/btp/geocodage'
+import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { adresseComplete, geocoderAdresse, lienCarte } from '@/lib/btp/geocodage'
 import { RAYON_PAR_DEFAUT_M, RAYONS_PROPOSES_M, coordonneesValides } from '@/lib/btp/pointage-geo'
 import { STATUT_EN_COURS, type StatutCompte } from '@/lib/btp/pointage-regles'
 import type { Artisan } from '@/lib/types'
-import { rappelActivation } from './textes'
+import type { EnvoyerPointage } from './useContextePointage'
+import { messageErreurPointage, rappelActivation } from './textes'
 
 // Onglet « Affectations » (gérant) : relier employés et équipes aux chantiers en cours, régler le rayon de
-// déclenchement et la position GPS de chaque chantier. Écrit par /api/btp comme les écrans Chantiers et Équipes :
-// chantiers_btp.membres_ids et geo_rayon_m, equipes_btp.chantier_id (une équipe est sur un chantier à la fois).
+// déclenchement et la position GPS de chaque chantier, activer le pointage automatique de la société.
+// Affectations écrites par /api/btp comme les écrans Chantiers et Équipes : chantiers_btp.membres_ids et geo_rayon_m,
+// equipes_btp.chantier_id (une équipe est sur un chantier à la fois). Interrupteur : /api/btp/pointage.
 
 interface ChantierLu {
   id: string
@@ -37,68 +39,24 @@ interface Props {
   isPt: boolean
   comptes: Record<string, StatutCompte>
   affectationIndividuelle: boolean
-  /** Interrupteur de la société (settings_btp.geo_pointage_enabled), tel que lu par /api/btp/pointage. */
   pointageAutoActive: boolean
+  /** Faux tant que la migration 20261116 n'est pas appliquée : l'interrupteur attend. */
+  reglageDisponible: boolean
+  envoyer: EnvoyerPointage
   onModifie: () => Promise<void>
 }
 
-/** Activation du pointage automatique pour la société, après le rappel des obligations de l'employeur. */
-function InterrupteurPointageAuto({ actif, isPt, onModifie }: { actif: boolean; isPt: boolean; onModifie: () => Promise<void> }) {
-  const { save } = useBTPSettings()
-  const [confirme, setConfirme] = useState(false)
-  const [occupe, setOccupe] = useState(false)
-  const rappel = rappelActivation(isPt)
-
-  const basculer = async (valeur: boolean) => {
-    setOccupe(true)
-    try {
-      await save({ geo_pointage_enabled: valeur })
-      await onModifie()
-      setConfirme(false)
-    } finally {
-      setOccupe(false)
-    }
-  }
-
-  return (
-    <div className="v5-card">
-      <div className="v5-st">{isPt ? 'Marcação automática (GPS)' : 'Pointage automatique (GPS)'}</div>
-      {actif ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span className="v5-badge v5-badge-green">{isPt ? 'Ativada' : 'Activé'}</span>
-          <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
-            {isPt
-              ? 'Cada colaborador pode ativá-la no seu telemóvel, no separador Marcar.'
-              : 'Chaque employé peut l’activer sur son téléphone, dans l’onglet Pointer.'}
-          </span>
-          <button type="button" className="v5-btn" disabled={occupe} onClick={() => { void basculer(false) }}>
-            {isPt ? 'Desativar' : 'Désactiver'}
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="v5-al warn">
-            <strong>{rappel.titre}</strong>
-            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-              {rappel.points.map(point => <li key={point}>{point}</li>)}
-            </ul>
-          </div>
-          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, margin: '10px 0' }}>
-            <input type="checkbox" checked={confirme} onChange={e => setConfirme(e.target.checked)} />
-            {rappel.confirmation}
-          </label>
-          <button type="button" className="v5-btn v5-btn-p" disabled={!confirme || occupe} onClick={() => { void basculer(true) }}>
-            {isPt ? 'Ativar para a minha empresa' : 'Activer pour ma société'}
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
+/** Texte secondaire : gris assez foncé pour un contraste lisible en petite taille. */
+const GRIS = '#555'
 
 const parNom = (a: string, b: string) => a.localeCompare(b, 'fr', { sensitivity: 'base' })
 const memes = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every(x => b.includes(x))
 const nomMembre = (m: MembreLu) => [m.prenom, m.nom].filter(Boolean).join(' ') || '—'
+
+function libelleLocaliser(dejaLocalise: boolean, isPt: boolean): string {
+  if (dejaLocalise) return isPt ? 'Relocalizar a morada' : 'Relocaliser l’adresse'
+  return isPt ? 'Localizar a morada' : 'Localiser l’adresse'
+}
 
 function puceCompte(statut: StatutCompte | undefined, isPt: boolean) {
   if (statut === 'actif') return <span className="v5-badge v5-badge-green">{isPt ? 'Conta ativa' : 'Compte actif'}</span>
@@ -106,7 +64,80 @@ function puceCompte(statut: StatutCompte | undefined, isPt: boolean) {
   return <span className="v5-badge v5-badge-gray">{isPt ? 'Sem conta' : 'Sans compte'}</span>
 }
 
-export function OngletAffectations({ artisan, isPt, comptes, affectationIndividuelle, pointageAutoActive, onModifie }: Props) {
+/** Activation du pointage automatique pour la société, après le rappel des obligations de l'employeur. */
+function InterrupteurPointageAuto({ actif, disponible, isPt, envoyer, onModifie }: {
+  actif: boolean; disponible: boolean; isPt: boolean; envoyer: EnvoyerPointage; onModifie: () => Promise<void>
+}) {
+  const [confirme, setConfirme] = useState(false)
+  const [occupe, setOccupe] = useState(false)
+  const rappel = rappelActivation(isPt)
+
+  const basculer = async (valeur: boolean) => {
+    setOccupe(true)
+    try {
+      const resultat = await envoyer({ action: 'reglage_auto', actif: valeur, confirmation: valeur ? confirme : undefined })
+      if (!resultat.ok) {
+        toast.error(messageErreurPointage(resultat.code, isPt))
+        return
+      }
+      const active = isPt ? 'Marcação automática ativada' : 'Pointage automatique activé'
+      const coupee = isPt ? 'Marcação automática desativada' : 'Pointage automatique désactivé'
+      toast.success(valeur ? active : coupee)
+      setConfirme(false)
+      await onModifie()
+    } finally {
+      setOccupe(false)
+    }
+  }
+
+  let contenu
+  if (!disponible) {
+    contenu = <p style={{ fontSize: 13, margin: 0 }}>{messageErreurPointage('migration_requise', isPt)}</p>
+  } else if (actif) {
+    contenu = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span className="v5-badge v5-badge-green">{isPt ? 'Ativada' : 'Activé'}</span>
+        <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
+          {isPt
+            ? 'Cada colaborador pode ativá-la no seu telemóvel, no separador Marcar.'
+            : 'Chaque employé peut l’activer sur son téléphone, dans l’onglet Pointer.'}
+        </span>
+        <button type="button" className="v5-btn" disabled={occupe} onClick={() => { void basculer(false) }}>
+          {isPt ? 'Desativar' : 'Désactiver'}
+        </button>
+      </div>
+    )
+  } else {
+    contenu = (
+      <>
+        <div className="v5-al warn">
+          <strong>{rappel.titre}</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {rappel.points.map(point => <li key={point}>{point}</li>)}
+          </ul>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, margin: '10px 0' }}>
+          <input type="checkbox" checked={confirme} onChange={e => setConfirme(e.target.checked)} />
+          {rappel.confirmation}
+        </label>
+        <button type="button" className="v5-btn v5-btn-p" disabled={!confirme || occupe} onClick={() => { void basculer(true) }}>
+          {isPt ? 'Ativar para a minha empresa' : 'Activer pour ma société'}
+        </button>
+      </>
+    )
+  }
+
+  return (
+    <div className="v5-card">
+      <div className="v5-st">{isPt ? 'Marcação automática (GPS)' : 'Pointage automatique (GPS)'}</div>
+      {contenu}
+    </div>
+  )
+}
+
+export function OngletAffectations({
+  artisan, isPt, comptes, affectationIndividuelle, pointageAutoActive, reglageDisponible, envoyer, onModifie,
+}: Props) {
   const userId = artisan?.user_id || ''
   const chantiersBtp = useBTPData<ChantierLu>({ table: 'chantiers', artisanId: artisan?.id || '', userId })
   const membresBtp = useBTPData<MembreLu>({ table: 'membres', artisanId: artisan?.id || '', userId })
@@ -174,16 +205,19 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
   }
 
   const localiser = async (c: ChantierLu) => {
-    const adresse = [c.adresse, c.codePostal, c.ville].filter(Boolean).join(' ')
-    if (!adresse.trim()) {
+    const adresse = adresseComplete(c)
+    if (!adresse) {
       toast.error(isPt ? 'Indique a morada da obra no módulo Obras.' : 'Indiquez l’adresse du chantier dans le module Chantiers.')
       return
     }
     setOccupe(c.id)
     try {
       const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
-      if (!position) {
-        toast.error(isPt ? 'Morada não encontrada: corrija-a no módulo Obras.' : 'Adresse introuvable : corrigez-la dans le module Chantiers.')
+      if (!position?.precise) {
+        // Introuvable, ou seulement le centre de la commune : le pointage se déclencherait au mauvais endroit.
+        toast.error(isPt
+          ? 'Morada não encontrada com precisão: indique o número e a rua no módulo Obras.'
+          : 'Adresse introuvable avec précision : indiquez le numéro et la rue dans le module Chantiers.')
         return
       }
       if (await chantiersBtp.update(c.id, { latitude: position.latitude, longitude: position.longitude })) {
@@ -200,16 +234,16 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
   const lienEmployes = typeof window === 'undefined' ? '' : `${window.location.origin}/${isPt ? 'pt' : 'fr'}/pro/dashboard/?p=pointage`
 
   if (chantiersBtp.loading || membresBtp.loading || equipesBtp.loading) {
-    return <div className="v5-card" style={{ textAlign: 'center', color: '#999', fontSize: 13 }}>{isPt ? 'A carregar…' : 'Chargement…'}</div>
+    return <div className="v5-card" style={{ textAlign: 'center', color: GRIS, fontSize: 13 }}>{isPt ? 'A carregar…' : 'Chargement…'}</div>
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-      <InterrupteurPointageAuto actif={pointageAutoActive} isPt={isPt} onModifie={onModifie} />
+      <InterrupteurPointageAuto actif={pointageAutoActive} disponible={reglageDisponible} isPt={isPt} envoyer={envoyer} onModifie={onModifie} />
       <div className="v5-al info">
         {isPt
-          ? 'Cada colaborador marca a partir do seu telemóvel, ligado com a sua própria conta (Contas de utilizadores), com o mesmo e-mail da sua ficha em Equipas. Ligação a dar-lhe: '
-          : 'Chaque employé pointe depuis son téléphone, connecté avec son propre compte (Comptes utilisateurs), avec la même adresse e-mail que sur sa fiche Équipes. Lien à lui donner : '}
+          ? 'Cada colaborador marca a partir do seu telemóvel, ligado com a sua própria conta (Contas de utilizadores), com o mesmo e-mail da sua ficha em Equipas. Depois de iniciar sessão, abre « Marcação de horas » no menu, ou esta ligação: '
+          : 'Chaque employé pointe depuis son téléphone, connecté avec son propre compte (Comptes utilisateurs), avec la même adresse e-mail que sur sa fiche Équipes. Une fois connecté, il ouvre « Pointage » dans le menu, ou ce lien : '}
         <strong style={{ wordBreak: 'break-all' }}>{lienEmployes}</strong>
       </div>
       {!affectationIndividuelle && (
@@ -221,7 +255,7 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
       )}
 
       {chantiers.length === 0 ? (
-        <div className="v5-card" style={{ fontSize: 13, color: '#666' }}>
+        <div className="v5-card" style={{ fontSize: 13, color: GRIS }}>
           {isPt ? 'Nenhuma obra em curso. Passe uma obra para « Em curso » no módulo Obras.' : 'Aucun chantier en cours. Passez un chantier « En cours » dans le module Chantiers.'}
         </div>
       ) : chantiers.map(c => {
@@ -233,18 +267,25 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{c.titre}</div>
-                <div style={{ fontSize: 11, color: '#888', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <MapPin size={10} aria-hidden="true" /> {[c.adresse, c.codePostal, c.ville].filter(Boolean).join(' ') || '—'}
+                <div style={{ fontSize: 12, color: GRIS, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <MapPin size={10} aria-hidden="true" /> {adresseComplete(c) || '—'}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {positionValide
-                  ? <span className="v5-badge v5-badge-green">{isPt ? 'Posição GPS' : 'Position GPS'}</span>
-                  : (
-                    <button type="button" className="v5-btn v5-btn-sm" disabled={occupe === c.id} onClick={() => { void localiser(c) }}>
-                      {isPt ? 'Localizar a morada' : 'Localiser l’adresse'}
-                    </button>
-                  )}
+                {positionValide && (
+                  <a
+                    className="v5-btn v5-btn-sm"
+                    href={lienCarte(c.latitude as number, c.longitude as number)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${isPt ? 'Ver a posição de' : 'Voir la position de'} ${c.titre} ${isPt ? 'no mapa' : 'sur la carte'}`}
+                  >
+                    {isPt ? 'Ver no mapa' : 'Voir sur la carte'}
+                  </a>
+                )}
+                <button type="button" className="v5-btn v5-btn-sm" disabled={occupe === c.id} onClick={() => { void localiser(c) }}>
+                  {libelleLocaliser(positionValide, isPt)}
+                </button>
                 <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
                   {isPt ? 'Raio' : 'Rayon'}
                   <select
@@ -257,7 +298,13 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
                 </label>
               </div>
             </div>
-            {!positionValide && (
+            {positionValide ? (
+              <p style={{ fontSize: 12, color: GRIS, margin: '8px 0 0' }}>
+                {isPt
+                  ? 'Verifique no mapa que a posição é a da obra (e não o centro da localidade) antes de ativar a marcação automática.'
+                  : 'Vérifiez sur la carte que la position est celle du chantier (et non le centre de la commune) avant d’activer le pointage automatique.'}
+              </p>
+            ) : (
               <div className="v5-al warn" style={{ marginTop: 8 }}>
                 {isPt ? 'Sem posição GPS, a marcação automática não pode iniciar nesta obra.' : 'Sans position GPS, le pointage automatique ne peut pas démarrer sur ce chantier.'}
               </div>
@@ -266,7 +313,7 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
             <fieldset style={{ border: 'none', padding: 0, margin: '12px 0 0' }}>
               <legend className="v5-fl">{isPt ? 'Colaboradores' : 'Employés'}</legend>
               {membres.length === 0 ? (
-                <p style={{ fontSize: 12, color: '#888', margin: 0 }}>{isPt ? 'Nenhum colaborador em Equipas.' : 'Aucun employé dans Équipes.'}</p>
+                <p style={{ fontSize: 12, color: GRIS, margin: 0 }}>{isPt ? 'Nenhum colaborador em Equipas.' : 'Aucun employé dans Équipes.'}</p>
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {membres.map(m => (
@@ -287,7 +334,7 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
             <fieldset style={{ border: 'none', padding: 0, margin: '12px 0 0' }}>
               <legend className="v5-fl">{isPt ? 'Equipas' : 'Équipes'}</legend>
               {equipes.length === 0 ? (
-                <p style={{ fontSize: 12, color: '#888', margin: 0 }}>{isPt ? 'Nenhuma equipa em Equipas.' : 'Aucune équipe dans Équipes.'}</p>
+                <p style={{ fontSize: 12, color: GRIS, margin: 0 }}>{isPt ? 'Nenhuma equipa em Equipas.' : 'Aucune équipe dans Équipes.'}</p>
               ) : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {equipes.map(e => {
@@ -300,7 +347,7 @@ export function OngletAffectations({ artisan, isPt, comptes, affectationIndividu
                           onChange={() => changer(c, prev => ({ ...prev, equipes: basculer(prev.equipes, e.id) }))}
                         />
                         {e.nom || '—'}
-                        {ailleurs && <span style={{ color: '#888' }}>({isPt ? 'atualmente em' : 'actuellement sur'} « {titreChantier(e.chantierId)} »)</span>}
+                        {ailleurs && <span style={{ color: GRIS }}>({isPt ? 'atualmente em' : 'actuellement sur'} « {titreChantier(e.chantierId)} »)</span>}
                       </label>
                     )
                   })}

@@ -9,10 +9,23 @@
 
 import { coordonneesValides, rayonEffectifM, type ChantierPointable } from './pointage-geo'
 
-/** Fuseau retenu quand le téléphone n'en annonce pas de valable. */
+/** Fuseau retenu quand le téléphone n'en annonce pas un de la liste. */
 export const FUSEAU_PAR_DEFAUT = 'Europe/Paris'
-/** Écart toléré entre l'horloge du téléphone et celle du serveur (envoi retardé faute de réseau sur le chantier). */
+/**
+ * Fuseaux acceptés : France métropolitaine et d'outre-mer, Portugal continental et îles. Le fuseau ne sert qu'à écrire
+ * la date et l'heure murales du pointage ; les heures travaillées se calculent sur des instants UTC (cloture), si bien
+ * que changer le fuseau du téléphone entre l'arrivée et le départ ne change pas la durée.
+ */
+export const FUSEAUX_AUTORISES: readonly string[] = [
+  'Europe/Paris', 'Europe/Lisbon', 'Atlantic/Madeira', 'Atlantic/Azores',
+  'America/Guadeloupe', 'America/Martinique', 'America/Cayenne', 'Indian/Reunion', 'Indian/Mayotte',
+]
+/** Âge maximal de l'instant d'entrée dans la zone annoncé par le téléphone pour une arrivée automatique. */
 export const TOLERANCE_HORLOGE_MS = 10 * 60_000
+/** Note posée sur un pointage dont le départ n'a pas été pointé le jour même (refermé sans heures). */
+export const NOTE_A_REGULARISER = 'Départ non pointé : à régulariser.'
+/** Note posée sur un pointage ouvert en double le même jour (sans la migration 20261116), refermé sans heures. */
+export const NOTE_DOUBLON = 'Pointage en double : à vérifier.'
 /** Statut des chantiers sur lesquels on pointe. */
 export const STATUT_EN_COURS = 'En cours'
 
@@ -82,10 +95,15 @@ export interface ContextePointage {
   rattachement: ResolutionMembre['statut']
   moi: { id: string; nom: string } | null
   chantiers: ChantierDuTelephone[]
+  /** Pointage ouvert aujourd'hui (le plus récent), null sinon. */
   pointageEnCours: PointageEcran | null
+  /** Pointages restés ouverts un jour précédent (départ oublié) : refermés sans heures au prochain pointage. */
+  pointagesOublies: PointageEcran[]
   historique: PointageEcran[]
-  /** Pointage automatique activé par le gérant pour la société (settings_btp.geo_pointage_enabled, faux par défaut). */
+  /** Pointage automatique activé par le gérant pour la société (pointage_reglages_btp, coupé par défaut). */
   pointageAutoActive: boolean
+  /** Faux tant que la migration 20261116 (table pointage_reglages_btp) n'est pas appliquée : le mode automatique attend. */
+  reglageDisponible: boolean
   /** Gérant seulement : état du compte de connexion de chaque employé actif. */
   comptes?: Record<string, StatutCompte>
   /** Gérant seulement : false tant que la migration 20261116 (chantiers_btp.membres_ids) n'est pas appliquée. */
@@ -149,25 +167,28 @@ export function chantierPointable(chantier: ChantierDuTelephone): ChantierPointa
   return { id: chantier.id, titre: chantier.titre, latitude: chantier.latitude, longitude: chantier.longitude, rayonM: chantier.rayonM }
 }
 
-/** Fuseau IANA annoncé par le téléphone s'il est reconnu, sinon FUSEAU_PAR_DEFAUT. */
+/** Fuseau de la liste annoncé par le téléphone, sinon FUSEAU_PAR_DEFAUT. */
 export function fuseauValide(fuseau: unknown): string {
-  if (typeof fuseau !== 'string' || fuseau.length === 0 || fuseau.length > 64) return FUSEAU_PAR_DEFAUT
-  try {
-    new Intl.DateTimeFormat('fr-FR', { timeZone: fuseau })
-    return fuseau
-  } catch {
-    // Fuseau inconnu de l'environnement : on retombe sur celui de la France métropolitaine.
-    return FUSEAU_PAR_DEFAUT
-  }
+  return typeof fuseau === 'string' && FUSEAUX_AUTORISES.includes(fuseau) ? fuseau : FUSEAU_PAR_DEFAUT
 }
 
 /**
- * Instant retenu pour un pointage : celui que le téléphone a observé s'il est à moins de TOLERANCE_HORLOGE_MS de
- * l'horloge du serveur (envoi retardé par le réseau), sinon celui du serveur (horloge du téléphone fausse ou modifiée).
+ * Instant d'une arrivée : celui du serveur. En mode automatique seulement, celui de l'entrée dans la zone annoncé par
+ * le téléphone, s'il est dans le passé et à moins de TOLERANCE_HORLOGE_MS (envoi retardé de la confirmation, réseau).
  */
-export function instantRetenu(observeA: unknown, maintenant: number): number {
-  if (typeof observeA !== 'number' || !Number.isFinite(observeA)) return maintenant
-  return Math.abs(maintenant - observeA) <= TOLERANCE_HORLOGE_MS ? Math.round(observeA) : maintenant
+export function instantArrivee(mode: string, observeA: unknown, maintenant: number): number {
+  if (mode !== 'geo_auto' || typeof observeA !== 'number' || !Number.isFinite(observeA)) return maintenant
+  return observeA <= maintenant && maintenant - observeA <= TOLERANCE_HORLOGE_MS ? Math.round(observeA) : maintenant
+}
+
+/**
+ * Instant d'un départ : celui du serveur. En mode automatique seulement, la dernière présence connue sur le chantier
+ * annoncée par le téléphone (départ daté avant une mise en veille), bornée entre l'arrivée et maintenant : avancer un
+ * départ ne peut que retirer des heures, jamais en ajouter.
+ */
+export function instantDepart(mode: string, observeA: unknown, maintenant: number, arrivee: number): number {
+  if (mode !== 'geo_auto' || typeof observeA !== 'number' || !Number.isFinite(observeA)) return maintenant
+  return Math.min(maintenant, Math.max(arrivee, Math.round(observeA)))
 }
 
 /** Date (AAAA-MM-JJ) et heure (HH:MM:SS) de l'instant dans le fuseau donné. */
@@ -185,42 +206,87 @@ export function heureLocale(instant: number, fuseau: string): { date: string; he
   }
 }
 
-/** Secondes écoulées depuis minuit pour « HH:MM » ou « HH:MM:SS », null si l'heure est illisible. */
-export function secondesDepuisMinuit(heure: unknown): number | null {
-  if (typeof heure !== 'string') return null
-  const morceaux = /^(\d{2}):(\d{2})(?::(\d{2}))?/.exec(heure)
-  if (!morceaux) return null
-  const [h, m, s] = [Number(morceaux[1]), Number(morceaux[2]), Number(morceaux[3] ?? '0')]
-  if (h > 23 || m > 59 || s > 59) return null
-  return h * 3600 + m * 60 + s
+const deux = (n: number) => String(n).padStart(2, '0')
+
+/** Date et heure murales d'un instant décalé d'un écart fixe (celui de l'arrivée du pointage). */
+export function murale(instant: number, decalageMs: number): { date: string; heure: string } {
+  const d = new Date(instant + decalageMs)
+  return {
+    date: `${d.getUTCFullYear()}-${deux(d.getUTCMonth() + 1)}-${deux(d.getUTCDate())}`,
+    heure: `${deux(d.getUTCHours())}:${deux(d.getUTCMinutes())}:${deux(d.getUTCSeconds())}`,
+  }
 }
 
-const DERNIERE_SECONDE = '23:59:59'
+/** Pointage tel que lu en base, réduit à ce que la clôture lit. */
+export interface PointageOuvert {
+  date?: unknown
+  heure_arrivee?: unknown
+  created_at?: unknown
+  pause_minutes?: unknown
+}
+
+const ECART_MAX_FUSEAU_MS = 14 * 3_600_000
 
 /**
- * Clôture d'un pointage ouvert le jour `arrivee.date` : heure de départ et heures travaillées (pause déduite).
- * Un départ constaté un autre jour (pointage oublié la veille) est ramené à 23:59:59 du jour d'arrivée et signalé.
+ * Instant (UTC) de l'arrivée et écart entre l'heure murale et UTC à ce moment. Les pointages ouverts par
+ * /api/btp/pointage ont `created_at` = instant de l'arrivée ; à défaut (ligne d'une autre origine, horodatage
+ * incohérent), l'heure murale est lue dans le fuseau de la France métropolitaine.
  */
-export function cloturer(
-  arrivee: { date: string; heure: string },
-  depart: { date: string; heure: string },
-  pauseMinutes: number,
-): { heureDepart: string; heuresTravaillees: number; clotureForcee: boolean } {
-  const debut = secondesDepuisMinuit(arrivee.heure) ?? 0
-  let heureDepart = depart.heure
-  let fin = secondesDepuisMinuit(depart.heure) ?? debut
-  let clotureForcee = false
-  if (depart.date > arrivee.date) {
-    heureDepart = DERNIERE_SECONDE
-    fin = 86_399
-    clotureForcee = true
-  } else if (depart.date < arrivee.date || fin < debut) {
-    heureDepart = arrivee.heure
-    fin = debut
+export function reperesArrivee(ligne: PointageOuvert): { instant: number; decalageMs: number } {
+  const morceaux = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ligne.date))
+  const heure = /^(\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(ligne.heure_arrivee))
+  const mural = morceaux && heure
+    ? Date.UTC(Number(morceaux[1]), Number(morceaux[2]) - 1, Number(morceaux[3]), Number(heure[1]), Number(heure[2]), Number(heure[3] ?? '0'))
+    : Number.NaN
+  const cree = typeof ligne.created_at === 'string' ? Date.parse(ligne.created_at) : Number.NaN
+  if (Number.isFinite(mural) && Number.isFinite(cree)) {
+    const decalageMs = Math.round((mural - cree) / 60_000) * 60_000
+    if (Math.abs(decalageMs) <= ECART_MAX_FUSEAU_MS) return { instant: cree, decalageMs }
   }
-  const pause = Number.isFinite(pauseMinutes) && pauseMinutes > 0 ? pauseMinutes * 60 : 0
-  const secondes = Math.max(0, fin - debut - pause)
-  return { heureDepart, heuresTravaillees: Math.round((secondes / 3600) * 100) / 100, clotureForcee }
+  if (!Number.isFinite(mural)) return { instant: Number.isFinite(cree) ? cree : 0, decalageMs: 0 }
+  // Écart de Paris à cet instant (deux passes : l'écart dépend de l'instant, heure d'été comprise).
+  const ecartParis = (instant: number) => {
+    const { date, heure } = heureLocale(instant, FUSEAU_PAR_DEFAUT)
+    const [a, mo, j] = date.split('-').map(Number)
+    const [h, mi, s] = heure.split(':').map(Number)
+    return Date.UTC(a, mo - 1, j, h, mi, s) - instant
+  }
+  const premier = mural - ecartParis(mural)
+  const decalageMs = ecartParis(premier)
+  return { instant: mural - decalageMs, decalageMs }
+}
+
+/** Pointage resté ouvert un jour précédent (date murale de l'arrivée) : départ oublié. */
+export function estOublie(ligne: PointageOuvert, maintenant: number): boolean {
+  const { decalageMs } = reperesArrivee(ligne)
+  return murale(maintenant, decalageMs).date > String(ligne.date)
+}
+
+/**
+ * Clôture d'un pointage au départ `depart` (instant UTC) : heure de départ murale (même écart qu'à l'arrivée) et heures
+ * travaillées calculées sur les instants, pause déduite. Un départ constaté un autre jour que l'arrivée (oubli, nuit)
+ * n'est pas compté : départ = arrivée, 0 h, à régulariser par le gérant — plutôt qu'une journée de 16 h.
+ */
+export function cloture(
+  ligne: PointageOuvert,
+  depart: number,
+): { heureDepart: string; heuresTravaillees: number; aRegulariser: boolean } {
+  const { instant: arrivee, decalageMs } = reperesArrivee(ligne)
+  const murDepart = murale(depart, decalageMs)
+  if (murDepart.date > String(ligne.date)) {
+    return { heureDepart: String(ligne.heure_arrivee), heuresTravaillees: 0, aRegulariser: true }
+  }
+  const pause = Number(ligne.pause_minutes)
+  const secondes = Math.max(0, (depart - arrivee) / 1000 - (Number.isFinite(pause) && pause > 0 ? pause * 60 : 0))
+  const heureDepart = depart <= arrivee ? String(ligne.heure_arrivee) : murDepart.heure
+  return { heureDepart, heuresTravaillees: Math.round((secondes / 3600) * 100) / 100, aRegulariser: false }
+}
+
+/** Ajoute une note à celles d'un pointage (sans la répéter). */
+export function ajouterNote(notes: unknown, note: string): string {
+  const existantes = typeof notes === 'string' ? notes.trim() : ''
+  if (existantes.includes(note)) return existantes
+  return existantes ? `${existantes} ${note}` : note
 }
 
 // ── Export CSV (comme l'export de l'écran Pointage du Syndic) ───────────────────────────────────────────────────

@@ -12,6 +12,8 @@ const h = vi.hoisted(() => {
   const etat = {
     user: null as null | { id: string },
     colonneAbsente: true,
+    /** Autre colonne absente (nommée par PostgREST) : le repli ne doit pas s’en mêler. */
+    autreColonneAbsente: false,
     chantiers: [] as Ligne[],
     envois: [] as Array<{ operation: string; valeur: Ligne }>,
     avertissements: [] as string[],
@@ -27,6 +29,9 @@ const h = vi.hoisted(() => {
     b.update = (v: Ligne) => { operation = 'update'; valeur = v; return b }
     b.single = async () => {
       if (operation !== 'select') etat.envois.push({ operation, valeur: { ...valeur } })
+      if (table === 'chantiers_btp' && etat.autreColonneAbsente && operation !== 'select') {
+        return { data: null, error: { code: 'PGRST204', message: "Could not find the 'geo_rayon_m' column of 'chantiers_btp' in the schema cache" } }
+      }
       if (table === 'chantiers_btp' && etat.colonneAbsente && 'membres_ids' in valeur) {
         return { data: null, error: { code: 'PGRST204', message: "Could not find the 'membres_ids' column of 'chantiers_btp' in the schema cache" } }
       }
@@ -62,6 +67,7 @@ const ecrire = async (corps: Ligne) => {
 beforeEach(() => {
   h.etat.user = { id: SOCIETE }
   h.etat.colonneAbsente = true
+  h.etat.autreColonneAbsente = false
   h.etat.chantiers = [{ id: 'villa', owner_id: SOCIETE, titre: 'Villa', statut: 'En cours' }]
   h.etat.envois = []
   h.etat.avertissements = []
@@ -115,5 +121,14 @@ describe('POST /api/btp — employés d’un chantier (membres_ids)', () => {
     const res = await ecrire({ action: 'update', id: 'inconnu', data: { membres_ids: ['m1'] } })
     expect(res.status).toBe(500)
     expect(h.etat.envois).toHaveLength(1)
+  })
+
+  it('autre colonne absente (PGRST204 qui ne nomme pas membres_ids) : erreur rendue, aucun second essai', async () => {
+    h.etat.colonneAbsente = false
+    h.etat.autreColonneAbsente = true
+    const res = await ecrire({ action: 'update', id: 'villa', data: { geo_rayon_m: 150, membres_ids: ['m1'] } })
+    expect(res.status).toBe(500)
+    expect(h.etat.envois).toHaveLength(1)
+    expect(h.etat.avertissements).toEqual([])
   })
 })

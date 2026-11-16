@@ -6,15 +6,21 @@ import { getAuthUser, getUserRole, isProGerant, resolveCompanyId } from '@/lib/a
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import {
+  NOTE_A_REGULARISER,
+  NOTE_DOUBLON,
+  STATUT_EN_COURS,
+  ajouterNote,
   chantierPourTelephone,
   chantiersAffectes,
-  cloturer,
+  cloture,
+  estOublie,
   fuseauValide,
   heureLocale,
-  instantRetenu,
+  instantArrivee,
+  instantDepart,
   membreDuCompte,
   normaliserEmail,
-  STATUT_EN_COURS,
+  reperesArrivee,
   type ChantierBtp,
   type ContextePointage,
   type EquipeBtp,
@@ -29,27 +35,34 @@ import {
 //
 // GET  : ce dont l'écran Pointage a besoin pour le compte connecté (gérant ou sous-compte de l'équipe) : sa fiche
 //        employé (membres_btp, même adresse e-mail que le compte), ses chantiers « En cours » affectés (directement
-//        par chantiers_btp.membres_ids ou par son équipe, equipes_btp.chantier_id), son pointage en cours, ses
-//        pointages des 31 derniers jours et l'interrupteur du pointage automatique de la société ; pour le gérant,
-//        l'état des comptes de connexion de ses employés.
-// POST : { action: 'arrivee' | 'depart' } — pointage de l'employé connecté, sur un chantier qui lui est affecté.
+//        par chantiers_btp.membres_ids ou par son équipe, equipes_btp.chantier_id), son pointage du jour, ses départs
+//        oubliés, ses pointages des 31 derniers jours, l'interrupteur du pointage automatique de la société ; pour le
+//        gérant, l'état des comptes de connexion de ses employés. Aucune écriture.
+// POST : { action: 'arrivee' | 'depart' } — pointage de l'employé connecté, sur un chantier qui lui est affecté ;
+//        { action: 'reglage_auto' } — le gérant active ou coupe le pointage automatique (après confirmation).
 //
 // Ni position ni distance ne sont reçues ou conservées : le téléphone décide seul de l'arrivée et du départ, le
-// serveur n'enregistre que le chantier, l'heure et le mode (automatique ou à la main). Le mode automatique est
-// refusé tant que le gérant ne l'a pas activé (settings_btp.geo_pointage_enabled, faux par défaut).
+// serveur n'enregistre que le chantier, l'heure et le mode. Les heures se calculent sur des instants UTC (arrivée
+// gardée dans created_at) : changer le fuseau du téléphone ne change pas une durée. Un départ oublié un jour précédent
+// est refermé sans heures, « à régulariser » par le gérant. Le mode automatique est refusé tant que le gérant ne l'a pas
+// activé (pointage_reglages_btp, migration 20261116).
 // Toutes les écritures visent la société résolue côté serveur (resolveCompanyId), jamais une société désignée par
-// le client. Aucun pointage existant n'est réécrit, sauf la clôture d'un pointage ouvert de l'employé lui-même.
+// le client. Aucun pointage existant n'est réécrit, sauf la clôture des pointages ouverts de l'employé lui-même.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const JOURS_HISTORIQUE = 31
-const champsCommuns = {
+/** Table absente (migration 20261116 non appliquée) : PostgreSQL 42P01, PostgREST PGRST205 (cache du schéma). */
+const TABLE_ABSENTE = new Set(['42P01', 'PGRST205'])
+
+const champsPointage = {
   mode: z.enum(['geo_auto', 'manuel']),
   observeA: z.number().optional(),
   fuseau: z.string().max(64).optional(),
 }
 const corpsSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('arrivee'), chantierId: z.string().uuid(), ...champsCommuns }),
-  z.object({ action: z.literal('depart'), ...champsCommuns }),
+  z.object({ action: z.literal('arrivee'), chantierId: z.string().uuid(), ...champsPointage }),
+  z.object({ action: z.literal('depart'), chantierId: z.string().uuid().optional(), ...champsPointage }),
+  z.object({ action: z.literal('reglage_auto'), actif: z.boolean(), confirmation: z.boolean().optional() }),
 ])
 
 type Ligne = Record<string, unknown>
@@ -61,6 +74,7 @@ interface Contexte {
   chantiersEnCours: ChantierBtp[]
   equipes: EquipeBtp[]
   pointageAutoActive: boolean
+  reglageDisponible: boolean
   resolution: ResolutionMembre
 }
 
@@ -75,16 +89,17 @@ async function lireContexte(user: User): Promise<Contexte | null> {
   if (role !== 'pro_societe' && role !== 'super_admin') return null
   const societeId = await resolveCompanyId(user, supabaseAdmin)
   if (!societeId) return null
-  const [membresRes, chantiersRes, equipesRes, reglagesRes] = await Promise.all([
+  const [membresRes, chantiersRes, equipesRes, reglageRes] = await Promise.all([
     supabaseAdmin.from('membres_btp').select('*').eq('owner_id', societeId).limit(500),
     supabaseAdmin.from('chantiers_btp').select('*').eq('owner_id', societeId).eq('statut', STATUT_EN_COURS).limit(200),
     supabaseAdmin.from('equipes_btp').select('*, equipe_membres_btp(membre_id)').eq('owner_id', societeId).limit(200),
-    supabaseAdmin.from('settings_btp').select('*').eq('owner_id', societeId).limit(1),
+    supabaseAdmin.from('pointage_reglages_btp').select('*').eq('owner_id', societeId).limit(1),
   ])
   const erreur = membresRes.error || chantiersRes.error || equipesRes.error
   if (erreur) throw new Error(`lecture du contexte : ${erreur.message}`)
-  // Réglages illisibles : le pointage automatique reste coupé (valeur par défaut de la colonne).
-  if (reglagesRes.error) logger.warn('[btp/pointage] réglages de la société illisibles', { error: reglagesRes.error.message })
+  const reglageDisponible = !reglageRes.error || !TABLE_ABSENTE.has(String(reglageRes.error.code))
+  // Réglage illisible : le pointage automatique reste coupé (valeur par défaut).
+  if (reglageRes.error && reglageDisponible) logger.warn('[btp/pointage] réglage de la société illisible', { error: reglageRes.error.message })
   const membres = (membresRes.data ?? []) as MembreBtp[]
   return {
     societeId,
@@ -92,37 +107,28 @@ async function lireContexte(user: User): Promise<Contexte | null> {
     membres,
     chantiersEnCours: (chantiersRes.data ?? []) as ChantierBtp[],
     equipes: (equipesRes.data ?? []) as EquipeBtp[],
-    pointageAutoActive: (reglagesRes.data?.[0] as Ligne | undefined)?.geo_pointage_enabled === true,
+    pointageAutoActive: !reglageRes.error && (reglageRes.data?.[0] as Ligne | undefined)?.auto_active === true,
+    reglageDisponible,
     resolution: membreDuCompte(membres, user.email),
   }
 }
 
-/** Pointage ouvert (sans heure de départ) de l'employé, le plus récent. */
-async function pointageOuvert(societeId: string, membreId: string): Promise<Ligne | null> {
+/** Pointages ouverts (sans heure de départ) de l'employé, du plus ancien au plus récent. */
+async function pointagesOuverts(societeId: string, membreId: string): Promise<Ligne[]> {
   const { data, error } = await supabaseAdmin
     .from('pointages_btp')
     .select('*')
     .eq('owner_id', societeId)
     .eq('membre_id', membreId)
     .is('heure_depart', null)
-    .order('created_at', { ascending: false })
-    .limit(1)
-  if (error) throw new Error(`lecture du pointage ouvert : ${error.message}`)
-  return (data?.[0] as Ligne | undefined) ?? null
+    .order('created_at', { ascending: true })
+    .limit(20)
+  if (error) throw new Error(`lecture des pointages ouverts : ${error.message}`)
+  return (data ?? []) as Ligne[]
 }
 
-/** Clôt le pointage ouvert à l'instant donné ; renvoie la ligne close (ou telle qu'un autre appel l'a close). */
-async function cloturerPointage(societeId: string, ouvert: Ligne, instant: number, fuseau: string): Promise<Ligne> {
-  const { heureDepart, heuresTravaillees, clotureForcee } = cloturer(
-    { date: String(ouvert.date), heure: String(ouvert.heure_arrivee) },
-    heureLocale(instant, fuseau),
-    Number(ouvert.pause_minutes) || 0,
-  )
-  const changements: Ligne = { heure_depart: heureDepart, heures_travaillees: heuresTravaillees }
-  if (clotureForcee) {
-    const note = 'Départ non pointé le jour même : clôturé à 23:59.'
-    changements.notes = ouvert.notes ? `${String(ouvert.notes)} ${note}` : note
-  }
+/** Écrit la clôture d'un pointage encore ouvert ; renvoie la ligne close (ou telle qu'un autre appel l'a close). */
+async function clore(societeId: string, ouvert: Ligne, changements: Ligne): Promise<Ligne> {
   const { data, error } = await supabaseAdmin
     .from('pointages_btp')
     .update(changements)
@@ -135,6 +141,29 @@ async function cloturerPointage(societeId: string, ouvert: Ligne, instant: numbe
   // Déjà clos par un autre appel (double envoi) : on renvoie l'état enregistré.
   const relu = await supabaseAdmin.from('pointages_btp').select('*').eq('id', String(ouvert.id)).eq('owner_id', societeId).limit(1)
   return (relu.data?.[0] as Ligne | undefined) ?? { ...ouvert, ...changements }
+}
+
+/** Clôture au départ `depart` : heures calculées, ou 0 h « à régulariser » si le départ tombe un autre jour. */
+function changementsCloture(ouvert: Ligne, depart: number): Ligne {
+  const { heureDepart, heuresTravaillees, aRegulariser } = cloture(ouvert, depart)
+  const changements: Ligne = { heure_depart: heureDepart, heures_travaillees: heuresTravaillees }
+  if (aRegulariser) changements.notes = ajouterNote(ouvert.notes, NOTE_A_REGULARISER)
+  return changements
+}
+
+/** Clôture sans heures (départ = arrivée) avec une note pour le gérant. */
+function changementsSansHeures(ouvert: Ligne, note: string): Ligne {
+  return { heure_depart: ouvert.heure_arrivee, heures_travaillees: 0, notes: ajouterNote(ouvert.notes, note) }
+}
+
+/** Referme sans heures les pointages oubliés un jour précédent ; renvoie ceux qui restent ouverts aujourd'hui. */
+async function regulariserOublis(societeId: string, ouverts: Ligne[], maintenant: number): Promise<Ligne[]> {
+  const duJour: Ligne[] = []
+  for (const ouvert of ouverts) {
+    if (estOublie(ouvert, maintenant)) await clore(societeId, ouvert, changementsSansHeures(ouvert, NOTE_A_REGULARISER))
+    else duJour.push(ouvert)
+  }
+  return duJour
 }
 
 /** Pointage tel qu'il part vers l'écran : ni position, ni distance, ni identifiant de société. */
@@ -184,14 +213,14 @@ export async function GET(request: NextRequest) {
     if (!ctx) return refus(403, 'Accès réservé aux sociétés BTP')
     const membre = ctx.resolution.statut === 'relie' ? ctx.resolution.membre : null
     const chantiers = membre ? chantiersAffectes(membre, ctx.chantiersEnCours, ctx.equipes) : []
+    const maintenant = Date.now()
 
-    let enCours: Ligne | null = null
+    let ouverts: Ligne[] = []
     let historique: Ligne[] = []
     if (membre) {
-      const fuseau = fuseauValide(request.nextUrl.searchParams.get('fuseau'))
-      const depuis = heureLocale(Date.now() - JOURS_HISTORIQUE * 86_400_000, fuseau).date
-      const [ouvert, histo] = await Promise.all([
-        pointageOuvert(ctx.societeId, membre.id),
+      const depuis = heureLocale(maintenant - JOURS_HISTORIQUE * 86_400_000, fuseauValide(request.nextUrl.searchParams.get('fuseau'))).date
+      const [lus, histo] = await Promise.all([
+        pointagesOuverts(ctx.societeId, membre.id),
         supabaseAdmin
           .from('pointages_btp')
           .select('*')
@@ -203,18 +232,21 @@ export async function GET(request: NextRequest) {
           .limit(100),
       ])
       if (histo.error) throw new Error(`lecture de l’historique : ${histo.error.message}`)
-      enCours = ouvert
+      ouverts = lus
       historique = (histo.data ?? []) as Ligne[]
     }
+    const duJour = ouverts.filter(o => !estOublie(o, maintenant))
 
     const corps: ContextePointage = {
       gerant: ctx.gerant,
       rattachement: ctx.resolution.statut,
       moi: membre ? { id: membre.id, nom: [membre.prenom, membre.nom].filter(Boolean).join(' ') } : null,
       chantiers: chantiers.map(chantierPourTelephone),
-      pointageEnCours: enCours ? pointagePourEcran(enCours) : null,
+      pointageEnCours: duJour.length > 0 ? pointagePourEcran(duJour[duJour.length - 1]) : null,
+      pointagesOublies: ouverts.filter(o => estOublie(o, maintenant)).map(pointagePourEcran),
       historique: historique.map(pointagePourEcran),
       pointageAutoActive: ctx.pointageAutoActive,
+      reglageDisponible: ctx.reglageDisponible,
     }
     if (ctx.gerant) {
       corps.comptes = await etatDesComptes(ctx, user.email ?? '')
@@ -226,6 +258,24 @@ export async function GET(request: NextRequest) {
     logger.error('[btp/pointage] GET', { error: err instanceof Error ? err.message : err })
     return refus(500, 'Erreur serveur')
   }
+}
+
+/** Le gérant active ou coupe le pointage automatique de sa société ; l'activation garde qui l'a confirmée et quand. */
+async function reglerPointageAuto(ctx: Contexte, user: User, actif: boolean, confirmation: boolean | undefined) {
+  if (!ctx.gerant) return refus(403, 'reserve_au_gerant')
+  if (actif && confirmation !== true) return refus(422, 'confirmation_requise')
+  const maintenant = new Date().toISOString()
+  const ligne: Ligne = { owner_id: ctx.societeId, auto_active: actif, modifie_le: maintenant }
+  if (actif) {
+    ligne.confirme_le = maintenant
+    ligne.confirme_par = user.id
+  }
+  const { error } = await supabaseAdmin.from('pointage_reglages_btp').upsert(ligne, { onConflict: 'owner_id' })
+  if (error) {
+    if (TABLE_ABSENTE.has(String(error.code))) return refus(409, 'migration_requise')
+    throw new Error(`réglage du pointage automatique : ${error.message}`)
+  }
+  return NextResponse.json({ pointageAutoActive: actif })
 }
 
 export async function POST(request: NextRequest) {
@@ -244,16 +294,29 @@ export async function POST(request: NextRequest) {
   try {
     const ctx = await lireContexte(user)
     if (!ctx) return refus(403, 'Accès réservé aux sociétés BTP')
+    if (corps.action === 'reglage_auto') return await reglerPointageAuto(ctx, user, corps.actif, corps.confirmation)
+
     if (ctx.resolution.statut !== 'relie') return refus(409, ctx.resolution.statut === 'ambigu' ? 'fiche_ambigue' : 'fiche_absente')
     if (corps.mode === 'geo_auto' && !ctx.pointageAutoActive) return refus(403, 'pointage_auto_desactive')
     const membre = ctx.resolution.membre
-    const fuseau = fuseauValide(corps.fuseau)
-    const instant = instantRetenu(corps.observeA, Date.now())
+    const maintenant = Date.now()
+    const duJour = await regulariserOublis(ctx.societeId, await pointagesOuverts(ctx.societeId, membre.id), maintenant)
 
     if (corps.action === 'depart') {
-      const ouvert = await pointageOuvert(ctx.societeId, membre.id)
-      if (!ouvert) return refus(404, 'aucun_pointage_en_cours')
-      const clos = await cloturerPointage(ctx.societeId, ouvert, instant, fuseau)
+      if (duJour.length === 0) return refus(404, 'aucun_pointage_en_cours')
+      // Le plus ancien pointage ouvert sur le chantier du plus récent porte la vraie heure d'arrivée ; les autres pointages
+      // ouverts du jour (doublons d'un double envoi sans l'index de la migration) sont refermés sans heures.
+      const recent = duJour[duJour.length - 1]
+      const principal = duJour.find(o => o.chantier_id === recent.chantier_id) ?? recent
+      // Le téléphone ne termine tout seul qu'un pointage automatique, et seulement sur le chantier qu'il a quitté.
+      if (corps.mode === 'geo_auto' && (principal.mode !== 'geo_auto' || principal.chantier_id !== corps.chantierId)) {
+        return refus(409, 'pointage_different')
+      }
+      const depart = instantDepart(corps.mode, corps.observeA, maintenant, reperesArrivee(principal).instant)
+      const clos = await clore(ctx.societeId, principal, changementsCloture(principal, depart))
+      for (const autre of duJour) {
+        if (autre !== principal) await clore(ctx.societeId, autre, changementsSansHeures(autre, NOTE_DOUBLON))
+      }
       return NextResponse.json({ pointage: pointagePourEcran(clos) })
     }
 
@@ -263,14 +326,14 @@ export async function POST(request: NextRequest) {
       return refus(422, 'chantier_sans_position')
     }
 
-    const ouvert = await pointageOuvert(ctx.societeId, membre.id)
-    if (ouvert && ouvert.chantier_id === chantier.id) {
-      return NextResponse.json({ pointage: pointagePourEcran(ouvert), deja: true })
-    }
-    // Un seul pointage ouvert par employé : arriver sur un autre chantier clôt le précédent.
-    if (ouvert) await cloturerPointage(ctx.societeId, ouvert, instant, fuseau)
+    const surCeChantier = duJour.find(o => o.chantier_id === chantier.id)
+    if (surCeChantier) return NextResponse.json({ pointage: pointagePourEcran(surCeChantier), deja: true })
 
-    const arrivee = heureLocale(instant, fuseau)
+    const instant = instantArrivee(corps.mode, corps.observeA, maintenant)
+    // Un seul pointage ouvert par employé : arriver sur un autre chantier clôt le précédent à l'heure de l'arrivée.
+    for (const ouvert of duJour) await clore(ctx.societeId, ouvert, changementsCloture(ouvert, Math.max(instant, reperesArrivee(ouvert).instant)))
+
+    const arrivee = heureLocale(instant, fuseauValide(corps.fuseau))
     const { data, error } = await supabaseAdmin
       .from('pointages_btp')
       .insert({
@@ -287,13 +350,16 @@ export async function POST(request: NextRequest) {
         heures_travaillees: null,
         notes: null,
         mode: corps.mode,
+        // Instant de l'arrivée : la durée se calculera dessus au départ, quel que soit le fuseau annoncé alors.
+        created_at: new Date(instant).toISOString(),
       })
       .select()
       .single()
     if (error) {
       // Index « un pointage ouvert par employé » (migration 20261116) : un double envoi simultané a déjà ouvert le pointage.
       if (error.code === '23505') {
-        const existant = await pointageOuvert(ctx.societeId, membre.id)
+        const existants = await pointagesOuverts(ctx.societeId, membre.id)
+        const existant = existants[existants.length - 1]
         if (existant) return NextResponse.json({ pointage: pointagePourEcran(existant), deja: true })
       }
       throw new Error(`création du pointage : ${error.message}`)

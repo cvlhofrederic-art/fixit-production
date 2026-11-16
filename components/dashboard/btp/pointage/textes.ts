@@ -52,6 +52,41 @@ export function rappelActivation(isPt: boolean): { titre: string; points: string
       }
 }
 
+/** Compte non relié à une fiche employé (ou relié à plusieurs) : ce qu'il faut faire. */
+export function messageNonRelie(rattachement: 'aucun' | 'ambigu', gerant: boolean, isPt: boolean): string {
+  if (rattachement === 'ambigu') {
+    return isPt
+      ? 'Várias fichas de colaborador (Equipas) têm o e-mail da sua conta: peça ao seu responsável para manter só uma.'
+      : 'Plusieurs fiches employé (Équipes) portent l’adresse e-mail de votre compte : demandez à votre responsable de n’en garder qu’une.'
+  }
+  if (gerant) {
+    return isPt
+      ? 'Para marcar as suas próprias horas, adicione-se em Equipas com o e-mail desta conta.'
+      : 'Pour pointer vous-même, ajoutez-vous dans Équipes avec l’adresse e-mail de ce compte.'
+  }
+  return isPt
+    ? 'A sua conta não está ligada a nenhuma ficha de colaborador: peça ao seu responsável para indicar o seu e-mail na sua ficha (módulo Equipas).'
+    : 'Votre compte n’est relié à aucune fiche employé : demandez à votre responsable d’indiquer votre adresse e-mail sur votre fiche (module Équipes).'
+}
+
+/** Pointage automatique non activé pour la société : texte du gérant ou de l'employé. */
+export function messageAutoDesactive(gerant: boolean, isPt: boolean): string {
+  if (gerant) {
+    return isPt
+      ? 'Desativada para a sua empresa. Pode ativá-la no separador Atribuições; entretanto, marque manualmente.'
+      : 'Désactivé pour votre société. Vous pouvez l’activer dans l’onglet Affectations ; en attendant, pointez à la main.'
+  }
+  return isPt
+    ? 'Não ativada pela sua entidade empregadora: marque manualmente a partir da lista das suas obras.'
+    : 'Non activé par votre employeur : pointez à la main depuis la liste de vos chantiers.'
+}
+
+/** Bouton d'un chantier dans « Mes chantiers ». */
+export function libelleBoutonChantier(surPlace: boolean, isPt: boolean): string {
+  if (surPlace) return isPt ? 'No local' : 'Sur place'
+  return isPt ? 'Marcar aqui' : 'Pointer ici'
+}
+
 /** Message affiché pour un refus de /api/btp/pointage (code d'erreur de la route). */
 export function messageErreurPointage(code: string, isPt: boolean): string {
   const messages: Record<string, [string, string]> = {
@@ -61,6 +96,10 @@ export function messageErreurPointage(code: string, isPt: boolean): string {
     fiche_absente: ['Votre compte n’est relié à aucune fiche employé.', 'A sua conta não está ligada a nenhuma ficha de colaborador.'],
     fiche_ambigue: ['Plusieurs fiches employé portent votre adresse e-mail.', 'Várias fichas de colaborador têm o seu e-mail.'],
     aucun_pointage_en_cours: ['Aucun pointage en cours.', 'Nenhuma marcação em curso.'],
+    pointage_different: ['Le pointage en cours n’a pas été commencé automatiquement sur ce chantier : terminez-le à la main.', 'A marcação em curso não foi iniciada automaticamente nesta obra: termine-a manualmente.'],
+    reserve_au_gerant: ['Réservé au gérant de la société.', 'Reservado ao gerente da empresa.'],
+    confirmation_requise: ['Cochez d’abord la confirmation d’information des salariés.', 'Marque primeiro a confirmação de informação dos trabalhadores.'],
+    migration_requise: ['Disponible après la mise à jour de la base de données (migration du 16/11/2026).', 'Disponível após a atualização da base de dados (migração de 16/11/2026).'],
     reseau: ['Pas de réseau : nouvel essai automatique dans quelques secondes.', 'Sem rede: nova tentativa automática dentro de segundos.'],
   }
   const message = messages[code]

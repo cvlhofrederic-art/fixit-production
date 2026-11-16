@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { adresseComplete, geocoderAdresse } from '@/lib/btp/geocodage'
 import { supabase } from '@/lib/supabase'
 import { urlPrevisionsMeteo } from '@/lib/btp/meteo-url'
 
@@ -293,16 +294,23 @@ export function MeteoChantierSection({ userId, authUserId: authUserIdProp, isPt 
             let lat = chantier.latitude
             let lng = chantier.longitude
             if (!lat || !lng) {
-              // Geocode using ville (preferred) then fallback to adresse
-              const searchTerm = chantier.ville?.trim() || chantier.adresse
-              const geo = await geocodeAdresse(searchTerm)
-              if (!geo) {
-                failedNames.push(`${chantier.titre} (${chantier.ville || chantier.adresse})`)
-                return null
+              // Adresse complète d'abord : une position précise (numéro, rue) est enregistrée dans la fiche, le
+              // pointage GPS s'en sert. Sinon, la ville suffit pour la météo, mais son centre n'est PAS enregistré :
+              // il déclencherait le pointage automatique au mauvais endroit.
+              const precise = await geocoderAdresse(adresseComplete(chantier), isPt ? 'PT' : 'FR')
+              if (precise?.precise) {
+                lat = precise.latitude; lng = precise.longitude
+                // Persist coordinates via useBTPData (route /api/btp avec owner_id check)
+                updateChantier(chantier.id, { latitude: lat, longitude: lng }).catch(err => console.warn('[MeteoChantier] Coord persist failed:', err))
+              } else {
+                const searchTerm = chantier.ville?.trim() || chantier.adresse
+                const geo = await geocodeAdresse(searchTerm)
+                if (!geo) {
+                  failedNames.push(`${chantier.titre} (${chantier.ville || chantier.adresse})`)
+                  return null
+                }
+                lat = geo.lat; lng = geo.lng
               }
-              lat = geo.lat; lng = geo.lng
-              // Persist coordinates via useBTPData (route /api/btp avec owner_id check)
-              updateChantier(chantier.id, { latitude: lat, longitude: lng }).catch(err => console.warn('[MeteoChantier] Coord persist failed:', err))
             }
             // Coordonnées converties, bornées et passées en paramètres d'URL (lib/btp/meteo-url.ts)
             const urlMeteo = urlPrevisionsMeteo(lat, lng)

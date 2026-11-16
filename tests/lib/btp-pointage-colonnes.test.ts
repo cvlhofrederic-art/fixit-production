@@ -10,7 +10,23 @@ vi.mock('@/lib/supabase', () => ({
   supabase: { auth: { getSession: vi.fn(async () => ({ data: { session: null } })), onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe() {} } } })) } },
 }))
 
-import { colonnesModifiees, mapToSupabase } from '@/lib/hooks/use-btp-data'
+import { colonnesModifiees, ligneImportable, mapToSupabase } from '@/lib/hooks/use-btp-data'
+
+const UUID = '3e4f5a6b-7c8d-4e9f-8a1b-2c3d4e5f6a01'
+
+describe('import depuis le localStorage : anciens identifiants locaux', () => {
+  it('retirés des colonnes de clé du pointage (sinon tout le lot échoue sur le type uuid)', () => {
+    expect(ligneImportable('equipes', { nom: 'Équipe A', chantier_id: 'demo-ch-001' })).toEqual({ nom: 'Équipe A', chantier_id: null })
+    expect(ligneImportable('pointages', { employe: 'X', membre_id: '1712345678901', chantier_id: UUID }))
+      .toEqual({ employe: 'X', membre_id: null, chantier_id: UUID })
+    expect(ligneImportable('chantiers', { titre: 'Villa', membres_ids: ['demo-m-1', UUID] })).toEqual({ titre: 'Villa', membres_ids: [UUID] })
+  })
+
+  it('les autres colonnes et les autres tables passent comme avant', () => {
+    expect(ligneImportable('equipes', { nom: 'Équipe A', chantier_id: UUID })).toEqual({ nom: 'Équipe A', chantier_id: UUID })
+    expect(ligneImportable('situations', { chantier_id: 'demo-ch-001', chantier: 'Villa' })).toEqual({ chantier_id: 'demo-ch-001', chantier: 'Villa' })
+  })
+})
 
 describe('chantier : rayon du pointage GPS et employés affectés', () => {
   it('écrits quand la fiche chantier les fournit', () => {

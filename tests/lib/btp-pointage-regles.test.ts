@@ -4,20 +4,26 @@
 import { describe, expect, it } from 'vitest'
 import {
   FUSEAU_PAR_DEFAUT,
+  FUSEAUX_AUTORISES,
+  NOTE_A_REGULARISER,
   TOLERANCE_HORLOGE_MS,
+  ajouterNote,
   celluleCsv,
   chantierPointable,
   chantierPourTelephone,
   chantiersAffectes,
-  cloturer,
+  cloture,
   equipesDuMembre,
+  estOublie,
   fuseauValide,
   heureLocale,
-  instantRetenu,
+  instantArrivee,
+  instantDepart,
   libelleMode,
   membreDuCompte,
+  murale,
   pointagesEnCsv,
-  secondesDepuisMinuit,
+  reperesArrivee,
   type ChantierBtp,
   type EquipeBtp,
   type MembreBtp,
@@ -94,12 +100,16 @@ describe('chantier vers le téléphone', () => {
   })
 })
 
-describe('heure du pointage', () => {
-  it('fuseau : reconnu ou Europe/Paris', () => {
+describe('fuseau et instants du pointage', () => {
+  it('fuseau : seulement ceux de la liste (France, outre-mer, Portugal), sinon Europe/Paris', () => {
     expect(fuseauValide('Europe/Lisbon')).toBe('Europe/Lisbon')
+    expect(fuseauValide('Atlantic/Azores')).toBe('Atlantic/Azores')
+    expect(fuseauValide('Indian/Reunion')).toBe('Indian/Reunion')
+    expect(fuseauValide('America/Sao_Paulo')).toBe(FUSEAU_PAR_DEFAUT)
+    expect(fuseauValide('Asia/Kolkata')).toBe(FUSEAU_PAR_DEFAUT)
     expect(fuseauValide('Pas/Un_Fuseau')).toBe(FUSEAU_PAR_DEFAUT)
     expect(fuseauValide(42)).toBe(FUSEAU_PAR_DEFAUT)
-    expect(fuseauValide('')).toBe(FUSEAU_PAR_DEFAUT)
+    expect(FUSEAUX_AUTORISES).toContain(FUSEAU_PAR_DEFAUT)
   })
 
   it('heure locale du chantier, heure d’été comprise', () => {
@@ -109,41 +119,67 @@ describe('heure du pointage', () => {
     expect(heureLocale(Date.UTC(2026, 11, 31, 23, 30, 0), 'Europe/Paris')).toEqual({ date: '2027-01-01', heure: '00:30:00' })
   })
 
-  it('instant retenu : celui du téléphone à moins de 10 min du serveur, sinon celui du serveur', () => {
-    const serveur = 1_800_000_000_000
-    expect(instantRetenu(serveur - 60_000, serveur)).toBe(serveur - 60_000)
-    expect(instantRetenu(serveur - TOLERANCE_HORLOGE_MS, serveur)).toBe(serveur - TOLERANCE_HORLOGE_MS)
-    expect(instantRetenu(serveur - TOLERANCE_HORLOGE_MS - 1, serveur)).toBe(serveur)
-    expect(instantRetenu(serveur + 3_600_000, serveur)).toBe(serveur)
-    expect(instantRetenu(undefined, serveur)).toBe(serveur)
-    expect(instantRetenu(Number.NaN, serveur)).toBe(serveur)
+  const SERVEUR = 1_800_000_000_000
+
+  it('arrivée : heure du serveur ; en automatique, l’entrée dans la zone si elle est passée et à moins de 10 min', () => {
+    expect(instantArrivee('geo_auto', SERVEUR - 60_000, SERVEUR)).toBe(SERVEUR - 60_000)
+    expect(instantArrivee('geo_auto', SERVEUR - TOLERANCE_HORLOGE_MS, SERVEUR)).toBe(SERVEUR - TOLERANCE_HORLOGE_MS)
+    expect(instantArrivee('geo_auto', SERVEUR - TOLERANCE_HORLOGE_MS - 1, SERVEUR)).toBe(SERVEUR)
+    expect(instantArrivee('geo_auto', SERVEUR + 60_000, SERVEUR)).toBe(SERVEUR) // dans le futur : refusé
+    expect(instantArrivee('manuel', SERVEUR - 60_000, SERVEUR)).toBe(SERVEUR) // à la main : jamais l'horloge du téléphone
+    expect(instantArrivee('geo_auto', undefined, SERVEUR)).toBe(SERVEUR)
+    expect(instantArrivee('geo_auto', Number.NaN, SERVEUR)).toBe(SERVEUR)
+  })
+
+  it('départ : heure du serveur ; en automatique, la dernière présence, bornée entre l’arrivée et maintenant', () => {
+    const arrivee = SERVEUR - 8 * 3_600_000
+    expect(instantDepart('geo_auto', SERVEUR - 3 * 3_600_000, SERVEUR, arrivee)).toBe(SERVEUR - 3 * 3_600_000)
+    expect(instantDepart('geo_auto', SERVEUR + 3_600_000, SERVEUR, arrivee)).toBe(SERVEUR) // futur : jamais plus tard que maintenant
+    expect(instantDepart('geo_auto', arrivee - 3_600_000, SERVEUR, arrivee)).toBe(arrivee) // jamais avant l'arrivée
+    expect(instantDepart('manuel', SERVEUR - 3 * 3_600_000, SERVEUR, arrivee)).toBe(SERVEUR)
   })
 })
 
-describe('clôture d’un pointage', () => {
-  it('même jour : heure de départ et heures travaillées, pause déduite', () => {
-    expect(cloturer({ date: '2026-11-16', heure: '08:00:00' }, { date: '2026-11-16', heure: '17:30:00' }, 60))
-      .toEqual({ heureDepart: '17:30:00', heuresTravaillees: 8.5, clotureForcee: false })
-    expect(cloturer({ date: '2026-11-16', heure: '07:42:10' }, { date: '2026-11-16', heure: '12:03:40' }, 0))
-      .toEqual({ heureDepart: '12:03:40', heuresTravaillees: 4.36, clotureForcee: false })
+describe('clôture d’un pointage (instants UTC)', () => {
+  // Arrivée le 16/11/2026 à 08:30:00, heure de Paris (07:30:00 UTC), enregistrée par la route.
+  const ARRIVEE = Date.UTC(2026, 10, 16, 7, 30, 0)
+  const ouvert = { date: '2026-11-16', heure_arrivee: '08:30:00', created_at: new Date(ARRIVEE).toISOString(), pause_minutes: 0 }
+
+  it('repères de l’arrivée : instant de created_at et écart de l’heure murale (Paris en hiver : +1 h)', () => {
+    expect(reperesArrivee(ouvert)).toEqual({ instant: ARRIVEE, decalageMs: 3_600_000 })
+    expect(murale(ARRIVEE + 9 * 3_600_000, 3_600_000)).toEqual({ date: '2026-11-16', heure: '17:30:00' })
   })
 
-  it('départ constaté le lendemain : ramené à 23:59:59 du jour d’arrivée et signalé', () => {
-    expect(cloturer({ date: '2026-11-16', heure: '20:00:00' }, { date: '2026-11-17', heure: '07:00:00' }, 0))
-      .toEqual({ heureDepart: '23:59:59', heuresTravaillees: 4, clotureForcee: true })
+  it('sans created_at exploitable : heure murale lue à Paris (heure d’été comprise)', () => {
+    expect(reperesArrivee({ date: '2026-11-16', heure_arrivee: '08:30:00' })).toEqual({ instant: ARRIVEE, decalageMs: 3_600_000 })
+    expect(reperesArrivee({ date: '2026-07-15', heure_arrivee: '08:00', created_at: 'n’importe quoi' }))
+      .toEqual({ instant: Date.UTC(2026, 6, 15, 6, 0, 0), decalageMs: 7_200_000 })
+  })
+
+  it('même jour : heures calculées sur les instants, pause déduite, heure de départ dans le même fuseau qu’à l’arrivée', () => {
+    expect(cloture(ouvert, ARRIVEE + 8 * 3_600_000 + 6 * 60_000)).toEqual({ heureDepart: '16:36:00', heuresTravaillees: 8.1, aRegulariser: false })
+    expect(cloture({ ...ouvert, pause_minutes: 60 }, ARRIVEE + 9 * 3_600_000)).toEqual({ heureDepart: '17:30:00', heuresTravaillees: 8, aRegulariser: false })
+  })
+
+  it('départ constaté un autre jour (oubli) : 0 h, départ = arrivée, à régulariser — jamais une journée de 16 h', () => {
+    expect(cloture(ouvert, ARRIVEE + 24 * 3_600_000)).toEqual({ heureDepart: '08:30:00', heuresTravaillees: 0, aRegulariser: true })
+    // 23:59 heure de Paris le même jour : encore le jour de l'arrivée.
+    expect(cloture(ouvert, Date.UTC(2026, 10, 16, 22, 59, 0)).aRegulariser).toBe(false)
   })
 
   it('horloge incohérente (départ avant l’arrivée) : durée nulle, jamais négative', () => {
-    expect(cloturer({ date: '2026-11-16', heure: '10:00:00' }, { date: '2026-11-16', heure: '09:00:00' }, 0))
-      .toEqual({ heureDepart: '10:00:00', heuresTravaillees: 0, clotureForcee: false })
-    expect(cloturer({ date: '2026-11-16', heure: '10:00:00' }, { date: '2026-11-15', heure: '11:00:00' }, 0).heuresTravaillees).toBe(0)
+    expect(cloture(ouvert, ARRIVEE - 3_600_000)).toEqual({ heureDepart: '08:30:00', heuresTravaillees: 0, aRegulariser: false })
   })
 
-  it('heures illisibles ou hors bornes', () => {
-    expect(secondesDepuisMinuit('08:30')).toBe(30_600)
-    expect(secondesDepuisMinuit('24:00:00')).toBeNull()
-    expect(secondesDepuisMinuit('8h30')).toBeNull()
-    expect(secondesDepuisMinuit(null)).toBeNull()
+  it('pointage oublié : ouvert un jour précédent, selon l’heure murale de l’arrivée', () => {
+    expect(estOublie(ouvert, Date.UTC(2026, 10, 16, 22, 59, 0))).toBe(false)
+    expect(estOublie(ouvert, Date.UTC(2026, 10, 16, 23, 0, 1))).toBe(true) // 00:00:01 à Paris le 17
+  })
+
+  it('notes : ajoutées sans doublon', () => {
+    expect(ajouterNote(null, NOTE_A_REGULARISER)).toBe(NOTE_A_REGULARISER)
+    expect(ajouterNote('Pluie.', NOTE_A_REGULARISER)).toBe(`Pluie. ${NOTE_A_REGULARISER}`)
+    expect(ajouterNote(`Pluie. ${NOTE_A_REGULARISER}`, NOTE_A_REGULARISER)).toBe(`Pluie. ${NOTE_A_REGULARISER}`)
   })
 })
 
