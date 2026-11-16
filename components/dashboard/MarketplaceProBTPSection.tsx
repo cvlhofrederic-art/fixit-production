@@ -427,14 +427,30 @@ export default function MarketplaceProBTPSection({ artisan, orgRole }: { artisan
 
   const loadMyListings = useCallback(async () => {
     if (!artisan?.user_id) return
+    const societe = orgRole === 'pro_societe'
+    // Société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit, sinon il s'affiche comme
+    // « aucune annonce ». Côté artisan, la réponse est lue comme avant (règle artisan / BTP).
+    const direLeRefus = () => {
+      setMyListings([])
+      setToast('Impossible de charger vos annonces')
+      setTimeout(() => setToast(null), 3500)
+    }
     try {
       // « Mes annonces » exige le jeton de la session : la société BTP l'envoie. Côté artisan, l'appel d'origine est
       // conservé (règle artisan / BTP) ; le même défaut y reste, signalé.
       const url = `/api/marketplace-btp?user_id=${artisan.user_id}`
-      const res = await (orgRole === 'pro_societe' ? fetchAuthentifie(url) : fetch(url))
+      const res = await (societe ? fetchAuthentifie(url) : fetch(url))
+      if (societe && !res.ok) {
+        direLeRefus()
+        return
+      }
       const data = await res.json()
       setMyListings(data.listings ?? [])
-    } catch {}
+    } catch (err) {
+      if (societe) direLeRefus()
+      // Artisan : aucun message à l'écran, comme avant ; l'échec reste visible dans la console.
+      else console.warn('[marketplace-btp] Mes annonces non chargées', err)
+    }
   }, [artisan, orgRole])
 
   const loadDemandes = useCallback(async () => {

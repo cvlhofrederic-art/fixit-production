@@ -5,10 +5,12 @@
 // l'appelait sans jeton : la liste restait vide, et avec elle la modification, la pause et les demandes reçues.
 // Audit des fondations BTP du 11/11/2026, constat api-peripherie-8.
 // Société BTP : la session est envoyée. Artisan : comportement inchangé (règle artisan / BTP), défaut signalé.
+// Relecture adverse du 16/11/2026 : un refus du serveur (session expirée, limite de débit, panne) laissait la liste
+// vide sans rien dire ; pour la société BTP, il est désormais dit.
 
 import React from 'react'
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 
 vi.mock('@/lib/i18n/context', () => ({ useLocale: () => 'fr' }))
 vi.mock('@/lib/supabase', () => ({
@@ -23,13 +25,20 @@ const SOCIETE = { id: FICHE, user_id: COMPTE, company_name: 'Bâtiment du Banc S
 
 type AppelReseau = { url: string; autorisation: string | undefined }
 let appels: AppelReseau[] = []
+/** Statut rendu par la lecture de « Mes annonces » (les autres appels répondent 200). */
+let statutMesAnnonces = 200
 
 beforeEach(() => {
   appels = []
+  statutMesAnnonces = 200
   vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL, options?: RequestInit) => {
     const entetes = (options?.headers ?? {}) as Record<string, string>
     appels.push({ url: String(url), autorisation: entetes.Authorization })
-    return new Response(JSON.stringify({ listings: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    const refus = String(url).includes('user_id=') && statutMesAnnonces !== 200
+    return new Response(JSON.stringify(refus ? { error: 'Non autorisé' } : { listings: [] }), {
+      status: refus ? statutMesAnnonces : 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }))
 })
 afterEach(() => { vi.unstubAllGlobals() })
@@ -49,5 +58,23 @@ describe('Marketplace BTP — mes annonces', () => {
     await act(async () => { render(<MarketplaceProBTPSection artisan={SOCIETE as never} orgRole="artisan" />) })
     await vi.waitFor(() => expect(mesAnnonces()).toHaveLength(1))
     expect(mesAnnonces()[0].autorisation).toBeUndefined()
+  })
+
+  it('société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit', async () => {
+    for (const statut of [401, 429, 500]) {
+      statutMesAnnonces = statut
+      const { unmount } = await act(async () => render(<MarketplaceProBTPSection artisan={SOCIETE as never} orgRole="pro_societe" />))
+      expect(await screen.findByText('Impossible de charger vos annonces'), `statut ${statut}`).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('artisan : comportement inchangé, un refus du serveur ne déclenche aucun message', async () => {
+    statutMesAnnonces = 401
+    await act(async () => { render(<MarketplaceProBTPSection artisan={SOCIETE as never} orgRole="artisan" />) })
+    await vi.waitFor(() => expect(mesAnnonces()).toHaveLength(1))
+    // Laisse la réponse être lue avant de vérifier l'absence de message.
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(screen.queryByText('Impossible de charger vos annonces')).not.toBeInTheDocument()
   })
 })
