@@ -26,10 +26,11 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     Ces modifications en attente sont notées dans le navigateur (CLE_ETAT) pour survivre à un rechargement.
 //     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à
 //     l'aveugle — pas même à la fermeture de l'onglet. Quand deux envois de la même clé se chevauchent, la
-//     confirmation du premier ne lève pas la note tant qu'une valeur plus récente écrite dans cet onglet attend, est
-//     en route ou reste en place ; une valeur réécrite par un autre onglet (sa restauration) ne la retient pas, et la
-//     note ainsi gardée ne fait pas préférer à la valeur du serveur ce qu'un autre onglet écrirait ensuite à la place
-//     de celle d'ici.
+//     confirmation du premier ne lève pas la note tant que la valeur plus récente écrite dans cet onglet attend son
+//     envoi ou reste en place dans le navigateur, ni quand un autre onglet l'y a remplacée par sa propre saisie, qui
+//     est alors gardée comme elle. Une valeur que le serveur détenait avant celle qu'il vient de confirmer, d'après ce
+//     que cet onglet en sait (remise par la restauration d'un autre onglet, lue avant l'arrivée de l'envoi), ne la
+//     retient pas, et une note gardée ne la fait pas repartir : le serveur gagne.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
@@ -46,11 +47,16 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // lisent les valeurs l'un de l'autre ; une valeur dont l'envoi échoue sans aucune réponse du serveur (connexion qui
 // ne laisse pas passer un envoi volumineux) retient encore les valeurs du même envoi, comme avant : sans réponse,
 // rien ne la distingue d'une coupure du réseau ; « tout envoyer » ne part que tant que l'espace du compte est vide
-// sur le serveur : la première écriture qui y est sauvegardée lui retire toute nouvelle occasion ; et les onglets d'un
-// même navigateur ne se concertent pas. Une note gardée dans le navigateur ne dit pas quelle valeur elle protège :
-// quand deux envois de la même clé se chevauchent, qu'un autre onglet réécrit l'ancienne valeur à la place de la
-// dernière saisie et que la page est rechargée avant l'arrivée de celle-ci, la visite suivante peut renvoyer
-// l'ancienne valeur.
+// sur le serveur : la première écriture qui y est sauvegardée lui retire toute nouvelle occasion. Les onglets d'un
+// même navigateur partagent son stockage mais pas leur mémoire : chacun ne connaît que ses propres envois et ce que
+// les notes de l'état lui apprennent. Quand la même clé est modifiée dans deux onglets à quelques secondes d'écart, la
+// restauration de l'un (retour sur l'onglet, jeton rafraîchi : tous les onglets relisent le serveur) peut remplacer
+// dans le navigateur la saisie de l'autre avant son arrivée au serveur, sauf si cet onglet garde lui-même une note
+// pour la clé ; et une saisie faite par-dessus une valeur qu'un autre onglet n'a pas encore fait confirmer est notée
+// comme si le serveur détenait cette valeur. Dans les deux cas, si l'envoi de la saisie échoue ensuite, elle peut être
+// perdue, comme avant ce miroir. Une note gardée dans le navigateur ne dit pas quelle valeur elle protège : quand deux
+// envois de la même clé se chevauchent, qu'un autre onglet réécrit l'ancienne valeur à la place de la dernière saisie
+// et que la page est rechargée avant l'arrivée de celle-ci, la visite suivante peut renvoyer l'ancienne valeur.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -96,6 +102,8 @@ const CLE_ETAT = 'vitfix_miroir_etat_v1'
 const DELAI_ETAT_MS = 3_000
 /** Empreinte d'une clé que le serveur ne détenait pas. */
 const ABSENTE = ''
+/** Anciennes valeurs du serveur retenues par une note gardée à la confirmation d'un envoi (voir Base). */
+const ANCIENNES_RETENUES = 4
 /** Identifiant de compte ou de fiche porté par une clé (`fixit_documents_<identifiant>`). */
 const MOTIF_IDENTIFIANT = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g
 
@@ -126,11 +134,14 @@ interface Bilan {
  * Ce que le serveur détenait pour une clé avant une modification locale pas encore confirmée : la valeur telle
  * qu'elle était dans le navigateur (`brut`, null si la clé n'existait pas), ou seulement son empreinte quand la
  * note vient de l'état gardé dans le navigateur (rechargement, autre onglet).
- * `pourEcritureIci` : note gardée à la confirmation d'un envoi, pour une valeur plus récente écrite dans cet onglet
- * (confirmerEcriture). À la relecture, elle ne fait garder que cette valeur, pas ce qu'un autre onglet écrirait ensuite
- * à sa place (garderLaValeurLocale).
+ * `pourEcritureIci` : note gardée à la confirmation d'un envoi (confirmerEcriture), parce que cet onglet a écrit une
+ * valeur plus récente que celle confirmée. `anciennes` : empreintes des valeurs que le serveur détenait avant celle de
+ * la note, depuis la première modification faite ici, telles que cet onglet les connaît (base d'origine, valeurs
+ * confirmées depuis). La restauration d'un autre onglet, lue avant l'arrivée d'un envoi, remet l'une d'elles dans le
+ * navigateur : ce n'est pas une saisie, elle ne doit pas repartir (garderLaValeurLocale). Absentes quand la clé n'avait
+ * plus de note à la confirmation : rien ne distingue alors une saisie d'un autre onglet d'une ancienne valeur.
  */
-interface Base { brut?: string | null; empreinte?: string; pourEcritureIci?: true }
+interface Base { brut?: string | null; empreinte?: string; pourEcritureIci?: true; anciennes?: string[] }
 
 interface EtatMiroir {
   v: 1
@@ -164,7 +175,8 @@ let installed = false
 const derniereValeurSynchronisee = new Map<string, string>()
 // Dernière valeur écrite par cet onglet pour chaque clé (null : supprimée), telle que l'interception l'a vue. Ce
 // qu'écrit une restauration, ici ou dans un autre onglet, n'y figure pas ; retirée quand la restauration la remplace
-// par la valeur du serveur. Voir saisiePlusRecenteIci et garderLaValeurLocale.
+// par la valeur du serveur. Égale à la valeur synchronisée, elle est tenue par la même chaîne, sans seconde copie en
+// mémoire (valeurs de plusieurs Mo). Voir noteAGarder et garderLaValeurLocale.
 const derniereEcritureIci = new Map<string, string | null>()
 // setItem d'origine, capturé à l'installation du miroir : l'hydratation écrit sans repasser par le miroir
 // (avant, chaque valeur reçue du serveur repartait en POST 500 ms plus tard).
@@ -392,6 +404,25 @@ function serveurDetientEncore(base: Base, valeur: unknown, enTexte: string): boo
   return attendue !== ABSENTE && attendue === empreinteDeValeur(valeur)
 }
 
+/**
+ * Valeurs que le serveur détenait avant celle qu'il vient de confirmer, depuis la première modification faite ici,
+ * telles que cet onglet les connaît : celles de la note de la clé (base d'origine, ou note gardée à une confirmation
+ * précédente, avec ses propres anciennes valeurs), et la dernière valeur synchronisée avant cette confirmation. Les
+ * plus récentes seulement : une restauration ne remet dans le navigateur qu'une valeur lue quelques secondes plus tôt.
+ */
+function anciennesValeurs(base: Base, avant: string | undefined): string[] {
+  const empreintes = [...(base.anciennes ?? []), empreinteDeBase(base)]
+  if (avant !== undefined && avant !== base.brut) empreintes.push(empreinteDeValeur(versServeur(avant)))
+  const connues = empreintes.filter((empreinte, rang) => empreinte !== ABSENTE && empreintes.lastIndexOf(empreinte) === rang)
+  return connues.slice(-ANCIENNES_RETENUES)
+}
+
+/** Le navigateur détient-il l'une de ces anciennes valeurs du serveur ? Une restauration n'écrit jamais une suppression. */
+function estUneAncienneValeur(locale: string | null, anciennes: string[]): boolean {
+  if (locale === null || anciennes.length === 0) return false
+  return anciennes.includes(empreinteDeValeur(versServeur(locale)))
+}
+
 // ── État gardé dans le navigateur : compte et modifications en attente ───────────────────────────────────────────
 
 function lireEtat(): EtatMiroir | null {
@@ -495,28 +526,44 @@ function compterUnEchec(key: string): void {
 }
 
 /**
- * Cet onglet a-t-il, pour cette clé, une valeur plus récente que celle que le serveur vient de confirmer : une écriture
- * ou une suppression en attente d'envoi, ou une valeur écrite ici et toujours en place dans le navigateur (partie dans
- * un autre envoi dont la réponse n'est pas arrivée, par exemple) ? Une valeur qu'un autre onglet a écrite par-dessus —
- * sa restauration, qui a relu le serveur avant l'arrivée de cet envoi — n'en est pas une.
+ * Faut-il garder la note de la clé quand le serveur vient de confirmer `confirmee` ? Oui si cet onglet a, pour elle, une
+ * valeur plus récente : une écriture ou une suppression en attente d'envoi, ou une valeur écrite ici et toujours en
+ * place dans le navigateur (partie dans un autre envoi dont la réponse n'est pas arrivée, par exemple). Oui encore si un
+ * autre onglet l'y a remplacée par sa propre saisie : la relecture suivante la gardera au lieu de l'effacer avant
+ * l'arrivée de son envoi. Non si elle y a été remplacée par une valeur que le serveur détenait avant (`anciennes`) : la
+ * restauration d'un autre onglet, lue avant l'arrivée de cet envoi, l'y a remise, et la relecture suivante la
+ * renverrait par-dessus la saisie que le serveur vient d'enregistrer (relectures des 15 et 16/11/2026). Ni si cet
+ * onglet n'a rien écrit de plus récent : ce qu'un autre onglet a écrit depuis a son propre envoi. Ni, enfin, quand la
+ * clé n'a plus de note (levée à une confirmation précédente, ou reprise du serveur) : `anciennes` vaut alors null, cet
+ * onglet ne sait plus ce que le serveur détenait avant, et ne distingue plus une saisie d'une ancienne valeur.
  */
-function saisiePlusRecenteIci(key: string, confirmee: string): boolean {
+function noteAGarder(key: string, confirmee: string, anciennes: (() => string[]) | null): boolean {
   if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
-  if (!derniereEcritureIci.has(key)) return false
   const ecriteIci = derniereEcritureIci.get(key)
-  return ecriteIci !== confirmee && valeurLocale(key) === ecriteIci
+  if (ecriteIci === undefined || ecriteIci === confirmee) return false
+  const locale = valeurLocale(key)
+  if (locale === undefined || locale === confirmee) return false
+  if (locale === ecriteIci) return true
+  return anciennes !== null && !estUneAncienneValeur(locale, anciennes())
 }
 
 /** Le serveur détient maintenant cette valeur. */
 function confirmerEcriture(e: EntreeAEnvoyer): void {
   oublierEchecs(e.key)
+  const base = bases.get(e.key)
+  const avant = derniereValeurSynchronisee.get(e.key)
   derniereValeurSynchronisee.set(e.key, e.raw)
-  // Une valeur plus récente écrite ici se mesurera à celle qui vient d'arriver au serveur : lever la note la ferait
-  // perdre contre celle-ci à la relecture suivante (relecture du 15/11/2026). Une valeur écrite par un autre onglet,
-  // elle, ne retient pas la note : la relecture suivante la prendrait pour une modification faite ici et la renverrait
-  // par-dessus la saisie que le serveur vient d'enregistrer (relecture du 16/11/2026).
-  if (saisiePlusRecenteIci(e.key, e.raw)) {
-    bases.set(e.key, { brut: e.raw, pourEcritureIci: true })
+  // Même contenu : une seule chaîne en mémoire pour les deux (aller-retour A → B → A).
+  if (derniereEcritureIci.get(e.key) === e.raw) derniereEcritureIci.set(e.key, e.raw)
+  // Calculées seulement si elles servent, et seulement d'après la note de la clé : une empreinte coûte une lecture
+  // complète de la valeur.
+  let anciennes: string[] | null = null
+  const lesAnciennes = base === undefined ? null : (): string[] => {
+    if (anciennes === null) anciennes = anciennesValeurs(base, avant)
+    return anciennes
+  }
+  if (noteAGarder(e.key, e.raw, lesAnciennes)) {
+    bases.set(e.key, { brut: e.raw, pourEcritureIci: true, anciennes: lesAnciennes?.() })
     planifierEtat()
   } else {
     oublierBase(e.key)
@@ -829,8 +876,11 @@ function scheduleFlush() {
  */
 export function enregistrerEcritureMiroir(key: string, value: string, avant?: string | null): void {
   if (!shouldSync(key)) return
-  derniereEcritureIci.set(key, value)
-  if (derniereValeurSynchronisee.get(key) === value && !pendingWrites.has(key) && !postsEnVol.has(key) && !bases.has(key)) return
+  // Réécriture à l'identique (montage du tableau de bord) : la chaîne de la valeur synchronisée sert aussi ici, sans
+  // seconde copie en mémoire.
+  const synchronisee = derniereValeurSynchronisee.get(key)
+  derniereEcritureIci.set(key, synchronisee === value ? synchronisee : value)
+  if (synchronisee === value && !pendingWrites.has(key) && !postsEnVol.has(key) && !bases.has(key)) return
   noterBase(key, avant)
   if (refusees.get(key) !== value) refusees.delete(key)
   pendingWrites.set(key, value)
@@ -895,9 +945,14 @@ function garderLaValeurLocale(key: string, valeur: unknown, enTexte: string, not
   const locale = valeurLocale(key)
   // Stockage illisible, ou valeur déjà identique à celle du serveur : rien à garder ni à envoyer.
   if (locale === undefined || locale === enTexte) return false
-  // Note gardée pour une valeur écrite ici, que le navigateur ne détient plus : un autre onglet a écrit à sa place (sa
-  // restauration, lue avant l'arrivée de l'envoi). Ce n'est pas une modification faite ici : le serveur gagne.
-  if (base?.pourEcritureIci && locale !== derniereEcritureIci.get(key)) return false
+  // Note gardée à la confirmation d'un envoi, alors que le navigateur ne détient plus la valeur écrite ici : un autre
+  // onglet a écrit à sa place. Une valeur que le serveur détenait avant celle de la note vient de sa restauration, lue
+  // avant l'arrivée de l'envoi : ce n'est pas une modification, le serveur gagne. Toute autre valeur est la saisie de
+  // cet autre onglet, qui a son propre envoi : elle est gardée comme une modification d'ici, sans quoi elle serait
+  // effacée du navigateur avant son arrivée au serveur (relecture du 16/11/2026). Sans anciennes valeurs connues, rien
+  // ne distingue l'une de l'autre : le serveur gagne.
+  if (base?.pourEcritureIci && locale !== derniereEcritureIci.get(key)
+    && (base.anciennes === undefined || estUneAncienneValeur(locale, base.anciennes))) return false
   const inchange = (base !== undefined && serveurDetientEncore(base, valeur, enTexte))
     || (noteAilleurs !== undefined && noteAilleurs !== ABSENTE && noteAilleurs === empreinteDeValeur(valeur))
   // Le serveur détient autre chose que ce que cet appareil lui connaissait : écrit ailleurs entre-temps, il gagne.
@@ -1001,7 +1056,9 @@ async function hydraterDepuisLeServeur(): Promise<ResultatHydratation> {
       ecrireSansMiroir(key, enTexte)
       derniereValeurSynchronisee.set(key, enTexte)
       // Ce que cet onglet avait écrit n'est plus en place : inutile de le garder en mémoire (valeur de plusieurs Mo).
-      if (derniereEcritureIci.get(key) !== enTexte) derniereEcritureIci.delete(key)
+      // Resté le même, il est tenu par la même chaîne que la valeur synchronisée, sans seconde copie.
+      if (derniereEcritureIci.get(key) === enTexte) derniereEcritureIci.set(key, enTexte)
+      else derniereEcritureIci.delete(key)
       count++
     } catch {
       // Stockage plein : la valeur du navigateur reste en place.

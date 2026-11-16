@@ -754,7 +754,9 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
   // autre onglet du même compte (ouverture, jeton rafraîchi, fenêtre restée visible), lue avant l'arrivée de l'envoi, y
   // remet l'ancienne valeur du serveur : la relecture suivante la prenait pour une modification faite ici et la renvoyait
   // par-dessus la saisie que le serveur venait d'enregistrer, sans aucun message. Seule une valeur plus récente écrite
-  // dans cet onglet retient maintenant la note (les cas des deux envois qui se chevauchent, ci-dessus).
+  // dans cet onglet retient maintenant la note (les cas des deux envois qui se chevauchent, ci-dessus), ou la saisie
+  // d'un autre onglet qui l'a remplacée (tests/storage-sync-onglets.test.ts) — jamais une valeur que le serveur
+  // détenait avant.
   describe('un autre onglet du même compte réécrit l’ancienne valeur du serveur pendant qu’une saisie part', () => {
     /** La saisie part et arrive au serveur ; l'autre onglet, qui l'a relu avant, réécrit l'ancienne valeur. */
     async function saisieRecouverteParUnAutreOnglet(moment: 'avant' | 'pendant'): Promise<ModuleSync> {
