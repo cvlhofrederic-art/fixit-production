@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { createSousTraitanceOffreSchema, validateBody } from '@/lib/validation'
-import { getAuthUser, isProSocieteRole, resolveCompanyId } from '@/lib/auth-helpers'
+import { getAuthUser, getUserRole, isProGerant, isProSocieteRole } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
@@ -196,6 +197,25 @@ export async function GET(request: NextRequest) {
   return response
 }
 
+/**
+ * Compte titulaire de la fiche au nom de laquelle une offre est publiée : le compte lui-même pour le gérant (et le super
+ * admin), celui de sa société pour un sous-compte, relu dans pro_team_members à chaque publication. Une panne de cette
+ * lecture est rendue comme telle : resolveCompanyId la confond avec l'absence de rattachement. Sans un rattachement
+ * actif unique, le compte reste son propre titulaire, comme avec resolveCompanyId.
+ */
+async function titulaireDeLaFiche(user: User): Promise<{ compte: string } | { panne: string }> {
+  if (getUserRole(user) !== 'pro_societe' || isProGerant(user)) return { compte: user.id }
+  const { data, error } = await supabaseAdmin
+    .from('pro_team_members')
+    .select('company_id')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .limit(2)
+  if (error) return { panne: error.message }
+  const rattachements = (data || []) as { company_id: string | null }[]
+  return { compte: (rattachements.length === 1 && rattachements[0].company_id) || user.id }
+}
+
 // ── POST /api/marches/sous-traitance — BTP company publishes an offer ────────
 export async function POST(request: NextRequest) {
   const ip = getClientIP(request)
@@ -227,15 +247,21 @@ export async function POST(request: NextRequest) {
   }
 
   // L'offre est publiée au nom de la fiche société du compte connecté, relue en base : la sienne pour le gérant, celle
-  // de sa société pour un sous-compte (resolveCompanyId). Le nom envoyé par le navigateur ne prouve rien.
+  // de sa société pour un sous-compte (titulaireDeLaFiche). Le nom envoyé par le navigateur ne prouve rien ; sans fiche
+  // de société, l'offre porte le nom générique « Entreprise BTP ».
   // L'identifiant envoyé n'est accepté que s'il désigne cette fiche ou le compte lui-même : un compte sans fiche à lui
   // (un sous-compte, par exemple) est identifié par son propre identifiant dans le tableau de bord, et c'est par cet
   // identifiant que l'écran retrouve ensuite ses offres (GET ?btp_company_id=…, filtré aussi sur publisher_user_id).
-  const proprietaire = await resolveCompanyId(user, supabaseAdmin)
+  const titulaire = await titulaireDeLaFiche(user)
+  if ('panne' in titulaire) {
+    // Une panne n'est pas une absence de société : rien n'est publié sous le nom générique.
+    logger.error('[st] POST : rattachement du sous-compte à sa société illisible', { error: titulaire.panne })
+    return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
+  }
   const { data: fiche, error: ficheError } = await supabaseAdmin
     .from('profiles_artisan')
     .select('id, company_name')
-    .eq('user_id', proprietaire)
+    .eq('user_id', titulaire.compte)
     .maybeSingle()
   if (ficheError) {
     // Une panne n'est pas un refus : la société n'est pas accusée de viser la fiche d'une autre.

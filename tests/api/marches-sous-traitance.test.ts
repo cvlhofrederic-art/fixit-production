@@ -14,6 +14,9 @@
 //   - un sous-compte (conducteur de travaux), qui n'a pas de fiche à lui, envoie comme identifiant de société celui de
 //     son propre compte (le tableau de bord l'identifie ainsi) : il était refusé ;
 //   - une panne de la lecture de la fiche répondait « Cette fiche société n'est pas celle de votre compte ».
+// Seconde relecture adverse du 16/11/2026 : une panne de la lecture du rattachement d'un sous-compte à sa société
+// passait pour une absence de rattachement (resolveCompanyId ne lit pas l'erreur), et l'offre partait sous le nom
+// générique « Entreprise BTP », sans trace. La route relit elle-même ce rattachement, erreur comprise.
 // Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches),
 // profiles_artisan comprise.
 
@@ -49,6 +52,8 @@ const FICHE_CANDIDAT = '55555555-5555-4555-8555-555555555555'
 const OFFRE = '44444444-4444-4444-8444-444444444444'
 // Conducteur de travaux de la société SOCIETE : un compte sans fiche à lui.
 const SOUS_COMPTE = '66666666-6666-4666-8666-666666666666'
+// Compte société rattaché à aucune société (aucun rattachement actif) et sans fiche à lui.
+const COMPTE_SANS_SOCIETE = '88888888-8888-4888-8888-888888888888'
 
 const base = () => h.base as FauxSupabase
 
@@ -148,8 +153,9 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
     }
     if (appel.table === 'marches' && appel.operation === 'insert') return { data: { id: OFFRE, ...(appel.donnees as object) }, error: null }
     if (appel.table === 'pro_team_members') {
+      // Rattachements actifs du compte, lus en liste par la route.
       const membre = appel.filtres.find(([, c]) => c === 'user_id')?.[2]
-      return { data: membre === SOUS_COMPTE ? { company_id: SOCIETE } : null, error: null }
+      return { data: membre === SOUS_COMPTE ? [{ company_id: SOCIETE }] : [], error: null }
     }
     return undefined
   }
@@ -210,6 +216,31 @@ describe('POST /api/marches/sous-traitance — publier une offre', () => {
     const res = await publier({ ...OFFRE_DU_SOUS_COMPTE, btp_company_id: FICHE_D_UNE_AUTRE })
     expect(res.status).toBe(403)
     expect(base().sur('marches', 'insert')).toHaveLength(0)
+  })
+
+  it('rattachement du sous-compte à sa société illisible (panne) : 500, rien n’est publié sous un nom de repli, l’échec est journalisé', async () => {
+    h.user = { id: SOUS_COMPTE, app_metadata: { role: 'pro_societe', pro_team_role: 'CONDUCTEUR_TRAVAUX', company_id: SOCIETE } }
+    base().repondre = enBase(appel => (appel.table === 'pro_team_members' ? { data: null, error: { message: 'délai dépassé' } } : fiches(appel)))
+    const res = await publier(OFFRE_DU_SOUS_COMPTE)
+    expect(res.status).toBe(500)
+    expect((await res.json()).error).toBe('Une erreur interne est survenue')
+    expect(base().sur('marches', 'insert')).toHaveLength(0)
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls[0])).toContain('délai dépassé')
+  })
+
+  it('compte société rattaché à aucune société, sans fiche : nom générique et son propre identifiant, jamais le nom d’une société (règle actuelle, décision de produit en attente)', async () => {
+    h.user = { id: COMPTE_SANS_SOCIETE, app_metadata: { role: 'pro_societe', pro_team_role: 'CONDUCTEUR_TRAVAUX', company_id: SOCIETE } }
+    const res = await publier({ ...OFFRE_DU_SOUS_COMPTE, btp_company_id: COMPTE_SANS_SOCIETE, publisher_user_id: COMPTE_SANS_SOCIETE })
+    expect(res.status).toBe(201)
+    expect(base().sur('marches', 'insert')[0].donnees).toMatchObject({
+      btp_company_id: COMPTE_SANS_SOCIETE, btp_company_name: 'Entreprise BTP', publisher_name: 'Entreprise BTP',
+      publisher_user_id: COMPTE_SANS_SOCIETE,
+    })
+    // Le rattachement est lu parmi les seuls membres actifs ; la société inscrite dans le compte ne suffit pas.
+    expect(base().sur('pro_team_members', 'select')[0].filtres).toEqual(expect.arrayContaining([
+      ['eq', 'user_id', COMPTE_SANS_SOCIETE], ['eq', 'is_active', true],
+    ]))
   })
 
   it('lecture de la fiche impossible (panne) : 500 et message d’erreur interne, pas un refus ; rien n’est publié', async () => {
