@@ -524,6 +524,16 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   async function handleSave() {
     if (!form.name.trim()) return
     if (!catalogueModifiable()) return
+    // Une modification ne s'applique qu'au même élément de la liste affichée maintenant (même identifiant, même nom,
+    // même type, comme appliquerLiensServices), repris avec ses données à jour, identifiant de service compris : jamais
+    // à un autre élément, ni au service publié d'un élément qui n'est plus affiché (liste d'une fiche précédente).
+    const actuel = editing ? items.find((i) => i.id === editing.id && i.name === editing.name && i.type === editing.type) : undefined
+    if (editing && !actuel) {
+      toast.error(isPt
+        ? 'Este elemento já não corresponde ao catálogo apresentado: nada foi alterado. Cancele e volte a abri-lo a partir da lista para o editar.'
+        : 'Cet élément ne correspond plus au catalogue affiché : rien n\'a été modifié. Annulez, puis rouvrez-le depuis la liste pour le modifier.')
+      return
+    }
     const price = {
       min: form.price.min,
       max: priceRange ? form.price.max : form.price.min,
@@ -545,9 +555,9 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     // Ferme la modale immédiatement — la sync Supabase est non-bloquante
     setModal(false)
 
-    if (editing) {
-      const updated: Prestation = { ...editing, ...form, price, priceAchat, etapes, description }
-      const next = items.map((i) => i.id === editing.id ? updated : i)
+    if (actuel) {
+      const updated: Prestation = { ...actuel, ...form, price, priceAchat, etapes, description }
+      const next = items.map((i) => i === actuel ? updated : i)
       persist(next)
       if (artisan?.id && updated.type === 'prest') {
         const supabase_id = await upsertPrestationToSupabase(updated, artisan.id)

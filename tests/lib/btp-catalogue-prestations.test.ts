@@ -168,6 +168,10 @@ describe('reprise d\'un service déjà publié', () => {
     expect(estServicePublieParLeModule({ description: 'Pose [option] [unit:m²|min:30|max:40]', duration_minutes: null })).toBe(true)
     // Balise suivie d'une autre balise : pas une description écrite par le module, même sans durée.
     expect(estServicePublieParLeModule({ description: 'Pose [unit:m2|min:30|max:40] [scope:mo]', duration_minutes: null })).toBe(false)
+    // Crochet dans l'unité ou dans un prix de la balise finale : pas une balise du module, qui n'en écrit jamais (unité
+    // choisie dans une liste, prix numériques).
+    expect(estServicePublieParLeModule({ description: '[unit:[a|min:1|max:2]', duration_minutes: null })).toBe(false)
+    expect(estServicePublieParLeModule({ description: 'Pose [unit:m²|min:[1|max:2]', duration_minutes: null })).toBe(false)
     // Assistant Fixy ou application mobile : une durée, pas de balise.
     expect(estServicePublieParLeModule({ description: '', duration_minutes: 60 })).toBe(false)
     expect(estServicePublieParLeModule({ description: null, duration_minutes: 60 })).toBe(false)

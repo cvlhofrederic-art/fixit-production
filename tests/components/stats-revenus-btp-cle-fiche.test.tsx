@@ -127,7 +127,9 @@ describe('Statistiques BTP — documents et dépenses lus sous l\'identifiant de
     const [, chantiers, taux, panierMoyen] = indicateurs(container)
     expect(screen.getByText('3/4 devis signés')).toBeInTheDocument()
     expect(taux).toBe('75%')
-    // Sans chantier enregistré, « Chantiers actifs » reprend le nombre de devis signés.
+    // « Chantiers actifs » ne lit pas les chantiers de l'écran Chantiers (il cherche une clé que personne n'écrit ;
+    // correction reportée, les statuts qui comptent comme actifs restent à décider) : il reprend le nombre de devis
+    // signés. Cette attente fige ce repli sans le présenter comme voulu.
     expect(chantiers).toBe('3')
     // (1 500 + 1 000 + 500) / 3
     expect(panierMoyen).toBe(formatPrice(1000, 'fr'))

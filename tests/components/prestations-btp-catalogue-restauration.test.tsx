@@ -95,6 +95,8 @@ const monter = () => render(<PrestationsBTPSection artisan={ARTISAN} orgRole="pr
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
 /** Texte du n-ième message d'erreur affiché (à partir de 0). */
 const messageErreur = (n: number) => String(vi.mocked(toast.error).mock.calls[n]?.[0])
+/** Ouvre la saisie de l'élément affiché sous ce nom. */
+const ouvrir = (nom: string) => fireEvent.click(within(screen.getByText(nom).closest('tr') as HTMLElement).getByText('Modifier'))
 
 beforeEach(() => {
   localStorage.clear()
@@ -336,5 +338,91 @@ describe('Prestations BTP — aucune modification tant que le catalogue de la fi
     expect(localStorage.getItem(CLE_AUTRE_FICHE)).toBeNull()
     expect(stocke()).toEqual(catalogue)
     expect(base.suppressions).toHaveLength(0)
+  })
+})
+
+describe('Prestations BTP — une modification s\'applique à l\'élément affiché, avec ses données à jour', () => {
+  it('modification ordinaire : l\'élément et son service publié sont mis à jour, sans message d\'erreur', async () => {
+    serveur({ entries: {} })
+    localStorage.setItem(CLE, JSON.stringify(CATALOGUE_SERVEUR))
+    monter()
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+    ouvrir('Dalle maison')
+    fireEvent.change(screen.getByDisplayValue('Dalle maison'), { target: { value: 'Dalle maison renforcée' } })
+    fireEvent.click(screen.getByText('Enregistrer'))
+    await waitFor(() => expect(base.misesAJour).toHaveLength(1))
+    expect(base.misesAJour[0]).toMatchObject({ artisan_id: ARTISAN.id, name: 'Dalle maison renforcée', filtres: [['id', 'svc-existant-1']] })
+    expect(stocke()!.map((p) => p.name)).toEqual(['Dalle maison renforcée', 'Béton maison'])
+    expect(stocke()![0].supabase_id).toBe('svc-existant-1')
+    expect(base.insertions).toHaveLength(0)
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('saisie ouverte avant que l\'identifiant de service de la prestation soit noté : cet identifiant est repris, la prestation n\'est pas publiée une seconde fois', async () => {
+    serveur({ entries: {} })
+    localStorage.setItem(CLE, JSON.stringify([{ id: 4, name: 'Dalle béton', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(65) }]))
+    // La saisie s'ouvre pendant la publication de la prestation au chargement, avant que son identifiant soit noté.
+    base.avantInsertion = () => {
+      base.avantInsertion = null
+      ouvrir('Dalle béton')
+    }
+    monter()
+    await waitFor(() => expect(stocke()![0].supabase_id).toBe('svc-nouveau-1'))
+    fireEvent.click(screen.getByText('Enregistrer'))
+    await waitFor(() => expect(base.misesAJour).toHaveLength(1))
+    expect(base.misesAJour[0]).toMatchObject({ name: 'Dalle béton', filtres: [['id', 'svc-nouveau-1']] })
+    expect(base.insertions).toHaveLength(1)
+    expect(stocke()![0].supabase_id).toBe('svc-nouveau-1')
+  })
+})
+
+describe('Prestations BTP — modification ouverte sur la liste d\'une fiche précédente', () => {
+  const CATALOGUE_FICHE_PRECEDENTE = [{ id: 1, name: 'Dalle maison', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(70), supabase_id: 'svc-existant-1' }]
+
+  /**
+   * Fiche changée pendant que l'écran est monté (cas que le tableau de bord ne produit pas : la fiche n'y est posée
+   * qu'une fois), serveur injoignable : la liste de la fiche précédente reste affichée et sa prestation est ouverte en
+   * modification. Le serveur répond ensuite avec `catalogueAutre` ; « Enregistrer », refusé, relance la lecture.
+   */
+  async function ouvrirPuisRelire(catalogueAutre: unknown[], texteAttendu: string) {
+    localStorage.setItem(CLE, JSON.stringify(CATALOGUE_FICHE_PRECEDENTE))
+    serveur('panne')
+    const { rerender } = monter()
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+    rerender(<PrestationsBTPSection artisan={AUTRE_FICHE} orgRole="pro_societe" />)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    ouvrir('Dalle maison')
+    serveur({ entries: { [CLE_AUTRE_FICHE]: catalogueAutre } })
+    fireEvent.click(screen.getByText('Enregistrer'))
+    expect(await screen.findByText(texteAttendu)).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledTimes(2)
+  }
+
+  it.each([
+    ['un autre nom', { id: 1, name: 'Enduit autre fiche', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(40), supabase_id: 'svc-autre-1' }, 'Enduit autre fiche'],
+    ['un autre type', { id: 1, name: 'Dalle maison', type: 'mat', lot: 'gros_oeuvre', unit: 'm³', price: prix(160), priceAchat: prix(120) }, 'Aucune prestation dans ce lot.'],
+  ])('l\'élément de même identifiant porte %s dans le catalogue affiché ensuite : la modification recommencée est refusée, rien n\'est écrit ni publié', async (_cas, element, texteAttendu) => {
+    await ouvrirPuisRelire([element], texteAttendu)
+    // La saisie est restée ouverte ; recommencée, elle viserait un autre élément.
+    fireEvent.click(screen.getByText('Enregistrer'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(3))
+    expect(messageErreur(2)).toMatch(/ne correspond plus au catalogue affiché.*rien n'a été modifié/i)
+    await attendre(50)
+    expect(localStorage.getItem(CLE_AUTRE_FICHE)).toBeNull()
+    expect(stocke()).toEqual(CATALOGUE_FICHE_PRECEDENTE)
+    expect(base.misesAJour).toHaveLength(0)
+    expect(base.insertions).toHaveLength(0)
+    expect(screen.getByText(texteAttendu)).toBeInTheDocument()
+  })
+
+  it('même élément (identifiant, nom, type) dans le catalogue affiché ensuite : seul le service publié de cet élément est mis à jour, jamais celui de la fiche précédente', async () => {
+    await ouvrirPuisRelire([{ id: 1, name: 'Dalle maison', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(80), supabase_id: 'svc-autre-1' }], '80 € / m²')
+    fireEvent.click(screen.getByText('Enregistrer'))
+    await waitFor(() => expect(base.misesAJour).toHaveLength(1))
+    expect(base.misesAJour[0]).toMatchObject({ artisan_id: AUTRE_FICHE.id, name: 'Dalle maison', filtres: [['id', 'svc-autre-1']] })
+    expect(base.insertions).toHaveLength(0)
+    expect(stocke()).toEqual(CATALOGUE_FICHE_PRECEDENTE)
+    expect(JSON.parse(localStorage.getItem(CLE_AUTRE_FICHE)!)).toMatchObject([{ id: 1, name: 'Dalle maison', supabase_id: 'svc-autre-1' }])
+    expect(toast.error).toHaveBeenCalledTimes(2)
   })
 })
