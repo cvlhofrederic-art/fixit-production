@@ -105,14 +105,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
     }
 
-    // Enrich with artisan profile
+    // Fiche de chaque candidat. Colonnes réelles de profiles_artisan (relevé de production du 31/10/2026) : la photo est
+    // profile_photo_url et la ville company_city, rendues sous les noms que lit l'écran (photo_url, city) ; une colonne
+    // absente faisait échouer la lecture, et l'écran n'affichait jamais photo, ville ni pastilles d'assurance.
     const enriched = await Promise.all(
       (candidatures || []).map(async (c: { artisan_id: string; [key: string]: unknown }) => {
-        const { data: profile } = await supabaseAdmin
+        const { data: profile, error: profileError } = await supabaseAdmin
           .from('profiles_artisan')
-          .select('company_name, rating_avg, photo_url, city, services_offered, rc_pro_valid, decennale_valid, qualibat_valid')
+          .select('company_name, rating_avg, photo_url:profile_photo_url, city:company_city, rc_pro_valid, decennale_valid, qualibat_valid')
           .eq('id', c.artisan_id)
-          .single()
+          .maybeSingle()
+        // Le candidat reste listé sans sa fiche ; l'échec de la lecture est journalisé.
+        if (profileError) logger.error('[st] GET candidatures : fiche du candidat illisible', { error: profileError.message })
         return { ...c, profile: profile || null }
       })
     )

@@ -6,10 +6,13 @@
 //     absentes de marches_candidatures (disponibilites, experience_years, artisan_phone) et échouait toujours ;
 //     l'écran affichait une liste de candidats vide.
 //   - POST (publier une offre, constat api-peripherie-4) : l'identifiant et le nom de la société venaient du corps de
-//     la requête, sans contrôle de rôle ; n'importe quel compte pouvait publier dans la Bourse une offre au nom
-//     d'une autre société. L'offre est désormais publiée au nom de la fiche société du compte connecté, relue en base,
-//     et réservée aux sociétés BTP.
-// Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches).
+//     la requête, sans contrôle de rôle. L'offre est désormais publiée au nom de la fiche société du compte connecté,
+//     relue en base, et réservée aux sociétés BTP.
+// Relecture adverse du 16/11/2026 :
+//   - la fiche de chaque candidat était lue avec trois colonnes absentes de profiles_artisan (photo_url, city,
+//     services_offered) : photo, ville et pastilles d'assurance ne s'affichaient jamais.
+// Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches),
+// profiles_artisan comprise.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -34,6 +37,7 @@ vi.mock('@/lib/rate-limit', async () => (await import('../helpers/mocks-routes-a
 vi.mock('@/lib/logger', async () => (await import('../helpers/mocks-routes-api')).loggerSilencieux())
 
 const { GET, POST } = await import('@/app/api/marches/sous-traitance/route')
+const { logger } = await import('@/lib/logger')
 
 const SOCIETE = '11111111-1111-4111-8111-111111111111'
 const FICHE_SOCIETE = '33333333-3333-4333-8333-333333333333'
@@ -42,6 +46,12 @@ const FICHE_CANDIDAT = '55555555-5555-4555-8555-555555555555'
 const OFFRE = '44444444-4444-4444-8444-444444444444'
 
 const base = () => h.base as FauxSupabase
+
+/** Fiche du candidat telle que la rend la base, sous les noms demandés par la route. */
+const FICHE_DU_CANDIDAT = {
+  company_name: 'Plâtrerie du Port', rating_avg: 4.6, photo_url: 'https://projet.supabase.co/storage/v1/object/public/photo.jpg',
+  city: 'Marseille', rc_pro_valid: true, decennale_valid: true, qualibat_valid: false,
+}
 
 const enBase = (surcharge: (appel: Appel) => Reponse | undefined = () => undefined) => (appel: Appel): Reponse => {
   const special = surcharge(appel)
@@ -57,7 +67,7 @@ const enBase = (surcharge: (appel: Appel) => Reponse | undefined = () => undefin
       error: null,
     }
   }
-  if (appel.table === 'profiles_artisan') return { data: { company_name: 'Plâtrerie du Port', city: 'Marseille' }, error: null }
+  if (appel.table === 'profiles_artisan') return { data: FICHE_DU_CANDIDAT, error: null }
   return { data: null, error: null }
 }
 
@@ -65,23 +75,38 @@ beforeEach(() => {
   base().vider()
   base().repondre = enBase()
   h.user = { id: SOCIETE, app_metadata: { role: 'pro_societe' } }
+  vi.mocked(logger.error).mockClear()
 })
 
 describe('GET /api/marches/sous-traitance?offer_id — voir les candidats d’une offre', () => {
-  it('la société qui a publié l’offre voit ses candidats (colonnes réelles de la table)', async () => {
-    const res = await GET(new NextRequest(`https://vitfix.io/api/marches/sous-traitance?btp_company_id=${FICHE_SOCIETE}&offer_id=${OFFRE}`))
+  const voirLesCandidats = () => GET(new NextRequest(`https://vitfix.io/api/marches/sous-traitance?btp_company_id=${FICHE_SOCIETE}&offer_id=${OFFRE}`))
+
+  it('la société qui a publié l’offre voit ses candidats, avec photo, ville et pastilles de leur fiche (colonnes réelles)', async () => {
+    const res = await voirLesCandidats()
     expect(res.status).toBe(200)
     const { candidatures } = await res.json()
     expect(candidatures).toEqual([
-      expect.objectContaining({ id: 'c1', artisan_company_name: 'Plâtrerie du Port', profile: { company_name: 'Plâtrerie du Port', city: 'Marseille' } }),
+      expect.objectContaining({ id: 'c1', artisan_company_name: 'Plâtrerie du Port', profile: FICHE_DU_CANDIDAT }),
     ])
     const [lecture] = base().sur('marches_candidatures', 'select')
     expect(lecture.filtres).toContainEqual(['eq', 'marche_id', OFFRE])
+    // La fiche du candidat est lue par son identifiant, sans aucune erreur.
+    expect(base().sur('profiles_artisan', 'select')[0].filtres).toContainEqual(['eq', 'id', FICHE_CANDIDAT])
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('fiche du candidat illisible : le candidat reste listé, sans fiche, et l’échec est journalisé', async () => {
+    base().repondre = enBase(appel => (appel.table === 'profiles_artisan' ? { data: null, error: { message: 'délai dépassé' } } : undefined))
+    const res = await voirLesCandidats()
+    expect(res.status).toBe(200)
+    expect((await res.json()).candidatures).toEqual([expect.objectContaining({ id: 'c1', profile: null })])
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(vi.mocked(logger.error).mock.calls[0])).toContain('délai dépassé')
   })
 
   it('une autre société : 403, les candidats ne sont pas lus', async () => {
     h.user = { id: COMPTE_CANDIDAT, app_metadata: { role: 'pro_societe' } }
-    const res = await GET(new NextRequest(`https://vitfix.io/api/marches/sous-traitance?btp_company_id=${FICHE_SOCIETE}&offer_id=${OFFRE}`))
+    const res = await voirLesCandidats()
     expect(res.status).toBe(403)
     expect(base().sur('marches_candidatures')).toHaveLength(0)
   })

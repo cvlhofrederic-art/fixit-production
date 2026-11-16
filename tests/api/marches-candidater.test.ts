@@ -6,7 +6,10 @@
 // de l'entreprise va dans artisan_company_name) et refusait une garantie laissée vide (l'écran envoie null).
 // Le compteur de candidatures du marché, qui borne max_candidatures, ne bougeait jamais : la fonction appelée
 // n'existe dans aucune migration et son échec, rendu dans { error }, ne déclenchait pas la mise à jour de secours.
-// Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches).
+// Relecture adverse du 16/11/2026 : la lecture de la fiche du candidat, qui précède l'enregistrement, demandait aussi une
+// colonne absente de profiles_artisan (city) ; la route répondait « Profil artisan non trouvé » à toute candidature.
+// Le faux client ne connaît que les tables et colonnes réelles de la production (tests/helpers/faux-supabase-marches),
+// profiles_artisan comprise.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
@@ -56,7 +59,7 @@ const enBase = (surcharge: (appel: Appel) => Reponse | undefined = () => undefin
   if (appel.table === 'profiles_artisan') {
     return {
       data: {
-        id: FICHE, subscription_tier: 'artisan_pro', company_name: 'Bâtiment du Banc SARL', city: 'Marseille',
+        id: FICHE, subscription_tier: 'artisan_pro', company_name: 'Bâtiment du Banc SARL',
         rc_pro_valid: true, decennale_valid: true, rge_valid: false, qualibat_valid: false,
       },
       error: null,

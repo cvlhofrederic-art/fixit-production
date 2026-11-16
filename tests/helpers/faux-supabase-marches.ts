@@ -13,6 +13,8 @@
 //     return { supabaseAdmin: h.base.client }
 //   })
 
+import { COLONNES_PROFILES_ARTISAN } from './colonnes-production'
+
 export type Operation = 'select' | 'insert' | 'update' | 'delete' | 'rpc'
 export type Filtre = [string, string, unknown]
 export interface Appel {
@@ -32,8 +34,11 @@ export interface Reponse { data: unknown; error: ErreurBase | null }
  * - marches_candidatures : relevé de production du 11/11/2026 (information_schema.columns).
  * - artisan_notifications : script de création de la table en production (supabase/archive/supabase-notifications.sql),
  *   le seul jeu de colonnes qu'écrivent les routes qui fonctionnent (réservations, messagerie, devis signés).
+ * - profiles_artisan : relevé de production du 31/10/2026, partagé avec le test du sitemap (colonnes-production.ts).
+ * Les autres tables connues (TABLES_REELLES) n'ont pas de relevé : leurs colonnes ne sont pas contrôlées.
  */
 export const COLONNES_REELLES: Record<string, readonly string[]> = {
+  profiles_artisan: COLONNES_PROFILES_ARTISAN,
   marches_candidatures: [
     'id', 'marche_id', 'artisan_id', 'artisan_user_id', 'price', 'timeline', 'description', 'materials_included',
     'guarantee', 'status', 'created_at', 'updated_at', 'publisher_evaluated', 'artisan_evaluated',
@@ -65,6 +70,13 @@ function colonnesDeSelect(liste: string): string[] {
   return morceaux
 }
 
+/** Colonne réellement lue par une expression de select : « alias:colonne » et « colonne::type » lisent « colonne ». */
+function colonneLue(expression: string): string {
+  const sansConversion = expression.split('::')[0]
+  const deuxPoints = sansConversion.indexOf(':')
+  return (deuxPoints === -1 ? sansConversion : sansConversion.slice(deuxPoints + 1)).trim()
+}
+
 /** Erreur que rendrait PostgREST pour cet appel (table ou colonne absente), ou null. */
 export function erreurDeSchema(appel: Appel): ErreurBase | null {
   if (appel.operation === 'rpc') return null
@@ -83,8 +95,9 @@ export function erreurDeSchema(appel: Appel): ErreurBase | null {
       }
     }
   }
-  for (const colonne of appel.colonnes ? colonnesDeSelect(appel.colonnes) : []) {
-    if (colonne === '*' || colonne.includes('(')) continue
+  for (const expression of appel.colonnes ? colonnesDeSelect(appel.colonnes) : []) {
+    if (expression === '*' || expression.includes('(')) continue
+    const colonne = colonneLue(expression)
     if (!colonnes.includes(colonne)) return { code: '42703', message: `column ${appel.table}.${colonne} does not exist` }
   }
   for (const [, colonne] of appel.filtres) {
@@ -100,8 +113,9 @@ function erreurDeRelation(appel: Appel): ErreurBase | null {
     const embarquee = /^([a-z_]+)(?:![a-z_]+)?\(([\s\S]*)\)$/.exec(colonne)
     const colonnesRelation = embarquee ? COLONNES_REELLES[embarquee[1]] : undefined
     if (!embarquee || !colonnesRelation) continue
-    for (const sousColonne of colonnesDeSelect(embarquee[2])) {
-      if (sousColonne === '*' || sousColonne.includes('(')) continue
+    for (const expression of colonnesDeSelect(embarquee[2])) {
+      if (expression === '*' || expression.includes('(')) continue
+      const sousColonne = colonneLue(expression)
       if (!colonnesRelation.includes(sousColonne)) {
         return { code: '42703', message: `column ${embarquee[1]}_1.${sousColonne} does not exist` }
       }

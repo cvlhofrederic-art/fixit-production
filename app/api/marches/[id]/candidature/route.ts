@@ -44,10 +44,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'Nombre maximum de candidatures atteint' }, { status: 409 })
   }
 
-  // Vérifier que l'utilisateur est un artisan pro
+  // Vérifier que l'utilisateur est un artisan pro. Colonnes réelles de profiles_artisan (relevé de production du
+  // 31/10/2026) : une colonne absente (city, par exemple : la ville est company_city) fait échouer toute la lecture.
   const { data: artisan, error: artisanError } = await supabaseAdmin
     .from('profiles_artisan')
-    .select('id, subscription_tier, company_name, city, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
+    .select('id, subscription_tier, company_name, rc_pro_valid, decennale_valid, rge_valid, qualibat_valid, latitude, longitude, marches_work_mode, marches_tarif_journalier, marches_tarif_horaire')
     .eq('user_id', user.id)
     .single()
 
