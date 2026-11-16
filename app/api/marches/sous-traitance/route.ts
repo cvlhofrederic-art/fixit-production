@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { createSousTraitanceOffreSchema, validateBody } from '@/lib/validation'
-import { getAuthUser } from '@/lib/auth-helpers'
+import { getAuthUser, isProSocieteRole, resolveCompanyId } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { haversineDistance } from '@/lib/geo'
@@ -199,6 +199,10 @@ export async function POST(request: NextRequest) {
 
   const user = await getAuthUser(request)
   if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+  // Seule une société BTP publie une offre de sous-traitance (l'écran « Recruter sous-traitants » est le sien).
+  if (!isProSocieteRole(user)) {
+    return NextResponse.json({ error: 'Publication réservée aux sociétés BTP' }, { status: 403 })
+  }
 
   let body: unknown
   try {
@@ -218,21 +222,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
   }
 
+  // L'offre est publiée au nom de la fiche société du compte connecté (le gérant, ou la société d'un sous-compte) :
+  // l'identifiant et le nom envoyés par le navigateur ne prouvent rien, la fiche et son nom sont relus en base.
+  const proprietaire = await resolveCompanyId(user, supabaseAdmin)
+  const { data: fiche, error: ficheError } = await supabaseAdmin
+    .from('profiles_artisan')
+    .select('id, company_name')
+    .eq('id', v.btp_company_id)
+    .eq('user_id', proprietaire)
+    .maybeSingle()
+  if (ficheError) logger.error('[st] POST : contrôle de la fiche société impossible', { error: ficheError.message })
+  if (!fiche) {
+    return NextResponse.json({ error: 'Cette fiche société n\'est pas celle de votre compte' }, { status: 403 })
+  }
+  const nomSociete = (fiche.company_name as string | null) || 'Entreprise BTP'
+
   const access_token = crypto.randomUUID()
 
   const { data, error } = await supabaseAdmin
     .from('marches')
     .insert({
       // Publisher
-      publisher_name: v.publisher_name,
+      publisher_name: nomSociete,
       publisher_email: v.publisher_email,
       publisher_phone: v.publisher_phone || null,
       publisher_type: 'entreprise',
       publisher_user_id: v.publisher_user_id,
       // BTP fields
       source_type: 'btp_sous_traitance',
-      btp_company_id: v.btp_company_id,
-      btp_company_name: v.btp_company_name,
+      btp_company_id: fiche.id,
+      btp_company_name: nomSociete,
       mission_type: v.mission_type,
       start_date: v.start_date || null,
       duration_text: v.duration_text || null,
@@ -301,7 +320,7 @@ export async function POST(request: NextRequest) {
             artisan_id: a.id,
             type: 'marche_new',
             title: `Offre sous-traitance : ${v.title}`,
-            body: `L'entreprise "${v.btp_company_name}" recherche un(e) ${v.category} à ${v.location_city}.`,
+            body: `L'entreprise "${nomSociete}" recherche un(e) ${v.category} à ${v.location_city}.`,
             read: false,
           }))
           await supabaseAdmin.from('artisan_notifications').insert(notifications)
@@ -315,7 +334,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  logger.info('[st] Offer created', { marcheId, btpCompanyId: v.btp_company_id, category: v.category, city: v.location_city })
+  logger.info('[st] Offer created', { marcheId, btpCompanyId: fiche.id, category: v.category, city: v.location_city })
 
   return NextResponse.json({ offer: data, access_token }, { status: 201 })
 }
