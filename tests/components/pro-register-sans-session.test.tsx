@@ -290,7 +290,7 @@ describe('Inscription société BTP : échec de la fiche ou des pièces', () => 
   })
 
   it("fiche refusée par le serveur : pas de « Compte créé ! », un message, et les pièces ne partent pas", async () => {
-    remplacerReponses({ '/api/auth/create-profile': async () => reponse({ error: 'Too many requests' }, 429) })
+    remplacerReponses({ '/api/auth/create-profile': async () => reponse({ error: 'Internal error' }, 500) })
 
     await sInscrireCommeSocieteBtp()
 
@@ -310,6 +310,21 @@ describe('Inscription société BTP : échec de la fiche ou des pièces', () => 
     const message = await screen.findByText(/Un compte existe déjà avec cette adresse e-mail/)
     expect(message.textContent).toMatch(/dernier e-mail de confirmation/)
     expect(message.textContent).not.toMatch(/cliquez de nouveau/)
+    expect(screen.queryByText(MESSAGE_FICHE)).toBeNull()
+    expect(screen.queryByText('register.accountCreated')).toBeNull()
+    expect(urls()).not.toContain('/api/pro/register/finalize')
+  })
+
+  it('trop d’essais depuis la même connexion (réponse 429) : un message qui renvoie vers le support, sans inviter à recliquer', async () => {
+    // La limite ne se libère qu'au bout de plusieurs minutes, souvent après le délai de création de la fiche :
+    // « Patientez une minute » promettait une fin d'inscription le plus souvent impossible
+    remplacerReponses({ '/api/auth/create-profile': async () => reponse({ error: 'Too many requests. Please wait before retrying.' }, 429) })
+
+    await sInscrireCommeSocieteBtp()
+
+    const message = await screen.findByText(/trop d'essais/)
+    expect(message.textContent).toMatch(/contactez le support Vitfix/i)
+    expect(message.textContent).not.toMatch(/Patientez une minute|cliquez de nouveau/)
     expect(screen.queryByText(MESSAGE_FICHE)).toBeNull()
     expect(screen.queryByText('register.accountCreated')).toBeNull()
     expect(urls()).not.toContain('/api/pro/register/finalize')

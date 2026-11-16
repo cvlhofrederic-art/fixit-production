@@ -797,6 +797,11 @@ const INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE =
 const CREATION_FICHE_DELAI_DEPASSE = 'Profile creation window expired'
 const INSCRIPTION_SOCIETE_COMPTE_EXISTANT =
   'Un compte existe déjà avec cette adresse e-mail. Confirmez-la avec le lien du dernier e-mail de confirmation reçu, puis connectez-vous. Si la fiche de votre société est incomplète, contactez le support Vitfix.'
+// Trop d'essais depuis la même connexion (réponse 429 de /api/auth/create-profile) : la limite ne se libère qu'au bout
+// de plusieurs minutes, le plus souvent après le délai de 10 minutes qui suit la création du compte (refus ci-dessus).
+// Patienter une minute puis recliquer n'aboutirait le plus souvent pas : le message renvoie vers le support.
+const INSCRIPTION_SOCIETE_TROP_D_ESSAIS =
+  "Votre compte a été créé, mais l'inscription de votre société n'a pas pu être terminée : trop d'essais ont été faits en peu de temps depuis cette connexion. Contactez le support Vitfix pour la terminer."
 
 function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
   const { t } = useTranslation()
@@ -965,9 +970,13 @@ function FormulaireProGenerique({ orgType }: { orgType: OrgType }) {
           const profileResult = await profileRes.json()
           const btpProfile = profileRes.ok ? { id: profileResult.id } : null
           if (!btpProfile?.id) {
-            inscriptionInachevee = profileRes.status === 403 && profileResult?.error === CREATION_FICHE_DELAI_DEPASSE
-              ? INSCRIPTION_SOCIETE_COMPTE_EXISTANT
-              : INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE
+            if (profileRes.status === 403 && profileResult?.error === CREATION_FICHE_DELAI_DEPASSE) {
+              inscriptionInachevee = INSCRIPTION_SOCIETE_COMPTE_EXISTANT
+            } else if (profileRes.status === 429) {
+              inscriptionInachevee = INSCRIPTION_SOCIETE_TROP_D_ESSAIS
+            } else {
+              inscriptionInachevee = INSCRIPTION_SOCIETE_FICHE_NON_ENREGISTREE
+            }
           }
 
           if (btpProfile?.id) {
