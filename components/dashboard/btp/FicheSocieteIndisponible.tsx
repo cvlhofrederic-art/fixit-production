@@ -16,8 +16,8 @@ export function FicheSocieteIndisponible({ isPt, onReessayer }: { isPt: boolean;
         </h1>
         <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.5 }}>
           {isPt
-            ? 'A ficha da sua empresa não pôde ser lida (ligação interrompida ou servidor indisponível). Nada foi alterado. Verifique a ligação e tente novamente.'
-            : 'La fiche de votre société n’a pas pu être lue (connexion interrompue ou serveur indisponible). Rien n’a été modifié. Vérifiez votre connexion puis réessayez.'}
+            ? `A ficha da sua empresa não pôde ser lida (ligação interrompida ou servidor indisponível). Nada foi alterado. Verifique a ligação e tente novamente; se o problema persistir, escreva-nos para ${CONTACT_EMAIL}.`
+            : `La fiche de votre société n’a pas pu être lue (connexion interrompue ou serveur indisponible). Rien n’a été modifié. Vérifiez votre connexion puis réessayez ; si le problème persiste, écrivez-nous à ${CONTACT_EMAIL}.`}
         </p>
         <button
           type="button"

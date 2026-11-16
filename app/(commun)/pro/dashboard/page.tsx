@@ -346,8 +346,9 @@ function DashboardPage() {
 
     const { data: artisanData, error: erreurFiche } = await supabase.from('profiles_artisan').select('*').eq('user_id', user.id).single()
     // Société BTP : une lecture en échec (réseau, serveur) n'ouvre plus le tableau de bord sur une société de secours.
-    // « Aucune ligne » (PGRST116) reste le cas de la fiche absente, traité plus bas.
-    if (role === 'pro_societe' && erreurFiche && erreurFiche.code !== 'PGRST116') {
+    // « Aucune ligne » (PGRST116) reste le cas de la fiche absente, traité plus bas ; la démonstration du super_admin
+    // (vue BTP) garde son repli.
+    if (role === 'pro_societe' && user.app_metadata?._original_role !== 'super_admin' && erreurFiche && erreurFiche.code !== 'PGRST116') {
       console.warn('[pro/dashboard] fiche société illisible :', erreurFiche.message)
       setFicheSocieteIllisible(true)
       return

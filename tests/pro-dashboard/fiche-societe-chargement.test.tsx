@@ -100,8 +100,21 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(mocks.fetchDocumentsFromSupabase).not.toHaveBeenCalled()
     expect(mocks.push).not.toHaveBeenCalled()
 
+    // Si la panne dure, l'écran donne l'adresse de contact du site.
+    expect(screen.getByRole('alert').textContent).toContain('contact@vitfix.io')
+
     fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(lieu.rechargements).toBe(1)
+  })
+
+  it('démonstration (super_admin en vue BTP), lecture en échec : son tableau de bord de démonstration, comme avant', async () => {
+    mocks.etat.fiche = { data: null, error: ECHEC_RESEAU }
+    const { container } = ouvrir({ ...COMPTE_BTP, app_metadata: { role: 'pro_societe', _admin_override: true, _original_role: 'super_admin' } })
+
+    await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
+    expect(screen.queryByText('Impossible de charger votre société')).toBeNull()
+    expect(mocks.prefetchBTPTables).toHaveBeenCalledWith(expect.any(Array), 'compte-btp-1')
+    expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
   it('fiche absente : le tableau de bord s’ouvre comme avant, et un message durable le signale', async () => {
