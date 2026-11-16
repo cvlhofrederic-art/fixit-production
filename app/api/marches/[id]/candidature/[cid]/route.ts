@@ -58,9 +58,10 @@ export async function PATCH(
     }
 
     // ── Fetch candidature and verify it belongs to this marche ──
+    // Table réelle : marches_candidatures. artisan_user_id est le compte du candidat, celui que lit sa cloche.
     const { data: candidature, error: candidatureError } = await supabaseAdmin
-      .from('marche_candidatures')
-      .select('id, marche_id, artisan_id, status')
+      .from('marches_candidatures')
+      .select('id, marche_id, artisan_id, artisan_user_id, status')
       .eq('id', candidatureId)
       .single()
 
@@ -77,7 +78,7 @@ export async function PATCH(
 
     // ── Update candidature status ──
     const { data: updated, error: updateError } = await supabaseAdmin
-      .from('marche_candidatures')
+      .from('marches_candidatures')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', candidatureId)
       .select()
@@ -89,30 +90,42 @@ export async function PATCH(
     }
 
     // ── Side effects based on status ──
+    // La décision est enregistrée : un échec de ces suites ne l'annule pas, mais il laisse une trace au journal.
+    // Les notifications sont lues par identifiant de compte (artisan_notifications.artisan_id = auth.uid()) :
+    // elles sont donc écrites sous le compte du candidat, pas sous l'identifiant de sa fiche.
     if (status === 'accepted') {
       // Mark marche as awarded
-      await supabaseAdmin
+      const { error: attributionError } = await supabaseAdmin
         .from('marches')
         .update({ status: 'awarded', updated_at: new Date().toISOString() })
         .eq('id', marcheId)
+      if (attributionError) {
+        logger.error('[marches/candidature] attribution du marché impossible', { marcheId, candidatureId, error: attributionError.message })
+      }
 
       // Notify winning artisan
-      await supabaseAdmin.from('artisan_notifications').insert({
-        artisan_id: candidature.artisan_id,
+      const { error: notificationError } = await supabaseAdmin.from('artisan_notifications').insert({
+        artisan_id: candidature.artisan_user_id,
         type: 'marche_won',
         title: 'Marché remporté !',
         body: `Votre candidature pour "${marche.title}" a été acceptée.`,
       })
+      if (notificationError) {
+        logger.error('[marches/candidature] notification « marché remporté » non enregistrée', { marcheId, candidatureId, error: notificationError.message })
+      }
 
       logger.info('Candidature accepted — marche awarded', { marcheId, candidatureId, artisanId: candidature.artisan_id })
     } else if (status === 'rejected') {
       // Notify rejected artisan
-      await supabaseAdmin.from('artisan_notifications').insert({
-        artisan_id: candidature.artisan_id,
+      const { error: notificationError } = await supabaseAdmin.from('artisan_notifications').insert({
+        artisan_id: candidature.artisan_user_id,
         type: 'marche_rejected',
         title: 'Candidature non retenue',
         body: `Votre candidature pour "${marche.title}" n'a pas été retenue.`,
       })
+      if (notificationError) {
+        logger.error('[marches/candidature] notification « candidature non retenue » non enregistrée', { marcheId, candidatureId, error: notificationError.message })
+      }
 
       logger.info('Candidature rejected', { marcheId, candidatureId, artisanId: candidature.artisan_id })
     }
