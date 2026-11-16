@@ -19,9 +19,13 @@ const simu = vi.hoisted(() => ({
   tables: {} as Record<string, Array<Record<string, unknown>>>,
   ecritures: [] as Array<{ table: string; ligne: Record<string, unknown> }>,
   utilisateur: null as null | { id: string; app_metadata: Record<string, unknown> },
+  // Course : écriture d'un autre envoi, faite entre le contrôle du numéro et l'enregistrement.
+  avantEcriture: null as null | (() => void),
 }))
 
 function upsert(table: string, ligne: Ligne, onConflict: string): { data: { id: unknown } | null; error: { code: string; message: string } | null } {
+  simu.avantEcriture?.()
+  simu.avantEcriture = null
   const lignes = (simu.tables[table] ??= [])
   const cles = onConflict.split(',')
   const existante = lignes.find((l) => cles.every((c) => ligne[c] !== undefined && l[c] === ligne[c]))
@@ -138,6 +142,16 @@ describe('synchro BTP — numéro déjà porté par un autre document du compte'
     const { status } = await synchroniser('facture', facture({ docNumber: '', status: 'brouillon' }))
     expect(status).toBe(200)
     expect(simu.tables.factures).toHaveLength(2)
+  })
+
+  it('course : l\'autre document arrive entre le contrôle et l\'enregistrement → même refus (409), rien d\'écrit', async () => {
+    simu.tables.factures = []
+    simu.avantEcriture = () => { simu.tables.factures.push(structuredClone(FACTURE_EXISTANTE)) }
+    const { status, corps } = await synchroniser('facture', facture())
+    expect(status).toBe(409)
+    expect(corps.error).toBe('numero_collision')
+    expect(simu.tables.factures).toEqual([FACTURE_EXISTANTE])
+    expect(simu.ecritures).toEqual([])
   })
 
   it('numéro libre : la facture émise est enregistrée', async () => {

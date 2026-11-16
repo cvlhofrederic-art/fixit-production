@@ -46,6 +46,15 @@ function mapStatus(rawStatus: string, table: 'factures' | 'devis'): string {
   return 'pending'
 }
 
+// Refus d'un document dont le numéro est déjà porté par un autre document du compte (sociétés BTP). Le client garde
+// le document tel quel (jamais renuméroté) et affiche un message (lib/document-sync.ts, kind numero-collision).
+function reponseNumeroEnDouble(): NextResponse {
+  return NextResponse.json({
+    error: 'numero_collision',
+    message: 'Ce numéro est déjà porté par un autre document de votre compte : ce document n\'a pas été enregistré sur le serveur. Le document qui porte déjà ce numéro n\'a pas été modifié.',
+  }, { status: 409 })
+}
+
 // POST /api/devis/sync
 // Auth Bearer → rate-limit → validate → upsert via service_role.
 // onConflict: 'numero,artisan_user_id' (idempotency naturelle, pas de table dediee).
@@ -265,7 +274,8 @@ export async function POST(request: NextRequest) {
   // l'enregistrement échouait sur la contrainte UNIQUE (numero, artisan_user_id) (erreur 500). Désormais le document
   // entrant est refusé avec un message clair ; celui qui porte déjà le numéro n'est ni écrasé ni renuméroté, et rien
   // n'est écrit. Artisan : comportement inchangé.
-  if (user.app_metadata?.role === 'pro_societe' && docId && numeroIn) {
+  const estSocieteBtp = user.app_metadata?.role === 'pro_societe'
+  if (estSocieteBtp && docId && numeroIn) {
     const { data: autres, error: autresErr } = await supabaseAdmin
       .from(table)
       .select('id')
@@ -283,10 +293,7 @@ export async function POST(request: NextRequest) {
     }
     if ((autres ?? []).length > 0) {
       logger.warn(`[devis-sync] numero_collision refusée table=${table} docId=${docId}`)
-      return NextResponse.json({
-        error: 'numero_collision',
-        message: 'Ce numéro est déjà porté par un autre document de votre compte : ce document n\'a pas été enregistré sur le serveur. Le document qui porte déjà ce numéro n\'a pas été modifié.',
-      }, { status: 409 })
+      return reponseNumeroEnDouble()
     }
   }
 
@@ -444,6 +451,13 @@ export async function POST(request: NextRequest) {
     delete legacy.tva_intra_preneur
     delete legacy.avoir_de_facture_id
     result = await tryUpsert(legacy)
+  }
+
+  // Société BTP : deux envois au même numéro presque en même temps (le contrôle ci-dessus ne voyait pas encore
+  // l'autre) ; la contrainte d'unicité refuse le second, qui reçoit la même réponse que le contrôle. Rien n'est écrit.
+  if (result.error && estSocieteBtp && numeroIn && result.error.code === '23505' && /numero/i.test(result.error.message || '')) {
+    logger.warn(`[devis-sync] numero_collision refusée par la contrainte table=${table} docId=${docId}`)
+    return reponseNumeroEnDouble()
   }
 
   if (result.error) {
