@@ -1,5 +1,7 @@
 // Textes de l'écran Pointage BTP (français / portugais) partagés par ses onglets.
 
+import { ECART_ALERTE_M, PRECISION_MAX_PLACEMENT_M, type RaisonSansMesure } from './positionSurPlace'
+
 /** Information des employés sur ce que le pointage automatique enregistre (affichée avant l'activation). */
 export function noticePointage(isPt: boolean): { titre: string; points: string[] } {
   return isPt
@@ -133,4 +135,63 @@ export function formatHeures(heures: number): string {
 export function formatDistance(metres: number, isPt: boolean): string {
   if (metres < 1000) return `${Math.round(metres)} m`
   return `${(metres / 1000).toLocaleString(isPt ? 'pt-PT' : 'fr-FR', { maximumFractionDigits: 1 })} km`
+}
+
+/** Bouton du gérant qui place un chantier à la position actuelle de son téléphone (onglet Affectations). */
+export function libelleBoutonPlacer(mesureEnCours: boolean, isPt: boolean): string {
+  if (mesureEnCours) return isPt ? 'A medir a posição…' : 'Mesure de la position…'
+  return isPt ? 'Colocar na minha posição atual' : 'Placer à ma position actuelle'
+}
+
+/** Pourquoi le chantier n'a pas pu être placé à la position du téléphone. */
+export function messagePlacementImpossible(raison: RaisonSansMesure, precisionM: number | undefined, isPt: boolean): string {
+  if (raison === 'indisponible') {
+    return isPt
+      ? 'Este navegador não fornece a posição: abra esta página no seu telemóvel, na obra.'
+      : 'Ce navigateur ne donne pas la position : ouvrez cette page sur votre téléphone, sur le chantier.'
+  }
+  if (raison === 'refusee') {
+    return isPt
+      ? 'Localização recusada: autorize-a para este site nas definições do navegador e tente de novo.'
+      : 'Localisation refusée : autorisez-la pour ce site dans les réglages du navigateur, puis réessayez.'
+  }
+  if (raison === 'introuvable') {
+    return isPt
+      ? 'Posição não encontrada: coloque-se no exterior, na obra, e tente de novo.'
+      : 'Position introuvable : mettez-vous à l’extérieur, sur le chantier, et réessayez.'
+  }
+  const obtenue = Math.round(precisionM ?? 0)
+  return isPt
+    ? `Posição demasiado imprecisa (± ${obtenue} m; no máximo ± ${PRECISION_MAX_PLACEMENT_M} m): coloque-se a céu aberto na obra e tente de novo.`
+    : `Position trop imprécise (± ${obtenue} m ; il faut ± ${PRECISION_MAX_PLACEMENT_M} m au plus) : mettez-vous à découvert sur le chantier et réessayez.`
+}
+
+/** Question posée au gérant avant de remplacer la position d'un chantier par celle de son téléphone. */
+export function confirmationPlacement(titre: string, precisionM: number, ecartM: number | null, isPt: boolean): string {
+  const precision = Math.round(precisionM)
+  const lignes = isPt
+    ? [
+      `Colocar a obra « ${titre} » na sua posição atual (precisão ± ${precision} m)?`,
+      'Faça-o na obra, onde os colaboradores trabalham: a marcação automática dispara à volta deste ponto.',
+    ]
+    : [
+      `Placer le chantier « ${titre} » à votre position actuelle (précision ± ${precision} m) ?`,
+      'Faites-le sur le chantier, là où les employés travaillent : le pointage automatique se déclenche autour de ce point.',
+    ]
+  if (ecartM !== null && ecartM >= ECART_ALERTE_M) {
+    lignes.push(isPt
+      ? `Atenção: está a ${formatDistance(ecartM, true)} da posição registada da obra. Está mesmo nesta obra?`
+      : `Attention : vous êtes à ${formatDistance(ecartM, false)} de la position enregistrée du chantier. Êtes-vous bien sur ce chantier ?`)
+  } else if (ecartM !== null) {
+    lignes.push(isPt
+      ? `Fica a ${formatDistance(ecartM, true)} da posição registada até agora.`
+      : `C’est à ${formatDistance(ecartM, false)} de la position enregistrée jusqu’ici.`)
+  }
+  return lignes.join('\n\n')
+}
+
+/** Confirmation affichée une fois le chantier placé. */
+export function messageChantierPlace(precisionM: number, isPt: boolean): string {
+  const precision = Math.round(precisionM)
+  return isPt ? `Posição da obra colocada aqui (± ${precision} m)` : `Position du chantier placée ici (± ${precision} m)`
 }

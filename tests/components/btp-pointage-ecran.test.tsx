@@ -31,12 +31,18 @@ vi.mock('@/lib/btp/geocodage', async (original) => ({
   ...(await original<typeof import('@/lib/btp/geocodage')>()),
   geocoderAdresse: vi.fn(async () => etat.geocodage),
 }))
+// Mesure réelle par défaut (fausse géolocalisation ci-dessous) ; un test peut imposer un résultat.
+vi.mock('@/components/dashboard/btp/pointage/positionSurPlace', async (original) => {
+  const reel = await original<typeof import('@/components/dashboard/btp/pointage/positionSurPlace')>()
+  return { ...reel, mesurerPositionSurPlace: vi.fn(reel.mesurerPositionSurPlace) }
+})
 vi.mock('@/lib/i18n/context', () => ({ useLocale: () => etat.locale, useTranslation: () => ({ t: (c: string) => c }) }))
 vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: async () => 'tok' }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 
 import { toast } from 'sonner'
 import { geocoderAdresse } from '@/lib/btp/geocodage'
+import { mesurerPositionSurPlace } from '@/components/dashboard/btp/pointage/positionSurPlace'
 import { PointageGeoSection } from '@/components/dashboard/PointageGeoSection'
 
 const artisan = { id: 'art-1', user_id: 'soc-a', company_name: 'Société Essai' } as unknown as React.ComponentProps<typeof PointageGeoSection>['artisan']
@@ -321,6 +327,74 @@ describe('gérant — affectations', () => {
     etat.geocodage = { latitude: 43.301, longitude: 5.365, precise: true }
     await act(async () => { fireEvent.click(within(carte('Immeuble')).getByRole('button', { name: 'Localiser l’adresse' })) })
     expect(etat.updates).toEqual([{ table: 'chantiers', id: 'c-immeuble', changes: { latitude: 43.301, longitude: 5.365 } }])
+  })
+
+  const placer = async (titre: string) => {
+    await act(async () => { fireEvent.click(within(carte(titre)).getByRole('button', { name: 'Placer à ma position actuelle' })) })
+  }
+
+  it('placer à ma position actuelle : mesure, confirmation avec l’écart, position enregistrée au millionième', async () => {
+    const { geo, positionner } = installerGeolocalisation()
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await ouvrirAffectations()
+    await placer('Villa')
+    // Pendant la mesure, le bouton le dit et ne se relance pas.
+    const enCours = within(carte('Villa')).getByRole('button', { name: 'Mesure de la position…' }) as HTMLButtonElement
+    expect(enCours.getAttribute('aria-busy')).toBe('true')
+    expect(enCours.disabled).toBe(true)
+    expect(geo.watchPosition).toHaveBeenCalledTimes(1)
+    await positionner(43.2512345678, 5.3801234567)
+    await waitFor(() => expect(etat.updates).toHaveLength(1))
+    expect(etat.updates).toEqual([{ table: 'chantiers', id: 'c-villa', changes: { latitude: 43.251235, longitude: 5.380123 } }])
+    const question = String(confirmer.mock.calls[0][0])
+    expect(question).toContain('Placer le chantier « Villa » à votre position actuelle (précision ± 10 m) ?')
+    expect(question).toContain('Faites-le sur le chantier, là où les employés travaillent')
+    expect(question).toMatch(/C’est à 1\d\d m de la position enregistrée jusqu’ici\./)
+    expect(question).not.toContain('Attention')
+    expect(geo.clearWatch).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('Position du chantier placée ici (± 10 m)')
+    expect(within(carte('Villa')).getByRole('button', { name: 'Placer à ma position actuelle' })).toBeTruthy()
+  })
+
+  it('loin de la position enregistrée : la confirmation alerte ; refusée, rien n’est enregistré', async () => {
+    const { positionner } = installerGeolocalisation()
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await ouvrirAffectations()
+    await placer('Villa')
+    await positionner(43.3, 5.4)
+    await waitFor(() => expect(confirmer).toHaveBeenCalledTimes(1))
+    expect(String(confirmer.mock.calls[0][0])).toContain('Attention : vous êtes à 5,8 km de la position enregistrée du chantier. Êtes-vous bien sur ce chantier ?')
+    expect(etat.updates).toEqual([])
+    expect(toast.success).not.toHaveBeenCalled()
+  })
+
+  it('chantier sans position : placé, sans écart à annoncer', async () => {
+    const { positionner } = installerGeolocalisation()
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await ouvrirAffectations()
+    await placer('Immeuble')
+    await positionner(43.301, 5.365)
+    await waitFor(() => expect(etat.updates).toHaveLength(1))
+    expect(String(confirmer.mock.calls[0][0])).not.toMatch(/C’est à|Attention/)
+    expect(etat.updates).toEqual([{ table: 'chantiers', id: 'c-immeuble', changes: { latitude: 43.301, longitude: 5.365 } }])
+  })
+
+  it('mesure impossible : la raison est affichée, rien n’est demandé ni enregistré', async () => {
+    const confirmer = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await ouvrirAffectations()
+    const cas: Array<[Awaited<ReturnType<typeof mesurerPositionSurPlace>>, string]> = [
+      [{ ok: false, raison: 'imprecise', precisionM: 48.4 }, 'Position trop imprécise (± 48 m ; il faut ± 25 m au plus) : mettez-vous à découvert sur le chantier et réessayez.'],
+      [{ ok: false, raison: 'refusee' }, 'Localisation refusée : autorisez-la pour ce site dans les réglages du navigateur, puis réessayez.'],
+      [{ ok: false, raison: 'introuvable' }, 'Position introuvable : mettez-vous à l’extérieur, sur le chantier, et réessayez.'],
+      [{ ok: false, raison: 'indisponible' }, 'Ce navigateur ne donne pas la position : ouvrez cette page sur votre téléphone, sur le chantier.'],
+    ]
+    for (const [resultat, message] of cas) {
+      vi.mocked(mesurerPositionSurPlace).mockResolvedValueOnce(resultat)
+      await placer('Villa')
+      expect(toast.error).toHaveBeenLastCalledWith(message)
+    }
+    expect(confirmer).not.toHaveBeenCalled()
+    expect(etat.updates).toEqual([])
   })
 })
 

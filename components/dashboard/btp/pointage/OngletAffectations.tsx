@@ -9,10 +9,14 @@ import { RAYON_PAR_DEFAUT_M, RAYONS_PROPOSES_M, coordonneesValides } from '@/lib
 import { STATUT_EN_COURS, type StatutCompte } from '@/lib/btp/pointage-regles'
 import type { Artisan } from '@/lib/types'
 import type { EnvoyerPointage } from './useContextePointage'
-import { messageErreurPointage, rappelActivation } from './textes'
+import { arrondiCoordonnee, ecartAvecPositionEnregistreeM, mesurerPositionSurPlace } from './positionSurPlace'
+import {
+  confirmationPlacement, libelleBoutonPlacer, messageChantierPlace, messageErreurPointage, messagePlacementImpossible, rappelActivation,
+} from './textes'
 
 // Onglet « Affectations » (gérant) : relier employés et équipes aux chantiers en cours, régler le rayon de
-// déclenchement et la position GPS de chaque chantier, activer le pointage automatique de la société.
+// déclenchement et la position GPS de chaque chantier (adresse géocodée, ou position du téléphone du gérant sur place :
+// positionSurPlace.ts), activer le pointage automatique de la société.
 // Affectations écrites par /api/btp comme les écrans Chantiers et Équipes : chantiers_btp.membres_ids et geo_rayon_m,
 // equipes_btp.chantier_id (une équipe est sur un chantier à la fois). Interrupteur : /api/btp/pointage.
 
@@ -144,6 +148,8 @@ export function OngletAffectations({
   const equipesBtp = useBTPData<EquipeLue>({ table: 'equipes', artisanId: artisan?.id || '', userId })
   const [brouillons, setBrouillons] = useState<Record<string, Brouillon>>({})
   const [occupe, setOccupe] = useState<string | null>(null)
+  /** Chantier dont la position est en cours de mesure par « Placer à ma position actuelle ». */
+  const [mesureEnCours, setMesureEnCours] = useState<string | null>(null)
 
   const chantiers = useMemo(
     () => chantiersBtp.items.filter(c => c.statut === STATUT_EN_COURS).sort((a, b) => parNom(a.titre || '', b.titre || '')),
@@ -231,6 +237,33 @@ export function OngletAffectations({
     }
   }
 
+  /** Le gérant, sur le chantier, en pose le point GPS là où il se trouve (plus juste que l'adresse pour 50 m). */
+  const placerIci = async (c: ChantierLu) => {
+    setOccupe(c.id)
+    setMesureEnCours(c.id)
+    try {
+      const resultat = await mesurerPositionSurPlace(typeof navigator === 'undefined' ? undefined : navigator.geolocation)
+      setMesureEnCours(null)
+      if (!resultat.ok) {
+        toast.error(messagePlacementImpossible(resultat.raison, resultat.precisionM, isPt))
+        return
+      }
+      const { mesure } = resultat
+      const ecart = ecartAvecPositionEnregistreeM(mesure, c.latitude, c.longitude)
+      if (!window.confirm(confirmationPlacement(c.titre, mesure.precisionM, ecart, isPt))) return
+      const position = { latitude: arrondiCoordonnee(mesure.latitude), longitude: arrondiCoordonnee(mesure.longitude) }
+      if (await chantiersBtp.update(c.id, position)) {
+        toast.success(messageChantierPlace(mesure.precisionM, isPt))
+        await onModifie()
+      } else {
+        toast.error(isPt ? 'A posição não foi guardada.' : 'La position n’a pas été enregistrée.')
+      }
+    } finally {
+      setMesureEnCours(null)
+      setOccupe(null)
+    }
+  }
+
   const lienEmployes = typeof window === 'undefined' ? '' : `${window.location.origin}/${isPt ? 'pt' : 'fr'}/pro/dashboard/?p=pointage`
 
   if (chantiersBtp.loading || membresBtp.loading || equipesBtp.loading) {
@@ -285,6 +318,15 @@ export function OngletAffectations({
                 )}
                 <button type="button" className="v5-btn v5-btn-sm" disabled={occupe === c.id} onClick={() => { void localiser(c) }}>
                   {libelleLocaliser(positionValide, isPt)}
+                </button>
+                <button
+                  type="button"
+                  className="v5-btn v5-btn-sm"
+                  disabled={occupe === c.id}
+                  aria-busy={mesureEnCours === c.id}
+                  onClick={() => { void placerIci(c) }}
+                >
+                  {libelleBoutonPlacer(mesureEnCours === c.id, isPt)}
                 </button>
                 <label className="v5-fl" style={{ display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
                   {isPt ? 'Raio' : 'Rayon'}
