@@ -174,20 +174,45 @@ export function reporterLiensServices<T extends ElementCatalogueBTP>(cle: string
 /** Services déjà publiés pour la fiche, par nom (identifiants dans l'ordre de lecture). */
 export type ServicesParNom = Map<string, string[]>
 
-/** Range les lignes lues de `services` par nom. */
-export function rangerServicesParNom(lignes: ReadonlyArray<{ id?: unknown; name?: unknown }>): ServicesParNom {
+/** Ligne de `services` lue pour le rattrapage : identifiant, nom, description et durée. */
+export interface LigneServicePublie {
+  id?: unknown
+  name?: unknown
+  description?: unknown
+  duration_minutes?: unknown
+}
+
+/** Balise de fourchette que le module écrit à la fin de la description d'une prestation publiée : [unit:…|min:…|max:…]. */
+const BALISE_FOURCHETTE_EN_FIN = /\[unit:[^|\]]*\|min:[^|\]]*\|max:[^|\]]*\]$/
+
+/**
+ * Service publié par le module Prestations : description terminée par sa balise de fourchette et durée vide, comme le
+ * module les écrit depuis qu'il publie (components/dashboard/PrestationsBTPSection.tsx, prestationToServicePayload).
+ * Un service créé ailleurs pour la fiche (assistant Fixy, application mobile, écran des motifs, motifs proposés à
+ * l'inscription) a une durée, et pas cette balise en fin de description : il n'est jamais repris, sinon la prochaine
+ * modification de la prestation dans le module le réécrirait.
+ */
+export function estServicePublieParLeModule(ligne: LigneServicePublie): boolean {
+  return typeof ligne.description === 'string'
+    && BALISE_FOURCHETTE_EN_FIN.test(ligne.description.trim())
+    && ligne.duration_minutes === null
+}
+
+/** Range par nom les lignes lues de `services`, en ne gardant que celles publiées par le module. */
+export function rangerServicesParNom(lignes: ReadonlyArray<LigneServicePublie>): ServicesParNom {
   const parNom: ServicesParNom = new Map()
   for (const ligne of lignes) {
     if (typeof ligne.id !== 'string' || typeof ligne.name !== 'string') continue
+    if (!estServicePublieParLeModule(ligne)) continue
     parNom.set(ligne.name, [...(parNom.get(ligne.name) ?? []), ligne.id])
   }
   return parNom
 }
 
 /**
- * Service déjà publié sous ce nom et relié à aucun autre élément du catalogue (`pris`, complété ici) : le
- * rattrapage au chargement d'une prestation qui n'a pas d'identifiant le reprend tel quel au lieu d'en créer un
- * second. Le service repris n'est pas modifié.
+ * Service déjà publié par le module sous ce nom (rangerServicesParNom) et relié à aucun autre élément du catalogue
+ * (`pris`, complété ici) : le rattrapage au chargement d'une prestation qui n'a pas d'identifiant le reprend tel quel
+ * au lieu d'en créer un second. Le service repris n'est pas modifié.
  */
 export function prendreServicePublie(parNom: ServicesParNom, nom: string, pris: Set<string>): string | null {
   const libre = (parNom.get(nom) ?? []).find((id) => !pris.has(id))

@@ -7,8 +7,8 @@ const jeton = vi.hoisted(() => ({ valeur: 'jeton-test' as string | null }))
 vi.mock('@/lib/auth/jeton-acces', () => ({ jetonAcces: async () => jeton.valeur }))
 
 import {
-  appliquerLiensServices, cleCatalogueBTP, cleCatalogueBTPAncienne, lireCatalogueAuServeur, lireCatalogueBTPNavigateur,
-  lireCatalogueLocal, prendreServicePublie, rangerServicesParNom, reporterLiensServices,
+  appliquerLiensServices, cleCatalogueBTP, cleCatalogueBTPAncienne, estServicePublieParLeModule, lireCatalogueAuServeur,
+  lireCatalogueBTPNavigateur, lireCatalogueLocal, prendreServicePublie, rangerServicesParNom, reporterLiensServices,
 } from '@/lib/btp/catalogue-prestations'
 
 const FICHE = 'fiche-btp-lib'
@@ -146,12 +146,37 @@ describe('report des identifiants de services', () => {
 })
 
 describe('reprise d\'un service déjà publié', () => {
+  // Service tel que le module le publie (prestationToServicePayload) : balise de fourchette en fin de description,
+  // durée vide.
+  const publieParLeModule = (id: unknown, name: string) => ({ id, name, description: `${name} [unit:m²|min:40|max:55]`, duration_minutes: null })
+
   it('par nom, jamais un service déjà relié à un autre élément, chacun une seule fois', () => {
-    const parNom = rangerServicesParNom([{ id: 'a', name: 'Dalle' }, { id: 'b', name: 'Dalle' }, { id: 'c', name: 'Enduit' }, { id: 7, name: 'Invalide' }])
+    const parNom = rangerServicesParNom([
+      publieParLeModule('a', 'Dalle'), publieParLeModule('b', 'Dalle'), publieParLeModule('c', 'Enduit'), publieParLeModule(7, 'Invalide'),
+    ])
     const pris = new Set(['a'])
     expect(prendreServicePublie(parNom, 'Dalle', pris)).toBe('b')
     expect(prendreServicePublie(parNom, 'Dalle', pris)).toBeNull()
     expect(prendreServicePublie(parNom, 'Enduit', pris)).toBe('c')
     expect(prendreServicePublie(parNom, 'Invalide', pris)).toBeNull()
+  })
+
+  it('seulement un service publié par le module, jamais un service du même nom créé ailleurs', () => {
+    expect(estServicePublieParLeModule({ description: '[unit:m²|min:65|max:85]', duration_minutes: null })).toBe(true)
+    expect(estServicePublieParLeModule({ description: 'Dalle coulée sur place [unit:forfait|min:1200|max:1500]', duration_minutes: null })).toBe(true)
+    // Assistant Fixy ou application mobile : une durée, pas de balise.
+    expect(estServicePublieParLeModule({ description: '', duration_minutes: 60 })).toBe(false)
+    expect(estServicePublieParLeModule({ description: null, duration_minutes: 60 })).toBe(false)
+    // Écran des motifs : balise suivie d'autres balises, une durée.
+    expect(estServicePublieParLeModule({ description: 'Pose [unit:m2|min:30|max:40] [scope:mo]', duration_minutes: 60 })).toBe(false)
+    // Motifs proposés à l'inscription : balise en fin de description, mais une durée.
+    expect(estServicePublieParLeModule({ description: 'Pose [unit:m2|min:0|max:0]', duration_minutes: 60 })).toBe(false)
+    // Durée non lue : aucune reprise.
+    expect(estServicePublieParLeModule({ description: '[unit:m²|min:65|max:85]' })).toBe(false)
+    const parNom = rangerServicesParNom([
+      { id: 'ailleurs', name: 'Dalle', description: '', duration_minutes: 60 },
+      publieParLeModule('module', 'Dalle'),
+    ])
+    expect(parNom.get('Dalle')).toEqual(['module'])
   })
 })

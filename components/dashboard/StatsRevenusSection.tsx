@@ -450,6 +450,16 @@ function estFactureEnvoyee(statut: string | undefined, orgRole?: OrgRole): boole
   return statut === 'envoye' || (orgRole === 'pro_societe' && statut === 'pending')
 }
 
+/**
+ * Devis gagné. Une société BTP marque ses devis « Accepté » depuis la liste des devis (« accepte » dans le navigateur,
+ * « accepted » en base) ; cette liste les range avec les devis signés dans le filtre « Acceptés » (DevisSection). Ils
+ * comptent donc comme signés pour une société BTP ; côté artisan, seul « signed » compte, comme avant.
+ */
+function estDevisSigne(statut: string | undefined, orgRole?: OrgRole): boolean {
+  if (statut === 'signed') return true
+  return orgRole === 'pro_societe' && (statut === 'signe' || statut === 'accepte' || statut === 'accepted')
+}
+
 function useLocalStats(artisanId: string) {
   const [docs, setDocs] = useState<LocalDoc[]>([])
   const [expenses, setExpenses] = useState<LocalExpense[]>([])
@@ -489,7 +499,7 @@ function StatsV5({ bookings, totalRevenue, services, artisan, locale, orgRole }:
   const hasBookings = bookings.length > 0
   const devis = docs.filter(d => d.docType === 'devis')
   const factures = docs.filter(d => d.docType === 'facture')
-  const signedDevis = devis.filter(d => d.status === 'signed')
+  const signedDevis = devis.filter(d => estDevisSigne(d.status, orgRole))
   const paidFactures = factures.filter(d => d.status === 'paid')
 
   // KPIs — computed from best available source
@@ -736,7 +746,10 @@ function RevenusV5({ bookings, completedBookings, pendingBookings, totalRevenue,
       .slice(0, 10)
       .forEach(b => recentRows.push({ date: b.booking_date || '', client: b.client_name || b.client_email || 'Client', chantier: b.services?.name || 'Service', amount: b.price_ttc || 0 }))
   } else {
-    factures.sort((a, b) => new Date(b.docDate || '').getTime() - new Date(a.docDate || '').getTime())
+    // Société BTP : une facture n'est un encaissement qu'une fois payée, comme une réservation terminée ci-dessus ;
+    // émise non payée ou annulée, elle n'y figure pas. Côté artisan, inchangé.
+    const encaissees = orgRole === 'pro_societe' ? paidFactures : factures
+    encaissees.sort((a, b) => new Date(b.docDate || '').getTime() - new Date(a.docDate || '').getTime())
       .slice(0, 10)
       .forEach(f => recentRows.push({ date: f.docDate || '', client: f.clientName || 'Client', chantier: f.docTitle || 'Facture', amount: docRevenueHT(f) }))
   }

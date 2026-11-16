@@ -5,14 +5,16 @@
 // défaut, l'écrivait, publiait une seconde fois les prestations par défaut, puis réécrivait la clé depuis l'écran
 // par-dessus le catalogue restauré entre-temps.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, waitFor, fireEvent, within } from '@testing-library/react'
 import type { Artisan } from '@/lib/types'
 
-// Table `services` simulée : lignes de la base, insertions et mises à jour observées, crochet avant insertion.
+// Table `services` simulée : lignes de la base, insertions, mises à jour et suppressions observées, crochet avant
+// insertion.
 const base = vi.hoisted(() => ({
   lignes: [] as Array<Record<string, unknown>>,
   insertions: [] as Array<Record<string, unknown>>,
   misesAJour: [] as Array<Record<string, unknown>>,
+  suppressions: [] as Array<Array<[string, unknown]>>,
   avantInsertion: null as null | (() => void),
   compteur: 0,
 }))
@@ -33,7 +35,10 @@ vi.mock('@/lib/supabase', () => {
         base.misesAJour.push({ ...etat.charge, filtres: etat.filtres })
         return { data: visees[0] ? { id: visees[0].id } : null, error: null }
       }
-      if (etat.op === 'delete') return { data: null, error: null }
+      if (etat.op === 'delete') {
+        base.suppressions.push(etat.filtres)
+        return { data: null, error: null }
+      }
       // Politique de lecture de la table : lignes actives seulement.
       const actives = visees.filter((l) => l.active !== false)
       return une ? { data: actives[0] ?? null, error: null } : { data: actives, error: null }
@@ -63,6 +68,8 @@ import { toast } from 'sonner'
 
 const ARTISAN = { id: 'fiche-btp-prest', user_id: 'compte-btp-prest', company_name: 'BATIR TEST SAS' } as unknown as Artisan
 const CLE = `fixit_prestations_btp_v5_${ARTISAN.id}`
+const AUTRE_FICHE = { id: 'fiche-btp-autre', user_id: 'compte-btp-autre', company_name: 'BATIR TEST SAS' } as unknown as Artisan
+const CLE_AUTRE_FICHE = `fixit_prestations_btp_v5_${AUTRE_FICHE.id}`
 const PREMIERE_PAR_DEFAUT = SEED_PREST[0].name
 
 const prix = (n: number) => ({ min: n, max: n })
@@ -86,12 +93,15 @@ const stocke = () => {
 }
 const monter = () => render(<PrestationsBTPSection artisan={ARTISAN} orgRole="pro_societe" />)
 const attendre = (ms: number) => new Promise((r) => setTimeout(r, ms))
+/** Texte du n-ième message d'erreur affiché (à partir de 0). */
+const messageErreur = (n: number) => String(vi.mocked(toast.error).mock.calls[n]?.[0])
 
 beforeEach(() => {
   localStorage.clear()
   base.lignes = []
   base.insertions = []
   base.misesAJour = []
+  base.suppressions = []
   base.avantInsertion = null
   base.compteur = 0
   vi.mocked(toast.error).mockClear()
@@ -136,6 +146,53 @@ describe('Prestations BTP — catalogue absent de ce navigateur', () => {
     expect(stocke()).toBeNull()
     expect(base.insertions).toHaveLength(0)
     expect(toast.error).toHaveBeenCalledTimes(2)
+    // Rien ne relance le chargement : le refus redit qu'il faut recharger la page, il n'invite pas à patienter.
+    expect(messageErreur(1)).toMatch(/indisponible.*rechargez la page/)
+    expect(messageErreur(1)).not.toMatch(/patientez/)
+  })
+
+  it('pendant le chargement : une création est refusée, le message invite à patienter, rien n\'est écrit ni publié', async () => {
+    let repondre: (reponse: Response) => void = () => {}
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resoudre) => { repondre = resoudre })))
+    monter()
+    fireEvent.click(screen.getByText(/^\+ Ajouter$/))
+    fireEvent.change(screen.getByPlaceholderText('Ex: Dalle béton'), { target: { value: 'Prestation saisie trop tôt' } })
+    fireEvent.click(screen.getByText('Créer'))
+    await attendre(50)
+    expect(toast.error).toHaveBeenCalledTimes(1)
+    expect(messageErreur(0)).toMatch(/en cours de chargement.*patientez/)
+    expect(stocke()).toBeNull()
+    expect(base.insertions).toHaveLength(0)
+    // La réponse arrive ensuite : le catalogue du serveur s'affiche.
+    repondre(new Response(JSON.stringify({ entries: { [CLE]: CATALOGUE_SERVEUR } }), { status: 200 }))
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+  })
+
+  it('catalogue recopié par la restauration pendant la question au serveur (réponse « absent ») : il s\'affiche, le jeu par défaut ne l\'écrase pas', async () => {
+    const restaure = [{ id: 1, name: 'Dalle maison', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(70), supabase_id: 'svc-existant-1' }]
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      // La restauration depuis le serveur écrit la clé pendant que l'écran attend sa propre réponse.
+      localStorage.setItem(CLE, JSON.stringify(restaure))
+      return new Response(JSON.stringify({ entries: {} }), { status: 200 })
+    }))
+    monter()
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+    await attendre(50)
+    expect(screen.queryByText(PREMIERE_PAR_DEFAUT)).not.toBeInTheDocument()
+    expect(stocke()).toEqual(restaure)
+    expect(base.insertions).toHaveLength(0)
+  })
+
+  it('valeur enregistrée illisible et rien au serveur : le jeu par défaut s\'affiche sans écraser cette valeur', async () => {
+    const illisible = '[{"id":1,"name":'
+    localStorage.setItem(CLE, illisible)
+    serveur({ entries: {} })
+    monter()
+    expect(await screen.findByText(PREMIERE_PAR_DEFAUT)).toBeInTheDocument()
+    // Fin de la publication des prestations affichées : leurs identifiants ne s'écrivent pas non plus par-dessus.
+    await waitFor(() => expect(base.insertions).toHaveLength(SEED_PREST.length))
+    await attendre(50)
+    expect(localStorage.getItem(CLE)).toBe(illisible)
   })
 })
 
@@ -179,13 +236,46 @@ describe('Prestations BTP — publication des prestations sans identifiant de se
     expect(stocke()).toEqual(restaure)
   })
 
-  it('une prestation du même nom déjà publiée pour la fiche est reliée, pas recréée ni modifiée', async () => {
+  it('une prestation du même nom déjà publiée par le module pour la fiche est reliée, pas recréée ni modifiée', async () => {
     serveur({ entries: {} })
-    base.lignes.push({ id: 'svc-ancien', artisan_id: ARTISAN.id, name: 'Dalle béton', active: true })
+    // Service tel que le module le publie : balise de fourchette en fin de description, durée vide.
+    base.lignes.push({ id: 'svc-ancien', artisan_id: ARTISAN.id, name: 'Dalle béton', description: 'Dalle coulée [unit:m²|min:65|max:65]', duration_minutes: null, active: true })
     localStorage.setItem(CLE, JSON.stringify([{ id: 4, name: 'Dalle béton', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(65) }]))
     monter()
     await waitFor(() => expect(stocke()![0].supabase_id).toBe('svc-ancien'))
     expect(base.insertions).toHaveLength(0)
     expect(base.misesAJour).toHaveLength(0)
+  })
+
+  it('un service du même nom créé ailleurs pour la fiche n\'est pas repris : la prestation est publiée à part, ce service reste intact', async () => {
+    serveur({ entries: {} })
+    // Service créé par l'assistant ou l'application mobile : une durée, pas de balise du module.
+    base.lignes.push({ id: 'svc-ailleurs', artisan_id: ARTISAN.id, name: 'Dalle béton', description: '', duration_minutes: 60, active: true })
+    localStorage.setItem(CLE, JSON.stringify([{ id: 4, name: 'Dalle béton', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(65) }]))
+    monter()
+    await waitFor(() => expect(stocke()![0].supabase_id).toBe('svc-nouveau-1'))
+    expect(base.insertions).toHaveLength(1)
+    expect(base.misesAJour).toHaveLength(0)
+  })
+})
+
+describe('Prestations BTP — aucune modification tant que le catalogue de la fiche n\'est pas chargé', () => {
+  it('changement de fiche, serveur injoignable : une suppression est refusée, rien n\'est écrit ni retiré de la fiche publique', async () => {
+    const catalogue = [{ id: 1, name: 'Dalle maison', type: 'prest', lot: 'gros_oeuvre', unit: 'm²', price: prix(70), supabase_id: 'svc-existant-1' }]
+    localStorage.setItem(CLE, JSON.stringify(catalogue))
+    serveur('panne')
+    const { rerender } = monter()
+    expect(await screen.findByText('Dalle maison')).toBeInTheDocument()
+    // Autre fiche : son catalogue n'est pas dans ce navigateur et le serveur ne répond pas. La liste de la fiche
+    // précédente est encore à l'écran.
+    rerender(<PrestationsBTPSection artisan={AUTRE_FICHE} orgRole="pro_societe" />)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    fireEvent.click(within(screen.getByText('Dalle maison').closest('tr') as HTMLElement).getByText('✕'))
+    await attendre(50)
+    expect(localStorage.getItem(CLE_AUTRE_FICHE)).toBeNull()
+    expect(stocke()).toEqual(catalogue)
+    expect(base.suppressions).toHaveLength(0)
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(messageErreur(1)).toMatch(/indisponible.*rechargez la page/)
   })
 })

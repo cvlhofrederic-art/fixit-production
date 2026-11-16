@@ -25,7 +25,7 @@ import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import {
   lireCatalogueAuServeur, lireCatalogueLocal, prendreServicePublie, rangerServicesParNom, reporterLiensServices,
-  appliquerLiensServices, type LienService, type ServicesParNom,
+  appliquerLiensServices, type LienService, type LigneServicePublie, type ServicesParNom,
 } from '@/lib/btp/catalogue-prestations'
 
 type OrgRole = 'artisan' | 'pro_societe' | 'pro_conciergerie' | 'pro_gestionnaire'
@@ -232,12 +232,15 @@ function prestationToServicePayload(p: Omit<Prestation, 'id'>, artisanId: string
   }
 }
 
-/** Services déjà publiés pour la fiche, par nom ; null si la lecture échoue (rien n'est alors publié). */
+/**
+ * Services déjà publiés par ce module pour la fiche, par nom (lib/btp/catalogue-prestations.ts) ; null si la lecture
+ * échoue (rien n'est alors publié).
+ */
 async function lireServicesPublies(artisanId: string): Promise<ServicesParNom | null> {
   try {
-    const { data, error } = await supabase.from('services').select('id, name').eq('artisan_id', artisanId)
+    const { data, error } = await supabase.from('services').select('id, name, description, duration_minutes').eq('artisan_id', artisanId)
     if (error) { console.warn('[prestations] lecture des services publiés impossible', error); return null }
-    return rangerServicesParNom((data || []) as Array<{ id?: unknown; name?: unknown }>)
+    return rangerServicesParNom((data || []) as LigneServicePublie[])
   } catch (e) {
     console.warn('[prestations] lecture des services publiés impossible', e)
     return null
@@ -265,9 +268,9 @@ async function upsertPrestationToSupabase(p: Prestation, artisanId: string): Pro
 
 /**
  * Rattrapage au chargement d'une prestation qui n'a pas d'identifiant de service : un service du même nom déjà
- * publié pour la fiche, et relié à aucun autre élément du catalogue (`pris`, complété ici), est repris tel quel au
- * lieu d'être créé une seconde fois sur la fiche publique (constat stockage-local-miroir-5) ; sinon la prestation
- * est publiée comme avant.
+ * publié par ce module pour la fiche, et relié à aucun autre élément du catalogue (`pris`, complété ici), est repris
+ * tel quel au lieu d'être créé une seconde fois sur la fiche publique (constat stockage-local-miroir-5) ; sinon la
+ * prestation est publiée comme avant. Un service créé ailleurs n'est jamais repris.
  */
 async function publierSansDoublon(p: Prestation, artisanId: string, publies: ServicesParNom, pris: Set<string>): Promise<string | null> {
   if (p.type !== 'prest') return null
@@ -346,18 +349,21 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
     }
   }, [availableLots, activeLot])
 
-  // Chargement / seed. `catalogueCharge` : la liste affichée est le catalogue de la société (navigateur ou serveur),
-  // ou le jeu par défaut d'une société qui n'en a nulle part. Tant qu'il est faux, rien n'est publié ni enregistré.
-  const [catalogueCharge, setCatalogueCharge] = useState(false)
+  // Chargement / seed. `etatCatalogue` vaut « charge » quand la liste affichée est le catalogue de la société
+  // (navigateur ou serveur), ou le jeu par défaut d'une société qui n'en a nulle part, et « echec » quand le serveur
+  // n'a pas pu dire ce qu'il détient (rien n'est relancé avant un rechargement de la page). Tant qu'il ne vaut pas
+  // « charge », rien n'est publié ni enregistré.
+  const [etatCatalogue, setEtatCatalogue] = useState<'chargement' | 'charge' | 'echec'>('chargement')
+  const catalogueCharge = etatCatalogue === 'charge'
   useEffect(() => {
     if (!artisan?.id) return
     let annule = false
-    setCatalogueCharge(false)
+    setEtatCatalogue('chargement')
     const jeuParDefaut = (): Prestation[] => [...SEED_PREST.map(enrichPrestationEtapes), ...SEED_MAT].map((p, i) => ({ id: i + 1, ...p }))
     const local = lireCatalogueLocal<Prestation>(storageKey)
     if (local.etat === 'present') {
       setItems(local.catalogue)
-      setCatalogueCharge(true)
+      setEtatCatalogue('charge')
       return
     }
     // Rien de lisible dans ce navigateur (appareil neuf, données du site effacées, restauration depuis le serveur
@@ -367,7 +373,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
       if (annule) return
       if (serveur.etat === 'present') {
         setItems(serveur.catalogue)
-        setCatalogueCharge(true)
+        setEtatCatalogue('charge')
         return
       }
       if (serveur.etat === 'absent') {
@@ -383,9 +389,10 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
             try { localStorage.setItem(storageKey, JSON.stringify(all)) } catch (e) { console.warn('[prestations] seed', e) }
           }
         }
-        setCatalogueCharge(true)
+        setEtatCatalogue('charge')
         return
       }
+      setEtatCatalogue('echec')
       toast.error(isPt
         ? 'Catálogo de prestações indisponível: não foi possível verificar o que está guardado na sua conta. Recarregue a página; nada foi alterado.'
         : 'Catalogue de prestations indisponible : impossible de vérifier celui enregistré pour votre compte. Rechargez la page ; rien n\'a été modifié.')
@@ -431,9 +438,15 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
   /** Rien ne s'enregistre tant que le catalogue de la société n'est pas chargé : l'écran l'écraserait. */
   function catalogueModifiable(): boolean {
     if (catalogueCharge) return true
-    toast.error(isPt
-      ? 'Catálogo ainda não carregado: aguarde um instante ou recarregue a página antes de o alterar.'
-      : 'Catalogue pas encore chargé : patientez un instant ou rechargez la page avant de le modifier.')
+    if (etatCatalogue === 'echec') {
+      toast.error(isPt
+        ? 'Catálogo de prestações indisponível: recarregue a página antes de o alterar; nada foi alterado.'
+        : 'Catalogue de prestations indisponible : rechargez la page avant de le modifier ; rien n\'a été modifié.')
+    } else {
+      toast.error(isPt
+        ? 'Catálogo ainda a carregar: aguarde um instante antes de o alterar.'
+        : 'Catalogue en cours de chargement : patientez un instant avant de le modifier.')
+    }
     return false
   }
 
