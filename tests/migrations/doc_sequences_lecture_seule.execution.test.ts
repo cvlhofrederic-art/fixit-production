@@ -137,6 +137,29 @@ describe('compteurs de numérotation (doc_sequences)', () => {
     expect(appel.lignes).toEqual([{ n: 'DEV-2026-038' }])
   })
 
+  // Branche BYPASSRLS de la garde : propriétaire non superutilisateur mais exempté de la RLS (cas attendu du rôle
+  // postgres de Supabase). La table reste au superutilisateur du banc ; le rôle n'a que les droits dont next_doc_number
+  // a besoin. Prémisse vérifiée : ni superutilisateur, ni propriétaire de la table, donc seule cette branche peut
+  // laisser passer la migration.
+  it('propriétaire de la seule fonction, BYPASSRLS sans superutilisateur, table à un autre rôle : migration appliquée, next_doc_number avance', async () => {
+    await db.exec(`CREATE ROLE proprietaire_bypassrls NOLOGIN BYPASSRLS;
+      GRANT USAGE ON SCHEMA auth TO proprietaire_bypassrls;
+      GRANT EXECUTE ON FUNCTION auth.uid() TO proprietaire_bypassrls;
+      GRANT SELECT, INSERT, UPDATE ON public.doc_sequences TO proprietaire_bypassrls;
+      ALTER FUNCTION public.next_doc_number(uuid, text, integer) OWNER TO proprietaire_bypassrls`)
+    const { rows: [premisse] } = await db.query<{ rolsuper: boolean; rolbypassrls: boolean; proprietaire_table: boolean }>(
+      `SELECT o.rolsuper, o.rolbypassrls, o.oid = t.relowner AS proprietaire_table
+       FROM pg_proc p JOIN pg_roles o ON o.oid = p.proowner JOIN pg_class t ON t.oid = 'public.doc_sequences'::regclass
+       WHERE p.oid = 'public.next_doc_number(uuid,text,integer)'::regprocedure`)
+    expect(premisse).toEqual({ rolsuper: false, rolbypassrls: true, proprietaire_table: false })
+    const { erreur } = await dansPointDeSauvegarde(db, () => db.exec(lireMigrationQr(MIGRATION)))
+    expect(erreur).toBeNull()
+    expect(await policies()).toEqual([{ policyname: 'doc_sequences_lecture_proprietaire', cmd: 'SELECT' }])
+    const appel = await sousRole(db, 'authenticated', comptes.societe, `SELECT public.next_doc_number($1, 'devis', 2026) AS n`, [comptes.societe])
+    expect(appel.erreur).toBeNull()
+    expect(appel.lignes).toEqual([{ n: 'DEV-2026-038' }])
+  })
+
   describe('après les migrations du dépôt, jouées deux fois', () => {
     beforeAll(async () => {
       for (const fichier of [...CORRECTIONS, ...CORRECTIONS]) await db.exec(lireMigrationQr(fichier))

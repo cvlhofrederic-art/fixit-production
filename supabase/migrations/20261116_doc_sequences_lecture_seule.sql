@@ -30,7 +30,9 @@
 -- À appliquer seule (éditeur SQL), par un rôle propriétaire de la table. DROP POLICY prend un verrou exclusif sur la
 -- table, gardé jusqu'à la fin du script (une seule transaction) : lock_timeout évite d'attendre derrière une
 -- transaction longue (une numérotation en cours, par exemple) ; en cas d'expiration, rien n'est appliqué, relancer.
--- Juste après l'exécution : valider un devis de test, pour vérifier qu'un numéro est toujours attribué.
+-- Juste après l'exécution : valider un devis de test, pour vérifier qu'un numéro est toujours attribué, sur un compte
+-- de démonstration ou de test, jamais sur celui d'une société ou d'un artisan inscrits (le devis y prendrait un vrai
+-- numéro de leur série et s'ajouterait à leurs pièces).
 -- Retour arrière, si nécessaire : recréer la policy d'origine (CREATE POLICY "doc_sequences_owner_access" ON
 -- public.doc_sequences USING (artisan_user_id = (select auth.uid())) WITH CHECK (artisan_user_id = (select
 -- auth.uid()))) et rendre les droits retirés (GRANT INSERT, UPDATE, DELETE, TRUNCATE … TO authenticated).
