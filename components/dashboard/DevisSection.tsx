@@ -23,6 +23,7 @@ import { appliquerRibCourant, chargerRibProfil } from '@/lib/rib-profil'
 import { appliquerFormeProfil } from '@/lib/statut-juridique-btp'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import type { ChampRecherche } from '@/lib/documents/recherche-documents'
 import {
@@ -523,8 +524,10 @@ function DevisSectionV5({
       const emitted = await emitDocument({
         payload: appliquerFormeProfil(appliquerRibCourant(resultat.payload, rib), (artisan as { legal_form?: string } | null)?.legal_form),
         artisanId: artisan.id,
-        getNumber: () => fetchNextDocNumber('facture', artisan.id),
+        // Numéro du serveur seulement, place du navigateur vérifiée avant de le tirer (lib/emission-hors-serveur.ts).
+        getNumber: () => fetchNextDocNumber('facture', artisan.id, { repliLocal: false }),
         sync: syncDocumentSafe,
+        verifierPlaceAvantNumero: true,
       })
       setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
       const deduits = resultat.acomptesDeduits.length
@@ -540,7 +543,9 @@ function DevisSectionV5({
       )
     } catch (err) {
       console.warn('[DevisFactureEmit] émission échouée', err)
-      toast.error(isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.', { id: tid })
+      // Numéro introuvable sur le serveur ou stockage plein : message en français ; le texte portugais reste inchangé.
+      const message = isPt ? null : messageEmissionArretee(err, 'facture', 'emission')
+      toast.error(message ?? (isPt ? 'Não foi possível emitir a fatura. Tente novamente.' : 'Impossible d\'émettre la facture. Réessayez.'), { id: tid })
     } finally {
       emissionEnCours.current = false
     }
@@ -940,8 +945,13 @@ function DevisSectionV5({
               const emitted = await emitDocument({
                 payload: prefilled,
                 artisanId: artisan.id,
-                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
+                // (lib/emission-hors-serveur.ts). Artisan : inchangé.
+                getNumber: estBtp
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
+                  : () => fetchNextDocNumber('acompte', artisan.id),
                 sync: syncDocumentSafe,
+                ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })
               setSavedDocuments(prev => [...prev, emitted as unknown as DevisDocument])
               toast.success(
@@ -952,7 +962,10 @@ function DevisSectionV5({
               )
             } catch (err) {
               console.warn('[DevisAcompteEmit] émission échouée', err)
-              toast.error(isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+              // BTP en français : numéro introuvable sur le serveur ou stockage plein, dit clairement. Artisan et texte
+              // portugais : inchangés.
+              const message = estBtp && !isPt ? messageEmissionArretee(err, 'acompte', 'emission') : null
+              toast.error(message ?? (isPt && estBtp ? 'Não foi possível emitir o adiantamento. Tente novamente.' : 'Impossible d\'émettre l\'acompte. Réessayez.'), { id: tid })
             } finally {
               if (estBtp) emissionEnCours.current = false
             }

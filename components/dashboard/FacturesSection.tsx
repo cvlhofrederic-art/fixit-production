@@ -15,6 +15,7 @@ import { getDocSeq, compareDocsForList, docIdentityKey, dedupeDocsByIdentity, is
 import { supabase } from '@/lib/supabase'
 import { emitDocument } from '@/lib/emit-document'
 import { fetchNextDocNumber } from '@/lib/doc-number'
+import { messageEmissionArretee } from '@/lib/emission-hors-serveur'
 import { syncDocumentSafe } from '@/lib/document-sync'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
 import { buildAcompteParTauxPrefill } from '@/lib/acompte-par-taux'
@@ -962,16 +963,22 @@ function FacturesSectionV5({
               ? buildAcompteParTauxPrefill(parent as unknown as Record<string, unknown>, params, { locale: locale === 'pt' ? 'pt' : 'fr' })
               : buildAcomptePrefill(parent as unknown as Record<string, unknown>, params)
             setAcompteParent(null)
+            const estBtp = orgRole === 'pro_societe'
             const tid = toast.loading('Émission de l\'acompte…')
             try {
               const emitted = await emitDocument({
                 // BTP : RIB et forme juridique du profil au jour de l'émission, pas ceux figés dans la facture parente.
-                payload: orgRole === 'pro_societe'
+                payload: estBtp
                   ? appliquerFormeProfil(appliquerRibCourant(prefilled, await chargerRibProfil()), (artisan as { legal_form?: string } | null)?.legal_form)
                   : prefilled,
                 artisanId: artisan.id,
-                getNumber: () => fetchNextDocNumber('acompte', artisan.id),
+                // BTP : numéro du serveur seulement, place du navigateur vérifiée avant de le tirer
+                // (lib/emission-hors-serveur.ts). Artisan : inchangé.
+                getNumber: estBtp
+                  ? () => fetchNextDocNumber('acompte', artisan.id, { repliLocal: false })
+                  : () => fetchNextDocNumber('acompte', artisan.id),
                 sync: syncDocumentSafe,
+                ...(estBtp ? { verifierPlaceAvantNumero: true } : {}),
               })
               setSavedDocuments(prev => [...prev, emitted as unknown as PersistedDocument])
               toast.success(
@@ -980,7 +987,8 @@ function FacturesSectionV5({
               )
             } catch (err) {
               console.warn('[AcompteEmit] émission échouée', err)
-              toast.error('Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
+              const message = estBtp ? messageEmissionArretee(err, 'acompte', 'emission') : null
+              toast.error(message ?? 'Impossible d\'émettre l\'acompte. Réessayez.', { id: tid })
             }
           }}
         />
