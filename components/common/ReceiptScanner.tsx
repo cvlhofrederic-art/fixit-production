@@ -2,6 +2,8 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { Camera, Upload, X, Check, Loader2, ReceiptText, Percent } from 'lucide-react'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
+import { useOrgRoleFacultatif } from '@/lib/hooks/useOrgRoleContext'
 
 // ── Types ──
 
@@ -57,6 +59,9 @@ export default function ReceiptScanner({ onInject, onClose, mode = 'modal' }: Re
   const [previewUrl, setPreviewUrl] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  // /api/receipt-scan exige le jeton de la session : une société BTP (tableau de bord pro) l'envoie. Ailleurs, et côté
+  // artisan, l'appel d'origine est conservé (règle artisan / BTP) ; le même défaut y reste, signalé.
+  const envoyerSession = useOrgRoleFacultatif()?.orgRole === 'pro_societe'
 
   const handleFile = useCallback(async (file: File) => {
     if (!file) return
@@ -70,14 +75,15 @@ export default function ReceiptScanner({ onInject, onClose, mode = 'modal' }: Re
       setPreviewUrl(base64)
 
       try {
-        const res = await fetch('/api/receipt-scan', {
+        const options: RequestInit = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             image_base64: base64,
             mime_type: file.type || 'image/jpeg',
           }),
-        })
+        }
+        const res = await (envoyerSession ? fetchAuthentifie('/api/receipt-scan', options) : fetch('/api/receipt-scan', options))
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}))
@@ -109,7 +115,7 @@ export default function ReceiptScanner({ onInject, onClose, mode = 'modal' }: Re
       }
     }
     reader.readAsDataURL(file)
-  }, [])
+  }, [envoyerSession])
 
   const toggleLine = (idx: number) => {
     setScannedLines(prev => prev.map((l, i) => i === idx ? { ...l, selected: !l.selected } : l))
