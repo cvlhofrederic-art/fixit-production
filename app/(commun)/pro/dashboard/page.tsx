@@ -27,7 +27,7 @@ import type { Artisan, Service, Booking, Notification, ChatMessage } from '@/lib
 import type { User } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { notificationOuvreMessagerie } from '@/lib/messagerie-pro'
-import { FicheSocieteIndisponible, messageFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
+import { FicheSocieteIndisponible, messageFicheSocieteAbsente, prevenirFicheSocieteAbsente } from '@/components/dashboard/btp/FicheSocieteIndisponible'
 import { SECTIONS_SOCIETE_BTP } from '@/lib/btp/sections-tableau-de-bord'
 import { FiletSocieteBtp } from '@/components/dashboard/btp/FiletSocieteBtp'
 
@@ -359,8 +359,8 @@ function DashboardPage() {
     if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
-      // Société BTP hors démonstration : la fiche de secours n'est plus ouverte en silence.
-      if (role === 'pro_societe' && user.app_metadata?._original_role !== 'super_admin') toast.error(messageFicheSocieteAbsente(isPt), { duration: Infinity })
+      // Compte de la société BTP (ni démonstration ni salarié invité) : la fiche de secours n'est plus ouverte en silence.
+      if (role === 'pro_societe' && prevenirFicheSocieteAbsente(user.app_metadata)) toast.error(messageFicheSocieteAbsente(isPt), { duration: Infinity })
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
       seedDemoLocalStorage(user.id, isSuperAdmin)
       // Charger les devis/factures du seed démo dans le state (bugfix : sans ça, UI affiche "Aucun devis")
@@ -1287,97 +1287,97 @@ function DashboardPage() {
 
           {/* ────── ÉQUIPES (Société BTP) ────── */}
           {activePage === 'equipes' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas equipas' : 'Erreur dans les équipes'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas equipas' : 'Erreur dans les équipes'} locale={isPt ? 'pt' : 'fr'}>
             <EquipesBTPV2 artisan={artisan!} orgRole={orgRole} />
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── CHANTIERS V2 (Société BTP) — Supabase + GPS ────── */}
           {activePage === 'chantiers' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas obras' : 'Erreur dans les chantiers'} locale={isPt ? 'pt' : 'fr'}>
             <ChantiersBTPV2 artisan={artisan!} orgRole={orgRole} />
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── GANTT (Société BTP) ────── */}
           {activePage === 'gantt' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no planeamento Gantt' : 'Erreur dans le planning Gantt'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no planeamento Gantt' : 'Erreur dans le planning Gantt'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <GanttSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── SITUATIONS DE TRAVAUX (Société BTP) ────── */}
           {activePage === 'situations' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas situações de obra' : 'Erreur dans les situations de travaux'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas situações de obra' : 'Erreur dans les situations de travaux'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <SituationsTravaux userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── RETENUES DE GARANTIE (Société BTP) ────── */}
           {activePage === 'garanties' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nas retenções de garantia' : 'Erreur dans les retenues de garantie'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nas retenções de garantia' : 'Erreur dans les retenues de garantie'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RetenuesGarantieSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── POINTAGE GÉO V2 (Société BTP) — GPS + Manuel ────── */}
           {activePage === 'pointage' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na marcação de horas' : 'Erreur dans le pointage'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na marcação de horas' : 'Erreur dans le pointage'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <PointageGeoSection artisan={artisan!} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── SOUS-TRAITANCE DC4 (Société BTP) ────── */}
           {activePage === 'sous_traitance' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na subempreitada' : 'Erreur dans la sous-traitance'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na subempreitada' : 'Erreur dans la sous-traitance'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <SousTraitanceDC4Section userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── RENTABILITÉ CHANTIER (Société BTP) ────── */}
           {activePage === 'rentabilite' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na rentabilidade' : 'Erreur dans la rentabilité'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na rentabilidade' : 'Erreur dans la rentabilité'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <RentabiliteChantierSection artisan={artisan!} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── COMPTA INTELLIGENTE BTP ────── */}
           {activePage === 'compta_btp' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro na contabilidade IA' : 'Erreur dans la comptabilité IA'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro na contabilidade IA' : 'Erreur dans la comptabilité IA'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <ComptaBTPSection artisan={artisan!} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── RECRUTEMENT SOUS-TRAITANTS (Société BTP) ────── */}
           {activePage === 'sous_traitance_offres' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro no recrutamento de subempreiteiros' : 'Erreur dans le recrutement de sous-traitants'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no recrutamento de subempreiteiros' : 'Erreur dans le recrutement de sous-traitants'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <SousTraitanceOffresSection artisan={artisan!} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── DPGF APPELS D'OFFRES (Société BTP) ────── */}
           {activePage === 'dpgf' && (
-            <SectionErrorBoundary fallbackTitle={isPt ? 'Erro nos concursos' : 'Erreur dans les appels d’offres'} locale={isPt ? 'pt' : 'fr'}>
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro nos concursos' : 'Erreur dans les appels d’offres'} locale={isPt ? 'pt' : 'fr'}>
             <div className="p-4 lg:p-5 animate-fadeIn">
               <DPGFSection userId={artisan?.id || ''} orgRole={orgRole} />
             </div>
-            </SectionErrorBoundary>
+            </FiletSocieteBtp>
           )}
 
           {/* ────── PROPRIÉTÉS (Conciergerie) ────── */}
@@ -1518,7 +1518,9 @@ function DashboardPage() {
 
           {/* ────── CANAL PRO ────── */}
           {activePage === 'canal' && (
+            <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no Canal Pro' : 'Erreur dans le Canal Pro'} locale={isPt ? 'pt' : 'fr'}>
             <CanalProSection artisan={artisan!} orgRole={orgRole} />
+            </FiletSocieteBtp>
           )}
 
           {/* ────── GESTION COMPTES (Société BTP — gérant ou permission accordée) ────── */}

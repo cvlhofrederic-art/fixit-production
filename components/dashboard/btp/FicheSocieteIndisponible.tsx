@@ -32,8 +32,20 @@ export function FicheSocieteIndisponible({ isPt, onReessayer }: { isPt: boolean;
 }
 
 /**
- * Message affiché quand le compte société n'a pas de fiche lisible (inscription interrompue, salarié invité) : le
- * tableau de bord s'ouvre, mais ses documents ne portent pas l'identité de la société.
+ * Le compte BTP sans fiche doit-il en être prévenu ? Oui pour le compte de la société elle-même (gérant), dont la
+ * fiche est à rétablir. Non pour la démonstration du super_admin en vue BTP, ni pour un salarié invité dans une
+ * équipe (rôle d'équipe autre que GERANT, comme isProGerant côté serveur) : il n'a pas de fiche à lui, il n'y a rien à
+ * rétablir, et il garde l'ouverture d'avant.
+ */
+export function prevenirFicheSocieteAbsente(appMetadata: Record<string, unknown> | undefined): boolean {
+  if (appMetadata?._original_role === 'super_admin') return false
+  const roleEquipe = appMetadata?.pro_team_role
+  return !roleEquipe || roleEquipe === 'GERANT'
+}
+
+/**
+ * Message affiché quand le compte de la société n'a pas de fiche lisible (inscription interrompue) : le tableau de
+ * bord s'ouvre, mais ses documents ne portent pas l'identité de la société.
  */
 export function messageFicheSocieteAbsente(isPt: boolean): string {
   return isPt

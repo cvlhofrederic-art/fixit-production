@@ -9,8 +9,9 @@ export type ModCategory = { id: string; name: string; open: boolean; modules: Ca
 const STORAGE_KEY = 'fixit_modules_categories_v3'
 
 /**
- * Clé de l'organisation du menu. Avec un identifiant de compte (société BTP), une clé propre au compte : deux comptes
- * du même navigateur ne se partagent plus leur menu. Sans identifiant (artisan, autres rôles), la clé commune d'origine.
+ * Clé de l'organisation du menu. Avec un identifiant de compte (société BTP), une clé propre au compte : ce que la
+ * société enregistre n'est plus partagé avec les autres comptes du même navigateur. Sans identifiant (artisan, autres
+ * rôles), la clé commune d'origine.
  */
 export function cleOrganisationMenu(compteId?: string): string {
   return compteId ? `${STORAGE_KEY}_${compteId}` : STORAGE_KEY
@@ -84,9 +85,13 @@ export function buildDefaultCategories(ALL_MODULES: ModuleDef[]): ModCategory[] 
 /**
  * Hook shared between V5Sidebar and ModulesSection.
  * Persists to localStorage; ensures any new ALL_MODULES entry is auto-appended.
- * `compteId` (société BTP) : organisation lue et enregistrée sous la clé du compte, relue quand l'identifiant arrive ;
- * tant que le compte n'a rien enregistré, l'ancienne clé commune sert de point de départ — lue, jamais supprimée ni
- * réécrite. Sans `compteId`, la clé commune comme avant.
+ * `compteId` (société BTP) : organisation lue et enregistrée sous la clé du compte, relue quand l'identifiant arrive.
+ * Tant que le compte n'a rien enregistré, il suit l'ancienne clé commune, relue à chaque montage : ce qu'un tableau de
+ * bord sans identifiant (artisan, autres rôles) y enregistre sur ce navigateur s'y reporte donc encore. Avec
+ * l'identifiant, rien n'est écrit sous la clé commune ni supprimé.
+ * Sans `compteId`, la clé commune comme avant — y compris au premier rendu du tableau de bord BTP, avant que le rôle
+ * soit connu : elle y est lue, et la migration unique d'estimation_materiaux (ci-dessous) peut y être enregistrée,
+ * comme avant.
  */
 export function useModuleCategories(ALL_MODULES: ModuleDef[], compteId?: string) {
   const cle = cleOrganisationMenu(compteId)
