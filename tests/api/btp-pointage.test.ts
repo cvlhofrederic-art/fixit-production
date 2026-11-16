@@ -8,7 +8,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { NOTE_A_REGULARISER, NOTE_DOUBLON } from '@/lib/btp/pointage-regles'
+import { NOTE_A_REGULARISER, NOTE_DEPART_APRES_COUPURE, NOTE_DOUBLON } from '@/lib/btp/pointage-regles'
 
 type Ligne = Record<string, unknown>
 
@@ -341,13 +341,24 @@ describe('POST /api/btp/pointage — arrivée', () => {
     expect(ouvertsDe(M_PAUL)).toHaveLength(1)
   })
 
-  it('arrivée sur un autre chantier : le pointage en cours est clos d’abord, heures calculées', async () => {
+  it('arrivée à la main sur un autre chantier : le pointage en cours est clos d’abord, heures calculées', async () => {
     await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })
     vi.setSystemTime(MAINTENANT + 2 * HEURE + 15 * 60_000)
-    const { status } = await envoyer({ action: 'arrivee', chantierId: C_IMMEUBLE, mode: 'geo_auto' })
+    const { status } = await envoyer({ action: 'arrivee', chantierId: C_IMMEUBLE, mode: 'manuel' })
     expect(status).toBe(201)
     expect(duJour(M_PAUL).find(p => p.chantier_id === C_VILLA)).toMatchObject({ heure_depart: '10:45:00', heures_travaillees: 2.25 })
     expect(ouvertsDe(M_PAUL).map(p => p.chantier_id)).toEqual([C_IMMEUBLE])
+  })
+
+  it('arrivée automatique pendant un autre pointage du jour (à la main, ou sur un autre chantier) : 409, rien de clos', async () => {
+    await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'manuel' })
+    vi.setSystemTime(MAINTENANT + 2 * HEURE)
+    expect(await envoyer({ action: 'arrivee', chantierId: C_IMMEUBLE, mode: 'geo_auto' })).toEqual({ status: 409, json: { error: 'pointage_different' } })
+    expect(ouvertsDe(M_PAUL)).toEqual([expect.objectContaining({ chantier_id: C_VILLA, mode: 'manuel', heure_depart: null })])
+    await envoyer({ action: 'depart', mode: 'manuel' })
+    await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })
+    expect(await envoyer({ action: 'arrivee', chantierId: C_IMMEUBLE, mode: 'geo_auto' })).toEqual({ status: 409, json: { error: 'pointage_different' } })
+    expect(ouvertsDe(M_PAUL).map(p => [p.chantier_id, p.mode])).toEqual([[C_VILLA, 'geo_auto']])
   })
 
   it('départ oublié la veille, arrivée le lendemain sur le même chantier : la veille refermée sans heures, la journée ouverte', async () => {
@@ -400,7 +411,7 @@ describe('POST /api/btp/pointage — départ', () => {
     expect(json.pointage).toMatchObject({ heureArrivee: '07:30:00', heureDepart: '15:30:00', heuresTravaillees: 8 })
   })
 
-  it('départ automatique daté de la dernière présence (veille du téléphone), jamais avant l’arrivée ni après maintenant', async () => {
+  it('départ automatique daté de la sortie vue par le téléphone (envoi retardé), jamais avant l’arrivée ni après maintenant', async () => {
     await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })
     vi.setSystemTime(MAINTENANT + 11 * HEURE)
     const { json } = await envoyer({ action: 'depart', chantierId: C_VILLA, mode: 'geo_auto', observeA: MAINTENANT + 8 * HEURE + 30 * 60_000 })
@@ -415,6 +426,22 @@ describe('POST /api/btp/pointage — départ', () => {
     expect(await envoyer({ action: 'depart', chantierId: C_VILLA, mode: 'geo_auto' })).toEqual({ status: 409, json: { error: 'pointage_different' } })
     expect(await envoyer({ action: 'depart', mode: 'geo_auto' })).toEqual({ status: 409, json: { error: 'pointage_different' } })
     expect(ouvertsDe(M_PAUL).map(p => p.chantier_id)).toEqual([C_IMMEUBLE])
+  })
+
+  it('fin à la main après une coupure du suivi : départ à l’heure du serveur, note au gérant avec la dernière présence vue', async () => {
+    await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })
+    vi.setSystemTime(MAINTENANT + 4 * HEURE + 30 * 60_000)
+    const { json } = await envoyer({ action: 'depart', mode: 'manuel', derniereVue: MAINTENANT + 35 * 60_000 })
+    expect(json.pointage).toMatchObject({ heureDepart: '13:00:00', heuresTravaillees: 4.5 })
+    expect(duJour(M_PAUL)[0].notes).toBe(`${NOTE_DEPART_APRES_COUPURE} ; dernière présence vue sur le chantier à 09:05 : à vérifier.`)
+  })
+
+  it('dernière présence hors de l’arrivée et du départ : ignorée, pas de note', async () => {
+    await envoyer({ action: 'arrivee', chantierId: C_VILLA, mode: 'geo_auto' })
+    vi.setSystemTime(MAINTENANT + 4 * HEURE)
+    await envoyer({ action: 'depart', mode: 'manuel', derniereVue: MAINTENANT - HEURE })
+    expect(duJour(M_PAUL)[0].notes ?? null).toBeNull()
+    expect((await envoyer({ action: 'depart', mode: 'manuel', derniereVue: 'hier' })).status).toBe(400)
   })
 
   it('sans pointage en cours : 404, rien d’écrit', async () => {

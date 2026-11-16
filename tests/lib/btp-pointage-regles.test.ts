@@ -6,6 +6,7 @@ import {
   FUSEAU_PAR_DEFAUT,
   FUSEAUX_AUTORISES,
   NOTE_A_REGULARISER,
+  NOTE_DEPART_APRES_COUPURE,
   TOLERANCE_HORLOGE_MS,
   ajouterNote,
   celluleCsv,
@@ -21,7 +22,7 @@ import {
   instantDepart,
   libelleMode,
   membreDuCompte,
-  murale,
+  noteDepartApresCoupure,
   pointagesEnCsv,
   reperesArrivee,
   type ChantierBtp,
@@ -145,15 +146,34 @@ describe('clôture d’un pointage (instants UTC)', () => {
   const ARRIVEE = Date.UTC(2026, 10, 16, 7, 30, 0)
   const ouvert = { date: '2026-11-16', heure_arrivee: '08:30:00', created_at: new Date(ARRIVEE).toISOString(), pause_minutes: 0 }
 
-  it('repères de l’arrivée : instant de created_at et écart de l’heure murale (Paris en hiver : +1 h)', () => {
-    expect(reperesArrivee(ouvert)).toEqual({ instant: ARRIVEE, decalageMs: 3_600_000 })
-    expect(murale(ARRIVEE + 9 * 3_600_000, 3_600_000)).toEqual({ date: '2026-11-16', heure: '17:30:00' })
+  it('repères de l’arrivée : instant de created_at et fuseau dont l’écart correspond à cet instant', () => {
+    expect(reperesArrivee(ouvert)).toEqual({ instant: ARRIVEE, fuseau: 'Europe/Paris' })
+    // Lisbonne en hiver (écart nul), Réunion (+4 h) ; format de created_at rendu par PostgREST.
+    const lisbonne = { date: '2026-11-16', heure_arrivee: '07:30:00', created_at: '2026-11-16T07:30:00.123+00:00' }
+    expect(reperesArrivee(lisbonne)).toEqual({ instant: ARRIVEE + 123, fuseau: 'Europe/Lisbon' })
+    // Le départ s'écrit à l'heure de Lisbonne, comme l'arrivée.
+    expect(cloture(lisbonne, ARRIVEE + 123 + 8 * 3_600_000)).toEqual({ heureDepart: '15:30:00', heuresTravaillees: 8, aRegulariser: false })
+    expect(reperesArrivee({ date: '2026-11-16', heure_arrivee: '11:30:00', created_at: new Date(ARRIVEE).toISOString() }))
+      .toEqual({ instant: ARRIVEE, fuseau: 'Indian/Reunion' })
   })
 
   it('sans created_at exploitable : heure murale lue à Paris (heure d’été comprise)', () => {
-    expect(reperesArrivee({ date: '2026-11-16', heure_arrivee: '08:30:00' })).toEqual({ instant: ARRIVEE, decalageMs: 3_600_000 })
+    expect(reperesArrivee({ date: '2026-11-16', heure_arrivee: '08:30:00' })).toEqual({ instant: ARRIVEE, fuseau: 'Europe/Paris' })
     expect(reperesArrivee({ date: '2026-07-15', heure_arrivee: '08:00', created_at: 'n’importe quoi' }))
-      .toEqual({ instant: Date.UTC(2026, 6, 15, 6, 0, 0), decalageMs: 7_200_000 })
+      .toEqual({ instant: Date.UTC(2026, 6, 15, 6, 0, 0), fuseau: 'Europe/Paris' })
+  })
+
+  it('created_at incohérent (ligne saisie après coup) : écart d’aucun fuseau de la liste → heure murale lue à Paris', () => {
+    // Arrivée 08:00 enregistrée à 17:00 (heure de Paris, 16:00 UTC) : écart de −8 h, aucun fuseau de la liste.
+    const saisieTardive = { date: '2026-11-16', heure_arrivee: '08:00:00', created_at: '2026-11-16T16:00:00Z', pause_minutes: 0 }
+    expect(reperesArrivee(saisieTardive)).toEqual({ instant: Date.UTC(2026, 10, 16, 7, 0, 0), fuseau: 'Europe/Paris' })
+    expect(cloture(saisieTardive, Date.UTC(2026, 10, 16, 17, 0, 0))).toEqual({ heureDepart: '18:00:00', heuresTravaillees: 10, aRegulariser: false })
+  })
+
+  it('changement d’heure pendant le pointage : durée sur les instants, heure de départ murale juste', () => {
+    // Nuit du 24 au 25/10/2026 à Paris : 03:00 (été) redevient 02:00 (hiver). Arrivée 01:30 (été), départ 05:00 (hiver).
+    const nuit = { date: '2026-10-25', heure_arrivee: '01:30:00', created_at: '2026-10-24T23:30:00Z', pause_minutes: 0 }
+    expect(cloture(nuit, Date.UTC(2026, 9, 25, 4, 0, 0))).toEqual({ heureDepart: '05:00:00', heuresTravaillees: 4.5, aRegulariser: false })
   })
 
   it('même jour : heures calculées sur les instants, pause déduite, heure de départ dans le même fuseau qu’à l’arrivée', () => {
@@ -174,6 +194,16 @@ describe('clôture d’un pointage (instants UTC)', () => {
   it('pointage oublié : ouvert un jour précédent, selon l’heure murale de l’arrivée', () => {
     expect(estOublie(ouvert, Date.UTC(2026, 10, 16, 22, 59, 0))).toBe(false)
     expect(estOublie(ouvert, Date.UTC(2026, 10, 16, 23, 0, 1))).toBe(true) // 00:00:01 à Paris le 17
+  })
+
+  it('note après une coupure du suivi : heure murale de la dernière présence, seulement entre l’arrivée et le départ', () => {
+    const depart = ARRIVEE + 9 * 3_600_000
+    expect(noteDepartApresCoupure(ouvert, ARRIVEE + 35 * 60_000, depart))
+      .toBe(`${NOTE_DEPART_APRES_COUPURE} ; dernière présence vue sur le chantier à 09:05 : à vérifier.`)
+    expect(noteDepartApresCoupure(ouvert, ARRIVEE - 60_000, depart)).toBeNull()
+    expect(noteDepartApresCoupure(ouvert, depart + 60_000, depart)).toBeNull()
+    expect(noteDepartApresCoupure(ouvert, undefined, depart)).toBeNull()
+    expect(noteDepartApresCoupure(ouvert, '09:05', depart)).toBeNull()
   })
 
   it('notes : ajoutées sans doublon', () => {

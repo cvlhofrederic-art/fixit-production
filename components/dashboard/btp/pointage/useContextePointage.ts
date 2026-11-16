@@ -8,7 +8,7 @@ import type { ContextePointage, PointageEcran } from '@/lib/btp/pointage-regles'
 
 export type CorpsPointage =
   | { action: 'arrivee'; chantierId: string; mode: 'geo_auto' | 'manuel'; observeA?: number }
-  | { action: 'depart'; chantierId?: string; mode: 'geo_auto' | 'manuel'; observeA?: number }
+  | { action: 'depart'; chantierId?: string; mode: 'geo_auto' | 'manuel'; observeA?: number; derniereVue?: number }
   | { action: 'reglage_auto'; actif: boolean; confirmation?: boolean }
 
 export type ResultatEnvoi =

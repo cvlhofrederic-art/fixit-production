@@ -20,6 +20,7 @@ import {
   instantDepart,
   membreDuCompte,
   normaliserEmail,
+  noteDepartApresCoupure,
   reperesArrivee,
   type ChantierBtp,
   type ContextePointage,
@@ -61,7 +62,8 @@ const champsPointage = {
 }
 const corpsSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('arrivee'), chantierId: z.string().uuid(), ...champsPointage }),
-  z.object({ action: z.literal('depart'), chantierId: z.string().uuid().optional(), ...champsPointage }),
+  // derniereVue : fin à la main après une coupure du suivi automatique (instant de la dernière présence vue sur place).
+  z.object({ action: z.literal('depart'), chantierId: z.string().uuid().optional(), derniereVue: z.number().optional(), ...champsPointage }),
   z.object({ action: z.literal('reglage_auto'), actif: z.boolean(), confirmation: z.boolean().optional() }),
 ])
 
@@ -313,7 +315,11 @@ export async function POST(request: NextRequest) {
         return refus(409, 'pointage_different')
       }
       const depart = instantDepart(corps.mode, corps.observeA, maintenant, reperesArrivee(principal).instant)
-      const clos = await clore(ctx.societeId, principal, changementsCloture(principal, depart))
+      const changements = changementsCloture(principal, depart)
+      // Sortie que le téléphone n'a pas pu dater (veille) : le gérant voit l'heure de la dernière présence sur place.
+      const note = noteDepartApresCoupure(principal, corps.derniereVue, depart)
+      if (note) changements.notes = ajouterNote(changements.notes ?? principal.notes, note)
+      const clos = await clore(ctx.societeId, principal, changements)
       for (const autre of duJour) {
         if (autre !== principal) await clore(ctx.societeId, autre, changementsSansHeures(autre, NOTE_DOUBLON))
       }
@@ -328,9 +334,12 @@ export async function POST(request: NextRequest) {
 
     const surCeChantier = duJour.find(o => o.chantier_id === chantier.id)
     if (surCeChantier) return NextResponse.json({ pointage: pointagePourEcran(surCeChantier), deja: true })
+    // Le téléphone ne termine jamais tout seul un autre pointage (commencé à la main, ou sur un chantier dont il n'a pas
+    // vu la sortie) : c'est à l'employé de le terminer.
+    if (corps.mode === 'geo_auto' && duJour.length > 0) return refus(409, 'pointage_different')
 
     const instant = instantArrivee(corps.mode, corps.observeA, maintenant)
-    // Un seul pointage ouvert par employé : arriver sur un autre chantier clôt le précédent à l'heure de l'arrivée.
+    // Un seul pointage ouvert par employé : arriver à la main sur un autre chantier clôt le précédent à cette heure.
     for (const ouvert of duJour) await clore(ctx.societeId, ouvert, changementsCloture(ouvert, Math.max(instant, reperesArrivee(ouvert).instant)))
 
     const arrivee = heureLocale(instant, fuseauValide(corps.fuseau))

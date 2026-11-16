@@ -14,6 +14,7 @@ import {
   messageAutoDesactive,
   messageErreurPointage,
   messageNonRelie,
+  messageSortieSansTrace,
   noticePointage,
 } from './textes'
 
@@ -126,6 +127,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
     autorise: contexte.pointageAutoActive && contexte.rattachement === 'relie' && chantiersPointables.length > 0 && !pointageManuelEnCours,
     chantiers: chantiersPointables,
     chantierActifId: enCours?.mode === 'geo_auto' ? enCours.chantierId : null,
+    chantierEnCoursId: enCours?.chantierId ?? null,
     pointerArrivee,
     pointerDepart,
   })
@@ -143,6 +145,8 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
       const resultat = await envoyer(corps)
       if (!resultat.ok) {
         toast.error(messageErreurPointage(resultat.code, isPt))
+        // Changement fait ailleurs entre-temps (gérant, autre appareil, minuit passé page ouverte) : on relit l'écran.
+        if (REFUS_QUI_CHANGENT_LE_CONTEXTE.has(resultat.code) || resultat.code === 'aucun_pointage_en_cours') await recharger()
         return
       }
       toast.success(succes)
@@ -150,6 +154,15 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
     } finally {
       setActionManuelle(false)
     }
+  }
+
+  /** Fin à la main ; après une coupure du suivi, la dernière présence vue part avec, pour une note au gérant. */
+  const terminer = () => {
+    const corps: Extract<CorpsPointage, { action: 'depart' }> = { action: 'depart', mode: 'manuel' }
+    if (enCours?.mode === 'geo_auto' && auto.etat.sortieSansTrace && auto.etat.derniereDansZone !== null) {
+      corps.derniereVue = auto.etat.derniereDansZone
+    }
+    void manuel(corps, isPt ? 'Saída registada' : 'Départ pointé')
   }
 
   const notice = noticePointage(isPt)
@@ -166,6 +179,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
   const debutEnCours = enCours ? instantLocal(enCours.date, enCours.heureArrivee) : Number.NaN
   const ecoule = Number.isFinite(debutEnCours) ? Math.floor((maintenant - debutEnCours) / 1000) : 0
   const candidat = auto.etat.candidat ? contexte.chantiers.find(c => c.id === auto.etat.candidat?.chantierId) : undefined
+  const chantierBloque = autoActif && auto.etat.chantierBloque ? contexte.chantiers.find(c => c.id === auto.etat.chantierBloque) : undefined
   const resteArrivee = auto.etat.candidat ? Math.ceil((CONFIRMATION_ARRIVEE_MS - (maintenant - auto.etat.candidat.depuis)) / 1000) : 0
   const resteDepart = auto.etat.horsZoneDepuis === null ? 0 : Math.ceil((CONFIRMATION_DEPART_MS - (maintenant - auto.etat.horsZoneDepuis)) / 1000)
 
@@ -215,7 +229,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
               type="button"
               className="v5-btn v5-btn-d"
               disabled={actionManuelle}
-              onClick={() => { void manuel({ action: 'depart', mode: 'manuel' }, isPt ? 'Saída registada' : 'Départ pointé') }}
+              onClick={terminer}
             >
               {isPt ? 'Terminar a marcação' : 'Terminer le pointage'}
             </button>
@@ -248,10 +262,13 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
               </div>
             )}
             {enCours && auto.etat.sortieSansTrace && (
-              <div className="v5-al warn" style={{ marginBottom: 10 }}>
+              <div className="v5-al warn" style={{ marginBottom: 10 }}>{messageSortieSansTrace(auto.etat.derniereDansZone, isPt)}</div>
+            )}
+            {!enCours && chantierBloque && (
+              <div className="v5-al info" style={{ marginBottom: 10 }}>
                 {isPt
-                  ? 'Já não está na obra, mas este telemóvel não sabe a que horas saiu: termine a marcação manualmente.'
-                  : 'Vous n’êtes plus sur le chantier, mais ce téléphone ne sait pas à quelle heure vous en êtes parti : terminez le pointage à la main.'}
+                  ? `Marcação terminada em ${chantierBloque.titre}: a chegada automática só volta a funcionar nesta obra depois de sair da zona. Para retomar já, marque manualmente.`
+                  : `Pointage terminé sur ${chantierBloque.titre} : l’arrivée automatique n’y reprendra qu’après votre sortie de la zone. Pour reprendre tout de suite, pointez à la main.`}
               </div>
             )}
             {avis && <div className="v5-al warn" style={{ marginBottom: 10 }}>{avis}</div>}

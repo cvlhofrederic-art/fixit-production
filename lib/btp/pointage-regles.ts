@@ -26,6 +26,8 @@ export const TOLERANCE_HORLOGE_MS = 10 * 60_000
 export const NOTE_A_REGULARISER = 'Départ non pointé : à régulariser.'
 /** Note posée sur un pointage ouvert en double le même jour (sans la migration 20261116), refermé sans heures. */
 export const NOTE_DOUBLON = 'Pointage en double : à vérifier.'
+/** Début de la note posée quand l'employé termine à la main après une coupure du suivi (noteDepartApresCoupure). */
+export const NOTE_DEPART_APRES_COUPURE = 'Départ pointé à la main après une coupure du suivi GPS'
 /** Statut des chantiers sur lesquels on pointe. */
 export const STATUT_EN_COURS = 'En cours'
 
@@ -182,9 +184,9 @@ export function instantArrivee(mode: string, observeA: unknown, maintenant: numb
 }
 
 /**
- * Instant d'un départ : celui du serveur. En mode automatique seulement, la dernière présence connue sur le chantier
- * annoncée par le téléphone (départ daté avant une mise en veille), bornée entre l'arrivée et maintenant : avancer un
- * départ ne peut que retirer des heures, jamais en ajouter.
+ * Instant d'un départ : celui du serveur. En mode automatique seulement, celui de la sortie de la zone vue par le
+ * téléphone (envoi retardé de la confirmation, réseau), borné entre l'arrivée et maintenant : avancer un départ ne
+ * peut que retirer des heures, jamais en ajouter.
  */
 export function instantDepart(mode: string, observeA: unknown, maintenant: number, arrivee: number): number {
   if (mode !== 'geo_auto' || typeof observeA !== 'number' || !Number.isFinite(observeA)) return maintenant
@@ -206,15 +208,12 @@ export function heureLocale(instant: number, fuseau: string): { date: string; he
   }
 }
 
-const deux = (n: number) => String(n).padStart(2, '0')
-
-/** Date et heure murales d'un instant décalé d'un écart fixe (celui de l'arrivée du pointage). */
-export function murale(instant: number, decalageMs: number): { date: string; heure: string } {
-  const d = new Date(instant + decalageMs)
-  return {
-    date: `${d.getUTCFullYear()}-${deux(d.getUTCMonth() + 1)}-${deux(d.getUTCDate())}`,
-    heure: `${deux(d.getUTCHours())}:${deux(d.getUTCMinutes())}:${deux(d.getUTCSeconds())}`,
-  }
+/** Écart (ms, à la minute près) entre l'heure murale du fuseau et UTC à cet instant (heure d'été comprise). */
+function ecartDuFuseau(instant: number, fuseau: string): number {
+  const { date, heure } = heureLocale(instant, fuseau)
+  const [a, mo, j] = date.split('-').map(Number)
+  const [h, mi, s] = heure.split(':').map(Number)
+  return Math.round((Date.UTC(a, mo - 1, j, h, mi, s) - instant) / 60_000) * 60_000
 }
 
 /** Pointage tel que lu en base, réduit à ce que la clôture lit. */
@@ -225,14 +224,12 @@ export interface PointageOuvert {
   pause_minutes?: unknown
 }
 
-const ECART_MAX_FUSEAU_MS = 14 * 3_600_000
-
 /**
- * Instant (UTC) de l'arrivée et écart entre l'heure murale et UTC à ce moment. Les pointages ouverts par
- * /api/btp/pointage ont `created_at` = instant de l'arrivée ; à défaut (ligne d'une autre origine, horodatage
- * incohérent), l'heure murale est lue dans le fuseau de la France métropolitaine.
+ * Instant (UTC) de l'arrivée et fuseau de son heure murale. Les pointages ouverts par /api/btp/pointage ont
+ * `created_at` = instant de l'arrivée, et l'écart entre leur heure murale et cet instant est celui d'un fuseau de la
+ * liste à ce moment-là. Sinon (ligne d'une autre origine, horodatage incohérent), l'heure murale est lue à Paris.
  */
-export function reperesArrivee(ligne: PointageOuvert): { instant: number; decalageMs: number } {
+export function reperesArrivee(ligne: PointageOuvert): { instant: number; fuseau: string } {
   const morceaux = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ligne.date))
   const heure = /^(\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(ligne.heure_arrivee))
   const mural = morceaux && heure
@@ -240,30 +237,23 @@ export function reperesArrivee(ligne: PointageOuvert): { instant: number; decala
     : Number.NaN
   const cree = typeof ligne.created_at === 'string' ? Date.parse(ligne.created_at) : Number.NaN
   if (Number.isFinite(mural) && Number.isFinite(cree)) {
-    const decalageMs = Math.round((mural - cree) / 60_000) * 60_000
-    if (Math.abs(decalageMs) <= ECART_MAX_FUSEAU_MS) return { instant: cree, decalageMs }
+    const ecart = Math.round((mural - cree) / 60_000) * 60_000
+    const fuseau = FUSEAUX_AUTORISES.find(f => ecartDuFuseau(cree, f) === ecart)
+    if (fuseau) return { instant: cree, fuseau }
   }
-  if (!Number.isFinite(mural)) return { instant: Number.isFinite(cree) ? cree : 0, decalageMs: 0 }
-  // Écart de Paris à cet instant (deux passes : l'écart dépend de l'instant, heure d'été comprise).
-  const ecartParis = (instant: number) => {
-    const { date, heure } = heureLocale(instant, FUSEAU_PAR_DEFAUT)
-    const [a, mo, j] = date.split('-').map(Number)
-    const [h, mi, s] = heure.split(':').map(Number)
-    return Date.UTC(a, mo - 1, j, h, mi, s) - instant
-  }
-  const premier = mural - ecartParis(mural)
-  const decalageMs = ecartParis(premier)
-  return { instant: mural - decalageMs, decalageMs }
+  if (!Number.isFinite(mural)) return { instant: Number.isFinite(cree) ? cree : 0, fuseau: FUSEAU_PAR_DEFAUT }
+  // Heure murale lue à Paris (deux passes : l'écart dépend de l'instant, heure d'été comprise).
+  const premier = mural - ecartDuFuseau(mural, FUSEAU_PAR_DEFAUT)
+  return { instant: mural - ecartDuFuseau(premier, FUSEAU_PAR_DEFAUT), fuseau: FUSEAU_PAR_DEFAUT }
 }
 
-/** Pointage resté ouvert un jour précédent (date murale de l'arrivée) : départ oublié. */
+/** Pointage resté ouvert un jour précédent (date murale de l'arrivée, dans son fuseau) : départ oublié. */
 export function estOublie(ligne: PointageOuvert, maintenant: number): boolean {
-  const { decalageMs } = reperesArrivee(ligne)
-  return murale(maintenant, decalageMs).date > String(ligne.date)
+  return heureLocale(maintenant, reperesArrivee(ligne).fuseau).date > String(ligne.date)
 }
 
 /**
- * Clôture d'un pointage au départ `depart` (instant UTC) : heure de départ murale (même écart qu'à l'arrivée) et heures
+ * Clôture d'un pointage au départ `depart` (instant UTC) : heure de départ murale (fuseau de l'arrivée) et heures
  * travaillées calculées sur les instants, pause déduite. Un départ constaté un autre jour que l'arrivée (oubli, nuit)
  * n'est pas compté : départ = arrivée, 0 h, à régulariser par le gérant — plutôt qu'une journée de 16 h.
  */
@@ -271,8 +261,8 @@ export function cloture(
   ligne: PointageOuvert,
   depart: number,
 ): { heureDepart: string; heuresTravaillees: number; aRegulariser: boolean } {
-  const { instant: arrivee, decalageMs } = reperesArrivee(ligne)
-  const murDepart = murale(depart, decalageMs)
+  const { instant: arrivee, fuseau } = reperesArrivee(ligne)
+  const murDepart = heureLocale(depart, fuseau)
   if (murDepart.date > String(ligne.date)) {
     return { heureDepart: String(ligne.heure_arrivee), heuresTravaillees: 0, aRegulariser: true }
   }
@@ -280,6 +270,19 @@ export function cloture(
   const secondes = Math.max(0, (depart - arrivee) / 1000 - (Number.isFinite(pause) && pause > 0 ? pause * 60 : 0))
   const heureDepart = depart <= arrivee ? String(ligne.heure_arrivee) : murDepart.heure
   return { heureDepart, heuresTravaillees: Math.round((secondes / 3600) * 100) / 100, aRegulariser: false }
+}
+
+/**
+ * Note pour le gérant quand l'employé termine à la main un pointage automatique dont le téléphone n'a pas pu dater la
+ * sortie (veille, page fermée) : heure murale de la dernière présence vue sur le chantier, si elle tombe entre
+ * l'arrivée et le départ ; null sinon.
+ */
+export function noteDepartApresCoupure(ligne: PointageOuvert, derniereVue: unknown, depart: number): string | null {
+  if (typeof derniereVue !== 'number' || !Number.isFinite(derniereVue)) return null
+  const { instant: arrivee, fuseau } = reperesArrivee(ligne)
+  if (derniereVue < arrivee || derniereVue > depart) return null
+  const heure = heureLocale(derniereVue, fuseau).heure.slice(0, 5)
+  return `${NOTE_DEPART_APRES_COUPURE} ; dernière présence vue sur le chantier à ${heure} : à vérifier.`
 }
 
 /** Ajoute une note à celles d'un pointage (sans la répéter). */

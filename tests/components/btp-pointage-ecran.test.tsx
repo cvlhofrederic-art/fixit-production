@@ -4,7 +4,7 @@
 
 import React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ContextePointage } from '@/lib/btp/pointage-regles'
 
 const etat = vi.hoisted(() => ({
@@ -60,6 +60,22 @@ let contexte: ContextePointage
 let envois: Array<Record<string, unknown>>
 let lectures: number
 
+/** Fausse géolocalisation du navigateur : `positionner` envoie une position à la surveillance en cours. */
+function installerGeolocalisation() {
+  let succes: PositionCallback | null = null
+  const geo = {
+    watchPosition: vi.fn((rappel: PositionCallback) => { succes = rappel; return 7 }),
+    clearWatch: vi.fn(),
+    getCurrentPosition: vi.fn(),
+  }
+  Object.defineProperty(navigator, 'geolocation', { value: geo, configurable: true })
+  Object.defineProperty(navigator, 'permissions', { value: { query: vi.fn(async () => ({ state: 'granted' })) }, configurable: true })
+  const positionner = async (latitude: number, longitude: number) => {
+    await act(async () => { succes?.({ coords: { latitude, longitude, accuracy: 10 }, timestamp: Date.now() } as unknown as GeolocationPosition) })
+  }
+  return { geo, positionner }
+}
+
 beforeEach(() => {
   etat.locale = 'fr'
   etat.tables = {}
@@ -69,6 +85,8 @@ beforeEach(() => {
   contexte = structuredClone(CONTEXTE_EMPLOYE)
   envois = []
   lectures = 0
+  localStorage.clear()
+  Object.defineProperty(navigator, 'geolocation', { value: undefined, configurable: true })
   vi.mocked(toast.success).mockClear()
   vi.mocked(toast.error).mockClear()
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
@@ -129,6 +147,61 @@ describe('employé', () => {
     expect((screen.getByRole('button', { name: 'Activer le pointage automatique' }) as HTMLButtonElement).disabled).toBe(true)
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Terminer le pointage' })) })
     expect(envois).toEqual([{ action: 'depart', mode: 'manuel', fuseau: expect.any(String) }])
+  })
+
+  it('mode automatique choisi sur ce téléphone : la localisation reprend à l’ouverture… sauf pendant un pointage à la main', async () => {
+    const { geo } = installerGeolocalisation()
+    localStorage.setItem('vitfix_btp_pointage_auto', '1')
+    contexte.pointageAutoActive = true
+    const temoin = await afficher()
+    await waitFor(() => expect(geo.watchPosition).toHaveBeenCalledTimes(1))
+    temoin.unmount()
+
+    geo.watchPosition.mockClear()
+    contexte.pointageEnCours = { id: 'p1', chantierId: 'c-villa', chantierNom: 'Villa', date: '2026-11-16', heureArrivee: '08:30:00', heureDepart: null, heuresTravaillees: 0, mode: 'manuel' }
+    await afficher()
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 20)) })
+    expect(geo.watchPosition).not.toHaveBeenCalled()
+  })
+
+  it('suivi coupé puis téléphone loin du chantier : dernière présence affichée, et envoyée avec « Terminer » pour le gérant', async () => {
+    const { positionner } = installerGeolocalisation()
+    const derniereVue = Date.now() - 3 * 3_600_000
+    localStorage.setItem('vitfix_btp_pointage_auto', '1')
+    localStorage.setItem('vitfix_btp_pointage_presence', JSON.stringify({ chantierId: 'c-villa', instant: derniereVue }))
+    contexte.pointageAutoActive = true
+    contexte.pointageEnCours = { id: 'p1', chantierId: 'c-villa', chantierNom: 'Villa', date: '2026-11-16', heureArrivee: '06:00:00', heureDepart: null, heuresTravaillees: 0, mode: 'geo_auto' }
+    await afficher()
+    await waitFor(() => expect(navigator.geolocation.watchPosition).toHaveBeenCalled())
+    await positionner(43.30, 5.38) // 5,5 km au nord de la villa
+    expect(await screen.findByText(/dernière présence vue à/)).toBeTruthy()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Terminer le pointage' })) })
+    expect(envois).toEqual([{ action: 'depart', mode: 'manuel', derniereVue, fuseau: expect.any(String) }])
+  })
+
+  it('pointage terminé aujourd’hui sur un chantier : l’écran dit que l’arrivée automatique y attend la sortie de la zone', async () => {
+    installerGeolocalisation()
+    const d = new Date()
+    const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    localStorage.setItem('vitfix_btp_pointage_auto', '1')
+    localStorage.setItem('vitfix_btp_pointage_bloque', JSON.stringify({ chantierId: 'c-villa', jour }))
+    contexte.pointageAutoActive = true
+    await afficher()
+    expect(await screen.findByText(/Pointage terminé sur Villa : l’arrivée automatique n’y reprendra qu’après votre sortie/)).toBeTruthy()
+  })
+
+  it('« Terminer » refusé (pointage terminé ailleurs, minuit passé page ouverte) : message, puis l’écran est relu', async () => {
+    contexte.pointageEnCours = { id: 'p1', chantierId: 'c-villa', chantierNom: 'Villa', date: '2026-11-16', heureArrivee: '08:30:00', heureDepart: null, heuresTravaillees: 0, mode: 'manuel' }
+    vi.mocked(globalThis.fetch).mockImplementation(async (_url, init) => {
+      if (init?.method === 'POST') return new Response(JSON.stringify({ error: 'aucun_pointage_en_cours' }), { status: 404 })
+      lectures += 1
+      return new Response(JSON.stringify(contexte), { status: 200 })
+    })
+    await afficher()
+    const avant = lectures
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Terminer le pointage' })) })
+    expect(toast.error).toHaveBeenCalledWith('Aucun pointage en cours.')
+    expect(lectures).toBeGreaterThan(avant)
   })
 
   it('départ oublié un jour précédent : signalé, à régulariser par le responsable', async () => {
@@ -219,7 +292,7 @@ describe('gérant — affectations', () => {
     expect(within(villa).getByText('Compte actif')).toBeTruthy()
     expect(within(villa).getByText('Invitation envoyée')).toBeTruthy()
     expect(within(villa).getByText(/actuellement sur « Immeuble »/)).toBeTruthy()
-    const lien = within(villa).getByRole('link', { name: /Voir la position de Villa sur la carte/ }) as HTMLAnchorElement
+    const lien = within(villa).getByRole('link', { name: 'Voir sur la carte — Villa' }) as HTMLAnchorElement
     expect(lien.href).toContain('openstreetmap.org/?mlat=43.25&mlon=5.38')
     expect(within(villa).getByRole('button', { name: 'Relocaliser l’adresse' })).toBeTruthy()
   })
@@ -241,9 +314,9 @@ describe('gérant — affectations', () => {
     etat.geocodage = { latitude: 43.29, longitude: 5.37, precise: false }
     await ouvrirAffectations()
     await act(async () => { fireEvent.click(within(carte('Immeuble')).getByRole('button', { name: 'Localiser l’adresse' })) })
-    expect(geocoderAdresse).toHaveBeenLastCalledWith('5 avenue du Port Marseille', 'FR')
+    expect(geocoderAdresse).toHaveBeenLastCalledWith(expect.objectContaining({ adresse: '5 avenue du Port', ville: 'Marseille' }), 'FR')
     expect(etat.updates).toEqual([])
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('indiquez le numéro et la rue'))
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('indiquez le numéro, la rue et le code postal'))
 
     etat.geocodage = { latitude: 43.301, longitude: 5.365, precise: true }
     await act(async () => { fireEvent.click(within(carte('Immeuble')).getByRole('button', { name: 'Localiser l’adresse' })) })
@@ -288,5 +361,18 @@ describe('gérant — historique', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Voir tout' }))
     expect(screen.getByText('Départ non pointé')).toBeTruthy()
     expect(screen.getByText('À régulariser')).toBeTruthy()
+  })
+
+  it('départ pointé à la main après une coupure du suivi GPS : « À vérifier », la note donne la dernière présence', async () => {
+    const note = 'Départ pointé à la main après une coupure du suivi GPS ; dernière présence vue sur le chantier à 09:05 : à vérifier.'
+    etat.tables = {
+      pointages: [{ id: 'p1', employe: 'Paul Exemple', chantier: 'Villa', date: '2026-01-05', heureArrivee: '08:30:00', heureDepart: '13:00:00', heuresTravaillees: 4.5, mode: 'geo_auto', notes: note }],
+      chantiers: [],
+      membres: [],
+    }
+    await afficher()
+    fireEvent.click(screen.getByRole('button', { name: 'Historique' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Voir tout' }))
+    expect(screen.getByText('À vérifier').getAttribute('title')).toBe(note)
   })
 })

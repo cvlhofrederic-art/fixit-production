@@ -81,6 +81,22 @@ export function messageAutoDesactive(gerant: boolean, isPt: boolean): string {
     : 'Non activé par votre employeur : pointez à la main depuis la liste de vos chantiers.'
 }
 
+/**
+ * Pointage automatique en cours, téléphone hors du chantier sans heure de sortie connue (suivi coupé par une veille ou
+ * une page fermée) : l'employé termine à la main ; la dernière présence vue part avec, pour son responsable.
+ */
+export function messageSortieSansTrace(derniereVue: number | null, isPt: boolean): string {
+  if (derniereVue === null) {
+    return isPt
+      ? 'Já não está na obra, mas este telemóvel não sabe a que horas saiu: termine a marcação manualmente.'
+      : 'Vous n’êtes plus sur le chantier, mais ce téléphone ne sait pas à quelle heure vous en êtes parti : terminez le pointage à la main.'
+  }
+  const heure = new Date(derniereVue).toLocaleTimeString(isPt ? 'pt-PT' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })
+  return isPt
+    ? `O acompanhamento foi interrompido (página fechada ou telemóvel em suspensão) e já não está na obra: última presença registada às ${heure}. Termine a marcação manualmente; o seu responsável verá esta hora.`
+    : `Le suivi a été interrompu (page fermée ou téléphone en veille) et vous n’êtes plus sur le chantier : dernière présence vue à ${heure}. Terminez le pointage à la main ; votre responsable verra cette heure.`
+}
+
 /** Bouton d'un chantier dans « Mes chantiers ». */
 export function libelleBoutonChantier(surPlace: boolean, isPt: boolean): string {
   if (surPlace) return isPt ? 'No local' : 'Sur place'

@@ -12,9 +12,10 @@ import {
 // Pointage automatique, page ouverte : le navigateur suit la position (watchPosition), la détection décide de
 // l'arrivée et du départ (lib/btp/pointage-geo.ts) et l'écran envoie le pointage au serveur. La position et la
 // distance restent dans ce hook : seuls le chantier et l'instant sortent, par les fonctions passées en paramètre.
-// Le navigateur arrête la localisation quand la page est fermée ou le téléphone en veille : rien ne tourne alors.
-// Pour dater juste un départ après une veille, l'instant de la dernière présence sur le chantier est gardé sur le
-// téléphone (localStorage), jamais la position.
+// Le navigateur arrête la localisation quand la page est fermée ou le téléphone en veille : rien ne tourne alors, et
+// un départ survenu pendant ce temps n'est pas daté (l'employé termine à la main). Sont gardés sur le téléphone
+// (localStorage), jamais la position : l'instant de la dernière présence sur le chantier du pointage en cours, et le
+// chantier dont le pointage vient de se terminer (pas de nouvelle arrivée automatique avant d'en être sorti).
 
 export type StatutGps = 'arrete' | 'recherche' | 'actif' | 'refuse' | 'indisponible' | 'non_supporte'
 
@@ -28,6 +29,11 @@ export interface OptionsPointageAuto {
   chantiers: readonly ChantierPointable[]
   /** Chantier du pointage automatique en cours selon le serveur, null sinon. */
   chantierActifId: string | null
+  /**
+   * Chantier du pointage en cours quel que soit son mode (à la main compris), null sans pointage ; par défaut
+   * `chantierActifId`. Quand ce pointage se termine, son chantier est bloqué jusqu'à ce que le téléphone en sorte.
+   */
+  chantierEnCoursId?: string | null
   pointerArrivee: EnvoiPointage
   pointerDepart: EnvoiPointage
 }
@@ -42,6 +48,8 @@ export const DELAI_NOUVEL_ESSAI_MS = 15_000
 export const CLE_PREFERENCE_AUTO = 'vitfix_btp_pointage_auto'
 /** Dernière présence connue sur le chantier du pointage en cours : { chantierId, instant }. */
 export const CLE_DERNIERE_PRESENCE = 'vitfix_btp_pointage_presence'
+/** Chantier dont le pointage s'est terminé, bloqué pour l'arrivée automatique : { chantierId, jour } (jour local). */
+export const CLE_CHANTIER_BLOQUE = 'vitfix_btp_pointage_bloque'
 
 function lireStockage(cle: string): string | null {
   try {
@@ -61,22 +69,44 @@ function ecrireStockage(cle: string, valeur: string | null): void {
   }
 }
 
-/** Dernière présence enregistrée sur ce téléphone pour ce chantier, ou null. */
-function presenceMemorisee(chantierId: string | null): number | null {
-  if (!chantierId) return null
+function lireJson(cle: string): Record<string, unknown> | null {
   try {
-    const lu = JSON.parse(lireStockage(CLE_DERNIERE_PRESENCE) ?? 'null') as { chantierId?: unknown; instant?: unknown } | null
-    return lu?.chantierId === chantierId && typeof lu.instant === 'number' && Number.isFinite(lu.instant) ? lu.instant : null
+    const lu: unknown = JSON.parse(lireStockage(cle) ?? 'null')
+    return lu && typeof lu === 'object' ? (lu as Record<string, unknown>) : null
   } catch {
-    // Valeur illisible : aucune présence connue, le départ se terminera à la main.
+    // Valeur illisible : comme si rien n'était gardé.
     return null
   }
 }
 
-export function usePointageAuto({ autorise, chantiers, chantierActifId, pointerArrivee, pointerDepart }: OptionsPointageAuto) {
+/** Date locale du téléphone (AAAA-MM-JJ). */
+function jourLocal(instant: number): string {
+  const d = new Date(instant)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Dernière présence enregistrée sur ce téléphone pour ce chantier, ou null (le départ se terminera alors à la main). */
+function presenceMemorisee(chantierId: string | null): number | null {
+  if (!chantierId) return null
+  const lu = lireJson(CLE_DERNIERE_PRESENCE)
+  return lu?.chantierId === chantierId && typeof lu.instant === 'number' && Number.isFinite(lu.instant) ? lu.instant : null
+}
+
+/** Chantier bloqué aujourd'hui sur ce téléphone, ou null (un blocage ne survit pas au lendemain). */
+function blocageMemorise(): string | null {
+  const lu = lireJson(CLE_CHANTIER_BLOQUE)
+  return typeof lu?.chantierId === 'string' && lu.jour === jourLocal(Date.now()) ? lu.chantierId : null
+}
+
+export function usePointageAuto({
+  autorise, chantiers, chantierActifId, chantierEnCoursId, pointerArrivee, pointerDepart,
+}: OptionsPointageAuto) {
+  const enCoursId = chantierEnCoursId === undefined ? chantierActifId : chantierEnCoursId
   const [statut, setStatut] = useState<StatutGps>('arrete')
   const [lecture, setLecture] = useState<LecturePosition | null>(null)
-  const [etat, setEtat] = useState<EtatDetection>(() => etatPourPointage(chantierActifId, presenceMemorisee(chantierActifId)))
+  const [etat, setEtat] = useState<EtatDetection>(
+    () => etatPourPointage(chantierActifId, presenceMemorisee(chantierActifId), enCoursId === null ? blocageMemorise() : null),
+  )
   const [envoiEnCours, setEnvoiEnCours] = useState(false)
   const [maintenant, setMaintenant] = useState(() => Date.now())
 
@@ -89,17 +119,23 @@ export function usePointageAuto({ autorise, chantiers, chantierActifId, pointerA
   const prochainEssaiRef = useRef(0)
   const derniereEvaluationRef = useRef<number | null>(null)
   const lectureDepuisRepriseRef = useRef(false)
+  const enCoursPrecedentRef = useRef(enCoursId)
 
   useEffect(() => { chantiersRef.current = chantiers }, [chantiers])
   useEffect(() => { envoisRef.current = { pointerArrivee, pointerDepart } }, [pointerArrivee, pointerDepart])
 
   const changerEtat = useCallback((suivant: EtatDetection) => {
-    const precedente = etatRef.current.derniereDansZone
+    const precedent = etatRef.current
     etatRef.current = suivant
     setEtat(suivant)
-    if (suivant.derniereDansZone !== precedente) {
+    if (suivant.derniereDansZone !== precedent.derniereDansZone) {
       ecrireStockage(CLE_DERNIERE_PRESENCE, suivant.chantierActifId && suivant.derniereDansZone !== null
         ? JSON.stringify({ chantierId: suivant.chantierActifId, instant: suivant.derniereDansZone })
+        : null)
+    }
+    if (suivant.chantierBloque !== precedent.chantierBloque) {
+      ecrireStockage(CLE_CHANTIER_BLOQUE, suivant.chantierBloque
+        ? JSON.stringify({ chantierId: suivant.chantierBloque, jour: jourLocal(Date.now()) })
         : null)
     }
   }, [])
@@ -107,8 +143,17 @@ export function usePointageAuto({ autorise, chantiers, chantierActifId, pointerA
   // Le serveur fait foi : un pointage commencé ou terminé ailleurs remet la détection à zéro.
   useEffect(() => {
     if (etatRef.current.chantierActifId === chantierActifId) return
-    changerEtat(etatPourPointage(chantierActifId, presenceMemorisee(chantierActifId)))
+    changerEtat(etatPourPointage(chantierActifId, presenceMemorisee(chantierActifId), etatRef.current.chantierBloque))
   }, [chantierActifId, changerEtat])
+
+  // Fin d'un pointage (à la main ou automatique, sur place ou non) : son chantier est bloqué pour l'arrivée
+  // automatique jusqu'à ce que le téléphone en soit vu dehors — une pause prise sur place ne repointe rien.
+  useEffect(() => {
+    const precedent = enCoursPrecedentRef.current
+    enCoursPrecedentRef.current = enCoursId
+    if (precedent === null || precedent === enCoursId || etatRef.current.chantierActifId !== null) return
+    changerEtat({ ...etatRef.current, candidat: null, chantierBloque: precedent })
+  }, [enCoursId, changerEtat])
 
   const evaluer = useCallback(async (nouvelleLecture: boolean) => {
     const instant = Date.now()
@@ -129,7 +174,9 @@ export function usePointageAuto({ autorise, chantiers, chantierActifId, pointerA
       const envoi = decision.type === 'arrivee' ? envoisRef.current.pointerArrivee : envoisRef.current.pointerDepart
       const enregistre = await envoi(decision.chantierId, decision.depuis)
       if (enregistre) {
-        changerEtat(decision.type === 'arrivee' ? etatPourPointage(decision.chantierId, instant) : etatPourPointage(null))
+        changerEtat(decision.type === 'arrivee'
+          ? etatPourPointage(decision.chantierId, instant)
+          : etatPourPointage(null, null, decision.chantierId))
         prochainEssaiRef.current = 0
       } else {
         prochainEssaiRef.current = Date.now() + DELAI_NOUVEL_ESSAI_MS
@@ -148,12 +195,12 @@ export function usePointageAuto({ autorise, chantiers, chantierActifId, pointerA
     derniereEvaluationRef.current = null
   }, [])
 
-  /** Plus de suivi : ni candidat ni sortie en attente ; la dernière présence connue est gardée. */
+  /** Plus de suivi : ni candidat ni sortie en attente ; la dernière présence et le chantier bloqué sont gardés. */
   const oublierSuivi = useCallback(() => {
     lectureRef.current = null
     setLecture(null)
     setStatut('arrete')
-    changerEtat({ ...etatRef.current, candidat: null, horsZoneDepuis: null, sortieSansTrace: false })
+    changerEtat({ ...etatRef.current, candidat: null, horsZoneDepuis: null, vuHorsZone: null, sortieSansTrace: false })
   }, [changerEtat])
 
   const demarrer = useCallback(() => {

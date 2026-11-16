@@ -1,5 +1,6 @@
-// tests/lib/btp-pointage-geo.test.ts — détection de l'arrivée et du départ d'un chantier (pointage BTP, 16/11/2026).
-// Coordonnées fictives autour d'un point de Marseille ; aucune donnée réelle.
+// tests/lib/btp-pointage-geo.test.ts — détection de l'arrivée et du départ d'un chantier (pointage BTP, 16/11/2026) :
+// départ pointé seulement s'il a été vu (pas après une coupure du suivi), pas de ré-arrivée sur le chantier qu'on vient
+// de quitter tant qu'on n'en est pas sorti. Coordonnées fictives autour d'un point de Marseille ; aucune donnée réelle.
 
 import { describe, expect, it } from 'vitest'
 import {
@@ -165,11 +166,49 @@ describe('départ', () => {
 })
 
 describe('départ après une coupure du suivi (téléphone en veille, page rouverte)', () => {
-  it('trou de plus de deux minutes : le départ est daté de la dernière présence connue, sans attendre', () => {
+  it('trou de plus de deux minutes : l’heure de sortie est inconnue, aucun départ automatique, même longtemps après', () => {
+    // Écran éteint à T0 sur le chantier, téléphone rouvert 4 h 30 plus tard au restaurant : ni 0,08 h comptée en
+    // silence (départ daté de T0), ni 4 h 30 (départ daté du réveil) ; l'employé termine à la main.
+    const vuSurPlace = etatPourPointage('A', T0)
+    const reveil = T0 + 4.5 * 3_600_000
+    const { decisions, etat } = rejouer([[5000, reveil], [5000, reveil + 10 * CONFIRMATION_DEPART_MS]], vuSurPlace)
+    expect(decisions).toEqual([])
+    expect(etat).toMatchObject({ sortieSansTrace: true, horsZoneDepuis: null, derniereDansZone: T0 })
+    // En suivi continu après le réveil, toujours rien : la sortie n'a pas été vue.
+    const continu = evaluerDetection(etat, lire(5000, reveil + 11 * CONFIRMATION_DEPART_MS), [CHANTIER_A], reveil + 20 * CONFIRMATION_DEPART_MS, { suiviContinu: true })
+    expect(continu.decision).toEqual({ type: 'aucune' })
+  })
+
+  it('un seul point GPS aberrant au réveil, sur le chantier : rien n’est pointé, le point suivant sur place efface le signal', () => {
     const vuSurPlace = etatPourPointage('A', T0)
     const reveil = T0 + 3 * 3_600_000
-    const resultat = evaluerDetection(vuSurPlace, lire(5000, reveil), [CHANTIER_A], reveil)
-    expect(resultat.decision).toEqual({ type: 'depart', chantierId: 'A', distanceM: 5000, depuis: T0 })
+    const { decisions, etat } = rejouer([[200, reveil, 20], [15, reveil + 5000]], vuSurPlace)
+    expect(decisions).toEqual([])
+    expect(etat).toMatchObject({ sortieSansTrace: false, derniereDansZone: reveil + 5000 })
+  })
+
+  it('coupure de plus de deux minutes PENDANT la confirmation : sortie plus datable (l’employé a pu revenir entre-temps)', () => {
+    const vuSurPlace = etatPourPointage('A', T0)
+    const sortie = rejouer([[600, T0 + 5000]], vuSurPlace).etat
+    expect(sortie.horsZoneDepuis).toBe(T0 + 5000)
+    const reveil = T0 + 2 * 3_600_000
+    const resultat = evaluerDetection(sortie, lire(600, reveil), [CHANTIER_A], reveil, { suiviContinu: true })
+    expect(resultat.decision).toEqual({ type: 'aucune' })
+    expect(resultat.etat).toMatchObject({ sortieSansTrace: true, horsZoneDepuis: null })
+  })
+
+  it('coupure courte (moins de deux minutes) pendant la confirmation : départ toujours daté de la première lecture dehors', () => {
+    const vuSurPlace = etatPourPointage('A', T0)
+    const { decisions } = rejouer([[600, T0 + 5000], [600, T0 + 5000 + 100_000]], vuSurPlace)
+    expect(decisions).toEqual([{ type: 'depart', chantierId: 'A', distanceM: 600, depuis: T0 + 5000 }])
+  })
+
+  it('la confirmation de départ doit être vue : une vieille lecture dehors relue plus tard ne suffit pas, sauf en suivi continu', () => {
+    const sortie = evaluerDetection(etatPourPointage('A', T0), lire(600, T0 + 5000), [CHANTIER_A], T0 + 5000).etat
+    const relue = evaluerDetection(sortie, lire(600, T0 + 5000), [CHANTIER_A], T0 + 5000 + 90_000)
+    expect(relue.decision).toEqual({ type: 'aucune' })
+    const suivi = evaluerDetection(sortie, lire(600, T0 + 5000), [CHANTIER_A], T0 + 5000 + CONFIRMATION_DEPART_MS, { suiviContinu: true })
+    expect(suivi.decision).toEqual({ type: 'depart', chantierId: 'A', distanceM: 600, depuis: T0 + 5000 })
   })
 
   it('suivi sans trou : le départ est daté de la première lecture dehors', () => {
@@ -206,9 +245,39 @@ describe('départ après une coupure du suivi (téléphone en veille, page rouve
     expect(resultat.decision).toEqual({ type: 'aucune' })
   })
 
-  it('etatPourPointage : sans chantier actif, aucune présence gardée', () => {
+  it('etatPourPointage : présence seulement avec un chantier actif, chantier bloqué seulement sans', () => {
     expect(etatPourPointage(null, T0)).toEqual(ETAT_DETECTION_INITIAL)
-    expect(etatPourPointage('A', T0)).toEqual({ ...ETAT_DETECTION_INITIAL, chantierActifId: 'A', derniereDansZone: T0 })
+    expect(etatPourPointage('A', T0, 'B')).toEqual({ ...ETAT_DETECTION_INITIAL, chantierActifId: 'A', derniereDansZone: T0 })
+    expect(etatPourPointage(null, T0, 'A')).toEqual({ ...ETAT_DETECTION_INITIAL, chantierBloque: 'A' })
+  })
+})
+
+describe('après la fin d’un pointage : pas de nouvelle arrivée sur ce chantier avant d’en être sorti', () => {
+  const bloque = etatPourPointage(null, null, 'A')
+
+  it('pause prise sur place après « Terminer » : aucune arrivée, même longtemps après', () => {
+    const { decisions, etat } = rejouer([[20, T0], [20, T0 + 10 * CONFIRMATION_ARRIVEE_MS], [90, T0 + 20 * CONFIRMATION_ARRIVEE_MS]], bloque)
+    expect(decisions).toEqual([])
+    expect(etat).toMatchObject({ chantierBloque: 'A', candidat: null })
+  })
+
+  it('vu hors de la zone élargie (rayon + marge) : débloqué ; de retour, l’arrivée est pointée normalement', () => {
+    // Dans la marge (130 m) : toujours bloqué.
+    expect(rejouer([[100 + MARGE_SORTIE_M, T0]], bloque).etat.chantierBloque).toBe('A')
+    const { decisions, etat } = rejouer([[100 + MARGE_SORTIE_M + 1, T0], [20, T0 + 60_000], [20, T0 + 60_000 + CONFIRMATION_ARRIVEE_MS]], bloque)
+    expect(etat.chantierBloque).toBeNull()
+    expect(decisions).toEqual([{ type: 'arrivee', chantierId: 'A', distanceM: 20, depuis: T0 + 60_000 }])
+  })
+
+  it('un autre chantier proche reste pointable ; un chantier bloqué qui n’est plus affecté est oublié', () => {
+    const resultat = evaluerDetection(bloque, lire(90, T0), [CHANTIER_A, CHANTIER_B], T0, { confirmationArriveeMs: 0 })
+    expect(resultat.decision).toEqual({ type: 'arrivee', chantierId: 'B', distanceM: 60, depuis: T0 })
+    expect(evaluerDetection(bloque, lire(20, T0), [CHANTIER_B], T0).etat.chantierBloque).toBeNull()
+  })
+
+  it('une lecture vieille ou imprécise ne débloque rien', () => {
+    expect(evaluerDetection(bloque, lire(5000, T0), [CHANTIER_A], T0 + AGE_MAX_LECTURE_MS + 1).etat.chantierBloque).toBe('A')
+    expect(evaluerDetection(bloque, lire(5000, T0, PRECISION_MAX_M + 1), [CHANTIER_A], T0).etat.chantierBloque).toBe('A')
   })
 })
 

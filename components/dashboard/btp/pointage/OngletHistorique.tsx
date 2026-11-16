@@ -3,9 +3,12 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
-import { NOTE_A_REGULARISER, NOTE_DOUBLON, pointagesEnCsv, STATUT_EN_COURS } from '@/lib/btp/pointage-regles'
+import { NOTE_A_REGULARISER, NOTE_DEPART_APRES_COUPURE, NOTE_DOUBLON, pointagesEnCsv, STATUT_EN_COURS } from '@/lib/btp/pointage-regles'
 import type { Artisan } from '@/lib/types'
 import { formatHeures } from './textes'
+
+/** Texte secondaire : gris assez foncé pour un contraste lisible en petite taille. */
+const GRIS = '#555'
 
 // Onglet « Historique » (gérant) : tous les pointages de la société, saisie à la main, résumé de la semaine, export
 // CSV. Reprend l'ancien onglet « Pointages » de l'écran ; la saisie garde désormais l'employé et le chantier choisis
@@ -62,11 +65,19 @@ function celluleDepart(p: PointageLu, jour: string, isPt: boolean) {
   return <span className="v5-badge v5-badge-green">{isPt ? 'Em curso' : 'En cours'}</span>
 }
 
-/** Pointage refermé sans heures par le serveur (départ oublié, doublon) : à régulariser par le gérant. */
+/**
+ * Pointage refermé sans heures par le serveur (départ oublié, doublon) : à régulariser par le gérant. Départ pointé à la
+ * main après une coupure du suivi GPS : à vérifier (la note donne la dernière présence vue sur le chantier).
+ */
 function badgeARegulariser(p: PointageLu, isPt: boolean) {
   const notes = p.notes ?? ''
-  if (!notes.includes(NOTE_A_REGULARISER) && !notes.includes(NOTE_DOUBLON)) return null
-  return <span className="v5-badge v5-badge-orange" title={notes}>{isPt ? 'A regularizar' : 'À régulariser'}</span>
+  if (notes.includes(NOTE_A_REGULARISER) || notes.includes(NOTE_DOUBLON)) {
+    return <span className="v5-badge v5-badge-orange" title={notes}>{isPt ? 'A regularizar' : 'À régulariser'}</span>
+  }
+  if (notes.includes(NOTE_DEPART_APRES_COUPURE)) {
+    return <span className="v5-badge v5-badge-yellow" title={notes}>{isPt ? 'A verificar' : 'À vérifier'}</span>
+  }
+  return null
 }
 
 function badgeMode(p: PointageLu, isPt: boolean) {
@@ -152,7 +163,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
   }
 
   if (pointagesBtp.loading) {
-    return <div className="v5-card" style={{ textAlign: 'center', color: '#999', fontSize: 13 }}>{isPt ? 'A carregar…' : 'Chargement…'}</div>
+    return <div className="v5-card" style={{ textAlign: 'center', color: GRIS, fontSize: 13 }}>{isPt ? 'A carregar…' : 'Chargement…'}</div>
   }
 
   return (
@@ -274,7 +285,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
           </thead>
           <tbody>
             {filtres.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: '#999' }}>{isPt ? 'Nenhuma marcação' : 'Aucun pointage'}</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 24, color: GRIS }}>{isPt ? 'Nenhuma marcação' : 'Aucun pointage'}</td></tr>
             ) : filtres.map(p => (
               <tr key={p.id}>
                 <td style={{ fontWeight: 600 }}>{p.employe}</td>
@@ -298,7 +309,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
             ))}
           </tbody>
         </table>
-        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: '#999' }}>
+        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 11, color: GRIS }}>
           <span>{filtres.length} {isPt ? 'marcação(ões)' : 'pointage(s)'} — <strong>{formatHeures(totalHeures)}</strong></span>
           <button type="button" className="v5-btn v5-btn-sm" onClick={exporterCsv} disabled={filtres.length === 0}>
             {isPt ? 'Exportar CSV' : 'Exporter CSV'}
@@ -318,7 +329,7 @@ export function OngletHistorique({ artisan, isPt }: { artisan: Artisan; isPt: bo
           </thead>
           <tbody>
             {resumeSemaine.length === 0 ? (
-              <tr><td colSpan={JOURS.length + 2} style={{ textAlign: 'center', padding: 16, color: '#999' }}>{isPt ? 'Sem dados esta semana' : 'Aucune donnée cette semaine'}</td></tr>
+              <tr><td colSpan={JOURS.length + 2} style={{ textAlign: 'center', padding: 16, color: GRIS }}>{isPt ? 'Sem dados esta semana' : 'Aucune donnée cette semaine'}</td></tr>
             ) : resumeSemaine.map(ligne => (
               <tr key={ligne.employe}>
                 <td style={{ fontWeight: 600 }}>{ligne.employe}</td>

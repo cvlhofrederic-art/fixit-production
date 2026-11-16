@@ -212,12 +212,12 @@ export function OngletAffectations({
     }
     setOccupe(c.id)
     try {
-      const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
+      const position = await geocoderAdresse(c, isPt ? 'PT' : 'FR')
       if (!position?.precise) {
-        // Introuvable, ou seulement le centre de la commune : le pointage se déclencherait au mauvais endroit.
+        // Introuvable, centre de la commune ou rue d'une autre commune : le pointage se déclencherait au mauvais endroit.
         toast.error(isPt
-          ? 'Morada não encontrada com precisão: indique o número e a rua no módulo Obras.'
-          : 'Adresse introuvable avec précision : indiquez le numéro et la rue dans le module Chantiers.')
+          ? 'Morada não encontrada com precisão: indique o número, a rua e o código postal no módulo Obras.'
+          : 'Adresse introuvable avec précision : indiquez le numéro, la rue et le code postal dans le module Chantiers.')
         return
       }
       if (await chantiersBtp.update(c.id, { latitude: position.latitude, longitude: position.longitude })) {
@@ -243,7 +243,7 @@ export function OngletAffectations({
       <div className="v5-al info">
         {isPt
           ? 'Cada colaborador marca a partir do seu telemóvel, ligado com a sua própria conta (Contas de utilizadores), com o mesmo e-mail da sua ficha em Equipas. Depois de iniciar sessão, abre « Marcação de horas » no menu, ou esta ligação: '
-          : 'Chaque employé pointe depuis son téléphone, connecté avec son propre compte (Comptes utilisateurs), avec la même adresse e-mail que sur sa fiche Équipes. Une fois connecté, il ouvre « Pointage » dans le menu, ou ce lien : '}
+          : 'Chaque employé pointe depuis son téléphone, connecté avec son propre compte (Comptes utilisateurs), avec la même adresse e-mail que sur sa fiche Équipes. Une fois connecté, il ouvre « Pointage équipes » dans le menu, ou ce lien : '}
         <strong style={{ wordBreak: 'break-all' }}>{lienEmployes}</strong>
       </div>
       {!affectationIndividuelle && (
@@ -278,7 +278,7 @@ export function OngletAffectations({
                     href={lienCarte(c.latitude as number, c.longitude as number)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`${isPt ? 'Ver a posição de' : 'Voir la position de'} ${c.titre} ${isPt ? 'no mapa' : 'sur la carte'}`}
+                    aria-label={`${isPt ? 'Ver no mapa' : 'Voir sur la carte'} — ${c.titre}`}
                   >
                     {isPt ? 'Ver no mapa' : 'Voir sur la carte'}
                   </a>

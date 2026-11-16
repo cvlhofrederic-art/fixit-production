@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import {
   BATTEMENT_MS,
+  CLE_CHANTIER_BLOQUE,
   CLE_DERNIERE_PRESENCE,
   CLE_PREFERENCE_AUTO,
   DELAI_NOUVEL_ESSAI_MS,
@@ -135,7 +136,9 @@ describe('usePointageAuto', () => {
     await lire(20)
     expect(result.current.etat.candidat).not.toBeNull()
     rerender(options({ chantierActifId: 'villa' }))
-    expect(result.current.etat).toEqual({ chantierActifId: 'villa', candidat: null, horsZoneDepuis: null, derniereDansZone: null, sortieSansTrace: false })
+    expect(result.current.etat).toEqual({
+      chantierActifId: 'villa', candidat: null, horsZoneDepuis: null, vuHorsZone: null, derniereDansZone: null, sortieSansTrace: false, chantierBloque: null,
+    })
   })
 
   it('refus de la localisation : surveillance coupée, préférence oubliée', async () => {
@@ -199,7 +202,7 @@ describe('usePointageAuto', () => {
     expect(result.current.etat.chantierActifId).toBe('villa')
   })
 
-  it('téléphone en veille puis réveillé loin du chantier : départ daté de la dernière présence, tout de suite', async () => {
+  it('page en arrière-plan 3 h puis téléphone loin du chantier : heure de sortie inconnue, pas de départ automatique', async () => {
     const opts = options({ chantierActifId: 'villa' })
     const { result } = renderHook(() => usePointageAuto(opts))
     act(() => result.current.demarrer())
@@ -215,8 +218,69 @@ describe('usePointageAuto', () => {
     }
     expect(result.current.etat.derniereDansZone).toBe(derniereVue)
     await lire(5000)
-    expect(opts.pointerDepart).toHaveBeenCalledTimes(1)
-    expect(opts.pointerDepart).toHaveBeenCalledWith('villa', derniereVue)
+    await avancer(5 * CONFIRMATION_DEPART_MS)
+    expect(opts.pointerDepart).not.toHaveBeenCalled()
+    expect(result.current.etat).toMatchObject({ sortieSansTrace: true, derniereDansZone: derniereVue })
+  })
+
+  it('veille avec minuteurs gelés, page restée « visible » : le premier battement au réveil ne prolonge pas la présence', async () => {
+    const opts = options({ chantierActifId: 'villa' })
+    const { result } = renderHook(() => usePointageAuto(opts))
+    act(() => result.current.demarrer())
+    await lire(20)
+    await avancer(30_000)
+    const avantVeille = result.current.etat.derniereDansZone
+    // Téléphone en veille : rien ne tourne, l'horloge avance de 3 h, puis les minuteurs repartent. Deux battements
+    // avec la vieille position : ni le premier (coupure) ni le second (aucune position reçue depuis) ne la prolongent.
+    vi.setSystemTime(Date.now() + 3 * 3_600_000)
+    await avancer(2 * BATTEMENT_MS)
+    expect(result.current.etat.derniereDansZone).toBe(avantVeille)
+    await lire(5000)
+    await avancer(5 * CONFIRMATION_DEPART_MS)
+    expect(opts.pointerDepart).not.toHaveBeenCalled()
+    expect(result.current.etat.sortieSansTrace).toBe(true)
+  })
+
+  it('« Terminer » sur place, mode automatique actif : pas de nouvelle arrivée avant d’être sorti de la zone (pause sur place)', async () => {
+    const pointerArrivee = vi.fn(async () => true)
+    const base = options({ chantierActifId: 'villa', pointerArrivee })
+    const { result, rerender } = renderHook((p: OptionsPointageAuto) => usePointageAuto(p), { initialProps: base })
+    act(() => result.current.demarrer())
+    await lire(20)
+    // L'employé touche « Terminer le pointage » : le serveur n'a plus de pointage en cours.
+    rerender({ ...base, chantierActifId: null })
+    expect(result.current.etat.chantierBloque).toBe('villa')
+    await avancer(40_000)
+    await lire(20)
+    await avancer(5 * CONFIRMATION_ARRIVEE_MS)
+    expect(pointerArrivee).not.toHaveBeenCalled()
+    // Sorti de la zone puis revenu : l'arrivée est de nouveau pointée.
+    await lire(500)
+    expect(result.current.etat.chantierBloque).toBeNull()
+    await lire(20)
+    await avancer(CONFIRMATION_ARRIVEE_MS + BATTEMENT_MS)
+    expect(pointerArrivee).toHaveBeenCalledTimes(1)
+  })
+
+  it('fin d’un pointage commencé à la main : son chantier est bloqué de même, et gardé sur le téléphone pour la journée', async () => {
+    const pointerArrivee = vi.fn(async () => true)
+    const base = options({ chantierActifId: null, chantierEnCoursId: 'villa', pointerArrivee })
+    const { result, rerender } = renderHook((p: OptionsPointageAuto) => usePointageAuto(p), { initialProps: base })
+    expect(result.current.etat.chantierBloque).toBeNull()
+    rerender({ ...base, chantierEnCoursId: null })
+    expect(result.current.etat.chantierBloque).toBe('villa')
+    expect(JSON.parse(localStorage.getItem(CLE_CHANTIER_BLOQUE) ?? 'null')).toEqual({ chantierId: 'villa', jour: '2026-11-16' })
+    act(() => result.current.demarrer())
+    await lire(20)
+    await avancer(3 * CONFIRMATION_ARRIVEE_MS)
+    expect(pointerArrivee).not.toHaveBeenCalled()
+  })
+
+  it('blocage gardé sur le téléphone : page rouverte le même jour, toujours bloqué ; le lendemain, oublié', () => {
+    localStorage.setItem(CLE_CHANTIER_BLOQUE, JSON.stringify({ chantierId: 'villa', jour: '2026-11-16' }))
+    expect(renderHook(() => usePointageAuto(options())).result.current.etat.chantierBloque).toBe('villa')
+    localStorage.setItem(CLE_CHANTIER_BLOQUE, JSON.stringify({ chantierId: 'villa', jour: '2026-11-15' }))
+    expect(renderHook(() => usePointageAuto(options())).result.current.etat.chantierBloque).toBeNull()
   })
 
   it('dernière présence gardée sur le téléphone : la page rouverte sait dater le départ', async () => {
