@@ -31,6 +31,8 @@
 -- Les métadonnées, le JSON-LD et le sitemap des fiches lisent déjà des colonnes de la liste : ils ne changent pas.
 -- Les comptes connectés (rôle authenticated) ne sont pas concernés, ni avant ni après le déploiement.
 --
+-- Avant tout retour du site à une version antérieure à cette branche (annulation de la fusion, Worker précédent),
+-- lancer d'abord le retour arrière ci-dessous : sinon, les pages citées plus haut casseraient de la même façon.
 -- Retour arrière, si besoin : grant select on table public.profiles_artisan to anon;
 --
 -- Contrôle après exécution (lecture seule) : doit rendre 26 et 0.

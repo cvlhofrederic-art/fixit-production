@@ -1,11 +1,9 @@
 /**
  * Pages publiques qui lisent profiles_artisan avec la clé publique du site : fiche (app/fr/artisan/[id]/page.tsx,
  * partagée par /fr/artisan, /fr/societe, /pt/profissional et /pt/empresa), recherche, réservation, confirmation.
- * Elles demandaient `select('*')` : le navigateur du visiteur recevait la fiche entière (pièces justificatives,
- * informations de paiement, résultat des contrôles…). Chacune ne demande plus que ce qu'elle affiche
- * (lib/fiche-publique.ts), et ces colonnes existent toutes en production (une colonne absente ferait échouer la
- * lecture). Les lectures serveur avec la même clé (métadonnées, JSON-LD, sitemap) restent dans la liste que la
- * migration 20261115 laisse au rôle anon.
+ * Chacune ne lit plus que les colonnes qu'elle affiche (lib/fiche-publique.ts), jamais `select('*')`, et ces
+ * colonnes existent toutes en production (une colonne absente ferait échouer la lecture). Les lectures serveur avec
+ * la même clé (métadonnées, JSON-LD, sitemap) restent dans la liste que la migration 20261115 laisse au rôle anon.
  */
 import { readFileSync } from 'fs'
 import { join } from 'path'

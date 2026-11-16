@@ -1,7 +1,6 @@
 // Colonnes de profiles_artisan que les pages publiques lisent avec la clé publique du site (rôle anon) : fiche
 // (/fr/artisan, /fr/societe, /pt/profissional, /pt/empresa), recherche, réservation, confirmation, métadonnées et
-// JSON-LD des fiches, sitemap. Chaque page ne demande que ce qu'elle affiche, jamais `select('*')`, qui envoyait au
-// navigateur la fiche entière (pièces justificatives, informations de paiement, résultat des contrôles…).
+// JSON-LD des fiches, sitemap. Chaque page ne lit plus que les colonnes qu'elle affiche, jamais `select('*')`.
 //
 // Uniquement des colonnes présentes en production (relevé du 31/10/2026, repris dans
 // tests/helpers/colonnes-profiles-artisan.ts) : une seule colonne absente fait échouer toute la lecture (PostgREST
