@@ -22,36 +22,12 @@ vi.mock('@/lib/supabase', () => ({
 import { fetchNextDocNumber } from '../../lib/doc-number'
 import { emitDocument } from '../../lib/emit-document'
 import { supabase } from '@/lib/supabase'
+import { remplirLeStockage } from '../helpers/stockage-navigateur-plein'
 
 const ART = 'art-btp-1'
 const ANNEE = new Date().getFullYear()
 const CLE_DOCS = `fixit_documents_${ART}`
 const CLE_BROUILLONS = `fixit_drafts_${ART}`
-
-/** Taille occupée (clés + valeurs) d'un stockage, comme la comptent les navigateurs. */
-function taille(s: Storage): number {
-  let total = 0
-  for (let i = 0; i < s.length; i++) {
-    const cle = s.key(i) ?? ''
-    total += cle.length + (s.getItem(cle) ?? '').length
-  }
-  return total
-}
-
-/**
- * Stockage du navigateur plein : à partir de maintenant, toute écriture qui l'agrandirait lève QuotaExceededError
- * (règle des navigateurs) ; la lecture et les réécritures qui ne l'agrandissent pas marchent encore.
- */
-function remplirLeStockage(): void {
-  const ecrire = Storage.prototype.setItem
-  const quota = taille(localStorage)
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, cle: string, valeur: string) {
-    const ancienne = this.getItem(cle)
-    const apres = taille(this) - (ancienne === null ? 0 : cle.length + ancienne.length) + cle.length + String(valeur).length
-    if (apres > quota) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
-    ecrire.call(this, cle, valeur)
-  })
-}
 
 beforeEach(() => {
   localStorage.clear()

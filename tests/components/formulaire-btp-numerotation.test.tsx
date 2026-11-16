@@ -32,6 +32,7 @@ vi.mock('@/components/dashboard/btp/RentabiliteDevisModal', () => ({ default: ()
 import DevisFactureFormBTP from '@/components/DevisFactureFormBTP'
 import { toast } from 'sonner'
 import { syncDocumentSafe } from '@/lib/document-sync'
+import { remplirLeStockage } from '../helpers/stockage-navigateur-plein'
 
 const ANNEE = new Date().getFullYear()
 const ARTISAN: ArtisanBasic = { id: 'art-btp-numero', user_id: 'uid-societe', company_name: 'BATIR TEST SAS', email: 'contact@batir.test' }
@@ -55,26 +56,6 @@ function reseau(numerotation: () => Promise<Response>) {
   return f
 }
 
-function taille(s: Storage): number {
-  let total = 0
-  for (let i = 0; i < s.length; i++) {
-    const cle = s.key(i) ?? ''
-    total += cle.length + (s.getItem(cle) ?? '').length
-  }
-  return total
-}
-
-/** Stockage plein : toute écriture qui l'agrandirait lève QuotaExceededError, comme dans un navigateur. */
-function remplirLeStockage(): void {
-  const ecrire = Storage.prototype.setItem
-  const quota = taille(localStorage)
-  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, cle: string, valeur: string) {
-    const ancienne = this.getItem(cle)
-    const apres = taille(this) - (ancienne === null ? 0 : cle.length + ancienne.length) + cle.length + String(valeur).length
-    if (apres > quota) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
-    ecrire.call(this, cle, valeur)
-  })
-}
 
 const monter = (onBack = vi.fn()) => {
   render(<DevisFactureFormBTP artisan={ARTISAN} services={[]} bookings={[]} onBack={onBack} initialData={BROUILLON as never} />)
