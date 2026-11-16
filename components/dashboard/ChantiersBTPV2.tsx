@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useLocale } from '@/lib/i18n/context'
 import { useBTPData, useBTPSettings } from '@/lib/hooks/use-btp-data'
+import { geocoderAdresse } from '@/lib/btp/geocodage'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 import { toast } from 'sonner'
@@ -164,25 +165,10 @@ export function ChantiersBTPV2({ artisan, orgRole }: { artisan: Artisan; orgRole
     if (!adresse.trim()) return
     setGeocoding(true)
     try {
-      const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(adresse)}&limit=1`, { signal: AbortSignal.timeout(3000) })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.features?.length > 0) {
-          const [lng, lat] = data.features[0].geometry.coordinates
-          setForm(f => ({ ...f, latitude: lat, longitude: lng }))
-          setGeocoding(false); return
-        }
-      }
-      const nom = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(adresse)}&format=json&limit=1`, {
-        signal: AbortSignal.timeout(3000), headers: { 'User-Agent': 'Fixit/1.0' }
-      })
-      if (nom.ok) {
-        const nomData = await nom.json()
-        if (nomData.length > 0) setForm(f => ({ ...f, latitude: parseFloat(nomData[0].lat), longitude: parseFloat(nomData[0].lon) }))
-      }
-    } catch { /* silent */ }
-    finally { setGeocoding(false) }
-  }, [])
+      const position = await geocoderAdresse(adresse, isPt ? 'PT' : 'FR')
+      if (position) setForm(f => ({ ...f, latitude: position.latitude, longitude: position.longitude }))
+    } finally { setGeocoding(false) }
+  }, [isPt])
 
   // ── Import devis → form ──
   const importDevis = (devis: DevisSummary) => {

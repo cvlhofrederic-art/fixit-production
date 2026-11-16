@@ -135,6 +135,21 @@ GRANT INSERT, UPDATE, DELETE, TRUNCATE ON public.pro_team_members TO anon, authe
 
 ---
 
+## Migration 20261116 — Pointage BTP : employés affectés aux chantiers
+
+Retire l'index « un pointage en cours par employé » puis la colonne `chantiers_btp.membres_ids`. ATTENTION : retirer la
+colonne EFFACE les affectations individuelles enregistrées depuis (les équipes, `equipes_btp.chantier_id`, restent).
+Le code continue de marcher sans elle : l'écran Pointage n'affecte plus que des équipes et le signale, `/api/btp`
+enregistre les chantiers sans leurs employés. Aucun pointage n'est touché.
+
+```sql
+-- Rollback
+DROP INDEX IF EXISTS public.pointages_btp_un_ouvert_par_membre;
+ALTER TABLE public.chantiers_btp DROP COLUMN IF EXISTS membres_ids;
+```
+
+---
+
 ## Procedure de restore complete (PITR)
 
 En cas de probleme majeur :

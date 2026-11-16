@@ -5,10 +5,23 @@ import { supabase } from '@/lib/supabase'
 import { jetonAcces } from '@/lib/auth/jeton-acces'
 import { lireSessionSure } from '@/lib/auth/session-navigateur'
 import { resolveCompanyType } from '@/lib/config/companyTypes'
+import { RAYON_PAR_DEFAUT_M } from '@/lib/btp/pointage-geo'
 
 function safeJsonParse(val: unknown, fallback: any = []) {
   if (typeof val !== 'string') return val || fallback
   try { return JSON.parse(val) } catch { return fallback }
+}
+
+/** Rayon du pointage GPS saisi : entier positif, sinon la valeur par défaut de la colonne geo_rayon_m. */
+function rayonSaisi(valeur: unknown): number {
+  const nombre = typeof valeur === 'string' ? Number(valeur) : valeur
+  return typeof nombre === 'number' && Number.isFinite(nombre) && nombre > 0 ? Math.round(nombre) : RAYON_PAR_DEFAUT_M
+}
+
+/** Identifiants d'une liste (chaînes non vides, sans doublon) ; liste vide pour toute autre valeur. */
+function identifiants(valeur: unknown): string[] {
+  if (!Array.isArray(valeur)) return []
+  return [...new Set(valeur.filter((id): id is string => typeof id === 'string' && id.length > 0))]
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -82,6 +95,11 @@ export function mapToSupabase(table: ShortName, item: any): any {
       // sous_taches is a partial-update field — only include when explicitly provided
       if ('sous_taches' in item) mapped.sous_taches = item.sous_taches
       else if ('sousTaches' in item) mapped.sous_taches = item.sousTaches
+      // Rayon du pointage GPS et employés affectés : seulement quand le formulaire les fournit (fiche chantier,
+      // écran Pointage). Sans la colonne membres_ids (migration 20261116), /api/btp enregistre le reste du chantier.
+      if ('geoRayonM' in item) mapped.geo_rayon_m = rayonSaisi(item.geoRayonM)
+      else if ('geo_rayon_m' in item) mapped.geo_rayon_m = rayonSaisi(item.geo_rayon_m)
+      if ('membres_ids' in item) mapped.membres_ids = identifiants(item.membres_ids)
       return mapped
     }
     case 'membres':
@@ -109,12 +127,15 @@ export function mapToSupabase(table: ShortName, item: any): any {
       return {
         nom: item.nom || '',
         metier: item.metier || null,
+        chantier_id: item.chantierId || item.chantier_id || null,
         membreIds: item.membreIds || [], // handled separately in API
       }
     case 'pointages':
       return {
         employe: item.employe || '',
         poste: item.poste || null,
+        membre_id: item.membreId || null,
+        chantier_id: item.chantierId || null,
         chantier_nom: item.chantier || null,
         date: item.date || new Date().toISOString().split('T')[0],
         heure_arrivee: item.heureArrivee || '08:00',
@@ -217,6 +238,7 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     titre: ['titre'], client: ['client'], adresse: ['adresse'], ville: ['ville'], code_postal: ['codePostal', 'code_postal'],
     latitude: ['latitude'], longitude: ['longitude'], date_debut: ['dateDebut'], date_fin: ['dateFin'], budget: ['budget'],
     statut: ['statut'], description: ['description'], equipe: ['equipe'], sous_taches: ['sous_taches', 'sousTaches'],
+    geo_rayon_m: ['geoRayonM', 'geo_rayon_m'], membres_ids: ['membres_ids'],
   },
   membres: {
     prenom: ['prenom'], nom: ['nom'], telephone: ['telephone'], email: ['email'], type_compte: ['typeCompte'],
@@ -226,9 +248,10 @@ export const SOURCES_DES_COLONNES: Partial<Record<ShortName, Record<string, read
     type_contrat: ['type_contrat'], heures_hebdo: ['heures_hebdo'], panier_repas_jour: ['panier_repas_jour'],
     indemnite_trajet_jour: ['indemnite_trajet_jour'], prime_mensuelle: ['prime_mensuelle'], actif: ['actif'],
   },
-  equipes: { nom: ['nom'], metier: ['metier'], membreIds: ['membreIds'] },
+  equipes: { nom: ['nom'], metier: ['metier'], chantier_id: ['chantierId', 'chantier_id'], membreIds: ['membreIds'] },
   pointages: {
-    employe: ['employe'], poste: ['poste'], chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
+    employe: ['employe'], poste: ['poste'], membre_id: ['membreId'], chantier_id: ['chantierId'],
+    chantier_nom: ['chantier'], date: ['date'], heure_arrivee: ['heureArrivee'],
     heure_depart: ['heureDepart'], pause_minutes: ['pauseMinutes'], heures_travaillees: ['heuresTravaillees'], notes: ['notes'],
   },
   depenses: { label: ['label'], amount: ['amount'], category: ['category'], date: ['date'], notes: ['notes'] },
@@ -337,6 +360,8 @@ function mapFromSupabase(table: ShortName, item: any): any {
         ...item,
         employe: item.employe,
         poste: item.poste || '',
+        membreId: item.membre_id || '',
+        chantierId: item.chantier_id || '',
         chantier: item.chantier_nom || '',
         date: item.date,
         heureArrivee: item.heure_arrivee,
