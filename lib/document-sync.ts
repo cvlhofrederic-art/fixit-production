@@ -1,7 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { dedupeDocsByIdentity, type OptionsFusionDocuments } from '@/lib/devis-utils'
 
 // Sync a saved document (devis or facture) to Supabase via server-side API.
 // Pattern Pro SaaS 2026 : POST vers /api/devis/sync (Cloudflare Worker)
@@ -379,21 +379,41 @@ function isEmittedDoc(doc: Record<string, unknown>): boolean {
 //   - `artisanId` DOIT être la même clé que celle lue par la branche dashboard
 //     appelante (profil `artisanData.id` en chemin normal ; `user.id` en chemin
 //     admin/sans-profil).
+//   - `options` : celles de la fusion qui a produit la liste (sociétés BTP : deux
+//     documents distincts au même numéro restent tous les deux dans le cache).
 export function persistEmittedDocsToCache(
   artisanId: string,
   mergedDocs: Array<Record<string, unknown>>,
+  options?: OptionsFusionDocuments,
 ): void {
   if (typeof localStorage === 'undefined' || !artisanId) return
   try {
     // Dédup défensive (la liste est déjà censée l'être côté dashboard, mais on
     // réapplique l'invariant pour ne jamais persister de doublon).
-    const deduped = dedupeDocsByIdentity<Record<string, unknown>>([], mergedDocs)
+    const deduped = dedupeDocsByIdentity<Record<string, unknown>>([], mergedDocs, options)
     const emitted = deduped.filter(isEmittedDoc)
     if (emitted.length === 0) return // ne pas clobberer le cache émis avec []
     localStorage.setItem(`fixit_documents_${artisanId}`, JSON.stringify(emitted))
   } catch {
     /* private browsing / quota : best-effort, ne bloque jamais le rendu */
   }
+}
+
+/**
+ * Fusion des documents de la base dans la liste du tableau de bord (la base prime à identité égale), puis
+ * réécriture du cache des documents émis du navigateur avec la même fusion. Options : optionsFusionPourRole (sociétés
+ * BTP : deux documents distincts au même numéro restent tous les deux, dans la liste et dans le cache, au lieu que
+ * l'un efface l'autre — audit des fondations BTP du 11/11/2026, constat documents-cycle-1). Sans option : inchangé.
+ */
+export function fusionnerDocumentsDeLaBase<T>(
+  artisanId: string,
+  liste: T[],
+  documentsBase: T[],
+  options?: OptionsFusionDocuments,
+): T[] {
+  const fusion = dedupeDocsByIdentity(liste, documentsBase, options)
+  persistEmittedDocsToCache(artisanId, fusion as Array<Record<string, unknown>>, options)
+  return fusion
 }
 
 // One-time import of all localStorage documents for an artisan into Supabase.

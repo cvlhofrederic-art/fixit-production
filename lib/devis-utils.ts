@@ -87,14 +87,33 @@ export function docIdentityKey(
   return (d?.id as string) || num || ''
 }
 
+/** Options de fusion des listes de documents (dedupeDocsByIdentity). */
+export interface OptionsFusionDocuments {
+  /**
+   * Sociétés BTP : deux documents d'identifiants stables (UUID) différents sont deux documents, même s'ils portent le
+   * même numéro définitif (par exemple un numéro attribué hors connexion par le navigateur, puis le même par le
+   * serveur) : les deux restent. Sans l'option (artisan) : fusion d'origine, le numéro définitif fait l'identité.
+   */
+  conserverIdsDistincts?: boolean
+}
+
+/**
+ * Options de fusion selon le rôle du compte (orgRole du tableau de bord, ou app_metadata.role) : l'option BTP n'est
+ * donnée qu'au rôle pro_societe (audit des fondations BTP du 11/11/2026, constat documents-cycle-1).
+ */
+export function optionsFusionPourRole(role: string | null | undefined): OptionsFusionDocuments | undefined {
+  return role === 'pro_societe' ? { conserverIdsDistincts: true } : undefined
+}
+
 /**
  * Fusionne deux listes de documents par identité stable (docIdentityKey) :
  * `incoming` prime sur `existing` à clé égale, l'ordre de `existing` est
  * préservé, et les entrées de `incoming` absentes sont ajoutées. Les docs sans
  * identité ne sont jamais fusionnés (clé de repli unique). Mutualise la dédup
  * du merge cloud (dashboard) ET du refresh localStorage des listes V5.
+ * Option `conserverIdsDistincts` (sociétés BTP) : voir OptionsFusionDocuments.
  */
-export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
+export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[], options?: OptionsFusionDocuments): T[] {
   // Deux docs sont le MÊME document s'ils partagent un id stable OU un numéro
   // DÉFINITIF (DEV-/FACT-/AC-/AV-). Couvre les deux cas de fusion :
   //  - brouillon → émis : même id, le numéro légal est attribué à la validation ;
@@ -105,17 +124,35 @@ export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
   const result: T[] = []
   const byId = new Map<string, number>()
   const byNum = new Map<string, number>()
+  // Option BTP : tous les emplacements de chaque numéro définitif (deux documents distincts peuvent le porter).
+  const conserverIdsDistincts = options?.conserverIdsDistincts === true
+  const emplacementsParNumero = new Map<string, number[]>()
   const idOf = (d: T): string => ((d as { id?: string | null })?.id as string) || ''
   const numOf = (d: T): string => {
     const n = ((d as { docNumber?: string | null })?.docNumber as string) || ''
     return n && !/^BR-/i.test(n) ? n : ''
   }
+  // Emplacement du document qui porte déjà ce numéro définitif, ou -1.
+  // Sans l'option : le dernier document de ce numéro (fusion d'origine).
+  // Option BTP : un document d'identifiant stable ne rejoint jamais un document d'un AUTRE identifiant stable (deux
+  // documents distincts, gardés tous les deux) ; une copie à identifiant historique (non UUID) ou sans identifiant
+  // rejoint le document de ce numéro s'il est seul (doublons du 05/06/2026), sinon elle reste à part plutôt que d'en
+  // remplacer un au hasard.
+  const parNumero = (num: string, id: string): number => {
+    if (!num) return -1
+    if (!conserverIdsDistincts) return byNum.has(num) ? byNum.get(num)! : -1
+    const candidats = (emplacementsParNumero.get(num) ?? []).filter(i => numOf(result[i]) === num)
+    if (!isStableDocId(id)) return candidats.length === 1 ? candidats[0] : -1
+    const memeDocument = candidats.find(i => {
+      const autre = idOf(result[i])
+      return !isStableDocId(autre) || autre === id
+    })
+    return memeDocument ?? -1
+  }
   const upsert = (d: T) => {
     const id = idOf(d)
     const num = numOf(d)
-    let idx = id && byId.has(id) ? byId.get(id)!
-      : num && byNum.has(num) ? byNum.get(num)!
-      : -1
+    let idx = id && byId.has(id) ? byId.get(id)! : parNumero(num, id)
     if (idx >= 0) {
       result[idx] = d // incoming prime à identité égale
     } else {
@@ -123,7 +160,12 @@ export function dedupeDocsByIdentity<T>(existing: T[], incoming: T[]): T[] {
       result.push(d)
     }
     if (id) byId.set(id, idx)
-    if (num) byNum.set(num, idx)
+    if (num) {
+      byNum.set(num, idx)
+      const emplacements = emplacementsParNumero.get(num) ?? []
+      if (!emplacements.includes(idx)) emplacements.push(idx)
+      emplacementsParNumero.set(num, emplacements)
+    }
   }
   for (const d of existing) upsert(d)
   for (const d of incoming) upsert(d)

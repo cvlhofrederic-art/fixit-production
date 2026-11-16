@@ -13,7 +13,7 @@ import { downloadSavedDevis } from '@/lib/pdf/download-saved-devis'
 import { useDocumentCancel, isDocDraftStatus } from './useDocumentCancel'
 import { supabase } from '@/lib/supabase'
 import { computeDocumentTotalHT } from '@/lib/devis-totals'
-import { getDocSeq, dedupeDocsByIdentity, stableDocId } from '@/lib/devis-utils'
+import { getDocSeq, dedupeDocsByIdentity, stableDocId, optionsFusionPourRole } from '@/lib/devis-utils'
 import { useOrgRoleContext, type OrgRole } from '@/lib/hooks/useOrgRoleContext'
 import { AcompteQuickModal } from '@/components/dashboard/FacturesSection'
 import { buildAcomptePrefill } from '@/lib/acompte-prefill'
@@ -132,8 +132,9 @@ export default function DevisSection({
     const localDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]') as DevisDocument[]
     // Fusion par identité stable (id ; brouillons sans numéro inclus) : le
     // localStorage fraîchement écrit prime sur le state, l'ordre est préservé,
-    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity).
-    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts]))
+    // les entrées DB-only sont conservées (cf. dedupeDocsByIdentity). Société BTP :
+    // deux devis distincts au même numéro restent tous les deux (optionsFusionPourRole).
+    setSavedDocuments(prev => dedupeDocsByIdentity(prev, [...localDocs, ...localDrafts], optionsFusionPourRole(orgRole)))
   }
 
   const [pendingDraftDelete, setPendingDraftDelete] = useState<DevisDocument | null>(null)
