@@ -143,8 +143,8 @@ describe('storage-sync — un seul POST par enchaînement', () => {
   })
 
   it('une valeur envoyée avec succès puis réécrite à l’identique n’est pas renvoyée ; après suppression, si', async () => {
-    // Écritures faites dans le stockage, comme par le setItem intercepté : depuis le 15/11/2026, une confirmation ne
-    // lève la note de la clé que si le navigateur détient toujours la valeur confirmée.
+    // Écritures faites dans le stockage, comme par le setItem intercepté : la confirmation d'un envoi regarde si une
+    // valeur plus récente écrite ici reste en place dans le navigateur (relectures des 15 et 16/11/2026).
     const sync = await import('@/lib/storage-sync')
     const { enregistrerSuppressionMiroir } = sync
     await amorcer(sync)

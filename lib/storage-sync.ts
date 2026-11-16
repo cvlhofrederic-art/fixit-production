@@ -26,13 +26,17 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     Ces modifications en attente sont notées dans le navigateur (CLE_ETAT) pour survivre à un rechargement.
 //     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à
 //     l'aveugle — pas même à la fermeture de l'onglet. Quand deux envois de la même clé se chevauchent, la
-//     confirmation du premier ne lève la note que si le navigateur détient encore la valeur confirmée.
+//     confirmation du premier ne lève pas la note tant qu'une valeur plus récente écrite dans cet onglet attend, est
+//     en route ou reste en place ; une valeur réécrite par un autre onglet (sa restauration) ne la retient pas, et la
+//     note ainsi gardée ne fait pas préférer à la valeur du serveur ce qu'un autre onglet écrirait ensuite à la place
+//     de celle d'ici.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
 //     la contient, alors que les autres passent) est mise à part : retentée seule au bout de 5 min, puis toutes les
-//     30 min ; une autre valeur saisie pour la même clé repart avec les envois ordinaires. Tant que rien ne passe,
-//     c'est le serveur qui est tenu pour en panne, et rien n'est mis à part.
+//     30 min ; une autre valeur saisie pour la même clé repart avec les envois ordinaires, et si le serveur ne
+//     l'enregistre pas davantage, l'envoi repart aussitôt valeur par valeur sans retenir les autres. Tant que rien ne
+//     passe, c'est le serveur qui est tenu pour en panne, et rien n'est mis à part.
 //  4. Ce qui attend l'envoi ne part jamais avec le jeton d'un autre compte. « Tout envoyer » (premier passage d'un
 //     compte dont le serveur ne détient rien) ne recopie que les clés qui portent l'identifiant du compte ou de sa
 //     fiche, et seulement si le serveur en a donné la liste ; jamais celles qui portent un autre identifiant, et les
@@ -41,8 +45,12 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // Limites connues : les clés du navigateur ne sont pas rangées par compte, deux comptes sur le même navigateur y
 // lisent les valeurs l'un de l'autre ; une valeur dont l'envoi échoue sans aucune réponse du serveur (connexion qui
 // ne laisse pas passer un envoi volumineux) retient encore les valeurs du même envoi, comme avant : sans réponse,
-// rien ne la distingue d'une coupure du réseau ; et « tout envoyer » ne part que tant que l'espace du compte est vide
-// sur le serveur : la première écriture qui y est sauvegardée lui retire toute nouvelle occasion.
+// rien ne la distingue d'une coupure du réseau ; « tout envoyer » ne part que tant que l'espace du compte est vide
+// sur le serveur : la première écriture qui y est sauvegardée lui retire toute nouvelle occasion ; et les onglets d'un
+// même navigateur ne se concertent pas. Une note gardée dans le navigateur ne dit pas quelle valeur elle protège :
+// quand deux envois de la même clé se chevauchent, qu'un autre onglet réécrit l'ancienne valeur à la place de la
+// dernière saisie et que la page est rechargée avant l'arrivée de celle-ci, la visite suivante peut renvoyer
+// l'ancienne valeur.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -118,8 +126,11 @@ interface Bilan {
  * Ce que le serveur détenait pour une clé avant une modification locale pas encore confirmée : la valeur telle
  * qu'elle était dans le navigateur (`brut`, null si la clé n'existait pas), ou seulement son empreinte quand la
  * note vient de l'état gardé dans le navigateur (rechargement, autre onglet).
+ * `pourEcritureIci` : note gardée à la confirmation d'un envoi, pour une valeur plus récente écrite dans cet onglet
+ * (confirmerEcriture). À la relecture, elle ne fait garder que cette valeur, pas ce qu'un autre onglet écrirait ensuite
+ * à sa place (garderLaValeurLocale).
  */
-interface Base { brut?: string | null; empreinte?: string }
+interface Base { brut?: string | null; empreinte?: string; pourEcritureIci?: true }
 
 interface EtatMiroir {
   v: 1
@@ -151,6 +162,10 @@ let installed = false
 
 // Dernière valeur envoyée au serveur (ou reçue de lui) par clé : une valeur identique n'est pas renvoyée.
 const derniereValeurSynchronisee = new Map<string, string>()
+// Dernière valeur écrite par cet onglet pour chaque clé (null : supprimée), telle que l'interception l'a vue. Ce
+// qu'écrit une restauration, ici ou dans un autre onglet, n'y figure pas ; retirée quand la restauration la remplace
+// par la valeur du serveur. Voir saisiePlusRecenteIci et garderLaValeurLocale.
+const derniereEcritureIci = new Map<string, string | null>()
 // setItem d'origine, capturé à l'installation du miroir : l'hydratation écrit sans repasser par le miroir
 // (avant, chaque valeur reçue du serveur repartait en POST 500 ms plus tard).
 let ecrireSansMiroirRef: ((key: string, value: string) => void) | null = null
@@ -285,6 +300,7 @@ function adopterCompte(compte: string | null): boolean {
     confirmees.clear()
     refusees.clear()
     derniereValeurSynchronisee.clear()
+    derniereEcritureIci.clear()
     echecsServeur.clear()
     isolees.clear()
     isoleesPermises = false
@@ -478,15 +494,29 @@ function compterUnEchec(key: string): void {
   echecsServeur.set(key, (echecsServeur.get(key) ?? 0) + 1)
 }
 
+/**
+ * Cet onglet a-t-il, pour cette clé, une valeur plus récente que celle que le serveur vient de confirmer : une écriture
+ * ou une suppression en attente d'envoi, ou une valeur écrite ici et toujours en place dans le navigateur (partie dans
+ * un autre envoi dont la réponse n'est pas arrivée, par exemple) ? Une valeur qu'un autre onglet a écrite par-dessus —
+ * sa restauration, qui a relu le serveur avant l'arrivée de cet envoi — n'en est pas une.
+ */
+function saisiePlusRecenteIci(key: string, confirmee: string): boolean {
+  if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
+  if (!derniereEcritureIci.has(key)) return false
+  const ecriteIci = derniereEcritureIci.get(key)
+  return ecriteIci !== confirmee && valeurLocale(key) === ecriteIci
+}
+
 /** Le serveur détient maintenant cette valeur. */
 function confirmerEcriture(e: EntreeAEnvoyer): void {
   oublierEchecs(e.key)
   derniereValeurSynchronisee.set(e.key, e.raw)
-  // Le navigateur détient déjà une valeur plus récente — en attente, ou partie dans un autre envoi dont la réponse
-  // n'est pas arrivée : elle se mesurera à celle qui vient d'arriver au serveur. Lever la note ici la ferait perdre
-  // contre celle-ci à la relecture suivante du serveur (relecture du 15/11/2026).
-  if (pendingWrites.has(e.key) || pendingDeletes.has(e.key) || valeurLocale(e.key) !== e.raw) {
-    bases.set(e.key, { brut: e.raw })
+  // Une valeur plus récente écrite ici se mesurera à celle qui vient d'arriver au serveur : lever la note la ferait
+  // perdre contre celle-ci à la relecture suivante (relecture du 15/11/2026). Une valeur écrite par un autre onglet,
+  // elle, ne retient pas la note : la relecture suivante la prendrait pour une modification faite ici et la renverrait
+  // par-dessus la saisie que le serveur vient d'enregistrer (relecture du 16/11/2026).
+  if (saisiePlusRecenteIci(e.key, e.raw)) {
+    bases.set(e.key, { brut: e.raw, pourEcritureIci: true })
     planifierEtat()
   } else {
     oublierBase(e.key)
@@ -749,8 +779,10 @@ async function flushNow(opts: { keepalive?: boolean } = {}): Promise<void> {
   for (const [key, raw] of Array.from(pendingWrites)) {
     // Une autre valeur que celle mise à part pour cette clé (saisie depuis, même pendant l'envoi qui l'a mise à part)
     // n'est plus en cause : elle part avec les envois ordinaires. Réécrite à l'identique (montage du tableau de bord),
-    // la valeur en cause reste à part (relecture du 15/11/2026).
-    if (isolees.has(key) && isolees.get(key) !== raw) oublierEchecs(key)
+    // la valeur en cause reste à part (relecture du 15/11/2026). Les échecs de la clé restent comptés : si le serveur
+    // n'enregistre pas davantage la nouvelle valeur, l'envoi groupé repart aussitôt valeur par valeur, sans relecture
+    // du serveur ni retard pour les valeurs voisines (relecture du 16/11/2026).
+    if (isolees.has(key) && isolees.get(key) !== raw) isolees.delete(key)
     const isolee = isolees.has(key)
     // Valeur mise à part : elle reste en file jusqu'à son propre essai (planifierIsolees).
     if (isolee && !avecLesIsolees) continue
@@ -797,6 +829,7 @@ function scheduleFlush() {
  */
 export function enregistrerEcritureMiroir(key: string, value: string, avant?: string | null): void {
   if (!shouldSync(key)) return
+  derniereEcritureIci.set(key, value)
   if (derniereValeurSynchronisee.get(key) === value && !pendingWrites.has(key) && !postsEnVol.has(key) && !bases.has(key)) return
   noterBase(key, avant)
   if (refusees.get(key) !== value) refusees.delete(key)
@@ -808,6 +841,7 @@ export function enregistrerEcritureMiroir(key: string, value: string, avant?: st
 /** Cœur du miroir pour removeItem : la clé sera renvoyée si elle est réécrite ensuite. */
 export function enregistrerSuppressionMiroir(key: string, avant?: string | null): void {
   if (!shouldSync(key)) return
+  derniereEcritureIci.set(key, null)
   noterBase(key, avant)
   derniereValeurSynchronisee.delete(key)
   refusees.delete(key)
@@ -861,6 +895,9 @@ function garderLaValeurLocale(key: string, valeur: unknown, enTexte: string, not
   const locale = valeurLocale(key)
   // Stockage illisible, ou valeur déjà identique à celle du serveur : rien à garder ni à envoyer.
   if (locale === undefined || locale === enTexte) return false
+  // Note gardée pour une valeur écrite ici, que le navigateur ne détient plus : un autre onglet a écrit à sa place (sa
+  // restauration, lue avant l'arrivée de l'envoi). Ce n'est pas une modification faite ici : le serveur gagne.
+  if (base?.pourEcritureIci && locale !== derniereEcritureIci.get(key)) return false
   const inchange = (base !== undefined && serveurDetientEncore(base, valeur, enTexte))
     || (noteAilleurs !== undefined && noteAilleurs !== ABSENTE && noteAilleurs === empreinteDeValeur(valeur))
   // Le serveur détient autre chose que ce que cet appareil lui connaissait : écrit ailleurs entre-temps, il gagne.
@@ -963,6 +1000,8 @@ async function hydraterDepuisLeServeur(): Promise<ResultatHydratation> {
       // Providers installe le miroir avant d'hydrater, chaque clé hydratée était renvoyée).
       ecrireSansMiroir(key, enTexte)
       derniereValeurSynchronisee.set(key, enTexte)
+      // Ce que cet onglet avait écrit n'est plus en place : inutile de le garder en mémoire (valeur de plusieurs Mo).
+      if (derniereEcritureIci.get(key) !== enTexte) derniereEcritureIci.delete(key)
       count++
     } catch {
       // Stockage plein : la valeur du navigateur reste en place.
@@ -1241,6 +1280,7 @@ export function reinitialiserMiroirPourTests(): void {
   confirmees.clear()
   refusees.clear()
   derniereValeurSynchronisee.clear()
+  derniereEcritureIci.clear()
   postsEnVol.clear()
   echecsServeur.clear()
   isolees.clear()

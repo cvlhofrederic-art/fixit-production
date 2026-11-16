@@ -155,6 +155,13 @@ function cacherLOnglet(): void {
 }
 const lire = (cle: string) => window.localStorage.getItem(cle)
 const etat = () => JSON.parse(lire(CLE_ETAT) ?? 'null') as { compte: string; comptes: string[]; attente: Record<string, string> } | null
+/**
+ * Écriture d'un autre onglet du même navigateur (sa restauration, par exemple) : elle atteint le même localStorage sans
+ * passer par le miroir de cet onglet. Le setItem d'origine est saisi au chargement de ce fichier, avant que le miroir ne
+ * remplace celui de Storage.prototype.
+ */
+const setItemDOrigine = Storage.prototype.setItem
+const ecritureDUnAutreOnglet = (cle: string, valeur: string) => setItemDOrigine.call(window.localStorage, cle, valeur)
 const originalFetch = globalThis.fetch
 
 beforeEach(() => {
@@ -624,7 +631,8 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
   // du serveur (nouvel essai, retour sur l'onglet) y trouvait la première saisie et la faisait gagner : la dernière était
   // remplacée dans le navigateur et, si son envoi échouait, n'atteignait jamais le serveur.
   describe('deux envois de la même clé qui se chevauchent : le premier arrive, le second est encore en route', () => {
-    async function deuxEnvoisEnRoute(): Promise<{ sync: ModuleSync; liberer: Array<() => void> }> {
+    /** `avantLArriveeDuPremier` : ce qui se passe ailleurs juste avant que le premier envoi n'arrive au serveur. */
+    async function deuxEnvoisEnRoute(avantLArriveeDuPremier?: () => void): Promise<{ sync: ModuleSync; liberer: Array<() => void> }> {
       serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
       const sync = await ouvrirLaPage()
       await sync.hydrateStorageFromServer()
@@ -637,6 +645,7 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
       window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }]))
       await ecoulerDebounce() // second envoi parti à son tour, avant la réponse du premier
       expect(serveur.de('POST')).toHaveLength(2)
+      avantLArriveeDuPremier?.()
       liberer[0]() // le premier arrive au serveur
       await vi.advanceTimersByTimeAsync(0)
       expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
@@ -680,6 +689,113 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
       expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
       await ecoulerDebounce()
       expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+    })
+
+    // Relecture du 16/11/2026 : un autre onglet du même compte peut réécrire l'ancienne valeur du serveur à la place de
+    // la dernière saisie (sa restauration, lue avant l'arrivée du premier envoi). Ni la confirmation du premier, ni la
+    // note qu'elle garde pour le second ne doivent alors la faire renvoyer par-dessus les saisies.
+    it.each(['avant', 'après'] as const)('un autre onglet réécrit l’ancienne valeur %s l’arrivée du premier : elle n’est jamais renvoyée, la dernière saisie l’emporte', async (moment) => {
+      const ecrireLAncienne = () => ecritureDUnAutreOnglet(CLIENTS, '[{"id":1}]')
+      const { sync, liberer } = await deuxEnvoisEnRoute(moment === 'avant' ? ecrireLAncienne : undefined)
+      if (moment === 'après') ecrireLAncienne()
+
+      await sync.hydrateStorageFromServer() // retour sur l'onglet, le second encore en route
+      await ecoulerDebounce()
+      liberer[1]() // le second arrive au serveur
+      await vi.advanceTimersByTimeAsync(0)
+      expect(serveur.de('POST')).toHaveLength(2)
+      expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+
+      await sync.hydrateStorageFromServer()
+      expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+    })
+
+    it('une suppression faite pendant l’envoi de la saisie, puis en échec : au nouvel essai, le serveur relu détient la saisie, la suppression part quand même', async () => {
+      serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+      const liberer: Array<() => void> = []
+      serveur.avantReponse = (appel) => (appel.methode !== 'GET' ? new Promise<void>((ok) => { liberer.push(ok) }) : undefined)
+
+      window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+      await ecoulerDebounce() // la saisie part, réponse retenue
+      window.localStorage.removeItem(CLIENTS)
+      await ecoulerDebounce() // la suppression part à son tour
+      liberer[0]() // la saisie arrive au serveur
+      await vi.advanceTimersByTimeAsync(0)
+      serveur.panne.DELETE = 'reseau'
+      liberer[1]() // la suppression échoue
+      await vi.advanceTimersByTimeAsync(0)
+      serveur.panne.DELETE = null
+      serveur.avantReponse = null
+      expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+
+      await nouvelEssai()
+      expect(lire(CLIENTS)).toBeNull()
+      expect(serveur.espace(COMPTE_A)).toEqual({})
+    })
+
+    it('un autre onglet réécrit l’ancienne valeur avant l’arrivée du premier, puis la page est rechargée : aucune note ne la fait renvoyer', async () => {
+      await deuxEnvoisEnRoute(() => ecritureDUnAutreOnglet(CLIENTS, '[{"id":1}]'))
+      await vi.advanceTimersByTimeAsync(3000) // délai de l'état gardé dans le navigateur
+      expect(etat()!.attente).toEqual({})
+
+      const page = await rechargerLaPage()
+      await page.hydrateStorageFromServer()
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+      expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }])
+      expect(serveur.de('POST')).toHaveLength(2)
+    })
+  })
+
+  // Relecture du 16/11/2026 : depuis la retouche du 15/11, la confirmation d'un envoi gardait la note de la clé dès que
+  // le navigateur détenait une autre valeur que celle confirmée, même écrite par un autre onglet. La restauration d'un
+  // autre onglet du même compte (ouverture, jeton rafraîchi, fenêtre restée visible), lue avant l'arrivée de l'envoi, y
+  // remet l'ancienne valeur du serveur : la relecture suivante la prenait pour une modification faite ici et la renvoyait
+  // par-dessus la saisie que le serveur venait d'enregistrer, sans aucun message. Seule une valeur plus récente écrite
+  // dans cet onglet retient maintenant la note (les cas des deux envois qui se chevauchent, ci-dessus).
+  describe('un autre onglet du même compte réécrit l’ancienne valeur du serveur pendant qu’une saisie part', () => {
+    /** La saisie part et arrive au serveur ; l'autre onglet, qui l'a relu avant, réécrit l'ancienne valeur. */
+    async function saisieRecouverteParUnAutreOnglet(moment: 'avant' | 'pendant'): Promise<ModuleSync> {
+      serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+      const sync = await ouvrirLaPage()
+      await sync.hydrateStorageFromServer()
+      let liberer: () => void = () => {}
+      serveur.avantReponse = (appel) => (appel.methode === 'POST' ? new Promise<void>((ok) => { liberer = ok }) : undefined)
+
+      window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+      if (moment === 'avant') ecritureDUnAutreOnglet(CLIENTS, '[{"id":1}]')
+      await ecoulerDebounce() // la saisie part, réponse retenue
+      if (moment === 'pendant') ecritureDUnAutreOnglet(CLIENTS, '[{"id":1}]')
+      serveur.avantReponse = null
+      liberer() // la saisie arrive au serveur
+      await vi.advanceTimersByTimeAsync(0)
+      expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+      expect(lire(CLIENTS)).toBe('[{"id":1}]')
+      return sync
+    }
+
+    it.each(['avant', 'pendant'] as const)('l’autre onglet écrit %s l’envoi : la relecture suivante remet la saisie à l’écran, sans l’écraser au serveur', async (moment) => {
+      const sync = await saisieRecouverteParUnAutreOnglet(moment)
+
+      await sync.hydrateStorageFromServer() // retour sur l'onglet
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+      expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }])
+      expect(serveur.de('POST')).toHaveLength(1)
+    })
+
+    it('page rechargée après la confirmation : aucune note gardée ne fait renvoyer l’ancienne valeur', async () => {
+      await saisieRecouverteParUnAutreOnglet('pendant')
+      await vi.advanceTimersByTimeAsync(3000) // délai de l'état gardé dans le navigateur
+      expect(etat()!.attente).toEqual({})
+
+      const page = await rechargerLaPage()
+      await page.hydrateStorageFromServer()
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+      expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 2 }])
     })
   })
 
@@ -1154,6 +1270,27 @@ describe('garantie 3 — un envoi en échec est retenté, une valeur refusée ne
 
       await ecoulerDebounce()
       expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1], [EN_CAUSE]: 'corrigée' })
+    })
+
+    // Relecture du 16/11/2026 : une nouvelle valeur pour une clé mise à part repartait comme si la clé n'avait jamais
+    // échoué. Si le serveur ne l'enregistrait pas davantage, tout l'envoi groupé était remis en attente : la saisie
+    // voisine attendait le nouvel essai, précédé d'une relecture complète du serveur (plusieurs Mo pour un compte chargé).
+    it('une nouvelle valeur pour cette clé, toujours en échec : la saisie voisine passe dès le premier envoi, sans relecture du serveur', async () => {
+      await mettreAPart()
+      const lectures = serveur.de('GET').length
+      window.localStorage.setItem(EN_CAUSE, '"y"') // nouvelle valeur, que le serveur n'enregistre pas davantage
+      window.localStorage.setItem('fixit_clients_a', '[1,2]')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1, 2] })
+      expect(serveur.de('GET')).toHaveLength(lectures)
+
+      // Mise à part à son tour : la saisie suivante part sans la renvoyer.
+      const envois = envoisDeLaValeurEnCause().length
+      window.localStorage.setItem('fixit_depenses_a', '[9]')
+      await ecoulerDebounce()
+      expect(serveur.espace(COMPTE_A)).toEqual({ fixit_clients_a: [1, 2], fixit_depenses_a: [9] })
+      expect(envoisDeLaValeurEnCause()).toHaveLength(envois)
+      expect(lire(EN_CAUSE)).toBe('"y"') // elle reste dans le navigateur
     })
 
     // Relecture du 15/11/2026 : une série d'envois un par un arrêtée (trois échecs sans un succès : le serveur est tenu
