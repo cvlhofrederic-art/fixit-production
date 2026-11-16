@@ -91,9 +91,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
 
+    // Colonnes réelles de marches_candidatures (relevé de production du 11/11/2026) : une colonne absente fait
+    // échouer toute la lecture. Disponibilités, années d'expérience et téléphone n'y sont pas enregistrés.
     const { data: candidatures, error } = await supabaseAdmin
       .from('marches_candidatures')
-      .select('id, artisan_id, artisan_user_id, price, timeline, description, disponibilites, experience_years, artisan_company_name, artisan_rating, artisan_phone, materials_included, guarantee, status, created_at')
+      .select('id, artisan_id, artisan_user_id, price, timeline, description, artisan_company_name, artisan_rating, materials_included, guarantee, status, created_at')
       .eq('marche_id', offerId)
       .order('created_at', { ascending: false })
       .limit(100)
