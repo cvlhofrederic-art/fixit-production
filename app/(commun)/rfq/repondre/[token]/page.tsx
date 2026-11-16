@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 interface RFQItem { id: string; product_name: string; quantity: number; unit: string; notes?: string }
 interface OfferData {
   id: string; token: string; supplier_name: string; status: string;
+  // Prix reçu : l'offre a déjà sa réponse (elle garde le statut « pending » jusqu'à la décision de la société).
+  total_price?: number | null;
   rfqs: { title: string; message?: string; country: string; rfq_items: RFQItem[] }
 }
 
@@ -24,8 +26,13 @@ export default function SupplierResponsePage() {
 
   useEffect(() => {
     fetch(`/api/rfq/offer/${token}`)
-      .then(r => r.json())
-      .then(d => { setOffer(d.offer); setLoading(false) })
+      .then(async r => {
+        const d = await r.json()
+        // Lien expiré (410) : le message de la route est affiché, au lieu de « Lien introuvable ».
+        if (r.status === 410 && typeof d.error === 'string') setError(d.error)
+        setOffer(d.offer)
+        setLoading(false)
+      })
       .catch(() => { setError('Lien invalide'); setLoading(false) })
   }, [token])
 
@@ -43,8 +50,8 @@ export default function SupplierResponsePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          total_price: parseFloat(totalPrice) || null,
-          delivery_days: parseInt(deliveryDays) || null,
+          total_price: parseFloat(totalPrice),
+          delivery_days: parseInt(deliveryDays, 10),
           comment,
           items,
         }),
@@ -82,7 +89,7 @@ export default function SupplierResponsePage() {
     </div>
   )
 
-  if (offer.status !== 'pending') return (
+  if (offer.status !== 'pending' || offer.total_price != null) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f7f7f5', fontFamily: 'IBM Plex Sans, Arial, sans-serif' }}>
       <p style={{ color: '#888' }}>{isFR ? 'Cette demande est déjà traitée.' : 'Este pedido já foi processado.'}</p>
     </div>
@@ -149,8 +156,9 @@ export default function SupplierResponsePage() {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                   {isFR ? 'Prix total HT (€)' : 'Preço total s/IVA (€)'}
                 </label>
+                {/* Prix total et délai sont exigés par la route : le navigateur bloque l'envoi d'un champ vide. */}
                 <input
-                  type="number" min="0" step="0.01"
+                  type="number" min="0" step="0.01" required
                   value={totalPrice} onChange={e => setTotalPrice(e.target.value)}
                   placeholder="0.00"
                   style={{ width: '100%', padding: '8px 12px', border: '1px solid #d0d0c8', borderRadius: 3, fontSize: 13, boxSizing: 'border-box' }}
@@ -161,7 +169,7 @@ export default function SupplierResponsePage() {
                   {isFR ? 'Délai de livraison (jours)' : 'Prazo de entrega (dias)'}
                 </label>
                 <input
-                  type="number" min="1"
+                  type="number" min="1" required
                   value={deliveryDays} onChange={e => setDeliveryDays(e.target.value)}
                   placeholder="5"
                   style={{ width: '100%', padding: '8px 12px', border: '1px solid #d0d0c8', borderRadius: 3, fontSize: 13, boxSizing: 'border-box' }}

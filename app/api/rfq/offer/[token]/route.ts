@@ -11,6 +11,18 @@ function getSupabase() {
   )
 }
 
+// Le jeton du lien est créé par la base : encode(gen_random_bytes(32), 'hex'), soit 64 caractères hexadécimaux
+// (supabase/migrations/025_rfq_btp.sql). Le format UUID reste admis. Tout autre format est refusé sans lecture.
+const JETON_HEXADECIMAL = /^[0-9a-f]{64}$/i
+const jetonValide = (jeton: string) => JETON_HEXADECIMAL.test(jeton) || VALID_UUID.test(jeton)
+
+// Le lien est valable 7 jours à compter de l'envoi de la demande, comme l'annonce l'e-mail au fournisseur
+// (lib/email-rfq.ts). Une date illisible n'expire pas.
+const VALIDITE_LIEN_MS = 7 * 24 * 60 * 60 * 1000
+const MESSAGE_LIEN_EXPIRE = 'Ce lien a expiré : il était valable 7 jours.'
+const lienExpire = (envoyeLe: unknown) =>
+  typeof envoyeLe === 'string' && Date.now() - new Date(envoyeLe).getTime() > VALIDITE_LIEN_MS
+
 // ── Validation Zod pour la soumission d'offre ──
 const offerItemSchema = z.object({
   product_name: z.string().min(1).max(500),
@@ -29,7 +41,7 @@ const offerSubmitSchema = z.object({
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    if (!VALID_UUID.test(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
+    if (!jetonValide(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
     const supabase = getSupabase()
 
     const { data: offer, error } = await supabase
@@ -39,6 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
       .single()
 
     if (error || !offer) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (lienExpire(offer.created_at)) return NextResponse.json({ error: MESSAGE_LIEN_EXPIRE }, { status: 410 })
 
     return NextResponse.json({ offer })
   } catch (e) {
@@ -50,7 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params
-    if (!VALID_UUID.test(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
+    if (!jetonValide(token)) return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
     const supabase = getSupabase()
 
     // Valider les inputs
@@ -61,12 +74,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
     const { total_price, delivery_days, comment, items } = parsed.data
 
-    // Atomic : update seulement si status = 'pending' (évite race condition)
+    // Lien expiré : rien n'est écrit.
+    const { data: offre, error: lectureError } = await supabase
+      .from('offers')
+      .select('id, created_at')
+      .eq('token', token)
+      .maybeSingle()
+    if (lectureError) throw lectureError
+    if (!offre) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (lienExpire(offre.created_at)) return NextResponse.json({ error: MESSAGE_LIEN_EXPIRE }, { status: 410 })
+
+    // Atomic : une seule réponse, tant que l'offre attend (statut « pending ») et n'a pas de prix (évite race condition).
+    // Le statut reste « pending » : la table n'admet que pending, accepted et rejected, et l'écran de la société
+    // propose Accepter / Refuser pour une offre « pending » qui porte un prix.
     const { data: updated, error: updateError } = await supabase
       .from('offers')
-      .update({ total_price, delivery_days, comment, status: 'answered' })
+      .update({ total_price, delivery_days, comment })
       .eq('token', token)
       .eq('status', 'pending')
+      .is('total_price', null)
       .select('id, rfq_id')
       .single()
 
