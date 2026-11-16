@@ -35,6 +35,8 @@ import { MeteoChantierSection } from '@/components/dashboard/btp/MeteoChantierSe
 const VILLA = { id: 'c-villa', titre: 'Villa', adresse: '1 rue des Lilas', codePostal: '13008', ville: 'Marseille', statut: 'En cours', latitude: null, longitude: null }
 let appels: string[]
 
+// Hôte comparé exactement (une recherche de sous-chaîne dans l'adresse est signalée par CodeQL).
+const hote = (adresse: string) => new URL(adresse, 'http://localhost').hostname
 const previsions = () => appels.filter(a => a.startsWith('https://api.open-meteo.com/v1/forecast'))
 const attendrePrevisions = async (nombre = 1) => { await waitFor(() => expect(previsions()).toHaveLength(nombre), { timeout: 4000 }) }
 
@@ -48,7 +50,7 @@ beforeEach(() => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
     const adresse = String(url)
     appels.push(adresse)
-    if (adresse.includes('geocoding-api.open-meteo.com')) {
+    if (hote(adresse) === 'geocoding-api.open-meteo.com') {
       return new Response(JSON.stringify({ results: [
         { name: 'Porto', latitude: 42.27, longitude: 8.69, country_code: 'FR' }, // Porto, Corse : le piège
         { name: 'Porto', latitude: 41.15, longitude: -8.61, country_code: 'PT' },
@@ -70,7 +72,7 @@ describe('Météo chantiers — aucune position enregistrée dans la fiche', () 
     expect(previsions()[0]).toContain('latitude=43.251')
     expect(etat.ecritures).toEqual([])
     // La page n'interroge plus elle-même la BAN ni Nominatim (le géocodage passe par lib/btp/geocodage).
-    expect(appels.some(a => a.includes('api-adresse.data.gouv.fr') || a.includes('nominatim'))).toBe(false)
+    expect(appels.some(a => ['api-adresse.data.gouv.fr', 'nominatim.openstreetmap.org'].includes(hote(a)))).toBe(false)
   })
 
   it('adresse approximative (centre de la commune) : bonne pour la météo, rien n’est écrit', async () => {
