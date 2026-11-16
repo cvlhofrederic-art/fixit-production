@@ -43,7 +43,11 @@ const AUTRE_OFFRE = '66666666-6666-4666-8666-666666666666'
 const JETON = 'a3f1c2d4e5b6978812ab34cd56ef7890a1b2c3d4e5f60718293a4b5c6d7e8f90'
 const STATUTS_OFFRE = ['pending', 'accepted', 'rejected']
 const base = () => h.base as FauxSupabase
-const ilYA = (jours: number) => new Date(Date.now() - jours * 86_400_000).toISOString()
+// Horloge figée (beforeEach) : la route compare la date d'envoi à Date.now(), le test ne lit jamais l'horloge réelle.
+const MAINTENANT = new Date('2026-11-16T12:00:00.000Z')
+const JOUR_MS = 86_400_000
+const ilYAMs = (ms: number) => new Date(MAINTENANT.getTime() - ms).toISOString()
+const ilYA = (jours: number) => ilYAMs(jours * JOUR_MS)
 
 /** Une offre envoyée il y a 2 jours, sans réponse ; la contrainte de statut de la table est appliquée. */
 const enBase = (surcharge: (appel: Appel) => Reponse | undefined = () => undefined) => (appel: Appel): Reponse => {
@@ -68,6 +72,8 @@ const enBase = (surcharge: (appel: Appel) => Reponse | undefined = () => undefin
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(MAINTENANT)
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://projet.supabase.test')
   vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'cle-publique-de-test')
   vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'cle-service-de-test')
@@ -75,7 +81,10 @@ beforeEach(() => {
   base().repondre = enBase()
   h.user = { id: MOI }
 })
-afterEach(() => { vi.unstubAllEnvs() })
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.useRealTimers()
+})
 
 const contexte = (jeton = JETON) => ({ params: Promise.resolve({ token: jeton }) })
 const lire = (jeton = JETON) => LIRE_OFFRE(new NextRequest(`https://vitfix.io/api/rfq/offer/${jeton}`), contexte(jeton))
@@ -128,6 +137,16 @@ describe('Lien du fournisseur — /api/rfq/offer/[jeton]', () => {
     expect((await lecture.json()).error).toBe('Ce lien a expiré : il était valable 7 jours.')
     expect((await repondre(REPONSE)).status).toBe(410)
     expect(base().sur('offers', 'update')).toHaveLength(0)
+  })
+
+  it('limite exacte : 7 jours pile après l’envoi, le lien est encore valable ; 1 ms de plus, il a expiré', async () => {
+    const envoyeeIlYA = (ms: number) => enBase(appel => (appel.table === 'offers' && appel.operation === 'select'
+      ? { data: { id: OFFRE, rfq_id: DEMANDE, status: 'pending', total_price: null, created_at: ilYAMs(ms) }, error: null }
+      : undefined))
+    base().repondre = envoyeeIlYA(7 * JOUR_MS)
+    expect((await lire()).status).toBe(200)
+    base().repondre = envoyeeIlYA(7 * JOUR_MS + 1)
+    expect((await lire()).status).toBe(410)
   })
 })
 
