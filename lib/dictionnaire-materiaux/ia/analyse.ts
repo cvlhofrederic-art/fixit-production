@@ -9,8 +9,8 @@
 // par l'écran (résumé d'une réponse pour l'historique de la conversation).
 
 import type { GroqMessage } from '@/lib/groq'
-import { normaliser } from '../recherche'
-import type { Dictionnaire, MateriauDeSituation } from '../types'
+import { estMesure, motsUtiles, normaliser, rechercher } from '../recherche'
+import type { Dictionnaire, MateriauDeSituation, Situation } from '../types'
 
 export const DESCRIPTION_MIN = 3
 export const DESCRIPTION_MAX = 3000
@@ -59,6 +59,11 @@ interface TextesPrompt {
   materiaux: string
   questions: string
   demandePhotos: (n: number) => string
+  /**
+   * Dernière ligne des consignes, après le catalogue : les modèles ouverts (Workers AI) suivent mieux une consigne
+   * rappelée au plus près du message (format JSON seul, variété de la langue, catalogue).
+   */
+  rappel: string
 }
 
 const FORMAT_JSON = `{
@@ -96,6 +101,9 @@ const TEXTES: Record<Dictionnaire['langue'], TextesPrompt> = {
     materiaux: 'Materiais propostos',
     questions: 'Perguntas feitas',
     demandePhotos: (n) => (n === 1 ? '(1 fotografia em anexo.)' : `(${n} fotografias em anexo.)`),
+    rappel:
+      'LEMBRETE FINAL: responde apenas com o objeto JSON, sem texto antes nem depois, em português europeu (de Portugal), ' +
+      'nunca em português do Brasil; propõe só materiais do CATÁLOGO, pelo número e pelo nome exatos.',
   },
   fr: {
     role:
@@ -121,6 +129,9 @@ const TEXTES: Record<Dictionnaire['langue'], TextesPrompt> = {
     materiaux: 'Matériaux proposés',
     questions: 'Questions posées',
     demandePhotos: (n) => (n === 1 ? '(1 photo jointe.)' : `(${n} photos jointes.)`),
+    rappel:
+      'RAPPEL FINAL : réponds uniquement par l’objet JSON, sans texte avant ni après, en français ; ' +
+      'ne propose que des matériaux du CATALOGUE, par leur numéro et leur nom exacts.',
   },
 }
 
@@ -177,7 +188,74 @@ export function construirePromptSysteme(dico: Dictionnaire): string {
     '',
     t.titreSituations,
     ...lignesSituations(dico, numero),
+    '',
+    t.rappel,
   ].join('\n')
+}
+
+/**
+ * Taille du catalogue réduit du secours : fiches proches, matériaux trouvés en plus de ceux des fiches et de la
+ * réponse précédente, total, et mots du texte pris en compte (le calcul reste court même pour un long message).
+ */
+export const CATALOGUE_REDUIT = { situations: 6, materiauxTrouves: 30, materiauxMax: 90, motsMax: 80 } as const
+
+/** Ajoute à `scores` les fiches trouvées pour un mot ; un mot présent dans beaucoup de fiches départage peu. */
+function compterMot(scores: Map<string, number>, resultats: ReadonlyArray<{ element: { id: string }; score: number }>) {
+  if (resultats.length === 0) return
+  const poids = 1 / Math.sqrt(resultats.length)
+  for (const r of resultats) scores.set(r.element.id, (scores.get(r.element.id) ?? 0) + r.score * poids)
+}
+
+function meilleurs(scores: ReadonlyMap<string, number>, nombre: number): string[] {
+  return [...scores]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, nombre)
+    .map(([id]) => id)
+}
+
+/**
+ * Dictionnaire réduit aux fiches et aux matériaux proches d'un texte libre, pour un modèle de secours dont la demande
+ * doit rester petite : le catalogue entier fait environ 19 000 jetons, et l'offre Groq du compte en refuse plus de
+ * 8 000 par minute (refus du 15/11/2026).
+ *
+ * Un message écrit « comme à un collègue » ne se cherche pas comme des mots-clés : la recherche du dictionnaire ne
+ * garde que les douze premiers mots et exige qu'une fiche les réunisse tous, si bien qu'un « Bom dia, estou aqui com
+ * um cliente… » en tête l'égarerait. Ici chaque mot du texte compte à part, pondéré par sa rareté : « fachada » ou
+ * « infiltração » désignent quelques fiches, « dia » ou « cliente » presque rien.
+ *
+ * `texte` : le message et les questions précédentes de l'artisan (une relance courte garde la situation du premier
+ * tour). `reponsePrecedente` : la réponse résumée du tour d'avant, dont les matériaux restent au catalogue réduit.
+ * Ordre de priorité : matériaux déjà proposés, matériaux des fiches proches, matériaux trouvés directement.
+ * Les numéros des consignes sont ceux de CE dictionnaire : la réponse du modèle se relit avec lui (`lireAnalyse`).
+ */
+export function dictionnaireReduit(dico: Dictionnaire, texte: string, reponsePrecedente = ''): Dictionnaire {
+  const mots = [...new Set(motsUtiles(texte, dico.langue).filter((m) => !estMesure(m)))].slice(0, CATALOGUE_REDUIT.motsMax)
+  const scoresSituations = new Map<string, number>()
+  const scoresMateriaux = new Map<string, number>()
+  const tout = { limiteSituations: dico.situations.length, limiteMateriaux: dico.materiaux.length }
+  for (const mot of mots) {
+    const trouve = rechercher(dico, mot, tout)
+    compterMot(scoresSituations, trouve.situations)
+    compterMot(scoresMateriaux, trouve.materiaux)
+  }
+  const situationParId = new Map(dico.situations.map((s) => [s.id, s]))
+  const situations = meilleurs(scoresSituations, CATALOGUE_REDUIT.situations)
+    .map((id) => situationParId.get(id))
+    .filter((s): s is Situation => s !== undefined)
+
+  const retenus = new Set<string>()
+  const cites = ` ${normaliser(reponsePrecedente)} `
+  if (reponsePrecedente) for (const m of dico.materiaux) if (cites.includes(` ${normaliser(m.nom)} `)) retenus.add(m.id)
+  for (const s of situations) for (const e of s.etapes) for (const l of e.materiaux) retenus.add(l.id)
+  for (const id of meilleurs(scoresMateriaux, CATALOGUE_REDUIT.materiauxTrouves)) retenus.add(id)
+  const ids = new Set([...retenus].slice(0, CATALOGUE_REDUIT.materiauxMax))
+  const materiaux = dico.materiaux.filter((m) => ids.has(m.id))
+  return {
+    ...dico,
+    familles: dico.familles.filter((f) => materiaux.some((m) => m.famille === f.id)),
+    materiaux,
+    situations,
+  }
 }
 
 export interface DemandeAnalyse {

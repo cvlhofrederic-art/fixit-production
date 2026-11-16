@@ -22,6 +22,12 @@
   le Worker Cloudflare (limite : 64 Mio non compressés, ligne « Total Upload » du déploiement ; plus de limite
   gzip depuis le 04/09/2026) : ne pas ajouter `@anthropic-ai/sdk`.
 - Recherche web : Tavily API (matériaux AI)
+- **Workers AI** (Cloudflare) : binding `AI` déclaré dans `wrangler.toml`, sans clé ni SDK. Embeddings et reranker
+  du syndic (`lib/syndic/embed.ts`, `rerank.ts`) ; génération de texte par `lib/workers-ai.ts` (`callWorkersAI`,
+  format de `lib/groq.ts`, réflexion coupée par `chat_template_kwargs.enable_thinking: false`, délai de 60 s).
+  Gratuit : 10 000 neurones par jour pour tout le compte, remis à zéro à 00:00 UTC, puis facturé sur Workers Paid.
+  Cloudflare retire souvent des modèles (24 le 20/11/2026, dont tout Nemotron) : nommer un relais. Absent de
+  `next dev` et des tests (binding simulé par `getCfEnv`).
 
 ## Claude Sonnet 5.5 — contraintes d'API (lib/claude.ts les applique)
 - Pas de `temperature` (valeur non par défaut = erreur 400) ; réflexion adaptative + `output_config.effort`
@@ -34,10 +40,12 @@
 ## Agents actifs
 - Artisan / BTP (Groq) : Fixy AI artisan, Fixy Chat, Simulateur travaux, Matériaux AI, Email Agent,
   Analyse Devis client, Comptable AI.
-- Artisan / BTP (Claude, seul à lire les photos) : Dictionnaire matériaux — `app/api/dictionnaire-materiaux/analyse`,
+- Artisan / BTP (Workers AI gratuit d'abord) : Dictionnaire matériaux — `app/api/dictionnaire-materiaux/analyse`,
   consignes et relecture de la réponse dans `lib/dictionnaire-materiaux/ia/`. La réponse ne cite que des matériaux
-  du catalogue du pays : tout identifiant hors catalogue est écarté côté serveur. Secours sans photo : Groq
-  `openai/gpt-oss-120b` nommé dans la route (les modèles par défaut de `lib/constants.ts` sont retirés), sans Cerebras.
+  du catalogue du pays : tout identifiant hors catalogue est écarté côté serveur. Ordre d'essai, le suivant prenant
+  la main sur un échec ou une réponse illisible : Workers AI Gemma 4 26B puis Qwen 3.8 27B (catalogue entier,
+  photos comprises), Claude s'il a une clé, enfin Groq `openai/gpt-oss-120b` sans photo sur un catalogue réduit
+  (les modèles par défaut de `lib/constants.ts` sont retirés), sans Cerebras.
 - Syndic v54 (Claude) : Fixy Syndic (actions exécutées après confirmation), Max (juridique, RAG ; hors base :
   réponse générale « à vérifier »), Léa (comptable), Alfredo (e-mails), Tempo (automatisations), Analyse devis
   syndic, classification d'incidents, accessibilité / sécurité incendie.
