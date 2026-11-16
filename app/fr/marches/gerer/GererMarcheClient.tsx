@@ -58,7 +58,8 @@ interface Candidature {
   id: string
   marche_id: string
   artisan_id: string
-  artisan_name: string
+  // Nom de l'entreprise candidate : colonne artisan_company_name de marches_candidatures (il n'y a pas d'artisan_name).
+  artisan_company_name: string | null
   artisan_city: string | null
   price: number
   timeline: string
@@ -603,7 +604,7 @@ function GererMarcheContent({ isPt }: { isPt: boolean }) {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-gray-900">{c.artisan_name}</p>
+                            <p className="font-bold text-gray-900">{c.artisan_company_name}</p>
                             <a
                               href={isPt ? `/pt/profissional/${c.artisan_id}/` : `/fr/artisan/${c.artisan_id}/`}
                               target="_blank"
