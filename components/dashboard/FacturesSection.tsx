@@ -62,6 +62,21 @@ function estFactureBrouillon(doc: { status?: string; docNumber?: string }, orgRo
   return isDocDraftStatus(doc.status, 'facture')
 }
 
+/** Statuts d'une facture émise allée au-delà de « envoyée » (payée, en retard, remboursée). */
+const STATUTS_APRES_ENVOI = new Set(['paid', 'payee', 'paye', 'overdue', 'en_retard', 'refunded', 'rembourse'])
+
+/**
+ * Société BTP, boutons « Marquer envoyée » et « Email » de la liste (audit du 11/11/2026, constat documents-cycle-9) :
+ * pourquoi le statut de la facture ne doit pas devenir « envoyée ». « sans-numero » : brouillon sans numéro définitif,
+ * qui ne s'émet que par « Valider et enregistrer » (numéro du serveur) ; « apres-envoi » : facture payée, en retard ou
+ * remboursée, jamais ramenée à « envoyée ». null : statut modifiable comme avant.
+ */
+function refusMarquageEnvoyeeBtp(doc: { status?: string; docNumber?: string }): 'sans-numero' | 'apres-envoi' | null {
+  if (!aNumeroDefinitif(doc)) return 'sans-numero'
+  if (STATUTS_APRES_ENVOI.has(doc.status || '')) return 'apres-envoi'
+  return null
+}
+
 interface FacturesSectionProps {
   artisan: Artisan
   services: Service[]
@@ -827,6 +842,17 @@ function FacturesSectionV5({
                       {doc.status !== 'envoye' && doc.status !== 'pending' && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
+                          // BTP : un brouillon sans numéro ne passe pas « envoyé » (il s'émet par « Valider et
+                          // enregistrer ») ; une facture payée, en retard ou remboursée garde son statut.
+                          const refus = orgRole === 'pro_societe' ? refusMarquageEnvoyeeBtp(doc) : null
+                          if (refus === 'sans-numero') {
+                            toast.error('Ce brouillon n\'a pas encore de numéro : ouvrez-le et cliquez sur « Valider et enregistrer » pour l\'émettre.')
+                            return
+                          }
+                          if (refus === 'apres-envoi') {
+                            toast.error('Cette facture est déjà payée, en retard ou remboursée : son statut ne change pas.')
+                            return
+                          }
                           const docs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const drafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
@@ -843,9 +869,17 @@ function FacturesSectionV5({
                       {doc.clientEmail && (
                         <button className="v5-btn v5-btn-sm" onClick={e => {
                           e.stopPropagation()
+                          // BTP : pas d'e-mail pour un brouillon sans numéro, et l'envoi d'une facture payée, en
+                          // retard ou remboursée ne change pas son statut.
+                          const refus = orgRole === 'pro_societe' ? refusMarquageEnvoyeeBtp(doc) : null
+                          if (refus === 'sans-numero') {
+                            toast.error('Ce brouillon n\'a pas encore de numéro : validez-le (« Valider et enregistrer ») avant de l\'envoyer au client.')
+                            return
+                          }
                           const subject = encodeURIComponent(`${t('proDash.factures.title')} ${doc.docNumber} — ${artisan?.company_name || 'Fixit'}`)
                           const body = encodeURIComponent(`${t('proDash.factures.emailSalutation')} ${doc.clientName || ''},\n\n${t('proDash.factures.emailCorps').replace('{docNumber}', doc.docNumber).replace('{montant}', totalHT.toFixed(2))}\n\n${t('proDash.factures.emailFormule')},\n${artisan?.company_name || ''}${artisan?.phone ? '\n' + artisan.phone : ''}`)
                           window.open(`mailto:${encodeURIComponent(doc.clientEmail ?? '')}?subject=${subject}&body=${body}`)
+                          if (refus === 'apres-envoi') return
                           const allDocs = JSON.parse(localStorage.getItem(`fixit_documents_${artisan?.id}`) || '[]')
                           const allDrafts = JSON.parse(localStorage.getItem(`fixit_drafts_${artisan?.id}`) || '[]')
                           const now = new Date().toISOString()
