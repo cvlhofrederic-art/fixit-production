@@ -359,8 +359,8 @@ function DashboardPage() {
     if (!artisanData && !isSuperAdmin && !isProOrgRole) { router.push(`/${locale}/auth/login`); return }
     if (!artisanData) {
       // Admin override / pro org sans profil artisan → SARL par défaut (compte démo BTP super admin)
-      // Compte de la société BTP (ni démonstration ni salarié invité) : la fiche de secours n'est plus ouverte en silence.
-      if (role === 'pro_societe' && prevenirFicheSocieteAbsente(user.app_metadata)) toast.error(messageFicheSocieteAbsente(isPt), { duration: Infinity })
+      // Compte de la société BTP (ni démonstration ni compte invité dans une équipe) : la fiche de secours n'est plus ouverte en silence.
+      if (role === 'pro_societe' && prevenirFicheSocieteAbsente(user.app_metadata, user.id)) toast.error(messageFicheSocieteAbsente(isPt), { duration: Infinity })
       setArtisan({ id: user.id, company_name: user.user_metadata?.company_name || user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Mon entreprise', email: user.email, phone: user.user_metadata?.phone || '', bio: '', user_id: user.id, legal_form: 'SARL' } as Artisan)
       seedDemoLocalStorage(user.id, isSuperAdmin)
       // Charger les devis/factures du seed démo dans le state (bugfix : sans ça, UI affiche "Aucun devis")
@@ -1566,7 +1566,6 @@ function DashboardPage() {
 
       {/* AI ChatBot */}
       {artisan && (
-        <FiletSocieteBtp actif={orgRole === 'pro_societe'} titre={isPt ? 'Erro no assistente Fixy' : 'Erreur dans l’assistant Fixy'} locale={isPt ? 'pt' : 'fr'}>
         <AiChatBot
           artisan={artisan!}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1632,7 +1631,6 @@ function DashboardPage() {
             } catch { toast.error('Erreur lors du chargement des absences') }
           }}
         />
-        </FiletSocieteBtp>
       )}
 
       {/* ── Fullscreen Image Viewer (artisan) ── */}

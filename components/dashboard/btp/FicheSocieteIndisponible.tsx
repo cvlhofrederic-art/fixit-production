@@ -33,12 +33,16 @@ export function FicheSocieteIndisponible({ isPt, onReessayer }: { isPt: boolean;
 
 /**
  * Le compte BTP sans fiche doit-il en être prévenu ? Oui pour le compte de la société elle-même (gérant), dont la
- * fiche est à rétablir. Non pour la démonstration du super_admin en vue BTP, ni pour un salarié invité dans une
- * équipe (rôle d'équipe autre que GERANT, comme isProGerant côté serveur) : il n'a pas de fiche à lui, il n'y a rien à
- * rétablir, et il garde l'ouverture d'avant.
+ * fiche est à rétablir. Non pour la démonstration du super_admin en vue BTP, ni pour un compte invité dans l'équipe
+ * d'une société : il n'a pas de fiche à lui, il n'y a rien à rétablir, et il garde l'ouverture d'avant.
+ * Le compte invité se reconnaît à la société d'un autre compte posée dans app_metadata.company_id à l'acceptation de
+ * l'invitation, quel que soit son rôle d'équipe (Gérant compris : invité ou promu Gérant) ; à défaut, à un rôle
+ * d'équipe autre que GERANT. Le compte de la société n'a pas de company_id, ou le sien (`compteId`).
  */
-export function prevenirFicheSocieteAbsente(appMetadata: Record<string, unknown> | undefined): boolean {
+export function prevenirFicheSocieteAbsente(appMetadata: Record<string, unknown> | undefined, compteId: string): boolean {
   if (appMetadata?._original_role === 'super_admin') return false
+  const societe = appMetadata?.company_id
+  if (typeof societe === 'string' && societe !== '' && societe !== compteId) return false
   const roleEquipe = appMetadata?.pro_team_role
   return !roleEquipe || roleEquipe === 'GERANT'
 }

@@ -7,11 +7,13 @@
  *   (réseau, serveur) n'ouvre plus de société de secours « SARL » ; un écran dit que la société n'a pas pu être chargée
  *   et propose de réessayer, sans rien lire ni précharger sous un autre identifiant. Une fiche absente (aucune ligne)
  *   ouvre le tableau de bord comme avant, et un message clair le dit au compte de la société ; ni la démonstration
- *   (super_admin en vue BTP) ni un salarié invité dans une équipe, qui n'a pas de fiche à lui, n'ont ce message.
+ *   (super_admin en vue BTP) ni un compte invité dans l'équipe d'une société (salarié ou co-gérant), qui n'a pas de
+ *   fiche à lui, n'ont ce message.
  * - Adresse de section (?p=…) que la société ne peut pas ouvrir (coquille-9, coquille-14) : un identifiant inconnu ou un
  *   écran d'un autre métier ramène à l'accueil, l'adresse remplacée (Retour ne ramène pas sur l'adresse fautive).
  * - Filet d'erreur sur chaque écran (coquille-11) : une panne reste dans la zone de l'écran, sous un titre qui le nomme,
- *   et le menu comme l'en-tête restent affichés. Ce filet n'est posé que pour la société BTP.
+ *   et le menu comme l'en-tête restent affichés. Ce filet n'est posé que pour la société BTP, et seulement dans la zone
+ *   centrale : l'assistant Fixy n'en a pas (l'affichage de sa panne reste à choisir).
  * - Organisation du menu (coquille-10) : la page donne à useModuleCategories l'identifiant de la fiche pour une société
  *   BTP (clé propre au compte), aucun pour l'artisan (clé commune, comportement inchangé).
  */
@@ -71,6 +73,8 @@ const ECRAN_ECHEC = 'Impossible de charger votre société'
 const DEMONSTRATION = { _admin_override: true, _original_role: 'super_admin' }
 /** Salarié invité dans l'équipe d'une société (app_metadata posé à l'acceptation de l'invitation). */
 const SALARIE_INVITE = { pro_team_role: 'CHEF_CHANTIER', company_id: 'compte-gerant' }
+/** Invité avec le rôle Gérant, ou promu Gérant ensuite : rattaché lui aussi à la société d'un autre compte. */
+const CO_GERANT_INVITE = { pro_team_role: 'GERANT', company_id: 'compte-gerant' }
 
 /** Compte connecté : rôle et autres métadonnées posées par le serveur (app_metadata). */
 const utilisateur = (role: string, metadonnees: Record<string, unknown> = {}) => ({
@@ -167,9 +171,14 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     expect(mocks.toastError).not.toHaveBeenCalled()
   })
 
-  it('fiche absente : le tableau de bord s’ouvre comme avant, et un message durable le signale', async () => {
+  it.each([
+    ['compte de la société', {}],
+    // Son propre identifiant en company_id (écrit dans le compte du gérant par une version antérieure du serveur) :
+    // c'est toujours le compte de la société elle-même.
+    ['compte de la société portant son propre identifiant de société', { pro_team_role: 'GERANT', company_id: 'compte-1' }],
+  ])('fiche absente, %s : le tableau de bord s’ouvre comme avant, et un message durable le signale', async (_cas, metadonnees) => {
     mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
-    const { container } = await ouvrir(utilisateur('pro_societe'))
+    const { container } = await ouvrir(utilisateur('pro_societe', metadonnees))
 
     await waitFor(() => expect(container.querySelector('#artisan-dashboard-v5')).not.toBeNull())
     // Même ouverture qu'avant : identifiant de connexion, documents du navigateur relus, données BTP préchargées.
@@ -186,6 +195,8 @@ describe('tableau de bord BTP — fiche société au chargement', () => {
     ['démonstration (super_admin en vue BTP)', DEMONSTRATION],
     // Il n'a pas de fiche à lui : rien à « rétablir », il garde l'ouverture d'avant (ce qu'il doit voir reste à décider).
     ['salarié invité dans une équipe', SALARIE_INVITE],
+    // Même cas avec le rôle Gérant : c'est le rattachement à la société d'un autre compte qui compte, pas le rôle.
+    ['co-gérant invité dans une équipe', CO_GERANT_INVITE],
   ])('%s sans fiche : tableau de bord ouvert comme avant, sans message', async (_cas, metadonnees) => {
     mocks.etat.fiche = { data: null, error: AUCUNE_LIGNE }
     const { container } = await ouvrir(utilisateur('pro_societe', metadonnees))
@@ -292,12 +303,15 @@ describe('tableau de bord BTP — une panne d’écran reste dans son écran', (
     expect(container.querySelector('[data-dynamique*="V5Header"]')).not.toBeNull()
   })
 
-  it('assistant Fixy en panne : son filet le dit, l’accueil reste affiché', async () => {
+  // Fixy est rendu hors de la zone centrale : un filet y poserait son cadre d'erreur dans la rangée du tableau de bord,
+  // à côté de la zone centrale qu'il rétrécirait. Comment afficher une panne de Fixy reste à choisir ; d'ici là, rien
+  // n'est ajouté autour de lui.
+  it('assistant Fixy en panne : aucun filet ajouté hors de la zone centrale, la panne remonte comme avant', async () => {
     const { container, panneRemontee } = await ouvrir(utilisateur('pro_societe'), { sectionQuiPlante: 'AiChatBot' })
 
-    expect(panneRemontee).toBeUndefined()
-    await waitFor(() => expect(screen.getByText('Erreur dans l’assistant Fixy')).toBeInTheDocument())
-    expect(container.querySelector('main [data-dynamique*="HomeSection"]')).not.toBeNull()
+    expect((panneRemontee as Error | undefined)?.message).toBe('panne simulée de la section')
+    expect(screen.queryByText('Erreur dans l’assistant Fixy')).toBeNull()
+    expect(container.querySelector('#artisan-dashboard-v5')).toBeNull()
   })
 
   it.each([

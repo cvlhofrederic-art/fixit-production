@@ -18,6 +18,8 @@ const modules = (): ModuleDef[] => renderHook(() => useModulesConfig('fiche-a', 
 
 /** Interrupteur d'un module dans une organisation. */
 const allume = (categories: ModCategory[], id: string) => categories.flatMap((c) => c.modules).find((m) => m.id === id)?.on
+/** Rubrique qui contient un module. */
+const rubriqueDe = (categories: ModCategory[], id: string) => categories.find((c) => c.modules.some((m) => m.id === id))?.id
 const eteindre = (categories: ModCategory[], id: string): ModCategory[] =>
   categories.map((c) => ({ ...c, modules: c.modules.map((m) => (m.id === id ? { ...m, on: false } : m)) }))
 
@@ -80,5 +82,39 @@ describe('organisation du menu — une clé par compte (société BTP)', () => {
     act(() => { rendu.result.current.setCategories(eteindre(rendu.result.current.categories, 'factures')) })
     expect(allume(JSON.parse(localStorage.getItem(ANCIENNE_CLE) ?? '[]'), 'factures')).toBe(false)
     expect(Object.keys(localStorage).filter((k) => k.startsWith(`${ANCIENNE_CLE}_`))).toEqual([])
+  })
+
+  describe('déplacement unique d’« Estimation matériaux » vers « Chantiers » (organisation commune d’avant ce déplacement)', () => {
+    let communeAvantDeplacement: string
+
+    beforeEach(() => {
+      const parDefaut = buildDefaultCategories(ALL)
+      const estimation = parDefaut.flatMap((c) => c.modules).find((m) => m.id === 'estimation_materiaux')
+      if (!estimation) throw new Error('module « estimation_materiaux » absent de la liste des modules')
+      // Organisation commune enregistrée avant le déplacement : le module rangé dans « Commercial ».
+      const ancienne = parDefaut.map((c) => {
+        const sansEstimation = c.modules.filter((m) => m.id !== 'estimation_materiaux')
+        return { ...c, modules: c.id === 'cat-commercial' ? [...sansEstimation, estimation] : sansEstimation }
+      })
+      communeAvantDeplacement = JSON.stringify(ancienne)
+      localStorage.setItem(ANCIENNE_CLE, communeAvantDeplacement)
+    })
+
+    it('compte sans organisation propre : module replacé à l’affichage, aucune clé du compte créée au montage, clé commune intacte', async () => {
+      const rendu = await monter(ALL, 'fiche-a')
+
+      expect(rubriqueDe(rendu.result.current.categories, 'estimation_materiaux')).toBe('cat-chantiers')
+      // La clé du compte ne naît qu'à sa première modification du menu : jusque-là, il suit la clé commune.
+      expect(localStorage.getItem(`${ANCIENNE_CLE}_fiche-a`)).toBeNull()
+      expect(localStorage.getItem(ANCIENNE_CLE)).toBe(communeAvantDeplacement)
+    })
+
+    it('sans identifiant de compte (artisan, autres rôles) : déplacement enregistré sous la clé commune, comme avant', async () => {
+      const rendu = await monter(ALL)
+
+      expect(rubriqueDe(rendu.result.current.categories, 'estimation_materiaux')).toBe('cat-chantiers')
+      expect(rubriqueDe(JSON.parse(localStorage.getItem(ANCIENNE_CLE) ?? '[]'), 'estimation_materiaux')).toBe('cat-chantiers')
+      expect(Object.keys(localStorage).filter((k) => k.startsWith(`${ANCIENNE_CLE}_`))).toEqual([])
+    })
   })
 })
