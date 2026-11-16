@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
 import { getAuthUser } from '@/lib/auth-helpers'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,14 +32,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ history: [] })
     }
 
-    // Charger les noms des filleuls
+    // Charger les noms des filleuls. Colonnes réelles de profiles_artisan (relevé de production du 31/10/2026) : la fiche
+    // n'a pas de prénom (first_name), et une colonne absente faisait échouer toute la lecture ; chaque filleul
+    // s'affichait alors « Artisan ».
     const filleulIds = referrals.map(r => r.filleul_id).filter(Boolean) as string[]
-    const { data: filleuls } = filleulIds.length
+    const { data: filleuls, error: filleulsError } = filleulIds.length
       ? await supabaseAdmin
           .from('profiles_artisan')
-          .select('id, first_name, company_name')
+          .select('id, company_name')
           .in('id', filleulIds)
-      : { data: [] }
+      : { data: [], error: null }
+    // L'historique reste affiché, avec un nom générique ; l'échec de la lecture est journalisé.
+    if (filleulsError) {
+      logger.error('[referral/history/GET] noms des filleuls illisibles', { error: filleulsError.message })
+    }
 
     const filleulMap = new Map((filleuls || []).map(f => [f.id, f]))
 
@@ -46,7 +53,7 @@ export async function GET(request: NextRequest) {
       const filleul = r.filleul_id ? filleulMap.get(r.filleul_id) : null
       return {
         id: r.id,
-        filleul_name: filleul?.first_name || filleul?.company_name || 'Artisan',
+        filleul_name: filleul?.company_name || 'Artisan',
         date_inscription: r.date_inscription,
         date_recompense: r.date_recompense,
         statut: mapStatutForDisplay(r.statut, r.date_fin_periode_verification),
