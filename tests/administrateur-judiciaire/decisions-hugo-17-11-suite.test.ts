@@ -1,6 +1,5 @@
 import './fuseau-paris'
 import { describe, expect, it } from 'vitest'
-import type { ChangementStatut, Courrier } from '@/lib/administrateur-judiciaire/db/schema'
 import { creerReglagesComptesCabinet } from '@/lib/administrateur-judiciaire/domain/comptes-bancaires'
 import type { CourrierSuivi } from '@/lib/administrateur-judiciaire/domain/courriers'
 import { composerDateIso as d } from '@/lib/administrateur-judiciaire/domain/dates'
@@ -36,6 +35,7 @@ import {
   demandesDepuisConsentements,
   type ConsentementVoieElectronique,
 } from '@/lib/administrateur-judiciaire/domain/voie-notification'
+import { chaineLe, lreLe } from './donnees-delai-contestation'
 import { enTeteDuModule } from './en-tete-module'
 
 /**
@@ -87,51 +87,7 @@ const recuEnErreur = () => enchainer(notification(), ["Attente d'envoi", 'En cou
 
 // ─── Délai de contestation (comme decisions-hugo-17-11.test.ts) ─────────────────────────────────────
 
-const ligne = (surcharge: Partial<ChangementStatut>): ChangementStatut => ({
-  id: 'cs',
-  entiteType: 'ag',
-  entiteId: 'ag-1',
-  statutAncien: 'PV signé',
-  statutNouveau: 'Notifiée',
-  dateEffet: d(2026, 3, 5),
-  courrierId: 'k1',
-  horsSequence: false,
-  motif: null,
-  createdAt: `${d(2026, 3, 6)}T10:00:00.000Z`,
-  updatedAt: `${d(2026, 3, 6)}T10:00:00.000Z`,
-  createdBy: null,
-  updatedBy: null,
-  ...surcharge,
-})
-
-const chaineLe = (notifLe: string): ChangementStatut[] => [
-  ligne({ id: 'c1', statutAncien: 'Projet', statutNouveau: 'Convoquée', dateEffet: d(2025, 10, 1), courrierId: null }),
-  ligne({ id: 'c2', statutAncien: 'Convoquée', statutNouveau: 'PV signé', dateEffet: d(2025, 11, 1), courrierId: null }),
-  ligne({ id: 'c3', dateEffet: notifLe }),
-]
-
-const lreLe = (date: string, surcharge: Partial<Courrier> = {}): Courrier => ({
-  id: 'k1',
-  modeleId: 'm1',
-  formeEnvoi: 'Email',
-  modeNotification: 'lre',
-  statut: 'A Suivre',
-  objet: 'Notification du PV',
-  coproprieteId: null,
-  mandatId: null,
-  personneId: 'id-1',
-  entrepriseId: null,
-  dateDepot: date,
-  datePremierePresentation: null,
-  dateAvisElectronique: date,
-  dateAccuseReception: null,
-  referenceDiffusion: null,
-  createdAt: `${date}T09:00:00.000Z`,
-  updatedAt: `${date}T09:00:00.000Z`,
-  createdBy: null,
-  updatedBy: null,
-  ...surcharge,
-})
+// ligne, chaineLe et lreLe : ./donnees-delai-contestation (partagés avec l'autre fichier des décisions du 17/11).
 
 const lreDu = (date: string, voie: ContexteVoieNotification, professionnel: boolean | null = true) =>
   finDelaiContestationAg(chaineLe(date), [lreLe(date)], 'ag-1', { opposantsOuDefaillants: 1, professionnel, voie })
@@ -237,6 +193,26 @@ describe('J58 — après un échec d’envoi électronique : créer un nouveau c
     expect(texte).not.toMatch(/nouvelle tentative après « Échec » ou « Reçu en erreur » reste rattachée au même courrier/)
     // Relecture : l'envoi abandonné en « Préparation » ne se clôt que par « Échec », qui impose désormais un nouveau courrier.
     expect(item('- 🔴 Questions à Hugo')).toMatch(/abandonné en « Préparation ».*depuis J58, cet « Échec » impose un nouveau courrier/)
+  })
+})
+
+// ─── J66 ─────────────────────────────────────────────────────────────
+
+describe('J66 — après « Reçu en erreur » : pas de nouvel envoi sur le même courrier', () => {
+  it('nouvelle tentative refusée : avis transmis = notification acquise (J57) ; sinon nouveau courrier (J58)', () => {
+    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [recuEnErreur()] })).toThrow(
+      /est « Reçu en erreur » : si le justificatif établit la transmission de l'avis électronique, la notification est acquise .*J57.*créer un nouveau courrier.*J66/,
+    )
+  })
+
+  it('un autre courrier peut partir', () => {
+    expect(notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [{ ...recuEnErreur(), courrierId: 'AUTRE' }] }).statut).toBe('Préparation')
+  })
+
+  it('en-tête : la question « Reçu en erreur » est fermée par J66', () => {
+    const { texte } = enTeteDuModule('envois-electroniques')
+    expect(texte).toContain('J66 (décision de Hugo du 17/11/2026')
+    expect(texte).not.toContain('faut-il là')
   })
 })
 

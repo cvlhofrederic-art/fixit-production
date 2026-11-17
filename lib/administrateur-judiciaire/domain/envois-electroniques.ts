@@ -99,10 +99,10 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  *   module) ; rien n'en est affirmé (valeurProbante : non_etablie) et la mention « valeur probante eIDAS » de la
  *   démonstration (SignatureElectroniqueModule.tsx, non modifié) n'est pas reprise. « Signé » ne pose pas le statut d'AG
  *   « PV signé » (J2, statut-assemblee.ts) : lien à décider avec Hugo.
- * - 🔴 Questions à Hugo : après « Échec », J58 impose un nouveau courrier ; une nouvelle tentative après « Reçu en
- *   erreur », que J58 ne vise pas, reste rattachée au même courrier, dont la date de dépôt ne change pas : faut-il là
- *   aussi un nouveau courrier (avis transmis : la notification est acquise, J57 ; avis non transmis : rien n'est
- *   notifié, comme après un échec) ? Les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
+ * - J66 (décision de Hugo du 17/11/2026, sur recommandation de Claude) : après « Reçu en erreur », le même courrier ne
+ *   repart pas non plus : avis transmis, la notification est acquise (J57) et aucun nouvel envoi n'est utile ; avis non
+ *   transmis, rien n'est notifié et un nouvel envoi se fait sur un nouveau courrier (J58).
+ * - 🔴 Questions à Hugo : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
  *   après « Envoyé OK », « Expiré » sans prolongation, « À relever » avant « Signé » et non l'inverse) sont-ils ceux du
  *   prestataire retenu ? Un envoi abandonné en « Préparation » ne se clôt qu'en passant par « Attente d'envoi » puis
  *   « Échec », sans motif (Gestéam n'a pas d'« Annulé » dans la console Notifications ; depuis J58, cet « Échec » impose
@@ -355,6 +355,11 @@ interface MachineEnvoi<S extends string> {
   echec: S | null
   /** Statut illisible : il mène au dernier statut connu ou à ses suivants. */
   illisible: S | null
+  /**
+   * Statut final ambigu après lequel le même courrier ne repart pas non plus (J66, notification : « Reçu en erreur ») :
+   * avis transmis, la notification est acquise (J57) ; avis non transmis, rien n'est notifié (nouveau courrier, J58).
+   */
+  erreurApresEnvoi: S | null
 }
 
 const MACHINE_NOTIFICATION: MachineEnvoi<StatutNotificationElectronique> = {
@@ -365,6 +370,7 @@ const MACHINE_NOTIFICATION: MachineEnvoi<StatutNotificationElectronique> = {
   abouti: 'Reçu',
   echec: 'Échec',
   illisible: null,
+  erreurApresEnvoi: 'Reçu en erreur',
 }
 
 const MACHINE_SIGNATURE: MachineEnvoi<StatutSignatureElectronique> = {
@@ -375,14 +381,23 @@ const MACHINE_SIGNATURE: MachineEnvoi<StatutSignatureElectronique> = {
   abouti: 'Stocké, signé',
   echec: null,
   illisible: 'Inconnu',
+  erreurApresEnvoi: null,
 }
 
-/** Plus aucune nouvelle tentative sur le même courrier : cycle abouti, ou échec qui n'a rien notifié (J58). */
-const closLeCourrier = <S extends string>(machine: MachineEnvoi<S>, statut: S): boolean => statut === machine.abouti || statut === machine.echec
+/**
+ * Plus aucune nouvelle tentative sur le même courrier : cycle abouti, échec qui n'a rien notifié (J58), ou « Reçu en
+ * erreur » (J66).
+ */
+const closLeCourrier = <S extends string>(machine: MachineEnvoi<S>, statut: S): boolean =>
+  statut === machine.abouti || statut === machine.echec || statut === machine.erreurApresEnvoi
 
 /** Refus d'une nouvelle tentative après un « Échec » (décision de Hugo du 17/11/2026, J58). */
 const RAISON_NOUVEAU_COURRIER_APRES_ECHEC =
   "un envoi en échec n'a rien notifié ; pour un nouvel envoi, créer un nouveau courrier (nouveau dépôt ; D. 1967 art. 64, 64-1 ; décision de Hugo du 17/11/2026, J58)"
+
+/** Refus d'une nouvelle tentative après « Reçu en erreur » (décision de Hugo du 17/11/2026, J66). */
+const RAISON_APRES_RECU_EN_ERREUR =
+  "si le justificatif établit la transmission de l'avis électronique, la notification est acquise et aucun nouvel envoi n'est utile (D. 1967 art. 64, dernier al. ; J57) ; sinon rien n'a été notifié : créer un nouveau courrier (nouveau dépôt ; J58) (décision de Hugo du 17/11/2026, J66)"
 
 // ─── Horodatages ─────────────────────────────────────────────────────────────────────────────
 
@@ -646,7 +661,7 @@ function controlerNouvelleTentative(
 ): void {
   const quand = instant(horodatage)
   if (envoisExistants.some((e) => e.id === id)) throw new Error(`Nouvel envoi refusé : identifiant ${id} déjà pris.`)
-  const { abouti, echec } = type === 'notification' ? MACHINE_NOTIFICATION : MACHINE_SIGNATURE
+  const { abouti, echec, erreurApresEnvoi } = type === 'notification' ? MACHINE_NOTIFICATION : MACHINE_SIGNATURE
   for (const e of envoisExistants) {
     if (e.type !== type || e.courrierId !== courrierId) continue
     if (!estStatutFinal(type, e.statut))
@@ -657,6 +672,8 @@ function controlerNouvelleTentative(
       throw new Error(`Nouvel envoi refusé : l'envoi ${e.id} du courrier ${courrierId} est déjà « ${e.statut} » ; pour un nouvel envoi, créer un nouveau courrier.`)
     if (e.statut === echec)
       throw new Error(`Nouvel envoi refusé : l'envoi ${e.id} du courrier ${courrierId} est en « ${e.statut} » : ${RAISON_NOUVEAU_COURRIER_APRES_ECHEC}.`)
+    if (e.statut === erreurApresEnvoi)
+      throw new Error(`Nouvel envoi refusé : l'envoi ${e.id} du courrier ${courrierId} est « ${e.statut} » : ${RAISON_APRES_RECU_EN_ERREUR}.`)
     const fin = e.historique.at(-1)?.horodatage
     if (fin !== undefined && quand < instant(fin))
       throw new Error(

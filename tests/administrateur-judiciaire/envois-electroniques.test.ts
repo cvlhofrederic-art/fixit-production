@@ -195,7 +195,7 @@ describe('création d’un envoi de notification électronique (lien avec le cou
     expect(notification({ anomaliesAvantEnvoi: [] }).statut).toBe('Préparation')
   })
 
-  it('une seule tentative en cours par courrier ; après « Reçu » ou « Échec » (J58), plus de nouvelle tentative ; après « Reçu en erreur », oui', () => {
+  it('une seule tentative en cours par courrier ; après « Reçu », « Échec » (J58) ou « Reçu en erreur » (J66), plus de nouvelle tentative', () => {
     const enCours = enchainerNotification(notification(), ["Attente d'envoi", 'En cours'])
     expect(() => notification({ id: 'E2', envoisExistants: [enCours] })).toThrow(/E1 du courrier C1 est encore au statut « En cours »/)
     const recu = enchainerNotification(enCours, ['Envoyé OK', 'Reçu'], 10)
@@ -203,9 +203,12 @@ describe('création d’un envoi de notification électronique (lien avec le cou
     const echec = enchainerNotification(notification(), ["Attente d'envoi", 'Échec'])
     // J58 (décision de Hugo du 17/11/2026) : un envoi en échec n'a rien notifié ; nouveau courrier.
     expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [echec] })).toThrow(/est en « Échec » .*créer un nouveau courrier .*J58/)
-    // « Reçu en erreur », que J58 ne vise pas : la nouvelle tentative, datée après la fin de la précédente (10:01), reste permise.
+    // J66 (décision de Hugo du 17/11/2026) : après « Reçu en erreur », le même courrier ne repart pas non plus
+    // (avis transmis : notification acquise, J57 ; sinon nouveau courrier, J58).
     const erreur = enchainerNotification(enCours, ['Envoyé OK', 'Reçu en erreur'], 10)
-    expect(notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [erreur] }).statut).toBe('Préparation')
+    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [erreur] })).toThrow(
+      /est « Reçu en erreur » : .*notification est acquise.*J57.*créer un nouveau courrier.*J66/,
+    )
     expect(notification({ id: 'E2', envoisExistants: [{ ...enCours, courrierId: 'AUTRE' }] }).statut).toBe('Préparation')
     expect(() => notification({ envoisExistants: [echec] })).toThrow(/identifiant E1 déjà pris/)
     // Une demande de signature du même courrier ne bloque pas une notification.
@@ -213,13 +216,13 @@ describe('création d’un envoi de notification électronique (lien avec le cou
   })
 
   it('une nouvelle tentative ne remonte pas avant la fin de la précédente (sinon deux tentatives en cours à la fois)', () => {
-    const erreur = changerStatutEnvoi(enchainerNotification(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK']), { statut: 'Reçu en erreur', horodatage: H('12:00') })
-    expect(() => notification({ id: 'E2', horodatage: H('11:59'), envoisExistants: [erreur] })).toThrow(
-      /Nouvel envoi refusé : horodatage 2026-11-17T11:59:00Z antérieur à la fin de l'envoi E1 du courrier C1 \(2026-11-17T12:00:00Z\)/,
-    )
-    expect(notification({ id: 'E2', horodatage: '2026-11-17T13:00:00+01:00', envoisExistants: [erreur] }).statut).toBe('Préparation')
+    // Depuis J58 et J66, aucun état final de la console Notifications ne laisse repartir le même courrier : la règle
+    // de l'horodatage ne joue plus que pour les signatures (« Expiré », « Annulé »).
     const expire = changerStatutEnvoi(enchainerSignature(signature(), ['En cours']), { statut: 'Expiré', horodatage: H('12:00') })
-    expect(() => signature({ id: 'S2', horodatage: H('10:00'), envoisExistants: [expire] })).toThrow(/antérieur à la fin de l'envoi S1/)
+    expect(() => signature({ id: 'S2', horodatage: H('11:59'), envoisExistants: [expire] })).toThrow(
+      /Nouvel envoi refusé : horodatage 2026-11-17T11:59:00Z antérieur à la fin de l'envoi S1 du courrier \S+ \(2026-11-17T12:00:00Z\)/,
+    )
+    expect(signature({ id: 'S2', horodatage: '2026-11-17T13:00:00+01:00', envoisExistants: [expire] }).statut).toBe('Soumis')
   })
 })
 
@@ -300,7 +303,10 @@ describe('machine d’états de la console Notifications (🔵 transitions dédu
       /statut « Échec » final, plus aucun changement \(pour un nouvel envoi, créer un nouveau courrier\)/,
     )
     const erreur = enchainerNotification(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK', 'Reçu en erreur'])
-    expect(() => changerStatutEnvoi(erreur, { statut: 'Reçu', horodatage: H('10:00') })).toThrow(/statut « Reçu en erreur » final, plus aucun changement \(créer un nouvel envoi/)
+    // J66 : après « Reçu en erreur », nouveau courrier aussi.
+    expect(() => changerStatutEnvoi(erreur, { statut: 'Reçu', horodatage: H('10:00') })).toThrow(
+      /statut « Reçu en erreur » final, plus aucun changement \(pour un nouvel envoi, créer un nouveau courrier\)/,
+    )
   })
 
   it('rejeu exact du dernier changement (même statut, même instant, même origine, même référence) : envoi rendu inchangé', () => {
