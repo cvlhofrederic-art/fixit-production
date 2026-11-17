@@ -2133,6 +2133,27 @@ export const devisStatusUpdateSchema = z.object({
   reason: z.string().max(500).optional(),
 })
 
+// ── Devis / facture envoyé par e-mail (POST /api/devis/send-email) ──────────
+// Le message part de l'adresse d'envoi de la plateforme vers l'adresse saisie par le professionnel : une seule
+// adresse valide, un type de document connu, des champs de longueur bornée. Les bornes laissent passer tout document
+// ordinaire (numéro et nom du client : celles de la synchronisation des documents, devisSyncSchema). Les champs
+// facultatifs acceptent '' et null (le formulaire les envoie tels quels quand ils sont vides). La pièce jointe est
+// contrôlée par la route (PDF, taille).
+/** Taille maximale du PDF joint à l'e-mail, en octets : 10 Mo, la limite des dépôts de fichiers du site. */
+export const TAILLE_MAX_PDF_EMAIL_OCTETS = 10 * 1024 * 1024
+const texteFacultatifEmail = (longueurMax: number) => z.union([z.string().max(longueurMax), z.null()]).optional()
+export const devisEnvoiEmailSchema = z.object({
+  to: z.string().trim().max(254).pipe(strictEmail),
+  docType: z.enum(['devis', 'facture']),
+  docNumber: z.string().min(1).max(100),
+  docTitle: texteFacultatifEmail(500),
+  totalStr: texteFacultatifEmail(60),
+  clientName: texteFacultatifEmail(500),
+  companyName: texteFacultatifEmail(300),
+  companyPhone: texteFacultatifEmail(60),
+  pdfBase64: z.string().min(1),
+})
+
 // ── Syndic v54 — lot features net-new (Reservas, Infrações, Enquetes, Checklists) ──
 export const syndicReservaSchema = z.object({
   espaco: z.string().min(1).max(200),

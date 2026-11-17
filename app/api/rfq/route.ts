@@ -5,22 +5,30 @@ import type { CreateRFQPayload } from '@/lib/rfq-types'
 import { sendRFQToSuppliers } from '@/lib/email-rfq'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIP, rateLimitResponse } from '@/lib/rate-limit'
+import { isProSocieteRole } from '@/lib/auth-helpers'
 
+// Ce qui est saisi ici part par e-mail, depuis l'adresse d'envoi de la plateforme, à chaque fournisseur actif du
+// pays (lib/email-rfq.ts) : chaque champ a une longueur maximale, et une demande porte 100 lignes au plus.
 const rfqItemSchema = z.object({
-  product_name: z.string().min(1),
-  product_ref: z.string().optional(),
-  category: z.string().optional(),
+  product_name: z.string().min(1).max(200),
+  product_ref: z.string().max(100).optional(),
+  category: z.string().max(50).optional(),
   quantity: z.number().positive(),
-  unit: z.string().min(1),
-  notes: z.string().optional(),
+  unit: z.string().min(1).max(30),
+  notes: z.string().max(500).optional(),
 })
 
 const rfqBodySchema = z.object({
-  title: z.string().min(1),
-  message: z.string().optional(),
+  title: z.string().min(1).max(200),
+  message: z.string().max(2000).optional(),
   country: z.enum(['FR', 'PT']),
-  items: z.array(rfqItemSchema).min(1),
+  items: z.array(rfqItemSchema).min(1).max(100),
 })
+
+// Plafonds par compte (et non par adresse Internet) : une demande fait partir un e-mail par fournisseur.
+const DEMANDES_MAX_PAR_MINUTE = 5
+const DEMANDES_MAX_PAR_JOUR = 20
+const JOUR_MS = 24 * 60 * 60 * 1000
 
 // Lazy init — évite le crash au build CI quand SUPABASE_SERVICE_ROLE_KEY n'est pas défini
 function getSupabase() {
@@ -74,10 +82,26 @@ export async function POST(req: NextRequest) {
 
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    // Module proposé aux seules sociétés (rfq_btp, app/(commun)/pro/dashboard/page.tsx) : le serveur applique la
+    // même règle. Rôle lu dans app_metadata, que le compte ne peut pas modifier lui-même.
+    if (!isProSocieteRole(user)) {
+      return NextResponse.json({ error: 'Les demandes de prix aux fournisseurs sont réservées aux sociétés.' }, { status: 403 })
+    }
+    if (!(await checkRateLimit(`rfq_post_${user.id}`, DEMANDES_MAX_PAR_MINUTE, 60_000))) return rateLimitResponse()
+
     const supabase = getSupabase()
     const rawBody = await req.json()
     const parsed = rfqBodySchema.safeParse(rawBody)
     if (!parsed.success) return NextResponse.json({ error: 'Données invalides', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+
+    // Compté après la validation : une demande refusée ne consomme pas le plafond ; avant toute écriture.
+    if (!(await checkRateLimit(`rfq_post_jour_${user.id}`, DEMANDES_MAX_PAR_JOUR, JOUR_MS))) {
+      logger.warn('[RFQ POST] plafond des 24 heures atteint', { compte: user.id })
+      return NextResponse.json(
+        { error: `Limite de ${DEMANDES_MAX_PAR_JOUR} demandes par 24 heures atteinte. Réessayez demain.` },
+        { status: 429 },
+      )
+    }
 
     const { title, message, country, items } = parsed.data
 

@@ -5,6 +5,14 @@
 
 import { sendEmail, type EmailResult } from '@/lib/email'
 import { SITE_URL } from '@/lib/constants'
+import { echapperHtmlEmail, texteSurUneLigne } from '@/lib/sanitize'
+
+// Les noms du filleul et du parrain viennent de la fiche professionnelle, que chaque compte remplit lui-même, et
+// partent vers l'autre compte. Même règle que les gabarits de lib/email.ts : dans le HTML, toute valeur passe par e()
+// — elle s'affiche telle qu'elle a été saisie et ne devient jamais du balisage ; dans l'objet, qui est du texte brut,
+// elle passe par o() — une seule ligne, sans entité HTML.
+const e = echapperHtmlEmail
+const o = (valeur: unknown): string => texteSurUneLigne(valeur)
 
 // ── Base layout (identique à lib/email.ts) ──────────────────────────────────
 
@@ -52,10 +60,10 @@ export async function sendReferralWelcomeFilleul(params: {
       🎁 Votre 1er mois VITFIX est offert
     </h2>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      Bonjour <strong>${filleulName}</strong>,
+      Bonjour <strong>${e(filleulName)}</strong>,
     </p>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      Grâce à <strong>${parrainName}</strong>, votre premier mois d'abonnement Pro est offert.
+      Grâce à <strong>${e(parrainName)}</strong>, votre premier mois d'abonnement Pro est offert.
       Il sera appliqué automatiquement lors de votre souscription.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#FEF5E4;border-radius:12px;padding:20px;margin:0 0 20px;">
@@ -95,18 +103,18 @@ export async function sendReferralNotifParrain(params: {
 
   const content = `
     <h2 style="color:#0D1B2E;margin:0 0 16px;font-size:20px;">
-      🎉 ${filleulName} a rejoint VITFIX grâce à vous !
+      🎉 ${e(filleulName)} a rejoint VITFIX grâce à vous !
     </h2>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      Bonjour <strong>${parrainName}</strong>,
+      Bonjour <strong>${e(parrainName)}</strong>,
     </p>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      <strong>${filleulName}</strong> vient de créer son compte sur VITFIX grâce à votre lien de parrainage.
+      <strong>${e(filleulName)}</strong> vient de créer son compte sur VITFIX grâce à votre lien de parrainage.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#E6F4F2;border-radius:12px;padding:20px;margin:0 0 20px;">
       <tr><td>
         <p style="margin:0;font-size:14px;color:#1A7A6E;">
-          📋 <strong>Prochaine étape :</strong> ${filleulName} souscrit un abonnement Pro
+          📋 <strong>Prochaine étape :</strong> ${e(filleulName)} souscrit un abonnement Pro
         </p>
         <p style="margin:8px 0 0;font-size:14px;color:#1A7A6E;">
           🎁 <strong>Votre récompense :</strong> 1 mois offert dès que son abonnement est confirmé (7 jours)
@@ -114,14 +122,14 @@ export async function sendReferralNotifParrain(params: {
       </td></tr>
     </table>
     <div style="text-align:center;margin:28px 0;">
-      <a href="${shareLink}" style="display:inline-block;background:#C9A84C;color:#0D1B2E;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;">
+      <a href="${e(shareLink)}" style="display:inline-block;background:#C9A84C;color:#0D1B2E;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;">
         Partager à nouveau mon lien
       </a>
     </div>`
 
   return sendEmail({
     to: parrainEmail,
-    subject: `🎉 ${filleulName} a rejoint VITFIX grâce à vous !`,
+    subject: `🎉 ${o(filleulName)} a rejoint VITFIX grâce à vous !`,
     html: baseLayout(content),
     tags: [{ name: 'type', value: 'referral_notif_parrain' }],
   })
@@ -146,28 +154,28 @@ export async function sendReferralRewardConfirmed(params: {
       🎉 Parrainage validé — 1 mois offert !
     </h2>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      Bonjour <strong>${parrainName}</strong>,
+      Bonjour <strong>${e(parrainName)}</strong>,
     </p>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      Votre parrainage de <strong>${filleulName}</strong> est validé.
+      Votre parrainage de <strong>${e(filleulName)}</strong> est validé.
       <strong>1 mois gratuit</strong> a été ajouté à votre compte.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#FEF5E4;border-radius:12px;padding:20px;margin:0 0 20px;">
       <tr><td style="text-align:center;">
         <p style="margin:0;font-size:13px;color:#B8860B;font-weight:600;">VOS PARRAINAGES</p>
-        <p style="margin:8px 0 0;font-size:28px;font-weight:700;color:#0D1B2E;">${totalParrainages}</p>
+        <p style="margin:8px 0 0;font-size:28px;font-weight:700;color:#0D1B2E;">${e(totalParrainages)}</p>
         <p style="margin:4px 0 0;font-size:13px;color:#8A9BB0;">artisan${totalParrainages > 1 ? 's' : ''} parrainé${totalParrainages > 1 ? 's' : ''} au total</p>
       </td></tr>
     </table>
     <div style="text-align:center;margin:28px 0;">
-      <a href="${shareLink}" style="display:inline-block;background:#C9A84C;color:#0D1B2E;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;">
+      <a href="${e(shareLink)}" style="display:inline-block;background:#C9A84C;color:#0D1B2E;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;">
         Parrainer un autre artisan
       </a>
     </div>`
 
   return sendEmail({
     to: parrainEmail,
-    subject: `🎉 ${filleulName} est abonné — 1 mois offert !`,
+    subject: `🎉 ${o(filleulName)} est abonné — 1 mois offert !`,
     html: baseLayout(content),
     tags: [{ name: 'type', value: 'referral_reward_confirmed' }],
   })
@@ -189,27 +197,27 @@ export async function sendReferralReminderFilleul(params: {
 
   const content = `
     <h2 style="color:#0D1B2E;margin:0 0 16px;font-size:20px;">
-      ⏳ ${filleulName} n'a pas encore activé son abonnement
+      ⏳ ${e(filleulName)} n'a pas encore activé son abonnement
     </h2>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      Bonjour <strong>${parrainName}</strong>,
+      Bonjour <strong>${e(parrainName)}</strong>,
     </p>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 16px;">
-      <strong>${filleulName}</strong> s'est inscrit sur VITFIX grâce à votre lien,
+      <strong>${e(filleulName)}</strong> s'est inscrit sur VITFIX grâce à votre lien,
       mais n'a pas encore souscrit d'abonnement.
     </p>
     <p style="color:#4A5E78;font-size:15px;line-height:1.6;margin:0 0 20px;">
       Vous pouvez lui rappeler qu'il bénéficie d'un mois offert sur son premier abonnement.
     </p>
     <div style="text-align:center;margin:28px 0;">
-      <a href="${shareLink}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;">
+      <a href="${e(shareLink)}" style="display:inline-block;background:#0D1B2E;color:#FFFFFF;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;">
         Copier mon lien de parrainage
       </a>
     </div>`
 
   return sendEmail({
     to: parrainEmail,
-    subject: `⏳ ${filleulName} n'a pas encore activé son abonnement`,
+    subject: `⏳ ${o(filleulName)} n'a pas encore activé son abonnement`,
     html: baseLayout(content),
     tags: [{ name: 'type', value: 'referral_reminder_filleul' }],
   })
