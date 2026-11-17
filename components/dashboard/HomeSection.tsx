@@ -6,6 +6,10 @@ import { useTranslation, useLocale } from '@/lib/i18n/context'
 import type { Artisan, Booking, Service, SavedDocument } from '@/lib/types'
 import { useThemeVars } from './useThemeVars'
 import { useBTPData } from '@/lib/hooks/use-btp-data'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
+import {
+  alertesChantiers, chiffresChantiers, clientsAvecDevis, finDepassee, libelleDevisBrouillon, type DocumentAccueil,
+} from '@/lib/btp/accueil'
 
 interface HomeSectionProps {
   artisan: Artisan
@@ -27,6 +31,8 @@ interface HomeSectionProps {
   setActivePage: (page: string) => void
   setSidebarOpen: (v: boolean) => void
   openNewMotif: () => void
+  /** Devis et factures chargés par la page (navigateur + base) : source des alertes de l'accueil BTP. */
+  documentsEnregistres?: ReadonlyArray<DocumentAccueil>
 }
 
 function extractClientName(booking: Booking): string {
@@ -81,6 +87,7 @@ export default function HomeSection({
   setActivePage,
   setSidebarOpen,
   openNewMotif,
+  documentsEnregistres,
 }: HomeSectionProps) {
   const { t } = useTranslation()
   const locale = useLocale()
@@ -219,38 +226,28 @@ export default function HomeSection({
       }
     } catch { /* ignore */ }
 
-    // 2. Chantiers finis (deadline dépassée) mais pas validés "Terminé"
+    // 2. Chantiers finis (deadline dépassée) mais pas validés "Terminé" — ni annulés, et pas le dernier jour.
+    // Les alertes 2, 2b, 2c et 2d se calculent sur les documents chargés par la page (lib/btp/accueil.ts) :
+    // l'ancienne clé `fixit_docs_<id>` du navigateur n'est plus écrite par aucun écran.
     const now = Date.now()
-    const finisNonValides = btpChantiers.filter(c => c.dateFin && c.statut !== 'Terminé' && new Date(c.dateFin).getTime() < now)
-    finisNonValides.slice(0, 2).forEach(c => {
-      collected.push({
-        level: 'warn',
-        icon: '🏁',
-        text: isPt
-          ? `${c.titre} — prazo excedido, validar como "Terminado"`
-          : `${c.titre} — deadline dépassée, à valider "Terminé"`,
-        page: 'chantiers',
-      })
-    })
-
-    // 2b. Chantiers terminés mais aucune facture émise pour ce client
-    // 2c. Devis en brouillon (faits mais pas envoyés)
-    // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
+    const documents = documentsEnregistres ?? []
     try {
-      const rawDocs = localStorage.getItem(`fixit_docs_${artisan.id}`)
-      const allDocs = rawDocs ? (JSON.parse(rawDocs) as SavedDocument[]) : []
-      const factureClients = new Set(
-        allDocs
-          .filter(d => d.type === 'facture')
-          .map(d => (d.client || d.clientName || d.client_name || '').toLowerCase().trim())
-          .filter(Boolean)
-      )
-      const chantiersTermines = btpChantiers.filter(c => c.statut === 'Terminé')
-      const sansFacture = chantiersTermines.filter(c => {
-        const clientKey = (c.client || '').toLowerCase().trim()
-        return clientKey && !factureClients.has(clientKey)
+      const alertesBtp = alertesChantiers(btpChantiers, documents, new Date(now))
+      alertesBtp.enRetard.slice(0, 2).forEach(c => {
+        collected.push({
+          level: 'warn',
+          icon: '🏁',
+          text: isPt
+            ? `${c.titre} — prazo excedido, validar como "Terminado"`
+            : `${c.titre} — deadline dépassée, à valider "Terminé"`,
+          page: 'chantiers',
+        })
       })
-      sansFacture.slice(0, 2).forEach(c => {
+
+      // 2b. Chantiers terminés mais aucune facture émise pour ce client
+      // 2c. Devis en brouillon (faits mais pas envoyés)
+      // 2d. Demandes client en attente de devis (booking pending sans devis pour ce client)
+      alertesBtp.terminesSansFacture.slice(0, 2).forEach(c => {
         collected.push({
           level: 'err',
           icon: '🧾',
@@ -261,28 +258,13 @@ export default function HomeSection({
         })
       })
 
-      // 2c. Devis en statut brouillon (faits mais pas encore envoyés)
-      const devisBrouillon = allDocs.filter(d => d.type === 'devis' && (d.status === 'brouillon' || d.status === 'draft' || d.status === 'pending' || d.status === 'en_attente'))
-      devisBrouillon.slice(0, 2).forEach(d => {
-        const ref = d.ref || d.number || d.docNumber || d.id.slice(-6)
-        const client = d.client || d.clientName || d.client_name || 'client'
-        collected.push({
-          level: 'warn',
-          icon: '📝',
-          text: isPt
-            ? `Orçamento ${ref} em rascunho — a enviar (${client})`
-            : `Devis ${ref} en brouillon — à envoyer (${client})`,
-          page: 'devis',
-        })
+      // 2c. Devis en statut brouillon (faits mais pas encore envoyés) ; sans numéro, aucune référence affichée
+      alertesBtp.devisBrouillon.slice(0, 2).forEach(d => {
+        collected.push({ level: 'warn', icon: '📝', text: libelleDevisBrouillon(d, isPt), page: 'devis' })
       })
 
       // 2d. Demandes client en attente sans aucun devis associé (par nom client)
-      const devisClients = new Set(
-        allDocs
-          .filter(d => d.type === 'devis')
-          .map(d => (d.client || d.clientName || d.client_name || '').toLowerCase().trim())
-          .filter(Boolean)
-      )
+      const devisClients = clientsAvecDevis(documents)
       const demandesSansDevis = pendingBookings.filter(b => {
         const clientKey = extractClientName(b).toLowerCase().trim()
         return clientKey && clientKey !== 'client' && !devisClients.has(clientKey)
@@ -299,7 +281,11 @@ export default function HomeSection({
           page: 'devis',
         })
       })
-    } catch { /* ignore */ }
+    } catch (erreur) {
+      // Plus aucune lecture du navigateur ici : une erreur serait un défaut de calcul. Elle est journalisée, et les
+      // autres alertes (messages, conformité) restent affichées au lieu de faire tomber tout l'accueil.
+      console.error('[accueil BTP] alertes chantiers et documents non calculées', erreur)
+    }
 
     // 3. Documents conformité qui expirent (< 60 jours) ou déjà expirés
     try {
@@ -323,14 +309,14 @@ export default function HomeSection({
             text: d.expired
               ? (isPt ? `${label} — expirou há ${Math.abs(d.days)}d` : `${label} — expiré depuis ${Math.abs(d.days)}j`)
               : (isPt ? `${label} — expira em ${d.days}d` : `${label} — expire dans ${d.days}j`),
-            page: 'wallet-conformite',
+            page: 'wallet',
           })
         })
       }
     } catch { /* ignore */ }
 
     setBtpAlerts(collected)
-  }, [artisan?.id, orgRole, btpChantiers, pendingBookings, locale])
+  }, [artisan?.id, orgRole, btpChantiers, pendingBookings, locale, documentsEnregistres])
 
   // ═══════════════════════════════════════════════════════
   // V5 RENDER — pro_societe + artisan use the v5 design system
@@ -357,11 +343,14 @@ export default function HomeSection({
       if (n >= e) return 100
       return Math.round(((n - s) / (e - s)) * 100)
     }
-    const totalBudget = isSociete ? btpChantiers.reduce((s, c) => s + (c.montant_facture || c.budget || 0), 0) : totalRevenue
-    const totalAcomptes = isSociete ? btpChantiers.reduce((s, c) => s + (c.acompte_recu || 0), 0) : 0
-    const totalDepenses = isSociete ? btpDepenses.reduce((s, d) => s + (d.amount || 0), 0) : 0
+    // BTP : budgets convertis en nombres avant l'addition (le hook les livre en texte), chantiers annulés écartés ;
+    // acomptes et marge valent null quand aucun chantier n'en porte, et s'affichent « — » (lib/btp/accueil.ts).
+    const chiffresBtp = chiffresChantiers(isSociete ? btpChantiers : [])
+    const totalBudget = isSociete ? chiffresBtp.caTotal : totalRevenue
+    const totalAcomptes = chiffresBtp.acomptes
+    const totalDepenses = isSociete ? btpDepenses.reduce((s, d) => s + (Number(d.amount) || 0), 0) : 0
     const membresActifs = btpMembres.filter(m => m.actif !== false)
-    const margeMoyenne = isSociete && btpChantiers.length > 0 ? Math.round(btpChantiers.reduce((s, c) => s + (c.marge_prevue_pct || 0), 0) / btpChantiers.length) : 0
+    const margeMoyenne = chiffresBtp.margeMoyenne
 
     const urgentCount = isSociete ? chantiersAttente.length : pendingBookings.filter(b => b.notes?.toLowerCase().includes('urgent')).length
 
@@ -385,14 +374,14 @@ export default function HomeSection({
               <div className="v5-kpi-v">{chantiersActifs.length}</div>
               <div className="v5-kpi-s">{chantiersAttente.length > 0 ? `+ ${chantiersAttente.length} ${locale === 'pt' ? 'em espera' : 'en attente'}` : `${btpChantiers.length} total`}</div>
             </div>
-            <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('comptabilite-btp')}>
+            <div className="v5-kpi" style={{ cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('compta_btp')} onKeyDown={surActivationClavier(() => navigateTo('compta_btp'))}>
               <div className="v5-kpi-l">{locale === 'pt' ? 'Faturação total obras' : 'CA total chantiers'}</div>
               <div className="v5-kpi-v">{formatPrice(totalBudget)}</div>
-              <div className="v5-kpi-s">{locale === 'pt' ? 'Adiantamentos' : 'Acomptes'} : {formatPrice(totalAcomptes)}</div>
+              <div className="v5-kpi-s">{locale === 'pt' ? 'Adiantamentos' : 'Acomptes'} : {totalAcomptes === null ? '—' : formatPrice(totalAcomptes)}</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('rentabilite')}>
               <div className="v5-kpi-l">{locale === 'pt' ? 'Margem média' : 'Marge moyenne'}</div>
-              <div className="v5-kpi-v">{margeMoyenne}%</div>
+              <div className="v5-kpi-v">{margeMoyenne === null ? '—' : `${margeMoyenne}%`}</div>
               <div className="v5-kpi-s">{locale === 'pt' ? 'Objetivo' : 'Objectif'} : 25%</div>
             </div>
             <div className="v5-kpi" style={{ cursor: 'pointer' }} onClick={() => navigateTo('equipes')}>
@@ -442,7 +431,8 @@ export default function HomeSection({
                     {chantiersActifs.slice(0, 5).map(c => {
                       const color = colorForChantierId(c.id)
                       const avc = computeAvancement(c.dateDebut, c.dateFin)
-                      const isRetard = c.dateFin && new Date(c.dateFin) < new Date()
+                      // Même règle que l'alerte « deadline dépassée » : le dernier jour n'est pas un retard.
+                      const isRetard = finDepassee(c.dateFin, now)
                       const deadlineLabel = c.dateFin ? new Date(c.dateFin).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' }) : '—'
                       return (
                         <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => navigateTo('chantiers')}>
@@ -600,12 +590,12 @@ export default function HomeSection({
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpSituations.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{btpSituations.filter(s => s.statut === 'validée' || s.statut === 'payée').length} {locale === 'pt' ? 'validadas / pagas' : 'validées / payées'}</div>
             </div>
-            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('pointage')}>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('rentabilite')} onKeyDown={surActivationClavier(() => navigateTo('rentabilite'))}>
               <div className="v5-st">{locale === 'pt' ? 'Despesas' : 'Dépenses'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{btpDepenses.length}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{formatPrice(totalDepenses)} total</div>
             </div>
-            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} onClick={() => navigateTo('portail-client')}>
+            <div className="v5-card" style={{ textAlign: 'center', padding: '.85rem', cursor: 'pointer' }} role="button" tabIndex={0} onClick={() => navigateTo('portail_client')} onKeyDown={surActivationClavier(() => navigateTo('portail_client'))}>
               <div className="v5-st">{locale === 'pt' ? 'Clientes' : 'Clients'}</div>
               <div style={{ fontSize: 18, fontWeight: 700, margin: '.4rem 0' }}>{new Set(btpChantiers.map(c => c.client)).size}</div>
               <div style={{ fontSize: 11, color: '#888' }}>{btpChantiers.length} {locale === 'pt' ? 'obras' : 'chantiers'}</div>

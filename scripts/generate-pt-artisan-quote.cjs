@@ -1,5 +1,5 @@
 /**
- * One-off : génère le devis V2 Artisan (PT) pour Julieta Rocha Peixoto Vieira
+ * One-off : génère un devis V2 Artisan (PT) d'exemple, avec un client fictif
  * (montagem portão + chapa zincada). Sortie : Orcamento-V2-Artisan-PT.pdf.
  *
  * Pourquoi un script standalone : le générateur V2 vit dans un module ESM qui
@@ -31,7 +31,7 @@ const fs = require('fs')
       rm: null,
       adresse: '109 Av. Dr. Artur Melo e Castro, 4630-204 Marco de Canaveses',
       telephone: '912 014 971',
-      email: 'cvlho.frederic@gmail.com',
+      email: 'contact@vitfix.io',
       rc_pro: null,
       insurance_name: null,
       insurance_number: null,
@@ -39,16 +39,16 @@ const fs = require('fs')
       insurance_type: null,
       tva_mention: 'IVA aplicável',
       mode_paiement: 'Transferência bancária faseada',
-      condition_paiement: 'IBAN : PT50 0033 0000 4576 3682 866 05 — BIC : BCOMPTPL',
+      condition_paiement: 'IBAN : PT50 0002 0123 1234 5678 9015 4 — BIC : EXEMPTPL',
       cae: '81210, 38112',
     },
     client: {
-      nom: 'Julieta Isabel Santos Rocha Peixoto Vieira',
+      nom: 'Maria Exemplo Silva',
       siret: null,
-      adresse: 'Rua Freixieiro, 215-C, 2.º Esq., 4430-319 Vila Nova de Gaia',
+      adresse: 'Rua do Exemplo, 100, 1.º Esq., 4400-000 Vila Nova de Gaia',
       telephone: null,
       email: null,
-      intervention_adresse: 'Rua da Praia, 29, 4150-623 Porto - Foz do Douro',
+      intervention_adresse: 'Rua do Exemplo, 1, 4150-000 Porto - Foz do Douro',
       intervention_batiment: null,
       intervention_etage: null,
       intervention_espaces_communs: null,

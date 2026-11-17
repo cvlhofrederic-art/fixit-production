@@ -10,7 +10,8 @@
  * Contrat vérifié ici : pour une société française, le champ e-mail montre celui de la fiche, et seuls les champs que
  * la société a changés depuis le chargement (ou depuis son dernier enregistrement) partent vers POST
  * /api/artisan-settings. L'artisan et la société inscrite au Portugal (fiche en portugais, hors de ce correctif)
- * gardent exactement l'envoi d'avant (les 18 champs).
+ * gardent exactement l'envoi d'avant (les 18 champs). Pour tous les comptes, le champ e-mail part de celui de la fiche
+ * depuis #713 (celui de connexion seulement si la fiche n'en a pas : tests/pro-dashboard/reglages-email-profil.test.ts).
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
@@ -141,15 +142,15 @@ describe('Mon profil d’une société BTP : seuls les champs changés sont enre
 })
 
 describe('Mon profil d’un artisan : envoi inchangé', () => {
-  it('les 18 champs du formulaire partent à chaque enregistrement, e-mail de connexion compris', async () => {
+  it('les 18 champs du formulaire partent à chaque enregistrement, e-mail de la fiche compris', async () => {
     const rendu = monter(FICHE_SOCIETE, 'artisan')
-    expect(rendu.result.current.settingsForm.email).toBe('connexion@exemple.fr')
+    expect(rendu.result.current.settingsForm.email).toBe('contact@exemple.fr')
     await enregistrer(rendu)
 
     const [corps] = corpsEnvoyes()
     // Mêmes champs, dans le même ordre qu'avant le correctif
     expect(Object.keys(corps)).toEqual(CHAMPS_DU_FORMULAIRE)
-    expect(corps.email).toBe('connexion@exemple.fr')
+    expect(corps.email).toBe('contact@exemple.fr')
   })
 
   it('sans rôle transmis (appel d’avant le correctif) : même envoi complet', async () => {
@@ -161,14 +162,14 @@ describe('Mon profil d’un artisan : envoi inchangé', () => {
 })
 
 describe('Mon profil d’une société inscrite au Portugal : envoi inchangé (Portugal hors de ce correctif)', () => {
-  it('fiche en portugais : e-mail de connexion affiché, et les 18 champs partent comme avant', async () => {
+  it('fiche en portugais : e-mail de la fiche affiché, et les 18 champs partent comme avant', async () => {
     const rendu = monter({ ...FICHE_SOCIETE, language: 'pt', email: 'contacto@exemplo.pt' }, 'pro_societe')
-    expect(rendu.result.current.settingsForm.email).toBe('connexion@exemple.fr')
+    expect(rendu.result.current.settingsForm.email).toBe('contacto@exemplo.pt')
     modifier(rendu, { tva_intra: 'PT000000000' })
     await enregistrer(rendu)
 
     const [corps] = corpsEnvoyes()
     expect(Object.keys(corps)).toEqual(CHAMPS_DU_FORMULAIRE)
-    expect(corps).toMatchObject({ email: 'connexion@exemple.fr', tva_intra: 'PT000000000' })
+    expect(corps).toMatchObject({ email: 'contacto@exemplo.pt', tva_intra: 'PT000000000' })
   })
 })

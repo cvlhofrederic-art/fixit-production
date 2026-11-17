@@ -180,8 +180,14 @@ export function useSettings(
     const cleanBio = (artisanData.bio || '').replace(/\s*<!--DS:[\s\S]*?-->/, '').trim()
     const formulaire: SettingsForm = {
       company_name: artisanData.company_name || '',
-      email: userEmail || '',
-      phone: artisanData.phone || '06 51 46 66 98',
+      // L'e-mail professionnel enregistré dans le profil d'abord : partir de l'adresse de connexion le remplaçait à
+      // chaque enregistrement des réglages (devis, factures, fiche publique). L'adresse de connexion ne sert que de
+      // valeur de départ pour un profil sans e-mail.
+      email: artisanData.email || userEmail || '',
+      // Jamais de numéro par défaut : un profil sans téléphone garde un champ vide. Un numéro de repli serait
+      // écrit dans profiles_artisan au premier enregistrement des réglages, puis repris sur les devis, les
+      // factures et la fiche publique.
+      phone: artisanData.phone || '',
       bio: cleanBio,
       auto_reply_message: artisanData.auto_reply_message || '',
       auto_block_duration_minutes: artisanData.auto_block_duration_minutes || 240,
@@ -199,10 +205,9 @@ export function useSettings(
       mediator_url: artisanData.mediator_url || '',
     }
     if (orgRole === 'pro_societe' && ficheSocieteFrancaise(artisanData)) {
-      // Société BTP française : e-mail de la fiche, celui des devis et factures ; celui de connexion seulement si la
-      // fiche n'en a pas (il est alors enregistré au premier clic, comme avant : la référence garde l'e-mail vide de la
-      // fiche). Société inscrite au Portugal : hors de ce correctif, formulaire et envoi d'avant.
-      if (artisanData.email) formulaire.email = artisanData.email
+      // Société BTP française : la référence garde l'e-mail de la fiche, celui des devis et factures. Une fiche sans
+      // e-mail affiche celui de connexion, qui est alors enregistré au premier clic, comme avant (la référence garde
+      // l'e-mail vide de la fiche). Société inscrite au Portugal : hors de ce correctif, envoi d'avant.
       valeursEnregistrees.current = { ...formulaire, email: artisanData.email || '' }
     } else {
       valeursEnregistrees.current = null

@@ -1,8 +1,10 @@
 /**
- * Script Node.js — Génère le PDF Orçamento Julieta via le générateur V2 artisan PT.
- * Usage: npx tsx scripts/gen-orcamento-julieta.ts
+ * Script Node.js — Génère un PDF d'orçamento d'exemple (client fictif) via le générateur V2 artisan PT.
+ * Usage: npx tsx scripts/gen-orcamento-exemplo.ts (PDF écrit dans le dossier Téléchargements de l'utilisateur)
  */
 import { writeFileSync } from 'fs'
+import { homedir } from 'os'
+import { join } from 'path'
 import { generateDevisPdfV2 } from '../lib/pdf/devis-generator-v2'
 import type { DevisGeneratorInput } from '../lib/pdf/devis-generator-v2'
 
@@ -17,24 +19,24 @@ async function main() {
       company_name: 'Vitfix',
       adresse: '109 Av. Dr. Artur Melo e Castro\n4630-204 Marco de Canaveses',
       telephone: '912 014 971',
-      email: 'cvlho.frederic@gmail.com',
+      email: 'contact@vitfix.io',
       rc_pro: null,
       insurance_name: 'Fidelidade',
-      insurance_number: 'RC-2026-041892',
+      insurance_number: 'RC-0000-000000',
       insurance_coverage: 'Portugal continental',
       insurance_type: 'rc_pro',
       tva_mention: 'IVA incluído à taxa legal em vigor (23%)',
-      mode_paiement: 'Transferência bancária.\nIBAN: PT50 0033 0000 4576 3682 866 05 — BIC: BCOMPTPL\nTitular: Frederic Neiva Carvalho — Banco: Millennium BCP',
+      mode_paiement: 'Transferência bancária.\nIBAN: PT50 0002 0123 1234 5678 9015 4 — BIC: EXEMPTPL\nTitular: Titular Exemplo — Banco: Banco Exemplo',
       condition_paiement: 'Adiantamento de 30% na aceitação, restante após conclusão',
       cae: '81210, 38112',
     },
     client: {
-      nom: 'Julieta Isabel Santos Rocha Peixoto Vieira',
-      siret: '202 481 891',
-      adresse: 'Rua Freixieiro, 215-C, 2.º Esq.\n4430-319 Vila Nova de Gaia',
+      nom: 'Maria Exemplo Silva',
+      siret: '123 456 789',
+      adresse: 'Rua do Exemplo, 100, 1.º Esq.\n4400-000 Vila Nova de Gaia',
       telephone: null,
       email: null,
-      intervention_adresse: 'Rua da Praia, 29, 4150-623 Porto - Foz do Douro',
+      intervention_adresse: 'Rua do Exemplo, 1, 4150-000 Porto - Foz do Douro',
     },
     devis: {
       numero: 'ORC-2026-036',
@@ -172,7 +174,7 @@ async function main() {
   console.log('Generating PDF via V2 artisan PT generator...')
   const pdf = await generateDevisPdfV2(input)
   const buffer = pdf.output('arraybuffer') as ArrayBuffer
-  const outPath = '/Users/elgato_fofo/Downloads/Orcamento-V2-Julieta-Portao-Chapa.pdf'
+  const outPath = join(homedir(), 'Downloads', 'Orcamento-V2-exemplo-portao-chapa.pdf')
   writeFileSync(outPath, Buffer.from(buffer))
   console.log(`OK: ${outPath} (${(buffer.byteLength / 1024).toFixed(1)} KB)`)
 }

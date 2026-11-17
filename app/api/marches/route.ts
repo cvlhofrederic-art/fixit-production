@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-server'
+import { getAuthUser } from '@/lib/auth-helpers'
+import { CACHE_PERSONNEL, SELECT_PUBLIC_MARCHE } from '@/lib/marches-public'
 import { cacheable } from '@/lib/cache'
 import { createMarcheSchema, validateBody } from '@/lib/validation'
 import { parsePagination, logger } from '@/lib/logger'
@@ -108,6 +110,31 @@ export async function GET(request: NextRequest) {
   //   • 'tous' / null                  → pas de filtre
   const marcheType = url.searchParams.get('marche_type')
 
+  // ── Modes personnels : réservés au compte concerné ─────────────────────────
+  // Ces trois modes rendent des données d'un compte précis (clés de gestion de ses offres, ses candidatures avec
+  // leurs prix, les marchés qui lui sont proposés et leur distance à son adresse). L'identifiant passé dans l'URL
+  // ne suffit pas : la lecture se fait avec le client « service role », seul le jeton prouve qui appelle.
+  if (publisherUserId || artisanUserId || (myBids === 'true' && artisanId)) {
+    const user = await getAuthUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentification requise' }, { status: 401 })
+    const autreCompte = (publisherUserId && publisherUserId !== user.id) || (artisanUserId && artisanUserId !== user.id)
+    if (autreCompte) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+    if (myBids === 'true' && artisanId) {
+      // La fiche dont on demande les candidatures doit appartenir au compte appelant (contrôlé même quand un
+      // autre mode personnel est demandé en même temps : la garde ne dépend pas de l'ordre des blocs plus bas).
+      const { data: fiche, error: erreurFiche } = await supabaseAdmin
+        .from('profiles_artisan')
+        .select('id')
+        .eq('id', artisanId)
+        .eq('user_id', user.id)
+        .maybeSingle()
+      // Une panne pendant ce contrôle refuse l'accès (jamais d'accord par défaut), mais elle laisse une trace :
+      // sans elle, rien ne la distinguerait d'un simple refus.
+      if (erreurFiche) logger.error('[marches] GET my_bids : contrôle de la fiche impossible', { error: erreurFiche.message })
+      if (!fiche) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+    }
+  }
+
   // ── Publisher mode: return all marches published by a user ─────────────────
   if (publisherUserId) {
     const { data: publisherMarches, error: pubError } = await supabaseAdmin
@@ -122,7 +149,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Une erreur interne est survenue' }, { status: 500 })
     }
 
-    return NextResponse.json({ marches: publisherMarches || [] })
+    return NextResponse.json({ marches: publisherMarches || [] }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   // ── My bids mode: return all candidatures for an artisan ──────────────────
@@ -146,7 +173,7 @@ export async function GET(request: NextRequest) {
       my_candidature_id: c.id,
     }))
 
-    return NextResponse.json({ candidatures: enriched })
+    return NextResponse.json({ candidatures: enriched }, { headers: { 'Cache-Control': CACHE_PERSONNEL } })
   }
 
   const today = new Date().toISOString().split('T')[0]
@@ -178,9 +205,11 @@ export async function GET(request: NextRequest) {
   const cacheKey = `marches:${today}:${from}:${to}:${category || 'all'}:${city || 'all'}:${budgetMin || ''}:${budgetMax || ''}:${urgency || ''}:${pays || ''}:${zone || ''}:${district || ''}:${concelho || ''}:${departement || ''}:${source || ''}:${sourceType || ''}:${marcheType || ''}:${(allowedCategoryIds || []).sort().join(',')}`
 
   const fetchMarches = async (): Promise<MarcheRow[]> => {
+    // Liste publique : `matched_artisans` (identifiants de compte des entreprises ciblées) n'est jamais renvoyé ;
+    // la colonne sert seulement au filtre `artisan_user_id` plus bas.
     let query = supabaseAdmin
       .from('marches')
-      .select('id, title, description, category, publisher_name, publisher_type, location_city, location_postal, location_lat, location_lng, budget_min, budget_max, deadline, urgency, photos, candidatures_count, max_candidatures, require_rc_pro, require_decennale, require_rge, require_qualibat, preferred_work_mode, matched_artisans, status, created_at, pays, zone_test, district, concelho, departement, source, source_id, url_source, acheteur, procedure_type, montant_estime, langue, source_type, btp_company_name, mission_type, start_date, duration_text, nb_intervenants_souhaite')
+      .select(SELECT_PUBLIC_MARCHE)
       .eq('status', 'open')
       .gte('deadline', today)
       .order('created_at', { ascending: false })
@@ -235,7 +264,8 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query
     if (error) throw error
-    return data || []
+    // La liste de colonnes n'est plus une chaîne littérale : le client ne peut plus en déduire le type des lignes.
+    return (data ?? []) as unknown as MarcheRow[]
   }
 
   let marches: MarcheRow[]
@@ -272,7 +302,8 @@ export async function GET(request: NextRequest) {
   }
 
   const response = NextResponse.json({ marches })
-  response.headers.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=300')
+  // La liste filtrée pour un compte (distances depuis son adresse) n'est jamais gardée par un cache partagé.
+  response.headers.set('Cache-Control', isPersonalized ? CACHE_PERSONNEL : 'public, max-age=0, s-maxage=120, stale-while-revalidate=300')
   return response
 }
 

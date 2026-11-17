@@ -920,6 +920,7 @@ function DashboardPage() {
               openDevisForm={openDevisForm} openFactureForm={openFactureForm}
               setActivePage={navigateTo} setSidebarOpen={setSidebarOpen}
               openNewMotif={openNewMotif}
+              documentsEnregistres={savedDocuments}
             />
             </SectionErrorBoundary>
           )}

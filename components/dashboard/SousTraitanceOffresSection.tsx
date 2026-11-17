@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
+import { fetchAuthentifie } from '@/lib/fetch-authentifie'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -151,26 +152,31 @@ export default function SousTraitanceOffresSection({ artisan, orgRole }: { artis
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState('')
 
-  const showToast = (msg: string, type: 'ok' | 'err' = 'ok') => {
+  // Stable d'un rendu à l'autre : le chargement des offres peut l'appeler sans se recréer.
+  const showToast = useCallback((msg: string, type: 'ok' | 'err' = 'ok') => {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
-  }
+  }, [])
 
   // ── Load offers ───────────────────────────────────────────────────────────
   const loadOffers = useCallback(async () => {
     if (!artisan?.id) return
     setLoading(true)
     try {
-      const res = await fetch(`/api/marches/sous-traitance?btp_company_id=${artisan.id}`)
+      // Route réservée au compte lui-même (ses offres, tous statuts confondus) : jeton requis.
+      const res = await fetchAuthentifie(`/api/marches/sous-traitance?btp_company_id=${artisan.id}`)
       if (!res.ok) throw new Error()
       const data = await res.json()
       setOffers(data.offers || [])
     } catch {
       setOffers([])
+      // Société BTP : un refus du serveur (session expirée, limite de débit, panne) est dit, sinon rien ne le
+      // distingue de « Aucune annonce publiée ».
+      if (orgRole === 'pro_societe') showToast('Impossible de charger vos annonces', 'err')
     } finally {
       setLoading(false)
     }
-  }, [artisan?.id])
+  }, [artisan?.id, orgRole, showToast])
 
   useEffect(() => {
     loadOffers()
