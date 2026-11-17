@@ -202,7 +202,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
               <div style={{ padding: '16px' }}>
                 {pendingFile && (
                   <div style={{ marginBottom: 12, borderRadius: 6, overflow: 'hidden', background: '#F5F5F5', height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img src={safeBlobUrl(pendingFile)} alt={isPt ? 'Pré-visualização' : 'preview'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={safeBlobUrl(pendingFile)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 )}
                 <div className="v5-fg">
@@ -379,7 +379,7 @@ export default function CarnetDeVisiteSection({ artisan, orgRole }: { artisan: i
             <div style={{ padding: 16 }}>
               {pendingFile && (
                 <div style={{ marginBottom: 12, borderRadius: 6, overflow: 'hidden', background: '#F5F5F5', height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img src={safeBlobUrl(pendingFile)} alt={isPt ? 'Pré-visualização' : 'preview'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={safeBlobUrl(pendingFile)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               )}
               <div className="v22-form-group">

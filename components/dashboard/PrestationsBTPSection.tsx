@@ -21,6 +21,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocale } from '@/lib/i18n/context'
+import { surActivationClavier } from '@/lib/a11y/activation-clavier'
 import { supabase } from '@/lib/supabase'
 import type { Artisan } from '@/lib/types'
 
@@ -497,7 +498,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? `Adicionar um serviço (${currentLotLabel})` : `Ajouter une prestation ${currentLotLabel}`}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? `Adicionar um serviço (${currentLotLabel})` : `Ajouter une prestation ${currentLotLabel}`}</div>
           </div>
         </div>
       )}
@@ -538,7 +539,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? 'Adicionar um material' : 'Ajouter un matériau'}</div>
           </div>
         </div>
       )}
@@ -582,7 +583,7 @@ export default function PrestationsBTPSection({ artisan }: PrestationsBTPSection
                 ))}
               </tbody>
             </table>
-            <div className="prest-add-row" onClick={openCreate}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
+            <div className="prest-add-row" role="button" tabIndex={0} onClick={openCreate} onKeyDown={surActivationClavier(openCreate)}>＋ {isPt ? 'Adicionar uma despesa' : 'Ajouter un frais divers'}</div>
           </div>
         </div>
       )}

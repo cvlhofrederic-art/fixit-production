@@ -74,39 +74,58 @@ function parseMaterial(s: string): { nom: string; qte: string } {
   return { nom: s, qte: '—' }
 }
 
-// Libellés du PDF par langue de l'interface. Le français est celui d'avant, au caractère près ; le portugais suit
-// l'écran des relatórios (titre « Relatório de obra » pour une société BTP, « de intervenção » pour un artisan).
+// Libellés du PDF par langue de l'interface, clé par clé : [français, portugais]. Le français est celui d'avant, au
+// caractère près ; le portugais suit l'écran des relatórios (titre « Relatório de obra » pour une société BTP,
+// « de intervenção » pour un artisan).
+type Paire<T> = readonly [fr: T, pt: T]
+const p = <T,>(fr: T, pt: T): Paire<T> => [fr, pt]
 const TEXTES_RAPPORT = {
-  fr: {
-    titreBtp: "Rapport d'intervention", titre: "Rapport d'intervention",
-    statuts: { termine: 'Terminé', en_cours: 'En cours', a_reprendre: 'À reprendre', sous_garantie: 'Sous garantie' } as Record<string, string>,
-    etabliLe: 'Établi le', statut: 'Statut', lieA: 'Lié à : ', prestataire: 'PRESTATAIRE', client: 'CLIENT',
-    tel: 'Tél : ', email: 'E-mail : ', identifiant: 'SIRET : ', identifiantPied: 'SIRET', assurance: 'Assurance : ',
-    separateur: ' — ', genere: 'Document généré par Vitfix Pro', page: 'Page',
-    details: "Détails de l'intervention", colonnes: ['DATE', 'HEURE DÉBUT', 'HEURE FIN', 'DURÉE'],
-    adresseChantier: 'Adresse chantier : ', motif: "Motif d'intervention", travaux: 'Travaux réalisés',
-    materiaux: 'Matériaux utilisés', designation: 'DÉSIGNATION', quantite: 'QUANTITÉ', separateurPage2: '  —  ',
-    observationsRecommandations: 'Observations / Recommandations', observations: 'Observations', recommandations: 'Recommandations',
-    photos: 'Photos chantier', photoIndisponible: 'Photo non disponible', aucunePhoto: 'Aucune photo liée.',
-    ajouterPhotos: 'Ajoutez des photos depuis le module pour les inclure dans le rapport.',
-    signatures: 'Validation et signatures', signaturePrestataire: 'SIGNATURE PRESTATAIRE', signatureClient: 'SIGNATURE CLIENT',
-    dateSignature: 'Date  ___ / ___ / ______',
-  },
-  pt: {
-    titreBtp: 'Relatório de obra', titre: 'Relatório de intervenção',
-    statuts: { termine: 'Concluído', en_cours: 'Em curso', a_reprendre: 'A retomar', sous_garantie: 'Em garantia' } as Record<string, string>,
-    etabliLe: 'Emitido em', statut: 'Estado', lieA: 'Associado a: ', prestataire: 'PRESTADOR', client: 'CLIENTE',
-    tel: 'Tel.: ', email: 'E-mail: ', identifiant: 'NIF: ', identifiantPied: 'NIF', assurance: 'Seguro: ',
-    separateur: ' · ', genere: 'Documento gerado pelo Vitfix Pro', page: 'Página',
-    details: 'Detalhes da intervenção', colonnes: ['DATA', 'HORA DE INÍCIO', 'HORA DE FIM', 'DURAÇÃO'],
-    adresseChantier: 'Morada da obra: ', motif: 'Motivo da intervenção', travaux: 'Trabalhos realizados',
-    materiaux: 'Materiais utilizados', designation: 'DESIGNAÇÃO', quantite: 'QUANTIDADE', separateurPage2: '  ·  ',
-    observationsRecommandations: 'Observações / Recomendações', observations: 'Observações', recommandations: 'Recomendações',
-    photos: 'Fotos da obra', photoIndisponible: 'Foto indisponível', aucunePhoto: 'Nenhuma foto associada.',
-    ajouterPhotos: 'Adicione fotos a partir do módulo para as incluir no relatório.',
-    signatures: 'Validação e assinaturas', signaturePrestataire: 'ASSINATURA DO PRESTADOR', signatureClient: 'ASSINATURA DO CLIENTE',
-    dateSignature: 'Data  ___ / ___ / ______',
-  },
+  titreBtp: p("Rapport d'intervention", 'Relatório de obra'),
+  titre: p("Rapport d'intervention", 'Relatório de intervenção'),
+  statuts: p<Record<string, string>>(
+    { termine: 'Terminé', en_cours: 'En cours', a_reprendre: 'À reprendre', sous_garantie: 'Sous garantie' },
+    { termine: 'Concluído', en_cours: 'Em curso', a_reprendre: 'A retomar', sous_garantie: 'Em garantia' },
+  ),
+  etabliLe: p('Établi le', 'Emitido em'),
+  statut: p('Statut', 'Estado'),
+  lieA: p('Lié à : ', 'Associado a: '),
+  prestataire: p('PRESTATAIRE', 'PRESTADOR'),
+  client: p('CLIENT', 'CLIENTE'),
+  tel: p('Tél : ', 'Tel.: '),
+  email: p('E-mail : ', 'E-mail: '),
+  identifiant: p('SIRET : ', 'NIF: '),
+  identifiantPied: p('SIRET', 'NIF'),
+  assurance: p('Assurance : ', 'Seguro: '),
+  separateur: p(' — ', ' · '),
+  genere: p('Document généré par Vitfix Pro', 'Documento gerado pelo Vitfix Pro'),
+  page: p('Page', 'Página'),
+  details: p("Détails de l'intervention", 'Detalhes da intervenção'),
+  colonnes: p(['DATE', 'HEURE DÉBUT', 'HEURE FIN', 'DURÉE'], ['DATA', 'HORA DE INÍCIO', 'HORA DE FIM', 'DURAÇÃO']),
+  adresseChantier: p('Adresse chantier : ', 'Morada da obra: '),
+  motif: p("Motif d'intervention", 'Motivo da intervenção'),
+  travaux: p('Travaux réalisés', 'Trabalhos realizados'),
+  materiaux: p('Matériaux utilisés', 'Materiais utilizados'),
+  designation: p('DÉSIGNATION', 'DESIGNAÇÃO'),
+  quantite: p('QUANTITÉ', 'QUANTIDADE'),
+  separateurPage2: p('  —  ', '  ·  '),
+  observationsRecommandations: p('Observations / Recommandations', 'Observações / Recomendações'),
+  observations: p('Observations', 'Observações'),
+  recommandations: p('Recommandations', 'Recomendações'),
+  photos: p('Photos chantier', 'Fotos da obra'),
+  photoIndisponible: p('Photo non disponible', 'Foto indisponível'),
+  aucunePhoto: p('Aucune photo liée.', 'Nenhuma foto associada.'),
+  ajouterPhotos: p('Ajoutez des photos depuis le module pour les inclure dans le rapport.', 'Adicione fotos a partir do módulo para as incluir no relatório.'),
+  signatures: p('Validation et signatures', 'Validação e assinaturas'),
+  signaturePrestataire: p('SIGNATURE PRESTATAIRE', 'ASSINATURA DO PRESTADOR'),
+  signatureClient: p('SIGNATURE CLIENT', 'ASSINATURA DO CLIENTE'),
+  dateSignature: p('Date  ___ / ___ / ______', 'Data  ___ / ___ / ______'),
+}
+type TextesRapport = { [K in keyof typeof TEXTES_RAPPORT]: (typeof TEXTES_RAPPORT)[K][0] }
+
+/** Libellés du PDF dans une langue (portugais si `pt`, sinon français). */
+function textesRapport(pt: boolean): TextesRapport {
+  const i = pt ? 1 : 0
+  return Object.fromEntries(Object.entries(TEXTES_RAPPORT).map(([cle, paire]) => [cle, paire[i]])) as TextesRapport
 }
 
 /** Compute duration string from HH:MM times */
@@ -147,7 +166,7 @@ export async function generateRapportPDF(
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: [PW, PH] })
 
   // Langue du PDF : celle de l'interface (dateFmtLocale « pt-PT » ou « fr-FR »).
-  const T = dateFmtLocale.startsWith('pt') ? TEXTES_RAPPORT.pt : TEXTES_RAPPORT.fr
+  const T = textesRapport(dateFmtLocale.startsWith('pt'))
   const titreRapport = orgRole === 'pro_societe' ? T.titreBtp : T.titre
   const dateEtabli = new Date().toLocaleDateString(dateFmtLocale, { day: '2-digit', month: '2-digit', year: 'numeric' })
   const statusText = T.statuts[r.status] || r.status

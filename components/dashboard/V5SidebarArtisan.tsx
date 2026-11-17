@@ -80,9 +80,9 @@ export default function V5SidebarArtisan({
 
         {/* ═══ PRINCIPAL ═══ */}
         <div className="v5-sb-sec">
-          <div className="v5-sb-sec-t">{isPt ? 'Principal' : 'Principal'}</div>
+          <div className="v5-sb-sec-t">Principal</div>
           <V5ArtisanItem icon="📊" label={isPt ? 'Painel' : 'Tableau de bord'} active={activePage === 'home'} onClick={() => navigateTo('home')} page="home" />
-          <V5ArtisanItem icon="📅" label={isPt ? 'Agenda' : 'Agenda'} active={activePage === 'calendar'} badge={pendingBookings.length || undefined} isPt={isPt} onClick={() => navigateTo('calendar')} page="calendar" />
+          <V5ArtisanItem icon="📅" label="Agenda" active={activePage === 'calendar'} badge={pendingBookings.length || undefined} isPt={isPt} onClick={() => navigateTo('calendar')} page="calendar" />
           <V5ArtisanItem icon="🏗️" label={isPt ? 'Obras' : 'Chantiers'} active={activePage === 'chantiers_v22'} onClick={() => navigateTo('chantiers_v22')} page="chantiers_v22" />
           <V5ArtisanItem icon="🗂️" label={isPt ? 'Serviços' : 'Prestations'} active={activePage === 'motifs'} onClick={() => navigateTo('motifs')} page="motifs" />
           <V5ArtisanItem icon="⏱️" label={isPt ? 'Horários' : 'Horaires'} active={activePage === 'horaires'} onClick={() => navigateTo('horaires')} page="horaires" />
