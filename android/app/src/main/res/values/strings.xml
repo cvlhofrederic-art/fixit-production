@@ -4,4 +4,6 @@
     <string name="title_activity_main">Vitfix Pro</string>
     <string name="package_name">io.vitfix.pro</string>
     <string name="custom_url_scheme">io.vitfix.pro</string>
+    <!-- Canal de notification que @capgo/background-geolocation crée au lancement (« Background Tracking » sinon). -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Pointage téléphone en poche</string>
 </resources>
