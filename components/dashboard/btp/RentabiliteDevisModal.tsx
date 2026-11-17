@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 import type { ProductLine } from '@/lib/devis-types'
 import { supabase } from '@/lib/supabase'
+import { traducteurDevisBtp } from '@/lib/devis-btp-traduction'
 
 interface LigneAnalysee {
   description: string
@@ -67,6 +68,8 @@ interface Props {
   totalTTC: number
   corpsMetier?: string
   onClose: () => void
+  /** Langue des textes : 'pt' passé par le formulaire de devis BTP sur /pt. Absent (formulaire artisan) : français. */
+  langue?: 'fr' | 'pt'
 }
 
 const fmt = (n: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
@@ -82,7 +85,10 @@ function detectChargesPatronales(statut: string | null | undefined): number {
   return 45
 }
 
-export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalTTC, corpsMetier, onClose }: Props) {
+export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalTTC, corpsMetier, onClose, langue = 'fr' }: Props) {
+  // Textes en portugais quand le formulaire de devis BTP le demande (lib/devis-btp-traduction.ts) ; le formulaire
+  // artisan, qui ouvre aussi cette fenêtre, ne passe pas de langue : elle reste en français pour lui (règle n° 1).
+  const tx = useMemo(() => traducteurDevisBtp(langue), [langue])
   const [joursChantier, setJoursChantier] = useState<number>(5)
   const [heuresParJour, setHeuresParJour] = useState<number>(8)
   const [loading, setLoading] = useState(false)
@@ -110,7 +116,7 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
         if (!token) {
           if (!cancelled) {
             setBootstrapping(false)
-            toast.error('Session expirée — reconnecte-toi pour analyser le devis')
+            toast.error(tx('Session expirée — reconnecte-toi pour analyser le devis'))
           }
           return
         }
@@ -158,13 +164,13 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
         console.error('[RentaDevis] bootstrap error', e)
         if (!cancelled) {
           setBootstrapping(false)
-          toast.error('Erreur de chargement des données — utilise les overrides manuels')
+          toast.error(tx('Erreur de chargement des données — utilise les overrides manuels'))
         }
       }
     }
     bootstrap()
     return () => { cancelled = true }
-  }, [])
+  }, [tx])
 
   const nbPersonnesEffective = selectedMembreIds.size > 0 ? selectedMembreIds.size : 1
 
@@ -186,11 +192,11 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
 
   async function handleAnalyser() {
     if (!items.length) {
-      toast.error('Ajoute au moins une ligne au devis')
+      toast.error(tx('Ajoute au moins une ligne au devis'))
       return
     }
     if (membres.length > 0 && selectedMembreIds.size === 0) {
-      toast.error('Sélectionne au moins une personne sur le chantier')
+      toast.error(tx('Sélectionne au moins une personne sur le chantier'))
       return
     }
     setLoading(true)
@@ -198,7 +204,7 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
       const { data: sessionData } = await supabase.auth.getSession()
       const token = sessionData?.session?.access_token
       if (!token) {
-        toast.error('Session expirée — reconnecte-toi')
+        toast.error(tx('Session expirée — reconnecte-toi'))
         setLoading(false)
         return
       }
@@ -256,8 +262,8 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
       const data = (await res.json()) as AnalyseResult
       setResult(data)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
-      toast.error(`Analyse échouée : ${msg}`)
+      const msg = err instanceof Error ? err.message : tx('Erreur inconnue')
+      toast.error(tx('Analyse échouée : {erreur}', { erreur: msg }))
     } finally {
       setLoading(false)
     }
@@ -330,43 +336,43 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
         `}</style>
 
         <div className="rdv-h">
-          <h3>📊 Rentabilité du devis</h3>
-          <button className="rdv-close" onClick={onClose} type="button">×</button>
+          <h3>{tx('📊 Rentabilité du devis')}</h3>
+          <button className="rdv-close" onClick={onClose} type="button">{tx('×')}</button>
         </div>
 
         {bootstrapping ? (
-          <div className="rdv-loading">⏳ Chargement des données équipe & charges...</div>
+          <div className="rdv-loading">{tx('⏳ Chargement des données équipe & charges...')}</div>
         ) : (
           <>
             {/* Données auto-détectées */}
             <div className="rdv-detected">
-              <strong>🔍 Données détectées automatiquement</strong>
+              <strong>{tx('🔍 Données détectées automatiquement')}</strong>
               <ul style={{ margin: '6px 0 0', paddingLeft: 20, lineHeight: 1.6 }}>
-                <li>Statut juridique : <strong>{statutJuridique || 'Non défini'}</strong> → charges patronales <strong>{chargesPatronalesAuto.toFixed(0)}%</strong></li>
-                <li>Coût horaire moyen équipe : <strong>{coutHoraireSelected.toFixed(0)}€/h</strong></li>
-                <li>Charges fixes mensuelles : <strong>{fmt(chargesFixesMensuelles)}</strong> {chargesFixesMensuelles === 0 && <em>(aucune charge enregistrée)</em>}</li>
+                <li>{tx('Statut juridique :')}{' '}<strong>{statutJuridique || tx('Non défini')}</strong>{' '}{tx('→ charges patronales')}{' '}<strong>{chargesPatronalesAuto.toFixed(0)}%</strong></li>
+                <li>{tx('Coût horaire moyen équipe :')}{' '}<strong>{coutHoraireSelected.toFixed(0)}{tx('€/h')}</strong></li>
+                <li>{tx('Charges fixes mensuelles :')}{' '}<strong>{fmt(chargesFixesMensuelles)}</strong> {chargesFixesMensuelles === 0 && <em>{tx('(aucune charge enregistrée)')}</em>}</li>
               </ul>
             </div>
 
             {/* Sélection des employés */}
-            <div className="rdv-section-title">👷 Personnes sur le chantier</div>
+            <div className="rdv-section-title">{tx('👷 Personnes sur le chantier')}</div>
             {membres.length === 0 ? (
               <div className="rdv-empty-employees">
-                Aucun membre actif dans ton équipe. Ajoute-les depuis l'onglet <strong>Équipes</strong> pour calculer automatiquement les coûts main d'œuvre.
+                {tx('Aucun membre actif dans ton équipe. Ajoute-les depuis l\'onglet')}{' '}<strong>{tx('Équipes')}</strong>{' '}{tx('pour calculer automatiquement les coûts main d\'œuvre.')}
               </div>
             ) : (
               <div className="rdv-employees">
                 <div className="rdv-emp-grid">
                   {membres.map(m => {
                     const selected = selectedMembreIds.has(m.id)
-                    const fullName = `${m.prenom || ''} ${m.nom || ''}`.trim() || 'Membre'
+                    const fullName = `${m.prenom || ''} ${m.nom || ''}`.trim() || tx('Membre')
                     return (
                       <label key={m.id} className={`rdv-emp-item ${selected ? 'selected' : ''}`}>
                         <input type="checkbox" checked={selected} onChange={() => toggleMembre(m.id)} />
                         <div>
                           <div className="name">{fullName}</div>
                           <div className="meta">
-                            {m.poste || m.type_contrat || 'Ouvrier'}
+                            {m.poste || m.type_contrat || tx('Ouvrier')}
                             {m.cout_horaire ? ` · ${m.cout_horaire}€/h` : ''}
                           </div>
                         </div>
@@ -375,7 +381,7 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
                   })}
                 </div>
                 <div style={{ marginTop: 8, fontSize: 11, color: '#6B7280' }}>
-                  {selectedMembreIds.size} sélectionné(s) sur {membres.length}
+                  {selectedMembreIds.size}{' '}{tx('sélectionné(s) sur')}{' '}{membres.length}
                 </div>
               </div>
             )}
@@ -383,36 +389,36 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
             {/* Paramètres chantier */}
             <div className="rdv-form">
               <div>
-                <label>Jours sur le chantier</label>
+                <label>{tx('Jours sur le chantier')}</label>
                 <input type="number" min={0.5} max={365} step={0.5} value={joursChantier}
                   onChange={(e) => setJoursChantier(Math.max(0.5, parseFloat(e.target.value) || 1))} />
               </div>
               <div>
-                <label>Heures/jour</label>
+                <label>{tx('Heures/jour')}</label>
                 <input type="number" min={1} max={14} value={heuresParJour}
                   onChange={(e) => setHeuresParJour(Math.max(1, Math.min(14, parseInt(e.target.value) || 8)))} />
               </div>
               <button className="rdv-btn" onClick={handleAnalyser} disabled={loading} type="button">
-                {loading ? 'Analyse...' : 'Analyser'}
+                {loading ? tx('Analyse...') : tx('Analyser')}
               </button>
             </div>
 
             {/* Overrides manuels (collapsibles) */}
             <details>
-              <summary className="rdv-toggle">Ajuster manuellement les valeurs détectées (avancé)</summary>
+              <summary className="rdv-toggle">{tx('Ajuster manuellement les valeurs détectées (avancé)')}</summary>
               <div className="rdv-overrides">
                 <div>
-                  <label>Coût horaire (€)</label>
+                  <label>{tx('Coût horaire (€)')}</label>
                   <input type="number" min={0} step={1} placeholder={`auto: ${coutHoraireSelected.toFixed(0)}`}
                     value={coutHoraireOverride} onChange={(e) => setCoutHoraireOverride(e.target.value)} />
                 </div>
                 <div>
-                  <label>Charges patronales (%)</label>
+                  <label>{tx('Charges patronales (%)')}</label>
                   <input type="number" min={0} max={100} step={1} placeholder={`auto: ${chargesPatronalesAuto.toFixed(0)}`}
                     value={chargesPctOverride} onChange={(e) => setChargesPctOverride(e.target.value)} />
                 </div>
                 <div>
-                  <label>Charges fixes/mois (€)</label>
+                  <label>{tx('Charges fixes/mois (€)')}</label>
                   <input type="number" min={0} step={10} placeholder={`auto: ${chargesFixesMensuelles}`}
                     value={chargesFixesOverride} onChange={(e) => setChargesFixesOverride(e.target.value)} />
                 </div>
@@ -421,7 +427,7 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
 
             {!result && !loading && (
               <div style={{ padding: 16, textAlign: 'center', color: '#888', fontSize: 12, marginTop: 8 }}>
-                Configure les paramètres ci-dessus puis lance l'analyse pour comparer ce devis aux prix marché 2026 et calculer la rentabilité réelle.
+                {tx('Configure les paramètres ci-dessus puis lance l\'analyse pour comparer ce devis aux prix marché 2026 et calculer la rentabilité réelle.')}
               </div>
             )}
 
@@ -434,45 +440,45 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
                 }}>
                   <div className="e">{niveauStyles[result.niveau].emoji}</div>
                   <div className="l">
-                    <div className="lab">{niveauStyles[result.niveau].label}</div>
+                    <div className="lab">{tx(niveauStyles[result.niveau].label)}</div>
                     <div className="txt">{result.constat}</div>
                   </div>
                 </div>
 
                 <div className="rdv-grid">
                   <div className="rdv-card">
-                    <div className="lab">Chiffre d'affaires HT</div>
+                    <div className="lab">{tx('Chiffre d\'affaires HT')}</div>
                     <div className="val">{fmt(result.totaux.caHT)}</div>
-                    <div className="sub">Total TTC : {fmt(totalTTC)}</div>
+                    <div className="sub">{tx('Total TTC :')}{' '}{fmt(totalTTC)}</div>
                   </div>
                   <div className="rdv-card">
-                    <div className="lab">Coût main d'œuvre</div>
+                    <div className="lab">{tx('Coût main d\'œuvre')}</div>
                     <div className="val">{fmt(result.totaux.coutMOTotal)}</div>
-                    <div className="sub">{result.totaux.heuresTotal}h × {result.totaux.coutHoraireMoyen.toFixed(0)}€/h + {result.totaux.chargesPatronalesPct.toFixed(0)}% charges</div>
+                    <div className="sub">{result.totaux.heuresTotal}{tx('h ×')}{' '}{result.totaux.coutHoraireMoyen.toFixed(0)}{tx('€/h +')}{' '}{result.totaux.chargesPatronalesPct.toFixed(0)}{tx('% charges')}</div>
                   </div>
                   <div className="rdv-card">
-                    <div className="lab">Charges fixes prorata</div>
+                    <div className="lab">{tx('Charges fixes prorata')}</div>
                     <div className="val">{fmt(result.totaux.chargesFixesProrata)}</div>
-                    <div className="sub">{joursChantier}j × {fmt(result.totaux.chargesFixesMensuelles)}/mois</div>
+                    <div className="sub">{joursChantier}{tx('j ×')}{' '}{fmt(result.totaux.chargesFixesMensuelles)}{tx('/mois')}</div>
                   </div>
                   <div className={`rdv-card benef ${result.totaux.beneficeNet < 0 ? 'neg' : ''}`}>
-                    <div className="lab">Bénéfice net</div>
+                    <div className="lab">{tx('Bénéfice net')}</div>
                     <div className="val">{fmt(result.totaux.beneficeNet)}</div>
-                    <div className="sub">Marge {result.totaux.margePct.toFixed(1)}%</div>
+                    <div className="sub">{tx('Marge')}{' '}{result.totaux.margePct.toFixed(1)}%</div>
                   </div>
                 </div>
 
                 <div className="rdv-section-title">
-                  Analyse ligne par ligne ({result.stats.nbMatched}/{result.stats.nbLignes} matchées)
+                  {tx('Analyse ligne par ligne (')}{result.stats.nbMatched}/{result.stats.nbLignes}{' '}{tx('matchées)')}
                 </div>
                 <table className="rdv-table">
                   <thead>
                     <tr>
-                      <th>Prestation devis</th>
-                      <th>Prix devis</th>
-                      <th>Prix marché moyen</th>
-                      <th>Écart</th>
-                      <th>Verdict</th>
+                      <th>{tx('Prestation devis')}</th>
+                      <th>{tx('Prix devis')}</th>
+                      <th>{tx('Prix marché moyen')}</th>
+                      <th>{tx('Écart')}</th>
+                      <th>{tx('Verdict')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -492,9 +498,9 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
                             <span className="rdv-badge" style={{
                               background: verdictStyles[l.verdict!].bg,
                               color: verdictStyles[l.verdict!].color,
-                            }}>{verdictStyles[l.verdict!].label}</span>
+                            }}>{tx(verdictStyles[l.verdict!].label)}</span>
                           ) : (
-                            <span style={{ fontSize: 10, color: '#999' }}>Non analysé</span>
+                            <span style={{ fontSize: 10, color: '#999' }}>{tx('Non analysé')}</span>
                           )}
                         </td>
                       </tr>
@@ -507,7 +513,7 @@ export default function RentabiliteDevisModal({ items, totalHT: _totalHT, totalT
         )}
 
         <div className="rdv-foot">
-          <button onClick={onClose} type="button">Fermer</button>
+          <button onClick={onClose} type="button">{tx('Fermer')}</button>
         </div>
       </div>
     </div>
