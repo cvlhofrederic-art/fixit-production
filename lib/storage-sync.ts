@@ -33,11 +33,11 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     navigateur ne détient plus la valeur écrite ici :
 //      - si une restauration l'a remplacée pendant qu'elle attendait son nouvel essai (après un échec), elle est remise
 //        dans le navigateur et repart, aux mêmes conditions — une suppression aussi. Chaque restauration note ce
-//        qu'elle remplace (CLE_REMPLACEMENTS), sauf le dernier texte que son onglet a synchronisé avec le serveur ; un
-//        texte que son onglet a réécrit tel qu'il le lisait, au montage, avant qu'elle ne réponde, est noté comme les
-//        autres. Toute écriture faite ensuite dans un onglet efface la note : une valeur choisie par l'utilisateur dans
-//        un autre onglet, même identique à celle du serveur, n'est pas défaite — une réécriture automatique l'efface
-//        de même (voir les limites) ;
+//        qu'elle remplace (CLE_REMPLACEMENTS), une clé absente du navigateur comprise, sauf le dernier texte que son
+//        onglet a synchronisé avec le serveur ; un texte que son onglet a réécrit tel qu'il le lisait, au montage, avant
+//        qu'elle ne réponde, est noté comme les autres. Toute écriture faite ensuite dans un onglet efface la note : une
+//        valeur choisie par l'utilisateur dans un autre onglet, même identique à celle du serveur, n'est pas défaite —
+//        une réécriture automatique l'efface de même (voir les limites) ;
 //      - sinon, le serveur gagne si la clé a disparu, si la valeur en place est la sienne, ou l'une de celles qu'il a
 //        détenues avant d'après ce que cet onglet en sait ; toute autre valeur (la saisie d'un autre onglet, peut-être
 //        encore en route, qui l'envoie lui-même) est laissée en place pour cette relecture, sans repartir d'ici, et la
@@ -103,13 +103,14 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // une valeur que cet onglet n'a pas synchronisée, ou qu'une relecture trouve une note de remplacement pour une
 // modification d'ici. Au chargement d'une page, c'est le cas de toute clé dont le texte du navigateur diffère de celui
 // du serveur, même sans aucune modification en attente : toute clé que l'application a écrite depuis la dernière
-// restauration de ce navigateur, l'ordre de ses champs n'étant pas celui de la base. La note des remplacements est
-// alors réécrite, et la valeur de chaque clé déjà notée relue (jusqu'à 50). La restauration lit chaque valeur du
-// navigateur avant de la remplacer ; chaque écriture interceptée lit la note des remplacements, absente le plus
-// souvent. Les valeurs envoyées sans réponse (envoisIncertains) restent en mémoire, jamais dans le navigateur : jusqu'à
-// cinq textes par clé pendant une panne d'écriture du serveur, soit jusqu'à quatre copies de plus d'une valeur de
-// plusieurs Mo. Rien n'est calculé à la saisie, ni à la confirmation d'un envoi tant que la valeur écrite ici est en
-// place.
+// restauration de ce navigateur, l'ordre de ses champs n'étant pas celui de la base. Sur un navigateur neuf, ou dont le
+// stockage a été vidé, la première restauration calcule aussi l'empreinte du texte de chaque valeur qu'elle y écrit. La
+// note des remplacements est alors réécrite, et la valeur de chaque clé déjà notée relue (jusqu'à 50). La restauration
+// lit chaque valeur du navigateur avant de la remplacer ; chaque écriture interceptée lit la note des remplacements,
+// absente le plus souvent. Les valeurs envoyées sans réponse (envoisIncertains) restent en mémoire, jamais dans le
+// navigateur : jusqu'à cinq textes par clé pendant une panne d'écriture du serveur, soit jusqu'à quatre copies de plus
+// d'une valeur de plusieurs Mo. Rien n'est calculé à la saisie, ni à la confirmation d'un envoi tant que la valeur
+// écrite ici est en place.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -761,14 +762,15 @@ function lireRemplacements(): Map<string, Remplacement> {
  * nouvel essai : ni le texte du serveur, ni le dernier que cet onglet a synchronisé (reçu du serveur, ou envoyé et
  * confirmé). Un texte que cet onglet a écrit lui-même est noté aussi : un onglet qui s'ouvre réécrit souvent au montage,
  * avant que sa restauration ne réponde, la valeur qu'il lit — la modification d'un autre onglet en attente
- * (contre-relecture du 17/11/2026). ABSENTE pour une clé qui a disparu du navigateur, quand cet onglet la connaissait
- * ou l'a supprimée lui-même : la suppression d'un autre onglet peut y attendre son nouvel essai. undefined sinon. Quand
- * le texte en place a lui-même été écrit par une restauration (`precedent`, lue avant une saisie arrivée depuis par
- * exemple), la note le suit et désigne toujours la modification qu'elle avait remplacée.
+ * (contre-relecture du 17/11/2026). ABSENTE pour une clé absente du navigateur, que cet onglet la connaisse ou non : la
+ * suppression d'un autre onglet peut y attendre son nouvel essai, y compris quand cet onglet vient de s'ouvrir (ou de
+ * se recharger) et n'a jamais vu la clé. undefined sinon. Quand le texte en place a lui-même été écrit par une
+ * restauration (`precedent`, lue avant une saisie arrivée depuis par exemple), la note le suit et désigne toujours la
+ * modification qu'elle avait remplacée.
  */
 function texteRemplace(key: string, locale: string | null | undefined, enTexte: string, precedent: Remplacement | undefined): string | undefined {
   if (locale === undefined || locale === enTexte) return undefined
-  if (locale === null) return derniereEcritureIci.get(key) === null || derniereValeurSynchronisee.has(key) ? ABSENTE : undefined
+  if (locale === null) return ABSENTE
   const synchroniseIci = locale === derniereValeurSynchronisee.get(key)
   if (precedent === undefined) return synchroniseIci ? undefined : empreinteDuTexte(locale)
   const enPlace = empreinteDuTexte(locale)

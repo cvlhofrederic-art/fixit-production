@@ -34,7 +34,8 @@
 // laisse plus de côté que le texte que son onglet a synchronisé. Une suppression en échec, de son côté, n'était remise
 // en attente que si la clé restait absente du navigateur : remise par la restauration d'un autre onglet pendant
 // l'envoi, elle était abandonnée. Elle attend désormais la relecture du nouvel essai, qui tranche, et ne repart jamais
-// pour une clé que le serveur n'a plus.
+// pour une clé que le serveur n'a plus. Enfin, la restauration d'un onglet qui n'avait jamais vu une clé ne marquait pas
+// sa disparition : la suppression qui y attendait son nouvel essai était abandonnée.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -996,6 +997,24 @@ describe('suppression en attente, annulée dans le navigateur', () => {
 
     expect(serveur.espace[CLIENTS]).toEqual(liste(1))
     expect(lire(CLIENTS)).toEqual(liste(1))
+  })
+
+  // Septième passe, scénario D1F : la restauration d'un onglet qui n'avait jamais vu la clé ne marquait pas sa
+  // disparition, et la suppression en attente était abandonnée au nouvel essai.
+  it('par la restauration d’un onglet neuf (ouvert, ou rechargé) qui n’avait jamais vu la clé : au nouvel essai, la suppression part', async () => {
+    const A = await ouvrirUnOnglet()
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau') // échec : la suppression attend son nouvel essai
+    serveur.retenir = false
+    const B = await ouvrirUnOnglet() // sa restauration remet la liste dans le navigateur
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace).not.toHaveProperty(CLIENTS)
+    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
   })
 })
 
