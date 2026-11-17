@@ -65,10 +65,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!type_demande || !['achat', 'location'].includes(type_demande)) return NextResponse.json({ error: 'type_demande requis (achat ou location)' }, { status: 400 })
     if (prix_propose !== undefined && (typeof prix_propose !== 'number' || prix_propose < 0)) return NextResponse.json({ error: 'prix_propose invalide' }, { status: 400 })
 
-    // Vérifier que l'acheteur n'est pas le vendeur
+    // Même règle que le détail (GET /api/marketplace-btp/[id]) : seule une annonce active reçoit une demande. En pause,
+    // vendue, louée ou supprimée, elle est introuvable, avant toute demande enregistrée et toute notification.
     const { data: listing } = await getAdmin()
-      .from('marketplace_listings').select('user_id, title, vendeur_nom').eq('id', id).single()
-    if (!listing) return NextResponse.json({ error: 'Annonce introuvable' }, { status: 404 })
+      .from('marketplace_listings').select('user_id, title, vendeur_nom, status').eq('id', id).single()
+    if (!listing || listing.status !== 'active') return NextResponse.json({ error: 'Annonce introuvable' }, { status: 404 })
+    // Vérifier que l'acheteur n'est pas le vendeur
     if (listing.user_id === user.id) return NextResponse.json({ error: 'Vous ne pouvez pas contacter votre propre annonce' }, { status: 400 })
 
     const { data: demande, error } = await getAdmin()
