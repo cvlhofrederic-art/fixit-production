@@ -161,8 +161,8 @@ export function clientsAvecDevis(documents: DocumentsAccueil): Set<string> {
 export function libelleDevisBrouillon(doc: DocumentAccueil, portugais: boolean): string {
   const numero = String(doc.docNumber || doc.ref || doc.number || '').trim()
   const reference = numero === '' ? '' : ` ${numero}`
-  const client = String(doc.clientName || doc.client || doc.client_name || '').trim() || 'client'
+  const client = String(doc.clientName || doc.client || doc.client_name || '').trim()
   return portugais
-    ? `Orçamento${reference} em rascunho — a enviar (${client})`
-    : `Devis${reference} en brouillon — à envoyer (${client})`
+    ? `Orçamento${reference} em rascunho, por enviar (${client || 'cliente'})`
+    : `Devis${reference} en brouillon — à envoyer (${client || 'client'})`
 }

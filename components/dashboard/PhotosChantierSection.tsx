@@ -393,7 +393,11 @@ export default function PhotosChantierSection({ artisan, bookings, orgRole }: { 
                           >
                             <option value="">{t('proDash.photos.aucunDissocier')}</option>
                             {rapports.map((r: RapportItem) => (
-                              <option key={r.id} value={r.id}>{r.rapportNumber} — {r.clientName || 'Client'} — {r.interventionDate || 'N/D'}</option>
+                              <option key={r.id} value={r.id}>
+                                {locale === 'pt'
+                                  ? `${r.rapportNumber} · ${r.clientName || 'Cliente'} · ${r.interventionDate || 's/ data'}`
+                                  : `${r.rapportNumber} — ${r.clientName || 'Client'} — ${r.interventionDate || 'N/D'}`}
+                              </option>
                             ))}
                           </select>
                           {rapports.length === 0 && (

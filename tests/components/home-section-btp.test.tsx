@@ -136,6 +136,45 @@ describe('accueil BTP (pro_societe) — tuiles', () => {
     expect(texte(tuiles[1].querySelector('.v5-kpi-s'))).toBe('Acomptes : 4 500 €')
     expect(texte(tuiles[2].querySelector('.v5-kpi-v'))).toBe('26%')
   })
+
+  // Rapport i18n PT-PT du 17/11/2026 : pas d'espace avant « : », termes portugais (pas de calque du français),
+  // pas de tiret long dans les alertes portugaises.
+  it('en portugais : tuiles, rubrique des alertes et alertes en PT-PT', async () => {
+    etat.locale = 'pt'
+    etat.tables = { ...etat.tables, membres: [
+      { id: 'm1', prenom: 'Ana', nom: 'Silva', type_compte: 'ouvrier', actif: true },
+      { id: 'm2', prenom: 'Rui', nom: 'Costa', type_compte: 'chef_chantier', actif: true },
+    ] }
+    const { container } = await afficher(proprietes('pro_societe', documents))
+    const tuiles = [...container.querySelectorAll('.v5-kpi')]
+    expect(tuiles.map(t => texte(t.querySelector('.v5-kpi-l')))).toEqual(['Obras ativas', 'Faturação total das obras', 'Margem média', 'Colaboradores'])
+    expect(texte(tuiles[1].querySelector('.v5-kpi-s'))).toBe('Adiantamentos: —')
+    expect(texte(tuiles[2].querySelector('.v5-kpi-s'))).toBe('Objetivo: 25%')
+    expect(texte(tuiles[3].querySelector('.v5-kpi-s'))).toBe('1 encarregado + 1 operário')
+    expect(texte(container)).toContain('Alertas de obra')
+    expect(texte(container)).toContain('Autos de medição')
+    const alertes = alertesAffichees(container)
+    expect(alertes).toContain('Toiture Martin: prazo excedido, validar como "Terminado"')
+    expect(alertes).toContain('Villa Dupré: obra terminada, fatura não enviada (Mme Dupré)')
+    expect(alertes).toContain('Orçamento a fazer: Plomberie (Mme Dupré)')
+    for (const alerte of alertes) expect(alerte).not.toMatch(/[—–]/)
+    expect(texte(container)).not.toMatch(/\S :/)
+  })
+
+  it('en portugais : documents de conformité nommés en portugais, pas par leur identifiant', async () => {
+    etat.locale = 'pt'
+    // Ni chantier ni document : les alertes de conformité ne sont pas coupées par la limite de six alertes affichées.
+    etat.tables = {}
+    localStorage.setItem('fixit_wallet_art-1', JSON.stringify({
+      urssaf: { name: 'declaracao.pdf', expiryDate: '2026-11-24' },
+      attestation_fiscale: { name: 'certidao.pdf', expiryDate: '2026-11-10' },
+    }))
+    const { container } = await afficher(proprietes('pro_societe', []))
+    const alertes = alertesAffichees(container)
+    expect(alertes.some(a => a.startsWith('Certidão de situação tributária regularizada (Finanças): expirou há'))).toBe(true)
+    expect(alertes.some(a => a.startsWith('Declaração de situação contributiva (Segurança Social): expira em'))).toBe(true)
+    expect(alertes.join(' ')).not.toMatch(/urssaf|attestation/)
+  })
 })
 
 describe('accueil BTP (pro_societe) — alertes', () => {
@@ -155,8 +194,8 @@ describe('accueil BTP (pro_societe) — alertes', () => {
   it('en portugais : même règle pour le brouillon sans numéro', async () => {
     etat.locale = 'pt'
     const { container } = await afficher(proprietes('pro_societe', documents))
-    expect(alertesAffichees(container)).toContain('Orçamento em rascunho — a enviar (SCI Les Lilas)')
-    expect(alertesAffichees(container)).toContain('Orçamento BR-2026-003 em rascunho — a enviar (M. Martin)')
+    expect(alertesAffichees(container)).toContain('Orçamento em rascunho, por enviar (SCI Les Lilas)')
+    expect(alertesAffichees(container)).toContain('Orçamento BR-2026-003 em rascunho, por enviar (M. Martin)')
   })
 
   it('facture émise pour le client : le chantier terminé n’est plus signalé ; devis annulé : « Devis à faire » reste', async () => {

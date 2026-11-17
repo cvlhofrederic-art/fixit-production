@@ -83,23 +83,23 @@ function HorairesArtisan({
   const L = {
     title: isPt ? 'Horários de obra & equipas' : 'Horaires chantier & équipes',
     subtitle: isPt
-      ? 'Defina os horários de intervenção da sua empresa — apresentados no seu perfil e nos concursos.'
+      ? 'Defina os horários de intervenção da sua empresa, apresentados no seu perfil e nos concursos.'
       : 'Définissez les plages d’intervention de votre entreprise — affichées sur votre profil et dans les appels d’offres.',
     tipLabel: isPt ? 'Dica' : 'Conseil',
     tipBody: isPt
-      ? 'Duas plages por dia : RDV directo (motivos auto) e Visita & orçamento (motivos manuais, com inspecção no local). O modo de cada motivo é configurado em Prestações.'
+      ? 'Dois períodos por dia: marcação direta (serviços com aceitação automática) e visita & orçamento (serviços com validação manual, com inspeção no local). O modo de cada serviço é configurado em Serviços.'
       : 'Deux plages par jour : RDV directe (motifs auto) et Visite & devis (motifs manuels, avec inspection sur place). Le mode de chaque motif se configure dans Prestations.',
     sectionTitle: isPt ? 'Horários de intervenção' : 'Plages d’intervention',
-    daysActive: isPt ? 'plages ativas' : 'plages actives',
-    slotRdv: isPt ? 'RDV directo' : 'RDV directe',
-    slotRdvHint: isPt ? 'Motivos com aceitação automática' : 'Motifs en acceptation auto',
+    daysActive: isPt ? 'períodos ativos' : 'plages actives',
+    slotRdv: isPt ? 'Marcação direta' : 'RDV directe',
+    slotRdvHint: isPt ? 'Serviços com aceitação automática' : 'Motifs en acceptation auto',
     slotVisite: isPt ? 'Visita & orçamento' : 'Visite & devis',
-    slotVisiteHint: isPt ? 'Motivos com validação manual (inspecção no local)' : 'Motifs en validation manuelle (inspection sur place)',
+    slotVisiteHint: isPt ? 'Serviços com validação manual (inspeção no local)' : 'Motifs en validation manuelle (inspection sur place)',
     closedLabel: isPt ? 'Fechado' : 'Fermé',
-    activate: isPt ? 'Ativar esta plage' : 'Activer cette plage',
-    deactivate: isPt ? 'Desativar esta plage' : 'Désactiver cette plage',
-    motifsCount: isPt ? 'motivos' : 'motifs',
-    motifsNone: isPt ? 'Nenhum motivo ativo neste modo' : 'Aucun motif dans ce mode',
+    activate: isPt ? 'Ativar este período' : 'Activer cette plage',
+    deactivate: isPt ? 'Desativar este período' : 'Désactiver cette plage',
+    motifsCount: isPt ? 'serviços' : 'motifs',
+    motifsNone: isPt ? 'Nenhum serviço ativo neste modo' : 'Aucun motif dans ce mode',
     perWeek: isPt ? '/ semana' : '/ semaine',
     saving: isPt ? 'A guardar…' : 'Sauvegarde…',
     saveBtn: isPt ? 'Guardar' : 'Sauvegarder',
@@ -400,7 +400,7 @@ function HorairesBtp({
       <div className="v5-pg-t">
         <h1>{'⏱️'} {isPt ? 'Horários de obra & equipas' : 'Horaires chantier & équipes'}</h1>
         <p>{isPt
-          ? 'Defina os horários de intervenção da sua empresa — apresentados no seu perfil e nos concursos'
+          ? 'Defina os horários de intervenção da sua empresa, apresentados no seu perfil e nos concursos'
           : 'Définissez les plages d’intervention de votre entreprise — affichées sur votre profil et dans les appels d’offres'}</p>
       </div>
 
