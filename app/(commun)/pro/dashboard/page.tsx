@@ -16,8 +16,8 @@ import { useModulesConfig } from '@/hooks/useModulesConfig'
 import { useModuleCategories } from '@/hooks/useModuleCategories'
 import { prefetchBTPTables } from '@/lib/hooks/use-btp-data'
 import { OrgRoleProvider } from '@/lib/hooks/useOrgRoleContext'
-import { fetchDocumentsFromSupabase, persistEmittedDocsToCache } from '@/lib/document-sync'
-import { dedupeDocsByIdentity } from '@/lib/devis-utils'
+import { fetchDocumentsFromSupabase, fusionnerDocumentsDeLaBase } from '@/lib/document-sync'
+import { optionsFusionPourRole } from '@/lib/devis-utils'
 import { seedDemoLocalStorage } from '@/lib/seed-demo-localStorage'
 import { usePermissions } from '@/hooks/usePermissions'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -371,15 +371,11 @@ function DashboardPage() {
         // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
         fetchDocumentsFromSupabase().then(sbDocs => {
           if (sbDocs.length === 0) return
-          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity).
-          setSavedDocuments(prev => {
-            const merged = dedupeDocsByIdentity(prev, sbDocs as typeof prev)
-            // Hydrate le cache localStorage des docs émis (même clé que la lecture
-            // ci-dessus : user.id sur ce chemin admin/sans-profil) → le fallback de
-            // numérotation voit les docs DB-only (anti-collision). Brouillons exclus.
-            persistEmittedDocsToCache(user.id, merged as Array<Record<string, unknown>>)
-            return merged
-          })
+          // Cloud prime sur le local à identité stable égale (cf. dedupeDocsByIdentity), puis le cache
+          // localStorage des docs émis est hydraté (même clé que la lecture ci-dessus : user.id sur ce chemin
+          // admin/sans-profil) → le fallback de numérotation voit les docs DB-only. Brouillons exclus. Société
+          // BTP : deux documents distincts au même numéro restent tous les deux (optionsFusionPourRole).
+          setSavedDocuments(prev => fusionnerDocumentsDeLaBase(user.id, prev, sbDocs as typeof prev, optionsFusionPourRole(role)))
         }).catch(() => {})
         setAbsences(JSON.parse(localStorage.getItem(`fixit_absences_${user.id}`) || '[]'))
         const svc = localStorage.getItem(`fixit_availability_services_${user.id}`); if (svc) setDayServices(JSON.parse(svc))
@@ -415,14 +411,11 @@ function DashboardPage() {
     // Merge Supabase docs non-blocking (additive, Supabase wins on docNumber conflict)
     fetchDocumentsFromSupabase().then(sbDocs => {
       if (sbDocs.length === 0) return
-      setSavedDocuments(prev => {
-        const merged = dedupeDocsByIdentity(prev, sbDocs as typeof prev)
-        // Hydrate le cache localStorage des docs émis (même clé que la lecture
-        // ci-dessus : aid = artisanData.id) → le fallback de numérotation voit les
-        // docs DB-only (anti-collision cross-device). Brouillons exclus (drafts_*).
-        persistEmittedDocsToCache(aid, merged as Array<Record<string, unknown>>)
-        return merged
-      })
+      // Fusion puis hydratation du cache localStorage des docs émis (même clé que la lecture ci-dessus :
+      // aid = artisanData.id) → le fallback de numérotation voit les docs DB-only (anti-collision cross-device).
+      // Brouillons exclus (drafts_*). Société BTP : deux documents distincts au même numéro restent tous les
+      // deux, dans la liste et dans le cache (optionsFusionPourRole) ; artisan inchangé.
+      setSavedDocuments(prev => fusionnerDocumentsDeLaBase(aid, prev, sbDocs as typeof prev, optionsFusionPourRole(role)))
     }).catch(() => {})
 
     setLoading(false)
