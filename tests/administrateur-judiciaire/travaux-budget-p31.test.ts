@@ -813,7 +813,8 @@ describe('en-tête : sources, marqueurs et questions', () => {
 
   it('pose les questions ouvertes avec le choix actuel de VitFix', () => {
     expect(texte).toContain('« La ligne "Fonds de prévoyance" de l\'onglet Budget porte-t-elle la part financée par le fonds de travaux')
-    expect(texte).toContain('(VitFix : le montant hors taxes fourni pour chaque opération, à confirmer)')
+    // l'assiette du droit proportionnel n'est plus une question : décision de Hugo du 17/11/2026 (J55)
+    expect(texte).not.toContain('(VitFix : le montant hors taxes fourni pour chaque opération, à confirmer)')
     expect(texte).toContain(
       '« Le bouton "Ne pas utiliser les fonds travaux" exclut-il tout emploi du fonds pour l\'opération (part, emploi, règlement depuis le compte du fonds), ou seulement le règlement de ses factures depuis ce compte ? »',
     )
@@ -825,18 +826,22 @@ describe('en-tête : sources, marqueurs et questions', () => {
     expect(texte).toContain('virement-interne.ts')
   })
 
-  it('J39 (décision de Hugo du 06/11/2026) : barème opération par opération ; le 🔴 ne garde que l’assiette et la présentation au juge', () => {
+  it('J39 (décision de Hugo du 06/11/2026) : barème opération par opération ; l’assiette et la présentation au juge, tranchées par J55 (17/11/2026), quittent le 🔴', () => {
     expect(texte).toContain('Décisions de Hugo du 06/11/2026')
     const j39 = item('J39 :')
     expect(j39).toMatch(/opération par opération/)
     expect(j39).toMatch(/arrêté du 8 octobre 2015, art\. 11/)
     expect(j39).toMatch(/droitsProportionnelsTravauxParOperation/)
     expect(j39).toMatch(/jamais le barème appliqué au cumul/)
+    expect(j39).toMatch(/tranchées par J55/)
     const nonEtabli = texte.slice(texte.indexOf('🔴 Non établi'))
     expect(nonEtabli).not.toMatch(/s'applique-t-il opération par opération/)
     expect(nonEtabli).not.toMatch(/une seule fois au "montant total"/)
-    expect(nonEtabli).toMatch(/Sur quelle assiette/)
-    expect(nonEtabli).toMatch(/compte provisoire détaillé des émoluments/)
+    expect(nonEtabli).not.toMatch(/Sur quelle assiette/)
+    expect(nonEtabli).not.toMatch(/compte provisoire détaillé des émoluments/)
+    const j55 = texte.slice(texte.indexOf('Décisions de Hugo du 17/11/2026'), texte.indexOf('Règles :'))
+    expect(j55).toMatch(/compte provisoire détaillé des émoluments/)
+    expect(j55).toMatch(/assietteDroitProportionnelTravaux/)
   })
 
   it('le refus d’une opération fournie deux fois est un choix de VitFix, posé en question 🔴 à Hugo, non une décision J39', () => {
