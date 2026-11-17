@@ -106,7 +106,9 @@ import { DOSSIER, type Dossier } from '@/lib/data/referentiels-gesteam-judiciair
  *    modèle, ou créer chaque étape à la réalisation de la précédente ?
  * 6. Hugo (avec le point 50, déclencheur par courrier) : usage « Copie au CS » activé, l'étape naît « Automatique » à la
  *    mise en demeure (etapeCopieAuCsPourInfo) et peut aussi naître de l'enchaînement (processus Gestéam n° 3) : laquelle
- *    retenir, pour ne pas la créer deux fois ?
+ *    retenir, pour ne pas la créer deux fois ? Choix par défaut du point 50, 🔵 et réversible (etapes-courrier.ts,
+ *    regleCopieAuCsPourInfo) : comme Gestéam (tranche 43 § 1), elle naît du courrier, et l'enchaînement ne la recrée pas
+ *    (enchainerEtapeDossierSansDoublon) ; question maintenue.
  *
  * Délais : un délai de modèle est un délai de GESTION, réglage du cabinet ; il ne s'affiche jamais comme un délai légal.
  * Les délais légaux de la prise de fonction et de la reprise (notification de l'ordonnance, remise des pièces par l'ancien
