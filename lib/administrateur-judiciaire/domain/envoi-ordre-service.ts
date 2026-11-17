@@ -264,7 +264,7 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   (alerte) et fondement non saisi (alerte, art. 42 non contrôlé) : ces deux contournements restent ouverts (question à
  *   Hugo, ci-dessous) ; assignation reçue et aide juridictionnelle, proposées dans les notes, ne sont pas codées.
  *
- * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md ; numéros de registre proposés : J52 à J54 et J56) :
+ * Décisions de Hugo du 17/11/2026 (DECISIONS-HUGO-2026-11-17.md ; numéros de registre proposés : J52 à J54, J56 et J61) :
  * - J52 et J53 (suites de J50, statut-assemblee.ts) : la demande de voie postale, le refus ou le retrait reçu avant le
  *   25/12/2025 prend effet dès sa réception, et la LRE à un non-professionnel sans consentement enregistré (CPCE art.
  *   L. 100) ne vaut pas notification : le délai ne court pas pour ce copropriétaire. Pour le contrôle de l'OS (J51), la
@@ -279,11 +279,16 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  * - J56 (suite de J11, J12 et J18 ; règles de gestion du cabinet, sans texte) : (1) le N° s'attribue AU PREMIER ENVOI
  *   de l'OS (numeroterAuPremierEnvoi), pas à la création : une demande abandonnée avant l'envoi ne consomme pas de
  *   numéro ; (2) rang SANS zéros (formaterNumeroOs) ; (3) segment <plan> = la date du premier envoi au format AAAAMMJJ
- *   (segmentPlanOs ; ex. 125.20261117.7 ; date retenue : celle du premier envoi, puisque le N° lui est attribué, 🔵
- *   lecture à confirmer par Hugo, question ci-dessous), le rang restant une séquence par mandat, toutes dates confondues
+ *   (segmentPlanOs ; ex. 125.20261117.7 ; date retenue : celle du premier envoi, puisque le N° lui est attribué :
+ *   décision J61 ci-dessous), le rang restant une séquence par mandat, toutes dates confondues
  *   (J11, rangOsSuivant) ; un rang repris de Gestéam avec des zéros est lu sans eux (lireNumeroOs, 🔵) ; (4) la liste
  *   « Signature » est celle des signataires habilités réglée par le cabinet (signatairesHabilites, J18), et rien
- *   d'autre : déjà en place, comportement inchangé.
+ *   d'autre : déjà en place, comportement inchangé ;
+ * - J61 (décision de Hugo du 17/11/2026 (J61), section « Suite » des notes : recommandations validées en bloc ; suite de
+ *   J56 ; règle de gestion, sans texte) : la date du segment <plan> est celle du PREMIER ENVOI, non celle de la création
+ *   de la demande (segmentPlanOs, numeroterAuPremierEnvoi : comportement inchangé, lecture désormais décidée). Limite
+ *   connue : un N° de ce format dont la date diffère de celle de l'envoi (attribué pour un envoi qui a échoué, repris un
+ *   autre jour) n'est pas signalé ; l'appelant l'attribue le jour de l'envoi et ne l'enregistre qu'une fois l'envoi fait.
  *
  * 🔵 Déduit (règles de ce module) :
  * - N° (séquence par mandat : décision 1) : attribué au premier envoi (J56), une fois, puis figé ; un N° hors du format,
@@ -402,10 +407,6 @@ import type { FormeEnvoiCourrier } from '@/lib/data/referentiels-gesteam-judicia
  *   25-1.
  *
  * 🔴 Non établi — questions :
- * - Hugo (suite de J56) : le segment <plan> est la date du PREMIER ENVOI (lecture de Claude, 🔵), non celle de la création
- *   de la demande : à confirmer. Un N° de ce format dont la date diffère de celle de l'envoi (attribué pour un envoi qui a
- *   échoué, repris un autre jour) n'est pas signalé : l'appelant l'attribue le jour de l'envoi et ne l'enregistre qu'une
- *   fois l'envoi fait.
  * - Hugo (suite de la décision 6) : critère proposé (entretien courant ou exécution d'une décision déjà prise = pouvoirs du
  *   syndic, sans avis ; travaux décidés au titre des pouvoirs de l'assemblée = avis, sauf urgence constatée) à confirmer ;
  *   un délai « prioritaire » peut-il valoir urgence (non ici) ?
@@ -635,7 +636,7 @@ export interface SegmentsNumeroOs {
   /** Code du mandat dans le N° : la séquence est celle du mandat (décision de Hugo du 03/11/2026). */
   mandat: string
   /**
-   * Segment <plan> du N° : la date du premier envoi, au format AAAAMMJJ (décision de Hugo du 17/11/2026, J56 :
+   * Segment <plan> du N° : la date du premier envoi, au format AAAAMMJJ (décisions de Hugo du 17/11/2026, J56 et J61 :
    * segmentPlanOs) ; il ne découpe pas la séquence (J11). Un N° repris de Gestéam garde le segment lu.
    */
   plan: string
@@ -650,7 +651,8 @@ const NUMERO_OS = /^([^.\s]+)\.([^.\s]+)\.(\d{1,9})$/
 
 /**
  * Segment <plan> du N° attribué au premier envoi : la date de cet envoi au format AAAAMMJJ (décision de Hugo du
- * 17/11/2026, J56 : « le plan, c'est la date » ; date du premier envoi, puisque le N° lui est attribué).
+ * 17/11/2026, J56 : « le plan, c'est la date » ; date du premier envoi, puisque le N° lui est attribué : décision de Hugo
+ * du 17/11/2026, J61).
  */
 export function segmentPlanOs(premierEnvoiLe: string): string {
   if (!estDateIsoValide(premierEnvoiLe)) throw new Error(`Date du premier envoi invalide (${premierEnvoiLe}) : AAAA-MM-JJ attendu.`)

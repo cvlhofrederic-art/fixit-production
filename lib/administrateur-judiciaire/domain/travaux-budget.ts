@@ -98,6 +98,12 @@ import {
  *   opération par opération, jamais au cumul (J39) ; non applicable en administration provisoire renforcée (art. 11,
  *   dernier al.) ni à 500 lots et plus (art. 3), d'après cadreHonorairesTravaux.
  *
+ * Suite, décision de Hugo du 17/11/2026 (J60) (DECISIONS-HUGO-2026-11-17.md, section « Suite » : recommandations
+ * validées en bloc, numéro de registre proposé) : les « autres honoraires » (contrôle technique, coordonnateur sécurité)
+ * sont exclus de l'assiette du droit proportionnel, comme ceux que J55 nomme : prestations intellectuelles, pas des
+ * travaux (arrêté du 8 octobre 2015, art. 11 : « montant total hors taxes des travaux ») ; nature « honoraires_autres »,
+ * exclue (comportement inchangé, lecture désormais décidée).
+ *
  * Règles :
  * - budget de l'opération en quatre postes (Travaux, Dommages-ouvrage, Honoraires cabinet, Honoraires presta.) : montant
  *   engagé TTC et suppléments, réglé et reste à régler par poste ; total engagé ; budget adopté (celui de la décision)
@@ -199,10 +205,8 @@ import {
  * - « Les postes du budget se ventilent-ils par clé, comme la grille des devis de l'onglet Budget ? » (VitFix : par
  *   opération) ; « Un engagement au-delà du budget adopté exige-t-il une nouvelle décision avant la commande ? » (VitFix :
  *   signalé, non bloqué) ;
- * - « (Hugo) Les autres honoraires (bureau de contrôle, coordonnateur de sécurité), que J55 ne nomme pas, sont-ils exclus
- *   de l'assiette comme ceux du maître d'œuvre et du bureau d'études ? » (VitFix : exclus, nature « honoraires_autres »,
- *   🔵) ; « La nature des dépenses (NATURES_DEPENSE_TRAVAUX) sera-t-elle portée par les lignes de marché ou les factures
- *   de l'opération (Frédéric : table Travaux) ? » (VitFix : fournie par l'appelant) ;
+ * - « La nature des dépenses (NATURES_DEPENSE_TRAVAUX) sera-t-elle portée par les lignes de marché ou les factures de
+ *   l'opération (Frédéric : table Travaux) ? » (VitFix : fournie par l'appelant) ;
  * - « (Hugo) Une même opération fournie deux fois au calcul de plusieurs opérations
  *   (droitsProportionnelsTravauxParOperation, même numéro) est-elle refusée, ou ses montants s'additionnent-ils avant un
  *   seul calcul par tranches ? » (VitFix : refusée, choix de VitFix à confirmer : J39 ne le dit pas ; deux calculs pour
@@ -1266,7 +1270,8 @@ export function droitsProportionnelsTravauxParOperation(operations: readonly Mon
  * Nature d'une dépense hors taxes de l'opération, pour l'assiette du droit proportionnel de l'administrateur provisoire
  * (décision de Hugo du 17/11/2026, J55) : les travaux de D. 1967 art. 44, 1°, 2°, 3° et 5° et les travaux urgents de
  * l'art. 37 sont retenus ; les études techniques (art. 44, 4°), l'assurance dommages-ouvrage et les honoraires (maître
- * d'œuvre, bureau d'études, syndic) sont exclus. Les quatre postes TTC du budget (POSTES_BUDGET_TRAVAUX) ne distinguent
+ * d'œuvre, bureau d'études, syndic) sont exclus, comme les autres honoraires (contrôle technique, coordonnateur sécurité :
+ * décision de Hugo du 17/11/2026, J60). Les quatre postes TTC du budget (POSTES_BUDGET_TRAVAUX) ne distinguent
  * pas les études des travaux et ne portent pas le hors taxes : cette nature est le moyen minimal de les porter, sans
  * table (l'appelant la donne pour chaque marché, devis ou facture HT de l'opération).
  */
@@ -1286,7 +1291,7 @@ const NATURES_DEPENSE_CONNUES: ReadonlySet<string> = new Set(NATURES_DEPENSE_TRA
 
 const EXCLUE_J55 = "exclue de l'assiette du droit proportionnel (décision J55)"
 
-/** Libellé, place dans l'assiette et raison de chaque nature (J55). */
+/** Libellé, place dans l'assiette et raison de chaque nature (J55 ; autres honoraires : J60). */
 const NATURE_DEPENSE: Readonly<Record<NatureDepenseTravaux, { libelle: string; retenue: boolean; raison: string }>> = {
   travaux: { libelle: 'Travaux', retenue: true, raison: 'D. 1967 art. 44, 1°, 2°, 3° ou 5°' },
   travaux_urgents: { libelle: 'Travaux urgents', retenue: true, raison: 'D. 1967 art. 37 (travaux urgents)' },
@@ -1298,7 +1303,8 @@ const NATURE_DEPENSE: Readonly<Record<NatureDepenseTravaux, { libelle: string; r
   honoraires_autres: {
     libelle: 'Autres honoraires',
     retenue: false,
-    raison: `Autres honoraires (bureau de contrôle, coordonnateur de sécurité…) : ${EXCLUE_J55}, comme les honoraires qu'elle nomme (🔵)`,
+    raison:
+      "Autres honoraires (contrôle technique, coordonnateur sécurité…) : prestations intellectuelles, pas des travaux (arrêté du 8 octobre 2015, art. 11) ; exclus de l'assiette du droit proportionnel, comme les honoraires que nomme J55 (décision de Hugo du 17/11/2026, J60)",
   },
 }
 

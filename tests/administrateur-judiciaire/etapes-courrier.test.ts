@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   BASES_LIGNES_HONORAIRES_COURRIER,
+  DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE,
   DECLENCHEUR_MISE_EN_DEMEURE,
   ID_REGLE_COPIE_AU_CS_POUR_INFO,
   ID_REGLE_HONORAIRES_MISE_EN_DEMEURE,
@@ -120,8 +121,8 @@ describe('Copie au CS pour info : premier cas de la règle « courrier → étap
     expect(resultat.ecartees[0].message).toMatch(/inactive/)
   })
 
-  it('la règle : déclenchée par la famille Contentieux, libellé « mise en demeure », étape type n° 3, réalisation par courrier', () => {
-    expect(DECLENCHEUR_MISE_EN_DEMEURE).toEqual({ par: 'famille', famille: 'Contentieux', libelleContient: 'mise en demeure' })
+  it('la règle : déclenchée par les mises en demeure du contentieux (J64), étape type n° 3, réalisation par courrier', () => {
+    expect(DECLENCHEUR_MISE_EN_DEMEURE).toEqual({ par: 'mise_en_demeure_contentieux' })
     expect(copieActive()).toEqual({
       id: ID_REGLE_COPIE_AU_CS_POUR_INFO,
       libelle: 'Copie au CS pour info à la mise en demeure',
@@ -194,7 +195,7 @@ describe('Copie au CS pour info : premier cas de la règle « courrier → étap
     expect(etapeCopieAuCsPourInfo(declencheur)).toBeNull()
   })
 
-  it('🔵 réversible : naissance « enchainement », la règle reste inactive même usage activé (question n° 6 ouverte)', () => {
+  it('naissance par le courrier par défaut (J64) ; réglage « enchainement » : la règle reste inactive même usage activé', () => {
     expect(NAISSANCES_COPIE_AU_CS).toEqual(['courrier', 'enchainement'])
     expect(NAISSANCE_COPIE_AU_CS_PAR_DEFAUT).toBe('courrier')
     const regle = regleCopieAuCsPourInfo({ usages: ACTIF, naissance: 'enchainement' })
@@ -371,7 +372,7 @@ describe('anti-doublon : par dossier, type d’étape et courrier d’origine', 
 
 // ─── Enchaînement sans doublon ───────────────────────────────────────────────────────────
 
-describe('enchaînement : l’étape née du courrier n’est pas recréée (🔵 question n° 6)', () => {
+describe('enchaînement : l’étape née du courrier n’est pas recréée (J64)', () => {
   const processus = processusDuDossier('Contentieux', ACTIF)
   const etapeMed = (): EtapeDossier =>
     realiserEtapeDossier(
@@ -467,7 +468,7 @@ describe('enchaînement : l’étape née du courrier n’est pas recréée (�
     expect(typesEtapesNeesDuCourrier([copieActive()], 'Contentieux')).toEqual([ETAPE_TYPE_COPIE_AU_CS_POUR_INFO])
     expect(typesEtapesNeesDuCourrier(REGLES_ETAPES_COURRIER_PAR_DEFAUT, 'Contentieux')).toEqual([])
     expect(typesEtapesNeesDuCourrier([copieActive()], 'Sinistre')).toEqual([])
-    // Liste de contrôle du contentieux, usage actif : la Copie au CS y figure (question n° 5 et 6 de modeles-etapes.ts).
+    // Liste de contrôle du contentieux, usage actif : la Copie au CS y figure (question n° 5 de modeles-etapes.ts).
     const modele = modeleDuDossier('Contentieux', { id: 'm', titre: 'Contentieux' }, ACTIF)
     expect(modele.etapes.map((e) => e.etapeType)).toEqual(expect.arrayContaining(typesEtapesNeesDuCourrier([copieActive()], 'Contentieux')))
   })
@@ -582,7 +583,9 @@ describe('honoraires du courrier : proposition de lignes, jamais écrites, désa
     })
     expect(() => regleHonorairesMiseEnDemeure({ lignes: [] })).toThrow(/au moins une ligne/i)
     const inactive = regleHonorairesMiseEnDemeure({ lignes: [ligneAr, ligneForfait] })
-    expect(inactive).toMatchObject({ id: ID_REGLE_HONORAIRES_MISE_EN_DEMEURE, active: false, dossier: 'Contentieux', declencheur: DECLENCHEUR_MISE_EN_DEMEURE })
+    // Déclencheur d'avant J64, inchangé (J64 ne vise que la Copie au CS).
+    expect(DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE).toEqual({ par: 'famille', famille: 'Contentieux', libelleContient: 'mise en demeure' })
+    expect(inactive).toMatchObject({ id: ID_REGLE_HONORAIRES_MISE_EN_DEMEURE, active: false, dossier: 'Contentieux', declencheur: DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE })
     const resultat = proposerHonorairesDuCourrier(courrier(), [inactive], contexteHonoraires())
     expect(resultat.propositions).toEqual([])
     expect(resultat.ecartees).toEqual([expect.objectContaining({ regleId: ID_REGLE_HONORAIRES_MISE_EN_DEMEURE, motif: 'inactive' })])
@@ -729,7 +732,7 @@ describe('relecture : constats confirmés', () => {
     const [regle] = REGLES_ETAPES_COURRIER_PAR_DEFAUT
     expect(Object.isFrozen(regle.declencheur)).toBe(true)
     expect(() => {
-      ;(regle.declencheur as { libelleContient: string | null }).libelleContient = 'relance'
+      ;(regle.declencheur as { par: string }).par = 'famille'
     }).toThrow()
   })
 
@@ -788,10 +791,12 @@ describe('relecture : constats confirmés', () => {
     expect(modele.etapes).toHaveLength(3) // le modèle reçu n'est pas modifié
   })
 
-  it('R8 — en-tête : J1 et J50 cités en rappel 🔵, pas comme décisions sur les étapes ; libellés 19-2 non relevés (question n° 2)', () => {
+  it('R8 — en-tête : J1 et J50 cités en rappel 🔵, pas comme décisions sur les étapes ; libellés 19-2 non relevés (J64)', () => {
     const { texte, item } = enTeteDuModule('etapes-courrier')
     expect(item('- 🔵 Rappel de J1 et J50')).toMatch(/aucune décision sur les étapes/)
-    expect(item('2. Hugo : quels modèles de courrier')).toMatch(/procédure accélérée au fond/)
+    const declencheur = item('- déclencheur par défaut de la Copie au CS (J64')
+    expect(declencheur).toMatch(/procédure accélérée au fond/)
+    expect(declencheur).toMatch(/non relevés/)
     expect(texte).toContain('modeleSansEtapesNeesDuCourrier')
   })
 })
@@ -813,12 +818,13 @@ describe('modules existants et en-tête du module', () => {
     expect(etape).not.toHaveProperty('modeRealisation')
   })
 
-  it('en-tête : tranches, décisions, choix 🔵 de la question n° 6 laissée ouverte, forfait 🔴, aucune date ISO', () => {
+  it('en-tête : tranches, décisions (J64 : naissance par le courrier, questions n° 1 et 2 fermées), forfait 🔴, aucune date ISO', () => {
     const { texte, item } = enTeteDuModule('etapes-courrier')
-    for (const attendu of ['Tranche 42', 'Tranche 43 § 1', 'Tranche 22', 'Tranche 27', 'J20', 'J24', 'J41', 'point 49', 'point 66', 'point 67'])
+    for (const attendu of ['Tranche 42', 'Tranche 43 § 1', 'Tranche 22', 'Tranche 27', 'J20', 'J24', 'J41', 'J64', 'point 49', 'point 66', 'point 67'])
       expect(texte).toContain(attendu)
-    expect(item('1. Hugo (question n° 6 de modeles-etapes.ts)')).toMatch(/naît-elle du courrier ou de l'enchaînement/)
-    expect(texte).toContain('🔵 Naissance de la Copie au CS')
+    expect(item('- J64 (décision de Hugo du 17/11/2026 (J64)')).toMatch(/NAÎT DU COURRIER/)
+    expect(item('1. et 2. Fermées par J64')).toMatch(/pas les simples relances/)
+    expect(texte).toContain('- Naissance de la Copie au CS : du courrier')
     expect(texte).toMatch(/L\. 1965 art\. 10-1, a/)
     expect(texte).toContain('🔴')
     const source = readFileSync(join(__dirname, '..', '..', 'lib', 'administrateur-judiciaire', 'domain', 'etapes-courrier.ts'), 'utf8')
@@ -826,10 +832,11 @@ describe('modules existants et en-tête du module', () => {
     expect(source).not.toMatch(/\bany\b/)
   })
 
-  it('modeles-etapes.ts : la question n° 6 reste ouverte et renvoie au choix par défaut du point 50', () => {
-    const { item } = enTeteDuModule('modeles-etapes')
-    const question = item('6. Hugo (avec le point 50')
-    expect(question).toMatch(/laquelle retenir/)
-    expect(question).toMatch(/etapes-courrier\.ts/)
+  it('modeles-etapes.ts : l’ancienne question n° 6 est fermée par J64 et renvoie au point 50', () => {
+    const { texte, item } = enTeteDuModule('modeles-etapes')
+    expect(texte).not.toContain('6. Hugo (avec le point 50')
+    const decision = item('- J64 (décision de Hugo du 17/11/2026 (J64)')
+    expect(decision).toMatch(/etapes-courrier\.ts/)
+    expect(decision).toMatch(/enchainerEtapeDossierSansDoublon/)
   })
 })
