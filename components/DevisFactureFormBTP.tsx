@@ -27,9 +27,9 @@ import {
   type DevisFactureFormProps,
   type ServiceBasic,
 } from '@/lib/devis-types'
-import { mapLegalFormToCode, titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
+import { titleCaseAddress, stableDocId, isStableDocId } from '@/lib/devis-utils'
 import { ID_TABLE_ACOMPTES_DEDUITS } from '@/lib/facture-depuis-devis'
-import { statutJuridiqueInitialBtp } from '@/lib/statut-juridique-btp'
+import { codeStatutJuridiqueBtp, mentionIdentificationBtp, statutAvecCapitalSocial, statutJuridiqueInitialBtp, statutPortugais } from '@/lib/statut-juridique-btp'
 import { estClientProfessionnel, formaterImmatriculationRcs, ligneTvaHorsClassique } from '@/lib/devis-btp-affichage'
 import { fmtQty, fmtN, fmtN4 } from '@/lib/devis-format'
 import { svgToImageDataUrl } from '@/lib/signature-canvas'
@@ -1922,8 +1922,8 @@ export default function DevisFactureFormBTP({
         return formatted.replace(/[\u202F\u00A0]/g, ' ') + ' €'
       }
 
-      // Map display label → internal code for V3 generator
-      const statusCode = mapLegalFormToCode(statutJuridique)
+      // Map display label → internal code for V3 generator (formes portugaises comprises)
+      const statusCode = codeStatutJuridiqueBtp(statutJuridique)
 
       await generateDevisPdfV3({
         action,
@@ -2461,7 +2461,7 @@ export default function DevisFactureFormBTP({
             <div className="dv-row">
               <div className="dv-fg"><label>Code APE / NAF</label><input type="text" placeholder="Ex : 4339Z" value={companyAPE} onChange={(e) => setCompanyAPE(e.target.value)} /></div>
               <div className="dv-fg">
-                <label>Capital social {['SARL','EURL','SAS','SASU','SA'].includes(statutJuridique)
+                <label>Capital social {statutAvecCapitalSocial(statutJuridique)
                   ? <span className="req">*</span>
                   : <span style={{ color: '#999', fontWeight: 400 }}>(SARL/SAS/SA)</span>}
                 </label>
@@ -3649,7 +3649,8 @@ export default function DevisFactureFormBTP({
 
               {/* ═══ 1. IDENTIFICATION — statut juridique ═══ */}
               {locale === 'pt' ? (
-                <>Empresário em Nome Individual (ENI) — Código Comercial Português.<br /></>
+                // Toute société lit sa forme, son capital et sa sede (avant : « Empresário em Nome Individual (ENI) »)
+                <>{mentionIdentificationBtp({ statut: statutJuridique, capital: companyCapital, registre: companyRCS, adresse: companyAddress, langue: 'pt' })}<br /></>
               ) : (
                 <>
                   {statutJuridique === 'Entreprise Individuelle (EI)' && (
@@ -3666,6 +3667,10 @@ export default function DevisFactureFormBTP({
                   )}
                   {statutJuridique === 'SA' && (
                     <>SA au capital de {companyCapital || '[capital à renseigner]'} € — Immatriculée au {formaterImmatriculationRcs(companyRCS) || 'RCS [à renseigner]'}. Siège social : {companyAddress || '[adresse à renseigner]'}.<br /></>
+                  )}
+                  {/* Société portugaise vue en français : sa forme (Lda…), sans RCS français */}
+                  {statutPortugais(statutJuridique) && (
+                    <>{mentionIdentificationBtp({ statut: statutJuridique, capital: companyCapital, registre: companyRCS, adresse: companyAddress, langue: 'fr' })}<br /></>
                   )}
                 </>
               )}
