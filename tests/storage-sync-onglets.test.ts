@@ -51,6 +51,13 @@
 // était perdue. Dans un stockage plein, la note des remplacements, qui peut garder cent marques, ne s'écrivait plus dès
 // qu'elle devait grandir : la saisie remplacée par la restauration d'un onglet neuf était perdue. Aucun test, enfin, ne
 // vérifiait la limite de cinquante marques par sorte.
+//
+// Contre-relecture du 17/11/2026 (dixième passe) : la confirmation d'une saisie recréait la note de la clé quand la
+// suppression faite ensuite dans le même onglet était déjà confirmée ; la saisie suivante de l'onglet la gardait comme
+// valeur d'avant et, en échec, était perdue alors que le serveur détenait la valeur qu'elle avait remplacée. Dans un
+// stockage plein, la note des remplacements réduite à ses cinquante marques les plus récentes, toutes sortes
+// confondues, chassait la marque d'une saisie en attente au profit d'une marque qui ne servait à rien : ce second essai
+// est retiré, et une note qui devrait grandir n'est plus réécrite, comme avant la neuvième passe.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 

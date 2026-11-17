@@ -42,17 +42,21 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //        détenues avant d'après ce que cet onglet en sait ; toute autre valeur (la saisie d'un autre onglet, peut-être
 //        encore en route, qui l'envoie lui-même) est laissée en place pour cette relecture, sans repartir d'ici, et la
 //        modification d'ici est abandonnée avec sa note.
-//     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à
-//     l'aveugle — pas même à la fermeture de l'onglet (une exception pour une suppression : voir DCF2RB dans les
-//     limites). Une suppression en échec attend ce nouvel essai tant qu'elle reste la dernière action de cet onglet
-//     sur la clé, même si la clé est revenue dans le navigateur pendant son envoi : la relecture du nouvel essai
-//     tranche. Elle ne repart pas si le serveur n'a plus la clé à cette relecture, ni si une relecture faite pendant
-//     son envoi l'a déjà tenue pour faite (clé absente du serveur) — pas même quand l'envoi plus ancien d'un autre
-//     onglet y remet ensuite la clé (voir les limites). Quand deux envois de la même clé se chevauchent, la
-//     confirmation du premier ne lève pas la note tant que la valeur plus récente écrite dans cet onglet attend son
-//     envoi ou reste en place dans le navigateur, ni quand un autre onglet l'y a remplacée par une valeur que cet
-//     onglet ne connaît pas, ni quand la dernière action de cet onglet est une suppression partie après lui : c'est la
-//     réponse de cette suppression qui lève la note.
+//     La même règle vaut pour un envoi en échec : il ne repart qu'après une nouvelle restauration, jamais à l'aveugle —
+//     pas même à la fermeture de l'onglet (une exception pour une suppression : voir DCF2RB dans les limites). Une
+//     suppression en échec attend ce nouvel essai tant qu'elle reste la dernière action de cet onglet sur la clé, même
+//     si la clé est revenue dans le navigateur pendant son envoi : la relecture du nouvel essai tranche. Elle ne repart
+//     pas si le serveur n'a plus la clé à cette relecture, ni si une relecture faite pendant son envoi l'a déjà tenue
+//     pour faite (clé absente du serveur) — pas même quand l'envoi plus ancien d'un autre onglet, ou de cet onglet, y
+//     remet ensuite la clé (voir les limites). Une exception (DW5f du banc) : tenue pour faite, elle repart au nouvel
+//     essai quand un envoi plus ancien de cet onglet pour la même clé est confirmé ensuite alors que le navigateur n'a
+//     plus la clé ; la note revient avec lui, et la relecture du nouvel essai tranche. Quand deux envois de la même clé
+//     se chevauchent, la confirmation du premier ne lève pas la note tant que la valeur plus récente écrite dans cet
+//     onglet attend son envoi ou reste en place dans le navigateur, ni quand un autre onglet l'y a remplacée par une
+//     valeur que cet onglet ne connaît pas, ni quand la dernière action de cet onglet est une suppression partie après
+//     lui et encore en route : c'est la réponse de cette suppression qui lève la note (pour une saisie faite ici avant
+//     cette réponse, voir DCF5-enVol dans les limites). Déjà levée (suppression confirmée, ou tenue pour faite par une
+//     relecture), la note n'est recréée par cette confirmation que si le navigateur n'a plus la clé.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
@@ -84,37 +88,44 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // garde la dernière arrivée, comme avant — sauf pour une suppression dont la réponse s'est perdue : avant ce miroir,
 // elle repartait si l'utilisateur continuait dans son onglet ; ici, si une relecture (pendant son envoi, ou celle du
 // nouvel essai) a trouvé la clé absente du serveur, elle ne repart pas, et la valeur plus ancienne, arrivée après elle,
-// revient au serveur et dans le navigateur (scénarios DW5e du banc). La renvoyer sans contrôle effacerait, dans
-// d'autres cas, une valeur recréée depuis dans un autre onglet (DW5d, DW5h) : rien ne distingue ces cas sans la date
-// de chaque valeur. Une saisie faite par-dessus celle de l'autre onglet, dont l'envoi échoue, ne repart que si le
-// serveur détient encore l'une des deux valeurs que cet onglet connaissait (garantie 2), sinon elle est perdue, comme
-// avant. Enfin, un renvoi décidé par la relecture d'un nouvel essai part 1,5 s après elle : une modification faite
-// entre-temps dans un autre onglet, dont l'envoi arrive au serveur avant ce renvoi, en est effacée et ne reste que dans
-// ce navigateur (DXR, DCF2X) ; avant ce miroir, une modification en échec ne repartait que si l'utilisateur continuait
-// dans son onglet. De même, un envoi de cet onglet encore en route, qui porte d'autres valeurs, envoie à sa fin, sans
-// relire le serveur, une suppression que l'échec d'un autre envoi de l'onglet vient de remettre en attente : une
-// modification faite entre-temps dans un autre onglet, arrivée au serveur avant elle, en est effacée, comme avant
-// (DCF2RB).
+// revient au serveur et dans le navigateur (scénarios DW5e du banc) ; de même quand cette valeur plus ancienne vient
+// d'un envoi de cet onglet, si la restauration d'un onglet neuf a remis entre-temps la clé dans le navigateur (DW5f-B).
+// La renvoyer sans contrôle effacerait, dans d'autres cas, une valeur recréée depuis dans un autre onglet (DW5d,
+// DW5h) : rien ne distingue ces cas sans la date de chaque valeur. Une saisie faite par-dessus celle de l'autre onglet,
+// dont l'envoi échoue, ne repart que si le serveur détient encore l'une des deux valeurs que cet onglet connaissait
+// (garantie 2), sinon elle est perdue, comme avant. Enfin, un renvoi décidé par la relecture d'un nouvel essai part
+// 1,5 s après elle : une modification faite entre-temps dans un autre onglet, dont l'envoi arrive au serveur avant ce
+// renvoi, en est effacée et ne reste que dans ce navigateur (DXR, DCF2X) ; avant ce miroir, une modification en échec
+// ne repartait que si l'utilisateur continuait dans son onglet. De même, un envoi de cet onglet encore en route, qui
+// porte d'autres valeurs, envoie à sa fin, sans relire le serveur, une suppression que l'échec d'un autre envoi de
+// l'onglet vient de remettre en attente : une modification faite entre-temps dans un autre onglet, arrivée au serveur
+// avant elle, en est effacée, comme avant (DCF2RB). La note d'une suppression encore en route, gardée à la confirmation
+// d'une saisie plus ancienne de cet onglet (garantie 2), retient cette saisie confirmée comme valeur d'avant : une
+// nouvelle saisie faite dans cet onglet avant la réponse de la suppression la garde, au lieu de la valeur que le
+// navigateur détenait juste avant elle (une valeur plus ancienne, remise par la restauration d'un autre onglet). Si
+// l'envoi de cette nouvelle saisie échoue et que le serveur détient de nouveau cette valeur plus ancienne au nouvel
+// essai (remise ailleurs, avant ou après elle), elle cède au serveur ; avant ce miroir, elle partait si l'utilisateur
+// continuait dans son onglet (DCF5-enVol).
 // Une modification d'ici (saisie ou suppression) qui attend son nouvel essai après un échec, et que la restauration
 // d'un autre onglet a remplacée dans le navigateur, cède au serveur dans les cas suivants, alors qu'avant ce miroir
 // elle repartait si l'utilisateur continuait dans l'onglet, sans relire le serveur :
 //  - l'onglet qui restaure est resté sur une version antérieure du site : il ne note pas ce qu'il remplace, et une
 //    écriture faite dans cet onglet-là n'efface aucune note ; s'il y écrit exactement le texte qu'une restauration
 //    notée a remis, la modification d'ici repart par-dessus ;
-//  - le stockage du navigateur est plein et la note des remplacements ne peut pas s'y écrire, même réduite à ses 50
-//    marques les plus récentes, toutes sortes confondues (PLEIN-CAPc). Réduite, elle tient le plus souvent, mais sa
-//    marque la plus ancienne en sort : si c'est celle d'une autre modification encore en attente, celle-ci cède à son
-//    tour (PLEIN-CAPX) ;
+//  - le stockage du navigateur est plein et la note des remplacements devrait grandir pour recevoir la marque de cette
+//    modification : elle n'est pas réécrite, la marque nouvelle n'est pas écrite, et aucune marque déjà écrite n'en
+//    sort (PLEIN-CAP, PLEIN-CAPc, PLEIN-CAPX-saisie, PLEIN-X3, PLEIN-D1Fs et PLEIN-10 du banc) ;
 //  - pour une saisie, la clé a été retirée du navigateur hors de l'application (outils du navigateur) avant la
 //    restauration : celle-ci marque une clé absente, et non la modification d'ici ;
 //  - une réécriture automatique (section qui persiste son état à chaque rendu, action sur un document qui réécrit à
 //    l'identique les deux listes de documents), faite dans un onglet après la restauration — celui qui a restauré, ou
 //    un troisième à son ouverture —, efface la note comme un choix de l'utilisateur. Rien ne distingue ici une
 //    réécriture automatique d'un choix ; il faudrait pour cela la date de chaque valeur ;
-//  - la restauration a marqué plus de 50 clés d'une même sorte à la fois (clés absentes du navigateur : créées
-//    ailleurs, ou stockage vidé ; textes remplacés : clés réécrites par l'application, ou modifiées sur un autre
-//    appareil, depuis la dernière restauration de ce navigateur — un onglet neuf ne connaît aucune valeur
-//    synchronisée) : seules les 50 dernières de chaque sorte, dans l'ordre du serveur, sont notées.
+//  - 50 marques de la même sorte ou plus ont été posées après la sienne, en une ou plusieurs restaurations, avant son
+//    nouvel essai (clés absentes du navigateur : créées ailleurs, ou stockage vidé ; textes remplacés : clés réécrites
+//    par l'application, ou modifiées sur un autre appareil, depuis la dernière restauration de ce navigateur — un
+//    onglet neuf ne connaît aucune valeur synchronisée) : la note ne garde que les 50 marques les plus récentes de
+//    chaque sorte, et pour une même restauration, les dernières dans l'ordre du serveur (CAPS, CAPW, AILLEURS, CAPCUM).
 // Dans les deux premiers cas, une suppression repart pourtant si la marque d'une clé absente laissée par une
 // restauration plus ancienne est encore en place. Toute restauration marque une clé absente du navigateur qu'elle y
 // remet (dès la première d'un navigateur neuf, ou dont le stockage a été vidé : jusqu'à 50 clés) ; cette marque reste
@@ -144,14 +155,14 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // (l'ordre de ses champs n'étant pas celui de la base), ou qui a été modifiée ailleurs depuis. Sur un navigateur neuf,
 // ou dont le stockage a été vidé, la première restauration calcule l'empreinte du texte de chaque valeur qu'elle y
 // écrit, et y laisse jusqu'à 50 marques de clé absente. Chaque restauration qui pose une marque réécrit la note des
-// remplacements (une seconde fois, réduite, dans un stockage plein) et relit la valeur de chaque clé déjà notée :
-// jusqu'à 100 valeurs (50 marques de chaque sorte), et déjà jusqu'à 50 après la première ouverture d'un navigateur
-// neuf. La restauration lit chaque valeur du navigateur avant de la remplacer ; chaque écriture interceptée lit la note
-// des remplacements, présente dès la première restauration d'un navigateur : quelques Ko (3,5 Ko pour 50 marques au
-// banc, 17 Ko au plus pour 100 marques aux noms de clé les plus longs). Les valeurs envoyées sans réponse
-// (envoisIncertains) restent en mémoire, jamais dans le navigateur : jusqu'à cinq textes par clé pendant une panne
-// d'écriture du serveur, soit jusqu'à quatre copies de plus d'une valeur de plusieurs Mo. Rien n'est calculé à la
-// saisie, ni à la confirmation d'un envoi tant que la valeur écrite ici est en place.
+// remplacements et relit la valeur de chaque clé déjà notée : jusqu'à 100 valeurs (50 marques de chaque sorte), et déjà
+// jusqu'à 50 après la première ouverture d'un navigateur neuf. La restauration lit chaque valeur du navigateur avant de
+// la remplacer ; chaque écriture interceptée lit la note des remplacements, présente dès la première restauration d'un
+// navigateur : quelques Ko (3,5 Ko pour 50 marques au banc, 17 Ko au plus pour 100 marques aux noms de clé les plus
+// longs). Les valeurs envoyées sans réponse (envoisIncertains) restent en mémoire, jamais dans le navigateur : jusqu'à
+// cinq textes par clé pendant une panne d'écriture du serveur, soit jusqu'à quatre copies de plus d'une valeur de
+// plusieurs Mo. Rien n'est calculé à la saisie, ni à la confirmation d'un envoi tant que la valeur écrite ici est en
+// place.
 //
 // Stockage du navigateur (lot 5 Sentry, lib/safe-storage.ts) : un stockage illisible (bloqué par le navigateur,
 // SecurityError à la lecture de window.localStorage) coupe le miroir, la restauration et la migration. Un stockage
@@ -829,7 +840,12 @@ function texteRemplace(key: string, locale: string | null | undefined, enTexte: 
  * sorte de marque — clé absente du navigateur, texte remplacé : les plus anciennes sont oubliées, puis les premières
  * dans l'ordre du serveur. Une sorte ne fait pas oublier l'autre : les marques de clés absentes (celles d'un navigateur
  * neuf, ou de clés créées ailleurs) faisaient sauter celle d'une saisie remplacée, et les marques de textes remplacés
- * celle d'une suppression (contre-relecture du 17/11/2026, huitième passe).
+ * celle d'une suppression (contre-relecture du 17/11/2026, huitième passe). Dans un stockage plein, une note qui
+ * devrait grandir n'est pas réécrite : la marque nouvelle n'est pas écrite, et aucune marque déjà écrite n'en sort. Un
+ * second essai, réduit aux REMPLACEMENTS_MAX marques les plus récentes toutes sortes confondues, a été retiré
+ * (contre-relecture du 17/11/2026, dixième passe) : il chassait la marque d'une modification encore en attente au
+ * profit d'une marque qui ne servait à rien (liste modifiée ailleurs, ou réécrite par l'application dans son ordre des
+ * champs).
  */
 function noterRemplacements(nouveaux: Map<string, Remplacement>): void {
   const compte = compteCourant
@@ -948,11 +964,16 @@ function compterUnEchec(key: string): void {
  * restauration d'un autre onglet : voir les limites en tête du module). Ni si cet onglet n'a rien écrit de plus
  * récent : ce qu'un autre onglet a écrit depuis a son propre envoi. Ni, enfin, quand la clé n'a plus de note (levée à
  * une confirmation précédente, ou reprise du serveur) : cet onglet ne sait plus ce que le serveur détenait avant.
- * Une suppression faite ici après la valeur confirmée, partie dans un autre envoi, garde toujours la note, quelle que
- * soit la valeur que le navigateur détient : c'est sa réponse qui la lève (arrivée) ou la remet en attente (échec, voir
- * envoyerSuppressions). La restauration d'un onglet neuf, ouvert pendant ces envois, remettait dans le navigateur une
- * valeur que le serveur avait détenue : la note était levée ici, et la suppression en échec était perdue
- * (contre-relecture du 17/11/2026, neuvième passe).
+ * Une suppression faite ici après la valeur confirmée, partie dans un autre envoi et encore en route, garde la note,
+ * quelle que soit la valeur que le navigateur détient : c'est sa réponse qui la lève (arrivée) ou la remet en attente
+ * (échec, voir envoyerSuppressions). La restauration d'un onglet neuf, ouvert pendant ces envois, remettait dans le
+ * navigateur une valeur que le serveur avait détenue : la note était levée ici, et la suppression en échec était perdue
+ * (contre-relecture du 17/11/2026, neuvième passe). Déjà levée par la réponse de la suppression, ou par une relecture
+ * qui l'a tenue pour faite, la note n'est pas recréée ici, sauf si le navigateur n'a plus la clé (la suppression d'ici
+ * y est alors toujours en place) : recréée, elle servait de valeur d'avant à la saisie suivante de l'onglet, perdue au
+ * nouvel essai alors que le serveur détenait la valeur qu'elle avait remplacée (dixième passe). Gardée pendant l'envoi
+ * de la suppression, elle sert encore de valeur d'avant à une saisie faite ici avant sa réponse (DCF5-enVol, dans les
+ * limites en tête du module).
  */
 function noteAGarder(key: string, confirmee: string, base: Base | undefined): boolean {
   if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
@@ -1159,8 +1180,8 @@ async function envoyerSuppressions(envoi: Envoi, bilan: Bilan): Promise<void> {
       // encore sa note : une relecture faite pendant l'envoi, qui a trouvé la clé absente du serveur, l'a tenue pour
       // faite et a levé la note. Remise en attente sans note, elle échappait à la relecture du nouvel essai et
       // repartait sans contrôle, par-dessus une valeur recréée entre-temps ailleurs (contre-relecture du 17/11/2026,
-      // huitième passe). La confirmation d'un envoi plus ancien de la même clé, elle, ne lève pas cette note
-      // (noteAGarder).
+      // huitième passe). La confirmation d'un envoi plus ancien de la même clé ne lève pas cette note tant que la
+      // suppression est en route ; levée, elle ne la recrée que si le navigateur n'a plus la clé (noteAGarder).
       else if (issue !== 'refuse' && derniereEcritureIci.get(cle) === null && bases.has(cle)) {
         pendingDeletes.add(cle)
         bilan.panne = true
