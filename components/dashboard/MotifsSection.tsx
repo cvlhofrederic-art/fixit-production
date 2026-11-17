@@ -73,59 +73,59 @@ export default function MotifsSection({
     return () => { cancelled = true }
   }, [isArtisan, locale])
 
-  // Libellés côté artisan : "Prestations" (FR) / "Prestações" (PT)
+  // Libellés côté artisan : "Prestations" (FR) / "Serviços" (PT, nom du menu fixé le 17/11/2026)
   const L = {
     title: isBtpSociete
       ? '🏗️ Lots & Prestations BTP'
       : isArtisan
-        ? (isPt ? '🛠️ Prestações' : '🛠️ Prestations')
+        ? (isPt ? '🛠️ Serviços' : '🛠️ Prestations')
         : `🔧 ${t('proDash.motifs.title')}`,
     subtitle: isBtpSociete
       ? 'Définissez vos lots de travaux, postes de devis et prix unitaires'
       : isArtisan
-        ? (isPt ? 'Configure as suas prestações, preços e duração' : 'Configurez vos prestations, prix et durées')
+        ? (isPt ? 'Configure os seus serviços, preços e durações' : 'Configurez vos prestations, prix et durées')
         : t('proDash.motifs.subtitle'),
     newBtn: isBtpSociete
       ? '+ Nouveau lot'
       : isArtisan
-        ? (isPt ? '+ Nova prestação' : '+ Nouvelle prestation')
+        ? (isPt ? '+ Novo serviço' : '+ Nouvelle prestation')
         : t('proDash.motifs.nouveauMotif'),
     tip: isBtpSociete
       ? { title: '💡 Conseil BTP', body: 'Créez un lot par type de prestation (Maçonnerie, Charpente, Électricité…) avec prix unitaire ou forfait. Ces lots alimenteront vos devis et situations de travaux.' }
       : isArtisan
         ? (isPt
-            ? { title: '💡 Dica', body: 'Crie uma prestação por tipo de serviço (encanamento, elétrica, pintura…) com preço e duração. Estas prestações alimentarão as reservas dos seus clientes.' }
+            ? { title: '💡 Dica', body: 'Crie um serviço por tipo de trabalho (canalização, eletricidade, pintura…) com preço e duração. Estes serviços alimentarão as reservas dos seus clientes.' }
             : { title: '💡 Astuce', body: 'Créez une prestation par type de service (plomberie, électricité, peinture…) avec un prix et une durée. Ces prestations alimenteront les réservations de vos clients.' })
         : { title: `💡 ${t('proDash.motifs.astuce')}`, body: t('proDash.motifs.astuceTexte') },
     emptyTitle: isBtpSociete
       ? 'Aucun lot défini'
       : isArtisan
-        ? (isPt ? 'Nenhuma prestação configurada' : 'Aucune prestation configurée')
+        ? (isPt ? 'Nenhum serviço configurado' : 'Aucune prestation configurée')
         : t('proDash.motifs.aucunMotif'),
     emptyBody: isBtpSociete
       ? 'Créez vos premiers lots de travaux pour les intégrer dans vos devis BTP'
       : isArtisan
-        ? (isPt ? 'Crie a sua primeira prestação para que os seus clientes possam reservar' : 'Créez votre première prestation pour que vos clients puissent réserver')
+        ? (isPt ? 'Crie o seu primeiro serviço para que os seus clientes possam reservar' : 'Créez votre première prestation pour que vos clients puissent réserver')
         : t('proDash.motifs.aucunMotifDesc'),
     createBtn: isBtpSociete
       ? '+ Créer un lot'
       : isArtisan
-        ? (isPt ? '+ Criar uma prestação' : '+ Créer une prestation')
+        ? (isPt ? '+ Criar um serviço' : '+ Créer une prestation')
         : t('proDash.motifs.creerMotif'),
     modalEdit: isBtpSociete
       ? 'Modifier le lot'
       : isArtisan
-        ? (isPt ? 'Modificar a prestação' : 'Modifier la prestation')
+        ? (isPt ? 'Editar o serviço' : 'Modifier la prestation')
         : t('proDash.motifs.modifierMotif'),
     modalNew: isBtpSociete
       ? '🏗️ Nouveau lot BTP'
       : isArtisan
-        ? (isPt ? '🛠️ Nova prestação' : '🛠️ Nouvelle prestation')
+        ? (isPt ? '🛠️ Novo serviço' : '🛠️ Nouvelle prestation')
         : `🔧 ${t('proDash.motifs.nouveauMotifTitle')}`,
     namePlaceholder: isBtpSociete
       ? 'Ex: Maçonnerie, Charpente bois, Électricité CFO…'
       : isArtisan
-        ? (isPt ? 'Ex: Reparação de torneira, Pintura, Limpeza…' : 'Ex: Dépannage plomberie, Peinture, Nettoyage…')
+        ? (isPt ? 'Ex.: Reparação de torneira, Pintura, Limpeza…' : 'Ex: Dépannage plomberie, Peinture, Nettoyage…')
         : t('proDash.motifs.nomMotifPlaceholder'),
     rowIcon: isBtpSociete ? '🏗️' : isArtisan ? '🛠️' : '🌿',
     emptyIcon: isBtpSociete ? '🏗️' : isArtisan ? '🛠️' : '🔧',
@@ -150,6 +150,17 @@ export default function MotifsSection({
     emptyFraisBody: isPt ? 'Adicione as suas despesas diversas (deslocações, consumíveis…) para uso interno.' : 'Ajoutez vos frais divers (déplacements, consommables…) pour votre usage interne.',
     createFraisBtn: isPt ? '+ Adicionar uma despesa' : '+ Ajouter un frais',
     newFraisBtn: isPt ? '+ Nova despesa' : '+ Nouveau frais',
+  }
+  // Prix et unité viennent de lib/service-utils (libellés partagés, en français : « 50 – 100€/m² », « forfait ») :
+  // en portugais, seul l'affichage est adapté (« 50 a 100 €/m² », « valor global »), rien n'est enregistré.
+  const prixAffiche = (service: Service) => {
+    const libelle = getPriceRangeLabel(service)
+    return isPt ? libelle.replace(' – ', ' a ').replace(/(\d)€/g, '$1 €').replace(/€\/lot$/, '€/lote') : libelle
+  }
+  const uniteAffichee = (service: Service) => {
+    const unite = getPricingUnit(service)
+    if (!isPt) return unite
+    return unite === 'forfait' ? 'valor global' : unite === '/lot' ? '/lote' : unite
   }
   const effectiveNewBtn = isArtisan && activeScope === 'mat' ? L2.newMatBtn : isArtisan && activeScope === 'frais' ? L2.newFraisBtn : L.newBtn
   const effectiveEmptyTitle = isArtisan && activeScope === 'mat' ? L2.emptyMat : isArtisan && activeScope === 'frais' ? L2.emptyFrais : L.emptyTitle
@@ -227,9 +238,9 @@ export default function MotifsSection({
                     ? `${Math.floor(service.duration_minutes / 60)}h${service.duration_minutes % 60 > 0 ? String(service.duration_minutes % 60).padStart(2, '0') : '00'}`
                     : '—'}
                 </td>
-                <td className="v22-amount" style={{ color: tv.primary, textAlign: 'left' }}>{getPriceRangeLabel(service)}</td>
+                <td className="v22-amount" style={{ color: tv.primary, textAlign: 'left' }}>{prixAffiche(service)}</td>
                 <td>
-                  <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{getPricingUnit(service)}</span>
+                  <span className={isV5 ? 'v5-badge v5-badge-gray' : 'v22-tag v22-tag-gray'}>{uniteAffichee(service)}</span>
                 </td>
                 <td>
                   <span className={isV5
@@ -248,7 +259,7 @@ export default function MotifsSection({
                       ? `v5-badge ${service.active ? 'v5-badge-green' : 'v5-badge-gray'}`
                       : `v22-tag ${service.active ? 'v22-tag-green' : 'v22-tag-gray'}`}
                     style={{ cursor: togglingId === service.id ? 'not-allowed' : 'pointer', opacity: togglingId === service.id ? 0.5 : 1 }}>
-                    {togglingId === service.id ? 'Chargement...' : service.active ? `✅ ${t('proDash.motifs.actif')}` : `⏸ ${t('proDash.motifs.inactif')}`}
+                    {togglingId === service.id ? (isPt ? 'A carregar...' : 'Chargement...') : service.active ? `✅ ${t('proDash.motifs.actif')}` : `⏸ ${t('proDash.motifs.inactif')}`}
                   </button>
                 </td>
                 <td>
@@ -294,9 +305,9 @@ export default function MotifsSection({
                 {editingMotif
                   ? `✏️ ${
                       isArtisan && motifForm.scope === 'mat'
-                        ? (isPt ? 'Modificar o material' : 'Modifier le matériau')
+                        ? (isPt ? 'Editar o material' : 'Modifier le matériau')
                         : isArtisan && motifForm.scope === 'frais'
-                          ? (isPt ? 'Modificar a despesa' : 'Modifier le frais')
+                          ? (isPt ? 'Editar a despesa' : 'Modifier le frais')
                           : L.modalEdit
                     }`
                   : (
@@ -322,9 +333,9 @@ export default function MotifsSection({
                   </label>
                   <input type="text" value={motifForm.name} onChange={(e) => setMotifForm({...motifForm, name: e.target.value})}
                     placeholder={motifForm.scope === 'mat'
-                      ? (isPt ? 'Ex: Azulejo 60x60, Tinta acrílica, Saco de cimento…' : 'Ex: Carrelage 60x60, Peinture acrylique, Sac de ciment…')
+                      ? (isPt ? 'Ex.: Azulejo 60x60, Tinta acrílica, Saco de cimento…' : 'Ex: Carrelage 60x60, Peinture acrylique, Sac de ciment…')
                       : motifForm.scope === 'frais'
-                        ? (isPt ? 'Ex: Deslocação, Estacionamento, Consumíveis…' : 'Ex: Déplacement, Stationnement, Consommables…')
+                        ? (isPt ? 'Ex.: Deslocação, Estacionamento, Consumíveis…' : 'Ex: Déplacement, Stationnement, Consommables…')
                         : L.namePlaceholder}
                     className={isV5 ? 'v5-fi' : 'v22-form-input'} />
                 </div>
@@ -349,10 +360,10 @@ export default function MotifsSection({
                     borderRadius: 6,
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>ÉTAPES</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: '#888', letterSpacing: 0.3 }}>{isPt ? 'ETAPAS' : 'ÉTAPES'}</span>
                       {editingMotif?.id ? null : (
                         <button onClick={() => setLocalEtapes(prev => [...prev, ''])}
-                          style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>+ Ajouter</button>
+                          style={{ fontSize: 10, color: '#3B82F6', background: 'none', border: 'none', cursor: 'pointer' }}>{isPt ? '+ Adicionar' : '+ Ajouter'}</button>
                       )}
                     </div>
                     {editingMotif?.id ? (
@@ -360,12 +371,12 @@ export default function MotifsSection({
                     ) : (
                       <>
                         {localEtapes.length === 0 && (
-                          <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>Aucune étape. Cliquez + Ajouter.</div>
+                          <div style={{ fontSize: 11, color: '#aaa', fontStyle: 'italic' }}>{isPt ? 'Nenhuma etapa. Clique em + Adicionar.' : 'Aucune étape. Cliquez + Ajouter.'}</div>
                         )}
                         {localEtapes.map((et, i) => (
                           <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', lineHeight: 1.6 }}>
                             <span style={{ color: '#999', fontSize: 11, minWidth: 16 }}>{i + 1}.</span>
-                            <input type="text" value={et} placeholder="Ex: Diagnostic visuel"
+                            <input type="text" value={et} placeholder={isPt ? 'Ex.: Diagnóstico visual' : 'Ex: Diagnostic visuel'}
                               onChange={(e) => setLocalEtapes(prev => prev.map((x, j) => j === i ? e.target.value : x))}
                               style={{ flex: 1, fontSize: 12, color: '#555', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', padding: '2px 0' }}
                             />
@@ -419,7 +430,7 @@ export default function MotifsSection({
                 {motifForm.scope !== 'mat' && (
                   <div className={isV5 ? 'v5-fg' : ''}>
                     <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>
-                      {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
+                      {t('proDash.motifs.fourchettePrix')}{motifForm.pricing_unit !== 'forfait' ? ` (€${({ m2: '/m²', ml: '/ml', m3: '/m³', heure: '/h', unite: '/u', arbre: '/u', kg: '/kg', tonne: '/t', lot: isPt ? '/lote' : '/lot' } as Record<string, string>)[motifForm.pricing_unit] || ''})` : ' (€)'}
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                       <div className={isV5 ? 'v5-fg' : ''}>
@@ -460,7 +471,7 @@ export default function MotifsSection({
                   const sellPriceHt = cost * (1 + margin / 100)
                   const tvaRate = isPt ? 0.23 : 0.20
                   const sellPriceTtc = sellPriceHt * (1 + tvaRate)
-                  const tvaPctLabel = isPt ? '23 %' : '20 %'
+                  const tvaPctLabel = isPt ? '23%' : '20 %'
                   const localeFmt = isPt ? 'pt-PT' : 'fr-FR'
                   // En franchise : le coût est neutre (pas de HT/TTC distinction), le prix de vente
                   // affiché est le TTC client (pas de TVA ajoutée). En non-franchise : HT + TTC.
@@ -483,7 +494,7 @@ export default function MotifsSection({
                           <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
                             {tvaApplicable
                               ? (isPt ? `Adicionar IVA (${tvaPctLabel}) ao preço de venda` : `Ajouter la TVA (${tvaPctLabel}) au prix de vente`)
-                              : (isPt ? 'Isento — Art. 53.º do CIVA (regime especial)' : 'Franchise en base — art. 293 B du CGI')}
+                              : (isPt ? 'Isento ao abrigo do art. 53.º do CIVA (regime especial de isenção)' : 'Franchise en base — art. 293 B du CGI')}
                           </div>
                         </div>
                         <label className="v5-tgl" style={{ flexShrink: 0 }} title={isPt ? 'Ativar/desativar IVA' : 'Activer/désactiver la TVA'}>
@@ -552,7 +563,7 @@ export default function MotifsSection({
                             </div>
                             <div style={{ fontSize: 11, fontStyle: 'italic', color: '#6b7280', lineHeight: 1.4 }}>
                               {isPt
-                                ? 'IVA não aplicável — Art. 53.º do CIVA (regime especial de isenção)'
+                                ? 'IVA não aplicável, artigo 53.º do CIVA (regime especial de isenção)'
                                 : 'TVA non applicable — art. 293 B du CGI (franchise en base)'}
                             </div>
                           </>
@@ -606,7 +617,7 @@ export default function MotifsSection({
                               background: motifForm.delai_minimum_heures === h ? tv.primaryLight : undefined,
                             }}>
                             <div style={{ fontWeight: 600, fontSize: 12 }}>
-                              {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : `${h / 24}j`}
+                              {h === 0 ? t('proDash.motifs.delaiAucun') : h < 24 ? `${h}h` : isPt ? `${h / 24} ${h / 24 > 1 ? 'dias' : 'dia'}` : `${h / 24}j`}
                             </div>
                           </button>
                         ))}

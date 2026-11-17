@@ -195,14 +195,20 @@ describe('création d’un envoi de notification électronique (lien avec le cou
     expect(notification({ anomaliesAvantEnvoi: [] }).statut).toBe('Préparation')
   })
 
-  it('une seule tentative en cours par courrier ; après « Reçu », plus de nouvelle tentative ; après « Échec », oui', () => {
+  it('une seule tentative en cours par courrier ; après « Reçu », « Échec » (J58) ou « Reçu en erreur » (J66), plus de nouvelle tentative', () => {
     const enCours = enchainerNotification(notification(), ["Attente d'envoi", 'En cours'])
     expect(() => notification({ id: 'E2', envoisExistants: [enCours] })).toThrow(/E1 du courrier C1 est encore au statut « En cours »/)
     const recu = enchainerNotification(enCours, ['Envoyé OK', 'Reçu'], 10)
     expect(() => notification({ id: 'E2', envoisExistants: [recu] })).toThrow(/déjà « Reçu »/)
     const echec = enchainerNotification(notification(), ["Attente d'envoi", 'Échec'])
-    // La nouvelle tentative est datée après la fin de la précédente (09:01).
-    expect(notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [echec] }).statut).toBe('Préparation')
+    // J58 (décision de Hugo du 17/11/2026) : un envoi en échec n'a rien notifié ; nouveau courrier.
+    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [echec] })).toThrow(/est en « Échec » .*créer un nouveau courrier .*J58/)
+    // J66 (décision de Hugo du 17/11/2026) : après « Reçu en erreur », le même courrier ne repart pas non plus
+    // (avis transmis : notification acquise, J57 ; sinon nouveau courrier, J58).
+    const erreur = enchainerNotification(enCours, ['Envoyé OK', 'Reçu en erreur'], 10)
+    expect(() => notification({ id: 'E2', horodatage: H('11:00'), envoisExistants: [erreur] })).toThrow(
+      /est « Reçu en erreur » : .*notification est acquise.*J57.*créer un nouveau courrier.*J66/,
+    )
     expect(notification({ id: 'E2', envoisExistants: [{ ...enCours, courrierId: 'AUTRE' }] }).statut).toBe('Préparation')
     expect(() => notification({ envoisExistants: [echec] })).toThrow(/identifiant E1 déjà pris/)
     // Une demande de signature du même courrier ne bloque pas une notification.
@@ -210,13 +216,13 @@ describe('création d’un envoi de notification électronique (lien avec le cou
   })
 
   it('une nouvelle tentative ne remonte pas avant la fin de la précédente (sinon deux tentatives en cours à la fois)', () => {
-    const echec = changerStatutEnvoi(enchainerNotification(notification(), ["Attente d'envoi"]), { statut: 'Échec', horodatage: H('12:00') })
-    expect(() => notification({ id: 'E2', horodatage: H('11:59'), envoisExistants: [echec] })).toThrow(
-      /Nouvel envoi refusé : horodatage 2026-11-17T11:59:00Z antérieur à la fin de l'envoi E1 du courrier C1 \(2026-11-17T12:00:00Z\)/,
-    )
-    expect(notification({ id: 'E2', horodatage: '2026-11-17T13:00:00+01:00', envoisExistants: [echec] }).statut).toBe('Préparation')
+    // Depuis J58 et J66, aucun état final de la console Notifications ne laisse repartir le même courrier : la règle
+    // de l'horodatage ne joue plus que pour les signatures (« Expiré », « Annulé »).
     const expire = changerStatutEnvoi(enchainerSignature(signature(), ['En cours']), { statut: 'Expiré', horodatage: H('12:00') })
-    expect(() => signature({ id: 'S2', horodatage: H('10:00'), envoisExistants: [expire] })).toThrow(/antérieur à la fin de l'envoi S1/)
+    expect(() => signature({ id: 'S2', horodatage: H('11:59'), envoisExistants: [expire] })).toThrow(
+      /Nouvel envoi refusé : horodatage 2026-11-17T11:59:00Z antérieur à la fin de l'envoi S1 du courrier \S+ \(2026-11-17T12:00:00Z\)/,
+    )
+    expect(signature({ id: 'S2', horodatage: '2026-11-17T13:00:00+01:00', envoisExistants: [expire] }).statut).toBe('Soumis')
   })
 })
 
@@ -287,13 +293,20 @@ describe('machine d’états de la console Notifications (🔵 transitions dédu
     expect(() => changerStatutEnvoi(envoye, { statut: 'Échec', horodatage: H('10:00'), motif: 'rejet' })).toThrow(/interdit/)
   })
 
-  it('un état final ne change plus ; le message renvoie, comme la création, à un nouveau courrier après « Reçu »', () => {
+  it('un état final ne change plus ; le message renvoie, comme la création, à un nouveau courrier après « Reçu » ou « Échec » (J58)', () => {
     const recu = enchainerNotification(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK', 'Reçu'])
     expect(() => changerStatutEnvoi(recu, { statut: 'Reçu en erreur', horodatage: H('10:00') })).toThrow(
       /Envoi électronique E1 : statut « Reçu » final, plus aucun changement \(pour un nouvel envoi, créer un nouveau courrier\)/,
     )
     const echec = enchainerNotification(notification(), ["Attente d'envoi", 'Échec'])
-    expect(() => changerStatutEnvoi(echec, { statut: 'En cours', horodatage: H('10:00') })).toThrow(/statut « Échec » final, plus aucun changement \(créer un nouvel envoi/)
+    expect(() => changerStatutEnvoi(echec, { statut: 'En cours', horodatage: H('10:00') })).toThrow(
+      /statut « Échec » final, plus aucun changement \(pour un nouvel envoi, créer un nouveau courrier\)/,
+    )
+    const erreur = enchainerNotification(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK', 'Reçu en erreur'])
+    // J66 : après « Reçu en erreur », nouveau courrier aussi.
+    expect(() => changerStatutEnvoi(erreur, { statut: 'Reçu', horodatage: H('10:00') })).toThrow(
+      /statut « Reçu en erreur » final, plus aucun changement \(pour un nouvel envoi, créer un nouveau courrier\)/,
+    )
   })
 
   it('rejeu exact du dernier changement (même statut, même instant, même origine, même référence) : envoi rendu inchangé', () => {
@@ -525,16 +538,18 @@ describe('lecture d’une notification électronique : aucun statut ne vaut noti
     expect(lecture.alertes[0].message).toMatch(/statut « Échec »/)
   })
 
-  it('« Reçu en erreur » après un avis saisi : alerte, la date saisie reste seule retenue (J50), l’effet du retour en erreur n’est pas établi (🔴)', () => {
+  it('« Reçu en erreur » après un avis saisi : alerte, la date saisie reste seule retenue (J50) ; refus ou non-réclamation sans effet (J57)', () => {
     const erreur = enchainerNotification(notification(), ["Attente d'envoi", 'En cours', 'Envoyé OK', 'Reçu en erreur'])
     const lecture = lireNotificationElectronique(erreur, suivi({ dateDepot: '2026-11-16', dateAvisElectronique: '2026-11-17' }))
     expect(lecture.etatCourrier).toBe('notifie')
     expect(lecture.alertes.map((a) => a.code)).toEqual(['retour_en_erreur_apres_avis'])
     expect(lecture.alertes[0].message).toMatch(/D\. 1967 art\. 64, dernier al\./)
     expect(lecture.alertes[0].message).toMatch(/téléchargé ou non/)
-    // 07_DECISIONS_JURIDIQUES.md (J50) ne dit rien d'une LRE refusée, non réclamée ou rejetée : rien n'en est affirmé.
-    expect(lecture.alertes[0].message).not.toMatch(/non réclamée|ne remet pas en cause/)
-    expect(lecture.alertes[0].message).toMatch(/refus, d'un rejet ou d'un défaut de remise.*n'est pas établi \(🔴\)/)
+    // J57 (décision de Hugo du 17/11/2026) : un refus ou une non-réclamation après l'avis ne remettent pas en cause sa date.
+    expect(lecture.alertes[0].message).toMatch(/refus ou une non-réclamation après l'avis ne remettent pas en cause sa date \(décision de Hugo du 17\/11\/2026, J57\)/)
+    // Le défaut de transmission de l'avis reste distinct : à vérifier sur le justificatif.
+    expect(lecture.alertes[0].message).toMatch(/défaut de transmission de l'avis, qui ne fait pas courir le délai/)
+    expect(lecture.alertes[0].message).not.toMatch(/🔴/)
   })
 
   it('« Reçu en erreur » sans avis saisi : la date de l’avis n’est à saisir que si le justificatif établit sa transmission', () => {
@@ -542,7 +557,7 @@ describe('lecture d’une notification électronique : aucun statut ne vaut noti
     const lecture = lireNotificationElectronique(erreur, suivi({ dateDepot: '2026-11-17' }))
     expect(lecture.alertes.map((a) => a.code)).toEqual(['avis_a_saisir'])
     expect(lecture.alertes[0].message).toMatch(/ne saisir sa date .*sur le courrier C1 que si ce justificatif l'établit/)
-    expect(lecture.alertes[0].message).toMatch(/défaut de remise.*\(🔴\)/)
+    expect(lecture.alertes[0].message).toMatch(/refusé ou non réclamé : la date de l'avis vaut.*J57\) ; défaut de transmission de l'avis : aucune date à saisir/)
     // Pour « Reçu », la consigne reste de saisir la date.
     expect(lireNotificationElectronique(recu(), suivi({ dateDepot: '2026-11-17' })).alertes[0].message).not.toMatch(/que si/)
   })
@@ -594,11 +609,14 @@ describe('en-tête du module', () => {
     expect(item('🔴 Aucun statut de la console Notifications')).toMatch(/ne déduit ni date de notification ni délai/)
   })
 
-  it('n’attribue pas à J50 l’effet d’une LRE refusée ou non réclamée : 07 ne le vérifie pas (🔴)', () => {
+  it('attribue à J57 (et non à J50) l’effet d’une LRE refusée ou non réclamée ; J58 pour l’échec', () => {
     expect(texte).not.toMatch(/interprétation retenue par J50/)
-    const refus = item('🔴 Refus, non-réclamation ou rejet')
-    expect(refus).toMatch(/pas vérifié dans 07_DECISIONS_JURIDIQUES\.md/)
-    expect(refus).toMatch(/courriers\.ts/)
+    expect(texte).not.toContain('🔴 Refus, non-réclamation ou rejet')
+    const j57 = item('- J57 (décision de Hugo du 17/11/2026 (J57))')
+    expect(j57).toMatch(/refusé ou non réclamé fait quand même courir le délai, du lendemain de la transmission de l'avis électronique/)
+    expect(j57).toMatch(/D\. 1967 art\. 64, dernier al\./)
+    expect(j57).toMatch(/défaut de transmission de l'avis/)
+    expect(item('- J58 (décision de Hugo du 17/11/2026 (J58))')).toMatch(/créer un nouveau courrier/)
   })
 
   it('garde ouverts la valeur probante de la signature et le lien avec « PV signé »', () => {

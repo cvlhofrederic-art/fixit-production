@@ -14,12 +14,14 @@
 
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import os from 'os'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const GMAPS_FILE     = path.join(__dirname, '../data/artisans-PT-gmaps-raw.json')
-const HABITISSIMO_FILE = path.join(__dirname, '../data/artisans-PT-enriched.json')
-const OUTPUT_FILE    = path.join(__dirname, '../data/artisans-PT-filtered.json')
+// Annuaires récupérés (données personnelles de tiers) : hors du dépôt public, dans un dossier privé
+// (ANNUAIRES_ARTISANS_DIR pour en choisir un autre).
+const DOSSIER_ANNUAIRES = process.env.ANNUAIRES_ARTISANS_DIR || path.join(os.homedir(), '.claude', 'donnees-privees', 'artisans-pt')
+const GMAPS_FILE     = path.join(DOSSIER_ANNUAIRES, 'artisans-PT-gmaps-raw.json')
+const HABITISSIMO_FILE = path.join(DOSSIER_ANNUAIRES, 'artisans-PT-enriched.json')
+const OUTPUT_FILE    = path.join(DOSSIER_ANNUAIRES, 'artisans-PT-filtered.json')
 const DRY_RUN = process.argv.includes('--dry-run')
 
 // ── Catégories Google Maps NON-artisans à rejeter ──────────────────────────

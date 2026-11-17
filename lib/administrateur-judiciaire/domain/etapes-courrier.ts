@@ -75,22 +75,35 @@ import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourr
  *   « automatique », sans créateur), donc visée par la règle des N jours ; l'étape enchaînée reste « manuelle ».
  * - J24 et J41 : « Copie au CS pour info » est un usage du cabinet, INACTIF par défaut : regleCopieAuCsPourInfo n'est
  *   active que si UsagesEtapesCabinet l'active ; les règles propres au cabinet sont, comme elle, désactivées par défaut.
+ * - J64 (décision de Hugo du 17/11/2026 (J64) ; notes du 17/11/2026, section « Suite » : recommandations
+ *   validées en bloc, numéro de registre proposé ; suite de J24 et J41) : la Copie au CS NAÎT DU COURRIER
+ *   (NAISSANCE_COPIE_AU_CS_PAR_DEFAUT), seulement pour les mises en demeure du contentieux, procédure 19-2 comprise, pas
+ *   pour les simples relances (DECLENCHEUR_MISE_EN_DEMEURE, estMiseEnDemeureDuContentieux) ; réglage désactivé par
+ *   défaut (J41) ; usage du cabinet, sans obligation légale (J24 ; L. 1965 art. 21). Ferme les questions n° 1 et 2
+ *   ci-dessous et la question n° 6 de modeles-etapes.ts. Les honoraires de la mise en demeure, que J64 ne vise pas,
+ *   gardent leur déclencheur (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE : famille Contentieux, libellé « mise en demeure »).
  * - 🔵 Rappel de J1 et J50 (délai de l'art. 42, aucune décision sur les étapes) : un délai ouvert par une notification
  *   part de la première présentation ou de la transmission de l'avis électronique, lues sur le courrier (courriers.ts),
  *   jamais du dépôt ; la date de dépôt, ici date de création de l'étape, ne fait donc courir aucun délai, et l'étape née
  *   du courrier n'a pas de limite.
  *
  * 🔵 Choix VitFix :
- * - 🔵 Naissance de la Copie au CS : du courrier, comme Gestéam (tranche 43 § 1). Choix par défaut, réversible
- *   (NAISSANCE_COPIE_AU_CS_PAR_DEFAUT ; « enchainement » désactive la règle et rend la main à l'enchaînement) ; question
- *   n° 1 ci-dessous, laissée ouverte. Règle active, l'enchaînement ne crée pas le type d'étape qu'elle fait naître dans
+ * - Naissance de la Copie au CS : du courrier, comme Gestéam (tranche 43 § 1), décidé par J64 (valeur par défaut de
+ *   NAISSANCE_COPIE_AU_CS_PAR_DEFAUT) ; « enchainement » reste un réglage possible du cabinet, qui désactive la règle et
+ *   rend la main à l'enchaînement. Règle active, l'enchaînement ne crée pas le type d'étape qu'elle fait naître dans
  *   ce dossier, que le courrier soit déjà parti ou non (enchainerEtapeDossierSansDoublon) : sinon l'ordre des gestes
  *   donnerait deux étapes. Une règle désactivée en cours de dossier ne protège plus de ce doublon. Même choix pour une
  *   liste de contrôle (point 49) : modeleSansEtapesNeesDuCourrier retire du modèle les types nés du courrier avant
  *   l'instanciation (question n° 6, sans effet sur modeleDuDossier) ;
- * - déclencheur par défaut de la Copie au CS : famille Contentieux, libellé du modèle contenant les mots « mise en
- *   demeure » (mots entiers et dans l'ordre ; casse, accents et ponctuation ignorés) ; un libellé sans lettre ni chiffre
- *   est refusé ; le cabinet peut le remplacer par la liste de ses modèles ;
+ * - déclencheur par défaut de la Copie au CS (J64 : DECLENCHEUR_MISE_EN_DEMEURE, estMiseEnDemeureDuContentieux) : modèle
+ *   de la famille Contentieux dont le libellé dit « mise en demeure » ou cite la procédure « 19-2 » (mots entiers et dans
+ *   l'ordre ; casse, accents et ponctuation ignorés), sauf une relance (le mot « relance » placé avant ces mots :
+ *   « Relance mise en demeure ») ; « adresse relance » placé après ne retire rien. Libellés exacts des modèles
+ *   « procédure 19-2 » et « procédure accélérée au fond » non relevés : le second n'est visé que si son libellé dit
+ *   « mise en demeure » ou « 19-2 », sinon le cabinet le liste par modèle ; les mises en demeure de la Comptabilité
+ *   syndic ne sont pas visées (« du contentieux » lu comme la famille Contentieux). Le cabinet peut remplacer ce
+ *   déclencheur par la liste de ses modèles, ou par une famille et un libellé (un libellé sans lettre ni chiffre est
+ *   refusé) ;
  * - date de création = date de dépôt du courrier (sa date d'envoi), au plus tard aujourd'hui (plausibiliteDate) ;
  *   Gestéam note aussi l'heure, VitFix ne garde que la date ; courrier non déposé : refus (l'étape naît de l'envoi) ;
  * - étape rattachée au seul dossier du type de la règle (🟢 « rattachement Contentieux »), une par dossier si le courrier
@@ -108,12 +121,8 @@ import { DOSSIER, FAMILLE_MODELE_COURRIER, type Dossier, type FamilleModeleCourr
  *   confirmer (🔴) pour le forfait ET pour les frais d'envoi (questions n° 3 et 4).
  *
  * 🔴 Non établi — questions :
- * 1. Hugo (question n° 6 de modeles-etapes.ts) : usage « Copie au CS » activé, l'étape naît-elle du courrier ou de
- *    l'enchaînement ? Choix par défaut ci-dessus (le courrier), réversible.
- * 2. Hugo : quels modèles de courrier font naître la Copie au CS : toutes les mises en demeure de la famille Contentieux
- *    (19-2 comprise) ? Celles de la Comptabilité syndic, rattachées à un contentieux ? Des relances ? Les modèles
- *    « procédure 19-2 » et « procédure accélérée au fond » ne sont visés par le déclencheur par défaut que si leur
- *    libellé contient « mise en demeure » (non relevé) : sinon, le cabinet les liste par modèle.
+ * 1. et 2. Fermées par J64 (ci-dessus) : la Copie au CS naît du courrier ; les mises en demeure du contentieux la font
+ *    naître, procédure 19-2 comprise, pas les simples relances.
  * 3. Cabinet (Frédéric ou Hugo) : le forfait de mise en demeure est-il imputé au copropriétaire défaillant (frais de
  *    recouvrement, L. 1965 art. 10-1, a) ou facturé au syndicat ? Montant, tarif, destinataire ; en administration
  *    provisoire, sur quelle base ?
@@ -168,10 +177,15 @@ function sansIdentifiantEnDouble<R extends { id: string }>(regles: R[]): R[] {
 
 // ─── Déclencheur : un modèle ou une famille de courrier ─────────────────────────────────────
 
-/** Par modèle : les identifiants des modèles du cabinet (Courrier.modeleId) ; par famille : la famille, et au besoin un libellé. */
+/**
+ * Par modèle : les identifiants des modèles du cabinet (Courrier.modeleId) ; par famille : la famille, et au besoin un
+ * libellé ; mises en demeure du contentieux : les modèles de mise en demeure de la famille Contentieux, procédure 19-2
+ * comprise, hors relances (décision de Hugo du 17/11/2026, J64 : estMiseEnDemeureDuContentieux).
+ */
 export type DeclencheurEtapeCourrier =
   | { par: 'modele'; modeleIds: readonly string[] }
   | { par: 'famille'; famille: FamilleModeleCourrier; libelleContient?: string | null }
+  | { par: 'mise_en_demeure_contentieux' }
 
 /**
  * Déclencheur contrôlé : identifiants sans espaces ni doublon ; libellé vide ou blanc = aucun filtre (null) ; un libellé
@@ -180,6 +194,7 @@ export type DeclencheurEtapeCourrier =
 export type DeclencheurControle =
   | { par: 'modele'; modeleIds: string[] }
   | { par: 'famille'; famille: FamilleModeleCourrier; libelleContient: string | null }
+  | { par: 'mise_en_demeure_contentieux' }
 
 function controlerLibelleContient(libelle: string | null | undefined, quoi: string): string | null {
   const brut = libelle?.trim() || null
@@ -198,16 +213,38 @@ function controlerDeclencheur(declencheur: DeclencheurEtapeCourrier, quoi: strin
     verifierFamille(declencheur.famille, quoi)
     return { par: 'famille', famille: declencheur.famille, libelleContient: controlerLibelleContient(declencheur.libelleContient, quoi) }
   }
+  if (declencheur.par === 'mise_en_demeure_contentieux') return { par: 'mise_en_demeure_contentieux' }
   const inconnu: unknown = (declencheur as { par?: unknown }).par
-  throw new Error(`${quoi} : déclencheur inconnu « ${String(inconnu)} » (par modèle ou par famille attendu).`)
+  throw new Error(`${quoi} : déclencheur inconnu « ${String(inconnu)} » (par modèle, par famille ou mises en demeure du contentieux attendu).`)
 }
 
-/** 🔵 Déclencheur par défaut de la Copie au CS : un modèle de la famille Contentieux dont le libellé dit « mise en demeure ». */
-export const DECLENCHEUR_MISE_EN_DEMEURE: Readonly<DeclencheurControle> = Object.freeze({
+/**
+ * Déclencheur par défaut de la Copie au CS : les mises en demeure de la famille Contentieux, procédure 19-2 comprise, pas
+ * les simples relances (décision de Hugo du 17/11/2026, J64 ; estMiseEnDemeureDuContentieux). Le cabinet peut le
+ * remplacer par la liste de ses modèles. Les honoraires de la mise en demeure gardent le leur
+ * (DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE) : J64 ne les vise pas.
+ */
+export const DECLENCHEUR_MISE_EN_DEMEURE: Readonly<DeclencheurControle> = Object.freeze({ par: 'mise_en_demeure_contentieux' })
+
+/**
+ * 🔵 Déclencheur par défaut des honoraires de la mise en demeure (regleHonorairesMiseEnDemeure), inchangé depuis le
+ * point 50 : un modèle de la famille Contentieux dont le libellé dit « mise en demeure » (mots entiers et dans l'ordre).
+ * J64 ne vise que la Copie au CS : ni la procédure 19-2 ni l'exclusion des relances ne s'appliquent ici (questions n° 3
+ * et 4, ci-dessus).
+ */
+export const DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE: Readonly<DeclencheurControle> = Object.freeze({
   par: 'famille',
   famille: 'Contentieux',
   libelleContient: 'mise en demeure',
 })
+
+/**
+ * Mots qui font d'un modèle du contentieux une mise en demeure (J64) : « mise en demeure », ou la procédure de l'art. 19-2
+ * (« 19-2 » : son libellé exact n'est pas relevé, tranches 22 et 43 § 22).
+ */
+const MOTS_MISE_EN_DEMEURE = ['mise en demeure', '19-2'] as const
+/** Une relance cite parfois la mise en demeure (« Relance mise en demeure ») : ce mot placé avant en fait une relance (J64). */
+const MOTS_RELANCE = ['relance', 'relances'] as const
 
 /** Le courrier, tel que l'appelant le lit : son modèle (famille et libellé) est résolu depuis Courrier.modeleId. */
 export interface CourrierDeclencheur {
@@ -227,8 +264,31 @@ export interface CourrierDeclencheur {
 /** Mots entiers : « ar » ne se trouve pas dans « garant », ni « mise en demeure » dans « remise en demeure ». */
 const contientLesMots = (libelle: string, mots: string): boolean => ` ${normaliserTexteLibre(libelle)} `.includes(` ${normaliserTexteLibre(mots)} `)
 
+/** Première position des mots (entiers, normalisés) dans le libellé normalisé encadré d'espaces ; null s'ils n'y sont pas. */
+function premierePosition(libelleEncadre: string, mots: readonly string[]): number | null {
+  const positions = mots.map((m) => libelleEncadre.indexOf(` ${normaliserTexteLibre(m)} `)).filter((i) => i >= 0)
+  return positions.length === 0 ? null : Math.min(...positions)
+}
+
+/**
+ * Mise en demeure du contentieux (décision de Hugo du 17/11/2026, J64) : modèle de la famille Contentieux dont le libellé
+ * dit « mise en demeure » ou cite la procédure « 19-2 » (mots entiers, dans l'ordre ; casse, accents et ponctuation
+ * ignorés), sauf une relance : le mot « relance » placé avant (« Relance mise en demeure ») ; placé après, il ne retire
+ * rien (« Mise en demeure de payer - adresse relance », tranche 22 § 3). Hors famille Contentieux (« RAR mise en demeure »
+ * de la Comptabilité syndic) : non.
+ */
+export function estMiseEnDemeureDuContentieux(modele: ModeleDeCourrier): boolean {
+  if (modele.famille !== 'Contentieux') return false
+  const libelle = ` ${normaliserTexteLibre(modele.libelle)} `
+  const miseEnDemeure = premierePosition(libelle, MOTS_MISE_EN_DEMEURE)
+  if (miseEnDemeure === null) return false
+  const relance = premierePosition(libelle, MOTS_RELANCE)
+  return relance === null || relance > miseEnDemeure
+}
+
 const declenche = (courrier: Pick<CourrierDeclencheur, 'modeleId' | 'modele'>, declencheur: DeclencheurControle): boolean => {
   if (declencheur.par === 'modele') return declencheur.modeleIds.includes(courrier.modeleId.trim())
+  if (declencheur.par === 'mise_en_demeure_contentieux') return estMiseEnDemeureDuContentieux(courrier.modele)
   if (courrier.modele.famille !== declencheur.famille) return false
   return declencheur.libelleContient === null || contientLesMots(courrier.modele.libelle, declencheur.libelleContient)
 }
@@ -236,7 +296,8 @@ const declenche = (courrier: Pick<CourrierDeclencheur, 'modeleId' | 'modele'>, d
 /**
  * Le courrier relève-t-il du déclencheur ? Par modèle : son identifiant de modèle est listé (famille et libellé
  * ignorés). Par famille : même famille et, si un libellé est donné, libellé du modèle qui en contient les mots, entiers
- * et dans l'ordre (casse, accents et ponctuation ignorés). Refus : déclencheur invalide.
+ * et dans l'ordre (casse, accents et ponctuation ignorés). Mises en demeure du contentieux : estMiseEnDemeureDuContentieux
+ * (J64). Refus : déclencheur invalide.
  */
 export function courrierDeclenche(courrier: Pick<CourrierDeclencheur, 'modeleId' | 'modele'>, declencheur: DeclencheurEtapeCourrier): boolean {
   return declenche(courrier, controlerDeclencheur(declencheur, 'Déclencheur'))
@@ -339,19 +400,20 @@ export function verifierReglesEtapesCourrier(regles: readonly SaisieRegleEtapeCo
 
 export const ID_REGLE_COPIE_AU_CS_POUR_INFO = 'copie-au-cs-pour-info'
 
-/** Origine de la Copie au CS, usage activé : le courrier (choix par défaut, 🔵) ou l'enchaînement (question n° 1). */
+/** Origine de la Copie au CS, usage activé : le courrier (par défaut, J64) ou l'enchaînement (réglage du cabinet). */
 export const NAISSANCES_COPIE_AU_CS = ['courrier', 'enchainement'] as const
 export type NaissanceCopieAuCs = (typeof NAISSANCES_COPIE_AU_CS)[number]
 const NAISSANCES_ADMISES: ReadonlySet<string> = new Set(NAISSANCES_COPIE_AU_CS)
 
-/** 🔵 Comme Gestéam (tranche 43 § 1) : la Copie au CS naît du courrier. Réversible. */
+/** Comme Gestéam (tranche 43 § 1) : la Copie au CS naît du courrier (décision de Hugo du 17/11/2026, J64). */
 export const NAISSANCE_COPIE_AU_CS_PAR_DEFAUT: NaissanceCopieAuCs = 'courrier'
 
 /**
  * La règle « mise en demeure → Copie au CS pour info » : dossier Contentieux, étape type n° 3
  * (ETAPE_TYPE_COPIE_AU_CS_POUR_INFO), réalisation par courrier (🟢 tranche 42). Active seulement si l'usage du cabinet
  * l'est (J24, J41 : inactif par défaut) et que la naissance retenue est le courrier ; avec « enchainement », elle reste
- * inactive et l'enchaînement crée l'étape (processusDuDossier). Refus : naissance inconnue, déclencheur invalide.
+ * inactive et l'enchaînement crée l'étape (processusDuDossier). Déclencheur par défaut : les mises en demeure du
+ * contentieux, 19-2 comprise, pas les relances (J64). Refus : naissance inconnue, déclencheur invalide.
  */
 export function regleCopieAuCsPourInfo({
   usages = USAGES_ETAPES_CABINET_PAR_DEFAUT,
@@ -395,7 +457,7 @@ export function typesEtapesNeesDuCourrier(regles: readonly SaisieRegleEtapeCourr
 
 /**
  * Le modèle de liste de contrôle sans les types d'étapes que les règles actives font naître d'un courrier dans son type de
- * dossier (point 49) : 🔵 suite du choix de la question n° 1, appliqué à l'instanciation comme à l'enchaînement (avec
+ * dossier (point 49) : suite de J64 (naissance par le courrier), appliquée à l'instanciation comme à l'enchaînement (avec
  * l'usage actif, la liste du contentieux contient la Copie au CS ; instanciée telle quelle, le courrier en créerait une
  * seconde). À l'appelant de s'en servir avant instancierModele (question n° 6). Règles inactives : le modèle contrôlé, tel
  * quel. Le modèle reçu n'est pas modifié. Refus : modèle ou règles invalides ; toutes les étapes du modèle naissent d'un
@@ -604,8 +666,8 @@ function messageNeeDuCourrier(regle: RegleEtapeCourrier, etapesDuCourrier: reado
 
 /**
  * enchainerEtapeDossier (mêmes refus, J20 compris), sauf pour un type d'étape qu'une règle active fait naître d'un
- * courrier dans le dossier de l'étape (🔵 question n° 1) : aucune création, que le courrier soit déjà parti ou non ; les
- * étapes déjà nées d'un courrier dans ce dossier sont citées. Règles inactives (par défaut, ou naissance
+ * courrier dans le dossier de l'étape (J64 : elle naît du courrier) : aucune création, que le courrier soit déjà parti
+ * ou non ; les étapes déjà nées d'un courrier dans ce dossier sont citées. Règles inactives (par défaut, ou naissance
  * « enchainement ») : l'enchaînement est inchangé.
  */
 export function enchainerEtapeDossierSansDoublon(
@@ -756,12 +818,13 @@ export const ID_REGLE_HONORAIRES_MISE_EN_DEMEURE = 'honoraires-mise-en-demeure'
 
 /**
  * Lignes de la mise en demeure (🟢 tranche 43 § 1 : frais d'envoi et forfait), dossier Contentieux : les lignes, montants
- * compris, viennent du cabinet ; inactive sans réglage.
+ * compris, viennent du cabinet ; inactive sans réglage. Déclencheur par défaut : DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE
+ * (famille Contentieux, libellé « mise en demeure »), inchangé : J64 ne vise que la Copie au CS.
  */
 export function regleHonorairesMiseEnDemeure({
   lignes,
   active = false,
-  declencheur = DECLENCHEUR_MISE_EN_DEMEURE,
+  declencheur = DECLENCHEUR_HONORAIRES_MISE_EN_DEMEURE,
 }: {
   lignes: readonly LigneHonorairesCourrier[]
   active?: boolean
