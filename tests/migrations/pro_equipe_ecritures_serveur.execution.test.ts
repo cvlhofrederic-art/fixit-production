@@ -5,18 +5,26 @@
 // un vrai PostgreSQL (PGlite, WebAssembly, en mémoire ; aucun service, aucune base distante), avec le rôle
 // authenticated et le jeton d'une session de navigateur (request.jwt.claims, comme PostgREST), sur les deux états de
 // départ possibles :
-//   - « production » : table, contraintes et policies telles que constatées en lecture seule le 14/11/2026 ;
+//   - « production » : table, contraintes et policies telles que constatées en lecture seule le 14/11/2026, déclencheur
+//     de date tel que relevé le 17/11/2026 ;
 //   - « dépôt » : la migration 048 telle quelle (avec pro_role_permissions, dont la lecture s'appuie sur
 //     pro_team_members), puis les ALTER POLICY de 20260610 sur les policies de pro_team_members.
 // AVANT la migration, les écritures du gérant passent (la faille est reproduite) ; APRÈS, jouée deux fois, elles sont
 // refusées, la lecture reste, et les routes serveur (service_role) écrivent toujours. Les contournements qu'un
 // propriétaire de la base poserait à la main (vue, règle, déclencheur SECURITY DEFINER, héritage, partition, clé
-// étrangère) rouvrent l'écriture : la partie 1 du scénario de contrôle montre chacun.
+// étrangère) rouvrent l'écriture, ou changent les écritures du serveur (déclencheur posé sur la table, fonction du
+// déclencheur attendu remplacée sous le même nom ou dotée d'un SET search_path qui détourne now(), déclencheur attendu
+// recréé pour d'autres écritures) : la partie 1 du scénario de contrôle montre chacun, comme tout changement du
+// déclencheur attendu qui ne touche pas au corps de sa fonction (mode de sécurité, UPDATE OF, clause WHEN, argument,
+// désactivation), et un déclencheur de webhook sans rendre ses arguments, pas plus que la requête de relecture que donne
+// sa consigne ; des témoins gardent ce qu'elle ne peut pas voir (nom écrit U&"…", valeur par défaut de colonne).
 // Comptes fictifs (UUID aléatoires) ; aucune donnée réelle.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import { ECHAFAUDAGE_SUPABASE_SQL, lireMigrationQr } from '../helpers/pglite-signalements'
 import {
   bilanDuScenario,
@@ -31,7 +39,33 @@ import {
 
 const MIGRATION = '20261115_pro_equipe_ecritures_serveur.sql'
 const TABLE = 'public.pro_team_members'
-const SCENARIO = partiesDuScenario('supabase/tests/pro_equipe_ecritures_serveur.sql')
+const CHEMIN_SCENARIO = 'supabase/tests/pro_equipe_ecritures_serveur.sql'
+const SCENARIO = partiesDuScenario(CHEMIN_SCENARIO)
+
+/** Requête donnée en commentaire dans la consigne d'un scénario : de la ligne qui répond à `debut` à celle qui répond à
+ *  `fin`, sans le « -- » qui ouvre chaque ligne. */
+function requeteDeLaConsigne(chemin: string, debut: RegExp, fin: RegExp): string {
+  const lignes = readFileSync(join(process.cwd(), chemin), 'utf-8').replace(/\r\n/g, '\n').split('\n')
+  const premiere = lignes.findIndex((l) => debut.test(l))
+  const derniere = lignes.findIndex((l, i) => i > premiere && fin.test(l))
+  if (premiere < 0 || derniere < 0) throw new Error(`Scénario ${chemin} : requête de la consigne introuvable (${debut} … ${fin})`)
+  return lignes.slice(premiere, derniere + 1).map((l) => l.replace(/^--/, '')).join('\n')
+}
+/**
+ * Requête de relecture des déclencheurs « sans leurs arguments » que donne la consigne de la partie 1, telle que
+ * Frédéric la lance en production : le test du webhook l'exécute.
+ */
+const RELECTURE_DECLENCHEURS = requeteDeLaConsigne(CHEMIN_SCENARIO, /^--\s+select tgname,/, /not tgisinternal;$/)
+/** Ligne de cette requête : codes, nombre d'arguments, et définition coupée avant les arguments. */
+interface DeclencheurRelu {
+  tgname: string
+  tgtype: number
+  tgenabled: string
+  tgnargs: number
+  colonnes: string
+  quand: boolean
+  definition: string
+}
 
 interface FonctionCitee {
   fonction: string
@@ -42,6 +76,21 @@ interface FonctionCitee {
 }
 /** Les seuls champs d'une fonction dans la partie 1 : jamais son corps, qui peut contenir une clé. */
 const CHAMPS_FONCTION = ['executable_par_les_clients', 'fonction', 'fonction_de_declencheur', 'security_definer', 'sql_dynamique']
+/** Entrée de « declencheurs » : jamais de définition ni d'arguments, seulement des codes et des empreintes. */
+interface EntreeDeclencheur {
+  nom: string
+  fonction: string
+  type: number
+  actif: string
+  empreinte: string
+  empreinte_declencheur: string
+}
+/** Les seuls champs d'un déclencheur dans la partie 1 (un webhook Supabase place ses en-têtes dans ses arguments). */
+const CHAMPS_DECLENCHEUR = ['actif', 'empreinte', 'empreinte_declencheur', 'fonction', 'nom', 'type']
+/** Les champs de premier niveau de la partie 1, triés : un champ ajouté (des arguments en hexadécimal…) se voit. */
+const CHAMPS_PARTIE_1 = ['cles_etrangeres', 'declencheurs', 'droits', 'empreinte_next_doc_number',
+  'fonctions_citant_la_table', 'fonctions_ecrivant_la_table', 'heritage', 'policies', 'policies_ecriture', 'proprietaire',
+  'regles_sur_la_table', 'rls_active', 'vues']
 interface EtatTable {
   policies_ecriture: number
   rls_active: boolean
@@ -53,12 +102,16 @@ interface EtatTable {
   regles_sur_la_table: number
   cles_etrangeres: Array<{ contrainte: string; vers: string; suppression: string; mise_a_jour: string }> | null
   empreinte_next_doc_number: string | null
-  declencheurs: Array<{ nom: string; fonction: string }> | null
+  declencheurs: EntreeDeclencheur[] | null
   droits: Array<{ role: string; select: boolean; insert: boolean; update: boolean; delete: boolean; truncate: boolean }>
 }
 
 const parTexte = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 const PREFIXE_BILAN = 'BILAN (tout est annulé) : '
+
+/** Corps de déclencheur qui impose à la ligne écrite le rôle qu'un client a choisi (table relais essai_consigne). */
+const IMPOSE_LE_ROLE =
+  'NEW.role := coalesce((SELECT c.role FROM public.essai_consigne c WHERE c.company_id = NEW.company_id LIMIT 1), NEW.role);'
 
 // auth.uid() de Supabase : le « sub » du jeton de la requête (OR REPLACE : l'échafaudage partagé pourrait un jour la créer).
 const AUTH_UID_SQL = `
@@ -73,7 +126,8 @@ GRANT EXECUTE ON FUNCTION auth.uid() TO anon, authenticated, service_role;
 // contrainte du rôle à 6 valeurs, UNIQUE (company_id, email), UNIQUE (invite_token), RLS active, quatre policies
 // permissives pour le rôle public sous la forme (SELECT auth.uid()), le déclencheur trg_pro_team_updated_at, et
 // next_doc_number(uuid,text,integer), SECURITY DEFINER, seule fonction qui cite la table (corps réduit ici à sa lecture
-// de la table : contrôle des membres d'équipe).
+// de la table : contrôle des membres d'équipe). La fonction de date est celle de 048, sans SECURITY DEFINER, avec le
+// SET search_path de la 071 (lecture du 17/11/2026 : voir DECLENCHEURS_LUS_EN_PRODUCTION).
 const PRODUCTION_SQL = `
 CREATE TABLE public.pro_team_members (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -101,7 +155,8 @@ CREATE POLICY pro_team_select ON public.pro_team_members FOR SELECT
 CREATE POLICY pro_team_insert ON public.pro_team_members FOR INSERT WITH CHECK ((company_id = (SELECT auth.uid())));
 CREATE POLICY pro_team_update ON public.pro_team_members FOR UPDATE USING ((company_id = (SELECT auth.uid())));
 CREATE POLICY pro_team_delete ON public.pro_team_members FOR DELETE USING ((company_id = (SELECT auth.uid())));
-CREATE FUNCTION public.update_pro_team_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION public.update_pro_team_updated_at() RETURNS trigger LANGUAGE plpgsql
+  SET search_path = pg_catalog, public AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
@@ -135,10 +190,26 @@ function depotSql(): string {
 }
 
 const ETATS = [
-  { nom: 'production (constats des 14 et 15/11/2026)', sql: () => PRODUCTION_SQL, depot: false, fonctionsCitantes: [NEXT_DOC_NUMBER] },
+  { nom: 'production (constats des 14, 15 et 17/11/2026)', sql: () => PRODUCTION_SQL, depot: false, fonctionsCitantes: [NEXT_DOC_NUMBER] },
   { nom: 'dépôt (048, 20260610)', sql: depotSql, depot: true, fonctionsCitantes: [] as string[] },
 ]
-const DECLENCHEURS = ['trg_pro_team_updated_at']
+/**
+ * Déclencheurs attendus sur la table, les mêmes dans les deux états (048) : celui de date seul, BEFORE UPDATE, par
+ * ligne (type 19). Sa fonction diffère : avec le SET search_path de la 071 en production, sans dans le dépôt, où elle
+ * sert aussi trg_pro_perms_updated_at (pro_role_permissions, hors de la liste de la table).
+ */
+const DECLENCHEURS = [{ nom: 'trg_pro_team_updated_at', fonction: 'update_pro_team_updated_at()', type: 19 }]
+/** Le déclencheur attendu, que les essais remplacent, recréent ou désactivent. */
+const [DECLENCHEUR] = DECLENCHEURS
+/**
+ * « declencheurs » lu en production le 17/11/2026 vers 12:00 UTC (requête à part, même calcul que la partie 1 ;
+ * PostgreSQL 17.6, search_path de l'éditeur SQL, où public est visible) : l'état « production » doit le rendre au
+ * caractère près (PGlite, PostgreSQL 18.6, le reproduit ; un changement de format de PGlite fait échouer le test).
+ */
+const DECLENCHEURS_LUS_EN_PRODUCTION: EntreeDeclencheur[] = [{
+  nom: 'trg_pro_team_updated_at', fonction: 'update_pro_team_updated_at()', type: 19, actif: 'O',
+  empreinte: '40588a5266ec', empreinte_declencheur: 'cabcbdb0ce56',
+}]
 
 /** Fonctions d'une liste de la partie 1, en « nom security_definer executable_par_les_clients fonction_de_declencheur
  *  sql_dynamique », triées. */
@@ -176,8 +247,11 @@ const FONCTIONS_ESSAI: Array<{ definition: string; retirer?: string; resume: str
   { definition: `essai_ecrit_only(c uuid) RETURNS void LANGUAGE sql
       AS $$ DELETE FROM ONLY public.pro_team_members WHERE company_id = c $$`,
     resume: 'essai_ecrit_only(uuid) false true false false', ecrit: true },
+  // Deux espaces avant le point, un retour à la ligne indenté après : un motif qui n'admettrait qu'une espace, ou au
+  // plus un blanc, de chaque côté du point ne verrait pas ce corps.
   { definition: `essai_ecrit_espaces(c uuid) RETURNS void LANGUAGE sql
-      AS $$ INSERT INTO public . pro_team_members (company_id, email, role) VALUES (c, 'y@exemple.test', 'OUVRIER') $$`,
+      AS $$ INSERT INTO public  .
+        pro_team_members (company_id, email, role) VALUES (c, 'y@exemple.test', 'OUVRIER') $$`,
     resume: 'essai_ecrit_espaces(uuid) false true false false', ecrit: true },
 ]
 
@@ -213,6 +287,52 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
   const lireLigne = async (id: string) => (await db.query<{ company_id: string; user_id: string | null; role: string }>(
     `SELECT company_id, user_id, role FROM ${TABLE} WHERE id = $1`, [id])).rows[0]
   const etat = () => etatDuScenario<EtatTable>(db, SCENARIO.etat)
+
+  /** Empreintes qu'affiche la partie 1 (début du SHA-256), calculées ici depuis les définitions lues à part. */
+  const hache = (texte: string) => createHash('sha256').update(texte, 'utf8').digest('hex').slice(0, 12)
+  const empreinteDe = async (fonction: string) =>
+    hache((await db.query<{ def: string }>('SELECT pg_get_functiondef($1::regprocedure) AS def', [fonction])).rows[0].def)
+  const empreinteDeclencheurDe = async (nom: string) =>
+    hache((await db.query<{ def: string }>(
+      `SELECT pg_get_triggerdef(oid) AS def FROM pg_trigger WHERE tgrelid = '${TABLE}'::regclass AND tgname = $1`,
+      [nom])).rows[0].def)
+
+  /** Entrée de « declencheurs » attendue pour un déclencheur de la table, empreintes calculées ici. */
+  const entreeDeclencheur = async (nom: string, fonction: string, type: number, actif = 'O'): Promise<EntreeDeclencheur> =>
+    ({ nom, fonction, type, actif, empreinte: await empreinteDe(fonction), empreinte_declencheur: await empreinteDeclencheurDe(nom) })
+
+  /** declencheurs attendu : ceux de DECLENCHEURS (le déclencheur de date), empreintes calculées dans l'état présent. */
+  const declencheursAttendus = () => Promise.all(DECLENCHEURS.map((d) => entreeDeclencheur(d.nom, d.fonction, d.type)))
+
+  /** Recrée le déclencheur attendu sous le même nom et sur la même fonction : moment, clause WHEN et arguments donnés. */
+  const recreeDeclencheurAttendu = (moment: string, quand = '', args = '') => db.exec(
+    `DROP TRIGGER ${DECLENCHEUR.nom} ON ${TABLE};
+     CREATE TRIGGER ${DECLENCHEUR.nom} ${moment} ON ${TABLE}
+       FOR EACH ROW ${quand} EXECUTE FUNCTION public.${DECLENCHEUR.fonction.replace('()', `(${args})`)}`)
+
+  /** Partie 1 sans la liste des déclencheurs : ce qui doit rester identique quand seul un déclencheur change. */
+  const sansDeclencheurs = (e: EtatTable): EtatTable => ({ ...e, declencheurs: null })
+
+  /** Table relais que les clients écrivent : le gérant y choisit le rôle « GERANT » pour sa société. */
+  async function poseConsigne() {
+    await db.exec('CREATE TABLE public.essai_consigne (company_id uuid, role text)')
+    const consigne = await sousRole(db, 'authenticated', comptes.gerant,
+      `INSERT INTO public.essai_consigne (company_id, role) VALUES ($1, 'GERANT')`, [comptes.gerant])
+    expect(consigne.erreur).toBeNull()
+  }
+
+  /**
+   * Remplace sous le même nom (CREATE OR REPLACE) la fonction du déclencheur attendu : elle date la ligne, et impose le
+   * rôle. Dans l'état « dépôt », elle sert aussi trg_pro_perms_updated_at : aucun essai n'écrit ensuite
+   * pro_role_permissions (qui n'a pas de colonne role).
+   */
+  const remplaceFonctionAttendue = () => db.exec(`CREATE OR REPLACE FUNCTION public.${DECLENCHEUR.fonction} RETURNS trigger
+    LANGUAGE plpgsql AS $$
+    BEGIN
+      NEW.updated_at = now();
+      ${IMPOSE_LE_ROLE}
+      RETURN NEW;
+    END $$`)
 
   /** Écritures d'une session de navigateur : chacune passe avant la migration, toutes échouent après (42501). */
   const ECRITURES: Array<{ cas: string; ecrire: () => Promise<ResultatAppel>; avant: () => Promise<void> }> = [
@@ -270,16 +390,16 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       expect([e.fonctions_ecrivant_la_table, e.vues, e.heritage, e.cles_etrangeres]).toEqual([null, null, null, null])
       expect(resume(e.fonctions_citant_la_table)).toEqual(fonctionsCitantes)
       expect(Number(e.regles_sur_la_table)).toBe(0)
-      expect((e.declencheurs ?? []).map((d) => d.nom)).toEqual(DECLENCHEURS)
-      // Ni définition ni arguments (un webhook Supabase y place ses en-têtes) : le nom et la fonction appelée seulement.
-      for (const d of e.declencheurs ?? []) expect(Object.keys(d).sort(parTexte)).toEqual(['fonction', 'nom'])
+      expect(e.declencheurs).toEqual(await declencheursAttendus())
+      // Ni définition ni arguments (un webhook Supabase y place ses en-têtes) : des noms, des codes et des empreintes.
+      for (const d of e.declencheurs ?? []) expect(Object.keys(d).sort(parTexte)).toEqual(CHAMPS_DECLENCHEUR)
       expect(e.proprietaire).toBe('postgres')
       // Aucune clé étrangère vers les comptes (production comme dépôt) : l'insertion pour soi passe.
       expect(await bilanDuScenario(db, SCENARIO.test)).toBe('ÉCHEC 2 : ligne créée par une session navigateur')
       expect(await nombreDeLignes()).toBe(3)
     })
 
-    it('la partie 1 repère les fonctions qui écrivent la table (INSERT, UPDATE, DELETE, ONLY, MERGE, TRUNCATE avec ou sans TABLE, schéma entre guillemets ou entouré d’espaces), le SQL dynamique, et n’en sort aucun corps', async () => {
+    it('la partie 1 repère les fonctions qui écrivent la table (INSERT, UPDATE, DELETE, ONLY, MERGE, TRUNCATE avec ou sans TABLE, schéma entre guillemets ou entouré de blancs : deux espaces avant le point, un retour à la ligne après), le SQL dynamique, et n’en sort aucun corps', async () => {
       for (const f of FONCTIONS_ESSAI) {
         await db.exec(`CREATE FUNCTION public.${f.definition}`)
         if (f.retirer) await db.exec(`REVOKE EXECUTE ON FUNCTION public.${f.resume.split(' ')[0]} FROM ${f.retirer}`)
@@ -361,7 +481,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       // Empreinte du corps de next_doc_number : présente en production, absente du dépôt (048 seule).
       expect(e.empreinte_next_doc_number === null).toBe(depot)
       expect(resume(e.fonctions_citant_la_table)).toEqual(fonctionsCitantes)
-      expect((e.declencheurs ?? []).map((d) => d.nom)).toEqual(DECLENCHEURS)
+      expect(e.declencheurs).toEqual(await declencheursAttendus())
       expect(e.droits).toEqual([
         { role: 'anon', select: true, insert: false, update: false, delete: false, truncate: false },
         { role: 'authenticated', select: true, insert: false, update: false, delete: false, truncate: false },
@@ -527,7 +647,7 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       },
       {
         // L'action référentielle s'exécute avec les droits du propriétaire ; ses déclencheurs, internes, ne sont pas
-        // dans « declencheurs ».
+        // dans « declencheurs » (vérifié pour chaque contournement).
         cas: 'clé étrangère ON DELETE CASCADE',
         poser: [
           'CREATE TABLE public.essai_societes (id uuid PRIMARY KEY)',
@@ -538,8 +658,8 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
         ecrire: () => sousRole(db, 'authenticated', comptes.etranger,
           'DELETE FROM public.essai_societes WHERE id = $1', [comptes.gerant]),
         ecrit: async () => { expect(await nombreDeLignes()).toBe(0) },
-        vu: (e) => [e.cles_etrangeres, (e.declencheurs ?? []).map((d) => d.nom)],
-        attendu: [[{ contrainte: 'essai_societe_fk', vers: 'essai_societes', suppression: 'c', mise_a_jour: 'a' }], DECLENCHEURS],
+        vu: (e) => e.cles_etrangeres,
+        attendu: [{ contrainte: 'essai_societe_fk', vers: 'essai_societes', suppression: 'c', mise_a_jour: 'a' }],
       },
       {
         // Même sans action, un TRUNCATE … CASCADE de la table référencée vide la table ; lancé par une fonction SECURITY
@@ -564,7 +684,11 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
         for (const instruction of poser) await db.exec(instruction)
         expect((await ecrire()).erreur).toBeNull()
         await ecrit()
-        expect(vu(await etat())).toEqual(attendu)
+        const e = await etat()
+        expect(vu(e)).toEqual(attendu)
+        // Aucun ne touche aux déclencheurs de la table (ceux d'une clé étrangère sont internes) : leur liste reste
+        // l'attendue.
+        expect(e.declencheurs).toEqual(await declencheursAttendus())
       })
 
     it('security_invoker est lu à sa valeur, seul parmi les options de la vue : 1 le rend vrai (un client n’écrit pas par la vue, 42501), off faux, security_barrier ne compte pas', async () => {
@@ -630,6 +754,175 @@ describe.each(ETATS)('état de départ : $nom', ({ sql, depot, fonctionsCitantes
       await db.exec(`CREATE RULE essai_regle_equipe AS ON DELETE TO ${TABLE} DO INSTEAD NOTHING`)
       const e = await etat()
       expect([Number(e.regles_sur_la_table), e.vues]).toEqual([1, null])
+    })
+
+    it.runIf(!depot)('état « production » (lecture du 17/11/2026) : la partie 1 y rend exactement les déclencheurs lus en production, empreintes réelles 40588a5266ec et cabcbdb0ce56 comprises (cet état reproduit la production au caractère près ; après une montée de version de PGlite, un écart est à relire)', async () => {
+      expect((await etat()).declencheurs).toEqual(DECLENCHEURS_LUS_EN_PRODUCTION)
+    })
+
+    it('un déclencheur posé à la main sur la table (BEFORE INSERT), dont la fonction ne nomme pas la table, impose aux invitations du serveur un rôle lu dans une table que les clients écrivent : seule la liste « declencheurs » le montre (d’où son attendu)', async () => {
+      const reference = await etat()
+      await poseConsigne()
+      await db.exec(`CREATE FUNCTION public.essai_role_impose() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          ${IMPOSE_LE_ROLE}
+          RETURN NEW;
+        END $$`)
+      await db.exec(`CREATE TRIGGER essai_role_impose BEFORE INSERT ON ${TABLE}
+        FOR EACH ROW EXECUTE FUNCTION public.essai_role_impose()`)
+      // La route serveur invite un ouvrier : la ligne est enregistrée gérant.
+      const invite = await sousRole(db, 'service_role', null,
+        `INSERT INTO ${TABLE} (company_id, email, role) VALUES ($1, 'consigne@exemple.test', 'OUVRIER') RETURNING role`,
+        [comptes.gerant])
+      expect([invite.erreur, invite.lignes]).toEqual([null, [{ role: 'GERANT' }]])
+      const e = await etat()
+      // Tous les autres champs gardent leur valeur.
+      expect(sansDeclencheurs(e)).toEqual(sansDeclencheurs(reference))
+      // BEFORE INSERT, par ligne : type 7 (1 + 2 + 4).
+      expect(e.declencheurs).toEqual([
+        await entreeDeclencheur('essai_role_impose', 'essai_role_impose()', 7),
+        ...await declencheursAttendus(),
+      ])
+    })
+
+    it('la fonction du déclencheur attendu remplacée sous le même nom (CREATE OR REPLACE), qui lit le rôle dans une table que les clients écrivent : la route serveur qui accepte une invitation lui donne ce rôle ; dans la partie 1, seule l’empreinte de sa fonction change (d’où son attendu)', async () => {
+      const reference = await etat()
+      const [attendu] = await declencheursAttendus()
+      await poseConsigne()
+      await remplaceFonctionAttendue()
+      // La route serveur accepte l'invitation (chef de chantier) : la ligne devient celle d'un gérant.
+      const accepte = await sousRole(db, 'service_role', null,
+        `UPDATE ${TABLE} SET user_id = $1, accepted_at = now(), invite_token = NULL WHERE id = $2 RETURNING role`,
+        [comptes.etranger, lignes.invitation])
+      expect([accepte.erreur, accepte.lignes]).toEqual([null, [{ role: 'GERANT' }]])
+      const e = await etat()
+      expect(sansDeclencheurs(e)).toEqual(sansDeclencheurs(reference))
+      expect(e.declencheurs).toEqual([{ ...attendu, empreinte: await empreinteDe(DECLENCHEUR.fonction) }])
+      expect(e.declencheurs?.[0].empreinte).not.toBe(attendu.empreinte)
+    })
+
+    it('le déclencheur attendu recréé sous le même nom pour les insertions aussi (BEFORE INSERT OR UPDATE), sur sa fonction remplacée : les invitations de la route serveur reçoivent le rôle choisi par un client ; dans la partie 1, son type passe de 19 à 23', async () => {
+      const reference = await etat()
+      await poseConsigne()
+      await remplaceFonctionAttendue()
+      await recreeDeclencheurAttendu('BEFORE INSERT OR UPDATE')
+      const invite = await sousRole(db, 'service_role', null,
+        `INSERT INTO ${TABLE} (company_id, email, role) VALUES ($1, 'recree@exemple.test', 'OUVRIER') RETURNING role`,
+        [comptes.gerant])
+      expect([invite.erreur, invite.lignes]).toEqual([null, [{ role: 'GERANT' }]])
+      const e = await etat()
+      expect(sansDeclencheurs(e)).toEqual(sansDeclencheurs(reference))
+      // 23 = 1 (par ligne) + 2 (BEFORE) + 4 (INSERT) + 16 (UPDATE).
+      expect(e.declencheurs).toEqual([await entreeDeclencheur(DECLENCHEUR.nom, DECLENCHEUR.fonction, 23)])
+      expect(e.declencheurs?.[0].empreinte_declencheur).not.toBe(reference.declencheurs?.[0].empreinte_declencheur)
+    })
+
+    it('la fonction du déclencheur attendu dotée d’un SET search_path qui place un schéma avant pg_catalog : son now() devient celui de ce schéma, à chaque modification du serveur ; dans la partie 1, seule son empreinte change', async () => {
+      const reference = await etat()
+      await db.exec(`CREATE SCHEMA essai_piege;
+        CREATE TABLE essai_piege.journal (vu timestamptz);
+        CREATE FUNCTION essai_piege.now() RETURNS timestamptz LANGUAGE sql
+          AS $$ INSERT INTO essai_piege.journal VALUES (pg_catalog.now()) RETURNING '2000-01-01 00:00:00+00'::timestamptz $$;
+        GRANT USAGE ON SCHEMA essai_piege TO service_role;
+        GRANT INSERT, SELECT ON essai_piege.journal TO service_role`)
+      await db.exec(`ALTER FUNCTION public.${DECLENCHEUR.fonction} SET search_path = essai_piege, pg_catalog`)
+      const maj = await sousRole(db, 'service_role', null,
+        `UPDATE ${TABLE} SET full_name = 'Membre Renommé' WHERE id = $1
+         RETURNING updated_at = '2000-01-01 00:00:00+00'::timestamptz AS date_piegee`, [lignes.membre])
+      expect([maj.erreur, maj.lignes]).toEqual([null, [{ date_piegee: true }]])
+      expect(Number((await db.query<{ n: number }>('SELECT count(*)::int AS n FROM essai_piege.journal')).rows[0].n)).toBe(1)
+      const e = await etat()
+      expect(sansDeclencheurs(e)).toEqual(sansDeclencheurs(reference))
+      const [avant] = reference.declencheurs ?? []
+      expect(e.declencheurs).toEqual([{ ...avant, empreinte: await empreinteDe(DECLENCHEUR.fonction) }])
+      expect(e.declencheurs?.[0].empreinte).not.toBe(avant.empreinte)
+    })
+
+    // Changements du déclencheur attendu qui ne touchent pas au corps de sa fonction : chacun ne change que son champ.
+    const CHANGEMENTS_SANS_CORPS: Array<{ cas: string; poser: () => Promise<unknown>; champ: keyof EntreeDeclencheur; type: number; actif: string }> = [
+      { cas: 'sa fonction passée dans l’autre mode (SECURITY DEFINER ou INVOKER)', champ: 'empreinte', type: 19, actif: 'O',
+        poser: async () => {
+          const { rows } = await db.query<{ definer: boolean }>(
+            'SELECT prosecdef AS definer FROM pg_proc WHERE oid = $1::regprocedure', [DECLENCHEUR.fonction])
+          await db.exec(`ALTER FUNCTION public.${DECLENCHEUR.fonction} ${rows[0].definer ? 'SECURITY INVOKER' : 'SECURITY DEFINER'}`)
+        } },
+      { cas: 'recréé pour les seules modifications du rôle (UPDATE OF role)', champ: 'empreinte_declencheur', type: 19, actif: 'O',
+        poser: () => recreeDeclencheurAttendu('BEFORE UPDATE OF role') },
+      { cas: 'recréé avec une clause WHEN', champ: 'empreinte_declencheur', type: 19, actif: 'O',
+        poser: () => recreeDeclencheurAttendu('BEFORE UPDATE', 'WHEN (OLD.role IS DISTINCT FROM NEW.role)') },
+      { cas: 'recréé avec un argument', champ: 'empreinte_declencheur', type: 19, actif: 'O',
+        poser: () => recreeDeclencheurAttendu('BEFORE UPDATE', '', "'essai'") },
+      { cas: 'désactivé', champ: 'actif', type: 19, actif: 'D',
+        poser: () => db.exec(`ALTER TABLE ${TABLE} DISABLE TRIGGER ${DECLENCHEUR.nom}`) },
+    ]
+
+    it.each(CHANGEMENTS_SANS_CORPS)('le déclencheur attendu, $cas, sans toucher au corps de sa fonction : dans la partie 1, seul le champ « $champ » change', async ({ poser, champ, type, actif }) => {
+      const reference = await etat()
+      await poser()
+      const e = await etat()
+      expect(sansDeclencheurs(e)).toEqual(sansDeclencheurs(reference))
+      const [avant] = reference.declencheurs ?? []
+      const [apres] = e.declencheurs ?? []
+      expect(apres).toEqual(await entreeDeclencheur(DECLENCHEUR.nom, DECLENCHEUR.fonction, type, actif))
+      const champsChanges = (Object.keys(apres) as Array<keyof EntreeDeclencheur>).filter((k) => apres[k] !== avant[k])
+      expect(champsChanges).toEqual([champ])
+    })
+
+    /** Ce que portent les arguments du webhook d'essai : rien ne doit en sortir, ni de la partie 1 ni de la relecture. */
+    const ARGUMENTS_DU_WEBHOOK = /cle-essai-secrete|exemple\.test\/crochet/
+
+    it('un déclencheur de webhook (fonction SECURITY DEFINER hors du schéma public, arguments qui portent une clé) : la partie 1 le montre sans rendre ses arguments, ni dans un champ ajouté ni dans un champ existant, et la requête de relecture de la consigne non plus', async () => {
+      const reference = await etat()
+      await db.exec(`CREATE SCHEMA essai_webhooks;
+        CREATE FUNCTION essai_webhooks.http_request() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $$ BEGIN RETURN NEW; END $$;
+        CREATE TRIGGER essai_webhook AFTER INSERT ON ${TABLE} FOR EACH ROW
+          EXECUTE FUNCTION essai_webhooks.http_request('https://exemple.test/crochet', 'POST', '{"Authorization":"Bearer cle-essai-secrete"}')`)
+      const e = await etat()
+      // AFTER INSERT, par ligne : type 5 (1 + 4).
+      expect(e.declencheurs).toEqual([
+        await entreeDeclencheur('essai_webhook', 'essai_webhooks.http_request()', 5),
+        ...await declencheursAttendus(),
+      ])
+      // Ni en clair, ni dans un champ ajouté (des arguments en hexadécimal, par exemple), ni collés à la valeur d'un champ
+      // existant (le propriétaire, par exemple) : les champs restent ceux attendus, et les autres gardent leur valeur.
+      expect(JSON.stringify(e)).not.toMatch(ARGUMENTS_DU_WEBHOOK)
+      expect(Object.keys(e).sort(parTexte)).toEqual(CHAMPS_PARTIE_1)
+      expect(sansDeclencheurs(e)).toEqual(sansDeclencheurs(reference))
+      for (const d of e.declencheurs ?? []) expect(Object.keys(d).sort(parTexte)).toEqual(CHAMPS_DECLENCHEUR)
+      // La requête de relecture de la consigne, telle que Frédéric la lance : chaque définition s'arrête à la signature
+      // de la fonction, les arguments ne sont jamais affichés.
+      const relus = (await db.query<DeclencheurRelu>(RELECTURE_DECLENCHEURS)).rows.toSorted((a, b) => parTexte(a.tgname, b.tgname))
+      expect(JSON.stringify(relus)).not.toMatch(ARGUMENTS_DU_WEBHOOK)
+      expect(relus).toEqual([
+        { tgname: 'essai_webhook', tgtype: 5, tgenabled: 'O', tgnargs: 3, colonnes: '', quand: false,
+          definition: `CREATE TRIGGER essai_webhook AFTER INSERT ON ${TABLE} FOR EACH ROW EXECUTE FUNCTION essai_webhooks.http_request()` },
+        { tgname: DECLENCHEUR.nom, tgtype: DECLENCHEUR.type, tgenabled: 'O', tgnargs: 0, colonnes: '', quand: false,
+          definition: `CREATE TRIGGER ${DECLENCHEUR.nom} BEFORE UPDATE ON ${TABLE} FOR EACH ROW EXECUTE FUNCTION ${DECLENCHEUR.fonction}` },
+      ])
+    })
+
+    it('témoin des limites : un nom écrit U&"…" dans le corps échappe aux deux listes de fonctions (d’où la consigne : la partie 1 ne prouve pas l’absence d’une écriture cachée)', async () => {
+      // \0070 est le « p » de pro_team_members : le corps ne contient pas le nom en toutes lettres.
+      await db.exec(`CREATE FUNCTION public.essai_ecrit_cache(c uuid, u uuid) RETURNS void LANGUAGE sql SECURITY DEFINER
+        AS $$ INSERT INTO public.U&"\\0070ro_team_members" (company_id, user_id, email, role) VALUES (c, u, 'cache@exemple.test', 'GERANT') $$`)
+      const r = await sousRole(db, 'authenticated', comptes.gerant, 'SELECT public.essai_ecrit_cache($1, $2)',
+        [comptes.gerant, comptes.etranger])
+      expect(r.erreur).toBeNull()
+      expect(await nombreDeLignes()).toBe(4)
+      const e = await etat()
+      expect([resume(e.fonctions_citant_la_table), e.fonctions_ecrivant_la_table]).toEqual([fonctionsCitantes, null])
+    })
+
+    it('témoin des limites : une valeur par défaut de colonne qui appelle une fonction (ici le rôle, lu dans une table que les clients écrivent) change les insertions du serveur qui omettent la colonne, et la partie 1 reste identique (d’où la consigne)', async () => {
+      const reference = await etat()
+      await poseConsigne()
+      await db.exec(`CREATE FUNCTION public.essai_role_par_defaut() RETURNS text LANGUAGE sql
+        AS $$ SELECT role FROM public.essai_consigne LIMIT 1 $$`)
+      await db.exec(`ALTER TABLE ${TABLE} ALTER COLUMN role SET DEFAULT public.essai_role_par_defaut()`)
+      const invite = await sousRole(db, 'service_role', null,
+        `INSERT INTO ${TABLE} (company_id, email) VALUES ($1, 'defaut@exemple.test') RETURNING role`, [comptes.gerant])
+      expect([invite.erreur, invite.lignes]).toEqual([null, [{ role: 'GERANT' }]])
+      expect(await etat()).toEqual(reference)
     })
 
     it('rejouée par un rôle non propriétaire alors qu’un droit d’écriture a été rendu : erreur visible, rien n’est appliqué', async () => {
