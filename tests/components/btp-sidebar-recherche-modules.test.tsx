@@ -144,10 +144,11 @@ describe('Barre latérale BTP — le menu, hors recherche', () => {
 
   it('portugais : rubriques et bloc Compte traduits', async () => {
     await monter({ isPt: true })
-    for (const rubrique of ['Pilotagem', 'Obras', 'Faturação', 'Finanças', 'Conta']) {
+    for (const rubrique of ['Gestão', 'Obras', 'Faturação', 'Finanças', 'Conta']) {
       expect(screen.getByText(rubrique, { selector: '.v5-sb-sec-t' })).toBeVisible()
     }
-    expect(entree(/Meu perfil$/)).toBeVisible()
+    expect(entree(/O meu perfil$/)).toBeVisible()
+    expect(entree(/Módulos$/)).toBeVisible()
     expect(entree(/Ajuda$/)).toBeVisible()
     expect(screen.getByText('Sair')).toBeVisible()
   })
@@ -409,7 +410,7 @@ describe('Barre latérale BTP — recherche de modules', () => {
     const { champ, navigateTo } = await monter({ isPt: true })
     expect(champ.getAttribute('placeholder')).toBe('Pesquisar um módulo…')
     saisir(champ, 'orcamentos')
-    expect(modulesAffiches()).toEqual(['Orçamentos', 'Orçamentos Fornecedores'])
+    expect(modulesAffiches()).toEqual(['Orçamentos', 'Orçamentos de fornecedores'])
     expect(screen.getByRole('status').textContent).toBe('2 módulos encontrados. Enter para abrir Orçamentos.')
     touche(champ, 'Enter')
     expect(navigateTo).toHaveBeenCalledWith('devis')
@@ -417,7 +418,7 @@ describe('Barre latérale BTP — recherche de modules', () => {
     expect(modulesAffiches()).toEqual(['Contabilidade'])
     expect(screen.getByRole('status').textContent).toBe('1 módulo encontrado. Enter para abrir Contabilidade.')
     saisir(champ, 'módulos')
-    expect(modulesAffiches()).toEqual(['Modules'])
+    expect(modulesAffiches()).toEqual(['Módulos'])
     saisir(champ, 'zzzz')
     expect(screen.getByText('Nenhum módulo encontrado', { selector: 'p' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Ver todos os módulos' })).toBeVisible()
