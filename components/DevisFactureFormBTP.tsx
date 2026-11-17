@@ -1707,10 +1707,15 @@ export default function DevisFactureFormBTP({
       let finalNumber = provisional
       if (!provisional || provisional.toUpperCase().startsWith('BR-')) {
         const sujet = docType === 'facture' ? 'facture' : 'devis'
+        // Les messages détaillés (lib/emission-hors-serveur.ts) sont en français seulement : en portugais, le message
+        // traduit « Impossible de valider… » du formulaire, comme dans DevisSection.
+        const enPortugais = locale === 'pt'
         // Place dans le navigateur vérifiée AVANT de consommer un numéro du serveur : un stockage plein faisait
         // échouer l'enregistrement après coup, et le numéro tiré était perdu (trou dans la série).
         if (!placePourEmettre(`fixit_documents_${artisan.id}`, buildPayload())) {
-          toast.error(messageEmissionArretee(new StockageNavigateurPleinError(), sujet, 'validation'))
+          toast.error(enPortugais
+            ? (docType === 'facture' ? tx('Impossible de valider la facture') : tx('Impossible de valider le devis'))
+            : messageEmissionArretee(new StockageNavigateurPleinError(), sujet, 'validation'))
           return
         }
         docNumberRef.current = '' // purge le provisoire pour forcer le vrai numéro
@@ -1719,7 +1724,7 @@ export default function DevisFactureFormBTP({
         } catch (err) {
           // Serveur muet : aucun numéro attribué, le document reste un brouillon (enregistré par la sauvegarde
           // automatique) et l'utilisateur le lit.
-          const message = messageEmissionArretee(err, sujet, 'validation')
+          const message = enPortugais ? null : messageEmissionArretee(err, sujet, 'validation')
           if (!message) throw err
           toast.error(message)
           return

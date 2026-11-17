@@ -11,9 +11,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
 import type { ArtisanBasic } from '@/lib/devis-types'
 
-const simu = vi.hoisted(() => ({ rpc: vi.fn() }))
+const simu = vi.hoisted(() => ({ rpc: vi.fn(), locale: 'fr' as 'fr' | 'pt' }))
 
-vi.mock('@/lib/i18n/context', async () => (await import('../helpers/mocks-formulaires-devis')).traductions())
+// Langue de l'interface, réglée par test (le formulaire traduit ses textes par tx depuis #735).
+vi.mock('@/lib/i18n/context', () => ({
+  useTranslation: () => ({ t: (cle: string) => cle, locale: simu.locale }),
+  useLocale: () => simu.locale,
+}))
 vi.mock('@/lib/supabase', async () => {
   const base = (await import('../helpers/mocks-formulaires-devis')).supabaseNavigateur()
   return {
@@ -64,6 +68,7 @@ const monter = (onBack = vi.fn()) => {
 }
 
 beforeEach(() => {
+  simu.locale = 'fr'
   localStorage.clear()
   localStorage.setItem(CLE_BROUILLONS, JSON.stringify([BROUILLON]))
   vi.clearAllMocks()
@@ -122,5 +127,43 @@ describe('formulaire BTP — validation sans numéro du serveur', () => {
     expect(emise).toMatchObject({ id: BROUILLON.id, docNumber: `FACT-${ANNEE}-042`, status: 'envoye' })
     expect(lire(CLE_BROUILLONS)).toEqual([])
     expect(toast.success).toHaveBeenCalledWith('Facture validée')
+  })
+})
+
+// Sur /pt, le formulaire est en portugais (#735) : les messages détaillés de la validation, en français seulement,
+// cèdent la place au message traduit du formulaire ; le comportement (brouillon gardé, aucun numéro) est le même.
+describe('formulaire BTP en portugais — validation sans numéro du serveur', () => {
+  const messagesEnFrancais = () => vi.mocked(toast.error).mock.calls.filter(([m]) => /serveur|navigateur|brouillon/i.test(String(m)))
+
+  it('serveur muet : message en portugais, la facture reste un brouillon sans numéro', async () => {
+    simu.locale = 'pt'
+    reseau(() => Promise.reject(new TypeError('Failed to fetch')))
+    simu.rpc.mockResolvedValue({ data: null, error: { message: 'Failed to fetch' } })
+    const onBack = monter()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Validar e guardar' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível validar a fatura'))
+    expect(messagesEnFrancais()).toEqual([])
+    expect(lire(CLE_DOCS)).toEqual([])
+    expect(lire(CLE_BROUILLONS)[0]).toMatchObject({ id: BROUILLON.id, status: 'brouillon' })
+    expect(onBack).not.toHaveBeenCalled()
+  })
+
+  it('stockage du navigateur plein : message en portugais, aucun numéro demandé au serveur', async () => {
+    simu.locale = 'pt'
+    const f = reseau(() => Promise.resolve(new Response(JSON.stringify({ number: `FACT-${ANNEE}-043` }), { status: 200 })))
+    simu.rpc.mockResolvedValue({ data: `FACT-${ANNEE}-043`, error: null })
+    remplirLeStockage()
+    const onBack = monter()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Validar e guardar' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Não foi possível validar a fatura'))
+    expect(messagesEnFrancais()).toEqual([])
+    expect(appelsNumerotation(f)).toEqual([])
+    expect(simu.rpc).not.toHaveBeenCalled()
+    expect(lire(CLE_DOCS)).toEqual([])
+    expect(onBack).not.toHaveBeenCalled()
   })
 })
