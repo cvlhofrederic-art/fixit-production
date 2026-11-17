@@ -85,23 +85,25 @@ import type { AnomalieEnvoiElectronique, VoieNotification } from '@/lib/administ
  *   l'établit pas (avis_a_saisir) ;
  * - J58 (décision de Hugo du 17/11/2026 (J58)) : après un « Échec », une nouvelle tentative sur le même courrier est
  *   refusée : un envoi en échec n'a rien notifié (D. 1967 art. 64, 64-1) ; pour un nouvel envoi, créer un nouveau
- *   courrier (nouveau dépôt). Le refus après « Reçu » est inchangé ; « Reçu en erreur » n'est pas visé (question
- *   ci-dessous).
+ *   courrier (nouveau dépôt). Le refus après « Reçu » est inchangé ; « Reçu en erreur » relève de J66 (ci-dessous).
+ * - J66 (décision de Hugo du 17/11/2026, sur recommandation de Claude) : après « Reçu en erreur », le même courrier ne
+ *   repart pas non plus : avis transmis, la notification est acquise (J57) et aucun nouvel envoi n'est utile ; avis non
+ *   transmis, rien n'est notifié et un nouvel envoi se fait sur un nouveau courrier (J58).
+ * - J57 et J66 : aucun statut de la console ne fait courir le délai : seule la date d'avis saisie sur le courrier compte
+ *   (J50). Le module ne déduit ni date de notification ni délai d'un statut (valeurDuStatut : non_etablie), ni la date
+ *   de dépôt.
  *
  * Non établi :
- * - 🔴 Aucun statut de la console Notifications n'est rattaché par 07_DECISIONS_JURIDIQUES.md à la transmission de
- *   l'avis : « Envoyé OK » peut être le dépôt ou la transmission, « Reçu » la réception ou le téléchargement (qui ne
- *   compte pas), « Reçu en erreur » un refus ou un rejet. Le module ne déduit ni date de notification ni délai d'un
- *   statut (valeurDuStatut : non_etablie), ni la date de dépôt. Pour l'établir : la documentation du prestataire branché
- *   (correspondance entre ses statuts et la preuve de dépôt, l'avis, le téléchargement), puis une décision de Hugo.
+ * - 🔴 Sens de chaque statut de la console Notifications : aucun n'est rattaché par 07_DECISIONS_JURIDIQUES.md à un
+ *   événement précis de l'envoi : « Envoyé OK » peut être le dépôt ou la transmission, « Reçu » la réception ou le
+ *   téléchargement (qui ne compte pas), « Reçu en erreur » un refus ou un rejet. Pour l'établir : la documentation du
+ *   prestataire branché (correspondance entre ses statuts et la preuve de dépôt, l'avis, le téléchargement), puis une
+ *   décision de Hugo.
  * - 🔴 Signature électronique : sa valeur probante n'est pas vérifiée dans 07_DECISIONS_JURIDIQUES.md (textes sur l'écrit
  *   et la signature électroniques, C. civ. art. 1366 et 1367 et règlement (UE) n° 910/2014 dit eIDAS, non lus pour ce
  *   module) ; rien n'en est affirmé (valeurProbante : non_etablie) et la mention « valeur probante eIDAS » de la
  *   démonstration (SignatureElectroniqueModule.tsx, non modifié) n'est pas reprise. « Signé » ne pose pas le statut d'AG
  *   « PV signé » (J2, statut-assemblee.ts) : lien à décider avec Hugo.
- * - J66 (décision de Hugo du 17/11/2026, sur recommandation de Claude) : après « Reçu en erreur », le même courrier ne
- *   repart pas non plus : avis transmis, la notification est acquise (J57) et aucun nouvel envoi n'est utile ; avis non
- *   transmis, rien n'est notifié et un nouvel envoi se fait sur un nouveau courrier (J58).
  * - 🔴 Questions à Hugo : les transitions et les finaux déduits (« Reçu en erreur » final, « Échec » jamais
  *   après « Envoyé OK », « Expiré » sans prolongation, « À relever » avant « Signé » et non l'inverse) sont-ils ceux du
  *   prestataire retenu ? Un envoi abandonné en « Préparation » ne se clôt qu'en passant par « Attente d'envoi » puis
@@ -277,7 +279,7 @@ export const STATUTS_FINAUX_SIGNATURE_ELECTRONIQUE: readonly StatutSignatureElec
   (statut) => REFERENTIEL_SIGNATURE_ELECTRONIQUE[statut].final,
 )
 
-/** Statuts où la console montre un envoi abouti (🔵) : ils ne datent ni le dépôt ni l'avis (🔴, en-tête). */
+/** Statuts où la console montre un envoi abouti (🔵) : ils ne datent ni l'avis (J57, J66) ni le dépôt (🔴, en-tête). */
 export const STATUTS_ENVOI_ABOUTI: ReadonlySet<StatutNotificationElectronique> = new Set<StatutNotificationElectronique>([
   'Envoyé OK',
   'Reçu',
@@ -768,7 +770,7 @@ export interface LectureNotificationElectronique {
   etatCourrier: EtatNotificationCourrier
   /** Transmission de l'avis électronique saisie sur le courrier (J50) ; jamais déduite du statut ; null sans mode. */
   dateAvisElectronique: string | null
-  /** 🔴 Aucun statut de la console ne vaut « notification faite » (en-tête). */
+  /** Aucun statut de la console ne vaut « notification faite » (J57, J66 ; en-tête). */
   valeurDuStatut: 'non_etablie'
   alertes: AlerteEnvoiElectronique[]
 }
@@ -804,7 +806,7 @@ function alertesNotification(
       message:
         envoi.statut === 'Reçu en erreur'
           ? `${enConsole} : vérifier ${SOURCE_AVIS[mode]} si l'avis électronique a été transmis, et ne saisir sa date (controlerAvisElectronique, courriers.ts) sur le courrier ${courrier.id} que si ce justificatif l'établit. Avis transmis, envoi ensuite refusé ou non réclamé : la date de l'avis vaut, le délai court de son lendemain (D. 1967 art. 64, dernier al. ; décision de Hugo du 17/11/2026, J57) ; défaut de transmission de l'avis : aucune date à saisir, le délai ne court pas. Sans cette date, le délai n'est pas calculé (J50).`
-          : `${enConsole} : saisir sur le courrier ${courrier.id} la date de transmission de l'avis électronique (controlerAvisElectronique, courriers.ts), lue ${SOURCE_AVIS[mode]} ; aucun statut de la console ne la donne (🔴) et, sans elle, le délai n'est pas calculé (J50).`,
+          : `${enConsole} : saisir sur le courrier ${courrier.id} la date de transmission de l'avis électronique (controlerAvisElectronique, courriers.ts), lue ${SOURCE_AVIS[mode]} ; aucun statut de la console ne la donne (J57) et, sans elle, le délai n'est pas calculé (J50).`,
     })
   if (avis && !abouti)
     alertes.push({

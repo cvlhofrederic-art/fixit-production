@@ -233,13 +233,10 @@ import { reglementsDeLOperation, type OperationTravaux } from '@/lib/administrat
  * (le 401 crédité du TTC, puis 401 → 47200), retenueGarantieCentimes d'echeanceReglement (reste dû net de retenue ; sans
  * retenue, résultat inchangé) ; travaux-operations.ts — retenueGarantie refuse un taux non fini ou à plus de deux
  * décimales et borne l'arrondi au plafond (signature, sortie et date de libération inchangées), son en-tête renvoie à ce
- * module.
- * Branchements à faire hors de ce module (fichiers non modifiés) : suivi-a-faire.ts — nature « liberation_garantie » de
- * la famille travaux (NATURES_SUIVI, LIBELLES_NATURES_SUIVI, listes figées par suivi-a-faire-familles.test.ts) et
- * adaptateur depuisRetenuesGarantie qui rend echeancesLiberationGarantie (ses éléments sont déjà au format ElementAFaire,
- * hors nature), et son en-tête, qui range encore la libération « sans source » (« 🔴 à confirmer dans
- * travaux-operations.ts ») ; FactureSuivie complétée de retenueGarantieCentimes pour que depuisFactures passe la retenue
- * à echeanceReglement ; statuts-facture.ts — l'appelant qui calcule FactureAPayer.resteDuCentimes passe aussi la
+ * module ; suivi-a-faire.ts — nature « liberation_garantie » de la famille travaux et adaptateur depuisRetenuesGarantie,
+ * qui rend echeancesLiberationGarantie (branchement fait le 17/11/2026).
+ * Branchements à faire hors de ce module (fichiers non modifiés) : suivi-a-faire.ts — FactureSuivie complétée de
+ * retenueGarantieCentimes pour que depuisFactures passe la retenue à echeanceReglement ; statuts-facture.ts — l'appelant qui calcule FactureAPayer.resteDuCentimes passe aussi la
  * retenue, et passe alors baseRetourApresRejet (TTC − retenue) en totalTtcCentimes de retourFactureApresRejet : le réglé
  * déduit y est TTC − retenue − reste dû (avec le TTC brut, le rejet d'un virement net laisserait « Rgt. partiel » sans
  * rien de réglé et admettrait un rejet supérieur au virement) ; à défaut, un paramètre retenueGarantieCentimes dans
@@ -1130,8 +1127,8 @@ export function baseRetourApresRejet({
 // ─── Échéance de libération (suivi « à faire ») ──────────────────────────────────────────────
 
 /**
- * Élément du suivi « à faire », au format ElementAFaire, sous la nature à ajouter à suivi-a-faire.ts (comme
- * RelanceOsAFaire d'envoi-ordre-service.ts).
+ * Élément du suivi « à faire », au format ElementAFaire, sous la nature « liberation_garantie » de suivi-a-faire.ts (comme
+ * RelanceOsAFaire d'envoi-ordre-service.ts), rendu par depuisRetenuesGarantie.
  */
 export type EcheanceLiberationGarantie = Omit<ElementAFaire, 'famille' | 'nature'> & { famille: 'travaux'; nature: 'liberation_garantie' }
 
@@ -1166,7 +1163,7 @@ const mentionSaisiesEcartees = ({ resteRetenuFaussePar }: SuiviRetenueMarche): s
  * opposition en cours, l'élément reste, « sous opposition depuis le … », jusqu'à la mainlevée ; une saisie écartée qui
  * fausse le reste retenu est rappelée au libellé (libération suspendue jusqu'à sa correction). `aConfirmer` : le jour
  * exact du délai est 🔴 (la variante du lendemain figure au libellé). La clé et la fiche d'origine portent le syndicat
- * (D1), comme depuisOperationsTravaux. Branchement : suivi-a-faire.ts (non modifié).
+ * (D1), comme depuisOperationsTravaux. Branchement : suivi-a-faire.depuisRetenuesGarantie.
  */
 export function echeancesLiberationGarantie(items: readonly { mandatId: string; suivi: SuiviRetenueMarche }[]): EcheanceLiberationGarantie[] {
   return items.flatMap(({ mandatId, suivi }): EcheanceLiberationGarantie[] => {

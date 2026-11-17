@@ -81,7 +81,7 @@ import {
  *   D. 1967 art. 61-1-5, I, 2°) s'applique opération par opération. Chaque opération a son propre calcul par tranches
  *   (droitProportionnelTravauxAdministrateurProvisoire, sur le montant hors taxes d'une seule opération) ; le droit de
  *   plusieurs opérations est la somme de leurs droits (droitsProportionnelsTravauxParOperation), jamais le barème appliqué
- *   au cumul de leurs montants. La question 🔴 « opération par opération, ou une seule fois au montant total » est
+ *   au cumul de leurs montants. La question « opération par opération, ou une seule fois au montant total » est
  *   tranchée ; l'assiette et la présentation au juge, restées ouvertes, sont tranchées par J55 (ci-dessous).
  *
  * Décisions de Hugo du 17/11/2026 (numéro de registre proposé : J55, suite de J39 ; notes DECISIONS-HUGO-2026-11-17.md,

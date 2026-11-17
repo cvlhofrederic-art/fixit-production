@@ -413,12 +413,35 @@ describe('règlement — prélèvement, virement, chèque', () => {
       compteDe(contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-A', mode }, { compteId: 'cpt-B', mode: 'Virement' }] })), 'cpt-A')
     expect(avec('Chèque').instructions).toEqual({ mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)', adresseEnvoi: '12 rue des Tilleuls, 13001 Marseille', reference: 'TILL.45000.00001.0' })
     expect(codes(avec('TIP'))).toContain('mode_non_pris_en_charge')
-    expect(codes(avec('Espèces'))).toContain('mode_non_pris_en_charge')
     expect(avec('Pas de règlement').anomalies).toContainEqual(expect.objectContaining({ code: 'reglement_attendu', gravite: 'avertissement' }))
     const sans = compteDe(contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-B', mode: 'Virement' }] })), 'cpt-A')
     expect(sans.modeReglement).toBeNull()
     expect(sans.anomalies).toContainEqual(expect.objectContaining({ code: 'reglement_absent', gravite: 'bloquant' }))
     expect(() => contenuAvisAppel(avis, options({ reglements: [...reglements(), { compteId: 'cpt-A', mode: 'Chèque' }] }))).toThrow(/double/i)
+  })
+
+  it('espèces (J25, J29) : l’avis n’invite jamais à payer en espèces ; règlement hors prélèvement, avertissement « especes_refusees »', () => {
+    const avec = (o: Partial<OptionsContenuAvis> = {}) =>
+      compteDe(contenuAvisAppel(avis, options({ reglements: [{ compteId: 'cpt-A', mode: 'Espèces' }, { compteId: 'cpt-B', mode: 'Virement' }], ...o })), 'cpt-A')
+    const especes = avec()
+    expect(especes.modeReglement).toBe('Virement')
+    expect(especes.instructions).toEqual({ mode: 'Virement', beneficiaire: 'SDC Les Tilleuls (fictif)', iban: 'FR1420041010050500013M02606', reference: 'TILL.45000.00001.0' })
+    expect(codes(especes)).not.toContain('mode_non_pris_en_charge')
+    const refus = especes.anomalies.filter((a) => a.code === 'especes_refusees')
+    expect(refus).toEqual([expect.objectContaining({ gravite: 'avertissement', fondement: null })])
+    expect(refus[0].message).toMatch(/aucun encaissement en espèces.*compte 53.*J25, J29/)
+    expect(refus[0].message).toMatch(/l'avis indique le règlement par virement à SDC Les Tilleuls \(fictif\)/)
+    expect(refus[0].message).toMatch(/changer le mode de règlement du compte/)
+    // sans IBAN valide du syndicat : chèque, jamais les espèces ; l'avis part (aucun blocage)
+    const sansIban = avec({ ibanSyndicat: null })
+    expect(sansIban.modeReglement).toBe('Chèque')
+    expect(sansIban.instructions).toMatchObject({ mode: 'Chèque', ordre: 'SDC Les Tilleuls (fictif)' })
+    expect(bloquantsDe(sansIban)).toEqual([])
+    // en-tête : les espèces ne sont plus une question ouverte ; le TIP le reste
+    const { texte, item } = enTeteDuModule('avis-appel')
+    expect(texte).not.toContain('TIP et espèces')
+    expect(texte).toMatch(/- TIP : signalé, sans instructions/)
+    expect(item('- J25 et J29')).toMatch(/instructionsHorsPrelevement.*especes_refusees/)
   })
 
   it('cotisations au fonds de travaux appelées : information de virement vers le compte séparé (L. 1965 art. 18, II)', () => {

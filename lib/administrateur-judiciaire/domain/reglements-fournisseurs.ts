@@ -60,9 +60,9 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   fusion ni compensation ;
  * - C. civ. art. 1342-2 : « le paiement doit être fait au créancier ou à la personne désignée pour le recevoir » →
  *   bénéficiaire typé, pas un texte libre ;
- * - L. 1965 art. 23, al. 2 (version en vigueur depuis le 01/06/2020, ord. n° 2019-1101 ; relu le 30/10/2026) : « En cas
- *   d'indivision, les indivisaires sont représentés par un mandataire commun qui est, à défaut d'accord, désigné par le
- *   président du tribunal judiciaire saisi par l'un d'entre eux ou par le syndic » ; al. 4 : la désignation judiciaire
+ * - L. 1965 art. 23, al. 2 (version en vigueur depuis le 01/06/2020, ord. n° 2019-1101 ; relu le 30/10/2026 et le
+ *   17/11/2026) : « En cas d'indivision, les indivisaires sont représentés par un mandataire commun qui est, à défaut
+ *   d'accord, désigné par le président du tribunal judiciaire saisi par l'un d'entre eux ou par le syndic » ; al. 4 : la désignation judiciaire
  *   est aux frais des indivisaires ;
  * - aucun des textes lus ne fixe de cycle de statuts pour un règlement : le cycle est une règle de GESTION (Gestéam).
  * 🔵 Déduit :
@@ -112,15 +112,22 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   rapprocherReglements lit un virement rejeté comme payé, pour ne pas signaler le pointage de sa sortie, puis lui rend
  *   « Annulé », sauf à une date (aLaDate) antérieure au rejet : il garde alors le statut propagé à cette date.
  * Décision J10 de Hugo du 30/10/2026 — bénéficiaire indivisaire : le règlement va au mandataire commun des indivisaires
- * (L. 1965 art. 23, al. 2) ; un règlement à un indivisaire n'est admis que s'il est le mandataire commun désigné ; sans
- * mandataire désigné, il est refusé (controlerBeneficiaireIndivisaire).
+ * (L. 1965 art. 23, al. 2) ; un règlement à l'indivision n'est admis qu'au mandataire commun désigné, indivisaire ou non
+ * (tiers désigné par le président du tribunal judiciaire, L. 1965 art. 23, al. 2 : ni J10 ni le texte n'exigent qu'il
+ * soit indivisaire) ; sans mandataire désigné, il est refusé (controlerBeneficiaireIndivisaire).
  * 🔵 Déduit pour J10 :
  * - l'art. 23, al. 2 fait représenter les indivisaires par le mandataire commun sans viser le paiement ; la décision en
  *   fait la « personne désignée pour le recevoir » (C. civ. art. 1342-2) ;
  * - le mandataire est porté par le compte copropriétaire débité (identites-positions.ts, mandataireCommunId : un compte,
- *   une indivision, un mandataire), donnée facultative et non indexée ; le bénéficiaire doit à la fois tenir une
- *   position « Indivisaire » en place sur ce compte (D2) et en être le mandataire ; les deux défauts se cumulent, chacun
- *   bloquant.
+ *   une indivision, un mandataire), donnée facultative et non indexée ; le bénéficiaire doit être ce mandataire ; le
+ *   tiers désigné, qui n'a aucune position « Indivisaire » sur ce compte, n'a pas de position à tenir (J10 appliquée le
+ *   17/11/2026 ; lecture de Claude, à confirmer par Hugo) ; un autre bénéficiaire est refusé et sa position
+ *   « Indivisaire » en place sur ce compte reste contrôlée (D2) : les deux défauts se cumulent, chacun bloquant ;
+ * - la désignation n'étant pas datée, la position reste le seul signal d'un mandataire périmé (relecture du 17/11/2026) :
+ *   le mandataire désigné qui a tenu une position « Indivisaire » sur ce compte et n'en tient plus aucune en place à la
+ *   date (part cédée) est refusé (mandataire_commun_position_sortie) ; sans aucun indivisaire en place sur le compte à
+ *   la date, l'indivision a pu prendre fin : refus (indivision_sans_indivisaire_en_place) ; dans les deux cas, vérifier
+ *   que la désignation vaut encore.
  * Décision J25 de Hugo du 03/11/2026 — aucun paiement en espèces, ni des salaires ni des fournisseurs ; le compte 53
  * « Caisse » n'est pas tenu. Le refus du mode « Espèces » devient une décision du cabinet, et non plus un choix
  * provisoire de VitFix : un tel paiement sortirait du compte 53 et non d'un 512 (arrêté du 14 mars 2005, art. 3 et 7),
@@ -144,10 +151,9 @@ import { MODE_REGLEMENT, type ModeReglement } from '@/lib/data/referentiels-gest
  *   « Annulé », ou reste-t-il « Enregistré » imputé avec un renvoi vers l'annulation, et la facture qu'il réglait
  *   quitte-t-elle « Réglée » ?
  * - créances nées avant la désignation (L. 1965 art. 29-3, I et II : suspension de l'exigibilité) : aucun blocage ici ;
- * - J10, mandataire commun qui n'est pas lui-même indivisaire (tiers désigné par le juge, par exemple) : aucun type de
- *   bénéficiaire ne le porte, un règlement à l'indivision est alors impossible ici ;
  * - J10, désignation non datée : le mandataire porté sur le compte vaut à la date du contrôle, sans historique des
- *   mandataires successifs ;
+ *   mandataires successifs ; gravité de ces deux refus (bloquants par prudence) à confirmer par Hugo : bloquer, ou
+ *   seulement avertir ;
  * - bénéficiaire « copropriétaire » d'un compte détenu en indivision ou en démembrement (L. 1965 art. 23, al. 2, 3 et 5) :
  *   non contrôlé, le règlement ne nomme personne ; J10 ne vise que le type « indivisaire » ;
  * - remboursement de solde (copropriétaire, indivisaire) dans ce même objet, ou dans un objet frère ;
@@ -248,6 +254,8 @@ export type CodeAnomalieReglement =
   | 'indivisaire_sans_position'
   | 'indivisaire_sans_mandataire_commun'
   | 'indivisaire_non_mandataire_commun'
+  | 'mandataire_commun_position_sortie'
+  | 'indivision_sans_indivisaire_en_place'
 
 export interface AnomalieReglement {
   code: CodeAnomalieReglement
@@ -852,10 +860,46 @@ function anomalieMandataireCommun(
 }
 
 /**
- * Bénéficiaire indivisaire (décision J10) : l'identité doit tenir une position « Indivisaire » en place à la date sur le
- * compte débité (D2) et être le mandataire commun désigné sur ce compte (L. 1965 art. 23, al. 2). Sans mandataire
- * désigné, ou réglé à un autre indivisaire : refusé. Anomalies bloquantes, cumulées. Le compte débité doit figurer parmi
- * `comptes` (il porte le mandataire). Sans objet pour un autre bénéficiaire.
+ * Mandataire commun désigné (J10) : dispensé de position s'il n'a jamais tenu de position « Indivisaire » sur le compte
+ * débité (tiers désigné, L. 1965 art. 23, al. 2). La désignation n'étant pas datée, la position reste le seul signal d'un
+ * mandataire périmé (relecture du 17/11/2026) : sa position d'indivisaire sur ce compte n'est pas en place à la date, ou
+ * aucun indivisaire n'y est en place : refus, désignation à vérifier (gravité à confirmer par Hugo).
+ */
+function anomalieMandataireDesigne(r: ReglementFournisseur, b: BeneficiaireIndivisaire, positions: Position[], date: string): AnomalieReglement[] {
+  const duCompte = positions.filter((p) => p.compteId === b.compteCoproprietaireId && p.qualite === 'Indivisaire')
+  const siennes = duCompte.filter((p) => p.identiteId === b.identiteId)
+  const enPlace = (p: Position): boolean => statutPositionA(p, date) === 'En place'
+  if (siennes.length > 0 && !siennes.some(enPlace)) {
+    const sortie = siennes
+      .map((p) => p.dateSortie)
+      .filter((d): d is string => d !== null && d <= date)
+      .reduce<string | null>((plusTardive, d) => (plusTardive === null || d > plusTardive ? d : plusTardive), null)
+    return [
+      {
+        code: 'mandataire_commun_position_sortie',
+        message: `Règlement ${r.id} refusé : l'identité ${b.identiteId}, mandataire commun désigné sur le compte ${b.compteCoproprietaireId}, n'y est pas indivisaire en place le ${date} (${sortie === null ? 'position future' : `position sortie le ${sortie}`}) ; la désignation n'est pas datée : vérifier que la désignation vaut encore, puis mettre à jour le mandataire porté sur le compte.`,
+        fondement: FONDEMENT_MANDATAIRE_COMMUN,
+      },
+    ]
+  }
+  if (duCompte.some(enPlace)) return []
+  return [
+    {
+      code: 'indivision_sans_indivisaire_en_place',
+      message: `Règlement ${r.id} refusé : aucun indivisaire en place le ${date} sur le compte ${b.compteCoproprietaireId} ; l'indivision a pu prendre fin : vérifier que la désignation vaut encore (mandataire commun désigné : ${b.identiteId}), ou mettre à jour les positions du compte.`,
+      fondement: FONDEMENT_MANDATAIRE_COMMUN,
+    },
+  ]
+}
+
+/**
+ * Bénéficiaire indivisaire (décision J10) : l'identité doit être le mandataire commun désigné sur le compte débité
+ * (L. 1965 art. 23, al. 2), indivisaire ou non : le tiers désigné par le président du tribunal judiciaire n'a pas de
+ * position à tenir ; un mandataire dont la position d'indivisaire sur ce compte n'est plus en place, ou un compte sans
+ * indivisaire en place, est refusé (anomalieMandataireDesigne). Sans mandataire désigné, ou réglé à une autre identité :
+ * refusé, et la position « Indivisaire » en place à la date sur ce compte (D2) reste contrôlée. Anomalies bloquantes,
+ * cumulées. Le compte débité doit figurer parmi `comptes` (il porte le mandataire). Sans objet pour un autre
+ * bénéficiaire.
  */
 export function controlerBeneficiaireIndivisaire(
   r: ReglementFournisseur,
@@ -869,7 +913,9 @@ export function controlerBeneficiaireIndivisaire(
   const compte = comptes.find((c) => c.id === b.compteCoproprietaireId)
   if (!compte)
     throw new Error(`Règlement ${r.id} : compte débité ${b.compteCoproprietaireId} non fourni ; il porte le mandataire commun des indivisaires (J10).`)
-  return [...anomaliePositionIndivisaire(r, b, positions, date), ...anomalieMandataireCommun(r, b, compte)]
+  const auMandataire = anomalieMandataireCommun(r, b, compte)
+  if (auMandataire.length === 0) return anomalieMandataireDesigne(r, b, positions, date)
+  return [...anomaliePositionIndivisaire(r, b, positions, date), ...auMandataire]
 }
 
 // ─── Rapprochement ──────────────────────────────────────────────────────────────────────────

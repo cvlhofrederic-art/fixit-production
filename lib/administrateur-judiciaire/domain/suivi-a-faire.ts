@@ -64,6 +64,7 @@ import {
   etatPartFondsTravaux,
   type OperationTravaux,
 } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
+import { echeancesLiberationGarantie, type SuiviRetenueMarche } from '@/lib/administrateur-judiciaire/domain/travaux-retenue-garantie'
 import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/referentiels-gesteam-judiciaire'
 
 /**
@@ -105,7 +106,11 @@ import type { StatutAssemblee, StatutContrat, TypeContrat } from '@/lib/data/ref
  * aucun texte de la loi de 1965 ni du décret de 1967 (relevé du 03/11/2026). Critère « En cours » des deux blocs : non
  * codé (🔴 date et demandes visées à préciser par Hugo).
  * Sans source dans VitFix à ce jour, donc sans adaptateur : courriers à relancer, mouvement crédit d'un contentieux,
- * mémos, tickets d'appel, agenda ; libération de la retenue de garantie (🔴 à confirmer dans travaux-operations.ts).
+ * mémos, tickets d'appel, agenda.
+ * 🔵 Travaux (point 32, travaux-retenue-garantie.ts) : libération de la garantie (retenue ou caution) à l'expiration du
+ * délai d'un an depuis la réception (loi n° 71-584, art. 2) ; adaptateur depuisRetenuesGarantie, qui rend
+ * echeancesLiberationGarantie sans la recalculer ; échéance au même quantième un an après la réception (J67, R63 ; code
+ * gardé) ; aConfirmer gardé, comme R63 le demande.
  * Source disponible, adaptateur à écrire : factures en attente de bon à payer (statuts-facture.ts).
  * 🔵 Statut du mandat (point 55, statut-mandat.ts ; Gestéam tranche 41) : un mandat Prospect ou Archivé sort du
  * portefeuille, du suivi « à faire » (même désigné ou suivi sur tout le cabinet), des demandes en cours d'une entreprise
@@ -149,7 +154,7 @@ export const NATURES_SUIVI = {
   etapes: ['a_faire', 'a_valider', 'automatique_non_realisee'],
   taches: ['tache'],
   demandes: ['devis_a_relancer', 'intervention_a_relancer', 'relance_os', 'plafond_demandes'],
-  travaux: ['fonds_a_appeler'],
+  travaux: ['fonds_a_appeler', 'liberation_garantie'],
   contrats: ['limite_resiliation', 'a_resilier', 'mise_en_concurrence', 'facture_attendue'],
   factures: ['reglement'],
   sinistres: ['a_declarer', 'prescription', 'indemnite_differee'],
@@ -191,6 +196,7 @@ export const LIBELLES_NATURES_SUIVI: Record<NatureSuivi, string> = {
   relance_os: "Relance datée de l'ordre de service",
   plafond_demandes: "Demandes en cours au-delà du seuil de l'entreprise",
   fonds_a_appeler: 'Fonds à appeler',
+  liberation_garantie: 'Libération de la garantie',
   limite_resiliation: 'Limite de résiliation',
   a_resilier: 'À résilier',
   mise_en_concurrence: 'Mise en concurrence',
@@ -682,6 +688,15 @@ export function depuisOperationsTravaux(
       )
   })
 }
+
+/**
+ * Libération de la garantie d'un marché de travaux (point 32, travaux-retenue-garantie.echeancesLiberationGarantie) : à
+ * l'expiration du délai d'un an depuis la réception, une retenue tant qu'il en reste à restituer, une caution jusqu'à
+ * l'expiration ; sous opposition, jusqu'à la mainlevée. Les éléments sont rendus tels que le module les calcule
+ * (échéance au même quantième un an après la réception, J67, R63 ; `aConfirmer` gardé, comme R63 le demande).
+ */
+export const depuisRetenuesGarantie = (items: readonly { mandatId: string; suivi: SuiviRetenueMarche }[]): ElementAFaire[] =>
+  echeancesLiberationGarantie(items)
 
 export interface ContratSuivi {
   id: string

@@ -76,6 +76,9 @@ import {
  * - avant d'attribuer une demande à une entreprise (controlerPlafondAvantAttribution) : alerte, jamais bloquante, quand
  *   elle porterait ses demandes en cours au-delà du seuil d'alerte ou du maximum.
  *
+ * Décision J13 de Hugo (03/11/2026) : la relance vise aussi l'« Accusé demandé » et le « Rapport demandé » tant qu'ils ne
+ * sont pas reçus (STATUTS_ATTENTE_ENTREPRISE ; même règle pour l'ordre de service, envoi-ordre-service.ts).
+ *
  * 🔴 Non établi — questions :
  * - Frédéric : valeurs par défaut de nouvelleFicheEntreprise (devis : 8 jours, 5, 4 ; interventions : 3 jours, 10, 8),
  *   non relevées dans Gestéam (tranche 39) : les garder comme réglages du cabinet ? Elles déclenchent ici les relances de
@@ -90,8 +93,6 @@ import {
  *   (ici) ? Une intervention réalisée en attente de sa facture, ou facturée mais non terminée, compte-t-elle (oui ici) ?
  * - Hugo : critère « En cours » des blocs « Dem. interv. » et « Demandes devis » du Suivi : quelles demandes, à quelle
  *   date (prévu le ?) — non codé.
- * - Hugo : la relance vise-t-elle aussi l'accusé et le rapport demandés (oui ici : statuts « Accusé demandé » et
- *   « Rapport demandé ») ? (question déjà posée au point 44)
  * - Hugo : pendant les stades « Proposition en cours » et « Proposition résident », la relance de l'entreprise court-elle
  *   (oui ici), ou la réponse attendue est-elle celle du résident ou du cabinet ? (le référentiel STADE_INTERVENTION note
  *   que « Proposition résident » intègre le résident au circuit ; demandes.ts demande déjà à quelle étape ces stades

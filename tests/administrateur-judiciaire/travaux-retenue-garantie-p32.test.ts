@@ -14,6 +14,7 @@ import {
 import { formatEurosCentimes } from '@/lib/administrateur-judiciaire/domain/format'
 import type { ReglementFournisseur, StatutReglementFournisseur } from '@/lib/administrateur-judiciaire/domain/reglements-fournisseurs'
 import { retourFactureApresRejet, type FactureAPayer } from '@/lib/administrateur-judiciaire/domain/statuts-facture'
+import { depuisRetenuesGarantie, reglageParDefaut, selectionnerAFaire } from '@/lib/administrateur-judiciaire/domain/suivi-a-faire'
 import { creerOperationTravaux, retenueGarantie } from '@/lib/administrateur-judiciaire/domain/travaux-operations'
 import {
   baseRetourApresRejet,
@@ -416,6 +417,20 @@ describe('libération de la retenue', () => {
 
 describe('échéance de libération pour le suivi « à faire »', () => {
   const sources = { factures: FACTURES, consignations: [CONSIGNATION] }
+
+  it('branchée au suivi « à faire » : depuisRetenuesGarantie rend ces échéances, retenues par le réglage par défaut (famille travaux)', () => {
+    const items = [{ mandatId: 'mandat-1', suivi: suiviRetenueMarche(marche(), sources, '2027-11-04') }]
+    const elements = depuisRetenuesGarantie(items)
+    expect(elements).toEqual(echeancesLiberationGarantie(items))
+    const affectations = [{ mandatId: 'mandat-1', cabinetId: null, responsableId: 'u1', comptableId: null, assistantId: null }]
+    expect(selectionnerAFaire(elements, reglageParDefaut('u1'), affectations, '2028-03-15').map((e) => [e.id, e.nature, e.aConfirmer])).toEqual([
+      ['travaux:copro-tilleuls:m1:liberation_garantie', 'liberation_garantie', true],
+    ])
+    expect(selectionnerAFaire(elements, reglageParDefaut('u1'), affectations, '2028-03-14')).toEqual([])
+    const { texte } = enTeteDuModule('travaux-retenue-garantie')
+    expect(texte).not.toContain('qui range encore la libération « sans source »')
+    expect(texte).toContain('adaptateur depuisRetenuesGarantie, qui rend echeancesLiberationGarantie (branchement fait le 17/11/2026)')
+  })
 
   it('au format ElementAFaire : famille travaux, à l’expiration du délai, clé et fiche au syndicat (D1), délai lu', () => {
     const [element] = echeancesLiberationGarantie([{ mandatId: 'mandat-1', suivi: suiviRetenueMarche(marche(), sources, '2027-11-04') }])

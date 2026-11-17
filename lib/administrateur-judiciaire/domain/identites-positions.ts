@@ -31,12 +31,15 @@ import { GROUPE_IDENTITE, QUALITE_IDENTITE, type GroupeIdentite } from '@/lib/da
  *   signale qu'elle est échue.
  * - Groupes bornés par GROUPE_IDENTITE ; représentant légal daté, réservé à la personne morale (plusieurs co-gérants
  *   possibles) ; participations DÉRIVÉES des positions (D2 : la part est portée par la position), sans entité.
+ * 🟢 Adresse électronique de notification datée : voie-notification.ts (CommunicationAdresseElectronique, reçue le
+ * communiqueeLe ; adresseElectroniqueDeNotification retient la dernière reçue à la date), appelée par avis-appel.ts ; les
+ * télécoms (Telecom) restent sans date, voulu : l'adresse de notification n'est pas un simple télécom ; contrôle avant
+ * envoi : controlerAvantEnvoiElectronique (voie-notification.ts), écrit et testé, à brancher par l'appelant de
+ * creerEnvoiNotificationElectronique (anomaliesAvantEnvoi).
  * 🔴 Non établi : portée de « à cet effet » (toute adresse connue du syndic vaut-elle ?) — l'usage de l'adresse reste
  * libre, valeurs Gestéam non relevées ; choix du jeu de coordonnées par compte ou par syndicat (dans Gestéam, la fiche
- * client désigne son jeu de coordonnées ; ici, l'adresse vaut pour l'identité entière) ; adresse électronique datée
- * (les télécoms ne le sont pas ; voir le point 60) ; parts sociales d'un
- * associé de SCI qui n'est pas lui-même titulaire d'une position (hors champ). Le contrôle avant envoi électronique
- * (prénom, personne morale sans représentant) relève du point 60.
+ * client désigne son jeu de coordonnées ; ici, l'adresse vaut pour l'identité entière) ; parts sociales d'un associé de
+ * SCI qui n'est pas lui-même titulaire d'une position (hors champ).
  */
 
 const QUALITES_COPROPRIETE = QUALITE_IDENTITE.copropriete

@@ -52,12 +52,13 @@ import {
  * réception + 15 jours, avertissement si elle tombe un jour non ouvrable (report non établi) ; attestation de non-recours
  * délivrable sans opposant ni défaillant.
  * 🔴 Non établi : PV de carence et attestation de non-recours n'ont pas de texte propre (pratiques) ; la variante
- * « débiteur » du certificat 2° de Gestéam n'a pas de base (le texte ne prévoit pas de certificat négatif) ; la forme
- * électronique qualifiée (LRE) et la remise contre émargement manquent au référentiel des formes d'envoi : « AR » reste
- * le défaut des notifications (le mode de notification propre à VitFix, modeNotification de courriers.ts, porte la LRE
- * et le prestataire qualifié depuis J50, ci-dessous) ; rubriques du modèle annexé à l'arrêté du 2 juillet 2020 non
- * relevées ; D. 1967 art. 11 (pièces jointes à la convocation) non relu ; portée du protocole d'apurement hors
- * administration provisoire de l'art. 29-1 (simple accord de délais).
+ * « débiteur » du certificat 2° de Gestéam n'a pas de base (le texte ne prévoit pas de certificat négatif) ; rubriques du
+ * modèle annexé à l'arrêté du 2 juillet 2020 non relevées ; D. 1967 art. 11 (pièces jointes à la convocation) non relu ;
+ * portée du protocole d'apurement hors administration provisoire de l'art. 29-1 (simple accord de délais).
+ * Formes d'envoi : liste Gestéam inchangée ; mode de notification propre à VitFix (J50) ; remise contre émargement :
+ * option de l'appelant (remiseContreEmargement), admise pour la convocation seulement (remiseContreEmargementAdmise), le
+ * texte la limitant aux convocations et à l'avis de l'art. 59 (D. 1967 art. 64-3). « AR » reste le défaut des
+ * notifications ; le mode (modeNotification de courriers.ts) porte la LRE et le prestataire qualifié (ci-dessous).
  *
  * Décisions de Hugo du 11/11/2026 (registre des décisions juridiques : J50, « Oui, calcul électronique » ; notes
  * decisions-1111/questions-hugo.md et j50-textes.md, textes lus sur Légifrance le 11/11/2026) : sous voie électronique, une

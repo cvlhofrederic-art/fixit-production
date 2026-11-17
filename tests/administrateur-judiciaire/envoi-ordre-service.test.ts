@@ -2681,13 +2681,16 @@ describe('en-tête du module', () => {
       'valeurs de la liste Signature',
       // J61 (17/11/2026, suite) : la date du segment plan est celle du premier envoi
       'Hugo (suite de J56)',
+      // J16 (03/11/2026) : un délai « prioritaire » ne vaut pas urgence
+      'un délai « prioritaire » peut-il valoir urgence',
     ])
       expect(questions).not.toContain(tranchee)
+    expect(deduit).toContain('un délai « prioritaire » ne vaut pas urgence, même constatée (décision J16 du 03/11/2026)')
+    expect(deduit).not.toContain('choix gardé, non contredit par Hugo')
     for (const ouverte of [
       'devisExigesParAssemblee',
       'Hugo (suite de la décision 6)',
       'critère proposé (entretien courant',
-      'un délai « prioritaire » peut-il valoir urgence',
       // restes des décisions 8 et 9
       "l'auteur du constat d'urgence doit-il être un signataire habilité",
       'Hugo, preuve (suite de la décision 9)',
