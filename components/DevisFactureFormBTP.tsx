@@ -42,7 +42,7 @@ import {
 import { buildDocumentLines } from '@/lib/devis-totals'
 import { generateDevisPdfV3 } from '@/lib/pdf/devis-pdf-v3'
 import type { PdfV3Photo } from '@/lib/pdf/devis-pdf-v3'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import { getDecennaleEligibility } from '@/lib/decennale-eligibility'
 import {
   sumMoney,
@@ -2012,7 +2012,7 @@ export default function DevisFactureFormBTP({
           rm: companyRCS || undefined,
           rc_pro: insuranceNumber || undefined,
         } : null,
-        // Modèle propre à la société (Provence Pro uniquement) ; sinon modèle BTP par défaut
+        // Modèle propre à la société (Provence Pro, Method Soluções) ; sinon modèle BTP par défaut
         modele: modeleDocumentSociete(artisan?.id),
         ptFiscalData: null,
         svgToImageDataUrl,

@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { generateDevisPdfV3, type PdfV3Input } from '@/lib/pdf/devis-pdf-v3'
-import { modeleDocumentSociete } from '@/lib/pdf/modele-provence-pro'
+import { modeleDocumentSociete } from '@/lib/pdf/modeles-societes'
 import {
   LOGO_PROVENCE_PRO_CHEMINS,
   LOGO_PROVENCE_PRO_HAUT_PT,
