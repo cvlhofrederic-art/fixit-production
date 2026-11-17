@@ -100,7 +100,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
       {/* Header */}
       <div className={isV5 ? 'v5-pg-t' : 'v22-page-header'} style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
-          <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras / Chantiers' : 'Chantiers'}</h1>
+          <h1 className={isV5 ? undefined : "v22-page-title"}><HardHat size={20} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {isPt ? 'Obras' : 'Chantiers'}</h1>
           <p className={isV5 ? undefined : "v22-page-sub"}>{isPt ? `${chantiers.length} obra(s) registada(s)` : `${chantiers.length} chantier(s) enregistré(s)`}</p>
         </div>
         <button className={isV5 ? "v5-btn v5-btn-p" : "v22-btn v22-btn-action"} onClick={() => setShowModal(true)}><PlusCircle size={14} /> {isPt ? 'Nova obra' : 'Nouveau chantier'}</button>
@@ -195,7 +195,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
             <div className={isV5 ? undefined : 'v22-card-body'} style={{ display: 'flex', flexDirection: 'column', gap: 14, ...(isV5 ? { padding: '1rem 1.25rem' } : {}) }}>
               <div className={isV5 ? 'v5-fg' : undefined}>
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Nome da obra *' : 'Titre du chantier *'}</label>
-                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={isPt ? 'ex: Immeuble R+3 — Gros œuvre' : 'ex: Immeuble R+3 — Gros œuvre'} />
+                <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.titre} onChange={e => setForm({...form, titre: e.target.value})} placeholder={isPt ? 'ex.: Edifício R/C+3, estrutura' : 'ex: Immeuble R+3 — Gros œuvre'} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div className={isV5 ? 'v5-fg' : undefined}>
@@ -203,7 +203,7 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
                   <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.client} onChange={e => setForm({...form, client: e.target.value})} placeholder={isPt ? 'Nome do cliente' : 'Nom du client'} />
                 </div>
                 <div className={isV5 ? 'v5-fg' : undefined}>
-                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>Budget HT (&euro;)</label>
+                  <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Valor s/ IVA (€)' : 'Budget HT (€)'}</label>
                   <input type="number" className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.budget} onChange={e => setForm({...form, budget: e.target.value})} placeholder="0" />
                 </div>
               </div>
@@ -214,11 +214,11 @@ export function ChantiersBTPSection({ artisan, bookings, orgRole }: { artisan: A
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 }}>
                 <div className={isV5 ? 'v5-fg' : undefined}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Código postal' : 'Code postal'}</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.codePostal} onChange={e => setForm({...form, codePostal: e.target.value})} placeholder="13001" maxLength={10} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.codePostal} onChange={e => setForm({...form, codePostal: e.target.value})} placeholder={isPt ? '4000-123' : '13001'} maxLength={10} />
                 </div>
                 <div className={isV5 ? 'v5-fg' : undefined}>
                   <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{isPt ? 'Cidade *' : 'Ville *'}</label>
-                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.ville} onChange={e => setForm({...form, ville: e.target.value})} placeholder={isPt ? 'Porto, Marseille...' : 'Marseille, Lyon...'} />
+                  <input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.ville} onChange={e => setForm({...form, ville: e.target.value})} placeholder={isPt ? 'Porto, Lisboa...' : 'Marseille, Lyon...'} />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

@@ -55,6 +55,9 @@ const STATUS_BADGE: Record<string, string> = {
   'Annulé': 'v5-badge v5-badge-red',
 }
 
+/** Statut enregistré (en français) d'une obra, affiché en portugais. */
+const STATUT_PT: Record<string, string> = { 'En cours': 'Em curso', 'Terminé': 'Concluída', 'En attente': 'Pendente', 'Annulé': 'Anulada' }
+
 export default function PortailClientSection({ userId, artisanId, orgRole }: { userId: string; artisanId: string; orgRole?: string }) {
   const locale = useLocale()
   const isPt = locale === 'pt'
@@ -166,7 +169,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
           <div className="v5-kpi-s">{isPt ? `de ${clients.length} clientes` : `sur ${clients.length} clients`}</div>
         </div>
         <div className="v5-kpi">
-          <div className="v5-kpi-l">{isPt ? 'Clientes ligados a uma obra' : 'Clients liés à un chantier'}</div>
+          <div className="v5-kpi-l">{isPt ? 'Clientes associados a uma obra' : 'Clients liés à un chantier'}</div>
           <div className="v5-kpi-v">{clients.length}</div>
           <div className="v5-kpi-s">{chantiersEnCours} {isPt ? 'obra(s) em curso' : 'chantier(s) en cours'}</div>
         </div>
@@ -183,12 +186,12 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
           <div className="v5-st">{isPt ? 'O que o cliente vê' : 'Ce que le client voit'}</div>
           <div style={{ fontSize: 11, color: '#666', lineHeight: 1.8 }}>
             {isPt ? <>
-              📊 <strong>Progresso</strong> — Barra de avanço por lote, % global, próximas etapas<br/>
-              📸 <strong>Fotos</strong> — Galeria de fotos da obra, filtradas por fase<br/>
-              📈 <strong>Situações de obra</strong> — Consulta e validação online com assinatura eletrónica<br/>
-              📄 <strong>Documentos</strong> — Atas, relatórios, plantas partilhadas pela empresa<br/>
-              💬 <strong>Mensagens</strong> — Canal de discussão dedicado à obra<br/>
-              🌤️ <strong>Meteorologia</strong> — Previsões e impacto no planeamento (só leitura)
+              📊 <strong>Progresso</strong>: barra de avanço por lote, % global, próximas etapas<br/>
+              📸 <strong>Fotos</strong>: galeria de fotos da obra, filtradas por fase<br/>
+              📈 <strong>Autos de medição</strong>: consulta e validação online com assinatura eletrónica<br/>
+              📄 <strong>Documentos</strong>: atas, relatórios, plantas partilhadas pela empresa<br/>
+              💬 <strong>Mensagens</strong>: canal de conversa dedicado à obra<br/>
+              🌤️ <strong>Meteorologia</strong>: previsões e impacto no planeamento (só leitura)
             </> : <>
               📊 <strong>Avancement</strong> — Barre de progression par lot, % global, prochaines etapes<br/>
               📸 <strong>Photos</strong> — Galerie de photos du chantier, filtrees par phase<br/>
@@ -207,7 +210,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
               <strong>2.</strong> Escolha os módulos visíveis pelo cliente<br/>
               <strong>3.</strong> O cliente recebe um e-mail automático com o seu link de acesso<br/>
               <strong>4.</strong> Sem palavra-passe: acesso por link seguro + código SMS<br/>
-              <strong>5.</strong> O cliente consulta em modo de leitura (exceto validação de situações)<br/>
+              <strong>5.</strong> O cliente consulta em modo de leitura (exceto a validação dos autos de medição)<br/>
               <strong>6.</strong> Vê quem consultou o quê e quando
             </> : <>
               <strong>1.</strong> Activez le portail pour un client (toggle ci-dessous)<br/>
@@ -308,7 +311,7 @@ export default function PortailClientSection({ userId, artisanId, orgRole }: { u
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                           <span style={{ fontWeight: 600, fontSize: 12 }}>{ch.titre}</span>
-                          <span className={STATUS_BADGE[ch.statut] || 'v5-badge v5-badge-gray'} style={{ fontSize: 10 }}>{ch.statut}</span>
+                          <span className={STATUS_BADGE[ch.statut] || 'v5-badge v5-badge-gray'} style={{ fontSize: 10 }}>{isPt ? STATUT_PT[ch.statut] ?? ch.statut : ch.statut}</span>
                         </div>
                         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#888', flexWrap: 'wrap' }}>
                           <span><MapPin size={10} style={{ verticalAlign: '-1px' }} /> {ch.adresse}</span>

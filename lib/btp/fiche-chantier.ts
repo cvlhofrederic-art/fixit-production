@@ -93,7 +93,7 @@ export function questionGarderPosition(titre: string, isPt: boolean): string {
 export function questionRetirerPosition(titre: string, isPt: boolean): string {
   if (isPt) {
     return `Retirar a posição GPS da obra « ${titre} » (a obra mudou de sítio)?\n\n`
-      + 'OK: retirá-la e guardar; volte a calculá-la com o botão GPS da ficha, ou na obra com « Colocar na minha posição atual » (ecrã Marcação de horas, separador Atribuições).\n'
+      + 'OK: retirá-la e guardar; volte a calculá-la com o botão GPS da ficha, ou na obra com « Colocar na minha posição atual » (ecrã Registo de horas, separador Atribuições).\n'
       + 'Outro botão: voltar à ficha sem guardar nada.'
   }
   return `Retirer la position GPS du chantier « ${titre} » (le chantier a changé d’endroit) ?\n\n`

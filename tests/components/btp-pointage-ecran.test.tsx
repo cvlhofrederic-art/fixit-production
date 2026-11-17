@@ -233,7 +233,7 @@ describe('employé', () => {
     etat.locale = 'pt'
     render(<PointageGeoSection artisan={artisan} orgRole="pro_societe" />)
     expect(await screen.findByText(/o que é registado/)).toBeTruthy()
-    expect(screen.getByText(/Não ativada pela sua entidade empregadora/)).toBeTruthy()
+    expect(screen.getByText(/O registo automático não foi ativado pela sua entidade empregadora/)).toBeTruthy()
   })
 })
 

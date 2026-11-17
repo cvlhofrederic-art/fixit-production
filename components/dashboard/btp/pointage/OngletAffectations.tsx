@@ -87,8 +87,8 @@ function InterrupteurPointageAuto({ actif, disponible, isPt, envoyer, onModifie 
         toast.error(messageErreurPointage(resultat.code, isPt))
         return
       }
-      const active = isPt ? 'Marcação automática ativada' : 'Pointage automatique activé'
-      const coupee = isPt ? 'Marcação automática desativada' : 'Pointage automatique désactivé'
+      const active = isPt ? 'Registo automático ativado' : 'Pointage automatique activé'
+      const coupee = isPt ? 'Registo automático desativado' : 'Pointage automatique désactivé'
       toast.success(valeur ? active : coupee)
       setConfirme(false)
       await onModifie()
@@ -103,10 +103,10 @@ function InterrupteurPointageAuto({ actif, disponible, isPt, envoyer, onModifie 
   } else if (actif) {
     contenu = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span className="v5-badge v5-badge-green">{isPt ? 'Ativada' : 'Activé'}</span>
+        <span className="v5-badge v5-badge-green">{isPt ? 'Ativado' : 'Activé'}</span>
         <span style={{ fontSize: 13, flex: 1, minWidth: 200 }}>
           {isPt
-            ? 'Cada colaborador pode ativá-la no seu telemóvel, no separador Marcar.'
+            ? 'Cada colaborador pode ativá-lo no seu telemóvel, no separador Registar ponto.'
             : 'Chaque employé peut l’activer sur son téléphone, dans l’onglet Pointer.'}
         </span>
         <button type="button" className="v5-btn" disabled={occupe} onClick={() => { void basculer(false) }}>
@@ -136,7 +136,7 @@ function InterrupteurPointageAuto({ actif, disponible, isPt, envoyer, onModifie 
 
   return (
     <div className="v5-card">
-      <div className="v5-st">{isPt ? 'Marcação automática (GPS)' : 'Pointage automatique (GPS)'}</div>
+      <div className="v5-st">{isPt ? 'Registo automático (GPS)' : 'Pointage automatique (GPS)'}</div>
       {contenu}
     </div>
   )
@@ -304,7 +304,7 @@ export function OngletAffectations({
       <p role="status" className="sr-only">{mesureEnCours ? annonceMesure(titreChantier(mesureEnCours), isPt) : ''}</p>
       <div className="v5-al info">
         {isPt
-          ? 'Cada colaborador marca a partir do seu telemóvel, ligado com a sua própria conta (Contas de utilizadores), com o mesmo e-mail da sua ficha em Equipas. Depois de iniciar sessão, abre « Marcação de horas » no menu, ou esta ligação: '
+          ? 'Cada colaborador regista o ponto a partir do seu telemóvel, ligado com a sua própria conta (Contas de utilizadores), com o mesmo e-mail da sua ficha em Equipas. Depois de iniciar sessão, abre « Registo de horas » no menu, ou esta ligação: '
           : 'Chaque employé pointe depuis son téléphone, connecté avec son propre compte (Comptes utilisateurs), avec la même adresse e-mail que sur sa fiche Équipes. Une fois connecté, il ouvre « Pointage équipes » dans le menu, ou ce lien : '}
         <strong style={{ wordBreak: 'break-all' }}>{lienEmployes}</strong>
       </div>
@@ -340,7 +340,7 @@ export function OngletAffectations({
                     href={lienCarte(c.latitude as number, c.longitude as number)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`${isPt ? 'Ver no mapa' : 'Voir sur la carte'} — ${c.titre}`}
+                    aria-label={isPt ? `Ver no mapa (${c.titre})` : `Voir sur la carte — ${c.titre}`}
                   >
                     {isPt ? 'Ver no mapa' : 'Voir sur la carte'}
                   </a>
@@ -353,7 +353,9 @@ export function OngletAffectations({
                   className="v5-btn v5-btn-sm"
                   disabled={occupe === c.id || mesureEnCours !== null}
                   aria-busy={mesureEnCours === c.id}
-                  aria-label={`${libelleBoutonPlacer(mesureEnCours === c.id, isPt)} — ${c.titre}`}
+                  aria-label={isPt
+                    ? `${libelleBoutonPlacer(mesureEnCours === c.id, true)} (${c.titre})`
+                    : `${libelleBoutonPlacer(mesureEnCours === c.id, false)} — ${c.titre}`}
                   onClick={() => { void placerIci(c) }}
                 >
                   {libelleBoutonPlacer(mesureEnCours === c.id, isPt)}
@@ -373,12 +375,12 @@ export function OngletAffectations({
             {positionValide ? (
               <p style={{ fontSize: 12, color: GRIS, margin: '8px 0 0' }}>
                 {isPt
-                  ? 'Verifique no mapa que a posição é a da obra (e não o centro da localidade) antes de ativar a marcação automática.'
+                  ? 'Verifique no mapa que a posição é a da obra (e não o centro da localidade) antes de ativar o registo automático.'
                   : 'Vérifiez sur la carte que la position est celle du chantier (et non le centre de la commune) avant d’activer le pointage automatique.'}
               </p>
             ) : (
               <div className="v5-al warn" style={{ marginTop: 8 }}>
-                {isPt ? 'Sem posição GPS, a marcação automática não pode iniciar nesta obra.' : 'Sans position GPS, le pointage automatique ne peut pas démarrer sur ce chantier.'}
+                {isPt ? 'Sem posição GPS, o registo automático não pode iniciar nesta obra.' : 'Sans position GPS, le pointage automatique ne peut pas démarrer sur ce chantier.'}
               </div>
             )}
 

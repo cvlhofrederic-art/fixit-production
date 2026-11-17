@@ -67,12 +67,12 @@ const REFUS_QUI_CHANGENT_LE_CONTEXTE = new Set([
 
 function texteStatut(statut: StatutGps, isPt: boolean): string {
   const textes: Record<StatutGps, [string, string]> = {
-    arrete: ['Désactivé', 'Desativada'],
+    arrete: ['Désactivé', 'Desativado'],
     recherche: ['Recherche de votre position…', 'À procura da sua posição…'],
-    actif: ['Actif : le pointage démarre dès votre arrivée dans le rayon d’un de vos chantiers.', 'Ativa: a marcação começa quando chegar ao raio de uma das suas obras.'],
-    refuse: ['Localisation refusée : autorisez-la pour vitfix.io dans les réglages du navigateur, ou pointez à la main.', 'Localização recusada: autorize-a para vitfix.io nas definições do navegador, ou marque manualmente.'],
+    actif: ['Actif : le pointage démarre dès votre arrivée dans le rayon d’un de vos chantiers.', 'Ativo: o registo começa quando chegar ao raio de uma das suas obras.'],
+    refuse: ['Localisation refusée : autorisez-la pour vitfix.io dans les réglages du navigateur, ou pointez à la main.', 'Localização recusada: autorize-a para vitfix.io nas definições do navegador, ou registe o ponto manualmente.'],
     indisponible: ['Position introuvable pour le moment : nouvel essai automatique.', 'Posição indisponível de momento: nova tentativa automática.'],
-    non_supporte: ['Ce navigateur ne permet pas la localisation : pointez à la main.', 'Este navegador não permite a localização: marque manualmente.'],
+    non_supporte: ['Ce navigateur ne permet pas la localisation : pointez à la main.', 'Este navegador não permite a localização: registe o ponto manualmente.'],
   }
   return isPt ? textes[statut][1] : textes[statut][0]
 }
@@ -80,7 +80,7 @@ function texteStatut(statut: StatutGps, isPt: boolean): string {
 /** Cellule « Départ » d'un pointage : heure, « En cours » (aujourd'hui) ou « Départ non pointé » (jour précédent). */
 function celluleDepart(p: PointageEcran, jour: string, isPt: boolean) {
   if (p.heureDepart) return hhmm(p.heureDepart)
-  if (p.date < jour) return <span className="v5-badge v5-badge-orange">{isPt ? 'Saída não marcada' : 'Départ non pointé'}</span>
+  if (p.date < jour) return <span className="v5-badge v5-badge-orange">{isPt ? 'Saída não registada' : 'Départ non pointé'}</span>
   return <span className="v5-badge v5-badge-green">{isPt ? 'Em curso' : 'En cours'}</span>
 }
 
@@ -170,7 +170,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
   if (contexte.rattachement !== 'relie') {
     return (
       <div className="v5-card">
-        <div className="v5-st">{isPt ? 'Marcar as minhas horas' : 'Pointer mes heures'}</div>
+        <div className="v5-st">{isPt ? 'Registar as minhas horas' : 'Pointer mes heures'}</div>
         <div className="v5-al warn">{messageNonRelie(contexte.rattachement, contexte.gerant, isPt)}</div>
       </div>
     )
@@ -184,7 +184,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
   const resteDepart = auto.etat.horsZoneDepuis === null ? 0 : Math.ceil((CONFIRMATION_DEPART_MS - (maintenant - auto.etat.horsZoneDepuis)) / 1000)
 
   const attenteManuel = isPt
-    ? 'Marcação manual em curso: a marcação automática retoma depois de a terminar.'
+    ? 'Registo manual em curso: o registo automático retoma depois de o terminar.'
     : 'Pointage à la main en cours : le pointage automatique reprendra quand vous l’aurez terminé.'
   const jour = aujourdhui(maintenant)
   const debutSemaine = lundi(maintenant)
@@ -202,10 +202,10 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
 
       {contexte.pointagesOublies.length > 0 && (
         <div className="v5-al warn">
-          {isPt ? 'Saída não marcada em ' : 'Départ non pointé le '}
+          {isPt ? 'Saída não registada em ' : 'Départ non pointé le '}
           {contexte.pointagesOublies.map(p => `${dateCourte(p.date, isPt)} (${p.chantierNom || '—'})`).join(', ')}
           {isPt
-            ? ': estas marcações serão fechadas sem horas e o seu responsável regulariza-as.'
+            ? ': estes registos serão fechados sem horas e o seu responsável regulariza-os.'
             : ' : ces pointages seront refermés sans heures et votre responsable les régularisera.'}
         </div>
       )}
@@ -217,7 +217,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
             <span aria-hidden="true" style={{ width: 12, height: 12, borderRadius: '50%', background: '#4CAF50', boxShadow: '0 0 0 4px rgba(76,175,80,.2)' }} />
             <div style={{ flex: 1, minWidth: 180 }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#2E7D32' }}>
-                {isPt ? 'Marcação em curso' : 'Pointage en cours'}
+                {isPt ? 'Registo em curso' : 'Pointage en cours'}
               </div>
               <div style={{ fontWeight: 600, fontSize: 15 }}>{enCours.chantierNom || '—'}</div>
               <div style={{ fontSize: 12, color: GRIS }}>
@@ -231,18 +231,18 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
               disabled={actionManuelle}
               onClick={terminer}
             >
-              {isPt ? 'Terminar a marcação' : 'Terminer le pointage'}
+              {isPt ? 'Terminar o registo' : 'Terminer le pointage'}
             </button>
           </div>
         ) : (
-          <div style={{ fontSize: 13, color: GRIS }}>{isPt ? 'Nenhuma marcação em curso.' : 'Aucun pointage en cours.'}</div>
+          <div style={{ fontSize: 13, color: GRIS }}>{isPt ? 'Nenhum registo em curso.' : 'Aucun pointage en cours.'}</div>
         )}
       </div>
 
       {/* ── Pointage automatique ── */}
       <div className="v5-card">
         <div className="v5-st" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Satellite size={14} aria-hidden="true" /> {isPt ? 'Marcação automática' : 'Pointage automatique'}
+          <Satellite size={14} aria-hidden="true" /> {isPt ? 'Registo automático' : 'Pointage automatique'}
         </div>
         {contexte.pointageAutoActive ? (
           <>
@@ -250,7 +250,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
             {candidat && resteArrivee > 0 && (
               <div className="v5-al info" style={{ marginBottom: 10 }}>
                 {isPt
-                  ? `Chegada detetada em ${candidat.titre}: marcação dentro de ${resteArrivee} s.`
+                  ? `Chegada detetada em ${candidat.titre}: registo dentro de ${resteArrivee} s.`
                   : `Arrivée détectée sur ${candidat.titre} : pointage dans ${resteArrivee} s.`}
               </div>
             )}
@@ -267,7 +267,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
             {!enCours && chantierBloque && (
               <div className="v5-al info" style={{ marginBottom: 10 }}>
                 {isPt
-                  ? `Marcação terminada em ${chantierBloque.titre}: a chegada automática só volta a funcionar nesta obra depois de sair da zona. Para retomar já, marque manualmente.`
+                  ? `Registo terminado em ${chantierBloque.titre}: a chegada automática só volta a funcionar nesta obra depois de sair da zona. Para retomar já, registe o ponto manualmente.`
                   : `Pointage terminé sur ${chantierBloque.titre} : l’arrivée automatique n’y reprendra qu’après votre sortie de la zone. Pour reprendre tout de suite, pointez à la main.`}
               </div>
             )}
@@ -275,7 +275,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               {autoActif ? (
                 <button type="button" className="v5-btn v5-btn-s" onClick={auto.arreter}>
-                  {isPt ? 'Parar a marcação automática' : 'Arrêter le pointage automatique'}
+                  {isPt ? 'Parar o registo automático' : 'Arrêter le pointage automatique'}
                 </button>
               ) : (
                 <button
@@ -284,7 +284,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
                   onClick={auto.demarrer}
                   disabled={chantiersPointables.length === 0 || pointageManuelEnCours}
                 >
-                  {isPt ? 'Ativar a marcação automática' : 'Activer le pointage automatique'}
+                  {isPt ? 'Ativar o registo automático' : 'Activer le pointage automatique'}
                 </button>
               )}
               {auto.envoiEnCours && <span style={{ fontSize: 12, color: GRIS }}>{isPt ? 'A registar…' : 'Enregistrement…'}</span>}
@@ -308,7 +308,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
         {contexte.chantiers.length === 0 ? (
           <p style={{ fontSize: 13, color: GRIS, margin: 0 }}>
             {isPt
-              ? 'Nenhuma obra em curso lhe está atribuída. O seu responsável atribui-as em Marcação de horas › Atribuições.'
+              ? 'Nenhuma obra em curso lhe está atribuída. O seu responsável atribui-as em Registo de horas › Atribuições.'
               : 'Aucun chantier en cours ne vous est affecté. Votre responsable vous affecte depuis Pointage › Affectations.'}
           </p>
         ) : (
@@ -318,7 +318,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
               const distance = pointable && auto.lecture ? distanceAuChantierM(auto.lecture, pointable) : null
               const surPlace = distance !== null && distance <= chantier.rayonM
               const actif = enCours?.chantierId === chantier.id
-              const sansGps = isPt ? 'sem posição GPS: marcação manual' : 'sans position GPS : pointage à la main'
+              const sansGps = isPt ? 'sem posição GPS: registo manual' : 'sans position GPS : pointage à la main'
               const detail = pointable ? `${isPt ? 'raio' : 'rayon'} ${chantier.rayonM} m` : sansGps
               const libelle = libelleBoutonChantier(actif, isPt)
               return (
@@ -337,7 +337,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
                     type="button"
                     className="v5-btn v5-btn-sm"
                     disabled={actif || actionManuelle}
-                    aria-label={`${libelle} — ${chantier.titre}`}
+                    aria-label={isPt ? `${libelle} (${chantier.titre})` : `${libelle} — ${chantier.titre}`}
                     onClick={() => { void manuel({ action: 'arrivee', chantierId: chantier.id, mode: 'manuel' }, isPt ? 'Chegada registada' : 'Arrivée pointée') }}
                   >
                     {libelle}
@@ -351,7 +351,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
 
       {/* ── Mes pointages ── */}
       <div className="v5-card">
-        <div className="v5-st">{isPt ? 'As minhas marcações (31 dias)' : 'Mes pointages (31 jours)'}</div>
+        <div className="v5-st">{isPt ? 'Os meus registos (31 dias)' : 'Mes pointages (31 jours)'}</div>
         <div className="v5-kpi-g" style={{ marginBottom: 10 }}>
           <div className="v5-kpi">
             <div className="v5-kpi-l">{isPt ? 'Hoje' : 'Aujourd’hui'}</div>
@@ -363,7 +363,7 @@ export function OngletPointer({ contexte, isPt, envoyer, recharger }: Props) {
           </div>
         </div>
         {contexte.historique.length === 0 ? (
-          <p style={{ fontSize: 13, color: GRIS, margin: 0 }}>{isPt ? 'Nenhuma marcação.' : 'Aucun pointage.'}</p>
+          <p style={{ fontSize: 13, color: GRIS, margin: 0 }}>{isPt ? 'Nenhum registo.' : 'Aucun pointage.'}</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="v5-dt">

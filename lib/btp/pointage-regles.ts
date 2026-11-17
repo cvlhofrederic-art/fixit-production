@@ -306,7 +306,7 @@ export interface LignePointage {
 
 /** Libellé de la méthode de pointage. */
 export function libelleMode(mode: unknown, isPt: boolean): string {
-  if (mode === 'geo_auto') return isPt ? 'Automática (GPS)' : 'Automatique (GPS)'
+  if (mode === 'geo_auto') return isPt ? 'Automático (GPS)' : 'Automatique (GPS)'
   if (mode === 'geo_confirme') return isPt ? 'No local (GPS)' : 'Sur site (GPS)'
   return isPt ? 'Manual' : 'Manuel'
 }

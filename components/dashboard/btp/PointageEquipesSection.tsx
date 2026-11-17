@@ -77,7 +77,12 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                 <label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.pointage.poste')}</label>
                 <select className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.poste} onChange={e => setForm({...form, poste: e.target.value})}>
                   <option value="">{t('proDash.btp.pointage.selectionner')}</option>
-                  {[{k:'chefChantier'},{k:'macon'},{k:'electricien'},{k:'plombier'},{k:'charpentier'},{k:'peintre'},{k:'manoeuvre'}].map(p => <option key={p.k} value={t(`proDash.btp.pointage.${p.k}`)}>{t(`proDash.btp.pointage.${p.k}`)}</option>)}
+                  {[{k:'chefChantier'},{k:'macon'},{k:'electricien'},{k:'plombier'},{k:'charpentier'},{k:'peintre'},{k:'manoeuvre'}].map(p => {
+                    const libelle = t(`proDash.btp.pointage.${p.k}`)
+                    // Valeur enregistrée : la valeur portugaise d'origine « Chefe de obra » reste la même ; le libellé suit le glossaire.
+                    const valeur = isPt && p.k === 'chefChantier' ? 'Chefe de obra' : libelle
+                    return <option key={p.k} value={valeur}>{libelle}</option>
+                  })}
                 </select>
               </div>
               <div className={isV5 ? 'v5-fg' : undefined}><label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.pointage.chantier')}</label><input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.chantier} onChange={e => setForm({...form, chantier: e.target.value})} /></div>
@@ -88,7 +93,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
               <div className={isV5 ? 'v5-fg' : undefined} style={{ gridColumn: 'span 2' }}><label className={isV5 ? 'v5-fl' : 'v22-form-label'}>{t('proDash.btp.pointage.notes')}</label><input className={isV5 ? 'v5-fi' : 'v22-form-input'} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
             </div>
             <div style={{ marginTop: 12, background: '#FEF5E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#B8860B' }}>
-              <Clock size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.heures')} <strong>{heuresCalculees.toFixed(2)}h</strong>
+              <Clock size={14} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {t('proDash.btp.pointage.heures')} <strong>{heuresCalculees.toFixed(2)}{isPt ? ' h' : 'h'}</strong>
               {horairesInvalides && <span style={{ color: '#e53935', marginLeft: 8, fontSize: 13 }}>{isPt ? 'A hora de saída deve ser posterior à de chegada' : 'Heure de départ doit être après l\'arrivée'}</span>}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
@@ -114,7 +119,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                   {employes.map(e => <option key={e}>{e}</option>)}
                 </select>
               </div>
-              <span className={isV5 ? undefined : 'v22-card-meta'} style={{ paddingBottom: 2, ...(isV5 ? { fontSize: 12, color: 'var(--v5-text-secondary)' } : {}) }}>{filtered.length} {t('proDash.btp.pointage.pointages')} &mdash; <strong>{totalH.toFixed(1)}h</strong></span>
+              <span className={isV5 ? undefined : 'v22-card-meta'} style={{ paddingBottom: 2, ...(isV5 ? { fontSize: 12, color: 'var(--v5-text-secondary)' } : {}) }}>{filtered.length} {t('proDash.btp.pointage.pointages')}{isPt ? ' · ' : ' — '}<strong>{totalH.toFixed(1)}{isPt ? ' h' : 'h'}</strong></span>
             </div>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -143,7 +148,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                       <td>{new Date(p.date).toLocaleDateString(dateLocale, { weekday: 'short', day: '2-digit', month: 'short' })}</td>
                       <td>{p.heureArrivee}</td>
                       <td>{p.heureDepart}</td>
-                      <td style={{ fontWeight: 700, color: 'var(--v5-primary-yellow-dark)' }}>{p.heuresTravaillees}h</td>
+                      <td style={{ fontWeight: 700, color: 'var(--v5-primary-yellow-dark)' }}>{p.heuresTravaillees}{isPt ? ' h' : 'h'}</td>
                       <td><button onClick={() => deleteP(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E53935', fontSize: 14 }}>&times;</button></td>
                     </tr>
                   ))}
@@ -169,7 +174,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                       <td style={{ padding: '8px 12px', color: '#4A5E78' }}>{new Date(p.date).toLocaleDateString(dateLocale, { weekday: 'short', day: '2-digit', month: 'short' })}</td>
                       <td style={{ padding: '8px 12px' }}>{p.heureArrivee}</td>
                       <td style={{ padding: '8px 12px' }}>{p.heureDepart}</td>
-                      <td style={{ padding: '8px 12px', fontWeight: 700, color: tv.primary }}>{p.heuresTravaillees}h</td>
+                      <td style={{ padding: '8px 12px', fontWeight: 700, color: tv.primary }}>{p.heuresTravaillees}{isPt ? ' h' : 'h'}</td>
                       <td style={{ padding: '8px 12px' }}><button onClick={() => deleteP(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#E05A5A', fontSize: 14 }}>&times;</button></td>
                     </tr>
                   ))}
@@ -189,7 +194,7 @@ export function PointageEquipesSection({ userId, orgRole }: { userId: string; or
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0D1B2E' }}>{e.employe}</div>
                 <div style={{ fontSize: 11, color: '#8A9BB0' }}>{e.jours} {t('proDash.btp.pointage.jours')}</div>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: tv.primary }}>{e.heures.toFixed(1)}h</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: tv.primary }}>{e.heures.toFixed(1)}{isPt ? ' h' : 'h'}</div>
             </div>
           ))}
         </div>
