@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         break
       }
       case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription
+        const sub = event.data.object
         const userId = sub.metadata?.userId
         if (userId) {
           // Depuis l'API 2025-03-31.basil, la fin de période est portée par les articles
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         break
       }
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice
+        const invoice = event.data.object
         // Depuis l'API 2025-03-31.basil : parent.subscription_details.subscription (lib/stripe-evenements.ts).
         const subId = idAbonnementDeFacture(invoice)
         if (subId) {
