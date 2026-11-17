@@ -8,8 +8,14 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import type { StatusAnnonce } from '@/lib/marketplace-btp-types'
 
 type Ligne = Record<string, unknown>
+// Statuts de la base (CHECK de marketplace_listings.status, migration 027) : active, paused, vendu, loue, deleted.
+// Typés pour qu'un statut que la base refuse ne puisse plus servir d'exemple.
+type Statut = StatusAnnonce | null
+const NON_PUBLIQUES: Statut[] = ['deleted', 'paused', 'loue', 'vendu', null]
+const LISIBLES_PAR_LE_VENDEUR: Statut[] = ['paused', 'loue', 'vendu']
 
 const VENDEUR = '11111111-1111-4111-8111-111111111111'
 const AUTRE_COMPTE = '22222222-2222-4222-8222-222222222222'
@@ -61,7 +67,7 @@ const lire = async (jeton?: string, id = ANNONCE) => {
   return { status: res.status, json: await res.json() as { listing?: Ligne; error?: string } }
 }
 
-const annonce = (status: string | null): Ligne => ({
+const annonce = (status: Statut): Ligne => ({
   id: ANNONCE, user_id: VENDEUR, title: 'Mini-pelle 1,8 t', status,
   vendeur_nom: 'Entreprise Exemple', vendeur_phone: '0600000000',
 })
@@ -74,7 +80,7 @@ beforeEach(() => {
 })
 
 describe('GET /api/marketplace-btp/[id] — annonces qui ne sont plus publiques', () => {
-  it.each(['deleted', 'suspendu', 'archive', 'vendu', null])('annonce au statut %s : 404 pour un visiteur, ni coordonnées ni vue comptée', async (statut) => {
+  it.each(NON_PUBLIQUES)('annonce au statut %s : 404 pour un visiteur, ni coordonnées ni vue comptée', async (statut) => {
     h.etat.annonce = annonce(statut)
     const res = await lire()
     expect(res.status).toBe(404)
@@ -83,8 +89,8 @@ describe('GET /api/marketplace-btp/[id] — annonces qui ne sont plus publiques'
     expect(h.etat.vues).toBe(0)
   })
 
-  it('annonce suspendue : 404 aussi pour un autre compte connecté', async () => {
-    h.etat.annonce = annonce('suspendu')
+  it('annonce en pause : 404 aussi pour un autre compte connecté', async () => {
+    h.etat.annonce = annonce('paused')
     expect((await lire('jeton-autre')).status).toBe(404)
   })
 
@@ -110,7 +116,7 @@ describe('GET /api/marketplace-btp/[id] — ce qui ne change pas', () => {
     expect(res.json.listing?.marketplace_demandes).toEqual(h.etat.demandes)
   })
 
-  it.each(['suspendu', 'archive', 'vendu'])('annonce au statut %s : toujours lisible par son vendeur', async (statut) => {
+  it.each(LISIBLES_PAR_LE_VENDEUR)('annonce au statut %s : toujours lisible par son vendeur', async (statut) => {
     h.etat.annonce = annonce(statut)
     const res = await lire('jeton-vendeur')
     expect(res.status).toBe(200)

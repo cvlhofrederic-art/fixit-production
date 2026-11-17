@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     // Même règle que la liste (GET /api/marketplace-btp) : le public ne voit que les annonces actives ;
-    // le vendeur voit aussi les siennes (vendue, suspendue, archivée), jamais une annonce supprimée.
+    // le vendeur voit aussi les siennes (en pause, vendue, louée), jamais une annonce supprimée.
     const estVendeur = !!userId && data.user_id === userId
     if (data.status === 'deleted' || (data.status !== 'active' && !estVendeur)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
