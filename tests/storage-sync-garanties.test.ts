@@ -79,6 +79,8 @@ const serveur = {
   corpsGet: null as unknown,
   /** Permet à un test de retenir une réponse. */
   avantReponse: null as null | ((appel: Appel) => Promise<void> | void),
+  /** Nombre d'envois (POST) enregistrés dont la réponse se perd ensuite (coupure juste après l'envoi). */
+  reponsesPerdues: 0,
   espace(compte: string | null): Record<string, unknown> {
     const cle = compte ?? 'inconnu'
     if (!this.espaces.has(cle)) this.espaces.set(cle, {})
@@ -111,6 +113,10 @@ const fauxFetch = vi.fn(async (_url: unknown, init?: RequestInit) => {
     const refus = corps.entries!.map(e => serveur.refusees.get(e.key)).find(s => s !== undefined)
     if (refus !== undefined) return reponse({ error: 'Données invalides' }, refus)
     for (const e of corps.entries!) espace[e.key] = commeLaBase(e.value)
+    if (serveur.reponsesPerdues > 0) {
+      serveur.reponsesPerdues--
+      throw new TypeError('Failed to fetch')
+    }
     return reponse({ success: true })
   }
   for (const cle of corps.keys!) delete espace[cle]
@@ -178,6 +184,7 @@ beforeEach(() => {
   serveur.fiches.clear()
   serveur.corpsGet = null
   serveur.avantReponse = null
+  serveur.reponsesPerdues = 0
   fauxFetch.mockClear()
   ;(globalThis as unknown as { fetch: typeof fetch }).fetch = fauxFetch as unknown as typeof fetch
   rappelAuth = null
@@ -883,6 +890,65 @@ describe('garantie 2 — une saisie pas encore envoyée n’est pas effacée par
     await sync.hydrateStorageFromServer()
     await ecoulerDebounce()
     expect(serveur.de('POST')).toEqual([])
+  })
+})
+
+// Relecture adverse du 17/11/2026 (sixième passe, scénario P1) : un envoi arrive au serveur mais sa réponse se perd
+// (coupure juste après l'envoi, passage du wifi au réseau mobile, appli mise en arrière-plan) ; fetch échoue comme sans
+// réseau. La relecture du nouvel essai trouvait alors au serveur la valeur envoyée par cet onglet, la prenait pour une
+// écriture faite ailleurs et abandonnait la saisie faite depuis ; le navigateur reprenait l'ancienne valeur.
+describe('garantie 2 — réponse perdue : l’envoi est arrivé, cet onglet ne le sait pas', () => {
+  const CLIENTS = 'fixit_clients_a'
+
+  it.each([
+    ['une nouvelle valeur', [{ id: 1 }, { id: 2 }, { id: 3 }]],
+    ['un retour à la valeur d’avant', [{ id: 1 }]],
+  ] as const)('l’utilisateur saisit ensuite %s : au nouvel essai, elle part et reste à l’écran', async (_nom, derniere) => {
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.reponsesPerdues = 1
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    await ecoulerDebounce() // l'envoi est enregistré, sa réponse se perd
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 2 }])
+
+    window.localStorage.setItem(CLIENTS, JSON.stringify(derniere))
+    await nouvelEssai()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual(derniere)
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual(derniere)
+    await sync.hydrateStorageFromServer()
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual(derniere)
+  })
+
+  it('liste de clients que la base range dans un autre ordre (le nom avant l’identifiant) : la saisie suivante part aussi', async () => {
+    const client = (id: number) => ({ nom: `Client ${id}`, id })
+    serveur.espace(COMPTE_A)[CLIENTS] = [client(1)]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.reponsesPerdues = 1
+    window.localStorage.setItem(CLIENTS, JSON.stringify([client(1), client(2)]))
+    await ecoulerDebounce() // l'envoi est enregistré, sa réponse se perd
+    expect(JSON.stringify(serveur.espace(COMPTE_A)[CLIENTS])).not.toBe(JSON.stringify([client(1), client(2)]))
+
+    window.localStorage.setItem(CLIENTS, JSON.stringify([client(1), client(2), client(3)]))
+    await nouvelEssai()
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([client(1), client(2), client(3)])
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([client(1), client(2), client(3)])
+  })
+
+  it('un autre appareil écrit après la saisie perdue : il gagne, comme avant', async () => {
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }]
+    const sync = await ouvrirLaPage()
+    await sync.hydrateStorageFromServer()
+    serveur.reponsesPerdues = 1
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }]))
+    await ecoulerDebounce()
+    window.localStorage.setItem(CLIENTS, JSON.stringify([{ id: 1 }, { id: 2 }, { id: 3 }]))
+    serveur.espace(COMPTE_A)[CLIENTS] = [{ id: 1 }, { id: 9 }]
+    await nouvelEssai()
+
+    expect(serveur.espace(COMPTE_A)[CLIENTS]).toEqual([{ id: 1 }, { id: 9 }])
+    expect(JSON.parse(lire(CLIENTS)!)).toEqual([{ id: 1 }, { id: 9 }])
   })
 })
 

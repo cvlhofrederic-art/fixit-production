@@ -18,6 +18,15 @@
 // vidée hors de l'application faisait partir une suppression, et après un rechargement, n'importe quelle valeur du
 // navigateur repartait. Seule la modification écrite par l'onglet, ou notée par lui dans l'état, repart désormais ; une
 // valeur inconnue est laissée en place une fois, sans repartir d'ici. Les scénarios viennent du banc du relecteur.
+//
+// Relecture adverse du 17/11/2026 (sixième passe) : une saisie en attente de son nouvel essai repartait dès que le
+// navigateur détenait le texte du serveur, tenu pour l'œuvre d'une restauration. Or l'utilisateur peut l'y avoir remis
+// lui-même, dans un autre onglet (réglage remis, client ajouté puis retiré) : son retour en arrière était défait quelques
+// secondes plus tard, au serveur et dans le navigateur, y compris par un onglet qui avait seulement pris la saisie en
+// charge. À l'inverse, une saisie en attente que la restauration lente d'un autre onglet avait remplacée par une valeur
+// plus ancienne était abandonnée, comme une suppression en attente que la restauration d'un autre onglet avait annulée.
+// La restauration marque désormais les valeurs qu'elle remplace : seule une saisie ainsi remplacée repart, et toute
+// écriture faite ensuite dans un onglet efface la marque.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -118,6 +127,7 @@ async function restaurationRetardee(onglet: ModuleSync): Promise<() => Promise<v
 
 /** setItem d'origine, saisi avant que le miroir ne remplace celui de Storage.prototype. */
 const setItemDOrigine = Storage.prototype.setItem
+const removeItemDOrigine = Storage.prototype.removeItem
 const onglets: ModuleSync[] = []
 const originalFetch = globalThis.fetch
 
@@ -140,6 +150,20 @@ function saisirDans(onglet: ModuleSync, cle: string, valeur: unknown): void {
   const avant = window.localStorage.getItem(cle)
   setItemDOrigine.call(window.localStorage, cle, texte)
   onglet.enregistrerEcritureMiroir(cle, texte, avant)
+}
+
+/** Réglage écrit tel quel, comme fixit_pro_team_role : le texte du navigateur est celui que rend le serveur. */
+function saisirTexteDans(onglet: ModuleSync, cle: string, texte: string): void {
+  const avant = window.localStorage.getItem(cle)
+  setItemDOrigine.call(window.localStorage, cle, texte)
+  onglet.enregistrerEcritureMiroir(cle, texte, avant)
+}
+
+/** Suppression faite dans un onglet, par le cœur du miroir de cet onglet (voir saisirDans). */
+function supprimerDans(onglet: ModuleSync, cle: string): void {
+  const avant = window.localStorage.getItem(cle)
+  removeItemDOrigine.call(window.localStorage, cle)
+  onglet.enregistrerSuppressionMiroir(cle, avant)
 }
 
 const lire = (cle: string): unknown => JSON.parse(window.localStorage.getItem(cle) ?? 'null')
@@ -705,5 +729,235 @@ describe('saisie remise en attente après un envoi en échec, puis remplacée pa
     await relireDansLesDeuxOnglets(A, B)
     expect(serveur.espace[NOTE]).toBe('version 2')
     expect(window.localStorage.getItem(NOTE)).toBe('version 2')
+  })
+})
+
+// Relecture adverse du 17/11/2026 (sixième passe), scénarios N2P, T3cP et R3P du banc du relecteur : le navigateur
+// détient le texte du serveur à la place de la saisie en attente de A. Une restauration l'y a remis (la saisie doit
+// repartir), ou l'utilisateur lui-même, dans un autre onglet (son choix doit l'emporter) : seule la marque laissée par la
+// restauration les distingue. Réglage écrit tel quel : le texte du navigateur est celui que rend le serveur.
+describe('saisie en attente remplacée par le texte du serveur : seule une restauration la fait repartir', () => {
+  const REGLAGE = 'fixit_reglage_a'
+
+  /** Le réglage vaut « non » ; dans A, l'utilisateur le met à « oui », l'envoi échoue : la saisie attend son nouvel essai. */
+  async function reglageEnAttente(): Promise<{ A: ModuleSync; B: ModuleSync }> {
+    serveur.espace[REGLAGE] = 'non'
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirTexteDans(A, REGLAGE, 'oui')
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau')
+    serveur.retenir = false
+    return { A, B }
+  }
+
+  it('B relit le serveur (retour sur l’onglet) : au nouvel essai, la saisie de A est remise et part', async () => {
+    const { A, B } = await reglageEnAttente()
+    await B.hydrateStorageFromServer()
+    expect(window.localStorage.getItem(REGLAGE)).toBe('non')
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[REGLAGE]).toBe('oui')
+    expect(window.localStorage.getItem(REGLAGE)).toBe('oui')
+  })
+
+  it('dans B, l’utilisateur remet « non » (rien ne part de B, qui avait déjà cette valeur) : son choix l’emporte', async () => {
+    const { A, B } = await reglageEnAttente()
+    saisirTexteDans(B, REGLAGE, 'non')
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : au nouvel essai, A remettait « oui » dans le navigateur et le renvoyait.
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    expect(window.localStorage.getItem(REGLAGE)).toBe('non')
+  })
+
+  it('dans B, l’utilisateur passe par « peut-être » puis revient à « non » (envois arrivés) : son retour l’emporte', async () => {
+    const { A, B } = await reglageEnAttente()
+    saisirTexteDans(B, REGLAGE, 'peut-etre')
+    await ecoulerDebounce()
+    saisirTexteDans(B, REGLAGE, 'non')
+    await ecoulerDebounce()
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    expect(window.localStorage.getItem(REGLAGE)).toBe('non')
+  })
+
+  it('B relit, puis l’utilisateur choisit dans B « non », la valeur déjà en place : son choix l’emporte', async () => {
+    const { A, B } = await reglageEnAttente()
+    await B.hydrateStorageFromServer() // la restauration de B remplace « oui » par « non » et le marque
+    saisirTexteDans(B, REGLAGE, 'non') // B affichait encore « oui » : l'utilisateur choisit « non »
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    expect(window.localStorage.getItem(REGLAGE)).toBe('non')
+  })
+
+  it('B relit, puis un onglet resté sur la version précédente du site écrit une autre valeur, encore en route : elle reste en place', async () => {
+    const { A, B } = await reglageEnAttente()
+    await B.hydrateStorageFromServer()
+    // Un onglet chargé avant cette version écrit sans laisser ni effacer de marque ; son envoi n'est pas encore arrivé.
+    setItemDOrigine.call(window.localStorage, REGLAGE, 'peut-etre')
+    await nouvelEssai()
+
+    expect(window.localStorage.getItem(REGLAGE)).toBe('peut-etre')
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    serveur.espace[REGLAGE] = 'peut-etre' // son envoi arrive
+    await relireDansLesDeuxOnglets(A, B)
+    expect(serveur.espace[REGLAGE]).toBe('peut-etre')
+    expect(window.localStorage.getItem(REGLAGE)).toBe('peut-etre')
+  })
+})
+
+// Sixième passe, scénarios N1P et N1R : B reprend la saisie notée par A (prise en charge), son envoi échoue, puis
+// l'utilisateur revient à la valeur d'avant. Avant, B réécrivait la saisie reprise et la renvoyait environ 5 s plus tard.
+describe('saisie prise en charge par un autre onglet, puis défaite par l’utilisateur', () => {
+  it('réglage : B prend en charge le « oui » noté par A, son envoi échoue, l’utilisateur remet « non » dans A : le retour l’emporte', async () => {
+    const REGLAGE = 'fixit_reglage_a'
+    serveur.espace[REGLAGE] = 'non'
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirTexteDans(A, REGLAGE, 'oui')
+    await ecoulerDebounce() // envoi 0 (A), lent
+    await vi.advanceTimersByTimeAsync(3000) // la note de A entre dans l'état
+    await B.hydrateStorageFromServer() // B trouve la saisie notée de A en place et la prend en charge
+    await ecoulerDebounce() // envoi 1 (B)
+    expect(serveur.retenus).toHaveLength(2)
+    await aboutir(0) // le « oui » de A arrive
+    await aboutir(1, 'reseau') // l'envoi de B échoue
+    serveur.retenir = false
+    saisirTexteDans(A, REGLAGE, 'non') // retour en arrière : il arrive
+    await ecoulerDebounce()
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    await nouvelEssai() // nouvel essai de B
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[REGLAGE]).toBe('non')
+    expect(window.localStorage.getItem(REGLAGE)).toBe('non')
+  })
+
+  it('liste : même cas, puis un troisième onglet relit après le retour en arrière : le retour l’emporte', async () => {
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    const C = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // envoi 0 (A)
+    await vi.advanceTimersByTimeAsync(3000)
+    await B.hydrateStorageFromServer() // B prend en charge la saisie notée de A
+    await ecoulerDebounce() // envoi 1 (B)
+    expect(serveur.retenus).toHaveLength(2)
+    await aboutir(0)
+    await aboutir(1, 'reseau')
+    serveur.retenir = false
+    saisirDans(A, CLIENTS, liste(1)) // client retiré : retour à la liste d'avant, il arrive
+    await ecoulerDebounce()
+    await C.hydrateStorageFromServer() // C remet dans le navigateur le texte du serveur
+    await nouvelEssai() // nouvel essai de B
+    await relireDansLesDeuxOnglets(A, B)
+    await C.hydrateStorageFromServer()
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1))
+    expect(lire(CLIENTS)).toEqual(liste(1))
+  })
+})
+
+// Sixième passe, scénarios L2 et L3 : la restauration lente de B, lue avant une saisie de A arrivée depuis, écrit une
+// valeur plus ancienne à la place de la saisie suivante de A, en attente après un échec. Avant, cette saisie était
+// abandonnée ; seule la marque de la restauration la distingue de la saisie d'un autre onglet encore en route (L3).
+describe('valeur inconnue à la place d’une saisie en attente', () => {
+  it.each([
+    ['continue de travailler dans A', true],
+    ['ne fait rien d’autre', false],
+  ] as const)('la restauration lente de B remet une valeur plus ancienne, l’utilisateur %s : au nouvel essai, la saisie part', async (_suite, continuer) => {
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    const ecrireB = await restaurationRetardee(B) // B lit liste(1), sa réponse est lente
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // arrive
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2, 3))
+    await ecoulerDebounce() // envoi 0
+    await aboutir(0, 'reseau') // échec : la saisie attend son nouvel essai
+    serveur.retenir = false
+    await ecrireB() // B écrit liste(1), plus ancienne que liste(1, 2)
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    if (continuer) {
+      saisirDans(A, 'fixit_autre_a', { a: 1 })
+      await ecoulerDebounce()
+    }
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2, 3))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2, 3))
+  })
+
+  it('la valeur en place est la saisie de B, encore en route : elle reste, sans que A ne renvoie la sienne, et l’emporte', async () => {
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    serveur.retenir = true
+    saisirDans(A, CLIENTS, liste(1, 2))
+    await ecoulerDebounce() // envoi 0 (A)
+    await aboutir(0, 'reseau') // échec : la saisie attend son nouvel essai
+    saisirDans(B, CLIENTS, liste(1, 2, 7))
+    await ecoulerDebounce() // envoi 1 (B), en route
+    await nouvelEssai() // nouvel essai de A, avant l'arrivée de la saisie de B
+    expect(lire(CLIENTS)).toEqual(liste(1, 2, 7))
+    await toutLiberer(1)
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1, 2, 7))
+    expect(lire(CLIENTS)).toEqual(liste(1, 2, 7))
+  })
+})
+
+// Sixième passe, scénario D1 : la reprise couvre aussi une suppression en attente.
+describe('suppression en attente, annulée dans le navigateur', () => {
+  /** Dans A, l'utilisateur supprime la liste ; la suppression échoue et attend son nouvel essai. */
+  async function suppressionEnAttente(): Promise<{ A: ModuleSync; B: ModuleSync }> {
+    const A = await ouvrirUnOnglet()
+    const B = await ouvrirUnOnglet()
+    serveur.retenir = true
+    supprimerDans(A, CLIENTS)
+    await ecoulerDebounce()
+    await aboutir(0, 'reseau')
+    serveur.retenir = false
+    return { A, B }
+  }
+
+  it('par la restauration de B, qui remet la valeur du serveur : au nouvel essai, la suppression part', async () => {
+    const { A, B } = await suppressionEnAttente()
+    await B.hydrateStorageFromServer()
+    expect(lire(CLIENTS)).toEqual(liste(1))
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    // Avant : la suppression était abandonnée et la liste revenait.
+    expect(serveur.espace).not.toHaveProperty(CLIENTS)
+    expect(window.localStorage.getItem(CLIENTS)).toBeNull()
+    // La suppression est faite : les relectures qui suivent (la note de l'état n'est levée que 3 s plus tard) ne la
+    // renvoient pas pour une clé que le serveur n'a plus.
+    expect(fauxFetch.mock.calls.filter(([, init]) => init?.method === 'DELETE')).toHaveLength(2)
+  })
+
+  it('par l’utilisateur, qui recrée la liste dans B : la liste recréée l’emporte', async () => {
+    const { A, B } = await suppressionEnAttente()
+    saisirDans(B, CLIENTS, liste(1))
+    await ecoulerDebounce()
+    await nouvelEssai()
+    await relireDansLesDeuxOnglets(A, B)
+
+    expect(serveur.espace[CLIENTS]).toEqual(liste(1))
+    expect(lire(CLIENTS)).toEqual(liste(1))
   })
 })
