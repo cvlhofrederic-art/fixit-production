@@ -79,8 +79,13 @@ const EQUIPE = 'c3d4e5f6-a7b8-4c9d-8e0f-2a3b4c5d6e7f'
 // équipe ou d'une dépense, et pour un pointage le salarié, le chantier, le mode, les coordonnées et la distance
 // (constats donnees-btp-6 et donnees-btp-7). Le pointage réunit ici les champs du pointage manuel (heures saisies) et
 // ceux du pointage GPS (mode, coordonnées, distance) : chaque colonne est contrôlée avec une valeur réelle.
+// Le chantier porte aussi `devis_id` et `membres_ids`, comme le formulaire vide de l'écran Chantiers (EMPTY_FORM de
+// ChantiersBTPV2) : aucune colonne ne les reçoit en production au 11/11/2026, et mapToSupabase ne les envoie pas. Si
+// une branche se met à les envoyer (le pointage géolocalisé, PR #703, ajoute chantiers_btp.membres_ids), ce test
+// échoue tant que la liste blanche du serveur ne les connaît pas : sinon chaque enregistrement de chantier serait
+// refusé (relecture adverse du 16/11/2026).
 const FICHES_DES_FORMULAIRES: Record<keyof typeof TABLES_DU_HOOK, Record<string, unknown>> = {
-  chantiers: { titre: 'Rénovation cuisine', client: 'M. Martin', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13001', latitude: 43.3, longitude: 5.4, dateDebut: '2026-11-01', dateFin: '2026-12-01', budget: '12000', statut: 'En cours', description: 'Cuisine complète', equipe: 'Maçons', sousTaches: [{ id: 't1', nom: 'Dépose' }], geoRayonM: 250 },
+  chantiers: { titre: 'Rénovation cuisine', client: 'M. Martin', adresse: '1 rue des Lilas', ville: 'Marseille', codePostal: '13001', latitude: 43.3, longitude: 5.4, dateDebut: '2026-11-01', dateFin: '2026-12-01', budget: '12000', statut: 'En cours', description: 'Cuisine complète', equipe: 'Maçons', sousTaches: [{ id: 't1', nom: 'Dépose' }], geoRayonM: 250, devis_id: null, membres_ids: [] },
   membres: { prenom: 'Paul', nom: 'Durand', telephone: '0600000000', email: 'paul@example.test', typeCompte: 'ouvrier', rolePerso: 'Maçon', equipeId: EQUIPE, coutHoraire: 25, chargesPct: 45, salaire_brut_mensuel: 2100, salaire_net_mensuel: 1650, charges_salariales_pct: 22, charges_patronales_pct: 45, type_contrat: 'cdi', heures_hebdo: 35, panier_repas_jour: 10, indemnite_trajet_jour: 5, prime_mensuelle: 0, actif: true },
   equipes: { nom: 'Maçons', metier: 'Maçonnerie', chantierId: CHANTIER, membreIds: [] },
   pointages: { employe: 'Paul Durand', membreId: MEMBRE, poste: 'ouvrier', chantier: 'Rénovation cuisine', chantierId: CHANTIER, date: '2026-11-15', heureArrivee: '08:00', heureDepart: '17:00', pauseMinutes: 60, heuresTravaillees: 8, notes: '', mode: 'geo_confirme', arriveeLat: 43.29, arriveeLng: 5.37, departLat: 43.3, departLng: 5.38, distanceM: 37 },
@@ -112,6 +117,14 @@ describe('ce que les écrans envoient aujourd’hui passe les contrôles', () =>
 
   it('frais fixes (compta BTP) : ajout d’une charge', () => {
     expect(verifierLigne('charges_fixes', { label: 'Assurance', montant: 100, frequence: 'mensuel', categorie: 'rc_pro' }, 'creation')).toBeNull()
+  })
+
+  it('toute colonne que le hook sait écrire est connue de la liste blanche du serveur', () => {
+    for (const [court, table] of Object.entries(TABLES_DU_HOOK) as Array<[keyof typeof TABLES_DU_HOOK, TableEcrivable]>) {
+      // membreIds (membres d'une équipe) n'est pas une colonne : la route l'écrit dans equipe_membres_btp.
+      const inconnues = Object.keys(SOURCES_DES_COLONNES[court] ?? {}).filter(c => c !== 'membreIds' && !(c in COLONNES_BTP[table]))
+      expect({ table, inconnues }).toEqual({ table, inconnues: [] })
+    }
   })
 })
 
