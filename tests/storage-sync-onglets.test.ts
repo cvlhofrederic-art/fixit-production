@@ -61,11 +61,12 @@
 // est retiré, et une note qui devrait grandir n'est plus réécrite, comme avant la neuvième passe.
 //
 // Contre-relecture du 17/11/2026 (onzième passe) : garder la note d'une suppression encore en route à la confirmation
-// de la saisie plus ancienne (correctif DCF2 des neuvième et dixième passes) en faisait la valeur d'avant de la saisie
-// ou de la suppression suivante de l'onglet. Quand l'onglet neuf réécrivait à son ouverture la liste qu'il avait
-// remise, ou qu'elle était remise ailleurs, avant le nouvel essai, cette nouvelle action cédait au serveur sans jamais
-// partir. Le correctif est retiré et le code du module redevient celui de la huitième passe : la suppression perdue est
-// une limite écrite en tête du module, les deux tests du correctif sont retirés, et un test garde la nouvelle saisie.
+// de la saisie plus ancienne (correctif DCF2 des neuvième et dixième passes) faisait de cette saisie la valeur d'avant
+// de la saisie ou de la suppression suivante de l'onglet. Quand l'ancienne liste était revenue au serveur avant cette
+// nouvelle action (réécrite par l'onglet neuf à son ouverture, ou remise ailleurs), celle-ci cédait au nouvel essai
+// sans partir, ou sans repartir si son premier envoi avait échoué. Le correctif est retiré et le code du module
+// redevient celui de la huitième passe : la suppression perdue est une limite écrite en tête du module, les deux tests
+// du correctif sont retirés, et un test garde la nouvelle saisie.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
@@ -1430,7 +1431,7 @@ describe('saisie qui suit une suppression confirmée avant la saisie plus ancien
 // saisie suivante de A : faite après l'échec de la suppression, celle-ci cédait au serveur sans jamais partir, et la
 // liste d'origine revenait. La suppression, elle, est perdue (limite écrite en tête du module).
 describe('saisie après l’échec d’une suppression, l’onglet neuf ayant réécrit à son ouverture la liste remise', () => {
-  it('la nouvelle saisie part au nouvel essai', async () => {
+  it('la nouvelle saisie part, et le serveur la garde', async () => {
     const A = await ouvrirUnOnglet()
     serveur.retenir = true
     saisirDans(A, CLIENTS, liste(1, 2))
@@ -1443,7 +1444,9 @@ describe('saisie après l’échec d’une suppression, l’onglet neuf ayant r�
     await aboutir(2) // la réécriture de B arrive : le serveur détient de nouveau la liste d'origine
     await aboutir(1, 'reseau') // la suppression échoue
     serveur.retenir = false
-    saisirDans(A, CLIENTS, liste(5)) // l'utilisateur crée une nouvelle liste dans A, avant le nouvel essai
+    // L'utilisateur crée une nouvelle liste dans A après l'échec de la suppression. Perdue, celle-ci ne programme aucun
+    // nouvel essai : la saisie part à son envoi ordinaire (sur 12e2f89b, elle attendait le nouvel essai et y cédait).
+    saisirDans(A, CLIENTS, liste(5))
     await ecoulerDebounce()
     await nouvelEssai()
     await relireDansLesDeuxOnglets(A, B)

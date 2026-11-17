@@ -56,8 +56,9 @@ import { isStorageReadable } from '@/lib/safe-storage'
 //     tant que la valeur plus récente écrite dans cet onglet attend son envoi ou reste en place dans le navigateur
 //     (pour une suppression : tant que la clé en est absente), ni quand un autre onglet l'y a remplacée par une valeur
 //     que cet onglet ne connaît pas ; elle la lève quand la restauration d'un autre onglet y a remis le texte confirmé
-//     ou une valeur que le serveur détenait avant la modification d'ici, d'après ce que cet onglet en sait, même si la
-//     dernière action de cet onglet est une suppression encore en route.
+//     lui-même (au caractère près : la même valeur réécrite dans un autre ordre des champs passe pour inconnue, et la
+//     note est gardée, DCF7) ou une valeur que le serveur détenait avant la modification d'ici, d'après ce que cet
+//     onglet en sait, même si la dernière action de cet onglet est une suppression encore en route.
 //  3. Un envoi en échec (réseau ou réponse d'erreur) est retenté seul : le serveur est relu après 5 s, 15 s, 1 min,
 //     puis toutes les 5 min, et ce qui attend repart. Une valeur que le serveur refuse (400, 413, 422) reste dans le
 //     navigateur et ne bloque pas les autres. Une valeur qu'il ne parvient pas à enregistrer (500 à chaque envoi qui
@@ -107,10 +108,10 @@ import { isStorageReadable } from '@/lib/safe-storage'
 // (garantie 2) ; la suppression, en échec ensuite, n'est pas remise en attente, et la saisie reste au serveur et
 // revient dans le navigateur, où l'on peut la supprimer de nouveau (DCF2 du banc, aussi quand l'onglet neuf est resté
 // sur une version antérieure du site, ou quand la clé est ensuite retirée du navigateur hors de l'application). Avant
-// ce miroir, elle repartait si l'utilisateur continuait dans son onglet. Garder la note (essayé, puis retiré :
-// contre-relecture du 17/11/2026, dixième passe) en faisait la valeur d'avant de l'action suivante de l'onglet sur la
-// clé, jusqu'au nouvel essai : quand le serveur détenait de nouveau la valeur remise par l'onglet neuf (réécrite par
-// lui à son ouverture, ou remise ailleurs), cette saisie ou cette suppression cédait sans partir (DCF5 du banc). Ici,
+// ce miroir, elle repartait si l'utilisateur continuait dans son onglet. Garder la note (essayé à la neuvième passe,
+// retiré à la onzième : contre-relecture du 17/11/2026) faisait de la saisie confirmée la valeur d'avant de l'action
+// suivante de l'onglet sur la clé : quand l'ancienne valeur était revenue au serveur avant cette action (réécrite par
+// l'onglet neuf à son ouverture, ou remise ailleurs), celle-ci cédait au nouvel essai sans repartir (DCF5). Ici,
 // sa valeur d'avant est celle du navigateur juste avant elle, et elle part, même quand cette valeur n'a été remise au
 // serveur, ailleurs, qu'après elle : elle l'y efface (la valeur d'avant ne date rien : DCF5-enVol-apres, DCF5S-apres).
 // Une modification d'ici (saisie ou suppression) qui attend son nouvel essai après un échec, et que la restauration
@@ -971,13 +972,16 @@ function compterUnEchec(key: string): void {
  * restauration d'un autre onglet : voir les limites en tête du module). Ni si cet onglet n'a rien écrit de plus
  * récent : ce qu'un autre onglet a écrit depuis a son propre envoi. Ni, enfin, quand la clé n'a plus de note (levée à
  * une confirmation précédente, ou reprise du serveur) : cet onglet ne sait plus ce que le serveur détenait avant.
+ * La valeur confirmée n'est reconnue qu'au caractère près : la même valeur réécrite dans un autre ordre des champs
+ * passe pour une valeur que cet onglet ne connaît pas, et la note est gardée (DCF7).
  * Une suppression faite ici après la valeur confirmée, partie dans un autre envoi et encore en route, suit la même
  * règle : la note est gardée tant que la clé est absente du navigateur, ou qu'il détient une valeur que cet onglet ne
  * connaît pas ; elle est levée quand la restauration d'un autre onglet y a remis une valeur que le serveur détenait
  * avant, et la suppression, si elle échoue ensuite, est perdue (DCF2, dans les limites en tête du module). Garder la
- * note dans ce cas jusqu'à la réponse de la suppression (essayé, puis retiré : contre-relecture du 17/11/2026, dixième
- * passe) en faisait la valeur d'avant de l'action suivante de l'onglet sur la clé, qui cédait sans partir quand le
- * serveur détenait de nouveau, au nouvel essai, la valeur remise par cette restauration.
+ * note dans ce cas jusqu'à la réponse de la suppression (essayé à la neuvième passe, retiré à la onzième :
+ * contre-relecture du 17/11/2026) faisait de la saisie confirmée la valeur d'avant de l'action suivante de l'onglet sur
+ * la clé : quand la valeur remise par cette restauration était revenue au serveur avant cette action, celle-ci cédait
+ * au nouvel essai sans repartir.
  */
 function noteAGarder(key: string, confirmee: string, base: Base | undefined): boolean {
   if (pendingWrites.has(key) || pendingDeletes.has(key)) return true
